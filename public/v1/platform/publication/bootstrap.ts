@@ -22,6 +22,7 @@ import { registerCollaborationPublication } from "../../collaboration/publicatio
 import { registerFormsPublication } from "../../forms/publication.js";
 import { registerLeadPublication } from "../../leads/publication.js";
 import { registerAssigneePublication } from "../../assignees/publication.js";
+import { registerSchedulePublication } from "../../scheduling/publication.js";
 import { registerCloseoutPublication } from "../../closeout/publication.js";
 import { registerProjectHistoryPublication } from "../../history/publication.js";
 
@@ -46,6 +47,7 @@ export function initializePublication() {
   registerTodoPublication();
   registerDepartmentPublication();
   registerAssigneePublication();
+  registerSchedulePublication();
   registerDatasetActions();
   registerModuleDataProvider();
   registerMaterialsCalculusPublication();

@@ -918,6 +918,9 @@
   }
   async function loadScheduleData({ force = false } = {}){
     const Scheduling = window.PlatformScheduling;
+    // Who is on each event and its warnings are read again for what this load shows.
+    window.PlatformScheduleView?.roster?.configure?.({ orgId:scheduleOrgId() });
+    if (force) window.PlatformScheduleView?.roster?.invalidate?.();
     if (!force && scheduleCachedConfig && (scheduleCachedUsers.length || scheduleUsersLoaded) && Date.now() - scheduleDataLoadedAt < SCHEDULE_DATA_TTL_MS) {
       await loadWorkforceResources();
       return { config:scheduleCachedConfig, users:scheduleCachedUsers, projects:mergeScheduleActiveProject(scheduleCachedProjects) };
@@ -1660,11 +1663,21 @@
   function schedulePlacementActive(){
     return !!schedulePlacementState();
   }
+  /* While placing work, its warnings from the assignee roster (unmet staffing
+   * requirements, conflicts) as the save would find them, with who is on it.
+   * They never stop the save. docs/architecture/schedule-events.md, "Roster and warnings". */
+  function schedulePlacementRosterHtml(){
+    const roster = window.PlatformScheduleView?.roster;
+    const draft = roster && workScheduleModeActive ? activeWorkDraft() : null;
+    if (!draft?.start || !draft?.end) return '';
+    roster.configure({ orgId:scheduleOrgId() });
+    return roster.previewSlotHtml({ ...draft, __roster_project_id:String(draft.project_id || activeBaseProject?.id || '') }, { range:{ start:draft.start, end:draft.end } });
+  }
   function schedulePlacementBannerHtml(){
     const placement = schedulePlacementState();
     state.panelRoot?.classList?.toggle('hover-preview', !!materialScheduleDraft?.__hover);
     if (!placement || !canEditSchedule()) return '';
-    return `<div class="r-schedule-placement-banner" role="status"><i class="fas fa-location-crosshairs" aria-hidden="true"></i><span><strong>Placing ${escapeHtml(placement.subject)}</strong> — ${escapeHtml(placement.text)}${placement.past ? '<span class="warn">That day is in the past.</span>' : ''} <em data-schedule-placement-state>${schedulePlacementSaving ? 'Saving…' : ''}</em></span><button type="button" class="r-schedule-placement-cancel" data-schedule-placement-cancel>Cancel${scheduleTouchLayout() ? '' : ' <kbd>(Esc)</kbd>'}</button></div>`;
+    return `<div class="r-schedule-placement-banner" role="status"><i class="fas fa-location-crosshairs" aria-hidden="true"></i><span><strong>Placing ${escapeHtml(placement.subject)}</strong> — ${escapeHtml(placement.text)}${placement.past ? '<span class="warn">That day is in the past.</span>' : ''} <em data-schedule-placement-state>${schedulePlacementSaving ? 'Saving…' : ''}</em></span>${schedulePlacementRosterHtml()}<button type="button" class="r-schedule-placement-cancel" data-schedule-placement-cancel>Cancel${scheduleTouchLayout() ? '' : ' <kbd>(Esc)</kbd>'}</button></div>`;
   }
   function refreshSchedulePlacementBanner(){
     const panel = $('#rSchedulePanel');
@@ -2817,6 +2830,9 @@
 
   function decorateWorkEventForCalendar(event, crews = scheduleWorkResources(scheduleCachedConfig, scheduleCachedUsers, event?.scope_template_id)){
     event = scheduleChildDisplay(event);
+    // The roster read (faces, warnings) names an event by its project; this
+    // project's own events do not always carry the id. Never saved (`__`).
+    if (!String(event?.project_id || '').trim() && activeBaseProject?.id) event = { ...event, __roster_project_id:String(activeBaseProject.id) };
     // A span holds a range for the work under it and has no assignee of its
     // own; an equipment hold names its equipment where an assignee would be.
     if (scheduleEventIsSpan(event)) return { ...event, requirement_warnings:[], crew_label:'', assignee_label:'', awaiting_crew:false };
@@ -3896,7 +3912,9 @@
       end: new Date(next.end).toISOString(),
       all_day: next.all_day !== false,
       schedule_granularity: next.schedule_granularity || (next.all_day === false ? 'time' : 'date'),
-      ...assignment
+      ...assignment,
+      // The roster preview (faces, warnings) reads the draft against this project. Never saved (`__`).
+      __roster_project_id: String(next.project_id || previous.project_id || activeBaseProject?.id || '')
     });
     setActiveWorkDraftId(id);
     if (shouldRender) renderSchedulePanelPreservingScroll();

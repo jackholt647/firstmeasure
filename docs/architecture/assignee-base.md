@@ -358,8 +358,13 @@ through every catalog save and published wherever the color is, which is the
 
 ## For scheduling
 
-None of this is called by scheduling yet. Nothing under `public/v1/scheduling/`
-was changed.
+Scheduling reads the roster and the check for what it shows: `schedule-roster.events`
+(`scheduling/roster.ts`, see [schedule events](schedule-events.md#roster-and-warnings))
+calls `assignmentFromEvent` and `checkAssignment` for each event and each draft
+being placed, passing the schedule it read once as `other_work` and the time off
+for the window as `unavailable`, and limited to the reader's branches. The
+answer is derived and never stored on the event. The event writes themselves do
+not call the check yet; the steps below are what is left for them.
 
 1. **Keep `op` on a `resource_refs` entry.** `normalizeResourceRef` drops
    everything but `kind`, `id`, `name`, `role`, `unit_id` and `quantity`. Keep
@@ -425,14 +430,15 @@ exceptions are converted once, and the settings stop holding them. Working
 hours stay in the scheduling settings; they are not time off.
 
 **One conflict check.** Scheduling's `assessAssigneeOverlap` and this module's
-roster both decide whether an assignee is already promised. They can disagree:
-the overlap check compares the assignees named on events, while the roster
-resolves to people, so only the roster sees that a person in group A is also on
-another event with group B, and only the roster subtracts time off and honours
-removals and part-of-the-work entries. Proposed: scheduling's overlap check
-calls `checkAssignment` (step 4 above) and reports its `conflicts` and
-`warnings`; capacity by units stays in `occupancy.ts`, which answers a
-different question (how many jobs an assignee can hold at once).
+roster both decide whether an assignee is already promised. For what scheduling
+shows they now give one answer: `schedule-roster.events` feeds the roster's
+people conflicts into `assessAssigneeOverlap` (`rosterOverlaps`), which leaves a
+conflict to its own assignee check, with units, when the other event names one
+of the assignees that put the person on this one, and otherwise reports it once
+per person (`reason: "person"`). Still open: the event writes and
+`POST .../schedule/overlap-check` in `platform/api.ts` call the overlap check
+without the roster (step 4 above), so a save's `assignee_conflicts` and `block`
+do not yet see a person reached through two groups.
 
 **Project and labor commitment lists published once.** Payroll re-publishes the
 project and labor-commitment sources its pay rules select from, alongside the
@@ -473,7 +479,8 @@ equipment provider, and the `assignable-resources` and
 
 ## Not built
 
-Any interface. Applying an outside company's permission set. Exposing
+Any interface of this module's own (scheduling shows the roster and the check on
+events; see [schedule events](schedule-events.md#roster-and-warnings)). Applying an outside company's permission set. Exposing
 selections, and therefore the directory, to the module sandbox. An index: the
 directory reads every assignee, and each user's fields one at a time, on every
 read; the roster's conflict check reads every project's events. Working hours

@@ -4,7 +4,7 @@ import { forbidden } from "../platform/errors.js";
 import { listDocuments, readBranchModule, upsertDocument, type JsonObject } from "../platform/storage.js";
 import { ASSIGNEE_TYPES, assigneeSchema, requireAssignee } from "../labor/assignees.js";
 import { listUnits } from "../labor/commitments.js";
-import { eventAssignedUserIds, eventAssignees, eventWindow, resourceRefKey, type AssigneeRef } from "./event-model.js";
+import { eventAssignedUserIds, eventAssigneeKeys, eventAssignees, eventWindow, resourceRefKey, type AssigneeRef } from "./event-model.js";
 
 /**
  * Whether an assignee is already booked during a range, worked out from events and nothing else. See
@@ -59,18 +59,32 @@ export type AssigneeConflict = {
   /** The event being saved or checked. */
   event_id: string;
   assignee: { kind: string; id: string; name: string; unit_id?: string };
-  /** `unit`: the same unit is on another event. `overlap`: the assignee has no free unit left in this range. */
-  reason: "unit" | "overlap";
+  /**
+   * `unit`: the same unit is on another event. `overlap`: the assignee has no free unit left in this range. `person`:
+   * one person reaches this event and another through different assignees (a member of crew A here and of crew B
+   * there), which only the roster sees.
+   */
+  reason: "unit" | "overlap" | "person";
   /** How many jobs the assignee can hold at once. */
   capacity: number;
   mode: Exclude<OverlapMode, "allow">;
   conflicts: OverlappingEvent[];
+  /** `person` only: the assignees on this event that put the person on it. */
+  via?: string[];
 };
+/** One person the roster finds on this event and on other work at once (`Roster.conflicts`, with the person's `via`). */
+export type RosterOverlap = { person_id: string; name: string; via: string[]; work: { id: string; project_id: string }; intervals: Array<{ from: string; until: string }> };
 export type OverlapSubject = {
   event: JsonObject;
   projectId: string;
   /** Ids in the same project that can never conflict with this event: itself, its ancestors and its descendants. */
   familyIds: Set<string>;
+  /**
+   * The roster's people conflicts for this event (scheduling/roster.ts). Each person is counted once however many of
+   * the event's groups they are in. A conflict where the other event names one of the person's own assignees is left
+   * to the assignee check above, which knows units; the rest are reported as `reason: "person"`.
+   */
+  rosterOverlaps?: RosterOverlap[];
 };
 type Scheduled = { event: JsonObject; projectId: string; projectTitle: string; window: { start: number; end: number } };
 
@@ -114,6 +128,17 @@ function peakConcurrency(others: Scheduled[]) {
 }
 
 /**
+ * What an overlap does for each assignee: its own setting, or the organization default. `modeFor` takes a lower-cased
+ * `type:id` key (`resourceRefKey`). The roster's per-person conflicts (scheduling/roster.ts) use the same answer.
+ */
+export async function overlapModeLookup(orgId: string, branchId: string, fallback?: OverlapMode) {
+  const mode = fallback || await readOverlapDefault(orgId, branchId);
+  const settings = new Map((await listAssigneeSchedulingSettings(orgId)).map((setting) => [`${setting.assignee.type}:${setting.assignee.id.toLowerCase()}`, setting.overlap]));
+  const modeFor = (key: string): OverlapMode => { const own = settings.get(key.toLowerCase()); return own && own !== "inherit" ? own : mode; };
+  return { mode, modeFor };
+}
+
+/**
  * Overlaps for each given event against everything else scheduled. `replace` supplies a project's events as they will
  * be after the write, so a child that is moving in the same save is judged where it is going.
  */
@@ -121,10 +146,10 @@ export async function assessAssigneeOverlap(orgId: string, branchId: string, sub
   const mode = await readOverlapDefault(orgId, branchId);
   const withAssignees = subjects.filter((subject) => eventWindow(subject.event) && (eventAssignees(subject.event).length || eventAssignedUserIds(subject.event).length));
   if (!withAssignees.length) return { mode, assignee_conflicts: [] };
-  const settings = new Map((await listAssigneeSchedulingSettings(orgId)).map((setting) => [`${setting.assignee.type}:${setting.assignee.id.toLowerCase()}`, setting.overlap]));
-  const modeFor = (key: string) => { const own = settings.get(key); return own && own !== "inherit" ? own : mode; };
+  const { modeFor } = await overlapModeLookup(orgId, branchId, mode);
   const everyone = withAssignees.flatMap((subject) => [...eventAssignees(subject.event), ...eventAssignedUserIds(subject.event).map((id): AssigneeRef => ({ kind: "organization_user", id, name: "", role: "crew" }))]);
-  if (everyone.every((ref) => modeFor(resourceRefKey(ref)) === "allow")) return { mode, assignee_conflicts: [] };
+  const rosterPeople = withAssignees.flatMap((subject) => (subject.rosterOverlaps || []).map((overlap) => overlap.person_id));
+  if (everyone.every((ref) => modeFor(resourceRefKey(ref)) === "allow") && rosterPeople.every((key) => modeFor(key) === "allow")) return { mode, assignee_conflicts: [] };
   const [scheduled, capacityOf] = await Promise.all([scheduledEvents(orgId, replace), assigneeCapacities(orgId)]);
   const conflicts: AssigneeConflict[] = [];
   for (const subject of withAssignees) {
@@ -161,6 +186,33 @@ export async function assessAssigneeOverlap(orgId: string, branchId: string, sub
           event_id: text(entry.event.id), project_id: entry.projectId, project_title: entry.projectTitle, title: text(entry.event.title),
           start_at: new Date(entry.window.start).toISOString(), end_at: new Date(entry.window.end).toISOString(),
           ...(unitOf(entry) ? { unit_id: unitOf(entry) } : {})
+        }))
+      });
+    }
+    // People the roster puts on this event and on other work at once, through different assignees. One entry per
+    // person, whichever of the event's groups they came with.
+    const byPerson = new Map<string, { overlap: RosterOverlap; others: Scheduled[] }>();
+    for (const overlap of subject.rosterOverlaps || []) {
+      const personMode = modeFor(overlap.person_id);
+      if (personMode === "allow") continue;
+      const other = scheduled.find((entry) => text(entry.event.id) === overlap.work.id && entry.projectId === text(overlap.work.project_id));
+      if (!other || (other.projectId === subject.projectId && subject.familyIds.has(text(other.event.id)))) continue;
+      // The same assignee on both is the assignee check's question, with its units.
+      const otherKeys = new Set(eventAssigneeKeys(other.event));
+      if (overlap.via.some((key) => otherKeys.has(key.toLowerCase()))) continue;
+      const slot = byPerson.get(overlap.person_id) || { overlap, others: [] };
+      if (!slot.others.includes(other)) slot.others.push(other);
+      byPerson.set(overlap.person_id, slot);
+    }
+    for (const [personId, { overlap, others }] of byPerson) {
+      const at = personId.indexOf(":");
+      conflicts.push({
+        event_id: eventId,
+        assignee: { kind: personId.slice(0, at), id: personId.slice(at + 1), name: overlap.name },
+        reason: "person", capacity: 1, mode: modeFor(personId) as Exclude<OverlapMode, "allow">, via: [...overlap.via],
+        conflicts: others.map((entry) => ({
+          event_id: text(entry.event.id), project_id: entry.projectId, project_title: entry.projectTitle, title: text(entry.event.title),
+          start_at: new Date(entry.window.start).toISOString(), end_at: new Date(entry.window.end).toISOString()
         }))
       });
     }

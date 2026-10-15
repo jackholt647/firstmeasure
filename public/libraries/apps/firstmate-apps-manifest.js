@@ -336,7 +336,7 @@
       surfaces: ['project_modal'],
       requiresContext: ['project'],
       access: managementAccess,
-      bundles: [versionedBundle('project-schedule/panel.js', '20261014-hover-place')]
+      bundles: [versionedBundle('project-schedule/panel.js', '20261015-schedule-roster-v1')]
     },
     {
       id: 'project.comms',
@@ -386,7 +386,7 @@
       portalTabId: 'scheduling',
       settingsTabId: 'scheduling',
       access: managementAccess,
-      bundles: [bookingBundle, versionedBundle('scheduling/app.js', '20261013-schedule-events-v2')]
+      bundles: [bookingBundle, versionedBundle('scheduling/app.js', '20261015-schedule-roster-v1')]
     },
     {
       id: 'portal.training',

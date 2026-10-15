@@ -3,7 +3,7 @@
 Read this before changing what a schedule event stores, who or what it is
 assigned to, how events relate to each other, or how double-booking is checked.
 The code is `public/v1/scheduling/` (`event-model.ts`, `placement.ts`,
-`occupancy.ts`); the project event write in `platform/api.ts` and the floating
+`occupancy.ts`, `roster.ts`); the project event write in `platform/api.ts` and the floating
 calendar event write call into it.
 
 ## An event
@@ -169,19 +169,92 @@ beside `event` and `project`:
 |---|---|
 | `related_events` | Children the save re-placed, in their new state. |
 | `blocked_children` | Locked or finished children that did not move. |
-| `assignee_conflicts` | Overlaps found for the event and for every re-placed child. Each is `{ event_id, assignee: { kind, id, name, unit_id? }, reason: "overlap" | "unit" , capacity, conflicts: [{ event_id, project_id, project_title, title, start_at, end_at, unit_id? }] }`. |
+| `assignee_conflicts` | Overlaps found for the event and for every re-placed child. Each is `{ event_id, assignee: { kind, id, name, unit_id? }, reason: "overlap" | "unit" | "person", capacity, via?, conflicts: [{ event_id, project_id, project_title, title, start_at, end_at, unit_id? }] }`. |
 | `equipment_conflicts`, `equipment_operator_warnings` | As before. |
 
 `POST /v1/platform/organizations/:orgId/schedule/overlap-check` takes
 `{ project_id?, event }` (a draft, saved or not) and returns
 `{ mode, assignee_conflicts }` without saving.
 
+## Roster and warnings
+
+Scheduling reads the assignee base's roster and its check
+([assignee base](assignee-base.md#assignment-and-roster)), so who is actually on
+an event, unmet staffing requirements and conflicts come from one answer. The
+code is `scheduling/roster.ts`, published as `schedule-roster.events`
+(`scheduling/publication.ts`, `view_schedule`).
+
+The answer is **derived and read-only**: it is returned beside the events and
+never written into them. A page keeps it by event (`PlatformScheduleView.roster`)
+and does not put it on the event objects it saves.
+
+- **The assignment** is built from the event's `resource_refs` and
+  `assigned_user_ids` with `assignmentFromEvent` (an entry's `op`, `from` and
+  `until` are honoured if a writer ever stores them). Equipment is skipped.
+- **The roster** is the assignee base's: the people the groups and named people
+  put on the event over its range, minus removals and anyone off (time off and
+  the scheduling settings' days off). A person in two of the event's groups is
+  one person. An outside company is one party.
+- **The check** adds the standing staffing requirements of every group on the
+  event to the event's own `staffing_requirements` and those of the scope piece
+  it was made for (`scope.pieces[].staffing_requirements`).
+- **Other work** is every scheduled event in the window the asked-for events
+  cover, minus the event's own family. Its people are other work's own
+  rosters, so a member of crew A on this event and of crew B on another is seen.
+- **Overlap stays `assessAssigneeOverlap`.** It is fed the roster's people
+  conflicts (`rosterOverlaps` on a subject). Where the other event names one of
+  the assignees that put the person here, the assignee check answers, with its
+  units, and the person is not reported again. The rest are reported once per
+  person as `reason: "person"`, with `via`. What an overlap does is still the
+  organization's and the assignee's setting (a person's own setting, or the
+  default), carried as `mode`.
+- **Branch scope.** Only assignees in the reader's branches are considered
+  ([branches](branches.md#access-the-branch-scope-rule)): an entry naming one
+  outside them is left out of the event's assignment and of other work's. The
+  members of a group the reader can see are shown, as the group's directory row
+  shows them.
+
+`schedule-roster.events` takes `{ events?: [{ project_id?, event_id }], draft?: { project_id?, event }, include_children? }`.
+`events` are saved events (a calendar event with no project leaves out
+`project_id`); their children come with them unless `include_children` is
+false. `draft` is an event being placed, as it would be saved: it replaces the
+stored copy, its children are re-placed against it as the save would place
+them, and they come back with `draft: true`. At most 200 events per read.
+
+Each event returns:
+
+| Field | Meaning |
+|---|---|
+| `window` | The range it holds, or null (unscheduled, cancelled). |
+| `roster` | `people` (`id`, `user_id`, `name`, `via`, `whole_window`, `present`), `parties`, `absent`, `count`, `party_count`, `min_count`, `max_count`, and `days`: who is on it each local day (`date`, `person_ids`, `party_ids`). Null when it names no one and has no staffing requirement. |
+| `staffing_requirements` | Each one checked, met or not, as the check returns it. |
+| `warnings` | `{ id, kind, message, accepted, mode, intervals, person_id?, assignee_id?, staffing_requirement_id? }`. Kinds: `staffing_requirement_unmet`, `double_booked` (a person through different assignees), `assignee_overlap` (an assignee over its capacity), `unavailable`, `missing_member` (a member who is no longer active), `unknown_assignee`, `nobody_assigned`. Ids listed in the event's `accepted_roster_warnings` come back `accepted`. |
+| `assignee_conflicts` | The overlap check's own answer for the event, including `reason: "person"`. |
+
+**Warnings never block.** Nothing here refuses a save; the event writes are
+unchanged and still apply `block` only to the assignee overlap they already
+checked.
+
+**Where they show.** The project schedule panel, the Scheduling app and every
+view of `PlatformScheduleView` (range views, resource views, the day team grid
+and the timeline) draw, on each event, the people as faces with a count and a
+small badge whose tooltip lists the warnings; only titles are on the chip. A
+one-line chip shows the count and the badge icon; a timed chip gives the faces a
+line of their own. While placing, the draft chip and the placement banner show
+the draft's warnings as the save would find them.
+
 ## Not built
 
-A person who belongs to a group is not treated as booked when the group is.
-Working hours and days off are applied when offering appointment slots, not
-when checking an overlap. A committed labor list does not learn that its event
-moved. `assigned_user_ids` is still a second place people are named.
+The event writes do not call the roster: `assignee_conflicts` on a save and
+`overlap-check` are still the named-assignee check only, and `block` does not
+apply to a person reached through two groups (that needs the write in
+`platform/api.ts` to pass `rosterOverlaps`). Nothing stores
+`accepted_roster_warnings` yet; it is read if present. Working hours are applied
+when offering appointment slots, not when checking an overlap. A committed labor
+list does not learn that its event moved. `assigned_user_ids` is still a second
+place people are named. The roster read scans every project's events
+([optimization backlog](../optimization-backlog.md#schedule-roster-reads-every-project)).
 
-Run `tests/schedule-events.test.ts` and `tests/scheduling-event-writes.test.ts`
+Run `tests/schedule-events.test.ts`, `tests/scheduling-event-writes.test.ts`,
+`tests/schedule-roster.test.ts` and `tests/schedule-roster-browser.test.mjs`
 for changes here.

@@ -2731,6 +2731,25 @@
     const today = startOfDay(new Date());
     return !!day && !!today && day < today;
   }
+  /* While placing, the draft's warnings from the assignee roster (unmet
+   * staffing requirements, conflicts), as the save would find them. They never
+   * stop the save. docs/architecture/schedule-events.md, "Roster and warnings". */
+  function placementRosterDraft(item){
+    if (item?.kind === 'production') return scheduleBundleDrafts()[0] || null;
+    if (item?.kind === 'sales') {
+      const event = selectedScheduleEvent();
+      if (!event || !appointmentScheduleDraft?.start) return null;
+      return { ...event, ...salesDraftAssignment(appointmentScheduleDraft, event), id:event.id, start:appointmentScheduleDraft.start, end:appointmentScheduleDraft.end };
+    }
+    return null;
+  }
+  function placementRosterSlotHtml(item){
+    const roster = window.PlatformScheduleView?.roster;
+    const draft = roster ? placementRosterDraft(item) : null;
+    if (!draft) return '';
+    const projectId = clean(draft.floating_event === true ? '' : draft.project_id);
+    return roster.previewSlotHtml(draft, { range:{ start:draft.start, end:draft.end }, projectId });
+  }
   function placementBannerHtml(surface = 'calendar'){
     if (scheduleInitialLoading()) return '';
     const item = placementWaitingItem();
@@ -2768,7 +2787,7 @@
       return `<div class="dash-placement-banner" data-placement-banner data-saving="1" role="status" aria-busy="true"><i class="fas fa-location-crosshairs" aria-hidden="true"></i><span><i class="fas fa-spinner fa-spin" aria-hidden="true"></i> ${escapeHtml(globalThis.PlatformLanguage?.text("scheduling","m_placement_saving","Saving…") ?? "Saving…")}</span><button type="button" class="dash-placement-cancel" data-placement-cancel disabled title="${escapeHtml(globalThis.PlatformLanguage?.text("scheduling","m_placement_saving_no_cancel_short","Saving — can’t cancel now") ?? "Saving — can’t cancel now")}">Cancel</button></div>`;
     }
     const past = !!start && placementDateIsPast(start);
-    return `<div class="dash-placement-banner ${past ? 'past' : ''}" data-placement-banner role="status"><i class="fas fa-location-crosshairs" aria-hidden="true"></i><span>${text}</span>${past ? '<span class="dash-placement-banner-warn"><i class="fas fa-triangle-exclamation" aria-hidden="true"></i> Date is in the past</span>' : ''}<button type="button" class="dash-placement-cancel" data-placement-cancel title="${touch ? 'Stop placing' : 'Stop placing (Esc)'}">Cancel${touch ? '' : ' <span aria-hidden="true">· Esc</span>'}</button></div>`;
+    return `<div class="dash-placement-banner ${past ? 'past' : ''}" data-placement-banner role="status"><i class="fas fa-location-crosshairs" aria-hidden="true"></i><span>${text}</span>${start ? placementRosterSlotHtml(item) : ''}${past ? '<span class="dash-placement-banner-warn"><i class="fas fa-triangle-exclamation" aria-hidden="true"></i> Date is in the past</span>' : ''}<button type="button" class="dash-placement-cancel" data-placement-cancel title="${touch ? 'Stop placing' : 'Stop placing (Esc)'}">Cancel${touch ? '' : ' <span aria-hidden="true">· Esc</span>'}</button></div>`;
   }
   function bindPlacementBanner(scope = rootEl){
     scope?.querySelectorAll?.('[data-placement-cancel]').forEach((btn) => btn.addEventListener('click', (event) => {
@@ -11441,6 +11460,9 @@
     const Dashboard = window.PlatformAPI?.dashboard;
     const id = orgId();
     if (!Scheduling || !Dashboard || !id) return;
+    // Who is on each event and its warnings are read again for what this load shows.
+    window.PlatformScheduleView?.roster?.configure?.({ orgId:id });
+    window.PlatformScheduleView?.roster?.invalidate?.();
     loadQueued = false;
     loading = true;
     render();

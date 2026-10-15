@@ -1158,6 +1158,32 @@
       .psv-gantt-empty{padding:26px;text-align:center;color:#667085;font-weight:850;font-size:12px}
       .psv-gantt-empty-row{position:sticky;left:0;box-sizing:border-box;padding:40px 20px;text-align:center;color:#667085;font-weight:850;font-size:12px}
       @media(max-width:720px){.psv-gantt-wrap{--psv-gantt-left:150px}.psv-gantt-label-meta{display:none}.psv-gantt-slider{width:90px}}
+      .prs-roster{display:inline-flex;align-items:center;gap:3px;flex:0 0 auto;min-width:0}
+      .prs-roster:empty{display:none}
+      .prs-work-chip:not(.timed) .prs-roster-part-faces{margin-left:auto}
+      .prs-roster-icon{display:none}
+      /* A one-line chip keeps its room for the title: the people are a count, the badge an icon. */
+      .prs-work-chip:not(.timed) .prs-roster-face,.prs-work-chip:not(.timed) .prs-roster-warning-count{display:none}
+      .prs-work-chip:not(.timed) .prs-roster-icon{display:inline-block;font-size:8px;opacity:.7}
+      .prs-work-chip:not(.timed) .prs-roster-warning{padding:0;background:none;height:auto}
+      .prs-work-chip:not(.timed) .prs-roster-count{margin-left:2px}
+      .prs-roster-line{display:flex;margin-top:2px;min-width:0}
+      .prs-roster-line:has(>.prs-roster:empty){display:none}
+      .prs-roster-faces{display:inline-flex;align-items:center;flex:none;cursor:help}
+      .prs-roster-face{display:inline-grid;place-items:center;box-sizing:border-box;width:15px;height:15px;margin-left:-5px;border-radius:50%;background:hsl(var(--prs-face-hue,210) 55% 46%);box-shadow:0 0 0 1.5px #fff;color:#fff;font-size:7px;font-weight:800;line-height:1;letter-spacing:-.02em;font-style:normal}
+      .prs-roster-face:first-child{margin-left:0}
+      .prs-roster-face.party{border-radius:4px;background:#64748b}
+      .prs-roster-count{margin-left:3px;color:currentColor;opacity:.78;font-size:10px;font-weight:800;font-variant-numeric:tabular-nums}
+      .prs-roster-warning{display:inline-flex;align-items:center;gap:2px;flex:none;padding:0 3px;height:14px;border-radius:7px;background:#fef3c7;color:#b45309;font-size:9px;font-weight:850;cursor:help}
+      .prs-roster-warning.block{background:#fee2e2;color:#b91c1c}
+      .prs-roster-warning i{font-size:8px}
+      .psv-gantt-bar-inner .prs-roster,.psv-gantt-bar-outside .prs-roster{margin-left:4px;vertical-align:middle}
+      .psv-gantt-bar-outside .prs-roster{pointer-events:auto}
+      .psv-appt .prs-roster{position:absolute;top:3px;right:4px}
+      .prs-roster-preview{display:inline-flex;align-items:center;gap:6px;min-width:0;max-width:100%}
+      .prs-roster-preview:empty{display:none}
+      .prs-roster-preview-text{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:700;color:#b45309}
+      .prs-roster-preview.block .prs-roster-preview-text{color:#b91c1c}
     `;
     const existing = document.getElementById(STYLE_ID);
     if (existing) {
@@ -1175,7 +1201,7 @@
     const title = appointmentTitle(project, event);
     const address = event.project_address || project?.address || '';
     const span = Math.max(1, Math.ceil((Number(event.duration_minutes) || 60) / Math.max(1, Number(slotMinutes) || 30)));
-    return `<div class="psv-appt ${draft ? 'draft' : ''} ${moving ? 'moving' : ''} ${selected ? 'open' : ''} ${confirmable ? 'has-confirm' : ''} ${foreign ? 'foreign' : ''}" style="--span:${span};--stack-index:${Math.max(0, Number(stackIndex) || 0)};--slot-offset:${Math.max(0, Math.min(0.999, Number(slotOffset) || 0))}" data-psv-event-id="${esc(event.id || '')}" data-psv-project-id="${esc(event.project_id || project?.id || '')}"><span class="psv-appt-title">${esc(title)}</span><div class="psv-appt-address">${esc(address)}</div>${confirmable ? `<span class="psv-draft-confirm" data-psv-draft-confirm role="button" tabindex="0" aria-label="${(globalThis.PlatformLanguage?.htmlText("platform-schedule-view","m_e36c5a08a12e11","Confirm and save appointment") ?? "Confirm and save appointment")}"><i class="fas fa-check"></i></span>` : ''}${selected ? menuHtml : ''}</div>`;
+    return `<div class="psv-appt ${draft ? 'draft' : ''} ${moving ? 'moving' : ''} ${selected ? 'open' : ''} ${confirmable ? 'has-confirm' : ''} ${foreign ? 'foreign' : ''}" style="--span:${span};--stack-index:${Math.max(0, Number(stackIndex) || 0)};--slot-offset:${Math.max(0, Math.min(0.999, Number(slotOffset) || 0))}" data-psv-event-id="${esc(event.id || '')}" data-psv-project-id="${esc(event.project_id || project?.id || '')}"><span class="psv-appt-title">${esc(title)}</span>${moving ? '' : rosterSlotHtml({ ...event, __roster_project_id:clean(event.project_id || project?.id || '') }, { draft })}<div class="psv-appt-address">${esc(address)}</div>${confirmable ? `<span class="psv-draft-confirm" data-psv-draft-confirm role="button" tabindex="0" aria-label="${(globalThis.PlatformLanguage?.htmlText("platform-schedule-view","m_e36c5a08a12e11","Confirm and save appointment") ?? "Confirm and save appointment")}"><i class="fas fa-check"></i></span>` : ''}${selected ? menuHtml : ''}</div>`;
   }
 
   function draftHtml({ draft, placementProject, Scheduling, slotMinutes, duration, confirmable = false, stackIndex = 0 }){
@@ -2019,6 +2045,220 @@
     return lines.join('\n');
   }
 
+  /* ---- Who is on an event, and what is wrong with it ----
+   * docs/architecture/schedule-events.md ("Roster and warnings"). Read from the
+   * published `schedule-roster.events` export, which resolves the assignee
+   * roster and its check on the server. The answer is derived: it is kept here,
+   * keyed by event, and never written onto the event, so nothing saves it.
+   * Chips draw an empty slot and fill it when the answer arrives; warnings
+   * never block anything. */
+  const ROSTER_TTL_MS = 60000;
+  const ROSTER_BATCH = 200;
+  const rosterConfig = { orgId:'' };
+  const rosterCache = new Map();
+  const rosterPending = new Map();
+  const rosterDraftTimers = new Map();
+  const rosterListeners = new Set();
+  let rosterTimer = null;
+  const rosterText = (key, fallback, vars) => globalThis.PlatformLanguage?.text?.('platform-schedule-view', key, fallback, vars) ?? fallback.replace(/\{(\w+)\}/g, (_, name) => String(vars?.[name] ?? ''));
+  function rosterOrgId(){
+    const cfg = root.Portal?.cfg || root.__APP || {};
+    return clean(rosterConfig.orgId || cfg.userOrgId || cfg.orgId);
+  }
+  function rosterProjectId(item = {}){
+    if (item.__roster_project_id !== undefined) return clean(item.__roster_project_id);
+    if (item.floating_event === true || item.__floating === true) return '';
+    return clean(item.project_id || item.project?.id || '');
+  }
+  function rosterHasAssignees(item = {}){
+    const refs = Array.isArray(item.resource_refs) ? item.resource_refs : [];
+    const assignee = refs.some((ref) => ['organization_user', 'resource_group', 'organization_connection', 'user', 'crew', 'team', 'group', 'person', 'subcontractor', 'connection'].includes(clean(ref?.kind).toLowerCase()));
+    return assignee || (Array.isArray(item.assigned_user_ids) && item.assigned_user_ids.length > 0) || !!clean(item.assigned_user_id)
+      || (Array.isArray(item.staffing_requirements) && item.staffing_requirements.length > 0);
+  }
+  function rosterKey(item = {}, draft = false){
+    const id = clean(item.id || item.event_id || (draft ? '__draft' : ''));
+    return id ? `${draft ? 'draft' : 'event'}|${rosterProjectId(item)}|${id}` : '';
+  }
+  /* What the answer depends on, so a moved or reassigned event is read again. */
+  function rosterSignature(item = {}, range = null, draft = false){
+    const refs = (Array.isArray(item.resource_refs) ? item.resource_refs : []).map((ref) => [clean(ref?.kind), clean(ref?.id), clean(ref?.op), clean(ref?.unit_id)]);
+    const { start, end } = draft ? rosterDraftRange(item, range) : { start:clean(item.start_at || item.start), end:clean(item.end_at || item.end) };
+    return JSON.stringify([start, end, clean(item.status), item.all_day, refs, item.assigned_user_ids || [], clean(item.assigned_user_id), (item.staffing_requirements || []).length, item.event_revision || 0, clean(item.parent_event_id)]);
+  }
+  function rosterHue(seed){
+    let hash = 0;
+    for (const char of String(seed || '')) hash = (hash * 31 + char.charCodeAt(0)) % 360;
+    return hash;
+  }
+  function rosterInitials(name){
+    const words = clean(name).split(/\s+/).filter(Boolean);
+    if (!words.length) return '?';
+    return (words[0][0] + (words.length > 1 ? words[words.length - 1][0] : '')).toUpperCase();
+  }
+  function rosterDayLabel(date){
+    const day = new Date(`${date}T12:00:00`);
+    return Number.isFinite(day.getTime()) ? day.toLocaleDateString([], { weekday:'short', month:'short', day:'numeric' }) : date;
+  }
+  /* The faces of the people on the event, with the count, like People's stacks. */
+  function rosterFacesHtml(value){
+    const roster = value?.roster;
+    if (!roster) return '';
+    const people = Array.isArray(roster.people) ? roster.people : [];
+    const parties = Array.isArray(roster.parties) ? roster.parties : [];
+    const count = people.length + parties.length;
+    if (!count) return '';
+    const names = new Map([...people, ...parties].map((entry) => [entry.id, clean(entry.name) || clean(entry.id)]));
+    const lines = [rosterText('roster_on_event', 'On this event: {names}', { names:[...names.values()].join(', ') })];
+    const days = Array.isArray(roster.days) ? roster.days : [];
+    if (days.length > 1 && days.some((day) => (day.person_ids || []).length + (day.party_ids || []).length !== count)) {
+      days.slice(0, 14).forEach((day) => lines.push(`${rosterDayLabel(day.date)}: ${[...(day.person_ids || []), ...(day.party_ids || [])].map((id) => names.get(id) || id).join(', ') || rosterText('roster_nobody', 'nobody')}`));
+    }
+    const label = lines.join('\n');
+    const faces = [...people.slice(0, 3).map((person) => `<span class="prs-roster-face" style="--prs-face-hue:${rosterHue(person.id)}" aria-hidden="true">${esc(rosterInitials(person.name))}</span>`),
+      ...parties.slice(0, Math.max(0, 3 - people.length)).map((party) => `<span class="prs-roster-face party" aria-hidden="true">${esc(rosterInitials(party.name))}</span>`)].join('');
+    return `<span class="prs-roster-faces" title="${esc(label)}" aria-label="${esc(label)}" data-prs-roster-faces="${count}"><i class="fas fa-user prs-roster-icon" aria-hidden="true"></i>${faces}<span class="prs-roster-count">${count}</span></span>`;
+  }
+  function rosterOpenWarnings(value){
+    return (Array.isArray(value?.warnings) ? value.warnings : []).filter((warning) => warning && warning.accepted !== true);
+  }
+  /* A small badge; its tooltip lists the unmet staffing requirements and the conflicts. */
+  function rosterWarningHtml(value){
+    const warnings = rosterOpenWarnings(value);
+    if (!warnings.length) return '';
+    const block = warnings.some((warning) => warning.mode === 'block');
+    const label = [rosterText('roster_warning_count', warnings.length === 1 ? '1 warning' : '{count} warnings', { count:warnings.length }), ...warnings.map((warning) => `• ${clean(warning.message)}`)].join('\n');
+    return `<span class="prs-roster-warning ${block ? 'block' : ''}" title="${esc(label)}" aria-label="${esc(label)}" data-prs-roster-warnings="${warnings.length}"><i class="fas fa-triangle-exclamation" aria-hidden="true"></i>${warnings.length > 1 ? `<span class="prs-roster-warning-count">${warnings.length}</span>` : ''}</span>`;
+  }
+  /* `part`: 'badge', 'faces' or both. A chip may draw the badge beside its title and the faces on a line of their own. */
+  function rosterInnerHtml(value, part = ''){
+    if (!value) return '';
+    return `${part === 'faces' ? '' : rosterWarningHtml(value)}${part === 'badge' ? '' : rosterFacesHtml(value)}`;
+  }
+  function rosterPatch(key){
+    if (typeof document === 'undefined') return;
+    const entry = rosterCache.get(key);
+    document.querySelectorAll('[data-prs-roster-key]').forEach((node) => {
+      if (node.getAttribute('data-prs-roster-key') === key) node.innerHTML = rosterInnerHtml(entry?.value, node.getAttribute('data-prs-roster-part') || '');
+    });
+    document.querySelectorAll('[data-prs-roster-preview]').forEach((node) => {
+      if (node.getAttribute('data-prs-roster-preview') === key) rosterFillPreview(node, entry?.value);
+    });
+    rosterListeners.forEach((listener) => { try { listener(key, entry?.value || null); } catch (error) { console.warn('Roster listener failed.', error); } });
+  }
+  function rosterFillPreview(node, value){
+    const warnings = rosterOpenWarnings(value);
+    node.classList.toggle('block', warnings.some((warning) => warning.mode === 'block'));
+    const first = warnings[0] ? clean(warnings[0].message) : '';
+    const more = warnings.length > 1 ? ` ${rosterText('roster_more', '(+{count} more)', { count:warnings.length - 1 })}` : '';
+    node.innerHTML = value ? `${rosterWarningHtml(value)}${warnings.length ? `<span class="prs-roster-preview-text" title="${esc(warnings.map((warning) => clean(warning.message)).join('\n'))}">${esc(first + more)}</span>` : ''}${rosterFacesHtml(value)}` : '';
+  }
+  function rosterRead(orgId, args){
+    const api = root.PlatformAPI?.publication;
+    if (!orgId || typeof api?.read !== 'function') return Promise.resolve(null);
+    return Promise.resolve(api.read(orgId, { provider:'schedule-roster', export:'events', target:{ scope:'organization', organizationId:orgId }, args }))
+      .then((result) => (result?.status === 'ready' ? result.value : (result?.events ? result : null)))
+      .catch(() => null);
+  }
+  async function rosterFlush(){
+    rosterTimer = null;
+    const orgId = rosterOrgId();
+    const batch = [...rosterPending.entries()].slice(0, ROSTER_BATCH);
+    batch.forEach(([key]) => rosterPending.delete(key));
+    if (rosterPending.size) rosterTimer = setTimeout(rosterFlush, 0);
+    if (!batch.length) return;
+    const value = await rosterRead(orgId, { events:batch.map(([, entry]) => (entry.project_id ? { project_id:entry.project_id, event_id:entry.event_id } : { event_id:entry.event_id })), include_children:false });
+    const found = new Map((value?.events || []).map((entry) => [`event|${clean(entry.project_id)}|${clean(entry.event_id)}`, entry]));
+    batch.forEach(([key, entry]) => {
+      rosterCache.set(key, { sig:entry.sig, at:Date.now(), value:found.get(key) || null });
+      rosterPatch(key);
+    });
+  }
+  function rosterRequest(key, entry){
+    rosterPending.set(key, entry);
+    if (!rosterTimer) rosterTimer = setTimeout(rosterFlush, 40);
+  }
+  /* The answer for a draft being placed: the event as it would be saved. */
+  /* A draft's range is its `start` / `end` (what the view draws), not a stored start_at it was copied from. */
+  function rosterDraftRange(item = {}, range = null){
+    const toIso = (value) => { if (value === undefined || value === null || value === '') return ''; const date = value instanceof Date ? value : new Date(value); return Number.isFinite(date.getTime()) ? date.toISOString() : ''; };
+    return {
+      start:toIso(item.start) || toIso(item.__start) || toIso(range?.start) || toIso(item.start_at),
+      end:toIso(item.end) || toIso(item.__end) || toIso(range?.end) || toIso(item.end_at)
+    };
+  }
+  function rosterDraftPayload(item = {}, range = null){
+    const { start, end } = rosterDraftRange(item, range);
+    // A draft of a saved event names that event, so the stored copy is replaced and not counted as other work.
+    const event = { id:clean(item.event_id || item.id) || '__draft', start_at:start, end_at:end, status:clean(item.status) === 'unscheduled' || clean(item.status) === 'draft' ? 'scheduled' : (clean(item.status) || 'scheduled') };
+    ['all_day', 'duration_minutes', 'title', 'resource_refs', 'assigned_user_ids', 'assigned_user_id', 'parent_event_id', 'placement', 'staffing_requirements', 'scope_piece_id', 'accepted_roster_warnings'].forEach((field) => {
+      if (item[field] !== undefined && item[field] !== null && item[field] !== '') event[field] = item[field];
+    });
+    return event;
+  }
+  function rosterPreviewDraft(item = {}, range = null, { projectId } = {}){
+    const key = rosterKey({ ...item, ...(projectId !== undefined ? { __roster_project_id:projectId } : {}) }, true);
+    if (!key) return Promise.resolve(null);
+    const sig = rosterSignature(item, range, true);
+    const cached = rosterCache.get(key);
+    if (cached && cached.sig === sig && Date.now() - cached.at < ROSTER_TTL_MS) return Promise.resolve(cached.value);
+    const project = projectId !== undefined ? clean(projectId) : rosterProjectId(item);
+    // The same draft asked again while its answer is on the way waits for that answer.
+    const pending = rosterDraftTimers.get(key);
+    if (pending && pending.sig === sig) return pending.promise;
+    if (pending) { clearTimeout(pending.timer); pending.resolve(null); }
+    const slot = { sig, timer:null, resolve:null, promise:null };
+    slot.promise = new Promise((resolve) => {
+      slot.resolve = resolve;
+      // Dragging changes the draft often; ask once it rests.
+      slot.timer = setTimeout(async () => {
+        const value = await rosterRead(rosterOrgId(), { draft:{ ...(project ? { project_id:project } : {}), event:rosterDraftPayload(item, range) } });
+        const answer = (value?.events || [])[0] || null;
+        if (rosterDraftTimers.get(key) === slot) rosterDraftTimers.delete(key);
+        rosterCache.set(key, { sig, at:Date.now(), value:answer });
+        rosterPatch(key);
+        resolve(answer);
+      }, 250);
+    });
+    rosterDraftTimers.set(key, slot);
+    return slot.promise;
+  }
+  /* The slot a chip draws. It is filled from what is known now and again when the answer arrives. */
+  function rosterSlotHtml(item = {}, { draft = false, range = null, part = '' } = {}){
+    if (!rosterHasAssignees(item) || !rosterOrgId()) return '';
+    const key = rosterKey(item, draft);
+    if (!key) return '';
+    const sig = rosterSignature(item, range, draft);
+    const cached = rosterCache.get(key);
+    const fresh = cached && cached.sig === sig && Date.now() - cached.at < ROSTER_TTL_MS;
+    if (!fresh) {
+      if (draft) rosterPreviewDraft(item, range);
+      else if (!rosterPending.has(key)) rosterRequest(key, { project_id:rosterProjectId(item), event_id:clean(item.id || item.event_id), sig });
+    }
+    // A stale answer stays visible until the new one arrives, so chips do not flicker.
+    return `<span class="prs-roster ${part ? `prs-roster-part-${esc(part)}` : ''}" data-prs-roster-key="${esc(key)}"${part ? ` data-prs-roster-part="${esc(part)}"` : ''}>${cached ? rosterInnerHtml(cached.value, part) : ''}</span>`;
+  }
+  /* A placement banner's line: the draft's warnings, filled when the preview arrives. */
+  function rosterPreviewSlotHtml(item = {}, { range = null, projectId } = {}){
+    if (!rosterHasAssignees(item) || !rosterOrgId()) return '';
+    const key = rosterKey({ ...item, ...(projectId !== undefined ? { __roster_project_id:projectId } : {}) }, true);
+    if (!key) return '';
+    rosterPreviewDraft(item, range, { projectId });
+    return `<span class="prs-roster-preview" data-prs-roster-preview="${esc(key)}"></span>`;
+  }
+  const roster = {
+    configure(options = {}){ if (options.orgId !== undefined) rosterConfig.orgId = clean(options.orgId); },
+    /* Forget every answer, e.g. after the schedule was reloaded or saved. Chips on screen are read again on the next render. */
+    invalidate(){ rosterCache.forEach((entry) => { entry.at = 0; }); },
+    get(item = {}, { draft = false } = {}){ return rosterCache.get(rosterKey(item, draft))?.value || null; },
+    slotHtml:rosterSlotHtml,
+    previewSlotHtml:rosterPreviewSlotHtml,
+    preview:rosterPreviewDraft,
+    facesHtml:rosterFacesHtml,
+    warningHtml:rosterWarningHtml,
+    onChange(listener){ if (typeof listener === 'function') rosterListeners.add(listener); return () => rosterListeners.delete(listener); }
+  };
+
   function workChipHtml(item, range, { draft = false, suspended = false, preview = false, dragPreview = false, confirmable = false, mode = 'month', day = '', showDetails = true, continuation = false, tabbable = true, showTime = true, showSecondary = true, showAssignee = true, showStartHandle = true, showEndHandle = true, chipStyle = '', chipClass = '', assigneeReadOnly = false } = {}){
     // A drag preview draws like the item it previews (drag-preview), while a
     // placement preview keeps the dashed PREVIEW treatment.
@@ -2108,6 +2348,12 @@
       ? `<i class="fas fa-lock prs-lock-badge" aria-label="Locked" title="Locked"></i>`
       : '';
     const continuationMark = continuation ? '<span class="prs-continuation-mark" aria-hidden="true">&lsaquo;</span>' : '';
+    // Who is on it and its warnings (faces, badge); details are in their tooltips.
+    // The badge sits before the title like the other markers; the faces follow
+    // the title on a one-line chip and take a line of their own on a timed one.
+    const showRoster = !preview && showDetails && !continuation && !materialDelivery;
+    const rosterBadge = showRoster ? rosterSlotHtml(item, { draft, range, part:'badge' }) : '';
+    const rosterFaces = showRoster ? rosterSlotHtml(item, { draft, range, part:'faces' }) : '';
     const tooltip = preview ? '' : chipTooltipText(item, range, allDay, { locked, continuation, assignees:assignees.length > 1 ? assignees : [] });
     const lockLabel = locked ? 'Unlock schedule' : 'Lock schedule';
     const lockControl = showLockControl
@@ -2116,9 +2362,10 @@
     const renderStartHandle = showStartHandle && !locked;
     const renderEndHandle = showEndHandle && !locked;
     return `<div class="prs-work-chip ${timed ? 'timed' : ''} ${typeClass} ${unsavedClass} ${chipClass ? esc(chipClass) : ''} ${materialDelivery ? `material-delivery ${ordered ? 'material-ordered' : 'material-unordered'}` : ''} ${locked ? 'schedule-locked' : ''} ${showLockControl ? 'has-lock-control' : ''} ${waitingForCrew ? 'awaiting-crew' : ''} ${requirementLabel ? 'has-requirement-warning' : ''} ${draft ? 'draft' : ''} ${suspended ? 'suspended' : ''} ${preview && !dragPreview ? 'preview' : ''} ${draft && confirmable ? 'has-confirm' : ''} ${confirmationClass} ${renderStartHandle ? '' : 'no-start-handle'} ${renderEndHandle ? '' : 'no-end-handle'} ${assigneeHtml ? 'has-assignee' : 'no-assignee'} ${continuation ? 'continuation' : ''}" data-prs-event-id="${id}" data-prs-day="${esc(day)}" data-prs-mode="${esc(mode)}" data-prs-locked="${locked ? '1' : '0'}"${rangeAttrs}${styleAttr}${tooltip ? ` title="${esc(tooltip)}"` : ''}${preview ? '' : ` role="button" tabindex="${tabbable ? '0' : '-1'}"`}>
-      <span class="prs-chip-top"><span class="prs-title">${showDetails ? `${continuationMark}${lockBadge}${requirementMarker}${materialMarker}${confirmationMarker}<span class="prs-title-text">${title}</span>` : '&nbsp;'}</span>${timed ? '' : assigneeHtml}</span>
+      <span class="prs-chip-top"><span class="prs-title">${showDetails ? `${continuationMark}${lockBadge}${requirementMarker}${rosterBadge}${materialMarker}${confirmationMarker}<span class="prs-title-text">${title}</span>${timed ? '' : rosterFaces}` : '&nbsp;'}</span>${timed ? '' : assigneeHtml}</span>
       ${showDetails && bottomLabel ? `<span class="prs-chip-bottom"><span class="${projectTitle ? 'prs-project-title' : 'prs-time'}">${esc(bottomLabel)}</span>${lockControl}</span>` : ''}
       ${timed ? assigneeHtml : ''}
+      ${timed && rosterFaces ? `<span class="prs-roster-line">${rosterFaces}</span>` : ''}
       ${!bottomLabel && lockControl ? `<span class="prs-chip-lock-only">${lockControl}</span>` : ''}
       ${draft && confirmable ? `<button type="button" class="prs-confirm" data-prs-confirm aria-label="${(globalThis.PlatformLanguage?.htmlText("platform-schedule-view","m_bab4540ec11ac4","Confirm New Event") ?? "Confirm New Event")}"><i class="fas fa-check"></i></button>` : ''}
     </div>`;
@@ -6507,8 +6754,8 @@
       ].filter(Boolean).join(' ');
       return `<div class="${classes}" style="left:${left}px;width:${width}px;--psv-gantt-color:${color}" data-psv-gantt-bar="${esc(event.id || '')}"${editable ? ' data-psv-gantt-editable="1"' : ''} tabindex="0" role="button" aria-label="${esc(tooltip)}" title="${esc(tooltip)}">
         ${resizable ? '<span class="psv-gantt-handle start" data-psv-gantt-handle="start"></span><span class="psv-gantt-handle end" data-psv-gantt-handle="end"></span>' : ''}
-        ${row.group ? '' : `<span class="psv-gantt-bar-inner">${icon && (showLabel || width >= 22) ? `<i class="fas ${icon}"></i>` : ''}${showLabel ? `<span>${esc(title)}</span>` : ''}</span>`}
-        ${outsideLabel ? `<span class="psv-gantt-bar-outside" aria-hidden="true">${esc(title)}</span>` : ''}
+        ${row.group ? '' : `<span class="psv-gantt-bar-inner">${icon && (showLabel || width >= 22) ? `<i class="fas ${icon}"></i>` : ''}${showLabel ? `<span>${esc(title)}</span>` : ''}${showLabel && !cancelled ? rosterSlotHtml(event) : ''}</span>`}
+        ${outsideLabel ? `<span class="psv-gantt-bar-outside"><span aria-hidden="true">${esc(title)}</span>${cancelled ? '' : rosterSlotHtml(event)}</span>` : ''}
         ${linkable ? linkHandleHtml : ''}
       </div>`;
     };
@@ -7388,5 +7635,7 @@
     installWheelHorizontalScroll,
     updateDraft,
     clearTravelCache(){ travelCache.clear(); },
+    // Who is on each event and its warnings, from the assignee roster (see roster above).
+    roster,
   };
 })();
