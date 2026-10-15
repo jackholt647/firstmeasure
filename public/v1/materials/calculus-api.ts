@@ -2,7 +2,7 @@ import type { FastifyInstance } from "fastify";
 import { requirePlatformAuth } from "../platform/auth.js";
 import { userPublicationContext } from "../platform/publication/context.js";
 import { readMaterialsLedger, materialsCommand } from "./calculus.js";
-import { ensureMaterialListScheduleEvent } from './storage.js';
+import { ensureMaterialListScheduleEvent, retireUnscheduledWholeListEvent, scopeDeliveryParts } from './storage.js';
 import { z } from 'zod';
 import { conflict, notFound } from '../platform/errors.js';
 
@@ -26,7 +26,17 @@ export function registerCalculusApi(app: FastifyInstance) {
     const ledger=await readMaterialsLedger(ctx,projectId), set=ledger.sets.find(s=>s.id===setId);
     if(!set)throw notFound('material_set_missing','Material set not found.');
     if(set.revision!==input.expected_revision)throw conflict('material_set_revision','Materials changed. Refresh before scheduling.');
-    const event=await ensureMaterialListScheduleEvent(orgId,set.id,{event:input.event},{...set.presentation,id:set.id,project_id:projectId,title:set.title,resource_type:'material',current_items:set.lines,status:set.lines.length&&set.lines.every(l=>l.balance.outstanding===0)?'ordered':'planning'});
+    const projected={...set.presentation,id:set.id,project_id:projectId,title:set.title,resource_type:'material',origin:set.origin,definition:{key:(set as {definition?:{key?:string}}).definition?.key},current_items:set.lines,status:set.lines.length&&set.lines.every(l=>l.balance.outstanding===0)?'ordered':'planning'};
+    // A set whose scope delivers in parts (dry-in, then shingles) is one delivery per part, each placed in the job;
+    // its single delivery is taken off once split, if it was never scheduled (docs/architecture/schedule-events.md).
+    const parts=await scopeDeliveryParts(orgId,projectId,projected,set.lines as unknown as Record<string,unknown>[]);
+    if(parts.length){
+      const events=[];
+      for(const part of parts)events.push(await ensureMaterialListScheduleEvent(orgId,set.id,{part_id:part.part_id,schedule:part.schedule,event:{...(input.event||{}),title:part.title,list_part_id:part.part_id,...(part.schedule.kind?{kind:part.schedule.kind}:{}),...(part.schedule.icon?{icon:part.schedule.icon}:{})}},{...projected,scope_piece_id:part.scope_piece_id,scope_template_id:part.scope_template_id}));
+      await retireUnscheduledWholeListEvent(orgId,projectId,set.id);
+      return {event:events[0],events,parts:parts.map(part=>({part_id:part.part_id,title:part.title,line_ids:part.line_ids}))};
+    }
+    const event=await ensureMaterialListScheduleEvent(orgId,set.id,{event:input.event},projected);
     return {event};
   });
 }

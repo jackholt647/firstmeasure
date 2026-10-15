@@ -2571,7 +2571,8 @@
       project_id: projectId(),
       branch_id: branchId(),
       event: {
-        title: cleanText(schedule.title || currentList.title) || terms.list,
+        // A list made without a name (a work order, an equipment list) keeps its kind's name on the schedule.
+        title: cleanText(schedule.title || (currentList.metadata?.placeholder_title ? '' : currentList.title)) || (type === 'labor' ? 'Work order' : cleanText(resourceCategories().find((row) => row.id === type)?.name)) || terms.list,
         kind: cleanText(schedule.kind) || (type === 'material' ? 'material_delivery' : type === 'labor' ? 'project_work' : 'equipment'),
         icon: cleanText(schedule.icon) || terms.icon,
         resource_type: type

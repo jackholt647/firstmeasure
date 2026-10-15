@@ -1002,6 +1002,33 @@ test("a list its scope did not make takes the scope's grouping from the project'
   assert.equal((await client.request("GET", `/v1/materials/organizations/${orgId}/material-lists/${labor.id}`)).material_list.schedule.group_id, "roof_installation");
 });
 
+test("a signed document whose production plan never started still says the scope: the job is one span and its material arrives in the scope's deliveries", async () => {
+  const client = createSessionClient();
+  const { orgId } = await register(client);
+  const projectId = await createListProject(client, orgId, "project_document_scope");
+  const s = await import("../platform/storage.js"), { saveScopeTemplate } = await import("../scopes/storage.js"), { contentHash } = await import("../platform/publication/validation.js");
+  const group = { group_id: "roof_installation", group_title: "Roof Installation" };
+  await saveScopeTemplate(orgId, "default", { id: "document_roofing", name: "Roofing", work_plan: { root_nodes: [{ id: "roof", title: "Roof" }] }, resources: { lists: [
+    { id: "dry_in", title: "Dry-In", resource_type: "material", color: "#7c3aed", selector: { pricebook_item_ids: ["ice_water", "synthetic"] }, schedule: { enabled: true, kind: "material_delivery", title: "Dry-In", ...group, placement: { anchor: "start", offset: { value: -1, unit: "day" } } } },
+    { id: "shingles", title: "Shingles", resource_type: "material", color: "#b45309", selector: { pricebook_item_ids: ["timberline"] }, schedule: { enabled: true, kind: "material_delivery", title: "Shingles", ...group, placement: { anchor: "span" } } },
+    { id: "labor", title: "Roofing Labor", resource_type: "labor", color: "#2563eb", schedule: { enabled: true, kind: "project_work", ...group, placement: { anchor: "span" } } }
+  ] } });
+  // Only the sales pipeline plan exists; the signed document names the roofing scope it sold, and published the material.
+  await s.upsertDocument(orgId, "documents", { id: "doc_signed", data: { title: "Roof proposal", project_id: projectId, params: { scope_items: [{ scope_template_id: "document_roofing" }] } } });
+  const lines = [{ id: "l1", key: "ice", product_id: "ice_water", name: "Ice and water", quantity: 2, unit: "roll" }, { id: "l2", key: "syn", product_id: "synthetic", name: "Synthetic underlayment", quantity: 3, unit: "roll" }, { id: "l3", key: "shingle", product_id: "timberline", name: "Timberline", quantity: 30, unit: "bundle" }];
+  const set = { id: "set_roof", title: "Roof replacement", origin: { type: "document", document_id: "doc_signed" }, definition: { key: "roofing" }, lines, work: [], evaluations: [], history: [], revision: 1, presentation: {} };
+  await s.upsertDocument(orgId, "materials_calculus_ledgers", { id: `materials_${contentHash(projectId).slice(0, 32)}`, data: { revision: 0, project_id: projectId, sets: [set], orders: [], deliveries: [], events: [], receipts: {} } });
+  const { scopeDeliveryParts } = await import("../materials/storage.js");
+  const parts = await scopeDeliveryParts(orgId, projectId, set, lines);
+  assert.deepEqual(parts.map((part) => [part.part_id, part.title, part.line_ids, part.schedule.group_id]), [["dry_in", "Dry-In", ["l1", "l2"], "roof_installation"], ["shingles", "Shingles", ["l3"], "roof_installation"]]);
+  // A work order made in the Project tab, with no scope of its own, sits under the same job, named for what it is.
+  const labor = (await client.request("POST", `/v1/materials/organizations/${orgId}/projects/${projectId}/material-lists`, { title: "", resource_type: "labor", items: [{ id: "w", name: "Tear off", quantity: 1, unit: "job" }], metadata: { manually_created: true, placeholder_title: true } })).material_list;
+  assert.equal(labor.title, "", "a list made without a name is not called Materials");
+  const ensured = await client.request("POST", `/v1/materials/organizations/${orgId}/material-lists/${labor.id}/schedule-event`, {});
+  const spans = (await projectEvents(client, orgId, projectId)).filter((event) => event.kind === "schedule_group");
+  assert.deepEqual([spans.length, spans[0]?.schedule_group_id, ensured.event.parent_event_id === spans[0]?.id], [1, "roof_installation", true]);
+});
+
 test("a list whose schedule names a group and a placement sits under that span and follows it", async () => {
   const client = createSessionClient();
   const { orgId } = await register(client);

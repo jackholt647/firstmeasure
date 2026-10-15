@@ -521,7 +521,7 @@ async function commitMaterialVersion(
     material_list_id: cleanText(list.id),
     version_number: versionNumber,
     reason: cleanText(input.reason || "manual") || "manual",
-    title: cleanText(input.title || list.title) || "Materials",
+    title: cleanText(input.title || list.title) || (asObject(list.metadata).placeholder_title === true ? "" : "Materials"),
     parent_version_id: cleanText(input.parent_version_id || list.active_version_id),
     amendment_of_version_id: cleanText(input.amendment_of_version_id || input.parent_version_id || list.active_version_id),
     bundled_with_order_id: cleanText(input.bundled_with_order_id),
@@ -558,7 +558,7 @@ async function commitMaterialVersion(
   const nextDeliveryStatus = options.forceDeliveryStatus || deliveryStatus(list.delivery_status);
   const listData = {
     ...list,
-    title: cleanText(input.title || list.title) || "Materials",
+    title: cleanText(input.title || list.title) || (asObject(list.metadata).placeholder_title === true ? "" : "Materials"),
     status: nextStatus,
     delivery_status: nextDeliveryStatus,
     sections,
@@ -726,37 +726,98 @@ function materialEventOrderState(list: JsonObject) {
 }
 
 /**
- * The schedule grouping a project's scope defines for a kind of list, for a list the scope did not create: a signed
- * document's material set, or a work order or equipment list made in the Project tab. Without it such lists never sit
- * under the job's span, so the work, its equipment and its deliveries cannot be placed as one job.
- *
- * The scope comes from the project's work plans, preferring the one the list names (work plan, scope piece, or the
- * document that published it). Only the grouping is taken (group, title, colour, length and placement), never event
- * types, so an existing event of another list is not adopted. Every list resolved from the same plan gets that plan's
- * scope piece, so they share one span. A project whose plans define the grouping in more than one template is
- * ambiguous, and nothing is guessed.
+ * The scopes that apply to a project, as plans: its work plans first, then the scope templates named by the documents
+ * that published its material (a signed document whose production plan never started still says which scope it
+ * sold). A list or set that names its plan, scope piece or document narrows it to that one.
  */
-async function scopeScheduleFallback(orgId: string, projectId: string, list: JsonObject, resourceType: string) {
+async function projectScopePlans(orgId: string, projectId: string, list: JsonObject) {
   const plans = (await listPlanRecords(orgId, { project_id: projectId }).catch(() => [] as JsonObject[])).map(asObject)
     .filter((plan) => cleanText(plan.template_id) && !["canceled", "cancelled", "archived", "failed"].includes(cleanText(plan.status).toLowerCase()));
+  const { projectScopeSets } = await import("./calculus.js");
+  const documentIds = [...new Set([cleanText(asObject(list.origin).document_id), ...(await projectScopeSets(orgId, projectId).catch(() => [])).map((set) => cleanText(set.document_id))].filter(Boolean))];
+  for (const documentId of documentIds) {
+    const document = await readDocument(orgId, "documents", documentId).then((found) => asObject(documentData(found))).catch(() => ({} as JsonObject));
+    const named = [...normalizeStringArray(asObject(document.metadata).on_signed_scope_template_ids),
+      ...(Array.isArray(asObject(document.params).scope_items) ? asObject(document.params).scope_items as unknown[] : []).map((item) => cleanText(asObject(item).scope_template_id || asObject(asObject(item).piece).template_id))];
+    for (const templateId of [...new Set(named.filter(Boolean))]) {
+      if (!plans.some((plan) => cleanText(plan.template_id) === templateId)) plans.push({ id: "", template_id: templateId, template_version: 0, branch_id: cleanText(document.branch_id) || "default", scope_piece_id: "", source_id: documentId, status: "document" });
+    }
+  }
   const named = plans.filter((plan) => (cleanText(list.work_plan_id) && cleanText(plan.id) === cleanText(list.work_plan_id))
     || (cleanText(list.scope_piece_id) && cleanText(plan.scope_piece_id) === cleanText(list.scope_piece_id))
     || (cleanText(asObject(list.origin).document_id) && cleanText(plan.source_id) === cleanText(asObject(list.origin).document_id)));
+  return named.length ? named : plans;
+}
+
+/** The list definitions of one kind that the project's scope groups into a job, with the plan they came from. */
+async function scopeGroupedDefinitions(orgId: string, projectId: string, list: JsonObject, resourceType: string) {
   const found: { plan: JsonObject; lists: JsonObject[] }[] = [];
-  for (const plan of named.length ? named : plans) {
+  for (const plan of await projectScopePlans(orgId, projectId, list)) {
     const definition = await materialDefinitionForPiece(orgId, cleanText(plan.branch_id) || "default", { template_id: plan.template_id, template_version: plan.template_version }, {}).catch(() => ({} as JsonObject));
     const lists = (Array.isArray(definition.lists) ? definition.lists : []).map(asObject)
       .filter((entry) => (cleanText(entry.resource_type) || "material") === resourceType && cleanText(asObject(entry.schedule).group_id));
     if (lists.length) found.push({ plan, lists });
   }
+  // Two templates that both group this kind of list is ambiguous; nothing is guessed.
   if (!found.length || new Set(found.map((entry) => cleanText(entry.plan.template_id))).size > 1) return null;
-  const { plan, lists } = found[0]!;
-  const title = cleanText(list.title).toLowerCase();
-  const match = lists.find((entry) => cleanText(entry.id) === cleanText(asObject(list.definition).key) || (title && cleanText(entry.title).toLowerCase() === title)) || lists[0]!;
-  const source = asObject(match.schedule);
-  const schedule: JsonObject = {};
+  return found[0]!;
+}
+const scheduleGrouping = (definition: JsonObject) => {
+  const source = asObject(definition.schedule), schedule: JsonObject = {};
   for (const key of ["group_id", "group_title", "group_color", "group_duration", "placement"]) if (source[key] !== undefined) schedule[key] = source[key];
-  return { schedule, scope_piece_id: cleanText(plan.scope_piece_id), scope_template_id: cleanText(plan.template_id) };
+  return schedule;
+};
+
+/**
+ * The schedule grouping a project's scope defines for a kind of list, for a list the scope did not create: a signed
+ * document's material set, or a work order or equipment list made in the Project tab. Without it such lists never sit
+ * under the job's span, so the work, its equipment and its deliveries cannot be placed as one job. Only the grouping
+ * is taken (group, title, colour, length and placement), never event types, so an existing event of another list is
+ * not adopted. Every list resolved from the same plan gets that plan's scope piece, so they share one span.
+ */
+async function scopeScheduleFallback(orgId: string, projectId: string, list: JsonObject, resourceType: string) {
+  const grouped = await scopeGroupedDefinitions(orgId, projectId, list, resourceType);
+  if (!grouped) return null;
+  const title = cleanText(list.title).toLowerCase();
+  const match = grouped.lists.find((entry) => cleanText(entry.id) === cleanText(asObject(list.definition).key) || (title && cleanText(entry.title).toLowerCase() === title)) || grouped.lists[0]!;
+  return { schedule: scheduleGrouping(match), scope_piece_id: cleanText(grouped.plan.scope_piece_id), scope_template_id: cleanText(grouped.plan.template_id) };
+}
+
+/**
+ * The deliveries a material set is split into: one per material list the scope defines (dry-in, shingles), each with
+ * the lines that list's selector takes and its own placement in the job. A scope with one material list, or none,
+ * leaves the set one delivery (an empty answer). Lines are matched as the scope's own lists match them.
+ */
+export async function scopeDeliveryParts(orgId: string, projectId: string, set: JsonObject, lines: JsonObject[]) {
+  const grouped = await scopeGroupedDefinitions(orgId, projectId, set, "material");
+  if (!grouped || grouped.lists.length < 2) return [];
+  const facts = await scopeMaterialFacts(orgId, lines.map((line) => ({ name: cleanText(line.name), pricebook_ref: { item_id: cleanText(line.product_id) }, metadata: { line_id: cleanText(line.id) } })));
+  const taken = new Map<string, string[]>(grouped.lists.map((definition) => [cleanText(definition.id), []]));
+  facts.forEach((fact, index) => {
+    const explicit = grouped.lists.filter((definition) => asObject(definition.selector).default !== true && materialFactMatchesSelector(fact, definition.selector));
+    const match = explicit[0] || grouped.lists.find((definition) => asObject(definition.selector).default === true && materialFactMatchesSelector(fact, definition.selector));
+    if (match) taken.get(cleanText(match.id))!.push(cleanText(lines[index]!.id));
+  });
+  return grouped.lists.filter((definition) => taken.get(cleanText(definition.id))!.length).map((definition) => ({
+    part_id: cleanText(definition.id), title: cleanText(asObject(definition.schedule).title || definition.title), line_ids: taken.get(cleanText(definition.id))!,
+    schedule: { ...scheduleGrouping(definition), ...(cleanText(asObject(definition.schedule).kind) ? { kind: cleanText(asObject(definition.schedule).kind) } : {}), ...(cleanText(asObject(definition.schedule).icon) ? { icon: cleanText(asObject(definition.schedule).icon) } : {}), ...(cleanText(asObject(definition.schedule).color) ? { color: cleanText(asObject(definition.schedule).color) } : {}) } as JsonObject,
+    scope_piece_id: cleanText(grouped.plan.scope_piece_id), scope_template_id: cleanText(grouped.plan.template_id)
+  }));
+}
+
+/** Takes a list's single delivery off the schedule once it is split into parts, if it was never scheduled. */
+export async function retireUnscheduledWholeListEvent(orgId: string, projectId: string, listId: string) {
+  return retryOnRevisionConflict(async () => {
+    const projectDoc = await readDocument(orgId, "projects", projectId);
+    const project = documentData(projectDoc);
+    const events = (Array.isArray(project.events) ? project.events : []).map(asObject);
+    const whole = events.filter((event) => eventListId(event) === listId && !eventListPartId(event) && cleanText(event.status).toLowerCase() === "unscheduled" && !cleanText(event.start_at));
+    if (!whole.length) return 0;
+    const ids = new Set(whole.map((event) => cleanText(event.id)));
+    await upsertDocument(orgId, "projects", { id: projectId, expected_revision: Number(projectDoc.revision), data: { ...project, events: events.filter((event) => !ids.has(cleanText(event.id))), updated_at: nowIso() }, metadata: projectDoc.metadata }, { replace: true });
+    for (const event of whole) await recordProjectChange(orgId, { project_id: projectId, domain: "schedule", subject_type: "schedule_event", subject_id: cleanText(event.id), op: "deleted", summary: `Split ${cleanText(event.title) || "a delivery"} into the scope's deliveries`, before: event });
+    return whole.length;
+  });
 }
 
 // A project is written on the revision it was read at. When a schedule save lands in between, the whole step is done

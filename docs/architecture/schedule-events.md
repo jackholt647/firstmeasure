@@ -74,8 +74,17 @@ installation under it, an equipment reservation under the installation.
   order or equipment list made in the Project tab) has no `schedule.group_id`;
   when its event is ensured, `scopeScheduleFallback` in `materials/storage.ts`
   takes the grouping (group, title, colour, length, placement, never event types)
-  that the project's work plan's template defines for that kind of list, so every
-  list of the job still sits under one span. A project whose plans define the
+  that the project's scope defines for that kind of list, so every list of the
+  job still sits under one span. The scope is the project's work plans, then the
+  scope templates named by the documents that published its material
+  (`params.scope_items`, `metadata.on_signed_scope_template_ids`), so a signed
+  document whose production plan never started still groups its job. A material
+  set whose scope delivers in parts (`scopeDeliveryParts`: one part per material
+  list definition, lines matched by that definition's selector, such as dry-in
+  and shingles) gets one delivery event per part (`list_part_id`), each with its
+  definition's placement; its single unscheduled delivery is then removed. A list
+  made without a name keeps none, and is shown by its kind (Work order,
+  Equipment), never as "Materials". A project whose plans define the
   grouping in more than one template is ambiguous and is left ungrouped. The
   Project tab's Schedule button ensures every list's event first and places the
   span it finds; only with no span does it offer to schedule each list by hand.
