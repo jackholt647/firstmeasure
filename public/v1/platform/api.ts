@@ -8553,26 +8553,33 @@ function projectReportDocuments(projectData: JsonObject = {}) {
   const docs: JsonObject[] = [];
   const measurement = asObject(projectData.measurement_project || projectData.measurement);
   const raw = asObject(measurement.raw);
+  // A report is dated when it was produced, never by the project's last edit.
+  const measuredAt = docFirstText(measurement.completed_at, raw.completed_at, projectData.completed_at);
+  const weatherAt = docFirstText(projectData.weather_report_generated_at, measurement.weather_report_generated_at, raw.weather_report_generated_at);
   addReportDocument(docs, {
     id: "roof_report_pdf",
+    uploaded_at: measuredAt,
     title: "Roof Measurement Report",
     document_type: "roof_report",
     url: docFirstText(projectData.report_url, projectData.pdf_url, measurement.report_url, measurement.pdf_url, raw.report_url, raw.pdf_url)
   });
   addReportDocument(docs, {
     id: "customer_report_pdf",
+    uploaded_at: measuredAt,
     title: "Customer Report",
     document_type: "customer_report",
     url: docFirstText(projectData.summary_url, measurement.summary_url, raw.summary_url)
   });
   addReportDocument(docs, {
     id: "instant_report_pdf",
+    uploaded_at: measuredAt,
     title: "Instant Report",
     document_type: "instant_report",
     url: docFirstText(projectData.instant_pdf_url, measurement.instant_pdf_url, raw.instant_pdf_url, asObject(projectData.assets).instant_pdf_url, asObject(asObject(projectData.instant).assets).instant_pdf_url)
   });
   addReportDocument(docs, {
     id: "weather_report_pdf",
+    uploaded_at: weatherAt,
     title: "Weather Report",
     document_type: "weather_report",
     url: docFirstText(projectData.weather_report_pdf_url, measurement.weather_report_pdf_url, raw.weather_report_pdf_url)

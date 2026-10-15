@@ -289,7 +289,14 @@
   }
   function shortDate(value){
     const date = new Date(value);
-    return Number.isNaN(date.getTime()) ? cleanText(value) : date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+    if (Number.isNaN(date.getTime())) return cleanText(value);
+    const sameYear = date.getFullYear() === new Date().getFullYear();
+    return date.toLocaleDateString(undefined, sameYear ? { month: 'short', day: 'numeric' } : { month: 'short', day: 'numeric', year: 'numeric' });
+  }
+  /** The date a tile shows: when the document was made, uploaded or produced. */
+  function tileDate(doc = {}){
+    const value = firstText(doc.uploaded_at, doc.created_at, doc.metadata?.uploaded_at, doc.metadata?.created_at, doc.updated_at);
+    return value ? shortDate(value) : '';
   }
 
   function engineDocEntry(record = {}, index = 0){
@@ -586,6 +593,9 @@
       .fm-doc-tile-title{max-width:100%;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;color:#101828;font-size:12px;font-weight:800;line-height:1.3}
       .fm-doc-tile-amount{color:#101828;font-size:17px;font-weight:900;letter-spacing:-.01em;line-height:1.2}
       .fm-doc-tile-facts{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#667085;font-size:10.5px;font-weight:700}
+      .fm-doc-tile-date{color:#667085;font-size:10px;font-weight:800}
+      .fm-doc-date-pill{position:absolute;right:7px;bottom:7px;z-index:3;border-radius:999px;padding:4px 8px;background:rgba(255,255,255,.92);color:#344054;font-size:10.5px;font-weight:800}
+      .fm-docs-gallery .pf-wrap[data-density="list"] .fm-doc-tile-date,.fm-docs-gallery .pf-wrap[data-density="list"] .fm-doc-date-pill{display:none}
       .fm-doc-amount-pill{position:absolute;left:7px;bottom:7px;z-index:3;border-radius:999px;padding:4px 8px;background:rgba(16,24,40,.78);color:#fff;font-size:11px;font-weight:900}
       .fm-docs-gallery .pf-wrap[data-density="list"] .fm-doc-thumb--summary>:not(i){display:none}
       .fm-docs-gallery .pf-wrap[data-density="list"] .fm-doc-thumb--summary{padding:0;justify-content:center;align-items:center}
@@ -863,22 +873,24 @@
       : url;
     const summary = tileSummary(doc);
     const color = escapeHtml(doc.color || meta.color);
+    const dated = tileDate(doc);
     const status = summary?.statusLabel ? `<span class="fm-doc-status-badge tone-${summary.tone}">${escapeHtml(summary.statusLabel)}</span>` : '';
     const typeBadge = `<span class="fm-doc-type-badge" style="--doc-color:${color}">${escapeHtml(doc.type_label || meta.label)}</span>`;
     if (isImageDoc(doc, url) && thumb) {
       return `<img loading="lazy" draggable="false" src="${escapeHtml(thumb)}" alt="${escapeHtml(doc.title || (globalThis.PlatformLanguage?.text("docs","m_9c9b98b1f4e8c9","Document") ?? "Document"))}">
       ${typeBadge}${status}
-      ${summary?.amount ? `<span class="fm-doc-amount-pill">${escapeHtml(summary.amount)}</span>` : ''}`;
+      ${summary?.amount ? `<span class="fm-doc-amount-pill">${escapeHtml(summary.amount)}</span>` : ''}
+      ${dated ? `<span class="fm-doc-date-pill">${escapeHtml(dated)}</span>` : ''}`;
     }
     if (!summary || (!summary.amount && !summary.facts.length)) {
-      return `<span class="fm-doc-thumb" style="--doc-color:${color}"><i class="fas ${escapeHtml(doc.icon || meta.icon)}"></i><small>${escapeHtml(doc.type_label || meta.label)}</small></span>
+      return `<span class="fm-doc-thumb" style="--doc-color:${color}"><i class="fas ${escapeHtml(doc.icon || meta.icon)}"></i><small>${escapeHtml(doc.type_label || meta.label)}</small>${dated ? `<span class="fm-doc-tile-date">${escapeHtml(dated)}</span>` : ''}</span>
       ${typeBadge}${status}`;
     }
     return `<span class="fm-doc-thumb fm-doc-thumb--summary" style="--doc-color:${color}">
         <i class="fas ${escapeHtml(doc.icon || meta.icon)}"></i>
         <span class="fm-doc-tile-title">${escapeHtml(doc.title || meta.label)}</span>
         ${summary.amount ? `<strong class="fm-doc-tile-amount">${escapeHtml(summary.amount)}</strong>` : ''}
-        ${summary.facts.length ? `<span class="fm-doc-tile-facts">${summary.facts.map(escapeHtml).join(' · ')}</span>` : ''}
+        ${summary.facts.length ? `<span class="fm-doc-tile-facts">${summary.facts.map(escapeHtml).join(' · ')}</span>` : (dated ? `<span class="fm-doc-tile-facts">${escapeHtml(dated)}</span>` : '')}
       </span>
       ${typeBadge}${status}`;
   }
@@ -967,6 +979,9 @@
       uploadLabel:'Upload',
       initialDensity:state.viewMode === 'list' ? 'list' : (state.galleryDensity === 'list' ? 'comfortable' : state.galleryDensity),
       extraDensityModes:[{ id:'list', label:(globalThis.PlatformLanguage?.text("docs","m_db473980ea71b2","List") ?? "List"), icon:'list' }],
+      // Documents are few: tiles sit together with their dates on them; only
+      // the list view splits them into days.
+      groupByDay:(density) => density === 'list',
       searchPlaceholder:'Search documents, types, or dates',
       emptyIcon:'fa-file-medical',
       emptyTitle:availableDocs.length ? 'No matching documents' : 'No documents yet',

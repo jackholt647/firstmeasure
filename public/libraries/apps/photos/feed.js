@@ -952,10 +952,11 @@
     })).map((item) => ({ ...item, search: searchableText(item) }))
       .sort((a, b) => String(b.uploadedAt).localeCompare(String(a.uploadedAt)));
   }
-  function buildGroups(items = []){
+  function buildGroups(items = [], options = {}){
     const groups = new Map();
     items.forEach((item) => {
-      const key = `${item.dateKey}::${item.projectId || item.projectTitle}`;
+      // options.byDay === false: one group per project, newest first, no day split.
+      const key = options.byDay === false ? `all::${item.projectId || item.projectTitle}` : `${item.dateKey}::${item.projectId || item.projectTitle}`;
       if (!groups.has(key)) {
         groups.set(key, {
           key,
@@ -3037,7 +3038,10 @@
       if (!query) return modeItems;
       return modeItems.filter((item) => item.search.includes(query) || itemTags(item).some((tag) => tag.toLowerCase().includes(query.replace(/^#/, ''))));
     };
-    const localGroups = () => buildGroups(filtered());
+    // options.groupByDay: true (default) splits the gallery into day sections;
+    // false, or a function of the density returning false, shows one section.
+    const groupByDay = () => (typeof options.groupByDay === 'function' ? options.groupByDay(local.density) : options.groupByDay) !== false;
+    const localGroups = () => buildGroups(filtered(), { byDay: groupByDay() });
     const writeLocalTagRoute = () => {
       if (cleanText(options.routeScope) !== 'project' || window.Portal?.navigation?.applying) return;
       window.Portal?.navigation?.replace?.({
@@ -3129,7 +3133,7 @@
         ${local.selectionMode ? `<div class="pf-selectionbar"><strong>${((v0) => globalThis.PlatformLanguage?.htmlText("photos","m_4b740d0b3ec319",`${v0} selected`,{v0}) ?? `${v0} selected`)(local.selected.size)}</strong><div class="pf-selection-actions"><button type="button" class="pf-action" data-selection-clear>${(globalThis.PlatformLanguage?.htmlText("photos","m_cbef679b21abb4","Cancel") ?? "Cancel")}</button>${String(selectionActions)}</div></div>` : ''}
         <div class="pf-scroll" data-feed-scroll>
           ${!groups.length ? `<div class="pf-empty"><i class="fas ${escapeHtml(options.emptyIcon || 'fa-images')}"></i><strong>${escapeHtml(options.emptyTitle || 'No media found')}</strong><div>${escapeHtml(options.emptyMessage || 'Upload project media or adjust the search.')}</div></div>` : ''}
-          ${groupedByDay(groups).map(([key, list]) => `<div class="pf-day"><div class="pf-day-heading"><h2 class="pf-day-title">${escapeHtml(dateLabel(key))}</h2>${typeof options.renderDaySummary==='function'?`<div class="pf-day-summary">${options.renderDaySummary({key,groups:list})}</div>`:''}</div>${list.map((group) => renderGroup(group, { enableProjectLinks: options.enableProjectLinks !== false, selected: local.selected, selectionEnabled:options.selectionEnabled, itemNoun:options.itemNoun, renderThumbnail:options.renderThumbnail, renderTileMeta:options.renderTileMeta, renderGroupUploaders:options.renderGroupUploaders, tileClass:options.tileClass })).join('')}</div>`).join('')}
+          ${(groupByDay() ? groupedByDay(groups) : [['', groups]]).map(([key, list]) => `<div class="pf-day">${key ? `<div class="pf-day-heading"><h2 class="pf-day-title">${escapeHtml(dateLabel(key))}</h2>${typeof options.renderDaySummary==='function'?`<div class="pf-day-summary">${options.renderDaySummary({key,groups:list})}</div>`:''}</div>` : ''}${list.map((group) => renderGroup(group, { enableProjectLinks: options.enableProjectLinks !== false, selected: local.selected, selectionEnabled:options.selectionEnabled, itemNoun:options.itemNoun, renderThumbnail:options.renderThumbnail, renderTileMeta:options.renderTileMeta, renderGroupUploaders:options.renderGroupUploaders, tileClass:options.tileClass })).join('')}</div>`).join('')}
         </div>`;
     };
     const renderBody = () => {
