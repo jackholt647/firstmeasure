@@ -3,9 +3,8 @@ import { createHash, randomBytes, createCipheriv, createDecipheriv } from "node:
 import { backgroundAuthContext, hasPermission, type PlatformAuthContext } from "../platform/auth.js";
 import { isCapabilityEnabled } from "../platform/capabilities.js";
 import { badRequest, forbidden, notFound } from "../platform/errors.js";
-import { readOrganization, readDocument, upsertDocument } from "../platform/storage.js";
+import { readOrganization, readDocument } from "../platform/storage.js";
 import { contactSettings, saveContactSettings } from "../contacts/service.js";
-import { updateProjectData } from "../platform/project_document_mutation.js";
 import { createOrganizationConnection, readOrganizationConnection } from "../connections/storage.js";
 import { withDeferredWorkEvents } from "../work/engine.js";
 import { policySchema, grantSchema, invitationSchema, relationshipSchema, audienceSchema, type ResourceRef, type GrantInput } from "./schemas.js";
@@ -259,25 +258,20 @@ export async function reconcileLocalContacts(connection:RecordValue){
     await withOrganizationLocks([owner],async()=>{
     const other=owner===connection.owner_org_id?connection.recipient_org_id:connection.owner_org_id;
     const relationship=await getRecord(`relationship_${digest(`${connection.id}:${owner}`)}`,"relationship");
-    const suffix=digest(`${connection.id}:${owner}`).slice(0,24), projectId=`partner_contact_${suffix}`,contactId=`partner_${suffix}`;
+    const suffix=digest(`${connection.id}:${owner}`).slice(0,24),contactId=`partner_${suffix}`;
     const profile=await organizationProfile(other);
-    let existing:any=null;try{existing=await readDocument(owner,"projects",projectId);}catch(e:any){if(e.statusCode!==404&&e.code!=="ENOENT")throw e;}
     const settings=await contactSettings(owner);
     if(!(settings.tags as any[]).some(t=>t.id==="partner"))await saveContactSettings(owner,{...settings,tags:[...(settings.tags as any[]),{id:"partner",label:"Partner",enabled:true}]});
-    if(!existing){
-      try{await upsertDocument(owner,"projects",{id:projectId,data:{workflow_state:"contact_only",title:profile.name,contacts:[]}},{createOnly:true});}
-      catch(e:any){if(e.code!=="document_exists")throw e;}
-    }
-    await updateProjectData(owner,projectId,data=>{
-      const contacts=Array.isArray(data.contacts)?data.contacts as Record<string,any>[]:[];
-      const previous=contacts.find(c=>c.id===contactId)||{};
-      const tags=[...new Set([...(previous.tags||[]).filter((v:string)=>v!=="partner"),"org",...(relationship.classification==="partner"?["partner"]:[])])];
-      const contact={...previous,id:contactId,name:previous.name||profile.name,contact_kind:"org",tags,firstmate_connection_id:connection.id};
-      return {...data,contacts:[...contacts.filter(c=>c.id!==contactId),contact]};
-    });
+    // The partner organization is a contact of its own (docs/architecture/contacts.md); a merge may have moved it.
+    const records=await import("../contacts/records.js");
+    const existingId=await records.resolveContactId(owner,contactId);
+    const previous=existingId?await records.readContact(owner,existingId):null;
+    const tags=[...new Set([...(previous?.tags||[]).filter(v=>v!=="partner"),"org",...(relationship.classification==="partner"?["partner"]:[])])];
+    if(previous)await records.updateContact(owner,previous.id,{tags,contact_kind:"org",...(previous.name?{}:{name:profile.name})});
+    else await records.createContact(owner,{name:profile.name,contact_kind:"org",tags},{id:contactId});
     const workforceId=`partner_${suffix}`;
-    try{await readOrganizationConnection(owner,workforceId);}catch(e:any){if(e.code!=="organization_connection_not_found")throw e;await createOrganizationConnection(owner,{id:workforceId,name:profile.name,linked_organization_id:other,link_status:"linked",metadata:{collaboration_connection_id:connection.id,contact_ref:{project_id:projectId,contact_id:contactId}}});}
-    if(!relationship.contact_ref)await withOrganizationLocks([owner],async()=>{const fresh=await getRecord(relationship.id);await updateRecord(fresh,{contact_ref:{project_id:projectId,contact_id:contactId},workforce_connection_id:workforceId},fresh.revision);});
+    try{await readOrganizationConnection(owner,workforceId);}catch(e:any){if(e.code!=="organization_connection_not_found")throw e;await createOrganizationConnection(owner,{id:workforceId,name:profile.name,linked_organization_id:other,link_status:"linked",metadata:{collaboration_connection_id:connection.id,contact_ref:{contact_id:contactId}}});}
+    if(!relationship.contact_ref)await withOrganizationLocks([owner],async()=>{const fresh=await getRecord(relationship.id);await updateRecord(fresh,{contact_ref:{contact_id:contactId},workforce_connection_id:workforceId},fresh.revision);});
     });
   }
 }

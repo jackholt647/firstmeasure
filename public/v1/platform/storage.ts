@@ -1151,29 +1151,57 @@ export type UpsertDocumentOptions = {
   createOnly?: boolean;
   /** Fail instead of creating the document. */
   mustExist?: boolean;
-  /** The contact service writing `project.contacts`; skips the contact bridge. */
+  /** The contact service writing its projection onto a project; see `guardProjectContacts`. */
   contactsProjection?: boolean;
 };
 
 export async function upsertDocument(orgId: string, collectionValue: string, input: JsonObject = {}, options: UpsertDocumentOptions = {}) {
-  const contactRefresh: string[] = [];
-  const saved = isFirstMeasurePostgresEnabled()
-    ? await (await postgresStorage()).upsertDocument(orgId, collectionValue, input, options, contactRefresh) as StoredDocument
-    : await upsertFileDocument(orgId, collectionValue, input, options, contactRefresh);
-  // Other projects showing a contact this write changed get their projection after the write commits.
-  if (contactRefresh.length) await (await import("../contacts/records.js")).refreshProjections(orgId, contactRefresh);
-  return saved;
+  return isFirstMeasurePostgresEnabled()
+    ? await (await postgresStorage()).upsertDocument(orgId, collectionValue, input, options) as StoredDocument
+    : await upsertFileDocument(orgId, collectionValue, input, options);
 }
 
-/** Project writes that carry contacts go through the contact service (docs/architecture/contacts.md). */
-export async function bridgeProjectContacts(orgId: string, collection: string, id: string, data: JsonObject, previous: JsonObject, options: UpsertDocumentOptions, refresh: string[]) {
-  if (collection !== "projects" || options.contactsProjection || !Array.isArray(data.contacts)) return data;
-  const synced = await (await import("../contacts/bridge.js")).syncProjectContactsOnWrite(orgId, id, data, previous);
-  refresh.push(...synced.refresh);
-  return synced.data;
+/** What the contact service projects onto a project (contacts/records.ts `projectContactsProjection`). */
+export const PROJECT_CONTACT_PROJECTION_KEYS = [
+  "contacts", "contact_id", "primary_contact_id", "contact_ids", "customer_name", "primary_contact_name",
+  "customer_email", "primary_contact_email", "customer_phone", "primary_contact_phone"
+] as const;
+
+/** Whether a `contacts` list a writer sent is the stored projection, or a copy of it from before a contact changed. */
+function resendsProjection(sent: unknown, stored: unknown) {
+  const a = Array.isArray(sent) ? sent : [], b = Array.isArray(stored) ? stored : [];
+  if (a.length !== b.length) return false;
+  return a.every((raw, index) => {
+    const mine = asObject(raw), theirs = asObject(b[index]);
+    const id = (row: JsonObject) => String(row.contact_id || row.id || "");
+    if (id(mine) !== id(theirs) || String(mine.role || "") !== String(theirs.role || "") || (mine.primary === true) !== (theirs.primary === true)) return false;
+    const copied = Number(mine.contact_revision) || 0;
+    return (copied > 0 && copied < (Number(theirs.contact_revision) || 0)) || JSON.stringify(mine) === JSON.stringify(theirs);
+  });
 }
 
-async function upsertFileDocument(orgId: string, collectionValue: string, input: JsonObject, options: UpsertDocumentOptions, contactRefresh: string[]) {
+/**
+ * A project's contacts are its contact links, changed only through the contacts API
+ * (docs/architecture/contacts.md). A project write that sends a `contacts` list other
+ * than the stored projection (or a copy of it read before a contact changed) is refused.
+ * The projected keys always keep the values the contact service last wrote.
+ */
+export function guardProjectContacts(collection: string, data: JsonObject, previous: JsonObject, options: UpsertDocumentOptions) {
+  if (collection !== "projects" || options.contactsProjection) return data;
+  if ("contacts" in data && !resendsProjection(data.contacts, previous.contacts)) {
+    throw badRequest("project_contacts_read_only", "A project's contacts cannot be changed by a project write. Use the contacts API (PUT /organizations/:orgId/projects/:projectId/contacts, POST and PATCH /contacts).");
+  }
+  const next = { ...data };
+  for (const key of PROJECT_CONTACT_PROJECTION_KEYS) {
+    if (key in previous) next[key] = previous[key];
+    else delete next[key];
+  }
+  // A project with no links yet has an empty list, as the projection writes it.
+  if (!Array.isArray(next.contacts)) next.contacts = [];
+  return next;
+}
+
+async function upsertFileDocument(orgId: string, collectionValue: string, input: JsonObject, options: UpsertDocumentOptions) {
   const collection = assertCollection(collectionValue);
   await readOrganization(orgId);
   const id = input.id ? sanitizeId(String(input.id), "document_id") : generateId(generatedDocumentPrefix(collection));
@@ -1191,7 +1219,7 @@ async function upsertFileDocument(orgId: string, collectionValue: string, input:
 
     if (["projects", "customers", "resource_custom_fields","organization_custom_fields", "users"].includes(collection)) {
       const previous = exists ? asObject((await readJsonFile<StoredDocument>(filePath)).data) : {};
-      data = await bridgeProjectContacts(orgId, collection, id, data, previous, options, contactRefresh);
+      data = guardProjectContacts(collection, data, previous, options);
       const fields = await import("../custom_fields/records.js");
       data = await fields.prepareStoredFields(orgId, collection, data, previous);
       await fields.validateStoredFields(orgId, collection, data, previous, options.replace, id);

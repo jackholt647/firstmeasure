@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { listDocuments, upsertDocument, type JsonObject } from "../platform/storage.js";
+import { deleteDocument, listDocuments, upsertDocument, type JsonObject } from "../platform/storage.js";
 import { asObject, text } from "./contracts.js";
 import { createContact, projectContactLinks, projectContactsProjection, resolveContactId, setProjectContactLinks, type ContactLink } from "./records.js";
 
@@ -39,6 +39,30 @@ export async function migrateOrganizationContacts(org: string) {
     await setProjectContactLinks(org, project.id, links);
     await upsertDocument(org, "projects", { id: project.id, data: await projectContactsProjection(org, project.id) }, { contactsProjection: true, mustExist: true });
     counts.projects++; counts.links += links.length;
+  }
+  return counts;
+}
+
+/**
+ * Removes the standalone (`contact_only`) project records contacts used to live in. Run after
+ * `migrateOrganizationContacts`, which copies their contacts into the store. Idempotent. A record
+ * that gathered work (events or proposals) is kept as a draft project; a bare one is deleted and
+ * loses its links, so its contacts remain as records of their own.
+ */
+export async function removeStandaloneContactRecords(org: string) {
+  const counts = { removed: 0, kept_as_draft: 0 };
+  for (const project of await listDocuments(org, "projects")) {
+    const data = asObject(project.data);
+    if (data.workflow_state !== "contact_only") continue;
+    const used = ["events", "proposals"].some(key => Array.isArray(data[key]) && (data[key] as unknown[]).length);
+    if (used) {
+      await upsertDocument(org, "projects", { id: project.id, data: { workflow_state: "draft" } });
+      counts.kept_as_draft++;
+      continue;
+    }
+    await setProjectContactLinks(org, project.id, []);
+    await deleteDocument(org, "projects", project.id);
+    counts.removed++;
   }
   return counts;
 }

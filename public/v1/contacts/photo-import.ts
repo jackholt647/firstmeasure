@@ -33,7 +33,7 @@ async function remoteImage(source:string,redirects=0):Promise<{bytes:Buffer;cont
   });req.on("error",reject);req.end();
  });
 }
-export async function importContactPhoto(orgId:string,contactId:string,projectId:string,source:string,importId:string){
+export async function importContactPhoto(orgId:string,contactId:string,source:string,importId:string){
  let image:{bytes:Buffer;contentType:string};
  if(source.startsWith("data:")){
   const match=/^data:(image\/(?:jpeg|png|webp|gif));base64,([a-zA-Z0-9+/=\s]+)$/.exec(source);
@@ -42,7 +42,7 @@ export async function importContactPhoto(orgId:string,contactId:string,projectId
  }else image=await remoteImage(source);
  if(!image.bytes.length || image.bytes.length>MAX_BYTES)throw badRequest("contact_photo_size","The photo must be under 10MB.");
  await validateContactPhoto(image);
- return storeMediaUpload(orgId,{...image,ownerType:"contact",ownerId:contactId,slot:"profile",collection:"contacts",scope:"contact",fileName:`profile.${image.contentType.split("/")[1]}`,metadata:{contact_record_project_id:projectId,import_id:importId,source:"contact_import"}});
+ return storeMediaUpload(orgId,{...image,ownerType:"contact",ownerId:contactId,slot:"profile",collection:"contacts",scope:"contact",fileName:`profile.${image.contentType.split("/")[1]}`,metadata:{import_id:importId,source:"contact_import"}});
 }
 
 export async function validateContactPhoto(image:{bytes:Buffer;contentType:string}){
