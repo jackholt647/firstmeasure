@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 
 import { sendCommunication } from "../../messaging/communications_service.js";
 import { sendCommunicationSchema, type CommunicationChannel } from "../../messaging/schemas.js";
-import { removeCallListEntry, upsertCallListEntry } from "../../internal/crm/call_lists.js";
+import { removeCallListEntry, upsertCallListEntry } from "../../comms/call-lists.js";
 import { readDocument, upsertDocument, type JsonObject } from "../../platform/storage.js";
 import { updateProjectData } from "../../platform/project_document_mutation.js";
 import { registerWorkAutomation, type WorkAutomationContext } from "../registry.js";

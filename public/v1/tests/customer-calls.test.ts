@@ -259,7 +259,7 @@ test('legacy migration is a dry run by default and imports an outcome once witho
   const {c,orgId}=await owner(),base=`/v1/comms/organizations/${orgId}`;
   await c.request('POST',`${base}/call-lists`,{key:'legacy-list',title:'Legacy calls'});
   const {entry}=await c.request('POST',`${base}/call-lists/legacy-list/entries`,{operation_id:'legacy-entry-test',name:'Historical contact',phone:'+12065550145',title:'Old call'});
-  await (await import('../internal/crm/call_lists.js')).getCallListDatabase().prepare("UPDATE crm_call_list_entries SET status='completed',completed_at=?,result_json=? WHERE id=?").run('2025-07-01T10:00:00Z',JSON.stringify({id:'legacy-outcome',disposition:'answered',created_at:'2025-07-01T10:00:00Z'}),entry.id);
+  await (await import('../comms/call-lists.js')).getCallListDatabase().prepare("UPDATE crm_call_list_entries SET status='completed',completed_at=?,result_json=? WHERE id=?").run('2025-07-01T10:00:00Z',JSON.stringify({id:'legacy-outcome',disposition:'answered',created_at:'2025-07-01T10:00:00Z'}),entry.id);
   const {migrateLegacyCalls}=await import('../comms/calls/migration.js');
   assert.equal((await migrateLegacyCalls(orgId)).eligible,1);assert.equal((await store.listCalls(orgId)).total,0);
   assert.equal((await migrateLegacyCalls(orgId,true)).imported,1);assert.equal((await migrateLegacyCalls(orgId,true)).existing,1);

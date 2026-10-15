@@ -495,19 +495,19 @@ test("scope call-list automations create queues and dispositions complete their 
     }]
   });
   const nodeId = created.tree.root_nodes[0].id;
-  const queue = await client.request("POST", `/v1/internal/crm/organizations/${orgId}/call-lists/queue`, { role_ids: ["office"] });
+  const queue = await client.request("POST", `/v1/call-lists/organizations/${orgId}/call-lists/queue`, { role_ids: ["office"] });
   const newCustomers = queue.columns.find((column: any) => column.key === "new_customers");
   assert.equal(newCustomers.tasks[0].work_node_id, nodeId);
   assert.equal(newCustomers.tasks[0].name, "Jamie Customer");
 
-  await client.request("POST", `/v1/internal/crm/organizations/${orgId}/call-list-entries/${newCustomers.tasks[0].id}/disposition`, {
+  await client.request("POST", `/v1/call-lists/organizations/${orgId}/call-list-entries/${newCustomers.tasks[0].id}/disposition`, {
     actor_email: "office@example.test",
     disposition: "answered",
     note_text: "Welcome call complete."
   });
   const plan = await client.request("GET", `/v1/work/organizations/${orgId}/plans/plan_scope_call_list`);
   assert.equal(plan.plan.root_nodes[0].status, "completed");
-  const after = await client.request("POST", `/v1/internal/crm/organizations/${orgId}/call-lists/queue`, { role_ids: ["office"] });
+  const after = await client.request("POST", `/v1/call-lists/organizations/${orgId}/call-lists/queue`, { role_ids: ["office"] });
   assert.equal(after.columns.find((column: any) => column.key === "new_customers").tasks.length, 0);
 });
 
@@ -528,7 +528,7 @@ test("tagged follow-up to-dos are the single source for Calls and configured out
     },
     metadata: { kind: "platform_project" }
   });
-  const initialQueue = await client.request("POST", `/v1/internal/crm/organizations/${orgId}/call-lists/queue`, { branch_id: "default" });
+  const initialQueue = await client.request("POST", `/v1/call-lists/organizations/${orgId}/call-lists/queue`, { branch_id: "default" });
   assert.equal(initialQueue.follow_up_configuration.default_time, "");
   assert.deepEqual(initialQueue.follow_up_configuration.retry_policy.steps.map((item: any) => item.label), ["Day 1", "Day 2", "Day 3", "Day 5", "Then weekly"]);
   const currentConfiguration = await client.request("GET", `/v1/work/organizations/${orgId}/branches/default/config`);
@@ -541,7 +541,7 @@ test("tagged follow-up to-dos are the single source for Calls and configured out
     }
   });
   const newLeadEntry = initialQueue.columns.find((column: any) => column.key === "new_leads").tasks[0];
-  const firstAutomaticRetry = await client.request("POST", `/v1/internal/crm/organizations/${orgId}/call-list-entries/${newLeadEntry.id}/disposition`, {
+  const firstAutomaticRetry = await client.request("POST", `/v1/call-lists/organizations/${orgId}/call-list-entries/${newLeadEntry.id}/disposition`, {
     disposition: "no_answer",
     actor_email: "owner@example.test"
   });
@@ -556,9 +556,9 @@ test("tagged follow-up to-dos are the single source for Calls and configured out
 
   const automaticNodeId = firstAutomaticRetry.follow_up_result.successor.id;
   await client.request("PATCH", `/v1/work/organizations/${orgId}/nodes/${automaticNodeId}`, { due_at: new Date(Date.now() - 45_000).toISOString() });
-  const automaticDueQueue = await client.request("POST", `/v1/internal/crm/organizations/${orgId}/call-lists/queue`, { branch_id: "default" });
+  const automaticDueQueue = await client.request("POST", `/v1/call-lists/organizations/${orgId}/call-lists/queue`, { branch_id: "default" });
   const automaticEntry = automaticDueQueue.columns.find((column: any) => column.key === "follow_ups").tasks.find((task: any) => task.work_node_id === automaticNodeId);
-  const secondAutomaticRetry = await client.request("POST", `/v1/internal/crm/organizations/${orgId}/call-list-entries/${automaticEntry.id}/disposition`, {
+  const secondAutomaticRetry = await client.request("POST", `/v1/call-lists/organizations/${orgId}/call-list-entries/${automaticEntry.id}/disposition`, {
     disposition: "voicemail",
     actor_email: "owner@example.test"
   });
@@ -592,7 +592,7 @@ test("tagged follow-up to-dos are the single source for Calls and configured out
     kind: "follow_up", title: "Timed follow-up later today", project_id: projectId, due_at: laterToday.toISOString()
   });
 
-  const queue = await client.request("POST", `/v1/internal/crm/organizations/${orgId}/call-lists/queue`, { branch_id: "default" });
+  const queue = await client.request("POST", `/v1/call-lists/organizations/${orgId}/call-lists/queue`, { branch_id: "default" });
   assert.deepEqual(queue.follow_up_configuration.quick_options.map((item: any) => item.label), ["1 day", "2 days", "1 week", "1 month"]);
   const followUpList = queue.columns.find((column: any) => column.key === "follow_ups");
   assert.equal(followUpList.tasks.length, 3);
@@ -601,7 +601,7 @@ test("tagged follow-up to-dos are the single source for Calls and configured out
   assert.equal(followUpList.tasks[2].work_node_id, timedLaterToday.todo.id);
 
   const nextDueAt = new Date(Date.now() + 86_400_000).toISOString();
-  const disposition = await client.request("POST", `/v1/internal/crm/organizations/${orgId}/call-list-entries/${followUpList.tasks[0].id}/disposition`, {
+  const disposition = await client.request("POST", `/v1/call-lists/organizations/${orgId}/call-list-entries/${followUpList.tasks[0].id}/disposition`, {
     actor_email: "owner@example.test",
     disposition: "answered",
     outcome: "follow_up",
@@ -611,13 +611,13 @@ test("tagged follow-up to-dos are the single source for Calls and configured out
   assert.equal(disposition.follow_up_result.successor.metadata.follow_up.parent_follow_up_id, created.todo.id);
   assert.deepEqual(disposition.follow_up_result.successor.metadata.type_tags, ["follow_up"]);
 
-  const afterReschedule = await client.request("POST", `/v1/internal/crm/organizations/${orgId}/call-lists/queue`, { branch_id: "default" });
+  const afterReschedule = await client.request("POST", `/v1/call-lists/organizations/${orgId}/call-lists/queue`, { branch_id: "default" });
   assert.equal(afterReschedule.columns.find((column: any) => column.key === "follow_ups").tasks.length, 2);
   const successorId = disposition.follow_up_result.successor.id;
   await client.request("PATCH", `/v1/work/organizations/${orgId}/nodes/${successorId}`, { due_at: new Date(Date.now() - 30_000).toISOString() });
-  const dueAgain = await client.request("POST", `/v1/internal/crm/organizations/${orgId}/call-lists/queue`, { branch_id: "default" });
+  const dueAgain = await client.request("POST", `/v1/call-lists/organizations/${orgId}/call-lists/queue`, { branch_id: "default" });
   const lostEntry = dueAgain.columns.find((column: any) => column.key === "follow_ups").tasks[0];
-  await client.request("POST", `/v1/internal/crm/organizations/${orgId}/call-list-entries/${lostEntry.id}/disposition`, {
+  await client.request("POST", `/v1/call-lists/organizations/${orgId}/call-list-entries/${lostEntry.id}/disposition`, {
     actor_email: "owner@example.test",
     disposition: "answered",
     outcome: "lost"

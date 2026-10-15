@@ -511,7 +511,7 @@ const TOOLS: AgentTool[] = [
     description: "List the organization's call queues (fully data-driven: key, title, kind, icon, tone, assignment, per-list workflow settings, pending counts).",
     parameters: { type: "object", properties: {}, additionalProperties: false },
     async execute(run) {
-      const { listCallLists } = await import("../../internal/crm/call_lists.js");
+      const { listCallLists } = await import("../../comms/call-lists.js");
       const result = await listCallLists(run.orgId);
       return { call_lists: result.call_lists };
     }
@@ -522,7 +522,7 @@ const TOOLS: AgentTool[] = [
     parameters: { type: "object", properties: { list: { type: "string", description: "The list definition as a JSON string." } }, required: ["list"], additionalProperties: false },
     permission: WRITE_PERMISSION,
     async execute(run, args) {
-      const { ensureCallList } = await import("../../internal/crm/call_lists.js");
+      const { ensureCallList } = await import("../../comms/call-lists.js");
       let definition: JsonObject;
       try {
         definition = typeof args.list === "string" ? JSON.parse(args.list) : asObject(args.list);

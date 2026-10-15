@@ -5,8 +5,6 @@ import os from "node:os";
 import path from "node:path";
 import test, { after, before } from "node:test";
 
-import { runLegacyCrmMigration } from "../internal/crm/migration.js";
-import { ensureLeadDatabase, withLeadDb } from "../internal/crm/leads.js";
 
 let app: any = null;
 let storageRoot = "";
@@ -72,33 +70,6 @@ after(async () => {
   }
 });
 
-test("CRM API stores organization-scoped CRM collections with pagination and search", async () => {
-  const created = await inject("POST", "/v1/internal/crm/organizations/org_1/leads", {
-    id: "lead_1",
-    data: {
-      name: "Acme Roof",
-      status: "new",
-      address: "1 Main"
-    }
-  });
-  assert.equal(created.document.id, "lead_1");
-  assert.equal(created.document.organization_id, "org_1");
-
-  await inject("POST", "/v1/internal/crm/organizations/org_1/leads", {
-    id: "lead_2",
-    data: { name: "Beta Roof", status: "won" }
-  });
-
-  const searched = await inject("GET", "/v1/internal/crm/organizations/org_1/leads/search?q=acme&limit=10");
-  assert.equal(searched.count, 1);
-  assert.equal(searched.documents[0].id, "lead_1");
-
-  const dashboard = await inject("GET", "/v1/internal/crm/organizations/org_1/dashboard");
-  assert.equal(dashboard.totals.leads, 2);
-  assert.equal(dashboard.lead_status_counts.new, 1);
-  assert.equal(dashboard.lead_status_counts.won, 1);
-});
-
 test("call lists are organization objects with assignments, idempotent entries, and dispositions", async () => {
   let cookie='',csrf='';
   const inject=async(method:string,url:string,payload?:unknown)=>{
@@ -128,7 +99,7 @@ test("call lists are organization objects with assignments, idempotent entries, 
 
   // No blessed lists: a fresh org has zero call lists until an automation,
   // the follow-up projection, or explicit configuration creates one.
-  const defaults = await inject("GET", `/v1/internal/crm/organizations/${orgId}/call-lists`);
+  const defaults = await inject("GET", `/v1/call-lists/organizations/${orgId}/call-lists`);
   assert.equal(defaults.call_lists.length, 0);
 
   // An opportunity opening (its sales plan starting) queues the first call through
@@ -137,12 +108,12 @@ test("call lists are organization objects with assignments, idempotent entries, 
   const { ensurePipelinePlanForProject } = await import("../scopes/router.js");
   await ensurePipelinePlanForProject(orgId, { id: projectId, ...(await platformStorage.readDocument(orgId, "projects", projectId)).data });
   await (await import("../work/engine.js")).drainWorkEvents();
-  const seeded = await inject("GET", `/v1/internal/crm/organizations/${orgId}/call-lists`);
+  const seeded = await inject("GET", `/v1/call-lists/organizations/${orgId}/call-lists`);
   const newLeads = seeded.call_lists.find((list: any) => list.key === "new_leads");
   assert.ok(newLeads, "the intake rule created the New Leads list");
   assert.equal(newLeads.pending_count, 1);
 
-  const created = await inject("POST", `/v1/internal/crm/organizations/${orgId}/call-lists`, {
+  const created = await inject("POST", `/v1/call-lists/organizations/${orgId}/call-lists`, {
     key: "mid_project_checkin",
     title: "Mid-project Check-ins",
     kind: "production",
@@ -152,35 +123,35 @@ test("call lists are organization objects with assignments, idempotent entries, 
   assert.equal(created.call_list.key, "mid_project_checkin");
   assert.deepEqual(created.call_list.assigned_role_ids, ["production"]);
 
-  const first = await inject("POST", `/v1/internal/crm/organizations/${orgId}/call-lists/mid_project_checkin/entries`, {
+  const first = await inject("POST", `/v1/call-lists/organizations/${orgId}/call-lists/mid_project_checkin/entries`, {
     source_key: "work_node_1",
     project_id: projectId,
     work_plan_id: "work_plan_1",
     title: "Halfway check-in"
   });
-  const duplicate = await inject("POST", `/v1/internal/crm/organizations/${orgId}/call-lists/mid_project_checkin/entries`, {
+  const duplicate = await inject("POST", `/v1/call-lists/organizations/${orgId}/call-lists/mid_project_checkin/entries`, {
     source_key: "work_node_1",
     project_id: projectId,
     title: "Updated halfway check-in"
   });
   assert.equal(duplicate.entry.id, first.entry.id);
 
-  const hidden = await inject("POST", `/v1/internal/crm/organizations/${orgId}/call-lists/queue`, { role_ids: ["office"] });
+  const hidden = await inject("POST", `/v1/call-lists/organizations/${orgId}/call-lists/queue`, { role_ids: ["office"] });
   assert.ok(hidden.columns.some((column: any) => column.key === "mid_project_checkin"), 'server uses the authenticated owner permissions, not client-supplied roles');
-  const queue = await inject("POST", `/v1/internal/crm/organizations/${orgId}/call-lists/queue`, { role_ids: ["production"] });
+  const queue = await inject("POST", `/v1/call-lists/organizations/${orgId}/call-lists/queue`, { role_ids: ["production"] });
   const productionList = queue.columns.find((column: any) => column.key === "mid_project_checkin");
   assert.equal(productionList.tasks.length, 1);
   assert.equal(productionList.tasks[0].name, "Alex Smith");
   assert.equal(productionList.tasks[0].title, "Updated halfway check-in");
 
-  const disposition = await inject("POST", `/v1/internal/crm/organizations/${orgId}/call-list-entries/${first.entry.id}/disposition`, {
+  const disposition = await inject("POST", `/v1/call-lists/organizations/${orgId}/call-list-entries/${first.entry.id}/disposition`, {
     actor_email: "caller@example.test",
     actor_name: "Casey Caller",
     disposition: "answered",
     outcome: "check_in_complete",
     note_text: "Everything is on track."
   });
-  const after = await inject("POST", `/v1/internal/crm/organizations/${orgId}/call-lists/queue`, { role_ids: ["production"] });
+  const after = await inject("POST", `/v1/call-lists/organizations/${orgId}/call-lists/queue`, { role_ids: ["production"] });
   assert.equal(after.columns.find((column: any) => column.key === "mid_project_checkin").tasks.length, 0);
   // Call notes now live in the channels backend as messages in the project's
   // channel (tagged call_note), not as project-document JSON.
@@ -203,40 +174,6 @@ test("call lists are organization objects with assignments, idempotent entries, 
   const project = await platformStorage.readDocument(orgId, "projects", projectId);
   assert.equal(Object.hasOwn(project.data, "call_notes"), false);
   assert.ok(!(project.data.project_note_items as any[])?.length, "legacy note JSON is not written anymore");
-});
-
-test("CRM migration dry-run is read-only and fresh rebuild validates cloned records", async () => {
-  const root = await mkdtemp(path.join(os.tmpdir(), "firstmate-crm-migration-"));
-  try {
-    const source = path.join(root, "legacy-crm");
-    const target = path.join(root, "crm");
-    await writeJson(path.join(source, "organizations", "org_legacy", "leads", "legacy_lead.json"), {
-      id: "legacy_lead",
-      data: { name: "Legacy Lead", status: "contacting" }
-    });
-    await writeJson(path.join(source, "global", "call_scripts", "default.json"), {
-      id: "default",
-      data: { title: "Default Script", body: "Hello" }
-    });
-    const before = await readFile(path.join(source, "organizations", "org_legacy", "leads", "legacy_lead.json"), "utf8");
-
-    const dryRun = await runLegacyCrmMigration({ sourceRoot: source, targetRoot: target, mode: "dry-run" });
-    assert.equal(dryRun.counts.legacy_records_read, 2);
-    assert.equal(dryRun.counts.crm_records_written, 0);
-    assert.equal(await readFile(path.join(source, "organizations", "org_legacy", "leads", "legacy_lead.json"), "utf8"), before);
-
-    const fresh = await runLegacyCrmMigration({ sourceRoot: source, targetRoot: target, mode: "fresh", confirmFresh: true });
-    assert.equal(fresh.ok, true);
-    assert.equal(fresh.validation?.failed, 0);
-    const saved = JSON.parse(await readFile(path.join(target, "organizations", "org_legacy", "leads", "legacy_lead.json"), "utf8"));
-    assert.equal(saved.data.name, "Legacy Lead");
-
-    const validate = await runLegacyCrmMigration({ sourceRoot: source, targetRoot: target, mode: "validate" });
-    assert.equal(validate.ok, true);
-    assert.equal(validate.validation?.failed, 0);
-  } finally {
-    await rm(root, { recursive: true, force: true });
-  }
 });
 
 test("Internal CRM referral endpoints save partners and pair organizations", async () => {
@@ -433,302 +370,3 @@ test("Acquisition lookup resolves cloned landing pages when template campaign da
   assert.equal(offer.offer.token, tracked.bonus_offer.token);
 });
 
-test("CRM lead API queries paginated SQLite leads with derived activity fields", async () => {
-  await ensureLeadDatabase();
-  withLeadDb((db) => {
-    db.exec("DELETE FROM lead_custom_values; DELETE FROM lead_custom_fields; DELETE FROM lead_exports; DELETE FROM lead_dial_events; DELETE FROM lead_notes; DELETE FROM lead_contacts; DELETE FROM lead_followups; DELETE FROM lead_memberships; DELETE FROM lead_lists; DELETE FROM lead_entities;");
-    db.prepare(`
-      INSERT INTO lead_lists (id, name, assigned_to_email, exported_at, created_at, updated_at)
-      VALUES ('list_1', 'Northwest', 'rep@example.test', 1770000100, 1770000000, 1770000000)
-    `).run();
-    db.prepare(`
-      INSERT INTO lead_memberships (id, list_id, status, company, email, phone, region, region_code, assigned_to_email, created_at, updated_at, external_key, website)
-      VALUES
-      ('lead_1', 'list_1', 'new', 'Acme Roofing', 'acme@example.test', '555-1111', 'Washington', 'WA', 'rep@example.test', 1770000001, 1770000300, 'ext_1', 'https://acme.test'),
-      ('lead_2', 'list_1', 'called', 'Beta Roofing', '', '555-2222', 'Washington', 'WA', 'other@example.test', 1770000002, 1770000200, 'ext_2', ''),
-      ('lead_3', 'list_1', '', 'Gamma Roofing', '', '', '', '', 'other@example.test', 1770000003, 1770000100, 'ext_3', '')
-    `).run();
-    db.prepare("INSERT INTO lead_dial_events (id, lead_id, owner_email, context_json, dialed_at, created_at) VALUES ('dial_1', 'lead_1', 'rep@example.test', '{\"disposition\":\"Interested\"}', 1770000400, 1770000400)").run();
-    db.prepare("INSERT INTO lead_notes (id, lead_id, owner_email, note_text, created_at, updated_at) VALUES ('note_1', 'lead_1', 'rep@example.test', 'Useful note', 1770000500, 1770000500)").run();
-    db.prepare("INSERT INTO lead_contacts (id, lead_id, full_name, email, phone, created_at, updated_at) VALUES ('contact_1', 'lead_1', 'Pat Owner', 'pat@example.test', '555-4444', 1770000500, 1770000500)").run();
-    db.prepare("INSERT INTO lead_exports (id, list_id, exported_by_email, exported_at, row_count) VALUES ('export_1', 'list_1', 'rep@example.test', 1770000600, 3)").run();
-  });
-
-  const fields = await inject("GET", "/v1/internal/crm/leads/fields");
-  assert.ok(fields.fields.some((field: any) => field.key === "latest_call_at"));
-  assert.equal(fields.fields.some((field: any) => field.key === "list_name"), false);
-  assert.equal(fields.fields.some((field: any) => field.key === "contact_count"), false);
-
-  const customField = await inject("POST", "/v1/internal/crm/leads/custom-fields", {
-    label: "Priority Band",
-    data_type: "select",
-    topbar_filter: true,
-    options: ["High", "Low"],
-    actor_email: "manager@example.test"
-  });
-  assert.equal(customField.field.key, "custom_priority_band");
-  assert.equal(customField.field.topbarFilter, true);
-  withLeadDb((db) => {
-    db.prepare(`
-      INSERT INTO lead_custom_values (lead_id, field_key, value_text, updated_at, updated_by_email)
-      VALUES ('lead_1', 'priority_band', 'High', 1770000700, 'manager@example.test')
-    `).run();
-  });
-
-  const fieldsWithCustom = await inject("GET", "/v1/internal/crm/leads/fields");
-  assert.ok(fieldsWithCustom.fields.some((field: any) => field.key === "custom_priority_band"));
-
-  const options = await inject("POST", "/v1/internal/crm/leads/filter-options", {
-    manager: true
-  });
-  assert.ok(options.options.status.some((option: any) => option.value === "new"));
-  assert.ok(options.options.status.some((option: any) => option.value === "__none__"));
-  assert.ok(options.options.assigned_to_email.some((option: any) => option.value === "rep@example.test"));
-  assert.ok(options.options.region.some((option: any) => option.value === "Washington"));
-  assert.ok(options.options.region.some((option: any) => option.value === "__none__"));
-  assert.ok(options.options.disposition.some((option: any) => option.value === "Interested"));
-  assert.ok(options.options.disposition.some((option: any) => option.value === "__none__"));
-  assert.ok(options.options.custom.custom_priority_band.some((option: any) => option.value === "High"));
-
-  const page = await inject("POST", "/v1/internal/crm/leads/query", {
-    page: 1,
-    per_page: 10,
-    q: "acme",
-    manager: true,
-    sort: "latest_call_at",
-    dir: "desc",
-    filters: { has_email: true }
-  });
-  assert.equal(page.total, 1);
-  assert.equal(page.leads[0].id, "lead_1");
-  assert.equal(page.leads[0].latest_call_at, 1770000400);
-  assert.equal(page.leads[0].latest_export_at, 1770000600);
-  assert.equal(page.leads[0].notes_count, 1);
-  assert.equal(page.leads[0].custom_priority_band, "High");
-
-  const customFiltered = await inject("POST", "/v1/internal/crm/leads/query", {
-    page: 1,
-    per_page: 10,
-    manager: true,
-    filters: { custom_priority_band: "High" }
-  });
-  assert.equal(customFiltered.total, 1);
-  assert.equal(customFiltered.leads[0].id, "lead_1");
-
-  const repScoped = await inject("POST", "/v1/internal/crm/leads/query", {
-    actor_email: "rep@example.test",
-    manager: false,
-    per_page: 10
-  });
-  assert.equal(repScoped.total, 1);
-  assert.equal(repScoped.leads[0].id, "lead_1");
-
-  const blankScoped = await inject("POST", "/v1/internal/crm/leads/query", {
-    manager: true,
-    per_page: 10,
-    filters: { status: "__none__", region: "__none__", disposition: "__none__", no_contact_data: true }
-  });
-  assert.equal(blankScoped.total, 1);
-  assert.equal(blankScoped.leads[0].id, "lead_3");
-
-  const detail = await inject("GET", "/v1/internal/crm/leads/lead_1/detail");
-  assert.equal(detail.notes[0].note_text, "Useful note");
-
-  const viewer = await inject("GET", "/v1/internal/crm/leads/lead_1/viewer");
-  assert.equal(viewer.lead.company, "Acme Roofing");
-  assert.equal(viewer.notes[0].note_text, "Useful note");
-
-  const edited = await inject("PATCH", "/v1/internal/crm/leads/lead_1", {
-    actor_email: "rep@example.test",
-    lead: { phone: "555-9999" },
-    custom_values: { priority_band: "Low" }
-  });
-  assert.equal(edited.lead.phone, "555-9999");
-  assert.equal(edited.lead.custom_priority_band, "Low");
-
-  const editedContact = await inject("PATCH", "/v1/internal/crm/leads/lead_1/contacts/contact_1", {
-    actor_email: "rep@example.test",
-    contact: { phone: "555-1010" }
-  });
-  assert.equal(editedContact.contacts[0].phone, "555-1010");
-
-  const addedNote = await inject("POST", "/v1/internal/crm/leads/lead_1/notes", {
-    actor_email: "rep@example.test",
-    note_text: "Fresh note"
-  });
-  assert.ok(addedNote.notes.some((note: any) => note.note_text === "Fresh note"));
-
-  const addedFollowup = await inject("POST", "/v1/internal/crm/leads/lead_1/followups", {
-    actor_email: "rep@example.test",
-    title: "Call back",
-    due_at: "2026-06-03"
-  });
-  assert.ok(addedFollowup.followups.some((followup: any) => followup.title === "Call back"));
-
-  const addedContactNote = await inject("POST", "/v1/internal/crm/leads/lead_1/contacts/contact_1/notes", {
-    actor_email: "rep@example.test",
-    note_text: "Contact-specific note"
-  });
-  assert.ok(addedContactNote.contact_notes.some((note: any) => note.note_text === "Contact-specific note"));
-
-  const explicitExport = await inject("POST", "/v1/internal/crm/leads/export", {
-    selection: { mode: "explicit", ids: ["lead_1"] },
-    fields: ["company", "email", "latest_call_at"]
-  });
-  assert.equal(explicitExport.count, 1);
-  assert.match(explicitExport.csv, /Acme Roofing/);
-
-  const customExport = await inject("POST", "/v1/internal/crm/leads/export", {
-    selection: { mode: "explicit", ids: ["lead_1"] },
-    fields: ["company", "custom_priority_band"]
-  });
-  assert.match(customExport.csv, /Priority Band/);
-  assert.match(customExport.csv, /Low/);
-
-  const filteredExport = await inject("POST", "/v1/internal/crm/leads/export", {
-    selection: {
-      mode: "filtered",
-      excluded_ids: ["lead_2"],
-      query: { manager: true, filters: { region: "Washington" } }
-    },
-    fields: ["company"]
-  });
-  assert.equal(filteredExport.count, 1);
-  assert.match(filteredExport.csv, /Acme Roofing/);
-  assert.doesNotMatch(filteredExport.csv, /Beta Roofing/);
-
-  const selectedSummary = await inject("POST", "/v1/internal/crm/leads/query", {
-    manager: true,
-    q: "acme",
-    selection: { mode: "explicit", ids: ["lead_1", "lead_2"] }
-  });
-  assert.equal(selectedSummary.selection_summary.total, 2);
-  assert.equal(selectedSummary.selection_summary.matching_current_filter, 1);
-  assert.equal(selectedSummary.selection_summary.outside_current_filter, 1);
-
-  const selectedView = await inject("POST", "/v1/internal/crm/leads/query", {
-    manager: true,
-    selection_view: true,
-    selection: { mode: "explicit", ids: ["lead_1", "lead_2"] },
-    selection_summary_query: { manager: true, q: "acme" },
-    page: 1,
-    per_page: 1
-  });
-  assert.equal(selectedView.total, 2);
-  assert.equal(selectedView.leads.length, 1);
-  assert.equal(selectedView.leads[0].id, "lead_1");
-  assert.equal(selectedView.selection_summary.outside_current_filter, 1);
-
-  const previewReassign = await inject("POST", "/v1/internal/crm/leads/reassign", {
-    manager: true,
-    actor_email: "manager@example.test",
-    dry_run: true,
-    assignees: ["one@example.test", "two@example.test"],
-    selection: {
-      mode: "filtered",
-      excluded_ids: ["lead_2"],
-      query: { manager: true, filters: { region: "Washington" } }
-    }
-  });
-  assert.equal(previewReassign.total, 1);
-  assert.equal(previewReassign.assignees[0].count, 1);
-
-  const reassigned = await inject("POST", "/v1/internal/crm/leads/reassign", {
-    manager: true,
-    actor_email: "manager@example.test",
-    dry_run: false,
-    assignees: ["one@example.test"],
-    selection: { mode: "explicit", ids: ["lead_1"] }
-  });
-  assert.equal(reassigned.total, 1);
-  const afterReassign = await inject("POST", "/v1/internal/crm/leads/query", {
-    manager: true,
-    filters: { assigned_to_email: "one@example.test" }
-  });
-  assert.equal(afterReassign.total, 1);
-});
-
-test("CRM lead imports preview duplicates and commit from stored import batch", async () => {
-  await ensureLeadDatabase();
-  const labelPreview = await inject("POST", "/v1/internal/crm/leads/imports/preview", {
-    actor_email: "manager@example.test",
-    rows: [
-      {
-        "Lead ID": "lead_1",
-        Company: "Acme Roofing",
-        Email: "acme@example.test",
-        Phone: "555-9999",
-        Status: "new",
-        Region: "Washington",
-        "Region Code": "WA",
-        "Assigned To": "one@example.test",
-        Website: "https://acme.test",
-        "Priority Band": "Low",
-        "Most Recent Call": "2026-02-02T08:06:40.000Z"
-      }
-    ]
-  });
-  assert.equal(labelPreview.summary.unchanged_count, 1);
-  assert.equal(labelPreview.summary.duplicate_count, 0);
-
-  const changedDuplicate = await inject("POST", "/v1/internal/crm/leads/imports/preview", {
-    actor_email: "manager@example.test",
-    rows: [
-      {
-        "Lead ID": "lead_2",
-        Company: "Beta Roofing",
-        Phone: "555-2222",
-        Status: "called_again"
-      }
-    ]
-  });
-  assert.equal(changedDuplicate.summary.duplicate_count, 1);
-  const changedCommitted = await inject("POST", `/v1/internal/crm/leads/imports/${changedDuplicate.import_id}/commit`, {
-    actor_email: "manager@example.test",
-    duplicate_action: "update"
-  });
-  assert.equal(changedCommitted.counts.updated, 1);
-  const changedPage = await inject("POST", "/v1/internal/crm/leads/query", {
-    manager: true,
-    filters: { status: "called_again" }
-  });
-  assert.equal(changedPage.total, 1);
-  assert.equal(changedPage.leads[0].id, "lead_2");
-
-  const preview = await inject("POST", "/v1/internal/crm/leads/imports/preview", {
-    actor_email: "manager@example.test",
-    rows: [
-      { company: "Acme Roofing", email: "acme@example.test", phone: "555-1111", external_key: "ext_1" },
-      { company: "Charlie Roofing", email: "charlie@example.test", phone: "555-3333", region_code: "OR" }
-    ]
-  });
-  assert.equal(preview.summary.duplicate_count, 1);
-  assert.equal(preview.summary.new_count, 1);
-  assert.ok(preview.import_id);
-
-  const committed = await inject("POST", `/v1/internal/crm/leads/imports/${preview.import_id}/commit`, {
-    actor_email: "manager@example.test",
-    default_action: "skip"
-  });
-  assert.equal(committed.counts.created, 1);
-  assert.equal(committed.counts.skipped, 1);
-
-  const page = await inject("POST", "/v1/internal/crm/leads/query", {
-    manager: true,
-    q: "Charlie",
-    per_page: 10
-  });
-  assert.equal(page.total, 1);
-  assert.equal(page.leads[0].company, "Charlie Roofing");
-});
-
-test("global lead dialer does not accept anonymous caller-supplied staff identity", async () => {
-  for (const url of ["/v1/internal/crm/calls/queue", "/v1/internal/crm/calls/fixture/disposition"]) {
-    const response = await app.inject({ method: "POST", url, payload: { actor_email: "admin@example.test", disposition: "answered" } });
-    assert.equal(response.statusCode, 401);
-  }
-  const { callQueue, recordLeadCall } = await import("../internal/crm/leads.js");
-  const queue = await callQueue({ actor_email: "fixture@example.test" });
-  assert.equal(queue.columns.length, 3);
-  await assert.rejects(recordLeadCall("fixture", { disposition: "invalid" }), /valid call disposition/);
-});

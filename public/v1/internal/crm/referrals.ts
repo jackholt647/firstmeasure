@@ -5,7 +5,7 @@ import { DatabaseSync } from "node:sqlite";
 
 import { badRequest, notFound } from "../../platform/errors.js";
 import { listOrganizations, patchOrganization, readGlobal, readOrganization } from "../../platform/storage.js";
-import { asObject } from "./storage.js";
+const asObject = (value: unknown): Record<string, unknown> => value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
 import { isFirstMeasurePostgresEnabled, queryPostgres } from "../../src/database/postgres.js";
 
 type JsonObject = Record<string, unknown>;

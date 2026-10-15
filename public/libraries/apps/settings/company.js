@@ -9228,7 +9228,7 @@
       render();
     }
     function callListsApiBase(){
-      return String(window.Portal?.cfg?.endpoints?.crm || '/v1/internal/crm').replace(/\/$/, '');
+      return '/v1/call-lists';
     }
     async function callListsRequest(path, options = {}){
       const response = await fetch(`${callListsApiBase()}${path}`, {

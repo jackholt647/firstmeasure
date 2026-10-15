@@ -130,10 +130,16 @@ sale that came in twice:
 
 ## Removed
 
-`project_type: "lead"`, `lead_status`, `workflow_state: "contact_only"`,
-`createPlatformLead`, `internal/crm` (legacy sales portal backend) and its lead
-database. Call lists, dispositions and Gmail import move to platform stores over
-contacts and opportunities before the legacy code is deleted.
+`project_type: "lead"`, `lead_status` and `createPlatformLead` are gone. So is
+the legacy sales portal (`public/measure/sales`) with its lead database, lead
+routes, dialer, lead imports and the generic CRM document routes of
+`internal/crm`. Call lists live in `comms/call-lists.ts`, with their admin
+routes at `/v1/call-lists` (call outcomes are written to the call list store).
+Gmail sync keeps mailboxes but no longer files messages against legacy leads.
+`internal/crm/api.ts` now serves only the referral routes at
+`/v1/internal/crm/referrals`, which still check no login (audit SEC-1).
+`workflow_state: "contact_only"` standalone records remain until the Contacts
+app reads the store directly.
 
 Validation: `tests/lead-receive.test.ts`, `tests/opportunity-outcome.test.ts`,
 `tests/project-merge.test.ts`, `tests/scope-categories.test.ts`,

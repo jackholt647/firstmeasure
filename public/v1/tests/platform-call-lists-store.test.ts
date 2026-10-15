@@ -12,7 +12,7 @@ test("shared call lists deduplicate concurrent workflow entries and preserve the
     FIRSTMEASURE_DATABASE_MODE: url ? "postgres" : "local", DATABASE_URL: url || "",
     POSTGRES_POOL_MAX: "2", POSTGRES_AUTO_MIGRATE: "false", PLATFORM_HEARTBEAT_DISABLED: "1", FIRSTMEASURE_JOB_WORKERS: "0" });
   const core = await import("../platform/storage.js");
-  const lists = await import("../internal/crm/call_lists.js");
+  const lists = await import("../comms/call-lists.js");
   const { closeSqlStoresForTests } = await import("../platform/sql_store.js");
   const { closePostgresPools } = await import("../src/database/postgres.js");
   t.after(async () => { await closeSqlStoresForTests(); await closePostgresPools(); await rm(root, { recursive: true, force: true }); });

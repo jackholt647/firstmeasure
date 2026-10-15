@@ -9,7 +9,7 @@ import {callListDepartmentFilter,callDepartmentResource} from './service.js';
 import { PlatformError, forbidden, badRequest, conflict } from "../../platform/errors.js";
 import { createFollowUpTodo } from "../../work/followups.js";
 import { readNodeRecord } from '../../work/storage.js';
-import { ensureCallList, upsertCallListEntry, removeCallListEntry,readCallList } from "../../internal/crm/call_lists.js";
+import { ensureCallList, upsertCallListEntry, removeCallListEntry,readCallList } from "../call-lists.js";
 import { verifyTelnyxWebhook } from "../../messaging/telnyx_webhooks.js";
 import { voiceSettings, updateVoiceSettings } from "./settings.js";
 import { phoneContacts, createCall, saveDraft, saveWrapUp, requireCallAccess, queues, readEntry, followUps, changeFollowUp, scripts, saveScript, people, projectContext, callContext, manageCalls } from "./service.js";

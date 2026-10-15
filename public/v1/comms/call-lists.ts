@@ -1,14 +1,14 @@
 import { createHash, randomBytes } from "node:crypto";
 
-import { badRequest, notFound } from "../../platform/errors.js";
-import { listDocuments, readDocument, upsertDocument, type JsonObject } from "../../platform/storage.js";
-import { readWorkConfiguration } from "../../work/config.js";
-import { emitWorkEvent } from "../../work/engine.js";
-import { createFollowUpTodo, isFollowUpWorkNode, nextFollowUpPolicySchedule, resolveFollowUpOutcome } from "../../work/followups.js";
-import { listNodeRecords, readNodeRecord } from "../../work/storage.js";
+import { badRequest, notFound } from "../platform/errors.js";
+import { listDocuments, readDocument, upsertDocument, type JsonObject } from "../platform/storage.js";
+import { readWorkConfiguration } from "../work/config.js";
+import { emitWorkEvent } from "../work/engine.js";
+import { createFollowUpTodo, isFollowUpWorkNode, nextFollowUpPolicySchedule, resolveFollowUpOutcome } from "../work/followups.js";
+import { listNodeRecords, readNodeRecord } from "../work/storage.js";
 import path from "node:path";
-import { env } from "../../src/config/env.js";
-import { openSqlStore, type SqlStore } from "../../platform/sql_store.js";
+import { env } from "../src/config/env.js";
+import { openSqlStore, type SqlStore } from "../platform/sql_store.js";
 let callListDb: SqlStore | undefined;
 function database() {
   return callListDb ??= openSqlStore({ id: "crm-call-lists", filename: path.resolve(env.platformStorageRoot, "crm-call-lists.sqlite"),
@@ -492,8 +492,8 @@ export async function recordCallListDisposition(orgIdValue: unknown, entryIdValu
     const document = await readDocument(orgId, "projects", entry.project_id).catch(() => null);
     if (document) {
       const project = asObject(document.data);
-      const { ensureProjectChannelRecord } = await import("../../channels/service.js");
-      const { createMessageRecord } = await import("../../channels/storage.js");
+      const { ensureProjectChannelRecord } = await import("../channels/service.js");
+      const { createMessageRecord } = await import("../channels/storage.js");
       const channel = (await ensureProjectChannelRecord(orgId, document.id, cleanText(project.title || project.name || project.project_title)));
       (await createMessageRecord({
         organization_id: orgId,
@@ -534,7 +534,7 @@ export async function recordCallListDisposition(orgIdValue: unknown, entryIdValu
     });
     followUpResult = { successor: created.node };
   } else if (entry.work_node_id) {
-    const { transitionWorkNode } = await import("../../work/service.js");
+    const { transitionWorkNode } = await import("../work/service.js");
     await transitionWorkNode(orgId, entry.work_node_id, "completed", {
       reason: "call_list_disposition", actor_email: cleanText(input.actor_email), payload: { disposition, call_list_key: entry.list_key, call_list_entry_id: entry.id }
     });

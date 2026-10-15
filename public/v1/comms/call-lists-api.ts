@@ -1,11 +1,11 @@
 import type { FastifyPluginAsync } from "fastify";
-import { PlatformError } from "../../platform/errors.js";
-import { requirePlatformAuth } from "../../platform/auth.js";
-import { ensureCallList, listCallLists, removeCallListEntry, upsertCallListEntry } from "./call_lists.js";
-import { createCall, queues as communicationsQueues, readEntry as readCallEntry } from "../../comms/calls/service.js";
-import { digest, text as callText, object as callObject } from "../../comms/calls/storage.js";
-import * as customerCalls from "../../comms/calls/storage.js";
-import { processOneJob } from "../../comms/calls/worker.js";
+import { PlatformError } from "../platform/errors.js";
+import { requirePlatformAuth } from "../platform/auth.js";
+import { ensureCallList, listCallLists, removeCallListEntry, upsertCallListEntry } from "./call-lists.js";
+import { createCall, queues as communicationsQueues, readEntry as readCallEntry } from "./calls/service.js";
+import { digest, text as callText, object as callObject } from "./calls/storage.js";
+import * as customerCalls from "./calls/storage.js";
+import { processOneJob } from "./calls/worker.js";
 function asObject(value: unknown): Record<string, any> { return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, any> : {}; }
 function param(value: unknown, key: string) { return String(asObject(value)[key] || ""); }
 /** Platform routes retain legacy URLs but run on shared storage on every web replica. */
