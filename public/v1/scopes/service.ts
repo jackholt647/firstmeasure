@@ -9,6 +9,9 @@ import { createWorkPlan, projectWorkProjection, syncProjectWorkProjection, trans
 import { initializeProjectChecklistsFromScope } from "../workforce/crew_storage.js";
 import { listNodeRecords, listPlanRecords, readPlanRecord, updateNodeRecord, updatePlanRecord } from "../work/storage.js";
 import { listScopeTemplates, readScopeTemplate, readScopeTemplateVersion } from "./storage.js";
+import { conflict } from "../platform/errors.js";
+import { SALES_CATEGORY, templateCategoryIds } from "./categories.js";
+const TERMINAL_PLAN_STATUSES = ["completed", "canceled"];
 
 function cleanText(value: unknown) {
   return String(value ?? "").trim();
@@ -245,14 +248,24 @@ export async function instantiateScopeTemplateWorkPlan(orgId: string, optionsVal
   const definition = asObject(template.definition);
   const blueprint = asObject(definition.work_plan);
   const workConfiguration = await readWorkConfiguration(orgId, branchId);
+  const sourceKey = cleanText(options.source_key) || `scope_template:${projectId}:${templateId}`;
+  const categoryIds = templateCategoryIds(definition), sales = categoryIds.includes(SALES_CATEGORY);
+  if (sales && projectId) {
+    // How many opportunities a project may have open at once is the organization's setting (default: no limit).
+    const limit = (await (await import("./router.js")).readIntakeRouting(orgId, branchId)).max_open_opportunities;
+    const open = (await listPlanRecords(orgId, { project_id: projectId, sales: true }))
+      .filter((plan) => plan.outcome === "open" && !TERMINAL_PLAN_STATUSES.includes(cleanText(plan.status)) && cleanText(plan.source_key) !== sourceKey);
+    if (limit > 0 && open.length >= limit) throw conflict("opportunity_limit", `This project already has ${open.length} open ${open.length === 1 ? "opportunity" : "opportunities"}; close one before starting another sales scope.`);
+  }
   const planResult = await createWorkPlan({
+    sales,
     department_ids: blueprint.department_ids ?? definition.department_ids ?? [],
     organization_id: orgId,
     branch_id: branchId,
     project_id: projectId,
     source_type: cleanText(options.source_type) || "scope_transition",
     source_id: cleanText(options.source_id) || templateId,
-    source_key: cleanText(options.source_key) || `scope_template:${projectId}:${templateId}`,
+    source_key: sourceKey,
     template_id: templateId,
     template_version: Number(template.version || 1),
     title: cleanText(options.title || template.name || definition.name || blueprint.title) || templateId,
@@ -262,7 +275,7 @@ export async function instantiateScopeTemplateWorkPlan(orgId: string, optionsVal
     context: asObject(options.context),
     metadata: {
       ...asObject(blueprint.metadata),
-      scope_template_kind: cleanText(definition.kind) || "production",
+      scope_category_ids: categoryIds,
       scope_template_version_id: template.version_id
     },
     start_immediately: true

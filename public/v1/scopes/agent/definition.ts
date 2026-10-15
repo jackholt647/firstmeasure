@@ -27,6 +27,7 @@ import { buildPlatformManifest } from "./manifest.js";
 import { automationCatalog } from "../../work/catalog.js";
 import { dryRunAutomations } from "../dry-run.js";
 import { updateScopeInstances } from "../instances.js";
+import { templateCategoryIds } from "../categories.js";
 
 function parseJsonArgument(value: unknown, name: string): { value?: unknown; error?: string } {
   if (typeof value !== "string") return { value };
@@ -160,7 +161,7 @@ const TOOLS: AgentTool[] = [
         templates: (await listScopeTemplates(run.orgId, run.branchId, { include_disabled: true, include_archived: true })).map((template) => ({
           id: template.id,
           name: template.name,
-          kind: asObject(template.definition as JsonObject).kind || "production",
+          category_ids: templateCategoryIds(template.definition),
           description: template.description,
           color: template.color,
           icon: template.icon,
@@ -510,7 +511,7 @@ const TOOLS: AgentTool[] = [
     description: "List the organization's call queues (fully data-driven: key, title, kind, icon, tone, assignment, per-list workflow settings, pending counts).",
     parameters: { type: "object", properties: {}, additionalProperties: false },
     async execute(run) {
-      const { listCallLists } = await import("../../internal/crm/call_lists.js");
+      const { listCallLists } = await import("../../comms/call-lists.js");
       const result = await listCallLists(run.orgId);
       return { call_lists: result.call_lists };
     }
@@ -521,7 +522,7 @@ const TOOLS: AgentTool[] = [
     parameters: { type: "object", properties: { list: { type: "string", description: "The list definition as a JSON string." } }, required: ["list"], additionalProperties: false },
     permission: WRITE_PERMISSION,
     async execute(run, args) {
-      const { ensureCallList } = await import("../../internal/crm/call_lists.js");
+      const { ensureCallList } = await import("../../comms/call-lists.js");
       let definition: JsonObject;
       try {
         definition = typeof args.list === "string" ? JSON.parse(args.list) : asObject(args.list);

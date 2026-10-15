@@ -382,7 +382,7 @@ test("project payments partially satisfy a signed deposit and spill over only af
   const depositObligationId = summary.obligations.find((item: any) => item.label === "Deposit").id;
   let project = await client.request("GET", `/v1/platform/organizations/${orgId}/projects/${projectId}`);
   let pipelineInstance = project.document.data.work_projection.active_instances
-    .find((instance: any) => instance.kind === "pipeline");
+    .find((instance: any) => instance.sales === true);
   assert.equal(pipelineInstance.stage_id, "closing_stage");
 
   const overage = await client.request("POST", `/v1/payments/organizations/${orgId}/payments`, {
@@ -800,7 +800,7 @@ test("public customer portal mock deposit can be recorded before proposal signat
 
   const soldProject = await client.request("GET", `/v1/platform/organizations/${orgId}/projects/${projectId}`);
   const soldProjection = soldProject.document.data.work_projection;
-  assert.ok(soldProjection.instances.some((instance: any) => instance.kind === "pipeline" && instance.status === "completed"));
+  assert.ok(soldProjection.instances.some((instance: any) => instance.sales === true && instance.status === "completed"));
   assert.equal(soldProject.document.data.lifecycle.status, "completed");
   const paymentEvents = await client.request("GET", `/v1/payments/organizations/${orgId}/events?project_id=${projectId}`);
   assert.ok(paymentEvents.events.some((event: any) => event.type === "payment.automatically_applied"

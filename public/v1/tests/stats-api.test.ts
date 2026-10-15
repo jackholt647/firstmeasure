@@ -108,10 +108,10 @@ async function seedOrganization(orgId: string) {
   const project = (id: string, data: Record<string, unknown>) =>
     upsertDocument(orgId, "projects", { id, data: { title: id, ...data } });
 
-  await project("proj_a", { source: "website", custom_fields: { roof_squares: 30 } });
-  await project("proj_b", { source: "website", custom_fields: { roof_squares: 20 } });
+  await project("proj_a", { source: "website", custom_fields: { roof_squares: 30 }, won_at: now });
+  await project("proj_b", { source: "website", custom_fields: { roof_squares: 20 }, won_at: now });
   await project("proj_c", { source: "referral", assigned_user_id: "user_rep_1" });
-  await project("proj_d", { source: "canvassing", lead_status: "lost" });
+  await project("proj_d", { source: "canvassing", lost_at: now });
   await project("proj_e", { source: "referral" });
   await project("proj_f", { source: "website", branch_id: "north" });
 

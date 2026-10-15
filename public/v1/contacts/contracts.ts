@@ -31,5 +31,5 @@ export function normalizeContactSettings(value:unknown):JsonObject {
   return {id,label,enabled:row.enabled!==false};
  }).filter(row=>row.id!=="org");
  if(tags.length>256)throw badRequest("contact_tags_limit","Use at most 256 contact tags.");
- return {version:2,track_time_zones:input.track_time_zones===true,tags:[{id:"org",label:"Org",enabled:true,builtin:true},...tags]};
+ return {version:2,track_time_zones:input.track_time_zones===true,auto_attach_exact:input.auto_attach_exact!==false,tags:[{id:"org",label:"Org",enabled:true,builtin:true},...tags]};
 }

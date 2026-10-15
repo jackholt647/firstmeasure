@@ -4,6 +4,7 @@ import { readBranchModule, saveBranchModule, type JsonObject } from "../platform
 import { listScopeTemplates, readScopeTemplate } from "./storage.js";
 import { instantiateScopeTemplateWorkPlan } from "./service.js";
 import { listPlanRecords } from "../work/storage.js";
+import { isSalesTemplate } from "./categories.js";
 
 export const INTAKE_ROUTING_MODULE_ID = "intake_routing";
 export const DEFAULT_PIPELINE_TEMPLATE_ID = "sales_pipeline";
@@ -60,31 +61,15 @@ function formulaMatchesProject(value: unknown, project: JsonObject) {
   return cleanText(formula.match).toLowerCase() === "any" ? matches.some(Boolean) : matches.every(Boolean);
 }
 
-function normalizeBucket(value: unknown, index: number) {
-  const bucket = asObject(value);
-  return {
-    id: cleanText(bucket.id) || `scope_bucket_${index + 1}`,
-    name: cleanText(bucket.name || bucket.title) || `Scope group ${index + 1}`,
-    description: cleanText(bucket.description),
-    sort_order: Number(bucket.sort_order ?? index),
-    template_ids: [...new Set(asArray(bucket.template_ids).map(cleanText).filter(Boolean))],
-    default_kinds: [...new Set(asArray(bucket.default_kinds).map(cleanText).filter(Boolean))]
-  };
-}
-
-export const DEFAULT_SCOPE_BUCKETS = [
-  { id: "sales", name: "Sales Scopes", description: "Scopes used to qualify, estimate, and sell work.", sort_order: 0, template_ids: [], default_kinds: ["pipeline", "sales"] },
-  { id: "production", name: "Production Scopes", description: "Scopes used to plan and deliver sold work.", sort_order: 1, template_ids: [], default_kinds: ["production"] }
-];
-
 function normalizeRouting(value: unknown) {
   const input = asObject(value);
-  const configuredBuckets = asArray(input.buckets);
   return {
     schema_version: 2,
     // Every project gets an entry scope. Conditional routing may choose a
     // more specific scope; this template is the guaranteed fallback.
     default_template_id: cleanText(input.default_template_id) || DEFAULT_PIPELINE_TEMPLATE_ID,
+    // Open opportunities a project may have at once; 0 (the default) means no limit.
+    max_open_opportunities: Number.isInteger(Number(input.max_open_opportunities)) && Number(input.max_open_opportunities) >= 0 ? Number(input.max_open_opportunities) : 0,
     routing_mode: Object.prototype.hasOwnProperty.call(input, "routing_mode")
       ? (cleanText(input.routing_mode) === "formula" ? "formula" : "default")
       : (asArray(input.rules).length ? "formula" : "default"),
@@ -100,8 +85,8 @@ function normalizeRouting(value: unknown) {
         conditions: asArray(asObject(rule.formula).conditions).map(normalizeClause).filter((clause) => clause.field)
       },
       template_id: cleanText(rule.template_id)
-    })),
-    buckets: (configuredBuckets.length ? configuredBuckets : DEFAULT_SCOPE_BUCKETS).map(normalizeBucket)
+    }))
+    // Settings groups scopes by their categories (scopes/categories.ts); routing no longer stores groups.
   };
 }
 
@@ -176,7 +161,7 @@ export async function ensurePipelinePlanForProject(orgId: string, projectValue: 
   if (!cleanText(template.id) || template.enabled === false) {
     const enabledTemplates = (await listScopeTemplates(orgId, branchId, {})) as JsonObject[];
     template = enabledTemplates.find((entry) => cleanText(entry.id) === DEFAULT_PIPELINE_TEMPLATE_ID)
-      || enabledTemplates.find((entry) => cleanText(asObject(entry.definition).kind) === "pipeline")
+      || enabledTemplates.find((entry) => isSalesTemplate(entry.definition))
       || enabledTemplates[0]
       || {};
     if (!cleanText(template.id) || template.enabled === false) return null;

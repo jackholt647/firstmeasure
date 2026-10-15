@@ -210,14 +210,13 @@ export const scopeChecklistDefinitionSchema = jsonObjectSchema.extend({
   metadata: jsonObjectSchema.optional()
 }).passthrough();
 
-export const scopeTemplateKindSchema = z.enum(["pipeline", "production"]);
-
 export const scopeTemplateDefinitionSchema = jsonObjectSchema.extend({
   department_ids: z.array(scopeDefinitionIdSchema).max(100).optional(),
   notifications: z.array(z.object({id:z.string().trim().min(1).max(180),label:z.string().trim().min(1).max(180),description:z.string().max(1000).optional(),defaults:z.object({in_app:z.boolean().default(true),push:z.boolean().default(false)}).optional()})).max(500).refine(items=>new Set(items.map(i=>i.id)).size===items.length,"Notification IDs must be unique").optional(),
   schema_version: z.number().int().positive().optional(),
   id: scopeDefinitionIdSchema,
-  kind: scopeTemplateKindSchema.optional(),
+  /** Scope categories (scopes/categories.ts). `sales` makes the template's plans opportunities. */
+  category_ids: z.array(scopeDefinitionIdSchema).max(20).optional(),
   name: z.string().trim().min(1).max(300),
   description: z.string().optional(),
   details: z.string().optional(),

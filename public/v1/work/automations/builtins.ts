@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 
 import { sendCommunication } from "../../messaging/communications_service.js";
 import { sendCommunicationSchema, type CommunicationChannel } from "../../messaging/schemas.js";
-import { removeCallListEntry, upsertCallListEntry } from "../../internal/crm/call_lists.js";
+import { removeCallListEntry, upsertCallListEntry } from "../../comms/call-lists.js";
 import { readDocument, upsertDocument, type JsonObject } from "../../platform/storage.js";
 import { updateProjectData } from "../../platform/project_document_mutation.js";
 import { registerWorkAutomation, type WorkAutomationContext } from "../registry.js";
@@ -283,6 +283,19 @@ async function removeCallListEntryForNode(context: WorkAutomationContext, input:
 // Instantiates the production scopes carried by a signed proposal. Bound in
 // pipeline templates (e.g. the sales preset's `sign_sales_proposal` node) so
 // the sale-to-production transition is template data, not engine code.
+/** Sets the outcome of this scope's opportunity, or the project's open one when the trigger is not a sales scope. */
+function salesOutcome(outcome: "won" | "lost" | "open") {
+  return async (context: WorkAutomationContext, input: JsonObject) => {
+    const resolved = asObject(await resolveValue(input, context));
+    const { setOpportunityOutcome } = await import("../opportunities.js");
+    return setOpportunityOutcome(cleanText(context.event.organization_id), {
+      project_id: cleanText(context.project.id || context.plan.project_id),
+      plan_id: context.plan.sales === true ? cleanText(context.plan.id) : "",
+      outcome, reason: cleanText(resolved.reason) || (outcome === "lost" ? "lost" : "")
+    });
+  };
+}
+
 async function activateScopesFromProposal(context: WorkAutomationContext, input: JsonObject) {
   const orgId = cleanText(context.event.organization_id);
   const payload = asObject(context.event.payload);
@@ -811,6 +824,18 @@ export function registerBuiltinWorkAutomations() {
   registerWorkAutomation("scheduling.createPerStructure.v1", createStructureAppointments, {
     description: "Creates one unscheduled work event per structure in the scope piece.",
     input: { event_type_default_id: "Calendar event type for each structure." }
+  });
+  registerWorkAutomation("sales.markWon.v1", salesOutcome("won"), {
+    description: "Marks this sales scope's opportunity won (or the project's open one). Sets the project's sold date the first time.",
+    input: { reason: "Optional note." }
+  });
+  registerWorkAutomation("sales.markLost.v1", salesOutcome("lost"), {
+    description: "Marks the opportunity lost and stops its sales scope.",
+    input: { reason: "Why it was lost." }
+  });
+  registerWorkAutomation("sales.reopen.v1", salesOutcome("open"), {
+    description: "Reopens a won opportunity.",
+    input: { reason: "Why it is open again." }
   });
   registerWorkAutomation("scopes.activateFromProposal.v1", activateScopesFromProposal, {
     description: "Instantiates the production scopes carried by the signed proposal (the sale-to-production transition)."

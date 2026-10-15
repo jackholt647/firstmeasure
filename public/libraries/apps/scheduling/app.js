@@ -1633,7 +1633,7 @@
   }
   function projectStagePillLabel(project = {}){
     const instances = projectActiveInstances(project);
-    const primary = instances.find((instance) => instance.kind === 'pipeline') || instances[0] || null;
+    const primary = instances.find((instance) => instance.sales === true) || instances[0] || null;
     const label = String(primary?.stage_title || primary?.title || '').trim();
     if (label) return label;
     const status = norm(projectLifecycle(project).status);

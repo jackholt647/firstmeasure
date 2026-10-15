@@ -1298,8 +1298,8 @@
 
   function projectionStageInstance(data){
     const instances = arrayValue(objectValue(data.work_projection).instances).filter((instance) => instance && typeof instance === 'object');
-    return instances.find((instance) => cleanText(instance.kind) === 'pipeline')
-      || instances.find((instance) => cleanText(instance.kind) === 'production')
+    return instances.find((instance) => instance.sales === true)
+      || instances.find((instance) => instance.sales !== true)
       || instances[0]
       || null;
   }

@@ -4378,7 +4378,7 @@ window.PlatformCommerce.onReady(async function(){
 
   function projectTagStatus(project = activeBaseProject){
     const instances = projectActiveWorkInstances(project);
-    const primary = instances.find((instance) => instance.kind === 'pipeline') || instances[0] || null;
+    const primary = instances.find((instance) => instance.sales === true) || instances[0] || null;
     const label = cleanStageText(primary?.stage_title || primary?.title);
     if (label) return label;
     const status = cleanStageText(projectLifecycleInfo(project).status).toLowerCase();

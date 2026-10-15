@@ -82,6 +82,8 @@ export const formItemSchema = z.object({
   // property_measurement
   source: text(80).default(""),
   address_param: z.string().trim().regex(PARAM_PATTERN).optional(),
+  // consent: ticking it also records an SMS opt-in for customer care, with the label as the disclosure
+  sms_opt_in: z.boolean().default(false),
   // content
   heading: text(300).default(""),
   body: text(4000).default(""),

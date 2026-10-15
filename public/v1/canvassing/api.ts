@@ -1,5 +1,5 @@
 import { hasResourcePermission, canAccessDepartmentResource, matchesDepartmentFilter, relevantDepartmentContext } from "../workforce/department-access.js";
-import { randomBytes } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import { mkdir, readdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 
@@ -9,7 +9,8 @@ import { ZodError, z } from "zod";
 import { authContextFromRequest, hashPassword, requirePlatformAuth } from "../platform/auth.js";
 import { isAppFlagEnabled } from "../platform/app_flags.js";
 import { badRequest, forbidden, PlatformError, notFound, unauthorized } from "../platform/errors.js";
-import { createPlatformLead } from "../platform/api.js";
+import { receiveLead } from "../leads/receive.js";
+import { readDocument } from "../platform/storage.js";
 import {
   addIdentityMembership,
   createIdentity,
@@ -176,31 +177,22 @@ export const registerCanvassingApi: FastifyPluginAsync = async (app) => {
     await ensureCanvassingEnabled(orgId, branchId);
     const body = objectBodySchema.parse(request.body ?? {});
     const pin = await readPin(orgId, branchId, cleanText(params.pinId));
+    // A pin becomes one lead: promoting it again returns the lead it already made.
+    const existingProjectId = cleanText(pin.platform_project_id);
+    if (existingProjectId) {
+      const project = await readDocument(orgId, "projects", existingProjectId).catch(() => null);
+      if (project) return { ok: true, pin, project, contacts: project.data.contacts || [], notification: null, duplicate: true };
+    }
     const contact = normalizeContact(body.contact || pin.contact);
-    const lead = await createPlatformLead(orgId, {
+    const lead = await receiveLead(orgId, {
       branch_id: branchId,
-      source_kind: "canvassing",
-      stage_id: cleanText(body.stage_id || body.stage || "new_lead"),
+      project_id: `lead_pin_${createHash("sha256").update(`${orgId}:${cleanText(pin.id)}`).digest("hex").slice(0, 32)}`,
+      source: { kind: "canvassing", provider: "Canvassing", confidence: 1, raw: { pin }, pin_id: pin.id, coordinates: pin.coordinates, status_id: pin.status_id, status_label: pin.status_label, canvasser: pin.created_by },
       address: cleanText(body.address || pin.address),
       title: cleanText(body.title || pin.title || pin.address || "Canvassing lead"),
       summary: cleanText(body.summary || pin.notes || "Created from a canvassing pin."),
       contacts: contact.name || contact.email || contact.phone ? [contact] : [],
-      provider: "Canvassing",
-      confidence: 1,
-      raw: { pin },
-      lead_source: {
-        kind: "canvassing",
-        pin_id: pin.id,
-        coordinates: pin.coordinates,
-        status_id: pin.status_id,
-        status_label: pin.status_label,
-        canvasser: pin.created_by
-      },
-      notification: {
-        source: "canvassing_lead_import",
-        title: "New canvassing lead",
-        context: { pin_id: pin.id }
-      }
+      notification: { source: "canvassing_lead_import", title: "New canvassing lead", context: { pin_id: pin.id } }
     });
     const updatedPin = await savePin(orgId, branchId, {
       ...pin,

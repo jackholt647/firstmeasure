@@ -635,7 +635,7 @@ test("Platform project event scheduling advances the pipeline stage", async () =
   // node through its external trigger, advancing the card to the
   // appointment stage — no platform trigger engine involved.
   const pipelineInstance = scheduled.project.work_projection.active_instances
-    .find((instance: any) => instance.kind === "pipeline");
+    .find((instance: any) => instance.sales === true);
   assert.equal(pipelineInstance.template_id, "sales_pipeline");
   assert.equal(pipelineInstance.stage_id, "appointment_stage");
 });

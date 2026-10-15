@@ -79,6 +79,21 @@ appointments domain writer using an appointment type; do not compute slots or
 write events in `public/v1/forms`. Run `npm run test:forms` and
 `npm run test:forms:browser` in `public/v1` for changes to these contracts.
 
+## Contacts, leads and opportunities
+
+Read [contacts](docs/architecture/contacts.md) and
+[opportunities](docs/architecture/opportunities.md) before changing contacts,
+lead intake, matching, merging or sales scopes. A contact is its own record in
+the `contacts` store; a project names contacts by link and `project.contacts`
+is a read-only projection. There is no lead record or lead status: an
+opportunity is a work plan whose scope template has the built-in `sales`
+category, and a lead is a contact with an open one. Never hard-code a business
+decision (when a sale is won, how many sales plans run): bind an action in the
+scope or add a setting with a default. Every store that keeps contact or project
+ids registers a reference adapter so merges reach it. Every intake source calls
+`receiveLead`. Run `tests/contacts-store.test.ts`, `tests/contact-merge.test.ts`
+and `tests/lead-receive.test.ts` for changes here.
+
 ## Platform publications and programmable modules
 
 Read [publication architecture](docs/architecture/publication-architecture.md)

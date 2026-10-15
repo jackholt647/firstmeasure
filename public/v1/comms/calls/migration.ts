@@ -1,5 +1,4 @@
-import { ensureCallListDatabase, getCallListDatabase } from '../../internal/crm/call_lists.js';
-import { withLeadDb } from '../../internal/crm/leads.js';
+import { ensureCallListDatabase, getCallListDatabase } from '../call-lists.js';
 import { getChannelsDatabase } from '../../channels/storage.js';
 import { getWorkDatabase } from '../../work/storage.js';
 import { listDocuments } from '../../platform/storage.js';
@@ -15,23 +14,13 @@ export async function migrateLegacyCalls(orgId:string,apply=false){
   const users=(await listDocuments(orgId,'users')).map(u=>({id:u.id,...object(u.data)} as Json));
   const candidates=new Map<string,Json>();let skipped=0;
   const add=(key:string,data:Json)=>{if(!key||data.disposition==='skipped'){skipped++;return;}candidates.set(key,{...candidates.get(key),...Object.fromEntries(Object.entries(data).filter(([,v])=>v!==''&&v!==undefined))});};
-  const sharedEntries = await getCallListDatabase().prepare('SELECT * FROM crm_call_list_entries WHERE organization_id=? AND result_json<>?').all(orgId,'{}');
-  // Legacy compatibility snapshots may still contain historical outcomes. Read
-  // them additively when present; new installs only have the shared store.
-  const legacyEntries = withLeadDb(db => db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='crm_call_list_entries'").get()
-    ? db.prepare('SELECT * FROM crm_call_list_entries WHERE organization_id=? AND result_json<>?').all(orgId,'{}') : []);
-  const entries = [...legacyEntries, ...sharedEntries].map(object);
+  const entries = (await getCallListDatabase().prepare('SELECT * FROM crm_call_list_entries WHERE organization_id=? AND result_json<>?').all(orgId,'{}')).map(object);
   for(const entry of entries){const result=parse(entry.result_json),payload=parse(entry.payload_json);add(text(result.call_id||result.id),{...result,entry_id:entry.id,project_id:entry.project_id,customer_name:payload.name||payload.contact_name,customer_number:payload.phone,at:result.created_at||entry.completed_at,source:'call_list_result'});}
   for(const row of (await getWorkDatabase().prepare("SELECT * FROM work_events WHERE organization_id=? AND type='call.completed'").all(orgId)).map(object)){
     const payload=parse(row.payload_json),context=parse(row.context_json);add(text(payload.call_id),{...payload,project_id:row.project_id,branch_id:row.branch_id,customer_name:payload.contact_name,customer_number:payload.phone,owner_user_id:context.actor_user_id,at:row.created_at,source:'work_call_completed'});
   }
   for(const row of (await getChannelsDatabase().prepare("SELECT m.*,c.project_id FROM messages m JOIN channels c ON c.id=m.channel_id WHERE m.organization_id=? AND m.deleted_at IS NULL AND json_extract(m.metadata_json,'$.call.id') IS NOT NULL", "SELECT m.*,c.project_id FROM messages m JOIN channels c ON c.id=m.channel_id WHERE m.organization_id=? AND m.deleted_at IS NULL AND m.metadata_json::jsonb #>> '{call,id}' IS NOT NULL").all(orgId)).map(object)){
     const call=object(parse(row.metadata_json).call);add(text(call.id),{...call,project_id:row.project_id,notes:row.text,owner_user_id:row.author_id,at:call.created_at||row.created_at,source:'channel_call_note',note_id:row.id});
-  }
-  const leadRows=withLeadDb(db=>db.prepare(`SELECT d.*,l.lead_name AS full_name,l.phone FROM lead_dial_events d JOIN lead_memberships l ON l.id=d.lead_id WHERE l.organization_id=?`).all(orgId)).map(object);
-  for(const row of leadRows){const context=parse(row.context_json);if(!text(context.call_disposition||context.disposition)){skipped++;continue;}
-    const notes=withLeadDb(db=>db.prepare('SELECT note_text FROM lead_notes WHERE lead_id=? AND dial_event_id=? ORDER BY created_at').all(text(row.lead_id),text(row.id))).map(n=>text(object(n).note_text)).join('\n\n');
-    add(`lead:${text(row.id)}`,{disposition:context.call_disposition||context.disposition,outcome:context.outcome,customer_name:row.full_name,customer_number:row.phone,owner_email:row.owner_email,at:row.dialed_at||row.created_at,notes,source:'legacy_lead_dial',lead_id:row.lead_id});
   }
   let existing=0,imported=0,eligible=0;const conflicts:Array<{source_id:string;reason:string}>=[];
   for(const [key,item] of candidates){const canonical=s.id('call',`${orgId}:legacy:${key}`);

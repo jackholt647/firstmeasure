@@ -347,20 +347,15 @@ export const registerWorkApi: FastifyPluginAsync = async (app) => {
     return { ok: true, events, count: events.length, next_before: events.length ? cleanText((events[events.length - 1] as Record<string, unknown>).created_at) : "" };
   });
 
-  // Marks a project lost: cancels its live pipeline scope instances (which
-  // drives lifecycle.status to "lost") and records the lead status.
+  // Marks a project's open opportunities lost, with the reason; their sales scopes stop
+  // and lifecycle.status becomes "lost".
   app.post("/organizations/:orgId/projects/:projectId/lost", async (request) => {
     const orgId = getParam(request.params, "orgId");
     const projectId = getParam(request.params, "projectId");
-    await requirePlatformAuth(request, { orgId, csrf: true, permission: "manage_projects" });
+    const ctx = await requirePlatformAuth(request, { orgId, csrf: true, permission: "manage_projects" });
     const body = objectSchema.parse(request.body ?? {});
-    const { cancelPipelinePlansForProject } = await import("./service.js");
-    const canceled = await cancelPipelinePlansForProject(orgId, projectId, "lost");
-    const document = await readDocument(orgId, "projects", projectId).catch(() => null);
-    if (document) {
-      const data = { ...(document.data as Record<string, unknown>), lead_status: "lost", updated_at: new Date().toISOString() };
-      await upsertDocument(orgId, "projects", { id: projectId, data, metadata: document.metadata }, { replace: true });
-    }
-    return { ok: true, canceled_plan_ids: canceled, reason: String(body.reason || "lost") };
+    const reason = String(body.reason || "lost").slice(0, 500);
+    const result = await (await import("./opportunities.js")).setOpportunityOutcome(orgId, { project_id: projectId, outcome: "lost", reason, actor_user_id: ctx.userId });
+    return { ok: true, canceled_plan_ids: result.plans.map((plan) => String(plan.id)), reason };
   });
 };

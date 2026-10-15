@@ -99,3 +99,15 @@ ways in `tests/project-history.test.ts`.
 
 **Why it can wait.** It is read only by an agent looking for patterns, on demand, and is fast for the run counts a
 company has today. (docs/architecture/project-history.md, "Known limits")
+
+## Contact options and projection fan-out
+
+**Today.** `contactOptions` (`contacts/service.ts`), which fills typed contact pickers, pages through every contact
+(up to 5,000) and returns them all. A contact edit rewrites `project.contacts` on every linked project, one document
+write each (`refreshProjections` in `contacts/records.ts`).
+
+**Where the change goes.** Pickers call `contacts.records` with a text query instead of loading options, and options
+is removed. The fan-out goes away when readers use the contacts client instead of the projection (contacts phase 5).
+
+**Why it can wait.** An organization has few contacts per project, and pickers stay fast below a few thousand
+contacts. (docs/architecture/contacts.md)

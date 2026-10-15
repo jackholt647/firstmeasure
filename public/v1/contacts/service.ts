@@ -1,4 +1,4 @@
-import { readBranchModule, saveBranchModule, readDocument, listDocuments, readMediaMetadata, type JsonObject } from "../platform/storage.js";
+import { readBranchModule, saveBranchModule, readMediaMetadata, type JsonObject } from "../platform/storage.js";
 import { badRequest, notFound, PlatformError } from "../platform/errors.js";
 import { asObject, text, contactKind, normalizeContactSettings, CONTACT_REFERENCE_TYPES, MEDIA_REFERENCE_TYPES } from "./contracts.js";
 export async function contactSettings(orgId:string) {
@@ -9,25 +9,24 @@ export async function saveContactSettings(orgId:string,input:unknown) {
  const settings=normalizeContactSettings(input);
  await saveBranchModule(orgId,"default","contact_settings",{data:settings},{replace:true});return settings;
 }
+/** A contact reference is a contact id, or `{contact_id}`; an older `project_id` beside it is ignored. */
 export async function resolveContact(orgId:string,value:unknown) {
- const ref=asObject(value),projectId=text(ref.project_id || ref.record_project_id),id=text(ref.contact_id);
- if(!projectId || !id)throw badRequest("contact_reference_invalid","Choose a saved contact.");
- const parent=await readDocument(orgId,"projects",projectId);
- const contact=(Array.isArray(parent.data.contacts)?parent.data.contacts:[]).map(asObject).find(c=>text(c.id || c.contact_id)===id);
- if(!contact)throw notFound("contact_not_found","The referenced contact is not available in this organization.");
- return {contact,parent,ref:{project_id:projectId,contact_id:id}};
+ const id=typeof value==="string"?text(value):text(asObject(value).contact_id);
+ if(!id)throw badRequest("contact_reference_invalid","Choose a saved contact.");
+ const {readContact}=await import("./records.js");
+ const contact=await readContact(orgId,id).catch(error=>{if((error as {statusCode?:number})?.statusCode===404)throw notFound("contact_not_found","The referenced contact is not available in this organization.");throw error;});
+ return {contact:contact as unknown as JsonObject,ref:{contact_id:contact.id}};
 }
 export async function contactOptions(orgId:string,kind="either") {
  if(!["human","org","either"].includes(kind))throw badRequest("contact_kind_invalid","Choose human, org or either.");
- const documents=await listDocuments(orgId,"projects"),items=new Map<string,JsonObject>();
- // Standalone contact records take precedence over linked project copies.
- documents.sort((a,b)=>Number(b.data.workflow_state==="contact_only")-Number(a.data.workflow_state==="contact_only"));
- for(const row of documents)for(const raw of Array.isArray(row.data.contacts)?row.data.contacts:[]){
-  const c=asObject(raw),id=text(c.id || c.contact_id),type=contactKind(c);
-  if(!id || items.has(id) || kind!=="either" && type!==kind)continue;
-  items.set(id,{contact_id:id,project_id:row.id,name:text(c.name || c.email || c.phone || id),contact_kind:type});
- }
- return [...items.values()].sort((a,b)=>text(a.name).localeCompare(text(b.name)));
+ const {listContacts}=await import("./records.js"),items:JsonObject[]=[];
+ let after:string|undefined;
+ do{
+  const page=await listContacts(orgId,{kind:kind==="either"?undefined:kind,after,limit:200});
+  for(const c of page.items)items.push({contact_id:c.id,name:c.name || c.email || c.phone || c.id,contact_kind:c.contact_kind});
+  after=page.next || undefined;
+ }while(after && items.length<5000);
+ return items.sort((a,b)=>text(a.name).localeCompare(text(b.name)));
 }
 export async function normalizeContactRecord(orgId:string,incoming:JsonObject,previous:JsonObject={}) {
  const next={...incoming},kind=contactKind({...previous,...incoming});

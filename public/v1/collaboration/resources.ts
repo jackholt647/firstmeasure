@@ -59,7 +59,7 @@ export async function sharingOptions(ctx:PlatformAuthContext,type:ResourceRef["t
 }
 async function source(r:ResourceRef):Promise<Record<string,any>>{
   if(r.type==="project"){const d=await readDocument(r.owner_org_id,"projects",r.id);return {...d.data,id:d.id,revision:d.revision};}
-  if(r.type==="contact"){const c=await resolveContact(r.owner_org_id,{project_id:r.project_id,contact_id:r.id});return {...c.contact,revision:c.parent.revision};}
+  if(r.type==="contact"){const c=await resolveContact(r.owner_org_id,{project_id:r.project_id,contact_id:r.id});return {...c.contact};}
   if(r.type==="document")return readDocumentInstance(r.owner_org_id,r.id);
   if(r.type==="invoice")return readInvoice(r.owner_org_id,r.id);
   if(r.type==="media")return readMediaMetadata(r.owner_org_id,r.id);

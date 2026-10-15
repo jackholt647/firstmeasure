@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { badRequest, notFound } from "../platform/errors.js";
 import { readDocument, upsertDocument, type JsonObject } from "../platform/storage.js";
 import { readWorkConfiguration } from "./config.js";
-import { cancelPipelinePlansForProject, createWorkPlan, patchWorkNode, transitionWorkNode } from "./service.js";
+import { createWorkPlan, patchWorkNode, transitionWorkNode } from "./service.js";
 import { readNodeRecord } from "./storage.js";
 
 export const FOLLOW_UP_TAG = "follow_up";
@@ -140,20 +140,11 @@ export async function createFollowUpTodo(orgIdValue: unknown, inputValue: JsonOb
   return { ...result, node };
 }
 
-async function markProjectLost(orgId: string, projectId: string) {
+async function markProjectLost(orgId: string, projectId: string, reason = "lost") {
   if (!projectId) return null;
-  // Losing a lead cancels the live pipeline scope instances; lifecycle facts
-  // (status "lost") are derived from the canceled plans by the projection.
-  await cancelPipelinePlansForProject(orgId, projectId, "lost");
-  const document = await readDocument(orgId, "projects", projectId);
-  const project = asObject(document.data);
-  const now = new Date().toISOString();
-  return await upsertDocument(orgId, "projects", {
-    id: projectId,
-    expected_revision: document.revision,
-    data: { ...project, lead_status: "lost", updated_at: now },
-    metadata: document.metadata
-  }, { replace: true });
+  // Losing a lead marks its open opportunities lost, which stops their sales scopes;
+  // lifecycle status "lost" is derived from the outcomes.
+  return await (await import("./opportunities.js")).setOpportunityOutcome(orgId, { project_id: projectId, outcome: "lost", reason });
 }
 
 export async function resolveFollowUpOutcome(orgIdValue: unknown, nodeIdValue: unknown, inputValue: JsonObject = {}, configuredOutcomes?:JsonObject[]) {
@@ -221,7 +212,7 @@ export async function resolveFollowUpOutcome(orgIdValue: unknown, nodeIdValue: u
   }
 
   if (action === "lost") {
-    await markProjectLost(orgId, cleanText(node.project_id));
+    await markProjectLost(orgId, cleanText(node.project_id), cleanText(outcome.label || outcome.key) || "lost");
   }
   const completed = await transitionWorkNode(orgId, nodeId, "completed", commonTransition);
   return { outcome, completed, successor: null };

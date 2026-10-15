@@ -1,6 +1,5 @@
 import path from "node:path";
 
-import { runLegacyCrmMigration } from "../../internal/crm/migration.js";
 import { runLegacyInternalMigration } from "../../internal/migration.js";
 
 type Mode = "dry-run" | "fresh" | "validate";
@@ -26,9 +25,8 @@ async function main() {
   const sourceRoot = path.resolve(argValue("--source-root", "../measure/internal"));
   const targetRoot = path.resolve(argValue("--target-root", "./storage"));
   const internalSourceRoot = path.resolve(argValue("--internal-source-root", resolveDefaultInternalSourceRoot(sourceRoot)));
-  const crmSourceRoot = path.resolve(argValue("--crm-source-root", path.join(sourceRoot, "crm")));
   const include = new Set(
-    argValue("--include", "internal,crm")
+    argValue("--include", "internal")
       .split(",")
       .map((item) => item.trim().toLowerCase())
       .filter(Boolean)
@@ -50,15 +48,6 @@ async function main() {
     (result.migrations as Record<string, unknown>).internal = await runLegacyInternalMigration({
       sourceRoot: internalSourceRoot,
       targetRoot: path.join(targetRoot, "internal"),
-      mode,
-      confirmFresh
-    });
-  }
-
-  if (include.has("crm")) {
-    (result.migrations as Record<string, unknown>).crm = await runLegacyCrmMigration({
-      sourceRoot: crmSourceRoot,
-      targetRoot: path.join(targetRoot, "crm"),
       mode,
       confirmFresh
     });

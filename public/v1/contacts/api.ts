@@ -1,27 +1,97 @@
 import { userPublicationContext } from "../platform/publication/context.js";
 import { readFields } from "../custom_fields/records.js";
 import type { FastifyInstance } from "fastify";
-import { requirePlatformAuth } from "../platform/auth.js";
-import { contactSettings, saveContactSettings, contactOptions, resolveContact } from "./service.js";
+import { requirePlatformAuth, type PlatformAuthContext } from "../platform/auth.js";
+import { readDocument } from "../platform/storage.js";
+import { assertManageBranches, assertSeeBranches, branchScope } from "../workforce/branch-scope.js";
+import { contactSettings, saveContactSettings, contactOptions } from "./service.js";
+import { contactProjectIds, createContact, findExactMatches, listContacts, readContact, refreshProjections, setProjectContactLinks, updateContact, type ContactRecord } from "./records.js";
 import { text, asObject } from "./contracts.js";
-export function registerContactRoutes(app:FastifyInstance){
- app.get("/organizations/:orgId/contacts/options",async request=>{
-  const orgId=text(asObject(request.params).orgId);await requirePlatformAuth(request,{orgId,permission:"view_contacts"});
-  return {ok:true,contacts:await contactOptions(orgId,text(asObject(request.query).kind)||"either")};
- });
- app.get("/organizations/:orgId/contacts/settings",async request=>{
-  const orgId=text(asObject(request.params).orgId);await requirePlatformAuth(request,{orgId,permission:"view_contacts"});
-  return {ok:true,settings:await contactSettings(orgId)};
- });
- app.put("/organizations/:orgId/contacts/settings",async request=>{
-  const orgId=text(asObject(request.params).orgId);await requirePlatformAuth(request,{orgId,csrf:true,permission:"manage_company_settings"});
-  return {ok:true,settings:await saveContactSettings(orgId,request.body)};
- });
- app.get("/organizations/:orgId/contacts/:contactId",async request=>{
-  const orgId=text(asObject(request.params).orgId),ctx=await requirePlatformAuth(request,{orgId,permission:"view_contacts"});
-  const state=await resolveContact(orgId,{contact_id:text(asObject(request.params).contactId),project_id:text(asObject(request.query).project_id)});
-  const fields=await readFields(userPublicationContext(ctx),{scope:"project",organizationId:orgId,projectId:state.ref.project_id,id:state.ref.contact_id},"contact");
-  const {custom_fields,custom_field_values,contact_custom_field_values,profile_media_id,...contact}=state.contact;
-  return {ok:true,contact:{...contact,custom_field_values:fields.values,profile_media_id:text(asObject(fields.values.profile_photo).media_id)},reference:state.ref,revision:state.parent.revision};
- });
+
+// A contact with no branches is visible in every branch (docs/architecture/contacts.md).
+function visibleBranches(ctx: PlatformAuthContext) { const scope = branchScope(ctx); return scope.restricted_view ? scope.visible_branch_ids : null; }
+function assertVisible(ctx: PlatformAuthContext, contact: ContactRecord) { if (contact.branch_ids.length) assertSeeBranches(branchScope(ctx), contact.branch_ids); }
+function assertManageable(ctx: PlatformAuthContext, branchIds: string[]) { if (branchIds.length) assertManageBranches(branchScope(ctx), branchIds); }
+const params = (request: { params: unknown }) => asObject(request.params);
+
+export function registerContactRoutes(app: FastifyInstance) {
+  app.get("/organizations/:orgId/contacts/options", async request => {
+    const orgId = text(params(request).orgId); await requirePlatformAuth(request, { orgId, permission: "view_contacts" });
+    return { ok: true, contacts: await contactOptions(orgId, text(asObject(request.query).kind) || "either") };
+  });
+  app.get("/organizations/:orgId/contacts/settings", async request => {
+    const orgId = text(params(request).orgId); await requirePlatformAuth(request, { orgId, permission: "view_contacts" });
+    return { ok: true, settings: await contactSettings(orgId) };
+  });
+  app.put("/organizations/:orgId/contacts/settings", async request => {
+    const orgId = text(params(request).orgId); await requirePlatformAuth(request, { orgId, csrf: true, permission: "manage_company_settings" });
+    return { ok: true, settings: await saveContactSettings(orgId, request.body) };
+  });
+  app.get("/organizations/:orgId/contacts", async request => {
+    const orgId = text(params(request).orgId), ctx = await requirePlatformAuth(request, { orgId, permission: "view_contacts" }), query = asObject(request.query);
+    const page = await listContacts(orgId, { q: text(query.q), kind: text(query.kind), tag: text(query.tag), after: text(query.after), limit: Number(query.limit) || 50, branch_ids: visibleBranches(ctx) });
+    return { ok: true, contacts: page.items, next: page.next };
+  });
+  app.post("/organizations/:orgId/contacts/match", async request => {
+    const orgId = text(params(request).orgId), ctx = await requirePlatformAuth(request, { orgId, permission: "view_contacts" });
+    const scope = branchScope(ctx);
+    const matches = (await findExactMatches(orgId, asObject(request.body))).filter(c => !c.branch_ids.length || !scope.restricted_view || c.branch_ids.some(b => scope.visible_branch_ids.includes(b)));
+    return { ok: true, contacts: matches };
+  });
+  app.post("/organizations/:orgId/contacts", async request => {
+    const orgId = text(params(request).orgId), ctx = await requirePlatformAuth(request, { orgId, csrf: true, permission: "manage_projects" });
+    const body = asObject(request.body);
+    const branchIds = Array.isArray(body.branch_ids) ? body.branch_ids.map(text).filter(Boolean) : [text(ctx.branchId) || "default"];
+    assertManageable(ctx, branchIds);
+    return { ok: true, contact: await createContact(orgId, { ...body, branch_ids: branchIds }, {}) };
+  });
+  app.get("/organizations/:orgId/contacts/:contactId", async request => {
+    const orgId = text(params(request).orgId), ctx = await requirePlatformAuth(request, { orgId, permission: "view_contacts" });
+    const contact = await readContact(orgId, text(params(request).contactId));
+    assertVisible(ctx, contact);
+    const fields = await readFields(userPublicationContext(ctx), { scope: "organization", organizationId: orgId, id: contact.id }, "contact");
+    return { ok: true, contact: { ...contact, custom_field_values: fields.values }, reference: { contact_id: contact.id }, revision: contact.revision, project_ids: await contactProjectIds(orgId, contact.id) };
+  });
+  app.patch("/organizations/:orgId/contacts/:contactId", async request => {
+    const orgId = text(params(request).orgId), ctx = await requirePlatformAuth(request, { orgId, csrf: true, permission: "manage_projects" });
+    const before = await readContact(orgId, text(params(request).contactId));
+    assertManageable(ctx, before.branch_ids);
+    const body = asObject(request.body), patch = { ...asObject(body.contact ?? body) };
+    delete patch.expected_revision; delete patch.id; delete patch.merged_into;
+    if ("branch_ids" in patch) assertManageable(ctx, Array.isArray(patch.branch_ids) ? patch.branch_ids.map(text).filter(Boolean) : []);
+    return { ok: true, contact: await updateContact(orgId, before.id, patch, { expectedRevision: Number(body.expected_revision) || undefined }) };
+  });
+  app.get("/organizations/:orgId/contacts/duplicates", async request => {
+    const orgId = text(params(request).orgId); await requirePlatformAuth(request, { orgId, permission: "view_contacts" });
+    const query = asObject(request.query), kind = text(query.kind) === "project" ? "project" : "contact";
+    return { ok: true, duplicates: await (await import("./merge.js")).listDuplicates(orgId, kind, { status: text(query.status), limit: Number(query.limit) }) };
+  });
+  app.post("/organizations/:orgId/contacts/duplicates/dismiss", async request => {
+    const orgId = text(params(request).orgId); await requirePlatformAuth(request, { orgId, csrf: true, permission: "manage_projects" });
+    const body = asObject(request.body);
+    return { ok: true, duplicate: await (await import("./merge.js")).dismissDuplicate(orgId, text(body.kind) === "project" ? "project" : "contact", text(body.first_id), text(body.second_id)) };
+  });
+  app.post("/organizations/:orgId/contacts/:contactId/merge", async request => {
+    const orgId = text(params(request).orgId), ctx = await requirePlatformAuth(request, { orgId, csrf: true, permission: "manage_projects" });
+    const body = asObject(request.body);
+    const survivor = await readContact(orgId, text(params(request).contactId), { follow: false }), merged = await readContact(orgId, text(body.merged_id), { follow: false });
+    assertManageable(ctx, survivor.branch_ids); assertManageable(ctx, merged.branch_ids);
+    return { ok: true, ...(await (await import("./merge.js")).mergeContacts(orgId, survivor.id, merged.id, { prefer: asObject(body.prefer) as never, actor_user_id: ctx.userId })) };
+  });
+  app.post("/organizations/:orgId/projects/:projectId/merge", async request => {
+    const orgId = text(params(request).orgId), ctx = await requirePlatformAuth(request, { orgId, csrf: true, permission: "manage_projects" });
+    const { hasPermission } = await import("../platform/auth.js");
+    const { mergeProjects, MERGE_COMMITTED_PERMISSION } = await import("../projects/merge.js");
+    return { ok: true, ...(await mergeProjects(orgId, text(params(request).projectId), text(asObject(request.body).merged_id), { actor_user_id: ctx.userId, allow_committed: hasPermission(ctx, MERGE_COMMITTED_PERMISSION) })) };
+  });
+  app.put("/organizations/:orgId/projects/:projectId/contacts", async request => {
+    const orgId = text(params(request).orgId), projectId = text(params(request).projectId);
+    await requirePlatformAuth(request, { orgId, csrf: true, permission: "manage_projects" });
+    await readDocument(orgId, "projects", projectId);
+    const links = (Array.isArray(asObject(request.body).contacts) ? asObject(request.body).contacts as unknown[] : []).map(asObject)
+      .map(row => ({ contact_id: text(row.contact_id || row.id), role: text(row.role), primary: row.primary === true }));
+    const saved = await setProjectContactLinks(orgId, projectId, links);
+    await refreshProjections(orgId, [projectId]);
+    return { ok: true, contacts: saved };
+  });
 }
