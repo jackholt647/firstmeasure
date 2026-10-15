@@ -1,5 +1,6 @@
 import { nextTestPhone, enableExpandedPlatformFixture, closePlatformFixtureStores } from "./helpers/platform-fixture.js";
 import assert from "node:assert/strict";
+import { putProjectContacts } from "./helpers/project-contacts.js";
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -123,14 +124,12 @@ test("project contacts receive stable ids on save and keep them through renames"
   const client = createSessionClient();
   const { orgId } = await register(client);
   const projectId = "project_contact_identity_guard";
+  const projectUrl = `/v1/platform/organizations/${orgId}/projects/${projectId}`;
 
-  const created = await client.request("PUT", `/v1/platform/organizations/${orgId}/projects/${projectId}`, {
-    data: {
-      id: projectId,
-      title: "Contact identity guard",
-      contacts: [{ name: "Name Only Contact", primary: true }]
-    }
-  });
+  // A project's contacts are written through the contacts API, not the project write.
+  await client.request("PUT", projectUrl, { data: { id: projectId, title: "Contact identity guard" } });
+  await putProjectContacts(client, orgId, projectId, [{ name: "Name Only Contact", primary: true }]);
+  const created = await client.request("GET", projectUrl);
   assert.equal(created.document.data.contacts.length, 1);
   const contactId = created.document.data.contacts[0].id;
   assert.match(contactId, /^contact_[a-z0-9_-]+$/);
@@ -138,37 +137,36 @@ test("project contacts receive stable ids on save and keep them through renames"
   assert.equal(created.document.data.contact_id, contactId);
   assert.equal(created.document.data.primary_contact_id, contactId);
 
-  const renamed = await client.request("PUT", `/v1/platform/organizations/${orgId}/projects/${projectId}`, {
-    data: {
-      id: projectId,
-      title: "Contact identity guard",
-      contacts: [{ name: "Renamed Contact", primary: true }]
-    }
-  });
+  await putProjectContacts(client, orgId, projectId, [{ id: contactId, name: "Renamed Contact", primary: true }]);
+  const renamed = await client.request("GET", projectUrl);
   assert.equal(renamed.document.data.contacts.length, 1);
   assert.equal(renamed.document.data.contacts[0].name, "Renamed Contact");
   assert.equal(renamed.document.data.contacts[0].id, contactId);
   assert.equal(renamed.document.data.contact_id, contactId);
 
-  const legacySplit = await client.request("PUT", `/v1/platform/organizations/${orgId}/projects/${projectId}`, {
+  // A project write that re-sends the stored contacts with stale projection keys keeps them;
+  // one that changes the contacts is refused.
+  await client.request("PUT", projectUrl, {
     data: {
       id: projectId,
       title: "Contact identity guard",
-      contact_id: contactId,
-      primary_contact_id: contactId,
-      customer_name: "Renamed Contact",
-      contacts: [
-        { id: contactId, contact_id: contactId, name: "Renamed Contact", primary: true },
-        { name: "Renamed Contact" }
-      ]
+      contact_id: "contact_stale",
+      primary_contact_id: "contact_stale",
+      customer_name: "Stale Name",
+      contacts: renamed.document.data.contacts
     }
   });
-  assert.equal(legacySplit.document.data.contacts.length, 1);
-  assert.equal(legacySplit.document.data.contacts[0].id, contactId);
+  const changed = await client.raw("PUT", projectUrl, {
+    data: { id: projectId, title: "Contact identity guard", contacts: [...renamed.document.data.contacts, { name: "Renamed Contact" }] }
+  });
+  assert.equal(changed.statusCode, 400);
+  assert.equal(changed.data.error, "project_contacts_read_only");
 
-  const fetched = await client.request("GET", `/v1/platform/organizations/${orgId}/projects/${projectId}`);
+  const fetched = await client.request("GET", projectUrl);
   assert.equal(fetched.document.data.contacts.length, 1);
   assert.equal(fetched.document.data.contacts[0].id, contactId);
+  assert.equal(fetched.document.data.contact_id, contactId);
+  assert.equal(fetched.document.data.customer_name, "Renamed Contact");
   assert.ok(fetched.document.data.contacts.every((contact: any) => contact.id && contact.contact_id));
 });
 

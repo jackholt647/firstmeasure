@@ -1,3 +1,4 @@
+import { putProjectContacts } from "./helpers/project-contacts.js";
 import { nextTestPhone, enableExpandedPlatformFixture, closePlatformFixtureStores } from "./helpers/platform-fixture.js";
 import assert from "node:assert/strict";
 import { signingConsent } from "./helpers/document-signing.js";
@@ -125,11 +126,11 @@ test("kitchen remodel: allowance estimate → customer selections → delta rece
       title: "Jane Homeowner",
       address: "42 Remodel Road",
       project_type: "residential",
-      contacts: [{ id: "contact_jane", name: "Jane Homeowner", email: "jane@example.test", phone: "555-111-2222", primary: true }],
       photos: []
     },
     metadata: { kind: "platform_project" }
   });
+  await putProjectContacts(client, orgId, projectId, [{ id: "contact_jane", name: "Jane Homeowner", email: "jane@example.test", phone: "555-111-2222", primary: true }]);
 
   // Force the document seed pass (templates + workflows) before automations run.
   await client.request("GET", `/v1/documents/organizations/${orgId}/catalog`);

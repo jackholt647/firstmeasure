@@ -132,8 +132,8 @@ async function createSalesperson(owner: TestClient, orgId: string, suffix: strin
 }
 
 async function seedAppointmentProject(orgId: string, id: string, title: string, events: Json[]) {
-  const { upsertDocument } = await import("../platform/storage.js");
-  await upsertDocument(orgId, "projects", {
+  const { upsertProjectWithContacts } = await import("./helpers/project-contacts.js");
+  await upsertProjectWithContacts(orgId, {
     id,
     data: {
       branch_id: "default",

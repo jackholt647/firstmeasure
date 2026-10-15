@@ -109,8 +109,8 @@ async function registerOwner(client: TestClient) {
 }
 
 async function createProject(orgId: string, projectId: string, name: string, contact: { email: string; phone: string }) {
-  const { upsertDocument } = await import("../platform/storage.js");
-  await upsertDocument(orgId, "projects", {
+  const { upsertProjectWithContacts } = await import("./helpers/project-contacts.js");
+  await upsertProjectWithContacts(orgId, {
     id: projectId,
     data: {
       id: projectId,

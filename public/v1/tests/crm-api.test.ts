@@ -87,7 +87,8 @@ test("call lists are organization objects with assignments, idempotent entries, 
   await inject('POST','/v1/platform/auth/register',{
     phone: nextTestPhone(),organization_id:orgId,email:`calls-${suffix}@example.test`,password:'correct horse battery staple',name:'Casey Caller',company:'Call List Test'});
   await enableExpandedPlatformFixture(orgId);
-  await platformStorage.upsertDocument(orgId, "projects", {
+  const { upsertProjectWithContacts } = await import("./helpers/project-contacts.js");
+  await upsertProjectWithContacts(orgId, {
     id: projectId,
     data: {
       title: "Smith Roof",

@@ -1,3 +1,4 @@
+import { putProjectContacts } from "./helpers/project-contacts.js";
 import { nextTestPhone, closePlatformFixtureStores } from "./helpers/platform-fixture.js";
 import assert from "node:assert/strict";
 import { mkdtemp, rm } from "node:fs/promises";
@@ -1376,11 +1377,11 @@ test("a child of an appointment type is not sent for confirmation unless it says
   const projectId = "proj_child_appointment";
   await owner.request("PUT", `/v1/platform/organizations/${orgId}/projects/${projectId}`, {
     data: {
-      id: projectId, title: "Dana Reyes Roof Replacement", branch_id: "default", events: [],
-      contacts: [{ id: "contact_dana", name: "Dana Reyes", email: "dana.reyes@example.test", phone: "+12065551234", primary: true }]
+      id: projectId, title: "Dana Reyes Roof Replacement", branch_id: "default", events: []
     },
     metadata: { kind: "platform_project" }
   });
+  await putProjectContacts(owner, orgId, projectId, [{ id: "contact_dana", name: "Dana Reyes", email: "dana.reyes@example.test", phone: "+12065551234", primary: true }]);
   const base = `/v1/platform/organizations/${orgId}/projects/${projectId}/events`;
   const queueUrl = `/v1/appointments/organizations/${orgId}/projects/${projectId}/confirmations`;
   const startAt = new Date(Date.now() + 7 * 86_400_000).toISOString();

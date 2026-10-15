@@ -209,7 +209,7 @@ const IMPORT_CSV = [
   ",,,," // invalid
 ].join("\n");
 
-test("preview -> commit creates tagged contact_only records; undo removes them", async () => {
+test("preview -> commit creates tagged contacts in the store; undo removes the unused ones", async () => {
   const client = createSessionClient();
   const { orgId } = await register(client);
 
@@ -233,12 +233,14 @@ test("preview -> commit creates tagged contact_only records; undo removes them",
   assert.equal(commit.counts.skipped, 1);
   assert.equal(commit.status, "committed");
 
+  const listContacts = async () => (await client.request("GET", `/v1/platform/organizations/${orgId}/contacts?limit=200`)).contacts;
   const projects = await client.request("GET", `/v1/platform/organizations/${orgId}/projects`);
-  const imported = projects.documents.filter((document: any) => document.data.workflow_state === "contact_only");
+  assert.equal(projects.documents.length, 0, "an import writes contacts, not project records");
+  const imported = (await listContacts()).filter((contact: any) => contact.import_id === preview.import_id);
   assert.equal(imported.length, 2);
-  const gina = imported.map((document: any) => document.data).find((data: any) => data.customer_name === "Gina Torres");
-  assert.ok(gina, "Gina should exist as a contact_only record");
-  const ginaContact = gina.contacts[0];
+  const ginaContact = imported.find((contact: any) => contact.name === "Gina Torres");
+  assert.ok(ginaContact, "Gina should exist as a contact");
+  assert.equal(ginaContact.email, "gina@example.com");
   assert.deepEqual(ginaContact.tags, ["vip", "gutter", "imported"]);
   assert.equal(ginaContact.import_id, preview.import_id);
   assert.ok(ginaContact.imported_at);
@@ -265,11 +267,11 @@ test("preview -> commit creates tagged contact_only records; undo removes them",
   });
   assert.equal(update.counts.created, 0);
   assert.equal(update.counts.updated, 1);
-  const afterUpdate = await client.request("GET", `/v1/platform/organizations/${orgId}/projects`);
-  const ginaAfter = afterUpdate.documents.map((document: any) => document.data).find((data: any) => data.customer_name === "Gina Torres");
-  assert.equal(ginaAfter.contacts[0].company, "Torres Consulting");
-  assert.ok(ginaAfter.contacts[0].tags.includes("updated"));
-  assert.ok(ginaAfter.contacts[0].tags.includes("vip"));
+  const ginaAfter = (await listContacts()).find((contact: any) => contact.id === ginaContact.id);
+  assert.equal(ginaAfter.company, "Torres Consulting");
+  assert.ok(ginaAfter.tags.includes("updated"));
+  assert.ok(ginaAfter.tags.includes("vip"));
+  assert.equal((await listContacts()).filter((contact: any) => contact.name === "Gina Torres").length, 1);
 
   // History lists both commits, newest first.
   const history = await client.request("GET", `/v1/platform/organizations/${orgId}/contact-imports`);
@@ -277,11 +279,16 @@ test("preview -> commit creates tagged contact_only records; undo removes them",
   assert.equal(committed.length, 2);
   assert.ok(!("rows" in committed[0]), "history summaries must not carry raw rows");
 
-  // Undo removes only records created by the first import.
+  // Undo removes the contacts the first import created, except one a project now uses.
+  const hank = imported.find((contact: any) => contact.name === "Hank Voight");
+  await client.request("POST", `/v1/platform/organizations/${orgId}/projects`, { id: "hank_job", data: { title: "Hank's gutters" } });
+  await client.request("PUT", `/v1/platform/organizations/${orgId}/projects/hank_job/contacts`, { contacts: [{ contact_id: hank.id, primary: true }] });
   const undo = await client.request("POST", `/v1/platform/organizations/${orgId}/contact-imports/${preview.import_id}/undo`);
-  assert.equal(undo.removed, 2);
-  const afterUndo = await client.request("GET", `/v1/platform/organizations/${orgId}/projects`);
-  assert.equal(afterUndo.documents.filter((document: any) => document.data.workflow_state === "contact_only").length, 0);
+  assert.equal(undo.removed, 1);
+  assert.equal(undo.kept, 1);
+  const remaining = await listContacts();
+  assert.ok(!remaining.some((contact: any) => contact.id === ginaContact.id), "Gina was created by the import and is unused");
+  assert.ok(remaining.some((contact: any) => contact.id === hank.id), "Hank is on a project, so undo keeps him");
   const undoneHistory = await client.request("GET", `/v1/platform/organizations/${orgId}/contact-imports`);
   assert.equal(undoneHistory.imports.find((record: any) => record.id === preview.import_id).status, "undone");
 });
@@ -313,10 +320,12 @@ test("to-dos can be scoped to a contact and unioned with the contact's projects"
     data: {
       id: "project_contact_todo",
       title: "Roof for Rita",
-      workflow_state: "draft",
-      contacts: [{ id: "contact_rita", name: "Rita Ortiz", email: "rita@example.com", primary: true }]
+      workflow_state: "draft"
     },
     metadata: { kind: "platform_project" }
+  });
+  await client.request("PUT", `/v1/platform/organizations/${orgId}/projects/project_contact_todo/contacts`, {
+    contacts: [{ id: "contact_rita", name: "Rita Ortiz", email: "rita@example.com", primary: true }]
   });
 
   // A contact-scoped to-do (no project) with a due date -> onDue notification binding.
@@ -367,41 +376,46 @@ test("to-dos can be scoped to a contact and unioned with the contact's projects"
 test("typed contact references, defaults, managed tags and required media are enforced in storage",async()=>{
  const client=createSessionClient(),{orgId}=await register(client);
  const {upsertDocument,readDocument,saveBranchModule,storeMediaUpload}=await import("../platform/storage.js");
- const create=async(id:string,c:Record<string,unknown>)=>upsertDocument(orgId,"projects",{id,data:{workflow_state:"contact_only",contacts:[{id:"c_"+id,name:id,...c}]}});
+ const records=await import("../contacts/records.js");
+ // Contacts are records of their own; the contact service enforces their fields.
+ const create=async(id:string,c:Record<string,unknown>)=>records.createContact(orgId,{name:id,...c},{id:"c_"+id});
+ const stored=async(id:string)=>[await records.readContact(orgId,"c_"+id)] as any[];
  await create("company",{contact_kind:"org"});await create("person",{contact_kind:"human",tags:["vip"]});
- const company=(await readDocument(orgId,"projects","company")).data.contacts as any[];
+ const company=await stored("company");
  assert.equal(company[0].contact_kind,"org");assert.deepEqual(company[0].tags,["org"]);
  await assert.rejects(create("badtag",{tags:["arbitrary"]}),/catalog/);
- const ref={project_id:"company",contact_id:"c_company"};
+ const ref={contact_id:"c_company"};
  await assert.rejects(create("badspouse",{custom_field_values:{relationships:{spouse:ref}}}),/human/);
   await create("employee",{first_name:"Ada",last_name:"Smith",time_zone:"America/Los_Angeles",custom_field_values:{relationships:{employer:ref}}});
-  const employeeRecord=(await readDocument(orgId,"projects","employee")).data.contacts as any[];
+  const employeeRecord=await stored("employee");
   assert.equal(employeeRecord[0].first_name,"Ada");assert.equal(employeeRecord[0].last_name,"Smith");assert.equal(employeeRecord[0].time_zone,"America/Los_Angeles");
   await assert.rejects(create("badZone",{time_zone:"Mars/Olympus_Mons"}),/valid time zone/);
- await assert.rejects(create("badref",{custom_field_values:{relationships:{employer:{project_id:"missing",contact_id:"c_missing"}}}}));
+ await assert.rejects(create("badref",{custom_field_values:{relationships:{employer:{contact_id:"c_missing"}}}}));
  const options=await client.request("GET",`/v1/platform/organizations/${orgId}/contacts/options?kind=org`);
  assert.equal(options.contacts.length,1);assert.equal(options.contacts[0].contact_id,"c_company");
  const fields=(await import("../contacts/contracts.js")).CONTACT_DEFAULT_FIELDS;
  const secondaryPhone=fields.find(field=>field.path==="secondary_phone");
  assert.equal(secondaryPhone?.type,"phone");assert.equal(secondaryPhone?.enabled,true);
  await create("twoPhones",{phone:"(415) 555-0100",custom_field_values:{secondary_phone:"(650) 555-0199",primary_phone_label:"work",secondary_phone_label:"cell"}});
- const twoPhones=(await readDocument(orgId,"projects","twoPhones")).data.contacts as any[];
+ const twoPhones=await stored("twoPhones");
  assert.equal(twoPhones[0].custom_field_values.secondary_phone,"(650) 555-0199");
  await assert.rejects(create("badSecondaryPhone",{custom_field_values:{secondary_phone:"not a phone"}}),/valid phone/);
  await assert.rejects(create("badPhoneLabel",{custom_field_values:{primary_phone_label:"fax"}}),/Primary Phone Label/);
  await saveBranchModule(orgId,"default","custom_fields",{data:{fields:fields.map(f=>({...f,required:f.path==="relationships.employer"}))}});
  await assert.rejects(create("required",{}),/Employer is required/);
- const person=await readDocument(orgId,"projects","person");
+ await upsertDocument(orgId,"projects",{id:"person_job",data:{title:"Job"}});
+ await records.saveProjectContacts(orgId,"person_job",[{contact_id:"c_person",primary:true}]);
+ const person=await readDocument(orgId,"projects","person_job");
  // A contact is its own record: saving a project does not re-check its contacts, changing the contact does.
- await upsertDocument(orgId,"projects",{id:"person",data:{...person.data,title:"Updated"}},{replace:true});
+ await upsertDocument(orgId,"projects",{id:"person_job",data:{...person.data,title:"Updated"}},{replace:true});
  await assert.rejects((await import("../contacts/records.js")).updateContact(orgId,"c_person",{name:"Person Updated"}),/Employer is required/);
  const contract=(await import("../custom_fields/contracts.js"));
  assert.throws(()=>contract.normalizeDefinitions([{entity:"contact",path:"relationships.spouse",type:"text"}]),/retain their type/);
  assert.throws(()=>contract.normalizeDefinitions([{entity:"contact",path:"secondary_phone",type:"text"}]),/retain their type/);
- const media=await storeMediaUpload(orgId,{bytes:Buffer.from("hello"),contentType:"text/plain",fileName:"note.txt",ownerType:"contact",ownerId:"c_employee",slot:"media",collection:"contacts",scope:"contact",metadata:{contact_record_project_id:"employee"}});
- const employee=await readDocument(orgId,"projects","employee"),contact=(employee.data.contacts as any[])[0];
- await assert.rejects(upsertDocument(orgId,"projects",{id:"employee",data:{...employee.data,contacts:[{...contact,custom_field_values:{...contact.custom_field_values,profile_photo:{media_id:media.id}}}]}},{replace:true}),/requires photo/);
- const foreignMedia=await storeMediaUpload(orgId,{bytes:Buffer.from("hello"),contentType:"text/plain",fileName:"other.txt",ownerType:"contact",ownerId:"c_person",slot:"media",collection:"contacts",scope:"contact",metadata:{contact_record_project_id:"person"}});
+ const media=await storeMediaUpload(orgId,{bytes:Buffer.from("hello"),contentType:"text/plain",fileName:"note.txt",ownerType:"contact",ownerId:"c_employee",slot:"media",collection:"contacts",scope:"contact",metadata:{}});
+ const contact=(await stored("employee"))[0];
+ await assert.rejects(records.updateContact(orgId,"c_employee",{custom_field_values:{...contact.custom_field_values,profile_photo:{media_id:media.id}}}),/requires photo/);
+ const foreignMedia=await storeMediaUpload(orgId,{bytes:Buffer.from("hello"),contentType:"text/plain",fileName:"other.txt",ownerType:"contact",ownerId:"c_person",slot:"media",collection:"contacts",scope:"contact",metadata:{}});
  await assert.rejects((await import("../contacts/service.js")).validateReference(orgId,{type:"media"},{media_id:foreignMedia.id},contact,"contact"),/record's library/);
 });
 
@@ -414,8 +428,8 @@ test("optional photos import into the contact library while invalid photos repor
  assert.equal(preview.rows[0].contact.photo_available,true);assert.equal(preview.rows[0].contact.photo_source,undefined);
  const result=await client.request("POST",`/v1/platform/organizations/${orgId}/contact-imports/${preview.import_id}/commit`,{import_photos:true});
  assert.equal(result.counts.created,2);assert.equal(result.counts.photos_imported,1);assert.equal(result.counts.photos_failed,1);
- const {listDocuments,listMedia}=await import("../platform/storage.js"),projects=await listDocuments(orgId,"projects"),media=await listMedia(orgId);
- const c=(projects.find(p=>(p.data.contacts as any[])[0].name==="Photo Person")!.data.contacts as any[])[0];
+ const {listMedia}=await import("../platform/storage.js"),media=await listMedia(orgId);
+ const c:any=(await (await import("../contacts/records.js")).listContacts(orgId,{limit:50})).items.find(row=>row.name==="Photo Person");
  assert.equal(c.profile_media_id,media[0]!.id);assert.equal((media[0]!.owner as any).type,"contact");
  assert.deepEqual(c.custom_field_values.profile_photo,{media_id:media[0]!.id});
  const {publicPhotoAddress,photoImportUrl}=await import("../contacts/photo-import.js");
@@ -448,13 +462,13 @@ test("only admins manage catalogs through dedicated, generic and published APIs;
   assert.deepEqual(changed.settings.tags.map((tag:any)=>tag.id),["org","vendor","custom"]);
   assert.equal(changed.settings.track_time_zones,true);
  const photo=await (await import("sharp")).default({create:{width:8,height:8,channels:3,background:"#338877"}}).png().toBuffer();
- const metadata={contact_record_project_id:"project_pending_photo",contact_draft:true};
+ const metadata={contact_draft:true};
  const upload=await member.request("POST",`/v1/platform/organizations/${orgId}/media`,{base64:photo.toString("base64"),content_type:"image/png",file_name:"portrait.png",owner_type:"contact",owner_id:"contact_pending_photo",slot:"profile",metadata});
  const invalid=await member.raw("POST",`/v1/platform/organizations/${orgId}/media`,{base64:Buffer.from("not an image").toString("base64"),content_type:"image/png",file_name:"bad.png",owner_type:"contact",owner_id:"contact_pending_photo",slot:"profile",metadata});assert.equal(invalid.statusCode,400);
  const {saveBranchModule}=await import("../platform/storage.js"),defaults=(await import("../contacts/contracts.js")).CONTACT_DEFAULT_FIELDS;
  await saveBranchModule(orgId,"default","custom_fields",{data:{fields:defaults.map(f=>({...f,required:f.path==="profile_photo"}))}});
- await member.request("POST",`/v1/platform/organizations/${orgId}/projects`,{id:"project_pending_photo",data:{workflow_state:"contact_only",contacts:[{id:"contact_pending_photo",name:"Photo Required",custom_field_values:{profile_photo:{media_id:upload.media.id}}}]}});
- const library=await member.request("GET",`/v1/platform/organizations/${orgId}/media?contact_id=contact_pending_photo&contact_project_id=project_pending_photo`);assert.equal(library.media.length,1);
+ await member.request("POST",`/v1/platform/organizations/${orgId}/contacts`,{id:"contact_pending_photo",name:"Photo Required",custom_field_values:{profile_photo:{media_id:upload.media.id}}});
+ const library=await member.request("GET",`/v1/platform/organizations/${orgId}/media?contact_id=contact_pending_photo`);assert.equal(library.media.length,1);
  const other=createSessionClient(),{orgId:otherOrg}=await register(other);
  assert.equal((await other.raw("GET",`/v1/platform/organizations/${orgId}/contacts/options`)).statusCode,403);
  assert.equal((await other.raw("GET",`/v1/platform/organizations/${otherOrg}/media/${upload.media.id}`)).statusCode,404);
