@@ -2961,7 +2961,7 @@
         try {
           const firstPageDoc = { ...resolved, pages: pages.slice(0, 1) };
           const paper = root.FMDocModel.paperDimensions(firstPageDoc);
-          const widthPx = Math.max(72, box.clientWidth || 88);
+          const widthPx = Math.max(120, (box.clientWidth || 320) - 32);
           const scale = widthPx / ((Number(paper?.w_pt) || 612) * (96 / 72));
           box.innerHTML = '';
           const stageHost = document.createElement('div');

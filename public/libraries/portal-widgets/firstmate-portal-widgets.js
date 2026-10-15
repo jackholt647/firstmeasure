@@ -216,7 +216,7 @@
 .fmpw-steps{display:grid;gap:8px}
 .fmpw-step{display:flex;align-items:flex-start;gap:11px;width:100%;text-align:left;padding:12px 14px;
   border:1px solid #e4e7ec;border-radius:12px;background:#fff;font:inherit;color:inherit;cursor:pointer}
-.fmpw-step:disabled{cursor:default;opacity:.65}
+.fmpw-step:disabled{cursor:default}.fmpw-step:disabled:not(.done){opacity:.65}
 .fmpw-step.current{border-color:rgba(37,99,235,.5);box-shadow:0 0 0 3px rgba(37,99,235,.08)}
 .fmpw-step.done .fmpw-step-dot{color:#12844a}
 .fmpw-step-dot{color:#c3c9d4;font-size:15px;line-height:1.3}
