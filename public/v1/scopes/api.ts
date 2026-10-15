@@ -14,6 +14,7 @@ import { buildScopeArtifactMap, patchScopeArtifact, createScopeArtifact } from "
 import { automationCatalog } from "../work/catalog.js";
 import { dryRunAutomations } from "./dry-run.js";
 import { updateScopeInstances } from "./instances.js";
+import { readScopeCategories, saveScopeCategories, templateCategoryIds } from "./categories.js";
 
 const instanceUpdateSchema = z.object({
   plan_ids: z.array(z.string().trim().min(1)).max(1000).optional(),
@@ -89,6 +90,19 @@ export const registerScopesApi: FastifyPluginAsync = async (app) => {
     const orgId = getParam(request.params, "orgId");
     await requirePlatformAuth(request, { orgId, csrf: true, permission: "manage_company_settings" });
     return { ok: true, routing: await saveIntakeRouting(orgId, getParam(request.params, "branchId") || "default", objectSchema.parse(request.body ?? {})) };
+  });
+
+  // Scope categories: the organization's labels for its scopes; `sales` is built in.
+  app.get("/organizations/:orgId/scope-categories", async (request) => {
+    const orgId = getParam(request.params, "orgId");
+    await requirePlatformAuth(request, { orgId });
+    return { ok: true, ...(await readScopeCategories(orgId)) };
+  });
+
+  app.put("/organizations/:orgId/scope-categories", async (request) => {
+    const orgId = getParam(request.params, "orgId");
+    await requirePlatformAuth(request, { orgId, csrf: true, permission: "manage_company_settings" });
+    return { ok: true, ...(await saveScopeCategories(orgId, request.body ?? {})) };
   });
 
   app.get("/organizations/:orgId/branches/:branchId/templates/:templateId", async (request) => {
@@ -264,7 +278,7 @@ export const registerScopesApi: FastifyPluginAsync = async (app) => {
       }));
     return {
       ok: true,
-      template: { id: template.id, name: template.name, color: template.color, icon: template.icon, description: template.description, version: template.version, status: template.status, enabled: template.enabled !== false, kind: (template.definition as Record<string, unknown>)?.kind || "production" },
+      template: { id: template.id, name: template.name, color: template.color, icon: template.icon, description: template.description, version: template.version, status: template.status, enabled: template.enabled !== false, category_ids: templateCategoryIds(template.definition) },
       entries: extractAutomationInventory(template.definition as Record<string, unknown>, { include_hidden: includeHidden }),
       organization_rules: organizationRules
     };

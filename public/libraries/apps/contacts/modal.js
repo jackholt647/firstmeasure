@@ -826,7 +826,7 @@
     const active = Array.isArray(projection.active_instances)
       ? projection.active_instances
       : (Array.isArray(projection.instances) ? projection.instances.filter((instance) => instance && (instance.status === 'active' || instance.status === 'pending')) : []);
-    const primary = active.find((instance) => instance?.kind === 'pipeline') || active[0] || null;
+    const primary = active.find((instance) => instance?.sales === true) || active[0] || null;
     const label = firstText(primary?.stage_title, primary?.title);
     if (label) return label;
     const lifecycle = projection.lifecycle && typeof projection.lifecycle === 'object'

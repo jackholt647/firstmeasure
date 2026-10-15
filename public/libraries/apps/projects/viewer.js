@@ -3809,7 +3809,7 @@
   }
   function primaryProjectInstance(p){
     const instances = projectActiveInstances(p);
-    return instances.find((instance) => instance.kind === 'pipeline') || instances[0] || null;
+    return instances.find((instance) => instance.sales === true) || instances[0] || null;
   }
   function instanceStageLabel(instance){
     return firstNonEmptyString(instance?.stage_title, instance?.title) || (globalThis.PlatformLanguage?.text('projects','m_1b6ec15cbd198b',"In Progress") ?? "In Progress");
@@ -4824,9 +4824,9 @@
     for (const p of projects){
       const instance = primaryProjectInstance(p);
       if (instance){
-        const bucketMap = instance.kind === 'production' ? production : pipeline;
+        const bucketMap = instance.sales === true ? pipeline : production;
         const title = instanceStageLabel(instance);
-        const key = `${instance.kind === 'production' ? 'production' : 'pipeline'}:${firstNonEmptyString(instance.stage_id, title)}`;
+        const key = `${instance.sales === true ? 'pipeline' : 'production'}:${firstNonEmptyString(instance.stage_id, title)}`;
         if (!bucketMap.has(key)) bucketMap.set(key, { id:key, title, color:instanceStageColor(instance), items:[] });
         bucketMap.get(key).items.push(p);
         continue;

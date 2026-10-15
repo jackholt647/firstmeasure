@@ -34,6 +34,8 @@ import {
 } from "./storage.js";
 import { createWorkPlanSchema, workNodeStatusSchema, type WorkNodeDefinition, type WorkNodeStatus } from "./schemas.js";
 import { emitWorkEvent, withDeferredWorkEvents, dispatchDeferredWorkEvents } from "./engine.js";
+import { opportunitySummary } from "./opportunities.js";
+import { isSalesTemplate, templateCategoryIds } from "../scopes/categories.js";
 
 function cleanText(value: unknown) {
   return String(value ?? "").trim();
@@ -706,34 +708,19 @@ export async function setManualPlanStage(orgId: string, planId: string, stageIdV
   };
 }
 
-function planIsProductionKind(plan: JsonObject) {
-  const kind = cleanText(asObject(plan.metadata).scope_template_kind);
-  if (kind) return kind === "production";
-  return cleanText(plan.source_type) === "signed_proposal_scope";
-}
-
-function planIsPipelineKind(plan: JsonObject) {
-  const kind = cleanText(asObject(plan.metadata).scope_template_kind);
-  if (kind) return kind === "pipeline";
-  return cleanText(plan.source_type) === "pipeline";
-}
-
 // Derives the project-level lifecycle facts consumers use instead of the
 // removed `project.stage`: open/completed/canceled/lost plus the sold and
-// completion timestamps, all computed from scope-instance state.
-export function projectLifecycleFacts(plans: JsonObject[]) {
+// completion timestamps. Sold is when the first opportunity was won
+// (docs/architecture/opportunities.md); lost is every opportunity lost and
+// nothing left running.
+export function projectLifecycleFacts(plans: JsonObject[], project: JsonObject = {}) {
   const visible = plans.filter((plan) => asObject(plan.metadata).hide_from_boards !== true);
   const considered = visible.length ? visible : plans;
-  const production = considered.filter(planIsProductionKind);
-  const soldAt = production
-    .map((plan) => cleanText(plan.started_at || plan.created_at))
-    .filter(Boolean)
-    .sort()[0] || "";
+  const opportunities = opportunitySummary(plans, project);
+  const soldAt = opportunities.won_at;
   const allTerminal = considered.length > 0 && considered.every((plan) => ["completed", "canceled"].includes(cleanText(plan.status)));
   const anyCompleted = considered.some((plan) => cleanText(plan.status) === "completed");
-  const lost = considered.some((plan) => planIsPipelineKind(plan)
-    && cleanText(plan.status) === "canceled"
-    && cleanText(asObject(plan.metadata).canceled_reason) === "lost")
+  const lost = opportunities.lost > 0 && !opportunities.won && !soldAt
     && !considered.some((plan) => !["completed", "canceled"].includes(cleanText(plan.status)));
   const terminalAt = allTerminal
     ? considered.map((plan) => cleanText(plan.completed_at || plan.canceled_at)).filter(Boolean).sort().reverse()[0] || ""
@@ -743,12 +730,14 @@ export function projectLifecycleFacts(plans: JsonObject[]) {
     status,
     sold_at: soldAt,
     completed_at: status === "completed" ? terminalAt : "",
-    canceled_at: status === "canceled" || status === "lost" ? terminalAt : ""
+    canceled_at: status === "canceled" || status === "lost" ? terminalAt : "",
+    opportunities
   };
 }
 
 export async function projectWorkProjection(orgId: string, projectId: string) {
   const plans = (await listPlanRecords(orgId, { project_id: projectId }));
+  const project = asObject((await readDocument(orgId, "projects", projectId).catch(() => null))?.data);
   const activePlans = plans.filter((plan) => cleanText(plan.status) === "active");
   const phases = (await Promise.all(activePlans.map(async (plan) => (await listNodeRecords(orgId, { plan_id: plan.id, parent_id: "__root__" }))))).flat()
     .filter((node) => !terminalNodeStatus(node.status));
@@ -761,7 +750,9 @@ export async function projectWorkProjection(orgId: string, projectId: string) {
     .map(async (plan) => ({
       plan_id: cleanText(plan.id),
       template_id: cleanText(plan.template_id),
-      kind: planIsPipelineKind(plan) ? "pipeline" : "production",
+      sales: plan.sales === true,
+      outcome: cleanText(plan.outcome),
+      category_ids: Array.isArray(asObject(plan.metadata).scope_category_ids) ? asObject(plan.metadata).scope_category_ids : [],
       source_type: cleanText(plan.source_type),
       status: cleanText(plan.status),
       title: cleanText(plan.title),
@@ -776,7 +767,7 @@ export async function projectWorkProjection(orgId: string, projectId: string) {
     plans,
     instances,
     active_instances: instances.filter((instance) => !["completed", "canceled"].includes(instance.status)),
-    lifecycle: projectLifecycleFacts(plans),
+    lifecycle: projectLifecycleFacts(plans, project),
     active_phases: phases,
     active_stages: stages,
     primary_phase: phases[0] || null,
@@ -801,13 +792,10 @@ export async function syncProjectWorkProjection(orgId: string, projectId: string
   return { id: projectId, ...asObject(saved?.data) };
 }
 
-// Cancels the project's live pipeline scope instances (e.g. when a follow-up
-// resolves as lost). The reason lands on the plan metadata so lifecycle facts
-// can distinguish lost from ordinary cancellation.
+// Cancels the project's live sales scope instances for a reason other than a
+// lost sale (a lost sale goes through setOpportunityOutcome).
 export async function cancelPipelinePlansForProject(orgId: string, projectId: string, reason = "canceled") {
-  const plans = (await listPlanRecords(orgId, { project_id: projectId }))
-    .filter((plan) => cleanText(asObject(plan.metadata).scope_template_kind) === "pipeline"
-      || cleanText(plan.source_type) === "pipeline")
+  const plans = (await listPlanRecords(orgId, { project_id: projectId, sales: true }))
     .filter((plan) => !["completed", "canceled"].includes(cleanText(plan.status)));
   for (const plan of plans) {
     for (const node of (await listNodeRecords(orgId, { plan_id: plan.id })).filter((entry) => !terminalNodeStatus(entry.status))) {
@@ -880,7 +868,8 @@ export async function listWorkBoards(orgId: string, options: JsonObject = {}, ct
         department_ids: blueprint.department_ids ?? definition.department_ids ?? [],
         title: cleanText(template.name || definition.name || root.title || templateId.replace(/[_-]+/g, " ")),
         description: cleanText(template.description || definition.description),
-        kind: cleanText(definition.kind || "production"),
+        category_ids: templateCategoryIds(definition),
+        sales: isSalesTemplate(definition),
         color,
         terminology: asObject(blueprint.terminology),
         fields: boardFieldCatalog(definition, ctx),
@@ -924,7 +913,8 @@ export async function listWorkBoards(orgId: string, options: JsonObject = {}, ct
       title: cleanText(scopeTemplate.name || scopeDefinition.name || scopeRoot.title),
       description: cleanText(scopeTemplate.description || scopeDefinition.description),
       color: cleanText(scopeTemplate.color || scopeDefinition.color || scopeMetadata.board_color),
-      kind: cleanText(scopeDefinition.kind) || (cleanText(plan.source_type) === "pipeline" ? "pipeline" : "production"),
+      category_ids: Object.keys(scopeDefinition).length ? templateCategoryIds(scopeDefinition) : asArray(planMetadata.scope_category_ids).map(cleanText),
+      sales: Object.keys(scopeDefinition).length ? isSalesTemplate(scopeDefinition) : plan.sales === true,
       stages: scopeStages
     };
     const configuredStages = asArray(configuredBoard.stages).map(asObject);
@@ -934,7 +924,8 @@ export async function listWorkBoards(orgId: string, options: JsonObject = {}, ct
         department_ids: plan.department_ids ?? [],
         title: cleanText(configuredBoard.title || root.title || plan.title || boardId.replace(/[_-]+/g, " ")),
         description: cleanText(configuredBoard.description),
-        kind: configuredBoard.kind,
+        category_ids: configuredBoard.category_ids,
+        sales: configuredBoard.sales,
         color: cleanText(configuredBoard.color || asObject(root.metadata).color || boardMetadata.board_color || "#1769aa"),
         terminology: asObject(plan.terminology),
         fields: boardFieldCatalog(scopeDefinition, ctx),

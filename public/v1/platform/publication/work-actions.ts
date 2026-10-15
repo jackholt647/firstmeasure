@@ -24,6 +24,7 @@ const fields: Record<string, Record<string, JsonSchema>> = {
   "scheduling.createRequirements.v1": { requirements: list },
   "scheduling.createPerStructure.v1": { event_type_default_id: text },
   "scopes.activateFromProposal.v1": {}, "scopes.activateTemplate.v1": { template_id: text, instance_key: text },
+  "sales.markWon.v1": { reason: text }, "sales.markLost.v1": { reason: text }, "sales.reopen.v1": { reason: text },
   "project.claim.v1": { key: text, holder: text }, "materials.initializeFromScope.v1": {},
   "checklists.initializeFromScope.v1": {},
   "punchlist.request.v1": { title: text, description: text, instance_key: text, terminology_key: text, labels: object, config: object },

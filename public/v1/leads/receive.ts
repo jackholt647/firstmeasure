@@ -77,8 +77,6 @@ export async function receiveLead(org: string, submission: LeadSubmission) {
     data: {
       ...projectData,
       branch_id: branchId,
-      // Phase 3 replaces these with the opportunity outcome (docs/architecture/opportunities.md).
-      lead_status: "new", project_type: "lead",
       address, title: text(submission.title || address || summary || contacts[0]?.name || "New lead"), summary,
       events: [], source: sourceKind,
       lead_source: { ...sourceRest, kind: sourceKind, provider: text(provider), confidence: Number(confidence) || 0, provider_fields: object(provider_fields), raw: object(raw), contacts, received_at: now },

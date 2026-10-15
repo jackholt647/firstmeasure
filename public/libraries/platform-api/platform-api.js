@@ -700,6 +700,13 @@
     },
     saveRouting(orgId, branchId = 'default', payload = {}){
       return request(siblingPath('scopes', `/organizations/${enc(orgId)}/branches/${enc(branchId || 'default')}/intake-routing`), { method:'PUT', body:payload || {} });
+    },
+    /* Scope categories: the organization's labels for its scopes; `sales` is built in. */
+    categories(orgId){
+      return request(siblingPath('scopes', `/organizations/${enc(orgId)}/scope-categories`));
+    },
+    saveCategories(orgId, payload = {}){
+      return request(siblingPath('scopes', `/organizations/${enc(orgId)}/scope-categories`), { method:'PUT', body:payload || {} });
     }
   };
 
@@ -2589,7 +2596,7 @@
     }
     function projectionInstance(project){
       const instances = Array.isArray(project?.work_projection?.instances) ? project.work_projection.instances : [];
-      return instances.find((instance) => instance && instance.kind === 'pipeline') || instances[0] || null;
+      return instances.find((instance) => instance && instance.sales === true) || instances[0] || null;
     }
     function projectStage(project, config){
       const instance = projectionInstance(project);

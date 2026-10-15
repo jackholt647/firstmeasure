@@ -21,7 +21,9 @@ Scope templates carry `category_ids` (zero or more) from the organization's
 edited like the contact tag catalog: stable ids, renameable labels, enable and
 disable. `sales` is built in and cannot be removed or disabled; its label comes
 from terminology. `production` is an ordinary default category. `kind` is
-removed. The Project Scopes settings groups are views over categories.
+removed (an older definition's `kind` is read as a category and dropped on save).
+The Project Scopes settings page groups scopes by category and edits the
+catalog; intake routing no longer stores groups.
 
 The platform reads one fact from categories: a plan whose template has `sales`
 is an opportunity. Another category may be blessed the same way when an app
@@ -29,25 +31,32 @@ needs it.
 
 ## Opportunity outcome
 
-Sales plans carry `outcome` (`open`, `won`, `lost`), `outcome_at`,
-`lost_reason`. Outcome is set only by automation actions bound in the scope:
+Sales plans (`work_plans.sales = 1`, set from the template's categories when
+the plan is made) carry `outcome` (`open`, `won`, `lost`), `outcome_at` and
+`outcome_reason`. Outcome is set only by automation actions bound in the scope,
+through `setOpportunityOutcome` (`work/opportunities.ts`):
 
 - `sales.markWon.v1` — the plan is won. Sets the project's `sold_at` when the
   project has none.
 - `sales.markLost.v1` (`input.reason`) — the plan is lost.
 - `sales.reopen.v1` (`input.reason`) — back to open.
 
-They are ordinary catalog actions and can be bound to any trigger. The default
-sales pipeline binds `markWon` to the signature node and starts production on
-the same trigger. A sales plan that completes or is canceled while still open is
+They are ordinary catalog actions and can be bound to any trigger. The built-in
+sales presets bind `markWon` to the signature step, beside the binding that
+starts production. A lost opportunity's sales scope is stopped, so it cannot be
+reopened; start the sales scope again instead. The mark-lost flows (a follow-up
+outcome with action `lost`, `POST /projects/:id/lost`) call the same function.
+Plans made before categories were backfilled once: a finished pipeline plan
+counts as won, one canceled as lost as lost. A sales plan that completes or is canceled while still open is
 shown as closed without an outcome and raises a warning; nothing assumes it won.
 
 `sold_at` means the time the project's first opportunity was won. Stats and pay
 rules that earn on `sold_at` follow each organization's definition.
 
 The number of open opportunities a project may have at once is the
-`max_open_opportunities` setting of the intake routing module (default 1). The
-engine refuses to start a sales plan beyond it.
+`max_open_opportunities` setting of the intake routing module (default 1, 0
+for no limit). Starting a sales plan beyond it is refused
+(`instantiateScopeTemplateWorkPlan`).
 
 ## Intake
 
@@ -88,10 +97,9 @@ Contact file import still writes standalone records through the contact bridge
 until the Contacts app reads the store (phase 5).
 
 **Not yet moved:** the new-lead notification is still sent by `receiveLead`
-(with each source's title and roles) rather than by an organization rule, and
-leads still carry `lead_status: "new"` and `project_type: "lead"` until the
-opportunity outcome replaces them (phase 3). A form's `settings.stage_id` is
-no longer used; intake routing picks the sales scope.
+(with each source's title and roles) rather than by an organization rule. A
+form's `settings.stage_id` is no longer used; intake routing picks the sales
+scope.
 
 Triage is a view, not a state: opportunities still in their plan's first stage,
 plus open duplicate suggestions. Dismissing a submission marks its opportunity

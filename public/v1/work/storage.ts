@@ -50,7 +50,7 @@ export function getWorkDatabase() {
   const nextPath = resolvedDatabasePath();
   if (database && databasePath === nextPath) return database;
   void closeWorkDatabase();
-  database = openSqlStore({ id: "work", schemaVersion: 2, filename: nextPath, initialize: initializeSchema });
+  database = openSqlStore({ id: "work", schemaVersion: 3, filename: nextPath, initialize: initializeSchema });
   databasePath = nextPath;
   return database;
 }
@@ -262,6 +262,18 @@ async function initializeSchema(db: SqlStore) {
   await ensureSqlColumn(db, "work_automation_executions", "lease_owner", "TEXT NOT NULL DEFAULT ''");
   (await db.exec("CREATE INDEX IF NOT EXISTS work_events_activity_idx ON work_events(organization_id, visibility, created_at)"));
   (await db.exec("CREATE INDEX IF NOT EXISTS work_events_project_activity_idx ON work_events(organization_id, project_id, visibility, created_at)"));
+  // A plan whose template has the `sales` scope category is an opportunity (docs/architecture/opportunities.md).
+  await ensureSqlColumn(db, "work_plans", "sales", "INTEGER NOT NULL DEFAULT 0");
+  await ensureSqlColumn(db, "work_plans", "outcome", "TEXT NOT NULL DEFAULT ''");
+  await ensureSqlColumn(db, "work_plans", "outcome_at", "TEXT");
+  await ensureSqlColumn(db, "work_plans", "outcome_reason", "TEXT NOT NULL DEFAULT ''");
+  (await db.exec("CREATE INDEX IF NOT EXISTS work_plans_opportunity_idx ON work_plans(organization_id, sales, outcome, project_id)"));
+  // Plans made before categories said they were sales with `scope_template_kind` or the router's source type.
+  // A finished one was sold (the old pipeline ended at the deposit); one canceled as lost was lost.
+  (await db.exec(`UPDATE work_plans SET sales = 1,
+    outcome = CASE WHEN status = 'canceled' AND metadata_json LIKE '%"canceled_reason":"lost"%' THEN 'lost' WHEN status = 'completed' THEN 'won' ELSE 'open' END,
+    outcome_at = CASE WHEN status = 'completed' THEN completed_at WHEN status = 'canceled' THEN canceled_at ELSE NULL END
+    WHERE sales = 0 AND outcome = '' AND (metadata_json LIKE '%"scope_template_kind":"pipeline"%' OR source_type = 'pipeline')`));
 }
 
 function rowObject(row: unknown) {
@@ -277,7 +289,11 @@ export function planFromRow(row: unknown): JsonObject {
     terminology: parseJson(value.terminology_json),
     automation_bindings: parseJson(value.automation_bindings_json),
     context: parseJson(value.context_json),
-    metadata: parseJson(value.metadata_json)
+    metadata: parseJson(value.metadata_json),
+    sales: Number(value.sales || 0) === 1,
+    outcome: cleanText(value.outcome) || (Number(value.sales || 0) === 1 ? "open" : ""),
+    outcome_at: cleanText(value.outcome_at),
+    outcome_reason: cleanText(value.outcome_reason)
   };
 }
 
@@ -328,15 +344,16 @@ export async function createPlanRecord(input: JsonObject) {
   const inserted = (await db.prepare(`INSERT INTO work_plans (
     id, organization_id, branch_id, project_id, source_type, source_id, source_version_id, source_key,
     template_id, template_version, scope_piece_id, title, status, terminology_json,
-    automation_bindings_json, context_json, metadata_json, created_at, updated_at
-  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT DO NOTHING`)
+    automation_bindings_json, context_json, metadata_json, sales, outcome, created_at, updated_at
+  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT DO NOTHING`)
     .run(
       id, cleanText(input.organization_id), cleanText(input.branch_id || "default") || "default",
       cleanText(input.project_id) || null, cleanText(input.source_type) || null, cleanText(input.source_id) || null,
       cleanText(input.source_version_id) || null, sourceKey || null, cleanText(input.template_id) || null,
       Number(input.template_version || 0) || null, cleanText(input.scope_piece_id) || null, cleanText(input.title) || "Work Plan",
       cleanText(input.status || "pending") || "pending", json(input.terminology), json(input.automation_bindings),
-      json(input.context), json({ ...asObject(input.metadata), ...(Array.isArray(input.department_ids) ? { department_ids: input.department_ids } : {}) }), now, now
+      json(input.context), json({ ...asObject(input.metadata), ...(Array.isArray(input.department_ids) ? { department_ids: input.department_ids } : {}) }),
+      input.sales === true ? 1 : 0, input.sales === true ? "open" : "", now, now
     ));
   if (!Number(inserted.changes || 0)) {
     const existing = sourceKey
@@ -360,11 +377,12 @@ export async function readPlanRecord(orgId: string, planId: string) {
 export async function listPlanRecords(orgId: string, options: JsonObject = {}) {
   const where = ["organization_id = ?"];
   const params: SQLInputValue[] = [orgId];
-  for (const [column, value] of [["project_id", options.project_id], ["status", options.status], ["source_type", options.source_type]] as const) {
+  for (const [column, value] of [["project_id", options.project_id], ["status", options.status], ["source_type", options.source_type], ["outcome", options.outcome]] as const) {
     if (!cleanText(value)) continue;
     where.push(`${column} = ?`);
     params.push(cleanText(value));
   }
+  if (options.sales === true) where.push("sales = 1");
   return (await getWorkDatabase().prepare(`SELECT * FROM work_plans WHERE ${where.join(" AND ")} ORDER BY created_at ASC`).all(...params)).map(planFromRow);
 }
 
@@ -374,11 +392,12 @@ export async function updatePlanRecord(orgId: string, planId: string, patch: Jso
   if (!current) return null;
   const next: JsonObject = { ...current, ...patch, updated_at: nowIso() };
   (await getWorkDatabase().prepare(`UPDATE work_plans SET status=?, root_node_id=?, terminology_json=?, automation_bindings_json=?,
-    context_json=?, metadata_json=?, started_at=?, completed_at=?, canceled_at=?, updated_at=? WHERE organization_id=? AND id=?`)
+    context_json=?, metadata_json=?, started_at=?, completed_at=?, canceled_at=?, outcome=?, outcome_at=?, outcome_reason=?, updated_at=? WHERE organization_id=? AND id=?`)
     .run(
       cleanText(next.status), cleanText(next.root_node_id) || null, json(next.terminology), json(next.automation_bindings),
       json(next.context), json({ ...asObject(next.metadata), ...(Array.isArray(next.department_ids) ? { department_ids: next.department_ids } : {}) }), cleanText(next.started_at) || null, cleanText(next.completed_at) || null,
-      cleanText(next.canceled_at) || null, cleanText(next.updated_at), orgId, planId
+      cleanText(next.canceled_at) || null, current.sales === true ? cleanText(next.outcome) || "open" : "", cleanText(next.outcome_at) || null, cleanText(next.outcome_reason),
+      cleanText(next.updated_at), orgId, planId
     ));
   const plan=await readPlanRecord(orgId,planId);
   if(plan)await (await import('../integrations/usage.js')).indexConnectionUses(orgId,`work-plan:${planId}`,plan);

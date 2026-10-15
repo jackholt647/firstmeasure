@@ -27,6 +27,7 @@ import { buildPlatformManifest } from "./manifest.js";
 import { automationCatalog } from "../../work/catalog.js";
 import { dryRunAutomations } from "../dry-run.js";
 import { updateScopeInstances } from "../instances.js";
+import { templateCategoryIds } from "../categories.js";
 
 function parseJsonArgument(value: unknown, name: string): { value?: unknown; error?: string } {
   if (typeof value !== "string") return { value };
@@ -160,7 +161,7 @@ const TOOLS: AgentTool[] = [
         templates: (await listScopeTemplates(run.orgId, run.branchId, { include_disabled: true, include_archived: true })).map((template) => ({
           id: template.id,
           name: template.name,
-          kind: asObject(template.definition as JsonObject).kind || "production",
+          category_ids: templateCategoryIds(template.definition),
           description: template.description,
           color: template.color,
           icon: template.icon,

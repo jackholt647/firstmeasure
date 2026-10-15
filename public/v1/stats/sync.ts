@@ -299,14 +299,10 @@ export async function refreshProjectFacts(orgId: string, projectIds: string[], o
       }
       const data = asObject(asObject(doc).data);
       const plans = plansByProject.get(projectId) || [];
+      // A project with no plans can still have been marked sold (sales.markWon without a sales scope).
       const lifecycle = plans.length
-        ? projectLifecycleFacts(plans)
-        : {
-          status: cleanText(data.lead_status) === "lost" ? "lost" : "open",
-          sold_at: "",
-          completed_at: "",
-          canceled_at: ""
-        };
+        ? projectLifecycleFacts(plans, data)
+        : { status: "open", sold_at: cleanText(data.won_at), completed_at: "", canceled_at: "" };
       const stage = stagesByProject.get(projectId);
       const template = primaryTemplate(plans, templateTitles);
       const assigned = assignedByProject.get(projectId) || [];

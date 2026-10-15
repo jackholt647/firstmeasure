@@ -7,6 +7,7 @@
 // execution, so unused namespaces cost nothing.
 
 import type { JsonObject } from "./storage.js";
+import { templateCategoryIds } from "../scopes/categories.js";
 
 export type WorkContextScope = {
   organization_id: string;
@@ -202,7 +203,7 @@ export function registerBuiltinContextProviders() {
       list: templates.map((template) => ({
         id: asObject(template).id,
         name: asObject(template).name,
-        kind: asObject(asObject(template).definition).kind || "production",
+        category_ids: templateCategoryIds(asObject(template).definition),
         enabled: asObject(template).enabled !== false,
         version: asObject(template).version
       })),
