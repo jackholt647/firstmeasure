@@ -8,7 +8,9 @@ import test from "node:test";
 test("merging contacts moves what named the duplicate; merging projects keeps one sale", async (t) => {
   const dir = await mkdtemp(path.join(os.tmpdir(), "contact-merge-"));
   Object.assign(process.env, { NODE_ENV: "test", FIRSTMATE_ENV: "test", PLATFORM_STORAGE_ROOT: path.join(dir, "platform"), CRM_STORAGE_ROOT: path.join(dir, "crm"),
-    PLATFORM_HEARTBEAT_DISABLED: "1", WORK_SCHEDULER_DISABLED: "1", FIRSTMEASURE_JOB_WORKERS: "0" });
+    PLATFORM_HEARTBEAT_DISABLED: "1", WORK_SCHEDULER_DISABLED: "1", FIRSTMEASURE_JOB_WORKERS: "0",
+    // Runs on SQLite by default and on PostgreSQL through tests/run-embedded-postgres.mjs, which sets TEST_POSTGRES_URL.
+    FIRSTMEASURE_DATABASE_MODE: process.env.TEST_POSTGRES_URL ? "postgres" : "local", DATABASE_URL: process.env.TEST_POSTGRES_URL || "", POSTGRES_POOL_MAX: "4", POSTGRES_AUTO_MIGRATE: "false" });
   const storage = await import("../platform/storage.js");
   const contacts = await import("../contacts/records.js");
   const merge = await import("../contacts/merge.js");
@@ -18,7 +20,7 @@ test("merging contacts moves what named the duplicate; merging projects keeps on
   const { getCommunicationsDatabase } = await import("../messaging/communications_storage.js");
   const { listPlanRecords } = await import("../work/storage.js");
   const { setOpportunityOutcome } = await import("../work/opportunities.js");
-  t.after(async () => { await (await import("../platform/sql_store.js")).closeSqlStoresForTests(); await rm(dir, { recursive: true, force: true }); });
+  t.after(async () => { await (await import("../platform/sql_store.js")).closeSqlStoresForTests(); await (await import("../src/database/postgres.js")).closePostgresPools(); await rm(dir, { recursive: true, force: true }); });
   const ORG = "org_merge";
   await storage.createOrganization({ id: ORG, name: "Merge" });
   await (await import("./helpers/platform-fixture.js")).enableExpandedPlatformFixture(ORG);
