@@ -31,7 +31,9 @@ schedule, or a generator that writes them.
   Postgres pool on hosts) and the only writer: `recordProjectChange`,
   `recordGeneration`, `newGenerationId`.
 - `diff.ts` describes lines (`lineFacts`) and compares them (`lineDiff`,
-  `fieldDiff`, `generationOutcome`). Lines are matched by id; a calculated line
+  `fieldDiff`, `generationOutcome`); missing, empty text and empty lists count
+  as the same nothing, so filling one in is not a change. It also names the
+  schedule event fields kept (`SCHEDULE_HISTORY_FIELDS`). Lines are matched by id; a calculated line
   by its key, because applying a calculation again gives its lines new ids.
 - `outcomes.ts` puts a run beside its outcome.
 - `publication.ts` publishes it read-only.
@@ -48,6 +50,8 @@ The domain writers record, on the server. Nothing in the browser can skip it.
 | `materialsCommand` (materials/calculus.ts) | `lines` for every set whose lines changed, and `work` (domain `scope`) when its work list changed. Applying the calculation of a set a document or scope published is a `materials.calculus` run. |
 | `generateLaborList` (labor/generation.ts) | a `labor.pay_sheet` run with the sheet and revision, assignee, measurements, the project's materials and fields, typed numbers, required and excluded work; its write is the generator's |
 | `initializeProjectMaterialListsFromScope` | its writes are `scope.resources`' |
+| `saveProjectScheduleEvent` and the event delete route (platform/api.ts) | `created`, `event` (title, kind, status, start and end, all day, resources, parent, placement, lock, each before and after) and `deleted`. Events a parent's placement moved are recorded as the `schedule.placement` generator's. |
+| `ensureMaterialListScheduleEvent`, `disableGeneratedResourceScheduleEvent` (materials/storage.ts) | the list's event and the span it created or changed. Both write the project on the revision they read and retry on a conflict, so a schedule save in between is never overwritten. |
 | `invokeAction` (platform/publication/actions.ts) | the source of everything an action does: `agent`, `automation` (work), `module` or `person` (api), with the action id and receipt |
 
 `domain` is `materials`, `work_order` or `equipment` by the list's resource
@@ -80,10 +84,9 @@ generator made are not counted as people's additions.
 - Recording is best effort: it runs after the domain write, and a failure is
   logged (`project_history_record_failed`) without undoing the work. A change can
   therefore be missing, never invented.
-- Schedule events are not recorded yet. Their writers live in
-  `platform/api.ts` (`saveProjectScheduleEvent`, event delete, placement) and in
-  `ensureMaterialListScheduleEvent`; they are the next step. Calculus orders and
-  deliveries are kept in the ledger's own events, not here.
+- Calculus orders and deliveries are kept in the ledger's own events, not here.
+  Other writers of project events (recurring series, appointment booking,
+  imports) are not recorded yet.
 - Outcomes read one query per run ([optimization backlog](../optimization-backlog.md)).
 - History starts when this shipped. Nothing before it is back-filled.
 

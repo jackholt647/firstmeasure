@@ -1049,6 +1049,13 @@ test("a list whose schedule names a group and a placement sits under that span a
   assert.equal(placedList.schedule_status, "scheduled");
   assert.equal(placedList.schedule.placement.anchor, "start", "the list keeps its placement");
   assert.equal("rule" in placedList.schedule, false);
+  // The change history keeps both: the person moved the span, and the schedule moved the event under it.
+  const history = await (await import("../history/storage.js")).listProjectChanges(orgId, { project_id: projectId, domain: "schedule" });
+  const spanMove = history.filter((change) => change.subject_id === span.id && change.op === "event").at(-1)!;
+  assert.deepEqual([spanMove.source.kind, Object.keys(spanMove.diff as object).sort()], ["person", ["end_at", "start_at", "status"]]);
+  const childMove = history.filter((change) => change.subject_id === ensured.event.id && change.op === "event").at(-1)!;
+  assert.deepEqual([childMove.source.kind, childMove.source.generator], ["generator", "schedule.placement"]);
+  assert.ok(history.some((change) => change.subject_id === span.id && change.op === "created"), "creating the span is recorded");
 
   // Moving the span moves the event with it.
   const moved = await client.request("POST", eventsUrl, {

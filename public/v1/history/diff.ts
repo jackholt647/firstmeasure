@@ -7,7 +7,9 @@
 export type JsonObject = Record<string, unknown>;
 const obj = (value: unknown): JsonObject => (value && typeof value === "object" && !Array.isArray(value) ? value as JsonObject : {});
 const text = (value: unknown) => String(value ?? "").trim();
-const same = (first: unknown, second: unknown) => JSON.stringify(first ?? null) === JSON.stringify(second ?? null);
+// Missing, empty text, an empty list and an empty object all mean "nothing", so filling one in is not a change.
+const blank = (value: unknown) => value == null || value === "" || (Array.isArray(value) && !value.length) || (typeof value === "object" && !Array.isArray(value) && !Object.keys(value as object).length);
+const same = (first: unknown, second: unknown) => (blank(first) && blank(second)) || JSON.stringify(first ?? null) === JSON.stringify(second ?? null);
 
 /** What a line is, for history: the fields a person changes. */
 export function lineFacts(value: unknown): JsonObject {
@@ -65,3 +67,6 @@ export function generationOutcome(generated: unknown[], current: unknown[]) {
   const added = diff.added.filter((line) => !line.generated);
   return { removed: diff.removed, changed: diff.changed, added, untouched: !diff.removed.length && !diff.changed.length && !added.length };
 }
+
+/** What a schedule event is, for history: the fields a person or the schedule changes. */
+export const SCHEDULE_HISTORY_FIELDS = ["title", "kind", "status", "start_at", "end_at", "all_day", "resource_refs", "parent_event_id", "placement", "locked", "schedule_lock"];

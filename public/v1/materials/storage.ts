@@ -20,7 +20,7 @@ import { readScopeTemplate, readScopeTemplateVersion } from "../scopes/storage.j
 import { emitWorkEvent } from "../work/engine.js";
 import { listPlanRecords } from "../work/storage.js";
 import { recordProjectChange, type ChangeDomain } from "../history/storage.js";
-import { fieldDiff, lineDiff, lineDiffSummary, lineFacts } from "../history/diff.js";
+import { fieldDiff, lineDiff, lineDiffSummary, lineFacts, SCHEDULE_HISTORY_FIELDS } from "../history/diff.js";
 import { currentChangeSource, withChangeSource } from "../history/source.js";
 import { eventListId, eventListPartId, eventPrimaryAssignee, eventResources, eventWindow, isAssigneeKind, normalizeResourceRef, stripRemovedEventFields } from "../scheduling/event-model.js";
 import { evaluatePlacement, normalizePlacement, suggestedDurationMinutes } from "../scheduling/placement.js";
@@ -759,7 +759,30 @@ async function scopeScheduleFallback(orgId: string, projectId: string, list: Jso
   return { schedule, scope_piece_id: cleanText(plan.scope_piece_id), scope_template_id: cleanText(plan.template_id) };
 }
 
+// A project is written on the revision it was read at. When a schedule save lands in between, the whole step is done
+// again on what is there now, so neither write is lost.
+const isRevisionConflict = (error: unknown) => Number((error as { statusCode?: unknown })?.statusCode) === 409;
+async function retryOnRevisionConflict<T>(run: () => Promise<T>): Promise<T> {
+  for (let attempt = 0; ; attempt += 1) {
+    try { return await run(); } catch (error) { if (attempt >= 4 || !isRevisionConflict(error)) throw error; }
+  }
+}
+// Events this writer creates or changes go into the change history (docs/architecture/project-history.md).
+async function recordScheduleWrites(orgId: string, projectId: string, before: JsonObject[], after: JsonObject[]) {
+  const was = new Map(before.map((event) => [cleanText(event.id), event]));
+  for (const event of after) {
+    const previous = was.get(cleanText(event.id)) || {};
+    const created = !cleanText(previous.id), fields = fieldDiff(previous, event, SCHEDULE_HISTORY_FIELDS);
+    if (!created && !Object.keys(fields).length) continue;
+    await recordProjectChange(orgId, { project_id: projectId, domain: "schedule", subject_type: "schedule_event", subject_id: cleanText(event.id), op: created ? "created" : "event", summary: created ? `Created ${cleanText(event.title) || "an event"}` : `Changed ${Object.keys(fields).join(", ")}`, before: created ? null : previous, after: event, diff: fields });
+  }
+}
+
 export async function ensureMaterialListScheduleEvent(orgId: string, listId: string, input: JsonObject = {}, projectedList?: JsonObject) {
+  return retryOnRevisionConflict(() => ensureMaterialListScheduleEventOnce(orgId, listId, input, projectedList));
+}
+
+async function ensureMaterialListScheduleEventOnce(orgId: string, listId: string, input: JsonObject = {}, projectedList?: JsonObject) {
   await requireMaterialsFlag(orgId);
   const listDoc = projectedList ? { data: projectedList, id: listId, metadata: {}, revision:0 } : await readDocument(orgId, MATERIAL_LIST_COLLECTION, listId);
   const list = documentView(listDoc);
@@ -991,11 +1014,14 @@ export async function ensureMaterialListScheduleEvent(orgId: string, listId: str
   if (resolvedIndex >= 0) events[resolvedIndex] = event;
   else events.push(event);
   if (eventChanged) {
+    const before = (Array.isArray(project.events) ? project.events : []).map(asObject);
     await upsertDocument(orgId, "projects", {
       id: projectId,
+      expected_revision: Number(projectDoc.revision),
       data: { ...project, events, updated_at: now },
       metadata: projectDoc.metadata
     }, { replace: true });
+    await recordScheduleWrites(orgId, projectId, before, events.filter((entry) => [cleanText(event.id), groupEventId].includes(cleanText(entry.id))));
   }
   const scheduleStatus = eventScheduleStatus(event);
   const currentDeliveryStatus = deliveryStatus(list.delivery_status);
@@ -1048,6 +1074,10 @@ function schedulePartView(event: JsonObject): JsonObject {
 }
 
 async function disableGeneratedResourceScheduleEvent(orgId: string, listValue: JsonObject) {
+  return retryOnRevisionConflict(() => disableGeneratedResourceScheduleEventOnce(orgId, listValue));
+}
+
+async function disableGeneratedResourceScheduleEventOnce(orgId: string, listValue: JsonObject) {
   const list = asObject(listValue);
   const listId = cleanText(list.id);
   const eventId = cleanText(list.schedule_event_id || asObject(list.schedule).event_id);
@@ -1070,9 +1100,11 @@ async function disableGeneratedResourceScheduleEvent(orgId: string, listValue: J
       };
       await upsertDocument(orgId, "projects", {
         id: projectId,
+        expected_revision: Number(projectDoc.revision),
         data: { ...project, events, updated_at: now },
         metadata: projectDoc.metadata
       }, { replace: true });
+      await recordScheduleWrites(orgId, projectId, [currentEvent], [events[index]!]);
     }
   }
   const listDoc = await readDocument(orgId, MATERIAL_LIST_COLLECTION, listId);

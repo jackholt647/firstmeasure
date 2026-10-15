@@ -1952,6 +1952,11 @@ app.get("/auth/google/config", async () => ({
       return { ok: true, deleted: false, event_id: eventId, document, project: { id: projectId, ...removal.currentData } };
     }
     await clearMaterialListScheduleEvent(orgId, deletedEvent);
+    {
+      const { recordProjectChange } = await import("../history/storage.js");
+      const auth = await requirePlatformAuth(request, { orgId, permission: collectionWritePermission("projects") });
+      await recordProjectChange(orgId, { project_id: projectId, domain: "schedule", subject_type: "schedule_event", subject_id: eventId, op: "deleted", summary: `Deleted ${cleanText(deletedEvent.title) || "an event"}`, before: deletedEvent, user_id: auth.userId });
+    }
     // A deleted occurrence stays deleted when its series is edited later.
     await recordRecurrenceEventRemoved(orgId, deletedEvent).catch(() => null);
     try {
@@ -12510,6 +12515,18 @@ async function portalGetOrg(orgId: string, userDoc: JsonObject | null) {
 }
 
 /** Shared scheduling domain writer; callers authorize the resource and allowed input fields. */
+async function recordScheduleEventChanges(orgId: string, projectId: string, actor: import("./auth.js").PlatformAuthContext | null, before: JsonObject, after: JsonObject, related: JsonObject[] = [], relatedBefore: JsonObject[] = []) {
+  const { recordProjectChange } = await import("../history/storage.js"), { fieldDiff, SCHEDULE_HISTORY_FIELDS } = await import("../history/diff.js"), { currentChangeSource } = await import("../history/source.js");
+  const record = async (was: JsonObject, now: JsonObject, source?: ReturnType<typeof currentChangeSource>) => {
+    const created = !cleanText(was.id), fields = fieldDiff(was, now, SCHEDULE_HISTORY_FIELDS);
+    if (!created && !Object.keys(fields).length) return;
+    await recordProjectChange(orgId, { project_id: projectId, domain: "schedule", subject_type: "schedule_event", subject_id: cleanText(now.id), op: created ? "created" : "event", summary: created ? `Created ${cleanText(now.title) || "an event"}` : `Changed ${Object.keys(fields).join(", ")}`, before: created ? null : was, after: now, diff: fields, user_id: actor?.userId, ...(source ? { source } : {}) });
+  };
+  await record(before, after);
+  const placement = { ...currentChangeSource(actor?.userId), kind: "generator" as const, generator: "schedule.placement" };
+  for (const [index, child] of related.entries()) await record(asObject(relatedBefore[index]), child, placement);
+}
+
 export async function saveProjectScheduleEvent(orgId:string,projectId:string,actor:import("./auth.js").PlatformAuthContext,body:JsonObject,warn?:(error:unknown)=>void){
     const branchId = String(body.branch_id || body.branchId || "default");
     const incoming = asObject(body.event || body.data || body);
@@ -12682,9 +12699,12 @@ export async function saveProjectScheduleEvent(orgId:string,projectId:string,act
       ...asObject(current.metadata),
       last_project_event_id: event.id
     });
-    return { event, document, existingIndex, rangeChanged, equipmentConflicts, operatorWarnings, relatedEvents: placed.updated, blockedChildren: placed.blocked, assigneeConflicts: overlap.assignee_conflicts };
+    return { event, document, existingIndex, rangeChanged, equipmentConflicts, operatorWarnings, relatedEvents: placed.updated, blockedChildren: placed.blocked, assigneeConflicts: overlap.assignee_conflicts, before: existingEvent, relatedBefore: placed.updated.map((child: JsonObject) => asObject((Array.isArray(currentData.events) ? currentData.events : []).find((item: unknown) => cleanText(asObject(item).id) === cleanText(child.id)))) };
     }));
     const { event, document, existingIndex, rangeChanged, equipmentConflicts, operatorWarnings, relatedEvents, blockedChildren, assigneeConflicts } = saved;
+    // The change history (docs/architecture/project-history.md): the event as it was and as it is, and every event its
+    // placement moved, which is the schedule's doing rather than the person's.
+    await recordScheduleEventChanges(orgId, projectId, actor, saved.before, event, relatedEvents, saved.relatedBefore);
     const materialList = eventListId(event)
       ? await syncMaterialListFromScheduleEvent(orgId, event)
       : null;
