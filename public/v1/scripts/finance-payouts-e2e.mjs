@@ -97,11 +97,11 @@ const projectId = `project_fpay_${suffix}`;
 await owner.req("PUT", `/v1/platform/organizations/${orgId}/projects/${projectId}`, {
   data: {
     id: projectId, title: "Slate Roof Restoration", address: "12 Batch Street", project_type: "residential",
-    contacts: [{ id: "contact_fpay", name: "Sweep Marlow", email: `sweep-${suffix}@example.test`, primary: true }],
     photos: []
   },
   metadata: { kind: "platform_project" }
 });
+await owner.req("PUT", `/v1/platform/organizations/${orgId}/projects/${projectId}/contacts`, { contacts: [{ id: "contact_fpay", name: "Sweep Marlow", email: `sweep-${suffix}@example.test`, primary: true }] });
 const created = await owner.req("POST", `/v1/proposals/organizations/${orgId}/projects/${projectId}/proposals`, {
   title: "Slate Roof Proposal",
   contacts: [{ role: "customer", name: "Sweep Marlow", email: `sweep-${suffix}@example.test` }],

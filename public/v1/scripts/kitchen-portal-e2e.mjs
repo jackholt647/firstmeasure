@@ -80,12 +80,12 @@ await owner.req("PATCH", `/v1/workforce/organizations/${orgId}/users/${fieldUser
 await owner.req("PUT", `/v1/platform/organizations/${orgId}/projects/${projectId}`, {
   data: {
     id: projectId, title: "Jane Homeowner", address: "42 Remodel Road", project_type: "residential",
-    contacts: [{ id: "contact_jane", name: "Jane Homeowner", email: "jane@example.test", phone: "555-111-2222", primary: true }],
     photos: [],
     events: [{ id: "ev_kitchen", kind: "project_work", event_type_default_id: "project_work", status: "scheduled", assigned_user_ids: [fieldUserId], start_date: today, end_date: today, all_day: true, schedule_granularity: "date" }]
   },
   metadata: { kind: "platform_project" }
 });
+await owner.req("PUT", `/v1/platform/organizations/${orgId}/projects/${projectId}/contacts`, { contacts: [{ id: "contact_jane", name: "Jane Homeowner", email: "jane@example.test", phone: "555-111-2222", primary: true }] });
 await owner.req("GET", `/v1/documents/organizations/${orgId}/catalog`);
 
 const field = apiClient();

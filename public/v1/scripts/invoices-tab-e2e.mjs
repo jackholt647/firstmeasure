@@ -83,11 +83,11 @@ const projectId = `project_invtab_${suffix}`;
 await owner.req("PUT", `/v1/platform/organizations/${orgId}/projects/${projectId}`, {
   data: {
     id: projectId, title: "Cedar Shake Reroof", address: "88 Ledger Lane", project_type: "residential",
-    contacts: [{ id: "contact_inv", name: "Iris Ledger", email: `iris-${suffix}@example.test`, phone: "555-010-2020", primary: true }],
     photos: []
   },
   metadata: { kind: "platform_project" }
 });
+await owner.req("PUT", `/v1/platform/organizations/${orgId}/projects/${projectId}/contacts`, { contacts: [{ id: "contact_inv", name: "Iris Ledger", email: `iris-${suffix}@example.test`, phone: "555-010-2020", primary: true }] });
 const created = await owner.req("POST", `/v1/proposals/organizations/${orgId}/projects/${projectId}/proposals`, {
   title: "Cedar Shake Proposal",
   contacts: [{ role: "customer", name: "Iris Ledger", email: `iris-${suffix}@example.test` }],

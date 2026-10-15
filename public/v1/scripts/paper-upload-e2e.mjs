@@ -71,11 +71,11 @@ const projectId = `project_paperdemo_${suffix}`;
 await owner.req("PUT", `/v1/platform/organizations/${orgId}/projects/${projectId}`, {
   data: {
     id: projectId, title: "Paula Paper", address: "9 Scan Street", project_type: "residential",
-    contacts: [{ id: "contact_paula", name: "Paula Paper", email: "paula@example.test", primary: true }],
     photos: []
   },
   metadata: { kind: "platform_project" }
 });
+await owner.req("PUT", `/v1/platform/organizations/${orgId}/projects/${projectId}/contacts`, { contacts: [{ id: "contact_paula", name: "Paula Paper", email: "paula@example.test", primary: true }] });
 await owner.req("GET", `/v1/documents/organizations/${orgId}/catalog`);
 
 // --- render a "signed paper contract" as a PDF -------------------------------
