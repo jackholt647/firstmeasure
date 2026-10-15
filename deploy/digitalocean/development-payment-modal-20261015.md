@@ -28,3 +28,27 @@ editable First name, Last name, Email address and Mobile phone fields. The
 existing application resumed without creating a streamed browser widget.
 Screenshot: `output/payment-modal-20261015/hosted-modal.png`. The application was
 left open for manual testing; no form fields, signatures or bank details submitted.
+
+## October 15 viewport sizing and Forward redirect investigation
+
+Runtime follow-up `d9af43d08584ae6aabbb667b98bb8ff7fbf056a6` is verified on all
+three development web-serving roles. The modal now uses 96% of viewport width
+and height, without the former 1180px/900px caps. Browser measurement: 1957.47 x
+1198.09 within 2039 x 1248, with the new Forward contact form rendered in the
+iframe. Evidence: `output/payment-modal-size-20261015/expanded-modal.png`.
+
+Read-only Forward sandbox check for Anchor Marlin Test Co d2505f,
+application `aapp_3KjzjlXxBUyrpEsdXARCw6wK9Ld`: status APPROVED, zero linked bank
+accounts, partner_data.redirect_url persisted as
+`https://dev.1m8.ai/portal/payments-setup-complete.html`. The user's screenshot
+shows Forward's own live-account completion screen instead of that destination.
+This is evidence of saved configuration plus a missing redirect for this run,
+not proof of every branch's redirect behavior or production underwriting speed.
+Our cached merchant status still read DRAFT at inspection time.
+
+The current downloaded Boarding OpenAPI schema lists only
+partner_data.redirect_url (description: Redirect URL, maxLength 400). No separate
+post-bank redirect, return URL or completion-callback parameter was found.
+Public hosted-script downloads returned HTTP 403, preventing a code-level
+confirmation of undocumented alternatives. No guessed provider parameters or
+approval-triggered redirects were introduced; approval can precede bank linking.
