@@ -41,7 +41,9 @@ export const PROJECT_TABLES_KEPT: Record<string, string> = {
   firstmeasure_artifact_catalog: "FirstMeasure report artifacts.",
   crew_checklists: "Field checklists done on the merged project.",
   crew_checklist_items: "Field checklists done on the merged project.",
-  appointment_slot_holds: "Short-lived booking holds."
+  appointment_slot_holds: "Short-lived booking holds.",
+  project_changes: "The merged project's change history stays where it happened.",
+  generation_runs: "Generator runs on the merged project are its history."
 };
 
 /** Document collections whose project references move with a project merge. The rest keep their history. */
