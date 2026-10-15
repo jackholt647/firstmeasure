@@ -26,6 +26,10 @@ test('settings search overlays the rail without reflow or clipping and supports 
       initialize(panel,(selector,host)=>host.querySelector(selector),window.FirstMateSettingsSearch.catalog.map(item=>({id:item.section})),value=>String(value).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])),()=>({}),section=>section.title||section.id);
     },{markup,behavior});
     const input=page.getByRole('combobox'),list=page.getByRole('listbox');
+    await input.fill('user');
+    assert.equal(await list.locator('strong').filter({hasText:/^Users$/}).count(),1);
+    assert.match(await list.getByRole('option').first().innerText(),/Invite user/);
+    await input.press('Escape');
     const before=await page.locator('.cs-tabs').boundingBox();
     await input.fill('a');
     assert.equal(await list.isVisible(),true);

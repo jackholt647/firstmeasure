@@ -46,3 +46,9 @@ selecting an entity after navigating to their category. A settings label is disc
 not authorization: the owning UI and API continue enforcing their existing access checks.
 For a custom UI that the extractor cannot understand, improve the common extractor or provide
 an accessible label and stable destination; do not add a second manual search catalogue.
+
+Results are grouped by category and nested view before applying the result limit.
+The strongest hit retains its score and focus target; matching labels provide a
+compact two-label summary. Repeated singular/plural labels count once. Missing
+view metadata is inferred only from an unambiguous matching indexed label. A
+known page name labels a nested destination, so different tabs remain distinct.

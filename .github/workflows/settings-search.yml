@@ -20,4 +20,4 @@ jobs:
       - run: npm ci
       - run: npx playwright-core install --with-deps chromium
       - run: node scripts/settings-search-index.mjs --check
-      - run: node --test tests/settings-search-engine-browser.test.mjs tests/settings-search-contract.test.mjs tests/settings-search-ranking.test.mjs tests/settings-search-dropdown-browser.test.mjs
+      - run: node --test tests/settings-search-engine-browser.test.mjs tests/settings-search-contract.test.mjs tests/settings-search-ranking.test.mjs tests/settings-search-dropdown-browser.test.mjs tests/settings-search-grouping-browser.test.mjs

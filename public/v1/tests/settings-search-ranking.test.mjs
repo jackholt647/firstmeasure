@@ -30,9 +30,28 @@ test('title matches precede category-only and tooltip-only matches; repetition c
 });
 test('unrelated categories cannot win through volume and all eligible results remain available',()=>{
  const rows=[{title:'Users',kind:'view',tab:'People',section:'people'},...Array.from({length:35},(_,i)=>({title:'Phone feature '+i,description:'Assigned user',kind:'control',tab:'Phone',section:'phone'}))];
- const found=search(rows)('user');assert.equal(found.length,36);assert.equal(found[0].title,'Users');
+ const found=search(rows)('user');assert.equal(found.length,2);assert.equal(found[0].title,'Users');assert.equal(found[1].matchCount,35);
 });
 test('a Settings suffix does not demote the destination below incidental exact fields',()=>{
  const find=search([{title:'Phone',kind:'control',tab:'People',section:'people'}, {title:'Phone Settings',kind:'section',tab:'Phone Settings',section:'sms'}]);
  assert.equal(find('phone')[0].section,'sms');assert.equal(find('phone settings')[0].section,'sms');
+});
+test('grouping uses destinations, folds plural labels and resolves unambiguous missing views',()=>{
+ const find=search([
+  {title:'Users',kind:'view',section:'people',tab:'People',view:'users'},
+  {title:'Users',kind:'heading',section:'people',tab:'People'},
+  {title:'User',kind:'control',section:'people',tab:'People',view:'users'},
+  {title:'Invite user',kind:'control',section:'people',tab:'People',view:'users'},
+  {title:'Invite user',kind:'heading',section:'people',tab:'People'},
+  {title:'Departments',kind:'view',section:'people',tab:'People',view:'departments'},
+  {title:'User',kind:'control',section:'people',tab:'People',view:'departments'},
+ ]);
+ const found=find('user');assert.equal(found.length,2);
+ assert.equal(found[0].destinationTitle,'Users');assert.equal(found[0].matchSummary,'Invite user');
+ assert.equal(found[1].destinationTitle,'Departments');assert.equal(found[1].matchSummary,'User');
+});
+test('grouping preserves the most relevant control and limits the inline match summary',()=>{
+ const found=search(['Language','Language defaults','Language fallback','Language translation'].map((title,i)=>({title,kind:'control',section:'company',tab:'Company',selector:'#field'+i})))('language');
+ assert.equal(found.length,1);assert.equal(found[0].selector,'#field0');assert.equal(found[0].matchCount,4);
+ assert.equal(found[0].matchSummary,'Language defaults · Language fallback · +1');
 });

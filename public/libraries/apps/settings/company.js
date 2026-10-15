@@ -3904,7 +3904,7 @@
       settingsSearchInput.removeAttribute('aria-activedescendant');
       settingsSearchResults.innerHTML = settingsSearchMatches.length ? settingsSearchMatches.map((item, index) => `
         <button class="cs-settings-result" type="button" role="option" aria-selected="false" tabindex="-1" id="${settingsSearchId}-${index}" data-settings-search-result="${index}">
-          <strong>${escapeHtml(item.title)}</strong>${item.description ? `<span class="cs-settings-result-description">${escapeHtml(item.description.slice(0, 160))}</span>` : ''}<small>${((v2) => globalThis.PlatformLanguage?.htmlText("settings","m_698af40b56ff68",`${v2} settings`,{v2}) ?? `${v2} settings`)(escapeHtml(item.tab))}</small>
+          <strong>${escapeHtml(item.destinationTitle || item.title)}</strong>${item.matchSummary || item.description ? `<span class="cs-settings-result-description">${escapeHtml((item.matchSummary || item.description).slice(0, 160))}</span>` : ''}<small>${((v2) => globalThis.PlatformLanguage?.htmlText("settings","m_698af40b56ff68",`${v2} settings`,{v2}) ?? `${v2} settings`)(escapeHtml(item.tab))}</small>
         </button>`).join('') : `<div class="cs-settings-empty" role="status">${globalThis.PlatformLanguage?.htmlText("settings","m_aa396b00eb8558","No matching settings") ?? "No matching settings"}</div>`;
       settingsSearchResults.querySelectorAll('[data-settings-search-result]').forEach(button => {
         button.addEventListener('mousedown', event => event.preventDefault());

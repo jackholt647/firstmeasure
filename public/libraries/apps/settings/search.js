@@ -111,15 +111,41 @@
     const needle=normalize(query);if(!needle)return [];
     const tokens=needle.split(' '), allowed=options.sections?new Set(options.sections):attachment?new Set(attachment.sections.keys()):null;
     const entries=[...(attachment?.live || []),...sourceEntries()], unique=new Map();
+    const labelKey=value=>normalize(value).split(' ').map(term).join(' ');
+    // Missing view metadata can be resolved only when the same label has one known destination.
+    const routes=new Map(), exactRoutes=new Map(), pages=new Map();
+    for(const entry of entries){
+      if(!entry.view)continue;
+      const key=entry.section+'|'+labelKey(localized(entry).title);
+      if(!routes.has(key))routes.set(key,new Set());routes.get(key).add(entry.view);
+      const exactKey=entry.section+'|'+normalize(localized(entry).title);
+      if(!exactRoutes.has(exactKey))exactRoutes.set(exactKey,new Set());exactRoutes.get(exactKey).add(entry.view);
+      if(entry.kind==='view')pages.set(entry.section+'|'+entry.view,localized(entry).title);
+    }
     for(const original of entries){
       if(allowed&&!allowed.has(original.section))continue;
       if(attachment&&!attachment.sections.has(original.section))continue;
       const item=localized(original), title=normalize(item.title), score=relevance(item,tokens);
       if(!Number.isFinite(score))continue;
+      if(!item.view&&item.kind!=='section'){
+        const views=exactRoutes.get(item.section+'|'+title)||routes.get(item.section+'|'+labelKey(item.title));
+        if(views?.size===1)item.view=[...views][0];
+      }
       const key=item.section+'|'+(item.view||'')+'|'+title;
       const old=unique.get(key);if(!old||score<old.score)unique.set(key,{...item,score});
     }
-    return [...unique.values()].sort((a,b)=>a.score-b.score||a.title.localeCompare(b.title)).slice(0,options.limit||40);
+    const ranked=[...unique.values()].sort((a,b)=>a.score-b.score||a.title.localeCompare(b.title));
+    const destinations=new Map();
+    for(const item of ranked){
+      const key=item.section+'|'+(item.view||'');
+      if(!destinations.has(key))destinations.set(key,{...item,destinationTitle:pages.get(key)||item.title,matchLabels:[]});
+      const group=destinations.get(key);
+      if(!group.matchLabels.some(label=>labelKey(label)===labelKey(item.title)))group.matchLabels.push(item.title);
+    }
+    return [...destinations.values()].map(group=>{
+      const labels=group.matchLabels.filter(label=>labelKey(label)!==labelKey(group.destinationTitle));
+      return {...group,matchCount:group.matchLabels.length,matchSummary:labels.slice(0,2).join(' · ')+(labels.length>2?` · +${labels.length-2}`:'')};
+    }).slice(0,options.limit||40);
   }
   function notify(){subscriptions.forEach(fn=>fn());}
   function attach(panel, sections, route){

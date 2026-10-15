@@ -4,7 +4,7 @@ window.FirstMateSettingsIndex = {
   "inputs": [
     [
       "libraries/apps/settings/company.js",
-      "02069440f50e04b9bdcadc1f18ba0efda27d8eebc5b47bde9cf7d24740fc6565"
+      "c873ae5b7abf57e45c54199d56afb0d96cf9f1ef8f45d711693404b1de0440ed"
     ],
     [
       "libraries/appointment-booking/settings.js",
@@ -15,8 +15,12 @@ window.FirstMateSettingsIndex = {
       "b46d4109817d1b884d506d8634ab0db881d740747ad8e4b8f88492fbc941a778"
     ],
     [
+      "libraries/apps/people/branches.js",
+      "53e1eb295b8a851bbee26104b34d8bcf5df42a8ce4eeef30928a7b6a7166c65c"
+    ],
+    [
       "libraries/apps/people/companies-page.js",
-      "cf3611f92bd7d225ca48b5954a093a51aa7115699d7751a0bf7fb9f3add3a974"
+      "174ff90a4deedeeb38555c74518b79318eb3448b1aa7f7455329aec2bd36124e"
     ],
     [
       "libraries/apps/people/compensation-panel.js",
@@ -24,11 +28,11 @@ window.FirstMateSettingsIndex = {
     ],
     [
       "libraries/apps/people/departments-page.js",
-      "d37eca0a13a53edb62283e3a8af10a7f0d3be119d008b9b5bd5466c6e0ba5bd0"
+      "5170077c3bb01efb31b5fc2c1b5d1bdd69e08c280926c0340bc10a201e02549f"
     ],
     [
       "libraries/apps/people/entity-modal.js",
-      "9758e125e988a248080ac06b54eaf115c7818ef1ff094cb554df5da22b1b1512"
+      "779f0df66ed7c00be6ca78838ca8649c7208a50b43231a4bebfb9e73b173f3a8"
     ],
     [
       "libraries/apps/people/fields-panel.js",
@@ -36,7 +40,7 @@ window.FirstMateSettingsIndex = {
     ],
     [
       "libraries/apps/people/groups-page.js",
-      "4beea4539ebdda5218517d819fb73681d4f6f793cf3da026d999d2203016d470"
+      "9d00bb91dfd24b58d7ca899600eedbc10ec549fea780bbd68ef41c3e5e6f467a"
     ],
     [
       "libraries/apps/people/hover-card.js",
@@ -44,23 +48,23 @@ window.FirstMateSettingsIndex = {
     ],
     [
       "libraries/apps/people/list-page.js",
-      "0851663fb6c8e288a7641bc06ffc0ef664b4722600872d0986e671c145aa5778"
+      "4a8b8a0007aed06e29fd28791bd46a3caf6cdca524d2ee7db5a931401e970611"
     ],
     [
       "libraries/apps/people/page-kit.js",
-      "bdaa8cb7be66962deca67ca653b2cb20fa007d0cbf59d95f9f2ecfe047d1f5af"
+      "c920b011617cab9cf62574449a9ef258175c34281039680ee640fd0ffed17418"
     ],
     [
       "libraries/apps/people/people-data.js",
-      "6e595628789014bd4548209feb7e033c2aa5d7da404ff6ffe4433f4054f4087a"
+      "78c6dea8adfce9299b3e43aeb78df1ddf30ddd3bf84ef4d75db453c2e6ca633b"
     ],
     [
       "libraries/apps/people/people-directory.js",
-      "dbb73cb072f6e687cd9bb0041547f1386681cee224fbd61cca00f7687e4df20c"
+      "839e47b8b8d55d62fc72ba8712aec57444c9f573dc2e21ccca80bf2918951888"
     ],
     [
       "libraries/apps/people/people-home.js",
-      "ea09bead62933c295e96d13c6b3ec3e70a498810c1e70bd62b1392cb96e92490"
+      "cc2e23709aa67d635754f04592bcc3d40db146ba825636a87c17671c6614571c"
     ],
     [
       "libraries/apps/people/people-kit.js",
@@ -68,11 +72,11 @@ window.FirstMateSettingsIndex = {
     ],
     [
       "libraries/apps/people/people-lists.js",
-      "c0d39b86ce0ab620724bc90e458f56cb1a16f6b364cad342c47d935ea7d60e9c"
+      "4d6167ae01c057f0105e6ad0e53585acbeb9108c667580de9c12f7235a8621fd"
     ],
     [
       "libraries/apps/people/people-settings.js",
-      "f01347627c6da9ffb0812b6712938d982c408f5ecb4fe856f2d393c07ef33716"
+      "d89af4958d0b2b5ab8325e0e7ad7629a34a62efe66d290a870807898d31ff134"
     ],
     [
       "libraries/apps/people/permissions-panel.js",
@@ -80,11 +84,11 @@ window.FirstMateSettingsIndex = {
     ],
     [
       "libraries/apps/people/slots.js",
-      "9578687de2ecfd03dfc95c371149068e86714de7320f09d12d472f2486a95527"
+      "e8d17f930b3c6feba132fd5d43ff687e000d8f0a09f86280a79755c2e68c64e2"
     ],
     [
       "libraries/apps/people/users-page.js",
-      "d57511b26b26ea2c83cfa3a7f2e14cb742ea6e7201724098ca2a82e701fe8a89"
+      "c755a527398ec4ff38ef83cad8727585166cd3339b64d5b00b6e7f963ce214d2"
     ],
     [
       "libraries/apps/settings/automations.js",
@@ -6898,6 +6902,16 @@ window.FirstMateSettingsIndex = {
     {
       "section": "people",
       "tab": "People",
+      "view": "",
+      "source": "libraries/apps/people/permissions-panel.js",
+      "title": "All",
+      "description": "",
+      "kind": "control",
+      "selector": "[data-perm-filter=\"all\"]"
+    },
+    {
+      "section": "people",
+      "tab": "People",
       "view": "subcontractors",
       "source": "libraries/apps/people/companies-page.js",
       "title": "All",
@@ -6924,16 +6938,6 @@ window.FirstMateSettingsIndex = {
       "description": "",
       "kind": "control",
       "selector": ""
-    },
-    {
-      "section": "people",
-      "tab": "People",
-      "view": "",
-      "source": "libraries/apps/people/permissions-panel.js",
-      "title": "All",
-      "description": "",
-      "kind": "control",
-      "selector": "[data-perm-filter=\"all\"]"
     },
     {
       "section": "people",
@@ -7028,11 +7032,41 @@ window.FirstMateSettingsIndex = {
     {
       "section": "people",
       "tab": "People",
+      "view": "",
+      "source": "libraries/apps/people/branches.js",
+      "title": "Archived",
+      "description": "",
+      "kind": "heading",
+      "selector": ""
+    },
+    {
+      "section": "people",
+      "tab": "People",
       "view": "departments",
       "source": "libraries/apps/people/departments-page.js",
-      "title": "Categories",
+      "title": "Branch",
       "description": "",
       "kind": "control",
+      "selector": ""
+    },
+    {
+      "section": "people",
+      "tab": "People",
+      "view": "",
+      "source": "libraries/apps/people/branches.js",
+      "title": "Branches",
+      "description": "",
+      "kind": "control",
+      "selector": ""
+    },
+    {
+      "section": "people",
+      "tab": "People",
+      "view": "home",
+      "source": "libraries/apps/people/people-home.js",
+      "title": "Branches",
+      "description": "",
+      "kind": "heading",
       "selector": ""
     },
     {
@@ -7228,6 +7262,16 @@ window.FirstMateSettingsIndex = {
     {
       "section": "people",
       "tab": "People",
+      "view": "users",
+      "source": "libraries/apps/people/users-page.js",
+      "title": "Duplicate",
+      "description": "",
+      "kind": "control",
+      "selector": ""
+    },
+    {
+      "section": "people",
+      "tab": "People",
       "view": "subcontractors",
       "source": "libraries/apps/people/companies-page.js",
       "title": "Edit",
@@ -7250,16 +7294,6 @@ window.FirstMateSettingsIndex = {
       "tab": "People",
       "view": "groups",
       "source": "libraries/apps/people/groups-page.js",
-      "title": "Edit",
-      "description": "",
-      "kind": "control",
-      "selector": ""
-    },
-    {
-      "section": "people",
-      "tab": "People",
-      "view": "",
-      "source": "libraries/apps/people/people-lists.js",
       "title": "Edit",
       "description": "",
       "kind": "control",
@@ -7398,16 +7432,6 @@ window.FirstMateSettingsIndex = {
     {
       "section": "people",
       "tab": "People",
-      "view": "",
-      "source": "libraries/apps/people/people-lists.js",
-      "title": "Kind",
-      "description": "",
-      "kind": "control",
-      "selector": ""
-    },
-    {
-      "section": "people",
-      "tab": "People",
       "view": "users",
       "source": "libraries/apps/people/users-page.js",
       "title": "Last active",
@@ -7478,6 +7502,36 @@ window.FirstMateSettingsIndex = {
     {
       "section": "people",
       "tab": "People",
+      "view": "",
+      "source": "libraries/apps/people/branches.js",
+      "title": "My branch",
+      "description": "",
+      "kind": "control",
+      "selector": ""
+    },
+    {
+      "section": "people",
+      "tab": "People",
+      "view": "",
+      "source": "libraries/apps/people/branches.js",
+      "title": "My region",
+      "description": "",
+      "kind": "control",
+      "selector": ""
+    },
+    {
+      "section": "people",
+      "tab": "People",
+      "view": "",
+      "source": "libraries/apps/people/branches.js",
+      "title": "Name",
+      "description": "",
+      "kind": "control",
+      "selector": ""
+    },
+    {
+      "section": "people",
+      "tab": "People",
       "view": "subcontractors",
       "source": "libraries/apps/people/companies-page.js",
       "title": "Name",
@@ -7500,16 +7554,6 @@ window.FirstMateSettingsIndex = {
       "tab": "People",
       "view": "groups",
       "source": "libraries/apps/people/groups-page.js",
-      "title": "Name",
-      "description": "",
-      "kind": "control",
-      "selector": ""
-    },
-    {
-      "section": "people",
-      "tab": "People",
-      "view": "",
-      "source": "libraries/apps/people/people-lists.js",
       "title": "Name",
       "description": "",
       "kind": "control",
@@ -7581,16 +7625,6 @@ window.FirstMateSettingsIndex = {
       "view": "groups",
       "source": "libraries/apps/people/groups-page.js",
       "title": "New {group}",
-      "description": "",
-      "kind": "control",
-      "selector": ""
-    },
-    {
-      "section": "people",
-      "tab": "People",
-      "view": "users",
-      "source": "libraries/apps/people/users-page.js",
-      "title": "New role",
       "description": "",
       "kind": "control",
       "selector": ""
@@ -7719,16 +7753,6 @@ window.FirstMateSettingsIndex = {
       "section": "people",
       "tab": "People",
       "view": "",
-      "source": "libraries/apps/people/people-lists.js",
-      "title": "Part of",
-      "description": "",
-      "kind": "control",
-      "selector": ""
-    },
-    {
-      "section": "people",
-      "tab": "People",
-      "view": "",
       "source": "libraries/apps/people/compensation-panel.js",
       "title": "Pay reaches",
       "description": "",
@@ -7827,6 +7851,16 @@ window.FirstMateSettingsIndex = {
     {
       "section": "people",
       "tab": "People",
+      "view": "",
+      "source": "libraries/apps/people/branches.js",
+      "title": "Region",
+      "description": "",
+      "kind": "control",
+      "selector": ""
+    },
+    {
+      "section": "people",
+      "tab": "People",
       "view": "departments",
       "source": "libraries/apps/people/departments-page.js",
       "title": "Remove",
@@ -7880,6 +7914,16 @@ window.FirstMateSettingsIndex = {
       "view": "",
       "source": "libraries/apps/people/people-lists.js",
       "title": "Rename",
+      "description": "",
+      "kind": "control",
+      "selector": ""
+    },
+    {
+      "section": "people",
+      "tab": "People",
+      "view": "",
+      "source": "libraries/apps/people/branches.js",
+      "title": "Rename region",
       "description": "",
       "kind": "control",
       "selector": ""
@@ -8050,16 +8094,6 @@ window.FirstMateSettingsIndex = {
       "view": "groups",
       "source": "libraries/apps/people/groups-page.js",
       "title": "Types",
-      "description": "",
-      "kind": "control",
-      "selector": ""
-    },
-    {
-      "section": "people",
-      "tab": "People",
-      "view": "departments",
-      "source": "libraries/apps/people/departments-page.js",
-      "title": "Units",
       "description": "",
       "kind": "control",
       "selector": ""

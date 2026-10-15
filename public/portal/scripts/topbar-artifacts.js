@@ -142,7 +142,7 @@
     const groups = await Promise.all(providerTypes.map((type) => providerRows(type, context)));
     const settings = active.has('setting')
       ? (root.FirstMateSettingsSearch?.search?.(query, { limit:40 }) || []).map((setting) => row(
-          'setting', `${setting.section}:${setting.view || ''}:${setting.title}`, setting.title, `${setting.tab} settings`,
+          'setting', `${setting.section}:${setting.view || ''}`, setting.destinationTitle || setting.title, [setting.tab + ' settings', setting.matchSummary].filter(Boolean).join(' · '),
           [setting.keywords], null, { setting }
         ))
       : [];

@@ -128,7 +128,10 @@
       const next = readRoute();
       if (next.sub === 'people' && viewFor(next.view).id !== active) show(next.view, { write:false });
     }, 0);
-    if (routed) window.addEventListener('popstate', onPop);
+    if (routed) {
+      window.addEventListener('popstate', onPop);
+      window.addEventListener('fm:route-state:updated', onPop);
+    }
     show(active, { entity:pendingEntity, write:routed && route.sub === 'people', history:'replace' });
     pendingEntity = '';
 
@@ -140,6 +143,7 @@
       destroy(){
         destroyed = true;
         window.removeEventListener('popstate', onPop);
+        window.removeEventListener('fm:route-state:updated', onPop);
         unbindTabs();
         unsubscribe();
         try { controller?.destroy?.(); } catch (_) {}
