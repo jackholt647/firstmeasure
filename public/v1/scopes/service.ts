@@ -251,7 +251,7 @@ export async function instantiateScopeTemplateWorkPlan(orgId: string, optionsVal
   const sourceKey = cleanText(options.source_key) || `scope_template:${projectId}:${templateId}`;
   const categoryIds = templateCategoryIds(definition), sales = categoryIds.includes(SALES_CATEGORY);
   if (sales && projectId) {
-    // How many opportunities a project may have open at once is the organization's setting (default 1).
+    // How many opportunities a project may have open at once is the organization's setting (default: no limit).
     const limit = (await (await import("./router.js")).readIntakeRouting(orgId, branchId)).max_open_opportunities;
     const open = (await listPlanRecords(orgId, { project_id: projectId, sales: true }))
       .filter((plan) => plan.outcome === "open" && !TERMINAL_PLAN_STATUSES.includes(cleanText(plan.status)) && cleanText(plan.source_key) !== sourceKey);

@@ -32,18 +32,15 @@ normalizer; comms matching, intake and import call it.
 
 Everything that points at a contact stores a bare `contact_id`. The old
 `{contact_id, project_id}` reference and the `contact_only` project anchor are
-removed. Media for a contact is owned by `{type: "contact", id}` only.
+being removed (a typed contact field still accepts an old `project_id` beside
+the id and ignores it). Media for a contact is owned by `{type: "contact", id}`.
 
-Each module that stores contact ids registers a **reference adapter** in
-`contacts/references.ts`:
-
-```ts
-registerContactReferences({ id, count(org, contactId), repoint(org, fromId, toId) })
-```
-
-`tests/contact-references-coverage.test.ts` fails when a store table has a
-`contact_id` column, or a document field holds contact ids, with no adapter.
-Projects register the same way for project ids (`projects/references.ts`).
+`contacts/references.ts` lists what a merge repoints: SQL adapters for the
+tables with a `contact_id` or `project_id` column, a walker over document
+collections, JSON columns that hold contact references (to-do `contact_refs`,
+relationship fields on other contacts) and media owners. Every such table is
+either moved by an adapter or listed as kept, with a reason;
+`tests/contact-references-coverage.test.ts` fails on a table in neither list.
 
 ## Projects and contacts
 
@@ -61,32 +58,42 @@ Phase 5 removes this bridge and makes such a write an error.
 
 ## Matching and duplicates
 
-`findContactMatches(org, points)` returns contacts that share a normalized email
-or phone (exact), then close candidates scored on name and address (near).
+`findExactMatches(org, points)` returns contacts sharing a normalized email or
+phone. An address or a name never makes an exact match.
 
-- Intake with an **exact** match uses that contact when the organization's
-  `contacts.auto_attach_exact` setting is on (default on). Otherwise it creates
-  a contact and records a duplicate suggestion.
-- **Near** matches always create a suggestion. Nothing is merged automatically.
+- Intake with an exact match uses that contact when the organization's
+  `contacts.auto_attach_exact` setting is on (default on); otherwise it creates
+  a contact.
+- Every new contact (not a migration copy) is checked by
+  `suggestContactDuplicates`: the same email, the same phone, the same name, or
+  the same name and address. Pairs land in `contact_duplicates` as open
+  suggestions; a dismissed or merged pair stays that way.
+- Two open opportunities for the same contact in the same sales scope are
+  suggested as one sale (`kind: "project"`), checked after intake and after a
+  contact merge.
+
+Nothing is merged automatically.
 
 ## Merge
 
-`mergeContacts(org, survivorId, mergedId, choices)`:
+`mergeContacts(org, survivorId, mergedId, { prefer })` (`contacts/merge.ts`):
 
-1. Locks both contacts. Refuses a merged or missing contact, or a merge into itself.
-2. Writes the survivor: points are unioned, field values come from `choices`
-   (default: survivor's value, else the merged one's), tags are unioned.
-3. Calls every reference adapter's `repoint(merged -> survivor)` and records
-   what each moved in `contact_merges`.
-4. Marks the merged contact `merged_into = survivor`. It is kept, not deleted.
-5. Publishes `contact.merged`.
+1. Refuses a missing or already merged contact, or a merge into itself.
+2. Writes the survivor first, so a value the field rules refuse stops the merge
+   before anything moves: the survivor's values win, the merged contact fills
+   blanks, `prefer` picks a side per field (`name`, `fields.<key>`); points,
+   tags and branches are unioned (no branches means every branch).
+3. Moves project links, then runs every reference adapter.
+4. Marks the merged contact `merged_into = survivor`. It is kept, not deleted;
+   `resolveContactId` follows it, so a reference an adapter missed still
+   reaches the survivor.
+5. Records the merge in `contact_merges` (both records before, and what each
+   adapter moved), settles the duplicate pair, refreshes projections and
+   publishes `contact.merged`.
 
-`resolveContactId` follows `merged_into`, so a reference an adapter missed still
-reaches the survivor. Merging contacts never merges their projects; the merge
-screen lists both contacts' opportunities and offers project merge per pair.
-
-Undo replays the log in reverse while nothing has changed since; otherwise it
-is refused with what changed.
+There is no undo: references from both contacts are indistinguishable once
+moved. Merging contacts never merges their projects; it only lets the
+duplicate-sale check see that two projects now share a person.
 
 ## Branches
 
@@ -112,12 +119,12 @@ and bounds size, time and decoding. A failed photo leaves its contact intact.
 
 ## Publication
 
-- Data: `contacts.records` (query: text, tags, kind, branch, has open
-  opportunity, updated since; cursor paged), `contacts.record`,
-  `contacts.duplicates`, `contacts.settings`, `contacts.options`.
+- Data: `contacts.records` (text, kind and tag query; cursor paged),
+  `contacts.record`, `contacts.duplicates`, `contacts.settings`,
+  `contacts.options`.
 - Actions: `contacts.create`, `contacts.update`, `contacts.link_project`,
-  `contacts.unlink_project`, `contacts.merge`, `contacts.duplicate.dismiss`,
-  `contacts.settings.save`.
+  `contacts.merge`, `projects.merge`, `contacts.settings.save`. Routes add
+  duplicate listing and dismissal.
 - Realtime facts: `contact.created`, `contact.updated`, `contact.merged`.
 
 ## Frontend

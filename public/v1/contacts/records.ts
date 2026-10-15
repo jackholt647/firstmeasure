@@ -166,6 +166,8 @@ export async function createContact(org: string, input: JsonObject, options: { i
   }, `contact:${org}:${id}`);
   const record = await readContact(org, id, { follow: false });
   await publishRealtimeEvent({ organization_id: org, topic: "contact.created", payload: { contact_id: id, revision: record.revision } });
+  // A copy of existing data is not a new person to check.
+  if (!options.migration) await (await import("./merge.js")).suggestContactDuplicates(org, id);
   return record;
 }
 
@@ -180,7 +182,7 @@ export async function updateContact(org: string, id: string, patch: JsonObject, 
     if (options.expectedRevision && options.expectedRevision !== previous.revision) throw conflict("revision_conflict", "This contact changed elsewhere. Reload and try again.");
     const next = contactData(patch, previous);
     const points = inputPoints(patch);
-    const samePoints = (Object.entries(points) as [ContactPointKind, ContactPoint[]][]).every(([kind, rows]) => JSON.stringify(rows.map(p => [p.normalized, p.value, p.label, p.primary])) === JSON.stringify(previous[`${kind}s` as "emails"].map(p => [p.normalized, p.value, p.label, p.primary])));
+    const samePoints = (Object.entries(points) as [ContactPointKind, ContactPoint[]][]).every(([kind, rows]) => JSON.stringify(rows.map(p => [p.normalized, p.value, p.label, p.primary])) === JSON.stringify(previous[POINT_KEYS[kind].many as "emails"].map(p => [p.normalized, p.value, p.label, p.primary])));
     const comparable = (record: JsonObject) => JSON.stringify([contactKind(record), text(record.name), text(record.first_name), text(record.last_name), text(record.time_zone), strings(record.tags).filter(t => t !== "org"), strings(record.branch_ids), asObject(record.custom_field_values), EXTRA_KEYS.map(k => text(record[k]))]);
     if (samePoints && comparable(next) === comparable(previous as unknown as JsonObject)) return null;
     const data = await validated(org, target, next, previous as unknown as JsonObject);

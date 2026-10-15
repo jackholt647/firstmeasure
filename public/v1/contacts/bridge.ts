@@ -36,6 +36,9 @@ function semanticKey(c: JsonObject) {
 
 export async function syncProjectContactsOnWrite(org: string, projectId: string, data: JsonObject, previous: JsonObject): Promise<{ data: JsonObject; refresh: string[] }> {
   if (!Array.isArray(data.contacts)) return { data, refresh: [] };
+  // Re-sending the stored list (a writer that saves the whole document) is not a contact edit: the
+  // links stay as the contact service last set them, and the document gets the current projection.
+  if (same(data.contacts, previous.contacts)) return { data: { ...data, ...(await projectContactsProjection(org, projectId)) }, refresh: [] };
   const priorList = (Array.isArray(previous.contacts) ? previous.contacts : []).map(asObject);
   const priorById = new Map(priorList.map(c => [text(c.id || c.contact_id), c]));
   // An entry without an id that names someone already on the project (or earlier in this list), or that sits where a

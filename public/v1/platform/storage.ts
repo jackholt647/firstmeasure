@@ -581,6 +581,9 @@ async function mapWithConcurrency<T, R>(
   return results;
 }
 
+/** Every document collection, for code that must look through all of them (a contact or project merge). */
+export const PLATFORM_DOCUMENT_COLLECTIONS: readonly string[] = Object.freeze([...COLLECTIONS]);
+
 function assertCollection(value: string): PlatformCollection {
   if (COLLECTIONS.includes(value as PlatformCollection)) return value as PlatformCollection;
   throw badRequest("invalid_collection", "Collection must be one of the registered platform collections.");
@@ -1494,6 +1497,17 @@ export async function updateMediaTags(orgId: string, mediaId: string, tagsValue:
     };
     return next;
   });
+}
+
+/** Moves a media item to another owner of the same type, as a contact or project merge does. */
+export async function reassignMediaOwner(orgId: string, mediaId: string, ownerId: string) {
+  const normalizedOrgId = sanitizeId(orgId, "organization_id");
+  const normalizedMediaId = sanitizeId(mediaId, "media_id");
+  return await mutateMediaMetadata(normalizedOrgId, normalizedMediaId, (media) => ({
+    ...media,
+    owner: { ...asObject(media.owner), id: ownerId },
+    updated_at: nowIso()
+  }));
 }
 
 /* Renames a media item for display. The stored file path is derived from the

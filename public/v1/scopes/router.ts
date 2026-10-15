@@ -68,8 +68,8 @@ function normalizeRouting(value: unknown) {
     // Every project gets an entry scope. Conditional routing may choose a
     // more specific scope; this template is the guaranteed fallback.
     default_template_id: cleanText(input.default_template_id) || DEFAULT_PIPELINE_TEMPLATE_ID,
-    // Open opportunities a project may have at once; 0 means no limit.
-    max_open_opportunities: Number.isInteger(Number(input.max_open_opportunities)) && Number(input.max_open_opportunities) >= 0 ? Number(input.max_open_opportunities) : 1,
+    // Open opportunities a project may have at once; 0 (the default) means no limit.
+    max_open_opportunities: Number.isInteger(Number(input.max_open_opportunities)) && Number(input.max_open_opportunities) >= 0 ? Number(input.max_open_opportunities) : 0,
     routing_mode: Object.prototype.hasOwnProperty.call(input, "routing_mode")
       ? (cleanText(input.routing_mode) === "formula" ? "formula" : "default")
       : (asArray(input.rules).length ? "formula" : "default"),

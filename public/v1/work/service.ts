@@ -720,7 +720,7 @@ export function projectLifecycleFacts(plans: JsonObject[], project: JsonObject =
   const soldAt = opportunities.won_at;
   const allTerminal = considered.length > 0 && considered.every((plan) => ["completed", "canceled"].includes(cleanText(plan.status)));
   const anyCompleted = considered.some((plan) => cleanText(plan.status) === "completed");
-  const lost = opportunities.lost > 0 && !opportunities.won && !soldAt
+  const lost = (opportunities.lost > 0 || !!opportunities.lost_at) && !opportunities.won && !soldAt
     && !considered.some((plan) => !["completed", "canceled"].includes(cleanText(plan.status)));
   const terminalAt = allTerminal
     ? considered.map((plan) => cleanText(plan.completed_at || plan.canceled_at)).filter(Boolean).sort().reverse()[0] || ""

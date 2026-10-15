@@ -441,7 +441,7 @@ test('accepted list-specific lost outcomes survive later configuration changes a
   (await store.patchCall(orgId,call.id,{metadata:{...(await store.readCall(orgId,call.id)).metadata,list_settings:{follow_ups:{outcomes:[]}}}}));
   await c.request('POST',`${base}/calls/${call.id}/wrap-up`,payload);
   await worker.processOneJob('configured-outcome-worker','background',call.id);
-  assert.equal((await readDocument(orgId,'projects','outcome-project')).data.lead_status,'lost');
+  assert.equal(((await readDocument(orgId,'projects','outcome-project')).data.lifecycle as any)?.status,'lost');
   assert.equal((await (await import('../work/storage.js')).readNodeRecord(orgId,String(followup.node.id)))?.status,'completed');
   const other=(await c.request('POST',`${base}/calls`,{operation_id:'other-outcome-call',customer_number:'+12065550171'})).call;
   assert.equal((await c.raw('POST',`${base}/calls/${other.id}/wrap-up`,payload)).status,409);

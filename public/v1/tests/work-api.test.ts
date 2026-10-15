@@ -624,7 +624,7 @@ test("tagged follow-up to-dos are the single source for Calls and configured out
   });
   const project = await client.request("GET", `/v1/platform/organizations/${orgId}/projects/${projectId}`);
   assert.equal(project.document.data.lifecycle.status, "lost");
-  assert.equal(project.document.data.lead_status, "lost");
+  assert.equal(project.document.data.lifecycle.status, "lost");
 });
 
 test("generated ids are organization-safe and targeted events only advance their own scope plan", async () => {
@@ -832,7 +832,7 @@ test("sales pipeline scope template drives plans, board colors, and automations"
   const { orgId } = await register(client);
   const templateUrl = `/v1/scopes/organizations/${orgId}/branches/default/templates/sales_pipeline`;
   const current = await client.request("GET", templateUrl);
-  assert.equal(current.template.definition.kind, "pipeline");
+  assert.deepEqual(current.template.definition.category_ids, ["sales"]);
   assert.equal(current.template.definition.work_plan.root_nodes[0].children.length, 4);
 
   const customized = {
@@ -898,7 +898,7 @@ test("sales pipeline scope template drives plans, board colors, and automations"
 
   const boards = await client.request("GET", `/v1/work/organizations/${orgId}/boards`);
   const board = boards.boards.find((item: any) => item.id === "sales_pipeline");
-  assert.equal(board.kind, "pipeline");
+  assert.equal(board.sales, true);
   assert.equal(board.title, "Residential Sales");
   assert.equal(board.color, "#245f73");
   assert.equal(board.columns[0].color, "#b35c25");
@@ -909,7 +909,7 @@ test("sales pipeline scope template drives plans, board colors, and automations"
   const projection = projectDoc.document.data.work_projection;
   assert.equal(projection.lifecycle.status, "open");
   assert.equal(projection.active_instances[0].template_id, "sales_pipeline");
-  assert.equal(projection.active_instances[0].kind, "pipeline");
+  assert.equal(projection.active_instances[0].sales, true);
   assert.equal(projection.active_instances[0].stage_id, "qualification");
 });
 

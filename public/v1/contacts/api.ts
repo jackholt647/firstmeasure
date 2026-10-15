@@ -61,6 +61,29 @@ export function registerContactRoutes(app: FastifyInstance) {
     if ("branch_ids" in patch) assertManageable(ctx, Array.isArray(patch.branch_ids) ? patch.branch_ids.map(text).filter(Boolean) : []);
     return { ok: true, contact: await updateContact(orgId, before.id, patch, { expectedRevision: Number(body.expected_revision) || undefined }) };
   });
+  app.get("/organizations/:orgId/contacts/duplicates", async request => {
+    const orgId = text(params(request).orgId); await requirePlatformAuth(request, { orgId, permission: "view_contacts" });
+    const query = asObject(request.query), kind = text(query.kind) === "project" ? "project" : "contact";
+    return { ok: true, duplicates: await (await import("./merge.js")).listDuplicates(orgId, kind, { status: text(query.status), limit: Number(query.limit) }) };
+  });
+  app.post("/organizations/:orgId/contacts/duplicates/dismiss", async request => {
+    const orgId = text(params(request).orgId); await requirePlatformAuth(request, { orgId, csrf: true, permission: "manage_projects" });
+    const body = asObject(request.body);
+    return { ok: true, duplicate: await (await import("./merge.js")).dismissDuplicate(orgId, text(body.kind) === "project" ? "project" : "contact", text(body.first_id), text(body.second_id)) };
+  });
+  app.post("/organizations/:orgId/contacts/:contactId/merge", async request => {
+    const orgId = text(params(request).orgId), ctx = await requirePlatformAuth(request, { orgId, csrf: true, permission: "manage_projects" });
+    const body = asObject(request.body);
+    const survivor = await readContact(orgId, text(params(request).contactId), { follow: false }), merged = await readContact(orgId, text(body.merged_id), { follow: false });
+    assertManageable(ctx, survivor.branch_ids); assertManageable(ctx, merged.branch_ids);
+    return { ok: true, ...(await (await import("./merge.js")).mergeContacts(orgId, survivor.id, merged.id, { prefer: asObject(body.prefer) as never, actor_user_id: ctx.userId })) };
+  });
+  app.post("/organizations/:orgId/projects/:projectId/merge", async request => {
+    const orgId = text(params(request).orgId), ctx = await requirePlatformAuth(request, { orgId, csrf: true, permission: "manage_projects" });
+    const { hasPermission } = await import("../platform/auth.js");
+    const { mergeProjects, MERGE_COMMITTED_PERMISSION } = await import("../projects/merge.js");
+    return { ok: true, ...(await mergeProjects(orgId, text(params(request).projectId), text(asObject(request.body).merged_id), { actor_user_id: ctx.userId, allow_committed: hasPermission(ctx, MERGE_COMMITTED_PERMISSION) })) };
+  });
   app.put("/organizations/:orgId/projects/:projectId/contacts", async request => {
     const orgId = text(params(request).orgId), projectId = text(params(request).projectId);
     await requirePlatformAuth(request, { orgId, csrf: true, permission: "manage_projects" });

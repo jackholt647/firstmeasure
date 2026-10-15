@@ -302,7 +302,7 @@ export async function refreshProjectFacts(orgId: string, projectIds: string[], o
       // A project with no plans can still have been marked sold (sales.markWon without a sales scope).
       const lifecycle = plans.length
         ? projectLifecycleFacts(plans, data)
-        : { status: "open", sold_at: cleanText(data.won_at), completed_at: "", canceled_at: "" };
+        : { status: cleanText(data.lost_at) && !cleanText(data.won_at) ? "lost" : "open", sold_at: cleanText(data.won_at), completed_at: "", canceled_at: "" };
       const stage = stagesByProject.get(projectId);
       const template = primaryTemplate(plans, templateTitles);
       const assigned = assignedByProject.get(projectId) || [];

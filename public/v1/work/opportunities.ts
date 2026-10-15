@@ -44,10 +44,13 @@ export async function setOpportunityOutcome(orgId: string, input: { project_id?:
       : all.filter(plan => plan.outcome === "won").sort((a, b) => text(b.outcome_at).localeCompare(text(a.outcome_at))).slice(0, 1);
   }
   const projectId = text(input.project_id || plans[0]?.project_id);
-  if (!plans.length && input.outcome === "won" && projectId) {
+  // A project with no open opportunity can still be marked won or lost (a production-only flow, or a lead
+  // that never got a sales scope): the outcome is recorded on the project.
+  if (!plans.length && input.outcome !== "open" && projectId) {
     await readDocument(orgId, "projects", projectId);
-    await updateProjectData(orgId, projectId, data => object(data).won_at ? data : { ...object(data), won_at: now });
-    await emitWorkEvent({ organization_id: orgId, project_id: projectId, type: "opportunity.won", idempotency_key: `opportunity.won:${projectId}:project`, payload: { project_id: projectId, plan_id: "", reason } });
+    const field = input.outcome === "won" ? "won_at" : "lost_at";
+    await updateProjectData(orgId, projectId, data => object(data)[field] ? data : { ...object(data), [field]: now, ...(input.outcome === "lost" ? { lost_reason: reason } : {}) });
+    await emitWorkEvent({ organization_id: orgId, project_id: projectId, type: `opportunity.${input.outcome}`, idempotency_key: `opportunity.${input.outcome}:${projectId}:project`, payload: { project_id: projectId, plan_id: "", reason } });
     await syncProjectWorkProjection(orgId, projectId);
     return { project_id: projectId, plans: [] };
   }
@@ -84,7 +87,8 @@ export function opportunitySummary(plans: JsonObject[], project: JsonObject = {}
     won: won.length,
     lost: sales.filter(plan => plan.outcome === "lost").length,
     // A sales scope that finished or was stopped without anyone saying won or lost.
-    unresolved: sales.filter(plan => plan.outcome === "open" && TERMINAL.includes(text(plan.status))).length,
-    won_at: wonAt
+    unresolved: sales.filter(plan => plan.outcome === "open" && TERMINAL.includes(text(plan.status)) && plan.outcome_reason !== "merged").length,
+    won_at: wonAt,
+    lost_at: !wonAt && !sales.some(plan => plan.outcome === "open" && !TERMINAL.includes(text(plan.status))) ? text(project.lost_at) : ""
   };
 }

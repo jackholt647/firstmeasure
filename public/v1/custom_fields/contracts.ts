@@ -70,7 +70,8 @@ export function fieldSchema(field: JsonObject): JsonObject {
   }
   else if (CONTACT_REFERENCE_TYPES.includes(type) || MEDIA_REFERENCE_TYPES.includes(type)) {
     const properties = CONTACT_REFERENCE_TYPES.includes(type) ? {contact_id:{type:"string",minLength:1,maxLength:180},project_id:{type:"string",minLength:1,maxLength:180}} : {media_id:{type:"string",minLength:1,maxLength:180}};
-    const ref = {type:"object",properties,required:Object.keys(properties),additionalProperties:false};
+    // A contact reference is its contact id; an older `project_id` beside it is accepted and ignored.
+    const ref = {type:"object",properties,required:CONTACT_REFERENCE_TYPES.includes(type) ? ["contact_id"] : Object.keys(properties),additionalProperties:false};
     schema = field.cardinality === "many" ? {type:"array",items:ref,maxItems:100} : ref;
   }
   else if (type === "department") {

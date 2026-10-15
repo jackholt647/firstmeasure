@@ -104,6 +104,7 @@ export async function receiveLead(org: string, submission: LeadSubmission) {
   await emitWorkEvent({ organization_id: org, branch_id: branchId, project_id: project.id, type: "project.created", idempotency_key: `project.created:${project.id}`, payload });
   await emitWorkEvent({ organization_id: org, branch_id: branchId, project_id: project.id, type: "lead.received", idempotency_key: `lead.received:${project.id}`, payload });
   await ensurePipelinePlanForProject(org, { id: project.id, ...object((await readDocument(org, "projects", project.id)).data) });
+  await (await import("../contacts/merge.js")).suggestOpportunityDuplicates(org, project.id);
   const fresh = await readDocument(org, "projects", project.id);
 
   let notification = null;

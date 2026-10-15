@@ -54,8 +54,8 @@ shown as closed without an outcome and raises a warning; nothing assumes it won.
 rules that earn on `sold_at` follow each organization's definition.
 
 The number of open opportunities a project may have at once is the
-`max_open_opportunities` setting of the intake routing module (default 1, 0
-for no limit). Starting a sales plan beyond it is refused
+`max_open_opportunities` setting of the intake routing module (0, the default,
+means no limit; the intake router itself starts only one). Starting a sales plan beyond it is refused
 (`instantiateScopeTemplateWorkPlan`).
 
 ## Intake
@@ -107,21 +107,26 @@ lost with reason `not_an_opportunity`.
 
 ## Project merge
 
-`mergeProjects(org, survivorId, mergedId, choices)`:
+`mergeProjects(org, survivorId, mergedId)` (`projects/merge.ts`) is for one
+sale that came in twice:
 
-- Moves contact links, messages, calls, documents, proposals, media, to-dos and
-  events through project reference adapters, recorded like a contact merge.
-- Keeps both `lead_source` records on the survivor (`lead_sources[]`) and both
-  owners' assignments.
-- Closes the merged project's open work plans with reason `merged`; plans are
-  not spliced.
-- Marks the merged project `merged_into`. It is kept.
-- A project with accepted documents, payments or finalized work may be merged
-  only with `merge_committed_projects`; otherwise it can only be linked as
-  related.
-
-Likely duplicate opportunities are two open opportunities whose projects share a
-contact and a sales template; they are listed with duplicate contacts.
+- The survivor keeps its contacts and gains the merged project's (not as
+  primary); the merged project's links are removed.
+- The merged project's open plans close with reason `merged`; plans are not
+  spliced. A merged opportunity is not counted as unresolved.
+- Customer history moves through the project reference adapters: calls,
+  conversations and messages, appointment confirmations, documents, proposals,
+  calendar events, bookings, payments, materials and media. History that
+  belongs to the merged project (its plans and events, channel, posted ledger
+  entries, measurement reports) stays; `contacts/references.ts` lists each with
+  its reason.
+- Both lead sources are kept on the survivor (`lead_sources`), and the merged
+  project's schedule items move into the survivor's `events`.
+- The merged project is kept and marked `merged_into`; the merge is recorded in
+  `contact_merges`.
+- A project that is sold (won opportunity or `won_at`), paid (a payment
+  transaction) or has finalized work is merged only by someone with
+  `merge_committed_projects` (Merge sold projects).
 
 ## Removed
 

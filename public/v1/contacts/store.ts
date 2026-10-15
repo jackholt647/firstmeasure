@@ -6,7 +6,7 @@ import { openSqlStore, type SqlStore } from "../platform/sql_store.js";
 // Postgres hosts never run the new initialize.
 let database: SqlStore | undefined;
 export function contactStore() {
-  return database ??= openSqlStore({ id: "contacts", filename: path.resolve(env.platformStorageRoot, "contacts.sqlite"), schemaVersion: 1, initialize: async db => {
+  return database ??= openSqlStore({ id: "contacts", filename: path.resolve(env.platformStorageRoot, "contacts.sqlite"), schemaVersion: 2, initialize: async db => {
     await db.exec(`
       CREATE TABLE IF NOT EXISTS contacts (
         organization_id TEXT NOT NULL, id TEXT NOT NULL, kind TEXT NOT NULL,
@@ -38,6 +38,18 @@ export function contactStore() {
         PRIMARY KEY (organization_id, project_id, contact_id)
       );
       CREATE INDEX IF NOT EXISTS contact_links_contact ON contact_links(organization_id, contact_id, project_id);
+      CREATE TABLE IF NOT EXISTS contact_merges (
+        organization_id TEXT NOT NULL, id TEXT NOT NULL, kind TEXT NOT NULL, survivor_id TEXT NOT NULL, merged_id TEXT NOT NULL,
+        actor_user_id TEXT NOT NULL DEFAULT '', before_json TEXT NOT NULL DEFAULT '{}', moved_json TEXT NOT NULL DEFAULT '{}', created_at TEXT NOT NULL,
+        PRIMARY KEY (organization_id, id)
+      );
+      CREATE INDEX IF NOT EXISTS contact_merges_record ON contact_merges(organization_id, kind, merged_id);
+      CREATE TABLE IF NOT EXISTS contact_duplicates (
+        organization_id TEXT NOT NULL, kind TEXT NOT NULL, first_id TEXT NOT NULL, second_id TEXT NOT NULL,
+        reasons_json TEXT NOT NULL DEFAULT '[]', status TEXT NOT NULL DEFAULT 'open', created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
+        PRIMARY KEY (organization_id, kind, first_id, second_id)
+      );
+      CREATE INDEX IF NOT EXISTS contact_duplicates_open ON contact_duplicates(organization_id, kind, status, updated_at);
     `);
   } });
 }

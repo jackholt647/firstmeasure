@@ -1510,6 +1510,16 @@ const definitions: CapabilityDefinition[] = [
     description: "Take back a work order that was finalized to be paid, or reopen a closed-out project's finances. Each reopening is recorded."
   },
   {
+    key: "permission.merge_committed_projects",
+    kind: "permission",
+    parent: "apps.projects",
+    permission_key: "merge_committed_projects",
+    access: "write",
+    permission_group: "projects",
+    label: "Merge sold projects",
+    description: "Merge a duplicate project into another after it has a won sale, a payment or finalized work. Every merge is recorded."
+  },
+  {
     key: "permission.view_reports",
     kind: "permission",
     parent: "apps.firstmeasure",

@@ -39,10 +39,12 @@ test("opportunities are sales plans whose outcome the scope decides", async (t) 
   await ensurePipelinePlanForProject(ORG, { id: "p1", ...(await storage.readDocument(ORG, "projects", "p1")).data });
   const [plan] = await listPlanRecords(ORG, { project_id: "p1", sales: true });
   assert.deepEqual([plan?.sales, plan?.outcome], [true, "open"]);
-  assert.deepEqual(((await storage.readDocument(ORG, "projects", "p1")).data.lifecycle as Record<string, unknown>).opportunities, { open: 1, won: 0, lost: 0, unresolved: 0, won_at: "" });
+  assert.deepEqual(((await storage.readDocument(ORG, "projects", "p1")).data.lifecycle as Record<string, unknown>).opportunities, { open: 1, won: 0, lost: 0, unresolved: 0, won_at: "", lost_at: "" });
 
-  // One open opportunity per project by default; the setting can raise or remove the limit.
+  // The organization may limit open opportunities per project; by default there is no limit.
   const second = await readScopeTemplate(ORG, "default", "roofing_sales_appointment");
+  assert.equal((await readIntakeRouting(ORG, "default")).max_open_opportunities, 0);
+  await saveIntakeRouting(ORG, "default", { ...(await readIntakeRouting(ORG, "default")), max_open_opportunities: 1 });
   await assert.rejects(() => instantiateScopeTemplateWorkPlan(ORG, { project_id: "p1", template: second }), /already has 1 open opportunity/);
   await saveIntakeRouting(ORG, "default", { ...(await readIntakeRouting(ORG, "default")), max_open_opportunities: 0 });
   await instantiateScopeTemplateWorkPlan(ORG, { project_id: "p1", template: second });
