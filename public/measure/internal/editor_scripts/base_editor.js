@@ -20,7 +20,7 @@ window.createBaseEditor=function(host){
 
  const reference=id=>planeCycle&&planeCycle.step<planeCycle.ids.length&&planeCycle.ids[planeCycle.step]===id;
 
- const active=()=>host.enabled()&&base()?.visible!==false&&host.layer()==='base';
+ const active=()=>host.enabled()&&!!base()&&base().visible!==false&&host.layer()==='base';
 
  function checkpoint(){record(copy(base()));if(history.length>40)history.shift();}
 
@@ -132,7 +132,7 @@ window.createBaseEditor=function(host){
 
   if(project!==host.id()){project=host.id();select(null);history=[];drag=null;message='';}
 
-  if(!$('visible').dataset.layerIcon)$('visible').textContent='Base';$('visible').setAttribute('aria-pressed',String(base()?.visible!==false));
+  if(!$('visible').dataset.layerIcon)$('visible').textContent='Base';$('visible').disabled=!base();$('visible').setAttribute('aria-pressed',String(!!base()&&base().visible!==false));
 
 
 
