@@ -1,9 +1,10 @@
 /* Paying out a work order and closing out a project, from the Project tab.
  *
  * Both use the same two platform widgets: work.completion (confirm what is done) and project.photos.review (the
- * photos to look at beside it). Paying out finalizes one work order (labor.list.finalize); closing out walks through
- * the project-closeout.checks steps, which warn and never block, then finalizes every remaining work order and
- * records the project's finances as finished (project-closeout.close). Everything is read and invoked through the
+ * photos to look at beside it). Paying out finalizes one work order (labor.list.finalize). Closing out walks through
+ * the project-closeout.checks steps, which warn and never block: the work orders are confirmed and finalized in their
+ * own step (labor.list.finalize, each one), and the last step, the final expenses that include them, closes out the
+ * project and its finances (project-closeout.close). Everything is read and invoked through the
  * published data layer; the Project tab passes in a small host object (see `host` below). */
 const base = new URL('./', import.meta.url);
 const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -190,65 +191,91 @@ function stepRows(step) {
 }
 const STATE_LABEL = { ok: 'fa-check', warning: 'fa-triangle-exclamation', unavailable: 'fa-minus' };
 
-/** Close out the project: the checks one step at a time, then the remaining work orders confirmed and finalized. */
+/** Close out the project: the checks one step at a time; the work orders are finalized in their step, and the last
+ * step, the final expenses, closes out the project and its finances. */
 export async function openCloseout(host) {
   const view = dialog(host, { title: 'Close out project', subtitle: host.projectTitle || '', icon: 'fa-flag-checkered', body: '<div class="fmco-note" style="padding:20px">Checking the project…</div>', foot: '' });
   view.body.style.padding = '0';
   let checks;
-  try {
+  // The checks are read again after work orders are finalized, so the final expenses count them as actual.
+  const readChecks = async () => {
     const result = await api().read(host.orgId, { provider: 'project-closeout', export: 'checks', target: target(host) });
     if (result.status !== 'ready') throw Error(result.message || 'The closeout checks are unavailable.');
     checks = result.value;
-  } catch (failure) { view.body.innerHTML = `<div class="fmco-banner" data-status="unavailable" style="margin:16px"><i class="fas fa-circle-info"></i><span>${esc(failure?.message || 'The closeout checks are unavailable.')}</span></div>`; return view; }
-  const steps = checks.steps, record = checks.closeout;
-  let current = record?.state === 'closed' ? steps.length - 1 : 0;
+  };
+  try { await readChecks(); }
+  catch (failure) { view.body.innerHTML = `<div class="fmco-banner" data-status="unavailable" style="margin:16px"><i class="fas fa-circle-info"></i><span>${esc(failure?.message || 'The closeout checks are unavailable.')}</span></div>`; return view; }
+  const steps = () => checks.steps, record = () => checks.closeout, closed = () => record()?.state === 'closed';
+  let current = closed() ? steps().length - 1 : 0;
   const picks = new Map(), photos = { media_ids: [] };
   const remaining = () => (checks.open_work_orders || []).map((id) => host.lists().find((list) => list.id === id)).filter(Boolean);
-  const ready = () => record?.state !== 'closed' && remaining().every((list) => picks.get(list.id)?.complete);
+  const confirmed = () => remaining().filter((list) => picks.get(list.id)?.complete);
+  const workIndex = () => steps().findIndex((step) => step.id === 'work_orders');
   function rail() {
-    return `<nav class="fmco-rail" aria-label="Closeout steps">${steps.map((step, index) => `<button type="button" data-fmco-step="${index}" data-status="${esc(step.status)}" ${index === current ? 'aria-current="step"' : ''}><span class="fmco-letter">${STEP_LETTERS[index]}</span><span class="fmco-name">${esc(step.title)}</span><i class="fas ${STATE_LABEL[step.status] || 'fa-minus'} fmco-state" aria-hidden="true"></i></button>`).join('')}</nav>`;
+    return `<nav class="fmco-rail" aria-label="Closeout steps">${steps().map((step, index) => `<button type="button" data-fmco-step="${index}" data-status="${esc(step.status)}" ${index === current ? 'aria-current="step"' : ''}><span class="fmco-letter">${STEP_LETTERS[index]}</span><span class="fmco-name">${esc(step.title)}</span><i class="fas ${STATE_LABEL[step.status] || 'fa-minus'} fmco-state" aria-hidden="true"></i></button>`).join('')}</nav>`;
   }
   async function render() {
     view.widgets.splice(0).forEach((widget) => widget.destroy?.());
-    const step = steps[current], last = current === steps.length - 1;
+    const all = steps(), step = all[current], last = current === all.length - 1, work = step.id === 'work_orders';
     const banner = (status, iconName, text) => `<div class="fmco-banner" data-status="${status}"><i class="fas ${iconName}" aria-hidden="true"></i><span>${esc(text)}</span></div>`;
-    let main = `<div class="fmco-step-head"><i class="fas ${STEP_ICONS[step.id] || 'fa-circle'}" aria-hidden="true"></i><div><small>Step ${STEP_LETTERS[current].toUpperCase()} of ${STEP_LETTERS[steps.length - 1].toUpperCase()}</small><h3>${esc(step.title)}</h3></div></div>`;
-    if (last && record?.state === 'closed') main += banner('closed', 'fa-lock', `Closed out ${when(record.closed_at)}. ${record.lists.length} work order${record.lists.length === 1 ? '' : 's'} finalized to be paid, ${money(record.lists.reduce((sum, entry) => sum + entry.total_cents, 0))} in all. Only a manager can reopen it.`);
+    let main = `<div class="fmco-step-head"><i class="fas ${STEP_ICONS[step.id] || 'fa-circle'}" aria-hidden="true"></i><div><small>Step ${STEP_LETTERS[current].toUpperCase()} of ${STEP_LETTERS[all.length - 1].toUpperCase()}</small><h3>${esc(step.title)}</h3></div></div>`;
+    if (last && closed()) main += banner('closed', 'fa-lock', `Closed out ${when(record().closed_at)}. ${record().lists.length} work order${record().lists.length === 1 ? '' : 's'} finalized to be paid, ${money(record().lists.reduce((sum, entry) => sum + entry.total_cents, 0))} in all. Only a manager can reopen it.`);
     else main += banner(step.status, step.status === 'ok' ? 'fa-circle-check' : step.status === 'warning' ? 'fa-triangle-exclamation' : 'fa-circle-info', step.summary);
-    if (last && record?.state === 'closed') main += stepRows({ rows: record.lists.map((entry) => ({ id: entry.list_id, label: entry.title, detail: `Finalized · ${money(entry.total_cents)}`, status: 'ok' })) });
-    else if (!last) main += stepRows(step);
-    else if (remaining().length) main += `<p class="fmco-note">Confirm each remaining work order as done. Closing out marks every one completed and to be paid, locks them, and records the project's finances as finished.</p><div class="fmco-final"><div data-fmco-orders>${remaining().map((list) => `<section class="fmco-card" data-fmco-order="${esc(list.id)}"></section>`).join('')}</div><div><section class="fmco-card" data-fmco-closeout-photos></section></div></div>`;
-    else main += `${stepRows(step)}<p class="fmco-note">Every work order is already finalized. Closing out records the project's finances as finished.</p>`;
+    if (last && closed()) main += stepRows({ rows: record().lists.map((entry) => ({ id: entry.list_id, label: entry.title, detail: `Finalized · ${money(entry.total_cents)}`, status: 'ok' })) });
+    else if (work && remaining().length && !closed()) main += `<p class="fmco-note">Confirm each work order as done, then finalize it. Finalizing marks it completed and to be paid and locks it; its cost then counts as actual in the final expenses.</p><div class="fmco-final"><div data-fmco-orders>${remaining().map((list) => `<section class="fmco-card" data-fmco-order="${esc(list.id)}"></section>`).join('')}</div><div><section class="fmco-card" data-fmco-closeout-photos></section></div></div>`;
+    else main += stepRows(step);
+    if (last && !closed()) main += remaining().length
+      ? `<div class="fmco-banner" data-status="warning"><i class="fas fa-lock" aria-hidden="true"></i><span>${esc(`Finalize the work orders first: ${remaining().map(assigneeName).join(', ')}.`)}</span><button type="button" class="fmco-btn" data-fmco-goto-work>Go to step ${STEP_LETTERS[workIndex()].toUpperCase()}</button></div>`
+      : '<p class="fmco-note">Every work order is finalized. Closing out records the project and its finances as finished.</p>';
     if (step.missing?.length) main += `<p class="fmco-note"><strong>Not published yet:</strong> ${step.missing.map(esc).join(' ')}</p>`;
-    if (step.status !== 'ok' && !last) main += '<p class="fmco-note">This is a check, not a requirement: you can go on and close out anyway.</p>';
+    if (step.status !== 'ok' && !last && !work) main += '<p class="fmco-note">This is a check, not a requirement: you can go on and close out anyway.</p>';
     view.body.innerHTML = `<div class="fmco-layout">${rail()}<div class="fmco-main">${main}</div></div>`;
-    const closed = record?.state === 'closed';
-    view.foot.innerHTML = `<div class="fmco-foot-info">${closed ? '' : last ? '<input type="text" data-fmco-note maxlength="2000" placeholder="Note for the record (optional)" aria-label="Note">' : `<span>${steps.filter((entry) => entry.status === 'warning').length} of ${steps.length} checks have something to look at</span>`}</div><div class="fmco-actions"><span class="fmco-error" data-fmco-error></span>${current ? '<button type="button" class="fmco-btn" data-fmco-back><i class="fas fa-arrow-left" aria-hidden="true"></i>Back</button>' : ''}${last ? (closed ? '<button type="button" class="fmco-btn is-danger" data-fmco-reopen-closeout><i class="fas fa-unlock" aria-hidden="true"></i>Reopen closeout…</button>' : `<button type="button" class="fmco-btn is-primary" data-fmco-close-out ${ready() ? '' : 'disabled'}><i class="fas fa-flag-checkered" aria-hidden="true"></i>Close out project</button>`) : '<button type="button" class="fmco-btn is-primary" data-fmco-next>Next<i class="fas fa-arrow-right" aria-hidden="true"></i></button>'}</div>`;
+    const finalizeButton = work && remaining().length && !closed() ? `<button type="button" class="fmco-btn is-primary" data-fmco-finalize disabled><i class="fas fa-lock" aria-hidden="true"></i><span>Finalize confirmed</span></button>` : '';
+    const info = closed() ? '' : last ? '<input type="text" data-fmco-note maxlength="2000" placeholder="Note for the record (optional)" aria-label="Note">' : `<span>${all.filter((entry) => entry.status === 'warning').length} of ${all.length} checks have something to look at</span>`;
+    const forward = last ? (closed() ? '<button type="button" class="fmco-btn is-danger" data-fmco-reopen-closeout><i class="fas fa-unlock" aria-hidden="true"></i>Reopen closeout…</button>' : `<button type="button" class="fmco-btn is-primary" data-fmco-close-out ${remaining().length ? 'disabled' : ''}><i class="fas fa-flag-checkered" aria-hidden="true"></i>Close out project</button>`) : `<button type="button" class="fmco-btn${finalizeButton ? '' : ' is-primary'}" data-fmco-next>Next<i class="fas fa-arrow-right" aria-hidden="true"></i></button>`;
+    view.foot.innerHTML = `<div class="fmco-foot-info">${info}</div><div class="fmco-actions"><span class="fmco-error" data-fmco-error></span>${current ? '<button type="button" class="fmco-btn" data-fmco-back><i class="fas fa-arrow-left" aria-hidden="true"></i>Back</button>' : ''}${finalizeButton}${forward}</div>`;
     view.body.querySelectorAll('[data-fmco-step]').forEach((button) => button.onclick = () => { current = Number(button.dataset.fmcoStep); render(); });
+    view.body.querySelector('[data-fmco-goto-work]')?.addEventListener('click', () => { current = workIndex(); render(); });
     view.foot.querySelector('[data-fmco-back]')?.addEventListener('click', () => { current -= 1; render(); });
     view.foot.querySelector('[data-fmco-next]')?.addEventListener('click', () => { current += 1; render(); });
     view.foot.querySelector('[data-fmco-reopen-closeout]')?.addEventListener('click', reopen);
-    const closeButton = view.foot.querySelector('[data-fmco-close-out]');
-    closeButton?.addEventListener('click', closeOut);
-    if (last && !closed && remaining().length) {
+    view.foot.querySelector('[data-fmco-close-out]')?.addEventListener('click', closeOut);
+    const finalize = view.foot.querySelector('[data-fmco-finalize]');
+    finalize?.addEventListener('click', finalizeConfirmed);
+    const sync = () => { if (!finalize) return; const count = confirmed().length; finalize.disabled = !count; finalize.querySelector('span').textContent = count ? `Finalize ${count} work order${count === 1 ? '' : 's'}` : 'Finalize confirmed'; };
+    if (finalizeButton) {
       const W = await ensureWidgets();
-      for (const list of remaining()) view.widgets.push(mount(W, view.body.querySelector(`[data-fmco-order="${CSS.escape(list.id)}"]`), host, 'work.completion', { list_id: list.id, method: 'select_all', prompt: `Confirm ${assigneeName(list)}'s work is done` }, (value) => {
-        picks.set(list.id, value);
-        if (closeButton) closeButton.disabled = !ready();
-      }));
+      for (const list of remaining()) view.widgets.push(mount(W, view.body.querySelector(`[data-fmco-order="${CSS.escape(list.id)}"]`), host, 'work.completion', { list_id: list.id, method: 'select_all', prompt: `Confirm ${assigneeName(list)}'s work is done` }, (value) => { picks.set(list.id, value); sync(); }));
       view.widgets.push(mount(W, view.body.querySelector('[data-fmco-closeout-photos]'), host, 'project.photos.review', { prompt: 'Photos of the work', limit: 60 }, (value) => { photos.media_ids = value?.media_ids || []; }));
     }
   }
+  // Each confirmed work order is finalized on its own (labor.list.finalize, the only way a list becomes to be paid).
+  async function finalizeConfirmed() {
+    const error = view.foot.querySelector('[data-fmco-error]'), button = view.foot.querySelector('[data-fmco-finalize]');
+    const lists = confirmed();
+    if (!lists.length) return;
+    button.disabled = true; error.textContent = '';
+    const failed = [];
+    for (const list of lists) {
+      const pick = picks.get(list.id);
+      try { await api().invoke(host.orgId, 'labor.list.finalize', target(host), { list_id: list.id, method: pick.method, ...(pick.method === 'approve' ? {} : { confirmed_item_ids: pick.confirmed_item_ids }), ...(photos.media_ids.length ? { evidence_media_ids: photos.media_ids } : {}) }, { idempotencyKey: key('labor-finalize') }); picks.delete(list.id); }
+      catch (failure) { failed.push(`${assigneeName(list)}: ${failure?.message || 'it could not be finalized'}`); }
+    }
+    await host.refresh();
+    try { await readChecks(); } catch (failure) { failed.push(failure?.message || 'The checks could not be read again.'); }
+    if (!remaining().length) current = steps().length - 1;
+    await render();
+    if (failed.length) { const shown = view.foot.querySelector('[data-fmco-error]'); if (shown) shown.textContent = failed.join(' '); }
+  }
   async function closeOut() {
     const error = view.foot.querySelector('[data-fmco-error]'), button = view.foot.querySelector('[data-fmco-close-out]');
-    if (!ready()) return;
+    if (closed() || remaining().length) return;
     button.disabled = true; error.textContent = '';
     const note = view.foot.querySelector('[data-fmco-note]')?.value.trim() || '';
-    const finalize = remaining().map((list) => { const pick = picks.get(list.id); return { list_id: list.id, method: pick.method, ...(pick.method === 'approve' ? {} : { confirmed_item_ids: pick.confirmed_item_ids }), ...(photos.media_ids.length ? { evidence_media_ids: photos.media_ids } : {}) }; });
     try {
-      await api().invoke(host.orgId, 'project-closeout.close', target(host), { finalize, ...(note ? { note } : {}) }, { idempotencyKey: key('closeout') });
+      await api().invoke(host.orgId, 'project-closeout.close', target(host), { finalize: [], ...(note ? { note } : {}) }, { idempotencyKey: key('closeout') });
       view.close();
-      host.toast('Project closed out', 'Every work order is finalized to be paid and the finances are marked finished.', true);
+      host.toast('Project closed out', 'The project and its finances are marked finished.', true);
       await host.refresh();
     } catch (failure) { error.textContent = failure?.message || 'The project could not be closed out.'; button.disabled = false; }
   }

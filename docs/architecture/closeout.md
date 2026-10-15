@@ -103,12 +103,22 @@ warns and none blocks.
 | c. Payments received | `payments.records` (outstanding is amount less allocated; `balance_due_cents` is not filled in) | — |
 | d. Every requirement accounted for | `work-requirements.project` | — |
 | e. Receipts for paid expenses | `receipts.record`, matched to ordered or paid material and equipment lists by `attributed_target_keys` | Supplemental expense items and payables; the project's expense targets are not published. |
-| f. Final expenses, actual against planned | `financials.records`, the lists, and finalized completions | Receipt-backed actuals and the materials, labor and equipment breakdown. |
-| g. Finalize work orders | `labor-completion.items`, `labor-completion.project` | — |
+| f. Finalize work orders | `labor-completion.items`, `labor-completion.project` | — |
+| g. Final expenses, actual against planned | `financials.records`, the lists, and finalized completions | Receipt-backed actuals and the materials, labor and equipment breakdown. |
 
-Closing (`closeProject`) finalizes the remaining work orders, each confirmed
-in the completion widget, and refuses (`closeout_work_orders_open`) while any
-labor list with lines is not finalized. That is the only thing that stops a
+The work orders come before the final expenses, because the expenses include
+them: a labor list's cost is actual only once it is finalized. In the closeout
+dialog, step f shows the completion widget for each open work order and
+finalizes each confirmed one on its own with `labor.list.finalize`, the only way a
+list becomes to be paid. The checks are then read again, so step g counts those
+costs as actual. Step g, the final expenses, is the last step and closes out the
+project and its finances; it cannot close while a work order is open and points
+back to step f.
+
+Closing (`closeProject`) can also finalize work orders passed in `finalize`, each
+confirmed in the completion widget (agents and other callers use this; the
+dialog finalizes in step f and passes none), and refuses
+(`closeout_work_orders_open`) while any labor list with lines is not finalized. That is the only thing that stops a
 close. The record keeps who and when, the work orders finalized with it, the
 checks as they stood, and every close and reopen. Reopening it
 (`reopenCloseout`) needs `reopen_finalized_work` and a reason, and leaves the

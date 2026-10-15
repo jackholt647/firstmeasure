@@ -15,7 +15,8 @@ import { COMPLETION_METHODS, finalizeLaborList, listCompletions, REOPEN_PERMISSI
  * The checks read other apps only through the published data layer, with the caller's own access, so a check the
  * caller may not see, or that nothing publishes, is reported as not available rather than guessed. Every check warns
  * and none blocks: the only thing closing requires is that every work order's work is finalized to be paid, which the
- * last step does. A closeout is a record on the project (collection `project_closeouts`, keyed by project) of who
+ * work order step does first. The last step is the final expenses, which include those work orders; closing out
+ * finishes the project and its finances. A closeout is a record on the project (collection `project_closeouts`, keyed by project) of who
  * closed it and when, what was finalized and how the checks stood. Only a person with `reopen_finalized_work` can
  * reopen it, and every close and reopen is kept in its history.
  */
@@ -174,8 +175,10 @@ export async function closeoutChecks(ctx: PublicationContext, projectId: string)
   const workRows = workOrders.map((list): CheckRow => { const done = completions.find((entry) => entry.list_id === text(list.id)); return { id: text(list.id), label: text(obj(obj(list.assignment).work_resource_ref).name) || text(list.title) || "Work order", detail: done ? `Finalized ${day(done.finalized_at)} · ${money(done.total_cents)}` : "Not finalized", status: done ? "ok" : "warning" }; });
   const left = workRows.filter((row) => row.status !== "ok").length;
   const [changes, signatures] = await documentSteps(ctx, projectId);
-  const steps: CloseoutStep[] = [changes, signatures, await paymentStep(ctx, projectId), await requirementStep(ctx, projectId), await receiptStep(ctx, projectId, lists), await expenseStep(ctx, projectId, lists, finalized),
-    { id: "work_orders", title: "Finalize work orders", status: left ? "warning" : "ok", summary: !workRows.length ? "No work orders on this project." : left ? `${plural(left, "work order")} to confirm and finalize.` : "Every work order is finalized to be paid.", rows: workRows, sources: ["labor-completion.items", "labor-completion.project"], missing: [] }];
+  const steps: CloseoutStep[] = [changes, signatures, await paymentStep(ctx, projectId), await requirementStep(ctx, projectId), await receiptStep(ctx, projectId, lists),
+    { id: "work_orders", title: "Finalize work orders", status: left ? "warning" : "ok", summary: !workRows.length ? "No work orders on this project." : left ? `${plural(left, "work order")} to confirm and finalize.` : "Every work order is finalized to be paid.", rows: workRows, sources: ["labor-completion.items", "labor-completion.project"], missing: [] },
+    // Last: the finances, which include the work orders finalized in the step before. Closing out finishes them.
+    await expenseStep(ctx, projectId, lists, finalized)];
   const record = await readCloseout(ctx.organizationId, projectId);
   return { project_id: projectId, steps, closeout: record, open_work_orders: workRows.filter((row) => row.status !== "ok").map((row) => row.id) };
 }

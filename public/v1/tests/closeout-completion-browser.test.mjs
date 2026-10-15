@@ -65,8 +65,8 @@ const STEPS = [
   {id:'payments',title:'Payments received',status:'warning',summary:'1 payment due and not received ($4,446.00).',rows:[{id:'p1',label:'Deposit',detail:'Received',status:'ok'},{id:'p2',label:'Final payment',detail:'$4,446.00 outstanding, due 2026-10-10',status:'warning'}],sources:['payments.records'],missing:[]},
   {id:'requirements',title:'Scope accounted for',status:'warning',summary:'1 not accounted for, 1 to check',rows:[{id:'r1',label:'Tear off',detail:'Completed',status:'ok'},{id:'r2',label:'Debris disposal',detail:'What is on the work order holds 20 cubic yards of the 24 needed.',status:'warning'},{id:'r3',label:'Cleanup',detail:'Not accounted for',status:'warning'}],sources:['work-requirements.project'],missing:[]},
   {id:'receipts',title:'Receipts',status:'warning',summary:'1 paid expense with no receipt',rows:[{id:'m1',label:'Shingles & underlayment',detail:'No receipt uploaded',status:'warning'},{id:'e1',label:'Dumpster',detail:'1 receipt uploaded',status:'ok'}],sources:['receipts.record'],missing:['Other paid expenses (supplemental expense items and payables) are not published, so only material and equipment lists are checked for a receipt.']},
-  {id:'expenses',title:'Final expenses',status:'warning',summary:'2 work orders not finalized, so their costs are not actual yet',rows:[{id:'expenses',label:'Expenses: actual vs planned',detail:'$4,954.00 of $10,474.00 planned',status:'info'},{id:'m1',label:'Materials: Shingles & underlayment',detail:'$4,504.00 paid of $4,504.00 planned',status:'info'},{id:'l1',label:'Labor: Summit Roofing',detail:'$4,500.00 planned · not finalized, so not actual yet',status:'warning'}],sources:['financials.records','labor-completion.project'],missing:[]},
-  {id:'work_orders',title:'Finalize work orders',status:'warning',summary:'2 work orders to confirm and finalize.',rows:[{id:'l1',label:'Summit Roofing',detail:'Not finalized',status:'warning'},{id:'l2',label:'Crew A',detail:'Not finalized',status:'warning'}],sources:[],missing:[]}
+  {id:'work_orders',title:'Finalize work orders',status:'warning',summary:'2 work orders to confirm and finalize.',rows:[{id:'l1',label:'Summit Roofing',detail:'Not finalized',status:'warning'},{id:'l2',label:'Crew A',detail:'Not finalized',status:'warning'}],sources:[],missing:[]},
+  {id:'expenses',title:'Final expenses',status:'warning',summary:'2 work orders not finalized, so their costs are not actual yet',rows:[{id:'expenses',label:'Expenses: actual vs planned',detail:'$4,954.00 of $10,474.00 planned',status:'info'},{id:'m1',label:'Materials: Shingles & underlayment',detail:'$4,504.00 paid of $4,504.00 planned',status:'info'},{id:'l1',label:'Labor: Summit Roofing',detail:'$4,500.00 planned · not finalized, so not actual yet',status:'warning'}],sources:['financials.records','labor-completion.project'],missing:[]}
 ];
 const itemsFor = (listId) => FIXTURE.lists.filter((list) => list.resource_type === 'labor' && (!listId || list.id === listId)).flatMap((list) => list.current_items.map((item) => ({id:item.id,kind:'line',list_id:list.id,list_title:list.assignment.work_resource_ref.name,label:item.name,detail:`${item.quantity} ${item.unit} · $${item.projected_total.toFixed(2)}`,total_cents:Math.round(item.projected_total * 100),done:false})));
 
@@ -83,10 +83,10 @@ async function open(browser) {
           if (source.provider === 'labor-completion' && source.export === 'items') return {status:'ready',value:{project_id:'p1',list_id:source.args?.list_id || '',items:items.filter((item) => !source.args?.list_id || item.list_id === source.args.list_id)}};
           if (source.provider === 'labor-completion') return {status:'ready',value:window.completions};
           if (source.provider === 'media') return {status:'ready',value:{items:fixture.photos,truncated:false}};
-          if (source.provider === 'project-closeout') return {status:'ready',value:{project_id:'p1',steps,closeout:window.closeoutRecord,open_work_orders:window.closeoutRecord ? [] : ['l1','l2']}};
+          if (source.provider === 'project-closeout') return {status:'ready',value:{project_id:'p1',steps,closeout:window.closeoutRecord,open_work_orders:window.closeoutRecord ? [] : ['l1','l2'].filter((id) => !window.finalizedIds?.includes(id))}};
           return {status:'missing',message:'No fixture'};
         },
-        invoke: async (org, action, target, input) => { window.calls.push({action, target, input}); return {value:{ok:true}}; }
+        invoke: async (org, action, target, input) => { window.calls.push({action, target, input}); if (action === 'labor.list.finalize') window.finalizedIds = [...(window.finalizedIds || []), input.list_id]; return {value:{ok:true}}; }
       }
     };
   }, {fixture:FIXTURE, steps:STEPS, items:itemsFor('')});
@@ -239,7 +239,7 @@ test('Pay out: the More menu opens the completion widget beside the photos, and 
   } finally { await browser.close(); await new Promise((resolve) => server.close(resolve)); }
 });
 
-test('Closeout: each check warns and never blocks, and the final step finalizes every remaining work order', async () => {
+test('Closeout: each check warns and never blocks; work orders are finalized in their step, then the final expenses close out the project', async () => {
   const server = await serve(); serverPort = server.address().port;
   const browser = await chromium.launch({channel:'chrome', headless:true});
   try {
@@ -248,33 +248,44 @@ test('Closeout: each check warns and never blocks, and the final step finalizes 
     await tab.locator('[data-mt-closeout]').click();
     const dialog = tab.locator('dialog.fmco-dialog');
     await dialog.locator('.fmco-rail').waitFor();
-    assert.deepEqual(await dialog.locator('.fmco-rail button .fmco-name').allInnerTexts(), ['Change orders','Signatures','Payments received','Scope accounted for','Receipts','Final expenses','Finalize work orders']);
+    assert.deepEqual(await dialog.locator('.fmco-rail button .fmco-name').allInnerTexts(), ['Change orders','Signatures','Payments received','Scope accounted for','Receipts','Finalize work orders','Final expenses']);
     assert.match(await dialog.locator('.fmco-banner').innerText(), /1 change order not signed/);
     assert.match(await dialog.locator('.fmco-note').last().innerText(), /not a requirement/);
     await tab.screenshot({path:path.join(shots, 'closeout-step-a-change-orders.png')});
-    for (let step = 1; step < 6; step += 1) {
+    for (let step = 1; step < 5; step += 1) {
       await dialog.locator('[data-fmco-next]').click();
       if (step === 4) await tab.screenshot({path:path.join(shots, 'closeout-step-e-receipts.png')});
-      if (step === 5) await tab.screenshot({path:path.join(shots, 'closeout-step-f-expenses.png')});
     }
+    // The final expenses cannot close the project while a work order is open; it says so and points back.
+    await dialog.locator('.fmco-rail [data-fmco-step="6"]').click();
     assert.match(await dialog.locator('h3').innerText(), /Final expenses/);
-    await dialog.locator('[data-fmco-next]').click();
-    // The last step: the completion widget for each remaining work order, with the photos.
+    assert.equal(await dialog.locator('[data-fmco-close-out]').isDisabled(), true);
+    assert.match(await dialog.locator('.fmco-banner').last().innerText(), /Finalize the work orders first: Summit Roofing, Crew A/);
+    await dialog.locator('[data-fmco-goto-work]').click();
+    // Step F: the completion widget for each work order, with the photos; each confirmed one is finalized on its own.
+    assert.match(await dialog.locator('h3').innerText(), /Finalize work orders/);
     await dialog.locator('[data-fmco-order="l2"] [data-fmc-row]').first().waitFor();
-    const close = dialog.locator('[data-fmco-close-out]');
-    assert.equal(await close.isDisabled(), true);
-    await tab.screenshot({path:path.join(shots, 'closeout-step-g-finalize.png')});
+    const finalize = dialog.locator('[data-fmco-finalize]');
+    assert.equal(await finalize.isDisabled(), true);
+    await tab.screenshot({path:path.join(shots, 'closeout-step-f-finalize.png')});
     await dialog.locator('[data-fmco-order="l1"] [data-fmc-all]').click();
-    assert.equal(await close.isDisabled(), true, 'every remaining work order has to be confirmed');
+    assert.equal(await finalize.innerText(), 'Finalize 1 work order');
+    await finalize.click();
+    await dialog.locator('[data-fmco-order="l1"]').waitFor({state:'detached'});
+    assert.deepEqual(await tab.evaluate(() => window.calls.map((call) => [call.action, call.input.list_id, call.input.confirmed_item_ids])), [['labor.list.finalize','l1',['l1a','l1b','l1c']]]);
     await dialog.locator('[data-fmco-order="l2"] [data-fmc-all]').click();
-    assert.equal(await close.isDisabled(), false);
+    await finalize.click();
+    // With every work order finalized, the dialog moves on to the final expenses, which close out the project.
+    await dialog.locator('[data-fmco-close-out]:not([disabled])').waitFor();
+    assert.match(await dialog.locator('h3').innerText(), /Final expenses/);
+    assert.match(await dialog.locator('.fmco-note').last().innerText(), /Every work order is finalized/);
     await dialog.locator('[data-fmco-note]').fill('Final walkthrough done');
-    await tab.screenshot({path:path.join(shots, 'closeout-step-g-confirmed.png')});
-    await close.click();
+    await tab.screenshot({path:path.join(shots, 'closeout-step-g-expenses.png')});
+    await dialog.locator('[data-fmco-close-out]').click();
     await dialog.waitFor({state:'detached'});
-    const [call] = await tab.evaluate(() => window.calls);
-    assert.equal(call.action, 'project-closeout.close');
-    assert.deepEqual(call.input, {finalize:[{list_id:'l1', method:'select_all', confirmed_item_ids:['l1a','l1b','l1c']},{list_id:'l2', method:'select_all', confirmed_item_ids:['l2a','l2b']}], note:'Final walkthrough done'});
+    const calls = await tab.evaluate(() => window.calls);
+    assert.deepEqual(calls.map((call) => call.action), ['labor.list.finalize','labor.list.finalize','project-closeout.close']);
+    assert.deepEqual(calls[2].input, {finalize:[], note:'Final walkthrough done'});
 
     // Closed out: the record says when, and only Reopen is offered.
     await tab.evaluate(() => { window.closeoutRecord = {project_id:'p1', state:'closed', closed_at:'2026-10-14T16:00:00Z', closed_by_user_id:'owner', note:'', lists:[{list_id:'l1',commitment_id:'c1',title:'Summit Roofing',total_cents:450000},{list_id:'l2',commitment_id:'c2',title:'Crew A',total_cents:102000}], checks:[], history:[]}; });

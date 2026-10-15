@@ -7,7 +7,7 @@
   let refreshTimer;
   const scopeWorkspaceUrl = new URL('./scope-of-work.js?v=20261013-rail-motion', document.currentScript?.src || `${location.origin}/libraries/apps/materials/project.js`).href;
   const calculusAdapterUrl = new URL('./calculus-native.js?v=20261013-scope', document.currentScript?.src || `${location.origin}/libraries/apps/materials/project.js`).href;
-  const closeoutUrl = new URL('./closeout.js?v=20261014-closeout', document.currentScript?.src || `${location.origin}/libraries/apps/materials/project.js`).href;
+  const closeoutUrl = new URL('./closeout.js?v=20261015-closeout-order', document.currentScript?.src || `${location.origin}/libraries/apps/materials/project.js`).href;
   const runtime = window.FirstMateEmbeddableApps;
   const Portal = window.Portal;
   const util = Portal?.util || {};

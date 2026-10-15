@@ -142,7 +142,7 @@ test("closeout checks warn and never block; closing finalizes the remaining work
   const { closeoutChecks } = await import("../closeout/closeout.js");
   const ctx = userPublicationContext(owner, { executionKind: "api", mode: "command", projectId: "closing" });
   const checks = await closeoutChecks(ctx, "closing");
-  assert.deepEqual(checks.steps.map((step) => step.id), ["change_orders", "signatures", "payments", "requirements", "receipts", "expenses", "work_orders"]);
+  assert.deepEqual(checks.steps.map((step) => step.id), ["change_orders", "signatures", "payments", "requirements", "receipts", "work_orders", "expenses"]);
   for (const step of checks.steps) { assert.ok(["ok", "warning", "unavailable"].includes(step.status), step.id); assert.ok(step.summary, step.id); }
   const step = (id: string) => checks.steps.find((entry) => entry.id === id)!;
   assert.equal(step("work_orders").status, "warning"); assert.deepEqual(checks.open_work_orders.sort(), [String(first.id), String(second.id)].sort());
