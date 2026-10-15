@@ -113,13 +113,15 @@ test("contacts are records of their own; projects link them and show a projectio
   await raw("job_a", { title: "Job A", contacts: [{ id: "contact_shared", name: "Old copy", email: "cara@example.com" }, { name: "No Id", phone: "555-010-4000" }] });
   await raw("anchor_cara", { workflow_state: "contact_only", contacts: [{ id: "contact_shared", name: "Cara Diaz", email: "cara@example.com" }], contact_custom_field_values: { secondary_phone: "555-010-4001" } });
   await raw("job_b", { title: "Job B", customer_name: "Dee Fox", customer_phone: "555-010-5000" });
+  await raw("job_c", { title: "Job C", contacts: [{ id: "project_old:contact:0", name: "Eli Gray" }] });
   const { migrateOrganizationContacts } = await import("../contacts/migration.js");
-  assert.deepEqual(await migrateOrganizationContacts(LEGACY), { projects: 3, contacts_created: 3, links: 4, skipped: 0 });
+  assert.deepEqual(await migrateOrganizationContacts(LEGACY), { projects: 4, contacts_created: 4, links: 5, skipped: 0 });
+  assert.equal((await contacts.readContact(LEGACY, "project_old:contact:0")).name, "Eli Gray", "older derived ids with colons keep working");
   const cara = await contacts.readContact(LEGACY, "contact_shared");
   assert.deepEqual([cara.name, cara.custom_field_values.secondary_phone], ["Cara Diaz", "555-010-4001"], "the standalone record's copy wins and keeps its field values");
   const noId = (await contacts.projectContactLinks(LEGACY, "job_a"))[1]!.contact_id;
   assert.match(noId, /^contact_[0-9a-f]{16}$/);
   assert.equal(((await storage.readDocument(LEGACY, "projects", "job_a")).data.contacts as Array<Record<string, unknown>>)[0]!.name, "Cara Diaz");
   assert.equal((await storage.readDocument(LEGACY, "projects", "job_b")).data.customer_phone, "555-010-5000");
-  assert.deepEqual(await migrateOrganizationContacts(LEGACY), { projects: 0, contacts_created: 0, links: 0, skipped: 3 }, "running it again changes nothing");
+  assert.deepEqual(await migrateOrganizationContacts(LEGACY), { projects: 0, contacts_created: 0, links: 0, skipped: 4 }, "running it again changes nothing");
 });

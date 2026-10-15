@@ -32,7 +32,8 @@ const db = () => contactStore();
 
 export function newContactId() { return `contact_${randomBytes(8).toString("hex")}`; }
 function assertId(id: string) {
-  if (!/^[A-Za-z0-9_-]{1,160}$/.test(id)) throw badRequest("contact_id_invalid", "Contact ids use letters, numbers, - and _.");
+  // Older projects derived ids such as `project_x:contact:0`; those keep working.
+  if (!/^[A-Za-z0-9_.:-]{1,160}$/.test(id)) throw badRequest("contact_id_invalid", "Contact ids use letters, numbers, -, _, . and :.");
   return id;
 }
 
