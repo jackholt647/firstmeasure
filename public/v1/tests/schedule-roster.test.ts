@@ -171,3 +171,21 @@ test("rosters and checks consider only the assignees in the reader's branches", 
   assert.deepEqual(everyone.roster.people.map((person: any) => person.name), ["Nora", "Sam"]);
   assert.deepEqual(everyone.warnings.map((warning: any) => warning.kind), ["assignee_overlap"], "an unrestricted reader sees the south team booked twice");
 });
+
+test("a person booked through another assignee blocks a save where their setting is block, unless the warning is accepted", async () => {
+  const { crewB } = await setup();
+  const { saveProjectScheduleEvent } = await import("../platform/api.js");
+  const { saveAssigneeSchedulingSetting } = await import("../scheduling/occupancy.js");
+  // Eve is on Gutters herself that afternoon; Fascia names only crew B, which she is in. The assignee check cannot see her.
+  await saveAssigneeSchedulingSetting(ORG, { assignee: { type: "organization_user", id: "eve" }, overlap: "block" }, owner);
+  const event = { id: "fascia", title: "Fascia", type_id: "project_work", status: "scheduled", start_at: "2026-10-20T13:30:00.000Z", end_at: "2026-10-20T14:30:00.000Z", resource_refs: [crewRef(crewB, "Crew B")] };
+  const refused: any = await saveProjectScheduleEvent(ORG, "ash", owner, { event }).then(() => null, (error) => error);
+  assert.equal(refused?.code, "assignee_conflict", "the save is refused");
+  const warning = refused.details.roster_warnings[0];
+  assert.deepEqual([warning.kind, warning.person_id, warning.mode, warning.accepted], ["double_booked", "organization_user:eve", "block", false]);
+  // Accepting that warning lets it through, and the save says what it accepted.
+  const saved: any = await saveProjectScheduleEvent(ORG, "ash", owner, { event: { ...event, accepted_roster_warnings: [warning.id] } });
+  assert.ok(saved.roster_warnings.some((entry: any) => entry.id === warning.id && entry.accepted === true));
+  assert.ok(saved.assignee_conflicts.some((conflict: any) => conflict.reason === "person"), "the person conflict is reported beside the save");
+  await saveAssigneeSchedulingSetting(ORG, { assignee: { type: "organization_user", id: "eve" }, overlap: "warn" }, owner);
+});

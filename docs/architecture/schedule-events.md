@@ -208,6 +208,14 @@ and does not put it on the event objects it saves.
   person as `reason: "person"`, with `via`. What an overlap does is still the
   organization's and the assignee's setting (a person's own setting, or the
   default), carried as `mode`.
+- **Writes check it too.** The project event save, the calendar event save and
+  `POST .../schedule/overlap-check` read the roster of the event as it would be
+  saved, with the events under it (`rosterForWrite` in `platform/api.ts`). They
+  return `roster_warnings` and add the person conflicts to
+  `assignee_conflicts`. A person double-booked through another assignee whose
+  setting is `block` refuses the save (`assignee_conflict`, with the warnings in
+  its details), unless the event's `accepted_roster_warnings` names that
+  warning; every other roster warning only warns.
 - **Branch scope.** Only assignees in the reader's branches are considered
   ([branches](branches.md#access-the-branch-scope-rule)): an entry naming one
   outside them is left out of the event's assignment and of other work's. The

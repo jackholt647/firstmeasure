@@ -1904,7 +1904,8 @@ app.get("/auth/google/config", async () => ({
     const result = await assessAssigneeOverlap(orgId, branchId,
       [{ event: draft, projectId, familyIds: projectId ? eventFamilyIds(events, draft) : new Set<string>() }],
       projectId ? { projectId, events, title: cleanText(project.title || project.customer_name || project.address) } : undefined);
-    return { ok: true, ...result };
+    const roster = await rosterForWrite(orgId, actor, branchId, projectId, draft);
+    return { ok: true, ...result, assignee_conflicts: [...result.assignee_conflicts, ...roster.person_conflicts], roster_warnings: roster.roster_warnings, ...(roster.roster_error ? { roster_error: roster.roster_error } : {}) };
   });
 
   app.get("/organizations/:orgId/assignee-scheduling", async (request) => {
@@ -4636,6 +4637,27 @@ function projectEventWriteTouchesEquipment(projectData: JsonObject, eventId: str
 }
 
 /* An overlap the organization or the assignee has set to block refuses the write. */
+/*
+ * The roster of an event about to be written, and of the events under it, as the save would leave them
+ * (scheduling/roster.ts, docs/architecture/schedule-events.md). Its warnings never block, except a person double-booked
+ * through a different assignee where the overlap setting is `block` and the warning was not accepted: the same rule
+ * as the assignee check, which cannot see people inside groups. A roster that cannot be read is reported, not guessed.
+ */
+async function rosterForWrite(orgId: string, actor: import("./auth.js").PlatformAuthContext | null, branchId: string, projectId: string, event: JsonObject) {
+  try {
+    const { readEventRosters } = await import("../scheduling/roster.js");
+    const read = await readEventRosters(orgId, actor, branchId, { draft: { ...(projectId ? { project_id: projectId } : {}), event }, include_children: true });
+    const warnings = read.events.flatMap((entry) => entry.warnings.map((warning) => ({ ...warning, event_id: entry.event_id })));
+    return { roster_warnings: warnings, person_conflicts: read.events.flatMap((entry) => entry.assignee_conflicts.filter((conflict) => conflict.reason === "person")), roster_error: read.events.map((entry) => entry.error).filter(Boolean).join(" ") };
+  } catch (error) {
+    return { roster_warnings: [] as JsonObject[], person_conflicts: [] as AssigneeConflict[], roster_error: error instanceof Error && error.message ? error.message : "The roster could not be read." };
+  }
+}
+function assertNoBlockingRoster(roster: Awaited<ReturnType<typeof rosterForWrite>>) {
+  const blocking = roster.roster_warnings.filter((warning) => warning.kind === "double_booked" && warning.mode === "block" && warning.accepted !== true);
+  if (blocking.length) throw conflict("assignee_conflict", "Someone on this work is already booked during this time through another assignee.", { conflicts: roster.person_conflicts, roster_warnings: blocking });
+}
+
 function assertNoBlockingOverlap(conflicts: AssigneeConflict[]) {
   const blocking = conflicts.filter((entry) => entry.mode === "block");
   if (blocking.length) {
@@ -4789,6 +4811,8 @@ export async function saveCalendarEventDocument(orgId: string, documentId: strin
         ? await assessAssigneeOverlap(orgId, cleanText(data.branch_id || metadata.branch_id) || "default", [{ event: { ...data, id: id || cleanText(data.id) }, projectId: "", familyIds: new Set<string>() }])
         : null;
       assertNoBlockingOverlap(overlap?.assignee_conflicts || []);
+      const roster = hasData ? await rosterForWrite(orgId, actor || null, cleanText(data.branch_id || metadata.branch_id) || "default", "", { ...data, id: id || cleanText(data.id) }) : null;
+      if (roster) assertNoBlockingRoster(roster);
       const saved = await upsertDocument(orgId, "calendar_events", {
         ...body,
         ...(id ? { id } : {}),
@@ -4796,7 +4820,8 @@ export async function saveCalendarEventDocument(orgId: string, documentId: strin
         metadata,
         ...(existing ? { expected_revision: Number(existing.revision || 0) } : {})
       }, { replace: true });
-      return overlap?.assignee_conflicts.length ? { ...saved, assignee_conflicts: overlap.assignee_conflicts } : saved;
+      const conflicts = [...(overlap?.assignee_conflicts || []), ...(roster?.person_conflicts || [])];
+      return { ...saved, ...(conflicts.length ? { assignee_conflicts: conflicts } : {}), ...(roster?.roster_warnings.length ? { roster_warnings: roster.roster_warnings } : {}) };
     });
   };
   if (!id) return await attempt(null);
@@ -12696,6 +12721,8 @@ export async function saveProjectScheduleEvent(orgId:string,projectId:string,act
         { projectId, events, title: cleanText(currentData.title || currentData.customer_name || currentData.address) })
       : { assignee_conflicts: [] as AssigneeConflict[] };
     assertNoBlockingOverlap(overlap.assignee_conflicts);
+    const roster = overlapEvents.length ? await rosterForWrite(orgId, actor, branchId, projectId, event) : null;
+    if (roster) assertNoBlockingRoster(roster);
     const projectWithDefaults = applyProjectCustomFieldDefaults({
       ...currentData,
       events,
@@ -12706,7 +12733,7 @@ export async function saveProjectScheduleEvent(orgId:string,projectId:string,act
       ...asObject(current.metadata),
       last_project_event_id: event.id
     });
-    return { event, document, existingIndex, rangeChanged, equipmentConflicts, operatorWarnings, relatedEvents: placed.updated, blockedChildren: placed.blocked, assigneeConflicts: overlap.assignee_conflicts, before: existingEvent, relatedBefore: placed.updated.map((child: JsonObject) => asObject((Array.isArray(currentData.events) ? currentData.events : []).find((item: unknown) => cleanText(asObject(item).id) === cleanText(child.id)))) };
+    return { event, document, existingIndex, rangeChanged, equipmentConflicts, operatorWarnings, relatedEvents: placed.updated, blockedChildren: placed.blocked, assigneeConflicts: [...overlap.assignee_conflicts, ...(roster?.person_conflicts || [])], rosterWarnings: roster?.roster_warnings || [], before: existingEvent, relatedBefore: placed.updated.map((child: JsonObject) => asObject((Array.isArray(currentData.events) ? currentData.events : []).find((item: unknown) => cleanText(asObject(item).id) === cleanText(child.id)))) };
     }));
     const { event, document, existingIndex, rangeChanged, equipmentConflicts, operatorWarnings, relatedEvents, blockedChildren, assigneeConflicts } = saved;
     // The change history (docs/architecture/project-history.md): the event as it was and as it is, and every event its
@@ -12767,6 +12794,7 @@ export async function saveProjectScheduleEvent(orgId:string,projectId:string,act
       related_events: relatedEvents,
       blocked_children: blockedChildren,
       assignee_conflicts: assigneeConflicts,
+      roster_warnings: saved.rosterWarnings,
       equipment_conflicts: equipmentConflicts,
       equipment_operator_warnings: operatorWarnings
     };
