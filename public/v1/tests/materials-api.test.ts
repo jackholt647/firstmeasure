@@ -973,6 +973,35 @@ test("a list can have more than one event: part_id adds a second beside the firs
   assert.equal((await projectEvents(client, orgId, projectId)).find((event) => event.id === first.event.id).start_at, "2026-07-15T07:00:00.000Z");
 });
 
+test("a list its scope did not make takes the scope's grouping from the project's work plan, so the job is one span", async () => {
+  const client = createSessionClient();
+  const { orgId } = await register(client);
+  const projectId = await createListProject(client, orgId, "project_scope_fallback");
+  const { saveScopeTemplate } = await import("../scopes/storage.js");
+  const { createPlanRecord } = await import("../work/storage.js");
+  const group = { group_id: "roof_installation", group_title: "Roof Installation" };
+  await saveScopeTemplate(orgId, "default", { id: "fallback_roofing", name: "Roofing", work_plan: { root_nodes: [{ id: "roof", title: "Roof" }] }, resources: { lists: [
+    { id: "dry_in", title: "Dry-In", resource_type: "material", color: "#7c3aed", schedule: { enabled: true, kind: "material_delivery", ...group, placement: { anchor: "start", offset: { value: -1, unit: "day" } } } },
+    { id: "labor", title: "Roofing Labor", resource_type: "labor", color: "#2563eb", schedule: { enabled: true, kind: "project_work", event_type_default_id: "roof_work", ...group, placement: { anchor: "span" } } },
+    { id: "equipment", title: "Roofing Equipment", resource_type: "equipment", color: "#0f766e", schedule: { enabled: true, kind: "equipment", ...group, placement: { anchor: "span" } } }
+  ] } });
+  // A signed document started the roofing plan; it names no scope piece.
+  await createPlanRecord({ organization_id: orgId, branch_id: "default", project_id: projectId, source_type: "document_signed", source_id: "doc_1", template_id: "fallback_roofing", template_version: 0, title: "Roofing", status: "active" });
+  // A work order and an equipment list made in the Project tab carry no schedule of their own.
+  const make = async (resource_type: string) => (await client.request("POST", `/v1/materials/organizations/${orgId}/projects/${projectId}/material-lists`, { title: "", resource_type, items: [], metadata: { manually_created: true, placeholder_title: true } })).material_list;
+  const labor = await make("labor"), equipment = await make("equipment");
+  const first = await client.request("POST", `/v1/materials/organizations/${orgId}/material-lists/${labor.id}/schedule-event`, {});
+  const second = await client.request("POST", `/v1/materials/organizations/${orgId}/material-lists/${equipment.id}/schedule-event`, {});
+  const spans = (await projectEvents(client, orgId, projectId)).filter((event) => event.kind === "schedule_group");
+  assert.equal(spans.length, 1, "both lists sit under one job");
+  assert.deepEqual([spans[0].schedule_group_id, spans[0].title, spans[0].scope_template_id], ["roof_installation", "Roof Installation", "fallback_roofing"]);
+  assert.deepEqual([first.event.parent_event_id, second.event.parent_event_id], [spans[0].id, spans[0].id]);
+  assert.deepEqual(first.event.placement, { anchor: "span" });
+  assert.notEqual(first.event.event_type_default_id, "roof_work", "only the grouping is taken, never the scope's event types");
+  // The list keeps the grouping it was given, so the next time it is the same job.
+  assert.equal((await client.request("GET", `/v1/materials/organizations/${orgId}/material-lists/${labor.id}`)).material_list.schedule.group_id, "roof_installation");
+});
+
 test("a list whose schedule names a group and a placement sits under that span and follows it", async () => {
   const client = createSessionClient();
   const { orgId } = await register(client);

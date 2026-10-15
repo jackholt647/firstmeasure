@@ -18,6 +18,7 @@ import { listPricebookManifests, readCatalog, readManifest } from "../pricebook/
 import { enrichedProposalScopePieces, normalizeScopeItem, resolveScopeItemVariation, scopeItemSelected } from "../proposals/scope.js";
 import { readScopeTemplate, readScopeTemplateVersion } from "../scopes/storage.js";
 import { emitWorkEvent } from "../work/engine.js";
+import { listPlanRecords } from "../work/storage.js";
 import { eventListId, eventListPartId, eventPrimaryAssignee, eventResources, eventWindow, isAssigneeKind, normalizeResourceRef, stripRemovedEventFields } from "../scheduling/event-model.js";
 import { evaluatePlacement, normalizePlacement, suggestedDurationMinutes } from "../scheduling/placement.js";
 import { resolveOrganizationTimezone } from "../platform/timezone.js";
@@ -700,6 +701,40 @@ function materialEventOrderState(list: JsonObject) {
   return ORDERED_STATUSES.has(cleanText(list.status)) ? "ordered" : "unordered";
 }
 
+/**
+ * The schedule grouping a project's scope defines for a kind of list, for a list the scope did not create: a signed
+ * document's material set, or a work order or equipment list made in the Project tab. Without it such lists never sit
+ * under the job's span, so the work, its equipment and its deliveries cannot be placed as one job.
+ *
+ * The scope comes from the project's work plans, preferring the one the list names (work plan, scope piece, or the
+ * document that published it). Only the grouping is taken (group, title, colour, length and placement), never event
+ * types, so an existing event of another list is not adopted. Every list resolved from the same plan gets that plan's
+ * scope piece, so they share one span. A project whose plans define the grouping in more than one template is
+ * ambiguous, and nothing is guessed.
+ */
+async function scopeScheduleFallback(orgId: string, projectId: string, list: JsonObject, resourceType: string) {
+  const plans = (await listPlanRecords(orgId, { project_id: projectId }).catch(() => [] as JsonObject[])).map(asObject)
+    .filter((plan) => cleanText(plan.template_id) && !["canceled", "cancelled", "archived", "failed"].includes(cleanText(plan.status).toLowerCase()));
+  const named = plans.filter((plan) => (cleanText(list.work_plan_id) && cleanText(plan.id) === cleanText(list.work_plan_id))
+    || (cleanText(list.scope_piece_id) && cleanText(plan.scope_piece_id) === cleanText(list.scope_piece_id))
+    || (cleanText(asObject(list.origin).document_id) && cleanText(plan.source_id) === cleanText(asObject(list.origin).document_id)));
+  const found: { plan: JsonObject; lists: JsonObject[] }[] = [];
+  for (const plan of named.length ? named : plans) {
+    const definition = await materialDefinitionForPiece(orgId, cleanText(plan.branch_id) || "default", { template_id: plan.template_id, template_version: plan.template_version }, {}).catch(() => ({} as JsonObject));
+    const lists = (Array.isArray(definition.lists) ? definition.lists : []).map(asObject)
+      .filter((entry) => (cleanText(entry.resource_type) || "material") === resourceType && cleanText(asObject(entry.schedule).group_id));
+    if (lists.length) found.push({ plan, lists });
+  }
+  if (!found.length || new Set(found.map((entry) => cleanText(entry.plan.template_id))).size > 1) return null;
+  const { plan, lists } = found[0]!;
+  const title = cleanText(list.title).toLowerCase();
+  const match = lists.find((entry) => cleanText(entry.id) === cleanText(asObject(list.definition).key) || (title && cleanText(entry.title).toLowerCase() === title)) || lists[0]!;
+  const source = asObject(match.schedule);
+  const schedule: JsonObject = {};
+  for (const key of ["group_id", "group_title", "group_color", "group_duration", "placement"]) if (source[key] !== undefined) schedule[key] = source[key];
+  return { schedule, scope_piece_id: cleanText(plan.scope_piece_id), scope_template_id: cleanText(plan.template_id) };
+}
+
 export async function ensureMaterialListScheduleEvent(orgId: string, listId: string, input: JsonObject = {}, projectedList?: JsonObject) {
   await requireMaterialsFlag(orgId);
   const listDoc = projectedList ? { data: projectedList, id: listId, metadata: {}, revision:0 } : await readDocument(orgId, MATERIAL_LIST_COLLECTION, listId);
@@ -712,6 +747,9 @@ export async function ensureMaterialListScheduleEvent(orgId: string, listId: str
   const schedule = { ...asObject(list.schedule), ...asObject(input.schedule) };
   const eventInput = asObject(input.event);
   const resourceType = scopeResourceType(list);
+  // A list its scope did not create still sits under the job its scope defines.
+  const scoped = cleanText(schedule.group_id) ? null : await scopeScheduleFallback(orgId, projectId, list, resourceType);
+  if (scoped) Object.assign(schedule, scoped.schedule);
   const scheduleDefaults = scopeResourceScheduleDefaults(list);
   const workPlanId = cleanText(input.work_plan_id || eventInput.work_plan_id || schedule.work_plan_id);
   const sourceNodeId = cleanText(input.source_node_id || eventInput.source_node_id || schedule.source_node_id);
@@ -738,7 +776,7 @@ export async function ensureMaterialListScheduleEvent(orgId: string, listId: str
   const now = nowIso();
   // Structure from the scope definition: the span this list's event sits
   // under, plus event-to-event dependencies resolved to deterministic ids.
-  const pieceId = cleanText(list.scope_piece_id);
+  const pieceId = cleanText(list.scope_piece_id || scoped?.scope_piece_id);
   const scheduleGroupId = cleanText(schedule.group_id);
   const groupEventId = scheduleGroupId ? `event_${hashId(`${projectId}:schedule_group:${pieceId}:${scheduleGroupId}`)}` : "";
   let groupCreated = false;
@@ -761,7 +799,7 @@ export async function ensureMaterialListScheduleEvent(orgId: string, listId: str
       ...(spanMinutes ? { duration_minutes: spanMinutes } : {}),
       color: cleanText(schedule.group_color),
       scope_piece_id: pieceId,
-      scope_template_id: cleanText(list.scope_template_id),
+      scope_template_id: cleanText(list.scope_template_id || scoped?.scope_template_id),
       schedule_group_id: scheduleGroupId,
       created_at: now,
       updated_at: now

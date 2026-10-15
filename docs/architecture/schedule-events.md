@@ -70,6 +70,15 @@ installation under it, an equipment reservation under the installation.
 - A **span** is an event of `kind: "schedule_group"`. It has its own range, set
   by whoever schedules the work. Its range is not derived from its children.
   Scope templates create one per scope piece and group (`schedule.group_id`).
+  A list the scope did not create (a signed document's material set, or a work
+  order or equipment list made in the Project tab) has no `schedule.group_id`;
+  when its event is ensured, `scopeScheduleFallback` in `materials/storage.ts`
+  takes the grouping (group, title, colour, length, placement, never event types)
+  that the project's work plan's template defines for that kind of list, so every
+  list of the job still sits under one span. A project whose plans define the
+  grouping in more than one template is ambiguous and is left ungrouped. The
+  Project tab's Schedule button ensures every list's event first and places the
+  span it finds; only with no span does it offer to schedule each list by hand.
   A list's `schedule.group_duration` (an amount, reading `measurements.<key>`)
   gives an unscheduled span the length it should run, as `duration_minutes`.
 - A child stores a `placement`: where it sits relative to its parent.

@@ -4181,23 +4181,18 @@
     setTimeout(() => { if (panel.context?.()?.mode !== 'materials') showToast('Choose it on the schedule', 'Pick this job from Waiting at the top of the schedule to place it.', false); }, 2500);
   }
   // Opens the Schedule view beside the lists and starts placing whatever is still waiting for dates. A piece of work a
-  // scope planned is placed whole, with its equipment and deliveries. With no plan, each list is its own item and is
-  // placed by hand, which is said first.
+  // scope planned is placed whole, with its equipment and deliveries. Lists the scope did not make (a signed document's
+  // material, a work order made here) are given their events first: the server puts them under the job their scope
+  // defines, and that job is what is placed. Only when nothing groups them is each list placed by hand, which is said
+  // first.
   async function scheduleJob(){
     if (state.schedulingJob) return;
     const job = jobSchedule(), operation = captureProjectOperation();
     scopeWorkspace?.showSidebarView?.(leftContentRoot(), 'schedule');
     if (job.done) { showToast('Already scheduled', 'Everything on this job has dates. Move it on the schedule if it needs to change.'); return; }
-    if (!job.waiting) {
-      const signed = (state.scopeDocuments || []).some((document) => document?.source === 'document');
-      const approved = await confirmAction(signed
-        ? 'Nothing on this project says how its work, equipment and deliveries fit together, so they cannot be placed as one job. Schedule each list by hand instead?'
-        : 'No document has been signed for this project, so nothing says how its work, equipment and deliveries fit together. Schedule each list by hand instead?', { title: 'Schedule by hand?', confirmLabel: 'Schedule by hand', cancelLabel: 'Not now' });
-      if (!approved || !projectOperationIsCurrent(operation)) return;
-    }
     state.schedulingJob = true;
     syncResourceHeader();
-    let payload = job.waiting ? { event_id: cleanText(job.waiting.id) } : null;
+    let payload = job.waiting ? { event_id: cleanText(job.waiting.id) } : null, span = cleanText(job.waiting?.id);
     try {
       // Every list that has no schedule item yet gets one, so all of them wait on the schedule; the work goes first.
       const order = ['labor', 'equipment', 'material'];
@@ -4205,6 +4200,7 @@
       for (const list of pending) {
         const ensured = await ensureScheduleEventForList(list);
         if (!projectOperationIsCurrent(operation)) return;
+        if (!span && cleanText(ensured?.event?.parent_event_id)) span = cleanText(ensured.event.parent_event_id);
         if (!payload && ensured?.event?.id) payload = schedulingFocusPayload(ensured.list || list, ensured.event);
       }
     } catch (error) {
@@ -4213,6 +4209,14 @@
     } finally {
       state.schedulingJob = false;
       if (projectOperationIsCurrent(operation)) syncResourceHeader();
+    }
+    if (span) payload = { event_id: span };
+    else {
+      const signed = (state.scopeDocuments || []).some((document) => document?.source === 'document');
+      const approved = await confirmAction(signed
+        ? 'This project\'s scope does not say how its work, equipment and deliveries fit together, so they cannot be placed as one job. Schedule each list by hand instead?'
+        : 'No document has been signed for this project, so nothing says how its work, equipment and deliveries fit together. Schedule each list by hand instead?', { title: 'Schedule by hand?', confirmLabel: 'Schedule by hand', cancelLabel: 'Not now' });
+      if (!approved || !projectOperationIsCurrent(operation)) return;
     }
     if (!payload) { showToast('Nothing to place', 'These lists could not be put on the schedule. Open the Schedule tab and add them there.', false); return; }
     // The schedule reads the project again so it has what was just created, then placing starts.

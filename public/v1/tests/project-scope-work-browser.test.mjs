@@ -429,13 +429,13 @@ test('the requirements tray says how the project stands when closed and what acc
 test('the Schedule button always does something: it places a planned job whole, or asks before scheduling each list by hand',async()=>{
  const escapeHtml=value=>String(value??'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
  const lists=[{id:'m',resource_type:'material',status:'ordered'},{id:'l',resource_type:'labor',assigned:'sub'},{id:'e',resource_type:'equipment'}];
- const shown=[],focused=[],timers=[],toasts=[],asked=[],ensured=[],dispatched=[];let answer=true,found=true,placing='';
+ const shown=[],focused=[],timers=[],toasts=[],asked=[],ensured=[],dispatched=[];let answer=true,found=true,placing='',grouped=false;
  const ctx={state:{lists,scopeDocuments:[],panelRoot:{},project:{id:'p',events:[{id:'span',kind:'schedule_group',status:'unscheduled'},{id:'old',kind:'schedule_group',status:'cancelled'}]}},setTimeout:fn=>{timers.push(fn);},CustomEvent:class{constructor(type,init){this.type=type;this.detail=init?.detail;}},
   cleanText:value=>String(value??'').trim(),number:(value,fallback=0)=>Number.isFinite(Number(value))?Number(value):fallback,resourceType:list=>list.resource_type,listItems:()=>[{}],materialListOrdered:list=>list.status==='ordered',assignmentWorkResourceRef:list=>list.assigned?{id:list.assigned}:null,
   resourceSchedulePending:list=>!list.event,eventDateParts:event=>({date:event?.date||''}),linkedScheduleEvent:list=>list.event||null,orgId:()=>'org',projectId:()=>'p',apiReady:()=>true,materialsAPI:null,window:{},syncResourceHeader(){},
   rootWindow:{dispatchEvent:event=>dispatched.push(event.type),addEventListener(){},Portal:{modules:{projectSchedule:{context:()=>({mode:placing}),focusMaterialDelivery:payload=>{focused.push(payload.event_id);placing=found?'materials':'';return found;}}}}},scopeWorkspace:{showSidebarView:(root,view)=>shown.push(view)},leftContentRoot:()=>'rail',
   captureProjectOperation:()=>({}),projectOperationIsCurrent:()=>true,showToast:(title)=>toasts.push(title),confirmAction:async message=>{asked.push(message);return answer;},
-  ensureScheduleEventForList:async list=>{ensured.push(list.id);return {list,event:{id:'event-'+list.id}};},schedulingFocusPayload:(list,event)=>({event_id:event.id,scope_resource_list_id:list.id})};
+  ensureScheduleEventForList:async list=>{ensured.push(list.id);return {list,event:{id:'event-'+list.id,...(grouped?{parent_event_id:'job'}:{})}};},schedulingFocusPayload:(list,event)=>({event_id:event.id,scope_resource_list_id:list.id})};
  vm.createContext(ctx);for(const name of ['laborCommitments','laborListDelivered','headerDone','jobSchedule','scheduleJobButton','startPlacing','scheduleJob','syncScheduleState'])vm.runInContext(fn(name),ctx);
  const run=()=>{while(timers.length)timers.shift()();};
  // Ordered material is done; equipment with no date is not. Labor that is only assigned and built has not been sent to anyone.
@@ -446,12 +446,15 @@ test('the Schedule button always does something: it places a planned job whole, 
  // A piece of work a scope planned is placed whole, with no question asked. Every list still gets its schedule item.
  await ctx.scheduleJob();assert.equal(JSON.stringify(shown),'["schedule"]');assert.equal(asked.length,0);assert.equal(JSON.stringify(ensured),'["l","e","m"]','the work first, then equipment, then material');
  assert.equal(JSON.stringify(dispatched),'["fm:project-schedule:external"]','the schedule is told to read the project again');run();assert.equal(JSON.stringify(focused),'["span"]');
- // No plan and no signed document: it says so and asks. Declining does nothing more.
- ctx.state.project.events=[];focused.length=0;ensured.length=0;answer=false;await ctx.scheduleJob();assert.match(asked[0],/No document has been signed for this project/);assert.equal(ensured.length,0);assert.equal(timers.length,0);
- // Agreeing puts every list on the schedule and starts placing the work.
- answer=true;await ctx.scheduleJob();assert.equal(JSON.stringify(ensured),'["l","e","m"]');run();assert.equal(JSON.stringify(focused),'["event-l"]');
- // With a signed document but nothing planned, the question says that instead.
- ctx.state.scopeDocuments=[{source:'document'}];asked.length=0;await ctx.scheduleJob();assert.match(asked[0],/^Nothing on this project says how its work/);run();
+ // Lists the scope did not make get their events first; the server puts them under the job their scope defines, and
+ // that job is placed whole, with no question asked.
+ ctx.state.project.events=[];focused.length=0;ensured.length=0;dispatched.length=0;grouped=true;await ctx.scheduleJob();assert.equal(asked.length,0);assert.equal(JSON.stringify(ensured),'["l","e","m"]');run();assert.equal(JSON.stringify(focused),'["job"]');
+ // Nothing groups them and no signed document: it says so and asks. Declining places nothing.
+ grouped=false;focused.length=0;ensured.length=0;answer=false;await ctx.scheduleJob();assert.match(asked[0],/No document has been signed for this project/);assert.equal(timers.length,0);assert.equal(focused.length,0);
+ // Agreeing starts placing the work by hand.
+ answer=true;ensured.length=0;await ctx.scheduleJob();assert.equal(JSON.stringify(ensured),'["l","e","m"]');run();assert.equal(JSON.stringify(focused),'["event-l"]');
+ // With a signed document whose scope groups nothing, the question says that instead.
+ ctx.state.scopeDocuments=[{source:'document'}];asked.length=0;await ctx.scheduleJob();assert.match(asked[0],/^This project's scope does not say how its work/);run();
  // Asking again for what is already being placed does not switch placing off.
  focused.length=0;ctx.startPlacing({event_id:'event-l'});assert.equal(focused.length,0);run();
  // If the schedule is not placing anything shortly after, it says where to pick the job up rather than doing nothing.
