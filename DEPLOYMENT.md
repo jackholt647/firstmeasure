@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+October 15 Settings search: [group results by destination](deploy/digitalocean/development-settings-grouping-20261015.md) records compact match summaries, People route synchronization, tests and the verified development rollout.
+
 October 15 Settings search: [navigation-aware relevance ranking](deploy/digitalocean/development-settings-ranking-20261015.md) records the ranking rules, regression tests and verified development rollout.
 
 October 14 Settings search and assignment: [automatic UI-derived search and the larger, overlap-filtered assignment menu](deploy/digitalocean/development-settings-search-assignment-20261014.md) records the changes, tests and verified development rollout.
