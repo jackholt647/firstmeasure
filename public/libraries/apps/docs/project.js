@@ -76,6 +76,7 @@
     engineDenied: false,
     engineEntries: [],
     receiptsById: new Map(),
+    measurements: null,
     // Inline create surface (doc-first flows): the wizard rendered into the
     // right panel instead of a floating modal.
     createHost: null
@@ -251,6 +252,24 @@
       }
     },
     {
+      // Measurement reports lead with what they measured: the project's
+      // published measurements (FirstMeasure report or an import).
+      kind: 'report',
+      matches: (doc) => /report/.test(docType(doc)) && docType(doc) !== 'weather_report',
+      read: (doc) => {
+        const measured = state.measurements || {};
+        const squares = Number(measured.roofSquares);
+        const area = Number(measured.roofArea);
+        const date = tileDate(doc);
+        if (!(squares > 0) && !(area > 0)) return date ? { facts: [date] } : null;
+        const round = (value) => (Math.round(value * 10) / 10).toLocaleString();
+        return {
+          primary: squares > 0 ? `${round(squares)} squares` : `${Math.round(area).toLocaleString()} sq ft`,
+          facts: [squares > 0 && area > 0 ? `${Math.round(area).toLocaleString()} sq ft` : '', date]
+        };
+      }
+    },
+    {
       // Expense receipts: the amount and date read from the receipt.
       kind: 'receipt',
       matches: (doc) => isReceiptDoc(doc),
@@ -275,12 +294,13 @@
     if (!read) return null;
     const status = cleanText(read.status).toLowerCase();
     const cents = Number(read.amountCents);
+    const primary = cleanText(read.primary);
     return {
       kind: spec.kind,
       status,
       statusLabel: status ? (TILE_STATUS_LABELS[status] || engineStatusLabel(status)) : '',
       tone: TILE_STATUS_TONES[status] || 'muted',
-      amount: read.amountCents !== null && read.amountCents !== undefined && Number.isFinite(cents) ? moneyText(cents) : '',
+      amount: primary || (read.amountCents !== null && read.amountCents !== undefined && Number.isFinite(cents) ? moneyText(cents) : ''),
       facts: (Array.isArray(read.facts) ? read.facts : []).map(cleanText).filter(Boolean)
     };
   }
@@ -534,8 +554,20 @@
         // Receipt tiles show the receipt's amount and date.
         window.PaymentsAPI?.receipts?.list
           ? window.PaymentsAPI.receipts.list(oid, pid).catch(() => ({ receipts:[] }))
-          : Promise.resolve({ receipts:[] })
-      ]);
+          : Promise.resolve({ receipts:[] }),
+        // Report tiles show the project's measurements.
+        window.PlatformAPI?.publication?.measurements
+          ? window.PlatformAPI.publication.measurements(oid, pid).catch(() => null)
+          : Promise.resolve(null)
+      ]).then((results) => {
+        const measured = {};
+        Object.entries(Object(Object(results[3]?.value).measurements)).forEach(([key, entry]) => {
+          const value = Number(entry && typeof entry === 'object' ? entry.value : entry);
+          if (Number.isFinite(value)) measured[key] = value;
+        });
+        state.measurements = measured;
+        return results;
+      });
       state.receiptsById = new Map((Array.isArray(receiptResult?.receipts) ? receiptResult.receipts : []).map((receipt) => [cleanText(receipt.id), receipt]));
       state.uploadedDocs = normalizeList(result.uploaded_documents || []);
       state.invoices = Array.isArray(invoiceResult?.invoices) ? invoiceResult.invoices : [];
@@ -573,34 +605,72 @@
       .fm-docs-gallery [data-gallery-toolbar-action="new_document"]:hover{filter:brightness(.95)}
       .pf-thumb.fm-document-tile{background:#eef2f6}
       .pf-thumb.fm-document-tile.loaded::before{display:none}
-      .fm-doc-thumb{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:9px;background:linear-gradient(145deg,#f8fafc,#e9eef5);color:var(--doc-color,#64748b)}
-      .fm-doc-thumb i{font-size:40px}.fm-doc-thumb small{max-width:84%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#475467;font-size:10px;font-weight:1000;text-transform:uppercase;letter-spacing:.06em}
-      .fm-doc-type-badge{position:absolute;left:7px;top:7px;z-index:3;border-radius:999px;padding:4px 7px;background:rgba(255,255,255,.92);color:var(--doc-color,#475467);border:1px solid color-mix(in srgb,var(--doc-color,#64748b) 24%,transparent);font-size:9px;font-weight:1000}
-      .fm-docs-gallery .pf-wrap[data-density="list"] .pf-grid{grid-template-columns:1fr}
-      .fm-docs-gallery .pf-wrap[data-density="list"] .pf-thumb{height:68px;aspect-ratio:auto}
-      .fm-docs-gallery .pf-wrap[data-density="list"] .pf-thumb>img{width:68px;height:68px;object-fit:cover}
-      .fm-docs-gallery .pf-wrap[data-density="list"] .fm-doc-thumb{right:auto;width:68px}
-      .fm-docs-gallery .pf-wrap[data-density="list"] .fm-doc-thumb i{font-size:24px}.fm-docs-gallery .pf-wrap[data-density="list"] .fm-doc-thumb small{display:none}
-      .fm-docs-gallery .pf-wrap[data-density="list"] .fm-doc-type-badge{left:76px;top:9px}
-      .fm-doc-status-badge{position:absolute;right:7px;top:7px;z-index:3;border-radius:999px;padding:4px 7px;background:#eef0f5;color:#5a6382;font-size:9px;font-weight:1000;letter-spacing:.03em;text-transform:uppercase;box-shadow:0 1px 2px rgba(16,24,40,.08)}
+      /* Document tiles: one card for every kind. Each tile is a size container,
+         so the card rearranges with the tile's own width in every density. */
+      .fm-docs-gallery .pf-thumb{container-type:inline-size;isolation:isolate}
+      .fm-doc-card{position:absolute;inset:0;display:flex;flex-direction:column;justify-content:flex-end;overflow:hidden;padding:36px 12px 11px;background:linear-gradient(165deg,#fff 0%,color-mix(in srgb,var(--doc-color,#64748b) 8%,#f8fafc) 100%);text-align:left}
+      .fm-doc-card-mark{position:absolute;right:9%;top:20%;font-size:clamp(30px,34cqw,96px);color:var(--doc-color,#64748b);opacity:.13;pointer-events:none;transition:opacity .16s ease}
+      .pf-thumb:hover .fm-doc-card-mark{opacity:.2}
+      .fm-doc-card-body{position:relative;display:flex;flex-direction:column;gap:2px;min-width:0}
+      .fm-doc-card-title{overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;color:#101828;font-size:clamp(11px,6.4cqw,14px);font-weight:800;line-height:1.28}
+      .fm-doc-card-primary{overflow:hidden;white-space:nowrap;text-overflow:ellipsis;color:#101828;font-size:clamp(14px,10cqw,23px);font-weight:900;letter-spacing:-.015em;line-height:1.15}
+      .fm-doc-card-facts{overflow:hidden;white-space:nowrap;text-overflow:ellipsis;color:#667085;font-size:clamp(9.5px,5.2cqw,11.5px);font-weight:700;line-height:1.35}
+      .fm-doc-badges{position:absolute;left:7px;right:7px;top:7px;z-index:2;display:flex;align-items:center;justify-content:space-between;gap:5px;pointer-events:none}
+      .fm-doc-type-badge,.fm-doc-status-badge{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;border-radius:999px;padding:4px 7px;font-size:9.5px;font-weight:1000;line-height:1.1}
+      .fm-doc-type-badge{flex:0 1 auto;background:rgba(255,255,255,.94);color:var(--doc-color,#475467);border:1px solid color-mix(in srgb,var(--doc-color,#64748b) 24%,transparent)}
+      .fm-doc-status-badge{flex:0 0 auto;margin-left:auto;background:#eef0f5;color:#5a6382;letter-spacing:.03em;text-transform:uppercase;box-shadow:0 1px 2px rgba(16,24,40,.08)}
       .fm-doc-status-badge.tone-info{background:#eef4ff;color:#3538cd}
       .fm-doc-status-badge.tone-warn{background:#fdf3d7;color:#8a6400}
       .fm-doc-status-badge.tone-good{background:#d7f5e3;color:#0c5f36}
       .fm-doc-status-badge.tone-bad{background:#fee4e2;color:#b42318}
-      .fm-docs-gallery .pf-wrap[data-density="list"] .fm-doc-status-badge{top:9px;right:10px}
-      .fm-doc-thumb--summary{justify-content:flex-end;align-items:flex-start;gap:3px;padding:34px 12px 12px;text-align:left}
-      .fm-doc-thumb--summary>i{font-size:22px;margin-bottom:auto;align-self:flex-start}
-      .fm-doc-tile-title{max-width:100%;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;color:#101828;font-size:12px;font-weight:800;line-height:1.3}
-      .fm-doc-tile-amount{color:#101828;font-size:17px;font-weight:900;letter-spacing:-.01em;line-height:1.2}
-      .fm-doc-tile-facts{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#667085;font-size:10.5px;font-weight:700}
-      .fm-doc-tile-date{color:#667085;font-size:10px;font-weight:800}
-      .fm-doc-date-pill{position:absolute;right:7px;bottom:7px;z-index:3;border-radius:999px;padding:4px 8px;background:rgba(255,255,255,.92);color:#344054;font-size:10.5px;font-weight:800}
-      .fm-docs-gallery .pf-wrap[data-density="list"] .fm-doc-tile-date,.fm-docs-gallery .pf-wrap[data-density="list"] .fm-doc-date-pill{display:none}
-      .fm-doc-amount-pill{position:absolute;left:7px;bottom:7px;z-index:3;border-radius:999px;padding:4px 8px;background:rgba(16,24,40,.78);color:#fff;font-size:11px;font-weight:900}
-      .fm-docs-gallery .pf-wrap[data-density="list"] .fm-doc-thumb--summary>:not(i){display:none}
-      .fm-docs-gallery .pf-wrap[data-density="list"] .fm-doc-thumb--summary{padding:0;justify-content:center;align-items:center}
-      .fm-docs-gallery .pf-wrap[data-density="list"] .fm-doc-thumb--summary>i{margin:0;align-self:center}
+      .fm-doc-amount-pill{position:absolute;left:7px;bottom:7px;z-index:2;border-radius:999px;padding:4px 8px;background:rgba(16,24,40,.78);color:#fff;font-size:11px;font-weight:900}
+      /* The card already says what the hover caption would. */
+      .fm-docs-gallery .pf-wrap:not([data-density="list"]) .pf-thumb:has(.fm-doc-card) .pf-thumb-meta{display:none}
+      /* Narrow tiles (compact): the status speaks for the type, details drop. */
+      @container (max-width: 170px){
+        .fm-doc-badges .fm-doc-status-badge ~ *,.fm-doc-badges:has(.fm-doc-status-badge) .fm-doc-type-badge{display:none}
+        .fm-doc-card{padding:30px 9px 9px}
+        .fm-doc-card-title{-webkit-line-clamp:2}
+      }
+      @container (max-width: 130px){
+        .fm-doc-badges{left:5px;right:5px;top:5px}
+        .fm-doc-type-badge,.fm-doc-status-badge{padding:3px 5px;font-size:8px}
+        .fm-doc-card{padding:24px 7px 7px}
+        .fm-doc-card-facts{display:none}
+        .fm-doc-card-primary{font-size:13px}
+        .fm-doc-card-title{font-size:10.5px;line-height:1.22}
+        .fm-doc-card-mark{top:auto;bottom:34%;right:50%;transform:translateX(50%);font-size:34px}
+      }
+      /* List: a row with the icon on the left, text beside it, status on the right. */
+      .fm-docs-gallery .pf-wrap[data-density="list"] .pf-grid{grid-template-columns:1fr!important}
+      .fm-docs-gallery .pf-wrap[data-density="list"] .pf-thumb{height:68px;aspect-ratio:auto}
+      .fm-docs-gallery .pf-wrap[data-density="list"] .pf-thumb>img{width:68px;height:68px;object-fit:cover}
+      .fm-docs-gallery .pf-wrap[data-density="list"] .fm-doc-card{right:auto;width:68px;padding:0;align-items:center;justify-content:center;background:color-mix(in srgb,var(--doc-color,#64748b) 9%,#f8fafc)}
+      .fm-docs-gallery .pf-wrap[data-density="list"] .fm-doc-card-body{display:none}
+      .fm-docs-gallery .pf-wrap[data-density="list"] .fm-doc-card-mark{position:static;transform:none;font-size:24px;opacity:1}
+      .fm-docs-gallery .pf-wrap[data-density="list"] .fm-doc-badges{left:78px;right:10px;top:9px}
+      .fm-docs-gallery .pf-wrap[data-density="list"] .fm-doc-amount-pill{display:none}
       .fm-docs-gallery .pf-wrap[data-density="list"] .pf-thumb-meta{left:68px;top:0;bottom:0;padding:30px 10px 6px;background:#fff;color:#344054;opacity:1}
+      /* Toolbar: the search narrows first, then labels give way to icons, and
+         only on a phone-width panel does it take its own row. */
+      .fm-docs-gallery{container:fm-docs / inline-size}
+      .fm-docs-gallery .pf-toolbar{flex-wrap:nowrap;gap:12px}
+      .fm-docs-gallery .pf-title{flex:none;min-width:0}
+      .fm-docs-gallery .pf-title strong{white-space:nowrap}
+      .fm-docs-gallery .pf-tools{flex:1 1 auto;min-width:0;display:flex;align-items:center;justify-content:flex-end;gap:8px;flex-wrap:nowrap}
+      .fm-docs-gallery .pf-search{flex:1 1 220px;width:auto;min-width:120px;max-width:380px}
+      .fm-docs-gallery .pf-toolbar-action,.fm-docs-gallery .pf-upload{flex:none;white-space:nowrap}
+      @container fm-docs (max-width: 1060px){
+        .fm-docs-gallery .pf-toolbar-action:not([data-gallery-toolbar-action="new_document"]) span{display:none}
+        .fm-docs-gallery .pf-toolbar-action:not([data-gallery-toolbar-action="new_document"]){padding:0 11px}
+        .fm-docs-gallery .pf-upload{font-size:0;gap:0;padding:0 12px}
+        .fm-docs-gallery .pf-upload i{font-size:13px}
+      }
+      @container fm-docs (max-width: 640px){
+        .fm-docs-gallery .pf-toolbar{flex-wrap:wrap}
+        .fm-docs-gallery .pf-tools{flex:1 1 100%;flex-wrap:wrap;justify-content:flex-start}
+        .fm-docs-gallery .pf-search{flex:1 1 100%;max-width:none;order:-1}
+      }
       .fm-docs-toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px}
       .fm-docs-title{min-width:0;display:flex;flex-direction:column;gap:2px}
       .fm-docs-title strong{font-size:16px;font-weight:1000}
@@ -874,25 +944,22 @@
     const summary = tileSummary(doc);
     const color = escapeHtml(doc.color || meta.color);
     const dated = tileDate(doc);
-    const status = summary?.statusLabel ? `<span class="fm-doc-status-badge tone-${summary.tone}">${escapeHtml(summary.statusLabel)}</span>` : '';
-    const typeBadge = `<span class="fm-doc-type-badge" style="--doc-color:${color}">${escapeHtml(doc.type_label || meta.label)}</span>`;
+    const facts = summary?.facts?.length ? summary.facts : (dated ? [dated] : []);
+    const badges = `<span class="fm-doc-badges"><span class="fm-doc-type-badge" style="--doc-color:${color}">${escapeHtml(doc.type_label || meta.label)}</span>${summary?.statusLabel ? `<span class="fm-doc-status-badge tone-${summary.tone}">${escapeHtml(summary.statusLabel)}</span>` : ''}</span>`;
     if (isImageDoc(doc, url) && thumb) {
       return `<img loading="lazy" draggable="false" src="${escapeHtml(thumb)}" alt="${escapeHtml(doc.title || (globalThis.PlatformLanguage?.text("docs","m_9c9b98b1f4e8c9","Document") ?? "Document"))}">
-      ${typeBadge}${status}
-      ${summary?.amount ? `<span class="fm-doc-amount-pill">${escapeHtml(summary.amount)}</span>` : ''}
-      ${dated ? `<span class="fm-doc-date-pill">${escapeHtml(dated)}</span>` : ''}`;
+      ${badges}
+      ${summary?.amount ? `<span class="fm-doc-amount-pill">${escapeHtml(summary.amount)}</span>` : ''}`;
     }
-    if (!summary || (!summary.amount && !summary.facts.length)) {
-      return `<span class="fm-doc-thumb" style="--doc-color:${color}"><i class="fas ${escapeHtml(doc.icon || meta.icon)}"></i><small>${escapeHtml(doc.type_label || meta.label)}</small>${dated ? `<span class="fm-doc-tile-date">${escapeHtml(dated)}</span>` : ''}</span>
-      ${typeBadge}${status}`;
-    }
-    return `<span class="fm-doc-thumb fm-doc-thumb--summary" style="--doc-color:${color}">
-        <i class="fas ${escapeHtml(doc.icon || meta.icon)}"></i>
-        <span class="fm-doc-tile-title">${escapeHtml(doc.title || meta.label)}</span>
-        ${summary.amount ? `<strong class="fm-doc-tile-amount">${escapeHtml(summary.amount)}</strong>` : ''}
-        ${summary.facts.length ? `<span class="fm-doc-tile-facts">${summary.facts.map(escapeHtml).join(' · ')}</span>` : (dated ? `<span class="fm-doc-tile-facts">${escapeHtml(dated)}</span>` : '')}
+    return `<span class="fm-doc-card" style="--doc-color:${color}">
+        <i class="fas ${escapeHtml(doc.icon || meta.icon)} fm-doc-card-mark" aria-hidden="true"></i>
+        <span class="fm-doc-card-body">
+          <span class="fm-doc-card-title">${escapeHtml(doc.title || meta.label)}</span>
+          ${summary?.amount ? `<strong class="fm-doc-card-primary">${escapeHtml(summary.amount)}</strong>` : ''}
+          ${facts.length ? `<span class="fm-doc-card-facts">${facts.map(escapeHtml).join(' · ')}</span>` : ''}
+        </span>
       </span>
-      ${typeBadge}${status}`;
+      ${badges}`;
   }
   function documentTileMeta(item = {}){
     const doc = documentFromItem(item);
@@ -1017,7 +1084,7 @@
         showLabel:true,
         active:state.categoryMenuOpen || state.visibleDocumentCategories.size < DOCUMENT_CATEGORIES.length,
         onClick:() => { state.categoryMenuOpen = !state.categoryMenuOpen; render(); }
-      }, ...(projectId() ? [{id:'programs',label:(globalThis.PlatformLanguage?.text("docs","m_150d3abea54c2f","Workflows") ?? "Workflows"),icon:'fa-diagram-project',showLabel:true,onClick:async()=>{const {openModuleInstances}=await import('../documents/program-panel.js');await openModuleInstances(orgId(),projectId());}}] : []), ...(state.engineApi ? [{
+      }, ...(state.engineApi ? [{
         id:'new_document',
         label:(globalThis.PlatformLanguage?.text("docs","m_96834d2fc9c9a5","New") ?? "New"),
         icon:'fa-plus',

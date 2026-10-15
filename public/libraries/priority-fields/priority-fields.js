@@ -132,4 +132,7 @@
     return {...editor,save:async()=>{editor.commit();const latest=await root.PlatformAPI.branchModules.get(orgId,configBranch,'priority_fields',{refresh:true}).catch(error=>{if(Number(error.status)===404)return null;throw error;});const current=latest?.data||latest||{};await root.PlatformAPI.branchModules.save(orgId,configBranch,'priority_fields',{entities:{...current.entities,[entity]:config.priority_fields}},{kind:'priority_fields',source:'priority_fields'});root.dispatchEvent(new CustomEvent('fm:priority-fields:updated',{detail:{orgId,branchId:configBranch,entity}}));}};
   }
   root.FirstMatePriorityFields={builtin,custom,normalize,format,visible,html,resolve,catalog,sourceEditor,calculationEditor,mountEditor,mountOwnerEditor};
+  // This file loads with the app bundles, often after a project header has drawn
+  // its fallback pills: announce arrival so headers redraw from the shared list.
+  root.dispatchEvent(new CustomEvent('fm:priority-fields:updated',{detail:{ready:true}}));
 })(window);
