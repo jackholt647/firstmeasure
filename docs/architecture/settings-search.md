@@ -31,7 +31,12 @@ or the existing field-label layouts. `data-settings-search-ignore` excludes a su
 
 Search normalizes Unicode and accents, supports word prefixes and one-edit typos on longer
 title words, and ranks exact titles ahead of help-text matches. The top-bar consumes those
-ranked results directly. Selection uses Portal navigation and, when a matching control exists,
+ranked results directly. Matching page and tab names outrank comparable field labels;
+an exact field still outranks a broader page. Conservative English singular/plural
+equivalence treats `user` and `users` alike. Title matches precede category-context
+matches, which precede tooltip/description-only matches. Repeated words and the number
+of entries in an app never increase relevance. Shorter titles break close matches
+before the final alphabetical tie-break. Selection uses Portal navigation and, when a matching control exists,
 expands its details group, scrolls, focuses, and briefly highlights it without triggering a
 change event. `id`, `name`, and stable `data-*` attributes provide destinations.
 

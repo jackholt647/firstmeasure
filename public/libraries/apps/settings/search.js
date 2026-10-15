@@ -79,6 +79,31 @@
     const tab=attachment?.sections.get(item.section)?.title || item.tab;
     return {...item,title,tab};
   }
+  // Conservative English plural equivalence; keep other languages and short words intact.
+  const term = word => /^[a-z]{4,}s$/.test(word)&&!/(ss|us|is)$/.test(word)?word.slice(0,-1):word;
+  function wordMatch(token, words, fuzzy=false){
+    if(words.some(word=>term(word)===term(token)))return 0;
+    if(words.some(word=>word.startsWith(token)))return 2;
+    if(fuzzy&&token.length>=5&&words.some(word=>word.length>=4&&distanceOne(word,token)))return 8;
+    return Infinity;
+  }
+  function relevance(item, tokens){
+    const title=normalize(item.title).split(' '), context=normalize(item.tab).split(' ');
+    const help=normalize((item.description||'')+' '+(item.keywords||'')).split(' ');
+    const titleMatches=tokens.map(token=>wordMatch(token,title,true));
+    const matches=tokens.map((token,i)=>Math.min(titleMatches[i],wordMatch(token,context)+4,wordMatch(token,help)+12));
+    if(matches.some(value=>!Number.isFinite(value)))return Infinity;
+    const navigation=item.kind==='section'||item.kind==='view';
+    const kind=navigation?0:item.kind==='control'?6:10;
+    const exact=title.length===tokens.length&&title.every((word,i)=>term(word)===term(tokens[i]));
+    const prefix=tokens.length<=title.length&&tokens.every((token,i)=>wordMatch(token,[title[i]])<Infinity);
+    const inTitle=titleMatches.every(Number.isFinite);
+    const inContext=tokens.every((token,i)=>Number.isFinite(titleMatches[i])||Number.isFinite(wordMatch(token,context)));
+    // Match quality first, then navigation intent. Repetition never improves relevance.
+    const tier=exact?0:prefix?20:inTitle?40:inContext?65:90;
+    const penalty=inTitle?titleMatches.reduce((a,b)=>a+b,0):matches.reduce((a,b)=>a+b,0);
+    return tier+kind+penalty+Math.min(4,Math.max(0,title.length-tokens.length)*0.2);
+  }
   function search(query, options={}){
     const needle=normalize(query);if(!needle)return [];
     const tokens=needle.split(' '), allowed=options.sections?new Set(options.sections):attachment?new Set(attachment.sections.keys()):null;
@@ -86,15 +111,8 @@
     for(const original of entries){
       if(allowed&&!allowed.has(original.section))continue;
       if(attachment&&!attachment.sections.has(original.section))continue;
-      const item=localized(original), title=normalize(item.title), desc=normalize(item.description), tab=normalize(item.tab), words=(title+' '+tab+' '+desc+' '+normalize(item.keywords)).split(' ');
-      let penalty=0;
-      if(!tokens.every(token=>{
-        if(words.some(word=>word===token))return true;
-        if(words.some(word=>word.startsWith(token))){penalty+=1;return true;}
-        if(token.length>=5&&title.split(' ').some(word=>word.length>=4&&distanceOne(word,token))){penalty+=5;return true;}
-        return false;
-      }))continue;
-      const score=(title===needle?0:title.startsWith(needle)?10:tokens.every(t=>title.includes(t))?20:30)+penalty+(item.kind==='section'?3:0);
+      const item=localized(original), title=normalize(item.title), score=relevance(item,tokens);
+      if(!Number.isFinite(score))continue;
       const key=item.section+'|'+(item.view||'')+'|'+title;
       const old=unique.get(key);if(!old||score<old.score)unique.set(key,{...item,score});
     }
