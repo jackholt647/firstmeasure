@@ -27,8 +27,14 @@ roles.
 - The **ledger** stores signed projected or accrued entries. Accrued entries are
   immutable. Corrections append new entries; a reduction is a negative
   adjustment or clawback.
-- A **batch** snapshots accrued entries eligible for one schedule occurrence.
-  Each payee can be marked run or paid independently. Batch history is durable.
+- A **batch** (a *pay run* on screen) snapshots accrued entries eligible for
+  one schedule occurrence. Each payee can be marked run or paid independently.
+  Batch history is durable. Every run is approved by named approvers and made
+  final before it is marked run or paid.
+- A **payment made outside a pay run** is a negative accrued entry of the kind
+  it paid (`off-cycle.ts`); the next run takes it off, in full up to what that
+  run pays, before any clawback. See
+  [pay rules](../../../docs/architecture/pay-rules.md#payments-made-outside-a-pay-run).
 
 Employee and subcontractor items share a batch only when they share the exact
 schedule ID, but API responses always keep them in separate sections.
@@ -77,6 +83,9 @@ Projects and earnings:
 
 Payroll operations:
 
+- `GET|POST /v1/payroll/organizations/:orgId/off-cycle-payments`, `DELETE .../off-cycle-payments/:entryId`
+- `GET /v1/payroll/organizations/:orgId/approvals/me`, `POST .../batches/:batchId/decision` (a named approver; no payroll permission needed)
+- `GET /v1/payroll/organizations/:orgId/timesheets/me` (the time clock permission only)
 - `GET /v1/payroll/organizations/:orgId/dashboard`
 - `GET /v1/payroll/organizations/:orgId/upcoming`
 - `GET|POST /v1/payroll/organizations/:orgId/batches`
@@ -106,6 +115,34 @@ PayrollAPI.earnings.me(orgId, options);
 PayrollAPI.earnings.forPayee(orgId, payeeType, payeeId, options);
 PayrollAPI.earnings.list(orgId, [{ type: 'organization_user', id: userId }], options);
 ```
+
+## Pay run files
+
+`exports.ts`. The platform does not move money; a pay run is copied out to the
+company's payroll or accounting software. Per pay run, CSV unless noted:
+
+| Type | What |
+|---|---|
+| `pay_run_summary` | Everyone, employees then contractors, earnings by kind, reimbursements, already paid outside a run, clawbacks or corrections, amount to pay; section and run totals. Also PDF. |
+| `gusto_employees` | One row per employee: Last Name, First Name, Email, an amount column per kind, Reimbursement, deductions, Total To Pay, dates, note. |
+| `gusto_contractors` | One row per contractor or company: Wage, Reimbursement, Total. |
+| `quickbooks_payroll` | One row per employee and pay item (Hourly pay, Salary, Piece rate, Commission, Bonus or adjustment, Reimbursement, deductions as negative amounts). |
+| `quickbooks_bills` | Contractors as bills: one line per vendor and category (Subcontractor payments, Reimbursements). |
+
+The column headers follow each product's import vocabulary; check the column
+mapping on the first import. A viewer limited to some branches exports only
+those branches' payees.
+
+## Branch scope
+
+`payee-scope.ts`. With several branches, payee lists (upcoming, runs, ledger,
+timesheets, review, off-cycle payments, finalized work, projected totals) leave
+out payees of branches the viewer cannot see, and take `branch_ids`
+(`mine`, `region`, `all` or ids) like the People lists. Writes about one payee
+need the payee in a branch the viewer manages; drafting, asking for approval,
+making final, running, paying, reopening or voiding a whole run needs every
+payee in it to be. An approval decision is not branch-scoped: the approver is
+named on the run.
 
 ## Audit and idempotency invariants
 

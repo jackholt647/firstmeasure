@@ -221,6 +221,34 @@ export async function reversePayrollLedgerEntry(orgId: string, entryId: string, 
 
 type PreviewEntry = JsonObject & { remaining_cents: number };
 
+/**
+ * A payment recorded as made outside a pay run (`off-cycle.ts`): a negative entry of the kind it was paid against.
+ * The next run that pays the payee on that schedule takes it off in full, up to what the run pays them, so nobody is
+ * paid twice. It is not a clawback, so the clawback cap does not limit it; what is left waits for the run after.
+ */
+export function isOffCyclePayment(entry: JsonObject) {
+  return cleanText(entry.subgroup) === "off_cycle" && Object.keys(asObject(asObject(entry.metadata).off_cycle_payment)).length > 0;
+}
+
+/** What one check takes off: recorded off-cycle payments first, then clawbacks within the cap, never more than the gross. */
+function planDeductions(gross: number, negatives: JsonObject[], capPercent: number) {
+  const open = (entry: JsonObject) => Math.abs(Number(entry.remaining_cents || 0));
+  const plan: Array<{ entry: JsonObject; applied: number }> = [];
+  let left = Math.max(0, gross), offCycle = 0, clawback = 0;
+  for (const entry of negatives.filter(isOffCyclePayment)) {
+    const applied = Math.min(left, open(entry));
+    if (!applied) break;
+    plan.push({ entry, applied }); left -= applied; offCycle += applied;
+  }
+  let capLeft = Math.min(left, Math.floor(Math.max(0, gross) * capPercent / 100));
+  for (const entry of negatives.filter((candidate) => !isOffCyclePayment(candidate))) {
+    const applied = Math.min(capLeft, open(entry));
+    if (!applied) break;
+    plan.push({ entry, applied }); capLeft -= applied; clawback += applied;
+  }
+  return { plan, off_cycle_cents: offCycle, clawback_cents: clawback, deduction_cents: offCycle + clawback };
+}
+
 /** How much of one check a clawback may take: the payee's schedule choice may override the schedule's own cap. */
 async function clawbackCap(orgId: string, schedule: JsonObject, payee: PayrollPayeeRef, earningKind = "*") {
   const chosen = (await resolvePaySchedule(orgId, { type: payee.type, id: payee.id }, earningKind));
@@ -235,29 +263,25 @@ async function previewPayee(orgId: string, schedule: JsonObject, entries: Previe
   ));
   const gross = positives.reduce((sum, entry) => sum + entry.remaining_cents, 0);
   const payee = entryPayee(entries[0] || {});
-  const cap = Math.floor(gross * (await clawbackCap(orgId, schedule, payee)) / 100);
-  const availableDeduction = negatives.reduce((sum, entry) => sum + Math.abs(entry.remaining_cents), 0);
-  const deduction = Math.min(gross, cap, availableDeduction);
+  const deductions = planDeductions(gross, negatives, await clawbackCap(orgId, schedule, payee));
+  const deduction = deductions.deduction_cents;
   const subgroups: Record<string, number> = {};
   for (const entry of positives) {
     const subgroup = cleanText(entry.subgroup || entry.kind || "other");
     subgroups[subgroup] = (subgroups[subgroup] || 0) + entry.remaining_cents;
     entry.remaining_cents = 0;
   }
-  let deductionLeft = deduction;
-  for (const entry of negatives) {
-    const applied = Math.min(deductionLeft, Math.abs(entry.remaining_cents));
-    entry.remaining_cents += applied;
-    deductionLeft -= applied;
-    if (applied) subgroups.clawback = (subgroups.clawback || 0) - applied;
-    if (!deductionLeft) break;
-  }
+  for (const { entry, applied } of deductions.plan) (entry as PreviewEntry).remaining_cents += applied;
+  if (deductions.off_cycle_cents) subgroups.off_cycle = -deductions.off_cycle_cents;
+  if (deductions.clawback_cents) subgroups.clawback = -deductions.clawback_cents;
   return {
     payee,
     worker_type: payee.worker_type,
     gross_cents: gross,
     commission_cents: positives.filter((entry) => cleanText(entry.kind) === "commission").reduce((sum, entry) => sum + Number(entry.amount_cents || 0), 0),
     deduction_cents: deduction,
+    off_cycle_cents: deductions.off_cycle_cents,
+    clawback_cents: deductions.clawback_cents,
     net_cents: gross - deduction,
     subgroup_totals: subgroups,
     entry_count: positives.length + negatives.filter((entry) => Math.abs(Number(entry.amount_cents || 0)) !== Math.abs(entry.remaining_cents)).length
@@ -326,14 +350,15 @@ async function insertBatchItem(db: SqlStore, orgId: string, batchId: string, gro
   const negatives = group.filter((entry) => Number(entry.remaining_cents || 0) < 0);
   const gross = positives.reduce((sum, entry) => sum + Number(entry.remaining_cents || 0), 0);
   if (gross <= 0) return null;
-  const cap = Math.floor(gross * (await clawbackCap(orgId, schedule, payee)) / 100);
-  const deduction = Math.min(gross, cap, negatives.reduce((sum, entry) => sum + Math.abs(Number(entry.remaining_cents || 0)), 0));
+  const deductions = planDeductions(gross, negatives, await clawbackCap(orgId, schedule, payee));
+  const deduction = deductions.deduction_cents;
   const subgroupTotals: Record<string, number> = {};
   for (const entry of positives) {
     const subgroup = cleanText(entry.subgroup || entry.kind || "other");
     subgroupTotals[subgroup] = (subgroupTotals[subgroup] || 0) + Number(entry.remaining_cents || 0);
   }
-  if (deduction) subgroupTotals.clawback = -deduction;
+  if (deductions.off_cycle_cents) subgroupTotals.off_cycle = -deductions.off_cycle_cents;
+  if (deductions.clawback_cents) subgroupTotals.clawback = -deductions.clawback_cents;
   const commission = positives.filter((entry) => cleanText(entry.kind) === "commission").reduce((sum, entry) => sum + Number(entry.remaining_cents || 0), 0);
   const itemId = generatedId("pay_item");
   const now = nowIso();
@@ -348,12 +373,8 @@ async function insertBatchItem(db: SqlStore, orgId: string, batchId: string, gro
   for (const entry of positives) {
     (await allocationInsert.run(generatedId("pay_alloc"), orgId, batchId, itemId, cleanText(entry.id), Number(entry.remaining_cents || 0), now));
   }
-  let deductionLeft = deduction;
-  for (const entry of negatives) {
-    const applied = Math.min(deductionLeft, Math.abs(Number(entry.remaining_cents || 0)));
-    if (applied) (await allocationInsert.run(generatedId("pay_alloc"), orgId, batchId, itemId, cleanText(entry.id), -applied, now));
-    deductionLeft -= applied;
-    if (!deductionLeft) break;
+  for (const { entry, applied } of deductions.plan) {
+    (await allocationInsert.run(generatedId("pay_alloc"), orgId, batchId, itemId, cleanText(entry.id), -applied, now));
   }
   return { net_cents: gross - deduction, worker_type: payee.worker_type || "employee" };
 }

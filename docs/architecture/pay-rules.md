@@ -490,6 +490,36 @@ Every correction records the day the earning was originally earned. Negative
 amounts are clawbacks or adjustments and are capped per check and carried
 forward by the existing pay-run rules.
 
+### Payments made outside a pay run
+
+`payroll/off-cycle.ts`. "We paid Sam $500 on the 10th" is recorded against the
+payee and the kind of earning it was for (`payroll.offCycle.record` with
+`{ payee, kind, amount_cents, paid_on, reference?, note? }`), as one negative
+accrued ledger entry of that kind with subgroup `off_cycle` and
+`metadata.off_cycle_payment`. It changes nothing already posted. Its schedule is
+the payee's schedule for that kind (`resolvePaySchedule`), and it is eligible
+from the day it was paid.
+
+The next pay run on that schedule that pays the payee takes it off
+(`planDeductions` in `payroll/service.ts`): recorded payments first, in full up
+to what the run pays them, then clawbacks within the clawback cap from what is
+left. It is not a clawback, so the cap does not limit it. What a run cannot take
+off waits for the run after. The upcoming preview and the drafted run show it as
+the subgroup `off_cycle` (and `off_cycle_cents`), so nobody is paid twice. Back
+pay asked to be paid off-cycle that someone pays outside a run is recorded the
+same way and nets to nothing in the next run.
+
+The earnings report counts a recorded payment as paid (`paid_cents`, and it is
+listed under `off_cycle_payments`), so a payee's earned total is unchanged. A
+payment no pay run has taken off yet can be removed (`payroll.offCycle.remove`:
+the entry is voided, as any unused entry can be); once a run has taken any of
+it off it stays, and a mistake is corrected with an adjustment.
+`payroll.off_cycle_payments` lists them with how much runs have taken off
+(`subtracted_cents`) and how much is still to come off (`waiting_cents`).
+
+The older off-cycle pay run (`run_type: off_cycle`, which pays chosen accrued
+earnings early) is still accepted by the API; the Payroll app does not offer it.
+
 ### When a refresh happens
 
 - before a pay run is drafted;
@@ -697,7 +727,9 @@ read: provider, export, description, units, known fields, the options each
 takes and whether it needs any); `pay_rule_vocabulary` (the condition operators
 of `work/conditions.ts`, parameter types, kinds of earning and default
 subjects, so no screen keeps its own copy); and `configuration` (pay schedules
-and the organization's schedule choices). Projected earnings are
+and the organization's schedule choices). The vocabulary also carries `periods`
+and, under `labels`, what each kind of earning, parameter type and period is
+called. Projected earnings are
 `projected_earnings` and `my_projected_earnings`, with the actions
 `payroll.projectedEarnings.read` and `payroll.projectedEarnings.me`; see
 [Projected earnings](#projected-earnings) for who may read them.
@@ -722,10 +754,30 @@ Actions: `payroll.payRule.save`, `.preview`, `.archive`;
   an own schedule choice, and how a group's pay is divided; for a role, a type
   of group or a type of company, the same editor on its default with who it
   covers. Every change starts on a chosen day and is previewed before saving.
-- **Payroll** (`apps/payroll/app.js`): for a payee, the rules in effect and the
-  layer each came from, the schedule they are paid on and the layer that chose
-  it, what each rule last worked out, unresolved earnings, and the review of
-  held corrections (accept or decline) and off-cycle back pay.
+- **Payroll** (`apps/payroll/app.js`), views by permission and app flag only
+  (its `ACTIONS` table):
+  - *Pay runs* (payroll managers): upcoming pay dates with who is paid what;
+    a pay run opens with its people (earned, reimbursements, already paid
+    outside a run, taken back, to pay), the next step (draft, approve or ask
+    named approvers, mark entered, mark paid, reopen, void) and its files
+    (`Copy out`: the pay run summary, Gusto and QuickBooks files).
+  - *Review*: earnings that could not be worked out, held corrections (accept
+    or decline), back pay asked to be paid off-cycle, payments made outside a
+    pay run, work orders finalized to be paid with the earnings they produced
+    (`payroll.finalized_work`), and reimbursements waiting to be paid.
+  - *Timesheets*: everyone's shifts for payroll managers (fix, approve, reject);
+    your own for someone with only the time clock (`payroll.my_timesheets`).
+  - *Earnings*: each payee's amount owed and projected, and "Why" (rules and
+    the layer each came from, schedules and who chose them, what each rule
+    worked out, ledger entries, projected earnings, payments).
+  - *History*, *Reports* (date-range reports and prepared files), *Approvals*
+    (pay runs waiting for you as a named approver, `payroll.my_approvals`,
+    `payroll.batch.decide`), *My pay* (your own earnings, payments and, with
+    `payroll.view_own_projected_earnings`, projections) and *Settings* (the
+    one Payroll settings component; Company Settings links to it).
+  Payee lists are limited to the branches the viewer may see
+  (`payroll/payee-scope.ts`, [branches](branches.md)); a branch filter shows
+  when the organization has several.
 
 ## Not built
 

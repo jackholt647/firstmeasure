@@ -96,6 +96,8 @@
     manage_company_settings:() => hasPerm('manage_company_settings'),
     manage_payroll:() => hasPerm('manage_payroll'),
     view_projects:() => hasPerm('view_projects'),
+    /* payroll.contractor.worker.update asks for manage_company_users or manage_company_settings. */
+    payroll_and_users:() => hasPerm('manage_payroll') && hasPerm('manage_company_users'),
     /* Branches: the feature, then what the structure read says this organization has and this viewer may do. */
     branches_feature:() => flag('platform', 'multiple_branches') && state.structure?.feature_enabled !== false,
     multiple_branches:() => flag('platform', 'multiple_branches') && state.structure?.feature_enabled === true && state.structure?.multiple === true,
@@ -137,6 +139,9 @@
     'roles.view':{ all:WORKFORCE, any:ADMIN, server:'GET /v1/workforce/organizations/:org/access/catalog' },
     'roles.edit':{ all:WORKFORCE, any:ADMIN, server:'POST|PATCH|DELETE /v1/workforce/organizations/:org/access/roles' },
     'compensation':{ all:['expanded_access', 'payroll_app'], any:['manage_payroll', 'manage_company_settings'], server:'/v1/payroll pay setups and defaults (PayrollAPI.pay)' },
+    /* How a person is paid: employee or independent contractor. Seen and changed with Compensation. */
+    'users.classification_view':{ all:['expanded_access', 'payroll_app'], any:['manage_payroll', 'manage_company_settings'], server:'GET /v1/workforce/organizations/:org/users (worker_classification)' },
+    'users.classification':{ all:['expanded_access', 'payroll_app'], any:['manage_company_settings', 'payroll_and_users'], server:'payroll.contractor.worker.update (manage_company_users | manage_company_settings)' },
     'fields':{ all:['expanded_access', 'custom_fields'], any:['manage_company_settings', 'manage_company_users'], server:'/v1/publication custom-fields-* and custom-fields.* actions' },
     'home.view':{ all:['people_access'], server:'(reads only what the pages read)' },
     'home.wording':{ all:['people_access', 'expanded_access', 'manage_company_settings'], server:'PUT /v1/workforce/.../configuration, PUT /v1/workforce/.../departments' },
@@ -289,6 +294,22 @@
     const result = await loading;
     emit({ type:'load' });
     return result;
+  }
+
+  /* ---- how a person is paid ---- */
+  const classificationOf = (entry = {}) => text(entry.profile?.worker_classification, entry.worker_classification, 'employee') === 'independent_contractor' ? 'independent_contractor' : 'employee';
+  const paymentTermsOf = (entry = {}) => { const terms = obj(entry.profile?.payment_terms || entry.payment_terms); return { basis:terms.basis === 'net_days' ? 'net_days' : 'payroll_schedule', net_days:terms.basis === 'net_days' ? Math.max(0, Math.min(365, Math.floor(Number(terms.net_days || 0)))) : 0 }; };
+  /* The icon beside a contractor's name, for viewers who may see how people are paid. Employees get none. */
+  const workerMarks = (entry) => classificationOf(entry) === 'independent_contractor' && allows('users.classification_view') ? [{ id:'contractor', icon:'fa-file-contract', label:t('independent_contractor', 'Independent contractor') }] : [];
+  /* payroll.contractor.worker.update: the classification and the payment terms together (both are required). */
+  async function saveClassification(id, classification, terms){
+    const current = user(id);
+    if (!current) throw new Error(t('user_missing', 'This user no longer exists.'));
+    const next = classification === 'independent_contractor' ? 'independent_contractor' : 'employee';
+    const payment = terms ? { basis:terms.basis === 'net_days' ? 'net_days' : 'payroll_schedule', net_days:terms.basis === 'net_days' ? Math.max(0, Math.min(365, Math.floor(Number(terms.net_days || 0)))) : 0 } : paymentTermsOf(current);
+    await api().publication.invoke(orgId(), 'payroll.contractor.worker.update', { scope:'organization', organizationId:orgId(), id:String(id) }, { worker_classification:next, payment_terms:payment }, { idempotencyKey:newKey('worker') });
+    await reload({ type:'user', id:String(id) });
+    return user(id);
   }
 
   /* ---- branches ---- */
@@ -502,7 +523,7 @@
     if (isSuspended(entry)) pills.push({ label:t('suspended', 'Suspended'), tone:'danger', icon:kit.ICONS.suspend });
     else if (neverSignedIn(entry)) pills.push({ label:t('never_signed_in', 'Never signed in'), tone:'warn', tooltip:t('never_signed_in_tip', 'Invited, has not signed in yet') });
     return {
-      kind:'organization_user', id:entry.id, name:text(draft.name, entry.name, entry.email, entry.id), secondary:text(draft.email, entry.email),
+      kind:'organization_user', id:entry.id, name:text(draft.name, entry.name, entry.email, entry.id), secondary:text(draft.email, entry.email), marks:workerMarks(entry),
       photoUrl:assetUrl(entry.profile_photo_url || entry.profile_photo), online:entry.id, pills,
       facts:[
         { icon:kit.ICONS.email, label:t('email', 'Email'), value:'', card:false },
@@ -712,6 +733,7 @@
     ACTIONS, CAPABILITIES, allows, gate,
     internal:{ emit, reload, api, arr, obj, text, ids, records, invoke, newKey },
     userTagIds, userScopedAssignments, scopableRoles, legacyMode, userLegacy, legacyLevelItems, LEGACY_FLAGS, LEGACY_LEVELS:Object.keys(LEGACY_LEVELS), invoke,
+    classificationOf, paymentTermsOf, workerMarks, saveClassification,
     structure, multipleBranches, branches, regions, branch, region, branchName, branchIdsOf,
     state, load, subscribe(listener){ listeners.add(listener); return () => listeners.delete(listener); }, can, orgId, branchId, assetUrl,
     user, role, activeRoles, roleApplications, userRoleIds, userRoles, userPermissionOverrides, userAppOverrides, userDepartments, userDirectDepartmentIds, userGroups,

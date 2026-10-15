@@ -1,10 +1,11 @@
 /* Payroll leaf views shared by the payroll workspace, agents and dashboards. */
 (function(global){
  'use strict';
- const views=['upcoming','timesheets','contractors','exports','history','settings'];
+ // Widget id -> the Payroll view it shows (apps/payroll/app.js). Your own timesheets are the timesheets view for someone with only the time clock.
+ const views={upcoming:'upcoming',review:'review',timesheets:'timesheets',my_timesheets:'timesheets',payees:'payees',history:'history',exports:'exports',approvals:'approvals',mine:'mine',settings:'settings'};
  const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
  const money=(v,c='USD')=>{try{return new Intl.NumberFormat(undefined,{style:'currency',currency:c}).format(Number(v||0)/100);}catch{return `${Number(v||0)/100} ${c}`;}};
- for(const view of views)global.FirstMateWidgets.attachRenderer('payroll.'+view,'1',async(root,{config,context,reference,state,visible})=>{
+ for(const [id,view] of Object.entries(views))global.FirstMateWidgets.attachRenderer('payroll.'+id,'1',async(root,{config,context,reference,state,visible})=>{
    if(!global.FirstMatePayroll?.mountView)throw Error('The payroll view bundle is unavailable.');
    const instance=global.FirstMatePayroll.mountView({...context,root,roots:{main:root},orgId:reference.target.organizationId,instanceId:'payroll-widget-'+global.crypto.randomUUID(),params:{...config,...state,standalone:view,widget:true}});
    instance.setActive?.(visible);

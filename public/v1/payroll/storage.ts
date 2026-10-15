@@ -363,7 +363,7 @@ export async function listPayrollLedgerEntries(orgId: string, options: JsonObjec
   const conditions = ["l.organization_id=?"];
   const params: SQLInputValue[] = [orgId];
   const mapping: Array<[string, string]> = [
-    ["schedule_id", "l.schedule_id"], ["state", "l.state"], ["kind", "l.kind"], ["project_id", "l.project_id"],
+    ["schedule_id", "l.schedule_id"], ["state", "l.state"], ["kind", "l.kind"], ["subgroup", "l.subgroup"], ["project_id", "l.project_id"],
     ["payee_id", "l.payee_id"], ["payee_type", "l.payee_type"], ["source_event_id", "l.source_event_id"]
   ];
   for (const [key, column] of mapping) {
@@ -680,4 +680,3 @@ export async function listPayrollArtifacts(orgId: string, options: JsonObject = 
     .all(...params)).map((row) => payrollArtifactView(row));
 }
 
-export const payrollViews = { scheduleView, ledgerEntryView, batchView, batchItemView };

@@ -12281,16 +12281,14 @@
       });
     }
 
+    // Payroll settings have one home, the Payroll app's Settings view (libraries/apps/payroll/app.js), so they are
+    // mounted once. This pane only leads there.
     function renderPayrollSettings(){
-      if (!panePayroll || panePayroll.dataset.payrollSettingsMounted === '1') return;
-      if (!window.FirstMatePayrollSettings?.mount) {
-        panePayroll.innerHTML = `<div style="padding:24px;color:#b42318;font-weight:850">${(globalThis.PlatformLanguage?.htmlText("settings","m_f95dc81fcba26e","Payroll settings failed to load.") ?? "Payroll settings failed to load.")}</div>`;
-        return;
-      }
-      window.FirstMatePayrollSettings.mount(panePayroll, {
-        orgId: currentOrgId(),
-        branchId: currentBranchId(),
-        showToast
+      if (!panePayroll || panePayroll.dataset.payrollSettingsLink === '1') return;
+      panePayroll.dataset.payrollSettingsLink = '1';
+      panePayroll.innerHTML = `<div style="padding:24px;display:grid;gap:12px;justify-items:start"><strong style="font-size:15px">${(globalThis.PlatformLanguage?.htmlText("settings","m_payroll_settings_moved","Payroll settings are in Payroll") ?? "Payroll settings are in Payroll")}</strong><button type="button" class="btn btn-primary" data-open-payroll-settings><i class="fas fa-money-check-dollar"></i> ${(globalThis.PlatformLanguage?.htmlText("settings","m_payroll_settings_open","Open payroll settings") ?? "Open payroll settings")}</button></div>`;
+      panePayroll.querySelector('[data-open-payroll-settings]')?.addEventListener('click', () => {
+        window.Portal?.navigation?.navigate?.({ tab:'payroll', payrollView:'settings', sub:null, settingsView:null, settingsEntity:null }, { source:'company-settings-payroll', ownedKeys:['payrollView'] });
       });
     }
 

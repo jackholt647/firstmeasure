@@ -125,6 +125,7 @@
       wrap=value=>({ok:true,...(p[0]==='projections'&&!p[1]?{projection:value[0]}:Array.isArray(value)?{entries:value}:{entry:value})});
     }else if(p[0]==='batches'){
       if(p[1])target.id=p[1];action=p[2]==='items'?'payroll.batch.item.update':p[2]==='actions'?'payroll.batch.action':method==='POST'?'payroll.batch.create':p[1]?'payroll.batch.read':'payroll.batches.list';if(p[2]==='items')input.item_id=p[3];if(method==='GET')input=query;wrap=value=>({ok:true,...(method==='GET'?{[p[1]?'batch':'batches']:value}:value)});
+    }else if(p[0]==='timesheets'&&p[1]==='me'){action='payroll.timesheets.me';input=query;wrap=value=>({ok:true,...value});
     }else if(p[0]==='timesheets'){
       if(p[1])target.id=p[1];action=p[2]==='approve'?'payroll.timesheet.approve':p[2]==='reject'?'payroll.timesheet.reject':method==='PATCH'?'payroll.timesheet.correct':'payroll.timesheets.list';if(method==='GET')input=query;wrap=value=>({ok:true,...(p[1]?{timesheet:value}:value)});
     }else if(p[0]==='exports'){action='payroll.exports.catalog';input={};wrap=value=>({ok:true,exports:value});}
@@ -259,13 +260,41 @@
 
   const timesheets = {
     list(orgId, options = {}){ return request(orgPath(orgId, `/timesheets${queryString(options)}`)); },
+    // The signed-in user's own timesheets. Needs only the time clock permission.
+    mine(orgId, options = {}){ return request(orgPath(orgId, `/timesheets/me${queryString(options)}`)); },
     update(orgId, shiftId, patch = {}){ return request(orgPath(orgId, `/timesheets/${enc(shiftId)}`), { method:'PATCH', body:patch }); },
     approve(orgId, shiftId, payload = {}){ return request(orgPath(orgId, `/timesheets/${enc(shiftId)}/approve`), { method:'POST', body:payload }); },
     reject(orgId, shiftId, payload = {}){ return request(orgPath(orgId, `/timesheets/${enc(shiftId)}/reject`), { method:'POST', body:payload }); }
   };
 
+  // Published reads and actions with no HTTP shape of their own.
+  const published = {
+    read(orgId, exportName, args = {}, id = ''){
+      return root.PlatformAPI.publication.read(orgId, { provider:'payroll', export:exportName, target:{ scope:'organization', organizationId:orgId, ...(id ? { id } : {}) }, ...(Object.keys(args).length ? { args } : {}) })
+        .then((result) => { if (result.status !== 'ready') throw Object.assign(new Error(result.message || 'Payroll is unavailable.'), { code:result.code, status:result.status }); return result.value; });
+    },
+    invoke(orgId, action, input = {}, id = '', write = true){ return payAction(orgId, action, input, id, write); }
+  };
+  // Payments made outside a pay run. The next run that pays the payee takes them off, so nobody is paid twice.
+  const offCycle = {
+    list(orgId, options = {}){ return published.read(orgId, 'off_cycle_payments', options); },
+    record(orgId, payment){ return published.invoke(orgId, 'payroll.offCycle.record', payment); },
+    remove(orgId, entryId){ return published.invoke(orgId, 'payroll.offCycle.remove', {}, entryId); }
+  };
+  // Pay runs waiting for the signed-in user as a named approver, and their decision.
+  const approvals = {
+    mine(orgId){ return published.read(orgId, 'my_approvals'); },
+    decide(orgId, batchId, decision, note = ''){ return published.invoke(orgId, 'payroll.batch.decide', { decision, ...(note ? { note } : {}) }, batchId); }
+  };
+  // Work orders finalized to be paid at closeout, with the earnings they produced.
+  const finalizedWork = (orgId, options = {}) => published.read(orgId, 'finalized_work', options);
+
   const api = {
     version:1,
+    published,
+    offCycle,
+    approvals,
+    finalizedWork,
     configure,
     baseUrl,
     url,

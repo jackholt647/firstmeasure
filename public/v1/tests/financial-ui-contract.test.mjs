@@ -87,7 +87,8 @@ test('optional source failures stay diagnostic-only', async () => {
 test('crew earnings separates summary totals from project earnings', async () => {
   const crew = await readFile(crewUrl, 'utf8');
   assert.match(crew, /\[data-earnings\],\[data-project-earnings\]\{display:grid;align-content:start;gap:16px\}/);
-  assert.match(crew, /<section class="crew-card"><div class="crew-card-title"><h3>\$\{esc\(title\)\}<\/h3>/);
+  // Each earnings section is its own card with a title (localized, so the title is an expression).
+  assert.match(crew, /<section class="crew-card"><div class="crew-card-title"><h3>\$\{\(globalThis\.PlatformLanguage\?\.htmlText\("crew","m_5807fca7eb02a0","Earning details"\)/);
 });
 
 test('receipt intake supports mixed-file parallel batches across Money and Crew', async () => {

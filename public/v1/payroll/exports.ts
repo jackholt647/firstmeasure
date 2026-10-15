@@ -4,6 +4,7 @@ import { renderTemplatedArtifact } from "../documents/artifacts.js";
 import { badRequest } from "../platform/errors.js";
 import { listDocuments } from "../platform/storage.js";
 import { listPayrollTimesheets } from "./timesheets.js";
+import { scopedBatch, type PayeeScope } from "./payee-scope.js";
 import {
   asArray,
   asObject,
@@ -18,7 +19,25 @@ import {
 
 type ExportColumn = { key: string; label: string; width?: number };
 
+/*
+ * Pay run files. The platform does not move money: a pay run is handed to the company's payroll or accounting
+ * software. Each pay run file keeps employees and contractors apart, shows earnings by kind, keeps reimbursements on
+ * their own line, and shows what was taken off: payments already made outside a pay run (`off_cycle`) and
+ * clawbacks or negative corrections (`taken_back`). Amounts are in dollars with two decimals.
+ *
+ * - `pay_run_summary`: everyone in the run, employees then contractors, with section and grand totals.
+ * - `gusto_employees` / `gusto_contractors`: one row per person, with columns that map onto Gusto's CSV import of
+ *   earnings (employees) and contractor payments. Gusto asks which column is which on the first import.
+ * - `quickbooks_payroll`: one row per employee and pay item (Hourly pay, Salary, Commission, ...), the shape
+ *   QuickBooks Payroll and most payroll services take when pay items are entered or imported.
+ * - `quickbooks_bills`: contractors as bills to vendors, one line per vendor and category, for QuickBooks' bill import.
+ */
 export const PAYROLL_EXPORT_CATALOG = [
+  { type: "pay_run_summary", label: "Pay run summary", description: "Everyone in this pay run, employees then contractors, with earnings by kind, reimbursements, what was taken off and the amount to pay.", purpose: "Check a pay run before entering it in your payroll software, or keep it as the record of what was paid.", scope: "payroll_run", scope_label: "Payroll run", formats: ["csv", "pdf"], group: "pay_run_file", audience: "everyone" },
+  { type: "gusto_employees", label: "Gusto: employees", description: "One row per employee with earnings by kind in dollars, reimbursements in their own column and what was already paid or taken back.", purpose: "Import or copy into Gusto when running this payroll. Match the columns to Gusto's earning types on the first import.", scope: "payroll_run", scope_label: "Payroll run", formats: ["csv"], group: "pay_run_file", audience: "employees" },
+  { type: "gusto_contractors", label: "Gusto: contractors", description: "One row per contractor or subcontractor company with the payment and any reimbursement.", purpose: "Enter or import contractor payments in Gusto.", scope: "payroll_run", scope_label: "Payroll run", formats: ["csv"], group: "pay_run_file", audience: "contractors" },
+  { type: "quickbooks_payroll", label: "QuickBooks Payroll: employees", description: "One row per employee and pay item (Hourly pay, Salary, Piece rate, Commission, Reimbursement, ...), with what was taken off as negative amounts.", purpose: "Enter or import paychecks in QuickBooks Payroll. Map each pay item to the payroll item of the same name.", scope: "payroll_run", scope_label: "Payroll run", formats: ["csv"], group: "pay_run_file", audience: "employees" },
+  { type: "quickbooks_bills", label: "QuickBooks: contractor bills", description: "Contractors as bills to vendors, one line per vendor and category, dated on the pay date.", purpose: "Import into QuickBooks as bills, then pay them as you normally pay vendors.", scope: "payroll_run", scope_label: "Payroll run", formats: ["csv"], group: "pay_run_file", audience: "contractors" },
   { type: "payroll_register", label: "Payroll register", description: "A clear worker-by-worker summary of gross pay, deductions, and final pay.", purpose: "Review the payroll totals or give a readable record to your accountant.", scope: "payroll_run", scope_label: "Payroll run", formats: ["csv", "pdf"] },
   { type: "batch_summary", label: "Payroll summary", description: "One-page totals for a completed or upcoming payroll, including employee and contractor totals.", purpose: "Print or share a quick approval and bookkeeping summary.", scope: "payroll_run", scope_label: "Payroll run", formats: ["csv", "pdf"] },
   { type: "batch_detail", label: "Earnings detail", description: "Every earning included in a payroll, with the worker, project, earning type, and amount.", purpose: "Answer questions about how each worker's pay was calculated.", scope: "payroll_run", scope_label: "Payroll run", formats: ["csv", "pdf"] },
@@ -29,6 +48,91 @@ export const PAYROLL_EXPORT_CATALOG = [
   { type: "timesheets", label: "Timesheet report", description: "Clock-in, clock-out, worked time, projects, and approval status for the selected dates.", purpose: "Review field hours or retain a printable time record.", scope: "date_range", scope_label: "Date range", formats: ["csv", "pdf"] },
   { type: "reimbursements", label: "Reimbursement report", description: "Requested, approved, and paid employee reimbursements during the selected dates.", purpose: "Reconcile receipts and repayment status with payroll or bookkeeping.", scope: "date_range", scope_label: "Date range", formats: ["csv", "pdf"] }
 ] as const;
+
+/** One payee's part of a pay run, by kind: what was paid for and what was taken off. */
+const PAY_KINDS = ["hourly", "salary", "piece_rate", "commission", "adjustment", "reimbursement"] as const;
+const LINE_KEYS = [...PAY_KINDS, "off_cycle", "taken_back"] as const;
+const PAY_ITEM_LABELS: Record<string, string> = { hourly: "Hourly pay", salary: "Salary", piece_rate: "Piece rate", commission: "Commission", adjustment: "Bonus or adjustment", reimbursement: "Reimbursement", off_cycle: "Already paid outside a pay run", taken_back: "Clawback or correction" };
+type LineKey = typeof LINE_KEYS[number];
+type Lines = Record<LineKey, number>;
+function payeeLines(item: JsonObject): Lines {
+  const lines: Lines = { hourly: 0, salary: 0, piece_rate: 0, commission: 0, adjustment: 0, reimbursement: 0, off_cycle: 0, taken_back: 0 };
+  for (const entry of asArray(item.entries).map(asObject)) {
+    const applied = Number(entry.allocation_cents || 0);
+    if (applied > 0) {
+      const kind = ((PAY_KINDS as readonly string[]).includes(cleanText(entry.kind)) ? cleanText(entry.kind) : "adjustment") as LineKey;
+      lines[kind] += applied;
+    } else if (applied < 0) {
+      lines[cleanText(entry.subgroup) === "off_cycle" && Object.keys(asObject(asObject(entry.metadata).off_cycle_payment)).length ? "off_cycle" : "taken_back"] += applied;
+    }
+  }
+  return lines;
+}
+function nameParts(name: string) {
+  const words = cleanText(name).split(" ").filter(Boolean);
+  return words.length < 2 ? { first: words[0] || "", last: "" } : { first: words.slice(0, -1).join(" "), last: words[words.length - 1] || "" };
+}
+const isEmployee = (item: JsonObject) => cleanText(asObject(item.payee).worker_type || "employee") === "employee";
+async function emailsFor(orgId: string) {
+  return new Map((await listDocuments(orgId, "users")).map((row) => [cleanText(row.id), cleanText(asObject(row.data).email)]));
+}
+function payRunRows(batch: JsonObject, emails: Map<string, string>) {
+  return asArray(batch.items).map(asObject).map((item) => {
+    const payee = asObject(item.payee), lines = payeeLines(item);
+    return {
+      item, payee, lines, ...nameParts(cleanText(payee.name)), name: cleanText(payee.name || payee.id), employee: isEmployee(item),
+      email: cleanText(payee.type) === "organization_user" ? cleanText(emails.get(cleanText(payee.id))) : "",
+      deductions_cents: lines.off_cycle + lines.taken_back, net_cents: Number(item.net_cents || 0)
+    };
+  });
+}
+type PayRunRow = ReturnType<typeof payRunRows>[number];
+function memo(batch: JsonObject, extra = "") {
+  const period = cleanText(batch.period_start) ? `period ${cleanText(batch.period_start).slice(0, 10)} to ${cleanText(batch.period_end).slice(0, 10)}` : "";
+  return [`Pay date ${cleanText(batch.pay_date)}`, period, extra].filter(Boolean).join(", ");
+}
+const dollars = (cents: number) => (Math.abs(cents) / 100).toFixed(2);
+function payRunFileRows(type: string, batch: JsonObject, rows: PayRunRow[]): JsonObject[] {
+  const base = { pay_date: cleanText(batch.pay_date), period_start: cleanText(batch.period_start).slice(0, 10), period_end: cleanText(batch.period_end).slice(0, 10) };
+  const kinds = (lines: Lines) => Object.fromEntries(LINE_KEYS.map((key) => [`${key}_cents`, lines[key]]));
+  const sumLines = (list: PayRunRow[]) => Object.fromEntries(LINE_KEYS.map((key) => [key, list.reduce((sum, row) => sum + row.lines[key], 0)])) as Lines;
+  const net = (list: PayRunRow[]) => list.reduce((sum, row) => sum + row.net_cents, 0);
+  const byName = (a: PayRunRow, b: PayRunRow) => a.name.localeCompare(b.name);
+  if (type === "pay_run_summary") {
+    const section = (employee: boolean) => {
+      const list = rows.filter((row) => row.employee === employee).sort(byName);
+      if (!list.length) return [];
+      const label = employee ? "Employees" : "Contractors";
+      return [
+        ...list.map((row) => ({ section: label, name: row.name, ...kinds(row.lines), net_cents: row.net_cents, status: cleanText(row.item.status), payment_reference: cleanText(row.item.payment_reference) })),
+        { section: label, name: `${label} total`, ...kinds(sumLines(list)), net_cents: net(list), status: "", payment_reference: "" }
+      ];
+    };
+    return [...section(true), ...section(false), { section: "Total", name: "Pay run total", ...kinds(sumLines(rows)), net_cents: net(rows), status: cleanText(batch.status), payment_reference: "" }];
+  }
+  const employees = rows.filter((row) => row.employee), contractors = rows.filter((row) => !row.employee).sort(byName);
+  if (type === "gusto_employees") return employees.sort((a, b) => a.last.localeCompare(b.last) || a.first.localeCompare(b.first)).map((row) => ({
+    last_name: row.last, first_name: row.first, email: row.email, ...kinds(row.lines), net_cents: row.net_cents, ...base, memo: memo(batch)
+  }));
+  if (type === "gusto_contractors") return contractors.map((row) => ({
+    contractor: row.name, email: row.email, contractor_type: cleanText(row.payee.type) === "organization_connection" ? "Business" : "Individual",
+    wage_cents: row.net_cents - row.lines.reimbursement, reimbursement_cents: row.lines.reimbursement, net_cents: row.net_cents, ...base,
+    memo: memo(batch, row.deductions_cents ? `after ${dollars(row.deductions_cents)} already paid or taken back` : "")
+  }));
+  if (type === "quickbooks_payroll") return employees.sort(byName).flatMap((row) => LINE_KEYS.filter((key) => row.lines[key] !== 0).map((key) => ({
+    employee: row.name, email: row.email, pay_item: PAY_ITEM_LABELS[key], amount_cents: row.lines[key], ...base, memo: memo(batch)
+  })));
+  if (type === "quickbooks_bills") return contractors.flatMap((row) => {
+    const work = row.net_cents - row.lines.reimbursement;
+    const bill = { vendor: row.name, bill_no: `${base.pay_date}-${cleanText(row.payee.id).slice(-8)}`, bill_date: base.pay_date, due_date: base.pay_date, memo: memo(batch) };
+    return [
+      ...(work ? [{ ...bill, category: "Subcontractor payments", description: row.deductions_cents ? `Work in this pay run, after ${dollars(row.deductions_cents)} already paid or taken back` : "Work in this pay run", amount_cents: work }] : []),
+      ...(row.lines.reimbursement ? [{ ...bill, category: "Reimbursements", description: "Reimbursed expenses", amount_cents: row.lines.reimbursement }] : [])
+    ];
+  });
+  return [];
+}
+const PAY_RUN_FILES = new Set(["pay_run_summary", "gusto_employees", "gusto_contractors", "quickbooks_payroll", "quickbooks_bills"]);
 
 function definition(type: string) {
   const result = PAYROLL_EXPORT_CATALOG.find((entry) => entry.type === type);
@@ -113,16 +217,19 @@ async function filteredLedger(orgId: string, input: JsonObject, kind = "") {
     && (input.include_projected === true || cleanText(entry.state) !== "projected"));
 }
 
-async function exportRows(orgId: string, input: JsonObject) {
+async function exportRows(orgId: string, input: JsonObject, scope?: PayeeScope) {
   const type = cleanText(input.type);
   const report = definition(type);
-  const batch = cleanText(input.batch_id) ? (await readPayrollBatch(orgId, cleanText(input.batch_id))) : null;
+  const stored = cleanText(input.batch_id) ? (await readPayrollBatch(orgId, cleanText(input.batch_id))) : null;
+  // A viewer limited to some branches exports only the payees of those branches.
+  const batch = stored && scope ? scopedBatch(stored as JsonObject, scope) as typeof stored : stored;
   if ((report.scope === "payroll_run" || (report.scope === "payroll_run_or_date_range" && !input.from)) && !batch) {
     throw badRequest("payroll_export_batch_required", "Choose the payroll run this report should cover.");
   }
   if ((report.scope === "date_range" || (report.scope === "payroll_run_or_date_range" && !batch)) && (!cleanText(input.from) || !cleanText(input.through))) {
     throw badRequest("payroll_export_dates_required", "Choose a start date and end date for this report.");
   }
+  if (PAY_RUN_FILES.has(type)) return { batch, rows: payRunFileRows(type, batch as JsonObject, payRunRows(batch as JsonObject, await emailsFor(orgId))) };
   if (type === "batch_summary") return { batch, rows: [{
     batch_id: cleanText(batch?.id), run_type: cleanText(batch?.run_type || "regular"), pay_date: cleanText(batch?.pay_date),
     period_start: cleanText(batch?.period_start), period_end: cleanText(batch?.period_end), status: cleanText(batch?.status),
@@ -179,6 +286,17 @@ async function exportRows(orgId: string, input: JsonObject) {
 }
 
 function columnsFor(type: string): ExportColumn[] {
+  const kindColumns: ExportColumn[] = [
+    { key: "hourly_cents", label: "Hourly pay" }, { key: "salary_cents", label: "Salary" }, { key: "piece_rate_cents", label: "Piece rate" },
+    { key: "commission_cents", label: "Commission" }, { key: "adjustment_cents", label: "Bonus or adjustment" }, { key: "reimbursement_cents", label: "Reimbursement" },
+    { key: "off_cycle_cents", label: "Already paid outside a pay run" }, { key: "taken_back_cents", label: "Clawback or correction" }
+  ];
+  const period: ExportColumn[] = [{ key: "pay_date", label: "Pay date" }, { key: "period_start", label: "Period start" }, { key: "period_end", label: "Period end" }];
+  if (type === "pay_run_summary") return [{ key: "section", label: "Paid as" }, { key: "name", label: "Name", width: 1.6 }, ...kindColumns, { key: "net_cents", label: "Amount to pay" }, { key: "status", label: "Status" }, { key: "payment_reference", label: "Payment reference", width: 1.2 }];
+  if (type === "gusto_employees") return [{ key: "last_name", label: "Last Name" }, { key: "first_name", label: "First Name" }, { key: "email", label: "Email", width: 1.5 }, ...kindColumns, { key: "net_cents", label: "Total To Pay" }, ...period, { key: "memo", label: "Personal Note", width: 1.6 }];
+  if (type === "gusto_contractors") return [{ key: "contractor", label: "Contractor", width: 1.6 }, { key: "email", label: "Email", width: 1.5 }, { key: "contractor_type", label: "Contractor Type" }, { key: "wage_cents", label: "Wage" }, { key: "reimbursement_cents", label: "Reimbursement" }, { key: "net_cents", label: "Total" }, ...period, { key: "memo", label: "Memo", width: 1.6 }];
+  if (type === "quickbooks_payroll") return [{ key: "employee", label: "Employee", width: 1.6 }, { key: "email", label: "Email", width: 1.5 }, { key: "pay_item", label: "Pay Item", width: 1.4 }, { key: "amount_cents", label: "Amount" }, ...period, { key: "memo", label: "Memo", width: 1.6 }];
+  if (type === "quickbooks_bills") return [{ key: "vendor", label: "Vendor", width: 1.6 }, { key: "bill_no", label: "Bill No" }, { key: "bill_date", label: "Bill Date" }, { key: "due_date", label: "Due Date" }, { key: "category", label: "Category", width: 1.3 }, { key: "description", label: "Description", width: 1.6 }, { key: "amount_cents", label: "Amount" }, { key: "memo", label: "Memo", width: 1.6 }];
   if (type === "batch_summary") return [
     { key: "pay_date", label: "Pay date" }, { key: "run_type", label: "Payroll type" }, { key: "period_start", label: "Period start" },
     { key: "period_end", label: "Period end" }, { key: "status", label: "Payroll status" }, { key: "approval_status", label: "Approval status" },
@@ -219,11 +337,11 @@ function columnsFor(type: string): ExportColumn[] {
   ];
 }
 
-export async function generatePayrollArtifact(orgId: string, input: JsonObject, actorUserId: string) {
+export async function generatePayrollArtifact(orgId: string, input: JsonObject, actorUserId: string, scope?: PayeeScope) {
   const type = cleanText(input.type);
   const report = definition(type);
-  const format = cleanText(input.format) === "pdf" ? "pdf" : "csv";
-  const { batch, rows } = await exportRows(orgId, input);
+  const format = cleanText(input.format) === "pdf" && (report.formats as readonly string[]).includes("pdf") ? "pdf" : "csv";
+  const { batch, rows } = await exportRows(orgId, input, scope);
   const generatedAt = new Date();
   const schedule = batch ? (await readPayrollSchedule(orgId, cleanText(batch.schedule_id))) : null;
   const coverageLabel = batch
@@ -256,9 +374,10 @@ export async function generatePayrollArtifact(orgId: string, input: JsonObject, 
   const scopeKey = batch
     ? `payroll:${cleanText(batch.id)}:revision:${Number(batch.revision || 0)}`
     : `dates:${cleanText(input.from)}:${cleanText(input.through)}:projected:${input.include_projected === true ? "yes" : "no"}`;
+  const branchKey = scope?.active ? `:branches:${(scope.branch_ids || []).join(",")}` : "";
   const existing = (await listPayrollArtifacts(orgId, { report_type: type, limit: 250 })).find((artifact) => {
     const metadata = asObject(artifact.metadata);
-    return cleanText(metadata.format) === format && cleanText(metadata.scope_key) === scopeKey && cleanText(metadata.content_hash) === contentHash;
+    return cleanText(metadata.format) === format && cleanText(metadata.scope_key) === scopeKey + branchKey && cleanText(metadata.content_hash) === contentHash;
   });
   if (existing) return { ...existing, reused: true };
   const extension = format === "pdf" ? "pdf" : "csv";
@@ -269,7 +388,7 @@ export async function generatePayrollArtifact(orgId: string, input: JsonObject, 
     content: rawContent,
     metadata: {
       ...asObject(input.metadata), report_label: report.label, report_description: report.description, purpose: report.purpose,
-      scope_label: batch ? "Payroll run" : "Date range", coverage_label: coverageLabel, scope_key: scopeKey,
+      scope_label: batch ? "Payroll run" : "Date range", coverage_label: coverageLabel, scope_key: scopeKey + branchKey, ...(scope?.active ? { branch_ids: scope.branch_ids } : {}),
       batch_pay_date: cleanText(batch?.pay_date), schedule_name: cleanText(schedule?.name), format, row_count: rows.length,
       from: batch ? cleanText(batch?.period_start) : cleanText(input.from), through: batch ? cleanText(batch?.period_end) : cleanText(input.through),
       content_hash: contentHash, generated_at: generatedAt.toISOString()

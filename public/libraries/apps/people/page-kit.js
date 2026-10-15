@@ -132,6 +132,7 @@
       online:user.id,
       title:user.name || user.email || user.id,
       secondary:user.name ? user.email : '',
+      marks:data.workerMarks(user),
       pills:[...(extra.pills || []), ...(suspended ? [{ label:t('suspended', 'Suspended'), tone:'danger' }] : [])],
       chipGroups:extra.chips ? [{ chips:extra.chips, tone:extra.chipTone }] : [],
       actions:extra.actions || [],

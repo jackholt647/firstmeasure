@@ -148,7 +148,8 @@ export const payrollBatchActionSchema = jsonObjectSchema.extend({
 
 export const payrollExportTypeSchema = z.enum([
   "payroll_register", "batch_summary", "batch_detail", "earnings_ledger", "timesheets",
-  "commissions", "reimbursements", "contractor_payments", "provider_handoff"
+  "commissions", "reimbursements", "contractor_payments", "provider_handoff",
+  "pay_run_summary", "gusto_employees", "gusto_contractors", "quickbooks_payroll", "quickbooks_bills"
 ]);
 
 export const payrollExportCreateSchema = jsonObjectSchema.extend({

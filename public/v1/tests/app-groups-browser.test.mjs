@@ -94,13 +94,13 @@ test('Communications, Financials and Payroll render declared tabs and scope thei
     await page.waitForSelector('[data-fn-view=payouts]');
     assert.equal(await page.locator('[data-app-header] .app-tabs button').count(),4);
     assert.equal(await page.locator('[data-app-header] [data-fn-action=refresh]').count(),0);
-    await mount('portal.payroll',{smoke:true});
-    assert.equal(await page.locator('[data-app-header] .app-tabs button').count(),6);
-    assert.equal(await page.locator('[data-app-header] [data-action=create-off-cycle]').count(),0);
-    assert.equal(await page.locator('[data-action=create-off-cycle]').count(),1);
-    await page.locator('[data-view=settings]').click();
+    await mount('portal.payroll');
+    // Every Payroll view this person may open, in one header; nothing else in it.
+    assert.equal(await page.locator('[data-app-header] .app-tabs button').count(),9);
+    assert.equal(await page.locator('[data-app-header] h1').textContent(),'Payroll');
+    await page.locator('[data-payroll-view=settings]').click();
     assert.equal(await page.locator('[data-payroll-settings-host]').textContent(),'Payroll settings content');
-    assert.equal(await page.locator('[data-app-header] .app-tabs button').count(),6);
+    assert.equal(await page.locator('[data-app-header] .app-tabs button').count(),9);
     await page.evaluate(async()=>{window.handle.destroy();window.handle=await window.FirstMateEmbeddableApps.mount(document.querySelector('main'),'portal.financials',{surface:'portal_tab',orgId:'test',permissions:{'*':true},entitlements:Object.fromEntries(['projects','cashflow','reconcile','payouts'].map(id=>['portal.financials.'+id,false]))});});
     assert.match(await page.locator('main').textContent(),/No accessible apps/);
     await mount('portal.chat');

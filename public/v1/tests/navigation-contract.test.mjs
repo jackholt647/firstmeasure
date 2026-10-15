@@ -459,12 +459,14 @@ test('payroll settings stay inside the routed Payroll workspace', async () => {
   const manifest = await readFile(path.join(publicRoot, 'libraries/apps/firstmate-apps-manifest.js'), 'utf8');
   const payrollApp = await readFile(path.join(publicRoot, 'libraries/apps/payroll/app.js'), 'utf8');
   const payrollSettings = await readFile(path.join(publicRoot, 'libraries/apps/settings/payroll.js'), 'utf8');
-  assert.match(manifest, /payrollView:\{ default:'upcoming', values:\['upcoming','timesheets','contractors','exports','history','settings'\]/);
-  assert.match(payrollApp, /navigate\(\{ tab:'payroll', payrollView:'settings', settingsView:null, settingsEntity:null \}/);
-  assert.match(payrollApp, /function closeSettings\(\)\{[\s\S]*state\.view = 'upcoming';[\s\S]*navigation\?\.replace\?\.\(\{ tab:'payroll', payrollView:'upcoming', settingsView:null, settingsEntity:null \}/);
-  assert.match(payrollApp, /function closeSettings\(\)\{[\s\S]*render\(\);[\s\S]*applyCurrent\?\./);
-  assert.doesNotMatch(payrollApp, /backOrClose\(\['payrollView'\]/);
-  assert.doesNotMatch(payrollApp, /tab:'company_settings', sub:'payroll', payrollView:null/);
+  const companySettings = await readFile(path.join(publicRoot, 'libraries/apps/settings/company.js'), 'utf8');
+  assert.match(manifest, /payrollView:\{ default:'upcoming', values:\['upcoming','review','timesheets','payees','history','exports','approvals','mine','settings'\]/);
+  // Payroll settings are mounted once, as the Settings view of Payroll, with no header of their own there.
+  assert.match(payrollApp, /FirstMatePayrollSettings\.mount\(host, \{[^}]*routeTab:'payroll', embedded:true/);
+  assert.match(payrollApp, /navigate\?\.\(\{ tab:'payroll', payrollView:view \}/);
+  assert.doesNotMatch(payrollApp, /window\.prompt|backOrClose\(\['payrollView'\]/);
+  assert.doesNotMatch(companySettings, /FirstMatePayrollSettings\.mount/);
+  assert.match(companySettings, /navigate\?\.\(\{ tab:'payroll', payrollView:'settings'/);
   assert.match(payrollSettings, /routeTab === 'company_settings'[\s\S]*payrollView:'settings'/);
   assert.match(payrollSettings, /data-payroll-settings-back/);
   assert.match(payrollSettings, /class="pycfg-workspace"/);

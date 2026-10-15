@@ -63,7 +63,7 @@
     ...channelsLibBundles,
     ...fieldApprovalBundles,
     versionedBundle('../equipment-api/equipment-api.js', '20261013-functions'),
-    versionedBundle('../payroll-api/payroll-api.js', '20261014-labor-payout-v1'),
+    versionedBundle('../payroll-api/payroll-api.js', '20261015-payroll-rebuild-v1'),
     versionedBundle('../payments-api/payments-api.js', '20260714-invoice-line-items-tax'),
     versionedBundle('../proposals-api/proposals-api.js', '20260711-crew-change-orders'),
     versionedBundle('crew/app.js', '20261014-labor-payout-v1')
@@ -72,7 +72,7 @@
   const salesBundles = [
     ...fieldApprovalBundles,
     versionedBundle('../sales-api/sales-api.js', '20260801-field-flows-v4'),
-    versionedBundle('../payroll-api/payroll-api.js', '20261014-labor-payout-v1'),
+    versionedBundle('../payroll-api/payroll-api.js', '20261015-payroll-rebuild-v1'),
     versionedBundle('sales/app.js', '20261015-contacts-store-v1')
   ];
 
@@ -283,7 +283,7 @@
       requiresContext: ['project'],
       access: managementAccess,
       dependencies: ['project.proposal', 'project.materials'],
-      bundles: [versionedBundle('../payments-api/payments-api.js', '20260730-payment-reconciliation'), versionedBundle('../payroll-api/payroll-api.js', '20261014-labor-payout-v1'), versionedBundle('../documents-api/documents-api.js', '20260730-money-reports'), versionedBundle('payroll/project.js', '20260714-money-commissions'), versionedBundle('photos/feed.js', '20261007-feed-list-project-v4'), versionedBundle('receipts/app.js', '20260714-receipt-pdf-preview'), versionedBundle('money/project.js', '20260929-overview-content-v1')]
+      bundles: [versionedBundle('../payments-api/payments-api.js', '20260730-payment-reconciliation'), versionedBundle('../payroll-api/payroll-api.js', '20261015-payroll-rebuild-v1'), versionedBundle('../documents-api/documents-api.js', '20260730-money-reports'), versionedBundle('payroll/project.js', '20260714-money-commissions'), versionedBundle('photos/feed.js', '20261007-feed-list-project-v4'), versionedBundle('receipts/app.js', '20260714-receipt-pdf-preview'), versionedBundle('money/project.js', '20260929-overview-content-v1')]
     },
     {
       id: 'project.request',
@@ -507,7 +507,7 @@
       settingsTabId: 'payroll',
       order: 55,
       access: managementAccess,
-      bundles: [versionedBundle('../payroll-api/payroll-api.js', '20261014-labor-payout-v1'), versionedBundle('settings/payroll.js', '20261013-pay-layers-v2'), versionedBundle('payroll/app.js', '20261014-labor-payout-v1')]
+      bundles: [versionedBundle('../payroll-api/payroll-api.js', '20261015-payroll-rebuild-v1'), versionedBundle('settings/payroll.js', '20261015-payroll-rebuild-v1'), versionedBundle('people/people-kit.js', '20261015-people-workers-v1'), versionedBundle('people/list-page.js', '20261015-people-workers-v1'), versionedBundle('people/entity-modal.js', '20261015-branches-v1'), versionedBundle('payroll/app.js', '20261015-payroll-rebuild-v1')]
     },
     {
       id: 'portal.chat',
@@ -608,7 +608,7 @@
       portalTabId: 'company_settings',
       placement: 'settings',
       access: managementAccess,
-      bundles: [priorityFieldsBundle, versionedBundle('../custom-fields/firstmate-custom-fields.js', '20261014-cover-default-v1'), versionedBundle('../payroll-api/payroll-api.js', '20261014-labor-payout-v1'), versionedBundle('../websites-api/websites-api.js', '20260731-domains-v10'), versionedBundle('../domains-api/domains-api.js', '20260731-domains-v10'), versionedBundle('../insights/firstmate-insights.js', '20260901-insights-v1'), versionedBundle('settings/domains.js', '20260731-domains-v11'), versionedBundle('settings/crm.js', '20261015-contacts-store-v1'), versionedBundle('settings/contacts.js', '20261009-contact-settings-v1'), versionedBundle('settings/payroll.js', '20261013-pay-layers-v2'), versionedBundle('settings/money-overlay-enforcer.js', '20260828-money-overlay-integrity-v1'), versionedBundle('settings/platform-billing.js', '20260924-subscription-service-v3'), versionedBundle('../brand-kit/brand-kit.js', '20261006-firstmeasure-localization-v1'), bundle('../platform-terminology/editor.js'), versionedBundle('people/people-kit.js', '20261014-people-v5'), versionedBundle('people/list-page.js', '20261015-branches-v1'), versionedBundle('people/entity-modal.js', '20261015-branches-v1'), versionedBundle('people/hover-card.js', '20261014-people-v4'), versionedBundle('people/permissions-panel.js', '20261014-people-v5'), versionedBundle('people/app-grid.js', '20261015-people-v3'), versionedBundle('people/slots.js', '20261015-branches-v1'), versionedBundle('people/people-data.js', '20261015-branches-v1'), versionedBundle('people/people-directory.js', '20261015-branches-v1'), versionedBundle('people/fields-panel.js', '20261013-people-fields-v1'), versionedBundle('people/compensation-panel.js', '20261014-people-compensation-v1'), versionedBundle('people/page-kit.js', '20261015-branches-v1'), versionedBundle('people/people-lists.js', '20261015-branches-v1'), versionedBundle('people/branches.js', '20261015-branches-v1'), versionedBundle('people/users-page.js', '20261015-branches-v1'), versionedBundle('people/groups-page.js', '20261015-branches-v1'), versionedBundle('people/departments-page.js', '20261015-branches-v1'), versionedBundle('people/companies-page.js', '20261015-branches-v1'), versionedBundle('people/people-home.js', '20261015-branches-v1'), versionedBundle('people/people-settings.js', '20261015-search-grouping'), versionedBundle('settings/company.js', '20261015-contacts-store-v1')]
+      bundles: [priorityFieldsBundle, versionedBundle('../custom-fields/firstmate-custom-fields.js', '20261014-cover-default-v1'), versionedBundle('../payroll-api/payroll-api.js', '20261015-payroll-rebuild-v1'), versionedBundle('../websites-api/websites-api.js', '20260731-domains-v10'), versionedBundle('../domains-api/domains-api.js', '20260731-domains-v10'), versionedBundle('../insights/firstmate-insights.js', '20260901-insights-v1'), versionedBundle('settings/domains.js', '20260731-domains-v11'), versionedBundle('settings/crm.js', '20261015-contacts-store-v1'), versionedBundle('settings/contacts.js', '20261009-contact-settings-v1'), versionedBundle('settings/payroll.js', '20261015-payroll-rebuild-v1'), versionedBundle('settings/money-overlay-enforcer.js', '20260828-money-overlay-integrity-v1'), versionedBundle('settings/platform-billing.js', '20260924-subscription-service-v3'), versionedBundle('../brand-kit/brand-kit.js', '20261006-firstmeasure-localization-v1'), bundle('../platform-terminology/editor.js'), versionedBundle('people/people-kit.js', '20261015-people-workers-v1'), versionedBundle('people/list-page.js', '20261015-people-workers-v1'), versionedBundle('people/entity-modal.js', '20261015-branches-v1'), versionedBundle('people/hover-card.js', '20261014-people-v4'), versionedBundle('people/permissions-panel.js', '20261014-people-v5'), versionedBundle('people/app-grid.js', '20261015-people-v3'), versionedBundle('people/slots.js', '20261015-branches-v1'), versionedBundle('people/people-data.js', '20261015-people-workers-v1'), versionedBundle('people/people-directory.js', '20261015-branches-v1'), versionedBundle('people/fields-panel.js', '20261013-people-fields-v1'), versionedBundle('people/compensation-panel.js', '20261014-people-compensation-v1'), versionedBundle('people/page-kit.js', '20261015-people-workers-v1'), versionedBundle('people/people-lists.js', '20261015-branches-v1'), versionedBundle('people/branches.js', '20261015-branches-v1'), versionedBundle('people/users-page.js', '20261015-people-workers-v1'), versionedBundle('people/groups-page.js', '20261015-branches-v1'), versionedBundle('people/departments-page.js', '20261015-branches-v1'), versionedBundle('people/companies-page.js', '20261015-branches-v1'), versionedBundle('people/people-home.js', '20261015-branches-v1'), versionedBundle('people/people-settings.js', '20261015-search-grouping'), versionedBundle('settings/company.js', '20261015-contacts-store-v1')]
     },
     {
       id: 'portal.crew_overview',
@@ -948,7 +948,7 @@
     sales: { salesScheduleView:{ default:'week', values:['list','day','4day','week','month'], history:'push', apps:['portal.sales_schedule'] }, salesScheduleDate:{ history:'replace', apps:['portal.sales_schedule'] } },
     training: { trainingTab:{ default:'home', values:['home','decks','quizzes'], history:'push', apps:['portal.training'] }, course:{ history:'push', apps:['portal.training'] }, lesson:{ history:'push', apps:['portal.training'] } },
     equipment: { equipmentView:{ default:'fleet', values:['fleet','timeline','maintenance','utilization','settings'], history:'push' }, equipmentItem:{ history:'push' }, equipmentType:{ history:'replace' }, equipmentCategory:{ history:'replace' }, equipmentStatus:{ history:'replace' } },
-    payroll: { payrollView:{ default:'upcoming', values:['upcoming','timesheets','contractors','exports','history','settings'], history:'push' }, settingsEntity:{ history:'push' } },
+    payroll: { payrollView:{ default:'upcoming', values:['upcoming','review','timesheets','payees','history','exports','approvals','mine','settings'], history:'push' }, settingsEntity:{ history:'push' } },
     chat: { callQueue:{ history:'push' },callIndex:{ history:'replace' },callStep:{ history:'replace' },chatConversation:{ history:'push' },chatFilter:{history:'replace',values:['open','mine','unclaimed','snoozed','closed']},chatChannel:{history:'replace',values:['all','email','sms','call','webchat']} },
     channels: { channel:{ history:'push' }, channelThread:{ history:'replace' }, channelMessage:{ history:'replace' }, channelsView:{ default:'channel', values:['channel','saved','search'], history:'replace' } },
     canvassing: { pin:{ history:'push' }, canvassingStatus:{ history:'replace' } },

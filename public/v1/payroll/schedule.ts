@@ -212,17 +212,6 @@ export function payrollOccurrences(schedule: unknown, fromValue: string, through
     .filter((value): value is NonNullable<typeof value> => !!value);
 }
 
-export function nextPayrollOccurrence(schedule: unknown, eligibleAtValue: string, searchFromValue?: string) {
-  const eligible = new Date(eligibleAtValue);
-  if (!Number.isFinite(eligible.getTime())) return null;
-  const eligibleDay = eligible.toISOString().slice(0, 10);
-  const from = parseDate(searchFromValue || eligibleDay) || parseDate(eligibleDay);
-  if (!from) return null;
-  const through = addDays(from, 800);
-  const candidates = payrollOccurrences(schedule, dateKey(from), dateKey(through));
-  return candidates.find((occurrence) => Date.parse(occurrence.cutoff_at) >= eligible.getTime()) || null;
-}
-
 export function payrollEligibleAt(input: JsonObject, timingBasis: string) {
   const explicit = cleanText(input.eligible_at);
   if (explicit) return explicit;

@@ -37,9 +37,17 @@ function projectKey(projectId: string) {
   return projectId || "__unassigned__";
 }
 
+/** A payment recorded as made outside a pay run (off-cycle.ts). */
+function offCyclePaymentOf(entry: JsonObject) {
+  const payment = asObject(asObject(entry.metadata).off_cycle_payment);
+  return cleanText(entry.subgroup) === "off_cycle" && Object.keys(payment).length ? payment : null;
+}
+
 function publicEntry(value: unknown) {
   const entry = asObject(value);
+  const offCycle = offCyclePaymentOf(entry);
   return {
+    off_cycle_payment: offCycle ? { paid_on: cleanText(offCycle.paid_on), reference: cleanText(offCycle.reference) } : null,
     id: cleanText(entry.id),
     state: cleanText(entry.state),
     kind: cleanText(entry.kind),
@@ -135,6 +143,8 @@ function reportForPayee(payee: PayrollPayeeRef, entriesValue: unknown[], payment
     const totals = project.totals as EarningsTotals;
     if (entry.state === "projected") totals.projected_cents += entry.remaining_cents;
     if (entry.state === "accrued") totals.accrued_cents += entry.remaining_cents;
+    // Paid outside a pay run: it is paid, and the open negative entry takes it off what is still owed until a run takes it off.
+    if (entry.state === "accrued" && entry.off_cycle_payment) totals.paid_cents += -entry.amount_cents;
     project.currency = entry.currency || project.currency;
     project.entry_count = Number(project.entry_count || 0) + 1;
   }
@@ -194,6 +204,10 @@ function reportForPayee(payee: PayrollPayeeRef, entriesValue: unknown[], payment
     projects: projectReports,
     entries,
     payments,
+    off_cycle_payments: entries.filter((entry) => entry.state === "accrued" && entry.off_cycle_payment).map((entry) => ({
+      id: entry.id, kind: entry.kind, amount_cents: -entry.amount_cents, currency: entry.currency, paid_on: entry.off_cycle_payment!.paid_on,
+      reference: entry.off_cycle_payment!.reference, waiting_cents: -entry.remaining_cents
+    })),
     counts: { projects: projectReports.length, entries: entries.length, payments: payments.length },
     filters
   };

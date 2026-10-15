@@ -19,6 +19,7 @@
  *       online: userId,                       // presence dot on the photo
  *       photoAction: 'Change photo',          // makes the photo a button that picks an image
  *       title, secondary,                     // name and the line under it
+ *       marks: [{ id, icon, label }],          // small icons right after the name (kit.mark), label is the tooltip
  *       pills: [{ label, tone, icon, tooltip }],        // beside the name
  *       aside: html,                          // fixed block before the chips (kit.stack of members)
  *       chipGroups: [{ chips:[{ label, tone, color, tooltip }], tone }],   // right side, whole chips that fit, then +N
@@ -71,6 +72,7 @@
       .pp-list.embedded .pp-list-head::before,.pp-list.embedded .pp-list-head::after{display:none}
       .pp-list-tools{display:flex;align-items:center;justify-content:flex-end;gap:8px;min-width:0;flex:1 1 auto}
       .pp-list-control{display:contents}
+      .pp-row-title>.pp-name-mark{flex:none;margin-left:0}
       .pp-list-filters{flex:0 1 auto;min-width:0;overflow-x:auto;scrollbar-width:none}
       .pp-list-filters::-webkit-scrollbar{display:none}
       .pp-list-filters~.pp-search{flex-basis:170px}
@@ -296,7 +298,7 @@
       return `<div class="pp-row${model.dimmed ? ' dimmed' : ''}" role="listitem" data-row-key="${esc(key)}"${sectionKey != null ? ` data-row-section="${esc(sectionKey)}"` : ''}>
         ${photoHtml}
         <div class="pp-row-main"${model.hover ? ` data-people-hover="${esc(model.hover)}"` : ''}>
-          <div class="pp-row-title"><button type="button" class="pp-row-name" data-row-open>${esc(model.title || '')}</button>${(model.pills || []).map(kit.pill).join('')}</div>
+          <div class="pp-row-title"><button type="button" class="pp-row-name" data-row-open>${esc(model.title || '')}</button>${(model.marks || []).map(kit.mark).join('')}${(model.pills || []).map(kit.pill).join('')}</div>
           ${model.secondary ? `<div class="pp-row-secondary">${esc(model.secondary)}</div>` : ''}
         </div>
         ${model.aside ? `<div class="pp-row-aside">${model.aside}</div>` : ''}
