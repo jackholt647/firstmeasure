@@ -60,6 +60,24 @@ The roster's conflict check reads every project's schedule events.
 **Why it can wait.** Small organizations; the cost grows with users times fields and with total events.
 (docs/architecture/assignee-base.md)
 
+## Schedule roster reads every project
+
+**Today.** `schedule-roster.events` (`public/v1/scheduling/roster.ts`) answers up to 200 events per read. It reads
+every project and calendar event once per read to find the other work in the window the events cover, keeping only
+events in that window that name an assignee, and `assessAssigneeOverlap` reads them all again for the overlap check.
+Time off and the scheduling settings' days off are read once per read. Each event still runs `checkAssignment`, which
+loads the assignee directory (with the fields of only the people involved) and the base records, so a read of a busy
+week does that once per event.
+
+**Where the change goes.** An index on schedule events by time and by assignee key, read by both `scheduledWork` in
+`assignees/roster.ts` and `scheduledEvents` in `scheduling/occupancy.ts`, so one bounded query serves the window.
+For the per-event directory load, `checkAssignment` / `loadRoster` would take an already loaded directory as one more
+`sources` entry (an assignee-base change: the contract itself is unchanged).
+
+**Why it can wait.** The views ask only for the events on screen, in one read per render, and cache the answer for a
+minute. Cost grows with the total number of events and with events on screen.
+(docs/architecture/schedule-events.md, "Roster and warnings")
+
 ## Stats datasets over full scans and fast-changing sources
 
 **Today.** Stats materializations accept sources that can only be fully scanned; very high-cardinality or
@@ -68,3 +86,16 @@ continuously changing sources still need an indexed or snapshot adapter.
 **Where the change goes.** A provider-specific adapter per such source. (docs/architecture/stats-materializations.md)
 
 **Why it can wait.** No current dataset hits these limits.
+
+## Generation outcomes read one query per run
+
+**Today.** `history/outcomes.ts` answers `project-history.generations` and `generation-outcomes` by listing runs,
+then, for each run, reading the next run of the same list and that list's changes in between. Reading 500 runs
+across an organization is about 1,000 small queries.
+
+**Where the change goes.** `generationsWithOutcomes` only: read the runs and the `project_changes` rows of their
+subjects in one ranged query each, then pair them in memory. The outcome must stay exactly the same, so compare both
+ways in `tests/project-history.test.ts`.
+
+**Why it can wait.** It is read only by an agent looking for patterns, on demand, and is fast for the run counts a
+company has today. (docs/architecture/project-history.md, "Known limits")

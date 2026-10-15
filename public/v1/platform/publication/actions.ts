@@ -1,3 +1,4 @@
+import { changeKindForExecution, withChangeSource } from "../../history/source.js";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { env } from "../../src/config/env.js";
@@ -118,7 +119,8 @@ export async function invokeAction(ctx: PublicationContext, ref: ActionRef, inpu
     }
   }
   try {
-    const value = jsonClone((await def.execute(ctx, ref.target, clean as Record<string, unknown>, { receiptId, ...(options.idempotencyKey ? { idempotencyKey: options.idempotencyKey } : {}) })) ?? null);
+    // What the action changes is recorded as its caller's: a person, an agent, an automation or a module (project history).
+    const value = jsonClone((await withChangeSource({ kind: changeKindForExecution(ctx.executionKind), action: def.id, invocation_id: receiptId, ...(ctx.auth?.userId ? { user_id: ctx.auth.userId } : {}) }, async () => def.execute(ctx, ref.target, clean as Record<string, unknown>, { receiptId, ...(options.idempotencyKey ? { idempotencyKey: options.idempotencyKey } : {}) }))) ?? null);
     validateJson(def.outputSchema, value, "action output");
     if (store) await store.prepare("UPDATE publication_action_receipts SET state='succeeded',result_json=?,updated_at=? WHERE id=?").run(JSON.stringify(value), new Date().toISOString(), receiptId);
     return { value, receipt: { id: receiptId, status: "succeeded" as const, replayed: false, action: def.id, version: def.version, implementation: def.implementation } };

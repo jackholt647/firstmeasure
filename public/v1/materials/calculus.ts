@@ -1,3 +1,6 @@
+import { newGenerationId, recordGeneration, recordProjectChange } from "../history/storage.js";
+import { lineDiff, lineDiffSummary, lineFacts } from "../history/diff.js";
+import { currentChangeSource } from "../history/source.js";
 import { z } from "zod";
 import { Ajv } from "ajv";
 import { readDocument, upsertDocument, type JsonObject } from "../platform/storage.js";
@@ -222,11 +225,44 @@ export async function materialsCommand(ctx: PublicationContext, project: string,
   if (prior) { if (prior.hash !== hash) throw conflict("materials_request_reused", "This request key belongs to a different operation."); return { ledger: ledgerView(ledger), result: prior.result, duplicate: true }; }
   if (ledger.revision !== command.expected_revision) throw conflict("materials_revision", "Materials changed. Refresh and review before trying again.");
   const at = new Date().toISOString();
+  const before = new Map(ledger.sets.map((set) => [set.id, { lines: jsonClone(set.lines), work: jsonClone(set.work || []) }]));
   const result = await execute(ctx, ledger, command, at);
   ledger.events.push({ id: identity("event", command.key), operation: command.operation, actor: ctx.auth?.userId, at, result, input: command.operation === "evaluate" ? { set_id: command.input.set_id } : command.input });
   ledger.receipts[command.key] = { hash, result };
   const saved = await saveLedger(ctx.organizationId, ledger, ledger.revision);
+  await recordCalculusHistory(ctx, ledger, command, before);
   return { ledger: ledgerView(saved), result, duplicate: false };
+}
+
+/**
+ * The change history for a materials command (docs/architecture/project-history.md). Applying the calculation of a set
+ * a document or a scope published is a generator run: it is recorded with what the calculation was given (the
+ * document's parameters, the values, the data it read) and the lines it made, and the change it makes is the
+ * generator's. Anything else that changes a set's lines or its work (an amendment, a set made by hand, an agent's set)
+ * is recorded as whoever made it.
+ */
+async function recordCalculusHistory(ctx: PublicationContext, ledger: MaterialsLedger, command: CalculusCommand, before: Map<string, { lines: Line[]; work: ScopeWork[] }>) {
+  const user = String(ctx.auth?.userId || "");
+  let source = currentChangeSource(user);
+  if (command.operation === "apply") {
+    const producer = ledger.sets.find((set) => set.id === command.input.set_id);
+    const evaluation = producer?.evaluations.find((entry) => entry.id === command.input.evaluation_id);
+    const origin = String(producer?.origin.type || "");
+    if (producer && evaluation && (origin === "document" || origin === "scope")) {
+      const generationId = newGenerationId();
+      const target = producer.definition.amendment?.set_id || producer.id;
+      await recordGeneration(ctx.organizationId, { id: generationId, project_id: ledger.project_id, generator: "materials.calculus", generator_version: evaluation.definition_hash, subject_type: "materials_set", subject_id: target, user_id: user,
+        inputs: { set: { id: producer.id, key: producer.definition.key, title: producer.title }, origin: jsonClone(producer.origin), document: jsonClone(producer.document), values: jsonClone(evaluation.inputs), evidence: jsonClone(evaluation.evidence) },
+        output: { lines: evaluation.lines.map(lineFacts), work: jsonClone(evaluation.work || []), warnings: evaluation.warnings } });
+      source = { ...source, kind: "generator", generator: "materials.calculus", generator_version: evaluation.definition_hash, generation_id: generationId };
+    }
+  }
+  for (const set of ledger.sets) {
+    const was = before.get(set.id) || { lines: [], work: [] };
+    const lines = lineDiff(was.lines, set.lines), workChanged = JSON.stringify(was.work) !== JSON.stringify(set.work || []);
+    if (!lines.empty) await recordProjectChange(ctx.organizationId, { project_id: ledger.project_id, domain: "materials", subject_type: "materials_set", subject_id: set.id, op: "lines", summary: `${lineDiffSummary(lines)} (${command.operation})`, diff: { added: lines.added, removed: lines.removed, changed: lines.changed }, after: set.lines.map(lineFacts), source });
+    if (workChanged) await recordProjectChange(ctx.organizationId, { project_id: ledger.project_id, domain: "scope", subject_type: "materials_set", subject_id: set.id, op: "work", summary: `Work ${command.operation === "apply" ? "applied" : "changed"} on ${set.title}`, before: was.work, after: jsonClone(set.work || []), source });
+  }
 }
 async function execute(ctx: PublicationContext, ledger: MaterialsLedger, command: CalculusCommand, at: string): Promise<JsonObject> {
   const input = command.input; const key = command.key;

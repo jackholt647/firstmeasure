@@ -19,6 +19,9 @@ import { enrichedProposalScopePieces, normalizeScopeItem, resolveScopeItemVariat
 import { readScopeTemplate, readScopeTemplateVersion } from "../scopes/storage.js";
 import { emitWorkEvent } from "../work/engine.js";
 import { listPlanRecords } from "../work/storage.js";
+import { recordProjectChange, type ChangeDomain } from "../history/storage.js";
+import { fieldDiff, lineDiff, lineDiffSummary, lineFacts } from "../history/diff.js";
+import { currentChangeSource, withChangeSource } from "../history/source.js";
 import { eventListId, eventListPartId, eventPrimaryAssignee, eventResources, eventWindow, isAssigneeKind, normalizeResourceRef, stripRemovedEventFields } from "../scheduling/event-model.js";
 import { evaluatePlacement, normalizePlacement, suggestedDurationMinutes } from "../scheduling/placement.js";
 import { resolveOrganizationTimezone } from "../platform/timezone.js";
@@ -475,6 +478,14 @@ function deriveTotals(items: JsonObject[]) {
   };
 }
 
+// The change history (docs/architecture/project-history.md): which part of the project's work a list is.
+function historyDomain(list: JsonObject): ChangeDomain {
+  const type = cleanText(list.resource_type);
+  return type === "labor" ? "work_order" : type === "equipment" ? "equipment" : "materials";
+}
+// What a list's own fields say that a person changes; its lines are recorded with each version.
+const HISTORY_LIST_FIELDS = ["title", "status", "delivery_status", "assignment", "color", "scope_template_id", "scope_piece_id", "schedule.enabled", "schedule.group_id", "controls", "compensation", "metadata.work_scope"];
+
 async function commitMaterialVersion(
   orgId: string,
   listDoc: JsonObject,
@@ -577,6 +588,16 @@ async function commitMaterialVersion(
     version_number: versionNumber,
     reason: data.reason
   }, ctx);
+  const lines = lineDiff(currentItems, items);
+  if (!lines.empty) {
+    // A tool in the interface that made the change for a person (Fix all) names itself; the person is still who did it.
+    const tool = cleanText(input.change_tool);
+    await recordProjectChange(orgId, {
+      project_id: cleanText(list.project_id), domain: historyDomain(list), subject_type: "material_list", subject_id: cleanText(list.id), op: "lines",
+      summary: `${lineDiffSummary(lines)} (${data.reason})`, diff: { added: lines.added, removed: lines.removed, changed: lines.changed }, after: items.map(lineFacts),
+      user_id: ctx?.userId, ...(tool ? { source: { ...currentChangeSource(ctx?.userId), tool } } : {})
+    });
+  }
   return { list: documentView(nextListDoc), version: documentView(versionDoc) };
 }
 
@@ -661,6 +682,9 @@ export async function createMaterialList(orgId: string, projectId: string, input
   }, { replace: true });
   await patchProjectMaterialRefs(orgId, projectId, id);
   await recordMaterialEvent(orgId, id, "material_list.created", { project_id: projectId }, ctx);
+  // Made with its lines already on it: the history records the list and every line as added.
+  const made = lineDiff([], items);
+  await recordProjectChange(orgId, { project_id: projectId, domain: historyDomain(data), subject_type: "material_list", subject_id: id, op: "created", summary: `Created${title ? ` ${title}` : ""}${items.length ? ` with ${items.length} line${items.length === 1 ? "" : "s"}` : ""}`, diff: { added: made.added, removed: [], changed: [] }, after: items.map(lineFacts), user_id: ctx?.userId });
   if (items.length) {
     const initial = await commitMaterialVersion(orgId, doc, {
       reason: "manual",
@@ -1504,7 +1528,21 @@ async function materialDefinitionForPiece(orgId: string, branchId: string, piece
   return resolved;
 }
 
+/**
+ * Builds a project's lists from its scope. What it writes is the scope generator's in the change history, so lines a
+ * person later adds, removes or changes are told apart from what the scope made.
+ */
 export async function initializeProjectMaterialListsFromScope(
+  orgId: string,
+  projectId: string,
+  input: JsonObject = {},
+  ctx?: PlatformAuthContext | null
+) {
+  const template = cleanText(input.scope_template_id || asObject(input.scope_piece).template_id);
+  return withChangeSource({ kind: "generator", generator: "scope.resources", generator_version: template ? `${template}@${cleanText(input.scope_template_version) || "current"}` : "" }, () => buildProjectListsFromScope(orgId, projectId, input, ctx));
+}
+
+async function buildProjectListsFromScope(
   orgId: string,
   projectId: string,
   input: JsonObject = {},
@@ -1836,6 +1874,8 @@ export async function patchMaterialList(orgId: string, listId: string, patch: Js
     }
   }, { replace: true });
   await recordMaterialEvent(orgId, listId, "material_list.updated", { fields: Object.keys(patch) }, ctx);
+  const fields = fieldDiff(current, data, HISTORY_LIST_FIELDS);
+  if (Object.keys(fields).length) await recordProjectChange(orgId, { project_id: cleanText(current.project_id), domain: historyDomain(current), subject_type: "material_list", subject_id: listId, op: "fields", summary: `Changed ${Object.keys(fields).join(", ")}`, diff: fields, user_id: ctx?.userId });
   return documentView(doc);
 }
 

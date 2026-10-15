@@ -1,3 +1,6 @@
+import { newGenerationId, recordGeneration } from "../history/storage.js";
+import { withChangeSource } from "../history/source.js";
+import { lineFacts } from "../history/diff.js";
 import { z } from "zod";
 import type { PlatformAuthContext } from "../platform/auth.js";
 import { badRequest } from "../platform/errors.js";
@@ -124,7 +127,11 @@ export async function previewLaborList(orgId: string, input: unknown) {
   // Numbers a person must supply that are not a line's quantity (a gate, a duration) still have to be asked for.
   const typedInputs = new Set(typedInList.map(({ input: source }) => source.name));
   const ask = sheet.inputs.filter((candidate) => candidate.source.kind === "manual" && !typedInputs.has(candidate.name)).map((candidate) => ({ name: candidate.name, label: candidate.label || candidate.name, required: candidate.required }));
-  return { list, assignee, sheet, evaluation, items: [...items, ...kept], kept: kept.length, ask, measurement_source: context.measurement_source };
+  // What the sheet was given, kept with each generation so what people change afterwards can be traced to it
+  // (docs/architecture/project-history.md): the measurements, the products on the project, the project's fields, the
+  // numbers typed in, and the work the job requires.
+  const inputs = { pay_sheet: { id: sheet.id, revision: sheet.revision, name: sheet.name }, assignee, measurement_source: context.measurement_source, measurements: base.measurements, materials: base.materials, fields: base.fields, manual: base.manual, required_work: required.map((row) => ({ item: row.item, quantity: row.quantity, unit: row.unit })), excluded_work: listExcludedWork(list) };
+  return { list, assignee, sheet, evaluation, items: [...items, ...kept], kept: kept.length, ask, measurement_source: context.measurement_source, inputs };
 }
 
 /** Prices the project on the list's assignee's pay sheet and writes the result as the list's lines. */
@@ -135,12 +142,19 @@ export async function generateLaborList(orgId: string, input: unknown, actor: Ac
   await (await import("./completion.js")).assertLaborListOpen(orgId, parsed.list_id);
   const preview = await previewLaborList(orgId, parsed);
   const auth = actor as PlatformAuthContext;
-  const version = await createMaterialVersion(orgId, parsed.list_id, { expected_revision: Number(preview.list.revision), reason: "revision", notes: `Generated from ${preview.sheet.name}`, items: preview.items }, auth);
+  // The run is recorded with what it was given, and every line it writes carries the run, so what people do to those
+  // lines afterwards is told apart from what the sheet made.
+  const generationId = newGenerationId(), generatorVersion = `${preview.sheet.id}@${preview.sheet.revision}`;
+  const items = preview.items.map((item) => (obj(item.metadata)[GENERATED] === true ? { ...item, metadata: { ...obj(item.metadata), generation_id: generationId } } : item));
+  await recordGeneration(orgId, { id: generationId, project_id: text(preview.list.project_id), generator: "labor.pay_sheet", generator_version: generatorVersion, subject_type: "material_list", subject_id: parsed.list_id, user_id: text(actor.userId), inputs: preview.inputs, output: { lines: items.filter((item) => obj(item.metadata)[GENERATED] === true).map(lineFacts), kept: preview.kept, total_cents: preview.evaluation.total_cents, complete: preview.evaluation.complete } });
+  return await withChangeSource({ kind: "generator", generator: "labor.pay_sheet", generator_version: generatorVersion, generation_id: generationId }, async () => {
+  const version = await createMaterialVersion(orgId, parsed.list_id, { expected_revision: Number(preview.list.revision), reason: "revision", notes: `Generated from ${preview.sheet.name}`, items }, auth);
   const current = await readMaterialList(orgId, parsed.list_id);
   // What it was generated from, so the list can say when its sheet or its inputs have moved on.
   const generation = { pay_sheet_id: preview.sheet.id, pay_sheet_revision: preview.sheet.revision, pay_sheet_name: preview.sheet.name, generated_at: new Date().toISOString(), generated_by_user_id: text(actor.userId), duration_days: preview.evaluation.duration_days, work_items: preview.evaluation.work.items, estimated_hours: preview.evaluation.work.hours, measurement_source: preview.measurement_source, complete: preview.evaluation.complete, total_cents: preview.evaluation.total_cents, manual: parsed.manual || {}, missing_inputs: preview.evaluation.missing_inputs.map((entry) => ({ name: entry.name, label: entry.label, required: entry.required, kind: entry.source.kind, reason: entry.reason })) };
-  const list = await patchMaterialList(orgId, parsed.list_id, { expected_revision: Number(current.revision), metadata: { ...obj(current.metadata), labor_generation: generation } }, auth);
+  const list = await patchMaterialList(orgId, parsed.list_id, { expected_revision: Number(current.revision), metadata: { ...obj(current.metadata), labor_generation: { ...generation, generation_id: generationId } } }, auth);
   return { list, version, evaluation: preview.evaluation, kept: preview.kept, measurement_source: preview.measurement_source };
+  });
 }
 
 /**

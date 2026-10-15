@@ -232,6 +232,19 @@ measurement partitions to tell a line that pays from one that adjusts, and do
 not add parts of different partitions together. A warning never blocks. Run
 `tests/work-requirements.test.ts` for changes here.
 
+## Project change history
+
+Read [project change history](docs/architecture/project-history.md) before
+adding a writer that changes a project's lists, scope or schedule, or a
+generator that writes them. Every change to a project's real work is recorded
+append-only by the domain writer, on the server, with its source (person,
+agent, automation, module, generator or system); `history/source.ts` carries
+the source, so nothing passes it by hand. A generator records its run with
+`recordGeneration`, writes inside `withChangeSource({ kind: "generator" })` and
+stamps `generation_id` on its lines, so what people do to generated work is
+told apart from it. Read history through the `project-history` provider, never
+the tables. Run `tests/project-history.test.ts` for changes here.
+
 ## Schedule events
 
 Read [schedule events](docs/architecture/schedule-events.md) before changing

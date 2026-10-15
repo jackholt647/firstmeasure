@@ -6148,7 +6148,7 @@
           if (!pick) { notes.push(`Nothing in your equipment provides ${row.label.toLowerCase()}. Mark an equipment type as providing it in the Equipment tab.`); continue; }
           const list = state.lists.find((entry) => resourceType(entry) === 'equipment') || await createResourceList('equipment');
           if (!list || !projectOperationIsCurrent(operation)) continue;
-          await persistVersion({ reason: 'supplement', add_items: [{ id: uid('line'), section: 'equipment', name: pick.name, quantity: pick.quantity, unit: 'day', ...(pick.daily ? { projected_unit_price: pick.daily / 100 } : {}), metadata: { equipment_unit_id: pick.unit_id, equipment_type_id: pick.type_id, provides: pick.provides } }] }, { list });
+          await persistVersion({ reason: 'supplement', change_tool: 'requirements.fix_all', add_items: [{ id: uid('line'), section: 'equipment', name: pick.name, quantity: pick.quantity, unit: 'day', ...(pick.daily ? { projected_unit_price: pick.daily / 100 } : {}), metadata: { equipment_unit_id: pick.unit_id, equipment_type_id: pick.type_id, provides: pick.provides } }] }, { list });
           done.push(`Added ${pick.quantity > 1 ? `${pick.quantity} × ` : ''}${pick.name} for ${row.label.toLowerCase()}`);
         }
         if (!(await fresh())) return;

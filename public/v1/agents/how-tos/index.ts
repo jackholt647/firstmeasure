@@ -4,11 +4,13 @@
 
 import type { HowToEntry, HowToStep } from "./types.js";
 import { payForProjectRole } from "./entries/pay_for_project_role.js";
+import { improveGenerationFromHistory } from "./entries/improve_generation_from_history.js";
 
 export type { HowToEntry, HowToRefs, HowToStep } from "./types.js";
 
 export const HOW_TO_ENTRIES: HowToEntry[] = [
-  payForProjectRole
+  payForProjectRole,
+  improveGenerationFromHistory
 ];
 
 const PLANNED_WARNING = "NOT BUILT YET. Do not attempt this step, do not substitute another feature for it, and tell the user it is not available yet.";
