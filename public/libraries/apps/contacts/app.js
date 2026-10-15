@@ -178,7 +178,6 @@
         tags: (Array.isArray(contact.tags) ? contact.tags : []).map((tag) => cleanText(tag)).filter(Boolean),
         imported_at: cleanText(contact.imported_at),
         import_source: cleanText(contact.import_source),
-        record_project_id: '',
         projects: [],
         projectIds: new Set(),
         latestDateMs: 0
@@ -189,8 +188,6 @@
       (Array.isArray(project.contacts) ? project.contacts : []).forEach((linked) => {
         const record = byId.get(cleanText(linked?.id, linked?.contact_id));
         if (!record) return;
-        // A standalone record is where the contact window still saves; it is not one of their projects.
-        if (project.workflow_state === 'contact_only') { if (!record.record_project_id) record.record_project_id = projectRef.id; return; }
         if (record.projectIds.has(projectRef.id)) return;
         record.projectIds.add(projectRef.id);
         record.projects.push(projectRef);
@@ -217,7 +214,7 @@
   const sharingView = () => contactSharing ||= window.FirstMateSharedList?.create('contact', orgId);
   function sortedFilteredContacts(){
     const query=normalizeKey(state.query);
-    const filtered=state.contacts.filter(c=>(!query || String(c.searchText || [c.name,c.email,c.phone,c.address].join(' ')).toLowerCase().includes(query)) && (!sharingView() || sharingView().matches(c,c.id,c.record_project_id)));
+    const filtered=state.contacts.filter(c=>(!query || String(c.searchText || [c.name,c.email,c.phone,c.address].join(' ')).toLowerCase().includes(query)) && (!sharingView() || sharingView().matches(c,c.id)));
     if (state.sort === 'recent') {
       filtered.sort((a, b) => (b.latestDateMs || 0) - (a.latestDateMs || 0) || a.name.localeCompare(b.name));
     } else if (state.sort === 'projects') {
@@ -312,7 +309,7 @@
           <span>${String(escapeHtml(contact.latestDateLabel))}</span>
         </div>
         ${String(tagChips(contact))}
-        ${sharingView()?.badge(contact,contact.id,contact.record_project_id) || ''}
+        ${sharingView()?.badge(contact,contact.id) || ''}
         ${String(projectRows(contact))}
       </article>
     `;
@@ -328,7 +325,7 @@
           <span>
             <strong>${escapeHtml(contact.name)}</strong>
             <small>${contactLine(contact)}</small>
-            ${tagChips(contact, 3)}${sharingView()?.badge(contact,contact.id,contact.record_project_id) || ''}
+            ${tagChips(contact, 3)}${sharingView()?.badge(contact,contact.id) || ''}
           </span>
         </button>
         <div class="ct-list-projects">
@@ -548,7 +545,6 @@
       contact_kind:contact.contact_kind || "human",
       profile_media_id:contact.profile_media_id || "",
       custom_field_values:contact.custom_field_values || {},
-      record_project_id:contact.record_project_id,
       imported_at: contact.imported_at || '',
       import_source: contact.import_source || ''
     };

@@ -1002,11 +1002,11 @@
           if(CONTACT_TYPES.includes(definition.type)){
             const kind=definition.type==='human_contact'?'human':definition.type==='org_contact'?'org':'either';
             const result=await root.PlatformAPI.contacts.options(orgId,kind);
-            definition.reference_choices=(result.contacts || []).map(contact=>({label:contact.name,reference:{contact_id:contact.contact_id,project_id:contact.project_id}}));
+            definition.reference_choices=(result.contacts || []).map(contact=>({label:contact.name,reference:{contact_id:contact.contact_id}}));
           }else{
-            const entity=options.entity || {},id=cleanText(entity.id || entity.contact_id),projectId=cleanText(entity.record_project_id || entity.project_id);
+            const entity=options.entity || {},id=cleanText(entity.id || entity.contact_id);
             let result;
-            if(options.entityType==='contact' && id && projectId)result=await root.PlatformAPI.contacts.media(orgId,{contact_id:id,project_id:projectId});
+            if(options.entityType==='contact' && id)result=await root.PlatformAPI.contacts.media(orgId,id);
             else if(options.entityType==='project' && id)result=await root.PlatformAPI.media.list(orgId,{project_id:id});
             else if(options.entityType==='user' && id){result=await root.PlatformAPI.media.list(orgId);result={media:(result.media || []).filter(media=>media.owner?.type==='user' && media.owner?.id===id)};}
             else result={media:[]};

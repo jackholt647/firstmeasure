@@ -619,8 +619,17 @@
    * edit) and advance the baseline only for fields that reached the server,
    * so a failed save is resent. Server-owned fields (schedule items, work
    * projection) are never written from here. Without a baseline (a
-   * brand-new project) the full save stays. */
-  const SERVER_OWNED_PROJECT_KEYS = new Set(['events', 'work_projection', 'lifecycle', 'claims']);
+   * brand-new project) the full save stays. A project's contacts are
+   * written through the contacts API, never with the project
+   * (docs/architecture/contacts.md); the project write leaves out the keys
+   * the contact service projects onto it. */
+  const PROJECT_CONTACT_KEYS = ['contacts', 'contact_id', 'primary_contact_id', 'contact_ids', 'customer_name', 'primary_contact_name', 'customer_email', 'primary_contact_email', 'customer_phone', 'primary_contact_phone'];
+  const SERVER_OWNED_PROJECT_KEYS = new Set(['events', 'work_projection', 'lifecycle', 'claims', ...PROJECT_CONTACT_KEYS]);
+  const withoutProjectContacts = (project) => {
+    const rest = { ...project };
+    PROJECT_CONTACT_KEYS.forEach((key) => { delete rest[key]; });
+    return rest;
+  };
   const stableJson = (value) => JSON.stringify(value, (key, entry) => (
     entry && typeof entry === 'object' && !Array.isArray(entry)
       ? Object.keys(entry).sort().reduce((sorted, name) => { sorted[name] = entry[name]; return sorted; }, {})
@@ -689,10 +698,10 @@
     if (typeof value === 'number' || typeof value === 'boolean' || typeof value === 'string') return String(value);
     return stableJson(value);
   };
-  /* R4-EQ-2: the contacts list is one top-level field, but two people may
-   * edit different contacts (or different fields of one contact). Apply only
-   * this window's per-contact, per-field changes (against its baseline) to
-   * the server's current list instead of replacing the list wholesale. */
+  /* R4-EQ-2: two people may edit different contacts (or different fields of
+   * one contact) of a project. Apply only this window's per-contact,
+   * per-field changes (against its baseline) to the server's current list
+   * instead of replacing the list wholesale. */
   const contactKey = (contact, index) => String(contact?.id || contact?.contact_id || `index:${index}`);
   const mergeContactChanges = (baseList, mineList, theirsList) => {
     const base = new Map((Array.isArray(baseList) ? baseList : []).map((contact, index) => [contactKey(contact, index), contact || {}]));
@@ -789,13 +798,15 @@
     if ((changed.lat !== undefined || changed.lng !== undefined) && Array.isArray(next.pins) && next.pins.length) changed.pins = next.pins;
     // Nothing but the save stamp differs: no write (it would only bump the
     // revision other windows' saves are checked against).
-    if (!Object.keys(changed).some((key) => key !== 'updated_at')) return { ok: true, document: null, unchanged: true };
-    const sent = { ...changed };
-    if (Object.prototype.hasOwnProperty.call(changed, 'contacts') && typeof projects.get === 'function') {
+    const contactsChanged = Array.isArray(next.contacts) && comparableProjectField('contacts', next.contacts, next) !== comparableProjectField('contacts', baseline.data.contacts, baseline.data);
+    if (contactsChanged) {
       const latest = await projects.get(orgId, id);
       if (latest?.missing || !latest?.document) throw projectDeletedError(id);
-      changed.contacts = mergeContactChanges(baseline.data.contacts, next.contacts, latest.document.data?.contacts);
+      await window.PlatformAPI.contacts.setProjectContacts(orgId, id, mergeContactChanges(baseline.data.contacts, next.contacts, latest.document.data?.contacts));
+      projects.advanceBaseline?.(id, { contacts: next.contacts });
     }
+    if (!Object.keys(changed).some((key) => key !== 'updated_at')) return { ok: true, document: null, unchanged: !contactsChanged };
+    const sent = { ...changed };
     const result = await projects.patch(orgId, id, changed, metadata);
     // A project this window read from the server is gone: never recreate it.
     if (result?.missing) throw projectDeletedError(id);
@@ -807,7 +818,14 @@
     const projects = window.PlatformAPI.projects;
     if (deletedProjectIds.has(id)) throw projectDeletedError(id);
     const baseline = typeof projects.baseline === 'function' ? projects.baseline(id) : null;
-    if (!baseline || typeof projects.patch !== 'function') return projects.save(orgId, id, next, metadata);
+    if (!baseline || typeof projects.patch !== 'function') {
+      const saved = await projects.save(orgId, id, withoutProjectContacts(next), metadata);
+      if (!Array.isArray(next.contacts) || !next.contacts.length || saved?.missing) return saved;
+      // The project exists now; link its contacts, then return it with the contact service's projection.
+      await window.PlatformAPI.contacts.setProjectContacts(orgId, id, next.contacts);
+      const linked = typeof projects.get === 'function' ? await projects.get(orgId, id) : null;
+      return linked?.document ? linked : saved;
+    }
     try {
       try {
         return await sendProjectPatch(orgId, next, metadata, baseline);
