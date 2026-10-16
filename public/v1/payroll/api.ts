@@ -24,7 +24,7 @@ import {
 } from "./operations.js";
 import { assertPayeeManageable, payeeScope, scopedBatch, scopedUpcoming } from "./payee-scope.js";
 import { listOffCyclePayments, offCyclePaymentInputSchema, readOffCyclePayment, recordOffCyclePayment, removeOffCyclePayment } from "./off-cycle.js";
-import { payrollEarnings } from "./earnings.js";
+import { myPayExtras, payrollEarnings } from "./earnings.js";
 import { projectUserEarnings } from "./pay-refresh.js";
 import { OWN_PROJECTED_EARNINGS_PERMISSION } from "./pay-rule-publication.js";
 import {
@@ -56,6 +56,8 @@ import {
   readPayrollArtifact,
   readPayrollLedgerEntry,
   readPayrollSchedule,
+  readPayrollSettings,
+  savePayrollSettings,
 } from "./storage.js";
 
 const querySchema = z.object({}).passthrough();
@@ -145,7 +147,21 @@ export const registerPayrollApi: FastifyPluginAsync = async (app) => {
       worker_type: ["independent_contractor", "subcontractor"].includes(cleanText(asObject(workforceUser).worker_classification))
         ? cleanText(asObject(workforceUser).worker_classification) as "independent_contractor" | "subcontractor" : "employee"
     }], query));
-    return { ok: true, ...result, earnings: result.earnings[0] };
+    return { ok: true, ...result, earnings: result.earnings[0], ...(await myPayExtras(orgId, context.userId)) };
+  });
+
+  // Whether pay runs need approval. On unless the organization turned it off.
+  app.get("/organizations/:orgId/settings", async (request) => {
+    const orgId = getParam(request.params, "orgId");
+    await requirePayrollRead(request, orgId);
+    return { ok: true, settings: await readPayrollSettings(orgId) };
+  });
+
+  app.put("/organizations/:orgId/settings", async (request) => {
+    const orgId = getParam(request.params, "orgId");
+    const context = await requirePayrollMutation(request, orgId);
+    const input = z.object({ approval_required: z.boolean(), expected_revision: z.number().int().min(0).optional() }).strict().parse(request.body ?? {});
+    return { ok: true, settings: await savePayrollSettings(orgId, input, context.userId) };
   });
 
   // What the signed-in user's pay rules project they will earn from work not done yet. Never posted; see pay-refresh.ts.

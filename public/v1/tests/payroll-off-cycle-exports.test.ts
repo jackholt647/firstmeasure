@@ -148,6 +148,48 @@ test('off-cycle payments subtract from the next pay run, exports follow Gusto an
       assert.equal(decided.approval.status, 'approved'); assert.equal(decided.my_decision, 'approved');
     });
 
+    await t.test('reimbursements are paid in full, and with approval turned off a pay run goes draft, run, paid', async () => {
+      await core.upsertDocument(org, 'users', { id: 'dana', data: { name: 'Dana Driver', email: 'dana@example.com', status: 'active' } });
+      const dana = { type: 'organization_user', id: 'dana', name: 'Dana Driver' };
+      await service.recordPayrollLedgerEntries(org, [earning(dana, 'reimbursement', 5000, 'receipt-dana'), earning(dana, 'hourly', 2000, 'hours-dana')] as any);
+      await run(command, 'payroll.offCycle.record', { payee: { type: 'organization_user', id: 'dana' }, kind: 'hourly', amount_cents: 6000, paid_on: day(-1) });
+      const occurrence = (await read(userPublicationContext(manager), 'upcoming')).value.upcoming.find((row: any) => !row.batch && row.employees.some((item: any) => item.payee.id === 'dana'));
+      const preview = occurrence.employees.find((item: any) => item.payee.id === 'dana').accrued;
+      // The outside payment comes off the $20 earned, never the $50 reimbursement; the other $40 waits.
+      assert.equal(preview.off_cycle_cents, 2000); assert.equal(preview.net_cents, 5000); assert.equal(preview.subgroup_totals.reimbursement, 5000);
+      assert.equal((await read(userPublicationContext(manager), 'configuration')).value.settings.approval_required, true, 'approval is on unless turned off');
+      const saved = await run(command, 'payroll.settings.save', { approval_required: false, expected_revision: 0 });
+      assert.equal(saved.approval_required, false);
+      await assert.rejects(run(userPublicationContext(auth('bob', { 'crew.time_clock.use': true }), { mode: 'command' }), 'payroll.settings.save', { approval_required: true }));
+      const drafted = (await run(command, 'payroll.batch.create', { schedule_id: schedule.id, pay_date: occurrence.pay_date })).batch;
+      assert.equal(drafted.approval.status, 'not_required');
+      const item = drafted.items.find((row: any) => row.payee.id === 'dana');
+      assert.equal(item.net_cents, 5000); assert.equal(item.subgroup_totals.off_cycle, -2000);
+      const file = await run(command, 'payroll.artifact.generate', { type: 'quickbooks_payroll', format: 'csv', batch_id: drafted.id });
+      const lines = csvRows((await store.readPayrollArtifact(org, file.id, true) as any).content.toString('utf8')).filter((row) => row[0] === 'Dana Driver').map((row) => [row[2], row[3]]);
+      assert.deepEqual(lines, [['Hourly pay', '20.00'], ['Reimbursement', '50.00'], ['Already paid outside a pay run', '-20.00']]);
+      await run(command, 'payroll.batch.action', { action: 'run' }, drafted.id);
+      const paid = (await run(command, 'payroll.batch.action', { action: 'paid' }, drafted.id)).batch;
+      assert.equal(paid.status, 'paid');
+      const waiting = (await read(userPublicationContext(manager), 'off_cycle_payments')).value.find((row: any) => row.payee.id === 'dana');
+      assert.equal(waiting.subtracted_cents, 2000); assert.equal(waiting.waiting_cents, 4000);
+      // Turned back on, a pay run needs its approval again before it is marked paid.
+      await run(command, 'payroll.settings.save', { approval_required: true });
+      await service.recordPayrollLedgerEntries(org, [earning(dana, 'hourly', 9000, 'hours-dana-2')] as any);
+      const next = (await read(userPublicationContext(manager), 'upcoming')).value.upcoming.find((row: any) => !row.batch && row.employees.some((entry: any) => entry.payee.id === 'dana'));
+      const gated = (await run(command, 'payroll.batch.create', { schedule_id: schedule.id, pay_date: next.pay_date })).batch;
+      await assert.rejects(run(command, 'payroll.batch.action', { action: 'paid' }, gated.id), /need approval/);
+      // With approval off, a run someone was asked to approve waits for them.
+      await run(command, 'payroll.settings.save', { approval_required: false });
+      await run(command, 'payroll.batch.action', { action: 'submit_approval', approvers: [{ user_id: 'alice' }] }, gated.id);
+      await assert.rejects(run(command, 'payroll.batch.action', { action: 'run' }, gated.id), /Someone was asked to approve/);
+      await run(command, 'payroll.batch.action', { action: 'void' }, gated.id);
+      await run(command, 'payroll.settings.save', { approval_required: true });
+      // The payee's own view says when they are next paid.
+      const mine = (await read(userPublicationContext(auth('dana', {})), 'my_earnings')).value;
+      assert.match(mine.next_payment.pay_date, /^\d{4}-\d{2}-\d{2}$/); assert.equal(mine.next_payment.schedule_name, 'Weekly'); assert.deepEqual(mine.unresolved, []);
+    });
+
     await t.test('someone who sees only their own branch sees only its payees', async () => {
       const structure = { branches: [{ id: 'default', status: 'active' }, { id: 'north', status: 'active' }], catalog: { regions: [] },
         users: [{ id: 'alice', branch_ids: ['default'] }, { id: 'bob', branch_ids: ['north'] }, { id: 'cora', branch_ids: ['default'] }], groups: [], connections: [{ id: 'acme_roofing', branch_ids: [] }] };

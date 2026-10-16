@@ -330,7 +330,7 @@
       view:clean(context.params?.standalone) || routed(),
       data:{}, errors:{}, loading:false, busy:false, destroyed:false, token:0,
       branch:clean(context.params?.branch_ids),
-      structure:null, vocabulary:null, rules:null, directory:null,
+      structure:null, vocabulary:null, rules:null, directory:null, settings:null,
       ts:{ from:clean(context.params?.from) || addDays(today, -14), through:clean(context.params?.through) || today, status:'pending', search:'' },
       reports:{ from:addDays(today, -30), through:today },
       payeeSearch:'', projected:null,
@@ -351,10 +351,11 @@
         const result = await window.PlatformAPI.publication.read(state.orgId, { provider:'organization-branches', export:'structure', target:{ scope:'organization', organizationId:state.orgId } }).catch(() => null);
         state.structure = result?.status === 'ready' ? obj(result.value) : {};
       }
+      if (can('view.runs') && state.settings === null) state.settings = await Promise.resolve(window.PayrollAPI?.published?.read?.(state.orgId, 'configuration')).then((value) => obj(value?.settings)).catch(() => ({})) || {};
       if (can('view.runs') && state.vocabulary === null) state.vocabulary = await Promise.resolve(window.PayrollAPI?.pay?.vocabulary?.(state.orgId)).catch(() => ({})) || {};
     }
     async function load(options = {}){
-      if (state.destroyed || !state.orgId || state.view === 'settings') return;
+      if (state.destroyed || !state.orgId || state.view === 'settings' || state.view === 'mine') return;
       if (!window.PayrollAPI) { state.loading = false; state.unavailable = true; render(); return; }
       const token = ++state.token;
       if (!options.silent) { state.loading = true; render(); }
@@ -381,10 +382,6 @@
       if (view === 'history') { tasks.batches = () => api.batches.list(state.orgId, { limit:100, ...branchArgs() }).then((result) => arr(result?.batches)); tasks.schedules = () => api.schedules.list(state.orgId, { includeArchived:true }).then((result) => result.schedules); tasks.offCycle = () => api.offCycle.list(state.orgId, branchArgs()); }
       if (view === 'exports') { tasks.catalog = () => api.artifacts.catalog(state.orgId).then((result) => arr(result?.exports)); tasks.artifacts = () => api.artifacts.list(state.orgId, { limit:100 }).then((result) => arr(result?.artifacts)); }
       if (view === 'approvals') tasks.approvals = () => api.approvals.mine(state.orgId);
-      if (view === 'mine') {
-        tasks.mine = () => api.earnings.me(state.orgId, { payment_limit:100 });
-        if (can('mine.projected')) tasks.projectedMine = () => api.earnings.projectedMine(state.orgId);
-      }
       const entries = Object.entries(tasks);
       const results = await Promise.all(entries.map(([, read]) => guarded(read)));
       if (token !== state.token || state.destroyed) return;
@@ -538,7 +535,7 @@
         const lines = runLines(current);
         const status = runStatus(current.occurrence, batch);
         const sections = [[t('employees', 'Employees'), lines.filter((line) => paidAs(line.payee) === t('employee', 'Employee'))], [t('contractors', 'Contractors'), lines.filter((line) => paidAs(line.payee) !== t('employee', 'Employee'))]];
-        const markPaid = batch && ['approved', 'run', 'partial'].includes(status.key) && can('runs.done');
+        const markPaid = batch && (['approved', 'run', 'partial'].includes(status.key) || (status.key === 'draft' && obj(state.settings).approval_required === false)) && can('runs.done');
         const rows = sections.filter(([, list]) => list.length).flatMap(([label, list]) => [
           `<tr class="fmp-section"><td colspan="7">${esc(label)}</td></tr>`,
           ...list.sort((a, b) => payeeName(a.payee).localeCompare(payeeName(b.payee))).map((line) => `<tr>
@@ -569,9 +566,11 @@
         const decided = new Map(arr(approval.decisions).map((decision) => [clean(decision.user_id), decision]));
         const waitingFor = named.filter((person) => clean(decided.get(clean(person.user_id))?.decision) !== 'approved').map((person) => clean(person.name) || clean(person.user_id));
         const iAmNamed = named.some((person) => clean(person.user_id) === me) && !decided.has(me);
+        // The organization's payroll setting: with approval off a pay run goes draft, entered, paid.
+        const approvalOff = obj(state.settings).approval_required === false;
         const text = {
           none:t('step_none', 'Not drafted yet. Drafting works out everyone\u2019s earnings again and fixes who is in this pay run and what each is paid.'),
-          draft:t('step_draft', 'Check who is in it and what each is paid. Approve it yourself, or ask someone to approve it.'),
+          draft:approvalOff ? t('step_draft_open', 'Check who is in it and what each is paid, copy it out to your payroll software, then mark it entered and, once people are paid, paid.') : t('step_draft', 'Check who is in it and what each is paid. Approve it yourself, or ask someone to approve it.'),
           pending:t('step_pending', 'Waiting for {names}.', { names:waitingFor.join(', ') || t('the_approvers', 'the approvers') }),
           rejected:t('step_rejected', 'Rejected{note}. Reopen it to fix what is wrong; it is worked out again.', { note:arr(approval.decisions).find((decision) => decision.decision === 'rejected')?.note ? `: \u201c${arr(approval.decisions).find((decision) => decision.decision === 'rejected').note}\u201d` : '' }),
           approved:t('step_approved', 'Approved. Copy it out to your payroll software, then mark it entered and, once people are paid, paid.'),
@@ -582,10 +581,12 @@
         }[status.key];
         const buttons = {
           none:[button('runs.draft', context, { label:t('draft_run', 'Draft pay run'), icon:'fa-file-pen', tone:'primary', attrs:'data-run-act="draft"' })],
-          draft:[button('runs.approve', context, { label:t('approve', 'Approve'), icon:'fa-check', tone:'primary', attrs:'data-run-act="approve-self"', tooltip:t('approve_self_tip', 'You approve it as the only approver.') }), button('runs.ask', context, { label:t('ask_approval', 'Ask someone to approve'), icon:'fa-user-check', attrs:'data-run-act="ask"' }), button('runs.void', context, { label:t('void', 'Void'), icon:'fa-ban', tone:'quiet', attrs:'data-run-act="void"' })],
+          draft:approvalOff
+            ? [button('runs.done', context, { label:t('mark_entered', 'Mark entered'), icon:'fa-file-import', attrs:'data-run-act="run"', tooltip:t('mark_entered_tip', 'You entered or imported it in your payroll software.') }), button('runs.done', context, { label:t('mark_all_paid', 'Mark all paid'), icon:'fa-circle-check', tone:'primary', attrs:'data-run-act="paid"' }), button('runs.ask', context, { label:t('ask_approval', 'Ask someone to approve'), icon:'fa-user-check', tone:'quiet', attrs:'data-run-act="ask"', tooltip:t('ask_optional_tip', 'Pay runs do not need approval here, but you can still ask someone.') }), button('runs.void', context, { label:t('void', 'Void'), icon:'fa-ban', tone:'quiet', attrs:'data-run-act="void"' })]
+            : [button('runs.approve', context, { label:t('approve', 'Approve'), icon:'fa-check', tone:'primary', attrs:'data-run-act="approve-self"', tooltip:t('approve_self_tip', 'You approve it as the only approver.') }), button('runs.ask', context, { label:t('ask_approval', 'Ask someone to approve'), icon:'fa-user-check', attrs:'data-run-act="ask"' }), button('runs.void', context, { label:t('void', 'Void'), icon:'fa-ban', tone:'quiet', attrs:'data-run-act="void"' })],
           pending:[iAmNamed ? button('runs.decide', context, { label:t('approve', 'Approve'), icon:'fa-check', tone:'primary', attrs:'data-run-act="decide-approve"' }) : '', iAmNamed ? button('runs.decide', context, { label:t('reject', 'Reject'), icon:'fa-xmark', attrs:'data-run-act="decide-reject"' }) : '', button('runs.reopen', context, { label:t('reopen', 'Reopen'), icon:'fa-rotate-left', tone:'quiet', attrs:'data-run-act="reopen"' })],
           rejected:[button('runs.reopen', context, { label:t('reopen_fix', 'Reopen to fix'), icon:'fa-rotate-left', tone:'primary', attrs:'data-run-act="reopen"' }), button('runs.void', context, { label:t('void', 'Void'), icon:'fa-ban', tone:'quiet', attrs:'data-run-act="void"' })],
-          approved:[button('runs.done', context, { label:t('mark_entered', 'Mark entered'), icon:'fa-file-circle-check', attrs:'data-run-act="run"', tooltip:t('mark_entered_tip', 'You entered or imported it in your payroll software.') }), button('runs.done', context, { label:t('mark_all_paid', 'Mark all paid'), icon:'fa-circle-check', tone:'primary', attrs:'data-run-act="paid"' })],
+          approved:[button('runs.done', context, { label:t('mark_entered', 'Mark entered'), icon:'fa-file-import', attrs:'data-run-act="run"', tooltip:t('mark_entered_tip', 'You entered or imported it in your payroll software.') }), button('runs.done', context, { label:t('mark_all_paid', 'Mark all paid'), icon:'fa-circle-check', tone:'primary', attrs:'data-run-act="paid"' })],
           run:[button('runs.done', context, { label:t('mark_all_paid', 'Mark all paid'), icon:'fa-circle-check', tone:'primary', attrs:'data-run-act="paid"' })],
           partial:[button('runs.done', context, { label:t('mark_rest_paid', 'Mark the rest paid'), icon:'fa-circle-check', tone:'primary', attrs:'data-run-act="paid"' })],
           paid:[], void:[]
@@ -948,26 +949,6 @@
       }).join('');
     }
 
-    // -- My pay --
-    function mineView(){
-      if (state.errors.mine) return `<div class="fmp-state"><strong>${esc(t('unavailable', 'This could not be loaded.'))}</strong>${esc(state.errors.mine)}</div>`;
-      const report = obj(state.data.mine?.earnings);
-      const totals = obj(report.totals);
-      const currency = clean(report.currency || 'USD');
-      const projected = can('mine.projected') ? obj(state.data.projectedMine?.projected) : null;
-      const owedProjects = arr(report.projects).filter((project) => num(project.totals?.owed_cents) > 0);
-      return `<div class="fmp-stats">
-          ${stat({ label:t('owed_to_you', 'Earned, not paid yet'), value:money(totals.owed_cents, currency), sub:t('after_outside', 'After anything paid outside a pay run'), tooltip:t('owed_to_you_tip', 'What you have earned that has not been paid yet.') })}
-          ${stat({ label:t('in_a_run', 'In a pay run'), value:money(totals.in_payroll_cents, currency), sub:t('being_paid', 'Being paid') })}
-          ${stat({ label:t('paid', 'Paid'), value:money(totals.paid_cents, currency), sub:t('so_far', 'So far') })}
-          ${projected ? stat({ label:t('projected', 'Projected'), value:money(projected.total_cents, currency), sub:t('from_work_not_done', 'From work not done yet'), tooltip:t('projected_mine_tip', 'What your pay rules say you can expect from work assigned to you and not done yet.') }) : ''}
-        </div>
-        ${card({ id:'owed', title:t('earned_not_paid', 'Earned, not paid yet'), tooltip:t('earned_not_paid_tip', 'By job: what you earned that is waiting for a pay run.'), count:owedProjects.length, body:table([{ label:t('job', 'Job') }, { label:t('owed', 'Owed'), cls:'num' }], owedProjects.map((project) => `<tr>${td(esc(clean(project.title) || t('other_earnings', 'Other earnings')), t('job', 'Job'), 'lead')}${td(`<b>${esc(money(project.totals.owed_cents, project.currency || currency))}</b>`, t('owed', 'Owed'), 'num')}</tr>`), { empty:t('nothing_owed', 'Nothing is waiting to be paid.') }) })}
-        ${projected ? card({ id:'projected', title:t('projected', 'Projected'), tooltip:t('projected_mine_tip', 'What your pay rules say you can expect from work assigned to you and not done yet.'), count:arr(projected.earnings).length, body:table([{ label:t('job', 'Job') }, { label:t('expected', 'Expected') }, { label:t('amount', 'Amount'), cls:'num' }], arr(projected.earnings).map((earning) => `<tr>${td(nameCell(clean(earning.project_title) || clean(earning.record_title) || t('work', 'Work'), clean(earning.description)), t('job', 'Job'), 'lead')}${td(esc(earning.expected_on ? dateLabel(earning.expected_on) : t('not_scheduled', 'Not scheduled')), t('expected', 'Expected'))}${td(esc(money(earning.amount_cents, currency)), t('amount', 'Amount'), 'num')}</tr>`), { empty:t('nothing_projected_mine', 'Nothing is projected for you.') }) }) : ''}
-        ${card({ id:'payments', title:t('pay_runs', 'Pay runs'), tooltip:t('my_runs_tip', 'Pay runs that paid you, or are paying you.'), count:arr(report.payments).length, body:paymentsTable(report) })}
-        ${card({ id:'outside', title:t('paid_outside', 'Paid outside a pay run'), tooltip:t('paid_outside_tip', 'Payments made outside a pay run. The next pay run takes each off, so nothing is paid twice.'), count:arr(report.off_cycle_payments).length, body:outsideTable(report) })}`;
-    }
-
     // -- Settings: the one Payroll settings component, mounted here --
     function mountSettings(host){
       if (!window.FirstMatePayrollSettings?.mount) { host.innerHTML = `<div class="fmp-state"><strong>${esc(t('settings_unavailable', 'Payroll settings could not be loaded.'))}</strong></div>`; return; }
@@ -982,6 +963,16 @@
         root.innerHTML = `<div class="pp fmp"><div class="fmp-state"><strong>${esc(t('not_available', 'Nothing in Payroll is available to you here.'))}</strong></div></div>`;
         return;
       }
+      if (view === 'mine') {
+        if (!root.querySelector('[data-payroll-mine-host]')) {
+          settingsHandle?.destroy?.();
+          root.innerHTML = '<div class="pp fmp" data-payroll-view="mine"><div data-payroll-mine-host></div></div>';
+          const host = root.querySelector('[data-payroll-mine-host]');
+          settingsHandle = window.FirstMateMyPay?.mount ? window.FirstMateMyPay.mount(host, { orgId:state.orgId, projected:can('mine.projected') }) : null;
+          if (!settingsHandle) host.innerHTML = `<div class="fmp-state"><strong>${esc(t('not_loaded', 'Payroll could not be loaded.'))}</strong></div>`;
+        }
+        return;
+      }
       if (view === 'settings') {
         if (!root.querySelector('[data-payroll-settings-host]')) {
           settingsHandle?.destroy?.();
@@ -992,7 +983,7 @@
       }
       if (!kit() || state.unavailable) { root.innerHTML = `<div class="fmp-state"><strong>${esc(t('not_loaded', 'Payroll could not be loaded.'))}</strong></div>`; return; }
       const loaded = Object.keys(state.data).length > 0;
-      const draw = { upcoming:upcomingView, review:reviewView, timesheets:timesheetsView, payees:payeesView, history:historyView, exports:reportsView, approvals:approvalsView, mine:mineView }[view];
+      const draw = { upcoming:upcomingView, review:reviewView, timesheets:timesheetsView, payees:payeesView, history:historyView, exports:reportsView, approvals:approvalsView }[view];
       const focus = document.activeElement && root.contains(document.activeElement) ? (document.activeElement.matches('input[type="search"]') ? document.activeElement.dataset : null) : null;
       root.innerHTML = `<div class="pp fmp" data-payroll-view="${esc(view)}"><div class="fmp-wrap">${state.loading && !loaded ? `<div class="fmp-state" role="status">${esc(t('loading', 'Loading\u2026'))}</div>` : draw()}</div></div>`;
       if (focus) { const input = root.querySelector(Object.keys(focus).map((key) => `[data-${key.replace(/[A-Z]/g, (c) => `-${c.toLowerCase()}`)}]`).join('')); if (input) { input.focus(); input.setSelectionRange?.(input.value.length, input.value.length); } }

@@ -502,8 +502,10 @@ from the day it was paid.
 
 The next pay run on that schedule that pays the payee takes it off
 (`planDeductions` in `payroll/service.ts`): recorded payments first, in full up
-to what the run pays them, then clawbacks within the clawback cap from what is
-left. It is not a clawback, so the cap does not limit it. What a run cannot take
+to what the run pays them in earnings, then clawbacks within the clawback cap
+from what is left. Reimbursements are never reduced: outside payments,
+clawbacks and other negative entries come off earnings only (the cap is a share
+of earnings), and what earnings cannot cover waits for a later run. It is not a clawback, so the cap does not limit it. What a run cannot take
 off waits for the run after. The upcoming preview and the drafted run show it as
 the subgroup `off_cycle` (and `off_cycle_cents`), so nobody is paid twice. Back
 pay asked to be paid off-cycle that someone pays outside a run is recorded the
@@ -612,11 +614,18 @@ action `payroll.projectedEarnings.read` for managers: one payee by target id
 (or `payee`), or, left out, totals for everyone whose pay comes from rules (at
 most 200 payees, `truncated` beyond) (`PayrollAPI.pay.projected`). Reads only.
 
-**Screens.** The payee's Earnings app (`portal.crew_payouts`,
-`project.crew_payouts`, `apps/crew/app.js`) shows a **Projected** section by
-job with amounts and expected dates when the access profile's
-`projected_enabled` parameter (set from the permission) is on; inside a
-project, only that job. The Payroll tab shows a payee's projection in their
+**Screens.** Every self-service Earnings tab shows the one **My pay** view
+(`apps/payroll/my-pay.js`): the field Earnings tab (`portal.crew_payouts`), a
+project's Earnings tab (`project.crew_payouts`, that job only), the sales
+Earnings tab (`portal.sales_earnings`, commissions first, picked by earning
+kind) and the Payroll app's My pay. It shows what is earned and not paid, the
+next pay date, what was paid, **Projected** (the rule forecast, only when the
+access profile's `projected_enabled` parameter or the permission allows it, and
+hidden when the server refuses), **Held for review** (ledger entries waiting on
+a manager; the ledger's `projected` state is never called projected on a
+screen), anything of theirs that could not be worked out, pay runs, payments
+made outside a pay run and, with `crew.time_clock.use`, their own timesheets.
+`payroll.my_earnings` carries `next_payment` and `unresolved` for it. The Payroll tab shows a payee's projection in their
 "Why" drawer and, on request, projected totals per payee.
 
 ## When a payee is removed
@@ -756,6 +765,12 @@ Actions: `payroll.payRule.save`, `.preview`, `.archive`;
   covers. Every change starts on a chosen day and is previewed before saving.
 - **Payroll** (`apps/payroll/app.js`), views by permission and app flag only
   (its `ACTIONS` table):
+  - Whether pay runs need approval is the organization's payroll setting
+  (`payroll.settings.save`, `settings.approval_required` on `configuration`, on
+  unless turned off). With it off a pay run goes draft, entered, paid; the
+  server refuses to mark a run entered or paid while an approval someone asked
+  for is waiting or was rejected. With it on, named approvers approve and the
+  run is made final first.
   - *Pay runs* (payroll managers): upcoming pay dates with who is paid what;
     a pay run opens with its people (earned, reimbursements, already paid
     outside a run, taken back, to pay), the next step (draft, approve or ask
