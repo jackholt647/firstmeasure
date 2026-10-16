@@ -59,11 +59,14 @@ test("full test org equipment samples are isolated, additive and safe to repeat 
     assert.equal((await eq.listUnits(independent)).length, 0);
     assert.equal((await chat.listChannelRecords(independent)).length, 0);
     let docs = await storage.listDocuments(independent, "projects");
-    assert.equal(docs.length, 5);
-    assert.ok(docs.every(row => (row.data as any).workflow_state === "contact_only"));
+    assert.equal(docs.length, 0, "sample customers are contacts, not project records");
+    const { listContacts } = await import("../contacts/records.js");
+    assert.equal((await listContacts(independent, { limit: 50 })).items.length, 5);
+    await addTestOrgSampleData("sbi_independent", { customers: true });
+    assert.equal((await listContacts(independent, { limit: 50 })).items.length, 5, "adding samples again creates nothing");
     await addTestOrgSampleData("sbi_independent", { projects: true });
     docs = await storage.listDocuments(independent, "projects");
-    assert.equal(docs.filter(row => (row.data as any).workflow_state !== "contact_only").length, 4);
+    assert.equal(docs.length, 4);
     await Promise.all([addTestOrgSampleData("sbi_independent", { channels: true }), addTestOrgSampleData("sbi_independent", { channels: true })]);
     let channelRows = await chat.listChannelRecords(independent);
     assert.equal(channelRows.length, 4);
@@ -77,7 +80,8 @@ test("full test org equipment samples are isolated, additive and safe to repeat 
     assert.equal(channelRows.reduce((n, row) => n + row.message_seq, 0), 12);
     assert.ok(channelRows.some(row => row.name === "My renamed channel"));
     assert.equal((await storage.readDocument(independent, "projects", String(docs[0]!.id))).data?.title, "My edited record");
-    assert.equal((await storage.listDocuments(independent, "projects")).length, 9);
+    assert.equal((await storage.listDocuments(independent, "projects")).length, 4);
+    assert.equal((await listContacts(independent, { limit: 50 })).items.length, 5);
     const projectsOnly = await create("sbi_projects_only");
     await addTestOrgSampleData("sbi_projects_only", { projects: true });
     assert.equal((await storage.listDocuments(projectsOnly, "projects")).length, 4);

@@ -3,6 +3,7 @@
 // each one moves. Also: system templates and the job cost report.
 import { nextTestPhone, enableExpandedPlatformFixture, closePlatformFixtureStores, operatorFixtureClient } from "./helpers/platform-fixture.js";
 import assert from "node:assert/strict";
+import { putProjectContacts } from "./helpers/project-contacts.js";
 import { mkdtemp, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -76,9 +77,10 @@ async function registerOrg(client: Client) {
 
 async function createProject(client: Client, orgId: string, projectId: string) {
   await client.request("PUT", `/v1/platform/organizations/${orgId}/projects/${projectId}`, {
-    data: { id: projectId, address: "68 Northfield Rd", title: "Whitfield roof", project_type: "residential", contacts: [{ name: "Dana Whitfield", email: "dana@example.test", primary: true }], photos: [] },
+    data: { id: projectId, address: "68 Northfield Rd", title: "Whitfield roof", project_type: "residential", photos: [] },
     metadata: { kind: "platform_project" }
   });
+  await putProjectContacts(client, orgId, projectId, [{ name: "Dana Whitfield", email: "dana@example.test", primary: true }]);
 }
 
 const RECIPIENT = [{ name: "Dana Whitfield", email: "dana@example.test", role: "customer" }];

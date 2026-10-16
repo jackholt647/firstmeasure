@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { upsertProjectWithContacts } from "./helpers/project-contacts.js";
 import { mkdtemp, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -23,8 +24,8 @@ test("the customer's portal can sign its own project's agreement, and nothing el
   const app = await buildApp();
   try {
     const projectData = (id: string) => ({ id, data: { title: id, branch_id: "default", contacts: [{ name: "Dana Whitfield", email: "dana@example.test", primary: true }] } });
-    await storage.upsertDocument(ctx.orgId, "projects", projectData("project_mine"));
-    await storage.upsertDocument(ctx.orgId, "projects", projectData("project_other"));
+    await upsertProjectWithContacts(ctx.orgId, projectData("project_mine"));
+    await upsertProjectWithContacts(ctx.orgId, projectData("project_other"));
     const send = async (projectId: string) => {
       const created = await documents.createDocumentInstance(ctx.orgId, projectId, { document_type: "proposal", template_id: "tpl_instant_roofing_detailed" }, ctx) as any;
       return await documents.sendDocument(ctx.orgId, String(created.document.id), { recipients: [{ signer_id: "customer", name: "Dana Whitfield", email: "dana@example.test" }], include_pdf: false }, ctx) as any;

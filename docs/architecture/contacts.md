@@ -30,10 +30,10 @@ normalizer; comms matching, intake and import call it.
 
 ## References
 
-Everything that points at a contact stores a bare `contact_id`. The old
-`{contact_id, project_id}` reference and the `contact_only` project anchor are
-being removed (a typed contact field still accepts an old `project_id` beside
-the id and ignores it). Media for a contact is owned by `{type: "contact", id}`.
+Everything that points at a contact stores a bare `contact_id`. There is no
+`contact_only` project anchor; a typed contact field, a partner relationship or
+a shared contact resource still accepts an old `project_id` beside the id and
+ignores it. Media for a contact is owned by `{type: "contact", id}`.
 
 `contacts/references.ts` lists what a merge repoints: SQL adapters for the
 tables with a `contact_id` or `project_id` column, a walker over document
@@ -48,13 +48,36 @@ A project's contacts are its rows in `contact_links`. `project.data.contacts`
 is a **read-only projection** written by the contact service whenever a linked
 contact or a link changes, the same way `work_projection` is written by Work.
 It exists so the many readers of `project.contacts` keep working while they move
-to the contacts client; it is never the source of truth.
+to the contacts client; it is never the source of truth. The projected keys are
+`contacts`, `contact_id`, `primary_contact_id`, `contact_ids` and the
+`customer_*`/`primary_contact_*` name, email and phone.
 
-Until every writer is moved, a project write that carries `contacts` is turned
-into contact-service calls inside the same storage write (both backends): known
-ids update that contact, unknown entries are matched or created, and the links
-are replaced. A writer that should not change contacts must not send them.
-Phase 5 removes this bridge and makes such a write an error.
+Contacts are set with `saveProjectContacts(org, projectId, entries)`
+(`contacts/records.ts`), over HTTP `PUT /organizations/:orgId/projects/:projectId/contacts`
+with `{contacts: [...]}`, in the browser `PlatformAPI.contacts.setProjectContacts`.
+The project must exist first. Each entry is a link plus, optionally, fields:
+
+- An entry naming a stored contact (`contact_id` or `id`) links it and applies
+  the fields it carries, unless it was copied from an older revision
+  (`contact_revision`), which links without changing the contact.
+- An entry naming an id that does not exist creates that contact with that id
+  (the contact window and media drafts pick the id first).
+- An entry without an id uses an exact match when `contacts.auto_attach_exact`
+  is on, or creates a contact in the caller's branch.
+
+The links are replaced and every project showing a changed contact gets its
+projection. Lead intake (`receiveLead`) and contact merge write links directly.
+
+**A project write never changes contacts** (`guardProjectContacts` in
+`platform/storage.ts`, both backends). A write whose `contacts` is anything but
+the stored projection, or a copy of it read before a contact changed, is refused
+with 400 `project_contacts_read_only`; a whole-document save that re-sends what
+it read passes. The projected keys always keep what the contact service wrote,
+whatever the writer sent, and a project with no links shows `contacts: []`. In
+the browser `PlatformAPI.projects.save`/`patch` leave the projected keys out, and
+`Portal.ProjectStore` sends a changed contact list through
+`setProjectContacts` (merged per contact and field against the latest list, as
+before) and the rest as the project write.
 
 ## Matching and duplicates
 
@@ -135,16 +158,38 @@ and bounds size, time and decoding. A failed photo leaves its contact intact.
 store and attaches each person's projects from the projection. Contact media is
 owned by the contact alone.
 
+The contact window (`apps/contacts/modal.js`) saves with `contacts.create` and
+`contacts.update` and never writes a project; a new project for a contact is
+created and then linked with `setProjectContacts`. A contact taken off a
+project in the project editor stays a contact of its own. A project started
+from contacts alone, before an address, is a `draft` project.
+
+## Import
+
+Contact file import (`platform/contact_import/api.ts`) creates contacts with
+`createContact` in the caller's branch, stamped with `import_id`, `imported_at`
+and `import_source`; an "update" fills what the matched contact leaves blank
+and unions tags. Duplicates are judged against the store (email, then phone,
+then name). An import records `created_contact_ids`; undo removes each with
+`removeUnusedContact`, which keeps a contact that is now linked to a project or
+merged.
+
+## Development migration
+
+`src/scripts/contacts_migrate.ts --migrate-development` (development and test
+data only) copies embedded contacts into the store
+(`migrateOrganizationContacts`), then removes the standalone `contact_only`
+project records (`removeStandaloneContactRecords`): a bare one is deleted and
+loses its links, one that gathered events or proposals is kept as a `draft`
+project. Both steps are idempotent.
+
 ## Not built
 
-- The contact window still saves through a standalone (`contact_only`)
-  project, and other project editors still send `contacts` on project writes;
-  both reach the store through the bridge. Moving them to `PlatformAPI.contacts`
-  and removing the bridge is the remaining frontend work.
-- Contact file import still writes standalone records through the bridge.
-
-- Pickers still load every contact through `contacts.options`, and a contact
-  edit rewrites every linked project's projection
+- Readers still read `project.contacts` (the projection) rather than the
+  contacts client.
+- Pickers still load every contact through `contacts.options`, a contact
+  edit rewrites every linked project's projection, and contact import and the
+  partner-sharing contact list page through every contact
   ([optimization backlog](../optimization-backlog.md#contact-options-and-projection-fan-out)).
 
 ## Phases
@@ -154,10 +199,15 @@ owned by the contact alone.
 2. Intake on contacts and opportunities ([opportunities](opportunities.md)). Done.
 3. Scope categories and the sales outcome actions. Done.
 4. Contact merge, duplicates, project merge. Done.
-5. Legacy CRM deleted; Contacts app lists the store. Writers still use the
-   bridge (see Not built).
+5. Legacy CRM deleted; Contacts app lists the store. Every writer of project
+   contacts uses the contacts API (contact window, project editors, project
+   store, import, partner contacts, seeders); the storage bridge is deleted and
+   a project write that changes contacts is refused; `contact_only` records are
+   migrated away in development. Done.
 6. Contact window presentation of embedded projects; CRM lists and bulk actions.
 
 Validation: `tests/contacts-store.test.ts`, `tests/contact-merge.test.ts`,
 `tests/contact-references-coverage.test.ts`, `tests/contact-imports.test.ts`,
-`npm run test:publication`, `npm run check`.
+`tests/lead-receive.test.ts`, `scripts/contacts-library-e2e.mjs` (the contact
+window against a mocked contacts client), `npm run test:publication`,
+`npm run check`.

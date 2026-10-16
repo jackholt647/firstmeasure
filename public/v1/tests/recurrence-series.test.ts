@@ -1,3 +1,4 @@
+import { putProjectContacts } from "./helpers/project-contacts.js";
 import { nextTestPhone, enableExpandedPlatformFixture, closePlatformFixtureStores } from "./helpers/platform-fixture.js";
 import assert from "node:assert/strict";
 import { mkdtemp, rm } from "node:fs/promises";
@@ -244,9 +245,10 @@ test("project bi-weekly series keeps exceptions and count through edits; omitted
   const base = `/v1/platform/organizations/${orgId}`;
   const projectId = "project_recurring_gutters";
   await client.request("PUT", `${base}/projects/${projectId}`, {
-    data: { id: projectId, title: "Kowalski Residence", address: "12 Leak Lane", contacts: [{ id: "customer", primary: true, name: "Piotr" }] },
+    data: { id: projectId, title: "Kowalski Residence", address: "12 Leak Lane" },
     metadata: { kind: "platform_project" }
   });
+  await putProjectContacts(client, orgId, projectId, [{ id: "customer", primary: true, name: "Piotr" }]);
   const created = await client.request("POST", `${base}/projects/${projectId}/recurrence-series`, {
     branch_id: "default",
     title: "Gutter cleaning (bi-weekly)",

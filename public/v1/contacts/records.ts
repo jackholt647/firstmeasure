@@ -278,6 +278,45 @@ export async function setProjectContactLinks(org: string, projectId: string, lin
   return unique;
 }
 
+const CONTACT_ENTRY_KEYS = ["contact_kind", "name", "first_name", "last_name", "email", "emails", "phone", "phones", "secondary_phone", "primary_phone_label", "secondary_phone_label",
+  "address", "default_address", "time_zone", "tags", "custom_field_values", "contact_custom_field_values", "company", "notes", "birthday"];
+
+/**
+ * Sets a project's contacts from entries: an entry naming a stored contact (`contact_id` or `id`)
+ * links it and applies the fields it carries, unless it was copied from an older revision
+ * (`contact_revision`), which links without changing anything; an entry naming an id that does
+ * not exist creates it with that id; an entry without an id uses an exact match when
+ * `contacts.auto_attach_exact` is on, or creates a contact. Links are replaced.
+ */
+export async function saveProjectContacts(org: string, projectId: string, entries: unknown[], options: { branchIds?: string[]; canWrite?: (contact: ContactRecord) => void } = {}) {
+  const { contactSettings } = await import("./service.js");
+  const settings = await contactSettings(org);
+  const links: ContactLink[] = [], touched: string[] = [];
+  for (const raw of entries) {
+    const entry = asObject(typeof raw === "string" ? { contact_id: raw } : raw);
+    const id = text(entry.contact_id || entry.id);
+    const fields = Object.fromEntries(CONTACT_ENTRY_KEYS.filter(k => k in entry).map(k => [k, entry[k]]));
+    let contactId = id ? await resolveContactId(org, id) : "";
+    if (contactId) {
+      const current = await readContact(org, contactId);
+      const copied = Number(entry.contact_revision) || 0;
+      if (Object.keys(fields).length && !(copied && copied < current.revision)) {
+        options.canWrite?.(current);
+        if ((await updateContact(org, contactId, fields, { projections: false })).revision !== current.revision) touched.push(contactId);
+      }
+    } else {
+      const match = !id && settings.auto_attach_exact !== false ? (await findExactMatches(org, fields))[0] : undefined;
+      contactId = match ? match.id : (await createContact(org, { ...fields, branch_ids: Array.isArray(entry.branch_ids) && entry.branch_ids.length ? entry.branch_ids : options.branchIds || ["default"] }, { id })).id;
+    }
+    links.push({ contact_id: contactId, role: text(entry.role), primary: entry.primary === true });
+  }
+  const saved = await setProjectContactLinks(org, projectId, links);
+  const others = new Set<string>([projectId]);
+  for (const contactId of touched) for (const other of await contactProjectIds(org, contactId)) others.add(other);
+  await refreshProjections(org, [...others]);
+  return saved;
+}
+
 /** The shape existing readers of `project.contacts` expect. Read-only; written only by this module. */
 export function projectionContact(record: ContactRecord, link: ContactLink) {
   return {

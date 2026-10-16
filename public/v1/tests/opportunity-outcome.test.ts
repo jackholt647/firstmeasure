@@ -1,3 +1,4 @@
+import { upsertProjectWithContacts } from "./helpers/project-contacts.js";
 import assert from "node:assert/strict";
 import { mkdtemp, rm } from "node:fs/promises";
 import os from "node:os";
@@ -37,7 +38,7 @@ test("opportunities are sales plans whose outcome the scope decides", async (t) 
   await assert.rejects(() => saveScopeTemplate(ORG, "default", { ...(roofing.definition as Record<string, unknown>), category_ids: ["made_up"], expected_version: roofing.version }), /scope categories from the catalog/);
 
   // A project's entry sales scope is an opportunity, open until an action says otherwise.
-  await storage.upsertDocument(ORG, "projects", { id: "p1", data: { title: "Roof", contacts: [{ name: "Ivy", phone: "555-030-1000" }] } });
+  await upsertProjectWithContacts(ORG, { id: "p1", data: { title: "Roof", contacts: [{ name: "Ivy", phone: "555-030-1000" }] } });
   await ensurePipelinePlanForProject(ORG, { id: "p1", ...(await storage.readDocument(ORG, "projects", "p1")).data });
   const [plan] = await listPlanRecords(ORG, { project_id: "p1", sales: true });
   assert.deepEqual([plan?.sales, plan?.outcome], [true, "open"]);

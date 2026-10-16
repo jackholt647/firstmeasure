@@ -1,3 +1,4 @@
+import { putProjectContacts } from "./helpers/project-contacts.js";
 import { nextTestPhone, enableExpandedPlatformFixture, closePlatformFixtureStores } from "./helpers/platform-fixture.js";
 import assert from "node:assert/strict";
 import { mkdtemp, rm } from "node:fs/promises";
@@ -116,11 +117,11 @@ async function createProject(client: ReturnType<typeof createSessionClient>, org
       address: "7 Reconcile Row",
       title: "Round Two Customer",
       project_type: "residential",
-      contacts: [{ name: "Round Two Customer", email: "round2@example.test", phone: "555-222-3333", primary: true }],
       photos: []
     },
     metadata: { kind: "platform_project" }
   });
+  await putProjectContacts(client, orgId, projectId, [{ name: "Round Two Customer", email: "round2@example.test", phone: "555-222-3333", primary: true }]);
 }
 
 test("settled payments reconcile: clear stamps cleared_at, unclear reopens, worklist reports both", async () => {

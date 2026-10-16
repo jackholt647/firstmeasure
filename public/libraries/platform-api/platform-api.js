@@ -1034,9 +1034,19 @@
     } catch {}
   }
 
+  /* A project's contacts are written through `contacts.setProjectContacts`, never with the
+   * project; these keys are the contact service's projection (docs/architecture/contacts.md). */
+  const PROJECT_CONTACT_KEYS = ['contacts', 'contact_id', 'primary_contact_id', 'contact_ids', 'customer_name', 'primary_contact_name', 'customer_email', 'primary_contact_email', 'customer_phone', 'primary_contact_phone'];
+  function withoutProjectContacts(data){
+    const rest = { ...(data || {}) };
+    PROJECT_CONTACT_KEYS.forEach((key) => { delete rest[key]; });
+    return rest;
+  }
+
   function collectionMethods(collection, metadataKind){
     const normalizedCollection = normalizeCollection(collection);
     const remember = normalizedCollection === 'projects' ? rememberProjectBaseline : () => {};
+    const writable = normalizedCollection === 'projects' ? withoutProjectContacts : (data) => data || {};
     return {
       list(orgId){
         return request(collectionPath(orgId, normalizedCollection)).then((result) => {
@@ -1086,7 +1096,7 @@
         return request(collectionPath(orgId, normalizedCollection, id), {
           method: 'PUT',
           body: {
-            data: data || {},
+            data: writable(data),
             metadata: { kind: metadataKind || normalizedCollection, ...(metadata || {}) }
           }
         }).catch((error) => {
@@ -1097,7 +1107,7 @@
       patch(orgId, id, data, metadata = {}) {
         return request(collectionPath(orgId, normalizedCollection, id), {
           method: 'PATCH',
-          body: { data: data || {}, metadata: metadata || {} }
+          body: { data: writable(data), metadata: metadata || {} }
         }).catch((error) => {
           // R4-EQ-3: the server refuses to recreate a project deleted since it
           // was read; that is not a local-only record to fall back from.

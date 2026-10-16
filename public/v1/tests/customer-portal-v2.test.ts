@@ -107,8 +107,8 @@ async function registerOrg(client: ReturnType<typeof createSessionClient>) {
 }
 
 async function seedProject(orgId: string, id: string, data: Json = {}) {
-  const { upsertDocument } = await import("../platform/storage.js");
-  await upsertDocument(orgId, "projects", {
+  const { upsertProjectWithContacts } = await import("./helpers/project-contacts.js");
+  await upsertProjectWithContacts(orgId, {
     id,
     data: { branch_id: "default", title: `${id} Project`, address: `${id} Address`, ...data },
     metadata: { kind: "project" }

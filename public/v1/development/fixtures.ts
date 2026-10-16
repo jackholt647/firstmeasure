@@ -5,6 +5,7 @@ export const withSyntheticBatch = <T>(key: string, run: () => Promise<T>) => bat
 import { createHash } from "node:crypto";
 import { env } from "../src/config/env.js";
 import { readOrganization, readDocument, listDocuments, upsertDocument } from "../platform/storage.js";
+import { createContact, resolveContactId } from "../contacts/records.js";
 import * as channels from "../channels/storage.js";
 import { isCapabilityEnabled } from "../platform/capabilities.js";
 import { ensureEquipmentSeed, scheduleWorkOrder } from "../equipment/service.js";
@@ -75,16 +76,12 @@ export async function seedCustomers(orgId: string) {
   let created = 0;
   for (const [key, name, address] of customerSpecs) {
     const contactId = sampleId(orgId, `customer:${key}`);
-    const recordId = sampleId(orgId, `customer-record:${key}`);
     const emailKey = currentSyntheticBatch() ? `${key}.${contactId.slice(-12)}` : key;
-    const contact = { id: contactId, contact_id: contactId, name: `${name} (Sample)`, email: `${emailKey}@example.test`, address, default_address: address, primary: true };
-    // Contacts use the same standalone contact-only records as the real New Contact flow.
-    if (await createSampleDocument(orgId, "projects", recordId, {
-      title: contact.name, project_title: contact.name, branch_id: "default", project_type: "residential",
-      workflow_state: "contact_only", contacts: [contact], contact_id: contactId, primary_contact_id: contactId,
-      contact_ids: [contactId], address, tags: ["Sample"], events: [], proposals: [], photos: [],
-      measurement: {}, measurement_project: {}, notes: "Synthetic customer for testing."
-    })) created++;
+    // Contacts are records of their own in the contact store (docs/architecture/contacts.md).
+    if (await resolveContactId(orgId, contactId)) continue;
+    // A concurrent run may create the same contact first.
+    try { await createContact(orgId, { name: `${name} (Sample)`, email: `${emailKey}@example.test`, address, notes: "Synthetic customer for testing.", branch_ids: ["default"] }, { id: contactId }); created++; }
+    catch (error) { if ((error as { code?: string }).code !== "contact_exists") throw error; }
   }
   return { created };
 }

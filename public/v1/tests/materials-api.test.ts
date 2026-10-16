@@ -1,3 +1,4 @@
+import { putProjectContacts } from "./helpers/project-contacts.js";
 import { nextTestPhone, enableExpandedPlatformFixture, closePlatformFixtureStores, operatorFixtureClient } from "./helpers/platform-fixture.js";
 import assert from "node:assert/strict";
 import { mkdtemp, rm } from "node:fs/promises";
@@ -143,11 +144,11 @@ test("materials lifecycle snapshots pricebook items, locks orders, amends lists,
       id: projectId,
       address: "200 Material Way",
       title: "Material Test Roof",
-      project_type: "residential",
-      contacts: [{ name: "Marta Materials", email: "marta@example.test" }]
+      project_type: "residential"
     },
     metadata: { kind: "platform_project" }
   });
+  await putProjectContacts(client, orgId, projectId, [{ name: "Marta Materials", email: "marta@example.test" }]);
 
   const created = await client.request("POST", `/v1/materials/organizations/${orgId}/projects/${projectId}/material-lists`, {
     title: "Roof Materials",

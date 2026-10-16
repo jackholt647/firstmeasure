@@ -83,9 +83,11 @@ test('development fixtures enforce isolation, independent toggles and additive r
  const scaled=await tools.generateSyntheticData(ctx,{company:'roofing',categories:{},amount:2,request_id:crypto.randomUUID()});
  assert.ok(Object.values(scaled.results).every((r:any)=>r.status==='complete'),JSON.stringify(scaled));
  assert.equal(scaled.results.projects.created,32);assert.equal(scaled.results.material_lists.created,32);assert.equal(scaled.results.document_types.drafts,8);assert.equal(scaled.results.channels.created,0);
- const contacts=(await storage.listDocuments(ctx.orgId,'projects')).filter(p=>p.data?.workflow_state==='contact_only');
+ const {listContacts}=await import('../contacts/records.js');
+ const contacts=(await listContacts(ctx.orgId,{limit:200})).items.filter(c=>c.id.startsWith('sample_'));
  assert.equal(contacts.length,72);
- assert.equal(new Set(contacts.map(p=>(p.data?.contacts as any[])[0].email)).size,72,'Batch contacts must remain distinct in the email-grouped Contacts UI');
+ assert.equal(new Set(contacts.map(c=>c.email)).size,72,'Batch contacts must remain distinct');
+ assert.ok(!(await storage.listDocuments(ctx.orgId,'projects')).some(p=>p.data?.workflow_state==='contact_only'),'Contacts are not project records');
  assert.equal(scaled.results.users.created,0);assert.equal(scaled.results.equipment.created,0);
  const {listWorkBoards}=await import('../work/service.js');const boards=await listWorkBoards(ctx.orgId,{include_completed:true});
  const boardIds=new Set(boards.flatMap((b:any)=>b.columns.flatMap((c:any)=>c.cards.map((p:any)=>p.project_id))));

@@ -5,7 +5,7 @@ import { requirePlatformAuth, type PlatformAuthContext } from "../platform/auth.
 import { readDocument } from "../platform/storage.js";
 import { assertManageBranches, assertSeeBranches, branchScope } from "../workforce/branch-scope.js";
 import { contactSettings, saveContactSettings, contactOptions } from "./service.js";
-import { contactProjectIds, createContact, findExactMatches, listContacts, readContact, refreshProjections, setProjectContactLinks, updateContact, type ContactRecord } from "./records.js";
+import { contactProjectIds, createContact, findExactMatches, listContacts, readContact, saveProjectContacts, updateContact, type ContactRecord } from "./records.js";
 import { text, asObject } from "./contracts.js";
 
 // A contact with no branches is visible in every branch (docs/architecture/contacts.md).
@@ -84,14 +84,15 @@ export function registerContactRoutes(app: FastifyInstance) {
     const { mergeProjects, MERGE_COMMITTED_PERMISSION } = await import("../projects/merge.js");
     return { ok: true, ...(await mergeProjects(orgId, text(params(request).projectId), text(asObject(request.body).merged_id), { actor_user_id: ctx.userId, allow_committed: hasPermission(ctx, MERGE_COMMITTED_PERMISSION) })) };
   });
+  // A project's contacts: links to stored contacts, and the fields an entry carries (see saveProjectContacts).
   app.put("/organizations/:orgId/projects/:projectId/contacts", async request => {
     const orgId = text(params(request).orgId), projectId = text(params(request).projectId);
-    await requirePlatformAuth(request, { orgId, csrf: true, permission: "manage_projects" });
+    const ctx = await requirePlatformAuth(request, { orgId, csrf: true, permission: "manage_projects" });
     await readDocument(orgId, "projects", projectId);
-    const links = (Array.isArray(asObject(request.body).contacts) ? asObject(request.body).contacts as unknown[] : []).map(asObject)
-      .map(row => ({ contact_id: text(row.contact_id || row.id), role: text(row.role), primary: row.primary === true }));
-    const saved = await setProjectContactLinks(orgId, projectId, links);
-    await refreshProjections(orgId, [projectId]);
+    const entries = Array.isArray(asObject(request.body).contacts) ? asObject(request.body).contacts as unknown[] : [];
+    const branchIds = [text(ctx.branchId) || "default"];
+    assertManageable(ctx, branchIds);
+    const saved = await saveProjectContacts(orgId, projectId, entries, { branchIds, canWrite: contact => assertManageable(ctx, contact.branch_ids) });
     return { ok: true, contacts: saved };
   });
 }

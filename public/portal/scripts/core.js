@@ -1694,6 +1694,12 @@
       source: 'firstmeasure_compat_import',
       measurement_keys: measurementKeys(base.measurement),
     });
+    // The order's resident becomes the project's contact through the contacts API, only
+    // while the project has none (docs/architecture/contacts.md).
+    const existingContacts = Array.isArray(existingProject.contacts) ? existingProject.contacts : [];
+    if (!existingContacts.length && base.contacts.length && window.PlatformAPI.contacts?.setProjectContacts) {
+      await window.PlatformAPI.contacts.setProjectContacts(orgId, base.id, base.contacts.map((contact, index) => ({ ...contact, primary: index === 0 })));
+    }
     return base;
   }
 

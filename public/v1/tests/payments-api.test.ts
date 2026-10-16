@@ -1,5 +1,6 @@
 import { nextTestPhone, enableExpandedPlatformFixture, closePlatformFixtureStores } from "./helpers/platform-fixture.js";
 import assert from "node:assert/strict";
+import { putProjectContacts } from "./helpers/project-contacts.js";
 import { mkdtemp, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -146,9 +147,10 @@ test("monthly maintenance recurrence creates independent project work and monthl
   const { orgId } = await register(client);
   const projectId = "project_monthly_maintenance";
   await client.request("PUT", `/v1/platform/organizations/${orgId}/projects/${projectId}`, {
-    data: { id: projectId, title: "Monthly Maintenance", address: "101 Maintenance Way", contacts: [{ id: "maintenance_customer", primary: true, name: "Maintenance Customer" }] },
+    data: { id: projectId, title: "Monthly Maintenance", address: "101 Maintenance Way" },
     metadata: { kind: "platform_project" }
   });
+  await putProjectContacts(client, orgId, projectId, [{ id: "maintenance_customer", primary: true, name: "Maintenance Customer" }]);
 
   const start = new Date(Date.now() - 35 * 86_400_000);
   start.setUTCHours(15, 0, 0, 0);

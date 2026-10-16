@@ -15,6 +15,7 @@ import {
 } from "../platform/storage.js";
 import { effectiveCapabilities, saveCapabilityValues } from "../platform/capabilities.js";
 import { patchWorkforceUserProfile } from "../workforce/service.js";
+import { saveProjectContacts } from "../contacts/records.js";
 import { initializeAccessRoles } from "../workforce/access.js";
 import { listPersonaTemplates } from "../workforce/persona_templates.js";
 import { createFollowUpTodo } from "../work/followups.js";
@@ -189,17 +190,17 @@ async function main() {
         branch_id: "default",
         title: project.title,
         address: project.address,
-        contacts: [{
-          id: `${project.id}_customer`,
-          name: project.contact[0],
-          phone: project.contact[1],
-          email: project.contact[2],
-          primary: true
-        }],
         events: project.events
       },
       metadata: { kind: "platform_project", branch_id: "default", source: "seed_sales_demo" }
     }, { replace: true });
+    await saveProjectContacts(orgId, project.id, [{
+      id: `${project.id}_customer`,
+      name: project.contact[0],
+      phone: project.contact[1],
+      email: project.contact[2],
+      primary: true
+    }]);
   }
   console.log(`✔ ${projects.length} demo projects with sales appointments seeded`);
 

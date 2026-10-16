@@ -17,6 +17,7 @@
 import { createHash } from "node:crypto";
 
 import { listDocuments, readDocument, upsertDocument, type JsonObject } from "../platform/storage.js";
+import { saveProjectContacts } from "../contacts/records.js";
 import { normalizePunchConfig } from "../workforce/punch_lists.js";
 import { ensureProjectChecklists } from "../workforce/crew_storage.js";
 import { syncPortalProjection } from "../platform/portal_projection.js";
@@ -118,16 +119,11 @@ async function seedProjects() {
         status: spec.status,
         tags: spec.tags,
         events: spec.events,
-        contacts: [{ ...CONTACT, primary: true }],
-        contact_id: CONTACT_ID,
-        primary_contact_id: CONTACT_ID,
-        customer_name: CONTACT.name,
-        customer_email: CONTACT.email,
-        customer_phone: CONTACT.phone,
         updated_at: new Date().toISOString()
       },
       metadata: { ...asObject(existing?.metadata), kind: "platform_project", seed: "portal_demo" }
     }, { replace: true });
+    await saveProjectContacts(ORG_ID, spec.id, [{ ...CONTACT, primary: true }]);
     note(`project    ${spec.id.padEnd(22)} ${spec.title}`);
   }
 }

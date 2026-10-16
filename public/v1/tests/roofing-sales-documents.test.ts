@@ -95,7 +95,7 @@ function organization() {
     const signup = await import("../signup-sandbox/service.js");
     await signup.ensureSeedData();
     const { authContext: ctx } = await signup.createTestInstance("swf_instant_full_org");
-    const project = await storage.upsertDocument(ctx.orgId, "projects", { id: "project_sales_docs", data: { title: "Whitfield residence", branch_id: "default", address: "68 Northfield Rd", contacts: [{ name: "Dana Whitfield", email: "dana@example.test", primary: true }] } });
+    const project = await (await import("./helpers/project-contacts.js")).upsertProjectWithContacts(ctx.orgId, { id: "project_sales_docs", data: { title: "Whitfield residence", branch_id: "default", address: "68 Northfield Rd", contacts: [{ name: "Dana Whitfield", email: "dana@example.test", primary: true }] } });
     const publication = await import("../platform/publication/context.js");
     (await import("../platform/publication/bootstrap.js")).initializePublication();
     return { ctx, projectId: String(project.id), service: await import("../documents/service.js"), store: await import("../documents/storage.js"), pctx: publication.userPublicationContext(ctx, { executionKind: "api" }) };

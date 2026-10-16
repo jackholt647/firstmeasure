@@ -111,8 +111,8 @@ test("organization connection approval, private projections, explicit deny and r
   const ao=await registerOwner(a),bo=await registerOwner(b),co=await registerOwner(c);
   const root=(org:string)=>`/v1/collaboration/organizations/${org}`;
   const ar=root(ao.orgId),br=root(bo.orgId),cr=root(co.orgId);
-  const {upsertDocument}=await import("../platform/storage.js");
-  await upsertDocument(ao.orgId,"projects",{id:"shared_roof",data:{title:"Roof",address:"42 Test St",private_cost:9000,contacts:[{id:"secret",email:"private@example.test"}],photos:[{secret:true}]}});
+  const {upsertDocument}=await import("../platform/storage.js"),{upsertProjectWithContacts}=await import("./helpers/project-contacts.js");
+  await upsertProjectWithContacts(ao.orgId,{id:"shared_roof",data:{title:"Roof",address:"42 Test St",private_cost:9000,contacts:[{id:"secret",email:"private@example.test"}],photos:[{secret:true}]}});
   const resource={owner_org_id:ao.orgId,type:"project",id:"shared_roof"};
   assert.equal((await b.raw("POST",br+"/resources/read",resource)).statusCode,403);
   const inv=await a.request("POST",ar+"/invitations",{relationship:"partner"});

@@ -1,5 +1,6 @@
 import { nextTestPhone, enableExpandedPlatformFixture, closePlatformFixtureStores, operatorFixtureClient } from "./helpers/platform-fixture.js";
 import assert from "node:assert/strict";
+import { putProjectContacts } from "./helpers/project-contacts.js";
 import { mkdtemp, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -453,11 +454,11 @@ test("document payment output records a payment_transactions row exactly once (r
     data: {
       id: projectId,
       address: "9 Document Pay Lane",
-      title: "Document Pay",
-      contacts: [{ id: "contact_docpay", name: "Dee Docpay", email: "dee-docpay@example.test", primary: true }]
+      title: "Document Pay"
     },
     metadata: { kind: "platform_project" }
   });
+  await putProjectContacts(client, orgId, projectId, [{ id: "contact_docpay", name: "Dee Docpay", email: "dee-docpay@example.test", primary: true }]);
   const created = await client.request("POST", `/v1/documents/organizations/${orgId}/projects/${projectId}/documents`, {
     document_type: "proposal",
     title: "Doc Pay Proposal",

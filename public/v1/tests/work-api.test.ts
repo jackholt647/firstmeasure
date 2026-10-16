@@ -1,3 +1,4 @@
+import { putProjectContacts } from "./helpers/project-contacts.js";
 import { nextTestPhone, enableExpandedPlatformFixture, closePlatformFixtureStores } from "./helpers/platform-fixture.js";
 import assert from "node:assert/strict";
 import { mkdtemp, rm } from "node:fs/promises";
@@ -468,11 +469,11 @@ test("scope call-list automations create queues and dispositions complete their 
   await client.request("PUT", `/v1/platform/organizations/${orgId}/projects/${projectId}`, {
     data: {
       title: "Scope Call Project",
-      address: "90 Welcome Lane",
-      contacts: [{ name: "Jamie Customer", phone: "+12065550199" }]
+      address: "90 Welcome Lane"
     },
     metadata: { kind: "platform_project" }
   });
+  await putProjectContacts(client, orgId, projectId, [{ name: "Jamie Customer", phone: "+12065550199" }]);
   const created = await client.request("POST", `/v1/work/organizations/${orgId}/projects/${projectId}/plans`, {
     id: "plan_scope_call_list",
     title: "Roof Replacement",
@@ -523,11 +524,11 @@ test("tagged follow-up to-dos are the single source for Calls and configured out
       branch_id: "default",
       stage: "new_lead",
       stage_id: "new_lead",
-      contacts: [{ name: "Taylor Lead", phone: "+12065550140" }],
       events: []
     },
     metadata: { kind: "platform_project" }
   });
+  await putProjectContacts(client, orgId, projectId, [{ name: "Taylor Lead", phone: "+12065550140" }]);
   const initialQueue = await client.request("POST", `/v1/call-lists/organizations/${orgId}/call-lists/queue`, { branch_id: "default" });
   assert.equal(initialQueue.follow_up_configuration.default_time, "");
   assert.deepEqual(initialQueue.follow_up_configuration.retry_policy.steps.map((item: any) => item.label), ["Day 1", "Day 2", "Day 3", "Day 5", "Then weekly"]);

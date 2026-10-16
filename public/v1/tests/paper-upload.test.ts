@@ -1,3 +1,4 @@
+import { putProjectContacts } from "./helpers/project-contacts.js";
 import { nextTestPhone, enableExpandedPlatformFixture, closePlatformFixtureStores } from "./helpers/platform-fixture.js";
 import assert from "node:assert/strict";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
@@ -115,11 +116,11 @@ async function createProject(client: ReturnType<typeof createSessionClient>, org
       address: "9 Scan Street",
       title: "Paula Paper",
       project_type: "residential",
-      contacts: [{ name: "Paula Paper", email: "paula@example.test", primary: true }],
       photos: []
     },
     metadata: { kind: "platform_project" }
   });
+  await putProjectContacts(client, orgId, projectId, [{ name: "Paula Paper", email: "paula@example.test", primary: true }]);
 }
 
 test("template-driven paper upload: declared fields, review edits, confirm fires document.signed", async () => {

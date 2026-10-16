@@ -490,7 +490,7 @@ export async function readDocument(orgId: string, collectionValue: string, docum
   const id = await ensureOrg({ query: queryPostgres } as DbExecutor, orgId);
   return documentByQuery({ query: queryPostgres } as DbExecutor, "SELECT document FROM platform_documents WHERE organization_id = $1 AND collection = $2 AND id = $3", [id, collection, sanitizeId(documentId, "document_id")]);
 }
-export async function upsertDocument(orgId: string, collectionValue: string, input: JsonObject = {}, options: { replace?: boolean; createOnly?: boolean; mustExist?: boolean; contactsProjection?: boolean } = {}, contactRefresh: string[] = []) {
+export async function upsertDocument(orgId: string, collectionValue: string, input: JsonObject = {}, options: { replace?: boolean; createOnly?: boolean; mustExist?: boolean; contactsProjection?: boolean } = {}) {
   await ensurePostgresPlatformStorage();
   const collection = assertCollection(collectionValue);
   const organizationId = sanitizeId(orgId, "organization_id");
@@ -511,7 +511,7 @@ export async function upsertDocument(orgId: string, collectionValue: string, inp
     if (["projects", "customers", "resource_custom_fields","organization_custom_fields", "users"].includes(collection)) {
       const fields = await import("../custom_fields/records.js");
       await withPlatformPostgresClient(client, async () => {
-        data = await (await import("./storage.js")).bridgeProjectContacts(orgId, collection, id, data, asObject(current?.data), options, contactRefresh);
+        data = (await import("./storage.js")).guardProjectContacts(collection, data, asObject(current?.data), options);
         data = await fields.prepareStoredFields(orgId, collection, data, asObject(current?.data));
         await fields.validateStoredFields(orgId, collection, data, asObject(current?.data), options.replace, id);
       });

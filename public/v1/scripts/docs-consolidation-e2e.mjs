@@ -86,11 +86,11 @@ const projectId = `project_docsv2_${suffix}`;
 await owner.req("PUT", `/v1/platform/organizations/${orgId}/projects/${projectId}`, {
   data: {
     id: projectId, title: "Attach Target Project", address: "42 Consolidation Ct", project_type: "residential",
-    contacts: [{ id: "contact_m", name: "Merle Merge", email: "merle@example.test", phone: "555-000-1111", primary: true }],
     photos: []
   },
   metadata: { kind: "platform_project" }
 });
+await owner.req("PUT", `/v1/platform/organizations/${orgId}/projects/${projectId}/contacts`, { contacts: [{ id: "contact_m", name: "Merle Merge", email: "merle@example.test", phone: "555-000-1111", primary: true }] });
 
 // --- browser -----------------------------------------------------------------
 const browser = await chromium.launch({ executablePath: await browserPath(), headless: true, args: ["--no-sandbox"] });
