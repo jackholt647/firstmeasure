@@ -1,5 +1,11 @@
 # FirstMeasure: local development and production deployment
 
+October 15 Payroll and My pay: [the Payroll rebuild and People worker classification, the widget catalog revalidated, and My pay with reimbursements protected from deductions and optional pay run approval](deploy/digitalocean/development-payroll-rebuild-20261015.md) records releases `57c8a2ea`, `07544bd5` and `81df90e7` (payroll schema version 5), the host merges and the verified development rollouts.
+
+October 15 Schedule roster: [who is on each schedule event and its warnings, from the assignee roster](deploy/digitalocean/development-schedule-roster-20261015.md) records release `7888eda4`, the host merges and the verified development rollout.
+
+October 14 Branches and closeout: [branches and regions, labor finalization and closeout, projected earnings and People by branch](deploy/digitalocean/development-branches-closeout-20261014.md) records release `58b3e015`, what was removed, the host merges and the verified development rollout.
+
 October 16 New leads: [a lead may arrive with no scope, projects start only through receiveLead or createProject, intake scopes, and lead.received rules notify and queue the call](deploy/digitalocean/development-new-leads-20261016.md) records what shipped from `claude/new-leads-20261016`, the checks and the verified development rollout.
 
 October 15 Contacts and opportunities: [contacts are records of their own, every lead source calls receiveLead, scope categories and sale outcomes, merge, and the legacy CRM removed](deploy/digitalocean/development-contacts-crm-20261015.md) records what shipped from `claude/contacts-opportunities-20261015` (not yet on the canonical branch), the migration and the verified development rollout.
