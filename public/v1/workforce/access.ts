@@ -826,8 +826,8 @@ const SALES_APP_CATALOG_SOURCE: AccessCatalogEntry[] = [
     devices: ["mobile", "desktop"],
     required_permissions: [SALES_PERMISSION_KEYS.earnings_view],
     permission_mode: "all",
-    default_params: { mode: "sales", subject_scope: "mine", presentation: "commissions" },
-    parameter_permissions: {},
+    default_params: { mode: "sales", subject_scope: "mine", presentation: "commissions", projected_enabled: false },
+    parameter_permissions: { projected_enabled: PAYROLL_PERMISSION_KEYS.view_own_projected_earnings },
     layout: PORTAL_LAYOUT
   },
   {

@@ -101,7 +101,7 @@ const people = {
   approver:{ userId:'owner', permissions:{} }
 };
 
-async function openApp(browser, who, viewport){
+async function openApp(browser, who, viewport, adjust = ''){
   const page = await browser.newPage({ viewport });
   const errors = [];
   page.on('pageerror', (error) => errors.push(error.message));
@@ -115,7 +115,7 @@ async function openApp(browser, who, viewport){
   await page.goto('https://payroll.test/');
   // Icons as the portal loads them; the views work without them when there is no network.
   await Promise.race([page.addStyleTag({ url:'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css' }).catch(() => {}), new Promise((resolve) => setTimeout(resolve, 4000))]);
-  await page.evaluate(({ who, data }) => {
+  await page.evaluate(({ who, data, adjust }) => {
     window.data = data;
     window.calls = [];
     window.prompt = () => { throw new Error('window.prompt is not used'); };
@@ -132,7 +132,8 @@ async function openApp(browser, who, viewport){
     const reads = {
       pay_review:() => data.review, pay_unresolved:() => data.unresolved, off_cycle_payments:() => data.offCycle, finalized_work:() => data.finalized,
       my_approvals:() => (who.userId === 'owner' ? data.approvals : { count:0, approvals:[] }), directory:() => data.directory, pay_rules:() => data.rules, pay_rule_vocabulary:() => data.vocabulary, pay_setup:() => data.setup, pay_units:() => data.units,
-      projected_earnings:(ref) => ref.target.id ? data.projectedMine : data.projectedAll, pay_plans:() => [], pay_rule_sources:() => [], pay_default:() => ({ subject:{ type:'organization', id:'org' }, entries:[], schedules:[{ id:'c1', earning_kind:'*', schedule_id:'weekly', effective_from:'2026-01-01' }], revision:2 })
+      projected_earnings:(ref) => ref.target.id ? data.projectedMine : data.projectedAll,
+      configuration:() => ({ schedules:data.schedules, schedule_choices:[], settings:{ approval_required:data.approvalRequired !== false, revision:1 } }), pay_plans:() => [], pay_rule_sources:() => [], pay_default:() => ({ subject:{ type:'organization', id:'org' }, entries:[], schedules:[{ id:'c1', earning_kind:'*', schedule_id:'weekly', effective_from:'2026-01-01' }], revision:2 })
     };
     const denied = { manager:[], crew:['dashboard', 'pay_review', 'directory'], approver:['dashboard'] };
     window.PlatformAPI = { publication:{
@@ -162,12 +163,14 @@ async function openApp(browser, who, viewport){
           case 'payroll.schedules.list': return ok(data.schedules);
           case 'payroll.batch.create': return ok({ batch:{ ...data.history[2], id:'run_new' }, earnings_refresh:{ unresolved_count:1 } });
           case 'payroll.offCycle.record': return ok({ ...data.offCycle[0], id:'oc_new' });
+          case 'payroll.settings.save': data.approvalRequired = input.approval_required; return ok({ approval_required:input.approval_required, revision:2 });
           default: return ok({ batch:data.history[2] });
         }
       }
     } };
-  }, { who:people[who], data:fixtures() });
-  for (const script of ['app-runtime/firstmate-embeddable-apps.js', 'app-runtime/app-chrome.js', 'apps/people/people-kit.js', 'apps/people/entity-modal.js', 'payroll-api/payroll-api.js', 'apps/settings/payroll.js', 'apps/payroll/app.js']) await page.addScriptTag({ url:`https://payroll.test/libraries/${script}` });
+    if (adjust) new Function('data', adjust)(data);
+  }, { who:people[who], data:fixtures(), adjust });
+  for (const script of ['app-runtime/firstmate-embeddable-apps.js', 'app-runtime/app-chrome.js', 'apps/people/people-kit.js', 'apps/people/entity-modal.js', 'payroll-api/payroll-api.js', 'apps/settings/payroll.js', 'apps/payroll/my-pay.js', 'apps/payroll/app.js']) await page.addScriptTag({ url:`https://payroll.test/libraries/${script}` });
   await page.evaluate(async (who) => { window.handle = await window.FirstMateEmbeddableApps.mount(document.querySelector('main'), 'portal.payroll', { surface:'portal_tab', orgId:'org', permissions:who.permissions }); }, people[who]);
   return { page, errors };
 }
@@ -303,6 +306,8 @@ test('payroll app: a payroll manager runs payroll, reviews, fixes timesheets and
       await page.locator('[data-payroll-settings-host] .pycfg').waitFor();
       await page.locator('[data-payroll-settings-host] [data-select-schedule]').first().waitFor();
       assert.equal(await page.locator('[data-payroll-settings-host] .pycfg-head').count(), 0, 'Settings inside Payroll has no second header');
+      // Whether pay runs need approval is a payroll setting; on unless turned off.
+      assert.equal(await page.locator('[data-approval-required]').isChecked(), true);
       await shoot(page, `settings-${suffix}`, phone);
       assert.deepEqual(errors, []);
       await page.close();
@@ -318,7 +323,7 @@ test('payroll app: someone with only the time clock and self-service earnings se
       assert.deepEqual(await tabs(page), ['Timesheets', 'My pay']);
       await show(page, 'mine');
       const text = await page.locator('.fmp').innerText();
-      assert.match(text, /Earned, not paid yet/); assert.match(text, /31 Cedar Way/); assert.match(text, /Check 1042/);
+      assert.match(text, /Earned, not paid yet/); assert.match(text, /31 Cedar Way/); assert.match(text, /Paid outside a pay run[\s\S]*\$200\.00/); assert.match(text, /My timesheets/);
       assert.equal(await page.locator('[data-act], [data-why], [data-run]').count(), 0, 'no manager controls');
       await shoot(page, `my-pay-${suffix}`, suffix === 'phone');
       await show(page, 'timesheets');
@@ -347,6 +352,40 @@ test('payroll app: a named approver without payroll management sees only Approva
     await shoot(page, 'approver-reject-desktop');
     await page.locator('.pp-form button[type="submit"]').click();
     await page.waitForFunction(() => calls.some((call) => call.action === 'payroll.batch.decide' && call.input.decision === 'reject' && /clawback/.test(call.input.note)));
+    assert.deepEqual(errors, []);
+  } finally { await browser.close(); }
+});
+
+test('payroll app: with approval turned off a pay run goes draft, entered, paid, and the setting saves', async () => {
+  const browser = await chromium.launch({ channel:'chrome', headless:true });
+  try {
+    // The next weekly run is drafted; the organization turned approval off.
+    const adjust = `data.approvalRequired = false;
+      const occurrence = data.dashboard.upcoming[0];
+      occurrence.batch = { ...data.history[0], id:'run_open', status:'draft', pay_date:occurrence.pay_date, approval:{ status:'not_required' }, paid_at:'', run_at:'', items:data.history[0].items.map((item) => ({ ...item, status:'draft', paid_at:'', payment_reference:'' })) };`;
+    const { page, errors } = await openApp(browser, 'manager', { width:1440, height:900 }, adjust);
+    await show(page, 'upcoming');
+    await page.locator('[data-section="runs"] tbody tr').first().click();
+    const steps = page.locator('.pp-modal [data-run-steps="draft"]');
+    await steps.waitFor();
+    assert.match(await steps.innerText(), /copy it out to your payroll software, then mark it entered/);
+    assert.equal(await steps.locator('[data-run-act="approve-self"]').count(), 0, 'no approval step');
+    await shoot(page, 'pay-run-no-approval-desktop');
+    await steps.locator('[data-run-act="run"]').click();
+    await page.waitForFunction(() => calls.some((call) => call.action === 'payroll.batch.action' && call.input.action === 'run'));
+    assert.ok(await page.evaluate(() => !calls.some((call) => call.action === 'payroll.batch.action' && ['submit_approval', 'finalize'].includes(call.input.action))));
+    await page.locator('.pp-modal [data-item-paid]').first().click();
+    await page.locator('.pp-form button[type="submit"]').click();
+    await page.waitForFunction(() => calls.some((call) => call.action === 'payroll.batch.item.update' && call.input.status === 'paid'));
+    await page.keyboard.press('Escape');
+    // The setting itself, in Payroll settings.
+    await page.locator('[data-app-header] [data-payroll-view="settings"]').click();
+    const toggle = page.locator('[data-approval-required]');
+    await toggle.waitFor();
+    assert.equal(await toggle.isChecked(), false);
+    await toggle.check();
+    await page.waitForFunction(() => calls.some((call) => call.action === 'payroll.settings.save' && call.input.approval_required === true && call.input.expected_revision === 1));
+    await shoot(page, 'settings-approval-desktop');
     assert.deepEqual(errors, []);
   } finally { await browser.close(); }
 });

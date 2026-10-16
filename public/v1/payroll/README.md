@@ -29,8 +29,13 @@ roles.
   adjustment or clawback.
 - A **batch** (a *pay run* on screen) snapshots accrued entries eligible for
   one schedule occurrence. Each payee can be marked run or paid independently.
-  Batch history is durable. Every run is approved by named approvers and made
-  final before it is marked run or paid.
+  Batch history is durable. When the organization's payroll setting
+  `approval_required` is on (the default; `GET|PUT .../settings`,
+  `payroll.settings.save`) a run is approved by named approvers and made final
+  before it is marked run or paid; with it off a run goes draft, run, paid. A
+  pay date that already has a run shows that run in the upcoming preview, and
+  newer earnings go to later runs.
+- Reimbursements are paid in full: deductions come off earnings only.
 - A **payment made outside a pay run** is a negative accrued entry of the kind
   it paid (`off-cycle.ts`); the next run takes it off, in full up to what that
   run pays, before any clawback. See

@@ -1,5 +1,6 @@
 import type { PayrollPayeeRef } from "./schemas.js";
-import { asArray, asObject, cleanText, listPayrollEarningsRecords, type JsonObject } from "./storage.js";
+import { asArray, asObject, cleanText, listPayrollEarningsRecords, readPayrollSchedule, type JsonObject } from "./storage.js";
+import { payrollOccurrences } from "./schedule.js";
 
 type EarningsTotals = {
   projected_cents: number;
@@ -211,6 +212,31 @@ function reportForPayee(payee: PayrollPayeeRef, entriesValue: unknown[], payment
     counts: { projects: projectReports.length, entries: entries.length, payments: payments.length },
     filters
   };
+}
+
+/**
+ * What only the payee's own view adds: the next day they are paid (the schedule their pay layers choose for
+ * everything, and its next pay date) and anything of theirs a pay rule could not work out, which is never zero.
+ */
+export async function myPayExtras(orgId: string, userId: string) {
+  const payee = { type: "organization_user" as const, id: userId };
+  const { resolvePaySchedule, listPayRules } = await import("./pay-rules.js");
+  const { listUnresolvedPay } = await import("./pay-refresh.js");
+  let next_payment: JsonObject | null = null;
+  const chosen = await resolvePaySchedule(orgId, payee, "*").catch(() => null);
+  const scheduleId = cleanText(chosen?.schedule_id);
+  const schedule = scheduleId ? await readPayrollSchedule(orgId, scheduleId).catch(() => null) : null;
+  if (schedule) {
+    const today = new Date().toISOString().slice(0, 10);
+    const through = new Date(Date.now() + 400 * 86400000).toISOString().slice(0, 10);
+    const occurrence = payrollOccurrences(schedule, today, through)[0];
+    if (occurrence) next_payment = { pay_date: occurrence.pay_date, schedule_name: cleanText(schedule.name) };
+  }
+  const names = new Map((await listPayRules(orgId).catch(() => [])).map((rule) => [rule.id, rule.name]));
+  const unresolved = (await listUnresolvedPay(orgId).catch(() => []))
+    .filter((item) => item.payee.type === "organization_user" && item.payee.id === userId)
+    .map((item) => ({ rule_name: cleanText(names.get(item.rule_id)) || item.rule_id, reason: item.reason, earned_at: item.earned_at, whole_rule: item.whole_rule }));
+  return { next_payment, unresolved };
 }
 
 export async function payrollEarnings(orgId: string, payees: PayrollPayeeRef[], options: JsonObject = {}) {

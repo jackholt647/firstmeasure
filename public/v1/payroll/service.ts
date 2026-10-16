@@ -18,6 +18,7 @@ import {
   readPayrollBatchItem,
   readPayrollLedgerEntry,
   readPayrollSchedule,
+  readPayrollSettings,
   upsertPayrollLedgerEntry,
   withPayrollTransaction,
   type JsonObject
@@ -230,7 +231,16 @@ export function isOffCyclePayment(entry: JsonObject) {
   return cleanText(entry.subgroup) === "off_cycle" && Object.keys(asObject(asObject(entry.metadata).off_cycle_payment)).length > 0;
 }
 
-/** What one check takes off: recorded off-cycle payments first, then clawbacks within the cap, never more than the gross. */
+/**
+ * What deductions may come off: the check's earnings. Reimbursements give back what a person spent and are paid in
+ * full; payments made outside a pay run, clawbacks and other negative entries never reduce them, and whatever the
+ * earnings cannot cover waits for a later run.
+ */
+function deductibleCents(positives: JsonObject[]) {
+  return positives.filter((entry) => cleanText(entry.kind) !== "reimbursement").reduce((sum, entry) => sum + Number(entry.remaining_cents || 0), 0);
+}
+
+/** What one check takes off: recorded off-cycle payments first, then clawbacks within the cap, never more than the earnings. */
 function planDeductions(gross: number, negatives: JsonObject[], capPercent: number) {
   const open = (entry: JsonObject) => Math.abs(Number(entry.remaining_cents || 0));
   const plan: Array<{ entry: JsonObject; applied: number }> = [];
@@ -263,7 +273,7 @@ async function previewPayee(orgId: string, schedule: JsonObject, entries: Previe
   ));
   const gross = positives.reduce((sum, entry) => sum + entry.remaining_cents, 0);
   const payee = entryPayee(entries[0] || {});
-  const deductions = planDeductions(gross, negatives, await clawbackCap(orgId, schedule, payee));
+  const deductions = planDeductions(deductibleCents(positives), negatives, await clawbackCap(orgId, schedule, payee));
   const deduction = deductions.deduction_cents;
   const subgroups: Record<string, number> = {};
   for (const entry of positives) {
@@ -303,6 +313,14 @@ export async function upcomingPayroll(orgId: string, options: JsonObject = {}) {
       .filter((entry) => cleanText(entry.state) === "accrued" || (includeProjected && cleanText(entry.state) === "projected"))
       .map((entry) => ({ ...entry, remaining_cents: Number(entry.remaining_cents || 0) } as PreviewEntry));
     for (const occurrence of payrollOccurrences(schedule, from, through)) {
+      // A pay date that already has a pay run pays what that run holds; earnings since then go to later runs, so the
+      // preview does not hand them to it.
+      const drafted = existingBatches.find((candidate) => cleanText(candidate.schedule_id) === schedule.id && cleanText(candidate.pay_date) === occurrence.pay_date && cleanText(candidate.status) !== "void");
+      if (drafted) {
+        upcoming.push({ ...occurrence, schedule, batch: drafted, employees: [], subcontractors: [],
+          accrued_total_cents: cleanText(drafted.status) === "paid" ? 0 : Number(drafted.total_cents || 0), projected_additional_cents: 0, forecast_total_cents: cleanText(drafted.status) === "paid" ? 0 : Number(drafted.total_cents || 0) });
+        continue;
+      }
       const eligible = entries.filter((entry) => entry.remaining_cents !== 0 && Date.parse(cleanText(entry.eligible_at)) <= Date.parse(occurrence.cutoff_at));
       const groups = new Map<string, PreviewEntry[]>();
       for (const entry of eligible) {
@@ -350,7 +368,7 @@ async function insertBatchItem(db: SqlStore, orgId: string, batchId: string, gro
   const negatives = group.filter((entry) => Number(entry.remaining_cents || 0) < 0);
   const gross = positives.reduce((sum, entry) => sum + Number(entry.remaining_cents || 0), 0);
   if (gross <= 0) return null;
-  const deductions = planDeductions(gross, negatives, await clawbackCap(orgId, schedule, payee));
+  const deductions = planDeductions(deductibleCents(positives), negatives, await clawbackCap(orgId, schedule, payee));
   const deduction = deductions.deduction_cents;
   const subgroupTotals: Record<string, number> = {};
   for (const entry of positives) {
@@ -396,6 +414,7 @@ export async function createPayrollBatch(orgId: string, input: JsonObject, actor
   if (runType === "off_cycle" && cleanText(occurrence.period_end) < cleanText(occurrence.period_start)) {
     throw badRequest("off_cycle_period_invalid", "Off-cycle period_end must be on or after period_start.");
   }
+  const approvalRequired = (await readPayrollSettings(orgId)).approval_required;
   const prior = (await listPayrollBatches(orgId, { schedule_id: schedule.id, from: occurrence.pay_date, through: occurrence.pay_date, limit: 1 }))[0];
   if (prior) throw conflict("payroll_batch_exists", "A payroll batch already exists for this schedule and pay date.", { batch_id: prior.id });
   const batchId = generatedId("pay_batch");
@@ -423,7 +442,7 @@ export async function createPayrollBatch(orgId: string, input: JsonObject, actor
       (id, organization_id, schedule_id, pay_date, period_start, period_end, status, currency, metadata_json, revision, created_by, created_at, updated_at)
       VALUES (?, ?, ?, ?, ?, ?, 'draft', ?, ?, 1, ?, ?, ?)`)
       .run(batchId, orgId, cleanText(schedule.id), cleanText(occurrence.pay_date), cleanText(occurrence.period_start), cleanText(occurrence.period_end), cleanText(schedule.currency),
-        JSON.stringify({ ...asObject(input.metadata), run_type: runType, reason: cleanText(input.reason), approval: { status: "draft" } }), actorUserId, now, now));
+        JSON.stringify({ ...asObject(input.metadata), run_type: runType, reason: cleanText(input.reason), approval: { status: approvalRequired ? "draft" : "not_required" } }), actorUserId, now, now));
     let employeeTotal = 0;
     let subcontractorTotal = 0;
     let itemCount = 0;
@@ -499,10 +518,7 @@ export async function patchPayrollBatchItem(orgId: string, batchId: string, item
   return (await getPayrollDatabase().transaction(async () => {
   const batch = (await readPayrollBatch(orgId, batchId));
   if (["void", "paid"].includes(cleanText(batch.status))) throw badRequest("payroll_batch_locked", "This payroll batch can no longer be changed.");
-  const approval = asObject(batch.approval || asObject(batch.metadata).approval);
-  if (Object.keys(approval).length && cleanText(approval.status) !== "finalized") {
-    throw badRequest("payroll_batch_not_finalized", "Finalize the named approval workflow before recording payroll item payments.");
-  }
+  await assertReadyToPay(orgId, asObject(batch.approval || asObject(batch.metadata).approval));
   const current = (await readPayrollBatchItem(orgId, batchId, itemId));
   if (cleanText(current.status) === "paid") throw badRequest("payroll_item_paid", "A paid payroll item cannot be changed.");
   const nextStatus = cleanText(input.status) === "paid" ? "paid" : "run";
@@ -518,6 +534,23 @@ export async function patchPayrollBatchItem(orgId: string, batchId: string, item
   return (await readPayrollBatch(orgId, batchId));
 
   }));
+}
+
+/**
+ * Whether a pay run may be marked run or paid. With approval required (the organization's payroll setting, on by
+ * default) its named approvers must approve and someone must make it final. With approval turned off it may be marked
+ * run or paid from a draft, unless someone asked for an approval that is still waiting or was rejected.
+ */
+async function assertReadyToPay(orgId: string, approval: JsonObject) {
+  const status = cleanText(approval.status);
+  if (status === "finalized") return;
+  if (!(await readPayrollSettings(orgId)).approval_required) {
+    if (status === "pending") throw badRequest("payroll_approval_pending", "Someone was asked to approve this pay run. Wait for them, or reopen it.");
+    if (status === "rejected") throw badRequest("payroll_approval_rejected", "This pay run was rejected. Reopen it to fix it first.");
+    return;
+  }
+  if (!Object.keys(approval).length) return;
+  throw badRequest("payroll_batch_not_finalized", "Pay runs need approval: its named approvers must approve and it must be made final before it is marked run or paid.");
 }
 
 export async function applyPayrollBatchAction(orgId: string, batchId: string, input: JsonObject) {
@@ -573,9 +606,7 @@ export async function applyPayrollBatchAction(orgId: string, batchId: string, in
     return (await readPayrollBatch(orgId, batchId));
   }
   if (!["run", "paid"].includes(action)) throw badRequest("invalid_payroll_batch_action", "Payroll batch action must be run, paid, or void.");
-  if (Object.keys(approval).length && cleanText(approval.status) !== "finalized") {
-    throw badRequest("payroll_batch_not_finalized", "Finalize the named approval workflow before running this payroll batch.");
-  }
+  await assertReadyToPay(orgId, approval);
   if (cleanText(batch.status) === "void") throw badRequest("payroll_batch_void", "A void payroll batch cannot be changed.");
   (await withPayrollTransaction(async (db) => {
     const now = nowIso();
