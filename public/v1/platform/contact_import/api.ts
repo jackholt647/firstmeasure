@@ -2,17 +2,16 @@ import { contactSettings } from "../../contacts/service.js";
 import { importContactPhoto } from "../../contacts/photo-import.js";
 // Contact import pipeline: upload/preview -> commit -> history/undo.
 //
-// Imported contacts become `contact_only` project documents (the platform's
-// standalone-contact shape), so they surface everywhere contacts already do:
-// the My Contacts tab, global search, the contact modal, and portal links.
-// Each import is recorded in the private `contact_imports` collection with
-// the applied tags, per-row outcomes, and the created document ids so the
-// whole batch can be undone.
+// Imported rows become records in the contact store (docs/architecture/contacts.md),
+// written through the contact service. Each import is recorded in the private
+// `contact_imports` collection with the applied tags, per-row outcomes, and the
+// created contact ids so the whole batch can be undone.
 
 import type { FastifyInstance, FastifyRequest } from "fastify";
 import { randomBytes } from "node:crypto";
 
 import { requirePlatformAuth } from "../auth.js";
+import { createContact, listContacts, readContact, removeUnusedContact, updateContact } from "../../contacts/records.js";
 import { badRequest, conflict, notFound } from "../errors.js";
 import {
   deleteDocument,
@@ -44,7 +43,7 @@ type ClassifiedRow = {
   status: RowStatus;
   reason: string;
   contact: ImportedContactRow;
-  match: { kind: "existing" | "file"; project_id: string; contact_id: string; name: string } | null;
+  match: { kind: "existing" | "file"; contact_id: string; name: string } | null;
 };
 
 function cleanText(value: unknown) {
@@ -102,26 +101,21 @@ function contactIdentityKeys(contact: { name?: unknown; email?: unknown; phone?:
   return keys;
 }
 
-type ExistingContactRef = { project_id: string; contact_id: string; name: string };
+type ExistingContactRef = { contact_id: string; name: string };
 
 async function buildExistingContactIndex(orgId: string) {
   const index = new Map<string, ExistingContactRef>();
-  const documents = await listDocuments(orgId, "projects");
-  for (const document of documents) {
-    const data = asObject(document.data);
-    const projectId = cleanText(data.id || document.id);
-    for (const entry of asArray(data.contacts)) {
-      const contact = asObject(entry);
-      const ref: ExistingContactRef = {
-        project_id: projectId,
-        contact_id: cleanText(contact.id || contact.contact_id),
-        name: cleanText(contact.name)
-      };
+  let after = "";
+  do {
+    const page = await listContacts(orgId, { limit: 200, after });
+    for (const contact of page.items) {
+      const ref: ExistingContactRef = { contact_id: contact.id, name: contact.name };
       for (const key of contactIdentityKeys(contact)) {
         if (!index.has(key)) index.set(key, ref);
       }
     }
-  }
+    after = page.next || "";
+  } while (after);
   return index;
 }
 
@@ -139,7 +133,7 @@ function classifyRows(rows: ImportedContactRow[], existing: Map<string, Existing
         status: "duplicate" as const,
         reason: `Duplicates row ${fileMatchIndex + 1} of this file.`,
         contact,
-        match: { kind: "file" as const, project_id: "", contact_id: "", name: cleanText(rows[fileMatchIndex]?.name) }
+        match: { kind: "file" as const, contact_id: "", name: cleanText(rows[fileMatchIndex]?.name) }
       };
     }
     for (const key of keys) seenInFile.set(key, index);
@@ -251,25 +245,18 @@ function contactNotes(row: ImportedContactRow) {
   return lines.filter(Boolean).join("\n");
 }
 
-function contactOnlyProjectRecord(row: ImportedContactRow, options: {
+function importedContactInput(row: ImportedContactRow, options: {
   importId: string;
   importedAt: string;
   sourceLabel: string;
   tags: string[];
-  sequence: number;
+  branchId: string;
 }) {
-  const suffix = `${Date.now().toString(36)}_${options.sequence.toString(36)}${randomToken(3)}`;
-  const projectId = `project_${suffix}`;
-  const contactId = `contact_${suffix}`;
-  const title = cleanText(row.name) || cleanText(row.email) || cleanText(row.phone) || "Imported contact";
-  const contact = {
-    id: contactId,
-    contact_id: contactId,
+  return {
     name: cleanText(row.name),
     email: cleanText(row.email).toLowerCase(),
     phone: cleanText(row.phone),
     address: cleanText(row.address),
-    default_address: cleanText(row.address),
     company: cleanText(row.company),
     notes: contactNotes(row),
     birthday: cleanText(row.birthday),
@@ -278,72 +265,35 @@ function contactOnlyProjectRecord(row: ImportedContactRow, options: {
     import_id: options.importId,
     import_source: options.sourceLabel,
     contact_kind: row.contact_kind || "human",
-    primary: true
-  };
-  return {
-    id: projectId,
-    data: {
-      id: projectId,
-      title,
-      project_title: title,
-      contacts: [contact],
-      address: cleanText(row.address),
-      project_type: "residential",
-      workflow_state: "contact_only",
-      measurement: {},
-      measurement_project: {},
-      events: [],
-      proposals: [],
-      created_at: options.importedAt,
-      updated_at: options.importedAt
-    },
-    metadata: {
-      kind: "platform_project",
-      workflow_state: "contact_only",
-      source: "contact_import",
-      import_id: options.importId
-    }
+    branch_ids: [options.branchId]
   };
 }
 
-async function mergeImportedContactIntoProject(orgId: string, match: ExistingContactRef, row: ImportedContactRow, options: {
+/** Fills what the existing contact leaves blank; its own values win. Tags are unioned. */
+async function mergeImportedContact(orgId: string, contactId: string, row: ImportedContactRow, options: {
   importId: string;
   importedAt: string;
   sourceLabel: string;
   tags: string[];
 }) {
-  const document = await readDocument(orgId, "projects", match.project_id);
-  const data = asObject(document.data);
-  const contacts = asArray(data.contacts).map(asObject);
-  const keys = new Set(contactIdentityKeys(row));
-  const index = contacts.findIndex((contact) => (
-    (match.contact_id && cleanText(contact.id || contact.contact_id) === match.contact_id)
-    || contactIdentityKeys(contact).some((key) => keys.has(key))
-  ));
-  if (index < 0) return false;
-  const current = contacts[index]!;
-  contacts[index] = {
-    ...current,
-    name: cleanText(current.name) || cleanText(row.name),
-    email: cleanText(current.email) || cleanText(row.email).toLowerCase(),
-    phone: cleanText(current.phone) || cleanText(row.phone),
-    address: cleanText(current.address) || cleanText(row.address),
-    default_address: cleanText(current.default_address) || cleanText(row.address),
-    company: cleanText(current.company) || cleanText(row.company),
-    notes: cleanText(current.notes) || contactNotes(row),
-    birthday: cleanText(current.birthday) || cleanText(row.birthday),
-    contact_kind: current.contact_kind || row.contact_kind || "human",
-    tags: mergeTagLists(current.tags, row.tags, options.tags),
-    imported_at: cleanText(current.imported_at) || options.importedAt,
-    import_id: cleanText(current.import_id) || options.importId,
-    import_source: cleanText(current.import_source) || options.sourceLabel
+  const current = await readContact(orgId, contactId).catch(() => null);
+  if (!current) return "";
+  const patch: JsonObject = { tags: mergeTagLists(current.tags, row.tags, options.tags) };
+  const fill = (key: "name" | "email" | "phone" | "address" | "company" | "notes" | "birthday" | "imported_at" | "import_id" | "import_source", value: string) => {
+    if (!cleanText(current[key]) && value) patch[key] = value;
   };
-  await upsertDocument(orgId, "projects", {
-    id: match.project_id,
-    data: { ...data, contacts, updated_at: options.importedAt },
-    metadata: asObject(document.metadata)
-  }, { replace: true });
-  return true;
+  fill("name", cleanText(row.name));
+  fill("email", cleanText(row.email).toLowerCase());
+  fill("phone", cleanText(row.phone));
+  fill("address", cleanText(row.address));
+  fill("company", cleanText(row.company));
+  fill("notes", contactNotes(row));
+  fill("birthday", cleanText(row.birthday));
+  fill("imported_at", options.importedAt);
+  fill("import_id", options.importId);
+  fill("import_source", options.sourceLabel);
+  await updateContact(orgId, current.id, patch);
+  return current.id;
 }
 
 async function mapWithConcurrency<T, R>(items: T[], concurrency: number, mapper: (item: T, index: number) => Promise<R>) {
@@ -364,13 +314,11 @@ function previewRow(raw:unknown){
  const row=asObject(raw),contact=asObject(row.contact),{photo_source,...rest}=contact;
  return {...row,contact:{...rest,photo_available:!!photo_source}};
 }
-async function attachImportedPhoto(orgId:string,projectId:string,contactId:string,source:string,importId:string){
- const parent=await readDocument(orgId,"projects",projectId),contacts=asArray(parent.data.contacts).map(asObject),contact=contacts.find(c=>cleanText(c.id || c.contact_id)===contactId);
- if(!contact || cleanText(contact.profile_media_id))return false;
- const media=await importContactPhoto(orgId,contactId,projectId,source,importId);
- const values={...asObject(contact.custom_field_values),profile_photo:{media_id:cleanText(media.id)}};
- const patched={...contact,custom_field_values:values,contact_custom_field_values:values};
- await upsertDocument(orgId,"projects",{id:projectId,expected_revision:parent.revision,data:{...parent.data,contacts:contacts.map(c=>c===contact?patched:c),...(parent.data.workflow_state==="contact_only"?{contact_custom_field_values:values}: {})},metadata:parent.metadata},{replace:true});
+async function attachImportedPhoto(orgId:string,contactId:string,source:string,importId:string){
+ const contact=await readContact(orgId,contactId);
+ if(contact.profile_media_id)return false;
+ const media=await importContactPhoto(orgId,contact.id,source,importId);
+ await updateContact(orgId,contact.id,{custom_field_values:{...contact.custom_field_values,profile_photo:{media_id:cleanText(media.id)}}});
  return true;
 }
 function importSummaryDocument(document: JsonObject): JsonObject {
@@ -411,8 +359,8 @@ export async function registerContactImportRoutes(app: FastifyInstance, deps: Co
       rows,
       tags: [],
       counts: {},
-      created_project_ids: [],
-      updated_project_ids: [],
+      created_contact_ids: [],
+      updated_contact_ids: [],
       actor_user_id: ctx.userId,
       actor_email: cleanText(ctx.identity.email),
       created_at: createdAt,
@@ -443,7 +391,8 @@ export async function registerContactImportRoutes(app: FastifyInstance, deps: Co
   app.post("/organizations/:orgId/contact-imports/:importId/commit", async (request) => {
     const orgId = getParam(request.params, "orgId");
     const importId = getParam(request.params, "importId");
-    await requirePlatformAuth(request, { orgId, csrf: true, permission: "manage_projects" });
+    const ctx = await requirePlatformAuth(request, { orgId, csrf: true, permission: "manage_projects" });
+    const branchId = cleanText(ctx.branchId) || "default";
     const body = asObject(request.body);
     const document = await readDocument(orgId, "contact_imports", importId).catch(() => null);
     if (!document) throw notFound("contact_import_not_found", "The contact import was not found.");
@@ -482,18 +431,18 @@ export async function registerContactImportRoutes(app: FastifyInstance, deps: Co
       return { row, action: "skip" as const };
     });
 
-    const createdProjectIds: string[] = [];
-    const updatedProjectIds: string[] = [];
+    const createdContactIds: string[] = [];
+    const updatedContactIds: string[] = [];
     let skipped = 0;
     let failed = 0,photosImported=0,photosFailed=0;
     const ignoredTags=new Set<string>(),photoErrors:JsonObject[]=[];
     const photosEnabled=body.import_photos===true;
-    const importPhoto=async(projectId:string,contactId:string,source:string,index:number)=>{
+    const importPhoto=async(contactId:string,source:string,index:number)=>{
       if(!photosEnabled || !source)return;
-      try{if(await attachImportedPhoto(orgId,projectId,contactId,source,importId))photosImported++;}
+      try{if(await attachImportedPhoto(orgId,contactId,source,importId))photosImported++;}
       catch(e){photosFailed++;if(photoErrors.length<100)photoErrors.push({index,code:cleanText((e as any)?.code)||"contact_photo_import_failed",message:"Contact saved, but its optional photo could not be imported."});}
     };
-    await mapWithConcurrency(planned, photosEnabled?4:COMMIT_WRITE_CONCURRENCY, async (entry, sequence) => {
+    await mapWithConcurrency(planned, photosEnabled?4:COMMIT_WRITE_CONCURRENCY, async (entry) => {
       if (entry.action === "skip") {
         skipped += 1;
         return;
@@ -502,14 +451,13 @@ export async function registerContactImportRoutes(app: FastifyInstance, deps: Co
         const source=entry.row.contact.photo_source || "";
         entry.row.contact.tags=entry.row.contact.tags.flatMap(tag=>{const id=tagIds.get(tag.toLowerCase());if(!id){ignoredTags.add(tag);return [];}return [id];});
         if (entry.action === "create") {
-          const projectRecord = contactOnlyProjectRecord(entry.row.contact, { importId, importedAt, sourceLabel, tags, sequence });
-          await upsertDocument(orgId, "projects", projectRecord);
-          createdProjectIds.push(projectRecord.id);
-          await importPhoto(projectRecord.id,cleanText(projectRecord.data.contacts[0]?.id),source,entry.row.index);
+          const contact = await createContact(orgId, importedContactInput(entry.row.contact, { importId, importedAt, sourceLabel, tags, branchId }));
+          createdContactIds.push(contact.id);
+          await importPhoto(contact.id,source,entry.row.index);
           return;
         }
-        const merged = await mergeImportedContactIntoProject(orgId, entry.row.match!, entry.row.contact, { importId, importedAt, sourceLabel, tags });
-        if (merged) {updatedProjectIds.push(entry.row.match!.project_id);await importPhoto(entry.row.match!.project_id,entry.row.match!.contact_id,source,entry.row.index);}
+        const mergedId = await mergeImportedContact(orgId, entry.row.match!.contact_id, entry.row.contact, { importId, importedAt, sourceLabel, tags });
+        if (mergedId) {updatedContactIds.push(mergedId);await importPhoto(mergedId,source,entry.row.index);}
         else skipped += 1;
       } catch {
         failed += 1;
@@ -517,8 +465,8 @@ export async function registerContactImportRoutes(app: FastifyInstance, deps: Co
     });
 
     const counts = {
-      created: createdProjectIds.length,
-      updated: updatedProjectIds.length,
+      created: createdContactIds.length,
+      updated: updatedContactIds.length,
       skipped,
       invalid: rows.filter((row) => row.status === "invalid").length,
       failed,photos_imported:photosImported,photos_failed:photosFailed
@@ -531,8 +479,8 @@ export async function registerContactImportRoutes(app: FastifyInstance, deps: Co
       tags,
       duplicate_action: duplicateAction,
       counts,photo_errors:photoErrors,ignored_tags:[...ignoredTags],
-      created_project_ids: createdProjectIds,
-      updated_project_ids: [...new Set(updatedProjectIds)],
+      created_contact_ids: createdContactIds,
+      updated_contact_ids: [...new Set(updatedContactIds)],
       rows: [],
       committed_at: importedAt,
       updated_at: importedAt
@@ -595,26 +543,13 @@ export async function registerContactImportRoutes(app: FastifyInstance, deps: Co
     if (cleanText(record.status) !== "committed") {
       throw conflict("contact_import_not_committed", "Only committed imports can be undone.");
     }
-    const createdIds = asArray(record.created_project_ids).map(cleanText).filter(Boolean);
+    // A contact this import created goes unless something now uses it (a project link) or it was merged.
+    const createdIds = asArray(record.created_contact_ids).map(cleanText).filter(Boolean);
     let removed = 0;
     let kept = 0;
-    await mapWithConcurrency(createdIds, COMMIT_WRITE_CONCURRENCY, async (projectId) => {
-      const projectDocument = await readDocument(orgId, "projects", projectId).catch(() => null);
-      if (!projectDocument) return;
-      const data = asObject(projectDocument.data);
-      const metadata = asObject(projectDocument.metadata);
-      // Only remove records this import created that are still bare
-      // contacts: untouched workflow state and no attached work.
-      const untouched = cleanText(metadata.import_id) === importId
-        && cleanText(data.workflow_state) === "contact_only"
-        && !asArray(data.events).length
-        && !asArray(data.proposals).length;
-      if (!untouched) {
-        kept += 1;
-        return;
-      }
-      await deleteDocument(orgId, "projects", projectId);
-      removed += 1;
+    await mapWithConcurrency(createdIds, COMMIT_WRITE_CONCURRENCY, async (contactId) => {
+      if (await removeUnusedContact(orgId, contactId, importId)) removed += 1;
+      else kept += 1;
     });
     const undoneAt = nowIso();
     await upsertDocument(orgId, "contact_imports", {

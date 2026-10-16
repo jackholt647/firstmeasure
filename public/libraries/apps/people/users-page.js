@@ -53,6 +53,12 @@
       .pp-dtree-item:not([style*="--depth:0"])::before{content:"";position:absolute;left:calc((var(--depth,1) - 1) * 16px + 6px);top:0;bottom:0;border-left:1px solid var(--pp-line)}
       .pp-dtree-line{display:flex;align-items:center;gap:7px;min-width:0;min-height:26px}
       .pp-dtree-line>.pp-chip-dot{margin-left:3px}
+      .pp-worker{display:grid;gap:10px;margin:0 0 16px;padding:0 0 14px;border-bottom:1px solid var(--pp-line-soft)}
+      .pp-worker-line{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+      .pp-worker-line>h4{display:flex;align-items:center;gap:6px;min-width:110px;margin:0;color:var(--pp-muted);font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase}
+      .pp-worker-terms{display:flex;gap:8px;align-items:center}
+      .pp-worker-terms select{width:auto}
+      .pp-worker-terms input{width:80px}
       .pp-dtree-icon{flex:none;width:14px;text-align:center;color:var(--pp-faint);font-size:10.5px}
       .pp-dtree-name{flex:0 1 auto;min-width:0;color:var(--pp-strong);font-size:12.5px;font-weight:650;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
       .pp-dtree-item.place .pp-dtree-name{color:var(--pp-muted);font-size:12px;font-weight:600}
@@ -103,6 +109,7 @@
         photoAction:data.allows('users.photo') ? t('change_photo', 'Change photo') : '',
         title:user.name || user.email || user.id,
         secondary:user.name ? user.email : '',
+        marks:data.workerMarks(user),
         pills,
         chipGroups:[
           { chips:legacy ? [{ label:t(`level_${data.userLegacy(user).level}`, LEVEL_LABELS[data.userLegacy(user).level] || data.userLegacy(user).level), tone:'role' }] : roles.map((role) => ({ label:role.name || role.id, tone:'role' })), tone:'role' },
@@ -463,6 +470,59 @@
           });
         }
       }
+      /*
+       * Compensation: how this person is paid (employee or independent contractor, and a contractor's payment terms)
+       * above their pay. Saved as it is changed, through payroll.contractor.worker.update, which the Payroll app's
+       * Contractors view used.
+       */
+      function compensationTab(entityRef){
+        const tab = People.slots.tab('compensation', entityRef, { readOnly:!can.settings });
+        return { ...tab, mount(panel, ctx){
+          panel.innerHTML = '<div class="pp-worker" data-worker></div><div class="pp-worker-pay" data-worker-pay></div>';
+          const host = panel.querySelector('[data-worker]');
+          const payHost = panel.querySelector('[data-worker-pay]');
+          let inner = tab.mount(payHost, ctx);
+          const editable = data.allows('users.classification') && !data.isSuspended(current());
+          const draw = () => {
+            if (!data.allows('users.classification_view')) { host.hidden = true; return; }
+            const now = data.classificationOf(current());
+            const terms = data.paymentTermsOf(current());
+            const contractor = now === 'independent_contractor';
+            const choice = (value, label, icon) => `<button type="button" role="radio" aria-checked="${now === value}" data-worker-class="${value}" ${editable ? '' : 'disabled'}><i class="fas ${icon}" aria-hidden="true"></i>${esc(label)}</button>`;
+            host.innerHTML = `<div class="pp-worker-line"><h4>${esc(t('paid_as', 'Paid as'))}${kit.info(t('paid_as_tip', 'An independent contractor is paid without payroll taxes and can have their own payment terms. Pay defaults can differ for each.'))}</h4>
+              <div class="pp-seg" role="radiogroup" aria-label="${esc(t('paid_as', 'Paid as'))}">${choice('employee', t('employee', 'Employee'), 'fa-id-badge')}${choice('independent_contractor', t('independent_contractor', 'Independent contractor'), 'fa-file-contract')}</div></div>
+              ${contractor ? `<div class="pp-worker-line"><h4>${esc(t('payment_terms', 'Payment terms'))}</h4><div class="pp-worker-terms"><select class="pp-input" data-worker-basis aria-label="${esc(t('payment_terms', 'Payment terms'))}" ${editable ? '' : 'disabled'}><option value="payroll_schedule" ${terms.basis === 'payroll_schedule' ? 'selected' : ''}>${esc(t('with_payroll', 'With payroll'))}</option><option value="net_days" ${terms.basis === 'net_days' ? 'selected' : ''}>${esc(t('net_days', 'Net days'))}</option></select>${terms.basis === 'net_days' ? `<input class="pp-input" type="number" min="0" max="365" step="1" data-worker-days value="${terms.net_days}" aria-label="${esc(t('net_days_count', 'Days after the work'))}" ${editable ? '' : 'disabled'}>` : ''}</div></div>` : ''}`;
+          };
+          let saving = Promise.resolve();
+          const save = (classification, terms, focus) => {
+            saving = saving.then(async () => {
+              try {
+                await data.saveClassification(id, classification, terms);
+                ctx.setStatus?.('saved', t('saved', 'Saved'));
+                modal.refreshSummary();
+                draw();
+                // Pay defaults can differ for employees and contractors: the pay below is drawn again.
+                inner?.destroy?.(); payHost.replaceChildren(); inner = tab.mount(payHost, ctx);
+                host.querySelector(focus)?.focus();
+              } catch (error) { People.pageKit.failed(t('not_saved', 'Not saved'), error); draw(); }
+            });
+            return saving;
+          };
+          host.addEventListener('click', (event) => {
+            const button = event.target.closest('[data-worker-class]');
+            if (!button || button.disabled || button.getAttribute('aria-checked') === 'true') return;
+            save(button.dataset.workerClass, null, `[data-worker-class="${button.dataset.workerClass}"]`);
+          });
+          host.addEventListener('change', (event) => {
+            const basis = host.querySelector('[data-worker-basis]');
+            if (!basis || !event.target.closest('[data-worker-basis], [data-worker-days]')) return;
+            const days = host.querySelector('[data-worker-days]');
+            save('independent_contractor', { basis:basis.value, net_days:basis.value === 'net_days' ? Number(days?.value || 30) : 0 }, event.target.matches('[data-worker-days]') ? '[data-worker-days]' : '[data-worker-basis]');
+          });
+          draw();
+          return { ...(inner || {}), refresh(change){ inner?.refresh?.(change); if (!host.contains(document.activeElement)) draw(); }, destroy(){ inner?.destroy?.(); } };
+        } };
+      }
       const user = current();
       const entity = data.entityFor('organization_user', id, user.name || user.email);
       const modal = People.entityModal.open({
@@ -500,7 +560,7 @@
             return { destroy:() => permissions?.destroy() };
           } },
           { id:'apps', needs:'users.apps', label:t('app_experience', 'App experience'), icon:kit.ICONS.apps, mount(panel){ appsPanel = panel; mountApps(); return { destroy:() => apps?.destroy() }; } },
-          People.slots.tab('compensation', entity, { readOnly:!can.settings }),
+          compensationTab(entity),
           People.slots.tab('fields', entity, { readOnly:!can.users }),
           window.PlatformAPI?.userActivity?.list ? { id:'activity', needs:'users.activity', label:t('activity', 'Activity'), icon:'fa-clock-rotate-left', mount(panel){
             /* What this person did, newest first: the record the old profile window showed. */

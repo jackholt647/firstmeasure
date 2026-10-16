@@ -84,10 +84,18 @@ test('optional source failures stay diagnostic-only', async () => {
   assert.doesNotMatch(app, /fn-notice/);
 });
 
-test('crew earnings separates summary totals from project earnings', async () => {
+test('field and sales earnings are the shared My pay view, a project tab showing that job only', async () => {
   const crew = await readFile(crewUrl, 'utf8');
-  assert.match(crew, /\[data-earnings\],\[data-project-earnings\]\{display:grid;align-content:start;gap:16px\}/);
-  assert.match(crew, /<section class="crew-card"><div class="crew-card-title"><h3>\$\{esc\(title\)\}<\/h3>/);
+  const sales = await readFile(new URL('../../libraries/apps/sales/app.js', import.meta.url), 'utf8');
+  const myPay = await readFile(new URL('../../libraries/apps/payroll/my-pay.js', import.meta.url), 'utf8');
+  assert.match(crew, /window\.FirstMateMyPay\.mount\(root, \{ orgId:orgId\(context\), projected:context\.params\?\.projected_enabled === true/);
+  assert.match(crew, /mountMyPay\(projectMountRoot\(context, 'payouts'\), context, \{ projectId:projectId\(context\) \}\)/);
+  assert.match(sales, /window\.FirstMateMyPay\.mount\(root, \{ orgId:orgId\(context\), presentation:'commissions'/);
+  // Commissions by earning kind, never by matching a word; one "Projected", the rule forecast.
+  assert.doesNotMatch(sales, /includes\('commission'\)/);
+  assert.match(myPay, /\['commission', 'clawback'\]\.includes\(clean\(entry\.kind\)\)/);
+  assert.match(myPay, /t\('held_for_review', 'Held for review'\)/);
+  assert.doesNotMatch(crew + sales, /totals\.projected_cents/);
 });
 
 test('receipt intake supports mixed-file parallel batches across Money and Crew', async () => {

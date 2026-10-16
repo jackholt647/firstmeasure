@@ -118,7 +118,7 @@ test('resource panes keep independent scroll, stable equal columns, and a dragga
       window.materialListById=id=>state.lists.find(list=>list.id===id);
       window.resourceTerms=type=>({plural:{material:'Materials',labor:'Labor',equipment:'Equipment'}[type],singular:type});
       window.escapeHtml=value=>String(value);
-      window.money=value=>'$'+value;window.laborListFinalized=()=>null;window.expenseTargetForList=()=>null;window.listTotals=()=>({projected:0});window.listProjected=()=>0;window.categoryProjected=()=>0;window.projectProjected=()=>0;window.renderAssignBlock=()=>'<div class="mt-empty">Empty List</div>';window.renderRequirementsTray=()=>'<aside class="mt-req-tray" data-mt-req-tray></aside>';window.projectId=()=>'';window.projectedDelivery=()=>({available:false,enabled:false,amount:0});window.number=Number;window.cleanText=value=>String(value||'');window.materialListOrdered=()=>false;window.renderListActionControls=()=>'';window.renderLaborListControls=()=>'';
+      window.money=value=>'$'+value;window.laborListFinalized=()=>null;window.expenseTargetForList=()=>null;window.listTotals=()=>({projected:0});window.listProjected=()=>0;window.categoryProjected=()=>0;window.projectProjected=()=>0;window.renderAssignBlock=()=>'<div class="mt-empty">Empty List</div>';window.renderRequirementsTray=()=>'<aside class="mt-req-tray" data-mt-req-tray></aside>';window.projectId=()=>'';window.projectedDelivery=()=>({available:false,enabled:false,amount:0});window.number=Number;window.cleanText=value=>String(value||'');window.materialListOrdered=()=>false;window.renderListActionControls=()=>'';window.renderListHeaderActions=()=>'';window.renderLaborListControls=()=>'';
       window.materialSectionDefinitions=()=>['material','labor','equipment'].map(type=>({key:type,resource_type:type}));
       window.lineSectionKey=item=>item.section;
       window.renderMaterialSection=(section,rows)=>`<section class="mt-section">${rows.map(row=>`<div style="height:30px">${row.name}</div>`).join('')}</section>`;
@@ -435,10 +435,10 @@ test('the Schedule button always does something: it places a planned job whole, 
  const ctx={state:{lists,scopeDocuments:[],panelRoot:{},project:{id:'p',events:[{id:'span',kind:'schedule_group',status:'unscheduled'},{id:'old',kind:'schedule_group',status:'cancelled'}]}},setTimeout:fn=>{timers.push(fn);},CustomEvent:class{constructor(type,init){this.type=type;this.detail=init?.detail;}},
   cleanText:value=>String(value??'').trim(),number:(value,fallback=0)=>Number.isFinite(Number(value))?Number(value):fallback,resourceType:list=>list.resource_type,listItems:()=>[{}],materialListOrdered:list=>list.status==='ordered',assignmentWorkResourceRef:list=>list.assigned?{id:list.assigned}:null,
   resourceSchedulePending:list=>!list.event,eventDateParts:event=>({date:event?.date||''}),linkedScheduleEvent:list=>list.event||null,orgId:()=>'org',projectId:()=>'p',apiReady:()=>true,materialsAPI:null,window:{},syncResourceHeader(){},
-  rootWindow:{dispatchEvent:event=>dispatched.push(event.type),addEventListener(){},Portal:{modules:{projectSchedule:{context:()=>({mode:placing}),focusMaterialDelivery:payload=>{focused.push(payload.event_id);placing=found?'materials':'';return found;}}}}},scopeWorkspace:{showSidebarView:(root,view)=>shown.push(view)},leftContentRoot:()=>'rail',
+  rootWindow:{dispatchEvent:event=>dispatched.push(event.type),addEventListener(){},Portal:{modules:{projectSchedule:{context:()=>({mode:placing}),focusMaterialDelivery:payload=>{focused.push(payload.event_id);placing=found?'materials':'';return found;}}}}},scopeWorkspace:{showSidebarView:(root,view)=>shown.push(view),widenSidebar:(root,percent)=>shown.push('widen:'+percent)},requirementsOpen:()=>false,materialRoot:()=>null,leftContentRoot:()=>'rail',
   captureProjectOperation:()=>({}),projectOperationIsCurrent:()=>true,showToast:(title)=>toasts.push(title),confirmAction:async message=>{asked.push(message);return answer;},
   ensureScheduleEventForList:async list=>{ensured.push(list.id);return {list,event:{id:'event-'+list.id,...(grouped?{parent_event_id:'job'}:{})}};},schedulingFocusPayload:(list,event)=>({event_id:event.id,scope_resource_list_id:list.id})};
- vm.createContext(ctx);for(const name of ['laborCommitments','laborListDelivered','headerDone','jobSchedule','scheduleJobButton','startPlacing','scheduleJob','syncScheduleState'])vm.runInContext(fn(name),ctx);
+ vm.createContext(ctx);for(const name of ['laborCommitments','laborListDelivered','headerDone','jobSchedule','scheduleJobButton','startPlacing','makeRoomForSchedule','scheduleJob','syncScheduleState'])vm.runInContext(fn(name),ctx);
  const run=()=>{while(timers.length)timers.shift()();};
  // Ordered material is done; equipment with no date is not. Labor that is only assigned and built has not been sent to anyone.
  assert.equal(JSON.stringify(ctx.headerDone()),JSON.stringify({material:true,labor:false,equipment:false}));
@@ -446,7 +446,7 @@ test('the Schedule button always does something: it places a planned job whole, 
  ctx.state.laborCommitments.rows[0].delivery.status='delivered';assert.equal(ctx.headerDone().labor,true);lists[1].revision=5;assert.equal(ctx.headerDone().labor,false,'the list changed after it was sent');
  let html=ctx.scheduleJobButton();assert.match(html,/class="mt-schedule-job" data-mt-schedule-job[^>]*><i class="fas fa-calendar-days"[^>]*><\/i><span>Schedule<\/span>/);
  // A piece of work a scope planned is placed whole, with no question asked. Every list still gets its schedule item.
- await ctx.scheduleJob();assert.equal(JSON.stringify(shown),'["schedule"]');assert.equal(asked.length,0);assert.equal(JSON.stringify(ensured),'["l","e","m"]','the work first, then equipment, then material');
+ await ctx.scheduleJob();assert.equal(JSON.stringify(shown),'["schedule","widen:60"]','the calendar gets room: the left side slides to 60%');assert.equal(asked.length,0);assert.equal(JSON.stringify(ensured),'["l","e","m"]','the work first, then equipment, then material');
  assert.equal(JSON.stringify(dispatched),'["fm:project-schedule:external"]','the schedule is told to read the project again');run();assert.equal(JSON.stringify(focused),'["span"]');
  // Lists the scope did not make get their events first; the server puts them under the job their scope defines, and
  // that job is placed whole, with no question asked.
@@ -467,4 +467,31 @@ test('the Schedule button always does something: it places a planned job whole, 
  toasts.length=0;ensured.length=0;await ctx.scheduleJob();assert.equal(JSON.stringify(toasts),'["Already scheduled"]');assert.equal(ensured.length,0);
  // When the schedule saves, the header reads the project's dates again.
  ctx.state.project={id:'p',events:[]};ctx.rootWindow.activeBaseProject={id:'p',events:[{id:'x'}]};ctx.syncScheduleState();assert.equal(ctx.state.project.events.length,1);
+});
+
+test('list header actions move into the ⋮ menu by priority as the header narrows, and ⋮ shows only when it holds something',async()=>{
+ const code='var LIST_NAME_ROOM=96;var listFitObserver=null;\n'+['css','renderListHeaderActions','renderLaborListControls','fitListActions','openListMore','closeListMore','listMoreDismiss','colorPortalHost'].map(fn).join('\n');
+ const browser=await chromium.launch({channel:'chrome',headless:true});
+ try{
+  const page=await browser.newPage({viewport:{width:900,height:400}});const errors=[];page.on('pageerror',error=>errors.push(error.message));
+  await page.setContent('<html><body><div id="root" data-materials-root></div></body></html>');
+  const result=await page.evaluate(code=>{
+   const list={id:'wo',resource_type:'labor',title:'',metadata:{},assignment:{work_resource_ref:{id:'crew2',name:'Crew 2 – Alvarez'}}};
+   Object.assign(window,{state:{panelRoot:document.getElementById('root'),schedulingListId:'',laborMenu:null},cleanText:v=>String(v??'').trim(),escapeHtml:v=>String(v??'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;'),
+    materialListOrdered:()=>false,resourceScheduleEnabled:()=>true,assignmentWorkResourceRef:entry=>entry.assignment?.work_resource_ref||null,laborListFinalized:()=>null,laborSettings:entry=>({id:entry.id,resource:entry.assignment.work_resource_ref}),materialRoot:()=>document.getElementById('root')});
+   (0,eval)(code);const style=document.createElement('style');style.textContent=css();document.head.append(style);
+   const draw=width=>{document.getElementById('root').innerHTML=`<div style="width:${width}px"><header class="mt-list-head" data-mt-actions-head><button type="button" data-mt-collapse-list="wo"><i></i></button><input data-mt-list-name="wo" value="" placeholder="Default"><span class="mt-list-total">$685.05</span>${renderLaborListControls(list,{bare:true})}${renderListHeaderActions(list,'labor','')}</header></div>`;fitListActions(document.getElementById('root'));
+    return {shown:[...document.querySelectorAll('[data-mt-action]')].filter(b=>!b.hidden).map(b=>b.dataset.mtAction),more:!document.querySelector('[data-mt-list-more]').hidden};};
+   const narrow=draw(300),wide=draw(520);draw(300);
+   openListMore(document.querySelector('[data-mt-list-more]'));
+   return {narrow,wide,menu:[...document.querySelectorAll('[data-mt-list-more-menu] button span')].map(span=>span.textContent),bareHasNoActions:!/data-mt-labor-generate|data-mt-labor-more/.test(renderLaborListControls(list,{bare:true}))};
+  },code);
+  // Wide: every action in the header and no ⋮. Narrow: the most used stays, the rest move into ⋮ in priority order.
+  assert.deepEqual(result.wide,{shown:['schedule','generate','payout','delete'],more:false});
+  assert.equal(result.narrow.more,true);assert.ok(result.narrow.shown.length<4);
+  assert.deepEqual(result.narrow.shown,['schedule','generate','payout','delete'].slice(0,result.narrow.shown.length),'actions leave from the least used end');
+  assert.deepEqual(result.menu,['Generate from pay sheet','Pay out','Delete list'].slice(result.narrow.shown.length-1));
+  assert.equal(result.bareHasNoActions,true,'the assignee control alone carries no actions; the header does');
+  assert.deepEqual(errors,[]);
+ }finally{await browser.close();}
 });

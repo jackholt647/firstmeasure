@@ -935,7 +935,7 @@
       .prs-slot.drag-over{box-shadow:inset 0 0 0 2px rgba(var(--primary-rgb,217,48,37),.32)}
       .prs-slot .prs-work-chip{position:absolute;left:0;right:20px;top:3px;width:auto;z-index:3}
       .prs-resource-scroll{flex:1;min-height:0;overflow:auto;border:1px solid rgba(15,23,42,.04);border-radius:18px;background:linear-gradient(to right,#f8fafc 0 150px,#eef2f6 150px 100%);box-shadow:0 14px 34px rgba(15,23,42,.05);touch-action:none;-webkit-user-select:none;user-select:none}
-      .prs-resource-grid{display:grid;grid-template-columns:150px repeat(var(--prs-days,56),minmax(86px,1fr));grid-template-rows:38px repeat(var(--prs-resources,1),56px);min-width:calc(150px + var(--prs-days,56) * 86px);min-height:100%;position:relative;isolation:isolate;background:#eef2f6}
+      .prs-resource-grid{display:grid;grid-template-columns:150px repeat(var(--prs-days,56),minmax(var(--prs-resource-day,86px),1fr));grid-template-rows:38px repeat(var(--prs-resources,1),56px);min-width:calc(150px + var(--prs-days,56) * var(--prs-resource-day,86px));min-height:100%;position:relative;isolation:isolate;background:#eef2f6}
       .prs-resource-grid:before,.prs-resource-time-grid:before{content:"";position:sticky;left:0;grid-column:1;grid-row:1/-1;background:#f8fafc;border-right:1px solid rgba(15,23,42,.08);z-index:1;min-height:100%}
       .prs-resource-corner,.prs-resource-day-head,.prs-resource-label,.prs-resource-cell{border-right:1px solid rgba(15,23,42,.06);border-bottom:1px solid rgba(15,23,42,.06);box-sizing:border-box}
       .prs-resource-corner,.prs-resource-day-head{position:sticky;top:0;z-index:12;background:#f8fafc}
@@ -1081,6 +1081,8 @@
       .psv-gantt-tick-minor.today{color:var(--primary-readable,var(--primary,#d93025));font-weight:1000}
       .psv-gantt-today-flag{position:absolute;bottom:0;width:8px;height:4px;margin-left:-3px;border-radius:3px 3px 0 0;background:rgba(217,48,37,.75);pointer-events:none}
       .psv-gantt-body{position:relative;-webkit-user-select:none;user-select:none}
+      .psv-gantt-body.placing{cursor:copy}
+      .psv-gantt-placing{position:absolute;top:0;bottom:0;z-index:14;display:flex;align-items:flex-start;padding:6px 8px;border:2px dashed var(--primary,#2563eb);border-radius:8px;background:color-mix(in srgb,var(--primary,#2563eb) 14%,transparent);color:var(--primary-readable,var(--primary,#1d4ed8));font-size:11px;font-weight:900;pointer-events:none;box-sizing:border-box;white-space:nowrap;overflow:hidden}
       .psv-gantt-row{display:flex;height:32px;border-bottom:1px solid rgba(15,23,42,.05);box-sizing:border-box}
       .psv-gantt-row.section{height:28px;background:#f8fafc}
       .psv-gantt-row.project-row{height:36px;background:#f8fafc;border-top:1px solid rgba(15,23,42,.10)}
@@ -6900,6 +6902,37 @@
     const body = scroll?.querySelector('.psv-gantt-body');
     const svg = scroll?.querySelector('.psv-gantt-links');
     const viewportWidth = () => Math.max(0, (scroll?.clientWidth || 0) - leftWidth);
+    // Placing a whole piece of work (options.placement = { title, days, onPlace }): a ghost of its length follows the
+    // pointer, on the day under it; a click hands that day to the host, which saves it and draws the Timeline again.
+    if (options.placement && body && !readOnly) {
+      const placement = options.placement, days = Math.max(1, Math.ceil(Number(placement.days) || 1));
+      const ghost = document.createElement('div');
+      ghost.className = 'psv-gantt-placing'; ghost.hidden = true;
+      ghost.innerHTML = `<span>${esc(placement.title || 'Placing')}</span>`;
+      body.classList.add('placing');
+      body.appendChild(ghost);
+      const dayAt = (clientX) => {
+        const x = clientX - body.getBoundingClientRect().left - leftWidth;
+        if (x < 0) return null;
+        const day = new Date(timeForX(x));
+        day.setHours(0, 0, 0, 0);
+        return day;
+      };
+      body.addEventListener('pointermove', (event) => {
+        const day = dayAt(event.clientX);
+        if (!day) { ghost.hidden = true; return; }
+        ghost.hidden = false;
+        ghost.style.left = `calc(var(--psv-gantt-left) + ${xForTime(day.getTime())}px)`;
+        ghost.style.width = `${Math.max(12, days * pxPerDay)}px`;
+      });
+      body.addEventListener('pointerleave', () => { ghost.hidden = true; });
+      body.addEventListener('click', (event) => {
+        const day = dayAt(event.clientX);
+        if (!day) return;
+        event.preventDefault(); event.stopPropagation();
+        placement.onPlace?.(day);
+      }, true);
+    }
     const scrollToTime = (time, align = 0.25, behavior = 'auto') => {
       if (!scroll || !viewportWidth()) return;
       scroll.scrollTo({ left:Math.max(0, xForTime(time) - viewportWidth() * align), behavior });

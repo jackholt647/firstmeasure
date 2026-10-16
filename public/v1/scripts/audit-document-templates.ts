@@ -26,7 +26,8 @@ try {
   const { documentType } = await import("../documents/types/registry.js");
   const { ensureDefaultDocumentAssets } = await import("../documents/seeds.js");
   await ensureDefaultDocumentAssets(ctx.orgId, ctx);
-  const project = await storage.upsertDocument(ctx.orgId, "projects", { id: "project_template_audit", data: { title: "Audit project", branch_id: "default", address: "1 Ridge Road", contacts: [{ name: "Pat Homeowner", email: "pat@example.test", primary: true }] } });
+  const project = await storage.upsertDocument(ctx.orgId, "projects", { id: "project_template_audit", data: { title: "Audit project", branch_id: "default", address: "1 Ridge Road" } });
+  await (await import("../contacts/records.js")).saveProjectContacts(ctx.orgId, String(project.id), [{ name: "Pat Homeowner", email: "pat@example.test", primary: true }]);
   const templates = (await store.listDocumentTemplates(ctx.orgId)).map(object).filter(template => String(template.status) !== "archived");
   for (const template of templates) {
     const id = String(template.id), meta = object(template.metadata), kind = String(template.document_type);

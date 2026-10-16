@@ -511,121 +511,16 @@
     return { destroy(){ destroyed = true; root.innerHTML = ''; } };
   }
 
-  function earningsReport(result = {}){
-    return obj(result.earnings || result.report || result);
-  }
-
-  function loadMyEarnings(context = {}, options = {}){
-    const client = window.PayrollAPI?.earnings;
-    if (!client?.me) return Promise.reject(new Error('The payroll earnings library is unavailable.'));
-    return client.me(orgId(context), options);
-  }
-
-  function earningsProjectCard(itemValue = {}){
-    const item = obj(itemValue);
-    const totals = obj(item.totals);
-    const owed = Math.max(0, Number(totals.owed_cents || 0));
-    const inPayroll = Number(totals.in_payroll_cents || 0);
-    const accrued = Number(totals.accrued_cents || 0);
-    const projected = Math.max(0, Number(totals.projected_cents || 0));
-    const paid = Math.max(0, Number(totals.paid_cents || 0));
-    const status = owed > 0 ? (inPayroll > 0 ? 'in payroll' : 'owed') : (projected > 0 ? 'projected' : (paid > 0 ? 'paid' : 'settled'));
-    const amount = owed > 0 ? owed : (projected > 0 ? projected : paid);
-    return `<div class="crew-row"><div class="crew-row-copy"><strong>${esc(first(item.title,item.project_title,item.project_id,'Other earnings'))}</strong><span>${owed > 0 ? `${esc(currency(owed))} currently owed` : (projected > 0 ? `${esc(currency(projected))} projected` : `${esc(currency(paid))} paid`)}</span><div class="crew-earnings-breakdown">${accrued ? `<span>${((v0) => globalThis.PlatformLanguage?.htmlText("crew","m_326110f5babd31",`${v0} accrued`,{v0}) ?? `${v0} accrued`)(esc(currency(accrued)))}</span>` : ''}${inPayroll ? `<span>${((v0) => globalThis.PlatformLanguage?.htmlText("crew","m_a0f499807b61d8",`${v0} in payroll`,{v0}) ?? `${v0} in payroll`)(esc(currency(inPayroll)))}</span>` : ''}${paid ? `<span>${((v0) => globalThis.PlatformLanguage?.htmlText("crew","m_6acae344e57858",`${v0} paid`,{v0}) ?? `${v0} paid`)(esc(currency(paid)))}</span>` : ''}</div></div><div class="crew-row-value">${esc(currency(amount))}<small><span class="crew-pill ${status === 'paid' || status === 'settled' ? 'good' : 'warn'}">${esc(status)}</span></small></div></div>`;
-  }
-
-  function earningEntryCard(entryValue = {}){
-    const entry = obj(entryValue);
-    const kind = clean(entry.kind || 'earning').replace(/_/g,' ');
-    const status = Number(entry.remaining_cents || 0) === 0 && Number(entry.applied_cents || 0) !== 0 ? 'in payroll' : clean(entry.state || 'accrued');
-    return `<div class="crew-row"><div class="crew-row-copy"><strong class="crew-earning-kind">${esc(first(entry.description,kind))}</strong><span>${esc(first(entry.project_title,shortDate(entry.eligible_at),'Payroll earning'))}</span></div><div class="crew-row-value">${esc(currency(Number(entry.amount_cents || 0)))}<small><span class="crew-pill ${status === 'paid' ? 'good' : 'warn'}">${esc(status.replace(/_/g,' '))}</span></small></div></div>`;
-  }
-
-  function renderEarningsPage(root, result = {}, title = 'Earnings by project', options = {}){
-    const report = earningsReport(result);
-    const projects = arr(report.projects);
-    const entries = arr(report.entries);
-    const totals = obj(report.totals);
-    const owed = Math.max(0, Number(totals.owed_cents || 0));
-    const paid = Math.max(0, Number(totals.paid_cents || 0));
-    const projected = Math.max(0, Number(totals.projected_cents || 0));
-    const details = options.details === true && entries.length
-      ? `<section class="crew-card"><div class="crew-card-title"><h3>${(globalThis.PlatformLanguage?.htmlText("crew","m_5807fca7eb02a0","Earning details") ?? "Earning details")}</h3><small>${String(entries.length)}</small></div><div class="crew-row-list">${String(entries.slice(0,100).map(earningEntryCard).join(''))}</div></section>`
-      : '';
-    root.innerHTML = `<div class="crew-summary-grid"><div class="crew-summary"><span>${(globalThis.PlatformLanguage?.htmlText("crew","m_5f59818bf1cb7d","Owed") ?? "Owed")}</span><strong>${String(esc(currency(owed)))}</strong><small>${(globalThis.PlatformLanguage?.htmlText("crew","m_3d6345f45141a8","Accrued and currently in payroll") ?? "Accrued and currently in payroll")}</small></div><div class="crew-summary"><span>${(globalThis.PlatformLanguage?.htmlText("crew","m_956173c8527121","Paid") ?? "Paid")}</span><strong>${String(esc(currency(paid)))}</strong><small>${(globalThis.PlatformLanguage?.htmlText("crew","m_192360a7033431","Completed payroll") ?? "Completed payroll")}</small></div><div class="crew-summary"><span>${(globalThis.PlatformLanguage?.htmlText("crew","m_929d3bd2149645","Projected") ?? "Projected")}</span><strong>${String(esc(currency(projected)))}</strong><small>${(globalThis.PlatformLanguage?.htmlText("crew","m_047c1d69a096b3","Not owed until accrued") ?? "Not owed until accrued")}</small></div></div>${String(result.truncated ? `<div class="crew-earnings-note">${(globalThis.PlatformLanguage?.htmlText("crew","m_c023f5308157d7","Showing the newest payroll records. Choose a narrower date range to review older earnings.") ?? "Showing the newest payroll records. Choose a narrower date range to review older earnings.")}</div>` : '')}<section class="crew-card"><div class="crew-card-title"><h3>${String(esc(title))}</h3><small>${String(projects.length)}</small></div>${String(projects.length ? `<div class="crew-row-list">${projects.map(earningsProjectCard).join('')}</div>` : stateHtml('empty','No payroll earnings are available yet.'))}</section>${String(details)}`;
-  }
-
-  // ---- Projected earnings: what the payee's pay rules say work not done yet will pay. Never posted. ----
-  // Shown only when the access profile grants payroll.view_own_projected_earnings (the projected_enabled parameter);
-  // the server refuses the read otherwise, and a refusal hides the section too.
-  const expectedOn = (value) => {
-    const day = clean(value);
-    return day ? shortDate(/^\d{4}-\d{2}-\d{2}$/.test(day) ? `${day}T12:00:00` : day, day) : '';
-  };
-  // `hidden` alone loses to a class that sets display, so the section is hidden both ways.
-  const showProjected = (root, on) => { root.hidden = !on; root.style.display = on ? '' : 'none'; };
-  function projectedEarningRow(earningValue = {}){
-    const earning = obj(earningValue);
-    const share = obj(earning.share_of);
-    const name = first(earning.record_title, earning.description, earning.rule_name, 'Projected earning');
-    const tip = [earning.description, earning.rule_name, share.payee_name ? `Your share of ${share.payee_name}'s ${currency(Number(share.line_cents || 0))}` : ''].map(clean).filter(Boolean).join(' · ');
-    const when = expectedOn(earning.expected_on);
-    return `<div class="crew-row" data-projected-earning="${esc(earning.id)}" title="${esc(tip)}"><div class="crew-row-copy"><strong>${esc(name)}</strong><span>${when ? `Expected ${esc(when)}` : 'Not scheduled'}</span></div><div class="crew-row-value">${esc(currency(Number(earning.amount_cents || 0)))}<small><span class="crew-pill warn">Projected</span></small></div></div>`;
-  }
-  function projectedUnresolvedRow(entryValue = {}){
-    const entry = obj(entryValue);
-    const when = expectedOn(entry.expected_on);
-    return `<div class="crew-row" data-projected-unresolved title="${esc(clean(entry.reason))}"><div class="crew-row-copy"><strong>${esc(first(entry.project_title, 'Projected earning'))}</strong><span>${when ? `Expected ${esc(when)}` : 'Not scheduled'}</span></div><div class="crew-row-value">—<small><span class="crew-pill">Not worked out</span></small></div></div>`;
-  }
-  function renderProjectedEarnings(root, projectionValue = {}, options = {}){
-    const projection = obj(projectionValue);
-    const only = clean(options.projectId);
-    const earnings = arr(projection.earnings).map(obj).filter((earning) => !only || clean(earning.project_id) === only);
-    const unresolved = arr(projection.unresolved).map(obj).filter((entry) => !only || clean(entry.project_id) === only);
-    const total = earnings.reduce((sum, earning) => sum + Number(earning.amount_cents || 0), 0);
-    const tip = 'What your pay rules say you can expect from work that is scheduled or committed but not done yet. It is not owed until the work is done and is never part of a pay run.';
-    const jobs = new Map();
-    for (const earning of earnings) {
-      const key = clean(earning.project_id);
-      if (!jobs.has(key)) jobs.set(key, { title: first(earning.project_title, key ? 'Job' : 'Other work'), rows: [] });
-      jobs.get(key).rows.push(earning);
-    }
-    const groups = only ? earnings.map(projectedEarningRow).join('')
-      : [...jobs.values()].map((job) => {
-        const sum = job.rows.reduce((value, earning) => value + Number(earning.amount_cents || 0), 0);
-        const next = job.rows.map((earning) => clean(earning.expected_on)).filter(Boolean).sort()[0] || '';
-        return `<div class="crew-row" data-projected-job title="${esc(next ? `Next expected ${expectedOn(next)}` : 'Not scheduled yet')}"><div class="crew-row-copy"><strong>${esc(job.title)}</strong><span>${next ? `Expected ${esc(expectedOn(next))}` : 'Not scheduled'}</span></div><div class="crew-row-value">${esc(currency(sum))}</div></div>${job.rows.map(projectedEarningRow).join('')}`;
-      }).join('');
-    showProjected(root, true);
-    root.innerHTML = `<section class="crew-card" data-projected-section><div class="crew-card-title"><h3 title="${esc(tip)}">Projected</h3><small data-projected-total>${esc(currency(total))}</small></div>${earnings.length || unresolved.length ? `<div class="crew-row-list">${groups}${unresolved.map(projectedUnresolvedRow).join('')}</div>` : stateHtml('empty', 'Nothing projected yet.')}</section>`;
-  }
-  /** Loads and shows the payee's projected earnings into `root`, or leaves it hidden when they may not see them. */
-  function mountProjectedEarnings(root, context = {}, options = {}){
-    if (!root) return;
-    showProjected(root, false);
-    root.innerHTML = '';
-    if (context.params?.projected_enabled !== true) return;
-    const client = window.PayrollAPI?.earnings;
-    if (!client?.projectedMine) return;
-    client.projectedMine(orgId(context)).then((result) => {
-      if (options.isDestroyed?.()) return;
-      renderProjectedEarnings(root, obj(result).projected || result, options);
-    }).catch((error) => {
-      if (options.isDestroyed?.()) return;
-      // Not allowed to see projections: the section stays hidden. Anything else is said in the section.
-      if (Number(error?.status) === 403 || /denied|forbidden|not permitted|not shown/i.test(clean(error?.code || error?.message))) return;
-      showProjected(root, true);
-      root.innerHTML = `<section class="crew-card" data-projected-section><div class="crew-card-title"><h3>Projected</h3></div>${stateHtml('error', statusError(error, 'Could not work out your projected earnings.'))}</section>`;
-    });
+  // ---- Earnings: the shared My pay view (libraries/apps/payroll/my-pay.js), the same in Payroll and sales. ----
+  // projected_enabled is the access profile's parameter set from payroll.view_own_projected_earnings; without it the
+  // rule forecast is never asked for. Timesheets show for anyone with the time clock permission.
+  function mountMyPay(root, context = {}, options = {}){
+    if (!window.FirstMateMyPay?.mount) { root.innerHTML = stateHtml('error', 'Your pay could not be loaded.'); return { destroy(){ root.innerHTML = ''; } }; }
+    return window.FirstMateMyPay.mount(root, { orgId:orgId(context), projected:context.params?.projected_enabled === true, ...options });
   }
 
   function mountCrewPayouts(root, context = {}){
-    let destroyed = false;
-    root.innerHTML = `<div class="crew-shell"><div class="crew-page"><div class="crew-head"><div><div class="crew-eyebrow">${(globalThis.PlatformLanguage?.htmlText("crew","m_af7280e8ac9efa","My payroll") ?? "My payroll")}</div><h1 class="crew-title">${(globalThis.PlatformLanguage?.htmlText("crew","m_685ff0ff145929","Earnings") ?? "Earnings")}</h1><p class="crew-sub">${(globalThis.PlatformLanguage?.htmlText("crew","m_97d70e1d5cb7d4","What you are owed, what is in payroll, and what has been paid—organized by project.") ?? "What you are owed, what is in payroll, and what has been paid—organized by project.")}</p></div></div><div data-earnings>${String(stateHtml('loading','Loading your earnings'))}</div><div data-projected hidden style="display:none"></div></div></div>`;
-    const mount = root.querySelector('[data-earnings]');
-    mountProjectedEarnings(root.querySelector('[data-projected]'), context, { isDestroyed:() => destroyed });
-    loadMyEarnings(context).then((result) => { if (!destroyed) renderEarningsPage(mount, result); }).catch((error) => { if (!destroyed) mount.innerHTML = stateHtml('error', statusError(error,'Could not load earnings.')); });
-    return { destroy(){ destroyed = true; root.innerHTML = ''; } };
+    return mountMyPay(root, context, { title:(globalThis.PlatformLanguage?.text("crew","m_my_pay","My pay") ?? "My pay") });
   }
 
   let activeCrewScheduleHandle = null;
@@ -1045,13 +940,8 @@
   }
 
   function mountProjectPayouts(context = {}){
-    const root = projectMountRoot(context, 'payouts');
-    let destroyed = false;
-    root.innerHTML = `<div class="crew-project-page"><div class="crew-page" data-project-earnings>${stateHtml('loading','Loading project earnings')}</div><div class="crew-page" data-projected hidden style="display:none"></div></div>`;
-    const mount = root.querySelector('[data-project-earnings]');
-    mountProjectedEarnings(root.querySelector('[data-projected]'), context, { projectId:projectId(context), isDestroyed:() => destroyed });
-    loadMyEarnings(context, { project_id:projectId(context) }).then((result) => { if (!destroyed) renderEarningsPage(mount,result,'This project',{ details:true }); }).catch((error) => { if (!destroyed) mount.innerHTML = stateHtml('error',statusError(error,'Could not load your earnings for this project.')); });
-    return { destroy(){ destroyed = true; root.innerHTML = ''; } };
+    // This job only.
+    return mountMyPay(projectMountRoot(context, 'payouts'), context, { projectId:projectId(context) });
   }
 
   function paymentData(result = {}){

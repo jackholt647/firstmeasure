@@ -16,6 +16,7 @@
   const TILE_PROJECT_LIMIT = 6;
   const LS_VIEW_KEY = 'fm_contacts_view_v2';
   const LS_SORT_KEY = 'fm_contacts_sort_v1';
+  const LS_FILTER_KEY = 'fm_contacts_filter_v1';
   const initialRoute = Portal.navigation?.read?.() || {};
   const state = {
     root: null,
@@ -26,6 +27,7 @@
     query: '',
     view: localStorage.getItem(LS_VIEW_KEY) === 'tiles' ? 'tiles' : 'list',
     sort: localStorage.getItem(LS_SORT_KEY) || 'name',
+    filter: (() => { try { return localStorage.getItem(LS_FILTER_KEY) || 'all'; } catch (error) { return 'all'; } })(),
     loading: false,
     loadedAt: 0,
     tagCatalog:[],
@@ -100,84 +102,8 @@
     return cleanText(value).replace(/[^\d]/g, '');
   }
 
-  function contactKey(contact = {}){
-    const email = normalizeKey(contact.email);
-    if (email) return `email:${email}`;
-    const digits = phoneDigits(contact.phone);
-    if (digits.length >= 7) return `phone:${digits}`;
-    const id = cleanText(contact.id, contact.contact_id, contact.primary_contact_id);
-    if (id) return `id:${id}`;
-    const name = normalizeKey(contact.name);
-    return name ? `name:${name}` : '';
-  }
 
-  function contactHasInfo(contact = {}){
-    return !!cleanText(contact.name, contact.email, contact.phone);
-  }
 
-  function contactCandidates(project = {}){
-    const contacts = Array.isArray(project.contacts) ? project.contacts : [];
-    const customer = project.customer && typeof project.customer === 'object' && !Array.isArray(project.customer) ? project.customer : {};
-    const resident = project.resident && typeof project.resident === 'object' && !Array.isArray(project.resident) ? project.resident : {};
-    const candidates = contacts
-      .filter((contact) => contact && typeof contact === 'object')
-      .map((contact) => ({
-        id: cleanText(contact.id, contact.contact_id),
-        contact_id: cleanText(contact.contact_id, contact.id),
-        name: cleanText(contact.name, contact.full_name, contact.display_name),
-        email: cleanText(contact.email, contact.email_address),
-        phone: cleanText(contact.phone, contact.phone_number, contact.mobile),
-        address: cleanText(contact.address, contact.default_address),
-        contact_kind:contact.contact_kind || 'human',
-        profile_media_id:contact.profile_media_id || '',
-        custom_field_values:contact.custom_field_values || {},
-        record_project_id:projectId(project),
-        tags: Array.isArray(contact.tags) ? contact.tags.map((tag) => cleanText(tag)).filter(Boolean) : [],
-        imported_at: cleanText(contact.imported_at),
-        import_source: cleanText(contact.import_source)
-      }));
-    candidates.push({
-      id: cleanText(project.contact_id, project.primary_contact_id, customer.id, resident.id),
-      contact_id: cleanText(project.contact_id, project.primary_contact_id, customer.id, resident.id),
-      name: cleanText(
-        project.customer_name,
-        project.customerName,
-        project.primary_contact_name,
-        project.resident_name,
-        project.residentName,
-        typeof project.resident === 'string' ? project.resident : '',
-        objectValue(customer, 'name', 'full_name', 'display_name'),
-        objectValue(resident, 'name', 'full_name', 'display_name')
-      ),
-      email: cleanText(
-        project.customer_email,
-        project.customerEmail,
-        project.primary_contact_email,
-        project.resident_email,
-        project.residentEmail,
-        objectValue(customer, 'email', 'email_address'),
-        objectValue(resident, 'email', 'email_address')
-      ),
-      phone: cleanText(
-        project.customer_phone,
-        project.customerPhone,
-        project.primary_contact_phone,
-        project.resident_phone,
-        project.residentPhone,
-        objectValue(customer, 'phone', 'phone_number', 'mobile'),
-        objectValue(resident, 'phone', 'phone_number', 'mobile')
-      ),
-      address: cleanText(project.contact_address, project.customer_address, project.primary_contact_address, objectValue(customer, 'address'), objectValue(resident, 'address'))
-    });
-
-    const seen = new Set();
-    return candidates.filter(contactHasInfo).filter((contact) => {
-      const key = contactKey(contact);
-      if (!key || seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    });
-  }
 
   function parseDate(...values){
     const text = cleanText(...values);
@@ -208,18 +134,37 @@
     const active = Array.isArray(projection.active_instances)
       ? projection.active_instances
       : (Array.isArray(projection.instances) ? projection.instances.filter((instance) => instance && (instance.status === 'active' || instance.status === 'pending')) : []);
-    const primary = active.find((instance) => instance?.kind === 'pipeline') || active[0] || null;
+    const primary = active.find((instance) => instance?.sales === true) || active[0] || null;
     const label = cleanText(primary?.stage_title, primary?.title);
     if (label) return label;
     const lifecycle = projection.lifecycle && typeof projection.lifecycle === 'object'
       ? projection.lifecycle
       : (project.lifecycle && typeof project.lifecycle === 'object' ? project.lifecycle : {});
     const status = cleanText(lifecycle.status).toLowerCase();
+    if (lifecycle.new_lead === true) return 'New lead';
     if (status === 'lost') return 'Lost';
     if (status === 'completed') return 'Completed';
     if (status === 'canceled' || status === 'cancelled') return 'Cancelled';
     return 'No stage';
   }
+
+  // What a linked project says about its contacts (docs/architecture/opportunities.md):
+  // a lead has a project with an open opportunity (a new lead counts) and no won one;
+  // a customer has a project with a won one.
+  function opportunityFacts(project = {}){
+    const lifecycle = project.lifecycle && typeof project.lifecycle === 'object' ? project.lifecycle : {};
+    const opportunities = lifecycle.opportunities && typeof lifecycle.opportunities === 'object' ? lifecycle.opportunities : {};
+    const won = Number(opportunities.won || 0) > 0 || !!cleanText(lifecycle.sold_at);
+    return { newLead: lifecycle.new_lead === true, openLead: Number(opportunities.open || 0) > 0 && !won, won };
+  }
+
+  const CONTACT_FILTERS = {
+    all: () => true,
+    leads: (contact) => contact.projects.some((project) => project.openLead),
+    new_leads: (contact) => contact.projects.some((project) => project.newLead),
+    customers: (contact) => contact.projects.some((project) => project.won),
+    no_projects: (contact) => !contact.projects.length
+  };
 
   function projectSummary(project = {}){
     const date = projectDate(project);
@@ -231,62 +176,47 @@
       date,
       dateMs: date.getTime(),
       dateLabel: dateLabel(date),
+      ...opportunityFacts(project),
       project
     };
   }
 
-  function mergeContact(target, source){
-    if (!target.name || source.name.length > target.name.length) target.name = source.name || target.name;
-    if (!target.email) target.email = source.email || '';
-    if (!target.phone) target.phone = source.phone || '';
-    if (!target.address) target.address = source.address || '';
-    if (!target.id) target.id = cleanText(source.id, source.contact_id);
-    if(!target.custom_field_values)target.custom_field_values=source.custom_field_values || {};
-    if(source.profile_media_id && !target.profile_media_id)target.profile_media_id=source.profile_media_id;
-    if(source.contact_kind==='org')target.contact_kind='org';
-    if(!target.record_project_id)target.record_project_id=source.record_project_id;
-    (Array.isArray(source.tags) ? source.tags : []).forEach((tag) => {
-      if (!target.tags.some((existing) => existing.toLowerCase() === tag.toLowerCase())) target.tags.push(tag);
-    });
-    if (!target.imported_at) target.imported_at = cleanText(source.imported_at);
-    if (!target.import_source) target.import_source = cleanText(source.import_source);
-  }
 
-  function buildContacts(projects = []){
-    const byKey = new Map();
-    [...projects].sort((a,b)=>Number(b.workflow_state==='contact_only')-Number(a.workflow_state==='contact_only')).forEach((project) => {
-      const projectRef = projectSummary(project);
-      const perProjectKeys = new Set();
-      contactCandidates(project).forEach((candidate) => {
-        const key = contactKey(candidate);
-        if (!key || perProjectKeys.has(key)) return;
-        perProjectKeys.add(key);
-        if (!byKey.has(key)) {
-          byKey.set(key, {
-            key,
-            id: cleanText(candidate.id, candidate.contact_id),
-            name: cleanText(candidate.name, candidate.email, candidate.phone, 'Unknown contact'),
-            email: cleanText(candidate.email),
-            phone: cleanText(candidate.phone),
-            address: cleanText(candidate.address),
-            tags: [],
-            imported_at: '',
-            import_source: '',
-            projects: [],
-            projectIds: new Set(),
-            latestDateMs: 0
-          });
-        }
-        const record = byKey.get(key);
-        mergeContact(record, candidate);
-        if (project.workflow_state!=='contact_only' && !record.projectIds.has(projectRef.id)) {
-          record.projectIds.add(projectRef.id);
-          record.projects.push(projectRef);
-          record.latestDateMs = Math.max(record.latestDateMs, projectRef.dateMs || 0);
-        }
+  // The list is the contact store (docs/architecture/contacts.md); projects add the work each person is on.
+  function buildContacts(projects = [], stored = []){
+    const byId = new Map();
+    stored.forEach((contact) => {
+      if (!contact || !contact.id) return;
+      byId.set(contact.id, {
+        key: `id:${contact.id}`,
+        id: contact.id,
+        name: cleanText(contact.name, contact.email, contact.phone, 'Unknown contact'),
+        email: cleanText(contact.email),
+        phone: cleanText(contact.phone),
+        address: cleanText(contact.address),
+        contact_kind: contact.contact_kind || 'human',
+        profile_media_id: contact.profile_media_id || '',
+        custom_field_values: contact.custom_field_values || {},
+        tags: (Array.isArray(contact.tags) ? contact.tags : []).map((tag) => cleanText(tag)).filter(Boolean),
+        imported_at: cleanText(contact.imported_at),
+        import_source: cleanText(contact.import_source),
+        projects: [],
+        projectIds: new Set(),
+        latestDateMs: 0
       });
     });
-    return Array.from(byKey.values()).map((contact) => {
+    projects.forEach((project) => {
+      const projectRef = projectSummary(project);
+      (Array.isArray(project.contacts) ? project.contacts : []).forEach((linked) => {
+        const record = byId.get(cleanText(linked?.id, linked?.contact_id));
+        if (!record) return;
+        if (record.projectIds.has(projectRef.id)) return;
+        record.projectIds.add(projectRef.id);
+        record.projects.push(projectRef);
+        record.latestDateMs = Math.max(record.latestDateMs, projectRef.dateMs || 0);
+      });
+    });
+    return Array.from(byId.values()).map((contact) => {
       contact.projects.sort((a, b) => (b.dateMs || 0) - (a.dateMs || 0) || a.title.localeCompare(b.title));
       contact.projectCount = contact.projects.length;
       contact.latestDateLabel = dateLabel(new Date(contact.latestDateMs || 0));
@@ -306,7 +236,8 @@
   const sharingView = () => contactSharing ||= window.FirstMateSharedList?.create('contact', orgId);
   function sortedFilteredContacts(){
     const query=normalizeKey(state.query);
-    const filtered=state.contacts.filter(c=>(!query || String(c.searchText || [c.name,c.email,c.phone,c.address].join(' ')).toLowerCase().includes(query)) && (!sharingView() || sharingView().matches(c,c.id,c.record_project_id)));
+    const show=CONTACT_FILTERS[state.filter] || CONTACT_FILTERS.all;
+    const filtered=state.contacts.filter(c=>show(c) && (!query || String(c.searchText || [c.name,c.email,c.phone,c.address].join(' ')).toLowerCase().includes(query)) && (!sharingView() || sharingView().matches(c,c.id)));
     if (state.sort === 'recent') {
       filtered.sort((a, b) => (b.latestDateMs || 0) - (a.latestDateMs || 0) || a.name.localeCompare(b.name));
     } else if (state.sort === 'projects') {
@@ -401,7 +332,7 @@
           <span>${String(escapeHtml(contact.latestDateLabel))}</span>
         </div>
         ${String(tagChips(contact))}
-        ${sharingView()?.badge(contact,contact.id,contact.record_project_id) || ''}
+        ${sharingView()?.badge(contact,contact.id) || ''}
         ${String(projectRows(contact))}
       </article>
     `;
@@ -417,7 +348,7 @@
           <span>
             <strong>${escapeHtml(contact.name)}</strong>
             <small>${contactLine(contact)}</small>
-            ${tagChips(contact, 3)}${sharingView()?.badge(contact,contact.id,contact.record_project_id) || ''}
+            ${tagChips(contact, 3)}${sharingView()?.badge(contact,contact.id) || ''}
           </span>
         </button>
         <div class="ct-list-projects">
@@ -519,6 +450,8 @@
               <option value="name" ${String(state.sort === 'name' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.htmlText("contacts","m_8cf345002184e5","Name") ?? "Name")}</option>
               <option value="recent" ${String(state.sort === 'recent' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.htmlText("contacts","m_fec172c2f71d24","Recent") ?? "Recent")}</option>
               <option value="projects" ${String(state.sort === 'projects' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.htmlText("contacts","m_6e3f0973d60412","Project count") ?? "Project count")}</option>
+            </select></label><label>${(globalThis.PlatformLanguage?.htmlText("contacts","contacts_filter_label","Show") ?? "Show")}<select id="ctFilter" class="ct-select">
+              ${[['all','All contacts'],['leads','Leads'],['new_leads','New leads'],['customers','Customers'],['no_projects','No projects']].map(([value,label])=>`<option value="${value}" ${state.filter === value ? 'selected' : ''}>${globalThis.PlatformLanguage?.htmlText("contacts",`contacts_filter_${value}`,label) ?? label}</option>`).join('')}
             </select></label>${sharingView()?.fields() || ''}</div></details>
           </div>
         </header>
@@ -545,6 +478,11 @@
     const menu=state.root?.querySelector('[data-ct-manage]');
     menu?.addEventListener('change',event=>{if(sharingView()?.change(event)){render();const next=state.root?.querySelector('[data-ct-manage]');if(next){next.open=true;const selector=event.target.matches('[data-sharing-kind]')?`[data-sharing-kind="${event.target.dataset.sharingKind}"]`:'[data-sharing-owner]';next.querySelector(selector)?.focus();}}});
     menu?.addEventListener('keydown',event=>{if(event.key==='Escape'){menu.open=false;menu.querySelector('summary').focus();}});
+    state.root?.querySelector('#ctFilter')?.addEventListener('change', (event) => {
+      state.filter = CONTACT_FILTERS[event.target.value] ? event.target.value : 'all';
+      try { localStorage.setItem(LS_FILTER_KEY, state.filter); } catch (error) {}
+      render();
+    });
     state.root?.querySelector('#ctSort')?.addEventListener('change', (event) => {
       state.sort = event.target.value || 'name';
       localStorage.setItem(LS_SORT_KEY, state.sort);
@@ -637,7 +575,6 @@
       contact_kind:contact.contact_kind || "human",
       profile_media_id:contact.profile_media_id || "",
       custom_field_values:contact.custom_field_values || {},
-      record_project_id:contact.record_project_id,
       imported_at: contact.imported_at || '',
       import_source: contact.import_source || ''
     };
@@ -682,13 +619,13 @@
     state.error = '';
     render();
     try {
-      const result = await window.PlatformAPI.projects.list(oid);
+      const [result, stored] = await Promise.all([window.PlatformAPI.projects.list(oid), window.PlatformAPI.contacts.listAll(oid)]);
       if(window.PlatformAPI.contacts?.settings)state.tagCatalog=(await window.PlatformAPI.contacts.settings(oid)).settings?.tags || [];
       const docs = Array.isArray(result?.documents) ? result.documents : [];
       state.projects = docs.map(projectFromDocument).filter(Boolean);
       await sharingView()?.load();
       if (oid !== orgId()) return;
-      state.contacts = [...buildContacts(state.projects), ...(sharingView()?.incoming || []).map(item=>({
+      state.contacts = [...buildContacts(state.projects, stored), ...(sharingView()?.incoming || []).map(item=>({
         key:sharingView().id(item),id:sharingView().id(item),name:item.data?.name || 'Shared contact',email:item.data?.email || '',phone:item.data?.phone || '',address:item.data?.address || '',projects:[],tags:[],latestDateLabel:'—',_shared:item
       }))];
       state.loadedAt = Date.now();

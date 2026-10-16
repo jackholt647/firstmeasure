@@ -186,7 +186,7 @@ async function syncProjectSignatureRequirements(orgId: string, projectId: string
     id: cleanedProjectId,
     data: { ...projectData, signature_requirements: projection, work_requirements: workProjection },
     metadata: { ...asObject(projectDoc.metadata), source: "document_signature_projection" }
-  }, { replace: true });
+  }, { replace: true, mustExist: true });
   return projection;
 }
 

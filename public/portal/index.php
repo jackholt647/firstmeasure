@@ -2302,6 +2302,7 @@ session_write_close();
   <script src="../libraries/apps/financials/app.js?v=<?= portalAssetVersion('../libraries/apps/financials/app.js') ?>"></script>
   <script src="../libraries/apps/invoices/app.js?v=<?= portalAssetVersion('../libraries/apps/invoices/app.js') ?>"></script>
   <script src="../libraries/apps/stats/app.js?v=<?= portalAssetVersion('../libraries/apps/stats/app.js') ?>"></script>
+  <script src="../libraries/apps/payroll/my-pay.js?v=<?= portalAssetVersion('../libraries/apps/payroll/my-pay.js') ?>"></script>
   <script src="../libraries/apps/payroll/app.js?v=<?= portalAssetVersion('../libraries/apps/payroll/app.js') ?>"></script>
   <script src="../libraries/apps/crew/app.js?v=<?= portalAssetVersion('../libraries/apps/crew/app.js') ?>"></script>
   <script src="../libraries/apps/sales/app.js?v=<?= portalAssetVersion('../libraries/apps/sales/app.js') ?>"></script>

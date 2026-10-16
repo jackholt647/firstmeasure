@@ -4,7 +4,7 @@ import { z } from "zod";
 import { env } from "../src/config/env.js";
 import { openSqlStore, type SqlStore } from "../platform/sql_store.js";
 import { badRequest, conflict, notFound } from "../platform/errors.js";
-import { createPlatformLead } from "../platform/api.js";
+import { receiveLead } from "./receive.js";
 import { readDocument } from "../platform/storage.js";
 
 export const importedLeadSchema = z.object({
@@ -58,8 +58,8 @@ export async function importLead(org:string,raw:ImportedLead){
  }
  const projectId=`project_lead_${hash([org,input.source_id,input.external_id]).slice(0,32)}`;
  try{
-  const result=await createPlatformLead(org,{branch_id:input.branch_id,project_id:projectId,source_kind:input.source_kind,address:input.address,title:input.title||input.address||input.summary||"New lead",summary:input.summary,contacts:input.contacts,provider:input.provider,provider_fields:input.provider_fields,
-   lead_source:{...input.lead_source,external_id:input.external_id,source_id:input.source_id,connection_id:input.connection_id},
+  const result=await receiveLead(org,{branch_id:input.branch_id,project_id:projectId,address:input.address,title:input.title||input.address||input.summary||"New lead",summary:input.summary,contacts:input.contacts,
+   source:{...input.lead_source,kind:input.source_kind,provider:input.provider,provider_fields:input.provider_fields,external_id:input.external_id,source_id:input.source_id,connection_id:input.connection_id},
    notification:{source:input.source_kind==="email_lead"?"email_lead_import":"connection_lead_import",...(input.notification_target_role_ids?{target_role_ids:input.notification_target_role_ids}:{}),context:{connection_id:input.connection_id,delivery_id:key}}});
   await db.prepare("UPDATE lead_deliveries SET state='imported',updated_at=? WHERE id=?").run(new Date().toISOString(),key);
   return {accepted:true,duplicate:false,delivery_id:key,state:"imported",...result};

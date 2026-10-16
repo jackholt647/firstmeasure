@@ -1,3 +1,4 @@
+import { putProjectContacts } from "./helpers/project-contacts.js";
 import { nextTestPhone, enableExpandedPlatformFixture, closePlatformFixtureStores } from "./helpers/platform-fixture.js";
 import assert from "node:assert/strict";
 import { signingConsent } from "./helpers/document-signing.js";
@@ -125,11 +126,11 @@ async function createProject(client: ReturnType<typeof createSessionClient>, org
       address: "42 Ledger Lane",
       title: "Terms Customer",
       project_type: "residential",
-      contacts: [{ name: "Terms Customer", email: "terms@example.test", phone: "555-000-1111", primary: true }],
       photos: []
     },
     metadata: { kind: "platform_project" }
   });
+  await putProjectContacts(client, orgId, projectId, [{ name: "Terms Customer", email: "terms@example.test", phone: "555-000-1111", primary: true }]);
 }
 
 const SCOPE_ITEMS = [

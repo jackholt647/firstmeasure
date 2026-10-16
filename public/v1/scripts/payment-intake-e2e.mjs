@@ -117,11 +117,11 @@ async function seedSignedProject(client, orgId, orgSlug, projectId) {
   await client.req("PUT", `/v1/platform/organizations/${orgId}/projects/${projectId}`, {
     data: {
       id: projectId, title: "Cedar Deck Build", address: "9 Intake Lane", project_type: "residential",
-      contacts: [{ id: contactId, name: "Pat Payer", email: `pat-${orgSlug}-${suffix}@example.test`, primary: true }],
       photos: []
     },
     metadata: { kind: "platform_project" }
   });
+  await client.req("PUT", `/v1/platform/organizations/${orgId}/projects/${projectId}/contacts`, { contacts: [{ id: contactId, name: "Pat Payer", email: `pat-${orgSlug}-${suffix}@example.test`, primary: true }] });
   const created = await client.req("POST", `/v1/proposals/organizations/${orgId}/projects/${projectId}/proposals`, {
     title: "Cedar Deck Proposal",
     contacts: [{ id: contactId, role: "customer", name: "Pat Payer", email: `pat-${orgSlug}-${suffix}@example.test` }],
@@ -558,11 +558,11 @@ const docProjectId = `project_docpay_${suffix}`;
 await provider.client.req("PUT", `/v1/platform/organizations/${provider.orgId}/projects/${docProjectId}`, {
   data: {
     id: docProjectId, title: "Doc Checkout Build", address: "11 Document Way", project_type: "residential",
-    contacts: [{ id: "contact_docpay", name: "Pat Payer", email: `pat-doc-${suffix}@example.test`, primary: true }],
     photos: []
   },
   metadata: { kind: "platform_project" }
 });
+await provider.client.req("PUT", `/v1/platform/organizations/${provider.orgId}/projects/${docProjectId}/contacts`, { contacts: [{ id: "contact_docpay", name: "Pat Payer", email: `pat-doc-${suffix}@example.test`, primary: true }] });
 const providerDoc = await seedPaymentDocument(provider.client, provider.orgId, docProjectId, "Tokenized Doc Checkout");
 const docIntakeConfig = await provider.client.req("GET", `/v1/documents/public/${providerDoc.publicToken}/payments/intake-config`);
 check("document-token intake config resolves the provider", docIntakeConfig.provider === "mock" && docIntakeConfig.tokenization?.mode === "mock", docIntakeConfig.provider);
@@ -602,11 +602,11 @@ const declineProjectId = `project_docpay2_${suffix}`;
 await provider.client.req("PUT", `/v1/platform/organizations/${provider.orgId}/projects/${declineProjectId}`, {
   data: {
     id: declineProjectId, title: "Doc Decline Build", address: "13 Document Way", project_type: "residential",
-    contacts: [{ id: "contact_docpay", name: "Pat Payer", email: `pat-doc-${suffix}@example.test`, primary: true }],
     photos: []
   },
   metadata: { kind: "platform_project" }
 });
+await provider.client.req("PUT", `/v1/platform/organizations/${provider.orgId}/projects/${declineProjectId}/contacts`, { contacts: [{ id: "contact_docpay", name: "Pat Payer", email: `pat-doc-${suffix}@example.test`, primary: true }] });
 const declineDoc = await seedPaymentDocument(provider.client, provider.orgId, declineProjectId, "Declined Doc Checkout");
 await openDocumentPayModal(docPage, await portalUrlFor(provider.client, provider.orgId, declineProjectId));
 await fillCard(docPage, DECLINED_PAN, {});
@@ -626,11 +626,11 @@ const legacyDocProjectId = `project_docpay_legacy_${suffix}`;
 await legacy.client.req("PUT", `/v1/platform/organizations/${legacy.orgId}/projects/${legacyDocProjectId}`, {
   data: {
     id: legacyDocProjectId, title: "Legacy Doc Build", address: "12 Legacy Way", project_type: "residential",
-    contacts: [{ id: "contact_docpay", name: "Pat Payer", email: `pat-doc-${suffix}@example.test`, primary: true }],
     photos: []
   },
   metadata: { kind: "platform_project" }
 });
+await legacy.client.req("PUT", `/v1/platform/organizations/${legacy.orgId}/projects/${legacyDocProjectId}/contacts`, { contacts: [{ id: "contact_docpay", name: "Pat Payer", email: `pat-doc-${suffix}@example.test`, primary: true }] });
 const legacyDoc = await seedPaymentDocument(legacy.client, legacy.orgId, legacyDocProjectId, "Legacy Doc Checkout");
 const legacyDocConfig = await legacy.client.req("GET", `/v1/documents/public/${legacyDoc.publicToken}/payments/intake-config`);
 check("legacy org document intake config stays provider:null", legacyDocConfig.provider === null);
@@ -659,12 +659,12 @@ const crewSeed = await seedSignedProject(provider.client, provider.orgId, "crew_
 await provider.client.req("PUT", `/v1/platform/organizations/${provider.orgId}/projects/${crewSeed.projectId}`, {
   data: {
     id: crewSeed.projectId, title: "Cedar Deck Build", address: "9 Intake Lane", project_type: "residential",
-    contacts: [{ id: crewSeed.contactId, name: "Pat Payer", email: `pat-crew_mock-${suffix}@example.test`, primary: true }],
     events: [{ id: "event_crew_work", kind: "project_work", status: "scheduled", title: "Install", start: new Date().toISOString() }],
     photos: []
   },
   metadata: { kind: "platform_project" }
 });
+await provider.client.req("PUT", `/v1/platform/organizations/${provider.orgId}/projects/${crewSeed.projectId}/contacts`, { contacts: [{ id: crewSeed.contactId, name: "Pat Payer", email: `pat-crew_mock-${suffix}@example.test`, primary: true }] });
 const crewBase = `/v1/workforce/organizations/${provider.orgId}/crew`;
 const orgIntakeConfig = await provider.client.req("GET", `/v1/payments/organizations/${provider.orgId}/payment-intake-config?contact_ref=${crewSeed.contactId}`);
 check("org intake config (the crew mount's resolver) exposes the provider",

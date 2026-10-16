@@ -1,3 +1,4 @@
+import { putProjectContacts } from "./helpers/project-contacts.js";
 import { nextTestPhone, enableExpandedPlatformFixture, closePlatformFixtureStores, operatorFixtureClient } from "./helpers/platform-fixture.js";
 import assert from "node:assert/strict";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
@@ -531,11 +532,11 @@ test("portal pages: listPortalPages contract, capability gate, and public portal
       address: "1 Portal Way",
       title: "Portal Customer",
       project_type: "residential",
-      contacts: [{ name: "Portal Customer", email: "portal@example.test", phone: "555-000-1111" }],
       photos: []
     },
     metadata: { kind: "platform_project" }
   });
+  await putProjectContacts(client, orgId, projectId, [{ name: "Portal Customer", email: "portal@example.test", phone: "555-000-1111" }]);
   const portalRecord = await client.request("POST", `/v1/platform/organizations/${orgId}/projects/${projectId}/customer-portal`, {});
   const publicUuid = portalRecord.portal.public_uuid;
   const previewUuid = portalRecord.portal.preview_uuid;

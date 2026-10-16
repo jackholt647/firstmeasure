@@ -115,7 +115,7 @@ export async function syncPortalProjection(orgId: string, projectId: string) {
       id: projectId,
       data: { ...data, punch, completion, updated_at: new Date().toISOString() },
       metadata: asObject(document.metadata)
-    }, { replace: true });
+    }, { replace: true, mustExist: true });
     return asObject(saved.data);
   } catch {
     return null;
@@ -142,6 +142,6 @@ export async function recordProjectCompletion(orgId: string, projectId: string, 
     id: projectId,
     data: { ...data, completion, updated_at: new Date().toISOString() },
     metadata: asObject(document.metadata)
-  }, { replace: true });
+  }, { replace: true, mustExist: true });
   return asObject(saved.data).completion;
 }

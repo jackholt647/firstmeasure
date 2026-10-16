@@ -53,9 +53,49 @@ function fixture(withBase=false,editors={}){
     listeners.DOMContentLoaded();ctx.WallMode.restore('fixture',{});
     return {ctx,elements,stages,soffits,resoffits,el,listeners,flushTimers(){for(const [id,fn] of [...timers]){timers.delete(id);fn();}}};
 }
+test('Show Dev Controls settings checkbox gates the panel across roof/wall mode switches',()=>{
+ let panel;
+ const perf={controlsVisible:false,mount(target){panel=target;},setControlsVisible(value){this.controlsVisible=value;panel.hidden=!value;}};
+ const {ctx,elements}=fixture(false,{ExteriorPerf:perf});
+ const checkbox=elements.get('wall-show-dev-controls');
+ assert.equal(checkbox.checked,false);
+ ctx.WallMode.setEnabled(true);assert.equal(panel.hidden,true);
+ checkbox.checked=true;checkbox.onchange();assert.equal(panel.hidden,false);
+ ctx.WallMode.setEnabled(false);assert.equal(panel.hidden,true);
+ ctx.WallMode.setEnabled(true);assert.equal(panel.hidden,false);
+ checkbox.checked=false;checkbox.onchange();assert.equal(panel.hidden,true);
+ ctx.WallMode.setEnabled(false);ctx.WallMode.setEnabled(true);assert.equal(panel.hidden,true);
+ const restored=fixture(false,{ExteriorPerf:{...perf,controlsVisible:true}});
+ assert.equal(restored.elements.get('wall-show-dev-controls').checked,true);
+});
+
+test('confirmed exterior reset keeps the roof, survives stale saved metadata, and supports undo, redo and regeneration',()=>{
+ let host,confirmed=false,prompts=0;
+ const f=fixture(true,{confirm:()=>{prompts++;return confirmed;},createWallEditor:h=>{host=h;return {leave(){},clear(){},apply:w=>w,draw2D(){},draw3D(){},hasDraft:()=>false,busy:()=>false};}});
+ f.ctx.activeGeometry.connections[0].type='eave';f.ctx.WallMode.setEnabled(true);f.soffits[1].onclick();
+ host.state().wallEdits={$loose:{points:[{x:1,y:2,z:3}],edges:[]}};
+ host.state().roofTrim={width:6,custom:'keep roof trim'};
+ const roof=JSON.stringify(f.ctx.activeGeometry),saved=f.ctx.WallMode.serialize();
+ const clear=f.elements.get('wall-clear-model');assert.equal(clear.disabled,false);
+ clear.onclick();assert.equal(prompts,1);assert.ok(f.ctx.WallMode.serialize());assert.equal(JSON.stringify(f.ctx.activeGeometry),roof);
+ confirmed=true;clear.onclick();assert.equal(prompts,2);assert.equal(f.ctx.WallMode.serialize().phase,'grade');assert.equal(f.ctx.WallMode.enabled,true);assert.equal(f.ctx.WallMode.serialize().base,undefined);
+ assert.equal(JSON.stringify(f.ctx.activeGeometry),roof);assert.equal(f.ctx.WallMode.serializeRoofTrim().custom,'keep roof trim');
+ const history=f.ctx.WallMode.serializeHistory();assert.equal(history.undo.at(-1).full,true);
+ f.ctx.WallMode.restore('fixture',{exteriorsWalls:saved},history);
+ assert.equal(f.ctx.WallMode.serialize().phase,'grade','local clear wins over the older project save');
+ const key=k=>f.listeners['window:keydown']({key:k,ctrlKey:true,target:{closest:()=>false},preventDefault(){},stopImmediatePropagation(){}});
+ key('z');assert.equal(f.ctx.WallMode.serialize().wallEdits.$loose.points.length,1);
+ key('y');assert.equal(f.ctx.WallMode.serialize().phase,'grade');
+ f.ctx.WallMode.restore('fixture',{exteriorsWalls:saved});assert.equal(f.ctx.WallMode.serialize().phase,'grade');
+ f.soffits[1].onclick();assert.ok(f.ctx.WallMode.serialize().base);assert.equal(f.ctx.WallMode.serialize().wallEdits?.$loose,undefined);
+ const regenerated=f.ctx.WallMode.serialize();f.ctx.WallMode.restore('fixture',{exteriorsWalls:regenerated});assert.ok(f.ctx.WallMode.serialize().base);
+ assert.equal(JSON.stringify(f.ctx.activeGeometry),roof);
+});
+
 test('roof/wall preference survives before walls exist and is isolated per project',()=>{
  const {ctx}=fixture();ctx.WallMode.setEnabled(true);
- assert.equal(ctx.WallMode.serialize(),null);
+ assert.equal(ctx.WallMode.serialize().phase,'grade');
+ assert.equal(ctx.WallMode.serialize().base,undefined);
  const saved=ctx.WallMode.serializeView();assert.equal(saved.enabled,true);
  ctx.WallMode.beforeProjectLoad();ctx.WallMode.restore('fixture',{});assert.equal(ctx.WallMode.enabled,true);
  ctx.WallMode.beforeProjectLoad();ctx.currentProjectId='other';ctx.WallMode.restore('other',{});assert.equal(ctx.WallMode.enabled,false);
@@ -76,7 +116,7 @@ test('wall history exceeds both old limits, survives saved cursors, and reaches 
  const state=f.ctx.WallMode.serialize(),history=H.unpack(H.pack(f.ctx.WallMode.serializeHistory())),fresh=make();fresh.ctx.WallMode.restore('fixture',{exteriorsWalls:state},history);
  fresh.key('y');assert.equal(fresh.host.state().wallEdits.value,531);
  for(let i=0;i<531;i++)fresh.key('z');assert.equal(fresh.host.state().wallEdits.value,undefined);
- fresh.key('z');assert.equal(fresh.ctx.WallMode.serialize(),null);fresh.key('y');assert.ok(fresh.ctx.WallMode.serialize().base);
+ fresh.key('z');assert.equal(fresh.ctx.WallMode.serialize().phase,'grade');fresh.key('y');assert.ok(fresh.ctx.WallMode.serialize().base);
  fresh.host.recordHistory({});fresh.host.state().wallEdits={value:'new branch'};fresh.host.changed();assert.equal(fresh.ctx.WallMode.serializeHistory().redo.length,0);
 });
 test('wall undo queues cannot change empty geometry branches in a decoded saved history',()=>{
@@ -85,7 +125,7 @@ test('wall undo queues cannot change empty geometry branches in a decoded saved 
  const state=f.ctx.WallMode.serialize(),history=H.unpack(H.pack(f.ctx.WallMode.serializeHistory())),before=JSON.stringify(history);
  const fresh=fixture(true);fresh.ctx.WallMode.restore('fixture',{exteriorsWalls:state},history);
  const key=k=>fresh.listeners['window:keydown']({key:k,ctrlKey:true,target:{closest:()=>false},preventDefault(){},stopImmediatePropagation(){}});
- key('z');assert.equal(fresh.ctx.WallMode.serialize(),null);key('y');assert.ok(fresh.ctx.WallMode.serialize().base);
+ key('z');assert.equal(fresh.ctx.WallMode.serialize().phase,'grade');key('y');assert.ok(fresh.ctx.WallMode.serialize().base);
  assert.equal(JSON.stringify(history),before);
 });
 test('wall entry closes line selection; corrected types rebuild; reset and reload discard old passes',()=>{
@@ -204,6 +244,23 @@ test('fifth generation stage merges, persists and resets independently of close 
  stages[3].onclick();assert.equal(ctx.WallMode.serialize().stage,4);
 });
 
+test('center and feature-dimension choices work before walls exist and follow the browser across projects and sessions',()=>{
+ const f=fixture(true,{confirm:()=>true}),controls=[['wall-centers-toggle','wallCenters'],['wall-line-centers-toggle','lineCenters'],['wall-feature-dimensions','featureDimensions']];
+ // These buttons work even before a roof-only editor has prepared a grade.
+ assert.equal(f.ctx.WallMode.serialize(),null);
+ for(const [id]of controls){assert.equal(f.elements.get(id).attributes['aria-pressed'],'true');f.elements.get(id).onclick();assert.equal(f.elements.get(id).attributes['aria-pressed'],'false');}
+ const off=ctx=>{const s=ctx.WallMode.serialize();for(const [,field]of controls)assert.equal(s[field],false,field);};
+ f.ctx.WallMode.setEnabled(true);off(f.ctx);assert.equal(f.ctx.WallMode.serialize().base,undefined);
+ f.soffits[1].onclick();off(f.ctx);const built=f.ctx.WallMode.serialize();
+ f.elements.get('wall-clear-model').onclick();off(f.ctx);assert.equal(f.ctx.WallMode.serialize().phase,'grade');
+ f.ctx.WallMode.beforeProjectLoad();f.ctx.currentProjectId='second';f.ctx.WallMode.restore('second',{});f.ctx.WallMode.setEnabled(true);off(f.ctx);
+ const fresh=fixture(true,{localStorage:f.ctx.localStorage});fresh.ctx.WallMode.setEnabled(true);off(fresh.ctx);
+ // Explicit browser preferences also override old per-project display flags.
+ fresh.ctx.WallMode.restore('fixture',{exteriorsWalls:{...built,wallCenters:true,lineCenters:true,featureDimensions:true,savedAt:Date.now()+10000}});off(fresh.ctx);
+ for(const [id,field]of controls){fresh.elements.get(id).onclick();assert.equal(fresh.ctx.WallMode.serialize()[field],true);}
+ const again=fixture(true,{localStorage:f.ctx.localStorage});again.ctx.WallMode.setEnabled(true);for(const [,field]of controls)assert.equal(again.ctx.WallMode.serialize()[field],true);
+});
+
 test('wall face center visibility toggles independently and survives reload',()=>{
  const {ctx,elements,soffits}=fixture();ctx.activeGeometry.connections[0].type='eave';ctx.WallMode.setEnabled(true);soffits[1].onclick();elements.get('wall-centers-toggle').onclick();
  const saved=ctx.WallMode.serialize();assert.equal(saved.wallCenters,false);ctx.WallMode.beforeProjectLoad();ctx.WallMode.restore('fixture',{exteriorsWalls:{...saved,savedAt:Date.now()+10000}});assert.equal(ctx.WallMode.serialize().wallCenters,false);
@@ -229,7 +286,7 @@ test('base owns clicks and double-clicks when selected, including with hidden wa
  const calls=[];let busy=false,hit=true;
  const base={cancelPointerGesture(){},setup(){},render(){},draw2D(){},draw3D(){},clearSelection(){},busy:()=>busy,canHit:()=>hit,down:()=>{calls.push('base-down');return true;},doubleClick:()=>{calls.push('base-double');return true;},keyDown:()=>{calls.push('base-key');return true;}};
  const wall={cancelPointerGesture(){},apply:w=>w,draw2D(){},draw3D(){},clear(){},busy:()=>false,pickSurface:()=>{calls.push('wall-pick');return true;},doubleClick:()=>{calls.push('wall-double');return true;},keyDown:()=>{calls.push('wall-key');return true;}};
- const f=fixture(true,{createBaseEditor:()=>base,createWallEditor:()=>wall});f.ctx.WallMode.setEnabled(true);
+ const f=fixture(true,{createBaseEditor:()=>base,createWallEditor:()=>wall});f.ctx.WallMode.setEnabled(true);f.soffits[1].onclick();
  const e={button:0,key:'n',target:{closest:s=>s==='#viewport,#three-view-wrapper'},preventDefault(){},stopImmediatePropagation(){}};
  f.listeners['window:pointerdown'](e);f.listeners['window:dblclick'](e);f.listeners['window:keydown'](e);assert.deepEqual(calls,['base-down','base-double','base-key']);
  calls.length=0;f.elements.get('wall-visible').onclick();busy=true;hit=false;f.listeners['window:pointerdown'](e);assert.deepEqual(calls,['base-down']);
@@ -244,7 +301,7 @@ test('chimney volumes are introduced after extrusion and retain provenance in pr
 
 test('Auto-step button dispatches repeated increments without persisting a transient preview',()=>{
  let calls=0;const wall={cancelPointerGesture(){},apply:w=>w,draw2D(){},draw3D(){},clear(){},busy:()=>false,stepCommand(){throw Error('Base stepping must not switch to walls');}},base={setup(){},render(){},draw2D(){},draw3D(){},clearSelection(){},busy:()=>false,stepCommand(){calls++;}};
- const f=fixture(true,{createBaseEditor:()=>base,createWallEditor:()=>wall});f.ctx.WallMode.setEnabled(true);
+ const f=fixture(true,{createBaseEditor:()=>base,createWallEditor:()=>wall});f.ctx.WallMode.setEnabled(true);f.soffits[1].onclick();
  f.elements.get('wall-step').onclick();const saved=JSON.stringify(f.ctx.WallMode.serialize());f.elements.get('wall-step').onclick();
  assert.equal(calls,2);assert.equal(JSON.stringify(f.ctx.WallMode.serialize()),saved);
 });
@@ -590,8 +647,8 @@ test('wall mode opens Resources on entry only',()=>{
 
 test('missing DSM starts flat; an existing grade survives DSM selection cancellation, rebuild and reload',()=>{
  const {ctx,elements,soffits,listeners}=fixture();ctx.activeGeometry.connections[0].type='eave';ctx.WallMode.setEnabled(true);soffits[1].onclick();
- let saved=ctx.WallMode.serialize();assert.equal(saved.ground.source,'Flat');assert.equal(saved.ground.visible,false);assert.equal(saved.ground.plane.dx,0);assert.equal(saved.ground.plane.dy,0);
- elements.get('wall-rebuild').onclick();assert.equal(ctx.WallMode.serialize().ground.visible,false);
+ let saved=ctx.WallMode.serialize();assert.equal(saved.ground.source,'Flat');assert.equal(saved.ground.visible,true);assert.equal(saved.ground.plane.dx,0);assert.equal(saved.ground.plane.dy,0);
+ elements.get('wall-rebuild').onclick();assert.equal(ctx.WallMode.serialize().ground.visible,true);
  const slope=ctx.GroundGeometry.fromPlane(ctx.GroundGeometry.bounds(saved.roof),{dx:.1,dy:.05,k:0},{source:'DSM',visible:true,simpleGrade:1});
  saved=ctx.WallMode.serialize();saved.ground=slope;saved.groundCandidates={dsm:slope};saved.savedAt=Date.now()+1000;ctx.WallMode.beforeProjectLoad();ctx.WallMode.restore('fixture',{exteriorsWalls:saved});
  assert.equal(ctx.WallMode.serialize().ground.visible,true);elements.get('ground-dsm').onclick();listeners['window:keydown']({key:'Escape',target:{closest:()=>false},preventDefault(){},stopImmediatePropagation(){}});let chosen=ctx.WallMode.serialize();assert.equal(chosen.ground.source,'DSM');assert.equal(chosen.ground.visible,true);assert.ok(Math.abs(chosen.ground.plane.dx-.1)<1e-9);
@@ -625,6 +682,52 @@ test('selecting the active wall layer does not synchronously rebuild or persist 
  assert.equal(JSON.stringify(host.state()),before,'selection does not update saved model timestamps');
 });
 
+
+test('enter wall mode, choose DSM grade, save/reload, then explicitly generate with a custom soffit',()=>{
+ const data=new Float32Array(100).fill(-9999);data[22]=3.25;
+ let sources=0,sweeps=0;
+ const geometry={...G,buildSources(...args){sources++;return G.buildSources(...args);},extrude(...args){sweeps++;return G.extrude(...args);}};
+ const f=fixture(true,{WallGeometry:geometry,layerData:{dsm:[data]},screenToImage:(x,y)=>({x,y}),confirm:()=>true});
+ const {ctx,elements,listeners}=f,points=ctx.activeGeometry.points;
+ ctx.activeGeometry.connections=points.map((p,i)=>({start:p,end:points[(i+1)%4],type:'eave'}));
+ const roof=JSON.stringify(ctx.activeGeometry);
+ const empty=()=>{const s=ctx.WallMode.serialize();assert.equal(s.phase,'grade');assert.equal(s.ground.visible,true);assert.equal(s.base,undefined);assert.equal(s.wallEdits,undefined);assert.equal(s.chimneys,undefined);assert.equal(s.sources.length,0);assert.equal(s.options.soffit,undefined);assert.equal(s.extruded,undefined);assert.equal(s.alignedWalls,undefined);return s;};
+ ctx.WallMode.setEnabled(true);empty();assert.equal(sources,0);assert.equal(sweeps,0);
+ // Grade is present in the actual 2D drawing, even with no base or walls.
+ const polygons=[],el=()=>({setAttribute(k,v){this[k]=v;},appendChild(){},replaceChildren(){}});
+ ctx.document.createElementNS=(ns,type)=>{const e=el();if(type==='polygon')polygons.push(e);return e;};
+ f.elements.set('geoSvg',el());f.elements.set('geo-rotation-group',el());ctx.WallMode.render2D();
+ assert.ok(polygons.some(p=>p.fill==='#67c9ef'&&p['fill-opacity']===.09));
+ elements.get('ground-dsm').onclick();empty();
+ const event={clientX:2,clientY:2,button:0,target:{closest:s=>s==='#viewport,#three-view-wrapper'||s==='#geoSvg'?{}:null},preventDefault(){},stopImmediatePropagation(){}};
+ listeners['window:pointerdown'](event);let grade=empty();assert.equal(grade.ground.source,'DSM point');assert.equal(grade.ground.plane.k,3.25);assert.equal(grade.options.ground,3.25);assert.equal(sources,0);assert.equal(sweeps,0);
+ ctx.WallMode.setEnabled(false);ctx.WallMode.setEnabled(true);assert.equal(empty().ground.plane.k,3.25);
+ const history=ctx.WallMode.serializeHistory(),view=ctx.WallMode.serializeView();
+ const fresh=fixture(true,{WallGeometry:geometry});fresh.ctx.activeGeometry=ctx.activeGeometry;fresh.ctx.WallMode.restore('fixture',{exteriorsWalls:grade,exteriorsView:view},history);
+ assert.equal(fresh.ctx.WallMode.serialize().phase,'grade');assert.equal(fresh.ctx.WallMode.serialize().base,undefined);assert.equal(fresh.ctx.WallMode.serialize().ground.plane.k,3.25);assert.equal(sources,0);assert.equal(sweeps,0);
+ const input=elements.get('wall-custom-soffit');input.value='3';elements.get('wall-custom-soffit-go').onclick();
+ const built=ctx.WallMode.serialize();assert.equal(built.phase,undefined);assert.equal(built.options.soffit,36);assert.equal(built.ground.plane.k,3.25);assert.ok(built.base.faces.every(f=>f.points.every(p=>p.z===3.25)));assert.ok(sources>0);assert.ok(sweeps>0);
+ const generated=[sources,sweeps];elements.get('wall-clear-model').onclick();grade=empty();assert.equal(grade.ground.source,'Flat');assert.equal(grade.ground.sampledPoint,undefined);assert.equal(grade.ground.plane.k,0);assert.deepEqual([sources,sweeps],generated);
+ ctx.WallMode.beforeProjectLoad();ctx.WallMode.restore('fixture',{exteriorsWalls:grade,exteriorsView:view});empty();assert.deepEqual([sources,sweeps],generated);assert.equal(JSON.stringify(ctx.activeGeometry),roof);
+});
+
+test('the unbuilt grade is drawn as a visible 3D grade mesh before and after DSM placement',()=>{
+ const T=require('../public/v1/node_modules/three/build/three.js'),data=new Float32Array(100).fill(-9999);data[22]=3.25;
+ const f=fixture(true,{layerData:{dsm:[data]},screenToImage:(x,y)=>({x,y})});
+ Object.assign(f.ctx,{THREE:T,scene:new T.Scene(),getVector3:p=>new T.Vector3(p.x,p.y,p.z),ExteriorFinishes:{roofMeshes:()=>[]},disposeObject3D(group){group.traverse(o=>{o.geometry?.dispose();o.material?.dispose();});}});
+ const grade=()=>{const meshes=[];f.ctx.scene.traverse(o=>{if(o.isMesh&&o.userData.pickLayer==='grade')meshes.push(o);});assert.equal(meshes.length,1);assert.equal(meshes[0].visible,true);return meshes[0];};
+ f.ctx.WallMode.setEnabled(true);assert.equal(f.ctx.WallMode.serialize().base,undefined);assert.equal(grade().geometry.attributes.position.getZ(0),0);
+ f.elements.get('ground-dsm').onclick();f.listeners['window:pointerdown']({clientX:2,clientY:2,button:0,target:{closest:s=>s==='#viewport,#three-view-wrapper'||s==='#geoSvg'?{}:null},preventDefault(){},stopImmediatePropagation(){}});
+ assert.equal(grade().geometry.attributes.position.getZ(0),3.25);assert.equal(f.ctx.WallMode.serialize().base,undefined);
+});
+
+test('Flat and USGS can prepare a grade without building walls or a base',async()=>{
+ const {ctx,elements}=fixture(true);ctx.WallMode.setEnabled(true);
+ elements.get('ground-flat-z').value='4.5';elements.get('ground-flat').onclick();
+ ctx.URLSearchParams=URLSearchParams;ctx.AbortSignal=AbortSignal;ctx.fetch=async url=>({ok:true,json:async()=>({value:100+Number(new URL(url).searchParams.get('x'))*1000,resolution:10})});
+ elements.get('ground-usgs').onclick();await new Promise(r=>setImmediate(r));
+ const s=ctx.WallMode.serialize();assert.equal(s.phase,'grade');assert.equal(s.base,undefined);assert.equal(s.extruded,undefined);assert.equal(s.sources.length,0);assert.equal(s.ground.source,'USGS');assert.equal(s.ground.visible,true);assert.ok(Math.abs(s.ground.plane.k-4.5)<1e-7);
+});
 
 test('DSM point selection sets flat grade and attached foundation in one undoable edit',()=>{
  const data=new Float32Array(100).fill(-9999);data[22]=3.25;

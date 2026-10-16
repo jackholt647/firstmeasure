@@ -10,7 +10,8 @@
     open: false,
     contact: {},
     originalContact: {},
-    contactRecord: null,
+    // Whether state.contact is a record in the contact store (docs/architecture/contacts.md).
+    stored: false,
     saved: false,
     projects: [],
     loading: false,
@@ -111,9 +112,6 @@
   function ensureContactId(contact = {}){
     return firstText(contact.id, contact.contact_id) || `contact_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
   }
-  function isContactRecordProject(project = {}){
-    return cleanText(project.workflow_state).toLowerCase() === 'contact_only';
-  }
   function primaryContact(project = {}){
     const contacts = Array.isArray(project.contacts) ? project.contacts : [];
     const contact = contacts.find((item) => firstText(item?.name, item?.email, item?.phone)) || {};
@@ -151,11 +149,10 @@
       first_name:firstText(contact.first_name,projectContact.first_name),last_name:firstText(contact.last_name,projectContact.last_name),time_zone:firstText(contact.time_zone,projectContact.time_zone),
       email: firstText(contact.email, projectContact.email),
       phone: firstText(contact.phone, projectContact.phone),
-      address: firstText(contact.address, contact.default_address, contact.contact_address, projectContact.address, fallbackProject?.contact_address, fallbackProject?.customer_address, fallbackProject?.primary_contact_address, fallbackProject?.workflow_state === 'contact_only' ? fallbackProject?.address : ''),
+      address: firstText(contact.address, contact.default_address, contact.contact_address, projectContact.address, fallbackProject?.contact_address, fallbackProject?.customer_address, fallbackProject?.primary_contact_address),
       company: firstText(contact.company, projectContact.company),
       notes: firstText(contact.notes, projectContact.notes),
       birthday: firstText(contact.birthday, projectContact.birthday),
-      record_project_id: firstText(contact.record_project_id, fallbackProject && projectId(fallbackProject)),
       contact_kind: firstText(contact.contact_kind, projectContact.contact_kind, 'human'),
       profile_media_id: firstText(contact.profile_media_id, projectContact.profile_media_id),
       tags: Array.isArray(contact.tags) && contact.tags.length
@@ -220,7 +217,7 @@
     return out;
   }
   function visibleProjects(projects = state.projects){
-    return dedupeProjects(projects).filter((project) => !isContactRecordProject(project));
+    return dedupeProjects(projects);
   }
   function projectFromDocument(doc = {}){
     const data = doc?.data && typeof doc.data === 'object' ? doc.data : {};
@@ -255,7 +252,7 @@
     }
     if (!remote.length && !providedProjects.length) remote = await loadAllProjects();
     const source = dedupeProjects([...providedProjects, ...remote]);
-    const matches = source.filter((project) => contactMatchesProject(contact, project) && !isContactRecordProject(project));
+    const matches = source.filter((project) => contactMatchesProject(contact, project));
     return dedupeProjects(matches);
   }
   function injectCSS(){
@@ -703,7 +700,7 @@
   async function loadRelationshipContact(type,reference){
     try{
       const result=await window.PlatformAPI.contacts.get(orgId(),reference);
-      if(!state.open || relationshipValue(type)?.contact_id!==reference.contact_id || relationshipValue(type)?.project_id!==reference.project_id)return;
+      if(!state.open || relationshipValue(type)?.contact_id!==reference.contact_id)return;
       state.relationshipContacts[type]=result.contact || {};
       state.relationshipNames[type]=result.contact?.name || 'Linked contact';
       renderRelationships();
@@ -723,13 +720,11 @@
     const ref=relationshipValue(type);if(!ref)return;
     readContactInputs();
     if(revision>savedRevision && !await flushAutosave())return;
-    const back={contact:{...state.contact},projects:[state.contactRecord,...state.projects].filter(Boolean)};
+    const back={contact:{...state.contact},projects:[...state.projects]};
     try{
       setMeta('Opening linked contact…');
-      const [found,project]=await Promise.all([window.PlatformAPI.contacts.get(orgId(),ref),window.PlatformAPI.projects.get(orgId(),ref.project_id)]);
-      const record=projectFromDocument(project.document);
-      if(!record)throw Error('Could not open the linked contact record.');
-      await open({...found.contact,id:ref.contact_id,project_id:ref.project_id},{projects:[record],projectsComplete:true,returnToContact:back});
+      const found=await window.PlatformAPI.contacts.get(orgId(),ref);
+      await open({...found.contact,id:found.contact?.id || ref.contact_id,project_ids:found.project_ids || []},{returnToContact:back});
     }catch(error){setMeta(error.message || 'Could not open linked contact.');}
   }
   async function openRelationship(type){
@@ -749,7 +744,7 @@
         const result=await window.PlatformAPI.contacts.options(orgId(),type==='spouse'?'human':'org');
         const options=(result.contacts||[]).filter(row=>row.contact_id!==state.contact.id);
         const input=panel.querySelector('[data-relationship-search]'),results=panel.querySelector('[data-relationship-results]');
-        const render=()=>{const query=cleanText(input.value).toLowerCase();results.innerHTML=options.filter(row=>!query||cleanText(row.name).toLowerCase().includes(query)).slice(0,30).map(row=>`<button type="button" class="fm-contact-btn" data-contact-id="${escapeHtml(row.contact_id)}" data-project-id="${escapeHtml(row.project_id)}">${escapeHtml(row.name)}</button>`).join('')||'<span>No matching contacts.</span>';results.querySelectorAll('[data-contact-id]').forEach(button=>button.onclick=()=>setRelationship(type,{contact_id:button.dataset.contactId,project_id:button.dataset.projectId},{name:button.textContent}));};
+        const render=()=>{const query=cleanText(input.value).toLowerCase();results.innerHTML=options.filter(row=>!query||cleanText(row.name).toLowerCase().includes(query)).slice(0,30).map(row=>`<button type="button" class="fm-contact-btn" data-contact-id="${escapeHtml(row.contact_id)}">${escapeHtml(row.name)}</button>`).join('')||'<span>No matching contacts.</span>';results.querySelectorAll('[data-contact-id]').forEach(button=>button.onclick=()=>setRelationship(type,{contact_id:button.dataset.contactId},{name:button.textContent}));};
         input.oninput=render;render();input.focus();
       }catch(error){panel.textContent=error.message||'Could not load contacts.';}
     }else if(mode==='new'){
@@ -767,13 +762,12 @@
     const phone=cleanText(panel.querySelector('[data-related-phone]')?.value),secondary=cleanText(panel.querySelector('[data-related-secondary-phone]')?.value),emailInput=panel.querySelector('[data-related-email]');
     if(!validPhone(phone)||!validPhone(secondary)){setMeta('Enter a valid phone number with 7 to 15 digits.');(!validPhone(phone)?panel.querySelector('[data-related-phone]'):panel.querySelector('[data-related-secondary-phone]'))?.focus();return;}
     if(emailInput?.value&&!emailInput.validity.valid){setMeta('Enter a valid email address.');emailInput.focus();return;}
-    if(!state.contactRecord){scheduleAutosave();}
+    if(!state.stored){scheduleAutosave();}
     if(!await flushAutosave())return;
-    const name=[first,last].filter(Boolean).join(' '),id=ensureContactId(),recordId=`project_${Date.now().toString(36)}_${Math.random().toString(36).slice(2,10)}`;
-    const related={id,contact_id:id,first_name:first,last_name:last,name,phone,email:cleanText(emailInput?.value),address:cleanText(panel.querySelector('[data-related-address]')?.value),notes:cleanText(panel.querySelector('[data-related-notes]')?.value),time_zone:cleanText(panel.querySelector('[data-related-time-zone]')?.value),contact_kind:type==='spouse'?'human':'org',tags:type==='spouse'?[]:['org'],custom_field_values:{primary_phone_label:cleanText(panel.querySelector('[data-related-phone-label]')?.value),secondary_phone:secondary,secondary_phone_label:cleanText(panel.querySelector('[data-related-secondary-label]')?.value)}};
-    const record=patchProjectContact({id:recordId,title:name,project_title:name,workflow_state:'contact_only',project_type:'residential',contacts:[],measurement:{},measurement_project:{},events:[],proposals:[]},related);
+    const name=[first,last].filter(Boolean).join(' ');
+    const related={first_name:first,last_name:last,name,phone,email:cleanText(emailInput?.value),address:cleanText(panel.querySelector('[data-related-address]')?.value),notes:cleanText(panel.querySelector('[data-related-notes]')?.value),time_zone:cleanText(panel.querySelector('[data-related-time-zone]')?.value),contact_kind:type==='spouse'?'human':'org',tags:type==='spouse'?[]:['org'],custom_field_values:{primary_phone_label:cleanText(panel.querySelector('[data-related-phone-label]')?.value),secondary_phone:secondary,secondary_phone_label:cleanText(panel.querySelector('[data-related-secondary-label]')?.value)}};
     const button=panel.querySelector('[data-related-create]');button.disabled=true;
-    try{const saved=await window.Portal.ProjectStore.saveRemote(record);if(!saved)throw Error('Could not create the related contact.');setRelationship(type,{contact_id:id,project_id:projectId(saved)||recordId},related);await flushAutosave();}
+    try{const saved=(await window.PlatformAPI.contacts.create(orgId(),related)).contact;setRelationship(type,{contact_id:saved.id},saved);await flushAutosave();}
     catch(error){setMeta(error.message||'Could not create the related contact.');button.disabled=false;}
   }
   function contactTodosEnabled(){
@@ -824,7 +818,7 @@
     const active = Array.isArray(projection.active_instances)
       ? projection.active_instances
       : (Array.isArray(projection.instances) ? projection.instances.filter((instance) => instance && (instance.status === 'active' || instance.status === 'pending')) : []);
-    const primary = active.find((instance) => instance?.kind === 'pipeline') || active[0] || null;
+    const primary = active.find((instance) => instance?.sales === true) || active[0] || null;
     const label = firstText(primary?.stage_title, primary?.title);
     if (label) return label;
     const lifecycle = projection.lifecycle && typeof projection.lifecycle === 'object'
@@ -925,12 +919,11 @@
   async function uploadContactFiles(files,profile=false,slot='media'){
     if(!files?.length)return;
     state.contact.id=ensureContactId(state.contact);
-    const ref={contact_id:state.contact.id,project_id:projectId(state.contactRecord) || state.contact.record_project_id || `project_${Date.now().toString(36)}_${Math.random().toString(36).slice(2,10)}`};
-    state.contact.record_project_id=ref.project_id;
+    const ref={contact_id:state.contact.id};
     try {
       setMeta('Uploading…');
       for(const file of files){
-        const result=await window.PlatformAPI.media.upload(orgId(),file,{ownerType:'contact',ownerId:ref.contact_id,slot:profile?'profile':slot,collection:'contacts',scope:'contact',metadata:{contact_record_project_id:ref.project_id,contact_draft:!state.contactRecord}});
+        const result=await window.PlatformAPI.media.upload(orgId(),file,{ownerType:'contact',ownerId:ref.contact_id,slot:profile?'profile':slot,collection:'contacts',scope:'contact',metadata:{contact_draft:!state.stored}});
         if(state.contact.id!==ref.contact_id)return;
         draftMedia.push(result.media);
         if(profile){state.contact.custom_field_values={...state.contact.custom_field_values,profile_photo:{media_id:result.media.id}};state.contact.profile_media_id=result.media.id;setProfileInput({media_id:result.media.id});scheduleAutosave();await flushAutosave();}
@@ -962,7 +955,7 @@
     const identity=state.contact.id;
     mount.innerHTML='<div class="fm-contact-empty">Loading docs…</div>';
     try{
-      const result=state.contactRecord?await window.PlatformAPI.contacts.media(orgId(),{contact_id:identity,project_id:projectId(state.contactRecord)}):{media:draftMedia};
+      const result=state.stored?await window.PlatformAPI.contacts.media(orgId(),identity):{media:draftMedia};
       if(!state.open||state.contact.id!==identity)return;
       const docs=(result.media||[]).filter(isContactDoc);
       mount.innerHTML=docs.length?docs.map(row=>`<a class="fm-contact-doc" href="${escapeHtml(window.PlatformAPI.media.fileUrl(orgId(),row.id))}" target="_blank" rel="noopener noreferrer"><i class="fas fa-file-lines" aria-hidden="true"></i><span>${escapeHtml(row.file_name || 'Document')}</span><small>Open</small></a>`).join(''):'<div class="fm-contact-empty">No docs for this contact yet.</div>';
@@ -974,78 +967,22 @@
     state.contact.id=ensureContactId(state.contact);
     const identity=state.contact.id;
     try {
-      const result=state.contactRecord?await window.PlatformAPI.contacts.media(orgId(),{contact_id:identity,project_id:projectId(state.contactRecord)}):{media:draftMedia};
+      const result=state.stored?await window.PlatformAPI.contacts.media(orgId(),identity):{media:draftMedia};
       if(!state.open || state.contact.id!==identity)return;
       const photos=(result.media || []).filter(row=>!isContactDoc(row)).map(row=>({id:row.id,media_id:row.id,content_type:row.content_type,label:row.file_name,uploaded_at:row.uploaded_at || row.created_at,updated_at:row.updated_at,metadata:row.metadata,src:window.PlatformAPI.media.fileUrl(orgId(),row.id),thumb:window.PlatformAPI.media.fileUrl(orgId(),row.id,row.variants?.thumb_320?'thumb_320':'original')}));
-      window.Portal.PhotoFeed.mountProjectGallery(mount,{project:{id:projectId(state.contactRecord),title:contactTitle(state.contact),photos},photos,title:'Photos & Media',uploadLabel:'Upload',selectionEnabled:false,enableProjectLinks:false,projectLinkEnabled:false,deleteEnabled:false,typeFilters:true,routeScope:'contact',onUpload:()=>$('#fmContactMediaUpload').click()});
+      window.Portal.PhotoFeed.mountProjectGallery(mount,{project:{id:identity,title:contactTitle(state.contact),photos},photos,title:'Photos & Media',uploadLabel:'Upload',selectionEnabled:false,enableProjectLinks:false,projectLinkEnabled:false,deleteEnabled:false,typeFilters:true,routeScope:'contact',onUpload:()=>$('#fmContactMediaUpload').click()});
 
     }catch(error){mount.textContent=error.message || 'Could not load contact media.';}
   }
-  function patchProjectContact(project = {}, contact = {}, options = {}){
-    const contactId = ensureContactId(contact);
-    const contacts = Array.isArray(project.contacts)
-      ? project.contacts.filter(contactHasContent).map((row) => ({ ...row }))
-      : [];
-    const nextTokens = contactTokens({ ...contact, id: contactId, contact_id: contactId });
-    const nextSemanticKey = contactSemanticKey(contact);
-    let index = contacts.findIndex((row) => {
-      const tokens = contactTokens(row || {});
-      if (nextTokens.contactId && tokens.contactId === nextTokens.contactId) return true;
-      return !!(
-        nextSemanticKey
-        && nextSemanticKey === contactSemanticKey(row || {})
-        && (!tokens.contactId || !firstText(contact.id, contact.contact_id))
-      );
-    });
-    const nextContact = {
-      id: contactId,
-      contact_id: contactId,
-      contact_kind: contact.contact_kind || 'human',
-      profile_media_id: contact.profile_media_id || '',
-      name: contact.name || '',
-      first_name:contact.first_name || '',last_name:contact.last_name || '',time_zone:contact.time_zone || '',
-      phone: contact.phone || '',
-      email: contact.email || '',
-      address: contact.address || '',
-      default_address: contact.address || '',
-      ...(contact.company ? { company: contact.company } : {}),
-      ...(contact.notes ? { notes: contact.notes } : {}),
-      ...(contact.birthday ? { birthday: contact.birthday } : {}),
-      ...(Array.isArray(contact.tags) ? { tags: contact.tags.map(cleanText).filter(Boolean) } : {}),
-      ...(contact.imported_at ? { imported_at: contact.imported_at } : {}),
-      ...(contact.import_id ? { import_id: contact.import_id } : {}),
-      ...(contact.import_source ? { import_source: contact.import_source } : {}),
-      custom_field_values: { ...(contact.custom_field_values || {}) },
-      primary: true
-    };
-    const nextContacts = contactHasContent(nextContact) ? contacts : [];
-    if (contactHasContent(nextContact)) {
-      if (index >= 0) nextContacts[index] = { ...nextContacts[index], ...nextContact, primary: true };
-      else nextContacts.unshift(nextContact);
-      nextContacts.forEach((row, rowIndex) => { row.primary = rowIndex === (index >= 0 ? index : 0); });
-    }
+  /** The contact service's fields of a contact; only what the window edits. */
+  function contactChanges(contact = {}){
     return {
-      ...project,
-      title: firstText(project.title, contact.name),
-      contacts: nextContacts,
-      contact_id: contactId,
-      primary_contact_id: contactId,
-      contact_ids: Array.from(new Set([contactId, ...(Array.isArray(project.contact_ids) ? project.contact_ids : [])].map(cleanText).filter(Boolean))),
-      address: project.workflow_state === 'contact_only' ? (contact.address || project.address || '') : project.address,
-      lat: project.workflow_state === 'contact_only' ? (contact.lat || project.lat || '') : project.lat,
-      lng: project.workflow_state === 'contact_only' ? (contact.lng || project.lng || '') : project.lng,
-      address_components: project.workflow_state === 'contact_only' ? (contact.address_components || project.address_components || {}) : project.address_components,
-      customer_name: contact.name || project.customer_name || '',
-      primary_contact_name: contact.name || project.primary_contact_name || '',
-      customer_email: contact.email || project.customer_email || '',
-      primary_contact_email: contact.email || project.primary_contact_email || '',
-      customer_phone: contact.phone ?? project.customer_phone ?? '',
-      primary_contact_phone: contact.phone ?? project.primary_contact_phone ?? '',
-      contact_address: contact.address || project.contact_address || '',
-      customer_address: contact.address || project.customer_address || '',
-      primary_contact_address: contact.address || project.primary_contact_address || '',
-      ...(project.workflow_state === 'contact_only' ? { contact_custom_field_values:{ ...(contact.custom_field_values || {}) } } : {}),
-      updated_at: new Date().toISOString()
+      contact_kind: contact.contact_kind || 'human',
+      name: contact.name || '', first_name: contact.first_name || '', last_name: contact.last_name || '',
+      email: contact.email || '', phone: contact.phone || '', address: contact.address || '', time_zone: contact.time_zone || '',
+      company: contact.company || '', notes: contact.notes || '', birthday: contact.birthday || '',
+      tags: Array.isArray(contact.tags) ? contact.tags.map(cleanText).filter(Boolean) : [],
+      custom_field_values: { ...(contact.custom_field_values || {}) }
     };
   }
   async function saveContact(){
@@ -1074,36 +1011,22 @@
     contact.id = ensureContactId(contact);
     state.contact = contact;
     setMeta('Saving...');
-    const contactRecord = patchProjectContact({
-        ...(state.contactRecord || {}),
-        id: projectId(state.contactRecord || {}) || firstText(contact.project_id, contact.record_project_id) || `project_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`,
-        title: contactTitle(contact),
-        project_title: contactTitle(contact),
-        contacts: Array.isArray(state.contactRecord?.contacts) ? state.contactRecord.contacts : [],
-        address: contact.address || '',
-        project_type: 'residential',
-        workflow_state: 'contact_only',
-        measurement: {},
-        measurement: state.contactRecord?.measurement || {},
-        measurement_project: state.contactRecord?.measurement_project || {},
-        events: Array.isArray(state.contactRecord?.events) ? state.contactRecord.events : [],
-        proposals: Array.isArray(state.contactRecord?.proposals) ? state.contactRecord.proposals : []
-      }, contact);
-    let savedRecord;
-    try { savedRecord = await window.Portal.ProjectStore.saveRemote(contactRecord); }
-    catch(error){setMeta(error.message || 'Could not save contact.');return false;}
-    if(!savedRecord){setMeta('Could not save contact.');return false;}
-    state.contactRecord = savedRecord;
-    state.contact = {
-      ...(revision===savingRevision?contact:state.contact),
-      id: contact.id,
-      project_id: projectId(savedRecord),
-      record_project_id: projectId(savedRecord)
-    };
-    try { state.projects = await Promise.all(visibleProjects(state.projects).map(async (project) => {
-      const linked = patchProjectContact(project, state.contact, { referenceOnly: true });
-      return await window.Portal.ProjectStore.saveRemote(linked);
-    })); } catch(error){setMeta('Contact saved, but a linked project could not be updated: '+error.message);return false;}
+    // A contact opened by id is a stored record; one that is not (yet) is created with the id its draft media already uses.
+    let saved;
+    try {
+      const changes = contactChanges(contact);
+      if (state.stored) {
+        saved = await window.PlatformAPI.contacts.update(orgId(), contact.id, changes).catch(error => {
+          if (error?.code === 'contact_not_found' || error?.status === 404) return null;
+          throw error;
+        });
+      }
+      if (!saved) saved = await window.PlatformAPI.contacts.create(orgId(), { ...changes, id: contact.id });
+      saved = saved?.contact;
+    } catch(error){ setMeta(error.message || 'Could not save contact.'); return false; }
+    if (!saved?.id) { setMeta('Could not save contact.'); return false; }
+    state.stored = true;
+    state.contact = { ...(revision===savingRevision?contact:state.contact), id: saved.id };
     state.originalContact = { ...contact };
     state.saved = true;
     window.dispatchEvent(new CustomEvent('fm:projects:refresh', { detail: { redraw: true } }));
@@ -1132,8 +1055,7 @@
       const result = await window.PlatformAPI.projects.get(orgId(), projectId(project)).catch(() => null);
       targetProject = projectFromDocument(result?.document) || project;
     }
-    const prepared = patchProjectContact(targetProject, contact, { referenceOnly: true });
-    const saved = window.Portal.ProjectStore?.save?.(prepared) || prepared;
+    const saved = window.Portal.ProjectStore?.save?.(targetProject) || targetProject;
     state.projects = visibleProjects([saved, ...state.projects]);
     const context = { contact, projects: visibleProjects(state.projects) };
     close({ skipHistory:true });
@@ -1154,8 +1076,6 @@
       if (!saved) return;
     }
     const savedContact = readContactInputs();
-    savedContact.id = ensureContactId(state.contact);
-    state.contact = savedContact;
     const id = `project_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
     const base = {
       id,
@@ -1166,7 +1086,6 @@
       lat: savedContact.lat || '',
       lng: savedContact.lng || '',
       address_components: savedContact.address_components || {},
-      contacts: [],
       project_notes: '',
       workflow_state: 'draft',
       measurement: {},
@@ -1176,7 +1095,16 @@
       photos: [],
       updated_at: new Date().toISOString()
     };
-    const project = window.Portal.ProjectStore?.save?.(patchProjectContact(base, savedContact, { referenceOnly: true })) || patchProjectContact(base, savedContact, { referenceOnly: true });
+    // The project is created, then the contact is linked through the contacts API, which writes the project's contacts.
+    let project;
+    try {
+      setMeta('Creating project...');
+      if (!await window.Portal.ProjectStore.saveRemote(base)) throw Error('Could not create the project.');
+      await window.PlatformAPI.contacts.setProjectContacts(orgId(), id, [{ contact_id: savedContact.id, primary: true }]);
+      project = projectFromDocument((await window.PlatformAPI.projects.get(orgId(), id))?.document) || base;
+      window.Portal.ProjectStore?.cache?.(project);
+    } catch(error){ setMeta(error.message || 'Could not create the project.'); return; }
+    setMeta('');
     state.projects = visibleProjects([project, ...state.projects]);
     window.dispatchEvent(new CustomEvent('fm:projects:refresh', { detail: { redraw: true } }));
     openProject(project);
@@ -1201,9 +1129,9 @@
     state.originalContact = { ...state.contact };
     const initialProjects = dedupeProjects(options.projects || (contact?.project ? [contact.project] : []));
     const projectsComplete = options.projectsComplete === true || options.complete === true;
-    state.contactRecord = initialProjects.find(isContactRecordProject) || (fallbackProject && isContactRecordProject(fallbackProject) ? fallbackProject : null);
     state.projects = visibleProjects(initialProjects);
-    state.saved = !!(state.contact.id || state.contactRecord || state.projects.length);
+    state.stored = !!state.contact.id;
+    state.saved = !!(state.contact.id || state.projects.length);
     state.loading = false;
     state.open = true;
     overlay.classList.add('active');

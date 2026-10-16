@@ -8,7 +8,6 @@ import { ZodError, z } from "zod";
 import { authContextFromRequest, hashPassword, requirePlatformAuth } from "../platform/auth.js";
 import { isAppFlagEnabled } from "../platform/app_flags.js";
 import { badRequest, forbidden, PlatformError, notFound, unauthorized } from "../platform/errors.js";
-import { createPlatformLead } from "../platform/api.js";
 import {
   addIdentityMembership,
   createIdentity,

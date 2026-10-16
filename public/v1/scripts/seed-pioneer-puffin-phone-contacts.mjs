@@ -30,32 +30,27 @@ if (!csrfCookie) throw new Error('Sandbox login did not return a CSRF cookie.');
 const headers = { cookie: cookies.join('; '), 'content-type': 'application/json',
   'x-platform-csrf': decodeURIComponent(csrfCookie.slice(csrfCookie.indexOf('=') + 1)) };
 const prefix = `/v1/platform/organizations/${encodeURIComponent(org.org_id)}`;
-const { body: projects } = await request(`${prefix}/projects`, { headers });
-const projectIds = new Set((projects.documents || []).map((doc) => doc.id));
-let projectsAdded = 0;
+// Contacts live in the contact store; a deterministic id keeps reruns idempotent.
+const exists = async (contactId) => {
+  const response = await fetch(`${base}${prefix}/contacts/${encodeURIComponent(contactId)}`, { headers });
+  if (response.status === 404) return false;
+  if (!response.ok) throw new Error(`GET contact ${contactId}: ${response.status}`);
+  return true;
+};
+let contactsAdded = 0;
 for (const person of people) {
   const contactId = id('contact', `${org.org_id}:${person.email}`);
-  const projectId = id('project', `${org.org_id}:${person.email}`);
-  const contact = { id: contactId, contact_id: contactId, ...person, primary: true,
-    contact_kind: 'human', notes: 'Synthetic contact for phone testing.' };
-  if (!projectIds.has(projectId)) {
-    projectsAdded++;
-    if (apply) await request(`${prefix}/projects`, { method: 'POST', headers, body: JSON.stringify({
-      id: projectId, data: { id: projectId, title: person.name, project_title: person.name,
-        contacts: [contact], workflow_state: 'contact_only', project_type: 'residential',
-        measurement: {}, measurement_project: {}, events: [], proposals: [] },
-      metadata: { kind: 'platform_project', workflow_state: 'contact_only', synthetic: true,
-        source: 'development_pioneer_puffin_phone_contacts' }
-    }) });
-  }
+  if (await exists(contactId)) continue;
+  contactsAdded++;
+  if (apply) await request(`${prefix}/contacts`, { method: 'POST', headers, body: JSON.stringify({
+    id: contactId, ...person, contact_kind: 'human', notes: 'Synthetic contact for phone testing.'
+  }) });
 }
 if (apply) {
-  const { body: savedProjects } = await request(`${prefix}/projects`, { headers });
   for (const person of people) {
     const contactId = id('contact', `${org.org_id}:${person.email}`);
-    const projectId = id('project', `${org.org_id}:${person.email}`);
-    if (!savedProjects.documents.some((doc) => doc.id === projectId && doc.data?.contacts?.some((entry) => entry.id === contactId))) throw new Error(`Contact app record missing: ${person.name}`);
+    if (!(await exists(contactId))) throw new Error(`Contact record missing: ${person.name}`);
   }
 }
 console.log(JSON.stringify({ mode: apply ? 'applied' : 'dry-run', org: org.org_name, org_id: org.org_id,
-  contacts: people.map(({ name, phone }) => ({ name, phone })), projects_added: projectsAdded }, null, 2));
+  contacts: people.map(({ name, phone }) => ({ name, phone })), contacts_added: contactsAdded }, null, 2));

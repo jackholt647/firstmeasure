@@ -34,9 +34,12 @@ export async function sharingOptions(ctx:PlatformAuthContext,type:ResourceRef["t
   requirePermission(ctx,"manage_external_sharing");requirePermission(ctx,permissions[type]);
   const candidates:{resource:ResourceRef;label:string}[]=[];
   const add=(id:string,label:string,project_id?:string)=>candidates.push({resource:{owner_org_id:ctx.orgId,type,id,...(project_id?{project_id}:{})},label});
-  if(type==="project"||type==="contact")for(const project of await listDocuments(ctx.orgId,"projects")){
-    if(type==="project"){if(project.data.workflow_state!=="contact_only")add(project.id,String(project.data.title||project.id));}
-    else for(const contact of Array.isArray(project.data.contacts)?project.data.contacts as Record<string,any>[]:[])if(contact.id)add(String(contact.id),String(contact.name||contact.id),project.id);
+  if(type==="project")for(const project of await listDocuments(ctx.orgId,"projects"))add(project.id,String(project.data.title||project.id));
+  // A contact is a record of its own (docs/architecture/contacts.md); a contact resource names it by id.
+  if(type==="contact"){
+    const {listContacts}=await import("../contacts/records.js");
+    let cursor="";
+    do{const page=await listContacts(ctx.orgId,{limit:200,after:cursor});for(const contact of page.items)add(contact.id,contact.name||contact.email||contact.phone||contact.id);cursor=page.next||"";}while(cursor);
   }
   if(type==="channel")for(const channel of await listChannelRecords(ctx.orgId)){
     try{await requireChannelAccess(ctx,channel.id);add(channel.id,channel.name);}catch(e:any){if(![403,404].includes(e.statusCode))throw e;}
@@ -59,7 +62,7 @@ export async function sharingOptions(ctx:PlatformAuthContext,type:ResourceRef["t
 }
 async function source(r:ResourceRef):Promise<Record<string,any>>{
   if(r.type==="project"){const d=await readDocument(r.owner_org_id,"projects",r.id);return {...d.data,id:d.id,revision:d.revision};}
-  if(r.type==="contact"){const c=await resolveContact(r.owner_org_id,{project_id:r.project_id,contact_id:r.id});return {...c.contact,revision:c.parent.revision};}
+  if(r.type==="contact"){const c=await resolveContact(r.owner_org_id,{contact_id:r.id});return {...c.contact};}
   if(r.type==="document")return readDocumentInstance(r.owner_org_id,r.id);
   if(r.type==="invoice")return readInvoice(r.owner_org_id,r.id);
   if(r.type==="media")return readMediaMetadata(r.owner_org_id,r.id);
@@ -71,7 +74,6 @@ export async function validateResource(ctx:PlatformAuthContext,r:ResourceRef){
     const {channel}=await requireChannelAccess(ctx,r.id,{write:true});
     if(!["public","private","project"].includes(channel.type)||!await channelAdminAllowed(ctx,channel))throw forbidden("channel_sharing_denied","Only channel managers can share collaboration channels.");
   }
-  if(r.type==="contact"&&!r.project_id)throw badRequest("contact_anchor_required","Choose the contact's saved reference.");
   const value=await source(r);
   if(r.type==="media"){
     if(!canReadReceiptMedia(value,ctx))throw forbidden("media_private","This file is not available for sharing.");

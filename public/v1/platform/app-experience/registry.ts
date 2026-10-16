@@ -139,7 +139,7 @@ const APP_SOURCE: AppSource[] = [
     layout: PORTAL_LAYOUT
   }),
   tab("portal.sales_schedule", "Schedule", "fa-calendar-days", 20, { terminology_key: "scheduling.sales_portal_tab", description: "Past and upcoming sales appointments.", capabilities: ["apps.sales"], default_visible: false, default_params: { mode: "sales", assignment_scope: "mine" }, layout: PORTAL_LAYOUT }),
-  tab("portal.sales_earnings", "Earnings", "fa-wallet", 30, { terminology_key: "earnings.sales_portal_tab", description: "Your commission earnings: pending, paid, and per deal.", capabilities: ["payroll.self_service_earnings"], default_visible: false, default_params: { mode: "sales", subject_scope: "mine", presentation: "commissions" }, layout: PORTAL_LAYOUT }),
+  tab("portal.sales_earnings", "Earnings", "fa-wallet", 30, { terminology_key: "earnings.sales_portal_tab", description: "Your commission earnings: pending, paid, and per deal.", capabilities: ["payroll.self_service_earnings"], default_visible: false, default_params: { mode: "sales", subject_scope: "mine", presentation: "commissions", projected_enabled: false }, parameter_permissions: { projected_enabled: PAYROLL_PERMISSION_KEYS.view_own_projected_earnings }, layout: PORTAL_LAYOUT }),
 
   // Project window views.
   projectView("project.map", "Project Overview", "fa-map-location-dot", 10, { terminology_key: "projects.overview_tab", description: "Project overview, property, and map details.", capabilities: ["apps.project_map"] }),

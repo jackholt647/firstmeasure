@@ -109,6 +109,8 @@
    *   options.editAction adds a pencil (data-people-identity). A fact with panel:false is left out of the panel
    *   (its tab shows it), one with card:false out of the card.
    */
+  /* mark({ icon, label }): a small icon beside a name that says one thing about it (its label is the tooltip and the accessible name). */
+  const mark = (entry) => entry && entry.icon ? `<i class="fas ${esc(entry.icon)} pp-name-mark" role="img" aria-label="${esc(entry.label || '')}" data-name-mark="${esc(entry.id || '')}"${tip(entry.label)}></i>` : '';
   function summary(model = {}, variant = 'panel', options = {}){
     const card = variant === 'card';
     const photo = avatar(model, { size:card ? 44 : 76, online:model.online, square:model.kind && model.kind !== 'organization_user' });
@@ -129,7 +131,7 @@
     }).join('');
     const editAction = !card && options.editAction ? `<button type="button" class="pp-icon-btn pp-sum-edit" data-people-identity aria-label="${esc(options.editAction)}"${tip(options.editAction)}><i class="fas ${ICONS.edit}" aria-hidden="true"></i></button>` : '';
     return `<div class="pp-sum ${card ? 'card' : 'panel'}" data-people-summary="${esc(model.kind || '')}:${esc(model.id || '')}">
-      <div class="pp-sum-head">${photoHtml}${editAction}<div class="pp-sum-id"><strong class="pp-sum-name">${esc(model.name || '')}</strong>${model.secondary ? `<span class="pp-sum-secondary">${esc(model.secondary)}</span>` : ''}${pills ? `<div class="pp-sum-pills">${pills}</div>` : ''}</div></div>
+      <div class="pp-sum-head">${photoHtml}${editAction}<div class="pp-sum-id"><strong class="pp-sum-name">${esc(model.name || '')}${(model.marks || []).map(mark).join('')}</strong>${model.secondary ? `<span class="pp-sum-secondary">${esc(model.secondary)}</span>` : ''}${pills ? `<div class="pp-sum-pills">${pills}</div>` : ''}</div></div>
       ${facts ? (card ? `<div class="pp-sum-facts">${facts}</div>` : `<dl class="pp-sum-facts">${facts}</dl>`) : ''}
       ${sections ? `<div class="pp-sum-sections">${sections}</div>` : ''}
     </div>`;
@@ -504,7 +506,7 @@
       .pp-seg{display:inline-flex;flex:none;padding:2px;border:1px solid var(--pp-line);border-radius:9px;background:var(--pp-soft)}
       .pp-seg>button{display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 10px;border:0;border-radius:7px;background:transparent;color:var(--pp-muted);font-size:12px;font-weight:650;white-space:nowrap;cursor:pointer}
       .pp-seg>button>i{font-size:11px;opacity:.8}
-      .pp-seg>button[aria-pressed="true"],.pp-seg>button[aria-selected="true"]{background:var(--pp-panel);color:var(--pp-text);box-shadow:0 1px 3px rgba(16,24,40,.12)}
+      .pp-seg>button[aria-pressed="true"],.pp-seg>button[aria-selected="true"],.pp-seg>button[aria-checked="true"]{background:var(--pp-panel);color:var(--pp-text);box-shadow:0 1px 3px rgba(16,24,40,.12)}
       .pp-seg-count{display:inline-grid;place-items:center;min-width:17px;height:17px;padding:0 5px;border-radius:999px;background:var(--pp-warn-bg);color:var(--pp-warn);font-size:10px;font-weight:700;font-variant-numeric:tabular-nums}
       .pp-seg-count:empty{display:none}
       .pp-state,.pp-list-state{display:grid;place-items:center;justify-items:center;gap:10px;padding:48px 16px;color:var(--pp-muted);text-align:center}
@@ -573,6 +575,7 @@
       .pp-sum-camera{position:absolute;inset:0;display:grid;place-items:center;border-radius:50%;background:rgba(16,24,40,.5);color:#fff;font-size:18px;opacity:0;transition:opacity .14s ease}
       button.pp-sum-photo:hover .pp-sum-camera,button.pp-sum-photo:focus-visible .pp-sum-camera{opacity:1}
       .pp-sum-id{display:grid;gap:3px;justify-items:center;min-width:0;max-width:100%}
+      .pp-name-mark{display:inline-block;margin-left:6px;color:var(--pp-muted);font-size:.78em;vertical-align:.08em}
       .pp-sum-name{max-width:100%;font-size:16px;font-weight:700;line-height:1.25;overflow-wrap:anywhere}
       .pp-sum-secondary{max-width:100%;color:var(--pp-muted);font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
       .pp-sum-pills{display:flex;flex-wrap:wrap;justify-content:center;gap:4px;margin-top:3px}
@@ -619,5 +622,5 @@
     onChange(listener){ viewListeners.add(listener); return () => viewListeners.delete(listener); }
   };
 
-  People.kit = { uiFont, esc, t, term, tip, toast, countPhrase, initials, avatar, chip, chips, pill, summary, menu, confirm, form, layer, select, stack, info, presence, place, ICONS, TONES, ensureStyles };
+  People.kit = { mark, uiFont, esc, t, term, tip, toast, countPhrase, initials, avatar, chip, chips, pill, summary, menu, confirm, form, layer, select, stack, info, presence, place, ICONS, TONES, ensureStyles };
 })();

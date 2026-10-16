@@ -1,5 +1,6 @@
 import type { PayrollPayeeRef } from "./schemas.js";
-import { asArray, asObject, cleanText, listPayrollEarningsRecords, type JsonObject } from "./storage.js";
+import { asArray, asObject, cleanText, listPayrollEarningsRecords, readPayrollSchedule, type JsonObject } from "./storage.js";
+import { payrollOccurrences } from "./schedule.js";
 
 type EarningsTotals = {
   projected_cents: number;
@@ -37,9 +38,17 @@ function projectKey(projectId: string) {
   return projectId || "__unassigned__";
 }
 
+/** A payment recorded as made outside a pay run (off-cycle.ts). */
+function offCyclePaymentOf(entry: JsonObject) {
+  const payment = asObject(asObject(entry.metadata).off_cycle_payment);
+  return cleanText(entry.subgroup) === "off_cycle" && Object.keys(payment).length ? payment : null;
+}
+
 function publicEntry(value: unknown) {
   const entry = asObject(value);
+  const offCycle = offCyclePaymentOf(entry);
   return {
+    off_cycle_payment: offCycle ? { paid_on: cleanText(offCycle.paid_on), reference: cleanText(offCycle.reference) } : null,
     id: cleanText(entry.id),
     state: cleanText(entry.state),
     kind: cleanText(entry.kind),
@@ -135,6 +144,8 @@ function reportForPayee(payee: PayrollPayeeRef, entriesValue: unknown[], payment
     const totals = project.totals as EarningsTotals;
     if (entry.state === "projected") totals.projected_cents += entry.remaining_cents;
     if (entry.state === "accrued") totals.accrued_cents += entry.remaining_cents;
+    // Paid outside a pay run: it is paid, and the open negative entry takes it off what is still owed until a run takes it off.
+    if (entry.state === "accrued" && entry.off_cycle_payment) totals.paid_cents += -entry.amount_cents;
     project.currency = entry.currency || project.currency;
     project.entry_count = Number(project.entry_count || 0) + 1;
   }
@@ -194,9 +205,38 @@ function reportForPayee(payee: PayrollPayeeRef, entriesValue: unknown[], payment
     projects: projectReports,
     entries,
     payments,
+    off_cycle_payments: entries.filter((entry) => entry.state === "accrued" && entry.off_cycle_payment).map((entry) => ({
+      id: entry.id, kind: entry.kind, amount_cents: -entry.amount_cents, currency: entry.currency, paid_on: entry.off_cycle_payment!.paid_on,
+      reference: entry.off_cycle_payment!.reference, waiting_cents: -entry.remaining_cents
+    })),
     counts: { projects: projectReports.length, entries: entries.length, payments: payments.length },
     filters
   };
+}
+
+/**
+ * What only the payee's own view adds: the next day they are paid (the schedule their pay layers choose for
+ * everything, and its next pay date) and anything of theirs a pay rule could not work out, which is never zero.
+ */
+export async function myPayExtras(orgId: string, userId: string) {
+  const payee = { type: "organization_user" as const, id: userId };
+  const { resolvePaySchedule, listPayRules } = await import("./pay-rules.js");
+  const { listUnresolvedPay } = await import("./pay-refresh.js");
+  let next_payment: JsonObject | null = null;
+  const chosen = await resolvePaySchedule(orgId, payee, "*").catch(() => null);
+  const scheduleId = cleanText(chosen?.schedule_id);
+  const schedule = scheduleId ? await readPayrollSchedule(orgId, scheduleId).catch(() => null) : null;
+  if (schedule) {
+    const today = new Date().toISOString().slice(0, 10);
+    const through = new Date(Date.now() + 400 * 86400000).toISOString().slice(0, 10);
+    const occurrence = payrollOccurrences(schedule, today, through)[0];
+    if (occurrence) next_payment = { pay_date: occurrence.pay_date, schedule_name: cleanText(schedule.name) };
+  }
+  const names = new Map((await listPayRules(orgId).catch(() => [])).map((rule) => [rule.id, rule.name]));
+  const unresolved = (await listUnresolvedPay(orgId).catch(() => []))
+    .filter((item) => item.payee.type === "organization_user" && item.payee.id === userId)
+    .map((item) => ({ rule_name: cleanText(names.get(item.rule_id)) || item.rule_id, reason: item.reason, earned_at: item.earned_at, whole_rule: item.whole_rule }));
+  return { next_payment, unresolved };
 }
 
 export async function payrollEarnings(orgId: string, payees: PayrollPayeeRef[], options: JsonObject = {}) {

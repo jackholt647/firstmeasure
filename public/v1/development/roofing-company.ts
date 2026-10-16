@@ -2,6 +2,7 @@
 import { createHash } from 'node:crypto';
 import { readDocument, listDocuments, upsertDocument, type JsonObject } from '../platform/storage.js';
 import type { PlatformAuthContext } from '../platform/auth.js';
+import { createContact, resolveContactId, saveProjectContacts } from '../contacts/records.js';
 import { sampleId } from './fixtures.js';
 import * as channels from '../channels/storage.js';
 import { ensureProjectChannelRecord } from '../channels/service.js';
@@ -22,7 +23,8 @@ const scopes=['Full roof replacement','Roof and garage replacement','Storm damag
 export const TEAM=[['alex','Alex Martinez','Production manager'],['sam','Sam Rivera','Estimator'],['morgan','Morgan Lee','Office coordinator'],['chris','Chris Bennett','Crew lead'],['jamie','Jamie Brooks','Roofing technician'],['dana','Dana Chen','Roofing technician']] as const;
 export async function companyPeople(org:string){const users=await listDocuments(org,'users');return TEAM.map(([key])=>users.find(u=>u.id===stable(org,`person:${key}`))).filter((u):u is NonNullable<typeof u>=>!!u);}
 export function customer(org:string,i:number){const id=sampleId(org,`roofing-customer:${i}`);return {id,contact_id:id,name:names[i%names.length]!,email:`homeowner.${id.slice(-16)}@example.test`,phone:`202-555-${String(100+i).padStart(4,'0')}`,address:`${104+i*17} ${roads[i%roads.length]}, Northampton, MA 01060`,primary:true};}
-export async function companyContacts(org:string){let created=0;for(let i=0;i<names.length;i++){const c=customer(org,i);if(await insert(org,'projects',sampleId(org,`roofing-contact:${i}`),{title:c.name,project_title:c.name,workflow_state:'contact_only',branch_id:'default',contacts:[c],contact_id:c.id,primary_contact_id:c.id,contact_ids:[c.id],address:c.address,tags:['Synthetic'],events:[],measurement:{}}))created++;}return {created};}
+/** Customers are records of their own in the contact store (docs/architecture/contacts.md). */
+export async function companyContacts(org:string){let created=0;for(let i=0;i<names.length;i++){const {id,primary:_primary,contact_id:_contactId,...c}=customer(org,i);if(await resolveContactId(org,id))continue;try{await createContact(org,{...c,branch_ids:['default']},{id});created++;}catch(e:any){if(e.code!=='contact_exists')throw e;}}return {created};}
 export async function batchProjects(org:string){const rows=await Promise.all(PROJECT_KEYS.map(key=>find(org,'projects',sampleId(org,key))));return rows.filter((p):p is NonNullable<typeof p>=>!!p);}
 export async function companyProjects(ctx:PlatformAuthContext){
  let created=0;const org=ctx.orgId,branch=ctx.branchId||'default';const templates=await listScopeTemplates(org,branch);
@@ -34,7 +36,7 @@ export async function companyProjects(ctx:PlatformAuthContext){
  const people=await companyPeople(org);
  for(let i=0;i<PROJECT_KEYS.length;i++){
   const id=sampleId(org,PROJECT_KEYS[i]!);const c=customer(org,i);const title=`${c.name.split(' ').at(-1)} — ${scopes[i%scopes.length]}`;
-  if(await insert(org,'projects',id,{title,project_title:title,address:c.address,branch_id:branch,project_type:'residential',property_type:'residential',workflow_state:'project',status:'active',contacts:[c],contact_id:c.id,primary_contact_id:c.id,contact_ids:[c.id],assigned_user_ids:people.length?[String(people[i%people.length]!.id)]:[ctx.userId],tags:['Synthetic',i%4===2?'Repair':'Replacement'],estimated_value:8500+i*950,notes:`${scopes[i%scopes.length]}. Architectural asphalt shingles; ${20+i*1.5} squares. Protect landscaping and confirm driveway access with ${c.name.split(' ')[0]}.`,events:[],proposals:[],photos:[],measurement:{},metadata}))created++;
+  if(await insert(org,'projects',id,{title,project_title:title,address:c.address,branch_id:branch,project_type:'residential',property_type:'residential',workflow_state:'project',status:'active',assigned_user_ids:people.length?[String(people[i%people.length]!.id)]:[ctx.userId],tags:['Synthetic',i%4===2?'Repair':'Replacement'],estimated_value:8500+i*950,notes:`${scopes[i%scopes.length]}. Architectural asphalt shingles; ${20+i*1.5} squares. Protect landscaping and confirm driveway access with ${c.name.split(' ')[0]}.`,events:[],proposals:[],photos:[],measurement:{},metadata})){await saveProjectContacts(org,id,[c],{branchIds:['default']});created++;}
   // Create-only plan semantics make retries repair a missing board without resetting a user's stage.
   const plan=await createWorkPlan({id:sampleId(org,`roofing-plan:${id}`),organization_id:org,project_id:id,branch_id:branch,template_id:String(template.id),source_type:'pipeline',source_key:`synthetic:${id}`,title:String(template.name),metadata:{...metadata,scope_template_kind:'pipeline'},root_nodes:[{id:root.id,title:root.title,terminology_key:root.terminology_key,completion_mode:'manual',children:stages.map((s:any,index:number)=>({id:s.id,title:s.title,terminology_key:s.terminology_key,completion_mode:'manual',metadata:{color:s.metadata?.color||s.color},depends_on:index?[stages[index-1].id]:[]}))}]});
   if(plan.created)await setManualPlanStage(org,String(plan.plan!.id),String(stages[i%stages.length].id),{actor_user_id:ctx.userId,reason:'Synthetic pipeline scenario'});

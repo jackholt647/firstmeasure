@@ -21,7 +21,9 @@ A form definition is `{ presentation, steps, calculation, settings }`.
 
 - **Steps** are screens. Each holds **blocks**: `contact`, `address`, `text`,
   `paragraph`, `number`, `select`, `multi_select`, `boolean`, `date`,
-  `appointment`, `property_measurement`, `consent`, `content`.
+  `appointment`, `property_measurement`, `consent`, `content`. A `consent`
+  block with `sms_opt_in` also records an SMS opt-in for customer care when
+  ticked, with its label as the disclosure ([opportunities](opportunities.md#intake)).
 - A block that collects a value has a `param`, its answer key. Blocks and steps
   can be shown conditionally with `visible_when` over earlier answers.
 - **Calculation** is optional. `pricing` mode is a declarative price table

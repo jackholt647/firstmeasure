@@ -9,6 +9,11 @@ import { listWorkTodos, patchWorkNode } from "../work/service.js";
 import { readNodeRecord } from "../work/storage.js";
 import { resolveAccessProfile } from "./access.js";
 import { assignedSalesAppointmentEvents } from "./assignment_scope.js";
+/** Where the sale stands, read from the project's opportunities (docs/architecture/opportunities.md). */
+function saleStatus(project: Record<string, unknown>) {
+  const lifecycle = (project.lifecycle && typeof project.lifecycle === "object" ? project.lifecycle : {}) as Record<string, unknown>;
+  return lifecycle.status === "lost" ? "lost" : String(lifecycle.sold_at || "") ? "won" : "open";
+}
 
 // The sales facade mirrors crew_api.ts for the salesperson persona: everything
 // is scoped to the session user's assigned sales appointments and their own
@@ -177,7 +182,7 @@ function appointmentView(project: JsonObject, event: JsonObject) {
     status: cleanText(event.status || "scheduled"),
     confirmation: asObject(event.confirmation),
     stage: cleanText(asObject(asObject(project.work_projection).primary_stage).title || project.status),
-    lead_status: cleanText(project.lead_status),
+    sale_status: saleStatus(project),
     signature_requirements: asObject(project.signature_requirements)
   };
 }
@@ -340,7 +345,7 @@ export const registerSalesApi: FastifyPluginAsync = async (app) => {
         customer_email: contact.email,
         notes: cleanText(project.notes || project.project_notes || project.description),
         stage: cleanText(asObject(asObject(project.work_projection).primary_stage).title || project.status),
-        lead_status: cleanText(project.lead_status),
+        sale_status: saleStatus(project),
         signature_requirements: asObject(project.signature_requirements)
       },
       appointments,

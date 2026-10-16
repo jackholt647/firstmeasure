@@ -4,6 +4,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test, { after, before } from "node:test";
+import { putProjectContacts } from "./helpers/project-contacts.js";
 
 type TestClient = ReturnType<typeof createSessionClient>;
 
@@ -112,25 +113,23 @@ async function registerOwner() {
 
 async function createProject(client: TestClient, orgId: string, suffix: string) {
   const project = await client.request("POST", `/v1/platform/organizations/${orgId}/projects`, {
-    data: {
-      title: "Maple Street Reroof",
-      contacts: [{
-        id: "contact_primary",
-        name: "Casey Customer",
-        email: `casey-${suffix}@example.test`,
-        phone: "+12065551234",
-        primary: true
-      }, {
-        id: "contact_secondary",
-        name: "Jordan Customer",
-        email: `jordan-${suffix}@example.test`,
-        phone: "+12065559876"
-      }, {
-        id: "contact_no_details",
-        name: "Taylor Customer"
-      }]
-    }
+    data: { title: "Maple Street Reroof" }
   });
+  await putProjectContacts(client, orgId, String(project.document.id), [{
+      id: "contact_primary",
+      name: "Casey Customer",
+      email: `casey-${suffix}@example.test`,
+      phone: "+12065551234",
+      primary: true
+    }, {
+      id: "contact_secondary",
+      name: "Jordan Customer",
+      email: `jordan-${suffix}@example.test`,
+      phone: "+12065559876"
+    }, {
+      id: "contact_no_details",
+      name: "Taylor Customer"
+    }]);
   return {
     projectId: String(project.document.id),
     contactEmail: `casey-${suffix}@example.test`,

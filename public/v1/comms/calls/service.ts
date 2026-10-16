@@ -4,8 +4,7 @@ import { hasPermission, type PlatformAuthContext } from "../../platform/auth.js"
 import {hasResourcePermission,canUseScopedPermission,relevantDepartmentContext,matchesDepartmentFilter,scopedPermissionBranchIds,resourcePermissionRules} from '../../workforce/department-access.js';
 import { badRequest, conflict, forbidden, notFound } from "../../platform/errors.js";
 import { listDocuments, readDocument } from "../../platform/storage.js";
-import { callListQueue, ensureCallListDatabase, recordCallListDisposition } from "../../internal/crm/call_lists.js";
-import { withLeadDb } from "../../internal/crm/leads.js";
+import { callListQueue, ensureCallListDatabase, getCallListDatabase, recordCallListDisposition } from "../call-lists.js";
 import { listNodeRecords, readNodeRecord } from "../../work/storage.js";
 import { createFollowUpTodo, isFollowUpWorkNode, resolveFollowUpOutcome } from "../../work/followups.js";
 import { patchWorkNode, transitionWorkNode } from "../../work/service.js";
@@ -248,7 +247,7 @@ export async function applyWrapUpEffects(orgId:string,callId:string,payload:Json
     await ensureCallListDatabase();
     const remaining=(await Promise.all(strings(call.metadata.source_node_ids).map(async nodeId=>{const node=await readNodeRecord(orgId,nodeId);return node&&!['completed','canceled','skipped'].includes(text(node.status));}))).some(Boolean);
     const status=payload.disposition==='do_not_call'?'removed':remaining||payload.next_action==='none'?'pending':'completed';
-    withLeadDb(db=>db.prepare("UPDATE crm_call_list_entries SET status=?,result_json=?,updated_at=?,completed_at=? WHERE organization_id=? AND id=?")
+    (await getCallListDatabase().prepare("UPDATE crm_call_list_entries SET status=?,result_json=?,updated_at=?,completed_at=? WHERE organization_id=? AND id=?")
       .run(status,JSON.stringify({call_id:call.id,...call.result}),store.now(),status==='pending'?'':store.now(),orgId,call.entry_id));(await done("entry"));
   }
   if(!checkpoint().event){

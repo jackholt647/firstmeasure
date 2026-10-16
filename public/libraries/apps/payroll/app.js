@@ -1,5 +1,24 @@
 /* public/libraries/apps/payroll/app.js
- * Global payroll workspace for schedule previews, batches, and payment history.
+ *
+ * Payroll: what is due and when it runs, who is paid how much and why, review of what needs a person, timesheets,
+ * pay run history, reports and Payroll settings. Money is not moved here: a pay run is reviewed, approved, copied
+ * out to Gusto, QuickBooks Payroll or similar, and marked done. Server contracts: docs/architecture/pay-rules.md.
+ *
+ * What each person sees comes from their permissions and the organization's app flags only (ACTIONS below). Every
+ * control names the action it needs; one that is not allowed is not drawn.
+ *
+ *   Pay runs    upcoming pay dates, what each will pay and to whom; draft, approve, copy out, mark paid
+ *   Review      earnings that could not be worked out, held corrections, back pay asked for off-cycle, payments
+ *               made outside a pay run, work orders finalized to be paid, reimbursements waiting to be paid
+ *   Timesheets  everyone's shifts for payroll managers; your own for someone with only the time clock
+ *   Earnings    per person: owed, next pay date, projected, and why
+ *   History     past pay runs
+ *   Reports     date-range reports and saved files
+ *   Approvals   pay runs waiting for you as a named approver
+ *   My pay      your own earnings, payments and, when allowed, what you are projected to earn
+ *   Settings    Payroll settings (apps/settings/payroll.js), mounted here and nowhere else
+ *
+ * Built from the People kit (apps/people/people-kit.js, entity-modal.js) so it reads like People settings.
  */
 (function(){
   'use strict';
@@ -7,1677 +26,1231 @@
   const runtime = window.FirstMateEmbeddableApps;
   if (!runtime?.registerApp) return;
 
-  const DAY_MS = 86400000;
-  const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-  const SUBGROUPS = ['hourly', 'salary', 'piece_rate', 'commission', 'adjustment', 'clawback'];
-  const SUBGROUP_LABELS = {
-    hourly:'Hourly', salary:'Salary', piece_rate:'Piece rate', commission:'Commission',
-    adjustment:'Adjustment', clawback:'Clawback', other:'Other'
-  };
-
   const clean = (value) => String(value ?? '').trim();
-  const object = (value) => value && typeof value === 'object' && !Array.isArray(value) ? value : {};
-  const array = (value) => Array.isArray(value) ? value : [];
-  const number = (value) => Number.isFinite(Number(value)) ? Number(value) : 0;
+  const obj = (value) => value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+  const arr = (value) => Array.isArray(value) ? value : [];
+  const num = (value) => Number.isFinite(Number(value)) ? Number(value) : 0;
+  const kit = () => window.FirstMatePeople?.kit;
+  const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (match) => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[match]));
+  const fill = (text, values) => String(text ?? '').replace(/\{(\w+)\}/g, (match, name) => (values && values[name] != null ? String(values[name]) : match));
+  const t = (key, fallback, values) => { const readable = fill(fallback, values); return globalThis.PlatformLanguage?.text?.('payroll', key, readable, values) ?? readable; };
+  const tip = (text) => (text ? ` data-fm-tooltip="${esc(text)}"` : '');
+  const info = (text) => kit()?.info ? kit().info(text) : '';
+  const pill = (label, tone = 'neutral', tooltip = '', icon = '') => kit()?.pill ? kit().pill({ label, tone, tooltip, icon }) : `<span>${esc(label)}</span>`;
+  const toast = (title, message, ok = true) => { try { window.Portal?.ui?.showToast?.(title, message, ok); } catch (_) {} };
 
-  function esc(value){
-    return clean(value)
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
-      .replace(/'/g, '&#039;');
-  }
+  // ---- Dates and money -------------------------------------------------------------------------------------
 
-  function dateKey(value = new Date()){
+  function dayKey(value = new Date()){
     const date = value instanceof Date ? value : new Date(value);
     if (!Number.isFinite(date.getTime())) return '';
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
   }
-
-  function addDaysKey(value, days){
-    const date = new Date(`${clean(value)}T12:00:00`);
-    date.setDate(date.getDate() + Number(days || 0));
-    return dateKey(date);
-  }
-
-  function formatDate(value, options = {}){
+  function addDays(key, days){ const date = new Date(`${clean(key)}T12:00:00`); date.setDate(date.getDate() + Number(days || 0)); return dayKey(date); }
+  const locale = () => globalThis.PlatformLanguage?.formatLocale?.() || undefined;
+  function dateLabel(value, options = {}){
     const raw = clean(value);
-    if (!raw) return '—';
+    if (!raw) return '';
     const date = /^\d{4}-\d{2}-\d{2}$/.test(raw) ? new Date(`${raw}T12:00:00`) : new Date(raw);
     if (!Number.isFinite(date.getTime())) return raw;
-    return new Intl.DateTimeFormat(undefined, {
-      month:options.short === false ? 'long' : 'short',
-      day:'numeric',
-      ...(options.year === false ? {} : { year:'numeric' })
-    }).format(date);
+    const sameYear = date.getFullYear() === new Date().getFullYear();
+    return new Intl.DateTimeFormat(locale(), { weekday:options.weekday ? 'short' : undefined, month:'short', day:'numeric', ...(sameYear && !options.year ? {} : { year:'numeric' }) }).format(date);
   }
-
-  function formatDateTime(value){
+  function timeLabel(value){
     const date = new Date(clean(value));
-    if (!Number.isFinite(date.getTime())) return '—';
-    return new Intl.DateTimeFormat(undefined, { month:'short', day:'numeric', year:'numeric', hour:'numeric', minute:'2-digit' }).format(date);
+    return Number.isFinite(date.getTime()) ? new Intl.DateTimeFormat(locale(), { hour:'numeric', minute:'2-digit' }).format(date) : '';
   }
+  function dateTimeLabel(value){ const raw = clean(value); return raw ? `${dateLabel(raw)} ${timeLabel(raw)}` : ''; }
+  function money(cents, currency = 'USD'){
+    try { return new Intl.NumberFormat(locale(), { style:'currency', currency:clean(currency || 'USD').toUpperCase() }).format(num(cents) / 100); }
+    catch (_) { return `${(num(cents) / 100).toFixed(2)} ${clean(currency || 'USD')}`; }
+  }
+  /** A deduction is shown with a minus sign and never as a negative check. */
+  function minus(cents, currency){ return num(cents) ? `\u2212${money(Math.abs(num(cents)), currency)}` : money(0, currency); }
+  function hours(seconds){ const total = Math.max(0, Math.round(num(seconds) / 60)); return `${Math.floor(total / 60)}h ${String(total % 60).padStart(2, '0')}m`; }
+  const localInput = (value) => { const date = new Date(clean(value)); if (!Number.isFinite(date.getTime())) return ''; const pad = (n) => String(n).padStart(2, '0'); return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`; };
+  const payeeKey = (payee) => `${clean(payee?.type)}:${clean(payee?.id)}`;
+  const KIND_FALLBACK = { hourly:'Hourly', salary:'Salary', piece_rate:'Piece rate', commission:'Commission', reimbursement:'Reimbursement', adjustment:'Adjustment', clawback:'Clawback', off_cycle:'Paid outside a pay run', other:'Other' };
+  const PAYEE_TYPES = { organization_user:'Person', resource_group:'Group', organization_connection:'Company' };
 
-  function formatMoney(cents, currency = 'USD', options = {}){
-    try {
-      return new Intl.NumberFormat(undefined, {
-        style:'currency', currency:clean(currency || 'USD').toUpperCase(),
-        minimumFractionDigits:options.compact ? 0 : 2,
-        maximumFractionDigits:options.compact ? 0 : 2
-      }).format(number(cents) / 100);
-    } catch (_) {
-      return `${(number(cents) / 100).toLocaleString(undefined, { minimumFractionDigits:2, maximumFractionDigits:2 })} ${clean(currency || 'USD')}`;
-    }
-  }
+  // ---- What this person may do -----------------------------------------------------------------------------
 
-  function formatDuration(secondsValue){
-    const total = Math.max(0, Math.round(number(secondsValue)));
-    const hours = Math.floor(total / 3600);
-    const minutes = Math.floor((total % 3600) / 60);
-    return `${hours}h ${String(minutes).padStart(2, '0')}m`;
+  /*
+   * Permissions from the signed-in user (Portal.util.hasPerm, else the mount context); features from the
+   * organization's capability state. A feature whose state has not loaded is not hidden: the server decides.
+   */
+  function perm(key, context){
+    if (typeof window.Portal?.util?.hasPerm === 'function') return window.Portal.util.hasPerm(key) === true;
+    const permissions = obj(context?.permissions || window.Portal?.currentUser?.permissions);
+    if (permissions[key] === false) return false;
+    return permissions['*'] === true || permissions[key] === true;
   }
+  function feature(key){
+    const state = (window.Portal?.capabilities || window.PlatformAPI?.capabilities)?.current?.();
+    // As the app runtime does: until the organization's capability state has loaded, nothing is hidden for it.
+    if (!state?.definitions_by_key || !state?.effective_by_key) return true;
+    return state.effective_by_key[key] === true;
+  }
+  const approvalsSeen = new Map();
+  function timeClockOption(){
+    const entitlements = window.Portal?.currentUser?.appEntitlements;
+    const today = Array.isArray(entitlements) ? entitlements.find((entry) => entry?.id === 'portal.crew_overview') : null;
+    return today?.allowed === true && today.option_values?.time_clock === true;
+  }
+  const CAPABILITIES = {
+    payroll_app:() => feature('apps.payroll'),
+    pay_runs:() => feature('payroll.pay_runs'),
+    self_service:() => feature('payroll.self_service_earnings'),
+    time_clock_feature:() => feature('crew.time_clock'),
+    manage_payroll:(context) => perm('manage_payroll', context) || perm('manage_company_settings', context),
+    // The time clock is Today's App experience option, not a permission (docs/architecture/app-experience.md).
+    time_clock:() => timeClockOption(),
+    own_projection:(context) => perm('payroll.view_own_projected_earnings', context),
+    named_approver:() => num(approvalsSeen.get(orgOf())) > 0
+  };
+  /* Every control, the capabilities it needs (all of `all`, one of `any`) and what it calls on the server. */
+  const ACTIONS = Object.freeze({
+    'view.runs':{ all:['payroll_app', 'manage_payroll'], server:'payroll.dashboard (manage_payroll | manage_company_settings)' },
+    'view.review':{ all:['payroll_app', 'manage_payroll'], server:'payroll.pay_review, pay_unresolved, off_cycle_payments, finalized_work' },
+    'view.timesheets':{ all:['payroll_app'], any:['manage_payroll', 'time_clock'], server:'payroll.timesheets | payroll.my_timesheets (Today time clock option)' },
+    'view.payees':{ all:['payroll_app', 'manage_payroll'], server:'payroll.upcoming, payroll.projected_earnings' },
+    'view.history':{ all:['payroll_app', 'manage_payroll'], server:'payroll.batches' },
+    'view.reports':{ all:['payroll_app', 'manage_payroll'], server:'payroll.export_catalog, payroll.artifacts' },
+    'view.approvals':{ all:['payroll_app', 'pay_runs'], any:['manage_payroll', 'named_approver'], server:'payroll.my_approvals (being named on a pay run)' },
+    'view.mine':{ all:['self_service'], server:'payroll.my_earnings (payroll.self_service_earnings)' },
+    'view.settings':{ all:['payroll_app', 'manage_payroll'], server:'payroll.configuration, pay rules and plans' },
+    'runs.draft':{ all:['payroll_app', 'pay_runs', 'manage_payroll'], server:'payroll.batch.create' },
+    'runs.approve':{ all:['payroll_app', 'pay_runs', 'manage_payroll'], server:'payroll.batch.action submit_approval, approve, finalize' },
+    'runs.ask':{ all:['payroll_app', 'pay_runs', 'manage_payroll'], server:'payroll.batch.action submit_approval, payroll.directory' },
+    'runs.decide':{ all:['payroll_app', 'pay_runs'], server:'payroll.batch.decide (named approver)' },
+    'runs.reopen':{ all:['payroll_app', 'pay_runs', 'manage_payroll'], server:'payroll.batch.action reopen' },
+    'runs.void':{ all:['payroll_app', 'pay_runs', 'manage_payroll'], server:'payroll.batch.action void' },
+    'runs.done':{ all:['payroll_app', 'pay_runs', 'manage_payroll'], server:'payroll.batch.action finalize, run, paid; payroll.batch.item.update' },
+    'runs.export':{ all:['payroll_app', 'manage_payroll'], server:'payroll.artifact.generate' },
+    'earnings.refresh':{ all:['payroll_app', 'manage_payroll'], server:'payroll.earnings.refresh' },
+    'earnings.why':{ all:['payroll_app', 'manage_payroll'], server:'payroll.pay_setup, pay_units, payroll.records, payroll.earnings' },
+    'earnings.projected':{ all:['payroll_app', 'manage_payroll'], server:'payroll.projected_earnings' },
+    'review.accept':{ all:['payroll_app', 'manage_payroll'], server:'payroll.projection.accrue' },
+    'review.decline':{ all:['payroll_app', 'manage_payroll'], server:'payroll.correction.decline' },
+    'offcycle.record':{ all:['payroll_app', 'manage_payroll'], server:'payroll.offCycle.record' },
+    'offcycle.remove':{ all:['payroll_app', 'manage_payroll'], server:'payroll.offCycle.remove' },
+    'timesheets.all':{ all:['payroll_app', 'manage_payroll'], server:'payroll.timesheets' },
+    'timesheets.approve':{ all:['payroll_app', 'manage_payroll'], server:'payroll.timesheet.approve' },
+    'timesheets.reject':{ all:['payroll_app', 'manage_payroll'], server:'payroll.timesheet.reject' },
+    'timesheets.correct':{ all:['payroll_app', 'manage_payroll'], server:'payroll.timesheet.correct' },
+    'timesheets.mine':{ all:['time_clock_feature', 'time_clock'], server:'payroll.timesheets.me (Today time clock option)' },
+    'reports.generate':{ all:['payroll_app', 'manage_payroll'], server:'payroll.artifact.generate' },
+    'mine.projected':{ all:['self_service', 'own_projection'], server:'payroll.projectedEarnings.me (payroll.view_own_projected_earnings)' }
+  });
+  function allows(id, context){
+    const entry = ACTIONS[id];
+    if (!entry) { (window.FirstMatePayroll.undeclared = window.FirstMatePayroll.undeclared || []).push(id); return false; }
+    const holds = (key) => CAPABILITIES[key] ? CAPABILITIES[key](context) === true : false;
+    return (entry.all || []).every(holds) && (!entry.any || entry.any.some(holds));
+  }
+  const orgOf = (context) => clean(context?.orgId || window.__APP?.userOrgId || window.__APP?.orgId);
+  const meOf = () => clean(window.__APP?.userId || window.Portal?.currentUser?.id || window.__APP?.user?.id);
 
-  function recurrenceLabel(schedule){
-    const recurrence = object(schedule?.recurrence);
-    const frequency = clean(recurrence.frequency);
-    if (frequency === 'weekly') return `Every ${WEEKDAYS[number(recurrence.weekday)] || 'week'}`;
-    if (frequency === 'biweekly') return `Every other ${WEEKDAYS[number(recurrence.weekday)] || 'week'}`;
-    if (frequency === 'semi_monthly') return `Twice monthly · ${array(recurrence.days).map((day) => ordinal(day)).join(' & ')}`;
-    if (frequency === 'monthly') return `Monthly · ${ordinal(recurrence.day)}`;
-    return frequency ? frequency.replace(/_/g, ' ') : 'Custom schedule';
-  }
+  const VIEWS = [
+    ['upcoming', 'Pay runs', 'view.runs', 'What is due, when each pay run pays, who is in it and how much.'],
+    ['review', 'Review', 'view.review', 'Everything that needs a person before people are paid.'],
+    ['timesheets', 'Timesheets', 'view.timesheets', 'Clocked hours: correct, approve or reject them.'],
+    ['payees', 'Earnings', 'view.payees', 'What each person is owed and projected to earn, and why.'],
+    ['history', 'History', 'view.history', 'Pay runs already run or paid.'],
+    ['exports', 'Reports', 'view.reports', 'Reports for a date range, and files prepared before.'],
+    ['approvals', 'Approvals', 'view.approvals', 'Pay runs waiting for your approval.'],
+    ['mine', 'My pay', 'view.mine', 'What you have earned, been paid and can expect.'],
+    ['settings', 'Settings', 'view.settings', 'Pay schedules, when people are paid, pay plans and pay rules.']
+  ];
+  const viewNeeds = Object.fromEntries(VIEWS.map(([id, , needs]) => [id, needs]));
 
-  function ordinal(value){
-    const n = Math.max(1, Math.round(number(value)));
-    const mod100 = n % 100;
-    const suffix = mod100 >= 11 && mod100 <= 13 ? 'th' : ({ 1:'st', 2:'nd', 3:'rd' }[n % 10] || 'th');
-    return `${n}${suffix}`;
-  }
-
-  function delayLabel(schedule){
-    const delay = object(schedule?.delay);
-    const parts = [];
-    if (number(delay.periods)) parts.push(`${number(delay.periods)} pay period${number(delay.periods) === 1 ? '' : 's'}`);
-    if (number(delay.days)) parts.push(`${number(delay.days)} day${number(delay.days) === 1 ? '' : 's'}`);
-    return parts.length ? `${parts.join(' + ')} delay` : 'No payroll delay';
-  }
-
-  function statusLabel(status){
-    const value = clean(status || 'draft').toLowerCase();
-    return value === 'run' ? 'Run' : value === 'paid' ? 'Paid' : value === 'partial' ? 'Partially run' : value === 'void' ? 'Void' : 'Draft';
-  }
-
-  function statusBadge(status, options = {}){
-    const value = clean(status || 'draft').toLowerCase();
-    const icon = value === 'paid' ? 'fa-circle-check' : value === 'run' ? 'fa-play' : value === 'partial' ? 'fa-circle-half-stroke' : value === 'void' ? 'fa-ban' : 'fa-pen';
-    return `<span class="fmp-status ${esc(value)}${options.small ? ' small' : ''}"><i class="fas ${icon}"></i>${esc(statusLabel(value))}</span>`;
-  }
-
-  function initials(name){
-    return clean(name).split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]?.toUpperCase()).join('') || '—';
-  }
-
-  function occurrenceKey(occurrence){
-    return `${clean(occurrence?.schedule?.id)}:${clean(occurrence?.pay_date)}`;
-  }
-
-  function payeeKey(payee){
-    return `${clean(payee?.type)}:${clean(payee?.id)}`;
-  }
+  // ---- Styles ----------------------------------------------------------------------------------------------
 
   function injectCss(){
-    if (document.getElementById('firstmate-payroll-app-css')) return;
+    if (document.getElementById('fmp_css')) return;
     const style = document.createElement('style');
-    style.id = 'firstmate-payroll-app-css';
+    style.id = 'fmp_css';
     style.textContent = `
-      .fmp-shell{height:100%;min-height:0;overflow-x:hidden;overflow-y:auto;-webkit-overflow-scrolling:touch;background:#f6f7f9;color:#101828;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
-      .fmp-shell *{box-sizing:border-box}.fmp-shell button,.fmp-shell input{font:inherit}.fmp-shell button{appearance:none}
-      .fmp-top{position:sticky;top:0;z-index:15;display:flex;align-items:center;justify-content:space-between;gap:18px;padding:18px 26px;background:rgba(255,255,255,.94);border-bottom:1px solid #e7e9ee;backdrop-filter:blur(14px)}
-      .fmp-heading{display:flex;align-items:center;gap:13px;min-width:0}.fmp-heading-icon{width:42px;height:42px;border-radius:13px;display:grid;place-items:center;color:#fff;background:linear-gradient(135deg,#1d2939,#344054);box-shadow:0 8px 22px rgba(16,24,40,.18)}
-      .fmp-heading-copy{min-width:0}.fmp-heading h1{margin:0;font-size:22px;line-height:1.15;letter-spacing:-.02em}.fmp-heading p{margin:4px 0 0;color:#667085;font-size:12px;font-weight:750;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-      .fmp-top-actions,.fmp-segment,.fmp-range-presets,.fmp-card-actions,.fmp-item-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-      .fmp-btn{border:1px solid #d9dee7;border-radius:10px;background:#fff;color:#344054;padding:9px 12px;font-size:12px;font-weight:850;line-height:1;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:7px;min-height:36px;transition:.16s ease;white-space:nowrap}
-      .fmp-btn:hover:not(:disabled){border-color:#aeb7c6;box-shadow:0 3px 10px rgba(16,24,40,.08);transform:translateY(-1px)}.fmp-btn:disabled{opacity:.45;cursor:not-allowed}.fmp-btn.primary{background:var(--primary,#d93025);border-color:var(--primary,#d93025);color:var(--on-primary,#fff);box-shadow:0 5px 14px rgba(var(--primary-rgb,217,48,37),.2)}.fmp-btn.primary:hover:not(:disabled){background:var(--primary-dark,var(--primary,#d93025));border-color:var(--primary-dark,var(--primary,#d93025));color:var(--on-primary,#fff)}.fmp-btn.dark{background:#1d2939;border-color:#1d2939;color:#fff}.fmp-btn.success{background:#067647;border-color:#067647;color:#fff}.fmp-btn.ghost{background:transparent;border-color:transparent;box-shadow:none}.fmp-btn.small{min-height:30px;padding:7px 9px;font-size:11px;border-radius:8px}
-      .fmp-content{max-width:1500px;margin:0 auto;padding:22px 26px 40px}.fmp-toolbar{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:16px}.fmp-segment{background:#e9ecf1;border-radius:11px;padding:4px}.fmp-segment button{border:0;background:transparent;color:#667085;padding:8px 13px;border-radius:8px;font-size:12px;font-weight:900;cursor:pointer}.fmp-segment button.active{background:#fff;color:#101828;box-shadow:0 2px 7px rgba(16,24,40,.1)}
-      .fmp-range{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:18px;align-items:center;background:#fff;border:1px solid #e4e7ec;border-radius:16px;padding:15px 17px;margin-bottom:16px;box-shadow:0 2px 6px rgba(16,24,40,.03)}.fmp-range-fields{display:flex;align-items:flex-end;gap:9px;flex-wrap:wrap}.fmp-field{display:grid;gap:5px}.fmp-field label{font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:.055em;color:#667085}.fmp-field input{height:38px;border:1px solid #d7dce5;border-radius:9px;padding:0 10px;background:#fff;color:#101828;font-size:12px;font-weight:750;outline:none}.fmp-field input:focus{border-color:#98a2b3;box-shadow:0 0 0 3px rgba(152,162,179,.15)}.fmp-range-arrow{height:38px;display:grid;place-items:center;color:#98a2b3}.fmp-preset{border:0;border-radius:999px;padding:7px 10px;background:#f2f4f7;color:#475467;font-size:11px;font-weight:850;cursor:pointer}.fmp-preset:hover{background:#e4e7ec}.fmp-projection-toggle{border:1px solid #d0d5dd;border-radius:10px;background:#fff;padding:8px 11px;color:#475467;font-size:11px;font-weight:850;cursor:pointer;display:inline-flex;align-items:center;gap:7px}.fmp-projection-toggle.active{background:#f4f3ff;border-color:#c3b5fd;color:#5925dc}.fmp-toggle-dot{width:8px;height:8px;border-radius:50%;background:#98a2b3}.fmp-projection-toggle.active .fmp-toggle-dot{background:#7f56d9;box-shadow:0 0 0 3px #ebe9fe}
-      .fmp-metrics{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:11px;margin-bottom:17px}.fmp-metric{min-width:0;background:#fff;border:1px solid #e4e7ec;border-radius:14px;padding:14px 15px;display:grid;gap:5px;box-shadow:0 2px 6px rgba(16,24,40,.025)}.fmp-metric .label{font-size:10px;font-weight:900;color:#667085;text-transform:uppercase;letter-spacing:.05em}.fmp-metric .value{font-size:20px;font-weight:950;letter-spacing:-.025em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.fmp-metric .detail{font-size:11px;color:#667085;font-weight:750;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.fmp-metric.accrued{border-top:3px solid #12b76a}.fmp-metric.projected{border-top:3px solid #7f56d9}.fmp-metric.forecast{border-top:3px solid #f79009}
-      .fmp-diagnostic{display:flex;align-items:flex-start;gap:10px;border:1px solid #fedf89;background:#fffaeb;color:#93370d;border-radius:12px;padding:11px 13px;margin-bottom:14px;font-size:12px;font-weight:750}.fmp-diagnostic i{margin-top:2px;color:#f79009}.fmp-list{display:grid;gap:14px}.fmp-schedule-card{background:#fff;border:1px solid #e4e7ec;border-radius:17px;overflow:hidden;box-shadow:0 3px 10px rgba(16,24,40,.035)}.fmp-schedule-card.next{border-color:#c7d7fe;box-shadow:0 7px 24px rgba(53,88,206,.08)}
-      .fmp-schedule-head{display:grid;grid-template-columns:minmax(250px,1.15fr) minmax(360px,1fr) auto;align-items:center;gap:18px;padding:16px 18px;cursor:pointer}.fmp-schedule-title{display:flex;align-items:center;gap:12px;min-width:0}.fmp-date-tile{width:54px;height:56px;border:1px solid #dce2ea;border-radius:13px;background:#f8fafc;display:grid;place-items:center;align-content:center;flex:0 0 auto}.fmp-date-tile b{font-size:20px;line-height:1;color:#101828}.fmp-date-tile span{font-size:9px;font-weight:950;text-transform:uppercase;letter-spacing:.08em;color:#667085;margin-bottom:3px}.fmp-title-copy{min-width:0}.fmp-title-copy h2{font-size:16px;margin:0;line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.fmp-title-copy p{font-size:11px;color:#667085;font-weight:750;margin:5px 0 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.fmp-next-label{display:inline-flex;margin-left:7px;border-radius:999px;padding:3px 7px;background:#eef4ff;color:#3538cd;font-size:9px;font-weight:950;text-transform:uppercase;vertical-align:2px}.fmp-schedule-totals{display:grid;grid-template-columns:repeat(3,minmax(90px,1fr));gap:9px}.fmp-mini-total{min-width:0;border-left:1px solid #eaecf0;padding-left:12px}.fmp-mini-total span{display:block;color:#667085;font-size:9px;font-weight:900;text-transform:uppercase;letter-spacing:.045em}.fmp-mini-total b{display:block;margin-top:4px;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.fmp-mini-total.projected b{color:#6941c6}.fmp-mini-total.forecast b{color:#b54708}.fmp-chevron{width:32px;height:32px;border:1px solid #e4e7ec;border-radius:9px;background:#fff;color:#667085;display:grid;place-items:center}.fmp-schedule-card.open .fmp-chevron i{transform:rotate(180deg)}.fmp-chevron i{transition:.18s ease}
-      .fmp-schedule-body{border-top:1px solid #eaecf0;background:#fbfcfe;padding:15px 17px 17px}.fmp-occurrence-meta{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-bottom:13px}.fmp-meta-chip{display:inline-flex;align-items:center;gap:6px;border:1px solid #e4e7ec;border-radius:999px;background:#fff;color:#475467;padding:6px 9px;font-size:10px;font-weight:850}.fmp-meta-chip i{color:#98a2b3}.fmp-batch-banner{display:flex;align-items:center;justify-content:space-between;gap:14px;border:1px solid #dce3ec;border-radius:12px;background:#fff;padding:11px 12px;margin-bottom:13px}.fmp-batch-copy{display:flex;align-items:center;gap:10px;min-width:0}.fmp-batch-copy strong{display:block;font-size:12px}.fmp-batch-copy small{display:block;color:#667085;font-size:10px;font-weight:750;margin-top:3px}.fmp-batch-none{color:#667085;font-size:11px;font-weight:750}.fmp-batch-none b{color:#344054}
-      .fmp-worker-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.fmp-worker-section{min-width:0;border:1px solid #e4e7ec;border-radius:13px;background:#fff;overflow:hidden}.fmp-worker-head{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:11px 12px;background:#f8fafc;border-bottom:1px solid #eaecf0}.fmp-worker-head strong{font-size:12px}.fmp-worker-head span{font-size:10px;color:#667085;font-weight:850}.fmp-worker-head .icon{width:26px;height:26px;border-radius:8px;display:grid;place-items:center;background:#eef4ff;color:#3538cd}.fmp-worker-head.contractor .icon{background:#fff4ed;color:#c4320a}.fmp-worker-head-copy{display:flex;align-items:center;gap:8px}.fmp-worker-list{display:grid}.fmp-worker-row{display:grid;grid-template-columns:minmax(145px,1fr) minmax(140px,1.1fr) auto;gap:10px;align-items:center;padding:11px 12px;border-bottom:1px solid #f0f2f5}.fmp-worker-row:last-child{border-bottom:0}.fmp-person{display:flex;align-items:center;gap:9px;min-width:0}.fmp-avatar{width:31px;height:31px;border-radius:10px;background:#f2f4f7;color:#475467;display:grid;place-items:center;font-size:10px;font-weight:950;flex:0 0 auto}.fmp-person-copy{min-width:0}.fmp-person strong{display:block;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.fmp-person small{display:block;margin-top:3px;font-size:9px;color:#98a2b3;font-weight:750;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.fmp-subgroups{display:flex;gap:5px;flex-wrap:wrap}.fmp-subgroup{display:inline-flex;align-items:center;gap:4px;border:1px solid #dfe3e9;border-radius:999px;background:#f8fafc;color:#475467;padding:4px 6px;font-size:9px;font-weight:900;white-space:nowrap}.fmp-subgroup.commission{background:#f4f3ff;border-color:#d9d6fe;color:#5925dc}.fmp-subgroup.clawback{background:#fef3f2;border-color:#fecdca;color:#b42318}.fmp-subgroup.projected{border-style:dashed}.fmp-worker-money{text-align:right;min-width:110px}.fmp-worker-money b{display:block;font-size:12px}.fmp-worker-money small{display:block;color:#667085;font-size:9px;font-weight:750;margin-top:3px}.fmp-item-actions{justify-content:flex-end;margin-top:6px}.fmp-empty-section{padding:22px 12px;text-align:center;color:#98a2b3;font-size:11px;font-weight:800}.fmp-empty-section i{display:block;font-size:17px;margin-bottom:6px;color:#d0d5dd}
-      .fmp-history{display:grid;gap:12px}.fmp-history-card{background:#fff;border:1px solid #e4e7ec;border-radius:15px;overflow:hidden}.fmp-history-head{display:grid;grid-template-columns:minmax(230px,1fr) repeat(3,minmax(110px,.55fr)) auto;gap:13px;align-items:center;padding:14px 16px;cursor:pointer}.fmp-history-title{display:flex;align-items:center;gap:11px;min-width:0}.fmp-history-title .icon{width:36px;height:36px;border-radius:11px;background:#f2f4f7;color:#475467;display:grid;place-items:center}.fmp-history-title strong{display:block;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.fmp-history-title small{display:block;color:#667085;font-size:10px;font-weight:750;margin-top:3px}.fmp-history-stat span{display:block;color:#98a2b3;font-size:9px;font-weight:900;text-transform:uppercase}.fmp-history-stat b{display:block;font-size:12px;margin-top:3px}.fmp-history-body{padding:0 15px 15px;border-top:1px solid #eaecf0}.fmp-history-table{width:100%;border-collapse:collapse}.fmp-history-table th{text-align:left;color:#667085;font-size:9px;text-transform:uppercase;letter-spacing:.04em;padding:10px 8px;border-bottom:1px solid #eaecf0}.fmp-history-table td{padding:10px 8px;border-bottom:1px solid #f0f2f5;font-size:11px}.fmp-history-table tr:last-child td{border-bottom:0}.fmp-right{text-align:right!important}
-      .fmp-state{min-height:430px;display:grid;place-items:center;align-content:center;text-align:center;padding:36px;color:#667085}.fmp-state .state-icon{width:54px;height:54px;border-radius:16px;background:#fff;border:1px solid #e4e7ec;display:grid;place-items:center;font-size:20px;color:#98a2b3;margin-bottom:13px}.fmp-state h2{font-size:16px;color:#344054;margin:0}.fmp-state p{max-width:450px;font-size:12px;font-weight:700;line-height:1.55;margin:7px 0 15px}.fmp-spinner{animation:fmp-spin .8s linear infinite}@keyframes fmp-spin{to{transform:rotate(360deg)}}
-      .fmp-status{display:inline-flex;align-items:center;gap:5px;border-radius:999px;padding:5px 8px;background:#f2f4f7;color:#475467;font-size:9px;font-weight:950;text-transform:uppercase;letter-spacing:.03em;white-space:nowrap}.fmp-status.paid{background:#ecfdf3;color:#067647}.fmp-status.run{background:#eff8ff;color:#175cd3}.fmp-status.partial{background:#fffaeb;color:#b54708}.fmp-status.void{background:#fef3f2;color:#b42318}.fmp-status.small{padding:4px 6px;font-size:8px}
-      .fmp-timesheet-metrics{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:11px;margin-bottom:16px}.fmp-timesheet-table-wrap{overflow:auto;background:#fff;border:1px solid #e4e7ec;border-radius:15px}.fmp-timesheet-table{width:100%;min-width:1050px;border-collapse:collapse}.fmp-timesheet-table th{text-align:left;padding:10px 11px;color:#667085;font-size:9px;text-transform:uppercase;letter-spacing:.045em;border-bottom:1px solid #e4e7ec;background:#f8fafc}.fmp-timesheet-table td{padding:11px;border-bottom:1px solid #eef0f3;font-size:11px;vertical-align:middle}.fmp-timesheet-table tr:last-child td{border-bottom:0}.fmp-timesheet-person strong,.fmp-timesheet-person span{display:block}.fmp-timesheet-person span{margin-top:3px;color:#667085;font-size:9px}.fmp-location{display:inline-flex;align-items:center;gap:5px;color:#175cd3;font-weight:850;text-decoration:none}.fmp-location.missing{color:#b54708}.fmp-location small{color:#667085;font-weight:750}.fmp-timesheet-actions{display:flex;gap:5px;justify-content:flex-end}.fmp-approval{display:inline-flex;border-radius:999px;padding:5px 8px;font-size:9px;font-weight:950;text-transform:uppercase;background:#fffaeb;color:#b54708}.fmp-approval.approved{background:#ecfdf3;color:#067647}.fmp-approval.rejected{background:#fef3f2;color:#b42318}.fmp-approval.active{background:#eff8ff;color:#175cd3}
-      .fmp-export-intro{display:flex;justify-content:space-between;gap:20px;align-items:flex-start;background:linear-gradient(135deg,#fff,#f8fafc);border:1px solid #dfe4eb;border-radius:17px;padding:18px 19px;margin-bottom:14px}.fmp-export-intro h2{margin:0;font-size:17px}.fmp-export-intro p{margin:6px 0 0;color:#667085;font-size:12px;line-height:1.55;max-width:760px}.fmp-export-builder{background:#fff;border:1px solid #e4e7ec;border-radius:17px;padding:17px;margin-bottom:17px;box-shadow:0 3px 10px rgba(16,24,40,.035)}.fmp-export-step{font-size:10px;font-weight:950;text-transform:uppercase;letter-spacing:.06em;color:#667085;margin-bottom:8px}.fmp-export-mode{display:flex;gap:8px;margin-bottom:15px}.fmp-export-mode button{flex:1;border:1px solid #d9dee7;border-radius:12px;background:#fff;text-align:left;padding:12px 13px;color:#475467;cursor:pointer}.fmp-export-mode button.active{border-color:#8098f9;background:#eef4ff;color:#3538cd;box-shadow:0 0 0 2px #e0e7ff}.fmp-export-mode strong,.fmp-export-mode span{display:block}.fmp-export-mode strong{font-size:12px}.fmp-export-mode span{font-size:10px;margin-top:3px;font-weight:700}.fmp-export-selection{display:flex;align-items:flex-end;gap:10px;flex-wrap:wrap;padding:13px;border-radius:12px;background:#f8fafc;border:1px solid #eaecf0}.fmp-export-selection .fmp-field{flex:1;min-width:190px}.fmp-export-selection select{height:39px;width:100%;border:1px solid #d7dce5;border-radius:9px;background:#fff;padding:0 10px;color:#101828;font-size:12px;font-weight:750}.fmp-report-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:11px;margin-top:14px}.fmp-report-card{border:1px solid #e4e7ec;border-radius:13px;padding:14px;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:13px;align-items:center}.fmp-report-card h3{margin:0;font-size:13px}.fmp-report-card p{margin:5px 0 0;color:#667085;font-size:10.5px;line-height:1.45}.fmp-report-purpose{display:block;margin-top:6px;color:#475467;font-weight:800}.fmp-report-actions{display:grid;gap:6px}.fmp-export-history-head{display:flex;align-items:end;justify-content:space-between;gap:14px;margin:23px 2px 10px}.fmp-export-history-head h2{font-size:15px;margin:0}.fmp-export-history-head p{font-size:10px;color:#667085;margin:4px 0 0}.fmp-file-name{display:block;color:#667085;font-size:9px;margin-top:4px;max-width:520px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.fmp-file-format{display:inline-flex;border-radius:6px;background:#f2f4f7;color:#475467;padding:4px 6px;font-size:9px;font-weight:950}.fmp-file-format.pdf{background:#fef3f2;color:#b42318}.fmp-file-format.csv{background:#ecfdf3;color:#067647}
-      .fmp-pay-panel{background:#fff;border:1px solid #e4e7ec;border-radius:16px;padding:15px 17px;margin-bottom:16px;box-shadow:0 2px 6px rgba(16,24,40,.03)}.fmp-pay-head{display:flex;justify-content:space-between;gap:14px;align-items:flex-start;flex-wrap:wrap}.fmp-pay-head h2{margin:0;font-size:15px}.fmp-pay-head p{margin:4px 0 0;color:#667085;font-size:11px;font-weight:700;line-height:1.5;max-width:760px}.fmp-pay-stats{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}.fmp-pay-stat{border:1px solid #e4e7ec;border-radius:11px;padding:9px 12px;min-width:132px;background:#f8fafc}.fmp-pay-stat span{display:block;color:#667085;font-size:9px;font-weight:900;text-transform:uppercase;letter-spacing:.045em}.fmp-pay-stat b{display:block;margin-top:4px;font-size:15px}.fmp-pay-stat small{display:block;margin-top:2px;color:#667085;font-size:10px;font-weight:750}.fmp-pay-stat.alert{border-color:#fda29b;background:#fef3f2}.fmp-pay-stat.alert b{color:#b42318}.fmp-pay-stat.hold{border-color:#fedf89;background:#fffaeb}.fmp-pay-stat.hold b{color:#b54708}
-      .fmp-unresolved{border:1px solid #fda29b;background:#fef3f2;border-radius:13px;margin-top:13px;overflow:hidden}.fmp-unresolved-head{padding:11px 13px;display:flex;gap:9px;align-items:flex-start;color:#912018;font-size:12px;font-weight:850;line-height:1.45}.fmp-unresolved-head i{margin-top:2px}.fmp-unresolved-head small{display:block;font-size:11px;font-weight:700;color:#b42318;margin-top:2px}.fmp-unresolved-row{display:grid;grid-template-columns:minmax(150px,.7fr) minmax(0,2fr) auto;gap:12px;padding:10px 13px;border-top:1px solid #fecdca;background:#fff;align-items:center;font-size:11px}.fmp-unresolved-row strong{display:block;font-size:12px}.fmp-unresolved-row small{display:block;color:#667085;font-weight:750;margin-top:2px}.fmp-unresolved-reason{color:#912018;font-weight:850;font-size:12px}.fmp-not-zero{display:inline-flex;align-items:center;gap:4px;border-radius:999px;padding:3px 7px;background:#fef3f2;color:#b42318;font-size:9px;font-weight:950;text-transform:uppercase;letter-spacing:.03em;white-space:nowrap}
-      .fmp-pay-section{margin-top:16px}.fmp-pay-section>h3{font-size:12px;margin:0 0 4px}.fmp-pay-section>p{margin:0 0 9px;color:#667085;font-size:11px;font-weight:700;line-height:1.5}.fmp-pay-group{border:1px solid #e4e7ec;border-radius:12px;overflow:hidden;margin-bottom:9px;background:#fff}.fmp-pay-group-head{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;padding:9px 12px;background:#f8fafc;border-bottom:1px solid #eaecf0;font-size:12px}.fmp-pay-group-head small{color:#667085;font-size:10px;font-weight:800;margin-left:6px}.fmp-pay-entry{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px;align-items:start;padding:11px 12px;border-bottom:1px solid #f0f2f5;font-size:11px}.fmp-pay-entry:last-child{border-bottom:0}.fmp-pay-entry strong{font-size:12px}.fmp-pay-note{color:#667085;font-weight:700;line-height:1.5;margin-top:3px}.fmp-pay-compare{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:7px}.fmp-pay-compare span{border:1px solid #e4e7ec;border-radius:8px;padding:5px 8px;background:#f8fafc;font-weight:750;color:#475467}.fmp-pay-compare span b{color:#101828}.fmp-pay-compare span.delta{background:#fffaeb;border-color:#fedf89}.fmp-pay-compare i{color:#98a2b3}.fmp-pay-amount{text-align:right;white-space:nowrap}.fmp-pay-amount b{display:block;font-size:13px}.fmp-pay-amount.neg b,.fmp-neg{color:#b42318}.fmp-pay-amount small{display:block;color:#667085;font-size:9px;font-weight:750;margin-top:3px}
-      .fmp-tag{display:inline-flex;align-items:center;gap:4px;border-radius:999px;padding:3px 7px;font-size:9px;font-weight:950;text-transform:uppercase;letter-spacing:.03em;background:#f2f4f7;color:#475467;white-space:nowrap;vertical-align:1px}.fmp-tag.correction{background:#fffaeb;color:#b54708}.fmp-tag.backpay{background:#eff8ff;color:#175cd3}.fmp-tag.hold,.fmp-tag.error{background:#fef3f2;color:#b42318}.fmp-tag.ok{background:#ecfdf3;color:#067647}.fmp-tag.offcycle{background:#f4f3ff;color:#5925dc}.fmp-kv{display:flex;gap:5px;flex-wrap:wrap;margin-top:6px}.fmp-kv span{border:1px solid #e4e7ec;border-radius:7px;background:#f8fafc;padding:3px 6px;font-size:10px;font-weight:750;color:#475467}.fmp-kv b{color:#101828}.fmp-kv em{font-style:normal;color:#98a2b3;font-weight:900;text-transform:uppercase;font-size:9px;letter-spacing:.04em;align-self:center}
-      .fmp-explain-backdrop{position:fixed;inset:0;z-index:1200;background:rgba(16,24,40,.38);display:flex;justify-content:flex-end}.fmp-explain{width:min(780px,100%);height:100%;background:#f6f7f9;display:flex;flex-direction:column;box-shadow:-12px 0 40px rgba(16,24,40,.2)}.fmp-explain-top{display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap;padding:14px 18px;background:#fff;border-bottom:1px solid #e4e7ec}.fmp-explain-top h2{margin:0;font-size:16px}.fmp-explain-top p{margin:3px 0 0;color:#667085;font-size:11px;font-weight:750}.fmp-explain-body{flex:1;min-height:0;overflow:auto;padding:4px 18px 30px}.fmp-explain-body .fmp-state{min-height:220px}
-      @media(max-width:780px){.fmp-unresolved-row{grid-template-columns:1fr}.fmp-pay-entry{grid-template-columns:1fr}.fmp-pay-amount{text-align:left}}
-      @media(max-width:1180px){.fmp-metrics{grid-template-columns:repeat(3,1fr)}.fmp-schedule-head{grid-template-columns:minmax(240px,1fr) minmax(330px,1fr) auto}.fmp-worker-grid{grid-template-columns:1fr}.fmp-history-head{grid-template-columns:minmax(220px,1fr) repeat(2,minmax(100px,.5fr)) auto}.fmp-history-stat.hide-medium{display:none}}
-      @media(max-width:780px){.fmp-top{position:relative;padding:15px 16px;align-items:flex-start}.fmp-heading-icon{width:38px;height:38px}.fmp-heading h1{font-size:19px}.fmp-heading p{white-space:normal}.fmp-top-actions .fmp-btn span{display:none}.fmp-content{padding:14px 12px 30px}.fmp-toolbar{align-items:stretch;flex-direction:column}.fmp-segment{align-self:flex-start}.fmp-range{grid-template-columns:1fr;padding:13px}.fmp-range-fields{align-items:end}.fmp-range-presets{justify-content:flex-start}.fmp-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.fmp-metric:last-child{grid-column:span 2}.fmp-schedule-head{grid-template-columns:minmax(0,1fr) auto;gap:10px;padding:13px}.fmp-schedule-totals{grid-column:1/-1;grid-row:2}.fmp-mini-total:first-child{border-left:0;padding-left:0}.fmp-schedule-body{padding:12px}.fmp-batch-banner{align-items:flex-start;flex-direction:column}.fmp-worker-row{grid-template-columns:minmax(0,1fr) auto}.fmp-subgroups{grid-column:1/-1;grid-row:2}.fmp-history-head{grid-template-columns:minmax(0,1fr) auto}.fmp-history-stat{display:none}.fmp-history-table{min-width:690px}.fmp-history-body{overflow:auto}.fmp-card-actions{width:100%}.fmp-card-actions .fmp-btn{flex:1}.fmp-export-intro{display:block}.fmp-export-mode{display:grid}.fmp-report-grid{grid-template-columns:1fr}.fmp-report-card{grid-template-columns:1fr}.fmp-report-actions{display:flex}}
-      @media(max-width:480px){.fmp-range-arrow{display:none}.fmp-field{flex:1 1 130px}.fmp-field input{width:100%}.fmp-range-fields .fmp-btn{width:100%}.fmp-metrics{grid-template-columns:1fr}.fmp-metric:last-child{grid-column:auto}.fmp-schedule-totals{gap:5px}.fmp-mini-total{padding-left:7px}.fmp-mini-total b{font-size:12px}.fmp-date-tile{width:47px;height:50px}.fmp-worker-money{min-width:90px}.fmp-worker-row{padding:10px}.fmp-occurrence-meta{gap:5px}}
+      .fmp{min-height:100%;background:var(--bg,#f5f6f8);container-type:inline-size}
+      .fmp-wrap{display:grid;gap:16px;max-width:1240px;margin:0 auto;min-width:0;padding:18px 22px 40px}
+      .pp-modal-panel{container-type:inline-size}
+      .fmp-bar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;min-width:0}
+      .fmp-bar-fill{flex:1}
+      .fmp-bar .pp-select{min-width:150px}
+      .fmp-bar .pp-input{height:34px}
+      .fmp-date{display:inline-flex;align-items:center;gap:6px;color:var(--pp-muted);font-size:12px;font-weight:600}
+      .fmp-date input{width:142px}
+      .fmp-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px}
+      .fmp-stat{display:grid;gap:3px;min-width:0;padding:13px 14px;border:1px solid var(--pp-line);border-radius:12px;background:var(--pp-panel)}
+      .fmp-stat>span{color:var(--pp-muted);font-size:12px;font-weight:600}
+      .fmp-stat>b{font-size:20px;font-weight:700;line-height:1.2;font-variant-numeric:tabular-nums;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+      .fmp-stat>small{color:var(--pp-muted);font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+      .fmp-stat.warn>b{color:var(--pp-warn)}
+      button.fmp-stat{text-align:left;font:inherit;color:inherit;cursor:pointer}
+      button.fmp-stat:hover{border-color:var(--pp-accent)}
+      .fmp-card{min-width:0;border:1px solid var(--pp-line);border-radius:12px;background:var(--pp-panel);overflow:hidden}
+      .fmp-card>header{display:flex;align-items:center;flex-wrap:wrap;gap:6px;min-height:48px;padding:8px 10px 8px 16px;border-bottom:1px solid var(--pp-line-soft)}
+      .fmp-card>header h2{margin:0;font-size:14px;font-weight:700;color:var(--pp-text)}
+      .fmp-card>header .fmp-count{color:var(--pp-muted);font-size:12.5px;font-weight:600;font-variant-numeric:tabular-nums}
+      .fmp-card>header .fmp-card-actions{display:flex;align-items:center;gap:6px;margin-left:auto;flex-wrap:wrap}
+      .fmp-card>header .pp-btn{height:30px}
+      .fmp-empty{padding:18px 16px;color:var(--pp-muted);font-size:12.5px}
+      .fmp-note{padding:10px 16px;color:var(--pp-muted);font-size:12px;border-top:1px solid var(--pp-line-soft)}
+      .fmp-table{width:100%;border-collapse:collapse;font-size:12.5px}
+      .fmp-table th{padding:8px 12px;border-bottom:1px solid var(--pp-line);color:var(--pp-muted);font-size:11.5px;font-weight:650;text-align:left;white-space:nowrap;background:var(--pp-soft)}
+      .fmp-table td{padding:9px 12px;border-bottom:1px solid var(--pp-line-soft);vertical-align:middle;color:var(--pp-strong)}
+      .fmp-table tbody tr:last-child td{border-bottom:0}
+      .fmp-table th:first-child,.fmp-table td:first-child{padding-left:16px}
+      .fmp-table th:last-child,.fmp-table td:last-child{padding-right:14px}
+      .fmp-table .num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+      .fmp-table .neg{color:var(--pp-danger)}
+      .fmp-table .act{text-align:right;white-space:nowrap;width:1%}
+      .fmp-table .act .pp-btn{height:28px;padding:0 10px;font-size:12px}
+      .fmp-table tr[data-open]{cursor:pointer}
+      .fmp-table tr[data-open]:hover td{background:var(--pp-soft)}
+      .fmp-table tr.fmp-sub td{background:var(--pp-soft);font-weight:700;color:var(--pp-text)}
+      .fmp-table tr.fmp-section td{padding-top:12px;color:var(--pp-muted);font-size:11.5px;font-weight:700;background:var(--pp-panel)}
+      .fmp-name{display:grid;gap:1px;min-width:0}
+      .fmp-name>strong{font-weight:650;color:var(--pp-text);overflow:hidden;text-overflow:ellipsis}
+      .fmp-name>small{color:var(--pp-muted);font-size:11.5px}
+      .fmp-link{padding:0;border:0;background:none;color:var(--pp-text);font:inherit;font-weight:650;cursor:pointer;text-align:left;text-decoration:underline;text-decoration-color:var(--pp-line);text-underline-offset:3px}
+      .fmp-link:hover{color:var(--pp-accent);text-decoration-color:currentColor}
+      .fmp-steps{display:grid;gap:10px;padding:12px 14px;margin-bottom:14px;border:1px solid var(--pp-line);border-radius:12px;background:var(--pp-soft)}
+      .fmp-steps>p{margin:0;color:var(--pp-strong);font-size:12.5px;line-height:1.45}
+      .fmp-steps-actions{display:flex;flex-wrap:wrap;gap:8px}
+      .fmp-files{display:grid;gap:8px}
+      .fmp-file{display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--pp-line);border-radius:10px;background:var(--pp-panel)}
+      .fmp-file>i{color:var(--pp-faint)}
+      .fmp-file>div{flex:1;min-width:0;display:grid;gap:2px}
+      .fmp-file strong{font-size:12.5px}
+      .fmp-file small{color:var(--pp-muted);font-size:11.5px}
+      .fmp-file .pp-btn{height:30px}
+      .fmp-modal-section{display:grid;gap:8px;margin-bottom:18px}
+      .fmp-modal-section>h3{display:flex;align-items:center;gap:4px;margin:0;font-size:13px;font-weight:700}
+      .fmp-modal-section .fmp-table{border:1px solid var(--pp-line);border-radius:10px;overflow:hidden;border-collapse:separate;border-spacing:0}
+      .fmp-reason{color:var(--pp-danger);font-size:12px}
+      .fmp-muted{color:var(--pp-muted)}
+      .fmp-state{padding:48px 16px;text-align:center;color:var(--pp-muted)}
+      .fmp-state>strong{display:block;margin-bottom:6px;color:var(--pp-strong);font-size:14px}
+      .fmp-busy{opacity:.6;pointer-events:none}
+      .fmp a.pp-btn,.pp-modal a.pp-btn{text-decoration:none}
+      .fmp-titled{display:inline-flex;align-items:center;gap:2px}
+      .fmp-settings{min-width:0}
+      @container (max-width:640px){
+        .fmp-wrap{padding:12px 12px 32px}
+        .fmp-bar .pp-seg{max-width:100%;overflow-x:auto;scrollbar-width:none}
+        .fmp-stats{grid-template-columns:repeat(2,minmax(0,1fr))}
+        .fmp-stat>b{font-size:17px}
+        .fmp-bar .pp-select,.fmp-bar .pp-search{flex:1 1 140px;min-width:0}
+        .fmp-date input{width:128px}
+        .fmp-card>header .fmp-card-actions{width:100%;margin-left:0}
+        .fmp-card>header .fmp-card-actions .pp-btn{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis}
+        .fmp-table .hide-sm{display:none}
+        .fmp-table.stack thead{display:none}
+        .fmp-table.stack,.fmp-table.stack tbody{display:block;width:100%}
+        .fmp-table.stack tr{display:flex;flex-wrap:wrap;align-items:flex-end;gap:6px 16px;padding:10px 14px;border-bottom:1px solid var(--pp-line-soft)}
+        .fmp-table.stack tbody tr:last-child{border-bottom:0}
+        .fmp-table.stack td{display:block;flex:1 1 26%;min-width:0;padding:0!important;border:0;text-align:left;background:none!important}
+        .fmp-table.stack td.num{text-align:left;white-space:normal}
+        .fmp-table.stack td[data-label]:not(.lead)::before{content:attr(data-label);display:block;margin-bottom:1px;color:var(--pp-faint);font-size:10.5px;font-weight:600}
+        .fmp-table.stack td.lead{flex-basis:100%}
+        .fmp-table.stack td.act{flex-basis:100%;text-align:left}
+        .fmp-table.stack td.act:empty{display:none}
+        .fmp-table.stack td.hide-sm{display:none}
+        .fmp-table.stack tr.fmp-section{display:block;padding:10px 14px 2px;border:0}
+        .fmp-table.stack tr.fmp-section td{min-width:0}
+      }
     `;
     document.head.appendChild(style);
   }
 
-  function createSmokeData(state){
-    const payDate = addDaysKey(state.from, 5);
-    const laterDate = addDaysKey(state.from, 18);
-    const weekly = { id:'schedule_weekly', name:'Weekly Field Payroll', currency:'USD', timezone:'America/Los_Angeles', recurrence:{ frequency:'weekly', weekday:5 }, delay:{ periods:1 }, timing_basis:'worked', clawback_cap_percent:100 };
-    const semi = { id:'schedule_semimonthly', name:'Company Semi-monthly', currency:'USD', timezone:'America/Los_Angeles', recurrence:{ frequency:'semi_monthly', days:[1,15] }, delay:{ days:3 }, timing_basis:'completed', clawback_cap_percent:50 };
-    const worker = (id, name, workerType, accrued, projected, groups) => ({
-      payee:{ type:workerType === 'subcontractor' ? 'organization_connection' : 'organization_user', id, name, worker_type:workerType },
-      worker_type:workerType,
-      accrued:{ payee:{}, gross_cents:accrued, deduction_cents:0, net_cents:accrued, subgroup_totals:groups, entry_count:2 },
-      projected:{ gross_cents:projected, deduction_cents:0, net_cents:projected, subgroup_totals:projected ? { piece_rate:projected } : {}, entry_count:projected ? 1 : 0 },
-      forecast_net_cents:accrued + projected
-    });
-    const historyBatch = {
-      id:'batch_smoke_paid', schedule_id:semi.id, pay_date:addDaysKey(state.from, -10), period_start:addDaysKey(state.from, -26), period_end:addDaysKey(state.from, -11),
-      status:'paid', currency:'USD', total_cents:842500, employee_total_cents:742500, subcontractor_total_cents:100000, paid_at:new Date().toISOString(),
-      items:[
-        { id:'item_history_1', status:'paid', payee:{ type:'organization_user', id:'u3', name:'Morgan Lee', worker_type:'employee' }, gross_cents:612500, commission_cents:125000, deduction_cents:0, net_cents:612500, subgroup_totals:{ salary:487500, commission:125000 }, paid_at:new Date().toISOString() },
-        { id:'item_history_2', status:'paid', payee:{ type:'organization_connection', id:'c2', name:'Apex Gutters', worker_type:'subcontractor' }, gross_cents:100000, commission_cents:0, deduction_cents:0, net_cents:100000, subgroup_totals:{ piece_rate:100000 }, paid_at:new Date().toISOString() }
-      ]
-    };
+  // ---- Small pieces ----------------------------------------------------------------------------------------
+
+  function card({ id, title, tooltip, count, actions = '', body }){
+    return `<section class="fmp-card" data-section="${esc(id)}"><header><h2${tip(tooltip)}>${esc(title)}</h2>${tooltip ? info(tooltip) : ''}${count === undefined || count === null ? '' : `<span class="fmp-count">${esc(count)}</span>`}<div class="fmp-card-actions">${actions}</div></header>${body}</section>`;
+  }
+  function table(columns, rows, options = {}){
+    if (!rows.length) return `<div class="fmp-empty">${esc(options.empty || t('nothing_here', 'Nothing here.'))}</div>`;
+    const head = columns.map((column) => `<th class="${esc(column.cls || '')}"${tip(column.tooltip)}>${esc(column.label)}</th>`).join('');
+    // Wide tables become labeled blocks on a phone; two or three columns stay a table.
+    return `<table class="fmp-table${columns.filter((column) => !String(column.cls || '').includes('hide-sm')).length > 3 ? ' stack' : ''}"${options.label ? ` aria-label="${esc(options.label)}"` : ''}><thead><tr>${head}</tr></thead><tbody>${rows.join('')}</tbody></table>`;
+  }
+  const td = (html, label = '', cls = '') => `<td class="${esc(cls)}"${label ? ` data-label="${esc(label)}"` : ''}>${html}</td>`;
+  const stat = ({ label, value, sub = '', tooltip = '', tone = '', open = '' }) => open
+    ? `<button type="button" class="fmp-stat ${esc(tone)}" data-go="${esc(open)}"${tip(tooltip)}><span>${esc(label)}</span><b>${esc(value)}</b><small>${esc(sub)}</small></button>`
+    : `<div class="fmp-stat ${esc(tone)}"${tip(tooltip)}><span>${esc(label)}</span><b>${esc(value)}</b><small>${esc(sub)}</small></div>`;
+  function button(id, context, { label, icon = '', tone = '', attrs = '', tooltip = '' }){
+    if (!allows(id, context)) return '';
+    return `<button type="button" class="pp-btn ${esc(tone)}" ${attrs}${tip(tooltip)}>${icon ? `<i class="fas ${esc(icon)}" aria-hidden="true"></i>` : ''}${esc(label)}</button>`;
+  }
+  function nameCell(primary, secondary = ''){
+    return `<span class="fmp-name"><strong>${esc(primary)}</strong>${secondary ? `<small>${esc(secondary)}</small>` : ''}</span>`;
+  }
+  const payeeName = (payee) => clean(payee?.name) || clean(payee?.id) || t('someone', 'Someone');
+  const paidAs = (payee) => clean(payee?.type) === 'organization_connection' ? t('company', 'Company') : clean(payee?.worker_type || 'employee') === 'employee' ? t('employee', 'Employee') : t('contractor', 'Contractor');
+  function download(url){
+    const link = document.createElement('a');
+    link.href = url; link.download = ''; link.rel = 'noopener';
+    document.body.appendChild(link); link.click(); link.remove();
+  }
+
+  // What a pay run pays one person, from either the upcoming preview or a drafted run.
+  function lineOf(item, preview){
+    const source = preview ? obj(item.accrued) : item;
+    const totals = obj(source.subgroup_totals);
+    const reimbursement = num(totals.reimbursement);
+    const offCycle = Math.abs(num(totals.off_cycle));
+    const clawback = Math.abs(num(totals.clawback));
+    const kinds = Object.entries(totals).filter(([key, value]) => !['reimbursement', 'off_cycle', 'clawback'].includes(key) && num(value) > 0);
     return {
-      ok:true, from:state.from, through:state.through, schedules:[weekly, semi], diagnostics:[], history:[historyBatch],
-      upcoming:[
-        { schedule:weekly, pay_date:payDate, period_start:addDaysKey(payDate, -14), period_end:addDaysKey(payDate, -8), cutoff_at:`${addDaysKey(payDate, -7)}T23:59:59.999Z`, batch:null,
-          employees:[worker('u1', 'Jordan Ramirez', 'employee', 184500, 42000, { hourly:142500, commission:42000 }), worker('u2', 'Taylor Chen', 'employee', 156000, 18000, { piece_rate:156000 })],
-          subcontractors:[worker('c1', 'Summit Roofing Crew', 'subcontractor', 325000, 68000, { piece_rate:325000 })], accrued_total_cents:665500, projected_additional_cents:128000, forecast_total_cents:793500 },
-        { schedule:semi, pay_date:laterDate, period_start:addDaysKey(laterDate, -17), period_end:addDaysKey(laterDate, -3), cutoff_at:`${addDaysKey(laterDate, -3)}T23:59:59.999Z`, batch:null,
-          employees:[worker('u3', 'Morgan Lee', 'employee', 487500, 125000, { salary:487500 }), worker('u4', 'Alexis Brooks', 'employee', 95000, 55000, { commission:95000 })],
-          subcontractors:[], accrued_total_cents:582500, projected_additional_cents:180000, forecast_total_cents:762500 }
-      ]
+      payee:obj(item.payee), kinds, reimbursement, offCycle, clawback,
+      earned:kinds.reduce((sum, [, value]) => sum + num(value), 0),
+      net:num(source.net_cents), projected:preview ? num(obj(item.projected).net_cents) : 0,
+      status:preview ? '' : clean(item.status), item:preview ? null : item
     };
   }
+  function runStatus(occurrence, batch){
+    if (!batch) return { key:'none', label:t('not_drafted', 'Not drafted'), tone:'neutral' };
+    const approval = clean(obj(batch.approval).status);
+    const status = clean(batch.status);
+    if (status === 'void') return { key:'void', label:t('voided', 'Voided'), tone:'muted' };
+    if (status === 'paid') return { key:'paid', label:t('paid', 'Paid'), tone:'ok' };
+    if (status === 'run') return { key:'run', label:t('entered', 'Entered, not paid'), tone:'role' };
+    if (status === 'partial') return { key:'partial', label:t('partly_paid', 'Partly paid'), tone:'role' };
+    if (approval === 'pending') return { key:'pending', label:t('waiting_approval', 'Waiting for approval'), tone:'warn' };
+    if (approval === 'rejected') return { key:'rejected', label:t('rejected', 'Rejected'), tone:'danger' };
+    if (approval === 'approved' || approval === 'finalized') return { key:'approved', label:t('approved', 'Approved'), tone:'ok' };
+    return { key:'draft', label:t('draft', 'Draft'), tone:'neutral' };
+  }
+
+  // ---- The app ---------------------------------------------------------------------------------------------
 
   function createApp(context = {}){
     const root = context.roots?.main || context.root;
     if (!root) return { destroy(){} };
     injectCss();
-
-    const today = dateKey();
+    const today = dayKey();
+    const routed = () => window.AppChrome?.resolve?.('payroll', window.Portal?.navigation?.read?.().payrollView, context) || 'upcoming';
     const state = {
-      root,
-      context,
-      orgId:clean(context.orgId || window.__APP?.userOrgId || window.__APP?.orgId),
-      from:clean(context.params?.from) || today,
-      through:clean(context.params?.through) || addDaysKey(today, 90),
-      includeProjected:context.params?.include_projected !== false,
-      view:context.params?.standalone || window.AppChrome.resolve('payroll',window.Portal?.navigation?.read?.().payrollView,context),
-      data:null,
-      timesheetData:null,
-      contractorData:null,
-      exportData:null,
-      exportMode:'payroll_run',
-      selectedExportBatchId:'',
-      exportFrom:addDaysKey(today, -30),
-      exportThrough:today,
-      timesheetFrom:clean(context.params?.from) || addDaysKey(today, -14),
-      timesheetThrough:clean(context.params?.through) || today,
-      error:null,
-      loading:true,
-      busyKey:'',
-      expanded:new Set(),
-      historyExpanded:new Set(),
-      loadedAt:0,
-      loadToken:0,
-      destroyed:false,
-      // Earnings derived by pay rules: the rule list, held and off-cycle corrections, and what the last refresh reported.
-      pay:{ rules:null, held:[], offCycle:[], directory:null, error:'' },
-      payLoadedAt:0,
-      payStale:false,
-      refreshResult:null,
-      unresolved:new Map(),
-      unresolvedStored:[],
-      payNames:new Map(),
-      runRefresh:null,
-      explain:null
+      orgId:orgOf(context),
+      view:clean(context.params?.standalone) || routed(),
+      data:{}, errors:{}, loading:false, busy:false, destroyed:false, token:0,
+      branch:clean(context.params?.branch_ids),
+      structure:null, vocabulary:null, rules:null, directory:null, settings:null,
+      ts:{ from:clean(context.params?.from) || addDays(today, -14), through:clean(context.params?.through) || today, status:'pending', search:'' },
+      reports:{ from:addDays(today, -30), through:today },
+      payeeSearch:'', projected:null,
+      // A widget may ask for its own dates; the tab looks two months ahead.
+      range:{ from:clean(context.params?.from) || today, through:clean(context.params?.through) || addDays(today, 62) }
     };
-    let settingsController = null;
-    let nameCache = null;
-    let renderedView = '';
+    const can = (id) => allows(id, context);
+    const branchArgs = () => (state.branch ? { branch_ids:state.branch } : {});
+    let settingsHandle = null;
 
-    function toast(title, detail = '', ok = true){
-      if (window.Portal?.ui?.showToast) window.Portal.ui.showToast(title, detail, ok);
-      else if (window.PlatformUI?.showToast) window.PlatformUI.showToast(title, detail, ok);
-      else if (!ok) window.alert(`${title}${detail ? `\n\n${detail}` : ''}`);
-    }
+    function rerenderModal(){ openModal?.refresh?.(); }
+    let openModal = null;
 
-    async function confirmAction(message){
-      if (window.Portal?.ui?.confirm) return !!(await window.Portal.ui.confirm(message));
-      return window.confirm(message);
-    }
-
-    function isBusy(key){ return state.busyKey === key; }
-
-    function schedulesById(){
-      return new Map(array(state.data?.schedules).map((schedule) => [clean(schedule.id), schedule]));
-    }
-
-    function occurrenceAmounts(occurrence){
-      const batch = object(occurrence.batch);
-      const hasBatch = !!clean(batch.id);
-      const accrued = hasBatch ? number(batch.total_cents) : number(occurrence.accrued_total_cents);
-      const projected = state.includeProjected ? number(occurrence.projected_additional_cents) : 0;
-      return { accrued, projected, forecast:accrued + projected };
-    }
-
-    function normalizedPayees(occurrence, workerType){
-      const previews = workerType === 'subcontractor' ? array(occurrence.subcontractors) : array(occurrence.employees);
-      const batchItems = array(occurrence.batch?.items).filter((item) => workerType === 'subcontractor'
-        ? clean(item?.payee?.worker_type || item?.worker_type || 'employee') !== 'employee'
-        : clean(item?.payee?.worker_type || item?.worker_type || 'employee') === 'employee');
-      const rows = new Map();
-      previews.forEach((preview) => rows.set(payeeKey(preview.payee || preview.accrued?.payee), {
-        payee:preview.payee || preview.accrued?.payee || preview.projected?.payee,
-        worker_type:workerType,
-        accrued:object(preview.accrued),
-        projected:object(preview.projected),
-        forecast_net_cents:number(preview.forecast_net_cents),
-        batchItem:null
-      }));
-      batchItems.forEach((item) => {
-        const key = payeeKey(item.payee);
-        const current = rows.get(key) || { payee:item.payee, worker_type:workerType, accrued:{}, projected:{}, forecast_net_cents:0, batchItem:null };
-        current.batchItem = item;
-        current.payee = item.payee || current.payee;
-        current.accrued = {
-          gross_cents:number(item.gross_cents), deduction_cents:number(item.deduction_cents), net_cents:number(item.net_cents),
-          commission_cents:number(item.commission_cents), subgroup_totals:object(item.subgroup_totals), entry_count:1
-        };
-        current.forecast_net_cents = number(item.net_cents) + number(current.projected?.net_cents);
-        rows.set(key, current);
-      });
-      return [...rows.values()].sort((left, right) => clean(left.payee?.name).localeCompare(clean(right.payee?.name)));
-    }
-
-    function subgroupChips(row, currency){
-      const accrued = object(row.accrued?.subgroup_totals);
-      const projected = object(row.projected?.subgroup_totals);
-      const keys = [...new Set([...SUBGROUPS, ...Object.keys(accrued), ...Object.keys(projected)])]
-        .filter((key) => number(accrued[key]) !== 0 || (state.includeProjected && number(projected[key]) !== 0));
-      if (!keys.length) return `<span class="fmp-subgroup other">${(globalThis.PlatformLanguage?.htmlText("payroll","m_4a04382820d2e1","Other") ?? "Other")}</span>`;
-      return keys.map((key) => {
-        const accruedAmount = number(accrued[key]);
-        const projectedAmount = state.includeProjected ? number(projected[key]) : 0;
-        const amount = accruedAmount + projectedAmount;
-        const projectedOnly = accruedAmount === 0 && projectedAmount !== 0;
-        return `<span class="fmp-subgroup ${esc(key)}${projectedOnly ? ' projected' : ''}" title="${projectedOnly ? 'Projected ' : ''}${esc(SUBGROUP_LABELS[key] || key)}">${esc(SUBGROUP_LABELS[key] || key.replace(/_/g, ' '))} · ${esc(formatMoney(amount, currency, { compact:true }))}</span>`;
-      }).join('');
-    }
-
-    function itemActions(batch, item){
-      if (!clean(batch?.id) || !clean(item?.id) || ['paid', 'void'].includes(clean(item.status))) return '';
-      const runKey = `item:${item.id}:run`;
-      const paidKey = `item:${item.id}:paid`;
-      return `<div class="fmp-item-actions">
-        ${clean(item.status) === 'draft' ? `<button class="fmp-btn small" data-action="item-action" data-batch-id="${esc(batch.id)}" data-item-id="${esc(item.id)}" data-next-status="run" ${isBusy(runKey) ? 'disabled' : ''}>${isBusy(runKey) ? '<i class="fas fa-spinner fmp-spinner"></i>' : '<i class="fas fa-play"></i>'} Run</button>` : ''}
-        <button class="fmp-btn small success" data-action="item-action" data-batch-id="${esc(batch.id)}" data-item-id="${esc(item.id)}" data-next-status="paid" ${isBusy(paidKey) ? 'disabled' : ''}>${isBusy(paidKey) ? '<i class="fas fa-spinner fmp-spinner"></i>' : '<i class="fas fa-check"></i>'} Paid</button>
-      </div>`;
-    }
-
-    function workerSection(title, icon, workerType, rows, occurrence){
-      const currency = clean(occurrence.schedule?.currency || occurrence.batch?.currency || 'USD');
-      const contractor = workerType === 'subcontractor';
-      return `<section class="fmp-worker-section">
-        <div class="fmp-worker-head${String(contractor ? ' contractor' : '')}">
-          <div class="fmp-worker-head-copy"><span class="icon"><i class="fas ${String(icon)}"></i></span><strong>${String(esc(title))}</strong></div>
-          <span>${((v3,v4) => globalThis.PlatformLanguage?.htmlText("payroll","m_6448e0d7c2d07a",`${v3} payee${v4}`,{v3,v4}) ?? `${v3} payee${v4}`)(rows.length,rows.length === 1 ? '' : 's')}</span>
-        </div>
-        <div class="fmp-worker-list">
-          ${String(rows.length ? rows.map((row) => {
-            const payee = object(row.payee);
-            const accrued = row.batchItem ? number(row.batchItem.net_cents) : number(row.accrued?.net_cents);
-            const projected = state.includeProjected ? number(row.projected?.net_cents) : 0;
-            const total = accrued + projected;
-            const status = row.batchItem ? statusBadge(row.batchItem.status, { small:true }) : (accrued > 0 ? `<span class="fmp-status small run"><i class="fas fa-coins"></i>${(globalThis.PlatformLanguage?.htmlText("payroll","m_c34ad4e79e396b","Accrued") ?? "Accrued")}</span>` : `<span class="fmp-status small"><i class="fas fa-chart-line"></i>${(globalThis.PlatformLanguage?.htmlText("payroll","m_d418a1dd99512f","Forecast") ?? "Forecast")}</span>`);
-            return `<article class="fmp-worker-row">
-              <div class="fmp-person">
-                <span class="fmp-avatar">${esc(initials(payee.name || payee.id))}</span>
-                <span class="fmp-person-copy"><strong title="${esc(payee.name || payee.id)}">${esc(payee.name || payee.id || 'Unknown payee')}</strong><small>${status} · ${contractor ? 'Subcontractor' : 'Employee'}</small></span>
-              </div>
-              <div class="fmp-subgroups">${subgroupChips(row, currency)}</div>
-              <div class="fmp-worker-money">
-                <b>${esc(formatMoney(total, currency))}</b>
-                <small>${((v7,v8) => globalThis.PlatformLanguage?.htmlText("payroll","m_3a1fcb262241b6",`${v7} accrued${v8}`,{v7,v8}) ?? `${v7} accrued${v8}`)(esc(formatMoney(accrued, currency, { compact:true })),projected ? ` + ${esc(formatMoney(projected, currency, { compact:true }))} projected` : '')}</small>
-                ${itemActions(occurrence.batch, row.batchItem)}
-                ${context.params?.smoke ? '' : `<div class="fmp-item-actions">${explainButton(payee, 'Why')}</div>`}
-              </div>
-            </article>`;
-          }).join('') : `<div class="fmp-empty-section"><i class="fas ${contractor ? 'fa-helmet-safety' : 'fa-user-group'}"></i>${((v1) => globalThis.PlatformLanguage?.htmlText("payroll","m_3a6702885321a2",`No ${v1} in this payroll.`,{v1}) ?? `No ${v1} in this payroll.`)(contractor ? 'subcontractors' : 'employees')}</div>`)}
-        </div>
-      </section>`;
-    }
-
-    function approvalSummary(batch){
-      const approval=object(batch?.approval); if (!clean(approval.status)) return '';
-      const requested=array(approval.requested_approvers); const decisions=array(approval.decisions);
-      return `<div style="font-size:11px;color:#667085;margin-top:4px">${(globalThis.PlatformLanguage?.htmlText("payroll","m_753b856d98671a","Approval: ") ?? "Approval: ")}<strong>${String(esc(approval.status))}</strong>${String(requested.length ? ` · ${requested.map((person) => { const decision=decisions.find((entry) => clean(entry.user_id) === clean(person.user_id)); return `${esc(person.name || person.user_id)}${decision ? ` (${esc(decision.decision)})` : ''}`; }).join(', ')}` : '')}</div>`;
-    }
-
-    function batchControls(occurrence){
-      const batch = object(occurrence.batch);
-      const currency = clean(occurrence.schedule?.currency || batch.currency || 'USD');
-      if (!clean(batch.id)) {
-        const amount = number(occurrence.accrued_total_cents);
-        const key = `create:${occurrenceKey(occurrence)}`;
-        return `<div class="fmp-batch-banner">
-          <div class="fmp-batch-none"><b>${(globalThis.PlatformLanguage?.htmlText("payroll","m_7bda291a7ec7d2","No batch created.") ?? "No batch created.")}</b>${(globalThis.PlatformLanguage?.htmlText("payroll","m_222255f0484ee6"," Create one when the accrued amount is ready for payroll. Projected earnings stay out until they accrue.") ?? " Create one when the accrued amount is ready for payroll. Projected earnings stay out until they accrue.")}</div>
-          <button class="fmp-btn primary" data-action="create-batch" data-schedule-id="${String(esc(occurrence.schedule?.id))}" data-pay-date="${String(esc(occurrence.pay_date))}" ${String(amount <= 0 || isBusy(key) ? 'disabled' : '')}>${String(isBusy(key) ? '<i class="fas fa-spinner fmp-spinner"></i>' : '<i class="fas fa-plus"></i>')} Create batch · ${String(esc(formatMoney(amount, currency, { compact:true })))}</button>
-        </div>`;
+    // -- Loading --
+    async function guarded(read){ try { return { value:await read() }; } catch (error) { return { error:clean(error?.message) || t('unavailable', 'This could not be loaded.') }; } }
+    async function loadShared(){
+      if (state.structure === null && window.PlatformAPI?.publication?.read) {
+        const result = await window.PlatformAPI.publication.read(state.orgId, { provider:'organization-branches', export:'structure', target:{ scope:'organization', organizationId:state.orgId } }).catch(() => null);
+        state.structure = result?.status === 'ready' ? obj(result.value) : {};
       }
-      const approvalStatus=clean(batch.approval?.status);
-      const canRun = approvalStatus === 'finalized' && !['run', 'paid', 'void'].includes(clean(batch.status));
-      const canPay = approvalStatus === 'finalized' && !['paid', 'void'].includes(clean(batch.status));
-      return `<div class="fmp-batch-banner">
-        <div class="fmp-batch-copy">
-          ${String(statusBadge(batch.status))}
-          <span><strong>${((v1) => globalThis.PlatformLanguage?.htmlText("payroll","m_2a99efe3caf1f5",`Batch ${v1}`,{v1}) ?? `Batch ${v1}`)(esc(batch.id))}</strong><small>${((v2,v3,v4) => globalThis.PlatformLanguage?.htmlText("payroll","m_3d4c7aa8503d45",`${v2} payee${v3} · ${v4}`,{v2,v3,v4}) ?? `${v2} payee${v3} · ${v4}`)(array(batch.items).length,array(batch.items).length === 1 ? '' : 's',esc(formatMoney(batch.total_cents, currency)))}</small>${String(approvalSummary(batch))}</span>
-        </div>
-        <div class="fmp-card-actions">
-          ${String(!approvalStatus || ['draft','rejected'].includes(approvalStatus) ? `<button class="fmp-btn" data-action="approval-submit" data-batch-id="${esc(batch.id)}"><i class="fas fa-user-check"></i>${(globalThis.PlatformLanguage?.htmlText("payroll","m_2f3f472e8e62f5"," Request approval") ?? " Request approval")}</button>` : '')}
-          ${String(approvalStatus === 'pending' ? `<button class="fmp-btn success" data-action="approval-decide" data-batch-id="${esc(batch.id)}"><i class="fas fa-check"></i>${(globalThis.PlatformLanguage?.htmlText("payroll","m_727ff89ac91c2c"," Approve as me") ?? " Approve as me")}</button>` : '')}
-          ${String(approvalStatus === 'approved' ? `<button class="fmp-btn success" data-action="approval-finalize" data-batch-id="${esc(batch.id)}"><i class="fas fa-lock"></i>${(globalThis.PlatformLanguage?.htmlText("payroll","m_3623d3650448b8"," Finalize") ?? " Finalize")}</button>` : '')}
-          ${String(approvalStatus === 'finalized' && clean(batch.status) === 'draft' ? `<button class="fmp-btn" data-action="approval-reopen" data-batch-id="${esc(batch.id)}"><i class="fas fa-pen-to-square"></i>${(globalThis.PlatformLanguage?.htmlText("payroll","m_53e326dbad918f"," Reopen & refresh") ?? " Reopen & refresh")}</button>` : '')}
-          ${String(canRun ? `<button class="fmp-btn" data-action="batch-action" data-batch-id="${esc(batch.id)}" data-next-status="run" ${isBusy(`batch:${batch.id}:run`) ? 'disabled' : ''}><i class="fas ${isBusy(`batch:${batch.id}:run`) ? 'fa-spinner fmp-spinner' : 'fa-play'}"></i>${(globalThis.PlatformLanguage?.htmlText("payroll","m_fcd00a57679317"," Mark all Run") ?? " Mark all Run")}</button>` : '')}
-          ${String(canPay ? `<button class="fmp-btn success" data-action="batch-action" data-batch-id="${esc(batch.id)}" data-next-status="paid" ${isBusy(`batch:${batch.id}:paid`) ? 'disabled' : ''}><i class="fas ${isBusy(`batch:${batch.id}:paid`) ? 'fa-spinner fmp-spinner' : 'fa-check-double'}"></i>${(globalThis.PlatformLanguage?.htmlText("payroll","m_d651b7fabc83ec"," Mark all Paid") ?? " Mark all Paid")}</button>` : '')}
-        </div>
-      </div>`;
+      if (can('view.runs') && state.settings === null) state.settings = await Promise.resolve(window.PayrollAPI?.published?.read?.(state.orgId, 'configuration')).then((value) => obj(value?.settings)).catch(() => ({})) || {};
+      if (can('view.runs') && state.vocabulary === null) state.vocabulary = await Promise.resolve(window.PayrollAPI?.pay?.vocabulary?.(state.orgId)).catch(() => ({})) || {};
     }
-
-    function scheduleCard(occurrence, index){
-      const schedule = object(occurrence.schedule);
-      const key = occurrenceKey(occurrence);
-      const open = state.expanded.has(key);
-      const amounts = occurrenceAmounts(occurrence);
-      const currency = clean(schedule.currency || 'USD');
-      const payDate = new Date(`${clean(occurrence.pay_date)}T12:00:00`);
-      const month = Number.isFinite(payDate.getTime()) ? payDate.toLocaleDateString(undefined, { month:'short' }) : 'Pay';
-      const day = Number.isFinite(payDate.getTime()) ? payDate.getDate() : '—';
-      const employees = normalizedPayees(occurrence, 'employee');
-      const subcontractors = normalizedPayees(occurrence, 'subcontractor');
-      return `<article class="fmp-schedule-card${String(index === 0 ? ' next' : '')}${String(open ? ' open' : '')}">
-        <div class="fmp-schedule-head" data-action="toggle-schedule" data-key="${String(esc(key))}" role="button" tabindex="0" aria-expanded="${String(open ? 'true' : 'false')}">
-          <div class="fmp-schedule-title">
-            <div class="fmp-date-tile"><span>${String(esc(month))}</span><b>${String(esc(day))}</b></div>
-            <div class="fmp-title-copy"><h2>${String(esc(schedule.name || 'Payroll schedule'))}${String(index === 0 ? `<span class="fmp-next-label">${(globalThis.PlatformLanguage?.htmlText("payroll","m_5e03a7c216f500","Next") ?? "Next")}</span>` : '')}</h2><p>${((v8,v9) => globalThis.PlatformLanguage?.htmlText("payroll","m_613f927946b35b",`Pay date ${v8} · ${v9}`,{v8,v9}) ?? `Pay date ${v8} · ${v9}`)(esc(formatDate(occurrence.pay_date)),esc(recurrenceLabel(schedule)))}</p></div>
-          </div>
-          <div class="fmp-schedule-totals">
-            <div class="fmp-mini-total"><span>${(globalThis.PlatformLanguage?.htmlText("payroll","m_c34ad4e79e396b","Accrued") ?? "Accrued")}</span><b>${String(esc(formatMoney(amounts.accrued, currency)))}</b></div>
-            <div class="fmp-mini-total projected"><span>${(globalThis.PlatformLanguage?.htmlText("payroll","m_929d3bd2149645","Projected") ?? "Projected")}</span><b>${String(esc(formatMoney(amounts.projected, currency)))}</b></div>
-            <div class="fmp-mini-total forecast"><span>${(globalThis.PlatformLanguage?.htmlText("payroll","m_d418a1dd99512f","Forecast") ?? "Forecast")}</span><b>${String(esc(formatMoney(amounts.forecast, currency)))}</b></div>
-          </div>
-          <button class="fmp-chevron" type="button" aria-label="${String(open ? 'Collapse' : 'Expand')} ${String(esc(schedule.name))}"><i class="fas fa-chevron-down"></i></button>
-        </div>
-        ${String(open ? `<div class="fmp-schedule-body">
-          <div class="fmp-occurrence-meta">
-            <span class="fmp-meta-chip"><i class="fas fa-calendar-days"></i>${esc(formatDate(occurrence.period_start))} – ${esc(formatDate(occurrence.period_end))}</span>
-            <span class="fmp-meta-chip"><i class="fas fa-hourglass-half"></i>${esc(delayLabel(schedule))}</span>
-            <span class="fmp-meta-chip"><i class="fas ${schedule.timing_basis === 'completed' ? 'fa-flag-checkered' : 'fa-person-digging'}"></i>${((v4) => globalThis.PlatformLanguage?.htmlText("payroll","m_108e207af73dd4",`Recognize when ${v4}`,{v4}) ?? `Recognize when ${v4}`)(schedule.timing_basis === 'completed' ? 'completed' : 'worked')}</span>
-            <span class="fmp-meta-chip"><i class="fas fa-scissors"></i>${((v5) => globalThis.PlatformLanguage?.htmlText("payroll","m_1047f11ac8a4bb",`Cutoff ${v5}`,{v5}) ?? `Cutoff ${v5}`)(esc(formatDateTime(occurrence.cutoff_at)))}</span>
-            <span class="fmp-meta-chip"><i class="fas fa-shield-halved"></i>${((v6) => globalThis.PlatformLanguage?.htmlText("payroll","m_a96c7f61f8c7f7",`${v6}% max clawback`,{v6}) ?? `${v6}% max clawback`)(esc(number(schedule.clawback_cap_percent)))}</span>
-          </div>
-          ${state.runRefresh && clean(state.runRefresh.batchId) && clean(state.runRefresh.batchId) === clean(occurrence.batch?.id) ? runRefreshHtml(true) : ''}
-          ${batchControls(occurrence)}
-          <div class="fmp-worker-grid">
-            ${workerSection('Employees', 'fa-user-group', 'employee', employees, occurrence)}
-            ${workerSection('Subcontractors', 'fa-helmet-safety', 'subcontractor', subcontractors, occurrence)}
-          </div>
-        </div>` : '')}
-      </article>`;
-    }
-
-    function historyCard(batch, scheduleMap){
-      const open = state.historyExpanded.has(clean(batch.id));
-      const schedule = scheduleMap.get(clean(batch.schedule_id)) || {};
-      const currency = clean(batch.currency || schedule.currency || 'USD');
-      const items = array(batch.items);
-      return `<article class="fmp-history-card">
-        <div class="fmp-history-head" data-action="toggle-history" data-key="${String(esc(batch.id))}" role="button" tabindex="0" aria-expanded="${String(open ? 'true' : 'false')}">
-          <div class="fmp-history-title"><span class="icon"><i class="fas fa-receipt"></i></span><span><strong>${String(esc(schedule.name || 'Payroll batch'))}</strong><small>${((v3,v4,v5) => globalThis.PlatformLanguage?.htmlText("payroll","m_590c41b7b858c6",`Pay date ${v3} · ${v4} payee${v5}`,{v3,v4,v5}) ?? `Pay date ${v3} · ${v4} payee${v5}`)(esc(formatDate(batch.pay_date)),items.length,items.length === 1 ? '' : 's')}</small></span></div>
-          <div class="fmp-history-stat"><span>${(globalThis.PlatformLanguage?.htmlText("payroll","m_9403c7637d4905","Total") ?? "Total")}</span><b>${String(esc(formatMoney(batch.total_cents, currency)))}</b></div>
-          <div class="fmp-history-stat"><span>${(globalThis.PlatformLanguage?.htmlText("payroll","m_af4c235bc74266","Employees") ?? "Employees")}</span><b>${String(esc(formatMoney(batch.employee_total_cents, currency)))}</b></div>
-          <div class="fmp-history-stat hide-medium"><span>${(globalThis.PlatformLanguage?.htmlText("payroll","m_e761408c42ed5e","Subcontractors") ?? "Subcontractors")}</span><b>${String(esc(formatMoney(batch.subcontractor_total_cents, currency)))}</b></div>
-          <div style="display:flex;align-items:center;gap:8px">${String(statusBadge(batch.status))}<span class="fmp-chevron"><i class="fas fa-chevron-down" style="${String(open ? 'transform:rotate(180deg)' : '')}"></i></span></div>
-        </div>
-        ${String(open ? `<div class="fmp-history-body">
-          ${approvalSummary(batch)}
-          <table class="fmp-history-table"><thead><tr><th>${(globalThis.PlatformLanguage?.htmlText("payroll","m_4e3a8f50faa2d5","Payee") ?? "Payee")}</th><th>${(globalThis.PlatformLanguage?.htmlText("payroll","m_2e88df13ca7101","Type") ?? "Type")}</th><th>${(globalThis.PlatformLanguage?.htmlText("payroll","m_a6b5da8bcb27c3","Breakdown") ?? "Breakdown")}</th><th class="fmp-right">${(globalThis.PlatformLanguage?.htmlText("payroll","m_bd8c29e4635878","Gross") ?? "Gross")}</th><th class="fmp-right">${(globalThis.PlatformLanguage?.htmlText("payroll","m_3a9e6fbb77c33d","Deductions") ?? "Deductions")}</th><th class="fmp-right">${(globalThis.PlatformLanguage?.htmlText("payroll","m_8870b67246b7d9","Net") ?? "Net")}</th><th>${(globalThis.PlatformLanguage?.htmlText("payroll","m_1352cafa75b8da","Status") ?? "Status")}</th><th>${(globalThis.PlatformLanguage?.htmlText("payroll","m_9c2b37dfc8a2bc","Paid at") ?? "Paid at")}</th></tr></thead>
-          <tbody>${items.map((item) => {
-            const row = { accrued:{ subgroup_totals:object(item.subgroup_totals) }, projected:{} };
-            const classification=clean(item.payee?.worker_type || 'employee');
-            return `<tr><td><strong>${esc(item.payee?.name || item.payee?.id)}</strong> ${explainButton(item.payee, 'Why')}</td><td>${classification === 'independent_contractor' ? 'Independent contractor' : classification === 'subcontractor' ? 'Subcontractor' : 'Employee'}</td><td><div class="fmp-subgroups">${subgroupChips(row, currency)}</div></td><td class="fmp-right">${esc(formatMoney(item.gross_cents, currency))}</td><td class="fmp-right">${number(item.deduction_cents) ? `−${esc(formatMoney(item.deduction_cents, currency))}` : '—'}</td><td class="fmp-right"><strong>${esc(formatMoney(item.net_cents, currency))}</strong></td><td>${statusBadge(item.status, { small:true })}</td><td>${item.paid_at ? esc(formatDateTime(item.paid_at)) : '—'}</td></tr>`;
-          }).join('')}</tbody></table>
-          ${!['paid', 'void'].includes(clean(batch.status)) ? `<div class="fmp-card-actions" style="justify-content:flex-end;margin-top:12px">
-            ${!clean(batch.approval?.status) || clean(batch.approval?.status) === 'draft' || clean(batch.approval?.status) === 'rejected' ? `<button class="fmp-btn" data-action="approval-submit" data-batch-id="${esc(batch.id)}"><i class="fas fa-user-check"></i>${(globalThis.PlatformLanguage?.htmlText("payroll","m_2f3f472e8e62f5"," Request approval") ?? " Request approval")}</button>` : ''}
-            ${clean(batch.approval?.status) === 'pending' ? `<button class="fmp-btn success" data-action="approval-decide" data-batch-id="${esc(batch.id)}"><i class="fas fa-check"></i>${(globalThis.PlatformLanguage?.htmlText("payroll","m_727ff89ac91c2c"," Approve as me") ?? " Approve as me")}</button>` : ''}
-            ${clean(batch.approval?.status) === 'approved' ? `<button class="fmp-btn success" data-action="approval-finalize" data-batch-id="${esc(batch.id)}"><i class="fas fa-lock"></i>${(globalThis.PlatformLanguage?.htmlText("payroll","m_7c1f625b211f5e"," Finalize payroll") ?? " Finalize payroll")}</button>` : ''}
-            ${clean(batch.approval?.status) === 'finalized' && clean(batch.status) === 'draft' ? `<button class="fmp-btn" data-action="batch-action" data-batch-id="${esc(batch.id)}" data-next-status="run"><i class="fas fa-play"></i>${(globalThis.PlatformLanguage?.htmlText("payroll","m_fcd00a57679317"," Mark all Run") ?? " Mark all Run")}</button>` : ''}
-            ${(clean(batch.approval?.status) === 'finalized' && clean(batch.status) === 'draft') || clean(batch.status) === 'run' ? `<button class="fmp-btn" data-action="approval-reopen" data-batch-id="${esc(batch.id)}"><i class="fas fa-pen-to-square"></i>${(globalThis.PlatformLanguage?.htmlText("payroll","m_53e326dbad918f"," Reopen & refresh") ?? " Reopen & refresh")}</button>` : ''}
-            ${clean(batch.approval?.status) === 'finalized' || ['run','partial'].includes(clean(batch.status)) ? `<button class="fmp-btn success" data-action="batch-action" data-batch-id="${esc(batch.id)}" data-next-status="paid"><i class="fas fa-check-double"></i>${(globalThis.PlatformLanguage?.htmlText("payroll","m_d651b7fabc83ec"," Mark all Paid") ?? " Mark all Paid")}</button>` : ''}
-          </div>` : ''}
-        </div>` : '')}
-      </article>`;
-    }
-
-    function rangeHtml(){
-      return `<section class="fmp-range">
-        <div class="fmp-range-fields">
-          <div class="fmp-field"><label for="fmpRangeFrom">${(globalThis.PlatformLanguage?.htmlText("payroll","m_c313c42d1f7a10","From") ?? "From")}</label><input id="fmpRangeFrom" type="date" value="${String(esc(state.from))}"></div>
-          <div class="fmp-range-arrow"><i class="fas fa-arrow-right"></i></div>
-          <div class="fmp-field"><label for="fmpRangeThrough">${(globalThis.PlatformLanguage?.htmlText("payroll","m_6089f8623b0f11","Through") ?? "Through")}</label><input id="fmpRangeThrough" type="date" value="${String(esc(state.through))}" min="${String(esc(state.from))}"></div>
-          <button class="fmp-btn dark" data-action="apply-range"><i class="fas fa-calendar-check"></i>${(globalThis.PlatformLanguage?.htmlText("payroll","m_4a4ef7a972510c"," Apply range") ?? " Apply range")}</button>
-        </div>
-        <div class="fmp-range-presets">
-          <button class="fmp-preset" data-action="preset" data-days="30">${(globalThis.PlatformLanguage?.htmlText("payroll","m_abb8a16c33a945","30 days") ?? "30 days")}</button><button class="fmp-preset" data-action="preset" data-days="90">${(globalThis.PlatformLanguage?.htmlText("payroll","m_96c3192473b128","90 days") ?? "90 days")}</button><button class="fmp-preset" data-action="preset" data-days="180">${(globalThis.PlatformLanguage?.htmlText("payroll","m_6fdfbc2f933786","6 months") ?? "6 months")}</button><button class="fmp-preset" data-action="preset" data-days="365">${(globalThis.PlatformLanguage?.htmlText("payroll","m_4b231e0cddf70e","1 year") ?? "1 year")}</button>
-          <button class="fmp-projection-toggle${String(state.includeProjected ? ' active' : '')}" data-action="toggle-projected" aria-pressed="${String(state.includeProjected ? 'true' : 'false')}"><span class="fmp-toggle-dot"></span>${(globalThis.PlatformLanguage?.htmlText("payroll","m_44e7c844bf6527","Projected earnings") ?? "Projected earnings")}</button>
-        </div>
-      </section>`;
-    }
-
-    function metricsHtml(){
-      const upcoming = array(state.data?.upcoming);
-      const next = upcoming[0];
-      const totals = upcoming.reduce((sum, occurrence) => {
-        const values = occurrenceAmounts(occurrence);
-        sum.accrued += values.accrued; sum.projected += values.projected; sum.forecast += values.forecast;
-        return sum;
-      }, { accrued:0, projected:0, forecast:0 });
-      const currency = clean(next?.schedule?.currency || state.data?.schedules?.[0]?.currency || 'USD');
-      const batches = upcoming.filter((occurrence) => clean(occurrence.batch?.id));
-      return `<section class="fmp-metrics">
-        <div class="fmp-metric"><span class="label">${(globalThis.PlatformLanguage?.htmlText("payroll","m_3880ce31dedd06","Next pay date") ?? "Next pay date")}</span><span class="value">${String(next ? esc(formatDate(next.pay_date, { year:false })) : '—')}</span><span class="detail">${String(next ? esc(next.schedule?.name || '') : 'No payroll scheduled')}</span></div>
-        <div class="fmp-metric accrued"><span class="label">${(globalThis.PlatformLanguage?.htmlText("payroll","m_02e36c84f7302b","Accrued in range") ?? "Accrued in range")}</span><span class="value">${String(esc(formatMoney(totals.accrued, currency, { compact:true })))}</span><span class="detail">${(globalThis.PlatformLanguage?.htmlText("payroll","m_9561193cdfc6f5","Ready across scheduled cycles") ?? "Ready across scheduled cycles")}</span></div>
-        <div class="fmp-metric projected"><span class="label">${(globalThis.PlatformLanguage?.htmlText("payroll","m_d20939f1e6df77","Projected additional") ?? "Projected additional")}</span><span class="value">${String(esc(formatMoney(totals.projected, currency, { compact:true })))}</span><span class="detail">${(globalThis.PlatformLanguage?.htmlText("payroll","m_d2b7b8565a580d","Not included in created batches") ?? "Not included in created batches")}</span></div>
-        <div class="fmp-metric forecast"><span class="label">${(globalThis.PlatformLanguage?.htmlText("payroll","m_34d6d8e9d655bc","Range forecast") ?? "Range forecast")}</span><span class="value">${String(esc(formatMoney(totals.forecast, currency, { compact:true })))}</span><span class="detail">${(globalThis.PlatformLanguage?.htmlText("payroll","m_596454d77d55c3","Accrued plus projected labor") ?? "Accrued plus projected labor")}</span></div>
-        <div class="fmp-metric"><span class="label">${(globalThis.PlatformLanguage?.htmlText("payroll","m_9714bf1827f13f","Payroll batches") ?? "Payroll batches")}</span><span class="value">${String(batches.length)}</span><span class="detail">${((v6,v7) => globalThis.PlatformLanguage?.htmlText("payroll","m_29bcd8d58a79a8",`${v6} active schedule group${v7}`,{v6,v7}) ?? `${v6} active schedule group${v7}`)(array(state.data?.schedules).length,array(state.data?.schedules).length === 1 ? '' : 's')}</span></div>
-      </section>`;
-    }
-
-    function diagnosticsHtml(){
-      return array(state.data?.diagnostics).map((diagnostic) => {
-        if (clean(diagnostic.code) === 'unassigned_entries') return `<div class="fmp-diagnostic"><i class="fas fa-triangle-exclamation"></i><span><strong>${((v0,v1) => globalThis.PlatformLanguage?.htmlText("payroll","m_ccb0a7fbff8fcd",`${v0} payroll entr${v1} not assigned to a pay schedule.`,{v0,v1}) ?? `${v0} payroll entr${v1} not assigned to a pay schedule.`)(number(diagnostic.count),number(diagnostic.count) === 1 ? 'y is' : 'ies are')}</strong>${((v2) => globalThis.PlatformLanguage?.htmlText("payroll","m_431b1e58e0a1e8",` Assign a schedule in Payroll settings so ${v2} can appear in an upcoming payroll.`,{v2}) ?? ` Assign a schedule in Payroll settings so ${v2} can appear in an upcoming payroll.`)(number(diagnostic.count) === 1 ? 'it' : 'they')}</span></div>`;
-        return `<div class="fmp-diagnostic"><i class="fas fa-circle-info"></i><span>${esc(diagnostic.message || diagnostic.code || 'Payroll diagnostic')}</span></div>`;
-      }).join('');
-    }
-
-    function locationHtml(value, label){
-      const location = object(value);
-      const captured = clean(location.status) === 'captured' && Number.isFinite(Number(location.latitude)) && Number.isFinite(Number(location.longitude));
-      if (!captured) return `<span class="fmp-location missing" title="${String(esc(location.reason || location.status || 'Not recorded'))}"><i class="fas fa-location-dot-slash"></i>${((v1) => globalThis.PlatformLanguage?.htmlText("payroll","m_a2abbd4a491432",`${v1} unavailable`,{v1}) ?? `${v1} unavailable`)(esc(label))}</span>`;
-      const accuracy = number(location.accuracy_meters);
-      const distance = Number.isFinite(Number(location.distance_to_project_meters)) ? number(location.distance_to_project_meters) : null;
-      const detail = [accuracy ? `Â±${Math.round(accuracy)}m` : '', distance != null ? `${Math.round(distance)}m from job` : ''].filter(Boolean).join(' Â· ');
-      const href = `https://www.google.com/maps?q=${encodeURIComponent(`${location.latitude},${location.longitude}`)}`;
-      return `<a class="fmp-location" href="${esc(href)}" target="_blank" rel="noopener"><i class="fas fa-location-dot"></i>${esc(label)}${detail ? `<small>${esc(detail)}</small>` : ''}</a>`;
-    }
-
-    function timesheetMetricsHtml(){
-      const summary = object(state.timesheetData?.summary);
-      return `<section class="fmp-timesheet-metrics">
-        <div class="fmp-metric"><span class="label">${(globalThis.PlatformLanguage?.htmlText("payroll","m_a674a4cf49532a","Currently clocked in") ?? "Currently clocked in")}</span><span class="value">${String(number(summary.active))}</span><span class="detail">${(globalThis.PlatformLanguage?.htmlText("payroll","m_dd20fcf3b03743","Live active shifts") ?? "Live active shifts")}</span></div>
-        <div class="fmp-metric forecast"><span class="label">${(globalThis.PlatformLanguage?.htmlText("payroll","m_d3ba5228539462","Pending review") ?? "Pending review")}</span><span class="value">${String(number(summary.pending))}</span><span class="detail">${(globalThis.PlatformLanguage?.htmlText("payroll","m_109e68d6521f7d","Closed, not yet accrued") ?? "Closed, not yet accrued")}</span></div>
-        <div class="fmp-metric accrued"><span class="label">${(globalThis.PlatformLanguage?.htmlText("payroll","m_51be70f25415d9","Approved") ?? "Approved")}</span><span class="value">${String(number(summary.approved))}</span><span class="detail">${(globalThis.PlatformLanguage?.htmlText("payroll","m_1a9b825b05ac9b","Posted to payroll ledger") ?? "Posted to payroll ledger")}</span></div>
-        <div class="fmp-metric"><span class="label">${(globalThis.PlatformLanguage?.htmlText("payroll","m_059a429eefd80b","Worked time") ?? "Worked time")}</span><span class="value">${String(esc(formatDuration(summary.worked_seconds)))}</span><span class="detail">${(globalThis.PlatformLanguage?.htmlText("payroll","m_40a0a105f15ffa","Across this date range") ?? "Across this date range")}</span></div>
-        <div class="fmp-metric"><span class="label">${(globalThis.PlatformLanguage?.htmlText("payroll","m_c8563e08f09a81","Missing location") ?? "Missing location")}</span><span class="value">${String(number(summary.missing_location))}</span><span class="detail">${(globalThis.PlatformLanguage?.htmlText("payroll","m_3c8a8a9742e909","Denied, unavailable, or legacy") ?? "Denied, unavailable, or legacy")}</span></div>
-      </section>`;
-    }
-
-    function timesheetRangeHtml(){
-      return `<section class="fmp-range"><div class="fmp-range-fields">
-        <div class="fmp-field"><label for="fmpTimesheetFrom">${(globalThis.PlatformLanguage?.htmlText("payroll","m_c313c42d1f7a10","From") ?? "From")}</label><input id="fmpTimesheetFrom" type="date" value="${String(esc(state.timesheetFrom))}"></div>
-        <div class="fmp-range-arrow"><i class="fas fa-arrow-right"></i></div>
-        <div class="fmp-field"><label for="fmpTimesheetThrough">${(globalThis.PlatformLanguage?.htmlText("payroll","m_6089f8623b0f11","Through") ?? "Through")}</label><input id="fmpTimesheetThrough" type="date" value="${String(esc(state.timesheetThrough))}" min="${String(esc(state.timesheetFrom))}"></div>
-        <button class="fmp-btn dark" data-action="apply-timesheet-range"><i class="fas fa-calendar-check"></i>${(globalThis.PlatformLanguage?.htmlText("payroll","m_4a4ef7a972510c"," Apply range") ?? " Apply range")}</button>
-      </div><div class="fmp-range-presets"><button class="fmp-preset" data-action="timesheet-preset" data-days="7">${(globalThis.PlatformLanguage?.htmlText("payroll","m_016fb803931b09","7 days") ?? "7 days")}</button><button class="fmp-preset" data-action="timesheet-preset" data-days="14">${(globalThis.PlatformLanguage?.htmlText("payroll","m_6e4cfc8d97e558","14 days") ?? "14 days")}</button><button class="fmp-preset" data-action="timesheet-preset" data-days="30">${(globalThis.PlatformLanguage?.htmlText("payroll","m_abb8a16c33a945","30 days") ?? "30 days")}</button><button class="fmp-preset" data-action="timesheet-preset" data-days="90">${(globalThis.PlatformLanguage?.htmlText("payroll","m_96c3192473b128","90 days") ?? "90 days")}</button></div></section>`;
-    }
-
-    function timesheetsHtml(){
-      if (state.loading && !state.timesheetData) return `<div class="fmp-state"><span class="state-icon"><i class="fas fa-spinner fmp-spinner"></i></span><h2>${(globalThis.PlatformLanguage?.htmlText("payroll","m_7eb1d571aa817d","Loading timesheets") ?? "Loading timesheets")}</h2><p>${(globalThis.PlatformLanguage?.htmlText("payroll","m_cf8c14c49e68b2","Reading shifts, approvals, and clock locations.") ?? "Reading shifts, approvals, and clock locations.")}</p></div>`;
-      if (state.error && !state.timesheetData) return `<div class="fmp-state"><span class="state-icon"><i class="fas fa-triangle-exclamation"></i></span><h2>${(globalThis.PlatformLanguage?.htmlText("payroll","m_3bab786d0ed977","Timesheets could not load") ?? "Timesheets could not load")}</h2><p>${String(esc(state.error.message || state.error))}</p><button class="fmp-btn primary" data-action="refresh"><i class="fas fa-rotate"></i>${(globalThis.PlatformLanguage?.htmlText("payroll","m_cbfbb44ff35f0f"," Try again") ?? " Try again")}</button></div>`;
-      const rows = array(state.timesheetData?.timesheets);
-      if (!rows.length) return `<div class="fmp-state"><span class="state-icon"><i class="fas fa-clock"></i></span><h2>${(globalThis.PlatformLanguage?.htmlText("payroll","m_0a20a95c3fb7ae","No shifts in this range") ?? "No shifts in this range")}</h2><p>${(globalThis.PlatformLanguage?.htmlText("payroll","m_ac23dfa7d4a35f","Clocked shifts will appear here for review and payroll approval.") ?? "Clocked shifts will appear here for review and payroll approval.")}</p></div>`;
-      return `<div class="fmp-timesheet-table-wrap"><table class="fmp-timesheet-table"><thead><tr><th>${(globalThis.PlatformLanguage?.htmlText("payroll","m_cd4c6b59af9d33","Worker") ?? "Worker")}</th><th>${(globalThis.PlatformLanguage?.htmlText("payroll","m_a5a3b1f08ca908","Clock in") ?? "Clock in")}</th><th>${(globalThis.PlatformLanguage?.htmlText("payroll","m_a955f5181dc29d","Clock out") ?? "Clock out")}</th><th>${(globalThis.PlatformLanguage?.htmlText("payroll","m_43a63afbcc6e8e","Worked") ?? "Worked")}</th><th>${(globalThis.PlatformLanguage?.htmlText("payroll","m_aaebd7ccba0b30","Project") ?? "Project")}</th><th>${(globalThis.PlatformLanguage?.htmlText("payroll","m_16a2f7a51e5335","Locations") ?? "Locations")}</th><th>${(globalThis.PlatformLanguage?.htmlText("payroll","m_1352cafa75b8da","Status") ?? "Status")}</th><th></th></tr></thead><tbody>${String(rows.map((shift) => {
-        const approval = clean(shift.approval_status || (shift.status === 'active' ? 'active' : 'pending'));
-        const closed = clean(shift.status) === 'closed';
-        return `<tr><td><span class="fmp-timesheet-person"><strong>${esc(shift.user?.name || shift.user_id)}</strong><span>${esc(shift.user?.email || '')}</span></span></td>
-          <td>${esc(formatDateTime(shift.clocked_in_at))}</td><td>${shift.clocked_out_at ? esc(formatDateTime(shift.clocked_out_at)) : `<span class="fmp-approval active">${(globalThis.PlatformLanguage?.htmlText("payroll","m_46e47f1706df0c","Active") ?? "Active")}</span>`}</td>
-          <td><strong>${esc(formatDuration(shift.worked_seconds))}</strong><br><small>${((v5) => globalThis.PlatformLanguage?.htmlText("payroll","m_90b886ed23af83",`${v5} break`,{v5}) ?? `${v5} break`)(esc(formatDuration(shift.break_seconds)))}</small></td>
-          <td>${esc(shift.project?.title || (globalThis.PlatformLanguage?.text("payroll","m_57bfc714f983ad","Unallocated") ?? "Unallocated"))}</td><td><div style="display:grid;gap:5px">${locationHtml(shift.clock_in_location, 'In')}${closed ? locationHtml(shift.clock_out_location, 'Out') : ''}</div></td>
-          <td><span class="fmp-approval ${esc(approval)}">${esc(approval)}</span>${shift.manager_note ? `<br><small title="${esc(shift.manager_note)}">${esc(shift.manager_note)}</small>` : ''}</td>
-          <td><div class="fmp-timesheet-actions"><button class="fmp-btn small" data-action="timesheet-edit" data-shift-id="${esc(shift.id)}" title="${(globalThis.PlatformLanguage?.htmlText("payroll","m_3657f854b9eb94","Correct times") ?? "Correct times")}"><i class="fas fa-pen"></i></button>${closed && approval !== 'approved' ? `<button class="fmp-btn small success" data-action="timesheet-approve" data-shift-id="${esc(shift.id)}"><i class="fas fa-check"></i>${(globalThis.PlatformLanguage?.htmlText("payroll","m_5fab133a50e126"," Approve") ?? " Approve")}</button>` : ''}${closed && approval !== 'rejected' ? `<button class="fmp-btn small" data-action="timesheet-reject" data-shift-id="${esc(shift.id)}"><i class="fas fa-xmark"></i></button>` : ''}</div></td></tr>`;
-      }).join(''))}</tbody></table></div>`;
-    }
-
-    function contractorsHtml(){
-      if (state.loading && !state.contractorData) return `<div class="fmp-state"><span class="state-icon"><i class="fas fa-spinner fmp-spinner"></i></span><h2>${(globalThis.PlatformLanguage?.htmlText("payroll","m_65de6379fbec63","Loading payees") ?? "Loading payees")}</h2><p>${(globalThis.PlatformLanguage?.htmlText("payroll","m_f47bd5fe91454a","Reading people, subcontractor companies, and payment terms.") ?? "Reading people, subcontractor companies, and payment terms.")}</p></div>`;
-      const users = array(state.contractorData?.users);
-      const connections = array(state.contractorData?.connections);
-      return `<section class="fmp-range"><div><strong>${(globalThis.PlatformLanguage?.htmlText("payroll","m_bbcf73eb789ddf","Workers and subcontractors") ?? "Workers and subcontractors")}</strong><div style="color:#667085;font-size:12px;margin-top:4px">${(globalThis.PlatformLanguage?.htmlText("payroll","m_e7c30e4e0c04f1","Classify individual workers here. Company subcontractors retain their organization record and payment terms; project assignments continue to use the existing crew and resource assignment tools.") ?? "Classify individual workers here. Company subcontractors retain their organization record and payment terms; project assignments continue to use the existing crew and resource assignment tools.")}</div></div></section>
-        <div class="fmp-timesheet-table-wrap"><table class="fmp-timesheet-table"><thead><tr><th>${(globalThis.PlatformLanguage?.htmlText("payroll","m_4e3a8f50faa2d5","Payee") ?? "Payee")}</th><th>${(globalThis.PlatformLanguage?.htmlText("payroll","m_9bb65d62d4caa7","Record type") ?? "Record type")}</th><th>${(globalThis.PlatformLanguage?.htmlText("payroll","m_0ee677e8200886","Classification") ?? "Classification")}</th><th>${(globalThis.PlatformLanguage?.htmlText("payroll","m_462e38dd9a2f59","Payment terms") ?? "Payment terms")}</th><th></th></tr></thead><tbody>
-        ${String(users.map((user) => { const classification=clean(user.worker_classification || user.worker_type || 'employee'); const terms=object(user.payment_terms); return `<tr><td><strong>${esc(user.name || user.display_name || user.email || user.id)}</strong><br><small>${esc(user.email || '')}</small></td><td>${(globalThis.PlatformLanguage?.htmlText("payroll","m_e778558ac68c5b","Individual") ?? "Individual")}</td><td><select data-contractor-classification="${esc(user.id)}"><option value="employee" ${classification === 'employee' ? 'selected' : ''}>${(globalThis.PlatformLanguage?.htmlText("payroll","m_479431cbbc40d0","Employee") ?? "Employee")}</option><option value="independent_contractor" ${classification === 'independent_contractor' ? 'selected' : ''}>${(globalThis.PlatformLanguage?.htmlText("payroll","m_1614e347d92a28","Independent contractor") ?? "Independent contractor")}</option></select></td><td><select data-contractor-basis="${esc(user.id)}"><option value="payroll_schedule" ${clean(terms.basis || 'payroll_schedule') === 'payroll_schedule' ? 'selected' : ''}>${(globalThis.PlatformLanguage?.htmlText("payroll","m_f4fa20da324a5e","Payroll schedule") ?? "Payroll schedule")}</option><option value="net_days" ${clean(terms.basis) === 'net_days' ? 'selected' : ''}>${(globalThis.PlatformLanguage?.htmlText("payroll","m_5c694b39fd19fa","Net days") ?? "Net days")}</option></select> <input style="width:70px" type="number" min="0" max="365" value="${number(terms.net_days)}" data-contractor-days="${esc(user.id)}" aria-label="${(globalThis.PlatformLanguage?.htmlText("payroll","m_5c694b39fd19fa","Net days") ?? "Net days")}"></td><td>${explainButton({ type:'organization_user', id:user.id })} <button class="fmp-btn small" data-action="save-worker-payee" data-user-id="${esc(user.id)}">${(globalThis.PlatformLanguage?.htmlText("payroll","m_5bab3e72de1ebf","Save") ?? "Save")}</button></td></tr>`; }).join(''))}
-        ${String(connections.map((connection) => { const terms=object(connection.payment_terms); return `<tr><td><strong>${esc(connection.name || connection.company_name || connection.id)}</strong><br><small>${esc(connection.primary_contact?.email || '')}</small></td><td>${(globalThis.PlatformLanguage?.htmlText("payroll","m_be15c0d3344497","Subcontractor company") ?? "Subcontractor company")}</td><td>${(globalThis.PlatformLanguage?.htmlText("payroll","m_ede7d31c438e08","Subcontractor") ?? "Subcontractor")}</td><td><select data-connection-basis="${esc(connection.id)}"><option value="payroll_schedule" ${clean(terms.basis || 'payroll_schedule') === 'payroll_schedule' ? 'selected' : ''}>${(globalThis.PlatformLanguage?.htmlText("payroll","m_088a5b83330ee2","Payment cycle") ?? "Payment cycle")}</option><option value="net_days" ${clean(terms.basis) === 'net_days' ? 'selected' : ''}>${(globalThis.PlatformLanguage?.htmlText("payroll","m_5c694b39fd19fa","Net days") ?? "Net days")}</option></select> <input style="width:70px" type="number" min="0" max="365" value="${number(terms.net_days)}" data-connection-days="${esc(connection.id)}" aria-label="${(globalThis.PlatformLanguage?.htmlText("payroll","m_5c694b39fd19fa","Net days") ?? "Net days")}"></td><td>${explainButton({ type:'organization_connection', id:connection.id })} <button class="fmp-btn small" data-action="save-company-payee" data-connection-id="${esc(connection.id)}">${(globalThis.PlatformLanguage?.htmlText("payroll","m_5bab3e72de1ebf","Save") ?? "Save")}</button></td></tr>`; }).join(''))}
-        ${String(!users.length && !connections.length ? `<tr><td colspan="5">${(globalThis.PlatformLanguage?.htmlText("payroll","m_005dc0671667db","No workforce or subcontractor records are available.") ?? "No workforce or subcontractor records are available.")}</td></tr>` : '')}</tbody></table></div>`;
-    }
-
-    function exportsHtml(){
-      if (state.loading && !state.exportData) return `<div class="fmp-state"><span class="state-icon"><i class="fas fa-spinner fmp-spinner"></i></span><h2>${(globalThis.PlatformLanguage?.htmlText("payroll","m_4bf939ec84b6aa","Loading reports") ?? "Loading reports")}</h2><p>${(globalThis.PlatformLanguage?.htmlText("payroll","m_47c2ba7f4c91da","Reading export definitions and generated documents.") ?? "Reading export definitions and generated documents.")}</p></div>`;
-      const catalog=array(state.exportData?.catalog); const artifacts=array(state.exportData?.artifacts); const batches=array(state.data?.history); const scheduleMap=schedulesById();
-      const reportByType=new Map(catalog.map((report) => [clean(report.type), report]));
-      const selectedBatch=batches.find((batch) => clean(batch.id) === clean(state.selectedExportBatchId)) || batches[0];
-      const availableReports=catalog.filter((report) => state.exportMode === 'payroll_run' ? ['payroll_run','payroll_run_or_date_range'].includes(clean(report.scope)) : ['date_range','payroll_run_or_date_range'].includes(clean(report.scope)));
-      const batchOption=(batch) => { const schedule=scheduleMap.get(clean(batch.schedule_id)) || {}; const prefix=clean(batch.run_type) === 'off_cycle' ? 'Off-cycle payroll' : clean(schedule.name || 'Payroll'); return `${prefix} — paid ${formatDate(batch.pay_date)} — ${formatMoney(batch.total_cents,batch.currency)} — ${statusLabel(batch.status)}`; };
-      const metadataFor=(artifact) => object(artifact.metadata);
-      const reportName=(artifact) => clean(metadataFor(artifact).report_label || reportByType.get(clean(artifact.report_type))?.label || clean(artifact.report_type).replace(/_/g,' ').replace(/\b\w/g,(letter) => letter.toUpperCase()));
-      const coverage=(artifact) => { const metadata=metadataFor(artifact); if (metadata.coverage_label) return clean(metadata.coverage_label); const batch=batches.find((item) => clean(item.id) === clean(artifact.batch_id)); return batch ? batchOption(batch) : metadata.from && metadata.through ? `${formatDate(metadata.from)} through ${formatDate(metadata.through)}` : 'Coverage was not recorded for this older export'; };
-      return `<section class="fmp-export-intro"><div><h2>${(globalThis.PlatformLanguage?.htmlText("payroll","m_d9207f2ac07c2a","Prepare payroll records") ?? "Prepare payroll records")}</h2><p>${(globalThis.PlatformLanguage?.htmlText("payroll","m_7e5e7151e747b9","Choose one payroll run when you are paying workers or handing final numbers to your payroll provider. Choose a date range when your accountant or office needs activity across several payrolls. CSV files are best for spreadsheets and imports; PDFs are formatted for reading, sharing, or printing.") ?? "Choose one payroll run when you are paying workers or handing final numbers to your payroll provider. Choose a date range when your accountant or office needs activity across several payrolls. CSV files are best for spreadsheets and imports; PDFs are formatted for reading, sharing, or printing.")}</p></div><i class="fas fa-file-invoice-dollar" style="font-size:28px;color:#98a2b3"></i></section>
-        <section class="fmp-export-builder"><div class="fmp-export-step">${(globalThis.PlatformLanguage?.htmlText("payroll","m_c189699a20e926","1. What should these reports cover?") ?? "1. What should these reports cover?")}</div><div class="fmp-export-mode"><button data-action="export-mode" data-mode="payroll_run" class="${String(state.exportMode === 'payroll_run' ? 'active' : '')}"><strong>${(globalThis.PlatformLanguage?.htmlText("payroll","m_155e03aed682c6","A specific payroll run") ?? "A specific payroll run")}</strong><span>${(globalThis.PlatformLanguage?.htmlText("payroll","m_e6457fc3facbdb","Use for payroll processing, approval records, and provider handoff.") ?? "Use for payroll processing, approval records, and provider handoff.")}</span></button><button data-action="export-mode" data-mode="date_range" class="${String(state.exportMode === 'date_range' ? 'active' : '')}"><strong>${(globalThis.PlatformLanguage?.htmlText("payroll","m_0c55e913f098e3","A date range") ?? "A date range")}</strong><span>${(globalThis.PlatformLanguage?.htmlText("payroll","m_f629af4c52c3ee","Use for bookkeeping, commissions, timesheets, and reimbursement review.") ?? "Use for bookkeeping, commissions, timesheets, and reimbursement review.")}</span></button></div>
-        ${String(state.exportMode === 'payroll_run' ? (batches.length ? `<div class="fmp-export-selection"><div class="fmp-field"><label for="fmpExportBatch">${(globalThis.PlatformLanguage?.htmlText("payroll","m_8075e240b169cf","Payroll run") ?? "Payroll run")}</label><select id="fmpExportBatch">${batches.map((batch) => `<option value="${esc(batch.id)}" ${clean(batch.id) === clean(selectedBatch?.id) ? 'selected' : ''}>${esc(batchOption(batch))}</option>`).join('')}</select></div><button class="fmp-btn" data-action="create-all-exports" data-format="csv"><i class="fas fa-table"></i>${(globalThis.PlatformLanguage?.htmlText("payroll","m_2cbe3b91007939"," Prepare all CSVs") ?? " Prepare all CSVs")}</button><button class="fmp-btn" data-action="create-all-exports" data-format="pdf"><i class="fas fa-print"></i>${(globalThis.PlatformLanguage?.htmlText("payroll","m_a0690426e42dfc"," Prepare all PDFs") ?? " Prepare all PDFs")}</button></div>` : `<div class="fmp-diagnostic"><i class="fas fa-circle-info"></i><span><strong>${(globalThis.PlatformLanguage?.htmlText("payroll","m_95e5a181459c0f","There are no payroll runs to export yet.") ?? "There are no payroll runs to export yet.")}</strong>${(globalThis.PlatformLanguage?.htmlText("payroll","m_31a1ef86f4e30c"," Create a payroll batch first, then return here to select it.") ?? " Create a payroll batch first, then return here to select it.")}</span><button class="fmp-btn small" data-action="view" data-view="upcoming">${(globalThis.PlatformLanguage?.htmlText("payroll","m_4f7069fe2ff90f","Go to upcoming payroll") ?? "Go to upcoming payroll")}</button></div>`) : `<div class="fmp-export-selection"><div class="fmp-field"><label for="fmpExportFrom">${(globalThis.PlatformLanguage?.htmlText("payroll","m_8d1ab2a786950e","Start date") ?? "Start date")}</label><input id="fmpExportFrom" type="date" value="${esc(state.exportFrom)}"></div><div class="fmp-field"><label for="fmpExportThrough">${(globalThis.PlatformLanguage?.htmlText("payroll","m_75319fcfef3f5e","End date") ?? "End date")}</label><input id="fmpExportThrough" type="date" value="${esc(state.exportThrough)}" min="${esc(state.exportFrom)}"></div></div>`)}
-        <div class="fmp-export-step" style="margin-top:18px">${(globalThis.PlatformLanguage?.htmlText("payroll","m_2dc0a7287892b3","2. Choose the records you need") ?? "2. Choose the records you need")}</div><div class="fmp-report-grid">${String(availableReports.map((report) => `<article class="fmp-report-card"><div><h3>${esc(report.label)}</h3><p>${esc(report.description)}<span class="fmp-report-purpose">${esc(report.purpose)}</span></p></div><div class="fmp-report-actions"><button class="fmp-btn small" data-action="create-export" data-export-type="${esc(report.type)}" data-format="csv" ${state.exportMode === 'payroll_run' && !selectedBatch ? 'disabled' : ''}><i class="fas fa-file-csv"></i>${(globalThis.PlatformLanguage?.htmlText("payroll","m_9d0a9ac6e12896"," Download CSV") ?? " Download CSV")}</button><button class="fmp-btn small" data-action="create-export" data-export-type="${esc(report.type)}" data-format="pdf" ${state.exportMode === 'payroll_run' && !selectedBatch ? 'disabled' : ''}><i class="fas fa-file-pdf"></i>${(globalThis.PlatformLanguage?.htmlText("payroll","m_932226afd1106e"," Download PDF") ?? " Download PDF")}</button></div></article>`).join(''))}</div></section>
-        <div class="fmp-export-history-head"><div><h2>${(globalThis.PlatformLanguage?.htmlText("payroll","m_6b2b4d7c5da0fa","Previously prepared reports") ?? "Previously prepared reports")}</h2><p>${(globalThis.PlatformLanguage?.htmlText("payroll","m_700c117178092f","Coverage is shown here so you can tell exactly what each file contains before downloading it again.") ?? "Coverage is shown here so you can tell exactly what each file contains before downloading it again.")}</p></div><span style="font-size:11px;color:#667085;font-weight:800">${((v4,v5) => globalThis.PlatformLanguage?.htmlText("payroll","m_99071c28413a8e",`${v4} saved file${v5}`,{v4,v5}) ?? `${v4} saved file${v5}`)(artifacts.length,artifacts.length === 1 ? '' : 's')}</span></div>
-        <div class="fmp-timesheet-table-wrap"><table class="fmp-timesheet-table"><thead><tr><th>${(globalThis.PlatformLanguage?.htmlText("payroll","m_c47c2ce6bb05c0","Report") ?? "Report")}</th><th>${(globalThis.PlatformLanguage?.htmlText("payroll","m_b59aa39327a43b","What it covers") ?? "What it covers")}</th><th>${(globalThis.PlatformLanguage?.htmlText("payroll","m_cdf11b397d38fc","Format") ?? "Format")}</th><th>${(globalThis.PlatformLanguage?.htmlText("payroll","m_984cc664c28b29","Prepared") ?? "Prepared")}</th><th></th></tr></thead><tbody>${String(artifacts.map((artifact) => { const format=clean(metadataFor(artifact).format || (clean(artifact.content_type).includes('pdf') ? 'pdf' : 'csv')); return `<tr><td><strong>${esc(reportName(artifact))}</strong><span class="fmp-file-name" title="${esc(artifact.file_name)}">${esc(artifact.file_name)}</span></td><td><strong>${esc(coverage(artifact))}</strong><br><small>${((v4,v5) => globalThis.PlatformLanguage?.htmlText("payroll","m_b1d072b88aab39",`${v4} record${v5}`,{v4,v5}) ?? `${v4} record${v5}`)(number(metadataFor(artifact).row_count),number(metadataFor(artifact).row_count) === 1 ? '' : 's')}</small></td><td><span class="fmp-file-format ${esc(format)}">${esc(format.toUpperCase())}</span></td><td>${esc(formatDateTime(artifact.created_at))}</td><td><a class="fmp-btn small" href="${esc(window.PayrollAPI.artifacts.downloadUrl(state.orgId, artifact.id))}" download><i class="fas fa-download"></i>${(globalThis.PlatformLanguage?.htmlText("payroll","m_826f820584789d"," Download again") ?? " Download again")}</a></td></tr>`; }).join(''))}${String(!artifacts.length ? `<tr><td colspan="5">${(globalThis.PlatformLanguage?.htmlText("payroll","m_cb7a285d33e9b2","No reports have been prepared yet. Choose a report above to create the first one.") ?? "No reports have been prepared yet. Choose a report above to create the first one.")}</td></tr>` : '')}</tbody></table></div>`;
-    }
-
-    // ---- Earnings derived by pay rules: refresh results, held corrections and the explanation for one payee ----
-    const PAYEE_TYPE_LABELS = { organization_user:'Person', resource_group:'Group', organization_connection:'Outside company' };
-    const DATE_KEY = /^\d{4}-\d{2}-\d{2}$/;
-    const hasPayee = (payee) => !!clean(payee?.type) && !!clean(payee?.id);
-    const sumCents = (rows, field = 'amount_cents') => array(rows).reduce((sum, row) => sum + number(row?.[field]), 0);
-
-    function payeeNames(){
-      if (nameCache) return nameCache;
-      // Names the pay-rule reads returned come first; the directory and the dashboard fill in the rest.
-      const names = new Map(state.payNames);
-      const put = (payee, name) => { const value = clean(name || payee?.name); if (hasPayee(payee) && value && !names.has(payeeKey(payee))) names.set(payeeKey(payee), value); };
-      for (const source of [object(state.pay.directory), object(state.contractorData)]) {
-        array(source.users).forEach((user) => put({ type:'organization_user', id:user.id }, user.name || user.display_name || user.email));
-        array(source.connections).forEach((connection) => put({ type:'organization_connection', id:connection.id }, connection.name || connection.company_name));
-        array(source.resource_groups).forEach((group) => put({ type:'resource_group', id:group.id }, group.name || group.title));
+    async function load(options = {}){
+      if (state.destroyed || !state.orgId || state.view === 'settings' || state.view === 'mine') return;
+      if (!window.PayrollAPI) { state.loading = false; state.unavailable = true; render(); return; }
+      const token = ++state.token;
+      if (!options.silent) { state.loading = true; render(); }
+      await loadShared();
+      const view = state.view, api = window.PayrollAPI;
+      const tasks = {};
+      if (view === 'upcoming' || view === 'payees') {
+        tasks.dashboard = () => api.dashboard(state.orgId, { from:state.range.from, through:state.range.through, include_projected:true, history_limit:1, ...branchArgs() });
+        if (view === 'upcoming' && can('view.review')) { tasks.review = () => api.pay.review(state.orgId); tasks.unresolved = () => api.pay.unresolved(state.orgId); tasks.offCycle = () => api.offCycle.list(state.orgId, branchArgs()); }
       }
-      array(state.data?.upcoming).forEach((occurrence) => {
-        [...array(occurrence.employees), ...array(occurrence.subcontractors)].forEach((row) => put(row.payee));
-        array(occurrence.batch?.items).forEach((item) => put(item.payee));
-      });
-      array(state.data?.history).forEach((batch) => array(batch.items).forEach((item) => put(item.payee)));
-      [...state.pay.held, ...state.pay.offCycle, ...array(state.explain?.entries)].forEach((entry) => put(entry.payee));
-      if (state.explain) put(state.explain.payee);
-      nameCache = names;
-      return names;
-    }
-
-    function payeeName(payee){
-      if (!hasPayee(payee)) return 'All payees';
-      return payeeNames().get(payeeKey(payee)) || clean(payee.name) || `${PAYEE_TYPE_LABELS[clean(payee.type)] || 'Payee'} ${clean(payee.id)}`;
-    }
-
-    function payRule(ruleId){
-      return array(state.pay.rules).find((rule) => clean(rule?.id) === clean(ruleId)) || null;
-    }
-
-    function ruleName(ruleId){
-      const id = clean(ruleId);
-      return id ? clean(payRule(id)?.name) || `Pay rule ${id}` : '';
-    }
-
-    function ruleDefinition(ruleId){
-      const versions = array(payRule(ruleId)?.versions).slice().sort((left, right) => clean(left.effective_from).localeCompare(clean(right.effective_from)));
-      return object(versions[versions.length - 1]?.definition);
-    }
-
-    function unitLabel(ruleId, unit){
-      const key = clean(unit);
-      if (!key) return '';
-      const definition = ruleDefinition(ruleId);
-      if (DATE_KEY.test(key) && clean(definition.grain) !== 'record') {
-        const period = clean(definition.period);
-        if (period === 'day') return formatDate(key);
-        return `${{ week:'Week', month:'Month', quarter:'Quarter', year:'Year' }[period] || 'Period'} starting ${formatDate(key)}`;
+      if (view === 'review') {
+        tasks.review = () => api.pay.review(state.orgId);
+        tasks.unresolved = () => api.pay.unresolved(state.orgId);
+        tasks.offCycle = () => api.offCycle.list(state.orgId, branchArgs());
+        tasks.finalized = () => api.finalizedWork(state.orgId, branchArgs());
+        tasks.reimbursements = () => api.ledger.list(state.orgId, { kind:'reimbursement', state:'accrued', open_only:true, limit:500, ...branchArgs() });
+        tasks.rules = () => api.pay.rules(state.orgId);
       }
-      return `Record ${key}`;
-    }
-
-    function signedMoney(cents, currency){
-      const value = number(cents);
-      return `${value > 0 ? '+' : value < 0 ? '−' : ''}${formatMoney(Math.abs(value), currency)}`;
-    }
-
-    function plainMoney(cents, currency){
-      return number(cents) < 0 ? signedMoney(cents, currency) : formatMoney(cents, currency);
-    }
-
-    function defaultCurrency(){
-      return clean(state.data?.upcoming?.[0]?.schedule?.currency || state.data?.schedules?.[0]?.currency || 'USD');
-    }
-
-    function keyValuesHtml(label, values, currency){
-      const entries = Object.entries(object(values)).filter(([, value]) => value !== null && value !== undefined && value !== '');
-      if (!entries.length) return '';
-      const name = (key) => { const text = clean(key).replace(/_cents$/, '').replace(/[_.]+/g, ' ').trim(); return text ? text[0].toUpperCase() + text.slice(1) : clean(key); };
-      const show = (key, value) => typeof value === 'boolean' ? (value ? 'Yes' : 'No')
-        : typeof value === 'number' ? (/_cents$/.test(key) ? plainMoney(value, currency) : value.toLocaleString(undefined, { maximumFractionDigits:4 }))
-        : value && typeof value === 'object' ? JSON.stringify(value).slice(0, 200) : clean(value);
-      return `<div class="fmp-kv"><em>${esc(label)}</em>${entries.map(([key, value]) => `<span>${esc(name(key))}: <b>${esc(show(key, value))}</b></span>`).join('')}</div>`;
-    }
-
-    // What a refresh reported, in one shape whether it came from a refresh (every posted entry) or from creating a pay run (totals only).
-    function refreshSummary(result){
-      const source = object(result);
-      const payees = Array.isArray(source.payees) ? source.payees : null;
-      // Posted figures leave held corrections out; a pay run reports no held amount, only how many.
-      return {
-        posted_count:number(source.posted_count), posted_cents:number(source.posted_cents), held_count:number(source.held_count),
-        held_cents:Number.isFinite(Number(source.held_cents)) && source.held_cents !== null && source.held_cents !== undefined ? Number(source.held_cents) : null,
-        unresolved_count:number(source.unresolved_count), payee_count:payees ? payees.length : null,
-        evaluated:payees ? sumCents(payees, 'evaluated') : null, unchanged:payees ? sumCents(payees, 'unchanged') : null,
-        currency:clean(array(payees).flatMap((entry) => array(entry.posted))[0]?.currency)
-      };
-    }
-
-    function refreshStatsHtml(summary, currency){
-      const money = clean(summary.currency || currency || defaultCurrency());
-      const posted = number(summary.posted_count), held = number(summary.held_count), unresolved = number(summary.unresolved_count);
-      return `<div class="fmp-pay-stats" data-pay-stats>
-        <div class="fmp-pay-stat"><span>Posted to the ledger</span><b>${posted ? esc(plainMoney(summary.posted_cents, money)) : 'Nothing new'}</b><small>${posted} ledger entr${posted === 1 ? 'y' : 'ies'}</small></div>
-        <div class="fmp-pay-stat${held ? ' hold' : ''}"><span>Corrections held for review</span><b>${held}</b><small>${held ? (summary.held_cents === null ? 'Review them under Corrections held for review' : `${esc(signedMoney(summary.held_cents, money))} not counted until accepted`) : 'None held'}</small></div>
-        <div class="fmp-pay-stat${unresolved ? ' alert' : ''}"><span>Could not be worked out</span><b>${unresolved}</b><small>${unresolved ? 'Not paid as zero · needs attention' : 'Every earning was worked out'}</small></div>
-        ${summary.evaluated === null ? '' : `<div class="fmp-pay-stat"><span>Checked</span><b>${number(summary.evaluated) + number(summary.unchanged)}</b><small>${number(summary.evaluated)} worked out again · ${number(summary.unchanged)} unchanged</small></div>`}
-      </div>`;
-    }
-
-    function refreshButton(payee, options = {}){
-      const one = hasPayee(payee);
-      const key = one ? `refresh:${payeeKey(payee)}` : 'refresh:all';
-      const label = options.label || (one ? "Refresh this payee's earnings" : 'Refresh earnings');
-      return `<button class="fmp-btn${options.small ? ' small' : ''}${options.dark ? ' dark' : ''}" data-action="refresh-earnings"${one ? ` data-payee-type="${esc(payee.type)}" data-payee-id="${esc(payee.id)}"` : ''} ${state.busyKey ? 'disabled' : ''}><i class="fas ${isBusy(key) ? 'fa-spinner fmp-spinner' : 'fa-rotate'}"></i> ${esc(label)}</button>`;
-    }
-
-    function explainButton(payee, label = 'Pay explained'){
-      if (!hasPayee(payee)) return '';
-      return `<button class="fmp-btn small" data-action="explain-payee" data-payee-type="${esc(payee.type)}" data-payee-id="${esc(payee.id)}" title="Why this payee is paid what they are"><i class="fas fa-circle-question"></i> ${esc(label)}</button>`;
-    }
-
-    function setUnresolved(payee, items){
-      const key = hasPayee(payee) ? payeeKey(payee) : ':';
-      const list = array(items).map((item) => ({ rule_id:clean(item?.rule_id), unit:clean(item?.unit), reason:clean(item?.reason) }));
-      if (list.length) state.unresolved.set(key, { payee:hasPayee(payee) ? { type:clean(payee.type), id:clean(payee.id) } : {}, items:list });
-      else state.unresolved.delete(key);
-    }
-
-    // Everything unresolved at the last refresh as the backend stores it, plus anything only a refresh in this session reported (a payee who could not be refreshed at all).
-    function unresolvedItems(){
-      const stored = state.unresolvedStored.map((row) => ({ rule_id:clean(row?.rule_id), unit:clean(row?.unit), reason:clean(row?.reason), whole_rule:row?.whole_rule === true, payee:hasPayee(row?.payee) ? { type:clean(row.payee.type), id:clean(row.payee.id) } : {} }));
-      const seen = new Set(stored.map((item) => `${payeeKey(item.payee)}\u0000${item.rule_id}\u0000${item.unit}`));
-      return [...stored, ...[...state.unresolved.values()].flatMap((entry) => entry.items.map((item) => ({ ...item, payee:entry.payee }))).filter((item) => !seen.has(`${payeeKey(item.payee)}\u0000${item.rule_id}\u0000${item.unit}`))];
-    }
-
-    function rememberName(payee, name){
-      if (hasPayee(payee) && clean(name)) state.payNames.set(payeeKey(payee), clean(name));
-    }
-
-    function keyName(key){
-      const at = clean(key).indexOf(':');
-      return at > 0 ? payeeName({ type:clean(key).slice(0, at), id:clean(key).slice(at + 1) }) : clean(key);
-    }
-
-    // A member paid from a group's rule: whose rule it was and what part of the line they got.
-    function splitNote(entry, currency){
-      const split = object(entry?.metadata?.split);
-      if (!clean(split.of)) return '';
-      const members = number(split.members);
-      return `Their share of ${keyName(split.of)}'s ${formatMoney(split.line_cents, currency)}${members ? `, split ${members} way${members === 1 ? '' : 's'}` : ''}`;
-    }
-
-    function unresolvedReason(item){
-      const reason = clean(item?.reason) || 'The rule could not be run.';
-      const match = /^([A-Za-z0-9_]{1,60}):\s+([\s\S]+)$/.exec(reason);
-      if (match && Object.prototype.hasOwnProperty.call(object(ruleDefinition(item.rule_id).inputs), match[1])) return `The rule could not read its "${match[1].replace(/_/g, ' ')}" input: ${match[2]}`;
-      return reason;
-    }
-
-    function unresolvedListHtml(items, options = {}){
-      if (!items.length) return '';
-      return `<div class="fmp-unresolved" data-pay-unresolved>
-        <div class="fmp-unresolved-head"><i class="fas fa-triangle-exclamation"></i><span>${items.length} earning${items.length === 1 ? '' : 's'} could not be worked out${options.run ? ' and may be missing from this pay run' : ''}.<small>These are not paid as zero. Whatever was posted before stays in place until each one is fixed and earnings are refreshed again.</small></span></div>
-        ${items.map((item) => {
-          const where = [ruleName(item.rule_id) || (hasPayee(item.payee) ? "All of this payee's pay rules" : 'Earnings refresh'), item.whole_rule ? 'the whole rule, every record or period' : unitLabel(item.rule_id, item.unit)].filter(Boolean).join(' · ');
-          return `<div class="fmp-unresolved-row" data-unresolved-row data-unresolved-payee="${esc(hasPayee(item.payee) ? payeeKey(item.payee) : '')}">
-            <div><strong>${esc(payeeName(item.payee))}</strong><small>${esc(where)}</small></div>
-            <div><span class="fmp-unresolved-reason">${esc(unresolvedReason(item))}</span><div style="margin-top:5px"><span class="fmp-not-zero"><i class="fas fa-ban"></i>Not worked out · not zero</span></div></div>
-            <div class="fmp-card-actions">${options.inExplain ? '' : explainButton(item.payee)}${hasPayee(item.payee) ? refreshButton(item.payee, { small:true, label:'Try again' }) : ''}</div>
-          </div>`;
-        }).join('')}
-      </div>`;
-    }
-
-    function entryTagsHtml(entry){
-      const metadata = object(entry.metadata);
-      const state_ = clean(entry.state);
-      return [
-        metadata.correction ? '<span class="fmp-tag correction"><i class="fas fa-pen-ruler"></i>Correction</span>' : '',
-        metadata.back_pay === true ? '<span class="fmp-tag backpay"><i class="fas fa-clock-rotate-left"></i>Back pay</span>' : '',
-        metadata.off_cycle_requested === true ? '<span class="fmp-tag offcycle"><i class="fas fa-calendar-plus"></i>Off-cycle requested</span>' : '',
-        metadata.pay_rule_declined === true ? '<span class="fmp-tag"><i class="fas fa-ban"></i>Declined</span>' : '',
-        metadata.review_required === true && state_ === 'projected' ? '<span class="fmp-tag hold"><i class="fas fa-hand"></i>Held for review</span>' : ''
-      ].filter(Boolean).join(' ');
-    }
-
-    // Which rule an entry came from, what it was earned on and with which parameters.
-    function ruleSourceHtml(entry, currency){
-      const metadata = object(entry.metadata);
-      const rule = object(metadata.pay_rule);
-      if (clean(metadata.source) !== 'pay_rule' && !clean(rule.rule_id)) return '';
-      const swapped = clean(rule.definition_rule_id) && clean(rule.definition_rule_id) !== clean(rule.rule_id);
-      const version = array(payRule(rule.definition_rule_id || rule.rule_id)?.versions).find((item) => clean(item.version) === clean(rule.version));
-      const parts = [
-        ruleName(rule.rule_id) || 'Pay rule', swapped ? `using the formula of ${ruleName(rule.definition_rule_id)}` : '',
-        version ? `rule version effective ${formatDate(version.effective_from)}` : '', unitLabel(rule.rule_id, rule.unit),
-        clean(rule.line) && clean(rule.line) !== 'main' ? `line ${clean(rule.line)}` : ''
-      ].filter(Boolean);
-      const earned = clean(rule.earned_on || rule.earned_at);
-      const late = !!metadata.correction || metadata.back_pay === true;
-      return `<div class="fmp-pay-note" data-pay-rule-source><i class="fas fa-scale-balanced"></i> ${esc(parts.join(' · '))}${earned ? ` · ${late ? 'originally earned' : 'earned'} <b>${esc(formatDate(earned))}</b>` : ''}${late && clean(entry.created_at) ? ` · posted ${esc(formatDate(entry.created_at))}` : ''}</div>${splitNote(entry, currency) ? `<div class="fmp-pay-note" data-pay-split><i class="fas fa-people-arrows"></i> ${esc(splitNote(entry, currency))}</div>` : ''}${keyValuesHtml('Parameters used', rule.params, currency)}${keyValuesHtml('Details', metadata.details, currency)}`;
-    }
-
-    function correctionCompareHtml(entry, currency){
-      const correction = object(entry.metadata?.correction);
-      if (!Object.keys(correction).length) return '';
-      return `<div class="fmp-pay-compare" data-pay-compare><span>Posted before <b>${esc(plainMoney(correction.posted_cents, currency))}</b></span><i class="fas fa-arrow-right"></i><span>The rule now says <b>${esc(plainMoney(correction.target_cents, currency))}</b></span><span class="delta">Difference <b>${esc(signedMoney(number(correction.target_cents) - number(correction.posted_cents), currency))}</b></span></div>`;
-    }
-
-    function correctionWhy(entry){
-      const correction = object(entry.metadata?.correction);
-      if (!Object.keys(correction).length) return 'This entry is waiting for someone to review it before it counts toward pay.';
-      const posted = number(correction.posted_cents), target = number(correction.target_cents);
-      const what = target === 0 ? 'The rule no longer pays anything for this: the record left what the rule selects, or the rule stopped applying to this payee for that day.'
-        : `The rule now works out ${target < posted ? 'less' : 'more'} than what was already included in a pay run, because the record it reads, a rate or the rule itself changed.`;
-      return `${what} It is held because this payee's pay schedule asks for ${target < posted ? 'decreases' : 'increases'} to be reviewed before they count.`;
-    }
-
-    function groupByPayee(entries){
-      const groups = new Map();
-      entries.forEach((entry) => {
-        const key = payeeKey(entry.payee);
-        if (!groups.has(key)) groups.set(key, { payee:object(entry.payee), entries:[] });
-        groups.get(key).entries.push(entry);
-      });
-      return [...groups.values()].sort((left, right) => payeeName(left.payee).localeCompare(payeeName(right.payee)));
-    }
-
-    function heldHtml(){
-      const held = state.pay.held;
-      if (!held.length) return state.payLoadedAt ? '<div class="fmp-pay-section" data-pay-held><h3>Corrections held for review</h3><p>No corrections are waiting for review.</p></div>' : '';
-      return `<div class="fmp-pay-section" data-pay-held>
-        <h3>Corrections held for review · ${held.length}</h3>
-        <p>A rule now works out a different amount for something that was already in a pay run. Accept a correction to count it in the payee's next pay run, or decline it to leave what was paid as it is; a declined correction is not raised again.</p>
-        ${groupByPayee(held).map((group) => `<div class="fmp-pay-group" data-held-payee="${esc(payeeKey(group.payee))}">
-          <div class="fmp-pay-group-head"><span><strong>${esc(payeeName(group.payee))}</strong><small>${group.entries.length} held · ${esc(signedMoney(sumCents(group.entries), clean(group.entries[0]?.currency || defaultCurrency())))}</small></span><span class="fmp-card-actions">${explainButton(group.payee)}</span></div>
-          ${group.entries.map((entry) => {
-            const currency = clean(entry.currency || defaultCurrency());
-            const acceptKey = `correction:${entry.id}:accept`, declineKey = `correction:${entry.id}:decline`;
-            return `<div class="fmp-pay-entry" data-held-entry="${esc(entry.id)}">
-              <div><strong>${esc(entry.description || 'Correction')}</strong> ${entryTagsHtml(entry)}
-                ${ruleSourceHtml(entry, currency)}
-                ${correctionCompareHtml(entry, currency)}
-                <div class="fmp-pay-note">${esc(correctionWhy(entry))}</div>
-              </div>
-              <div class="fmp-pay-amount${number(entry.amount_cents) < 0 ? ' neg' : ''}"><b>${esc(signedMoney(entry.amount_cents, currency))}</b><small>Not counted until accepted</small>
-                <div class="fmp-item-actions">
-                  <button class="fmp-btn small success" data-action="correction-accept" data-entry-id="${esc(entry.id)}" ${state.busyKey ? 'disabled' : ''}><i class="fas ${isBusy(acceptKey) ? 'fa-spinner fmp-spinner' : 'fa-check'}"></i> Accept</button>
-                  <button class="fmp-btn small" data-action="correction-decline" data-entry-id="${esc(entry.id)}" ${state.busyKey ? 'disabled' : ''}><i class="fas ${isBusy(declineKey) ? 'fa-spinner fmp-spinner' : 'fa-xmark'}"></i> Decline</button>
-                </div>
-              </div>
-            </div>`;
-          }).join('')}
-        </div>`).join('')}
-      </div>`;
-    }
-
-    function offCycleHtml(){
-      const entries = state.pay.offCycle;
-      if (!entries.length) return '';
-      const schedules = schedulesById();
-      const groups = new Map();
-      entries.forEach((entry) => { const key = clean(entry.schedule_id); groups.set(key, [...(groups.get(key) || []), entry]); });
-      return `<div class="fmp-pay-section" data-pay-off-cycle>
-        <h3>Back pay waiting for an off-cycle run · ${entries.length}</h3>
-        <p>These corrections belong to a period that has already been paid, and the payee's pay schedule asks for them to be paid off-cycle instead of waiting for the next regular run.</p>
-        ${[...groups].map(([scheduleId, list]) => {
-          const schedule = schedules.get(scheduleId);
-          const currency = clean(schedule?.currency || list[0]?.currency || defaultCurrency());
-          return `<div class="fmp-pay-group" data-off-cycle-schedule="${esc(scheduleId)}">
-            <div class="fmp-pay-group-head"><span><strong>${esc(schedule?.name || (scheduleId ? 'Pay schedule' : 'No pay schedule assigned'))}</strong><small>${list.length} entr${list.length === 1 ? 'y' : 'ies'} · ${esc(plainMoney(sumCents(list, 'remaining_cents'), currency))}</small></span>
-              ${scheduleId ? `<button class="fmp-btn small primary" data-action="off-cycle-requested" data-schedule-id="${esc(scheduleId)}" ${state.busyKey ? 'disabled' : ''}><i class="fas ${isBusy('off-cycle') ? 'fa-spinner fmp-spinner' : 'fa-calendar-plus'}"></i> Create off-cycle run with these</button>` : '<small>Assign these payees a pay schedule to include them in a run.</small>'}</div>
-            ${list.map((entry) => `<div class="fmp-pay-entry" data-off-cycle-entry="${esc(entry.id)}">
-              <div><strong>${esc(payeeName(entry.payee))}</strong> ${entryTagsHtml(entry)}<div class="fmp-pay-note">${esc(entry.description)}</div>${ruleSourceHtml(entry, currency)}${correctionCompareHtml(entry, currency)}</div>
-              <div class="fmp-pay-amount${number(entry.remaining_cents) < 0 ? ' neg' : ''}"><b>${esc(plainMoney(entry.remaining_cents, currency))}</b><small>Waiting to be paid</small><div class="fmp-item-actions">${explainButton(entry.payee)}</div></div>
-            </div>`).join('')}
-          </div>`;
-        }).join('')}
-      </div>`;
-    }
-
-    function runRefreshOccurrence(){
-      const batchId = clean(state.runRefresh?.batchId);
-      return batchId ? array(state.data?.upcoming).find((occurrence) => clean(occurrence.batch?.id) === batchId) || null : null;
-    }
-
-    // Shown before a new pay run's contents: what the refresh that preceded it posted, held and could not work out.
-    function runRefreshHtml(inCard){
-      const run = state.runRefresh;
-      if (!run) return '';
-      const items = array(run.unresolved);
-      return `<div class="fmp-pay-group" data-run-refresh style="margin-bottom:13px">
-        <div class="fmp-pay-group-head"><span><strong>Earnings were refreshed before this pay run was drafted</strong><small>${esc(run.label)}</small></span><button class="fmp-btn small ghost" data-action="run-refresh-dismiss" aria-label="Dismiss"><i class="fas fa-xmark"></i></button></div>
-        <div style="padding:0 12px 12px">${refreshStatsHtml(run.summary, run.currency)}
-          ${inCard ? unresolvedListHtml(items, { run:true }) : ''}
-          ${number(run.summary.unresolved_count) > items.length ? `<div class="fmp-pay-note">${items.length ? `Showing the first ${items.length} of ${number(run.summary.unresolved_count)}. ` : ''}Refresh earnings to see every item that could not be worked out.</div>` : ''}
-        </div>
-      </div>`;
-    }
-
-    // Projected earnings: each payee's own pay rules over work not done yet. Worked out on request, never posted.
-    const PROJECTED_TIP = "What each payee's pay rules say they can expect from labor that is committed or assigned but not done yet, with the day it is expected to be earned. Nothing projected is posted or paid in a pay run.";
-    function projectedPanelHtml(){
-      const projected = state.projectedAll;
-      const currency = defaultCurrency();
-      const rows = array(projected?.value?.payees).filter((row) => number(row.total_cents) || number(row.count) || number(row.unresolved_count));
-      return `<div class="fmp-pay-section" data-pay-projected>
-        <h3 title="${esc(PROJECTED_TIP)}">Projected</h3>
-        ${!projected ? `<button class="fmp-btn small" data-action="load-projected"><i class="fas fa-chart-line"></i> Work out projected earnings</button>`
-          : projected.loading ? '<div class="fmp-pay-note">Working out projected earnings…</div>'
-            : projected.error ? `<div class="fmp-diagnostic"><i class="fas fa-triangle-exclamation"></i><span>${esc(projected.error)}</span></div>`
-              : rows.length ? `<div class="fmp-pay-group">${rows.map((row) => `<div class="fmp-pay-entry" data-projected-payee="${esc(row.id)}" title="${esc(row.next_expected_on ? `Next expected ${formatDate(row.next_expected_on)}` : 'Nothing scheduled yet')}">
-                  <div><strong>${esc(row.payee_name || payeeName(row.payee))}</strong> ${explainButton(row.payee, 'Why')}${number(row.unresolved_count) ? ` <span class="fmp-status small" title="Some projected earnings could not be worked out; open Why for the reasons.">${number(row.unresolved_count)} not worked out</span>` : ''}</div>
-                  <div class="fmp-pay-amount"><b>${esc(plainMoney(row.total_cents, currency))}</b><small>${row.next_expected_on ? esc(formatDate(row.next_expected_on)) : 'Not scheduled'}</small></div>
-                </div>`).join('')}${projected.value?.truncated ? `<div class="fmp-pay-entry"><div class="fmp-pay-note">Showing the first ${rows.length} payees.</div></div>` : ''}</div>`
-                : '<div class="fmp-pay-note">Nothing is projected for anyone.</div>'}
-      </div>`;
-    }
-    function explainProjectedHtml(explain, currency){
-      const projected = explain.projected;
-      if (!projected) return '';
-      const earnings = array(projected.earnings), unresolved = array(projected.unresolved);
-      return `<div class="fmp-pay-section" data-explain-projected>
-        <h3 title="${esc(PROJECTED_TIP)}">Projected · ${esc(plainMoney(projected.total_cents, currency))}</h3>
-        ${earnings.length || unresolved.length ? `<div class="fmp-pay-group">${earnings.map((earning) => `<div class="fmp-pay-entry" data-projected-earning="${esc(earning.id)}" title="${esc([earning.description, earning.rule_name].map(clean).filter(Boolean).join(' · '))}">
-            <div><strong>${esc(earning.project_title || earning.record_title || 'Projected earning')}</strong><div class="fmp-pay-note">${esc(earning.record_title || earning.description)}</div></div>
-            <div class="fmp-pay-amount"><b>${esc(plainMoney(earning.amount_cents, currency))}</b><small>${earning.expected_on ? `Expected ${esc(formatDate(earning.expected_on))}` : 'Not scheduled'}</small></div>
-          </div>`).join('')}${unresolved.map((entry) => `<div class="fmp-pay-entry" data-projected-unresolved title="${esc(entry.reason)}">
-            <div><strong>${esc(entry.project_title || ruleName(entry.rule_id) || 'Projected earning')}</strong><div class="fmp-pay-note">Not worked out</div></div>
-            <div class="fmp-pay-amount"><b>—</b><small>${entry.expected_on ? `Expected ${esc(formatDate(entry.expected_on))}` : 'Not scheduled'}</small></div>
-          </div>`).join('')}</div>` : '<div class="fmp-pay-note">Nothing is projected for this payee.</div>'}
-      </div>`;
-    }
-    async function loadProjected(){
-      state.projectedAll = { loading:true };
+      if (view === 'timesheets') {
+        tasks.timesheets = can('timesheets.all')
+          ? () => api.timesheets.list(state.orgId, { from:state.ts.from, through:state.ts.through, limit:1000, ...branchArgs() })
+          : () => api.timesheets.mine(state.orgId, { from:state.ts.from, through:state.ts.through });
+      }
+      if (view === 'history') { tasks.batches = () => api.batches.list(state.orgId, { limit:100, ...branchArgs() }).then((result) => arr(result?.batches)); tasks.schedules = () => api.schedules.list(state.orgId, { includeArchived:true }).then((result) => result.schedules); tasks.offCycle = () => api.offCycle.list(state.orgId, branchArgs()); }
+      if (view === 'exports') { tasks.catalog = () => api.artifacts.catalog(state.orgId).then((result) => arr(result?.exports)); tasks.artifacts = () => api.artifacts.list(state.orgId, { limit:100 }).then((result) => arr(result?.artifacts)); }
+      if (view === 'approvals') tasks.approvals = () => api.approvals.mine(state.orgId);
+      const entries = Object.entries(tasks);
+      const results = await Promise.all(entries.map(([, read]) => guarded(read)));
+      if (token !== state.token || state.destroyed) return;
+      entries.forEach(([key], index) => { state.data[key] = results[index].value; state.errors[key] = results[index].error || ''; });
+      if (view === 'approvals') { approvalsSeen.set(state.orgId, num(state.data.approvals?.count)); }
+      state.loading = false;
       render();
-      try { state.projectedAll = { value:await window.PayrollAPI.pay.projected(state.orgId) }; }
-      catch (error) { state.projectedAll = { error:`Projected earnings could not be worked out: ${clean(error?.message || error) || 'the request failed'}` }; }
-      if (!state.destroyed) render();
+      rerenderModal();
     }
-
-    function payPanelHtml(){
-      if (context.params?.smoke) return '';
-      const last = state.refreshResult;
-      return `<section class="fmp-pay-panel" data-pay-panel>
-        <div class="fmp-pay-head"><div><h2>Earnings from pay rules</h2><p>Each payee's pay is worked out from their pay rules. A refresh works out what everyone has earned and posts only what changed to the payroll ledger. Creating a pay run refreshes first.</p></div><div class="fmp-card-actions">${refreshButton(null, { dark:true })}</div></div>
-        ${state.pay.error ? `<div class="fmp-diagnostic" style="margin:12px 0 0"><i class="fas fa-circle-info"></i><span>${esc(state.pay.error)}</span></div>` : ''}
-        ${state.runRefresh && !runRefreshOccurrence() ? `<div style="margin-top:13px">${runRefreshHtml(false)}</div>` : ''}
-        ${last?.error ? `<div class="fmp-diagnostic" style="margin:12px 0 0"><i class="fas fa-triangle-exclamation"></i><span><strong>Earnings could not be refreshed.</strong> ${esc(last.error)}</span></div>` : ''}
-        ${last?.summary ? `<div class="fmp-pay-note" data-pay-last-refresh style="margin-top:12px">Last refresh ${esc(formatDateTime(last.at))} · ${esc(hasPayee(last.payee) ? payeeName(last.payee) : `everyone with a pay setup (${number(last.summary.payee_count)} payee${number(last.summary.payee_count) === 1 ? '' : 's'})`)}</div>${refreshStatsHtml(last.summary)}` : ''}
-        ${unresolvedListHtml(unresolvedItems())}
-        ${heldHtml()}
-        ${offCycleHtml()}
-        ${projectedPanelHtml()}
-      </section>`;
-    }
-
-    // For a group: who shared this record or period. Fixed when it was first worked out.
-    function splitAmongHtml(unit){
-      if (clean(state.explain?.payee?.type) !== 'resource_group') return '';
-      const members = array(unit.split_among);
-      if (!members.length) return '<div class="fmp-pay-note" data-pay-split-among><i class="fas fa-user-group"></i> Paid to the group as one payee.</div>';
-      const even = members.every((member) => number(member.weight) === number(members[0].weight));
-      const total = members.reduce((sum, member) => sum + number(member.weight), 0);
-      return `<div class="fmp-pay-note" data-pay-split-among><i class="fas fa-people-arrows"></i> Split ${even ? 'equally ' : ''}among ${members.length} member${members.length === 1 ? '' : 's'}: ${members.map((member) => `${esc(payeeName({ type:'organization_user', id:member.id }))}${even || !total ? '' : ` (${esc((number(member.weight) / total * 100).toLocaleString(undefined, { maximumFractionDigits:1 }))}%)`}`).join(', ')}</div>`;
-    }
-
-    function defaultSourceLabel(source){
-      const type = clean(source?.type), id = clean(source?.id);
-      if (type === 'organization') return 'the organization default';
-      if (type === 'assignee_kind') return `the default for every ${(PAYEE_TYPE_LABELS[id] || id.replace(/_/g, ' ')).toLowerCase()}`;
-      if (type === 'worker_classification') return `the default for ${id.replace(/_/g, ' ')}s`;
-      // A role, a type of group and a type of outside company are named by the server; the id stands in until it is.
-      const named = clean(source?.name) || id.replace(/_/g, ' ');
-      if (type === 'role') return `the default for the ${named} role`;
-      if (type === 'group_type') return `the default for ${named} groups`;
-      if (type === 'company_type') return `the default for ${named} companies`;
-      return `a default (${[type.replace(/_/g, ' '), id].filter(Boolean).join(' ')})`;
-    }
-
-    // Which layer brings each rule in today: the last default that names it, or the payee's own setup, and whether their own setup changes it.
-    function ruleOrigins(setup, plans){
-      const today = dateKey();
-      const active = (entry) => clean(entry?.effective_from) <= today && (!clean(entry?.effective_through) || today <= clean(entry.effective_through));
-      const planRules = (planId) => {
-        const versions = array(array(plans).find((plan) => clean(plan?.id) === clean(planId))?.versions).filter((version) => clean(version.effective_from) <= today)
-          .sort((left, right) => clean(left.effective_from).localeCompare(clean(right.effective_from)));
-        return array(versions[versions.length - 1]?.rules).map((ref) => clean(ref.rule_id));
-      };
-      const origins = new Map();
-      // A default counts only while it covers the payee: a role taken away stops bringing its rules in.
-      const covers = (layer) => (!clean(layer?.covered_from) || clean(layer.covered_from) <= today) && (!clean(layer?.covered_through) || today <= clean(layer.covered_through));
-      array(setup?.layers).filter(covers).forEach((layer) => {
-        const entries = array(layer?.entries).filter(active);
-        const own = !layer?.source;
-        entries.forEach((entry) => {
-          const ids = clean(entry.kind) === 'plan' ? planRules(entry.plan_id) : clean(entry.kind) === 'add' ? [clean(entry.rule_id)] : [];
-          ids.forEach((id) => origins.set(id, { source:own ? null : layer.source, changed:false }));
-        });
-        entries.filter((entry) => clean(entry.kind) === 'override').forEach((entry) => { const origin = origins.get(clean(entry.rule_id)); if (origin && own && origin.source) origin.changed = true; });
-      });
-      return origins;
-    }
-
-    // When they are paid: the schedule in effect today for everything, and for any kind of earning paid on another, with the layer that chose it.
-    function paidOnHtml(setup){
-      const rows = array(setup?.schedule_today);
-      if (!rows.length) return '<div class="fmp-pay-note" data-paid-on><i class="fas fa-calendar-days"></i> No pay schedule is chosen for this payee. Choose the company\'s schedule in Payroll settings.</div>';
-      return `<div class="fmp-pay-group" data-paid-on>${rows.map((row) => {
-        const kind = clean(row.earning_kind) === '*' ? (rows.length > 1 ? 'Everything else' : 'Everything') : clean(row.earning_kind).replace(/_/g, ' ').replace(/^./, (letter) => letter.toUpperCase());
-        return `<div class="fmp-pay-entry" data-paid-on-kind="${esc(row.earning_kind)}"><div><strong><i class="fas fa-calendar-days"></i> ${esc(kind)}: ${esc(clean(row.schedule_name) || 'a schedule that no longer exists')}</strong> ${row.origin ? `<span class="fmp-tag backpay"><i class="fas fa-layer-group"></i>From ${esc(defaultSourceLabel(row.origin))}</span>` : '<span class="fmp-tag ok">Their own setup</span>'}
-          <div class="fmp-pay-note">Since ${esc(formatDate(row.effective_from))}${clean(row.timing_basis) ? ` · recognized when ${clean(row.timing_basis) === 'completed' ? 'the job is completed' : 'the work is performed'}` : ''}${row.clawback_cap_percent === null || row.clawback_cap_percent === undefined ? '' : ` · clawbacks capped at ${esc(number(row.clawback_cap_percent))}% of a check`}</div></div><div></div></div>`;
-      }).join('')}</div>`;
-    }
-
-    function paidByHtml(currency){
-      const setup = state.explain?.setup;
-      if (!setup) return '';
-      const effective = array(setup.effective);
-      const origins = ruleOrigins(setup, state.explain.plans);
-      const distribution = object(setup.distribution_today);
-      const group = clean(state.explain.payee.type) === 'resource_group';
-      return `<div class="fmp-pay-section" data-explain-paid-by>
-        <h3>Paid by</h3>
-        <p>The pay rules in effect for this payee today, and the pay schedule they are paid on.${group ? ` ${clean(distribution.mode) === 'split' ? `What the group earns is split among its members${clean(distribution.method) === 'shares' ? ' by fixed shares' : ' equally'}.` : 'The group is paid as one payee.'}` : ''}</p>
-        <div class="fmp-pay-group">${effective.length ? effective.map((slot) => {
-          const origin = origins.get(clean(slot.rule_id));
-          const swapped = clean(slot.definition_rule_id) && clean(slot.definition_rule_id) !== clean(slot.rule_id);
-          return `<div class="fmp-pay-entry" data-paid-by-rule="${esc(slot.rule_id)}"><div><strong>${esc(ruleName(slot.rule_id))}</strong> ${origin?.source ? `<span class="fmp-tag backpay"><i class="fas fa-layer-group"></i>From ${esc(defaultSourceLabel(origin.source))}</span>${origin.changed ? ' <span class="fmp-tag correction">Changed for this payee</span>' : ''}` : origin ? '<span class="fmp-tag ok">Their own setup</span>' : ''}
-            ${swapped ? `<div class="fmp-pay-note">Uses the formula of ${esc(ruleName(slot.definition_rule_id))}.</div>` : ''}
-            ${keyValuesHtml('Parameters', slot.params, currency) || '<div class="fmp-pay-note">No parameters set.</div>'}</div><div></div></div>`;
-        }).join('') : '<div class="fmp-empty-section"><i class="fas fa-scale-balanced"></i>No pay rule is in effect for this payee today. Give them a pay setup or a default in Payroll settings.</div>'}</div>
-        ${paidOnHtml(setup)}
-      </div>`;
-    }
-
-    function unitHtml(unit, currency){
-      const status = clean(unit.status);
-      const lines = array(unit.lines);
-      const failed = status === 'error';
-      const withdrawn = status === 'withdrawn';
-      const total = sumCents(lines);
-      const tag = failed ? '<span class="fmp-tag error"><i class="fas fa-triangle-exclamation"></i>Could not be worked out</span>'
-        : withdrawn ? '<span class="fmp-tag"><i class="fas fa-rotate-left"></i>Taken back</span>' : '<span class="fmp-tag ok"><i class="fas fa-check"></i>Worked out</span>';
-      const note = failed ? `<div class="fmp-unresolved-reason" style="margin-top:6px">${esc(unresolvedReason({ rule_id:unit.rule_id, reason:unit.error }))}</div><div class="fmp-pay-note">This is not zero. ${lines.length ? `What the rule worked out before (${esc(plainMoney(total, currency))}) stays posted until this is fixed and earnings are refreshed.` : 'Nothing has been posted for it yet; it will be once this is fixed and earnings are refreshed.'}</div>`
-        : withdrawn ? '<div class="fmp-pay-note">This record or period no longer applies to this payee, so what it had posted was taken back.</div>'
-        : !lines.length ? '<div class="fmp-pay-note">The rule pays nothing for this record or period.</div>' : '';
-      return `<div class="fmp-pay-entry" data-pay-unit="${esc(unit.id || `${unit.rule_id}:${unit.unit}`)}" data-unit-status="${esc(status)}">
-        <div><strong>${esc(unitLabel(unit.rule_id, unit.unit))}</strong> ${tag}
-          <div class="fmp-pay-note">Earned ${esc(formatDate(unit.earned_at))}${clean(unit.evaluated_at) ? ` · last worked out ${esc(formatDateTime(unit.evaluated_at))}` : ''}</div>
-          ${note}
-          ${splitAmongHtml(unit)}
-          ${lines.map((line) => `<div class="fmp-pay-note" data-pay-line><b style="color:#101828">${esc(line.description || line.key)}</b> · ${failed ? 'previously ' : ''}${esc(plainMoney(line.amount_cents, currency))}${keyValuesHtml('Details', line.details, currency)}</div>`).join('')}
-        </div>
-        <div class="fmp-pay-amount${!failed && total < 0 ? ' neg' : ''}"><b>${failed ? '—' : esc(plainMoney(total, currency))}</b><small>${failed ? 'Not worked out' : withdrawn ? 'Taken back' : lines.length > 1 ? `${lines.length} lines` : 'Earned'}</small></div>
-      </div>`;
-    }
-
-    function ledgerStateLabel(entry){
-      const state_ = clean(entry.state);
-      if (entry.metadata?.pay_rule_declined === true) return 'Declined · not paid';
-      if (state_ === 'void') return 'Void';
-      if (state_ === 'projected') return entry.metadata?.review_required === true ? 'Held · not counted yet' : 'Projected';
-      return number(entry.applied_cents) !== 0 ? (number(entry.remaining_cents) === 0 ? 'In a pay run' : 'Partly in a pay run') : 'Waiting for the next pay run';
-    }
-
-    function explainHtml(){
-      const explain = state.explain;
-      if (!explain) return '';
-      const payee = explain.payee;
-      const units = array(explain.units);
-      const ruleEntries = array(explain.entries).filter((entry) => clean(entry.metadata?.source) === 'pay_rule')
-        .sort((left, right) => clean(right.created_at).localeCompare(clean(left.created_at)));
-      const currency = clean(array(explain.entries)[0]?.currency || defaultCurrency());
-      const reported = unresolvedItems().filter((item) => hasPayee(item.payee) && payeeKey(item.payee) === payeeKey(payee));
-      const seen = new Set(reported.map((item) => `${clean(item.rule_id)}\u0000${clean(item.unit)}`));
-      const unresolved = [...reported, ...units.filter((unit) => clean(unit.status) === 'error' && clean(unit.unit) !== '*' && !seen.has(`${clean(unit.rule_id)}\u0000${clean(unit.unit)}`))
-        .map((unit) => ({ rule_id:clean(unit.rule_id), unit:clean(unit.unit), reason:clean(unit.error), payee }))];
-      const byRule = new Map();
-      units.forEach((unit) => { const id = clean(unit.rule_id); byRule.set(id, [...(byRule.get(id) || []), unit]); });
-      const last = state.refreshResult;
-      const shownEntries = ruleEntries.slice(0, 100);
-      let body;
-      if (explain.loading && !explain.units) body = '<div class="fmp-state"><span class="state-icon"><i class="fas fa-spinner fmp-spinner"></i></span><h2>Loading pay explanation</h2><p>Reading what each pay rule last worked out for this payee.</p></div>';
-      else body = `
-        ${explain.error ? `<div class="fmp-diagnostic" style="margin-top:14px"><i class="fas fa-triangle-exclamation"></i><span>${esc(explain.error)}</span></div>` : ''}
-        ${last?.summary && hasPayee(last.payee) && payeeKey(last.payee) === payeeKey(payee) ? `<div class="fmp-pay-note" style="margin-top:14px">Refreshed ${esc(formatDateTime(last.at))}</div>${refreshStatsHtml(last.summary, currency)}` : ''}
-        ${unresolvedListHtml(unresolved, { inExplain:true })}
-        ${paidByHtml(currency)}
-        <div class="fmp-pay-section" data-explain-units>
-          <h3>What each pay rule last worked out</h3>
-          <p>One row per record or period a rule pays, with the amounts it produced and the day they were earned.</p>
-          ${byRule.size ? [...byRule].map(([ruleId, list]) => `<div class="fmp-pay-group" data-pay-rule="${esc(ruleId)}">
-            <div class="fmp-pay-group-head" title="${esc(payRule(ruleId)?.description)}"><span><strong>${esc(ruleName(ruleId))}</strong><small>${list.length} record${list.length === 1 ? '' : 's'} or period${list.length === 1 ? '' : 's'}</small></span></div>
-            ${list.slice(0, 40).map((unit) => unitHtml(unit, currency)).join('')}
-            ${list.length > 40 ? `<div class="fmp-pay-entry"><div class="fmp-pay-note">Showing the latest 40 of ${list.length}.</div></div>` : ''}
-          </div>`).join('') : `<div class="fmp-pay-group"><div class="fmp-empty-section"><i class="fas fa-scale-balanced"></i>No pay rule has worked out anything for this payee yet. Give them a pay setup in Payroll settings, then refresh earnings.</div></div>`}
-        </div>
-        ${explainProjectedHtml(explain, currency)}
-        <div class="fmp-pay-section" data-explain-ledger>
-          <h3>Ledger entries from pay rules</h3>
-          <p>What those results posted to the payroll ledger. A correction or back pay shows the day the earning was originally earned.</p>
-          ${shownEntries.length ? `<div class="fmp-pay-group">${shownEntries.map((entry) => {
-            const money = clean(entry.currency || currency);
-            return `<div class="fmp-pay-entry" data-ledger-entry="${esc(entry.id)}">
-              <div><strong>${esc(entry.description || 'Earning')}</strong> ${entryTagsHtml(entry)}${ruleSourceHtml(entry, money)}${correctionCompareHtml(entry, money)}${clean(entry.metadata?.declined_note) ? `<div class="fmp-pay-note">Declined: ${esc(entry.metadata.declined_note)}</div>` : ''}</div>
-              <div class="fmp-pay-amount${number(entry.amount_cents) < 0 ? ' neg' : ''}"><b>${esc(plainMoney(entry.amount_cents, money))}</b><small>${esc(ledgerStateLabel(entry))}</small></div>
-            </div>`;
-          }).join('')}${ruleEntries.length > shownEntries.length ? `<div class="fmp-pay-entry"><div class="fmp-pay-note">Showing the latest ${shownEntries.length} of ${ruleEntries.length}.</div></div>` : ''}</div>` : '<div class="fmp-pay-group"><div class="fmp-empty-section"><i class="fas fa-receipt"></i>No ledger entries have come from pay rules for this payee.</div></div>'}
-        </div>`;
-      return `<div class="fmp-explain-backdrop" data-action="explain-backdrop"><aside class="fmp-explain" role="dialog" aria-modal="true" aria-label="Pay explained for ${esc(payeeName(payee))}" data-explain-payee="${esc(payeeKey(payee))}">
-        <div class="fmp-explain-top"><div><h2>Why ${esc(payeeName(payee))} is paid what they are</h2><p>${esc(PAYEE_TYPE_LABELS[clean(payee.type)] || 'Payee')} · worked out from their pay rules</p></div>
-          <div class="fmp-card-actions">${refreshButton(payee)}<button class="fmp-btn" data-action="explain-close"><i class="fas fa-xmark"></i> Close</button></div></div>
-        <div class="fmp-explain-body">${body}</div>
-      </aside></div>`;
-    }
-
-    function fetchPay(){
-      const guarded = (read) => { try { return Promise.resolve(read()); } catch (error) { return Promise.reject(error); } };
-      return Promise.allSettled([
-        guarded(() => window.PayrollAPI.pay.rules(state.orgId)),
-        guarded(() => window.PayrollAPI.pay.review(state.orgId)),
-        guarded(() => window.PayrollAPI.pay.unresolved(state.orgId)),
-        state.pay.directory ? Promise.resolve(state.pay.directory) : guarded(() => window.PlatformAPI.publication.invoke(state.orgId, 'payroll.directory.read', { scope:'organization', organizationId:state.orgId }, {}).then((result) => result?.value))
-      ]);
-    }
-
-    function applyPay([rules, review, unresolved, directory]){
-      if (rules.status === 'fulfilled') state.pay.rules = array(rules.value);
-      if (review.status === 'fulfilled') {
-        state.pay.held = array(review.value?.held);
-        state.pay.offCycle = array(review.value?.off_cycle).filter((entry) => number(entry?.remaining_cents) !== 0);
-      }
-      if (unresolved.status === 'fulfilled') {
-        state.unresolvedStored = array(unresolved.value);
-        state.unresolvedStored.forEach((row) => rememberName(row?.payee, row?.payee_name));
-        // The stored list is the truth for anything tied to a rule; keep only what a refresh in this session reported about a payee as a whole.
-        [...state.unresolved.values()].forEach((entry) => setUnresolved(entry.payee, entry.items.filter((item) => !item.rule_id)));
-      }
-      if (directory.status === 'fulfilled' && directory.value && typeof directory.value === 'object') state.pay.directory = directory.value;
-      const failure = [rules, review, unresolved].find((entry) => entry.status === 'rejected');
-      state.pay.error = failure ? `Earnings from pay rules could not be fully loaded: ${clean(failure.reason?.message || failure.reason) || 'the request failed'}` : '';
-      state.payLoadedAt = Date.now();
-      state.payStale = false;
-    }
-
-    async function loadExplain(payee, options = {}){
-      if (!hasPayee(payee)) return;
-      if (!state.explain || payeeKey(state.explain.payee) !== payeeKey(payee)) state.explain = { payee:{ type:clean(payee.type), id:clean(payee.id), name:clean(payee.name) }, units:null, entries:null, setup:null, plans:null, loading:true, error:'', token:0 };
-      const explain = state.explain;
-      const token = ++explain.token;
-      explain.loading = true;
-      if (!options.silent) render();
-      const guarded = (read) => { try { return Promise.resolve(read()); } catch (error) { return Promise.reject(error); } };
-      const [units, entries, rules, setup, plans, projected] = await Promise.allSettled([
-        guarded(() => window.PayrollAPI.pay.units(state.orgId, explain.payee)),
-        guarded(() => window.PayrollAPI.ledger.list(state.orgId, { payee_type:explain.payee.type, payee_id:explain.payee.id, limit:5000 })),
-        state.pay.rules ? Promise.resolve(state.pay.rules) : guarded(() => window.PayrollAPI.pay.rules(state.orgId)),
-        guarded(() => window.PayrollAPI.pay.setup(state.orgId, explain.payee)),
-        guarded(() => window.PayrollAPI.pay.plans(state.orgId)),
-        guarded(() => window.PayrollAPI.pay.projected ? window.PayrollAPI.pay.projected(state.orgId, explain.payee) : null)
-      ]);
-      if (state.destroyed || state.explain !== explain || token !== explain.token) return;
-      if (units.status === 'fulfilled') explain.units = array(units.value); else explain.units = explain.units || [];
-      if (entries.status === 'fulfilled') explain.entries = array(entries.value?.entries); else explain.entries = explain.entries || [];
-      if (rules.status === 'fulfilled' && !state.pay.rules) state.pay.rules = array(rules.value);
-      if (setup.status === 'fulfilled' && setup.value && typeof setup.value === 'object') explain.setup = setup.value;
-      if (plans.status === 'fulfilled') explain.plans = array(plans.value);
-      // Projected earnings are extra: when they cannot be worked out the rest of the explanation still shows.
-      explain.projected = projected.status === 'fulfilled' && projected.value && typeof projected.value === 'object' && !Array.isArray(projected.value) ? projected.value : null;
-      const failure = [units, entries, setup].find((entry) => entry.status === 'rejected');
-      explain.error = failure ? `This payee's pay could not be fully loaded: ${clean(failure.reason?.message || failure.reason) || 'the request failed'}` : '';
-      explain.loading = false;
-      render();
-    }
-
-    async function refreshEarnings(payee){
-      if (state.busyKey) return;
-      const one = hasPayee(payee);
-      state.busyKey = one ? `refresh:${payeeKey(payee)}` : 'refresh:all';
-      render();
+    async function perform(label, work, success = ''){
+      if (state.busy) return null;
+      state.busy = true;
+      root.classList.add('fmp-busy');
       try {
-        const result = await window.PayrollAPI.pay.refreshEarnings(state.orgId, one ? [{ type:clean(payee.type), id:clean(payee.id) }] : undefined);
-        const payees = array(result?.payees);
-        if (!one) state.unresolved = new Map();
-        else setUnresolved(payee, []);
-        payees.forEach((entry) => { rememberName(entry.payee, entry.payee_name); setUnresolved(entry.payee, entry.unresolved); });
-        const summary = refreshSummary({ ...object(result), payees });
-        state.refreshResult = { at:new Date().toISOString(), payee:one ? { type:clean(payee.type), id:clean(payee.id) } : null, summary, error:'' };
-        const currency = clean(summary.currency || defaultCurrency());
-        toast(summary.unresolved_count ? `Earnings refreshed · ${summary.unresolved_count} could not be worked out` : 'Earnings refreshed',
-          `${summary.posted_count ? `${plainMoney(summary.posted_cents, currency)} posted` : 'Nothing new to post'}${summary.held_count ? ` · ${summary.held_count} correction${summary.held_count === 1 ? '' : 's'} held for review` : ''}`, true);
-        state.payStale = true;
-        await load({ silent:true });
+        const result = await work();
+        if (success) toast(success, label);
+        return result ?? true;
       } catch (error) {
-        state.refreshResult = { at:new Date().toISOString(), payee:one ? { type:clean(payee.type), id:clean(payee.id) } : null, summary:null, error:error?.message || String(error) };
-        toast('Earnings could not be refreshed', error?.message || String(error), false);
+        toast(t('not_done', 'That did not work'), clean(error?.message) || label, false);
+        return null;
       } finally {
-        state.busyKey = '';
-        render();
+        state.busy = false;
+        root.classList.remove('fmp-busy');
+        await load({ silent:true });
       }
     }
 
-    function captureRunRefresh(result, label){
-      const refresh = result?.earnings_refresh;
-      if (!refresh || typeof refresh !== 'object') return;
-      const items = array(refresh.unresolved);
-      // A pay run refreshes everyone, so what it could not work out replaces what an earlier refresh reported.
-      const grouped = new Map();
-      items.forEach((item) => { const key = hasPayee(item?.payee) ? payeeKey(item.payee) : ':'; grouped.set(key, { payee:object(item?.payee), items:[...(grouped.get(key)?.items || []), item] }); });
-      state.unresolved = new Map();
-      grouped.forEach((entry) => setUnresolved(entry.payee, entry.items));
-      const batch = object(result.batch);
-      state.runRefresh = { batchId:clean(batch.id), label, currency:clean(batch.currency || defaultCurrency()), summary:refreshSummary(refresh),
-        unresolved:items.map((item) => ({ rule_id:clean(item?.rule_id), unit:clean(item?.unit), reason:clean(item?.reason), payee:hasPayee(item?.payee) ? { type:clean(item.payee.type), id:clean(item.payee.id) } : {} })) };
-      if (clean(batch.schedule_id) && clean(batch.pay_date)) state.expanded.add(`${clean(batch.schedule_id)}:${clean(batch.pay_date)}`);
-      state.payStale = true;
+    // -- Shared toolbar pieces --
+    function branchControl(){
+      const structure = obj(state.structure);
+      if (structure.multiple !== true) return '';
+      const access = obj(structure.access);
+      const names = new Map(arr(structure.branches).map((branch) => [clean(branch.id), clean(branch.name) || t('main_branch', 'Main branch')]));
+      const options = [{ value:'', label:access.restricted ? t('my_branches', 'My branches') : t('all_branches', 'All branches') }, { value:'mine', label:t('my_branch', 'My branch') }];
+      if (arr(structure.my_region_ids).length && access.see !== 'own') options.push({ value:'region', label:t('my_region', 'My region') });
+      arr(access.visible_branch_ids).forEach((id) => options.push({ value:id, label:names.get(clean(id)) || id }));
+      return kit().select({ name:'branch', value:state.branch, options, label:t('branch', 'Branch'), attrs:'data-branch' });
+    }
+    const hiddenNote = (count) => count ? `<div class="fmp-note">${esc(t('hidden_people', '{count} people of other branches are not shown.', { count }))}</div>` : '';
+
+    // -- Pay runs --
+    function occurrenceRows(){
+      const list = arr(state.data.dashboard?.upcoming);
+      return list.filter((occurrence) => occurrence.batch || arr(occurrence.employees).length || arr(occurrence.subcontractors).length);
+    }
+    function upcomingView(){
+      const dashboard = obj(state.data.dashboard);
+      const runs = occurrenceRows();
+      const currency = clean(dashboard.schedules?.[0]?.currency || 'USD');
+      const next = runs.find((occurrence) => runStatus(occurrence, occurrence.batch).key !== 'paid');
+      const due30 = runs.filter((occurrence) => clean(occurrence.pay_date) <= addDays(state.range.from, 30)).reduce((sum, occurrence) => sum + num(occurrence.accrued_total_cents), 0);
+      const projected = runs.reduce((sum, occurrence) => sum + num(occurrence.projected_additional_cents), 0);
+      const review = obj(state.data.review);
+      const attention = arr(review.held).length + arr(review.off_cycle).length + arr(state.data.unresolved).length;
+      const offWaiting = arr(state.data.offCycle).filter((row) => num(row.waiting_cents) > 0);
+      const stats = `<div class="fmp-stats">
+        ${stat({ label:t('next_pay_date', 'Next pay date'), value:next ? dateLabel(next.pay_date, { weekday:true }) : t('none', 'None'), sub:next ? `${clean(next.schedule?.name)} \u00b7 ${money(next.accrued_total_cents, currency)}` : t('nothing_due', 'Nothing is due'), tooltip:t('next_pay_date_tip', 'The next pay run that is not paid yet, and what it pays from earnings so far.') })}
+        ${stat({ label:t('due_30', 'Due in the next 30 days'), value:money(due30, currency), sub:t('earned_so_far', 'From earnings so far'), tooltip:t('due_30_tip', 'What the pay runs in the next 30 days pay from what has been earned so far, after anything already paid outside a pay run and any clawbacks.') })}
+        ${stat({ label:t('projected_more', 'Projected on top'), value:money(projected, currency), sub:t('not_earned_yet', 'Not earned yet'), tooltip:t('projected_more_tip', 'Forecast earnings posted to the ledger that are not earned yet. They are not paid until they are.') })}
+        ${can('view.review') ? stat({ label:t('needs_review', 'Needs review'), value:String(attention), sub:attention ? t('before_paying', 'Look at these before paying') : t('all_clear', 'All clear'), tone:attention ? 'warn' : '', open:'review', tooltip:t('needs_review_tip', 'Earnings that could not be worked out, corrections held for review and back pay asked to be paid off-cycle.') }) : ''}
+      </div>`;
+      const rows = runs.map((occurrence) => {
+        const status = runStatus(occurrence, occurrence.batch);
+        const batch = occurrence.batch;
+        const people = batch ? arr(batch.items).length : arr(occurrence.employees).length + arr(occurrence.subcontractors).length;
+        const employees = batch ? num(batch.employee_total_cents) : arr(occurrence.employees).reduce((sum, item) => sum + num(item.accrued?.net_cents), 0);
+        const contractors = batch ? num(batch.subcontractor_total_cents) : arr(occurrence.subcontractors).reduce((sum, item) => sum + num(item.accrued?.net_cents), 0);
+        const key = `${clean(occurrence.schedule?.id)}|${clean(occurrence.pay_date)}`;
+        return `<tr data-open="run" data-run="${esc(key)}" tabindex="0">
+          ${td(nameCell(dateLabel(occurrence.pay_date, { weekday:true }), clean(occurrence.schedule?.name)), t('pay_date', 'Pay date'), 'lead')}
+          ${td(esc(`${dateLabel(occurrence.period_start)} \u2013 ${dateLabel(occurrence.period_end)}`), t('period', 'Period'), 'hide-sm')}
+          ${td(esc(people), t('people', 'People'), 'num hide-sm')}
+          ${td(esc(money(employees, currency)), t('employees', 'Employees'), 'num hide-sm')}
+          ${td(esc(money(contractors, currency)), t('contractors', 'Contractors'), 'num hide-sm')}
+          ${td(`<b>${esc(money(employees + contractors, currency))}</b>`, t('to_pay', 'To pay'), 'num')}
+          ${td(pill(status.label, status.tone), t('status', 'Status'))}
+        </tr>`;
+      });
+      const quiet = arr(dashboard.upcoming).length - runs.length;
+      const unscheduled = arr(dashboard.diagnostics).find((row) => row.code === 'unassigned_entries');
+      const actions = [
+        button('earnings.refresh', context, { label:t('refresh_earnings', 'Refresh earnings'), icon:'fa-rotate', attrs:'data-act="refresh-earnings"', tooltip:t('refresh_tip', 'Work out everyone\u2019s earnings from their pay rules now. Drafting a pay run does this too.') }),
+        button('offcycle.record', context, { label:t('record_payment_short', 'Record a payment'), icon:'fa-hand-holding-dollar', attrs:'data-act="record-offcycle"', tooltip:t('record_payment_tip', 'You paid someone outside the normal pay run. Record it here and their next pay run takes it off, so nobody is paid twice.') })
+      ].join('');
+      return `${stats}
+        ${card({ id:'runs', title:t('upcoming_pay_runs', 'Upcoming pay runs'), tooltip:t('upcoming_tip', 'Each pay date of each pay schedule in the next two months that has someone to pay. Open one to see who is in it, approve it, copy it out to your payroll software and mark it paid.'), count:runs.length, actions,
+          body:`${table([{ label:t('pay_date', 'Pay date') }, { label:t('period', 'Period'), cls:'hide-sm' }, { label:t('people', 'People'), cls:'num hide-sm' }, { label:t('employees', 'Employees'), cls:'num hide-sm' }, { label:t('contractors', 'Contractors'), cls:'num hide-sm' }, { label:t('to_pay', 'To pay'), cls:'num', tooltip:t('to_pay_tip', 'After payments already made outside a pay run and clawbacks.') }, { label:t('status', 'Status') }], rows, { empty:t('no_runs', 'No pay run in the next two months has anyone to pay.'), label:t('upcoming_pay_runs', 'Upcoming pay runs') })}
+          ${quiet > 0 ? `<div class="fmp-note">${esc(t('quiet_dates', '{count} more pay dates have nothing to pay yet.', { count:quiet }))}</div>` : ''}
+          ${unscheduled ? `<div class="fmp-note">${esc(t('unscheduled', '{count} earnings have no pay schedule and are in no pay run. Choose the company\u2019s pay schedule in Settings.', { count:num(unscheduled.count) }))}</div>` : ''}` })}
+        ${offWaiting.length ? card({ id:'offcycle-waiting', title:t('paid_outside_waiting', 'Paid outside a pay run, still to take off'), tooltip:t('paid_outside_waiting_tip', 'Payments recorded as made outside a pay run that the next pay runs will take off what these people are paid.'), count:offWaiting.length,
+          body:table([{ label:t('person', 'Person') }, { label:t('paid_on', 'Paid on') }, { label:t('still_to_take_off', 'Still to take off'), cls:'num' }], offWaiting.map((row) => `<tr>${td(nameCell(payeeName(row.payee), kindLabel(row.kind)), t('person', 'Person'), 'lead')}${td(esc(dateLabel(row.paid_on)), t('paid_on', 'Paid on'))}${td(esc(minus(row.waiting_cents, row.currency)), t('still_to_take_off', 'Still to take off'), 'num neg')}</tr>`)) }) : ''}`;
+    }
+    function kindLabel(kind){
+      const labels = obj(obj(state.vocabulary).labels).earning_kinds;
+      return clean(obj(labels)[kind]) || KIND_FALLBACK[kind] || clean(kind).replace(/_/g, ' ');
     }
 
-    function bodyHtml(){
-      if (state.view === 'timesheets') return timesheetsHtml();
-      if (state.view === 'contractors') return contractorsHtml();
-      if (state.view === 'exports') return exportsHtml();
-      if (state.loading && !state.data) return `<div class="fmp-state"><span class="state-icon"><i class="fas fa-spinner fmp-spinner"></i></span><h2>${(globalThis.PlatformLanguage?.htmlText("payroll","m_d0469f4ea4c0cc","Loading payroll") ?? "Loading payroll")}</h2><p>${(globalThis.PlatformLanguage?.htmlText("payroll","m_961537c1a70067","Building upcoming schedule groups and payroll previews.") ?? "Building upcoming schedule groups and payroll previews.")}</p></div>`;
-      if (state.error && !state.data) return `<div class="fmp-state"><span class="state-icon"><i class="fas fa-triangle-exclamation"></i></span><h2>${(globalThis.PlatformLanguage?.htmlText("payroll","m_a805757c14ef68","Payroll could not load") ?? "Payroll could not load")}</h2><p>${String(esc(state.error.message || state.error))}</p><button class="fmp-btn primary" data-action="refresh"><i class="fas fa-rotate"></i>${(globalThis.PlatformLanguage?.htmlText("payroll","m_cbfbb44ff35f0f"," Try again") ?? " Try again")}</button></div>`;
-      if (!array(state.data?.schedules).length) return `<div class="fmp-state"><span class="state-icon"><i class="fas fa-calendar-plus"></i></span><h2>${(globalThis.PlatformLanguage?.htmlText("payroll","m_af98d4fa763589","Create your first pay schedule") ?? "Create your first pay schedule")}</h2><p>${(globalThis.PlatformLanguage?.htmlText("payroll","m_11167f4970bb3b","Payroll groups workers by schedule. Configure weekly, biweekly, semi-monthly, or monthly cycles here, then return to preview and run payroll.") ?? "Payroll groups workers by schedule. Configure weekly, biweekly, semi-monthly, or monthly cycles here, then return to preview and run payroll.")}</p><button class="fmp-btn primary" data-action="settings"><i class="fas fa-gear"></i>${(globalThis.PlatformLanguage?.htmlText("payroll","m_00b847ae2b1181"," Configure payroll") ?? " Configure payroll")}</button></div>`;
-      if (state.view === 'history') {
-        const history = array(state.data?.history);
-        if (!history.length) return `<div class="fmp-state"><span class="state-icon"><i class="fas fa-clock-rotate-left"></i></span><h2>${(globalThis.PlatformLanguage?.htmlText("payroll","m_df287cf95e8e63","No payroll history yet") ?? "No payroll history yet")}</h2><p>${(globalThis.PlatformLanguage?.htmlText("payroll","m_100196122a2e0d","Created batches will appear here with their employee, subcontractor, run, and paid details.") ?? "Created batches will appear here with their employee, subcontractor, run, and paid details.")}</p><button class="fmp-btn" data-action="view" data-view="upcoming">${(globalThis.PlatformLanguage?.htmlText("payroll","m_f363a044460dbe","View upcoming payroll") ?? "View upcoming payroll")}</button></div>`;
-        const scheduleMap = schedulesById();
-        return `<div class="fmp-history">${history.map((batch) => historyCard(batch, scheduleMap)).join('')}</div>`;
+    // -- A pay run, opened --
+    function findOccurrence(key){
+      const [scheduleId, payDate] = clean(key).split('|');
+      return arr(state.data.dashboard?.upcoming).find((occurrence) => clean(occurrence.schedule?.id) === scheduleId && clean(occurrence.pay_date) === payDate) || null;
+    }
+    function openRun(source){
+      const modalKit = window.FirstMatePeople?.entityModal;
+      if (!modalKit) return;
+      let current = source;
+      const live = () => {
+        if (current.fromHistory) return arr(state.data.batches).find((batch) => batch.id === current.batch.id) ? { batch:arr(state.data.batches).find((batch) => batch.id === current.batch.id), fromHistory:true } : current;
+        const occurrence = findOccurrence(current.key);
+        return occurrence ? { key:current.key, occurrence, batch:occurrence.batch } : current;
+      };
+      const panels = {};
+      const summaryModel = () => {
+        const { occurrence, batch } = current;
+        const status = runStatus(occurrence, batch);
+        const currency = clean(batch?.currency || occurrence?.schedule?.currency || 'USD');
+        const lines = runLines(current);
+        const total = lines.reduce((sum, line) => sum + line.net, 0);
+        const employees = lines.filter((line) => paidAs(line.payee) === t('employee', 'Employee'));
+        return {
+          kind:'pay_run', id:clean(batch?.id || current.key), name:dateLabel(batch?.pay_date || occurrence?.pay_date, { weekday:true, year:true }),
+          secondary:clean(batch?.run_type) === 'off_cycle' ? t('off_cycle_run', 'Off-cycle pay run') : clean(occurrence?.schedule?.name) || (batch ? scheduleNameOf(batch) : t('pay_run', 'Pay run')),
+          icon:'fa-money-check-dollar', pills:[{ label:status.label, tone:status.tone }],
+          facts:[
+            { icon:'fa-calendar', label:t('period', 'Period'), value:`${dateLabel(batch?.period_start || occurrence?.period_start)} \u2013 ${dateLabel(batch?.period_end || occurrence?.period_end)}` },
+            ...(occurrence?.cutoff_at ? [{ icon:'fa-scissors', label:t('earnings_until', 'Earnings up to'), value:dateTimeLabel(occurrence.cutoff_at), tooltip:t('cutoff_tip', 'Earnings earned after this are paid on a later pay run.') }] : []),
+            { icon:'fa-users', label:t('people', 'People'), value:String(lines.length) },
+            { icon:'fa-user', label:t('employees', 'Employees'), value:money(employees.reduce((sum, line) => sum + line.net, 0), currency) },
+            { icon:'fa-building', label:t('contractors', 'Contractors'), value:money(total - employees.reduce((sum, line) => sum + line.net, 0), currency) },
+            { icon:'fa-sack-dollar', label:t('to_pay', 'To pay'), value:money(total, currency) },
+            ...(!batch && num(occurrence?.projected_additional_cents) ? [{ icon:'fa-chart-line', label:t('projected_on_top', 'Projected on top'), value:money(occurrence.projected_additional_cents, currency), tooltip:t('projected_more_tip', 'Forecast earnings posted to the ledger that are not earned yet. They are not paid until they are.') }] : [])
+          ]
+        };
+      };
+      const tabs = [
+        { id:'people', label:t('people', 'People'), icon:'fa-users', needs:null, mount(panel){ panels.people = panel; drawPeople(panel); return { show(){ drawPeople(panel); } }; } },
+        ...(can('runs.export') ? [{ id:'export', label:t('copy_out', 'Copy out'), icon:'fa-file-export', needs:null, tooltip:t('copy_out_tip', 'Files for Gusto, QuickBooks Payroll or your bookkeeper.'), mount(panel){ panels.export = panel; drawExport(panel); return { show(){ drawExport(panel); } }; } }] : []),
+        { id:'approval', label:t('approval', 'Approval'), icon:'fa-signature', needs:null, mount(panel){ panels.approval = panel; drawApproval(panel); return { show(){ drawApproval(panel); } }; } }
+      ];
+      const modal = modalKit.open({
+        label:t('pay_run', 'Pay run'), footer:false, tabs, tab:'people',
+        summary(host){ host.innerHTML = kit().summary(summaryModel(), 'panel'); },
+        actions:() => [],
+        onClose(){ openModal = null; }
+      });
+      openModal = { refresh(){ current = live(); modal.refreshSummary(); Object.entries(panels).forEach(([id, panel]) => ({ people:drawPeople, export:drawExport, approval:drawApproval })[id]?.(panel)); } };
+
+      function drawPeople(panel){
+        const { batch } = current;
+        const currency = clean(batch?.currency || current.occurrence?.schedule?.currency || 'USD');
+        const lines = runLines(current);
+        const status = runStatus(current.occurrence, batch);
+        const sections = [[t('employees', 'Employees'), lines.filter((line) => paidAs(line.payee) === t('employee', 'Employee'))], [t('contractors', 'Contractors'), lines.filter((line) => paidAs(line.payee) !== t('employee', 'Employee'))]];
+        const markPaid = batch && (['approved', 'run', 'partial'].includes(status.key) || (status.key === 'draft' && obj(state.settings).approval_required === false)) && can('runs.done');
+        const rows = sections.filter(([, list]) => list.length).flatMap(([label, list]) => [
+          `<tr class="fmp-section"><td colspan="7">${esc(label)}</td></tr>`,
+          ...list.sort((a, b) => payeeName(a.payee).localeCompare(payeeName(b.payee))).map((line) => `<tr>
+            ${td(`${can('earnings.why') ? `<button type="button" class="fmp-link" data-why="${esc(payeeKey(line.payee))}" data-why-name="${esc(payeeName(line.payee))}">${esc(payeeName(line.payee))}</button>` : esc(payeeName(line.payee))}<br><small class="fmp-muted">${esc(line.kinds.map(([kind, cents]) => `${kindLabel(kind)} ${money(cents, currency)}`).join(' \u00b7 ') || paidAs(line.payee))}</small>`, t('person', 'Person'), 'lead')}
+            ${td(esc(money(line.earned, currency)), t('earned', 'Earned'), 'num')}
+            ${td(esc(money(line.reimbursement, currency)), t('reimbursements', 'Reimbursements'), 'num')}
+            ${td(line.offCycle ? `<span${tip(t('already_paid_tip', 'Paid outside a pay run and taken off here.'))}>${esc(minus(line.offCycle, currency))}</span>` : '\u2014', t('already_paid', 'Already paid'), `num${line.offCycle ? ' neg' : ''}`)}
+            ${td(line.clawback ? esc(minus(line.clawback, currency)) : '\u2014', t('taken_back', 'Taken back'), `num${line.clawback ? ' neg' : ''}`)}
+            ${td(`<b>${esc(money(line.net, currency))}</b>`, t('to_pay', 'To pay'), 'num')}
+            ${td(line.status === 'paid' ? pill(t('paid', 'Paid'), 'ok') : markPaid ? `<button type="button" class="pp-btn" data-item-paid="${esc(line.item.id)}">${esc(t('mark_paid', 'Mark paid'))}</button>` : '', '', 'act')}
+          </tr>`)
+        ]);
+        panel.innerHTML = `${stepsHtml()}
+          <div class="fmp-modal-section">${table([{ label:t('person', 'Person') }, { label:t('earned', 'Earned'), cls:'num' }, { label:t('reimbursements', 'Reimbursements'), cls:'num' }, { label:t('already_paid', 'Already paid'), cls:'num', tooltip:t('already_paid_col_tip', 'Payments recorded as made outside a pay run, taken off so nobody is paid twice.') }, { label:t('taken_back', 'Taken back'), cls:'num', tooltip:t('taken_back_tip', 'Clawbacks and corrections, limited by the pay schedule\u2019s clawback cap.') }, { label:t('to_pay', 'To pay'), cls:'num' }, { label:'', cls:'act' }], rows, { empty:t('nobody_in_run', 'Nobody is in this pay run yet.'), label:t('people', 'People') })}${hiddenNote(num(batch?.branch_view?.hidden_payee_count || current.occurrence?.branch_view?.hidden_payee_count))}</div>
+          ${reimbursementsHtml(currency)}`;
       }
-      const upcoming = array(state.data?.upcoming);
-      if (!upcoming.length) return `<div class="fmp-state"><span class="state-icon"><i class="fas fa-calendar-xmark"></i></span><h2>${(globalThis.PlatformLanguage?.htmlText("payroll","m_04de86b118c040","No payroll dates in this range") ?? "No payroll dates in this range")}</h2><p>${(globalThis.PlatformLanguage?.htmlText("payroll","m_21151a08806ec5","Choose a wider date range to see future payroll occurrences. You can look ahead as far as your planning horizon requires.") ?? "Choose a wider date range to see future payroll occurrences. You can look ahead as far as your planning horizon requires.")}</p><button class="fmp-btn" data-action="preset" data-days="365"><i class="fas fa-calendar-days"></i>${(globalThis.PlatformLanguage?.htmlText("payroll","m_0ad0e2722333d3"," Show the next year") ?? " Show the next year")}</button></div>`;
-      return `${diagnosticsHtml()}<div class="fmp-list">${upcoming.map(scheduleCard).join('')}</div>`;
-    }
-
-    function appHeader(){
-      return window.AppChrome.header({title:context.params?.standalone ? ({upcoming:'Upcoming payroll',timesheets:'Timesheets',contractors:'Contractors',exports:'Payroll exports',history:'Batch history',settings:'Payroll settings'})[context.params.standalone] : 'Payroll',icon:'fa-money-check-dollar',
-        tabs:context.params?.standalone?'':window.AppChrome.tabs('payroll',state.view,'data-view',context).replaceAll('data-view=', 'data-action="view" data-view='),
-        actions:context.params?.standalone&&!context.params?.widget?'<button type="button" class="fmp-btn" data-app-layout-open="payroll" aria-label="Payroll app layout"><i class="fas fa-gear"></i></button>':''});
-    }
-    function render(){
-      if(!state.view){root.innerHTML=`<div class="fmp-shell">${appHeader()}<p>No accessible apps in this group.</p></div>`;return;}
-      if (state.destroyed) return;
-      nameCache = null;
-      settingsController?.destroy?.();
-      settingsController = null;
-      if (state.view === 'settings') {
-        root.innerHTML = `<div class="fmp-shell">${appHeader()}<main class="fmp-content"><details><summary>App layout</summary>${window.AppChrome.settings('payroll')}</details><div data-payroll-settings-host></div></main></div>`;
-        const settingsHost = root.querySelector('[data-payroll-settings-host]');
-        if (!window.FirstMatePayrollSettings?.mount) {
-          settingsHost.innerHTML = `<div class="fmp-state"><span class="state-icon"><i class="fas fa-triangle-exclamation"></i></span><h2>${(globalThis.PlatformLanguage?.htmlText("payroll","m_46a683ef876bd0","Payroll settings could not load") ?? "Payroll settings could not load")}</h2><p>${(globalThis.PlatformLanguage?.htmlText("payroll","m_c5efd7b69468f5","The payroll configuration bundle is unavailable.") ?? "The payroll configuration bundle is unavailable.")}</p><button class="fmp-btn" data-action="settings-back"><i class="fas fa-arrow-left"></i>${(globalThis.PlatformLanguage?.htmlText("payroll","m_a1209799a6f896"," Back to payroll") ?? " Back to payroll")}</button></div>`;
+      function reimbursementsHtml(currency){
+        const entries = arr(current.batch?.items).flatMap((item) => arr(item.entries).filter((entry) => clean(entry.kind) === 'reimbursement' && num(entry.allocation_cents) > 0).map((entry) => ({ ...entry, payee:item.payee })));
+        if (!current.batch) return '';
+        return `<div class="fmp-modal-section"><h3${tip(t('reimbursements_run_tip', 'Approved expense reimbursements paid with this run. They are shown on their own line in every file.'))}>${esc(t('reimbursements_in_run', 'Reimbursements in this pay run'))}</h3>${table([{ label:t('person', 'Person') }, { label:t('for', 'For') }, { label:t('amount', 'Amount'), cls:'num' }], entries.map((entry) => `<tr>${td(esc(payeeName(entry.payee)), t('person', 'Person'), 'lead')}${td(esc(clean(entry.description) || t('reimbursement', 'Reimbursement')), t('for', 'For'))}${td(esc(money(entry.allocation_cents, currency)), t('amount', 'Amount'), 'num')}</tr>`), { empty:t('no_reimbursements', 'No reimbursements are in this pay run.') })}</div>`;
+      }
+      function stepsHtml(){
+        const { occurrence, batch } = current;
+        const status = runStatus(occurrence, batch);
+        const approval = obj(batch?.approval);
+        const me = meOf();
+        const named = arr(approval.requested_approvers);
+        const decided = new Map(arr(approval.decisions).map((decision) => [clean(decision.user_id), decision]));
+        const waitingFor = named.filter((person) => clean(decided.get(clean(person.user_id))?.decision) !== 'approved').map((person) => clean(person.name) || clean(person.user_id));
+        const iAmNamed = named.some((person) => clean(person.user_id) === me) && !decided.has(me);
+        // The organization's payroll setting: with approval off a pay run goes draft, entered, paid.
+        const approvalOff = obj(state.settings).approval_required === false;
+        const text = {
+          none:t('step_none', 'Not drafted yet. Drafting works out everyone\u2019s earnings again and fixes who is in this pay run and what each is paid.'),
+          draft:approvalOff ? t('step_draft_open', 'Check who is in it and what each is paid, copy it out to your payroll software, then mark it entered and, once people are paid, paid.') : t('step_draft', 'Check who is in it and what each is paid. Approve it yourself, or ask someone to approve it.'),
+          pending:t('step_pending', 'Waiting for {names}.', { names:waitingFor.join(', ') || t('the_approvers', 'the approvers') }),
+          rejected:t('step_rejected', 'Rejected{note}. Reopen it to fix what is wrong; it is worked out again.', { note:arr(approval.decisions).find((decision) => decision.decision === 'rejected')?.note ? `: \u201c${arr(approval.decisions).find((decision) => decision.decision === 'rejected').note}\u201d` : '' }),
+          approved:t('step_approved', 'Approved. Copy it out to your payroll software, then mark it entered and, once people are paid, paid.'),
+          run:t('step_run', 'Entered in your payroll software. Mark it paid once people are paid, or mark each person.'),
+          partial:t('step_partial', 'Some people are marked paid. Mark the rest once they are paid.'),
+          paid:t('step_paid', 'Paid {date}. A change to what anyone earned now comes out as a correction on a later pay run.', { date:dateLabel(batch?.paid_at) }),
+          void:t('step_void', 'This pay run was voided. Its earnings are back in the next pay run.')
+        }[status.key];
+        const buttons = {
+          none:[button('runs.draft', context, { label:t('draft_run', 'Draft pay run'), icon:'fa-file-pen', tone:'primary', attrs:'data-run-act="draft"' })],
+          draft:approvalOff
+            ? [button('runs.done', context, { label:t('mark_entered', 'Mark entered'), icon:'fa-file-import', attrs:'data-run-act="run"', tooltip:t('mark_entered_tip', 'You entered or imported it in your payroll software.') }), button('runs.done', context, { label:t('mark_all_paid', 'Mark all paid'), icon:'fa-circle-check', tone:'primary', attrs:'data-run-act="paid"' }), button('runs.ask', context, { label:t('ask_approval', 'Ask someone to approve'), icon:'fa-user-check', tone:'quiet', attrs:'data-run-act="ask"', tooltip:t('ask_optional_tip', 'Pay runs do not need approval here, but you can still ask someone.') }), button('runs.void', context, { label:t('void', 'Void'), icon:'fa-ban', tone:'quiet', attrs:'data-run-act="void"' })]
+            : [button('runs.approve', context, { label:t('approve', 'Approve'), icon:'fa-check', tone:'primary', attrs:'data-run-act="approve-self"', tooltip:t('approve_self_tip', 'You approve it as the only approver.') }), button('runs.ask', context, { label:t('ask_approval', 'Ask someone to approve'), icon:'fa-user-check', attrs:'data-run-act="ask"' }), button('runs.void', context, { label:t('void', 'Void'), icon:'fa-ban', tone:'quiet', attrs:'data-run-act="void"' })],
+          pending:[iAmNamed ? button('runs.decide', context, { label:t('approve', 'Approve'), icon:'fa-check', tone:'primary', attrs:'data-run-act="decide-approve"' }) : '', iAmNamed ? button('runs.decide', context, { label:t('reject', 'Reject'), icon:'fa-xmark', attrs:'data-run-act="decide-reject"' }) : '', button('runs.reopen', context, { label:t('reopen', 'Reopen'), icon:'fa-rotate-left', tone:'quiet', attrs:'data-run-act="reopen"' })],
+          rejected:[button('runs.reopen', context, { label:t('reopen_fix', 'Reopen to fix'), icon:'fa-rotate-left', tone:'primary', attrs:'data-run-act="reopen"' }), button('runs.void', context, { label:t('void', 'Void'), icon:'fa-ban', tone:'quiet', attrs:'data-run-act="void"' })],
+          approved:[button('runs.done', context, { label:t('mark_entered', 'Mark entered'), icon:'fa-file-import', attrs:'data-run-act="run"', tooltip:t('mark_entered_tip', 'You entered or imported it in your payroll software.') }), button('runs.done', context, { label:t('mark_all_paid', 'Mark all paid'), icon:'fa-circle-check', tone:'primary', attrs:'data-run-act="paid"' })],
+          run:[button('runs.done', context, { label:t('mark_all_paid', 'Mark all paid'), icon:'fa-circle-check', tone:'primary', attrs:'data-run-act="paid"' })],
+          partial:[button('runs.done', context, { label:t('mark_rest_paid', 'Mark the rest paid'), icon:'fa-circle-check', tone:'primary', attrs:'data-run-act="paid"' })],
+          paid:[], void:[]
+        }[status.key].filter(Boolean).join('');
+        return `<div class="fmp-steps" data-run-steps="${esc(status.key)}"><p>${esc(text)}</p>${buttons ? `<div class="fmp-steps-actions">${buttons}</div>` : ''}</div>`;
+      }
+      function drawExport(panel){
+        const batch = current.batch;
+        const catalog = arr(state.data.catalog).length ? arr(state.data.catalog) : null;
+        const files = catalog ? catalog.filter((entry) => entry.group === 'pay_run_file') : PAY_RUN_FILES;
+        panel.innerHTML = `<div class="fmp-modal-section"><h3${tip(t('copy_out_long', 'The platform does not move money. Copy each pay run into your payroll software with these files, then mark it entered and paid here. Employees and contractors are in separate files, earnings are by kind and reimbursements have their own line.'))}>${esc(t('files_for_run', 'Files for this pay run'))}${info(t('copy_out_long', 'The platform does not move money. Copy each pay run into your payroll software with these files, then mark it entered and paid here. Employees and contractors are in separate files, earnings are by kind and reimbursements have their own line.'))}</h3>
+          ${batch && runStatus(current.occurrence, batch).key !== 'void' ? `<div class="fmp-files">${files.map((file) => `<div class="fmp-file" data-file="${esc(file.type)}"><i class="fas ${esc(file.type.startsWith('gusto') ? 'fa-g' : file.type.startsWith('quickbooks') ? 'fa-q' : 'fa-list')}" aria-hidden="true"></i><div><span class="fmp-titled"><strong${tip(`${file.description} ${file.purpose || ''}`)}>${esc(file.label)}</strong>${info(`${file.description} ${file.purpose || ''}`)}</span></div>${arr(file.formats).map((format) => `<button type="button" class="pp-btn" data-export="${esc(file.type)}" data-format="${esc(format)}"><i class="fas fa-download" aria-hidden="true"></i>${esc(format.toUpperCase())}</button>`).join('')}</div>`).join('')}</div>`
+            : `<div class="fmp-empty">${esc(t('draft_first', 'Draft the pay run first: the files are made from what it fixes.'))}</div>`}</div>`;
+      }
+      function drawApproval(panel){
+        const approval = obj(current.batch?.approval);
+        const named = arr(approval.requested_approvers);
+        const decisions = new Map(arr(approval.decisions).map((decision) => [clean(decision.user_id), decision]));
+        panel.innerHTML = `<div class="fmp-modal-section"><h3>${esc(t('approvers', 'Approvers'))}</h3>${table([{ label:t('person', 'Person') }, { label:t('decision', 'Decision') }, { label:t('when', 'When') }, { label:t('note', 'Note') }], named.map((person) => { const decision = decisions.get(clean(person.user_id)); return `<tr>${td(esc(clean(person.name) || person.user_id), t('person', 'Person'), 'lead')}${td(decision ? pill(decision.decision === 'approved' ? t('approved', 'Approved') : t('rejected', 'Rejected'), decision.decision === 'approved' ? 'ok' : 'danger') : pill(t('waiting', 'Waiting'), 'warn'), t('decision', 'Decision'))}${td(esc(dateTimeLabel(decision?.decided_at)), t('when', 'When'))}${td(esc(clean(decision?.note)), t('note', 'Note'))}</tr>`; }), { empty:current.batch ? t('no_approvers', 'Nobody has been asked to approve this pay run yet.') : t('draft_first_approval', 'Draft the pay run first.') })}
+          ${approval.submitted_at ? `<p class="fmp-muted">${esc(t('asked_by', 'Asked by {name} {when}.', { name:clean(obj(approval.submitted_by).name) || t('someone', 'Someone'), when:dateTimeLabel(approval.submitted_at) }))}</p>` : ''}
+          ${approval.finalized_at ? `<p class="fmp-muted">${esc(t('finalized_by', 'Made final by {name} {when}.', { name:clean(obj(approval.finalized_by).name) || t('someone', 'Someone'), when:dateTimeLabel(approval.finalized_at) }))}</p>` : ''}</div>`;
+      }
+      modal.el.addEventListener('click', async (event) => {
+        const why = event.target.closest('[data-why]');
+        if (why) { openWhy({ type:why.dataset.why.split(':')[0], id:why.dataset.why.split(':').slice(1).join(':'), name:why.dataset.whyName }, why); return; }
+        const exportButton = event.target.closest('[data-export]');
+        if (exportButton && current.batch) {
+          await perform(t('file_ready', 'The file is downloading.'), async () => {
+            const artifact = await window.PayrollAPI.artifacts.create(state.orgId, { type:exportButton.dataset.export, format:exportButton.dataset.format, batch_id:current.batch.id, ...branchArgs() });
+            download(artifact.artifact?.download_url || window.PayrollAPI.artifacts.downloadUrl(state.orgId, artifact.artifact?.id));
+          });
           return;
         }
-        settingsController = window.FirstMatePayrollSettings.mount(settingsHost, {
-          orgId:state.orgId,
-          branchId:clean(state.context.branchId || window.__APP?.userBranchId || 'default'),
-          routeTab:'payroll',
-          routeHandlerId:`payroll-settings-view:${context.instanceId || 'main'}`,
-          showToast:toast,
-          onBack:closeSettings
-        });
-        return;
+        const itemPaid = event.target.closest('[data-item-paid]');
+        if (itemPaid) { await markPaid(itemPaid, itemPaid.dataset.itemPaid); return; }
+        const act = event.target.closest('[data-run-act]');
+        if (act) await runAction(act.dataset.runAct, act);
+      });
+      async function markPaid(anchor, itemId){
+        const values = await kit().form(anchor, { title:itemId ? t('mark_person_paid', 'Mark paid') : t('mark_all_paid', 'Mark all paid'), submitLabel:t('mark_paid', 'Mark paid'), fields:[{ id:'reference', label:t('payment_reference', 'Payment reference (optional)'), placeholder:'' }] });
+        if (!values) return;
+        const batchId = current.batch.id;
+        await perform(t('marked_paid', 'Marked paid'), async () => {
+          if (clean(obj(current.batch.approval).status) === 'approved') await window.PayrollAPI.batches.action(state.orgId, batchId, 'finalize');
+          if (itemId) return window.PayrollAPI.batches.updateItem(state.orgId, batchId, itemId, { status:'paid', ...(values.reference ? { payment_reference:values.reference } : {}) });
+          return window.PayrollAPI.batches.action(state.orgId, batchId, 'paid', { payment_reference:values.reference });
+        }, t('marked_paid', 'Marked paid'));
       }
-      // Rebuilding the markup would otherwise jump the page and the open explanation back to the top.
-      const keepScroll = renderedView === state.view;
-      const shellScroll = keepScroll ? number(root.querySelector('.fmp-shell')?.scrollTop) : 0;
-      const explainScroll = keepScroll ? number(root.querySelector('.fmp-explain-body')?.scrollTop) : 0;
-      root.innerHTML = `<div class="fmp-shell">
-        ${appHeader()}
-        <main class="fmp-content">
-          ${state.view==='upcoming'?'<div class="fmp-toolbar"><button class="fmp-btn" data-action="create-off-cycle"><i class="fas fa-calendar-plus"></i> Off-cycle run</button></div>':''}
-          ${String(state.view === 'upcoming' ? payPanelHtml() : '')}
-          ${String(state.view === 'timesheets' ? timesheetRangeHtml() : ['contractors','exports'].includes(state.view) ? '' : rangeHtml())}
-          ${String(state.view === 'timesheets' ? (state.timesheetData ? timesheetMetricsHtml() : '') : ['upcoming','history'].includes(state.view) && state.data ? metricsHtml() : '')}
-          ${String(bodyHtml())}
-        </main>
-        ${explainHtml()}
-      </div>`;
-      renderedView = state.view;
-      if (shellScroll) { const shell = root.querySelector('.fmp-shell'); if (shell) shell.scrollTop = shellScroll; }
-      if (explainScroll) { const body = root.querySelector('.fmp-explain-body'); if (body) body.scrollTop = explainScroll; }
-
+      async function runAction(action, anchor){
+        const api = window.PayrollAPI, batch = current.batch, occurrence = current.occurrence;
+        if (action === 'draft') {
+          const result = await perform(t('drafted', 'Pay run drafted'), () => api.batches.create(state.orgId, { schedule_id:occurrence.schedule.id, pay_date:occurrence.pay_date }), t('drafted', 'Pay run drafted'));
+          const unresolved = num(result?.earnings_refresh?.unresolved_count);
+          if (unresolved) toast(t('some_not_worked_out', 'Some earnings could not be worked out'), t('see_review', '{count} are listed under Review. They are not paid as zero.', { count:unresolved }), false);
+          return;
+        }
+        if (action === 'approve-self') {
+          const me = meOf();
+          await perform(t('approved_note', 'Approved'), async () => {
+            await api.batches.action(state.orgId, batch.id, 'submit_approval', { approvers:[{ user_id:me }] });
+            await api.batches.action(state.orgId, batch.id, 'approve');
+            return api.batches.action(state.orgId, batch.id, 'finalize');
+          }, t('approved_note', 'Approved'));
+          return;
+        }
+        if (action === 'ask') {
+          if (!state.directory) state.directory = await api.published.read(state.orgId, 'directory').catch(() => ({ users:[] }));
+          const people = arr(state.directory.users).filter((user) => clean(user.id));
+          const values = await kit().form(anchor, { title:t('ask_approval', 'Ask someone to approve'), submitLabel:t('ask', 'Ask'), choices:{ id:'approvers', label:t('who_approves', 'Who approves'), items:people.map((user) => ({ id:user.id, label:clean(user.name) || user.id })), value:[], min:1 } });
+          if (!values) return;
+          await perform(t('asked', 'Asked for approval'), () => api.batches.action(state.orgId, batch.id, 'submit_approval', { approvers:values.approvers.map((user_id) => ({ user_id })) }), t('asked', 'Asked for approval'));
+          return;
+        }
+        if (action === 'decide-approve' || action === 'decide-reject') {
+          const reject = action === 'decide-reject';
+          const values = reject ? await kit().form(anchor, { title:t('reject_run', 'Reject this pay run'), submitLabel:t('reject', 'Reject'), fields:[{ id:'note', label:t('what_is_wrong', 'What is wrong'), required:true }] }) : {};
+          if (!values) return;
+          await perform(reject ? t('rejected', 'Rejected') : t('approved_note', 'Approved'), async () => {
+            await api.approvals.decide(state.orgId, batch.id, reject ? 'reject' : 'approve', values.note || '');
+            if (!reject) {
+              const fresh = await api.batches.get(state.orgId, batch.id).catch(() => null);
+              if (clean(fresh?.batch?.approval?.status) === 'approved') await api.batches.action(state.orgId, batch.id, 'finalize');
+            }
+          }, reject ? t('rejected', 'Rejected') : t('approved_note', 'Approved'));
+          return;
+        }
+        if (action === 'reopen') {
+          if (!await kit().confirm(anchor, { title:t('reopen_confirm', 'Reopen this pay run? It is worked out again from current earnings and needs approving again.'), confirmLabel:t('reopen', 'Reopen') })) return;
+          await perform(t('reopened', 'Reopened'), () => api.batches.action(state.orgId, batch.id, 'reopen', { note:t('reopened_note', 'Reopened to fix') }), t('reopened', 'Reopened'));
+          return;
+        }
+        if (action === 'void') {
+          if (!await kit().confirm(anchor, { title:t('void_confirm', 'Void this pay run? Its earnings go back to the next pay run.'), confirmLabel:t('void', 'Void'), tone:'danger' })) return;
+          await perform(t('voided', 'Voided'), () => api.batches.action(state.orgId, batch.id, 'void'), t('voided', 'Voided'));
+          return;
+        }
+        if (action === 'run') {
+          await perform(t('entered', 'Entered'), async () => {
+            if (clean(obj(batch.approval).status) === 'approved') await api.batches.action(state.orgId, batch.id, 'finalize');
+            return api.batches.action(state.orgId, batch.id, 'run');
+          }, t('marked_entered', 'Marked entered'));
+          return;
+        }
+        if (action === 'paid') await markPaid(anchor, '');
+      }
+    }
+    function runLines(source){
+      if (source.batch) return arr(source.batch.items).map((item) => lineOf(item, false));
+      const occurrence = obj(source.occurrence);
+      return [...arr(occurrence.employees), ...arr(occurrence.subcontractors)].map((item) => lineOf(item, true));
     }
 
-    async function load(options = {}){
-      if(!state.view){render();return;}
-      const token = ++state.loadToken;
-      state.loading = true;
-      state.error = null;
-      if (!options.silent) render();
-      try {
-        if (!state.orgId) throw new Error('This payroll app needs an organization context.');
-        const timesheetView = state.view === 'timesheets';
-        const contractorView = state.view === 'contractors';
-        const exportView = state.view === 'exports';
-        // Rules, held corrections and off-cycle back pay ride along with the dashboard; the 30 second poll leaves them alone unless something changed.
-        const payRead = !timesheetView && !contractorView && !exportView && !context.params?.smoke && window.PayrollAPI?.pay && (!options.silent || state.payStale || !state.payLoadedAt) ? fetchPay() : null;
-        const result = timesheetView
-          ? await window.PayrollAPI?.timesheets?.list?.(state.orgId, { from:state.timesheetFrom, through:state.timesheetThrough, limit:500 })
-          : contractorView ? (await window.PlatformAPI.publication.invoke(state.orgId,'payroll.contractors.list',{scope:'organization',organizationId:state.orgId},{})).value
-          : exportView ? await Promise.all([window.PayrollAPI.artifacts.catalog(state.orgId), window.PayrollAPI.artifacts.list(state.orgId, { limit:250 }), state.data ? Promise.resolve(state.data) : window.PayrollAPI.dashboard(state.orgId, { from:state.from, through:state.through, include_projected:state.includeProjected, history_limit:150 })])
-          : (context.params?.smoke
-            ? createSmokeData(state)
-            : await window.PayrollAPI?.dashboard?.(state.orgId, { from:state.from, through:state.through, include_projected:state.includeProjected, history_limit:150 }));
-        if (!result) throw new Error('PayrollAPI is unavailable. Load payroll-api.js before the payroll app bundle.');
-        if (state.destroyed || token !== state.loadToken) return;
-        if (timesheetView) state.timesheetData = result;
-        else if (contractorView) state.contractorData = result;
-        else if (exportView) { state.exportData={ catalog:array(result[0]?.exports || result[0]?.catalog || result[0]), artifacts:array(result[1]?.artifacts || result[1]) }; state.data=result[2]; const batches=array(result[2]?.history); if (!batches.some((batch) => clean(batch.id) === clean(state.selectedExportBatchId))) state.selectedExportBatchId=clean(batches[0]?.id); if (!batches.length) state.exportMode='date_range'; }
-        else state.data = result;
-        state.loadedAt = Date.now();
-        const first = timesheetView || contractorView ? null : array((exportView ? result[2] : result).upcoming)[0];
-        if (first && !state.expanded.size) state.expanded.add(occurrenceKey(first));
-        if (payRead) {
-          const pay = await payRead;
-          if (state.destroyed || token !== state.loadToken) return;
-          applyPay(pay);
-          if (state.explain && !state.explain.loading) void loadExplain(state.explain.payee, { silent:true });
+    // -- Why someone is paid what they are --
+    async function openWhy(payee, opener){
+      const modalKit = window.FirstMatePeople?.entityModal;
+      if (!modalKit || !can('earnings.why')) return;
+      const api = window.PayrollAPI;
+      const data = { loading:true };
+      const panels = {};
+      const modal = modalKit.open({
+        label:t('why_paid', 'Why {name} is paid what they are', { name:payeeName(payee) }), opener, footer:false, tab:'paid_by',
+        summary(host){
+          const report = obj(data.earnings);
+          const totals = obj(report.totals);
+          const currency = clean(report.currency || 'USD');
+          const schedule = arr(data.setup?.schedule_today).find((row) => row.earning_kind === '*');
+          host.innerHTML = kit().summary({
+            kind:clean(payee.type), id:clean(payee.id), name:payeeName(payee), secondary:PAYEE_TYPES[clean(payee.type)] || '',
+            facts:[
+              { icon:'fa-sack-dollar', label:t('owed', 'Owed'), value:data.loading ? '\u2026' : money(totals.owed_cents, currency), tooltip:t('owed_tip', 'Earned and not paid yet, after anything paid outside a pay run.') },
+              { icon:'fa-money-check-dollar', label:t('in_a_run', 'In a pay run'), value:data.loading ? '\u2026' : money(totals.in_payroll_cents, currency) },
+              { icon:'fa-circle-check', label:t('paid', 'Paid'), value:data.loading ? '\u2026' : money(totals.paid_cents, currency) },
+              ...(data.projected ? [{ icon:'fa-chart-line', label:t('projected', 'Projected'), value:money(data.projected.total_cents, currency), tooltip:t('projected_tip', 'What their pay rules say they can expect from work not done yet. Never paid until earned.') }] : []),
+              { icon:'fa-calendar-days', label:t('paid_on', 'Paid on'), value:clean(schedule?.schedule_name) || (data.loading ? '\u2026' : t('no_schedule', 'No schedule')) }
+            ]
+          }, 'panel');
+        },
+        tabs:[
+          { id:'paid_by', label:t('paid_by', 'Paid by'), icon:'fa-scale-balanced', needs:null, mount(panel){ panels.paid_by = panel; draw(); return {}; } },
+          { id:'results', label:t('worked_out', 'Worked out'), icon:'fa-calculator', needs:null, mount(panel){ panels.results = panel; draw(); return {}; } },
+          { id:'ledger', label:t('ledger', 'Ledger'), icon:'fa-receipt', needs:null, mount(panel){ panels.ledger = panel; draw(); return {}; } },
+          ...(can('earnings.projected') ? [{ id:'projected', label:t('projected', 'Projected'), icon:'fa-chart-line', needs:null, mount(panel){ panels.projected = panel; draw(); return {}; } }] : []),
+          { id:'payments', label:t('payments', 'Payments'), icon:'fa-clock-rotate-left', needs:null, mount(panel){ panels.payments = panel; draw(); return {}; } }
+        ]
+      });
+      function ruleName(id){ return clean(arr(data.rules).find((rule) => rule.id === id)?.name) || clean(id).replace(/_/g, ' '); }
+      function originLabel(origin){
+        if (!origin) return t('own_setup', 'Their own setup');
+        const name = clean(origin.name) || clean(origin.id);
+        return ({ organization:t('everyone', 'Everyone'), role:t('role_default', '{name} role', { name }), group_type:t('group_type_default', '{name} groups', { name }), company_type:t('company_type_default', '{name} companies', { name }) })[clean(origin.type)] || name;
+      }
+      function draw(){
+        const currency = clean(data.earnings?.currency || 'USD');
+        const loading = `<div class="fmp-state">${esc(t('loading', 'Loading\u2026'))}</div>`;
+        if (panels.paid_by) {
+          const setup = obj(data.setup);
+          const distribution = obj(setup.distribution_today);
+          const split = clean(payee.type) === 'resource_group' ? (clean(distribution.mode) === 'split'
+            ? (clean(distribution.method) === 'rule' ? t('split_rule', 'What the group earns is divided among its members by a split rule.') : clean(distribution.method) === 'shares' ? t('split_shares', 'What the group earns is divided among its members by fixed shares.') : t('split_equal', 'What the group earns is divided equally among its members.'))
+            : t('as_one', 'The group is paid as one payee.')) : '';
+          panels.paid_by.innerHTML = data.loading ? loading : `
+            <div class="fmp-modal-section"><h3${tip(t('rules_tip', 'The pay rules in effect today and the layer each comes from. Change how someone is paid in People, Compensation.'))}>${esc(t('pay_rules_today', 'Pay rules in effect today'))}${info(t('rules_tip', 'The pay rules in effect today and the layer each comes from. Change how someone is paid in People, Compensation.'))}</h3>
+              ${table([{ label:t('rule', 'Rule') }, { label:t('from', 'From') }, { label:t('settings_used', 'Settings used') }], arr(setup.effective).map((slot) => `<tr>${td(esc(ruleName(slot.rule_id)), t('rule', 'Rule'), 'lead')}${td(esc(originLabel(slot.origin)) + (slot.changed_above ? ` ${pill(t('changed_for_them', 'Changed for them'), 'role')}` : ''), t('from', 'From'))}${td(esc(Object.entries(obj(slot.params)).map(([key, value]) => `${key.replace(/_(cents|bps)$/, '').replace(/_/g, ' ')} ${/_cents$/.test(key) ? money(value, currency) : /_bps$/.test(key) ? `${num(value) / 100}%` : value}`).join(', ') || '\u2014'), t('settings_used', 'Settings used'))}</tr>`), { empty:t('no_rules', 'No pay rule is in effect for them today. Set how they are paid in People, Compensation.') })}
+              ${split ? `<p class="fmp-muted">${esc(split)}</p>` : ''}</div>
+            <div class="fmp-modal-section"><h3>${esc(t('when_paid', 'When they are paid'))}</h3>
+              ${table([{ label:t('earnings', 'Earnings') }, { label:t('schedule', 'Schedule') }, { label:t('chosen_by', 'Chosen by') }], arr(setup.schedule_today).map((row) => `<tr>${td(esc(row.earning_kind === '*' ? t('everything', 'Everything') : kindLabel(row.earning_kind)), t('earnings', 'Earnings'), 'lead')}${td(nameCell(clean(row.schedule_name) || t('missing_schedule', 'A schedule that no longer exists'), [clean(row.timing_basis) ? (clean(row.timing_basis) === 'completed' ? t('when_completed', 'recognized when the job is completed') : t('when_worked', 'recognized when the work is done')) : '', row.clawback_cap_percent === null || row.clawback_cap_percent === undefined ? '' : t('cap', 'clawbacks capped at {percent}% of a check', { percent:num(row.clawback_cap_percent) })].filter(Boolean).join(' \u00b7 ')), t('schedule', 'Schedule'))}${td(esc(originLabel(row.origin)), t('chosen_by', 'Chosen by'))}</tr>`), { empty:t('no_schedule_chosen', 'No pay schedule is chosen for them. Choose the company\u2019s schedule in Settings.') })}</div>`;
         }
-      } catch (error) {
-        if (state.destroyed || token !== state.loadToken) return;
-        state.error = error;
-        state.data=null;state.timesheetData=null;state.contractorData=null;state.exportData=null;
-      } finally {
-        if (!state.destroyed && token === state.loadToken) {
-          state.loading = false;
+        if (panels.results) {
+          const units = arr(data.units);
+          panels.results.innerHTML = data.loading ? loading : `<div class="fmp-modal-section"><h3${tip(t('results_tip', 'What each pay rule last worked out, one row per record or period it pays. Something that could not be worked out is never paid as zero.'))}>${esc(t('what_rules_worked_out', 'What each rule worked out'))}</h3>
+            ${table([{ label:t('rule', 'Rule') }, { label:t('earned_on', 'Earned on') }, { label:t('result', 'Result') }, { label:t('amount', 'Amount'), cls:'num' }], units.slice(0, 200).map((unit) => { const total = arr(unit.lines).reduce((sum, line) => sum + num(line.amount_cents), 0); const failed = unit.status === 'error'; return `<tr>${td(nameCell(ruleName(unit.rule_id), arr(unit.lines).map((line) => clean(line.description)).filter(Boolean).join(', ')), t('rule', 'Rule'), 'lead')}${td(esc(dateLabel(unit.earned_at)), t('earned_on', 'Earned on'))}${td(failed ? `<span class="fmp-reason">${esc(clean(unit.error) || t('could_not', 'Could not be worked out'))}</span>` : unit.status === 'withdrawn' ? pill(t('taken_back', 'Taken back'), 'muted') : pill(t('worked_out', 'Worked out'), 'ok'), t('result', 'Result'))}${td(failed ? '\u2014' : esc(money(total, currency)), t('amount', 'Amount'), 'num')}</tr>`; }), { empty:t('no_results', 'No pay rule has worked out anything for them yet. Refresh earnings once they have a pay setup.') })}</div>`;
+        }
+        if (panels.ledger) {
+          const entries = arr(data.ledger).slice().sort((a, b) => clean(b.created_at).localeCompare(clean(a.created_at)));
+          const stateLabel = (entry) => entry.state === 'void' ? t('void', 'Void') : entry.state === 'projected' ? (entry.metadata?.review_required ? t('held', 'Held for review') : t('projected', 'Projected')) : num(entry.remaining_cents) === 0 ? t('in_a_run', 'In a pay run') : num(entry.applied_cents) ? t('partly_in_run', 'Partly in a pay run') : t('waiting_run', 'Waiting for a pay run');
+          panels.ledger.innerHTML = data.loading ? loading : `<div class="fmp-modal-section"><h3${tip(t('ledger_tip', 'Every earning posted for them. Nothing posted is ever edited: a change is a new entry.'))}>${esc(t('ledger_entries', 'Ledger entries'))}</h3>
+            ${table([{ label:t('earning', 'Earning') }, { label:t('kind', 'Kind') }, { label:t('state', 'State') }, { label:t('amount', 'Amount'), cls:'num' }], entries.slice(0, 200).map((entry) => `<tr>${td(nameCell(clean(entry.description) || kindLabel(entry.kind), [clean(entry.project_title), dateLabel(entry.metadata?.pay_rule?.earned_on || entry.eligible_at), entry.metadata?.split?.of ? t('share_of', 'their share of {amount}, split {count} ways', { amount:money(entry.metadata.split.line_cents, entry.currency), count:num(entry.metadata.split.members) }) : '', entry.metadata?.correction ? t('correction_of', 'correction: {before} before, {now} now', { before:money(entry.metadata.correction.posted_cents, entry.currency), now:money(entry.metadata.correction.target_cents, entry.currency) }) : ''].filter(Boolean).join(' \u00b7 ')), t('earning', 'Earning'), 'lead')}${td(esc(entry.subgroup === 'off_cycle' ? t('paid_outside', 'Paid outside a pay run') : kindLabel(entry.kind)), t('kind', 'Kind'))}${td(esc(stateLabel(entry)), t('state', 'State'))}${td(esc(num(entry.amount_cents) < 0 ? minus(entry.amount_cents, entry.currency) : money(entry.amount_cents, entry.currency)), t('amount', 'Amount'), `num${num(entry.amount_cents) < 0 ? ' neg' : ''}`)}</tr>`), { empty:t('no_entries', 'Nothing has been posted for them.') })}</div>`;
+        }
+        if (panels.projected) {
+          const projected = obj(data.projected);
+          panels.projected.innerHTML = data.loading ? loading : `<div class="fmp-modal-section"><h3${tip(t('projected_tip', 'What their pay rules say they can expect from work not done yet. Never paid until earned.'))}>${esc(t('projected', 'Projected'))}</h3>
+            ${table([{ label:t('work', 'Work') }, { label:t('expected', 'Expected') }, { label:t('amount', 'Amount'), cls:'num' }], [...arr(projected.earnings).map((earning) => `<tr>${td(nameCell(clean(earning.project_title) || clean(earning.record_title) || t('projected', 'Projected'), clean(earning.description)), t('work', 'Work'), 'lead')}${td(esc(earning.expected_on ? dateLabel(earning.expected_on) : t('not_scheduled', 'Not scheduled')), t('expected', 'Expected'))}${td(esc(money(earning.amount_cents, currency)), t('amount', 'Amount'), 'num')}</tr>`), ...arr(projected.unresolved).map((entry) => `<tr>${td(nameCell(clean(entry.project_title) || ruleName(entry.rule_id), clean(entry.reason)), t('work', 'Work'), 'lead')}${td(esc(entry.expected_on ? dateLabel(entry.expected_on) : t('not_scheduled', 'Not scheduled')), t('expected', 'Expected'))}${td('\u2014', t('amount', 'Amount'), 'num')}</tr>`)], { empty:t('nothing_projected', 'Nothing is projected for them.') })}</div>`;
+        }
+        if (panels.payments) {
+          const report = obj(data.earnings);
+          panels.payments.innerHTML = data.loading ? loading : paymentsHtml(report);
+        }
+      }
+      const [setup, units, ledger, earnings, projected, rules] = await Promise.all([
+        api.pay.setup(state.orgId, payee).catch(() => null),
+        api.pay.units(state.orgId, payee).catch(() => []),
+        api.ledger.list(state.orgId, { payee_type:payee.type, payee_id:payee.id, limit:1000 }).then((result) => result.entries).catch(() => []),
+        api.earnings.forPayee(state.orgId, payee.type, payee.id, { payment_limit:50 }).then((result) => (Array.isArray(result.earnings) ? result.earnings[0] : result.earnings)).catch(() => null),
+        can('earnings.projected') ? api.pay.projected(state.orgId, payee).catch(() => null) : null,
+        state.rules ? Promise.resolve(state.rules) : api.pay.rules(state.orgId).catch(() => [])
+      ]);
+      Object.assign(data, { setup, units, ledger, earnings, projected, rules, loading:false });
+      state.rules = rules;
+      modal.refreshSummary();
+      draw();
+    }
+    function paymentsTable(report){
+      const currency = clean(report.currency || 'USD');
+      const statusLabel = { paid:t('paid', 'Paid'), run:t('entered', 'Entered, not paid'), draft:t('in_a_run', 'In a pay run') };
+      return table([{ label:t('pay_date', 'Pay date') }, { label:t('schedule', 'Schedule') }, { label:t('status', 'Status') }, { label:t('amount', 'Amount'), cls:'num' }], arr(report.payments).map((payment) => `<tr>${td(esc(dateLabel(payment.pay_date)), t('pay_date', 'Pay date'), 'lead')}${td(esc(clean(payment.schedule?.name)), t('schedule', 'Schedule'))}${td(pill(statusLabel[payment.status] || payment.status, payment.status === 'paid' ? 'ok' : 'neutral'), t('status', 'Status'))}${td(esc(money(payment.net_cents, payment.currency || currency)), t('amount', 'Amount'), 'num')}</tr>`), { empty:t('no_payments', 'No pay run has paid anything yet.') });
+    }
+    function outsideTable(report){
+      const currency = clean(report.currency || 'USD');
+      return table([{ label:t('paid_on', 'Paid on') }, { label:t('kind', 'Kind') }, { label:t('reference', 'Reference') }, { label:t('amount', 'Amount'), cls:'num' }], arr(report.off_cycle_payments).map((payment) => `<tr>${td(esc(dateLabel(payment.paid_on)), t('paid_on', 'Paid on'), 'lead')}${td(esc(kindLabel(payment.kind)), t('kind', 'Kind'))}${td(esc(clean(payment.reference) || '\u2014'), t('reference', 'Reference'))}${td(esc(money(payment.amount_cents, payment.currency || currency)), t('amount', 'Amount'), 'num')}</tr>`), { empty:t('none_outside', 'Nothing has been paid outside a pay run.') });
+    }
+    function paymentsHtml(report){
+      return `<div class="fmp-modal-section"><h3>${esc(t('pay_runs', 'Pay runs'))}</h3>${paymentsTable(report)}</div>
+        <div class="fmp-modal-section"><h3${tip(t('paid_outside_tip', 'Payments made outside a pay run. The next pay run takes each off, so nothing is paid twice.'))}>${esc(t('paid_outside', 'Paid outside a pay run'))}</h3>${outsideTable(report)}</div>`;
+    }
+
+    // -- Review --
+    function reviewView(){
+      const review = obj(state.data.review);
+      const currency = 'USD';
+      const unresolved = arr(state.data.unresolved);
+      const held = arr(review.held);
+      const offCycle = arr(review.off_cycle);
+      const payments = arr(state.data.offCycle);
+      const finalized = arr(state.data.finalized);
+      const reimbursements = arr(state.data.reimbursements?.entries);
+      state.rules = arr(state.data.rules).length ? state.data.rules : state.rules;
+      const ruleName = (id) => clean(arr(state.rules).find((rule) => rule.id === id)?.name) || clean(id).replace(/_/g, ' ');
+      const whyButton = (payee) => can('earnings.why') ? `<button type="button" class="fmp-link" data-why="${esc(payeeKey(payee))}" data-why-name="${esc(payeeName(payee))}">${esc(payeeName(payee))}</button>` : esc(payeeName(payee));
+      const errorNote = (key) => state.errors[key] ? `<div class="fmp-note fmp-reason">${esc(state.errors[key])}</div>` : '';
+      const waitingWork = finalized.filter((row) => row.pay_state !== 'in_pay_run');
+      return `
+        ${card({ id:'unresolved', title:t('could_not_work_out', 'Could not be worked out'), tooltip:t('unresolved_tip', 'Earnings a pay rule could not work out at the last refresh. They are not paid as zero: whatever was posted before stays until each is fixed and earnings are refreshed.'), count:unresolved.length,
+          actions:button('earnings.refresh', context, { label:t('try_again', 'Refresh earnings'), icon:'fa-rotate', attrs:'data-act="refresh-earnings"' }),
+          body:table([{ label:t('person', 'Person') }, { label:t('rule', 'Rule') }, { label:t('why', 'Why') }], unresolved.map((item) => `<tr>${td(whyButton({ ...item.payee, name:item.payee_name }), t('person', 'Person'), 'lead')}${td(nameCell(ruleName(item.rule_id), item.whole_rule ? t('whole_rule', 'The whole rule') : dateLabel(item.earned_at)), t('rule', 'Rule'))}${td(`<span class="fmp-reason">${esc(item.reason)}</span>`, t('why', 'Why'))}</tr>`), { empty:t('all_worked_out', 'Every earning was worked out.') }) + errorNote('unresolved') })}
+        ${card({ id:'held', title:t('held_corrections', 'Corrections held for review'), tooltip:t('held_tip', 'A rule now works out a different amount for something already in a pay run. Accept to count it in the next pay run, or decline to leave what was paid as it is; a declined correction is not raised again.'), count:held.length,
+          body:table([{ label:t('person', 'Person') }, { label:t('what', 'What') }, { label:t('before_now', 'Before \u2192 now'), cls:'num' }, { label:t('difference', 'Difference'), cls:'num' }, { label:'', cls:'act' }], held.map((entry) => { const correction = obj(entry.metadata?.correction); return `<tr>${td(whyButton(entry.payee), t('person', 'Person'), 'lead')}${td(nameCell(clean(entry.description) || kindLabel(entry.kind), ruleName(entry.metadata?.pay_rule?.rule_id)), t('what', 'What'))}${td(esc(`${money(correction.posted_cents, entry.currency)} \u2192 ${money(correction.target_cents, entry.currency)}`), t('before_now', 'Before \u2192 now'), 'num')}${td(esc(num(entry.amount_cents) < 0 ? minus(entry.amount_cents, entry.currency) : `+${money(entry.amount_cents, entry.currency)}`), t('difference', 'Difference'), `num${num(entry.amount_cents) < 0 ? ' neg' : ''}`)}${td(`${button('review.accept', context, { label:t('accept', 'Accept'), attrs:`data-accept="${esc(entry.id)}"` })}${button('review.decline', context, { label:t('decline', 'Decline'), tone:'quiet', attrs:`data-decline="${esc(entry.id)}"` })}`, '', 'act')}</tr>`; }), { empty:t('none_held', 'No corrections are waiting for review.') }) })}
+        ${card({ id:'back-pay', title:t('back_pay_offcycle', 'Back pay asked to be paid off-cycle'), tooltip:t('back_pay_tip', 'Corrections for periods already paid whose pay schedule asks for them to be paid outside the normal run. If you pay one outside a pay run, record it: the next pay run then takes it off. Otherwise it is paid on the next pay run.'), count:offCycle.length,
+          body:table([{ label:t('person', 'Person') }, { label:t('what', 'What') }, { label:t('amount', 'Amount'), cls:'num' }, { label:'', cls:'act' }], offCycle.map((entry) => `<tr>${td(whyButton(entry.payee), t('person', 'Person'), 'lead')}${td(nameCell(clean(entry.description) || kindLabel(entry.kind), dateLabel(entry.eligible_at)), t('what', 'What'))}${td(esc(money(entry.remaining_cents, entry.currency)), t('amount', 'Amount'), 'num')}${td(button('offcycle.record', context, { label:t('record_paid', 'Record as paid'), attrs:`data-record-for="${esc(payeeKey(entry.payee))}" data-record-kind="${esc(entry.kind)}" data-record-cents="${esc(num(entry.remaining_cents))}"` }), '', 'act')}</tr>`), { empty:t('no_back_pay', 'No back pay is waiting for an off-cycle payment.') }) })}
+        ${card({ id:'offcycle', title:t('paid_outside', 'Paid outside a pay run'), tooltip:t('offcycle_tip', 'Payments made outside the normal pay run, recorded against the person and the kind of earning. The next pay run on that kind\u2019s schedule takes each off what it pays them, in full up to what it pays; the rest waits for the run after. Nothing already posted is changed.'), count:payments.length,
+          actions:button('offcycle.record', context, { label:t('record_payment_short', 'Record a payment'), icon:'fa-plus', attrs:'data-act="record-offcycle"' }),
+          body:table([{ label:t('person', 'Person') }, { label:t('paid_on', 'Paid on') }, { label:t('reference', 'Reference') }, { label:t('amount', 'Amount'), cls:'num' }, { label:t('taken_off', 'Taken off'), cls:'num', tooltip:t('taken_off_tip', 'How much pay runs have taken off so far.') }, { label:t('still_to_take_off', 'Still to take off'), cls:'num' }, { label:'', cls:'act' }], payments.map((row) => `<tr>${td(nameCell(payeeName(row.payee), kindLabel(row.kind)), t('person', 'Person'), 'lead')}${td(esc(dateLabel(row.paid_on)), t('paid_on', 'Paid on'))}${td(esc(clean(row.reference) || '\u2014') + (row.note ? ` <span class="fmp-muted"${tip(row.note)}><i class="fas fa-note-sticky"></i></span>` : ''), t('reference', 'Reference'))}${td(esc(money(row.amount_cents, row.currency)), t('amount', 'Amount'), 'num')}${td(esc(money(row.subtracted_cents, row.currency)), t('taken_off', 'Taken off'), 'num')}${td(esc(money(row.waiting_cents, row.currency)), t('still_to_take_off', 'Still to take off'), 'num')}${td(row.status === 'waiting' ? button('offcycle.remove', context, { label:t('remove', 'Remove'), tone:'quiet', attrs:`data-remove-offcycle="${esc(row.id)}"`, tooltip:t('remove_tip', 'Remove a payment recorded by mistake. Only possible before a pay run takes it off.') }) : pill(row.status === 'subtracted' ? t('taken_off_all', 'Taken off') : t('partly', 'Partly taken off'), row.status === 'subtracted' ? 'ok' : 'warn'), '', 'act')}</tr>`), { empty:t('none_outside', 'Nothing has been paid outside a pay run.') }) + errorNote('offCycle') })}
+        ${card({ id:'finalized', title:t('work_to_pay', 'Work orders finalized to be paid'), tooltip:t('work_to_pay_tip', 'Labor lists confirmed as done and marked to be paid at closeout, with the earnings they produced. Not earned yet means earnings have not been refreshed since, or the assignee is not paid by a rule that reads committed labor.'), count:waitingWork.length,
+          body:table([{ label:t('work_order', 'Work order') }, { label:t('assignee', 'Assignee') }, { label:t('finalized', 'Finalized') }, { label:t('amount', 'Amount'), cls:'num' }, { label:t('earnings', 'Earnings') }], waitingWork.map((row) => `<tr>${td(nameCell(clean(row.list_title) || t('labor', 'Labor'), clean(row.project_title)), t('work_order', 'Work order'), 'lead')}${td(esc(payeeName(row.assignee)), t('assignee', 'Assignee'))}${td(esc(dateLabel(row.finalized_at)), t('finalized', 'Finalized'))}${td(esc(money(row.total_cents)), t('amount', 'Amount'), 'num')}${td(row.pay_state === 'not_earned' ? pill(t('not_earned', 'Not earned yet'), 'warn') : `${pill(t('earned_waiting', 'Earned, waiting for a pay run'), 'ok')} <span class="fmp-muted">${esc(row.earnings.map((entry) => `${payeeName(entry.payee)} ${money(entry.amount_cents)}`).join(', '))}</span>`, t('earnings', 'Earnings'))}</tr>`), { empty:t('no_work_waiting', 'Every finalized work order is in a pay run.') }) + (finalized.length > waitingWork.length ? `<div class="fmp-note">${esc(t('work_in_runs', '{count} more are already in a pay run.', { count:finalized.length - waitingWork.length }))}</div>` : '') + errorNote('finalized') })}
+        ${card({ id:'reimbursements', title:t('reimbursements_waiting', 'Reimbursements waiting to be paid'), tooltip:t('reimbursements_waiting_tip', 'Approved receipt reimbursements set to be paid with payroll and not in a pay run yet. One with no pay schedule is in no pay run until the company\u2019s schedule is chosen.'), count:reimbursements.length,
+          body:table([{ label:t('person', 'Person') }, { label:t('for', 'For') }, { label:t('pay_schedule', 'Pay schedule') }, { label:t('amount', 'Amount'), cls:'num' }], reimbursements.map((entry) => `<tr>${td(esc(payeeName(entry.payee)), t('person', 'Person'), 'lead')}${td(nameCell(clean(entry.description) || t('reimbursement', 'Reimbursement'), clean(entry.project_title)), t('for', 'For'))}${td(entry.schedule_id ? esc(scheduleName(entry.schedule_id)) : pill(t('no_schedule', 'No schedule'), 'warn'), t('pay_schedule', 'Pay schedule'))}${td(esc(money(entry.remaining_cents, entry.currency || currency)), t('amount', 'Amount'), 'num')}</tr>`), { empty:t('no_reimbursements_waiting', 'No approved reimbursement is waiting to be paid.') }) + errorNote('reimbursements') })}`;
+    }
+    function scheduleName(id){ return clean(arr(state.data.dashboard?.schedules).find((schedule) => schedule.id === id)?.name) || t('pay_schedule', 'Pay schedule'); }
+
+    // -- Timesheets --
+    function timesheetsView(){
+      const all = can('timesheets.all');
+      const result = obj(state.data.timesheets);
+      const rows = arr(result.timesheets);
+      const search = state.ts.search.toLowerCase();
+      const statusOf = (shift) => clean(shift.status) === 'active' ? 'active' : clean(shift.approval_status || 'pending');
+      const shown = rows.filter((shift) => (state.ts.status === 'all' || statusOf(shift) === state.ts.status) && (!search || `${clean(shift.user?.name)} ${clean(shift.project?.title)}`.toLowerCase().includes(search)));
+      const counts = rows.reduce((total, shift) => { total[statusOf(shift)] = (total[statusOf(shift)] || 0) + 1; return total; }, {});
+      const segments = [['pending', t('needs_approval', 'Needs approval')], ['approved', t('approved', 'Approved')], ['rejected', t('rejected', 'Rejected')], ['active', t('on_the_clock', 'On the clock')], ['all', t('all', 'All')]];
+      const statusPill = (shift) => ({ active:pill(t('on_the_clock', 'On the clock'), 'role'), pending:pill(t('needs_approval', 'Needs approval'), 'warn'), approved:pill(t('approved', 'Approved'), 'ok'), rejected:pill(t('rejected', 'Rejected'), 'danger') })[statusOf(shift)] || '';
+      const where = (shift) => { const location = obj(shift.clock_in_location); if (location.status !== 'captured') return `<span class="fmp-muted"${tip(t('no_location_tip', 'No location was recorded when they clocked in.'))}><i class="fas fa-location-crosshairs"></i></span>`; const meters = num(location.distance_to_project_meters); return location.distance_to_project_meters === undefined || location.distance_to_project_meters === null ? '' : `<span class="${meters > 300 ? 'fmp-reason' : 'fmp-muted'}"${tip(t('distance_tip', 'How far from the project they clocked in.'))}>${meters >= 1000 ? `${(meters / 1000).toFixed(1)} km` : `${Math.round(meters)} m`}</span>`; };
+      const pendingClosed = shown.filter((shift) => statusOf(shift) === 'pending' && clean(shift.status) === 'closed');
+      const columns = [...(all ? [{ label:t('person', 'Person') }] : []), { label:t('day', 'Day') }, { label:t('in_out', 'In \u2013 out') }, { label:t('break', 'Break'), cls:'num' }, { label:t('worked', 'Worked'), cls:'num' }, { label:t('project', 'Project') }, { label:t('where', 'Where') }, { label:t('status', 'Status') }, ...(all ? [{ label:'', cls:'act' }] : [])];
+      const body = shown.map((shift) => `<tr data-shift="${esc(shift.id)}">
+        ${all ? td(nameCell(clean(shift.user?.name) || clean(shift.user_id), clean(shift.manager_note)), t('person', 'Person'), 'lead') : ''}
+        ${td(esc(dateLabel(shift.clocked_in_at, { weekday:true })), t('day', 'Day'), all ? '' : 'lead')}
+        ${td(esc(`${timeLabel(shift.clocked_in_at)} \u2013 ${shift.clocked_out_at ? timeLabel(shift.clocked_out_at) : t('now', 'now')}`) + (shift.corrected ? ` ${pill(t('corrected', 'Corrected'), 'role', t('corrected_tip', 'A manager changed the times.'))}` : ''), t('in_out', 'In \u2013 out'))}
+        ${td(esc(hours(shift.break_seconds)), t('break', 'Break'), 'num')}
+        ${td(clean(shift.status) === 'closed' ? `<b>${esc(hours(shift.worked_seconds))}</b>` : '\u2014', t('worked', 'Worked'), 'num')}
+        ${td(esc(clean(shift.project?.title) || '\u2014'), t('project', 'Project'))}
+        ${td(where(shift), t('where', 'Where'))}
+        ${td(statusPill(shift), t('status', 'Status'))}
+        ${all ? td(clean(shift.status) === 'closed' ? [statusOf(shift) !== 'approved' ? button('timesheets.approve', context, { label:t('approve', 'Approve'), attrs:`data-ts-approve="${esc(shift.id)}"` }) : '', button('timesheets.correct', context, { label:t('fix', 'Fix'), tone:'quiet', attrs:`data-ts-edit="${esc(shift.id)}"`, tooltip:t('fix_tip', 'Correct the clock times or the break.') }), statusOf(shift) !== 'rejected' ? button('timesheets.reject', context, { label:t('reject', 'Reject'), tone:'quiet', attrs:`data-ts-reject="${esc(shift.id)}"` }) : ''].join('') : '', '', 'act') : ''}
+      </tr>`);
+      const workedTotal = shown.reduce((sum, shift) => sum + (clean(shift.status) === 'closed' ? num(shift.worked_seconds) : 0), 0);
+      return `<div class="fmp-bar">
+          <div class="pp-seg" role="group" aria-label="${esc(t('show', 'Show'))}">${segments.map(([id, label]) => `<button type="button" data-ts-status="${esc(id)}" aria-pressed="${state.ts.status === id}">${esc(label)}${id !== 'all' && counts[id] ? ` <span class="pp-seg-count">${counts[id]}</span>` : ''}</button>`).join('')}</div>
+          <label class="fmp-date">${esc(t('from', 'From'))}<input class="pp-input" type="date" data-ts-from value="${esc(state.ts.from)}"></label>
+          <label class="fmp-date">${esc(t('to', 'To'))}<input class="pp-input" type="date" data-ts-through value="${esc(state.ts.through)}"></label>
+          ${all ? `<label class="pp-search"><i class="fas fa-magnifying-glass" aria-hidden="true"></i><input type="search" data-ts-search placeholder="${esc(t('search_people', 'Search people or projects'))}" value="${esc(state.ts.search)}" aria-label="${esc(t('search_people', 'Search people or projects'))}"></label>` : ''}
+          ${all ? branchControl() : ''}
+        </div>
+        ${card({ id:'timesheets', title:all ? t('timesheets', 'Timesheets') : t('your_timesheets', 'Your timesheets'), tooltip:all ? t('timesheets_tip', 'Approving, fixing or rejecting a shift changes the time clock; each person\u2019s pay rules price approved hours at the next earnings refresh. A change to a shift already paid comes out as a correction.') : t('your_timesheets_tip', 'Your clocked shifts and whether each was approved.'), count:`${shown.length} \u00b7 ${hours(workedTotal)}`,
+          actions:all && pendingClosed.length && state.ts.status === 'pending' ? button('timesheets.approve', context, { label:t('approve_all_shown', 'Approve all {count} shown', { count:pendingClosed.length }), icon:'fa-check-double', attrs:'data-ts-approve-all' }) : '',
+          body:table(columns, body, { empty:state.errors.timesheets || t('no_shifts', 'No shifts in these dates.'), label:t('timesheets', 'Timesheets') }) })}`;
+    }
+
+    // -- Earnings (payees) --
+    function payeesView(){
+      const dashboard = obj(state.data.dashboard);
+      const currency = clean(dashboard.schedules?.[0]?.currency || 'USD');
+      const people = new Map();
+      for (const occurrence of arr(dashboard.upcoming)) {
+        for (const item of [...arr(occurrence.employees), ...arr(occurrence.subcontractors)]) {
+          const key = payeeKey(item.payee);
+          const row = people.get(key) || { payee:item.payee, owed:0, projectedLedger:0, next:'' };
+          row.owed += num(item.accrued?.net_cents);
+          row.projectedLedger += num(item.projected?.net_cents);
+          if (!row.next || clean(occurrence.pay_date) < row.next) row.next = clean(occurrence.pay_date);
+          people.set(key, row);
+        }
+      }
+      const projected = state.projected?.value;
+      for (const row of arr(projected?.payees)) {
+        const key = payeeKey(row.payee);
+        const entry = people.get(key) || { payee:{ ...row.payee, name:row.payee_name }, owed:0, projectedLedger:0, next:'' };
+        entry.projected = num(row.total_cents); entry.expected = clean(row.next_expected_on); entry.projectedUnresolved = num(row.unresolved_count);
+        if (!clean(entry.payee.name)) entry.payee = { ...entry.payee, name:row.payee_name };
+        people.set(key, entry);
+      }
+      const search = state.payeeSearch.toLowerCase();
+      const list = [...people.values()].filter((row) => !search || payeeName(row.payee).toLowerCase().includes(search)).sort((a, b) => payeeName(a.payee).localeCompare(payeeName(b.payee)));
+      const projectedCell = (row) => !projected ? '' : row.projectedUnresolved && !row.projected ? `<span class="fmp-reason"${tip(t('projection_unresolved_tip', 'Some projected earnings could not be worked out. Open Why for the reasons.'))}>${esc(t('not_worked_out', 'Not worked out'))}</span>` : esc(money(row.projected || 0, currency));
+      const totalOwed = list.reduce((sum, row) => sum + row.owed, 0), totalProjected = list.reduce((sum, row) => sum + num(row.projected), 0);
+      return `<div class="fmp-bar"><label class="pp-search"><i class="fas fa-magnifying-glass" aria-hidden="true"></i><input type="search" data-payee-search placeholder="${esc(t('search_people_only', 'Search people'))}" value="${esc(state.payeeSearch)}" aria-label="${esc(t('search_people_only', 'Search people'))}"></label>${branchControl()}<span class="fmp-bar-fill"></span>
+          ${can('earnings.projected') && !projected ? `<button type="button" class="pp-btn" data-act="load-projected"${tip(t('projected_all_tip', 'Work out what everyone\u2019s pay rules project from work not done yet. Nothing is posted.'))}><i class="fas fa-chart-line" aria-hidden="true"></i>${esc(state.projected?.loading ? t('working_out', 'Working it out\u2026') : t('show_projected', 'Show projected'))}</button>` : ''}
+        </div>
+        <div class="fmp-stats">${stat({ label:t('owed_upcoming', 'Owed in the next two months'), value:money(totalOwed, currency), sub:t('people_count', '{count} people', { count:list.length }) })}${projected ? stat({ label:t('projected', 'Projected'), value:money(totalProjected, currency), sub:t('from_work_not_done', 'From work not done yet'), tooltip:t('projected_tip_all', 'What everyone\u2019s pay rules project from labor committed or assigned and not done yet. Never paid until earned.') }) : ''}</div>
+        ${card({ id:'payees', title:t('earnings_by_person', 'Earnings by person'), tooltip:t('earnings_by_person_tip', 'What each person is owed on the upcoming pay runs and, when shown, projected to earn. Open someone to see why.'), count:list.length,
+          body:`${table([{ label:t('person', 'Person') }, { label:t('paid_as', 'Paid as') }, { label:t('next_pay_date', 'Next pay date') }, { label:t('owed', 'Owed'), cls:'num', tooltip:t('owed_tip', 'Earned and not paid yet, after anything paid outside a pay run.') }, ...(projected ? [{ label:t('projected', 'Projected'), cls:'num' }] : [])], list.map((row) => `<tr data-open="why" data-why="${esc(payeeKey(row.payee))}" data-why-name="${esc(payeeName(row.payee))}" tabindex="0">${td(nameCell(payeeName(row.payee)), t('person', 'Person'), 'lead')}${td(esc(paidAs(row.payee)), t('paid_as', 'Paid as'))}${td(esc(row.next ? dateLabel(row.next) : '\u2014'), t('next_pay_date', 'Next pay date'))}${td(`<b>${esc(money(row.owed, currency))}</b>`, t('owed', 'Owed'), 'num')}${projected ? td(projectedCell(row), t('projected', 'Projected'), 'num') : ''}</tr>`), { empty:t('nobody_owed', 'Nobody is owed anything on the upcoming pay runs.') })}
+          ${projected?.truncated ? `<div class="fmp-note">${esc(t('projected_truncated', 'Projected for the first {count} people only.', { count:arr(projected.payees).length }))}</div>` : ''}${projected?.hidden_payee_count ? hiddenNote(projected.hidden_payee_count) : ''}` })}`;
+    }
+
+    // -- History --
+    function historyView(){
+      const batches = arr(state.data.batches);
+      const rows = batches.map((batch) => {
+        const status = runStatus(null, batch);
+        return `<tr data-open="history" data-batch="${esc(batch.id)}" tabindex="0">${td(nameCell(dateLabel(batch.pay_date, { weekday:true, year:true }), clean(batch.run_type) === 'off_cycle' ? t('off_cycle_run', 'Off-cycle pay run') : scheduleNameOf(batch)), t('pay_date', 'Pay date'), 'lead')}${td(esc(`${dateLabel(batch.period_start)} \u2013 ${dateLabel(batch.period_end)}`), t('period', 'Period'), 'hide-sm')}${td(esc(arr(batch.items).length), t('people', 'People'), 'num')}${td(`<b>${esc(money(batch.total_cents, batch.currency))}</b>`, t('total', 'Total'), 'num')}${td(pill(status.label, status.tone), t('status', 'Status'))}${td(esc(batch.paid_at ? dateLabel(batch.paid_at) : '\u2014'), t('paid_on', 'Paid on'))}</tr>`;
+      });
+      const outside = arr(state.data.offCycle);
+      return `<div class="fmp-bar">${branchControl()}</div>
+        ${card({ id:'history', title:t('pay_runs', 'Pay runs'), tooltip:t('history_tip', 'Every pay run, newest first. Open one to see who was paid what, download its files again or see who approved it.'), count:batches.length, body:table([{ label:t('pay_date', 'Pay date') }, { label:t('period', 'Period'), cls:'hide-sm' }, { label:t('people', 'People'), cls:'num' }, { label:t('total', 'Total'), cls:'num' }, { label:t('status', 'Status') }, { label:t('paid_on', 'Paid on') }], rows, { empty:t('no_history', 'No pay run has been drafted yet.') }) })}
+        ${card({ id:'outside', title:t('paid_outside', 'Paid outside a pay run'), tooltip:t('paid_outside_tip', 'Payments made outside a pay run. The next pay run takes each off, so nothing is paid twice.'), count:outside.length, body:table([{ label:t('person', 'Person') }, { label:t('paid_on', 'Paid on') }, { label:t('reference', 'Reference') }, { label:t('amount', 'Amount'), cls:'num' }], outside.map((row) => `<tr>${td(nameCell(payeeName(row.payee), kindLabel(row.kind)), t('person', 'Person'), 'lead')}${td(esc(dateLabel(row.paid_on)), t('paid_on', 'Paid on'))}${td(esc(clean(row.reference) || '\u2014'), t('reference', 'Reference'))}${td(esc(money(row.amount_cents, row.currency)), t('amount', 'Amount'), 'num')}</tr>`), { empty:t('none_outside', 'Nothing has been paid outside a pay run.') }) })}`;
+    }
+    function scheduleNameOf(batch){ return clean([...arr(state.data.schedules), ...arr(state.data.dashboard?.schedules)].find((schedule) => schedule.id === batch.schedule_id)?.name) || clean(batch.schedule_name) || t('pay_run', 'Pay run'); }
+
+    // -- Reports --
+    function reportsView(){
+      const catalog = arr(state.data.catalog).filter((entry) => entry.group !== 'pay_run_file' && entry.scope !== 'payroll_run');
+      const artifacts = arr(state.data.artifacts);
+      const rows = catalog.map((report) => `<tr>${td(`<span class="fmp-titled"><strong${tip(`${report.description} ${report.purpose}`)}>${esc(report.label)}</strong>${info(`${report.description} ${report.purpose}`)}</span>`, t('report', 'Report'), 'lead')}${td(arr(report.formats).map((format) => button('reports.generate', context, { label:format.toUpperCase(), icon:'fa-download', attrs:`data-report="${esc(report.type)}" data-format="${esc(format)}"` })).join(' '), '', 'act')}</tr>`);
+      const saved = artifacts.map((artifact) => { const metadata = obj(artifact.metadata); return `<tr>${td(nameCell(clean(metadata.report_label) || clean(artifact.report_type), clean(metadata.coverage_label)), t('file', 'File'), 'lead')}${td(esc(clean(metadata.format || '').toUpperCase()), t('format', 'Format'))}${td(esc(dateTimeLabel(artifact.created_at)), t('prepared', 'Prepared'))}${td(`<a class="pp-btn" href="${esc(window.PayrollAPI.artifacts.downloadUrl(state.orgId, artifact.id))}" download><i class="fas fa-download" aria-hidden="true"></i>${esc(t('download', 'Download'))}</a>`, '', 'act')}</tr>`; });
+      return `<div class="fmp-bar"><label class="fmp-date">${esc(t('from', 'From'))}<input class="pp-input" type="date" data-report-from value="${esc(state.reports.from)}"></label><label class="fmp-date">${esc(t('to', 'To'))}<input class="pp-input" type="date" data-report-through value="${esc(state.reports.through)}"></label></div>
+        ${card({ id:'reports', title:t('reports', 'Reports'), tooltip:t('reports_tip', 'Reports for the dates above. Files for one pay run (Gusto, QuickBooks, the pay run summary) are in that pay run, under Copy out.'), count:catalog.length, body:table([{ label:t('report', 'Report') }, { label:'', cls:'act' }], rows, { empty:state.errors.catalog || t('no_reports', 'No reports are available.') }) })}
+        ${card({ id:'saved', title:t('saved_files', 'Prepared files'), tooltip:t('saved_files_tip', 'Every file prepared before, newest first. The same numbers prepared again reuse the file.'), count:artifacts.length, body:table([{ label:t('file', 'File') }, { label:t('format', 'Format') }, { label:t('prepared', 'Prepared') }, { label:'', cls:'act' }], saved, { empty:t('no_files', 'No file has been prepared yet.') }) })}`;
+    }
+
+    // -- Approvals --
+    function approvalsView(){
+      const approvals = arr(state.data.approvals?.approvals);
+      if (state.errors.approvals) return `<div class="fmp-state"><strong>${esc(t('unavailable', 'This could not be loaded.'))}</strong>${esc(state.errors.approvals)}</div>`;
+      if (!approvals.length) return card({ id:'approvals', title:t('waiting_for_you', 'Waiting for your approval'), tooltip:t('approvals_tip', 'Pay runs someone asked you to approve.'), count:0, body:`<div class="fmp-empty">${esc(t('nothing_to_approve', 'Nothing is waiting for your approval.'))}</div>` });
+      return approvals.map((run) => {
+        const decided = clean(run.my_decision);
+        const lines = arr(run.items).map((item) => lineOf(item, false));
+        const rows = lines.sort((a, b) => payeeName(a.payee).localeCompare(payeeName(b.payee))).map((line) => `<tr>${td(nameCell(payeeName(line.payee), paidAs(line.payee)), t('person', 'Person'), 'lead')}${td(esc(money(line.earned, run.currency)), t('earned', 'Earned'), 'num')}${td(esc(money(line.reimbursement, run.currency)), t('reimbursements', 'Reimbursements'), 'num')}${td(line.offCycle + line.clawback ? esc(minus(line.offCycle + line.clawback, run.currency)) : '\u2014', t('taken_off', 'Taken off'), `num${line.offCycle + line.clawback ? ' neg' : ''}`)}${td(`<b>${esc(money(line.net, run.currency))}</b>`, t('to_pay', 'To pay'), 'num')}</tr>`);
+        const actions = decided ? pill(decided === 'approved' ? t('you_approved', 'You approved') : t('you_rejected', 'You rejected'), decided === 'approved' ? 'ok' : 'danger') : `${button('runs.decide', context, { label:t('reject', 'Reject'), attrs:`data-approval-reject="${esc(run.id)}"` })}${button('runs.decide', context, { label:t('approve', 'Approve'), icon:'fa-check', tone:'primary', attrs:`data-approval-approve="${esc(run.id)}"` })}`;
+        return card({ id:`approval-${run.id}`, title:`${dateLabel(run.pay_date, { weekday:true })} \u00b7 ${clean(run.schedule_name) || t('pay_run', 'Pay run')}`, tooltip:t('approval_card_tip', 'Asked by {name}. {period}', { name:clean(obj(run.approval?.submitted_by).name) || t('someone', 'Someone'), period:`${dateLabel(run.period_start)} \u2013 ${dateLabel(run.period_end)}` }), count:money(run.total_cents, run.currency), actions,
+          body:table([{ label:t('person', 'Person') }, { label:t('earned', 'Earned'), cls:'num' }, { label:t('reimbursements', 'Reimbursements'), cls:'num' }, { label:t('taken_off', 'Taken off'), cls:'num' }, { label:t('to_pay', 'To pay'), cls:'num' }], rows) });
+      }).join('');
+    }
+
+    // -- Settings: the one Payroll settings component, mounted here --
+    function mountSettings(host){
+      if (!window.FirstMatePayrollSettings?.mount) { host.innerHTML = `<div class="fmp-state"><strong>${esc(t('settings_unavailable', 'Payroll settings could not be loaded.'))}</strong></div>`; return; }
+      settingsHandle = window.FirstMatePayrollSettings.mount(host, { orgId:state.orgId, branchId:clean(window.__APP?.userBranchId || 'default'), routeTab:'payroll', embedded:true, showToast:(title, message, ok) => toast(title, message, ok !== false) });
+    }
+
+    // -- Drawing --
+    function render(){
+      if (state.destroyed) return;
+      const view = state.view;
+      if (!viewNeeds[view] || !allows(viewNeeds[view], context)) {
+        root.innerHTML = `<div class="pp fmp"><div class="fmp-state"><strong>${esc(t('not_available', 'Nothing in Payroll is available to you here.'))}</strong></div></div>`;
+        return;
+      }
+      if (view === 'mine') {
+        if (!root.querySelector('[data-payroll-mine-host]')) {
+          settingsHandle?.destroy?.();
+          root.innerHTML = '<div class="pp fmp" data-payroll-view="mine"><div data-payroll-mine-host></div></div>';
+          const host = root.querySelector('[data-payroll-mine-host]');
+          settingsHandle = window.FirstMateMyPay?.mount ? window.FirstMateMyPay.mount(host, { orgId:state.orgId, projected:can('mine.projected') }) : null;
+          if (!settingsHandle) host.innerHTML = `<div class="fmp-state"><strong>${esc(t('not_loaded', 'Payroll could not be loaded.'))}</strong></div>`;
+        }
+        return;
+      }
+      if (view === 'settings') {
+        if (!root.querySelector('[data-payroll-settings-host]')) {
+          settingsHandle?.destroy?.();
+          root.innerHTML = '<div class="pp fmp" data-payroll-view="settings"><div class="fmp-wrap fmp-settings" data-payroll-settings-host></div></div>';
+          mountSettings(root.querySelector('[data-payroll-settings-host]'));
+        }
+        return;
+      }
+      if (!kit() || state.unavailable) { root.innerHTML = `<div class="fmp-state"><strong>${esc(t('not_loaded', 'Payroll could not be loaded.'))}</strong></div>`; return; }
+      const loaded = Object.keys(state.data).length > 0;
+      const draw = { upcoming:upcomingView, review:reviewView, timesheets:timesheetsView, payees:payeesView, history:historyView, exports:reportsView, approvals:approvalsView }[view];
+      const focus = document.activeElement && root.contains(document.activeElement) ? (document.activeElement.matches('input[type="search"]') ? document.activeElement.dataset : null) : null;
+      root.innerHTML = `<div class="pp fmp" data-payroll-view="${esc(view)}"><div class="fmp-wrap">${state.loading && !loaded ? `<div class="fmp-state" role="status">${esc(t('loading', 'Loading\u2026'))}</div>` : draw()}</div></div>`;
+      if (focus) { const input = root.querySelector(Object.keys(focus).map((key) => `[data-${key.replace(/[A-Z]/g, (c) => `-${c.toLowerCase()}`)}]`).join('')); if (input) { input.focus(); input.setSelectionRange?.(input.value.length, input.value.length); } }
+    }
+
+    // -- Events --
+    async function recordOffCycle(anchor, preset = {}){
+      if (!state.directory) state.directory = await window.PayrollAPI.published.read(state.orgId, 'directory').catch(() => ({ users:[], connections:[], resource_groups:[] }));
+      const directory = obj(state.directory);
+      const people = [
+        ...arr(directory.users).map((user) => ({ value:`organization_user:${user.id}`, label:clean(user.name) || user.id })),
+        ...arr(directory.resource_groups).map((group) => ({ value:`resource_group:${group.id}`, label:clean(group.name) || group.id })),
+        ...arr(directory.connections).map((company) => ({ value:`organization_connection:${company.id}`, label:clean(company.name) || company.id }))
+      ].sort((a, b) => a.label.localeCompare(b.label));
+      const kinds = (arr(obj(state.vocabulary).earning_kinds).length ? arr(state.vocabulary.earning_kinds) : ['hourly', 'salary', 'piece_rate', 'commission', 'reimbursement', 'adjustment']).map((kind) => ({ value:kind, label:kindLabel(kind) }));
+      const values = await kit().form(anchor, {
+        title:t('record_payment', 'Record a payment made outside a pay run'), submitLabel:t('record', 'Record'),
+        fields:[
+          { id:'payee', label:t('who_was_paid', 'Who was paid'), type:'select', options:people, value:preset.payee || '', placeholder:t('choose', 'Choose') },
+          { id:'kind', label:t('paid_for', 'Paid for'), type:'select', options:kinds, value:preset.kind || 'hourly' },
+          { id:'amount', label:t('amount', 'Amount'), type:'number', value:preset.cents ? (num(preset.cents) / 100).toFixed(2) : '', required:true },
+          { id:'paid_on', label:t('paid_on', 'Paid on'), type:'date', value:today, required:true },
+          { id:'reference', label:t('reference_optional', 'Reference (optional)'), value:'' },
+          { id:'note', label:t('note_optional', 'Note (optional)'), value:'' }
+        ],
+        submit:async (form) => {
+          const [type, ...rest] = clean(form.payee).split(':');
+          const cents = Math.round(Number(String(form.amount).replace(/[^0-9.]/g, '')) * 100);
+          if (!type || !rest.length) throw new Error(t('choose_person', 'Choose who was paid.'));
+          if (!Number.isFinite(cents) || cents <= 0) throw new Error(t('amount_positive', 'Enter the amount that was paid.'));
+          return window.PayrollAPI.offCycle.record(state.orgId, { payee:{ type, id:rest.join(':') }, kind:form.kind, amount_cents:cents, paid_on:form.paid_on, ...(form.reference ? { reference:form.reference } : {}), ...(form.note ? { note:form.note } : {}) });
+        }
+      });
+      if (values) { toast(t('recorded', 'Payment recorded'), t('recorded_note', 'The next pay run takes it off what they are paid.')); await load({ silent:true }); }
+    }
+    async function onClick(event){
+      const go = event.target.closest('[data-go]');
+      if (go) { navigate(go.dataset.go); return; }
+      const act = event.target.closest('[data-act]');
+      if (act) {
+        const kind = act.dataset.act;
+        if (kind === 'refresh-earnings') {
+          const result = await perform(t('refreshed', 'Earnings refreshed'), () => window.PayrollAPI.pay.refreshEarnings(state.orgId));
+          if (result) toast(t('refreshed', 'Earnings refreshed'), t('refresh_result', '{posted} changes posted, {held} held for review, {unresolved} could not be worked out.', { posted:num(result.posted_count), held:num(result.held_count), unresolved:num(result.unresolved_count) }), !num(result.unresolved_count));
+        } else if (kind === 'record-offcycle') await recordOffCycle(act);
+        else if (kind === 'load-projected') {
+          state.projected = { loading:true }; render();
+          try { state.projected = { value:await window.PayrollAPI.pay.projected(state.orgId) }; }
+          catch (error) { state.projected = null; toast(t('projected_failed', 'Projected earnings could not be worked out'), clean(error?.message), false); }
           render();
         }
+        return;
       }
-    }
-
-    async function perform(key, operation, successTitle, successDetail){
-      if (state.busyKey) return;
-      state.busyKey = key;
-      state.payStale = true;
-      render();
-      try {
-        await operation();
-        toast(successTitle, successDetail, true);
-        await load({ silent:true });
-      } catch (error) {
-        toast((globalThis.PlatformLanguage?.text("payroll","m_e9ff474f64ada3","Payroll action failed") ?? "Payroll action failed"), error?.message || String(error), false);
-      } finally {
-        state.busyKey = '';
-        render();
+      const recordFor = event.target.closest('[data-record-for]');
+      if (recordFor) { await recordOffCycle(recordFor, { payee:recordFor.dataset.recordFor, kind:recordFor.dataset.recordKind, cents:recordFor.dataset.recordCents }); return; }
+      const removeOff = event.target.closest('[data-remove-offcycle]');
+      if (removeOff) {
+        if (await kit().confirm(removeOff, { title:t('remove_confirm', 'Remove this payment? It was recorded by mistake and no pay run has taken it off.'), confirmLabel:t('remove', 'Remove'), tone:'danger' })) await perform(t('removed', 'Removed'), () => window.PayrollAPI.offCycle.remove(state.orgId, removeOff.dataset.removeOffcycle), t('removed', 'Removed'));
+        return;
       }
-    }
-
-    async function generateAndDownloadExport(payload){
-      if (state.busyKey) return;
-      state.busyKey=`export:${clean(payload.type)}:${clean(payload.format)}`;
-      render();
-      try {
-        const result=await window.PayrollAPI.artifacts.create(state.orgId,payload);
-        const artifact=result?.artifact;
-        if (!artifact?.id) throw new Error('The report was prepared but no downloadable file was returned.');
-        const link=document.createElement('a');
-        link.href=window.PayrollAPI.artifacts.downloadUrl(state.orgId,artifact.id);
-        link.download=clean(artifact.file_name);
-        link.style.display='none';
-        document.body.appendChild(link); link.click(); link.remove();
-        toast(artifact.reused ? 'Existing report downloaded' : 'Report prepared and downloaded', artifact.reused ? 'The numbers and coverage matched a report already on file, so no duplicate was created.' : clean(object(artifact.metadata).coverage_label), true);
-        await load({ silent:true });
-      } catch (error) {
-        toast((globalThis.PlatformLanguage?.text("payroll","m_aa85d9c3b3ddb4","Report could not be prepared") ?? "Report could not be prepared"), error?.message || String(error), false);
-      } finally {
-        state.busyKey=''; render();
+      const accept = event.target.closest('[data-accept]');
+      if (accept) { await perform(t('accepted', 'Accepted'), () => window.PayrollAPI.ledger.accrueProjection(state.orgId, accept.dataset.accept), t('accepted_note', 'It is counted in their next pay run.')); return; }
+      const decline = event.target.closest('[data-decline]');
+      if (decline) {
+        const values = await kit().form(decline, { title:t('decline_correction', 'Decline this correction'), submitLabel:t('decline', 'Decline'), fields:[{ id:'note', label:t('note_optional', 'Note (optional)') }] });
+        if (values) await perform(t('declined', 'Declined'), () => window.PayrollAPI.pay.declineCorrection(state.orgId, decline.dataset.decline, values.note), t('declined_note', 'What was already paid stays as it is.'));
+        return;
       }
-    }
-
-    function openSettings(){
-      if(context.params?.standalone){state.view='settings';render();return;}
-      if (window.Portal?.navigation?.navigate) {
-        window.Portal.navigation.navigate({ tab:'payroll', payrollView:'settings', settingsView:null, settingsEntity:null }, {
-          source:'payroll-settings', ownedKeys:['payrollView']
+      const why = event.target.closest('[data-why]');
+      if (why && (event.target.closest('button') || why.dataset.open === 'why')) { const [type, ...rest] = why.dataset.why.split(':'); openWhy({ type, id:rest.join(':'), name:why.dataset.whyName }, why); return; }
+      const run = event.target.closest('[data-run]');
+      if (run) { const occurrence = findOccurrence(run.dataset.run); if (occurrence) openRun({ key:run.dataset.run, occurrence, batch:occurrence.batch }); return; }
+      const history = event.target.closest('[data-batch]');
+      if (history) { const batch = arr(state.data.batches).find((item) => item.id === history.dataset.batch); if (batch) openRun({ batch, fromHistory:true, occurrence:null }); return; }
+      const status = event.target.closest('[data-ts-status]');
+      if (status) { state.ts.status = status.dataset.tsStatus; render(); return; }
+      const tsApprove = event.target.closest('[data-ts-approve]');
+      if (tsApprove) { const shift = shiftOf(tsApprove.dataset.tsApprove); if (shift) await perform(t('approved_shift', 'Shift approved'), () => window.PayrollAPI.timesheets.approve(state.orgId, shift.id, { expected_revision:num(shift.revision) }), t('approved_shift', 'Shift approved')); return; }
+      if (event.target.closest('[data-ts-approve-all]')) {
+        const shifts = arr(state.data.timesheets?.timesheets).filter((shift) => clean(shift.status) === 'closed' && clean(shift.approval_status || 'pending') === 'pending' && (!state.ts.search || `${clean(shift.user?.name)} ${clean(shift.project?.title)}`.toLowerCase().includes(state.ts.search.toLowerCase())));
+        await perform(t('approved_shifts', 'Shifts approved'), async () => { for (const shift of shifts) await window.PayrollAPI.timesheets.approve(state.orgId, shift.id, { expected_revision:num(shift.revision) }); }, t('approved_count', '{count} shifts approved', { count:shifts.length }));
+        return;
+      }
+      const tsReject = event.target.closest('[data-ts-reject]');
+      if (tsReject) {
+        const shift = shiftOf(tsReject.dataset.tsReject);
+        const values = shift && await kit().form(tsReject, { title:t('reject_shift', 'Reject this shift'), submitLabel:t('reject', 'Reject'), fields:[{ id:'note', label:t('why_rejected', 'Why'), required:true }] });
+        if (values) await perform(t('rejected_shift', 'Shift rejected'), () => window.PayrollAPI.timesheets.reject(state.orgId, shift.id, { expected_revision:num(shift.revision), manager_note:values.note }), t('rejected_shift', 'Shift rejected'));
+        return;
+      }
+      const tsEdit = event.target.closest('[data-ts-edit]');
+      if (tsEdit) {
+        const shift = shiftOf(tsEdit.dataset.tsEdit);
+        if (!shift) return;
+        const values = await kit().form(tsEdit, { title:t('fix_shift', 'Fix this shift'), submitLabel:t('save', 'Save'), fields:[
+          { id:'in', label:t('clocked_in', 'Clocked in'), type:'datetime-local', value:localInput(shift.clocked_in_at), required:true },
+          { id:'out', label:t('clocked_out', 'Clocked out'), type:'datetime-local', value:localInput(shift.clocked_out_at), required:true },
+          { id:'break', label:t('break_minutes', 'Break (minutes)'), type:'number', value:String(Math.round(num(shift.break_seconds) / 60)) },
+          { id:'note', label:t('note_optional', 'Note (optional)'), value:clean(shift.manager_note) }
+        ], submit:(form) => window.PayrollAPI.timesheets.update(state.orgId, shift.id, { expected_revision:num(shift.revision), clocked_in_at:new Date(form.in).toISOString(), clocked_out_at:new Date(form.out).toISOString(), break_seconds:Math.max(0, Math.round(num(form.break) * 60)), ...(form.note ? { manager_note:form.note } : {}) }) });
+        if (values) { toast(t('fixed', 'Shift fixed'), t('fixed_note', 'Pay rules price the new hours at the next earnings refresh.')); await load({ silent:true }); }
+        return;
+      }
+      const report = event.target.closest('[data-report]');
+      if (report) {
+        await perform(t('file_ready', 'The file is downloading.'), async () => {
+          const result = await window.PayrollAPI.artifacts.create(state.orgId, { type:report.dataset.report, format:report.dataset.format, from:state.reports.from, through:state.reports.through });
+          download(result.artifact?.download_url || window.PayrollAPI.artifacts.downloadUrl(state.orgId, result.artifact?.id));
         });
-      } else {
-        state.view = 'settings';
-        render();
+        return;
+      }
+      const approvalApprove = event.target.closest('[data-approval-approve]');
+      if (approvalApprove) { await perform(t('approved_note', 'Approved'), () => window.PayrollAPI.approvals.decide(state.orgId, approvalApprove.dataset.approvalApprove, 'approve'), t('approved_note', 'Approved')); return; }
+      const approvalReject = event.target.closest('[data-approval-reject]');
+      if (approvalReject) {
+        const values = await kit().form(approvalReject, { title:t('reject_run', 'Reject this pay run'), submitLabel:t('reject', 'Reject'), fields:[{ id:'note', label:t('what_is_wrong', 'What is wrong'), required:true }] });
+        if (values) await perform(t('rejected', 'Rejected'), () => window.PayrollAPI.approvals.decide(state.orgId, approvalReject.dataset.approvalReject, 'reject', values.note), t('rejected', 'Rejected'));
       }
     }
-
-    function closeSettings(){
-      if(context.params?.standalone){state.view=context.params.standalone;render();if(!state.data)load();return;}
-      state.view = 'upcoming';
-      window.Portal?.navigation?.replace?.({ tab:'payroll', payrollView:'upcoming', settingsView:null, settingsEntity:null }, {
-        source:'payroll-settings-back', ownedKeys:['payrollView']
-      });
-      render();
-      if (!state.data) load();
-      void window.Portal?.navigation?.applyCurrent?.({ source:'payroll-settings-back', force:true });
-    }
-
-    async function onClick(event){
-      const button = event.target.closest('[data-action]');
-      if (!button || !root.contains(button)) return;
-      const action = clean(button.dataset.action);
-      if (action === 'refresh') { await load(); return; }
-      if (action === 'settings') { openSettings(); return; }
-      if (action === 'settings-back') { closeSettings(); return; }
-      if (action === 'view') {
-        const requested = clean(button.dataset.view);
-        if(requested==='settings'){openSettings();return;}
-        state.view = ['history','timesheets','contractors','exports'].includes(requested) ? requested : 'upcoming';
-        if (!window.Portal?.navigation?.applying) window.Portal?.navigation?.push?.({ payrollView:state.view }, { source:'payroll-view', ownedKeys:['payrollView'] });
-        render();
-        if ((state.view === 'timesheets' && !state.timesheetData) || (state.view === 'contractors' && !state.contractorData) || (state.view === 'exports' && !state.exportData) || (!['timesheets','contractors','exports'].includes(state.view) && !state.data)) await load();
-        return;
-      }
-      if (action === 'export-mode') {
-        state.exportMode=clean(button.dataset.mode) === 'date_range' ? 'date_range' : 'payroll_run';
-        render(); return;
-      }
-      if (action === 'save-worker-payee') {
-        const userId=clean(button.dataset.userId); const classification=clean(root.querySelector(`[data-contractor-classification="${CSS.escape(userId)}"]`)?.value); const basis=clean(root.querySelector(`[data-contractor-basis="${CSS.escape(userId)}"]`)?.value); const netDays=number(root.querySelector(`[data-contractor-days="${CSS.escape(userId)}"]`)?.value);
-        await perform(`worker:${userId}`, () => window.PlatformAPI.publication.invoke(state.orgId,'payroll.contractor.worker.update',{scope:'organization',organizationId:state.orgId,id:userId},{worker_classification:classification,payment_terms:{basis,net_days:basis==='net_days'?netDays:0}},{idempotencyKey:'payroll-worker-'+window.crypto.randomUUID()}), 'Worker payment record saved', classification === 'employee' ? 'This person will be paid as an employee.' : 'This person will be paid as an independent contractor.'); return;
-      }
-      if (action === 'save-company-payee') {
-        const connectionId=clean(button.dataset.connectionId); const connection=array(state.contractorData?.connections).find((item) => clean(item.id) === connectionId); const basis=clean(root.querySelector(`[data-connection-basis="${CSS.escape(connectionId)}"]`)?.value); const netDays=number(root.querySelector(`[data-connection-days="${CSS.escape(connectionId)}"]`)?.value);
-        await perform(`company:${connectionId}`, () => window.PlatformAPI.publication.invoke(state.orgId,'payroll.contractor.company.update',{scope:'organization',organizationId:state.orgId,id:connectionId},{expected_revision:number(connection?.revision),payment_terms:{basis,net_days:basis==='net_days'?netDays:0}},{idempotencyKey:'payroll-company-'+window.crypto.randomUUID()}), 'Subcontractor payment terms saved', basis === 'net_days' ? `Due net ${netDays}.` : 'Uses its assigned payment cycle.'); return;
-      }
-      if (action === 'create-export' || action === 'create-all-exports') {
-        const batchId=clean(root.querySelector('#fmpExportBatch')?.value || state.selectedExportBatchId);
-        const from=clean(root.querySelector('#fmpExportFrom')?.value || state.exportFrom); const through=clean(root.querySelector('#fmpExportThrough')?.value || state.exportThrough);
-        if (state.exportMode === 'payroll_run' && !batchId) { toast((globalThis.PlatformLanguage?.text("payroll","m_bd8dee66726cce","Choose a payroll run") ?? "Choose a payroll run"), (globalThis.PlatformLanguage?.text("payroll","m_7ee93cc00027d8","Create or select the payroll these reports should cover.") ?? "Create or select the payroll these reports should cover."), false); return; }
-        if (state.exportMode === 'date_range' && (!from || !through || through < from)) { toast((globalThis.PlatformLanguage?.text("payroll","m_b3e21deb231a02","Check the reporting dates") ?? "Check the reporting dates"), (globalThis.PlatformLanguage?.text("payroll","m_a668a43f42ae6e","The end date must be on or after the start date.") ?? "The end date must be on or after the start date."), false); return; }
-        state.selectedExportBatchId=batchId; state.exportFrom=from; state.exportThrough=through;
-        const payloadFor=(type,format) => state.exportMode === 'payroll_run' ? { type,format,batch_id:batchId } : { type,format,from,through };
-        if (action === 'create-export') { await generateAndDownloadExport(payloadFor(clean(button.dataset.exportType),clean(button.dataset.format || 'csv'))); return; }
-        const format=clean(button.dataset.format || 'csv'); const runReports=array(state.exportData?.catalog).filter((report) => ['payroll_run','payroll_run_or_date_range'].includes(clean(report.scope)));
-        await perform(`export-package:${format}`, async () => { for (const report of runReports) await window.PayrollAPI.artifacts.create(state.orgId,payloadFor(clean(report.type),format)); }, `${format.toUpperCase()} payroll package prepared`, 'The reports are saved below. Repeated preparation will reuse files when the numbers have not changed.'); return;
-      }
-      if (action === 'create-off-cycle') {
-        const schedules=array(state.data?.schedules); if (!schedules.length) { toast((globalThis.PlatformLanguage?.text("payroll","m_e5e4ec706cb78c","No pay schedule") ?? "No pay schedule"), (globalThis.PlatformLanguage?.text("payroll","m_46461ed38f2108","Create a payroll schedule before creating an off-cycle run.") ?? "Create a payroll schedule before creating an off-cycle run."), false); return; }
-        const scheduleId=clean(window.prompt(`Schedule ID for the off-cycle run:\n${schedules.map((item) => `${item.name}: ${item.id}`).join('\n')}`, schedules[0].id)); if (!scheduleId) return;
-        const payDate=clean(window.prompt((globalThis.PlatformLanguage?.text("payroll","m_a9852246ab01b0","Off-cycle pay date (YYYY-MM-DD):") ?? "Off-cycle pay date (YYYY-MM-DD):"), dateKey())); if (!payDate) return; const reason=clean(window.prompt((globalThis.PlatformLanguage?.text("payroll","m_12044b3e7b1eae","Reason for this off-cycle run:") ?? "Reason for this off-cycle run:"), 'Correction / special payment'));
-        await perform('off-cycle', async () => captureRunRefresh(await window.PayrollAPI.batches.create(state.orgId, { schedule_id:scheduleId, pay_date:payDate, run_type:'off_cycle', period_start:payDate, period_end:payDate, reason }), `Off-cycle run · ${formatDate(payDate)}`), 'Off-cycle payroll created', `${formatDate(payDate)} · ${reason}`); return;
-      }
-      if (action === 'refresh-earnings') {
-        await refreshEarnings(clean(button.dataset.payeeId) ? { type:clean(button.dataset.payeeType), id:clean(button.dataset.payeeId) } : null);
-        return;
-      }
-      if (action === 'load-projected') {
-        await loadProjected();
-        return;
-      }
-      if (action === 'explain-payee') {
-        await loadExplain({ type:clean(button.dataset.payeeType), id:clean(button.dataset.payeeId) });
-        return;
-      }
-      if (action === 'explain-close' || action === 'explain-backdrop') {
-        if (action === 'explain-backdrop' && event.target !== button) return;
-        state.explain = null;
-        render();
-        return;
-      }
-      if (action === 'run-refresh-dismiss') { state.runRefresh = null; render(); return; }
-      if (action === 'correction-accept' || action === 'correction-decline') {
-        const entry = state.pay.held.find((item) => clean(item.id) === clean(button.dataset.entryId));
-        if (!entry) return;
-        const amount = signedMoney(entry.amount_cents, clean(entry.currency || defaultCurrency()));
-        if (action === 'correction-accept') {
-          const okay = await confirmAction(`Accept this correction of ${amount} for ${payeeName(entry.payee)}?\n\nIt will count toward their pay and be included in their next pay run.`);
-          if (!okay) return;
-          await perform(`correction:${entry.id}:accept`, () => window.PayrollAPI.ledger.accrueProjection(state.orgId, entry.id), 'Correction accepted', `${amount} for ${payeeName(entry.payee)} will be in their next pay run.`);
-          return;
-        }
-        const note = window.prompt(`Decline this correction of ${amount} for ${payeeName(entry.payee)}?\n\nWhat was already paid stays as it is and this correction is not raised again. Add a note if you like:`, '');
-        if (note === null) return;
-        await perform(`correction:${entry.id}:decline`, () => window.PayrollAPI.pay.declineCorrection(state.orgId, entry.id, clean(note).slice(0, 500)), 'Correction declined', `What ${payeeName(entry.payee)} was already paid stays as it is.`);
-        return;
-      }
-      if (action === 'off-cycle-requested') {
-        // The same off-cycle run as the toolbar button, limited to the back pay that asked for one.
-        const scheduleId = clean(button.dataset.scheduleId);
-        const entries = state.pay.offCycle.filter((entry) => clean(entry.schedule_id) === scheduleId);
-        if (!scheduleId || !entries.length) return;
-        const payDate=clean(window.prompt((globalThis.PlatformLanguage?.text("payroll","m_a9852246ab01b0","Off-cycle pay date (YYYY-MM-DD):") ?? "Off-cycle pay date (YYYY-MM-DD):"), dateKey())); if (!payDate) return;
-        const reason=clean(window.prompt((globalThis.PlatformLanguage?.text("payroll","m_12044b3e7b1eae","Reason for this off-cycle run:") ?? "Reason for this off-cycle run:"), 'Back pay from pay rule corrections'));
-        // An off-cycle run only takes earnings eligible by the end of its period, so the period reaches the latest of them.
-        const eligible = entries.map((entry) => clean(entry.eligible_at).slice(0, 10)).filter((value) => DATE_KEY.test(value)).sort();
-        const periodEnd = eligible.length && eligible[eligible.length - 1] > payDate ? eligible[eligible.length - 1] : payDate;
-        await perform('off-cycle', async () => captureRunRefresh(await window.PayrollAPI.batches.create(state.orgId, { schedule_id:scheduleId, pay_date:payDate, run_type:'off_cycle', period_start:payDate, period_end:periodEnd, entry_ids:entries.map((entry) => clean(entry.id)), reason }), `Off-cycle run · ${formatDate(payDate)}`), 'Off-cycle payroll created', `${entries.length} back pay entr${entries.length === 1 ? 'y' : 'ies'} · ${formatDate(payDate)}`);
-        return;
-      }
-      if (['approval-submit','approval-decide','approval-finalize','approval-reopen'].includes(action)) {
-        const batchId=clean(button.dataset.batchId); let operation;
-        if (action === 'approval-submit') { const users=array(state.contractorData?.users); const raw=clean(window.prompt((globalThis.PlatformLanguage?.text("payroll","m_edf86ebf69a1b5","Named approver user IDs (comma-separated):") ?? "Named approver user IDs (comma-separated):"), clean(window.__APP?.userId || window.__APP?.user?.id))); if (!raw) return; const approvers=raw.split(',').map(clean).filter(Boolean).map((user_id) => { const person=users.find((item) => clean(item.id) === user_id); return { user_id, name:clean(person?.name || person?.display_name || person?.email || user_id) }; }); operation=() => window.PayrollAPI.batches.action(state.orgId,batchId,'submit_approval',{approvers}); }
-        else if (action === 'approval-decide') operation=() => window.PayrollAPI.batches.action(state.orgId,batchId,'approve');
-        else if (action === 'approval-finalize') operation=() => window.PayrollAPI.batches.action(state.orgId,batchId,'finalize');
-        else { const okay=await confirmAction('Reopen this payroll run for corrections? Its unpaid items will be rebuilt from the currently eligible ledger, then named approval must be completed again.'); if (!okay) return; operation=() => window.PayrollAPI.batches.action(state.orgId,batchId,'reopen',{note:'Reopened and refreshed for correction'}); }
-        await perform(`approval:${batchId}`, operation, action === 'approval-finalize' ? 'Payroll finalized' : action === 'approval-decide' ? 'Payroll approved' : action === 'approval-reopen' ? 'Payroll reopened' : 'Approval requested', `Batch ${batchId}`); return;
-      }
-      if (action === 'timesheet-preset') {
-        state.timesheetThrough = dateKey();
-        state.timesheetFrom = addDaysKey(state.timesheetThrough, -Math.max(1, number(button.dataset.days)));
-        await load();
-        return;
-      }
-      if (action === 'apply-timesheet-range') {
-        const from = clean(root.querySelector('#fmpTimesheetFrom')?.value);
-        const through = clean(root.querySelector('#fmpTimesheetThrough')?.value);
-        if (!from || !through || through < from) { toast((globalThis.PlatformLanguage?.text("payroll","m_47300c8f100bea","Check the timesheet range") ?? "Check the timesheet range"), (globalThis.PlatformLanguage?.text("payroll","m_e03ae71c619ffa","The through date must be on or after the from date.") ?? "The through date must be on or after the from date."), false); return; }
-        state.timesheetFrom = from; state.timesheetThrough = through;
-        await load();
-        return;
-      }
-      if (action === 'timesheet-approve') {
-        const shift = array(state.timesheetData?.timesheets).find((item) => clean(item.id) === clean(button.dataset.shiftId));
-        if (!shift) return;
-        const okay = await confirmAction(`Approve ${clean(shift.user?.name || 'this worker')}'s ${formatDuration(shift.worked_seconds)} shift?\n\nApproved hours are priced by the payee's pay rules the next time earnings are refreshed.`);
-        if (!okay) return;
-        await perform(`timesheet:${shift.id}:approve`, () => window.PayrollAPI.timesheets.approve(state.orgId, shift.id, { expected_revision:number(shift.revision) }), 'Timesheet approved', 'Refresh earnings to price these hours with the payee\'s pay rules.');
-        return;
-      }
-      if (action === 'timesheet-reject') {
-        const shift = array(state.timesheetData?.timesheets).find((item) => clean(item.id) === clean(button.dataset.shiftId));
-        if (!shift) return;
-        const note = clean(window.prompt((globalThis.PlatformLanguage?.text("payroll","m_c1475fa89f3e57","Reason for rejecting this timesheet:") ?? "Reason for rejecting this timesheet:"), shift.manager_note || ''));
-        if (!note) return;
-        await perform(`timesheet:${shift.id}:reject`, () => window.PayrollAPI.timesheets.reject(state.orgId, shift.id, { expected_revision:number(shift.revision), manager_note:note }), 'Timesheet rejected', 'The shift will not be included in payroll until corrected and approved.');
-        return;
-      }
-      if (action === 'timesheet-edit') {
-        const shift = array(state.timesheetData?.timesheets).find((item) => clean(item.id) === clean(button.dataset.shiftId));
-        if (!shift || clean(shift.status) === 'active') { toast((globalThis.PlatformLanguage?.text("payroll","m_ef784128f3fdd2","Timesheet is still active") ?? "Timesheet is still active"), (globalThis.PlatformLanguage?.text("payroll","m_f9f46c423f61bf","Clock the worker out before correcting the shift.") ?? "Clock the worker out before correcting the shift."), false); return; }
-        const clockedIn = clean(window.prompt((globalThis.PlatformLanguage?.text("payroll","m_cd991aa67db1ed","Clock-in timestamp (ISO 8601):") ?? "Clock-in timestamp (ISO 8601):"), shift.clocked_in_at));
-        if (!clockedIn) return;
-        const clockedOut = clean(window.prompt((globalThis.PlatformLanguage?.text("payroll","m_8e852469bbc431","Clock-out timestamp (ISO 8601):") ?? "Clock-out timestamp (ISO 8601):"), shift.clocked_out_at));
-        if (!clockedOut) return;
-        const breakMinutes = Number(window.prompt((globalThis.PlatformLanguage?.text("payroll","m_a206ef00d1fa3a","Unpaid break minutes:") ?? "Unpaid break minutes:"), String(Math.round(number(shift.break_seconds) / 60))));
-        if (!Number.isFinite(breakMinutes) || breakMinutes < 0) return;
-        const projectId = clean(window.prompt((globalThis.PlatformLanguage?.text("payroll","m_ec7249ef30e71a","Project ID (optional):") ?? "Project ID (optional):"), shift.project_id || ''));
-        const note = clean(window.prompt((globalThis.PlatformLanguage?.text("payroll","m_80dc7bf47d9149","Correction note:") ?? "Correction note:"), shift.manager_note || 'Manager correction'));
-        await perform(`timesheet:${shift.id}:edit`, () => window.PayrollAPI.timesheets.update(state.orgId, shift.id, {
-          expected_revision:number(shift.revision), clocked_in_at:clockedIn, clocked_out_at:clockedOut,
-          break_seconds:Math.round(breakMinutes * 60), project_id:projectId, manager_note:note
-        }), 'Timesheet corrected', 'The shift returned to pending review.');
-        return;
-      }
-      if (action === 'toggle-projected') { state.includeProjected = !state.includeProjected; await load(); return; }
-      if (action === 'preset') {
-        state.from = dateKey();
-        state.through = addDaysKey(state.from, Math.max(1, number(button.dataset.days)));
-        state.expanded.clear();
-        await load();
-        return;
-      }
-      if (action === 'apply-range') {
-        const from = clean(root.querySelector('#fmpRangeFrom')?.value);
-        const through = clean(root.querySelector('#fmpRangeThrough')?.value);
-        if (!from || !through || through < from) { toast((globalThis.PlatformLanguage?.text("payroll","m_c6703996cff386","Check the payroll range") ?? "Check the payroll range"), (globalThis.PlatformLanguage?.text("payroll","m_e03ae71c619ffa","The through date must be on or after the from date.") ?? "The through date must be on or after the from date."), false); return; }
-        state.from = from; state.through = through; state.expanded.clear();
-        await load();
-        return;
-      }
-      if (action === 'toggle-schedule') {
-        if (event.target.closest('[data-action]:not([data-action="toggle-schedule"])')) return;
-        const key = clean(button.dataset.key);
-        if (state.expanded.has(key)) state.expanded.delete(key); else state.expanded.add(key);
-        render();
-        return;
-      }
-      if (action === 'toggle-history') {
-        const key = clean(button.dataset.key);
-        if (state.historyExpanded.has(key)) state.historyExpanded.delete(key); else state.historyExpanded.add(key);
-        render();
-        return;
-      }
-      if (action === 'create-batch') {
-        const scheduleId = clean(button.dataset.scheduleId);
-        const payDate = clean(button.dataset.payDate);
-        const occurrence = array(state.data?.upcoming).find((item) => clean(item.schedule?.id) === scheduleId && clean(item.pay_date) === payDate);
-        if (!occurrence) return;
-        const okay = await confirmAction(`Create the ${clean(occurrence.schedule?.name || 'payroll')} batch for ${formatDate(payDate)}?\n\nOnly accrued earnings will be reserved in this batch. Projected earnings remain in the forecast until they accrue.`);
-        if (!okay) return;
-        await perform(`create:${occurrenceKey(occurrence)}`, async () => captureRunRefresh(await window.PayrollAPI.batches.create(state.orgId, { schedule_id:scheduleId, pay_date:payDate }), `${clean(occurrence.schedule?.name || 'Payroll')} · ${formatDate(payDate)}`), 'Payroll batch created', `${occurrence.schedule?.name || 'Payroll'} · ${formatDate(payDate)}`);
-        return;
-      }
-      if (action === 'item-action') {
-        const batchId = clean(button.dataset.batchId);
-        const itemId = clean(button.dataset.itemId);
-        const nextStatus = clean(button.dataset.nextStatus) === 'paid' ? 'paid' : 'run';
-        if (nextStatus === 'paid') {
-          const okay = await confirmAction('Mark this payee as paid? This records the payment time and locks the item from further status changes.');
-          if (!okay) return;
-        }
-        await perform(`item:${itemId}:${nextStatus}`, () => window.PayrollAPI.batches.updateItem(state.orgId, batchId, itemId, { status:nextStatus }), nextStatus === 'paid' ? 'Payee marked paid' : 'Payee marked run', 'The payroll batch status has been updated.');
-        return;
-      }
-      if (action === 'batch-action') {
-        const batchId = clean(button.dataset.batchId);
-        const nextStatus = clean(button.dataset.nextStatus) === 'paid' ? 'paid' : 'run';
-        const okay = await confirmAction(nextStatus === 'paid'
-          ? 'Mark every unpaid payee in this batch as paid? Paid items are locked and the batch will be recorded in payroll history.'
-          : 'Mark every draft payee in this batch as run? You can still mark workers paid individually afterward.');
-        if (!okay) return;
-        await perform(`batch:${batchId}:${nextStatus}`, () => window.PayrollAPI.batches.action(state.orgId, batchId, nextStatus), nextStatus === 'paid' ? 'Payroll marked paid' : 'Payroll run recorded', `Batch ${batchId}`);
-      }
-    }
-
+    const shiftOf = (id) => arr(state.data.timesheets?.timesheets).find((shift) => shift.id === id);
     function onKeydown(event){
-      if (!['Enter', ' '].includes(event.key)) return;
-      const target = event.target.closest('[data-action="toggle-schedule"],[data-action="toggle-history"]');
-      if (!target || !root.contains(target)) return;
-      event.preventDefault();
-      target.click();
+      if (event.key !== 'Enter' && event.key !== ' ') return;
+      const row = event.target.closest?.('tr[data-open]');
+      if (row && event.target === row) { event.preventDefault(); row.click(); }
+    }
+    let searchTimer = 0;
+    function onInput(event){
+      const target = event.target;
+      if (target.matches('[data-ts-search]')) { state.ts.search = target.value; clearTimeout(searchTimer); searchTimer = setTimeout(render, 120); }
+      if (target.matches('[data-payee-search]')) { state.payeeSearch = target.value; clearTimeout(searchTimer); searchTimer = setTimeout(render, 120); }
+    }
+    function onChange(event){
+      const target = event.target;
+      if (target.matches('[data-branch]')) { state.branch = target.value; state.projected = null; load(); return; }
+      if (target.matches('[data-ts-from]')) { state.ts.from = target.value; load(); return; }
+      if (target.matches('[data-ts-through]')) { state.ts.through = target.value; load(); return; }
+      if (target.matches('[data-report-from]')) state.reports.from = target.value;
+      if (target.matches('[data-report-through]')) state.reports.through = target.value;
+    }
+    // Inside the Payroll tab a link to another view changes the tab's route; anywhere else (an agent panel) it changes this view.
+    function navigate(view){
+      if (window.Portal?.navigation?.read?.()?.tab === 'payroll' && window.Portal.navigation.navigate) {
+        window.Portal.navigation.navigate({ tab:'payroll', payrollView:view }, { source:'payroll-view', ownedKeys:['payrollView'] });
+        return;
+      }
+      state.view = view; state.data = {}; render(); load();
     }
 
     root.addEventListener('click', onClick);
     root.addEventListener('keydown', onKeydown);
-    const unregisterRoute = window.Portal?.navigation?.registerHandler?.(`payroll-view:${context.instanceId || 'main'}`, {
-      priority:400,
-      apply:(route) => {
-        if (context.params?.standalone || route.tab !== 'payroll') return;
-        const routedView = window.AppChrome.resolve('payroll',clean(route.payrollView),context);
-        const next = routedView;
-        if (next !== state.view) {
-          state.view = next;
-          render();
-          if (next !== 'settings' && ((next === 'timesheets' && !state.timesheetData) || (next === 'contractors' && !state.contractorData) || (next === 'exports' && !state.exportData) || (!['timesheets','contractors','exports'].includes(next) && !state.data))) load();
-        }
-      }
-    });
-    const onLayout=()=>{if(context.params?.standalone||state.view==='settings')return;state.view=window.AppChrome.resolve('payroll',window.Portal?.navigation?.read?.().payrollView,context);render();if(state.view!=='settings')void load({silent:true});};
-    window.addEventListener('fm:app-placements:updated',onLayout);
-    let active=!context.params?.widget;
-    const refreshTimer=setInterval(()=>{if(active && !document.hidden && !state.loading && state.view!=='settings' && !root.contains(document.activeElement))void load({silent:true});},30000);
+    root.addEventListener('input', onInput);
+    root.addEventListener('change', onChange);
+    // A widget is refreshed by the widget runtime when payroll changes; a view mounted on its own listens itself.
+    let active = true;
+    const onUpdated = () => { if (active && state.view !== 'settings') load({ silent:true }); };
+    if (context.params?.widget !== true) window.addEventListener('fm:payroll:updated', onUpdated);
+    if (['exports', 'upcoming', 'history'].includes(state.view)) window.PayrollAPI?.artifacts?.catalog?.(state.orgId).then((result) => { state.data.catalog = arr(result?.exports); }).catch(() => {});
     render();
-    if (state.view !== 'settings') load();
+    load();
 
     return {
       destroy(){
-        window.removeEventListener('fm:app-placements:updated',onLayout);
-        clearInterval(refreshTimer);
-        state.destroyed = true;
-        state.loadToken++;
-        settingsController?.destroy?.();
-        unregisterRoute?.();
+        state.destroyed = true; state.token++;
+        window.removeEventListener('fm:payroll:updated', onUpdated);
+        settingsHandle?.destroy?.();
         root.removeEventListener('click', onClick);
         root.removeEventListener('keydown', onKeydown);
+        root.removeEventListener('input', onInput);
+        root.removeEventListener('change', onChange);
         root.innerHTML = '';
       },
-      setActive(value){
-        active=!!value;
-        if (active && state.view!=='settings' && Date.now() - state.loadedAt > 30000 && !state.loading) load({ silent:!!state.data });
-      },
-      update(nextContext = {}){
-        const nextOrgId = clean(nextContext.orgId || nextContext.currentUser?.organization_id || state.orgId);
-        if (nextOrgId && nextOrgId !== state.orgId) { state.orgId = nextOrgId; state.data = null; load(); }
-      },
-      serialize(){return {from:state.from,through:state.through,include_projected:state.includeProjected};},
-      refresh(){ return load(); }
+      setActive(value){ active = !!value; },
+      update(next = {}){ const orgId = orgOf(next); if (orgId && orgId !== state.orgId) { state.orgId = orgId; state.data = {}; load(); } },
+      serialize(){ return { ...(context.params?.from ? { from:state.range.from, through:state.range.through } : {}), ...(state.branch ? { branch_ids:state.branch } : {}) }; },
+      refresh(){ return load({ silent:true }); }
     };
   }
 
-  // Tabs and detached sub-apps use the same leaf widgets as agent panels.
-  function createWidgetApp(context={}){
-    if(!window.FirstMateWidgets)return createApp(context);
-    const root=context.roots?.main||context.root;if(!root)return {destroy(){}};
-    let alive=true,widget,view=context.params?.standalone||window.AppChrome.resolve('payroll',window.Portal?.navigation?.read?.().payrollView,context);
-    function render(){
-      const orgId=clean(context.orgId||window.__APP?.userOrgId||window.__APP?.orgId);
-      if(!alive)return;widget?.destroy();
-      root.innerHTML=`<div style="height:100%;display:flex;flex-direction:column;min-height:0">${context.params?.standalone?'':window.AppChrome.header({title:'Payroll',icon:'fa-money-check-dollar',tabs:window.AppChrome.tabs('payroll',view,'data-payroll-view',context)})}<div data-payroll-widget-host style="flex:1;min-height:0;overflow:auto"></div></div>`;
-      if(!view)return;
-      widget=window.FirstMateWidgets.mount(root.querySelector('[data-payroll-widget-host]'),{id:'payroll.'+view,version:'1',target:{scope:'organization',organizationId:orgId},config:{...(context.params?.from?{from:context.params.from}:{}),...(context.params?.through?{through:context.params.through}:{}),...(context.params?.include_projected!==undefined?{include_projected:context.params.include_projected}:{})}},{...context,surface:'dashboard'});
-    }
-    const click=event=>{const button=event.target.closest('[data-payroll-view]');if(!button||!root.contains(button))return;view=button.dataset.payrollView;render();window.Portal?.navigation?.navigate?.({tab:'payroll',payrollView:view},{source:'payroll-widgets',ownedKeys:['payrollView']});};
-    const unregister=window.Portal?.navigation?.registerHandler?.('payroll-widgets:'+ (context.instanceId||'main'),{priority:400,apply:route=>{if(context.params?.standalone||route.tab!=='payroll')return;const next=window.AppChrome.resolve('payroll',route.payrollView,context);if(next!==view){view=next;render();}}});
-    const layout=()=>{if(context.params?.standalone)return;view=window.AppChrome.resolve('payroll',window.Portal?.navigation?.read?.().payrollView,context);render();};
-    root.addEventListener('click',click);window.addEventListener('fm:app-placements:updated',layout);render();
-    return {destroy(){alive=false;widget?.destroy();unregister?.();root.removeEventListener('click',click);window.removeEventListener('fm:app-placements:updated',layout);root.replaceChildren();},setActive(value){widget?.setVisible(value);},refresh(){return widget?.update();},update(next){context={...context,...next};render();}};
+  // The pay run files the server offers (payroll/exports.ts); used until the catalog has loaded.
+  const PAY_RUN_FILES = [
+    { type:'pay_run_summary', label:'Pay run summary', description:'Everyone in this pay run, employees then contractors, with earnings by kind, reimbursements, what was taken off and the amount to pay.', formats:['csv', 'pdf'] },
+    { type:'gusto_employees', label:'Gusto: employees', description:'One row per employee with earnings by kind, reimbursements and what was already paid or taken back.', formats:['csv'] },
+    { type:'gusto_contractors', label:'Gusto: contractors', description:'One row per contractor or subcontractor company.', formats:['csv'] },
+    { type:'quickbooks_payroll', label:'QuickBooks Payroll: employees', description:'One row per employee and pay item.', formats:['csv'] },
+    { type:'quickbooks_bills', label:'QuickBooks: contractor bills', description:'Contractors as bills to vendors.', formats:['csv'] }
+  ];
+
+  // Which widget shows a view: timesheets are everyone's for payroll managers and your own otherwise.
+  function widgetFor(view, context){
+    if (view === 'timesheets' && !allows('timesheets.all', context)) return 'payroll.my_timesheets';
+    return `payroll.${view}`;
   }
-  window.FirstMatePayroll={mountView:createApp};
+
+  // The Payroll tab: one header with the views this person may open, and the view below it.
+  function createTab(context = {}){
+    const root = context.roots?.main || context.root;
+    if (!root) return { destroy(){} };
+    const orgId = orgOf(context);
+    let alive = true, widget = null;
+    let view = context.params?.standalone || window.AppChrome.resolve('payroll', window.Portal?.navigation?.read?.().payrollView, context);
+    function render(){
+      if (!alive) return;
+      widget?.destroy?.();
+      widget = null;
+      const tabs = context.params?.standalone ? '' : window.AppChrome.tabs('payroll', view, 'data-payroll-view', context);
+      root.innerHTML = `<div style="height:100%;display:flex;flex-direction:column;min-height:0">${context.params?.standalone ? '' : window.AppChrome.header({ title:t('payroll', 'Payroll'), icon:'fa-money-check-dollar', tabs })}<div data-payroll-host style="flex:1;min-height:0;overflow:auto"></div></div>`;
+      const host = root.querySelector('[data-payroll-host]');
+      if (!view) { host.innerHTML = `<div class="fmp-state" style="padding:48px;text-align:center;color:#667085">${esc(t('not_available', 'Nothing in Payroll is available to you here.'))}</div>`; return; }
+      if (window.FirstMateWidgets?.mount) widget = window.FirstMateWidgets.mount(host, { id:widgetFor(view, context), version:'1', target:{ scope:'organization', organizationId:orgId } }, { ...context, surface:'dashboard' });
+      else widget = createApp({ ...context, root:host, roots:{ main:host }, params:{ ...context.params, standalone:view } });
+    }
+    const click = (event) => {
+      const button = event.target.closest('[data-payroll-view]');
+      if (!button || !root.contains(button) || button.closest('[data-payroll-host]')) return;
+      view = button.dataset.payrollView;
+      render();
+      window.Portal?.navigation?.navigate?.({ tab:'payroll', payrollView:view }, { source:'payroll-tab', ownedKeys:['payrollView'] });
+    };
+    const unregister = window.Portal?.navigation?.registerHandler?.(`payroll-tab:${context.instanceId || 'main'}`, { priority:400, apply:(route) => {
+      if (context.params?.standalone || route.tab !== 'payroll') return;
+      const next = window.AppChrome.resolve('payroll', route.payrollView, context);
+      if (next !== view) { view = next; render(); }
+    } });
+    const layout = () => { if (context.params?.standalone) return; view = window.AppChrome.resolve('payroll', window.Portal?.navigation?.read?.().payrollView, context); render(); };
+    root.addEventListener('click', click);
+    window.addEventListener('fm:app-placements:updated', layout);
+    render();
+    // Someone without payroll management sees Approvals only while a pay run is waiting for them.
+    if (!allows('view.runs', context) && feature('apps.payroll') && window.PayrollAPI?.approvals?.mine && orgId) {
+      window.PayrollAPI.approvals.mine(orgId).then((result) => {
+        const before = approvalsSeen.get(orgId);
+        approvalsSeen.set(orgId, num(result?.count));
+        if (alive && before !== num(result?.count)) layout();
+      }).catch(() => {});
+    }
+    return {
+      destroy(){ alive = false; widget?.destroy?.(); unregister?.(); root.removeEventListener('click', click); window.removeEventListener('fm:app-placements:updated', layout); root.replaceChildren(); },
+      setActive(value){ widget?.setVisible?.(value); widget?.setActive?.(value); },
+      refresh(){ return widget?.refresh?.(); },
+      update(next){ context = { ...context, ...next }; render(); }
+    };
+  }
+
+  window.FirstMatePayroll = { mountView:createApp, ACTIONS, allows, VIEWS:VIEWS.map(([id, title, needs]) => ({ id, title, needs })) };
 
   runtime.registerApp({
     id:'portal.payroll',
     package:'payroll',
     kind:'portal_tab',
-    title:(globalThis.PlatformLanguage?.text("payroll","m_45e0abb75231e4","Payroll") ?? "Payroll"),
-    label:(globalThis.PlatformLanguage?.text("payroll","m_45e0abb75231e4","Payroll") ?? "Payroll"),
+    title:t('payroll', 'Payroll'),
+    label:t('payroll', 'Payroll'),
     icon:'fa-money-check-dollar',
     order:55,
     surfaces:['portal_tab'],
     regions:['main'],
     visible:true,
     fullBleed:true,
-    mount:createWidgetApp
+    // Which views open is decided inside by permission and app flag (ACTIONS); who has the tab is App experience.
+    mount:createTab
   });
-  window.AppChrome.registerGroup({id:'payroll',parent:'portal.payroll',title:'Payroll',icon:'fa-money-check-dollar',default:'upcoming',
-    members:[['upcoming','Upcoming payroll'],['timesheets','Timesheets'],['contractors','Contractors'],['exports','Payroll exports'],['history','Batch history'],['settings','Payroll settings']].map(([id,title])=>({id,title})),
-    mount:(view,context)=>createWidgetApp({...context,params:{...context.params,standalone:view}})});
+  window.AppChrome.registerGroup({ id:'payroll', parent:'portal.payroll', title:t('payroll', 'Payroll'), icon:'fa-money-check-dollar', default:'upcoming',
+    members:VIEWS.map(([id, title, needs, description]) => ({ id, title:t(`view_${id}`, title), description, available:(context) => allows(needs, context) })),
+    mount:(view, context) => createTab({ ...context, params:{ ...context.params, standalone:view } }) });
 })();

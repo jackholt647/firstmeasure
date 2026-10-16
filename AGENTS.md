@@ -98,6 +98,28 @@ clock) is an app option. A route that belongs to an app names it with
 `tests/app-experience-registry.test.ts` and `tests/access-gates.test.ts` for
 changes here.
 
+## Contacts, leads and opportunities
+
+Read [contacts](docs/architecture/contacts.md) and
+[opportunities](docs/architecture/opportunities.md) before changing contacts,
+lead intake, matching, merging or sales scopes. A contact is its own record in
+the `contacts` store; a project names contacts by link and `project.contacts`
+is a read-only projection. There is no lead record or lead status. Every
+project runs scopes; a lead that has none yet is a **new lead**. An opportunity
+is a new lead or a work plan whose scope template has the built-in `sales`
+category, and a lead is a contact with an open one. A project starts only
+through `receiveLead` (every intake source) or `createProject`
+(`projects/create.ts`, which always starts a scope); intake routing runs once,
+at arrival, and nothing else routes a project. Other project writes pass
+`mustExist` or an `expected_revision`. What happens to a new lead (who is
+told, the first call) is organization rules on `lead.received`. Never
+hard-code a business decision (when a sale is won, how many sales plans run):
+bind an action in the scope or add a setting with a default. Every store that
+keeps contact or project ids registers a reference adapter so merges reach
+it. Run `tests/contacts-store.test.ts`, `tests/contact-merge.test.ts`,
+`tests/lead-receive.test.ts`, `tests/new-leads.test.ts` and
+`tests/project-entry.test.ts` for changes here.
+
 ## Platform publications and programmable modules
 
 Read [publication architecture](docs/architecture/publication-architecture.md)

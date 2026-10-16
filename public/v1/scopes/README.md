@@ -1,9 +1,6 @@
 # Scope Templates API
 
-Scope templates are versioned workflow definitions. There are two kinds:
-
-- `kind: "production"` — proposal project pieces such as Roof Replacement, Repairs, Gutters, Siding, and Maintenance.
-- `kind: "pipeline"` — entry workflows such as the default `sales_pipeline`. The sales board derives from this template exactly like production boards derive from theirs; there is no separate CRM stage system.
+Scope templates are versioned workflow definitions. Each carries `category_ids` from the organization's scope category catalog (`categories.ts`). The built-in `sales` category makes a template's plans opportunities (see [opportunities](../../../docs/architecture/opportunities.md)); `production` and any others are the organization's own labels. The sales board derives from a sales template exactly like production boards derive from theirs; there is no separate CRM stage system.
 
 A template carries its display metadata, proposal fields, and the complete work-plan definition that should be instantiated when the scope starts. A project can hold multiple scope instances (work plans) at once; per-instance stages and project-level lifecycle facts (`lifecycle.status` open/completed/canceled/lost, `sold_at`, `completed_at`) are denormalized onto the project document as `work_projection` — there is no `project.stage`.
 

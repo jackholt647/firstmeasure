@@ -562,177 +562,6 @@ function asObject(value: unknown): JsonObject {
   return value && typeof value === "object" && !Array.isArray(value) ? { ...(value as JsonObject) } : {};
 }
 
-function projectContactText(value: unknown) {
-  return String(value ?? "").trim();
-}
-
-function normalizedContactTags(value: unknown): string[] {
-  const raw = Array.isArray(value) ? value : typeof value === "string" ? value.split(",") : [];
-  const seen = new Set<string>();
-  const tags: string[] = [];
-  for (const entry of raw) {
-    const tag = projectContactText(entry).replace(/\s+/g, " ").slice(0, 80);
-    const key = tag.toLowerCase();
-    if (!tag || seen.has(key)) continue;
-    seen.add(key);
-    tags.push(tag);
-  }
-  return tags.slice(0, 64);
-}
-
-function normalizedProjectContact(value: unknown) {
-  const contact = asObject(value);
-  const id = projectContactText(contact.id || contact.contact_id);
-  return {
-    id,
-    contact_id: id,
-    name: projectContactText(contact.name || contact.full_name || contact.display_name),
-    first_name: projectContactText(contact.first_name),
-    last_name: projectContactText(contact.last_name),
-    time_zone: projectContactText(contact.time_zone),
-    email: projectContactText(contact.email || contact.email_address).toLowerCase(),
-    phone: projectContactText(contact.phone || contact.phone_number || contact.mobile),
-    address: projectContactText(contact.address || contact.default_address),
-    default_address: projectContactText(contact.default_address || contact.address),
-    role: projectContactText(contact.role),
-    company: projectContactText(contact.company || contact.organization),
-    notes: projectContactText(contact.notes),
-    birthday: projectContactText(contact.birthday),
-    tags: normalizedContactTags(contact.tags),
-    contact_kind: projectContactText(contact.contact_kind),
-    profile_media_id: projectContactText(contact.profile_media_id || asObject(asObject(contact.custom_field_values).profile_photo).media_id),
-    custom_field_values: asObject(contact.custom_field_values || contact.contact_custom_field_values),
-    imported_at: projectContactText(contact.imported_at),
-    import_id: projectContactText(contact.import_id),
-    import_source: projectContactText(contact.import_source),
-    primary: contact.primary === true
-  };
-}
-
-function projectContactHasIdentity(contact: ReturnType<typeof normalizedProjectContact>) {
-  return !!(contact.id || contact.name || contact.email || contact.phone || contact.address);
-}
-
-function projectContactSemanticKey(contact: ReturnType<typeof normalizedProjectContact>) {
-  if (contact.email) return `email:${contact.email}`;
-  const phone = contact.phone.replace(/\D+/g, "");
-  if (phone.length >= 7) return `phone:${phone}`;
-  const name = contact.name.toLowerCase().replace(/\s+/g, " ").trim();
-  return name ? `name:${name}` : "";
-}
-
-function mergeProjectContacts(
-  current: ReturnType<typeof normalizedProjectContact>,
-  incoming: ReturnType<typeof normalizedProjectContact>
-) {
-  const id = incoming.id || current.id;
-  return {
-    id,
-    contact_id: id,
-    name: incoming.name || current.name,
-    first_name: incoming.first_name || current.first_name,
-    last_name: incoming.last_name || current.last_name,
-    time_zone: incoming.time_zone || current.time_zone,
-    email: incoming.email || current.email,
-    phone: incoming.phone || current.phone,
-    address: incoming.address || current.address,
-    default_address: incoming.default_address || current.default_address || incoming.address || current.address,
-    role: incoming.role || current.role,
-    company: incoming.company || current.company,
-    notes: incoming.notes || current.notes,
-    birthday: incoming.birthday || current.birthday,
-    tags: normalizedContactTags([...current.tags, ...incoming.tags]),
-    contact_kind: incoming.contact_kind || current.contact_kind,
-    profile_media_id: incoming.profile_media_id || current.profile_media_id,
-    custom_field_values: { ...current.custom_field_values, ...incoming.custom_field_values },
-    imported_at: current.imported_at || incoming.imported_at,
-    import_id: current.import_id || incoming.import_id,
-    import_source: current.import_source || incoming.import_source,
-    primary: current.primary || incoming.primary
-  };
-}
-
-function stableProjectContactId(projectId: string, index: number) {
-  return `contact_${hashId(`${projectId}:contact:${index}`).slice(0, 16)}`;
-}
-
-function normalizeProjectDataContacts(projectId: string, data: JsonObject, previousData: JsonObject = {}): JsonObject {
-  const incoming = (Array.isArray(data.contacts) ? data.contacts : [])
-    .map(normalizedProjectContact)
-    .filter(projectContactHasIdentity);
-  const previous = (Array.isArray(previousData.contacts) ? previousData.contacts : [])
-    .map(normalizedProjectContact)
-    .filter(projectContactHasIdentity);
-  const topLevelId = projectContactText(data.contact_id || data.primary_contact_id);
-  const alias = normalizedProjectContact({
-    id: topLevelId,
-    name: data.customer_name || data.customerName || data.primary_contact_name || data.resident_name || data.residentName || (typeof data.resident === "string" ? data.resident : ""),
-    email: data.customer_email || data.customerEmail || data.primary_contact_email || data.resident_email || data.residentEmail,
-    phone: data.customer_phone || data.customerPhone || data.primary_contact_phone || data.resident_phone || data.residentPhone,
-    address: data.contact_address || data.customer_address || data.primary_contact_address,
-    primary: true
-  });
-
-  if (projectContactHasIdentity(alias)) {
-    const aliasSemanticKey = projectContactSemanticKey(alias);
-    let aliasIndex = incoming.findIndex((contact) => alias.id && contact.id === alias.id);
-    if (aliasIndex < 0 && aliasSemanticKey) {
-      aliasIndex = incoming.findIndex((contact) => projectContactSemanticKey(contact) === aliasSemanticKey && (!contact.id || !alias.id));
-    }
-    if (aliasIndex < 0 && alias.id) aliasIndex = incoming.findIndex((contact) => !contact.id && contact.primary);
-    if (aliasIndex < 0 && alias.id) aliasIndex = incoming.findIndex((contact) => !contact.id);
-    if (aliasIndex >= 0) incoming[aliasIndex] = mergeProjectContacts(alias, incoming[aliasIndex]!);
-    else if (alias.id || !incoming.length) incoming.unshift(alias);
-  }
-
-  const merged: ReturnType<typeof normalizedProjectContact>[] = [];
-  for (const contact of incoming) {
-    const semanticKey = projectContactSemanticKey(contact);
-    const existingIndex = merged.findIndex((candidate) => (
-      !!(candidate.id && contact.id && candidate.id === contact.id)
-      || !!(semanticKey && semanticKey === projectContactSemanticKey(candidate) && (!candidate.id || !contact.id))
-    ));
-    if (existingIndex >= 0) merged[existingIndex] = mergeProjectContacts(merged[existingIndex]!, contact);
-    else merged.push(contact);
-  }
-
-  const usedPreviousIds = new Set<string>();
-  const contacts = merged.map((contact, index) => {
-    let id = contact.id;
-    if (!id) {
-      const semanticKey = projectContactSemanticKey(contact);
-      let previousMatch = semanticKey
-        ? previous.find((candidate) => candidate.id && !usedPreviousIds.has(candidate.id) && projectContactSemanticKey(candidate) === semanticKey)
-        : undefined;
-      if (!previousMatch && previous[index]?.id && !usedPreviousIds.has(previous[index].id)) previousMatch = previous[index];
-      id = previousMatch?.id || (index === 0 ? topLevelId : "") || stableProjectContactId(projectId, index);
-    }
-    usedPreviousIds.add(id);
-    return { ...contact, id, contact_id: id };
-  });
-
-  if (!contacts.length) return { ...data, contacts: [] };
-  let primaryIndex = contacts.findIndex((contact) => topLevelId && contact.id === topLevelId);
-  if (primaryIndex < 0) primaryIndex = contacts.findIndex((contact) => contact.primary);
-  if (primaryIndex < 0) primaryIndex = 0;
-  contacts.forEach((contact, index) => { contact.primary = index === primaryIndex; });
-  const primary = contacts[primaryIndex]!;
-  const contactIds = Array.from(new Set(contacts.map((contact) => contact.id).filter(Boolean)));
-  return {
-    ...data,
-    contacts,
-    contact_id: primary.id,
-    primary_contact_id: primary.id,
-    contact_ids: contactIds,
-    customer_name: primary.name || projectContactText(data.customer_name),
-    primary_contact_name: primary.name || projectContactText(data.primary_contact_name),
-    customer_email: primary.email || projectContactText(data.customer_email),
-    primary_contact_email: primary.email || projectContactText(data.primary_contact_email),
-    customer_phone: primary.phone || projectContactText(data.customer_phone),
-    primary_contact_phone: primary.phone || projectContactText(data.primary_contact_phone)
-  };
-}
-
 async function mapWithConcurrency<T, R>(
   items: T[],
   concurrency: number,
@@ -751,6 +580,9 @@ async function mapWithConcurrency<T, R>(
   await Promise.all(workers);
   return results;
 }
+
+/** Every document collection, for code that must look through all of them (a contact or project merge). */
+export const PLATFORM_DOCUMENT_COLLECTIONS: readonly string[] = Object.freeze([...COLLECTIONS]);
 
 function assertCollection(value: string): PlatformCollection {
   if (COLLECTIONS.includes(value as PlatformCollection)) return value as PlatformCollection;
@@ -1302,10 +1134,8 @@ export async function listDocuments(orgId: string, collectionValue: string) {
   const documents = await mapWithConcurrency(fileEntries, 32, (entry) => (
     readJsonFile<StoredDocument>(path.join(directory, entry.name))
   ));
+  // A project's contacts are the contact service's projection; reads return them as stored.
   return documents
-    .map((document) => collection === "projects"
-      ? { ...document, data: normalizeProjectDataContacts(document.id, asObject(document.data)) }
-      : document)
     .sort((a, b) => String(b.updated_at).localeCompare(String(a.updated_at)));
 }
 
@@ -1313,14 +1143,65 @@ export async function readDocument(orgId: string, collectionValue: string, docum
   if (isFirstMeasurePostgresEnabled()) return (await postgresStorage()).readDocument(orgId, collectionValue, documentId) as Promise<StoredDocument>;
   const collection = assertCollection(collectionValue);
   await readOrganization(orgId);
-  const document = await readJsonFile<StoredDocument>(documentPath(orgId, collection, documentId));
-  return collection === "projects"
-    ? { ...document, data: normalizeProjectDataContacts(document.id, asObject(document.data)) }
-    : document;
+  return await readJsonFile<StoredDocument>(documentPath(orgId, collection, documentId));
 }
 
-export async function upsertDocument(orgId: string, collectionValue: string, input: JsonObject = {}, options: { replace?: boolean; createOnly?: boolean } = {}) {
-  if (isFirstMeasurePostgresEnabled()) return (await postgresStorage()).upsertDocument(orgId, collectionValue, input, options) as Promise<StoredDocument>;
+export type UpsertDocumentOptions = {
+  replace?: boolean;
+  createOnly?: boolean;
+  /** Fail instead of creating the document. */
+  mustExist?: boolean;
+  /** The contact service writing its projection onto a project; see `guardProjectContacts`. */
+  contactsProjection?: boolean;
+};
+
+export async function upsertDocument(orgId: string, collectionValue: string, input: JsonObject = {}, options: UpsertDocumentOptions = {}) {
+  return isFirstMeasurePostgresEnabled()
+    ? await (await postgresStorage()).upsertDocument(orgId, collectionValue, input, options) as StoredDocument
+    : await upsertFileDocument(orgId, collectionValue, input, options);
+}
+
+/** What the contact service projects onto a project (contacts/records.ts `projectContactsProjection`). */
+export const PROJECT_CONTACT_PROJECTION_KEYS = [
+  "contacts", "contact_id", "primary_contact_id", "contact_ids", "customer_name", "primary_contact_name",
+  "customer_email", "primary_contact_email", "customer_phone", "primary_contact_phone"
+] as const;
+
+/** Whether a `contacts` list a writer sent is the stored projection, or a copy of it from before a contact changed. */
+function resendsProjection(sent: unknown, stored: unknown) {
+  const a = Array.isArray(sent) ? sent : [], b = Array.isArray(stored) ? stored : [];
+  if (a.length !== b.length) return false;
+  return a.every((raw, index) => {
+    const mine = asObject(raw), theirs = asObject(b[index]);
+    const id = (row: JsonObject) => String(row.contact_id || row.id || "");
+    if (id(mine) !== id(theirs) || String(mine.role || "") !== String(theirs.role || "") || (mine.primary === true) !== (theirs.primary === true)) return false;
+    const copied = Number(mine.contact_revision) || 0;
+    return (copied > 0 && copied < (Number(theirs.contact_revision) || 0)) || JSON.stringify(mine) === JSON.stringify(theirs);
+  });
+}
+
+/**
+ * A project's contacts are its contact links, changed only through the contacts API
+ * (docs/architecture/contacts.md). A project write that sends a `contacts` list other
+ * than the stored projection (or a copy of it read before a contact changed) is refused.
+ * The projected keys always keep the values the contact service last wrote.
+ */
+export function guardProjectContacts(collection: string, data: JsonObject, previous: JsonObject, options: UpsertDocumentOptions) {
+  if (collection !== "projects" || options.contactsProjection) return data;
+  if ("contacts" in data && !resendsProjection(data.contacts, previous.contacts)) {
+    throw badRequest("project_contacts_read_only", "A project's contacts cannot be changed by a project write. Use the contacts API (PUT /organizations/:orgId/projects/:projectId/contacts, POST and PATCH /contacts).");
+  }
+  const next = { ...data };
+  for (const key of PROJECT_CONTACT_PROJECTION_KEYS) {
+    if (key in previous) next[key] = previous[key];
+    else delete next[key];
+  }
+  // A project with no links yet has an empty list, as the projection writes it.
+  if (!Array.isArray(next.contacts)) next.contacts = [];
+  return next;
+}
+
+async function upsertFileDocument(orgId: string, collectionValue: string, input: JsonObject, options: UpsertDocumentOptions) {
   const collection = assertCollection(collectionValue);
   await readOrganization(orgId);
   const id = input.id ? sanitizeId(String(input.id), "document_id") : generateId(generatedDocumentPrefix(collection));
@@ -1334,9 +1215,11 @@ export async function upsertDocument(orgId: string, collectionValue: string, inp
 
     if (exists && options.createOnly) throw conflict("document_exists", "This immutable record already exists.");
     if (!exists && expectedRevision) throw conflict("revision_conflict", "The expected document no longer exists.");
+    if (!exists && options.mustExist) throw notFound("document_missing", "The document no longer exists.");
 
     if (["projects", "customers", "resource_custom_fields","organization_custom_fields", "users"].includes(collection)) {
       const previous = exists ? asObject((await readJsonFile<StoredDocument>(filePath)).data) : {};
+      data = guardProjectContacts(collection, data, previous, options);
       const fields = await import("../custom_fields/records.js");
       data = await fields.prepareStoredFields(orgId, collection, data, previous);
       await fields.validateStoredFields(orgId, collection, data, previous, options.replace, id);
@@ -1347,7 +1230,7 @@ export async function upsertDocument(orgId: string, collectionValue: string, inp
         id,
         organization_id: sanitizeId(orgId, "organization_id"),
         collection,
-        data: collection === "projects" ? normalizeProjectDataContacts(id, data) : data,
+        data,
         metadata,
         revision: 1,
         created_at: now,
@@ -1364,7 +1247,7 @@ export async function upsertDocument(orgId: string, collectionValue: string, inp
     const nextData = options.replace ? data : { ...asObject(current.data), ...data };
     const next: StoredDocument = {
       ...current,
-      data: collection === "projects" ? normalizeProjectDataContacts(id, nextData, asObject(current.data)) : nextData,
+      data: nextData,
       metadata: options.replace ? metadata : { ...asObject(current.metadata), ...metadata },
       revision: current.revision + 1,
       updated_at: now
@@ -1375,7 +1258,15 @@ export async function upsertDocument(orgId: string, collectionValue: string, inp
 }
 
 export async function deleteDocument(orgId: string, collectionValue: string, documentId: string) {
-  if (isFirstMeasurePostgresEnabled()) return (await postgresStorage()).deleteDocument(orgId, collectionValue, documentId);
+  const existing = isFirstMeasurePostgresEnabled()
+    ? await (await postgresStorage()).deleteDocument(orgId, collectionValue, documentId)
+    : await deleteFileDocument(orgId, collectionValue, documentId);
+  // A deleted project no longer has contacts; the contacts themselves stay.
+  if (collectionValue === "projects") await (await import("../contacts/records.js")).setProjectContactLinks(orgId, documentId, []);
+  return existing;
+}
+
+async function deleteFileDocument(orgId: string, collectionValue: string, documentId: string) {
   const collection = assertCollection(collectionValue);
   await readOrganization(orgId);
   const existing = await readDocument(orgId, collection, documentId);
@@ -1634,6 +1525,17 @@ export async function updateMediaTags(orgId: string, mediaId: string, tagsValue:
     };
     return next;
   });
+}
+
+/** Moves a media item to another owner of the same type, as a contact or project merge does. */
+export async function reassignMediaOwner(orgId: string, mediaId: string, ownerId: string) {
+  const normalizedOrgId = sanitizeId(orgId, "organization_id");
+  const normalizedMediaId = sanitizeId(mediaId, "media_id");
+  return await mutateMediaMetadata(normalizedOrgId, normalizedMediaId, (media) => ({
+    ...media,
+    owner: { ...asObject(media.owner), id: ownerId },
+    updated_at: nowIso()
+  }));
 }
 
 /* Renames a media item for display. The stored file path is derived from the

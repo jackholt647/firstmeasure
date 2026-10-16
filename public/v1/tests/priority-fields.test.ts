@@ -94,7 +94,7 @@ test('published fields select documents, resolve priorities, retain provenance a
     await storage.saveBranchModule(org,'default','project_configuration',{data:{priority_fields:[]}},{replace:true});
     const empty=await readPublishedData(ctx,{provider:'priority-fields',export:'values',target});assert.equal(empty.status,'ready');if(empty.status==='ready')assert.deepEqual((empty.value as any).items,[]);
     const record=await storage.readDocument(org,'projects','p');assert.equal(record.revision,1,'Reading fields never mutates records');
-  }finally{await rm(root,{recursive:true,force:true});}
+  }finally{await (await import('../platform/sql_store.js')).closeSqlStoresForTests();await rm(root,{recursive:true,force:true});}
 });
 
 
@@ -111,9 +111,9 @@ test('one owner catalog resolves independent contact and user priorities, includ
   try{
     await storage.createOrganization({id:org,name:'Owners fixture'});
     await storage.saveBranchModule(org,'default','custom_fields',{data:{fields:[contact,user]}},{replace:true});
-    await storage.upsertDocument(org,'customers',{id:'c',data:{branch_id:'default',custom_field_values:{tier:'Partner'}}});
+    await (await import('../contacts/records.js')).createContact(org,{name:'Partner Co',branch_ids:['default'],custom_field_values:{tier:'Partner'}},{id:'c'});
     await storage.upsertDocument(org,'users',{id:'u',data:{custom_field_values:{}}});
-    await storage.upsertDocument(org,'projects',{id:'embedded',data:{branch_id:'default',contacts:[{id:'embedded_c',custom_field_values:{tier:'Embedded partner'}}]}});
+    await (await import('./helpers/project-contacts.js')).upsertProjectWithContacts(org,{id:'embedded',data:{branch_id:'default',contacts:[{id:'embedded_c',name:'Embedded',custom_field_values:{tier:'Embedded partner'}}]}});
     const empty=await readPublishedData(contactCtx,{provider:'priority-fields',export:'contact-values',target});assert.equal(empty.status,'ready');if(empty.status==='ready')assert.deepEqual((empty.value as any).items,[]);
     await storage.saveBranchModule(org,'default','priority_fields',{data:{entities:{contact:[customPriorityField(contact)],user:[customPriorityField(user)]}}},{replace:true});
     const result=await readPublishedData(contactCtx,{provider:'priority-fields',export:'contact-values',target});assert.equal(result.status,'ready');if(result.status!=='ready')throw Error(JSON.stringify(result));assert.equal((result.value as any).items[0].result.value,'Partner');
@@ -125,6 +125,6 @@ test('one owner catalog resolves independent contact and user priorities, includ
     await assert.rejects(()=>storage.saveBranchModule(org,'default','priority_fields',{data:{entities:{unknown:[]}}}));
     await storage.saveBranchModule(org,'default','custom_fields',{data:{fields:[{...contact,private:true},user]}},{replace:true});
     await assert.rejects(()=>authorizeSourceSnapshot(contactCtx,{provider:'priority-fields',export:'contact-values',target},result));
-    assert.equal((await storage.readDocument(org,'customers','c')).revision,1);
-  }finally{await rm(root,{recursive:true,force:true});}
+    assert.equal((await (await import('../contacts/records.js')).readContact(org,'c')).revision,1);
+  }finally{await (await import('../platform/sql_store.js')).closeSqlStoresForTests();await rm(root,{recursive:true,force:true});}
 });

@@ -55,6 +55,9 @@ function sampleRecurrences() {
 
 test('payroll settings build any pay cadence, choose when the company pays, and edit and preview pay plans and pay rules', async () => {
   const { CONDITION_OPERATORS } = await import('../work/conditions.ts');
+  const { PAY_SCHEDULE_EARNING_KINDS, PAY_PARAMETER_TYPES, PAY_PERIODS, PAY_VOCABULARY_LABELS } = await import('../payroll/pay-rules.ts');
+  // What payroll.pay_rule_vocabulary publishes (payroll/pay-rule-publication.ts).
+  const vocabulary = { parameter_types: PAY_PARAMETER_TYPES, earning_kinds: PAY_SCHEDULE_EARNING_KINDS.filter((kind) => kind !== '*' && kind !== 'clawback'), schedule_earning_kinds: PAY_SCHEDULE_EARNING_KINDS, periods: PAY_PERIODS, labels: PAY_VOCABULARY_LABELS };
   const { payrollPayDates } = await import('../payroll/schedule.ts');
   const { payrollScheduleInputSchema, payrollRecurrenceSchema } = await import('../payroll/schemas.ts');
   const browser = await chromium.launch({ channel: 'chrome', headless: true });
@@ -76,7 +79,7 @@ test('payroll settings build any pay cadence, choose when the company pays, and 
       };
     });
     await page.goto('https://settings.test/');
-    await page.evaluate(({ rules, operators }) => {
+    await page.evaluate(({ rules, operators, vocabulary }) => {
       window.__APP = { userOrgId: 'org', userId: 'owner' };
       window.confirm = () => true;
       window.calls = [];
@@ -114,7 +117,8 @@ test('payroll settings build any pay cadence, choose when the company pays, and 
             return copy(db.orgDefault);
           },
           ruleSources: async () => copy(sources),
-          vocabulary: async () => ({ operators }),
+          // The fixed words and their labels come from payroll.pay_rule_vocabulary; the page keeps no copy.
+          vocabulary: async () => ({ operators, ...vocabulary }),
           previewRule: async (_org, rule) => { calls.push({ op: 'rule.preview', payload: copy(rule) }); return copy(preview); },
           previewPlan: async (_org, plan) => { calls.push({ op: 'plan.preview', payload: copy(plan) }); return { ...copy(preview), payee_count: 0, changed_payee_count: 0, difference_count: 0, change_cents: 0, payees: [] }; },
           rules: async () => copy(db.rules),
@@ -125,7 +129,7 @@ test('payroll settings build any pay cadence, choose when the company pays, and 
           archivePlan: async (_org, id, revision) => { calls.push({ op: 'plan.archive', id, revision }); db.plans.find((entry) => entry.id === id).status = 'archived'; return {}; }
         }
       };
-    }, { rules: [estimatorRule, hourlyRule], operators: CONDITION_OPERATORS });
+    }, { rules: [estimatorRule, hourlyRule], operators: CONDITION_OPERATORS, vocabulary });
     await page.addScriptTag({ url: 'https://settings.test/libraries/apps/settings/payroll.js' });
     await page.evaluate(() => { window.settings = FirstMatePayrollSettings.mount(document.querySelector('#host'), { orgId: 'org', showToast: (...values) => toasts.push(values) }); });
     const lastCall = (op) => page.evaluate((name) => calls.filter((call) => call.op === name).at(-1), op);
@@ -308,7 +312,7 @@ test('payroll settings build any pay cadence, choose when the company pays, and 
     assert.equal(await page.locator('[data-rule-input] [data-in="provider"]').count(), 0);
     assert.match(await page.locator('[data-in-source-help]').innerText(), /Every project with its stored custom field values\. Options it takes: facts\./);
     assert.deepEqual(await page.locator('[data-rule-input] [data-c="operator"]').first().locator('option').evaluateAll((options) => options.map((option) => option.value)), CONDITION_OPERATORS.map((operator) => operator.id));
-    assert.deepEqual(await page.locator('[data-rule-param] [data-p="type"]').first().locator('option').evaluateAll((options) => options.map((option) => option.value)), ['number', 'cents', 'basis_points', 'boolean', 'text']);
+    assert.deepEqual(await page.locator('[data-rule-param] [data-p="type"]').first().locator('option').evaluateAll((options) => options.map((option) => option.value)), [...PAY_PARAMETER_TYPES], 'the parameter kinds come from the server');
     await page.locator('[data-rule-param] [data-p="default"]').fill('600');
     await page.locator('[data-rule-add-param]').click();
     await page.locator('[data-rule-param] [data-p="key"]').nth(1).fill('minimum_cents');

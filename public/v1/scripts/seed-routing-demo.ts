@@ -22,6 +22,7 @@ import {
   upsertDocument
 } from "../platform/storage.js";
 import { patchWorkforceUserProfile } from "../workforce/service.js";
+import { saveProjectContacts } from "../contacts/records.js";
 
 const orgId = String(process.argv[2] || "").trim();
 const dateArg = String(process.argv[3] || "2026-08-03").trim();
@@ -195,13 +196,6 @@ async function main() {
         address,
         lat,
         lng,
-        contacts: [{
-          id: `${projectId}_customer`,
-          name: contactName,
-          phone: `555-02${String(10 + i)}`,
-          email: `${projectId}@example.com`,
-          primary: true
-        }],
         /* No `kind` field: eventKind() short-circuits on an explicit kind, and
          * "appointment" is not a schedule category — the routing view would
          * bucket the event as "other" and hide it. Let it derive from the
@@ -224,6 +218,13 @@ async function main() {
       },
       metadata: { kind: "platform_project", branch_id: "default", source: "seed_routing_demo" }
     }, { replace: true });
+    await saveProjectContacts(orgId, projectId, [{
+      id: `${projectId}_customer`,
+      name: contactName,
+      phone: `555-02${String(10 + i)}`,
+      email: `${projectId}@example.com`,
+      primary: true
+    }]);
   }
   console.log(`✔ ${STOPS.length} projects with unassigned 2h appointments on ${dateArg} (staggered starts 8:00–15:25)`);
   console.log("");

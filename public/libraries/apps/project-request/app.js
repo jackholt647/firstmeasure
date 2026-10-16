@@ -3592,44 +3592,6 @@ window.PlatformCommerce.onReady(async function(){
     set('email', contact.email);
   }
 
-  function saveStandaloneContact(contact = {}){
-    if (!window.Portal?.ProjectStore || !contactHasCardInfo(contact)) return null;
-    const existingRecord = findStandaloneContactRecord(contact);
-    const id = projectText(contact.id, contact.contact_id) || `contact_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
-    const projectId = projectText(contact.record_project_id, existingRecord?.id) || `project_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
-    const payload = {
-      ...(existingRecord || {}),
-      id: projectId,
-      title: projectText(contact.name, contact.email, contact.phone, contact.address, (globalThis.PlatformLanguage?.text("project-request","audit_2b5c3d26721ae9","Contact") ?? "Contact")),
-      project_title: projectText(contact.name, contact.email, contact.phone, contact.address, (globalThis.PlatformLanguage?.text("project-request","audit_2b5c3d26721ae9","Contact") ?? "Contact")),
-      address: projectText(contact.address),
-      project_type: 'residential',
-      contacts: [{
-        id,
-        contact_id: id,
-        name: projectText(contact.name),
-        phone: projectText(contact.phone),
-        email: projectText(contact.email),
-        address: projectText(contact.address),
-        default_address: projectText(contact.address),
-        custom_field_values: { ...(contact.custom_field_values || {}) },
-        primary: true
-      }],
-      contact_custom_field_values: { ...(contact.custom_field_values || {}) },
-      contact_id: id,
-      primary_contact_id: id,
-      contact_ids: [id],
-      workflow_state: 'contact_only',
-      measurement: {},
-      measurement_project: {},
-      events: [],
-      proposals: [],
-      photos: [],
-      updated_at: new Date().toISOString()
-    };
-    return window.Portal.ProjectStore.save(payload);
-  }
-
   async function openContact(contact,options={}){
     if(projectWindowBridge){
       await projectWindowBridge.openContact(projectWindowToken,window,contact,options);
@@ -3661,7 +3623,6 @@ window.PlatformCommerce.onReady(async function(){
     if (!card || cards.length <= 1) return;
     const contact = contactFromCard(card);
     const removedIndex = Number(card.dataset.contactIndex || 0) || 0;
-    if (contactHasCardInfo(contact)) saveStandaloneContact(contact);
     card.remove();
     if (primaryContactIndex === removedIndex) primaryContactIndex = 0;
     else if (primaryContactIndex > removedIndex) primaryContactIndex -= 1;
@@ -3843,22 +3804,6 @@ window.PlatformCommerce.onReady(async function(){
     return id ? `id:${id}` : '';
   }
 
-  function findStandaloneContactRecord(contact = {}){
-    if (!window.Portal?.ProjectStore) return null;
-    const explicitId = projectText(contact.record_project_id, contact.project_id);
-    if (explicitId) {
-      const explicit = window.Portal.ProjectStore.get?.(explicitId);
-      if (explicit?.workflow_state === 'contact_only') return explicit;
-    }
-    const ids = window.Portal.ProjectStore.cachedIds?.() || [];
-    for (const id of ids) {
-      const project = window.Portal.ProjectStore.get?.(id);
-      if (project?.workflow_state !== 'contact_only') continue;
-      if (contactCandidatesFromProject(project).some((candidate) => contactMatchesContact(candidate, contact))) return project;
-    }
-    return null;
-  }
-
   function contactMatchesContact(a = {}, b = {}){
     const aId = projectText(a.id, a.contact_id);
     const bId = projectText(b.id, b.contact_id);
@@ -3872,7 +3817,6 @@ window.PlatformCommerce.onReady(async function(){
   }
 
   function contactCandidatesFromProject(project = {}){
-    const projectId = projectIdentity(project);
     const contacts = Array.isArray(project.contacts) ? project.contacts : [];
     return [projectPrimaryContactAlias(project), ...contacts].map((contact, index) => {
       const id = index === 0
@@ -3881,13 +3825,11 @@ window.PlatformCommerce.onReady(async function(){
       return {
         id,
         contact_id: id,
-        record_project_id: project.workflow_state === 'contact_only' ? projectId : '',
-        project_id: project.workflow_state === 'contact_only' ? projectId : '',
         name: projectText(contact.name),
         phone: projectText(contact.phone),
         email: projectText(contact.email),
-        address: projectText(contact.address, contact.default_address, project.workflow_state === 'contact_only' ? project.address : ''),
-        default_address: projectText(contact.default_address, contact.address, project.workflow_state === 'contact_only' ? project.address : '')
+        address: projectText(contact.address, contact.default_address),
+        default_address: projectText(contact.default_address, contact.address)
       };
     }).filter(contactHasCardInfo);
   }
@@ -4378,7 +4320,7 @@ window.PlatformCommerce.onReady(async function(){
 
   function projectTagStatus(project = activeBaseProject){
     const instances = projectActiveWorkInstances(project);
-    const primary = instances.find((instance) => instance.kind === 'pipeline') || instances[0] || null;
+    const primary = instances.find((instance) => instance.sales === true) || instances[0] || null;
     const label = cleanStageText(primary?.stage_title || primary?.title);
     if (label) return label;
     const status = cleanStageText(projectLifecycleInfo(project).status).toLowerCase();
@@ -7160,8 +7102,6 @@ window.PlatformCommerce.onReady(async function(){
         if (!card || !input) throw new Error((globalThis.PlatformLanguage?.text("project-request","contact_update_failed","The customer contact could not be updated.") ?? "The customer contact could not be updated."));
         input.value = projectText(email);
         const updated = contactFromCard(card);
-        const standalone = findStandaloneContactRecord(updated);
-        if (standalone) saveStandaloneContact({ ...updated, record_project_id: projectIdentity(standalone) });
         persistActiveBaseProject();
         if (activeBaseProject && window.Portal?.ProjectStore?.saveRemote) {
           const saved = await window.Portal.ProjectStore.saveRemote(activeBaseProject);
@@ -8650,7 +8590,7 @@ window.PlatformCommerce.onReady(async function(){
     const input = $('#rProjectNotes');
     const text = (input?.value || '').trim();
     if (!api || (!text && !pendingProjectAudio?.attachment)) return;
-    if (!activeBaseProject) ensureContactOnlyBaseProject() || ensureDraftBaseProject();
+    if (!activeBaseProject) ensureContactDraftBaseProject() || ensureDraftBaseProject();
     if (!activeBaseProject) return;
     const mentionUsers = projectNoteMentionController?.selectedMentions?.() || [];
     const note = editingProjectNoteId
@@ -8824,7 +8764,7 @@ window.PlatformCommerce.onReady(async function(){
     // incomplete field values. They must never overwrite the saved project.
     if (projectShellLoading || projectFormHydrating || projectRecordPending) return;
     if (activeBaseProject?.__projectShellLoading) return;
-    if (!activeBaseProject && requestedWorkflow === 'contact') ensureContactOnlyBaseProject();
+    if (!activeBaseProject && requestedWorkflow === 'contact') ensureContactDraftBaseProject();
     if (!activeBaseProject && requestedWorkflow === 'document' && docPickerDismissed) ensureDocumentBaseProject();
     if (!activeBaseProject && addressSelected) ensureDraftBaseProject();
     if (!activeBaseProject || !window.Portal.ProjectStore) return;
@@ -8970,7 +8910,8 @@ window.PlatformCommerce.onReady(async function(){
     return activeBaseProject;
   }
 
-  function ensureContactOnlyBaseProject(){
+  // A project started from its contacts alone, before an address (the project store links the contacts).
+  function ensureContactDraftBaseProject(){
     const contacts = collectContacts();
     if (activeBaseProject || !window.Portal.ProjectStore || !contacts.some(contactHasContent)) return activeBaseProject;
     const primary = primaryContact();
@@ -8982,14 +8923,8 @@ window.PlatformCommerce.onReady(async function(){
       address: '',
       project_type: selectedType || 'residential',
       contacts,
-      customer_name: primary.name || '',
-      primary_contact_name: primary.name || '',
-      customer_email: primary.email || '',
-      primary_contact_email: primary.email || '',
-      customer_phone: primary.phone || '',
-      primary_contact_phone: primary.phone || '',
       project_notes: legacyProjectNotesText(),
-      workflow_state: 'contact_only',
+      workflow_state: 'draft',
       photos: projectPhotos.map(serializablePhoto),
       thumbnail_photo_id: projectPhotoId(projectThumbnailPhoto()),
       thumbnail_photo: serializablePhoto(projectThumbnailPhoto()),
@@ -9009,7 +8944,7 @@ window.PlatformCommerce.onReady(async function(){
     if (!window.Portal.ProjectStore) return null;
     if (activeBaseProject) {
       const workflow = String(activeBaseProject.workflow_state || '').trim().toLowerCase();
-      if (!workflow || workflow === 'draft' || workflow === 'contact_only') activeBaseProject.workflow_state = 'proposal_only';
+      if (!workflow || workflow === 'draft') activeBaseProject.workflow_state = 'proposal_only';
       activeBaseProject.has_meaningful_activity = true;
       activeBaseProject.last_activity_at = new Date().toISOString();
       persistActiveBaseProject();
@@ -9051,7 +8986,7 @@ window.PlatformCommerce.onReady(async function(){
     if (!window.Portal.ProjectStore) return null;
     if (activeBaseProject) {
       const workflow = String(activeBaseProject.workflow_state || '').trim().toLowerCase();
-      if (!workflow || workflow === 'draft' || workflow === 'contact_only') activeBaseProject.workflow_state = 'document_only';
+      if (!workflow || workflow === 'draft') activeBaseProject.workflow_state = 'document_only';
       activeBaseProject.has_meaningful_activity = true;
       activeBaseProject.last_activity_at = new Date().toISOString();
       persistActiveBaseProject();

@@ -99,3 +99,18 @@ ways in `tests/project-history.test.ts`.
 
 **Why it can wait.** It is read only by an agent looking for patterns, on demand, and is fast for the run counts a
 company has today. (docs/architecture/project-history.md, "Known limits")
+
+## Contact options and projection fan-out
+
+**Today.** `contactOptions` (`contacts/service.ts`), which fills typed contact pickers, pages through every contact
+(up to 5,000) and returns them all. A contact edit rewrites `project.contacts` on every linked project, one document
+write each (`refreshProjections` in `contacts/records.ts`). Contact file import (`buildExistingContactIndex` in
+`platform/contact_import/api.ts`) and the partner-sharing contact list (`sharingOptions` in
+`collaboration/resources.ts`) page through every contact to match or list them.
+
+**Where the change goes.** Pickers call `contacts.records` with a text query instead of loading options, and options
+is removed; import matches each row with `findExactMatches` plus a name query and sharing pages with a cursor. The
+fan-out goes away when readers use the contacts client instead of the projection.
+
+**Why it can wait.** An organization has few contacts per project, and pickers stay fast below a few thousand
+contacts. (docs/architecture/contacts.md)

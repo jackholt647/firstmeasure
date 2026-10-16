@@ -1,5 +1,6 @@
 import { nextTestPhone, enableExpandedPlatformFixture } from "./helpers/platform-fixture.js";
 import assert from "node:assert/strict";
+import { putProjectContacts } from "./helpers/project-contacts.js";
 import test,{before,after} from "node:test";
 import {mkdtemp,rm,mkdir,writeFile} from "node:fs/promises";
 import path from "node:path";
@@ -78,9 +79,8 @@ test('mandatory dispositions block a new call while optional outcomes remain ski
 test('phone search finds saved Contacts records and preserves their project link',async()=>{
   const {c,orgId}=await owner();
   const projectId='phone_contact_project',contactId='phone_contact_person';
-  await c.request('POST',`/v1/platform/organizations/${orgId}/projects`,{id:projectId,data:{
-    title:'Taylor Reed',workflow_state:'contact_only',contacts:[{id:contactId,name:'Taylor Reed',phone:'+12025550131',primary:true}]
-  }});
+  await c.request('POST',`/v1/platform/organizations/${orgId}/projects`,{id:projectId,data:{title:'Taylor Reed'}});
+  await putProjectContacts(c,orgId,projectId,[{id:contactId,name:'Taylor Reed',phone:'+12025550131',primary:true}]);
   const result=await c.request('GET',`/v1/comms/organizations/${orgId}/voice/contacts?query=Taylor`);
   assert.deepEqual(result.contacts,[{id:contactId,project_id:projectId,name:'Taylor Reed',phone:'+12025550131'}]);
   assert.deepEqual((await c.request('GET',`/v1/comms/organizations/${orgId}/voice/contacts`)).contacts,result.contacts);

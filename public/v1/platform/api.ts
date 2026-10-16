@@ -54,7 +54,6 @@ import { normalizeProposalScope, proposalScopeTotalCents, publicScopeLineItems }
 import { publicProposalWorkflow } from "../proposals/storage.js";
 import { emitWorkEvent } from "../work/engine.js";
 import { createWorkPlan, listWorkTodos, patchWorkNode, transitionWorkNode } from "../work/service.js";
-import { ensurePipelinePlanForProject } from "../scopes/router.js";
 import { readScopeTemplate } from "../scopes/storage.js";
 import { readNodeRecord } from "../work/storage.js";
 import { appFlagState, canManageOrgAppFlags, canManageTestAppFlags, containsAppFlagMutation, effectiveAppFlags, enabledOnlyAppFlags, isAppFlagEnabled, newOrganizationAppFlagDefaults, normalizeAppFlagInput, normalizeAppPlacementInput, normalizeAppVariantInput } from "./app_flags.js";
@@ -343,21 +342,6 @@ type ContactProjectSummaryCacheEntry = {
 const platformSearchCache = new Map<string, PlatformSearchCacheEntry>();
 const contactProjectSummaryCache = new Map<string, ContactProjectSummaryCacheEntry>();
 
-export type PlatformLeadInput = Record<string, unknown> & {
-  branch_id?: string;
-  branchId?: string;
-  source?: string;
-  source_kind?: string;
-  address?: string;
-  title?: string;
-  summary?: string;
-  contacts?: unknown[];
-  customer?: Record<string, unknown>;
-  lead_source?: Record<string, unknown>;
-  provider_fields?: Record<string, unknown>;
-  raw?: Record<string, unknown>;
-  notification?: Record<string, unknown>;
-};
 
 
 import { deleteIdentity, deleteOrganization, findIdentityByIdentifier, identityEmailExists, withIdentityRegistrationLock } from "./storage.js";
@@ -1562,13 +1546,13 @@ app.get("/auth/google/config", async () => ({
     const ctx = await requirePlatformAuth(request, { app: ["portal.photos_feed", "project.photos", "contact.media", "portal.viewer"], orgId });
     const query = request.query && typeof request.query === "object" ? request.query as Record<string, unknown> : {};
     const projectId = cleanText(query.project_id || query.projectId);
-    const contactId=cleanText(query.contact_id),contactProjectId=cleanText(query.contact_project_id);
-    if(contactId){await requirePlatformAuth(request,{orgId,permission:"view_contacts"});await resolveContact(orgId,{contact_id:contactId,project_id:contactProjectId});}
+    const contactId=cleanText(query.contact_id);
+    if(contactId){await requirePlatformAuth(request,{orgId,permission:"view_contacts"});await resolveContact(orgId,{contact_id:contactId});}
     const tags = normalizeMediaTags(query.tags || query.tag);
     const tagMode = cleanText(query.tag_mode || query.tagMode).toLowerCase() === "all" ? "all" : "any";
     const media = (await listMedia(orgId))
       .filter((item) => canReadReceiptMedia(item, ctx))
-      .filter(item=>!contactId || cleanText(asObject(item.owner).type)==="contact" && cleanText(asObject(item.owner).id)===contactId && cleanText(asObject(item.metadata).contact_record_project_id)===contactProjectId)
+      .filter(item=>!contactId || cleanText(asObject(item.owner).type)==="contact" && cleanText(asObject(item.owner).id)===contactId)
       .filter((item) => {
         if (!projectId) return true;
         const owner = asObject(item.owner);
@@ -1595,15 +1579,13 @@ app.get("/auth/google/config", async () => ({
     const upload = await parseMediaUploadRequest(request);
     if(upload.ownerType==="contact"){
       await requirePlatformAuth(request,{orgId,csrf:true,permission:"manage_projects"});
-      const metadata=asObject(upload.metadata),anchor=cleanText(metadata.contact_record_project_id);
-      if(!anchor || !upload.ownerId)throw badRequest("contact_media_owner","Contact media needs a contact and record identity.");
-      try {await resolveContact(orgId,{contact_id:upload.ownerId,project_id:anchor});}
+      const metadata=asObject(upload.metadata);
+      if(!upload.ownerId)throw badRequest("contact_media_owner","Contact media needs a contact.");
+      // Contact media belongs to the contact. A draft photo may come before the contact's first save, for a new id only.
+      try {await resolveContact(orgId,{contact_id:upload.ownerId});}
       catch(error){
-        if(!(error instanceof PlatformError && error.statusCode===404) || metadata.contact_draft!==true || !/^project_[a-z0-9_]{8,100}$/i.test(anchor) || !/^contact_[a-z0-9_]{8,100}$/i.test(upload.ownerId))throw error;
-        // Draft media permits required photos before the first contact save. It
-        // never bypasses an existing record's contact membership check.
-        try {await readDocument(orgId,"projects",anchor);throw forbidden("contact_media_owner","Contact does not belong to this record.");}
-        catch(parentError){if(!(parentError instanceof PlatformError && parentError.statusCode===404))throw parentError;}
+        if(!(error instanceof PlatformError && error.statusCode===404) || metadata.contact_draft!==true || !/^contact_[a-z0-9_]{8,100}$/i.test(upload.ownerId))throw error;
+        if(await (await import("../contacts/records.js")).resolveContactId(orgId,upload.ownerId))throw forbidden("contact_media_owner","This contact already exists.");
       }
       if(upload.slot==="logo" || upload.scope==="branding" || upload.collection==="branding")throw badRequest("contact_media_slot","Contact media cannot use public branding slots.");
       if(upload.slot==="profile")await (await import("../contacts/photo-import.js")).validateContactPhoto(upload);
@@ -2724,10 +2706,17 @@ app.get("/auth/google/config", async () => ({
   app.post("/organizations/:orgId/leads", async (request, reply) => {
     const orgId = getParam(request.params, "orgId");
     // A lead is a new project and contact: it belongs to the apps that start them.
-    await requirePlatformAuth(request, { orgId, csrf: true, app: ["portal.viewer", "portal.contacts"] });
+    const ctx = await requirePlatformAuth(request, { orgId, csrf: true, permission: "manage_projects", app: ["portal.viewer", "portal.contacts"] });
     const body = objectBodySchema.parse(request.body ?? {});
-    const created = await createPlatformLead(orgId, body);
-    invalidatePlatformSearchCache(orgId);
+    const branchId = cleanText(body.branch_id) || cleanText(ctx.branchId) || "default";
+    (await import("../workforce/branch-guards.js")).assertBranchManageable(ctx, branchId);
+    // Only lead fields are read; a lead always creates a new project.
+    const created = await (await import("../leads/receive.js")).receiveLead(orgId, {
+      branch_id: branchId,
+      source: { kind: cleanText(body.source_kind || body.source) || "manual_lead", provider: cleanText(body.provider) },
+      contacts: (Array.isArray(body.contacts) ? body.contacts : body.customer ? [body.customer] : []) as never,
+      address: cleanText(body.address), title: cleanText(body.title), summary: cleanText(body.summary)
+    });
     reply.code(201);
     return { ok: true, ...created };
   });
@@ -2816,7 +2805,7 @@ app.get("/auth/google/config", async () => ({
         updated_at: new Date().toISOString()
       },
       metadata: { source: "project_documents_upload" }
-    }, { replace: true });
+    }, { replace: true, mustExist: true });
     reply.code(201);
     return {
       ok: true,
@@ -2876,7 +2865,7 @@ app.get("/auth/google/config", async () => ({
       id: projectId,
       data: { ...data, documents: updated, updated_at: new Date().toISOString() },
       metadata: { source: "project_documents_patch" }
-    }, { replace: true });
+    }, { replace: true, mustExist: true });
     return { ok: true, ...(await projectDocumentsPayload(orgId, saved)) };
   });
 
@@ -2894,7 +2883,7 @@ app.get("/auth/google/config", async () => ({
       id: projectId,
       data: { ...data, documents, updated_at: new Date().toISOString() },
       metadata: { source: "project_documents_delete" }
-    }, { replace: true });
+    }, { replace: true, mustExist: true });
     return { ok: true, ...(await projectDocumentsPayload(orgId, saved)) };
   });
 
@@ -2941,7 +2930,6 @@ app.get("/auth/google/config", async () => ({
         { replace: true }
       );
     if (collection === "projects") {
-      await ensurePipelinePlanForProject(orgId, { id: document.id, ...asObject(document.data) });
       await emitWorkEvent({
         organization_id: orgId,
         branch_id: cleanText(asObject(document.data).branch_id) || "default",
@@ -3019,7 +3007,6 @@ app.get("/auth/google/config", async () => ({
         { replace: true }
       );
     if (collection === "projects") {
-      await ensurePipelinePlanForProject(orgId, { id: document.id, ...asObject(document.data) });
       const projectData = asObject(document.data);
       await emitWorkEvent({
         organization_id: orgId,
@@ -3095,7 +3082,6 @@ app.get("/auth/google/config", async () => ({
         { replace: false }
       );
     if (collection === "projects") {
-      await ensurePipelinePlanForProject(orgId, { id: document.id, ...asObject(document.data) });
       const projectData = asObject(document.data);
       await emitWorkEvent({
         organization_id: orgId,
@@ -3229,7 +3215,7 @@ async function readBranchModuleDataOrNull(orgId: string, branchId: string, modul
   }
 }
 
-async function ensureWorkflowModules(orgId: string, branchId: string) {
+export async function ensureWorkflowModules(orgId: string, branchId: string) {
   const mappingsRaw = await readBranchModuleDataOrNull(orgId, branchId, PLATFORM_VARIABLE_MAPPING_MODULE_ID);
   const mappings = defaultVariableMappingsData(asObject(mappingsRaw));
   if (JSON.stringify(mappingsRaw || {}) !== JSON.stringify(mappings)) {
@@ -3263,146 +3249,11 @@ function isLocalPortalRequest(request?: FastifyRequest) {
     || candidates.includes("::1");
 }
 
-function normalizeLeadContacts(input: unknown) {
-  return (Array.isArray(input) ? input : []).map((entry) => {
-    const contact = asObject(entry);
-    const phones = normalizeStringArray(contact.phones || (contact.phone ? [contact.phone] : []));
-    return {
-      name: cleanText(contact.name),
-      email: cleanText(contact.email).toLowerCase(),
-      phone: cleanText(contact.phone || phones[0] || ""),
-      phones,
-      role: cleanText(contact.role || "primary")
-    };
-  }).filter((contact) => contact.name || contact.email || contact.phone || contact.phones.length);
-}
-
-function defaultLeadNotificationRoles(sourceKind: string) {
-  if (sourceKind === "canvassing") return ["inside_sales", "sales_appointments"];
-  return ["inside_sales", "sales_appointments"];
-}
-
-export async function createPlatformLead(orgId: string, input: PlatformLeadInput = {}) {
-  const branchId = cleanText(input.branch_id || input.branchId || "default") || "default";
-  await ensureWorkflowModules(orgId, branchId);
-  const now = new Date().toISOString();
-  const leadSource = asObject(input.lead_source);
-  const sourceKind = cleanText(input.source_kind || leadSource.kind || input.source || "manual_lead") || "manual_lead";
-  const address = cleanText(input.address);
-  const contacts = normalizeLeadContacts(input.contacts);
-  const customerInput = asObject(input.customer);
-  if (!contacts.length && (customerInput.name || customerInput.email || customerInput.phone || customerInput.phones)) {
-    contacts.push(...normalizeLeadContacts([customerInput]));
-  }
-  if (!address && !contacts.length && !cleanText(input.summary || input.title)) {
-    throw badRequest("lead_missing_contact_data", "A lead needs at least an address, contact, title, or summary.");
-  }
-
-  const projectId = cleanText(input.project_id || input.id);
-  const projectData = asObject(input.project_data);
-  delete projectData.customers;
-  delete projectData.customer_ids;
-  delete projectData.primary_customer_id;
-  delete projectData.customer_id;
-  let project = await upsertDocument(orgId, "projects", {
-    ...(projectId ? { id: projectId } : {}),
-    data: {
-      branch_id: branchId,
-      lead_status: cleanText(input.lead_status || "new") || "new",
-      project_type: cleanText(input.project_type || "lead") || "lead",
-      address,
-      title: cleanText(input.title || address || input.summary || "New lead"),
-      summary: cleanText(input.summary),
-      contacts,
-      events: Array.isArray(input.events) ? input.events : [],
-      source: sourceKind,
-      lead_source: {
-        kind: sourceKind,
-        provider: cleanText(input.provider || leadSource.provider),
-        confidence: Number(input.confidence ?? leadSource.confidence ?? 0),
-        provider_fields: asObject(input.provider_fields || leadSource.provider_fields),
-        raw: asObject(input.raw || leadSource.raw),
-        ...leadSource
-      },
-      created_at: cleanText(input.created_at) || now,
-      updated_at: now,
-      ...projectData
-    },
-    metadata: {
-      kind: "platform_project",
-      source: sourceKind,
-      branch_id: branchId,
-      ...asObject(input.metadata)
-    }
-  });
-  await emitWorkEvent({
-    organization_id: orgId,
-    branch_id: branchId,
-    project_id: cleanText(project.id),
-    type: "project.created",
-    idempotency_key: `project.created:${cleanText(project.id)}`,
-    payload: {
-      project_id: cleanText(project.id),
-      source_kind: sourceKind,
-      address,
-      title: cleanText(asObject(project.data).title)
-    }
-  });
-  await ensurePipelinePlanForProject(orgId, { id: project.id, ...asObject(project.data) });
-  // The router just wrote work_projection/lifecycle onto the document —
-  // return the fresh copy so callers see the routed instance immediately.
-  project = await readDocument(orgId, "projects", cleanText(project.id)).catch(() => project);
-
-  let notification = null;
-  const rawNotification = input.notification as unknown;
-  const notificationInput = asObject(rawNotification);
-  if (rawNotification !== false) {
-    const primaryContact = asObject(contacts[0]);
-    const leadBody = cleanText(notificationInput.body)
-      || [
-        address,
-        cleanText(primaryContact.name),
-        cleanText(primaryContact.phone || (Array.isArray(primaryContact.phones) ? primaryContact.phones[0] : "")),
-        cleanText(primaryContact.email)
-      ].filter(Boolean).join(" · ")
-      || cleanText(input.summary || input.title)
-      || "A new lead came in.";
-    notification = await createPlatformNotification(orgId, {
-      id: cleanText(notificationInput.id) || `notification_new_lead_${project.id}`,
-      title: cleanText(notificationInput.title || "Contact new lead"),
-      body: leadBody,
-      status: "active",
-      channel: "passive",
-      kind: "passive",
-      push: notificationInput.push !== false,
-      passive: notificationInput.passive !== false,
-      manual_dismissible: notificationInput.manual_dismissible === true,
-      target_user_ids: normalizeStringArray(notificationInput.target_user_ids),
-      target_role_ids: normalizeStringArray(notificationInput.target_role_ids).length
-        ? normalizeStringArray(notificationInput.target_role_ids)
-        : defaultLeadNotificationRoles(sourceKind),
-      branch_id: branchId,
-      expires_at: cleanText(notificationInput.expires_at),
-      source: cleanText(notificationInput.source || `${sourceKind}_lead_import`),
-      context: {
-        project_id: project.id,
-        branch_id: branchId,
-        lead_source: sourceKind,
-        action: "contact_lead",
-        ...asObject(notificationInput.context)
-      }
-    });
-  }
-
-  invalidatePlatformSearchCache(orgId);
-  return { project, contacts, notification };
-}
-
 function platformSearchCollection(collection: string) {
   return collection === "projects" || collection === "customers";
 }
 
-function invalidatePlatformSearchCache(orgId: string) {
+export function invalidatePlatformSearchCache(orgId: string) {
   const key = cleanText(orgId);
   platformSearchCache.delete(key);
   contactProjectSummaryCache.delete(key);
@@ -4584,9 +4435,23 @@ async function upsertProjectDocumentPreservingEvents(
     input = { ...input };
     delete input.require_existing;
   }
-  if (!id) return await upsertDocument(orgId, "projects", input, { replace });
+  // A write that creates a project starts its scope (projects/create.ts): the one
+  // it names in `scope_template_id`, or the branch's manual default.
+  const creation = await import("../projects/create.js");
+  const choice = creation.withoutScopeChoice(input);
+  input = choice.input;
+  const createWithScope = async (value: JsonObject) => {
+    const template = await creation.creationScopeTemplate(orgId, cleanText(asObject(value.data).branch_id) || "default", choice.requested);
+    const created = await upsertDocument(orgId, "projects", value, { replace, createOnly: true });
+    return { created, template };
+  };
+  if (!id) {
+    const made = await createWithScope(input);
+    return await creation.startCreatedProjectScope(orgId, made.created.id, made.template);
+  }
   const explicitExpectedRevision = Number(input.expected_revision || 0);
-  return await withProjectDocumentLock(orgId, id, async () => {
+  let made: { created: JsonObject; template: JsonObject } | null = null;
+  const saved = await withProjectDocumentLock(orgId, id, async () => {
   for (let attempt = 0; ; attempt += 1) {
     const current = await readDocument(orgId, "projects", id).catch((error) => {
       if (!requireExisting || (error instanceof PlatformError && error.statusCode === 404)) return null;
@@ -4594,7 +4459,14 @@ async function upsertProjectDocumentPreservingEvents(
     });
     if (!current) {
       if (requireExisting) throw notFound("project_deleted", "This project was deleted.", { project_id: id, deleted: true });
-      return await upsertDocument(orgId, "projects", { ...input, id }, { replace });
+      try {
+        made = await createWithScope({ ...input, id });
+        return made.created;
+      } catch (error) {
+        // Another process created it meanwhile: save over it as an update.
+        if ((error as { code?: string })?.code === "document_exists" && attempt < 7) continue;
+        throw error;
+      }
     }
     const currentData = asObject(current.data);
     const incomingData = asObject(input.data);
@@ -4625,6 +4497,9 @@ async function upsertProjectDocumentPreservingEvents(
     }
   }
   });
+  // The scope starts after the lock: starting it writes the project's projection.
+  const createdNow = made as { created: JsonObject; template: JsonObject } | null;
+  return createdNow ? await creation.startCreatedProjectScope(orgId, cleanText(createdNow.created.id), createdNow.template) : saved;
 }
 
 /* Whether a project item write books equipment or changes an item that

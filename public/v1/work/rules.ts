@@ -46,13 +46,61 @@ function asArray(value: unknown) {
 // not scope-of-work behavior, so it lives here rather than in any template.
 export const DEFAULT_AUTOMATION_RULES: JsonObject[] = [
   {
+    id: "platform_notify_new_lead",
+    enabled: true,
+    title: "Tell the sales team about a new lead",
+    explainer: "When a lead arrives from a source that names nobody to tell, we notify inside sales and appointment setters. Clicking it opens the lead.",
+    customer_visible: true,
+    // Every lead arrives through receiveLead (docs/architecture/opportunities.md); the source's
+    // suggested title, body and roles ride on payload.notice.
+    event: "lead.received",
+    conditions: { match: "all", rules: [
+      { field: "payload.notice.notify", operator: "not_equals", value: "false" },
+      { field: "payload.notice.target_role_ids", operator: "is_missing" }
+    ] },
+    automation: "notification.create.v1",
+    input: {
+      id: "notification_new_lead_{{project.id}}",
+      title: "{{event.payload.notice.title}}",
+      body: "{{event.payload.notice.body}}",
+      target_role_ids: ["inside_sales", "sales_appointments"],
+      push: true,
+      source: "{{event.payload.notice.source}}",
+      context: { lead_source: "{{event.payload.source_kind}}" },
+      frontend_action: { kind: "open_project", project_id: "{{project.id}}", project_tab: "overview" }
+    }
+  },
+  {
+    id: "platform_notify_new_lead_source_roles",
+    enabled: true,
+    title: "Tell a lead source's roles about its leads",
+    explainer: "When a lead arrives from a source that names who to tell (a website form's Notify these roles), we notify those roles.",
+    customer_visible: true,
+    event: "lead.received",
+    conditions: { match: "all", rules: [
+      { field: "payload.notice.notify", operator: "not_equals", value: "false" },
+      { field: "payload.notice.target_role_ids", operator: "is_present" }
+    ] },
+    automation: "notification.create.v1",
+    input: {
+      id: "notification_new_lead_{{project.id}}",
+      title: "{{event.payload.notice.title}}",
+      body: "{{event.payload.notice.body}}",
+      target_role_ids: "{{event.payload.notice.target_role_ids}}",
+      push: true,
+      source: "{{event.payload.notice.source}}",
+      context: { lead_source: "{{event.payload.source_kind}}" },
+      frontend_action: { kind: "open_project", project_id: "{{project.id}}", project_tab: "overview" }
+    }
+  },
+  {
     id: "platform_queue_new_lead_calls",
     enabled: true,
     title: "Queue a call when a new lead arrives",
     explainer: "When a new lead comes in, we add them to the New Leads call queue so someone reaches out right away.",
     customer_visible: true,
-    event: "project.created",
-    conditions: {},
+    // Every lead, with a scope or not yet: the entry scope's own stages say what happens after the call.
+    event: "lead.received",
     automation: "crm.callLists.add.v1",
     input: {
       list: {
@@ -68,6 +116,32 @@ export const DEFAULT_AUTOMATION_RULES: JsonObject[] = [
       title: "Contact lead"
     }
   },
+  {
+    id: "platform_queue_sales_scope_calls",
+    enabled: true,
+    title: "Queue a call when a sales scope starts on a project made by hand",
+    explainer: "When someone starts a sales scope on a project they made themselves, we add it to the New Leads call queue. Leads already got their call when they arrived.",
+    customer_visible: true,
+    event: "work.plan.started",
+    conditions: { match: "all", rules: [
+      { field: "plan.outcome", operator: "equals", value: "open" },
+      { field: "project.lead_source", operator: "is_missing" }
+    ] },
+    automation: "crm.callLists.add.v1",
+    input: {
+      list: {
+        key: "new_leads",
+        title: "New Leads",
+        description: "Fresh leads that need a first call.",
+        kind: "lead",
+        icon: "fa-user-plus",
+        tone: "lead",
+        sort_order: 10,
+        metadata: { purpose: "new_lead_contact", managed_by: "automation" }
+      },
+      title: "Contact lead"
+    }
+    },
   {
     id: "platform_ensure_receivables_on_signature",
     enabled: true,

@@ -204,7 +204,20 @@ export function installDivider(sidebar) {
     save(); window.dispatchEvent(new Event('resize'));
   });
   sidebar.after(divider);
+  divider.__setRatio = set;
+  divider.__ratio = () => ratio;
   dividers.set(sidebar, divider);
+}
+
+// Gives the left side at least `percent` of the width, sliding there, for one task (placing on the schedule). It is not
+// saved as the person's own width: dragging the divider still does that.
+export function widenSidebar(sidebar, percent) {
+  const divider = dividers.get(sidebar);
+  if (!divider?.__setRatio || divider.__ratio() >= percent) return false;
+  sidebar.classList.add('sw-width-animating');
+  divider.__setRatio(percent);
+  setTimeout(() => { sidebar.classList.remove('sw-width-animating'); window.dispatchEvent(new Event('resize')); }, 420);
+  return true;
 }
 
 export function removeDivider(sidebar) {

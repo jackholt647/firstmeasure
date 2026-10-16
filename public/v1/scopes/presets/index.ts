@@ -133,7 +133,7 @@ function callListRemoveBindings(prefix: string) {
 }
 
 // The default sales pipeline. This is an ordinary scope template with
-// `kind: "pipeline"` — the sales board derives from it exactly like production
+// `category_ids: ["sales"]` — the sales board derives from it exactly like production
 // boards derive from their scope templates, and the transition into production
 // scopes is expressed as an automation binding on the signature node instead of
 // anywhere in engine code.
@@ -275,6 +275,11 @@ const SALES_PIPELINE_STAGES = [
         external_triggers: [{ event: "proposal.signed", transition: "completed" }],
         automation_bindings: {
           onCompleted: [{
+            id: "mark_sale_won",
+            automation: "sales.markWon.v1",
+            explainer: "Signing is when this pipeline counts the sale as won. Move this to the deposit, or any other step, to count it there instead.",
+            input: {}
+          }, {
             id: "activate_signed_scopes",
             automation: "scopes.activateFromProposal.v1",
             explainer: "When the customer signs, the project moves onto the production board for the work they bought and the sales pipeline wraps up.",
@@ -299,7 +304,7 @@ function salesPipelineTemplate(): ScopeTemplateDefinition {
   return {
     schema_version: 1,
     id: "sales_pipeline",
-    kind: "pipeline",
+    category_ids: ["sales"],
     name: "Sales",
     description: "Lead contact through signature and deposit.",
     details: "The default sales pipeline: contact the lead, run the appointment, send the proposal, and collect the signature and deposit. Signing a proposal activates the production scopes it contains.",
@@ -325,7 +330,7 @@ function salesPipelineTemplate(): ScopeTemplateDefinition {
         children: SALES_PIPELINE_STAGES
       }]
     },
-    metadata: { preset: true, preset_revision: 4 }
+    metadata: { preset: true, preset_revision: 5 }
   };
 }
 
@@ -333,7 +338,7 @@ function roofingSalesAppointmentTemplate(): ScopeTemplateDefinition {
   return {
     schema_version: 1,
     id: "roofing_sales_appointment",
-    kind: "pipeline",
+    category_ids: ["sales"],
     name: "Standard Roofing Sales",
     description: "A complete roofing sales appointment from en-route notice through proposal, approval, payment, notes and follow-up.",
     details: "The sales pipeline owns the appointment workflow. It issues a workflow-only Good / Better / Best roofing proposal and lets the salesperson complete it on device or send it to the customer portal.",
@@ -367,6 +372,7 @@ function roofingSalesAppointmentTemplate(): ScopeTemplateDefinition {
             assigned_role_ids: ["sales_appointments"],
             external_triggers: [{ event: "document.signed", transition: "completed", conditions: { "payload.template_id": "tpl_instant_roofing_options" } }],
             automation_bindings: {
+              onCompleted: [{ id: "mark_sale_won", automation: "sales.markWon.v1", explainer: "Signing is when this pipeline counts the sale as won. Move this to another step to count it there instead.", input: {} }],
               onReady: [{
                 id: "issue_roofing_workflow_proposal",
                 automation: "documents.issue.v1",
@@ -386,7 +392,7 @@ function roofingSalesAppointmentTemplate(): ScopeTemplateDefinition {
     },
     metadata: {
       preset: true,
-      preset_revision: 2,
+      preset_revision: 3,
       field_launch: {
         enabled: true,
         title: "Roofing Proposal (Good / Better / Best)",
@@ -452,7 +458,7 @@ function sameDayServiceSalesTemplate(): ScopeTemplateDefinition {
   return {
     schema_version: 1,
     id: "same_day_service_sales",
-    kind: "pipeline",
+    category_ids: ["sales"],
     name: "Same-Day Service Sales",
     description: "On-site assessment, materials/labor quote, payment and customer authorization.",
     details: "A mobile sales visit that creates an editable service quote. The customer's in-person signature activates the predetermined Same-Day Service Production scope through the standard document.signed event.",
@@ -529,6 +535,11 @@ function sameDayServiceSalesTemplate(): ScopeTemplateDefinition {
                 }
               }],
               onCompleted: [{
+                id: "mark_sale_won",
+                automation: "sales.markWon.v1",
+                explainer: "The signed authorization is when this visit counts as a sale. Move this to another step to count it there instead.",
+                input: {}
+              }, {
                 id: "activate_same_day_service_production",
                 automation: "scopes.activateTemplate.v1",
                 explainer: "The signed authorization places the project into the predetermined same-day production workflow.",
@@ -542,7 +553,7 @@ function sameDayServiceSalesTemplate(): ScopeTemplateDefinition {
     },
     metadata: {
       preset: true,
-      preset_revision: 3,
+      preset_revision: 4,
       field_launch: {
         enabled: true,
         title: "Same-Day Service Install",
@@ -615,7 +626,7 @@ function sameDayServiceProductionTemplate(): ScopeTemplateDefinition {
   return {
     schema_version: 1,
     id: "same_day_service_production",
-    kind: "production",
+    category_ids: ["production"],
     name: "Same-Day Service Production",
     description: "Start authorized service immediately and close it out on the same visit.",
     details: "Activated automatically by the signed same-day service authorization; preserves the event-driven sales-to-production handoff.",
@@ -1366,7 +1377,7 @@ function replacementTemplate(input: Pick<ScopeTemplateDefinition, "id" | "name" 
   return {
     schema_version: 1,
     ...input,
-    kind: "production",
+    category_ids: ["production"],
     status: "active",
     ...(PRESET_MEASUREMENT_SCHEMAS[input.id] ? { measurement_schema_ids: PRESET_MEASUREMENT_SCHEMAS[input.id] } : {}),
     proposal: { kind: input.id, supports_structures: true, piece_types: PRESET_PIECE_TYPES[input.id] || [input.id] },
@@ -1459,7 +1470,7 @@ function serviceTemplate(input: Pick<ScopeTemplateDefinition, "id" | "name" | "d
   return {
     schema_version: 1,
     ...input,
-    kind: "production",
+    category_ids: ["production"],
     status: "active",
     ...(PRESET_MEASUREMENT_SCHEMAS[input.id] ? { measurement_schema_ids: PRESET_MEASUREMENT_SCHEMAS[input.id] } : {}),
     proposal: { kind: input.id, piece_types: PRESET_PIECE_TYPES[input.id] || [input.id], ...(input.id === "manual" ? { fallback: true } : {}) },
@@ -1621,7 +1632,7 @@ function kitchenRemodelTemplate(): ScopeTemplateDefinition {
   return {
     schema_version: 1,
     id: "kitchen_remodel",
-    kind: "production",
+    category_ids: ["production"],
     name: "Kitchen Remodel",
     description: "Interior kitchen remodel: allowance-based estimate, customer material selections from the portal, phase-gated finishes.",
     details: "The base estimate carries allowance line items and is signed as a document with a deposit. Material selections are issued later as a portal workflow; signed upgrades append to the payment schedule and unblock finish work.",

@@ -269,7 +269,7 @@ export async function patchProjectFinancialRefs(orgId: string, projectId: string
     id: projectId,
     data: { ...project, financial },
     metadata: { ...currentMetadata, kind: cleanText(currentMetadata.kind) || "platform_project", payment_ref_source: "payments_api" }
-  }, { replace: true });
+  }, { replace: true, mustExist: true });
   return documentView(updated);
 }
 

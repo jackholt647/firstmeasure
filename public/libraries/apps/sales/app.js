@@ -436,56 +436,11 @@
     return handle;
   }
 
-  function isCommissionEntry(entry){
-    return clean(entry.kind).toLowerCase().includes('commission');
-  }
-
-  function commissionEntryCard(entryValue = {}){
-    const entry = obj(entryValue);
-    const status = Number(entry.remaining_cents || 0) === 0 && Number(entry.applied_cents || 0) !== 0 ? 'in payroll' : clean(entry.state || 'accrued');
-    const clawback = Number(entry.amount_cents || 0) < 0;
-    return `<div class="sales-row"><div class="sales-row-copy"><strong>${esc(first(entry.project_title, entry.description, 'Commission'))}</strong><span>${esc(first(entry.description !== entry.project_title ? entry.description : '', shortDate(entry.eligible_at), 'Commission'))}</span></div><div class="sales-row-value" ${clawback ? 'style="color:#b42318"' : ''}>${esc(currency(Number(entry.amount_cents || 0)))}<small><span class="sales-pill ${status === 'paid' ? 'good' : clawback ? 'bad' : 'warn'}">${esc(clawback ? 'clawback' : status.replace(/_/g,' '))}</span></small></div></div>`;
-  }
-
-  function otherEarningCard(entryValue = {}){
-    const entry = obj(entryValue);
-    const kind = clean(entry.kind || 'earning').replace(/_/g,' ');
-    const status = Number(entry.remaining_cents || 0) === 0 && Number(entry.applied_cents || 0) !== 0 ? 'in payroll' : clean(entry.state || 'accrued');
-    return `<div class="sales-row"><div class="sales-row-copy"><strong style="text-transform:capitalize">${esc(first(entry.description, kind))}</strong><span>${esc(first(entry.project_title, shortDate(entry.eligible_at), 'Payroll earning'))}</span></div><div class="sales-row-value">${esc(currency(Number(entry.amount_cents || 0)))}<small><span class="sales-pill ${status === 'paid' ? 'good' : 'warn'}">${esc(status.replace(/_/g,' '))}</span></small></div></div>`;
-  }
-
+  // Earnings: the shared My pay view (libraries/apps/payroll/my-pay.js) with commissions first. Commissions are the
+  // earnings whose kind is commission (and their clawbacks), never picked by matching words.
   function mountSalesEarnings(root, context = {}){
-    let destroyed = false;
-    root.innerHTML = `<div class="sales-shell"><div class="sales-page"><div class="sales-head"><div><div class="sales-eyebrow">${(globalThis.PlatformLanguage?.htmlText("sales","m_a65c881ea565c9","My commissions") ?? "My commissions")}</div><h1 class="sales-title">${(globalThis.PlatformLanguage?.htmlText("sales","m_685ff0ff145929","Earnings") ?? "Earnings")}</h1><p class="sales-sub">${(globalThis.PlatformLanguage?.htmlText("sales","m_665dff0f24c0b6","Commission on every deal: what is pending, what is in payroll, and what has been paid.") ?? "Commission on every deal: what is pending, what is in payroll, and what has been paid.")}</p></div></div><div data-earnings>${String(stateHtml('loading','Loading your commissions'))}</div></div></div>`;
-    const mount = root.querySelector('[data-earnings]');
-    const render = (result) => {
-      const report = obj(result.earnings || result.report || result);
-      const entries = arr(report.entries);
-      const projects = arr(report.projects);
-      const totals = obj(report.totals);
-      const commissions = entries.filter(isCommissionEntry);
-      const others = entries.filter((entry) => !isCommissionEntry(entry));
-      mount.innerHTML = `<div class="sales-summary-grid">
-          <div class="sales-summary"><span>${(globalThis.PlatformLanguage?.htmlText("sales","m_5f59818bf1cb7d","Owed") ?? "Owed")}</span><strong>${String(esc(currency(Math.max(0, Number(totals.owed_cents || 0)))))}</strong><small>${(globalThis.PlatformLanguage?.htmlText("sales","m_3d6345f45141a8","Accrued and currently in payroll") ?? "Accrued and currently in payroll")}</small></div>
-          <div class="sales-summary"><span>${(globalThis.PlatformLanguage?.htmlText("sales","m_956173c8527121","Paid") ?? "Paid")}</span><strong>${String(esc(currency(Math.max(0, Number(totals.paid_cents || 0)))))}</strong><small>${(globalThis.PlatformLanguage?.htmlText("sales","m_192360a7033431","Completed payroll") ?? "Completed payroll")}</small></div>
-          <div class="sales-summary"><span>${(globalThis.PlatformLanguage?.htmlText("sales","m_929d3bd2149645","Projected") ?? "Projected")}</span><strong>${String(esc(currency(Math.max(0, Number(totals.projected_cents || 0)))))}</strong><small>${(globalThis.PlatformLanguage?.htmlText("sales","m_047c1d69a096b3","Not owed until accrued") ?? "Not owed until accrued")}</small></div>
-        </div>
-        <section class="sales-card"><div class="sales-card-title"><h3>${(globalThis.PlatformLanguage?.htmlText("sales","m_612cec7371695b","Commissions") ?? "Commissions")}</h3><small>${String(commissions.length)}</small></div>${String(commissions.length ? `<div class="sales-row-list">${commissions.slice(0, 100).map(commissionEntryCard).join('')}</div>` : stateHtml('empty','No commissions yet — go close something.'))}</section>
-        ${String(others.length ? `<section class="sales-card"><div class="sales-card-title"><h3>${(globalThis.PlatformLanguage?.htmlText("sales","m_8726cf189a9d40","Other earnings") ?? "Other earnings")}</h3><small>${others.length}</small></div><div class="sales-row-list">${others.slice(0, 50).map(otherEarningCard).join('')}</div></section>` : '')}
-        ${String(!entries.length && projects.length ? `<section class="sales-card"><div class="sales-card-title"><h3>${(globalThis.PlatformLanguage?.htmlText("sales","m_e48ae8574d9d08","Earnings by project") ?? "Earnings by project")}</h3><small>${projects.length}</small></div><div class="sales-row-list">${projects.map((item) => {
-          const project = obj(item);
-          const projectTotals = obj(project.totals);
-          return `<div class="sales-row"><div class="sales-row-copy"><strong>${esc(first(project.title, project.project_title, project.project_id, 'Project'))}</strong></div><div class="sales-row-value">${esc(currency(Math.max(0, Number(projectTotals.owed_cents || projectTotals.projected_cents || projectTotals.paid_cents || 0))))}</div></div>`;
-        }).join('')}</div></section>` : '')}`;
-    };
-    const client = window.PayrollAPI?.earnings;
-    if (!client?.me) {
-      mount.innerHTML = stateHtml('error', 'The payroll earnings library is unavailable.');
-    } else {
-      client.me(orgId(context)).then((result) => { if (!destroyed) render(result); })
-        .catch((error) => { if (!destroyed) mount.innerHTML = stateHtml('error', statusError(error, 'Could not load earnings.')); });
-    }
-    return { destroy(){ destroyed = true; root.innerHTML = ''; } };
+    if (!window.FirstMateMyPay?.mount) { root.innerHTML = stateHtml('error', 'Your pay could not be loaded.'); return { destroy(){ root.innerHTML = ''; } }; }
+    return window.FirstMateMyPay.mount(root, { orgId:orgId(context), presentation:'commissions', projected:context.params?.projected_enabled === true, title:(globalThis.PlatformLanguage?.text("sales","m_my_pay","My pay") ?? "My pay") });
   }
 
   function projectContextId(context = {}){
@@ -520,7 +475,7 @@
       const stage = clean(project.stage);
       root.innerHTML = `<div class="sales-project-page"><div class="sales-page">
         ${String(chips ? `<div class="sales-strip">${chips}</div>` : '')}
-        ${String(stage || clean(project.lead_status) ? `<div class="sales-strip">${stage ? `<div class="sales-strip-chip"><i class="fas fa-flag-checkered"></i><div class="sales-strip-copy"><span>${(globalThis.PlatformLanguage?.htmlText("sales","m_43f2c4d59757a1","Stage") ?? "Stage")}</span><strong>${esc(stage)}</strong></div></div>` : ''}${clean(project.lead_status) ? `<div class="sales-strip-chip"><i class="fas fa-circle-info"></i><div class="sales-strip-copy"><span>${(globalThis.PlatformLanguage?.htmlText("sales","m_012735d675a8d5","Lead status") ?? "Lead status")}</span><strong>${esc(project.lead_status)}</strong></div></div>` : ''}</div>` : '')}
+        ${String(stage || clean(project.sale_status) ? `<div class="sales-strip">${stage ? `<div class="sales-strip-chip"><i class="fas fa-flag-checkered"></i><div class="sales-strip-copy"><span>${(globalThis.PlatformLanguage?.htmlText("sales","m_43f2c4d59757a1","Stage") ?? "Stage")}</span><strong>${esc(stage)}</strong></div></div>` : ''}${clean(project.sale_status) ? `<div class="sales-strip-chip"><i class="fas fa-circle-info"></i><div class="sales-strip-copy"><span>Sale</span><strong>${esc({ open:'Open', won:'Won', lost:'Lost' }[project.sale_status] || project.sale_status)}</strong></div></div>` : ''}</div>` : '')}
         <section class="sales-card"><div class="sales-card-title"><h3>${(globalThis.PlatformLanguage?.htmlText("sales","m_17bb11ec04c41f","Appointments") ?? "Appointments")}</h3><small>${String(appointments.length)}</small></div>${String(appointments.length ? `<div class="sales-row-list">${appointments.map(appointmentRow).join('')}</div>` : stateHtml('empty','No sales appointments on this project.'))}</section>
         <section class="sales-card"><div class="sales-card-title"><h3>${(globalThis.PlatformLanguage?.htmlText("sales","m_6d21d1db92b8a6","Follow-ups") ?? "Follow-ups")}</h3><small>${String(followups.length)}</small></div>${String(followups.length ? `<div class="sales-row-list">${followups.map((item) => followUpRow(item, { claim: item.mine !== true })).join('')}</div>` : stateHtml('empty','No open follow-ups on this project.'))}</section>
         <section class="sales-card"><div class="sales-card-title"><h3>${(globalThis.PlatformLanguage?.htmlText("sales","m_de7d6168ae1ad6","Notes") ?? "Notes")}</h3></div><div class="sales-notes">${String(esc(clean(project.notes) || 'No notes have been added.'))}</div></section>

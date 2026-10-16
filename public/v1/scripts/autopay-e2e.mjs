@@ -83,11 +83,11 @@ async function seedProject(slug) {
   await client.req("PUT", `/v1/platform/organizations/${orgId}/projects/${projectId}`, {
     data: {
       id: projectId, title: `Autopay ${slug} Roof`, address: `${slug} Autopay Way`, project_type: "residential",
-      contacts: [{ id: contactId, name: "Amy Auto", email: contactEmail, primary: true }],
       photos: []
     },
     metadata: { kind: "platform_project" }
   });
+  await client.req("PUT", `/v1/platform/organizations/${orgId}/projects/${projectId}/contacts`, { contacts: [{ id: contactId, name: "Amy Auto", email: contactEmail, primary: true }] });
   const created = await client.req("POST", `/v1/proposals/organizations/${orgId}/projects/${projectId}/proposals`, {
     title: "Autopay Proposal",
     contacts: [{ id: contactId, role: "customer", name: "Amy Auto", email: contactEmail }],

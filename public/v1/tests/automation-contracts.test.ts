@@ -4,6 +4,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test, { after, before } from "node:test";
+import { putProjectContacts } from "./helpers/project-contacts.js";
 
 let app: any = null;
 let storageRoot = "";
@@ -77,7 +78,9 @@ async function register(client: ReturnType<typeof createSessionClient>) {
 }
 
 async function createProject(client: ReturnType<typeof createSessionClient>, orgId: string, projectId: string, extra: Record<string, unknown> = {}) {
+  // A project made by hand starts the scope it names (docs/architecture/opportunities.md).
   await client.request("PUT", `/v1/platform/organizations/${orgId}/projects/${projectId}`, {
+    scope_template_id: "sales_pipeline",
     data: { id: projectId, title: "Contracts Project", address: "1 Contract Way", events: [], ...extra },
     metadata: { kind: "platform_project" }
   });
@@ -322,7 +325,8 @@ test("a dry run reports what would happen and changes nothing", async () => {
   const client = createSessionClient();
   const { orgId } = await register(client);
   const projectId = "project_dry_run";
-  await createProject(client, orgId, projectId, { customer_phone: "+15555550100", customer_email: "lead@example.test", total_cents: 2000000 });
+  await createProject(client, orgId, projectId, { total_cents: 2000000 });
+  await putProjectContacts(client, orgId, projectId, [{ name: "Lead", phone: "+15555550100", email: "lead@example.test", primary: true }]);
   const definition = pipelineDefinition("contracts_dry", { contact: {
     sequence: { steps: [
       { id: "text", explainer: "We text new leads right away.", actions: [{ automation: "communications.sendSms.v1", input: { to: "{{project.customer_phone}}", text: "Hi from {{organization.name}}" } }] },
@@ -440,7 +444,8 @@ test("action inputs resolve list positions in templates", async () => {
   const client = createSessionClient();
   const { orgId } = await register(client);
   const projectId = "project_list_index";
-  await createProject(client, orgId, projectId, { contacts: [{ name: "Jane", phone: "+15555550111" }, { name: "Sam", phone: "+15555550112" }] });
+  await createProject(client, orgId, projectId);
+  await putProjectContacts(client, orgId, projectId, [{ name: "Jane", phone: "+15555550111" }, { name: "Sam", phone: "+15555550112" }]);
   await client.request("PUT", `/v1/work/organizations/${orgId}/branches/default/automation-rules`, {
     rules: [{ id: "copy_contact", event: "test.copy_contact", actions: [
       { id: "copy", automation: "project.patch.v1", input: { values: { first_phone: "{{project.contacts.0.phone}}", second_name: "{{project.contacts.1.name}}", missing: "[{{project.contacts.5.phone}}]" } } }
@@ -467,7 +472,7 @@ test("a proposal signed through Documents advances the sales pipeline like any s
   await createProject(client, orgId, projectId);
   const { listNodeRecords } = await import("../work/storage.js");
   const step = async () => (await listNodeRecords(orgId, { project_id: projectId })).find((node) => node.template_node_id === "sign_sales_proposal");
-  assert.ok(await step(), "new projects enter the sales pipeline");
+  assert.ok(await step(), "the project starts the sales scope it named");
   assert.notEqual((await step())!.status, "completed");
   // A change order is not a proposal: the pipeline does not move.
   await client.request("POST", `/v1/work/organizations/${orgId}/events/emit`, { event: "document.signed", project_id: projectId, payload: { document_id: "doc_change", document_type: "automation_contract_test", document_tags: ["change"] } });

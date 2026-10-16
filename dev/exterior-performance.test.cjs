@@ -8,11 +8,19 @@ test('Speed panel collects nested timings, freezes captures, copies JSON, and le
  await page.goto('http://localhost/');
  await page.evaluate(()=>{window.WallMode={enabled:true};window.clock=100;Object.defineProperty(performance,'now',{value:()=>window.clock});Object.defineProperty(navigator,'clipboard',{value:{writeText:async text=>window.copied=text}});});
  await page.addScriptTag({path:'public/measure/internal/editor_scripts/exterior_performance.js'});
- await page.evaluate(()=>ExteriorPerf.mount(document.getElementById('wall-panel')));
+ await page.evaluate(()=>{window.ExteriorAI={available:true,mount(){throw Error('Removed AI tab must not mount');}};ExteriorPerf.mount(document.getElementById('wall-panel'));});
+ assert.equal(await page.locator('#wall-panel').isVisible(),false);
+ assert.equal(await page.evaluate(()=>ExteriorPerf.controlsVisible),false);
+ await page.evaluate(()=>ExteriorPerf.setControlsVisible(true));
+ assert.deepEqual(await page.getByRole('tab').allTextContents(),['General','Speed']);
  assert.equal(await page.locator('#existing').isVisible(),true);
  assert.equal(await page.evaluate(()=>ExteriorPerf.measure('off',()=>42)),42);
  await page.getByRole('tab',{name:'Speed',exact:true}).click();
  assert.equal(await page.locator('#existing').isVisible(),false);
+ await page.evaluate(()=>ExteriorPerf.setControlsVisible(false));
+ assert.equal(await page.locator('#wall-panel').isVisible(),false);
+ assert.equal(await page.evaluate(()=>ExteriorPerf.enabled),false);
+ await page.evaluate(()=>ExteriorPerf.setControlsVisible(true));
  const result=await page.evaluate(()=>{
   ExteriorPerf.frame(clock);clock+=16;ExteriorPerf.frame(clock);
   const value=ExteriorPerf.measure('outer',()=>{clock+=5;ExteriorPerf.measure('inner',()=>{clock+=20;});clock+=10;return 7;});
@@ -32,6 +40,15 @@ test('Speed panel collects nested timings, freezes captures, copies JSON, and le
  await page.evaluate(()=>{for(let i=0;i<1000;i++){clock+=16;ExteriorPerf.frame(clock);}ExteriorPerf.measure('old',()=>clock+=2);clock+=6000;});
  assert.equal(await page.evaluate(()=>ExteriorPerf.snapshot().rolling.length),0);
  await page.getByRole('tab',{name:'General',exact:true}).click();assert.equal(await page.locator('#existing').isVisible(),true);assert.equal(await page.evaluate(()=>ExteriorPerf.enabled),false);
+ await page.reload();
+ await page.addScriptTag({path:'public/measure/internal/editor_scripts/exterior_performance.js'});
+ await page.evaluate(()=>ExteriorPerf.mount(document.getElementById('wall-panel')));
+ assert.equal(await page.locator('#wall-panel').isVisible(),true);
+ await page.evaluate(()=>ExteriorPerf.setControlsVisible(false));
+ await page.reload();
+ await page.addScriptTag({path:'public/measure/internal/editor_scripts/exterior_performance.js'});
+ await page.evaluate(()=>ExteriorPerf.mount(document.getElementById('wall-panel')));
+ assert.equal(await page.locator('#wall-panel').isVisible(),false);
  assert.deepEqual(errors,[]);
  }finally{await browser.close();}
 });

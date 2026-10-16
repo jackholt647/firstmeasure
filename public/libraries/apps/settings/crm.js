@@ -105,7 +105,7 @@
 
     function field(label, content){ return `<label class="crm-field"><span>${esc(label)}</span>${content}</label>`; }
     function callApiBase(){
-      return String(root.Portal?.cfg?.endpoints?.crm || '/v1/internal/crm').replace(/\/$/, '');
+      return '/v1/call-lists';
     }
     async function callApi(path, options = {}){
       const csrf=readPlatformCsrfToken();

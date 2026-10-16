@@ -295,8 +295,8 @@
   {
     "id": "payroll.upcoming",
     "version": "1",
-    "title": "Upcoming payroll",
-    "description": "Earned and projected compensation by pay date, schedule and payee. Create and manage payroll runs.",
+    "title": "Pay runs",
+    "description": "Upcoming pay dates with what each pays and to whom. Draft, approve, copy out to Gusto or QuickBooks, and mark paid.",
     "app": "payroll",
     "surfaces": [
       "assistant",
@@ -334,15 +334,67 @@
     ],
     "actions": [
       "payroll.batch.create",
+      "payroll.batch.action",
       "payroll.batch.item.update",
-      "payroll.batch.action"
+      "payroll.batch.decide",
+      "payroll.artifact.generate",
+      "payroll.earnings.refresh",
+      "payroll.offCycle.record"
+    ]
+  },
+  {
+    "id": "payroll.review",
+    "version": "1",
+    "title": "Payroll review",
+    "description": "Earnings that could not be worked out, corrections held for review, back pay asked to be paid off-cycle, payments made outside a pay run, finalized work orders and reimbursements waiting to be paid.",
+    "app": "payroll",
+    "surfaces": [
+      "assistant",
+      "project",
+      "dashboard"
+    ],
+    "sizing": {
+      "mode": "fill",
+      "minWidth": 280,
+      "minHeight": 320,
+      "aspectRatio": null
+    },
+    "configSchema": {
+      "type": "object",
+      "properties": {
+        "from": {
+          "type": "string",
+          "maxLength": 80
+        },
+        "through": {
+          "type": "string",
+          "maxLength": 80
+        },
+        "include_projected": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false
+    },
+    "sources": [
+      {
+        "provider": "payroll",
+        "export": "pay_review"
+      }
+    ],
+    "actions": [
+      "payroll.projection.accrue",
+      "payroll.correction.decline",
+      "payroll.earnings.refresh",
+      "payroll.offCycle.record",
+      "payroll.offCycle.remove"
     ]
   },
   {
     "id": "payroll.timesheets",
     "version": "1",
-    "title": "Payroll timesheets",
-    "description": "Review, correct, approve and reject crew hours.",
+    "title": "Timesheets",
+    "description": "Everyone's clocked shifts: correct, approve or reject them.",
     "app": "payroll",
     "surfaces": [
       "assistant",
@@ -385,10 +437,10 @@
     ]
   },
   {
-    "id": "payroll.contractors",
+    "id": "payroll.my_timesheets",
     "version": "1",
-    "title": "Payroll contractors",
-    "description": "Individual and external organization contractors and their payment terms.",
+    "title": "My timesheets",
+    "description": "Your own clocked shifts and whether each was approved.",
     "app": "payroll",
     "surfaces": [
       "assistant",
@@ -421,19 +473,104 @@
     "sources": [
       {
         "provider": "payroll",
-        "export": "contractors"
+        "export": "my_timesheets"
+      }
+    ],
+    "actions": []
+  },
+  {
+    "id": "payroll.payees",
+    "version": "1",
+    "title": "Earnings by person",
+    "description": "What each person is owed on the upcoming pay runs and is projected to earn, and why.",
+    "app": "payroll",
+    "surfaces": [
+      "assistant",
+      "project",
+      "dashboard"
+    ],
+    "sizing": {
+      "mode": "fill",
+      "minWidth": 280,
+      "minHeight": 320,
+      "aspectRatio": null
+    },
+    "configSchema": {
+      "type": "object",
+      "properties": {
+        "from": {
+          "type": "string",
+          "maxLength": 80
+        },
+        "through": {
+          "type": "string",
+          "maxLength": 80
+        },
+        "include_projected": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false
+    },
+    "sources": [
+      {
+        "provider": "payroll",
+        "export": "upcoming"
+      }
+    ],
+    "actions": []
+  },
+  {
+    "id": "payroll.history",
+    "version": "1",
+    "title": "Pay run history",
+    "description": "Every pay run with who was paid what, its files and who approved it.",
+    "app": "payroll",
+    "surfaces": [
+      "assistant",
+      "project",
+      "dashboard"
+    ],
+    "sizing": {
+      "mode": "fill",
+      "minWidth": 280,
+      "minHeight": 320,
+      "aspectRatio": null
+    },
+    "configSchema": {
+      "type": "object",
+      "properties": {
+        "from": {
+          "type": "string",
+          "maxLength": 80
+        },
+        "through": {
+          "type": "string",
+          "maxLength": 80
+        },
+        "include_projected": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false
+    },
+    "sources": [
+      {
+        "provider": "payroll",
+        "export": "batches"
       }
     ],
     "actions": [
-      "payroll.contractor.worker.update",
-      "payroll.contractor.company.update"
+      "payroll.batch.item.update",
+      "payroll.batch.action",
+      "payroll.artifact.generate"
     ]
   },
   {
     "id": "payroll.exports",
     "version": "1",
     "title": "Payroll reports",
-    "description": "Prepare CSV and document PDF reports and download saved payroll artifacts.",
+    "description": "Reports for a date range as CSV or PDF, and files prepared before.",
     "app": "payroll",
     "surfaces": [
       "assistant",
@@ -474,10 +611,10 @@
     ]
   },
   {
-    "id": "payroll.history",
+    "id": "payroll.approvals",
     "version": "1",
-    "title": "Payroll history",
-    "description": "Run history, approvals, per-payee payment status and earning allocations.",
+    "title": "Pay run approvals",
+    "description": "Pay runs waiting for your approval as a named approver.",
     "app": "payroll",
     "surfaces": [
       "assistant",
@@ -510,19 +647,60 @@
     "sources": [
       {
         "provider": "payroll",
-        "export": "batches"
+        "export": "my_approvals"
       }
     ],
     "actions": [
-      "payroll.batch.item.update",
-      "payroll.batch.action"
+      "payroll.batch.decide"
     ]
+  },
+  {
+    "id": "payroll.mine",
+    "version": "1",
+    "title": "My pay",
+    "description": "What you have earned, been paid and are projected to earn.",
+    "app": "payroll",
+    "surfaces": [
+      "assistant",
+      "project",
+      "dashboard"
+    ],
+    "sizing": {
+      "mode": "fill",
+      "minWidth": 280,
+      "minHeight": 320,
+      "aspectRatio": null
+    },
+    "configSchema": {
+      "type": "object",
+      "properties": {
+        "from": {
+          "type": "string",
+          "maxLength": 80
+        },
+        "through": {
+          "type": "string",
+          "maxLength": 80
+        },
+        "include_projected": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false
+    },
+    "sources": [
+      {
+        "provider": "payroll",
+        "export": "my_earnings"
+      }
+    ],
+    "actions": []
   },
   {
     "id": "payroll.settings",
     "version": "1",
     "title": "Payroll settings",
-    "description": "Configure pay schedules and policies for groups, users and connected organizations.",
+    "description": "Pay schedules, when people are paid, pay plans and pay rules.",
     "app": "payroll",
     "surfaces": [
       "assistant",
@@ -562,8 +740,14 @@
       "payroll.schedule.create",
       "payroll.schedule.update",
       "payroll.schedule.archive",
-      "payroll.policy.save",
-      "payroll.policy.remove"
+      "payroll.payDefault.save",
+      "payroll.payDefault.preview",
+      "payroll.payRule.save",
+      "payroll.payRule.preview",
+      "payroll.payRule.archive",
+      "payroll.payPlan.save",
+      "payroll.payPlan.preview",
+      "payroll.payPlan.archive"
     ]
   },
   {
@@ -689,6 +873,7 @@
           "type": "string",
           "enum": [
             "organization_user",
+            "resource_group",
             "organization_connection"
           ]
         }

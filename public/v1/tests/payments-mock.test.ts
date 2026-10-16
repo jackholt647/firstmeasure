@@ -1,5 +1,6 @@
 import { nextTestPhone, enableExpandedPlatformFixture, closePlatformFixtureStores, operatorFixtureClient } from "./helpers/platform-fixture.js";
 import assert from "node:assert/strict";
+import { putProjectContacts } from "./helpers/project-contacts.js";
 import { mkdtemp, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -810,11 +811,11 @@ test("document engine: tokenized payment output charges once through the provide
     data: {
       id: projectId,
       address: "7 Document Checkout Way",
-      title: "Mock Document Checkout",
-      contacts: [{ id: "contact_mock", role: "customer", name: "Molly Mock", email: "molly-mock@example.test", primary: true }]
+      title: "Mock Document Checkout"
     },
     metadata: { kind: "platform_project" }
   });
+  await putProjectContacts(client, orgId, projectId, [{ id: "contact_mock", role: "customer", name: "Molly Mock", email: "molly-mock@example.test", primary: true }]);
   const { documentId, publicToken } = await paymentDocument(client, orgId, projectId, "Tokenized Checkout Agreement");
 
   // The DOCUMENT-token intake config mirrors the proposal-token one.
@@ -890,9 +891,10 @@ test("document engine: tokenized payment output charges once through the provide
   await applyDocumentCapabilities(legacyClient, legacyOrgId);
   const legacyProjectId = "project_mock_doc_legacy";
   await legacyClient.request("PUT", `/v1/platform/organizations/${legacyOrgId}/projects/${legacyProjectId}`, {
-    data: { id: legacyProjectId, address: "8 Legacy Lane", title: "Legacy Document", contacts: [{ id: "contact_mock", name: "Molly Mock", email: "molly-mock@example.test", primary: true }] },
+    data: { id: legacyProjectId, address: "8 Legacy Lane", title: "Legacy Document" },
     metadata: { kind: "platform_project" }
   });
+  await putProjectContacts(legacyClient, legacyOrgId, legacyProjectId, [{ id: "contact_mock", name: "Molly Mock", email: "molly-mock@example.test", primary: true }]);
   const legacyDoc = await paymentDocument(legacyClient, legacyOrgId, legacyProjectId, "Legacy Checkout Agreement");
   const legacyConfig = await legacyClient.request("GET", `/v1/documents/public/${legacyDoc.publicToken}/payments/intake-config`);
   assert.equal(legacyConfig.provider, null);

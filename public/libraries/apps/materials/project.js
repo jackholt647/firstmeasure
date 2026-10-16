@@ -5,7 +5,7 @@
   let materialsAPI;
   let scopeWorkspace;
   let refreshTimer;
-  const scopeWorkspaceUrl = new URL('./scope-of-work.js?v=20261013-rail-motion', document.currentScript?.src || `${location.origin}/libraries/apps/materials/project.js`).href;
+  const scopeWorkspaceUrl = new URL('./scope-of-work.js?v=20261016-widen', document.currentScript?.src || `${location.origin}/libraries/apps/materials/project.js`).href;
   const calculusAdapterUrl = new URL('./calculus-native.js?v=20261013-scope', document.currentScript?.src || `${location.origin}/libraries/apps/materials/project.js`).href;
   const closeoutUrl = new URL('./closeout.js?v=20261015-closeout-order', document.currentScript?.src || `${location.origin}/libraries/apps/materials/project.js`).href;
   const runtime = window.FirstMateEmbeddableApps;
@@ -720,6 +720,7 @@
     return `
       .mt-app{height:100%;min-height:0;display:flex;flex-direction:column;background:#f7f8fb;color:#111827;font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;container-type:inline-size;container-name:materials-workspace}
       .r-overlay.materials-workspace #mtSidebarSection.visible{min-height:0}
+      .r-overlay.materials-workspace .r-tab-sidebar.mt-widget-sidebar.sw-width-animating{transition:flex-basis .38s cubic-bezier(.2,.8,.2,1),width .38s cubic-bezier(.2,.8,.2,1)}
       .r-overlay.materials-workspace .r-tab-sidebar.mt-widget-sidebar{display:flex;flex-direction:column;box-sizing:border-box;flex:0 0 var(--scope-sidebar-width,33.333%)!important;width:var(--scope-sidebar-width,33.333%);min-width:0;max-width:none;min-height:0;padding:0;overflow:hidden}
       .r-overlay.materials-workspace #mtSidebarList{height:100%;flex:1;min-height:0;gap:0;overflow:hidden;display:flex;flex-direction:column}
       .mt-widget-sidebar .mt-left{height:auto;min-height:0;display:flex;flex-direction:column;gap:12px;padding:0}
@@ -872,6 +873,11 @@
       .mt-resource-column .mt-list-head button.is-done{color:#067647}
       .mt-resource-column .mt-list-head input{height:20px;padding:0 2px;font-size:11px;font-weight:700;text-overflow:ellipsis}
       .mt-resource-column .mt-list-head .mt-list-secondary{display:contents}
+      .mt-list-head [hidden]{display:none!important}
+      .mt-list-more-menu{position:fixed;z-index:2147482600;min-width:180px;padding:4px;border:1px solid #e4e7ec;border-radius:8px;background:#fff;box-shadow:0 12px 28px rgba(16,24,40,.16)}
+      .mt-list-more-menu button{display:flex;align-items:center;gap:8px;width:100%;padding:7px 9px;border:0;border-radius:6px;background:transparent;color:#344054;font:inherit;font-size:12px;font-weight:600;text-align:left;cursor:pointer}
+      .mt-list-more-menu button:hover:not(:disabled){background:#f2f4f7}.mt-list-more-menu button:disabled{opacity:.45;cursor:default}
+      .mt-list-more-menu button i{width:14px;text-align:center;color:#667085}
       .mt-list-total{flex:none;padding:0 3px;font-size:11px;font-variant-numeric:tabular-nums;color:#475467}
       .mt-list-tools{display:flex;align-items:center;flex-wrap:wrap;gap:4px;padding:3px 0 1px}
       .mt-resource-column .mt-list-tools .mt-list-secondary{flex:0 1 auto;flex-wrap:wrap;gap:4px;min-height:0;margin:0;padding:0;border:0;background:transparent}
@@ -2571,7 +2577,8 @@
       project_id: projectId(),
       branch_id: branchId(),
       event: {
-        title: cleanText(schedule.title || currentList.title) || terms.list,
+        // A list made without a name (a work order, an equipment list) keeps its kind's name on the schedule.
+        title: cleanText(schedule.title || (currentList.metadata?.placeholder_title ? '' : currentList.title)) || (type === 'labor' ? 'Work order' : cleanText(resourceCategories().find((row) => row.id === type)?.name)) || terms.list,
         kind: cleanText(schedule.kind) || (type === 'material' ? 'material_delivery' : type === 'labor' ? 'project_work' : 'equipment'),
         icon: cleanText(schedule.icon) || terms.icon,
         resource_type: type
@@ -2601,8 +2608,15 @@
     try {
       const ensured = await ensureScheduleEventForList(list);
       const event = ensured.event;
-      showToast((globalThis.PlatformLanguage?.text("materials","m_09fff77730df63","Ready to schedule") ?? "Ready to schedule"), ((v0) => globalThis.PlatformLanguage?.text("materials","m_7d04249fc5bd59",`${v0} is highlighted in Scheduling.`,{v0}) ?? `${v0} is highlighted in Scheduling.`)(cleanText(list.title) || resourceTerms(resourceType(list), list).list), true);
-      openProjectScheduling(ensured.list || list, event);
+      // The Schedule view beside the lists, as the job's Schedule button opens it; never the project window's Schedule tab.
+      scopeWorkspace?.showSidebarView?.(leftContentRoot(), 'schedule');
+      makeRoomForSchedule();
+      const parentId = cleanText(event?.parent_event_id), parent = parentId ? (Array.isArray(state.project?.events) ? state.project.events : []).find((entry) => cleanText(entry?.id) === parentId) : null;
+      // Under a job that is not on the calendar yet, the job is placed, with everything under it.
+      const payload = parentId && !(parent && eventDateParts(parent).date) ? { event_id: parentId } : schedulingFocusPayload(ensured.list || list, event);
+      try { rootWindow.dispatchEvent(new CustomEvent('fm:project-schedule:external', { detail: { project_id: projectId() } })); } catch (_) {}
+      state.placingEventId = '';
+      setTimeout(() => startPlacing(payload), 320);
     } catch (error) {
       showToast((globalThis.PlatformLanguage?.text("materials","m_03121687ac9e0e","Could not open scheduling") ?? "Could not open scheduling"), error?.message || 'Please try again.', false);
     } finally {
@@ -4185,10 +4199,21 @@
   // material, a work order made here) are given their events first: the server puts them under the job their scope
   // defines, and that job is what is placed. Only when nothing groups them is each list placed by hand, which is said
   // first.
+  // Placing needs the calendar to be easy to see: the left side slides to 60% and the Requirements tray closes.
+  function makeRoomForSchedule(){
+    scopeWorkspace?.widenSidebar?.(state.sidebarRoot, 60);
+    if (!requirementsOpen()) return;
+    state.requirementsOpen = false;
+    try { rootWindow.localStorage?.setItem?.('fm_scope_requirements_open', '0'); } catch (_) {}
+    const tray = materialRoot()?.querySelector?.('[data-mt-req-tray]');
+    tray?.classList.remove('is-open');
+    tray?.querySelector?.('[data-mt-req-open]')?.setAttribute('aria-expanded', 'false');
+  }
   async function scheduleJob(){
     if (state.schedulingJob) return;
     const job = jobSchedule(), operation = captureProjectOperation();
     scopeWorkspace?.showSidebarView?.(leftContentRoot(), 'schedule');
+    makeRoomForSchedule();
     if (job.done) { showToast('Already scheduled', 'Everything on this job has dates. Move it on the schedule if it needs to change.'); return; }
     state.schedulingJob = true;
     syncResourceHeader();
@@ -4315,8 +4340,8 @@
           // A list named after its category is the default list; the column heading already carries that name and icon.
           const title=list.metadata?.placeholder_title||[category.name,terms.plural].some(label=>cleanText(label).toLowerCase()===cleanText(list.title).toLowerCase())?'':cleanText(list.title);
           const tools=list.metadata?.calculus_pending?`<div class="mt-list-secondary"><button type="button" data-mt-generate="${escapeHtml(id)}">Generate materials</button></div>`:'';
-          const actions=list.metadata?.calculus_pending?'':`${type==='labor'?renderLaborListControls(list):''}${renderListActionControls(list,type,materialListOrdered(list))}`;
-          return `<article class="mt-list-pane${collapsed?' is-collapsed':''}${type==='labor'&&laborListFinalized(list)?' is-finalized':''}" data-mt-pane-list="${escapeHtml(id)}"><div class="mt-list-pane-inner"><header class="mt-list-head"><button type="button" data-mt-collapse-list="${escapeHtml(id)}" aria-expanded="${!collapsed}" aria-label="${collapsed?'Expand':'Collapse'} ${escapeHtml(title||'Default')}" title="${collapsed?'Expand':'Collapse'} list"><i class="fas fa-chevron-${collapsed?'right':'down'}"></i></button><input data-mt-list-name="${escapeHtml(id)}" value="${escapeHtml(title)}" placeholder="${merged&&type==='equipment'?'Equipment':'Default'}" aria-label="List name">${lists.length>1||collapsed?`<span class="mt-list-total" data-mt-list-total="${escapeHtml(id)}" title="List total">${money(listTotal(list))}</span>`:''}${type==='material'?`<button type="button" data-mt-open-pricebook data-mt-list-id="${escapeHtml(id)}" aria-pressed="${state.pricebookOpen&&cleanText(state.pricebookListId)===id}" title="Add to this list from the price book" aria-label="Add to ${escapeHtml(title||'Default')} from the price book"><i class="fas fa-book"></i></button>`:''}${actions}<button type="button" data-mt-delete-list="${escapeHtml(id)}" aria-label="Delete ${escapeHtml(title||'Default')}" title="${list.metadata?.calculus?'Accepted material artifacts are retained; collapse to hide this list':type==='labor'&&laborListFinalized(list)?'Finalized to be paid; a manager has to reopen it first':'Delete list'}" ${list.metadata?.calculus||type==='labor'&&laborListFinalized(list)?'disabled':''}><i class="fas fa-trash"></i></button></header>${collapsed?'':`${tools?`<div class="mt-list-tools">${tools}</div>`:''}${sections.map(section=>renderMaterialSection(section,listRows.filter(item=>lineSectionKey(item)===section.key),id,sections.length>1)).join('')||(type==='labor'&&!assignmentWorkResourceRef(list)?.id?renderAssignBlock(list):'<div class="mt-empty">Empty List</div>')}<button type="button" class="mt-resource-add mt-list-add-item" data-mt-add-section="${type==='material'?'accessories':type}" data-mt-list-id="${escapeHtml(id)}">+ Add ${escapeHtml(terms.singular.toLowerCase())}</button>`}</div></article>`;
+          const actions=`${type==='labor'&&!list.metadata?.calculus_pending?renderLaborListControls(list,{bare:true}):''}${renderListHeaderActions(list,type,title)}`;
+          return `<article class="mt-list-pane${collapsed?' is-collapsed':''}${type==='labor'&&laborListFinalized(list)?' is-finalized':''}" data-mt-pane-list="${escapeHtml(id)}"><div class="mt-list-pane-inner"><header class="mt-list-head" data-mt-actions-head><button type="button" data-mt-collapse-list="${escapeHtml(id)}" aria-expanded="${!collapsed}" aria-label="${collapsed?'Expand':'Collapse'} ${escapeHtml(title||'Default')}" title="${collapsed?'Expand':'Collapse'} list"><i class="fas fa-chevron-${collapsed?'right':'down'}"></i></button><input data-mt-list-name="${escapeHtml(id)}" value="${escapeHtml(title)}" placeholder="${merged&&type==='equipment'?'Equipment':'Default'}" aria-label="List name">${lists.length>1||collapsed?`<span class="mt-list-total" data-mt-list-total="${escapeHtml(id)}" title="List total">${money(listTotal(list))}</span>`:''}${actions}</header>${collapsed?'':`${tools?`<div class="mt-list-tools">${tools}</div>`:''}${sections.map(section=>renderMaterialSection(section,listRows.filter(item=>lineSectionKey(item)===section.key),id,sections.length>1)).join('')||(type==='labor'&&!assignmentWorkResourceRef(list)?.id?renderAssignBlock(list):'<div class="mt-empty">Empty List</div>')}<button type="button" class="mt-resource-add mt-list-add-item" data-mt-add-section="${type==='material'?'accessories':type}" data-mt-list-id="${escapeHtml(id)}">+ Add ${escapeHtml(terms.singular.toLowerCase())}</button>`}</div></article>`;
         }).join('')||'<div class="mt-empty">Empty List</div>'}</div>
         ${lists.length?'':`<button type="button" class="mt-resource-add" data-mt-add-section="${type==='material'?'accessories':type}">+ Add ${escapeHtml(terms.singular.toLowerCase())}</button>`}
         ${members.map(type=>(estimate=>estimate.available?`<div class="mt-delivery-row${estimate.enabled?'':' off'}" title="One delivery for this category's unordered lists, estimated from your suppliers' fees. An order replaces it with the supplier's real fee."><i class="fas fa-truck" aria-hidden="true"></i><span>Projected delivery</span><strong>${estimate.enabled?`$${Math.round(estimate.amount).toLocaleString('en-US')}`:'Off'}</strong><button type="button" data-mt-delivery-toggle="${escapeHtml(type)}" aria-pressed="${estimate.enabled}" title="${estimate.enabled?'Leave delivery out of the projection':`Include projected delivery (${money(estimate.estimate)})`}" aria-label="Projected delivery"><i class="fas fa-toggle-${estimate.enabled?'on':'off'}" aria-hidden="true"></i></button></div>`:'')(projectedDelivery(type))).join('')}
@@ -5713,6 +5738,95 @@
     </div>${controls}</div>`;
   }
 
+  /*
+   * A list header's actions, most used first. A work order: schedule, generate from the pay sheet, pay out, delete.
+   * A material list: order, schedule, the price book, delete. An equipment list: schedule, delete. All are drawn;
+   * fitListActions then keeps as many as fit beside the name, the assignee and the total, and puts the rest, lowest
+   * first, into the ⋮ menu, which is shown only when it holds something.
+   */
+  function renderListHeaderActions(list, type, title){
+    const id = cleanText(list.id), ordered = materialListOrdered(list), pending = !!list.metadata?.calculus_pending;
+    const assigned = type === 'labor' && !!assignmentWorkResourceRef(list)?.id, done = type === 'labor' ? laborListFinalized(list) : null;
+    const button = (key, label, icon, attrs = '', extra = '', title = label) => `<button type="button" data-mt-action="${key}" data-mt-action-label="${escapeHtml(label)}" title="${escapeHtml(title)}" aria-label="${escapeHtml(label)}" ${attrs} ${extra}><i class="fas ${icon}" aria-hidden="true"></i></button>`;
+    const schedule = !pending && resourceScheduleEnabled(list) ? button('schedule', 'Schedule', 'fa-calendar-day', `data-mt-list-schedule="${escapeHtml(id)}"`, state.schedulingListId ? 'disabled' : '') : '';
+    const remove = button('delete', list.metadata?.calculus ? 'Accepted material artifacts are retained; collapse to hide this list' : done ? 'Finalized to be paid; a manager has to reopen it first' : 'Delete list', 'fa-trash', `data-mt-delete-list="${escapeHtml(id)}"`, list.metadata?.calculus || done ? 'disabled' : '');
+    const items = type === 'labor'
+      ? [schedule, assigned && !done && !pending ? button('generate', 'Generate from pay sheet', 'fa-wand-magic-sparkles', `data-mt-labor-generate="${escapeHtml(id)}"`, '', `Generate this list from ${cleanText(assignmentWorkResourceRef(list)?.name) || 'their'}'s pay sheet. Lines added by hand are kept.`) : '', !pending ? button('payout', done ? 'Paid out · Reopen…' : 'Pay out', 'fa-money-check-dollar', `data-mt-labor-more="${escapeHtml(id)}" aria-haspopup="menu" aria-expanded="false"`) : '', remove]
+      : type === 'material'
+        ? [!pending ? button('order', ordered ? 'Ordered' : 'Order', ordered ? 'fa-circle-check' : 'fa-cart-shopping', `data-mt-list-order="${escapeHtml(id)}"`, ordered ? 'class="is-done"' : '') : '', schedule, button('pricebook', `Add to ${title || 'this list'} from the price book`, 'fa-book', `data-mt-open-pricebook data-mt-list-id="${escapeHtml(id)}" aria-pressed="${state.pricebookOpen && cleanText(state.pricebookListId) === id}"`), remove]
+        : [schedule, remove];
+    return `${items.filter(Boolean).join('')}<button type="button" class="mt-list-more" data-mt-list-more="${escapeHtml(id)}" hidden aria-haspopup="menu" aria-expanded="false" title="More" aria-label="More for this list"><i class="fas fa-ellipsis-vertical" aria-hidden="true"></i></button>`;
+  }
+  // The narrowest the list's name is allowed to get before actions move into ⋮.
+  const LIST_NAME_ROOM = 96;
+  function fitListActions(root = materialRoot()){
+    root?.querySelectorAll?.('[data-mt-actions-head]')?.forEach((head) => {
+      const actions = [...head.querySelectorAll('[data-mt-action]')], more = head.querySelector('[data-mt-list-more]');
+      actions.forEach((button) => { button.hidden = false; });
+      if (more) more.hidden = true;
+      if (!actions.length || !more || !head.clientWidth) return;
+      const style = getComputedStyle(head), gap = parseFloat(style.columnGap || style.gap) || 0;
+      const inner = head.clientWidth - (parseFloat(style.paddingLeft) || 0) - (parseFloat(style.paddingRight) || 0);
+      const name = head.querySelector('[data-mt-list-name]');
+      // What always stays: the collapse arrow, the total, and the assignee at its own width (it shrinks only to its cap).
+      const fixed = [...head.children].filter((child) => child !== name && child !== more && !child.hasAttribute('data-mt-action'))
+        .reduce((sum, child) => sum + gap + (child.classList.contains('mt-labor-assign') ? Math.min(child.scrollWidth + 2, inner * 0.55) : child.getBoundingClientRect().width), 0);
+      const room = inner - fixed - LIST_NAME_ROOM;
+      const widths = actions.map((button) => button.getBoundingClientRect().width + gap);
+      if (widths.reduce((sum, width) => sum + width, 0) <= room) return;
+      let used = more.getBoundingClientRect().width + gap || 20 + gap, keep = 0;
+      for (const width of widths) { if (used + width > room) break; used += width; keep += 1; }
+      actions.forEach((button, index) => { button.hidden = index >= keep; });
+      more.hidden = false;
+    });
+  }
+  let listFitObserver = null;
+  function watchListActionFit(){
+    const root = materialRoot();
+    if (!root || typeof ResizeObserver !== 'function') return;
+    if (listFitObserver?.__root === root) return;
+    listFitObserver?.disconnect?.();
+    let frame = 0;
+    listFitObserver = new ResizeObserver(() => { cancelAnimationFrame(frame); frame = requestAnimationFrame(() => fitListActions(root)); });
+    listFitObserver.__root = root;
+    listFitObserver.observe(root);
+  }
+  function closeListMore(){
+    document.querySelectorAll('[data-mt-list-more-menu]').forEach((node) => node.remove());
+    document.removeEventListener('pointerdown', listMoreDismiss, true);
+    document.removeEventListener('keydown', listMoreDismiss, true);
+    materialRoot()?.querySelectorAll?.('[data-mt-list-more][aria-expanded="true"]')?.forEach((button) => button.setAttribute('aria-expanded', 'false'));
+  }
+  function listMoreDismiss(event){
+    if (event.type === 'keydown' ? event.key === 'Escape' : !event.target?.closest?.('[data-mt-list-more-menu],[data-mt-list-more]')) closeListMore();
+  }
+  // The ⋮ menu lists the actions that did not fit; choosing one does exactly what its button does.
+  function openListMore(button){
+    const open = button.getAttribute('aria-expanded') === 'true';
+    closeListMore();
+    if (open) return;
+    const head = button.closest('[data-mt-actions-head]'), hidden = [...(head?.querySelectorAll('[data-mt-action]') || [])].filter((action) => action.hidden);
+    if (!hidden.length) return;
+    const menu = document.createElement('div');
+    menu.className = 'mt-list-more-menu'; menu.setAttribute('role', 'menu'); menu.dataset.mtListMoreMenu = '';
+    menu.innerHTML = hidden.map((action, index) => `<button type="button" role="menuitem" data-mt-more-index="${index}" ${action.disabled ? 'disabled' : ''} title="${escapeHtml(action.title || '')}"><i class="${escapeHtml(action.querySelector('i')?.className || '')}" aria-hidden="true"></i><span>${escapeHtml(action.dataset.mtActionLabel || action.title || '')}</span></button>`).join('');
+    colorPortalHost(materialRoot()).appendChild(menu);
+    const rect = button.getBoundingClientRect(), width = menu.offsetWidth || 200;
+    menu.style.left = `${Math.max(8, Math.min(window.innerWidth - width - 8, rect.right - width))}px`;
+    menu.style.top = `${Math.min(window.innerHeight - menu.offsetHeight - 8, rect.bottom + 4)}px`;
+    button.setAttribute('aria-expanded', 'true');
+    menu.querySelectorAll('[data-mt-more-index]').forEach((item) => item.addEventListener('click', () => {
+      const action = hidden[Number(item.dataset.mtMoreIndex)];
+      closeListMore();
+      if (!action || action.disabled) return;
+      // Pay out opens its own menu, placed by the ⋮ it was chosen from.
+      if (action.hasAttribute('data-mt-labor-more')) closeoutModule().then((module) => module.openListMenu(closeoutHost(), action.dataset.mtLaborMore, button)).catch((error) => showToast('Could not open this', error?.message || 'Please try again.', false));
+      else action.click();
+    }));
+    document.addEventListener('pointerdown', listMoreDismiss, true);
+    document.addEventListener('keydown', listMoreDismiss, true);
+  }
+
   function renderListActionControls(list, type, ordered){
     const id = cleanText(list.id);
     const schedule = resourceScheduleEnabled(list);
@@ -6251,12 +6365,15 @@
     });
   }
 
-  function renderLaborListControls(list){
+  // options.bare: only who it is assigned to (or that it is paid out); the header shows the actions (renderListHeaderActions).
+  function renderLaborListControls(list, options = {}){
     const settings = laborSettings(list);
     const name = cleanText(settings.resource?.name || assignmentWorkResourceRef(list)?.name);
     // The More menu pays the work order out. Once it is paid out, the list is locked and shows that instead of its assignment.
     const done = laborListFinalized(list);
     const more = `<button type="button" class="mt-labor-more" data-mt-labor-more="${escapeHtml(settings.id)}" aria-haspopup="menu" aria-expanded="false" title="More" aria-label="More for this work order"><i class="fas fa-ellipsis-vertical" aria-hidden="true"></i></button>`;
+    if (done && options.bare) return `<span class="mt-paid-pill" title="${escapeHtml(`Completed and to be paid${name ? `: ${name}` : ''}. Finalized ${new Date(done.finalized_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}. A manager can reopen it from More.`)}"><i class="fas fa-lock" aria-hidden="true"></i>${escapeHtml(name ? `${name} · To be paid` : 'To be paid')}</span>`;
+    if (!done && options.bare) return `<button type="button" class="mt-labor-assign${name ? '' : ' is-empty'}" data-mt-labor-menu="${escapeHtml(settings.id)}" aria-haspopup="dialog" aria-expanded="${state.laborMenu?.listId === settings.id ? 'true' : 'false'}" title="${escapeHtml(name ? `Assigned to ${name}` : 'Assign this work')}"><span>${escapeHtml(name || 'Unassigned')}</span><i class="fas fa-chevron-down" aria-hidden="true"></i></button>`;
     if (done) return `<span class="mt-paid-pill" title="${escapeHtml(`Completed and to be paid${name ? `: ${name}` : ''}. Finalized ${new Date(done.finalized_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}. A manager can reopen it from More.`)}"><i class="fas fa-lock" aria-hidden="true"></i>${escapeHtml(name ? `${name} · To be paid` : 'To be paid')}</span>${more}`;
     return `<button type="button" class="mt-labor-assign${name ? '' : ' is-empty'}" data-mt-labor-menu="${escapeHtml(settings.id)}" aria-haspopup="dialog" aria-expanded="${state.laborMenu?.listId === settings.id ? 'true' : 'false'}" title="${escapeHtml(name ? `Assigned to ${name}` : 'Assign this work')}"><span>${escapeHtml(name || 'Unassigned')}</span><i class="fas fa-chevron-down" aria-hidden="true"></i></button>${name ? `<div class="mt-list-secondary"><button type="button" data-mt-labor-generate="${escapeHtml(settings.id)}" title="Generate this list from ${escapeHtml(name)}'s pay sheet. Lines added by hand are kept." aria-label="Generate from pay sheet"><i class="fas fa-wand-magic-sparkles"></i></button></div>` : ''}${more}`;
   }
@@ -6560,6 +6677,9 @@
         scheduleMaterialList(button.dataset.mtListSchedule);
       });
     });
+    root.querySelectorAll('[data-mt-list-more]').forEach((button) => button.addEventListener('click', (event) => { event.stopPropagation(); openListMore(button); }));
+    fitListActions(root);
+    watchListActionFit();
     root.querySelectorAll('[data-mt-work-order]').forEach((button) => button.addEventListener('click', () => showToast('Work orders are not built yet', 'Generating a work order from this project\'s labor is the next piece of this workflow.', false)));
     root.querySelectorAll('[data-mt-reserve-equipment]').forEach((button) => button.addEventListener('click', () => showToast('Equipment reservations are not built yet', 'Reserving this project\'s equipment is the next piece of this workflow.', false)));
     root.querySelectorAll('[data-mt-order-all]').forEach((button) => {

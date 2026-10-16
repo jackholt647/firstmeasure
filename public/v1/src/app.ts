@@ -40,7 +40,7 @@ import type { IncomingHttpHeaders } from "node:http";
 import { registerCanvassingApi } from "../canvassing/api.js";
 import { registerCommunicationsApi } from "../communications/api.js";
 import { registerCodeReportsApi } from "../code-reports/api.js";
-import { registerPlatformCallListApi } from "../internal/crm/platform_call_list_api.js";
+import { registerPlatformCallListApi } from "../comms/call-lists-api.js";
 import { registerCrmApi } from "../internal/crm/api.js";
 import { referralServiceRoutes } from "../internal/crm/referrals_service.js";
 import { registerFirstMeasureApi } from "../firstmeasure/api.js";
@@ -156,7 +156,7 @@ export async function buildApp() {
   void app.register(rootRoutes);
   void app.register(registerCanvassingApi, { prefix: "/v1/canvassing" });
   void app.register(registerCodeReportsApi, { prefix: "/v1/code-reports" });
-  void app.register(registerPlatformCallListApi, { prefix: "/v1/internal/crm" });
+  void app.register(registerPlatformCallListApi, { prefix: "/v1/call-lists" });
   const proxyLegacyState = env.deploymentTopology === "cluster" && env.clusterNodeRole === "web" && Boolean(env.legacyServiceUrl);
   if (proxyLegacyState) {
     const { default: httpProxy } = await import("@fastify/http-proxy");

@@ -145,6 +145,15 @@ export const ACTION_CATALOG: Record<string, ActionCatalogEntry> = {
     instance_key: template("Instance key", "Set to allow the same scope to start more than once.")
   }, ["template_id"]) },
   "scopes.activateFromProposal.v1": { title: "Start the scopes sold on the proposal", category: "pipeline", input_schema: schema() },
+  "sales.markWon.v1": { title: "Mark the sale won", category: "pipeline", input_schema: schema({
+    reason: template("Note", "Optional note kept with the outcome.")
+  }) },
+  "sales.markLost.v1": { title: "Mark the sale lost", category: "pipeline", input_schema: schema({
+    reason: template("Reason", "Why it was lost; kept with the outcome.")
+  }) },
+  "sales.reopen.v1": { title: "Reopen a won sale", category: "pipeline", input_schema: schema({
+    reason: template("Reason", "Why the sale is open again.")
+  }) },
 
   "payments.ensureReceivables.v1": { title: "Create the payment schedule", category: "payments", internal: true, input_schema: schema() },
   "payments.reconcileRecognition.v1": { title: "Recognize milestone payments", category: "payments", internal: true, input_schema: schema() },

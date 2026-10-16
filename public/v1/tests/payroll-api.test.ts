@@ -443,7 +443,9 @@ test("payroll v1 resolves schedules through pay layers, recognizes earnings, car
     const catalog = await client.request("GET", `${base}/exports/catalog`);
     assert.ok(catalog.exports.some((entry: any) => entry.type === "provider_handoff"));
     assert.ok(catalog.exports.some((entry: any) => entry.type === "contractor_payments"));
-    assert.ok(catalog.exports.every((entry: any) => entry.formats.includes("pdf")));
+    // Reports print; files for Gusto and QuickBooks are CSV only, and the pay run summary is both.
+    assert.ok(catalog.exports.every((entry: any) => entry.formats.includes("csv") && (entry.group === "pay_run_file" && entry.type !== "pay_run_summary" ? !entry.formats.includes("pdf") : entry.formats.includes("pdf"))));
+    assert.deepEqual(catalog.exports.filter((entry: any) => entry.group === "pay_run_file").map((entry: any) => entry.type), ["pay_run_summary", "gusto_employees", "gusto_contractors", "quickbooks_payroll", "quickbooks_bills"]);
     assert.ok(catalog.exports.every((entry: any) => entry.label && entry.description && entry.purpose && !entry.scope_label.includes("_")));
     const csvArtifact = await client.request("POST", `${base}/artifacts`, { type: "provider_handoff", format: "csv", batch_id: second.id });
     assert.equal(csvArtifact.artifact.report_type, "provider_handoff");
@@ -454,21 +456,24 @@ test("payroll v1 resolves schedules through pay layers, recognizes earnings, car
     assert.equal(duplicate.artifact.id, csvArtifact.artifact.id);
     assert.equal(duplicate.artifact.reused, true);
     for (const report of catalog.exports) {
+      // Every report as each format it offers: printable reports as PDF, files for payroll software as CSV.
+      const format = report.formats.includes("pdf") ? "pdf" : "csv";
       const payload = report.scope === "date_range"
-        ? { type: report.type, format: "pdf", from: "2026-07-01", through: "2026-07-31" }
-        : { type: report.type, format: "pdf", batch_id: second.id };
-      const pdfArtifact = await client.request("POST", `${base}/artifacts`, payload);
-      assert.equal(pdfArtifact.artifact.content_type, "application/pdf");
-      assert.equal(pdfArtifact.artifact.metadata.report_label, report.label);
+        ? { type: report.type, format, from: "2026-07-01", through: "2026-07-31" }
+        : { type: report.type, format, batch_id: second.id };
+      const artifact = await client.request("POST", `${base}/artifacts`, payload);
+      assert.equal(artifact.artifact.content_type, format === "pdf" ? "application/pdf" : "text/csv; charset=utf-8");
+      assert.equal(artifact.artifact.metadata.report_label, report.label);
     }
     const { listDocuments } = await import("../platform/storage.js");
     const generatedDocuments = (await listDocuments(orgId, "documents"))
       .map((document: any) => document.data)
       .filter((document: any) => document.metadata?.source_system === "payroll");
-    assert.equal(generatedDocuments.length, catalog.exports.length);
+    assert.equal(generatedDocuments.length, catalog.exports.filter((entry: any) => entry.formats.includes("pdf")).length);
     assert.ok(generatedDocuments.every((document: any) => document.template_ref?.template_id === "tpl_payroll_report_default"));
     const artifacts = await client.request("GET", `${base}/artifacts?batch_id=${second.id}`);
-    assert.equal(artifacts.artifacts.length, 6);
+    // Five run reports as PDF, the provider file as CSV, the pay run summary as PDF and the four Gusto and QuickBooks files.
+    assert.equal(artifacts.artifacts.length, 11);
   });
 
   await t.test("off-cycle runs accept explicit periods and preserve their reason", async () => {

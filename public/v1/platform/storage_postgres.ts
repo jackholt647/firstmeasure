@@ -490,7 +490,7 @@ export async function readDocument(orgId: string, collectionValue: string, docum
   const id = await ensureOrg({ query: queryPostgres } as DbExecutor, orgId);
   return documentByQuery({ query: queryPostgres } as DbExecutor, "SELECT document FROM platform_documents WHERE organization_id = $1 AND collection = $2 AND id = $3", [id, collection, sanitizeId(documentId, "document_id")]);
 }
-export async function upsertDocument(orgId: string, collectionValue: string, input: JsonObject = {}, options: { replace?: boolean; createOnly?: boolean } = {}) {
+export async function upsertDocument(orgId: string, collectionValue: string, input: JsonObject = {}, options: { replace?: boolean; createOnly?: boolean; mustExist?: boolean; contactsProjection?: boolean } = {}) {
   await ensurePostgresPlatformStorage();
   const collection = assertCollection(collectionValue);
   const organizationId = sanitizeId(orgId, "organization_id");
@@ -504,12 +504,14 @@ export async function upsertDocument(orgId: string, collectionValue: string, inp
     const expected = Number(input.expected_revision ?? 0);
     if (current && options.createOnly) throw conflict("document_exists", "This immutable record already exists.");
     if (!current && expected) throw conflict("revision_conflict", "The expected document no longer exists.");
+    if (!current && options.mustExist) throw notFound("document_missing", "The document no longer exists.");
     if (current && expected && expected !== Number(current.revision ?? 0)) throw conflict("revision_conflict", "Document revision does not match.");
     const now = nowIso();
     let data = asObject(input.data); const metadata = asObject(input.metadata);
     if (["projects", "customers", "resource_custom_fields","organization_custom_fields", "users"].includes(collection)) {
       const fields = await import("../custom_fields/records.js");
       await withPlatformPostgresClient(client, async () => {
+        data = (await import("./storage.js")).guardProjectContacts(collection, data, asObject(current?.data), options);
         data = await fields.prepareStoredFields(orgId, collection, data, asObject(current?.data));
         await fields.validateStoredFields(orgId, collection, data, asObject(current?.data), options.replace, id);
       });

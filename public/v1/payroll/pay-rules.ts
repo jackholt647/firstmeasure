@@ -212,6 +212,12 @@ export type PayDistribution = z.infer<typeof payDistributionSchema>;
  * layer a choice for the exact kind beats the catch-all.
  */
 export const PAY_SCHEDULE_EARNING_KINDS = ["*", ...PAY_RULE_KINDS, "clawback"] as const;
+/** What each fixed word is called on a screen, published with the vocabulary so no screen keeps its own copy. */
+export const PAY_VOCABULARY_LABELS = {
+  earning_kinds: { "*": "All earnings", hourly: "Hourly", salary: "Salary", piece_rate: "Piece rate", commission: "Commission", reimbursement: "Reimbursement", adjustment: "Adjustment", clawback: "Clawback" },
+  parameter_types: { number: "Number", cents: "Money", basis_points: "Percentage", boolean: "Yes or no", text: "Text" },
+  periods: { day: "Day", week: "Week", month: "Month", quarter: "Quarter", year: "Year" }
+} as const satisfies { earning_kinds: Record<typeof PAY_SCHEDULE_EARNING_KINDS[number], string>; parameter_types: Record<typeof PAY_PARAMETER_TYPES[number], string>; periods: Record<typeof PAY_PERIODS[number], string> };
 export const payScheduleChoiceSchema = z.object({
   effective_from: day, effective_through: day.optional(),
   earning_kind: z.enum(PAY_SCHEDULE_EARNING_KINDS).default("*"),

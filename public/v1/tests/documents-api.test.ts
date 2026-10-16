@@ -1,3 +1,4 @@
+import { putProjectContacts } from "./helpers/project-contacts.js";
 import { nextTestPhone, enableExpandedPlatformFixture, closePlatformFixtureStores, operatorFixtureClient } from "./helpers/platform-fixture.js";
 import assert from "node:assert/strict";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
@@ -132,11 +133,11 @@ async function createProject(client: ReturnType<typeof createSessionClient>, org
       address: "100 Document Lane",
       title: "Jane Homeowner",
       project_type: "residential",
-      contacts: [{ name: "Jane Homeowner", email: "jane@example.test", phone: "555-111-2222" }],
       photos: []
     },
     metadata: { kind: "platform_project" }
   });
+  await putProjectContacts(client, orgId, projectId, [{ name: "Jane Homeowner", email: "jane@example.test", phone: "555-111-2222" }]);
 }
 
 const SCOPE_ITEMS = [

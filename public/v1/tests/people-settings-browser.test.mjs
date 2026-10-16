@@ -94,6 +94,7 @@ function stubPlatform(){
       profile_photo_url:index % 6 === 1 ? `data:image/svg+xml;utf8,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="96" height="96"><rect width="96" height="96" fill="hsl(${index * 37 % 360} 45% 62%)"/><circle cx="48" cy="38" r="17" fill="rgba(255,255,255,.85)"/><rect x="18" y="62" width="60" height="44" rx="22" fill="rgba(255,255,255,.85)"/></svg>`)}` : ''
     };
   });
+  Object.assign(users.find((user) => user.id === 'u7'), { worker_classification:'independent_contractor', payment_terms:{ basis:'net_days', net_days:30 } });
   departments.find((department) => department.id === 'service').subject_keys.push('organization_user:u3', 'organization_user:u9');
   departments.find((department) => department.id === 'production').icon = 'fa-helmet-safety';
   departments.find((department) => department.id === 'sales').icon = 'fa-handshake';
@@ -300,6 +301,7 @@ function stubDirectory(){
     invoke:async (orgId, action, target, input, options) => {
       calls.push({ op:'invoke', action, target:copy(target), input:copy(input), idempotencyKey:options?.idempotencyKey || '' });
       if (action.startsWith('organization-branches.')) { const done = branchAction(action, input); if (done) return done; }
+      if (action === 'payroll.contractor.worker.update') { const user = users.find((entry) => entry.id === target.id); Object.assign(user, { worker_classification:input.worker_classification, payment_terms:copy(input.payment_terms) }); return { value:{ id:user.id, name:user.name, worker_classification:user.worker_classification, payment_terms:copy(user.payment_terms) } }; }
       if (action === 'assignees.type.save') {
         let type = types.find((entry) => entry.id === input.id && entry.kind === input.kind);
         if (!type) { type = { id:input.id || input.name.toLowerCase().replace(/[^a-z0-9]+/g, '_'), kind:input.kind, name:input.name, description:'', status:'active', member_role_ids:[] }; types.push(type); }
@@ -1840,6 +1842,7 @@ test('FirstMeasure-only organization: People is Users alone, with only what the 
     assert.deepEqual(await page.locator('.pp-list-tools .pp-btn').allInnerTexts().then((texts) => texts.map((text) => text.trim())), ['Invite user'], 'no Roles menu without roles');
     assert.equal(await page.locator('[data-row-key="u2"] .pp-chip.role').first().innerText(), 'Viewer', 'the admin level stands where roles would');
     assert.equal(await page.locator('.pp-row .pp-chip-dot').count(), 0, 'no departments');
+    assert.equal(await page.locator('[data-name-mark]').count(), 0, 'no contractor icon without payroll');
     await page.locator('[data-row-key="u5"]').hover();
     assert.deepEqual(await page.locator('[data-row-key="u5"] .pp-row-actions button').evaluateAll((buttons) => buttons.map((button) => button.getAttribute('aria-label'))), ['Edit', 'Resend invitation', 'Suspend', 'Delete']);
     await shot(page, 'firstmeasure-only-users');
@@ -2221,5 +2224,83 @@ test('Several branches: a department is made and moved in a branch the viewer ma
     assert.ok(payload.departments.every((entry) => !('group_id' in entry) && !('division_id' in entry)));
     assert.match(await dialog.locator('.pp-modal-summary').innerText(), /Boone/);
     assert.deepEqual(errors, []);
+  } finally { await browser.close(); }
+});
+
+test('Worker classification: a contractor icon beside the name, and Paid as in the Compensation tab', async () => {
+  const browser = await launch();
+  try {
+    const { page, errors } = await openPage(browser, { width:1440, height:900 });
+    const mark = (key) => page.locator(`.pp-list-body [data-row-key="${key}"] [data-name-mark="contractor"]`).first();
+    // Contractors at a glance: a small icon, never a pill; employees get nothing.
+    assert.equal(await mark('u7').getAttribute('data-fm-tooltip'), 'Independent contractor');
+    assert.equal(await mark('u7').getAttribute('aria-label'), 'Independent contractor');
+    assert.equal(await page.locator('.pp-list-body [data-row-key="u6"] [data-name-mark]').count(), 0);
+    assert.equal(await page.locator('.pp-pill', { hasText:/contractor/i }).count(), 0, 'no pill');
+    const iconBox = await mark('u7').boundingBox();
+    assert.ok(iconBox.height <= 14, 'the icon is small');
+    await page.locator('.pp-list-body [data-row-key="u7"] .pp-row-name').first().hover();
+    await page.locator('.pp-hover.open [data-name-mark="contractor"]').waitFor();
+    await shot(page, 'contractor-hover');
+    await page.mouse.move(700, 5);
+
+    // The user window: the icon in the summary, Paid as and payment terms at the top of Compensation.
+    await page.locator('.pp-list-body [data-row-key="u7"] .pp-row-name').first().click();
+    const dialog = page.getByRole('dialog');
+    await dialog.waitFor();
+    assert.equal(await dialog.locator('.pp-sum-name [data-name-mark="contractor"]').count(), 1);
+    await dialog.locator('.pp-tab', { hasText:'Compensation' }).click();
+    const worker = dialog.locator('[data-worker]');
+    assert.equal(await worker.locator('[data-worker-class="independent_contractor"]').getAttribute('aria-checked'), 'true');
+    assert.equal(await worker.locator('[data-worker-basis]').inputValue(), 'net_days');
+    assert.equal(await worker.locator('[data-worker-days]').inputValue(), '30');
+    await worker.locator('[data-worker-days]').fill('15');
+    await worker.locator('[data-worker-days]').dispatchEvent('change');
+    await page.waitForFunction(() => window.__people.calls.some((call) => call.action === 'payroll.contractor.worker.update'));
+    const call = await page.evaluate(() => window.__people.calls.filter((entry) => entry.action === 'payroll.contractor.worker.update').pop());
+    assert.deepEqual(call.input, { worker_classification:'independent_contractor', payment_terms:{ basis:'net_days', net_days:15 } });
+    assert.equal(call.target.id, 'u7');
+    assert.ok(call.idempotencyKey);
+    await shot(page, 'user-modal-paid-as-contractor');
+    // Paid as an employee: no terms, and the icon goes.
+    await worker.locator('[data-worker-class="employee"]').click();
+    await worker.locator('[data-worker-class="employee"][aria-checked="true"]').waitFor();
+    assert.equal(await worker.locator('[data-worker-basis]').count(), 0);
+    assert.deepEqual(await page.evaluate(() => window.__people.calls.filter((entry) => entry.action === 'payroll.contractor.worker.update').pop().input), { worker_classification:'employee', payment_terms:{ basis:'net_days', net_days:15 } });
+    assert.equal(await dialog.locator('.pp-sum-name [data-name-mark]').count(), 0);
+    await shot(page, 'user-modal-paid-as-employee');
+    await dialog.locator('[data-modal-close]').click();
+    await page.waitForFunction(() => !document.querySelector('.pp-modal-back'));
+    assert.equal(await page.locator('.pp-list-body [data-row-key="u7"] [data-name-mark]').count(), 0);
+    // Back to contractor from the list's own person: the icon appears on the row.
+    await page.locator('.pp-list-body [data-row-key="u6"] .pp-row-name').first().click();
+    await dialog.locator('.pp-tab', { hasText:'Compensation' }).click();
+    await dialog.locator('[data-worker-class="independent_contractor"]').click();
+    await dialog.locator('[data-worker-basis]').waitFor();
+    assert.equal(await dialog.locator('[data-worker-basis]').inputValue(), 'payroll_schedule');
+    await dialog.locator('[data-modal-close]').click();
+    await page.waitForFunction(() => !document.querySelector('.pp-modal-back'));
+    await mark('u6').waitFor();
+    await shot(page, 'users-contractor-icon');
+    assert.deepEqual(await page.evaluate(() => window.FirstMatePeople.undeclared || []), []);
+    assert.deepEqual(errors, []);
+    await page.close();
+
+    // Payroll without user or settings access sees how people are paid but cannot change it (the action needs either).
+    const payroll = await openPage(browser, { width:1440, height:900 }, { setup:() => { window.Portal.util.hasPerm = (key) => ['manage_payroll', 'manage_company_user_permissions'].includes(key); } });
+    assert.equal(await payroll.page.locator('.pp-list-body [data-row-key="u7"] [data-name-mark="contractor"]').count() > 0, true);
+    await payroll.page.locator('.pp-list-body [data-row-key="u7"] .pp-row-name').first().click();
+    await payroll.page.getByRole('dialog').locator('.pp-tab', { hasText:'Compensation' }).click();
+    assert.equal(await payroll.page.locator('[data-worker-class="employee"]').isDisabled(), true);
+    assert.equal(await payroll.page.locator('[data-worker-basis]').isDisabled(), true);
+    assert.deepEqual(payroll.errors, []);
+    await payroll.page.close();
+
+    // Without payroll: no icon and no Compensation tab.
+    const noPayroll = await openPage(browser, { width:1440, height:900 }, { flags:{ 'apps.payroll':false } });
+    assert.equal(await noPayroll.page.locator('[data-name-mark]').count(), 0);
+    await noPayroll.page.locator('.pp-list-body [data-row-key="u7"] .pp-row-name').first().click();
+    assert.equal(await noPayroll.page.getByRole('dialog').locator('.pp-tab', { hasText:'Compensation' }).count(), 0);
+    assert.deepEqual(noPayroll.errors, []);
   } finally { await browser.close(); }
 });

@@ -688,6 +688,17 @@
     },
     saveRouting(orgId, branchId = 'default', payload = {}){
       return request(siblingPath('scopes', `/organizations/${enc(orgId)}/branches/${enc(branchId || 'default')}/intake-routing`), { method:'PUT', body:payload || {} });
+    },
+    /* Starts a scope on a project: a new lead's first scope, or another beside running ones. */
+    startOnProject(orgId, projectId, templateId, options = {}){
+      return request(siblingPath('scopes', `/organizations/${enc(orgId)}/projects/${enc(projectId)}/scopes`), { method:'POST', body:{ template_id:templateId, ...(options.instanceKey ? { instance_key:options.instanceKey } : {}) } });
+    },
+    /* Scope categories: the organization's labels for its scopes; `sales` and `intake` are built in. */
+    categories(orgId){
+      return request(siblingPath('scopes', `/organizations/${enc(orgId)}/scope-categories`));
+    },
+    saveCategories(orgId, payload = {}){
+      return request(siblingPath('scopes', `/organizations/${enc(orgId)}/scope-categories`), { method:'PUT', body:payload || {} });
     }
   };
 
@@ -1013,9 +1024,19 @@
     } catch {}
   }
 
+  /* A project's contacts are written through `contacts.setProjectContacts`, never with the
+   * project; these keys are the contact service's projection (docs/architecture/contacts.md). */
+  const PROJECT_CONTACT_KEYS = ['contacts', 'contact_id', 'primary_contact_id', 'contact_ids', 'customer_name', 'primary_contact_name', 'customer_email', 'primary_contact_email', 'customer_phone', 'primary_contact_phone'];
+  function withoutProjectContacts(data){
+    const rest = { ...(data || {}) };
+    PROJECT_CONTACT_KEYS.forEach((key) => { delete rest[key]; });
+    return rest;
+  }
+
   function collectionMethods(collection, metadataKind){
     const normalizedCollection = normalizeCollection(collection);
     const remember = normalizedCollection === 'projects' ? rememberProjectBaseline : () => {};
+    const writable = normalizedCollection === 'projects' ? withoutProjectContacts : (data) => data || {};
     return {
       list(orgId){
         return request(collectionPath(orgId, normalizedCollection)).then((result) => {
@@ -1065,7 +1086,7 @@
         return request(collectionPath(orgId, normalizedCollection, id), {
           method: 'PUT',
           body: {
-            data: data || {},
+            data: writable(data),
             metadata: { kind: metadataKind || normalizedCollection, ...(metadata || {}) }
           }
         }).catch((error) => {
@@ -1076,7 +1097,7 @@
       patch(orgId, id, data, metadata = {}) {
         return request(collectionPath(orgId, normalizedCollection, id), {
           method: 'PATCH',
-          body: { data: data || {}, metadata: metadata || {} }
+          body: { data: writable(data), metadata: metadata || {} }
         }).catch((error) => {
           // R4-EQ-3: the server refuses to recreate a project deleted since it
           // was read; that is not a local-only record to fall back from.
@@ -2575,7 +2596,7 @@
     }
     function projectionInstance(project){
       const instances = Array.isArray(project?.work_projection?.instances) ? project.work_projection.instances : [];
-      return instances.find((instance) => instance && instance.kind === 'pipeline') || instances[0] || null;
+      return instances.find((instance) => instance && instance.sales === true) || instances[0] || null;
     }
     function projectStage(project, config){
       const instance = projectionInstance(project);
@@ -2970,8 +2991,19 @@
     settings(orgId){return request(orgPath(orgId,'/contacts/settings'));},
     saveSettings(orgId,settings){return request(orgPath(orgId,'/contacts/settings'),{method:'PUT',body:settings});},
     options(orgId,kind='either'){return request(orgPath(orgId,'/contacts/options')+'?kind='+enc(kind));},
-    get(orgId,reference){return request(orgPath(orgId,'/contacts/'+enc(reference.contact_id))+'?project_id='+enc(reference.project_id));},
-    media(orgId,reference){return request(orgPath(orgId,'/media')+'?contact_id='+enc(reference.contact_id)+'&contact_project_id='+enc(reference.project_id));}
+    /* Contacts are records of their own (docs/architecture/contacts.md). A reference is a contact id or {contact_id}. */
+    list(orgId,query={}){const params=new URLSearchParams();for(const key of ['q','kind','tag','after','limit'])if(query[key])params.set(key,String(query[key]));const qs=params.toString();return request(orgPath(orgId,'/contacts')+(qs?'?'+qs:''));},
+    async listAll(orgId,query={}){const rows=[];let after='';do{const page=await contacts.list(orgId,{...query,limit:200,after});rows.push(...(page.contacts||[]));after=page.next||'';}while(after&&rows.length<20000);return rows;},
+    get(orgId,reference){const id=typeof reference==='string'?reference:reference?.contact_id;return request(orgPath(orgId,'/contacts/'+enc(id)));},
+    create(orgId,contact={}){return request(orgPath(orgId,'/contacts'),{method:'POST',body:contact||{}});},
+    update(orgId,contactId,changes={},expectedRevision){return request(orgPath(orgId,'/contacts/'+enc(contactId)),{method:'PATCH',body:{contact:changes||{},...(expectedRevision?{expected_revision:expectedRevision}:{})}});},
+    match(orgId,points={}){return request(orgPath(orgId,'/contacts/match'),{method:'POST',body:points||{}});},
+    merge(orgId,survivorId,mergedId,prefer={}){return request(orgPath(orgId,'/contacts/'+enc(survivorId)+'/merge'),{method:'POST',body:{merged_id:mergedId,prefer}});},
+    duplicates(orgId,kind='contact'){return request(orgPath(orgId,'/contacts/duplicates')+'?kind='+enc(kind));},
+    dismissDuplicate(orgId,kind,firstId,secondId){return request(orgPath(orgId,'/contacts/duplicates/dismiss'),{method:'POST',body:{kind,first_id:firstId,second_id:secondId}});},
+    setProjectContacts(orgId,projectId,links=[]){return request(orgPath(orgId,'/projects/'+enc(projectId)+'/contacts'),{method:'PUT',body:{contacts:links}});},
+    mergeProjects(orgId,survivorId,mergedId){return request(orgPath(orgId,'/projects/'+enc(survivorId)+'/merge'),{method:'POST',body:{merged_id:mergedId}});},
+    media(orgId,reference){const id=typeof reference==='string'?reference:reference?.contact_id;return request(orgPath(orgId,'/media')+'?contact_id='+enc(id));}
   };
   const contactImports = {
     // file: a File/Blob from an <input type=file>; options.mapping overrides

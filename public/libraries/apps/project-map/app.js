@@ -333,6 +333,15 @@
       .r-overlay.mobile-order .r-overview-map-frame #rMapHint{top:0}
       .r-overview-panel{display:flex;flex-direction:column;min-height:520px}
       .r-overview-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;padding:12px}
+      .r-overview-lead{margin:12px 12px 0;padding:12px;border:1px solid rgba(var(--primary-rgb,217,48,37),.28);border-radius:8px;background:rgba(var(--primary-rgb,217,48,37),.05);display:flex;flex-direction:column;gap:10px}
+      .r-overview-lead[hidden]{display:none}
+      .r-overview-lead-head{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:1000;color:#101828}
+      .r-overview-lead-sub{font-size:12px;color:#475467}
+      .r-overview-lead-actions{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+      .r-overview-lead-actions select{min-width:0;flex:1 1 180px;max-width:100%;height:34px;border:1px solid rgba(15,23,42,.16);border-radius:6px;background:#fff;padding:0 8px;font:inherit;font-size:13px}
+      .r-overview-lead-actions button{height:34px;border-radius:6px;padding:0 12px;font:inherit;font-size:13px;font-weight:800;cursor:pointer;border:1px solid rgba(15,23,42,.16);background:#fff;color:#344054}
+      .r-overview-lead-actions button[data-lead-start]{background:var(--primary,#d93025);border-color:var(--primary,#d93025);color:#fff}
+      .r-overview-lead-actions button:disabled{opacity:.6;cursor:default}
       .r-overview-card{width:100%;border:1px solid rgba(15,23,42,.08);border-radius:8px;background:#fff;text-align:left;padding:12px;display:flex;flex-direction:column;gap:10px;min-height:138px;color:#344054;cursor:pointer;transition:border-color .16s ease,box-shadow .16s ease,transform .16s ease}
       .r-overview-card:hover{border-color:rgba(var(--primary-rgb,217,48,37),.22);box-shadow:0 12px 24px rgba(15,23,42,.08);transform:translateY(-1px)}
       .r-overview-card[disabled]{cursor:default;transform:none;box-shadow:none}
@@ -406,6 +415,7 @@
                 <div class="r-overview-sub">${(globalThis.PlatformLanguage?.htmlText("project-map","m_d093f4e330398e","Current work, orders, documents, reports, and scheduling.") ?? "Current work, orders, documents, reports, and scheduling.")}</div>
               </div>
             </div>
+            <div class="r-overview-lead" data-overview-lead hidden></div>
             <div class="r-overview-grid" data-overview-summary></div>
             <div class="r-overview-fields" data-overview-fields></div>
           </section>
@@ -770,9 +780,109 @@
     });
   }
 
+  function leadText(id, fallback){
+    return globalThis.PlatformLanguage?.text?.('project-map', id, fallback) ?? fallback;
+  }
+
+  // A new lead (a project with no scope yet, docs/architecture/opportunities.md):
+  // start the scope it needs, or close it as not a lead.
+  const leadScopes = { loadedFor: '', loading: null, templates: [] };
+  async function loadLeadScopes(branchId){
+    const key = `${orgId()}:${branchId}`;
+    if (leadScopes.loadedFor === key) return leadScopes.templates;
+    if (!leadScopes.loading) {
+      leadScopes.loading = (window.PlatformAPI?.scopes?.list?.(orgId(), branchId) || Promise.resolve({ templates: [] }))
+        .then((result) => {
+          const rank = (template) => {
+            const ids = Array.isArray(template?.definition?.category_ids) ? template.definition.category_ids : [];
+            return ids.includes('sales') ? 0 : ids.includes('intake') ? 1 : 2;
+          };
+          leadScopes.templates = (Array.isArray(result?.templates) ? result.templates : [])
+            .filter((template) => template && template.enabled !== false && template.status !== 'archived')
+            .sort((a, b) => rank(a) - rank(b) || String(a.name || '').localeCompare(String(b.name || '')));
+          leadScopes.loadedFor = key;
+          return leadScopes.templates;
+        })
+        .finally(() => { leadScopes.loading = null; });
+    }
+    return leadScopes.loading;
+  }
+
+  async function refreshLeadProject(){
+    const id = projectId();
+    const result = await window.PlatformAPI?.projects?.get?.(orgId(), id);
+    const data = result?.document?.data;
+    if (data) callHost('setProject', { ...(project() || {}), lifecycle: data.lifecycle, work_projection: data.work_projection });
+    window.dispatchEvent(new CustomEvent('fm:work:updated', { detail: { project_id: id } }));
+    renderOverview();
+  }
+
+  function renderLeadCard(root){
+    const slot = root.querySelector('[data-overview-lead]');
+    if (!slot) return;
+    const current = project() || {};
+    const isNewLead = current?.lifecycle?.new_lead === true && !!projectId(current);
+    slot.hidden = !isNewLead;
+    if (!isNewLead) { slot.innerHTML = ''; slot.dataset.leadFor = ''; return; }
+    const branchId = cleanText(current.branch_id) || 'default';
+    if (slot.dataset.leadFor !== projectId(current)) {
+      slot.dataset.leadFor = projectId(current);
+      slot.innerHTML = `
+        <div class="r-overview-lead-head"><i class="fas fa-user-plus" aria-hidden="true"></i><span>${escapeHtml(leadText('new_lead_title', 'New lead'))}</span></div>
+        <div class="r-overview-lead-sub">${escapeHtml(leadText('new_lead_sub', 'This lead has no scope yet. Start the scope it needs, or close it if it is not a lead.'))}</div>
+        <div class="r-overview-lead-actions">
+          <select data-lead-scope aria-label="${escapeHtml(leadText('new_lead_scope', 'Scope to start'))}"><option value="">${escapeHtml(leadText('new_lead_loading', 'Loading scopes...'))}</option></select>
+          <button type="button" data-lead-start disabled>${escapeHtml(leadText('new_lead_start', 'Start scope'))}</button>
+          <button type="button" data-lead-lost>${escapeHtml(leadText('new_lead_lost', 'Not a lead'))}</button>
+        </div>`;
+      loadLeadScopes(branchId).then((templates) => {
+        const select = slot.querySelector('[data-lead-scope]');
+        if (!select) return;
+        select.innerHTML = templates.length
+          ? templates.map((template) => `<option value="${escapeHtml(template.id)}">${escapeHtml(template.name || template.id)}</option>`).join('')
+          : `<option value="">${escapeHtml(leadText('new_lead_none', 'No scopes are turned on'))}</option>`;
+        const start = slot.querySelector('[data-lead-start]');
+        if (start) start.disabled = !templates.length;
+      }).catch(() => {
+        const select = slot.querySelector('[data-lead-scope]');
+        if (select) select.innerHTML = `<option value="">${escapeHtml(leadText('new_lead_failed', 'Scopes could not be loaded'))}</option>`;
+      });
+    }
+    if (slot.__leadBound) return;
+    slot.__leadBound = true;
+    slot.addEventListener('click', async (event) => {
+      const start = event.target.closest?.('[data-lead-start]');
+      const lost = event.target.closest?.('[data-lead-lost]');
+      if (!start && !lost) return;
+      const buttons = [...slot.querySelectorAll('button')];
+      try {
+        if (start) {
+          const templateId = cleanText(slot.querySelector('[data-lead-scope]')?.value);
+          if (!templateId) return;
+          buttons.forEach((button) => { button.disabled = true; });
+          await window.PlatformAPI.scopes.startOnProject(orgId(), projectId(), templateId);
+          showToast(leadText('new_lead_started', 'Scope started'), '', true);
+        } else {
+          const reason = window.prompt(leadText('new_lead_lost_prompt', 'Why is this not a lead? For example: wrong number, spam, existing customer.'), 'not_a_lead');
+          if (reason === null) return;
+          buttons.forEach((button) => { button.disabled = true; });
+          await window.PlatformAPI.work.markProjectLost(orgId(), projectId(), { reason: cleanText(reason) || 'not_a_lead' });
+          showToast(leadText('new_lead_closed', 'Closed as not a lead'), '', true);
+        }
+        slot.dataset.leadFor = '';
+        await refreshLeadProject();
+      } catch (error) {
+        showToast(leadText('new_lead_error', 'That did not work'), error?.message || '', false);
+      } finally {
+        buttons.forEach((button) => { button.disabled = false; });
+      }
+    });
+  }
+
   function renderOverview(){
     const root = state.panelRoot?.isConnected ? state.panelRoot : currentMapPanelRoot();
     if (!root) return;
+    renderLeadCard(root);
     const summary = root.querySelector('[data-overview-summary]');
     const address = root.querySelector('[data-overview-address]');
     const current = project() || {};

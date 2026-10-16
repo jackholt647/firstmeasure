@@ -68,18 +68,7 @@ function buildTools(run: AgentRun): AgentTool[] {
         if (Object.keys(patch).length) {
           current.scratch.visitor = (await updateVisitor(current.orgId, cleanText(visitor(current).id), patch as never));
           if (asObject(asObject(settings.ai).tools).create_lead !== false && (cleanText(args.email) || cleanText(args.phone))) {
-            try {
-              const { createPlatformLead } = await import("../platform/api.js");
-              await createPlatformLead(current.orgId, {
-                name: cleanText(visitor(current).display_name) || "Live chat visitor",
-                email: cleanText(visitor(current).email),
-                phone: cleanText(visitor(current).phone),
-                source: "live_chat",
-                metadata: { chat_conversation_id: current.subjectId }
-              } as never);
-            } catch {
-              // Lead creation is best-effort.
-            }
+            await (await import("./service.js")).receiveChatLead(current.orgId, current.branchId, current.subjectId, visitor(current) as never);
           }
         }
         return { ok: true, saved: Object.keys(patch) };

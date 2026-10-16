@@ -5,6 +5,7 @@ import { getWorkDatabase, type JsonObject } from "../work/storage.js";
 import { normalizeWorkPlanBindingKeys } from "../work/bindings.js";
 import { scopeTemplateDefinitionSchema, type ScopeTemplateDefinition } from "./schemas.js";
 import { DEFAULT_SCOPE_TEMPLATES } from "./presets/index.js";
+import { assertTemplateCategories, isSalesTemplate, templateCategoryIds, withCategoryIds } from "./categories.js";
 
 function cleanText(value: unknown) {
   return String(value ?? "").trim();
@@ -95,7 +96,7 @@ function versionView(row: unknown): JsonObject {
   return {
     ...value,
     version: Number(value.version || 1),
-    definition: parseJson(value.definition_json)
+    definition: withCategoryIds(parseJson(value.definition_json))
   };
 }
 
@@ -203,8 +204,8 @@ export async function listScopeLibrary(orgId: string, branchId = "default"): Pro
       details: cleanText(definition.details),
       color: cleanText(definition.color),
       icon: cleanText(definition.icon),
-      kind: cleanText(definition.kind || "production"),
-      category: cleanText(launch.category) || (definition.kind === "pipeline" ? "Sales" : "Production"),
+      category_ids: templateCategoryIds(definition),
+      category: cleanText(launch.category) || (isSalesTemplate(definition) ? "Sales" : "Production"),
       keywords: Array.isArray(launch.keywords) ? launch.keywords : [],
       suggested: launch.frequent === true,
       sort_order: index,
@@ -334,8 +335,12 @@ export async function saveScopeTemplate(orgId: string, branchId: string, inputVa
   const db = getWorkDatabase();
   const now = nowIso();
   const expectedVersion = Number(inputValue.expected_version || 0);
-  const definitionFields = { ...parsedDefinition } as JsonObject;
+  const definitionFields = withCategoryIds({ ...parsedDefinition } as JsonObject);
   delete definitionFields.expected_version;
+  if (!options.systemPreset) {
+    const prior = (await readScopeTemplateVersion(orgId, branchId, parsedDefinition.id).catch(() => null))?.definition;
+    await assertTemplateCategories(orgId, templateCategoryIds(definitionFields), templateCategoryIds(prior || {}));
+  }
   await db.transaction(async () => {
     const existing = (await db.prepare("SELECT * FROM scope_templates WHERE organization_id = ? AND branch_id = ? AND id = ?")
       .get(orgId, branchId, parsedDefinition.id));

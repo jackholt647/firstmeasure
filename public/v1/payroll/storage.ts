@@ -13,7 +13,8 @@ export type JsonObject = Record<string, unknown>;
  * Raised whenever `initializeSchema` changes. On PostgreSQL the schema is only initialized again when this number is
  * higher than the one recorded for the store, so a table dropped there stays until it is raised.
  */
-const DATABASE_SCHEMA_VERSION = 4;
+// 5: payroll_settings (whether pay runs need approval).
+const DATABASE_SCHEMA_VERSION = 5;
 let database: SqlStore | null = null;
 let databasePath = "";
 
@@ -68,6 +69,13 @@ export function getPayrollDatabase(): SqlStore {
 async function initializeSchema(db: SqlStore) {
   (await db.exec(`
     CREATE TABLE IF NOT EXISTS payroll_work_outbox (id TEXT PRIMARY KEY, payload_json TEXT NOT NULL, created_at TEXT NOT NULL);
+    CREATE TABLE IF NOT EXISTS payroll_settings (
+      organization_id TEXT PRIMARY KEY,
+      settings_json TEXT NOT NULL DEFAULT '{}',
+      revision INTEGER NOT NULL DEFAULT 1,
+      updated_by TEXT NOT NULL DEFAULT '',
+      updated_at TEXT NOT NULL
+    );
     CREATE TABLE IF NOT EXISTS payroll_schedules (
       id TEXT NOT NULL,
       organization_id TEXT NOT NULL,
@@ -224,6 +232,32 @@ async function initializeSchema(db: SqlStore) {
   await db.exec("CREATE INDEX IF NOT EXISTS payroll_work_outbox_due_idx ON payroll_work_outbox(state, retry_at, created_at)");
 }
 
+/**
+ * The organization's payroll settings. `approval_required`: a pay run is approved by named approvers and made final
+ * before it is marked run or paid. On unless the organization turned it off, so organizations that existed before the
+ * setting keep the approval step.
+ */
+export async function readPayrollSettings(orgId: string) {
+  const row = asObject(await getPayrollDatabase().prepare("SELECT settings_json, revision, updated_by, updated_at FROM payroll_settings WHERE organization_id=?").get(orgId));
+  const stored = asObject(parseJson(row.settings_json));
+  return { approval_required: stored.approval_required !== false, revision: Number(row.revision || 0), updated_by: cleanText(row.updated_by), updated_at: cleanText(row.updated_at) };
+}
+
+export async function savePayrollSettings(orgId: string, input: { approval_required: boolean; expected_revision?: number }, actorUserId = "") {
+  return (await withPayrollTransaction(async (db) => {
+    const current = await readPayrollSettings(orgId);
+    if (input.expected_revision !== undefined && input.expected_revision !== current.revision) {
+      throw conflict("payroll_settings_revision_conflict", "Payroll settings changed elsewhere. Reload and try again.", { current_revision: current.revision });
+    }
+    const now = nowIso();
+    const settings = JSON.stringify({ approval_required: input.approval_required });
+    await db.prepare(`INSERT INTO payroll_settings (organization_id, settings_json, revision, updated_by, updated_at) VALUES (?, ?, 1, ?, ?)
+      ON CONFLICT(organization_id) DO UPDATE SET settings_json=excluded.settings_json, revision=payroll_settings.revision+1, updated_by=excluded.updated_by, updated_at=excluded.updated_at`)
+      .run(orgId, settings, actorUserId, now);
+    return readPayrollSettings(orgId);
+  }));
+}
+
 export async function withPayrollTransaction<T>(operation: (db: SqlStore) => T | Promise<T>): Promise<T> {
   return (await getPayrollDatabase().transaction(operation));
 }
@@ -363,7 +397,7 @@ export async function listPayrollLedgerEntries(orgId: string, options: JsonObjec
   const conditions = ["l.organization_id=?"];
   const params: SQLInputValue[] = [orgId];
   const mapping: Array<[string, string]> = [
-    ["schedule_id", "l.schedule_id"], ["state", "l.state"], ["kind", "l.kind"], ["project_id", "l.project_id"],
+    ["schedule_id", "l.schedule_id"], ["state", "l.state"], ["kind", "l.kind"], ["subgroup", "l.subgroup"], ["project_id", "l.project_id"],
     ["payee_id", "l.payee_id"], ["payee_type", "l.payee_type"], ["source_event_id", "l.source_event_id"]
   ];
   for (const [key, column] of mapping) {
@@ -680,4 +714,3 @@ export async function listPayrollArtifacts(orgId: string, options: JsonObject = 
     .all(...params)).map((row) => payrollArtifactView(row));
 }
 
-export const payrollViews = { scheduleView, ledgerEntryView, batchView, batchItemView };

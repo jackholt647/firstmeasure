@@ -106,7 +106,6 @@ await owner.req("PUT", `/v1/platform/organizations/${orgId}/projects/${projectId
     address: "100 Document Lane",
     project_type: "residential",
     stage: "production",
-    contacts: [{ id: "contact_jane", name: "Jane Homeowner", email: "jane@example.test", phone: "555-111-2222", primary: true }],
     photos: [],
     events: [{
       id: "ev_fieldwork_visit",
@@ -122,6 +121,7 @@ await owner.req("PUT", `/v1/platform/organizations/${orgId}/projects/${projectId
   },
   metadata: { kind: "platform_project" }
 });
+await owner.req("PUT", `/v1/platform/organizations/${orgId}/projects/${projectId}/contacts`, { contacts: [{ id: "contact_jane", name: "Jane Homeowner", email: "jane@example.test", phone: "555-111-2222", primary: true }] });
 
 async function makeDocument(type, title, params) {
   const created = await owner.req("POST", `/v1/documents/organizations/${orgId}/projects/${projectId}/documents`, {

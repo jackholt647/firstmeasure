@@ -258,7 +258,10 @@ export async function processOneJob(workerId:string,lane:'all'|'voice'|'backgrou
       finally {clearInterval(heartbeat);}
     }
     else if(job.kind==="missed_callback"){
-      const call=(await s.readCall(orgId,callId));if(!call.connected_at)await createFollowUpTodo(orgId,{id:s.id("callback",callId),source_key:`missed-call:${callId}`,project_id:call.project_id,branch_id:call.branch_id,title:`Return ${call.customer_name}'s call`,due_at:s.now(),assigned_user_ids:call.owner_user_id?[call.owner_user_id]:[],metadata:{follow_up:{channel:"call",call_id:callId,phone:call.customer_number,contact_id:call.contact_id,completion_policy:"explicit"}}});
+      let call=(await s.readCall(orgId,callId));
+      // A missed call nobody's project knows may arrive as a lead (leads/calls.ts, the branch's call_leads setting).
+      if(!call.connected_at&&!text(call.project_id)){const lead=await (await import("../../leads/calls.js")).leadFromMissedCall(orgId,call);if(lead.project_id)call=(await s.patchCall(orgId,callId,{project_id:lead.project_id,...(lead.contact_id&&!text(call.contact_id)?{contact_id:lead.contact_id}:{})}));}
+      if(!call.connected_at)await createFollowUpTodo(orgId,{id:s.id("callback",callId),source_key:`missed-call:${callId}`,project_id:call.project_id,branch_id:call.branch_id,title:`Return ${call.customer_name}'s call`,due_at:s.now(),assigned_user_ids:call.owner_user_id?[call.owner_user_id]:[],metadata:{follow_up:{channel:"call",call_id:callId,phone:call.customer_number,contact_id:call.contact_id,completion_policy:"explicit"}}});
     }else throw new Error("Unknown customer-call job");
     (await s.finishJob(text(job.id),workerId,"completed",result));
   }catch(error){

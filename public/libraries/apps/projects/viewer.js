@@ -3809,7 +3809,7 @@
   }
   function primaryProjectInstance(p){
     const instances = projectActiveInstances(p);
-    return instances.find((instance) => instance.kind === 'pipeline') || instances[0] || null;
+    return instances.find((instance) => instance.sales === true) || instances[0] || null;
   }
   function instanceStageLabel(instance){
     return firstNonEmptyString(instance?.stage_title, instance?.title) || (globalThis.PlatformLanguage?.text('projects','m_1b6ec15cbd198b',"In Progress") ?? "In Progress");
@@ -4824,9 +4824,9 @@
     for (const p of projects){
       const instance = primaryProjectInstance(p);
       if (instance){
-        const bucketMap = instance.kind === 'production' ? production : pipeline;
+        const bucketMap = instance.sales === true ? pipeline : production;
         const title = instanceStageLabel(instance);
-        const key = `${instance.kind === 'production' ? 'production' : 'pipeline'}:${firstNonEmptyString(instance.stage_id, title)}`;
+        const key = `${instance.sales === true ? 'pipeline' : 'production'}:${firstNonEmptyString(instance.stage_id, title)}`;
         if (!bucketMap.has(key)) bucketMap.set(key, { id:key, title, color:instanceStageColor(instance), items:[] });
         bucketMap.get(key).items.push(p);
         continue;
@@ -4851,6 +4851,7 @@
       return String(value ?? '');
     }
   }
+  const NEW_LEADS_COLUMN_ID = '__new_leads';
   function createStageCard(p){
     p = normalizeProjectRecord(p);
     const id = String(p.id);
@@ -4862,7 +4863,10 @@
     card.dataset.id = id;
     card.dataset.planId = String(p.plan_id || '');
     card.dataset.stageId = String(p.stage_id || '');
-    const movable = manualStageMovementEnabled() && canManageProjectStages() && !!card.dataset.planId;
+    // A card in a sales board's New lead column is a project with no scope yet:
+    // dropping it on a stage starts this board's scope on it.
+    const newLead = card.dataset.stageId === NEW_LEADS_COLUMN_ID;
+    const movable = canManageProjectStages() && (newLead || (manualStageMovementEnabled() && !!card.dataset.planId));
     card.draggable = movable;
     card.innerHTML = `
       <div class="v-stage-card-top"><div class="v-stage-name">${String(escapeHtml(name))}</div><span class="v-stage-drag-handle" title="${(globalThis.PlatformLanguage?.htmlText("projects","m_6327be62073e85","Drag to another stage") ?? "Drag to another stage")}" aria-hidden="true"><i class="fas fa-grip-vertical"></i></span></div>
@@ -4881,7 +4885,7 @@
     if (movable) {
       card.addEventListener('dragstart', (event) => {
         if (manualStageMoveInFlight) { event.preventDefault(); return; }
-        manualStageDragPayload = { projectId:id, planId:card.dataset.planId, fromStageId:card.dataset.stageId };
+        manualStageDragPayload = { projectId:id, planId:card.dataset.planId, fromStageId:card.dataset.stageId, newLead };
         card.classList.add('is-dragging');
         event.dataTransfer.effectAllowed = 'move';
         event.dataTransfer.setData('text/plain', JSON.stringify(manualStageDragPayload));
@@ -4945,7 +4949,31 @@
     ));
   }
 
+  // Starts the active board's scope on a new lead dropped on one of its stages; a
+  // stage after the first is then set by hand when manual stage movement is on.
+  async function startNewLeadOnBoardStage(payload, targetStageId){
+    const projectId = String(payload?.projectId || '').trim();
+    const board = projectBoards().find((item) => String(item.id) === activeWorkBoardId);
+    if (!projectId || !board || !targetStageId || targetStageId === NEW_LEADS_COLUMN_ID) return;
+    const orgId = String(window.__APP?.userOrgId || '');
+    const firstStageId = String((board.columns || []).find((column) => String(column.id) !== NEW_LEADS_COLUMN_ID)?.id || '');
+    manualStageMoveInFlight = true;
+    try {
+      const started = await window.PlatformAPI.scopes.startOnProject(orgId, projectId, String(board.id));
+      const planId = String(started?.plan?.id || '');
+      if (planId && targetStageId !== firstStageId && manualStageMovementEnabled()) await window.PlatformAPI.work.setManualStage(orgId, planId, targetStageId);
+      window.Portal?.ui?.showToast?.((globalThis.PlatformLanguage?.text("projects","new_lead_started","Scope started") ?? "Scope started"), String(board.title || ''), true);
+    } catch (error) {
+      window.Portal?.ui?.showToast?.((globalThis.PlatformLanguage?.text("projects","new_lead_not_started","Scope not started") ?? "Scope not started"), error?.message || '', false);
+    } finally {
+      manualStageMoveInFlight = false;
+      await loadWorkBoards({ refresh:true });
+    }
+  }
+
   async function moveProjectToBoardStage(payload, targetStageId){
+    if (payload?.newLead) return startNewLeadOnBoardStage(payload, String(targetStageId || '').trim());
+    if (String(targetStageId || '') === NEW_LEADS_COLUMN_ID) return;
     const planId = String(payload?.planId || '').trim();
     const projectId = String(payload?.projectId || '').trim();
     targetStageId = String(targetStageId || '').trim();
@@ -4977,9 +5005,12 @@
   }
 
   function bindStageColumnDrop(column, stageId){
-    if (!manualStageMovementEnabled() || !canManageProjectStages()) return;
+    if (!canManageProjectStages()) return;
     column.ondragover = (event) => {
       if (!manualStageDragPayload || String(manualStageDragPayload.fromStageId) === String(stageId)) return;
+      // A new lead may land on any stage; other cards move only with manual stage movement, never into New lead.
+      if (String(stageId) === NEW_LEADS_COLUMN_ID) return;
+      if (!manualStageDragPayload.newLead && !manualStageMovementEnabled()) return;
       event.preventDefault();
       event.dataTransfer.dropEffect = 'move';
       column.classList.add('is-drop-target');

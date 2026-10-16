@@ -3,7 +3,6 @@ import { mkdir, readdir, readFile, rm, stat, writeFile } from "node:fs/promises"
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 
-import { ensureLeadDatabase, withLeadDb } from "../internal/crm/leads.js";
 import { asObject, deleteInternalDocument, readInternalDocument, readInternalUser, saveInternalDocument, saveInternalUser, type JsonObject } from "../internal/storage.js";
 import { badRequest } from "../platform/errors.js";
 import { env } from "../src/config/env.js";
@@ -626,65 +625,6 @@ function extractEmails(value: unknown) {
     .filter(Boolean);
 }
 
-function leadAddressIndex(db: DatabaseSync) {
-  const index = new Map<string, Set<string>>();
-  const add = (email: unknown, leadId: unknown) => {
-    const key = normalizeEmail(email);
-    const id = stringValue(leadId);
-    if (!key || !id) return;
-    if (!index.has(key)) index.set(key, new Set());
-    index.get(key)?.add(id);
-  };
-  const leads = db.prepare("SELECT id, email FROM lead_memberships WHERE COALESCE(email, '') != ''").all() as JsonObject[];
-  for (const lead of leads) add(lead.email, lead.id);
-  const contacts = db.prepare("SELECT lead_id, email FROM lead_contacts WHERE COALESCE(email, '') != ''").all() as JsonObject[];
-  for (const contact of contacts) add(contact.email, contact.lead_id);
-  return index;
-}
-
-function leadIdsForMessage(index: Map<string, Set<string>>, message: JsonObject) {
-  const ids = new Set<string>();
-  for (const email of [...extractEmails(message.from), ...extractEmails(message.to), ...extractEmails(message.cc), ...extractEmails(message.body_text)]) {
-    for (const id of index.get(email) ?? []) ids.add(id);
-  }
-  return [...ids];
-}
-
-function upsertLeadActivity(db: DatabaseSync, leadId: string, actorEmail: string, message: JsonObject) {
-  const relatedId = stringValue(message.gmail_message_id);
-  const existing = db.prepare("SELECT id FROM lead_activity_items WHERE lead_id = :lead_id AND activity_type = 'email' AND related_id = :related_id LIMIT 1")
-    .get({ lead_id: leadId, related_id: relatedId } as never) as JsonObject | undefined;
-  const id = stringValue(existing?.id || `activity_${randomBytes(8).toString("hex")}`);
-  const now = nowUnix();
-  const params = {
-    id,
-    lead_id: leadId,
-    owner_email: actorEmail,
-    direction: stringValue(message.direction),
-    subject: stringValue(message.subject),
-    body_text: stringValue(message.body_text || message.snippet),
-    related_id: relatedId,
-    metadata_json: JSON.stringify({ transport: "gmail", ...message }),
-    happened_at: Number(message.happened_at ?? now),
-    created_at: now,
-    updated_at: now,
-    actor: actorEmail
-  };
-  if (existing) {
-    db.prepare(`
-      UPDATE lead_activity_items
-      SET owner_email = :owner_email, direction = :direction, subject = :subject, body_text = :body_text,
-          metadata_json = :metadata_json, happened_at = :happened_at, updated_at = :updated_at, updated_by_email = :actor
-      WHERE id = :id
-    `).run(params as never);
-  } else {
-    db.prepare(`
-      INSERT INTO lead_activity_items
-      (id, lead_id, owner_email, activity_type, direction, subject, body_text, related_id, metadata_json, happened_at, created_at, updated_at, created_by_email, updated_by_email)
-      VALUES (:id, :lead_id, :owner_email, 'email', :direction, :subject, :body_text, :related_id, :metadata_json, :happened_at, :created_at, :updated_at, :actor, :actor)
-    `).run(params as never);
-  }
-}
 
 async function writeMatchedMessage(mailboxEmail: string, message: JsonObject, leadIds: string[]) {
   if (isFirstMeasurePostgresEnabled()) {
@@ -740,7 +680,6 @@ async function refreshMailboxCounts(mailboxEmail: string) {
 }
 
 export async function syncMailboxForActor(actorEmail: string, options: JsonObject = {}) {
-  await ensureLeadDatabase();
   const force = Boolean(options.force);
   const reason = stringValue(options.reason || "background");
   const gmail = await connectedGmailData(actorEmail);
@@ -755,24 +694,14 @@ export async function syncMailboxForActor(actorEmail: string, options: JsonObjec
   const messageRefs = Array.isArray(asObject(listed.data).messages) ? asObject(listed.data).messages as JsonObject[] : [];
   let matched = 0;
   let unmatched = 0;
-  const index = withLeadDb((db) => leadAddressIndex(db));
   for (const ref of messageRefs) {
     const id = stringValue(ref.id);
     if (!id) continue;
     const fetched = await googleRequest(actorEmail, "GET", `https://gmail.googleapis.com/gmail/v1/users/me/messages/${encodeURIComponent(id)}?format=full`);
     if (!fetched.ok) continue;
     const record = normalizeMessage(asObject(fetched.data), mailboxEmail, actorEmail);
-    const leadIds = leadIdsForMessage(index, record);
-    if (leadIds.length) {
-      matched += 1;
-      await writeMatchedMessage(mailboxEmail, record, leadIds);
-      withLeadDb((db) => {
-        for (const leadId of leadIds) upsertLeadActivity(db, leadId, actorEmail, record);
-      });
-    } else {
-      unmatched += 1;
-      await writeUnmatchedMessage(mailboxEmail, record);
-    }
+    unmatched += 1;
+    await writeUnmatchedMessage(mailboxEmail, record);
   }
   await writeMailboxState(mailboxEmail, {
     ...state,
@@ -873,8 +802,6 @@ export async function cacheSentMessageForLead(actorEmail: string, leadId: string
     lead_ids: [leadId]
   };
   if (record.gmail_message_id) await writeMatchedMessage(mailboxEmail, record, [leadId]);
-  await ensureLeadDatabase();
-  withLeadDb((db) => upsertLeadActivity(db, leadId, actorEmail, record));
   await refreshMailboxCounts(mailboxEmail);
 }
 

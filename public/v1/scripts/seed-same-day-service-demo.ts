@@ -1,5 +1,6 @@
 /* Seed two same-day service visits for the field salesperson demo. */
 import { listDocuments, upsertDocument } from "../platform/storage.js";
+import { saveProjectContacts } from "../contacts/records.js";
 import { ensureDefaultDocumentAssets } from "../documents/seeds.js";
 import { listProjectDocuments, patchDocumentInstance } from "../documents/service.js";
 import { readDocumentWorkflow, saveDocumentInstance } from "../documents/storage.js";
@@ -67,7 +68,6 @@ async function main() {
         title: visit.title,
         address: visit.address,
         status: "sales",
-        contacts: [{ id: `${visit.id}_customer`, ...visit.customer, primary: true }],
         events: [{
           ...visit.appointment,
           kind: "appointment",
@@ -81,6 +81,7 @@ async function main() {
       },
       metadata: { kind: "platform_project", branch_id: "default", source: "seed_same_day_service_demo" }
     }, { replace: true });
+    await saveProjectContacts(orgId, visit.id, [{ id: `${visit.id}_customer`, ...visit.customer, primary: true }]);
     await instantiateScopeTemplateWorkPlan(orgId, {
       project_id: visit.id,
       branch_id: "default",

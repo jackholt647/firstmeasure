@@ -84,13 +84,22 @@ event carries, and every action's typed input schema.
   node ids, bindings, or events by name in chat replies.
 
 ## Around the templates
-- Project scope configuration (branch module intake_routing): the data-driven
-  scope buckets shown in Settings, the guaranteed default entry scope, and
-  optional ordered field-formula rules for routing new projects.
-- Intake automations ("when a new lead comes in, before it lands on any
-  board"): organization automation rules on the project.created event. This is
-  where pre-pipeline behavior belongs — queueing the first call, notifying
-  people, texting an auto-reply to the lead, tagging by source.
+- Intake routing (branch module intake_routing): where a lead enters, decided
+  once when it arrives. The default (default_entry "scope" with
+  default_template_id, or "unscoped") and optional ordered field-formula
+  rules, each with entry "scope" plus template_id or entry "unscoped". An
+  unscoped lead is a new lead: no scope yet, shown in the New leads filter and
+  on any sales board with work_plan.metadata.new_leads_column. Also
+  manual_template_id (the scope a project made by hand starts) and call_leads
+  (missed calls: unknown_numbers and known_contacts, "new_lead" or "log").
+- Intake scopes: a template with the built-in intake category runs before a
+  lead has a scope (call, then choose the kind of sale), is never a board and
+  is not an opportunity; it routes with scopes.activateTemplate.v1.
+- Intake automations ("when a new lead comes in"): organization automation
+  rules on the lead.received event (payload.source_kind, payload.notice with
+  the source's suggested title, body and target_role_ids). The defaults
+  notify the sales roles and queue the first call; this is where pre-pipeline
+  behavior belongs — notifying people, texting an auto-reply, tagging by source.
 - Organization automation rules (branch module automation_rules): org-wide
   {event|schedule.cron, conditions, actions: [{id, automation, input,
   conditions}]} evaluated on EVERY event before scope bindings. A rule's

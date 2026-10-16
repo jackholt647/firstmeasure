@@ -264,8 +264,8 @@ async function createPerson(owner: TestClient, orgId: string, suffix: string, la
 }
 
 async function seedProject(orgId: string, id: string, title: string, assignedUserIds: string[]) {
-  const { upsertDocument } = await import("../platform/storage.js");
-  await upsertDocument(orgId, "projects", {
+  const { upsertProjectWithContacts } = await import("./helpers/project-contacts.js");
+  await upsertProjectWithContacts(orgId, {
     id,
     data: {
       branch_id: "default",

@@ -33,12 +33,12 @@ for (let i = 0; i < 80; i += 1) {
   await req("PUT", `/v1/platform/organizations/${orgId}/projects/project_perf_${suffix}_${i}`, {
     data: {
       id: `project_perf_${suffix}_${i}`, title: `Perf Project ${i}`, address: `${i} Perf Ave`, project_type: "residential",
-      contacts: [{ id: "c", name: `Customer ${i}`, email: `c${i}@example.test`, primary: true }],
       photos: [], events: [], proposals: [],
       project_notes: "x".repeat(400)
     },
     metadata: { kind: "platform_project" }
   });
+  await req("PUT", `/v1/platform/organizations/${orgId}/projects/project_perf_${suffix}_${i}/contacts`, { contacts: [{ id: `c_${suffix}_${i}`, name: `Customer ${i}`, email: `c${i}@example.test`, primary: true }] });
 }
 
 const browser = await chromium.launch({ executablePath: "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe", headless: true, args: ["--no-sandbox"] });

@@ -235,7 +235,8 @@
       });
     };
 
-    const templateKind = (template) => text(object(template?.definition).kind, template?.kind, 'production') === 'pipeline' ? 'pipeline' : 'production';
+    // A sales scope (built-in `sales` category) shows as a sales pipeline; anything else as production.
+    const templateKind = (template) => { const ids = object(template?.definition).category_ids || template?.category_ids; return (Array.isArray(ids) ? ids : []).includes('sales') || template?.kind === 'pipeline' ? 'pipeline' : 'production'; };
     const templateColor = (template) => text(template?.color, '#667085');
     const templateIcon = (template) => text(template?.icon, templateKind(template) === 'pipeline' ? 'fa-filter-circle-dollar' : 'fa-diagram-project');
     const welcomeMessage = () => ({
@@ -566,7 +567,7 @@
       const definition = {
         schema_version:1,
         id:templateId,
-        kind:creatorDraft.kind,
+        category_ids:creatorDraft.kind === 'pipeline' ? ['sales'] : ['production'],
         name,
         description:text(creatorDraft.description),
         details:text(creatorDraft.description),
@@ -663,7 +664,7 @@
           icon:text(template.icon, state.template.icon),
           description:text(template.description, state.template.description),
           version:template.version ?? state.template.version,
-          kind:text(template.kind, state.template.kind),
+          kind:template.definition || template.category_ids ? templateKind(template) : state.template.kind,
           enabled:template.enabled !== undefined ? template.enabled !== false : state.template.enabled,
           status:text(template.status, state.template.status)
         };

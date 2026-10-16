@@ -22,7 +22,6 @@ import {
   type JsonObject
 } from "../platform/storage.js";
 import type { PlatformAuthContext } from "../platform/auth.js";
-import { ensurePipelinePlanForProject } from "../scopes/router.js";
 import { emitWorkEvent } from "../work/engine.js";
 import { sendOrganizationTransactionalEmail } from "../email/organization_outbound.js";
 import { env } from "../src/config/env.js";
@@ -471,8 +470,7 @@ async function patchProjectProposalRefs(orgId: string, projectId: string, propos
       kind: "platform_project",
       proposal_ref_source: "proposals_api"
     }
-  }, { replace: false });
-  await ensurePipelinePlanForProject(orgId, { id: projectId, ...data, ...nextData });
+  }, { replace: false, mustExist: true });
 }
 
 export async function listProjectProposals(orgId: string, projectId: string) {
@@ -1461,7 +1459,7 @@ async function patchProjectSharedProposal(orgId: string, snapshot: JsonObject, p
       kind: cleanText(asObject(asObject(projectDoc).metadata).kind) || "platform_project",
       proposal_portal_source: "proposals_api"
     }
-  }, { replace: true });
+  }, { replace: true, mustExist: true });
   return documentData(doc);
 }
 
@@ -1511,7 +1509,7 @@ async function expireSiblingProposalOptions(orgId: string, signedSnapshot: JsonO
           kind: cleanText(asObject(asObject(projectDoc).metadata).kind) || "platform_project",
           proposal_portal_source: "proposals_api"
         }
-      }, { replace: true });
+      }, { replace: true, mustExist: true });
     }
   }
   const proposalDocs = await listDocuments(orgId, PROPOSAL_COLLECTION).catch(() => []);

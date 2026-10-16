@@ -224,8 +224,8 @@ function projectEvent(id: string, assignment: Json, schedule: Json) {
 }
 
 async function seedProject(orgId: string, id: string, title: string, event: Json) {
-  const { upsertDocument } = await import("../platform/storage.js");
-  await upsertDocument(orgId, "projects", {
+  const { upsertProjectWithContacts } = await import("./helpers/project-contacts.js");
+  await upsertProjectWithContacts(orgId, {
     id,
     data: {
       branch_id: "default",
@@ -827,11 +827,12 @@ test("Crew API centralizes access and isolates assigned field workflows", async 
 
     const stored = await readDocument(orgId, "projects", "crew_early");
     const project = { ...stored.data } as Json;
-    project.contacts = [{ id:"crew_early_customer", name:"Early Customer", phone:"206-555-0199", primary:true }];
     project.events = (project.events || []).map((event: Json) => event.id === "event_early"
       ? { ...event, scope_template_id: "same_day_service_production" }
       : event);
     await upsertDocument(orgId, "projects", { id:"crew_early", data:project, metadata:stored.metadata }, { replace:true });
+    const { saveProjectContacts } = await import("../contacts/records.js");
+    await saveProjectContacts(orgId, "crew_early", [{ id:"crew_early_customer", name:"Early Customer", phone:"206-555-0199", primary:true }]);
 
     const visit = await supervisor.client.request("GET", `${crewBase}/projects/crew_early/visit?event_id=event_early`);
     assert.equal(visit.configured, true);

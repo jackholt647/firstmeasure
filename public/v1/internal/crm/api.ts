@@ -5,21 +5,10 @@ import { fileURLToPath } from "node:url";
 import { ZodError, z } from "zod";
 
 import { PlatformError, forbidden } from "../../platform/errors.js";
-import {
-  CRM_COLLECTIONS,
-  asObject,
-  deleteCrmDocument,
-  ensureCrmStorage,
-  listCrmDocuments,
-  readCrmDocument,
-  upsertCrmDocument
-} from "./storage.js";
-import { callQueue, recordLeadCall, addLeadContactNote, addLeadFollowup, addLeadNote, commitLeadImport, createLeadCustomField, deleteLeadCustomField, ensureLeadDatabase, exportSelectedLeads, leadDetail, leadFields, leadFilterOptions, leadViewer, previewLeadImport, queryLeads, reassignSelectedLeads, updateLeadContact, updateLeadCustomField, updateLeadRecord } from "./leads.js";
 import { acquisitionCampaignReport, attachReferralOrganization, ensureReferralDatabase, getReferralPartner, listAcquisitionCampaigns, listReferralPartners, referralRewardReport, referralRows, saveAcquisitionCampaign, saveReferralPartner, saveReferralPartnerLogo, searchReferralOrganizations, updateReferralRewardStatus } from "./referrals.js";
 
-import { requirePlatformAuth } from "../../platform/auth.js";
-import { readInternalUser } from "../storage.js";
 
+const asObject = (value: unknown): Record<string, unknown> => value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
 const objectSchema = z.object({}).passthrough();
 const CRM_API_MODULE_DIR = path.dirname(fileURLToPath(import.meta.url));
 
@@ -38,101 +27,14 @@ export const registerCrmApi: FastifyPluginAsync = async (app) => {
     return reply.send({ ok: false, success: false, error: "internal_error", message: "An unexpected error occurred." });
   });
 
-  await ensureCrmStorage();
-  await ensureLeadDatabase();
   await ensureReferralDatabase();
 
   app.get("/", async () => ({
     ok: true,
     success: true,
-    api: "crm",
-    collections: CRM_COLLECTIONS,
-    routes: {
-      global: "/global/:collection",
-      organization: "/organizations/:orgId/:collection",
-      leadFields: "/leads/fields",
-      leadFilterOptions: "/leads/filter-options",
-      leadQuery: "/leads/query",
-      leadDetail: "/leads/:leadId/detail",
-      leadViewer: "/leads/:leadId/viewer",
-      leadExport: "/leads/export",
-      leadReassign: "/leads/reassign",
-      leadImportPreview: "/leads/imports/preview",
-      leadImportCommit: "/leads/imports/:importId/commit",
-      referralPartners: "/referrals/partners",
-      referralRewards: "/referrals/rewards",
-      leadSearch: "/organizations/:orgId/leads/search",
-      dashboard: "/organizations/:orgId/dashboard"
-    }
+    api: "referrals",
+    routes: { referralPartners: "/referrals/partners", referralRewards: "/referrals/rewards", acquisitionCampaigns: "/referrals/acquisition/campaigns" }
   }));
-
-  app.get("/leads/fields", async () => leadFields());
-
-  app.post("/leads/custom-fields", async (request, reply) => {
-    const response = await createLeadCustomField(asObject(request.body));
-    reply.code(201);
-    return response;
-  });
-
-  app.patch("/leads/custom-fields/:fieldKey", async (request) => updateLeadCustomField(param(request.params, "fieldKey"), asObject(request.body)));
-
-  app.delete("/leads/custom-fields/:fieldKey", async (request) => deleteLeadCustomField(param(request.params, "fieldKey"), asObject(request.body)));
-
-  app.post("/leads/query", async (request) => queryLeads(asObject(request.body)));
-
-  app.post("/leads/filter-options", async (request) => leadFilterOptions(asObject(request.body)));
-
-  app.get("/leads/:leadId/detail", async (request) => leadDetail(param(request.params, "leadId")));
-
-  app.get("/leads/:leadId/viewer", async (request) => leadViewer(param(request.params, "leadId")));
-
-  // The global legacy lead dialer stays on the compatibility role. Unlike
-  // organization call lists, these rows span customers and require a verified
-  // internal user as well as explicit platform access.
-  const leadCaller = async (request: Parameters<typeof requirePlatformAuth>[0]) => {
-    const ctx = await requirePlatformAuth(request, { csrf: true, capability: "apps.comms", permission: "make_calls|manage_communications|manage_company_settings" });
-    const email = String(ctx.identity.email || "").trim().toLowerCase();
-    const staff = await readInternalUser(email).catch(() => null);
-    if (!staff || staff.disabled === true || !["active", "enabled"].includes(String(staff.status || "").toLowerCase())) {
-      throw forbidden("internal_user_required", "Only internal users may access global lead calls.");
-    }
-    return email;
-  };
-  app.post("/calls/queue", async request => callQueue({ ...asObject(request.body), actor_email: await leadCaller(request) }));
-  app.post("/calls/:leadId/disposition", async (request, reply) => {
-    const result = await recordLeadCall(param(request.params, "leadId"), { ...asObject(request.body), actor_email: await leadCaller(request) });
-    return reply.code(201).send(result);
-  });
-
-  app.patch("/leads/:leadId", async (request) => updateLeadRecord(param(request.params, "leadId"), asObject(request.body)));
-
-  app.patch("/leads/:leadId/contacts/:contactId", async (request) => updateLeadContact(param(request.params, "leadId"), param(request.params, "contactId"), asObject(request.body)));
-
-  app.post("/leads/:leadId/notes", async (request, reply) => {
-    const response = await addLeadNote(param(request.params, "leadId"), asObject(request.body));
-    reply.code(201);
-    return response;
-  });
-
-  app.post("/leads/:leadId/followups", async (request, reply) => {
-    const response = await addLeadFollowup(param(request.params, "leadId"), asObject(request.body));
-    reply.code(201);
-    return response;
-  });
-
-  app.post("/leads/:leadId/contacts/:contactId/notes", async (request, reply) => {
-    const response = await addLeadContactNote(param(request.params, "leadId"), param(request.params, "contactId"), asObject(request.body));
-    reply.code(201);
-    return response;
-  });
-
-  app.post("/leads/export", async (request) => exportSelectedLeads(asObject(request.body)));
-
-  app.post("/leads/reassign", async (request) => reassignSelectedLeads(asObject(request.body)));
-
-  app.post("/leads/imports/preview", async (request) => previewLeadImport(asObject(request.body)));
-
-  app.post("/leads/imports/:importId/commit", async (request) => commitLeadImport(param(request.params, "importId"), asObject(request.body)));
 
   app.get("/referrals/partners", async () => ({
     ok: true,
@@ -232,174 +134,13 @@ export const registerCrmApi: FastifyPluginAsync = async (app) => {
     param(request.params, "rewardId"),
     String(asObject(request.body).status ?? "")
   ));
-
-  app.get("/global/:collection", async (request) => listResponse(
-    await listCrmDocuments("global", param(request.params, "collection")),
-    asObject(request.query)
-  ));
-
-  app.post("/global/:collection", async (request, reply) => {
-    const document = await upsertCrmDocument("global", param(request.params, "collection"), objectSchema.parse(request.body ?? {}));
-    reply.code(201);
-    return { ok: true, success: true, document };
-  });
-
-  app.get("/global/:collection/:id", async (request) => ({
-    ok: true,
-    success: true,
-    document: await readCrmDocument("global", param(request.params, "collection"), param(request.params, "id"))
-  }));
-
-  app.put("/global/:collection/:id", async (request) => ({
-    ok: true,
-    success: true,
-    document: await upsertCrmDocument("global", param(request.params, "collection"), {
-      ...objectSchema.parse(request.body ?? {}),
-      id: param(request.params, "id")
-    }, { replace: true })
-  }));
-
-  app.patch("/global/:collection/:id", async (request) => ({
-    ok: true,
-    success: true,
-    document: await upsertCrmDocument("global", param(request.params, "collection"), {
-      ...objectSchema.parse(request.body ?? {}),
-      id: param(request.params, "id")
-    })
-  }));
-
-  app.delete("/global/:collection/:id", async (request) => ({
-    ok: true,
-    success: true,
-    deleted: await deleteCrmDocument("global", param(request.params, "collection"), param(request.params, "id"))
-  }));
-
-  app.get("/organizations/:orgId/dashboard", async (request) => {
-    const orgId = param(request.params, "orgId");
-    const [leads, pipeline, communications, territories] = await Promise.all([
-      listCrmDocuments("organization", "leads", orgId),
-      listCrmDocuments("organization", "pipeline", orgId),
-      listCrmDocuments("organization", "communications", orgId),
-      listCrmDocuments("organization", "territories", orgId)
-    ]);
-    const leadStatusCounts = countBy(leads.map((doc) => String(asObject(doc.data).status || "new")));
-    return {
-      ok: true,
-      success: true,
-      organization_id: orgId,
-      totals: {
-        leads: leads.length,
-        pipeline_items: pipeline.length,
-        communications: communications.length,
-        territories: territories.length
-      },
-      lead_status_counts: leadStatusCounts
-    };
-  });
-
-  app.get("/organizations/:orgId/leads/search", async (request) => {
-    const orgId = param(request.params, "orgId");
-    const query = asObject(request.query);
-    return listResponse(await listCrmDocuments("organization", "leads", orgId), query);
-  });
-
-  app.get("/organizations/:orgId/:collection", async (request) => listResponse(
-    await listCrmDocuments("organization", param(request.params, "collection"), param(request.params, "orgId")),
-    asObject(request.query)
-  ));
-
-  app.post("/organizations/:orgId/:collection", async (request, reply) => {
-    const document = await upsertCrmDocument(
-      "organization",
-      param(request.params, "collection"),
-      objectSchema.parse(request.body ?? {}),
-      { orgId: param(request.params, "orgId") }
-    );
-    reply.code(201);
-    return { ok: true, success: true, document };
-  });
-
-  app.get("/organizations/:orgId/:collection/:id", async (request) => ({
-    ok: true,
-    success: true,
-    document: await readCrmDocument(
-      "organization",
-      param(request.params, "collection"),
-      param(request.params, "id"),
-      param(request.params, "orgId")
-    )
-  }));
-
-  app.put("/organizations/:orgId/:collection/:id", async (request) => ({
-    ok: true,
-    success: true,
-    document: await upsertCrmDocument(
-      "organization",
-      param(request.params, "collection"),
-      { ...objectSchema.parse(request.body ?? {}), id: param(request.params, "id") },
-      { replace: true, orgId: param(request.params, "orgId") }
-    )
-  }));
-
-  app.patch("/organizations/:orgId/:collection/:id", async (request) => ({
-    ok: true,
-    success: true,
-    document: await upsertCrmDocument(
-      "organization",
-      param(request.params, "collection"),
-      { ...objectSchema.parse(request.body ?? {}), id: param(request.params, "id") },
-      { orgId: param(request.params, "orgId") }
-    )
-  }));
-
-  app.delete("/organizations/:orgId/:collection/:id", async (request) => ({
-    ok: true,
-    success: true,
-    deleted: await deleteCrmDocument(
-      "organization",
-      param(request.params, "collection"),
-      param(request.params, "id"),
-      param(request.params, "orgId")
-    )
-  }));
 };
 
 function param(params: unknown, key: string) {
   return String(asObject(params)[key] ?? "").trim();
 }
 
-function listResponse(documents: Array<Record<string, unknown>>, query: Record<string, unknown>) {
-  const search = String(query.q ?? query.search ?? "").trim().toLowerCase();
-  const status = String(query.status ?? "").trim().toLowerCase();
-  const offset = Math.max(0, Math.floor(Number(query.offset ?? 0)) || 0);
-  const limit = Math.max(1, Math.min(500, Math.floor(Number(query.limit ?? 100)) || 100));
-  const filtered = documents.filter((document) => {
-    const data = asObject(document.data);
-    if (status && String(data.status ?? "").toLowerCase() !== status) return false;
-    if (!search) return true;
-    return JSON.stringify({ id: document.id, data }).toLowerCase().includes(search);
-  });
-  return {
-    ok: true,
-    success: true,
-    documents: filtered.slice(offset, offset + limit),
-    count: filtered.length,
-    total: filtered.length,
-    pagination: {
-      offset,
-      limit,
-      returned: Math.min(limit, Math.max(0, filtered.length - offset)),
-      has_more: offset + limit < filtered.length
-    }
-  };
-}
 
-function countBy(values: string[]) {
-  return values.reduce<Record<string, number>>((acc, value) => {
-    acc[value] = (acc[value] ?? 0) + 1;
-    return acc;
-  }, {});
-}
 
 async function discoverLandingPages() {
   const roots = landingPageRootCandidates();

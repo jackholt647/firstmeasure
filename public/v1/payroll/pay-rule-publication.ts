@@ -20,10 +20,11 @@ import {
 } from "./pay-refresh.js";
 import {
   archivePayPlan, archivePayRule, archivePaySplitRule, distributionOn, effectiveRuleSlots, listPayDefaults, listPayPlans, listPayRules, listPaySetups, listPaySplitRules, normalizePaySetup, PAY_DEFAULT_SUBJECTS,
-  PAY_PARAMETER_TYPES, PAY_SCHEDULE_EARNING_KINDS, payDefaultSaveSchema, payLayersFor, payPlanSaveSchema, payRuleSaveSchema, paySetupSaveSchema, paySplitRuleSaveSchema, readPayDefault, readPaySetup, resolvePaySchedule,
+  PAY_PARAMETER_TYPES, PAY_PERIODS, PAY_SCHEDULE_EARNING_KINDS, PAY_VOCABULARY_LABELS, payDefaultSaveSchema, payLayersFor, payPlanSaveSchema, payRuleSaveSchema, paySetupSaveSchema, paySplitRuleSaveSchema, readPayDefault, readPaySetup, resolvePaySchedule,
   savePayDefault, savePayPlan, savePayRule, savePaySetup, savePaySplitRule, scheduleChoiceOn, type PayDefaultSubject
 } from "./pay-rules.js";
 import { paySourceExports } from "./pay-sources.js";
+import { assertPayeeManageable, payeeScope } from "./payee-scope.js";
 import { listPayrollSchedules } from "./storage.js";
 
 /** Pay rules decide what people are paid, so reading and changing them is payroll management. */
@@ -120,7 +121,6 @@ async function selectableSources(ctx: PublicationContext) {
   return sources.sort((a, b) => Number(b.provider === "payroll") - Number(a.provider === "payroll") || String(a.id).localeCompare(String(b.id)));
 }
 
-export const PAY_RULE_EXPORTS = ["pay_rules", "pay_split_rules", "pay_plans", "pay_defaults", "pay_default", "pay_setups", "pay_setup", "pay_units", "pay_unresolved", "pay_review", "pay_rule_sources", "pay_rule_vocabulary", "projected_earnings", "my_projected_earnings"] as const;
 const PROJECTION = "Projected earnings are what a payee's pay rules say they are expected to earn from work that is not done yet: each rule that pays per record, over the rows its primary input projects (labor commitments not yet released and assigned labor lists not yet committed), with the version and parameters in effect on the expected day. Each earning carries `projected: true`, `amount_cents`, `expected_on` (the day it is expected to be earned, blank when nothing is scheduled), `expected_from`, the job (`project_id`, `project_title`) and the rule; `projects` totals them by job; `unresolved` lists what a rule could not work out, with the reason, which is never counted as zero. Nothing projected is posted to the ledger or paid in a pay run.";
 export function payRuleExports(): Record<string, DataExport> {
   const revision = (value: unknown) => contentHash(JSON.parse(JSON.stringify(value)));
@@ -178,22 +178,31 @@ export function payRuleExports(): Record<string, DataExport> {
     pay_units: { description: "What each pay rule last worked out for one payee, per record or period: the earnings, the date earned, and the reason for anything that could not be worked out. For a group whose pay is split, `split` says how each line was divided: the method, the split rule and parameters when there is one, the members it was divided among, and per line each member's weight, cents and the rule's reason. Name the payee in target.id as type:id.", schema: list, schemaVersion: "1", access: manage,
       read: async (ctx, ref) => { const value = await listPayUnits(ctx.organizationId, payeeOf(ref.target)); return { value, revision: revision(value) }; } },
     pay_unresolved: { description: "Every earning that could not be worked out at the last refresh, for every payee: the payee and their name, the rule, the record or period (or `whole_rule` when the rule could not read its inputs at all) and the reason. An unresolved earning is not zero.", schema: list, schemaVersion: "1", access: manage,
-      read: async (ctx) => { const value = await listUnresolvedPay(ctx.organizationId); return { value, revision: revision(value) }; } },
+      read: async (ctx) => { const scope = payeeScope(ctx.auth); const value = (await listUnresolvedPay(ctx.organizationId)).filter((item) => scope.visible(item.payee)); return { value, revision: revision(value) }; } },
     pay_review: { description: "Corrections waiting on a person: `held` (projected ledger entries held for review; accrue to accept, payroll.correction.decline to refuse) and `off_cycle` (back pay asked to go on an off-cycle run and not yet in one).", schema: loose, schemaVersion: "1", access: manage,
-      read: async (ctx) => { const value = await listPayReview(ctx.organizationId); return { value, revision: revision(value) }; } },
+      read: async (ctx) => {
+        // Payees of branches the viewer cannot see are left out (docs/architecture/branches.md).
+        const scope = payeeScope(ctx.auth), review = await listPayReview(ctx.organizationId);
+        const value = { held: review.held.filter((entry) => scope.visible(entry.payee)), off_cycle: review.off_cycle.filter((entry) => scope.visible(entry.payee)) };
+        return { value, revision: revision(value) };
+      } },
     pay_rule_sources: { description: "The published collections a pay rule or a split rule can select from, for a picker: provider, export, what it holds, the units of its fields, the fields a row is known to have, the options it takes and whether it needs any (`needs_args`). Only collections the reader may read are listed.", schema: list, schemaVersion: "1", access: manage,
       read: async (ctx) => { const value = await selectableSources(ctx); return { value, revision: revision(value) }; } },
     projected_earnings: { description: `${PROJECTION} Name a payee in target.id as type:id for their projection, or leave it out for everyone whose pay comes from rules, with totals only (at most 200 payees; \`truncated\` says when there are more).`, schema: loose, schemaVersion: "1", access: manage,
       read: async (ctx, ref) => {
-        const value = ref.target.id ? await projectPayeeEarnings(ctx.organizationId, payeeOf(ref.target)) : await projectOrganizationEarnings(ctx.organizationId);
+        const scope = payeeScope(ctx.auth);
+        if (ref.target.id && !scope.visible(payeeOf(ref.target))) throw forbidden("branch_scope_denied", "This payee belongs to a branch you cannot see.");
+        const all = ref.target.id ? null : await projectOrganizationEarnings(ctx.organizationId);
+        const shown = all ? all.payees.filter((row) => scope.visible(row.payee)) : [];
+        const value = all ? { ...all, payees: shown, total_cents: shown.reduce((sum, row) => sum + row.total_cents, 0), ...(shown.length < all.payees.length ? { hidden_payee_count: all.payees.length - shown.length } : {}) } : await projectPayeeEarnings(ctx.organizationId, payeeOf(ref.target));
         return { value, revision: revision(value) };
       } },
     my_projected_earnings: { description: `The signed-in user's own projected earnings: their own rules, and their share of a group's when the group's pay is split among its members. ${PROJECTION}`, schema: loose, schemaVersion: "1", access: ownProjection,
       read: async (ctx) => { const value = await projectUserEarnings(ctx.organizationId, ctx.auth!.userId); return { value, revision: revision(value), provenance: { domain: "payroll", payeeUserId: ctx.auth!.userId } }; },
       authorizeSnapshot: (ctx, _ref, result) => { if ((result.provenance as Json | undefined)?.payeeUserId !== ctx.auth?.userId) throw forbidden("payroll_snapshot_subject", "These projected earnings belong to another user."); } },
-    pay_rule_vocabulary: { description: "The fixed words a pay rule editor offers, so no screen keeps its own copy: `operators` (the shared condition operators: id, label, the kind of value each takes and what it means), `parameter_types`, `earning_kinds`, `schedule_earning_kinds` and `default_subjects`.", schema: loose, schemaVersion: "1", access: manage,
+    pay_rule_vocabulary: { description: "The fixed words a pay rule editor offers, so no screen keeps its own copy: `operators` (the shared condition operators: id, label, the kind of value each takes and what it means), `parameter_types`, `earning_kinds`, `schedule_earning_kinds`, `periods`, `default_subjects`, and under `labels` what each earning kind, parameter type and period is called.", schema: loose, schemaVersion: "1", access: manage,
       read: async () => {
-        const value = { operators: CONDITION_OPERATORS, parameter_types: PAY_PARAMETER_TYPES, earning_kinds: PAY_SCHEDULE_EARNING_KINDS.filter((kind) => kind !== "*" && kind !== "clawback"), schedule_earning_kinds: PAY_SCHEDULE_EARNING_KINDS, default_subjects: PAY_DEFAULT_SUBJECTS };
+        const value = { operators: CONDITION_OPERATORS, parameter_types: PAY_PARAMETER_TYPES, earning_kinds: PAY_SCHEDULE_EARNING_KINDS.filter((kind) => kind !== "*" && kind !== "clawback"), schedule_earning_kinds: PAY_SCHEDULE_EARNING_KINDS, periods: PAY_PERIODS, default_subjects: PAY_DEFAULT_SUBJECTS, labels: PAY_VOCABULARY_LABELS };
         return { value, revision: revision(value) };
       } }
   };
@@ -244,5 +253,10 @@ export function registerPayRuleActions() {
     execute: async (ctx) => JSON.parse(JSON.stringify(await projectUserEarnings(ctx.organizationId, ctx.auth!.userId)))
   });
   add("payroll.correction.decline", "Decline a correction that was held for review. Name the held ledger entry in target.id. To accept it instead, accrue it.", z.object({ note: z.string().max(500).optional() }).strict(), "write",
-    (ctx, target, value) => { if (!target.id) throw badRequest("payroll_target_required", "Choose the held correction."); return declinePayCorrection(ctx.organizationId, target.id, actor(ctx), value.note); });
+    async (ctx, target, value) => {
+      if (!target.id) throw badRequest("payroll_target_required", "Choose the held correction.");
+      const { readPayrollLedgerEntry } = await import("./storage.js");
+      assertPayeeManageable(payeeScope(ctx.auth), (await readPayrollLedgerEntry(ctx.organizationId, target.id)).payee);
+      return declinePayCorrection(ctx.organizationId, target.id, actor(ctx), value.note);
+    });
 }

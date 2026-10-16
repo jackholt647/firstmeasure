@@ -231,3 +231,11 @@ for(const withSketch of [false,true])for(const command of ['m','y'])test(`multip
  // Restore the same mouse origin before repeating the gesture.
  f.listeners.pointermove(f.e(150,50));begin();f.click(150,0);assert.equal(f.changes(),1);f.els.get('base-undo').onclick();assert.equal(JSON.stringify(f.state.base),before,'one undo restores the entire selection');
 });
+
+
+test('a grade-only exterior has no selectable or visible base until From Roof creates one',()=>{
+ const f=fixture();delete f.state.base;f.state.phase='grade';
+ assert.doesNotThrow(()=>f.editor.render());assert.equal(f.els.get('base-visible').disabled,true);
+ assert.equal(f.editor.down(f.e(2,2)),false);assert.equal(f.editor.keyDown({key:'m',preventDefault(){},stopImmediatePropagation(){}}),false);
+ assert.equal(f.changes(),0);
+});
