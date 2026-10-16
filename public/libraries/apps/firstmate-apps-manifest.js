@@ -101,8 +101,8 @@
       surfaces: ['portal_tab'],
       portalTabId: 'crm',
       params: { crmView: { history:'push' }, crmPanel: { values:['reports','duplicates','sources','settings'], history:'push' } },
-      access: { ...managementAccess, capability: 'crm.views' },
-      bundles: [bookingBundle, versionedBundle('crm/app.js', '20261016-crm-v1')]
+      access: { ...managementAccess, capability: 'apps.crm' },
+      bundles: [bookingBundle, versionedBundle('crm/app.js', '20261016-crm-v2')]
     },
     {
       id: 'portal.contacts',

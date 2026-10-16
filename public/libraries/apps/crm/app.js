@@ -103,7 +103,9 @@
         const [meta, views] = await Promise.all([api().meta(orgId), api().views(orgId)]);
         state.meta = meta; state.views = arr(views.views);
       } catch (error) {
-        host.innerHTML = `<div class="crm-empty" style="grid-column:1/-1"><h3>${esc(L('load_failed', 'The CRM could not be loaded'))}</h3><p>${esc(error?.message || '')}</p><button type="button" class="crm-btn" data-retry>${esc(L('try_again', 'Try again'))}</button></div>`;
+        // The tab belongs to the CRM app (apps.crm); its views are the crm.views feature, which a company can turn off.
+        const off = error?.status === 403 && JSON.stringify(error?.data || {}).includes('capability_denied');
+        host.innerHTML = `<div class="crm-empty" style="grid-column:1/-1"><h3>${esc(off ? L('views_off', 'CRM views are turned off') : L('load_failed', 'The CRM could not be loaded'))}</h3><p>${esc(off ? L('views_off_hint', 'Someone who manages company settings can turn them on under Settings, in the CRM app’s features.') : error?.message || '')}</p><button type="button" class="crm-btn" data-retry>${esc(L('try_again', 'Try again'))}</button></div>`;
         host.querySelector('[data-retry]')?.addEventListener('click', boot);
         return;
       }
@@ -1381,7 +1383,7 @@
     id:'portal.crm', package:'crm', kind:'portal_tab',
     title: globalThis.PlatformTerminology?.get?.('crm.portal_tab', 'CRM') || 'CRM', label: globalThis.PlatformTerminology?.get?.('crm.portal_tab', 'CRM') || 'CRM',
     icon:'fa-filter', surfaces:['portal_tab'], regions:['main'], visible:true,
-    access:{ applicationsAny:['management'], capability:'crm.views' },
+    access:{ applicationsAny:['management'], capability:'apps.crm' },
     mount
   });
 })();
