@@ -18,7 +18,7 @@ export async function invokeAgentAction(run: AgentRun, tool: AgentTool, args: Re
   registerAction({ id, version, implementation, domain: run.agentId, description: tool.description,
     inputSchema: tool.parameters, outputSchema: tool.publication?.outputSchema || objectSchema,
     effect: tool.publication?.effect || "write", executionKinds: ["agent"], idempotency: "required",
-    policy: { scopes: ["organization"], applications: false, permissions: tool.permission ? [tool.permission] : [],
+    policy: { scopes: ["organization"], permissions: tool.permission ? [tool.permission] : [],
       systemKinds: !tool.permission || tool.allowSystem ? ["agent"] : [],
       authorize(ctx) {
         const invocation = invocations.get(ctx);

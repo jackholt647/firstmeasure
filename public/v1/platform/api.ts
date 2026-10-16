@@ -85,6 +85,7 @@ import {
   rememberPlatformAccount,
   removeRememberedPlatformAccount,
   requirePlatformAuth,
+  seesEveryProject,
   setPlatformAuthCookies,
   switchRememberedPlatformAccount
 } from "./auth.js";
@@ -734,7 +735,7 @@ app.get("/auth/google/config", async () => ({
   }));
 
   app.get("/organizations", async (request) => {
-    await requirePlatformAuth(request);
+    await requirePlatformAuth(request, { app: ["portal.company_settings"] });
     return {
       ok: true,
       organizations: await listOrganizations()
@@ -743,7 +744,7 @@ app.get("/auth/google/config", async () => ({
 
   app.post("/organizations", async (request, reply) => {
     requirePublicRegistration();
-    await requirePlatformAuth(request, { csrf: true });
+    await requirePlatformAuth(request, { app: ["portal.company_settings"], csrf: true });
     const body = createOrganizationSchema.parse(request.body ?? {});
     const organization = await createOrganization(body);
     reply.code(201);
@@ -751,7 +752,7 @@ app.get("/auth/google/config", async () => ({
   });
 
   app.post("/identities", async (request, reply) => {
-    await requirePlatformAuth(request, { csrf: true });
+    await requirePlatformAuth(request, { app: ["portal.company_settings"], csrf: true });
     const body = createIdentitySchema.parse(request.body ?? {});
     const identity = await createIdentity(body);
     reply.code(201);
@@ -803,7 +804,7 @@ app.get("/auth/google/config", async () => ({
   });
 
   app.get("/auth/accounts", async (request) => {
-    const ctx = await requirePlatformAuth(request, { application: false });
+    const ctx = await requirePlatformAuth(request, { });
     return {
       ok: true,
       accounts: await listRememberedPlatformAccounts(request, ctx),
@@ -812,7 +813,7 @@ app.get("/auth/google/config", async () => ({
   });
 
   app.post("/auth/accounts/add", async (request, reply) => {
-    const activeCtx = await requirePlatformAuth(request, { csrf: true, application: false });
+    const activeCtx = await requirePlatformAuth(request, { csrf: true });
     const body = loginSchema.parse(request.body ?? {});
     const ctx = await loginPlatformIdentity({
       email: body.email,
@@ -833,21 +834,21 @@ app.get("/auth/google/config", async () => ({
   });
 
   app.post("/auth/accounts/switch", async (request, reply) => {
-    await requirePlatformAuth(request, { csrf: true, application: false });
+    await requirePlatformAuth(request, { csrf: true });
     const body = rememberedAccountSchema.parse(request.body ?? {});
     const ctx = await switchRememberedPlatformAccount(request, reply, body.account_id);
     return { ok: true, ...publicAuthContext(ctx) };
   });
 
   app.post("/auth/accounts/remove", async (request, reply) => {
-    await requirePlatformAuth(request, { csrf: true, application: false });
+    await requirePlatformAuth(request, { csrf: true });
     const body = rememberedAccountSchema.parse(request.body ?? {});
     await removeRememberedPlatformAccount(request, reply, body.account_id);
     return { ok: true };
   });
 
   app.post("/auth/accounts/logout-all", async (request, reply) => {
-    await requirePlatformAuth(request, { csrf: true, application: false });
+    await requirePlatformAuth(request, { csrf: true });
     await logoutAllRememberedPlatformAccounts(request, reply);
     return { ok: true, authenticated: false };
   });
@@ -946,7 +947,7 @@ app.get("/auth/google/config", async () => ({
   });
 
   app.get("/me", async (request) => {
-    const ctx = await requirePlatformAuth(request, { application: false });
+    const ctx = await requirePlatformAuth(request, { });
     const [global, branch] = await Promise.all([
       readGlobal(ctx.orgId),
       readDocument(ctx.orgId, "branch", ctx.branchId).catch(() => null)
@@ -960,14 +961,14 @@ app.get("/auth/google/config", async () => ({
   });
 
   app.get("/me/localization", async (request) => {
-    const ctx = await requirePlatformAuth(request, { application: false });
+    const ctx = await requirePlatformAuth(request, { });
     const settings = await companyLocalization(ctx.orgId, ctx.branchId);
     const personal = { interface_locale: asObject(ctx.identity.preferences).interface_locale ?? null };
     return { ok: true, ...settings, personal, context: resolveContext(settings.company, settings.enabled ? personal : {}) };
   });
 
   app.get("/me/preferences", async (request) => {
-    const ctx = await requirePlatformAuth(request, { application: false });
+    const ctx = await requirePlatformAuth(request, { });
     const preferences = effectiveNavigationPreferences(ctx.organization, ctx.identity.preferences);
     return {
       ok: true,
@@ -992,7 +993,7 @@ app.get("/auth/google/config", async () => ({
   });
 
   app.patch("/me/preferences", async (request) => {
-    const ctx = await requirePlatformAuth(request, { application: false, csrf: true });
+    const ctx = await requirePlatformAuth(request, { csrf: true });
     const patch = userPreferencesSchema.parse(request.body ?? {});
     const current = effectiveNavigationPreferences(ctx.organization, ctx.identity.preferences);
     if (patch.interface_locale !== undefined && patch.interface_locale !== (current.interface_locale ?? null) && !await isAppFlagEnabled(ctx.orgId, "firstmeasure", "report_localization")) throw forbidden("localization_disabled", "Language customization is not enabled for this organization.");
@@ -1131,7 +1132,7 @@ app.get("/auth/google/config", async () => ({
   });
 
   app.post("/auth/touch-login", async (request) => {
-    await requirePlatformAuth(request, { application: false, csrf: true });
+    await requirePlatformAuth(request, { csrf: true });
     const body = objectBodySchema.parse(request.body ?? {});
     const identityId = String(body.identity_id || "");
     const identity = await patchIdentity(identityId, { last_login_at: new Date().toISOString() });
@@ -1393,7 +1394,7 @@ app.get("/auth/google/config", async () => ({
 
   app.get("/organizations/:orgId/app-flags", async (request) => {
     const orgId = getParam(request.params, "orgId");
-    const ctx = await requirePlatformAuth(request, { orgId, application: false });
+    const ctx = await requirePlatformAuth(request, { orgId });
     const state = await appFlagState(orgId, ctx.userId);
     return {
       ok: true,
@@ -1404,7 +1405,7 @@ app.get("/auth/google/config", async () => ({
 
   app.put("/organizations/:orgId/app-flags", async (request) => {
     const orgId = getParam(request.params, "orgId");
-    const operator = await requirePlatformAuth(request, { orgId, csrf: true, application: false });
+    const operator = await requirePlatformAuth(request, { orgId, csrf: true });
     if (!canManageOrgAppFlags(operator)) throw forbidden("app_flags_operator_only", "Only an authorized operator can change app rollout flags.");
     const body = objectBodySchema.parse(request.body ?? {});
     const hasVariantInput = Object.prototype.hasOwnProperty.call(body, "app_variants") || Object.prototype.hasOwnProperty.call(body, "variants");
@@ -1437,13 +1438,13 @@ app.get("/auth/google/config", async () => ({
 
   app.get("/organizations/:orgId/platform-rollout", async request => {
     const orgId = getParam(request.params, "orgId");
-    const ctx = await requirePlatformAuth(request, { orgId, application: false });
+    const ctx = await requirePlatformAuth(request, { orgId });
     if (!canManageTestAppFlags(ctx)) throw forbidden("app_flags_operator_only", "Only an authorized operator can inspect platform rollout targeting.");
     return { ok: true, ...(await readPlatformRollout(orgId)) };
   });
   app.put("/organizations/:orgId/platform-rollout", async request => {
     const orgId = getParam(request.params, "orgId");
-    const ctx = await requirePlatformAuth(request, { orgId, csrf: true, application: false });
+    const ctx = await requirePlatformAuth(request, { orgId, csrf: true });
     if (!canManageTestAppFlags(ctx)) throw forbidden("app_flags_operator_only", "Only an authorized operator can change platform rollout targeting.");
     const body = z.object({ mode: z.enum(["all", "selected"]), user_ids: z.array(z.string().trim().min(1)).max(500) }).strict().parse(request.body);
     const userIds = [...new Set(body.user_ids)];
@@ -1456,7 +1457,7 @@ app.get("/auth/google/config", async () => ({
 
   app.get("/organizations/:orgId/capabilities", async (request) => {
     const orgId = getParam(request.params, "orgId");
-    const ctx = await requirePlatformAuth(request, { orgId, application: false });
+    const ctx = await requirePlatformAuth(request, { orgId });
     return {
       ok: true,
       ...(await capabilityState(orgId, ctx.userId)),
@@ -1466,7 +1467,7 @@ app.get("/auth/google/config", async () => ({
 
   app.put("/organizations/:orgId/capabilities", async (request) => {
     const orgId = getParam(request.params, "orgId");
-    const operator = await requirePlatformAuth(request, { orgId, csrf: true, application: false });
+    const operator = await requirePlatformAuth(request, { orgId, csrf: true });
     if (!canManageOrgAppFlags(operator)) throw forbidden("app_flags_operator_only", "Only an authorized operator can change app rollout flags.");
     const body = objectBodySchema.parse(request.body ?? {});
     const { violations } = await saveCapabilityValues(orgId, asObject(body.values));
@@ -1480,7 +1481,7 @@ app.get("/auth/google/config", async () => ({
 
   app.post("/organizations/:orgId/capabilities/validate", async (request) => {
     const orgId = getParam(request.params, "orgId");
-    const ctx = await requirePlatformAuth(request, { orgId, application: false });
+    const ctx = await requirePlatformAuth(request, { orgId });
     const body = objectBodySchema.parse(request.body ?? {});
     const current = await rawCapabilityValues(orgId);
     const candidate = { ...current, ...asObject(body.values) };
@@ -1497,7 +1498,7 @@ app.get("/auth/google/config", async () => ({
 
   app.post("/organizations/:orgId/capabilities/presets", async (request, reply) => {
     const orgId = getParam(request.params, "orgId");
-    const operator = await requirePlatformAuth(request, { orgId, csrf: true, application: false });
+    const operator = await requirePlatformAuth(request, { orgId, csrf: true });
     if (!canManageTestAppFlags(operator)) throw forbidden("app_flags_operator_only", "Only an authorized operator can change app rollout flags.");
     const body = objectBodySchema.parse(request.body ?? {});
     const values = body.from_current === true
@@ -1514,7 +1515,7 @@ app.get("/auth/google/config", async () => ({
 
   app.patch("/organizations/:orgId/capabilities/presets/:presetId", async (request) => {
     const orgId = getParam(request.params, "orgId");
-    const operator = await requirePlatformAuth(request, { orgId, csrf: true, application: false });
+    const operator = await requirePlatformAuth(request, { orgId, csrf: true });
     if (!canManageTestAppFlags(operator)) throw forbidden("app_flags_operator_only", "Only an authorized operator can change app rollout flags.");
     const body = objectBodySchema.parse(request.body ?? {});
     const { preset, violations } = await updateCapabilityPreset(getParam(request.params, "presetId"), {
@@ -1527,7 +1528,7 @@ app.get("/auth/google/config", async () => ({
 
   app.delete("/organizations/:orgId/capabilities/presets/:presetId", async (request) => {
     const orgId = getParam(request.params, "orgId");
-    const operator = await requirePlatformAuth(request, { orgId, csrf: true, application: false });
+    const operator = await requirePlatformAuth(request, { orgId, csrf: true });
     if (!canManageTestAppFlags(operator)) throw forbidden("app_flags_operator_only", "Only an authorized operator can change app rollout flags.");
     await deleteCapabilityPreset(getParam(request.params, "presetId"));
     return { ok: true, deleted: true };
@@ -1535,7 +1536,7 @@ app.get("/auth/google/config", async () => ({
 
   app.post("/organizations/:orgId/capabilities/presets/:presetId/apply", async (request) => {
     const orgId = getParam(request.params, "orgId");
-    const operator = await requirePlatformAuth(request, { orgId, csrf: true, application: false });
+    const operator = await requirePlatformAuth(request, { orgId, csrf: true });
     if (!canManageTestAppFlags(operator)) throw forbidden("app_flags_operator_only", "Only an authorized operator can change app rollout flags.");
     const { preset, violations } = await applyCapabilityPreset(orgId, getParam(request.params, "presetId"));
     return {
@@ -1549,7 +1550,7 @@ app.get("/auth/google/config", async () => ({
 
   app.put("/organizations/:orgId/capabilities/signup-preset", async (request) => {
     const orgId = getParam(request.params, "orgId");
-    const operator = await requirePlatformAuth(request, { orgId, csrf: true, application: false });
+    const operator = await requirePlatformAuth(request, { orgId, csrf: true });
     if (!canManageTestAppFlags(operator)) throw forbidden("app_flags_operator_only", "Only an authorized operator can change app rollout flags.");
     const body = objectBodySchema.parse(request.body ?? {});
     const result = await setSignupCapabilityPreset(String(body.preset_id || ""));
@@ -1558,7 +1559,7 @@ app.get("/auth/google/config", async () => ({
 
   app.get("/organizations/:orgId/media", async (request) => {
     const orgId = getParam(request.params, "orgId");
-    const ctx = await requirePlatformAuth(request, { orgId });
+    const ctx = await requirePlatformAuth(request, { app: ["portal.photos_feed", "project.photos", "contact.media", "portal.viewer"], orgId });
     const query = request.query && typeof request.query === "object" ? request.query as Record<string, unknown> : {};
     const projectId = cleanText(query.project_id || query.projectId);
     const contactId=cleanText(query.contact_id),contactProjectId=cleanText(query.contact_project_id);
@@ -1590,7 +1591,7 @@ app.get("/auth/google/config", async () => ({
 
   app.post("/organizations/:orgId/media", async (request, reply) => {
     const orgId = getParam(request.params, "orgId");
-    const ctx = await requirePlatformAuth(request, { orgId, csrf: true });
+    const ctx = await requirePlatformAuth(request, { app: ["portal.photos_feed", "project.photos", "contact.media", "portal.viewer"], orgId, csrf: true });
     const upload = await parseMediaUploadRequest(request);
     if(upload.ownerType==="contact"){
       await requirePlatformAuth(request,{orgId,csrf:true,permission:"manage_projects"});
@@ -1632,21 +1633,21 @@ app.get("/auth/google/config", async () => ({
 
   app.get("/organizations/:orgId/media/storage", async (request) => {
     const orgId = getParam(request.params, "orgId");
-    await requirePlatformAuth(request, { orgId });
+    await requirePlatformAuth(request, { app: ["portal.photos_feed", "project.photos", "contact.media", "portal.viewer"], orgId });
     const usage = await mediaStorageUsage(orgId);
     return { ok: true, usage };
   });
 
   app.post("/organizations/:orgId/media/storage", async (request) => {
     const orgId = getParam(request.params, "orgId");
-    await requirePlatformAuth(request, { orgId, csrf: true });
+    await requirePlatformAuth(request, { app: ["portal.photos_feed", "project.photos", "contact.media", "portal.viewer"], orgId, csrf: true });
     const usage = await mediaStorageUsage(orgId);
     return { ok: true, usage };
   });
 
   app.get("/organizations/:orgId/media/:mediaId", async (request) => {
     const orgId = getParam(request.params, "orgId");
-    const ctx = await requirePlatformAuth(request, { orgId });
+    const ctx = await requirePlatformAuth(request, { app: ["portal.photos_feed", "project.photos", "contact.media", "portal.viewer"], orgId });
     const media = await readMediaMetadata(orgId, getParam(request.params, "mediaId"));
     if (!canReadReceiptMedia(media, ctx)) throw forbidden("receipt_media_forbidden", "This receipt media is not available to this user.");
     return {
@@ -1658,7 +1659,7 @@ app.get("/auth/google/config", async () => ({
   app.patch("/organizations/:orgId/media/:mediaId", async (request) => {
     const orgId = getParam(request.params, "orgId");
     const mediaId = getParam(request.params, "mediaId");
-    const ctx = await requirePlatformAuth(request, { orgId, csrf: true });
+    const ctx = await requirePlatformAuth(request, { app: ["portal.photos_feed", "project.photos", "contact.media", "portal.viewer"], orgId, csrf: true });
     const existing = await readMediaMetadata(orgId, mediaId);
     if (!canWriteReceiptMedia(existing, ctx)) throw forbidden("receipt_media_forbidden", "This receipt media cannot be changed by this user.");
     const body = objectBodySchema.parse(request.body ?? {});
@@ -1726,7 +1727,8 @@ app.get("/auth/google/config", async () => ({
     const collection = String(metadata.collection || "").toLowerCase();
     const isOrganizationBrandingMedia = String(owner.type || "").toLowerCase() === "organization"
       && (slot === "logo" || scope === "branding" || collection === "branding" || slot.includes("brand") || slot.includes("logo"));
-    const ctx = !isOrganizationBrandingMedia ? await requirePlatformAuth(request, { orgId }) : null;
+    // Photos and receipt images belong to the apps that show them.
+    const ctx = !isOrganizationBrandingMedia ? await requirePlatformAuth(request, { orgId, app: ["portal.photos_feed", "project.photos", "contact.media", "portal.viewer", "portal.receipts", "portal.crew_receipts", "project.crew_materials"] }) : null;
     if (!canReadReceiptMedia(metadata, ctx)) {
       throw forbidden("receipt_media_forbidden", "This receipt media is not available to this user.");
     }
@@ -1748,7 +1750,7 @@ app.get("/auth/google/config", async () => ({
 
   app.get("/organizations/:orgId/media/:mediaId/markup/:layerId", async (request) => {
     const orgId = getParam(request.params, "orgId");
-    const ctx = await requirePlatformAuth(request, { orgId });
+    const ctx = await requirePlatformAuth(request, { app: ["portal.photos_feed", "project.photos", "contact.media", "portal.viewer"], orgId });
     const mediaId = getParam(request.params, "mediaId");
     const media = await readMediaMetadata(orgId, mediaId);
     if (!canReadReceiptMedia(media, ctx)) throw forbidden("receipt_media_forbidden", "This receipt media is not available to this user.");
@@ -1764,7 +1766,7 @@ app.get("/auth/google/config", async () => ({
 
   app.put("/organizations/:orgId/media/:mediaId/markup/:layerId", async (request) => {
     const orgId = getParam(request.params, "orgId");
-    const ctx = await requirePlatformAuth(request, { orgId, csrf: true });
+    const ctx = await requirePlatformAuth(request, { app: ["portal.photos_feed", "project.photos", "contact.media", "portal.viewer"], orgId, csrf: true });
     const mediaId = getParam(request.params, "mediaId");
     const media = await readMediaMetadata(orgId, mediaId);
     if (!canWriteReceiptMedia(media, ctx)) throw forbidden("receipt_media_forbidden", "This receipt media cannot be edited by this user.");
@@ -1783,7 +1785,7 @@ app.get("/auth/google/config", async () => ({
 
   app.patch("/organizations/:orgId/media/:mediaId/markup/:layerId", async (request) => {
     const orgId = getParam(request.params, "orgId");
-    const ctx = await requirePlatformAuth(request, { orgId, csrf: true });
+    const ctx = await requirePlatformAuth(request, { app: ["portal.photos_feed", "project.photos", "contact.media", "portal.viewer"], orgId, csrf: true });
     const mediaId = getParam(request.params, "mediaId");
     const media = await readMediaMetadata(orgId, mediaId);
     if (!canWriteReceiptMedia(media, ctx)) throw forbidden("receipt_media_forbidden", "This receipt media cannot be edited by this user.");
@@ -1802,7 +1804,7 @@ app.get("/auth/google/config", async () => ({
 
   app.put("/organizations/:orgId/global", async (request) => {
     const orgId = getParam(request.params, "orgId");
-    await requirePlatformAuth(request, { orgId, csrf: true, permission: "manage_billing" });
+    await requirePlatformAuth(request, { app: ["portal.company_settings"], orgId, csrf: true, permission: "manage_billing" });
     const body = objectBodySchema.parse(request.body ?? {});
     if (containsAppFlagMutation(body)) throw forbidden("app_flags_operator_only", "App rollout flags are operator-controlled and cannot be changed from Platform.");
     return {
@@ -1813,7 +1815,7 @@ app.get("/auth/google/config", async () => ({
 
   app.patch("/organizations/:orgId/global", async (request) => {
     const orgId = getParam(request.params, "orgId");
-    await requirePlatformAuth(request, { orgId, csrf: true });
+    await requirePlatformAuth(request, { app: ["portal.company_settings"], orgId, csrf: true });
     const body = objectBodySchema.parse(request.body ?? {});
     if (containsAppFlagMutation(body)) throw forbidden("app_flags_operator_only", "App rollout flags are operator-controlled and cannot be changed from Platform.");
     return {
@@ -2636,12 +2638,12 @@ app.get("/auth/google/config", async () => ({
 
   /** Who may be present in a scope: anyone signed in for "online"; a project's viewers must be able to open it. */
   const authorizePresenceScope = async (request: FastifyRequest, orgId: string, scopeId: string) => {
-    const ctx = await requirePlatformAuth(request, { orgId, application: scopeId === "online" ? false : ["management", "field"] });
+    const ctx = await requirePlatformAuth(request, { orgId });
     if (scopeId !== "online") {
       if (!scopeId.startsWith("project:")) throw badRequest("invalid_presence_scope", "Unknown presence scope.");
       const projectId = scopeId.slice(8);
       await readDocument(orgId, "projects", projectId);
-      if (asObject(ctx.applicationAccess.management).enabled !== true && !(await assignedProjectIdsForUser(orgId, ctx.userId)).has(projectId)) {
+      if (!seesEveryProject(ctx) && !(await assignedProjectIdsForUser(orgId, ctx.userId)).has(projectId)) {
         throw forbidden("project_access_denied", "This project is not assigned to you.");
       }
     }
@@ -2666,10 +2668,10 @@ app.get("/auth/google/config", async () => ({
     // (their own online presence); they are simply sent no platform events.
     let events = true;
     let ctx: Awaited<ReturnType<typeof requirePlatformAuth>>;
-    try { ctx = await requirePlatformAuth(request, { orgId, application: ["management", "field"] }); }
+    try { ctx = await requirePlatformAuth(request, { orgId }); }
     catch (error) {
       if (!watch.length) throw error;
-      ctx = await requirePlatformAuth(request, { orgId, application: false });
+      ctx = await requirePlatformAuth(request, { orgId });
       events = false;
     }
     const lastEventId = Number(request.headers["last-event-id"] ?? query.after ?? 0);
@@ -2686,7 +2688,7 @@ app.get("/auth/google/config", async () => ({
 
   app.post("/organizations/:orgId/presence/activity", async (request) => {
     const orgId = getParam(request.params, "orgId");
-    const ctx = await requirePlatformAuth(request, { orgId, application: false, csrf: true });
+    const ctx = await requirePlatformAuth(request, { orgId, csrf: true });
     const body = z.object({ session_id: z.string().uuid() }).strict().parse(request.body);
     return { ok: await recordPresenceActivity(orgId, ctx.userId, body.session_id) };
   });
@@ -2702,7 +2704,7 @@ app.get("/auth/google/config", async () => ({
 
   app.get("/organizations/:orgId/events/poll", async (request) => {
     const orgId = getParam(request.params, "orgId");
-    const ctx = await requirePlatformAuth(request, { orgId, application: ["management", "field"] });
+    const ctx = await requirePlatformAuth(request, { orgId });
     const query = request.query && typeof request.query === "object" ? request.query as Record<string, unknown> : {};
     const after = Number(query.after ?? 0);
     const result = (await pollRealtimeEvents(orgId, ctx.userId, Number.isFinite(after) && after > 0 ? Math.floor(after) : 0));
@@ -2721,7 +2723,8 @@ app.get("/auth/google/config", async () => ({
 
   app.post("/organizations/:orgId/leads", async (request, reply) => {
     const orgId = getParam(request.params, "orgId");
-    await requirePlatformAuth(request, { orgId, csrf: true });
+    // A lead is a new project and contact: it belongs to the apps that start them.
+    await requirePlatformAuth(request, { orgId, csrf: true, app: ["portal.viewer", "portal.contacts"] });
     const body = objectBodySchema.parse(request.body ?? {});
     const created = await createPlatformLead(orgId, body);
     invalidatePlatformSearchCache(orgId);
@@ -2731,10 +2734,9 @@ app.get("/auth/google/config", async () => ({
 
   app.get("/organizations/:orgId/search", async (request) => {
     const orgId = getParam(request.params, "orgId");
-    const ctx = await requirePlatformAuth(request, { orgId, application: ["management", "field"] });
+    const ctx = await requirePlatformAuth(request, { orgId });
     const query = request.query && typeof request.query === "object" ? request.query as Record<string, unknown> : {};
-    const managementEnabled = asObject(ctx.applicationAccess.management).enabled === true;
-    const assignedProjectIds = managementEnabled ? undefined : await assignedProjectIdsForUser(orgId, ctx.userId);
+    const assignedProjectIds = seesEveryProject(ctx) ? undefined : await assignedProjectIdsForUser(orgId, ctx.userId);
     const result = await searchPlatformProjectsAndContacts(orgId, {
       query: cleanText(query.q || query.query || query.search),
       types: cleanText(query.types || query.type),
@@ -8920,14 +8922,14 @@ async function handlePortalAction(app: FastifyInstance, action: string, body: Js
       success: true,
       authenticated: Boolean(sessionContext),
       user_email: sessionContext ? cleanText(sessionContext.identity.email) : null,
-      application_access: sessionContext?.applicationAccess || null
+      allowed_app_ids: sessionContext ? sessionContext.appEntitlements.filter((app) => app.allowed).map((app) => app.id) : null
     };
   }
   if (action === "referral_public_lookup") return publicReferralLookup(cleanText(body.referral_code || body.code || body.ref), request ? publicRequestBaseUrl(request) : "");
   if (action === "acquisition_public_track") return publicAcquisitionLookup(withAcquisitionRequestMetadata(body, request), request ? publicRequestBaseUrl(request) : "");
   if (action === "admin_stop_impersonation") {
     if (!request || !reply) return { success: false, status_code: 500, error: "missing_response_context" };
-    await requirePlatformAuth(request, { application: false });
+    await requirePlatformAuth(request, { });
     return await stopPortalImpersonation(app, request, reply);
   }
   if (!request) return { success: false, status_code: 401, error: "Authentication required." };
@@ -9833,9 +9835,7 @@ async function portalAddOrgUser(orgId: string, body: JsonObject, request?: Fasti
       role: level,
       org_permissions: { level, items },
       permissions: effectivePortalPermissions(level, items),
-      ...organizationUserProfileFields({
-        application_access: body.application_access || tryParseJsonField(body.application_access_json, {})
-      }, { includeDefaults: true }),
+      ...organizationUserProfileFields({}, { includeDefaults: true }),
       account_type: "customer",
       branch_id: "default",
       profile: {}

@@ -37,8 +37,6 @@ export type CapabilityKind = "app" | "feature" | "setting" | "permission";
 /** multi_select stores a comma-separated string of option values. */
 export type CapabilityValueType = "boolean" | "number" | "select" | "multi_select";
 export type CapabilityValue = boolean | number | string;
-export type CapabilityAudience = "management" | "field";
-export type CapabilityDevice = "desktop" | "mobile";
 
 export type CapabilityDefinition = {
   key: string;
@@ -53,10 +51,6 @@ export type CapabilityDefinition = {
   options?: Array<string | [string, string]>;
   min?: number;
   step?: number;
-  /** Which applications surface this capability. Informational. */
-  audience?: CapabilityAudience[];
-  /** Device visibility. Informational; enforced by the entitlement layer. */
-  devices?: CapabilityDevice[];
   /** Named relevance predicate. Informational. */
   relevance?: string;
   /** Permission nodes: the permission key checked by hasPermission(). */
@@ -97,8 +91,6 @@ export type NormalizedCapability = Required<Pick<CapabilityDefinition, "key" | "
   options: Array<[string, string]>;
   min?: number;
   step?: number;
-  audience: CapabilityAudience[];
-  devices: CapabilityDevice[];
   relevance: string;
   permission_key: string;
   access: "read" | "write" | "";
@@ -229,8 +221,6 @@ export function registerCapabilities(definitions: CapabilityDefinition[]) {
       options: (definition.options || []).map((option) => Array.isArray(option) ? [cleanText(option[0]), cleanText(option[1])] as [string, string] : [cleanText(option), cleanText(option)] as [string, string]),
       ...(definition.min !== undefined ? { min: definition.min } : {}),
       ...(definition.step !== undefined ? { step: definition.step } : {}),
-      audience: definition.audience || ["management"],
-      devices: definition.devices || ["desktop", "mobile"],
       relevance: cleanText(definition.relevance),
       permission_key: cleanText(definition.permission_key),
       access: definition.access || "",
@@ -326,8 +316,6 @@ export function capabilityDefinitions() {
     ...node,
     requires: [...node.requires],
     options: node.options.map((option) => [...option] as [string, string]),
-    audience: [...node.audience],
-    devices: [...node.devices],
     children: [...node.children],
     ancestors: [...node.ancestors]
   }));
@@ -348,7 +336,6 @@ export type PermissionCatalogEntry = {
   label: string;
   description: string;
   access: "read" | "write" | "";
-  audience: CapabilityAudience[];
   /** False when the permission's app or feature is off for the organization; omitted when not resolved. */
   available?: boolean;
 };
@@ -385,7 +372,6 @@ export function permissionCatalog(effectiveByKey?: Record<string, boolean>): Per
     label: node.label,
     description: node.description,
     access: node.access,
-    audience: [...node.audience],
     ...(effectiveByKey ? { available: effectiveByKey[node.key] === true } : {})
   });
   return {
@@ -402,7 +388,7 @@ export function permissionCatalog(effectiveByKey?: Record<string, boolean>): Per
         collapsed: subcategory.collapsed === true,
         permissions: [
           ...(subcategory.id === WILDCARD_PERMISSION.group
-            ? [{ key: WILDCARD_PERMISSION.key, label: WILDCARD_PERMISSION.label, description: WILDCARD_PERMISSION.description, access: "write" as const, audience: ["management", "field"] as CapabilityAudience[], ...(effectiveByKey ? { available: true } : {}) }]
+            ? [{ key: WILDCARD_PERMISSION.key, label: WILDCARD_PERMISSION.label, description: WILDCARD_PERMISSION.description, access: "write" as const, ...(effectiveByKey ? { available: true } : {}) }]
             : []),
           ...(byGroup.get(subcategory.id) || []).slice().sort((left, right) => rank(left) - rank(right) || left.order - right.order).map(entry)
         ]

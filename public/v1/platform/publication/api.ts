@@ -31,7 +31,7 @@ export const registerPublicationApi: FastifyPluginAsync = async app => {
   async function context(request: FastifyRequest, target?: TargetRef, command = false) {
     const { orgId } = request.params as { orgId: string };
     // Each published contract enforces its application and permission requirements.
-    const auth = await requirePlatformAuth(request, { orgId, application: false, csrf: !["GET", "HEAD"].includes(request.method) });
+    const auth = await requirePlatformAuth(request, { orgId, csrf: !["GET", "HEAD"].includes(request.method) });
     return userPublicationContext(auth, { ...(target?.projectId ? { projectId: target.projectId } : {}), mode: command ? "command" : "evaluate" });
   }
   async function discoverable(ctx: PublicationContext, target: TargetRef, policy: AccessPolicy, operation: string) {

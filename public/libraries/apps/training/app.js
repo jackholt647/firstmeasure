@@ -1259,7 +1259,6 @@
     icon: 'fa-graduation-cap',
     order: 58,
     fullBleed: true,
-    access: { applicationsAny: ['management', 'field'] },
     mount: mountTraining
   });
 })();

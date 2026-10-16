@@ -27,7 +27,7 @@ const org:AccessPolicy={scopes:['organization'],permissions:['manage_payroll|man
 const both:AccessPolicy={...org,scopes:['organization','project']};
 // Discovery checks capabilities; concrete references and mutations check project ownership.
 const projectMutation:AccessPolicy={...both,authorize:async(ctx,target)=>{await org.authorize!(ctx,target);if(target.scope==='project')await readDocument(ctx.organizationId,'projects',target.projectId!);}};
-const self:AccessPolicy={scopes:['organization'],applications:false,permissions:[],capabilities:['payroll.self_service_earnings'],authorize:ctx=>{if(!ctx.auth)throw forbidden('payroll_subject_required','Personal earnings require a current signed-in user.');}};
+const self:AccessPolicy={scopes:['organization'],permissions:[],capabilities:['payroll.self_service_earnings'],authorize:ctx=>{if(!ctx.auth)throw forbidden('payroll_subject_required','Personal earnings require a current signed-in user.');}};
 function principal(ctx:PublicationContext){if(!ctx.auth)throw forbidden('payroll_principal','A current authorized user is required.');return ctx.auth;}
 function recordId(target:TargetRef){if(!target.id)throw badRequest('payroll_target_required','Choose the target payroll record.');return target.id;}
 function options(ref:SourceRef){const args=contract.querySchema.parse(ref.args||{});if(ref.target.scope==='project'&&args.project_id&&args.project_id!==ref.target.projectId)throw forbidden('payroll_project_denied','Payroll filters cannot override the target project.');return {...args,...(ref.target.scope==='project'?{project_id:ref.target.projectId}:{})};}

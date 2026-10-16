@@ -171,16 +171,12 @@ test("sales facade scopes appointments and follow-ups to the salesperson", async
   await t.test("salesperson entitlements expose the sales tabs and only those", async () => {
     const session = await seller.client.request("GET", "/v1/platform/auth/session");
     assert.deepEqual(session.membership.access_role_ids, ["salesperson"]);
-    assert.deepEqual(session.access_profile.allowed_app_ids, [
-      "project.crew_payments",
-      "project.crew_checklists",
-      "project.field_customer",
-      "project.crew_signatures",
-      "portal.sales_overview",
-      "portal.sales_schedule",
-      "portal.sales_earnings",
-      "project.sales_overview"
-    ]);
+    // Every app the salesperson role shows, among those the organization has on (docs/architecture/app-experience.md).
+    const roleApps = ["portal.sales_overview", "portal.sales_schedule", "portal.sales_earnings", "project.sales_overview",
+      "project.field_customer", "project.crew_signatures", "project.crew_payments", "project.crew_checklists"];
+    const offered = new Set((session.access_profile.app_entitlements as Json[]).map((entry) => entry.id));
+    assert.deepEqual([...session.access_profile.allowed_app_ids].sort(), roleApps.filter((id) => offered.has(id)).sort());
+    for (const id of ["portal.sales_overview", "portal.sales_schedule", "project.sales_overview"]) assert.ok(offered.has(id), id);
   });
 
   await seedAppointmentProject(orgId, "sales_today", "Maple Street Roof", [

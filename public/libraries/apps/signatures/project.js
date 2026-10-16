@@ -7,7 +7,6 @@
   const object = (value) => value && typeof value === 'object' && !Array.isArray(value) ? value : {};
   const projectId = (context) => clean(context.project?.id || context.projectId || context.entityId);
   const orgId = (context) => clean(context.organizationId || context.orgId || window.__APP?.organizationId);
-  const access = { applicationsAny:['field'], devices:['mobile','desktop'], permissionsAny:['crew.signatures.present'], requireEntitlement:true };
   const presentation = { projectModal:{ mobileInfo:'none', mobileTabs:'icons', mobileFullscreenControl:false } };
   const evidence = () => ({ path:location.pathname, href:location.href, timezone:Intl.DateTimeFormat(globalThis.PlatformLanguage?.formatLocale?.()).resolvedOptions().timeZone });
 
@@ -429,6 +428,6 @@
   runtime.registerApp({
     id:'project.crew_signatures', package:'signatures', kind:'project_modal_app', title:(globalThis.PlatformLanguage?.text("signatures","m_9acd909e2fe732","Project work") ?? "Project work"), label:(globalThis.PlatformLanguage?.text("signatures","m_222066ef57ae0e","Work") ?? "Work"), icon:'fa-diagram-project', order:70,
     visible:true,
-    surfaces:['project_modal'], regions:['main'], requiresContext:['project'], access, presentation, panelHtml:panel, mount
+    surfaces:['project_modal'], regions:['main'], requiresContext:['project'], presentation, panelHtml:panel, mount
   });
 })();

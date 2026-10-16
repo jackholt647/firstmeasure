@@ -17,6 +17,8 @@
  * unlinked. People get no notification roles (`roles` stays empty), so lead notifications that target those roles
  * never select them.
  */
+import { appDefinitions, type AppDefinition } from '../platform/app-experience/registry.js';
+import { deviceTypeIds } from '../platform/app-experience/devices.js';
 import { createHash } from 'node:crypto';
 import { env } from '../src/config/env.js';
 import type { PlatformAuthContext } from '../platform/auth.js';
@@ -49,8 +51,9 @@ const missing = async <T>(run: () => Promise<T>): Promise<T | null> => {
 };
 
 // ---- Roles --------------------------------------------------------------------------------------------------------
-type RoleSpec = { id: string; name: string; description: string; applications: ('management' | 'field')[]; level: number; permissions: string[]; base?: string[]; show?: string[]; hide?: string[]; field?: string[]; params?: Record<string, JsonObject>; departmentOnly?: boolean };
-const SUPERVISOR_FIELD = ['crew.dashboard.view', 'crew.projects.view', 'crew.projects.view_all_production', 'crew.schedule.view', 'crew.time_clock.use', 'crew.receipts.upload', 'crew.reimbursements.request', 'crew.materials.view', 'crew.materials.append', 'crew.checklists.view', 'crew.checklists.complete', 'crew.checklists.manage', 'crew.checklists.supervise', 'crew.change_orders.view', 'crew.change_orders.manage', 'crew.payments.view', 'crew.signatures.present', 'crew.workflows.add'];
+/** `only`: the role sees exactly the apps it shows. `clock`: Today shows the time clock. */
+type RoleSpec = { id: string; name: string; description: string; only?: boolean; clock?: boolean; level: number; permissions: string[]; base?: string[]; show?: string[]; hide?: string[]; field?: string[]; params?: Record<string, JsonObject>; departmentOnly?: boolean };
+const SUPERVISOR_FIELD = ['crew.dashboard.view', 'crew.projects.view', 'crew.projects.view_all_production', 'crew.schedule.view', 'crew.receipts.upload', 'crew.reimbursements.request', 'crew.materials.view', 'crew.materials.append', 'crew.checklists.view', 'crew.checklists.complete', 'crew.checklists.manage', 'crew.checklists.supervise', 'crew.change_orders.view', 'crew.change_orders.manage', 'crew.payments.view', 'crew.signatures.present', 'crew.workflows.add'];
 const SUPERVISOR_APPS = ['portal.crew_overview', 'portal.crew_schedule', 'portal.crew_receipts', 'project.crew_overview', 'project.field_customer', 'project.crew_materials', 'project.crew_checklists', 'project.crew_change_orders', 'project.crew_payments', 'project.crew_signatures'];
 const SALES_FIELD = ['sales.dashboard.view', 'sales.schedule.view', 'sales.followups.manage', 'sales.earnings.view', 'sales.documents.view_status', 'sales.money.view_status', 'sales.stats.view_own', 'crew.projects.view', 'crew.signatures.present', 'crew.workflows.add', 'crew.checklists.view', 'crew.checklists.complete'];
 const SALES_APPS = ['portal.sales_overview', 'portal.sales_schedule', 'portal.sales_earnings', 'project.sales_overview', 'project.field_customer', 'project.crew_signatures', 'project.crew_checklists'];
@@ -60,41 +63,41 @@ const MONEY_TABS = ['portal.payroll', 'portal.financials', 'portal.invoices'];
 /** Custom roles a roofing company adds beside the seeded ones. Managers' powers start from the seeded Manager role. */
 export const ROOFING_ROLES: RoleSpec[] = [
   // Given inside one department only (scoped_access_assignments), so it holds only what a department scope can carry.
-  { id: 'department_manager', name: 'Department Manager', description: 'Manages projects, schedules and proposals inside the departments it is given for.', applications: ['management'], level: 21, base: ['manager'], permissions: [], departmentOnly: true },
-  { id: 'office_manager', name: 'Office Manager', description: 'Runs the office: people, billing, payroll entry and day-to-day operations.', applications: ['management'], level: 25, base: ['manager'],
-    permissions: ['manage_company_users', 'manage_payroll', 'view_financials', 'manage_project_billing', 'send_communications'], hide: ['portal.canvassing'] },
-  { id: 'csr', name: 'Customer Service Rep', description: 'Answers customers, books inspections and keeps jobs and contacts up to date.', applications: ['management'], level: 12,
+  { id: 'department_manager', name: 'Department Manager', description: 'Manages projects, schedules and proposals inside the departments it is given for.', level: 21, base: ['manager'], permissions: [], departmentOnly: true },
+  { id: 'office_manager', name: 'Office Manager', description: 'Runs the office: people, billing, payroll entry and day-to-day operations.', level: 25, base: ['manager'],
+    permissions: ['manage_company_users', 'manage_payroll', 'view_financials', 'manage_project_billing', 'send_communications'], show: MONEY_TABS, hide: ['portal.canvassing'] },
+  { id: 'csr', name: 'Customer Service Rep', description: 'Answers customers, books inspections and keeps jobs and contacts up to date.', level: 12,
     permissions: [...OFFICE_READ, 'manage_projects', 'manage_schedule', 'manage_media', 'send_communications', 'request_feedback', 'view_feedback'],
-    show: ['portal.contacts', 'portal.scheduling', 'portal.calls'], hide: [...MONEY_TABS, 'portal.canvassing', 'portal.company_settings', 'project.money'] },
-  { id: 'bookkeeper', name: 'Bookkeeper', description: 'Invoices, payments, job costing and payroll.', applications: ['management'], level: 18,
+    show: ['portal.contacts', 'portal.scheduling', 'portal.chat'], hide: [...MONEY_TABS, 'portal.canvassing', 'portal.company_settings', 'project.money'] },
+  { id: 'bookkeeper', name: 'Bookkeeper', description: 'Invoices, payments, job costing and payroll.', level: 18,
     permissions: ['view_projects', 'view_contacts', 'view_documents', 'view_proposals', 'view_materials', 'view_pricebook', 'view_reports', 'view_stats', 'view_project_data', 'view_financials', 'manage_project_billing', 'manage_payroll'],
-    show: MONEY_TABS, hide: ['portal.canvassing', 'portal.calls', 'portal.photos_feed', 'portal.scheduling', 'project.customer_portal', 'project.measurements'] },
-  { id: 'production_coordinator', name: 'Production Coordinator', description: 'Dispatch: schedules crews, orders and confirms material deliveries, and keeps customers informed.', applications: ['management'], level: 15,
+    show: MONEY_TABS, hide: ['portal.canvassing', 'portal.chat', 'portal.photos_feed', 'portal.scheduling', 'project.customer_portal', 'project.measurements'] },
+  { id: 'production_coordinator', name: 'Production Coordinator', description: 'Dispatch: schedules crews, orders and confirms material deliveries, and keeps customers informed.', level: 15,
     permissions: [...OFFICE_READ, 'view_materials', 'view_pricebook', 'manage_projects', 'manage_schedule', 'manage_media', 'send_communications', 'equipment.view'],
     show: ['portal.scheduling'], hide: [...MONEY_TABS, 'portal.canvassing'] },
-  { id: 'project_manager', name: 'Project Manager', description: 'Runs jobs from contract to completion: walks the job, supervises crews and closes out with the customer.', applications: ['management', 'field'], level: 22,
+  { id: 'project_manager', clock: true, name: 'Project Manager', description: 'Runs jobs from contract to completion: walks the job, supervises crews and closes out with the customer.', level: 22,
     permissions: [...OFFICE_READ, 'view_materials', 'manage_projects', 'manage_schedule', 'manage_media', 'send_communications', ...SUPERVISOR_FIELD],
     hide: [...MONEY_TABS, 'portal.canvassing'], field: SUPERVISOR_APPS, params: { 'portal.crew_overview': { variant: 'supervisor' }, 'project.crew_checklists': { mode: 'manage' }, 'project.crew_signatures': { mode: 'present' } } },
-  { id: 'production_manager', name: 'Production Manager', description: 'Owns production: crews, subcontractors, schedule, quality and equipment.', applications: ['management', 'field'], level: 28,
+  { id: 'production_manager', clock: true, name: 'Production Manager', description: 'Owns production: crews, subcontractors, schedule, quality and equipment.', level: 28,
     permissions: [...OFFICE_READ, 'view_materials', 'view_pricebook', 'view_reports', 'view_stats', 'view_financials', 'manage_projects', 'manage_schedule', 'manage_media', 'send_communications', 'equipment.view', 'equipment.manage', ...SUPERVISOR_FIELD],
-    hide: ['portal.payroll', 'portal.invoices', 'portal.canvassing'], field: SUPERVISOR_APPS, params: { 'portal.crew_overview': { variant: 'supervisor' }, 'project.crew_checklists': { mode: 'manage' }, 'project.crew_signatures': { mode: 'present' } } },
-  { id: 'sales_manager', name: 'Sales Manager', description: 'Leads the sales team: assigns leads, reviews proposals and team numbers.', applications: ['management', 'field'], level: 26,
+    show: ['portal.financials'], hide: ['portal.payroll', 'portal.invoices', 'portal.canvassing'], field: SUPERVISOR_APPS, params: { 'portal.crew_overview': { variant: 'supervisor' }, 'project.crew_checklists': { mode: 'manage' }, 'project.crew_signatures': { mode: 'present' } } },
+  { id: 'sales_manager', name: 'Sales Manager', description: 'Leads the sales team: assigns leads, reviews proposals and team numbers.', level: 26,
     permissions: [...OFFICE_READ, 'view_stats', 'view_reports', 'view_pricebook', ...SALES_FIELD, 'sales.stats.view_team', 'crew.payments.view', 'crew.payments.take'],
     hide: MONEY_TABS, field: [...SALES_APPS, 'project.crew_payments'], params: { 'project.crew_signatures': { mode: 'present' }, 'project.crew_checklists': { mode: 'complete' } } },
-  { id: 'estimator', name: 'Estimator', description: 'Inspects and measures roofs, builds estimates and presents proposals.', applications: ['management', 'field'], level: 20,
+  { id: 'estimator', name: 'Estimator', description: 'Inspects and measures roofs, builds estimates and presents proposals.', level: 20,
     permissions: ['view_projects', 'view_contacts', 'view_schedule', 'view_documents', 'view_proposals', 'view_media', 'view_pricebook', 'view_materials', 'view_reports', 'view_project_data', 'manage_projects', 'manage_documents', 'issue_documents', 'manage_proposals', 'send_proposals', 'manage_media', 'manage_project_data', 'order_reports', ...SALES_FIELD],
     hide: [...MONEY_TABS, 'portal.canvassing'], field: SALES_APPS, params: { 'project.crew_signatures': { mode: 'present' }, 'project.crew_checklists': { mode: 'complete' } } },
-  { id: 'call_center_rep', name: 'Inside Sales Rep', description: 'Works inbound calls and web leads and books inspection appointments.', applications: ['management'], level: 10,
+  { id: 'call_center_rep', name: 'Inside Sales Rep', description: 'Works inbound calls and web leads and books inspection appointments.', level: 10,
     permissions: ['view_projects', 'view_contacts', 'view_schedule', 'view_comms', 'view_proposals', 'manage_projects', 'manage_schedule', 'send_communications', 'sales.stats.view_own'],
-    show: ['portal.contacts', 'portal.scheduling', 'portal.calls'], hide: [...MONEY_TABS, 'portal.photos_feed', 'portal.canvassing', 'portal.company_settings', 'project.money', 'project.measurements'] },
-  { id: 'canvasser', name: 'Canvasser', description: 'Knocks doors after storms and sets inspection appointments.', applications: ['field'], level: 8,
+    show: ['portal.contacts', 'portal.scheduling', 'portal.chat'], hide: [...MONEY_TABS, 'portal.photos_feed', 'portal.canvassing', 'portal.company_settings', 'project.money', 'project.measurements'] },
+  { id: 'canvasser', name: 'Canvasser', description: 'Knocks doors after storms and sets inspection appointments.', only: true, level: 8,
     permissions: ['sales.dashboard.view', 'sales.schedule.view', 'sales.followups.manage', 'sales.earnings.view', 'sales.stats.view_own'],
     field: ['portal.sales_overview', 'portal.sales_schedule', 'portal.sales_earnings'] },
-  { id: 'warehouse_lead', name: 'Warehouse & Yard Lead', description: 'Receives and stages material, loads trucks and looks after the yard and equipment.', applications: ['field'], level: 14,
-    permissions: ['crew.dashboard.view', 'crew.projects.view', 'crew.schedule.view', 'crew.time_clock.use', 'crew.receipts.upload', 'crew.reimbursements.request', 'crew.materials.view', 'crew.materials.append', 'equipment.view', 'equipment.manage'],
+  { id: 'warehouse_lead', clock: true, name: 'Warehouse & Yard Lead', description: 'Receives and stages material, loads trucks and looks after the yard and equipment.', only: true, level: 14,
+    permissions: ['crew.dashboard.view', 'crew.projects.view', 'crew.schedule.view', 'crew.receipts.upload', 'crew.reimbursements.request', 'crew.materials.view', 'crew.materials.append', 'equipment.view', 'equipment.manage'],
     field: ['portal.crew_overview', 'portal.crew_schedule', 'portal.crew_receipts', 'project.crew_overview', 'project.crew_materials'] },
-  { id: 'delivery_driver', name: 'Delivery Driver', description: 'Drives the boom truck and dump trailer: material drops and debris runs.', applications: ['field'], level: 9,
-    permissions: ['crew.dashboard.view', 'crew.projects.view', 'crew.schedule.view', 'crew.time_clock.use', 'crew.receipts.upload', 'crew.materials.view'],
+  { id: 'delivery_driver', clock: true, name: 'Delivery Driver', description: 'Drives the boom truck and dump trailer: material drops and debris runs.', only: true, level: 9,
+    permissions: ['crew.dashboard.view', 'crew.projects.view', 'crew.schedule.view', 'crew.receipts.upload', 'crew.materials.view'],
     field: ['portal.crew_overview', 'portal.crew_schedule', 'portal.crew_receipts', 'project.crew_overview', 'project.crew_materials', 'project.field_customer'] }
 ];
 
@@ -276,13 +279,15 @@ async function requireSandbox(orgId: string) {
   if (obj(org.metadata).sandbox_test_org !== true) throw forbidden('development_org_required', 'The sample people are only for development sandbox organizations.');
 }
 
-function appDefaults(spec: RoleSpec, catalog: { id: string; application_id: string }[]) {
+function appDefaults(spec: RoleSpec, catalog: AppDefinition[]) {
+  const every = (shown: boolean) => Object.fromEntries(deviceTypeIds().map((device) => [device, shown]));
   const defaults: Record<string, JsonObject> = {};
   for (const app of catalog) {
-    const params = obj(spec.params?.[app.id]);
-    if (app.application_id === 'field') defaults[app.id] = { enabled: (spec.field || []).includes(app.id), params, layout: {} };
-    else if ((spec.hide || []).includes(app.id)) defaults[app.id] = { enabled: false, params: {}, layout: {} };
-    else if ((spec.show || []).includes(app.id)) defaults[app.id] = { enabled: true, params, layout: {} };
+    const shown = (spec.field || []).includes(app.id) || (spec.show || []).includes(app.id);
+    const hidden = (spec.hide || []).includes(app.id) || (spec.only === true && app.default_visible && !shown);
+    const options = app.id === 'portal.crew_overview' && spec.clock ? { time_clock: true } : {};
+    if (shown) defaults[app.id] = { visible: every(true), options, params: obj(spec.params?.[app.id]), layout: {} };
+    else if (hidden) defaults[app.id] = { visible: every(false), options: {}, params: {}, layout: {} };
   }
   return defaults;
 }
@@ -291,7 +296,7 @@ async function seedRoles(orgId: string, counts: Counts) {
   const access = await import('../workforce/access.js');
   const personas = new Map(access.factoryPersonaDefinitions().map((persona) => [persona.id, persona]));
   const { isDepartmentScopeablePermission } = await import('../workforce/department-access.js');
-  const catalog = access.accessCatalog();
+  const catalog = appDefinitions();
   const existing = await access.listAccessRoles(orgId, { include_archived: true });
   const ids = new Map<string, string>();
   for (const spec of ROOFING_ROLES) {
@@ -300,13 +305,13 @@ async function seedRoles(orgId: string, counts: Counts) {
     for (const base of spec.base || []) Object.assign(permissions, personas.get(base)?.permissions || {});
     for (const key of spec.permissions) permissions[key] = true;
     if (spec.departmentOnly) permissions = Object.fromEntries(Object.entries(permissions).filter(([key, allowed]) => allowed && isDepartmentScopeablePermission(key)));
-    const input = { name: spec.name, description: spec.description, application_ids: spec.applications, permissions, app_defaults: appDefaults(spec, catalog), metadata: { ...metadata, level: spec.level } };
+    const input = { name: spec.name, description: spec.description, permissions, app_defaults: appDefaults(spec, catalog), metadata: { ...metadata, level: spec.level } };
     // Someone's own role of the same name is used as it is; a role this generator made is brought up to date.
     const found = existing.find((role) => role.id === spec.id) || existing.find((role) => role.name.toLowerCase() === spec.name.toLowerCase());
     if (!found) { ids.set(spec.id, (await access.createAccessRole(orgId, { id: spec.id, ...input })).id); counts.created = (counts.created || 0) + 1; continue; }
     ids.set(spec.id, found.id);
     if (!ours(found.metadata)) { counts.reused = (counts.reused || 0) + 1; continue; }
-    const normalized = { name: spec.name, description: spec.description, application_ids: access.normalizeApplicationIds(spec.applications), permissions: access.normalizePermissionMap(permissions), app_defaults: access.normalizeAppDefaults(input.app_defaults), metadata: input.metadata, status: 'active' };
+    const normalized = { name: spec.name, description: spec.description, permissions: access.normalizePermissionMap(permissions), app_defaults: access.normalizeAppDefaults(input.app_defaults), metadata: input.metadata, status: 'active' };
     if (unchanged(normalized, found as unknown as JsonObject)) continue;
     await access.patchAccessRole(orgId, found.id, { ...input, status: 'active', expected_revision: found.revision });
     counts.updated = (counts.updated || 0) + 1;
@@ -363,15 +368,6 @@ async function seedWorkforceConfiguration(orgId: string, roleId: (role: string) 
   }
 }
 
-function applicationAccess(roleIds: string[], roles: { id: string; application_ids: string[]; metadata: JsonObject }[], current: JsonObject) {
-  const result: JsonObject = {};
-  for (const application of ['management', 'field']) {
-    const held = roles.filter((role) => roleIds.includes(role.id) && role.application_ids.includes(application));
-    const primary = [...held].sort((a, b) => Number(a.metadata.level || 0) - Number(b.metadata.level || 0)).at(-1);
-    result[application] = { ...obj(current[application]), enabled: held.length > 0, role_id: primary?.id || 'member', permissions: obj(obj(current[application]).permissions) };
-  }
-  return result;
-}
 
 async function seedUsers(orgId: string, roleId: (role: string) => string, result: PeopleResult) {
   const access = await import('../workforce/access.js');
@@ -393,7 +389,7 @@ async function seedUsers(orgId: string, roleId: (role: string) => string, result
       email: text(data.email) || `${person.key}.${stableId(orgId, person.key).slice(-8)}@example.test`,
       phone: text(data.phone) || phoneOf(index),
       status: text(data.status) || 'active', branch_id: text(data.branch_id) || 'default', account_type: 'employee', role: 'viewer',
-      roles: strings(data.roles), access_role_ids: accessRoleIds, application_access: applicationAccess(accessRoleIds, roles, obj(data.application_access)),
+      roles: strings(data.roles), access_role_ids: accessRoleIds,
       permissions: obj(data.permissions), permission_overrides: obj(data.permission_overrides), app_access_overrides: obj(data.app_access_overrides),
       worker_classification: person.contractor ? 'independent_contractor' : 'employee',
       assignment_tag_ids: union(data.assignment_tag_ids, person.tags), custom_field_values: values, custom_fields: values,
@@ -411,7 +407,7 @@ async function seedUsers(orgId: string, roleId: (role: string) => string, result
     const tester = text(data.role) === 'owner' && !!text(data.identity_id) && Array.isArray(data.access_role_ids);
     if (!sample && !tester) continue;
     const accessRoleIds = [tester ? 'super_admin' : 'viewer'];
-    await upsertDocument(orgId, 'users', { id: doc.id, data: { access_role_ids: accessRoleIds, application_access: applicationAccess(accessRoleIds, roles, obj(data.application_access)) } }, { replace: false });
+    await upsertDocument(orgId, 'users', { id: doc.id, data: { access_role_ids: accessRoleIds } }, { replace: false });
     result.updated += 1;
   }
   return ids;

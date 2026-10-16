@@ -35,56 +35,68 @@
   const uniqueText = (value) => [...new Set(arrayValue(value).map((item) => cleanText(item?.id || item)).filter(Boolean))];
   const mergeObjects = (...values) => values.reduce((result, value) => ({ ...result, ...objectValue(value) }), {});
 
+  // Device types are data from the server (docs/architecture/app-experience.md).
+  // This copy is only used before the session has loaded.
+  const FALLBACK_DEVICE_TYPES = {
+    classify: ['mobile', 'desktop'],
+    types: [
+      { id: 'desktop', label: 'Desktop', icon: 'fa-desktop', match: {} },
+      { id: 'mobile', label: 'Phone', icon: 'fa-mobile-screen-button', match: { max_width: 820 } }
+    ]
+  };
+
+  function appExperience(){
+    const source = objectValue(root.Portal?.appExperience || root.FirstMateAppExperience);
+    const deviceTypes = objectValue(source.device_types);
+    return {
+      device_types: Array.isArray(deviceTypes.types) && deviceTypes.types.length ? deviceTypes : FALLBACK_DEVICE_TYPES,
+      app_ids: arrayValue(source.app_ids).map(cleanText).filter(Boolean)
+    };
+  }
+
+  function deviceMatches(match = {}, environment = {}){
+    const rules = objectValue(match);
+    if (rules.max_width != null && !(environment.width <= Number(rules.max_width))) return false;
+    if (rules.min_width != null && !(environment.width >= Number(rules.min_width))) return false;
+    if (rules.pointer === 'coarse' && !environment.coarse) return false;
+    if (rules.pointer === 'fine' && environment.coarse) return false;
+    return true;
+  }
+
+  /** The one device type this browser is: the first type whose rules all pass, else the type with none. */
+  function classifyDevice(environment = {}){
+    const { types, classify } = appExperience().device_types;
+    const byId = new Map(types.map((type) => [cleanText(type.id), type]));
+    for (const id of arrayValue(classify)) {
+      const type = byId.get(cleanText(id));
+      if (type && Object.keys(objectValue(type.match)).length && deviceMatches(type.match, environment)) return type.id;
+    }
+    return cleanText(types.find((type) => !Object.keys(objectValue(type.match)).length)?.id) || 'desktop';
+  }
+
   function normalizedDevice(value = {}){
     const explicit = objectValue(value);
     const width = Number(explicit.width || root.innerWidth || root.document?.documentElement?.clientWidth || 0) || 0;
-    const mobile = explicit.mobile == null
-      ? !!root.matchMedia?.('(max-width: 820px)')?.matches
-      : explicit.mobile === true;
     const coarse = explicit.coarse == null
       ? !!root.matchMedia?.('(pointer: coarse)')?.matches
       : explicit.coarse === true;
     const standalone = explicit.standalone == null
       ? !!root.matchMedia?.('(display-mode: standalone)')?.matches
       : explicit.standalone === true;
-    const type = cleanText(explicit.type || explicit.class || explicit.deviceClass) || (mobile ? 'mobile' : 'desktop');
+    const type = cleanText(explicit.type || explicit.class || explicit.deviceClass) || classifyDevice({ width, coarse });
     return {
       ...explicit,
       type,
       class: type,
       width,
-      mobile,
-      desktop: !mobile,
+      mobile: type === 'mobile',
+      desktop: type === 'desktop',
       coarse,
       standalone
     };
   }
 
-  function normalizedApplicationAccess(value = {}){
-    const source = objectValue(value);
-    const entry = (input, fallback = false) => {
-      if (typeof input === 'boolean') return { enabled: input, role_id: '', permissions: {} };
-      const record = objectValue(input);
-      return {
-        ...record,
-        enabled: record.enabled == null ? fallback : record.enabled === true,
-        role_id: cleanText(record.role_id || record.role),
-        permissions: objectValue(record.permissions || record.items)
-      };
-    };
-    return {
-      ...source,
-      management: entry(source.management ?? source.main ?? source.portal, true),
-      field: entry(source.field ?? source.crew ?? source.workforce, false)
-    };
-  }
 
-  function canonicalApplicationId(value){
-    const id = cleanText(value).toLowerCase();
-    if (['main', 'portal'].includes(id)) return 'management';
-    if (['crew', 'workforce'].includes(id)) return 'field';
-    return id;
-  }
 
   function entitlementContainers(value = {}){
     const source = objectValue(value);
@@ -200,18 +212,10 @@
       const defaults = uniqueText(presentation.defaultFor || presentation.default_for);
       if (!defaults.length) return false;
       return defaults.some((item) => {
-        const appId = canonicalApplicationId(item);
-        return context.applicationAccess?.[appId]?.enabled === true
-          || context.device?.type === item
-          || context.roleIds?.includes(item);
+        return context.device?.type === item || context.roleIds?.includes(item);
       });
     }
-    return candidates.some((item) => {
-      const appId = canonicalApplicationId(item);
-      return context.applicationAccess?.[appId]?.enabled === true
-        || context.device?.type === item
-        || context.roleIds?.includes(item);
-    });
+    return candidates.some((item) => context.device?.type === item || context.roleIds?.includes(item));
   }
 
   function stableSort(items = []){
@@ -355,13 +359,6 @@
     const currentUser = mergeObjects(portalCurrentUser, options.currentUser);
     const user = options.user || currentUser.user || currentUser;
     const accessProfile = options.accessProfile || options.access_profile || currentUser.accessProfile || currentUser.access_profile || user?.access_profile || {};
-    const applicationAccess = normalizedApplicationAccess(
-      options.applicationAccess
-      ?? options.application_access
-      ?? currentUser.applicationAccess
-      ?? currentUser.application_access
-      ?? user?.application_access
-    );
     const permissions = options.permissions
       ?? currentUser.permissions
       ?? user?.permissions
@@ -435,8 +432,8 @@
       userId: cleanText(options.userId || currentUser.id || currentUser.user_id || user?.id),
       roleIds,
       roles: roleIds,
-      applicationAccess,
       entitlements,
+      appExperience: options.appExperience || appExperience(),
       appEntitlements: entitlements,
       permissions,
       device,
@@ -668,20 +665,19 @@
         || entitlementRecord.injected === false
         || ['deny', 'denied', 'hide', 'hidden', 'disabled', 'off', 'none'].includes(entitlementState)
       ) reasons.push('entitlement');
-    } else if (access.default === false || access.defaultVisible === false || access.default_visible === false || access.requireEntitlement === true || access.require_entitlement === true) {
+      // App experience: shown only on the devices this person has it on.
+      const visible = entitlementRecord.visible;
+      if (visible && typeof visible === 'object' && visible[context.device?.type] !== true) reasons.push('device');
+    } else if (arrayValue(objectValue(context.appExperience).app_ids).includes(definition.id)) {
+      // An app the platform declares has no entitlement only when the organization has it off.
+      reasons.push('organization_app_off');
+    } else if (access.default === false || access.defaultVisible === false || access.default_visible === false) {
       reasons.push('entitlement_missing');
     }
 
-    const applicationsAny = uniqueText(access.applicationsAny || access.applications_any || access.applications || access.application);
-    const applicationsAll = uniqueText(access.applicationsAll || access.applications_all);
-    const applicationEnabled = (id) => context.applicationAccess?.[canonicalApplicationId(id)]?.enabled === true;
-    if (applicationsAny.length && !applicationsAny.some(applicationEnabled)) reasons.push('application');
-    if (applicationsAll.length && !applicationsAll.every(applicationEnabled)) reasons.push('application');
-
     const permissionsAny = uniqueText(access.permissionsAny || access.permissions_any);
     const permissionsAll = uniqueText(access.permissionsAll || access.permissions_all || access.permissions || access.permission);
-    const hasPermission = (key) => permissionEnabled(context.permissions, key)
-      || Object.values(objectValue(context.applicationAccess)).some((entry) => entry?.enabled === true && permissionEnabled(entry.permissions, key));
+    const hasPermission = (key) => permissionEnabled(context.permissions, key);
     if (permissionsAny.length && !permissionsAny.some(hasPermission)) reasons.push('permission');
     if (permissionsAll.length && !permissionsAll.every(hasPermission)) reasons.push('permission');
 
@@ -690,8 +686,6 @@
     if (rolesAny.length && !rolesAny.some((id) => context.roleIds?.includes(id))) reasons.push('role');
     if (rolesAll.length && !rolesAll.every((id) => context.roleIds?.includes(id))) reasons.push('role');
 
-    const devices = uniqueText(access.devices || access.device);
-    if (devices.length && !devices.includes(context.device?.type)) reasons.push('device');
 
     const featureFlags = arrayValue(access.featureFlags || access.feature_flags || access.flags);
     const featureFlagsAny = arrayValue(access.featureFlagsAny || access.feature_flags_any || access.flagsAny);
@@ -1033,6 +1027,20 @@
     };
   }
 
+  /**
+   * Whether App experience shows this app to the person on this device. For
+   * views that are not runtime apps, such as a contact window's tabs.
+   */
+  function appVisibleHere(appId, options = {}){
+    const context = createContext(options);
+    const entitlement = entitlementFor({ id:appId }, context, {});
+    if (entitlement.found) {
+      const record = objectValue(entitlement.value);
+      return record.allowed !== false && objectValue(record.visible)[context.device?.type] === true;
+    }
+    return !arrayValue(objectValue(context.appExperience).app_ids).includes(appId);
+  }
+
   function evaluateAccess(appOrId, options = {}){
     const app = typeof appOrId === 'string' ? apps.get(cleanText(appOrId)) : appOrId;
     if (!app) return { allowed: false, reasons: ['missing_app'], params: {}, layout: {}, presentation: {}, defaultHome: false };
@@ -1057,17 +1065,20 @@
     createHostBridge,
     createAppInstance,
     evaluateAccess,
+    appVisibleHere,
     diagnostics,
     escapeHtml,
     clone
   };
 
-  const mobileQuery = root.matchMedia?.('(max-width: 820px)');
+  // Re-sort the browser into a device type whenever the viewport changes type.
+  let lastDeviceType = normalizedDevice().type;
   const notifyDeviceChange = () => {
     const device = normalizedDevice();
+    if (device.type === lastDeviceType) return;
+    lastDeviceType = device.type;
     dispatch('fm:device:updated', { device });
     dispatch('fm:app-entitlements:updated', { source: 'device', device });
   };
-  mobileQuery?.addEventListener?.('change', notifyDeviceChange);
-  if (!mobileQuery?.addEventListener) mobileQuery?.addListener?.(notifyDeviceChange);
+  root.addEventListener?.('resize', notifyDeviceChange);
 })();

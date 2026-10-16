@@ -4,7 +4,7 @@ window.FirstMateSettingsIndex = {
   "inputs": [
     [
       "libraries/apps/settings/company.js",
-      "c873ae5b7abf57e45c54199d56afb0d96cf9f1ef8f45d711693404b1de0440ed"
+      "8c6c3c7b9e9e760030a164f3f196afd281f7d4c3e12c0fcbf5cb771b3254b687"
     ],
     [
       "libraries/appointment-booking/settings.js",
@@ -12,7 +12,7 @@ window.FirstMateSettingsIndex = {
     ],
     [
       "libraries/apps/people/app-grid.js",
-      "b46d4109817d1b884d506d8634ab0db881d740747ad8e4b8f88492fbc941a778"
+      "797df2596cb861aaa616a1b6e8384eef2643ff48bc56c60b43b8828cfa7cf1e8"
     ],
     [
       "libraries/apps/people/branches.js",
@@ -28,7 +28,7 @@ window.FirstMateSettingsIndex = {
     ],
     [
       "libraries/apps/people/departments-page.js",
-      "5170077c3bb01efb31b5fc2c1b5d1bdd69e08c280926c0340bc10a201e02549f"
+      "5d9f0380e099400ed2810427a87c7c115964dcd64b54a459101650d9b3c05c5f"
     ],
     [
       "libraries/apps/people/entity-modal.js",
@@ -40,7 +40,7 @@ window.FirstMateSettingsIndex = {
     ],
     [
       "libraries/apps/people/groups-page.js",
-      "9d00bb91dfd24b58d7ca899600eedbc10ec549fea780bbd68ef41c3e5e6f467a"
+      "b83f666e05fd8e535c94ba5e5f6f06ed5ce5f5f2454cb867a1820e6fc73d6142"
     ],
     [
       "libraries/apps/people/hover-card.js",
@@ -56,11 +56,11 @@ window.FirstMateSettingsIndex = {
     ],
     [
       "libraries/apps/people/people-data.js",
-      "78c6dea8adfce9299b3e43aeb78df1ddf30ddd3bf84ef4d75db453c2e6ca633b"
+      "58bb60c8ed4378d5feac1fa54907e6373b7dd09b9dba5932378bfd53bb9246f6"
     ],
     [
       "libraries/apps/people/people-directory.js",
-      "839e47b8b8d55d62fc72ba8712aec57444c9f573dc2e21ccca80bf2918951888"
+      "1c7191dbd783da12fb45217858313756cf458bbff8dc2cf0cf604e9efe604022"
     ],
     [
       "libraries/apps/people/people-home.js",
@@ -88,7 +88,7 @@ window.FirstMateSettingsIndex = {
     ],
     [
       "libraries/apps/people/users-page.js",
-      "c755a527398ec4ff38ef83cad8727585166cd3339b64d5b00b6e7f963ce214d2"
+      "6d013bd7681e2de4403d3280701ae681aeb720dd9d5bbed1054ccf6081fd468d"
     ],
     [
       "libraries/apps/settings/automations.js",
@@ -6952,6 +6952,26 @@ window.FirstMateSettingsIndex = {
     {
       "section": "people",
       "tab": "People",
+      "view": "departments",
+      "source": "libraries/apps/people/departments-page.js",
+      "title": "App experience",
+      "description": "",
+      "kind": "control",
+      "selector": ""
+    },
+    {
+      "section": "people",
+      "tab": "People",
+      "view": "groups",
+      "source": "libraries/apps/people/groups-page.js",
+      "title": "App experience",
+      "description": "",
+      "kind": "control",
+      "selector": ""
+    },
+    {
+      "section": "people",
+      "tab": "People",
       "view": "users",
       "source": "libraries/apps/people/users-page.js",
       "title": "App experience",
@@ -6962,9 +6982,9 @@ window.FirstMateSettingsIndex = {
     {
       "section": "people",
       "tab": "People",
-      "view": "departments",
-      "source": "libraries/apps/people/departments-page.js",
-      "title": "App visibility",
+      "view": "",
+      "source": "libraries/apps/people/app-grid.js",
+      "title": "Apps",
       "description": "",
       "kind": "control",
       "selector": ""
@@ -7082,16 +7102,6 @@ window.FirstMateSettingsIndex = {
     {
       "section": "people",
       "tab": "People",
-      "view": "users",
-      "source": "libraries/apps/people/users-page.js",
-      "title": "Change apps",
-      "description": "",
-      "kind": "control",
-      "selector": ""
-    },
-    {
-      "section": "people",
-      "tab": "People",
       "view": "subcontractors",
       "source": "libraries/apps/people/companies-page.js",
       "title": "Change departments",
@@ -7197,6 +7207,16 @@ window.FirstMateSettingsIndex = {
       "title": "Contact",
       "description": "",
       "kind": "heading",
+      "selector": ""
+    },
+    {
+      "section": "people",
+      "tab": "People",
+      "view": "",
+      "source": "libraries/apps/people/app-grid.js",
+      "title": "Contact views",
+      "description": "",
+      "kind": "control",
       "selector": ""
     },
     {
@@ -7941,6 +7961,16 @@ window.FirstMateSettingsIndex = {
     {
       "section": "people",
       "tab": "People",
+      "view": "",
+      "source": "libraries/apps/people/app-grid.js",
+      "title": "Restrict: hidden everywhere and refused by the server",
+      "description": "",
+      "kind": "control",
+      "selector": "[data-apps-restrict=\"\"]"
+    },
+    {
+      "section": "people",
+      "tab": "People",
       "view": "departments",
       "source": "libraries/apps/people/departments-page.js",
       "title": "Role",
@@ -8034,16 +8064,6 @@ window.FirstMateSettingsIndex = {
       "view": "users",
       "source": "libraries/apps/people/users-page.js",
       "title": "Suspended",
-      "description": "",
-      "kind": "control",
-      "selector": ""
-    },
-    {
-      "section": "people",
-      "tab": "People",
-      "view": "",
-      "source": "libraries/apps/people/app-grid.js",
-      "title": "Tabs",
       "description": "",
       "kind": "control",
       "selector": ""

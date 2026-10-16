@@ -25,7 +25,7 @@ test('development fixtures enforce isolation, independent toggles and additive r
  const layersUrl='/v1/signup-sandbox/development/software-layers';
  const {registerDataProvider}=await import('../platform/publication/providers.js');
  const {forbidden}=await import('../platform/errors.js');
- registerDataProvider({id:'external.foreign_inventory',version:'1',apps:['settings'],exports:{private:{schema:{},schemaVersion:'1',description:'Foreign contract',access:{scopes:['organization'],permissions:[],applications:false,authorize:()=>{throw forbidden('connection_tenant');}},read:async()=>{throw Error('Discovery must not read values');}}}});
+ registerDataProvider({id:'external.foreign_inventory',version:'1',apps:['settings'],exports:{private:{schema:{},schemaVersion:'1',description:'Foreign contract',access:{scopes:['organization'],permissions:[],authorize:()=>{throw forbidden('connection_tenant');}},read:async()=>{throw Error('Discovery must not read values');}}}});
  const {userPublicationContext}=await import('../platform/publication/context.js');
  const publicationContext=userPublicationContext(ctx);
  const {publishModule}=await import('../documents/modules/service.js');

@@ -21,8 +21,7 @@ let databasePath = "";
 export const DEFAULT_WORKFORCE_TERMINOLOGY = {
   resource_group: { singular: "Crew", plural: "Crews" },
   resource_group_member: { singular: "Crew Member", plural: "Crew Members" },
-  organization_connection: { singular: "Subcontractor", plural: "Subcontractors" },
-  applications: { management: "Main App", field: "Crew App" }
+  organization_connection: { singular: "Subcontractor", plural: "Subcontractors" }
 };
 
 export const DEFAULT_RESOURCE_GROUP_KINDS = [
@@ -249,12 +248,10 @@ function mergedTerminology(value: unknown) {
   const group = asObject(input.resource_group);
   const member = asObject(input.resource_group_member);
   const connection = asObject(input.organization_connection);
-  const applications = asObject(input.applications);
   return {
     resource_group: { ...DEFAULT_WORKFORCE_TERMINOLOGY.resource_group, ...group },
     resource_group_member: { ...DEFAULT_WORKFORCE_TERMINOLOGY.resource_group_member, ...member },
-    organization_connection: { ...DEFAULT_WORKFORCE_TERMINOLOGY.organization_connection, ...connection },
-    applications: { ...DEFAULT_WORKFORCE_TERMINOLOGY.applications, ...applications }
+    organization_connection: { ...DEFAULT_WORKFORCE_TERMINOLOGY.organization_connection, ...connection }
   };
 }
 
@@ -445,8 +442,7 @@ export async function saveWorkforceConfiguration(orgIdValue: string, inputValue:
       ...terminologyPatch,
       resource_group: { ...asObject(currentTerminology.resource_group), ...asObject(terminologyPatch.resource_group) },
       resource_group_member: { ...asObject(currentTerminology.resource_group_member), ...asObject(terminologyPatch.resource_group_member) },
-      organization_connection: { ...asObject(currentTerminology.organization_connection), ...asObject(terminologyPatch.organization_connection) },
-      applications: { ...asObject(currentTerminology.applications), ...asObject(terminologyPatch.applications) }
+      organization_connection: { ...asObject(currentTerminology.organization_connection), ...asObject(terminologyPatch.organization_connection) }
     });
     // The roles a type gives on joining are permission administration: this save keeps them as they are (`setResourceGroupKindMemberRoles`).
     const kinds = Object.prototype.hasOwnProperty.call(inputValue, "resource_group_kinds")

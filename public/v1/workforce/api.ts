@@ -38,14 +38,15 @@ import {
   ACCESS_SCHEMA_VERSION,
   CREW_PERMISSION_KEYS,
   SALES_PERMISSION_KEYS,
-  accessCatalog,
   archiveAccessRole,
   createAccessRole,
   listAccessRoles,
   patchAccessRole,
+  organizationAppCatalog,
   readAccessRole,
   resolveAccessProfile
 } from "./access.js";
+import { deviceTypesForClient } from "../platform/app-experience/devices.js";
 import {
   applyPersonaTemplate,
   archivePersonaTemplate,
@@ -127,7 +128,6 @@ async function requireAccessAdministration(request: FastifyRequest, orgId: strin
   return await requirePlatformAuth(request, {
     orgId,
     csrf,
-    application: "management",
     permission: "manage_company_users|manage_company_settings|manage_company_user_permissions"
   });
 }
@@ -193,38 +193,31 @@ export const registerWorkforceApi: FastifyPluginAsync = async (app) => {
     const orgId = getParam(request.params, "orgId");
     const ctx = await requireAccessAdministration(request, orgId);
     const query = queryObject(request);
-    const surface = cleanText(query.surface) as "portal_tab" | "project_modal";
-    const device = cleanText(query.device) as "desktop" | "mobile";
-    const apps = accessCatalog({
-      ...(surface ? { surface } : {}),
-      ...(device ? { device } : {})
-    });
+    const surface = cleanText(query.surface) as "portal_tab" | "project_modal" | "contact_modal";
+    const effectiveByKey = ctx.capabilities?.effectiveByKey || (await effectiveCapabilities(orgId)).effectiveByKey;
+    // Only apps the organization has on; an app that is off is not a choice anyone makes.
+    const apps = organizationAppCatalog(effectiveByKey, surface ? { surface } : {});
     return {
       ok: true,
       schema_version: ACCESS_SCHEMA_VERSION,
-      applications: [
-        { id: "management", label: "Management", enabled: ctx.applicationAccess.management?.enabled === true },
-        { id: "field", label: "Crew", enabled: ctx.applicationAccess.field?.enabled === true }
-      ],
+      device_types: deviceTypesForClient(),
       // Deprecated: the field and sales keys only. Readers use permission_catalog;
       // keep this until no client reads it.
       permission_keys: [...Object.values(CREW_PERMISSION_KEYS), ...Object.values(SALES_PERMISSION_KEYS)],
       // Every permission by category and subcategory, with labels, descriptions
       // and whether its app is on for this organization.
-      permission_catalog: permissionCatalog((await effectiveCapabilities(orgId)).effectiveByKey),
+      permission_catalog: permissionCatalog(effectiveByKey),
       apps,
-      app_catalog: apps,
       roles: (await listAccessRoles(orgId))
     };
   });
 
   app.get("/organizations/:orgId/access/me", async (request) => {
     const orgId = getParam(request.params, "orgId");
-    const ctx = await requirePlatformAuth(request, { orgId, application: ["management", "field"] });
+    const ctx = await requirePlatformAuth(request, { orgId });
     return {
       ok: true,
       access_profile: ctx.accessProfile ? (({organization_structure: _private, ...profile})=>profile)(ctx.accessProfile) : undefined,
-      application_access: ctx.applicationAccess,
       app_entitlements: ctx.appEntitlements
     };
   });
@@ -238,7 +231,6 @@ export const registerWorkforceApi: FastifyPluginAsync = async (app) => {
       ok: true,
       user_id: getParam(request.params, "userId"),
       access_profile: (({organization_structure: _private, ...profile})=>profile)(accessProfile),
-      application_access: accessProfile.application_access,
       app_entitlements: accessProfile.app_entitlements
     };
   });
@@ -248,8 +240,7 @@ export const registerWorkforceApi: FastifyPluginAsync = async (app) => {
     await requireAccessAdministration(request, orgId);
     const query = queryObject(request);
     const roles = (await listAccessRoles(orgId, {
-      include_archived: query.include_archived === true || cleanText(query.include_archived) === "1",
-      application_id: cleanText(query.application_id || query.application)
+      include_archived: query.include_archived === true || cleanText(query.include_archived) === "1"
     }));
     return { ok: true, roles, access_roles: roles, count: roles.length };
   });

@@ -102,13 +102,15 @@ test('department defaults preserve user preferences but explicit restrictions ga
   const created=await owner.request('POST',`/v1/platform/organizations/${orgId}/users`,{data:{name:'Scoped member',email:`scoped-${Date.now()}@example.test`,password:'test-only-member-pass',send_invite:false,status:'active'}});
   const userId=created.document.id;
   const catalog=await owner.request('GET',`/v1/workforce/organizations/${orgId}/departments`);
-  await owner.request('PUT',`/v1/workforce/organizations/${orgId}/departments`,{revision:catalog.revision,legacy_token:catalog.legacy_token,departments:[...catalog.departments,{id:'sales',label:'Sales',subject_keys:[`organization_user:${userId}`],app_defaults:{feedback:{visibility:'hide',enforcement:'restricted'},'portal.stats':{visibility:'hide',enforcement:'default'}}}]});
-  const role=await owner.request('POST',`/v1/workforce/organizations/${orgId}/access/roles`,{name:'Call supervisor',application_id:'management',permissions:{manage_communications:true,view_comms:true}});
-  const profile=await owner.request('PATCH',`/v1/workforce/organizations/${orgId}/users/${userId}/profile`,{access_role_ids:['viewer'],scoped_access_assignments:[{role_id:role.role.id,scope:{kind:'department',id:'sales'}}],app_access_overrides:{feedback:'show','portal.stats':'show'}});
+  await owner.request('PUT',`/v1/workforce/organizations/${orgId}/departments`,{revision:catalog.revision,legacy_token:catalog.legacy_token,departments:[...catalog.departments,{id:'sales',label:'Sales',subject_keys:[`organization_user:${userId}`],app_defaults:{'portal.feedback':{restricted:true},'portal.stats':{visible:{desktop:false,mobile:false}}}}]});
+  const role=await owner.request('POST',`/v1/workforce/organizations/${orgId}/access/roles`,{name:'Call supervisor',permissions:{manage_communications:true,view_comms:true}});
+  const profile=await owner.request('PATCH',`/v1/workforce/organizations/${orgId}/users/${userId}/profile`,{access_role_ids:['viewer'],scoped_access_assignments:[{role_id:role.role.id,scope:{kind:'department',id:'sales'}}],app_access_overrides:{'portal.feedback':{visible:{desktop:true,mobile:true}},'portal.stats':{visible:{desktop:true,mobile:true}}}});
   assert.equal(profile.user.access_profile.effective_permissions.manage_communications,undefined);
   assert.equal(profile.user.access_profile.scoped_access_grants[0].permissions.manage_communications,true);
-  assert.equal(profile.user.app_entitlements.find((entry:any)=>entry.id==='feedback').allowed,false);
-  assert.equal(profile.user.app_entitlements.find((entry:any)=>entry.id==='portal.stats').enabled,true);
+  // A restriction beats the person's own setting; a department's plain default does not (docs/architecture/app-experience.md).
+  const app=(id:string)=>profile.user.app_entitlements.find((entry:any)=>entry.id===id);
+  if(app('portal.feedback'))assert.equal(app('portal.feedback').allowed,false);
+  if(app('portal.stats'))assert.equal(app('portal.stats').allowed,true);
   assert.equal(profile.user.access_profile.organization_structure,undefined,'The full membership directory is not serialized as an access profile.');
   const {backgroundAuthContext,hasAppEntitlement,hasResourcePermission}=await import('../platform/auth.js');
   const auth=await backgroundAuthContext(orgId,userId);
@@ -126,16 +128,12 @@ test("workforce architecture keeps users canonical and unifies internal and exte
 
   await t.test("access profiles and employment terms work independently of the workforce rollout flag", async () => {
     const profile = await owner.request("PATCH", `/v1/workforce/organizations/${orgId}/users/${userId}/profile`, {
-      application_access: {
-        management: { enabled: true, role_id: "owner", permissions: { "*": true } },
-        field: { enabled: true, role_id: "lead", permissions: { view_assigned_work: true } }
-      },
+      access_role_ids: ["super_admin"],
       worker_classification: "independent_contractor",
       payment_terms: { basis: "net_days", net_days: 30 }
     });
     assert.equal(Object.prototype.hasOwnProperty.call(profile.user, "user_type_ids"), false);
-    assert.equal(profile.user.application_access.management.enabled, true);
-    assert.equal(profile.user.application_access.field.enabled, true);
+    assert.equal(profile.user.application_access, undefined);
     assert.equal(Object.hasOwn(profile.user, "compensation_profile"), false, "how someone is paid is a pay setup, not part of their profile");
     assert.equal(profile.user.worker_classification, "independent_contractor");
     assert.deepEqual(profile.user.payment_terms, { basis: "net_days", net_days: 30 });
@@ -148,7 +146,7 @@ test("workforce architecture keeps users canonical and unifies internal and exte
   });
 
 
-  await t.test("field-only users authenticate but management routes enforce application access", async () => {
+  await t.test("people who only work assigned jobs authenticate, and a route that belongs to an app needs it", async () => {
     const suffix = Math.random().toString(36).slice(2, 9);
     const email = `field-only-${suffix}@example.test`;
     const password = "field worker password";
@@ -165,22 +163,17 @@ test("workforce architecture keeps users canonical and unifies internal and exte
     });
     const fieldUserId = String(created.document.id);
     const profile = await owner.request("PATCH", `/v1/workforce/organizations/${orgId}/users/${fieldUserId}/profile`, {
-      application_access: {
-        management: { enabled: false, role_id: "viewer", permissions: {} },
-        field: { enabled: true, role_id: "member", permissions: { view_assigned_work: true } }
-      }
+      access_role_ids: ["crew_member"]
     });
-    assert.equal(profile.user.application_access.management.enabled, false);
-    assert.equal(profile.user.application_access.field.enabled, true);
+    assert.deepEqual(profile.user.access_role_ids, ["crew_member"]);
 
     const fieldClient = createSessionClient();
     await fieldClient.request("POST", "/v1/platform/auth/login", { email, password, organization_id: orgId });
     const session = await fieldClient.request("GET", "/v1/platform/auth/session");
-    assert.equal(session.membership.application_access.management.enabled, false);
-    assert.equal(session.membership.application_access.field.enabled, true);
-    const managementDenied = await fieldClient.raw("GET", `/v1/platform/organizations/${orgId}/global`);
-    assert.equal(managementDenied.statusCode, 403);
-    assert.equal(managementDenied.data.error, "application_access_denied");
+    assert.equal(session.membership.application_access, undefined);
+    const mediaDenied = await fieldClient.raw("GET", `/v1/platform/organizations/${orgId}/media/storage`);
+    assert.equal(mediaDenied.statusCode, 403);
+    assert.equal(mediaDenied.data.error, "app_access_denied");
   });
 
   const scopeCatalog = await owner.request("GET", `/v1/scopes/organizations/${orgId}/branches/default/templates?include_disabled=1`);
@@ -192,8 +185,7 @@ test("workforce architecture keeps users canonical and unifies internal and exte
     const configuration = await owner.request("GET", `${branchBase}/configuration`);
     assert.equal(configuration.configuration.terminology.resource_group.singular, "Crew");
     assert.equal(configuration.configuration.terminology.organization_connection.singular, "Subcontractor");
-    assert.equal(configuration.configuration.terminology.applications.management, "Main App");
-    assert.equal(configuration.configuration.terminology.applications.field, "Crew App");
+    assert.equal(configuration.configuration.terminology.applications, undefined);
 
     const organizationUsers = await owner.request("GET", `/v1/workforce/organizations/${orgId}/users`);
     assert.ok(organizationUsers.users.some((user: any) => user.id === userId));

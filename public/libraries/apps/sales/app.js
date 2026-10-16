@@ -549,10 +549,9 @@
     return window.FMFieldVisit.mount(root, context, { onUnavailable:() => mountSalesProjectOverviewLegacy(context) });
   }
 
-  const salesAccess = { applicationsAny:['field'], devices:['mobile','desktop'], requireEntitlement:true };
   const salesProjectPresentation = { projectModal:{ desktopLeft:'none', mobileLeft:'none', mobileInfo:'none', mobileTabs:'icons', mobileFullscreenControl:false } };
   function registerPortal(definition){
-    Portal.apps?.registerPortalApp?.({ ...definition, access:salesAccess });
+    Portal.apps?.registerPortalApp?.(definition);
   }
   runtime.registerApp({
     id:'project.sales_overview',
@@ -564,7 +563,6 @@
     surfaces:['project_modal'],
     regions:['main'],
     requiresContext:['project'],
-    access:salesAccess,
     presentation:salesProjectPresentation,
     panelHtml:() => '<div class="sales-project-app" data-sales-project-app="overview"></div>',
     mount:mountSalesProjectOverview

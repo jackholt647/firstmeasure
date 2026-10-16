@@ -12,11 +12,7 @@ const terminologyPairSchema = z.object({
 export const workforceTerminologySchema = z.object({
   resource_group: terminologyPairSchema.optional(),
   resource_group_member: terminologyPairSchema.optional(),
-  organization_connection: terminologyPairSchema.optional(),
-  applications: z.object({
-    management: z.string().trim().min(1).max(120).optional(),
-    field: z.string().trim().min(1).max(120).optional()
-  }).passthrough().optional()
+  organization_connection: terminologyPairSchema.optional()
 }).passthrough();
 
 export const workforceConfigurationInputSchema = jsonObjectSchema.extend({
@@ -68,12 +64,6 @@ export const resourceGroupMemberMutationSchema = resourceGroupMemberSchema.parti
   expected_revision: z.number().int().positive()
 }).passthrough();
 
-const applicationAccessEntrySchema = jsonObjectSchema.extend({
-  enabled: z.boolean(),
-  role_id: z.string().trim().min(1).max(180).optional(),
-  permissions: jsonObjectSchema.optional()
-}).passthrough();
-
 export const scopedAccessAssignmentSchema = z.object({
   role_id: stableIdSchema.optional(),
   permissions: z.record(z.boolean()).optional(),
@@ -83,15 +73,16 @@ export const scopedAccessAssignmentSchema = z.object({
 
 export const workforceUserProfilePatchSchema = jsonObjectSchema.extend({
   expected_revision: z.number().int().positive().optional(),
-  application_access: z.record(applicationAccessEntrySchema).optional(),
   access_role_ids: z.array(stableIdSchema).optional(),
   scoped_access_assignments: z.array(scopedAccessAssignmentSchema).max(200).optional(),
   permission_overrides: z.record(z.boolean()).optional(),
-  app_access_overrides: z.record(z.union([
-    z.enum(["inherit", "show", "hide"]),
-    z.boolean(),
-    z.null()
-  ])).optional(),
+  // App id -> { visible: { <device type>: shown }, options: { <key>: on } }; a missing device or option inherits.
+  app_access_overrides: z.record(z.object({
+    visible: z.record(z.boolean()).optional(),
+    options: z.record(z.boolean()).optional(),
+    params: jsonObjectSchema.optional(),
+    layout: jsonObjectSchema.optional()
+  }).strict()).optional(),
   assignment_tag_ids: z.array(stableIdSchema).optional(),
   worker_classification: z.enum(["employee", "independent_contractor"]).optional(),
   payment_terms: jsonObjectSchema.extend({
@@ -99,8 +90,7 @@ export const workforceUserProfilePatchSchema = jsonObjectSchema.extend({
     net_days: z.number().int().min(0).max(365).optional()
   }).optional()
 }).refine((value) => (
-  Object.prototype.hasOwnProperty.call(value, "application_access")
-  || Object.prototype.hasOwnProperty.call(value, "access_role_ids")
+  Object.prototype.hasOwnProperty.call(value, "access_role_ids")
   || Object.prototype.hasOwnProperty.call(value, "scoped_access_assignments")
   || Object.prototype.hasOwnProperty.call(value, "permission_overrides")
   || Object.prototype.hasOwnProperty.call(value, "app_access_overrides")

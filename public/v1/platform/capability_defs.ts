@@ -602,11 +602,10 @@ const definitions: CapabilityDefinition[] = [
     kind: "app",
     icon: "fa-helmet-safety",
     category: "Field & Workforce",
-    label: "Crew (Field App)",
-    description: "The field application for crews: dashboards, assigned projects, receipts, and field workflows.",
+    label: "Crew",
+    description: "Apps for people doing the work: today's jobs, assigned projects, receipts, and on-site workflows.",
     catalog_stub: "Field projects, receipts, and workflows.",
     default: true,
-    audience: ["field"],
     runtime_app_id: "crew"
   },
   {
@@ -614,11 +613,10 @@ const definitions: CapabilityDefinition[] = [
     kind: "app",
     icon: "fa-handshake",
     category: "Field & Workforce",
-    label: "Sales (Field App)",
-    description: "The field application for salespeople: appointments, follow-ups, commissions, and proposal status.",
+    label: "Sales",
+    description: "Apps for salespeople: appointments, follow-ups, commissions, and proposal status.",
     catalog_stub: "Appointments, follow-ups, and commissions.",
     default: true,
-    audience: ["field"],
     runtime_app_id: "sales"
   },
   {
@@ -892,7 +890,6 @@ const definitions: CapabilityDefinition[] = [
     label: "Self-Service Earnings",
     description: "Crew members can view their own payout history.",
     default: true,
-    audience: ["field"]
   },
   {
     key: "crew.time_clock",
@@ -901,7 +898,6 @@ const definitions: CapabilityDefinition[] = [
     label: "Time Clock",
     description: "Field clock in/out, for everyone given the time clock permission.",
     default: true,
-    audience: ["field"]
   },
   {
     key: "crew.receipts",
@@ -918,7 +914,6 @@ const definitions: CapabilityDefinition[] = [
     label: "Field Change Orders",
     description: "Crews can view and manage change orders on assigned projects.",
     default: true,
-    audience: ["field"]
   },
   {
     key: "crew.field_payments",
@@ -928,7 +923,6 @@ const definitions: CapabilityDefinition[] = [
     label: "Field Payments",
     description: "Crews can view and collect customer payments in the field.",
     default: true,
-    audience: ["field"]
   },
   {
     key: "checklists.templates",
@@ -1766,7 +1760,6 @@ const definitions: CapabilityDefinition[] = [
     parent: "apps.crew",
     permission_key: "crew.dashboard.view",
     access: "read",
-    audience: ["field"],
     permission_group: "field_app",
     label: "Field dashboard",
     description: "See the home dashboard in the field app."
@@ -1777,7 +1770,6 @@ const definitions: CapabilityDefinition[] = [
     parent: "apps.crew",
     permission_key: "crew.projects.view",
     access: "read",
-    audience: ["field"],
     permission_group: "field_app",
     label: "View assigned projects",
     description: "See projects assigned to them or to a group they belong to."
@@ -1788,7 +1780,6 @@ const definitions: CapabilityDefinition[] = [
     parent: "apps.crew",
     permission_key: "crew.projects.view_all_production",
     access: "read",
-    audience: ["field"],
     permission_group: "field_app",
     label: "View all production projects",
     description: "Supervisor scope: see every production project, not just assigned ones."
@@ -1800,7 +1791,6 @@ const definitions: CapabilityDefinition[] = [
     requires: ["platform.scheduling"],
     permission_key: "crew.schedule.view",
     access: "read",
-    audience: ["field"],
     permission_group: "field_app",
     label: "View field schedule",
     description: "See their schedule in the field app."
@@ -1811,21 +1801,9 @@ const definitions: CapabilityDefinition[] = [
     parent: "apps.crew",
     permission_key: "crew.workflows.add",
     access: "write",
-    audience: ["field"],
     permission_group: "field_app",
     label: "Add work to projects",
     description: "Add work from the library to assigned projects in the field app."
-  },
-  {
-    key: "permission.crew_time_clock_use",
-    kind: "permission",
-    parent: "apps.crew",
-    permission_key: "crew.time_clock.use",
-    access: "write",
-    audience: ["field"],
-    permission_group: "time_expenses",
-    label: "Use the time clock",
-    description: "Clock in and out."
   },
   {
     key: "permission.crew_receipts_upload",
@@ -1833,7 +1811,6 @@ const definitions: CapabilityDefinition[] = [
     parent: "apps.crew",
     permission_key: "crew.receipts.upload",
     access: "write",
-    audience: ["field"],
     permission_group: "time_expenses",
     label: "Upload receipts",
     description: "Upload purchase receipts from the field."
@@ -1845,7 +1822,6 @@ const definitions: CapabilityDefinition[] = [
     requires: ["crew.reimbursements"],
     permission_key: "crew.reimbursements.request",
     access: "write",
-    audience: ["field"],
     permission_group: "time_expenses",
     label: "Request reimbursements",
     description: "Mark personal purchases and submit receipt-backed reimbursement requests."
@@ -1857,7 +1833,6 @@ const definitions: CapabilityDefinition[] = [
     requires: ["platform.materials"],
     permission_key: "crew.materials.view",
     access: "read",
-    audience: ["field"],
     permission_group: "field_materials",
     label: "View materials",
     description: "See material lists on assigned projects."
@@ -1869,7 +1844,6 @@ const definitions: CapabilityDefinition[] = [
     requires: ["platform.materials"],
     permission_key: "crew.materials.append",
     access: "write",
-    audience: ["field"],
     permission_group: "field_materials",
     label: "Add material changes",
     description: "Add material amendments from the field."
@@ -1881,7 +1855,6 @@ const definitions: CapabilityDefinition[] = [
     requires: ["apps.payroll"],
     permission_key: "crew.payouts.view",
     access: "read",
-    audience: ["field"],
     permission_group: "time_expenses",
     label: "View own payouts",
     description: "See their own payout history."
@@ -1893,7 +1866,6 @@ const definitions: CapabilityDefinition[] = [
     requires: ["apps.checklists"],
     permission_key: "crew.checklists.view",
     access: "read",
-    audience: ["field"],
     permission_group: "checklists",
     label: "View checklists",
     description: "See checklists on assigned work."
@@ -1905,7 +1877,6 @@ const definitions: CapabilityDefinition[] = [
     requires: ["apps.checklists"],
     permission_key: "crew.checklists.complete",
     access: "write",
-    audience: ["field"],
     permission_group: "checklists",
     label: "Complete checklists",
     description: "Complete checklist items in the field."
@@ -1917,7 +1888,6 @@ const definitions: CapabilityDefinition[] = [
     requires: ["apps.checklists"],
     permission_key: "crew.checklists.manage",
     access: "write",
-    audience: ["field"],
     permission_group: "checklists",
     label: "Manage checklists",
     description: "Create and edit checklists."
@@ -1929,7 +1899,6 @@ const definitions: CapabilityDefinition[] = [
     requires: ["apps.checklists"],
     permission_key: "crew.checklists.supervise",
     access: "write",
-    audience: ["field"],
     permission_group: "checklists",
     label: "Supervise checklists",
     description: "Review and sign off on completed checklists."
@@ -1941,7 +1910,6 @@ const definitions: CapabilityDefinition[] = [
     requires: ["platform.money"],
     permission_key: "crew.payments.view",
     access: "read",
-    audience: ["field"],
     permission_group: "field_payments",
     label: "View customer payments",
     description: "See customer payment status on assigned projects."
@@ -1953,7 +1921,6 @@ const definitions: CapabilityDefinition[] = [
     requires: ["platform.documents", "documents.esign"],
     permission_key: "crew.signatures.present",
     access: "write",
-    audience: ["field"],
     permission_group: "field_payments",
     label: "Collect customer signatures",
     description: "Present required documents and collect customer signatures in person on a mobile device."
@@ -1965,7 +1932,6 @@ const definitions: CapabilityDefinition[] = [
     requires: ["platform.money"],
     permission_key: "crew.payments.take",
     access: "write",
-    audience: ["field"],
     permission_group: "field_payments",
     label: "Take customer payments",
     description: "Collect customer payments in the field."
@@ -1976,7 +1942,6 @@ const definitions: CapabilityDefinition[] = [
     parent: "apps.crew",
     permission_key: "crew.change_orders.view",
     access: "read",
-    audience: ["field"],
     permission_group: "field_materials",
     label: "View change orders",
     description: "See change orders on assigned projects."
@@ -1987,7 +1952,6 @@ const definitions: CapabilityDefinition[] = [
     parent: "apps.crew",
     permission_key: "crew.change_orders.manage",
     access: "write",
-    audience: ["field"],
     permission_group: "field_materials",
     label: "Manage change orders",
     description: "Create and edit change orders in the field."
@@ -2000,7 +1964,6 @@ const definitions: CapabilityDefinition[] = [
     parent: "apps.sales",
     permission_key: "sales.dashboard.view",
     access: "read",
-    audience: ["field"],
     permission_group: "sales_app",
     label: "Today dashboard",
     description: "See today's appointments, follow-ups and pipeline pulse in the sales app."
@@ -2012,7 +1975,6 @@ const definitions: CapabilityDefinition[] = [
     requires: ["platform.scheduling"],
     permission_key: "sales.schedule.view",
     access: "read",
-    audience: ["field"],
     permission_group: "sales_app",
     label: "View sales appointments",
     description: "See past and upcoming sales appointments."
@@ -2023,7 +1985,6 @@ const definitions: CapabilityDefinition[] = [
     parent: "apps.sales",
     permission_key: "sales.followups.manage",
     access: "write",
-    audience: ["field"],
     permission_group: "sales_app",
     label: "Manage own follow-ups",
     description: "Create, claim and resolve their own follow-ups."
@@ -2035,7 +1996,6 @@ const definitions: CapabilityDefinition[] = [
     requires: ["apps.payroll"],
     permission_key: "sales.earnings.view",
     access: "read",
-    audience: ["field"],
     permission_group: "sales_app",
     label: "View own commissions",
     description: "See their own commission and earnings history."
@@ -2047,7 +2007,6 @@ const definitions: CapabilityDefinition[] = [
     requires: ["platform.proposals"],
     permission_key: "sales.documents.view_status",
     access: "read",
-    audience: ["field"],
     permission_group: "sales_app",
     label: "View proposal status",
     description: "See whether proposals and documents are sent, signed or paid."
@@ -2059,7 +2018,6 @@ const definitions: CapabilityDefinition[] = [
     requires: ["platform.money"],
     permission_key: "sales.money.view_status",
     access: "read",
-    audience: ["field"],
     permission_group: "sales_app",
     label: "View payment status",
     description: "See payment status on their own projects without amounts."
@@ -2071,7 +2029,6 @@ const definitions: CapabilityDefinition[] = [
     requires: ["apps.stats"],
     permission_key: "sales.stats.view_own",
     access: "read",
-    audience: ["field"],
     permission_group: "sales_app",
     label: "View own sales stats",
     description: "See their own close rate, appointments run and revenue sold."
@@ -2083,7 +2040,6 @@ const definitions: CapabilityDefinition[] = [
     requires: ["apps.stats"],
     permission_key: "sales.stats.view_team",
     access: "read",
-    audience: ["field"],
     permission_group: "sales_app",
     label: "View team leaderboard",
     description: "See the sales leaderboard across salespeople."

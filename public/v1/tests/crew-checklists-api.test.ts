@@ -119,11 +119,7 @@ async function createFieldUser(
   });
   const userId = String(created.document.id);
   await owner.request("PATCH", `/v1/workforce/organizations/${orgId}/users/${userId}/profile`, {
-    access_role_ids: [roleId],
-    application_access: {
-      management: { enabled: false, role_id: "viewer", permissions: {} },
-      field: { enabled: true, role_id: roleId, permissions: {} }
-    }
+    access_role_ids: [roleId]
   });
   const client = createSessionClient();
   await client.request("POST", "/v1/platform/auth/login", { email, password, organization_id: orgId });
@@ -163,13 +159,13 @@ test("Project checklists support audiences, ratings, notes, and role permissions
   const base = `/v1/workforce/organizations/${orgId}/crew/projects/${projectId}/checklists`;
 
   await t.test("supervisor role is seeded with supervise + payment permissions", async () => {
-    const roles = await owner.request("GET", `/v1/workforce/organizations/${orgId}/access/roles?application_id=field`);
+    const roles = await owner.request("GET", `/v1/workforce/organizations/${orgId}/access/roles`);
     const seeded = roles.roles.find((role: Json) => role.id === "supervisor");
     assert.ok(seeded, "Supervisor role should be seeded");
     assert.equal(seeded.permissions["crew.checklists.supervise"], true);
     assert.equal(seeded.permissions["crew.checklists.manage"], true);
     assert.equal(seeded.permissions["crew.payments.take"], true);
-    assert.equal(seeded.app_defaults["project.crew_payments"].enabled, true);
+    assert.equal(seeded.app_defaults["project.crew_payments"].visible.desktop, true);
     const memberRole = roles.roles.find((role: Json) => role.id === "crew_member");
     assert.equal(memberRole.permissions["crew.change_orders.view"], true);
     assert.equal(memberRole.permissions["crew.change_orders.manage"], undefined);

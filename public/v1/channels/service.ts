@@ -153,8 +153,8 @@ export function viewerAudienceGroups(ctx: PlatformAuthContext): string[] {
   ].map((token) => cleanText(token).toLowerCase()).join(" ");
   const groups = new Set<string>();
   if (/sales|estim|business.develop|account.executive/.test(roleTokens)) groups.add("sales");
-  if (/crew|field|installer|technician|foreman|production|repair/.test(roleTokens) || ctx.applicationAccess.field?.enabled === true) groups.add("crew");
-  if (/office|admin|manager|owner|dispatch|coordinator/.test(roleTokens) || (!groups.size && ctx.applicationAccess.management?.enabled === true)) groups.add("office");
+  if (/crew|field|installer|technician|foreman|production|repair/.test(roleTokens) || hasPermission(ctx, "crew.projects.view")) groups.add("crew");
+  if (/office|admin|manager|owner|dispatch|coordinator/.test(roleTokens)) groups.add("office");
   if (!groups.size) groups.add("office");
   return [...groups];
 }
@@ -260,10 +260,10 @@ function requiresChannelMembership(channel: ChannelRow) {
   return channel.type !== "project" && channel.type !== "feed";
 }
 
-// Field users see project messages through the crew app (per-message audience
-// still applies), so project-channel access is permission OR field-app based.
+// People assigned to projects see project messages through their assigned work
+// (per-message audience still applies).
 function canAccessProjectChannels(ctx: PlatformAuthContext) {
-  return hasPermission(ctx, "view_projects|manage_company_settings") || ctx.applicationAccess.field?.enabled === true;
+  return hasPermission(ctx, "view_projects|manage_company_settings|crew.projects.view");
 }
 
 export function canManageChannels(ctx: PlatformAuthContext) {

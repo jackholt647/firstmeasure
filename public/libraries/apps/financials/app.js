@@ -1142,7 +1142,6 @@
     regions:['main'],
     visible:true,
     fullBleed:true,
-    access:{ applicationsAny:['management'], permissionsAny:['manage_projects','manage_payroll','manage_company_settings'] },
     mount:createApp
   });
   window.AppChrome.registerGroup({id:'financials',parent:'portal.financials',title:'Financials',icon:'fa-chart-line',default:'projects',

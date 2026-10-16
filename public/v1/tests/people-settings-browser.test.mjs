@@ -52,24 +52,25 @@ function stubPlatform(){
   const first = ['Ana', 'Ben', 'Carla', 'Dmitri', 'Elena', 'Farid', 'Grace', 'Hugo', 'Ines', 'Jamal', 'Keiko', 'Liam', 'Mara', 'Noor', 'Omar', 'Priya', 'Quinn', 'Rosa', 'Sven', 'Tessa', 'Uma', 'Victor', 'Wren', 'Xavier', 'Yara', 'Zane'];
   const last = ['Lopez', 'Okafor', 'Rossi', 'Volkov', 'Marin', 'Haddad', 'Chen', 'Bernard', 'Duarte', 'Wright', 'Tanaka', 'Murphy', 'Novak', 'Rahman', 'Farouk', 'Nair', 'Avery', 'Delgado', 'Lindqvist', 'Boyd'];
   const roles = [
-    { id:'admin', name:'Administrator', description:'Runs the company account', application_ids:['management'], is_system:true, permissions:{ '*':true }, app_defaults:{}, revision:3 },
-    { id:'office', name:'Office manager', description:'Scheduling, billing and people', application_ids:['management'], permissions:{ manage_company_users:true, manage_schedule:true, view_projects:true, manage_projects:true, view_reports:true }, app_defaults:{}, revision:2 },
-    { id:'sales', name:'Sales', description:'Sells and follows up', application_ids:['management', 'field'], permissions:{ view_projects:true, 'sales.dashboard.view':true, 'sales.schedule.view':true, 'sales.followups.manage':true, 'sales.earnings.view':true }, app_defaults:{ 'portal.payroll':{ enabled:false } }, revision:5 },
-    { id:'production', name:'Production', description:'Plans and runs installs', application_ids:['management'], permissions:{ view_projects:true, manage_projects:true, manage_schedule:true, view_schedule:true }, app_defaults:{}, revision:1 },
-    { id:'crew_foreman', name:'Foreman', description:'Leads a group in the field', application_ids:['field'], is_system:true, permissions:{ 'crew.dashboard.view':true, 'crew.projects.view':true, 'crew.schedule.view':true, 'crew.time_clock.use':true, 'crew.checklists.view':true, 'crew.checklists.complete':true, 'crew.materials.view':true, 'crew.payments.take':true }, app_defaults:{}, revision:1 },
-    { id:'crew_member', name:'Installer', description:'Works in the field', application_ids:['field'], is_system:true, permissions:{ 'crew.dashboard.view':true, 'crew.projects.view':true, 'crew.schedule.view':true, 'crew.time_clock.use':true, 'crew.checklists.view':true }, app_defaults:{}, revision:1 },
-    { id:'phones', name:'Phones', description:'Answers and places calls', application_ids:['management'], permissions:{ view_projects:true, use_phone:true }, app_defaults:{}, revision:1 }
+    { id:'admin', name:'Administrator', description:'Runs the company account', is_system:true, permissions:{ '*':true }, app_defaults:{}, revision:3 },
+    { id:'office', name:'Office manager', description:'Scheduling, billing and people', permissions:{ manage_company_users:true, manage_schedule:true, view_projects:true, manage_projects:true, view_reports:true }, app_defaults:{}, revision:2 },
+    { id:'sales', name:'Sales', description:'Sells and follows up', permissions:{ view_projects:true, 'sales.dashboard.view':true, 'sales.schedule.view':true, 'sales.followups.manage':true, 'sales.earnings.view':true }, app_defaults:{ 'portal.payroll':{ visible:{ desktop:false } } }, revision:5 },
+    { id:'production', name:'Production', description:'Plans and runs installs', permissions:{ view_projects:true, manage_projects:true, manage_schedule:true, view_schedule:true }, app_defaults:{}, revision:1 },
+    { id:'crew_foreman', name:'Foreman', description:'Leads a group in the field', is_system:true, permissions:{ 'crew.dashboard.view':true, 'crew.projects.view':true, 'crew.schedule.view':true, 'crew.receipts.upload':true, 'crew.checklists.view':true, 'crew.checklists.complete':true, 'crew.materials.view':true, 'crew.payments.take':true }, app_defaults:{}, revision:1 },
+    { id:'crew_member', name:'Installer', description:'Works in the field', is_system:true, permissions:{ 'crew.dashboard.view':true, 'crew.projects.view':true, 'crew.schedule.view':true, 'crew.receipts.upload':true, 'crew.checklists.view':true }, app_defaults:{}, revision:1 },
+    { id:'phones', name:'Phones', description:'Answers and places calls', permissions:{ view_projects:true, use_phone:true }, app_defaults:{}, revision:1 }
   ];
-  const tab = (id, title, icon, application, surface = 'portal_tab', extra = {}) => ({ id, title, icon, description:`${title} for the ${application === 'field' ? 'field' : 'office'}`, application_id:application, surface, kind:surface === 'portal_tab' ? 'portal_tab' : 'project_modal_app', devices:['mobile', 'desktop'], required_permissions:[], parameter_permissions:{}, default_enabled:true, order:0, ...extra });
+  // The App experience catalog: each app with its devices, default and options (docs/architecture/app-experience.md).
+  const tab = (id, title, icon, kind, surface = 'portal_tab', extra = {}) => ({ id, title, icon, description:`${title} app`, surface, devices:['desktop', 'mobile'], default_visible:kind !== 'field', options:[], parameter_permissions:{}, order:0, ...extra });
   const apps = [
     tab('portal.viewer', 'My Projects', 'fa-briefcase', 'management'), tab('portal.contacts', 'My Contacts', 'fa-address-book', 'management'), tab('portal.photos_feed', 'Feed', 'fa-images', 'management'),
     tab('portal.proposals', 'Proposals', 'fa-file-signature', 'management'), tab('portal.scheduling', 'Scheduling', 'fa-calendar-days', 'management', 'portal_tab', { required_permissions:['view_schedule'] }), tab('portal.invoices', 'Invoices', 'fa-file-invoice-dollar', 'management'),
-    tab('portal.financials', 'Financials', 'fa-chart-line', 'management', 'portal_tab', { devices:['desktop'] }), tab('portal.payroll', 'Payroll', 'fa-money-check-dollar', 'management', 'portal_tab', { devices:['desktop'] }), tab('portal.calls', 'Calls', 'fa-phone', 'management', 'portal_tab', { required_permissions:['use_phone'] }),
+    tab('portal.financials', 'Financials', 'fa-chart-line', 'management', 'portal_tab', { devices:['desktop'] }), tab('portal.payroll', 'Payroll', 'fa-money-check-dollar', 'management', 'portal_tab', { devices:['desktop'], default_visible:false }), tab('portal.calls', 'Calls', 'fa-phone', 'management', 'portal_tab', { required_permissions:['use_phone'] }),
     tab('portal.canvassing', 'Canvassing', 'fa-map-location-dot', 'management'), tab('portal.company_settings', 'Settings', 'fa-gear', 'management'),
     tab('project.map', 'Project Overview', 'fa-map', 'management', 'project_modal'), tab('project.photos', 'Project Photos', 'fa-camera', 'management', 'project_modal'), tab('project.proposal', 'Project Proposals', 'fa-file-signature', 'management', 'project_modal'),
     tab('project.docs', 'Project Docs', 'fa-folder-open', 'management', 'project_modal'), tab('project.materials', 'Scope', 'fa-clipboard-list', 'management', 'project_modal'), tab('project.money', 'Money', 'fa-wallet', 'management', 'project_modal'),
     tab('project.schedule', 'Project Schedule', 'fa-calendar-days', 'management', 'project_modal'), tab('project.measurements', 'Reports', 'fa-ruler-combined', 'management', 'project_modal'), tab('project.checklists', 'Checklists', 'fa-list-check', 'management', 'project_modal'),
-    tab('portal.crew_overview', 'Today', 'fa-sun', 'field'), tab('portal.crew_schedule', 'Schedule', 'fa-calendar-week', 'field'), tab('portal.crew_payouts', 'Earnings', 'fa-sack-dollar', 'field'), tab('portal.crew_receipts', 'Receipts', 'fa-receipt', 'field', 'portal_tab', { devices:['mobile'] }),
+    tab('portal.crew_overview', 'Today', 'fa-sun', 'field', 'portal_tab', { options:[{ key:'time_clock', label:'Time clock', description:'Clock in and out from Today.', default:false, param:'time_clock_enabled' }] }), tab('portal.crew_schedule', 'Schedule', 'fa-calendar-week', 'field'), tab('portal.crew_payouts', 'Earnings', 'fa-sack-dollar', 'field'), tab('portal.crew_receipts', 'Receipts', 'fa-receipt', 'field', 'portal_tab', { devices:['mobile'] }),
     tab('project.crew_overview', 'Visit', 'fa-location-dot', 'field', 'project_modal'), tab('project.crew_materials', 'Materials', 'fa-boxes-stacked', 'field', 'project_modal'), tab('project.crew_payments', 'Payments', 'fa-credit-card', 'field', 'project_modal')
   ];
   const departments = [
@@ -138,7 +139,7 @@ function stubPlatform(){
     },
     workforce:{
       users:async () => ({ users:copy(users) }),
-      accessCatalog:async () => copy({ applications:[{ id:'management', label:'Office' }, { id:'field', label:'Field' }], permission_keys:['crew.dashboard.view', 'crew.projects.view', 'crew.projects.view_all_production', 'crew.schedule.view', 'crew.time_clock.use', 'crew.receipts.upload', 'crew.reimbursements.request', 'crew.materials.view', 'crew.materials.append', 'crew.payouts.view', 'crew.checklists.view', 'crew.checklists.complete', 'crew.payments.view', 'crew.payments.take', 'sales.dashboard.view', 'sales.schedule.view', 'sales.followups.manage', 'sales.earnings.view', 'sales.documents.view_status', 'sales.money.view_status', 'sales.stats.view_own', 'sales.stats.view_team', 'manage_billing', 'manage_company_settings', 'manage_company_user_permissions', 'order_reports', 'manage_report_settings', 'manage_payroll'], permission_catalog:window.__permissionCatalog, apps, roles }),
+      accessCatalog:async () => copy({ device_types:{ classify:['mobile', 'desktop'], types:[{ id:'desktop', label:'Desktop', icon:'fa-desktop', match:{} }, { id:'mobile', label:'Phone', icon:'fa-mobile-screen', match:{ max_width:820 } }] }, permission_keys:['crew.dashboard.view', 'crew.projects.view', 'crew.projects.view_all_production', 'crew.schedule.view', 'crew.receipts.upload', 'crew.reimbursements.request', 'crew.materials.view', 'crew.materials.append', 'crew.payouts.view', 'crew.checklists.view', 'crew.checklists.complete', 'crew.payments.view', 'crew.payments.take', 'sales.dashboard.view', 'sales.schedule.view', 'sales.followups.manage', 'sales.earnings.view', 'sales.documents.view_status', 'sales.money.view_status', 'sales.stats.view_own', 'sales.stats.view_team', 'manage_billing', 'manage_company_settings', 'manage_company_user_permissions', 'order_reports', 'manage_report_settings', 'manage_payroll'], permission_catalog:window.__permissionCatalog, apps, roles }),
       departments:async () => departmentState(),
       saveDepartments:async (orgId, payload) => {
         calls.push({ op:'saveDepartments', payload:copy(payload) });
@@ -558,14 +559,14 @@ test('People category: Users list, hover card, user and role modals, invitations
 
     // Changing a role changes what is inherited.
     await dialog.locator('[data-perm-group="field"]').click();
-    assert.doesNotMatch(await dialog.locator('[data-perm-key="crew.time_clock.use"]').getAttribute('class'), /allowed/);
+    assert.doesNotMatch(await dialog.locator('[data-perm-key="crew.receipts.upload"]').getAttribute('class'), /allowed/);
     await dialog.locator('[data-people-section-action="roles"]').click();
     await page.getByRole('menuitemcheckbox', { name:'Foreman' }).click();
     await page.keyboard.press('Escape');
     assert.equal(await dialog.isVisible(), true, 'Escape closes the menu, not the modal');
     assert.match(await dialog.locator('[data-section="roles"]').innerText(), /Foreman/);
-    assert.match(await dialog.locator('[data-perm-key="crew.time_clock.use"]').getAttribute('class'), /allowed/);
-    assert.doesNotMatch(await dialog.locator('[data-perm-key="crew.time_clock.use"]').getAttribute('class'), /overridden/);
+    assert.match(await dialog.locator('[data-perm-key="crew.receipts.upload"]').getAttribute('class'), /allowed/);
+    assert.doesNotMatch(await dialog.locator('[data-perm-key="crew.receipts.upload"]').getAttribute('class'), /overridden/);
 
     // App experience is a grid of tabs by platform.
     await dialog.getByRole('tab', { name:'App experience' }).click();
@@ -577,7 +578,13 @@ test('People category: Users list, hover card, user and role modals, invitations
     assert.equal(await calls.locator('[data-apps-cell="mobile"]').getAttribute('aria-pressed'), 'true');
     await calls.locator('[data-apps-cell="mobile"]').click();
     assert.match(await dialog.locator('[data-apps-id="portal.calls"]').getAttribute('class'), /overridden/);
-    assert.equal(await dialog.locator('[data-apps-id="portal.calls"] [data-apps-cell="desktop"]').getAttribute('aria-pressed'), 'false');
+    assert.equal(await dialog.locator('[data-apps-id="portal.calls"] [data-apps-cell="mobile"]').getAttribute('aria-pressed'), 'false');
+    assert.equal(await dialog.locator('[data-apps-id="portal.calls"] [data-apps-cell="desktop"]').getAttribute('aria-pressed'), 'true', 'each device is set on its own');
+    // An option is a line under its app, separate from devices and permissions.
+    const clock = dialog.locator('[data-apps-id="portal.crew_overview"] [data-apps-option="time_clock"]');
+    assert.equal(await clock.getAttribute('aria-checked'), 'false');
+    await clock.click();
+    assert.equal(await dialog.locator('[data-apps-id="portal.crew_overview"] [data-apps-option="time_clock"]').getAttribute('aria-checked'), 'true');
     assert.equal(await dialog.locator('.pp-modal-panel:not([hidden]) .pp-apps-grid').evaluate((grid) => grid.scrollHeight <= grid.clientHeight + 1), true, 'the grid fits without scrolling');
     await shot(page, 'user-modal-app-experience');
 
@@ -601,8 +608,8 @@ test('People category: Users list, hover card, user and role modals, invitations
     const saved = await page.evaluate(() => ({ profile:window.__people.calls.filter((call) => call.op === 'saveUserProfile' && call.id === 'u3').pop().profile, slot:window.__people.slotSaved }));
     assert.deepEqual([...saved.profile.access_role_ids].sort(), ['crew_foreman', 'sales']);
     assert.deepEqual(saved.profile.permission_overrides, { 'sales.earnings.view':false, 'sales.followups.manage':false });
-    assert.deepEqual(saved.profile.app_access_overrides, { 'portal.calls':'hide' });
-    assert.equal(saved.profile.application_access.field.enabled, true);
+    assert.deepEqual(saved.profile.app_access_overrides, { 'portal.calls':{ visible:{ mobile:false } }, 'portal.crew_overview':{ options:{ time_clock:true } } });
+    assert.equal(saved.profile.application_access, undefined);
     assert.equal(saved.slot, true);
 
     // Unsaved changes are confirmed; Escape closes and focus returns to the row.
@@ -661,7 +668,7 @@ test('People category: Users list, hover card, user and role modals, invitations
     const copied = await page.evaluate(() => window.__people.calls.filter((call) => call.op === 'createAccessRole' || call.op === 'updateAccessRole').slice(-2));
     assert.equal(copied[0].op, 'createAccessRole');
     assert.equal(copied[0].role.name, 'Sales copy');
-    assert.deepEqual(copied[0].role.application_ids, ['management', 'field']);
+    assert.equal(copied[0].role.application_ids, undefined);
     assert.equal(copied[1].patch.permissions['sales.stats.view_team'], true, 'the copy has the permissions');
     assert.equal(copied[1].patch.description, 'Sells and follows up');
     const copyId = copied[1].id;
@@ -900,7 +907,7 @@ test('Groups: rows, types with roles on joining, members and what joining gave, 
     await north.locator('.pp-row-name').click();
     const dialog = page.getByRole('dialog', { name:'North team' });
     await dialog.waitFor();
-    assert.deepEqual(await dialog.locator('.pp-tab').allInnerTexts().then((texts) => texts.map((text) => text.trim().replace(/\s+\d+$/, ''))), ['Members', 'Staffing requirements', 'Compensation', 'Fields']);
+    assert.deepEqual(await dialog.locator('.pp-tab').allInnerTexts().then((texts) => texts.map((text) => text.trim().replace(/\s+\d+$/, ''))), ['Members', 'Staffing requirements', 'App experience', 'Compensation', 'Fields']);
     assert.doesNotMatch(await dialog.locator('.pp-modal-summary').innerText(), /Members/);
     assert.match(await dialog.locator('.pp-modal-summary').innerText(), /Install crew[\s\S]*Lead[\s\S]*Production[\s\S]*Shingle[\s\S]*Roofing/i);
     assert.match(await dialog.locator('.pp-members .pp-list-sub').innerText(), /^7 members$/);
@@ -977,7 +984,7 @@ test('Departments: icon and color, members of every kind, roles held only here, 
     await production.locator('.pp-row-name').click();
     const dialog = page.getByRole('dialog', { name:'Production' });
     await dialog.waitFor();
-    assert.deepEqual(await dialog.locator('.pp-tab').allInnerTexts().then((texts) => texts.map((text) => text.trim())), ['Members', 'App visibility', 'Roles in Production', 'Fields']);
+    assert.deepEqual(await dialog.locator('.pp-tab').allInnerTexts().then((texts) => texts.map((text) => text.trim())), ['Members', 'App experience', 'Roles in Production', 'Fields']);
     assert.match(await dialog.locator('.pp-modal-summary').innerText(), /Production[\s\S]*Roles[\s\S]*Foreman[\s\S]*Install crew/i);
     await dialog.locator('.pp-members .pp-row').first().waitFor();
     await shot(page, 'department-modal-members');
@@ -1480,7 +1487,7 @@ test('Departments: no units or categories, the channel switch, app visibility an
     await dialog.locator('[data-people-identity]').click();
     assert.equal(await dialog.locator('select[data-identity]').count(), 0, 'no category, unit or branch to pick');
     await dialog.locator('[data-dept-channel]').click();
-    await dialog.locator('.pp-tab', { hasText:'App visibility' }).click();
+    await dialog.locator('.pp-tab', { hasText:'App experience' }).click();
     assert.ok(await columnsOf(page, '.pp-app') >= 2);
     await dialog.locator('[data-apps-id="portal.payroll"] [data-apps-cell="desktop"]').click();
     await shot(page, 'department-modal-app-visibility');
@@ -1493,7 +1500,7 @@ test('Departments: no units or categories, the channel switch, app visibility an
     const saved = payload.departments.find((entry) => entry.id === 'office');
     assert.equal(saved.default_channel, false);
     assert.equal(saved.branch_id, 'default', 'an existing department keeps the branch it was read with');
-    assert.deepEqual(saved.app_defaults, { 'portal.payroll':{ visibility:'hide', enforcement:'default' } });
+    assert.deepEqual(saved.app_defaults, { 'portal.payroll':{ visible:{ desktop:true } } }, 'Payroll is hidden by default; the department shows it on desktop');
     assert.deepEqual(errors, []);
   } finally { await browser.close(); }
 });
@@ -1797,11 +1804,11 @@ test('Subcontractors: the Permissions tab appears when the directory publishes a
     assert.match(await dialog.locator('[data-perm-key="crew.payments.take"]').getAttribute('class'), /overridden/);
     assert.match(await dialog.locator('[data-perm-key="crew.schedule.view"]').getAttribute('class'), /allowed/);
     assert.match(await dialog.locator('.pp-company-perm .pp-info').getAttribute('aria-label'), /does not change anyone's access yet/);
-    await dialog.locator('[data-perm-key="crew.time_clock.use"] [data-choice="deny"]').click();
+    await dialog.locator('[data-perm-key="crew.receipts.upload"] [data-choice="deny"]').click();
     await shot(page, 'subcontractor-modal-permissions');
     await dialog.locator('[data-modal-save]').click();
     await page.waitForFunction(() => window.__people.calls.some((call) => call.action === 'assignees.permission-defaults.set'));
-    assert.deepEqual(await page.evaluate(() => window.__people.calls.find((call) => call.action === 'assignees.permission-defaults.set').input), { assignee:{ type:'organization_connection', id:'c1' }, access_role_ids:['crew_member'], permission_overrides:{ 'crew.payments.take':false, 'crew.time_clock.use':false } });
+    assert.deepEqual(await page.evaluate(() => window.__people.calls.find((call) => call.action === 'assignees.permission-defaults.set').input), { assignee:{ type:'organization_connection', id:'c1' }, access_role_ids:['crew_member'], permission_overrides:{ 'crew.payments.take':false, 'crew.receipts.upload':false } });
     assert.deepEqual(errors, []);
   } finally { await browser.close(); }
 });

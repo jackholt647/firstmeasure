@@ -1200,7 +1200,8 @@ export const registerFirstMeasureApi: FastifyPluginAsync = async (app) => {
 
     if (!isInternal) {
 
-      const auth = await requirePlatformAuth(request);
+      // Every FirstMeasure route belongs to the Reports app (docs/architecture/app-experience.md).
+      const auth = await requirePlatformAuth(request, { app: ["project.measurements"] });
 
       rateKey = String(auth.identity.email ?? auth.userId ?? auth.sessionId).toLowerCase();
 
@@ -1264,7 +1265,7 @@ export const registerFirstMeasureApi: FastifyPluginAsync = async (app) => {
 
   app.post("/ai/gemini-image", { bodyLimit: 20 * 1024 * 1024 }, async (request) => {
 
-    const auth = await requirePlatformAuth(request);
+    const auth = await requirePlatformAuth(request, { app: ["project.measurements"] });
 
     const rateKey = String(auth.identity.email ?? auth.userId ?? auth.sessionId).toLowerCase();
 

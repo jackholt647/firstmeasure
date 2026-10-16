@@ -82,7 +82,6 @@ export const registerChannelsApi: FastifyPluginAsync = async (app) => {
     return requirePlatformAuth(request, {
       orgId,
       capability: options.capability || APP_CAPABILITY,
-      application: AUTH_APPLICATIONS,
       csrf: options.csrf,
       permission: options.permission
     });

@@ -96,20 +96,20 @@ type DomainAction = {
   id: string; description: string; permission: string; capabilities?: string[];
   effect?: ActionDefinition["effect"]; scopes?: TargetRef["scope"][];
   properties?: Record<string, JsonSchema>; required?: string[];
-  applications?: readonly string[] | false;
+  /** The apps this action belongs to (docs/architecture/app-experience.md). */
+  app?: readonly string[];
   execute: ActionDefinition["execute"];
 };
 function publish(def: DomainAction) {
   const effect = def.effect || "write";
   const contract = actionInputContract(def.id, !!def.required?.includes("values"));
-  const fieldAccessible = def.id.startsWith("channels.") || def.id === "training.courses.mine" || (def.id.startsWith("equipment.") && !def.id.startsWith("equipment.maintenance."));
   registerAction({ id: def.id, version: "1", implementation: contentHash({ artifact: backendImplementationDigest(), adapter: def.execute.toString(), contract: "domain-actions-1" }),
     domain: def.id.split(".")[0]!, description: def.description,
     inputSchema: contract?.inputSchema || { type: "object", properties: def.properties || {}, required: def.required || [], additionalProperties: false },
     validateInput: contract?.validateInput,
     outputSchema: jsonValueSchema, effect, executionKinds: ["api", "module", "agent", "work"],
     idempotency: effect === "read" || effect === "compute" ? "none" : "required",
-    policy: { scopedPermissions: /^(equipment\.|work\.(node|plan)\.|documents\.|scheduling\.(appointment\.(catalog|preview|create)|slot\.|confirmation\.|reschedule\.))/.test(def.id), scopes: def.scopes || ["organization"], applications: def.applications ?? (fieldAccessible ? ["management", "field"] : ["management"]), permissions: def.permission ? [def.permission] : [], capabilities: def.capabilities || [], authorize: (ctx,target) => authorizeDomainTarget(def.id,ctx,target) },
+    policy: { scopedPermissions: /^(equipment\.|work\.(node|plan)\.|documents\.|scheduling\.(appointment\.(catalog|preview|create)|slot\.|confirmation\.|reschedule\.))/.test(def.id), scopes: def.scopes || ["organization"], ...(def.app ? { app: def.app } : {}), permissions: def.permission ? [def.permission] : [], capabilities: def.capabilities || [], authorize: (ctx,target) => authorizeDomainTarget(def.id,ctx,target) },
     execute: async (ctx, target, input, execution) => JSON.parse(JSON.stringify((await def.execute(ctx, target, input, execution)) ?? null))
   });
 }

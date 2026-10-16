@@ -384,13 +384,6 @@
     const orgPermissions = data?.org_permissions && typeof data.org_permissions === 'object' ? data.org_permissions : {};
     const level = orgPermissions.level || data?.org_permission_level || data?.permission_level || data?.role || 'viewer';
     const items = orgPermissions.items || data?.permissions || {};
-    const rawAccessSource = data?.application_access ?? workforceProfile.application_access;
-    const rawAccess = rawAccessSource && typeof rawAccessSource === 'object' ? rawAccessSource : {};
-    const normalizeAccess = (value, fallback) => {
-      if (typeof value === 'boolean') return { enabled:value, role_id:'', permissions:{} };
-      const entry = value && typeof value === 'object' ? value : {};
-      return { ...entry, enabled:entry.enabled == null ? fallback : entry.enabled === true, role_id:cleanText(entry.role_id || entry.role), permissions:objectValue(entry.permissions || entry.items) };
-    };
     const ids = (value) => [...new Set((Array.isArray(value) ? value : []).map((item) => cleanText(item?.id || item)).filter(Boolean))];
     const permissionOverrides = objectValue(data?.permission_overrides || workforceProfile.permission_overrides);
     const appAccessOverrides = objectValue(data?.app_access_overrides || workforceProfile.app_access_overrides);
@@ -400,11 +393,6 @@
       access_role_ids: ids(data?.access_role_ids || workforceProfile.access_role_ids),
       permission_overrides: permissionOverrides,
       app_access_overrides: appAccessOverrides,
-      application_access: {
-        ...rawAccess,
-        management: normalizeAccess(rawAccess.management ?? rawAccess.main ?? rawAccess.portal, true),
-        field: normalizeAccess(rawAccess.field ?? rawAccess.crew ?? rawAccess.workforce, false)
-      },
       org_permissions: { level, items },
       org_permission_level: level,
       permissions: data?.permissions || {},
@@ -805,7 +793,6 @@
     accessCatalog(orgId, options = {}){
       const params = new URLSearchParams();
       if (options.surface) params.set('surface', options.surface);
-      if (options.device) params.set('device', options.device);
       const qs = params.toString();
       return request(siblingPath('workforce', `/organizations/${enc(orgId)}/access/catalog${qs ? `?${qs}` : ''}`));
     },
@@ -818,7 +805,6 @@
     accessRoles(orgId, options = {}){
       const params = new URLSearchParams();
       if (options.includeArchived || options.include_archived) params.set('include_archived', '1');
-      if (options.applicationId || options.application_id) params.set('application_id', options.applicationId || options.application_id);
       const qs = params.toString();
       return request(siblingPath('workforce', `/organizations/${enc(orgId)}/access/roles${qs ? `?${qs}` : ''}`));
     },

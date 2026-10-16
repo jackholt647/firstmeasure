@@ -31,11 +31,14 @@ const objectBodySchema = z.object({}).passthrough();
 const CANVASSING_MODULE_ID = "canvassing";
 const DEFAULT_BRANCH_ID = "default";
 
+/** Every canvassing route belongs to the Canvassing app (docs/architecture/app-experience.md). */
+const CANVASSING_APP = ["portal.canvassing"];
+
 export const registerCanvassingApi: FastifyPluginAsync = async (app) => {
   app.addHook("preHandler", async request => {
     const params = asObject(request.params), orgId = cleanText(params.orgId), pinId = cleanText(params.pinId);
     if (!orgId || !pinId) return;
-    const ctx = await requirePlatformAuth(request, { orgId });
+    const ctx = await requirePlatformAuth(request, { app: CANVASSING_APP, orgId });
     const pin = await readPin(orgId, cleanText(params.branchId) || DEFAULT_BRANCH_ID, pinId);
     if (!matchesDepartmentFilter(ctx, pin) || !canAccessDepartmentResource(ctx, pin)) throw forbidden("canvassing_department_denied", "This pin is outside your department view.");
     if (request.method !== "GET" && !matchesDepartmentFilter(ctx, { ...pin, ...asObject(request.body) })) throw forbidden("canvassing_department_denied", "The destination department is outside your department view.");
@@ -65,7 +68,7 @@ export const registerCanvassingApi: FastifyPluginAsync = async (app) => {
   app.get("/organizations/:orgId/branch/:branchId/settings", async (request) => {
     const orgId = cleanText(asObject(request.params).orgId);
     const branchId = cleanText(asObject(request.params).branchId) || DEFAULT_BRANCH_ID;
-    await requirePlatformAuth(request, { orgId });
+    await requirePlatformAuth(request, { app: CANVASSING_APP, orgId });
     await requireCanvassingAppFlag(orgId);
     return { ok: true, ...(await ensureCanvassingSettings(orgId, branchId)) };
   });
@@ -73,7 +76,7 @@ export const registerCanvassingApi: FastifyPluginAsync = async (app) => {
   app.put("/organizations/:orgId/branch/:branchId/settings", async (request) => {
     const orgId = cleanText(asObject(request.params).orgId);
     const branchId = cleanText(asObject(request.params).branchId) || DEFAULT_BRANCH_ID;
-    await requirePlatformAuth(request, { orgId, csrf: true, permission: "manage_company_settings" });
+    await requirePlatformAuth(request, { app: CANVASSING_APP, orgId, csrf: true, permission: "manage_company_settings" });
     await requireCanvassingAppFlag(orgId);
     const body = objectBodySchema.parse(request.body ?? {});
     const data = defaultCanvassingSettings(asObject(body.data || body));
@@ -107,16 +110,16 @@ export const registerCanvassingApi: FastifyPluginAsync = async (app) => {
   app.get("/organizations/:orgId/branch/:branchId/pins", async (request) => {
     const orgId = cleanText(asObject(request.params).orgId);
     const branchId = cleanText(asObject(request.params).branchId) || DEFAULT_BRANCH_ID;
-    await requirePlatformAuth(request, { orgId });
+    await requirePlatformAuth(request, { app: CANVASSING_APP, orgId });
     const settings = (await ensureCanvassingEnabled(orgId, branchId)).settings;
-    const ctx = await requirePlatformAuth(request, { orgId });
+    const ctx = await requirePlatformAuth(request, { app: CANVASSING_APP, orgId });
     return { ok: true, pins: (await listPins(orgId, branchId)).filter(pin => matchesDepartmentFilter(ctx, pin, cleanText(asObject(request.query).department_id))), settings, department_context: relevantDepartmentContext(ctx) };
   });
 
   app.post("/organizations/:orgId/branch/:branchId/pins", async (request, reply) => {
     const orgId = cleanText(asObject(request.params).orgId);
     const branchId = cleanText(asObject(request.params).branchId) || DEFAULT_BRANCH_ID;
-    const ctx = await requirePlatformAuth(request, { orgId, csrf: true });
+    const ctx = await requirePlatformAuth(request, { app: CANVASSING_APP, orgId, csrf: true });
     await ensureCanvassingEnabled(orgId, branchId);
     const body = objectBodySchema.parse(request.body ?? {});
     body.department_ids ??= relevantDepartmentContext(ctx).member_department_ids;
@@ -143,7 +146,7 @@ export const registerCanvassingApi: FastifyPluginAsync = async (app) => {
     const params = asObject(request.params);
     const orgId = cleanText(params.orgId);
     const branchId = cleanText(params.branchId) || DEFAULT_BRANCH_ID;
-    await requirePlatformAuth(request, { orgId });
+    await requirePlatformAuth(request, { app: CANVASSING_APP, orgId });
     await ensureCanvassingEnabled(orgId, branchId);
     return { ok: true, pin: await readPin(orgId, branchId, cleanText(params.pinId)) };
   });
@@ -152,7 +155,7 @@ export const registerCanvassingApi: FastifyPluginAsync = async (app) => {
     const params = asObject(request.params);
     const orgId = cleanText(params.orgId);
     const branchId = cleanText(params.branchId) || DEFAULT_BRANCH_ID;
-    const ctx = await requirePlatformAuth(request, { orgId, csrf: true });
+    const ctx = await requirePlatformAuth(request, { app: CANVASSING_APP, orgId, csrf: true });
     await ensureCanvassingEnabled(orgId, branchId);
     const pin = await savePin(orgId, branchId, { ...objectBodySchema.parse(request.body ?? {}), id: params.pinId }, actorFromContext(ctx as unknown as JsonObject));
     return { ok: true, pin };
@@ -162,7 +165,7 @@ export const registerCanvassingApi: FastifyPluginAsync = async (app) => {
     const params = asObject(request.params);
     const orgId = cleanText(params.orgId);
     const branchId = cleanText(params.branchId) || DEFAULT_BRANCH_ID;
-    const ctx = await requirePlatformAuth(request, { orgId, csrf: true });
+    const ctx = await requirePlatformAuth(request, { app: CANVASSING_APP, orgId, csrf: true });
     await ensureCanvassingEnabled(orgId, branchId);
     const pin = await savePin(orgId, branchId, { id: params.pinId, status_id: "deleted", status_note: "Deleted" }, actorFromContext(ctx as unknown as JsonObject));
     return { ok: true, pin };
@@ -172,7 +175,7 @@ export const registerCanvassingApi: FastifyPluginAsync = async (app) => {
     const params = asObject(request.params);
     const orgId = cleanText(params.orgId);
     const branchId = cleanText(params.branchId) || DEFAULT_BRANCH_ID;
-    const ctx = await requirePlatformAuth(request, { orgId, csrf: true });
+    const ctx = await requirePlatformAuth(request, { app: CANVASSING_APP, orgId, csrf: true });
     await ensureCanvassingEnabled(orgId, branchId);
     const body = objectBodySchema.parse(request.body ?? {});
     const pin = await readPin(orgId, branchId, cleanText(params.pinId));

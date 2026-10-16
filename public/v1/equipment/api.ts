@@ -96,7 +96,7 @@ async function requirePlatformAuth(request:Parameters<typeof platformAuth>[0],op
 }
 
 async function requireViewer(request: Parameters<typeof requirePlatformAuth>[0], orgId: string) {
-  return requirePlatformAuth(request, { orgId, application: ["management", "field"], permission: VIEW_PERMISSION, capability: CAPABILITY });
+  return requirePlatformAuth(request, { orgId, permission: VIEW_PERMISSION, capability: CAPABILITY });
 }
 
 /* Read-only equipment data the scheduler needs to book units (types, conflict
@@ -104,7 +104,7 @@ async function requireViewer(request: Parameters<typeof requirePlatformAuth>[0],
  * permissions, so they see reserved/down units before saving instead of
  * after a 409. */
 async function requireScheduleReader(request: Parameters<typeof requirePlatformAuth>[0], orgId: string) {
-  return requirePlatformAuth(request, { orgId, application: ["management", "field"], permission: `${VIEW_PERMISSION}|manage_schedule`, capability: CAPABILITY });
+  return requirePlatformAuth(request, { orgId, permission: `${VIEW_PERMISSION}|manage_schedule`, capability: CAPABILITY });
 }
 
 async function requireManager(request: Parameters<typeof requirePlatformAuth>[0], orgId: string) {
@@ -289,7 +289,6 @@ export const registerEquipmentApi: FastifyPluginAsync = async (app) => {
     const orgId = getParam(request.params, "orgId");
     const ctx = await requirePlatformAuth(request, {
       orgId,
-      application: ["management", "field"],
       permission: "equipment.manage|equipment.service|manage_company_settings",
       capability: CAPABILITY,
       csrf: true
@@ -311,14 +310,14 @@ export const registerEquipmentApi: FastifyPluginAsync = async (app) => {
 
   app.post("/organizations/:orgId/units/:unitId/check-out", async (request) => {
     const orgId = getParam(request.params, "orgId");
-    const ctx = await requirePlatformAuth(request, { orgId, application: ["management", "field"], permission: VIEW_PERMISSION, capability: "equipment.custody", csrf: true });
+    const ctx = await requirePlatformAuth(request, { orgId, permission: VIEW_PERMISSION, capability: "equipment.custody", csrf: true });
     const body = asRecord(request.body);
     return { ok: true, unit: (await checkOutUnit(orgId, getParam(request.params, "unitId"), body, ctx.userId)) };
   });
 
   app.post("/organizations/:orgId/units/:unitId/check-in", async (request) => {
     const orgId = getParam(request.params, "orgId");
-    const ctx = await requirePlatformAuth(request, { orgId, application: ["management", "field"], permission: VIEW_PERMISSION, capability: "equipment.custody", csrf: true });
+    const ctx = await requirePlatformAuth(request, { orgId, permission: VIEW_PERMISSION, capability: "equipment.custody", csrf: true });
     return { ok: true, unit: (await checkInUnit(orgId, getParam(request.params, "unitId"))) };
   });
 
@@ -335,7 +334,7 @@ export const registerEquipmentApi: FastifyPluginAsync = async (app) => {
 
   app.get("/organizations/:orgId/service-programs", async (request) => {
     const orgId = getParam(request.params, "orgId");
-    const ctx = await requirePlatformAuth(request, { orgId, application: ["management", "field"], permission: VIEW_PERMISSION, capability: MAINTENANCE_CAPABILITY });
+    const ctx = await requirePlatformAuth(request, { orgId, permission: VIEW_PERMISSION, capability: MAINTENANCE_CAPABILITY });
     const allowed=await visibleEquipmentUnitIds(ctx);
     const programs = (await listPrograms(orgId, {
       includeArchived: getQuery(request.query, "include_archived") === "1",
@@ -362,7 +361,7 @@ export const registerEquipmentApi: FastifyPluginAsync = async (app) => {
 
   app.get("/organizations/:orgId/work-orders", async (request) => {
     const orgId = getParam(request.params, "orgId");
-    const ctx = await requirePlatformAuth(request, { orgId, application: ["management", "field"], permission: VIEW_PERMISSION, capability: MAINTENANCE_CAPABILITY });
+    const ctx = await requirePlatformAuth(request, { orgId, permission: VIEW_PERMISSION, capability: MAINTENANCE_CAPABILITY });
     const workOrders = await filterEquipmentRows(ctx,await workOrdersWithSchedule(orgId, await listWorkOrders(orgId, {
       unitId: getQuery(request.query, "unit_id"),
       status: getQuery(request.query, "status"),
@@ -373,20 +372,20 @@ export const registerEquipmentApi: FastifyPluginAsync = async (app) => {
 
   app.get("/organizations/:orgId/work-orders/:workOrderId", async (request) => {
     const orgId = getParam(request.params, "orgId");
-    const ctx = await requirePlatformAuth(request, { orgId, application: ["management", "field"], permission: VIEW_PERMISSION, capability: MAINTENANCE_CAPABILITY });
+    const ctx = await requirePlatformAuth(request, { orgId, permission: VIEW_PERMISSION, capability: MAINTENANCE_CAPABILITY });
     return { ok: true, work_order: (await workOrdersWithSchedule(orgId, [await readWorkOrder(orgId, getParam(request.params, "workOrderId"))]))[0] };
   });
 
   app.post("/organizations/:orgId/work-orders", async (request) => {
     const orgId = getParam(request.params, "orgId");
-    const ctx = await requirePlatformAuth(request, { orgId, application: ["management", "field"], permission: SERVICE_PERMISSION, capability: MAINTENANCE_CAPABILITY, csrf: true });
+    const ctx = await requirePlatformAuth(request, { orgId, permission: SERVICE_PERMISSION, capability: MAINTENANCE_CAPABILITY, csrf: true });
     const body = createWorkOrderSchema.parse(request.body ?? {});
     return { ok: true, work_order: (await openWorkOrder(orgId, body)) };
   });
 
   app.patch("/organizations/:orgId/work-orders/:workOrderId", async (request) => {
     const orgId = getParam(request.params, "orgId");
-    const ctx = await requirePlatformAuth(request, { orgId, application: ["management", "field"], permission: SERVICE_PERMISSION, capability: MAINTENANCE_CAPABILITY, csrf: true });
+    const ctx = await requirePlatformAuth(request, { orgId, permission: SERVICE_PERMISSION, capability: MAINTENANCE_CAPABILITY, csrf: true });
     const workOrderId = getParam(request.params, "workOrderId");
     const current = (await readWorkOrder(orgId, workOrderId));
     const body = patchWorkOrderSchema.parse(request.body ?? {});
@@ -395,27 +394,27 @@ export const registerEquipmentApi: FastifyPluginAsync = async (app) => {
 
   app.post("/organizations/:orgId/work-orders/:workOrderId/schedule", async (request) => {
     const orgId = getParam(request.params, "orgId");
-    const ctx = await requirePlatformAuth(request, { orgId, application: ["management", "field"], permission: SERVICE_PERMISSION, capability: MAINTENANCE_CAPABILITY, csrf: true });
+    const ctx = await requirePlatformAuth(request, { orgId, permission: SERVICE_PERMISSION, capability: MAINTENANCE_CAPABILITY, csrf: true });
     const body = scheduleWorkOrderSchema.parse(request.body ?? {});
     return { ok: true, work_order: await scheduleWorkOrder(orgId, getParam(request.params, "workOrderId"), body) };
   });
 
   app.post("/organizations/:orgId/work-orders/:workOrderId/complete", async (request) => {
     const orgId = getParam(request.params, "orgId");
-    const ctx = await requirePlatformAuth(request, { orgId, application: ["management", "field"], permission: SERVICE_PERMISSION, capability: MAINTENANCE_CAPABILITY, csrf: true });
+    const ctx = await requirePlatformAuth(request, { orgId, permission: SERVICE_PERMISSION, capability: MAINTENANCE_CAPABILITY, csrf: true });
     const body = completeWorkOrderSchema.parse(request.body ?? {});
     return { ok: true, ...(await completeWorkOrder(orgId, getParam(request.params, "workOrderId"), body, ctx.userId)) };
   });
 
   app.post("/organizations/:orgId/work-orders/:workOrderId/cancel", async (request) => {
     const orgId = getParam(request.params, "orgId");
-    const ctx = await requirePlatformAuth(request, { orgId, application: ["management", "field"], permission: SERVICE_PERMISSION, capability: MAINTENANCE_CAPABILITY, csrf: true });
+    const ctx = await requirePlatformAuth(request, { orgId, permission: SERVICE_PERMISSION, capability: MAINTENANCE_CAPABILITY, csrf: true });
     return { ok: true, work_order: await cancelWorkOrder(orgId, getParam(request.params, "workOrderId")) };
   });
 
   app.get("/organizations/:orgId/due-service", async (request) => {
     const orgId = getParam(request.params, "orgId");
-    const ctx = await requirePlatformAuth(request, { orgId, application: ["management", "field"], permission: VIEW_PERMISSION, capability: MAINTENANCE_CAPABILITY });
+    const ctx = await requirePlatformAuth(request, { orgId, permission: VIEW_PERMISSION, capability: MAINTENANCE_CAPABILITY });
     const due = await filterEquipmentRows(ctx,await upcomingService(orgId, { horizonDays: Number(getQuery(request.query, "horizon_days")) || undefined }),getQuery(request.query,"department_id"));
     return { ok: true, due_service: due, count: due.length };
   });

@@ -17,7 +17,7 @@ before(async () => {
 });
 after(async () => { await actions.closeActionDatabase(); await rm(root,{recursive:true,force:true}); });
 function definition(id: string, execute: ActionDefinition["execute"], overrides: Partial<ActionDefinition> = {}): ActionDefinition {
-  return { id, version:"1",implementation:`${id}-source1`,domain:"test",description:"Test action",inputSchema:{type:"object",properties:{amount:{type:"number"}},required:["amount"],additionalProperties:false},outputSchema:{type:"number"},effect:"write",executionKinds:["module"],idempotency:"required",policy:{scopes:["organization"],permissions:[],applications:false,systemKinds:["module"]},execute,...overrides };
+  return { id, version:"1",implementation:`${id}-source1`,domain:"test",description:"Test action",inputSchema:{type:"object",properties:{amount:{type:"number"}},required:["amount"],additionalProperties:false},outputSchema:{type:"number"},effect:"write",executionKinds:["module"],idempotency:"required",policy:{scopes:["organization"],permissions:[],systemKinds:["module"]},execute,...overrides };
 }
 function context(id: string) { return contexts.systemPublicationContext({kind:"module",organizationId:target.organizationId,operations:[id],mode:"command"}); }
 function ref(id: string) { return {action:id,version:"1",target}; }
@@ -115,12 +115,12 @@ test("business adapter catalog registration is idempotent",async()=>{
 });
 test("user permission and capability checks apply before receipt lookup",async()=>{
   const id="test.user-permission";
-  actions.registerAction(definition(id,()=>1,{policy:{scopes:["organization"],applications:false,permissions:["manage_projects"]}}));
+  actions.registerAction(definition(id,()=>1,{policy:{scopes:["organization"],permissions:["manage_projects"]}}));
   const principal={orgId:target.organizationId,userId:"user",role:"member",permissions:{},capabilities:{effectiveByKey:{}}} as any;
   const ctx=contexts.userPublicationContext(principal,{executionKind:"module",mode:"command"});
   await assert.rejects(actions.invokeAction(ctx,ref(id),{amount:1},{idempotencyKey:"denied"}),{code:"publication_permission_denied"});
   const cap="test.capability";
-  actions.registerAction(definition(cap,()=>1,{policy:{scopes:["organization"],applications:false,permissions:[],capabilities:["apps.equipment"]}}));
+  actions.registerAction(definition(cap,()=>1,{policy:{scopes:["organization"],permissions:[],capabilities:["apps.equipment"]}}));
   await assert.rejects(actions.invokeAction(ctx,ref(cap),{amount:1},{idempotencyKey:"denied"}),{code:"publication_capability_denied"});
 });
 test("nested work calls have distinct stable receipts and cannot repeat effects",async()=>{

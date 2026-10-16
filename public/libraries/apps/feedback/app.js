@@ -44,7 +44,7 @@
     id:'portal.feedback', package:'feedback', kind:'portal_tab',
     title:(globalThis.PlatformLanguage?.text("feedback","m_d77e00c8c3f0b8","Feedback") ?? "Feedback"), label:(globalThis.PlatformLanguage?.text("feedback","m_d77e00c8c3f0b8","Feedback") ?? "Feedback"), icon:'fa-star', order:56,
     surfaces:['portal_tab'], regions:['main'], visible:true,
-    access:{ applicationsAny:['management'], capability:'apps.feedback' },
+    access:{ capability:'apps.feedback' },
     mount
   });
 })();

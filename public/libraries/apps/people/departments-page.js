@@ -160,8 +160,7 @@
       const start = data.department(id);
       if (!start) return null;
       const current = () => data.department(id) || start;
-      const appChoices = (defaults) => Object.fromEntries(Object.entries(defaults || {}).filter(([, entry]) => ['show', 'hide'].includes(entry?.visibility)).map(([appId, entry]) => [appId, entry.visibility]));
-      const baseline = () => ({ label:current().label || '', color:current().color || '#64748b', icon:current().icon || '', role_ids:[...(current().role_ids || [])], group_kind_ids:[...(current().group_kind_ids || [])], branch_id:current().branch_id || 'default', default_channel:current().default_channel !== false, apps:appChoices(current().app_defaults) });
+      const baseline = () => ({ label:current().label || '', color:current().color || '#64748b', icon:current().icon || '', role_ids:[...(current().role_ids || [])], group_kind_ids:[...(current().group_kind_ids || [])], branch_id:current().branch_id || 'default', default_channel:current().default_channel !== false, apps:data.appSettings(current().app_defaults) });
       let base = baseline();
       const draft = clone(base);
       let editing = false;
@@ -280,8 +279,8 @@
         actions:() => editable ? [{ id:'archive', needs:'departments.edit', icon:'fa-box-archive', label:t('archive', 'Archive'), tone:'danger', onClick:async (button) => { if (await archive(current(), button)) modal.close(true); } }] : [],
         tabs:[
           { id:'members', needs:'departments.view', label:t('members', 'Members'), icon:kit.ICONS.users, mount(panel){ membersTab = mountMembers(panel); return membersTab; } },
-          { id:'apps', needs:'departments.view', label:t('app_visibility', 'App visibility'), icon:kit.ICONS.apps, tooltip:t('app_visibility_tip', 'Tabs this department shows or hides for its members, over what their roles give'), mount(panel){
-            const grid = People.appGrid.mount(panel, { apps:data.state.apps, value:draft.apps, inherited:data.catalogDefaultApp(), readOnly:!editable, onChange(value){ draft.apps = value; modal.setTabBadge('apps', Object.keys(value).length || ''); sync(); } });
+          { id:'apps', needs:'departments.view', label:t('app_experience', 'App experience'), icon:kit.ICONS.apps, tooltip:t('app_experience_department_tip', 'Apps this department shows or hides for its members on each device, over what their roles give'), mount(panel){
+            const grid = People.appGrid.mount(panel, { apps:data.state.apps, platforms:data.state.deviceTypes.length ? data.state.deviceTypes : undefined, value:draft.apps, inherited:data.catalogDefaultApp(), restrictable:true, readOnly:!editable, onChange(value){ draft.apps = value; modal.setTabBadge('apps', Object.keys(value).length || ''); sync(); } });
             modal.setTabBadge('apps', Object.keys(draft.apps).length || '');
             return { destroy:() => grid.destroy() };
           } },
@@ -289,11 +288,8 @@
           People.slots.tab('fields', entity, { readOnly:!can.settings })
         ],
         async onSave(){
-          /* A tab's show or hide is written into the department's app defaults; what else an entry carries (enforcement, layout) is kept. */
-          const existing = current().app_defaults || {};
-          const app_defaults = {};
-          Object.entries(existing).forEach(([appId, entry]) => { if (draft.apps[appId]) app_defaults[appId] = { ...entry, visibility:draft.apps[appId] }; else if (entry && (entry.enforcement === 'restricted' || entry.params || entry.layout)) app_defaults[appId] = { ...entry, visibility:'inherit' }; });
-          Object.entries(draft.apps).forEach(([appId, visibility]) => { if (!app_defaults[appId]) app_defaults[appId] = { visibility, enforcement:'default' }; });
+          /* The grid holds the department's whole setting for each app it says anything about (devices, options, restriction, params). */
+          const app_defaults = data.appSettings(draft.apps);
           await data.saveDepartment({ id, label:draft.label, color:draft.color, icon:draft.icon, role_ids:draft.role_ids, group_kind_ids:draft.group_kind_ids, ...(data.allows('departments.branch') ? { branch_id:draft.branch_id } : {}), default_channel:draft.default_channel, app_defaults });
           base = baseline();
           Object.assign(draft, clone(base));

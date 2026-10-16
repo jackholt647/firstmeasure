@@ -130,7 +130,7 @@ export const registerPayrollApi: FastifyPluginAsync = async (app) => {
 
   app.get("/organizations/:orgId/earnings/me", async (request) => {
     const orgId = getParam(request.params, "orgId");
-    const context = await requirePlatformAuth(request, { orgId, application: false, capability: "payroll.self_service_earnings" });
+    const context = await requirePlatformAuth(request, { orgId, capability: "payroll.self_service_earnings" });
     const query = queryObject(request);
     const workforceUser = await hydratedWorkforceUser(orgId, context.userId).catch(() => ({}));
     const result = (await payrollEarnings(orgId, [{
@@ -146,7 +146,7 @@ export const registerPayrollApi: FastifyPluginAsync = async (app) => {
   // What the signed-in user's pay rules project they will earn from work not done yet. Never posted; see pay-refresh.ts.
   app.get("/organizations/:orgId/earnings/me/projected", async (request) => {
     const orgId = getParam(request.params, "orgId");
-    const context = await requirePlatformAuth(request, { orgId, application: false, permission: OWN_PROJECTED_EARNINGS_PERMISSION, capability: "payroll.self_service_earnings" });
+    const context = await requirePlatformAuth(request, { orgId, permission: OWN_PROJECTED_EARNINGS_PERMISSION, capability: "payroll.self_service_earnings" });
     return { ok: true, projected: await projectUserEarnings(orgId, context.userId) };
   });
 

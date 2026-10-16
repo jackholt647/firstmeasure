@@ -2,7 +2,7 @@ import { registerPaymentsBrowserApi } from './browser_api.js';
 import type { FastifyPluginAsync, FastifyRequest, FastifyReply } from "fastify";
 import { ZodError, z } from "zod";
 
-import { requirePlatformAuth } from "../platform/auth.js";
+import { requirePlatformAuth, seesEveryProject } from "../platform/auth.js";
 import type { PlatformAuthContext } from "../platform/auth.js";
 import { isAppFlagEnabled } from "../platform/app_flags.js";
 import { badRequest, forbidden, PlatformError } from "../platform/errors.js";
@@ -164,15 +164,15 @@ const objectBodySchema = z.object({}).passthrough();
 const RECEIPT_REQUEST_BODY_LIMIT = Math.ceil(OPENAI_FILE_INPUT_LIMIT_BYTES * 4 / 3) + (1024 * 1024);
 
 function requireFieldReceiptPermission(ctx: PlatformAuthContext) {
-  // Management users retain the existing receipt-library behavior. A user
-  // entering through only the field application must have the effective Crew
-  // permission, including any explicit per-user denial layered over a role.
-  if (ctx.applicationAccess.management?.enabled === true) return;
+  // People who work with every project keep the receipt library. Anyone else
+  // needs the receipt permission, including any explicit per-user denial
+  // layered over a role.
+  if (seesEveryProject(ctx)) return;
   const permissions = asObject(ctx.permissions);
   const permission = "crew.receipts.upload";
   const allowed = permissions[permission] === true
     || (permissions[permission] !== false && permissions["*"] === true);
-  if (ctx.applicationAccess.field?.enabled !== true || !allowed) {
+  if (!allowed) {
     throw forbidden("crew_permission_denied", "This user does not have access to Crew receipts.", { permission });
   }
 }
@@ -332,7 +332,7 @@ export const registerPaymentsApi: FastifyPluginAsync = async (app) => {
 
   app.get("/organizations/:orgId/receipts", async (request) => {
     const orgId = getParam(request.params, "orgId");
-    const ctx = await requirePlatformAuth(request, { orgId, application: ["management", "field"] });
+    const ctx = await requirePlatformAuth(request, { orgId });
     requireFieldReceiptPermission(ctx);
     const query = asObject(request.query);
     const manager = canManageOrganizationReceipts(ctx);
@@ -344,7 +344,7 @@ export const registerPaymentsApi: FastifyPluginAsync = async (app) => {
 
   app.post("/organizations/:orgId/receipts", { bodyLimit: RECEIPT_REQUEST_BODY_LIMIT }, async (request, reply) => {
     const orgId = getParam(request.params, "orgId");
-    const ctx = await requirePlatformAuth(request, { orgId, csrf: true, application: ["management", "field"] });
+    const ctx = await requirePlatformAuth(request, { orgId, csrf: true });
     requireFieldReceiptPermission(ctx);
     const upload = await parseReceiptUploadRequest(request);
     upload.idempotencyKey = headerValue(request.headers, "idempotency-key");
@@ -364,14 +364,14 @@ export const registerPaymentsApi: FastifyPluginAsync = async (app) => {
 
   app.get("/organizations/:orgId/reimbursements", async (request) => {
     const orgId = getParam(request.params, "orgId");
-    const ctx = await requirePlatformAuth(request, { orgId, application: ["management", "field"] });
+    const ctx = await requirePlatformAuth(request, { orgId });
     const reimbursements = await listReimbursementRequests(orgId, asObject(request.query), ctx);
     return { ok: true, reimbursements, count: reimbursements.length };
   });
 
   app.post("/organizations/:orgId/receipts/:receiptId/reimbursement-request", async (request, reply) => {
     const orgId = getParam(request.params, "orgId");
-    const ctx = await requirePlatformAuth(request, { orgId, csrf: true, application: ["management", "field"] });
+    const ctx = await requirePlatformAuth(request, { orgId, csrf: true });
     const result = await submitReimbursementRequest(orgId, getParam(request.params, "receiptId"), objectBodySchema.parse(request.body ?? {}), ctx);
     reply.code(201);
     return { ok: true, ...result };
@@ -379,13 +379,13 @@ export const registerPaymentsApi: FastifyPluginAsync = async (app) => {
 
   app.post("/organizations/:orgId/reimbursements/:receiptId/actions", async (request) => {
     const orgId = getParam(request.params, "orgId");
-    const ctx = await requirePlatformAuth(request, { orgId, csrf: true, application: ["management"] });
+    const ctx = await requirePlatformAuth(request, { orgId, csrf: true });
     return { ok: true, ...(await actOnReimbursementRequest(orgId, getParam(request.params, "receiptId"), objectBodySchema.parse(request.body ?? {}), ctx)) };
   });
 
   app.get("/organizations/:orgId/receipts/:receiptId", async (request) => {
     const orgId = getParam(request.params, "orgId");
-    const ctx = await requirePlatformAuth(request, { orgId, application: ["management", "field"] });
+    const ctx = await requirePlatformAuth(request, { orgId });
     requireFieldReceiptPermission(ctx);
     const receipt = await readReceipt(orgId, getParam(request.params, "receiptId"));
     const manager = canManageOrganizationReceipts(ctx);
@@ -401,7 +401,7 @@ export const registerPaymentsApi: FastifyPluginAsync = async (app) => {
 
   app.get("/organizations/:orgId/receipts/:receiptId/file", async (request, reply) => {
     const orgId = getParam(request.params, "orgId");
-    const ctx = await requirePlatformAuth(request, { orgId, application: ["management", "field"] });
+    const ctx = await requirePlatformAuth(request, { orgId });
     requireFieldReceiptPermission(ctx);
     const receiptId = getParam(request.params, "receiptId");
     const receipt = await readReceipt(orgId, receiptId);

@@ -227,7 +227,6 @@
     surfaces:['project_modal'],
     regions:['main'],
     requiresContext:['project'],
-    access:{ applicationsAny:['field'], devices:['mobile','desktop'], entitlementKey:'project.sales_overview', requireEntitlement:false },
     presentation:{ projectModal:{ desktopLeft:'none', mobileLeft:'none', mobileInfo:'none', mobileTabs:'icons', mobileFullscreenControl:false } },
     panelHtml:() => '<div class="fm-visit" data-field-customer></div>',
     mount:(context = {}) => {

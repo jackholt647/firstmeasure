@@ -79,6 +79,25 @@ appointments domain writer using an appointment type; do not compute slots or
 write events in `public/v1/forms`. Run `npm run test:forms` and
 `npm run test:forms:browser` in `public/v1` for changes to these contracts.
 
+## App experience
+
+Read [app experience](docs/architecture/app-experience.md) before changing which
+apps anyone sees, on which device, an app's options, or a route's app gate.
+There is no management or field application and no office/field distinction:
+a role gives different apps in different places. Every app a person opens (a
+portal tab, a project view, a contact view) is declared once in
+`platform/app-experience/registry.ts` with the device types it exists on
+(`platform/app-experience/devices.ts`, data), its organization switches and its
+options. Visibility is set per device by roles, groups, departments and the
+person, in People › App experience; an app the organization has off is not
+offered. Whether someone has an app is not a permission: never hide an app
+because of a permission, and never declare visibility in a manifest entry or
+app bundle. A setting that is not about what someone may do (Today's time
+clock) is an app option. A route that belongs to an app names it with
+`requirePlatformAuth({ app })`. Run `tests/app-experience.test.ts`,
+`tests/app-experience-registry.test.ts` and `tests/access-gates.test.ts` for
+changes here.
+
 ## Platform publications and programmable modules
 
 Read [publication architecture](docs/architecture/publication-architecture.md)

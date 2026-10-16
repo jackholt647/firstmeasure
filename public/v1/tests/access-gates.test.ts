@@ -1,8 +1,11 @@
 /**
- * Characterization of every access gate as it stands before the main app /
- * field app split is removed. Nothing here asserts that a gate is right; it
- * records what each one is so that a later change shows as a diff in
- * `app-split-gates.snapshot.json`.
+ * Every access gate, recorded so a change shows as a diff in
+ * `access-gates.snapshot.json`. Nothing here asserts that a gate is right.
+ *
+ * A route is gated by sign-in, a permission, a capability and, where it
+ * belongs to one, the app it belongs to (docs/architecture/app-experience.md):
+ * `app` in `requirePlatformAuth` options. A route with none of these beyond
+ * sign-in is "login_only" and must check what it needs in its handler.
  *
  * Routes are taken from the running application, not from a list. The router
  * is observed while `buildApp` registers, so every route the server would
@@ -10,10 +13,10 @@
  * is in the source, and the TypeScript compiler then reads which
  * `requirePlatformAuth` options the handler (or a helper it calls) passes.
  * Published data exports and actions are read from the publication registries
- * after bootstrap, and tabs from the access catalog.
+ * after bootstrap, and apps from the App experience registry.
  *
  * To accept a deliberate change:
- *   UPDATE_APP_SPLIT_GATES=1 npx tsx --test tests/app-split-gates.test.ts
+ *   UPDATE_ACCESS_GATES=1 npx tsx --test tests/access-gates.test.ts
  */
 import assert from "node:assert/strict";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
@@ -33,7 +36,7 @@ type Location = { file: string; line: number; column: number };
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const v1Root = path.resolve(here, "..");
-const snapshotPath = path.join(here, "app-split-gates.snapshot.json");
+const snapshotPath = path.join(here, "access-gates.snapshot.json");
 const HOOK_STAGES = ["onRequest", "preParsing", "preValidation", "preHandler"] as const;
 
 let app: any = null;
@@ -57,7 +60,7 @@ function observeRouter() {
 }
 
 before(async () => {
-  storageRoot = await mkdtemp(path.join(os.tmpdir(), "firstmate-app-split-gates-"));
+  storageRoot = await mkdtemp(path.join(os.tmpdir(), "firstmate-access-gates-"));
   process.env.NODE_ENV = "test";
   process.env.PLATFORM_HEARTBEAT_DISABLED = "1";
   process.env.WORK_SCHEDULER_DISABLED = "1";
@@ -147,7 +150,7 @@ type Value =
   | { k: "alt"; options: Value[] }
   | { k: "dynamic"; text: string };
 
-type Finding = { gates: string[]; checks: string[]; readsApplicationAccess: boolean; publication: boolean };
+type Finding = { gates: string[]; checks: string[]; publication: boolean };
 
 const GATE = "requirePlatformAuth";
 /** Checks made after (or instead of) the entrance gate; the argument at this index names what is checked. */
@@ -339,7 +342,6 @@ function createAnalyzer(files: string[]) {
     let found = false;
     const visit = (node: ts.Node) => {
       if (found) return;
-      if (ts.isPropertyAccessExpression(node) && node.name.text === "applicationAccess") { found = true; return; }
       if (ts.isCallExpression(node)) {
         const target = callee(node);
         if (target) {
@@ -361,7 +363,6 @@ function createAnalyzer(files: string[]) {
       // A helper declared inside is read where it is called, with its arguments.
       if (node !== fn && (ts.isFunctionDeclaration(node)
         || ((ts.isArrowFunction(node) || ts.isFunctionExpression(node)) && ts.isVariableDeclaration(node.parent)))) return;
-      if (ts.isPropertyAccessExpression(node) && node.name.text === "applicationAccess") out.readsApplicationAccess = true;
       if (ts.isCallExpression(node)) {
         const target = callee(node);
         if (target && isAuthFile(target.declaration) && target.name === GATE) {
@@ -425,7 +426,7 @@ function createAnalyzer(files: string[]) {
     if (!fn) return null;
     const cached = cache.get(fn);
     if (cached) return cached;
-    const out: Finding = { gates: [], checks: [], readsApplicationAccess: false, publication: false };
+    const out: Finding = { gates: [], checks: [], publication: false };
     walk(fn, new Map(), 0, new Set([fn]), out);
     cache.set(fn, out);
     return out;
@@ -437,32 +438,21 @@ function createAnalyzer(files: string[]) {
 // ---------------------------------------------------------------------------
 // The record.
 
-function canonicalApplication(value: unknown) {
-  const id = String(value ?? "").trim().toLowerCase();
-  if (["main", "portal"].includes(id)) return "management";
-  if (["crew", "workforce"].includes(id)) return "field";
-  return id;
+/** The apps a gate names, as one label: "any" when it names none. */
+function appLabel(value: unknown): string {
+  if (value === undefined || value === null) return "any";
+  if (typeof value === "string") return value;
+  if (Array.isArray(value) && value.every(item => typeof item === "string")) return value.length ? [...new Set(value)].sort().join("|") : "any";
+  return "unknown";
 }
 
 /** One `requirePlatformAuth` call as the snapshot states it. */
 function describeGate(serialized: string): Json {
   const options = JSON.parse(serialized);
-  if (!options || typeof options !== "object" || options.dynamic) return { application: "unknown", options };
+  if (!options || typeof options !== "object" || options.dynamic) return { app: "unknown", options };
   const gate: Json = {};
-  // Leaving `application` out means the management application; `false` means any member.
-  const label = (application: unknown): string => {
-    if (application === undefined || application === null) return "management";
-    if (application === false) return "any";
-    if (typeof application === "string") return canonicalApplication(application);
-    if (Array.isArray(application) && application.every(item => typeof item === "string")) {
-      return [...new Set(application.map(canonicalApplication))].sort().join("|");
-    }
-    if (Array.isArray((application as Json).one_of)) return `one_of(${(application as Json).one_of.map(label).join(",")})`;
-    return "unknown";
-  };
-  gate.application = label(options.application);
-  if (gate.application === "unknown") gate.application_expression = options.application;
-  if (options.applicationPermission !== undefined) gate.application_permission = options.applicationPermission;
+  gate.app = appLabel(options.app);
+  if (gate.app === "unknown") gate.app_expression = options.app;
   if (options.permission !== undefined) gate.permission = options.permission;
   if (options.allowScopedPermission !== undefined) gate.scoped = options.allowScopedPermission;
   if (options.capability !== undefined) gate.capability = options.capability;
@@ -472,21 +462,12 @@ function describeGate(serialized: string): Json {
   return gate;
 }
 
-const gateNeedsPermission = (gate: Json) => gate.permission !== undefined || gate.application_permission !== undefined;
-
-/** A hook's gate runs before the handler's, so both apply: the narrower application, and a permission if either asks one. */
+/** A hook's gate runs before the handler's, so both apply: each app gate, and a permission if either asks one. */
 function gateKind(gate: Json, hooks: Json[]) {
-  let application = String(gate.application);
-  let permission = gateNeedsPermission(gate);
-  for (const hook of hooks) {
-    permission ||= gateNeedsPermission(hook);
-    const hookApplication = String(hook.application);
-    if (hookApplication === "any" || hookApplication === application) continue;
-    if (application === "any") { application = hookApplication; continue; }
-    const shared = application.split("|").filter(item => hookApplication.split("|").includes(item));
-    application = /^[a-z|]+$/.test(application) && /^[a-z|]+$/.test(hookApplication) ? (shared.join("|") || "none") : `${hookApplication}&${application}`;
-  }
-  return `${application}:${permission ? "permission" : "login_only"}`;
+  const apps = [gate, ...hooks].map(entry => String(entry.app)).filter(label => label !== "any");
+  const permission = [gate, ...hooks].some(entry => entry.permission !== undefined);
+  const label = apps.length ? [...new Set(apps)].map(app => `app(${app})`).join("&") : "any";
+  return `${label}:${permission ? "permission" : "login_only"}`;
 }
 
 function routeKind(entry: Json) {
@@ -512,15 +493,10 @@ function countBy<T>(items: T[], key: (item: T) => string) {
   return Object.fromEntries(Object.entries(result).sort(([left], [right]) => left.localeCompare(right)));
 }
 
-function applicationsLabel(value: unknown) {
-  if (value === false) return "any";
-  const list = Array.isArray(value) ? value : ["management"];
-  return list.length ? [...new Set(list.map(canonicalApplication))].sort().join("|") : "any";
-}
-
 function operationKind(policy: Json) {
   const permissions = (policy.permissions || []).filter(Boolean);
-  return `${applicationsLabel(policy.applications)}:${permissions.length || policy.applicationPermission ? "permission" : "membership_only"}`;
+  const app = appLabel(policy.app);
+  return `${app === "any" ? "any" : `app(${app})`}:${permissions.length ? "permission" : "membership_only"}`;
 }
 
 function serialize(snapshot: { summary: Json; routes: Json; data: Json; actions: Json; tabs: Json }) {
@@ -578,7 +554,6 @@ async function buildSnapshot() {
       if (finding.gates.length) entry.gates = finding.gates.map(describeGate);
       if (finding.checks.length) entry.checks = finding.checks;
       if (finding.publication) entry.publication = true;
-      if (finding.readsApplicationAccess) entry.reads_application_access = true;
     }
     const hookGates: Json[] = [];
     for (const hook of item.hooks) {
@@ -594,10 +569,9 @@ async function buildSnapshot() {
 
   const { listActions } = await import("../platform/publication/actions.js");
   const { listDataProviders } = await import("../platform/publication/providers.js");
-  const { accessCatalog } = await import("../workforce/access.js");
+  const { appDefinitions } = await import("../platform/app-experience/registry.js");
   const policyEntry = (policy: Json) => ({
-    applications: applicationsLabel(policy.applications),
-    ...(policy.applicationPermission ? { application_permission: policy.applicationPermission } : {}),
+    app: appLabel(policy.app),
     permissions: policy.permissions || [],
     ...(policy.scopedPermissions ? { scoped: true } : {}),
     ...(policy.capabilities?.length ? { capabilities: policy.capabilities } : {}),
@@ -616,23 +590,22 @@ async function buildSnapshot() {
     actions[`${action.id}@${action.version}`] = { ...policyEntry(action.policy), effect: action.effect, execution_kinds: action.executionKinds };
   }
   const tabs: Json = {};
-  for (const tab of accessCatalog() as Json[]) {
-    tabs[tab.id] = {
-      application: tab.application_id,
-      surface: tab.surface,
-      devices: tab.devices,
-      required_permissions: tab.required_permissions,
-      permission_mode: tab.permission_mode,
-      default_enabled: tab.default_enabled
+  for (const app of appDefinitions() as Json[]) {
+    tabs[app.id] = {
+      surface: app.surface,
+      devices: app.devices,
+      default_visible: app.default_visible,
+      capabilities: app.capabilities,
+      ...(app.options.length ? { options: app.options.map((option: Json) => option.key) } : {})
     };
   }
 
   const routeList = Object.values(routeEntries) as Json[];
   const summary = {
-    routes: { total: routeList.length, by_kind: countBy(routeList, entry => String(entry.kind)), reading_application_access: routeList.filter(entry => entry.reads_application_access).length },
+    routes: { total: routeList.length, by_kind: countBy(routeList, entry => String(entry.kind)) },
     data: { total: Object.keys(data).length, by_kind: countBy(Object.values(data) as Json[], entry => String(entry.kind)) },
     actions: { total: Object.keys(actions).length, by_kind: countBy(Object.values(actions) as Json[], entry => String(entry.kind)) },
-    tabs: { total: Object.keys(tabs).length, by_application: countBy(Object.values(tabs) as Json[], entry => String(entry.application)) }
+    tabs: { total: Object.keys(tabs).length, by_surface: countBy(Object.values(tabs) as Json[], entry => String(entry.surface)) }
   };
   return { summary, routes: routeEntries, data, actions, tabs };
 }
@@ -660,7 +633,7 @@ function differences(expected: Json, actual: Json) {
   return lines;
 }
 
-test("every route, published data export, published action and tab keeps the gate recorded in the snapshot", async () => {
+test("every route, published data export, published action and app keeps the gate recorded in the snapshot", async () => {
   const snapshot = await buildSnapshot();
   const text = serialize(snapshot);
 
@@ -671,17 +644,17 @@ test("every route, published data export, published action and tab keeps the gat
   assert.ok(snapshot.summary.data.total >= 33 && snapshot.summary.actions.total >= 80);
   assert.ok(Object.keys(snapshot.routes).includes("POST /v1/platform/auth/login"));
 
-  if (process.env.UPDATE_APP_SPLIT_GATES === "1" || !existsSync(snapshotPath)) {
+  if (process.env.UPDATE_ACCESS_GATES === "1" || !existsSync(snapshotPath)) {
     writeFileSync(snapshotPath, text, "utf8");
-    if (process.env.UPDATE_APP_SPLIT_GATES !== "1") assert.fail(`No snapshot existed; one was written to ${snapshotPath}. Review and commit it.`);
+    if (process.env.UPDATE_ACCESS_GATES !== "1") assert.fail(`No snapshot existed; one was written to ${snapshotPath}. Review and commit it.`);
     return;
   }
   const expectedText = readFileSync(snapshotPath, "utf8").replace(/\r\n/g, "\n");
   if (expectedText === text) return;
   const changed = differences(JSON.parse(expectedText), JSON.parse(text));
   assert.fail([
-    `${changed.length} access gate(s) differ from tests/app-split-gates.snapshot.json.`,
-    "If the change is intended, rerun with UPDATE_APP_SPLIT_GATES=1 and commit the snapshot.",
+    `${changed.length} access gate(s) differ from tests/access-gates.snapshot.json.`,
+    "If the change is intended, rerun with UPDATE_ACCESS_GATES=1 and commit the snapshot.",
     ...changed.slice(0, 60),
     ...(changed.length > 60 ? [`... and ${changed.length - 60} more`] : []),
     ...(changed.length ? [] : ["Only the summary or ordering differs."])

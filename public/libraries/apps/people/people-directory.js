@@ -24,7 +24,7 @@
  *
  * Writing (each resolves after the store is current again)
  *   data.saveType({ kind, id, name, description, status })   data.setTypeMemberRoles(id, roleIds)
- *   data.createGroup({ name, typeId })  data.saveGroup(id, { name, typeId, tagIds, scopeIds })
+ *   data.createGroup({ name, typeId })  data.saveGroup(id, { name, typeId, tagIds, scopeIds, appDefaults })
  *   data.setGroupMembers(id, members) -> { grants:[{ user_id, role_ids, error }] }   data.archiveGroup(id)
  *   data.saveStaffing(groupId, requirements)
  *   data.saveSubjectDepartments('group' | 'connection', id, departmentIds)
@@ -121,7 +121,9 @@
       ...(patch.name !== undefined ? { name:String(patch.name || '').trim() } : {}),
       ...(patch.typeId !== undefined ? { kind_id:patch.typeId } : {}),
       ...(patch.tagIds !== undefined ? { assignment_tag_ids:ids(patch.tagIds) } : {}),
-      ...(patch.scopeIds !== undefined ? { capability_scope_ids:ids(patch.scopeIds) } : {})
+      ...(patch.scopeIds !== undefined ? { capability_scope_ids:ids(patch.scopeIds) } : {}),
+      // App experience for the group's members (docs/architecture/app-experience.md), kept beside its other attributes.
+      ...(patch.appDefaults !== undefined ? { attributes:{ ...obj(current.attributes), app_defaults:patch.appDefaults } } : {})
     });
     await reload({ type:'group', id:String(id) });
     return group(id);
@@ -436,7 +438,7 @@
   async function duplicateRole(id, name){
     const source = data.role(id);
     if (!source) throw new Error(t('role_missing', 'This role no longer exists.'));
-    const created = await data.createRole({ name, applicationIds:data.roleApplications(source) });
+    const created = await data.createRole({ name });
     if (!created?.id) throw new Error(t('save_failed', 'Could not save'));
     await data.saveRole(created.id, { description:source.description || '', permissions:{ ...(source.permissions || {}) }, appDefaults:data.roleAppValue(source) });
     return data.role(created.id);

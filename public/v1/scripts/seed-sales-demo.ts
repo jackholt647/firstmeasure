@@ -136,11 +136,7 @@ async function main() {
 
   // 4. Salesperson persona on the field application.
   await patchWorkforceUserProfile(orgId, userId, {
-    access_role_ids: ["salesperson"],
-    application_access: {
-      management: { enabled: false, role_id: "viewer", permissions: {} },
-      field: { enabled: true, role_id: "salesperson", permissions: {} }
-    }
+    access_role_ids: ["salesperson"]
   });
   console.log("✔ salesperson role + field access applied");
 

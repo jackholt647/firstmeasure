@@ -6,15 +6,14 @@ document in the platform `users` collection.
 
 ## Domain model
 
-- `application_access` is independent from organization permissions. The
-  canonical application IDs are `management` and `field`; each entry can carry
-  its own role and permission map.
 - `access_role_ids` assigns reusable organization roles. Organizations may
   rename the seeded roles or add their own without changing stable role IDs.
 - `permission_overrides` grants or denies an individual data/action permission
   after role defaults are combined.
-- `app_access_overrides` uses `show`, `hide`, or `inherit` per app. App
-  relevance is intentionally separate from permission grants.
+- `app_access_overrides` is the person's own App experience setting per app:
+  which device types show it and its options
+  ([app experience](../../../docs/architecture/app-experience.md)). Whether
+  someone has an app is separate from permission grants.
 - `resource_groups` group existing organization users. Each group has a
   data-defined `kind_id`, assignment tags, memberships and scope capabilities.
   `crew` is the seeded default kind, not a separate storage type.
@@ -34,10 +33,11 @@ salary components.
 
 ## Access and Crew facade
 
-`access.ts` resolves application access, permissions, app visibility,
-parameters, device eligibility, and layout into one access profile. Existing
-users without explicit role assignments retain management access; Crew access
-remains opt-in. Seeded field roles are Crew Member, Repairman (a solo
+`access.ts` resolves permissions (the union of every role, then the person's
+overrides) and App experience (which apps, on which devices, with which
+options) into one access profile. There is no management or field
+application. A user saved before roles existed is read as the role their old
+permission level names. Seeded roles that work on assigned jobs are Crew Member, Repairman (a solo
 technician, `metadata.field_mode: "solo"`), Crew Foreman, and Supervisor,
 alongside the four management roles. Crew roles are production-focused by
 default: read-only change orders, no customer payments (the foreman only adds
@@ -50,9 +50,10 @@ anybody that day) instead of only assigned work. All of this is per-role
 permission data, so companies can build their own foreman/supervisor/repairman
 variants from the access matrix.
 
-The time clock is permission-derived and knows nothing about pay: the
-`time_clock_enabled` entitlement param and the time-clock endpoints follow
-`crew.time_clock.use` and nothing else. Everything the clock records is
+The time clock is an option of Today (`portal.crew_overview`, option
+`time_clock`) and knows nothing about pay: the `time_clock_enabled` app param
+and the time-clock endpoints follow that option and nothing else. Seeded crew
+roles turn it on. Everything the clock records is
 published as selectable rows (`payroll/time-clock-sources.ts`); whether clocked
 hours are paid depends only on whether the person's pay rules select them.
 
@@ -60,12 +61,10 @@ Project checklists live in `crew_checklists`/`crew_checklist_items` with
 per-checklist `audience` and `crew_editable` flags; the management project
 modal exposes all of them through the Checklists tab.
 
-The access catalog covers every injectable management and Crew portal/project
-tab. Management entries use `default_enabled: true` so missing role defaults
-preserve the existing portal experience; Crew entries default off. A role can
-store an explicit disabled default, and a user's `show`/`hide` override is
-applied after the catalog and role layers. Modal shells, left-region helpers,
-and service apps are not tab entitlements.
+The access catalog (`GET .../access/catalog`) lists the App experience
+registry's apps that the organization has on, with their device types and
+options, and the device types themselves. Modal shells, left-region helpers,
+and service apps are not apps a person is given.
 
 Administration endpoints live at
 `/v1/workforce/organizations/:orgId/access`. Assigned Crew operations live at

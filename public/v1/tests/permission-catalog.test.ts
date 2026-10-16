@@ -10,7 +10,8 @@ import "../comms/capabilities.js";
 import "../assistant/capabilities.js";
 import { capabilityDefinition, permissionCapabilities, permissionCatalog } from "../platform/capabilities.js";
 import { PERMISSION_CATEGORIES, WILDCARD_PERMISSION, permissionSubcategory } from "../platform/permission_categories.js";
-import { CREW_PERMISSION_KEYS, SALES_PERMISSION_KEYS, accessCatalog, factoryPersonaDefinitions } from "../workforce/access.js";
+import { CREW_PERMISSION_KEYS, SALES_PERMISSION_KEYS, factoryPersonaDefinitions } from "../workforce/access.js";
+import { appDefinitions } from "../platform/app-experience/registry.js";
 import { publishedPermissionBundles } from "../platform/publication/permission-bundles.js";
 
 const root = path.resolve(import.meta.dirname, "..");
@@ -74,8 +75,7 @@ function everyPermissionKey() {
   Object.values(CREW_PERMISSION_KEYS).forEach((key) => add(key, "CREW_PERMISSION_KEYS"));
   Object.values(SALES_PERMISSION_KEYS).forEach((key) => add(key, "SALES_PERMISSION_KEYS"));
   factoryPersonaDefinitions().forEach((persona) => Object.keys(persona.permissions).forEach((key) => add(key, `persona ${persona.id}`)));
-  accessCatalog().forEach((entry) => {
-    entry.required_permissions.forEach((key) => add(key, `app ${entry.id} required_permissions`));
+  appDefinitions().forEach((entry) => {
     Object.values(entry.parameter_permissions).forEach((key) => add(key, `app ${entry.id} parameter_permissions`));
   });
   Object.keys(publishedPermissionBundles()).forEach((key) => add(key, "permission-bundles.ts"));
@@ -142,8 +142,9 @@ test("the published catalog lists every permission once under its category and s
   const keys = listed.map((entry) => entry.key);
   assert.equal(new Set(keys).size, keys.length, "no permission is listed twice");
   assert.deepEqual(keys.filter((key) => key !== "*").sort(), permissionCapabilities().map((node) => node.permission_key).sort());
-  const timeClock = listed.find((entry) => entry.key === "crew.time_clock.use")!;
-  assert.deepEqual([timeClock.category, timeClock.sub, timeClock.label], ["field", "time_expenses", "Use the time clock"]);
+  // The time clock is Today's app option, not a permission (docs/architecture/app-experience.md).
+  assert.equal(listed.some((entry) => entry.key === "crew.time_clock.use"), false);
+  assert.equal(listed.find((entry) => entry.key === "crew.receipts.upload")!.category, "field");
   assert.equal(listed.find((entry) => entry.key === "manage_payroll")!.category, "money");
   assert.equal(listed.find((entry) => entry.key === "sales.followups.manage")!.sub, "sales_app");
   for (const category of catalog.categories) for (const sub of category.subcategories) {

@@ -1675,10 +1675,6 @@
     regions:['main'],
     visible:true,
     fullBleed:true,
-    access:{
-      applicationsAny:['management'],
-      permissionsAny:['manage_payroll', 'manage_company_settings']
-    },
     mount:createWidgetApp
   });
   window.AppChrome.registerGroup({id:'payroll',parent:'portal.payroll',title:'Payroll',icon:'fa-money-check-dollar',default:'upcoming',

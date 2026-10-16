@@ -17,9 +17,6 @@
   // loading (or temporarily unavailable). Once access data arrives the runtime
   // still applies application and explicit entitlement denials, but a missing
   // entitlement snapshot must not remove every established portal tab.
-  const managementAccess = { applicationsAny: ['management'] };
-  const managementShellAccess = { applicationsAny: ['management'] };
-  const crewAccess = { applicationsAny: ['field'], devices: ['mobile', 'desktop'], requireEntitlement: true };
   const crewProjectPresentation = {
     projectModal: {
       mobileInfo: 'none',
@@ -77,7 +74,7 @@
   ];
 
   const apps = [
-    {id:'portal.partners',package:'partners',title:'Partners',terminologyKey:'partners.partners',kind:'portal_tab',surfaces:['portal_tab'],portalTabId:'partners',access:managementAccess,bundles:[versionedBundle('../payment-intake/payment-intake.js','20260803-field-flows-v10'),versionedBundle('../doc-widgets/firstmate-doc-widgets.js','20260803-field-flows-v10'),versionedBundle('partners/share-dialog.js','20261001-sharing-polish-v1'),versionedBundle('partners/app.js','20261001-sharing-polish-v1')]},
+    {id:'portal.partners',package:'partners',title:'Partners',terminologyKey:'partners.partners',kind:'portal_tab',surfaces:['portal_tab'],portalTabId:'partners',bundles:[versionedBundle('../payment-intake/payment-intake.js','20260803-field-flows-v10'),versionedBundle('../doc-widgets/firstmate-doc-widgets.js','20260803-field-flows-v10'),versionedBundle('partners/share-dialog.js','20261001-sharing-polish-v1'),versionedBundle('partners/app.js','20261001-sharing-polish-v1')]},
     {
       id: 'portal.viewer',
       package: 'projects',
@@ -86,7 +83,6 @@
       kind: 'portal_tab',
       surfaces: ['portal_tab'],
       portalTabId: 'viewer',
-      access: managementAccess,
       bundles: [versionedBundle('partners/shared-list.js','20261001-sharing-polish-v1'), versionedBundle('projects/viewer.js', '20261006-firstmeasure-complete-localization-v2')]
     },
     {
@@ -98,7 +94,6 @@
       surfaces: ['portal_tab'],
       portalTabId: 'contacts',
       settingsTabId: 'contacts',
-      access: managementAccess,
       bundles: [versionedBundle('partners/shared-list.js','20261001-sharing-polish-v1'), versionedBundle('contacts/modal.js', '20261009-contact-window-v3'), versionedBundle('settings/crm.js', '20261010-priority-fields-v1'), versionedBundle('settings/contacts.js', '20261009-contact-settings-v1'), versionedBundle('contacts/app.js', '20261009-contact-catalog-v1')]
     },
     {
@@ -109,7 +104,6 @@
       kind: 'portal_tab',
       surfaces: ['portal_tab'],
       portalTabId: 'photos_feed',
-      access: managementAccess,
       bundles: [versionedBundle('../payments-api/payments-api.js', '20260714-invoice-line-items-tax'), versionedBundle('photos/feed.js', '20261007-feed-list-project-v4')]
     },
     {
@@ -121,7 +115,6 @@
       kind: 'portal_tab',
       surfaces: ['portal_tab'],
       portalTabId: 'receipts',
-      access: managementAccess,
       bundles: [versionedBundle('../payments-api/payments-api.js', '20260714-receipt-browser'), versionedBundle('photos/feed.js', '20261007-feed-list-project-v4'), versionedBundle('receipts/app.js', '20260714-receipt-pdf-preview')]
     },
     {
@@ -135,7 +128,6 @@
       kind: 'portal_tab',
       surfaces: ['portal_tab'],
       portalTabId: 'proposals',
-      access: managementAccess,
       bundles: [versionedBundle('proposals/global.js', '20260627-global-proposals')]
     },
     {
@@ -146,7 +138,6 @@
       kind: 'project_modal_app',
       surfaces: ['project_modal'],
       requiresContext: ['project'],
-      access: managementAccess,
       bundles: [bundle('photos/project.js')]
     },
     {
@@ -161,7 +152,6 @@
       kind: 'project_modal_app',
       surfaces: ['project_modal'],
       requiresContext: ['project'],
-      access: managementAccess,
       dependencies: ['project.photos'],
       bundles: [versionedBundle('proposals/project.js', '20261006-firstmeasure-complete-localization-v2')]
     },
@@ -173,7 +163,6 @@
       kind: 'project_modal_app',
       surfaces: ['project_modal'],
       requiresContext: ['project'],
-      access: managementAccess,
       bundles: [versionedBundle('docs/project.js', '20261014-status-tags')]
     },
     {
@@ -185,7 +174,6 @@
       kind: 'project_modal_app',
       surfaces: ['project_modal'],
       requiresContext: ['project'],
-      access: managementAccess,
       // project.proposal: the legacy module still owns scope generation
       // (proposalBuilderScopeForTemplate — customer choice groups, optional
       // items); without it loaded, workflow generation degrades to raw
@@ -215,7 +203,6 @@
       surfaces: ['portal_tab'],
       portalTabId: 'documents_studio',
       settingsTabId: 'documents',
-      access: managementAccess,
       params: {
         studioSection: { default:'templates', values:['templates','workflows','themes','brand-kit','folder'], history:'push' },
         studioFolder: { history:'push' },
@@ -244,7 +231,6 @@
       kind: 'portal_tab',
       surfaces: ['portal_tab'],
       portalTabId: 'web_editor',
-      access: managementAccess,
       bundles: [
         versionedBundle('../websites-api/websites-api.js', '20260731-domains-v10'),
         versionedBundle('../domains-api/domains-api.js', '20260731-domains-v10'),
@@ -268,7 +254,6 @@
       kind: 'project_modal_app',
       surfaces: ['project_modal'],
       requiresContext: ['project'],
-      access: managementAccess,
       dependencies: ['pricebook.bridge'],
     bundles: [...channelsLibBundles, versionedBundle('../materials-api/materials-api.js', '20261014-work-order'), versionedBundle('../payments-api/payments-api.js', '20260714-invoice-line-items-tax'), bundle('../comms-api/comms-api.js'), versionedBundle('../equipment-api/equipment-api.js', '20261013-functions'), versionedBundle('materials/project.js', '20261015-history')]
     },
@@ -281,7 +266,6 @@
       kind: 'project_modal_app',
       surfaces: ['project_modal'],
       requiresContext: ['project'],
-      access: managementAccess,
       dependencies: ['project.proposal', 'project.materials'],
       bundles: [versionedBundle('../payments-api/payments-api.js', '20260730-payment-reconciliation'), versionedBundle('../payroll-api/payroll-api.js', '20261014-labor-payout-v1'), versionedBundle('../documents-api/documents-api.js', '20260730-money-reports'), versionedBundle('payroll/project.js', '20260714-money-commissions'), versionedBundle('photos/feed.js', '20261007-feed-list-project-v4'), versionedBundle('receipts/app.js', '20260714-receipt-pdf-preview'), versionedBundle('money/project.js', '20260929-overview-content-v1')]
     },
@@ -291,7 +275,6 @@
       title: (globalThis.PlatformLanguage?.text("firstmate-apps-manifest","m_f973900d181c17","Project Request") ?? "Project Request"),
       kind: 'modal_app',
       surfaces: ['modal', 'project_modal'],
-      access: { applicationsAny: ['management', 'field'] },
       dependencies: ['firstmeasure.order', 'project.map', 'project.photos', 'project.proposal', 'project.materials', 'project.money', 'project.customer_portal', 'project.schedule', 'project.measurements', 'project.checklists'],
       bundles: [...channelsLibBundles, versionedBundle('../window-manager/project-windows.js', '20261010-priority-owners-v2'), versionedBundle('project-request/app.js', '20261014-cover-default-v1')]
     },
@@ -302,7 +285,6 @@
       kind: 'overview_details',
       surfaces: ['project_modal'],
       regions: ['main'],
-      access: managementShellAccess,
       bundles: [...channelsLibBundles, versionedBundle('firstmeasure/order/app.js', '20261006-firstmeasure-localization-v1')]
     },
     {
@@ -313,7 +295,6 @@
       kind: 'project_modal_app',
       surfaces: ['project_modal'],
       requiresContext: ['project'],
-      access: managementAccess,
       bundles: [versionedBundle('project-map/app.js', '20261014-cover-photo-tile-v1')]
     },
     {
@@ -324,7 +305,6 @@
       kind: 'project_modal_app',
       surfaces: ['project_modal'],
       requiresContext: ['project'],
-      access: managementAccess,
       bundles: [bundle('customer-portal/project.js')]
     },
     {
@@ -335,7 +315,6 @@
       kind: 'project_modal_app',
       surfaces: ['project_modal'],
       requiresContext: ['project'],
-      access: managementAccess,
       bundles: [versionedBundle('project-schedule/panel.js', '20261015-schedule-roster-v1')]
     },
     {
@@ -347,7 +326,6 @@
       kind: 'project_modal_app',
       surfaces: ['project_modal'],
       requiresContext: ['project'],
-      access: managementAccess,
       bundles: [bundle('../comms-api/comms-api.js'), versionedBundle('../agent-chat/agent-chat.js', '20261002-widget-controls'), versionedBundle('comms/communications-ui.js', '20261008-call-center-modes-v2'), versionedBundle('comms/phone-tray.js', '20261007-phone-tabs-v1'), versionedBundle('comms/calling-runtime.js', '20261008-call-center-modes-v1'), versionedBundle('comms/workspace.js', '20261008-call-center-modes-v2'), versionedBundle('comms/project.js', '20261002-dropdown-polish-v1')]
     },
     {
@@ -358,7 +336,6 @@
       kind: 'project_modal_app',
       surfaces: ['project_modal'],
       requiresContext: ['project'],
-      access: managementAccess,
       bundles: [...widgetBundles, versionedBundle('measurements/roof-viewer.js', '20261002-key-vertical'), versionedBundle('measurements/project.js', '20261014-report-tabs-v1')]
     },
     {
@@ -370,7 +347,6 @@
       kind: 'project_modal_app',
       surfaces: ['project_modal'],
       requiresContext: ['project'],
-      access: managementAccess,
       bundles: [
         versionedBundle('../crew-api/crew-api.js', '20260723-crew-assignees'),
         versionedBundle('checklists/app.js', '20260725-checklist-assignment-v2')
@@ -385,7 +361,6 @@
       surfaces: ['portal_tab'],
       portalTabId: 'scheduling',
       settingsTabId: 'scheduling',
-      access: managementAccess,
       bundles: [bookingBundle, versionedBundle('scheduling/app.js', '20261015-schedule-roster-v1')]
     },
     {
@@ -398,7 +373,6 @@
       surfaces: ['portal_tab'],
       portalTabId: 'training',
       order: 58,
-      access: { applicationsAny: ['management', 'field'] },
       bundles: [
         versionedBundle('../training-api/training-api.js', '20260720-training-v1'),
         versionedBundle('training/app.js', '20260720-training-v1')
@@ -414,7 +388,6 @@
       surfaces: ['portal_tab'],
       portalTabId: 'training_studio',
       order: 59,
-      access: managementAccess,
       bundles: [
         versionedBundle('../training-api/training-api.js', '20260720-training-v1'),
         versionedBundle('training/app.js', '20260720-training-v1'),
@@ -431,7 +404,6 @@
       surfaces: ['portal_tab'],
       portalTabId: 'equipment',
       order: 57,
-      access: managementAccess,
       bundles: [
         versionedBundle('../equipment-api/equipment-api.js', '20261013-functions'),
         versionedBundle('equipment/app.js', '20261014-capacity')
@@ -447,7 +419,6 @@
       surfaces: ['portal_tab'],
       portalTabId: 'invoices',
       order: 51,
-      access: managementAccess,
       bundles: [
         versionedBundle('../payments-api/payments-api.js', '20260803-invoices-tab'),
         versionedBundle('invoices/app.js', '20260803-invoices-tab')
@@ -463,7 +434,6 @@
       surfaces: ['portal_tab'],
       portalTabId: 'financials',
       order: 52,
-      access: managementAccess,
       params: {
         financialView: { default:'projects', history:'push' },
         financialGrain: { default:'month', history:'replace' },
@@ -485,7 +455,6 @@
       surfaces: ['portal_tab'],
       portalTabId: 'stats',
       order: 53,
-      access: managementAccess,
       params: {
         statsView: { history:'push' },
         statsThread: { history:'replace' }
@@ -506,7 +475,6 @@
       portalTabId: 'payroll',
       settingsTabId: 'payroll',
       order: 55,
-      access: managementAccess,
       bundles: [versionedBundle('../payroll-api/payroll-api.js', '20261014-labor-payout-v1'), versionedBundle('settings/payroll.js', '20261013-pay-layers-v2'), versionedBundle('payroll/app.js', '20261014-labor-payout-v1')]
     },
     {
@@ -518,7 +486,6 @@
       kind: 'portal_tab',
       surfaces: ['portal_tab'],
       portalTabId: 'chat',
-      access: managementAccess,
       bundles: [
         bundle('../comms-api/comms-api.js'),
         bundle('../agents-api/agents-api.js'),
@@ -540,7 +507,6 @@
       portalTabId: 'channels',
       settingsTabId: 'channels',
       order: 44,
-      access: { applicationsAny: ['management', 'field'] },
       bundles: [
         versionedBundle('../platform-realtime/platform-realtime.js', '20260929-presence-controls-v3'),
         versionedBundle('../channels-api/channels-api.js', '20260930-feed-posts-v1'),
@@ -568,7 +534,6 @@
       order: 45,
       placement: 'more',
       fullBleed: true,
-      access: { applicationsAny: ['management', 'field'], permissionsAny: ['use_assistant', 'view_projects', 'manage_projects', 'manage_company_settings'] },
       bundles: [...widgetBundles, bookingBundle, bundle('../assistant-api/assistant-api.js'), bundle('../window-manager/window-manager.js'), bundle('../platform-assistant/platform-assistant.js')]
     },
     {
@@ -579,7 +544,6 @@
       kind: 'portal_tab',
       surfaces: ['portal_tab'],
       portalTabId: 'canvassing',
-      access: managementAccess,
       bundles: [bundle('canvassing/app.js')]
     },
     {
@@ -595,7 +559,6 @@
       params: { feedbackView: { default:'responses', values:['responses','delivery','workflow'], history:'push' } },
       placement: 'more',
       order: 56,
-      access: managementAccess,
       bundles: [versionedBundle('../insights/firstmate-insights.js', '20260901-insights-v1'), versionedBundle('settings/feedback.js', '20260917-feedback-app-v1'), versionedBundle('feedback/app.js', '20260917-feedback-app-v1')]
     },
     {
@@ -607,7 +570,6 @@
       surfaces: ['portal_tab'],
       portalTabId: 'company_settings',
       placement: 'settings',
-      access: managementAccess,
       bundles: [priorityFieldsBundle, versionedBundle('../custom-fields/firstmate-custom-fields.js', '20261014-cover-default-v1'), versionedBundle('../payroll-api/payroll-api.js', '20261014-labor-payout-v1'), versionedBundle('../websites-api/websites-api.js', '20260731-domains-v10'), versionedBundle('../domains-api/domains-api.js', '20260731-domains-v10'), versionedBundle('../insights/firstmate-insights.js', '20260901-insights-v1'), versionedBundle('settings/domains.js', '20260731-domains-v11'), versionedBundle('settings/crm.js', '20261010-priority-owners-v2'), versionedBundle('settings/contacts.js', '20261009-contact-settings-v1'), versionedBundle('settings/payroll.js', '20261013-pay-layers-v2'), versionedBundle('settings/money-overlay-enforcer.js', '20260828-money-overlay-integrity-v1'), versionedBundle('settings/platform-billing.js', '20260924-subscription-service-v3'), versionedBundle('../brand-kit/brand-kit.js', '20261006-firstmeasure-localization-v1'), bundle('../platform-terminology/editor.js'), versionedBundle('people/people-kit.js', '20261014-people-v5'), versionedBundle('people/list-page.js', '20261015-branches-v1'), versionedBundle('people/entity-modal.js', '20261015-branches-v1'), versionedBundle('people/hover-card.js', '20261014-people-v4'), versionedBundle('people/permissions-panel.js', '20261014-people-v5'), versionedBundle('people/app-grid.js', '20261015-people-v3'), versionedBundle('people/slots.js', '20261015-branches-v1'), versionedBundle('people/people-data.js', '20261015-branches-v1'), versionedBundle('people/people-directory.js', '20261015-branches-v1'), versionedBundle('people/fields-panel.js', '20261013-people-fields-v1'), versionedBundle('people/compensation-panel.js', '20261014-people-compensation-v1'), versionedBundle('people/page-kit.js', '20261015-branches-v1'), versionedBundle('people/people-lists.js', '20261015-branches-v1'), versionedBundle('people/branches.js', '20261015-branches-v1'), versionedBundle('people/users-page.js', '20261015-branches-v1'), versionedBundle('people/groups-page.js', '20261015-branches-v1'), versionedBundle('people/departments-page.js', '20261015-branches-v1'), versionedBundle('people/companies-page.js', '20261015-branches-v1'), versionedBundle('people/people-home.js', '20261015-branches-v1'), versionedBundle('people/people-settings.js', '20261015-search-grouping'), versionedBundle('settings/company.js', '20261015-search-grouping')]
     },
     {
@@ -620,7 +582,6 @@
       surfaces: ['portal_tab'],
       portalTabId: 'crew_overview',
       order: 10,
-      access: crewAccess,
       defaultHome: true,
       params: { mode: 'crew', assignedOnly: true },
       bundles: crewBundles
@@ -635,7 +596,6 @@
       surfaces: ['portal_tab'],
       portalTabId: 'crew_schedule',
       order: 20,
-      access: crewAccess,
       params: { mode: 'crew', crewMode: true, assignedOnly: true },
       bundles: crewBundles
     },
@@ -649,7 +609,6 @@
       surfaces: ['portal_tab'],
       portalTabId: 'crew_receipts',
       order: 30,
-      access: crewAccess,
       params: { mode: 'crew' },
       bundles: crewBundles
     },
@@ -663,7 +622,6 @@
       surfaces: ['portal_tab'],
       portalTabId: 'crew_payouts',
       order: 40,
-      access: crewAccess,
       params: { mode: 'crew', assignedOnly: true },
       bundles: crewBundles
     },
@@ -677,7 +635,6 @@
       surfaces: ['portal_tab'],
       portalTabId: 'sales_overview',
       order: 10,
-      access: crewAccess,
       defaultHome: true,
       params: { mode: 'sales' },
       bundles: salesBundles
@@ -692,7 +649,6 @@
       surfaces: ['portal_tab'],
       portalTabId: 'sales_schedule',
       order: 20,
-      access: crewAccess,
       params: { mode: 'sales' },
       bundles: salesBundles
     },
@@ -706,7 +662,6 @@
       surfaces: ['portal_tab'],
       portalTabId: 'sales_earnings',
       order: 30,
-      access: crewAccess,
       params: { mode: 'sales' },
       bundles: salesBundles
     },
@@ -720,7 +675,6 @@
       surfaces: ['project_modal'],
       requiresContext: ['project'],
       order: 10,
-      access: crewAccess,
       defaultHome: true,
       presentation: crewProjectPresentation,
       bundles: salesBundles
@@ -735,7 +689,6 @@
       surfaces: ['project_modal'],
       requiresContext: ['project'],
       order: 10,
-      access: crewAccess,
       defaultHome: true,
       presentation: crewProjectPresentation,
       bundles: crewBundles
@@ -750,7 +703,6 @@
       surfaces: ['project_modal'],
       requiresContext: ['project'],
       order: 20,
-      access: crewAccess,
       presentation: crewProjectPresentation,
       bundles: crewBundles
     },
@@ -764,7 +716,6 @@
       surfaces: ['project_modal'],
       requiresContext: ['project'],
       order: 30,
-      access: crewAccess,
       presentation: crewProjectPresentation,
       bundles: crewBundles
     },
@@ -778,7 +729,6 @@
       surfaces: ['project_modal'],
       requiresContext: ['project'],
       order: 40,
-      access: crewAccess,
       presentation: crewProjectPresentation,
       bundles: crewBundles
     },
@@ -792,7 +742,6 @@
       surfaces: ['project_modal'],
       requiresContext: ['project'],
       order: 50,
-      access: crewAccess,
       presentation: crewProjectPresentation,
       bundles: crewBundles
     },
@@ -806,7 +755,6 @@
       surfaces: ['project_modal'],
       requiresContext: ['project'],
       order: 60,
-      access: crewAccess,
       presentation: crewProjectPresentation,
       bundles: crewBundles
     },
@@ -821,7 +769,6 @@
       requiresContext: ['project'],
       order: 15,
       visible: true,
-      access: { applicationsAny: ['field'], devices: ['mobile', 'desktop'], entitlementKey: 'project.sales_overview', requireEntitlement: false },
       presentation: crewProjectPresentation,
       bundles: crewSignatureBundles
     },
@@ -836,7 +783,6 @@
       requiresContext: ['project'],
       order: 70,
       visible: true,
-      access: { applicationsAny: ['field'], devices: ['mobile', 'desktop'], permissionsAny: ['crew.signatures.present'], requireEntitlement: true },
       presentation: crewProjectPresentation,
       bundles: crewSignatureBundles
     },

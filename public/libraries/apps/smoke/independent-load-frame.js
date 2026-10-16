@@ -353,10 +353,6 @@
       user_id:'user_smoke',
       permissions:{ '*':true },
       roleIds:crewSmoke ? ['crew_foreman'] : ['super_admin'],
-      applicationAccess:{
-        management:{ enabled:!crewSmoke, role_id:crewSmoke ? '' : 'super_admin', permissions:{ '*':true } },
-        field:{ enabled:crewSmoke, role_id:crewSmoke ? 'crew_foreman' : '', permissions:{ '*':crewSmoke } }
-      },
       entitlements:smokeEntitlements,
       appEntitlements:smokeEntitlements
     };
@@ -1091,7 +1087,6 @@
     document.documentElement.dataset.smokePremountEntitlements = JSON.stringify(window.Portal?.currentUser?.entitlements || {});
     const handle = await runtime.mount(target, realAppId, {
       currentUser: window.Portal?.currentUser || {},
-      applicationAccess: window.Portal?.currentUser?.applicationAccess || {},
       permissions: window.Portal?.currentUser?.permissions || {},
       entitlements: window.Portal?.currentUser?.entitlements || [],
       surface,

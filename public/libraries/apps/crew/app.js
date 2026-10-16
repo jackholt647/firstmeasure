@@ -773,9 +773,9 @@
     return handle;
   }
 
-  const crewAccess = { applicationsAny:['field'], devices:['mobile','desktop'], requireEntitlement:true };
+  // Who sees these apps, and on which devices, is App experience (docs/architecture/app-experience.md).
   function registerPortal(definition){
-    Portal.apps?.registerPortalApp?.({ ...definition, access:crewAccess });
+    Portal.apps?.registerPortalApp?.(definition);
   }
   registerPortal({ id:'portal.crew_overview', tabId:'crew_overview', title:(globalThis.PlatformLanguage?.text("crew","m_23929ba4ba84dd","Today") ?? "Today"), icon:'fa-house', order:1, defaultHome:true, mount:mountCrewOverview });
   registerPortal({ id:'portal.crew_receipts', tabId:'crew_receipts', title:(globalThis.PlatformLanguage?.text("crew","m_fc54001a0cc000","Receipts") ?? "Receipts"), icon:'fa-receipt', order:12, mount:mountCrewReceipts });
@@ -1419,7 +1419,7 @@
   }
 
   function registerProject({id,title,icon,kind,mount,terminologyKey}){
-    runtime.registerApp({id,kind:'project_modal_app',title,label:title,icon,...(terminologyKey !== undefined ? { terminologyKey } : {}),visible:true,surfaces:['project_modal'],regions:['main'],requiresContext:['project'],access:crewAccess,presentation:projectPresentation,panelHtml:()=>projectPanel(kind),mount});
+    runtime.registerApp({id,kind:'project_modal_app',title,label:title,icon,...(terminologyKey !== undefined ? { terminologyKey } : {}),visible:true,surfaces:['project_modal'],regions:['main'],requiresContext:['project'],presentation:projectPresentation,panelHtml:()=>projectPanel(kind),mount});
   }
   registerProject({id:'project.crew_overview',title:(globalThis.PlatformLanguage?.text("crew","m_d8d2e84c5e4d8b","Visit") ?? "Visit"),icon:'fa-house',kind:'overview',mount:mountProjectOverview});
   registerProject({id:'project.crew_materials',title:(globalThis.PlatformLanguage?.text("crew","m_691187e28aba8e","Materials") ?? "Materials"),icon:'fa-boxes-stacked',kind:'materials',mount:mountProjectMaterials});
