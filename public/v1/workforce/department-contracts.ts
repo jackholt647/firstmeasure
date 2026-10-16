@@ -9,7 +9,8 @@ const id=z.string().trim().min(1).max(120);
 const ids=z.array(id).max(200);
 const status=z.enum(['active','archived']).default('active');
 export const DEFAULT_BRANCH_ID='default';
-export const departmentAppDefaultSchema=z.object({visibility:z.enum(['inherit','show','hide']).default('inherit'),enforcement:z.enum(['default','restricted']).default('default'),params:z.record(z.unknown()).optional(),layout:z.record(z.unknown()).optional()}).strict();
+// One app's setting for a department (docs/architecture/app-experience.md): device type -> shown, option -> on; a restricted app is hidden everywhere and refused by the server.
+export const departmentAppDefaultSchema=z.object({visible:z.record(z.boolean()).optional(),options:z.record(z.boolean()).optional(),restricted:z.boolean().default(false),params:z.record(z.unknown()).optional(),layout:z.record(z.unknown()).optional()}).strict();
 /** A region groups branches for sorting, filtering and access scope. Flat: a region never contains another region. */
 export const regionSchema=z.object({id,label:z.string().trim().min(1).max(100),status,branch_ids:ids.default([])}).strict();
 // An icon is stored the way scope templates and equipment types store theirs: a Font Awesome class name such as

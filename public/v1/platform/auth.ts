@@ -66,12 +66,10 @@ import { env } from "../src/config/env.js";
 import "./capability_defs.js";
 import { capabilityDefinition, effectiveCapabilities, type CapabilityResolution } from "./capabilities.js";
 import { forbidden, unauthorized } from "./errors.js";
-import {
-  MANAGEMENT_APPLICATION_ID,
-  organizationUserProfileView,
-  type ApplicationAccess
-} from "./user_profile.js";
-import { notificationAccessPermissions, resolveAccessProfile, type ResolvedAccessProfile } from "../workforce/access.js";
+import { organizationUserProfileView } from "./user_profile.js";
+import { notificationAccessPermissions, resolveAccessProfile, resolveAppEntitlements, type EffectiveAppEntitlement, type ResolvedAccessProfile } from "../workforce/access.js";
+import { deviceTypesForClient } from "./app-experience/devices.js";
+import { appIds } from "./app-experience/registry.js";
 import { relevantDepartmentContext, resolveScopedAccessGrants, canUseScopedPermission, type ScopedAccessGrant, type OrganizationStructureAccess } from '../workforce/department-access.js';
 import { resolveOrganizationStructure } from '../workforce/organization-structure.js';
 export { hasResourcePermission, assertResourcePermission, canUseScopedPermission, relevantDepartmentContext, matchesDepartmentFilter, canAccessDepartmentResource } from '../workforce/department-access.js';
@@ -107,9 +105,9 @@ export type PlatformAuthContext = {
   role: string;
   branchId: string;
   permissions: JsonObject;
-  applicationAccess: ApplicationAccess;
   accessProfile?: ResolvedAccessProfile;
-  appEntitlements?: ResolvedAccessProfile["app_entitlements"];
+  /** Every app the organization has on, as this person gets it (docs/architecture/app-experience.md). */
+  appEntitlements: EffectiveAppEntitlement[];
   csrfToken: string;
   capabilities?: CapabilityResolution;
   organizationStructure?: OrganizationStructureAccess;
@@ -376,7 +374,7 @@ export function publicAuthContext(ctx: PlatformAuthContext) {
   const metadata = asObject(ctx.session.metadata);
   const impersonatedByEmail = cleanText(metadata.impersonated_by_email);
   const accessProfile = ctx.accessProfile ? (({ organization_structure: _privateStructure, ...profile }) => profile)(ctx.accessProfile) : undefined;
-  const appEntitlements = ctx.appEntitlements || accessProfile?.app_entitlements;
+  const appEntitlements = ctx.appEntitlements;
   return {
     authenticated: true,
     platform_expanded_access: ctx.capabilities?.effectiveByKey["platform.expanded_access"] === true,
@@ -391,12 +389,13 @@ export function publicAuthContext(ctx: PlatformAuthContext) {
       role: ctx.role,
       branch_id: ctx.branchId,
       permissions: ctx.permissions,
-      application_access: ctx.applicationAccess,
       access_role_ids: accessProfile?.access_role_ids || [],
       app_entitlements: appEntitlements
     },
     access_profile: accessProfile,
     app_entitlements: appEntitlements,
+    // Every app the platform declares, so the browser can tell an app the organization has off from one it does not manage.
+    app_experience: { device_types: deviceTypesForClient(), app_ids: appIds() },
     impersonation: impersonatedByEmail ? {
       active: true,
       admin_email: impersonatedByEmail,
@@ -606,8 +605,9 @@ export async function buildAuthContext(sessionId: string, session: JsonObject): 
   const permissionState = orgUserPermissionState(user);
   const capabilities = await effectiveCapabilities(orgId, userId);
   const accessProfile = capabilities.effectiveByKey["platform.expanded_access"] === true
-    ? (await resolveAccessProfile(orgId, { ...userDocument, data: user }))
+    ? (await resolveAccessProfile(orgId, { ...userDocument, data: user }, { effectiveByKey: capabilities.effectiveByKey }))
     : undefined;
+  const permissions = accessProfile?.effective_permissions || permissionState.permissions || asObject(session.permissions_snapshot);
   const organizationStructure = accessProfile?.organization_structure || await resolveOrganizationStructure(orgId);
   return {
     sessionId,
@@ -621,13 +621,14 @@ export async function buildAuthContext(sessionId: string, session: JsonObject): 
     identityId,
     role: permissionState.level || String(session.role || "member"),
     branchId: String(user.branch_id || session.branch_id || "default"),
-    permissions: accessProfile?.effective_permissions || permissionState.permissions || asObject(session.permissions_snapshot),
-    applicationAccess: accessProfile?.application_access || { management: { enabled: true, role_id: permissionState.level, permissions: permissionState.permissions || {} }, field: { enabled: false, role_id: "", permissions: {} } },
+    permissions,
     accessProfile,
     organizationStructure,
     scopedAccessGrants: accessProfile?.scoped_access_grants || resolveScopedAccessGrants(user.scoped_access_assignments, [], organizationStructure),
     capabilities,
-    appEntitlements: accessProfile?.app_entitlements,
+    // Without expanded access nobody has roles: every person gets each app's default.
+    appEntitlements: accessProfile?.app_entitlements
+      || resolveAppEntitlements({ effectiveByKey: capabilities.effectiveByKey, permissions: permissions as Record<string, boolean> }),
     csrfToken: String(session.csrf_token || "")
   };
 }
@@ -706,9 +707,35 @@ export async function can(ctx: PlatformAuthContext, capabilityKey: string) {
 export function hasAppEntitlement(ctx: PlatformAuthContext, appId: string) {
   const normalize=(id:string)=>id.replace(/^(portal|project|apps|settings|platform)\./,'');
   if ((ctx.accessProfile?.app_restrictions || []).some(id=>normalize(id)===normalize(appId))) return false;
-  return !(ctx.appEntitlements || ctx.accessProfile?.app_entitlements || []).some(entry =>
-    (entry.runtime_app_id === appId || entry.id === appId || entry.portal_tab_id === appId)
-    && entry.reasons.includes('department_app_restricted'));
+  return !(ctx.appEntitlements || []).some(entry =>
+    (entry.id === appId || entry.portal_tab_id === appId || normalize(entry.id) === normalize(appId)) && entry.restricted);
+}
+
+/**
+ * Whether the person may use any of these apps: App experience shows one of
+ * them to them on at least one device. When the organization has all of them
+ * off there is nothing to give, and the route's own feature checks refuse it.
+ * Without expanded access nobody has roles, so the route's own checks decide.
+ */
+export function hasAppAccess(ctx: PlatformAuthContext, appIds: string | string[]) {
+  if (!ctx.accessProfile) return true;
+  const ids = Array.isArray(appIds) ? appIds : [appIds];
+  const entries = (ctx.appEntitlements || []).filter((entry) => ids.includes(entry.id));
+  return !entries.length || entries.some((entry) => entry.allowed);
+}
+
+/** An option of an app (docs/architecture/app-experience.md), such as Today's time clock, as this person gets it. */
+export function appOptionEnabled(ctx: PlatformAuthContext, appId: string, optionKey: string) {
+  const entry = (ctx.appEntitlements || []).find((app) => app.id === appId);
+  return entry?.allowed === true && entry.option_values[optionKey] === true;
+}
+
+/**
+ * Whether the person works with every project rather than only the ones they
+ * are assigned to. Without expanded access everyone does.
+ */
+export function seesEveryProject(ctx: PlatformAuthContext) {
+  return !ctx.accessProfile || hasPermission(ctx, "view_projects|manage_projects");
 }
 
 export async function requireCapability(ctx: PlatformAuthContext, capabilityKey: string) {
@@ -716,24 +743,6 @@ export async function requireCapability(ctx: PlatformAuthContext, capabilityKey:
     throw forbidden("capability_denied", `The "${capabilityKey}" capability is not available to this user.`);
   }
   return ctx;
-}
-
-function canonicalApplicationId(value: unknown) {
-  const id = cleanText(value).toLowerCase();
-  if (["main", "portal"].includes(id)) return MANAGEMENT_APPLICATION_ID;
-  if (["crew", "workforce"].includes(id)) return "field";
-  return id;
-}
-
-function contextHasApplicationAccess(ctx: PlatformAuthContext, applicationIdValue: string, permission?: string) {
-  const applicationId = canonicalApplicationId(applicationIdValue);
-  const entry = ctx.applicationAccess[applicationId];
-  if (!entry?.enabled) return false;
-  if (!permission) return true;
-  return cleanText(permission).split("|").some((key) => {
-    const item = key.trim();
-    return entry.permissions[item] === true || (entry.permissions[item] !== false && entry.permissions["*"] === true);
-  });
 }
 
 export async function requirePlatformAuth(
@@ -744,8 +753,11 @@ export async function requirePlatformAuth(
     /** Entrance only: caller MUST authorize every target using hasResourcePermission. */
     allowScopedPermission?: boolean;
     csrf?: boolean;
-    application?: false | string | string[];
-    applicationPermission?: string;
+    /**
+     * The app (docs/architecture/app-experience.md) this route belongs to. The
+     * person must be shown at least one of these apps on some device.
+     */
+    app?: string | string[];
     /** A runtime surface without a capability node (for example organization connections). */
     appId?: string;
     /** Capability-registry key; enforced via can() after permission checks. */
@@ -757,15 +769,8 @@ export async function requirePlatformAuth(
   if (options.orgId && options.orgId !== ctx.orgId) {
     throw forbidden("organization_forbidden", "This session cannot access the requested organization.");
   }
-  const requestedApplications = options.application === false
-    ? []
-    : Array.isArray(options.application)
-      ? options.application
-      : [options.application || MANAGEMENT_APPLICATION_ID];
-  if (requestedApplications.length && !requestedApplications.some((applicationId) => (
-    contextHasApplicationAccess(ctx, applicationId, options.applicationPermission)
-  ))) {
-    throw forbidden("application_access_denied", "This user does not have access to the requested application.");
+  if (options.app && !hasAppAccess(ctx, options.app)) {
+    throw forbidden("app_access_denied", "This app is not part of this person's app experience.");
   }
   if (!(options.allowScopedPermission ? canUseScopedPermission(ctx, options.permission) : hasPermission(ctx, options.permission))) {
     throw forbidden("permission_denied", "This session does not have permission to perform this action.");

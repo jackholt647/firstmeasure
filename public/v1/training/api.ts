@@ -68,7 +68,7 @@ function viewerFrom(ctx: PlatformAuthContext): ViewerIdentity {
 }
 
 async function requireViewer(request: Parameters<typeof requirePlatformAuth>[0], orgId: string) {
-  return requirePlatformAuth(request, { orgId, application: VIEWER_APPLICATIONS, capability: "apps.training" });
+  return requirePlatformAuth(request, { orgId, capability: "apps.training" });
 }
 
 async function requireManager(request: Parameters<typeof requirePlatformAuth>[0], orgId: string, options: { csrf?: boolean; scoped?: boolean } = {}) {
@@ -112,7 +112,7 @@ export const registerTrainingApi: FastifyPluginAsync = async (app) => {
 
   app.post("/organizations/:orgId/me/courses/:courseId/lessons/:lessonId/complete", async (request) => {
     const orgId = getParam(request.params, "orgId");
-    const ctx = await requirePlatformAuth(request, { orgId, application: VIEWER_APPLICATIONS, csrf: true });
+    const ctx = await requirePlatformAuth(request, { orgId, csrf: true });
     const body = completeLessonSchema.parse({ ...(request.body as object ?? {}), course_id: getParam(request.params, "courseId") });
     return { ok: true, ...(await completeLesson(orgId, viewerFrom(ctx), body.course_id, getParam(request.params, "lessonId"), body)) };
   });
@@ -145,7 +145,7 @@ export const registerTrainingApi: FastifyPluginAsync = async (app) => {
 
   app.post("/organizations/:orgId/me/attempts", async (request) => {
     const orgId = getParam(request.params, "orgId");
-    const ctx = await requirePlatformAuth(request, { orgId, application: VIEWER_APPLICATIONS, csrf: true });
+    const ctx = await requirePlatformAuth(request, { orgId, csrf: true });
     const body = recordAttemptSchema.parse(request.body ?? {});
     return { ok: true, attempt: (await recordStandaloneAttempt(orgId, viewerFrom(ctx), body)) };
   });

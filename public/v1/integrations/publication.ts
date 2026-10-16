@@ -34,7 +34,6 @@ export async function loadConnectionPublications(orgId: string) {
         effect: "read" | "write",
       ): AccessPolicy => ({
         scopes: ["organization", "project"],
-        applications: false,
         permissions: [],
         capabilities: ["platform.connections"],
         authorize: async (ctx, target) => {

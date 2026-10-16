@@ -197,10 +197,7 @@ function systemMaterialContext(orgId: string, branchId = "default"): PlatformAut
     role: "system",
     branchId: branchId || "default",
     permissions: { "*": true },
-    applicationAccess: {
-      management: { enabled: true, role_id: "system", permissions: { "*": true } },
-      field: { enabled: false, role_id: "", permissions: {} }
-    },
+    appEntitlements: [],
     csrfToken: ""
   };
 }

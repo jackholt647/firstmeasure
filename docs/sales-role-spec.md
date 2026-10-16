@@ -37,10 +37,16 @@ section is an audit of what exists today (2026-07-30).
   time clock is the `crew.time_clock.use` permission alone; give a role that
   should not clock no such permission. See
   [pay rules](architecture/pay-rules.md#time-clock).*
-- *Superseded on 2026-10-13: the commission rules engine, its automations, the
-  scope-template commission editor and project payee roles described in the next
-  item were removed. Pay is now derived by pay rules; see
-  [pay rules](architecture/pay-rules.md).*
+- *Superseded on 2026-10-13: the commission rules engine
+  (`commission_rules.ts`), the `payroll.commission.*` automations, the
+  `payroll.commissions` capability, the scope-template commission editor and
+  project payee roles described in the next item were removed. Commissions are
+  now pay rules: the `estimator` and `inside_salesperson` assignment fields
+  are still filled from the sales appointment, and a rule selects every project
+  where such a field names the payee (the sample `estimator_commission_sold` and
+  `inside_sales_booking` rules); see
+  [who is paid for a role on a project](architecture/pay-rules.md#who-is-paid-for-a-role-on-a-project).
+  Sales shows a person's own pay in My pay, the same view as Crew and Payroll.*
 - **Commissions are first-class payroll**: `payroll.commissions` capability
   (`capability_defs.ts:663`), rules engine (`public/v1/payroll/commission_rules.ts`),
   automations `payroll.commission.rule.v1` / `payroll.commission.post.v1`, clawbacks with

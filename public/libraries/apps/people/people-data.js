@@ -14,10 +14,10 @@
  *   data.user(id)  data.role(id)  data.activeRoles()
  *   data.userRoleIds(user)  data.userRoles(user)  data.userDepartments(user)  data.userGroups(user)
  *   data.neverSignedIn(user)  data.isSuspended(user)  data.isMe(user)  data.isOwner(user)
- *   data.roleMembers(roleId)  data.roleApplications(role)
+ *   data.roleMembers(roleId)
  *   data.permissionGroups()                groups for permissionsPanel
  *   data.inheritedPermission(roleIds)      (key) => { allowed, sources }
- *   data.inheritedApp(roleIds)             (appId) => { shown, sources }
+ *   data.inheritedApp(roleIds, user)       (appId) => { visible: { device: shown }, options, sources }
  *   data.userSummary(user, draft)          the kit.summary model for a person
  *
  * Writing (each resolves after the store is current again)
@@ -62,13 +62,10 @@
       return raw.startsWith('/') ? new URL(raw, base).href : `${base}/${raw}`;
     } catch (_) { return raw; }
   }
-  const canonicalApplication = (value) => {
-    const id = text(value).toLowerCase();
-    return ['crew', 'workforce'].includes(id) ? 'field' : ['main', 'portal'].includes(id) ? 'management' : id;
-  };
+
 
   const state = {
-    loaded:false, orgId:'', users:[], roles:[], apps:[], applications:[], permissionKeys:[],
+    loaded:false, orgId:'', users:[], roles:[], apps:[], deviceTypes:[], permissionKeys:[],
     departments:[], memberships:new Map(), departmentState:null, groups:[], groupLabels:{}, errors:{},
     configuration:{}, tags:[], connections:[], directory:new Map(), types:[], staffing:new Map(), scopes:[], archivedUsers:[], structure:null
   };
@@ -246,13 +243,12 @@
       if (catalogResult.status === 'fulfilled' && catalogResult.value) {
         const catalog = catalogResult.value;
         state.roles = records(catalog, 'roles', 'access_roles').map((role) => ({ ...role, id:text(role.id, role.role_id) }));
-        state.apps = records(catalog, 'apps', 'app_catalog').map((app) => ({
-          ...app, id:text(app.id, app.app_id, app.runtime_app_id), title:text(app.title, app.label, app.id),
-          application_id:canonicalApplication(text(app.application_id, app.application, 'field')),
-          surface:text(app.surface, app.kind).toLowerCase() === 'project_modal_app' ? 'project_modal' : text(app.surface, 'portal_tab').toLowerCase(),
-          devices:arr(app.devices).length ? arr(app.devices) : ['desktop', 'mobile']
+        // Every app the organization has on, with the devices it exists on and its options (docs/architecture/app-experience.md).
+        state.apps = records(catalog, 'apps').map((app) => ({
+          ...app, id:text(app.id), title:text(app.title, app.id),
+          surface:text(app.surface, 'portal_tab'), devices:arr(app.devices), options:arr(app.options), default_visible:app.default_visible === true
         }));
-        state.applications = arr(catalog.applications);
+        state.deviceTypes = arr(obj(catalog.device_types).types).map((type) => ({ id:text(type.id), label:text(type.label, type.id), icon:kit.ICONS[text(type.id)] || text(type.icon, 'fa-display') }));
         state.permissionKeys = ids(catalog.permission_keys);
         state.permissionCatalog = catalog.permission_catalog && typeof catalog.permission_catalog === 'object' ? catalog.permission_catalog : null;
       } else state.errors.access = catalogResult.reason?.message || 'access';
@@ -336,31 +332,15 @@
   const role = (id) => state.roles.find((entry) => entry.id === String(id)) || null;
   const activeRoles = () => state.roles.filter((entry) => text(entry.status, 'active') !== 'archived' && !entry.archived_at)
     .sort((left, right) => text(left.name, left.id).localeCompare(text(right.name, right.id)));
-  const roleApplications = (entry = {}) => {
-    const list = ids(entry.application_ids).map(canonicalApplication).filter(Boolean);
-    const fallback = canonicalApplication(text(entry.application_id, entry.application, 'management'));
-    return [...new Set(list.length ? list : [fallback])];
-  };
   function userRoleIds(entry = {}){
     const stored = entry.profile || entry;
     const assigned = ids(stored.access_profile?.access_role_ids || stored.access_role_ids || stored.access_roles || stored.workforce_profile?.access_role_ids).filter((id) => role(id));
-    if (assigned.length) return assigned;
-    const access = obj(stored.access_profile?.application_access || stored.application_access);
-    return ['management', 'field'].map((application) => text(obj(access[application]).role_id)).filter((id) => role(id));
+    return assigned;
   }
   const userRoles = (entry) => userRoleIds(entry).map(role).filter(Boolean);
   const userPermissionOverrides = (entry = {}) => ({ ...obj((entry.profile || entry).permission_overrides || entry.permission_overrides) });
-  const userAppOverrides = (entry = {}) => {
-    const raw = obj((entry.profile || entry).app_access_overrides || entry.app_access_overrides);
-    const result = {};
-    Object.entries(raw).forEach(([appId, value]) => {
-      const source = obj(value);
-      const word = text(typeof value === 'string' ? value : source.state, source.visibility, source.override).toLowerCase();
-      if (value === true || ['show', 'shown', 'visible', 'allow', 'allowed'].includes(word) || source.enabled === true || source.visible === true) result[appId] = 'show';
-      else if (value === false || ['hide', 'hidden', 'deny', 'denied'].includes(word) || source.enabled === false || source.visible === false) result[appId] = 'hide';
-    });
-    return result;
-  };
+  /* A person's own App experience settings: app id -> { visible: { device: shown }, options }. */
+  const userAppOverrides = (entry = {}) => appSettings((entry.profile || entry).app_access_overrides || entry.app_access_overrides);
   function userDepartments(entry = {}){
     const membership = state.memberships.get(String(entry.id));
     if (!membership) return [];
@@ -461,46 +441,76 @@
       return { allowed:!denied && granting.length > 0, sources:denied ? [] : granting };
     };
   }
-  const appDefaultEnabled = (value, fallback) => {
-    if (value == null) return fallback === true;
-    if (typeof value === 'boolean') return value;
-    const source = obj(value);
-    if (source.enabled === false || source.allowed === false || source.visible === false) return false;
-    if (source.enabled === true || source.allowed === true || source.visible === true) return true;
-    return fallback === true;
-  };
-  function inheritedApp(roleIds){
+  /* ---- App experience (docs/architecture/app-experience.md) ---- */
+  const boolMap = (value) => Object.fromEntries(Object.entries(obj(value)).filter(([, on]) => typeof on === 'boolean'));
+  /* One level's stored settings, with anything that says nothing dropped. */
+  function appSettings(value){
+    const result = {};
+    Object.entries(obj(value)).forEach(([appId, setting]) => {
+      const next = People.appGrid?.compact?.({ ...obj(setting), visible:boolMap(obj(setting).visible), options:boolMap(obj(setting).options) });
+      if (next) result[appId] = next;
+    });
+    return result;
+  }
+  /*
+   * What the levels below this one give an app, the way the server resolves it: the app's default,
+   * then roles (any role showing it is enough; a role that says nothing gives the default), then
+   * departments and groups (any of them showing it is enough), and a restricted app is hidden.
+   */
+  function inheritedFrom({ roleIds = [], memberships = [] } = {}){
     const roles = ids(roleIds).map(role).filter(Boolean);
     return (appId) => {
       const app = state.apps.find((entry) => entry.id === appId);
-      if (!app) return { shown:false, sources:[] };
-      const sources = roles.filter((entry) => roleApplications(entry).includes(app.application_id)
-        && appDefaultEnabled(obj(entry.app_defaults || entry.apps)[appId], app.default_enabled === true || app.defaultEnabled === true)).map((entry) => text(entry.name, entry.id));
-      return { shown:sources.length > 0, sources };
+      if (!app) return { visible:{}, options:{}, sources:[] };
+      const roleSetting = (entry) => obj(appSettings(entry.app_defaults || entry.apps)[appId]);
+      const visible = {};
+      const sources = new Set();
+      arr(app.devices).forEach((device) => {
+        let shown = app.default_visible === true;
+        if (roles.some((entry) => typeof obj(roleSetting(entry).visible)[device] === 'boolean')) {
+          const showing = roles.filter((entry) => { const own = obj(roleSetting(entry).visible)[device]; return typeof own === 'boolean' ? own : app.default_visible === true; });
+          shown = showing.length > 0;
+          showing.forEach((entry) => sources.add(text(entry.name, entry.id)));
+        }
+        const explicit = memberships.filter((layer) => typeof obj(obj(layer.settings[appId]).visible)[device] === 'boolean');
+        if (explicit.length) {
+          const showing = explicit.filter((layer) => obj(layer.settings[appId]).visible[device] === true);
+          shown = showing.length > 0;
+          showing.forEach((layer) => sources.add(layer.label));
+        }
+        if (memberships.some((layer) => obj(layer.settings[appId]).restricted === true)) shown = false;
+        visible[device] = shown;
+      });
+      const options = {};
+      arr(app.options).forEach((option) => {
+        let on = option.default === true;
+        if (roles.some((entry) => typeof obj(roleSetting(entry).options)[option.key] === 'boolean')) {
+          on = roles.some((entry) => { const own = obj(roleSetting(entry).options)[option.key]; return typeof own === 'boolean' ? own : option.default === true; });
+        }
+        const explicit = memberships.filter((layer) => typeof obj(obj(layer.settings[appId]).options)[option.key] === 'boolean');
+        if (explicit.length) on = explicit.some((layer) => obj(layer.settings[appId]).options[option.key] === true);
+        options[option.key] = on;
+      });
+      return { visible, options, sources:[...sources] };
     };
   }
-  const roleAppValue = (entry = {}) => {
-    const result = {};
-    Object.entries(obj(entry.app_defaults || entry.apps)).forEach(([appId, value]) => {
-      const app = state.apps.find((item) => item.id === appId);
-      const enabled = appDefaultEnabled(value, app?.default_enabled === true);
-      if (app && enabled !== (app.default_enabled === true)) result[appId] = enabled ? 'show' : 'hide';
-    });
-    return result;
-  };
-  const catalogDefaultApp = () => (appId) => {
-    const app = state.apps.find((entry) => entry.id === appId);
-    return { shown:app?.default_enabled === true || app?.defaultEnabled === true, sources:[] };
-  };
-  function applicationAccessFor(roleIds, current = {}){
-    const result = {};
-    ['management', 'field'].forEach((application) => {
-      const roles = ids(roleIds).map(role).filter((entry) => entry && roleApplications(entry).includes(application));
-      const primary = [...roles].sort((left, right) => Number(obj(left.metadata).level || 0) - Number(obj(right.metadata).level || 0)).at(-1);
-      result[application] = { ...obj(current[application]), enabled:roles.length > 0, role_id:text(primary?.id), permissions:obj(obj(current[application]).permissions) };
-    });
-    return result;
+  /* What a person gets before their own settings: their roles, departments and groups. */
+  function inheritedApp(roleIds, entry = null){
+    const memberships = [];
+    if (entry) {
+      userDepartments(entry).forEach((department) => {
+        const source = state.departments.find((item) => item.id === department.id);
+        if (source) memberships.push({ label:department.label, settings:appSettings(source.app_defaults) });
+      });
+      userGroups(entry).forEach((group) => {
+        memberships.push({ label:text(group.name, group.id), settings:appSettings(obj(group.attributes).app_defaults) });
+      });
+    }
+    return inheritedFrom({ roleIds, memberships });
   }
+  const roleAppValue = (entry = {}) => appSettings(entry.app_defaults || entry.apps);
+  /* The product defaults: what a level with nothing above it inherits. */
+  const catalogDefaultApp = () => inheritedFrom({});
 
   const dateText = (value) => {
     const date = value ? new Date(value) : null;
@@ -554,15 +564,14 @@
 
   async function invite({ name, email, roleIds = [], photo = null }){
     const platform = api();
-    const applicationAccess = applicationAccessFor(roleIds);
     const result = await platform.users.create(orgId(), {
       email:String(email || '').trim().toLowerCase(), name:String(name || '').trim(), role:'viewer', status:'invited', permissions:{}, account_type:'customer',
-      application_access:applicationAccess, access_role_ids:ids(roleIds), permission_overrides:{}, app_access_overrides:{}
+      access_role_ids:ids(roleIds), permission_overrides:{}, app_access_overrides:{}
     });
     const created = normalizeUser(result?.document || {});
     let profileError = '';
     if (created.id && can.workforce && platform.workforce?.saveUserProfile) {
-      try { await platform.workforce.saveUserProfile(orgId(), created.id, { application_access:applicationAccess, access_role_ids:ids(roleIds), permission_overrides:{}, app_access_overrides:{} }); }
+      try { await platform.workforce.saveUserProfile(orgId(), created.id, { access_role_ids:ids(roleIds), permission_overrides:{}, app_access_overrides:{} }); }
       catch (error) { profileError = error?.message || 'profile'; }
     }
     let photoError = '';
@@ -613,10 +622,9 @@
     }
     if (can.access && (patch.roleIds !== undefined || patch.permissionOverrides !== undefined || patch.appOverrides !== undefined)) {
       const roleIds = patch.roleIds !== undefined ? ids(patch.roleIds) : userRoleIds(current);
-      if (isMe(current) && !roleIds.some((roleId) => roleApplications(role(roleId)).includes('management'))) throw new Error(t('keep_own_access', 'Keep a role that lets you into Settings on your own account.'));
-      const stored = current.profile || current;
+      const administers = (roleId) => ['*', 'manage_company_users', 'manage_company_user_permissions'].some((key) => obj(role(roleId)?.permissions)[key] === true);
+      if (isMe(current) && !roleIds.some(administers)) throw new Error(t('keep_own_access', 'Keep a role that lets you into Settings on your own account.'));
       await platform.workforce.saveUserProfile(orgId(), id, {
-        application_access:applicationAccessFor(roleIds, obj(stored.application_access)),
         access_role_ids:roleIds,
         ...(patch.permissionOverrides !== undefined ? { permission_overrides:obj(patch.permissionOverrides) } : {}),
         ...(patch.appOverrides !== undefined ? { app_access_overrides:obj(patch.appOverrides) } : {}),
@@ -666,28 +674,16 @@
     const payload = { expected_revision:Number(current.revision || 0) };
     if (patch.name !== undefined) { payload.name = String(patch.name || '').trim(); if (!payload.name) throw new Error(t('name_required', 'Enter a name.')); }
     if (patch.description !== undefined) payload.description = String(patch.description || '').trim();
-    if (patch.applicationIds !== undefined) { payload.application_ids = ids(patch.applicationIds); if (!payload.application_ids.length) throw new Error(t('role_needs_app', 'A role needs at least one place it applies.')); }
     if (patch.permissions !== undefined) payload.permissions = rolePermissionsPayload(patch.permissions);
-    if (patch.appDefaults !== undefined) {
-      const existing = obj(current.app_defaults || current.apps);
-      const next = { ...existing };
-      state.apps.forEach((app) => {
-        const choice = patch.appDefaults[app.id];
-        const params = obj(obj(existing[app.id]).params);
-        const layout = obj(obj(existing[app.id]).layout);
-        if (!choice) { if (Object.keys(params).length || Object.keys(layout).length) next[app.id] = { enabled:app.default_enabled === true, params, layout }; else delete next[app.id]; }
-        else next[app.id] = { enabled:choice === 'show', params, layout };
-      });
-      payload.app_defaults = next;
-    }
+    if (patch.appDefaults !== undefined) payload.app_defaults = appSettings(patch.appDefaults);
     await api().workforce.updateAccessRole(orgId(), id, payload);
     await reload({ type:'role', id:String(id) });
     return role(id);
   }
-  async function createRole({ name, applicationIds = ['management'] } = {}){
+  async function createRole({ name } = {}){
     const clean = String(name || '').trim();
     if (!clean) throw new Error(t('name_required', 'Enter a name.'));
-    const result = await api().workforce.createAccessRole(orgId(), { name:clean, description:'', application_ids:ids(applicationIds), permissions:{}, app_defaults:{} });
+    const result = await api().workforce.createAccessRole(orgId(), { name:clean, description:'', permissions:{}, app_defaults:{} });
     const createdId = text(result?.role?.id, result?.id, result?.access_role?.id);
     await reload({ type:'role', id:createdId });
     return role(createdId) || activeRoles().find((entry) => text(entry.name) === clean) || null;
@@ -736,8 +732,8 @@
     classificationOf, paymentTermsOf, workerMarks, saveClassification,
     structure, multipleBranches, branches, regions, branch, region, branchName, branchIdsOf,
     state, load, subscribe(listener){ listeners.add(listener); return () => listeners.delete(listener); }, can, orgId, branchId, assetUrl,
-    user, role, activeRoles, roleApplications, userRoleIds, userRoles, userPermissionOverrides, userAppOverrides, userDepartments, userDirectDepartmentIds, userGroups,
-    neverSignedIn, isSuspended, isMe, isOwner, roleMembers, permissionGroups, inheritedPermission, inheritedApp, roleAppValue, catalogDefaultApp, userSummary,
+    user, role, activeRoles, userRoleIds, userRoles, userPermissionOverrides, userAppOverrides, userDepartments, userDirectDepartmentIds, userGroups,
+    neverSignedIn, isSuspended, isMe, isOwner, roleMembers, permissionGroups, inheritedPermission, inheritedApp, roleAppValue, appSettings, catalogDefaultApp, userSummary,
     invite, resendInvite, setSuspended, removeUser, saveUser, uploadPhoto, saveUserDepartments, saveRole, createRole, archiveRole, setRoleMembership
   };
 })();

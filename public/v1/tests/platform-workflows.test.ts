@@ -375,7 +375,7 @@ test("user fields use typed publications and remain absent from raw user and acc
   assert.equal(denied.status,"denied");
 });
 
-test("application access is enforced independently from authentication and organization permissions", async () => {
+test("a stored application entry neither grants nor denies anything: apps come from App experience", async () => {
   const client = createSessionClient();
   const { orgId, userId, email } = await register(client);
   const { upsertDocument } = await import("../platform/storage.js");
@@ -388,6 +388,7 @@ test("application access is enforced independently from authentication and organ
       }
     }
   });
+  // A document saved under the old management/field split (docs/architecture/app-experience.md).
   await upsertDocument(orgId, "users", {
     id: userId,
     data: {
@@ -400,29 +401,28 @@ test("application access is enforced independently from authentication and organ
 
   const session = await client.request("GET", "/v1/platform/me");
   assert.equal(session.authenticated, true);
-  assert.equal(session.user.application_access.management.enabled, false);
-  assert.equal(session.user.application_access.field.enabled, true);
+  // The stored entry stays on the document as data; nothing reads it.
+  assert.equal(session.membership?.application_access, undefined);
   assert.equal(session.branch.data.branding.colors.primary, "#2468ac");
   assert.equal(session.branch.data.branding.logo, "https://cdn.example.test/field-brand.png");
 
   const shellFlags = await client.request("GET", `/v1/platform/organizations/${orgId}/app-flags`);
   assert.equal(shellFlags.ok, true);
 
-  const managementApi = await client.raw("GET", `/v1/platform/organizations/${orgId}/projects`);
-  assert.equal(managementApi.statusCode, 403);
-  assert.equal(managementApi.data.error, "application_access_denied");
+  const projects = await client.raw("GET", `/v1/platform/organizations/${orgId}/projects`);
+  assert.equal(projects.statusCode, 200);
 
   const portalBridge = await client.raw("POST", "/v1/platform/portal-action", {
     action: "get_credits",
     actor_email: email,
     actor_org_id: orgId
   });
-  assert.equal(portalBridge.statusCode, 403);
-  assert.equal(portalBridge.data.error, "application_access_denied");
+  assert.notEqual(portalBridge.data?.error, "application_access_denied");
 
   const authStatus = await client.request("POST", "/v1/platform/portal-action", { action: "auth_status" });
   assert.equal(authStatus.authenticated, true);
-  assert.equal(authStatus.application_access.management.enabled, false);
+  assert.equal(authStatus.application_access, undefined);
+  assert.ok(Array.isArray(authStatus.allowed_app_ids));
 });
 
 test("view-only management users cannot mutate protected canonical documents", async () => {

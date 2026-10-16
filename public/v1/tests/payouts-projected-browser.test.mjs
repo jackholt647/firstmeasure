@@ -19,9 +19,10 @@ test('every self-service Earnings tab shows My pay, projected only when permitte
   await page.route('https://payouts.test/**',async route=>{const p=new URL(route.request().url()).pathname;if(p.startsWith('/libraries/'))return route.fulfill({contentType:'application/javascript; charset=utf-8',body:await readFile(new URL('../../libraries/'+p.slice('/libraries/'.length),import.meta.url))});return route.fulfill({contentType:'text/html',body:'<meta charset="utf-8"><style>body{margin:0;font:14px Inter,Arial,sans-serif;background:#f2f4f7}</style><div id="portal"></div><div id="project"><div data-crew-project-app="payouts"></div></div>'});});
   await page.goto('https://payouts.test/');
   await page.evaluate(()=>{
-   window.__APP={userOrgId:'org',userId:'ana'};window.apps={};window.calls=[];window.deny=false;window.perms={'crew.time_clock.use':true};
+   window.__APP={userOrgId:'org',userId:'ana'};window.apps={};window.calls=[];window.deny=false;window.perms={};
    window.FirstMateEmbeddableApps={registerApp:def=>apps[def.id]=def,escapeHtml:value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c])};
-   window.Portal={apps:{registerPortalApp:def=>apps[def.id]=def},util:{injectCSS:()=>{},hasPerm:key=>perms[key]===true},navigation:{registerHandler:()=>{}}};
+   // The time clock is Today's App experience option (docs/architecture/app-experience.md).
+   window.Portal={apps:{registerPortalApp:def=>apps[def.id]=def},currentUser:{appEntitlements:[{ id:'portal.crew_overview', allowed:true, option_values:{ time_clock:true } }]},util:{injectCSS:()=>{},hasPerm:key=>perms[key]===true},navigation:{registerHandler:()=>{}}};
    const day=offset=>{const d=new Date(Date.now()+offset*864e5);return d.toISOString().slice(0,10);};
    const earning=(id,project,title,cents,on,extra={})=>({id,projected:true,rule_id:'committed_labor',kind:'piece_rate',amount_cents:cents,description:'Committed labor',expected_on:on,project_id:project,project_title:title,record_title:'Labor '+id,...extra});
    window.projection={total_cents:170000,earnings:[earning('c_open','p1','Maple St',90000,day(9)),earning('c_team','p1','Maple St',30000,day(14),{share_of:{payee_name:'Install team'}}),earning('list_new','p2','Oak Ave',50000,'')],
@@ -62,14 +63,14 @@ test('every self-service Earnings tab shows My pay, projected only when permitte
   if(suffix==='phone')assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),true,'no sideways scroll');
   await page.screenshot({path:shot(`field-earnings-${suffix}`),fullPage:true});
 
-  // Not allowed projections: the forecast is never asked for; no time clock permission: no timesheets.
-  await page.evaluate(()=>{perms={};});
+  // Not allowed projections: the forecast is never asked for; no time clock option: no timesheets.
+  await page.evaluate(()=>{perms={};Portal.currentUser.appEntitlements=[];});
   await mountPortal('portal.crew_payouts',{mode:'crew',subject_scope:'mine',projected_enabled:false});
   await portal.locator('[data-section="payments"]').waitFor();
   assert.equal(await portal.locator('[data-section="projected"], [data-section="timesheets"]').count(),0);
   assert.deepEqual(await actions(),['payroll.earnings.me']);
   // Allowed in the profile but refused by the server: hidden, with no error shown.
-  await page.evaluate(()=>{window.deny=true;perms={'crew.time_clock.use':true};});
+  await page.evaluate(()=>{window.deny=true;perms={};Portal.currentUser.appEntitlements=[{ id:'portal.crew_overview', allowed:true, option_values:{ time_clock:true } }];});
   await mountPortal('portal.crew_payouts',{mode:'crew',subject_scope:'mine',projected_enabled:true});
   await portal.locator('[data-section="timesheets"]').waitFor();
   assert.equal(await portal.locator('[data-section="projected"]').count(),0);

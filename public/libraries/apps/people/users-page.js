@@ -307,11 +307,6 @@
       let apps = null;
       let appsPanel = null;
       const current = () => data.user(id) || start;
-      const reachableApps = () => {
-        const applications = new Set(draft.roleIds.flatMap((roleId) => data.roleApplications(data.role(roleId) || {})));
-        const reachable = data.state.apps.filter((app) => applications.has(app.application_id) || draft.appOverrides[app.id]);
-        return reachable.length ? reachable : data.state.apps;
-      };
       const sync = () => {
         modal.setDirty('identity', draft.name.trim() !== base.name.trim() || draft.email.trim().toLowerCase() !== base.email.trim().toLowerCase());
         modal.setDirty('roles', !same(sorted(draft.roleIds), sorted(base.roleIds)));
@@ -327,7 +322,8 @@
       const mountApps = () => {
         if (!appsPanel) return;
         apps?.destroy();
-        apps = People.appGrid.mount(appsPanel, { apps:reachableApps(), value:draft.appOverrides, inherited:(appId) => data.inheritedApp(draft.roleIds)(appId), readOnly:!can.access, onChange(value){ draft.appOverrides = value; sync(); } });
+        const inherited = data.inheritedApp(draft.roleIds, current());
+        apps = People.appGrid.mount(appsPanel, { apps:data.state.apps, platforms:data.state.deviceTypes.length ? data.state.deviceTypes : undefined, value:draft.appOverrides, inherited, readOnly:!can.access, onChange(value){ draft.appOverrides = value; sync(); } });
       };
       const rolesChanged = () => { permissions?.refresh(); mountApps(); modal.refreshSummary(); sync(); };
 
@@ -676,7 +672,7 @@
       const current = () => data.role(id) || start;
       const baseline = () => {
         const role = current();
-        return { name:role.name || '', description:role.description || '', applicationIds:data.roleApplications(role), permissions:{ ...(role.permissions || role.permission_defaults || {}) }, appDefaults:data.roleAppValue(role) };
+        return { name:role.name || '', description:role.description || '', permissions:{ ...(role.permissions || role.permission_defaults || {}) }, appDefaults:data.roleAppValue(role) };
       };
       let base = baseline();
       const draft = JSON.parse(JSON.stringify(base));
@@ -688,13 +684,8 @@
       let apps = null;
       let appsPanel = null;
       let members = null;
-      const applicationLabel = (applicationId) => {
-        const fromCatalog = data.state.applications.find((application) => String(application.id) === applicationId)?.label;
-        return kit.term(`workforce.${applicationId}_application`, fromCatalog || (applicationId === 'field' ? t('field_app', 'Field') : t('office_app', 'Office')));
-      };
       const sync = () => {
         modal.setDirty('identity', draft.name.trim() !== base.name.trim() || draft.description.trim() !== base.description.trim());
-        modal.setDirty('applications', !same(sorted(draft.applicationIds), sorted(base.applicationIds)));
         modal.setDirty('role_permissions', !same(draft.permissions, base.permissions));
         modal.setDirty('role_apps', !same(draft.appDefaults, base.appDefaults));
       };
@@ -717,8 +708,7 @@
       const mountApps = () => {
         if (!appsPanel) return;
         apps?.destroy();
-        const list = data.state.apps.filter((app) => draft.applicationIds.includes(app.application_id));
-        apps = People.appGrid.mount(appsPanel, { apps:list, value:draft.appDefaults, inherited:data.catalogDefaultApp(), readOnly:!editable, onChange(value){ draft.appDefaults = value; sync(); } });
+        apps = People.appGrid.mount(appsPanel, { apps:data.state.apps, platforms:data.state.deviceTypes.length ? data.state.deviceTypes : undefined, value:draft.appDefaults, inherited:data.catalogDefaultApp(), readOnly:!editable, onChange(value){ draft.appDefaults = value; sync(); } });
       };
       function drawSummary(host){
         const role = current();
@@ -727,7 +717,7 @@
           kind:'access_role', id, name:draft.name || role.id, secondary:draft.description, icon:kit.ICONS.role, color:'#3538cd',
           pills:system ? [{ label:t('built_in', 'Built-in'), tone:'neutral', tooltip:t('built_in_tip', 'Comes with the product and cannot be archived') }] : [],
           facts:[{ icon:kit.ICONS.users, label:t('members', 'Members'), value:count.toLocaleString() }],
-          sections:[{ id:'applications', title:t('role_apps', 'Apps'), icon:kit.ICONS.apps, tooltip:t('role_apps_tip', 'Where people with this role work'), chips:draft.applicationIds.map((applicationId) => ({ label:applicationLabel(applicationId) })), empty:t('none', 'None'), action:editable ? { id:'applications', label:t('change_apps', 'Change apps') } : null }]
+          sections:[]
         };
         host.innerHTML = kit.summary(model, 'panel', { editAction:editable && !editingIdentity ? t('edit_role_identity', 'Edit name and description') : '' });
         if (editingIdentity) {
@@ -764,7 +754,6 @@
           const patch = {};
           if (draft.name.trim() !== base.name.trim()) patch.name = draft.name;
           if (draft.description.trim() !== base.description.trim()) patch.description = draft.description;
-          if (!same(sorted(draft.applicationIds), sorted(base.applicationIds))) patch.applicationIds = draft.applicationIds;
           if (!same(draft.permissions, base.permissions)) patch.permissions = draft.permissions;
           if (!same(draft.appDefaults, base.appDefaults)) patch.appDefaults = draft.appDefaults;
           if (Object.keys(patch).length) await data.saveRole(id, patch);
@@ -780,22 +769,6 @@
       const summaryHost = modal.el.querySelector('[data-modal-summary]');
       summaryHost.addEventListener('click', (event) => {
         if (event.target.closest('[data-people-identity]')) { editingIdentity = true; modal.refreshSummary(); summaryHost.querySelector('[data-identity="name"]')?.focus(); return; }
-        const sectionButton = event.target.closest('[data-people-section-action="applications"]');
-        if (!sectionButton) return;
-        kit.menu(sectionButton, {
-          label:t('role_apps', 'Apps'),
-          items:['management', 'field'].map((applicationId) => ({ id:applicationId, label:applicationLabel(applicationId), checked:draft.applicationIds.includes(applicationId) })),
-          onSelect(item, menu){
-            const on = !draft.applicationIds.includes(item.id);
-            if (!on && draft.applicationIds.length === 1) return;
-            draft.applicationIds = on ? [...draft.applicationIds, item.id] : draft.applicationIds.filter((applicationId) => applicationId !== item.id);
-            menu.setChecked(item.id, on);
-            modal.refreshSummary();
-            mountApps();
-            sync();
-          },
-          onClose:() => modal.el.querySelector('[data-people-section-action="applications"]')?.focus()
-        });
       });
       summaryHost.addEventListener('input', (event) => {
         const field = event.target.closest('[data-identity]');

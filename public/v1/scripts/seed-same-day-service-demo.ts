@@ -39,11 +39,7 @@ async function main() {
   if (!userDoc) throw new Error(`User ${email} was not found in ${orgId}`);
   const userId = String(userDoc.id);
   await patchWorkforceUserProfile(orgId, userId, {
-    access_role_ids: ["salesperson"],
-    application_access: {
-      management: { enabled: false, role_id: "viewer", permissions: {} },
-      field: { enabled: true, role_id: "salesperson", permissions: {} }
-    }
+    access_role_ids: ["salesperson"]
   });
 
   const visits = [

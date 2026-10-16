@@ -82,7 +82,6 @@ export const registerIntegrationsApi: FastifyPluginAsync = async (app) => {
       permission: "manage_company_settings",
       capability: "platform.connections",
       csrf: request.method !== "GET",
-      application: false,
     });
   const key = (r: FastifyRequest) => String(object(r.params).connectionId);
   app.get(`${prefix}/connections`, async (r) => ({

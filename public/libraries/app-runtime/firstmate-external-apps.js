@@ -22,7 +22,7 @@
         icon: meta.icon, order: meta.order,
         kind: 'portal_tab', portalTabId: `external_${meta.id}`,
         surfaces: ['portal_tab'], regions: ['main'], visible: true,
-        access: { applicationsAny: ['management'], capability: 'platform.expanded_access' },
+        access: { capability: 'platform.expanded_access' },
         route: { parent: 'portal', params: { tab: { default: `external_${meta.id}`, history: 'push' } } },
         mount(context) {
           try { return implementation.mount(context); }

@@ -836,11 +836,7 @@ test("expense tracking projects labor from its list lines, preserves receipt evi
   });
   const salariedUserId = String(salariedUser.document.id);
   await client.request("PATCH", `/v1/workforce/organizations/${orgId}/users/${salariedUserId}/profile`, {
-    access_role_ids: ["crew_member"],
-    application_access: {
-      management: { enabled: false, role_id: "viewer", permissions: {} },
-      field: { enabled: true, role_id: "member", permissions: { view_assigned_work: true } }
-    }
+    access_role_ids: ["crew_member"]
   });
   const restrictedMediaEmail = `media-viewer-${Date.now()}@example.test`;
   const restrictedMediaPassword = "media viewer test password";
@@ -856,12 +852,8 @@ test("expense tracking projects labor from its list lines, preserves receipt evi
     }
   });
   const restrictedMediaUserId = String(restrictedMediaUser.document.id);
-  await client.request("PATCH", `/v1/workforce/organizations/${orgId}/users/${restrictedMediaUserId}/profile`, {
-    application_access: {
-      management: { enabled: true, role_id: "viewer", permissions: {} },
-      field: { enabled: false, role_id: "member", permissions: {} }
-    }
-  });
+  // A user saved before roles existed: read as the role their permission level names, with no extra grants.
+
   const createdGroup = await client.request("POST", `${branchBase}/resource-groups`, {
     name: "Mixed Pay Install Team",
     members: [

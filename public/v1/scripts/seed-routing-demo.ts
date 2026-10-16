@@ -140,11 +140,7 @@ async function ensureSalesperson(person: { name: string; email: string }, index:
   }
   await addIdentityMembership(identityId, orgId, userId, "viewer");
   await patchWorkforceUserProfile(orgId, userId, {
-    access_role_ids: ["salesperson"],
-    application_access: {
-      management: { enabled: false, role_id: "viewer", permissions: {} },
-      field: { enabled: true, role_id: "salesperson", permissions: {} }
-    }
+    access_role_ids: ["salesperson"]
   });
   return userId;
 }

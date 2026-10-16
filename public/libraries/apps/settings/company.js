@@ -106,16 +106,13 @@
     const group = workforceObject(source.resource_group || source.group);
     const member = workforceObject(source.resource_group_member || source.worker || source.member);
     const connection = workforceObject(source.organization_connection || source.connection);
-    const applications = workforceObject(source.applications);
     const labels = {
       resource_group_singular: workforceText(source.resource_group_singular, group.singular, 'Crew'),
       resource_group_plural: workforceText(source.resource_group_plural, group.plural, 'Crews'),
       worker_singular: workforceText(source.worker_singular, member.singular, 'Crew Member'),
       worker_plural: workforceText(source.worker_plural, member.plural, 'Crew Members'),
       organization_connection_singular: workforceText(source.organization_connection_singular, connection.singular, 'Subcontractor'),
-      organization_connection_plural: workforceText(source.organization_connection_plural, connection.plural, 'Subcontractors'),
-      management_application: workforceText(source.management_application, applications.management, 'Main App'),
-      field_application: workforceText(source.field_application, applications.field, 'Crew App')
+      organization_connection_plural: workforceText(source.organization_connection_plural, connection.plural, 'Subcontractors')
     };
     return Object.fromEntries(Object.entries(labels).map(([key,fallback]) => [key, window.PlatformTerminology?.get?.(`workforce.${key}`, fallback) || fallback]));
   }
@@ -1124,7 +1121,7 @@
     presetDiff: '',       // preset id with an open apply-confirmation panel
     access: null,         // { roles, me } cache for the permission sets view
     accessLoading: false,
-    roleForm: null,       // { name, application_id, permissions } while creating a set
+    roleForm: null,       // { name, permissions } while creating a set
     roleEdit: null        // { roleId, permissions } while editing a custom set
   };
   function appFlag(group, flag){
@@ -4043,13 +4040,7 @@
     };
     const workforceActiveAccessRoles = () => workforceArray(workforceUi.accessRoles)
       .filter((role) => workforceText(role.status, 'active') !== 'archived' && !role.archived_at)
-      .sort((left, right) => {
-        const applicationOrder = { management:0, field:1 };
-        const leftApplication = workforceText(left.application_id, left.application, 'management').toLowerCase();
-        const rightApplication = workforceText(right.application_id, right.application, 'management').toLowerCase();
-        return (applicationOrder[leftApplication] ?? 2) - (applicationOrder[rightApplication] ?? 2)
-          || workforceText(left.name, left.id).localeCompare(workforceText(right.name, right.id));
-      });
+      .sort((left, right) => workforceText(left.name, left.id).localeCompare(workforceText(right.name, right.id)));
     async function loadWorkforceContext(options = {}){
       if (workforceUi.loaded && !options.refresh) return workforceUi;
       if (workforceUi.promise && !options.refresh) return workforceUi.promise;
@@ -11041,16 +11032,10 @@
       activeRoles.forEach((role) => Object.keys(role.permissions || {}).forEach((key) => {
         if (!knownPermissionKeys.has(key) && key !== '*') extraRoleKeys.add(key);
       }));
-      const applicationsById = { management: 'Management', field: 'Crew / Field' };
-      const permissionOptionsFor = (applicationId) => {
-        const audience = applicationId === 'field' ? 'field' : 'management';
+      const permissionOptions = () => {
         const options = permissionNodes
-          .filter((node) => (node.audience || ['management']).includes(audience))
           .map((node) => ({ key: node.permission_key, label: node.label, description: node.description, access: node.access }));
-        extraRoleKeys.forEach((key) => {
-          const belongsToField = key.startsWith('crew.');
-          if ((audience === 'field') === belongsToField) options.push({ key, label: key, description: '', access: '' });
-        });
+        extraRoleKeys.forEach((key) => options.push({ key, label: key, description: '', access: '' }));
         return options;
       };
       const permissionChecklist = (options, selected, attr) => `
@@ -11075,7 +11060,7 @@
               ${String(isMine ? `<span class="cap-badge on">${(globalThis.PlatformLanguage?.htmlText("settings","m_24bfd239048801","Your set") ?? "Your set")}</span>` : '')}
             </h4>
             ${String(role.description ? `<div class="cap-card-desc">${escapeHtml(role.description)}</div>` : '')}
-            <div class="cap-card-desc">${String(escapeHtml(applicationsById[role.application_id] || role.application_id))} · ${String(role.permissions?.['*'] === true ? 'Full access' : `${grantCount} ${grantCount === 1 ? 'grant' : 'grants'}`)}</div>
+            <div class="cap-card-desc">${String(role.permissions?.['*'] === true ? 'Full access' : `${grantCount} ${grantCount === 1 ? 'grant' : 'grants'}`)}</div>
             <div class="cap-card-actions">
               ${String(!isMine ? `<button class="cs-btn primary" type="button" data-cap-role-switch="${escapeHtml(role.id)}">${(globalThis.PlatformLanguage?.htmlText("settings","m_446edd2609d8ee","Switch to this set") ?? "Switch to this set")}</button>` : '')}
               <button class="cs-btn ghost" type="button" data-cap-role-view="${String(escapeHtml(role.id))}">${String(role.is_system ? 'View' : 'Edit')}</button>
@@ -11091,10 +11076,9 @@
        */
       const openRoleModal = (mode, role = null) => {
         const editable = mode !== 'view';
-        const applicationId = role?.application_id || 'management';
         const selected = { ...(role?.permissions || {}) };
-        const draw = (appId) => {
-          const options = permissionOptionsFor(appId);
+        const draw = () => {
+          const options = permissionOptions();
           const overlay = capModal(
             mode === 'create' ? 'Create a permission set' : mode === 'edit' ? `Edit "${role.name}"` : `"${role.name}" permissions`,
             `
@@ -11102,10 +11086,6 @@
                 <div class="cap-card-desc">${(globalThis.PlatformLanguage?.htmlText("settings","m_fcda8b2158981c","Sets are reusable groups of permissions. Assign users to a set for mass management; per-user overrides always take precedence.") ?? "Sets are reusable groups of permissions. Assign users to a set for mass management; per-user overrides always take precedence.")}</div>
                 <div class="cap-form-row" style="display:flex;gap:8px;flex-wrap:wrap">
                   <input class="cs-in" type="text" placeholder="${(globalThis.PlatformLanguage?.htmlText("settings","m_4ab899aa9e2850","Set name") ?? "Set name")}" data-cap-role-name style="flex:1;min-width:160px">
-                  <select class="cs-in" data-cap-role-app style="max-width:180px">
-                    <option value="management" ${String(appId === 'management' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.htmlText("settings","m_ee37529aee018c","Management") ?? "Management")}</option>
-                    <option value="field" ${String(appId === 'field' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.htmlText("settings","m_e873514a9a11df","Crew / Field") ?? "Crew / Field")}</option>
-                  </select>
                 </div>
               ` : ''}
               ${permissionChecklist(options, selected, 'cap-role-perm')}
@@ -11122,12 +11102,6 @@
               else delete selected[input.dataset.capRolePerm];
             });
           });
-          overlay.querySelector('[data-cap-role-app]')?.addEventListener('change', (event) => {
-            const nameValue = String(overlay.querySelector('[data-cap-role-name]')?.value || '');
-            draw(String(event.target.value || 'management'));
-            const nameInput = document.querySelector('#capModalOverlay [data-cap-role-name]');
-            if (nameInput) nameInput.value = nameValue;
-          });
           overlay.querySelector('[data-cap-modal-cancel]')?.addEventListener('click', closeCapModal);
           overlay.querySelector('[data-cap-modal-save]')?.addEventListener('click', async (event) => {
             const button = event.currentTarget;
@@ -11135,9 +11109,8 @@
               button.disabled = true;
               if (mode === 'create') {
                 const name = String(overlay.querySelector('[data-cap-role-name]')?.value || '').trim();
-                const chosenApp = String(overlay.querySelector('[data-cap-role-app]')?.value || 'management');
                 if (!name) { showToast((globalThis.PlatformLanguage?.text("settings","m_a70f7baf0bf79c","Name required") ?? "Name required"), (globalThis.PlatformLanguage?.text("settings","m_f93a983be6ab00","Give the permission set a name first.") ?? "Give the permission set a name first."), false); button.disabled = false; return; }
-                await window.PlatformAPI.workforce.createAccessRole(orgId, { name, application_id: chosenApp, permissions: selected });
+                await window.PlatformAPI.workforce.createAccessRole(orgId, { name, permissions: selected });
                 showToast((globalThis.PlatformLanguage?.text("settings","m_8193b4aa8d04e8","Permission set created") ?? "Permission set created"), ((v0) => globalThis.PlatformLanguage?.text("settings","m_dc5a4a352d5073",`"${v0}" is ready to assign.`,{v0}) ?? `"${v0}" is ready to assign.`)(name), true);
               } else {
                 await window.PlatformAPI.workforce.updateAccessRole(orgId, role.id, { permissions: selected, expected_revision: role.revision });
@@ -11153,7 +11126,7 @@
           });
           if (mode === 'create') overlay.querySelector('[data-cap-role-name]')?.focus();
         };
-        draw(applicationId);
+        draw();
       };
       const myPermissionGroupsHtml = Object.entries(permissionGroups).map(([groupLabel, nodes]) => `
         <div class="cap-card">
@@ -11184,14 +11157,7 @@
             <div class="cap-section-title" style="flex:1">${(globalThis.PlatformLanguage?.htmlText("settings","m_9864b866a47464","Permission Sets") ?? "Permission Sets")}</div>
             <button class="cs-btn primary" type="button" data-cap-role-form-open><i class="fas fa-plus"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_9f813ee3470349"," New Permission Set") ?? " New Permission Set")}</button>
           </div>
-          ${String(['management', 'field'].map((applicationId) => {
-            const appRoles = activeRoles.filter((role) => role.application_id === applicationId);
-            if (!appRoles.length) return '';
-            return `
-              <div class="cap-section-title">${((v0) => globalThis.PlatformLanguage?.htmlText("settings","m_0090d5b8755954",`${v0} Sets`,{v0}) ?? `${v0} Sets`)(escapeHtml(applicationsById[applicationId]))}</div>
-              <div class="cap-cards">${appRoles.map(roleCard).join('')}</div>
-            `;
-          }).join(''))}
+          ${String(activeRoles.length ? `<div class="cap-cards">${activeRoles.map(roleCard).join('')}</div>` : '')}
         </div>
       `;
       body.querySelector('[data-cap-role-form-open]')?.addEventListener('click', () => openRoleModal('create'));
@@ -11202,12 +11168,9 @@
       body.querySelectorAll('[data-cap-role-switch]').forEach((button) => button.addEventListener('click', async () => {
         const role = activeRoles.find((entry) => entry.id === button.dataset.capRoleSwitch);
         if (!role) return;
-        if (!window.confirm(((v0,v1) => globalThis.PlatformLanguage?.text("settings","m_776b9a8c19b92b",`Switch your ${v0} permission set to "${v1}"? This changes what you can access immediately.`,{v0,v1}) ?? `Switch your ${v0} permission set to "${v1}"? This changes what you can access immediately.`)(applicationsById[role.application_id] || role.application_id,role.name))) return;
+        if (!window.confirm(((v0,v1) => globalThis.PlatformLanguage?.text("settings","m_776b9a8c19b92b",`Switch your ${v0} permission set to "${v1}"? This changes what you can access immediately.`,{v0,v1}) ?? `Switch your ${v0} permission set to "${v1}"? This changes what you can access immediately.`)('current',role.name))) return;
         const userId = String(window.__APP?.userId || window.Portal?.currentUser?.id || '');
-        const nextRoleIds = [
-          ...myRoleIds.filter((id) => activeRoles.find((entry) => entry.id === id)?.application_id !== role.application_id),
-          role.id
-        ];
+        const nextRoleIds = [role.id];
         try {
           await window.PlatformAPI.workforce.saveUserProfile(orgId, userId, { access_role_ids: nextRoleIds });
           capabilityUi.access = null;
@@ -11226,7 +11189,6 @@
         try {
           await window.PlatformAPI.workforce.createAccessRole(orgId, {
             name,
-            application_id: role.application_id,
             description: role.description || '',
             permissions: { ...(role.permissions || {}) }
           });

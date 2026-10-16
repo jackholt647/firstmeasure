@@ -176,7 +176,7 @@ export async function recordFeedEvent(event:Obj) {
 export function registerFeedRoutes(app:FastifyInstance) {
   const prefix="/organizations/:orgId/feed";
   const auth=async(request:any,csrf=false)=>{
-    const ctx=await requirePlatformAuth(request,{orgId:str(request.params.orgId),capability:"platform.photos_feed",application:["management","field"],csrf});
+    const ctx=await requirePlatformAuth(request,{orgId:str(request.params.orgId),capability:"platform.photos_feed",csrf});
     requirePermission(ctx,"view_feed");return ctx;
   };
   app.get(prefix+"/catalog",async request=>{

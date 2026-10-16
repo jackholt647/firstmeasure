@@ -2025,7 +2025,6 @@
     icon: 'fa-truck-pickup',
     order: 57,
     fullBleed: true,
-    access: { applicationsAny: ['management'] },
     mount: mountEquipment
   });
 })();

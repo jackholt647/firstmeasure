@@ -36,7 +36,7 @@ const manage: AccessPolicy = { scopes: ["organization"], permissions: ["manage_p
  * projections, which roles grant by default and a company can take away. Only ever the signed-in user's own.
  */
 export const OWN_PROJECTED_EARNINGS_PERMISSION = PAYROLL_PERMISSION_KEYS.view_own_projected_earnings;
-const ownProjection: AccessPolicy = { scopes: ["organization"], applications: false, permissions: [OWN_PROJECTED_EARNINGS_PERMISSION], capabilities: ["payroll.self_service_earnings"], authorize: (ctx) => {
+const ownProjection: AccessPolicy = { scopes: ["organization"], permissions: [OWN_PROJECTED_EARNINGS_PERMISSION], capabilities: ["payroll.self_service_earnings"], authorize: (ctx) => {
   if (!ctx.auth) throw forbidden("payroll_subject_required", "Personal earnings require a current signed-in user.");
   if (!hasPermission(ctx.auth, OWN_PROJECTED_EARNINGS_PERMISSION)) throw forbidden("payroll_projection_denied", "Projected earnings are not shown to this user.");
 } };

@@ -60,7 +60,6 @@ export const registerCallsApi: FastifyPluginAsync = async (app) => {
 
   const auth = (request: Parameters<typeof requirePlatformAuth>[0], orgId: string, csrf = false) => requirePlatformAuth(request, {
     orgId,
-    application: ["management", "field"],
     capability: "calls.rooms",
     csrf
   });

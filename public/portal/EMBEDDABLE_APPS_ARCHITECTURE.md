@@ -155,8 +155,8 @@ Every mounted app receives a normalized context:
   services,
   featureFlags,
   permissions,
-  applicationAccess,
   appEntitlements,
+  appExperience,
   roleIds,
   device,
   presentation,
@@ -215,10 +215,14 @@ view is relevant enough to inject. These are deliberately separate: a Super
 Administrator may have unrestricted data permissions while inheriting a
 hidden Clock In view.
 
-An app manifest may constrain `applicationsAny`, permissions, roles, user
-types, devices, or feature flags. The resolved entitlement can then override
-visibility, parameters, layout, and the default home app. Both `listApps()` and
-direct `mount()` enforce the same policy.
+Whether a person has an app, and on which device, is App experience
+(`docs/architecture/app-experience.md`): the server's entitlement for the app
+says which device types show it, and the runtime sorts the browser into one
+device type with the same rules. A manifest entry does not declare its own
+visibility (no application, device or permission rule); it may still name a
+capability, roles or feature flags. The resolved entitlement can then set
+parameters, layout, and the default home app. Both `listApps()` and direct
+`mount()` enforce the same policy.
 
 Project-modal presentation supports per-app left-column and mobile navigation
 rules. Crew project apps use no left region, icon-only tabs on mobile, and an
@@ -226,14 +230,14 @@ always-fullscreen mobile modal without a redundant fullscreen control.
 
 ## Crew Apps
 
-`crew/app.js` owns the field experience. Its global apps are Today, Schedule,
+`crew/app.js` owns the apps for people doing assigned work. Its global apps are Today, Schedule,
 Receipts, and Payouts. Schedule uses the shared `platform-schedule-view`
 calendar for List, Day, short-range, Week, and Month views; Crew intentionally
 does not receive the routing view. Calendar queries use the assigned-work facade
 in `public/v1/workforce/crew_api.ts`. The portal's global search uses the shared
 Crew assignment scope before matching projects or contacts. Its project apps are
 Overview, Materials, Payouts, Payments,
-Change Orders, and Checklist. Field users never receive the general project-
+Change Orders, and Checklist. People who only work assigned projects never receive the general project-
 management API as a shortcut.
 
 ## Rules For Future Work

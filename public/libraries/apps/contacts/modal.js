@@ -773,10 +773,8 @@
   function contactTodosEnabled(){
     const flags = window.Portal?.appFlags || window.PlatformAPI?.appFlags;
     if (!flags?.current?.()) return false;
-    const hasManagementAccess = window.Portal?.currentUser?.canAccessApplication?.('management') === true;
     const canViewProjects = window.Portal?.util?.hasPerm?.('view_projects') === true;
-    return hasManagementAccess
-      && canViewProjects
+    return canViewProjects
       && !!flags.has?.('platform', 'left_column_todo_list')
       && !!window.PlatformActionItems?.renderTodayList;
   }
@@ -935,8 +933,17 @@
       if(slot==='document'&&$('#fmContactDocsUpload'))$('#fmContactDocsUpload').value='';
     }catch(error){setMeta(error.message || 'Could not upload media.');}
   }
+  // Contact views are apps in App experience (docs/architecture/app-experience.md): contact.projects, contact.media, contact.docs.
+  const CONTACT_VIEWS=['projects','media','docs'];
+  const contactViewAllowed=(tab)=>window.FirstMateEmbeddableApps?.appVisibleHere?.(`contact.${tab}`)!==false;
+  function syncContactViews(){
+    for(const [id,tab] of [['fmContactProjectsTab','projects'],['fmContactMediaTab','media'],['fmContactDocsTab','docs']]){const button=$('#'+id);if(button)button.hidden=!contactViewAllowed(tab);}
+  }
   function showContactTab(tab){
-    contactPanes.apply([{tab,weight:1}]);
+    syncContactViews();
+    const allowed=CONTACT_VIEWS.filter(contactViewAllowed);
+    if(!allowed.length)return;
+    contactPanes.apply([{tab:allowed.includes(tab)?tab:allowed[0],weight:1}]);
   }
   function isContactDoc(item){
     const type=cleanText(item.content_type || item.mime_type).toLowerCase();
@@ -1106,7 +1113,10 @@
     await shellReady;
     if(state.open)await flushAutosave();
     const overlay = ensureUI();
-    const layout={panes:[{tab:options.tab || 'projects'}],...options.layout};
+    syncContactViews();
+    const firstView=CONTACT_VIEWS.find(contactViewAllowed)||'projects';
+    const requested=options.tab&&contactViewAllowed(options.tab)?options.tab:firstView;
+    const layout={panes:[{tab:requested}],...options.layout};
     const fallbackProject = contact?.project || (Array.isArray(options.projects) ? options.projects[0] : null);
     const nextContact = normalizeContact(contact || {}, fallbackProject);
     contactShell.validate({...layout,tray:null});

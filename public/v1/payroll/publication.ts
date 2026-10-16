@@ -5,7 +5,7 @@ import { contentHash } from '../platform/publication/validation.js';
 import { backendImplementationDigest } from '../platform/publication/implementation.js';
 import type { PublicationContext, SourceRef, TargetRef, AccessPolicy } from '../platform/publication/contracts.js';
 import { badRequest, forbidden } from '../platform/errors.js';
-import { hasPermission } from '../platform/auth.js';
+import { appOptionEnabled, hasPermission } from '../platform/auth.js';
 import { readDocument } from '../platform/storage.js';
 import * as store from './storage.js';
 import * as service from './service.js';
@@ -30,12 +30,11 @@ const org:AccessPolicy={scopes:['organization'],permissions:['manage_payroll|man
 const both:AccessPolicy={...org,scopes:['organization','project']};
 // Discovery checks capabilities; concrete references and mutations check project ownership.
 const projectMutation:AccessPolicy={...both,authorize:async(ctx,target)=>{await org.authorize!(ctx,target);if(target.scope==='project')await readDocument(ctx.organizationId,'projects',target.projectId!);}};
-const self:AccessPolicy={scopes:['organization'],applications:false,permissions:[],capabilities:['payroll.self_service_earnings'],authorize:ctx=>{if(!ctx.auth)throw forbidden('payroll_subject_required','Personal earnings require a current signed-in user.');}};
-/** The signed-in user's own timesheets: the time clock permission, the time clock feature, nothing about payroll. */
-const SELF_CLOCK='crew.time_clock.use';
-const selfClock:AccessPolicy={scopes:['organization'],applications:false,permissions:[SELF_CLOCK],capabilities:['crew.time_clock'],authorize:ctx=>{if(!ctx.auth)throw forbidden('payroll_subject_required','Your timesheets need a current signed-in user.');if(!hasPermission(ctx.auth,SELF_CLOCK))throw forbidden('time_clock_permission','Seeing your timesheets needs the time clock permission.');}};
+const self:AccessPolicy={scopes:['organization'],permissions:[],capabilities:['payroll.self_service_earnings'],authorize:ctx=>{if(!ctx.auth)throw forbidden('payroll_subject_required','Personal earnings require a current signed-in user.');}};
+/** The signed-in user's own timesheets: Today's time clock option (docs/architecture/app-experience.md), the time clock feature, nothing about payroll. */
+const selfClock:AccessPolicy={scopes:['organization'],permissions:[],capabilities:['crew.time_clock'],authorize:ctx=>{if(!ctx.auth)throw forbidden('payroll_subject_required','Your timesheets need a current signed-in user.');if(!appOptionEnabled(ctx.auth,'portal.crew_overview','time_clock'))throw forbidden('time_clock_unavailable','Seeing your timesheets needs the time clock in your app experience.');}};
 /** A named pay run approver: being named on the run is the authority, checked by the run itself. */
-const approver:AccessPolicy={scopes:['organization'],applications:false,permissions:[],capabilities:['apps.payroll'],authorize:ctx=>{if(!ctx.auth)throw forbidden('payroll_subject_required','Pay run approvals need a current signed-in user.');}};
+const approver:AccessPolicy={scopes:['organization'],permissions:[],capabilities:['apps.payroll'],authorize:ctx=>{if(!ctx.auth)throw forbidden('payroll_subject_required','Pay run approvals need a current signed-in user.');}};
 function principal(ctx:PublicationContext){if(!ctx.auth)throw forbidden('payroll_principal','A current authorized user is required.');return ctx.auth;}
 function recordId(target:TargetRef){if(!target.id)throw badRequest('payroll_target_required','Choose the target payroll record.');return target.id;}
 function options(ref:SourceRef){const args=contract.querySchema.parse(ref.args||{});if(ref.target.scope==='project'&&args.project_id&&args.project_id!==ref.target.projectId)throw forbidden('payroll_project_denied','Payroll filters cannot override the target project.');return {...args,...(ref.target.scope==='project'?{project_id:ref.target.projectId}:{})};}

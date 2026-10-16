@@ -130,8 +130,9 @@ test('off-cycle payments subtract from the next pay run, exports follow Gusto an
       await assert.rejects(classify({ manage_projects: true }));
     });
 
-    await t.test('own timesheets need only the time clock permission; approvals need only being named', async () => {
-      const crew = auth('bob', { 'crew.time_clock.use': true });
+    await t.test("own timesheets need only Today's time clock option; approvals need only being named", async () => {
+      // The time clock is an App experience option, not a permission (docs/architecture/app-experience.md).
+      const crew = auth('bob', {}, { accessProfile: { roles: [] }, appEntitlements: [{ id:'portal.crew_overview', allowed:true, option_values:{ time_clock:true } }] });
       assert.equal((await read(userPublicationContext(crew), 'my_timesheets')).status, 'ready');
       assert.equal((await read(userPublicationContext(auth('bob', {})), 'my_timesheets')).status, 'denied');
       assert.equal((await read(userPublicationContext(crew), 'timesheets')).status, 'denied');
@@ -160,7 +161,7 @@ test('off-cycle payments subtract from the next pay run, exports follow Gusto an
       assert.equal((await read(userPublicationContext(manager), 'configuration')).value.settings.approval_required, true, 'approval is on unless turned off');
       const saved = await run(command, 'payroll.settings.save', { approval_required: false, expected_revision: 0 });
       assert.equal(saved.approval_required, false);
-      await assert.rejects(run(userPublicationContext(auth('bob', { 'crew.time_clock.use': true }), { mode: 'command' }), 'payroll.settings.save', { approval_required: true }));
+      await assert.rejects(run(userPublicationContext(auth('bob', {}, { accessProfile: { roles: [] }, appEntitlements: [{ id:'portal.crew_overview', allowed:true, option_values:{ time_clock:true } }] }), { mode: 'command' }), 'payroll.settings.save', { approval_required: true }));
       const drafted = (await run(command, 'payroll.batch.create', { schedule_id: schedule.id, pay_date: occurrence.pay_date })).batch;
       assert.equal(drafted.approval.status, 'not_required');
       const item = drafted.items.find((row: any) => row.payee.id === 'dana');

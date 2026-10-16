@@ -1,4 +1,4 @@
-import { can, hasPermission, canUseScopedPermission, hasResourcePermission, type PlatformAuthContext } from "../auth.js";
+import { can, hasAppAccess, hasPermission, canUseScopedPermission, hasResourcePermission, type PlatformAuthContext } from "../auth.js";
 import { isCapabilityEnabled } from "../capabilities.js";
 import { forbidden, badRequest } from "../errors.js";
 import type { AccessPolicy, ExecutionKind, PublicationContext, SystemGrant, TargetRef } from "./contracts.js";
@@ -24,13 +24,7 @@ export async function authorizePublication(ctx: PublicationContext, target: Targ
   if (ctx.projectId && target.projectId && ctx.projectId !== target.projectId) throw forbidden("publication_project_denied", "The requested project is outside this execution context.");
   if (ctx.auth) {
     if (ctx.auth.orgId !== ctx.organizationId) throw forbidden("publication_tenant_denied", "The principal does not belong to this organization.");
-    const applications = policy.applications === false ? [] : policy.applications || ["management"];
-    if (applications.length && !applications.some(name => {
-      const entry = ctx.auth!.applicationAccess?.[name];
-      if (!entry?.enabled) return false;
-      return !policy.applicationPermission || policy.applicationPermission.split("|").some(permission =>
-        entry.permissions[permission.trim()] === true || (entry.permissions[permission.trim()] !== false && entry.permissions["*"] === true));
-    })) throw forbidden("publication_application_denied", "This user does not have access to the required application.");
+    if (policy.app?.length && !hasAppAccess(ctx.auth, [...policy.app])) throw forbidden("publication_app_denied", "This app is not part of this person's app experience.");
     const resource = policy.departmentResource ? await policy.departmentResource(ctx, target) : null;
     if (policy.scopedPermissions && !policy.authorize && !policy.departmentResource) throw forbidden('publication_scope_authorizer_required', 'Scoped operations require a domain authorizer.');
     for (const permission of policy.permissions) {

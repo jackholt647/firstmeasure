@@ -96,8 +96,9 @@ function fixtures(){
 }
 
 const people = {
-  manager:{ userId:'owner', permissions:{ manage_payroll:true, manage_company_settings:true, 'crew.time_clock.use':true, 'payroll.view_own_projected_earnings':true } },
-  crew:{ userId:'ana', permissions:{ 'crew.time_clock.use':true, 'payroll.view_own_projected_earnings':true } },
+  // The time clock is Today's App experience option, not a permission (docs/architecture/app-experience.md).
+  manager:{ userId:'owner', clock:true, permissions:{ manage_payroll:true, manage_company_settings:true, 'payroll.view_own_projected_earnings':true } },
+  crew:{ userId:'ana', clock:true, permissions:{ 'payroll.view_own_projected_earnings':true } },
   approver:{ userId:'owner', permissions:{} }
 };
 
@@ -124,7 +125,7 @@ async function openApp(browser, who, viewport, adjust = ''){
     const handlers = [];
     const hasPerm = (key) => who.permissions[key] === true;
     window.Portal = {
-      currentUser:{ id:who.userId, permissions:who.permissions }, util:{ hasPerm }, ui:{ showToast:(...values) => { (window.toasts = window.toasts || []).push(values); } },
+      currentUser:{ id:who.userId, permissions:who.permissions, appEntitlements:who.clock ? [{ id:'portal.crew_overview', allowed:true, option_values:{ time_clock:true } }] : [] }, util:{ hasPerm }, ui:{ showToast:(...values) => { (window.toasts = window.toasts || []).push(values); } },
       capabilities:{ current:() => ({ definitions_by_key:{}, effective_by_key:{ 'apps.payroll':true, 'payroll.pay_runs':true, 'payroll.self_service_earnings':true, 'crew.time_clock':true } }) },
       navigation:{ read:() => route, registerHandler:(id, handler) => { handlers.push(handler); return () => {}; }, navigate:(patch) => { Object.assign(route, patch); handlers.forEach((handler) => handler.apply(route)); }, push:(patch) => Object.assign(route, patch), replace:(patch) => Object.assign(route, patch) }
     };

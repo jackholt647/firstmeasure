@@ -14,7 +14,7 @@ import {
   readMaterialList
 } from "../materials/storage.js";
 import type { PlatformAuthContext } from "../platform/auth.js";
-import { requirePlatformAuth } from "../platform/auth.js";
+import { appOptionEnabled, hasPermission, requirePlatformAuth } from "../platform/auth.js";
 import { badRequest, forbidden, notFound } from "../platform/errors.js";
 import { updateProjectData } from "../platform/project_document_mutation.js";
 import { listDocuments, readDocument, storeMediaUpload, upsertDocument, type JsonObject } from "../platform/storage.js";
@@ -228,28 +228,17 @@ function managementAuthority(ctx: PlatformAuthContext) {
     || ["owner", "admin", "super_admin"].includes(role);
 }
 
-function fieldPermissions(ctx: PlatformAuthContext, accessProfile: JsonObject) {
-  const resolvedAccess = asObject(accessProfile.application_access || accessProfile.applicationAccess);
-  const resolvedField = asObject(resolvedAccess.field);
-  const contextField = asObject(ctx.applicationAccess.field);
-  return {
-    enabled: resolvedField.enabled === true || contextField.enabled === true,
-    permissions: {
-      ...asObject(contextField.permissions),
-      ...asObject(resolvedField.permissions),
-      ...asObject(accessProfile.permissions)
-    }
-  };
+function hasCrewPermission(actor: CrewActor, permission: string) {
+  return actor.management || hasPermission(actor.ctx, permission);
 }
 
-function hasCrewPermission(actor: CrewActor, permission: string) {
-  if (actor.management) return true;
-  const field = fieldPermissions(actor.ctx, actor.accessProfile);
-  if (!field.enabled) return false;
-  return cleanText(permission).split("|").some((key) => {
-    const item = key.trim();
-    return field.permissions[item] === true || (field.permissions[item] !== false && field.permissions["*"] === true);
-  });
+/** The time clock is an option of Today (docs/architecture/app-experience.md), not a permission. */
+async function requireTimeClockActor(request: FastifyRequest, orgId: string, csrf = false) {
+  const actor = await requireCrewActor(request, orgId, "", csrf);
+  if (!appOptionEnabled(actor.ctx, "portal.crew_overview", "time_clock")) {
+    throw forbidden("time_clock_unavailable", "The time clock is not part of this person's app experience.", { app: "portal.crew_overview", option: "time_clock" });
+  }
+  return actor;
 }
 
 async function requireCrewActor(
@@ -264,7 +253,6 @@ async function requireCrewActor(
   const ctx = await requirePlatformAuth(request, {
     orgId,
     csrf,
-    application: ["management", "field"],
     ...(capability ? { capability } : {})
   });
   const contextProfile = asObject((ctx as unknown as { accessProfile?: JsonObject }).accessProfile);
@@ -1717,14 +1705,14 @@ export const registerCrewApi: FastifyPluginAsync = async (app) => {
 
   app.get("/organizations/:orgId/crew/me/time-clock", async (request) => {
     const orgId = getParam(request.params, "orgId");
-    const actor = await requireCrewActor(request, orgId, "crew.time_clock.use");
+    const actor = await requireTimeClockActor(request, orgId);
     return { ok: true, time_clock: (await readCrewTimeClock(orgId, actor.ctx.userId)) };
   });
 
   app.post("/organizations/:orgId/crew/me/time-clock/actions", async (request) => {
     const orgId = getParam(request.params, "orgId");
-    const actor = await requireCrewActor(request, orgId, "crew.time_clock.use", true);
-    // Who may clock is the time clock permission and nothing else. Whether the hours are paid is
+    const actor = await requireTimeClockActor(request, orgId, true);
+    // Who may clock is Today's time clock option and nothing else. Whether the hours are paid is
     // up to the person's pay rules, which read the published time clock like any other data.
     const body = requestBody(request);
     const result = (await performCrewTimeClockAction(orgId, actor.ctx.userId, body.action, clockActionMetadata(request, body.metadata)));

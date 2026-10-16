@@ -40,7 +40,6 @@ export const registerAudioNotesApi: FastifyPluginAsync = async (app) => {
     const orgId = getParam(request.params, "orgId");
     await requirePlatformAuth(request, {
       orgId,
-      application: ["management", "field"],
       csrf: true
     });
 
@@ -83,7 +82,6 @@ export const registerAudioNotesApi: FastifyPluginAsync = async (app) => {
     const orgId = getParam(request.params, "orgId");
     const ctx = await requirePlatformAuth(request, {
       orgId,
-      application: ["management", "field"],
       csrf: true
     });
     const typed = request as unknown as {

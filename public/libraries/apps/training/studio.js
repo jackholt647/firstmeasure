@@ -1193,7 +1193,6 @@
     icon: 'fa-chalkboard-user',
     order: 59,
     fullBleed: true,
-    access: { applicationsAny: ['management'] },
     mount: mountStudio
   });
 })();

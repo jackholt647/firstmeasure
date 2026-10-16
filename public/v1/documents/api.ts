@@ -193,7 +193,7 @@ export const registerDocumentsApi: FastifyPluginAsync = async (app) => {
   app.addHook("preHandler", async (request) => {
     const orgId = getParam(request.params, "orgId");
     if (!orgId) return;
-    const ctx = await requirePlatformAuth(request, { orgId, capability: DOCUMENT_CAPABILITIES.app });
+    const ctx = await requirePlatformAuth(request, { orgId, capability: DOCUMENT_CAPABILITIES.app, app: ["project.documents", "project.docs", "documents.studio", "portal.proposals", "project.proposal"] });
     const documentId = getParam(request.params, "documentId");
     const templateId = getParam(request.params, "templateId");
     const workflowId = getParam(request.params, "workflowId");

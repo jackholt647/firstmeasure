@@ -1,15 +1,5 @@
 import type { JsonObject } from "./storage.js";
-
-export const MANAGEMENT_APPLICATION_ID = "management";
-export const FIELD_APPLICATION_ID = "field";
-
-export type ApplicationAccessEntry = {
-  enabled: boolean;
-  role_id: string;
-  permissions: JsonObject;
-};
-
-export type ApplicationAccess = Record<string, ApplicationAccessEntry>;
+import { compactAppDefaults } from "../workforce/access.js";
 
 function cleanText(value: unknown) {
   return String(value ?? "").trim();
@@ -17,49 +7,6 @@ function cleanText(value: unknown) {
 
 function asObject(value: unknown): JsonObject {
   return value && typeof value === "object" && !Array.isArray(value) ? { ...(value as JsonObject) } : {};
-}
-
-function boolValue(value: unknown, fallback: boolean) {
-  if (typeof value === "boolean") return value;
-  if (typeof value === "number") return value !== 0;
-  const text = cleanText(value).toLowerCase();
-  if (["1", "true", "yes", "on", "enabled"].includes(text)) return true;
-  if (["0", "false", "no", "off", "disabled"].includes(text)) return false;
-  return fallback;
-}
-
-function applicationEntry(value: unknown, fallbackEnabled: boolean): ApplicationAccessEntry {
-  if (typeof value === "boolean" || typeof value === "number" || typeof value === "string") {
-    return { enabled: boolValue(value, fallbackEnabled), role_id: "", permissions: {} };
-  }
-  const input = asObject(value);
-  return {
-    enabled: boolValue(input.enabled ?? input.access ?? input.allowed, fallbackEnabled),
-    role_id: cleanText(input.role_id || input.roleId || input.role),
-    permissions: asObject(input.permissions || input.permission_items || input.items)
-  };
-}
-
-/**
- * Application access is intentionally independent from organization permissions.
- * Existing user documents predate this field, so absence means management access
- * remains enabled while the future field application remains opt-in.
- */
-export function normalizeApplicationAccess(value: unknown, options: { managementDefault?: boolean } = {}): ApplicationAccess {
-  const input = asObject(value);
-  const managementDefault = options.managementDefault !== false;
-  const managementValue = input.management ?? input.main ?? input.portal;
-  const fieldValue = input.field ?? input.crew ?? input.workforce;
-  const result: ApplicationAccess = {
-    [MANAGEMENT_APPLICATION_ID]: applicationEntry(managementValue, managementDefault),
-    [FIELD_APPLICATION_ID]: applicationEntry(fieldValue, false)
-  };
-  for (const [key, entry] of Object.entries(input)) {
-    const id = cleanText(key).toLowerCase();
-    if (!id || ["management", "main", "portal", "field", "crew", "workforce"].includes(id)) continue;
-    result[id] = applicationEntry(entry, false);
-  }
-  return result;
 }
 
 export function normalizeAccessRoleIds(value: unknown) {
@@ -73,27 +20,14 @@ export function normalizePermissionOverrides(value: unknown) {
     .filter(([key]) => !!key));
 }
 
+/** A person's own App experience settings: app id -> { visible: { device: shown }, options }. */
 export function normalizeAppAccessOverrides(value: unknown) {
-  const input = asObject(value);
-  const result: JsonObject = {};
-  for (const [appIdValue, stateValue] of Object.entries(input)) {
-    const appId = cleanText(appIdValue);
-    if (!appId) continue;
-    if (stateValue === true) result[appId] = "show";
-    else if (stateValue === false) result[appId] = "hide";
-    else {
-      const state = cleanText(stateValue).toLowerCase();
-      result[appId] = ["show", "hide"].includes(state) ? state : "inherit";
-    }
-  }
-  return result;
+  return compactAppDefaults(value) as JsonObject;
 }
 
 export function organizationUserProfileFields(inputValue: unknown, options: { includeDefaults?: boolean } = {}) {
   const input = asObject(inputValue);
   const result: JsonObject = {};
-  const hasApplicationAccess = Object.prototype.hasOwnProperty.call(input, "application_access")
-    || Object.prototype.hasOwnProperty.call(input, "app_access");
   const hasAccessRoles = Object.prototype.hasOwnProperty.call(input, "access_role_ids")
     || Object.prototype.hasOwnProperty.call(input, "access_roles");
   const hasPermissionOverrides = Object.prototype.hasOwnProperty.call(input, "permission_overrides");
@@ -101,9 +35,6 @@ export function organizationUserProfileFields(inputValue: unknown, options: { in
     || Object.prototype.hasOwnProperty.call(input, "app_entitlement_overrides");
   const hasWorkerClassification = Object.prototype.hasOwnProperty.call(input, "worker_classification");
   const hasPaymentTerms = Object.prototype.hasOwnProperty.call(input, "payment_terms");
-  if (hasApplicationAccess || options.includeDefaults) {
-    result.application_access = normalizeApplicationAccess(input.application_access ?? input.app_access);
-  }
   if (hasAccessRoles || options.includeDefaults) {
     result.access_role_ids = normalizeAccessRoleIds(input.access_role_ids ?? input.access_roles);
   }
@@ -129,7 +60,6 @@ export function organizationUserProfileFields(inputValue: unknown, options: { in
 export function organizationUserProfileView(inputValue: unknown) {
   const input = asObject(inputValue);
   return {
-    application_access: normalizeApplicationAccess(input.application_access ?? input.app_access),
     access_role_ids: normalizeAccessRoleIds(input.access_role_ids ?? input.access_roles),
     permission_overrides: normalizePermissionOverrides(input.permission_overrides),
     app_access_overrides: normalizeAppAccessOverrides(input.app_access_overrides ?? input.app_entitlement_overrides),

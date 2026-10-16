@@ -1067,8 +1067,8 @@ session_write_close();
       }
       /* Branding belongs in the opened mobile menu; the fixed bar owns the page title. */
       .mobile-topbar .mob-logo.default-firstmeasure-logo::before{display:none!important}
-      html[data-fm-field-only="true"] .mobile-topbar .mob-new-req{display:none!important}
-      html[data-fm-field-only="true"] .new-menu-wrap{display:none!important}
+      html[data-fm-assigned-only="true"] .mobile-topbar .mob-new-req{display:none!important}
+      html[data-fm-assigned-only="true"] .new-menu-wrap{display:none!important}
       .mobile-topbar .mob-new-req{
         grid-column:3;grid-row:1;
         min-width:40px; width:40px; height:40px;
@@ -2524,14 +2524,13 @@ session_write_close();
           return `<button type="button" class="new-menu-item" role="menuitem" data-new-workflow="${escText(id)}"><i class="fas ${escText(config.icon)}"></i><span>${escText(short)}</span></button>`;
         }).join('');
       };
-      const isFieldOnlyUser = () => {
-        const access = window.Portal?.currentUser?.applicationAccess || {};
-        return access.field?.enabled === true && access.management?.enabled !== true;
-      };
+      // Someone who works only with the projects assigned to them does not start new ones.
+      const isAssignedOnlyUser = () => !!window.Portal?.currentUser?.accessProfile?.access_role_ids
+        && !['view_projects', 'manage_projects'].some((permission) => window.Portal?.util?.hasPerm?.(permission));
       const syncCreateAccess = (mode = '') => {
-        const fieldOnly = isFieldOnlyUser();
-        const unavailable = fieldOnly || mode === 'off';
-        document.documentElement.dataset.fmFieldOnly = fieldOnly ? 'true' : 'false';
+        const assignedOnly = isAssignedOnlyUser();
+        const unavailable = assignedOnly || mode === 'off';
+        document.documentElement.dataset.fmAssignedOnly = assignedOnly ? 'true' : 'false';
         sidebar?.classList.toggle('new-button-unavailable', unavailable);
         wrap.hidden = unavailable;
         const mobileBtn = document.getElementById('mobNewReqBtn');

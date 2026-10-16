@@ -1,8 +1,8 @@
 import type { FastifyPluginAsync, FastifyRequest } from "fastify";
 import { ZodError, z } from "zod";
 
-import { requirePlatformAuth } from "../platform/auth.js";
-import { badRequest, PlatformError } from "../platform/errors.js";
+import { appOptionEnabled, requirePlatformAuth } from "../platform/auth.js";
+import { badRequest, forbidden, PlatformError } from "../platform/errors.js";
 import { hydratedWorkforceUser } from "../workforce/service.js";
 import { registerPayrollAutomations } from "./automations.js";
 import {
@@ -137,7 +137,7 @@ export const registerPayrollApi: FastifyPluginAsync = async (app) => {
 
   app.get("/organizations/:orgId/earnings/me", async (request) => {
     const orgId = getParam(request.params, "orgId");
-    const context = await requirePlatformAuth(request, { orgId, application: false, capability: "payroll.self_service_earnings" });
+    const context = await requirePlatformAuth(request, { orgId, capability: "payroll.self_service_earnings" });
     const query = queryObject(request);
     const workforceUser = await hydratedWorkforceUser(orgId, context.userId).catch(() => ({}));
     const result = (await payrollEarnings(orgId, [{
@@ -167,7 +167,7 @@ export const registerPayrollApi: FastifyPluginAsync = async (app) => {
   // What the signed-in user's pay rules project they will earn from work not done yet. Never posted; see pay-refresh.ts.
   app.get("/organizations/:orgId/earnings/me/projected", async (request) => {
     const orgId = getParam(request.params, "orgId");
-    const context = await requirePlatformAuth(request, { orgId, application: false, permission: OWN_PROJECTED_EARNINGS_PERMISSION, capability: "payroll.self_service_earnings" });
+    const context = await requirePlatformAuth(request, { orgId, permission: OWN_PROJECTED_EARNINGS_PERMISSION, capability: "payroll.self_service_earnings" });
     return { ok: true, projected: await projectUserEarnings(orgId, context.userId) };
   });
 
@@ -180,10 +180,11 @@ export const registerPayrollApi: FastifyPluginAsync = async (app) => {
     return { ok: true, ...result, timesheets, count: timesheets.length };
   });
 
-  // The signed-in user's own timesheets. Who may see them is the time clock permission and nothing about payroll.
+  // The signed-in user's own timesheets. Who may see them is Today's time clock option (docs/architecture/app-experience.md) and nothing about payroll.
   app.get("/organizations/:orgId/timesheets/me", async (request) => {
     const orgId = getParam(request.params, "orgId");
-    const context = await requirePlatformAuth(request, { orgId, application: false, permission: "crew.time_clock.use", capability: "crew.time_clock" });
+    const context = await requirePlatformAuth(request, { orgId, capability: "crew.time_clock" });
+    if (!appOptionEnabled(context, "portal.crew_overview", "time_clock")) throw forbidden("time_clock_unavailable", "Seeing your timesheets needs the time clock in your app experience.");
     const query = queryObject(request);
     return { ok: true, ...(await listPayrollTimesheets(orgId, { from: query.from, through: query.through, approval_status: query.approval_status, limit: query.limit, user_id: context.userId })) };
   });
@@ -191,13 +192,13 @@ export const registerPayrollApi: FastifyPluginAsync = async (app) => {
   // Pay runs waiting for the signed-in user as a named approver, and their decision. Being named is the authority.
   app.get("/organizations/:orgId/approvals/me", async (request) => {
     const orgId = getParam(request.params, "orgId");
-    const context = await requirePlatformAuth(request, { orgId, application: false, capability: "apps.payroll" });
+    const context = await requirePlatformAuth(request, { orgId, capability: "apps.payroll" });
     return { ok: true, ...(await myPayRunApprovals(context)) };
   });
 
   app.post("/organizations/:orgId/batches/:batchId/decision", async (request) => {
     const orgId = getParam(request.params, "orgId");
-    const context = await requirePlatformAuth(request, { orgId, csrf: true, application: false, capability: "apps.payroll" });
+    const context = await requirePlatformAuth(request, { orgId, csrf: true, capability: "apps.payroll" });
     const body = z.object({ decision: z.enum(["approve", "reject"]), note: z.string().trim().max(1000).optional() }).strict().parse(request.body ?? {});
     return { ok: true, approval: await decideOnPayRun(context, getParam(request.params, "batchId"), body) };
   });

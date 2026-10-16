@@ -16,7 +16,7 @@ export function registerNotificationProvider(){
  registerDataProvider({id:'notification-rules',version:'1',apps:['settings'],exports:{value:{
   description:'The current user’s explicitly published notification-rule variables. Reads do not execute rules.',schema:{type:'object',additionalProperties:true},schemaVersion:'1',
   argsSchema:{type:'object',properties:{ruleId:{type:'string'}},required:['ruleId'],additionalProperties:false},
-  access:{scopes:['organization'],permissions:[],applications:false,capabilities:['apps.notifications'],authorize:ctx=>{if(!ctx.auth)throw forbidden('notification_principal_required','Notification outputs belong to an authenticated user.');}},
+  access:{scopes:['organization'],permissions:[],capabilities:['apps.notifications'],authorize:ctx=>{if(!ctx.auth)throw forbidden('notification_principal_required','Notification outputs belong to an authenticated user.');}},
   authorizeSnapshot:async(ctx,_ref,result)=>{
    if(result.provenance.ownerId!==ctx.auth!.userId)throw forbidden('notification_output_owner','These outputs belong to another user.');
    await currentExports(ctx,String(result.provenance.ruleId),result.value);

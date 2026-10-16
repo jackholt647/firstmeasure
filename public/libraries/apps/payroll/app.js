@@ -92,13 +92,19 @@
     return state.effective_by_key[key] === true;
   }
   const approvalsSeen = new Map();
+  function timeClockOption(){
+    const entitlements = window.Portal?.currentUser?.appEntitlements;
+    const today = Array.isArray(entitlements) ? entitlements.find((entry) => entry?.id === 'portal.crew_overview') : null;
+    return today?.allowed === true && today.option_values?.time_clock === true;
+  }
   const CAPABILITIES = {
     payroll_app:() => feature('apps.payroll'),
     pay_runs:() => feature('payroll.pay_runs'),
     self_service:() => feature('payroll.self_service_earnings'),
     time_clock_feature:() => feature('crew.time_clock'),
     manage_payroll:(context) => perm('manage_payroll', context) || perm('manage_company_settings', context),
-    time_clock:(context) => perm('crew.time_clock.use', context),
+    // The time clock is Today's App experience option, not a permission (docs/architecture/app-experience.md).
+    time_clock:() => timeClockOption(),
     own_projection:(context) => perm('payroll.view_own_projected_earnings', context),
     named_approver:() => num(approvalsSeen.get(orgOf())) > 0
   };
@@ -106,7 +112,7 @@
   const ACTIONS = Object.freeze({
     'view.runs':{ all:['payroll_app', 'manage_payroll'], server:'payroll.dashboard (manage_payroll | manage_company_settings)' },
     'view.review':{ all:['payroll_app', 'manage_payroll'], server:'payroll.pay_review, pay_unresolved, off_cycle_payments, finalized_work' },
-    'view.timesheets':{ all:['payroll_app'], any:['manage_payroll', 'time_clock'], server:'payroll.timesheets | payroll.my_timesheets (crew.time_clock.use)' },
+    'view.timesheets':{ all:['payroll_app'], any:['manage_payroll', 'time_clock'], server:'payroll.timesheets | payroll.my_timesheets (Today time clock option)' },
     'view.payees':{ all:['payroll_app', 'manage_payroll'], server:'payroll.upcoming, payroll.projected_earnings' },
     'view.history':{ all:['payroll_app', 'manage_payroll'], server:'payroll.batches' },
     'view.reports':{ all:['payroll_app', 'manage_payroll'], server:'payroll.export_catalog, payroll.artifacts' },
@@ -132,7 +138,7 @@
     'timesheets.approve':{ all:['payroll_app', 'manage_payroll'], server:'payroll.timesheet.approve' },
     'timesheets.reject':{ all:['payroll_app', 'manage_payroll'], server:'payroll.timesheet.reject' },
     'timesheets.correct':{ all:['payroll_app', 'manage_payroll'], server:'payroll.timesheet.correct' },
-    'timesheets.mine':{ all:['time_clock_feature', 'time_clock'], server:'payroll.timesheets.me (crew.time_clock.use)' },
+    'timesheets.mine':{ all:['time_clock_feature', 'time_clock'], server:'payroll.timesheets.me (Today time clock option)' },
     'reports.generate':{ all:['payroll_app', 'manage_payroll'], server:'payroll.artifact.generate' },
     'mine.projected':{ all:['self_service', 'own_projection'], server:'payroll.projectedEarnings.me (payroll.view_own_projected_earnings)' }
   });
@@ -1241,8 +1247,7 @@
     regions:['main'],
     visible:true,
     fullBleed:true,
-    // Which views open is decided inside by permission and app flag (ACTIONS); the tab itself asks for none.
-    access:{ applicationsAny:['management'] },
+    // Which views open is decided inside by permission and app flag (ACTIONS); who has the tab is App experience.
     mount:createTab
   });
   window.AppChrome.registerGroup({ id:'payroll', parent:'portal.payroll', title:t('payroll', 'Payroll'), icon:'fa-money-check-dollar', default:'upcoming',

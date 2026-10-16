@@ -440,7 +440,7 @@ test('Crew consolidates assigned projects into the shared routed Schedule calend
   const manifest = await readFile(path.join(publicRoot, 'libraries/apps/firstmate-apps-manifest.js'), 'utf8');
   const crewApp = await readFile(path.join(publicRoot, 'libraries/apps/crew/app.js'), 'utf8');
   const scheduleView = await readFile(path.join(publicRoot, 'libraries/platform-schedule-view/platform-schedule-view.js'), 'utf8');
-  const crewScheduleBlock = crewApp.slice(crewApp.indexOf('function mountCrewSchedule'), crewApp.indexOf('const crewAccess'));
+  const crewScheduleBlock = crewApp.slice(crewApp.indexOf('function mountCrewSchedule'), crewApp.indexOf('function registerPortal'));
   assert.doesNotMatch(manifest, /id: 'portal\.crew_projects'/);
   assert.doesNotMatch(crewApp, /registerPortal\(\{ id:'portal\.crew_projects'/);
   assert.match(manifest, /crew: \{ crewScheduleView:\{ default:'week', values:\['list','day','4day','week','month'\], history:'push', apps:\['portal\.crew_schedule'\] \}, crewScheduleDate:\{ history:'replace', apps:\['portal\.crew_schedule'\] \} \}/);
@@ -754,9 +754,10 @@ test('field approval bundles load before project-tab discovery on sales and crew
   assert.match(manifest, /const fieldApprovalBundles = \[[\s\S]*?signatures\/project\.js/);
   assert.match(manifest, /const crewBundles = \[[\s\S]*?\.\.\.fieldApprovalBundles/);
   assert.match(manifest, /const salesBundles = \[[\s\S]*?\.\.\.fieldApprovalBundles/);
-  assert.match(manifest, /id: 'project\.crew_signatures'[\s\S]*?devices: \['mobile', 'desktop'\]/);
+  // Which devices show the app is App experience, not the manifest (docs/architecture/app-experience.md).
+  assert.doesNotMatch(manifest, /id: 'project\.crew_signatures'[^}]*?devices:/);
   assert.match(manifest, /id: 'project\.crew_signatures'[\s\S]*?visible: true/);
-  assert.match(signaturesApp, /devices:\['mobile','desktop'\]/);
+  assert.doesNotMatch(signaturesApp, /devices:\[/);
   assert.match(signaturesApp, /id:'project\.crew_signatures'[\s\S]*?visible:true/);
   assert.match(signaturesApp, /showWorkflowTitle: false/);
   assert.match(signaturesApp, /\.fm-field-signatures\.is-workflow\{width:100%;max-width:100%;min-width:0;padding:0;overflow:hidden;display:flex;flex-direction:column\}/);

@@ -139,7 +139,13 @@
     const commissions = options.presentation === 'commissions';
     let destroyed = false, token = 0;
     const data = { loading:true };
-    const wantsTimesheets = () => options.timesheets === false ? false : options.timesheets === true || hasPerm('crew.time_clock.use');
+    // The time clock is Today's App experience option, not a permission (docs/architecture/app-experience.md).
+    const timeClockOption = () => {
+      const entitlements = window.Portal?.currentUser?.appEntitlements;
+      const today = Array.isArray(entitlements) ? entitlements.find((entry) => entry?.id === 'portal.crew_overview') : null;
+      return today?.allowed === true && today.option_values?.time_clock === true;
+    };
+    const wantsTimesheets = () => options.timesheets === false ? false : options.timesheets === true || timeClockOption();
 
     function render(){
       if (destroyed) return;

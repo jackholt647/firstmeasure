@@ -4,7 +4,7 @@ window.FirstMateSettingsIndex = {
   "inputs": [
     [
       "libraries/apps/settings/company.js",
-      "c873ae5b7abf57e45c54199d56afb0d96cf9f1ef8f45d711693404b1de0440ed"
+      "bca67c30c5dcd146899a56ba5554efde888907ef2fc108b36c6e73c2a5fe8372"
     ],
     [
       "libraries/appointment-booking/settings.js",
@@ -12,7 +12,7 @@ window.FirstMateSettingsIndex = {
     ],
     [
       "libraries/apps/people/app-grid.js",
-      "b46d4109817d1b884d506d8634ab0db881d740747ad8e4b8f88492fbc941a778"
+      "797df2596cb861aaa616a1b6e8384eef2643ff48bc56c60b43b8828cfa7cf1e8"
     ],
     [
       "libraries/apps/people/branches.js",
@@ -28,7 +28,7 @@ window.FirstMateSettingsIndex = {
     ],
     [
       "libraries/apps/people/departments-page.js",
-      "5170077c3bb01efb31b5fc2c1b5d1bdd69e08c280926c0340bc10a201e02549f"
+      "5d9f0380e099400ed2810427a87c7c115964dcd64b54a459101650d9b3c05c5f"
     ],
     [
       "libraries/apps/people/entity-modal.js",
@@ -40,7 +40,7 @@ window.FirstMateSettingsIndex = {
     ],
     [
       "libraries/apps/people/groups-page.js",
-      "9d00bb91dfd24b58d7ca899600eedbc10ec549fea780bbd68ef41c3e5e6f467a"
+      "b83f666e05fd8e535c94ba5e5f6f06ed5ce5f5f2454cb867a1820e6fc73d6142"
     ],
     [
       "libraries/apps/people/hover-card.js",
@@ -48,19 +48,19 @@ window.FirstMateSettingsIndex = {
     ],
     [
       "libraries/apps/people/list-page.js",
-      "4a8b8a0007aed06e29fd28791bd46a3caf6cdca524d2ee7db5a931401e970611"
+      "bee3d80e805be2421755980fa198434b4536d5f29dc219daff786b3eebbf1db6"
     ],
     [
       "libraries/apps/people/page-kit.js",
-      "c920b011617cab9cf62574449a9ef258175c34281039680ee640fd0ffed17418"
+      "ac323e294df4430abc15fe09c5c9dded7ced8b6fc061374088475289450cc18c"
     ],
     [
       "libraries/apps/people/people-data.js",
-      "78c6dea8adfce9299b3e43aeb78df1ddf30ddd3bf84ef4d75db453c2e6ca633b"
+      "eafe58019941514c8420e64ec3d6f475b3c43b0495c454c96d0d805db076d994"
     ],
     [
       "libraries/apps/people/people-directory.js",
-      "839e47b8b8d55d62fc72ba8712aec57444c9f573dc2e21ccca80bf2918951888"
+      "1c7191dbd783da12fb45217858313756cf458bbff8dc2cf0cf604e9efe604022"
     ],
     [
       "libraries/apps/people/people-home.js",
@@ -68,7 +68,7 @@ window.FirstMateSettingsIndex = {
     ],
     [
       "libraries/apps/people/people-kit.js",
-      "f0aeda4c66fac7ad3cef8f433c110a36b436d396388d60fa804baff830c8ba15"
+      "701ba186060286f8bddb105f76fdbb918a5c52201bad2ed4f712d721f5f3eb57"
     ],
     [
       "libraries/apps/people/people-lists.js",
@@ -88,11 +88,11 @@ window.FirstMateSettingsIndex = {
     ],
     [
       "libraries/apps/people/users-page.js",
-      "c755a527398ec4ff38ef83cad8727585166cd3339b64d5b00b6e7f963ce214d2"
+      "d959e93d1a77a51fbd4134286e4df558e5542e3b966ca6400ff8a7c1d3f70077"
     ],
     [
       "libraries/apps/settings/automations.js",
-      "5675fa130415ee5912927f2d0dbaa32131b8e4b7fb0fad6e2b41c52aeb149f57"
+      "8fce3b4ef53d691033546ac7770ffbb4646af4a0fae49b620050614b2b3bafc2"
     ],
     [
       "libraries/apps/settings/channels.js",
@@ -112,7 +112,7 @@ window.FirstMateSettingsIndex = {
     ],
     [
       "libraries/apps/settings/crm.js",
-      "7f38716d5db2eed000d32dac32b1f1feebcdf3588aa98e80c9ae676657725d95"
+      "0d9a7ac5b1107d725d128bd1c9c10fe70cc2095630aba18e807755696a8aa9c7"
     ],
     [
       "libraries/apps/settings/domains.js",
@@ -136,7 +136,7 @@ window.FirstMateSettingsIndex = {
     ],
     [
       "libraries/apps/settings/payroll.js",
-      "2317913abb307eca7c684b8a37aab2cf4d93ebbebd9207367029e8a76160186a"
+      "c2c5e28a3a51530a75fca2395fc4a816417d52a7f3a69b51b05d3e879f50be4c"
     ],
     [
       "libraries/apps/settings/platform-billing.js",
@@ -164,7 +164,7 @@ window.FirstMateSettingsIndex = {
     ],
     [
       "libraries/custom-fields/firstmate-custom-fields.js",
-      "1f01613590f22f54b16ba7be5d9d5b9bed4ecf913547ad173fb7b92ad7ff25f8"
+      "2711ae99c0a51b5fa4ede8947f5adf908905980235041fdb4f151ac99e56f133"
     ],
     [
       "libraries/insights/firstmate-insights.js",
@@ -6603,6 +6603,16 @@ window.FirstMateSettingsIndex = {
     {
       "section": "payroll",
       "tab": "Payroll",
+      "view": "",
+      "source": "libraries/apps/settings/payroll.js",
+      "title": "Pay runs need approval",
+      "description": "",
+      "kind": "control",
+      "selector": ""
+    },
+    {
+      "section": "payroll",
+      "tab": "Payroll",
       "title": "Payroll",
       "description": "Configure pay schedules, assignments, and earnings.",
       "view": "",
@@ -6952,6 +6962,26 @@ window.FirstMateSettingsIndex = {
     {
       "section": "people",
       "tab": "People",
+      "view": "departments",
+      "source": "libraries/apps/people/departments-page.js",
+      "title": "App experience",
+      "description": "",
+      "kind": "control",
+      "selector": ""
+    },
+    {
+      "section": "people",
+      "tab": "People",
+      "view": "groups",
+      "source": "libraries/apps/people/groups-page.js",
+      "title": "App experience",
+      "description": "",
+      "kind": "control",
+      "selector": ""
+    },
+    {
+      "section": "people",
+      "tab": "People",
       "view": "users",
       "source": "libraries/apps/people/users-page.js",
       "title": "App experience",
@@ -6962,9 +6992,9 @@ window.FirstMateSettingsIndex = {
     {
       "section": "people",
       "tab": "People",
-      "view": "departments",
-      "source": "libraries/apps/people/departments-page.js",
-      "title": "App visibility",
+      "view": "",
+      "source": "libraries/apps/people/app-grid.js",
+      "title": "Apps",
       "description": "",
       "kind": "control",
       "selector": ""
@@ -7082,16 +7112,6 @@ window.FirstMateSettingsIndex = {
     {
       "section": "people",
       "tab": "People",
-      "view": "users",
-      "source": "libraries/apps/people/users-page.js",
-      "title": "Change apps",
-      "description": "",
-      "kind": "control",
-      "selector": ""
-    },
-    {
-      "section": "people",
-      "tab": "People",
       "view": "subcontractors",
       "source": "libraries/apps/people/companies-page.js",
       "title": "Change departments",
@@ -7202,12 +7222,32 @@ window.FirstMateSettingsIndex = {
     {
       "section": "people",
       "tab": "People",
+      "view": "",
+      "source": "libraries/apps/people/app-grid.js",
+      "title": "Contact views",
+      "description": "",
+      "kind": "control",
+      "selector": ""
+    },
+    {
+      "section": "people",
+      "tab": "People",
       "view": "subcontractors",
       "source": "libraries/apps/people/companies-page.js",
       "title": "Days",
       "description": "",
       "kind": "control",
       "selector": "[data-company-field=\"terms\\.net_days\"]"
+    },
+    {
+      "section": "people",
+      "tab": "People",
+      "view": "users",
+      "source": "libraries/apps/people/users-page.js",
+      "title": "Days after the work",
+      "description": "",
+      "kind": "control",
+      "selector": "[data-worker-days=\"\"]"
     },
     {
       "section": "people",
@@ -7395,6 +7435,16 @@ window.FirstMateSettingsIndex = {
       "view": "groups",
       "source": "libraries/apps/people/groups-page.js",
       "title": "In use",
+      "description": "",
+      "kind": "control",
+      "selector": ""
+    },
+    {
+      "section": "people",
+      "tab": "People",
+      "view": "",
+      "source": "libraries/apps/people/people-data.js",
+      "title": "Independent contractor",
       "description": "",
       "kind": "control",
       "selector": ""
@@ -7772,6 +7822,16 @@ window.FirstMateSettingsIndex = {
     {
       "section": "people",
       "tab": "People",
+      "view": "users",
+      "source": "libraries/apps/people/users-page.js",
+      "title": "Payment terms",
+      "description": "",
+      "kind": "control",
+      "selector": "[data-worker-basis=\"\"]"
+    },
+    {
+      "section": "people",
+      "tab": "People",
       "title": "People",
       "description": "Users, groups, departments and outside companies.",
       "view": "",
@@ -7941,6 +8001,16 @@ window.FirstMateSettingsIndex = {
     {
       "section": "people",
       "tab": "People",
+      "view": "",
+      "source": "libraries/apps/people/app-grid.js",
+      "title": "Restrict: hidden everywhere and refused by the server",
+      "description": "",
+      "kind": "control",
+      "selector": "[data-apps-restrict=\"\"]"
+    },
+    {
+      "section": "people",
+      "tab": "People",
       "view": "departments",
       "source": "libraries/apps/people/departments-page.js",
       "title": "Role",
@@ -8034,16 +8104,6 @@ window.FirstMateSettingsIndex = {
       "view": "users",
       "source": "libraries/apps/people/users-page.js",
       "title": "Suspended",
-      "description": "",
-      "kind": "control",
-      "selector": ""
-    },
-    {
-      "section": "people",
-      "tab": "People",
-      "view": "",
-      "source": "libraries/apps/people/app-grid.js",
-      "title": "Tabs",
       "description": "",
       "kind": "control",
       "selector": ""
@@ -8402,16 +8462,6 @@ window.FirstMateSettingsIndex = {
       "tab": "Project Scopes",
       "view": "",
       "source": "libraries/apps/settings/company.js",
-      "title": "Assign scopes to groups",
-      "description": "",
-      "kind": "heading",
-      "selector": ""
-    },
-    {
-      "section": "project_scopes",
-      "tab": "Project Scopes",
-      "view": "",
-      "source": "libraries/apps/settings/company.js",
       "title": "Assignment behavior",
       "description": "",
       "kind": "control",
@@ -8675,7 +8725,7 @@ window.FirstMateSettingsIndex = {
       "title": "Description",
       "description": "",
       "kind": "control",
-      "selector": "[data-bucket-field=\"description\"]"
+      "selector": "[data-new-scope-field=\"description\"]"
     },
     {
       "section": "project_scopes",
@@ -8892,6 +8942,26 @@ window.FirstMateSettingsIndex = {
       "tab": "Project Scopes",
       "view": "",
       "source": "libraries/apps/settings/company.js",
+      "title": "Missed call from a known contact",
+      "description": "",
+      "kind": "control",
+      "selector": "[data-routing-calls=\"known_contacts\"]"
+    },
+    {
+      "section": "project_scopes",
+      "tab": "Project Scopes",
+      "view": "",
+      "source": "libraries/apps/settings/company.js",
+      "title": "Missed call from an unknown number",
+      "description": "",
+      "kind": "control",
+      "selector": "[data-routing-calls=\"unknown_numbers\"]"
+    },
+    {
+      "section": "project_scopes",
+      "tab": "Project Scopes",
+      "view": "",
+      "source": "libraries/apps/settings/company.js",
       "title": "Name",
       "description": "",
       "kind": "control",
@@ -9001,6 +9071,16 @@ window.FirstMateSettingsIndex = {
       "tab": "Project Scopes",
       "view": "",
       "source": "libraries/apps/settings/company.js",
+      "title": "Projects made by hand start in",
+      "description": "",
+      "kind": "control",
+      "selector": "[data-routing-manual=\"\"]"
+    },
+    {
+      "section": "project_scopes",
+      "tab": "Project Scopes",
+      "view": "",
+      "source": "libraries/apps/settings/company.js",
       "title": "Repairs",
       "description": "Repairs Repairs",
       "kind": "control",
@@ -9025,6 +9105,26 @@ window.FirstMateSettingsIndex = {
       "description": "",
       "kind": "control",
       "selector": "[data-rule-field=\"title\"]"
+    },
+    {
+      "section": "project_scopes",
+      "tab": "Project Scopes",
+      "view": "",
+      "source": "libraries/apps/settings/company.js",
+      "title": "Scope categories",
+      "description": "",
+      "kind": "heading",
+      "selector": ""
+    },
+    {
+      "section": "project_scopes",
+      "tab": "Project Scopes",
+      "view": "",
+      "source": "libraries/apps/settings/company.js",
+      "title": "Scope category",
+      "description": "",
+      "kind": "control",
+      "selector": "[data-new-scope-bucket=\"\"]"
     },
     {
       "section": "project_scopes",
@@ -9071,16 +9171,6 @@ window.FirstMateSettingsIndex = {
       "tab": "Project Scopes",
       "view": "",
       "source": "libraries/apps/settings/company.js",
-      "title": "Scope group",
-      "description": "",
-      "kind": "control",
-      "selector": "[data-new-scope-bucket=\"\"]"
-    },
-    {
-      "section": "project_scopes",
-      "tab": "Project Scopes",
-      "view": "",
-      "source": "libraries/apps/settings/company.js",
       "title": "Scope groups",
       "description": "",
       "kind": "heading",
@@ -9095,16 +9185,6 @@ window.FirstMateSettingsIndex = {
       "description": "",
       "kind": "control",
       "selector": "[data-scope-field=\"name\"]"
-    },
-    {
-      "section": "project_scopes",
-      "tab": "Project Scopes",
-      "view": "",
-      "source": "libraries/apps/settings/company.js",
-      "title": "Scope type",
-      "description": "",
-      "kind": "control",
-      "selector": "[data-new-scope-field=\"kind\"]"
     },
     {
       "section": "project_scopes",
@@ -9135,6 +9215,16 @@ window.FirstMateSettingsIndex = {
       "description": "",
       "kind": "control",
       "selector": "[data-scope-field=\"description\"]"
+    },
+    {
+      "section": "project_scopes",
+      "tab": "Project Scopes",
+      "view": "",
+      "source": "libraries/apps/settings/company.js",
+      "title": "Show new leads (no scope yet) as a first New lead column. Dropping one on a stage starts this scope.",
+      "description": "",
+      "kind": "control",
+      "selector": "[data-board-new-leads=\"\"]"
     },
     {
       "section": "project_scopes",

@@ -151,7 +151,8 @@ test("a committed labor list is projected through the payee's pay rule, dated by
 test("every seeded role may see its own projected earnings, and the payouts apps follow the permission", async () => {
   await import("../platform/capability_defs.js");
   const { capabilityDefinition } = await import("../platform/capabilities.js");
-  const { PAYROLL_PERMISSION_KEYS, accessCatalog, factoryPersonaDefinitions } = await import("../workforce/access.js");
+  const { PAYROLL_PERMISSION_KEYS, factoryPersonaDefinitions } = await import("../workforce/access.js");
+  const { appDefinition } = await import("../platform/app-experience/registry.js");
   const { publishedDataPermission, publishedActionPermission } = await import("../platform/publication/permission-bundles.js");
   const key = PAYROLL_PERMISSION_KEYS.view_own_projected_earnings;
   assert.equal(key, "payroll.view_own_projected_earnings");
@@ -159,7 +160,7 @@ test("every seeded role may see its own projected earnings, and the payouts apps
   assert.deepEqual([node.kind, node.permission_key, node.permission_group, node.parent], ["permission", key, "payroll", "payroll.self_service_earnings"]);
   for (const persona of factoryPersonaDefinitions()) assert.equal(persona.permissions[key], true, `${persona.id} grants it by default`);
   for (const id of ["portal.crew_payouts", "project.crew_payouts"]) {
-    const app = accessCatalog().find((entry) => entry.id === id)!;
+    const app = appDefinition(id)!;
     assert.equal(app.parameter_permissions.projected_enabled, key, id);
     assert.equal(app.default_params.projected_enabled, false, id);
   }

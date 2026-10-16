@@ -15,7 +15,7 @@ import {
   resourceGroupAssignableProjection,
   type JsonObject
 } from "./storage.js";
-import { resolveAccessProfile, listAccessRoles } from "./access.js";
+import { resolveAccessProfile, listAccessRoles, compactAppDefaults } from "./access.js";
 import { filterAssignableSubjects, normalizeAssignmentPolicy } from "./assignability.js";
 
 function cleanText(value: unknown) {
@@ -38,42 +38,9 @@ function permissionOverrides(value: unknown) {
   return Object.fromEntries(Object.entries(asObject(value)).map(([key, enabled]) => [cleanText(key), enabled === true]).filter(([key]) => !!key));
 }
 
+/** A person's own App experience settings (docs/architecture/app-experience.md). */
 function appAccessOverrides(value: unknown) {
-  const result: JsonObject = {};
-  for (const [appIdValue, stateValue] of Object.entries(asObject(value))) {
-    const appId = cleanText(appIdValue);
-    if (!appId) continue;
-    if (stateValue === true) result[appId] = "show";
-    else if (stateValue === false) result[appId] = "hide";
-    else {
-      const state = cleanText(stateValue).toLowerCase();
-      result[appId] = ["show", "hide"].includes(state) ? state : "inherit";
-    }
-  }
-  return result;
-}
-
-function normalizeApplicationAccess(value: unknown, currentValue: unknown = {}) {
-  const current = asObject(currentValue);
-  const input = asObject(value);
-  const next = { ...current };
-  for (const [applicationIdValue, entryValue] of Object.entries(input)) {
-    const rawApplicationId = cleanId(applicationIdValue);
-    const applicationId = ["main", "portal"].includes(rawApplicationId)
-      ? "management"
-      : ["crew", "workforce"].includes(rawApplicationId)
-        ? "field"
-        : rawApplicationId;
-    if (!applicationId) continue;
-    const entry = asObject(entryValue);
-    next[applicationId] = {
-      ...asObject(current[applicationId]),
-      enabled: entry.enabled === true,
-      role_id: cleanText(entry.role_id || asObject(current[applicationId]).role_id || "member") || "member",
-      permissions: asObject(entry.permissions)
-    };
-  }
-  return next;
+  return compactAppDefaults(value);
 }
 
 export async function workforceConfigurationBundle(orgId: string, branchId = "default") {
@@ -100,7 +67,6 @@ async function hydratedWorkforceUserDocument(orgId: string, documentValue: unkno
     branch_id: cleanText(data.branch_id || "default"),
     // Every branch the person belongs to; `branch_id` is their own branch and is always first (docs/architecture/branches.md).
     branch_ids: [...new Set([cleanText(data.branch_id || "default"), ...(Array.isArray(data.branch_ids) ? data.branch_ids.map(cleanText).filter(Boolean) : [])])],
-    application_access: asObject(data.application_access),
     access_role_ids: uniqueIds(data.access_role_ids),
     scoped_access_assignments: Array.isArray(data.scoped_access_assignments) ? data.scoped_access_assignments : [],
     role_ids: uniqueIds([...(Array.isArray(data.roles) ? data.roles : []), ...(Array.isArray(data.access_role_ids) ? data.access_role_ids : [])]),
@@ -151,9 +117,6 @@ export async function patchWorkforceUserProfile(orgId: string, userId: string, i
         if (allowed && !hasResourcePermission(actor, permission, target)) throw forbidden('scoped_access_escalation_denied', 'You cannot grant capabilities beyond your own authority in this scope.');
       }
     }
-  }
-  if (Object.prototype.hasOwnProperty.call(input, "application_access")) {
-    patch.application_access = normalizeApplicationAccess(input.application_access, current.application_access);
   }
   if (Object.prototype.hasOwnProperty.call(input, "access_role_ids")) patch.access_role_ids = uniqueIds(input.access_role_ids);
   if (Object.prototype.hasOwnProperty.call(input, "permission_overrides")) patch.permission_overrides = permissionOverrides(input.permission_overrides);

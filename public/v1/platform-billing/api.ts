@@ -21,7 +21,7 @@ export const registerPlatformBillingApi:FastifyPluginAsync=async app=>{
   });
   async function auth(request:FastifyRequest,write=false,operatorOnly=false) {
     const org=String((request.params as any).orgId);
-    const ctx=await requirePlatformAuth(request,{csrf:write,application:false,capability:"platform.platform_billing"});
+    const ctx=await requirePlatformAuth(request,{csrf:write,capability:"platform.platform_billing"});
     const operator=canManageTestAppFlags(ctx);
     if(org!==ctx.orgId && !operator) throw forbidden("organization_forbidden");
     if(org!==ctx.orgId) await (await import("../platform/storage.js")).readGlobal(org);

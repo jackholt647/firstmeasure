@@ -1,7 +1,7 @@
 import type { FastifyPluginAsync, FastifyRequest } from "fastify";
 
 import type { PlatformAuthContext } from "../platform/auth.js";
-import { requirePlatformAuth } from "../platform/auth.js";
+import { hasPermission, requirePlatformAuth } from "../platform/auth.js";
 import { badRequest, forbidden, notFound } from "../platform/errors.js";
 import { listDocuments, readDocument, type JsonObject } from "../platform/storage.js";
 import { createFollowUpTodo, isFollowUpWorkNode, resolveFollowUpOutcome } from "../work/followups.js";
@@ -58,28 +58,8 @@ function managementAuthority(ctx: PlatformAuthContext) {
     || ["owner", "admin", "super_admin"].includes(role);
 }
 
-function fieldPermissions(ctx: PlatformAuthContext, accessProfile: JsonObject) {
-  const resolvedAccess = asObject(accessProfile.application_access || accessProfile.applicationAccess);
-  const resolvedField = asObject(resolvedAccess.field);
-  const contextField = asObject(ctx.applicationAccess.field);
-  return {
-    enabled: resolvedField.enabled === true || contextField.enabled === true,
-    permissions: {
-      ...asObject(contextField.permissions),
-      ...asObject(resolvedField.permissions),
-      ...asObject(accessProfile.permissions)
-    }
-  };
-}
-
 function hasSalesPermission(actor: SalesActor, permission: string) {
-  if (actor.management) return true;
-  const field = fieldPermissions(actor.ctx, actor.accessProfile);
-  if (!field.enabled) return false;
-  return cleanText(permission).split("|").some((key) => {
-    const item = key.trim();
-    return field.permissions[item] === true || (field.permissions[item] !== false && field.permissions["*"] === true);
-  });
+  return actor.management || hasPermission(actor.ctx, permission);
 }
 
 async function requireSalesActor(
@@ -91,7 +71,6 @@ async function requireSalesActor(
   const ctx = await requirePlatformAuth(request, {
     orgId,
     csrf,
-    application: ["management", "field"]
   });
   const contextProfile = asObject((ctx as unknown as { accessProfile?: JsonObject }).accessProfile);
   const accessProfile = Object.keys(contextProfile).length ? contextProfile : (await resolveAccessProfile(orgId, ctx.user));

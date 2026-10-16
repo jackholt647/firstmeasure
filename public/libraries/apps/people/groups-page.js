@@ -252,7 +252,7 @@
       const key = `resource_group:${id}`;
       const traits = data.traits(key);
       const directDepartments = () => data.groupDepartments(current()).filter((department) => department.direct).map((department) => department.id);
-      const baseline = () => ({ name:current().name || '', typeId:String(current().kind_id || ''), tagIds:[...(current().assignment_tag_ids || [])].map(String), scopeIds:[...(current().capability_scope_ids || [])].map(String), departmentIds:directDepartments(), staffing:data.staffing(id) });
+      const baseline = () => ({ name:current().name || '', typeId:String(current().kind_id || ''), tagIds:[...(current().assignment_tag_ids || [])].map(String), scopeIds:[...(current().capability_scope_ids || [])].map(String), departmentIds:directDepartments(), staffing:data.staffing(id), apps:data.appSettings((current().attributes || {}).app_defaults) });
       let base = baseline();
       const draft = clone(base);
       let editing = false;
@@ -350,6 +350,11 @@
           staffingPanel = staffingEditor(panel, { value:draft.staffing, readOnly:!can.settings, onChange(next){ draft.staffing = next; sync(); } });
           return staffingPanel;
         } } : null,
+        traits.has_members ? { id:'apps', needs:'groups.view', label:t('app_experience', 'App experience'), icon:kit.ICONS.apps, tooltip:t('app_experience_group_tip', 'Apps this {group} shows or hides for its members on each device, over what their roles give', { group:singular().toLowerCase() }), mount(panel){
+          const grid = People.appGrid.mount(panel, { apps:data.state.apps, platforms:data.state.deviceTypes.length ? data.state.deviceTypes : undefined, value:draft.apps, inherited:data.catalogDefaultApp(), restrictable:true, readOnly:!can.settings, onChange(value){ draft.apps = value; modal.setTabBadge('apps', Object.keys(value).length || ''); modal.setDirty('apps', !same(draft.apps, base.apps)); } });
+          modal.setTabBadge('apps', Object.keys(draft.apps).length || '');
+          return { destroy:() => grid.destroy() };
+        } } : null,
         People.slots.tab('compensation', entity, { readOnly:!can.settings }),
         People.slots.tab('fields', entity, { readOnly:!can.settings })
       ].filter(Boolean);
@@ -366,6 +371,7 @@
           if (draft.typeId !== base.typeId) patch.typeId = draft.typeId;
           if (!same(sorted(draft.tagIds), sorted(base.tagIds))) patch.tagIds = draft.tagIds;
           if (!same(sorted(draft.scopeIds), sorted(base.scopeIds))) patch.scopeIds = draft.scopeIds;
+          if (!same(draft.apps, base.apps)) patch.appDefaults = data.appSettings(draft.apps);
           if (Object.keys(patch).length) await data.saveGroup(id, patch);
           if (!same(sorted(draft.departmentIds), sorted(base.departmentIds))) await data.saveSubjectDepartments('group', id, draft.departmentIds);
           if (!same(draft.staffing, base.staffing)) await data.saveStaffing(id, draft.staffing.map((requirement) => ({ ...requirement, label:String(requirement.label).trim() })));

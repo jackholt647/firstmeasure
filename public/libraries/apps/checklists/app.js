@@ -1039,7 +1039,6 @@
     surfaces: ['project_modal'],
     regions: ['main'],
     requiresContext: ['project'],
-    access: { applicationsAny: ['management'] },
     panelHtml: () => '<div class="fmcl-panel" data-fmcl-app></div>',
     mount: mountChecklists
   });

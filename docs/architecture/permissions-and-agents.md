@@ -10,8 +10,8 @@ agent a tool. The publication contracts are in
 1. **Operations:** backend owned data exports in
    `public/v1/platform/publication/providers.ts` and versioned actions in
    `public/v1/platform/publication/actions.ts`. Each has a target scope, schema,
-   application and feature requirements, resource authorization and effect.
-   Existing application routes remain responsible for their own authorization.
+   the app it belongs to, feature requirements, resource authorization and
+   effect. Existing routes remain responsible for their own authorization.
 2. **Business permissions:** `platform/capability_defs.ts` registers stable,
    named permissions. `platform/publication/permission-bundles.ts` maps each
    built-in publication operation to one permission. Some subject owned
@@ -21,11 +21,12 @@ agent a tool. The publication contracts are in
 3. **Roles:** `workforce/access.ts` stores organization roles that grant sets of
    named permissions. Users receive one or more roles and may have explicit
    per-user overrides. The Settings **Roles & access** and permission views
-   manage this layer. App visibility is a separate entitlement; a role grant
-   does not turn on a disabled application or feature.
+   manage this layer. Which apps a person has, and on which devices, is
+   [App experience](app-experience.md), not a permission; a role grant does
+   not turn on an app or feature the organization has off.
 
 For a human request, effective authority is the intersection of active
-membership, enabled application and feature, effective named permission, target
+membership, the app (when the route belongs to one) and feature, effective named permission, target
 organization, and resource ownership rules. An explicit user denial overrides a
 role's wildcard grant. `platform/auth.ts` builds the same authorization context
 for API requests and background work; `backgroundAuthContext` reloads current

@@ -363,8 +363,17 @@ Scheduling reads the roster and the check for what it shows: `schedule-roster.ev
 calls `assignmentFromEvent` and `checkAssignment` for each event and each draft
 being placed, passing the schedule it read once as `other_work` and the time off
 for the window as `unavailable`, and limited to the reader's branches. The
-answer is derived and never stored on the event. The event writes themselves do
-not call the check yet; the steps below are what is left for them.
+answer is derived and never stored on the event.
+
+The event writes read it too. The project event save, the calendar event save
+and `POST .../schedule/overlap-check` read the roster of the event as it would
+be saved, with the events under it (`rosterForWrite` in `platform/api.ts`,
+through `readEventRosters`). They return `roster_warnings`, add the person
+conflicts to `assignee_conflicts`, and keep `accepted_roster_warnings` when the
+caller sends it. A person double-booked through another assignee whose overlap
+setting is `block` refuses the save unless that warning is accepted; every other
+roster warning only warns ([schedule events](schedule-events.md#roster-and-warnings)).
+What is left:
 
 1. **Keep `op` on a `resource_refs` entry.** `normalizeResourceRef` drops
    everything but `kind`, `id`, `name`, `role`, `unit_id` and `quantity`. Keep
@@ -378,39 +387,18 @@ not call the check yet; the steps below are what is left for them.
    `op`, `from` and `until` from each entry, adds `assigned_user_ids`, and limits
    the entries of each event in `changes` to that event's own range. Which
    children are roster changes is scheduling's to decide.
-3. **Carry the work's staffing requirements** as `staffing_requirements` on the
-   event (or on the list or scope piece it was made for): an array of the shape
-   above.
-4. **Call the check where `assessAssigneeOverlap` is called** (the project event
-   write, the calendar event write and `POST .../schedule/overlap-check`):
-
-   ```ts
-   const { checkAssignment, assignmentFromEvent, eventWindow } = await import("../assignees/roster.js");
-   const window = eventWindow(event);
-   const check = window && await checkAssignment(orgId, {
-     assignment: assignmentFromEvent(event, rosterChangeChildren),
-     from: window.from, until: window.until,
-     exclude_event_ids: [...eventFamilyIds(events, event)],
-     staffing_requirements: event.staffing_requirements || [],
-     accepted: event.accepted_roster_warnings || [],
-     branch_id: branchId
-   });
-   ```
-
-   Return `check.warnings` beside `assignee_conflicts` as `roster_warnings`, and
-   store the ids someone accepts as `accepted_roster_warnings` on the event. Do
-   not refuse the save. During a write, pass the schedule as it will be after
-   the save as the third argument, `{ other_work }`, built with
-   `assignmentFromEvent` for each event; otherwise the check reads the stored
-   schedule.
-5. **Per-person booking.** `roster.conflicts` is the answer to "a person who
+3. **Staffing requirements on the work.** The roster read takes
+   `staffing_requirements` from the event and from the scope piece it was made
+   for (an array of the shape above). Nothing yet writes them from the list or
+   the scope template.
+4. **Per-person booking.** `roster.conflicts` is the answer to "a person who
    belongs to a group is not treated as booked when the group is". It does not
    replace capacity by units, which stays in `occupancy.ts`.
-6. **Time off** is stored here (`assignee_time_off`, `assignees.time-off.save`)
+5. **Time off** is stored here (`assignee_time_off`, `assignees.time-off.save`)
    as exact intervals for a user or an outside company. The whole-day
    `exceptions` in the scheduling settings are still read. If scheduling wants
    one home, move the exceptions here; do not add a third.
-7. `assignee_scheduling_settings` should register a cleanup step with
+6. `assignee_scheduling_settings` should register a cleanup step with
    `registerAssigneeCleanup` and be added to `cleanupOwners`.
 
 ## Open with other threads
@@ -435,10 +423,9 @@ shows they now give one answer: `schedule-roster.events` feeds the roster's
 people conflicts into `assessAssigneeOverlap` (`rosterOverlaps`), which leaves a
 conflict to its own assignee check, with units, when the other event names one
 of the assignees that put the person on this one, and otherwise reports it once
-per person (`reason: "person"`). Still open: the event writes and
-`POST .../schedule/overlap-check` in `platform/api.ts` call the overlap check
-without the roster (step 4 above), so a save's `assignee_conflicts` and `block`
-do not yet see a person reached through two groups.
+per person (`reason: "person"`). The event writes and
+`POST .../schedule/overlap-check` do the same through `rosterForWrite`, so a
+save's `assignee_conflicts` and `block` see a person reached through two groups.
 
 **Project and labor commitment lists published once.** Payroll re-publishes the
 project and labor-commitment sources its pay rules select from, alongside the

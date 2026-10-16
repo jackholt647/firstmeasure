@@ -8,12 +8,11 @@ import {
   factoryPersonaDefinitions,
   initializeAccessSchema,
   normalizeAppDefaults,
-  normalizeApplicationIds,
   normalizePermissionMap,
   patchAccessRole,
   readAccessRole,
   type AccessRole,
-  type AccessRoleAppDefault,
+  type AppSetting,
   type JsonObject,
   type PermissionMap
 } from "./access.js";
@@ -25,7 +24,7 @@ import {
 // fully org-editable; factory upgrades never overwrite a modified copy.
 
 export const PERSONA_TEMPLATE_SCHEMA_VERSION = 1;
-export const PERSONA_TEMPLATE_FACTORY_REVISION = 3;
+export const PERSONA_TEMPLATE_FACTORY_REVISION = 4;
 
 export type PersonaTemplate = {
   id: string;
@@ -37,10 +36,9 @@ export type PersonaTemplate = {
   factory_key: string;
   factory_revision: number;
   modified: boolean;
-  application_ids: string[];
   level: number;
   permissions: PermissionMap;
-  app_defaults: Record<string, AccessRoleAppDefault>;
+  app_defaults: Record<string, AppSetting>;
   capability_requirements: string[];
   metadata: JsonObject;
   revision: number;
@@ -129,11 +127,11 @@ async function seedFactoryTemplates(orgId: string) {
     (organization_id, id, name, description, status, is_factory, factory_key, factory_revision, modified,
      application_ids_json, level, permissions_json, app_defaults_json, capability_requirements_json, metadata_json,
      revision, created_at, updated_at)
-    VALUES (?, ?, ?, ?, 'active', 1, ?, ?, 0, ?, ?, ?, ?, ?, ?, 1, ?, ?) ON CONFLICT DO NOTHING`);
+    VALUES (?, ?, ?, ?, 'active', 1, ?, ?, 0, '[]', ?, ?, ?, ?, ?, 1, ?, ?) ON CONFLICT DO NOTHING`);
   const readExisting = db.prepare(`SELECT factory_revision, modified FROM workforce_persona_templates
     WHERE organization_id=? AND id=? AND is_factory=1`);
   const upgrade = db.prepare(`UPDATE workforce_persona_templates
-    SET name=?, description=?, application_ids_json=?, level=?, permissions_json=?, app_defaults_json=?,
+    SET name=?, description=?, application_ids_json='[]', level=?, permissions_json=?, app_defaults_json=?,
         capability_requirements_json=?, factory_revision=?, revision=revision+1, updated_at=?
     WHERE organization_id=? AND id=? AND is_factory=1 AND modified=0`);
   for (const definition of factoryPersonaDefinitions()) {
@@ -144,7 +142,6 @@ async function seedFactoryTemplates(orgId: string) {
       definition.description,
       definition.id,
       PERSONA_TEMPLATE_FACTORY_REVISION,
-      json(definition.application_ids),
       definition.level,
       json(definition.permissions),
       json(definition.app_defaults),
@@ -162,7 +159,6 @@ async function seedFactoryTemplates(orgId: string) {
       (await upgrade.run(
         definition.name,
         definition.description,
-        json(definition.application_ids),
         definition.level,
         json(definition.permissions),
         json(definition.app_defaults),
@@ -198,7 +194,6 @@ function templateView(rowValue: unknown): PersonaTemplate {
     factory_key: cleanText(row.factory_key),
     factory_revision: Number(row.factory_revision || 0),
     modified: Number(row.modified || 0) === 1,
-    application_ids: normalizeApplicationIds(parseJson(row.application_ids_json, [])),
     level: normalizeLevel(row.level),
     permissions: normalizePermissionMap(parseJson(row.permissions_json)),
     app_defaults: normalizeAppDefaults(parseJson(row.app_defaults_json)),
@@ -243,8 +238,6 @@ export async function createPersonaTemplate(orgIdValue: string, inputValue: Json
   const input = asObject(inputValue);
   const name = cleanText(input.name);
   if (!name) throw badRequest("persona_template_name_required", "Persona template name is required.");
-  const applicationIds = normalizeApplicationIds(input.application_ids, input.application_id || input.application);
-  if (!applicationIds.length) throw badRequest("persona_template_application_required", "At least one application_id is required.");
   const explicitId = cleanTemplateId(input.id);
   const templateId = explicitId || (await generatedTemplateId(orgId, name));
   if (!templateId) throw badRequest("invalid_persona_template_id", "Persona template id must contain at least one letter or number.");
@@ -257,13 +250,12 @@ export async function createPersonaTemplate(orgIdValue: string, inputValue: Json
     (organization_id, id, name, description, status, is_factory, factory_key, factory_revision, modified,
      application_ids_json, level, permissions_json, app_defaults_json, capability_requirements_json, metadata_json,
      revision, created_at, updated_at)
-    VALUES (?, ?, ?, ?, 'active', 0, '', 0, 0, ?, ?, ?, ?, ?, ?, 1, ?, ?)`)
+    VALUES (?, ?, ?, ?, 'active', 0, '', 0, 0, '[]', ?, ?, ?, ?, ?, 1, ?, ?)`)
     .run(
       orgId,
       templateId,
       name,
       cleanText(input.description),
-      json(applicationIds),
       normalizeLevel(input.level),
       json(normalizePermissionMap(input.permissions ?? input.permission_defaults)),
       json(normalizeAppDefaults(input.app_defaults ?? input.apps)),
@@ -296,11 +288,6 @@ export async function patchPersonaTemplate(orgIdValue: string, templateIdValue: 
     throw conflict("persona_template_revision_conflict", "Persona template revision does not match.", { current_revision: current.revision });
   }
   const has = (key: string) => Object.prototype.hasOwnProperty.call(input, key);
-  const hasApplicationPatch = has("application_ids") || has("application_id") || has("application");
-  const applicationIds = hasApplicationPatch
-    ? normalizeApplicationIds(input.application_ids, input.application_id || input.application)
-    : current.application_ids;
-  if (!applicationIds.length) throw badRequest("persona_template_application_required", "At least one application_id is required.");
   const name = has("name") ? cleanText(input.name) : current.name;
   if (!name) throw badRequest("persona_template_name_required", "Persona template name is required.");
   const statusValue = has("status") ? cleanText(input.status).toLowerCase() : current.status;
@@ -321,14 +308,13 @@ export async function patchPersonaTemplate(orgIdValue: string, templateIdValue: 
   const level = has("level") ? normalizeLevel(input.level, current.level) : current.level;
   const now = nowIso();
   const result = (await getWorkforceDatabase().prepare(`UPDATE workforce_persona_templates SET
-    name=?, description=?, status=?, application_ids_json=?, level=?, permissions_json=?, app_defaults_json=?,
+    name=?, description=?, status=?, level=?, permissions_json=?, app_defaults_json=?,
     capability_requirements_json=?, metadata_json=?, modified=?, revision=revision+1, updated_at=?, archived_at=?
     WHERE organization_id=? AND id=? AND revision=?`)
     .run(
       name,
       has("description") ? cleanText(input.description) : current.description,
       status,
-      json(applicationIds),
       level,
       json(permissions),
       json(appDefaults),
@@ -404,7 +390,6 @@ export async function applyPersonaTemplate(
       expected_revision: current.revision,
       name: template.name,
       description: template.description,
-      application_ids: template.application_ids,
       permissions: template.permissions,
       app_defaults: template.app_defaults,
       metadata: roleMetadata
@@ -414,7 +399,6 @@ export async function applyPersonaTemplate(
       id: template.id,
       name: template.name,
       description: template.description,
-      application_ids: template.application_ids,
       permissions: template.permissions,
       app_defaults: template.app_defaults,
       metadata: roleMetadata

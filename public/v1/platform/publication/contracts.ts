@@ -39,9 +39,11 @@ export type PublicationContext = {
 
 export type AccessPolicy = {
   scopes: readonly TargetScope[];
-  /** Defaults to management, matching requirePlatformAuth. false must be intentional. */
-  applications?: readonly string[] | false;
-  applicationPermission?: string;
+  /**
+   * The apps (docs/architecture/app-experience.md) this export or action
+   * belongs to. When set, the person must be shown at least one of them.
+   */
+  app?: readonly string[];
   /** Entries are ANDed; each entry supports the platform's existing pipe-separated OR syntax. */
   permissions: readonly string[];
   capabilities?: readonly string[];

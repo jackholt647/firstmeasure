@@ -4,7 +4,7 @@ import { createTodo } from "./todos.js";
 import type { FastifyPluginAsync } from "fastify";
 import { ZodError, z } from "zod";
 
-import { requirePlatformAuth } from "../platform/auth.js";
+import { requirePlatformAuth, seesEveryProject } from "../platform/auth.js";
 import { userPublicationContext } from "../platform/publication/context.js";
 import { PlatformError } from "../platform/errors.js";
 import { readDocument, upsertDocument } from "../platform/storage.js";
@@ -182,8 +182,8 @@ export const registerWorkApi: FastifyPluginAsync = async (app) => {
     const allUsers = boolValue(query.all_users) || !!getParam(query, "project_id") || contactScoped;
     // Role tokens for assignment matching: legacy management roles, the
     // user's workforce access role ids (crew_member, supervisor, custom
-    // roles...), and the "office" token for any management-application user.
-    const managementEnabled = asObject(asObject(ctx.applicationAccess).management).enabled === true;
+    // roles...), and the "office" token for anyone who works with every project.
+    const managementEnabled = seesEveryProject(ctx);
     const roles = allUsers ? [] : [
       ...asArray(ctx.user.roles),
       ...asArray(asObject(ctx.user).access_role_ids),

@@ -35,10 +35,10 @@
     const roles = unique([user.role, ...(user.roleIds || []), ...(user.roles || [])]).join(' ').toLowerCase();
     const groups = [];
     const sales = /sales|estim|business.develop|account.executive/.test(roles);
-    const crew = /crew|field|installer|technician|foreman|production/.test(roles) || user.applicationAccess?.field?.enabled === true;
+    const crew = /crew|field|installer|technician|foreman|production/.test(roles) || window.Portal?.util?.hasPerm?.('crew.projects.view') === true;
     if (sales) groups.push('sales');
     if (crew) groups.push('crew');
-    if (/office|admin|manager|owner|dispatch|coordinator/.test(roles) || (!sales && !crew && user.applicationAccess?.management?.enabled === true)) groups.push('office');
+    if (/office|admin|manager|owner|dispatch|coordinator/.test(roles) || (!sales && !crew)) groups.push('office');
     return unique(groups.length ? groups : ['office']);
   };
   const mentionsFromText = (text) => unique((clean(text).match(/@[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}|@[\w.-]+/g) || []).map((token) => token.slice(1).toLowerCase()));

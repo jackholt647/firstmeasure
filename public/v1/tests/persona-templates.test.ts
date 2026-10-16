@@ -130,8 +130,10 @@ test("factory persona templates are seeded per organization", async () => {
     assert.equal(template.status, "active");
     assert.ok(template.revision >= 1);
   }
-  assert.deepEqual(byId.crew_member?.application_ids, ["field"]);
-  assert.deepEqual(byId.viewer?.application_ids, ["management"]);
+  // A template carries apps per device, not an application (docs/architecture/app-experience.md).
+  assert.equal(byId.crew_member?.application_ids, undefined);
+  assert.equal(byId.crew_member?.app_defaults["portal.crew_overview"].visible.desktop, true);
+  assert.equal(byId.crew_member?.app_defaults["portal.viewer"].visible.desktop, false);
   assert.deepEqual(byId.crew_member?.capability_requirements, ["apps.crew"]);
 });
 
@@ -149,7 +151,6 @@ test("factory templates are content-identical to the seeded system roles", async
     assert.equal(role.is_system, true);
     assert.equal(role.name, template.name);
     assert.equal(role.description, template.description);
-    assert.deepEqual(role.application_ids, template.application_ids);
     assert.deepEqual(role.permissions, template.permissions);
     assert.deepEqual(role.app_defaults, template.app_defaults);
     assert.equal(role.metadata.level, template.level);
@@ -166,7 +167,6 @@ test("custom persona template lifecycle: create, patch, apply, archive", async (
     id: "delivery_driver",
     name: "Delivery Driver",
     description: "Runs deliveries: schedule and receipts only.",
-    application_ids: ["field"],
     level: 12,
     permissions: {
       "crew.dashboard.view": true,
@@ -198,15 +198,14 @@ test("custom persona template lifecycle: create, patch, apply, archive", async (
     }
   });
   assert.equal(patched.template.revision, created.template.revision + 1);
-  assert.equal(patched.template.app_defaults["project.crew_materials"].enabled, true);
+  assert.deepEqual(patched.template.app_defaults["project.crew_materials"].visible, { mobile: true, desktop: true });
 
   const applied = await owner.request("POST", `/v1/workforce/organizations/${orgId}/access/templates/delivery_driver/apply`);
   assert.equal(applied.created, true);
   assert.equal(applied.role.id, "delivery_driver");
   assert.equal(applied.role.is_system, false);
-  assert.deepEqual(applied.role.application_ids, ["field"]);
   assert.equal(applied.role.permissions["crew.schedule.view"], true);
-  assert.equal(applied.role.app_defaults["project.crew_materials"].enabled, true);
+  assert.deepEqual(applied.role.app_defaults["project.crew_materials"].visible, { mobile: true, desktop: true });
   assert.equal(applied.role.metadata.persona_template_id, "delivery_driver");
   assert.equal(applied.role.metadata.level, 12);
   assert.ok(Array.isArray(applied.capability_warnings));
@@ -215,7 +214,7 @@ test("custom persona template lifecycle: create, patch, apply, archive", async (
   assert.equal(reapplied.created, false);
   assert.equal(reapplied.role.id, "delivery_driver");
 
-  const roles = await owner.request("GET", `/v1/workforce/organizations/${orgId}/access/roles?application=field`);
+  const roles = await owner.request("GET", `/v1/workforce/organizations/${orgId}/access/roles`);
   assert.ok(roles.roles.some((role: Json) => role.id === "delivery_driver"));
 
   const archived = await owner.request(
@@ -273,7 +272,7 @@ test("the access catalog publishes the permission catalog beside the deprecated 
   const owner = createSessionClient();
   const { orgId } = await registerOwner(owner);
   const catalog = await owner.request("GET", `/v1/workforce/organizations/${orgId}/access/catalog`);
-  assert.ok(catalog.permission_keys.includes("crew.time_clock.use"), "permission_keys stays until nothing reads it");
+  assert.ok(catalog.permission_keys.includes("crew.receipts.upload"), "permission_keys stays until nothing reads it");
   const categories = catalog.permission_catalog.categories;
   assert.ok(categories.length >= 8);
   const entries = categories.flatMap((category: Json) => category.subcategories.flatMap((sub: Json) => sub.permissions.map((entry: Json) => ({ ...entry, category: category.id, sub: sub.id }))));
@@ -281,7 +280,7 @@ test("the access catalog publishes the permission catalog beside the deprecated 
   for (const key of ["order_reports", "view_reports", "manage_billing", "manage_company_settings", "manage_report_settings", "manage_company_users", "manage_company_user_permissions"]) {
     assert.ok(byKey.has(key), `${key} is in the catalog`);
   }
-  assert.equal((byKey.get("crew.time_clock.use") as Json).category, "field");
+  assert.equal((byKey.get("crew.receipts.upload") as Json).category, "field");
   assert.equal(typeof (byKey.get("view_projects") as Json).available, "boolean", "availability is resolved for the organization");
   assert.equal(catalog.permission_catalog.other.id, "other");
 });

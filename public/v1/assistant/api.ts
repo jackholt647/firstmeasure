@@ -401,7 +401,7 @@ export const registerAssistantApi: FastifyPluginAsync = async (app) => {
 
   app.post("/organizations/:orgId/threads/:threadId/voice/close", async (request) => {
     const orgId = getParam(request.params, "orgId");
-    const ctx = await requirePlatformAuth(request, { orgId, csrf: true });
+    const ctx = await requirePlatformAuth(request, { orgId, csrf: true, app: ["portal.assistant"] });
     const { token } = z.object({ token: z.string().max(4096) }).parse(request.body);
     await closeAssistantVoiceSession(JSON.stringify([orgId, ctx.userId, getParam(request.params, "threadId")]), token);
     return { ok: true };

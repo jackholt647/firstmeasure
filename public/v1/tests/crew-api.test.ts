@@ -8,30 +8,17 @@ import test, { after, before } from "node:test";
 type Json = Record<string, any>;
 type TestClient = ReturnType<typeof createSessionClient>;
 
+// Apps shown by default, when the organization has them on (docs/architecture/app-experience.md).
 const MANAGEMENT_PORTAL_APP_IDS = [
   "portal.viewer",
-  "portal.contacts",
-  "portal.photos_feed",
-  "portal.proposals",
-  "portal.scheduling",
-  "portal.calls",
-  "portal.canvassing",
   "portal.company_settings"
 ];
 const MANAGEMENT_PROJECT_APP_IDS = [
-  "project.map",
-  "project.photos",
-  "project.proposal",
-  "project.docs",
   "project.materials",
-  "project.money",
-  "project.customer_portal",
-  "project.schedule",
-  "project.measurements",
-  "project.checklists"
+  "project.money"
 ];
 const MANAGEMENT_APP_IDS = [...MANAGEMENT_PORTAL_APP_IDS, ...MANAGEMENT_PROJECT_APP_IDS];
-const OWNER_MANAGEMENT_APP_IDS = [...MANAGEMENT_APP_IDS, "portal.invoices", "portal.financials", "portal.payroll"];
+const CREW_APP_IDS = ["portal.crew_overview", "portal.crew_schedule", "project.crew_overview", "project.crew_materials"];
 
 let app: any = null;
 let storageRoot = "";
@@ -172,14 +159,10 @@ async function createCrewUser(
   const roleId = kind === "member" ? "crew_member" : kind === "foreman" ? "crew_foreman" : "supervisor";
   const profile = await owner.request("PATCH", `/v1/workforce/organizations/${orgId}/users/${userId}/profile`, {
     access_role_ids: [roleId],
-    application_access: {
-      management: { enabled: false, role_id: "viewer", permissions: {} },
-      field: { enabled: true, role_id: roleId, permissions: {} }
-    },
     app_access_overrides: appAccessOverrides
   });
   assert.deepEqual(profile.user.access_role_ids, [roleId]);
-  assert.equal(profile.user.application_access.field.enabled, true);
+  assert.equal(profile.user.application_access, undefined);
   const client = createSessionClient();
   await client.request("POST", "/v1/platform/auth/login", { email, password, organization_id: orgId });
   return { userId, roleId, client, profile };
@@ -222,11 +205,7 @@ async function createManagementViewer(owner: TestClient, orgId: string, suffix: 
   });
   const userId = String(created.document.id);
   await owner.request("PATCH", `/v1/workforce/organizations/${orgId}/users/${userId}/profile`, {
-    access_role_ids: ["viewer"],
-    application_access: {
-      management: { enabled: true, role_id: "viewer", permissions: {} },
-      field: { enabled: false, role_id: "crew_member", permissions: {} }
-    }
+    access_role_ids: ["viewer"]
   });
   const client = createSessionClient();
   await client.request("POST", "/v1/platform/auth/login", { email, password, organization_id: orgId });
@@ -275,89 +254,80 @@ test("Crew API centralizes access and isolates assigned field workflows", async 
   const crewBase = `/v1/workforce/organizations/${orgId}/crew`;
 
   await owner.request("PATCH", `/v1/workforce/organizations/${orgId}/users/${ownerUserId}/profile`, {
-    access_role_ids: ["super_admin"],
-    application_access: {
-      management: { enabled: true, role_id: "super_admin", permissions: {} },
-      field: { enabled: false, role_id: "crew_member", permissions: {} }
-    }
+    access_role_ids: ["super_admin"]
   });
 
   await t.test("catalog and seeded role defaults keep app relevance separate from permissions", async () => {
     const catalog = await owner.request("GET", `${accessBase}/catalog`);
-    // 33 management+crew apps plus the 4 sales apps; 8 seeded roles plus the
-    // salesperson persona.
-    assert.equal(catalog.apps.length, 37);
+    // Nine seeded roles: four office roles, four crew roles and the salesperson persona.
     assert.equal(catalog.roles.length, 9);
-    assert.deepEqual(
-      new Set(catalog.apps.filter((entry: Json) => entry.application_id === "management").map((entry: Json) => entry.id)),
-      new Set(OWNER_MANAGEMENT_APP_IDS)
-    );
-    assert.ok(catalog.apps.filter((entry: Json) => entry.application_id === "management")
-      .every((entry: Json) => entry.default_enabled === true));
-    assert.ok(catalog.apps.filter((entry: Json) => entry.application_id === "field")
-      .every((entry: Json) => entry.default_enabled === false));
-    const schedule = catalog.apps.find((entry: Json) => entry.id === "portal.crew_schedule");
-    assert.equal(schedule.runtime_app_id, undefined);
+    assert.equal(catalog.applications, undefined);
+    assert.ok(catalog.apps.every((entry: Json) => entry.application_id === undefined && entry.devices.length > 0));
+    const apps = new Map(catalog.apps.map((entry: Json) => [entry.id, entry]));
+    for (const id of MANAGEMENT_APP_IDS) assert.equal((apps.get(id) as Json)?.default_visible, true, id);
+    for (const id of CREW_APP_IDS) assert.equal((apps.get(id) as Json)?.default_visible, false, id);
+    const schedule = apps.get("portal.crew_schedule") as Json;
     assert.equal(schedule.default_params.variant, "mobile_crew");
     assert.equal(catalog.apps.some((entry: Json) => entry.id === "portal.crew_projects"), false);
-    const receipts = catalog.apps.find((entry: Json) => entry.id === "portal.crew_receipts");
-    assert.deepEqual(receipts.required_permissions, ["crew.receipts.upload"]);
-    const projectApps = catalog.apps.filter((entry: Json) => entry.surface === "project_modal");
-    assert.equal(projectApps.length, 19);
-    const crewProjectApps = projectApps.filter((entry: Json) => entry.application_id === "field");
-    assert.equal(crewProjectApps.length, 9);
-    assert.ok(crewProjectApps.every((entry: Json) => entry.layout.left_column === "none"));
-    const signatures = crewProjectApps.find((entry: Json) => entry.id === "project.crew_signatures");
-    assert.deepEqual(signatures.devices, ["mobile", "desktop"]);
-    assert.deepEqual(signatures.required_permissions, ["crew.signatures.present"]);
+    const receipts = apps.get("portal.crew_receipts") as Json;
+    assert.equal(receipts.required_permissions, undefined, "a permission never decides whether someone has an app");
+    assert.equal(receipts.parameter_permissions.can_upload, "crew.receipts.upload");
+    const today = apps.get("portal.crew_overview") as Json;
+    assert.deepEqual(today.options.map((option: Json) => option.key), ["time_clock"]);
+    for (const id of ["project.crew_overview", "project.crew_materials", "project.crew_checklists"]) {
+      assert.equal((apps.get(id) as Json).layout.left_column, "none", id);
+    }
 
     const roles = Object.fromEntries(catalog.roles.map((role: Json) => [role.id, role]));
+    const shows = (role: Json, id: string) => role.app_defaults[id]?.visible?.desktop === true;
     assert.equal(roles.super_admin.permissions["*"], true);
-    assert.equal(roles.super_admin.app_defaults["portal.crew_overview"].enabled, false);
-    assert.equal(roles.crew_member.app_defaults["project.crew_payments"].enabled, false);
+    assert.equal(shows(roles.super_admin, "portal.crew_overview"), false, "unrestricted permissions do not bring crew apps");
+    assert.equal(roles.super_admin.application_ids, undefined);
+    assert.equal(shows(roles.crew_member, "project.crew_payments"), false);
+    assert.equal(roles.crew_member.app_defaults["portal.viewer"].visible.desktop, false, "crew roles hide the office apps");
+    assert.equal(roles.crew_member.app_defaults["portal.crew_overview"].options.time_clock, true);
     assert.equal(roles.crew_member.permissions["crew.checklists.complete"], true);
     assert.equal(roles.crew_member.permissions["crew.checklists.manage"], undefined);
+    assert.equal(roles.crew_member.permissions["crew.time_clock.use"], undefined, "the time clock is an app option");
     // Crew roles are production-focused: payments and change-order issuing
     // belong to the supervisor (closing-out) role by default.
-    assert.equal(roles.crew_foreman.app_defaults["project.crew_payments"].enabled, false);
+    assert.equal(shows(roles.crew_foreman, "project.crew_payments"), false);
     assert.equal(roles.crew_foreman.permissions["crew.checklists.manage"], true);
     assert.equal(roles.crew_foreman.permissions["crew.payments.take"], undefined);
     assert.equal(roles.crew_foreman.permissions["crew.change_orders.manage"], undefined);
-    assert.equal(roles.supervisor.app_defaults["project.crew_payments"].enabled, true);
+    assert.equal(shows(roles.supervisor, "project.crew_payments"), true);
     assert.equal(roles.supervisor.permissions["crew.payments.take"], true);
     assert.equal(roles.supervisor.permissions["crew.projects.view_all_production"], true);
     assert.equal(roles.supervisor.permissions["crew.signatures.present"], true);
     assert.equal(roles.supervisor.permissions["crew.workflows.add"], true);
-    assert.equal(roles.supervisor.app_defaults["project.crew_signatures"].enabled, true);
+    assert.equal(shows(roles.supervisor, "project.crew_signatures"), true);
     assert.equal(roles.repairman.permissions["crew.checklists.manage"], true);
     assert.equal(roles.repairman.metadata.field_mode, "solo");
 
     const ownerAccess = await owner.request("GET", `${accessBase}/me`);
-    assert.deepEqual(new Set(ownerAccess.access_profile.allowed_app_ids), new Set(OWNER_MANAGEMENT_APP_IDS));
-    assert.ok(OWNER_MANAGEMENT_APP_IDS.every((id) => entitlement(ownerAccess.access_profile, id).source === "catalog_default"));
-    assert.ok(ownerAccess.app_entitlements.filter((entry: Json) => entry.application_id === "field")
-      .every((entry: Json) => entry.allowed === false));
+    const ownerAllowed = new Set(ownerAccess.access_profile.allowed_app_ids);
+    for (const id of MANAGEMENT_APP_IDS) assert.ok(ownerAllowed.has(id), id);
+    for (const id of CREW_APP_IDS) assert.equal(ownerAllowed.has(id), false, id);
+    assert.equal(entitlement(ownerAccess.access_profile, "portal.viewer").sources.devices.desktop, "app_default");
 
     const createdRole = await owner.request("POST", `${accessBase}/roles`, {
       id: "hybrid_supervisor",
       name: "Field Operations Supervisor",
-      description: "A renameable role spanning both application shells.",
-      application_ids: ["management", "field"],
+      description: "A renameable role with office and crew apps.",
       permissions: { view_projects: true, "crew.dashboard.view": true },
       app_defaults: {
-        "portal.crew_overview": { enabled: true, params: { mode: "crew" } },
-        "portal.calls": { enabled: false }
+        "portal.crew_overview": { visible: { mobile: true, desktop: true }, params: { mode: "crew" } },
+        "portal.contacts": { visible: { mobile: false } }
       }
     });
-    assert.deepEqual(createdRole.role.application_ids, ["management", "field"]);
-    assert.equal(createdRole.role.application_id, "management");
-    assert.equal(createdRole.role.app_defaults["portal.calls"].enabled, false);
+    assert.equal(createdRole.role.application_ids, undefined);
+    assert.deepEqual(createdRole.role.app_defaults["portal.contacts"].visible, { mobile: false });
     const patchedRole = await owner.request("PATCH", `${accessBase}/roles/${createdRole.role.id}`, {
       expected_revision: createdRole.role.revision,
       name: "Site Operations Supervisor"
     });
     assert.equal(patchedRole.role.name, "Site Operations Supervisor");
-    assert.equal(patchedRole.role.app_defaults["portal.calls"].enabled, false);
+    assert.deepEqual(patchedRole.role.app_defaults["portal.contacts"].visible, { mobile: false });
     assert.equal(patchedRole.role.revision, createdRole.role.revision + 1);
     const staleRolePatch = await owner.raw("PATCH", `${accessBase}/roles/${createdRole.role.id}`, {
       expected_revision: createdRole.role.revision,
@@ -365,45 +335,41 @@ test("Crew API centralizes access and isolates assigned field workflows", async 
     });
     assert.equal(staleRolePatch.statusCode, 409);
     assert.equal(staleRolePatch.data.error, "access_role_revision_conflict");
-    const fieldRoles = await owner.request("GET", `${accessBase}/roles?application_id=field`);
-    assert.ok(fieldRoles.roles.some((role: Json) => role.id === createdRole.role.id));
+    const allRoles = await owner.request("GET", `${accessBase}/roles`);
+    assert.ok(allRoles.roles.some((role: Json) => role.id === createdRole.role.id));
     const archivedRole = await owner.request("DELETE", `${accessBase}/roles/${createdRole.role.id}?expected_revision=${patchedRole.role.revision}`);
     assert.equal(archivedRole.role.status, "archived");
     const activeRoles = await owner.request("GET", `${accessBase}/roles`);
     assert.equal(activeRoles.roles.some((role: Json) => role.id === createdRole.role.id), false);
   });
 
-  await t.test("management catalog defaults remain visible and a user hide override removes one tab", async () => {
+  await t.test("default apps remain visible and a user override hides one app on one device", async () => {
     const viewer = await createManagementViewer(owner, orgId, suffix);
     const initialSession = await viewer.client.request("GET", "/v1/platform/auth/session");
     assert.deepEqual(initialSession.membership.access_role_ids, ["viewer"]);
-    assert.deepEqual(new Set(initialSession.access_profile.allowed_app_ids), new Set(MANAGEMENT_APP_IDS));
     assert.ok(MANAGEMENT_APP_IDS.every((id) => {
       const app = entitlement(initialSession.access_profile, id);
-      return app.allowed === true && app.enabled === true && app.source === "catalog_default";
+      return app.allowed === true && app.sources.devices.desktop === "app_default";
     }));
-    assert.ok(initialSession.app_entitlements.filter((entry: Json) => entry.application_id === "field")
-      .every((entry: Json) => entry.allowed === false));
+    assert.ok(CREW_APP_IDS.every((id) => entitlement(initialSession.access_profile, id).allowed === false));
 
     const profile = await owner.request("GET", `/v1/workforce/organizations/${orgId}/users/${viewer.userId}/profile`);
     await owner.request("PATCH", `/v1/workforce/organizations/${orgId}/users/${viewer.userId}/profile`, {
       expected_revision: profile.user.revision,
-      app_access_overrides: { "portal.calls": "hide" }
+      app_access_overrides: { "portal.company_settings": { visible: { mobile: false, desktop: false } } }
     });
     const hiddenSession = await viewer.client.request("GET", "/v1/platform/auth/session");
-    assert.equal(entitlement(hiddenSession.access_profile, "portal.calls").allowed, false);
-    assert.equal(entitlement(hiddenSession.access_profile, "portal.calls").source, "user_override");
+    assert.equal(entitlement(hiddenSession.access_profile, "portal.company_settings").allowed, false);
+    assert.equal(entitlement(hiddenSession.access_profile, "portal.company_settings").sources.devices.desktop, "user_override");
     assert.ok(entitlement(hiddenSession.access_profile, "portal.viewer").allowed);
-    assert.deepEqual(
-      new Set(hiddenSession.access_profile.allowed_app_ids),
-      new Set(MANAGEMENT_APP_IDS.filter((id) => id !== "portal.calls"))
-    );
+    assert.equal(hiddenSession.access_profile.allowed_app_ids.includes("portal.company_settings"), false);
   });
 
+  const hidden = { visible: { mobile: false, desktop: false } };
+  const shown = { visible: { mobile: true, desktop: true } };
   const memberOverrides = {
-    "portal.crew_receipts": "inherit",
-    "portal.crew_payouts": "hide",
-    "project.crew_payments": "show"
+    "portal.crew_payouts": hidden,
+    "project.crew_payments": shown
   };
   const member = await createCrewUser(owner, orgId, suffix, "member", memberOverrides);
   const foreman = await createCrewUser(owner, orgId, suffix, "foreman");
@@ -417,14 +383,11 @@ test("Crew API centralizes access and isolates assigned field workflows", async 
       {
         access_role_ids: ["crew_member"],
         permission_overrides: { "crew.receipts.upload": false },
-        app_access_overrides: { "portal.crew_receipts": "hide" },
-        application_access: {
-          field: { enabled: true, role_id: "crew_member", permissions: {} }
-        }
+        app_access_overrides: { "portal.crew_receipts": hidden }
       }
     );
     assert.equal(allowed.user.permission_overrides["crew.receipts.upload"], false);
-    assert.equal(allowed.user.app_access_overrides["portal.crew_receipts"], "hide");
+    assert.deepEqual(allowed.user.app_access_overrides["portal.crew_receipts"], hidden);
 
     const termsMutation = await accessAdmin.client.raw(
       "PATCH",
@@ -452,47 +415,35 @@ test("Crew API centralizes access and isolates assigned field workflows", async 
     assert.deepEqual(persisted.user.app_access_overrides, memberOverrides);
 
     const memberSession = await member.client.request("GET", "/v1/platform/auth/session");
-    assert.equal(memberSession.membership.application_access.management.enabled, false);
-    assert.equal(memberSession.membership.application_access.field.enabled, true);
+    assert.equal(memberSession.membership.application_access, undefined);
     assert.deepEqual(memberSession.membership.access_role_ids, ["crew_member"]);
-    assert.deepEqual(memberSession.access_profile.allowed_app_ids, [
-      "portal.crew_overview",
-      "portal.crew_schedule",
-      "portal.crew_receipts",
-      "project.crew_overview",
-      "project.crew_materials",
-      "project.crew_payouts",
-      "project.crew_change_orders",
-      "project.crew_checklists",
-      "project.field_customer"
-    ]);
+    const memberAllowed = new Set(memberSession.access_profile.allowed_app_ids);
+    for (const id of ["portal.crew_overview", "portal.crew_schedule", "portal.crew_receipts", "project.crew_overview", "project.crew_materials", "project.crew_change_orders", "project.crew_checklists", "project.field_customer"]) {
+      assert.ok(memberAllowed.has(id), id);
+    }
     const inheritedReceipt = entitlement(memberSession.access_profile, "portal.crew_receipts");
     assert.equal(inheritedReceipt.allowed, true);
-    assert.equal(inheritedReceipt.source, "role_default");
+    assert.equal(inheritedReceipt.sources.devices.desktop, "role_default");
     const hiddenPayouts = entitlement(memberSession.access_profile, "portal.crew_payouts");
-    assert.equal(hiddenPayouts.enabled, false);
     assert.equal(hiddenPayouts.allowed, false);
-    assert.equal(hiddenPayouts.source, "user_override");
-    const requestedPayment = entitlement(memberSession.access_profile, "project.crew_payments");
-    assert.equal(requestedPayment.enabled, true);
-    assert.equal(requestedPayment.allowed, false);
-    assert.equal(requestedPayment.permission_allowed, false);
-    assert.ok(requestedPayment.reasons.includes("permission_denied"));
+    assert.equal(hiddenPayouts.sources.devices.desktop, "user_override");
+    const requestedPayment = (memberSession.access_profile.app_entitlements as Json[]).find((entry) => entry.id === "project.crew_payments");
+    if (requestedPayment) {
+      // Showing an app does not grant what happens inside it.
+      assert.equal(requestedPayment.allowed, true);
+      assert.equal(requestedPayment.params.can_take_payment, false);
+    }
 
     const memberAccess = await member.client.request("GET", `${accessBase}/me`);
     assert.deepEqual(memberAccess.access_profile.allowed_app_ids, memberSession.access_profile.allowed_app_ids);
-    assert.ok(MANAGEMENT_APP_IDS.every((id) => {
-      const app = entitlement(memberSession.access_profile, id);
-      return app.allowed === false && app.application_enabled === false;
-    }));
+    assert.ok(MANAGEMENT_APP_IDS.every((id) => entitlement(memberSession.access_profile, id).allowed === false));
     const forbiddenCatalog = await member.client.raw("GET", `${accessBase}/catalog`);
     assert.equal(forbiddenCatalog.statusCode, 403);
 
     const foremanSession = await foreman.client.request("GET", "/v1/platform/auth/session");
     assert.deepEqual(foremanSession.membership.access_role_ids, ["crew_foreman"]);
-    assert.equal(foremanSession.access_profile.allowed_app_ids.length, 10);
-    assert.equal(entitlement(foremanSession.access_profile, "project.crew_payments").allowed, false);
-    assert.equal(entitlement(foremanSession.access_profile, "project.crew_payments").params.can_take_payment, false);
+    assert.ok(foremanSession.access_profile.allowed_app_ids.includes("portal.crew_overview"));
+    assert.equal(foremanSession.access_profile.allowed_app_ids.includes("project.crew_payments"), false);
     assert.equal(entitlement(foremanSession.access_profile, "project.crew_checklists").params.can_manage, true);
   });
 
@@ -674,11 +625,11 @@ test("Crew API centralizes access and isolates assigned field workflows", async 
   });
 
   await t.test("time clock enforces one active shift and valid break transitions", async () => {
-    // Who may clock is the time clock permission and nothing about pay: nobody here has any pay set up.
+    // Who may clock is Today's time clock option and nothing about pay: nobody here has any pay set up.
     const withoutPermission = await owner.request("GET", `/v1/workforce/organizations/${orgId}/users/${member.userId}/profile`);
     await owner.request("PATCH", `/v1/workforce/organizations/${orgId}/users/${member.userId}/profile`, {
       expected_revision: withoutPermission.user.revision,
-      permission_overrides: { ...withoutPermission.user.permission_overrides, "crew.time_clock.use": false }
+      app_access_overrides: { "portal.crew_overview": { options: { time_clock: false } } }
     });
     const denied = await member.client.raw("POST", `${crewBase}/me/time-clock/actions`, { action: "clock_in" });
     assert.equal(denied.statusCode, 403);
@@ -688,7 +639,7 @@ test("Crew API centralizes access and isolates assigned field workflows", async 
     const withPermission = await owner.request("GET", `/v1/workforce/organizations/${orgId}/users/${member.userId}/profile`);
     await owner.request("PATCH", `/v1/workforce/organizations/${orgId}/users/${member.userId}/profile`, {
       expected_revision: withPermission.user.revision,
-      permission_overrides: withoutPermission.user.permission_overrides
+      app_access_overrides: {}
     });
 
     const initial = await member.client.request("GET", `${crewBase}/me/time-clock`);

@@ -38,23 +38,13 @@
     membership: {},
     identity: {},
     roleIds: [],
-    entitlements: {},
-    applicationAccess: {
-      management: { enabled:true, permissions:{} },
-      field: { enabled:false, permissions:{} }
-    }
+    entitlements: {}
   };
-  window.Portal.currentUser.canAccessApplication = (applicationId) => (
-    window.Portal.currentUser.applicationAccess?.[canonicalApplicationId(applicationId)]?.enabled === true
-  );
-  window.Portal.currentUser.hasApplicationPermission = (applicationId, permission) => {
-    const entry = window.Portal.currentUser.applicationAccess?.[canonicalApplicationId(applicationId)];
-    if (!entry?.enabled) return false;
-    if (!permission) return true;
-    return String(permission).split('|').some((key) => {
-      const item = key.trim();
-      return entry.permissions?.[item] === true || (entry.permissions?.[item] !== false && entry.permissions?.['*'] === true);
-    });
+  // App experience (docs/architecture/app-experience.md): whether this person has an app on any device.
+  window.Portal.currentUser.hasApp = (appId) => {
+    const entitlements = window.Portal.currentUser.appEntitlements;
+    const entry = Array.isArray(entitlements) ? entitlements.find((item) => item?.id === appId) : entitlements?.[appId];
+    return !!entry && entry.allowed === true;
   };
 
   function escapeHtml(s){
@@ -2190,27 +2180,10 @@
   }
 
   let platformSessionPromise = null;
-  function normalizedApplicationAccess(value){
-    const raw = value && typeof value === 'object' ? value : {};
-    const entry = (input, fallback) => {
-      if (typeof input === 'boolean') return { enabled:input, role_id:'', permissions:{} };
-      const record = input && typeof input === 'object' ? input : {};
-      return {
-        ...record,
-        enabled: record.enabled == null ? fallback : record.enabled === true,
-        role_id: cleanText(record.role_id, record.role),
-        permissions: record.permissions && typeof record.permissions === 'object' ? record.permissions : {}
-      };
-    };
-    return {
-      ...raw,
-      management: entry(raw.management ?? raw.main ?? raw.portal, true),
-      field: entry(raw.field ?? raw.crew ?? raw.workforce, false)
-    };
-  }
-
-  function syncManagementApplicationNotice(access){
-    const enabled = access?.management?.enabled === true || access?.field?.enabled === true;
+  /** A person whose roles show them no app at all sees a notice instead of an empty portal. */
+  function syncAppExperienceNotice(entitlements, accessProfile){
+    const list = Array.isArray(entitlements) ? entitlements : [];
+    const enabled = !accessProfile?.access_role_ids || list.some((entry) => entry?.allowed === true);
     document.documentElement.toggleAttribute('data-fm-management-access-denied', !enabled);
     const existing = document.getElementById('fmManagementAccessDenied');
     if (enabled) {
@@ -2224,13 +2197,6 @@
     notice.style.cssText = 'position:fixed;inset:0;z-index:2147483647;display:grid;place-items:center;padding:24px;background:#f8fafc;color:#101828;font-family:inherit';
     notice.innerHTML = `<div style="width:min(520px,100%);padding:28px;border:1px solid #e4e7ec;border-radius:18px;background:#fff;box-shadow:0 24px 70px rgba(15,23,42,.14);text-align:center"><div style="font-size:34px;margin-bottom:12px"><i class="fas fa-lock"></i></div><h1 style="margin:0 0 8px;font-size:22px">${(globalThis.PlatformLanguage?.htmlText("platform","m_b126ae2c9d98e9","App access is not enabled") ?? "App access is not enabled")}</h1><p style="margin:0 0 20px;color:#667085;line-height:1.5">${(globalThis.PlatformLanguage?.htmlText("platform","m_9281c219072ec2","Your account is active, but no FirstMate application is enabled for it. Ask a company administrator to update your app access.") ?? "Your account is active, but no FirstMate application is enabled for it. Ask a company administrator to update your app access.")}</p><a href="/logout.php" style="display:inline-flex;padding:10px 16px;border-radius:10px;background:#111827;color:#fff;text-decoration:none;font-weight:900">${(globalThis.PlatformLanguage?.htmlText("platform","m_4a4225b26dcc30","Sign out") ?? "Sign out")}</a></div>`;
     document.body.appendChild(notice);
-  }
-
-  function canonicalApplicationId(value){
-    const id = cleanText(value).toLowerCase();
-    if (['main', 'portal'].includes(id)) return 'management';
-    if (['crew', 'workforce'].includes(id)) return 'field';
-    return id;
   }
 
   async function syncPlatformSession(){
@@ -2263,11 +2229,6 @@
       const nextEmail = cleanText(user.email, identity.email, APP.userEmail);
       const nextCompany = cleanText(session.organization?.name, APP.userCompany);
       const nextUserId = cleanText(user.id, membership.user_id, membership.userId, APP.userId, APP.user_id);
-      const applicationAccess = normalizedApplicationAccess({
-        ...(user.application_access && typeof user.application_access === 'object' ? user.application_access : {}),
-        ...(membership.application_access && typeof membership.application_access === 'object' ? membership.application_access : {}),
-        ...(accessProfile.application_access && typeof accessProfile.application_access === 'object' ? accessProfile.application_access : {})
-      });
       const roleIds = uniqueTextList(accessProfile.access_role_ids, accessProfile.role_ids, user.roles, user.role_ids, membership.roles, membership.role_ids, user.role, membership.role, user.org_permissions?.level, membership.org_permissions?.level);
       const entitlements = normalizedAppEntitlements(
         accessProfile.app_entitlements,
@@ -2280,8 +2241,6 @@
         user.app_entitlements,
         user.entitlements,
         user.tab_access,
-        applicationAccess.management?.entitlements,
-        applicationAccess.field?.entitlements,
         session.app_entitlements,
         session.entitlements
       );
@@ -2313,23 +2272,14 @@
       window.Portal.currentUser.roles = roleIds;
       window.Portal.currentUser.entitlements = entitlements;
       window.Portal.currentUser.appEntitlements = entitlements;
-      window.Portal.currentUser.applicationAccess = applicationAccess;
-      window.Portal.currentUser.canAccessApplication = (applicationId) => applicationAccess?.[canonicalApplicationId(applicationId)]?.enabled === true;
-      window.Portal.currentUser.hasApplicationPermission = (applicationId, permission) => {
-        const entry = applicationAccess?.[canonicalApplicationId(applicationId)];
-        if (!entry?.enabled) return false;
-        if (!permission) return true;
-        return String(permission).split('|').some((key) => {
-          const item = key.trim();
-          return entry.permissions?.[item] === true || (entry.permissions?.[item] !== false && entry.permissions?.['*'] === true);
-        });
-      };
-      syncManagementApplicationNotice(applicationAccess);
+      window.Portal.currentUser.appEntitlements = Array.isArray(session.app_entitlements) ? session.app_entitlements : entitlements;
+      window.Portal.appExperience = session.app_experience || window.Portal.appExperience || null;
+      syncAppExperienceNotice(session.app_entitlements, session.access_profile);
       if (accessProfile.permissions || accessProfile.effective_permissions || membership.permissions || user.permissions || user.org_permissions?.items) {
         setCurrentPermissions(accessProfile.permissions || accessProfile.effective_permissions || membership.permissions || user.permissions || user.org_permissions.items || {});
       }
       window.dispatchEvent(new CustomEvent('fm:app-entitlements:updated', {
-        detail: { source: 'session', entitlements, applicationAccess, roleIds }
+        detail: { source: 'session', entitlements, roleIds }
       }));
       window.dispatchEvent(new CustomEvent('fm:platform-session:updated', {
         detail: { orgId: APP.userOrgId || '', branchId: APP.userBranchId || 'default', session }
@@ -2693,10 +2643,8 @@
 
   function sidebarTodoFeatureEnabled(){
     const currentUser = window.Portal?.currentUser;
-    const hasManagementAccess = currentUser?.canAccessApplication?.('management') === true;
     const canViewProjects = window.Portal?.util?.hasPerm?.('view_projects') === true;
-    return hasManagementAccess
-      && canViewProjects
+    return canViewProjects
       && sidebarPreference('left_column_todo_list', false) === true;
   }
 
@@ -2764,8 +2712,6 @@
   function sidebarAgentsFeatureEnabled(){
     if (window.matchMedia?.('(max-width: 820px)')?.matches) return false;
     if (window.Portal?.can?.('apps.assistant') === false) return false;
-    const user = window.Portal?.currentUser;
-    if (user?.canAccessApplication && !user.canAccessApplication('management') && !user.canAccessApplication('field')) return false;
     if (!['use_assistant', 'view_projects', 'manage_projects', 'manage_company_settings'].some((permission) => window.Portal?.util?.hasPerm?.(permission))) return false;
     return sidebarPreference('left_column_agents', false) === true;
   }
@@ -3238,6 +3184,14 @@
     if (options.restoreFocus !== false) window.setTimeout(() => launcher?.focus?.(), 0);
   }
 
+  // The launcher lists only apps this person has on this device (docs/architecture/app-experience.md).
+  function launcherAppInExperience(entry){
+    if (!entry.appId) return true;
+    const result = window.FirstMateEmbeddableApps?.evaluateAccess?.(entry.appId);
+    if (!result || result.reasons?.includes('missing_app')) return true;
+    return !result.reasons.some((reason) => ['device', 'entitlement', 'organization_app_off'].includes(reason));
+  }
+
   function renderAdvancedAppMenu(launcher = advancedAppMenuLauncher){
     if (!advancedAppMenuOpen || !advancedAppMenuEnabled()) {
       if (advancedAppMenuOpen) closeAdvancedAppMenu({ restoreFocus:false });
@@ -3257,7 +3211,7 @@
 
     const entries = appCatalogEntries().sort((a, b) => a.label.localeCompare(b.label));
     const enabled = entries
-      .filter((entry) => entry.enabled)
+      .filter((entry) => entry.enabled && launcherAppInExperience(entry))
       .sort((a, b) => Number(b.pinned) - Number(a.pinned) || a.label.localeCompare(b.label));
     const appTile = (entry) => {
       const setupRequired = entry.enabled && entry.setup?.mode === 'required' && entry.setup?.status !== 'complete';
@@ -4587,7 +4541,8 @@
     const cached = window.Portal.ProjectStore?.get?.(id);
     const orgId = cleanText(APP.userOrgId, APP.orgId, window.__APP?.userOrgId, window.__APP?.orgId);
     if (!orgId) return null;
-    const managementEnabled = window.Portal.currentUser?.applicationAccess?.management?.enabled === true;
+    // People who work with every project can open any of them; everyone else only their assigned ones.
+    const managementEnabled = ['view_projects', 'manage_projects'].some((permission) => window.Portal?.util?.hasPerm?.(permission));
     const direct = window.PlatformAPI?.projects?.get
       ? await window.PlatformAPI.projects.get(orgId, id).catch(() => null)
       : null;
