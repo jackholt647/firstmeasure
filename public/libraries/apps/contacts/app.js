@@ -16,6 +16,7 @@
   const TILE_PROJECT_LIMIT = 6;
   const LS_VIEW_KEY = 'fm_contacts_view_v2';
   const LS_SORT_KEY = 'fm_contacts_sort_v1';
+  const LS_FILTER_KEY = 'fm_contacts_filter_v1';
   const initialRoute = Portal.navigation?.read?.() || {};
   const state = {
     root: null,
@@ -26,6 +27,7 @@
     query: '',
     view: localStorage.getItem(LS_VIEW_KEY) === 'tiles' ? 'tiles' : 'list',
     sort: localStorage.getItem(LS_SORT_KEY) || 'name',
+    filter: (() => { try { return localStorage.getItem(LS_FILTER_KEY) || 'all'; } catch (error) { return 'all'; } })(),
     loading: false,
     loadedAt: 0,
     tagCatalog:[],
@@ -139,11 +141,30 @@
       ? projection.lifecycle
       : (project.lifecycle && typeof project.lifecycle === 'object' ? project.lifecycle : {});
     const status = cleanText(lifecycle.status).toLowerCase();
+    if (lifecycle.new_lead === true) return 'New lead';
     if (status === 'lost') return 'Lost';
     if (status === 'completed') return 'Completed';
     if (status === 'canceled' || status === 'cancelled') return 'Cancelled';
     return 'No stage';
   }
+
+  // What a linked project says about its contacts (docs/architecture/opportunities.md):
+  // a lead has a project with an open opportunity (a new lead counts) and no won one;
+  // a customer has a project with a won one.
+  function opportunityFacts(project = {}){
+    const lifecycle = project.lifecycle && typeof project.lifecycle === 'object' ? project.lifecycle : {};
+    const opportunities = lifecycle.opportunities && typeof lifecycle.opportunities === 'object' ? lifecycle.opportunities : {};
+    const won = Number(opportunities.won || 0) > 0 || !!cleanText(lifecycle.sold_at);
+    return { newLead: lifecycle.new_lead === true, openLead: Number(opportunities.open || 0) > 0 && !won, won };
+  }
+
+  const CONTACT_FILTERS = {
+    all: () => true,
+    leads: (contact) => contact.projects.some((project) => project.openLead),
+    new_leads: (contact) => contact.projects.some((project) => project.newLead),
+    customers: (contact) => contact.projects.some((project) => project.won),
+    no_projects: (contact) => !contact.projects.length
+  };
 
   function projectSummary(project = {}){
     const date = projectDate(project);
@@ -155,6 +176,7 @@
       date,
       dateMs: date.getTime(),
       dateLabel: dateLabel(date),
+      ...opportunityFacts(project),
       project
     };
   }
@@ -214,7 +236,8 @@
   const sharingView = () => contactSharing ||= window.FirstMateSharedList?.create('contact', orgId);
   function sortedFilteredContacts(){
     const query=normalizeKey(state.query);
-    const filtered=state.contacts.filter(c=>(!query || String(c.searchText || [c.name,c.email,c.phone,c.address].join(' ')).toLowerCase().includes(query)) && (!sharingView() || sharingView().matches(c,c.id)));
+    const show=CONTACT_FILTERS[state.filter] || CONTACT_FILTERS.all;
+    const filtered=state.contacts.filter(c=>show(c) && (!query || String(c.searchText || [c.name,c.email,c.phone,c.address].join(' ')).toLowerCase().includes(query)) && (!sharingView() || sharingView().matches(c,c.id)));
     if (state.sort === 'recent') {
       filtered.sort((a, b) => (b.latestDateMs || 0) - (a.latestDateMs || 0) || a.name.localeCompare(b.name));
     } else if (state.sort === 'projects') {
@@ -427,6 +450,8 @@
               <option value="name" ${String(state.sort === 'name' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.htmlText("contacts","m_8cf345002184e5","Name") ?? "Name")}</option>
               <option value="recent" ${String(state.sort === 'recent' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.htmlText("contacts","m_fec172c2f71d24","Recent") ?? "Recent")}</option>
               <option value="projects" ${String(state.sort === 'projects' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.htmlText("contacts","m_6e3f0973d60412","Project count") ?? "Project count")}</option>
+            </select></label><label>${(globalThis.PlatformLanguage?.htmlText("contacts","contacts_filter_label","Show") ?? "Show")}<select id="ctFilter" class="ct-select">
+              ${[['all','All contacts'],['leads','Leads'],['new_leads','New leads'],['customers','Customers'],['no_projects','No projects']].map(([value,label])=>`<option value="${value}" ${state.filter === value ? 'selected' : ''}>${globalThis.PlatformLanguage?.htmlText("contacts",`contacts_filter_${value}`,label) ?? label}</option>`).join('')}
             </select></label>${sharingView()?.fields() || ''}</div></details>
           </div>
         </header>
@@ -453,6 +478,11 @@
     const menu=state.root?.querySelector('[data-ct-manage]');
     menu?.addEventListener('change',event=>{if(sharingView()?.change(event)){render();const next=state.root?.querySelector('[data-ct-manage]');if(next){next.open=true;const selector=event.target.matches('[data-sharing-kind]')?`[data-sharing-kind="${event.target.dataset.sharingKind}"]`:'[data-sharing-owner]';next.querySelector(selector)?.focus();}}});
     menu?.addEventListener('keydown',event=>{if(event.key==='Escape'){menu.open=false;menu.querySelector('summary').focus();}});
+    state.root?.querySelector('#ctFilter')?.addEventListener('change', (event) => {
+      state.filter = CONTACT_FILTERS[event.target.value] ? event.target.value : 'all';
+      try { localStorage.setItem(LS_FILTER_KEY, state.filter); } catch (error) {}
+      render();
+    });
     state.root?.querySelector('#ctSort')?.addEventListener('change', (event) => {
       state.sort = event.target.value || 'name';
       localStorage.setItem(LS_SORT_KEY, state.sort);

@@ -81,6 +81,12 @@ async function resolveValue(value: unknown, context: WorkAutomationContext): Pro
   if (typeof value === "string") {
     const matches = [...value.matchAll(/\{\{\s*([a-zA-Z0-9_.-]+)\s*\}\}/g)];
     if (!matches.length) return value;
+    // A value that is exactly one template naming a list is that list
+    // ({{event.payload.notice.target_role_ids}} for a role list input).
+    if (matches.length === 1 && matches[0]![0] === value.trim()) {
+      const whole = await contextValue(context, matches[0]![1] ?? "");
+      if (Array.isArray(whole)) return whole;
+    }
     let resolved = value;
     for (const match of matches) {
       const replacement = String((await contextValue(context, match[1] ?? "")) ?? "");

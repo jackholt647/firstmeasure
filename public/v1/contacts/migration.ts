@@ -56,7 +56,7 @@ export async function removeStandaloneContactRecords(org: string) {
     if (data.workflow_state !== "contact_only") continue;
     const used = ["events", "proposals"].some(key => Array.isArray(data[key]) && (data[key] as unknown[]).length);
     if (used) {
-      await upsertDocument(org, "projects", { id: project.id, data: { workflow_state: "draft" } });
+      await upsertDocument(org, "projects", { id: project.id, data: { workflow_state: "draft" } }, { mustExist: true });
       counts.kept_as_draft++;
       continue;
     }

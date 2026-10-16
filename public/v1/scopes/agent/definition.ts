@@ -421,7 +421,7 @@ const TOOLS: AgentTool[] = [
   },
   {
     name: "get_intake_routing",
-    description: "Read project-scope groups, the default entry scope, and optional new-project field routing rules.",
+    description: "Read intake routing: the default entry (a scope or unscoped), ordered field rules, the scope a hand-made project starts, and the missed-call setting.",
     parameters: { type: "object", properties: {}, additionalProperties: false },
     async execute(run) {
       return await readIntakeRouting(run.orgId, run.branchId);
@@ -429,7 +429,7 @@ const TOOLS: AgentTool[] = [
   },
   {
     name: "save_intake_routing",
-    description: "Replace project-scope grouping and intake routing ({buckets, default_template_id, routing_mode, rules:[{formula, template_id}]}).",
+    description: "Replace intake routing ({default_entry: scope|unscoped, default_template_id, manual_template_id, call_leads: {unknown_numbers, known_contacts}, routing_mode, rules:[{formula, entry: scope|unscoped, template_id}]}). Read it first and send every field back.",
     parameters: { type: "object", properties: { routing: { type: "object", additionalProperties: true } }, required: ["routing"], additionalProperties: false },
     permission: WRITE_PERMISSION,
     async execute(run, args) {

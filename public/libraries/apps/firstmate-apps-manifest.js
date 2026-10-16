@@ -89,7 +89,7 @@
       surfaces: ['portal_tab'],
       portalTabId: 'viewer',
       access: managementAccess,
-      bundles: [versionedBundle('partners/shared-list.js','20261001-sharing-polish-v1'), versionedBundle('projects/viewer.js', '20261015-contacts-store-v1')]
+      bundles: [versionedBundle('partners/shared-list.js','20261001-sharing-polish-v1'), versionedBundle('projects/viewer.js', '20261016-new-leads-v1')]
     },
     {
       id: 'portal.contacts',
@@ -101,7 +101,7 @@
       portalTabId: 'contacts',
       settingsTabId: 'contacts',
       access: managementAccess,
-      bundles: [versionedBundle('partners/shared-list.js','20261001-sharing-polish-v1'), versionedBundle('contacts/modal.js', '20261015-contacts-writers-v1'), versionedBundle('settings/crm.js', '20261015-contacts-store-v1'), versionedBundle('settings/contacts.js', '20261009-contact-settings-v1'), versionedBundle('contacts/app.js', '20261015-contacts-writers-v1')]
+      bundles: [versionedBundle('partners/shared-list.js','20261001-sharing-polish-v1'), versionedBundle('contacts/modal.js', '20261015-contacts-writers-v1'), versionedBundle('settings/crm.js', '20261015-contacts-store-v1'), versionedBundle('settings/contacts.js', '20261009-contact-settings-v1'), versionedBundle('contacts/app.js', '20261016-new-leads-v1')]
     },
     {
       id: 'portal.photos_feed',
@@ -316,7 +316,7 @@
       surfaces: ['project_modal'],
       requiresContext: ['project'],
       access: managementAccess,
-      bundles: [versionedBundle('project-map/app.js', '20261014-cover-photo-tile-v1')]
+      bundles: [versionedBundle('project-map/app.js', '20261016-new-leads-v1')]
     },
     {
       id: 'project.customer_portal',
@@ -610,7 +610,7 @@
       portalTabId: 'company_settings',
       placement: 'settings',
       access: managementAccess,
-      bundles: [priorityFieldsBundle, versionedBundle('../custom-fields/firstmate-custom-fields.js', '20261015-contacts-writers-v1'), versionedBundle('../payroll-api/payroll-api.js', '20261016-my-pay-v1'), versionedBundle('../websites-api/websites-api.js', '20260731-domains-v10'), versionedBundle('../domains-api/domains-api.js', '20260731-domains-v10'), versionedBundle('../insights/firstmate-insights.js', '20260901-insights-v1'), versionedBundle('settings/domains.js', '20260731-domains-v11'), versionedBundle('settings/crm.js', '20261015-contacts-store-v1'), versionedBundle('settings/contacts.js', '20261009-contact-settings-v1'), versionedBundle('settings/payroll.js', '20261016-my-pay-v1'), versionedBundle('settings/money-overlay-enforcer.js', '20260828-money-overlay-integrity-v1'), versionedBundle('settings/platform-billing.js', '20260924-subscription-service-v3'), versionedBundle('../brand-kit/brand-kit.js', '20261006-firstmeasure-localization-v1'), bundle('../platform-terminology/editor.js'), versionedBundle('people/people-kit.js', '20261015-people-workers-v1'), versionedBundle('people/list-page.js', '20261015-people-workers-v1'), versionedBundle('people/entity-modal.js', '20261015-branches-v1'), versionedBundle('people/hover-card.js', '20261014-people-v4'), versionedBundle('people/permissions-panel.js', '20261014-people-v5'), versionedBundle('people/app-grid.js', '20261015-people-v3'), versionedBundle('people/slots.js', '20261015-branches-v1'), versionedBundle('people/people-data.js', '20261015-people-workers-v1'), versionedBundle('people/people-directory.js', '20261015-branches-v1'), versionedBundle('people/fields-panel.js', '20261013-people-fields-v1'), versionedBundle('people/compensation-panel.js', '20261014-people-compensation-v1'), versionedBundle('people/page-kit.js', '20261015-people-workers-v1'), versionedBundle('people/people-lists.js', '20261015-branches-v1'), versionedBundle('people/branches.js', '20261015-branches-v1'), versionedBundle('people/users-page.js', '20261015-people-workers-v1'), versionedBundle('people/groups-page.js', '20261015-branches-v1'), versionedBundle('people/departments-page.js', '20261015-branches-v1'), versionedBundle('people/companies-page.js', '20261015-branches-v1'), versionedBundle('people/people-home.js', '20261015-branches-v1'), versionedBundle('people/people-settings.js', '20261015-search-grouping'), versionedBundle('settings/company.js', '20261015-contacts-store-v1')]
+      bundles: [priorityFieldsBundle, versionedBundle('../custom-fields/firstmate-custom-fields.js', '20261015-contacts-writers-v1'), versionedBundle('../payroll-api/payroll-api.js', '20261016-my-pay-v1'), versionedBundle('../websites-api/websites-api.js', '20260731-domains-v10'), versionedBundle('../domains-api/domains-api.js', '20260731-domains-v10'), versionedBundle('../insights/firstmate-insights.js', '20260901-insights-v1'), versionedBundle('settings/domains.js', '20260731-domains-v11'), versionedBundle('settings/crm.js', '20261015-contacts-store-v1'), versionedBundle('settings/contacts.js', '20261009-contact-settings-v1'), versionedBundle('settings/payroll.js', '20261016-my-pay-v1'), versionedBundle('settings/money-overlay-enforcer.js', '20260828-money-overlay-integrity-v1'), versionedBundle('settings/platform-billing.js', '20260924-subscription-service-v3'), versionedBundle('../brand-kit/brand-kit.js', '20261006-firstmeasure-localization-v1'), bundle('../platform-terminology/editor.js'), versionedBundle('people/people-kit.js', '20261015-people-workers-v1'), versionedBundle('people/list-page.js', '20261015-people-workers-v1'), versionedBundle('people/entity-modal.js', '20261015-branches-v1'), versionedBundle('people/hover-card.js', '20261014-people-v4'), versionedBundle('people/permissions-panel.js', '20261014-people-v5'), versionedBundle('people/app-grid.js', '20261015-people-v3'), versionedBundle('people/slots.js', '20261015-branches-v1'), versionedBundle('people/people-data.js', '20261015-people-workers-v1'), versionedBundle('people/people-directory.js', '20261015-branches-v1'), versionedBundle('people/fields-panel.js', '20261013-people-fields-v1'), versionedBundle('people/compensation-panel.js', '20261014-people-compensation-v1'), versionedBundle('people/page-kit.js', '20261015-people-workers-v1'), versionedBundle('people/people-lists.js', '20261015-branches-v1'), versionedBundle('people/branches.js', '20261015-branches-v1'), versionedBundle('people/users-page.js', '20261015-people-workers-v1'), versionedBundle('people/groups-page.js', '20261015-branches-v1'), versionedBundle('people/departments-page.js', '20261015-branches-v1'), versionedBundle('people/companies-page.js', '20261015-branches-v1'), versionedBundle('people/people-home.js', '20261015-branches-v1'), versionedBundle('people/people-settings.js', '20261015-search-grouping'), versionedBundle('settings/company.js', '20261016-new-leads-v1')]
     },
     {
       id: 'portal.crew_overview',

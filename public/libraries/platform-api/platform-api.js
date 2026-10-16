@@ -701,7 +701,11 @@
     saveRouting(orgId, branchId = 'default', payload = {}){
       return request(siblingPath('scopes', `/organizations/${enc(orgId)}/branches/${enc(branchId || 'default')}/intake-routing`), { method:'PUT', body:payload || {} });
     },
-    /* Scope categories: the organization's labels for its scopes; `sales` is built in. */
+    /* Starts a scope on a project: a new lead's first scope, or another beside running ones. */
+    startOnProject(orgId, projectId, templateId, options = {}){
+      return request(siblingPath('scopes', `/organizations/${enc(orgId)}/projects/${enc(projectId)}/scopes`), { method:'POST', body:{ template_id:templateId, ...(options.instanceKey ? { instance_key:options.instanceKey } : {}) } });
+    },
+    /* Scope categories: the organization's labels for its scopes; `sales` and `intake` are built in. */
     categories(orgId){
       return request(siblingPath('scopes', `/organizations/${enc(orgId)}/scope-categories`));
     },

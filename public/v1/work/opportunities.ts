@@ -50,8 +50,18 @@ export async function setOpportunityOutcome(orgId: string, input: { project_id?:
     await readDocument(orgId, "projects", projectId);
     const field = input.outcome === "won" ? "won_at" : "lost_at";
     await updateProjectData(orgId, projectId, data => object(data)[field] ? data : { ...object(data), [field]: now, ...(input.outcome === "lost" ? { lost_reason: reason } : {}) });
-    await emitWorkEvent({ organization_id: orgId, project_id: projectId, type: `opportunity.${input.outcome}`, idempotency_key: `opportunity.${input.outcome}:${projectId}:project`, payload: { project_id: projectId, plan_id: "", reason } });
+    await emitWorkEvent({ organization_id: orgId, project_id: projectId, type: `opportunity.${input.outcome}`, idempotency_key: `opportunity.${input.outcome}:${projectId}:project:${now}`, payload: { project_id: projectId, plan_id: "", reason } });
     await syncProjectWorkProjection(orgId, projectId);
+    return { project_id: projectId, plans: [] };
+  }
+  // Reopening a lead that was lost before any sales scope: it is a new lead again.
+  if (!plans.length && input.outcome === "open" && projectId) {
+    const project = object((await readDocument(orgId, "projects", projectId)).data);
+    if (text(project.lost_at) && !(await listPlanRecords(orgId, { project_id: projectId })).some(isScopePlan)) {
+      await updateProjectData(orgId, projectId, data => ({ ...object(data), lost_at: "", lost_reason: "" }));
+      await emitWorkEvent({ organization_id: orgId, project_id: projectId, type: "opportunity.reopened", idempotency_key: `opportunity.reopened:${projectId}:${now}`, payload: { project_id: projectId, plan_id: "", reason } });
+      await syncProjectWorkProjection(orgId, projectId);
+    }
     return { project_id: projectId, plans: [] };
   }
   const changed: JsonObject[] = [];
@@ -77,13 +87,41 @@ export async function setOpportunityOutcome(orgId: string, input: { project_id?:
   return { project_id: projectId, plans: changed };
 }
 
+/** A plan of an intake scope: pre-scope behavior that leaves its project a new lead. */
+export function isIntakePlan(plan: JsonObject) {
+  const ids = object(plan.metadata).scope_category_ids;
+  return Array.isArray(ids) && ids.includes("intake");
+}
+
+/**
+ * A plan of a scope that is not intake. To-dos, follow-ups and review plans
+ * are plans without a scope template and do not give a project a scope.
+ */
+export function isScopePlan(plan: JsonObject) {
+  return (!!text(plan.template_id) || text(plan.source_type) === "project_sales") && !isIntakePlan(plan);
+}
+
+/**
+ * A new lead: a project that arrived as a lead (receiveLead recorded its
+ * `lead_source`), has never had a scope other than intake, has no
+ * project-level outcome and was not merged away (docs/architecture/opportunities.md).
+ * A measurement order or an imported project with no scope is not a lead.
+ */
+export function isNewLead(plans: JsonObject[], project: JsonObject = {}) {
+  const arrived = !!project.lead_source && typeof project.lead_source === "object";
+  return arrived && !plans.some(isScopePlan) && !text(project.won_at) && !text(project.lost_at) && !text(project.merged_into);
+}
+
 /** Lifecycle facts read from opportunities. Exported for the projection. */
 export function opportunitySummary(plans: JsonObject[], project: JsonObject = {}) {
   const sales = plans.filter(plan => plan.sales === true);
   const won = sales.filter(plan => plan.outcome === "won");
   const wonAt = [...won.map(plan => text(plan.outcome_at)), text(project.won_at)].filter(Boolean).sort()[0] || "";
+  const newLead = isNewLead(plans, project);
   return {
-    open: sales.filter(plan => plan.outcome === "open" && !TERMINAL.includes(text(plan.status))).length,
+    new_lead: newLead,
+    // A new lead is itself an open opportunity, before any sales scope holds it.
+    open: sales.filter(plan => plan.outcome === "open" && !TERMINAL.includes(text(plan.status))).length + (newLead ? 1 : 0),
     won: won.length,
     lost: sales.filter(plan => plan.outcome === "lost").length,
     // A sales scope that finished or was stopped without anyone saying won or lost.

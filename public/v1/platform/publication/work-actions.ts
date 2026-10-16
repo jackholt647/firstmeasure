@@ -11,11 +11,13 @@ import type { PlatformAuthContext } from "../auth.js";
 const text = { type: "string" };
 const object = { type: "object", additionalProperties: true };
 const list = { type: "array", items: {} };
+// A list, or one {{template}} naming a list (resolved when the binding runs).
+const listOrTemplate = { type: ["array", "string"], items: {} };
 const number = { type: ["number", "string"] }; // Work definitions allow template expressions.
 /** Explicit legacy input contracts. Extra fields are retained for existing scope definitions. */
 const fields: Record<string, Record<string, JsonSchema>> = {
   "project.patch.v1": { values: object },
-  "notification.create.v1": { notification_id: text, id: text, title: text, body: text, target_department_ids: list, target_role_ids: list, target_user_ids: list, kind: text, celebration: object, frontend_action: object },
+  "notification.create.v1": { notification_id: text, id: text, title: text, body: text, target_department_ids: listOrTemplate, target_role_ids: listOrTemplate, target_user_ids: listOrTemplate, kind: text, celebration: object, frontend_action: object },
   "communications.sendSms.v1": { to: text, text, recipients: list },
   "communications.sendEmail.v1": { to: text, subject: text, text, html: text, recipients: list },
   "work.createTodo.v1": { department_ids: list, title: text, message: text, assigned_role_ids: list, assigned_user_ids: list, assigned_resource_group_ids: list, priority: number, due_offset_minutes: number, metadata: object },

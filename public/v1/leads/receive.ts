@@ -1,7 +1,7 @@
 import { badRequest } from "../platform/errors.js";
 import { upsertDocument, readDocument, type JsonObject } from "../platform/storage.js";
 import { emitWorkEvent } from "../work/engine.js";
-import { ensurePipelinePlanForProject } from "../scopes/router.js";
+import { routeNewLead } from "../scopes/router.js";
 import { contactSettings } from "../contacts/service.js";
 import { createContact, findExactMatches, refreshProjections, setProjectContactLinks, type ContactRecord } from "../contacts/records.js";
 import { normalizePhone } from "../contacts/normalize.js";
@@ -26,7 +26,11 @@ export type LeadSubmission = {
   project_data?: JsonObject;
   /** The person asked to be texted. `disclosure_text` is what they agreed to. */
   consent?: { sms?: boolean; disclosure_text?: string; evidence?: JsonObject };
-  /** `false` sends nothing; otherwise overrides the default new-lead notification. */
+  /**
+   * What the source suggests telling the team (`title`, `body`, `target_role_ids`, `context`),
+   * carried on `lead.received` as `payload.notice`; `false` asks for no notification. The
+   * organization's rules on `lead.received` decide what is sent.
+   */
   notification?: false | JsonObject;
 };
 
@@ -100,28 +104,26 @@ export async function receiveLead(org: string, submission: LeadSubmission) {
     });
   }
 
-  const payload = { project_id: project.id, source_kind: sourceKind, address, title: text(object(project.data).title), contact_ids: resolved.map(r => r.contact.id), matched_contact_ids: resolved.filter(r => r.matched).map(r => r.contact.id) };
-  await emitWorkEvent({ organization_id: org, branch_id: branchId, project_id: project.id, type: "project.created", idempotency_key: `project.created:${project.id}`, payload });
-  await emitWorkEvent({ organization_id: org, branch_id: branchId, project_id: project.id, type: "lead.received", idempotency_key: `lead.received:${project.id}`, payload });
-  await ensurePipelinePlanForProject(org, { id: project.id, ...object((await readDocument(org, "projects", project.id)).data) });
+  // Routing runs once, here: a scope, or nothing yet (a new lead).
+  await routeNewLead(org, { id: project.id, ...object((await readDocument(org, "projects", project.id)).data) });
+  await (await import("../work/service.js")).syncProjectWorkProjection(org, project.id);
   await (await import("../contacts/merge.js")).suggestOpportunityDuplicates(org, project.id);
   const fresh = await readDocument(org, "projects", project.id);
 
-  let notification = null;
-  if (submission.notification !== false) {
-    const options = object(submission.notification), first = resolved[0]?.contact;
-    notification = await api.createPlatformNotification(org, {
-      id: text(options.id) || `notification_new_lead_${project.id}`,
-      title: text(options.title || "Contact new lead"),
-      body: text(options.body) || [address, first?.name, first?.phone, first?.email].filter(Boolean).join(" · ") || summary || "A new lead came in.",
-      status: "active", channel: "passive", kind: "passive",
-      push: options.push !== false, passive: options.passive !== false, manual_dismissible: options.manual_dismissible === true,
-      target_user_ids: strings(options.target_user_ids),
-      target_role_ids: strings(options.target_role_ids).length ? strings(options.target_role_ids) : ["inside_sales", "sales_appointments"],
-      branch_id: branchId, expires_at: text(options.expires_at), source: text(options.source || `${sourceKind}_lead_import`),
-      context: { project_id: project.id, branch_id: branchId, lead_source: sourceKind, action: "contact_lead", ...object(options.context) }
-    });
-  }
+  // The source's suggestion; the organization's rules on lead.received decide what is sent.
+  const options = object(submission.notification), first = resolved[0]?.contact;
+  const notice = submission.notification === false ? { notify: false } : {
+    notify: true,
+    title: text(options.title) || "Contact new lead",
+    body: text(options.body) || [address, first?.name, first?.phone, first?.email].filter(Boolean).join(" · ") || summary || "A new lead came in.",
+    target_role_ids: strings(options.target_role_ids),
+    target_user_ids: strings(options.target_user_ids),
+    source: text(options.source || `${sourceKind}_lead_import`),
+    context: object(options.context)
+  };
+  const payload = { project_id: project.id, source_kind: sourceKind, address, title: text(object(fresh.data).title), contact_ids: resolved.map(r => r.contact.id), matched_contact_ids: resolved.filter(r => r.matched).map(r => r.contact.id), new_lead: object(object(fresh.data).lifecycle).new_lead === true };
+  await emitWorkEvent({ organization_id: org, branch_id: branchId, project_id: project.id, type: "project.created", idempotency_key: `project.created:${project.id}`, payload });
+  await emitWorkEvent({ organization_id: org, branch_id: branchId, project_id: project.id, type: "lead.received", idempotency_key: `lead.received:${project.id}`, payload: { ...payload, notice } });
   api.invalidatePlatformSearchCache(org);
-  return { project: fresh, contacts: resolved.map(r => r.contact), matched_contact_ids: payload.matched_contact_ids, notification };
+  return { project: fresh, contacts: resolved.map(r => r.contact), matched_contact_ids: payload.matched_contact_ids };
 }

@@ -34,8 +34,11 @@ import {
 } from "./storage.js";
 import { createWorkPlanSchema, workNodeStatusSchema, type WorkNodeDefinition, type WorkNodeStatus } from "./schemas.js";
 import { emitWorkEvent, withDeferredWorkEvents, dispatchDeferredWorkEvents } from "./engine.js";
-import { opportunitySummary } from "./opportunities.js";
-import { isSalesTemplate, templateCategoryIds } from "../scopes/categories.js";
+import { isIntakePlan, isNewLead, isScopePlan, opportunitySummary } from "./opportunities.js";
+
+/** The column a sales board shows new leads in (docs/architecture/opportunities.md). */
+export const NEW_LEADS_COLUMN_ID = "__new_leads";
+import { isIntakeTemplate, isSalesTemplate, templateCategoryIds } from "../scopes/categories.js";
 
 function cleanText(value: unknown) {
   return String(value ?? "").trim();
@@ -212,6 +215,8 @@ export async function createWorkPlan(inputValue: JsonObject) {
   });
   if (!createdPlan?.plan) throw new Error("Work plan storage did not return the created plan.");
   if (!createdPlan.created) return { plan: createdPlan.plan, tree: (await workPlanTree(orgId, cleanText(createdPlan.plan.id))), created: false };
+  // A project that gets a scope is routed: its intake behavior is done.
+  if (cleanText(input.project_id) && isScopePlan(createdPlan.plan)) await completeIntakePlans(orgId, cleanText(input.project_id), "routed");
 
   await emitWorkEvent({
     organization_id: orgId,
@@ -728,6 +733,7 @@ export function projectLifecycleFacts(plans: JsonObject[], project: JsonObject =
   const status = lost ? "lost" : !allTerminal ? "open" : anyCompleted ? "completed" : "canceled";
   return {
     status,
+    new_lead: opportunities.new_lead,
     sold_at: soldAt,
     completed_at: status === "completed" ? terminalAt : "",
     canceled_at: status === "canceled" || status === "lost" ? terminalAt : "",
@@ -792,6 +798,24 @@ export async function syncProjectWorkProjection(orgId: string, projectId: string
   return { id: projectId, ...asObject(saved?.data) };
 }
 
+// Completes the project's open intake plans (docs/architecture/opportunities.md):
+// their remaining work stops with the reason.
+export async function completeIntakePlans(orgId: string, projectId: string, reason: string) {
+  const plans = (await listPlanRecords(orgId, { project_id: projectId }))
+    .filter((plan) => isIntakePlan(plan) && !["completed", "canceled"].includes(cleanText(plan.status)));
+  for (const plan of plans) {
+    for (const node of (await listNodeRecords(orgId, { plan_id: plan.id })).filter((entry) => !terminalNodeStatus(entry.status))) {
+      await transitionWorkNode(orgId, cleanText(node.id), "canceled", { reason });
+    }
+    (await updatePlanRecord(orgId, cleanText(plan.id), {
+      status: "completed",
+      completed_at: new Date().toISOString(),
+      metadata: { ...asObject(plan.metadata), completed_reason: reason }
+    }));
+  }
+  return plans.map((plan) => cleanText(plan.id));
+}
+
 // Cancels the project's live sales scope instances for a reason other than a
 // lost sale (a lost sale goes through setOpportunityOutcome).
 export async function cancelPipelinePlansForProject(orgId: string, projectId: string, reason = "canceled") {
@@ -836,6 +860,8 @@ export async function listWorkBoards(orgId: string, options: JsonObject = {}, ct
       enabledScopeTemplateKeys.add(templateKey);
       if (boards.has(templateId)) continue;
       const definition = asObject(template.definition);
+      // Intake runs before a project has a scope and is never a board.
+      if (isIntakeTemplate(definition)) continue;
       const blueprint = asObject(definition.work_plan);
       const root = asObject(asArray(blueprint.root_nodes)[0]);
       const metadata = asObject(blueprint.metadata);
@@ -863,8 +889,23 @@ export async function listWorkBoards(orgId: string, options: JsonObject = {}, ct
           cards: []
         });
       }
+      // A board may show the branch's new leads (projects with no scope yet) as its
+      // first column; dropping one on a stage starts this scope on it.
+      const newLeads = metadata.new_leads_column === true || (!!metadata.new_leads_column && typeof metadata.new_leads_column === "object");
+      if (newLeads) (columns as JsonObject[]).unshift({
+        id: NEW_LEADS_COLUMN_ID,
+        template_node_id: NEW_LEADS_COLUMN_ID,
+        kind: "new_leads",
+        title: cleanText(asObject(metadata.new_leads_column).title) || "New lead",
+        description: "Leads that have not been given a scope yet.",
+        color: cleanText(asObject(metadata.new_leads_column).color || "#667085"),
+        sort_order: -1,
+        cards: []
+      });
       boards.set(templateId, {
         id: templateId,
+        branch_id: branchId,
+        new_leads_column: newLeads,
         department_ids: blueprint.department_ids ?? definition.department_ids ?? [],
         title: cleanText(template.name || definition.name || root.title || templateId.replace(/[_-]+/g, " ")),
         description: cleanText(template.description || definition.description),
@@ -1034,6 +1075,37 @@ export async function listWorkBoards(orgId: string, options: JsonObject = {}, ct
     board.columns = columns;
     board.cards = [...asArray(board.cards), card];
     boards.set(boardId, board);
+  }
+  // New leads: one card per project in the board's branch with no scope yet.
+  const plansByProject = new Map<string, JsonObject[]>();
+  for (const plan of plans) plansByProject.set(cleanText(plan.project_id), [...(plansByProject.get(cleanText(plan.project_id)) || []), plan]);
+  const newLeads = [...projects.values()].map((project) => project as JsonObject).filter((project) => !project.deleted_at && isNewLead(plansByProject.get(cleanText(project.id)) || [], project));
+  for (const board of boards.values()) {
+    if (board.new_leads_column !== true) continue;
+    const columns = asArray(board.columns).map(asObject);
+    const column = columns.find((entry) => cleanText(entry.id) === NEW_LEADS_COLUMN_ID);
+    if (!column) continue;
+    const cards = newLeads
+      .filter((project) => (cleanText(project.branch_id || "default") || "default") === cleanText(board.branch_id || "default"))
+      .sort((a, b) => cleanText(b.created_at).localeCompare(cleanText(a.created_at)))
+      .map((project) => ({
+        id: `new_lead:${cleanText(project.id)}`,
+        plan_id: "",
+        new_lead: true,
+        department_ids: [],
+        branch_id: cleanText(project.branch_id || "default") || "default",
+        project_id: cleanText(project.id),
+        title: cleanText(project.title || project.customer_name || project.address),
+        address: cleanText(project.address),
+        board_field_values: {},
+        board_field_errors: {},
+        status: "new_lead",
+        stage_id: NEW_LEADS_COLUMN_ID,
+        manual_stage_override: false
+      }));
+    column.cards = cards;
+    board.columns = columns;
+    board.cards = [...cards, ...asArray(board.cards)];
   }
   const visibleBoards: JsonObject[] = [...boards.values()].map((board): JsonObject => {
     const visible = (resource: JsonObject) => !ctx?.auth || (hasResourcePermission(ctx.auth, "view_projects", resource) && matchesDepartmentFilter(ctx.auth, resource, cleanText(options.department_id)));

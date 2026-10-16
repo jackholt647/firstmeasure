@@ -103,12 +103,12 @@ test("call lists are organization objects with assignments, idempotent entries, 
   const defaults = await inject("GET", `/v1/call-lists/organizations/${orgId}/call-lists`);
   assert.equal(defaults.call_lists.length, 0);
 
-  // An opportunity opening (its sales plan starting) queues the first call through
-  // the default organization automation rule, creating New Leads on demand with a
+  // A lead arriving (lead.received) queues the first call through the default
+  // organization automation rule, creating New Leads on demand with a
   // project-keyed entry.
-  const { ensurePipelinePlanForProject } = await import("../scopes/router.js");
-  await ensurePipelinePlanForProject(orgId, { id: projectId, ...(await platformStorage.readDocument(orgId, "projects", projectId)).data });
-  await (await import("../work/engine.js")).drainWorkEvents();
+  const engine = await import("../work/engine.js");
+  await engine.emitWorkEvent({ organization_id: orgId, branch_id: "default", project_id: projectId, type: "lead.received", idempotency_key: `lead.received:${projectId}`, payload: { project_id: projectId, notice: { notify: false } } });
+  await engine.drainWorkEvents();
   const seeded = await inject("GET", `/v1/call-lists/organizations/${orgId}/call-lists`);
   const newLeads = seeded.call_lists.find((list: any) => list.key === "new_leads");
   assert.ok(newLeads, "the intake rule created the New Leads list");

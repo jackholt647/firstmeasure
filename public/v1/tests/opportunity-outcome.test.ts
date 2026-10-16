@@ -14,7 +14,7 @@ test("opportunities are sales plans whose outcome the scope decides", async (t) 
     FIRSTMEASURE_DATABASE_MODE: process.env.TEST_POSTGRES_URL ? "postgres" : "local", DATABASE_URL: process.env.TEST_POSTGRES_URL || "", POSTGRES_POOL_MAX: "4", POSTGRES_AUTO_MIGRATE: "false" });
   const storage = await import("../platform/storage.js");
   const categories = await import("../scopes/categories.js");
-  const { ensurePipelinePlanForProject, saveIntakeRouting, readIntakeRouting } = await import("../scopes/router.js");
+  const { routeNewLead, saveIntakeRouting, readIntakeRouting } = await import("../scopes/router.js");
   const { instantiateScopeTemplateWorkPlan } = await import("../scopes/service.js");
   const { readScopeTemplate, saveScopeTemplate } = await import("../scopes/storage.js");
   const { setOpportunityOutcome } = await import("../work/opportunities.js");
@@ -24,11 +24,11 @@ test("opportunities are sales plans whose outcome the scope decides", async (t) 
   await storage.createOrganization({ id: ORG, name: "Opportunities" });
   await (await import("./helpers/platform-fixture.js")).enableExpandedPlatformFixture(ORG);
 
-  // The catalog: sales is built in and cannot be removed or disabled; the rest is the organization's.
-  assert.deepEqual((await categories.readScopeCategories(ORG)).categories.map(c => [c.id, c.builtin]), [["sales", true], ["production", false]]);
+  // The catalog: sales and intake are built in and cannot be removed or disabled; the rest is the organization's.
+  assert.deepEqual((await categories.readScopeCategories(ORG)).categories.map(c => [c.id, c.builtin]), [["sales", true], ["intake", true], ["production", false]]);
   const saved = await categories.saveScopeCategories(ORG, { categories: [{ id: "sales", label: "Selling", enabled: false }, { id: "service", label: "Service" }] });
-  assert.deepEqual(saved.categories.map(c => [c.id, c.label, c.enabled]), [["sales", "Selling", true], ["service", "Service", true]]);
-  assert.deepEqual((await categories.saveScopeCategories(ORG, { categories: [{ id: "service", label: "Service" }] })).categories.map(c => c.id), ["sales", "service"]);
+  assert.deepEqual(saved.categories.map(c => [c.id, c.label, c.enabled]), [["sales", "Selling", true], ["intake", "Intake", true], ["service", "Service", true]]);
+  assert.deepEqual((await categories.saveScopeCategories(ORG, { categories: [{ id: "service", label: "Service" }] })).categories.map(c => c.id), ["sales", "intake", "service"]);
   assert.deepEqual(categories.templateCategoryIds({ kind: "pipeline" }), ["sales"], "an older definition's kind is read as a category");
 
   // Presets carry categories, and saving a template only accepts catalog categories.
@@ -39,10 +39,10 @@ test("opportunities are sales plans whose outcome the scope decides", async (t) 
 
   // A project's entry sales scope is an opportunity, open until an action says otherwise.
   await upsertProjectWithContacts(ORG, { id: "p1", data: { title: "Roof", contacts: [{ name: "Ivy", phone: "555-030-1000" }] } });
-  await ensurePipelinePlanForProject(ORG, { id: "p1", ...(await storage.readDocument(ORG, "projects", "p1")).data });
+  await routeNewLead(ORG, { id: "p1", ...(await storage.readDocument(ORG, "projects", "p1")).data });
   const [plan] = await listPlanRecords(ORG, { project_id: "p1", sales: true });
   assert.deepEqual([plan?.sales, plan?.outcome], [true, "open"]);
-  assert.deepEqual(((await storage.readDocument(ORG, "projects", "p1")).data.lifecycle as Record<string, unknown>).opportunities, { open: 1, won: 0, lost: 0, unresolved: 0, won_at: "", lost_at: "" });
+  assert.deepEqual(((await storage.readDocument(ORG, "projects", "p1")).data.lifecycle as Record<string, unknown>).opportunities, { new_lead: false, open: 1, won: 0, lost: 0, unresolved: 0, won_at: "", lost_at: "" });
 
   // The organization may limit open opportunities per project; by default there is no limit.
   const second = await readScopeTemplate(ORG, "default", "roofing_sales_appointment");

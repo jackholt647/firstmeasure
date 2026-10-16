@@ -857,7 +857,7 @@ export const registerChannelsApi: FastifyPluginAsync = async (app) => {
             ]
           },
           metadata: { source: "project_note_upload" }
-        });
+        }, { mustExist: true });
       }
     }
     const attachment = (await createAttachmentRecord({

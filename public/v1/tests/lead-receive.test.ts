@@ -42,7 +42,7 @@ test("a lead is a contact plus a project; existing people are matched, never rew
 
   await assert.rejects(() => receiveLead(ORG, { source: { kind: "manual_lead" } }), /needs at least/);
   const noContact = await receiveLead(ORG, { source: { kind: "manual_lead" }, address: "9 Pine Rd", notification: false });
-  assert.deepEqual([noContact.contacts, noContact.notification], [[], null]);
+  assert.deepEqual(noContact.contacts, []);
 
   // Live chat: one lead per conversation, however often the visitor shares details.
   const visitor = { display_name: "Hal", email: "hal@example.com", phone: "" };

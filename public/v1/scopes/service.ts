@@ -10,7 +10,7 @@ import { initializeProjectChecklistsFromScope } from "../workforce/crew_storage.
 import { listNodeRecords, listPlanRecords, readPlanRecord, updateNodeRecord, updatePlanRecord } from "../work/storage.js";
 import { listScopeTemplates, readScopeTemplate, readScopeTemplateVersion } from "./storage.js";
 import { conflict } from "../platform/errors.js";
-import { SALES_CATEGORY, templateCategoryIds } from "./categories.js";
+import { INTAKE_CATEGORY, SALES_CATEGORY, templateCategoryIds } from "./categories.js";
 const TERMINAL_PLAN_STATUSES = ["completed", "canceled"];
 
 function cleanText(value: unknown) {
@@ -249,7 +249,7 @@ export async function instantiateScopeTemplateWorkPlan(orgId: string, optionsVal
   const blueprint = asObject(definition.work_plan);
   const workConfiguration = await readWorkConfiguration(orgId, branchId);
   const sourceKey = cleanText(options.source_key) || `scope_template:${projectId}:${templateId}`;
-  const categoryIds = templateCategoryIds(definition), sales = categoryIds.includes(SALES_CATEGORY);
+  const categoryIds = templateCategoryIds(definition), intake = categoryIds.includes(INTAKE_CATEGORY), sales = !intake && categoryIds.includes(SALES_CATEGORY);
   if (sales && projectId) {
     // How many opportunities a project may have open at once is the organization's setting (default: no limit).
     const limit = (await (await import("./router.js")).readIntakeRouting(orgId, branchId)).max_open_opportunities;
@@ -276,7 +276,9 @@ export async function instantiateScopeTemplateWorkPlan(orgId: string, optionsVal
     metadata: {
       ...asObject(blueprint.metadata),
       scope_category_ids: categoryIds,
-      scope_template_version_id: template.version_id
+      scope_template_version_id: template.version_id,
+      // Intake runs before the project has a scope: never a board of its own.
+      ...(intake ? { hide_from_boards: true } : {})
     },
     start_immediately: true
   });
@@ -362,7 +364,7 @@ export async function startWorkPlansForSignedProposal(orgId: string, proposalId:
       id: projectId,
       data: { ...project, work_plan_ids: planIds, work_projection: (await projectWorkProjection(orgId, projectId)), updated_at: new Date().toISOString() },
       metadata: projectDoc.metadata
-    }, { replace: true });
+    }, { replace: true, mustExist: true });
   }
   return { plans: results, count: results.length };
 }

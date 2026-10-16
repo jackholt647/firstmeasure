@@ -54,7 +54,6 @@ import { normalizeProposalScope, proposalScopeTotalCents, publicScopeLineItems }
 import { publicProposalWorkflow } from "../proposals/storage.js";
 import { emitWorkEvent } from "../work/engine.js";
 import { createWorkPlan, listWorkTodos, patchWorkNode, transitionWorkNode } from "../work/service.js";
-import { ensurePipelinePlanForProject } from "../scopes/router.js";
 import { readScopeTemplate } from "../scopes/storage.js";
 import { readNodeRecord } from "../work/storage.js";
 import { appFlagState, canManageOrgAppFlags, canManageTestAppFlags, containsAppFlagMutation, effectiveAppFlags, enabledOnlyAppFlags, isAppFlagEnabled, newOrganizationAppFlagDefaults, normalizeAppFlagInput, normalizeAppPlacementInput, normalizeAppVariantInput } from "./app_flags.js";
@@ -2804,7 +2803,7 @@ app.get("/auth/google/config", async () => ({
         updated_at: new Date().toISOString()
       },
       metadata: { source: "project_documents_upload" }
-    }, { replace: true });
+    }, { replace: true, mustExist: true });
     reply.code(201);
     return {
       ok: true,
@@ -2864,7 +2863,7 @@ app.get("/auth/google/config", async () => ({
       id: projectId,
       data: { ...data, documents: updated, updated_at: new Date().toISOString() },
       metadata: { source: "project_documents_patch" }
-    }, { replace: true });
+    }, { replace: true, mustExist: true });
     return { ok: true, ...(await projectDocumentsPayload(orgId, saved)) };
   });
 
@@ -2882,7 +2881,7 @@ app.get("/auth/google/config", async () => ({
       id: projectId,
       data: { ...data, documents, updated_at: new Date().toISOString() },
       metadata: { source: "project_documents_delete" }
-    }, { replace: true });
+    }, { replace: true, mustExist: true });
     return { ok: true, ...(await projectDocumentsPayload(orgId, saved)) };
   });
 
@@ -2929,7 +2928,6 @@ app.get("/auth/google/config", async () => ({
         { replace: true }
       );
     if (collection === "projects") {
-      await ensurePipelinePlanForProject(orgId, { id: document.id, ...asObject(document.data) });
       await emitWorkEvent({
         organization_id: orgId,
         branch_id: cleanText(asObject(document.data).branch_id) || "default",
@@ -3007,7 +3005,6 @@ app.get("/auth/google/config", async () => ({
         { replace: true }
       );
     if (collection === "projects") {
-      await ensurePipelinePlanForProject(orgId, { id: document.id, ...asObject(document.data) });
       const projectData = asObject(document.data);
       await emitWorkEvent({
         organization_id: orgId,
@@ -3083,7 +3080,6 @@ app.get("/auth/google/config", async () => ({
         { replace: false }
       );
     if (collection === "projects") {
-      await ensurePipelinePlanForProject(orgId, { id: document.id, ...asObject(document.data) });
       const projectData = asObject(document.data);
       await emitWorkEvent({
         organization_id: orgId,
@@ -4437,9 +4433,23 @@ async function upsertProjectDocumentPreservingEvents(
     input = { ...input };
     delete input.require_existing;
   }
-  if (!id) return await upsertDocument(orgId, "projects", input, { replace });
+  // A write that creates a project starts its scope (projects/create.ts): the one
+  // it names in `scope_template_id`, or the branch's manual default.
+  const creation = await import("../projects/create.js");
+  const choice = creation.withoutScopeChoice(input);
+  input = choice.input;
+  const createWithScope = async (value: JsonObject) => {
+    const template = await creation.creationScopeTemplate(orgId, cleanText(asObject(value.data).branch_id) || "default", choice.requested);
+    const created = await upsertDocument(orgId, "projects", value, { replace, createOnly: true });
+    return { created, template };
+  };
+  if (!id) {
+    const made = await createWithScope(input);
+    return await creation.startCreatedProjectScope(orgId, made.created.id, made.template);
+  }
   const explicitExpectedRevision = Number(input.expected_revision || 0);
-  return await withProjectDocumentLock(orgId, id, async () => {
+  let made: { created: JsonObject; template: JsonObject } | null = null;
+  const saved = await withProjectDocumentLock(orgId, id, async () => {
   for (let attempt = 0; ; attempt += 1) {
     const current = await readDocument(orgId, "projects", id).catch((error) => {
       if (!requireExisting || (error instanceof PlatformError && error.statusCode === 404)) return null;
@@ -4447,7 +4457,14 @@ async function upsertProjectDocumentPreservingEvents(
     });
     if (!current) {
       if (requireExisting) throw notFound("project_deleted", "This project was deleted.", { project_id: id, deleted: true });
-      return await upsertDocument(orgId, "projects", { ...input, id }, { replace });
+      try {
+        made = await createWithScope({ ...input, id });
+        return made.created;
+      } catch (error) {
+        // Another process created it meanwhile: save over it as an update.
+        if ((error as { code?: string })?.code === "document_exists" && attempt < 7) continue;
+        throw error;
+      }
     }
     const currentData = asObject(current.data);
     const incomingData = asObject(input.data);
@@ -4478,6 +4495,9 @@ async function upsertProjectDocumentPreservingEvents(
     }
   }
   });
+  // The scope starts after the lock: starting it writes the project's projection.
+  const createdNow = made as { created: JsonObject; template: JsonObject } | null;
+  return createdNow ? await creation.startCreatedProjectScope(orgId, cleanText(createdNow.created.id), createdNow.template) : saved;
 }
 
 /* Whether a project item write books equipment or changes an item that

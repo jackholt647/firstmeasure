@@ -447,7 +447,7 @@ export async function submitFeedbackRating(publicToken: string, input: JsonObjec
           updated_at: now
         },
         metadata: projectDocument.metadata
-      }, { replace: true });
+      }, { replace: true, mustExist: true });
     } catch { /* the rating record itself is the source of truth; project write is best-effort */ }
   }
 

@@ -78,7 +78,9 @@ async function register(client: ReturnType<typeof createSessionClient>) {
 }
 
 async function createProject(client: ReturnType<typeof createSessionClient>, orgId: string, projectId: string, extra: Record<string, unknown> = {}) {
+  // A project made by hand starts the scope it names (docs/architecture/opportunities.md).
   await client.request("PUT", `/v1/platform/organizations/${orgId}/projects/${projectId}`, {
+    scope_template_id: "sales_pipeline",
     data: { id: projectId, title: "Contracts Project", address: "1 Contract Way", events: [], ...extra },
     metadata: { kind: "platform_project" }
   });
@@ -470,7 +472,7 @@ test("a proposal signed through Documents advances the sales pipeline like any s
   await createProject(client, orgId, projectId);
   const { listNodeRecords } = await import("../work/storage.js");
   const step = async () => (await listNodeRecords(orgId, { project_id: projectId })).find((node) => node.template_node_id === "sign_sales_proposal");
-  assert.ok(await step(), "new projects enter the sales pipeline");
+  assert.ok(await step(), "the project starts the sales scope it named");
   assert.notEqual((await step())!.status, "completed");
   // A change order is not a proposal: the pipeline does not move.
   await client.request("POST", `/v1/work/organizations/${orgId}/events/emit`, { event: "document.signed", project_id: projectId, payload: { document_id: "doc_change", document_type: "automation_contract_test", document_tags: ["change"] } });

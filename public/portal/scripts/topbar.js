@@ -400,10 +400,10 @@
     return searchData;
   }
 
-  function openProject(project){
+  function openProject(project, options = {}){
     if (!project?.id) return;
-    if (window.Portal.modules?.request?.openProject) window.Portal.modules.request.openProject(project);
-    else window.dispatchEvent(new CustomEvent('fm:projects:open', { detail: { project } }));
+    if (window.Portal.modules?.request?.openProject) window.Portal.modules.request.openProject(project, options);
+    else window.dispatchEvent(new CustomEvent('fm:projects:open', { detail: { project, ...options } }));
   }
 
   async function openContact(contact = {}){
@@ -485,28 +485,34 @@
     return [contact.name, contact.email, contact.phone].map((value) => cleanText(value).toLowerCase()).filter(Boolean).join(' ');
   }
 
+  // A new-lead notification says so in its context (the lead.received rules set
+  // context.lead_source); what a click opens is only its frontend_action.
   function isLeadNotification(item = {}){
-    const title = String(item.title || '').toLowerCase();
-    const source = String(item.source || item.context?.lead_source || '').toLowerCase();
-    return !!(item.context?.project_id || item.data?.project_id) && (
-      title.includes('lead') || source.includes('lead') || source.includes('email') || source.includes('canvassing')
-    );
+    return !!String(item.context?.lead_source || '').trim();
   }
 
   function leadTitle(item = {}){
-    return isLeadNotification(item) ? 'Contact new lead' : (item.title || (globalThis.PlatformLanguage?.text("platform","m_8afbfeae955a57","Notification") ?? "Notification"));
+    return item.title || (globalThis.PlatformLanguage?.text("platform","m_8afbfeae955a57","Notification") ?? "Notification");
+  }
+
+  // `project_tab` names the project window tab to open; "overview" is the map tab.
+  function notificationProjectTab(action = {}){
+    const tab = String(action.project_tab || action.projectTab || '').trim();
+    return tab === 'overview' ? 'map' : tab;
   }
 
   async function openNotificationProject(item = {}){
     const action = item.frontend_action && typeof item.frontend_action === 'object' ? item.frontend_action : {};
-    const projectId = String(action.project_id || action.projectId || item.context?.project_id || item.data?.project_id || '').trim();
+    // With no click action, a notification about a project opens that project.
+    const projectId = String(action.project_id || action.projectId || (!action.kind ? item.context?.project_id || item.data?.project_id : '') || '').trim();
     if (!projectId || !window.PlatformAPI?.projects?.get || !orgId()) return false;
     try {
       const result = await window.PlatformAPI.projects.get(orgId(), projectId);
       const data = result?.document?.data || null;
       if (!data) return false;
       const project = { id: projectId, ...data };
-      openProject(project);
+      const tab = notificationProjectTab(action);
+      openProject(project, tab ? { tab } : {});
       searchData.loaded = false;
       return true;
     } catch (error) {
@@ -612,7 +618,7 @@
     if (String(action.kind || '').trim() !== 'open_project_comms') return false;
     const projectId = String(action.project_id || item?.context?.project_id || '').trim();
     if (!projectId) return false;
-    const opened = await openNotificationProject({ frontend_action:{ ...action, kind:'open_project' } });
+    const opened = await openNotificationProject({ frontend_action:{ ...action, kind:'open_project', project_id:projectId } });
     if (!opened) return false;
     const commsView = String(action.comms_view || '').trim() || 'overview';
     const conversationId = String(action.conversation_id || '').trim();
@@ -809,7 +815,7 @@
           <strong>${escapeHtml(leadTitle(item))}</strong>
           <span>${escapeHtml(item.body || '')}</span>
         </div>
-        ${item.manual_dismissible && !isLeadNotification(item) ? `<button type="button" class="ptb-note-dismiss" data-dismiss-note="${String(escapeHtml(item.id))}" aria-label="${(globalThis.PlatformLanguage?.htmlText("platform","m_63fc9fb260d3a6","Mark notification done") ?? "Mark notification done")}" title="${(globalThis.PlatformLanguage?.htmlText("platform","m_8e85dc2d122c71","Mark done") ?? "Mark done")}"><i class="fas fa-check" aria-hidden="true"></i></button>` : ''}
+        ${item.manual_dismissible ? `<button type="button" class="ptb-note-dismiss" data-dismiss-note="${String(escapeHtml(item.id))}" aria-label="${(globalThis.PlatformLanguage?.htmlText("platform","m_63fc9fb260d3a6","Mark notification done") ?? "Mark notification done")}" title="${(globalThis.PlatformLanguage?.htmlText("platform","m_8e85dc2d122c71","Mark done") ?? "Mark done")}"><i class="fas fa-check" aria-hidden="true"></i></button>` : ''}
       </div>
     `;
   }
@@ -913,7 +919,7 @@
     window.PlatformNotifications?.markSeen(orgId(), item.id, notificationLoadOptions({ reload:true })).catch(() => null);
     if (openAssistantNotification(item) || openChatNotification(item) || openMerchantPortalNotification(item) || await openCommsNotification(item) || openChannelMessageNotification(item) || openMentionNotification(item) || await openMeasurementReportNotification(item)) {
       closeNotificationMenus();
-    } else if (notificationOpensProject(item) || isLeadNotification(item)) {
+    } else if (notificationOpensProject(item) || (!item.frontend_action?.kind && (item.context?.project_id || item.data?.project_id))) {
       await openNotificationProject(item);
       closeNotificationMenus();
     }

@@ -252,7 +252,7 @@ async function patchProjectMaterialRefs(orgId: string, projectId: string, listId
       kind: "platform_project",
       material_ref_source: "materials_api"
     }
-  }, { replace: false });
+  }, { replace: false, mustExist: true });
 }
 
 async function resolveDefaultPricebookId(orgId: string) {

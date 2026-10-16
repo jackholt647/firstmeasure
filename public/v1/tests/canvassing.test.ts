@@ -132,7 +132,7 @@ async function registerStandaloneCanvassing(client: ReturnType<typeof createSess
   return { orgId: data.organization.id as string };
 }
 
-test("Generic Platform lead endpoint creates project contacts and notification", async () => {
+test("Generic Platform lead endpoint creates the project and contacts, and the lead.received rules notify", async () => {
   const client = createSessionClient();
   const { orgId } = await register(client);
   const created = await client.request("POST", `/v1/platform/organizations/${orgId}/leads`, {
@@ -150,7 +150,11 @@ test("Generic Platform lead endpoint creates project contacts and notification",
   assert.equal(leadProjection.active_instances[0].stage_id, "new_lead_stage");
   assert.equal(created.project.data.contacts[0].email, "pat@example.test");
   assert.equal(created.contacts[0].email, "pat@example.test");
-  assert.equal(created.notification.data.context.project_id, created.project.id);
+  // The organization's default rule on lead.received sends the notification (docs/architecture/opportunities.md).
+  await (await import("../work/engine.js")).drainWorkEvents();
+  const notes = (await (await import("../platform/storage.js")).listDocuments(orgId, "notifications")).map((doc) => doc.data as Record<string, any>);
+  const note = notes.find((item) => item.context?.project_id === created.project.id);
+  assert.deepEqual([note?.title, note?.frontend_action?.kind, note?.target_role_ids], ["Contact new lead", "open_project", ["inside_sales", "sales_appointments"]]);
 });
 
 test("Canvassing pins stay lightweight and promote into Platform leads", async () => {

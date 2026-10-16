@@ -1,4 +1,4 @@
-import { matchesDepartmentFilter, relevantDepartmentContext } from "../workforce/department-access.js";
+import { hasResourcePermission, matchesDepartmentFilter, relevantDepartmentContext } from "../workforce/department-access.js";
 import type { FastifyPluginAsync } from "fastify";
 import { ZodError, z } from "zod";
 
@@ -8,7 +8,7 @@ import { archiveScopeTemplate, listScopeLibrary, listScopeTemplates, listScopeTe
 import { saveScopeTemplateSchema } from "./schemas.js";
 import { applyExplainerPatch, extractAutomationInventory } from "./inventory.js";
 import { registerScopeAgentRoutes } from "./agent/api.js";
-import { readIntakeRouting, saveIntakeRouting } from "./router.js";
+import { readIntakeRouting, saveIntakeRouting, startEntryScope } from "./router.js";
 import { registerBuiltinWorkAutomations } from "../work/automations/builtins.js";
 import { buildScopeArtifactMap, patchScopeArtifact, createScopeArtifact } from "./artifacts.js";
 import { automationCatalog } from "../work/catalog.js";
@@ -90,6 +90,34 @@ export const registerScopesApi: FastifyPluginAsync = async (app) => {
     const orgId = getParam(request.params, "orgId");
     await requirePlatformAuth(request, { orgId, csrf: true, permission: "manage_company_settings" });
     return { ok: true, routing: await saveIntakeRouting(orgId, getParam(request.params, "branchId") || "default", objectSchema.parse(request.body ?? {})) };
+  });
+
+  // Starts a scope on a project: a new lead's first scope (a board drop, the
+  // Overview's "Start a scope"), or another scope beside running ones.
+  app.post("/organizations/:orgId/projects/:projectId/scopes", async (request, reply) => {
+    const orgId = getParam(request.params, "orgId");
+    const projectId = getParam(request.params, "projectId");
+    const ctx = await requirePlatformAuth(request, { orgId, csrf: true, permission: "manage_projects" });
+    const body = z.object({ template_id: z.string().trim().min(1).max(200), instance_key: z.string().trim().max(200).optional() }).strict().parse(request.body ?? {});
+    const project = (await import("../platform/storage.js")).readDocument(orgId, "projects", projectId);
+    const data = (await project).data as Record<string, unknown>;
+    if (String(data.merged_into || "").trim()) throw new PlatformError("project_merged", 409, "This project was merged into another.");
+    const branchId = String(data.branch_id || "default").trim() || "default";
+    (await import("../workforce/branch-guards.js")).assertBranchManageable(ctx, branchId);
+    if (!hasResourcePermission(ctx, "manage_projects", { ...data, department_ids: [] })) throw new PlatformError("project_access_denied", 403, "This project is outside your access.");
+    const template: Record<string, unknown> = await readScopeTemplate(orgId, branchId, body.template_id);
+    if (template.enabled === false || String(template.status) === "archived") throw new PlatformError("scope_template_unavailable", 409, "That scope is turned off.");
+    const { listPlanRecords } = await import("../work/storage.js");
+    const { isScopePlan } = await import("../work/opportunities.js");
+    const first = !(await listPlanRecords(orgId, { project_id: projectId })).some(isScopePlan);
+    const result = first
+      ? await startEntryScope(orgId, projectId, branchId, template, { started_by_user_id: ctx.userId })
+      : await (await import("./service.js")).instantiateScopeTemplateWorkPlan(orgId, {
+          project_id: projectId, branch_id: branchId, template, source_type: "manual_scope",
+          source_key: `manual_scope:${projectId}:${body.template_id}:${body.instance_key || "1"}`, context: { started_by_user_id: ctx.userId }
+        });
+    reply.code(201);
+    return { ok: true, plan: result.plan, created: result.created };
   });
 
   // Scope categories: the organization's labels for its scopes; `sales` is built in.

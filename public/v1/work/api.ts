@@ -27,7 +27,6 @@ import {
   transitionWorkNode,
   workPlanTree
 } from "./service.js";
-import { ensurePipelinePlanForProject } from "../scopes/router.js";
 import { listEventRecords, listExecutionRecords, listNodeRecords, readNodeRecord, readPlanRecord } from "./storage.js";
 
 const objectSchema = z.object({}).passthrough();
@@ -82,8 +81,6 @@ export const registerWorkApi: FastifyPluginAsync = async (app) => {
     const orgId = getParam(request.params, "orgId");
     await requirePlatformAuth(request, { orgId, permission: "view_projects", allowScopedPermission: true });
     const projectId = getParam(request.params, "projectId");
-    const projectDocument = await readDocument(orgId, "projects", projectId).catch(() => null);
-    if (projectDocument) await ensurePipelinePlanForProject(orgId, { id: projectId, ...objectSchema.parse(projectDocument.data) });
     const query = objectSchema.parse(request.query ?? {});
     const departmentCtx = await requirePlatformAuth(request, { orgId });
     const plans: Record<string, unknown>[] = (await listWorkPlans(orgId, { ...query, project_id: projectId })).filter(plan => hasResourcePermission(departmentCtx, "view_projects", asObject(plan)) && matchesDepartmentFilter(departmentCtx, asObject(plan), cleanText(query.department_id)));
