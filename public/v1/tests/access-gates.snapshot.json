@@ -1,11 +1,11 @@
 {
   "summary": {
     "routes": {
-      "total": 1729,
+      "total": 1753,
       "by_kind": {
-        "any:login_only": 120,
-        "any:login_only+handler_checks": 284,
-        "any:permission": 675,
+        "any:login_only": 123,
+        "any:login_only+handler_checks": 291,
+        "any:permission": 687,
         "app(contact.media|portal.crew_receipts|portal.photos_feed|portal.receipts|portal.viewer|project.crew_materials|project.photos):login_only": 1,
         "app(contact.media|portal.photos_feed|portal.viewer|project.photos):login_only": 6,
         "app(contact.media|portal.photos_feed|portal.viewer|project.photos):login_only+handler_checks": 1,
@@ -26,7 +26,7 @@
         "mixed(any:login_only,any:permission)": 7,
         "mixed(any:permission,app(contact.media|portal.photos_feed|portal.viewer|project.photos):login_only)": 2,
         "mixed(app(documents.studio|portal.proposals|project.docs|project.documents|project.proposal):login_only,app(documents.studio|portal.proposals|project.docs|project.documents|project.proposal):permission)": 5,
-        "no_platform_session": 372,
+        "no_platform_session": 374,
         "publication_policy": 5
       }
     },
@@ -38,17 +38,17 @@
       }
     },
     "actions": {
-      "total": 280,
+      "total": 282,
       "by_kind": {
         "any:membership_only": 23,
-        "any:permission": 257
+        "any:permission": 259
       }
     },
     "tabs": {
-      "total": 53,
+      "total": 54,
       "by_surface": {
         "contact_modal": 3,
-        "portal_tab": 29,
+        "portal_tab": 30,
         "project_modal": 21
       }
     }
@@ -77,6 +77,8 @@
     "DELETE /v1/comms/organizations/:orgId/templates/:templateId": {"file":"comms/api.ts","gates":[{"app":"any","permission":"manage_company_settings","csrf":true}],"hook_gates":[{"app":"any"}],"kind":"any:permission"},
     "DELETE /v1/comms/organizations/:orgId/voice/numbers/:number": {"file":"comms/calls/api.ts","gates":[{"app":"any","permission":"manage_communications|manage_company_settings","capability":"apps.comms","csrf":true}],"checks":["hasPermission(dynamic)"],"hook_gates":[{"app":"any"}],"kind":"any:permission"},
     "DELETE /v1/connections/organizations/:orgId/organization-connections/:connectionId": {"file":"connections/api.ts","gates":[{"app":"any","permission":"manage_company_settings","app_id":"connections","csrf":true}],"checks":["hasPermission(dynamic)","hasPermission(manage_company_settings)"],"kind":"any:permission"},
+    "DELETE /v1/crm/organizations/:orgId/spend/:spendId": {"file":"crm/api.ts","gates":[{"app":"any","permission":"manage_company_settings","capability":"crm.source_spend","csrf":true}],"kind":"any:permission"},
+    "DELETE /v1/crm/organizations/:orgId/views/:viewId": {"file":"crm/api.ts","gates":[{"app":"any","capability":"crm.views","csrf":true}],"checks":["hasPermission(manage_company_settings)"],"kind":"any:login_only+handler_checks"},
     "DELETE /v1/document-modules/organizations/:orgId/presentations/:presentationId/shares/:shareId": {"file":"documents/modules/presentation-api.ts","gates":[{"app":"any","permission":"view_projects","capability":"platform.documents","csrf":{"dynamic":"![\"GET\", \"HEAD\"].includes(request.method)"}}],"publication":true,"kind":"any:permission"},
     "DELETE /v1/documents/organizations/:orgId/documents/:documentId": {"file":"documents/api.ts","gates":[{"app":"any","permission":"view_projects","scoped":true,"csrf":true}],"checks":["hasPermission(manage_company_settings)","hasPermission(manage_company_user_permissions)","hasPermission(dynamic)"],"hook_gates":[{"app":"documents.studio|portal.proposals|project.docs|project.documents|project.proposal","capability":"platform.documents"}],"kind":"app(documents.studio|portal.proposals|project.docs|project.documents|project.proposal):permission"},
     "DELETE /v1/documents/organizations/:orgId/folders/:folderId": {"file":"documents/api.ts","gates":[{"app":"any","permission":"manage_company_settings","capability":"documents.custom_folders","csrf":true}],"hook_gates":[{"app":"documents.studio|portal.proposals|project.docs|project.documents|project.proposal","capability":"platform.documents"}],"kind":"app(documents.studio|portal.proposals|project.docs|project.documents|project.proposal):permission"},
@@ -298,6 +300,17 @@
     "GET /v1/connections/": {"file":"connections/api.ts","kind":"no_platform_session"},
     "GET /v1/connections/organizations/:orgId/organization-connections": {"file":"connections/api.ts","gates":[{"app":"any","permission":"view_projects|manage_company_settings","app_id":"connections"}],"checks":["hasPermission(dynamic)"],"kind":"any:permission"},
     "GET /v1/connections/organizations/:orgId/organization-connections/:connectionId": {"file":"connections/api.ts","gates":[{"app":"any","permission":"view_projects|manage_company_settings","app_id":"connections"}],"checks":["hasPermission(dynamic)"],"kind":"any:permission"},
+    "GET /v1/crm": {"file":"crm/api.ts","kind":"no_platform_session"},
+    "GET /v1/crm/": {"file":"crm/api.ts","kind":"no_platform_session"},
+    "GET /v1/crm/organizations/:orgId/funnel": {"file":"crm/api.ts","gates":[{"app":"any","capability":"crm.funnel"}],"kind":"any:login_only"},
+    "GET /v1/crm/organizations/:orgId/funnel/report": {"file":"crm/api.ts","gates":[{"app":"any","permission":"view_projects","capability":"crm.funnel"}],"checks":["hasPermission(dynamic)","can(crm.source_spend)","hasPermission(manage_company_settings)"],"kind":"any:permission"},
+    "GET /v1/crm/organizations/:orgId/meta": {"file":"crm/api.ts","gates":[{"app":"any","capability":"crm.views"}],"checks":["hasPermission(dynamic)","can(dynamic)","hasPermission(manage_company_settings)"],"kind":"any:login_only+handler_checks"},
+    "GET /v1/crm/organizations/:orgId/presets": {"file":"crm/api.ts","gates":[{"app":"any","permission":"manage_company_settings","capability":"crm.views"}],"kind":"any:permission"},
+    "GET /v1/crm/organizations/:orgId/projects/:projectId/results": {"file":"crm/api.ts","gates":[{"app":"any","permission":"view_projects","capability":"crm.views"}],"kind":"any:permission"},
+    "GET /v1/crm/organizations/:orgId/rescission": {"file":"crm/api.ts","gates":[{"app":"any","capability":"crm.rescission"}],"kind":"any:login_only"},
+    "GET /v1/crm/organizations/:orgId/sources": {"file":"crm/api.ts","gates":[{"app":"any","capability":"crm.sources"}],"kind":"any:login_only"},
+    "GET /v1/crm/organizations/:orgId/spend": {"file":"crm/api.ts","gates":[{"app":"any","permission":"manage_company_settings","capability":"crm.source_spend"}],"kind":"any:permission"},
+    "GET /v1/crm/organizations/:orgId/views": {"file":"crm/api.ts","gates":[{"app":"any","capability":"crm.views"}],"checks":["hasPermission(manage_company_settings)","hasPermission(dynamic)"],"kind":"any:login_only+handler_checks"},
     "GET /v1/document-modules/organizations/:orgId/documents/:documentId/presentation": {"file":"documents/modules/presentation-api.ts","gates":[{"app":"any","permission":"view_projects","capability":"platform.documents","csrf":{"dynamic":"![\"GET\", \"HEAD\"].includes(request.method)"}}],"publication":true,"kind":"any:permission"},
     "GET /v1/document-modules/organizations/:orgId/instances": {"file":"documents/modules/api.ts","gates":[{"app":"any","permission":"view_projects","capability":"platform.documents","csrf":{"dynamic":"![\"GET\", \"HEAD\"].includes(request.method)"}}],"publication":true,"kind":"any:permission"},
     "GET /v1/document-modules/organizations/:orgId/instances/:instanceId": {"file":"documents/modules/api.ts","gates":[{"app":"any","permission":"view_projects","capability":"platform.documents","csrf":{"dynamic":"![\"GET\", \"HEAD\"].includes(request.method)"}}],"checks":["requireCapability(platform.connections)","hasPermission(manage_company_settings)","hasPermission(manage_projects|manage_company_settings)"],"publication":true,"kind":"any:permission"},
@@ -1152,6 +1165,11 @@
     "POST /v1/communications/gmail/status": {"file":"communications/api.ts","kind":"no_platform_session"},
     "POST /v1/communications/gmail/sync": {"file":"communications/api.ts","kind":"no_platform_session"},
     "POST /v1/connections/organizations/:orgId/organization-connections": {"file":"connections/api.ts","gates":[{"app":"any","permission":"manage_company_settings","app_id":"connections","csrf":true}],"checks":["hasPermission(dynamic)"],"kind":"any:permission"},
+    "POST /v1/crm/organizations/:orgId/presets/apply": {"file":"crm/api.ts","gates":[{"app":"any","permission":"manage_company_settings","capability":"crm.views","csrf":true}],"kind":"any:permission"},
+    "POST /v1/crm/organizations/:orgId/projects/:projectId/cancel-sale": {"file":"crm/api.ts","gates":[{"app":"any","permission":"manage_projects","capability":"crm.rescission","csrf":true}],"kind":"any:permission"},
+    "POST /v1/crm/organizations/:orgId/query": {"file":"crm/api.ts","gates":[{"app":"any","capability":"crm.views"}],"checks":["hasPermission(manage_company_settings)","hasPermission(dynamic)","can(crm.funnel)","hasPermission(manage_company_user_permissions)"],"kind":"any:login_only+handler_checks"},
+    "POST /v1/crm/organizations/:orgId/results": {"file":"crm/api.ts","gates":[{"app":"any","permission":"manage_projects","capability":"crm.views","csrf":true}],"checks":["hasPermission(dynamic)","hasPermission(manage_company_settings)","hasPermission(view_projects|manage_company_settings)","hasPermission(manage_own_notifications)","hasPermission(manage_notification_defaults)"],"kind":"any:permission"},
+    "POST /v1/crm/organizations/:orgId/views": {"file":"crm/api.ts","gates":[{"app":"any","capability":"crm.views","csrf":true}],"checks":["hasPermission(dynamic)","hasPermission(manage_company_settings)"],"kind":"any:login_only+handler_checks"},
     "POST /v1/document-modules/organizations/:orgId/instances": {"file":"documents/modules/api.ts","gates":[{"app":"any","permission":"view_projects","capability":"platform.documents","csrf":{"dynamic":"![\"GET\", \"HEAD\"].includes(request.method)"}}],"checks":["requireCapability(platform.connections)","hasPermission(manage_company_settings)","hasPermission(manage_projects|manage_company_settings)"],"publication":true,"kind":"any:permission"},
     "POST /v1/document-modules/organizations/:orgId/instances/:instanceId/command": {"file":"documents/modules/api.ts","gates":[{"app":"any","permission":"view_projects","capability":"platform.documents","csrf":{"dynamic":"![\"GET\", \"HEAD\"].includes(request.method)"}}],"checks":["requireCapability(platform.connections)","hasPermission(manage_company_settings)","hasPermission(manage_projects|manage_company_settings)"],"publication":true,"kind":"any:permission"},
     "POST /v1/document-modules/organizations/:orgId/instances/:instanceId/document": {"file":"documents/modules/api.ts","gates":[{"app":"any","permission":"view_projects","capability":"platform.documents","csrf":{"dynamic":"![\"GET\", \"HEAD\"].includes(request.method)"}}],"checks":["requireCapability(platform.connections)","hasPermission(manage_company_settings)","hasPermission(manage_projects|manage_company_settings)"],"publication":true,"kind":"any:permission"},
@@ -1724,6 +1742,12 @@
     "PUT /v1/comms/organizations/:orgId/voice/default-number": {"file":"comms/calls/api.ts","gates":[{"app":"any","capability":"apps.comms","csrf":true}],"checks":["hasPermission(dynamic)"],"hook_gates":[{"app":"any"}],"kind":"any:login_only+handler_checks"},
     "PUT /v1/comms/organizations/:orgId/voice/numbers/:number/assignment": {"file":"comms/calls/api.ts","gates":[{"app":"any","permission":"manage_communications|manage_company_settings","capability":"apps.comms","csrf":true}],"checks":["hasPermission(dynamic)","hasPermission(manage_communications|manage_company_settings)"],"hook_gates":[{"app":"any"}],"kind":"any:permission"},
     "PUT /v1/comms/organizations/:orgId/voice/settings": {"file":"comms/calls/api.ts","gates":[{"app":"any","permission":"manage_communications|manage_company_settings","capability":"apps.comms","csrf":true}],"checks":["hasPermission(dynamic)"],"hook_gates":[{"app":"any"}],"kind":"any:permission"},
+    "PUT /v1/crm/organizations/:orgId/funnel": {"file":"crm/api.ts","gates":[{"app":"any","permission":"manage_company_settings","capability":"crm.funnel","csrf":true}],"kind":"any:permission"},
+    "PUT /v1/crm/organizations/:orgId/rescission": {"file":"crm/api.ts","gates":[{"app":"any","permission":"manage_company_settings","capability":"crm.rescission","csrf":true}],"kind":"any:permission"},
+    "PUT /v1/crm/organizations/:orgId/sources": {"file":"crm/api.ts","gates":[{"app":"any","permission":"manage_company_settings","capability":"crm.sources","csrf":true}],"kind":"any:permission"},
+    "PUT /v1/crm/organizations/:orgId/spend/:spendId": {"file":"crm/api.ts","gates":[{"app":"any","permission":"manage_company_settings","capability":"crm.source_spend","csrf":true}],"kind":"any:permission"},
+    "PUT /v1/crm/organizations/:orgId/views/:viewId": {"file":"crm/api.ts","gates":[{"app":"any","capability":"crm.views","csrf":true}],"checks":["hasPermission(manage_company_settings)"],"kind":"any:login_only+handler_checks"},
+    "PUT /v1/crm/organizations/:orgId/views/:viewId/preference": {"file":"crm/api.ts","gates":[{"app":"any","capability":"crm.views","csrf":true}],"checks":["hasPermission(manage_company_settings)"],"kind":"any:login_only+handler_checks"},
     "PUT /v1/documents/organizations/:orgId/document-types": {"file":"documents/api.ts","gates":[{"app":"any","permission":"manage_documents","csrf":true}],"hook_gates":[{"app":"documents.studio|portal.proposals|project.docs|project.documents|project.proposal","capability":"platform.documents"}],"kind":"app(documents.studio|portal.proposals|project.docs|project.documents|project.proposal):permission"},
     "PUT /v1/documents/organizations/:orgId/settings/pinned-templates": {"file":"documents/api.ts","gates":[{"app":"any","permission":"manage_documents","csrf":true}],"hook_gates":[{"app":"documents.studio|portal.proposals|project.docs|project.documents|project.proposal","capability":"platform.documents"}],"kind":"app(documents.studio|portal.proposals|project.docs|project.documents|project.proposal):permission"},
     "PUT /v1/equipment/organizations/:orgId/settings": {"file":"equipment/api.ts","gates":[{"app":"any","permission":"equipment.manage|manage_company_settings","scoped":{"one_of":[{"dynamic":"request.method==='GET'"},{"dynamic":"/\\/(units|work-orders|service-programs|due-service|dashboard|availability|utilization)(\\/|$)/.tes..."}]},"capability":"apps.equipment","csrf":true}],"checks":["hasPermission(dynamic)","hasPermission(equipment.manage|manage_company_settings)"],"kind":"any:permission"},
@@ -2210,6 +2234,7 @@
     "sales.markLost.v1@1": {"app":"any","permissions":["manage_company_settings"],"scopes":["organization","project"],"system_kinds":["work"],"kind":"any:permission","effect":"write","execution_kinds":["work"]},
     "sales.markWon.v1@1": {"app":"any","permissions":["manage_company_settings"],"scopes":["organization","project"],"system_kinds":["work"],"kind":"any:permission","effect":"write","execution_kinds":["work"]},
     "sales.reopen.v1@1": {"app":"any","permissions":["manage_company_settings"],"scopes":["organization","project"],"system_kinds":["work"],"kind":"any:permission","effect":"write","execution_kinds":["work"]},
+    "sales.startRescission.v1@1": {"app":"any","permissions":["manage_company_settings"],"scopes":["organization","project"],"system_kinds":["work"],"kind":"any:permission","effect":"write","execution_kinds":["work"]},
     "scheduling.appointment.book@1": {"app":"any","permissions":["manage_schedule"],"capabilities":["scheduling.appointment_slots"],"scopes":["organization","project"],"kind":"any:permission","effect":"write","execution_kinds":["api","module","agent","work"]},
     "scheduling.appointment.catalog@1": {"app":"any","permissions":["view_schedule"],"scoped":true,"capabilities":["scheduling.appointment_slots"],"scopes":["organization"],"kind":"any:permission","effect":"read","execution_kinds":["api","module","agent","work"]},
     "scheduling.appointment.configure@1": {"app":"any","permissions":["manage_training"],"scopes":["organization"],"kind":"any:permission","effect":"write","execution_kinds":["api","module","agent","work"]},
@@ -2244,6 +2269,7 @@
     "work.configuration.read@1": {"app":"any","permissions":["view_projects"],"scoped":true,"scopes":["organization","project"],"kind":"any:permission","effect":"read","execution_kinds":["api","agent","module","work"]},
     "work.configuration.save@1": {"app":"any","permissions":["manage_company_settings"],"scoped":true,"scopes":["organization","project"],"kind":"any:permission","effect":"write","execution_kinds":["api","agent","module","work"]},
     "work.createTodo.v1@1": {"app":"any","permissions":["manage_company_settings"],"scopes":["organization","project"],"system_kinds":["work"],"kind":"any:permission","effect":"write","execution_kinds":["work"]},
+    "work.finishItem.v1@1": {"app":"any","permissions":["manage_company_settings"],"scopes":["organization","project"],"system_kinds":["work"],"kind":"any:permission","effect":"write","execution_kinds":["work"]},
     "work.followUps.outcome@1": {"app":"any","permissions":["manage_projects"],"scoped":true,"scopes":["organization","project"],"kind":"any:permission","effect":"write","execution_kinds":["api","agent","module","work"]},
     "work.node.patch@1": {"app":"any","permissions":["manage_projects"],"scoped":true,"scopes":["organization"],"kind":"any:permission","effect":"write","execution_kinds":["api","module","agent","work"]},
     "work.node.transition@1": {"app":"any","permissions":["manage_projects"],"scoped":true,"scopes":["organization"],"kind":"any:permission","effect":"write","execution_kinds":["api","module","agent","work"]},
@@ -2276,6 +2302,7 @@
     "portal.crew_payouts": {"surface":"portal_tab","devices":["mobile","desktop"],"default_visible":false,"capabilities":["payroll.self_service_earnings"]},
     "portal.crew_receipts": {"surface":"portal_tab","devices":["mobile","desktop"],"default_visible":false,"capabilities":["crew.receipts"]},
     "portal.crew_schedule": {"surface":"portal_tab","devices":["mobile","desktop"],"default_visible":false,"capabilities":["apps.crew"]},
+    "portal.crm": {"surface":"portal_tab","devices":["mobile","desktop"],"default_visible":true,"capabilities":["crm.views"]},
     "portal.equipment": {"surface":"portal_tab","devices":["mobile","desktop"],"default_visible":true,"capabilities":["apps.equipment"]},
     "portal.feedback": {"surface":"portal_tab","devices":["mobile","desktop"],"default_visible":true,"capabilities":["apps.feedback"]},
     "portal.financials": {"surface":"portal_tab","devices":["mobile","desktop"],"default_visible":false,"capabilities":["money.profitability"]},

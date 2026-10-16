@@ -1381,7 +1381,7 @@
     id:'portal.crm', package:'crm', kind:'portal_tab',
     title: globalThis.PlatformTerminology?.get?.('crm.portal_tab', 'CRM') || 'CRM', label: globalThis.PlatformTerminology?.get?.('crm.portal_tab', 'CRM') || 'CRM',
     icon:'fa-filter', surfaces:['portal_tab'], regions:['main'], visible:true,
-    access:{ applicationsAny:['management'], capability:'crm.views' },
+    access:{ capability:'crm.views' },
     mount
   });
 })();
