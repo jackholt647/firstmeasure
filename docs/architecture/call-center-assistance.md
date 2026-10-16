@@ -9,7 +9,7 @@ library owns source analysis; call transcripts are its first source adapter.
 `comms/calls/supervision.ts` owns monitor (live listen), whisper, barge,
 takeover and leave. Each mode has a distinct permission: `listen_calls`,
 `whisper_calls`, `barge_calls`, `takeover_calls`. These are ordinary role/user
-grants and may be scoped to departments or organizational divisions. Reading
+grants and may be scoped to a department, branch or region. Reading
 the call still requires call access. Takeover also requires `make_calls`, so
 the new owner can operate and finish it. There is no special manager identity.
 

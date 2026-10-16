@@ -75,8 +75,8 @@ When no `tab` is present, the portal opens the first visible app in the rendered
 sidebar order. App-level `defaultHome` hints do not override the top-level portal
 order.
 
-The project Money workspace uses `moneyView` for `overview`, `invoices`,
-`recurring`, `expenses`, `receipts`, `commissions`, and
+The project Money workspace uses `moneyView` for `overview`, `ledger`,
+`payments`, `invoices`, `recurring`, `expenses`, `receipts` and
 `take_payment`. Opening a receipt pushes `receipt`; next/previous receipt uses
 replace, and closing the viewer uses `backOrClose()`. The global Receipts tab
 uses the same `receipt` key. Invoice email confirmation and the generate form
@@ -85,7 +85,7 @@ are transactional state and are not written to browser history.
 The Scope Template editor uses `scopeTemplateView` for `details`, `boards`, `scheduling`, `developer`,
 `automations`, `todos`, `checklists`, `documents`, `materials`, `events`,
 `notifications`, `communications`, `resources`, `fields`, `calls`, `transitions`,
-`workflows`, `portal`, `payments`, `other`, `commissions`, and `assistant`. `automations`
+`workflows`, `portal`, `payments`, `other` and `assistant`. `automations`
 is the trigger explorer; `events` is for calendar requirements. Opening a section
 pushes history with `sub=project_scopes`, `settingsView=editor`, and
 `settingsEntity=scope:<id>`. Cross-links include `scopeArtifact`, or

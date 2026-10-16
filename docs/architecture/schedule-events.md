@@ -253,9 +253,11 @@ Each event returns:
 | `warnings` | `{ id, kind, message, accepted, mode, intervals, person_id?, assignee_id?, staffing_requirement_id? }`. Kinds: `staffing_requirement_unmet`, `double_booked` (a person through different assignees), `assignee_overlap` (an assignee over its capacity), `unavailable`, `missing_member` (a member who is no longer active), `unknown_assignee`, `nobody_assigned`. Ids listed in the event's `accepted_roster_warnings` come back `accepted`. |
 | `assignee_conflicts` | The overlap check's own answer for the event, including `reason: "person"`. |
 
-**Warnings never block.** Nothing here refuses a save; the event writes are
-unchanged and still apply `block` only to the assignee overlap they already
-checked.
+**Warnings warn; one can block a save.** The `schedule-roster.events` read
+never refuses anything. On a write every roster warning only warns, except a
+person double-booked through another assignee whose overlap setting is `block`
+and whose warning is not accepted (see **Writes check it too** above). The
+assignee overlap check applies `block` to the named assignees as before.
 
 **Where they show.** The project schedule panel, the Scheduling app and every
 view of `PlatformScheduleView` (range views, resource views, the day team grid
@@ -267,11 +269,9 @@ the draft's warnings as the save would find them.
 
 ## Not built
 
-The event writes do not call the roster: `assignee_conflicts` on a save and
-`overlap-check` are still the named-assignee check only, and `block` does not
-apply to a person reached through two groups (that needs the write in
-`platform/api.ts` to pass `rosterOverlaps`). Nothing stores
-`accepted_roster_warnings` yet; it is read if present. Working hours are applied
+No screen lets someone accept a roster warning: a save keeps
+`accepted_roster_warnings` when the caller sends it, and the schedule view
+carries it with the event. Working hours are applied
 when offering appointment slots, not when checking an overlap. A committed labor
 list does not learn that its event moved. `assigned_user_ids` is still a second
 place people are named. The roster read scans every project's events
