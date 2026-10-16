@@ -214,6 +214,21 @@ test('durable occurrence recovery uses the original audience and separates custo
  await drainNotifications();assert.equal((await notificationStore().prepare('SELECT id FROM notification_recipients WHERE organization_id=?').all(orgId)).length,2);
 });
 
+test('a user with no account in the audience is skipped and never stops the notification reaching everyone else',async()=>{
+ const client=createSessionClient(),{orgId,userId}=await register(client);
+ const {persistNotificationOccurrence,drainNotifications}=await import('../platform/notifications/delivery.js');
+ const {upsertDocument}=await import('../platform/storage.js');const {notificationStore}=await import('../platform/notifications/store.js');
+ // A sample person: a user record in the organization with no identity, so no background context can be built for them.
+ await upsertDocument(orgId,'users',{id:'sample-person',data:{name:'Sample',role:'owner'}});
+ const note={id:'reaches-everyone',title:'Job scheduled',body:'Roof on Friday',branch_id:'default',broadcast:true,delivery_version:2};
+ await persistNotificationOccurrence(orgId,{...note,audience_user_ids:[userId,'sample-person']},{});
+ await drainNotifications();
+ const recipients=await notificationStore().prepare('SELECT user_id FROM notification_recipients WHERE organization_id=? AND notification_id=?').all(orgId,'reaches-everyone');
+ assert.deepEqual(recipients.map(r=>r.user_id),[userId],'the person who can sign in gets it; the sample person is skipped');
+ const occurrence=await notificationStore().prepare('SELECT state FROM notification_occurrences WHERE organization_id=?').all(orgId);
+ assert.ok(occurrence.every(row=>row.state!=='pending'),'the occurrence is settled, not retried forever');
+});
+
 test('published notification variables remain owner scoped and revoke with their declaration',async()=>{
  const client=createSessionClient(),{orgId,userId}=await register(client);await createProject(client,orgId,'exports-project');
  const root=`/v1/platform/organizations/${orgId}`;

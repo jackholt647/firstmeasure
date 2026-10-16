@@ -1,0 +1,44 @@
+# The platform automation worker on the development worker Droplet (installed 2026-10-15, approved by Jack).
+# It drains the work event queue (automations, rules, scope activation on signing), notification deliveries,
+# payroll outbox, scheduled messages and agent jobs. Development is a cluster, so nothing else runs these.
+# Settings mirror firstmeasure-development-worker.service so both see the same data environment.
+[Unit]
+Description=FirstMate development platform automation worker
+After=network-online.target firstmeasure-instance-identity.service
+Wants=network-online.target
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+User=firstmeasure
+Group=firstmeasure
+WorkingDirectory=/opt/firstmeasure/current/public/v1
+EnvironmentFile=/etc/firstmeasure/common.env
+EnvironmentFile=/etc/firstmeasure/worker.env
+EnvironmentFile=/etc/firstmeasure/development.env
+EnvironmentFile=/opt/firstmeasure/current/release.env
+EnvironmentFile=/etc/firstmeasure/development-voice-sandbox.env
+EnvironmentFile=/etc/firstmeasure/capacity-runtime-r1-20260907.env
+EnvironmentFile=/etc/firstmeasure/payment-browser-client.env
+EnvironmentFile=/etc/firstmeasure/connections-development.env
+EnvironmentFile=/etc/firstmeasure/tracking184.env
+Environment=INSTANCE_ID=%H-development-platform-worker
+Environment=CLUSTER_NODE_ROLE=worker
+Environment=FIRSTMEASURE_PROCESS_ROLE=worker
+Environment=FIRSTMEASURE_JOB_WORKERS=0
+Environment=PLATFORM_TEST_ORG_IDS=3dbf7f79528139e27c491363
+ExecStart=/usr/bin/node --experimental-sqlite --max-old-space-size=2048 dist/src/platform_worker.js
+Restart=always
+RestartSec=5
+TimeoutStopSec=60
+KillSignal=SIGTERM
+MemoryMax=3G
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/cache/firstmeasure-development
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target
