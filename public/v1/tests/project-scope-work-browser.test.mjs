@@ -118,7 +118,7 @@ test('resource panes keep independent scroll, stable equal columns, and a dragga
       window.materialListById=id=>state.lists.find(list=>list.id===id);
       window.resourceTerms=type=>({plural:{material:'Materials',labor:'Labor',equipment:'Equipment'}[type],singular:type});
       window.escapeHtml=value=>String(value);
-      window.money=value=>'$'+value;window.laborListFinalized=()=>null;window.expenseTargetForList=()=>null;window.listTotals=()=>({projected:0});window.listProjected=()=>0;window.categoryProjected=()=>0;window.projectProjected=()=>0;window.renderAssignBlock=()=>'<div class="mt-empty">Empty List</div>';window.renderRequirementsTray=()=>'<aside class="mt-req-tray" data-mt-req-tray></aside>';window.projectId=()=>'';window.projectedDelivery=()=>({available:false,enabled:false,amount:0});window.number=Number;window.cleanText=value=>String(value||'');window.materialListOrdered=()=>false;window.renderListActionControls=()=>'';window.renderLaborListControls=()=>'';
+      window.money=value=>'$'+value;window.laborListFinalized=()=>null;window.expenseTargetForList=()=>null;window.listTotals=()=>({projected:0});window.listProjected=()=>0;window.categoryProjected=()=>0;window.projectProjected=()=>0;window.renderAssignBlock=()=>'<div class="mt-empty">Empty List</div>';window.renderRequirementsTray=()=>'<aside class="mt-req-tray" data-mt-req-tray></aside>';window.projectId=()=>'';window.projectedDelivery=()=>({available:false,enabled:false,amount:0});window.number=Number;window.cleanText=value=>String(value||'');window.materialListOrdered=()=>false;window.renderListActionControls=()=>'';window.renderListHeaderActions=()=>'';window.renderLaborListControls=()=>'';
       window.materialSectionDefinitions=()=>['material','labor','equipment'].map(type=>({key:type,resource_type:type}));
       window.lineSectionKey=item=>item.section;
       window.renderMaterialSection=(section,rows)=>`<section class="mt-section">${rows.map(row=>`<div style="height:30px">${row.name}</div>`).join('')}</section>`;
@@ -467,4 +467,31 @@ test('the Schedule button always does something: it places a planned job whole, 
  toasts.length=0;ensured.length=0;await ctx.scheduleJob();assert.equal(JSON.stringify(toasts),'["Already scheduled"]');assert.equal(ensured.length,0);
  // When the schedule saves, the header reads the project's dates again.
  ctx.state.project={id:'p',events:[]};ctx.rootWindow.activeBaseProject={id:'p',events:[{id:'x'}]};ctx.syncScheduleState();assert.equal(ctx.state.project.events.length,1);
+});
+
+test('list header actions move into the ⋮ menu by priority as the header narrows, and ⋮ shows only when it holds something',async()=>{
+ const code='var LIST_NAME_ROOM=96;var listFitObserver=null;\n'+['css','renderListHeaderActions','renderLaborListControls','fitListActions','openListMore','closeListMore','listMoreDismiss','colorPortalHost'].map(fn).join('\n');
+ const browser=await chromium.launch({channel:'chrome',headless:true});
+ try{
+  const page=await browser.newPage({viewport:{width:900,height:400}});const errors=[];page.on('pageerror',error=>errors.push(error.message));
+  await page.setContent('<html><body><div id="root" data-materials-root></div></body></html>');
+  const result=await page.evaluate(code=>{
+   const list={id:'wo',resource_type:'labor',title:'',metadata:{},assignment:{work_resource_ref:{id:'crew2',name:'Crew 2 – Alvarez'}}};
+   Object.assign(window,{state:{panelRoot:document.getElementById('root'),schedulingListId:'',laborMenu:null},cleanText:v=>String(v??'').trim(),escapeHtml:v=>String(v??'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;'),
+    materialListOrdered:()=>false,resourceScheduleEnabled:()=>true,assignmentWorkResourceRef:entry=>entry.assignment?.work_resource_ref||null,laborListFinalized:()=>null,laborSettings:entry=>({id:entry.id,resource:entry.assignment.work_resource_ref}),materialRoot:()=>document.getElementById('root')});
+   (0,eval)(code);const style=document.createElement('style');style.textContent=css();document.head.append(style);
+   const draw=width=>{document.getElementById('root').innerHTML=`<div style="width:${width}px"><header class="mt-list-head" data-mt-actions-head><button type="button" data-mt-collapse-list="wo"><i></i></button><input data-mt-list-name="wo" value="" placeholder="Default"><span class="mt-list-total">$685.05</span>${renderLaborListControls(list,{bare:true})}${renderListHeaderActions(list,'labor','')}</header></div>`;fitListActions(document.getElementById('root'));
+    return {shown:[...document.querySelectorAll('[data-mt-action]')].filter(b=>!b.hidden).map(b=>b.dataset.mtAction),more:!document.querySelector('[data-mt-list-more]').hidden};};
+   const narrow=draw(300),wide=draw(520);draw(300);
+   openListMore(document.querySelector('[data-mt-list-more]'));
+   return {narrow,wide,menu:[...document.querySelectorAll('[data-mt-list-more-menu] button span')].map(span=>span.textContent),bareHasNoActions:!/data-mt-labor-generate|data-mt-labor-more/.test(renderLaborListControls(list,{bare:true}))};
+  },code);
+  // Wide: every action in the header and no ⋮. Narrow: the most used stays, the rest move into ⋮ in priority order.
+  assert.deepEqual(result.wide,{shown:['schedule','generate','payout','delete'],more:false});
+  assert.equal(result.narrow.more,true);assert.ok(result.narrow.shown.length<4);
+  assert.deepEqual(result.narrow.shown,['schedule','generate','payout','delete'].slice(0,result.narrow.shown.length),'actions leave from the least used end');
+  assert.deepEqual(result.menu,['Generate from pay sheet','Pay out','Delete list'].slice(result.narrow.shown.length-1));
+  assert.equal(result.bareHasNoActions,true,'the assignee control alone carries no actions; the header does');
+  assert.deepEqual(errors,[]);
+ }finally{await browser.close();}
 });
