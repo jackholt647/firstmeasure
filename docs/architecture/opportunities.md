@@ -184,6 +184,9 @@ What happens next is organization rules on `lead.received`
   and first contact), and clicking opens the project (`frontend_action`
   `{kind: "open_project", project_id, project_tab}`).
 - `platform_queue_new_lead_calls`: adds the lead to the New Leads call list.
+- `platform_queue_sales_scope_calls` (on `work.plan.started`): the same call
+  for a sales scope started on a project that did not arrive as a lead (no
+  `lead_source`), so a lead routed later is not queued twice.
 
 The browser opens a notification only from its `frontend_action`; nothing
 guesses from its title. A form's `settings.stage_id` is not used; intake

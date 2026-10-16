@@ -370,6 +370,7 @@ test("branch terminology is persisted and inherited by new work plans", async ()
 
   const projectId = "project_custom_terms";
   await client.request("PUT", `/v1/platform/organizations/${orgId}/projects/${projectId}`, {
+    scope_template_id: "sales_pipeline",
     data: { id: projectId, title: "Custom Terms", branch_id: "default", events: [] },
     metadata: { kind: "platform_project" }
   });
@@ -517,6 +518,7 @@ test("tagged follow-up to-dos are the single source for Calls and configured out
   const { orgId } = await register(client);
   const projectId = "project_canonical_follow_up";
   await client.request("PUT", `/v1/platform/organizations/${orgId}/projects/${projectId}`, {
+    scope_template_id: "sales_pipeline",
     data: {
       id: projectId,
       title: "Canonical Follow-up",
@@ -886,6 +888,7 @@ test("sales pipeline scope template drives plans, board colors, and automations"
 
   const projectId = "crm_board_project";
   await client.request("PUT", `/v1/platform/organizations/${orgId}/projects/${projectId}`, {
+    scope_template_id: "sales_pipeline",
     data: { id: projectId, title: "CRM Board Project", branch_id: "default", address: "10 Main St" },
     metadata: { kind: "platform_project" }
   });
@@ -919,6 +922,7 @@ test("manual stage movement is feature-gated, updates board placement, and yield
   const { orgId } = await register(client);
   const projectId = "manual_stage_project";
   await client.request("PUT", `/v1/platform/organizations/${orgId}/projects/${projectId}`, {
+    scope_template_id: "sales_pipeline",
     data: { id: projectId, title: "Manual Stage Project", branch_id: "default", address: "42 Boardwalk Ave" },
     metadata: { kind: "platform_project" }
   });
@@ -977,6 +981,7 @@ test("saving a sales appointment never regresses a manually set later stage (R3-
   await saveGlobal(orgId, { data: { app_flags: { platform: { expanded_access: true, manual_project_stage_movement: true } } } }, { replace: false });
   const projectId = "sold_project_with_appointment";
   await client.request("PUT", `/v1/platform/organizations/${orgId}/projects/${projectId}`, {
+    scope_template_id: "sales_pipeline",
     data: { id: projectId, title: "Sold project", branch_id: "default", address: "7 Pipeline Rd" },
     metadata: { kind: "platform_project" }
   });

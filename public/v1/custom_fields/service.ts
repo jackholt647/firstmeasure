@@ -433,9 +433,34 @@ export async function validateProjectCustomFieldValues(
       previousPaths.has(path) &&
       JSON.stringify(value) === JSON.stringify(customFieldValueAtPath(previousValues, path))
     ) continue;
-    await validateAssignmentFieldValue(orgId,branchId,field,value);
+    const meta = asObject(asObject(project.custom_field_value_meta)[path]);
+    const filledNow = cleanText(meta.write_mode) === "default" && emptyValue(customFieldValueAtPath(previousValues, path));
+    try {
+      await validateAssignmentFieldValue(orgId,branchId,field,value);
+    } catch (error) {
+      // A value this save filled from its default (the first work event's assignee) that the field's
+      // policy does not allow stays empty; it never refuses the write that produced it.
+      if (!filledNow || (error as { code?: string })?.code !== "custom_field_assignment_not_allowed") throw error;
+      for (const key of ["custom_field_values", "custom_fields"]) {
+        const stored = (projectValue as JsonObject)?.[key];
+        if (stored && typeof stored === "object") clearCustomFieldValueAtPath(stored as JsonObject, path);
+      }
+      const storedMeta = (projectValue as JsonObject)?.custom_field_value_meta;
+      if (storedMeta && typeof storedMeta === "object") delete (storedMeta as JsonObject)[path];
+    }
   }
   return project;
+}
+
+/** Removes a value in place (custom_field_values and custom_fields share one object). */
+function clearCustomFieldValueAtPath(values: JsonObject, path: string) {
+  const parts = path.split(".").filter(Boolean);
+  let node: unknown = values;
+  for (const part of parts.slice(0, -1)) {
+    if (!node || typeof node !== "object") return;
+    node = (node as JsonObject)[part];
+  }
+  if (node && typeof node === "object") delete (node as JsonObject)[parts[parts.length - 1]!];
 }
 
 export async function materializeScopeCustomFields(

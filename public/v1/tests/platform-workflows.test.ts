@@ -605,6 +605,7 @@ test("Platform project event scheduling advances the pipeline stage", async () =
   const { orgId, userId } = await register(client);
   const projectId = "project_trigger_stage";
   await client.request("PUT", `/v1/platform/organizations/${orgId}/projects/${projectId}`, {
+    scope_template_id: "sales_pipeline",
     data: {
       id: projectId,
       address: "100 Test Lane",
@@ -1118,9 +1119,9 @@ test("Custom pipeline templates and intake routing drive custom stage workflows"
     }
   });
 
-  // Route all new projects into the custom pipeline.
+  // Route all new leads, and projects made by hand, into the custom pipeline.
   await client.request("PUT", `/v1/platform/organizations/${orgId}/branch/default/modules/intake_routing`, {
-    data: { default_template_id: "custom_pipeline", rules: [] }
+    data: { default_template_id: "custom_pipeline", manual_template_id: "custom_pipeline", rules: [] }
   });
 
   const projectId = "project_custom_stage";
@@ -1180,10 +1181,10 @@ test("Deposit payment fires the roof scope's celebration binding", async () => {
   const client = createSessionClient();
   const { orgId } = await register(client);
 
-  // Production-only routing: new projects go straight into the roof
+  // Production-only setup: projects made by hand go straight into the roof
   // replacement scope with no sales pipeline in front of it.
   await client.request("PUT", `/v1/platform/organizations/${orgId}/branch/default/modules/intake_routing`, {
-    data: { default_template_id: "roof_replacement", rules: [] }
+    data: { default_template_id: "roof_replacement", manual_template_id: "roof_replacement", rules: [] }
   });
 
   const projectId = "project_newly_sold";
