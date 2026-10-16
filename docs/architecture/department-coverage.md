@@ -1,4 +1,4 @@
-# Department and organization-division coverage
+# Department, branch and region coverage
 
 The tenant remains the organization. Each department belongs to one branch; flat regions group branches ([branches](branches.md)). Projects stay cross-department. Resource groups stay flat and their active local members inherit affiliations. An organization connection is its own assignable subject, not a resource-group subclass.
 

@@ -1,8 +1,8 @@
 import type { HowToEntry } from "../types.js";
 
 // Steps 1 and 2 are exercised end to end in tests/agent-how-to-index.test.ts.
-// Step 3 waits on the pay rule design; today's commission code is expected to
-// be removed, so nothing here points at it.
+// Step 3 is the pay rule pattern of docs/architecture/pay-rules.md ("Who is paid
+// for a role on a project"); the sample rules in payroll/sample-pay-rules.ts use it.
 export const payForProjectRole: HowToEntry = {
   id: "pay_for_project_role",
   title: "Pay someone for a role they played on a project",
@@ -21,8 +21,8 @@ export const payForProjectRole: HowToEntry = {
     },
     {
       title: "Write the pay rule against that field",
-      detail: "Intended: a rule such as \"for every project where Booked by is this payee, pay ...\", read from the field in step 1.",
-      planned: "Pay rules that read a project field do not exist yet. Commission rules, project payee roles and the payroll.commission.* automations are being removed and are not a substitute."
+      detail: "Save a record pay rule with payroll.payRule.save, after payroll.payRule.preview. Its primary input is {primary:true, source:{provider:\"payroll\", export:\"project_records\", args:{facts:true}}, where:{rules:[{field:\"assignee_keys.booked_by\", operator:\"contains\", value:\"$payee.key\"}, {field:\"canceled_at\", operator:\"is_missing\"}]}}. Set grain \"record\", kind \"commission\", project \"id\" and earned_at the date it is earned, such as \"sold_at\". Put the amount or rate in parameters (type cents or basis_points) and have code return {amount_cents, description}. The sample rules inside_sales_booking and estimator_commission_sold follow this pattern: copy one and change the field. Then add the rule to a pay plan with payroll.payPlan.save and put the payee on that plan with payroll.paySetup.save. You write the rule; never work out anyone's pay yourself.",
+      refs: { actions: ["payroll.payRule.preview", "payroll.payRule.save", "payroll.payPlan.save", "payroll.paySetup.save"], data: ["payroll.project_records", "payroll.pay_rules"] }
     }
   ],
   notes: [

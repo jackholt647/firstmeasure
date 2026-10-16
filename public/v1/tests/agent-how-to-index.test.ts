@@ -144,7 +144,8 @@ test("agents search and read how-tos through the shared platform tools, with pla
   const read = await tool("platform_how_to_read");
 
   const all = await search.execute(agentRun("assistant", orgId, userId), {}) as any;
-  assert.ok(all.how_tos.some((entry: any) => entry.id === "pay_for_project_role" && entry.planned_steps === 1));
+  assert.ok(all.how_tos.some((entry: any) => entry.id === "pay_for_project_role" && entry.planned_steps === undefined));
+  assert.ok(all.how_tos.some((entry: any) => entry.id === "improve_generation_from_history" && entry.planned_steps === 1));
   assert.ok(!JSON.stringify(all).includes("custom_field_values"), "search returns summaries, not bodies");
   const found = await search.execute(agentRun("assistant", orgId, userId), { query: "commission booked" }) as any;
   assert.deepEqual(found.how_tos.map((entry: any) => entry.id), ["pay_for_project_role"]);
@@ -152,11 +153,17 @@ test("agents search and read how-tos through the shared platform tools, with pla
 
   const entry = await read.execute(agentRun("assistant", orgId, userId), { id: "pay_for_project_role" }) as any;
   assert.equal(entry.available, true);
-  assert.deepEqual(entry.steps.map((step: any) => [step.step, step.status]), [[1, "available"], [2, "available"], [3, "planned"]]);
-  assert.equal(entry.steps[2].unavailable, true);
-  assert.match(entry.steps[2].warning, /NOT BUILT YET/);
-  assert.ok(entry.steps[2].missing);
-  assert.ok(Object.keys(entry.steps[2]).indexOf("warning") < Object.keys(entry.steps[2]).indexOf("detail"), "the label comes before the step text");
+  assert.deepEqual(entry.steps.map((step: any) => [step.step, step.status]), [[1, "available"], [2, "available"], [3, "available"]]);
+  assert.equal(entry.steps[2].unavailable, undefined);
+  assert.deepEqual(entry.steps[2].refs.data, ["payroll.project_records", "payroll.pay_rules"]);
+  // A step that is not built yet is labelled before its text.
+  const partly = await read.execute(agentRun("assistant", orgId, userId), { id: "improve_generation_from_history" }) as any;
+  const notBuilt = partly.steps.find((step: any) => step.status === "planned");
+  assert.ok(notBuilt, "an entry with a planned step");
+  assert.equal(notBuilt.unavailable, true);
+  assert.match(notBuilt.warning, /NOT BUILT YET/);
+  assert.ok(notBuilt.missing);
+  assert.ok(Object.keys(notBuilt).indexOf("warning") < Object.keys(notBuilt).indexOf("detail"), "the label comes before the step text");
   assert.equal(entry.steps[0].unavailable, undefined);
   assert.deepEqual(entry.steps[1].refs.automations, ["project.patch.v1"]);
   // Template tools belong to the Automations Agent; the assistant is told so, the Automations Agent is not.

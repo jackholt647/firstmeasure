@@ -34,10 +34,11 @@ query/principal-bound cursors. These are successive observations, not an
 immutable global snapshot. Dashboard and earnings reports retain domain limits
 and truncation indicators; reads do not invent missing obligations.
 
-The shared widget catalog contains six native view widgets (`payroll.upcoming`,
-`timesheets`, `contractors`, `exports`, `history`, `settings`) and five detail
-widgets (`ledger`, `commissions`, `earnings`, `my_earnings`,
-`batch`). The Payroll tab mounts those same native leaves. Agents discover
+The shared widget catalog contains nine native view widgets (`payroll.upcoming`,
+`review`, `timesheets`, `payees`, `history`, `exports`, `approvals`, `mine`,
+`settings`) and five detail widgets (`ledger`, `commissions`, `earnings`,
+`my_earnings`, `batch`); `commissions` is the ledger filtered to earnings of
+kind `commission`. The Payroll tab mounts those same native leaves. Agents discover
 their sources and configuration through the standard widget registry and
 present them through `platform_show_widget`. Each instance owns its filters,
 visibility, refresh lifecycle and cleanup. Access is rechecked on reads, and

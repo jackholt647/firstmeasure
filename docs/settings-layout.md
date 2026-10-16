@@ -32,7 +32,7 @@ All currently reachable broad categories use the shared title/subtitle, sidebar 
 - [x] Documents
 - [x] Configuration — Custom Fields, Terminology, Projects, Celebrations, Insights, Apps
 - [x] Scheduling
-- [x] Project Scopes — data-driven scope groups (Sales and Production by default), starred new-project fallback, conditional lead-field routing, a two-step catalog-to-scope creation workflow that can reuse already-installed templates, and per-scope Details, Boards & Automations, and Commissions views
+- [x] Project Scopes — data-driven scope groups (Sales and Production by default), starred new-project fallback, conditional lead-field routing, a two-step catalog-to-scope creation workflow that can reuse already-installed templates, and per-scope Details and Boards & Automations views (scope commission views were removed; pay comes from [pay rules](architecture/pay-rules.md))
 - [x] Storage
 - [x] SMS
 - [x] Domains & Hosting

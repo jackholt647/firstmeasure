@@ -37,7 +37,7 @@ export const payForProjectRole: HowToEntry = {
   keywords: ["commission", "bonus"],     // search words not in the title
   steps: [
     { title: "...", detail: "...", refs: { field_types: ["organization_user"], tools: ["scope.save_scope_template"] } },
-    { title: "...", detail: "...", planned: "Pay rules that read a project field do not exist yet." }
+    { title: "...", detail: "...", planned: "Editing a document template's material calculation is not published to agents yet." }
   ],
   notes: ["..."]
 };
