@@ -61,3 +61,21 @@ published-action count, fixed; a Windows file-lock cleanup error in
 was stopped. The new contact, lead, opportunity and merge tests pass on SQLite
 and PostgreSQL. Host TypeScript checks passed on all four roles; every role
 verified healthy after activation. The browser UI was not exercised against dev.
+
+## Follow-up: contact writers on the contacts API (phase 5)
+
+Release `e9090dde` (base `792ecbe9`, live release `07544bd5` at the time):
+every writer of project contacts uses the contacts API, the storage bridge is
+deleted (`contacts/bridge.ts` removed from the staged copies), and a project
+write that changes contacts is refused. Bundles bumped to
+`20261015-contacts-writers-v1`. On web, compatibility and pool the live
+`contacts/app.js` carried another session's host-only edit (the in-app search
+removed); this release's one edit on that line, dropping `record_project_id`
+from the sharing check, was applied onto the live text. Hosts kept their own
+copies of three older test files. Staging and activation succeeded on all four
+roles and every role verified.
+
+`migrate-dev.mjs` then removed 339 standalone (`contact_only`) records across
+5,810 organizations (none had events or proposals to keep as drafts). The
+read-only check afterwards: 18,113 contacts, 17,982 projects with contacts and
+0 projects whose contact list differs from its links.
