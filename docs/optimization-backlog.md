@@ -114,3 +114,22 @@ fan-out goes away when readers use the contacts client instead of the projection
 
 **Why it can wait.** An organization has few contacts per project, and pickers stay fast below a few thousand
 contacts. (docs/architecture/contacts.md)
+
+## CRM views build every row on every query
+
+**Today.** A CRM query (`crm/records.ts`, `crm/views.ts` `runQuery`) reads every project, plan, contact link and user
+of the organization, builds a row for each, then filters, sorts and groups in memory; the opportunities collection
+also reads every open actionable node for next follow-ups, every result for last touch, and (`crm/funnel.ts`
+`projectMilestones`) every work event of the funnel's types, plus every node when a step names a scope step. The rail
+counts run one such query per pinned view, and the funnel report builds the whole opportunities collection.
+
+**Where the change goes.** Keep the row builders as the one definition of a row, and make them incremental: a
+`crm_rows` table per collection refreshed from the domain events that change a row (project and plan writes,
+`work_events`, results), with an index on the fields views filter and sort on most (state, stage, source, dates). A
+query whose filter only names indexed fields selects from the table; anything else falls back to today's scan. The
+milestone read becomes a per-project milestone table written when a matching work event is processed. Add a test that
+runs every preset view both ways and compares rows.
+
+**Why it can wait.** Organizations on the platform have hundreds to a few thousand projects; a query takes tens of
+milliseconds there. Worth doing when a view takes over half a second, starting with the rail counts.
+(docs/architecture/crm.md, "Views")

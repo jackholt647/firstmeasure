@@ -9070,7 +9070,7 @@
           if (!window.FirstMateAppointmentSettings) {
             await (window.__appointmentSettingsLoading ||= new Promise((resolve, reject) => {
               const script = document.createElement('script');
-              script.src = '/libraries/appointment-booking/settings.js?v=20261005-appointment-picker-v1';
+              script.src = '/libraries/appointment-booking/settings.js?v=20261016-crm-v1';
               script.onload = resolve;
               script.onerror = () => reject(new Error('Could not load appointment presets.'));
               document.head.append(script);

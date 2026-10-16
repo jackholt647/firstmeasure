@@ -669,6 +669,34 @@
     }
   };
 
+  /* The CRM app (docs/architecture/crm.md): views, the query, results, sources, spend, the funnel, rescission. */
+  const crm = {
+    meta(orgId){ return request(siblingPath('crm', `/organizations/${enc(orgId)}/meta`)); },
+    views(orgId){ return request(siblingPath('crm', `/organizations/${enc(orgId)}/views`)); },
+    createView(orgId, view = {}){ return request(siblingPath('crm', `/organizations/${enc(orgId)}/views`), { method:'POST', body:view }); },
+    saveView(orgId, viewId, view = {}){ return request(siblingPath('crm', `/organizations/${enc(orgId)}/views/${enc(viewId)}`), { method:'PUT', body:view }); },
+    deleteView(orgId, viewId){ return request(siblingPath('crm', `/organizations/${enc(orgId)}/views/${enc(viewId)}`), { method:'DELETE' }); },
+    setViewPreference(orgId, viewId, preference = {}){ return request(siblingPath('crm', `/organizations/${enc(orgId)}/views/${enc(viewId)}/preference`), { method:'PUT', body:preference }); },
+    query(orgId, body = {}){ return request(siblingPath('crm', `/organizations/${enc(orgId)}/query`), { method:'POST', body }); },
+    recordResult(orgId, result = {}){ return request(siblingPath('crm', `/organizations/${enc(orgId)}/results`), { method:'POST', body:result }); },
+    projectResults(orgId, projectId){ return request(siblingPath('crm', `/organizations/${enc(orgId)}/projects/${enc(projectId)}/results`)); },
+    sources(orgId){ return request(siblingPath('crm', `/organizations/${enc(orgId)}/sources`)); },
+    saveSources(orgId, sources = []){ return request(siblingPath('crm', `/organizations/${enc(orgId)}/sources`), { method:'PUT', body:{ sources } }); },
+    spend(orgId, options = {}){ const p = new URLSearchParams(); if (options.from) p.set('from', options.from); if (options.to) p.set('to', options.to); return request(siblingPath('crm', `/organizations/${enc(orgId)}/spend${p.toString() ? `?${p}` : ''}`)); },
+    saveSpend(orgId, spendId, spend = {}){ return request(siblingPath('crm', `/organizations/${enc(orgId)}/spend/${enc(spendId || 'new')}`), { method:'PUT', body:spend }); },
+    deleteSpend(orgId, spendId){ return request(siblingPath('crm', `/organizations/${enc(orgId)}/spend/${enc(spendId)}`), { method:'DELETE' }); },
+    funnel(orgId){ return request(siblingPath('crm', `/organizations/${enc(orgId)}/funnel`)); },
+    saveFunnel(orgId, funnel = {}){ return request(siblingPath('crm', `/organizations/${enc(orgId)}/funnel`), { method:'PUT', body:funnel }); },
+    funnelReport(orgId, options = {}){ const p = new URLSearchParams({ from:options.from, to:options.to, group:options.group || 'source' }); if (options.ownerField) p.set('owner_field', options.ownerField); return request(siblingPath('crm', `/organizations/${enc(orgId)}/funnel/report?${p}`)); },
+    rescission(orgId){ return request(siblingPath('crm', `/organizations/${enc(orgId)}/rescission`)); },
+    saveRescission(orgId, rescission = {}){ return request(siblingPath('crm', `/organizations/${enc(orgId)}/rescission`), { method:'PUT', body:rescission }); },
+    /* The customer cancelled inside the cancellation window: the won sale becomes lost and production never starts. */
+    /* Industry presets and the CRM features a team size starts with. */
+    presets(orgId, employees = 0){ return request(siblingPath('crm', `/organizations/${enc(orgId)}/presets${employees ? `?employees=${enc(employees)}` : ''}`)); },
+    applyPreset(orgId, input = {}){ return request(siblingPath('crm', `/organizations/${enc(orgId)}/presets/apply`), { method:'POST', body:input }); },
+    cancelSale(orgId, projectId, reason = ''){ return request(siblingPath('crm', `/organizations/${enc(orgId)}/projects/${enc(projectId)}/cancel-sale`), { method:'POST', body:{ reason } }); }
+  };
+
   const scopes = {
     artifacts(orgId, branchId, templateId){ return request(siblingPath('scopes', `/organizations/${enc(orgId)}/branches/${enc(branchId || 'default')}/templates/${enc(templateId)}/artifacts`)); },
     saveArtifact(orgId, branchId, templateId, payload){ return request(siblingPath('scopes', `/organizations/${enc(orgId)}/branches/${enc(branchId || 'default')}/templates/${enc(templateId)}/artifacts`), { method:'PATCH', body:payload }); },
@@ -3109,6 +3137,7 @@
     actionItems,
     work,
     scopes,
+    crm,
     workforce,
     connections,
     userActivity,

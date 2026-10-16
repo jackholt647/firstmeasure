@@ -95,6 +95,10 @@
     "label": "Contacts",
     "kind": "navigation"
   },
+  "contacts.org": {
+    "label": "Org",
+    "kind": "entity"
+  },
   "contacts.field_customer_tab": {
     "label": "Customer",
     "kind": "navigation"
@@ -1143,6 +1147,10 @@
     "label": "CRM",
     "kind": "navigation"
   },
+  "crm.portal_tab": {
+    "label": "CRM",
+    "kind": "navigation"
+  },
   "crm.stages_view": {
     "label": "Stages",
     "kind": "view"
@@ -1167,16 +1175,88 @@
     "label": "Leads",
     "kind": "entity"
   },
+  "crm.new_lead": {
+    "label": "New lead",
+    "kind": "entity"
+  },
+  "crm.new_leads": {
+    "label": "New leads",
+    "kind": "entity"
+  },
   "crm.opportunity": {
     "label": "Opportunity",
+    "kind": "entity"
+  },
+  "crm.opportunities": {
+    "label": "Opportunities",
     "kind": "entity"
   },
   "crm.pipeline": {
     "label": "Pipeline",
     "kind": "entity"
   },
+  "crm.customer": {
+    "label": "Customer",
+    "kind": "entity"
+  },
+  "crm.lead_state": {
+    "label": "Lead state",
+    "kind": "entity"
+  },
+  "crm.relationship": {
+    "label": "Relationship",
+    "kind": "entity"
+  },
   "crm.source": {
     "label": "Source",
+    "kind": "entity"
+  },
+  "crm.sources": {
+    "label": "Sources",
+    "kind": "entity"
+  },
+  "crm.source_type": {
+    "label": "Source type",
+    "kind": "entity"
+  },
+  "crm.disposition": {
+    "label": "Result",
+    "kind": "entity"
+  },
+  "crm.follow_ups": {
+    "label": "Follow-ups",
+    "kind": "entity"
+  },
+  "crm.appointment": {
+    "label": "Appointment",
+    "kind": "entity"
+  },
+  "crm.appointments": {
+    "label": "Appointments",
+    "kind": "entity"
+  },
+  "crm.next_appointment": {
+    "label": "Next appointment",
+    "kind": "entity"
+  },
+  "crm.call_list": {
+    "label": "Call list",
+    "kind": "entity"
+  },
+  "crm.worklist": {
+    "label": "Worklist",
+    "kind": "entity"
+  },
+  "crm.funnel": {
+    "label": "Funnel",
+    "kind": "entity"
+  },
+  "crm.rescission": {
+    "label": "Cancellation window",
+    "kind": "entity"
+  },
+  "crm.rescission_until": {
+    "label": "Can cancel until",
     "kind": "entity"
   },
   "leads.settings_tab": {
@@ -1379,12 +1459,12 @@
     "label": "SMS",
     "kind": "navigation"
   },
-  "settings.developer_settings_tab": {
-    "label": "Developer Settings",
-    "kind": "navigation"
-  },
   "settings.feature_flags_tab": {
     "label": "Feature Flags",
+    "kind": "navigation"
+  },
+  "settings.developer_settings_tab": {
+    "label": "Developer Settings",
     "kind": "navigation"
   },
   "settings.feedback_tab": {

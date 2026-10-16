@@ -10,6 +10,7 @@ import { registerTrainingApi } from "../training/api.js";
 import { registerStatsApi } from "../stats/api.js";
 import { registerSignupSandboxApi } from "../signup-sandbox/api.js";
 import { registerScopesApi } from "../scopes/api.js";
+import { registerCrmAppApi } from "../crm/api.js";
 import { registerRoutingApi } from "../routing/api.js";
 import { registerPublicLinksApi } from "../public-links/api.js";
 import { registerPayrollApi } from "../payroll/api.js";
@@ -227,6 +228,7 @@ export async function buildApp() {
   void app.register(registerPayrollApi, { prefix: "/v1/payroll" });
   void app.register(registerRoutingApi, { prefix: "/v1/platform" });
   void app.register(registerScopesApi, { prefix: "/v1/scopes" });
+  void app.register(registerCrmAppApi, { prefix: "/v1/crm" });
   void app.register(registerSignupSandboxApi, { prefix: "/v1/signup-sandbox" });
   void app.register(registerStatsApi, { prefix: "/v1/stats" });
   void app.register(registerTrainingApi, { prefix: "/v1/training" });

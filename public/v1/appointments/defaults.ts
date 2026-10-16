@@ -9,7 +9,7 @@ export function instantFullAppointmentCatalog(){
   const sales={department_id:'sales',subject_type:'organization_user',mode:'count',count:1};
   const crew={department_id:'production',subject_type:'resource_group',mode:'count',count:1,crew_member_percent:100};
   return appointmentCatalogSchema.parse({...defaultAppointmentCatalog(),presets:[
-    {id:'sales',label:'Sales appointments',configuration:{title:'Sales appointment',department_ids:['sales'],duration_minutes:60,window_minutes:60,requirements:[sales]}},
+    {id:'sales',label:'Sales appointments',configuration:{title:'Sales appointment',event_type_id:'sales_appointment',department_ids:['sales'],duration_minutes:60,window_minutes:60,requirements:[sales]}},
     {id:'installation',label:'Installation work',configuration:{title:'Installation work',department_ids:['production'],timing_mode:'days',duration_days:2,requirements:[crew]}},
     {id:'maintenance',label:'Maintenance appointments',configuration:{title:'Maintenance appointment',department_ids:['production'],duration_minutes:60,window_minutes:240,requirements:[crew],recurrence:{frequency:'quarterly',interval:1,occurrence_count:4}}},
     {id:'repair',label:'Repair appointments',configuration:{title:'Repair appointment',department_ids:['production'],duration_minutes:60,window_minutes:240,requirements:[crew]}},

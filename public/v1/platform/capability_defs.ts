@@ -1011,6 +1011,56 @@ const definitions: CapabilityDefinition[] = [
     default: true
   },
   {
+    key: "crm.views",
+    kind: "feature",
+    parent: "apps.crm",
+    label: "CRM Views",
+    description: "The CRM tab: saved views of leads, contacts, follow-ups and appointments as lists and boards, the lead drawer and bulk actions.",
+    default: true
+  },
+  {
+    key: "crm.worklists",
+    kind: "feature",
+    parent: "apps.crm",
+    requires: ["crm.views"],
+    label: "Worklists",
+    description: "Work any CRM view one record at a time: call, text, record a result and schedule the next touch.",
+    default: true
+  },
+  {
+    key: "crm.sources",
+    kind: "feature",
+    parent: "apps.crm",
+    label: "Lead Sources",
+    description: "A catalog of lead sources, sub-sources and campaigns that intake stamps on each lead.",
+    default: true
+  },
+  {
+    key: "crm.source_spend",
+    kind: "feature",
+    parent: "apps.crm",
+    requires: ["crm.sources"],
+    label: "Source Spend",
+    description: "What each lead source cost, so reports show cost per lead, appointment and sale.",
+    default: false
+  },
+  {
+    key: "crm.funnel",
+    kind: "feature",
+    parent: "apps.crm",
+    label: "Funnel Reports",
+    description: "Funnel milestones read from history and reports by source, rep, setter, scope and period.",
+    default: true
+  },
+  {
+    key: "crm.rescission",
+    kind: "feature",
+    parent: "apps.crm",
+    label: "Rescission Rules",
+    description: "Cancellation windows for sales, by state, age or kind of sale, used by scopes with a rescission step.",
+    default: false
+  },
+  {
     key: "crm.call_lists",
     kind: "feature",
     parent: "apps.crm",

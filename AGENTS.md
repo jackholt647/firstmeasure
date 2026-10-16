@@ -139,6 +139,19 @@ whether two trades mean the same thing, define two. Producers such as FirstMeasu
 fill dictionary keys and do not invent names. Run
 `tests/publication-measurement-schemas.test.ts` for changes here.
 
+## CRM
+
+Read [CRM](docs/architecture/crm.md) before changing CRM views, worklists, results,
+sources and spend, the funnel, cancellation windows, the CRM presets or the CRM app.
+The CRM adds no lead record: collections are read-only rows built from contacts,
+projects, plans, events and to-dos, filtered by branch and department access, and
+filters are the one condition contract. Results, bulk actions and cancellations
+reuse the existing writers. Funnel steps are read from work events and never
+stored. A cancellation window is a scope step; production starts when it ends.
+Presets only add what an organization lacks. Run `tests/crm-views.test.ts`,
+`tests/crm-rescission.test.ts` and `tests/crm-app-browser.test.mjs` for changes
+here.
+
 ## Completion and closeout
 
 Read [closeout](docs/architecture/closeout.md) before changing how a labor list

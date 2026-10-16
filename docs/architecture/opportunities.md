@@ -89,8 +89,8 @@ A new lead stops being one when:
 - **it is merged** into another project (an existing customer calling from a
   new number: merge the contacts, then the project).
 
-Views: the CRM lists filter on new leads, and any sales board can show them
-as a first **New lead** column (the template's
+Views: the CRM ([crm](crm.md)) lists, boards and worklists filter on new leads,
+and any sales board can show them as a first **New lead** column (the template's
 `work_plan.metadata.new_leads_column`). Dropping a new lead on a stage of that
 board starts the board's scope on it.
 

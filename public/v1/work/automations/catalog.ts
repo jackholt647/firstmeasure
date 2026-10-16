@@ -154,6 +154,13 @@ export const ACTION_CATALOG: Record<string, ActionCatalogEntry> = {
   "sales.reopen.v1": { title: "Reopen a won sale", category: "pipeline", input_schema: schema({
     reason: template("Reason", "Why the sale is open again.")
   }) },
+  "work.finishItem.v1": { title: "Finish this to-do", category: "tasks", input_schema: schema({
+    transition: choice("How", "Completed counts it as done; skipped closes it without doing it.", ["completed", "skipped"]),
+    reason: template("Reason", "Why it finished, for the history.")
+  }) },
+  "sales.startRescission.v1": { title: "Start the cancellation window", category: "pipeline", input_schema: schema({
+    rule_id: template("Rule", "A rescission rule to use instead of the first one whose conditions match.")
+  }) },
 
   "payments.ensureReceivables.v1": { title: "Create the payment schedule", category: "payments", internal: true, input_schema: schema() },
   "payments.reconcileRecognition.v1": { title: "Recognize milestone payments", category: "payments", internal: true, input_schema: schema() },

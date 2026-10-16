@@ -302,6 +302,62 @@ function salesOutcome(outcome: "won" | "lost" | "open") {
   };
 }
 
+/**
+ * Sets the work item's due date to the end of the cancellation window the organization's
+ * rescission rules give this sale (crm/rescission.ts). With rescission off or no rule
+ * matching, the work item is skipped: the sale has no window.
+ */
+async function startRescission(context: WorkAutomationContext, input: JsonObject) {
+  const orgId = cleanText(context.event.organization_id);
+  const nodeId = cleanText(context.node.id);
+  if (!nodeId) return { skipped: true, reason: "no_work_item" };
+  const resolved = asObject(await resolveValue(input, context));
+  const rescission = await import("../../crm/rescission.js");
+  const settings = await rescission.readRescission(orgId);
+  const project = asObject(context.project);
+  let contact: JsonObject = {};
+  const contactId = cleanText(project.primary_contact_id);
+  if (contactId) contact = asObject(await (await import("../../contacts/records.js")).readContact(orgId, contactId).catch(() => ({})));
+  const rule = cleanText(resolved.rule_id) && settings.enabled
+    ? settings.rules.find((entry) => entry.id === cleanText(resolved.rule_id)) || null
+    : rescission.pickRescissionRule(settings, rescission.rescissionContext(project, contact));
+  const { transitionWorkNode } = await import("../service.js");
+  const { updateNodeRecord } = await import("../storage.js");
+  // The signed proposal, so a binding can start production once the window closes:
+  // scopes.activateFromProposal.v1 with proposal_id {{node.metadata.rescission.proposal_id}}.
+  const signed = asArray(project.proposals).map(asObject).find((entry) => cleanText(entry.status) === "signed");
+  const proposalId = cleanText(resolved.proposal_id || context.proposal.id || signed?.proposal_id || signed?.id);
+  if (!rule) {
+    if (proposalId) await updateNodeRecord(orgId, nodeId, { metadata: { ...asObject(context.node.metadata), rescission: { proposal_id: proposalId, skipped: true } } });
+    await transitionWorkNode(orgId, nodeId, "skipped", { reason: "no_rescission_rule" });
+    return { skipped: true, reason: settings.enabled ? "no_rule_matched" : "rescission_off" };
+  }
+  const soldAt = new Date(cleanText(asObject(project.lifecycle).sold_at) || cleanText(context.event.created_at) || Date.now());
+  const { resolveOrganizationTimezone } = await import("../../platform/timezone.js");
+  const zone = await resolveOrganizationTimezone(orgId, cleanText(context.plan.branch_id || context.event.branch_id || "default"));
+  const deadline = rescission.rescissionDeadline(rule, soldAt, zone).toISOString();
+  await updateNodeRecord(orgId, nodeId, { due_at: deadline, metadata: { ...asObject(context.node.metadata), rescission: { rule_id: rule.id, label: rule.label, days: rule.days, count: rule.count, deadline, time_zone: zone, ...(proposalId ? { proposal_id: proposalId } : {}) } } });
+  const planId = cleanText(context.plan.id || context.node.plan_id);
+  if (planId) {
+    const { readPlanRecord, updatePlanRecord } = await import("../storage.js");
+    const plan = await readPlanRecord(orgId, planId);
+    if (plan) await updatePlanRecord(orgId, planId, { metadata: { ...asObject(plan.metadata), rescission: { node_id: nodeId, rule_id: rule.id, label: rule.label, deadline } } });
+  }
+  return { rule_id: rule.id, deadline };
+}
+
+/** Completes or skips the work item the binding runs on, for a timer or a hook that ends a step by itself. */
+async function finishItem(context: WorkAutomationContext, input: JsonObject) {
+  const nodeId = cleanText(context.node.id);
+  if (!nodeId) return { skipped: true, reason: "no_work_item" };
+  const resolved = asObject(await resolveValue(input, context));
+  const transition = cleanText(resolved.transition) === "skipped" ? "skipped" : "completed";
+  if (["completed", "skipped", "canceled"].includes(cleanText(context.node.status))) return { skipped: true, reason: "already_finished" };
+  const { transitionWorkNode } = await import("../service.js");
+  await transitionWorkNode(cleanText(context.event.organization_id), nodeId, transition, { reason: cleanText(resolved.reason) || `automation:${cleanText(context.event.type)}` });
+  return { transition };
+}
+
 async function activateScopesFromProposal(context: WorkAutomationContext, input: JsonObject) {
   const orgId = cleanText(context.event.organization_id);
   const payload = asObject(context.event.payload);
@@ -842,6 +898,14 @@ export function registerBuiltinWorkAutomations() {
   registerWorkAutomation("sales.reopen.v1", salesOutcome("open"), {
     description: "Reopens a won opportunity.",
     input: { reason: "Why it is open again." }
+  });
+  registerWorkAutomation("sales.startRescission.v1", startRescission, {
+    description: "Sets the work item's due date to the end of the sale's cancellation window from the organization's rescission rules, or skips it when none applies.",
+    input: { rule_id: "A rescission rule to use instead of the first matching one." }
+  });
+  registerWorkAutomation("work.finishItem.v1", finishItem, {
+    description: "Completes or skips the work item it runs on, for a timer or hook that ends a step by itself.",
+    input: { transition: "completed or skipped.", reason: "Why, for the history." }
   });
   registerWorkAutomation("scopes.activateFromProposal.v1", activateScopesFromProposal, {
     description: "Instantiates the production scopes carried by the signed proposal (the sale-to-production transition)."

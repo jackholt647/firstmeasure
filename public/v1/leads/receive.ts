@@ -104,6 +104,8 @@ export async function receiveLead(org: string, submission: LeadSubmission) {
     });
   }
 
+  // The organization's source catalog names where it came from (crm/sources.ts), before routing reads it.
+  await (await import("../crm/sources.js")).stampLeadSource(org, project.id);
   // Routing runs once, here: a scope, or nothing yet (a new lead).
   await routeNewLead(org, { id: project.id, ...object((await readDocument(org, "projects", project.id)).data) });
   await (await import("../work/service.js")).syncProjectWorkProjection(org, project.id);

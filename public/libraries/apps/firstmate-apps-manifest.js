@@ -92,6 +92,19 @@
       bundles: [versionedBundle('partners/shared-list.js','20261001-sharing-polish-v1'), versionedBundle('projects/viewer.js', '20261016-new-leads-v1')]
     },
     {
+      id: 'portal.crm',
+      package: 'crm',
+      title: (globalThis.PlatformLanguage?.text("firstmate-apps-manifest","m_a2d80d4e05523f","CRM") ?? "CRM"),
+      terminologyKey: 'crm.portal_tab',
+      icon: 'fa-filter',
+      kind: 'portal_tab',
+      surfaces: ['portal_tab'],
+      portalTabId: 'crm',
+      params: { crmView: { history:'push' }, crmPanel: { values:['reports','duplicates','sources','settings'], history:'push' } },
+      access: { ...managementAccess, capability: 'crm.views' },
+      bundles: [bookingBundle, versionedBundle('crm/app.js', '20261016-crm-v1')]
+    },
+    {
       id: 'portal.contacts',
       package: 'contacts',
       title: (globalThis.PlatformLanguage?.text("firstmate-apps-manifest","m_2bf043c3cce511","My Contacts") ?? "My Contacts"),

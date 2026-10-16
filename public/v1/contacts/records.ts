@@ -256,6 +256,23 @@ export async function projectContactLinks(org: string, projectId: string, store:
     .map(row => ({ contact_id: text(row.contact_id), role: text(row.role), primary: Number(row.is_primary) === 1 }));
 }
 
+/** Every link in the organization, for readers that build company-wide lists (crm/records.ts). */
+export async function listAllContactLinks(org: string) {
+  return (await db().prepare("SELECT project_id,contact_id,role,is_primary FROM contact_links WHERE organization_id=? ORDER BY project_id,position,contact_id").all(org))
+    .map(row => ({ project_id: text(row.project_id), contact_id: text(row.contact_id), role: text(row.role), primary: Number(row.is_primary) === 1 }));
+}
+
+/** Every unmerged contact the branches can see (null: every branch), page by page. */
+export async function listAllContacts(org: string, branchIds: string[] | null = null) {
+  const items: ContactRecord[] = [];
+  let after = "";
+  do {
+    const page = await listContacts(org, { branch_ids: branchIds, after, limit: 200 });
+    items.push(...page.items); after = page.next || "";
+  } while (after);
+  return items;
+}
+
 export async function contactProjectIds(org: string, contactId: string) {
   return (await db().prepare("SELECT project_id FROM contact_links WHERE organization_id=? AND contact_id=? ORDER BY project_id").all(org, contactId)).map(r => text(r.project_id));
 }

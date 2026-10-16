@@ -1,6 +1,6 @@
 import type { ScopeTemplateDefinition } from "../schemas.js";
 
-const ASSIGNMENTS_GROUP = {
+export const ASSIGNMENTS_GROUP = {
   path: "assignments",
   label: "Assignments",
   description: "People and teams responsible for this project.",
@@ -10,7 +10,7 @@ const ASSIGNMENTS_GROUP = {
   icon: "fa-user-group"
 };
 
-function salesAssignmentConfiguration() {
+export function salesAssignmentConfiguration() {
   return {
     custom_fields: {
       groups: [ASSIGNMENTS_GROUP],
@@ -137,7 +137,7 @@ function callListRemoveBindings(prefix: string) {
 // boards derive from their scope templates, and the transition into production
 // scopes is expressed as an automation binding on the signature node instead of
 // anywhere in engine code.
-const SALES_PIPELINE_STAGES = [
+export const SALES_PIPELINE_STAGES = [
   {
     id: "new_lead_stage",
     title: "New Lead",

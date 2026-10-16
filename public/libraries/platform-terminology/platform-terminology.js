@@ -87,8 +87,12 @@
       term('work_order', 'Work Order'), term('work_orders', 'Work Orders'), term('service_program', 'Service Program'), term('meter', 'Meter'), term('downtime', 'Downtime'), term('operator', 'Operator'),
       term('available_status', 'Available', 'status'), term('in_use_status', 'In Use', 'status'), term('down_status', 'Down', 'status'), term('reserved_status', 'Reserved', 'status'), term('retired_status', 'Retired', 'status')
     ]),
-    section('crm', 'CRM', 'CRM settings navigation, pipeline views, and lead records.', [
-      term('settings_tab', 'CRM', 'navigation'), term('stages_view', 'Stages', 'view'), term('call_workflows_view', 'Call workflows', 'view'), term('projects_view', 'Projects', 'view'), term('miscellaneous_view', 'Miscellaneous', 'view'), term('lead', 'Lead'), term('leads', 'Leads'), term('opportunity', 'Opportunity'), term('pipeline', 'Pipeline'), term('source', 'Source')
+    section('crm', 'CRM', 'CRM navigation, views, lead records and the funnel.', [
+      term('settings_tab', 'CRM', 'navigation'), term('portal_tab', 'CRM', 'navigation'), term('stages_view', 'Stages', 'view'), term('call_workflows_view', 'Call workflows', 'view'), term('projects_view', 'Projects', 'view'), term('miscellaneous_view', 'Miscellaneous', 'view'),
+      term('lead', 'Lead'), term('leads', 'Leads'), term('new_lead', 'New lead'), term('new_leads', 'New leads'), term('opportunity', 'Opportunity'), term('opportunities', 'Opportunities'), term('pipeline', 'Pipeline'),
+      term('customer', 'Customer'), term('lead_state', 'Lead state'), term('relationship', 'Relationship'), term('source', 'Source'), term('sources', 'Sources'), term('source_type', 'Source type'),
+      term('disposition', 'Result'), term('follow_ups', 'Follow-ups'), term('appointment', 'Appointment'), term('appointments', 'Appointments'), term('next_appointment', 'Next appointment'),
+      term('call_list', 'Call list'), term('worklist', 'Worklist'), term('funnel', 'Funnel'), term('rescission', 'Cancellation window'), term('rescission_until', 'Can cancel until')
     ]),
     section('leads', 'Forms and Leads', 'Lead intake settings, form views, and submissions.', [
       term('settings_tab', 'Forms and Leads', 'navigation'), term('lead_import_view', 'Lead Import', 'view'), term('contact_form_view', 'Contact Form', 'view'), term('appointment_form_view', 'Appointment Form', 'view'), term('instant_estimate_view', 'Instant Estimate', 'view'), term('form', 'Form'), term('forms', 'Forms'), term('submission', 'Submission'), term('submissions', 'Submissions')
