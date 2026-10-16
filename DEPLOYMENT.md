@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+October 16 CRM: [the CRM tab with views, worklists, the lead drawer, sources and spend, the funnel, cancellation windows and industry presets, and the system diagram on dev](deploy/digitalocean/development-crm-20261016.md) records what shipped from `claude/crm-20261016`, the checks and the development rollout.
+
 October 16 New leads: [a lead may arrive with no scope, projects start only through receiveLead or createProject, intake scopes, and lead.received rules notify and queue the call](deploy/digitalocean/development-new-leads-20261016.md) records what shipped from `claude/new-leads-20261016`, the checks and the verified development rollout.
 
 October 15 Contacts and opportunities: [contacts are records of their own, every lead source calls receiveLead, scope categories and sale outcomes, merge, and the legacy CRM removed](deploy/digitalocean/development-contacts-crm-20261015.md) records what shipped from `claude/contacts-opportunities-20261015` (not yet on the canonical branch), the migration and the verified development rollout.
