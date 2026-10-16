@@ -27,9 +27,8 @@ document in the platform `users` collection.
   flags control whether a scope is offered for new work without invalidating
   existing capability or historical version references.
 
-Direct user compensation takes precedence over resource-group compensation.
-Organization connections may use hourly and piece-rate components, but not
-salary components.
+How anyone is paid is not stored here: pay rules, plans and layered pay defaults decide it (docs/architecture/pay-rules.md),
+edited on each payee's Compensation tab in People.
 
 ## Access and Crew facade
 
@@ -117,9 +116,8 @@ code should make assignment decisions from the typed subject and policy.
 
 - A resource-group membership must reference an active user in the same
   organization.
-- Compensation is optional for any organization user.
-- Optimistically updated configuration, groups, connections, and compensation
-  profiles use revision checks.
+- Optimistically updated configuration, groups and connections use revision
+  checks.
 - Resource groups and organization connections are archived rather than
   deleted so historical assignments remain resolvable.
 - Code uses neutral domain names. Tenant-facing labels come from workforce

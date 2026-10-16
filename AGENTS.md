@@ -245,7 +245,8 @@ user field and rolls up to groups in the data layer; do not bless a field.
 Every assignee has `branch_ids` ([branches](docs/architecture/branches.md)). A
 **staffing requirement** is a count and a condition in the one condition
 contract; "requirements" alone means what a job needs done. Unmet staffing
-requirements and conflicts warn and never block. Run `tests/assignee-base.test.ts`,
+requirements and conflicts warn; a save is refused only when an
+organization or assignee sets double-booking to block. Run `tests/assignee-base.test.ts`,
 `tests/assignee-roster.test.ts` and `tests/assignee-base-store.test.ts` for
 changes here.
 
