@@ -63,8 +63,13 @@ export async function enqueueNotification(org:string,note:Json,event:Json={},dra
  const audience=new Set(JSON.parse(String(occurrence.audience_json)) as string[]);
  for(const row of await listDocuments(org,'users')){
   if(!audience.has(row.id))continue;const user=obj(row.data);
+  // A user with no active account in this organization (a sample person, someone removed) cannot be notified; skipping
+  // them must never stop the notification reaching everyone else.
+  let preferences:Json;
+  try{preferences=await preferencesForNote(org,row.id,note,user.notification_preferences);}
+  catch(error){if((error as {code?:string}).code==='background_author_unavailable')continue;throw error;}
   await observePersonalNotification(org,row.id,String(note.branch_id||'default'),note);
-  const id=identity(org,note.id,row.id),baseline=baselinePlan(note,await preferencesForNote(org,row.id,note,user.notification_preferences));
+  const id=identity(org,note.id,row.id),baseline=baselinePlan(note,preferences);
   await notificationStore().prepare(`INSERT INTO notification_recipients(id,organization_id,notification_id,user_id,note_json,event_json,baseline_json,deadline_at) VALUES(?,?,?,?,?,?,?,?) ON CONFLICT(id) DO NOTHING`)
    .run(id,org,String(note.id),row.id,JSON.stringify(note),JSON.stringify(event),JSON.stringify(baseline),new Date(Date.now()+12000).toISOString());
  }
@@ -124,7 +129,8 @@ async function resolveRecipient(row:Json){
 async function defaultRecipient(row:Json,reason:string){
  const user=await readDocument(String(row.organization_id),'users',String(row.user_id)).catch(()=>null);
  const note=JSON.parse(String(row.note_json));
- const prefs=user?await preferencesForNote(String(row.organization_id),String(row.user_id),note,obj(user.data).notification_preferences):{};
+ // The default plan never needs the recipient's account: one that has none falls back to the notification's own baseline.
+ const prefs=user?await preferencesForNote(String(row.organization_id),String(row.user_id),note,obj(user.data).notification_preferences).catch(()=>({})):{};
  const plan=applyQuiet(user?baselinePlan(note,prefs):JSON.parse(String(row.baseline_json)),prefs);
  await notificationStore().transaction(async db=>{
   const changed=await db.prepare("UPDATE notification_recipients SET state='planned',audit_json=? WHERE id=? AND token=? AND state='evaluating'").run(JSON.stringify([{status:'default',reason}]),String(row.id),String(row.token));
