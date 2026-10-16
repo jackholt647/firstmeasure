@@ -435,10 +435,10 @@ test('the Schedule button always does something: it places a planned job whole, 
  const ctx={state:{lists,scopeDocuments:[],panelRoot:{},project:{id:'p',events:[{id:'span',kind:'schedule_group',status:'unscheduled'},{id:'old',kind:'schedule_group',status:'cancelled'}]}},setTimeout:fn=>{timers.push(fn);},CustomEvent:class{constructor(type,init){this.type=type;this.detail=init?.detail;}},
   cleanText:value=>String(value??'').trim(),number:(value,fallback=0)=>Number.isFinite(Number(value))?Number(value):fallback,resourceType:list=>list.resource_type,listItems:()=>[{}],materialListOrdered:list=>list.status==='ordered',assignmentWorkResourceRef:list=>list.assigned?{id:list.assigned}:null,
   resourceSchedulePending:list=>!list.event,eventDateParts:event=>({date:event?.date||''}),linkedScheduleEvent:list=>list.event||null,orgId:()=>'org',projectId:()=>'p',apiReady:()=>true,materialsAPI:null,window:{},syncResourceHeader(){},
-  rootWindow:{dispatchEvent:event=>dispatched.push(event.type),addEventListener(){},Portal:{modules:{projectSchedule:{context:()=>({mode:placing}),focusMaterialDelivery:payload=>{focused.push(payload.event_id);placing=found?'materials':'';return found;}}}}},scopeWorkspace:{showSidebarView:(root,view)=>shown.push(view)},leftContentRoot:()=>'rail',
+  rootWindow:{dispatchEvent:event=>dispatched.push(event.type),addEventListener(){},Portal:{modules:{projectSchedule:{context:()=>({mode:placing}),focusMaterialDelivery:payload=>{focused.push(payload.event_id);placing=found?'materials':'';return found;}}}}},scopeWorkspace:{showSidebarView:(root,view)=>shown.push(view),widenSidebar:(root,percent)=>shown.push('widen:'+percent)},requirementsOpen:()=>false,materialRoot:()=>null,leftContentRoot:()=>'rail',
   captureProjectOperation:()=>({}),projectOperationIsCurrent:()=>true,showToast:(title)=>toasts.push(title),confirmAction:async message=>{asked.push(message);return answer;},
   ensureScheduleEventForList:async list=>{ensured.push(list.id);return {list,event:{id:'event-'+list.id,...(grouped?{parent_event_id:'job'}:{})}};},schedulingFocusPayload:(list,event)=>({event_id:event.id,scope_resource_list_id:list.id})};
- vm.createContext(ctx);for(const name of ['laborCommitments','laborListDelivered','headerDone','jobSchedule','scheduleJobButton','startPlacing','scheduleJob','syncScheduleState'])vm.runInContext(fn(name),ctx);
+ vm.createContext(ctx);for(const name of ['laborCommitments','laborListDelivered','headerDone','jobSchedule','scheduleJobButton','startPlacing','makeRoomForSchedule','scheduleJob','syncScheduleState'])vm.runInContext(fn(name),ctx);
  const run=()=>{while(timers.length)timers.shift()();};
  // Ordered material is done; equipment with no date is not. Labor that is only assigned and built has not been sent to anyone.
  assert.equal(JSON.stringify(ctx.headerDone()),JSON.stringify({material:true,labor:false,equipment:false}));
@@ -446,7 +446,7 @@ test('the Schedule button always does something: it places a planned job whole, 
  ctx.state.laborCommitments.rows[0].delivery.status='delivered';assert.equal(ctx.headerDone().labor,true);lists[1].revision=5;assert.equal(ctx.headerDone().labor,false,'the list changed after it was sent');
  let html=ctx.scheduleJobButton();assert.match(html,/class="mt-schedule-job" data-mt-schedule-job[^>]*><i class="fas fa-calendar-days"[^>]*><\/i><span>Schedule<\/span>/);
  // A piece of work a scope planned is placed whole, with no question asked. Every list still gets its schedule item.
- await ctx.scheduleJob();assert.equal(JSON.stringify(shown),'["schedule"]');assert.equal(asked.length,0);assert.equal(JSON.stringify(ensured),'["l","e","m"]','the work first, then equipment, then material');
+ await ctx.scheduleJob();assert.equal(JSON.stringify(shown),'["schedule","widen:60"]','the calendar gets room: the left side slides to 60%');assert.equal(asked.length,0);assert.equal(JSON.stringify(ensured),'["l","e","m"]','the work first, then equipment, then material');
  assert.equal(JSON.stringify(dispatched),'["fm:project-schedule:external"]','the schedule is told to read the project again');run();assert.equal(JSON.stringify(focused),'["span"]');
  // Lists the scope did not make get their events first; the server puts them under the job their scope defines, and
  // that job is placed whole, with no question asked.

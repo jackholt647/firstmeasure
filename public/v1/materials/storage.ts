@@ -889,7 +889,9 @@ async function ensureMaterialListScheduleEventOnce(orgId: string, listId: string
   const groupEventId = scheduleGroupId ? `event_${hashId(`${projectId}:schedule_group:${pieceId}:${scheduleGroupId}`)}` : "";
   let groupCreated = false;
   // The list that says how long the work should run sets the span's length until someone schedules it.
-  const spanMinutes = suggestedDurationMinutes(schedule.group_duration, asObject(list.measurements));
+  // Or, for a work order, the days its pay sheet estimates the job takes, so the job has a length before anyone places it.
+  const estimatedDays = Number(asObject(asObject(list.metadata).labor_generation).duration_days) || 0;
+  const spanMinutes = suggestedDurationMinutes(schedule.group_duration, asObject(list.measurements)) || (resourceType === "labor" && estimatedDays > 0 ? Math.ceil(estimatedDays) * 1440 : 0);
   const storedSpanIndex = groupEventId ? events.findIndex((entry) => cleanText(entry.id) === groupEventId) : -1;
   if (storedSpanIndex >= 0 && spanMinutes && !eventWindow(events[storedSpanIndex]) && Number(events[storedSpanIndex]!.duration_minutes || 0) !== spanMinutes) {
     groupCreated = true;

@@ -272,7 +272,7 @@
       requiresContext: ['project'],
       access: managementAccess,
       dependencies: ['pricebook.bridge'],
-    bundles: [...channelsLibBundles, versionedBundle('../materials-api/materials-api.js', '20261014-work-order'), versionedBundle('../payments-api/payments-api.js', '20260714-invoice-line-items-tax'), bundle('../comms-api/comms-api.js'), versionedBundle('../equipment-api/equipment-api.js', '20261013-functions'), versionedBundle('materials/project.js', '20261016-list-actions')]
+    bundles: [...channelsLibBundles, versionedBundle('../materials-api/materials-api.js', '20261014-work-order'), versionedBundle('../payments-api/payments-api.js', '20260714-invoice-line-items-tax'), bundle('../comms-api/comms-api.js'), versionedBundle('../equipment-api/equipment-api.js', '20261013-functions'), versionedBundle('materials/project.js', '20261016-schedule-room')]
     },
     {
       id: 'project.money',
@@ -338,7 +338,7 @@
       surfaces: ['project_modal'],
       requiresContext: ['project'],
       access: managementAccess,
-      bundles: [versionedBundle('project-schedule/panel.js', '20261015-schedule-roster-v1')]
+      bundles: [versionedBundle('project-schedule/panel.js', '20261016-placing')]
     },
     {
       id: 'project.comms',

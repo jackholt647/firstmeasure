@@ -253,7 +253,15 @@
       .r-schedule-panel.hover-preview :is(.psv-appt.draft,.prs-work-chip.draft,.prs-month-bar.draft,.prs-month-bar.live-preview){opacity:.72}
       .r-schedule-placement-banner{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:8px 10px 8px 12px;border:1px solid rgba(37,99,235,.24);border-radius:12px;background:#eff6ff;color:#1e3a8a;font-size:12px;font-weight:850;line-height:1.35}.r-schedule-placement-banner>i{color:#2563eb}.r-schedule-placement-banner>span{flex:1 1 200px;min-width:0}.r-schedule-placement-banner strong{font-weight:1000;color:#172554}.r-schedule-placement-banner .warn{display:block;color:#b45309;font-weight:900}.r-schedule-placement-cancel{flex:0 0 auto;height:30px;border:1px solid rgba(37,99,235,.28);border-radius:9px;background:#fff;color:#1d4ed8;padding:0 10px;font:inherit;font-size:11px;font-weight:1000;cursor:pointer}.r-schedule-placement-cancel:hover{background:#dbeafe}.r-schedule-placement-cancel kbd{font:inherit;font-size:10px;opacity:.7}
       .r-schedule-panel.work-mode.scheduling-mode .r-schedule-placement-banner{margin:8px 12px 0}.r-schedule-panel:not(.work-mode) .r-schedule-placement-banner{margin:0 0 10px}
-      .r-schedule-waiting{display:flex;align-items:center;gap:6px;flex:0 0 auto;min-width:0;padding:6px 10px;border-bottom:1px solid rgba(15,23,42,.08);background:#fff;overflow-x:auto;scrollbar-width:thin}.r-schedule-waiting-label{flex:0 0 auto;color:#667085;font-size:11px;font-weight:900;white-space:nowrap}.r-schedule-waiting-item{flex:0 0 auto;display:inline-flex;align-items:center;gap:6px;max-width:220px;height:26px;padding:0 9px;border:1px dashed rgba(15,23,42,.28);border-radius:999px;background:#fff;color:#344054;font:inherit;font-size:11px;font-weight:900;cursor:pointer}.r-schedule-waiting-item>span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.r-schedule-waiting-item>small{flex:0 0 auto;color:#667085;font-weight:800}.r-schedule-waiting-item:hover,.r-schedule-waiting-item.active{border-style:solid;border-color:var(--primary,#2563eb);color:var(--primary-readable,var(--primary,#1d4ed8))}
+      .r-schedule-waiting{display:flex;align-items:center;gap:6px;flex:0 0 auto;min-width:0;padding:6px 10px;border-bottom:1px solid rgba(15,23,42,.08);background:#fff;overflow-x:auto;scrollbar-width:thin}.r-schedule-waiting-label{flex:0 0 auto;color:#667085;font-size:11px;font-weight:900;white-space:nowrap}.r-schedule-waiting-item{flex:0 0 auto;display:inline-flex;align-items:center;gap:6px;max-width:220px;height:26px;padding:0 9px;border:1px dashed rgba(15,23,42,.28);border-radius:999px;background:#fff;color:#344054;font:inherit;font-size:11px;font-weight:900;cursor:pointer}.r-schedule-waiting-item>span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.r-schedule-waiting-item>small{flex:0 0 auto;color:#667085;font-weight:800}.placing-job{--prs-resource-day:46px}
+      .r-schedule-waiting-item.is-unplaced{border:1px solid #d0d5dd;background:#f2f4f7;color:#475467}
+      .r-schedule-waiting-item.is-unplaced:hover{border-color:var(--primary,#2563eb);color:var(--primary-readable,var(--primary,#1d4ed8))}
+      .r-schedule-waiting-item.is-job{font-weight:950}
+      .r-schedule-waiting-item.is-active{border:1px solid var(--primary,#2563eb);background:var(--primary,#2563eb);color:#fff}
+      .r-schedule-waiting-item.is-along{border:1.5px dashed var(--primary,#2563eb);background:color-mix(in srgb,var(--primary,#2563eb) 8%,#fff);color:var(--primary-readable,var(--primary,#1d4ed8))}
+      .r-schedule-waiting-item.is-placed{border:1px solid #079455;background:#079455;color:#fff}
+      .r-schedule-waiting .r-schedule-placement-banner.is-compact{margin:0 0 0 auto;flex:0 0 auto;padding:2px 4px 2px 10px;gap:8px;border-radius:999px;font-size:11px;white-space:nowrap}
+      .r-schedule-waiting .r-schedule-placement-banner.is-compact .r-schedule-placement-cancel{height:22px;padding:0 8px;font-size:11px}
       .r-schedule-panel.widget .r-schedule-waiting{padding:4px 8px}
       .r-schedule-panel.r-schedule-saving{cursor:progress}.r-schedule-panel.r-schedule-saving [data-prs-confirm],.r-schedule-panel.r-schedule-saving [data-psv-draft-confirm],.r-schedule-panel.r-schedule-saving [data-schedule-draft-confirm]{pointer-events:none;opacity:.5}
       .r-schedule-panel.r-schedule-view-only .prs-assignee{cursor:default}.r-schedule-panel.r-schedule-view-only .prs-assignee:after{display:none}.r-schedule-panel.r-schedule-view-only .prs-assignee:hover{background:transparent}
@@ -1377,6 +1385,8 @@
     }
     materialScheduleModeActive = true;
     materialScheduleEventId = String(event?.id || eventId || '');
+    // A job that is not on the calendar yet is placed whole; it runs over days, so it is placed in Month.
+    if (event && scheduleEventIsSpan(event) && !materialEventIsScheduled(event) && scheduleViewMode !== 'gantt' && !scheduleIsSchedulingView()) scheduleViewMode = 'month';
     materialScheduleListId = event ? scheduleEventListId(event) : listId;
     materialScheduleDraft = null;
     scheduleModeActive = false;
@@ -1397,27 +1407,41 @@
     return !!event && scheduleEventIsSpan(event) && !materialEventIsScheduled(event);
   }
 
-  /* Work that isn't on the calendar yet, listed above it: a span or a single
-   * item, each once. What waits for an unscheduled parent is not listed; it
-   * is placed with that parent. Choosing one starts its placement. */
+  /* The project's work above the calendar: each job first, then everything
+   * under it (deliveries, the work order, equipment), then anything on its
+   * own. Each is grey until it is placed and green once it is. While placing,
+   * the item being placed is in the primary colour and everything that moves
+   * with it is outlined. Choosing one places it, or its job when the job is
+   * not on the calendar yet. */
   function scheduleWaitingItems(){
-    return projectProductionEvents()
+    const Scheduling = window.PlatformScheduling;
+    const live = projectProductionEvents()
       .filter((event) => !equipmentEventHidden(event))
-      .filter((event) => !['cancelled', 'canceled', 'completed', 'complete', 'done'].includes(String(event.status || '').toLowerCase()))
-      .filter((event) => !materialEventIsScheduled(event) && !materialEventIsLocked(event) && !scheduleEventWaitsForParent(event));
+      .filter((event) => !['cancelled', 'canceled'].includes(String(event.status || '').toLowerCase()));
+    const ids = new Set(live.map((event) => String(event.id || '')));
+    const ordered = [], seen = new Set();
+    const add = (event) => { const id = String(event.id || ''); if (!id || seen.has(id)) return; seen.add(id); ordered.push(event); };
+    for (const event of live.filter((entry) => !ids.has(String(entry.parent_event_id || '')))) {
+      add(event);
+      for (const child of (Scheduling?.eventDescendants?.(scheduleProjectEvents(), event.id) || [])) if (ids.has(String(child.id || ''))) add(live.find((entry) => String(entry.id || '') === String(child.id || '')));
+    }
+    live.forEach(add);
+    return ordered;
   }
   function scheduleWaitingStripHtml(){
     if (!canEditSchedule()) return '';
     const items = scheduleWaitingItems();
     if (!items.length) return '';
     const Scheduling = window.PlatformScheduling;
-    return `<div class="r-schedule-waiting" role="group" aria-label="Waiting to be scheduled"><span class="r-schedule-waiting-label">Waiting</span>${items.map((event) => {
-      const title = isMaterialDeliveryEvent(event) ? `${materialDeliveryTitle(event)} delivery` : (String(event.title || '').trim() || productionResourceLabel(event));
-      const under = (Scheduling?.eventDescendants?.(scheduleProjectEvents(), event.id) || []).filter((child) => !equipmentEventHidden(child)).length;
-      const active = materialScheduleModeActive && String(materialScheduleEventId || '') === String(event.id || '');
-      const hint = under ? `Schedule ${title} and the ${under} item${under === 1 ? '' : 's'} under it` : `Schedule ${title}`;
-      return `<button type="button" class="r-schedule-waiting-item ${active ? 'active' : ''}" data-schedule-waiting="${escapeHtml(event.id || '')}" aria-pressed="${active ? 'true' : 'false'}" title="${escapeHtml(hint)}" aria-label="${escapeHtml(hint)}"><i class="fas ${escapeHtml(scheduleEventIsSpan(event) ? 'fa-layer-group' : productionResourceIcon(event))}" aria-hidden="true"></i><span>${escapeHtml(title)}</span>${under ? `<small>+${under}</small>` : ''}</button>`;
-    }).join('')}</div>`;
+    const placing = materialScheduleModeActive ? String(materialScheduleEventId || '') : '';
+    const moving = new Set(placing ? (Scheduling?.eventDescendants?.(scheduleProjectEvents(), placing) || []).map((child) => String(child.id || '')) : []);
+    return `<div class="r-schedule-waiting" role="group" aria-label="This project's work">${items.map((event) => {
+      const id = String(event.id || ''), title = isMaterialDeliveryEvent(event) ? `${materialDeliveryTitle(event)} delivery` : (String(event.title || '').trim() || productionResourceLabel(event));
+      const placed = materialEventIsScheduled(event), active = placing === id, along = moving.has(id), span = scheduleEventIsSpan(event);
+      const state = active ? 'is-active' : along ? 'is-along' : placed ? 'is-placed' : 'is-unplaced';
+      const hint = active ? `Placing ${title}` : along ? `${title} is placed with it` : placed ? `${title} is on the schedule` : `Schedule ${title}`;
+      return `<button type="button" class="r-schedule-waiting-item ${state}${span ? ' is-job' : ''}" data-schedule-waiting="${escapeHtml(id)}" aria-pressed="${active ? 'true' : 'false'}" title="${escapeHtml(hint)}" aria-label="${escapeHtml(hint)}"><i class="fas ${escapeHtml(placed && !active && !along ? 'fa-circle-check' : span ? 'fa-layer-group' : productionResourceIcon(event))}" aria-hidden="true"></i><span>${escapeHtml(title)}</span></button>`;
+    }).join('')}${placing ? schedulePlacementBannerHtml({ inStrip:true }) : ''}</div>`;
   }
   function bindScheduleWaitingStrip(rootEl){
     rootEl?.querySelectorAll('[data-schedule-waiting]').forEach((button) => button.addEventListener('click', async () => {
@@ -1673,16 +1697,34 @@
     roster.configure({ orgId:scheduleOrgId() });
     return roster.previewSlotHtml({ ...draft, __roster_project_id:String(draft.project_id || activeBaseProject?.id || '') }, { range:{ start:draft.start, end:draft.end } });
   }
-  function schedulePlacementBannerHtml(){
+  // Placing project work is said at the end of the work strip, briefly; other placements keep the full banner.
+  const schedulePlacingInStrip = () => materialScheduleModeActive && canEditSchedule() && scheduleWaitingItems().length > 0;
+  function schedulePlacementBannerHtml(options = {}){
     const placement = schedulePlacementState();
     state.panelRoot?.classList?.toggle('hover-preview', !!materialScheduleDraft?.__hover);
     if (!placement || !canEditSchedule()) return '';
+    if (schedulePlacingInStrip() && !options.inStrip) return '';
+    if (options.inStrip) {
+      const confirm = materialScheduleDraft?.start && !materialScheduleDraft.__hover;
+      return `<div class="r-schedule-placement-banner is-compact" role="status"><i class="fas fa-location-crosshairs" aria-hidden="true"></i><span>Placing <strong>${escapeHtml(placement.subject)}</strong>${confirm ? ' · confirm with ✓' : ''}${placement.past ? ' <span class="warn">in the past</span>' : ''} <em data-schedule-placement-state>${schedulePlacementSaving ? 'Saving…' : ''}</em></span><button type="button" class="r-schedule-placement-cancel" data-schedule-placement-cancel>Cancel${scheduleTouchLayout() ? '' : ' <kbd>Esc</kbd>'}</button></div>`;
+    }
     return `<div class="r-schedule-placement-banner" role="status"><i class="fas fa-location-crosshairs" aria-hidden="true"></i><span><strong>Placing ${escapeHtml(placement.subject)}</strong> — ${escapeHtml(placement.text)}${placement.past ? '<span class="warn">That day is in the past.</span>' : ''} <em data-schedule-placement-state>${schedulePlacementSaving ? 'Saving…' : ''}</em></span>${schedulePlacementRosterHtml()}<button type="button" class="r-schedule-placement-cancel" data-schedule-placement-cancel>Cancel${scheduleTouchLayout() ? '' : ' <kbd>(Esc)</kbd>'}</button></div>`;
   }
   function refreshSchedulePlacementBanner(){
     const panel = $('#rSchedulePanel');
     if (!panel || !state.active) return;
     const current = panel.querySelector('.r-schedule-placement-banner');
+    const strip = panel.querySelector('.r-schedule-waiting');
+    // Placing project work redraws the strip it sits in, so its items' colours follow too.
+    if (strip && (schedulePlacingInStrip() || current?.classList.contains('is-compact'))) {
+      const holder = document.createElement('div');
+      holder.innerHTML = scheduleWaitingStripHtml();
+      const next = holder.firstElementChild;
+      if (next) { strip.replaceWith(next); bindScheduleWaitingStrip(panel); bindSchedulePlacementBanner(panel); }
+      else strip.remove();
+      if (!schedulePlacingInStrip()) panel.querySelector('.r-schedule-placement-banner:not(.is-compact)')?.remove();
+      return;
+    }
     const html = schedulePlacementBannerHtml();
     if (!current && !html) return;
     const holder = document.createElement('div');
@@ -5066,6 +5108,37 @@
     state.sidebarRoot.style.display='none';
   }
 
+  /* Who Routing offers for this project: the assignees whose work has
+   * something in common with what the job requires, as the work order's
+   * Assign menu offers them (materials project.js, laborAssignmentOptions;
+   * the server's assignee comparison, `overlap`). A job that requires no work
+   * yet offers whoever has a pay sheet. Anyone already on this project's work
+   * stays. Until the comparison has been read, or where it cannot be, every
+   * assignee is shown, as before. */
+  let routingRelevance = { projectId:'', ids:null };
+  function routingRelevantIds(){
+    const projectId = String(activeBaseProject?.id || '');
+    const api = window.MaterialsAPI?.labor;
+    if (!projectId || !api?.compareProject) return null;
+    if (routingRelevance.projectId === projectId) return routingRelevance.ids;
+    routingRelevance = { projectId, ids:null };
+    api.compareProject(scheduleOrgId(), projectId, {}).then((result) => {
+      if (routingRelevance.projectId !== projectId) return;
+      const rows = Array.isArray(result?.assignees) ? result.assignees : [];
+      const overlapping = rows.some((row) => Number(row?.overlap) > 0);
+      routingRelevance.ids = new Set(rows.filter((row) => (overlapping ? Number(row?.overlap) > 0 : !!row?.sheet)).map((row) => String(row?.assignee?.id || '')).filter(Boolean));
+      if (state.active && scheduleIsSchedulingView()) renderSchedulePanelPreservingScroll();
+    }).catch(() => {});
+    return null;
+  }
+  function routingRows(crews){
+    const relevant = routingRelevantIds();
+    if (!relevant) return crews;
+    const onThisProject = new Set(projectWorkEvents().flatMap((event) => (Array.isArray(event.resource_refs) ? event.resource_refs : []).map((ref) => String(ref?.id || ''))).filter(Boolean));
+    const kept = crews.filter((crew) => relevant.has(String(crew.id || '')) || onThisProject.has(String(crew.id || '')));
+    return kept.length ? kept : crews;
+  }
+
   function renderWorkScheduler(target){
     const Scheduling = window.PlatformScheduling;
     const mobileLayout = window.matchMedia?.('(max-width:720px)').matches === true;
@@ -5074,9 +5147,19 @@
       target.innerHTML = `<div class="r-schedule-empty"><i class="fas fa-calendar"></i>${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_8d14608b5ea70e","Work scheduling tools are unavailable.") ?? "Work scheduling tools are unavailable.")}</div>`;
       return;
     }
-    if (scheduleViewMode === 'gantt' && !schedulePlacingSpan() && projectGanttViewEnabled() && window.PlatformScheduleView?.renderGanttScheduler) {
+    if (scheduleViewMode === 'gantt' && projectGanttViewEnabled() && window.PlatformScheduleView?.renderGanttScheduler) {
+      const placingJob = schedulePlacingSpan() ? selectedMaterialEvent() : null;
+      const placingRange = placingJob ? schedulePlacementNaturalRange(placingJob, { start:scheduleDayStart(new Date()), all_day:true, schedule_granularity:'date' }) : null;
       window.PlatformScheduleView.renderGanttScheduler(target, {
         readOnly: !canEditSchedule(),
+        placement: placingJob ? {
+          title: schedulePlacementState()?.subject || placingJob.title || 'Placing',
+          days: placingRange?.end && placingRange?.start ? Math.max(1, Math.round((new Date(placingRange.end) - new Date(placingRange.start)) / 86400000)) : 1,
+          onPlace(day){
+            setMaterialScheduleDraft({ start:day, end:scheduleAddDays(day, 1), all_day:true, schedule_granularity:'date', __schedule_natural_range:true });
+            if (materialScheduleDraft?.start) saveMaterialScheduleDraft(materialScheduleDraft);
+          }
+        } : null,
         Scheduling,
         config: scheduleCachedConfig || null,
         project: activeBaseProject || null,
@@ -5116,7 +5199,7 @@
       if (!projectGanttZoom && Number(target.__psvGanttPxPerDay) > 0) projectGanttZoom = Number(target.__psvGanttPxPerDay);
       return;
     }
-    const forceCrewScheduler = scheduleIsSchedulingView() && !materialScheduleModeActive;
+    const forceCrewScheduler = scheduleIsSchedulingView();
     // Crew lanes wait for the crews: drawn without them, crew work would sit
     // in Unassigned and a drag from there would unassign it.
     if (forceCrewScheduler && !scheduleResourcesReady() && !scheduleResourcesSettled) {
@@ -5125,7 +5208,8 @@
       return;
     }
     const crews = scheduleWorkResources(scheduleCachedConfig, scheduleCachedUsers);
-    const crewRows = crews.length ? crews : (forceCrewScheduler ? [{ id: 'default_work_resource', name: workResourceLabel() }] : []);
+    const offered = forceCrewScheduler ? routingRows(crews) : crews;
+    const crewRows = offered.length ? offered : (forceCrewScheduler ? [{ id: 'default_work_resource', name: workResourceLabel() }] : []);
     const currentWorkEvents = projectWorkEvents();
     const calendarWorkEvents = currentWorkEvents.map((event) => decorateWorkEventForCalendar(event, crews));
     const calendarMaterialEvents = projectMaterialEvents()
@@ -5163,6 +5247,20 @@
     const editableWorkEventIds = forceCrewScheduler
       ? schedulerWorkEvents.filter((event) => currentIds.has(routingLaneSourceId(event))).map((event) => String(event.id || ''))
       : Array.from(currentIds);
+    // While a job is placed in Routing, its draft and the work under it show in the lanes where they would land.
+    const routingEvents = materialDraft
+      ? [...schedulerWorkEvents.filter((event) => !placedChildPreviewIds.has(String(routingLaneSourceId(event) || event.id || ''))), ...routingLaneEvents(placedChildPreviews.filter((child) => !isMaterialDeliveryEvent(child)))]
+      : schedulerWorkEvents;
+    // A click on a day places the job (hovering already showed where); other drafts work as before.
+    const placeOrDraft = (next) => {
+      if (draftIsMaterial(next)) {
+        const fresh = materialScheduleModeActive && (!materialScheduleDraft?.start || materialScheduleDraft.__hover === true);
+        setMaterialScheduleDraft(next);
+        if (fresh && materialScheduleDraft?.start) saveMaterialScheduleDraft(materialScheduleDraft);
+        return;
+      }
+      setWorkScheduleDraft(next, { render: false, renderLeft: true });
+    };
     /* What dropping an item on a Routing row changes: that row's resource
      * takes the place of the row the item came from (its primary assignee
      * outside a lane copy) and every other assignee stays, with its unit.
@@ -5201,11 +5299,11 @@
         Scheduling,
         config: scheduleCachedConfig || null,
         project: activeBaseProject || null,
-        events: schedulerWorkEvents,
-        drafts: workDraftList(),
-        activeDraftId: activeWorkScheduleDraftId,
+        events: routingEvents,
+        drafts: calendarDrafts,
+        activeDraftId: calendarActiveDraftId,
         resources: crewRows,
-        allowCreate: canEditSchedule() && workScheduleModeActive && !activeWorkDraft()?.event_id,
+        allowCreate: canEditSchedule() && ((workScheduleModeActive && !activeWorkDraft()?.event_id) || materialScheduleModeActive),
         allowEdit: canEditSchedule(),
         editableEventIds: editableWorkEventIds,
         date: scheduleAnchorDate,
@@ -5225,7 +5323,7 @@
           restoreScheduleScroll(scrollPosition);
         },
         onNavigate(nextDate){ scheduleAnchorDate = nextDate; renderSchedulePanel(); },
-        onDraftChange(next){ setWorkScheduleDraft(next, { render: false, renderLeft: true }); },
+        onDraftChange(next){ placeOrDraft(next); },
         onDraftConfirm(){ saveWorkScheduleDraft(); },
         onEventRangeChange: routingEventRangeChange,
         onEventClick: routingEventClick,
@@ -5243,11 +5341,11 @@
         Scheduling,
         config: scheduleCachedConfig || null,
         project: activeBaseProject || null,
-        events: schedulerWorkEvents,
-        drafts: workDraftList(),
-        activeDraftId: activeWorkScheduleDraftId,
+        events: routingEvents,
+        drafts: calendarDrafts,
+        activeDraftId: calendarActiveDraftId,
         resources: crewRows,
-        allowCreate: canEditSchedule() && workScheduleModeActive && !activeWorkDraft()?.event_id,
+        allowCreate: canEditSchedule() && ((workScheduleModeActive && !activeWorkDraft()?.event_id) || materialScheduleModeActive),
         allowEdit: canEditSchedule(),
         editableEventIds: editableWorkEventIds,
         mode: scheduleSchedulingMode(),
@@ -5262,7 +5360,7 @@
         resourceIdForItem: (item) => routingLaneInfo(item)?.laneId ?? workCrewId(item),
         resourcePayload: routingLanePayload,
         onNavigate(nextDate){ scheduleAnchorDate = nextDate; renderSchedulePanel(); },
-        onDraftChange(next){ setWorkScheduleDraft(next, { render: false, renderLeft: true }); },
+        onDraftChange(next){ placeOrDraft(next); },
         onDraftConfirm(){ saveWorkScheduleDraft(); },
         onEventRangeChange: routingEventRangeChange,
         onEventClick: routingEventClick,
@@ -5342,7 +5440,11 @@
         renderSchedulePanel();
       },
       onDraftChange(next){
-        if (draftIsMaterial(next)) setMaterialScheduleDraft(next);
+        if (draftIsMaterial(next)) {
+          const fresh = materialScheduleModeActive && (!materialScheduleDraft?.start || materialScheduleDraft.__hover === true);
+          setMaterialScheduleDraft(next);
+          if (fresh && materialScheduleDraft?.start) saveMaterialScheduleDraft(materialScheduleDraft);
+        }
         else if (clickToCreate && !workScheduleModeActive && next?.start) {
           // Click (or drag) on an empty day/time: the schedule dialog opens
           // with that date and time filled in.
@@ -5615,6 +5717,8 @@
       const [year, month, day] = key.split('-').map(Number), start = new Date(year, month - 1, day);
       setMaterialScheduleDraft({ start, end:scheduleAddDays(start, 1), all_day:true, schedule_granularity:'date', __schedule_natural_range:true });
       if (materialScheduleDraft) materialScheduleDraft.__hover = true;
+      // The calendar is redrawn with the job there, at its planned length, with everything under it.
+      if (state.active) renderSchedulePanelPreservingScroll();
     });
     rootEl.addEventListener('pointerleave', () => {
       shownKey = '';
@@ -5625,6 +5729,8 @@
   }
   function renderSchedulePanel(){
     bindPlacementHover(state.panelRoot);
+    // A job runs over days: while one is placed, Routing's days are narrower so more of them show.
+    state.panelRoot?.classList?.toggle('placing-job', schedulePlacingSpan());
     // A details popover that is open while data arrives (crews loading, a
     // refresh from another surface) stays open on its item and is redrawn
     // with the new data; actions that close it do so before rendering.

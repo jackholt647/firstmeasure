@@ -5,7 +5,7 @@
   let materialsAPI;
   let scopeWorkspace;
   let refreshTimer;
-  const scopeWorkspaceUrl = new URL('./scope-of-work.js?v=20261013-rail-motion', document.currentScript?.src || `${location.origin}/libraries/apps/materials/project.js`).href;
+  const scopeWorkspaceUrl = new URL('./scope-of-work.js?v=20261016-widen', document.currentScript?.src || `${location.origin}/libraries/apps/materials/project.js`).href;
   const calculusAdapterUrl = new URL('./calculus-native.js?v=20261013-scope', document.currentScript?.src || `${location.origin}/libraries/apps/materials/project.js`).href;
   const closeoutUrl = new URL('./closeout.js?v=20261015-closeout-order', document.currentScript?.src || `${location.origin}/libraries/apps/materials/project.js`).href;
   const runtime = window.FirstMateEmbeddableApps;
@@ -720,6 +720,7 @@
     return `
       .mt-app{height:100%;min-height:0;display:flex;flex-direction:column;background:#f7f8fb;color:#111827;font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;container-type:inline-size;container-name:materials-workspace}
       .r-overlay.materials-workspace #mtSidebarSection.visible{min-height:0}
+      .r-overlay.materials-workspace .r-tab-sidebar.mt-widget-sidebar.sw-width-animating{transition:flex-basis .38s cubic-bezier(.2,.8,.2,1),width .38s cubic-bezier(.2,.8,.2,1)}
       .r-overlay.materials-workspace .r-tab-sidebar.mt-widget-sidebar{display:flex;flex-direction:column;box-sizing:border-box;flex:0 0 var(--scope-sidebar-width,33.333%)!important;width:var(--scope-sidebar-width,33.333%);min-width:0;max-width:none;min-height:0;padding:0;overflow:hidden}
       .r-overlay.materials-workspace #mtSidebarList{height:100%;flex:1;min-height:0;gap:0;overflow:hidden;display:flex;flex-direction:column}
       .mt-widget-sidebar .mt-left{height:auto;min-height:0;display:flex;flex-direction:column;gap:12px;padding:0}
@@ -2609,6 +2610,7 @@
       const event = ensured.event;
       // The Schedule view beside the lists, as the job's Schedule button opens it; never the project window's Schedule tab.
       scopeWorkspace?.showSidebarView?.(leftContentRoot(), 'schedule');
+      makeRoomForSchedule();
       const parentId = cleanText(event?.parent_event_id), parent = parentId ? (Array.isArray(state.project?.events) ? state.project.events : []).find((entry) => cleanText(entry?.id) === parentId) : null;
       // Under a job that is not on the calendar yet, the job is placed, with everything under it.
       const payload = parentId && !(parent && eventDateParts(parent).date) ? { event_id: parentId } : schedulingFocusPayload(ensured.list || list, event);
@@ -4197,10 +4199,21 @@
   // material, a work order made here) are given their events first: the server puts them under the job their scope
   // defines, and that job is what is placed. Only when nothing groups them is each list placed by hand, which is said
   // first.
+  // Placing needs the calendar to be easy to see: the left side slides to 60% and the Requirements tray closes.
+  function makeRoomForSchedule(){
+    scopeWorkspace?.widenSidebar?.(state.sidebarRoot, 60);
+    if (!requirementsOpen()) return;
+    state.requirementsOpen = false;
+    try { rootWindow.localStorage?.setItem?.('fm_scope_requirements_open', '0'); } catch (_) {}
+    const tray = materialRoot()?.querySelector?.('[data-mt-req-tray]');
+    tray?.classList.remove('is-open');
+    tray?.querySelector?.('[data-mt-req-open]')?.setAttribute('aria-expanded', 'false');
+  }
   async function scheduleJob(){
     if (state.schedulingJob) return;
     const job = jobSchedule(), operation = captureProjectOperation();
     scopeWorkspace?.showSidebarView?.(leftContentRoot(), 'schedule');
+    makeRoomForSchedule();
     if (job.done) { showToast('Already scheduled', 'Everything on this job has dates. Move it on the schedule if it needs to change.'); return; }
     state.schedulingJob = true;
     syncResourceHeader();

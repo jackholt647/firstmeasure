@@ -175,7 +175,8 @@ test('the project Schedule tab keeps deliveries on its main calendar during plac
   assert.match(projectScheduleSource, /const calendarDrafts = \[\.\.\.workDraftList\(\), \.\.\.\(materialDraft \? \[materialDraft\] : \[\]\)\];/);
   assert.match(projectScheduleSource, /allowCreate: materialScheduleModeActive\s*\? !!materialEvent && !materialEventIsScheduled\(materialEvent\)/);
   assert.match(projectScheduleSource, /const draftIsMaterial = \(draft = \{\}\) => isMaterialDeliveryEvent\(draft\)/);
-  assert.match(projectScheduleSource, /onDraftChange\(next\)\{\s*if \(draftIsMaterial\(next\)\) setMaterialScheduleDraft\(next\);/);
+  // A click on a day places the job straight away (hovering already showed where); a later drag of a draft waits for ✓.
+  assert.match(projectScheduleSource, /onDraftChange\(next\)\{\s*if \(draftIsMaterial\(next\)\) \{\s*const fresh = materialScheduleModeActive && \(!materialScheduleDraft\?\.start \|\| materialScheduleDraft\.__hover === true\);\s*setMaterialScheduleDraft\(next\);\s*if \(fresh && materialScheduleDraft\?\.start\) saveMaterialScheduleDraft\(materialScheduleDraft\);/);
   assert.match(projectScheduleSource, /onDraftConfirm\(next\)\{\s*if \(draftIsMaterial\(next\)\) saveMaterialScheduleDraft\(next\);/);
   assert.doesNotMatch(projectScheduleSource, /workScheduleModeActive && !scheduleModeActive && !scheduleIsSchedulingView\(\)/);
   assert.match(projectScheduleSource, /function equipmentEventHidden\(event\)\{\s*return !equipmentSchedulingEnabled\(\) && productionResourceType\(event\) === 'equipment';/);
@@ -185,7 +186,9 @@ test('the project Schedule tab keeps deliveries on its main calendar during plac
 
   const focus = projectScheduleSource.match(/function focusMaterialDelivery\(payload = \{\}\)\{([\s\S]*?)\n  \}\n\n  function setMaterialScheduleDraft/);
   assert.ok(focus, 'focusMaterialDelivery should be present');
-  assert.doesNotMatch(focus[1], /scheduleViewMode\s*=/);
+  // Only a job that is not on the calendar yet changes the view, to Month, and never out of Routing or the Timeline.
+  assert.deepEqual(focus[1].match(/scheduleViewMode\s*=[^=]/g)?.length, 1);
+  assert.match(focus[1], /scheduleEventIsSpan\(event\) && !materialEventIsScheduled\(event\) && scheduleViewMode !== 'gantt' && !scheduleIsSchedulingView\(\)\) scheduleViewMode = 'month';/);
   assert.doesNotMatch(focus[1], /scheduleAnchorDate\s*=/);
 });
 
