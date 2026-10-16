@@ -856,8 +856,9 @@ async function ensureMaterialListScheduleEventOnce(orgId: string, listId: string
   const eventInput = asObject(input.event);
   const resourceType = scopeResourceType(list);
   // A list its scope did not create still sits under the job its scope defines.
-  const scoped = cleanText(schedule.group_id) ? null : await scopeScheduleFallback(orgId, projectId, list, resourceType);
-  if (scoped) Object.assign(schedule, scoped.schedule);
+  // A list grouped before its scope said where it sits in the job still takes that placement; what the list has stays.
+  const scoped = cleanText(schedule.group_id) && schedule.placement ? null : await scopeScheduleFallback(orgId, projectId, list, resourceType);
+  if (scoped) for (const [key, value] of Object.entries(scoped.schedule)) if (schedule[key] === undefined || schedule[key] === null || (key === "group_id" && !cleanText(schedule[key]))) schedule[key] = value;
   const scheduleDefaults = scopeResourceScheduleDefaults(list);
   const workPlanId = cleanText(input.work_plan_id || eventInput.work_plan_id || schedule.work_plan_id);
   const sourceNodeId = cleanText(input.source_node_id || eventInput.source_node_id || schedule.source_node_id);
@@ -1620,7 +1621,27 @@ async function materialDefinitionForPiece(orgId: string, branchId: string, piece
       };
     }
   }
-  return resolved;
+  return await withPresetSchedule(asObject(definition.metadata).preset === true ? templateId : "", resolved);
+}
+
+/**
+ * A copy of a preset saved before the preset said how its lists sit in a job (which job, where in it) still gets that
+ * from the preset as it is now, list by list, for only the schedule fields it lacks: what an organization set stays.
+ * Without it, deliveries and the work order are not placed when the job is.
+ */
+async function withPresetSchedule(templateId: string, resolved: JsonObject) {
+  if (!templateId || !Array.isArray(resolved.lists)) return resolved;
+  const { DEFAULT_SCOPE_TEMPLATES } = await import("../scopes/presets/index.js");
+  const preset = DEFAULT_SCOPE_TEMPLATES.find((template) => cleanText(template.id) === templateId) as unknown as JsonObject | undefined;
+  const presetLists = (Array.isArray(asObject(asObject(preset).resources).lists) ? asObject(asObject(preset).resources).lists as unknown[] : []).map(asObject);
+  if (!presetLists.length) return resolved;
+  const lists = resolved.lists.map(asObject).map((list) => {
+    const source = asObject(presetLists.find((entry) => cleanText(entry.id) === cleanText(list.id))?.schedule);
+    const schedule = asObject(list.schedule), missing: JsonObject = {};
+    for (const key of ["group_id", "group_title", "placement"]) if (schedule[key] === undefined || schedule[key] === null) if (source[key] !== undefined) missing[key] = source[key];
+    return Object.keys(missing).length ? { ...list, schedule: { ...schedule, ...missing } } : list;
+  });
+  return { ...resolved, lists };
 }
 
 /**

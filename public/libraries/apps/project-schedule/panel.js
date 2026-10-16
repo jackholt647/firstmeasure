@@ -254,6 +254,8 @@
       .r-schedule-placement-banner{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:8px 10px 8px 12px;border:1px solid rgba(37,99,235,.24);border-radius:12px;background:#eff6ff;color:#1e3a8a;font-size:12px;font-weight:850;line-height:1.35}.r-schedule-placement-banner>i{color:#2563eb}.r-schedule-placement-banner>span{flex:1 1 200px;min-width:0}.r-schedule-placement-banner strong{font-weight:1000;color:#172554}.r-schedule-placement-banner .warn{display:block;color:#b45309;font-weight:900}.r-schedule-placement-cancel{flex:0 0 auto;height:30px;border:1px solid rgba(37,99,235,.28);border-radius:9px;background:#fff;color:#1d4ed8;padding:0 10px;font:inherit;font-size:11px;font-weight:1000;cursor:pointer}.r-schedule-placement-cancel:hover{background:#dbeafe}.r-schedule-placement-cancel kbd{font:inherit;font-size:10px;opacity:.7}
       .r-schedule-panel.work-mode.scheduling-mode .r-schedule-placement-banner{margin:8px 12px 0}.r-schedule-panel:not(.work-mode) .r-schedule-placement-banner{margin:0 0 10px}
       .r-schedule-waiting{display:flex;align-items:center;gap:6px;flex:0 0 auto;min-width:0;padding:6px 10px;border-bottom:1px solid rgba(15,23,42,.08);background:#fff;overflow-x:auto;scrollbar-width:thin}.r-schedule-waiting-label{flex:0 0 auto;color:#667085;font-size:11px;font-weight:900;white-space:nowrap}.r-schedule-waiting-item{flex:0 0 auto;display:inline-flex;align-items:center;gap:6px;max-width:220px;height:26px;padding:0 9px;border:1px dashed rgba(15,23,42,.28);border-radius:999px;background:#fff;color:#344054;font:inherit;font-size:11px;font-weight:900;cursor:pointer}.r-schedule-waiting-item>span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.r-schedule-waiting-item>small{flex:0 0 auto;color:#667085;font-weight:800}.placing-job{--prs-resource-day:46px}
+      .r-schedule-placement-banner[hidden]{display:none!important}
+      .r-schedule-panel.hover-preview :is(.psv-appt.draft,.prs-work-chip.draft,.prs-month-bar.draft,.prs-resource-bar.draft,.prs-resource-time-bar.draft){pointer-events:none}
       .r-schedule-waiting-item.is-unplaced{border:1px solid #d0d5dd;background:#f2f4f7;color:#475467}
       .r-schedule-waiting-item.is-unplaced:hover{border-color:var(--primary,#2563eb);color:var(--primary-readable,var(--primary,#1d4ed8))}
       .r-schedule-waiting-item.is-job{font-weight:950}
@@ -1439,9 +1441,9 @@
       const id = String(event.id || ''), title = isMaterialDeliveryEvent(event) ? `${materialDeliveryTitle(event)} delivery` : (String(event.title || '').trim() || productionResourceLabel(event));
       const placed = materialEventIsScheduled(event), active = placing === id, along = moving.has(id), span = scheduleEventIsSpan(event);
       const state = active ? 'is-active' : along ? 'is-along' : placed ? 'is-placed' : 'is-unplaced';
-      const hint = active ? `Placing ${title}` : along ? `${title} is placed with it` : placed ? `${title} is on the schedule` : `Schedule ${title}`;
+      const hint = active ? `Placing ${title}. Click it again or press Esc to stop.` : along ? `${title} is placed with it` : placed ? `${title} is on the schedule` : `Schedule ${title}`;
       return `<button type="button" class="r-schedule-waiting-item ${state}${span ? ' is-job' : ''}" data-schedule-waiting="${escapeHtml(id)}" aria-pressed="${active ? 'true' : 'false'}" title="${escapeHtml(hint)}" aria-label="${escapeHtml(hint)}"><i class="fas ${escapeHtml(placed && !active && !along ? 'fa-circle-check' : span ? 'fa-layer-group' : productionResourceIcon(event))}" aria-hidden="true"></i><span>${escapeHtml(title)}</span></button>`;
-    }).join('')}${placing ? schedulePlacementBannerHtml({ inStrip:true }) : ''}</div>`;
+    }).join('')}${placing ? '<span class="r-schedule-placement-banner is-compact" hidden aria-hidden="true"></span>' : ''}</div>`;
   }
   function bindScheduleWaitingStrip(rootEl){
     rootEl?.querySelectorAll('[data-schedule-waiting]').forEach((button) => button.addEventListener('click', async () => {
@@ -1697,7 +1699,7 @@
     roster.configure({ orgId:scheduleOrgId() });
     return roster.previewSlotHtml({ ...draft, __roster_project_id:String(draft.project_id || activeBaseProject?.id || '') }, { range:{ start:draft.start, end:draft.end } });
   }
-  // Placing project work is said at the end of the work strip, briefly; other placements keep the full banner.
+  // Placing project work needs no banner: the strip shows it (the item being placed is highlighted); other placements keep theirs.
   const schedulePlacingInStrip = () => materialScheduleModeActive && canEditSchedule() && scheduleWaitingItems().length > 0;
   function schedulePlacementBannerHtml(options = {}){
     const placement = schedulePlacementState();
@@ -2300,7 +2302,7 @@
       canToggleLock ? action('data-schedule-event-lock', locked ? 'fa-lock-open' : 'fa-lock', locked ? 'Unlock date' : 'Lock date') : '',
       editable && scheduled && !occurrence ? action('data-schedule-event-unschedule', 'fa-calendar-xmark', 'Unschedule') : '',
       editable && occurrence && scheduled ? action('data-schedule-event-skip', 'fa-forward', 'Skip this one', 'danger') : '',
-      editable && !occurrence ? action('data-schedule-event-delete', 'fa-trash', 'Delete', 'danger') : ''
+      editable && !occurrence && !scheduleEventListId(storedEvent) ? action('data-schedule-event-delete', 'fa-trash', 'Delete', 'danger') : ''
     ].filter(Boolean);
     const lockAction = actionButtons.length ? `<div class="r-schedule-event-popover-actions">${actionButtons.join('')}</div>` : '';
     const requirementWarnings = window.PlatformScheduling?.eventRequirementWarnings?.(event, {
@@ -4778,7 +4780,7 @@
         ${locked ? '' : `<button type="button" class="r-schedule-event-popover-action" data-schedule-event-reschedule><i class="fas fa-calendar-day"></i>${scheduled ? 'Reschedule' : 'Schedule'}</button>`}
         ${scheduled && !locked ? '<button type="button" class="r-schedule-event-popover-action" data-schedule-event-unschedule><i class="fas fa-calendar-xmark"></i>Unschedule</button>' : ''}
         <button type="button" class="r-schedule-event-popover-action" data-schedule-section-edit><i class="fas fa-pen"></i>Edit section</button>
-        <button type="button" class="r-schedule-event-popover-action danger" data-schedule-section-delete><i class="fas fa-trash"></i>Delete section</button>
+        ${String(stored.schedule_group_id || '').trim() ? '' : '<button type="button" class="r-schedule-event-popover-action danger" data-schedule-section-delete><i class="fas fa-trash"></i>Delete section</button>'}
       </div>` : ''}
     `;
     return popover;
@@ -5285,6 +5287,8 @@
       return commitWorkScheduleRange(lane.source, range);
     };
     const routingEventClick = (event, meta = {}) => {
+      if (materialScheduleModeActive && materialScheduleDraft?.__hover && String(event?.id || '') === String(materialScheduleEventId || '')) { saveMaterialScheduleDraft(materialScheduleDraft); return; }
+      if (placedChildPreviewIds.has(String(event?.id || ''))) return;
       const source = routingLaneInfo(event)?.source || event;
       if (!source?.id) return;
       if (meta.action === 'assignee' && meta.element) {
@@ -5475,6 +5479,7 @@
         commitWorkScheduleRange(event, range);
       },
       onEventClick(event, meta = {}){
+        if (materialScheduleModeActive && materialScheduleDraft?.__hover && String(event?.id || '') === String(materialScheduleEventId || '')) { saveMaterialScheduleDraft(materialScheduleDraft); return; }
         if (!event?.id || placedChildPreviewIds.has(String(event.id))) return;
         if (meta.action === 'assignee' && meta.element && !isMaterialDeliveryEvent(event) && !scheduleEventIsSpan(event) && !scheduleEventIsEquipmentHold(event) && canEditSchedule()) {
           openWorkAssignmentMenu(event, meta.element);

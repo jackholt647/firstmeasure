@@ -1030,6 +1030,25 @@ test("a signed document whose production plan never started still says the scope
   assert.deepEqual([spans.length, spans[0]?.schedule_group_id, ensured.event.parent_event_id === spans[0]?.id], [1, "roof_installation", true]);
 });
 
+test("a saved copy of a preset that predates placements still places its lists in the job, from the preset as it is now", async () => {
+  const client = createSessionClient();
+  const { orgId } = await register(client);
+  const projectId = await createListProject(client, orgId, "project_preset_placement");
+  const { saveScopeTemplate } = await import("../scopes/storage.js");
+  const { createPlanRecord } = await import("../work/storage.js");
+  // The organization's roofing copy: lists grouped into the job, but saved before the preset said where each sits in it.
+  await saveScopeTemplate(orgId, "default", { id: "roof_replacement", name: "Roof replacement", metadata: { preset: true }, work_plan: { root_nodes: [{ id: "roof", title: "Roof" }] }, resources: { lists: [
+    { id: "roofing_labor", title: "Roofing Labor", resource_type: "labor", color: "#2563eb", schedule: { enabled: true, kind: "project_work", group_id: "roof_installation", group_title: "Roof Installation" } },
+    { id: "roofing_equipment", title: "Roofing Equipment", resource_type: "equipment", color: "#0f766e", schedule: { enabled: true, kind: "equipment" } }
+  ] } }, { systemPreset: true });
+  await createPlanRecord({ organization_id: orgId, branch_id: "default", project_id: projectId, source_type: "document_signed", source_id: "doc_1", template_id: "roof_replacement", template_version: 0, title: "Roofing", status: "active" });
+  const make = async (resource_type: string) => (await client.request("POST", `/v1/materials/organizations/${orgId}/projects/${projectId}/material-lists`, { title: "", resource_type, items: [{ id: "x", name: "Line", quantity: 1, unit: "ea" }], metadata: { manually_created: true, placeholder_title: true } })).material_list;
+  const labor = await client.request("POST", `/v1/materials/organizations/${orgId}/material-lists/${(await make("labor")).id}/schedule-event`, {});
+  const equipment = await client.request("POST", `/v1/materials/organizations/${orgId}/material-lists/${(await make("equipment")).id}/schedule-event`, {});
+  assert.deepEqual(labor.event.placement, { anchor: "span" }, "the work order runs the length of the job, as the preset says");
+  assert.ok(equipment.event.parent_event_id && equipment.event.parent_event_id === labor.event.parent_event_id, "equipment joins the same job, which the old copy did not say");
+});
+
 test("a list whose schedule names a group and a placement sits under that span and follows it", async () => {
   const client = createSessionClient();
   const { orgId } = await register(client);

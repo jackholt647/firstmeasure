@@ -338,7 +338,7 @@
       surfaces: ['project_modal'],
       requiresContext: ['project'],
       access: managementAccess,
-      bundles: [versionedBundle('project-schedule/panel.js', '20261016-placing')]
+      bundles: [versionedBundle('project-schedule/panel.js', '20261016-placing-2')]
     },
     {
       id: 'project.comms',

@@ -84,7 +84,12 @@ installation under it, an equipment reservation under the installation.
   and shingles) gets one delivery event per part (`list_part_id`), each with its
   definition's placement; its single unscheduled delivery is then removed. A list
   made without a name keeps none, and is shown by its kind (Work order,
-  Equipment), never as "Materials". A project whose plans define the
+  Equipment), never as "Materials". A saved copy of a preset that predates
+  placements takes, list by list, only the schedule fields it lacks (group,
+  title, placement) from the preset as it is now (`withPresetSchedule`), so its
+  deliveries and work order are placed when the job is. A job a scope defines
+  and its scope's items are taken off the calendar with Unschedule, never
+  deleted from the Project tab's schedule, so they wait to be placed again. A project whose plans define the
   grouping in more than one template is ambiguous and is left ungrouped. The
   Project tab's Schedule button ensures every list's event first and places the
   span it finds; only with no span does it offer to schedule each list by hand.
