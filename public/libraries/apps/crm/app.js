@@ -1383,7 +1383,7 @@
   runtime.registerApp({
     id:'portal.crm', package:'crm', kind:'portal_tab',
     title: globalThis.PlatformTerminology?.get?.('crm.portal_tab', 'CRM') || 'CRM', label: globalThis.PlatformTerminology?.get?.('crm.portal_tab', 'CRM') || 'CRM',
-    icon:'fa-filter', surfaces:['portal_tab'], regions:['main'], visible:true,
+    icon:'fa-filter', surfaces:['portal_tab'], regions:['main'], visible:true, fullBleed:true,
     access:{ capability:'apps.crm' },
     mount
   });

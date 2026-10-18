@@ -96,9 +96,10 @@
       kind: 'portal_tab',
       surfaces: ['portal_tab'],
       portalTabId: 'crm',
+      fullBleed: true,
       params: { crmView: { history:'push' }, crmPanel: { values:['reports','duplicates','sources','settings'], history:'push' } },
       access: { capability: 'apps.crm' },
-      bundles: [bookingBundle, versionedBundle('crm/app.js', '20261018-crm-v4')]
+      bundles: [bookingBundle, versionedBundle('crm/app.js', '20261018-crm-v5')]
     },
     {
       id: 'portal.contacts',
@@ -878,7 +879,7 @@
     'portal.feedback': { visible:true },
     'project.feedback': { visible:true },
     // Listed before its bundle loads; the bundle loads when the tab first opens.
-    'portal.crm': { visible:true },
+    'portal.crm': { visible:true, fullBleed:true },
     'portal.assistant': {
       visible:true,
       mount(context){
