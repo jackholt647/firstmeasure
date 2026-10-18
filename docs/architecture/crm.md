@@ -275,7 +275,20 @@ setting uses `scheduling.appointment_slots`. A pack with cancellation rules turn
 
 ## The CRM app
 
-`portal.crm` (`public/libraries/apps/crm/app.js`, `crm.css`), the CRM tab:
+`portal.crm` (`public/libraries/apps/crm/app.js`, `crm.css`), the CRM tab. It is declared
+in the app registry (`platform/app-experience/registry.ts`) with the organization switch
+`apps.crm`, and its manifest entry and bundle name `apps.crm` too, so More apps can open
+and pin it. Who sees it, on which device, is App experience
+([app experience](app-experience.md)); `crm.views` off shows that views are off.
+
+**Every CRM route names the app** (`requirePlatformAuth({ app: ["portal.crm"] })` in
+`crm/api.ts`), including the reads of sources, the funnel and cancellation rules: only the
+CRM tab calls them. Lead intake (`stampLeadSource` in `receiveLead`) and the cancellation
+step (`sales.startRescission.v1`) read those settings in-process from `crm/sources.ts` and
+`crm/rescission.ts`, never through the routes, so the app gate does not reach them. A new
+consumer outside the CRM tab reads the module or a published provider, not these routes.
+
+The tab:
 
 - **Rail**: pinned views with live counts, more views, New view, then Funnel,
   Duplicates, Sources and CRM settings. At phone width it slides over the page.

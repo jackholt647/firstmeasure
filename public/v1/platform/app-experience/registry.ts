@@ -92,7 +92,7 @@ const contactView = (id: string, title: string, icon: string, order: number, sou
 const APP_SOURCE: AppSource[] = [
   // Portal tabs.
   tab("portal.viewer", "My Projects", "fa-briefcase", 10, { terminology_key: "projects.portal_tab", description: "The project workspace.", capabilities: ["apps.projects"] }),
-  tab("portal.crm", "CRM", "fa-filter", 25, { terminology_key: "crm.portal_tab", description: "Views over contacts, leads, follow-ups and appointments.", capabilities: ["crm.views"] }),
+  tab("portal.crm", "CRM", "fa-filter", 25, { terminology_key: "crm.portal_tab", description: "Views over contacts, leads, follow-ups and appointments.", capabilities: ["apps.crm"] }),
   tab("portal.contacts", "My Contacts", "fa-address-book", 20, { terminology_key: "contacts.portal_tab", description: "Organization contacts and customer records.", capabilities: ["platform.contacts"] }),
   tab("portal.photos_feed", "Feed", "fa-images", 30, { terminology_key: "photos.portal_tab", description: "Recent project photos across the organization.", capabilities: ["platform.photos_feed"] }),
   tab("portal.proposals", "Proposals", "fa-file-signature", 40, { terminology_key: "proposals.portal_tab", description: "Organization-wide proposal workspace.", capabilities: ["platform.proposals"] }),

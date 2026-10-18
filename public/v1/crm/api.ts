@@ -20,6 +20,8 @@ import { applyCrmPreset, ensureBaseViews, INDUSTRY_PACKS, isIndustryPack, sizeTi
 const text = (value: unknown) => String(value ?? "").trim();
 const object = (value: unknown): JsonObject => value && typeof value === "object" && !Array.isArray(value) ? value as JsonObject : {};
 const param = (request: { params: unknown }, key: string) => text(object(request.params)[key]);
+/** Every CRM route belongs to the CRM tab (docs/architecture/app-experience.md); intake and scope steps read CRM settings in-process, not through these routes. */
+const CRM_APP = ["portal.crm"];
 
 const COLLECTION_INFO: Record<CrmCollection, { label: string; term: string; icon: string }> = {
   opportunities: { label: "Leads", term: "crm.leads", icon: "fa-bullseye" },
@@ -64,20 +66,20 @@ export async function registerCrmAppApi(app: FastifyInstance) {
 
   app.get("/organizations/:orgId/meta", async request => {
     const orgId = param(request, "orgId");
-    const ctx = await requirePlatformAuth(request, { orgId, capability: "crm.views" });
+    const ctx = await requirePlatformAuth(request, { app: CRM_APP, orgId, capability: "crm.views" });
     const collections = CRM_COLLECTIONS.filter(c => hasPermission(ctx, collectionPermission(c))).map(id => ({ id, ...COLLECTION_INFO[id] }));
     return { ok: true, collections, features: await features(ctx), can_share_views: canManageSharedViews(ctx), outcomes: await resultOutcomes(orgId, ctx.branchId || "default"), user_id: ctx.userId };
   });
 
   app.get("/organizations/:orgId/views", async request => {
     const orgId = param(request, "orgId");
-    const ctx = await requirePlatformAuth(request, { orgId, capability: "crm.views" });
+    const ctx = await requirePlatformAuth(request, { app: CRM_APP, orgId, capability: "crm.views" });
     await ensureBaseViews(orgId);
     return { ok: true, views: (await listViews(ctx)).filter(v => hasPermission(ctx, collectionPermission(v.collection))) };
   });
   app.post("/organizations/:orgId/views", async (request, reply) => {
     const orgId = param(request, "orgId");
-    const ctx = await requirePlatformAuth(request, { orgId, csrf: true, capability: "crm.views" });
+    const ctx = await requirePlatformAuth(request, { app: CRM_APP, orgId, csrf: true, capability: "crm.views" });
     const body = object(request.body);
     if (!hasPermission(ctx, collectionPermission(text(body.collection)))) throw badRequest("crm_collection_denied", "You cannot see that collection.");
     reply.code(201);
@@ -85,17 +87,17 @@ export async function registerCrmAppApi(app: FastifyInstance) {
   });
   app.put("/organizations/:orgId/views/:viewId", async request => {
     const orgId = param(request, "orgId");
-    const ctx = await requirePlatformAuth(request, { orgId, csrf: true, capability: "crm.views" });
+    const ctx = await requirePlatformAuth(request, { app: CRM_APP, orgId, csrf: true, capability: "crm.views" });
     return { ok: true, view: await saveView(ctx, param(request, "viewId"), request.body) };
   });
   app.delete("/organizations/:orgId/views/:viewId", async request => {
     const orgId = param(request, "orgId");
-    const ctx = await requirePlatformAuth(request, { orgId, csrf: true, capability: "crm.views" });
+    const ctx = await requirePlatformAuth(request, { app: CRM_APP, orgId, csrf: true, capability: "crm.views" });
     return { ok: true, ...(await deleteView(ctx, param(request, "viewId"))) };
   });
   app.put("/organizations/:orgId/views/:viewId/preference", async request => {
     const orgId = param(request, "orgId");
-    const ctx = await requirePlatformAuth(request, { orgId, csrf: true, capability: "crm.views" });
+    const ctx = await requirePlatformAuth(request, { app: CRM_APP, orgId, csrf: true, capability: "crm.views" });
     return { ok: true, ...(await setViewPreference(ctx, param(request, "viewId"), request.body)) };
   });
 
@@ -107,7 +109,7 @@ export async function registerCrmAppApi(app: FastifyInstance) {
       definition: viewDefinitionSchema.partial().optional(), search: z.string().max(200).optional(),
       offset: z.number().int().min(0).optional(), limit: z.number().int().min(1).max(1000).optional()
     }).strict().parse(request.body ?? {});
-    const ctx = await requirePlatformAuth(request, { orgId, capability: "crm.views" });
+    const ctx = await requirePlatformAuth(request, { app: CRM_APP, orgId, capability: "crm.views" });
     const view = body.view_id ? await readView(ctx, body.view_id) : null;
     const collection = assertCollection(body.collection || view?.collection);
     if (!hasPermission(ctx, collectionPermission(collection))) throw badRequest("crm_collection_denied", "You cannot see that collection.");
@@ -119,59 +121,59 @@ export async function registerCrmAppApi(app: FastifyInstance) {
   // ---- Results (worklists) ----
   app.post("/organizations/:orgId/results", async (request, reply) => {
     const orgId = param(request, "orgId");
-    const ctx = await requirePlatformAuth(request, { orgId, csrf: true, permission: "manage_projects", capability: "crm.views" });
+    const ctx = await requirePlatformAuth(request, { app: CRM_APP, orgId, csrf: true, permission: "manage_projects", capability: "crm.views" });
     reply.code(201);
     return { ok: true, result: await recordResult(ctx, request.body) };
   });
   app.get("/organizations/:orgId/projects/:projectId/results", async request => {
     const orgId = param(request, "orgId");
-    await requirePlatformAuth(request, { orgId, permission: "view_projects", capability: "crm.views" });
+    await requirePlatformAuth(request, { app: CRM_APP, orgId, permission: "view_projects", capability: "crm.views" });
     return { ok: true, results: await projectResults(orgId, param(request, "projectId")) };
   });
 
   // ---- Sources and spend ----
   app.get("/organizations/:orgId/sources", async request => {
     const orgId = param(request, "orgId");
-    await requirePlatformAuth(request, { orgId, capability: "crm.sources" });
+    await requirePlatformAuth(request, { app: CRM_APP, orgId, capability: "crm.sources" });
     const catalog = await readSourceCatalog(orgId);
     return { ok: true, sources: withPaths(catalog.sources), channels: ["web", "phone", "referral", "canvass", "event", "aggregator", "paid", "email", "walk_in", "other"] };
   });
   app.put("/organizations/:orgId/sources", async request => {
     const orgId = param(request, "orgId");
-    await requirePlatformAuth(request, { orgId, csrf: true, permission: "manage_company_settings", capability: "crm.sources" });
+    await requirePlatformAuth(request, { app: CRM_APP, orgId, csrf: true, permission: "manage_company_settings", capability: "crm.sources" });
     return { ok: true, sources: withPaths((await saveSourceCatalog(orgId, request.body)).sources) };
   });
   app.get("/organizations/:orgId/spend", async request => {
     const orgId = param(request, "orgId");
-    await requirePlatformAuth(request, { orgId, permission: "manage_company_settings", capability: "crm.source_spend" });
+    await requirePlatformAuth(request, { app: CRM_APP, orgId, permission: "manage_company_settings", capability: "crm.source_spend" });
     const query = object(request.query);
     return { ok: true, spend: await listSpend(orgId, { from: text(query.from), to: text(query.to) }) };
   });
   app.put("/organizations/:orgId/spend/:spendId", async request => {
     const orgId = param(request, "orgId");
-    const ctx = await requirePlatformAuth(request, { orgId, csrf: true, permission: "manage_company_settings", capability: "crm.source_spend" });
+    const ctx = await requirePlatformAuth(request, { app: CRM_APP, orgId, csrf: true, permission: "manage_company_settings", capability: "crm.source_spend" });
     return { ok: true, spend: await saveSpend(orgId, ctx.userId, param(request, "spendId") === "new" ? "" : param(request, "spendId"), request.body) };
   });
   app.delete("/organizations/:orgId/spend/:spendId", async request => {
     const orgId = param(request, "orgId");
-    await requirePlatformAuth(request, { orgId, csrf: true, permission: "manage_company_settings", capability: "crm.source_spend" });
+    await requirePlatformAuth(request, { app: CRM_APP, orgId, csrf: true, permission: "manage_company_settings", capability: "crm.source_spend" });
     return { ok: true, ...(await deleteSpend(orgId, param(request, "spendId"))) };
   });
 
   // ---- Funnel ----
   app.get("/organizations/:orgId/funnel", async request => {
     const orgId = param(request, "orgId");
-    await requirePlatformAuth(request, { orgId, capability: "crm.funnel" });
+    await requirePlatformAuth(request, { app: CRM_APP, orgId, capability: "crm.funnel" });
     return { ok: true, funnel: await readFunnel(orgId) };
   });
   app.put("/organizations/:orgId/funnel", async request => {
     const orgId = param(request, "orgId");
-    await requirePlatformAuth(request, { orgId, csrf: true, permission: "manage_company_settings", capability: "crm.funnel" });
+    await requirePlatformAuth(request, { app: CRM_APP, orgId, csrf: true, permission: "manage_company_settings", capability: "crm.funnel" });
     return { ok: true, funnel: await saveFunnel(orgId, request.body) };
   });
   app.get("/organizations/:orgId/funnel/report", async request => {
     const orgId = param(request, "orgId");
-    const ctx = await requirePlatformAuth(request, { orgId, permission: "view_projects", capability: "crm.funnel" });
+    const ctx = await requirePlatformAuth(request, { app: CRM_APP, orgId, permission: "view_projects", capability: "crm.funnel" });
     const query = z.object({
       from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
       group: z.enum(["source", "source_kind", "scope", "branch", "month", "setter", "rep", "owner", "none"]).default("source"),
@@ -193,24 +195,24 @@ export async function registerCrmAppApi(app: FastifyInstance) {
   // ---- Rescission ----
   app.get("/organizations/:orgId/rescission", async request => {
     const orgId = param(request, "orgId");
-    await requirePlatformAuth(request, { orgId, capability: "crm.rescission" });
+    await requirePlatformAuth(request, { app: CRM_APP, orgId, capability: "crm.rescission" });
     return { ok: true, rescission: await readRescission(orgId) };
   });
   app.put("/organizations/:orgId/rescission", async request => {
     const orgId = param(request, "orgId");
-    await requirePlatformAuth(request, { orgId, csrf: true, permission: "manage_company_settings", capability: "crm.rescission" });
+    await requirePlatformAuth(request, { app: CRM_APP, orgId, csrf: true, permission: "manage_company_settings", capability: "crm.rescission" });
     return { ok: true, rescission: await saveRescission(orgId, request.body) };
   });
   // ---- Presets: an industry pack and a team size ----
   app.get("/organizations/:orgId/presets", async request => {
     const orgId = param(request, "orgId");
-    await requirePlatformAuth(request, { orgId, permission: "manage_company_settings", capability: "crm.views" });
+    await requirePlatformAuth(request, { app: CRM_APP, orgId, permission: "manage_company_settings", capability: "crm.views" });
     const employees = Number(object(request.query).employees || 0);
     return { ok: true, packs: Object.entries(INDUSTRY_PACKS).map(([id, pack]) => ({ id, ...pack })), ...(employees ? { tier: sizeTier(employees) } : {}) };
   });
   app.post("/organizations/:orgId/presets/apply", async request => {
     const orgId = param(request, "orgId");
-    await requirePlatformAuth(request, { orgId, csrf: true, permission: "manage_company_settings", capability: "crm.views" });
+    await requirePlatformAuth(request, { app: CRM_APP, orgId, csrf: true, permission: "manage_company_settings", capability: "crm.views" });
     const body = object(request.body);
     if (!isIndustryPack(body.industry)) throw badRequest("crm_preset_unknown", "Choose one of the industry presets.");
     return { ok: true, applied: await applyCrmPreset(orgId, { industry: body.industry, employees: Number(body.employees || 1), capabilities: body.capabilities === true }) };
@@ -218,7 +220,7 @@ export async function registerCrmAppApi(app: FastifyInstance) {
 
   app.post("/organizations/:orgId/projects/:projectId/cancel-sale", async request => {
     const orgId = param(request, "orgId");
-    const ctx = await requirePlatformAuth(request, { orgId, csrf: true, permission: "manage_projects", capability: "crm.rescission" });
+    const ctx = await requirePlatformAuth(request, { app: CRM_APP, orgId, csrf: true, permission: "manage_projects", capability: "crm.rescission" });
     const reason = typeof (request.body as JsonObject | null)?.reason === "string" ? String((request.body as JsonObject).reason).slice(0, 500) : "";
     return { ok: true, ...(await cancelSaleInWindow(orgId, param(request, "projectId"), { reason, actor_user_id: ctx.userId })) };
   });

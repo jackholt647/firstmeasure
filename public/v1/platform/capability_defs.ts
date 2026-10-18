@@ -259,8 +259,8 @@ const definitions: CapabilityDefinition[] = [
     icon: "fa-filter",
     category: "Sales & Customers",
     label: "CRM",
-    description: "CRM pipeline, intake routing, and CRM settings.",
-    catalog_stub: "Lead pipelines and intake routing.",
+    description: "Leads, contacts, follow-ups and appointments as views and worklists, with sources, the funnel and CRM settings.",
+    catalog_stub: "Work every lead and customer from saved lists.",
     default: true,
     runtime_app_id: "crm"
   },
