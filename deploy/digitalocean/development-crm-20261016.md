@@ -74,3 +74,25 @@ Release `fa8725a3` from `claude/crm-20261016` (on `3d77acef`), development only.
 
 The CRM tab appears for organizations with expanded platform access and `crm.views` (on by
 default under `apps.crm`). A company sets it up for its industry under CRM > CRM settings > Set up for your business.
+
+## Follow-ups (2026-10-16 to 2026-10-18)
+
+- **`cfd28529` (hotfix on `7ef1084a`).** The CRM tab declared the feature `crm.views`, so More
+  apps found no tab for the `apps.crm` app and offered neither Open nor Pin. The tab now declares
+  `apps.crm`; `crm.views` off shows that views are off. Verified on all four roles.
+- **`fe86a9ca` (canonical, App experience).** Canonical's App experience merge plus the CRM
+  follow-up: the tab and registry name `apps.crm`, every CRM route needs the CRM app
+  (`requirePlatformAuth({ app: ["portal.crm"] })`), bundle `20261016-crm-v3`. This rollout also
+  brought App experience itself to dev. The hosts carried another session's channels-feed and
+  phone-settings edits that canonical does not have; `output/crm-20261016/replay.py` keeps both
+  sides (media app gate plus feed-attachment check, the union of permission bundles, live
+  `workforce/access.ts`, manifest entries without their `access` lines), ships the release copy
+  where live was an older commit, keeps live test files, the settings search index, and worker's
+  and legacy's voice-less assistant API, and replaces the host-only crew-note check
+  `ctx.applicationAccess.field` with `crew.projects.view` as App experience did elsewhere. The
+  host-only `tests/project-note-departments.test.ts` (that removed rule) was removed from the
+  staged clones. The first try stopped at legacy's TypeScript check before any activation; the
+  retry staged, activated and verified all four. Platform worker restarted; public checks and
+  the smoke passed.
+- Whoever owns the channels-feed and phone-settings work should land it on canonical: those
+  edits exist only on the dev hosts.
