@@ -71,7 +71,8 @@
     const host = document.createElement('div');
     host.className = 'crm';
     host.setAttribute('data-crm-app', '');
-    root.appendChild(host);
+    // Replace the portal's loading placeholder (and anything a previous mount left).
+    root.replaceChildren(host);
 
     const state = {
       meta: null, views: [], viewId: '', saved: null, draft: null, panel: 'view',

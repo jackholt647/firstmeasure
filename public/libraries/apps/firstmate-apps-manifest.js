@@ -98,7 +98,7 @@
       portalTabId: 'crm',
       params: { crmView: { history:'push' }, crmPanel: { values:['reports','duplicates','sources','settings'], history:'push' } },
       access: { capability: 'apps.crm' },
-      bundles: [bookingBundle, versionedBundle('crm/app.js', '20261016-crm-v3')]
+      bundles: [bookingBundle, versionedBundle('crm/app.js', '20261018-crm-v4')]
     },
     {
       id: 'portal.contacts',
