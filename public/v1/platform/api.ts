@@ -245,17 +245,6 @@ const createOrganizationSchema = objectBodySchema.extend({
   metadata: z.record(z.unknown()).optional(),
   global: z.record(z.unknown()).optional()
 });
-const createIdentitySchema = objectBodySchema.extend({
-  id: z.string().optional(),
-  email: z.string(),
-  password_hash: z.string().optional(),
-  password_algo: z.string().optional(),
-  name: z.string().optional(),
-  phone: z.string().optional(),
-  status: z.string().optional(),
-  memberships: z.array(z.unknown()).optional(),
-  metadata: z.record(z.unknown()).optional()
-});
 const registerSchema = objectBodySchema.extend({
   email: z.string(),
   password: z.string().optional(),
@@ -718,11 +707,13 @@ app.get("/auth/google/config", async () => ({
     receivedAt: new Date().toISOString()
   }));
 
+  // Only the organizations this person belongs to. Every organization on the
+  // platform is an internal-staff view (/v1/internal/organizations).
   app.get("/organizations", async (request) => {
-    await requirePlatformAuth(request, { app: ["portal.company_settings"] });
+    const ctx = await requirePlatformAuth(request);
     return {
       ok: true,
-      organizations: await listOrganizations()
+      organizations: (await listIdentityMemberships(ctx.identityId)).map(membership => membership.organization)
     };
   });
 
@@ -733,14 +724,6 @@ app.get("/auth/google/config", async () => ({
     const organization = await createOrganization(body);
     reply.code(201);
     return { ok: true, organization };
-  });
-
-  app.post("/identities", async (request, reply) => {
-    await requirePlatformAuth(request, { app: ["portal.company_settings"], csrf: true });
-    const body = createIdentitySchema.parse(request.body ?? {});
-    const identity = await createIdentity(body);
-    reply.code(201);
-    return { ok: true, identity: publicIdentity(identity) };
   });
 
   app.get("/identities/:identityId", async (request) => {
@@ -1240,9 +1223,11 @@ app.get("/auth/google/config", async () => ({
     };
   });
 
+  // The raw global document holds billing, payment-method and credits records;
+  // members read the safe views through portal-state, commerce and credits.
   app.get("/organizations/:orgId/global", async (request) => {
     const orgId = getParam(request.params, "orgId");
-    await requirePlatformAuth(request, { orgId });
+    await requirePlatformAuth(request, { app: ["portal.company_settings"], orgId, permission: "manage_billing" });
     return {
       ok: true,
       document: await readGlobal(orgId)
@@ -1797,7 +1782,7 @@ app.get("/auth/google/config", async () => ({
 
   app.patch("/organizations/:orgId/global", async (request) => {
     const orgId = getParam(request.params, "orgId");
-    await requirePlatformAuth(request, { app: ["portal.company_settings"], orgId, csrf: true });
+    await requirePlatformAuth(request, { app: ["portal.company_settings"], orgId, csrf: true, permission: "manage_billing" });
     const body = objectBodySchema.parse(request.body ?? {});
     if (containsAppFlagMutation(body)) throw forbidden("app_flags_operator_only", "App rollout flags are operator-controlled and cannot be changed from Platform.");
     return {

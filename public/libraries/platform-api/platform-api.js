@@ -322,7 +322,6 @@
   };
 
   const identities = {
-    create(data = {}){ return request('/identities', { method: 'POST', body: { data } }); },
     get(identityId){ return request(`/identities/${enc(identityId)}`); },
     patch(identityId, data = {}){ return request(`/identities/${enc(identityId)}`, { method: 'PATCH', body: { data } }); }
   };
