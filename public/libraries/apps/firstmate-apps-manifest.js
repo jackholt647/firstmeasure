@@ -877,6 +877,8 @@
     'portal.partners': { visible:true, icon:'fa-handshake', order:12 },
     'portal.feedback': { visible:true },
     'project.feedback': { visible:true },
+    // Listed before its bundle loads; the bundle loads when the tab first opens.
+    'portal.crm': { visible:true },
     'portal.assistant': {
       visible:true,
       mount(context){
@@ -989,6 +991,7 @@
     'portal.stats': 'apps.stats',
     'portal.payroll': 'apps.payroll',
     'portal.feedback': 'apps.feedback',
+    'portal.crm': 'apps.crm',
     // The global communications center: shown when the comms hub is on (the
     // live-chat channel additionally gates itself inside the app).
     'portal.chat': 'apps.comms',
