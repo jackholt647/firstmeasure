@@ -111,3 +111,17 @@ default under `apps.crm`). A company sets it up for its industry under CRM > CRM
   the four `crm` exports and `crm.leads.update`), app experience, automation contracts, CRM
   views, rescission, routing, the CRM tab in a browser (with the routing settings saved through
   the UI) and the publication suite.
+- Rollout: the first audit saw web, pool and legacy at `ff9ad1c9` and worker at `4f0e17a0`; the
+  e-sign seal release `36b12df9` activated during staging, so staging stopped before any
+  activation and the retry merged onto `36b12df9` on all four, then activated and verified
+  `10c38826`. The platform worker then would not start: the worker host's own live
+  `permission-bundles.ts` (a host-only edit that predates this rollout) listed
+  `widget-objects.user` under both `manage_company_users` and the everyone bundle. That one
+  duplicate was removed from the worker's active release, as canonical has it, and the platform
+  worker started.
+- The read-only smoke showed `crm/publication.ts` made an import cycle when `crm/records.js`
+  loads first; it now loads records and views when it runs. Released as `998b3102`, verified on
+  all four; platform worker restarted; public checks (22) and both smokes
+  (`smoke-routing.mjs`, `smoke-crm.mjs`) passed.
+- Landed on canonical at `54eff559` (the CRM publication registers last in bootstrap, so another
+  session's uncommitted bootstrap edits in the shared checkout merged cleanly).
