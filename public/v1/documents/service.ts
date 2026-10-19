@@ -2315,7 +2315,8 @@ async function recordDocumentPaymentTransaction(
   submitted: JsonObject,
   amountCents: number,
   ctx?: PlatformAuthContext | null,
-  target: { obligation_ids: string[]; hold?: boolean } | null = null
+  target: { obligation_ids: string[]; hold?: boolean } | null = null,
+  surface: "public" | "internal" | "field" = "public"
 ): Promise<JsonObject | null> {
   const amount = Math.max(0, Math.round(amountCents));
   if (amount <= 0) return null;
@@ -2331,6 +2332,13 @@ async function recordDocumentPaymentTransaction(
       .find((payment) => cleanText(asObject(payment.metadata).document_output_id) === outputRef)
     : null;
   if (priorProviderCharge) return priorProviderCharge;
+  // Staff and field surfaces may attach a payment already recorded for this
+  // job (cash or check taken in person, or a charge they just ran).
+  const attachedPaymentId = cleanText(submitted.payment_id);
+  if (attachedPaymentId && surface !== "public") {
+    const attached = asObject(asObject(await readDocument(orgId, paymentsStorage.PAYMENT_TRANSACTION_COLLECTION, attachedPaymentId).catch(() => null)).data);
+    if (cleanText(attached.id) && cleanText(attached.project_id) === projectId && cleanText(attached.direction) === "inbound") return attached;
+  }
   const entities = await documentScopeEntities(orgId, document, params)
     .catch(() => ({ project: {} as JsonObject, customer: {} as JsonObject, org: {} as JsonObject }));
   const customer = asObject(entities.customer);
@@ -2351,62 +2359,161 @@ async function recordDocumentPaymentTransaction(
   };
   const token = cleanText(submitted.payment_method_id);
   const savedMethodId = cleanText(submitted.saved_payment_method_id || submitted.saved_method_id);
-  try {
-    if (token || savedMethodId) {
-      const { getPaymentProvider } = await import("../payments/providers/index.js");
-      const provider = await getPaymentProvider(orgId).catch(() => null);
-      if (provider) {
-        const { recordProviderChargedPayment, findSavedMethod } = await import("../payments/intake.js");
-        // Legacy fake saved-method ids never resolve; fall back to the mock
-        // record path instead of failing the payment (portal convention).
-        const savedResolvable = !savedMethodId || token || !!(await findSavedMethod(orgId, savedMethodId));
-        if (savedResolvable) {
-          const charged = await recordProviderChargedPayment(orgId, provider, {
-            amount_cents: amount,
-            payment_method_id: token,
-            saved_method_id: token ? "" : savedMethodId,
-            method: cleanText(submitted.payment_method || submitted.method),
-            project_id: projectId,
-            branch_id: cleanText(document.branch_id || "default") || "default",
-            save_payment_method: submitted.save_payment_method === true,
-            // The document's authoritative pricing already carries its own
-            // processing-fee rows; never stack the org surcharge on top.
-            apply_surcharge: false,
-            contact_ref: contactRef,
-            payment: {
-              kind: "customer_payment",
-              currency: "USD",
-              metadata: { ...metadata, provider: provider.provider },
-              allocation_mode: "document_payment",
-              ...(target?.obligation_ids[0] ? { obligation_id: target.obligation_ids[0] } : {})
-            }
-          }, paymentCtx);
-          return asObject(charged.payment);
-        }
-      }
-    }
-    const result = await paymentsStorage.createPayment(orgId, {
-      id: paymentId,
-      direction: "inbound",
+  if (!token && !savedMethodId) {
+    // Nothing is recorded as paid without a charge behind it.
+    const { paymentsReadiness, PaymentsNotReadyError } = await import("../payments/readiness.js");
+    const readiness = await paymentsReadiness(orgId);
+    if (!readiness.ready) throw new PaymentsNotReadyError(readiness);
+    throw badRequest("payment_not_completed", "Enter your payment details to pay.");
+  }
+  const { recordProviderChargedPayment } = await import("../payments/intake.js");
+  const charged = await recordProviderChargedPayment(orgId, null, {
+    amount_cents: amount,
+    payment_method_id: token,
+    saved_method_id: token ? "" : savedMethodId,
+    checkout_id: cleanText(submitted.checkout_id),
+    checkout_context: cleanText(submitted.checkout_id) ? { document_id: documentId, output_key: outputKey } : undefined,
+    channel: surface === "field" ? "field" : surface === "internal" ? "staff" : "portal",
+    initiated_by: "customer",
+    billing_details: asObject(submitted.billing_details),
+    method: cleanText(submitted.payment_method || submitted.method),
+    project_id: projectId,
+    branch_id: cleanText(document.branch_id || "default") || "default",
+    save_payment_method: submitted.save_payment_method === true,
+    // The document's authoritative pricing already carries its own
+    // processing-fee rows; never stack the org surcharge on top.
+    apply_surcharge: false,
+    contact_ref: contactRef,
+    invoice_id: cleanText(document.number || document.document_number) || documentId,
+    payment: {
       kind: "customer_payment",
-      status: "settled",
-      amount_cents: amount,
       currency: "USD",
-      project_id: projectId,
-      contact_ref: contactRef,
-      method: { type: "mock_document", label: "Document Payment" },
-      metadata: { ...metadata, mock: true },
+      metadata,
       allocation_mode: "document_payment",
       ...(target?.obligation_ids.length ? { allocation_obligation_ids: target.obligation_ids } : {}),
-      ...(target?.hold ? { allocate: false } : {})
-    }, paymentCtx);
-    return asObject(result.payment);
-  } catch (error) {
-    // Money app off — keep the legacy event-only behavior instead of failing
-    // the customer's checkout. Everything else (declines included) surfaces.
-    if ((error as { code?: string }).code === "app_flag_disabled") return null;
-    throw error;
+      ...(target?.hold ? { allocate: false } : {}),
+      ...(target?.obligation_ids[0] ? { obligation_id: target.obligation_ids[0] } : {})
+    }
+  }, paymentCtx);
+  return asObject(charged.payment);
+}
+
+/**
+ * What a payment output on this document charges right now: the open
+ * invoice/obligation balance when the document is tied to one, else the
+ * deposit or first scheduled amount under the document's own pricing.
+ * Client-sent totals are never trusted. A fixed deposit param wins.
+ */
+export async function documentPaymentDue(orgId: string, documentId: string, document: JsonObject, params: JsonObject, submitted: JsonObject) {
+  // deposit_cents is ALREADY cents (currency param) — no dollar conversion.
+  const depositCents = Math.max(0, Math.round(Number(params.deposit_cents) || 0));
+  const hasPaymentSchedule = normalizeScheduleRows(params.payment_schedule).length > 0;
+  const hasPricingBasis = asArray(params.scope_items).length > 0 || depositCents > 0 || hasPaymentSchedule;
+  const target = await documentPaymentTarget(orgId, documentId);
+  let value: JsonObject = {};
+  let taxCents: number | undefined;
+  if (target && target.amount_cents !== null) {
+    if (target.amount_cents <= 0) throw conflict("document_nothing_due", "Nothing is due on this document.");
+    value = { amount_cents: target.amount_cents };
+  } else if (hasPricingBasis) {
+    const pricing = await documentCheckoutPricing(orgId, document, params, {
+      payment_method: submitted.payment_method ?? submitted.method,
+      processing_fee_percent: submitted.processing_fee_percent
+    }).catch(() => null);
+    if (pricing) {
+      const scheduleRows = normalizeScheduleRows(params.payment_schedule);
+      // Percentage obligations divide the signed contract value, not a
+      // payment-method-adjusted checkout total. This is the same basis used
+      // by ensureReceivablesForSignedDocument, keeping preview, capture and
+      // the eventual obligation ledger identical.
+      const scopeSubtotalCents = Math.max(0,
+        Math.round(Number(pricing.totals.subtotal_cents || 0))
+        - Math.round(Number(pricing.totals.adjustments_cents || 0))
+      );
+      const taxPercent = Math.max(0, Number(params.tax_percent) || 0);
+      const contractTotalCents = scheduleRows.length
+        ? scopeSubtotalCents + Math.round(scopeSubtotalCents * taxPercent / 100)
+        : Math.max(0, pricing.totals.total_cents);
+      const scheduled = resolveScheduleItems(scheduleRows, {
+        total_cents: contractTotalCents
+      });
+      const scheduledDue = scheduled.find((item) => item.due_rule === "on_signature" && item.amount_cents > 0)
+        || scheduled.find((item) => item.payment_kind === "deposit" && item.amount_cents > 0)
+        || scheduled.find((item) => item.amount_cents > 0);
+      const authoritativeCents = depositCents > 0
+        ? depositCents
+        : (scheduledDue?.amount_cents || contractTotalCents);
+      // The tax inside a full-total charge (Level 2 data for the card networks).
+      if (authoritativeCents === contractTotalCents && taxPercent > 0) taxCents = Math.round(scopeSubtotalCents * taxPercent / 100);
+      value = {
+        amount_cents: authoritativeCents,
+        pricing_totals: pricing.totals,
+        checkout: pricing.checkout
+      };
+    }
   }
+  return { value, target, amount_cents: Math.max(0, Math.round(Number(value.amount_cents) || 0)), tax_cents: taxCents };
+}
+
+/** The job site's ZIP code (ship-to for Level 2 card data), when the address has one. */
+function addressZip(...values: unknown[]) {
+  for (const value of values) {
+    const text = typeof value === "string" ? value : cleanText(asObject(value).postal_code || asObject(value).zip || asObject(value).zip_code);
+    const match = cleanText(text).match(/\b(\d{5})(?:-\d{4})?\b(?!.*\b\d{5}\b)/);
+    if (match) return match[1];
+  }
+  return "";
+}
+
+/**
+ * Opens a processor checkout for a payment output over the customer's
+ * document link. The amount is the document's, never the browser's; the
+ * returned client secret is what the secure card or bank element pays.
+ */
+export async function publicDocumentPaymentCheckout(publicToken: string, input: JsonObject) {
+  const found = await findPublicDocumentSnapshot(publicToken);
+  const orgId = found.orgId;
+  const documentId = cleanText(found.snapshot.document_id);
+  const document = await readDocumentInstance(orgId, documentId);
+  const outputKey = cleanText(input.output_key);
+  const def = asObject(asObject(document.output_defs)[outputKey]);
+  if (cleanText(def.type) !== "payment") throw badRequest("document_payment_output_required", "This document has no payment to make.");
+  const capabilityState = await documentCapabilityState(orgId);
+  if (!documentCapabilityEnabled(capabilityState, DOCUMENT_CAPABILITIES.payments) || !documentCapabilityEnabled(capabilityState, DOCUMENT_CAPABILITIES.portalPayments)) {
+    throw forbidden("document_feature_disabled", "Online payments are not available on this document.");
+  }
+  const existingOutput = asObject(asObject(document.outputs)[outputKey]);
+  if (cleanText(asObject(existingOutput.value).payment_id)) throw conflict("document_already_paid", "This payment was already made.");
+  const params = asObject(document.params);
+  const method = cleanText(input.method || input.payment_method) || "card";
+  const due = await documentPaymentDue(orgId, documentId, document, params, { payment_method: method });
+  if (due.amount_cents <= 0) throw conflict("document_nothing_due", "Nothing is due on this document.");
+  const entities = await documentScopeEntities(orgId, document, params)
+    .catch(() => ({ project: {} as JsonObject, customer: {} as JsonObject, org: {} as JsonObject }));
+  const customer = asObject(entities.customer);
+  const project = asObject(entities.project);
+  const { prepareCheckout } = await import("../payments/intake.js");
+  const { view } = await prepareCheckout(orgId, {
+    amount_cents: due.amount_cents,
+    method,
+    channel: "portal",
+    initiated_by: "customer",
+    // The document's own pricing carries any processing-fee rows.
+    apply_surcharge: false,
+    project_id: cleanText(document.project_id),
+    branch_id: cleanText(document.branch_id || "default") || "default",
+    contact_ref: {
+      ...(cleanText(customer.id) ? { id: cleanText(customer.id) } : {}),
+      ...(cleanText(customer.name) ? { name: cleanText(customer.name) } : {}),
+      ...(cleanText(customer.email) ? { email: cleanText(customer.email).toLowerCase() } : {})
+    },
+    invoice_id: cleanText(document.number || document.document_number) || documentId,
+    description: cleanText(document.title || document.name).slice(0, 200),
+    tax_cents: due.tax_cents,
+    ship_to_zip: addressZip(project.address, project.zip, project.postal_code, asObject(project.location).address),
+    context: { document_id: documentId, output_key: outputKey }
+  });
+  return { checkout: view };
 }
 
 export async function recordDocumentOutput(
@@ -2440,6 +2547,7 @@ async function recordDocumentOutputLocked(orgId: string, documentId: string, key
   const outputDefs = asObject(document.output_defs);
   const outputKey = cleanText(key);
   const def = asObject(outputDefs[outputKey]);
+  const surface = options.surface || (ctx ? "internal" : "public");
   if (!Object.keys(def).length) throw badRequest("document_output_unknown", `The document does not declare an output named '${outputKey}'.`);
   if (options.snapshotId && options.snapshotId !== deliveryState(document.delivery).current_snapshot_id) throw conflict("document_snapshot_superseded", "This response belongs to an older document revision.");
   if (cleanText(def.type) !== "payment") {
@@ -2452,7 +2560,6 @@ async function recordDocumentOutputLocked(orgId: string, documentId: string, key
   // Party enforcement: outputs declared for the company (signer: "internal")
   // can never be recorded through the customer's public link. Internal and
   // field (witnessed in-person) surfaces may record either party.
-  const surface = options.surface || (ctx ? "internal" : "public");
   const outputCapabilityState = await documentCapabilityState(orgId);
   const outputCapability = documentOutputCapability(def);
   if (options.imported) throw forbidden("signature_import_protocol_required", "Import signed originals through the retained-upload review process.");
@@ -2483,55 +2590,14 @@ async function recordDocumentOutputLocked(orgId: string, documentId: string, key
     if (!submittedMethod) {
       throw badRequest("payment_not_completed", "Choose a payment method and complete checkout before recording this payment.");
     }
-    // deposit_cents is ALREADY cents (currency param) — no dollar conversion.
-    const depositCents = Math.max(0, Math.round(Number(params.deposit_cents) || 0));
-    const hasPaymentSchedule = normalizeScheduleRows(params.payment_schedule).length > 0;
-    const hasPricingBasis = asArray(params.scope_items).length > 0 || depositCents > 0 || hasPaymentSchedule;
-    const target = await documentPaymentTarget(orgId, documentId);
-    if (target && target.amount_cents !== null) {
-      if (target.amount_cents <= 0) throw conflict("document_nothing_due", "Nothing is due on this document.");
-      value = { ...asObject(value), amount_cents: target.amount_cents };
-    } else if (hasPricingBasis) {
-      const pricing = await documentCheckoutPricing(orgId, document, params, {
-        payment_method: submitted.payment_method ?? submitted.method,
-        processing_fee_percent: submitted.processing_fee_percent
-      }).catch(() => null);
-      if (pricing) {
-        const scheduleRows = normalizeScheduleRows(params.payment_schedule);
-        // Percentage obligations divide the signed contract value, not a
-        // payment-method-adjusted checkout total. This is the same basis used
-        // by ensureReceivablesForSignedDocument, keeping preview, capture and
-        // the eventual obligation ledger identical.
-        const scopeSubtotalCents = Math.max(0,
-          Math.round(Number(pricing.totals.subtotal_cents || 0))
-          - Math.round(Number(pricing.totals.adjustments_cents || 0))
-        );
-        const taxPercent = Math.max(0, Number(params.tax_percent) || 0);
-        const contractTotalCents = scheduleRows.length
-          ? scopeSubtotalCents + Math.round(scopeSubtotalCents * taxPercent / 100)
-          : Math.max(0, pricing.totals.total_cents);
-        const scheduled = resolveScheduleItems(scheduleRows, {
-          total_cents: contractTotalCents
-        });
-        const scheduledDue = scheduled.find((item) => item.due_rule === "on_signature" && item.amount_cents > 0)
-          || scheduled.find((item) => item.payment_kind === "deposit" && item.amount_cents > 0)
-          || scheduled.find((item) => item.amount_cents > 0);
-        const authoritativeCents = depositCents > 0
-          ? depositCents
-          : (scheduledDue?.amount_cents || contractTotalCents);
-        value = {
-          ...asObject(value),
-          amount_cents: authoritativeCents,
-          pricing_totals: pricing.totals,
-          checkout: pricing.checkout
-        };
-      }
-    }
-    // Record the real money movement (provider charge or mock transaction)
-    // BEFORE the output persists, so a declined charge fails the output and
-    // a recorded payment always has a payment_transactions row behind it.
+    const due = await documentPaymentDue(orgId, documentId, document, params, submitted);
+    const target = due.target;
+    value = { ...asObject(value), ...due.value };
+    // Record the real money movement (the processor charge) BEFORE the
+    // output persists, so a declined charge fails the output and a recorded
+    // payment always has a payment_transactions row behind it.
     const paymentAmountCents = Math.max(0, Math.round(Number(asObject(value).amount_cents ?? submitted.amount_cents) || 0));
-    const paymentTransaction = await recordDocumentPaymentTransaction(orgId, document, params, outputKey, submitted, paymentAmountCents, ctx, target);
+    const paymentTransaction = await recordDocumentPaymentTransaction(orgId, document, params, outputKey, submitted, paymentAmountCents, ctx, target, surface);
     if (paymentTransaction) {
       value = {
         ...asObject(value),
@@ -3058,7 +3124,7 @@ export async function publicDocumentWorkflowDefinition(publicToken: string) {
  */
 export async function publicDocumentPaymentIntakeConfig(publicToken: string) {
   const found = await findPublicDocumentSnapshot(publicToken);
-  const empty = { provider: null as string | null, tokenization: null, surcharge: null, saved_methods: [] as JsonObject[] };
+  const empty = { ready: false, message: "Online payments are not available right now.", provider: null as string | null, tokenization: null, surcharge: null, saved_methods: [] as JsonObject[], rails: { card: false, bank: false }, refund_policy: "" };
   try {
     const document = await readDocumentInstance(found.orgId, cleanText(found.snapshot.document_id));
     const entities = await documentScopeEntities(found.orgId, document, asObject(document.params))
@@ -3078,11 +3144,8 @@ export async function publicDocumentPaymentIntakeConfig(publicToken: string) {
 /** Provider tokenization over a DOCUMENT token (mock providers tokenize server-side). */
 export async function publicDocumentPaymentMethodIntent(publicToken: string, input: JsonObject) {
   const found = await findPublicDocumentSnapshot(publicToken);
-  const { getPaymentProvider } = await import("../payments/providers/index.js");
-  const provider = await getPaymentProvider(found.orgId).catch(() => null);
-  if (!provider) {
-    throw badRequest("merchant_not_configured", "Online card processing is not available for this organization.");
-  }
+  const { requirePaymentsReady } = await import("../payments/readiness.js");
+  const { provider } = await requirePaymentsReady(found.orgId, { rail: cleanText(input.type) === "bank" || cleanText(input.type) === "ach" ? "bank" : "card" });
   const { tokenizePaymentMethod } = await import("../payments/intake.js");
   return await tokenizePaymentMethod(found.orgId, provider, {
     type: cleanText(input.type),

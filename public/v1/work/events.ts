@@ -271,6 +271,7 @@ registerWorkEvents([
   // ── Money ───────────────────────────────────────────────────────────────
   { name: "payment.received", notification: { group: "payments", source: "billing", tab: "general" }, description: "A payment settled on the project.", visibility: "activity", payload: { payment_kind: "deposit | progress | final | deposit_partial | ..." }, customer: { label: "Payment received - thank you", icon: "fa-circle-check" } },
   { name: "payment.refunded", notification: { group: "payments", source: "billing", tab: "general" }, description: "A payment was refunded.", visibility: "activity" },
+  { name: "payment.failed", notification: { group: "payments", source: "billing", tab: "general" }, description: "A recorded payment did not go through: a bank debit failed or was returned, or the charge was voided at the processor.", visibility: "activity", payload: { status: "failed | returned | voided" } },
   { name: "invoice.created", notification: { group: "payments", source: "billing", tab: "general" }, description: "An invoice was generated.", visibility: "activity" },
   { name: "invoice.sent", notification: { group: "payments", source: "billing", tab: "general" }, description: "An invoice was emailed to the customer.", visibility: "activity", customer: { label: "An invoice is ready for you", icon: "fa-file-invoice-dollar" } },
   { name: "receipt.uploaded", notification: { group: "expenses", source: "billing", tab: "general" }, description: "A receipt was uploaded.", visibility: "activity" },

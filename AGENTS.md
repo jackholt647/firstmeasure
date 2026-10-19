@@ -98,6 +98,18 @@ clock) is an app option. A route that belongs to an app names it with
 `tests/app-experience-registry.test.ts` and `tests/access-gates.test.ts` for
 changes here.
 
+## Payments
+
+Read [payments](docs/architecture/payments.md) before changing how customers
+pay, refunds, autopay, payment forms or the merchant account. Every charge,
+saved card, autopay enrollment and online payment request checks
+`requirePaymentsReady` on the server; nothing is ever recorded as paid without
+a processor charge (cash and check are recorded as such). Card and bank details
+are typed only into Forward's element; a browser payment pays a prepared
+checkout (`prepareCheckout`), and every Forward write carries an idempotency
+key a retry reuses. The simulator never runs on production data. Run
+`npm run test:payments` for changes here.
+
 ## Contacts, leads and opportunities
 
 Read [contacts](docs/architecture/contacts.md) and

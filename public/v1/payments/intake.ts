@@ -1,17 +1,23 @@
 import { randomBytes } from "node:crypto";
 
 import type { PlatformAuthContext } from "../platform/auth.js";
-import { badRequest } from "../platform/errors.js";
+import { badRequest, conflict, notFound, PlatformError } from "../platform/errors.js";
 import {
   deleteDocument,
   listDocuments,
   readDocument,
+  readOrganization,
   upsertDocument,
   type JsonObject
 } from "../platform/storage.js";
 import { getInvoicePaymentSettings } from "./invoices.js";
 import { getMerchantConfig } from "./merchant_config.js";
-import { getPaymentProvider, type PaymentProviderAdapter } from "./providers/index.js";
+import { PROVIDER_WEBHOOK_CTX } from "./payouts.js";
+import { createForwardAdapter, ForwardApiError, forwardIdempotencyKey } from "./providers/forward.js";
+import { createMockAdapter } from "./providers/mock.js";
+import type { PaymentProviderAdapter } from "./providers/index.js";
+import type { ProviderOrderDetails, ProviderPayment } from "./providers/types.js";
+import { paymentsReadiness, requirePaymentsReady, type PaymentsReadiness } from "./readiness.js";
 import { createPayment, PAYMENT_TRANSACTION_COLLECTION } from "./storage.js";
 
 /**
@@ -86,6 +92,11 @@ export type TokenizeInput = {
 export async function tokenizePaymentMethod(orgId: string, provider: PaymentProviderAdapter, input: TokenizeInput) {
   const card = asObject(input.card);
   const bank = asObject(input.bank);
+  if (provider.provider !== "mock" && (Object.keys(card).length || Object.keys(bank).length)) {
+    // Card and bank numbers are entered only in the processor's secure
+    // fields; our servers never receive them.
+    throw badRequest("raw_payment_details_refused", "Enter card and bank details in the secure payment form.");
+  }
   const type = cleanText(input.type) === "bank" || cleanText(input.type) === "ach" || Object.keys(bank).length
     ? "bank" as const
     : "card" as const;
@@ -275,37 +286,315 @@ export async function surchargeQuote(
 
 // --- Intake config (one call powers each modal mount) ------------------------
 
-export const FORWARD_SDK_URL = "https://sandbox-cdn.pci.getfwd.com/sdk/forward.js";
-
 /**
- * Everything a payment-intake mount needs to decide between the legacy
- * mock-record flow and provider tokenization: null provider means "behave
- * exactly as before". Saved methods are returned in the modal's shape.
+ * Everything a payment form needs before it shows: whether this organization
+ * can take a payment right now (and if not, why), which rails are on, the
+ * secure element settings, the customer's saved methods and the refund
+ * policy. A form that is not ready offers no card or bank entry at all.
  */
 export async function paymentIntakeConfig(orgId: string, contactRefValue: unknown, branchId = "default") {
-  const provider = await getPaymentProvider(orgId).catch(() => null);
-  if (!provider) return { provider: null as string | null, tokenization: null, surcharge: null, saved_methods: [] as JsonObject[] };
+  const readiness = await paymentsReadiness(orgId).catch(() => null);
+  const refundPolicy = await refundPolicyText(orgId, branchId).catch(() => "");
+  if (!readiness?.ready) {
+    return {
+      ready: false,
+      not_ready_reason: readiness?.reason || "provider_unavailable",
+      message: readiness?.message || "Online payments are not set up yet.",
+      provider: null as string | null,
+      tokenization: null,
+      surcharge: null,
+      rails: { card: false, bank: false },
+      saved_methods: [] as JsonObject[],
+      refund_policy: refundPolicy
+    };
+  }
   const [settings, savedMethods] = await Promise.all([
     surchargeSettings(orgId, branchId),
     listSavedMethods(orgId, contactRefValue)
   ]);
   return {
-    provider: provider.provider,
-    tokenization: {
-      mode: provider.provider === "mock" ? "mock" : "forward",
-      ...(provider.provider !== "mock" ? { sdk_url: FORWARD_SDK_URL } : {})
-    },
+    ready: true,
+    not_ready_reason: "",
+    message: "",
+    provider: readiness.provider,
+    tokenization: readiness.provider === "mock"
+      ? { mode: "mock" }
+      : { mode: "forward", sdk_url: readiness.sdk_url, public_key: readiness.public_key },
     surcharge: settings,
-    saved_methods: savedMethods.map((method) => ({
-      ...method,
-      // Modal-friendly aliases (the intake modal filters on card|ach).
-      type: method.type === "bank" ? "ach" : "card",
-      detail: method.type === "bank" ? "Bank account on file" : "Card on file"
-    }))
+    rails: readiness.rails,
+    saved_methods: savedMethods
+      .filter((method) => method.provider === readiness.provider && readiness.rails[method.type === "bank" ? "bank" : "card"])
+      .map((method) => ({
+        ...method,
+        // Modal-friendly aliases (the intake modal filters on card|ach).
+        type: method.type === "bank" ? "ach" : "card",
+        detail: method.type === "bank" ? "Bank account on file" : "Card on file"
+      })),
+    refund_policy: refundPolicy
   };
 }
 
-// --- Provider charge path ----------------------------------------------------
+/**
+ * The refund policy every checkout shows next to the pay button. Each branch
+ * can write its own in Settings, Payments; without one the customer is told
+ * refunds follow their agreement and who to contact.
+ */
+export async function refundPolicyText(orgId: string, branchId = "default") {
+  const settings = asObject(await getInvoicePaymentSettings(orgId, branchId));
+  const custom = cleanText(settings.refund_policy);
+  if (custom) return custom.slice(0, 2000);
+  const organization = asObject(await readOrganization(orgId).catch(() => ({})));
+  const data = asObject(organization.data);
+  const name = cleanText(organization.name || data.name || organization.company_name) || "the company";
+  const contact = [cleanText(organization.phone || data.phone), cleanText(organization.email || data.email)].filter(Boolean).join(" or ");
+  return `Refunds follow the terms of your agreement with ${name}. To ask for a refund, contact ${name}${contact ? ` at ${contact}` : ""}.`;
+}
+
+// --- Checkouts ---------------------------------------------------------------
+//
+// A checkout is one attempt to take one payment. It is written before the
+// processor is called and carries everything the payment record will need,
+// so a charge whose answer is lost can still be finished from the
+// processor's notification. Its id seeds every idempotency key, so a repeat
+// of the same step is the same request to the processor.
+
+export const PAYMENT_CHECKOUT_COLLECTION = "payment_checkouts";
+
+export type CheckoutChannel = "staff" | "portal" | "field" | "partner" | "autopay";
+
+export type CheckoutStatus = "open" | "processing" | "succeeded" | "unknown" | "cancelled";
+
+export type PrepareCheckoutInput = {
+  amount_cents: number;
+  method?: string;
+  channel: CheckoutChannel;
+  /** Who started the payment (card-network CIT/MIT rules). */
+  initiated_by?: "customer" | "merchant";
+  /** A scheduled stored-credential repeat (autopay). */
+  scheduled?: boolean;
+  apply_surcharge?: boolean;
+  project_id?: string;
+  branch_id?: string;
+  contact_ref?: JsonObject;
+  invoice_id?: string;
+  description?: string;
+  tax_cents?: number;
+  ship_to_zip?: string;
+  /** What the browser or caller may later confirm against (document, output, obligations). */
+  context?: JsonObject;
+  /** Stable id for a server-side caller (autopay attempt); a fresh one otherwise. */
+  checkout_id?: string;
+};
+
+function checkoutView(checkout: JsonObject, readiness?: PaymentsReadiness) {
+  return {
+    id: cleanText(checkout.id),
+    status: cleanText(checkout.status),
+    payment_id: cleanText(checkout.payment_id),
+    method: cleanText(checkout.method),
+    amount_cents: cents(checkout.amount_cents),
+    base_amount_cents: cents(checkout.base_amount_cents),
+    surcharge_cents: cents(checkout.surcharge_cents),
+    currency: cleanText(checkout.currency || "USD"),
+    provider: cleanText(checkout.provider),
+    client_secret: cleanText(checkout.client_secret),
+    ...(readiness && readiness.provider !== "mock" ? { sdk_url: readiness.sdk_url, public_key: readiness.public_key } : {})
+  };
+}
+
+async function readCheckout(orgId: string, checkoutId: string) {
+  const doc = await readDocument(orgId, PAYMENT_CHECKOUT_COLLECTION, cleanText(checkoutId)).catch(() => null);
+  return doc ? documentView(doc) : null;
+}
+
+async function saveCheckout(orgId: string, checkout: JsonObject) {
+  const data = { ...checkout, updated_at: nowIso() };
+  await upsertDocument(orgId, PAYMENT_CHECKOUT_COLLECTION, {
+    id: cleanText(checkout.id),
+    data,
+    metadata: {
+      kind: "payment_checkout",
+      status: cleanText(checkout.status),
+      payment_id: cleanText(checkout.payment_id),
+      project_id: cleanText(checkout.project_id),
+      provider_intent_id: cleanText(checkout.provider_intent_id)
+    }
+  }, { replace: true });
+  return data;
+}
+
+/** The checkout behind one of our payment ids (processor notifications carry it). */
+export async function findCheckoutByPaymentId(orgId: string, paymentId: string) {
+  const id = cleanText(paymentId);
+  if (!id) return null;
+  const direct = id.startsWith("payment_") ? await readCheckout(orgId, `checkout_${id.slice("payment_".length)}`) : null;
+  if (direct && cleanText(direct.payment_id) === id) return direct;
+  return (await listDocuments(orgId, PAYMENT_CHECKOUT_COLLECTION)).map(documentView)
+    .find((checkout) => cleanText(checkout.payment_id) === id) ?? null;
+}
+
+function railOf(method: unknown): "card" | "bank" {
+  const text = cleanText(method).toLowerCase();
+  return text === "bank" || text === "ach" || text === "saved_ach" ? "bank" : "card";
+}
+
+function orderDetailsFor(checkout: JsonObject): ProviderOrderDetails {
+  const merchant = cleanText(checkout.initiated_by) === "merchant";
+  const scheduled = checkout.scheduled === true;
+  return {
+    card_not_present_type: scheduled ? "recurring" : "ecommerce",
+    initiated_by: merchant ? "merchant" : "customer",
+    is_scheduled_payment: scheduled,
+    invoice_id: cleanText(checkout.invoice_id) || cleanText(checkout.payment_id),
+    ...(cleanText(checkout.description) ? { description: cleanText(checkout.description) } : {}),
+    ...(Number.isFinite(Number(checkout.tax_cents)) && cents(checkout.tax_cents) > 0 ? { tax_amount: cents(checkout.tax_cents) } : {}),
+    ...(cleanText(checkout.ship_to_zip) ? { ship_to_zip: cleanText(checkout.ship_to_zip), ship_to_country: "US" } : {})
+  };
+}
+
+/**
+ * Opens a checkout: refuses unless the organization can take this payment,
+ * prices any surcharge, writes the checkout, then creates the processor's
+ * payment intent (whose client secret the browser element needs).
+ */
+/** A US ZIP code from an address (the last 5-digit group), or "". */
+export function addressZip(...values: unknown[]) {
+  for (const value of values) {
+    const source = asObject(value);
+    const text = typeof value === "string" ? value : cleanText(source.postal_code || source.zip || source.zip_code || source.address);
+    const matches = cleanText(text).match(/\d{5}(?:-\d{4})?/g);
+    if (matches?.length) return matches[matches.length - 1]!.slice(0, 5);
+  }
+  return "";
+}
+
+/** The job site's ZIP, sent as the ship-to ZIP (Level 2 card data). */
+async function projectZip(orgId: string, projectId: string) {
+  if (!projectId) return "";
+  const project = asObject(asObject(await readDocument(orgId, "projects", projectId).catch(() => null)).data);
+  return addressZip(project.address, project.location, project.zip, project.postal_code, asObject(project.site).address);
+}
+
+function brandLabel(brand: unknown) {
+  const text = cleanText(brand);
+  const known: Record<string, string> = { visa: "Visa", mastercard: "Mastercard", amex: "American Express", american_express: "American Express", discover: "Discover" };
+  return known[text.toLowerCase()] || (text ? text.charAt(0).toUpperCase() + text.slice(1) : "");
+}
+
+export async function prepareCheckout(orgId: string, input: PrepareCheckoutInput) {
+  const method = railOf(input.method);
+  const { readiness, provider } = await requirePaymentsReady(orgId, { rail: method });
+  const baseAmount = Math.max(0, cents(input.amount_cents));
+  if (baseAmount <= 0) throw badRequest("invalid_payment_amount", "Payment amount must be greater than zero.");
+  const existing = cleanText(input.checkout_id) ? await readCheckout(orgId, cleanText(input.checkout_id)) : null;
+  if (existing && cleanText(existing.provider_intent_id)) return { checkout: existing, view: checkoutView(existing, readiness), provider };
+  let surchargeCents = 0;
+  if (input.apply_surcharge !== false) {
+    const quote = await surchargeQuote(orgId, provider, { amount_cents: baseAmount, method, branch_id: cleanText(input.branch_id) || "default" });
+    surchargeCents = quote.surcharge_cents;
+  }
+  const suffix = cleanText(input.checkout_id).replace(/^checkout_/, "") || generatedId("x").slice(2);
+  const checkoutId = `checkout_${suffix}`;
+  const paymentId = `payment_${suffix}`;
+  const now = nowIso();
+  let checkout: JsonObject = {
+    id: checkoutId,
+    organization_id: orgId,
+    payment_id: paymentId,
+    status: "open" satisfies CheckoutStatus,
+    provider: provider.provider,
+    channel: input.channel,
+    initiated_by: input.initiated_by === "merchant" ? "merchant" : "customer",
+    scheduled: input.scheduled === true,
+    method,
+    base_amount_cents: baseAmount,
+    surcharge_cents: surchargeCents,
+    amount_cents: baseAmount + surchargeCents,
+    currency: "USD",
+    project_id: cleanText(input.project_id),
+    branch_id: cleanText(input.branch_id) || "default",
+    contact_ref: asObject(input.contact_ref),
+    invoice_id: cleanText(input.invoice_id),
+    description: cleanText(input.description).slice(0, 255),
+    ...(Number.isFinite(Number(input.tax_cents)) ? { tax_cents: Math.max(0, cents(input.tax_cents)) } : {}),
+    ship_to_zip: (cleanText(input.ship_to_zip) || await projectZip(orgId, cleanText(input.project_id))).slice(0, 10),
+    context: asObject(input.context),
+    attempts: 0,
+    created_at: now,
+    // An unpaid browser checkout is abandoned after a day.
+    expires_at: new Date(Date.now() + 24 * 3_600_000).toISOString()
+  };
+  checkout = await saveCheckout(orgId, checkout);
+  const intent = await provider.createPaymentIntent({
+    amount_cents: cents(checkout.amount_cents),
+    currency: "USD",
+    reference_id: paymentId,
+    payment_method_types: [method],
+    description: cleanText(checkout.description) || undefined,
+    order_details: orderDetailsFor(checkout),
+    user_fields: {
+      payment_id: paymentId,
+      checkout_id: checkoutId,
+      organization_id: orgId,
+      ...(cleanText(checkout.project_id) ? { project_id: cleanText(checkout.project_id) } : {})
+    },
+    idempotency_key: forwardIdempotencyKey("fm-pi", checkoutId)
+  }).catch((error) => { throw providerFailure(error, "The payment could not be started."); });
+  checkout = await saveCheckout(orgId, {
+    ...checkout,
+    provider_intent_id: intent.id,
+    client_secret: intent.client_secret
+  });
+  return { checkout, view: checkoutView(checkout, readiness), provider };
+}
+
+/** What staff (and support) see of a checkout, including declined attempts. */
+export async function checkoutStatusView(orgId: string, checkoutId: string) {
+  const checkout = await readCheckout(orgId, checkoutId);
+  if (!checkout || cleanText(checkout.organization_id) !== orgId) throw notFound("checkout_not_found", "That payment attempt was not found.");
+  return {
+    id: cleanText(checkout.id),
+    status: cleanText(checkout.status),
+    channel: cleanText(checkout.channel),
+    method: cleanText(checkout.method),
+    amount_cents: cents(checkout.amount_cents),
+    payment_id: cleanText(checkout.payment_id),
+    recorded_payment_id: cleanText(checkout.recorded_payment_id),
+    provider: cleanText(checkout.provider),
+    provider_intent_id: cleanText(checkout.provider_intent_id),
+    provider_payment_id: cleanText(checkout.provider_payment_id),
+    last_provider_payment_id: cleanText(checkout.last_provider_payment_id),
+    payment_method_id: cleanText(checkout.payment_method_id),
+    initiated_by: cleanText(checkout.initiated_by),
+    scheduled: checkout.scheduled === true,
+    attempts: cents(checkout.attempts),
+    last_error: cleanText(checkout.last_error),
+    last_decline_category: cleanText(checkout.last_decline_category),
+    created_at: cleanText(checkout.created_at),
+    updated_at: cleanText(checkout.updated_at)
+  };
+}
+
+/** A checkout the browser prepared, checked against what is now being paid. */
+export async function openCheckoutFor(orgId: string, checkoutId: string, expected: { project_id?: string; amount_cents?: number; method?: string; context?: JsonObject } = {}) {
+  const checkout = await readCheckout(orgId, checkoutId);
+  if (!checkout || cleanText(checkout.organization_id) !== orgId) throw notFound("checkout_not_found", "This payment form expired. Start the payment again.");
+  if (expected.project_id !== undefined && cleanText(checkout.project_id) !== cleanText(expected.project_id)) {
+    throw badRequest("checkout_mismatch", "This payment form belongs to a different job. Start the payment again.");
+  }
+  if (expected.amount_cents !== undefined && cents(checkout.base_amount_cents) !== cents(expected.amount_cents)) {
+    throw badRequest("checkout_amount_changed", "The payment amount changed. Review the amount and pay again.", { expected_amount_cents: cents(checkout.base_amount_cents) });
+  }
+  if (expected.method && railOf(expected.method) !== railOf(checkout.method)) {
+    throw badRequest("checkout_method_changed", "The payment method changed. Start the payment again.");
+  }
+  for (const [key, value] of Object.entries(asObject(expected.context))) {
+    if (value !== undefined && cleanText(asObject(checkout.context)[key]) !== cleanText(value)) {
+      throw badRequest("checkout_mismatch", "This payment form belongs to a different request. Start the payment again.");
+    }
+  }
+  return checkout;
+}
 
 const DECLINE_MESSAGES: Record<string, string> = {
   generic_decline: "The card was declined. Try a different payment method.",
@@ -315,8 +604,41 @@ const DECLINE_MESSAGES: Record<string, string> = {
   expired_card: "The card has expired. Use a different card."
 };
 
-export function declineMessage(category: string) {
-  return DECLINE_MESSAGES[cleanText(category)] || "The payment was declined. Try a different payment method.";
+export function declineMessage(category: string, providerText = "") {
+  const known = DECLINE_MESSAGES[cleanText(category)];
+  if (known) return known;
+  const text = cleanText(providerText).replace(/\.$/, "");
+  return text
+    ? `${text}. Try a different payment method.`
+    : "The payment was declined. Try a different payment method.";
+}
+
+/**
+ * Processor errors become answers a person can act on. 4xx: the request
+ * itself was refused (nothing was charged). An unknown outcome is reported as
+ * such so nobody pays twice.
+ */
+export function providerFailure(error: unknown, fallback: string) {
+  if (error instanceof PlatformError) return error;
+  if (error instanceof ForwardApiError) {
+    if (error.outcomeUnknown) {
+      return new PlatformError("payment_outcome_unknown", 502, "We could not confirm this payment with the processor. Do not pay again. It will update here as soon as the processor answers.");
+    }
+    if (error.status === 402 || error.status === 422) {
+      return badRequest("payment_declined", declineMessage(cleanText(error.body.code), error.message), { decline_category: cleanText(error.body.code) });
+    }
+    if (error.status === 401 || error.status === 403) {
+      return new PlatformError("processor_unavailable", 503, "Online payments are not available right now. No payment was taken.");
+    }
+    if (error.status === 409) {
+      return conflict("payment_in_progress", "This payment is already being processed. Refresh before trying again.");
+    }
+    if (error.status > 0 && error.status < 500) {
+      return badRequest("payment_failed", `${cleanText(error.message) || fallback} No payment was taken.`, { provider_status: error.status, provider_code: cleanText(error.body.code) });
+    }
+    return new PlatformError("processor_unavailable", 503, `${fallback} No payment was taken. Try again in a moment.`);
+  }
+  return error instanceof Error ? error : new Error(fallback);
 }
 
 export type ProviderChargeInput = {
@@ -327,10 +649,22 @@ export type ProviderChargeInput = {
   project_id?: string;
   branch_id?: string;
   apply_surcharge?: boolean;
+  /** A checkout the browser element already prepared. */
+  checkout_id?: string;
+  channel?: CheckoutChannel;
+  initiated_by?: "customer" | "merchant";
+  scheduled?: boolean;
+  billing_details?: JsonObject;
+  invoice_id?: string;
+  tax_cents?: number;
+  ship_to_zip?: string;
+  description?: string;
+  checkout_context?: JsonObject;
 };
 
 export type ProviderChargeResult = {
   payment_id: string;
+  checkout_id: string;
   intent_id: string;
   provider_payment_id: string;
   amount_cents: number;
@@ -339,80 +673,121 @@ export type ProviderChargeResult = {
   fee_cents: number;
   merchant_amount_cents: number;
   auth_code: string;
+  /** A bank debit that has not cleared yet. */
+  pending: boolean;
+  rail: "card" | "bank";
   saved_method: JsonObject | null;
 };
 
-/**
- * Charges through the provider adapter ahead of writing our transaction:
- * quote surcharge -> create intent (reference_id = the payment id we will
- * write) -> charge. A decline throws a structured `payment_declined` error
- * (details: {decline_category}) and leaves NO transaction behind — the mock's
- * v2.payment.failed event neither matches nor creates shadow records. On
- * capture the caller writes the payment_transactions record with the fee
- * fields from the charge, then removeProviderShadowRecord clears the
- * unmatched-event shadow the synchronous mock events created before our
- * record existed. Later webhook projections (settlement, payouts) find the
- * real record by processor.provider_payment_id, so nothing double-writes.
- */
-export async function chargeThroughProvider(
-  orgId: string,
-  provider: PaymentProviderAdapter,
-  input: ProviderChargeInput
-): Promise<ProviderChargeResult> {
-  const baseAmount = Math.max(0, cents(input.amount_cents));
-  if (baseAmount <= 0) throw badRequest("invalid_payment_amount", "Payment amount must be greater than zero.");
-  let token = cleanText(input.payment_method_id);
-  let savedMethod: JsonObject | null = null;
-  if (!token && cleanText(input.saved_method_id)) {
-    savedMethod = await findSavedMethod(orgId, cleanText(input.saved_method_id));
-    if (!savedMethod) throw badRequest("saved_method_not_found", "That saved payment method is no longer available.");
-    token = cleanText(savedMethod.provider_payment_method_id);
-  }
-  if (!token) throw badRequest("payment_method_required", "A payment method token is required to charge through the processor.");
-  const method = cleanText(input.method).toLowerCase() === "ach" || cleanText(input.method).toLowerCase() === "bank"
-    || cleanText(savedMethod?.type) === "bank" ? "bank" : "card";
-  let surchargeCents = 0;
-  if (input.apply_surcharge !== false) {
-    const quote = await surchargeQuote(orgId, provider, {
-      amount_cents: baseAmount,
-      method,
-      branch_id: cleanText(input.branch_id) || "default"
-    });
-    surchargeCents = quote.surcharge_cents;
-  }
-  const totalCents = baseAmount + surchargeCents;
-  const paymentId = generatedId("payment");
-  const intent = await provider.createPaymentIntent({
-    amount_cents: totalCents,
-    reference_id: paymentId,
-    user_fields: {
-      payment_id: paymentId,
-      ...(cleanText(input.project_id) ? { project_id: cleanText(input.project_id) } : {})
-    }
-  });
-  const charge = await provider.createPayment(intent.id, { payment_method_id: token });
-  if (charge.status === "failed" || cleanText(charge.decline_reason)) {
-    const category = cleanText(charge.decline_reason) || "generic_decline";
-    throw badRequest("payment_declined", declineMessage(category), {
-      decline_category: category,
-      message: declineMessage(category)
-    });
-  }
+function chargeResult(checkout: JsonObject, charge: ProviderPayment, savedMethod: JsonObject | null): ProviderChargeResult {
   const raw = asObject(charge.raw);
   const fee = Math.max(0, cents(raw.fee ?? raw.fee_cents));
-  const merchantAmount = cents(raw.merchant_amount ?? raw.merchant_amount_cents) || Math.max(0, totalCents - fee);
+  const total = cents(checkout.amount_cents);
+  const merchantAmount = cents(raw.merchant_amount ?? raw.merchant_amount_cents) || Math.max(0, total - fee);
   return {
-    payment_id: paymentId,
-    intent_id: intent.id,
+    payment_id: cleanText(checkout.payment_id),
+    checkout_id: cleanText(checkout.id),
+    intent_id: cleanText(checkout.provider_intent_id),
     provider_payment_id: charge.id,
-    amount_cents: totalCents,
-    base_amount_cents: baseAmount,
-    surcharge_cents: surchargeCents,
+    amount_cents: total,
+    base_amount_cents: cents(checkout.base_amount_cents),
+    surcharge_cents: cents(checkout.surcharge_cents),
     fee_cents: fee,
     merchant_amount_cents: merchantAmount,
     auth_code: charge.auth_code,
+    pending: charge.status !== "captured" && charge.status !== "settled",
+    rail: charge.rail,
     saved_method: savedMethod
   };
+}
+
+const SUCCEEDED_PAYMENT = new Set(["captured", "settled", "pending", "processing", "authorized"]);
+const FAILED_PAYMENT = new Set(["failed", "rejected", "cancelled", "voided"]);
+
+/**
+ * Charges an open checkout once. The checkout is claimed (status
+ * "processing") before the processor is called; every attempt sends the
+ * same key, so a retry after a lost answer is the same request. A decline
+ * leaves the checkout open for another card; an unanswered charge is looked
+ * up before anyone may try again.
+ */
+async function chargeCheckout(orgId: string, provider: PaymentProviderAdapter, checkoutInput: JsonObject, input: { token: string; savedMethod: JsonObject | null; billing_details?: JsonObject }) {
+  let checkout = (await readCheckout(orgId, cleanText(checkoutInput.id))) ?? checkoutInput;
+  const status = cleanText(checkout.status);
+  if (status === "succeeded") throw conflict("payment_already_completed", "This payment already went through.", { payment_id: cleanText(checkout.payment_id) });
+  if (status === "cancelled") throw badRequest("checkout_cancelled", "This payment was cancelled. Start the payment again.");
+  if (status === "unknown") {
+    const settled = await reconcileCheckout(orgId, provider, checkout);
+    if (settled) return { checkout: settled.checkout, charge: settled.charge };
+    throw providerFailure(new ForwardApiError(0, {}, "", { outcomeUnknown: true }), "");
+  }
+  if (status === "processing" && Date.now() - Date.parse(cleanText(checkout.updated_at)) < 120_000) {
+    throw conflict("payment_in_progress", "This payment is already being processed. Refresh before trying again.");
+  }
+  if (cleanText(checkout.provider) !== provider.provider) throw badRequest("checkout_provider_changed", "The payment setup changed. Start the payment again.");
+  const attempt = cents(checkout.attempts) + 1;
+  checkout = await saveCheckout(orgId, { ...checkout, status: "processing", attempts: attempt, payment_method_id: input.token });
+  let charge: ProviderPayment;
+  try {
+    charge = await provider.createPayment(cleanText(checkout.provider_intent_id), {
+      payment_method_id: input.token,
+      ...(input.billing_details && Object.keys(input.billing_details).length ? { billing_details: input.billing_details } : {}),
+      order_details: orderDetailsFor(checkout),
+      reference_id: cleanText(checkout.payment_id),
+      idempotency_key: forwardIdempotencyKey("fm-pay", checkout.id, attempt)
+    });
+  } catch (error) {
+    if (error instanceof ForwardApiError && error.outcomeUnknown) {
+      checkout = await saveCheckout(orgId, { ...checkout, status: "unknown", last_error: cleanText(error.message) });
+      const settled = await reconcileCheckout(orgId, provider, checkout).catch(() => null);
+      if (settled) return { checkout: settled.checkout, charge: settled.charge };
+      throw providerFailure(error, "The payment could not be completed.");
+    }
+    await saveCheckout(orgId, { ...checkout, status: "open", last_error: cleanText((error as Error)?.message) });
+    throw providerFailure(error, "The payment could not be completed.");
+  }
+  if (FAILED_PAYMENT.has(charge.status) || (cleanText(charge.decline_reason) && !SUCCEEDED_PAYMENT.has(charge.status))) {
+    const category = cleanText(charge.decline_reason) || "generic_decline";
+    const message = declineMessage(category, charge.decline_text);
+    await saveCheckout(orgId, { ...checkout, status: "open", last_error: message, last_decline_category: category, last_provider_payment_id: charge.id });
+    throw badRequest("payment_declined", message, { decline_category: category, message, provider_payment_id: charge.id });
+  }
+  checkout = await saveCheckout(orgId, {
+    ...checkout,
+    status: "succeeded",
+    provider_payment_id: charge.id,
+    provider_payment_status: charge.status,
+    rail: charge.rail,
+    last_error: ""
+  });
+  return { checkout, charge };
+}
+
+/**
+ * Looks a checkout's charge up at the processor (the answer was lost). A
+ * charge that went through closes the checkout as succeeded; one that was
+ * declined reopens it; no attempt at all reopens it too.
+ */
+export async function reconcileCheckout(orgId: string, provider: PaymentProviderAdapter, checkout: JsonObject) {
+  const intentId = cleanText(checkout.provider_intent_id);
+  if (!intentId) return null;
+  const intent = await provider.getPaymentIntent(intentId);
+  const latest = intent.latest_payment;
+  if (latest && SUCCEEDED_PAYMENT.has(latest.status)) {
+    const saved = await saveCheckout(orgId, {
+      ...checkout,
+      status: "succeeded",
+      provider_payment_id: latest.id,
+      provider_payment_status: latest.status,
+      rail: latest.rail,
+      reconciled_at: nowIso()
+    });
+    return { checkout: saved, charge: latest };
+  }
+  if (!latest || FAILED_PAYMENT.has(latest.status)) {
+    await saveCheckout(orgId, { ...checkout, status: "open", reconciled_at: nowIso() });
+  }
+  return null;
 }
 
 /**
@@ -468,6 +843,7 @@ export async function recordProviderChargeSafely(orgId: string, provider: string
       // What the full payment record was going to be, for whoever finishes it.
       charged_by: "intake",
       intended_payment_id: charge.payment_id,
+      checkout_id: charge.checkout_id,
       ...(cleanText(intended.obligation_id) ? { intended_obligation_id: cleanText(intended.obligation_id) } : {}),
       ...(cleanText(intended.kind) ? { intended_kind: cleanText(intended.kind) } : {}),
       ...(problem ? { record_error: problem.slice(0, 500), needs_review: true } : {})
@@ -493,27 +869,104 @@ export type IntakeChargePaymentInput = JsonObject & ProviderChargeInput & {
   method_label?: string;
 };
 
+/** The parts of a charge request the payment record is built from (no card data). */
+function recordInputOf(input: IntakeChargePaymentInput): JsonObject {
+  return {
+    project_id: cleanText(input.project_id),
+    branch_id: cleanText(input.branch_id),
+    contact_ref: asObject(input.contact_ref),
+    method_label: cleanText(input.method_label),
+    method_descriptor: asObject(input.method_descriptor),
+    save_payment_method: input.save_payment_method === true,
+    payment: asObject(input.payment)
+  };
+}
+
 /**
- * Full provider-backed intake flow used by both the staff payments route and
- * the public portal payment path: charge through the adapter, then write the
- * payment_transactions record through the EXISTING createPayment /
- * allocation / ledger path with the provider fee fields, clean the shadow,
- * and optionally save the method for the contact.
+ * Full provider-backed intake flow used by every place a customer pays: the
+ * staff payments route, the customer portal and document checkout, the
+ * field crew and autopay. It refuses unless the organization can take
+ * payments, charges the checkout (the browser's, or one opened here for a
+ * saved method), then writes the payment_transactions record through the
+ * EXISTING createPayment / allocation / ledger path.
  */
 export async function recordProviderChargedPayment(
   orgId: string,
-  provider: PaymentProviderAdapter,
+  _provider: PaymentProviderAdapter | null,
   input: IntakeChargePaymentInput,
   ctx: PlatformAuthContext
 ) {
-  const charge = await chargeThroughProvider(orgId, provider, input);
+  let token = cleanText(input.payment_method_id);
+  let savedMethod: JsonObject | null = null;
+  if (!token && cleanText(input.saved_method_id)) {
+    savedMethod = await findSavedMethod(orgId, cleanText(input.saved_method_id));
+    if (!savedMethod) throw badRequest("saved_method_not_found", "That saved payment method is no longer available.");
+    token = cleanText(savedMethod.provider_payment_method_id);
+  }
+  if (!token) throw badRequest("payment_method_required", "Enter the payment details to continue.");
+  const method = savedMethod ? (cleanText(savedMethod.type) === "bank" ? "bank" : "card") : railOf(input.method);
+  if (!cleanText(input.checkout_id) && !savedMethod) {
+    // A Forward token comes from the browser element, which only mounts on a
+    // prepared checkout; a bare token did not come from Forward's fields.
+    const readiness = await paymentsReadiness(orgId);
+    if (readiness.ready && readiness.provider === "forward") throw badRequest("checkout_required", "Open the payment form again to pay.");
+  }
+  let checkout: JsonObject;
+  let provider: PaymentProviderAdapter;
+  if (cleanText(input.checkout_id)) {
+    checkout = await openCheckoutFor(orgId, cleanText(input.checkout_id), {
+      project_id: input.project_id !== undefined ? cleanText(input.project_id) : undefined,
+      amount_cents: Math.max(0, cents(input.amount_cents)),
+      method,
+      context: input.checkout_context
+    });
+    ({ provider } = await requirePaymentsReady(orgId, { rail: method }));
+  } else {
+    const prepared = await prepareCheckout(orgId, {
+      amount_cents: cents(input.amount_cents),
+      method,
+      channel: input.channel || "staff",
+      initiated_by: input.initiated_by,
+      scheduled: input.scheduled,
+      apply_surcharge: input.apply_surcharge,
+      project_id: cleanText(input.project_id),
+      branch_id: cleanText(input.branch_id),
+      contact_ref: asObject(input.contact_ref),
+      invoice_id: cleanText(input.invoice_id),
+      description: cleanText(input.description),
+      tax_cents: input.tax_cents,
+      ship_to_zip: cleanText(input.ship_to_zip),
+      context: asObject(input.checkout_context)
+    });
+    checkout = prepared.checkout;
+    provider = prepared.provider;
+  }
+  await saveCheckout(orgId, { ...checkout, record_input: recordInputOf(input) });
+  const { checkout: charged, charge } = await chargeCheckout(orgId, provider, checkout, { token, savedMethod, billing_details: asObject(input.billing_details) });
+  return finishChargedPayment(orgId, provider, charged, charge, input, savedMethod, token, ctx);
+}
+
+/**
+ * Turns a charge the processor accepted into our payment record. Card
+ * payments are settled; a bank debit stays pending until it clears.
+ */
+async function finishChargedPayment(
+  orgId: string,
+  provider: PaymentProviderAdapter,
+  checkout: JsonObject,
+  providerCharge: ProviderPayment,
+  input: IntakeChargePaymentInput,
+  savedMethod: JsonObject | null,
+  token: string,
+  ctx: PlatformAuthContext
+) {
+  const charge = chargeResult(checkout, providerCharge, savedMethod);
   // Money has moved. From here nothing may leave it unrecorded, and nothing
   // may report this payment as failed: a customer told it failed pays twice.
   let safety: JsonObject | null = await recordProviderChargeSafely(orgId, provider.provider, charge, input).catch(error => {
     console.error("[payments] could not write the charge safety record", { orgId, provider_payment_id: charge.provider_payment_id, payment_id: charge.payment_id, amount_cents: charge.amount_cents, error: String((error as Error)?.message || error) });
     return null;
   });
-  const savedMethod = charge.saved_method;
   let methodDescriptor: JsonObject = asObject(input.method_descriptor);
   if (savedMethod) {
     // The stored method is authoritative for the descriptor.
@@ -525,50 +978,62 @@ export async function recordProviderChargedPayment(
       last4: cleanText(savedMethod.last4)
     };
   } else if (charge.provider_payment_id) {
-    const details = await provider.getPaymentMethod(cleanText(input.payment_method_id)).catch(() => null);
+    const details = await provider.getPaymentMethod(token).catch(() => null);
     if (details) {
       methodDescriptor = {
+        ...methodDescriptor,
         type: details.type === "card" ? "card" : "ach",
-        label: cleanText(input.method_label) || `${details.brand} ending in ${details.last4}`,
-        brand: details.brand,
-        last4: details.last4,
-        ...methodDescriptor
+        label: `${brandLabel(details.brand) || (details.type === "card" ? "Card" : "Bank")} ending in ${details.last4}`,
+        brand: brandLabel(details.brand),
+        last4: details.last4
       };
     }
   }
+  const payment = asObject(input.payment);
   let result: Awaited<ReturnType<typeof createPayment>>;
   try {
     result = await createPayment(orgId, {
-    ...asObject(input.payment),
-    id: charge.payment_id,
-    direction: "inbound",
-    status: "settled",
-    amount_cents: charge.amount_cents,
-    project_id: cleanText(input.project_id),
-    ...(cleanText(input.branch_id) ? { branch_id: cleanText(input.branch_id) } : {}),
-    contact_ref: asObject(input.contact_ref),
-    method: methodDescriptor,
-    provider: provider.provider,
-    fee_cents: charge.fee_cents,
-    merchant_amount_cents: charge.merchant_amount_cents,
-    processor: {
+      ...payment,
+      id: charge.payment_id,
+      direction: "inbound",
+      status: charge.pending ? "pending" : "settled",
+      amount_cents: charge.amount_cents,
+      project_id: cleanText(input.project_id),
+      ...(cleanText(input.branch_id) ? { branch_id: cleanText(input.branch_id) } : {}),
+      contact_ref: asObject(input.contact_ref),
+      method: methodDescriptor,
       provider: provider.provider,
-      provider_payment_id: charge.provider_payment_id,
-      provider_intent_id: charge.intent_id,
-      ...(charge.auth_code ? { auth_code: charge.auth_code } : {})
-    },
-    metadata: {
-      ...asObject(asObject(input.payment).metadata),
-      ...(charge.surcharge_cents > 0 ? {
-        surcharge_cents: charge.surcharge_cents,
-        base_amount_cents: charge.base_amount_cents
-      } : {})
-    },
-    ...(cleanText(asObject(input.payment).obligation_id) ? { obligation_id: cleanText(asObject(input.payment).obligation_id) } : {}),
-    ...(asObject(input.payment).allocation_mode ? { allocation_mode: cleanText(asObject(input.payment).allocation_mode) } : {}),
-    ...(cleanText(asObject(input.payment).kind) ? { kind: cleanText(asObject(input.payment).kind) } : {}),
-    ...(cleanText(asObject(input.payment).notes) ? { notes: cleanText(asObject(input.payment).notes) } : {})
-  }, ctx);
+      fee_cents: charge.fee_cents,
+      merchant_amount_cents: charge.merchant_amount_cents,
+      processor: {
+        provider: provider.provider,
+        provider_payment_id: charge.provider_payment_id,
+        provider_intent_id: charge.intent_id,
+        checkout_id: charge.checkout_id,
+        rail: charge.rail,
+        ...(charge.auth_code ? { auth_code: charge.auth_code } : {})
+      },
+      metadata: {
+        ...asObject(payment.metadata),
+        checkout_id: charge.checkout_id,
+        // A pending bank debit is applied when it clears (settlePendingPayment).
+        ...(charge.pending ? {
+          awaiting_clearance: true,
+          ...(cleanText(payment.obligation_id) ? { intended_obligation_id: cleanText(payment.obligation_id) } : {}),
+          ...(payment.allocation_mode ? { allocation_mode: cleanText(payment.allocation_mode) } : {}),
+          ...(Array.isArray(payment.allocation_obligation_ids) ? { allocation_obligation_ids: payment.allocation_obligation_ids } : {}),
+          ...(payment.allocate === false ? { allocate: false } : {})
+        } : {}),
+        ...(charge.surcharge_cents > 0 ? {
+          surcharge_cents: charge.surcharge_cents,
+          base_amount_cents: charge.base_amount_cents
+        } : {})
+      },
+      ...(cleanText(payment.obligation_id) ? { obligation_id: cleanText(payment.obligation_id) } : {}),
+      ...(payment.allocation_mode ? { allocation_mode: cleanText(payment.allocation_mode) } : {}),
+      ...(cleanText(payment.kind) ? { kind: cleanText(payment.kind) } : {}),
+      ...(cleanText(payment.notes) ? { notes: cleanText(payment.notes) } : {})
+    }, ctx);
   } catch (error) {
     // The card was charged and the full payment record could not be written
     // (a disabled feature, an allocation rule, storage). The charge stays on
@@ -581,14 +1046,15 @@ export async function recordProviderChargedPayment(
     return { payment: { ...safety, needs_review: true }, charge, saved_method: savedMethod, needs_review: true } as unknown as Awaited<ReturnType<typeof createPayment>> & { charge: ProviderChargeResult; saved_method: JsonObject | null };
   }
   await removeProviderShadowRecord(orgId, charge.provider_payment_id);
+  await saveCheckout(orgId, { ...checkout, recorded_payment_id: charge.payment_id, recorded_at: nowIso() }).catch(() => null);
   let saved: JsonObject | null = savedMethod;
-  if (!savedMethod && input.save_payment_method === true && cleanText(input.payment_method_id)) {
+  if (!savedMethod && input.save_payment_method === true && token) {
     const contactRef = normalizeContactRef(input.contact_ref);
     if (contactRef) {
-      const details = await provider.getPaymentMethod(cleanText(input.payment_method_id)).catch(() => null);
+      const details = await provider.getPaymentMethod(token).catch(() => null);
       saved = await createSavedMethod(orgId, contactRef, {
         provider: provider.provider,
-        provider_payment_method_id: cleanText(input.payment_method_id),
+        provider_payment_method_id: token,
         type: details?.type === "card" ? "card" : details ? "bank" : "card",
         brand: details?.brand,
         last4: details?.last4,
@@ -600,10 +1066,41 @@ export async function recordProviderChargedPayment(
   return { ...result, charge, saved_method: saved };
 }
 
+/**
+ * Finishes a checkout whose charge succeeded at the processor but whose
+ * answer never reached us (the processor's notification or a lookup found
+ * it). Writes the payment record exactly once.
+ */
+export async function finishCheckoutFromProvider(orgId: string, checkoutId: string) {
+  let checkout = await readCheckout(orgId, checkoutId);
+  if (!checkout || cleanText(checkout.recorded_payment_id)) return null;
+  const existing = await readDocument(orgId, PAYMENT_TRANSACTION_COLLECTION, cleanText(checkout.payment_id)).catch(() => null);
+  if (existing) return null;
+  if (!["unknown", "succeeded"].includes(cleanText(checkout.status))) return null;
+  const provider = cleanText(checkout.provider) === "mock" ? createMockAdapter(orgId) : createForwardAdapter({ accountId: (await paymentsReadiness(orgId)).account_id });
+  let charge: ProviderPayment | null = null;
+  if (cleanText(checkout.status) === "unknown") {
+    const settled = await reconcileCheckout(orgId, provider, checkout);
+    if (!settled) return null;
+    checkout = settled.checkout;
+    charge = settled.charge;
+  } else {
+    charge = await provider.getPayment(cleanText(checkout.provider_payment_id));
+  }
+  const recordInput = asObject(checkout.record_input);
+  const ctx = { ...PROVIDER_WEBHOOK_CTX, branchId: cleanText(checkout.branch_id) || "default" } as PlatformAuthContext;
+  return finishChargedPayment(orgId, provider, checkout, charge, {
+    ...recordInput,
+    amount_cents: cents(checkout.base_amount_cents),
+    checkout_id: cleanText(checkout.id)
+  } as IntakeChargePaymentInput, null, cleanText(checkout.payment_method_id), ctx);
+}
+
 /** Convenience: resolved provider + merchant config (or nulls when unwired). */
 export async function resolveIntakeProvider(orgId: string) {
-  const provider = await getPaymentProvider(orgId).catch(() => null);
-  if (!provider) return { provider: null, config: null };
+  const readiness = await paymentsReadiness(orgId).catch(() => null);
+  if (!readiness?.ready) return { provider: null, config: null };
+  const { provider } = await requirePaymentsReady(orgId);
   const config = await getMerchantConfig(orgId).catch(() => null);
   return { provider, config };
 }

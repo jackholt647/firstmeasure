@@ -298,11 +298,6 @@
         }
       });
     }
-    function paymentMethod(payload){
-      const method = clean(payload?.method || payload?.savedMethodId).toLowerCase();
-      if (method === 'ach') return { kind:'ach', processor:'demo_field_checkout', last4:clean(payload?.accountLast4).slice(-4) };
-      return { kind:'card', processor:'demo_field_checkout', brand:'Visa', last4:clean(payload?.fields?.cardNumber).replace(/\D/g,'').slice(-4) || '4242' };
-    }
     // ── Provider payment intake (org-scoped, same resolution as the staff
     // Money take-payment mount). Cached per mount; best-effort — any failure
     // (or no configured provider) resolves null and the on-site checkout
@@ -317,21 +312,30 @@
           const result = await window.PaymentsAPI.intake.config(orgId(context), {
             contact_ref: clean(contact?.id || contact?.contact_id || String(contact?.email || '').toLowerCase())
           });
-          config = result?.provider ? result : null;
+          config = result && typeof result.ready === 'boolean' ? result : null;
         }
       } catch (_) { config = null; }
-      intakeConfigEntry = { config };
+      if (config) intakeConfigEntry = { config };
       return config;
     }
-    function providerIntakeOptions(config){
-      if (!config || !config.provider) return {};
+    function providerIntakeOptions(config, doc, outputKey){
+      // Not set up: the form says so and offers no card or bank entry.
+      if (!config || config.ready !== true || !config.provider) {
+        return { notReadyMessage: clean(config?.message) || 'Online payments are not set up for this company yet. Record cash or check payments from Payments.' };
+      }
+      const rails = object(config.rails);
       // No surcharge options on purpose: the document's own pricing carries
       // any processing-fee rows and the server validates the exact amount.
       return {
         savedMethods: Array.isArray(config.saved_methods) ? config.saved_methods : [],
+        refundPolicy: clean(config.refund_policy),
+        methods: [rails.card !== false ? 'card' : '', rails.bank !== false ? 'ach' : ''].filter(Boolean),
         tokenization: {
           mode: clean(config.tokenization?.mode) || 'mock',
           sdkUrl: clean(config.tokenization?.sdk_url),
+          publicKey: clean(config.tokenization?.public_key),
+          // The server prices the checkout from the document.
+          prepare: async ({ method }) => (await window.CrewAPI.projects.paymentCheckout(orgId(context), projectId(context), { document_id: doc.id, output_key: outputKey, method }))?.checkout,
           createPaymentMethod: (request) => window.PaymentsAPI.intake.createPaymentMethodIntent(orgId(context), request)
         }
       };
@@ -347,24 +351,27 @@
       return new Promise((resolve, reject) => {
         const amount = Number(options.amountCents || 0);
         const openModal = (config) => window.FirstMatePaymentIntake.open({
-          ...providerIntakeOptions(config),
+          methods:['card','ach'],
+          ...providerIntakeOptions(config, doc, options.outputKey || 'payment'),
           title: options.title || (globalThis.PlatformLanguage?.text("signatures","m_7d7defd098e64b","Pay on site") ?? "Pay on site"), description:options.description || 'Complete payment securely on this device.', amountLabel:'Amount due', amountCents:amount, allowCustomAmount:false,
-          methods:['card','ach'], submitLabel:'Pay', successTitle:'Payment received', successDescription:'The payment is recorded on this project.',
+          submitLabel:'Pay', successTitle:'Payment received', successDescription:'The payment is recorded on this project.',
           onSubmit: async (payload) => {
             try {
               // Tokenized submissions carry the provider token; the server
               // charges through the processor before recording the output.
               // Without a token the request body is byte-identical to legacy.
               const tokenized = !!(clean(payload?.payment_method_id) || clean(payload?.saved_method_id));
+              // Card and bank go through the processor; this form never
+              // records a payment as made without a charge.
+              if (!tokenized) throw new Error('Enter the payment details to continue.');
               const result = await window.CrewAPI.projects.paySignatureDocument(orgId(context), projectId(context), doc.id, options.outputKey || 'payment', {
                 amount_cents:payload.amountCents,
-                method: tokenized ? tokenizedMethod(payload) : paymentMethod(payload),
+                method: tokenizedMethod(payload),
                 evidence:evidence(),
-                ...(tokenized ? {
-                  ...(clean(payload.payment_method_id) ? { payment_method_id:clean(payload.payment_method_id) } : {}),
-                  ...(clean(payload.saved_method_id) ? { saved_method_id:clean(payload.saved_method_id) } : {}),
-                  save_payment_method: payload.save_method === true
-                } : {})
+                ...(clean(payload.payment_method_id) ? { payment_method_id:clean(payload.payment_method_id) } : {}),
+                ...(clean(payload.saved_method_id) ? { saved_method_id:clean(payload.saved_method_id) } : {}),
+                ...(clean(payload.checkout_id) ? { checkout_id:clean(payload.checkout_id) } : {}),
+                save_payment_method: payload.save_method === true
               });
               if (tokenized) intakeConfigEntry = undefined; // saved cards may have changed
               detail.document = result.document || detail.document;

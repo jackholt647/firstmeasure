@@ -1,4 +1,5 @@
 import { isAppFlagEnabled } from "../../platform/app_flags.js";
+import { env } from "../../src/config/env.js";
 import { getMerchantConfig } from "../merchant_config.js";
 import {
   createForwardAdapter,
@@ -44,6 +45,8 @@ async function resolveMerchant(orgId: string, options: { requireAccount?: boolea
   if (!config) return null;
   const accountId = config.forward.account_id;
   if (config.provider === MOCK_PROVIDER) {
+    // The simulator never moves (or pretends to move) money on production data.
+    if (env.dataEnvironment === "production") return null;
     // Mock runs entirely in-process — env keys are not required.
     if (options.requireAccount !== false && !accountId) return null;
     return { provider: MOCK_PROVIDER, accountId };

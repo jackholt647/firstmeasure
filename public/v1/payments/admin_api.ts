@@ -17,6 +17,7 @@ import {
   forwardConfigured
 } from "./providers/forward.js";
 import { createMockBoardingAdapter, MOCK_PROVIDER } from "./providers/mock.js";
+import { mockProviderAllowed } from "./readiness.js";
 import type { MerchantBoardingAdapter, ProviderApplication } from "./providers/types.js";
 
 /**
@@ -286,6 +287,9 @@ export const registerPaymentsAdminApi: FastifyPluginAsync = async (app) => {
       throw badRequest("provider_invalid", "Provider must be \"mock\", \"forward\", or null.");
     }
     const provider = parsed.data.provider === null ? "" : cleanText(parsed.data.provider);
+    if (provider === "mock" && !mockProviderAllowed()) {
+      throw badRequest("provider_invalid", "The payment simulator cannot process payments on production data.");
+    }
     const config = await getMerchantConfigForOps(orgId);
     if (!config) throw notFound("merchant_config_not_found", "This organization has no merchant configuration.");
     const merchantConfig = await upsertMerchantConfig(orgId, { provider }, { skipFlag: true });

@@ -191,6 +191,7 @@ path. Entries and their hashes stay the same; only how they link changes.
 
 **Why it can wait.** Signing is a few writes per agreement, so the lock is held for milliseconds and contention
 needs thousands of concurrent signers. (docs/architecture/document-signing.md, "Seal, timestamp and signing ledger")
+
 ## Wall drafting redraws serialize the whole project to validate their caches
 
 **Today.** Every draw pass serializes the project state and composed walls (`beginRenderCache` in
@@ -314,3 +315,17 @@ and draft points near a chimney footprint (a bounding-box test that keeps its ex
 
 **Why it can wait.** Rendering dominates the frame time on large houses. (dev/EXTERIOR_PERFORMANCE.md,
 "Preview interaction, 2026-10-19")
+
+## Payment checkouts and refunds scan collections
+
+**Today.** `findCheckoutByPaymentId` (`payments/intake.ts`) derives the checkout id from the payment id and only
+falls back to reading every `payment_checkouts` record for payment ids it did not mint. `refundsOf`
+(`payments/provider_refunds.ts`) reads every payment transaction to find one payment's refunds, as `refundPayment`
+already did.
+
+**Where the change goes.** Store the checkout id in the payment's metadata lookup index and list refunds through a
+`related_payment_id` metadata query in the storage layer.
+
+**Why it can wait.** Both run once per refund or per unmatched processor event, on one organization's records.
+(docs/architecture/payments.md "Not built")
+

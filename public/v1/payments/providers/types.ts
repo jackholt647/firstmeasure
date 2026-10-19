@@ -25,14 +25,52 @@ export type ProviderPaymentIntentStatus =
 
 export type ProviderPaymentStatus =
   | "pending"
+  | "processing"
   | "authorized"
   | "captured"
   | "settled"
   | "failed"
   | "cancelled"
+  | "voided"
+  | "rejected"
   | "refunded";
 
-export type ProviderRefundStatus = "pending" | "succeeded" | "failed";
+export type ProviderRefundStatus = "pending" | "processing" | "succeeded" | "failed" | "cancelled";
+
+/**
+ * Card-network transaction context (Forward `order_details`). Who started the
+ * payment and whether it is a stored-credential repeat decide which network
+ * rules apply: a customer paying at checkout is customer-initiated
+ * ("ecommerce" + "customer"); autopay charging a stored method on schedule is
+ * merchant-initiated ("recurring" + "merchant" + scheduled).
+ */
+export type ProviderOrderDetails = {
+  card_not_present_type?: "ecommerce" | "recurring";
+  initiated_by?: "customer" | "merchant";
+  is_scheduled_payment?: boolean;
+  invoice_id?: string;
+  description?: string;
+  tax_amount?: number;
+  tax_exempt?: boolean;
+  ship_to_zip?: string;
+  ship_to_country?: string;
+  po_number?: string;
+};
+
+/** Billing details sent with a charge (AVS uses the street line and postal code). */
+export type ProviderBillingDetails = {
+  name?: string;
+  email?: string;
+  phone?: string;
+  address?: {
+    address_line1?: string;
+    address_line2?: string;
+    city?: string;
+    state?: string;
+    postal_code?: string;
+    country?: string;
+  };
+};
 
 export type ProviderPayoutStatus = "pending" | "in_transit" | "paid" | "failed";
 
@@ -53,6 +91,12 @@ export type CreatePaymentIntentInput = {
   auto_capture?: boolean;
   description?: string;
   user_fields?: JsonObject;
+  order_details?: ProviderOrderDetails;
+  /**
+   * Stable key for this business operation. A retry of the same operation
+   * must send the same key so the processor treats it as one request.
+   */
+  idempotency_key?: string;
 };
 
 export type ProviderPaymentIntent = {
@@ -62,14 +106,29 @@ export type ProviderPaymentIntent = {
   currency: string;
   captured_cents: number;
   refunded_cents: number;
+  voided_cents: number;
   reference_id: string;
+  /** Hands the browser's secure card/bank element this one intent. */
+  client_secret: string;
+  settlement_status: string;
+  /** The intent's most recent payment attempt, when the provider echoes it. */
+  latest_payment: ProviderPayment | null;
   raw: JsonObject;
+};
+
+export type UpdatePaymentIntentInput = {
+  amount_cents?: number;
+  order_details?: ProviderOrderDetails;
+  idempotency_key?: string;
 };
 
 export type CreatePaymentInput = {
   payment_method_id: string;
   amount_cents?: number;
-  billing_details?: JsonObject;
+  billing_details?: ProviderBillingDetails | JsonObject;
+  order_details?: ProviderOrderDetails;
+  reference_id?: string;
+  idempotency_key?: string;
 };
 
 export type ProviderPayment = {
@@ -79,13 +138,27 @@ export type ProviderPayment = {
   amount_cents: number;
   currency: string;
   auth_code: string;
+  /** Provider decline code (e.g. Forward's `decline_category`). */
   decline_reason: string;
+  /** Human-readable decline or failure text from the provider. */
+  decline_text: string;
+  /** "card" or "bank" (Forward `payment_rail_type`). */
+  rail: "card" | "bank";
+  /** "settled" | "unsettled" | "" — a payment can be voided until it settles. */
+  settlement_status: string;
+  payment_method_id: string;
   raw: JsonObject;
 };
 
 export type CreateRefundInput = {
   amount_cents?: number;
   reason?: string;
+  idempotency_key?: string;
+};
+
+export type CancelPaymentIntentInput = {
+  reason?: "duplicate" | "fraudulent" | "requested_by_customer" | "abandoned";
+  idempotency_key?: string;
 };
 
 export type ProviderRefund = {
@@ -198,10 +271,16 @@ export type ListOptions = {
 export interface PaymentProviderAdapter {
   readonly provider: string;
   createPaymentIntent(input: CreatePaymentIntentInput): Promise<ProviderPaymentIntent>;
-  capturePaymentIntent(intentId: string, input?: { amount_cents?: number }): Promise<ProviderPaymentIntent>;
-  cancelPaymentIntent(intentId: string): Promise<ProviderPaymentIntent>;
+  getPaymentIntent(intentId: string): Promise<ProviderPaymentIntent>;
+  /** Finds intents by our reference id (reconciles a charge whose response was lost). */
+  searchPaymentIntents(input: { reference_id: string }): Promise<ProviderPaymentIntent[]>;
+  updatePaymentIntent(intentId: string, input: UpdatePaymentIntentInput): Promise<ProviderPaymentIntent>;
+  capturePaymentIntent(intentId: string, input?: { amount_cents?: number; idempotency_key?: string }): Promise<ProviderPaymentIntent>;
+  /** Cancels an intent; a captured payment that has not settled is voided. */
+  cancelPaymentIntent(intentId: string, input?: CancelPaymentIntentInput): Promise<ProviderPaymentIntent>;
   createPayment(intentId: string, input: CreatePaymentInput): Promise<ProviderPayment>;
   createRefund(intentId: string, input?: CreateRefundInput): Promise<ProviderRefund>;
+  getRefund(refundId: string): Promise<ProviderRefund>;
   getPayment(paymentId: string): Promise<ProviderPayment>;
   listPayouts(options?: ListOptions): Promise<ProviderPayout[]>;
   getPayout(payoutId: string): Promise<ProviderPayout>;
@@ -292,7 +371,17 @@ export type ProviderAccount = {
   external_account_id: string;
   processing_enabled: boolean;
   payouts_enabled: boolean;
+  /** Provider account status (Forward: BOARDING until the gateway is set up). */
+  status: string;
+  /** Gateway merchant id once the account is boarded to the gateway. */
+  gateway_mid: string;
   raw: JsonObject;
+};
+
+export type ProviderMcc = {
+  code: string;
+  description: string;
+  active: boolean;
 };
 
 export type ProviderBankAccount = {
@@ -388,6 +477,8 @@ export interface MerchantBoardingAdapter {
   /** Mints a single-use magic-link login URL into the provider's merchant portal. */
   generatePortalLoginUrl(userId: string): Promise<ProviderPortalLoginUrl>;
   listProcessingPlans(options?: ListOptions): Promise<ProviderProcessingPlan[]>;
+  /** Merchant category codes assigned to the partner, for the application form. */
+  listMccs(): Promise<ProviderMcc[]>;
   getAccount(accountId: string): Promise<ProviderAccount>;
   /**
    * Lists the partner's merchant accounts (optionally scoped to a business).

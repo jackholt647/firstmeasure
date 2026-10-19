@@ -3,16 +3,21 @@ import type { FastifyPluginAsync } from "fastify";
 
 import { env } from "../src/config/env.js";
 import { listDocuments, readDocument, upsertDocument, type JsonObject } from "../platform/storage.js";
-import { findOrganizationByForwardIds, maybeNotifyMerchantApproved, upsertMerchantConfig } from "./merchant_config.js";
+import { findOrganizationByForwardIds, getMerchantConfigForOps, maybeNotifyMerchantApproved, upsertMerchantConfig } from "./merchant_config.js";
+import { findCheckoutByPaymentId, finishCheckoutFromProvider } from "./intake.js";
+import { refundInFlight } from "./provider_refunds.js";
+import { createForwardBoardingAdapter, forwardConfigured } from "./providers/forward.js";
 import {
   PROVIDER_WEBHOOK_CTX,
   upsertDisputeFromEvent,
   upsertPayoutFromEvent
 } from "./payouts.js";
 import {
+  failRecordedPayment,
   PAYMENT_INTENT_COLLECTION,
   PAYMENT_TRANSACTION_COLLECTION,
   patchPaymentProviderFields,
+  settlePendingPayment,
   refundPayment
 } from "./storage.js";
 
@@ -114,16 +119,18 @@ function forwardEventIds(event: JsonObject) {
   const isBusiness = id.startsWith("bus_") || id.startsWith("biz_");
   return {
     account_id: cleanText(data.account_id || nested.account_id || (isAccount ? id : "")),
-    application_id: cleanText(data.application_id || nested.application_id || (isApplication ? id : "")),
-    business_id: cleanText(data.business_id || nested.business_id || (isBusiness ? id : ""))
+    application_id: cleanText(data.application_id || nested.application_id || data.onboarding_application_id || (isApplication ? id : "")),
+    business_id: cleanText(data.business_id || nested.business_id || (isBusiness ? id : "")),
+    external_account_id: cleanText(data.external_account_id || nested.external_account_id)
   };
 }
 
-export async function storeForwardEvent(orgId: string, svixId: string, eventType: string, event: JsonObject, options: { provider?: string } = {}): Promise<{ stored: boolean }> {
+export async function storeForwardEvent(orgId: string, svixId: string, eventType: string, event: JsonObject, options: { provider?: string } = {}): Promise<{ stored: boolean; retry?: boolean }> {
   const documentId = eventDocumentId(svixId);
   const provider = cleanText(options.provider) || "forward";
   const existing = await readDocument(orgId, PAYMENT_PROVIDER_EVENT_COLLECTION, documentId).catch(() => null);
-  if (existing) return { stored: false };
+  // An event whose processing failed is processed again when it comes back.
+  if (existing) return { stored: false, retry: asObject(asObject(existing).data).processed === false };
   await upsertDocument(orgId, PAYMENT_PROVIDER_EVENT_COLLECTION, {
     id: documentId,
     data: {
@@ -132,11 +139,23 @@ export async function storeForwardEvent(orgId: string, svixId: string, eventType
       svix_id: cleanText(svixId),
       event_type: eventType,
       event,
+      processed: false,
       received_at: new Date().toISOString()
     },
     metadata: { kind: "payment_provider_event", provider, event_type: eventType }
   }, { replace: false });
   return { stored: true };
+}
+
+async function markForwardEvent(orgId: string, svixId: string, patch: JsonObject) {
+  const documentId = eventDocumentId(svixId);
+  const existing = asObject(asObject(await readDocument(orgId, PAYMENT_PROVIDER_EVENT_COLLECTION, documentId).catch(() => null)).data);
+  if (!cleanText(existing.id)) return;
+  await upsertDocument(orgId, PAYMENT_PROVIDER_EVENT_COLLECTION, {
+    id: documentId,
+    data: { ...existing, ...patch },
+    metadata: { kind: "payment_provider_event", provider: cleanText(existing.provider), event_type: cleanText(existing.event_type) }
+  }, { replace: true });
 }
 
 async function handleApplicationEvent(orgId: string, eventType: string, event: JsonObject) {
@@ -160,16 +179,41 @@ async function handleApplicationEvent(orgId: string, eventType: string, event: J
 
 async function handleAccountEvent(orgId: string, eventType: string, event: JsonObject) {
   const data = asObject(event.data);
-  await upsertMerchantConfig(orgId, {
-    forward: {
-      ...(cleanText(data.id).startsWith("acct_") || cleanText(data.id).startsWith("acc_") ? { account_id: cleanText(data.id) } : {}),
-      ...(data.processing_enabled !== undefined ? { processing_enabled: data.processing_enabled === true } : {}),
-      ...(data.payouts_enabled !== undefined || eventType === "v2.account.payouts_enabled"
-        ? { payouts_enabled: eventType === "v2.account.payouts_enabled" || data.payouts_enabled === true }
-        : {}),
-      last_event_at: new Date().toISOString()
+  const accountId = cleanText(data.id).startsWith("acct_") || cleanText(data.id).startsWith("acc_") ? cleanText(data.id) : cleanText(data.account_id);
+  const now = new Date().toISOString();
+  // processing/payouts enable/disable events are the state change itself.
+  const flag = (name: string, on: string, off: string) => eventType === on ? true : eventType === off ? false
+    : data[name] !== undefined ? data[name] === true : undefined;
+  const processing = flag("processing_enabled", "v2.account.processing_enabled", "v2.account.processing_disabled");
+  const payouts = flag("payouts_enabled", "v2.account.payouts_enabled", "v2.account.payouts_disabled");
+  const patch: JsonObject = {
+    ...(accountId ? { account_id: accountId } : {}),
+    ...(processing !== undefined ? { processing_enabled: processing } : {}),
+    ...(payouts !== undefined ? { payouts_enabled: payouts } : {}),
+    ...(cleanText(data.status) ? { account_status: cleanText(data.status).toUpperCase() } : {}),
+    ...(cleanText(data.mid) ? { gateway_mid: cleanText(data.mid) } : {}),
+    // Mandatory for Forward certification: the account is boarded to the
+    // gateway and ready to process.
+    ...(eventType === "v2.account.gateway_updated" ? { gateway_updated_at: now } : {}),
+    ...(eventType === "v2.account.closed" ? { processing_enabled: false, payouts_enabled: false, account_status: "CLOSED" } : {}),
+    last_event_at: now
+  };
+  await upsertMerchantConfig(orgId, { forward: patch }, { skipFlag: true });
+  // Webhook bodies can be partial; the account itself is authoritative.
+  if (accountId && cleanText(event.provider || data.provider) !== "mock" && forwardConfigured()) {
+    const account = await createForwardBoardingAdapter({ accountId }).getAccount(accountId).catch(() => null);
+    if (account) {
+      await upsertMerchantConfig(orgId, {
+        forward: {
+          processing_enabled: account.processing_enabled,
+          payouts_enabled: account.payouts_enabled,
+          ...(account.status ? { account_status: account.status } : {}),
+          ...(account.gateway_mid ? { gateway_mid: account.gateway_mid } : {})
+        }
+      }, { skipFlag: true });
     }
-  }, { skipFlag: true });
+  }
+  if (accountId) await maybeNotifyMerchantApproved(orgId).catch(() => null);
 }
 
 function documentData(doc: unknown) {
@@ -250,6 +294,7 @@ async function handleRefundCreatedEvent(orgId: string, event: JsonObject) {
   // payment_id (plus any of our reference ids echoed through user_fields).
   const original = await findTransactionForPaymentEvent(orgId, { ...data, id: cleanText(data.payment_id || data.payment) });
   if (!original || cleanText(original.direction) !== "inbound") return;
+  if (refundInFlight(original)) return;
   // Provider-originated refund (e.g. issued from the processor dashboard):
   // mirror it through the existing refund flow so allocations reverse and the
   // original transaction's refunded state stays truthful.
@@ -273,9 +318,42 @@ async function handlePaymentEvent(orgId: string, eventType: string, event: JsonO
   if (!eventType.startsWith("v2.payment.")) return;
 
   const providerStatus = cleanText(data.status).toLowerCase() || cleanText(eventType.split(".").pop());
-  const matched = await findTransactionForPaymentEvent(orgId, data);
-  if (matched) {
-    await patchPaymentProviderFields(orgId, cleanText(matched.id), {
+  let matched = await findTransactionForPaymentEvent(orgId, data);
+  if (!matched && ["captured", "created"].includes(cleanText(eventType.split(".").pop()))) {
+    // A charge whose answer never reached us: finish it from the checkout.
+    const checkout = await findCheckoutByPaymentId(orgId, cleanText(asObject(data.user_fields).payment_id || data.reference_id));
+    if (checkout && ["unknown", "succeeded"].includes(cleanText(checkout.status)) && !cleanText(checkout.recorded_payment_id)) {
+      await finishCheckoutFromProvider(orgId, cleanText(checkout.id)).catch(() => null);
+      matched = await findTransactionForPaymentEvent(orgId, data);
+    }
+  }
+  // An unmatched-settlement placeholder is never settled or failed itself;
+  // it only waits for someone to match it to a real payment.
+  const placeholder = matched && (cleanText(matched.kind) === "provider_payment" || asObject(matched.metadata).provider_unmatched === true);
+  if (matched && !placeholder) {
+    const matchedId = cleanText(matched.id);
+    const lastPart = cleanText(eventType.split(".").pop());
+    // A declined first attempt shares our payment id with the charge that
+    // later succeeded; only the charge we recorded may change our record.
+    const recordedCharge = cleanText(asObject(matched.processor).provider_payment_id);
+    const sameCharge = !recordedCharge || recordedCharge === cleanText(data.id);
+    if (!sameCharge) return;
+    if (lastPart === "captured" && cleanText(matched.status) === "pending") {
+      await settlePendingPayment(orgId, matchedId, { provider_status: providerStatus });
+    } else if (["failed", "rejected"].includes(providerStatus) || lastPart === "failed") {
+      if (!["failed", "returned"].includes(cleanText(matched.status))) {
+        await failRecordedPayment(orgId, matchedId, {
+          status: cleanText(matched.status) === "settled" ? "returned" : "failed",
+          reason: cleanText(data.failure_message || data.return_message || data.decline_category_text || data.decline_category) || "The processor reported the payment failed.",
+          processor: { provider_payment_id: cleanText(data.id) }
+        });
+      }
+    } else if ((providerStatus === "voided" || lastPart === "cancelled") && !refundInFlight(matched)
+      && ["settled", "pending"].includes(cleanText(matched.status))) {
+      // Voided at the processor (e.g. in Forward's merchant portal).
+      await failRecordedPayment(orgId, matchedId, { status: "voided", reason: "Voided at the processor.", processor: { provider_payment_id: cleanText(data.id) } });
+    }
+    await patchPaymentProviderFields(orgId, matchedId, {
       provider: cleanText(data.provider) || cleanText(matched.provider) || "forward",
       provider_status: providerStatus,
       ...(Number.isFinite(Number(data.fee ?? data.fee_cents)) ? { fee_cents: cents(data.fee ?? data.fee_cents) } : {}),
@@ -364,9 +442,17 @@ export async function ingestForwardEvent(
   event: JsonObject,
   options: { provider?: string } = {}
 ): Promise<{ stored: boolean }> {
-  const { stored } = await storeForwardEvent(orgId, messageId, eventType, event, options);
-  if (stored) await dispatchForwardEvent(orgId, eventType, event);
-  return { stored };
+  const { stored, retry } = await storeForwardEvent(orgId, messageId, eventType, event, options);
+  if (!stored && !retry) return { stored };
+  try {
+    await dispatchForwardEvent(orgId, eventType, event);
+  } catch (error) {
+    // Left unprocessed: the processor's redelivery runs it again.
+    await markForwardEvent(orgId, messageId, { processed: false, last_error: String((error as Error)?.message || error).slice(0, 500), failed_at: new Date().toISOString() }).catch(() => null);
+    throw error;
+  }
+  await markForwardEvent(orgId, messageId, { processed: true, processed_at: new Date().toISOString() });
+  return { stored: true };
 }
 
 /** Generates a Svix-shaped message id for provider-synthesized (mock) events. */
@@ -406,15 +492,27 @@ export const registerForwardWebhooks: FastifyPluginAsync = async (app) => {
       reply.code(400);
       return { ok: false, error: "event_type_missing" };
     }
-    const resolved = await findOrganizationByForwardIds(forwardEventIds(event));
+    const ids = forwardEventIds(event);
+    let resolved = await findOrganizationByForwardIds(ids);
+    if (!resolved && ids.external_account_id) {
+      // A new account names our organization id before we know its id.
+      const config = await getMerchantConfigForOps(ids.external_account_id).catch(() => null);
+      if (config) resolved = { orgId: ids.external_account_id, config };
+    }
     if (!resolved) {
       // Acknowledge so Forward stops retrying: the event is for a merchant we
       // have no config for yet (or ids arrive on a shape we don't map).
       request.log.warn({ event_type: eventType, svix_id: svixId }, "Forward webhook could not be routed to an organization.");
       return { ok: true, ignored: true, reason: "organization_unresolved" };
     }
-    const { stored } = await ingestForwardEvent(resolved.orgId, svixId, eventType, event);
-    if (!stored) return { ok: true, duplicate: true };
+    try {
+      const { stored } = await ingestForwardEvent(resolved.orgId, svixId, eventType, event);
+      if (!stored) return { ok: true, duplicate: true };
+    } catch (error) {
+      request.log.error({ event_type: eventType, svix_id: svixId, error: String((error as Error)?.message || error) }, "Forward webhook processing failed; awaiting redelivery.");
+      reply.code(500);
+      return { ok: false, error: "processing_failed" };
+    }
     return { ok: true, received: true, type: eventType };
   });
 };

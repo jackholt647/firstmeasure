@@ -312,6 +312,8 @@ export const env = {
   // use `<api-host>` placeholders; this default is an unverified guess.
   forwardApiBase: trimTrailingSlashes(process.env.FORWARD_API_BASE ?? "https://api.sandbox.getfwd.com"),
   forwardPublicKey: process.env.FORWARD_PUBLIC_KEY ?? "",
+  /** Overrides the Forward browser SDK URL (otherwise it follows the API base). */
+  forwardSdkUrl: process.env.FORWARD_SDK_URL ?? "",
   forwardPrivateKey: process.env.FORWARD_PRIVATE_KEY ?? "",
   forwardWebhookSecret: process.env.FORWARD_WEBHOOK_SECRET ?? "",
   forwardRequestTimeoutMs: readNumber("FORWARD_REQUEST_TIMEOUT_MS", 20_000),

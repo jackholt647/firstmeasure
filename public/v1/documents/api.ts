@@ -103,6 +103,7 @@ import {
   patchDocumentInstance,
   publicDocumentWorkflow,
   publicDocumentWorkflowDefinition,
+  publicDocumentPaymentCheckout,
   publicDocumentPaymentIntakeConfig,
   publicDocumentPaymentMethodIntent,
   publicDocumentPricingPreview,
@@ -1138,6 +1139,14 @@ export const registerDocumentsApi: FastifyPluginAsync = async (app) => {
   app.get("/public/:token/payments/intake-config", async (request) => {
     const config = await publicDocumentPaymentIntakeConfig(getParam(request.params, "token"));
     return { ok: true, ...config };
+  });
+
+  // Opens a processor checkout for a payment output; the client secret it
+  // returns is what the portal's secure card or bank element pays.
+  app.post("/public/:token/payments/checkout", async (request, reply) => {
+    const result = await publicDocumentPaymentCheckout(getParam(request.params, "token"), asObject(request.body));
+    reply.code(201);
+    return { ok: true, ...result };
   });
 
   app.post("/public/:token/payments/payment-method-intent", async (request, reply) => {

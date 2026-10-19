@@ -38,7 +38,15 @@ function createSessionClient() {
       }
     });
   };
-  const request = async (method: string, url: string, payload?: unknown, extraHeaders: Record<string, string> = {}) => {
+  const request = async (method: string, url: string, payload?: unknown, extraHeaders: Record<string, string> = {}): Promise<any> => {
+    // A project's contacts are written through the contacts API, never with
+    // the project (docs/architecture/contacts.md).
+    if (method.toUpperCase() === "PUT" && /^\/v1\/platform\/organizations\/[^/]+\/projects\/[^/?]+$/.test(url) && Array.isArray((payload as any)?.data?.contacts)) {
+      const { contacts, ...data } = (payload as any).data;
+      const written: any = await request(method, url, { ...(payload as any), data }, extraHeaders);
+      await request("PUT", `${url}/contacts`, { contacts });
+      return written;
+    }
     const response = await raw(method, url, payload, extraHeaders);
     const setCookie = response.headers["set-cookie"];
     const sessionCookie = readCookie(setCookie, "fm_platform_session");
@@ -166,6 +174,8 @@ test("merchant config defaults to the env-derived provider, round-trips a PATCH,
   assert.equal(initial.merchant_config.forward.account_id, "");
   assert.deepEqual(initial.merchant_config.forward.enabled_rails, { card: false, bank: false, wallets: false, terminals: false });
 
+  // An organization cannot declare itself boarded: processor, account and
+  // approval come only from the processor or FirstMate staff.
   const patched = await client.request("PATCH", `/v1/payments/organizations/${orgId}/merchant-config`, {
     provider: "forward",
     forward: {
@@ -178,30 +188,33 @@ test("merchant config defaults to the env-derived provider, round-trips a PATCH,
       enabled_rails: { card: true }
     }
   });
-  assert.equal(patched.merchant_config.provider, "forward");
-  assert.equal(patched.merchant_config.forward.account_id, "acct_test_1");
-  assert.equal(patched.merchant_config.forward.processing_enabled, true);
-  assert.equal(patched.merchant_config.forward.payouts_enabled, false);
-  assert.deepEqual(patched.merchant_config.forward.enabled_rails, { card: true, bank: false, wallets: false, terminals: false });
+  assert.equal(patched.merchant_config.provider, "mock");
+  assert.equal(patched.merchant_config.forward.account_id, "");
+  assert.equal(patched.merchant_config.forward.boarding_status, "");
+  assert.equal(patched.merchant_config.forward.processing_enabled, false);
+  // The first rail choice starts from the defaults (card and bank on).
+  assert.deepEqual(patched.merchant_config.forward.enabled_rails, { card: true, bank: true, wallets: false, terminals: false });
+  const { paymentsReadiness } = await import("../payments/readiness.js");
+  assert.equal((await paymentsReadiness(orgId)).ready, false, "a self-declared approval never makes payments ready");
 
   const railsOnly = await client.request("PATCH", `/v1/payments/organizations/${orgId}/merchant-config`, {
-    forward: { enabled_rails: { bank: true } }
+    forward: { enabled_rails: { bank: false } }
   });
-  assert.deepEqual(railsOnly.merchant_config.forward.enabled_rails, { card: true, bank: true, wallets: false, terminals: false });
-  assert.equal(railsOnly.merchant_config.forward.account_id, "acct_test_1", "unrelated fields survive a partial patch");
+  assert.deepEqual(railsOnly.merchant_config.forward.enabled_rails, { card: true, bank: false, wallets: false, terminals: false });
 
   const reread = await client.request("GET", `/v1/payments/organizations/${orgId}/merchant-config`);
-  assert.equal(reread.merchant_config.provider, "forward");
-  assert.equal(reread.merchant_config.forward.boarding_status, "APPROVED");
+  assert.equal(reread.merchant_config.provider, "mock");
+  assert.equal(reread.merchant_config.forward.boarding_status, "");
 });
 
 test("forward webhook verifies, routes by account id, stores events idempotently, and updates boarding state", async () => {
   const client = createSessionClient();
   const { orgId } = await register(client);
-  await client.request("PATCH", `/v1/payments/organizations/${orgId}/merchant-config`, {
+  const { upsertMerchantConfig } = await import("../payments/merchant_config.js");
+  await upsertMerchantConfig(orgId, {
     provider: "forward",
     forward: { business_id: "biz_hook_1", application_id: "app_hook_1", account_id: "acct_hook_1" }
-  });
+  }, { skipFlag: true });
 
   const post = async (body: string, headers: Record<string, string>) => await (app.inject as any)({
     method: "POST",
@@ -258,10 +271,8 @@ test("forward webhook verifies, routes by account id, stores events idempotently
 test("getPaymentProvider returns null when Forward env keys are absent", async () => {
   const client = createSessionClient();
   const { orgId } = await register(client);
-  await client.request("PATCH", `/v1/payments/organizations/${orgId}/merchant-config`, {
-    provider: "forward",
-    forward: { account_id: "acct_env_absent" }
-  });
+  const { upsertMerchantConfig } = await import("../payments/merchant_config.js");
+  await upsertMerchantConfig(orgId, { provider: "forward", forward: { account_id: "acct_env_absent" } }, { skipFlag: true });
   const { getPaymentProvider, getBoardingProvider } = await import("../payments/providers/index.js");
   assert.equal(await getPaymentProvider(orgId), null, "no private key means no processor — callers keep mock behavior");
   assert.equal(await getBoardingProvider(orgId), null);

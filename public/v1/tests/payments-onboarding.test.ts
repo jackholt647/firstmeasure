@@ -22,6 +22,12 @@ function readCookie(setCookie: string[] | string | undefined, name: string) {
   return match?.split(";")[0] || "";
 }
 
+/** Boarding state comes from the processor or staff, never an org PATCH; tests set it directly. */
+async function setMerchantConfigForTest(orgId: string, patch: Record<string, unknown>) {
+  const { upsertMerchantConfig } = await import("../payments/merchant_config.js");
+  return upsertMerchantConfig(orgId, patch, { skipFlag: true });
+}
+
 function createSessionClient() {
   let cookie = "";
   let csrf = "";
@@ -37,7 +43,15 @@ function createSessionClient() {
       }
     });
   };
-  const request = async (method: string, url: string, payload?: unknown, extraHeaders: Record<string, string> = {}) => {
+  const request = async (method: string, url: string, payload?: unknown, extraHeaders: Record<string, string> = {}): Promise<any> => {
+    // A project's contacts are written through the contacts API, never with
+    // the project (docs/architecture/contacts.md).
+    if (method.toUpperCase() === "PUT" && /^\/v1\/platform\/organizations\/[^/]+\/projects\/[^/?]+$/.test(url) && Array.isArray((payload as any)?.data?.contacts)) {
+      const { contacts, ...data } = (payload as any).data;
+      const written: any = await request(method, url, { ...(payload as any), data }, extraHeaders);
+      await request("PUT", `${url}/contacts`, { contacts });
+      return written;
+    }
     const response = await raw(method, url, payload, extraHeaders);
     const setCookie = response.headers["set-cookie"];
     const sessionCookie = readCookie(setCookie, "fm_platform_session");
@@ -145,7 +159,7 @@ test("defaultMerchantProvider resolves mock without Forward keys and getMerchant
 test("an explicitly stored provider is never overwritten by the default", async () => {
   const client = createSessionClient();
   const { orgId } = await register(client);
-  await client.request("PATCH", `/v1/payments/organizations/${orgId}/merchant-config`, { provider: "forward" });
+  await setMerchantConfigForTest(orgId, { provider: "forward" });
   const read = await client.request("GET", `/v1/payments/organizations/${orgId}/merchant-config`);
   assert.equal(read.merchant_config.provider, "forward");
 });
@@ -269,7 +283,7 @@ test("money_onboarding attention source walks all five states", async (t) => {
   await t.test("state 4: approved with payouts pending -> waiting, notification only", async () => {
     await client.request("POST", `/v1/payments/organizations/${orgId}/merchant-mock/advance`, { op: "underwriting", to: "APPROVED" });
     // Mock approval enables payouts; simulate the enablement gap explicitly.
-    await client.request("PATCH", `/v1/payments/organizations/${orgId}/merchant-config`, { forward: { payouts_enabled: false } });
+    await setMerchantConfigForTest(orgId, { forward: { payouts_enabled: false } });
     const entry = moneyEntry(await client.request("GET", attentionUrl));
     assert.ok(entry);
     assert.equal(entry.state, "waiting");
@@ -279,7 +293,7 @@ test("money_onboarding attention source walks all five states", async (t) => {
   });
 
   await t.test("state 5: approved with payouts enabled -> no entries", async () => {
-    await client.request("PATCH", `/v1/payments/organizations/${orgId}/merchant-config`, { forward: { payouts_enabled: true } });
+    await setMerchantConfigForTest(orgId, { forward: { payouts_enabled: true } });
     const feed = await client.request("GET", attentionUrl);
     assert.equal(moneyEntry(feed), null);
   });
@@ -316,7 +330,7 @@ test("hosted application link: generated, persisted, reused until expiry, regene
   assert.equal(forced.merchant_config.forward.application_link_url, forced.link.url, "forced link persisted");
 
   // Force expiry -> the route regenerates and persists a fresh link.
-  await client.request("PATCH", `/v1/payments/organizations/${orgId}/merchant-config`, {
+  await setMerchantConfigForTest(orgId, {
     forward: { application_link_expires_at: new Date(Date.now() - 60_000).toISOString() }
   });
   const third = await client.request("POST", `${boardingBase}/applications/${applicationId}/link`, {});
@@ -419,7 +433,7 @@ test("a submitted hosted application cannot be offered as a draft again", async 
   const applicationId = created.application.id as string;
   await client.request("POST", `/v1/payments/organizations/${orgId}/merchant-mock/advance`, { op: "hosted_submit" });
   // Simulate a hosted submission whose webhook has not updated our tracked state.
-  await client.request("PATCH", `/v1/payments/organizations/${orgId}/merchant-config`, {
+  await setMerchantConfigForTest(orgId, {
     forward: { boarding_status: "DRAFT" }
   });
 
@@ -449,7 +463,7 @@ test("application GET shim syncs boarding_status from the provider (hosted submi
 
   // Simulate our tracked status drifting from the provider's truth (webhooks
   // may not reach a local stack after an off-site hosted submission).
-  await client.request("PATCH", `/v1/payments/organizations/${orgId}/merchant-config`, {
+  await setMerchantConfigForTest(orgId, {
     forward: { boarding_status: "UNDER_REVIEW" }
   });
 
@@ -472,7 +486,7 @@ test("application GET shim backfills the merchant account on approval (webhookle
 
   // Simulate the webhookless case: approval happened provider-side but the
   // account id never reached our config.
-  await client.request("PATCH", `/v1/payments/organizations/${orgId}/merchant-config`, {
+  await setMerchantConfigForTest(orgId, {
     forward: { account_id: "" }
   });
 
@@ -489,8 +503,13 @@ test("approval fires the one-time merchant-approved notification with the portal
   await client.request("POST", `/v1/payments/organizations/${orgId}/merchant-mock/advance`, { op: "hosted_submit" });
   await client.request("POST", `/v1/payments/organizations/${orgId}/merchant-mock/advance`, { op: "underwriting", to: "APPROVED" });
 
-  const list = await client.request("GET", `/v1/platform/organizations/${orgId}/notifications`);
-  const approved = (list.notifications as any[]).filter((n) => n.id === "merchant_processing_approved");
+  // Notifications are delivered by the platform worker's queue; the stored
+  // notification is what payments creates.
+  const { listDocuments } = await import("../platform/storage.js");
+  const approvalNotes = async () => (await listDocuments(orgId, "notifications"))
+    .map((doc: any) => doc.data || {})
+    .filter((note: any) => note.id === "merchant_processing_approved");
+  const approved = await approvalNotes();
   assert.equal(approved.length, 1, "exactly one approval notification");
   assert.equal(approved[0].frontend_action?.kind, "open_merchant_portal");
   assert.match(approved[0].body, /bank account/i);
@@ -498,8 +517,7 @@ test("approval fires the one-time merchant-approved notification with the portal
   // Re-syncing an already-approved org must not duplicate it.
   const config = await client.request("GET", `/v1/payments/organizations/${orgId}/merchant-config`);
   await client.request("GET", `${boardingBase}/applications/${config.merchant_config.forward.application_id}`);
-  const again = await client.request("GET", `/v1/platform/organizations/${orgId}/notifications`);
-  assert.equal((again.notifications as any[]).filter((n) => n.id === "merchant_processing_approved").length, 1);
+  assert.equal((await approvalNotes()).length, 1);
 });
 
 test("hosted-first signup harness: concurrent calls share ONE link generation (Forward keeps one active link per application)", async () => {

@@ -6,6 +6,7 @@ import {
   upsertDocument,
   type JsonObject
 } from "../platform/storage.js";
+import { env } from "../src/config/env.js";
 import { forwardConfigured } from "./providers/forward.js";
 
 /**
@@ -60,6 +61,12 @@ export type ForwardMerchantConfig = {
   processing_enabled: boolean;
   payouts_enabled: boolean;
   enabled_rails: { card: boolean; bank: boolean; wallets: boolean; terminals: boolean };
+  /** False until the organization first chooses rails; card and bank default on. */
+  enabled_rails_set: boolean;
+  /** Forward account status (BOARDING until the gateway is set up) and gateway id. */
+  account_status: string;
+  gateway_mid: string;
+  gateway_updated_at: string;
   last_event_at: string;
 };
 
@@ -96,6 +103,10 @@ function normalizeForward(value: unknown): ForwardMerchantConfig {
     processing_enabled: forward.processing_enabled === true,
     payouts_enabled: forward.payouts_enabled === true,
     enabled_rails: normalizeRails(forward.enabled_rails),
+    enabled_rails_set: forward.enabled_rails_set === true,
+    account_status: cleanText(forward.account_status),
+    gateway_mid: cleanText(forward.gateway_mid),
+    gateway_updated_at: cleanText(forward.gateway_updated_at),
     last_event_at: cleanText(forward.last_event_at)
   };
 }
@@ -127,7 +138,10 @@ async function readMerchantConfigDoc(orgId: string) {
  * set-provider always overrides this by storing an explicit value.
  */
 export function defaultMerchantProvider(): string {
-  return forwardConfigured() ? "forward" : "mock";
+  // The simulator never becomes an organization's processor on production
+  // data, even when the Forward keys are missing there.
+  if (forwardConfigured() || env.dataEnvironment === "production") return "forward";
+  return "mock";
 }
 
 export async function getMerchantConfig(orgId: string): Promise<MerchantConfig> {
@@ -172,7 +186,14 @@ export async function upsertMerchantConfig(orgId: string, patch: JsonObject, opt
       ...existing.forward,
       ...patchForward,
       ...(patchForward.enabled_rails !== undefined
-        ? { enabled_rails: { ...existing.forward.enabled_rails, ...asObject(patchForward.enabled_rails) } }
+        ? {
+            // The first choice starts from the defaults (card and bank on).
+            enabled_rails: {
+              ...(existing.forward.enabled_rails_set ? existing.forward.enabled_rails : { card: true, bank: true, wallets: false, terminals: false }),
+              ...asObject(patchForward.enabled_rails)
+            },
+            enabled_rails_set: true
+          }
         : { enabled_rails: existing.forward.enabled_rails })
     }),
     created_at: existing.created_at || now,

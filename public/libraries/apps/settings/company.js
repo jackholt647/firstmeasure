@@ -7164,9 +7164,12 @@
         const parsed = Number(input?.default_sales_tax_percent);
         const parsedDueDays = Number(input?.default_due_days);
         return {
+          // Keep settings this pane does not edit (surcharge flags, ...).
+          ...(input && typeof input === 'object' ? input : {}),
           sales_tax_enabled: input?.sales_tax_enabled !== false,
           default_sales_tax_percent: Math.min(100, Math.max(0, Number.isFinite(parsed) ? parsed : Number(fallbackPercent || 0))),
-          default_due_days: Math.min(365, Math.max(0, Number.isFinite(parsedDueDays) ? Math.round(parsedDueDays) : 0))
+          default_due_days: Math.min(365, Math.max(0, Number.isFinite(parsedDueDays) ? Math.round(parsedDueDays) : 0)),
+          refund_policy: String(input?.refund_policy || '').slice(0, 2000)
         };
       };
       panePayments.innerHTML = `<div data-payment-defaults></div><div data-merchant-processing></div>`;
@@ -7197,6 +7200,7 @@
             </label>
             ${String(settings.sales_tax_enabled ? `<div class="cs-row"><label class="cs-lbl" for="paymentDefaultTaxPercent">${(globalThis.PlatformLanguage?.htmlText("settings","m_0b2aa0314e8f6d","Default sales tax percentage") ?? "Default sales tax percentage")}</label><input class="cs-in" id="paymentDefaultTaxPercent" type="number" min="0" max="100" step="0.01" value="${escapeHtml(String(settings.default_sales_tax_percent))}"></div>` : '')}
             <div class="cs-row"><label class="cs-lbl" for="paymentDefaultDueDays">${(globalThis.PlatformLanguage?.htmlText("settings","m_ba77a691139cae","Invoice payment terms (days until due)") ?? "Invoice payment terms (days until due)")}</label><input class="cs-in" id="paymentDefaultDueDays" type="number" min="0" max="365" step="1" value="${String(escapeHtml(String(settings.default_due_days)))}"><div class="cs-note" style="margin:4px 0 0">${(globalThis.PlatformLanguage?.htmlText("settings","m_681824b42fad0b","0 means due on receipt. Applied when an invoice is created without an explicit due date — for example Net 30.") ?? "0 means due on receipt. Applied when an invoice is created without an explicit due date — for example Net 30.")}</div></div>
+            <div class="cs-row"><label class="cs-lbl" for="paymentRefundPolicy">Refund policy</label><textarea class="cs-in" id="paymentRefundPolicy" rows="3" maxlength="2000" placeholder="Refunds follow the terms of your agreement with us. To ask for a refund, contact us.">${String(escapeHtml(settings.refund_policy || ''))}</textarea><div class="cs-note" style="margin:4px 0 0">Shown next to the Pay button on every online payment. Leave blank to tell customers refunds follow their agreement and how to reach you.</div></div>
             <div class="li-actions"><button class="cs-btn primary" type="button" data-payment-settings-save ${String(saving ? 'disabled' : '')}>${String(saving ? '<i class="fas fa-spinner fa-spin"></i> Saving...' : '<i class="fas fa-save"></i> Save Payment Settings')}</button></div>
             <div class="cs-note">${String(escapeHtml(status))}</div>
           </div>`;
@@ -7207,7 +7211,8 @@
         panePayments.querySelector('[data-payment-settings-save]')?.addEventListener('click', async () => {
           const percent = Number(panePayments.querySelector('#paymentDefaultTaxPercent')?.value ?? settings.default_sales_tax_percent);
           const dueDays = Number(panePayments.querySelector('#paymentDefaultDueDays')?.value ?? settings.default_due_days);
-          settings = normalize({ ...settings, default_sales_tax_percent: percent, default_due_days: dueDays });
+          const refundPolicy = String(panePayments.querySelector('#paymentRefundPolicy')?.value ?? settings.refund_policy ?? '').trim();
+          settings = normalize({ ...settings, default_sales_tax_percent: percent, default_due_days: dueDays, refund_policy: refundPolicy });
           render(true);
           try {
             const result = await window.PlatformAPI.branchModules.save(orgId, branchId, 'payment_settings', settings, { kind:'branch_payment_settings', source:'company_settings_payments' });
@@ -7295,7 +7300,8 @@
         return Number.isFinite(amount) ? `$${amount.toLocaleString((globalThis.PlatformLanguage?.formatLocale?.("en-US") || "en-US"), { maximumFractionDigits: 2 })}` : '$0';
       };
       const OWNERSHIP_TYPES = [['sole_proprietorship','Sole proprietorship'],['llc','LLC'],['corporation','Corporation'],['partnership','Partnership'],['non_profit','Non-profit']];
-      const MCC_OPTIONS = [['1761','1761 - Roofing, Siding, Sheet Metal Work'],['5039','5039 - Construction Materials']];
+      // Replaced by the codes Forward assigned to us once they load (GET /mccs).
+      let MCC_OPTIONS = [['1761','1761 - Roofing, Siding, Sheet Metal Work'],['5039','5039 - Construction Materials']];
       const OWNER_TITLES = ['Owner','CEO','President','CFO','Manager','Member'];
       const boardingStatus = () => mcText(mp.config?.forward?.boarding_status).toUpperCase();
       const planName = (planId) => {
@@ -7350,6 +7356,14 @@
         mp.forwardEnv = mcText(result?.forward_environment);
       };
       const loadPlans = async () => {
+        if (!mp.mccsLoaded && paymentsApi.merchantBoarding.mccs) {
+          mp.mccsLoaded = true;
+          try {
+            const result = await paymentsApi.merchantBoarding.mccs(orgId);
+            const rows = (Array.isArray(result?.mccs) ? result.mccs : []).filter((row) => row && row.active !== false && mcText(row.code));
+            if (rows.length) MCC_OPTIONS = rows.map((row) => [mcText(row.code), `${mcText(row.code)} - ${mcText(row.description) || 'Merchant category'}`]);
+          } catch (_) { mp.mccsLoaded = false; }
+        }
         if (mp.plans) return;
         const result = await paymentsApi.merchantBoarding.plans(orgId);
         mp.plans = Array.isArray(result?.processing_plans) ? result.processing_plans : [];
@@ -7589,6 +7603,7 @@
               <dl class="mp-kv">
                 <dt>${(globalThis.PlatformLanguage?.htmlText("settings","m_33f29b94cb696f","Merchant account") ?? "Merchant account")}</dt><dd data-mp-account-id>${String(escapeHtml(mcText(forward.account_id) || '—'))}</dd>
                 <dt>${(globalThis.PlatformLanguage?.htmlText("settings","m_cec7c804d01cf9","Processing plan") ?? "Processing plan")}</dt><dd data-mp-plan-name>${String(escapeHtml(planName(forward.processing_plan_id) || '—'))}</dd>
+                <dt>Gateway</dt><dd data-mp-gateway>${String(escapeHtml(forward.gateway_updated_at ? `Boarded${forward.gateway_mid ? ` (MID ${forward.gateway_mid})` : ''}` : (mcText(forward.account_status) ? mcText(forward.account_status).toLowerCase().replace(/^./, (c) => c.toUpperCase()) : 'Waiting for Forward')))}</dd>
               </dl>
               <div data-mp-bank-section>
                 <div class="cs-lbl" style="margin-bottom:6px">${(globalThis.PlatformLanguage?.htmlText("settings","m_40b6f06484042c","Bank account") ?? "Bank account")}</div>

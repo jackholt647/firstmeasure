@@ -12,6 +12,7 @@ import type {
   CreatePaymentIntentInput,
   CreatePaymentMethodIntentInput,
   CreateRefundInput,
+  CancelPaymentIntentInput,
   ListOptions,
   MerchantBoardingAdapter,
   PaymentProviderAdapter,
@@ -27,6 +28,7 @@ import type {
   ProviderPayoutStatus,
   ProviderProcessingPlan,
   ProviderRefund,
+  ProviderMcc,
   SurchargeCalculation,
   SurchargeCalculationInput,
   UpdatePaymentMethodInput
@@ -146,6 +148,8 @@ type MockState = {
   payment_methods: Record<string, JsonObject>;
   disputes: Record<string, JsonObject>;
   portal_users: Record<string, JsonObject>;
+  /** Idempotency-key memory: the same key returns the first result. */
+  idempotency: Record<string, JsonObject>;
 };
 
 function emptyState(): MockState {
@@ -160,8 +164,19 @@ function emptyState(): MockState {
     payouts: {},
     payment_methods: {},
     disputes: {},
-    portal_users: {}
+    portal_users: {},
+    idempotency: {}
   };
+}
+
+/** Mirrors Forward: a repeated idempotency key answers the original object. */
+function rememberedId(state: MockState, key: string | undefined, kind: string) {
+  const entry = cleanText(key) ? asObject(state.idempotency[cleanText(key)]) : {};
+  return cleanText(entry.kind) === kind ? cleanText(entry.id) : "";
+}
+
+function remember(state: MockState, key: string | undefined, kind: string, id: string) {
+  if (cleanText(key)) state.idempotency[cleanText(key)] = { kind, id, at: nowIso() };
 }
 
 async function readMockState(orgId: string): Promise<MockState> {
@@ -267,7 +282,12 @@ export function mockCardBrand(cardNumber: string) {
 
 // --- Mappers to provider-agnostic shapes ------------------------------------
 
-function mapMockIntent(raw: JsonObject): ProviderPaymentIntent {
+function mapMockIntent(raw: JsonObject, state?: MockState): ProviderPaymentIntent {
+  const latest = state
+    ? Object.values(state.payments)
+      .filter((payment) => cleanText(payment.payment_intent_id) === cleanText(raw.id))
+      .sort((a, b) => cleanText(b.created_at).localeCompare(cleanText(a.created_at)))[0]
+    : undefined;
   return {
     id: cleanText(raw.id),
     status: cleanText(raw.status) as ProviderPaymentIntentStatus,
@@ -275,21 +295,35 @@ function mapMockIntent(raw: JsonObject): ProviderPaymentIntent {
     currency: cleanText(raw.currency || "USD").toUpperCase(),
     captured_cents: cents(raw.amount_captured),
     refunded_cents: cents(raw.amount_refunded),
+    voided_cents: cents(raw.amount_voided),
     reference_id: cleanText(raw.reference_id),
+    client_secret: cleanText(raw.client_secret),
+    settlement_status: latest ? mockSettlementStatus(latest) : "",
+    latest_payment: latest ? mapMockPayment(latest) : null,
     raw
   };
 }
 
+/** A mock payment settles when it joins a payout (Forward settles in batches). */
+function mockSettlementStatus(payment: JsonObject) {
+  return cleanText(payment.payout_id) ? "settled" : "unsettled";
+}
+
 function mapMockPayment(raw: JsonObject): ProviderPayment {
   const status = cleanText(raw.status);
+  const known = ["captured", "authorized", "failed", "settled", "refunded", "voided", "processing", "pending", "rejected", "cancelled"];
   return {
     id: cleanText(raw.id),
     intent_id: cleanText(raw.payment_intent_id),
-    status: (status === "captured" || status === "authorized" || status === "failed" || status === "settled" || status === "refunded" ? status : "pending") as ProviderPayment["status"],
+    status: (known.includes(status) ? status : "pending") as ProviderPayment["status"],
     amount_cents: cents(raw.amount),
     currency: cleanText(raw.currency || "USD").toUpperCase(),
     auth_code: cleanText(raw.auth_code),
     decline_reason: cleanText(raw.decline_category),
+    decline_text: cleanText(raw.decline_category_text),
+    rail: cleanText(raw.payment_rail_type) === "bank" ? "bank" : "card",
+    settlement_status: mockSettlementStatus(raw),
+    payment_method_id: cleanText(raw.payment_method_id),
     raw
   };
 }
@@ -342,6 +376,8 @@ function mapMockAccount(raw: JsonObject): ProviderAccount {
     external_account_id: cleanText(raw.external_account_id),
     processing_enabled: raw.processing_enabled === true,
     payouts_enabled: raw.payouts_enabled === true,
+    status: cleanText(raw.status).toUpperCase() || (raw.processing_enabled === true ? "ACTIVE" : "BOARDING"),
+    gateway_mid: cleanText(raw.mid),
     raw
   };
 }
@@ -364,7 +400,9 @@ export function createMockAdapter(orgId: string): PaymentProviderAdapter {
   return {
     provider: MOCK_PROVIDER,
     async createPaymentIntent(input: CreatePaymentIntentInput) {
-      const intent = await withMockState(orgId, (state) => {
+      const { intent, created } = await withMockState(orgId, (state) => {
+        const remembered = rememberedId(state, input.idempotency_key, "payment_intent");
+        if (remembered && state.payment_intents[remembered]) return { intent: state.payment_intents[remembered], created: false };
         const id = mockId("pi");
         const record: JsonObject = {
           id,
@@ -374,23 +412,52 @@ export function createMockAdapter(orgId: string): PaymentProviderAdapter {
           ...(input.merchant_amount_cents !== undefined ? { merchant_amount: cents(input.merchant_amount_cents) } : {}),
           reference_id: cleanText(input.reference_id),
           user_fields: asObject(input.user_fields),
+          order_details: asObject(input.order_details),
           payment_method_types: input.payment_method_types?.length ? input.payment_method_types : ["card"],
           auto_capture: input.auto_capture !== false,
           description: cleanText(input.description),
+          client_secret: `${id}_secret_${randomBytes(8).toString("hex")}`,
           amount_captured: 0,
           amount_refunded: 0,
+          amount_voided: 0,
           created_at: nowIso()
         };
         state.payment_intents[id] = record;
-        return record;
+        remember(state, input.idempotency_key, "payment_intent", id);
+        return { intent: record, created: true };
       });
-      await emitMockEvent(orgId, "v2.payment_intent.created", {
-        id: cleanText(intent.id),
-        status: "created",
-        amount: cents(intent.amount),
-        currency: cleanText(intent.currency),
-        reference_id: cleanText(intent.reference_id),
-        user_fields: asObject(intent.user_fields)
+      if (created) {
+        await emitMockEvent(orgId, "v2.payment_intent.created", {
+          id: cleanText(intent.id),
+          status: "created",
+          amount: cents(intent.amount),
+          currency: cleanText(intent.currency),
+          reference_id: cleanText(intent.reference_id),
+          user_fields: asObject(intent.user_fields)
+        });
+      }
+      return mapMockIntent(intent);
+    },
+    async getPaymentIntent(intentId) {
+      const state = await readMockState(orgId);
+      const intent = state.payment_intents[cleanText(intentId)];
+      if (!intent) throw notFound("mock_intent_not_found", "Mock payment intent was not found.");
+      return mapMockIntent(intent, state);
+    },
+    async searchPaymentIntents(input) {
+      const state = await readMockState(orgId);
+      return Object.values(state.payment_intents)
+        .filter((intent) => cleanText(intent.reference_id) === cleanText(input.reference_id))
+        .map((intent) => mapMockIntent(intent, state));
+    },
+    async updatePaymentIntent(intentId, input) {
+      const intent = await withMockState(orgId, (state) => {
+        const record = state.payment_intents[cleanText(intentId)];
+        if (!record) throw notFound("mock_intent_not_found", "Mock payment intent was not found.");
+        if (cleanText(record.status) !== "created") throw badRequest("mock_intent_not_editable", "Only an unpaid payment intent can be changed.");
+        if (input.amount_cents !== undefined) record.amount = cents(input.amount_cents);
+        if (input.order_details) record.order_details = { ...asObject(record.order_details), ...asObject(input.order_details) };
+        return record;
       });
       return mapMockIntent(intent);
     },
@@ -417,13 +484,41 @@ export function createMockAdapter(orgId: string): PaymentProviderAdapter {
       });
       return mapMockIntent(intent);
     },
-    async cancelPaymentIntent(intentId) {
-      const intent = await withMockState(orgId, (state) => {
+    async cancelPaymentIntent(intentId, input: CancelPaymentIntentInput = {}) {
+      // Mirrors Forward (live-verified 2026-10-19): cancelling an intent whose
+      // payment is captured but unsettled voids that payment; a settled one
+      // can only be refunded.
+      const { intent, voided } = await withMockState(orgId, (state) => {
         const record = state.payment_intents[cleanText(intentId)];
         if (!record) throw notFound("mock_intent_not_found", "Mock payment intent was not found.");
+        if (cleanText(record.status) === "cancelled") return { intent: record, voided: [] as JsonObject[] };
+        const captured = Object.values(state.payments)
+          .filter((payment) => cleanText(payment.payment_intent_id) === cleanText(intentId) && ["captured", "authorized", "pending"].includes(cleanText(payment.status)));
+        if (captured.some((payment) => cleanText(payment.payout_id))) {
+          throw badRequest("mock_intent_settled", "This payment has settled. Refund it instead of voiding it.");
+        }
+        let voidedCents = 0;
+        for (const payment of captured) {
+          payment.status = "voided";
+          payment.amount_voided = cents(payment.amount) - cents(payment.amount_refunded);
+          voidedCents += cents(payment.amount_voided);
+        }
         record.status = "cancelled";
-        return record;
+        record.cancellation_reason = cleanText(input.reason) || "requested_by_customer";
+        record.amount_captured = 0;
+        record.amount_voided = voidedCents;
+        return { intent: record, voided: captured };
       });
+      for (const payment of voided) {
+        await emitMockEvent(orgId, "v2.payment.cancelled", {
+          id: cleanText(payment.id),
+          payment_intent_id: cleanText(intent.id),
+          status: "voided",
+          amount: cents(payment.amount),
+          reference_id: cleanText(payment.reference_id),
+          user_fields: asObject(payment.user_fields)
+        });
+      }
       await emitMockEvent(orgId, "v2.payment_intent.cancelled", {
         id: cleanText(intent.id),
         status: "cancelled",
@@ -434,10 +529,19 @@ export function createMockAdapter(orgId: string): PaymentProviderAdapter {
     },
     async createPayment(intentId, input: CreatePaymentInput) {
       const result = await withMockState(orgId, async (state) => {
+        const remembered = rememberedId(state, input.idempotency_key, "payment");
+        if (remembered && state.payments[remembered]) {
+          return { payment: state.payments[remembered], intent: state.payment_intents[cleanText(intentId)] || {}, replayed: true };
+        }
         const intent = state.payment_intents[cleanText(intentId)];
         if (!intent) throw notFound("mock_intent_not_found", "Mock payment intent was not found.");
+        if (["captured", "cancelled"].includes(cleanText(intent.status))) {
+          throw badRequest("mock_intent_already_paid", "This payment intent is already paid or cancelled.");
+        }
         const amount = input.amount_cents !== undefined ? cents(input.amount_cents) : cents(intent.amount);
         const declineCategory = declineCategoryFor(cleanText(input.payment_method_id));
+        const method = asObject(state.payment_methods[cleanText(input.payment_method_id)]);
+        const rail = cleanText(method.type) === "bank" ? "bank" : "card";
         const planId = await resolveMockPlanId(orgId, state);
         const fee = declineCategory ? 0 : mockCardFeeCents(planId, amount);
         const id = mockId("pay");
@@ -446,7 +550,9 @@ export function createMockAdapter(orgId: string): PaymentProviderAdapter {
           id,
           payment_intent_id: cleanText(intent.id),
           payment_method_id: cleanText(input.payment_method_id),
-          status: declineCategory ? "failed" : autoCapture ? "captured" : "authorized",
+          payment_rail_type: rail,
+          // A bank debit is pending until it clears; a card captures now.
+          status: declineCategory ? "failed" : rail === "bank" ? "pending" : autoCapture ? "captured" : "authorized",
           amount,
           currency: cleanText(intent.currency || "USD").toUpperCase(),
           fee,
@@ -454,20 +560,26 @@ export function createMockAdapter(orgId: string): PaymentProviderAdapter {
           processing_plan_id: planId,
           auth_code: declineCategory ? "" : `A${randomBytes(3).toString("hex").toUpperCase()}`,
           decline_category: declineCategory,
-          reference_id: cleanText(intent.reference_id),
+          decline_category_text: declineCategory ? "Payment authorization failed" : "",
+          reference_id: cleanText(input.reference_id) || cleanText(intent.reference_id),
           user_fields: asObject(intent.user_fields),
+          order_details: { ...asObject(intent.order_details), ...asObject(input.order_details) },
+          billing_details: asObject(input.billing_details),
           amount_refunded: 0,
+          amount_voided: 0,
           payout_id: "",
           created_at: nowIso()
         };
         state.payments[id] = payment;
+        remember(state, input.idempotency_key, "payment", id);
         if (!declineCategory) {
-          intent.status = autoCapture ? "captured" : "uncaptured";
-          intent.amount_captured = autoCapture ? amount : 0;
+          intent.status = rail === "bank" ? "pending" : autoCapture ? "captured" : "uncaptured";
+          intent.amount_captured = autoCapture && rail !== "bank" ? amount : 0;
         }
-        return { payment, intent };
+        return { payment, intent, replayed: false };
       });
-      const { payment, intent } = result;
+      const { payment, intent, replayed } = result;
+      if (replayed) return mapMockPayment(payment);
       const eventBase = {
         id: cleanText(payment.id),
         payment_intent_id: cleanText(payment.payment_intent_id),
@@ -475,6 +587,7 @@ export function createMockAdapter(orgId: string): PaymentProviderAdapter {
         currency: cleanText(payment.currency),
         fee: cents(payment.fee),
         merchant_amount: cents(payment.merchant_amount),
+        payment_rail_type: cleanText(payment.payment_rail_type),
         reference_id: cleanText(payment.reference_id),
         user_fields: asObject(payment.user_fields)
       };
@@ -500,7 +613,9 @@ export function createMockAdapter(orgId: string): PaymentProviderAdapter {
       return mapMockPayment(payment);
     },
     async createRefund(intentId, input: CreateRefundInput = {}) {
-      const refund = await withMockState(orgId, (state) => {
+      const { refund, replayed } = await withMockState(orgId, (state) => {
+        const remembered = rememberedId(state, input.idempotency_key, "refund");
+        if (remembered && state.refunds[remembered]) return { refund: state.refunds[remembered], replayed: true };
         const intent = state.payment_intents[cleanText(intentId)];
         if (!intent) throw notFound("mock_intent_not_found", "Mock payment intent was not found.");
         const payment = Object.values(state.payments)
@@ -523,20 +638,35 @@ export function createMockAdapter(orgId: string): PaymentProviderAdapter {
           created_at: nowIso()
         };
         state.refunds[id] = record;
+        remember(state, input.idempotency_key, "refund", id);
         payment.amount_refunded = cents(payment.amount_refunded) + amount;
         intent.amount_refunded = cents(intent.amount_refunded) + amount;
-        return record;
+        return { refund: record, replayed: false };
       });
-      await emitMockEvent(orgId, "v2.refund.created", {
+      if (!replayed) {
+        await emitMockEvent(orgId, "v2.refund.created", {
+          id: cleanText(refund.id),
+          payment_id: cleanText(refund.payment_id),
+          payment_intent_id: cleanText(refund.payment_intent_id),
+          amount: cents(refund.amount),
+          currency: cleanText(refund.currency),
+          reason: cleanText(refund.reason),
+          reference_id: cleanText(refund.reference_id),
+          user_fields: asObject(refund.user_fields)
+        });
+      }
+      return {
         id: cleanText(refund.id),
         payment_id: cleanText(refund.payment_id),
-        payment_intent_id: cleanText(refund.payment_intent_id),
-        amount: cents(refund.amount),
-        currency: cleanText(refund.currency),
-        reason: cleanText(refund.reason),
-        reference_id: cleanText(refund.reference_id),
-        user_fields: asObject(refund.user_fields)
-      });
+        status: "succeeded",
+        amount_cents: cents(refund.amount),
+        raw: refund
+      } satisfies ProviderRefund;
+    },
+    async getRefund(refundId) {
+      const state = await readMockState(orgId);
+      const refund = state.refunds[cleanText(refundId)];
+      if (!refund) throw notFound("mock_refund_not_found", "Mock refund was not found.");
       return {
         id: cleanText(refund.id),
         payment_id: cleanText(refund.payment_id),
@@ -848,6 +978,14 @@ export function createMockBoardingAdapter(orgId: string): MerchantBoardingAdapte
         raw: plan
       } satisfies ProviderProcessingPlan));
     },
+    async listMccs() {
+      // The two MCCs our Forward partner account is approved for (portal
+      // recon 2026-08-12): roofing/siding contractors and building materials.
+      return [
+        { code: "1761", description: "Roofing, Siding, and Sheet Metal Work Contractors", active: true },
+        { code: "5039", description: "Construction Materials (Not Elsewhere Classified)", active: true }
+      ] satisfies ProviderMcc[];
+    },
     async getAccount(accountId) {
       const state = await readMockState(orgId);
       const account = state.accounts[cleanText(accountId)];
@@ -920,7 +1058,49 @@ export async function advanceMockMerchant(orgId: string, input: JsonObject) {
   if (op === "settle") return settleMockPayments(orgId);
   if (op === "dispute") return openMockDispute(orgId, input);
   if (op === "orphan_payment") return createOrphanMockPayment(orgId, input);
-  throw badRequest("mock_advance_op_invalid", "Supported mock advance ops: underwriting, hosted_submit, settle, dispute, orphan_payment.");
+  if (op === "bank_clear" || op === "bank_fail") return finishMockBankPayments(orgId, op === "bank_clear", input);
+  throw badRequest("mock_advance_op_invalid", "Supported mock advance ops: underwriting, hosted_submit, settle, dispute, orphan_payment, bank_clear, bank_fail.");
+}
+
+/**
+ * Finishes pending bank debits the way the bank does days later: bank_clear
+ * captures them, bank_fail returns them (R01). The same v2.payment.* events
+ * Forward sends flow through the shared ingestion path.
+ */
+async function finishMockBankPayments(orgId: string, cleared: boolean, input: JsonObject) {
+  const only = cleanText(input.provider_payment_id);
+  const finished = await withMockState(orgId, (state) => {
+    const pending = Object.values(state.payments)
+      .filter((payment) => cleanText(payment.payment_rail_type) === "bank" && cleanText(payment.status) === "pending")
+      .filter((payment) => !only || cleanText(payment.id) === only);
+    if (!pending.length) throw badRequest("mock_no_pending_bank_payments", "There are no pending mock bank payments.");
+    for (const payment of pending) {
+      payment.status = cleared ? "captured" : "failed";
+      if (!cleared) {
+        payment.return_code = "R01";
+        payment.failure_message = "R01: Insufficient funds";
+      }
+      const intent = state.payment_intents[cleanText(payment.payment_intent_id)];
+      if (intent) {
+        intent.status = cleared ? "captured" : "created";
+        intent.amount_captured = cleared ? cents(payment.amount) : 0;
+      }
+    }
+    return pending.map((payment) => ({ ...payment }));
+  });
+  for (const payment of finished) {
+    await emitMockEvent(orgId, cleared ? "v2.payment.captured" : "v2.payment.failed", {
+      id: cleanText(payment.id),
+      payment_intent_id: cleanText(payment.payment_intent_id),
+      status: cleared ? "captured" : "failed",
+      amount: cents(payment.amount),
+      payment_rail_type: "bank",
+      reference_id: cleanText(payment.reference_id),
+      user_fields: asObject(payment.user_fields),
+      ...(cleared ? {} : { return_code: "R01", failure_message: "R01: Insufficient funds" })
+    });
+  }
+  return { payments: finished.map((payment) => ({ id: cleanText(payment.id), status: cleanText(payment.status), amount_cents: cents(payment.amount) })) };
 }
 
 /**

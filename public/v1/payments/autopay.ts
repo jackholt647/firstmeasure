@@ -10,13 +10,15 @@ import {
   type JsonObject
 } from "../platform/storage.js";
 import { sendOrganizationTransactionalEmail } from "../email/organization_outbound.js";
-import { getPaymentProvider } from "./providers/index.js";
+import { createHash } from "node:crypto";
 import {
   declineMessage,
   findSavedMethod,
   normalizeContactRef,
+  prepareCheckout,
   recordProviderChargedPayment
 } from "./intake.js";
+import { paymentsReadiness, requirePaymentsReady } from "./readiness.js";
 import {
   deriveObligationStatus,
   listProjectObligations,
@@ -108,6 +110,7 @@ export function autopayView(record: JsonObject) {
     enrolled_at: cleanText(record.enrolled_at),
     status,
     paused_reason: cleanText(record.paused_reason),
+    authorization: asObject(record.authorization),
     max_amount_cents: Number.isFinite(Number(record.max_amount_cents)) && record.max_amount_cents !== null
       ? Math.max(0, cents(record.max_amount_cents)) || null
       : null,
@@ -149,6 +152,12 @@ export type AutopayEnrollInput = {
   contact_ref?: JsonObject;
   max_amount_cents?: number | null;
   status?: string;
+  /**
+   * The customer agreed to be charged automatically (card-network rules for
+   * merchant-initiated charges need that consent on file before the first one).
+   */
+  customer_authorized?: boolean;
+  authorization_note?: string;
 };
 
 /**
@@ -160,10 +169,7 @@ export type AutopayEnrollInput = {
 export async function upsertProjectAutopay(orgId: string, projectId: string, input: AutopayEnrollInput, ctx: PlatformAuthContext) {
   await requireMoneyFlag(orgId);
   const existing = await readAutopayRecord(orgId, projectId);
-  const provider = await getPaymentProvider(orgId).catch(() => null);
-  if (!provider) {
-    throw badRequest("autopay_provider_required", "Autopay requires a configured payment provider for this organization.");
-  }
+  await requirePaymentsReady(orgId);
   const savedMethodId = cleanText(input.saved_method_id) || cleanText(existing?.saved_method_id);
   if (!savedMethodId) throw badRequest("autopay_saved_method_required", "Choose a saved payment method to enroll in autopay.");
   const savedMethod = await findSavedMethod(orgId, savedMethodId);
@@ -175,6 +181,13 @@ export async function upsertProjectAutopay(orgId: string, projectId: string, inp
   if (contactKey && cleanText(savedMethod.contact_ref) !== contactKey) {
     throw badRequest("autopay_method_contact_mismatch", "That saved payment method belongs to a different customer.");
   }
+  const priorAuthorization = asObject(existing?.authorization);
+  if (!cleanText(priorAuthorization.at) && input.customer_authorized !== true) {
+    throw badRequest("autopay_authorization_required", "Confirm the customer agreed to automatic payments before turning autopay on.");
+  }
+  const authorization = cleanText(priorAuthorization.at) && input.customer_authorized !== true
+    ? priorAuthorization
+    : { at: nowIso(), recorded_by_user_id: ctx.userId, note: cleanText(input.authorization_note).slice(0, 500) };
   const requestedStatus = cleanText(input.status);
   const status = requestedStatus === "paused" ? "paused" : requestedStatus === "active" ? "active" : cleanText(existing?.status) || "active";
   const resuming = cleanText(existing?.status) === "paused" && status === "active";
@@ -193,6 +206,7 @@ export async function upsertProjectAutopay(orgId: string, projectId: string, inp
     status,
     paused_reason: status === "paused" ? cleanText(existing?.paused_reason) || "manual" : "",
     max_amount_cents: maxAmount,
+    authorization,
     last_run_at: cleanText(existing?.last_run_at),
     failures: status === "active" && resuming ? [] : asArray(existing?.failures).map(asObject),
     // Resume (or a method change) resets attempt counters so retries restart.
@@ -223,6 +237,7 @@ function attemptState(record: JsonObject, obligationId: string) {
   const attempts = asObject(record.attempts);
   const entry = asObject(attempts[obligationId]);
   return {
+    unknown_checkout_id: cleanText(entry.unknown_checkout_id),
     count: Math.max(0, cents(entry.count)),
     last_attempt_at: cleanText(entry.last_attempt_at),
     in_flight_at: cleanText(entry.in_flight_at),
@@ -286,8 +301,8 @@ export type AutopayRunResult = {
 export async function runAutopayForOrganization(orgId: string, options: { now?: Date } = {}): Promise<AutopayRunResult> {
   const result: AutopayRunResult = { charged: [], failed: [], skipped: [] };
   if (!(await isAppFlagEnabled(orgId, "platform", "money"))) return result;
-  const provider = await getPaymentProvider(orgId).catch(() => null);
-  if (!provider) return result;
+  // Autopay charges only while the organization can take payments.
+  if (!(await paymentsReadiness(orgId).catch(() => null))?.ready) return result;
   const now = options.now || new Date();
   const enrollments = (await listDocuments(orgId, PAYMENT_AUTOPAY_COLLECTION)).map(documentView)
     .filter((record) => cleanText(record.status) !== "paused");
@@ -338,9 +353,28 @@ export async function runAutopayForOrganization(orgId: string, options: { now?: 
       }
       // Persist the in-flight lock BEFORE charging so a concurrent/crashed
       // pass cannot double-charge the same obligation.
-      record = await patchAttempt(orgId, record, obligationId, { in_flight_at: now.toISOString() });
+      // One checkout per attempt: retrying the same attempt (a lost answer)
+      // is the same request to the processor and never a second charge.
+      const checkoutId = cleanText(attempt.unknown_checkout_id)
+        || `checkout_autopay_${createHash("sha256").update(`${projectId}:${obligationId}`).digest("hex").slice(0, 20)}_${attempt.count + 1}`;
+      record = await patchAttempt(orgId, record, obligationId, { in_flight_at: now.toISOString(), checkout_id: checkoutId });
       try {
-        const charged = await recordProviderChargedPayment(orgId, provider, {
+        await prepareCheckout(orgId, {
+          checkout_id: checkoutId,
+          amount_cents: open,
+          method: cleanText(savedMethod.type) === "bank" ? "bank" : "card",
+          channel: "autopay",
+          initiated_by: "merchant",
+          scheduled: true,
+          apply_surcharge: false,
+          project_id: projectId,
+          branch_id: cleanText(obligation.branch_id || "default") || "default",
+          contact_ref: asObject(record.contact_ref),
+          invoice_id: cleanText(asObject(obligation.metadata).invoice_id) || obligationId,
+          description: `Autopay: ${cleanText(obligation.label) || "scheduled payment"}`
+        });
+        const charged = await recordProviderChargedPayment(orgId, null, {
+          checkout_id: checkoutId,
           amount_cents: open,
           saved_method_id: cleanText(record.saved_method_id),
           project_id: projectId,
@@ -381,6 +415,13 @@ export async function runAutopayForOrganization(orgId: string, options: { now?: 
         });
       } catch (error) {
         const platformError = error as { code?: string; details?: JsonObject; message?: string };
+        if (cleanText(platformError.code) === "payment_outcome_unknown") {
+          // The processor may have charged: the next pass looks this same
+          // checkout up instead of starting another charge.
+          record = await patchAttempt(orgId, record, obligationId, { in_flight_at: "", unknown_checkout_id: checkoutId });
+          result.skipped.push({ project_id: projectId, obligation_id: obligationId, reason: "outcome_unknown" });
+          continue;
+        }
         const declineCategory = cleanText(asObject(platformError.details).decline_category)
           || (cleanText(platformError.code) === "payment_declined" ? "generic_decline" : "charge_error");
         const message = cleanText(platformError.message) || declineMessage(declineCategory);
@@ -390,6 +431,7 @@ export async function runAutopayForOrganization(orgId: string, options: { now?: 
           count: nextCount,
           last_attempt_at: now.toISOString(),
           in_flight_at: "",
+          unknown_checkout_id: "",
           timestamps: [...attempt.timestamps, now.toISOString()]
         });
         record = await saveAutopayRecord(orgId, {

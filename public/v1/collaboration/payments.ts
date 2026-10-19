@@ -7,7 +7,9 @@ import { readInvoice } from "../payments/invoices.js";
 import { withDeferredWorkEvents } from "../work/engine.js";
 import { getPaymentProvider } from "../payments/providers/index.js";
 import { createPayment } from "../payments/storage.js";
-import { paymentIntakeConfig, resolveIntakeProvider, tokenizePaymentMethod, surchargeQuote, removeProviderShadowRecord } from "../payments/intake.js";
+import { paymentIntakeConfig, prepareCheckout, resolveIntakeProvider, tokenizePaymentMethod, surchargeQuote, removeProviderShadowRecord } from "../payments/intake.js";
+import { forwardIdempotencyKey } from "../payments/providers/forward.js";
+import { paymentsReadiness } from "../payments/readiness.js";
 import { readMediaMetadata, storeMediaUpload } from "../platform/storage.js";
 import { canReadReceiptMedia } from "../platform/media_access.js";
 import { type ResourceRef, idSchema } from "./schemas.js";
@@ -18,13 +20,14 @@ const hash=(v:string)=>createHash("sha256").update(v).digest("hex");
 const paymentView=(r:Record<string,any>)=>({id:r.id,status:r.status,amount_cents:r.amount_cents,currency:r.currency,created_at:r.created_at,payment_id:r.payment_id||null});
 function invoiceResource(resource:ResourceRef){if(resource.type!=="invoice")throw badRequest("invoice_required","Choose an invoice.");}
 async function merchant(org:string){
-  const result=await resolveIntakeProvider(org);
-  if(!result.provider||!result.config||result.config.forward.boarding_status!=="APPROVED"||!result.config.forward.processing_enabled)throw forbidden("partner_payments_unavailable","This organization is not currently approved to receive platform payments. You can record an external payment instead.");
-  return result;
+  const readiness=await paymentsReadiness(org);
+  const result=readiness.ready?await resolveIntakeProvider(org):{provider:null,config:null};
+  if(!result.provider||!result.config)throw forbidden("partner_payments_unavailable","This organization is not currently approved to receive platform payments. You can record an external payment instead.");
+  return {...result,readiness};
 }
-function requireRail(config:any,method:string){
+function requireRail(config:any,method:string,readiness?:{rails:Record<string,boolean>}){
   const rail=method==="ach"?"bank":method;
-  if(config?.forward?.enabled_rails?.[rail]!==true)throw forbidden("payment_rail_disabled","This payment method is not enabled by the receiving organization.");
+  if(readiness?readiness.rails[rail]!==true:config?.forward?.enabled_rails?.[rail]!==true)throw forbidden("payment_rail_disabled","This payment method is not enabled by the receiving organization.");
 }
 
 export async function partnerCheckout(ctx:PlatformAuthContext,resource:ResourceRef){
@@ -35,25 +38,33 @@ export async function partnerCheckout(ctx:PlatformAuthContext,resource:ResourceR
     let available=false,config:any=null;
     try{await merchant(resource.owner_org_id);available=true;config=await paymentIntakeConfig(resource.owner_org_id,"",String(invoice.branch_id||"default"));}
     catch(e:any){if(e.code!=="partner_payments_unavailable")throw e;}
-    return {invoice:{id:resource.id,invoice_number:invoice.invoice_number,amount_cents:invoice.balance_due_cents,currency:invoice.currency,status:invoice.status},online_available:available,tokenization:config?.tokenization||null};
+    return {invoice:{id:resource.id,invoice_number:invoice.invoice_number,amount_cents:invoice.balance_due_cents,currency:invoice.currency,status:invoice.status},online_available:available,tokenization:config?.tokenization||null,refund_policy:config?.refund_policy||""};
   });
 }
 
 export async function partnerPaymentMethod(ctx:PlatformAuthContext,resource:ResourceRef,raw:unknown){
   invoiceResource(resource);
   return withSharedAccess(ctx,resource,"invoice.pay",async decision=>{
-    requirePermission(decision.ctx,"manage_partner_payments");const {provider,config}=await merchant(resource.owner_org_id);
+    requirePermission(decision.ctx,"manage_partner_payments");const {provider,config,readiness}=await merchant(resource.owner_org_id);
     // Real card data remains in provider-hosted fields. The simulator alone accepts test card fields.
     const input=provider!.provider==="mock"?z.object({type:z.enum(["card","bank","ach"]),card:z.record(z.unknown()).optional(),bank:z.record(z.unknown()).optional()}).strict().parse(raw):z.object({type:z.enum(["card","bank","ach"])}).strict().parse(raw);
-    requireRail(config,input.type);return tokenizePaymentMethod(resource.owner_org_id,provider!,input);
+    requireRail(config,input.type,readiness);
+    if(provider!.provider==="mock")return tokenizePaymentMethod(resource.owner_org_id,provider!,input);
+    // Forward's secure element pays a payment intent: open one for the
+    // invoice's current total and hand the element its client secret.
+    const invoice=await readInvoice(resource.owner_org_id,resource.id);
+    if(!["due","overdue","partially_paid"].includes(String(invoice.status))||Number(invoice.balance_due_cents)<=0)throw conflict("invoice_not_payable","This invoice is not open for payment.");
+    const method=input.type==="card"?"card":"bank";
+    const {view}=await prepareCheckout(resource.owner_org_id,{amount_cents:Number(invoice.balance_due_cents),method,channel:"partner",initiated_by:"customer",project_id:String(invoice.project_id||""),branch_id:String(invoice.branch_id||"default"),invoice_id:String(invoice.invoice_number||resource.id),description:`Invoice ${String(invoice.invoice_number||"")}`.trim(),context:{invoice_id:resource.id,payer_org_id:ctx.orgId}});
+    return {checkout:view,intent:{client_secret:view.client_secret,id:view.id}};
   });
 }
 
 export async function partnerPaymentQuote(ctx:PlatformAuthContext,resource:ResourceRef,method:"card"|"bank"){
   invoiceResource(resource);
   return withSharedAccess(ctx,resource,"invoice.pay",async decision=>{
-    requirePermission(decision.ctx,"manage_partner_payments");const {provider,config}=await merchant(resource.owner_org_id),invoice=await readInvoice(resource.owner_org_id,resource.id);
-    requireRail(config,method);
+    requirePermission(decision.ctx,"manage_partner_payments");const {provider,config,readiness}=await merchant(resource.owner_org_id),invoice=await readInvoice(resource.owner_org_id,resource.id);
+    requireRail(config,method,readiness);
     if(!["due","overdue","partially_paid"].includes(String(invoice.status))||Number(invoice.balance_due_cents)<=0)throw conflict("invoice_not_payable","This invoice is not open for payment.");
     const quote=await surchargeQuote(resource.owner_org_id,provider!,{amount_cents:Number(invoice.balance_due_cents),method,branch_id:String(invoice.branch_id||"default")});
     return {...quote,currency:invoice.currency,invoice_revision:invoice.revision};
@@ -84,15 +95,15 @@ export async function recordOfflinePartnerPayment(ctx:PlatformAuthContext,resour
 
 export async function payPartnerInvoice(ctx:PlatformAuthContext,resource:ResourceRef,raw:unknown){
   invoiceResource(resource);
-  const input=z.object({client_operation_id:idSchema,payment_method_id:z.string().min(1).max(200),method:z.enum(["card","bank"]),expected_total_cents:z.number().int().positive(),expected_invoice_revision:z.number().int().positive()}).strict().parse(raw);
+  const input=z.object({client_operation_id:idSchema,payment_method_id:z.string().min(1).max(200),method:z.enum(["card","bank"]),expected_total_cents:z.number().int().positive(),expected_invoice_revision:z.number().int().positive(),checkout_id:z.string().min(1).max(200).optional(),billing_details:z.record(z.unknown()).optional()}).strict().parse(raw);
   const id=`partner_checkout_${hash(`${ctx.orgId}:${resourceKey(resource)}:${input.client_operation_id}`)}`,requestHash=hash(JSON.stringify(input));
   // Claim commits before provider effects. An interrupted charge is never retried automatically.
   const claim=await withSharedAccess(ctx,resource,"invoice.pay",async decision=>{
     requirePermission(decision.ctx,"manage_partner_payments");
     const prior=await findRecord(id,"partner_checkout");
     if(prior){if(prior.request_hash!==requestHash)throw conflict("operation_conflict","This payment reference was already used.");return {record:prior,provider:null};}
-    const {provider,config}=await merchant(resource.owner_org_id),invoice=await readInvoice(resource.owner_org_id,resource.id);
-    requireRail(config,input.method);
+    const {provider,config,readiness}=await merchant(resource.owner_org_id),invoice=await readInvoice(resource.owner_org_id,resource.id);
+    requireRail(config,input.method,readiness);
     const paymentMethod=await provider!.getPaymentMethod(input.payment_method_id);
     if(paymentMethod.id!==input.payment_method_id||paymentMethod.type!==input.method)throw badRequest("payment_method_mismatch","The payment method does not match the quoted payment rail. Request a new quote.");
     if(Number(invoice.revision)!==input.expected_invoice_revision||!["due","overdue","partially_paid"].includes(String(invoice.status)))throw conflict("invoice_changed","Reload this invoice before paying.");
@@ -108,9 +119,20 @@ export async function payPartnerInvoice(ctx:PlatformAuthContext,resource:Resourc
   if(!claim.provider)return paymentView(claim.record);
   const record=claim.record;
   try{
-    const intent=await claim.provider.createPaymentIntent({amount_cents:record.amount_cents,currency:record.currency,reference_id:id,auto_capture:true,user_fields:{collaboration_checkout_id:id}});
-    await withOrganizationLocks([record.owner_org_id,ctx.orgId],async()=>{const current=await getRecord(id);await updateRecord(current,{provider_intent_id:intent.id},current.revision);});
-    const charge=await claim.provider.createPayment(intent.id,{payment_method_id:input.payment_method_id});
+    // Customer-initiated card-not-present payment; keys come from the claim
+    // id so a retry is the same request to the processor.
+    const orderDetails={card_not_present_type:"ecommerce" as const,initiated_by:"customer" as const,invoice_id:String(resource.id)};
+    let intentId="";
+    if(input.checkout_id&&claim.provider.provider!=="mock"){
+      const prepared=await claim.provider.getPaymentIntent(await checkoutIntentId(resource.owner_org_id,input.checkout_id));
+      if(prepared.amount_cents!==record.amount_cents)throw conflict("payment_quote_changed","Review the current total before paying.");
+      intentId=prepared.id;
+    }else{
+      const intent=await claim.provider.createPaymentIntent({amount_cents:record.amount_cents,currency:record.currency,reference_id:id,auto_capture:true,user_fields:{collaboration_checkout_id:id},order_details:orderDetails,idempotency_key:forwardIdempotencyKey("fm-pi",id)});
+      intentId=intent.id;
+    }
+    await withOrganizationLocks([record.owner_org_id,ctx.orgId],async()=>{const current=await getRecord(id);await updateRecord(current,{provider_intent_id:intentId},current.revision);});
+    const charge=await claim.provider.createPayment(intentId,{payment_method_id:input.payment_method_id,order_details:orderDetails,billing_details:input.billing_details,idempotency_key:forwardIdempotencyKey("fm-pay",id)});
     const recorded=await withOrganizationLocks([record.owner_org_id,ctx.orgId],async()=>{
       const current=await getRecord(id);
       const status=charge.amount_cents!==record.amount_cents||charge.currency.toUpperCase()!==record.currency.toUpperCase()?"reconciliation_required":["captured","settled"].includes(charge.status)?"captured":["failed","cancelled"].includes(charge.status)?"failed":"pending";
@@ -121,6 +143,16 @@ export async function payPartnerInvoice(ctx:PlatformAuthContext,resource:Resourc
   }catch{
     return withOrganizationLocks([record.owner_org_id,ctx.orgId],async()=>{const current=await getRecord(id);return paymentView(await updateRecord(current,{status:"reconciliation_required"},current.revision));});
   }
+}
+
+/** The processor intent behind a checkout the payer's browser element paid. */
+async function checkoutIntentId(ownerOrgId:string,checkoutId:string){
+  const {readDocument}=await import("../platform/storage.js");
+  const {PAYMENT_CHECKOUT_COLLECTION}=await import("../payments/intake.js");
+  const doc=await readDocument(ownerOrgId,PAYMENT_CHECKOUT_COLLECTION,checkoutId).catch(()=>null) as any;
+  const intentId=String(doc?.data?.provider_intent_id||"");
+  if(!intentId)throw badRequest("checkout_not_found","This payment form expired. Start the payment again.");
+  return intentId;
 }
 
 /** Claim accounting separately from the provider request. If the process stops

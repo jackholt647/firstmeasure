@@ -7307,9 +7307,13 @@ async function publicCustomerPortalPayload(uuid: string, preview: boolean, baseU
   const {terminologyContract}=await import('./localization/terminology.js');
   const projectLabels=(value:unknown)=>Object.fromEntries(Object.entries(asObject(value)).filter(([namespace])=>publicNamespaces.has(namespace)).map(([namespace,labels])=>[namespace,Object.fromEntries(Object.entries(asObject(labels)).filter(([key,label])=>Object.hasOwn(terminologyContract,`${namespace}.${key}`)&&!key.endsWith('_application')&&typeof label==='string'&&label.length<=160))]));
   const terminologyData=asObject(terminologyModule);
+  // A customer is offered online payment only while the organization can take one.
+  const { canTakeOnlinePayments } = await import("../payments/readiness.js");
+  const onlinePayments = await canTakeOnlinePayments(found.orgId);
   return {
     language:{context:portalLanguage.context,terminology:{labels:projectLabels(terminologyData.labels),localized_labels:{[portalLanguage.context.locale]:projectLabels(asObject(terminologyData.localized_labels)[portalLanguage.context.locale])}}},
     preview,
+    online_payments: onlinePayments,
     access: found.access_mode === "guest" ? {
       mode: "guest",
       read_only: true,
@@ -7323,7 +7327,7 @@ async function publicCustomerPortalPayload(uuid: string, preview: boolean, baseU
     } : {
       mode: preview ? "staff_preview" : "owner",
       read_only: preview,
-      can_pay: !preview,
+      can_pay: !preview && onlinePayments,
       can_sign: !preview,
       can_write: !preview,
       can_share: !preview && portalSettings.sharing.enabled

@@ -2699,7 +2699,26 @@ session_write_close();
         let intakeHandle = null;
         let selectedMethod = 'card';
         let selectedSavedMethod = '';
+        // The server's answer to "can this organization take a payment now",
+        // with Forward's element settings and the customer's saved methods.
+        let intakeConfig = null;
+        let intakeConfigKey = '';
+        let amountRemountTimer = null;
         const contact = () => paymentProjectContact(selectedProject) || null;
+        const contactRefValue = () => {
+          const current = contact() || {};
+          return String(current.id || current.contact_id || String(current.email || '').toLowerCase() || '');
+        };
+        const loadIntakeConfig = async () => {
+          const key = `${paymentOrgId()}:${contactRefValue()}`;
+          if (intakeConfig && intakeConfigKey === key) return intakeConfig;
+          try {
+            const result = await window.PaymentsAPI.intake.config(paymentOrgId(), { contact_ref: contactRefValue(), branch_id: paymentBranchId() });
+            if (result && typeof result.ready === 'boolean') { intakeConfig = result; intakeConfigKey = key; }
+          } catch (_) { intakeConfig = null; }
+          return intakeConfig;
+        };
+        const intakeReady = () => intakeConfig?.ready === true && !!intakeConfig?.provider;
         const renderSelected = () => {
           selectedNode.innerHTML = selectedProject ? `<div class="fm-payment-selected"><span><strong>${paymentProjectTitle(selectedProject)}</strong><small>${String(paymentProjectContact(selectedProject)?.name || selectedProject.id || '')}</small></span><button type="button" class="fm-payment-clear" data-fm-pay-clear>Clear</button></div>` : '';
           selectedNode.querySelector('[data-fm-pay-clear]')?.addEventListener('click', () => { selectedProject = null; renderSelected(); renderIntake(); });
@@ -2718,11 +2737,13 @@ session_write_close();
           }));
         };
         const renderMethods = () => {
+          if (!intakeReady()) { methodsNode.innerHTML = ''; return; }
+          const rails = intakeConfig?.rails || {};
           const saved = intakeHandle?.context?.options?.savedMethods || [];
           const savedHtml = saved.map((method) => `<button type="button" class="fm-payment-method ${selectedSavedMethod === method.id ? 'active' : ''}" data-fm-pay-saved="${method.id}"><span class="fm-payment-icon"><i class="fas ${method.type === 'ach' ? 'fa-building-columns' : 'fa-credit-card'}"></i></span><span><strong>${method.label}</strong><small>${method.detail || 'Saved method'}</small></span></button>`).join('');
           methodsNode.innerHTML = `
-            <button type="button" class="fm-payment-method ${selectedMethod === 'card' && !selectedSavedMethod ? 'active' : ''}" data-fm-pay-method="card"><span class="fm-payment-icon"><i class="fas fa-credit-card"></i></span><span><strong>Card</strong><small>Credit or debit card</small></span></button>
-            <button type="button" class="fm-payment-method ${selectedMethod === 'ach' && !selectedSavedMethod ? 'active' : ''}" data-fm-pay-method="ach"><span class="fm-payment-icon"><i class="fas fa-building-columns"></i></span><span><strong>ACH</strong><small>Bank transfer</small></span></button>
+            ${rails.card !== false ? `<button type="button" class="fm-payment-method ${selectedMethod === 'card' && !selectedSavedMethod ? 'active' : ''}" data-fm-pay-method="card"><span class="fm-payment-icon"><i class="fas fa-credit-card"></i></span><span><strong>Card</strong><small>Credit or debit card</small></span></button>` : ''}
+            ${rails.bank !== false ? `<button type="button" class="fm-payment-method ${selectedMethod === 'ach' && !selectedSavedMethod ? 'active' : ''}" data-fm-pay-method="ach"><span class="fm-payment-icon"><i class="fas fa-building-columns"></i></span><span><strong>ACH</strong><small>Bank transfer</small></span></button>` : ''}
             ${savedHtml}
           `;
           methodsNode.querySelectorAll('[data-fm-pay-method]').forEach((button) => button.addEventListener('click', () => {
@@ -2737,28 +2758,54 @@ session_write_close();
             renderMethods();
           }));
         };
-        const renderIntake = () => {
+        const renderIntake = async () => {
           intakeHandle?.close?.();
-          const currentContact = contact();
+          intakeHandle = null;
+          const currentContact = contact() || {};
+          await loadIntakeConfig();
+          const ready = intakeReady();
+          const rails = intakeConfig?.rails || {};
+          const requestedOrgId = paymentOrgId();
           intakeHandle = window.FirstMatePaymentIntake.mount(mountNode, {
             title: '',
             amountProvider: () => paymentCentsFromAmount(amountInput.value),
             amountCents: 0,
             allowCustomAmount: false,
             detailsOnly: true,
-            methods: ['card', 'ach'],
+            methods: ready ? [rails.card !== false ? 'card' : '', rails.bank !== false ? 'ach' : ''].filter(Boolean) : ['card', 'ach'],
+            ...(ready ? {
+              savedMethods: Array.isArray(intakeConfig.saved_methods) ? intakeConfig.saved_methods : [],
+              refundPolicy: String(intakeConfig.refund_policy || ''),
+              tokenization: {
+                mode: String(intakeConfig.tokenization?.mode || 'mock'),
+                sdkUrl: String(intakeConfig.tokenization?.sdk_url || ''),
+                publicKey: String(intakeConfig.tokenization?.public_key || ''),
+                prepare: async ({ method, amountCents }) => (await window.PaymentsAPI.intake.checkout(requestedOrgId, {
+                  amount_cents: amountCents,
+                  method,
+                  project_id: selectedProject?.id || '',
+                  branch_id: paymentBranchId(),
+                  contact_ref: currentContact,
+                  apply_surcharge: intakeConfig.surcharge?.enabled === true
+                }))?.checkout,
+                createPaymentMethod: (request) => window.PaymentsAPI.intake.createPaymentMethodIntent(requestedOrgId, request)
+              }
+            } : {
+              notReadyMessage: String(intakeConfig?.message || 'Online payments are not set up yet. Finish payment setup in Settings, Payments.')
+            }),
             contact: currentContact.name || currentContact.email || currentContact.phone ? currentContact : null,
             allowSavedMethods: !!selectedProject && !!(currentContact.name || currentContact.email || currentContact.phone),
             allowSavePaymentMethod: true,
             submitLabel: 'Run Payment',
-            successTitle: 'Payment recorded',
+            successTitle: 'Payment complete',
             successActions: [
               { label: 'Print receipt', onClick: (result) => printPaymentReceipt(result, { amountCents: result?.amountCents, customer: currentContact.name || currentContact.email || 'Customer payment', project: selectedProject ? paymentProjectTitle(selectedProject) : '' }) },
-              { label: 'Email receipt', onClick: () => window.Portal?.ui?.showToast?.('Receipt email is ready for processor wiring.', 'success') },
               { label: 'Close', primary: true, onClick: close }
             ],
             onSubmit: async (payment) => {
               const methodLabel = payment.savedPaymentMethod?.label || String(payment.method || 'payment').replace(/_/g, ' ');
+              // Charged through the processor; never recorded as paid without it.
+              if (!payment.payment_method_id && !payment.saved_method_id) throw new Error('Enter the payment details to continue.');
               const result = await window.PaymentsAPI.payments.create(paymentOrgId(), {
                 project_id: selectedProject?.id || '',
                 branch_id: paymentBranchId(),
@@ -2769,8 +2816,14 @@ session_write_close();
                 allocate: !!selectedProject?.id,
                 method: { type: payment.savedPaymentMethodId ? `saved_${payment.method}` : payment.method, label: methodLabel },
                 contact_ref: currentContact,
-                notes: selectedProject?.id ? `Phone payment for ${paymentProjectTitle(selectedProject)}.` : 'Phone payment without project association.'
+                notes: selectedProject?.id ? `Phone payment for ${paymentProjectTitle(selectedProject)}.` : 'Phone payment without project association.',
+                ...(payment.payment_method_id ? { payment_method_id: payment.payment_method_id } : {}),
+                ...(payment.saved_method_id ? { saved_method_id: payment.saved_method_id } : {}),
+                ...(payment.checkout_id ? { checkout_id: payment.checkout_id } : {}),
+                save_payment_method: payment.save_method === true,
+                method_label: methodLabel
               });
+              intakeConfig = null;
               window.Portal?.ui?.showToast?.('Payment saved.', 'success');
               return result?.payment || result || {};
             }
@@ -2780,7 +2833,19 @@ session_write_close();
           else intakeHandle.setMethod(selectedMethod);
           renderMethods();
         };
-        amountInput.addEventListener('input', () => intakeHandle?.updateSubmitState?.());
+        amountInput.addEventListener('input', () => {
+          intakeHandle?.updateSubmitState?.();
+          // Forward's element pays one checkout for one amount: open a new
+          // one once typing stops.
+          if (intakeReady()) {
+            clearTimeout(amountRemountTimer);
+            amountRemountTimer = setTimeout(() => {
+              if (!modal.isConnected) return;
+              if (selectedSavedMethod) intakeHandle?.setSavedMethod?.(selectedSavedMethod);
+              else intakeHandle?.setMethod?.(selectedMethod);
+            }, 700);
+          }
+        });
         searchInput.addEventListener('input', renderSearch);
         renderSelected();
         renderIntake();

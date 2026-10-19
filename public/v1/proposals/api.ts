@@ -20,7 +20,6 @@ import {
   readProposalPdfFile,
   readPublicProposalPdfFile,
   readPublicProposalReceiptPdfFile,
-  recordPublicProposalMockDepositPayment,
   recordPublicProposalPayLater,
   recordPublicProposalChoiceSelection,
   recordPublicProposalSignatureAdoption,
@@ -266,7 +265,7 @@ export const registerProposalsApi: FastifyPluginAsync = async (app) => {
 
   // --- Public payment intake (provider tokenization over the proposal token).
   // The portal only ever talks to the proposals public API, so these thin
-  // shims resolve the org from the token (same pattern as mock-deposit) and
+  // shims resolve the org from the token and
   // delegate to the payments intake module. When no provider is configured
   // they answer with provider:null and the portal keeps its legacy flow.
 
@@ -285,15 +284,11 @@ export const registerProposalsApi: FastifyPluginAsync = async (app) => {
   app.post("/public/:token/payments/payment-method-intent", async (request, reply) => {
     const body = objectBodySchema.parse(request.body ?? {});
     const found = await findPublicProposalSnapshot(getParam(request.params, "token"));
-    const [{ tokenizePaymentMethod }, { getPaymentProvider }] = await Promise.all([
+    const [{ tokenizePaymentMethod }, { requirePaymentsReady }] = await Promise.all([
       import("../payments/intake.js"),
-      import("../payments/providers/index.js")
+      import("../payments/readiness.js")
     ]);
-    const provider = await getPaymentProvider(found.orgId);
-    if (!provider) {
-      reply.code(400);
-      return { ok: false, error: "merchant_not_configured", message: "Online card processing is not available for this organization." };
-    }
+    const { provider } = await requirePaymentsReady(found.orgId, { rail: cleanText(body.type) === "bank" || cleanText(body.type) === "ach" ? "bank" : "card" });
     const result = await tokenizePaymentMethod(found.orgId, provider, {
       type: cleanText(body.type),
       card: asObject(body.card),
@@ -307,13 +302,13 @@ export const registerProposalsApi: FastifyPluginAsync = async (app) => {
   app.get("/public/:token/payments/surcharge-quote", async (request) => {
     const query = asObject(request.query);
     const found = await findPublicProposalSnapshot(getParam(request.params, "token"));
-    const [{ surchargeQuote }, { getPaymentProvider }] = await Promise.all([
+    const [{ surchargeQuote }, { paymentsReadiness, requirePaymentsReady }] = await Promise.all([
       import("../payments/intake.js"),
-      import("../payments/providers/index.js")
+      import("../payments/readiness.js")
     ]);
     const amount = Math.max(0, Math.round(Number(query.amount_cents) || 0));
-    const provider = await getPaymentProvider(found.orgId);
-    if (!provider) return { ok: true, quote: { amount_cents: amount, surcharge_cents: 0, total_cents: amount, enabled: false } };
+    if (!(await paymentsReadiness(found.orgId)).ready) return { ok: true, quote: { amount_cents: amount, surcharge_cents: 0, total_cents: amount, enabled: false } };
+    const { provider } = await requirePaymentsReady(found.orgId);
     const snapshot = found.snapshot as Record<string, unknown>;
     const quote = await surchargeQuote(found.orgId, provider, {
       amount_cents: amount,
@@ -321,19 +316,6 @@ export const registerProposalsApi: FastifyPluginAsync = async (app) => {
       branch_id: cleanText(snapshot.branch_id || "default") || "default"
     });
     return { ok: true, quote };
-  });
-
-  app.post("/public/:token/payments/mock-deposit", async (request) => {
-    const body = objectBodySchema.parse(request.body ?? {});
-    const result = await recordPublicProposalMockDepositPayment(getParam(request.params, "token"), body, publicRequestAudit(request));
-    const workflow = await publicProposalWorkflow(getParam(request.params, "token"));
-    return {
-      ok: true,
-      payment: result.payment,
-      allocations: result.allocations,
-      snapshot: publicSnapshotView(result.snapshot, getParam(request.params, "token"), workflow.workflow),
-      workflow: workflow.workflow
-    };
   });
 
   app.post("/public/:token/sign", async (request) => {
@@ -451,18 +433,16 @@ function publicProposalAppHtml(token: string) {
     app.innerHTML = '<h1>'+esc(proposal.title || data.snapshot?.title || 'Proposal')+'</h1>' +
       '<p class="muted">Review, sign, and pay the required deposit.</p>' + pages() +
       (!signed ? '<article><h2>Sign proposal</h2><p>Adopt your signature, then complete the document.</p><input id="signName" placeholder="Full legal name" value="'+esc(name)+'"><div class="row"><button id="adopt">Adopt signature</button><button id="complete" class="secondary">Complete document</button></div><p class="signature">'+esc(name || 'Your Signature')+'</p></article>' :
-      !paid ? '<article class="pay"><h2>Deposit due</h2><p>Total '+fmt(payment.total_cents)+' includes sales tax '+fmt(payment.tax_cents)+'. Deposit due now: <b>'+fmt(payment.deposit_due_cents)+'</b>.</p><div class="row"><button id="pay">Pay deposit</button><button id="later" class="secondary">Pay later</button></div></article>' :
+      !paid ? '<article class="pay"><h2>Deposit due</h2><p>Total '+fmt(payment.total_cents)+' includes sales tax '+fmt(payment.tax_cents)+'. Deposit due now: <b>'+fmt(payment.deposit_due_cents)+'</b>.</p><p class="muted">Your contractor will send you a secure link to pay the deposit.</p><div class="row"><button id="later" class="secondary">Continue</button></div></article>' :
       '<article class="pay"><h2>Thank you</h2><p>Your proposal is signed and the deposit payment is recorded. The next step is waiting to schedule the work.</p></article>');
     document.getElementById('signName')?.addEventListener('input', e => { name = e.target.value; render(); });
     document.getElementById('adopt')?.addEventListener('click', adopt);
     document.getElementById('complete')?.addEventListener('click', complete);
-    document.getElementById('pay')?.addEventListener('click', pay);
     document.getElementById('later')?.addEventListener('click', later);
   }
   async function load(){ data = await api(''); await api('/view', { path: location.pathname + location.search }).catch(()=>{}); render(); }
   async function adopt(){ name = document.getElementById('signName')?.value || name; data = await api('/esign/adopt', { signer_name: name, signature: { type:'typed', text:name, style:'signature' } }); render(); }
   async function complete(){ if (!name) name = document.getElementById('signName')?.value || ''; if (!name) return alert('Enter your full name first.'); await adopt().catch(()=>{}); data = await api('/esign/complete', { signer_name: name, signature: { type:'typed', text:name, style:'signature' } }); render(); }
-  async function pay(){ app.insertAdjacentHTML('beforeend','<article class="pay"><h2>Processing payment...</h2></article>'); data = await api('/payments/mock-deposit', {}); render(); }
   async function later(){ data = await api('/pay-later', {}); render(); }
   load().catch(error => { app.innerHTML = '<article><h1>Proposal unavailable</h1><p>'+esc(error.message)+'</p></article>'; });
 })();

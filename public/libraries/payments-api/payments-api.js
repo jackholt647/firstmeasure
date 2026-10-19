@@ -303,6 +303,9 @@
       return request(orgPath(orgId, `/payment-intake-config${qs ? `?${qs}` : ''}`));
     },
     createPaymentMethodIntent(orgId, payload = {}){ return request(orgPath(orgId, '/payment-method-intents'), { method: 'POST', body: payload || {} }); },
+    // Opens a processor checkout; its client secret is what Forward's element pays.
+    checkout(orgId, payload = {}){ return request(orgPath(orgId, '/payment-checkouts'), { method: 'POST', body: payload || {} }); },
+    readiness(orgId){ return request(orgPath(orgId, '/payments-readiness')); },
     surchargeQuote(orgId, options = {}){
       const params = new URLSearchParams();
       params.set('amount_cents', String(Math.max(0, Math.round(Number(options.amount_cents ?? options.amountCents) || 0))));
@@ -406,6 +409,8 @@
 
   const merchantBoarding = {
     plans(orgId){ return request(orgPath(orgId, '/merchant-boarding/processing-plans')); },
+    // The merchant category codes Forward assigned to us (GET /mccs).
+    mccs(orgId){ return request(orgPath(orgId, '/merchant-boarding/mccs')); },
     createApplication(orgId, payload = {}){ return request(orgPath(orgId, '/merchant-boarding/applications'), { method: 'POST', body: payload || {} }); },
     getApplication(orgId, applicationId){ return request(orgPath(orgId, `/merchant-boarding/applications/${enc(applicationId)}`)); },
     updateApplication(orgId, applicationId, payload = {}){ return request(orgPath(orgId, `/merchant-boarding/applications/${enc(applicationId)}`), { method: 'PATCH', body: payload || {} }); },

@@ -42,7 +42,22 @@ function createSessionClient() {
       }
     });
   };
-  const request = async (method: string, url: string, payload?: unknown, extraHeaders: Record<string, string> = {}) => {
+  const request = async (method: string, url: string, payload?: unknown, extraHeaders: Record<string, string> = {}): Promise<any> => {
+    // Legacy proposal links no longer collect signatures; tests sign the
+    // snapshot directly (tests/helpers/signed-proposal.ts).
+    const legacySign = method.toUpperCase() === "POST" ? /^\/v1\/proposals\/public\/([^/]+)\/sign$/.exec(url) : null;
+    if (legacySign) {
+      const { signLegacyProposalForTest } = await import("./helpers/signed-proposal.js");
+      return signLegacyProposalForTest(decodeURIComponent(legacySign[1] || ""), String((payload as any)?.signer_name || "Customer"));
+    }
+    // A project's contacts are written through the contacts API, never with
+    // the project (docs/architecture/contacts.md).
+    if (method.toUpperCase() === "PUT" && /^\/v1\/platform\/organizations\/[^/]+\/projects\/[^/?]+$/.test(url) && Array.isArray((payload as any)?.data?.contacts)) {
+      const { contacts, ...data } = (payload as any).data;
+      const written: any = await request(method, url, { ...(payload as any), data }, extraHeaders);
+      await request("PUT", `${url}/contacts`, { contacts });
+      return written;
+    }
     const response = await raw(method, url, payload, extraHeaders);
     const setCookie = response.headers["set-cookie"];
     const sessionCookie = readCookie(setCookie, "fm_platform_session");
@@ -401,18 +416,22 @@ test("refund events dedupe against API-originated refunds and mirror provider-or
   const refundCount = async () => (await client.request("GET", `/v1/payments/organizations/${orgId}/projects/${projectId}/payments`))
     .payments.filter((entry: any) => entry.kind === "customer_refund").length;
 
-  // 1) Refund initiated through OUR API, already carrying the provider refund
-  //    id — the later v2.refund.created event must not double-create it.
-  await client.request("POST", `/v1/payments/organizations/${orgId}/payments/${paymentId}/refunds`, {
-    amount_cents: 50_000,
-    processor: { provider: "mock", provider_refund_id: "ref_mock_manual_1" }
+  // 1) Refund initiated through OUR API goes to the processor first (the
+  //    payment is now linked to its processor charge) and records the
+  //    processor's refund id — a later v2.refund.created echo of it must not
+  //    double-create it.
+  const ourRefund = await client.request("POST", `/v1/payments/organizations/${orgId}/payments/${paymentId}/refunds`, {
+    amount_cents: 50_000
   });
+  assert.equal(ourRefund.provider_action, "refunded");
+  const ourRefundId = String(ourRefund.refund.processor.provider_refund_id);
+  assert.match(ourRefundId, /^ref_mock_/);
   assert.equal(await refundCount(), 1);
   const { ingestForwardEvent } = await import("../payments/webhooks_forward.js");
   const duplicateEvent = {
     type: "v2.refund.created",
     data: {
-      id: "ref_mock_manual_1",
+      id: ourRefundId,
       payment_id: charge.id,
       amount: 50_000,
       user_fields: { payment_id: paymentId }
@@ -693,7 +712,7 @@ test("surcharge: settings flags, quote endpoint (3% capped, bank free), charge a
   assert.equal(charged.payment.fee_cents, Math.round(257_500 * 2 / 10_000) + 30);
 });
 
-test("public portal flow: intake config, tokenized mock-deposit charges through the provider, declines record nothing", async () => {
+test("proposal-token intake: ready orgs tokenize through the processor; the old deposit route is gone; not-ready orgs offer no card entry", async () => {
   const client = createSessionClient();
   const { orgId } = await register(client);
   await boardMockMerchant(client, orgId);
@@ -701,8 +720,10 @@ test("public portal flow: intake config, tokenized mock-deposit charges through 
   const { publicToken } = await signedProposalProject(client, orgId, projectId);
 
   const config = await client.request("GET", `/v1/proposals/public/${publicToken}/payments/intake-config`);
+  assert.equal(config.ready, true);
   assert.equal(config.provider, "mock");
   assert.equal(config.tokenization.mode, "mock");
+  assert.ok(config.refund_policy, "every checkout carries a refund policy");
 
   const tokenized = await client.request("POST", `/v1/proposals/public/${publicToken}/payments/payment-method-intent`, {
     type: "card",
@@ -710,54 +731,28 @@ test("public portal flow: intake config, tokenized mock-deposit charges through 
   });
   assert.match(tokenized.intent.payment_method_id, /^pm_mock_/);
 
-  const paid = await client.request("POST", `/v1/proposals/public/${publicToken}/payments/mock-deposit`, {
+  const gone = await client.raw("POST", `/v1/proposals/public/${publicToken}/payments/mock-deposit`, {
     payment_method: "card",
-    payment_method_id: tokenized.intent.payment_method_id,
-    save_payment_method: true
+    payment_method_id: tokenized.intent.payment_method_id
   });
-  assert.equal(paid.payment.amount_cents, 250_000);
-  assert.equal(paid.payment.provider, "mock");
-  assert.equal(paid.payment.fee_cents, 80);
-  assert.equal(paid.payment.merchant_amount_cents, 249_920);
-  assert.equal(paid.allocations.length, 1);
-  assert.equal(paid.snapshot.customer_payment.status, "deposit_paid");
-  assert.equal(paid.snapshot.customer_payment.mock, false);
-
-  // save_payment_method persisted the card for the proposal contact and the
-  // intake config now lists it.
-  const configAfter = await client.request("GET", `/v1/proposals/public/${publicToken}/payments/intake-config`);
-  assert.equal(configAfter.saved_methods.length, 1);
-  assert.equal(configAfter.saved_methods[0].last4, "4242");
-
-  // Declined magic card: structured error, no new transaction.
-  const declinedToken = (await client.request("POST", `/v1/proposals/public/${publicToken}/payments/payment-method-intent`, {
-    type: "card",
-    card: { number: "4000000000000002", exp_month: 12, exp_year: 2032, cvc: "123" }
-  })).intent.payment_method_id as string;
-  const declined = await client.raw("POST", `/v1/proposals/public/${publicToken}/payments/mock-deposit`, {
-    payment_method: "card",
-    amount_cents: 5_000,
-    payment_method_id: declinedToken
-  });
-  assert.equal(declined.statusCode, 400);
-  const declinedBody = JSON.parse(declined.body);
-  assert.equal(declinedBody.error, "payment_declined");
-  assert.equal(declinedBody.details.decline_category, "generic_decline");
+  assert.equal(gone.statusCode, 404);
   const payments = (await client.request("GET", `/v1/payments/organizations/${orgId}/projects/${projectId}/payments`)).payments;
-  assert.equal(payments.length, 1);
+  assert.equal(payments.length, 0);
 
-  // Legacy behavior stays available: no token -> mock record path unchanged.
+  // Not set up: no card entry and no tokenization.
   const legacyOrgClient = createSessionClient();
   const { orgId: legacyOrgId } = await register(legacyOrgClient);
   const { publicToken: legacyToken } = await signedProposalProject(legacyOrgClient, legacyOrgId, "project_mock_legacy");
-  const legacyPaid = await legacyOrgClient.request("POST", `/v1/proposals/public/${legacyToken}/payments/mock-deposit`, {
-    payment_method: "card"
-  });
-  assert.equal(legacyPaid.payment.method.type, "mock_customer_portal");
-  assert.equal(legacyPaid.payment.provider, undefined);
-  assert.equal(legacyPaid.snapshot.customer_payment.mock, true);
   const legacyConfig = await legacyOrgClient.request("GET", `/v1/proposals/public/${legacyToken}/payments/intake-config`);
+  assert.equal(legacyConfig.ready, false);
   assert.equal(legacyConfig.provider, null);
+  assert.equal(legacyConfig.tokenization, null);
+  const refused = await legacyOrgClient.raw("POST", `/v1/proposals/public/${legacyToken}/payments/payment-method-intent`, {
+    type: "card",
+    card: { number: "4242424242424242", exp_month: 12, exp_year: 2032, cvc: "123" }
+  });
+  assert.equal(refused.statusCode, 409);
+  assert.equal(JSON.parse(refused.body).error, "payments_not_ready");
 });
 
 const DOC_SCOPE_ITEMS = [
@@ -801,7 +796,7 @@ async function paymentDocument(client: ReturnType<typeof createSessionClient>, o
   return { documentId: created.document.id as string, publicToken: String(sent.snapshot.public_token) };
 }
 
-test("document engine: tokenized payment output charges once through the provider (idempotent), declines fail the output, legacy stays mock", async () => {
+test("document engine: tokenized payment output charges once through the provider (idempotent), declines fail the output, checkouts are bound to their document, not-ready orgs record nothing", async () => {
   const client = createSessionClient();
   const { orgId } = await register(client);
   await boardMockMerchant(client, orgId);
@@ -885,7 +880,43 @@ test("document engine: tokenized payment output charges once through the provide
   const declinedSnapshot = await client.request("GET", `/v1/documents/public/${second.publicToken}`);
   assert.equal(declinedSnapshot.snapshot.outputs?.deposit_payment, undefined, "declined charge fails the output write");
 
-  // Legacy org (no provider): the document mock-record path is unchanged.
+  // The checkout route: the server prices the payment from the document and
+  // hands back the processor intent's client secret for the secure element.
+  const third = await paymentDocument(client, orgId, projectId, "Checkout Route Agreement");
+  const checkout = (await client.request("POST", `/v1/documents/public/${third.publicToken}/payments/checkout`, {
+    output_key: "deposit_payment",
+    method: "card",
+    amount_cents: 1
+  })).checkout;
+  assert.equal(checkout.amount_cents, 405_000, "the browser never sets the amount");
+  assert.ok(checkout.client_secret);
+  const thirdToken = (await client.request("POST", `/v1/documents/public/${third.publicToken}/payments/payment-method-intent`, {
+    type: "card",
+    card: { number: "4242424242424242", exp_month: 12, exp_year: 2032, cvc: "123" }
+  })).intent.payment_method_id as string;
+
+  // A checkout opened for one document cannot pay another.
+  const fourth = await paymentDocument(client, orgId, projectId, "Other Agreement");
+  const crossed = await client.raw("POST", `/v1/documents/public/${fourth.publicToken}/outputs/deposit_payment`, {
+    value: { payment_method: "card", payment_method_id: thirdToken, checkout_id: checkout.id },
+    evidence: {}
+  });
+  assert.equal(crossed.statusCode, 400);
+  assert.equal(JSON.parse(crossed.body).error, "checkout_mismatch");
+
+  const viaCheckout = await client.request("POST", `/v1/documents/public/${third.publicToken}/outputs/deposit_payment`, {
+    value: { payment_method: "card", payment_method_id: thirdToken, checkout_id: checkout.id },
+    evidence: {}
+  });
+  assert.equal(viaCheckout.snapshot.outputs.deposit_payment.payment_id, checkout.payment_id, "the payment id is the checkout's");
+  payments = (await client.request("GET", `/v1/payments/organizations/${orgId}/projects/${projectId}/payments`)).payments;
+  const viaCheckoutPayment = payments.find((entry: any) => entry.id === checkout.payment_id);
+  assert.ok(viaCheckoutPayment);
+  assert.equal(viaCheckoutPayment.metadata.checkout_id, checkout.id);
+  assert.equal(viaCheckoutPayment.processor.provider_intent_id, (await (await import("../platform/storage.js")).readDocument(orgId, "payment_checkouts", checkout.id) as any).data.provider_intent_id);
+
+  // Not set up for payments: no card entry, and the output is refused —
+  // nothing is ever recorded as paid without a charge.
   const legacyClient = createSessionClient();
   const { orgId: legacyOrgId } = await register(legacyClient);
   await applyDocumentCapabilities(legacyClient, legacyOrgId);
@@ -897,17 +928,18 @@ test("document engine: tokenized payment output charges once through the provide
   await putProjectContacts(legacyClient, legacyOrgId, legacyProjectId, [{ id: "contact_mock", name: "Molly Mock", email: "molly-mock@example.test", primary: true }]);
   const legacyDoc = await paymentDocument(legacyClient, legacyOrgId, legacyProjectId, "Legacy Checkout Agreement");
   const legacyConfig = await legacyClient.request("GET", `/v1/documents/public/${legacyDoc.publicToken}/payments/intake-config`);
+  assert.equal(legacyConfig.ready, false);
   assert.equal(legacyConfig.provider, null);
-  const legacyPaid = await legacyClient.request("POST", `/v1/documents/public/${legacyDoc.publicToken}/outputs/deposit_payment`, {
+  const refused = await legacyClient.raw("POST", `/v1/documents/public/${legacyDoc.publicToken}/outputs/deposit_payment`, {
     value: { payment_method: "ach", amount_cents: 0 },
     evidence: {}
   });
-  assert.equal(legacyPaid.snapshot.outputs.deposit_payment.amount_cents, 405_000);
+  assert.equal(refused.statusCode, 409);
+  assert.equal(JSON.parse(refused.body).error, "payments_not_ready");
+  const legacyCheckout = await legacyClient.raw("POST", `/v1/documents/public/${legacyDoc.publicToken}/payments/checkout`, { output_key: "deposit_payment", method: "card" });
+  assert.equal(legacyCheckout.statusCode, 409);
   const legacyPayments = (await legacyClient.request("GET", `/v1/payments/organizations/${legacyOrgId}/projects/${legacyProjectId}/payments`)).payments;
-  assert.equal(legacyPayments.length, 1);
-  assert.equal(legacyPayments[0].method.type, "mock_document");
-  assert.equal(legacyPayments[0].provider, undefined);
-  assert.equal(legacyPayments[0].fee_cents, undefined);
+  assert.equal(legacyPayments.length, 0, "nothing recorded as paid");
 });
 
 test("crew field payments: tokenized charges run through the provider (fees + allocation), declines write nothing, cash/check stays legacy", async () => {

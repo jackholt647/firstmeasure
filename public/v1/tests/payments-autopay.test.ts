@@ -41,7 +41,22 @@ function createSessionClient() {
       }
     });
   };
-  const request = async (method: string, url: string, payload?: unknown) => {
+  const request = async (method: string, url: string, payload?: unknown): Promise<any> => {
+    // Legacy proposal links no longer collect signatures; tests sign the
+    // snapshot directly (tests/helpers/signed-proposal.ts).
+    const legacySign = method.toUpperCase() === "POST" ? /^\/v1\/proposals\/public\/([^/]+)\/sign$/.exec(url) : null;
+    if (legacySign) {
+      const { signLegacyProposalForTest } = await import("./helpers/signed-proposal.js");
+      return signLegacyProposalForTest(decodeURIComponent(legacySign[1] || ""), String((payload as any)?.signer_name || "Customer"));
+    }
+    // A project's contacts are written through the contacts API, never with
+    // the project (docs/architecture/contacts.md).
+    if (method.toUpperCase() === "PUT" && /^\/v1\/platform\/organizations\/[^/]+\/projects\/[^/?]+$/.test(url) && Array.isArray((payload as any)?.data?.contacts)) {
+      const { contacts, ...data } = (payload as any).data;
+      const written: any = await request(method, url, { ...(payload as any), data });
+      await request("PUT", `${url}/contacts`, { contacts });
+      return written;
+    }
     const response = await raw(method, url, payload);
     const setCookie = response.headers["set-cookie"];
     const sessionCookie = readCookie(setCookie, "fm_platform_session");
@@ -191,12 +206,12 @@ test("enrollment guards: provider required, saved method must exist, contact mus
   const projectId = "project_autopay_guards";
   await signedProposalProject(client, orgId, projectId);
 
-  // No provider boarded yet -> enrollment refuses.
+  // Payments not set up yet -> enrollment refuses.
   const noProvider = await client.raw("PUT", `/v1/payments/organizations/${orgId}/projects/${projectId}/autopay`, {
     saved_method_id: "saved_method_missing"
   });
-  assert.equal(noProvider.statusCode, 400);
-  assert.equal(JSON.parse(noProvider.body).error, "autopay_provider_required");
+  assert.equal(noProvider.statusCode, 409);
+  assert.equal(JSON.parse(noProvider.body).error, "payments_not_ready");
 
   await boardMockMerchant(client, orgId);
 
@@ -214,11 +229,21 @@ test("enrollment guards: provider required, saved method must exist, contact mus
   assert.equal(wrongContact.statusCode, 400);
   assert.equal(JSON.parse(wrongContact.body).error, "autopay_method_contact_mismatch");
 
-  const enrolled = await client.request("PUT", `/v1/payments/organizations/${orgId}/projects/${projectId}/autopay`, {
+  // Card-network rules for merchant-initiated charges need the customer's
+  // agreement on file before the first one.
+  const noConsent = await client.raw("PUT", `/v1/payments/organizations/${orgId}/projects/${projectId}/autopay`, {
     saved_method_id: method.id,
     contact_ref: { id: "contact_autopay", email: "amy-auto@example.test" }
   });
+  assert.equal(noConsent.statusCode, 400);
+  assert.equal(JSON.parse(noConsent.body).error, "autopay_authorization_required");
+  const enrolled = await client.request("PUT", `/v1/payments/organizations/${orgId}/projects/${projectId}/autopay`, {
+    saved_method_id: method.id,
+    contact_ref: { id: "contact_autopay", email: "amy-auto@example.test" },
+    customer_authorized: true
+  });
   assert.equal(enrolled.autopay.status, "active");
+  assert.ok(enrolled.autopay.authorization.at, "the customer's agreement is recorded");
   assert.equal(enrolled.autopay.saved_method_id, method.id);
   assert.match(enrolled.autopay.method_label, /Visa ending in 4242/);
 
@@ -240,7 +265,8 @@ test("runner charges the due obligation with exact fee + allocation and never do
   const method = await savedMethodFromCard(client, orgId, "contact_autopay", "4242424242424242");
   await client.request("PUT", `/v1/payments/organizations/${orgId}/projects/${projectId}/autopay`, {
     saved_method_id: method.id,
-    contact_ref: { id: "contact_autopay" }
+    contact_ref: { id: "contact_autopay" },
+    customer_authorized: true
   });
 
   const run = await client.request("POST", `/v1/payments/organizations/${orgId}/autopay/run`, {});
@@ -285,7 +311,8 @@ test("dunning: decline -> 24h retry spacing -> third failure pauses enrollment; 
   const badMethod = await savedMethodFromCard(client, orgId, "contact_autopay", "4000000000000002");
   await client.request("PUT", `/v1/payments/organizations/${orgId}/projects/${projectId}/autopay`, {
     saved_method_id: badMethod.id,
-    contact_ref: { id: "contact_autopay" }
+    contact_ref: { id: "contact_autopay" },
+    customer_authorized: true
   });
 
   const t0 = Date.now();
@@ -362,6 +389,7 @@ test("max_amount_cents skips over-limit obligations", async () => {
   await client.request("PUT", `/v1/payments/organizations/${orgId}/projects/${projectId}/autopay`, {
     saved_method_id: method.id,
     contact_ref: { id: "contact_autopay" },
+    customer_authorized: true,
     max_amount_cents: 100_000
   });
   const run = await client.request("POST", `/v1/payments/organizations/${orgId}/autopay/run`, {});
@@ -437,7 +465,7 @@ test("unmatched settlements: orphan provider payment -> queue -> match merges pr
   assert.ok(events.some((event: any) => event.type === "reconciliation.unmatched_dismissed"));
 });
 
-test("document payment output records a payment_transactions row exactly once (replay-safe)", async () => {
+test("document payment output records nothing without a charge, and a charged payment exactly once (replay-safe)", async () => {
   const client = createSessionClient();
   const { orgId } = await register(client);
   await (await operatorFixtureClient(app, orgId)).request("PUT", `/v1/platform/organizations/${orgId}/capabilities`, {
@@ -470,8 +498,29 @@ test("document payment output records a payment_transactions row exactly once (r
   });
   const documentId = created.document.id as string;
 
-  const paid = await client.request("POST", `/v1/documents/organizations/${orgId}/documents/${documentId}/outputs/deposit_payment`, {
+  // Not set up for payments: the output is refused and nothing is recorded.
+  const notReady = await client.raw("POST", `/v1/documents/organizations/${orgId}/documents/${documentId}/outputs/deposit_payment`, {
     value: { amount_cents: 1, payment_method: "card", reference: "pay_doc_1" }
+  });
+  assert.equal(notReady.statusCode, 409);
+  assert.equal(JSON.parse(notReady.body).error, "payments_not_ready");
+  assert.equal((await projectPayments(client, orgId, projectId)).length, 0, "no payment without payment setup");
+
+  // Set up, but no payment details: still nothing is recorded as paid.
+  await boardMockMerchant(client, orgId);
+  const noToken = await client.raw("POST", `/v1/documents/organizations/${orgId}/documents/${documentId}/outputs/deposit_payment`, {
+    value: { amount_cents: 1, payment_method: "card", reference: "pay_doc_1" }
+  });
+  assert.equal(noToken.statusCode, 400);
+  assert.equal(JSON.parse(noToken.body).error, "payment_not_completed");
+  assert.equal((await projectPayments(client, orgId, projectId)).length, 0, "no payment without a charge");
+
+  const tokenized = await client.request("POST", `/v1/payments/organizations/${orgId}/payment-method-intents`, {
+    type: "card",
+    card: { number: "4242424242424242", exp_month: 12, exp_year: 2030, cvc: "123", name: "Dee Docpay" }
+  });
+  const paid = await client.request("POST", `/v1/documents/organizations/${orgId}/documents/${documentId}/outputs/deposit_payment`, {
+    value: { amount_cents: 1, payment_method: "card", payment_method_id: tokenized.payment_method.id }
   });
   const outputValue = paid.document.outputs.deposit_payment;
   assert.equal(outputValue.amount_cents, 250_000, "server-computed deposit is authoritative");
@@ -482,7 +531,8 @@ test("document payment output records a payment_transactions row exactly once (r
   const transaction = payments[0];
   assert.equal(transaction.id, outputValue.payment_id);
   assert.equal(transaction.amount_cents, 250_000);
-  assert.equal(transaction.method.type, "mock_document", "legacy/mock document path uses the mock_document method type");
+  assert.equal(transaction.provider, "mock", "the charge ran through the processor");
+  assert.ok(transaction.processor.provider_payment_id);
   assert.equal(transaction.metadata.document_output_id, `${documentId}:deposit_payment`);
   assert.equal(transaction.contact_ref.email, "dee-docpay@example.test");
 
@@ -492,9 +542,9 @@ test("document payment output records a payment_transactions row exactly once (r
   assert.ok(received, "document.payment.received event is preserved");
   assert.equal(received.payload.payment_id, outputValue.payment_id);
 
-  // Replayed output: no duplicate transaction row.
+  // Replayed output: no duplicate transaction row and no second charge.
   await client.request("POST", `/v1/documents/organizations/${orgId}/documents/${documentId}/outputs/deposit_payment`, {
-    value: { amount_cents: 1, payment_method: "card", reference: "pay_doc_replay" }
+    value: { amount_cents: 1, payment_method: "card", payment_method_id: tokenized.payment_method.id }
   });
   payments = await projectPayments(client, orgId, projectId);
   assert.equal(payments.length, 1, "replayed output never double-creates the transaction");
