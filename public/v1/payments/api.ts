@@ -1288,13 +1288,18 @@ export const registerPaymentsApi: FastifyPluginAsync = async (app) => {
             || cleanText(asObject(plan.raw).country).toUpperCase() === "US");
           planId = cleanText((usPlan || plans[0])?.id);
         }
+        // The same partner data as the API application path (Forward's risk
+        // engine reads it); the "without redirect" test case leaves out the
+        // return URL.
+        const partnerData: JsonObject | null = boarding.provider === "forward" ? await forwardPartnerData(orgId, request, {}) : null;
+        if (partnerData && body.redirect_mode === "without_redirect") delete partnerData.redirect_url;
         application = await boardingCall(() => boarding.createApplication({
           business_id: businessId || undefined,
           name: businessName,
           ...(planId ? { processing_plan_id: planId } : {}),
           external_account_id: orgId,
           user_fields: { hosted_signup: "true", firstmate_org_id: orgId },
-          ...(boarding.provider === "forward" && body.redirect_mode !== "without_redirect" ? { partner_data: { redirect_url: forwardApplicationRedirectUrl(request) } } : {})
+          ...(partnerData ? { partner_data: partnerData } : {})
         }));
       }
       // Read the provider's persisted value, rather than reporting only what we sent.
