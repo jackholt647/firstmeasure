@@ -1,13 +1,15 @@
-import { createHash } from "node:crypto";
+import { notifySmsCampaignApproved } from "./approval_notifications.js";
+import { createHash, randomBytes } from "node:crypto";
 import { lookup } from "node:dns/promises";
 import { request as httpsRequest, type RequestOptions as HttpsRequestOptions } from "node:https";
 import type { ClientRequest, IncomingMessage } from "node:http";
 import { BlockList, isIP } from "node:net";
 import path from "node:path";
-import type { FastifyPluginAsync } from "fastify";
+import type { FastifyPluginAsync, FastifyRequest } from "fastify";
 import { ZodError, z } from "zod";
 
 import "./instructions.js";
+import { storeMediaUpload, readMediaMetadata, readMediaFile } from "../platform/storage.js";
 import { isAppFlagEnabled } from "../platform/app_flags.js";
 import { requirePlatformAuth } from "../platform/auth.js";
 import { badRequest, conflict, forbidden, notFound, PlatformError } from "../platform/errors.js";
@@ -98,6 +100,7 @@ const CAMPAIGN_USECASES = [
   "LOW_VOLUME",
   "MARKETING",
   "MIXED",
+  "LOW_VOLUME",
   "POLLING_VOTING",
   "PUBLIC_SERVICE_ANNOUNCEMENT",
   "SECURITY_ALERT",
@@ -134,7 +137,7 @@ function payloadHash(value: unknown) {
 
 const EDITABLE_BRAND_FIELDS = [
   "country", "displayName", "email", "entityType", "vertical", "companyName", "ein", "phone", "mobilePhone",
-  "street", "city", "state", "postalCode", "website", "firstName", "lastName", "businessContactEmail",
+  "street", "address2", "sameAsLegalName", "city", "state", "postalCode", "website", "firstName", "lastName", "businessContactEmail",
   "stockSymbol", "stockExchange", "isReseller", "formattedAddress", "addressAutocompleteSelected", "addressComponents", "lat", "lng"
 ] as const;
 const EDITABLE_CAMPAIGN_FIELDS = [
@@ -143,7 +146,8 @@ const EDITABLE_CAMPAIGN_FIELDS = [
   "optoutMessage", "helpKeywords", "helpMessage", "embeddedLink", "embeddedLinkSample", "embeddedPhone",
   "numberPool", "directLending", "ageGated", "termsAndConditions", "termsAndConditionsLink", "privacyPolicyLink",
   "autoRenewal", "enabledFeatures", "featuresConfirmed", "consentAcknowledged", "standardizationVersion",
-  "messageFlowConfirmed", "selectedNumberSearch", "selectedNumberAreaCode"
+  "messageFlowConfirmed", "selectedNumberSearch", "selectedNumberAreaCode", "optInMethod", "optInLocationUrl",
+  "optInMethods", "keywordLocationUrl", "optInEvidence", "optInEvidenceUrl", "optInDisclosure", "policyContentConfirmed", "websiteFormConfirmed", "autoSubmitCampaign"
 ] as const;
 
 function editableBrand(value: unknown, organizationId: string) {
@@ -259,7 +263,8 @@ export type PolicyUrlResolvedAddress = {
 };
 
 type PolicyUrlResolver = (hostname: string) => Promise<Array<{ address: string; family: number }>>;
-type PolicyUrlRequester = (url: URL, pinnedAddress: PolicyUrlResolvedAddress) => Promise<number>;
+type PolicyUrlResponse = { status: number; location?: string };
+type PolicyUrlRequester = (url: URL, pinnedAddress: PolicyUrlResolvedAddress) => Promise<number | PolicyUrlResponse>;
 type HttpsRequestImplementation = (options: HttpsRequestOptions, callback: (response: IncomingMessage) => void) => ClientRequest;
 
 export type PolicyUrlVerificationDependencies = {
@@ -279,7 +284,7 @@ export function requestPinnedPolicyUrl(
   pinnedAddress: PolicyUrlResolvedAddress,
   requestImpl: HttpsRequestImplementation = httpsRequest as HttpsRequestImplementation
 ) {
-  return new Promise<number>((resolve, reject) => {
+  return new Promise<PolicyUrlResponse>((resolve, reject) => {
     const pinnedLookup = (hostname: string, options: unknown, callbackValue?: unknown) => {
       const callback = (typeof options === "function" ? options : callbackValue) as (...args: unknown[]) => void;
       const lookupOptions = typeof options === "object" && options != null ? options as { all?: boolean } : {};
@@ -315,8 +320,7 @@ export function requestPinnedPolicyUrl(
           "User-Agent": "FirstMate-10DLC-Policy-Validator/1.0"
         }
       }, (response) => {
-        const statusCode = Number(response.statusCode || 0);
-        resolve(statusCode);
+        resolve({ status: Number(response.statusCode || 0), location: String(response.headers?.location || "") });
         response.destroy();
       });
     } catch (error) {
@@ -355,10 +359,25 @@ export async function verifyPublicPolicyUrl(
     }
     const pinnedAddress = addresses[0] as PolicyUrlResolvedAddress;
     const requester = dependencies.request || requestPinnedPolicyUrl;
-    const status = await requester(url, pinnedAddress);
-    if (status < 200 || status >= 300) {
-      throw badRequest("policy_url_unreachable", `${label} must be publicly accessible before campaign submission.`, { status });
+    let currentUrl = url;
+    const visited = new Set<string>();
+    for (let redirects = 0; redirects <= 3; redirects += 1) {
+      if (visited.has(currentUrl.href)) throw badRequest("policy_url_unreachable", `${label} redirects in a loop.`);
+      visited.add(currentUrl.href);
+      const result = await requester(currentUrl, pinnedAddress);
+      const response = typeof result === "number" ? { status: result, location: "" } : result;
+      if (response.status >= 200 && response.status < 300) return;
+      if ([301, 302, 303, 307, 308].includes(response.status) && response.location) {
+        const nextUrl = new URL(response.location, currentUrl);
+        if (nextUrl.origin !== url.origin || nextUrl.username || nextUrl.password) {
+          throw badRequest("policy_url_invalid", `${label} redirects outside the registered business website.`);
+        }
+        currentUrl = nextUrl;
+        continue;
+      }
+      throw badRequest("policy_url_unreachable", `${label} must be publicly accessible before campaign submission.`, { status: response.status });
     }
+    throw badRequest("policy_url_unreachable", `${label} redirects too many times.`);
   } catch (error) {
     if (error instanceof PlatformError) throw error;
     throw badRequest("policy_url_unreachable", `${label} could not be verified as publicly accessible.`);
@@ -562,6 +581,7 @@ function validateBrandDraft(brandInput: JsonObject) {
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(cleanText(brandInput.email))) missing.push("emailFormat");
   if (!/^[A-Z]{2}$/.test(cleanText(brandInput.country).toUpperCase())) missing.push("countryFormat");
   if (!normalizeEnum(brandInput.vertical, BRAND_VERTICALS, "")) missing.push("vertical");
+  if ([cleanText(brandInput.street), cleanText(brandInput.address2)].filter(Boolean).join(", ").length > 100) missing.push("streetMaxLength");
   for (const [key, max] of [["displayName", 100], ["email", 100], ["companyName", 100], ["firstName", 100], ["lastName", 100], ["street", 100], ["city", 100], ["website", 100]] as const) {
     if (cleanText(brandInput[key]).length > max) missing.push(`${key}MaxLength`);
   }
@@ -581,6 +601,7 @@ function validateBrandDraft(brandInput: JsonObject) {
     }
     if (!normalizePhone(brandInput.phone)) missing.push("phone");
     if (!normalizePhone(brandInput.mobilePhone)) missing.push("mobilePhone");
+    if (!normalizeWebsite(brandInput.website)) missing.push("website");
   }
   if (entityType === "PUBLIC_PROFIT" && !nonEmpty(brandInput.businessContactEmail)) {
     missing.push("businessContactEmail");
@@ -597,6 +618,43 @@ function validateBrandDraft(brandInput: JsonObject) {
   };
 }
 
+function validPublicHttpsUrl(value: unknown) {
+  try {
+    const url = new URL(cleanText(value));
+    return url.protocol === "https:" && Boolean(url.hostname.includes(".")) && !url.username && !url.password;
+  } catch {
+    return false;
+  }
+}
+
+function smsNoThirdPartyMarketingSharing(value: unknown) {
+  const disclosure = cleanText(value);
+  return /\bnot\s+(?:sell\s+or\s+)?share\b[^.]{0,160}\b(?:mobile|phone|SMS|opt[ -]?in)\b[^.]{0,160}\bthird[ -]?part/i.test(disclosure)
+    || /\b(?:mobile|phone|SMS|opt[ -]?in)\b[^.]{0,160}\b(?:will|is|are)\s+not\s+(?:be\s+)?(?:sold\s+or\s+)?shared\b[^.]{0,160}\bthird[ -]?part/i.test(disclosure);
+}
+
+function campaignOptInMethods(campaign: JsonObject) {
+  const values = Array.isArray(campaign.optInMethods) ? campaign.optInMethods : [campaign.optInMethod];
+  return [...new Set(values.map(cleanText).filter(Boolean))];
+}
+
+function campaignEvidenceUrls(campaign: JsonObject) {
+  return Array.isArray(campaign.optInEvidence) ? campaign.optInEvidence.map(item => cleanText(asObject(item).url)) : cleanText(campaign.optInEvidenceUrl) ? [cleanText(campaign.optInEvidenceUrl)] : [];
+}
+
+function campaignMessageFlow(campaign: JsonObject) {
+  if (!["LOW_VOLUME", "SOLE_PROPRIETOR"].includes(cleanText(campaign.usecase).toUpperCase())) return cleanText(campaign.messageFlow);
+  return [
+    cleanText(campaign.messageFlow),
+    `Opt-in methods: ${campaignOptInMethods(campaign).map(method => method.replace(/_/g, " ")).join(", ")}.`,
+    cleanText(campaign.keywordLocationUrl) ? `Keyword advertisement: ${cleanText(campaign.keywordLocationUrl)}.` : "",
+    cleanText(campaign.optInLocationUrl) ? `Opt-in location: ${cleanText(campaign.optInLocationUrl)}.` : "",
+    campaignEvidenceUrls(campaign).length ? `Public opt-in evidence: ${campaignEvidenceUrls(campaign).join(", ")}.` : "",
+    `Exact recipient-facing SMS consent language: ${cleanText(campaign.optInDisclosure)}`,
+    `Privacy Policy: ${cleanText(campaign.privacyPolicyLink)}. SMS Terms: ${cleanText(campaign.termsAndConditionsLink)}.`
+  ].filter(Boolean).join(" ");
+}
+
 function validateCampaignDraft(campaignInput: JsonObject, liveRegistration = LIVE_MODE()) {
   const usecase = normalizeEnum(campaignInput.usecase, CAMPAIGN_USECASES, "");
   const missing = [];
@@ -605,19 +663,39 @@ function validateCampaignDraft(campaignInput: JsonObject, liveRegistration = LIV
   }
   if (!usecase) missing.push("usecase");
   const enabledFeatures = Array.isArray(campaignInput.enabledFeatures) ? campaignInput.enabledFeatures.map(cleanText) : [];
-  if (["AGENTS_FRANCHISES", "LOW_VOLUME", "MIXED", "SOLE_PROPRIETOR"].includes(usecase)
-    && (enabledFeatures.length === 0 || (usecase === "LOW_VOLUME" && lowVolumeSubUsecases(enabledFeatures).length === 0))) missing.push("enabledFeatures");
-  if (enabledFeatures.includes("customer_growth") && !["AGENTS_FRANCHISES", "LOW_VOLUME", "MIXED", "MARKETING", "SOLE_PROPRIETOR"].includes(usecase)) missing.push("usecaseFeatureMismatch");
-  if (enabledFeatures.includes("operations") && !["AGENTS_FRANCHISES", "LOW_VOLUME", "MIXED", "SOLE_PROPRIETOR"].includes(usecase)) missing.push("usecaseFeatureMismatch");
+  if (["AGENTS_FRANCHISES", "MIXED", "LOW_VOLUME", "SOLE_PROPRIETOR"].includes(usecase) && enabledFeatures.length === 0) missing.push("enabledFeatures");
+  if (enabledFeatures.includes("customer_growth") && !["AGENTS_FRANCHISES", "MIXED", "LOW_VOLUME", "MARKETING", "SOLE_PROPRIETOR"].includes(usecase)) missing.push("usecaseFeatureMismatch");
+  if (enabledFeatures.includes("operations") && !["AGENTS_FRANCHISES", "MIXED", "LOW_VOLUME", "SOLE_PROPRIETOR"].includes(usecase)) missing.push("usecaseFeatureMismatch");
+  if (["LOW_VOLUME", "SOLE_PROPRIETOR"].includes(usecase)) {
+    const methods = campaignOptInMethods(campaignInput);
+    const subUsecases = lowVolumeSubUsecases(enabledFeatures);
+    if (usecase === "LOW_VOLUME" && subUsecases.length < 2) missing.push("lowVolumeSubUsecases");
+    if (cleanText(campaignInput.description).length < 40 || cleanText(campaignInput.description).length > 600) missing.push("descriptionLength");
+    if (cleanText(campaignInput.messageFlow).length < 40 || cleanText(campaignInput.messageFlow).length > 600) missing.push("messageFlowLength");
+    if (!methods.length || methods.some(method => !["WEBSITE_FORM", "PAPER_FORM", "VERBAL", "KEYWORD"].includes(method))) missing.push("optInMethod");
+    if (methods.includes("WEBSITE_FORM") && !validPublicHttpsUrl(campaignInput.optInLocationUrl)) missing.push("optInLocationUrl");
+    if (methods.includes("KEYWORD") && !validPublicHttpsUrl(campaignInput.keywordLocationUrl || (!methods.includes("WEBSITE_FORM") ? campaignInput.optInLocationUrl : "")) && !campaignEvidenceUrls(campaignInput).some(validPublicHttpsUrl)) missing.push("optInLocationUrl");
+    if (campaignEvidenceUrls(campaignInput).some(url => !validPublicHttpsUrl(url))) missing.push("optInEvidenceUrl");
+    const disclosure = cleanText(campaignInput.optInDisclosure);
+    if (disclosure.length > 600) missing.push("optInDisclosureLength");
+    if (!/\b(?:SMS|text messages?|texts?)\b/i.test(disclosure) || !/\bSTOP\b/i.test(disclosure) || !/\bHELP\b/i.test(disclosure)
+      || !/\b(?:frequency|freq|messages? per|messages? may vary)\b/i.test(disclosure)
+      || !/\b(?:message|msg)\b.*\bdata rates\b/i.test(disclosure)
+      || !smsNoThirdPartyMarketingSharing(disclosure)) missing.push("optInDisclosure");
+    if (enabledFeatures.includes("customer_growth") && (!/marketing|promotional/i.test(cleanText(campaignInput.description))
+      || !/marketing|promotional/i.test(cleanText(campaignInput.messageFlow))
+      || !/marketing|promotional/i.test(disclosure)
+      || !/consent is not a condition of purchase|not required (?:to|for) (?:a )?purchase/i.test(disclosure)
+      || !nonEmpty(campaignInput.sample3) || !nonEmpty(campaignInput.sample4)
+      || cleanText(campaignInput.sample3) === cleanText(campaignInput.sample4))) missing.push("marketingDescriptionAndSamples");
+    if (campaignMessageFlow(campaignInput).length > 2048) missing.push("messageFlowMaxLength");
+  }
   if (normalizeBoolean(campaignInput.subscriberOptin, true) && !nonEmpty(campaignInput.optinMessage)) {
     missing.push("optinMessage");
   }
   if (normalizeBoolean(campaignInput.embeddedLink, false) && !nonEmpty(campaignInput.embeddedLinkSample)) {
     missing.push("embeddedLinkSample");
   }
-  if (liveRegistration && campaignInput.consentAcknowledged !== true) missing.push("consentAcknowledged");
-  if (liveRegistration && campaignInput.messageFlowConfirmed !== true) missing.push("messageFlowConfirmed");
-  if (campaignInput.featuresConfirmed !== true) missing.push("featuresConfirmed");
   if (campaignInput.termsAndConditions !== true) missing.push("termsAndConditions");
   if (campaignInput.subscriberOptout !== true) missing.push("subscriberOptout");
   if (campaignInput.subscriberHelp !== true) missing.push("subscriberHelp");
@@ -656,7 +734,7 @@ function brandPayload(profile: SmsComplianceProfile) {
     ein: cleanText(brand.ein),
     phone: normalizePhone(brand.phone),
     mobilePhone: normalizePhone(brand.mobilePhone),
-    street: cleanText(brand.street),
+    street: [cleanText(brand.street), cleanText(brand.address2)].filter(Boolean).join(", "),
     city: cleanText(brand.city),
     state: cleanText(brand.state).toUpperCase(),
     postalCode: cleanText(brand.postalCode),
@@ -671,6 +749,14 @@ function brandPayload(profile: SmsComplianceProfile) {
     ...(env.telnyxWebhookFailoverUrl ? { webhookFailoverURL: env.telnyxWebhookFailoverUrl } : {}),
     ...(smsComplianceProfileIsMock(profile) ? { mock: true } : {})
   };
+  // Drafts may retain company fields when a user changes registration paths.
+  // Sole proprietor identity is verified using the individual's name and mobile.
+  if (payload.entityType === "SOLE_PROPRIETOR") {
+    delete payload.companyName;
+    delete payload.ein;
+    delete payload.stockSymbol;
+    delete payload.stockExchange;
+  }
   for (const key of Object.keys(payload)) {
     if (payload[key] === "" || payload[key] == null) delete payload[key];
   }
@@ -716,7 +802,7 @@ function campaignPayload(profile: SmsComplianceProfile, referenceRevision = "ini
     usecase,
     ...(usecase === "LOW_VOLUME" ? { subUsecases: lowVolumeSubUsecases(campaign.enabledFeatures) } : {}),
     description: cleanText(campaign.description),
-    messageFlow: cleanText(campaign.messageFlow),
+    messageFlow: campaignMessageFlow(campaign),
     sample1: cleanText(campaign.sample1),
     sample2: cleanText(campaign.sample2),
     sample3: cleanText(campaign.sample3),
@@ -834,6 +920,14 @@ function validateCampaignContent(profile: SmsComplianceProfile) {
   if (brandName && samples.some((sample) => !sample.toLowerCase().includes(brandName))) issues.push("Every sample message must identify the registered business display name.");
   if (samples.some((sample) => !/\bSTOP\b/i.test(sample))) issues.push("Every sample message must explain how to opt out with STOP.");
   if (!/opt[ -]?in|consent|agree/i.test(cleanText(campaign.messageFlow))) issues.push("The message flow must clearly explain how recipients opt in or consent.");
+  if (cleanText(campaign.usecase).toUpperCase() === "LOW_VOLUME") {
+    if (brandName && !cleanText(campaign.optInDisclosure).toLowerCase().includes(brandName)) {
+      issues.push("The actual opt-in language must identify the registered business name.");
+    }
+    if (lowVolumeSubUsecases(campaign.enabledFeatures).length > samples.length) {
+      issues.push("Provide at least one representative sample for each registered messaging purpose.");
+    }
+  }
   const autoresponses = smsAutoresponsePlan(profile);
   if (!autoresponses.ok) issues.push(`START/STOP/HELP response requirements are incomplete: ${autoresponses.issues.join(", ")}.`);
   return { ok: issues.length === 0, issues };
@@ -1234,7 +1328,7 @@ function availableNumberView(entry: unknown) {
   return {
     phone_number: phoneNumber,
     display_number: phoneNumber,
-    locality: cleanText(regions.find((item) => cleanText(item.region_type) === "locality")?.region_name),
+    locality: cleanText(number.locality || number.city || regions.find((item) => ["locality", "city", "rate_center"].includes(cleanText(item.region_type).toLowerCase()))?.region_name),
     region: cleanText(regions.find((item) => ["administrative_area", "state"].includes(cleanText(item.region_type)))?.region_name || "US"),
     country_code: "US",
     features,
@@ -1609,6 +1703,39 @@ export const registerMessagingApi: FastifyPluginAsync = async (app) => {
     };
   });
 
+  app.post("/organizations/:orgId/sms/compliance-profiles/:profileId/evidence", { bodyLimit: 8 * 1024 * 1024 }, async (request) => {
+    const orgId = param(request.params, "orgId");
+    await requireSmsSettingsAccess(request, orgId, true);
+    const { profile } = await profileForRequest(orgId, param(request.params, "profileId"));
+    if (cleanText(asObject(profile.provider_refs).telnyx_campaign_id)) throw conflict("registration_submitted", "Evidence cannot be changed after campaign submission.");
+    const body = z.object({ file_name: z.string().min(1).max(200), data: z.string().max(7 * 1024 * 1024) }).parse(request.body);
+    const bytes = Buffer.from(body.data, "base64");
+    if (!bytes.length || bytes.length > 5 * 1024 * 1024) throw badRequest("evidence_size", "Choose a file up to 5 MB.");
+    const contentType = bytes.subarray(0,8).equals(Buffer.from([137,80,78,71,13,10,26,10])) ? "image/png"
+      : bytes[0] === 255 && bytes[1] === 216 && bytes[2] === 255 ? "image/jpeg" : "";
+    if (!contentType) throw badRequest("evidence_type", "Upload a PNG or JPEG screenshot.");
+    const token = randomBytes(32).toString("hex");
+    const media = await storeMediaUpload(orgId, { ownerType: "sms_registration", ownerId: profile.id, slot: "consent_evidence",
+      fileName: body.file_name, contentType, bytes, thumbnails: {enabled:false}, compression: {enabled:false},
+      metadata: { source: "sms_consent_evidence", access_hash: createHash("sha256").update(token).digest("hex") } });
+    const url = `${env.publicBaseUrl}/v1/messaging/sms/evidence/${encodeURIComponent(orgId)}/${encodeURIComponent(cleanText(media.id))}/${token}`;
+    return { ok: true, url, file_name: body.file_name };
+  });
+
+  // A scoped bearer link deliberately shares only the evidence explicitly uploaded
+  // for carrier review. Normal organization media remains authenticated.
+  app.get("/sms/evidence/:orgId/:mediaId/:token", async (request, reply) => {
+    const orgId = param(request.params,"orgId"), mediaId = param(request.params,"mediaId"), token = param(request.params,"token");
+    if (!/^[a-f0-9]{64}$/.test(token)) throw notFound("evidence_not_found", "Evidence not found.");
+    const metadata = asObject(await readMediaMetadata(orgId, mediaId));
+    if (asObject(metadata.owner).type !== "sms_registration" || asObject(metadata.metadata).source !== "sms_consent_evidence"
+      || asObject(metadata.metadata).access_hash !== createHash("sha256").update(token).digest("hex")) throw notFound("evidence_not_found", "Evidence not found.");
+    const file = await readMediaFile(orgId, mediaId);
+    reply.header("X-Content-Type-Options","nosniff").header("Content-Security-Policy","sandbox").header("X-Robots-Tag","noindex, nofollow");
+    reply.header("Content-Disposition", `inline; filename="sms-consent-evidence.${file.contentType === "application/pdf" ? "pdf" : file.contentType === "image/png" ? "png" : "jpg"}"`);
+    return reply.type(file.contentType).send(file.bytes);
+  });
+
   app.get("/sms/10dlc/options", async () => ({
     ok: true,
     brand_entity_types: BRAND_ENTITY_TYPES,
@@ -1698,7 +1825,14 @@ export const registerMessagingApi: FastifyPluginAsync = async (app) => {
       throw badRequest("invalid_area_code", "Enter a valid US/Canada three digit area code.");
     }
     if (!smsRegistrationIsLive(orgId)) return { ok: true, mock: true, area_code: areaCode, numbers: mockAvailableNumbers(areaCode) };
-    const response = asObject(await createTelnyxClient().searchAvailablePhoneNumbers(areaCode, 20));
+    let response: JsonObject;
+    try { response = asObject(await createTelnyxClient().searchAvailablePhoneNumbers(areaCode, 20)); }
+    catch (error) {
+      if (error instanceof TelnyxError && error.statusCode === 400 && /no numbers found/i.test(`${error.message} ${JSON.stringify(error.details)}`)) {
+        return { ok: true, mock: false, area_code: areaCode, numbers: [] };
+      }
+      throw error;
+    }
     const numbers = (Array.isArray(response.data) ? response.data : [])
       .map(availableNumberView)
       .filter((number) => number.phone_number && number.features.includes("sms"));
@@ -1717,9 +1851,13 @@ export const registerMessagingApi: FastifyPluginAsync = async (app) => {
     }
     const existingRefs = asObject(initialProfile.provider_refs);
     const existingNumber = normalizePhone(asObject(initialProfile.campaign).selectedNumber);
+    const replacingNumber = smsRegistrationIsLive(orgId) && !!cleanText(existingRefs.telnyx_number_order_id) && existingNumber !== selectedNumber;
     if (smsRegistrationIsLive(orgId) && cleanText(existingRefs.telnyx_number_order_id)) {
-      if (existingNumber !== selectedNumber) throw conflict("number_already_ordered", "This SMS registration already has a number order. Refresh its status before selecting another number.");
-      return { ok: true, mock: false, profile: publicSmsComplianceProfile(initialProfile), idempotent_replay: true };
+      if (existingNumber === selectedNumber) return { ok: true, mock: false, profile: publicSmsComplianceProfile(initialProfile), idempotent_replay: true };
+      if (body.replace_number !== true) throw conflict("number_already_ordered", "Confirm that you want to purchase another number. Your previous number remains in your account.");
+      if (cleanText(existingRefs.telnyx_campaign_id) || cleanText(initialProfile.phone_number_status) !== "success") {
+        throw conflict("number_change_unavailable", "Numbers can be changed after the current order completes and before campaign submission.");
+      }
     }
     let profile = initialProfile;
     const campaignForSelection = (inventory: ReturnType<typeof availableNumberView> | null, acceptBodyMetadata: boolean) => {
@@ -1768,7 +1906,7 @@ export const registerMessagingApi: FastifyPluginAsync = async (app) => {
     const operation = (await beginProviderOperation({
       organization_id: orgId,
       compliance_profile_id: profile.id,
-      operation_type: "number_order",
+      operation_type: replacingNumber ? `number_replacement:${cleanText(existingRefs.telnyx_number_order_id)}` : "number_order",
       request_hash: payloadHash({ selectedNumber, messagingProfileId: provisioned.messagingProfileId })
     }));
     if (operation.state === "conflict") {
@@ -1776,7 +1914,7 @@ export const registerMessagingApi: FastifyPluginAsync = async (app) => {
     }
     if (operation.state === "pending") throw conflict("provider_operation_in_progress", "The number order is already in progress.");
     const operationId = cleanText(asObject(operation.operation).id);
-    const customerReference = `${profile.external_organization_id}:${profile.id}`.slice(0, 64);
+    const customerReference = replacingNumber ? `sms-${createHash("sha256").update(`${profile.id}:${selectedNumber}`).digest("hex").slice(0,48)}` : `${profile.external_organization_id}:${profile.id}`.slice(0, 64);
     let response: unknown;
     let knownOrderId = "";
     let nextCampaign = campaignForSelection(null, false);
@@ -1798,7 +1936,7 @@ export const registerMessagingApi: FastifyPluginAsync = async (app) => {
     } else {
       let inventoryResponse: JsonObject;
       try {
-        inventoryResponse = asObject(await client.findExactAvailablePhoneNumber(selectedNumber));
+        inventoryResponse = asObject(await client.searchAvailablePhoneNumbers(selectedNumber.slice(2, 5), 20));
       } catch (error) {
         (await finishProviderOperation(operationId, { status: "failed", error: telnyxErrorDetails(error) }));
         throw error;
@@ -1827,8 +1965,10 @@ export const registerMessagingApi: FastifyPluginAsync = async (app) => {
           type: "number_order_requested", provider: "telnyx", phone_number: selectedNumber,
           costs: { monthly: nextCampaign.selectedNumberMonthlyCost, setup: nextCampaign.selectedNumberSetupCost, currency: nextCampaign.selectedNumberCurrency }
         }, {
-          campaign: nextCampaign,
-          phone_number_status: "ordering",
+          // Keep the currently owned number authoritative until a replacement
+          // order is confirmed. Retries must reconcile the replacement operation.
+          campaign: replacingNumber ? profile.campaign : nextCampaign,
+          phone_number_status: replacingNumber ? profile.phone_number_status : "ordering",
           validation: profileValidation({ ...profile, campaign: nextCampaign })
         });
       } catch (error) {
@@ -1868,7 +2008,7 @@ export const registerMessagingApi: FastifyPluginAsync = async (app) => {
     }, {
       campaign: nextCampaign,
       phone_number_status: orderStatus,
-      provider_refs: { telnyx_number_order_id: orderId, telnyx_phone_number: selectedNumber },
+      provider_refs: { telnyx_number_order_id: orderId, telnyx_phone_number: selectedNumber, ...(replacingNumber ? { previous_number_orders: [...(Array.isArray(existingRefs.previous_number_orders) ? existingRefs.previous_number_orders : []), { phone_number: existingNumber, order_id: existingRefs.telnyx_number_order_id }] } : {}) },
       validation: profileValidation({ ...profile, campaign: nextCampaign })
     });
     (await createUsageEvent({
@@ -1901,6 +2041,113 @@ export const registerMessagingApi: FastifyPluginAsync = async (app) => {
       }));
     }
     return { ok: true, mock: false, ordered: true, profile: publicSmsComplianceProfile(saved) };
+  });
+
+  // An approved 10DLC campaign may cover several numbers. Keep the original
+  // selected number authoritative; additional purchases have their own durable
+  // order and assignment state so a retry cannot replace or rebuy it.
+  app.post("/organizations/:orgId/sms/compliance-profiles/:profileId/add-number", async (request) => {
+    const orgId = param(request.params, "orgId");
+    await requireSmsSettingsAccess(request, orgId, true);
+    const body = objectBodySchema.parse(request.body ?? {});
+    const { profile } = await profileForRequest(orgId, param(request.params, "profileId"));
+    const phoneNumber = normalizePhone(body.phone_number || body.phoneNumber);
+    if (!phoneNumber) throw badRequest("invalid_phone_number", "Select a valid US/Canada phone number.");
+    if (cleanText(asObject(profile.brand).entityType) === "SOLE_PROPRIETOR") {
+      throw conflict("sole_proprietor_number_limit", "Sole proprietor registrations allow one phone number.");
+    }
+    const refs = asObject(profile.provider_refs);
+    const campaignId = cleanText(refs.telnyx_campaign_id || refs.tcr_campaign_id);
+    const messagingProfileId = cleanText(refs.telnyx_messaging_profile_id);
+    if (!LIVE_MODE() || cleanText(profile.status) !== "active" || cleanText(profile.campaign_status) !== "mno_provisioned" || !campaignId || !messagingProfileId) {
+      throw conflict("campaign_not_active", "Add more numbers after your campaign and first number are active.");
+    }
+    const extra = Array.isArray(refs.additional_numbers) ? refs.additional_numbers.map(asObject) : [];
+    if (phoneNumber === normalizePhone(asObject(profile.campaign).selectedNumber) || extra.some((item) => normalizePhone(item.phone_number) === phoneNumber)) {
+      return { ok: true, idempotent_replay: true, profile: publicSmsComplianceProfile(profile) };
+    }
+    if (extra.filter((item) => !["failed", "failure", "cancelled", "deleted", "released"].includes(cleanText(item.status))).length >= 48) throw conflict("campaign_number_limit", "This campaign already has the maximum of 49 numbers.");
+    if (extra.some((item) => !["active", "failed", "cancelled"].includes(cleanText(item.status)))) {
+      throw conflict("number_order_in_progress", "Wait for the previous number to finish activating before adding another.");
+    }
+    if (!env.telnyxWebhookPublicKey) throw badRequest("webhook_public_key_missing", "Telnyx webhook verification must be configured before purchasing an organization number.");
+    const client = createTelnyxClient();
+    const operationType = `additional_number_order:${phoneNumber}`;
+    const operation = await beginProviderOperation({
+      organization_id: orgId, compliance_profile_id: profile.id, operation_type: operationType,
+      request_hash: payloadHash({ phoneNumber, messagingProfileId })
+    });
+    if (operation.state === "conflict" || operation.state === "pending") throw conflict("provider_operation_in_progress", "This number order is already in progress.");
+    const operationId = cleanText(asObject(operation.operation).id);
+    const customerReference = `sms-extra-${createHash("sha256").update(`${profile.id}:${phoneNumber}`).digest("hex").slice(0, 48)}`;
+    let orderResponse: unknown;
+    let verifiedInventory: ReturnType<typeof availableNumberView> | null = null;
+    if (operation.state === "outcome_unknown") {
+      const orders = await client.findNumberOrdersByCustomerReference(customerReference);
+      const matches = orders.filter((entry) => Array.isArray(entry.phone_numbers) && entry.phone_numbers.map(asObject).some((item) => normalizePhone(item.phone_number) === phoneNumber));
+      if (matches.length !== 1) throw conflict("provider_operation_outcome_unknown", "The number order cannot yet be verified with Telnyx. Retry shortly; FirstMate will not risk buying it twice.");
+      orderResponse = { data: matches[0] };
+    } else if (operation.state === "succeeded") {
+      const orderId = cleanText(asObject(operation.operation).provider_id);
+      if (!orderId) throw conflict("provider_operation_incomplete", "The number order needs reconciliation.");
+      orderResponse = await client.getNumberOrder(orderId);
+    } else {
+      const inventoryResponse = asObject(await client.searchAvailablePhoneNumbers(phoneNumber.slice(2, 5), 20));
+      const inventory = (Array.isArray(inventoryResponse.data) ? inventoryResponse.data : []).map(availableNumberView)
+        .find((item) => item.phone_number === phoneNumber && item.features.includes("sms"));
+      if (!inventory) {
+        await finishProviderOperation(operationId, { status: "failed", error: { code: "phone_number_unavailable", phone_number: phoneNumber } });
+        throw conflict("phone_number_unavailable", "That number is no longer available. Search again and choose another.");
+      }
+      verifiedInventory = inventory;
+      await updateProviderOperationContext(operationId, { inventory });
+      const ownership = await claimPhoneNumberOwnership({ phone_number: phoneNumber, organization_id: orgId,
+        compliance_profile_id: profile.id, messaging_profile_id: messagingProfileId, status: "pending" });
+      if (!ownership.claimed) {
+        await finishProviderOperation(operationId, { status: "failed", error: { code: "phone_number_owned", phone_number: phoneNumber } });
+        throw conflict("phone_number_owned", "This number belongs to another organization.");
+      }
+      try {
+        orderResponse = await client.createNumberOrder(phoneNumber, messagingProfileId, customerReference);
+      } catch (error) {
+        const unknown = error instanceof TelnyxError && asObject(error.details).submission_unknown === true;
+        await finishProviderOperation(operationId, { status: unknown ? "outcome_unknown" : "failed", error: telnyxErrorDetails(error) });
+        if (!unknown) await releasePhoneNumberOwnership(phoneNumber, orgId);
+        throw error;
+      }
+    }
+    const orderId = providerId(orderResponse, ["id"]);
+    if (!orderId) {
+      await finishProviderOperation(operationId, { status: "outcome_unknown", error: { code: "number_order_id_missing", submission_unknown: true } });
+      throw conflict("provider_operation_outcome_unknown", "Telnyx has not confirmed the number order. Retry shortly.");
+    }
+    const orderData = providerData(orderResponse);
+    const currentRefs = asObject((await profileForRequest(orgId, profile.id)).profile.provider_refs);
+    const currentExtras = Array.isArray(currentRefs.additional_numbers) ? currentRefs.additional_numbers.map(asObject) : [];
+    const existingEntry = currentExtras.find((item) => normalizePhone(item.phone_number) === phoneNumber);
+    const recordedInventory = asObject(providerOperationResponse(operation.operation).inventory);
+    const monthlyCost = verifiedInventory?.monthly_cost || cleanText(recordedInventory.monthly_cost || existingEntry?.monthly_cost);
+    const setupCost = verifiedInventory?.setup_cost || cleanText(recordedInventory.setup_cost || existingEntry?.setup_cost);
+    const currency = verifiedInventory?.currency || cleanText(recordedInventory.currency || existingEntry?.currency || "USD");
+    const nextExtras = [...currentExtras.filter((item) => normalizePhone(item.phone_number) !== phoneNumber), {
+      phone_number: phoneNumber, order_id: orderId, status: cleanText(orderData.status || "pending").toLowerCase(),
+      assignment_status: "pending", locality: verifiedInventory?.locality || cleanText(recordedInventory.locality || existingEntry?.locality), region: verifiedInventory?.region || cleanText(recordedInventory.region || existingEntry?.region),
+      monthly_cost: monthlyCost, setup_cost: setupCost, currency
+    }];
+    const saved = await commitSmsComplianceProviderSuccess(profile, {
+      operation_id: operationId, provider_id: orderId, operation_response: orderData,
+      event: { type: "additional_number_ordered", provider: "telnyx", phone_number: phoneNumber, order_id: orderId },
+      patch: { provider_refs: { additional_numbers: nextExtras } }
+    });
+    await claimPhoneNumberOwnership({ phone_number: phoneNumber, organization_id: orgId,
+      compliance_profile_id: profile.id, messaging_profile_id: messagingProfileId, status: "ordered" });
+    await createUsageEvent({ organization_id: orgId, provider: "telnyx", provider_message_id: orderId,
+      direction: "number_order", segments: 0, amount: setupCost || "0", currency,
+      event_key: `telnyx:number_order:${orderId}`, metadata: { phone_number: phoneNumber, compliance_profile_id: profile.id } });
+    if (monthlyCost) await upsertBillingCommitment({ organization_id: orgId, provider: "telnyx",
+      resource_type: "phone_number", resource_id: phoneNumber, amount: monthlyCost, currency,
+      billing_interval: "month", status: "pending", metadata: { number_order_id: orderId, compliance_profile_id: profile.id, provider_price_source: "availability_inventory" } });
+    return { ok: true, ordered: true, profile: publicSmsComplianceProfile(saved) };
   });
 
   app.patch("/organizations/:orgId/sms/compliance-profiles/:profileId", async (request) => {
@@ -1969,9 +2216,6 @@ export const registerMessagingApi: FastifyPluginAsync = async (app) => {
     if (body.submit !== true || body.dry_run === true) {
       const saved = await updateSmsComplianceProfile(profile, { validation: profileValidation(profile) });
       return { ok: true, dry_run: true, payload, profile: publicSmsComplianceProfile(saved) };
-    }
-    if (!isMock && asObject(profile.campaign).consentAcknowledged !== true) {
-      throw badRequest("registration_attestation_required", "An authorized representative must acknowledge the SMS consent and opt-out requirements before submission.");
     }
     const submissionContext = brandSubmissionContext(profile, payload);
     const { existingBrandId, operationType } = submissionContext;
@@ -2139,10 +2383,10 @@ export const registerMessagingApi: FastifyPluginAsync = async (app) => {
     return { ok: true, profile: publicSmsComplianceProfile(saved) };
   });
 
-  app.post("/organizations/:orgId/sms/compliance-profiles/:profileId/submit-campaign", async (request) => {
+  const submitCampaignHandler = async (request: FastifyRequest, bodyOverride?: JsonObject) => {
     const orgId = param(request.params, "orgId");
     const ctx = await requireSmsSettingsAccess(request, orgId, true);
-    const body = objectBodySchema.parse(request.body ?? {});
+    const body = objectBodySchema.parse(bodyOverride ?? request.body ?? {});
     let { profile } = await profileForRequest(orgId, param(request.params, "profileId"));
     const currentCampaignStatus = cleanText(profile.campaign_status).toLowerCase();
     if (body.submit === true && body.dry_run !== true && /suspended/.test(currentCampaignStatus)) {
@@ -2168,9 +2412,6 @@ export const registerMessagingApi: FastifyPluginAsync = async (app) => {
     }
     if (!validation.ok) {
       throw badRequest("campaign_profile_incomplete", "The 10DLC campaign profile is missing required fields.", { missing: validation.missing });
-    }
-    if (!isMock && asObject(profile.campaign).consentAcknowledged !== true) {
-      throw badRequest("registration_attestation_required", "An authorized representative must acknowledge the SMS consent and opt-out requirements before submission.");
     }
     if (body.submit !== true || body.dry_run === true) {
       const saved = await updateSmsComplianceProfile(profile, { validation: profileValidation(profile) });
@@ -2244,9 +2485,6 @@ export const registerMessagingApi: FastifyPluginAsync = async (app) => {
       const currentCampaign = asObject(profile.campaign);
       if (!brandReadyForCampaignStatus(profile.brand_status)) {
         throw conflict("profile_changed", "The brand is no longer ready for campaign submission. Refresh its provider status before retrying.");
-      }
-      if (currentCampaign.consentAcknowledged !== true) {
-        throw conflict("profile_changed", "The campaign attestation changed during compliance preflight. Review and retry.");
       }
       await verifyPublicPolicyUrl(currentCampaign.privacyPolicyLink, asObject(profile.brand).website, "Privacy policy");
       await verifyPublicPolicyUrl(currentCampaign.termsAndConditionsLink, asObject(profile.brand).website, "Terms and conditions");
@@ -2388,7 +2626,8 @@ export const registerMessagingApi: FastifyPluginAsync = async (app) => {
       });
       throw error;
     }
-  });
+  };
+  app.post("/organizations/:orgId/sms/compliance-profiles/:profileId/submit-campaign", (request) => submitCampaignHandler(request));
 
   app.post("/organizations/:orgId/sms/compliance-profiles/:profileId/appeal-campaign", async (request) => {
     const orgId = param(request.params, "orgId");
@@ -2775,6 +3014,7 @@ export const registerMessagingApi: FastifyPluginAsync = async (app) => {
       return {
         event: {
           type: "provider_status_refreshed",
+          approval_notification_campaign_id: campaignStatus === "mno_provisioned" ? campaignId : "",
           provider: "telnyx",
           brand: brandResponse ? brand : null,
           campaign: campaignResponse ? campaign : null,
@@ -2797,7 +3037,7 @@ export const registerMessagingApi: FastifyPluginAsync = async (app) => {
     if (mutation.result.conflict) {
       throw conflict("provider_state_changed", "Telnyx state changed while this refresh was running. Refresh again to use the newer carrier event.");
     }
-    const saved = mutation.profile;
+    let saved = mutation.profile;
     const active = mutation.result.active;
     if (/failed|rejected/.test(brandStatus)) {
       (await markProviderOperationFailed(orgId, profile.id, "brand_submission", { provider_status: brandStatus, retry_requires_review: true }));
@@ -2818,6 +3058,97 @@ export const registerMessagingApi: FastifyPluginAsync = async (app) => {
         metadata: { number_order_id: numberOrderId, compliance_profile_id: profile.id, provider_price_source: "availability_inventory" }
       }));
     }
+    const additionalNumbers = Array.isArray(asObject(saved.provider_refs).additional_numbers)
+      ? (asObject(saved.provider_refs).additional_numbers as unknown[]).map(asObject) : [];
+    if (additionalNumbers.length) {
+      const updated = [];
+      for (const entry of additionalNumbers) {
+        const number = normalizePhone(entry.phone_number);
+        const orderId = cleanText(entry.order_id);
+        if (!number || !orderId || ["failed", "cancelled"].includes(cleanText(entry.status))) { updated.push(entry); continue; }
+        const order = providerData(await client.getNumberOrder(orderId));
+        const status = cleanText(order.status || entry.status).toLowerCase();
+        let assignmentStatus = cleanText(entry.assignment_status || "pending").toLowerCase();
+        if (status === "success" && campaignId && campaignStatus === "mno_provisioned") {
+          const owned = asObject(await client.findOwnedPhoneNumber(number));
+          if (cleanText(owned.id)) {
+            let binding: unknown;
+            try { binding = await client.getPhoneNumberCampaign(number); }
+            catch (error) { if (!(error instanceof TelnyxError) || error.statusCode !== 404) throw error; binding = null; }
+            const assignedIds = (value: unknown) => {
+              const item = providerData(value);
+              return [item.telnyxCampaignId, item.campaignId].map(cleanText).filter(Boolean);
+            };
+            if (binding && !assignedIds(binding).includes(campaignId)) {
+              throw conflict("campaign_assignment_mismatch", "An additional number is assigned to a different campaign. Contact support before retrying.");
+            }
+            if (!binding) {
+              const type = `phone_campaign_assignment_${payloadHash({ selectedNumber: number, campaignId }).slice(0, 16)}`;
+              let op = await beginProviderOperation({ organization_id: orgId, compliance_profile_id: saved.id,
+                operation_type: type, request_hash: payloadHash({ selectedNumber: number, campaignId }) });
+              if (op.state === "pending" || op.state === "conflict") throw conflict("provider_operation_in_progress", "The additional number is still being assigned.");
+              if (op.state === "succeeded") {
+                await resetProviderOperationForRetry(orgId, saved.id, type, { code: "assignment_drifted" });
+                op = await beginProviderOperation({ organization_id: orgId, compliance_profile_id: saved.id,
+                  operation_type: type, request_hash: payloadHash({ selectedNumber: number, campaignId }) });
+              }
+              let assignError: unknown = null;
+              try { await client.assignPhoneNumberToCampaign(number, campaignId); }
+              catch (error) { assignError = error; }
+              try { binding = await client.getPhoneNumberCampaign(number); }
+              catch (error) { if (!(error instanceof TelnyxError) || error.statusCode !== 404) throw error; binding = null; }
+              if (!binding || !assignedIds(binding).includes(campaignId)) {
+                const unknown = !assignError || (assignError instanceof TelnyxError && asObject(assignError.details).submission_unknown === true);
+                await finishProviderOperation(cleanText(asObject(op.operation).id), { status: unknown ? "outcome_unknown" : "failed",
+                  error: assignError ? telnyxErrorDetails(assignError) : { code: "assignment_not_visible" } });
+                if (assignError && !unknown) throw assignError;
+                throw conflict("provider_operation_outcome_unknown", "Telnyx has not confirmed the additional number assignment. Retry shortly.");
+              }
+              await finishProviderOperation(cleanText(asObject(op.operation).id), { status: "succeeded", provider_id: campaignId,
+                response: providerData(binding) });
+            }
+            const bindingStatus = cleanText(providerData(binding).status || providerData(binding).assignmentStatus).toLowerCase();
+            const carrierAssigned = ["assigned", "success", "active", "added"].includes(bindingStatus);
+            const ownership = await claimPhoneNumberOwnership({ phone_number: number, organization_id: orgId,
+              compliance_profile_id: saved.id, messaging_profile_id: messagingProfileId,
+              provider_phone_number_id: cleanText(owned.id), status: carrierAssigned ? "active" : "ordered" });
+            assignmentStatus = ownership.claimed ? (carrierAssigned ? "assigned" : bindingStatus || "pending") : "ownership_conflict";
+          }
+        }
+        if (["failure", "failed", "cancelled", "deleted"].includes(status)) {
+          await releasePhoneNumberOwnership(number, orgId, true);
+          await endBillingCommitment("telnyx", "phone_number", number);
+        } else if (assignmentStatus === "assigned" && cleanText(entry.monthly_cost)) {
+          await upsertBillingCommitment({ organization_id: orgId, provider: "telnyx", resource_type: "phone_number",
+            resource_id: number, amount: cleanText(entry.monthly_cost), currency: cleanText(entry.currency || "USD"),
+            billing_interval: "month", status: "active", metadata: { number_order_id: orderId, compliance_profile_id: saved.id, provider_price_source: "availability_inventory" } });
+        }
+        updated.push({ ...entry, status, assignment_status: assignmentStatus });
+      }
+      if (JSON.stringify(updated) !== JSON.stringify(additionalNumbers)) {
+        saved = await appendSmsComplianceEvent(saved, { type: "additional_number_status_refreshed", provider: "telnyx" },
+          { provider_refs: { additional_numbers: updated } });
+      }
+    }
+    if (asObject(saved.campaign).autoSubmitCampaign === true
+      && brandReadyForCampaignStatus(saved.brand_status)
+      && !cleanText(asObject(saved.provider_refs).telnyx_campaign_id)
+      && !/failed|rejected|suspended|expired/.test(cleanText(saved.campaign_status).toLowerCase())) {
+      try {
+        const submitted = await submitCampaignHandler(request, { submit: true });
+        saved = (await profileForRequest(orgId, saved.id)).profile;
+        if (!asObject(submitted).submitted) throw new Error("Automatic campaign submission did not complete.");
+      } catch (error) {
+        saved = (await profileForRequest(orgId, saved.id)).profile;
+        if (!cleanText(asObject(saved.provider_refs).telnyx_campaign_id)) {
+          saved = await appendSmsComplianceEvent(saved, {
+            type: "automatic_campaign_submission_failed",
+            error: error instanceof Error ? error.message : String(error)
+          }, { status: "campaign_submit_failed", campaign_status: "auto_submit_failed" });
+        }
+      }
+    }
+    await notifySmsCampaignApproved(saved);
     if (active) await setDefaultSmsComplianceProfile(saved);
     await ensureDefaultSenderIdentities(orgId);
     return { ok: true, brand: brandResponse, campaign: campaignResponse, number_order: numberOrderResponse, number_campaign: assignmentResponse, profile: publicSmsComplianceProfile(saved) };
@@ -2833,15 +3164,20 @@ export const registerMessagingApi: FastifyPluginAsync = async (app) => {
     const { profile: current } = await profileForRequest(orgId, param(request.params, "profileId"));
     const refs = asObject(current.provider_refs);
     const phoneNumber = normalizePhone(asObject(current.campaign).selectedNumber);
+    const extraNumbers = Array.isArray(refs.additional_numbers) ? refs.additional_numbers.map(asObject).map((item) => normalizePhone(item.phone_number)).filter(Boolean) : [];
     const releaseNumber = body.release_number === true;
     const { resource: voiceResource } = await import("../comms/calls/storage.js");
     const voiceLine = phoneNumber ? (await voiceResource(orgId, "number", phoneNumber)) : null;
     if (releaseNumber && voiceLine && voiceLine.status !== "disconnected") {
       throw conflict("number_used_by_voice", "This number is connected to FirstMate phone. Keep the number when disabling SMS, or disconnect its voice route before releasing it.");
     }
+    if (releaseNumber) for (const number of extraNumbers) {
+      const line = await voiceResource(orgId, "number", number);
+      if (line && line.status !== "disconnected") throw conflict("number_used_by_voice", "An additional number is connected to FirstMate phone. Disconnect its voice route before releasing numbers.");
+    }
     const campaignId = cleanText(refs.telnyx_campaign_id);
     const messagingProfileId = cleanText(refs.telnyx_messaging_profile_id);
-    const requestHash = payloadHash({ phoneNumber, campaignId, messagingProfileId, releaseNumber });
+    const requestHash = payloadHash({ phoneNumber, extraNumbers, campaignId, messagingProfileId, releaseNumber });
     const operation = (await beginProviderOperation({
       organization_id: orgId, compliance_profile_id: current.id,
       operation_type: "service_deactivation", request_hash: requestHash
@@ -2868,6 +3204,7 @@ export const registerMessagingApi: FastifyPluginAsync = async (app) => {
     try {
       if (messagingProfileId) await client.updateMessagingProfile(messagingProfileId, { enabled: false });
       if (phoneNumber && campaignId) await ignoreMissing(() => client.deletePhoneNumberCampaign(phoneNumber));
+      if (campaignId) for (const number of extraNumbers) await ignoreMissing(() => client.deletePhoneNumberCampaign(number));
       if (campaignId) await ignoreMissing(() => client.deactivate10DlcCampaign(campaignId));
       if (phoneNumber && releaseNumber) {
         const ownership = (await findPhoneNumberOwner(phoneNumber));
@@ -2886,6 +3223,21 @@ export const registerMessagingApi: FastifyPluginAsync = async (app) => {
         (await releasePhoneNumberOwnership(phoneNumber, orgId, true));
         (await endBillingCommitment("telnyx", "phone_number", phoneNumber));
       }
+      if (releaseNumber) for (const number of extraNumbers) {
+        const ownership = await findPhoneNumberOwner(number);
+        let numberId = cleanText(ownership?.provider_phone_number_id);
+        if (numberId) {
+          const ownedResponse = providerData(await client.getPhoneNumber(numberId));
+          if (normalizePhone(ownedResponse.phone_number) !== number) throw new Error("An additional Telnyx number ID does not match its ownership record.");
+        } else {
+          const owned = await client.findOwnedPhoneNumber(number);
+          numberId = cleanText(owned?.id);
+        }
+        if (!numberId && operation.state !== "outcome_unknown") throw new Error("Telnyx did not return an additional owned number; billing remains active pending reconciliation.");
+        if (numberId) await ignoreMissing(() => client.deletePhoneNumber(numberId));
+        await releasePhoneNumberOwnership(number, orgId, true);
+        await endBillingCommitment("telnyx", "phone_number", number);
+      }
       if (campaignId) (await endBillingCommitment("telnyx", "campaign", campaignId));
       (await finishProviderOperation(cleanText(asObject(operation.operation).id), { status: "succeeded", provider_id: campaignId, response: { phone_number_released: Boolean(phoneNumber) && releaseNumber, campaign_deactivated: Boolean(campaignId), messaging_profile_disabled: Boolean(messagingProfileId) } }));
       const saved = await appendSmsComplianceEvent(pending, {
@@ -2894,7 +3246,8 @@ export const registerMessagingApi: FastifyPluginAsync = async (app) => {
         status: "deactivated", campaign_status: campaignId ? "deactivated" : pending.campaign_status,
         phone_number_status: phoneNumber && releaseNumber ? "released" : pending.phone_number_status,
         phone_number_campaign_status: phoneNumber && campaignId ? "unassigned" : pending.phone_number_campaign_status,
-        phone_number_campaign_id: ""
+        phone_number_campaign_id: "",
+        provider_refs: { additional_numbers: (Array.isArray(refs.additional_numbers) ? refs.additional_numbers.map(asObject) : []).map((item) => ({ ...item, assignment_status: "unassigned", ...(releaseNumber ? { status: "released" } : {}) })) }
       });
       await ensureDefaultSenderIdentities(orgId);
       return { ok: true, profile: publicSmsComplianceProfile(saved) };

@@ -946,7 +946,7 @@ test("10DLC compliance profile workflow saves drafts and builds dry-run provider
       subscriberOptin: true,
       subscriberOptout: true,
       subscriberHelp: true,
-      featuresConfirmed: true,
+      featuresConfirmed: false,
       enabledFeatures: ["crm_conversations"],
       optoutKeywords: "STOP",
       helpKeywords: "HELP",
@@ -981,6 +981,44 @@ test("10DLC compliance profile workflow saves drafts and builds dry-run provider
   assert.equal(campaignDryRun.payload.usecase, "CUSTOMER_CARE");
   assert.equal(campaignDryRun.payload.subscriberOptout, true);
 
+  const lowVolume = await client.request("PATCH", `/v1/messaging/organizations/${orgId}/sms/compliance-profiles/${profileId}`, {
+    campaign: {
+      usecase: "LOW_VOLUME",
+      enabledFeatures: ["crm_conversations", "operations", "customer_growth"],
+      description: "FirstMate Test sends customer care, appointment updates, and marketing offers to customers who separately opt in.",
+      messageFlow: "Customers opt in to customer care, appointment notices, and marketing texts using an unchecked SMS checkbox on our public booking form before receiving messages.",
+      optInMethod: "WEBSITE_FORM",
+      optInLocationUrl: "https://example.test/book",
+      optInEvidenceUrl: "https://example.test/sms-consent-screenshot",
+      optInDisclosure: "Receive customer care, appointment notices, and marketing texts from FirstMate Test. Message frequency varies. Message & data rates may apply. Reply STOP to opt out or HELP for help. Consent is not a condition of purchase. Mobile information will not be shared with third parties for marketing.",
+      policyContentConfirmed: true,
+      websiteFormConfirmed: true,
+      sample3: "FirstMate Test: Our fall roof inspection offer is available this week. Reply STOP to opt out.",
+      sample4: "FirstMate Test: Join our open house this Saturday to explore our services. Reply STOP to opt out."
+    }
+  });
+  assert.equal(lowVolume.profile.validation.campaign.ok, true);
+  const overLimit=await client.request("PATCH", `/v1/messaging/organizations/${orgId}/sms/compliance-profiles/${profileId}`, {campaign:{description:"marketing "+"x".repeat(600),messageFlow:"marketing "+"x".repeat(600),optInDisclosure:"marketing "+"x".repeat(600)}});
+  assert.ok(overLimit.profile.validation.campaign.missing.includes("descriptionLength"));
+  assert.ok(overLimit.profile.validation.campaign.missing.includes("messageFlowLength"));
+  assert.ok(overLimit.profile.validation.campaign.missing.includes("optInDisclosureLength"));
+  await client.request("PATCH", `/v1/messaging/organizations/${orgId}/sms/compliance-profiles/${profileId}`, {campaign:{description:lowVolume.profile.campaign.description,messageFlow:lowVolume.profile.campaign.messageFlow,optInDisclosure:lowVolume.profile.campaign.optInDisclosure}});
+  const missingMarketing=await client.request("PATCH", `/v1/messaging/organizations/${orgId}/sms/compliance-profiles/${profileId}`,{campaign:{sample4:""}});
+  assert.ok(missingMarketing.profile.validation.campaign.missing.includes("marketingDescriptionAndSamples"));
+  await client.request("PATCH", `/v1/messaging/organizations/${orgId}/sms/compliance-profiles/${profileId}`,{campaign:{sample4:lowVolume.profile.campaign.sample4}});
+  const lowVolumeDryRun = await client.request("POST", `/v1/messaging/organizations/${orgId}/sms/compliance-profiles/${profileId}/submit-campaign`, { dry_run: true });
+  assert.equal(lowVolumeDryRun.payload.usecase, "LOW_VOLUME");
+  assert.deepEqual(lowVolumeDryRun.payload.subUsecases, ["CUSTOMER_CARE", "ACCOUNT_NOTIFICATION", "MARKETING"]);
+  assert.match(lowVolumeDryRun.payload.messageFlow, /https:\/\/example\.test\/book/);
+  assert.match(lowVolumeDryRun.payload.messageFlow, /marketing texts from FirstMate Test/);
+  assert.match(lowVolumeDryRun.payload.messageFlow, /sms-consent-screenshot/);
+
+  await client.request("PATCH", `/v1/messaging/organizations/${orgId}/sms/compliance-profiles/${profileId}`, {campaign:{optInMethods:["WEBSITE_FORM","PAPER_FORM","VERBAL","KEYWORD"],keywordLocationUrl:"https://example.test/keyword",optInEvidence:[{url:"https://example.test/sms-consent-screenshot",name:"Screenshot"},{url:"https://example.test/consent.pdf",name:"Consent PDF"}],policyContentConfirmed:false,websiteFormConfirmed:false,messageFlowConfirmed:false}});
+  const multi = await client.request("POST", `/v1/messaging/organizations/${orgId}/sms/compliance-profiles/${profileId}/submit-campaign`,{dry_run:true});
+  assert.match(multi.payload.messageFlow,/WEBSITE FORM, PAPER FORM, VERBAL, KEYWORD/);
+  assert.ok(multi.payload.messageFlow.includes("https://example.test/keyword"));
+  assert.match(multi.payload.messageFlow,/sms-consent-screenshot/);
+  assert.ok(multi.payload.messageFlow.includes("https://example.test/consent.pdf"));
   const status = await client.request("GET", `/v1/messaging/organizations/${orgId}/sms/compliance-profiles/${profileId}/status`);
   assert.equal(status.status, "draft");
   assert.equal(status.validation.ready_for_brand_submission, true);
@@ -1069,7 +1107,7 @@ test("a rejected 10DLC brand is corrected with idempotent PUT and no duplicate r
       postalCode: "83702",
       website: "example.test"
     },
-    campaign: { consentAcknowledged: true, standardizationVersion: "firstmate-crm-10dlc-v2" }
+    campaign: { standardizationVersion: "firstmate-crm-10dlc-v2" }
   });
   const { ensureMessagingOrganization, readSmsComplianceProfile, updateSmsComplianceProfile } = await import("../messaging/storage.js");
   const messagingOrganization = await ensureMessagingOrganization(orgId);
@@ -1211,6 +1249,7 @@ test("ambiguous live number orders reconcile before availability and never purch
     brand: {}, campaign: {}
   });
   const selectedNumber = "+12065550199";
+  const replacementNumber = "+12065550197";
   const messagingProfileId = "40000000-0000-0000-0000-000000000199";
   const orderId = "number-order-reconciled-199";
   let inventoryCalls = 0;
@@ -1225,13 +1264,17 @@ test("ambiguous live number orders reconcile before availability and never purch
       const url = request.url || "";
       if (request.method === "GET" && url.startsWith("/available_phone_numbers?")) {
         inventoryCalls += 1;
+        const search = new URL(url, serverUrl);
+        assert.equal(search.searchParams.get("filter[national_destination_code]"), "206");
+        assert.equal(search.searchParams.get("filter[features]"), "sms,mms");
+        assert.equal(search.searchParams.get("filter[starts_with]"), null);
         response.end(JSON.stringify({
-          data: inventoryCalls === 1 ? [{
-            phone_number: selectedNumber,
+          data: [{
+            phone_number: inventoryCalls === 1 ? selectedNumber : replacementNumber,
             features: [{ name: "sms" }, { name: "mms" }],
             region_information: [{ region_type: "locality", region_name: "Seattle" }],
             cost_information: { monthly_cost: "1.00", upfront_cost: "0.50", currency: "USD" }
-          }] : []
+          }]
         }));
         return;
       }
@@ -1256,7 +1299,7 @@ test("ambiguous live number orders reconcile before availability and never purch
       if (request.method === "GET" && url.startsWith("/number_orders?")) {
         numberOrderLists += 1;
         response.end(JSON.stringify({
-          data: [{ id: orderId, status: "success", phone_numbers: [{ phone_number: selectedNumber }] }]
+          data: [{ id: numberOrderPosts > 1 ? "replacement-order" : orderId, status: "success", phone_numbers: [{ phone_number: numberOrderPosts > 1 ? replacementNumber : selectedNumber }] }]
         }));
         return;
       }
@@ -1306,6 +1349,19 @@ test("ambiguous live number orders reconcile before availability and never purch
     assert.equal(inventoryCalls, 1, "reconciliation must not query availability after the number was purchased");
     assert.equal(numberOrderPosts, 1, "reconciliation must not issue a second number-order POST");
     assert.equal(numberOrderLists, 1);
+    const endpoint = `/v1/messaging/organizations/${orgId}/sms/compliance-profiles/${created.profile.id}/select-number`;
+    assert.equal((await client.raw("POST",endpoint,{phone_number:replacementNumber})).statusCode,409);
+    assert.equal((await client.raw("POST",endpoint,{phone_number:replacementNumber,replace_number:true})).statusCode,503);
+    const during = await client.request("GET",`/v1/messaging/organizations/${orgId}/sms/compliance-profiles/${created.profile.id}`);
+    assert.equal(during.profile.campaign.selectedNumber,selectedNumber,"ambiguous replacement keeps current owned number authoritative");
+    const replacement = await client.request("POST",endpoint,{phone_number:replacementNumber,replace_number:true});
+    assert.equal(replacement.profile.campaign.selectedNumber,replacementNumber);
+    assert.equal(replacement.profile.provider_refs.telnyx_number_order_id,"replacement-order");
+    assert.equal(replacement.profile.provider_refs.previous_number_orders[0].phone_number,selectedNumber);
+    assert.equal(numberOrderPosts,2,"replacement retries must not purchase twice");
+    await client.request("POST",endpoint,{phone_number:replacementNumber,replace_number:true});
+    assert.equal(numberOrderPosts,2);
+
   } finally {
     (env as any).communicationsDeliveryMode = previous.mode;
     (env as any).telnyxApiKey = previous.key;
@@ -1314,6 +1370,76 @@ test("ambiguous live number orders reconcile before availability and never purch
     (env as any).telnyxWebhookUrl = previous.webhookUrl;
     (env as any).messagingEncryptionKey = previous.encryptionKey;
     (env as any).smsRequireConsent = previous.requireConsent;
+    if (server) await new Promise<void>((resolve) => server!.close(() => resolve()));
+  }
+});
+
+test("approved businesses can add a second number without replacing or rebuying the first", async () => {
+  const client = createSessionClient();
+  const { orgId } = await register(client, true);
+  const primary = "+12065550191";
+  const additional = "+12065550192";
+  const created = await client.request("POST", `/v1/messaging/organizations/${orgId}/sms/compliance-profiles`, { brand: {}, campaign: {} });
+  const { ensureMessagingOrganization, readSmsComplianceProfile, updateSmsComplianceProfile } = await import("../messaging/storage.js");
+  const messagingOrganization = await ensureMessagingOrganization(orgId);
+  const internal = await readSmsComplianceProfile(messagingOrganization.id, created.profile.id);
+  await updateSmsComplianceProfile(internal, {
+    status: "active", campaign_status: "mno_provisioned", phone_number_status: "success", brand_status: "verified",
+    brand: { entityType: "PRIVATE_PROFIT" }, campaign: { selectedNumber: primary },
+    provider_refs: { telnyx_campaign_id: "campaign-extra-number", telnyx_number_order_id: "order-primary",
+      telnyx_messaging_profile_id: "40000000-0000-0000-0000-000000000192" }
+  });
+  let purchaseCalls = 0;
+  let server: Server | null = null;
+  const serverUrl = await new Promise<string>((resolve) => {
+    server = createServer(async (request, response) => {
+      const url = request.url || "";
+      const chunks: Buffer[] = [];
+      for await (const chunk of request) chunks.push(Buffer.from(chunk));
+      response.setHeader("content-type", "application/json");
+      if (request.method === "GET" && url.startsWith("/available_phone_numbers?")) {
+        response.end(JSON.stringify({ data: [{ phone_number: additional, locality: "Seattle", features: [{ name: "sms" }],
+          cost_information: { monthly_cost: "1.00", upfront_cost: "1.00", currency: "USD" } }] }));
+        return;
+      }
+      if (request.method === "POST" && url === "/number_orders") {
+        purchaseCalls += 1;
+        response.end(JSON.stringify({ data: { id: "order-additional", status: "pending", phone_numbers: [{ phone_number: additional }] } }));
+        return;
+      }
+      response.statusCode = 404;
+      response.end(JSON.stringify({ error: "not_found", url }));
+    });
+    server.listen(0, "127.0.0.1", () => {
+      const address = server?.address();
+      assert.ok(address && typeof address === "object");
+      resolve(`http://127.0.0.1:${address.port}`);
+    });
+  });
+  const { env } = await import("../src/config/env.js");
+  const previous = { mode: env.communicationsDeliveryMode, key: env.telnyxApiKey, baseUrl: env.telnyxBaseUrl, publicKey: env.telnyxWebhookPublicKey };
+  try {
+    (env as any).communicationsDeliveryMode = "live";
+    (env as any).telnyxApiKey = "KEY_TEST";
+    (env as any).telnyxBaseUrl = serverUrl;
+    (env as any).telnyxWebhookPublicKey = "test-public-key";
+    const endpoint = `/v1/messaging/organizations/${orgId}/sms/compliance-profiles/${created.profile.id}/add-number`;
+    const first = await client.request("POST", endpoint, { phone_number: additional, monthly_cost: "9999.00" });
+    assert.equal(first.profile.campaign.selectedNumber, primary);
+    assert.equal(first.profile.provider_refs.additional_numbers[0].phone_number, additional);
+    assert.equal(first.profile.provider_refs.additional_numbers[0].monthly_cost, "1.00", "pricing must come from verified inventory");
+    const replay = await client.request("POST", endpoint, { phone_number: additional });
+    assert.equal(replay.idempotent_replay, true);
+    assert.equal(purchaseCalls, 1);
+    const latest = await readSmsComplianceProfile(messagingOrganization.id, created.profile.id);
+    await updateSmsComplianceProfile(latest, { brand: { entityType: "SOLE_PROPRIETOR" } });
+    assert.equal((await client.raw("POST", endpoint, { phone_number: "+12065550193" })).statusCode, 409);
+    assert.equal(purchaseCalls, 1);
+  } finally {
+    (env as any).communicationsDeliveryMode = previous.mode;
+    (env as any).telnyxApiKey = previous.key;
+    (env as any).telnyxBaseUrl = previous.baseUrl;
+    (env as any).telnyxWebhookPublicKey = previous.publicKey;
     if (server) await new Promise<void>((resolve) => server!.close(() => resolve()));
   }
 });
@@ -1757,8 +1883,7 @@ test("10DLC campaign submit waits for brand readiness", async () => {
       optoutMessage: "FirstMate: You are unsubscribed and will receive no more messages. Reply START to resubscribe.",
       helpMessage: "FirstMate: Help at support@example.test. Message frequency varies. Msg & data rates may apply. Reply STOP to opt out.",
       privacyPolicyLink: "https://example.test/privacy",
-      termsAndConditionsLink: "https://example.test/terms",
-      consentAcknowledged: true
+      termsAndConditionsLink: "https://example.test/terms"
     }
   });
 
@@ -1949,6 +2074,72 @@ test("10DLC mock campaign submit records qualification failure and still calls T
     await new Promise<void>((resolve, reject) => {
       server?.close((error) => error ? reject(error) : resolve());
     });
+  }
+});
+
+test("verified business automatically submits the campaign after one registration request", async () => {
+  const client = createSessionClient();
+  const { orgId } = await register(client, true);
+  let campaignPosts = 0;
+  let server: Server | null = null;
+  const serverUrl = await new Promise<string>((resolve) => {
+    server = createServer((request, response) => {
+      response.setHeader("content-type", "application/json");
+      if (request.method === "GET" && request.url === "/10dlc/brand/B_AUTO") {
+        response.end(JSON.stringify({ brandId: "B_AUTO", identityStatus: "VERIFIED", status: "OK" }));
+      } else if (request.method === "GET" && request.url === "/10dlc/campaignBuilder/brand/B_AUTO/usecase/MIXED") {
+        response.statusCode = 400;
+        response.end(JSON.stringify({ errors: [{ detail: "Qualification pending." }] }));
+      } else if (request.method === "POST" && request.url === "/10dlc/campaignBuilder") {
+        campaignPosts++;
+        response.end(JSON.stringify({ campaignId: "C_AUTO", tcrCampaignId: "TCR_AUTO", campaignStatus: "PENDING" }));
+      } else {
+        response.statusCode = 404;
+        response.end(JSON.stringify({ error: "not_found" }));
+      }
+    });
+    server.listen(0, "127.0.0.1", () => {
+      const address = server?.address();
+      assert.ok(address && typeof address === "object");
+      resolve(`http://127.0.0.1:${address.port}`);
+    });
+  });
+  const { env } = await import("../src/config/env.js");
+  const previousKey = env.telnyxApiKey;
+  const previousBaseUrl = env.telnyxBaseUrl;
+  (env as any).telnyxApiKey = "KEY_TEST";
+  (env as any).telnyxBaseUrl = serverUrl;
+  try {
+    const created = await client.request("POST", `/v1/messaging/organizations/${orgId}/sms/compliance-profiles`, {
+      brand: { displayName: "Mock Auto Brand", companyName: "Mock Auto Brand LLC", entityType: "PRIVATE_PROFIT", mock: true },
+      campaign: {
+        autoSubmitCampaign: true, brandId: "B_AUTO", usecase: "MIXED", enabledFeatures: ["crm_conversations", "operations"],
+        description: "Mock Auto Brand sends customer service and appointment update texts after consent.",
+        messageFlow: "Customers agree to receive updates when they speak to our staff before any message is sent.",
+        sample1: "Mock Auto Brand: Thanks for contacting us. Reply STOP to opt out.",
+        sample2: "Mock Auto Brand: Your appointment is tomorrow. Reply STOP to opt out.",
+        subscriberOptin: true, subscriberOptout: true, subscriberHelp: true,
+        optinKeywords: "START", optoutKeywords: "STOP", helpKeywords: "HELP",
+        optinMessage: "Mock Auto Brand: You are opted in. Message frequency varies. Msg & data rates may apply. Reply HELP for help or STOP to opt out.",
+        optoutMessage: "Mock Auto Brand: You are unsubscribed and will receive no more messages. Reply START to resubscribe.",
+        helpMessage: "Mock Auto Brand: Help at support@example.test. Message frequency varies. Msg & data rates may apply. Reply STOP to opt out.",
+        privacyPolicyLink: "https://example.test/privacy", termsAndConditionsLink: "https://example.test/terms", termsAndConditions: true
+      }
+    });
+    const { ensureMessagingOrganization, readSmsComplianceProfile, updateSmsComplianceProfile } = await import("../messaging/storage.js");
+    const messagingOrganization = await ensureMessagingOrganization(orgId);
+    const stored = await readSmsComplianceProfile(messagingOrganization.id, created.profile.id);
+    const preflight = await client.raw("POST", `/v1/messaging/organizations/${orgId}/sms/compliance-profiles/${created.profile.id}/submit-campaign`, { dry_run: true });
+    assert.equal(preflight.statusCode, 200, preflight.body);
+    await updateSmsComplianceProfile(stored, { brand_status: "pending", provider_refs: { telnyx_brand_id: "B_AUTO" } });
+    const refreshed = await client.request("POST", `/v1/messaging/organizations/${orgId}/sms/compliance-profiles/${created.profile.id}/refresh-status`, {});
+    assert.equal(refreshed.profile.provider_refs.telnyx_campaign_id, "C_AUTO", JSON.stringify({ status: refreshed.profile.status, campaign_status: refreshed.profile.campaign_status, events: refreshed.profile.events?.slice(-2), campaignPosts }));
+    assert.equal(refreshed.profile.status, "campaign_submitted");
+    assert.equal(campaignPosts, 1);
+  } finally {
+    (env as any).telnyxApiKey = previousKey;
+    (env as any).telnyxBaseUrl = previousBaseUrl;
+    await new Promise<void>((resolve, reject) => server?.close((error) => error ? reject(error) : resolve()));
   }
 });
 
@@ -2438,4 +2629,63 @@ test("live Telnyx transport requires consent and signed webhooks finalize delive
     (env as any).messagingEncryptionKey = previous.encryptionKey;
     await new Promise<void>((resolve, reject) => server?.close((error) => error ? reject(error) : resolve()));
   }
+});
+
+test("sole proprietor identity omits stale company fields and retains the address unit", async () => {
+  const client = createSessionClient();
+  const { orgId } = await register(client, true);
+  const created = await client.request("POST", `/v1/messaging/organizations/${orgId}/sms/compliance-profiles`, {
+    brand: {country:"US",entityType:"SOLE_PROPRIETOR",displayName:"Jane Smith",firstName:"Jane",lastName:"Smith",vertical:"PROFESSIONAL",email:"jane@example.test",phone:"2065550100",mobilePhone:"2065550101",street:"100 Main Street",address2:"Suite 200",city:"Seattle",state:"WA",postalCode:"98101",website:"example.test",companyName:"Previous LLC",ein:"123456789",sameAsLegalName:true},campaign:{}
+  });
+  const endpoint = `/v1/messaging/organizations/${orgId}/sms/compliance-profiles/${created.profile.id}`;
+  const dry = await client.request("POST",`${endpoint}/submit-brand`,{dry_run:true});
+  assert.equal(dry.payload.entityType,"SOLE_PROPRIETOR");
+  assert.equal(dry.payload.firstName,"Jane");
+  assert.equal(dry.payload.mobilePhone,"+12065550101");
+  assert.equal(dry.payload.street,"100 Main Street, Suite 200");
+  assert.equal(dry.payload.companyName,undefined);assert.equal(dry.payload.ein,undefined);
+  const saved = await client.request("GET",endpoint);
+  assert.equal(saved.profile.brand.address2,"Suite 200");assert.equal(saved.profile.brand.sameAsLegalName,true);
+  await client.request("PATCH",endpoint,{brand:{...created.profile.brand,entityType:"PRIVATE_PROFIT",ein:"123456789012"}});
+  const invalid = await client.raw("POST",`${endpoint}/submit-brand`,{dry_run:true});
+  assert.equal(invalid.statusCode,400);assert.match(invalid.body,/einFormat/);
+});
+
+
+test("SMS evidence uploads produce scoped public review links and reject unauthorized/unsafe files", async () => {
+  const client=createSessionClient();const {orgId}=await register(client,true);
+  const created=await client.request("POST",`/v1/messaging/organizations/${orgId}/sms/compliance-profiles`,{brand:{},campaign:{}});
+  const endpoint=`/v1/messaging/organizations/${orgId}/sms/compliance-profiles/${created.profile.id}/evidence`;
+  const bytes=Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9WlPpN8AAAAASUVORK5CYII=","base64");
+  const payload={file_name:"consent.png",data:bytes.toString("base64")};
+  assert.equal((await app.inject({method:"POST",url:endpoint,payload})).statusCode,401);
+  const other=createSessionClient();await register(other,true);
+  assert.notEqual((await other.raw("POST",endpoint,payload)).statusCode,200);
+  assert.equal((await client.raw("POST",endpoint,{file_name:"bad.html",data:Buffer.from("<script>alert(1)</script>").toString("base64")})).statusCode,400);
+  assert.equal((await client.raw("POST",endpoint,{file_name:"consent.pdf",data:Buffer.from("%PDF-1.4\n%%EOF").toString("base64")})).statusCode,400);
+  const uploaded=await client.request("POST",endpoint,payload);
+  const url=new URL(uploaded.url);
+  const publicFile=await app.inject({method:"GET",url:url.pathname});
+  assert.equal(publicFile.statusCode,200,publicFile.body);assert.deepEqual(publicFile.rawPayload,bytes);
+  assert.ok(String(publicFile.headers["content-type"]).includes("image/png"));
+  assert.equal(publicFile.headers["x-content-type-options"],"nosniff");
+  assert.equal((await app.inject({method:"GET",url:url.pathname.replace(/[^/]+$/, "0".repeat(64))})).statusCode,404);
+});
+
+
+test("number inventory reports no results without exposing provider filter errors", async () => {
+  const client=createSessionClient();const {orgId}=await register(client,true);
+  const created=await client.request("POST",`/v1/messaging/organizations/${orgId}/sms/compliance-profiles`,{brand:{},campaign:{}});
+  const {env}=await import("../src/config/env.js");const previous={mode:env.communicationsDeliveryMode,url:env.telnyxBaseUrl,key:env.telnyxApiKey};
+  let status=400;
+  const server=createServer((_request,response)=>{response.writeHead(status,{"content-type":"application/json"});response.end(JSON.stringify({errors:[{detail:status===400?"No numbers found for the given filters. Please try again with best_effort=true.":"Provider unavailable"}]}));});
+  await new Promise<void>(resolve=>server.listen(0,"127.0.0.1",resolve));
+  try {
+    (env as any).communicationsDeliveryMode="live";(env as any).telnyxApiKey="test-key";(env as any).telnyxBaseUrl=`http://127.0.0.1:${(server.address() as {port:number}).port}`;
+    const result=await client.request("GET",`/v1/messaging/organizations/${orgId}/sms/compliance-profiles/${created.profile.id}/available-numbers?area_code=427`);
+    assert.deepEqual(result.numbers,[]);assert.equal(result.ok,true);
+    status=503;
+    const failure=await client.raw("GET",`/v1/messaging/organizations/${orgId}/sms/compliance-profiles/${created.profile.id}/available-numbers?area_code=427`);
+    assert.notEqual(failure.statusCode,200);
+  } finally {(env as any).communicationsDeliveryMode=previous.mode;(env as any).telnyxBaseUrl=previous.url;(env as any).telnyxApiKey=previous.key;await new Promise<void>(resolve=>server.close(()=>resolve()));}
 });

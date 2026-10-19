@@ -20,6 +20,7 @@ async function authorizedEvent(org:string,user:string,event:Json,note:Json){
   if(!(await effectiveRules(org,user)).some(rule=>rule.id===id&&rule.enabled))return false;
  }
  const auth=await backgroundAuthContext(org,user);
+ if(note.source==='sms_registration' && (!hasPermission(auth,'manage_company_settings') || !await isAppFlagEnabled(org,'platform','sms_settings')))return false;
  if(strings(note.target_department_ids).length && !matchesDepartmentNotificationTarget(note,user,strings(auth.user.roles),auth.organizationStructure?.users.find(member=>member.id===user)?.department_ids || []))return false;
  if(auth.branchId&&auth.branchId!==String(note.branch_id||'default'))return false;
  const definition=builtInEventDefinitions().find(d=>d.event===event.type);
@@ -176,6 +177,12 @@ async function sendDelivery(row:Json){
  }
  if(method==='email'||method==='sms'){
   const address=String(obj(user.data)[method==='email'?'email':'phone']||'');if(!address)return {status:'unavailable',reason:'Recipient has no delivery address'};
+  // Registration approval is FirstMate account mail, independent of the organization's customer-email setup.
+  if(method==='email' && note.source==='sms_registration' && note.preference_key==='sms_registration.approved'){
+   const {sendPlatformTransactionalEmail}=await import('../../email/outbound.js');
+   const result=await sendPlatformTransactionalEmail({to:address,subject:String(note.title),textBody:String(note.body),tag:'sms-registration-approved',metadata:{organization_id:org,notification_id:String(note.id),delivery_id:String(row.id)}});
+   return {status:result.ok?'accepted':result.skipped?'unavailable':'failed',result};
+  }
   const {sendCommunication}=await import('../../messaging/communications_service.js');const {sendCommunicationSchema}=await import('../../messaging/schemas.js');
   const result=await sendCommunication(org,sendCommunicationSchema.parse({channel:method,branch_id:note.branch_id,recipients:[{address}],content:{subject:note.title,text:note.body||note.title},source:{type:'notification',id:note.id},idempotency_key:String(row.id)}),{branchId:auth.branchId});
   return {status:obj(result.message).status==='failed'?'failed':'accepted',result};
@@ -184,9 +191,14 @@ async function sendDelivery(row:Json){
  return {status:method==='customer_portal'?'unavailable':'available'};
 }
 let draining=false;
+let lastSmsApprovalRecovery=0;
 export async function drainNotifications(limit=20){
  if(draining)return;draining=true;const db=notificationStore();
  try{
+  if(Date.now()-lastSmsApprovalRecovery>=60000){
+   lastSmsApprovalRecovery=Date.now();
+   await (await import('../../messaging/approval_notifications.js')).recoverSmsApprovalNotifications().catch(error=>console.error('SMS approval notification recovery failed',error));
+  }
   for(const occurrence of await db.prepare("SELECT * FROM notification_occurrences WHERE state='pending' LIMIT 20").all()){
    const note=JSON.parse(String(occurrence.note_json));
    try{await upsertDocument(String(occurrence.organization_id),'notifications',{id:String(note.id),data:note,metadata:{kind:'platform_notification',source:note.source}},{createOnly:true});}catch(error){if((error as {code?:string}).code!=='document_exists')throw error;}

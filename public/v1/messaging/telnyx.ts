@@ -308,10 +308,6 @@ export class TelnyxClient {
     return await this.request(`/available_phone_numbers?filter[country_code]=US&filter[national_destination_code]=${encodeURIComponent(areaCode)}&filter[phone_number_type]=local&filter[features]=sms,mms&filter[limit]=${size}&filter[best_effort]=false&filter[exclude_held_numbers]=true`);
   }
 
-  async findExactAvailablePhoneNumber(phoneNumber: string) {
-    return await this.request(`/available_phone_numbers?filter[country_code]=US&filter[phone_number]=${encodeURIComponent(phoneNumber)}&filter[phone_number_type]=local&filter[features]=sms&filter[limit]=1&filter[best_effort]=false&filter[exclude_held_numbers]=true`);
-  }
-
   async createNumberOrder(phoneNumber: string, messagingProfileId: string, customerReference: string) {
     return await this.request("/number_orders", {
       method: "POST",

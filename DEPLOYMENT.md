@@ -134,6 +134,12 @@ October 9 My Contacts: [Contact window, relationships, tags and time zones](depl
 
 October 9 Channels composer: [Controls inside the message box](deploy/digitalocean/development-channels-composer-20261009.md) records the GitHub commit, staged frontend checks, verified development rollout and rollback.
 
+October 12 SMS registration: [Single submission and consent form cleanup](deploy/digitalocean/development-sms-single-submit-20261012.md) records the latest development release and verification.
+
+October 12 SMS registration: [Additional campaign numbers and form refinement](deploy/digitalocean/development-sms-multiple-numbers-20261012.md) records the latest development release and verification. [Texting policies and review workflow](deploy/digitalocean/development-sms-policies-20261012.md) records the preceding release.
+
+October 11 SMS registration final review: [Simplified fields and submission verification](deploy/digitalocean/development-sms-final-review-20261011.md) records the copy cleanup, removed final checkbox, focused tests, and verified development rollout.
+
 October 9 project primary images: [Satellite default and selected covers](deploy/digitalocean/development-project-primary-20261009.md) records the unified primary-image displays and verified development rollout.
 
 October 9 project photos: [Typed cover and reference-photo fields](deploy/digitalocean/development-project-cover-20261009.md) records the shared Photo custom-field cover, validation and verified development rollout.
