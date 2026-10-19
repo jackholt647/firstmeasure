@@ -6,6 +6,7 @@ import { hasResourcePermission } from '../../workforce/department-access.js';
 import { requireVoiceEnvironment, voiceClient, voiceWebhookUrl } from '../../telephony/telnyx.js';
 import { callDepartmentResource, requireCallAccess } from './service.js';
 import { voiceSettings } from './settings.js';
+import { activeConferenceForUser, conferenceOccupancy, conferenceLimit } from './conference.js';
 import { providerCommand, withEndpointLease } from './voice.js';
 import * as s from './storage.js';
 import { text, object, type Json, type CustomerCall } from './storage.js';
@@ -87,6 +88,8 @@ export async function superviseCall(ctx: PlatformAuthContext, callId: string, in
         session = await save(session, {mode: body.mode, state: 'updating', generation: randomUUID()});
         await queue(session, 'update', op.id);
       } else {
+        if(await activeConferenceForUser(ctx.orgId,ctx.userId))throw conflict('supervision_phone_busy','Leave your conference before supervising another call.');
+        if(await conferenceOccupancy(call)>=conferenceLimit)throw conflict('conference_full','This call is full.');
         if ((await s.jobs(ctx.orgId,callId)).some(job => job.state === 'uncertain')) throw conflict('supervision_reconciliation_required', 'A previous provider operation has an unknown result. Reconcile the call before joining again.');
         if ((await s.listCalls(ctx.orgId, {owner_user_id: ctx.userId, active: true})).total || await activeSupervisionCallId(ctx.orgId, ctx.userId)) throw conflict('supervision_phone_busy', 'Finish your current call before joining another.');
         if ((await sessions(ctx.orgId, callId)).filter(v => live.has(text(v.state))).length >= 3) throw conflict('supervision_full', 'This call already has the maximum number of supervisors.');

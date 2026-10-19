@@ -95,7 +95,7 @@ export async function onInboundCommunication(organizationId: string, messageId: 
   }
 
   let phoneNotification=false, phoneReply=false;
-  if(channel==='sms')try{
+  if(channel==='sms'&&!groupMms)try{
     const {notifyText}=await import('./phone/notifications.js');phoneNotification=await notifyText(organizationId,message,resolved.notifications);
     if(!asObject(rescheduling).handled&&!asObject(confirmation).handled){const {automaticReply}=await import('./phone/messaging.js');const recipient=(Array.isArray(message.recipients)?message.recipients:[]).map(asObject)[0];phoneReply=await automaticReply(organizationId,cleanText(recipient?.address),cleanText(asObject(message.sender).address),'text',messageId,cleanText(message.conversation_id),context);}
   }catch(error){console.error('Phone message notification failed',error);}

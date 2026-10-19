@@ -38,7 +38,7 @@
     versionedBundle('../window-manager/window-shell.js', '20261008-tray-shell-v1'),
     versionedBundle('../agent-chat/agent-chat.js', '20261002-widget-controls'),
     versionedBundle('../assistant-api/assistant-api.js', '20261002-agent-persistence-v1'),
-    versionedBundle('../platform-assistant/platform-assistant.js', '20261002-agent-persistence-v1'),
+    versionedBundle('../platform-assistant/platform-assistant.js', '20261008-tray-shell-v1'),
     versionedBundle('photos/feed.js', '20261012-shared-polish-v1'),
     versionedBundle('../markup/firstmate-markup.js', '20261012-photo-comments-v1'),
     versionedBundle('../channels-ui/channels-ui.js', '20261012-shared-polish-v1'),
@@ -49,13 +49,13 @@
   const fieldApprovalBundles = [
     versionedBundle('../crew-api/crew-api.js', '20261019-forward-cert'),
     versionedBundle('../field-visit/field-visit.js', '20260803-compact-arrival-v13'),
-    versionedBundle('../doc-model/firstmate-doc-model.js', '20260803-field-flows-v10'),
+    versionedBundle('../doc-model/firstmate-doc-model.js', '20261014-document-progress'),
     versionedBundle('../payment-intake/payment-intake.js', '20261019-forward-cert'),
     // Same version string as crewBundles so the runtime's URL dedupe keeps a
     // single load; the field checkout resolves provider tokenization here.
     versionedBundle('../payments-api/payments-api.js', '20261019-forward-cert'),
     versionedBundle('../doc-widgets/firstmate-doc-widgets.js', '20261019-forward-cert'),
-    versionedBundle('../doc-renderer/firstmate-doc-renderer.js', '20260803-field-flows-v10'),
+    versionedBundle('../doc-renderer/firstmate-doc-renderer.js', '20260811-word-doc-v4'),
     versionedBundle('../doc-workflow/firstmate-doc-workflow.js', '20260803-field-flows-v10'),
     versionedBundle('signatures/project.js', '20261019-forward-cert')
   ];
@@ -123,7 +123,7 @@
       kind: 'portal_tab',
       surfaces: ['portal_tab'],
       portalTabId: 'photos_feed',
-      bundles: [gifDisplayBundle,versionedBundle('../payments-api/payments-api.js', '20261019-forward-cert'), versionedBundle('photos/feed.js', '20261012-shared-polish-v1')]
+      bundles: [gifDisplayBundle,versionedBundle('../payments-api/payments-api.js', '20261019-forward-cert'), versionedBundle('../channels-ui/channels-ui.js', '20261012-shared-polish-v1'), versionedBundle('photos/feed.js', '20261012-shared-polish-v1')]
     },
     {
       id: 'portal.receipts',
@@ -253,9 +253,9 @@
       bundles: [
         versionedBundle('../websites-api/websites-api.js', '20260731-domains-v10'),
         versionedBundle('../domains-api/domains-api.js', '20260731-domains-v10'),
-        versionedBundle('../doc-model/firstmate-doc-model.js', '20260726-doc-tiers'),
+        versionedBundle('../doc-model/firstmate-doc-model.js', '20261014-document-progress'),
         versionedBundle('../doc-widgets/firstmate-doc-widgets.js', '20261019-forward-cert'),
-        versionedBundle('../doc-renderer/firstmate-doc-renderer.js', '20260726-doc-tiers'),
+        versionedBundle('../doc-renderer/firstmate-doc-renderer.js', '20260811-word-doc-v4'),
         versionedBundle('../web-widgets/firstmate-web-widgets.js', '20260728-web-editor-v1'),
         versionedBundle('../portal-widgets/firstmate-portal-widgets.js', '20260801-portal-builder-v1'),
         versionedBundle('../doc-editor/firstmate-doc-editor.js', '20260925-brand-chrome'),
@@ -345,7 +345,7 @@
       kind: 'project_modal_app',
       surfaces: ['project_modal'],
       requiresContext: ['project'],
-      bundles: [bundle('../comms-api/comms-api.js'), versionedBundle('../agent-chat/agent-chat.js', '20261002-widget-controls'), versionedBundle('comms/communications-ui.js', '20261008-call-center-modes-v2'), versionedBundle('comms/phone-tray.js', '20261007-phone-tabs-v1'), versionedBundle('comms/calling-runtime.js', '20261011-outbound-phone-v1'), versionedBundle('comms/workspace.js', '20261008-call-center-modes-v2'), versionedBundle('comms/project.js', '20261002-dropdown-polish-v1')]
+      bundles: [versionedBundle('../comms-api/comms-api.js', '20261011-phone-second-pass-v1'), versionedBundle('../window-manager/window-shell.js', '20261008-tray-shell-v1'), versionedBundle('../agent-chat/agent-chat.js', '20261002-widget-controls'), versionedBundle('comms/communications-ui.js', '20261011-voicemail-download-v2'), versionedBundle('comms/phone-tray.js', '20261011-phone-second-pass-v1'), versionedBundle('comms/calling-runtime.js', '20261011-conference-history-v2'), versionedBundle('comms/phone-modal.js', '20261011-phone-second-pass-v1'), versionedBundle('comms/workspace.js', '20261008-voicemail-settings-v1'), versionedBundle('comms/project.js', '20261002-dropdown-polish-v1')]
     },
     {
       id: 'project.measurements',
@@ -509,9 +509,10 @@
         versionedBundle('../comms-api/comms-api.js', '20261011-phone-second-pass-v1'),
         bundle('../agents-api/agents-api.js'),
         versionedBundle('../agent-chat/agent-chat.js', '20261002-widget-controls'),
-        versionedBundle('comms/communications-ui.js', '20261008-call-center-modes-v2'),
-        versionedBundle('comms/phone-tray.js', '20261007-phone-tabs-v1'), versionedBundle('comms/calling-runtime.js', '20261011-outbound-phone-v1'),
-        versionedBundle('comms/workspace.js', '20261008-call-center-modes-v2'),
+        versionedBundle('comms/communications-ui.js', '20261011-voicemail-download-v2'),
+        versionedBundle('../window-manager/window-shell.js', '20261008-tray-shell-v1'),
+        versionedBundle('comms/phone-tray.js', '20261011-phone-second-pass-v1'), versionedBundle('comms/calling-runtime.js', '20261011-conference-history-v2'), versionedBundle('comms/phone-modal.js', '20261011-phone-second-pass-v1'),
+        versionedBundle('comms/workspace.js', '20261008-voicemail-settings-v1'),
         versionedBundle('chat/app.js', '20260930-phone-tray-v1')
       ]
     },
@@ -533,7 +534,7 @@
         versionedBundle('../window-manager/window-manager.js', '20261006-firstmeasure-localization-v1'),
         versionedBundle('../window-manager/window-shell.js', '20261008-tray-shell-v1'),
         versionedBundle('../assistant-api/assistant-api.js', '20261002-agent-persistence-v1'),
-        ...widgetBundles, bookingBundle, priorityFieldsBundle, versionedBundle('../platform-assistant/platform-assistant.js', '20261002-agent-persistence-v1'),
+        ...widgetBundles, bookingBundle, priorityFieldsBundle, versionedBundle('../platform-assistant/platform-assistant.js', '20261008-tray-shell-v1'),
         versionedBundle('photos/feed.js', '20261012-shared-polish-v1'),
     versionedBundle('../markup/firstmate-markup.js', '20261012-photo-comments-v1'),
     versionedBundle('../channels-ui/channels-ui.js', '20261012-shared-polish-v1'),
@@ -555,7 +556,7 @@
       order: 45,
       placement: 'more',
       fullBleed: true,
-      bundles: [...widgetBundles, bookingBundle, bundle('../assistant-api/assistant-api.js'), bundle('../window-manager/window-manager.js'), bundle('../platform-assistant/platform-assistant.js')]
+      bundles: [...widgetBundles, bookingBundle, priorityFieldsBundle, bundle('../assistant-api/assistant-api.js'), bundle('../window-manager/window-manager.js'), versionedBundle('../window-manager/window-shell.js', '20261008-tray-shell-v1'), versionedBundle('../platform-assistant/platform-assistant.js', '20261008-tray-shell-v1')]
     },
     {
       id: 'portal.canvassing',
@@ -591,7 +592,7 @@
       surfaces: ['portal_tab'],
       portalTabId: 'company_settings',
       placement: 'settings',
-      bundles: [priorityFieldsBundle, versionedBundle('../custom-fields/firstmate-custom-fields.js', '20261015-contacts-writers-v1'), versionedBundle('../payroll-api/payroll-api.js', '20261016-my-pay-v1'), versionedBundle('../websites-api/websites-api.js', '20260731-domains-v10'), versionedBundle('../domains-api/domains-api.js', '20260731-domains-v10'), versionedBundle('../insights/firstmate-insights.js', '20260901-insights-v1'), versionedBundle('settings/domains.js', '20260731-domains-v11'), versionedBundle('settings/crm.js', '20261015-contacts-store-v1'), versionedBundle('settings/contacts.js', '20261009-contact-settings-v1'), versionedBundle('settings/payroll.js', '20261016-my-pay-v1'), versionedBundle('settings/money-overlay-enforcer.js', '20260828-money-overlay-integrity-v1'), versionedBundle('settings/platform-billing.js', '20260924-subscription-service-v3'), versionedBundle('../brand-kit/brand-kit.js', '20261006-firstmeasure-localization-v1'), bundle('../platform-terminology/editor.js'), versionedBundle('people/people-kit.js', '20261019-people-gaps-v1'), versionedBundle('people/list-page.js', '20261019-people-gaps-v1'), versionedBundle('people/entity-modal.js', '20261015-branches-v1'), versionedBundle('people/hover-card.js', '20261014-people-v4'), versionedBundle('people/permissions-panel.js', '20261014-people-v5'), versionedBundle('people/app-grid.js', '20261015-people-v3'), versionedBundle('people/slots.js', '20261019-people-gaps-v1'), versionedBundle('people/people-data.js', '20261019-people-gaps-v1'), versionedBundle('people/people-directory.js', '20261019-people-gaps-v1'), versionedBundle('people/fields-panel.js', '20261013-people-fields-v1'), versionedBundle('people/compensation-panel.js', '20261014-people-compensation-v1'), versionedBundle('people/pay-sheets-model.js', '20261019-pay-sheets-v1'), versionedBundle('people/pay-sheets-editor.js', '20261019-pay-sheets-v1'), versionedBundle('people/pay-sheets-list.js', '20261019-pay-sheets-v1'), versionedBundle('people/page-kit.js', '20261019-people-gaps-v1'), versionedBundle('people/people-lists.js', '20261019-people-gaps-v1'), versionedBundle('people/branches.js', '20261019-people-gaps-v1'), versionedBundle('people/onboarding.js', '20261019-people-gaps-v1'), versionedBundle('people/users-page.js', '20261019-people-gaps-v1'), versionedBundle('people/groups-page.js', '20261019-people-gaps-v1'), versionedBundle('people/departments-page.js', '20261019-people-gaps-v1'), versionedBundle('people/companies-page.js', '20261019-people-gaps-v1'), versionedBundle('people/people-home.js', '20261019-people-gaps-v1'), versionedBundle('people/people-settings.js', '20261015-search-grouping'), versionedBundle('settings/phone-marketing.js', '20261012-phone-marketing-v1'), versionedBundle('settings/phone.js', '20261012-phone-marketing-v1'), versionedBundle('settings/company.js', '20261019-forward-cert')]
+      bundles: [priorityFieldsBundle, versionedBundle('../custom-fields/firstmate-custom-fields.js', '20261015-contacts-writers-v1'), versionedBundle('../payroll-api/payroll-api.js', '20261016-my-pay-v1'), versionedBundle('../websites-api/websites-api.js', '20260731-domains-v10'), versionedBundle('../domains-api/domains-api.js', '20260731-domains-v10'), versionedBundle('../insights/firstmate-insights.js', '20260901-insights-v1'), versionedBundle('settings/domains.js', '20260731-domains-v11'), versionedBundle('settings/crm.js', '20261015-contacts-store-v1'), versionedBundle('settings/contacts.js', '20261009-contact-settings-v1'), versionedBundle('settings/payroll.js', '20261016-my-pay-v1'), versionedBundle('settings/money-overlay-enforcer.js', '20260828-money-overlay-integrity-v1'), versionedBundle('settings/platform-billing.js', '20260924-subscription-service-v3'), versionedBundle('../brand-kit/brand-kit.js', '20261006-firstmeasure-localization-v1'), bundle('../platform-terminology/editor.js'), versionedBundle('settings/feed.js', '20261011-feed-settings-ui-v2'), versionedBundle('settings/phone-marketing.js', '20261012-phone-marketing-v1'), versionedBundle('settings/phone.js', '20261012-phone-marketing-v1'), versionedBundle('people/people-kit.js', '20261019-people-gaps-v1'), versionedBundle('people/list-page.js', '20261019-people-gaps-v1'), versionedBundle('people/entity-modal.js', '20261015-branches-v1'), versionedBundle('people/hover-card.js', '20261014-people-v4'), versionedBundle('people/permissions-panel.js', '20261014-people-v5'), versionedBundle('people/app-grid.js', '20261015-people-v3'), versionedBundle('people/slots.js', '20261019-people-gaps-v1'), versionedBundle('people/people-data.js', '20261019-people-gaps-v1'), versionedBundle('people/people-directory.js', '20261019-people-gaps-v1'), versionedBundle('people/fields-panel.js', '20261013-people-fields-v1'), versionedBundle('people/compensation-panel.js', '20261014-people-compensation-v1'), versionedBundle('people/pay-sheets-model.js', '20261019-pay-sheets-v1'), versionedBundle('people/pay-sheets-editor.js', '20261019-pay-sheets-v1'), versionedBundle('people/pay-sheets-list.js', '20261019-pay-sheets-v1'), versionedBundle('people/page-kit.js', '20261019-people-gaps-v1'), versionedBundle('people/people-lists.js', '20261019-people-gaps-v1'), versionedBundle('people/branches.js', '20261019-people-gaps-v1'), versionedBundle('people/onboarding.js', '20261019-people-gaps-v1'), versionedBundle('people/users-page.js', '20261019-people-gaps-v1'), versionedBundle('people/groups-page.js', '20261019-people-gaps-v1'), versionedBundle('people/departments-page.js', '20261019-people-gaps-v1'), versionedBundle('people/companies-page.js', '20261019-people-gaps-v1'), versionedBundle('people/people-home.js', '20261019-people-gaps-v1'), versionedBundle('people/people-settings.js', '20261015-search-grouping'), versionedBundle('settings/company.js', '20261019-forward-cert')]
     },
     {
       id: 'portal.crew_overview',
@@ -910,7 +911,7 @@
       projectBoard:{ history:'push' }
     },
     contacts: { contact:{ history:'push' }, contactView:{ default:'list', values:['tiles','list'], history:'replace' }, contactsWorkspace:{ values:['import','settings'], history:'push' }, contactsSettingsView:{ values:['import','history','tags','preferences'], history:'push' } },
-    photos: { photo:{ history:'push' }, photoScope:{ history:'replace' }, mediaTags:{ history:'replace', apps:['portal.photos_feed'] }, feedDensity:{ default:'small', values:['list','small','large','mosaic','posts','loose','comfortable','compact'], history:'replace', apps:['portal.photos_feed'] }, feedShown:{ history:'replace', apps:['portal.photos_feed'] }, user:{ history:'push', apps:['portal.photos_feed'] }, userTab:{ default:'photos', values:['photos','activity'], history:'push', apps:['portal.photos_feed'] } },
+    photos: { photo:{ history:'push' }, photoScope:{ history:'replace' }, mediaTags:{ history:'replace', apps:['portal.photos_feed'] }, feedDensity:{ default:'small', values:['list','small','large','mosaic','posts','loose','comfortable','compact'], history:'replace', apps:['portal.photos_feed'] }, feedListOrganize:{ default:'time', values:['time','project'], history:'replace', apps:['portal.photos_feed'] }, feedShown:{ history:'replace', apps:['portal.photos_feed'] }, user:{ history:'push', apps:['portal.photos_feed'] }, userTab:{ default:'photos', values:['photos','activity'], history:'push', apps:['portal.photos_feed'] } },
     proposals: { proposal:{ history:'push' }, proposalProject:{ history:'push', apps:['portal.proposals'] }, proposalMode:{ default:'list', values:['list','builder','edit','send'], history:'push' } },
     scheduling: { scheduleView:{ default:'week', values:['day','4day','week','month','appointment_schedule','gantt'], history:'push' }, date:{ history:'replace' }, day:{ history:'push' }, scheduleType:{ history:'push' }, scheduleGroup:{ history:'replace' }, scheduleResource:{ history:'replace' } },
     crew: { crewScheduleView:{ default:'week', values:['list','day','4day','week','month'], history:'push', apps:['portal.crew_schedule'] }, crewScheduleDate:{ history:'replace', apps:['portal.crew_schedule'] } },
