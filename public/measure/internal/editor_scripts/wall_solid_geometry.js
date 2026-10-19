@@ -282,7 +282,8 @@ function copyGeometry(scene,selected,lines=[]){
  // flagged so snapping, guides and selection use only the defining points.
  const sampled=sources.filter(f=>f.curves?.length&&rings(f).flat().some(chosen)).map(K.curveSamplePoint);if(sampled.length)for(const p of points)if(sampled.some(test=>test(p)))p.curveSample=true;
  const clean=f=>({...K.mapCurveData(f,p=>({...p})),points:f.points.map(p=>({x:p.x,y:p.y,z:p.z})),holes:(f.holes||[]).map(r=>r.map(p=>({x:p.x,y:p.y,z:p.z}))),...(f.material?{material:f.material}:{}),...(f.finishColor?{finishColor:f.finishColor}:{}),...(f.trim?{trim:true}:{}),...(f.feature?{feature:JSON.parse(JSON.stringify(f.feature))}:{}),retainedPoints:(f.retainedPoints||[]).filter(chosen).map(p=>({x:p.x,y:p.y,z:p.z}))});
- const curves=[...new Map(sources.flatMap(f=>f.curves||[]).filter(c=>c.type==='spline'&&c.controls.every(chosen)&&!faces.some(f=>f.curves?.some(v=>v.id===c.id))).map(c=>[c.id,c])).values()],samples=curves.map(c=>K.curveSamples(c)),onCurve=p=>samples.some(ps=>ps.slice(1).some((q,i)=>pointOnEdge(p,ps[i],q)));
+ // A deleted door keeps its arch as wire; that curve can still be copied.
+ const curves=[...new Map(scene.filter(f=>!f.snapOnly&&(!f.deleted||f.preserveBoundaryWire)).flatMap(f=>f.curves||[]).filter(c=>c.type==='spline'&&c.controls.every(chosen)&&!faces.some(f=>f.curves?.some(v=>v.id===c.id))).map(c=>[c.id,c])).values()],samples=curves.map(c=>K.curveSamples(c)),onCurve=p=>samples.some(ps=>ps.slice(1).some((q,i)=>pointOnEdge(p,ps[i],q)));
  return {points:curves.length&&!faces.length?points.filter(p=>!onCurve(p)||curves.some(c=>c.controls.some(q=>Math.hypot(...Object.values(sub(p,q)))<=K.CONTACT))):points,edges:curves.length?edges.filter(pair=>!samples.some(ps=>ps.slice(1).some((q,i)=>pair.every(p=>pointOnEdge(p,ps[i],q))))):edges,faces:faces.map(clean),mounts,...(curves.length?{curves:curves.map(c=>K.mapCurve(c,p=>({...p})))}:{})};
 }
 // Rigid plane edits retain depth; reflections reverse face winding as well.
@@ -1206,6 +1207,11 @@ function surfaceWire(edits){const curved=K.compactSurfaces(edits.$surfaces||[]).
  // are render samples; only interpolation points and real junctions are anchors.
  const curves=[...new Map((edits.$surfaces||[]).filter(f=>!f.drafted&&!f.replacedBy).flatMap(f=>f.curves||[]).map(c=>[c.id,c])).values()],graph={nodes:[...nodes.values()],edges:[...edges.values()]};
  K.annotateCurveGraph(graph,curves);for(const e of graph.edges)if(e.curveId){e.curve=true;e.id='spline:'+e.curveId;}
+ // Deleting a curve's end or control deletes the curve. Its samples are never
+ // promoted to points, so the dangling pieces go with it.
+ const gone=[...removed].map(k=>{const [x,y,z]=k.split(',').map(Number);return {x,y,z};}).filter(p=>[p.x,p.y,p.z].every(Number.isFinite)),near=(p,q)=>Math.hypot(p.x-q.x,p.y-q.y,p.z-q.z)<=K.CONTACT;
+ const dropped=new Set(curves.filter(c=>(c.type==='spline'?c.controls:c.type==='conic'?[c.start,c.end]:c.type==='ellipse'?[K.curvePoint(c,0),K.curvePoint(c,1)]:[]).some(p=>gone.some(q=>near(p,q)))).map(c=>c.id));
+ if(dropped.size){const kept=new Set((edits.$loose?.points||[]).map(vertexKey));for(const [key,e]of edges)if(dropped.has(e.curveId))edges.delete(key);const used=new Set([...edges.values()].flatMap(e=>[e.a,e.b])),onDropped=n=>curves.some(c=>dropped.has(c.id)&&K.curveSamples(c).some((b,i,ps)=>i&&pointOnEdge(n,ps[i-1],b)));for(const [key,n]of nodes)if(!used.has(key)&&!kept.has(key)&&onDropped(n))nodes.delete(key);}
  return {nodes:[...nodes.values()],edges:[...edges.values()]};
 }
 function structuralPoint(p,faces){return faces.filter(f=>!f.deleted&&!f.drafted).flatMap(f=>K.normalizeFaces(f)).some(f=>rings(f).some(r=>r.some((q,i)=>{if(vertexKey(q)!==vertexKey(p))return false;const a=sub(r[(i+r.length-1)%r.length],q),b=sub(r[(i+1)%r.length],q),c=cross(a,b);return dot(a,b)>=0||Math.hypot(c.x,c.y,c.z)>1e-6*Math.max(1,Math.hypot(a.x,a.y,a.z)*Math.hypot(b.x,b.y,b.z));})));}
@@ -1265,7 +1271,11 @@ function removeFaceEdges(faces,segments,wire={}){
  // The supporting wall is not an alternate boundary of a door/window.
  const repaired=[];
  for(const i of invalid){const source=faces[i],frame=faceFrame(source);if(!frame)continue;
-  const cuts=segments.map(points=>({points})),pairs=[...rings(source).flatMap(r=>r.map((p,i)=>[p,r[(i+1)%r.length]])),...(wire.lines||[]).filter(pair=>pair.every(p=>Math.abs(dot(sub(p,frame.origin),frame.n))<=K.CONTACT))],nodes=[],edges=[];
+  // A plain face may close along the remaining edges of other faces on its
+  // plane (a deleted door edge leaves the wall around it). A door/window keeps
+  // only its own ring, so an opened sticker stops being a face.
+  const onPlane=p=>Math.abs(dot(sub(p,frame.origin),frame.n))<=K.CONTACT,neighbors=source.feature?[]:faces.filter(f=>f!==source&&!f.curvedSurface&&rings(f).flat().every(onPlane));
+  const cuts=segments.map(points=>({points})),pairs=[...[source,...neighbors].flatMap(f=>rings(f).flatMap(r=>r.map((p,i)=>[p,r[(i+1)%r.length]]))),...(wire.lines||[]).filter(pair=>pair.every(onPlane))],nodes=[],edges=[];
   for(const [a,b]of pairs){let lo=0;for(const [start,end]of [...sharedIntervals(a,b,cuts),[1,1]]){if(start-lo>1e-7){const at=t=>inFrame(frame,mix3(a,b,t)),x={...at(lo),id:'n'+nodes.length},y={...at(start),id:'n'+(nodes.length+1)};nodes.push(x,y);edges.push({id:'e'+edges.length,a:x.id,b:y.id});}lo=Math.max(lo,end);}}
   const original={points:source.points.map(p=>inFrame(frame,p)),holes:(source.holes||[]).map(r=>r.map(p=>inFrame(frame,p)))},regions=K.partition({nodes,edges}).regions.map(points=>({points,holes:[]})).filter(f=>K.intersection([f],[original]).some(p=>K.area(p)>K.CONTACT*K.CONTACT)&&rings(original).some(r=>r.some((p,i)=>sharedIntervals({...p,z:0},{...r[(i+1)%r.length],z:0},[{points:f.points.map(p=>({...p,z:0}))}]).length)));
   const holes=original.holes.map(points=>({points}));for(const region of K.union(regions).flatMap(r=>holes.length?K.difference(r,holes):[r])){

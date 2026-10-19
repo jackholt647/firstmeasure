@@ -3323,3 +3323,44 @@ test('Ctrl+W/D/G is left to the browser: the editor does not consume it or chang
  for(const key of ['w','d','g'])assert.equal(f.editor.key({key,ctrlKey:true}),false);
  assert.equal(JSON.stringify(f.state.wallEdits),before);
 });
+
+// A door sticker with an angled top whose left half is arched, built in plane
+// mode with the editor's own tools (point, nudge, A).
+function planeArchedDoorFixture(){
+ const F=require('../public/measure/internal/editor_scripts/wall_features.js'),f=stickerFixture('door',[1,1.04]),b=F.bounds(f.d().faces.find(face=>face.feature).points),mid=(b.left+b.right)/2;
+ f.editor.doubleClick(f.e(mid,b.top),f.w);f.editor.togglePlane({points:[{x:0,y:0,z:0},{x:4,y:0,z:0},{x:4,y:0,z:4},{x:0,y:0,z:4}]});planeSelection(f,[{x:mid,y:0,z:b.top}]);for(let i=0;i<12;i++)f.editor.key({key:'ArrowDown'});
+ const apex={x:mid,y:0,z:b.top+12*.0254},lt={x:b.left,y:0,z:b.top},rt={x:b.right,y:0,z:b.top},s=f.editor.selectionSnapshot();s.workingPlane.selection=[lt,apex];s.workingPlane.selectedLines=[[lt,apex]];f.editor.restoreSelection(s);
+ f.listeners.pointermove(f.e((b.left+mid)/2,b.top+.15));f.editor.key({key:'a'});f.listeners.pointermove(f.e((b.left+mid)/2-.05,b.top+.5));f.editor.planeDown(f.e((b.left+mid)/2-.05,b.top+.5));f.editor.key({key:'Enter'});assert.match(f.message(),/Arch placed/);
+ const markers=()=>{const objects=[];f.editor.draw3D({add:o=>objects.push(o)},p=>p);return objects.find(o=>o.userData.planeGuide&&o.material.color==='#8fefff'&&o.material.size===7)?.geometry.points||[];},meshes=()=>{const objects=[];f.editor.draw3D({add:o=>objects.push(o)},p=>p);return objects.filter(o=>o.userData.solidId||o.userData.draftKey);};
+ const ctl=markers().find(p=>p.x>b.left+.01&&p.x<mid-.1&&p.z>b.top+.05&&p.z<b.top+1);assert.ok(ctl,'the arch exposes its control point');
+ const deleteLine=()=>{const s=f.editor.selectionSnapshot();s.workingPlane.selection=[apex,rt];s.workingPlane.selectedLines=[[apex,rt]];f.editor.restoreSelection(s);f.editor.key({key:'Delete'});};
+ const live=()=>(f.state.wallEdits.$surfaces||[]).filter(s=>!s.deleted&&!s.drafted),area=s=>Math.abs(require('../public/measure/internal/editor_scripts/exterior_geometry.js').area({points:s.points.map(p=>({x:p.x,y:p.z}))}));
+ return {f,b,mid,apex,lt,rt,ctl,markers,meshes,deleteLine,live,area};
+}
+const near=(p,q)=>Math.hypot(p.x-q.x,(p.y||0)-(q.y||0),p.z-q.z)<1e-6;
+test('arching a plane-mode door edge keeps the consumed draft regions consumed',()=>{
+ const {f,live,meshes}=planeArchedDoorFixture();assert.ok(f.d().faces.every(face=>face.solidId),'no straight-topped draft region is resurrected under the surfaces');
+ assert.equal(live().length,2);assert.ok(live().every(s=>s.curves?.length===1));assert.equal(meshes().length,2);
+});
+test('deleting a door sticker edge in plane mode leaves its wire, not a face, and keeps the wall',()=>{
+ const {f,lt,rt,apex,ctl,markers,meshes,deleteLine,live,area}=planeArchedDoorFixture(),count=f.history.length;deleteLine();assert.equal(f.history.length,count+1,f.message());
+ assert.ok(!live().some(s=>s.feature),'an opened sticker stops being a face');assert.equal(live().length,1);assert.ok(Math.abs(area(live()[0])-16)<1e-6,'the wall closes along the remaining door lines');
+ assert.equal(meshes().length,1);const points=markers();for(const p of [lt,rt,apex,ctl])assert.ok(points.some(q=>near(p,q)),'door geometry stays on the plane');
+});
+for(const order of ['before','after'])test(`pasting a flipped arch copied ${order} the edge delete closes the door as a typeable face`,()=>{
+ const {f,lt,apex,rt,ctl,markers,meshes,deleteLine,live,area}=planeArchedDoorFixture(),copyArch=()=>{planeSelection(f,[lt,ctl,apex]);f.editor.key({key:'c',ctrlKey:true});assert.equal(f.clipboard().curves?.length,1,f.message());};
+ if(order==='after')deleteLine();copyArch();if(order==='before')deleteLine();
+ const segments=()=>{const objects=[];f.editor.draw3D({add:o=>objects.push(o)},p=>p);return objects.filter(o=>o.material.color==='#8ce9ff'&&o.material.size===undefined&&o.geometry.points?.length===2).map(o=>o.geometry.points);};
+ f.listeners.pointermove(f.e(2,3));f.editor.key({key:'v',ctrlKey:true});f.editor.key({key:'t'});f.editor.key({key:'t'});assert.match(f.message(),/Flip x/);f.editor.key({key:'m'});f.listeners.pointermove(f.e(2,3));
+ const end=segments().at(-1)[1],x=2+apex.x-end.x,z=3+apex.z-end.z;f.listeners.pointermove(f.e(x,z));assert.ok(near(segments()[0][0],rt)&&near(segments().at(-1)[1],apex),'the flipped arch runs from the right jamb to the apex');
+ f.editor.planeDown(f.e(x,z));assert.match(f.message(),/pasted/);
+ const faces=live().sort((a,b)=>area(a)-area(b));assert.equal(faces.length,2);assert.ok(Math.abs(area(faces[0])+area(faces[1])-16)<1e-6);assert.ok(area(faces[0])>2&&area(faces[0])<2.3,'the door region fills both arches');
+ for(const face of faces){assert.equal(face.curves.length,2);assert.equal(new Set(face.curves.map(c=>c.id)).size,2);}assert.equal(meshes().length,2);
+ planeSelection(f,[]);assert.equal(markers().length,11,'corners, door corners, apex and one control per arch');
+ f.editor.togglePlane();f.editor.restoreSelection({selectedSolid:faces[0].id,faceSelection:[{solid:faces[0].id}]});f.editor.key({key:'D',shiftKey:true});assert.equal(live().find(s=>s.id===faces[0].id).feature?.type,'door',f.message());
+});
+test('deleting an arch end, control and apex removes the whole arch without promoting its samples',()=>{
+ const {f,b,lt,apex,ctl,markers,live}=planeArchedDoorFixture();planeSelection(f,[lt,ctl,apex]);f.editor.key({key:'Delete'});
+ assert.ok(!live().some(s=>s.feature),f.message());const points=markers();assert.ok(!points.some(p=>p.z>b.top+1e-6&&p.z<4-1e-6),'no point remains where the arch was: '+JSON.stringify(points));
+ const objects=[];f.editor.draw3D({add:o=>objects.push(o)},p=>p);assert.ok(!objects.some(o=>o.geometry?.points?.length===2&&!o.material.size&&o.geometry.points.every(p=>p.x>lt.x-1e-6&&p.x<apex.x+1e-6&&p.z>b.top+.01&&p.z<b.top+.5)),'no arc fragments');
+});

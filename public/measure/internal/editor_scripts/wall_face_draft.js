@@ -266,35 +266,42 @@ window.createWallFaceDraft=function(host){
    }
    pairs=pairs.filter(([a,b])=>distance3(a,b)>K.CONTACT);if(!pairs.length)return;
    for(const pair of curve?[]:pairs){if(!loose.edges.some(e=>W.edgeKey(...e)===W.edgeKey(...pair)))loose.edges.push(pair);edits.$removedSurfaceEdges=(edits.$removedSurfaceEdges||[]).filter(id=>id!==W.edgeKey(...pair));}
-   plane.scene=null;const scene=planeScene(),nodes=[],lookup=new Map(),node=p=>{const local={...K.local(frame,p),z:0},key=K.pointKey(local);if(!lookup.has(key)){lookup.set(key,'plane-node-'+nodes.length);nodes.push({...local,id:lookup.get(key)});}return lookup.get(key);};
-   const edges=scene.lines.map(([a,b],i)=>({id:'plane-edge-'+i,a:node(a),b:node(b)}));
-   const graph=K.partition({nodes,edges}),local=p=>({...K.local(frame,p),z:0}),world=p=>K.world(frame,p);
-   const owners=moveScene().filter(f=>!f.deleted&&!f.snapOnly&&!f.curvedSurface&&[f.points,...(f.holes||[])].flat().every(onWorkingPlane)),shape=f=>({points:f.points.map(local),holes:(f.holes||[]).map(r=>r.map(local))}),covered=owners.map(shape);
-   const base=edits.$base||host.state().base;for(const f of base?.faces||[])if(!f.deleted&&f.points.every(onWorkingPlane)){covered.push(shape(f));owners.push({...f,planeBaseId:f.id});}
-   const target=host.state().wallEdits;target.$surfaces||=[];let next=0;
-   const curves=Object.values(target.$drafts||{}).filter(d=>d.frame).flatMap(d=>(d.sketch?.curves||[]).map(c=>K.mapCurve(c,p=>K.world(d.frame,p)))).filter(c=>K.curveSamples(c).every(onWorkingPlane));
-   const attachCurves=face=>{const matches=curves.filter(c=>{const ps=K.curveSamples(c).map(local);return ps.slice(1).some((p,i)=>W.sharedIntervals(ps[i],p,[shape(face)]).length);});if(matches.length)face.curves=[...(face.curves||[]),...matches];return face;};
-
-   const regions=graph.regions.filter(points=>pairs.some(([a,b])=>W.sharedIntervals(local(a),local(b),[{points}]).length)).map(points=>({points,holes:[]}));
-   // Closing a loop within an existing face partitions that owner, instead of
-   // stacking a duplicate polygon on top or treating the loop as empty wire.
-   for(const owner of owners){let pieces=[shape(owner)];for(const region of regions)pieces=pieces.flatMap(piece=>[...K.intersection([piece],[region]),...K.difference(piece,[region])]);
-    if(pieces.length<=1)continue;
-    if(owner.planeBaseId){const previous=copy(target.$base||base),updated=copy(previous),index=updated.faces.findIndex(f=>f.id===owner.planeBaseId);if(index<0)continue;let serial=0;const replacements=pieces.flatMap(piece=>piece.holes.length?K.pieces([piece]).map(points=>({points,holes:[]})):[piece]).map((piece,i)=>{let id=owner.planeBaseId;if(i){do{id=owner.planeBaseId+'-plane-'+serial++;}while(updated.faces.some(f=>f.id===id));}const face={...updated.faces[index],id,points:piece.points.map(world),holes:piece.holes.map(r=>r.map(world))};attachCurves(face);K.validateFace(face);return face;});updated.faces.splice(index,1,...replacements);S.rebind(previous,updated);target.$base=updated;continue;}
-    const source=owner.draft?target.$drafts?.[owner.draftKey]?.faces.find(f=>f.id===owner.regionId):target.$surfaces.find(f=>f.id===owner.id);if(!source)continue;
-    const ids=[];for(const piece of pieces){while(target.$surfaces.some(f=>f.id==='plane-face-'+next))next++;const face={...owner,id:'plane-face-'+next++,draft:false,drafted:false,points:piece.points.map(world),holes:piece.holes.map(r=>r.map(world))};attachCurves(face);K.validateFace(face);target.$surfaces.push(face);ids.push(face.id);}
-    if(owner.draft)source.solidId=ids[0];else source.deleted=true;
-   }
-   for(const {points} of regions){
-    for(const region of K.difference({points,holes:[]},covered)){
-     if(K.area(region)<1e-8)continue;while(target.$surfaces.some(f=>f.id==='plane-face-'+next))next++;
-     const face={id:'plane-face-'+next++,points:region.points.map(world),holes:region.holes.map(r=>r.map(world)),...(plane.material?{material:plane.material}:{}),...(plane.finishColor?{finishColor:plane.finishColor}:{})};
-     attachCurves(face);K.validateFace(face);target.$surfaces.push(face);covered.push(region);
-    }
-   }
+   closePlaneRegions(pairs);
   });
   plane.scene=null;
   if(ok){if(point)plane.selection=[point];plane.drawing=false;plane.drawInput=null;plane.hover=null;clearGuides();}host.redraw();return ok;
+ }
+ // Closing a loop on the drawing plane makes it a face, splitting any face
+ // it lies in. Drawing and pasting share this; pairs are the new segments.
+ function closePlaneRegions(pairs){
+  const plane=workingPlane,K=window.ExteriorGeometry,frame=plane.frame,edits=host.state().wallEdits;
+  plane.scene=null;const scene=planeScene(),nodes=[],lookup=new Map(),node=p=>{const local={...K.local(frame,p),z:0},key=K.pointKey(local);if(!lookup.has(key)){lookup.set(key,'plane-node-'+nodes.length);nodes.push({...local,id:lookup.get(key)});}return lookup.get(key);};
+  const edges=scene.lines.map(([a,b],i)=>({id:'plane-edge-'+i,a:node(a),b:node(b)}));
+  const graph=K.partition({nodes,edges}),local=p=>({...K.local(frame,p),z:0}),world=p=>K.world(frame,p);
+  const owners=moveScene().filter(f=>!f.deleted&&!f.snapOnly&&!f.curvedSurface&&[f.points,...(f.holes||[])].flat().every(onWorkingPlane)),shape=f=>({points:f.points.map(local),holes:(f.holes||[]).map(r=>r.map(local))}),covered=owners.map(shape);
+  const base=edits.$base||host.state().base;for(const f of base?.faces||[])if(!f.deleted&&f.points.every(onWorkingPlane)){covered.push(shape(f));owners.push({...f,planeBaseId:f.id});}
+  const target=host.state().wallEdits;target.$surfaces||=[];let next=0;
+  // Surface curves include a deleted door's preserved arch wire.
+  const curves=[...new Map([...Object.entries(target.$drafts||{}).filter(([,d])=>d.frame).flatMap(([key,d])=>(d.sketch?.curves||[]).map(c=>({...K.mapCurve(c,p=>K.world(d.frame,p)),id:key+':'+c.id}))),...(target.$surfaces||[]).filter(f=>!f.drafted&&!f.replacedBy&&!f.curvedSurface).flatMap(f=>f.curves||[])].map(c=>[c.id??JSON.stringify(c),c])).values()].filter(c=>K.curveSamples(c).every(onWorkingPlane));
+  const attachCurves=face=>{const matches=curves.filter(c=>{const ps=K.curveSamples(c).map(local);return ps.slice(1).some((p,i)=>W.sharedIntervals(ps[i],p,[shape(face)]).length);});if(matches.length)face.curves=[...(face.curves||[]),...matches];return face;};
+
+  const regions=graph.regions.filter(points=>pairs.some(([a,b])=>W.sharedIntervals(local(a),local(b),[{points}]).length)).map(points=>({points,holes:[]}));
+  // Closing a loop within an existing face partitions that owner, instead of
+  // stacking a duplicate polygon on top or treating the loop as empty wire.
+  for(const owner of owners){let pieces=[shape(owner)];for(const region of regions)pieces=pieces.flatMap(piece=>[...K.intersection([piece],[region]),...K.difference(piece,[region])]);
+   if(pieces.length<=1)continue;
+   if(owner.planeBaseId){const previous=copy(target.$base||base),updated=copy(previous),index=updated.faces.findIndex(f=>f.id===owner.planeBaseId);if(index<0)continue;let serial=0;const replacements=pieces.flatMap(piece=>piece.holes.length?K.pieces([piece]).map(points=>({points,holes:[]})):[piece]).map((piece,i)=>{let id=owner.planeBaseId;if(i){do{id=owner.planeBaseId+'-plane-'+serial++;}while(updated.faces.some(f=>f.id===id));}const face={...updated.faces[index],id,points:piece.points.map(world),holes:piece.holes.map(r=>r.map(world))};attachCurves(face);K.validateFace(face);return face;});updated.faces.splice(index,1,...replacements);S.rebind(previous,updated);target.$base=updated;continue;}
+   const source=owner.draft?target.$drafts?.[owner.draftKey]?.faces.find(f=>f.id===owner.regionId):target.$surfaces.find(f=>f.id===owner.id);if(!source)continue;
+   const ids=[];for(const piece of pieces){while(target.$surfaces.some(f=>f.id==='plane-face-'+next))next++;const face={...owner,id:'plane-face-'+next++,draft:false,drafted:false,points:piece.points.map(world),holes:piece.holes.map(r=>r.map(world))};attachCurves(face);K.validateFace(face);target.$surfaces.push(face);ids.push(face.id);}
+   if(owner.draft)source.solidId=ids[0];else source.deleted=true;
+  }
+  for(const {points} of regions){
+   for(const region of K.difference({points,holes:[]},covered)){
+    if(K.area(region)<1e-8)continue;while(target.$surfaces.some(f=>f.id==='plane-face-'+next))next++;
+    const face={id:'plane-face-'+next++,points:region.points.map(world),holes:region.holes.map(r=>r.map(world)),...(plane.material?{material:plane.material}:{}),...(plane.finishColor?{finishColor:plane.finishColor}:{})};
+    attachCurves(face);K.validateFace(face);target.$surfaces.push(face);covered.push(region);
+   }
+  }
  }
  // Plane tools share the same quad and analytic arc kernels as face drafting.
  function planeQuad(p){const plane=workingPlane,K=window.ExteriorGeometry;return quadCorners(plane.selection.map(p=>K.local(plane.frame,p)),p,plane.action?.diagonal);}
@@ -971,6 +978,9 @@ function perf_previewPaste(e){if(tool?.kind!=='paste'||!e||viewOf(e)!=='3d')retu
    const covered=p=>faces.some(f=>[f.points,...f.holes].flat().some(q=>distance3(p,q)<1e-5)),edgeCovered=pair=>faces.some(f=>W.sharedIntervals(...pair,[f]).reduce((s,[a,b])=>s+b-a,0)>.99999);
    const loose=edits.$loose||={points:[],edges:[]};loose.points.push(...preview.points.filter(p=>!p.curveSample&&!covered(p)));loose.edges.push(...preview.edges.filter(pair=>!edgeCovered(pair)));
    if(preview.curves?.length){const frame=copy(workingPlane?.frame||W.faceFrame({points:t.ref.points})),drafts=edits.$drafts||={},d=drafts[prefix+'-curves']={constructionPlane:true,frame,members:[],faces:[],sketch:{version:2,next:0,nodes:[],edges:[],outlines:[]}};for(const curve of preview.curves){const c=window.ExteriorGeometry.mapCurve(curve,p=>window.ExteriorGeometry.local(frame,p));delete c.id;S.addCurve(d,c);}}
+   // Pasted wire that closes an outline on the drawing plane makes that region
+   // a face; pasted faces already are faces.
+   if(workingPlane){const K=window.ExteriorGeometry,pairs=[...preview.edges.filter(pair=>!edgeCovered(pair)),...(preview.curves||[]).flatMap(c=>{const ps=K.curveSamples(c);return ps.slice(1).map((p,i)=>[ps[i],p]);})].filter(([a,b])=>distance3(a,b)>K.CONTACT);if(pairs.length)closePlaneRegions(pairs);}
    if(!t.ref.d&&t.ref.solid&&faces.some(f=>f.points.every(p=>Math.abs(window.ExteriorGeometry.local(W.faceFrame({points:t.ref.points}),p).z)<1e-5)))t.ref=asDraft(t.ref);
    if(t.ref.d){const d=t.ref.d,planar=faces.filter(f=>f.points.every(p=>Math.abs(window.ExteriorGeometry.local(W.faceFrame({points:t.ref.points}),p).z)<1e-5));for(const f of planar){W.importDraft(d,[f.points,...f.holes].map(r=>r.map(p=>toLocal(d,p))),(f.curves||[]).map(c=>window.ExteriorGeometry.mapCurve(c,p=>toLocal(d,p))));classify(d);const region=matchingRegion(d,f.points.map(p=>toLocal(d,p)));if(region){region.material=f.material;region.feature=f.feature;edits.$surfaces=edits.$surfaces.filter(s=>s.id!==f.id);}}}
    window.ExteriorModel.validateEdits(edits,t.before);host.commit(t.before);tool=null;const placed=preview.points.filter(p=>!p.curveSample);if(workingPlane){workingPlane.selection=copy(placed);workingPlane.selectedLines=[];workingPlane.selectedFaces=[];refreshPlane();}draftSelection={};picked=[];lineSelection=[];solidPoints=placed.map(W.vertexKey);selectedBasePoints=[];selectedSolid=null;selectedRegion=null;clearGuides();host.message('Geometry pasted.');host.redraw();
@@ -1021,7 +1031,9 @@ function perf_previewPaste(e){if(tool?.kind!=='paste'||!e||viewOf(e)!=='3d')retu
    for(const f of result.faces.filter(f=>f.draft&&result.affected.includes(f.id))){const d=edits.$drafts[f.draftKey],old=d.faces.find(r=>r.id===f.regionId),local=p=>toLocal(d,p);if(!old)continue;Object.assign(old,{points:f.points.map(p=>({...p,...local(p)})),holes:f.holes.map(r=>r.map(p=>({...p,...local(p)}))),curves:f.curves.map(c=>K.mapCurve(c,local)),retainedPoints:f.retainedPoints.map(local),...(f.feature?{feature:f.feature}:{})});changedDrafts.add(f.draftKey);}
    for(const key of changedDrafts)S.rebind(t.prepared.$drafts[key],edits.$drafts[key]);
    // Free sketch segments use the same persisted spline, with no duplicate chord.
-   for(const [key,d]of Object.entries(edits.$drafts||{})){if(changedDrafts.has(key))continue;const original=t.prepared.$drafts[key],edges=original.sketch.edges.filter(e=>{const a=original.sketch.nodes.find(n=>n.id===e.a),b=original.sketch.nodes.find(n=>n.id===e.b);return a&&b&&W.edgeKey(world(original,a),world(original,b))===W.edgeKey(...t.pair);});if(!edges.length)continue;d.sketch.edges=d.sketch.edges.filter(e=>!edges.some(q=>q.id===e.id));S.addCurve(d,K.mapCurve(c,p=>toLocal(d,p)));}
+   // A region boundary is not free: rewriting a consumed draft's edge would
+   // reclassify it and resurrect the straight-edged region under its surface.
+   for(const [key,d]of Object.entries(edits.$drafts||{})){if(changedDrafts.has(key))continue;const original=t.prepared.$drafts[key],onRegion=(a,b)=>original.faces.some(f=>[f.points,...(f.holes||[])].some(r=>r.some((p,i)=>{const q=r[(i+1)%r.length];return Math.hypot(p.x-a.x,p.y-a.y)+Math.hypot(q.x-b.x,q.y-b.y)<1e-6||Math.hypot(p.x-b.x,p.y-b.y)+Math.hypot(q.x-a.x,q.y-a.y)<1e-6;}))),edges=original.sketch.edges.filter(e=>{const a=original.sketch.nodes.find(n=>n.id===e.a),b=original.sketch.nodes.find(n=>n.id===e.b);return a&&b&&!onRegion(a,b)&&W.edgeKey(world(original,a),world(original,b))===W.edgeKey(...t.pair);});if(!edges.length)continue;d.sketch.edges=d.sketch.edges.filter(e=>!edges.some(q=>q.id===e.id));S.addCurve(d,K.mapCurve(c,p=>toLocal(d,p)));}
    const loose=edits.$loose?.edges||[];if(loose.some(pair=>W.edgeKey(...pair)===W.edgeKey(...t.pair))){edits.$loose.edges=loose.filter(pair=>W.edgeKey(...pair)!==W.edgeKey(...t.pair));const d={constructionPlane:true,frame:copy(t.plane.frame),members:[],faces:[],sketch:{version:2,next:0,nodes:[],edges:[],outlines:[]}};edits.$drafts||={};edits.$drafts[t.op]=d;S.addCurve(d,K.mapCurve(c,p=>K.local(t.plane.frame,p)));}
    window.ExteriorModel.validateEdits(edits,t.before);host.state().wallEdits=edits;host.commit(t.before);tool=null;lineSelection=[];pickedLines=[];solidEdges=[];picked=[];solidPoints=[];draftSelection={};if(workingPlane){workingPlane.selectedLines=[];workingPlane.selection=[];refreshPlane();}host.message('Arch placed.');host.redraw();
   }catch(error){host.state().wallEdits=copy(t.prepared);host.message(error.message+' Adjust the spline points or press Escape.');}return true;

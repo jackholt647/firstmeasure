@@ -670,3 +670,21 @@ this, a pasted arched door kept the source curve id and an unmoved curve, so its
 samples became explicit draft points and the region split into slivers.
 Regression tests: the "arched" and "curved wall pastes" tests in
 `wall-face-draft.test.cjs`.
+
+### Plane-mode stickers and arcs, 2026-10-19
+
+- Deleting an edge that opens a door/window leaves its lines (and arch) as wire
+  on the plane; it is no longer a face or sticker. A plain face invalidated by
+  the same delete is rebuilt from the remaining edges of the faces on its plane
+  (`removeFaceEdges`), so the wall closes across the opened door instead of
+  disappearing.
+- A plane-mode paste whose wire (pasted lines or curves, not pasted faces)
+  closes an outline makes that region a face, through the same
+  `closePlaneRegions` step that drawing uses. Construction-draft curves attached
+  to such faces are qualified by their draft key; surface curves, including a
+  deleted door's preserved arch, attach too, and that arch can be copied.
+- A arching a line no longer rewrites boundary edges of a consumed draft as
+  "free" sketch segments, which used to resurrect a straight-topped region under
+  the surfaces.
+- Deleting a curve's end or control removes the whole curve from the surface
+  wire, with the samples left on it; samples are never promoted to points.
