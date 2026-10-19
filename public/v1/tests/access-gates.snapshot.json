@@ -1,11 +1,11 @@
 {
   "summary": {
     "routes": {
-      "total": 1752,
+      "total": 1753,
       "by_kind": {
-        "any:login_only": 120,
-        "any:login_only+handler_checks": 284,
-        "any:permission": 675,
+        "any:login_only": 118,
+        "any:login_only+handler_checks": 285,
+        "any:permission": 677,
         "app(contact.media|portal.crew_receipts|portal.photos_feed|portal.receipts|portal.viewer|project.crew_materials|project.photos):login_only": 1,
         "app(contact.media|portal.photos_feed|portal.viewer|project.photos):login_only": 6,
         "app(contact.media|portal.photos_feed|portal.viewer|project.photos):login_only+handler_checks": 1,
@@ -671,7 +671,8 @@
     "GET /v1/platform/organizations/:orgId/contacts/duplicates": {"file":"contacts/api.ts","gates":[{"app":"any","permission":"view_contacts"}],"kind":"any:permission"},
     "GET /v1/platform/organizations/:orgId/contacts/options": {"file":"contacts/api.ts","gates":[{"app":"any","permission":"view_contacts"}],"kind":"any:permission"},
     "GET /v1/platform/organizations/:orgId/contacts/settings": {"file":"contacts/api.ts","gates":[{"app":"any","permission":"view_contacts"}],"kind":"any:permission"},
-    "GET /v1/platform/organizations/:orgId/credits": {"file":"platform/api.ts","gates":[{"app":"any"}],"kind":"any:login_only"},
+    "GET /v1/platform/organizations/:orgId/credits": {"file":"platform/api.ts","gates":[{"app":"any","permission":"order_reports|manage_billing"}],"kind":"any:permission"},
+    "GET /v1/platform/organizations/:orgId/credits/ledger": {"file":"platform/api.ts","gates":[{"app":"any","permission":"manage_billing"}],"kind":"any:permission"},
     "GET /v1/platform/organizations/:orgId/events/poll": {"file":"platform/api.ts","gates":[{"app":"any"}],"kind":"any:login_only"},
     "GET /v1/platform/organizations/:orgId/events/stream": {"file":"platform/api.ts","gates":[{"app":"any"}],"kind":"any:login_only"},
     "GET /v1/platform/organizations/:orgId/global": {"file":"platform/api.ts","gates":[{"app":"portal.company_settings","permission":"manage_billing"}],"kind":"app(portal.company_settings):permission"},
@@ -689,7 +690,7 @@
     "GET /v1/platform/organizations/:orgId/notifications": {"file":"platform/api.ts","gates":[{"app":"any"}],"checks":["hasPermission(dynamic)","hasPermission(manage_company_settings)","hasPermission(view_projects|manage_company_settings)","hasPermission(manage_own_notifications)","hasPermission(manage_notification_defaults)"],"kind":"any:login_only+handler_checks"},
     "GET /v1/platform/organizations/:orgId/notifications/:notificationId": {"file":"platform/api.ts","gates":[{"app":"any"}],"checks":["hasPermission(dynamic)","hasPermission(manage_company_settings)","hasPermission(view_projects|manage_company_settings)","hasPermission(manage_own_notifications)","hasPermission(manage_notification_defaults)"],"kind":"any:login_only+handler_checks"},
     "GET /v1/platform/organizations/:orgId/platform-rollout": {"file":"platform/api.ts","gates":[{"app":"any"}],"kind":"any:login_only"},
-    "GET /v1/platform/organizations/:orgId/portal-state": {"file":"platform/api.ts","gates":[{"app":"any"}],"kind":"any:login_only"},
+    "GET /v1/platform/organizations/:orgId/portal-state": {"file":"platform/api.ts","gates":[{"app":"any"}],"checks":["hasPermission(manage_billing)","hasPermission(order_reports|manage_billing)"],"kind":"any:login_only+handler_checks"},
     "GET /v1/platform/organizations/:orgId/presence/:scopeId": {"file":"platform/api.ts","gates":[{"app":"any"}],"kind":"any:login_only"},
     "GET /v1/platform/organizations/:orgId/projects/:projectId/customer-portal": {"file":"platform/api.ts","gates":[{"app":"any","permission":"view_reports"}],"kind":"any:permission"},
     "GET /v1/platform/organizations/:orgId/projects/:projectId/customer-portal/activity": {"file":"platform/api.ts","gates":[{"app":"any","permission":"view_reports"}],"kind":"any:permission"},
@@ -958,7 +959,7 @@
     "PATCH /v1/platform/organizations/:orgId/branch/:branchId/modules/:moduleId": {"file":"platform/api.ts","gates":[{"app":"any","permission":{"dynamic":"branchModuleWritePermission(getParam(request.params, \"moduleId\"))"},"csrf":true}],"kind":"any:permission"},
     "PATCH /v1/platform/organizations/:orgId/capabilities/presets/:presetId": {"file":"platform/api.ts","gates":[{"app":"any","csrf":true}],"kind":"any:login_only"},
     "PATCH /v1/platform/organizations/:orgId/contacts/:contactId": {"file":"contacts/api.ts","gates":[{"app":"any","permission":"manage_projects","csrf":true}],"checks":["hasPermission(dynamic)"],"kind":"any:permission"},
-    "PATCH /v1/platform/organizations/:orgId/global": {"file":"platform/api.ts","gates":[{"app":"portal.company_settings","permission":"manage_billing","csrf":true}],"kind":"app(portal.company_settings):permission"},
+    "PATCH /v1/platform/organizations/:orgId/global": {"file":"platform/api.ts","gates":[{"app":"portal.company_settings","permission":"manage_company_settings|manage_billing","csrf":true}],"checks":["hasPermission(manage_company_settings)","hasPermission(manage_billing)"],"kind":"app(portal.company_settings):permission"},
     "PATCH /v1/platform/organizations/:orgId/media/:mediaId": {"file":"platform/api.ts","gates":[{"app":"contact.media|portal.photos_feed|portal.viewer|project.photos","csrf":true}],"checks":["hasPermission(dynamic)","hasPermission(manage_company_settings)","hasPermission(view_projects|manage_company_settings)","hasPermission(manage_own_notifications)","hasPermission(manage_notification_defaults)"],"publication":true,"kind":"app(contact.media|portal.photos_feed|portal.viewer|project.photos):login_only+handler_checks"},
     "PATCH /v1/platform/organizations/:orgId/media/:mediaId/markup/:layerId": {"file":"platform/api.ts","gates":[{"app":"contact.media|portal.photos_feed|portal.viewer|project.photos","csrf":true}],"kind":"app(contact.media|portal.photos_feed|portal.viewer|project.photos):login_only"},
     "PATCH /v1/platform/organizations/:orgId/notification-configuration": {"file":"platform/notifications/configuration-api.ts","gates":[{"app":"any","capability":"apps.notifications","csrf":true}],"checks":["hasPermission(manage_own_notifications)","hasPermission(manage_notification_defaults)"],"kind":"any:login_only+handler_checks"},

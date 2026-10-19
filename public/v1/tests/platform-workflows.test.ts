@@ -835,7 +835,7 @@ test("Acquisition campaign attribution follows landing traffic through signup an
     reason: "order_submitted",
     meta: { project_id: "project_campaign_order" }
   });
-  const credits = await client.request("GET", `/v1/platform/organizations/${orgId}/credits?limit=10`);
+  const credits = await client.request("GET", `/v1/platform/organizations/${orgId}/credits/ledger?limit=10`);
   assert.ok(credits.ledger.some((entry: any) => entry.reason === "order_submitted" && entry.delta === -19));
 
   const today = new Date().toISOString().slice(0, 10);

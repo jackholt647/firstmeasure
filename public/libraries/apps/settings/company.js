@@ -448,9 +448,9 @@
   }
   async function billingFetchHistory(limit = 200){
     const orgId = currentOrgId();
-    if (orgId && window.PlatformAPI?.credits?.get) {
+    if (orgId && window.PlatformAPI?.credits?.ledger) {
       try {
-        const result = await window.PlatformAPI.credits.get(orgId, { limit });
+        const result = await window.PlatformAPI.credits.ledger(orgId, { limit });
         return { ok:true, events: [], ledger: result.ledger || result.events || [] };
       } catch(e) {
         // Fall back to the PHP bridge while the Platform credits API is being reshaped.

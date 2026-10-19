@@ -358,13 +358,21 @@
   };
 
   const credits = {
-    get(orgId, options = {}){
+    // The balance (ordering reports or managing billing).
+    get(orgId){
+      return request(orgPath(orgId, '/credits')).catch((error) => {
+        if (isMissingRecord(error)) return { ok: true, balance: 0, credits_balance: 0, missing: true };
+        throw error;
+      });
+    },
+    // The entries behind the balance (managing billing).
+    ledger(orgId, options = {}){
       const params = new URLSearchParams();
       const limit = Number(options.limit);
       if (Number.isFinite(limit) && limit > 0) params.set('limit', String(Math.floor(limit)));
       const qs = params.toString();
-      return request(orgPath(orgId, `/credits${qs ? `?${qs}` : ''}`)).catch((error) => {
-        if (isMissingRecord(error)) return { ok: true, balance: 0, credits_balance: 0, ledger: [], missing: true };
+      return request(orgPath(orgId, `/credits/ledger${qs ? `?${qs}` : ''}`)).catch((error) => {
+        if (isMissingRecord(error)) return { ok: true, balance: 0, ledger: [], ledger_count: 0, missing: true };
         throw error;
       });
     },
