@@ -13,7 +13,8 @@ test('one logical surface survives material edits, copying, and affine transform
 });
 test('arc definition stores endpoints and an unconnected center, not tessellation nodes',()=>{
  const base={faces:[{id:'base',points:[p(-4,-4),p(4,-4),p(4,4),p(-4,4)]}]};S.addCurve(base,curve);assert.equal(base.sketch.nodes.length,7);assert.equal(base.sketch.edges.filter(e=>e.curveId).length,1);assert.ok(S.curveEdges(base.sketch).length>10);const edge=base.sketch.edges.find(e=>e.curveId);S.connect(base,[edge.a,edge.b]);assert.ok(base.faces.some(f=>f.curves?.length));
- const loaded=JSON.parse(JSON.stringify(base));S.upgrade(loaded);assert.equal(loaded.sketch.edges.filter(e=>e.curveId).length,1);assert.equal(loaded.sketch.nodes.length,7);S.remove(loaded,[],[loaded.sketch.edges.find(e=>e.curveId).id]);assert.equal(loaded.sketch.edges.filter(e=>e.curveId).length,0);
+ // The closed half disc is a hole in the square, so its chord is extended to the square's sides.
+ const loaded=JSON.parse(JSON.stringify(base));S.upgrade(loaded);assert.equal(loaded.sketch.edges.filter(e=>e.curveId).length,1);assert.equal(loaded.sketch.nodes.length,9);assert.ok(loaded.sketch.nodes.every(n=>!n.curveSample));assert.equal(loaded.sketch.nodes.filter(n=>Math.abs(Math.abs(n.x)-4)<1e-9&&Math.abs(n.y)<1e-9).length,2);S.remove(loaded,[],[loaded.sketch.edges.find(e=>e.curveId).id]);assert.equal(loaded.sketch.edges.filter(e=>e.curveId).length,0);
 });
 test('legacy fillet facets migrate into a single surface without filling trimmed domains',()=>{
  const c={type:'conic-ruled',start:{type:'conic',start:p(1,0),control:p(0,0),end:p(0,1),weight:Math.SQRT1_2},finish:{type:'conic',start:p(1,0,3),control:p(0,0,3),end:p(0,1,3),weight:Math.SQRT1_2}},parts=[];
@@ -76,7 +77,11 @@ test('real house fillet crosses its finite eave without upright curtains or rest
 
 
 test('saved failing outward extrusion removes all three eave curtains',()=>{
- const input=require('./fixtures/saved-curved-wall-eave.json'),before=JSON.stringify(input),r=M.createExtrusion(input).preview(input.amount);assert.equal(r.sides.length,2);assert.ok(r.sides.every(f=>f.curvedSurface?.logical));assert.ok(r.cap.points.length<=6);assert.ok(K.surfaceMesh(r.cap).positions.every(K.finite3));const top=K.surfaceMesh(r.cap).positions.filter(p=>p.z>160);assert.ok(top.length>10);assert.ok(Math.max(...top.map(p=>p.z))<Math.max(...input.face.points.map(p=>p.z))-.01);assert.equal(JSON.stringify(input),before);M.validateResult(r);
+ // The curtains were planar uprights along the eave, poking through the roof.
+ // An unhosted face sweeps its whole boundary (03caa748), and this captured
+ // input has no base, so the top arc and ground edge also return; only the two
+ // curved ends are upright.
+ const input=require('./fixtures/saved-curved-wall-eave.json'),before=JSON.stringify(input),r=M.createExtrusion(input).preview(input.amount);assert.equal(r.sides.filter(f=>Math.abs(K.normal(f.points).z)<.1).length,2);assert.ok(r.sides.every(f=>f.curvedSurface?.logical));assert.ok(r.cap.points.length<=6);assert.ok(K.surfaceMesh(r.cap).positions.every(K.finite3));const top=K.surfaceMesh(r.cap).positions.filter(p=>p.z>160);assert.ok(top.length>10);assert.ok(Math.max(...top.map(p=>p.z))<Math.max(...input.face.points.map(p=>p.z))-.01);assert.equal(JSON.stringify(input),before);M.validateResult(r);
 });
 
 test('quadric render mesh covers full corners and still respects trimmed parameter domains',()=>{
@@ -90,6 +95,7 @@ test('quadric render mesh covers full corners and still respects trimmed paramet
 test('closed circle reuses its starting node and stores its center without spokes',()=>{
  const base={faces:[{id:'b',points:[p(0,0),p(10,0),p(10,10),p(0,10)]}]},curve={type:'ellipse',center:p(5,5),u:p(1,0),v:p(0,1),radiusX:2,radiusY:2,sweep:2*Math.PI};
  S.addCurve(base,curve);const edge=base.sketch.edges.find(e=>e.curveId),center=base.sketch.nodes.find(n=>n.id===base.sketch.curves[0].centerId);
- assert.equal(edge.a,edge.b);assert.ok(center.curveCenter);assert.ok(base.sketch.edges.every(e=>e.a!==center.id&&e.b!==center.id));assert.equal(base.faces.length,2);
+ // The disc is a hole in the square: the square is divided into simple pieces around it.
+ assert.equal(edge.a,edge.b);assert.ok(center.curveCenter);assert.ok(base.sketch.edges.every(e=>e.a!==center.id&&e.b!==center.id));assert.equal(base.faces.length,3);assert.ok(Math.abs(base.faces.reduce((s,f)=>s+K.area({points:f.points}),0)-100)<1e-6);
  const loaded=JSON.parse(JSON.stringify(base));S.upgrade(loaded);assert.equal(loaded.sketch.curves[0].centerId,center.id);assert.ok(loaded.sketch.nodes.some(n=>n.id===center.id));
 });

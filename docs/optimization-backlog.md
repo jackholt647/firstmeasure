@@ -133,3 +133,34 @@ runs every preset view both ways and compares rows.
 **Why it can wait.** Organizations on the platform have hundreds to a few thousand projects; a query takes tens of
 milliseconds there. Worth doing when a view takes over half a second, starting with the rail counts.
 (docs/architecture/crm.md, "Views")
+
+## Sticker hover copies the wall edits
+
+**Today.** Hovering with a sticker (window, door, feature) tool must not change the saved model, but finding the host
+face and its snap scene materializes a draft for every wall. Each preview frame therefore deep-copies the project's
+wall edits, previews against the copy and drops it (`perf_previewFeature` in
+`public/measure/internal/editor_scripts/wall_face_draft.js`).
+
+**Where the change goes.** Give `placementHost` and `stickerPlacement` a read-only scene: the derived wall drafts
+built once per tool session and reused until the wall edits change, with the same faces and snap targets the
+materializing scene produces. Add a test that compares placements made both ways.
+
+**Why it can wait.** Previews already run at most once per animation frame, and building the scene costs more than
+the copy. Worth doing if sticker hover is slow on a large saved house.
+(dev/EXTERIOR_ENGINE.md, "Saved-model safety, 2026-10-18")
+
+## Base previews rebuild the whole sketch graph per pointer move
+
+**Today.** Every face drag, height and pitch preview in the base editor calls `BaseSketchGeometry.rebind` on the whole
+base for each pointer move (`base_editor.js` `move` and `preview`). `rebind` now narrows its searches spatially and
+reuses the plan outline when only heights change, but a plan drag still recomputes the outline union of every face,
+and the kernel's curve matching (`annotateCurveGraph`) still scans a curve's samples for each edge near it. A base
+with four arcs (about 1,000 face points) previews in roughly 50-70 ms.
+
+**Where the change goes.** Rebind only the faces the preview changes plus their neighbours, keeping the rest of the
+graph, and give `curveEdgeRange` a spatial index of each curve's samples in `exterior_geometry.js`. Compare the
+partial result with a full `rebind` in a test, as `dev/base-editing-regressions.test.cjs` does for the curve test.
+
+**Why it can wait.** Bases without curves preview in a few milliseconds, and the curved case is several times faster
+than before the 2026-10-18 changes. Worth doing if a heavily curved foundation stutters while dragging.
+(dev/EXTERIOR_ENGINE.md, "Base editing, 2026-10-18")

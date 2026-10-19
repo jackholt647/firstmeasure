@@ -437,7 +437,8 @@ instead of separating those source categories and reintroducing their shared
 seam. Mixed groups use the ordinary wall presentation regardless of source order.
 Selecting either source creates the same complete editable plane, with the joined
 chimney recorded so face/wire clipping cannot remove its included portion.
-Existing mixed drafts receive that identity repair on display. No merge command
+Existing mixed drafts receive that identity repair when the project loads and
+before editing commands; drawing does not apply it. No merge command
 or geometry undo item is produced by selection. Validation: 655 tests pass,
 including the actual initial renderer's single mesh and outer-only uprights,
 selection from either side, identical selected/deselected face extent, and reload.
@@ -491,3 +492,164 @@ failure through the engine and editor, preservation of remote corners and
 unrelated drafts, deterministic preview, cancel/undo and reload. Adapter contract
 tests also cover appearance, analytic curves, and inherited ownership. Full
 suite: 662 tests passed.
+
+### Saved-model safety, 2026-10-18
+
+Fixes for the data-loss and wrong-measurement items of the 2026-10-16 full-house
+audit (items 1-4, 19 and 26-28).
+
+- A changed roof rebuilds walls on wall-mode entry or a stage click only when
+  nothing would be lost. `generatedEditsKey` fingerprints the wall edits From
+  Roof produced; when the current edits differ, the editor asks first and names
+  what the rebuild discards (Undo restores it). Cancel, or no dialog, keeps the
+  walls and records `keptRoofSignature`, so the same roof is not asked about
+  again. Rebuild from roof still rebuilds.
+- A clicked 3D toolbar control or list keeps focus, but wall mode handles the
+  key and roof shortcuts never receive it; Enter cannot click the control again.
+  Only a control reached with Tab keeps Enter and Space, and a focused list its
+  plain keys. Those are stopped at document bubble, before the roof's window
+  handlers.
+- Typed distances and arrow nudges replay the last pointer position with its
+  buttons released. A re-anchor left pending by an orbit waits for the next real
+  move, and a typed plane move keeps the last aimed direction.
+- Rebuilding `$surfaces` from an operation result keeps deleted surface records,
+  so their outline and Shift+F restore survive line moves, nudges, transforms and
+  steps.
+- Drawing and picking write nothing. Legacy draft repairs (merged identity,
+  `generatedRoofContact`, source anchors, curved-surface compaction) run once at
+  load (`repairStoredDrafts`, called by `WallMode.restore`) and through
+  `ensure()` before editing commands. An empty saved draft draws as its generated
+  walls until an edit builds it. A plain click only holds an existing drawing
+  face; converting a surface or mounting a shared point belongs to the edit that
+  follows (N mounts it in its own undo step). Sticker hover previews on a scratch
+  copy, and placement materializes its host drafts inside its own undo step
+  (see docs/optimization-backlog.md, "Sticker hover copies the wall edits").
+
+Validation: regression tests in `wall-mode.test.cjs` and
+`wall-face-draft.test.cjs` fail on the earlier code and pass now; the audit
+repros show the corrected behavior; the audit's headless render harness reports
+no render-time state change on the saved houses, with screenshots identical to
+the earlier renderer.
+
+### Planar kernel and extrusion, 2026-10-18
+
+Fixes for the geometry-kernel items of the 2026-10-16 full-house audit (9, 10
+and 29-36), in `exterior_geometry.js`, `exterior_model.js` and
+`wall_solid_geometry.js`. There is still one clipper and no render-time repair.
+
+- Booleans split a ring pinched at a repeated vertex, or at a vertex lying on
+  its own edge, into simple loops. Orientation decides what a loop is: a hole
+  touching its outline stays a hole of the region that contains it, rather
+  than becoming a filled face plus a reversed one. A ring that collapses to
+  zero area on the 1e-6 m grid bounds no material and is left out of the
+  boolean; its retraced edges made Clipper's `Execute` fail.
+- `triangles` resolves contacts before earcut: vertices of different rings
+  within the grid are welded, and a vertex lying on another edge (a hole on its
+  outline, two holes, a ring touching itself) is inserted into that edge. The
+  result still indexes only input points and is checked against the resolved
+  rings, which differ from the input by at most the grid at a contact.
+- Splitting a face names each new region with the first `<id>~region-k` its
+  collection does not use, and gives each region only the anchors on or inside
+  it. `ExteriorModel.repairFaceIdentities` renames later duplicates in saved
+  edits and history snapshots; the loader's ownership pass
+  (`restoreDraftFaceOwnership`) runs it.
+- A sweep within two degrees of horizontal (`WallSolidGeometry.horizontalSweep`)
+  is roof-clipped and ground-fitted, so a measured wall's lean no longer skips
+  the roof. Roof cutters sweep the source along its actual direction. A leaning
+  cap's ground contact slides within the cap plane, keeping the cap planar.
+  Vertical and zero-area roof faces bound nothing and are skipped.
+- A zero-length edge (a repeated vertex) sweeps no return.
+- An unhosted face still sweeps its whole boundary, except edges and curved
+  boundaries resting on a base face (2 mm), which the base update owns; a face
+  lying entirely on the ground sweeps every edge. Without a base every edge
+  returns.
+- Neighboring roof cutters trim each other's pieces with the contact tolerance,
+  so the wall on a grid-rounded shared boundary (an eave between a roof triangle
+  and the region beyond it) no longer survives as an upright curtain.
+- The roof-seam remnant rule (at most 3 mm wide, under 1% of a source over
+  30 mm wide) also removes the sweep's own clipped cap, side and roof-patch
+  fragments, but only short ones (at most 10 cm); a long thin strip from a
+  distance just past a boundary is kept. A roof patch counts only when it is
+  also narrower than a tenth of the distance. Roof returns narrower than the
+  contact tolerance are cutter seams and are dropped.
+- A face needs three corners more than the contact tolerance apart (the
+  incidence graph's vertex identity) and more than grid width.
+  `createExtrusion` refuses a source that fails this ("The face has no area.")
+  and `validateResult` rejects any result face that does.
+
+Validation: `dev/exterior-kernel-audit.test.cjs` (fails on the earlier engine
+files, passes now); the audit's kernel repros; the dense sweep (60 distances,
+every face) over seven saved houses reports no failures, slivers, duplicate
+vertices or validation errors (the earlier engine had 39-211 sliver previews
+per house and failed at -1.6 m); both documented replays pass. Every
+layered-turrets roof preview now completes (12 crashed before); one generated
+wall there, 1.5 um wide, is refused as having no area. CPU time per
+roof-clipped preview is unchanged. The `saved-curved-wall-eave` test now counts
+upright returns: since `03caa748` an
+unhosted face also returns along its top arc and, without a base, its ground
+edge. The bridged-window cut test in `wall-face-draft.test.cjs` now checks
+that both openings stay holes; its old `~region-` check matched the reversed
+patches of item 10.
+
+### Base editing, 2026-10-18
+
+Fixes for the base and foundation items of the 2026-10-16 full-house audit (8,
+11-14, 37, 64-66, 68-70 and 124), in `base_sketch_geometry.js`,
+`base_sketch_editor.js`, `base_editor.js`, `base_geometry.js` and
+`wall_base_binding.js`. Wall drafts (local `origin`/`frame` sketches) are
+unchanged.
+
+- A point dragged in plan stays on the faces it belongs to: it is lifted onto
+  its one supporting plane, slides along the fold between two, and cannot leave
+  the corner of three. A free anchor takes the plane under its new position.
+- A vertical point edit (M, Shift-drag, H level) is a face edit
+  (`BaseSketchGeometry.setHeights`). A face that stays planar with the new
+  heights follows; any other face keeps its own vertex at the old height, as at
+  a step, and the graph is rebound. A face vertex that no face can follow is
+  refused with a message, never dropped. Free anchors and construction lines
+  move as drawn. An invalid M preview is not committed.
+- Removing the fold between faces on different planes is refused: those faces
+  cannot merge, and before this both disappeared.
+- Each base level is partitioned separately. A region tiled by faces of other
+  levels and not by faces of its own level is the outline a raised section left
+  behind, not a face. A region enclosed only by fixed (wall-defined) edges that
+  no face covered is open ground (a courtyard or a deleted face), not new base.
+- A loop enclosed in a region is a hole. The surround is serialized as simple
+  pieces divided by `holeCut` edges: preferably one straight hole edge extended
+  both ways to the region boundary, otherwise two rays from different hole
+  points (corners before exact curve points). A cut never crosses another line.
+  Cuts are derived: deleting one directly is refused, a cut whose hole is gone
+  is removed, and rebinding keeps the marker.
+- Reground (`BaseGeometry.reground`) and the DSM ground pick refit every face
+  onto the grade under it instead of rebuilding one merged footprint. Faces
+  keep their IDs, finishes, stickers and sketch (anchors, lines and curves are
+  lifted with their face); a face over several grade planes is divided along
+  them (`<id>~grade-k`). A reference grade is one unbounded plane, so the base
+  may extend past the drawn grade tile. Base cuts follow their faces
+  (`followCuts`). Step patterns are rebuilt from their refitted source slope
+  with the same count, reference and width; when the grade cannot carry a
+  pattern (a flat grade) the editor asks first and then removes only that
+  pattern. Chimney foundations are still regenerated afterwards.
+- From Roof leaves open courtyards open: a wall loop nested in another, or an
+  open hole of the roof footprint at least 1 m^2 and 0.2 m wide (widened by the
+  setback). The surround is divided into simple pieces. Roof slivers under the
+  face minimum and zero-length eaves no longer stop generation.
+- A base edit that would lift an attached wall bottom to or above its top is
+  refused (`WallBaseBinding.check` for generated walls before commit, and the
+  edited-face follow).
+- Version 1 sketches upgrade without losing drawing: a node is supported by its
+  face as recorded or as it stands now, points and lines no face used are kept
+  as deliberate drawing, and a line crossing a step is lifted onto each face.
+- Curved bases: the editors build one curve-sample test per draw or pick pass
+  (`curveSampleTest`) instead of sampling every curve for every point, and the
+  sketch editor reads the base once per read-only pass. `rebind` narrows its
+  nearest-node, T-junction and curve-matching searches spatially, and the plan
+  outline is reused when only heights change. These return the same results;
+  the comparison harness matched `rebind` output byte for byte.
+
+Validation: `dev/base-editing-regressions.test.cjs` (26 tests); the audit's
+base repros r1-r14 and `kernel/basehole.cjs` show the corrected behavior (r1
+and r8 now refuse with a message). Tests that encoded the overlapping inner
+loop (two in `curved-surfaces.test.cjs`, one in `wall-solid-geometry.test.cjs`,
+whose fixture is now a wall draft as in production) and the old Reground wipe
+(`base-editor.test.cjs`) were updated.

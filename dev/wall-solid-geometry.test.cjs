@@ -93,7 +93,8 @@ test('contained coplanar snapping requires full coverage and ignores initial cop
  const rotate=p=>({x:p.x,y:p.z,z:-p.y});assert.ok(G.containedBy({...placed,points:placed.points.map(rotate)},{...large,points:large.points.map(rotate)}));
 });
 test('importing contained boundaries deduplicates nodes, crossing intersections, and partial overlapping edges',()=>{
- const S=require('../public/measure/internal/editor_scripts/base_sketch_geometry.js'),d={faces:[{id:'target',points:[p(0,0,0),p(6,0,0),p(6,6,0),p(0,6,0)]}]};S.ensure(d);
+ // importDraft fills wall drafts, which are local (origin) and classify enclosed loops as openings when drawn.
+ const S=require('../public/measure/internal/editor_scripts/base_sketch_geometry.js'),d={origin:p(0,0,0),u:{x:1,y:0},faces:[{id:'target',points:[p(0,0,0),p(6,0,0),p(6,6,0),p(0,6,0)]}]};S.ensure(d);
  const ring=[p(1,1,0),p(3,1,0),p(3,3,0),p(1,3,0)];G.importDraft(d,[ring]);const count=[d.sketch.nodes.length,d.sketch.edges.length];G.importDraft(d,[ring]);assert.deepEqual([d.sketch.nodes.length,d.sketch.edges.length],count);assert.equal(d.faces.length,2);
  G.importDraft(d,[[p(2,1,0),p(4,1,0),p(4,2,0),p(2,2,0)]]);const keys=d.sketch.edges.map(e=>[e.a,e.b].sort().join('|'));assert.equal(new Set(keys).size,keys.length);assert.ok(d.sketch.nodes.some(n=>Math.abs(n.x-3)<1e-8&&Math.abs(n.y-2)<1e-8));
 });

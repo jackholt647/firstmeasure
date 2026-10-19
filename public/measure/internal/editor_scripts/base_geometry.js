@@ -18,7 +18,13 @@ function terrain(base){
  for(const f of base.faces){const n=points.length;points.push(...f.points);faces.push(...triangles(f.points).map(t=>t.map(i=>i+n)));}
  return {points,faces};
 }
-function boundary(polys){return K.union(polys.map(points=>({points}))).map(f=>f.points);}
+// The union reads plan coordinates only, so a height or pitch preview reuses it.
+const boundaryCache=new Map();
+function boundary(polys){
+ const key=polys.map(r=>r.map(p=>p.x+','+p.y).join(' ')).join('|');let rings=boundaryCache.get(key);
+ if(!rings){rings=K.union(polys.map(points=>({points}))).map(f=>f.points);boundaryCache.set(key,rings);if(boundaryCache.size>8)boundaryCache.delete(boundaryCache.keys().next().value);}
+ return rings.map(r=>r.map(p=>({...p})));
+}
 function wallLoops(walls,grade,occluders=[]){
  const ground=p=>{for(const ids of grade.faces){const f={points:ids.map(i=>grade.points[i])};if(G.contains(f,p)){const pl=G.plane(f.points);return pl.dx*p.x+pl.dy*p.y+pl.k;}}return null;};
  // Cluster endpoints for connectivity, but trace their actual positions so
@@ -70,7 +76,7 @@ function insetRoof(roof,setback,chimneys=[],sources=null){
  const input=[...roof.faces.flatMap(f=>{
   let parts=[{points:f.points}];
   for(const s of (sources||[]).filter(s=>s.overlapClearance?.parentId===f.id)){
-   const {a,b,n,setback:depth}=s.overlapClearance,len=dist(a,b),u={x:(b.x-a.x)/len,y:(b.y-a.y)/len};
+   const {a,b,n,setback:depth}=s.overlapClearance,len=dist(a,b),u={x:(b.x-a.x)/len,y:(b.y-a.y)/len};if(len<1e-9)continue;
    const at=(t,d)=>({x:a.x+u.x*t+n.x*d,y:a.y+u.y*t+n.y*d}),size=10000;
    parts=K.intersection(parts,[{points:[at(-size,depth),at(size,depth),at(size,size),at(-size,size)]}]);
   }
@@ -116,7 +122,7 @@ function insetRoof(roof,setback,chimneys=[],sources=null){
    for(const edge of roof.connections||[]){const a=roof.points[edge.startIdx],b=roof.points[edge.endIdx];
     const clearance=(sources||[]).filter(s=>s.overlapClearance?.parentId===group[0].id&&G.onEdge(s.originalA,a,b)&&G.onEdge(s.originalB,a,b));
     if(!['eave','rake'].includes(edge.type)&&!clearance.length)continue;
-    const depth=clearance.length?Math.max(...clearance.map(s=>s.setback)):limit,mid={x:(a.x+b.x)/2,y:(a.y+b.y)/2};if(G.chimneyContact(roof,a,b)||!group[0].points.some((p,i)=>G.onEdge(mid,p,group[0].points[(i+1)%group[0].points.length],1e-5)))continue;
+    const depth=clearance.length?Math.max(...clearance.map(s=>s.setback)):limit,mid={x:(a.x+b.x)/2,y:(a.y+b.y)/2};if(dist(a,b)<1e-9||G.chimneyContact(roof,a,b)||!group[0].points.some((p,i)=>G.onEdge(mid,p,group[0].points[(i+1)%group[0].points.length],1e-5)))continue;
     const len=dist(a,b),u={x:(b.x-a.x)/len,y:(b.y-a.y)/len},n={x:-u.y,y:u.x};if(!G.contains(group[0],{x:mid.x+n.x*.02,y:mid.y+n.y*.02})){n.x=-n.x;n.y=-n.y;}
     const at=(t,d)=>({x:a.x+u.x*t+n.x*d,y:a.y+u.y*t+n.y*d}),size=10000;parts=K.intersection(parts,[{points:[at(-size,depth),at(size,depth),at(size,size),at(-size,size)]}]);
    }
@@ -127,13 +133,29 @@ function insetRoof(roof,setback,chimneys=[],sources=null){
  }
  return K.union(regular).map(f=>f.points);
 }
+// Bases serialize holes as simple pieces: divide a region along the middle of
+// its first hole until no piece has one.
+function simplePieces(region){
+ if(!region.holes?.length)return [region.points];
+ const ys=region.holes[0].map(p=>p.y),y=(Math.min(...ys)+Math.max(...ys))/2,all=[...region.points,...region.holes.flat()],x0=Math.min(...all.map(p=>p.x))-1,x1=Math.max(...all.map(p=>p.x))+1,y0=Math.min(...all.map(p=>p.y))-1,y1=Math.max(...all.map(p=>p.y))+1;
+ return [{points:[{x:x0,y:y0},{x:x1,y:y0},{x:x1,y},{x:x0,y}]},{points:[{x:x0,y},{x:x1,y},{x:x1,y:y1},{x:x0,y:y1}]}].flatMap(half=>K.intersection([region],[half])).flatMap(simplePieces);
+}
+// Open courtyards are holes in the roof footprint wide enough to stand in,
+// widened by the wall setback. A survey gap between roof faces is not one.
+function courtyards(roof,setback){
+ const C=typeof module==='object'&&module.exports?require('./vendor/clipper-lib-6.4.2-clipper.js'):root.ClipperLib,scale=1/K.GRID;
+ const offset=(ring,delta)=>{const o=new C.ClipperOffset(4),out=[],path=ring.map(p=>({X:Math.round(p.x*scale),Y:Math.round(p.y*scale)}));if(!C.Clipper.Orientation(path))path.reverse();o.AddPaths([path],C.JoinType.jtMiter,C.EndType.etClosedPolygon);o.Execute(out,delta*scale);return out.map(path=>path.map(p=>({x:p.X/scale,y:p.Y/scale})));};
+ return K.union(roof.faces.map(f=>({points:f.points}))).flatMap(f=>f.holes||[]).filter(h=>Math.abs(area(h))>=1&&offset(h,-.1).length).flatMap(h=>setback?offset(h,setback):[h]);
+}
 function fromRoof(roof,grade,walls=[],setback=0,chimneys=null,sources=null){
  const C=typeof module==='object'&&module.exports?require('./wall_chimneys.js'):root.WallChimneys;
  const occluders=chimneys?.items||C?.detect(roof)?.items||[];
  const plane=G.plane(grade.points),traced=wallLoops(walls,grade,occluders);
  // A small closed dormer loop must not stand in for an open main perimeter.
  const complete=traced.length&&coversWalls(traced,groundWalls(walls,grade));
- let loops=complete?traced:insetRoof(roof,setback,occluders,sources);
+ let loops=complete?traced:insetRoof(roof,setback,occluders,sources),open=complete?[]:courtyards(roof,setback);
+ // A wall loop inside another wall loop encloses a courtyard, not more base.
+ if(complete){const depth=ring=>loops.filter(other=>other!==ring&&ring.every(p=>G.contains({points:other},p))).length;open=loops.filter(r=>depth(r)%2);loops=loops.filter(r=>!(depth(r)%2));}
  // A lower roof can contribute a short miter beyond an already resolved
  // upper wall corner. Retain the source junction rather than extruding that
  // sub-two-inch footprint spur into a separate full-height wall.
@@ -179,8 +201,12 @@ function fromRoof(roof,grade,walls=[],setback=0,chimneys=null,sources=null){
   });
   if(pockets.length)loops=K.union([...bodies,...pockets.map(points=>({points}))]).map(f=>f.points);
  }
+ // A detached roof sliver under the face minimum is not a foundation.
+ loops=loops.filter(ps=>Math.abs(area(ps))>=.001);
  if(!loops.length)throw Error('Cannot trace a closed house outline from the roof.');
- return {visible:true,centers:true,source:complete?'Wall perimeter':setback?'Inset roof footprint':'Roof footprint',faces:loops.map((ps,i)=>validate({id:'base-'+(i+1),points:ps.map(p=>({...p,z:plane.dx*p.x+plane.dy*p.y+plane.k}))}))};
+ // Courtyards stay open; the surrounding foundation is divided into simple pieces.
+ const pieces=loops.flatMap(ring=>{const inside=open.filter(h=>K.intersection([{points:ring}],[{points:h}]).reduce((n,r)=>n+K.area(r),0)>1e-6);return inside.length?K.difference({points:ring},inside.map(points=>({points}))).flatMap(simplePieces).filter(ps=>Math.abs(area(ps))>=.001):[ring];});
+ return {visible:true,centers:true,source:complete?'Wall perimeter':setback?'Inset roof footprint':'Roof footprint',faces:pieces.map((ps,i)=>validate({id:'base-'+(i+1),points:ps.map(p=>({...p,z:plane.dx*p.x+plane.dy*p.y+plane.k}))}))};
 }
 // A fallback foundation is the regularized union of the inset roof bodies.
 // Use that same boundary for ground-reaching walls, rather than clipping an
@@ -372,29 +398,58 @@ function repairInitial(base,roof,grade,walls){
  if(coversWalls(loops,groundWalls(walls,grade)))return base;
  return {...fromRoof(roof,grade,walls),visible:base.visible,centers:base.centers};
 }
-function fitGrade(base,grade){
- if(base.chimneyFoundationParts?.length){const C=typeof module!=='undefined'&&module.exports?require('./wall_chimneys.js'):root.WallChimneys;base={...base,faces:C.buildingBase({base})};}
+// Refit every base face onto the grade beneath it. Faces keep their IDs,
+// finishes, stickers and sketch drawing; a face over several grade planes is
+// divided along them. A reference grade is one unbounded plane, so the base may
+// extend past the drawn grade tile. Step patterns are rebuilt from their
+// refitted source slope; a pattern that cannot be rebuilt is reported in lost.
+function reground(base,grade){
+ const C=typeof module!=='undefined'&&module.exports?require('./wall_chimneys.js'):root.WallChimneys,S=typeof module!=='undefined'&&module.exports?require('./base_sketch_geometry.js'):root.BaseSketchGeometry,W=typeof module!=='undefined'&&module.exports?require('./wall_steps.js'):root.WallSteps;
  if(!grade?.faces?.length)throw Error('A grade surface is required to rebuild the foundation.');
  // Chimney extensions are regenerated from their source after the house grade is fitted.
- const footprint=boundary(base.faces.filter(f=>!f.chimneyFoundation).map(f=>f.points)),faces=[],groups=new Map();
- const clip=(poly,a,b)=>{const result=[],side=p=>cross(a,b,p);for(let i=0;i<poly.length;i++){const p=poly[i],q=poly[(i+1)%poly.length],dp=side(p),dq=side(q);if(dp>=-1e-9)result.push(p);if((dp>=-1e-9)!==(dq>=-1e-9)){const t=dp/(dp-dq);result.push({x:p.x+(q.x-p.x)*t,y:p.y+(q.y-p.y)*t});}}return result;};
- for(const ids of grade.faces){const points=ids.map(i=>grade.points[i]);let plane=G.plane(points);if(!plane)continue;
+ const source=copy(base.chimneyFoundationParts?.length?{...base,faces:C.buildingBase({base})}:base);source.faces=source.faces.filter(f=>!f.chimneyFoundation);delete source.chimneyFoundationParts;delete source.chimneyFoundationKey;
+ if(!source.faces.length)throw Error('The grade must cover the entire foundation before rebuilding it.');
+ const all=source.faces.flatMap(f=>f.points),groups=[];
+ if(!grade.plane)for(const ids of grade.faces){const points=ids.map(i=>grade.points[i]);let plane=G.plane(points);if(!plane)continue;
   // A horizontal triangle can fit to +epsilon or -epsilon. Compare heights,
   // not formatted coefficient strings (which distinguish positive/negative zero).
   if(points.every(p=>p.z===points[0].z))plane={dx:0,dy:0,k:points[0].z};
-  let group=[...groups.values()].find(g=>footprint.flat().every(p=>Math.abs((g.plane.dx-plane.dx)*p.x+(g.plane.dy-plane.dy)*p.y+g.plane.k-plane.k)<1e-6));
-  if(!group){group={plane,pieces:[]};groups.set(groups.size,group);}const {pieces}=group;
-  for(const indices of triangles(points)){let triangle=indices.map(i=>points[i]);if(area(triangle)<0)triangle.reverse();
-   for(const ring of footprint)for(const indices of triangles(ring)){let poly=indices.map(i=>ring[i]);for(let i=0;i<3&&poly.length;i++)poly=clip(poly,triangle[i],triangle[(i+1)%3]);if(poly.length>=3&&Math.abs(area(poly))>1e-7)pieces.push(poly);}
-  }
+  let group=groups.find(g=>all.every(p=>Math.abs((g.plane.dx-plane.dx)*p.x+(g.plane.dy-plane.dy)*p.y+g.plane.k-plane.k)<1e-6));
+  if(!group){group={plane,triangles:[]};groups.push(group);}
+  for(const indices of triangles(points)){const triangle=indices.map(i=>points[i]);group.triangles.push({points:area(triangle)<0?triangle.reverse():triangle});}
  }
- for(const {plane,pieces} of groups.values()){
-  for(const ring of boundary(pieces))faces.push(validate({id:'base-'+(faces.length+1),points:ring.map(p=>({...p,z:plane.dx*p.x+plane.dy*p.y+plane.k}))}));
+ const lift=pl=>p=>({...p,z:pl.dx*p.x+pl.dy*p.y+pl.k}),liftFace=(f,pl)=>({...f,points:f.points.map(lift(pl)),...(f.holes?{holes:f.holes.map(r=>r.map(lift(pl)))}:{}),...(f.curves?{curves:f.curves.map(c=>K.mapCurve(c,lift(pl)))}:{})});
+ // The grade planes under a footprint, each with the part of it that plane carries.
+ const under=f=>{if(grade.plane)return [{plane:grade.plane,regions:[{points:f.points,holes:f.holes||[]}]}];
+  const parts=groups.map(g=>({plane:g.plane,regions:K.intersection([{points:f.points,holes:f.holes||[]}],g.triangles)})).filter(p=>p.regions.reduce((n,r)=>n+K.area(r),0)>1e-7),expected=K.area({points:f.points,holes:f.holes||[]}),covered=parts.reduce((n,p)=>n+p.regions.reduce((m,r)=>m+K.area(r),0),0);
+  if(Math.abs(expected-covered)>Math.max(.001,expected*1e-5))throw Error('The grade must cover the entire foundation before rebuilding it.');return parts;};
+ const faces=[],supports=[];
+ for(const f of source.faces){const parts=under(f),old=G.plane(f.points);
+  if(parts.length===1){faces.push(validate(liftFace(copy(f),parts[0].plane),1e-8));supports.push({id:f.id,points:f.points,from:old,to:parts[0].plane});continue;}
+  const {curves,holes,...meta}=copy(f);let i=0;
+  for(const part of parts)for(const r of part.regions)for(const ring of simplePieces(r)){const id=i++?f.id+'~grade-'+(i-1):f.id,flat=ring.map(p=>({x:p.x,y:p.y}));faces.push(validate({...meta,id,points:flat.map(lift(part.plane))},1e-8));supports.push({id,points:flat.map(lift(old)),from:old,to:part.plane});}
  }
- const expected=footprint.reduce((s,r)=>s+Math.abs(area(r)),0),covered=faces.reduce((s,f)=>s+Math.abs(area(f.points)),0);
- if(!faces.length||Math.abs(expected-covered)>Math.max(.001,expected*1e-5))throw Error('The grade must cover the entire foundation before rebuilding it.');
- return {visible:true,centers:base.centers!==false,source:'Rebuilt to grade',faces};
+ const next={...source,visible:true,centers:source.centers!==false,source:'Rebuilt to grade',faces};delete next.sketch;
+ if(source.sketch){
+  // Lift the drawing onto the plane its own face moved to, then rebuild the
+  // graph against the new faces. Free exterior anchors keep their position.
+  const sketch=copy(source.sketch),carrier=p=>supports.find(s=>s.from&&Math.abs(p.z-s.from.dx*p.x-s.from.dy*p.y-s.from.k)<=K.CONTACT&&G.contains({points:s.points},p));
+  for(const n of sketch.nodes){const s=carrier(n);if(s)n.z=s.to.dx*n.x+s.to.dy*n.y+s.to.k;}
+  sketch.curves=(sketch.curves||[]).map(c=>{const ps=K.curveSamples(c),s=supports.find(s=>s.from&&ps.every(p=>Math.abs(p.z-s.from.dx*p.x-s.from.dy*p.y-s.from.k)<=.002&&G.contains({points:s.points},p)));return s?K.mapCurve(c,lift(s.to)):c;});
+  S.rebind({...copy(next),sketch},next);
+ }
+ const lost=[];
+ for(const [id,pattern]of Object.entries(next.stepPatterns||{})){const members=next.faces.filter(f=>f.baseStepId===id);if(!members.length){delete next.stepPatterns[id];continue;}
+  try{const parts=under(pattern.source);if(parts.length!==1)throw Error('The step pattern crosses more than one grade plane.');pattern.source=liftFace(pattern.source,parts[0].plane);
+   const result=W.basePattern(next,members[0].id,pattern.count,pattern.reference,pattern.sizeScale||1).base;next.faces=result.faces;next.sketch=result.sketch;next.stepPatterns=result.stepPatterns;}
+  catch(error){lost.push({id,message:error.message});delete next.stepPatterns[id];for(const f of members)delete f.baseStepId;}
+ }
+ if(next.stepPatterns&&!Object.keys(next.stepPatterns).length)delete next.stepPatterns;
+ return {base:next,lost};
 }
+function fitGrade(base,grade){return reground(base,grade).base;}
+// Base cuts name the faces they cut; follow a face that Reground divided.
+function followCuts(cuts,base){return (cuts||[]).map(c=>c.faceIds?{...c,faceIds:[...new Set(c.faceIds.flatMap(id=>base.faces.filter(f=>f.id===id||String(f.id).startsWith(id+'~grade-')||String(f.id).startsWith(id+':house-')).map(f=>f.id)))]}:c).filter(c=>!c.faceIds||c.faceIds.length);}
 function split(face,path){
  const ps=copy(face.points),pl=G.plane(ps);
  const locate=p=>{
@@ -525,6 +580,6 @@ function boundaryAxis(face,direction,tolerance=5*Math.PI/180){
   }
  }return best;
 }
-const api={repairStoredRoofContacts,usesRoofEnvelope,reconcileRoofWalls,boundaryAxis,cleanBoundarySpikes,extrudeWall,heightSnap,levelPivot,center,triangles,terrain,fromRoof,repairInitial,fitGrade,split,transform,validate,boundary,followWalls};
+const api={repairStoredRoofContacts,usesRoofEnvelope,reconcileRoofWalls,boundaryAxis,cleanBoundarySpikes,extrudeWall,heightSnap,levelPivot,center,triangles,terrain,fromRoof,repairInitial,fitGrade,reground,followCuts,simplePieces,split,transform,validate,boundary,followWalls};
 if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.BaseGeometry=api;
 })(typeof window!=='undefined'?window:globalThis);

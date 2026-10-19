@@ -221,8 +221,11 @@ function perf_finishEdit(){
         try{
             const base=state.wallEdits?.$base||state.base;
             if(fitBase&&base&&window.BaseGeometry){
-                const next=BaseGeometry.fitGrade(base,ground),edits=window.WallBaseBinding?WallBaseBinding.follow(state.wallEdits||{},base,next):copy(state.wallEdits||{});
-                if(edits.$base)edits.$base=next;delete edits.$baseCuts;state.wallEdits=edits;state.base=next;
+                const plan=BaseGeometry.reground(base,ground),next=plan.base;
+                if(plan.lost.length&&typeof window.confirm==='function'&&!window.confirm(`Fitting the base to this grade removes ${plan.lost.length===1?'one step pattern':plan.lost.length+' step patterns'}: ${plan.lost[0].message} Continue?`))throw Error('Ground height not changed; the base keeps its step patterns.');
+                window.WallBaseBinding?.check?.(currentWalls(),base,next);
+                const edits=window.WallBaseBinding?WallBaseBinding.follow(state.wallEdits||{},base,next):copy(state.wallEdits||{});
+                if(edits.$base)edits.$base=next;if(edits.$baseCuts)edits.$baseCuts=BaseGeometry.followCuts(edits.$baseCuts,next);state.wallEdits=edits;state.base=next;
             }
             state.ground=ground;const b=GroundGeometry.bounds(state.roof);state.options.ground=GroundGeometry.at(ground.plane,{x:(b.x0+b.x1)/2,y:(b.y0+b.y1)/2});
             state.warnings=(state.warnings||[]).filter(w=>!w.startsWith('Ground:'));
@@ -350,13 +353,39 @@ function perf_persist(touch=true) {
         const candidates=(clearedAt?[]:[server,local]).filter(valid).sort((a,b)=>(b.savedAt||0)-(a.savedAt||0));
         if(candidates.length){state=copy(candidates[0]);sourceContext=state.context;stage=Math.max(1,Math.min(7,state.stage||1));roofVisible=state.roofVisible!==false;gapHighlights=state.gapHighlights!==false;initializeGround();}
         applyDisplayPreferences();if(state&&!state.roofTrim)state.roofTrim=copy(roofTrimOnly);wallsVisible=state?.wallsVisible!==false;editingLayer=state?.editingLayer||'base';
-        const upgraded=upgradeEngine(),contactsRepaired=window.BaseGeometry?.repairStoredRoofContacts?.(state);retainGradeDraftOwnership();window.WallChimneys?.normalizeDrafts(state?.wallEdits);window.normalizeWallDraftOwnership?.(state?.wallEdits);window.WallBaseBinding?.upgrade(state?.wallEdits);window.WallSolidGeometry?.cleanupSweepRemnants(state?.wallEdits);if(state)calculateStage(stage);
-        restoreView(metadata,local);const prepared=enabled&&(!state||state.phase==='grade')&&ensureGradeSetup();if(upgraded||contactsRepaired||prepared)persist();setModeUI();render();stableSelection=selectionSnapshot();pendingSelection=null;gestureSelection=null;restoreHistory(history,metadata?.exteriorsWalls);
+        const upgraded=upgradeEngine(),contactsRepaired=window.BaseGeometry?.repairStoredRoofContacts?.(state);retainGradeDraftOwnership();window.WallChimneys?.normalizeDrafts(state?.wallEdits);window.normalizeWallDraftOwnership?.(state?.wallEdits);window.WallBaseBinding?.upgrade(state?.wallEdits);window.WallSolidGeometry?.cleanupSweepRemnants(state?.wallEdits);if(state)calculateStage(stage);const draftsRepaired=!!state&&wallEditor?.repairStoredDrafts?.();
+        restoreView(metadata,local);const prepared=enabled&&(!state||state.phase==='grade')&&ensureGradeSetup();if(upgraded||contactsRepaired||draftsRepaired||prepared)persist();setModeUI();render();stableSelection=selectionSnapshot();pendingSelection=null;gestureSelection=null;restoreHistory(history,metadata?.exteriorsWalls);
     }
     function beforeProjectLoad() {drivenSoffits=true;autoParapets=true;closedSoffits=false;settleNudges();closeResoffit();wallEditor?.leave?.();baseEditor?.leave?.();window.ExteriorFramePipeline?.cancel('wall-view');if(editorRenderFrame!==null&&editorRenderFrame!==true)cancelAnimationFrame(editorRenderFrame);editorRenderFrame=null;editorRenderFull=false;roofTrimEditor?.finish();roofTrimEditor?.reset();if(roofTrimGroup){roofTrimGroup.parent?.remove(roofTrimGroup);disposeObject3D(roofTrimGroup);roofTrimGroup=null;}roofTrimOnly={};editHistory=[];editFuture=[];pendingEdit=null;stableSelection=null;pendingSelection=null;gestureSelection=null;groundEditor?.leave();persist(false);enabled=false;state=null;sourceContext=null;projectId='';setModeUI();disposeGroup();syncVisibility();}
+    // A roof change rebuilds generated walls, but a rebuild starts wall edits
+    // over. Fingerprint the edits From Roof produced so a later rebuild can
+    // tell whether anything the person did would be lost.
+    function editsKey(edits){const text=JSON.stringify(edits||{});let a=0xdeadbeef,b=0x41c6ce57;for(let i=0;i<text.length;i++){const c=text.charCodeAt(i);a=Math.imul(a^c,2654435761);b=Math.imul(b^c,1597334677);}a=Math.imul(a^(a>>>16),2246822507)^Math.imul(b^(b>>>13),3266489909);b=Math.imul(b^(b>>>16),2246822507)^Math.imul(a^(a>>>13),3266489909);return (b>>>0).toString(36)+'.'+(a>>>0).toString(36);}
+    function wallEditsAtRisk(){
+        const edits=state?.wallEdits||{};
+        if(state?.generatedEditsKey?state.generatedEditsKey===editsKey(edits):!Object.values(edits).some(v=>v&&(typeof v!=='object'||Object.keys(v).length)))return [];
+        const surfaces=(edits.$surfaces||[]).filter(f=>!f.deleted),drafts=Object.values(edits.$drafts||{}),features=surfaces.filter(f=>f.feature).length+drafts.reduce((n,d)=>n+(d.faces||[]).filter(f=>f.feature&&!f.solidId).length,0),count=(n,one,many)=>n?[n+' '+(n===1?one:many)]:[];
+        const parts=[...count(features,'window, door or sticker','windows, doors and stickers'),...count(drafts.length,'edited wall','edited walls'),...count(surfaces.length-surfaces.filter(f=>f.feature).length,'drawn or moved face','drawn or moved faces'),...(edits.$base?['base edits']:[]),...count(edits.$loose?.edges?.length||0,'loose line','loose lines')];
+        return parts.length?parts:['wall edits'];
+    }
+    // Returns 'same', 'rebuilt', 'kept' (the person kept the walls built from
+    // the earlier roof) or 'failed'. Nothing is discarded without a yes.
+    function rebuildForRoofChange(){
+        if(!state||state.phase==='grade')return 'same';
+        const signature=roofSignature();if(state.roofSignature===signature){delete state.keptRoofSignature;return 'same';}
+        if(state.keptRoofSignature===signature)return 'kept';
+        const lost=wallEditsAtRisk();
+        if(lost.length&&window.confirm?.(`The roof changed after these walls were built. Rebuilding them from the roof discards ${lost.join(', ')}. Undo restores them.\n\nRebuild the walls now? Cancel keeps the current walls; Rebuild from roof updates them later.`)!==true){
+            state.keptRoofSignature=signature;persist();render();
+            const text='The roof changed after these walls were built. The walls and their edits were kept; Rebuild from roof updates them and discards the edits.';
+            if(status)status.textContent=text;const note=document.getElementById('base-status');if(note)note.textContent=text;
+            return 'kept';
+        }
+        return generate(state.options.soffit)?'rebuilt':'failed';
+    }
     function ensureStage(next) {
         if(!state||state.phase==='grade')return;
-        if(state.roofSignature!==roofSignature()&&!generate(state.options.soffit))return;
+        if(rebuildForRoofChange()==='failed')return;
         upgradeEngine();calculateStage(next);
         stage=next;selected=null;persist();render();
     }
@@ -387,6 +416,7 @@ function perf_persist(touch=true) {
             sourceContext=state.context;projectId=currentId();calculateStage(7);stage=7;if(before.state?.phase==='grade')editingLayer='base';
             if(options.autoParapets&&window.WallParapets){const faces=WallParapets.build(state.roof,state.sources,currentWalls());if(faces.length){state.wallEdits||={};state.wallEdits.$surfaces||=[];state.wallEdits.$surfaces.push(...faces);}}
             if(options.closedSoffits&&window.WallClosedSoffits){state.closedSoffitWalls=copy(currentWalls());state.wallEdits||={};state.wallEdits.$surfaces||=[];state.wallEdits.$surfaces.push(...WallClosedSoffits.build(state,state.closedSoffitWalls));}
+            state.generatedEditsKey=editsKey(state.wallEdits);
             selected=null;menu.hidden=true;document.getElementById('wall-auto').setAttribute('aria-expanded','false');
             details.textContent='';persist();render();
             if(before){const entry={full:true,before,after:{state:copy(state),stage},beforeSelection,afterSelection:selectionSnapshot()};editHistory.push(entry);pendingSelection=entry;}editFuture=[];return true;
@@ -422,7 +452,7 @@ function perf_persist(touch=true) {
         }
         if(enabled)ensureGradeSetup();
         persistView();setModeUI();persist();render();
-        if(panel&&enabled&&state&&state.phase!=='grade'&&state.roofSignature!==roofSignature())generate(state.options.soffit);
+        if(panel&&enabled&&state)rebuildForRoofChange();
         stableSelection=selectionSnapshot();pendingSelection=null;
         if(!enabled){window.renderGeometry2D?.();if(typeof renderGeometry3D==='function')renderGeometry3D();if(typeof apply3DSurfaceVisibility==='function')apply3DSurfaceVisibility();}
     }
@@ -673,7 +703,7 @@ function perf_render3DFrame() {
         const walls=currentWalls(),geo=G.topology(walls);
         badge.textContent=stage===1?'1 · Source lines':stage===2?'2 · Extruded walls':stage===3?'3 · Deduplicated':stage===4?'4 · Gap repairs':stage===5?'5 · Merged walls':stage===6?'6 · Rake cleanup':'7 · Chimney alignment';
         status.textContent=state?.phase==='grade'?'Check the reference grade, then choose From Roof and your soffit depth.':state?`${state.sources.length} sources · ${geo.faces.length} faces${stage>=6?` · ${state.rakeCleanupReport?.paths.length||0} rake returns cleaned${state.rakeCleanupReport?.skippedEdited?` · ${state.rakeCleanupReport.skippedEdited} edited returns kept`:''}`:''}${stage>=7?` · ${state.chimneyCleanupReport?.alignments.length||0} chimney planes aligned`:''}${state.chimneys?.items.length?` · ${state.chimneys.items.length} chimneys`:''}`:'Choose Auto wall and a soffit depth to preview source lines.';
-        const messages=[...(state?.warnings||[]),...(state?.chimneys?.warnings||[]),...(stage>=2?(state?.extrusionWarnings||[]):[]),...(storageError?[storageError]:[])];
+        const messages=[...(state?.keptRoofSignature?['The roof changed after these walls were built. Rebuild from roof updates them and discards wall edits.']:[]),...(state?.warnings||[]),...(state?.chimneys?.warnings||[]),...(stage>=2?(state?.extrusionWarnings||[]):[]),...(storageError?[storageError]:[])];
         warning.textContent=messages.join('\n');warning.hidden=!messages.length;
         document.getElementById('wall-tolerance').value=((state?.options.tolerance??18*G.INCH)/G.INCH).toFixed(1);
         document.getElementById('wall-tolerance').disabled=!state;
@@ -914,7 +944,15 @@ function perf_render3DFrame() {
             if(!enabled)return;
             // Key repeat is input, not a queue of complete geometry rebuilds.
             // Keep its distance and publish one edit once the burst settles.
-            const arrow=e.key.startsWith('Arrow')&&!e.ctrlKey&&!e.metaKey&&!e.target.closest?.('input,textarea,select,[contenteditable=true],.enh-control-panel,.controls-3d-actions,.pane-swap-button');
+            // A clicked control keeps focus, but wall mode still owns the keyboard:
+            // roof shortcuts must never see the key, and Enter or Space must not
+            // click the control again. Only a control reached with Tab keeps its
+            // own activation keys, and a focused list its plain keys; those still
+            // reach the control and stop before the roof's window handlers.
+            const control=e.target.closest?.('button,summary,[role=button]'),tabbed=!!control&&(()=>{try{return control.matches(':focus-visible');}catch(error){return false;}})(),plain=!e.ctrlKey&&!e.metaKey&&!e.altKey;
+            if(tabbed&&plain&&['Enter',' '].includes(e.key)){keysKeptFromRoof.add(e);return true;}
+            if(e.target.closest?.('select')){if(plain){keysKeptFromRoof.add(e);return true;}if((e.ctrlKey||e.metaKey)&&['z','y'].includes(e.key.toLowerCase())){undoEdit(e.key.toLowerCase()==='y'||e.shiftKey);e.preventDefault();}e.stopImmediatePropagation();return true;}
+            const arrow=e.key.startsWith('Arrow')&&!e.ctrlKey&&!e.metaKey&&!e.target.closest?.('input,textarea,select,[contenteditable=true]');
             if(arrow&&!wallEditor?.busy()&&(editingLayer==='walls'||wallEditor?.planeActive?.())){
                 if(pendingNudge&&(pendingNudge.key!==e.key||pendingNudge.shiftKey!==e.shiftKey||pendingNudge.altKey!==e.altKey))flushNudgeInput();
                 if(e.repeat){
@@ -934,7 +972,6 @@ function perf_render3DFrame() {
             if(!e.target.closest?.('input,textarea,select,[contenteditable=true]')&&!e.ctrlKey&&!e.metaKey&&(e.key.toLowerCase()==='p'||wallEditor?.planeActive?.())){if(e.key.toLowerCase()==='p'){if(!e.repeat){const entity=editingLayer==='base'?baseEditor?.chamferSelection?.():null,source=entity?.points?.length?{axisPoints:entity.points}:editingLayer==='base'?baseEditor?.selectedFaceGeometry?.():null;setLayer('walls',true);wallEditor?.togglePlane(source);}}else if(!window.ExteriorDistanceInput?.key(e,wallEditor?.distanceInput()))wallEditor?.keyDown(e);e.preventDefault();e.stopImmediatePropagation();return true;}
             if(wallEditor?.planeActive?.()&&(e.ctrlKey||e.metaKey)&&['a','c','v','x'].includes(e.key.toLowerCase())&&!e.target.closest?.('input,textarea,select,[contenteditable=true]')){wallEditor.keyDown(e);e.preventDefault();e.stopImmediatePropagation();return true;}
             if(e.target.closest?.('input,textarea,select,[contenteditable=true]'))return;if(roofTrimEditor?.key(e))return true;
-            if(e.key!=='Escape'&&e.target.closest?.('.enh-control-panel,.controls-3d-actions,.pane-swap-button'))return;
             if((e.ctrlKey||e.metaKey)&&['c','v'].includes(e.key.toLowerCase())){const copy=e.key.toLowerCase()==='c',selection=copy&&editingLayer==='base'?baseEditor?.chamferSelection?.():null;if(!copy)setLayer('walls',true);wallEditor?.clipboardCommand(copy?'copy':'paste',selection);e.preventDefault();e.stopImmediatePropagation();return true;}
             if(editingLayer==='base'&&!baseEditor?.busy()&&!wallEditor?.busy()&&!e.ctrlKey&&!e.metaKey&&['m','r','t','y'].includes(e.key.toLowerCase())){const selection=baseEditor?.chamferSelection?.();if(selection?.points?.length>=3){setLayer('walls',true);wallEditor?.geometryCommand(e.key.toLowerCase(),selection);e.preventDefault();e.stopImmediatePropagation();return true;}}
             if(window.ExteriorDistanceInput?.key(e,wallEditor?.distanceInput()||baseEditor?.distanceInput()))return;
@@ -952,13 +989,15 @@ function perf_render3DFrame() {
             if(baseEditor?.keyDown(e)||wallEditor?.keyDown(e))return true; if(e.key==='Escape'){menu.hidden=true;return;}
             if(e.key.toLowerCase()==='e'){document.getElementById('base-status').textContent=editingLayer==='base'?'Select a base point or line to extrude, or a wall face.':'Select a face, a line, or a single point to extrude.';}
             if(e.key==='Tab'||e.key.startsWith('F'))return;
-            e.stopImmediatePropagation();if(['Delete','Backspace',' '].includes(e.key))e.preventDefault();
+            e.stopImmediatePropagation();if(['Delete','Backspace',' '].includes(e.key)||e.key==='Enter'&&control)e.preventDefault();
             return true;
         }
         window.addEventListener('wheel',e=>{
             if(!enabled||e.target.closest?.('#exterior-graphics,#wall-panel,.exterior-sticker-menu,.enh-control-panel,.controls-3d-actions,.pane-swap-button,input,textarea,select'))return;
             if((editingLayer==='base'?baseEditor:wallEditor)?.stepWheel(e)){e.preventDefault();e.stopImmediatePropagation();}
         },{capture:true,passive:false});
+        // Document bubble runs after the focused control and before window handlers.
+        const keysKeptFromRoof=new WeakSet();document.addEventListener('keydown',e=>{if(keysKeptFromRoof.has(e))e.stopImmediatePropagation();});
         window.addEventListener('keydown',handleEditorKey,true);
         window.addEventListener('keyup',e=>{if(e.key.startsWith('Arrow')&&pendingNudge)flushNudgeInput();},true);
         document.getElementById('wall-step').onclick=()=>{if(editingLayer==='base')baseEditor?.stepCommand();else{if(editingLayer!=='walls')setLayer('walls');wallEditor?.stepCommand();}};

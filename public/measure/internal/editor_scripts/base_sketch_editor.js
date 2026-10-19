@@ -4,15 +4,19 @@
 window.createBaseSketchEditor=function(host){
  const S=window.BaseSketchGeometry,G=window.WallGeometry,copy=v=>JSON.parse(JSON.stringify(v));
  let selected=[],lines=[],drag=null,armed=false,box=null,rect=null,preferredFace=null,preview=null,axisPreview=null,curveTool=null,lastView=null,guideEl=null;
- const sketch=()=>S.read(host.base()),mode=()=>host.mode(),active=()=>host.active()&&mode()!=='face';
- const support=()=>preferredFace&&(host.base().faces.find(f=>f.id===preferredFace.id)||preferredFace);
+ // Drawing, picking and snapping are read-only passes: they read the sketch once
+ // instead of once per node lookup. No edit runs inside a pass.
+ let pass=null;
+ const reading=(fn,args)=>{const base=host.base(),s=S.read(base),byId=new Map();for(const n of s.nodes)if(!byId.has(n.id))byId.set(n.id,n);pass={base,s,byId};try{return fn(...args);}finally{pass=null;}};
+ const current=()=>pass?pass.base:host.base(),sketch=()=>pass?pass.s:S.read(host.base()),mode=()=>host.mode(),active=()=>host.active()&&mode()!=='face';
+ const support=()=>preferredFace&&(current().faces.find(f=>f.id===preferredFace.id)||preferredFace);
  function setFace(f){preferredFace=f&&copy(f);selected=[];lines=[];}
  const onFace=(p,f)=>{const plane=f&&G.plane(f.points);return plane&&Math.abs(p.z-plane.dx*p.x-plane.dy*p.y-plane.k)<.002&&G.contains(f,p);};
- function references(){const f=support();return f?[...host.base().faces.flatMap(f=>f.points),...(host.referencePoints?.()||[])].filter(p=>!p.curveSample&&!S.isCurveSample(host.base(),p)&&onFace(p,f)&&!sketch().nodes.some(n=>Math.hypot(n.x-p.x,n.y-p.y,actual(n).z-p.z)<.001)):[];}
- function referenceAt(e,v){return references().map(p=>({p,q:host.screen(p,v)})).filter(({p,q})=>Math.hypot(q.x-e.clientX,q.y-e.clientY)<12&&(v!=='3d'||host.pickVisible?.(p)!==false)).sort((a,b)=>Math.hypot(a.q.x-e.clientX,a.q.y-e.clientY)-Math.hypot(b.q.x-e.clientX,b.q.y-e.clientY))[0]?.p;}
+ function references(){if(!pass)return reading(references,arguments);const f=support();if(!f)return [];const base=current(),sample=S.curveSampleTest?S.curveSampleTest(base):p=>S.isCurveSample(base,p),nodes=sketch().nodes;return [...base.faces.flatMap(f=>f.points),...(host.referencePoints?.()||[])].filter(p=>!p.curveSample&&!sample(p)&&onFace(p,f)&&!nodes.some(n=>Math.hypot(n.x-p.x,n.y-p.y,actual(n).z-p.z)<.001));}
+ function referenceAt(e,v){if(!pass)return reading(referenceAt,arguments);return references().map(p=>({p,q:host.screen(p,v)})).filter(({p,q})=>Math.hypot(q.x-e.clientX,q.y-e.clientY)<12&&(v!=='3d'||host.pickVisible?.(p)!==false)).sort((a,b)=>Math.hypot(a.q.x-e.clientX,a.q.y-e.clientY)-Math.hypot(b.q.x-e.clientX,b.q.y-e.clientY))[0]?.p;}
  function inScope(p){const plane=support()&&G.plane(support().points);return !plane||Math.abs(p.z-plane.dx*p.x-plane.dy*p.y-plane.k)<.002;}
  function connect(ids){S.connect(host.base(),ids);}
- const node=id=>sketch().nodes.find(n=>n.id===id);
+ const node=id=>pass?pass.byId.get(id):sketch().nodes.find(n=>n.id===id);
  const actual=n=>n;
  function report(){host.message((mode()==='line'?lines.length+' lines':selected.length+' points')+' selected · gold = fixed wall boundary · cyan = editable');host.redraw();}
  function perform(fn){const before=copy(host.base());try{fn();host.commit(before);return true;}catch(e){host.restore(before);host.message(e.message);host.redraw();return false;}}
@@ -32,6 +36,7 @@ window.createBaseSketchEditor=function(host){
   for(const start of starts){const a=host.screen(actual(start),v),b=screen(point),line=document.createElementNS(ns,'line');for(const [k,value]of Object.entries({x1:a.x-r.left,y1:a.y-r.top,x2:b.x-r.left,y2:b.y-r.top,stroke:'#fff','stroke-width':2.5,'stroke-linecap':'round','data-base-draw-preview':'true'}))line.setAttribute(k,value);guideEl.appendChild(line);}
  }
  function position(e,v,unbounded=false){
+  if(!pass)return reading(position,arguments);
   clearGuides();
   const f=curveTool?.face||support()||host.faceAt(e,v),plane=f&&G.plane(f.points);let p=host.position(e,v,f?f.points[0].z:host.base().faces[0].points[0].z);
   if(!p)return;
@@ -65,6 +70,7 @@ window.createBaseSketchEditor=function(host){
  function insert(e,v,join=false){lastView=v;const p=position(e,v);if(!p){host.message('Place the point on the selected base face.');return false;}const from=join?[...new Set(selected)]:[];let id;const ok=perform(()=>{id=S.add(host.base(),p,.0001);const anchors=from.filter(a=>a!==id);if(anchors.length)for(const anchor of anchors)connect([anchor,id]);else S.resolve(host.base());});if(ok){selected=[id];lines=[];armed=false;preview=null;clearGuides();report();}return ok;
  }
  function closest(e,v){
+  if(!pass)return reading(closest,arguments);
   let id=null,best=12;
   if(mode()==='line'){
    for(const edge of S.curveEdges(sketch())){const a=host.screen(edge.start,v),b=host.screen(edge.end,v),dx=b.x-a.x,dy=b.y-a.y,t=Math.max(0,Math.min(1,((e.clientX-a.x)*dx+(e.clientY-a.y)*dy)/(dx*dx+dy*dy))),d=Math.hypot(e.clientX-a.x-t*dx,e.clientY-a.y-t*dy);if(d<best&&(v!=='3d'||host.pickLineVisible?.([edge.start,edge.end],e)!==false)){id=edge.id;best=d;}}
@@ -75,7 +81,7 @@ window.createBaseSketchEditor=function(host){
   if(!active()||!v||e.button!==0)return false;
   if(curveTool)return curveDown(e,v);
   if(axisPreview){if(axisPreview.valid){host.commit(axisPreview.before);axisPreview=null;report();}return true;}if(armed){insert(e,v,true);return true;}
-  if(drag?.height){move(e,v);host.commit(drag.original);drag=null;return true;}
+  if(drag?.height){move(e,v);if(drag.invalid)host.restore(copy(drag.original));else host.commit(drag.original);drag=null;return true;}
   let id=closest(e,v);const ref=!id&&referenceAt(e,v);if(ref){if(e.ctrlKey||e.metaKey){report();return true;}if(!perform(()=>{id=S.add(host.base(),ref,.0001);S.resolve(host.base());}))return true;}
 
   if(!id){
@@ -117,7 +123,7 @@ window.createBaseSketchEditor=function(host){
    report();return true;
   }
   if(!drag||drag.height)return false;
-  const d=drag;drag=null;if(d.changed)host.commit(d.original);return true;
+  const d=drag;drag=null;if(d.changed&&!d.invalid)host.commit(d.original);return true;
  }
  function perpendicularCut(){const A=window.WallAxisCuts,W=window.WallSolidGeometry;if(!A||!W||selected.length!==1)return false;if(axisPreview){axisPreview.index=(axisPreview.index+1)%axisPreview.variants.length;previewCut();return true;}const start=actual(node(selected[0])),before=copy(host.base()),candidates=[];for(const f of host.base().faces.filter(f=>onFace(start,f))){const frame=W.faceFrame(f),local=p=>W.inFrame(frame,p),face={points:f.points.map(local)},origin=A.boundaryPoint(face,local(start));let direction;try{direction=A.perpendicular(face,origin);}catch{continue;}const nodes=sketch().nodes.map(actual).filter(p=>onFace(p,f)),byId=id=>nodes.find(n=>n.id===id),edges=sketch().edges.map(e=>[byId(e.a),byId(e.b)]).filter(pair=>pair.every(Boolean)),targets=A.targets(face,origin,direction,edges.map(e=>e.map(local)),nodes.map(local)).map(p=>W.fromFrame(frame,p));if(targets.length)candidates.push({face:f.id,targets});}candidates.sort((a,b)=>Number(b.face===support()?.id)-Number(a.face===support()?.id));if(!candidates.length){host.message('Select one point on a base edge with space for a perpendicular cut.');return true;}const variants=candidates.map(c=>[c]);if(candidates.length>1)variants.push(candidates);axisPreview={before,start:{...start},source:selected[0],variants,index:0};previewCut();return true;}
  function previewCut(){const t=axisPreview;host.restore(copy(t.before));t.lines=[];try{for(const c of t.variants[t.index])for(const p of c.targets){const id=S.add(host.base(),p,.0001);S.connect(host.base(),[t.source,id]);t.lines.push([t.start,p]);}t.valid=true;host.message('Perpendicular base cut: '+(t.variants[t.index].length>1?'both sides':'side '+(t.index+1))+' - H cycles; click to place; Escape cancels.');}catch(error){host.restore(copy(t.before));t.valid=false;host.message(error.message);}host.redraw();}
@@ -141,7 +147,7 @@ window.createBaseSketchEditor=function(host){
    const edges=sketch().edges.filter(e=>lines.includes(e.id)),ids=lines.length?[...new Set(edges.flatMap(e=>[e.a,e.b]))]:selected;
    if(edges.some(e=>e.fixed)||ids.some(id=>node(id)?.fixed)){host.message('Wall-defined points and lines are locked. Select a face to adjust its base plane.');return true;}
    if(k==='m'){const m=host.mouse();if(m)drag={height:true,ids,heights:ids.map(id=>actual(node(id)).z),original:copy(host.base()),y:m.e.clientY,view:m.v};host.message('Move vertically to preview; click to place.');}
-   else perform(()=>{const ns=ids.map(node),z=ns.reduce((sum,n)=>sum+actual(n).z,0)/ns.length;for(const n of ns){n.z=z;n.manualZ=true;}S.resolve(host.base());});
+   else perform(()=>{const ns=ids.map(node),z=ns.reduce((sum,n)=>sum+actual(n).z,0)/ns.length;S.setHeights(host.base(),new Map(ns.map(n=>[n.id,z])));});
    return true;
   }
   return false;
@@ -149,6 +155,7 @@ window.createBaseSketchEditor=function(host){
  function cancel(){clearGuides();curveTool=null;if(axisPreview){host.restore(axisPreview.before);axisPreview=null;}if(drag)host.restore(drag.original);drag=null;armed=false;preview=null;box=null;rect?.remove?.();rect=null;}
  function color(fixed,chosen){return chosen?'#fff':fixed?'#e7ad52':'#6ce4ed';}
  function draw2D(rot,svg,inv){
+  if(!pass)return reading(draw2D,arguments);
   if(host.base()?.visible===false)return;
   if(curveTool){const t=curveTool,ps=t.samples||[t.start,t.pointer||t.start];for(const g of t.guides||[])svg('polyline',{points:g.points.map(p=>{const q=host.toPixel(p);return q.x+','+q.y;}).join(' '),fill:'none',stroke:g.color,'stroke-width':inv,'stroke-dasharray':(5*inv)+' '+(4*inv),'data-curve-guide':g.role,'pointer-events':'none'},rot);svg('polyline',{points:ps.map(p=>{const q=host.toPixel(p);return q.x+','+q.y;}).join(' '),fill:'none',stroke:t.valid===false?'#ff6666':'#FFD700','stroke-width':2*inv,'pointer-events':'none'},rot);const marker=host.toPixel(t.center||t.pointer||t.start);svg('circle',{cx:marker.x,cy:marker.y,r:8*inv,fill:'none',stroke:'#72ffb0','stroke-width':1.5*inv,'pointer-events':'none'},rot);if(t.center){const a=host.toPixel(t.start),b=host.toPixel(t.center);svg('line',{x1:a.x,y1:a.y,x2:b.x,y2:b.y,stroke:'#72ffb0','stroke-dasharray':'5 5','stroke-width':inv},rot);}}
   for(const pair of axisPreview?.lines||[]){const [a,b]=pair.map(host.toPixel);svg('line',{x1:a.x,y1:a.y,x2:b.x,y2:b.y,stroke:'#FFD700','stroke-width':2*inv,'pointer-events':'none'},rot);}
@@ -158,6 +165,7 @@ window.createBaseSketchEditor=function(host){
   for(const n of sketch().nodes){const p=host.toPixel(actual(n));svg(n.fixed?'rect':'circle',n.fixed?{x:p.x-4*inv,y:p.y-4*inv,width:8*inv,height:8*inv,fill:color(true,selected.includes(n.id)),'pointer-events':'none'}:{cx:p.x,cy:p.y,r:(selected.includes(n.id)?6:4)*inv,fill:color(false,selected.includes(n.id)),'pointer-events':'none'},rot);}
  }
  function draw3D(group,vector){
+  if(!pass)return reading(draw3D,arguments);
   if(host.base()?.visible===false)return;
   if(curveTool){const t=curveTool;window.wallCurveGuides?.(group,vector,t.guides);for(const ps of [t.samples||[t.start,t.pointer||t.start],...(t.center?[[t.start,t.center]]:[])]){const line=new THREE.Line(new THREE.BufferGeometry().setFromPoints(ps.map(vector)),new THREE.LineBasicMaterial({color:t.valid===false?'#ff6666':'#FFD700',depthTest:false}));line.renderOrder=25;group.add(line);}window.wallCurveCenterMarker?.(group,vector,t.center||t.pointer||t.start);}
   for(const pair of axisPreview?.lines||[]){const geo=new THREE.BufferGeometry().setFromPoints(pair.map(vector)),line=new THREE.Line(geo,new THREE.LineBasicMaterial({color:'#FFD700',depthTest:false}));line.renderOrder=25;group.add(line);}

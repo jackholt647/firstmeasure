@@ -119,7 +119,7 @@ const HARNESS = `<!doctype html><html><head><meta charset="utf-8"><meta name="vi
 <script src="/libraries/platform-terminology/platform-terminology.js"></script>
 <script src="/libraries/platform-api/platform-api.js"></script>
 <script src="/libraries/apps/crm/app.js?v=test"></script>
-</head><body><div id="main"></div><script>window.__mounted=window.__crm.mount({roots:{main:document.getElementById('main')},orgId:'__ORG__'});</script></body></html>`;
+</head><body><div id="main"><div data-portal-loading>Loading CRM...</div></div><script>window.__mounted=window.__crm.mount({roots:{main:document.getElementById('main')},orgId:'__ORG__'});</script></body></html>`;
 
 async function openPage(browser, viewport) {
   const context = await browser.newContext({ viewport, deviceScaleFactor: 1 });
@@ -161,6 +161,7 @@ test('the CRM tab: views, filters, the board, the drawer, a worklist, reports, s
     const { page, errors } = await openPage(browser, { width: 1440, height: 900 });
     current = page;
     // The rail: the pinned base views and the roofing pack's views, with live counts.
+    assert.equal(await page.locator('[data-portal-loading]').count(), 0, 'the CRM replaces the portal loading placeholder');
     const rail = await page.locator('.crm-rail').innerText();
     for (const name of ['New leads', 'Pipeline', 'Follow-ups due', 'Upcoming appointments']) assert.ok(rail.includes(name), `rail shows ${name}`);
     await settle(page);

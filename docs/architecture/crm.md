@@ -311,10 +311,18 @@ The tab:
 
 ## Not built
 
-Territories and timeslot grids, financing, a property record, triggers keyed on a
-contact, lead scoring, routing by capacity (round robin exists only as automation
-input today), and a funnel step editor for conditions (steps with conditions are kept
-and shown, and are edited through the API or presets).
+Territories and timeslot grids, financing, triggers keyed on a contact, lead scoring,
+routing by capacity, and a funnel step editor for conditions (steps with conditions are
+kept and shown, and are edited through the API or presets).
+
+- **No place record** (decided 2026-10-19): an address lives on the contact and on the
+  project; nothing waits on a shared property or site.
+- **Triggers keyed on a contact** (decided to build): contact writers emit contact events
+  (created, updated with the changed fields, tagged, merged); a date on a contact can fire a
+  rule; rule conditions read the contact; actions text or email the contact, create a to-do,
+  or start a lead through `receiveLead`.
+- **Lead scoring and routing by capacity**: undecided. Today a new lead notifies roles and
+  queues the first call; whoever books the sales appointment fills the estimator field.
 
 Validation: `tests/crm-views.test.ts` (collections, views, results, sources, spend,
 the funnel, presets, tracking tags and the cancellation window),
