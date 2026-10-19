@@ -12,6 +12,9 @@ import { renderDocumentPdf } from "../pdf.js";
 import { documentCapabilityState, documentCapabilityEnabled, DOCUMENT_CAPABILITIES } from "../capability_policy.js";
 import { object, text, digest, token, signatureDefinitions, signerPlan, disclosure, validateSignature, assertRouting, signaturesComplete, publicSignatureOutputs, type SigningPackage, type Signer } from "./model.js";
 import { withSigningLock, signingStore, readPackage, savePackage, packagesForDocument, packageForSnapshot, addInvitation, resolveSigningInvitation, queueSigningEvent } from "./store.js";
+import { env } from "../../src/config/env.js";
+import { sealPdf } from "./seal.js";
+import { appendLedger, anchorLedger, ledgerEntriesForPackage, verifyLedgerFrom } from "./ledger.js";
 
 export function signingSource(document: JsonObject) {
   const defs = object(document.output_defs);
@@ -211,13 +214,16 @@ export async function acceptSigning(access: SigningAccess, field: string, input:
       // code, bindings, conditional pages or pricing while assembling an executed copy.
       const final = await certificatePdf(pkg, await stampSignaturePlacements(pkg));
       pkg.final_pdf = final.toString("base64"); pkg.final_pdf_hash = createHash("sha256").update(final).digest("hex");
-      pkg.status = "completed"; pkg.completed_at = now;
+      pkg.status = "completed"; pkg.completed_at = now; pkg.seal = { status: "pending" };
     }
     await signingStore().prepare("INSERT INTO document_signing_receipts(id,package_id,field_key,value_json) VALUES(?,?,?,?)").run(receipt.id, pkg.id, field, JSON.stringify(receipt));
+    await appendLedger({ organization_id: pkg.organization_id, package_id: pkg.id, kind: "receipt", subject_hash: digest(receipt), payload: { field, receipt_id: receipt.id, content_hash: pkg.content_hash } });
+    if (pkg.status === "completed") await appendLedger({ organization_id: pkg.organization_id, package_id: pkg.id, kind: "executed", subject_hash: pkg.final_pdf_hash, payload: { content_hash: pkg.content_hash } });
     await savePackage(pkg);
     await queueSigningEvent(pkg, "document.signature.accepted", field, { output_key: field, output_type: "signature", signer_id: access.signer.id, receipt_id: receipt.id, signed_at: now });
     await queueSigningEvent(pkg, "document.output.recorded", field, { output_key: field, output_type: "signature", signer_id: access.signer.id, receipt_id: receipt.id });
     if (pkg.status === "completed") await queueSigningEvent(pkg, "document.signed", "", { signed_at: now });
+    if (pkg.status === "completed") await queueSigningEvent(pkg, "document.signing.seal", "", {});
     if (pkg.status === "completed") for (const signer of pkg.signers.filter(s => s.email)) await queueSigningEvent(pkg, "document.signing.deliver_copy", signer.id, { signer_id: signer.id });
     return { pkg, receipt, duplicate: false };
   });
@@ -270,8 +276,10 @@ async function deliverSigningOutbox() {
         console.error("Signing expiry projection will retry",String(row.id),error instanceof Error ? error.message : "expiry_failed");
       }
     }
-    const pending = await signingStore().prepare("SELECT * FROM document_signing_outbox WHERE delivered=0 ORDER BY attempted_at, CASE event_type WHEN 'document.signature.accepted' THEN 0 WHEN 'document.output.recorded' THEN 1 WHEN 'document.signed' THEN 2 WHEN 'document.completed' THEN 3 ELSE 4 END, id LIMIT 100").all();
+    const pending = await signingStore().prepare("SELECT * FROM document_signing_outbox WHERE delivered=0 ORDER BY attempted_at, CASE event_type WHEN 'document.signature.accepted' THEN 0 WHEN 'document.output.recorded' THEN 1 WHEN 'document.signed' THEN 2 WHEN 'document.completed' THEN 3 WHEN 'document.signing.seal' THEN 4 ELSE 5 END, id LIMIT 100").all();
     for (const entry of pending) {
+      // A seal waits on an outside timestamp authority: back off between failed attempts.
+      if (entry.event_type === "document.signing.seal" && Number(entry.attempts) > 0 && Date.now() - Date.parse(String(entry.attempted_at)) < Math.min(3600, 15 * 2 ** Number(entry.attempts)) * 1000) continue;
       try {
       await signingStore().prepare("UPDATE document_signing_outbox SET attempted_at=?,attempts=attempts+1 WHERE id=?").run(new Date().toISOString(),String(entry.id));
       const pkg = await readPackage(String(entry.package_id)); if (!pkg) continue;
@@ -279,7 +287,14 @@ async function deliverSigningOutbox() {
       const document = await readDocumentInstance(pkg.organization_id, pkg.document_id);
       const payload = { snapshot_id: pkg.snapshot_id, package_id: pkg.id, content_hash: pkg.content_hash, ...JSON.parse(String(entry.payload_json)) };
       if (entry.event_type === "document.signed") await publishAcceptedMaterials(pkg.organization_id, text(document.project_id), pkg.document_id, pkg.snapshot_id);
+      if (entry.event_type === "document.signing.seal") {
+        await sealSigningPackage(pkg.id);
+        await signingStore().prepare("UPDATE document_signing_outbox SET delivered=1 WHERE id=?").run(String(entry.id));
+        continue;
+      }
       if (entry.event_type === "document.signing.deliver_copy") {
+        // Signers receive the sealed copy; a package from before sealing has no seal to wait for.
+        if (pkg.seal && pkg.seal.status !== "sealed") throw new Error("Waiting for the document seal.");
         const signer = pkg.signers.find(s => s.id === payload.signer_id);
         if (signer?.email && pkg.final_pdf) {
           const { sendOrganizationTransactionalEmail } = await import("../../email/organization_outbound.js");
@@ -303,6 +318,7 @@ async function deliverSigningOutbox() {
         console.error("Signing outbox delivery will retry", String(entry.id), reason);
       }
     }
+    try { await anchorLedger(); } catch (error) { console.error("Signing ledger anchor will retry", error instanceof Error ? error.message.slice(0, 500) : "anchor_failed"); }
 }
 export async function signingPdf(orgId: string, snapshotId: string, finalOnly = false) {
   const pkg = await packageForSnapshot(orgId, snapshotId);
@@ -322,6 +338,7 @@ export async function signingEvidence(orgId: string, documentId: string, ctx: Pl
   if (ctx.orgId !== orgId || !hasPermission(ctx, "manage_documents")) throw forbidden("signature_evidence_permission", "Document management permission is required to export private signing evidence.");
   return Promise.all((await packagesForDocument(orgId, documentId)).map(async ({ review_pdf: review, final_pdf: final, challenges: _challenges, ...pkg }) => ({ ...pkg,
     deliveries: await signingStore().prepare("SELECT event_type,delivered,attempted_at,attempts,last_error FROM document_signing_outbox WHERE package_id=?").all(pkg.id),
+    ...(await ledgerEntriesForPackage(pkg.id).then(async ledger => ({ ledger, ledger_check: ledger.length ? await verifyLedgerFrom(ledger[0]!.seq) : null }))),
     ...(includeFiles ? { review_pdf_base64: review, final_pdf_base64: final } : {}) })));
 }
 
@@ -413,15 +430,41 @@ export async function importSigningEvidence(orgId: string, documentId: string, v
         evidence: { authentication: "reviewer_attestation", actor_user_id: ctx.userId, attestation: statement, source_sha256: object(content.original_file).sha256, claimed_signed_at: text(supplied.signed_at), server_received_at: now }, request_hash: digest(values[field]) };
     }
     if (!signaturesComplete(pkg)) throw badRequest("signature_import_incomplete", "Confirm every required signature on the original before accepting it as an executed contract. Partial or unsigned uploads may remain in review.");
-    pkg.status = "completed"; pkg.completed_at = now;
+    pkg.status = "completed"; pkg.completed_at = now; pkg.seal = { status: "pending" };
     const final = await certificatePdf(pkg, originalPdf); pkg.final_pdf = final.toString("base64"); pkg.final_pdf_hash = createHash("sha256").update(final).digest("hex");
     await savePackage(pkg);
     for (const receipt of Object.values(pkg.receipts)) {
       await signingStore().prepare("INSERT INTO document_signing_receipts(id,package_id,field_key,value_json) VALUES(?,?,?,?)").run(receipt.id, pkg.id, receipt.field, JSON.stringify(receipt));
+      await appendLedger({ organization_id: pkg.organization_id, package_id: pkg.id, kind: "receipt", subject_hash: digest(receipt), payload: { field: receipt.field, receipt_id: receipt.id, content_hash: pkg.content_hash, capture_mode: "reviewed_paper_upload" } });
       await queueSigningEvent(pkg, "document.signature.accepted", receipt.field, { output_key: receipt.field, receipt_id: receipt.id, capture_mode: "reviewed_paper_upload", actor_user_id: ctx.userId });
     }
+    await appendLedger({ organization_id: pkg.organization_id, package_id: pkg.id, kind: "executed", subject_hash: pkg.final_pdf_hash, payload: { content_hash: pkg.content_hash, capture_mode: "reviewed_paper_upload" } });
     await queueSigningEvent(pkg, "document.signed", "", { signed_at: now, capture_mode: "reviewed_paper_upload" });
+    await queueSigningEvent(pkg, "document.signing.seal", "", {});
     await projectSigningPackage(pkg.id);
     return readDocumentInstance(orgId, documentId);
   });
+}
+
+/**
+ * Seals the executed copy (documents/signing/seal.ts). The timestamp is a network
+ * call, so sealing runs outside the signing lock and is recorded once under it:
+ * the sealed bytes replace the unsealed copy, which stays in the ledger by hash.
+ */
+export async function sealSigningPackage(id: string) {
+  const pkg = await readPackage(id);
+  if (!pkg?.seal || pkg.seal.status === "sealed" || !pkg.final_pdf) return;
+  const unsealed = pkg.final_pdf_hash, org = object(await readOrganization(pkg.organization_id));
+  const sealed = await sealPdf(Buffer.from(pkg.final_pdf, "base64"), { reason: `Executed agreement${text(org.name) ? ` for ${text(org.name)}` : ""}. Signatures recorded by FirstMate (package ${pkg.id}).`, requireTimestamp: env.isProduction });
+  await withSigningLock(pkg.organization_id, pkg.document_id, async () => {
+    const current = await readPackage(id);
+    if (!current || current.seal?.status === "sealed" || current.final_pdf_hash !== unsealed) return;
+    const entry = await appendLedger({ organization_id: current.organization_id, package_id: current.id, kind: "sealed", subject_hash: sealed.sha256,
+      payload: { unsealed_sha256: unsealed, certificate_sha256: sealed.certificate_sha256, development: sealed.development, timestamp: sealed.timestamp } });
+    current.final_pdf = sealed.bytes.toString("base64"); current.final_pdf_hash = sealed.sha256;
+    current.seal = { status: "sealed", sealed_at: entry.created_at, unsealed_sha256: unsealed, certificate_sha256: sealed.certificate_sha256, certificate_subject: sealed.certificate_subject,
+      provider: sealed.provider, development: sealed.development, timestamp: sealed.timestamp, ledger_seq: entry.seq };
+    await savePackage(current);
+  });
+  await projectSigningPackage(id);
 }

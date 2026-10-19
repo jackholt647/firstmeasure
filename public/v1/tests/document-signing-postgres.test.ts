@@ -26,4 +26,18 @@ test("PostgreSQL signing receipts, package state and outbox commit atomically un
   assert.equal((await store.readPackage(id))!.status, "open");
   assert.equal((await store.signingStore().prepare("SELECT id FROM document_signing_outbox WHERE package_id=? AND event_type=?").all(id,"document.signed")).length, 0);
   await assert.rejects(store.signingStore().prepare("INSERT INTO document_signing_receipts(id,package_id,field_key,value_json) VALUES(?,?,?,?)").run(`${id}_replacement`,id,"field_0","{}"));
+
+  // Ledger appends from different documents, each inside its own document lock, form one unbroken chain;
+  // an append in a transaction that rolls back leaves no entry.
+  const ledger = await import("../documents/signing/ledger.js");
+  const appended = await Promise.all(Array.from({ length: 12 }, (_, n) => store.withSigningLock(org, `${id}_doc_${n}`, () =>
+    ledger.appendLedger({ organization_id: org, package_id: `${id}_doc_${n}`, kind: "receipt", subject_hash: String(n).padStart(64, "0") }))));
+  const first = Math.min(...appended.map(e => e.seq));
+  assert.deepEqual(appended.map(e => e.seq).sort((a, b) => a - b), Array.from({ length: 12 }, (_, n) => first + n));
+  assert.equal((await ledger.verifyLedgerFrom(first)).ok, true);
+  await assert.rejects(store.withSigningLock(org, `${id}_rollback`, async () => {
+    await ledger.appendLedger({ organization_id: org, package_id: `${id}_rollback`, kind: "receipt", subject_hash: "f".repeat(64) }); throw new Error("rollback");
+  }), /rollback/);
+  assert.equal((await ledger.ledgerEntriesForPackage(`${id}_rollback`)).length, 0);
+  assert.equal((await ledger.verifyLedgerFrom(first)).ok, true);
 });

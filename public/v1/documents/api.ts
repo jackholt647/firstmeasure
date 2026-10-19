@@ -1069,6 +1069,7 @@ export const registerDocumentsApi: FastifyPluginAsync = async (app) => {
     const access = await signing.internalSigningAccess(orgId, getParam(request.params, "documentId"), cleanText(asObject(request.body).signer_id), ctx);
     return { ok: true, ...(await signing.prepareSigning(access)) };
   });
+  (await import("./signing/routes.js")).registerSealRoutes(app as any);
   app.get("/organizations/:orgId/documents/:documentId/signing/evidence", async request => {
     const orgId = getParam(request.params, "orgId");
     const ctx = await requirePlatformAuth(request, { orgId, permission: "manage_documents" });

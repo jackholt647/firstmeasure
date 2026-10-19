@@ -27,6 +27,9 @@ export type SigningPackage = {
   review_pdf: string; final_pdf: string; final_pdf_hash: string; disclosure: { version: string; text: string; hash: string };
   challenges: Record<string, { id: string; content_hash: string; expires_at: string }>;
   completed_at?: string; retention_until?: string; legal_hold?: boolean;
+  /** Pending until the executed copy carries its certification seal (seal.ts). */
+  seal?: { status: "pending" | "sealed"; sealed_at?: string; unsealed_sha256?: string; certificate_sha256?: string; certificate_subject?: string; provider?: string; development?: boolean;
+    timestamp?: { time: string; authority: string; serial: string } | null; ledger_seq?: number };
 };
 
 /** Field identity is independent of geometry: repeated placements share one field;

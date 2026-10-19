@@ -200,6 +200,12 @@ test("signing: assigned signers, immutable revisions, concurrent receipts, execu
   const afterPdf = await client.raw("GET", `/v1/documents/public/${a}/pdf`);
   assert.equal(afterPdf.statusCode, 200); assert.notDeepEqual(afterPdf.rawPayload, beforePdf.rawPayload);
   const pkg = await store.packageForSnapshot(orgId, doc.snapshot.id); assert.equal(Object.keys(pkg!.receipts).length, 2); assert.ok(pkg!.final_pdf_hash);
+  // The executed copy is sealed and every step is in the signing ledger.
+  assert.equal(pkg!.seal?.status, "sealed");
+  const sealCheck = await (await import("../documents/signing/seal.js")).verifySealedPdf(afterPdf.rawPayload);
+  assert.ok(sealCheck.intact && sealCheck.trusted, "the downloaded executed copy carries a valid seal"); assert.equal(sealCheck.sha256, pkg!.final_pdf_hash);
+  const ledgerKinds = (await (await import("../documents/signing/ledger.js")).ledgerEntriesForPackage(pkg!.id)).map(e => e.kind);
+  assert.deepEqual(ledgerKinds, ["receipt", "receipt", "executed", "sealed"]);
   await assert.rejects(storage.saveDocumentInstance(orgId, doc.id, { ...retained, params: { body: "Adapter bypass" } }), { code: "document_locked_signed" });
   await assert.rejects(storage.saveDocumentInstance(orgId, doc.id, { ...retained, outputs: {} }), { code: "signature_immutable" });
   const { PDFDocument, PDFRawStream } = await import("pdf-lib");

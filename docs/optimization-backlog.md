@@ -164,3 +164,16 @@ partial result with a full `rebind` in a test, as `dev/base-editing-regressions.
 **Why it can wait.** Bases without curves preview in a few milliseconds, and the curved case is several times faster
 than before the 2026-10-18 changes. Worth doing if a heavily curved foundation stutters while dragging.
 (dev/EXTERIOR_ENGINE.md, "Base editing, 2026-10-18")
+
+## Signing ledger appends share one lock
+
+**Today.** Every signing write that appends to the ledger (`documents/signing/ledger.ts`) takes one global lock,
+`platform-store:document_signing:ledger`, inside its document's transaction, because the chain is a single sequence
+across all organizations. Signing is serialized platform-wide for the duration of that transaction.
+
+**Where the change goes.** Give each organization its own chain (prev_hash per organization) and anchor all chain
+heads together in one Merkle root per interval. Verification then checks the organization's chain and the Merkle
+path. Entries and their hashes stay the same; only how they link changes.
+
+**Why it can wait.** Signing is a few writes per agreement, so the lock is held for milliseconds and contention
+needs thousands of concurrent signers. (docs/architecture/document-signing.md, "Seal, timestamp and signing ledger")

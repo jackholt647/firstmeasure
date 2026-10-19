@@ -9,7 +9,7 @@ export function signingStore(): SqlStore {
   const next = path.resolve(process.cwd(), env.platformStorageRoot, "document-signing.sqlite");
   if (store && filename === next) return store;
   filename = next;
-  store = openSqlStore({ id: "document_signing", filename, schemaVersion: 2, initialize: async db => {
+  store = openSqlStore({ id: "document_signing", filename, schemaVersion: 3, initialize: async db => {
     await db.exec(`CREATE TABLE IF NOT EXISTS document_signing_packages (
       id TEXT PRIMARY KEY, organization_id TEXT NOT NULL, document_id TEXT NOT NULL, snapshot_id TEXT NOT NULL,
       status TEXT NOT NULL, value_json TEXT NOT NULL, updated_at TEXT NOT NULL);
@@ -26,6 +26,14 @@ export function signingStore(): SqlStore {
     await ensureSqlColumn(db,"document_signing_outbox","attempted_at","TEXT NOT NULL DEFAULT ''");
     await ensureSqlColumn(db,"document_signing_outbox","attempts","INTEGER NOT NULL DEFAULT 0");
     await ensureSqlColumn(db,"document_signing_outbox","last_error","TEXT NOT NULL DEFAULT ''");
+    // The ledger is append-only: each entry names the hash of the one before it, and
+    // UNIQUE(prev_hash) refuses a fork. Settings hold the development seal authority.
+    await db.exec(`CREATE TABLE IF NOT EXISTS document_signing_settings (key TEXT PRIMARY KEY, value_json TEXT NOT NULL, created_at TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS document_signing_ledger (seq INTEGER PRIMARY KEY, organization_id TEXT NOT NULL, package_id TEXT NOT NULL, kind TEXT NOT NULL,
+      subject_hash TEXT NOT NULL, payload_json TEXT NOT NULL, created_at TEXT NOT NULL, prev_hash TEXT NOT NULL UNIQUE, entry_hash TEXT NOT NULL UNIQUE);
+      CREATE INDEX IF NOT EXISTS document_signing_ledger_package ON document_signing_ledger(package_id);
+      CREATE INDEX IF NOT EXISTS document_signing_ledger_subject ON document_signing_ledger(subject_hash);
+      CREATE INDEX IF NOT EXISTS document_signing_ledger_kind ON document_signing_ledger(kind,seq);`);
     await db.exec("CREATE INDEX IF NOT EXISTS document_signing_expiry ON document_signing_packages(status,expires_at); CREATE INDEX IF NOT EXISTS document_signing_pending ON document_signing_outbox(delivered,attempted_at);");
     for (const row of await db.prepare("SELECT id,value_json FROM document_signing_packages WHERE expires_at=''").all()) {
       const pkg = JSON.parse(String(row.value_json));
@@ -66,5 +74,14 @@ export async function queueSigningEvent(pkg: SigningPackage, type: string, suffi
   const id = `${pkg.id}:${type}:${suffix}`;
   await signingStore().prepare("INSERT INTO document_signing_outbox(id,organization_id,package_id,event_type,payload_json) VALUES(?,?,?,?,?) ON CONFLICT(id) DO NOTHING")
     .run(id, pkg.organization_id, pkg.id, type, JSON.stringify(payload));
+}
+export async function readSigningSetting(key: string): Promise<unknown | null> {
+  const row = await signingStore().prepare("SELECT value_json FROM document_signing_settings WHERE key=?").get(key);
+  return row ? JSON.parse(String(row.value_json)) : null;
+}
+/** First writer wins; every caller gets the stored value. */
+export async function writeSigningSettingOnce(key: string, value: unknown) {
+  await signingStore().prepare("INSERT INTO document_signing_settings(key,value_json,created_at) VALUES(?,?,?) ON CONFLICT(key) DO NOTHING").run(key, JSON.stringify(value), new Date().toISOString());
+  return readSigningSetting(key);
 }
 export async function closeSigningStore() { await store?.close(); store = undefined; filename = ""; }
