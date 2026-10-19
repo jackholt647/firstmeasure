@@ -91,7 +91,7 @@ test('the shared assistant discovers call exports and reads filtered transcripts
   const run={agentId:'assistant',orgId,branchId:'default',userId:'manager',ctx:auth,settings:{},scratch:{}} as any;
   const tool=(name:string)=>platformAgentTools.find(item=>item.name===name)!;
   const found=await tool('platform_search').execute(run,{query:'customer-calls',kind:'data'});
-  assert.deepEqual((found.matches as any[]).map(item=>item.id).sort(),['customer-calls.record','customer-calls.recordings','customer-calls.transcripts']);
+  assert.deepEqual((found.matches as any[]).map(item=>item.id).sort(),['customer-calls.record','customer-calls.recordings','customer-calls.transcripts','phone-settings.voicemail']);
   const described=await tool('platform_describe').execute(run,{id:'customer-calls.transcripts'});assert.equal(described.available,true);
   const history=await tool('platform_list').execute(run,{source:source('transcripts',undefined,undefined,{owner_user_id:'other',contact_id:'contact-b'}),limit:3});
   assert.equal(history.status,'ready',JSON.stringify(history));assert.equal((history.items as any[]).length,1);

@@ -56,7 +56,7 @@
       .fm-toast.compact .t1{font-size:12px}
       .fm-toast.compact .t2{font-size:11px;-webkit-line-clamp:4}
       .fm-tooltip{
-        position:fixed;z-index:2147483600;max-width:min(360px,calc(100vw - 24px));
+        position:fixed;inset:auto;margin:0;z-index:2147483600;max-width:min(360px,calc(100vw - 24px));
         background:rgba(15,23,42,.96);color:#fff;border:1px solid rgba(255,255,255,.09);border-radius:9px;padding:8px 10px;
         font-family:Montserrat,Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
         font-size:11px;font-weight:650;line-height:1.38;letter-spacing:.005em;box-shadow:0 12px 30px rgba(15,23,42,.26);
@@ -187,6 +187,7 @@
     tip.id = 'fmTooltip';
     tip.className = 'fm-tooltip';
     document.body.appendChild(tip);
+    if(tip.showPopover)tip.setAttribute('popover','manual');
     state.tooltip = tip;
     return tip;
   }
@@ -288,6 +289,8 @@
     tip.classList.remove('visible');
     tip.style.left = '0px';
     tip.style.top = '0px';
+    // Tooltips must sit above native popovers and modal dialogs too.
+    if(tip.showPopover){if(tip.matches(':popover-open'))tip.hidePopover();const owner=target.closest('dialog[open]') || document.body;if(tip.parentElement!==owner)owner.append(tip);tip.showPopover();}
     positionTooltip(target);
     const initialAnchor = target.getBoundingClientRect();
     // Layout changes need not emit mouseout (window docking, hiding, reparenting).
@@ -341,6 +344,7 @@
     state.tooltipTarget = null;
     if (tip) state.tooltipHideTimer = setTimeout(() => {
       if (!tip.classList.contains('visible')) {
+        if(tip.hidePopover && tip.matches(':popover-open'))tip.hidePopover();
         tip.textContent = '';
         tip.removeAttribute('data-side');
       }

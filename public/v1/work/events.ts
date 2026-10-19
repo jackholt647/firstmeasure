@@ -1,3 +1,4 @@
+import {phoneEventDefinitions} from '../comms/phone/event-contracts.js';
 // Central event catalog. Every work event emitted anywhere on the platform
 // should be registered here. Registration is intentionally loose — an
 // unregistered event still flows through the engine (its visibility is
@@ -354,3 +355,5 @@ registerWorkEvents([
   { name: "organization.user.invited", notification: { group: "organization", source: "organization", tab: "general" }, description: "A user was invited to the organization.", visibility: "activity" },
   { name: "organization.user.joined", notification: { group: "organization", source: "organization", tab: "general" }, description: "A user activated their account.", visibility: "activity" }
 ]);
+
+registerWorkEvents(phoneEventDefinitions);

@@ -275,13 +275,13 @@ let draining = false;
 // A drain requested while one runs (an event emitted after that pass last
 // looked at the queue) runs again right after it instead of waiting a tick.
 let drainRequested = false;
-export async function drainWorkEvents(limit = 100) {
-  if (draining) { drainRequested = true; return 0; }
+export async function drainWorkEvents(limit = 100, eventTypes?: readonly string[]) {
+  if (draining) { if(!eventTypes)drainRequested = true; return 0; }
   draining = true;
   let processed = 0;
   try {
     while (processed < limit) {
-      const event = await claimNextEvent(workerId);
+      const event = await claimNextEvent(workerId,5,eventTypes);
       if (!event) break;
       let leaseLost = false;
       const heartbeat = setInterval(() => {

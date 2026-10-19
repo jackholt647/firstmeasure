@@ -1,3 +1,5 @@
+import {registerPhoneMarketingPublication} from '../../comms/phone/marketing-publication.js';
+import {registerPhonePublication} from '../../comms/phone/publication.js';
 import {registerResourceTypePublication} from '../../materials/resource-types-publication.js';
 import { registerSupervisionPublication } from '../../comms/calls/supervision-publication.js';
 import { registerCallAnalysisPublication } from '../../comms/calls/analysis-publication.js';
@@ -31,6 +33,8 @@ let initialized = false;
 /** All execution hosts use this same catalog. No browser can register server handlers. */
 export function initializePublication() {
   registerCallPublication();
+  registerPhonePublication();
+  registerPhoneMarketingPublication();
   registerCallAnalysisPublication();
   registerSupervisionPublication();
   if (initialized) return;

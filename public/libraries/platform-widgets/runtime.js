@@ -40,7 +40,7 @@
   let typeGraph;
   const typeReady=Promise.all([fetch(new URL('types.json?v=20261009',base)).then(r=>{if(!r.ok)throw Error('Widget types unavailable');return r.json();}),loadScript('types.js?v=20261009')]).then(([rows])=>{typeGraph=global.FirstMateWidgetTypes.create(rows);});
   const catalogReady=fetch(new URL('catalog.json?v=20261015-payroll-views',base),{credentials:'same-origin',cache:'no-cache'}).then(r=>{if(!r.ok)throw Error('Widget catalog unavailable');return r.json();}).then(rows=>rows.forEach(def=>register(def)));
-  const ready=Promise.all([typeReady,catalogReady]).then(()=>{typeGraph.validateDefinitions([...definitions.values()]);return Promise.all([loadScript('grouped-widgets.js?v=20261010-loading-fix'),loadScript('extended-widgets.js?v=20261010-icon-color')]);});
+  const ready=Promise.all([typeReady,catalogReady]).then(()=>{typeGraph.validateDefinitions([...definitions.values()]);return Promise.all([loadScript('gifs.js?v=20261012-composer-media-fixes-v1'),loadScript('grouped-widgets.js?v=20261012-photo-picker-layer-v3'),loadScript('extended-widgets.js?v=20261010-icon-color-complete')]);});
   ready.catch(()=>{});
   function styles(){
     if(document.getElementById('fm-widget-styles'))return;

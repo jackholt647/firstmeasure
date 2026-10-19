@@ -14,7 +14,9 @@ const shape=(properties:Record<string,JsonSchema>,required=Object.keys(propertie
 const array=(items:JsonSchema):JsonSchema=>({type:'array',items});
 const stringFields=['id','branch_id','project_id','contact_id','owner_user_id','mode','direction','state','wrap_up_state','customer_number','business_number','customer_name','entry_id','created_at','updated_at','connected_at','ended_at','notes'];
 const resultFields=['disposition','next_action','due_at','appointment_id','actor_user_id','outcome_id'];
-const callSchema=shape({
+const attributionFields=['lead_source_id','marketing_campaign_id','pool_id','visit_id','attribution_kind','keyword','referrer_host','number','label','source','medium','campaign','ad_id','landing_page','captured_at'];
+const phoneSchema=shape({power_dial:{type:'boolean'},voicemail_drop:shape({enabled:{type:'boolean'},state:string,completed_at:string}),attribution:shape({enabled:{type:'boolean'},...Object.fromEntries(attributionFields.map(k=>[k,string]))})});
+const callSchema=shape({phone:phoneSchema,
   ...Object.fromEntries(stringFields.map(key=>[key,string])),revision:{type:'integer'},duration_seconds:{type:['number','null']},
   department_ids:array(string),purpose:string,source_node_ids:array(string),result:shape(Object.fromEntries(resultFields.map(key=>[key,string])),[]),
   script:shape({id:string,title:string,version:{type:['string','number','null']},questions:array(string),sections:array(shape({title:string,body:string})),answers:{type:'object',additionalProperties:{type:['string','number','boolean','null','object','array']}}}),
@@ -40,7 +42,7 @@ async function authorizedCall(ctx:PublicationContext,target:TargetRef,id=target.
 function safeCall(call:CustomerCall){
   const policy=object(call.metadata.policy),capture=object(call.metadata.capture),script=object(call.metadata.script);
   const elapsed=call.connected_at&&call.ended_at?(Date.parse(call.ended_at)-Date.parse(call.connected_at))/1000:NaN;
-  return {...Object.fromEntries(stringFields.map(key=>[key,text(call[key])])),revision:Number(call.revision),duration_seconds:Number.isFinite(elapsed)?Math.max(0,elapsed):null,
+  return {phone:{power_dial:call.metadata.power_dial===true,voicemail_drop:{enabled:object(call.metadata.voicemail_drop).enabled===true,state:text(object(call.metadata.voicemail_drop).state),completed_at:text(object(call.metadata.voicemail_drop).completed_at)},attribution:{enabled:object(call.metadata.attribution).enabled===true,...Object.fromEntries(attributionFields.map(k=>[k,text(object(call.metadata.attribution)[k])]))}},...Object.fromEntries(stringFields.map(key=>[key,text(call[key])])),revision:Number(call.revision),duration_seconds:Number.isFinite(elapsed)?Math.max(0,elapsed):null,
     department_ids:strings(call.metadata.department_ids),purpose:text(call.metadata.purpose),source_node_ids:strings(call.metadata.source_node_ids),
     result:Object.fromEntries(resultFields.filter(key=>call.result[key]!==undefined).map(key=>[key,text(call.result[key])])),
     script:{id:text(script.id),title:text(script.title),version:typeof script.version==='number'||typeof script.version==='string'?script.version:null,
@@ -78,9 +80,9 @@ export function registerCallPublication(){
   const exports:Parameters<typeof registerDataProvider>[0]['exports']={};
   for(const kind of ['record','transcripts','recordings'] as const){
     const value=async(ctx:PublicationContext,call:CustomerCall)=>kind==='record'?safeCall(call):media(ctx,call,kind);
-    exports[kind]={schema:kind==='record'?callSchema:mediaSchema,schemaVersion:'1',argsSchema,access:{...access,
+    exports[kind]={schema:kind==='record'?callSchema:mediaSchema,schemaVersion:'2',argsSchema,access:{...access,
       authorize:async(ctx,target)=>{await access.authorize!(ctx,target);if(kind!=='record'&&!canUseScopedPermission(principal(ctx),'view_call_recordings|manage_communications|manage_company_settings'))throw forbidden('recording_access_denied','You do not have access to recordings and transcripts.');}},
-      description:kind==='record'?'Customer call details, notes, outcome, caller, contact, project, timestamps and capture status. List newest first; filter by owner_user_id, contact_id, project_id, direction, state, query or created_after/created_before. Diagnostics excluded.':kind==='transcripts'?'Call details and authorized transcript text, including processing state and retention. List recent calls or filter by user, contact, project and date. Empty artifacts means no retained transcript.':'Call details and authorized recording metadata with authenticated media links; no private storage or provider URLs.',
+      description:kind==='record'?'Customer call details, notes, outcome, caller, contact, project, timestamps, capture status, tracking attribution, power dialing and outgoing voicemail drop outcome. List newest first; filter by owner_user_id, contact_id, project_id, direction, state, query or created_after/created_before. Diagnostics excluded.':kind==='transcripts'?'Call details and authorized transcript text, including processing state and retention. List recent calls or filter by user, contact, project and date. Empty artifacts means no retained transcript.':'Call details and authorized recording metadata with authenticated media links; no private storage or provider URLs.',
       units:{[kind==='record'?'/duration_seconds':'/call/duration_seconds']:'seconds'},authorizeRef:async(ctx,ref)=>{filter(ctx,ref);if(ref.target.id)await authorizedCall(ctx,ref.target);},authorizeSnapshot:snapshot,
       read:async(ctx,ref)=>{const call=await authorizedCall(ctx,ref.target),item=await value(ctx,call);return {value:item,revision:contentHash(item),provenance:provenance(ctx,[call],[item],kind)};},
       list:async(ctx,ref,page)=>{

@@ -1,0 +1,31 @@
+{
+  "baseline": "/opt/firstmeasure/releases-gif-drafts-1791774124/d31cfa48b3afa20a2a5165315093abffad506ab3",
+  "source_commit": "8a4e2ed40cf27601ed0bf62fa582f01a18f7087c",
+  "role": "web",
+  "files": {
+    "public/libraries/apps/firstmate-apps-manifest.js": "07c68bf437d4bda611664b4f2de5e83e79ec4d268d03b2f24f959e8e7a8e48ca",
+    "public/libraries/apps/settings/phone.js": "323190719beee2acbdae6fa72ce13c23246daf36a485daf5c8f0e81fe3686cea",
+    "public/v1/comms/phone/api.ts": "361dfa414263386c3fe7b86f8c889984e5ce9e8b6a07a8a15354d48a3469d7fb",
+    "public/v1/comms/phone/event-contracts.ts": "9416a0c5a8b18fb78c48290048ecd89874ac61fbe861de748fe48c1fca0ceea4",
+    "public/v1/comms/phone/publication.ts": "079f4afaba9918eacb8db2c179d211ace0a09dd67df600824d567d57ef22e835",
+    "public/v1/comms/phone/reputation.ts": "57bb1c0869c6608ab6f4f2a29643a4c8d8376caf5620c0255d0188e39badcfae",
+    "public/v1/messaging/telnyx.ts": "c6c1abd01d3c9447c9fc9f7365639cddd84f09c915edbb3e2f0886c63c80782e",
+    "public/v1/platform/publication/coverage.ts": "759c4aa0a1ccfdac3b3e1fa0e134433799bd52ac5290358e2f28b7e760dcb60c",
+    "public/v1/platform/publication/permission-bundles.ts": "7be51290545cd742b1ad3f699b3f047396301a205ed78d6bba87d93c79a0ca79",
+    "public/v1/telephony/telnyx.ts": "5d6a370c0d93c87e40a7a396f60892bd9636d446f8b175905b437de54fb590fb",
+    "public/v1/comms/phone/reputation-product.ts": "04e62879885bc143797ff9aad4928009a73698909dbc8b46a9766efc26d0ecfe"
+  },
+  "baseline_hashes": {
+    "public/libraries/apps/firstmate-apps-manifest.js": "07c68bf437d4bda611664b4f2de5e83e79ec4d268d03b2f24f959e8e7a8e48ca",
+    "public/libraries/apps/settings/phone.js": "323190719beee2acbdae6fa72ce13c23246daf36a485daf5c8f0e81fe3686cea",
+    "public/v1/comms/phone/api.ts": "361dfa414263386c3fe7b86f8c889984e5ce9e8b6a07a8a15354d48a3469d7fb",
+    "public/v1/comms/phone/event-contracts.ts": "9416a0c5a8b18fb78c48290048ecd89874ac61fbe861de748fe48c1fca0ceea4",
+    "public/v1/comms/phone/publication.ts": "079f4afaba9918eacb8db2c179d211ace0a09dd67df600824d567d57ef22e835",
+    "public/v1/comms/phone/reputation.ts": "57bb1c0869c6608ab6f4f2a29643a4c8d8376caf5620c0255d0188e39badcfae",
+    "public/v1/messaging/telnyx.ts": "35894e6f8d59492ac67fe8b6d6872bcee7cf118cdfa19cc9457c96d4ff9145ab",
+    "public/v1/platform/publication/coverage.ts": "759c4aa0a1ccfdac3b3e1fa0e134433799bd52ac5290358e2f28b7e760dcb60c",
+    "public/v1/platform/publication/permission-bundles.ts": "7be51290545cd742b1ad3f699b3f047396301a205ed78d6bba87d93c79a0ca79",
+    "public/v1/telephony/telnyx.ts": "5d6a370c0d93c87e40a7a396f60892bd9636d446f8b175905b437de54fb590fb",
+    "public/v1/comms/phone/reputation-product.ts": "04e62879885bc143797ff9aad4928009a73698909dbc8b46a9766efc26d0ecfe"
+  }
+}

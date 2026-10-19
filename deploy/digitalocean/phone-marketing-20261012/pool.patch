@@ -1,0 +1,904 @@
+--- a/public/libraries/apps/firstmate-apps-manifest.js
++++ b/public/libraries/apps/firstmate-apps-manifest.js
+@@ -611,7 +611,7 @@
+       portalTabId: 'company_settings',
+       placement: 'settings',
+       access: managementAccess,
+-      bundles: [priorityFieldsBundle, versionedBundle('../custom-fields/firstmate-custom-fields.js', '20261010-published-calculations-owners-v2'), versionedBundle('../payroll-api/payroll-api.js', '20261006-payroll-publication-v1'), versionedBundle('../websites-api/websites-api.js', '20260731-domains-v10'), versionedBundle('../domains-api/domains-api.js', '20260731-domains-v10'), versionedBundle('../insights/firstmate-insights.js', '20260901-insights-v1'), versionedBundle('settings/domains.js', '20260731-domains-v11'), versionedBundle('settings/crm.js', '20261012-phone-publication-v3'), versionedBundle('settings/contacts.js', '20261009-contact-settings-v1'), versionedBundle('settings/payroll.js', '20261006-payroll-publication-v1'), versionedBundle('settings/money-overlay-enforcer.js', '20260828-money-overlay-integrity-v1'), versionedBundle('settings/platform-billing.js', '20260924-subscription-service-v3'), versionedBundle('../brand-kit/brand-kit.js', '20261006-firstmeasure-localization-v1'), bundle('../platform-terminology/editor.js'), versionedBundle('settings/feed.js', '20261011-feed-settings-ui-v2'), versionedBundle('settings/phone.js', '20261012-reputation-onboarding-v1'), versionedBundle('settings/company.js', '20261011-feed-loader-v6')]
++      bundles: [priorityFieldsBundle, versionedBundle('../custom-fields/firstmate-custom-fields.js', '20261010-published-calculations-owners-v2'), versionedBundle('../payroll-api/payroll-api.js', '20261006-payroll-publication-v1'), versionedBundle('../websites-api/websites-api.js', '20260731-domains-v10'), versionedBundle('../domains-api/domains-api.js', '20260731-domains-v10'), versionedBundle('../insights/firstmate-insights.js', '20260901-insights-v1'), versionedBundle('settings/domains.js', '20260731-domains-v11'), versionedBundle('settings/crm.js', '20261012-phone-publication-v3'), versionedBundle('settings/contacts.js', '20261009-contact-settings-v1'), versionedBundle('settings/payroll.js', '20261006-payroll-publication-v1'), versionedBundle('settings/money-overlay-enforcer.js', '20260828-money-overlay-integrity-v1'), versionedBundle('settings/platform-billing.js', '20260924-subscription-service-v3'), versionedBundle('../brand-kit/brand-kit.js', '20261006-firstmeasure-localization-v1'), bundle('../platform-terminology/editor.js'), versionedBundle('settings/feed.js', '20261011-feed-settings-ui-v2'), versionedBundle('settings/phone-marketing.js', '20261012-phone-marketing-v1'), versionedBundle('settings/phone.js', '20261012-phone-marketing-v1'), versionedBundle('settings/company.js', '20261011-feed-loader-v6')]
+     },
+     {
+       id: 'portal.crew_overview',
+--- a/public/libraries/apps/settings/phone-marketing.js
++++ b/public/libraries/apps/settings/phone-marketing.js
+@@ -0,0 +1,70 @@
++(function(){
++ 'use strict';
++ const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
++ const card=(title,body)=>`<section class="ph-card"><h3>${esc(title)}</h3>${body}</section>`;
++ const field=(name,label,value='',type='text')=>`<label class="ph-field"><span>${esc(label)}</span><input name="${esc(name)}" aria-label="${esc(label)}" type="${type}" value="${esc(value)}"></label>`;
++ const area=(name,label,value='')=>`<label class="ph-field"><span>${esc(label)}</span><textarea name="${esc(name)}" aria-label="${esc(label)}">${esc(value)}</textarea></label>`;
++ const select=(name,label,value,items)=>`<label class="ph-field"><span>${esc(label)}</span><select name="${esc(name)}" aria-label="${esc(label)}">${items.map(([id,text])=>`<option value="${esc(id)}" ${id===value?'selected':''}>${esc(text)}</option>`).join('')}</select></label>`;
++ const check=(name,label,yes)=>`<label><input type="checkbox" name="${esc(name)}" ${yes?'checked':''}> ${esc(label)}</label>`;
++ function mount(root,options){
++  options.bundleUrl ||= document.currentScript?.src||new URL("/libraries/apps/settings/phone-marketing.js",location.origin).href;
++  const selectedContacts=new Set();
++  let state={},selected='',preview=null,contacts=[],nextContacts='',recipients=[],nextRecipients='',report=null,view=options.view;
++  const value=(f,k)=>f.elements[k]?.value||'',checked=(f,k)=>!!f.elements[k]?.checked;
++  const sourceChoices=()=>[['','Unlinked source'],...(state.sources||[]).filter(s=>s.enabled).map(s=>[s.id,s.label])];
++  const notice=t=>{const el=root.querySelector('[data-m-status]');if(el)el.textContent=t;};
++  async function load(){state=await options.api('/marketing');await render();}
++  function poolEditor(p={}){return `<form data-m-form="pool" data-id="${esc(p.id||'')}" data-revision="${p.revision||0}">${field('label','Pool name',p.label)}${check('enabled','Enable website number assignment',p.enabled)}<h4>Dedicated website numbers</h4><p>Buy or port numbers in Numbers & Users first. Pool numbers use their configured phone routing.</p>${options.lines.filter(n=>n.can_manage&&n.status==='active').map(n=>check('number:'+n.phone_number,n.label+' · '+n.phone_number,(p.numbers||[]).includes(n.phone_number))).join('<br>')}${select('fallback','Fallback business number',p.fallback_number,options.lines.filter(n=>n.can_manage&&n.status==='active').map(n=>[n.phone_number,n.label+' · '+n.phone_number]))}${area('origins','Allowed website origins (one HTTPS address per line)',(p.origins||[]).join('\n'))}<div class="ph-grid">${field('lease','Visitor assignment minutes',p.lease_minutes||30,'number')}${field('reuse','Hours to hold numbers before reuse',p.reuse_hours||24,'number')}${select('source','Default lead source',p.lead_source_id||'',sourceChoices())}${field('campaign','Marketing campaign reference',p.marketing_campaign_id||'')}</div><p>Optional rules match website tags or referrers. The first matching rule wins.</p><div data-m-rules>${(p.rules?.length?p.rules:[{}]).map(ruleEditor).join('')}</div><button type="button" data-m-add-rule>Add source rule</button><button>Save website pool</button></form>`;}
++  function ruleEditor(r={}){return `<div class="ph-card" data-m-rule><div class="ph-grid">${field('utm_source','UTM source match',r.utm_source)}${field('utm_campaign','UTM campaign match',r.utm_campaign)}${field('referrer_host','Referring domain match',r.referrer_host)}${select('rule_source','Lead source',r.lead_source_id||'',sourceChoices())}${field('rule_campaign','Marketing campaign reference',r.marketing_campaign_id||'')}</div><button type="button" data-m-remove-rule>Remove rule</button></div>`;}
++  function snippet(p){const src=new URL('../../phone-tracking/website.js',options.bundleUrl).href,api=new URL('/v1/comms',location.origin).href;return `<script async src="${src}" data-api="${api}" data-organization="${options.organization}" data-phone-pool="${p.id}" data-fallback="${p.fallback_number}"></script>`;}
++  function broadcastEditor(c={}){return `<form data-m-form="broadcast" data-id="${esc(c.id||'')}" data-revision="${c.revision||0}"><div class="ph-grid">${field('label','Campaign name',c.label)}${select('sender','Sending number',c.sender_identity_id,(state.senders||[]).map(s=>[s.id,s.label]))}${select('source','Lead source',c.lead_source_id||'',sourceChoices())}${field('campaign','Marketing campaign reference',c.marketing_campaign_id||'')}</div>${area('template','Message',c.template||'')}<p>Personalize with {{first_name}}, {{last_name}}, {{name}} or {{company_name}}. Marketing permission is checked before sending.</p>${options.schedule('broadcast.schedule',c.schedule,false)}<div class="ph-grid">${select('timezone','Sending hours use',c.timezone_mode||'contact',[['contact','Contact’s time zone'],['schedule','Configured time zone']])}${select('unknown','Missing contact time zone',c.unknown_timezone||'hold',[['hold','Hold until known'],['fallback','Use configured time zone']])}${field('scheduled','Start at (optional)',c.scheduled_for?c.scheduled_for.slice(0,16):'','datetime-local')}${field('expiry','Expire after hours',c.expiry_hours||72,'number')}${field('pace','Maximum messages per second',c.messages_per_second||1,'number')}</div>${check('stop','Stop unsent messages when the contact replies',c.stop_on_reply!==false)}<button>Save campaign draft</button></form>`;}
++  async function render(){
++   let body='';
++   if(view==='website'){
++    body+=card('Lead-source links',`<p>These stable references connect phone attribution to a future marketing dashboard.</p>${(state.sources||[]).map(s=>`<p><strong>${esc(s.label)}</strong> · ${esc(s.id)}</p>`).join('')}<form data-m-form="source">${field('source_id','Source reference')}${field('source_label','Source name')}${field('external','External source reference (optional)')}<button>Create lead source</button></form>`);
++    body+=card('Website tracking pools',`<p>Show visitors a number associated with their advertising source. Full pools use the fallback number.</p>${(state.pools||[]).map(p=>`<div class="ph-actions"><strong>${esc(p.label)}</strong><span>${p.enabled?'Enabled':'Disabled'} · ${p.numbers.length} numbers</span><button data-m-pool="${esc(p.id)}">Edit pool</button><button data-m-install="${esc(p.id)}">Website setup</button></div>`).join('')}<button data-m-pool="">Create website pool</button>`);
++    if(selected==='new-pool'||selected.startsWith('pool:'))body+=card('Website pool setup',poolEditor(state.pools.find(p=>p.id===selected.slice(5))||{}));
++    if(selected.startsWith('install:')){const p=state.pools.find(p=>p.id===selected.slice(8));if(p){const visits=await options.api('/website-pools/'+encodeURIComponent(p.id)+'/visits?limit=25');body+=card('Install on your website',`<p>Place this snippet on pages that show your fallback phone number. Mark other phone text with <code>data-phone-tracking</code>. Your website’s consent control must set <code>window.FirstMateCallTrackingConsent = true</code> and dispatch <code>firstmate:tracking-consent</code> before visitor tracking begins.</p><label class="ph-field"><span>Website snippet</span><textarea readonly rows="5" aria-label="Website snippet">${esc(snippet(p))}</textarea></label><p>Assign a source rule for each advertising tag. Session attribution uses the observed website information; untagged or late calls may remain unattributed.</p><h4>Recent visitor assignments</h4>${visits.items.map(v=>`<p>${esc(v.phone_number)} · ${esc(v.attribution.source)} · ${esc(v.attribution.campaign)} · ${esc(v.created_at)}</p>`).join('')||'<p>No website assignments yet.</p>'}`);}}
++   }else{
++    body+=card('SMS broadcast campaigns',`<p>Create an audience of saved contacts, review eligibility, then start sending. Every recipient receives an individual text.</p>${(state.broadcasts||[]).map(c=>`<div class="ph-actions"><strong>${esc(c.label)}</strong><span>${esc(c.status)}</span><button data-m-campaign="${esc(c.id)}">Open</button></div>`).join('')}<button data-m-campaign="">Create campaign</button>`);
++    const c=state.broadcasts.find(c=>c.id===selected)||{};
++    if(selected==='new-campaign'||c.id){
++     if(!c.id||c.status==='draft')body+=card('Campaign draft',broadcastEditor(c));
++     if(c.id){report=await options.api('/broadcasts/'+encodeURIComponent(c.id)+'/report');body+=card('Campaign progress',`<div class="ph-grid">${Object.entries(report.counts).map(([k,v])=>`<div><strong>${v}</strong> ${esc(k.replaceAll('_',' '))}</div>`).join('')}</div><p>${esc(report.last_error)}</p><div class="ph-actions">${(c.status==='draft'?['start']:c.status==='running'?['pause','cancel']:c.status==='paused'?['resume','cancel']:[]).map(action=>`<button data-m-control="${action}" data-id="${esc(c.id)}">${action[0].toUpperCase()+action.slice(1)}</button>`).join('')}<button data-m-preview="${esc(c.id)}">Preview eligibility</button><button data-m-refresh>Refresh status</button></div>`);
++      if(c.status==='draft')body+=card('Choose contacts',`<form data-m-form="search">${field('query','Search contacts')}<button>Search</button></form><form data-m-form="audience" data-id="${esc(c.id)}" data-revision="${c.revision}">${contacts.map(r=>check('contact:'+JSON.stringify({project_id:r.project_id,contact_id:r.contact_id}),r.name,selectedContacts.has(JSON.stringify({project_id:r.project_id,contact_id:r.contact_id})))).join('<br>')||'<p>Search to load saved contacts.</p>'}<button>Add selected contacts</button></form>${nextContacts?'<button data-m-more-contacts>Load more contacts</button>':''}`);
++      if(preview)body+=card('Eligibility preview',`<p>${preview.eligible} eligible · ${preview.skipped} skipped · ${preview.total} total</p>${preview.nextCursor?`<p>${preview.examined} contacts reviewed so far.</p><button data-m-more-preview>Review more contacts</button>`:''}${Object.entries(preview.reasons).map(([reason,n])=>`<p>${n} · ${esc(reason)}</p>`).join('')}${preview.samples.map(s=>`<p><strong>${esc(s.name)}</strong>: ${esc(s.text)} ${s.eligible?'':'· '+esc(s.reason)}</p>`).join('')}`);
++      const result=await options.api('/broadcasts/'+encodeURIComponent(c.id)+'/recipients?limit=100');recipients=result.items;nextRecipients=result.nextCursor||'';body+=card('Recipients and delivery',`<div data-m-recipients>${recipients.map(recipientRow).join('')||'<p>No recipients added yet.</p>'}</div>${nextRecipients?'<button data-m-more-recipients>Load more recipients</button>':''}`);
++     }
++    }
++   }
++   root.innerHTML=`<div data-m-status role="status"></div>${body}`;
++  }
++  const recipientRow=r=>`<p><strong>${esc(r.name||r.address)}</strong> · ${esc(r.address)} · ${esc(r.state)} ${esc(r.reason)} ${r.deliveries.map(d=>esc(d.status)).join(', ')} ${r.replied_at?'· Replied':''} ${r.opted_out_at?'· Opted out':''}${state.broadcasts?.find(c=>c.id===selected)?.status==='draft'?` <button data-m-remove-recipient="${esc(r.id)}">Remove</button>`:''}</p>`;
++  async function click(e){const b=e.target.closest('button');if(!b||!root.contains(b))return;try{
++   if(b.hasAttribute('data-m-pool')){selected=b.dataset.mPool?'pool:'+b.dataset.mPool:'new-pool';await render();}
++   else if(b.dataset.mInstall){selected='install:'+b.dataset.mInstall;await render();}
++   else if(b.hasAttribute('data-m-campaign')){selected=b.dataset.mCampaign||'new-campaign';preview=null;contacts=[];selectedContacts.clear();await render();}
++   else if(b.dataset.mControl){const c=state.broadcasts.find(c=>c.id===b.dataset.id);if(!confirm(b.dataset.mControl==='start'?'Start this broadcast? Eligible contacts will receive marketing texts during permitted hours.':b.dataset.mControl+' this campaign?'))return;await options.api('/broadcasts/'+encodeURIComponent(c.id)+'/control',{action:b.dataset.mControl,revision:c.revision,confirmed:true});await load();}
++   else if(b.dataset.mPreview){preview=await options.api('/broadcasts/'+encodeURIComponent(b.dataset.mPreview)+'/preview');await render();}
++   else if(b.hasAttribute('data-m-more-preview')){const next=await options.api('/broadcasts/'+encodeURIComponent(selected)+'/preview?cursor='+encodeURIComponent(preview.nextCursor));preview={...preview,examined:(preview.examined||0)+next.examined,eligible:preview.eligible+next.eligible,skipped:preview.skipped+next.skipped,nextCursor:next.nextCursor,reasons:{...preview.reasons}};for(const [reason,n] of Object.entries(next.reasons))preview.reasons[reason]=(preview.reasons[reason]||0)+n;await render();}
++   else if(b.hasAttribute('data-m-refresh'))await load();
++   else if(b.hasAttribute('data-m-add-rule'))root.querySelector('[data-m-rules]').insertAdjacentHTML('beforeend',ruleEditor());
++   else if(b.hasAttribute('data-m-remove-rule'))b.closest('[data-m-rule]').remove();
++   else if(b.hasAttribute('data-m-more-contacts')){const result=await options.api('/marketing/contacts?limit=100&after='+encodeURIComponent(nextContacts));contacts.push(...result.items);nextContacts=result.nextCursor||'';await render();}
++   else if(b.dataset.mRemoveRecipient){const c=state.broadcasts.find(c=>c.id===selected);await options.api('/broadcasts/'+encodeURIComponent(selected)+'/audience/'+encodeURIComponent(b.dataset.mRemoveRecipient),{revision:c.revision},'DELETE');preview=null;await load();}
++   else if(b.hasAttribute('data-m-more-recipients')){const result=await options.api('/broadcasts/'+encodeURIComponent(selected)+'/recipients?limit=100&after='+encodeURIComponent(nextRecipients));nextRecipients=result.nextCursor||'';root.querySelector('[data-m-recipients]').insertAdjacentHTML('beforeend',result.items.map(recipientRow).join(''));if(!nextRecipients)b.remove();}
++  }catch(error){notice(error.message);}}
++  async function submit(e){const f=e.target;if(!f.dataset.mForm)return;e.preventDefault();try{
++   const kind=f.dataset.mForm,id=f.dataset.id||crypto.randomUUID(),revision=Number(f.dataset.revision||0);
++   if(kind==='source')await options.api('/sources/'+encodeURIComponent(value(f,'source_id')),{label:value(f,'source_label'),external_ref:value(f,'external'),enabled:true,revision:0},'PUT');
++   if(kind==='pool'){const rules=[...f.querySelectorAll('[data-m-rule]')].map(el=>Object.fromEntries(['utm_source','utm_campaign','referrer_host','rule_source','rule_campaign'].map(k=>[k,el.querySelector(`[name="${k}"]`)?.value||'']))).filter(r=>r.utm_source||r.utm_campaign||r.referrer_host).map(r=>({utm_source:r.utm_source,utm_campaign:r.utm_campaign,referrer_host:r.referrer_host,lead_source_id:r.rule_source,marketing_campaign_id:r.rule_campaign}));await options.api('/website-pools/'+encodeURIComponent(id),{label:value(f,'label'),enabled:checked(f,'enabled'),numbers:[...f.querySelectorAll('input[name^="number:"]:checked')].map(el=>el.name.slice(7)),fallback_number:value(f,'fallback'),origins:value(f,'origins').split(/\s+/).filter(Boolean),lease_minutes:Number(value(f,'lease')),reuse_hours:Number(value(f,'reuse')),retention_days:30,lead_source_id:value(f,'source'),marketing_campaign_id:value(f,'campaign'),rules,revision},'PUT');selected='pool:'+id;}
++   if(kind==='broadcast'){await options.api('/broadcasts/'+encodeURIComponent(id),{label:value(f,'label'),sender_identity_id:value(f,'sender'),template:value(f,'template'),schedule:options.readSchedule(f,'broadcast.schedule',false),timezone_mode:value(f,'timezone'),unknown_timezone:value(f,'unknown'),scheduled_for:value(f,'scheduled')?new Date(value(f,'scheduled')).toISOString():'',expiry_hours:Number(value(f,'expiry')),messages_per_second:Number(value(f,'pace')),stop_on_reply:checked(f,'stop'),lead_source_id:value(f,'source'),marketing_campaign_id:value(f,'campaign'),revision},'PUT');selected=id;}
++   if(kind==='search'){const result=await options.api('/marketing/contacts?limit=100&query='+encodeURIComponent(value(f,'query')));contacts=result.items;nextContacts=result.nextCursor||'';await render();return;}
++   if(kind==='audience'){const refs=[...selectedContacts].map(v=>JSON.parse(v));if(!refs.length)throw Error('Select at least one contact.');if(refs.length>500)throw Error('Add at most 500 contacts in one batch.');const result=await options.api('/broadcasts/'+encodeURIComponent(id)+'/audience',{contacts:refs,revision});preview=null;selectedContacts.clear();await load();notice(`${result.added} added · ${result.duplicates} duplicates · ${result.invalid} unavailable contacts`);return;}
++   await load();notice('Changes saved.');
++  }catch(error){notice(error.message);}}
++  const change=e=>{const input=e.target;if(input.name?.startsWith('contact:')){const key=input.name.slice(8);if(input.checked)selectedContacts.add(key);else selectedContacts.delete(key);}};
++  root.addEventListener('change',change);root.addEventListener('click',click);root.addEventListener('submit',submit);load().catch(e=>{root.textContent=e.message;});return {destroy(){root.removeEventListener('change',change);root.removeEventListener('click',click);root.removeEventListener('submit',submit);}};
++ }
++ window.FirstMatePhoneMarketing={mount};
++})();
+--- a/public/libraries/apps/settings/phone.js
++++ b/public/libraries/apps/settings/phone.js
+@@ -30,15 +30,16 @@
+     function readRouting(form){return {schedule:readSchedule(form,'route.schedule'),strategy:value(form,'strategy'),ring_seconds:Number(value(form,'ring_seconds')),max_wait_seconds:Number(value(form,'max_wait_seconds')),max_queue:Number(value(form,'max_queue')),open:readTarget(form,'open'),closed:readTarget(form,'closed'),unanswered:readTarget(form,'unanswered'),greeting:value(form,'greeting'),voicemail_greeting:value(form,'voicemail_greeting'),closed_greeting:value(form,'closed_greeting'),voicemail_media_id:value(form,'voicemail_media_id'),closed_media_id:value(form,'closed_media_id'),menu:Array.from({length:10},(_,i)=>({digit:String(i),label:value(form,'menu'+i+'.label'),target:readTarget(form,'menu'+i)})).filter(m=>m.label)};}
+     function policy(p={}){return `${check('enabled','Enforce sending windows',p.enabled)}${check('apply_manual','Also apply sending windows to manually sent texts',p.apply_manual)}${schedule('message.schedule',p.schedule,false)}<div class="ph-grid">${select('timezone_mode','Evaluate hours using',p.timezone_mode||'schedule',[['schedule','Configured time zone'],['contact','Each contact’s time zone']])}${select('unknown_timezone','When the contact’s time zone is missing',p.unknown_timezone||'hold',[['hold','Hold until a time zone is known'],['fallback','Use the configured time zone']])}${field('expiry_hours','Expire queued messages after (hours)',p.expiry_hours||72,'number')}${field('cooldown_minutes','Automatic reply cooldown (minutes)',p.cooldown_minutes||180,'number')}${check('cancel_on_reply','Cancel unsent automated messages when the customer replies',p.cancel_on_reply!==false)}${area('auto_reply_open','Automatic reply to texts during work hours',p.auto_reply_open)}${area('auto_reply_closed','Automatic reply to texts after hours',p.auto_reply_closed)}${area('missed_call_reply','Automatic text after a missed call',p.missed_call_reply)}</div><p>Automatic replies require active customer-care consent and a registered sending line. Leave a reply empty to disable it. Contact-local hours use the existing contact time-zone tracking setting.</p>`;}
+     function readPolicy(f){return {enabled:checked(f,'enabled'),apply_manual:checked(f,'apply_manual'),schedule:readSchedule(f,'message.schedule',false),timezone_mode:value(f,'timezone_mode'),unknown_timezone:value(f,'unknown_timezone'),expiry_hours:Number(value(f,'expiry_hours')),cooldown_minutes:Number(value(f,'cooldown_minutes')),cancel_on_reply:checked(f,'cancel_on_reply'),auto_reply_open:value(f,'auto_reply_open'),auto_reply_closed:value(f,'auto_reply_closed'),missed_call_reply:value(f,'missed_call_reply')};}
+-    function shell(){const tabs=[['personal','My Phone'],['numbers','Numbers & Users'],['groups','Departments & Groups'],['voicemail','Voicemail'],...(data.can_manage?[['messaging','Messaging & Automations'],['tracking','Tracking Numbers'],['reputation','Number Reputation'],['ports','Number Porting'],['registration','SMS registration'],['service','Phone Service']]:[]),...(data.can_bill?[['billing','Billing & Usage']]:[])];root.innerHTML=`<div class="ph"><header class="ph-head"><div><h2>Phone Settings</h2><p>Manage your phone, shared lines, routing, and business messaging.</p></div></header><div class="ph-layout"><nav class="ph-nav" aria-label="Phone settings">${tabs.map(([id,label])=>`<button type="button" data-tab="${id}" aria-current="${id===tab?'page':'false'}">${label}</button>`).join('')}</nav><main><div data-ph-status role="status" class="ph-status"></div><div data-ph-body></div></main></div></div>`;}
++    function shell(){const tabs=[['personal','My Phone'],['numbers','Numbers & Users'],['groups','Departments & Groups'],['voicemail','Voicemail'],...(data.can_manage?[['messaging','Messaging & Automations'],['tracking','Tracking Numbers'],['website','Website Tracking'],['broadcasts','SMS Broadcasts'],['reputation','Number Reputation'],['ports','Number Porting'],['registration','SMS registration'],['service','Phone Service']]:[]),...(data.can_bill?[['billing','Billing & Usage']]:[])];root.innerHTML=`<div class="ph"><header class="ph-head"><div><h2>Phone Settings</h2><p>Manage your phone, shared lines, routing, and business messaging.</p></div></header><div class="ph-layout"><nav class="ph-nav" aria-label="Phone settings">${tabs.map(([id,label])=>`<button type="button" data-tab="${id}" aria-current="${id===tab?'page':'false'}">${label}</button>`).join('')}</nav><main><div data-ph-status role="status" class="ph-status"></div><div data-ph-body></div></main></div></div>`;}
+     function outboundSettings(p){const d=p.voicemail_drop||{},pool=p.power_dial||{};return card('Outgoing voicemail drop',`<p>Automatically leave your recording after a confirmed voicemail beep. Human answers and uncertain detection remain with you. Carrier detection charges may apply.</p>${check('drop_enabled','Automatically leave a prerecorded message',d.enabled)}${select('drop_scope','Use voicemail drop for',d.scope||'power_dial',[['power_dial','Power dialing only'],['all_outbound','All outgoing browser calls']])}${audio('drop_media',d.media_id)}`)+card('Power dialing numbers',`<p>Balance outgoing power-dial calls across your connected numbers. Limits count all outgoing browser calls from each number over the last 24 hours. A paused pool never silently falls back to a different line.</p>${check('pool_enabled','Balance power-dial calls across these numbers',pool.enabled)}${members('pool_numbers',pool.numbers||[],data.lines.filter(n=>n.can_use!==false&&n.status==='active').map(n=>({id:n.phone_number,name:n.label+' · '+n.phone_number})))}<div class="ph-grid">${select('pool_strategy','Balance calls by',pool.strategy||'round_robin',[['round_robin','Longest since last call'],['least_used','Fewest calls in the last 24 hours']])}${field('pool_limit','Maximum calls per number in 24 hours',pool.daily_limit||100,'number')}${field('pool_cooldown','Minimum seconds between calls from one number',pool.cooldown_seconds??60,'number')}</div>${check('pool_skip_high','Skip numbers with a high spam-risk score',pool.skip_high_risk!==false)}<p>Unmonitored numbers have no risk score. Review monitoring and score freshness in Number Reputation.</p>`);}
+     function personal(){const p=data.personal||{};return `<form data-form="personal">${card('Your lines',`<div class="ph-grid">${select('default_number','Default outgoing number',data.default_number,[['','Company default'],...data.lines.map(n=>[n.phone_number,n.label+' · '+n.phone_number])])}${check('available','Available for incoming calls',p.available!==false)}</div><p>Shared lines continue ringing other on-duty members when you are unavailable.</p>`)}${card('Work hours',schedule('personal.schedule',p.schedule))}${card('Voicemail',`<div class="ph-grid">${area('personal_greeting','Your voicemail greeting',p.voicemail_greeting)}${audio('personal_media',p.voicemail_media_id)}</div><p>Your personal greeting applies to your individually assigned line.</p>`)}${outboundSettings(p)}${card('Notifications',`${check('missed_calls','Missed calls',p.notifications?.missed_calls!==false)}${check('voicemail','Voicemail',p.notifications?.voicemail!==false)}${check('texts','Text messages',p.notifications?.texts!==false)}${check('push','Push notifications',p.notifications?.push!==false)}<p>Notification delivery also respects your platform notification preferences.</p>`)}${save}</form>`;}
+-    function lineEditor(line){const c=line.config||{},tracking=c.tracking||{};return `<form data-form="line" data-number="${esc(line.phone_number)}">${card(line.phone_number,`<div class="ph-grid">${field('label','Line name',c.label||line.label)}${select('group_id','Ring group',c.group_id||'',[['','No group'],...data.groups.map(g=>[g.id,g.label])])}</div><h4>Assigned users</h4>${members('user_ids',c.user_ids||[],data.people)}<h4>Departments</h4>${members('department_ids',c.department_ids||[],data.departments)}`)}${card('Hours, routing & voicemail',`${check('custom_route','Customize this line’s routing',!!c.routing)}<p>When unchecked, this line uses its group’s routing or existing company defaults.</p>${routing(c.routing||{})}`)}${card('Messaging',`${check('custom_messaging','Customize sending policy for this line',!!c.messaging)}${policy(c.messaging||data.messaging||{})}`)}${card('Advertising attribution',`${check('tracking_enabled','Use this as a tracking number',tracking.enabled)}<div class="ph-grid">${field('source','Source (for example, Google Ads)',tracking.source)}${field('medium','Medium (for example, paid search)',tracking.medium)}${field('campaign','Campaign',tracking.campaign)}${field('ad_id','Advertisement ID',tracking.ad_id)}${field('landing_page','Landing page',tracking.landing_page)}</div><p>Calls retain the source configuration in effect when they arrive. A static tracking number identifies its configured advertisement; it does not identify a website visitor or search keyword.</p>`)}${save}<button type="button" data-back>Back to numbers</button></form>`;}
++    function lineEditor(line){const c=line.config||{},tracking=c.tracking||{};return `<form data-form="line" data-number="${esc(line.phone_number)}">${card(line.phone_number,`<div class="ph-grid">${field('label','Line name',c.label||line.label)}${select('group_id','Ring group',c.group_id||'',[['','No group'],...data.groups.map(g=>[g.id,g.label])])}</div><h4>Assigned users</h4>${members('user_ids',c.user_ids||[],data.people)}<h4>Departments</h4>${members('department_ids',c.department_ids||[],data.departments)}`)}${card('Hours, routing & voicemail',`${check('custom_route','Customize this line’s routing',!!c.routing)}<p>When unchecked, this line uses its group’s routing or existing company defaults.</p>${routing(c.routing||{})}`)}${card('Messaging',`${check('custom_messaging','Customize sending policy for this line',!!c.messaging)}${policy(c.messaging||data.messaging||{})}`)}${card('Advertising attribution',`${check('tracking_enabled','Use this as a tracking number',tracking.enabled)}<div class="ph-grid">${field('lead_source_id','Lead source reference',tracking.lead_source_id)}${field('marketing_campaign_id','Marketing campaign reference',tracking.marketing_campaign_id)}${field('source','Source (for example, Google Ads)',tracking.source)}${field('medium','Medium (for example, paid search)',tracking.medium)}${field('campaign','Campaign',tracking.campaign)}${field('ad_id','Advertisement ID',tracking.ad_id)}${field('landing_page','Landing page',tracking.landing_page)}</div><p>Calls retain the source configuration in effect when they arrive. A static tracking number identifies its configured advertisement; it does not identify a website visitor or search keyword.</p>`)}${save}<button type="button" data-back>Back to numbers</button></form>`;}
+     function numbers(){return `${card('Business numbers',`<p>Assign several numbers to one person, or share a number with a team.</p><div class="ph-table"><table><thead><tr><th>Number</th><th>Name</th><th>Status</th><th></th></tr></thead><tbody>${data.lines.map(n=>`<tr><td>${esc(n.phone_number)}</td><td>${esc(n.label)}</td><td><span class="ph-pill">${esc(n.status)}</span></td><td>${n.can_manage?`<button data-edit-line="${esc(n.phone_number)}">Manage</button>${n.status!=='active'?`<button data-bind="${esc(n.phone_number)}">Connect voice</button>`:''}`:''}</td></tr>`).join('')||'<tr><td colspan="4">No connected numbers yet.</td></tr>'}</tbody></table></div>`)}${data.can_manage?card('Add a number',`<div class="ph-note">${data.carrier_writes?'Review the current carrier price before purchasing.':'Development: paid purchases and carrier transfers are disabled. You can prepare port requests and configure existing test lines.'}</div><form data-form="search"><div class="ph-grid">${field('area_code','US area code','','text')}</div><div class="ph-actions"><button ${data.carrier_writes?'':'disabled'}>Find available numbers</button><button type="button" data-tab="ports">Port an existing number</button><button type="button" data-users>Add or invite users</button></div></form><div data-number-results></div>`):''}`;}
+     function groupEditor(g={}){return `<form data-form="group" data-id="${esc(g.id||'')}" data-revision="${g.revision||0}">${card('Ring group',`${field('label','Group name',g.label||'')}<h4>Members</h4>${members('user_ids',g.user_ids||[],data.people)}<h4>Existing departments</h4>${members('department_ids',g.department_ids||[],data.departments)}<p>Departments remain managed by the existing organization structure. Select the members who should answer this group’s calls. Move members up or down to set the fixed ring order.</p>`)}${card('Routing',routing(g.routing||{}))}${save}<button type="button" data-back>Back to groups</button></form>`;}
+     function groups(){return card('Departments & ring groups',`<p>Use existing departments to scope access, and choose who participates in each ringing group.</p>${data.groups.map(g=>`<div class="ph-actions"><strong>${esc(g.label)}</strong><span>${g.user_ids?.length||0} members</span><button data-edit-group="${esc(g.id)}">Manage</button></div>`).join('')||'<p>No ring groups configured.</p>'}${data.can_manage?'<div class="ph-actions"><button data-new-group>Create ring group</button></div>':''}`);}
+     function smsRegistration(line){return data.can_manage?card('Register this line for texting',`<p>Choose an existing approved 10DLC registration. The carrier must confirm assignment before this line can send texts.</p><form data-form="line-sms" data-number="${esc(line.phone_number)}">${select('profile_id','10DLC registration','',(data.sms_profiles||[]).map(p=>[p.id,p.label+' · '+p.status]))}<button ${data.carrier_writes?'':'disabled'}>Enable or refresh texting</button></form>`):'';}
+-    async function render(){if(disposed)return;shell();const body=root.querySelector('[data-ph-body]');
++    let marketingView=null;
++    async function render(){if(disposed)return;if(marketingView){marketingView.destroy();marketingView=null;}shell();const body=root.querySelector('[data-ph-body]');
+       if(editor){body.innerHTML=editor.kind==='line'?lineEditor(editor.value)+smsRegistration(editor.value):groupEditor(editor.value);return;}
+       if(tab==='personal')body.innerHTML=personal();
+       else if(tab==='numbers')body.innerHTML=numbers();
+@@ -46,6 +47,7 @@
+       else if(tab==='messaging')body.innerHTML=`<form data-form="messaging">${card('Company sending policy',policy(data.messaging||{}))}${save}</form>`;
+       else if(tab==='registration')await options.registration(body);
+       else if(tab==='tracking')await tracking(body);
++      else if(tab==='website'||tab==='broadcasts'){body.innerHTML='<div data-phone-marketing></div>';if(!window.FirstMatePhoneMarketing)throw Error('Reload to load the phone marketing tools.');marketingView=window.FirstMatePhoneMarketing.mount(body.firstElementChild,{view:tab,api,lines:data.lines,organization:options.orgId||options.organizationId,schedule,readSchedule});}
+       else if(tab==='ports')await ports(body);
+       else if(tab==='reputation')await reputation(body);
+       else if(tab==='voicemail'){const result=await api('/voicemail');body.innerHTML=card('Shared and personal voicemail',result.messages.map(m=>`<section><h4>${esc(m.from)} <span class="ph-pill">${m.handled?.handled?'Handled':'Needs attention'}</span></h4><p>${esc(m.number)} · ${esc(new Date(m.created_at).toLocaleString())}</p>${m.artifacts.filter(a=>a.kind==='voicemail').map(a=>`<audio class="ph-audio" controls preload="none" src="${base}/calls/${encodeURIComponent(m.call_id)}/artifacts/${encodeURIComponent(a.id)}/media"></audio>`).join('')}${m.artifacts.filter(a=>a.kind==='transcript').map(a=>`<p>${esc(a.text)}</p>`).join('')}<div class="ph-actions"><button data-handle="${esc(m.call_id)}" data-handled="${!m.handled?.handled}" data-revision="${m.handled?.revision||0}">${m.handled?.handled?'Mark unhandled':'Mark handled'}</button></div><hr></section>`).join('')||'<p>No accessible voicemail recordings.</p>');}
+@@ -106,7 +108,7 @@
+     async function ports(body){const result=await api('/ports');body.innerHTML=card('Bring your number to FirstMate',`<p>Keep the old carrier service active until the port completes. Porting voice does not automatically authorize SMS; complete the existing 10DLC registration separately.</p>${!result.carrier_writes?'<div class="ph-note">Development mode: prepare a local draft. No carrier transfer or charge will be submitted.</div>':''}<form data-form="port"><div class="ph-grid">${field('phone_number','Number to port (+country code)','','tel')}${field('label','Line name')}</div><div class="ph-actions"><button>Create port request</button></div></form>${result.ports.map(p=>`<details><summary>${esc(p.label)} · ${esc(p.phone_number)} · ${esc(p.status)}</summary><p>${esc(p.provider_status||'Local draft')}${p.activation_settings?.foc_datetime_actual?' · Carrier date: '+esc(p.activation_settings.foc_datetime_actual):''}</p><div class="ph-actions"><button data-port-check="${esc(p.phone_number)}" ${result.carrier_writes?'':'disabled'}>Check portability</button><button data-port-action="${p.provider_id?'refresh':'start'}" data-id="${esc(p.id)}" ${result.carrier_writes?'':'disabled'}>${p.provider_id?'Refresh carrier status':'Create carrier draft'}</button></div>${p.provider_id?portDetails(p,result.carrier_writes):''}${p.requirements?.length?'<h4>Carrier requirements</h4><ul>'+p.requirements.map(r=>'<li>'+esc(r.description||r.name||r.field||r.requirement_type||'Additional carrier information required')+'</li>').join('')+'</ul>':''}</details>`).join('')}<h4>Number orders</h4>${result.orders.map(o=>`<p>${esc(o.phone_number)} · ${esc(o.status)} <button data-order-refresh="${esc(o.id)}">Refresh</button></p>`).join('')||'<p>No number orders.</p>'}`);}
+     function portDetails(p,enabled){return `<form data-form="port-details" data-id="${esc(p.id)}"><div class="ph-grid">${field('entity_name','Legal name on carrier account')}${field('auth_person_name','Authorized person')}${field('billing_phone_number','Carrier billing phone number')}${field('account_number','Carrier account number')}${field('pin_passcode','Carrier transfer PIN','','password')}${field('street_address','Street address')}${field('extended_address','Address line 2')}${field('locality','City')}${field('administrative_area','State / region')}${field('postal_code','Postal code')}${field('country_code','Country code','US')}${field('foc','Requested port time (your local time, optional)','','datetime-local')}${check('enable_messaging','Request messaging transfer as well as voice',false)}</div><p>Account details and PINs are sent to Telnyx and are not stored in this settings page.</p><button ${enabled?'':'disabled'}>Save carrier details</button></form><form data-form="port-document" data-id="${esc(p.id)}"><div class="ph-grid">${select('kind','Document type','loa',[['loa','Signed letter of authorization'],['invoice','Recent carrier bill'],['csr','Customer service record'],['other','Other requirement']])}<label class="ph-field"><span>Document (PDF, PNG, JPEG, up to 8 MB)</span><input name="document" type="file" required accept=".pdf,.png,.jpg,.jpeg"></label></div><button ${enabled?'':'disabled'}>Upload and attach</button></form><div class="ph-actions"><button data-port-action="confirm" data-id="${esc(p.id)}" ${enabled?'':'disabled'}>Submit port to carrier</button><button data-port-action="cancel" data-id="${esc(p.id)}" ${enabled?'':'disabled'}>Cancel carrier request</button></div>`;}
+     async function load(){data=await api();await render();}
+-    const click=async event=>{const b=event.target.closest('button');if(!b||!root.contains(b))return;try{
++    const click=async event=>{const b=event.target.closest('button');if(!b||!root.contains(b)||b.closest('[data-phone-marketing]'))return;try{
+       if(b.dataset.repFlow){await reputationFlow(b);return;}
+       if(b.dataset.reputation){if(b.dataset.reputation!=='sync'&&!window.confirm('Apply this carrier monitoring change? Enrollment and fresh checks can incur Telnyx charges.'))return;b.disabled=true;await api('/reputation',{operation_id:requestId(b),action:b.dataset.reputation,phone_number:b.dataset.number||'',confirmed:true});await render();}
+       else if(b.dataset.tab){tab=b.dataset.tab;editor=null;await render();}
+@@ -148,7 +150,7 @@
+       if(kind.startsWith('rep-')){await reputationSubmit(f,kind);}
+       else if(kind==='reputation-frequency'){if(!window.confirm('Update the carrier schedule? Each automatic check can incur a Telnyx charge.'))return;await api('/reputation',{operation_id:requestId(f),action:'frequency',frequency:value(f,'frequency'),confirmed:true});}
+       else if(kind==='personal'){await api('/personal',{voicemail_drop:{enabled:checked(f,'drop_enabled'),media_id:value(f,'drop_media'),scope:value(f,'drop_scope')},power_dial:{enabled:checked(f,'pool_enabled'),numbers:[...f.querySelectorAll('[name=pool_numbers]:checked')].map(e=>e.value),strategy:value(f,'pool_strategy'),daily_limit:Number(value(f,'pool_limit')),cooldown_seconds:Number(value(f,'pool_cooldown')),skip_high_risk:checked(f,'pool_skip_high')},schedule:readSchedule(f,'personal.schedule'),available:checked(f,'available'),voicemail_greeting:value(f,'personal_greeting'),voicemail_media_id:value(f,'personal_media'),notifications:Object.fromEntries(['missed_calls','voicemail','texts','push'].map(k=>[k,checked(f,k)])),revision:data.personal.revision||0},'PUT');await request('voice/default-number',{phone_number:value(f,'default_number')},'PUT');}
+-      else if(kind==='line'){const c=editor.value.config||{};await api('/lines/'+encodeURIComponent(f.dataset.number),{label:value(f,'label'),user_ids:multi(f,'user_ids'),department_ids:multi(f,'department_ids'),group_id:value(f,'group_id'),routing:checked(f,'custom_route')?readRouting(f):null,messaging:checked(f,'custom_messaging')?readPolicy(f):null,tracking:{enabled:checked(f,'tracking_enabled'),...Object.fromEntries(['source','medium','campaign','ad_id','landing_page'].map(k=>[k,value(f,k)]))},revision:c.revision||0},'PUT');editor=null;}
++      else if(kind==='line'){const c=editor.value.config||{};await api('/lines/'+encodeURIComponent(f.dataset.number),{label:value(f,'label'),user_ids:multi(f,'user_ids'),department_ids:multi(f,'department_ids'),group_id:value(f,'group_id'),routing:checked(f,'custom_route')?readRouting(f):null,messaging:checked(f,'custom_messaging')?readPolicy(f):null,tracking:{lead_source_id:value(f,'lead_source_id'),marketing_campaign_id:value(f,'marketing_campaign_id'),enabled:checked(f,'tracking_enabled'),...Object.fromEntries(['source','medium','campaign','ad_id','landing_page'].map(k=>[k,value(f,k)]))},revision:c.revision||0},'PUT');editor=null;}
+       else if(kind==='line-sms'){await api('/lines/'+encodeURIComponent(f.dataset.number)+'/sms',{profile_id:value(f,'profile_id')});}
+       else if(kind==='group'){await api('/groups/'+encodeURIComponent(f.dataset.id||crypto.randomUUID()),{label:value(f,'label'),user_ids:multi(f,'user_ids'),department_ids:multi(f,'department_ids'),routing:readRouting(f),revision:Number(f.dataset.revision)},'PUT');editor=null;}
+       else if(kind==='messaging')await api('/messaging',{policy:readPolicy(f),revision:data.messaging.revision||0},'PUT');
+@@ -163,7 +165,7 @@
+     }catch(e){notice(e.message,true);}finally{if(button?.isConnected)button.disabled=false;}};
+     root.addEventListener('click',click);root.addEventListener('change',change);root.addEventListener('submit',submit);
+     try{await load();}catch(e){shell();notice(e.message,true);}
+-    return {destroy(){disposed=true;if(recording){clearTimeout(recording.timer);recording.recorder.stop();recording.stream.getTracks().forEach(t=>t.stop());}root.removeEventListener('click',click);root.removeEventListener('change',change);root.removeEventListener('submit',submit);}};
++    return {destroy(){disposed=true;if(marketingView)marketingView.destroy();if(recording){clearTimeout(recording.timer);recording.recorder.stop();recording.stream.getTracks().forEach(t=>t.stop());}root.removeEventListener('click',click);root.removeEventListener('change',change);root.removeEventListener('submit',submit);}};
+   }
+   window.FirstMatePhoneSettings={mount};
+ })();
+--- a/public/libraries/phone-tracking/website.js
++++ b/public/libraries/phone-tracking/website.js
+@@ -0,0 +1,39 @@
++(function(){
++ 'use strict';
++ const script=document.currentScript;
++ function init(options){
++  const base=new URL(options.api,location.href);if(base.protocol!=='https:')throw Error('Use an HTTPS tracking API.');
++  const endpoint=base.href.replace(/\/$/,'')+'/phone-tracking/'+encodeURIComponent(options.organization)+'/pools/'+encodeURIComponent(options.pool);
++  const fallback=options.fallback,targets=options.selector||'[data-phone-tracking],a[href^="tel:"]';
++  let key='',timer=null,stopped=false,inFlight=false,epoch=0,lastNumber='';const originals=new Map();
++  const allowed=()=>typeof options.consent==='function'?options.consent():options.consent===true;
++  const storageKey='firstmate-phone-visit:'+options.organization+':'+options.pool;
++  function reset(){lastNumber='';for(const [el,old]of originals){if(old.href!==null)el.setAttribute('href',old.href);if(old.text!==null)el.textContent=old.text;}originals.clear();}
++  function swap(number){lastNumber=number;for(const el of originals.keys())if(!el.isConnected)originals.delete(el);for(const el of document.querySelectorAll(targets)){
++   const href=el.getAttribute('href'),isTarget=el.hasAttribute('data-phone-tracking')||href&&href.replace(/[^+\d]/g,'')===fallback.replace(/[^+\d]/g,'');if(!isTarget&&!originals.has(el))continue;
++   if(!originals.has(el))originals.set(el,{href,text:el.children.length?null:el.textContent});
++   if(href&&/^tel:/i.test(href))if(el.getAttribute('href')!=='tel:'+number)el.setAttribute('href','tel:'+number);
++   if(!el.children.length&&el.textContent!==number)el.textContent=number;
++  }}
++  async function refresh(){
++   if(stopped)return;if(timer)clearTimeout(timer);
++   if(!allowed()){epoch++;reset();if(timer)clearTimeout(timer);timer=null;if(key)fetch(endpoint+'/release',{method:'POST',credentials:'omit',headers:{'Content-Type':'application/json'},body:JSON.stringify({visitor_key:key}),keepalive:true}).catch(()=>{});if(key){key='';try{sessionStorage.removeItem(storageKey);}catch{}}return;}
++   if(inFlight)return;const thisEpoch=epoch;inFlight=true;
++   try{
++    if(!key){const campaign=new URLSearchParams(location.search),fingerprint=['utm_source','utm_medium','utm_campaign','utm_content','utm_term'].map(k=>campaign.get(k)||'').join('|');let saved=null;try{saved=JSON.parse(sessionStorage.getItem(storageKey)||'null');}catch{}
++     const hasTags=!!fingerprint.replaceAll('|','');key=saved&&(!hasTags||saved.fingerprint===fingerprint)?saved.key:crypto.randomUUID();try{sessionStorage.setItem(storageKey,JSON.stringify({key,fingerprint:!hasTags&&saved?saved.fingerprint:fingerprint}));}catch{}
++    }
++    const res=await fetch(endpoint+'/assign',{method:'POST',credentials:'omit',headers:{'Content-Type':'application/json'},body:JSON.stringify({visitor_key:key,consent:true,page_url:location.href,referrer:document.referrer})});
++    if(!res.ok)throw Error('Tracking unavailable');const value=await res.json();if(stopped||thisEpoch!==epoch||!allowed()){reset();return;}swap(value.number||fallback);
++    document.dispatchEvent(new CustomEvent('firstmate:phone-assignment',{detail:{number:value.number,status:value.status,session_id:value.session_id}}));
++   }catch{if(!stopped&&thisEpoch===epoch)reset();}
++   finally{inFlight=false;if(!stopped&&allowed())timer=setTimeout(refresh,thisEpoch!==epoch?0:5*60*1000);}
++  }
++  const observer=new MutationObserver(records=>{if(lastNumber&&allowed()&&records.some(r=>r.type==='attributes'||[...r.addedNodes].some(n=>n.nodeType===1)))swap(lastNumber);});observer.observe(document.documentElement,{subtree:true,childList:true,attributes:true,attributeFilter:['href']});
++  const consentChanged=()=>{if(!allowed()&&!key){try{key=JSON.parse(sessionStorage.getItem(storageKey)||'null')?.key||'';}catch{}}refresh();};document.addEventListener('firstmate:tracking-consent',consentChanged);
++  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',refresh,{once:true});else refresh();
++  return {refresh,destroy(){stopped=true;observer.disconnect();epoch++;clearTimeout(timer);reset();document.removeEventListener('firstmate:tracking-consent',consentChanged);}};
++ }
++ window.FirstMateCallTracking={init};
++ if(script?.dataset.phonePool)init({api:script.dataset.api,organization:script.dataset.organization,pool:script.dataset.phonePool,fallback:script.dataset.fallback,selector:script.dataset.selector,consent:()=>window.FirstMateCallTrackingConsent===true});
++})();
+--- a/public/v1/comms/calls/publication.ts
++++ b/public/v1/comms/calls/publication.ts
+@@ -14,7 +14,7 @@
+ const array=(items:JsonSchema):JsonSchema=>({type:'array',items});
+ const stringFields=['id','branch_id','project_id','contact_id','owner_user_id','mode','direction','state','wrap_up_state','customer_number','business_number','customer_name','entry_id','created_at','updated_at','connected_at','ended_at','notes'];
+ const resultFields=['disposition','next_action','due_at','appointment_id','actor_user_id','outcome_id'];
+-const attributionFields=['number','label','source','medium','campaign','ad_id','landing_page','captured_at'];
++const attributionFields=['lead_source_id','marketing_campaign_id','pool_id','visit_id','attribution_kind','keyword','referrer_host','number','label','source','medium','campaign','ad_id','landing_page','captured_at'];
+ const phoneSchema=shape({power_dial:{type:'boolean'},voicemail_drop:shape({enabled:{type:'boolean'},state:string,completed_at:string}),attribution:shape({enabled:{type:'boolean'},...Object.fromEntries(attributionFields.map(k=>[k,string]))})});
+ const callSchema=shape({phone:phoneSchema,
+   ...Object.fromEntries(stringFields.map(key=>[key,string])),revision:{type:'integer'},duration_seconds:{type:['number','null']},
+--- a/public/v1/comms/calls/storage.ts
++++ b/public/v1/comms/calls/storage.ts
+@@ -1,3 +1,4 @@
++import {initializePhoneMarketingSchema} from '../phone/marketing-storage.js';
+ import {resourcePhoneEvent,callPhoneEvent,isPublishedPhoneCallEvent} from '../phone/event-contracts.js';
+ import { env } from '../../src/config/env.js';
+ import { createHash, randomUUID } from "node:crypto";
+@@ -108,6 +109,7 @@
+       PRIMARY KEY(organization_id,user_id,kind,source_id)
+     );
+   `));
++  await initializePhoneMarketingSchema(db);
+ }
+ 
+ export async function transaction<T>(fn: (db: SqlStore) => T | Promise<T>): Promise<T> {
+--- a/public/v1/comms/calls/worker.ts
++++ b/public/v1/comms/calls/worker.ts
+@@ -1,3 +1,5 @@
++import {maintainBroadcasts} from '../phone/broadcast.js';
++import {maintainTracking} from '../phone/tracking.js';
+ import { maintainReputation } from '../phone/reputation.js';
+ import { dropWaiting, voicemailDropEvent, expireVoicemailDetection } from '../phone/outbound.js';
+ import { routeConfiguredCall, ringEvent } from '../phone/routing.js';
+@@ -92,8 +94,8 @@
+     const matches=(await matchInbound(app.organization_id,text(payload.from))).filter(match=>text(match.branch_id||'default')===text(number.branch_id||'default'));const unique=matches.length===1?matches[0]:null;
+     call=(await s.transaction(async ()=>{
+       const duplicate=(await s.legByControl(controlId));if(duplicate)return (await s.readCall(text(duplicate.organization_id),text(duplicate.call_id)));
+-      const settings=(await voiceSettings(app.organization_id));const attribution=await trackingSnapshot(app.organization_id,text(payload.to));const lineConfig=await s.resource(app.organization_id,'phone_line',text(payload.to));const created=(await s.insertCall({id:s.id("call",`inbound:${controlId}`),organization_id:app.organization_id,branch_id:text(number.branch_id)||"default",mode:"browser",direction:"inbound",state:"ringing",
+-        project_id:text(unique?.project_id),contact_id:text(unique?.contact_id),customer_name:text(unique?.name)||text(payload.from),customer_number:text(payload.from),business_number:text(payload.to),
++      const settings=(await voiceSettings(app.organization_id));const attribution=await trackingSnapshot(app.organization_id,text(payload.to),Number.isFinite(Date.parse(at))?new Date(at):new Date());const lineConfig=await s.resource(app.organization_id,'phone_line',text(payload.to));const created=(await s.insertCall({id:s.id("call",`inbound:${controlId}`),organization_id:app.organization_id,branch_id:text(number.branch_id)||"default",mode:"browser",direction:"inbound",state:"ringing",
++        project_id:text(unique?.project_id),contact_id:text(unique?.contact_id),customer_name:text(unique?.name)||text(payload.from),customer_number:text(payload.from),business_number:text(payload.to),created_at:Number.isFinite(Date.parse(at))?new Date(at).toISOString():s.now(),
+         metadata:{matches,attribution,department_ids:strings(lineConfig?.department_ids),queue_entered_at:at,attempted_agents:[],consent:{state:"not_requested"},policy:{recording_enabled:settings.recording_enabled,transcription_enabled:settings.transcription_enabled,disclosure:settings.disclosure,retention_days:settings.recording_retention_days}}}));
+       (await s.saveLeg(created.organization_id,created.id,"customer",{...payload,state:"initiated"},at));
+       (await s.enqueue(created.organization_id,created.id,"phone_attribution",{},`${created.id}:attribution`));(await providerCommand(created,controlId,"answer",{},"inbound-answer"));(await s.appendEvent(created.organization_id,created.id,"communication.call.created",{},`${created.id}:created`));return created;
+@@ -392,7 +394,7 @@
+   if (!customerCallWorkerAllowed()) return;
+   if(process.env.CUSTOMER_CALL_WORKER_DISABLED==="1"||process.env.NODE_ENV==="test")return;
+   const workerId=`voice:${process.pid}:${randomUUID()}`;let running=false,stopped=false,lastRetention=0;
+-  let maintenance:Promise<void>|null=null,activeTick:Promise<void>|null=null,background:Promise<void>|null=null,publication:Promise<void>|null=null;
++  let maintenance:Promise<void>|null=null,activeTick:Promise<void>|null=null,background:Promise<void>|null=null,publication:Promise<void>|null=null,broadcastWork:Promise<void>|null=null;
+   const tick=async()=>{
+     if(running||stopped)return;running=true;
+     try{
+@@ -403,8 +405,9 @@
+         .catch(()=>app.log.error('Customer call background processing failed')).finally(()=>{background=null;});
+       if(!publication)publication=(async()=>{for(let n=0;n<20&&!stopped;n++)if(!await processOneJob(`${workerId}:events`,'events'))break;if(!stopped&&env.dataEnvironment==='development'&&process.env.CUSTOMER_CALL_WORKER_OWNER==='1'&&!platformBackgroundAllowed())await (await import('../phone/events.js')).drainPhoneEvents();})()
+         .catch(()=>app.log.error('Phone event publication failed')).finally(()=>{publication=null;});
++      if(!broadcastWork)broadcastWork=maintainBroadcasts(50).catch(()=>app.log.error('Broadcast processing failed')).finally(()=>{broadcastWork=null;});
+       if(!maintenance&&Date.now()-lastRetention>60000){
+-        lastRetention=Date.now();maintenance=(async()=>{await maintainSupervisionSessions();await maintainVoiceSessions();await expireArtifacts();await maintainReputation();})()
++        lastRetention=Date.now();maintenance=(async()=>{await maintainSupervisionSessions();await maintainVoiceSessions();await expireArtifacts();await maintainReputation();await maintainTracking();})()
+           .catch(error=>app.log.error({message:error instanceof Error?error.message:'Voice maintenance failed'},'Customer call maintenance'))
+           .finally(()=>{maintenance=null;});
+       }
+@@ -412,5 +415,5 @@
+     finally{running=false;}
+   };
+   const timer=setInterval(()=>{if(!running)activeTick=tick();},1000);timer.unref();
+-  app.addHook("preClose",async()=>{stopped=true;clearInterval(timer);await Promise.allSettled([activeTick,maintenance,background,publication]);});
+-}
++  app.addHook("preClose",async()=>{stopped=true;clearInterval(timer);await Promise.allSettled([activeTick,maintenance,background,publication,broadcastWork]);});
++}
+--- a/public/v1/comms/notifications.ts
++++ b/public/v1/comms/notifications.ts
+@@ -53,6 +53,7 @@
+   } catch {
+     return null;
+   }
++  await (await import('./phone/broadcast.js')).recordBroadcastReply(organizationId,message);
+   if (cleanText(message.direction) !== "inbound") return null;
+   const channel = cleanText(message.channel);
+   // Webchat already notifies through the live-chat pipeline (notifyTeam);
+--- a/public/v1/comms/phone/api.ts
++++ b/public/v1/comms/phone/api.ts
+@@ -1,3 +1,4 @@
++import {registerPhoneMarketingApi} from './marketing-api.js';
+ import {saveBusiness,registerBusiness,renderAuthorization,submitAuthorization,correctBusiness,remediation,carrierTerms,disableReputation,resolveAttempt} from './reputation-product.js';
+ import { reputationWorkspace, changeReputation } from './reputation.js';
+ import type { FastifyInstance, FastifyRequest } from 'fastify';
+@@ -18,6 +19,7 @@
+ const param=(r:FastifyRequest,k:string)=>s.text(s.object(r.params)[k]);
+ async function auth(r:FastifyRequest,write=false){const ctx=await requirePlatformAuth(r,{orgId:param(r,'orgId'),csrf:write,capability:'apps.comms'});if(!canUseScopedPermission(ctx,'make_calls|send_comms|send_communications|view_comms|manage_communications|manage_company_settings'))throw forbidden('phone_settings_denied','You do not have access to phone settings.');return ctx;}
+ export function registerPhoneSettingsApi(app:FastifyInstance){
++  registerPhoneMarketingApi(app);
+   app.post(`${base}/reputation/resolve`,async r=>({ok:true,...await resolveAttempt(await auth(r,true),r.body)}));
+   app.put(`${base}/reputation/business`,async r=>({ok:true,account:await saveBusiness(await auth(r,true),r.body)}));
+   app.post(`${base}/reputation/register`,async r=>({ok:true,...await registerBusiness(await auth(r,true),r.body)}));
+--- a/public/v1/comms/phone/broadcast.ts
++++ b/public/v1/comms/phone/broadcast.ts
+@@ -0,0 +1,142 @@
++import {broadcastSchema,audienceSchema,broadcastCommandSchema} from './marketing-contracts.js';
++export {broadcastSchema,audienceSchema,broadcastCommandSchema} from './marketing-contracts.js';
++import {isCapabilityEnabled} from '../../platform/capabilities.js';
++import {z} from 'zod';
++import {PlatformError,badRequest,conflict,forbidden,notFound} from '../../platform/errors.js';
++import {backgroundAuthContext,hasPermission,type PlatformAuthContext} from '../../platform/auth.js';
++import {env} from '../../src/config/env.js';
++import {readDocument} from '../../platform/storage.js';
++import {resolveContact,contactSettings} from '../../contacts/service.js';
++import {projectContext} from '../calls/service.js';
++import {assertManage,canUseLine} from './service.js';
++import {validateSource} from './tracking.js';
++import {messagePolicy,nextWindow,senderConfiguration} from './messaging.js';
++import {scheduleSchema} from './contracts.js';
++import {sendCommunicationSchema} from '../../messaging/schemas.js';
++import {sendCommunication} from '../../messaging/communications_service.js';
++import {smsConsentPurposesAllow,outboundSmsComplianceIssue} from '../../messaging/compliance_rules.js';
++import {listSenderIdentities,readSmsConsent,readMessageRecord,listDeliveryRecords,findSmsConversationRecord,createConversationRecord} from '../../messaging/communications_storage.js';
++import * as s from '../calls/storage.js';
++
++const key=z.string().regex(/^[a-zA-Z0-9_-]{1,180}$/),revision=z.number().int().nonnegative();
++const fields=['name','first_name','last_name','company_name'] as const;
++function parse(v:unknown){try{return s.object(JSON.parse(s.text(v)));}catch{return {};}}
++export function renderBroadcast(template:string,recipient:s.Json){return template.replace(/\{\{\s*([a-z_]+)\s*\}\}/g,(_all,k)=>s.text(recipient[k]));}
++export function assertBroadcast(ctx:PlatformAuthContext){assertManage(ctx);if(!hasPermission(ctx,'send_comms|send_communications|manage_communications|manage_company_settings'))throw forbidden('broadcast_send_denied');}
++export async function campaign(ctx:PlatformAuthContext,id:string){assertBroadcast(ctx);const c=await s.resource(ctx.orgId,'phone_broadcast',id);if(!c)throw notFound('broadcast_missing');assertManage(ctx,c);return c;}
++async function sender(ctx:PlatformAuthContext,id:string){const row=(await listSenderIdentities(ctx.orgId,'','sms')).find(i=>i.id===id&&i.status==='active');if(!row||!await canUseLine(ctx,s.text(row.address)))throw forbidden('broadcast_sender_denied','Select a registered line you can use.');assertManage(ctx,{...await s.resource(ctx.orgId,'number',s.text(row.address)),...await s.resource(ctx.orgId,'phone_line',s.text(row.address))});return row;}
++export async function saveBroadcast(ctx:PlatformAuthContext,id:string,input:unknown){
++ assertBroadcast(ctx);key.parse(id);const v=broadcastSchema.parse(input),old=await s.resource(ctx.orgId,'phone_broadcast',id);if(old?.started_at||old&&old.status!=='draft')throw conflict('broadcast_locked','Create a new draft to change a launched campaign.');
++ const unknown=[...v.template.matchAll(/\{\{\s*([^}]+)\s*\}\}/g)].map(m=>m[1]!.trim()).filter(k=>!fields.includes(k as any));if(unknown.length)throw badRequest('broadcast_variable_invalid','Use name, first_name, last_name or company_name placeholders.');
++ const line=await sender(ctx,v.sender_identity_id);await validateSource(ctx.orgId,v.lead_source_id);
++ const cap=Math.max(0.01,Number(process.env.TELNYX_SMS_APPROVED_MPS)||1);if(v.messages_per_second>cap)throw badRequest('broadcast_rate_unapproved','The campaign pace exceeds the platform carrier-account allowance.');
++ if(v.scheduled_for&&Date.parse(v.scheduled_for)<Date.now())throw badRequest('broadcast_schedule_past');
++ return s.saveResource(ctx.orgId,'phone_broadcast',id,{...old,...v,status:'draft',owner_user_id:ctx.userId,branch_id:s.text(line.branch_id)||'default',sender_number:line.address},'',v.revision);
++}
++async function savedRecipient(ctx:PlatformAuthContext,ref:{project_id:string;contact_id:string}){
++ await projectContext(ctx,ref.project_id);const {contact}=await resolveContact(ctx.orgId,ref);let address=s.text(contact.phone||contact.mobile||contact.phone_number).replace(/[^+\d]/g,'');if(/^\d{10}$/.test(address))address='+1'+address;else if(/^1\d{10}$/.test(address))address='+'+address;
++ if(!/^\+[1-9]\d{7,14}$/.test(address))throw badRequest('broadcast_recipient_phone','This contact has no valid phone number.');
++ const name=s.text(contact.name),parts=name.split(/\s+/);return {...ref,address,name,first_name:s.text(contact.first_name)||parts[0]||'',last_name:s.text(contact.last_name)||parts.slice(1).join(' '),company_name:s.text(contact.company_name||contact.company)};
++}
++export async function addAudience(ctx:PlatformAuthContext,id:string,input:unknown){
++ const v=audienceSchema.parse(input),c=await campaign(ctx,id);if(c.status!=='draft')throw conflict('broadcast_locked');
++ const candidates:s.Json[]=[];let invalid=0;for(const ref of v.contacts)try{candidates.push(await savedRecipient(ctx,ref));}catch(e){if(!(e instanceof PlatformError)||![400,403,404].includes(e.statusCode))throw e;invalid++;}
++ return s.transaction(async()=>{const current=await campaign(ctx,id);if(current.status!=='draft'||current.revision!==v.revision)throw conflict('settings_revision_conflict');
++  let added=0,duplicates=0;const count=s.object(await s.database().prepare('SELECT COUNT(*) AS total FROM phone_broadcast_recipients WHERE organization_id=? AND campaign_id=?').get(ctx.orgId,id));if(Number(count.total)+candidates.length>50000)throw badRequest('broadcast_audience_limit','Use at most 50,000 recipients per campaign.');
++  for(const recipient of candidates){const r=await s.database().prepare(`INSERT INTO phone_broadcast_recipients(organization_id,campaign_id,id,address,recipient_json,state,message_id,reason,lease_until,created_at,updated_at) VALUES(?,?,?,?,?,'pending','','','',?,?) ON CONFLICT(organization_id,campaign_id,address) DO NOTHING`).run(ctx.orgId,id,s.id('recipient',s.text(recipient.address)),s.text(recipient.address),JSON.stringify(recipient),s.now(),s.now());if(r.changes)added++;else duplicates++;}
++  const saved=await s.saveResource(ctx.orgId,'phone_broadcast',id,{...current,audience_revision:Number(current.audience_revision||0)+1},'',v.revision);return {id,revision:saved.revision,added,duplicates,invalid};
++ });
++}
++export async function removeAudience(ctx:PlatformAuthContext,id:string,recipientId:string,rev:number){const c=await campaign(ctx,id);return s.transaction(async()=>{const current=await campaign(ctx,id);if(c.status!=='draft'||current.revision!==rev)throw conflict('broadcast_locked');await s.database().prepare('DELETE FROM phone_broadcast_recipients WHERE organization_id=? AND campaign_id=? AND id=?').run(ctx.orgId,id,recipientId);return s.saveResource(ctx.orgId,'phone_broadcast',id,{...current,audience_revision:Number(current.audience_revision||0)+1},'',rev);});}
++async function recipientEligibility(ctx:PlatformAuthContext,c:s.Json,r:s.Json){
++ try{const current=await savedRecipient(ctx,{project_id:s.text(r.project_id),contact_id:s.text(r.contact_id)});if(current.address!==r.address)return 'The contact phone number changed after audience selection.';}catch{return 'Contact access or the saved contact is no longer available.';}
++ if(c.stop_on_reply&&c.started_at){const status=s.object(await s.database().prepare('SELECT replied_at FROM phone_broadcast_recipients WHERE organization_id=? AND campaign_id=? AND address=?').get(ctx.orgId,s.text(c.id),s.text(r.address)));if(status.replied_at)return 'The contact replied before this message was sent.';}
++ const consent=await readSmsConsent(ctx.orgId,s.text(r.address));if(consent?.status!=='opted_in'||!smsConsentPurposesAllow(s.object(consent.evidence).purposes,'marketing'))return 'Marketing consent is missing or withdrawn.';
++ const rendered=renderBroadcast(s.text(c.template),r);if(!rendered.trim()||rendered.length>1600)return 'Personalized text must contain 1–1600 characters.';
++ if(env.communicationsDeliveryMode==='live'){
++  const config=await senderConfiguration(ctx.orgId,s.text(c.sender_number));if(!config)return 'Sending line registration is not ready.';
++  const issue=outboundSmsComplianceIssue(config.profile,'marketing',rendered);if(issue)return issue.message;
++ }
++ return '';
++}
++export async function previewBroadcast(ctx:PlatformAuthContext,id:string,limit=500,cursor=''){
++ const c=await campaign(ctx,id);await sender(ctx,s.text(c.sender_identity_id));const signature=s.digest({org:ctx.orgId,user:ctx.userId,id,revision:c.revision});let after='';if(cursor){let v:s.Json={};try{v=parse(Buffer.from(cursor,'base64url').toString());}catch{}if(v.signature!==signature)throw badRequest('broadcast_preview_cursor_invalid');after=s.text(v.after);}
++ const bounded=Math.min(500,Math.max(1,limit)),all=await s.database().prepare('SELECT id,recipient_json FROM phone_broadcast_recipients WHERE organization_id=? AND campaign_id=? AND id>? ORDER BY id LIMIT ?').all(ctx.orgId,id,after,bounded+1),rows=all.slice(0,bounded),total=Number(s.object(await s.database().prepare('SELECT COUNT(*) AS n FROM phone_broadcast_recipients WHERE organization_id=? AND campaign_id=?').get(ctx.orgId,id)).n);
++ let eligible=0;const reasons:Record<string,number>={},samples:s.Json[]=[],authorized=new Set<string>();
++ for(const raw of rows){const r=parse(s.object(raw).recipient_json),project=s.text(r.project_id);if(!authorized.has(project)){await projectContext(ctx,project);authorized.add(project);}const reason=await recipientEligibility(ctx,c,r);if(reason)reasons[reason]=(reasons[reason]||0)+1;else eligible++;if(samples.length<5)samples.push({name:r.name,text:renderBroadcast(s.text(c.template),r),eligible:!reason,reason});}
++ return {id,revision:c.revision,total,examined:rows.length,eligible,skipped:rows.length-eligible,reasons,samples,nextCursor:all.length>bounded?Buffer.from(JSON.stringify({signature,after:s.object(rows[rows.length-1]).id})).toString('base64url'):''};
++}
++export async function commandBroadcast(ctx:PlatformAuthContext,id:string,input:unknown){const v=broadcastCommandSchema.parse(input);assertBroadcast(ctx);return s.transaction(async()=>{
++ const c=await campaign(ctx,id);if(c.revision!==v.revision)throw conflict('settings_revision_conflict');const transitions:Record<string,string[]>={start:['draft'],pause:['running'],resume:['paused'],cancel:['draft','running','paused']};if(!transitions[v.action]!.includes(s.text(c.status)))throw conflict('broadcast_state_invalid');
++ if(v.action==='start'||v.action==='resume'){if(!await isCapabilityEnabled(ctx.orgId,'apps.comms')||!await isCapabilityEnabled(ctx.orgId,'comms.sms'))throw forbidden('broadcast_feature_disabled');await sender(ctx,s.text(c.sender_identity_id));const count=s.object(await s.database().prepare('SELECT COUNT(*) AS total FROM phone_broadcast_recipients WHERE organization_id=? AND campaign_id=?').get(ctx.orgId,id));if(!Number(count.total))throw badRequest('broadcast_empty');}
++ const status=v.action==='start'||v.action==='resume'?'running':v.action==='pause'?'paused':'canceled';
++ const saved=await s.saveResource(ctx.orgId,'phone_broadcast',id,{...c,status,...(v.action==='start'?{started_at:s.now(),owner_user_id:ctx.userId}:{}),...(v.action==='cancel'?{canceled_at:s.now()}:{}),last_error:''},'',v.revision);
++ if(status==='canceled')await s.database().prepare("UPDATE phone_broadcast_recipients SET state='canceled',reason='Campaign canceled.',updated_at=? WHERE organization_id=? AND campaign_id=? AND state IN ('pending','preparing')").run(s.now(),ctx.orgId,id);
++ return saved;
++ });}
++/** Checked again in the shared SMS dispatcher; queued messages obey controls too. */
++export async function broadcastGate(org:string,message:s.Json){
++ const id=s.text(s.object(message.context).broadcast_id);if(!id)return null;
++ const c=await s.resource(org,'phone_broadcast',id);if(!c||c.status==='canceled')return {action:'cancel',reason:'Broadcast canceled.'};
++ if(c.status==='paused')return {action:'wait',at:new Date(Date.now()+15000).toISOString(),reason:'Broadcast paused.'};
++ if(c.status!=='running')return {action:'cancel',reason:'Broadcast is no longer active.'};
++ const owner=await backgroundAuthContext(org,s.text(c.owner_user_id)).catch(()=>null);if(!owner)return {action:'cancel',reason:'Campaign owner membership was revoked.'};
++ try{if(!await isCapabilityEnabled(org,'apps.comms')||!await isCapabilityEnabled(org,'comms.sms'))throw forbidden('broadcast_feature_disabled');assertBroadcast(owner);await sender(owner,s.text(c.sender_identity_id));const r=Array.isArray(message.recipients)?s.object(message.recipients[0]):{};const reason=await recipientEligibility(owner,c,r);if(reason)return {action:'cancel',reason};}catch{return {action:'cancel',reason:'Campaign permissions or sending line access were revoked.'};}
++ if(Date.now()>Math.max(Date.parse(s.text(c.started_at)),Date.parse(s.text(c.scheduled_for))||0)+Number(c.expiry_hours)*3600000)return {action:'cancel',reason:'Broadcast expired.'};
++ return {policy:{enabled:true,schedule:c.schedule,timezone_mode:c.timezone_mode,unknown_timezone:c.unknown_timezone,apply_manual:true,expiry_hours:c.expiry_hours,cancel_on_reply:c.stop_on_reply,cooldown_minutes:180}};
++}
++/** Shared carrier-account and campaign budget; numbers do not multiply approved throughput. */
++export function estimatedSmsSegments(text:string){
++ const gsm=new Set("@£$¥èéùìòÇ\nØø\rÅåΔ_ΦΓΛΩΠΨΣΘΞÆæßÉ !\"#¤%&'()*+,-./0123456789:;<=>?¡ABCDEFGHIJKLMNOPQRSTUVWXYZÄÖÑÜ§¿abcdefghijklmnopqrstuvwxyzäöñüà"),extended=new Set('^{}\\[~]|€\f');let septets=0;
++ for(const char of text){if(extended.has(char))septets+=2;else if(gsm.has(char))septets++;else return Math.max(1,Math.ceil(text.length/(text.length>70?67:70)));}
++ return Math.max(1,Math.ceil(septets/(septets>160?153:160)));
++}
++export async function reserveSmsPace(org:string,profile:string,message:s.Json,at=new Date()){
++ const broadcast=s.text(s.object(message.context).broadcast_id),c=broadcast?await s.resource(org,'phone_broadcast',broadcast):null;
++ const rate=Math.max(0.01,Number(process.env.TELNYX_SMS_APPROVED_MPS)||1),campaignRate=Math.min(rate,Number(c?.messages_per_second)||rate);
++ const segments=estimatedSmsSegments(s.text(message.text_body));
++ const keys:[string,number][]=[['telnyx-account',rate],[s.id('profile',profile),rate],...(broadcast?[[s.id('broadcast-rate',`${org}:${broadcast}`),campaignRate] as [string,number]]:[])];
++ return s.transaction(async()=>{let next=at.toISOString();for(const [key] of keys){const row=s.object(await s.database().prepare('SELECT next_at FROM phone_sms_throttle WHERE id=?').get(key));if(s.text(row.next_at)>next)next=s.text(row.next_at);}if(next>at.toISOString())return next;
++  for(const [key,mps]of keys)await s.database().prepare('INSERT INTO phone_sms_throttle(id,next_at) VALUES(?,?) ON CONFLICT(id) DO UPDATE SET next_at=excluded.next_at').run(key,new Date(at.getTime()+Math.ceil(segments*1000/mps)).toISOString());return '';
++ });
++}
++async function stopCampaign(org:string,id:string,status:string,reason:string){await s.transaction(async()=>{const current=await s.resource(org,'phone_broadcast',id);if(current?.status!=='running')return;await s.saveResource(org,'phone_broadcast',id,{...current,status,last_error:reason});if(status==='canceled')await s.database().prepare("UPDATE phone_broadcast_recipients SET state='canceled',reason=?,lease_until='',updated_at=? WHERE organization_id=? AND campaign_id=? AND state IN ('pending','preparing')").run(reason,s.now(),org,id);});}
++let processing=false;
++export async function maintainBroadcasts(limit=20){if(processing)return;processing=true;try{
++ const campaigns=await s.database().prepare("SELECT organization_id,id FROM customer_voice_resources WHERE kind='phone_broadcast'").all();let processed=0;
++ for(const raw of campaigns){if(processed>=limit)break;const org=s.text(s.object(raw).organization_id),id=s.text(s.object(raw).id),c=await s.resource(org,'phone_broadcast',id);if(c?.status!=='running')continue;
++  const ctx=await backgroundAuthContext(org,s.text(c.owner_user_id)).catch(()=>null);try{if(!ctx||!await isCapabilityEnabled(org,'apps.comms')||!await isCapabilityEnabled(org,'comms.sms'))throw forbidden('broadcast_owner_revoked');assertBroadcast(ctx);await sender(ctx,s.text(c.sender_identity_id));}catch{await stopCampaign(org,id,'paused','Campaign owner permissions or sending-line access changed.');continue;}
++  if(c.scheduled_for&&s.text(c.scheduled_for)>s.now())continue;
++  if(Date.now()>Math.max(Date.parse(s.text(c.started_at)),Date.parse(s.text(c.scheduled_for))||0)+Number(c.expiry_hours)*3600000){await stopCampaign(org,id,'canceled','Campaign expired.');continue;}
++  for(let n=0;n<20&&processed<limit;n++){
++   const row=await s.transaction(async()=>{const current=await s.resource(org,'phone_broadcast',id);if(current?.status!=='running')return null;const found=s.object(await s.database().prepare("SELECT * FROM phone_broadcast_recipients WHERE organization_id=? AND campaign_id=? AND (state='pending' OR (state='preparing' AND lease_until<?)) ORDER BY id LIMIT 1").get(org,id,s.now()));if(!found.id)return null;
++    await s.database().prepare("UPDATE phone_broadcast_recipients SET state='preparing',lease_until=?,updated_at=? WHERE organization_id=? AND campaign_id=? AND id=?").run(new Date(Date.now()+120000).toISOString(),s.now(),org,id,s.text(found.id));return found;});if(!row)break;processed++;
++   const r=parse(row.recipient_json),messageId=s.id('broadcast-message',`${org}:${id}:${row.id}`);let existing:s.Json|null=null;try{existing=await readMessageRecord(org,messageId);}catch(e){if(!(e instanceof PlatformError)||e.statusCode!==404)throw e;}
++   let reason='';try{
++    if(!existing){reason=await recipientEligibility(ctx!,c,r);if(!reason){
++     const policy=await messagePolicy(org,s.text(c.sender_number));let zone=s.text(s.object(c.schedule).timezone);if(c.timezone_mode==='contact'&&(await contactSettings(org)).track_time_zones){const contact=await resolveContact(org,r);zone=s.text(contact.contact.time_zone)||zone;}
++     const window=nextWindow({...scheduleSchema.parse(c.schedule),timezone:zone},new Date());const companyWindow=policy.enabled?nextWindow(policy.schedule,new Date()):s.now();
++     if(!window||!companyWindow||window>s.now()||companyWindow>s.now()||c.timezone_mode==='contact'&&c.unknown_timezone==='hold'&&(!(await contactSettings(org)).track_time_zones||!s.text((await resolveContact(org,r)).contact.time_zone))){await s.database().prepare("UPDATE phone_broadcast_recipients SET state='preparing',lease_until=?,reason='Waiting for sending hours or contact time zone.',updated_at=? WHERE organization_id=? AND campaign_id=? AND id=?").run(new Date(Date.now()+60000).toISOString(),s.now(),org,id,s.text(row.id));continue;}
++     let conversation=await findSmsConversationRecord(org,s.text(r.address));if(!conversation)conversation=await createConversationRecord({id:s.id('broadcast-thread',`${org}:${r.address}`),organization_id:org,branch_id:c.branch_id,participants:[r],context:{project_id:r.project_id,contact_id:r.contact_id},channel_strategy:'sms',subject:`SMS with ${s.text(r.name)||r.address}`});
++     const latest=await s.resource(org,'phone_broadcast',id);if(latest?.status!=='running'){await s.database().prepare("UPDATE phone_broadcast_recipients SET state='pending',lease_until='' WHERE organization_id=? AND campaign_id=? AND id=? AND state='preparing'").run(org,id,s.text(row.id));continue;}
++     const result=await sendCommunication(org,sendCommunicationSchema.parse({id:messageId,channel:'sms',purpose:'marketing',branch_id:c.branch_id,conversation_id:conversation.id,sender:{identity_id:c.sender_identity_id},recipients:[r],content:{text:renderBroadcast(s.text(c.template),r)},source:{type:'automation',id:'sms-broadcast',user_id:c.owner_user_id},context:{project_id:r.project_id,contact_id:r.contact_id,broadcast_id:id,marketing_campaign_id:c.marketing_campaign_id,lead_source_id:c.lead_source_id},idempotency_key:`broadcast:${id}:${row.id}`}));existing=result.message;
++    }}
++    await s.database().prepare('UPDATE phone_broadcast_recipients SET state=?,message_id=?,reason=?,lease_until=\'\',updated_at=? WHERE organization_id=? AND campaign_id=? AND id=?').run(reason?'skipped':'queued',existing?s.text(existing.id):'',reason,s.now(),org,id,s.text(row.id));
++   }catch(e){let recovered:s.Json|null=null;try{recovered=await readMessageRecord(org,messageId);}catch{}if(recovered){await s.database().prepare("UPDATE phone_broadcast_recipients SET state='queued',message_id=?,reason='',lease_until='',updated_at=? WHERE organization_id=? AND campaign_id=? AND id=?").run(messageId,s.now(),org,id,s.text(row.id));continue;}const retry=!(e instanceof PlatformError)||e.statusCode===429||e.statusCode>=500;await s.database().prepare('UPDATE phone_broadcast_recipients SET state=?,reason=?,lease_until=?,updated_at=? WHERE organization_id=? AND campaign_id=? AND id=?').run(retry?'preparing':'skipped',e instanceof PlatformError?e.message:'Recipient could not be prepared.',retry?new Date(Date.now()+60000).toISOString():'',s.now(),org,id,s.text(row.id));}
++  }
++  const waiting=s.object(await s.database().prepare("SELECT COUNT(*) AS n FROM phone_broadcast_recipients r LEFT JOIN communication_deliveries d ON d.organization_id=r.organization_id AND d.message_id=r.message_id WHERE r.organization_id=? AND r.campaign_id=? AND (r.state IN ('pending','preparing') OR d.status IN ('queued','scheduled','retry_pending','submitting','submission_unknown') OR (d.status='sent' AND d.transport_mode<>'capture'))").get(org,id));
++  if(!Number(waiting.n))await s.transaction(async()=>{const current=await s.resource(org,'phone_broadcast',id);if(current?.status==='running')await s.saveResource(org,'phone_broadcast',id,{...current,status:'completed',completed_at:s.now()});});
++ }
++ }finally{processing=false;}}
++export async function broadcastRecipients(ctx:PlatformAuthContext,id:string,limit=100,after=''){
++ await campaign(ctx,id);const bounded=Math.max(1,Math.min(200,limit)),rows=await s.database().prepare('SELECT * FROM phone_broadcast_recipients WHERE organization_id=? AND campaign_id=? AND id>? ORDER BY id LIMIT ?').all(ctx.orgId,id,after,bounded+1),items:s.Json[]=[];
++ for(const raw of rows.slice(0,bounded)){const row=s.object(raw),r=parse(row.recipient_json);try{await projectContext(ctx,s.text(r.project_id));}catch{continue;}const deliveries=row.message_id?await listDeliveryRecords(ctx.orgId,s.text(row.message_id)):[];items.push({id:row.id,...r,state:row.state,reason:row.reason,message_id:row.message_id,deliveries:deliveries.map(d=>({id:d.id,status:d.status,sent_at:d.sent_at||'',delivered_at:d.delivered_at||'',failed_at:d.failed_at||''})),replied_at:row.replied_at||'',opted_out_at:row.opted_out_at||''});}
++ return {items,...(rows.length>bounded?{nextCursor:s.text(s.object(rows[bounded-1]).id)}:{})};
++}
++export async function broadcastReport(ctx:PlatformAuthContext,id:string){const c=await campaign(ctx,id);const rows=await s.database().prepare(`SELECT r.recipient_json,r.state,r.reason,r.replied_at,r.opted_out_at,d.status FROM phone_broadcast_recipients r LEFT JOIN communication_deliveries d ON d.organization_id=r.organization_id AND d.message_id=r.message_id WHERE r.organization_id=? AND r.campaign_id=?`).all(ctx.orgId,id);const counts={total:rows.length,pending:0,queued:0,sent:0,delivered:0,failed:0,skipped:0,canceled:0,replied:0,opted_out:0};const authorized=new Set<string>();for(const raw of rows){const r=s.object(raw),project=s.text(parse(r.recipient_json).project_id);if(!authorized.has(project)){await projectContext(ctx,project);authorized.add(project);}const state=s.text(r.status||r.state);if(['pending','preparing'].includes(state))counts.pending++;else if(state==='delivered')counts.delivered++;else if(state==='sent')counts.sent++;else if(['queued','scheduled','retry_pending','submitting','submission_unknown'].includes(state))counts.queued++;else if(['failed','delivery_unconfirmed'].includes(state))counts.failed++;else if(state==='canceled'||state==='cancelled')counts.canceled++;else if(state==='skipped')counts.skipped++;if(r.replied_at)counts.replied++;if(r.opted_out_at)counts.opted_out++;}return {id,status:c.status,label:c.label,started_at:c.started_at||'',last_error:c.last_error||'',counts};}
++export async function recordBroadcastReply(org:string,message:s.Json){
++ if(message.direction!=='inbound'||message.channel!=='sms')return;const from=s.text(s.object(message.sender).address),to=Array.isArray(message.recipients)?s.text(s.object(message.recipients[0]).address):'';
++ for(const pending of await s.database().prepare("SELECT DISTINCT campaign_id FROM phone_broadcast_recipients WHERE organization_id=? AND address=? AND state IN ('pending','preparing')").all(org,from)){const id=s.text(s.object(pending).campaign_id),c=await s.resource(org,'phone_broadcast',id);if(c&&c.status==='running'&&c.sender_number===to&&s.text(c.started_at)<=s.text(message.created_at)){const consent=await readSmsConsent(org,from);await s.database().prepare("UPDATE phone_broadcast_recipients SET replied_at=CASE WHEN replied_at='' THEN ? ELSE replied_at END,opted_out_at=CASE WHEN ?=1 AND opted_out_at='' THEN ? ELSE opted_out_at END WHERE organization_id=? AND campaign_id=? AND address=? AND state IN ('pending','preparing')").run(s.text(message.created_at),consent?.status==='opted_out'?1:0,s.text(message.created_at),org,id,from);}}
++ const rows=await s.database().prepare('SELECT r.campaign_id,r.id,r.message_id FROM phone_broadcast_recipients r JOIN communication_messages m ON m.organization_id=r.organization_id AND m.id=r.message_id WHERE r.organization_id=? AND r.address=? AND m.created_at<=? ORDER BY m.created_at DESC').all(org,from,s.text(message.created_at));
++ for(const raw of rows){const row=s.object(raw),out=await readMessageRecord(org,s.text(row.message_id));if(s.text(s.object(out.sender).address)!==to)continue;const consent=await readSmsConsent(org,from);await s.database().prepare("UPDATE phone_broadcast_recipients SET replied_at=CASE WHEN replied_at='' THEN ? ELSE replied_at END,opted_out_at=CASE WHEN ?=1 AND opted_out_at='' THEN ? ELSE opted_out_at END WHERE organization_id=? AND campaign_id=? AND id=?").run(s.text(message.created_at),consent?.status==='opted_out'?1:0,s.text(message.created_at),org,s.text(row.campaign_id),s.text(row.id));break;}
++}
+--- a/public/v1/comms/phone/contracts.ts
++++ b/public/v1/comms/phone/contracts.ts
+@@ -29,7 +29,7 @@
+   cancel_on_reply:z.boolean().default(true),auto_reply_open:z.string().max(1500).default(''),auto_reply_closed:z.string().max(1500).default(''),
+   missed_call_reply:z.string().max(1500).default(''),cooldown_minutes:z.number().int().min(30).max(10080).default(180)
+ });
+-export const trackingSchema=z.object({enabled:z.boolean().default(false),source:z.string().trim().max(160).default(''),medium:z.string().trim().max(100).default(''),campaign:z.string().trim().max(160).default(''),ad_id:z.string().trim().max(160).default(''),landing_page:z.string().max(1000).default('')}).refine(v=>!v.enabled||!!v.source,'Enter the advertising source.');
++export const trackingSchema=z.object({lead_source_id:z.string().max(180).default(''),marketing_campaign_id:z.string().max(180).default(''),enabled:z.boolean().default(false),source:z.string().trim().max(160).default(''),medium:z.string().trim().max(100).default(''),campaign:z.string().trim().max(160).default(''),ad_id:z.string().trim().max(160).default(''),landing_page:z.string().max(1000).default('')}).refine(v=>!v.enabled||!!v.source,'Enter the advertising source.');
+ export const lineSchema=z.object({label:z.string().trim().min(1).max(100),user_ids:z.array(key).max(100).default([]),group_id:z.string().max(180).default(''),department_ids:z.array(key).max(100).default([]),routing:routingSchema.nullable().default(null),messaging:messagingPolicySchema.nullable().default(null),tracking:trackingSchema.default({}),revision:z.number().int().nonnegative()});
+ export const groupSchema=z.object({label:z.string().trim().min(1).max(100),department_ids:z.array(key).max(100).default([]),user_ids:z.array(key).min(1).max(100),routing:routingSchema,revision:z.number().int().nonnegative()});
+ export const powerDialSchema=z.object({enabled:z.boolean().default(false),numbers:z.array(phone).max(50).default([]),strategy:z.enum(["round_robin","least_used"]).default("round_robin"),daily_limit:z.number().int().min(1).max(1000).default(100),cooldown_seconds:z.number().int().min(0).max(3600).default(60),skip_high_risk:z.boolean().default(true)});
+--- a/public/v1/comms/phone/event-contracts.ts
++++ b/public/v1/comms/phone/event-contracts.ts
+@@ -1,6 +1,9 @@
+ import {z} from 'zod';
+ // Pure contract module: shared by the durable outbox and the automation catalog.
+ const names={
++ 'phone.tracking.source_updated':'A lead-source binding changed.',
++ 'phone.tracking.pool_updated':'A website tracking pool changed.',
++ 'phone.broadcast.updated':'An SMS campaign draft, audience or lifecycle changed.',
+  'phone.reputation.onboarding_updated':'Business reputation enrollment or authorization status changed.',
+  'phone.reputation.remediation_updated':'A spam-label review status or result changed.',
+  'phone.line.updated':'A phone line assignment, routing, messaging or tracking configuration changed.',
+@@ -28,6 +31,7 @@
+  branch_id:z.string(),project_id:z.string(),department_ids:z.array(z.string()),
+  spam_risk:z.string(),previous_spam_risk:z.string(),monitored:z.boolean(),handled:z.boolean(),changed_fields:z.array(z.string()),status:z.string(),previous_status:z.string(),
+  call_id:z.string(),user_id:z.string(),phone_number:z.string(),direction:z.string(),
++ lead_source_id:z.string().default(''),marketing_campaign_id:z.string().default(''),pool_id:z.string().default(''),visit_id:z.string().default(''),
+  voicemail_drop_state:z.string(),source:z.string(),medium:z.string(),campaign:z.string(),ad_id:z.string()
+ }).strict();
+ export const phoneEventEnvelope=z.object({type:z.enum(phoneEventNames),payload:phoneEventPayload}).strict();
+@@ -40,6 +44,9 @@
+ const text=(v:unknown)=>String(v??'');
+ const strings=(v:unknown)=>Array.isArray(v)?v.map(text):[];
+ const fields:Record<string,{event:keyof typeof names;keys:string[]}>={
++ phone_tracking_source:{event:'phone.tracking.source_updated',keys:['label','enabled','external_ref']},
++ phone_tracking_pool:{event:'phone.tracking.pool_updated',keys:['enabled','numbers','fallback_number','origins','rules','lead_source_id','marketing_campaign_id']},
++ phone_broadcast:{event:'phone.broadcast.updated',keys:['status','label','template','audience_revision','last_error']},
+  phone_reputation_account:{event:'phone.reputation.onboarding_updated',keys:['status','signed_at','disabled_at']},
+  phone_reputation_remediation:{event:'phone.reputation.remediation_updated',keys:['status','results']},
+  phone_line:{event:'phone.line.updated',keys:['label','user_ids','group_id','department_ids','routing','messaging','tracking']},
+@@ -61,7 +68,7 @@
+  const rule=fields[kind];if(!rule)return null;
+  const changed=rule.keys.filter(k=>JSON.stringify(canonical(previous?.[k]))!==JSON.stringify(canonical(row[k])));if(!changed.length)return null;
+  const touch=obj(row.last_touch);
+- const payload={...base(id,row),changed_fields:changed,previous_spam_risk:text(obj(previous?.reputation_data).spam_risk),previous_status:text(previous?.status||previous?.assignment_status),call_id:kind==='phone_mailbox'?id:text(row.last_call_id),user_id:kind==='phone_personal'?id:'',phone_number:text(row.phone_number)||(kind==='phone_line'||kind==='number'||kind==='phone_sms'||kind==='phone_reputation_number'?id:''),...Object.fromEntries(['source','medium','campaign','ad_id'].map(k=>[k,text(touch[k])]))};
++ const payload={...base(id,row),changed_fields:changed,previous_spam_risk:text(obj(previous?.reputation_data).spam_risk),previous_status:text(previous?.status||previous?.assignment_status),call_id:kind==='phone_mailbox'?id:text(row.last_call_id),user_id:kind==='phone_personal'?id:'',phone_number:text(row.phone_number)||(kind==='phone_line'||kind==='number'||kind==='phone_sms'||kind==='phone_reputation_number'?id:''),...Object.fromEntries(['lead_source_id','marketing_campaign_id','pool_id','visit_id','source','medium','campaign','ad_id'].map(k=>[k,text(touch[k])]))};
+  return phoneEventEnvelope.parse({type:rule.event,payload});
+ }
+ const callEvents:Record<string,keyof typeof names>={'communication.call.created':'phone.call.created','communication.call.connected':'phone.call.connected','communication.call.ended':'phone.call.ended','communication.call.recording_ready':'phone.voicemail.received','phone.voicemail_drop.started':'phone.voicemail_drop.started','phone.voicemail_drop.finished':'phone.voicemail_drop.finished'};
+@@ -70,5 +77,5 @@
+  if(!callEvents[type]||call.mode==='diagnostic')return null;
+  const metadata=obj(call.metadata),attribution=obj(metadata.attribution);
+  if(type==='communication.call.recording_ready'&&!obj(metadata.voicemail).started)return null;
+- return phoneEventEnvelope.parse({type:callEvents[type],payload:{...base(text(call.id),call),call_id:text(call.id),user_id:text(call.owner_user_id),phone_number:text(call.business_number),direction:text(call.direction),department_ids:strings(metadata.department_ids),status:text(call.state),voicemail_drop_state:text(obj(metadata.voicemail_drop).state),...Object.fromEntries(['source','medium','campaign','ad_id'].map(k=>[k,text(attribution[k])]))}});
++ return phoneEventEnvelope.parse({type:callEvents[type],payload:{...base(text(call.id),call),call_id:text(call.id),user_id:text(call.owner_user_id),phone_number:text(call.business_number),direction:text(call.direction),department_ids:strings(metadata.department_ids),status:text(call.state),voicemail_drop_state:text(obj(metadata.voicemail_drop).state),...Object.fromEntries(['lead_source_id','marketing_campaign_id','pool_id','visit_id','source','medium','campaign','ad_id'].map(k=>[k,text(attribution[k])]))}});
+ }
+--- a/public/v1/comms/phone/marketing-api.ts
++++ b/public/v1/comms/phone/marketing-api.ts
+@@ -0,0 +1,36 @@
++import type {FastifyInstance,FastifyRequest,FastifyReply} from 'fastify';
++import {z} from 'zod';
++import {requirePlatformAuth,type PlatformAuthContext} from '../../platform/auth.js';
++import {forbidden,notFound} from '../../platform/errors.js';
++import {contactOptions} from '../../contacts/service.js';
++import {projectContext} from '../calls/service.js';
++import {listSenderIdentities} from '../../messaging/communications_storage.js';
++import {assertManage,canUseLine} from './service.js';
++import {saveSource,savePool,authorizePool,assignVisitor,releaseVisitor,trackingCalls,trackingVisits} from './tracking.js';
++import {saveBroadcast,addAudience,removeAudience,previewBroadcast,commandBroadcast,broadcastRecipients,broadcastReport} from './broadcast.js';
++import * as s from '../calls/storage.js';
++
++const base='/organizations/:orgId/phone',param=(r:FastifyRequest,k:string)=>s.text(s.object(r.params)[k]);
++async function auth(r:FastifyRequest,write=false){const ctx=await requirePlatformAuth(r,{orgId:param(r,'orgId'),csrf:write,capability:'apps.comms'});assertManage(ctx);return ctx;}
++async function authorizedRows(ctx:PlatformAuthContext,kind:string){const out:s.Json[]=[];for(const row of await s.resources(ctx.orgId,kind))try{if(kind==='phone_tracking_pool')await authorizePool(ctx,row);else assertManage(ctx,row);out.push(row);}catch{}return out;}
++export function registerPhoneMarketingApi(app:FastifyInstance){
++ app.get(`${base}/marketing`,async r=>{const ctx=await auth(r),senders=[];for(const row of await listSenderIdentities(ctx.orgId,'','sms'))if(row.status==='active'&&await canUseLine(ctx,s.text(row.address)))senders.push({id:row.id,label:row.display_name||row.address,address:row.address});return {ok:true,sources:await authorizedRows(ctx,'phone_tracking_source'),pools:await authorizedRows(ctx,'phone_tracking_pool'),broadcasts:await authorizedRows(ctx,'phone_broadcast'),senders};});
++ app.put(`${base}/sources/:id`,async r=>({ok:true,source:await saveSource(await auth(r,true),param(r,'id'),r.body)}));
++ app.put(`${base}/website-pools/:id`,async r=>({ok:true,pool:await savePool(await auth(r,true),param(r,'id'),r.body)}));
++ app.get(`${base}/website-pools/:id/visits`,async r=>{const q=s.object(r.query);return {ok:true,...await trackingVisits(await auth(r),param(r,'id'),Number(q.limit)||100,s.text(q.after))};});
++ app.get(`${base}/tracking-calls`,async r=>{const q=s.object(r.query),{limit,cursor,...filter}=q;return {ok:true,...await trackingCalls(await auth(r),filter,Number(limit)||100,s.text(cursor))};});
++ app.get(`${base}/marketing/contacts`,async r=>{const ctx=await auth(r),q=s.object(r.query),query=s.text(q.query).toLowerCase(),limit=Math.min(200,Math.max(1,Number(q.limit)||100)),after=s.text(q.after),items=[];let last='';
++  for(const c of (await contactOptions(ctx.orgId,'human')).sort((a,b)=>s.text(a.contact_id).localeCompare(s.text(b.contact_id)))){if(s.text(c.contact_id)<=after||query&&!s.text(c.name).toLowerCase().includes(query))continue;try{await projectContext(ctx,s.text(c.project_id));}catch{continue;}if(items.length===limit)return {ok:true,items,nextCursor:last};items.push(c);last=s.text(c.contact_id);}return {ok:true,items};});
++ app.put(`${base}/broadcasts/:id`,async r=>({ok:true,campaign:await saveBroadcast(await auth(r,true),param(r,'id'),r.body)}));
++ app.post(`${base}/broadcasts/:id/audience`,async r=>({ok:true,...await addAudience(await auth(r,true),param(r,'id'),r.body)}));
++ app.delete(`${base}/broadcasts/:id/audience/:recipient`,async r=>({ok:true,campaign:await removeAudience(await auth(r,true),param(r,'id'),param(r,'recipient'),z.object({revision:z.number().int().nonnegative()}).parse(r.body).revision)}));
++ app.get(`${base}/broadcasts/:id/preview`,async r=>({ok:true,...await previewBroadcast(await auth(r),param(r,'id'),Number(s.object(r.query).limit)||500,s.text(s.object(r.query).cursor))}));
++ app.post(`${base}/broadcasts/:id/control`,async r=>({ok:true,campaign:await commandBroadcast(await auth(r,true),param(r,'id'),r.body)}));
++ app.get(`${base}/broadcasts/:id/recipients`,async r=>{const q=s.object(r.query);return {ok:true,...await broadcastRecipients(await auth(r),param(r,'id'),Number(q.limit)||100,s.text(q.after))};});
++ app.get(`${base}/broadcasts/:id/report`,async r=>({ok:true,...await broadcastReport(await auth(r),param(r,'id'))}));
++ const publicBase='/phone-tracking/:orgId/pools/:id';
++ async function origin(r:FastifyRequest,reply:FastifyReply){const origin=s.text(r.headers.origin),pool=await s.resource(param(r,'orgId'),'phone_tracking_pool',param(r,'id'));if(!pool)throw notFound('tracking_pool_missing');if(!s.strings(pool.origins).includes(origin))throw forbidden('tracking_origin_denied');reply.header('Access-Control-Allow-Origin',origin).header('Vary','Origin').header('Cache-Control','no-store');return origin;}
++ app.options(`${publicBase}/:action`,async(r,reply)=>{await origin(r,reply);return reply.header('Access-Control-Allow-Methods','POST, OPTIONS').header('Access-Control-Allow-Headers','Content-Type').code(204).send();});
++ app.post(`${publicBase}/assign`,{bodyLimit:8192},async(r,reply)=>({ok:true,...await assignVisitor(param(r,'orgId'),param(r,'id'),await origin(r,reply),r.ip,r.body)}));
++ app.post(`${publicBase}/release`,{bodyLimit:2048},async(r,reply)=>({ok:true,...await releaseVisitor(param(r,'orgId'),param(r,'id'),await origin(r,reply),z.object({visitor_key:z.string()}).strict().parse(r.body).visitor_key)}));
++}
+--- a/public/v1/comms/phone/marketing-contracts.ts
++++ b/public/v1/comms/phone/marketing-contracts.ts
+@@ -0,0 +1,18 @@
++import {z} from 'zod';
++import {phone,scheduleSchema} from './contracts.js';
++const key=z.string().trim().regex(/^[a-zA-Z0-9_-]{1,180}$/),label=z.string().trim().min(1).max(160),ref=z.string().trim().max(180).default(''),revision=z.number().int().nonnegative();
++export const sourceSchema=z.object({label,enabled:z.boolean().default(true),external_ref:ref,revision:z.number().int().nonnegative()}).strict();
++export const poolSchema=z.object({label,enabled:z.boolean().default(false),numbers:z.array(phone).min(1).max(200),fallback_number:phone,
++ origins:z.array(z.string().url().refine(v=>{try{const u=new URL(v);return u.protocol==='https:'&&u.origin===v;}catch{return false;}},'Use an exact HTTPS origin, without a path.')).min(1).max(20),
++ lease_minutes:z.number().int().min(5).max(120).default(30),reuse_hours:z.number().int().min(1).max(168).default(24),retention_days:z.number().int().min(8).max(90).default(30),
++ lead_source_id:ref,marketing_campaign_id:ref,
++ rules:z.array(z.object({utm_source:z.string().max(160).default(''),utm_campaign:z.string().max(160).default(''),referrer_host:z.string().max(255).default(''),lead_source_id:key,marketing_campaign_id:ref}).strict().refine(v=>!!(v.utm_source||v.utm_campaign||v.referrer_host),'Add a source, campaign or referrer match.')).max(100).default([]),
++ revision:z.number().int().nonnegative()}).strict();
++
++export const broadcastSchema=z.object({label:z.string().trim().min(1).max(160),sender_identity_id:key,template:z.string().trim().min(1).max(1600),
++ schedule:scheduleSchema.default({}),timezone_mode:z.enum(['schedule','contact']).default('contact'),unknown_timezone:z.enum(['hold','fallback']).default('hold'),
++ scheduled_for:z.union([z.string().datetime(),z.literal('')]).default(''),expiry_hours:z.number().int().min(1).max(720).default(72),stop_on_reply:z.boolean().default(true),
++ messages_per_second:z.number().min(0.01).max(10).default(1),lead_source_id:z.string().max(180).default(''),marketing_campaign_id:z.string().max(180).default(''),revision
++}).strict();
++export const audienceSchema=z.object({contacts:z.array(z.object({project_id:key,contact_id:key}).strict()).min(1).max(500),revision}).strict();
++export const broadcastCommandSchema=z.object({action:z.enum(['start','pause','resume','cancel']),revision,confirmed:z.literal(true)}).strict();
+--- a/public/v1/comms/phone/marketing-publication.ts
++++ b/public/v1/comms/phone/marketing-publication.ts
+@@ -0,0 +1,66 @@
++import {sourceSchema,poolSchema,broadcastSchema,audienceSchema,broadcastCommandSchema} from './marketing-contracts.js';
++import {z} from 'zod';
++import {zodToJsonSchema} from 'zod-to-json-schema';
++import {registerDataProvider,type DataExport} from '../../platform/publication/providers.js';
++import {registerAction} from '../../platform/publication/actions.js';
++import {backendImplementationDigest} from '../../platform/publication/implementation.js';
++import {contentHash} from '../../platform/publication/validation.js';
++import type {PublicationContext,AccessPolicy,JsonSchema,SourceRef} from '../../platform/publication/contracts.js';
++import {badRequest,forbidden,notFound} from '../../platform/errors.js';
++import {requireCallAccess,projectContext} from '../calls/service.js';
++import {assertManage,assertPhoneAccess} from './service.js';
++import {saveSource,savePool,authorizePool,trackingCalls,trackingVisits,trackingQuerySchema} from './tracking.js';
++import {saveBroadcast,addAudience,commandBroadcast,previewBroadcast,broadcastRecipients,broadcastReport,campaign} from './broadcast.js';
++import * as s from '../calls/storage.js';
++
++const str=z.string(),meta={id:str,revision:z.number(),updated_at:str};
++export const marketingAttributionSchema=z.object(Object.fromEntries(['number','source','medium','campaign','ad_id','landing_page','captured_at','lead_source_id','marketing_campaign_id','pool_id','visit_id','attribution_kind','keyword','referrer_host'].map(k=>[k,str.default('')]))).extend({enabled:z.boolean().default(false)});
++const callSchema=z.object({id:str,created_at:str,customer_number:str,business_number:str,contact_id:str,project_id:str,state:str,connected_at:str,ended_at:str,attribution:marketingAttributionSchema});
++const visitSchema=z.object({id:str,phone_number:str,lease_until:str,reuse_after:str,created_at:str,updated_at:str,attribution:marketingAttributionSchema});
++const recipientSchema=z.object({id:str,address:str,name:str,first_name:str,last_name:str,company_name:str,project_id:str,contact_id:str,state:str,reason:str,message_id:str,replied_at:str,opted_out_at:str,deliveries:z.array(z.object({id:str,status:str,sent_at:str,delivered_at:str,failed_at:str}))});
++const sourceRecord=sourceSchema.extend(meta).strip(),poolRecord=poolSchema.extend(meta).strip(),broadcastRecord=broadcastSchema.extend({...meta,status:str,started_at:str,owner_user_id:str,last_error:str,sender_number:str}).strip();
++const reportSchema=z.object({id:str,status:str,label:str,started_at:str,last_error:str,counts:z.object(Object.fromEntries(['total','pending','queued','sent','delivered','failed','skipped','canceled','replied','opted_out'].map(k=>[k,z.number()]))) });
++const json=(schema:z.ZodTypeAny)=>zodToJsonSchema(schema,{$refStrategy:'none'}) as JsonSchema;
++function principal(ctx:PublicationContext){if(!ctx.auth||ctx.auth.orgId!==ctx.organizationId)throw forbidden('phone_user_required');assertPhoneAccess(ctx.auth);assertManage(ctx.auth);return ctx.auth;}
++const policy:AccessPolicy={scopes:['organization'],permissions:[],scopedPermissions:true,capabilities:['apps.comms'],systemKinds:[],authorize:c=>{principal(c);}};
++function targetId(ref:SourceRef){if(!ref.target.id)throw badRequest('phone_id_required');return ref.target.id;}
++function binding(ctx:PublicationContext,ref:SourceRef,cursor=''){const signature=s.digest({org:ctx.organizationId,user:principal(ctx).userId,kind:ref.export,args:ref.args,target:ref.target.id});let after='';if(cursor){let value:s.Json={};try{value=s.object(JSON.parse(Buffer.from(cursor,'base64url').toString()));}catch{throw badRequest('phone_cursor_invalid');}if(value.signature!==signature)throw badRequest('phone_cursor_invalid');after=s.text(value.after);}return {after,wrap:(after:string)=>Buffer.from(JSON.stringify({signature,after})).toString('base64url')};}
++async function record(ctx:PublicationContext,kind:string,id:string){const auth=principal(ctx),row=await s.resource(ctx.organizationId,kind,id);if(!row)throw notFound('phone_record_missing');if(kind==='phone_tracking_pool')await authorizePool(auth,row);else assertManage(auth,row);return row;}
++async function call(ctx:PublicationContext,id:string){const c=requireCallAccess(principal(ctx),await s.readCall(ctx.organizationId,id));if(!s.object(c.metadata.attribution).enabled)throw notFound('tracking_call_missing');if(c.project_id)await projectContext(principal(ctx),c.project_id);return callSchema.parse({...c,attribution:s.object(c.metadata.attribution)});}
++let registered=false;
++export function registerPhoneMarketingPublication(){
++ if(registered)return;registered=true;
++ const exports:Record<string,DataExport>={};
++ for(const [kind,resource,schema]of [['source','phone_tracking_source',sourceRecord],['pool','phone_tracking_pool',poolRecord],['broadcast','phone_broadcast',broadcastRecord]] as const){
++  const project=(row:s.Json)=>schema.parse(kind==='broadcast'?{...row,started_at:row.started_at||'',last_error:row.last_error||''}:row);
++  exports[kind]={schema:json(schema),schemaVersion:'1',description:`Permission-checked ${kind} configuration. No provider secrets or visitor keys.`,access:policy,
++   read:async(ctx,ref)=>{const value=project(await record(ctx,resource,targetId(ref)));return {value,revision:contentHash(value),provenance:{ids:[value.id]}};},
++   authorizeSnapshot:async(ctx,_ref,result)=>{for(const id of s.strings(result.provenance.ids))await record(ctx,resource,id);},
++   list:async(ctx,ref,page)=>{const cursor=binding(ctx,ref,page.cursor),rows=(await s.resources(ctx.organizationId,resource)).sort((a,b)=>a.id.localeCompare(b.id)).filter(r=>r.id>cursor.after),items:unknown[]=[];let last='';for(const row of rows){last=row.id;try{items.push(project(await record(ctx,resource,row.id)));}catch{continue;}if(items.length===page.limit)break;}return {items,...(rows.some(r=>r.id>last)?{nextCursor:cursor.wrap(last)}:{})};}
++  };
++ }
++ exports.call={schema:json(callSchema),schemaVersion:'1',argsSchema:json(trackingQuerySchema.partial()),description:'Tracked calls with immutable source/campaign/visitor attribution. List using from/to and optional number/source/campaign/pool/visit filters.',access:policy,
++  read:async(ctx,ref)=>{const value=await call(ctx,targetId(ref));return {value,revision:contentHash(value),provenance:{ids:[value.id]}};},authorizeSnapshot:async(ctx,_ref,result)=>{for(const id of s.strings(result.provenance.ids))await call(ctx,id);},
++  list:async(ctx,ref,page)=>{const value=await trackingCalls(principal(ctx),ref.args,page.limit,page.cursor);return {...value,items:value.items.map(r=>callSchema.parse(r))};}};
++ exports.visit={schema:json(visitSchema),schemaVersion:'1',argsSchema:json(z.object({pool_id:str})),description:'Visitor assignment history with sanitized observed source data. Visitor cookie keys, IP addresses and full URL queries are excluded.',access:policy,
++  read:async(ctx,ref)=>{const pool=s.text(ref.args?.pool_id);await record(ctx,'phone_tracking_pool',pool);const raw=s.object(await s.database().prepare('SELECT * FROM phone_tracking_sessions WHERE organization_id=? AND pool_id=? AND id=?').get(ctx.organizationId,pool,targetId(ref)));if(!raw.id)throw notFound('tracking_visit_missing');const value=visitSchema.parse({...raw,attribution:JSON.parse(s.text(raw.attribution_json))});return {value,revision:contentHash(value),provenance:{pool,visit:value.id}};},
++  authorizeSnapshot:async(ctx,_ref,result)=>{await record(ctx,'phone_tracking_pool',s.text(result.provenance.pool));if(!await s.database().prepare('SELECT id FROM phone_tracking_sessions WHERE organization_id=? AND pool_id=? AND id=?').get(ctx.organizationId,s.text(result.provenance.pool),s.text(result.provenance.visit)))throw notFound('tracking_visit_expired');},
++  list:async(ctx,ref,page)=>{const bound=binding(ctx,ref,page.cursor),value=await trackingVisits(principal(ctx),s.text(ref.args?.pool_id),page.limit,bound.after);return {items:value.items.map(v=>visitSchema.parse(v)),...(value.nextCursor?{nextCursor:bound.wrap(value.nextCursor)}:{})};}};
++ exports.recipient={schema:json(recipientSchema),schemaVersion:'1',argsSchema:json(z.object({broadcast_id:str})),description:'Campaign recipient preparation, delivery and response status. Rechecks access to each linked contact/project.',access:policy,
++  read:async(ctx,ref)=>{const broadcast=s.text(ref.args?.broadcast_id);await campaign(principal(ctx),broadcast);const row=s.object(await s.database().prepare('SELECT recipient_json FROM phone_broadcast_recipients WHERE organization_id=? AND campaign_id=? AND id=?').get(ctx.organizationId,broadcast,targetId(ref)));if(!row.recipient_json)throw notFound('broadcast_recipient_missing');const r=s.object(JSON.parse(s.text(row.recipient_json)));await projectContext(principal(ctx),s.text(r.project_id));const page=await broadcastRecipients(principal(ctx),broadcast,200);let value=page.items.find(v=>v.id===ref.target.id);let cursor=page.nextCursor;while(!value&&cursor){const next=await broadcastRecipients(principal(ctx),broadcast,200,cursor);value=next.items.find(v=>v.id===ref.target.id);cursor=next.nextCursor;}if(!value)throw notFound('broadcast_recipient_missing');const safe=recipientSchema.parse(value);return {value:safe,revision:contentHash(safe),provenance:{broadcast,project:r.project_id,recipient:safe.id}};},
++  authorizeSnapshot:async(ctx,_ref,result)=>{await campaign(principal(ctx),s.text(result.provenance.broadcast));if(!await s.database().prepare('SELECT id FROM phone_broadcast_recipients WHERE organization_id=? AND campaign_id=? AND id=?').get(ctx.organizationId,s.text(result.provenance.broadcast),s.text(result.provenance.recipient)))throw notFound('broadcast_recipient_missing');await projectContext(principal(ctx),s.text(result.provenance.project));},
++  list:async(ctx,ref,page)=>{const bound=binding(ctx,ref,page.cursor),value=await broadcastRecipients(principal(ctx),s.text(ref.args?.broadcast_id),page.limit,bound.after);return {items:value.items.map(v=>recipientSchema.parse(v)),...(value.nextCursor?{nextCursor:bound.wrap(value.nextCursor)}:{})};}};
++ exports.broadcast_report={schema:json(reportSchema),schemaVersion:'1',description:'Live campaign delivery, skipped, reply and opt-out totals. Aggregates recheck linked project access.',access:policy,
++  read:async(ctx,ref)=>{const value=reportSchema.parse(await broadcastReport(principal(ctx),targetId(ref)));return {value,revision:contentHash(value),provenance:{broadcast:value.id}};},authorizeSnapshot:async(ctx,_ref,result)=>{await broadcastReport(principal(ctx),s.text(result.provenance.broadcast));}};
++ registerDataProvider({id:'phone-marketing',version:'1',apps:['settings','comms'],exports});
++ const output=z.object({id:str,revision:z.number()});
++ const actions=[
++  {id:'source.save',schema:sourceSchema,run:(ctx:PublicationContext,id:string,input:unknown)=>saveSource(principal(ctx),id,input)},
++  {id:'pool.save',schema:poolSchema,run:(ctx:PublicationContext,id:string,input:unknown)=>savePool(principal(ctx),id,input)},
++  {id:'broadcast.save',schema:broadcastSchema,run:(ctx:PublicationContext,id:string,input:unknown)=>saveBroadcast(principal(ctx),id,input)},
++  {id:'broadcast.audience.add',schema:audienceSchema,run:(ctx:PublicationContext,id:string,input:unknown)=>addAudience(principal(ctx),id,input)},
++  {id:'broadcast.control',schema:broadcastCommandSchema,run:(ctx:PublicationContext,id:string,input:unknown)=>commandBroadcast(principal(ctx),id,input)}
++ ];
++ for(const def of actions)registerAction({id:'phone-marketing.'+def.id,version:'1',implementation:backendImplementationDigest(),domain:'phone-marketing',description:`${def.id} through the phone domain service. Revision and current organization/record permissions are required.`,inputSchema:json(def.schema),outputSchema:json(output),effect:def.id==='broadcast.control'?'external':'write',executionKinds:['api','agent','module','work'],idempotency:'required',policy,validateInput:i=>{def.schema.parse(i);},execute:async(ctx,target,input)=>{if(!target.id)throw badRequest('phone_id_required');const value=await def.run(ctx,target.id,input);return {id:value.id,revision:value.revision};}});
++ registerAction({id:'phone-marketing.broadcast.preview',version:'1',implementation:backendImplementationDigest(),domain:'phone-marketing',description:'Preview rendered messages, eligibility and skip reasons without sending or changing campaign state.',inputSchema:json(z.object({limit:z.number().int().min(1).max(500).optional(),cursor:str.optional()}).strict()),outputSchema:json(z.object({id:str,revision:z.number(),total:z.number(),examined:z.number(),nextCursor:str,eligible:z.number(),skipped:z.number(),reasons:z.record(z.number()),samples:z.array(z.object({name:str,text:str,eligible:z.boolean(),reason:str}))})),effect:'read',executionKinds:['api','agent','module','work'],idempotency:'none',policy,execute:async(ctx,target,input)=>{if(!target.id)throw badRequest('phone_id_required');return previewBroadcast(principal(ctx),target.id,Number(input.limit)||500,s.text(input.cursor));}});
++}
+--- a/public/v1/comms/phone/marketing-storage.ts
++++ b/public/v1/comms/phone/marketing-storage.ts
+@@ -0,0 +1,31 @@
++import type {SqlStore} from '../../platform/sql_store.js';
++
++export async function initializePhoneMarketingSchema(db:SqlStore){
++ await db.exec(`
++ CREATE TABLE IF NOT EXISTS phone_tracking_sessions (
++  organization_id TEXT NOT NULL,pool_id TEXT NOT NULL,id TEXT NOT NULL,visitor_hash TEXT NOT NULL,
++  phone_number TEXT NOT NULL,lease_until TEXT NOT NULL,reuse_after TEXT NOT NULL,
++  attribution_json TEXT NOT NULL,created_at TEXT NOT NULL,updated_at TEXT NOT NULL,
++  PRIMARY KEY(organization_id,pool_id,id),UNIQUE(organization_id,pool_id,visitor_hash)
++ );
++ CREATE INDEX IF NOT EXISTS phone_tracking_sessions_number ON phone_tracking_sessions(organization_id,phone_number,reuse_after);
++ CREATE INDEX IF NOT EXISTS phone_tracking_sessions_pool ON phone_tracking_sessions(organization_id,pool_id,created_at,id);
++ CREATE TABLE IF NOT EXISTS phone_tracking_call_index (
++  organization_id TEXT NOT NULL,call_id TEXT NOT NULL,phone_number TEXT NOT NULL,
++  lead_source_id TEXT NOT NULL,marketing_campaign_id TEXT NOT NULL,pool_id TEXT NOT NULL,visit_id TEXT NOT NULL,created_at TEXT NOT NULL,
++  PRIMARY KEY(organization_id,call_id)
++ );
++ CREATE INDEX IF NOT EXISTS phone_tracking_call_sources ON phone_tracking_call_index(organization_id,lead_source_id,marketing_campaign_id,created_at,call_id);
++ CREATE INDEX IF NOT EXISTS phone_tracking_call_number ON phone_tracking_call_index(organization_id,phone_number,created_at,call_id);
++ CREATE TABLE IF NOT EXISTS phone_broadcast_recipients (
++  organization_id TEXT NOT NULL,campaign_id TEXT NOT NULL,id TEXT NOT NULL,address TEXT NOT NULL,
++  recipient_json TEXT NOT NULL,state TEXT NOT NULL DEFAULT 'pending',message_id TEXT NOT NULL DEFAULT '',
++  reason TEXT NOT NULL DEFAULT '',replied_at TEXT NOT NULL DEFAULT '',opted_out_at TEXT NOT NULL DEFAULT '',lease_until TEXT NOT NULL DEFAULT '',created_at TEXT NOT NULL,updated_at TEXT NOT NULL,
++  PRIMARY KEY(organization_id,campaign_id,id),UNIQUE(organization_id,campaign_id,address)
++ );
++ CREATE INDEX IF NOT EXISTS phone_broadcast_pending ON phone_broadcast_recipients(organization_id,campaign_id,state,lease_until,id);
++ CREATE TABLE IF NOT EXISTS phone_tracking_scan (id TEXT PRIMARY KEY,last_created_at TEXT NOT NULL,last_call_id TEXT NOT NULL);
++ CREATE TABLE IF NOT EXISTS phone_sms_throttle (id TEXT PRIMARY KEY,next_at TEXT NOT NULL);
++ CREATE TABLE IF NOT EXISTS phone_tracking_rate (id TEXT PRIMARY KEY,count INTEGER NOT NULL,expires_at TEXT NOT NULL);
++ `);
++}
+--- a/public/v1/comms/phone/messaging.ts
++++ b/public/v1/comms/phone/messaging.ts
+@@ -1,3 +1,4 @@
++import {smsConsentPurposesAllow} from '../../messaging/compliance_rules.js';
+ import { TelnyxClient } from '../../messaging/telnyx.js';
+ import { ensureMessagingOrganization, listSmsComplianceProfiles } from '../../messaging/storage.js';
+ import { findPhoneNumberOwner, readSmsConsent, listSenderIdentities, upsertSenderIdentity } from '../../messaging/communications_storage.js';
+@@ -27,8 +28,8 @@
+   return null;
+ }
+ export async function messagePolicy(org:string,number:string):Promise<MessagingPolicy>{const line=await s.resource(org,'phone_line',number);return messagingPolicySchema.parse(line?.messaging||await s.resource(org,'phone_messaging')||{});}
+-export async function deliveryEligibility(org:string,message:s.Json,recipient:s.Json,at=new Date()){
+-  const number=s.text(s.object(message.sender).address),policy=await messagePolicy(org,number),source=s.object(message.source),manual=source.type==='user';
++async function policyEligibility(org:string,message:s.Json,recipient:s.Json,policy:MessagingPolicy,at=new Date()){
++  const number=s.text(s.object(message.sender).address),source=s.object(message.source),manual=source.type==='user';
+   if(source.user_id){const ctx=await backgroundAuthContext(org,s.text(source.user_id)).catch(()=>null);if(!ctx||!await canUseLine(ctx,number))return {action:'cancel',reason:'Sending-line access was revoked.'};}
+   if(!policy.enabled||manual&&!policy.apply_manual)return {action:'send'};
+   const created=Date.parse(s.text(message.created_at))||at.getTime();
+@@ -48,12 +49,19 @@
+   if(Date.parse(next)>at.getTime())return {action:'wait',at:next,reason:`Waiting for permitted hours in ${timezone}.`};
+   return {action:'send'};
+ }
++export async function deliveryEligibility(org:string,message:s.Json,recipient:s.Json,at=new Date()){
++ const {broadcastGate}=await import('./broadcast.js');const gate=await broadcastGate(org,message);if(gate&&'action' in gate)return gate;
++ const number=s.text(s.object(message.sender).address),base=await policyEligibility(org,message,recipient,await messagePolicy(org,number),at);
++ if(base.action!=='send'||!gate)return base;
++ return policyEligibility(org,message,recipient,messagingPolicySchema.parse(gate.policy),at);
++}
+ export async function automaticReply(org:string,number:string,customer:string,trigger:'text'|'missed_call',eventId:string,conversationId='',context:s.Json={}){
+   const policy=await messagePolicy(org,number),text=trigger==='missed_call'?policy.missed_call_reply:scheduleOpen(policy.schedule)?policy.auto_reply_open:policy.auto_reply_closed;
+   if(!text)return false;
+-  const consent=await readSmsConsent(org,customer);if(consent?.status!=='opted_in')return false;
++  const consent=await readSmsConsent(org,customer);if(consent?.status!=='opted_in'||!smsConsentPurposesAllow(s.object(consent.evidence).purposes,'customer_care'))return false;
+   const sender=(await listSenderIdentities(org,'','sms')).find(i=>i.address===number&&i.status==='active');if(!sender)return false;
++  const eventKey=s.id('reply-event',`${number}:${customer}:${eventId}`);if(await s.resource(org,'phone_auto_reply_event',eventKey))return true;
+   const key=s.id('reply',`${number}:${customer}`),claimed=await s.transaction(async()=>{const previous=await s.resource(org,'phone_auto_reply',key);if(previous&&Date.parse(s.text(previous.sent_at))>Date.now()-policy.cooldown_minutes*60000)return false;await s.saveResource(org,'phone_auto_reply',key,{sent_at:s.now(),event_id:eventId});return true;});if(!claimed)return true;
+-  try{const {sendCommunication}=await import('../../messaging/communications_service.js');const {sendCommunicationSchema}=await import('../../messaging/schemas.js');await sendCommunication(org,sendCommunicationSchema.parse({channel:'sms',purpose:'customer_care',branch_id:sender.branch_id,sender:{identity_id:sender.id},recipients:[{address:customer}],content:{text},...(conversationId?{conversation_id:conversationId}:{}),context,source:{type:'automation',id:'phone-auto-reply'},idempotency_key:`phone-auto-reply:${eventId}`}));return true;}
++  try{const {sendCommunication}=await import('../../messaging/communications_service.js');const {sendCommunicationSchema}=await import('../../messaging/schemas.js');await sendCommunication(org,sendCommunicationSchema.parse({channel:'sms',purpose:'customer_care',branch_id:sender.branch_id,sender:{identity_id:sender.id},recipients:[{address:customer}],content:{text},...(conversationId?{conversation_id:conversationId}:{}),context,source:{type:'automation',id:'phone-auto-reply'},idempotency_key:`phone-auto-reply:${eventId}`}));await s.saveResource(org,'phone_auto_reply_event',eventKey,{event_id:eventId,queued_at:s.now()});return true;}
+   catch(error){await s.saveResource(org,'phone_auto_reply',key,{sent_at:'',event_id:eventId,error:'Reply could not be queued.'});throw error;}
+ }
+--- a/public/v1/comms/phone/publication.ts
++++ b/public/v1/comms/phone/publication.ts
+@@ -15,7 +15,7 @@
+ import * as s from '../calls/storage.js';
+ 
+ const str=z.string(),revision=z.number().int().nonnegative(),meta={id:str,revision,updated_at:str};
+-const touch=z.object({enabled:z.boolean().default(false),number:str.default(''),label:str.default(''),source:str.default(''),medium:str.default(''),campaign:str.default(''),ad_id:str.default(''),landing_page:str.default(''),captured_at:str.default('')});
++const touch=z.object({lead_source_id:str.default(''),marketing_campaign_id:str.default(''),pool_id:str.default(''),visit_id:str.default(''),attribution_kind:str.default(''),keyword:str.default(''),referrer_host:str.default(''),enabled:z.boolean().default(false),number:str.default(''),label:str.default(''),source:str.default(''),medium:str.default(''),campaign:str.default(''),ad_id:str.default(''),landing_page:str.default(''),captured_at:str.default('')});
+ const score=z.object({spam_risk:str.nullable().default(null),spam_category:str.nullable().default(null),connection_score:z.number().nullable().default(null),engagement_score:z.number().nullable().default(null),sentiment_score:z.number().nullable().default(null),maturity_score:z.number().nullable().default(null),last_refreshed_at:str.nullable().default(null)});
+ const cost=z.object({monthly_cost:str.default(''),upfront_cost:str.default(''),currency:str.default('')});
+ const schemas={
+--- a/public/v1/comms/phone/service.ts
++++ b/public/v1/comms/phone/service.ts
+@@ -1,3 +1,4 @@
++import {websiteSnapshot,indexTrackingCall,validateSource,reservedPool} from './tracking.js';
+ import { ensureMessagingOrganization, listSmsComplianceProfiles } from '../../messaging/storage.js';
+ import { type PlatformAuthContext, hasPermission, backgroundAuthContext } from '../../platform/auth.js';
+ import { canUseScopedPermission, hasResourcePermission } from '../../workforce/department-access.js';
+@@ -63,7 +64,7 @@
+ export async function saveLine(ctx:PlatformAuthContext,number:string,input:unknown){
+   const line=await s.resource(ctx.orgId,'number',number);if(!line)throw notFound('phone_line_missing','Connect this number first.');
+   const previous=await s.resource(ctx.orgId,'phone_line',number);assertManage(ctx,previous||line);
+-  const value=lineSchema.parse(input);assertManage(ctx,value);await validateMembers(ctx,value.user_ids,value.department_ids,s.text(line.branch_id||'default'));
++  const value=lineSchema.parse(input);assertManage(ctx,value);await validateSource(ctx.orgId,value.tracking.lead_source_id);if(value.tracking.enabled&&await reservedPool(ctx.orgId,number))throw badRequest('tracking_pool_reserved','This number belongs to a website tracking pool.');await validateMembers(ctx,value.user_ids,value.department_ids,s.text(line.branch_id||'default'));
+   if(value.group_id){const group=await s.resource(ctx.orgId,'phone_group',value.group_id);if(!group)throw badRequest('phone_group_missing','Choose an existing group.');if(s.text(group.branch_id||'default')!==s.text(line.branch_id||'default'))throw badRequest('phone_group_branch','Choose a group in this line’s branch.');assertManage(ctx,group);}
+   await validateRouting(ctx,value.routing,number);
+   const result=await s.saveResource(ctx.orgId,'phone_line',number,{...value,branch_id:s.text(line.branch_id)||'default'},'',value.revision);
+@@ -91,13 +92,14 @@
+   const routing=routingSchema.parse(raw);
+   return {routing,schedule:routing.schedule||{timezone:settings.timezone,business_hours:settings.business_hours,holidays:settings.holidays},members:members.length?members:settings.agent_user_ids,department_ids:[...new Set([...s.strings(c?.department_ids),...s.strings(g?.department_ids)])],group_id:s.text(c?.group_id)};
+ }
+-export async function trackingSnapshot(org:string,number:string){
++export async function trackingSnapshot(org:string,number:string,at=new Date()){
++  const dynamic=await websiteSnapshot(org,number,at);if(dynamic)return dynamic;
+   const line=await s.resource(org,'phone_line',number);const tracking=s.object(line?.tracking);
+   return tracking.enabled?{...tracking,number,label:line?.label,revision:line?.revision,captured_at:s.now()}:null;
+ }
+ /** An inquiry is distinct from a known contact: never guess a project when matches are ambiguous. */
+ export async function recordAttribution(call:s.CustomerCall){
+-  const attribution=s.object(call.metadata.attribution);if(!attribution.enabled)return;
++  const attribution=s.object(call.metadata.attribution);if(!attribution.enabled)return;await indexTrackingCall(call);
+   const leadId=s.id('phonelead',`${call.organization_id}:${/^\+[1-9]\d{7,14}$/.test(call.customer_number)?call.customer_number:call.id}`);
+   await s.transaction(async()=>{const prior=await s.resource(call.organization_id,'phone_lead',leadId);
+     const first=!prior||call.created_at<s.text(prior.first_seen),last=!prior||call.created_at>=s.text(prior.last_seen);
+--- a/public/v1/comms/phone/tracking.ts
++++ b/public/v1/comms/phone/tracking.ts
+@@ -0,0 +1,113 @@
++import {sourceSchema,poolSchema} from './marketing-contracts.js';
++export {sourceSchema,poolSchema} from './marketing-contracts.js';
++import {z} from 'zod';
++import type {PlatformAuthContext} from '../../platform/auth.js';
++import {badRequest,conflict,forbidden,notFound} from '../../platform/errors.js';
++import {assertManage} from './service.js';
++import {requireCallAccess,projectContext} from '../calls/service.js';
++import {phone,scheduleSchema} from './contracts.js';
++import * as s from '../calls/storage.js';
++
++const key=z.string().trim().regex(/^[a-zA-Z0-9_-]{1,180}$/),label=z.string().trim().min(1).max(160);
++const ref=z.string().trim().max(180).default('');
++export async function validateSource(org:string,id:string){if(id&&!(await s.resource(org,'phone_tracking_source',id))?.enabled)throw badRequest('tracking_source_missing','Choose an enabled lead source.');}
++export async function saveSource(ctx:PlatformAuthContext,id:string,input:unknown){assertManage(ctx);key.parse(id);const v=sourceSchema.parse(input);return s.saveResource(ctx.orgId,'phone_tracking_source',id,v,'',v.revision);}
++export async function authorizePool(ctx:PlatformAuthContext,pool:s.Json){assertManage(ctx);for(const n of [...s.strings(pool.numbers),s.text(pool.fallback_number)]){const row=await s.resource(ctx.orgId,'number',n);if(!row)throw notFound('tracking_number_missing');assertManage(ctx,{...row,...await s.resource(ctx.orgId,'phone_line',n)});}}
++export async function savePool(ctx:PlatformAuthContext,id:string,input:unknown){
++ assertManage(ctx);key.parse(id);const v=poolSchema.parse(input);await authorizePool(ctx,v);
++ if(v.numbers.includes(v.fallback_number))throw badRequest('tracking_fallback_reserved','The fallback must be a separate business number.');
++ if(v.retention_days*24<=v.reuse_hours+v.lease_minutes/60)throw badRequest('tracking_retention_short');
++ for(const n of [...v.numbers,v.fallback_number])if((await s.resource(ctx.orgId,'number',n))?.status!=='active')throw badRequest('tracking_number_inactive','Use active voice numbers.');
++ for(const n of v.numbers)if(s.object((await s.resource(ctx.orgId,'phone_line',n))?.tracking).enabled)throw conflict('tracking_static_conflict','Remove static attribution before using a number in a website pool.');
++ for(const source of [v.lead_source_id,...v.rules.map(r=>r.lead_source_id)])await validateSource(ctx.orgId,source);
++ return s.transaction(async()=>{
++  const old=await s.resource(ctx.orgId,'phone_tracking_pool',id);
++  for(const pool of await s.resources(ctx.orgId,'phone_tracking_pool'))if(pool.id!==id&&(v.numbers.some(n=>s.strings(pool.numbers).includes(n))||s.strings(pool.numbers).includes(v.fallback_number)||v.numbers.includes(s.text(pool.fallback_number))))throw conflict('tracking_pool_number_reserved','A number is reserved by another website pool.');
++  for(const removed of s.strings(old?.numbers).filter(n=>!v.numbers.includes(n)))if(await s.database().prepare('SELECT id FROM phone_tracking_sessions WHERE organization_id=? AND phone_number=? AND reuse_after>? LIMIT 1').get(ctx.orgId,removed,s.now()))throw conflict('tracking_number_in_use','Wait until visitor assignments and their reuse holds expire before removing this number.');
++  return s.saveResource(ctx.orgId,'phone_tracking_pool',id,{...old,...v},'',v.revision);
++ });
++}
++export async function reservedPool(org:string,number:string){return (await s.resources(org,'phone_tracking_pool')).find(p=>s.strings(p.numbers).includes(number))||null;}
++const assignmentSchema=z.object({visitor_key:z.string().regex(/^[a-zA-Z0-9_-]{20,100}$/),consent:z.boolean(),page_url:z.string().url().max(2000),referrer:z.string().max(2000).default('')}).strict();
++function parseJson(v:unknown){try{return s.object(JSON.parse(s.text(v)));}catch{return {};}}
++function observedAttribution(pool:s.Json,page:URL,referrer:string){
++ let host='';try{host=new URL(referrer).hostname.toLowerCase();}catch{}
++ const tag=(k:string,max=160)=>s.text(page.searchParams.get(k)).slice(0,max);
++ const utm_source=tag('utm_source'),utm_medium=tag('utm_medium',100),utm_campaign=tag('utm_campaign'),utm_content=tag('utm_content'),utm_term=tag('utm_term');
++ const rule=(Array.isArray(pool.rules)?pool.rules:[]).map(s.object).find(r=>(!r.utm_source||r.utm_source===utm_source)&&(!r.utm_campaign||r.utm_campaign===utm_campaign)&&(!r.referrer_host||s.text(r.referrer_host).toLowerCase()===host));
++ const source=utm_source||(!host||host===page.hostname?'direct':host),medium=utm_medium||(!host||host===page.hostname?'direct':/(^|\.)(google\.[a-z.]+|bing.com|duckduckgo.com)$/.test(host)?'organic':'referral');
++ return {enabled:true,source,medium,campaign:utm_campaign,ad_id:utm_content,keyword:utm_term,landing_page:page.origin+page.pathname,
++  referrer_host:host,lead_source_id:s.text(rule?.lead_source_id||pool.lead_source_id),marketing_campaign_id:s.text(rule?.marketing_campaign_id||pool.marketing_campaign_id),pool_id:pool.id,attribution_kind:'website_session',captured_at:s.now()};
++}
++/** Public, non-billable visitor allocation. Exact website origins and bounded counters precede allocation. */
++export async function assignVisitor(org:string,id:string,origin:string,ip:string,input:unknown,at=new Date()){
++ const pool=await s.resource(org,'phone_tracking_pool',id);if(!pool)throw notFound('tracking_pool_missing');
++ if(!s.strings(pool.origins).includes(origin))throw forbidden('tracking_origin_denied');
++ const v=assignmentSchema.parse(input),page=new URL(v.page_url);if(page.origin!==origin)throw forbidden('tracking_page_origin_denied');
++ if(!v.consent||!pool.enabled)return {number:s.text(pool.fallback_number),status:v.consent?'disabled':'consent_required',expires_at:'',session_id:''};
++ const now=at.toISOString(),visitor=s.digest({org,id,key:v.visitor_key}),sessionId=s.id('visit',visitor);
++ return s.transaction(async()=>{
++  const current=await s.resource(org,'phone_tracking_pool',id);if(current?.revision!==pool.revision)throw conflict('tracking_configuration_changed');
++  const minute=Math.floor(at.getTime()/60000);for(const [rate,max] of [[s.id('rate',`${org}:${id}:${s.digest(ip)}:${minute}`),60],[s.id('rate',`${org}:${id}:${minute}`),1200]] as const){
++   const old=s.object(await s.database().prepare('SELECT count FROM phone_tracking_rate WHERE id=?').get(rate));if(Number(old.count||0)>=max)return {number:s.text(pool.fallback_number),status:'rate_limited',expires_at:'',session_id:''};
++   await s.database().prepare('INSERT INTO phone_tracking_rate(id,count,expires_at) VALUES(?,1,?) ON CONFLICT(id) DO UPDATE SET count=phone_tracking_rate.count+1').run(rate,new Date(at.getTime()+120000).toISOString());
++  }
++  const existing=s.object(await s.database().prepare('SELECT * FROM phone_tracking_sessions WHERE organization_id=? AND pool_id=? AND visitor_hash=?').get(org,id,visitor));
++  const retained=existing.reuse_after&&s.text(existing.reuse_after)>now&&s.strings(pool.numbers).includes(s.text(existing.phone_number));let number=retained?s.text(existing.phone_number):'';
++  if(!number){
++   const busy=new Set((await s.database().prepare('SELECT phone_number FROM phone_tracking_sessions WHERE organization_id=? AND reuse_after>?').all(org,now)).map(r=>s.text(s.object(r).phone_number)));
++   for(const row of await s.database().prepare("SELECT business_number FROM customer_calls WHERE organization_id=? AND direction='inbound' AND state NOT IN ('ended','canceled','failed','busy','no_answer','rejected')").all(org))busy.add(s.text(s.object(row).business_number));
++   const active=new Set((await s.database().prepare("SELECT id,data_json FROM customer_voice_resources WHERE organization_id=? AND kind='number'").all(org)).filter(r=>parseJson(s.object(r).data_json).status==='active').map(r=>s.text(s.object(r).id)));
++   number=s.strings(pool.numbers).find(candidate=>active.has(candidate)&&!busy.has(candidate))||'';
++  }
++  if(!number)return {number:s.text(pool.fallback_number),status:'exhausted',expires_at:'',session_id:''};
++  const expires=new Date(at.getTime()+Number(pool.lease_minutes)*60000).toISOString(),reuse=new Date(Date.parse(expires)+Number(pool.reuse_hours)*3600000).toISOString();
++  const attribution=retained?parseJson(existing.attribution_json):{...observedAttribution(pool,page,v.referrer),number,visit_id:sessionId};
++  await s.database().prepare(`INSERT INTO phone_tracking_sessions(organization_id,pool_id,id,visitor_hash,phone_number,lease_until,reuse_after,attribution_json,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?)
++   ON CONFLICT(organization_id,pool_id,visitor_hash) DO UPDATE SET phone_number=excluded.phone_number,lease_until=excluded.lease_until,reuse_after=excluded.reuse_after,attribution_json=excluded.attribution_json,created_at=excluded.created_at,updated_at=excluded.updated_at`).run(org,id,sessionId,visitor,number,expires,reuse,JSON.stringify(attribution),retained?s.text(existing.created_at):now,now);
++  return {number,status:'assigned',expires_at:expires,session_id:sessionId};
++ });
++}
++export async function releaseVisitor(org:string,id:string,origin:string,visitorKey:string){const pool=await s.resource(org,'phone_tracking_pool',id);if(!pool||!s.strings(pool.origins).includes(origin))throw forbidden('tracking_origin_denied');assignmentSchema.shape.visitor_key.parse(visitorKey);await s.database().prepare('UPDATE phone_tracking_sessions SET lease_until=?,updated_at=? WHERE organization_id=? AND pool_id=? AND visitor_hash=?').run(s.now(),s.now(),org,id,s.digest({org,id,key:visitorKey}));return {released:true};}
++export async function websiteSnapshot(org:string,number:string,at=new Date()){
++ const pool=await reservedPool(org,number);if(!pool)return null;
++ const row=s.object(await s.database().prepare('SELECT * FROM phone_tracking_sessions WHERE organization_id=? AND phone_number=? AND reuse_after>? AND created_at<=? ORDER BY updated_at DESC LIMIT 1').get(org,number,at.toISOString(),at.toISOString()));
++ if(row.id)return {...parseJson(row.attribution_json),attribution_kind:s.text(row.lease_until)>at.toISOString()?'website_session':'retained_session',captured_at:at.toISOString()};
++ return {enabled:true,number,pool_id:pool.id,visit_id:'',source:'unattributed website call',medium:'unknown',campaign:'',ad_id:'',lead_source_id:'',marketing_campaign_id:'',attribution_kind:'unattributed',captured_at:at.toISOString()};
++}
++export async function indexTrackingCall(call:s.CustomerCall){const a=s.object(call.metadata.attribution);if(!a.enabled)return;await s.database().prepare(`INSERT INTO phone_tracking_call_index(organization_id,call_id,phone_number,lead_source_id,marketing_campaign_id,pool_id,visit_id,created_at) VALUES(?,?,?,?,?,?,?,?) ON CONFLICT(organization_id,call_id) DO NOTHING`).run(call.organization_id,call.id,call.business_number,s.text(a.lead_source_id),s.text(a.marketing_campaign_id),s.text(a.pool_id),s.text(a.visit_id),call.created_at);}
++export const trackingQuerySchema=z.object({from:z.string().datetime(),to:z.string().datetime(),phone_number:z.string().max(40).optional(),lead_source_id:key.optional(),marketing_campaign_id:z.string().trim().max(180).optional(),pool_id:key.optional(),visit_id:key.optional()}).strict();
++export async function trackingCalls(ctx:PlatformAuthContext,input:unknown,limit=100,cursor=''){
++ assertManage(ctx);const v=trackingQuerySchema.parse(input);if(Date.parse(v.to)<=Date.parse(v.from)||Date.parse(v.to)-Date.parse(v.from)>366*86400000)throw badRequest('phone_report_range');
++ const signature=s.digest({org:ctx.orgId,user:ctx.userId,v}),after=cursor?parseJson(Buffer.from(cursor,'base64url').toString()):{};if(cursor&&after.signature!==signature)throw badRequest('tracking_cursor_invalid');
++ const clauses=['i.organization_id=?','i.created_at>=?','i.created_at<?'],params: any[]=[ctx.orgId,v.from,v.to];
++ for(const f of ['phone_number','lead_source_id','marketing_campaign_id','pool_id','visit_id'] as const)if(v[f]){clauses.push(`i.${f}=?`);params.push(v[f]);}
++ if(after.id){clauses.push('(i.created_at>? OR (i.created_at=? AND i.call_id>?))');params.push(after.created_at,after.created_at,after.id);}
++ const bounded=Math.min(200,Math.max(1,limit)),items:s.Json[]=[];let nextCursor='';
++ // Scan bounded SQL pages and advance across denied calls without exposing their identities.
++ for(let batch=0;batch<10;batch++){
++  const rows=await s.database().prepare(`SELECT i.* FROM phone_tracking_call_index i WHERE ${clauses.join(' AND ')} ORDER BY i.created_at,i.call_id LIMIT ?`).all(...params,bounded+1);
++  if(!rows.length)break;let scanned:s.Json={};
++  for(const raw of rows){const row=s.object(raw),call=await s.readCall(ctx.orgId,s.text(row.call_id));scanned=row;try{requireCallAccess(ctx,call);if(call.project_id)await projectContext(ctx,call.project_id);}catch{continue;}
++   if(items.length===bounded){nextCursor=Buffer.from(JSON.stringify({signature,id:items[items.length-1]!.id,created_at:items[items.length-1]!.created_at})).toString('base64url');return {items,nextCursor};}
++   items.push({id:call.id,created_at:call.created_at,customer_number:call.customer_number,business_number:call.business_number,contact_id:call.contact_id,project_id:call.project_id,state:call.state,connected_at:call.connected_at,ended_at:call.ended_at,attribution:s.object(call.metadata.attribution)});
++  }
++  if(rows.length<bounded+1)break;
++  if(!after.id){clauses.push('(i.created_at>? OR (i.created_at=? AND i.call_id>?))');params.push(scanned.created_at,scanned.created_at,scanned.call_id);after.id=scanned.call_id;}
++  else params.splice(params.length-3,3,scanned.created_at,scanned.created_at,scanned.call_id);
++  nextCursor=Buffer.from(JSON.stringify({signature,id:scanned.call_id,created_at:scanned.created_at})).toString('base64url');
++ }
++ return {items,...(nextCursor?{nextCursor}:{})};
++}
++export async function trackingVisits(ctx:PlatformAuthContext,poolId:string,limit=100,after=''){
++ const pool=await s.resource(ctx.orgId,'phone_tracking_pool',poolId);if(!pool)throw notFound('tracking_pool_missing');await authorizePool(ctx,pool);
++ const rows=await s.database().prepare('SELECT id,phone_number,lease_until,reuse_after,attribution_json,created_at,updated_at FROM phone_tracking_sessions WHERE organization_id=? AND pool_id=? AND id>? ORDER BY id LIMIT ?').all(ctx.orgId,poolId,after,Math.min(200,Math.max(1,limit))+1);
++ const items=rows.slice(0,limit).map(r=>{const row=s.object(r);return {id:row.id,phone_number:row.phone_number,lease_until:row.lease_until,reuse_after:row.reuse_after,created_at:row.created_at,updated_at:row.updated_at,attribution:parseJson(row.attribution_json)};});return {items,...(rows.length>limit?{nextCursor:s.text(items[items.length-1]?.id)}:{})};
++}
++export async function maintainTracking(){await backfillTrackingCalls();await s.database().prepare('DELETE FROM phone_tracking_rate WHERE expires_at<?').run(s.now());for(const raw of await s.database().prepare("SELECT organization_id,id FROM customer_voice_resources WHERE kind='phone_tracking_pool'").all()){const r=s.object(raw),pool=await s.resource(s.text(r.organization_id),'phone_tracking_pool',s.text(r.id));await s.database().prepare('DELETE FROM phone_tracking_sessions WHERE organization_id=? AND pool_id=? AND reuse_after<? AND updated_at<?').run(s.text(r.organization_id),s.text(r.id),s.now(),new Date(Date.now()-Number(pool?.retention_days||30)*86400000).toISOString());}}
++
++export async function backfillTrackingCalls(limit=200){
++ const cursor=s.object(await s.database().prepare("SELECT * FROM phone_tracking_scan WHERE id='history'").get()),rows=await s.database().prepare("SELECT organization_id,id,created_at FROM customer_calls WHERE direction='inbound' AND (created_at>? OR (created_at=? AND id>?)) ORDER BY created_at,id LIMIT ?").all(s.text(cursor.last_created_at),s.text(cursor.last_created_at),s.text(cursor.last_call_id),Math.min(1000,Math.max(1,limit)));
++ for(const raw of rows){const r=s.object(raw);await indexTrackingCall(await s.readCall(s.text(r.organization_id),s.text(r.id)));}
++ const last=s.object(rows[rows.length-1]);if(last.id)await s.database().prepare("INSERT INTO phone_tracking_scan(id,last_created_at,last_call_id) VALUES('history',?,?) ON CONFLICT(id) DO UPDATE SET last_created_at=excluded.last_created_at,last_call_id=excluded.last_call_id WHERE phone_tracking_scan.last_created_at<excluded.last_created_at OR (phone_tracking_scan.last_created_at=excluded.last_created_at AND phone_tracking_scan.last_call_id<excluded.last_call_id)").run(s.text(last.created_at),s.text(last.id));return rows.length;
++}
+--- a/public/v1/messaging/delivery_worker.ts
++++ b/public/v1/messaging/delivery_worker.ts
+@@ -204,6 +204,9 @@
+     }
+   }
+ 
++  const {reserveSmsPace}=await import('../comms/phone/broadcast.js');
++  const nextSlot=await reserveSmsPace(organizationId,configuration.messagingProfileId,message);
++  if(nextSlot){await updateDeliveryRecord(organizationId,deliveryId,{status:'scheduled',attempts:Math.max(0,Number(delivery.attempts||1)-1),next_attempt_at:nextSlot,lease_owner:'',lease_until:'',error:{code:'sms_throughput_wait',message:'Waiting for the shared carrier sending allowance.'}});await refreshParentMessageStatus(organizationId,messageId);return;}
+   const { reserveSms, releaseSms } = await import("../platform-billing/allowances.js");
+   if (!await reserveSms(organizationId, deliveryId)) {
+     await updateDeliveryRecord(organizationId, deliveryId, {
+--- a/public/v1/platform/publication/bootstrap.ts
++++ b/public/v1/platform/publication/bootstrap.ts
+@@ -1,3 +1,4 @@
++import {registerPhoneMarketingPublication} from '../../comms/phone/marketing-publication.js';
+ import {registerPhonePublication} from '../../comms/phone/publication.js';
+ import {registerResourceTypePublication} from '../../materials/resource-types-publication.js';
+ import { registerSupervisionPublication } from '../../comms/calls/supervision-publication.js';
+@@ -29,6 +30,7 @@
+ export function initializePublication() {
+   registerCallPublication();
+   registerPhonePublication();
++  registerPhoneMarketingPublication();
+   registerCallAnalysisPublication();
+   registerSupervisionPublication();
+   if (initialized) return;
+--- a/public/v1/platform/publication/coverage.ts
++++ b/public/v1/platform/publication/coverage.ts
+@@ -18,7 +18,7 @@
+   "project-map": { providers: ["projects"], domains: ["projects"] },
+   "customer-portal": { providers: ["customer-portal"], domains: ["customerPortal"] },
+   "project-schedule": { providers: ["calendar"], domains: ["scheduling", "workforce"] },
+-  comms: { providers: ["comms", "customer-calls", "customer-call-analysis", "phone-settings", "comms-sms-groups"], domains: ["comms", "phone-settings"], note: "Call records, retained transcripts and recording metadata enforce branch and department authority, including frozen replay. Group MMS publishes typed threads and delivery history with the same fresh authorization." },
++  comms: { providers: ["comms", "customer-calls", "customer-call-analysis", "phone-settings", "phone-marketing", "comms-sms-groups"], domains: ["comms", "phone-settings", "phone-marketing"], note: "Call records, retained transcripts and recording metadata enforce branch and department authority, including frozen replay. Group MMS publishes typed threads and delivery history with the same fresh authorization." },
+   measurements: { providers: ["datasets", "firstmeasure", "project-widgets"], domains: ["datasets"] },
+   checklists: { providers: ["work", "todos"], domains: ["work"] },
+   scheduling: { providers: ["workforce-departments", "calendar"], domains: ["scheduling", "workforce"] },
+@@ -33,7 +33,7 @@
+   channels: { providers: ["channels"], domains: ["channels"], note:"Project trays reuse Channels records and its subject authorization; note creation, sharing, pinning, editing, deletion and restoration are published operations. The feature flag changes rendering, not storage." },
+   canvassing: { providers: ["canvassing"], domains: ["canvassing"] },
+   feedback: { providers: ["feedback"], domains: ["feedback"] },
+-  settings: { providers: ["phone-settings", "workforce-departments", "notification-rules", "organization", "scopes", "custom-fields-organization", "custom-fields-user", "custom-fields-branch", "custom-fields-department", "custom-fields-division", "custom-fields-team", "custom-fields-catalog", "forms", "lead-import"], domains: ["custom-fields", "platform-phones", "phone-settings", "workforce", "leads"], note: "Settings owns external connections with dynamic external.<connectionId> providers and versioned connection actions, loaded per organization. Reputation onboarding status and remediation outcomes are published; carrier registration, signatures and paid commands remain dedicated human-confirmed flows. Settings are selectively published; credentials and platform administration are never generic data exports. Platform Billing owns dedicated authenticated catalog, subscription and invoice flows under /v1/platform-billing; commercial changes are not exposed to tenant modules or agent tools." },
++  settings: { providers: ["phone-settings", "phone-marketing", "workforce-departments", "notification-rules", "organization", "scopes", "custom-fields-organization", "custom-fields-user", "custom-fields-branch", "custom-fields-department", "custom-fields-division", "custom-fields-team", "custom-fields-catalog", "forms", "lead-import"], domains: ["custom-fields", "platform-phones", "phone-settings", "phone-marketing", "workforce", "leads"], note: "Settings owns external connections with dynamic external.<connectionId> providers and versioned connection actions, loaded per organization. Reputation onboarding status and remediation outcomes are published; carrier registration, signatures and paid commands remain dedicated human-confirmed flows. Settings are selectively published; credentials and platform administration are never generic data exports. Platform Billing owns dedicated authenticated catalog, subscription and invoice flows under /v1/platform-billing; commercial changes are not exposed to tenant modules or agent tools." },
+   crew: { providers: ["work", "todos", "workforce"], domains: ["work", "workforce"] },
+   sales: { providers: ["work", "todos", "workforce"], domains: ["work", "workforce"] },
+   field_visit: { providers: ["work"], domains: ["work"] },
+--- a/public/v1/platform/publication/permission-bundles.ts
++++ b/public/v1/platform/publication/permission-bundles.ts
+@@ -9,7 +9,7 @@
+  */
+ const bundles: Record<string, { actions?: readonly string[]; data?: readonly string[] }> = {
+   use_external_shares:{data:["collaboration.resource","collaboration.resources"],actions:["collaboration.project.update","collaboration.note.create","collaboration.message.post","collaboration.work.update","collaboration.schedule.update"]},
+-  manage_communications: {data:["phone-settings.tracking_report","phone-settings.line","phone-settings.group","phone-settings.messaging","phone-settings.lead","phone-settings.port","phone-settings.order","phone-settings.reputation","phone-settings.reputation_settings","phone-settings.reputation_onboarding","phone-settings.reputation_remediation"],actions:["phone-settings.line.save","phone-settings.group.save","phone-settings.messaging.save","phone-settings.lead.save","phone-settings.port.draft","platform-phones.project.assignment.set", "platform-phones.contact.assignment.set", "platform-phones.organization.assignment.set", "platform-phones.user.assignment.set", "platform-phones.branch.assignment.set", "platform-phones.department.assignment.set", "platform-phones.division.assignment.set", "platform-phones.team.assignment.set"]},
++  manage_communications: {data:["phone-marketing.source","phone-marketing.pool","phone-marketing.call","phone-marketing.visit","phone-marketing.broadcast","phone-marketing.recipient","phone-marketing.broadcast_report","phone-settings.tracking_report","phone-settings.line","phone-settings.group","phone-settings.messaging","phone-settings.lead","phone-settings.port","phone-settings.order","phone-settings.reputation","phone-settings.reputation_settings","phone-settings.reputation_onboarding","phone-settings.reputation_remediation"],actions:["phone-marketing.source.save","phone-marketing.pool.save","phone-marketing.broadcast.save","phone-marketing.broadcast.audience.add","phone-marketing.broadcast.control","phone-marketing.broadcast.preview","phone-settings.line.save","phone-settings.group.save","phone-settings.messaging.save","phone-settings.lead.save","phone-settings.port.draft","platform-phones.project.assignment.set", "platform-phones.contact.assignment.set", "platform-phones.organization.assignment.set", "platform-phones.user.assignment.set", "platform-phones.branch.assignment.set", "platform-phones.department.assignment.set", "platform-phones.division.assignment.set", "platform-phones.team.assignment.set"]},
+   manage_external_sharing:{actions:["collaboration.share.revoke"]},
+   view_projects: { actions: ["work.todos.list", "work.todos.read", "work.todos.history", "work.configuration.read", "projects.search", "work.plan.read", "work.project.projection", "customFields.defaults.compute"], data: ["priority-fields.organization-contract", "priority-fields.organization-values", "materials-inputs.measurements", "custom-fields-project.contract", "custom-fields-project.values", "custom-fields-project.phones", "custom-fields-organization.contract", "custom-fields-organization.values", "custom-fields-organization.phones", "projects.record", "priority-fields.contract", "priority-fields.values", "project-summary.details", "widget-objects.assignments", "widget-objects.project", "widget-objects.document", "widget-objects.document-directory", "project-widgets.directory", "work.records", "todos.items", "organization.profile", "referrals.eligibility"] },
+   manage_projects: { data: ["lead-import.deliveries"], actions: ["work.todos.create", "work.todos.patch", "work.todos.transition", "work.followUps.outcome", "leads.import", "materials.calculus.command", "materials.resource-type.create", "materials.resource-type.update", "custom-fields.project.write", "custom-fields.contact.write","projects.lead.create", "work.node.patch", "work.node.transition"] },

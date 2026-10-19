@@ -15,7 +15,8 @@ export type DepartmentResource = { organization_id?: unknown; department_ids?: u
 export type OrganizationStructureAccess = {
   catalog: { terminology?: {department?: {singular?:string;plural?:string}}; departments: Array<{ id: string; label: string; status?: string; branch_id?: string; app_defaults?: Record<string, unknown> }>; regions?: Array<{ id: string; label?: string; status?: string; branch_ids?: string[] }>; unit_migration?: { scopes?: Record<string, Array<{ kind: 'branch' | 'region'; id: string }>> } };
   branches?: Array<{ id: string; status?: string }>;
-  users: Array<{ id: string; department_ids: string[]; branch_ids?: string[]; region_ids?: string[] }>;
+  users: Array<{ id: string; department_ids: string[]; branch_ids?: string[]; region_ids?: string[]; resource_group_ids?: string[] }>;
+  groups?: Array<{ id: string; label?: string; kind_id?: string; department_ids: string[] }>;
 };
 const ids = (value: unknown): string[] => Array.isArray(value) ? [...new Set(value.map(String).map(id => id.trim()).filter(Boolean))] : [];
 const active = (entry: { status?: string }) => entry.status !== 'archived';

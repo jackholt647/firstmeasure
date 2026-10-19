@@ -6,7 +6,7 @@ const time=z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/);
 export const voiceSettingsSchema=z.object({
   enabled:z.boolean().default(false),
   timezone:z.string().max(100).default("America/Los_Angeles").refine(v=>{try{new Intl.DateTimeFormat("en",{timeZone:v});return true;}catch{return false;}},"Choose a valid timezone"),
-  business_hours:z.array(z.object({day:z.number().int().min(0).max(6),open:time,close:time})).max(14).default([1,2,3,4,5].map(day=>({day,open:"08:00",close:"17:00"}))),
+  business_hours:z.array(z.object({day:z.number().int().min(0).max(6),open:time,close:z.union([time,z.literal("24:00")])})).max(14).default([1,2,3,4,5].map(day=>({day,open:"08:00",close:"17:00"}))),
   holidays:z.array(z.string().regex(/^\d{4}-\d{2}-\d{2}$/)).max(100).default([]),
   routing:z.enum(["longest_idle","sequential"]).default("longest_idle"),
   agent_user_ids:z.array(z.string().min(1).max(180)).max(100).default([]),

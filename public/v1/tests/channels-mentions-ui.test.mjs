@@ -6,7 +6,7 @@ import {fileURLToPath} from 'node:url';
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-test('mounted Channels mention menus agree and red tokens survive channel, thread and edit flows',async()=>{
+test('Channels highlight and send only confirmed mentions across channel, thread and edit flows',async()=>{
   const publicRoot=fileURLToPath(new URL('../../',import.meta.url));
   const output=path.resolve(publicRoot,'../output/channels-linear-20260929/pla28');
   await mkdir(output,{recursive:true});
@@ -53,7 +53,7 @@ test('mounted Channels mention menus agree and red tokens survive channel, threa
           post:async(_org,_id,input)=>{
             sent.push(copy(input));
             const mentions=(input.mention_users||[]).flatMap(user=>user.id.startsWith('broadcast:')?channel.members:[user]);
-            const message={...root,...copy(input),id:'sent-'+sent.length,seq:messages.length+1,mention_users:mentions};
+            const message={...root,...copy(input),metadata:{...input.metadata,mention_broadcasts:(input.mention_users || []).filter(user=>user.id.startsWith('broadcast:')).map(user=>user.id.slice(10))},id:'sent-'+sent.length,seq:messages.length+1,mention_users:mentions};
             messages.push(message);if(message.parent_id)root.reply_count++;
             return {message:copy(message)};
           },
@@ -78,7 +78,7 @@ test('mounted Channels mention menus agree and red tokens survive channel, threa
       await input.locator('..').locator('[data-mention-button]').click();
       const toolbar=await page.locator('.fm-ch-popover [data-mention-user]').evaluateAll(nodes=>nodes.map(node=>node.dataset.mentionUser).sort());
       assert.deepEqual(toolbar,typed);assert.ok(!toolbar.includes('outsider'));
-      await page.keyboard.press('Escape');
+      const tagToggle=input.locator('..').locator('[data-mention-button]');await tagToggle.click();assert.equal(await page.locator('.fm-ch-popover').count(),0,'tag icon toggles its menu closed');
     };
     const toolbarSelect=async(input,id)=>{
       await input.fill('');await input.focus();
@@ -93,20 +93,20 @@ test('mounted Channels mention menus agree and red tokens survive channel, threa
       assert.ok((await page.evaluate(()=>[...CSS.highlights.get('fm-channel-mentions')].map(range=>range.toString()))).every(value=>!value.includes('ordinary')));
     };
     await parity(editor);
-    for (const token of ['@','@Liv']) {
+    for (const token of ['@','@Liv','@J. Lee','@channel','@here']) {
       await editor.fill(token+' ordinary text name@example.com @john@example.com');
-      await redHighlight(editor,token);
+      await page.evaluate(()=>new Promise(requestAnimationFrame));
       const pending=await editor.evaluate(node=>({
         recipients:node._mentionApi.confirmedMentions(),
         tokens:[...(CSS.highlights.get('fm-channel-mentions')||[])].filter(range=>node.contains(range.startContainer)).map(range=>range.toString())
       }));
-      assert.deepEqual(pending.recipients,[]);assert.deepEqual(pending.tokens,[token]);
+      assert.deepEqual(pending.recipients,[]);assert.deepEqual(pending.tokens,[]);
     }
     for (const html of ['<div>@Liv</div><div>ordinary text</div>','<ul><li>@Liv</li><li>ordinary text</li></ul>','<table><tbody><tr><td>@Liv</td><td>ordinary text</td></tr></tbody></table>']) {
       await editor.evaluate((node,html)=>{node.innerHTML=html;node.dispatchEvent(new Event('input',{bubbles:true}));},html);
-      await page.waitForFunction(()=>[...(CSS.highlights.get('fm-channel-mentions')||[])].some(range=>range.toString().startsWith('@Liv')));
+      await page.evaluate(()=>new Promise(requestAnimationFrame));
       const paragraphQuery=await editor.evaluate(node=>({recipients:node._mentionApi.confirmedMentions(),tokens:[...(CSS.highlights.get('fm-channel-mentions')||[])].filter(range=>node.contains(range.startContainer)).map(range=>range.toString())}));
-      assert.deepEqual(paragraphQuery.tokens,['@Liv']);assert.deepEqual(paragraphQuery.recipients,[]);
+      assert.deepEqual(paragraphQuery.tokens,[]);assert.deepEqual(paragraphQuery.recipients,[]);
     }
     await editor.evaluate(node=>{node._mentionApi.setSelectedMentions([{id:'member',name:'J. Lee'}]);node.innerHTML='<p>@J.<strong> Lee</strong> ordinary text</p>';node.dispatchEvent(new Event('input',{bubbles:true}));});
     await page.waitForFunction(()=>[...(CSS.highlights.get('fm-channel-mentions')||[])].some(range=>range.toString()==='@J. Lee'));
@@ -126,7 +126,7 @@ test('mounted Channels mention menus agree and red tokens survive channel, threa
     assert.deepEqual(await page.evaluate(()=>sent[1].mention_users.map(user=>user.id)),['broadcast:channel']);
     await page.evaluate(()=>instance.setChannel('general'));
     assert.equal(await page.locator('[data-message-id="sent-2"] .fm-ch-mention').innerText(),'@channel');
-    assert.equal(await editor.locator('..').locator('[data-mention-button]').evaluate(node=>getComputedStyle(node).color),'rgb(217, 48, 37)');
+    assert.equal(await main.locator('.fm-ch-composer-row [data-mention-button]').isVisible(),true);assert.equal(await main.locator('.fm-ch-formatbar [data-mention-button]').count(),0);
     const renderedSpecial=await page.locator('.fm-ch-list [data-message-id="special"]').evaluate(node=>{
       return {tokens:[...node.querySelectorAll('.fm-ch-mention')].map(item=>item.textContent),text:node.textContent};
     });
@@ -163,8 +163,13 @@ test('mounted Channels mention menus agree and red tokens survive channel, threa
     });
     assert.ok(documentContract.ids.includes('outsider'));assert.ok(documentContract.ids.includes('channel:general'));
     assert.ok(!documentContract.ids.includes('broadcast:channel'));assert.deepEqual(documentContract.mentions,['outsider']);assert.equal(documentContract.highlighted,false);
+    // A removed picker selection does not survive deletion and retyping.
+    await toolbarSelect(editor,'member');await redHighlight(editor,'@J. Lee');await editor.fill('');await editor.fill('@J. Lee @channel @here @');await editor.press('Escape');
+    assert.deepEqual(await editor.evaluate(n=>n._mentionApi.confirmedMentions()),[]);assert.deepEqual(await editor.evaluate(n=>[...(CSS.highlights.get('fm-channel-mentions')||[])].filter(r=>n.contains(r.startContainer)).map(r=>r.toString())),[]);
+    const count=await page.evaluate(()=>sent.length);await main.getByRole('button',{name:'Send',exact:true}).click();await page.waitForFunction(count=>sent.length===count+1,count);assert.deepEqual(await page.evaluate(()=>sent.at(-1).mention_users),[]);assert.equal(await page.locator(`[data-message-id="sent-${count+1}"] .fm-ch-mention`).count(),0);
+    await threadEditor.fill('@J. Lee @here');await threadEditor.press('Escape');assert.deepEqual(await threadEditor.evaluate(n=>n._mentionApi.confirmedMentions()),[]);assert.deepEqual(await threadEditor.evaluate(n=>[...(CSS.highlights.get('fm-channel-mentions')||[])].filter(r=>n.contains(r.startContainer)).map(r=>r.toString())),[]);
     assert.deepEqual(errors,[]);
     await page.screenshot({path:path.join(output,'mentions-browser.png')});
     await writeFile(path.join(output,'browser-results.json'),JSON.stringify({passed:true,checks:['typed/toolbar parity','channel members and self','outsiders excluded','broadcast wire identifiers','red mention tokens only','persisted broadcast/user styling','channel/thread/edit encoding']},null,2));
-  }finally{await browser.close();await new Promise(resolve=>server.close(resolve));}
+  }finally{await browser.close();server.closeAllConnections();await new Promise(resolve=>server.close(resolve));}
 });

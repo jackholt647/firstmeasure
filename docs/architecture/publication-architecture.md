@@ -267,3 +267,10 @@ substituting another implementation. No moving-company product is included.
 ## Priority fields
 
 See [priority fields](priority-fields.md) for ordered quick-display references and declared calculated fields that consume the shared publication contracts.
+
+## Phone Settings publication
+
+The [phone publication contract](phone-publication.md) documents 13 typed exports,
+seven domain actions and 18 Work triggers, including source authorization,
+voicemail retention, attribution and the durable communications outbox. Carrier
+credentials, paid provisioning and billing administration keep dedicated flows.

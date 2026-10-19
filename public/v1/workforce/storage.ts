@@ -316,6 +316,11 @@ function configurationView(rowValue: unknown) {
   };
 }
 
+export async function readResourceGroupKinds(orgId:string){
+  const row=await getWorkforceDatabase().prepare('SELECT resource_group_kinds_json FROM workforce_configuration WHERE organization_id = ?').get(cleanId(orgId,'organization_id'));
+  return resourceGroupKinds(parseJson(asObject(row).resource_group_kinds_json,[]));
+}
+
 export async function readWorkforceConfiguration(orgId: string) {
   (await ensureWorkforceDefaults(orgId));
   return configurationView((await getWorkforceDatabase().prepare("SELECT * FROM workforce_configuration WHERE organization_id = ?").get(cleanId(orgId, "organization_id"))));

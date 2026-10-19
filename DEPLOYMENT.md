@@ -42,6 +42,61 @@ October 12 Suppliers: [supplier records, the Price Book Suppliers tab, supplier 
 
 October 12 Project ordering and entry: [Order Materials dialog, instant line entry and line item sources](deploy/digitalocean/development-project-ordering-entry-20261012.md) records the behaviour, the one backend field, checks and verified development rollouts.
 
+October 12 Notes separation: [Independent Notes and project conversations](deploy/digitalocean/development-notes-separation-20261012.md) records mandatory separation, pinned and live content filtering, checks and verified development rollout.
+
+October 12 Notes filters: [Select All and Deselect All](deploy/digitalocean/development-notes-filter-toggle-20261012.md) records selection-aware labels and actions, browser checks and verified development rollout.
+
+October 12 Channels: [Bold profile names](deploy/digitalocean/development-channels-bold-names-20261012.md) records the font-reset correction, rendered conversation and thread checks, and verified development rollout.
+
+October 12 reply participants: [Channels and Feed photos](deploy/digitalocean/development-reply-participants-20261012.md) records recent participant summaries, visibility-aware counts, tests and the verified development rollout.
+
+October 12 Photo comments: [Project Notes parity](deploy/digitalocean/development-photo-comments-notes-20261012.md) records the shared photo workspace, media-scoped authorization, retained historical comments, checks and verified development rollout.
+
+October 12 Notes author selections: [Checked defaults and composer fade](deploy/digitalocean/development-notes-gifs-audiences-20261012.md#author-checkbox-and-composer-gap-follow-up) records checkbox-only filters, Select All, a fixed Filters label and verified development publication.
+
+October 12 Notes picker follow-up: [Modal layer, compact replies and author search](deploy/digitalocean/development-notes-gifs-audiences-20261012.md#picker-layer-follow-up) records the real picker regression, clearer filters and verified frontend-only development rollout.
+
+October 12 Notes GIFs and filters: [Channels picker parity and typed advanced audiences](deploy/digitalocean/development-notes-gifs-audiences-20261012.md) records author filters, compact composer styling, membership-based visibility, access checks and verified development rollout.
+
+October 12 Compact Notes and Crew audit: [Composer placement, user previews and terminology-aware audiences](deploy/digitalocean/development-notes-compact-audience-audit-20261012.md) records the UI refinements, explicit field-app eligibility, long-term audience-model findings, checks and development rollout.
+
+October 12 Note sending and active replies: [Enter sends, archive-aware counts and bounded reply lines](deploy/digitalocean/development-note-enter-active-replies-20261012.md) records the keyboard behavior, historical count correction, immediate composer closure, checks and development rollout.
+
+October 12 Notes toolbar and formatting: [Add Reply gating and shared active controls](deploy/digitalocean/development-notes-toolbar-formatting-20261012.md) records Activity toolbar parity, persistent red formatting indicators, browser checks and verified development publication.
+
+October 12 Project Note replies: [Rich composer and compact reply cards](deploy/digitalocean/development-project-note-replies-20261012.md) records Enter-to-send, reply actions, draft preservation, browser checks and verified development publication.
+
+October 12 Activity labels: [Complete bold event labels, name-only previews and expandable notes](deploy/digitalocean/development-project-activity-labels-20261012.md) records the consistent emphasis, See more links, checks and development rollout.
+
+October 12 Project Notes: [Direct audience changes, field crew and readable archives](deploy/digitalocean/development-project-note-audiences-20261012.md) records the tighter cards, summary hover verification, access checks and staged development rollout.
+
+October 11 Channels: [Enter sends and Shift+Enter adds a new line](deploy/digitalocean/development-channels-enter-send-20261011.md) records the composer shortcuts, browser verification and development rollout.
+
+October 12 Activity follow-up: [Compact toolbar, upload batches and visible user and note activity](deploy/digitalocean/development-project-activity-followup-20261012.md) records the corrected Notes population, preview layer, automatic updates and development rollout.
+
+October 12 project Activity: [Readable actions, user previews and corrected filters](deploy/digitalocean/development-project-activity-readable-20261012.md) records the frontend changes, focused verification and development rollout.
+
+October 11 Project Notes refinements: [Inline editing, archives and department audiences](deploy/digitalocean/development-project-notes-refinements-20261011.md) records the updated tray behavior, department enforcement, checks and development rollout.
+
+October 12 Phone marketing: [Website call tracking and SMS broadcast infrastructure](deploy/digitalocean/development-phone-marketing-20261012.md) records setup screens, shared data/actions/events, additive PostgreSQL schema, tests and verified development rollout.
+
+October 11 Project Notes: [Composer parity and note cards](deploy/digitalocean/development-project-notes-composer-20261011.md) records the browser changes, development publication and validation.
+
+October 11 Feed settings: [Automatic-post description](deploy/digitalocean/development-feed-settings-copy-20261011.md) records the exact copy replacement and verified development rollout.
+
+October 12 Reputation onboarding: [Business signup, authorization and remediation](deploy/digitalocean/development-reputation-onboarding-20261012.md) records the guided flow without billing, publication contracts, tests and development rollout.
+
+October 11 GIF drafts: [Attach before sending in Channels and Feed](deploy/digitalocean/development-gif-drafts-20261011.md) records staging, removable previews, failure retention and the verified dev rollout.
+
+October 11 Project preview: [Cover fallback and internal contact actions](deploy/digitalocean/development-project-preview-cover-actions-20261011.md) records the verified development rollout, tests, exact-project data observation and rollback paths.
+
+October 11 Phone Settings: [Voicemail drop, dialing pools and reputation monitoring](deploy/digitalocean/development-phone-extensions-20261011.md) records the original staging and checks; the [October 12 activation and publication record](deploy/digitalocean/development-phone-publication-20261012.md) records the resolved access blocker, coordinated dev rollout and live trigger verification.
+
+October 11 GIF picker: [Hide creator profile overlays](deploy/digitalocean/development-gif-overlay-20261011.md) records the shared picker setting, hover/selection verification and development rollout.
+
+October 11 Project preview contact details: [Tags and contact priority fields](deploy/digitalocean/development-project-preview-contact-priority-20261011.md) records the checks and verified development rollout.
+
+October 10 GIF loading: [Scrollbar resize loop fix](deploy/digitalocean/development-gif-loading-fix-20261010.md) records the reproduction, timeout recovery, regression checks and verified development rollout.
 October 12 Project resource types: [removal, resizable columns and action header](deploy/digitalocean/development-project-categories-20261012.md) records the new archive writer, its limits, checks and verified development rollout.
 
 October 11 Project resource rows: [one-line rows, drag ordering and collapsible lists](deploy/digitalocean/development-project-list-rows-20261011.md) records the row contract, list header changes, checks and verified development rollout.

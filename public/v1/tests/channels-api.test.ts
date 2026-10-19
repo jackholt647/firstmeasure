@@ -135,6 +135,39 @@ async function createOrgUser(
   return { userId, client, email };
 }
 
+test("reply summaries show the latest four distinct visible active participants without opening the thread", async () => {
+  const {client: owner, orgId, suffix} = await registerOwner();
+  const viewer = await createOrgUser(owner, orgId, suffix, 'Summary Viewer');
+  const base = `/v1/channels/organizations/${orgId}`;
+  const channel = (await owner.request('POST', `${base}/channels`, {name:'reply-summary',type:'public'})).channel;
+  await viewer.client.request('POST', `${base}/channels/${channel.id}/join`);
+  const root = (await owner.request('POST', `${base}/channels/${channel.id}/messages`, {text:'Thread root'})).message;
+  const {createMessageRecord,softDeleteMessageRecord,restoreMessageRecord} = await import('../channels/storage.js');
+  const replies = [];
+  for (const [index,author] of ['a','b','c','d','e','b'].entries()) {
+    replies.push(await createMessageRecord({organization_id:orgId,channel_id:channel.id,parent_id:root.id,author_id:author,text:'Reply',created_at:`2026-10-12T12:0${index}:00.000Z`,metadata:{legacy_photo_author:{id:author,name:author.toUpperCase(),avatar:`/avatars/${author}.png`}}}));
+  }
+  await createMessageRecord({organization_id:orgId,channel_id:channel.id,parent_id:root.id,author_id:'hidden',text:'Private',audience:['crew'],created_at:'2026-10-12T12:09:00.000Z'});
+  const read = async () => (await viewer.client.request('GET',`${base}/channels/${channel.id}/messages`)).messages.find((message:Json)=>message.id===root.id);
+  let summary = await read();
+  assert.equal(summary.reply_count,6);
+  assert.equal(summary.last_reply_at,replies[5]!.created_at);
+  assert.deepEqual(summary.reply_participants.map((person:Json)=>person.id),['b','e','d','c']);
+  assert.equal(summary.reply_participants[0].avatar,'/avatars/b.png');
+  await softDeleteMessageRecord(orgId,replies[5]!.id,viewer.userId);
+  summary = await read();
+  assert.equal(summary.reply_count,5);
+  assert.equal(summary.last_reply_at,replies[4]!.created_at);
+  assert.deepEqual(summary.reply_participants.map((person:Json)=>person.id),['e','d','c','b']);
+  await restoreMessageRecord(orgId,replies[5]!.id);
+  assert.equal((await read()).reply_participants[0].id,'b');
+  for (const reply of replies) await softDeleteMessageRecord(orgId,reply.id,viewer.userId);
+  summary = await read();
+  assert.equal(summary.reply_count,0);
+  assert.equal(summary.last_reply_at,null);
+  assert.deepEqual(summary.reply_participants,[]);
+});
+
 test("public discovery, private invitations, channel managers and deletion recovery are scoped", async () => {
   const {client:owner,orgId,suffix,userId:ownerId}=await registerOwner();
   const member=await createOrgUser(owner,orgId,suffix,"Regular Member");
@@ -1122,14 +1155,21 @@ test("broadcast and channel-name mentions expand current membership and here use
   const outsider=await createOrgUser(owner,orgId,suffix,"Mention Outsider");
   const {channel}=await owner.request("POST",`/v1/channels/organizations/${orgId}/channels`,{type:"private",name:"Gutters",member_user_ids:[livia.userId,offline.userId]});
   const route=`/v1/channels/organizations/${orgId}/channels/${channel.id}/messages`;
-  const all=await owner.request("POST",route,{text:"@channel hello"});
+  const plain=await owner.request("POST",route,{text:"@ @channel @here hello",mention_users:[]});
+  assert.deepEqual(plain.message.mention_users,[]);
+  assert.deepEqual(plain.message.metadata.mention_broadcasts,[]);
+  const all=await owner.request("POST",route,{text:"@channel hello",mention_users:[{id:"broadcast:channel",name:"channel"}]});
+  assert.deepEqual(all.message.metadata.mention_broadcasts,["channel"]);
   assert.deepEqual(new Set(all.message.mention_users.map((person:Json)=>person.id)),new Set([userId,livia.userId,offline.userId]));
+  const untagged=await owner.request("PATCH",`/v1/channels/organizations/${orgId}/messages/${all.message.id}`,{text:"@channel now ordinary text",mention_users:[]});
+  assert.deepEqual(untagged.message.mention_users,[]);assert.deepEqual(untagged.message.metadata.mention_broadcasts,[]);
   const {EventEmitter}=await import("node:events");
   const {attachPresence}=await import("../platform/presence.js");
   const raw=new EventEmitter() as any; raw.writeHead=()=>{};raw.write=()=>{};raw.end=()=>{};
   await attachPresence({headers:{},raw:{socket:{setTimeout(){},setNoDelay(){}}}} as any,{raw,hijack(){}} as any,{orgId,scope:"online",userId:livia.userId,name:"Livia",authorize:async()=>{}});
   try {
-    const here=await owner.request("POST",route,{text:"@here hello"});
+    const here=await owner.request("POST",route,{text:"@here hello",mention_users:[{id:"broadcast:here",name:"here"}]});
+    assert.deepEqual(here.message.metadata.mention_broadcasts,["here"]);
     assert.deepEqual(here.message.mention_users.map((person:Json)=>person.id),[livia.userId]);
   } finally {raw.emit("close");}
   for (const target of [channel, (await owner.request("POST",`/v1/channels/organizations/${orgId}/channels`,{type:"dm",member_user_ids:[livia.userId]})).channel]) {
@@ -1376,4 +1416,24 @@ test("locked channels allow only managers to post while members can react", asyn
   await owner.request("PATCH",`${base}/channels/${channel.id}`,{settings:{posting_locked:false}});
   assert.equal((await member.client.request("GET",`${base}/channels/${channel.id}`)).channel.can_post,true);
   await member.client.request("POST",`${base}/channels/${channel.id}/messages`,{text:"Unlocked"});
+});
+
+
+test('Channel draft polish authorizes membership, preserves references and records AI usage without posting',async()=>{
+ const {client:owner,orgId,suffix}=await registerOwner();await enableExpandedPlatformFixture(orgId,{'channels.ai':true});
+ const outsider=await createOrgUser(owner,orgId,suffix,'Polish Outsider');
+ const {channel}=await owner.request('POST',`/v1/channels/organizations/${orgId}/channels`,{type:'private',name:'Polish draft',member_user_ids:[]});
+ const url=`/v1/channels/organizations/${orgId}/channels/${channel.id}/compose/polish`;
+ const {env}=await import('../src/config/env.js');const oldKey=env.openaiApiKey,oldFetch=globalThis.fetch;Object.assign(env,{openaiApiKey:'polish-fixture-key'});let calls=0,mode='ok';
+ globalThis.fetch=async(_url,options)=>{assert.equal(String(_url),'https://api.openai.com/v1/responses');calls++;const body=JSON.parse(String(options?.body));assert.equal(body.store,false);assert.match(body.instructions,/grammar only/);assert.equal(body.tools,undefined);if(mode==='fail')return new Response('Unavailable',{status:503});const text=String(body.input).replace('helo','Hello');return new Response(JSON.stringify({output_text:mode==='format'?text.replace('**',''):mode==='references'?text.replace(/\[\[FM_POLISH_[a-f0-9]+_\d+\]\]/,''):text,usage:{input_tokens:50,output_tokens:40}}),{status:200});};
+ try{
+  const draft={text:'helo @Ada Bell, see https://example.com/path for 50 units.',mention_names:['Ada Bell']};
+  assert.equal((await app.inject({method:'POST',url,payload:draft})).statusCode,401);assert.equal((await outsider.client.raw('POST',url,draft)).statusCode,403);assert.equal(calls,0);
+  assert.equal((await owner.raw('POST',url,{text:' '})).statusCode,400);assert.equal(calls,0);
+  const result=await owner.request('POST',url,draft);assert.equal(result.text,'Hello @Ada Bell, see https://example.com/path for 50 units.');
+  const {messages}=await owner.request('GET',`/v1/channels/organizations/${orgId}/channels/${channel.id}/messages`);assert.equal(messages.length,0);
+  const {countAgentRunsToday}=await import('../agents/storage.js');assert.equal(await countAgentRunsToday('draft_polish',orgId),1);
+  mode='format';assert.equal((await owner.raw('POST',url,{text:'**helo**'})).statusCode,400);mode='references';assert.equal((await owner.raw('POST',url,draft)).statusCode,400);mode='fail';assert.equal((await owner.raw('POST',url,draft)).statusCode,400);
+  await enableExpandedPlatformFixture(orgId,{'channels.ai':false});const previous=calls;assert.equal((await owner.raw('POST',url,draft)).statusCode,403);assert.equal(calls,previous);
+ }finally{globalThis.fetch=oldFetch;Object.assign(env,{openaiApiKey:oldKey});}
 });

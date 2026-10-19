@@ -42,7 +42,11 @@
     styles();if(active?.anchor===anchor){active.close();return null;}closeFor();
     const pop=el('div','fm-picker fm-picker-popover');pop.setAttribute('role','dialog');pop.setAttribute('aria-label',label);
     anchor.setAttribute('aria-haspopup','dialog');anchor.setAttribute('aria-expanded','true');
-    document.body.append(pop);
+    let layer=1601;for(let node=anchor;node;node=node.parentElement){const z=Number.parseInt(getComputedStyle(node).zIndex,10);if(Number.isFinite(z))layer=Math.max(layer,z+20);}pop.style.zIndex=String(Math.min(2147483647,layer));
+    (anchor.closest('dialog[open]') || document.body).append(pop);
+    // Native popovers paint above browser top-layer modals and escape clipping.
+    // Keep the measured z-index fallback for browsers without the Popover API.
+    if(typeof pop.showPopover==='function'){pop.popover='manual';pop.style.margin='0';pop.style.inset='auto';pop.showPopover();}
     let cleanup,disposed=false;
     const close=(restore=false)=>{
       if(disposed)return;disposed=true;if(active?.pop===pop)active=null;
@@ -80,7 +84,7 @@
   function openEmojiPicker(anchor,onPick){
     return popover(anchor,'Choose an emoji',(pop,close)=>{const picker=mountEmojiPicker(pop,emoji=>{close(true);onPick(emoji);});picker.focus();return ()=>picker.destroy();});
   }
-  function openGifPicker(anchor,{orgId,onSend,onError=()=>{},getConfig,dialogTitle='Choose a GIF'}={}){
+  function openGifPicker(anchor,{orgId,onSelect,onSend,onError=()=>{},getConfig,dialogTitle='Choose a GIF'}={}){
     return popover(anchor,dialogTitle,(pop,close)=>{
       pop.classList.add('fm-picker-gif');
       const search=el('input','fm-picker-search');search.type='search';search.placeholder='Search GIPHY';search.setAttribute('aria-label',search.placeholder);
@@ -97,7 +101,7 @@
         const client=new GiphyFetch(config.sdk_key);
         function paint(){
           const query=search.value.trim(),version=++generation;removeGrid?.();grid.replaceChildren();status.textContent='Loading GIFs…';
-          removeGrid=renderGrid({width:Math.max(1,Math.floor(grid.clientWidth)),columns:2,gutter:4,noLink:true,
+          removeGrid=renderGrid({width:Math.max(1,Math.floor(grid.clientWidth)),columns:2,gutter:4,noLink:true,hideAttribution:true,
             fetchGifs:async offset=>{
               try{const data=await loadWithin(query?client.search(query,{offset,limit:12,rating:'pg'}):client.trending({offset,limit:12,rating:'pg'}));if(!disposed&&version===generation&&!sending)status.textContent=data.data.length?'':'No GIFs found. Try another search.';return data;}
               catch(error){if(!disposed&&version===generation&&!sending)status.textContent='GIF search is unavailable or its request limit was reached. Try again later.';return {data:[],pagination:{total_count:0,count:0,offset},meta:{status:200,msg:'Unavailable',response_id:''}};}
@@ -106,9 +110,9 @@
               event?.preventDefault();if(disposed||sending||version!==generation)return;
               const image=gif.images.fixed_width||gif.images.original;if(!/^https:\/\/media\d*\.giphy\.com\/media\//i.test(image?.url||''))return;
               const selected={id:String(gif.id),url:image.url,title:gif.title||'GIF',width:Number(image.width),height:Number(image.height)};
-              clearTimeout(timer);sending=true;grid.inert=true;search.disabled=true;status.textContent='Sending GIF…';
-              try{await onSend(selected,operationId);if(!disposed)close(true);}
-              catch(error){if(!disposed){sending=false;grid.inert=false;search.disabled=false;status.textContent='Could not send this GIF. Try again.';}onError(error);}
+              clearTimeout(timer);sending=true;grid.inert=true;search.disabled=true;status.textContent=onSelect?'Adding GIF…':'Sending GIF…';
+              try{await (onSelect||onSend)(selected,operationId);if(!disposed)close(true);}
+              catch(error){if(!disposed){sending=false;grid.inert=false;search.disabled=false;status.textContent=onSelect?'Could not add this GIF. Try again.':'Could not send this GIF. Try again.';}onError(error);}
             }
           },grid);
         }
@@ -120,7 +124,7 @@
     });
   }
   function createGifPickerButton(options){
-    styles();const button=el('button','fm-picker-trigger');button.append(el('span','','GIF'));button.type='button';button.title='Send a GIF';button.setAttribute('aria-label',button.title);button.setAttribute('aria-haspopup','dialog');button.setAttribute('aria-expanded','false');button.onclick=()=>openGifPicker(button,options);button.destroy=()=>closeFor(button);return button;
+    styles();const button=el('button','fm-picker-trigger');button.append(el('span','','GIF'));button.type='button';button.title='Attach a GIF';button.setAttribute('aria-label',button.title);button.setAttribute('aria-haspopup','dialog');button.setAttribute('aria-expanded','false');button.onclick=()=>openGifPicker(button,options);button.destroy=()=>closeFor(button);return button;
   }
   root.FirstMatePickerWidgets={mountEmojiPicker,openEmojiPicker,openGifPicker,createGifPickerButton,closeFor};
 })(window);

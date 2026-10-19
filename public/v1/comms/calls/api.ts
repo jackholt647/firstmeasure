@@ -1,4 +1,6 @@
 import { superviseCall, supervisionView } from './supervision.js';
+import { registerPhoneSettingsApi } from '../phone/api.js';
+import { canUseLine } from '../phone/service.js';
 import { readCallAnalysis, generateCallAnalysis } from './analysis.js';
 import { completeDevelopmentOnboarding } from './development.js';
 import type { FastifyPluginAsync, FastifyRequest } from "fastify";
@@ -39,6 +41,7 @@ const boundedId=z.string().min(8).max(180);
 
 export const registerCustomerCallsApi:FastifyPluginAsync=async app=>{
   s.database();
+  registerPhoneSettingsApi(app);
   startCallWorker(app);
   app.addHook('onSend',async(_req,reply,payload)=>{reply.header('Cache-Control','private, no-store');return payload;});
   app.setErrorHandler((error,_req,reply)=>{
@@ -162,7 +165,7 @@ export const registerCustomerCallsApi:FastifyPluginAsync=async app=>{
   app.get("/organizations/:orgId/voice/status",async req=>({ok:true,...(await voiceStatus(await auth(req)))}));
   app.put('/organizations/:orgId/voice/default-number',async req=>{
     const ctx=await auth(req,true),phone=z.string().max(40).parse(body(req).phone_number);
-    const lines=(await s.resources(ctx.orgId,'number')).filter(n=>n.status==='active'&&text(n.branch_id||'default')===(ctx.branchId||'default')&&(!text(n.assigned_user_id)||text(n.assigned_user_id)===ctx.userId));
+    const lines=[];for(const n of await s.resources(ctx.orgId,'number'))if(n.status==='active'&&await canUseLine(ctx,n.id))lines.push(n);
     if(phone&&!lines.some(n=>n.phone_number===phone))throw forbidden('business_line_unavailable','Choose a company line available to you.');
     await s.saveResource(ctx.orgId,'number_preference',ctx.userId,{phone_number:phone});return {ok:true,phone_number:phone};
   });
@@ -170,7 +173,7 @@ export const registerCustomerCallsApi:FastifyPluginAsync=async app=>{
     const ctx=await auth(req,true,true),phone=param(req,'number'),userId=z.string().max(180).parse(body(req).assigned_user_id);
     const line=await s.resource(ctx.orgId,'number',phone);if(!line)throw badRequest('business_line_unavailable','Choose a connected business line.');
     if(userId){const person=(await people(ctx)).find(p=>p.id===userId);if(!person||person.branch_id!==text(line.branch_id||'default'))throw badRequest('user_unavailable','Choose a teammate in the line’s branch.');}
-    await s.saveResource(ctx.orgId,'number',phone,{...line,assigned_user_id:userId},text(line.provider_id));return {ok:true,...await voiceStatus(ctx)};
+    await s.saveResource(ctx.orgId,'number',phone,{...line,assigned_user_id:userId},text(line.provider_id));const configured=await s.resource(ctx.orgId,'phone_line',phone);if(configured)await s.saveResource(ctx.orgId,'phone_line',phone,{...configured,user_ids:userId?[userId]:[],group_id:''},'',configured.revision);return {ok:true,...await voiceStatus(ctx)};
   });
   app.get('/organizations/:orgId/voice/health',async req=>{const ctx=await auth(req,false,true);return {ok:true,...(await voiceHealth(ctx.orgId))};});
   app.get("/organizations/:orgId/voice/contacts",async req=>({ok:true,contacts:await phoneContacts(await auth(req),text(query(req).query))}));

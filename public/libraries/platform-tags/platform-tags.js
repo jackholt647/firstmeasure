@@ -189,13 +189,6 @@
             addRange(start,end);
           }
         }
-        // Pending mention queries are visual only; matching never selects recipients.
-        // Boundaries exclude email addresses, and known multiword names keep their full range.
-        const pending = /(^|[\s([{])(@[\p{L}\p{N}_-]*)(?=$|[\s.,!?;:)\]}])/gu;
-        for (const match of text.matchAll(pending)) {
-          const start = match.index + match[1].length;
-          addRange(start,start+match[2].length);
-        }
         channelMentionRanges.set(textarea,ranges); publish();
       };
       const observer = new MutationObserver(refresh);
@@ -316,6 +309,10 @@
     mirror.remove();
     return anchor.width || anchor.height ? anchor : rect;
   }
+  function hasMention(text,user){
+    const label=String(user.name || user.email || user.id).replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+    return new RegExp(`(^|[\\s([{])@${label}(?=$|[\\s.,!?;:)\\]}])`,'i').test(text);
+  }
   function attachMentionTextarea(textarea, options = {}){
     if (!textarea) return { destroy(){} };
     injectStyles();
@@ -325,8 +322,11 @@
     let query = null;
     const menu = ensureMenu();
     const selected = new Map();
+    const mentionText=()=>textarea.isContentEditable ? textarea.innerText : (textarea.value || '');
     const oid = cleanText(options.orgId || orgId());
-    const allowed = user => options.source !== 'channels' || (user.id.startsWith('department:') || user.id === 'agent_assistant' || user.id === 'broadcast:channel' || user.id === 'broadcast:here' || (!user.id.startsWith('channel:') && (options.memberIds?.() || []).includes(user.id)));
+    const allowed = user => options.source === 'feed'
+      ? (options.memberIds?.() || []).includes(user.id)
+      : options.source !== 'channels' || (user.id.startsWith('department:') || user.id === 'agent_assistant' || user.id === 'broadcast:channel' || user.id === 'broadcast:here' || (!user.id.startsWith('channel:') && (options.memberIds?.() || []).includes(user.id)));
     const candidates = () => users.filter(allowed);
     // Team-messaging surfaces also offer the AI agent(s) as mention targets.
     const includeAgents = options.includeAgents === true || options.source === 'channels';
@@ -347,15 +347,14 @@
       if (document.activeElement === textarea) update();
     }).catch(() => {});
 
-    // Pills under every token that will actually send as a tag (picked from
-    // the menu, seeded via setSelectedMentions, or an exact typed name).
+    // Channels highlight only confirmed picker selections, including seeded edits.
     const highlighter = attachMentionHighlight(textarea, () => {
       const value = textarea.value || '';
       const labels = new Set();
-      extractMentions(value, candidates()).forEach((user) => labels.add(user.name || user.email || user.id));
+      if(options.source!=='channels')extractMentions(value, candidates()).forEach((user) => labels.add(user.name || user.email || user.id));
       selected.forEach((user) => allowed(user) && labels.add(user.name || user.email || user.id));
       return [...labels];
-    }, options.source === 'channels');
+    }, ['channels','feed','project_notes','photo_comment'].includes(options.source));
 
     function hide(){
       if (menu._mentionOwner && menu._mentionOwner !== textarea) return;
@@ -414,6 +413,7 @@
       menu.classList.add('visible');
     }
     function update(){
+      if(options.source==='channels')for(const [id,user] of selected)if(!hasMention(mentionText(),user))selected.delete(id);
       highlighter.refresh();
       query = caretQuery(textarea);
       if (!query) return hide();
@@ -454,13 +454,13 @@
       ready,
       mentionCandidates(){ return candidates(); },
       selectedMentions(){
-        const found = extractMentions(textarea.value || '', candidates());
+        const found = options.source==='channels' ? [] : extractMentions(textarea.value || '', candidates());
         found.forEach((user) => selected.set(user.id, user));
-        return [...selected.values()].filter((user) => allowed(user) && (textarea.value || '').toLowerCase().includes(`@${(user.name || user.email || user.id).toLowerCase()}`));
+        return [...selected.values()].filter((user) => allowed(user) && hasMention(mentionText(),user));
       },
       confirmedMentions(){
         const value = (textarea.value || '').toLowerCase();
-        return [...selected.values()].filter((user) => allowed(user) && value.includes(`@${(user.name || user.email || user.id).toLowerCase()}`));
+        return [...selected.values()].filter((user) => allowed(user) && hasMention(mentionText(),user));
       },
       setSelectedMentions(mentions = []){
         selected.clear();

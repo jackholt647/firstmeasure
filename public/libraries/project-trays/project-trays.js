@@ -5,10 +5,20 @@
   if (root.FirstMateProjectTrays) return;
   const clean = value => String(value ?? '').trim();
   const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const activityScriptUrl=new URL('activity-presenter.js?v=20261012-notes-separation-v1',document.currentScript?.src || location.href).href;
+  let activityPromise;
+  function activityPresenter(){
+    if(root.FirstMateActivity)return Promise.resolve(root.FirstMateActivity);
+    return activityPromise ||= new Promise((resolve,reject)=>{
+      const script=document.createElement('script');script.src=activityScriptUrl;
+      script.onload=()=>{if(root.FirstMateActivity)resolve(root.FirstMateActivity);else{activityPromise=null;script.remove();reject(Error('Activity descriptions are unavailable.'));}};
+      script.onerror=()=>{activityPromise=null;script.remove();reject(Error('Activity descriptions could not be loaded.'));};document.head.append(script);
+    });
+  }
   const registry = new Map([
     ['notes',{id:'notes',label:'Notes',icon:'fa-note-sticky',capability:'channels.project_notes'}],
     ['todo',{id:'todo',label:'To Do',icon:'fa-list-check'}],
-    ['messages',{id:'messages',label:'Messages',icon:'fa-comments',capability:'channels.project_notes',enabled:()=>root.Portal?.can?.('channels.separate_project_notes') === true}],
+    ['messages',{id:'messages',label:'Messages',icon:'fa-comments',capability:'channels.project_notes'}],
     ['activity',{id:'activity',label:'Activity',icon:'fa-clock-rotate-left'}],
     ['agent',{id:'agent',label:'Agent',icon:'fa-wand-magic-sparkles',capability:'apps.assistant'}]
   ]);
@@ -74,49 +84,53 @@
         query:{includeFuture:true,includeAll:true}});
     }
     if (key==='agent') return root.PlatformAssistant.mountProject(node,{orgId:oid,projectId:pid,...options.agentOptions});
-    if (key==='activity') return mountActivity(node,oid,pid);
+    if (key==='activity') return mountActivity(node,oid,pid,getProject);
     if (key==='messages') {
       const data=await root.ChannelsAPI.channels.ensureProject(oid,pid);
       return root.FirstMateChannels.create(node,{orgId:oid,context:{channelId:data.channel.id},mode:'embedded',features:{resources:false}});
     }
     return definition.mount?.(node,{getProject,projectId:pid,orgId:oid});
   }
-  function mountActivity(node,oid,pid) {
-    let events=[],before='',loading=false,dead=false,visible=true,loaded=false;
+  function mountActivity(node,oid,pid,getProject=()=>({id:pid})) {
+    let events=[],before='',loading=false,dead=false,visible=true,loaded=false,lastMarkup='',updateTimer=0,refreshQueued=false;
+    let presenter,activityContext;
     const selectedTypes=new Set();
+    const expandedNotes=new Set(),notePrefix='fm-activity-note-'+Math.random().toString(36).slice(2)+'-';
     const style=document.createElement('style');
     style.textContent=`
       .fm-activity-widget{position:relative;height:100%;min-height:0;display:flex;flex-direction:column;font-size:11px;color:#202124;background:#fff}
-      .fm-project-activity-tools{flex:none;padding:12px 12px 9px;border-bottom:1px solid #eef0f3;display:grid;gap:8px}
-      .fm-activity-search{display:flex;align-items:center;gap:7px;border:1px solid #e4e7ec;border-radius:6px;padding:0 8px;color:#98a2b3}
+      .fm-project-activity-tools{flex:none;padding:9px 12px;border-bottom:1px solid #eef0f3;display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:6px}
+      .fm-activity-search{display:flex;min-width:0;align-items:center;gap:7px;border:1px solid #e4e7ec;border-radius:6px;padding:0 8px;color:#98a2b3}
       .fm-activity-search input{font:inherit;font-size:11px;border:0;background:transparent;min-width:0;width:100%;height:30px;outline:none;color:#202124}
       .fm-activity-search:focus-within{outline:2px solid var(--primary,#175cd3);outline-offset:1px}
-      .fm-activity-filter-row{display:flex;align-items:center;gap:6px}.fm-activity-filter-toggle{display:flex;align-items:center;gap:6px;font:inherit;font-size:11px;max-width:70%;min-height:28px;border:1px solid transparent;background:#f5f6f8;border-radius:5px;padding:5px 8px;color:#475467;cursor:pointer}.fm-activity-filter-toggle span{overflow:hidden;white-space:nowrap;text-overflow:ellipsis}.fm-activity-filter-toggle[data-active=true]{color:var(--primary,#175cd3);background:var(--primary-light,#eef2ff)}
+      .fm-activity-filter-toggle{display:flex;align-items:center;gap:6px;font:inherit;font-size:11px;max-width:120px;min-width:0;height:32px;border:1px solid transparent;background:#f5f6f8;border-radius:5px;padding:5px 8px;color:#475467;cursor:pointer}.fm-activity-filter-toggle span{overflow:hidden;white-space:nowrap;text-overflow:ellipsis}.fm-activity-filter-toggle[data-active=true]{color:var(--primary,#175cd3);background:var(--primary-light,#eef2ff)}
       .fm-activity-filter-menu{position:absolute;left:12px;right:12px;z-index:20;display:flex;flex-direction:column;overflow:hidden;background:white;border:1px solid #e4e7ec;border-radius:8px;box-shadow:0 8px 24px #10182824;padding:6px}.fm-activity-filter-menu[hidden]{display:none}
       .fm-activity-filter-menu input[type=search]{flex:none;box-sizing:border-box;width:100%;min-width:0;border:0;border-bottom:1px solid #eef0f3;background:white;padding:8px;font:inherit;font-size:11px;color:#344054;border-radius:0}
       .fm-activity-filter-options{min-height:0;overflow:auto;overscroll-behavior:contain;padding:4px 0}.fm-activity-filter-option{display:flex;align-items:center;border-radius:5px;min-height:32px}.fm-activity-filter-option[hidden]{display:none}.fm-activity-filter-option:hover,.fm-activity-filter-option:focus-within{background:#f5f6f8}.fm-activity-filter-option[data-selected=true]{background:var(--primary-light,#eef2ff)}
       .fm-activity-filter-option label{display:flex;flex:1;align-items:center;min-width:0;gap:7px;padding:7px 6px;cursor:pointer;font-size:11px}.fm-activity-filter-option input{width:13px;height:13px;margin:0;accent-color:var(--primary,#175cd3);flex:none}.fm-activity-filter-option label>i{width:13px;text-align:center;color:#667085}.fm-activity-filter-total{margin-left:auto;color:#98a2b3;font-size:10px;font-variant-numeric:tabular-nums}
       .fm-activity-filter-only{font:inherit;font-size:10px;border:0;background:transparent;color:#667085;padding:6px;cursor:pointer}.fm-activity-filter-only:hover{color:var(--primary,#175cd3)}.fm-activity-filter-footer{flex:none;display:flex;align-items:center;justify-content:space-between;gap:6px;padding:7px 4px 2px;border-top:1px solid #eef0f3;color:#667085;font-size:10px}.fm-activity-filter-footer button{font:inherit;color:var(--primary,#175cd3);border:0;background:transparent;cursor:pointer;padding:4px}.fm-activity-filter-none{padding:12px 6px;font-size:11px;color:#667085}.fm-activity-filter-none[hidden]{display:none}
-      .fm-activity-count{margin-left:auto;color:#667085;font-size:10px;white-space:nowrap}.fm-activity-refresh{border:0;background:transparent;color:#667085;border-radius:5px;width:28px;height:28px;cursor:pointer}
-      .fm-activity-refresh:hover{background:#f2f4f7}.fm-activity-widget button:focus-visible,.fm-activity-widget input:focus-visible{outline:2px solid var(--primary,#175cd3);outline-offset:2px}
+      .fm-activity-widget button:focus-visible,.fm-activity-widget input:focus-visible{outline:2px solid var(--primary,#175cd3);outline-offset:2px}
       .fm-project-activity{overflow:auto;overscroll-behavior:contain;min-height:0;flex:1;padding:0 12px 12px}
       .fm-activity-day{position:sticky;top:0;z-index:1;margin:0;background:#fff;padding:13px 0 8px;font-size:10.5px;font-weight:700;color:#667085;border-bottom:1px solid #f2f4f7}
       .fm-project-activity article{display:grid;grid-template-columns:24px minmax(0,1fr);gap:8px;position:relative;padding:11px 0}
       .fm-project-activity article:not(:last-child):before{content:'';position:absolute;left:11px;top:34px;bottom:-10px;width:1px;background:#e9ecf1}
       .fm-activity-icon{position:relative;z-index:0;display:grid;place-items:center;width:24px;height:24px;border-radius:50%;background:#f2f4f7;color:#667085;font-size:10px}
       .fm-project-activity p{margin:0;line-height:1.55;overflow-wrap:anywhere;font-size:11px}.fm-activity-meta{display:flex;gap:5px;flex-wrap:wrap;align-items:center;margin-top:4px;font-size:10px;color:#98a2b3}.fm-activity-meta time{font-size:10px;color:#667085}
+      .fm-project-activity p strong{font-weight:700}.fm-activity-actor{font:inherit;color:inherit;border:0;background:none;padding:0;text-align:left;cursor:pointer}.fm-activity-actor:hover,.fm-activity-actor:focus-visible{color:var(--primary,#175cd3);text-decoration:underline}
+      .fm-project-activity .fm-activity-note{margin-top:4px;font-weight:400;white-space:pre-wrap}.fm-activity-note-more{display:inline;color:var(--primary,#175cd3);font:inherit;font-size:10px;text-decoration:underline;cursor:pointer}.fm-activity-note-more:focus-visible{outline:2px solid var(--primary,#175cd3);outline-offset:2px}
       .fm-activity-empty{text-align:center;padding:38px 14px;color:#667085;line-height:1.6}.fm-activity-empty i{display:block;font-size:20px;color:#98a2b3;margin-bottom:12px}.fm-activity-empty strong{display:block;font-size:12px;color:#344054;margin-bottom:4px}
       .fm-activity-error{flex:none;margin:8px 12px 0;border-radius:6px;padding:8px;color:#b42318;background:#fff4f2;line-height:1.5}.fm-activity-error[hidden]{display:none}
       .fm-activity-more{width:100%;font:inherit;font-size:11px;color:#475467;border:1px solid #e4e7ec;background:#fff;padding:8px;border-radius:6px;margin-top:10px;cursor:pointer}.fm-activity-widget button:disabled{opacity:.45;cursor:wait}
     `;
     node.append(style);
     const shell=document.createElement('section');shell.className='fm-activity-widget';shell.setAttribute('aria-label','Project activity');
-    shell.innerHTML='<div class="fm-project-activity-tools"><label class="fm-activity-search"><i class="fas fa-magnifying-glass" aria-hidden="true"></i><input type="search" aria-label="Search activity" placeholder="Search activity…"></label><div class="fm-activity-filter-row"><button type="button" class="fm-activity-filter-toggle" aria-label="Filter activity: All activity" aria-haspopup="dialog" aria-expanded="false"><i class="fas fa-filter" aria-hidden="true"></i><span>All activity</span><i class="fas fa-chevron-down" aria-hidden="true"></i></button><span class="fm-activity-count" role="status"></span><button class="fm-activity-refresh" type="button" aria-label="Refresh activity" title="Refresh activity"><i class="fas fa-arrow-rotate-right" aria-hidden="true"></i></button></div></div><div class="fm-activity-error" role="alert" hidden></div><div class="fm-project-activity" role="log" aria-label="Activity timeline" aria-live="off"></div>';
+    shell.innerHTML='<div class="fm-project-activity-tools"><label class="fm-activity-search"><i class="fas fa-magnifying-glass" aria-hidden="true"></i><input type="search" aria-label="Search activity" placeholder="Search activity…"></label><button type="button" class="fm-activity-filter-toggle" aria-label="Filter activity: All activity" aria-haspopup="dialog" aria-expanded="false"><i class="fas fa-filter" aria-hidden="true"></i><span>All activity</span><i class="fas fa-chevron-down" aria-hidden="true"></i></button></div><div class="fm-activity-error" role="alert" hidden></div><div class="fm-project-activity" role="log" aria-label="Activity timeline" aria-live="off"></div>';
     node.append(shell);
-    const log=shell.querySelector('[role=log]'),search=shell.querySelector('input'),filter=shell.querySelector('.fm-activity-filter-toggle'),count=shell.querySelector('[role=status]'),failure=shell.querySelector('[role=alert]'),refreshButton=shell.querySelector('.fm-activity-refresh');
+    const log=shell.querySelector('[role=log]'),search=shell.querySelector('input'),filter=shell.querySelector('.fm-activity-filter-toggle'),failure=shell.querySelector('[role=alert]');
     const kind=event=>clean(event.type || event.data?.type);
     const categories={project:['Project changes','fa-pen'],tasks:['To-dos','fa-check'],notes:['Notes','fa-note-sticky'],schedule:['Scheduling','fa-calendar'],reports:['Reports & measurements','fa-ruler-combined'],files:['Files & photos','fa-image'],documents:['Documents & signatures','fa-file-signature'],scope:['Scope & materials','fa-layer-group'],payments:['Payments & billing','fa-credit-card'],contacts:['Contacts & people','fa-user-group'],communications:['Calls & communications','fa-phone'],workflow:['Workflow & stages','fa-diagram-project'],field:['Field work & checklists','fa-clipboard-check']};
     const category=event=>{
+      if(presenter)return presenter.describe(event,activityContext).category;
       const type=kind(event).toLowerCase();
       if(/note/.test(type))return 'notes';
       if(/action[._]item|task|todo/.test(type))return 'tasks';
@@ -166,51 +180,74 @@
     const menuResize=new ResizeObserver(positionMenu);menuResize.observe(shell);
     const timestamp=event=>Date.parse(event.created_at || event.data?.created_at) || 0;
     const format=event=>{
+      if(presenter)return presenter.describe(event,activityContext).text;
       const data=event.data || event,payload=event.payload || {};
       const verbs={created:'added a note',edited:'edited a note',deleted:'removed a note',restored:'restored a note',pinned:'pinned a note',unpinned:'unpinned a note',shared:'shared a note'};
       if(kind(event).startsWith('project.note.'))return `${payload.actor_name || 'A teammate'} ${verbs[kind(event).split('.').pop()] || 'updated a note'}`;
       const text=clean(data.summary || data.description || data.title || payload.summary || payload.description) || kind(event).replace(/[._]/g,' ') || 'Project updated';
       return text.charAt(0).toUpperCase()+text.slice(1);
     };
-    const actor=event=>clean(event.payload?.actor_name || event.data?.actor_name || event.actor_name || event.actor?.name);
+    const actor=event=>presenter?presenter.describe(event,activityContext).actor.name:clean(event.payload?.actor_name || event.data?.actor_name || event.actor_name || event.actor?.name);
     function dayLabel(date){const today=new Date(),yesterday=new Date();yesterday.setDate(today.getDate()-1);return date.toDateString()===today.toDateString()?'Today':date.toDateString()===yesterday.toDateString()?'Yesterday':date.toLocaleDateString([], {month:'short',day:'numeric',year:date.getFullYear()===today.getFullYear()?undefined:'numeric'});}
     function render(){
       if(dead)return;
       const top=log.scrollTop,query=search.value.trim().toLocaleLowerCase();
-      const matching=events.filter(event=>!kind(event).startsWith('channels.message.')&&!/^(message|note)_(added|created|sent)$/.test(kind(event))&&(root.Portal?.can?.('channels.separate_project_notes')===true||!kind(event).startsWith('project.note.')))
+      const displayed=presenter?presenter.groupUploads(presenter.withNotes(events,activityContext),activityContext):events;
+      const matching=displayed.filter(event=>!kind(event).startsWith('channels.message.')&&!/^(message|note)_(added|created|sent)$/.test(kind(event)))
         .filter(event=>!query||(format(event)+' '+actor(event)).toLocaleLowerCase().includes(query));
       syncTypes(matching);
       const rows=matching.filter(event=>!selectedTypes.size||selectedTypes.has(category(event)));
-      count.textContent=loaded?rows.length+' event'+(rows.length===1?'':'s'): 'Loading…';
       let group='';
-      log.innerHTML=rows.map(event=>{
-        const date=new Date(timestamp(event)),valid=!!timestamp(event),day=valid?dayLabel(date):'Earlier activity',heading=day!==group?`<h3 class="fm-activity-day">${esc(day)}</h3>`:'';group=day;
-        const [label,icon]=categories[category(event)],name=actor(event),summary=format(event);
-        return `${heading}<article><span class="fm-activity-icon"><i class="fas ${icon}" aria-hidden="true"></i></span><div><p>${esc(summary)}</p><div class="fm-activity-meta">${name&&!summary.includes(name)?`<span>${esc(name)}</span><span aria-hidden="true">·</span>`:''}<span>${label}</span>${valid?`<span aria-hidden="true">·</span><time datetime="${date.toISOString()}" title="${esc(date.toLocaleString())}">${esc(date.toLocaleTimeString([], {hour:'numeric',minute:'2-digit'}))}</time>`:''}</div></div></article>`;
+      const markup=rows.map(event=>{
+        const presentation=presenter?.describe(event,activityContext),at=presentation?Date.parse(presentation.timestamp)||0:timestamp(event);
+        const date=new Date(at),valid=!!at,day=valid?dayLabel(date):'Earlier activity',heading=day!==group?`<h3 class="fm-activity-day">${esc(day)}</h3>`:'';group=day;
+        const [label,icon]=categories[category(event)],name=actor(event),summary=format(event),user=presentation?.actor;
+        const preview=user?.id?` data-fm-summary-type="summary.user" data-fm-summary-target="${esc(JSON.stringify({scope:'organization',organizationId:oid,id:user.id}))}"`:'';
+        const isNote=presentation?.category==='notes',key=event._source+':'+event.id;
+        const description=`<strong>${esc(presentation?.headline||summary)}</strong>${presentation?.suffix?` ${esc(presentation.suffix)}`:''}${presentation?.detail&&!isNote?` — ${esc(presentation.detail)}`:''}`;
+        const noteText=isNote?presentation.detail:'',characters=Array.from(noteText),long=characters.length>140,expanded=expandedNotes.has(key),noteId=notePrefix+encodeURIComponent(key);
+        const noteHtml=noteText?`<p class="fm-activity-note" id="${esc(noteId)}">${esc(long&&!expanded?characters.slice(0,140).join('').trimEnd()+'…':noteText)}</p>${long?`<a class="fm-activity-note-more" href="#${esc(noteId)}" data-activity-note="${esc(key)}" aria-expanded="${expanded}" aria-controls="${esc(noteId)}">${expanded?'See less':'See more'}</a>`:''}`:'';
+        const actorHtml=user?.id?`<button type="button" class="fm-activity-actor"${preview} aria-label="Preview ${esc(name||'team member')}">${esc(name||'Team member')}</button>`:name?`<span>${esc(name)}</span>`:'';
+        return `${heading}<article><span class="fm-activity-icon"><i class="fas ${icon}" aria-hidden="true"></i></span><div><p>${description}</p>${noteHtml}<div class="fm-activity-meta">${actorHtml?`${actorHtml}<span aria-hidden="true">·</span>`:''}<span>${label}</span>${valid?`<span aria-hidden="true">·</span><time datetime="${date.toISOString()}" title="${esc(date.toLocaleString())}">${esc(date.toLocaleTimeString([], {hour:'numeric',minute:'2-digit'}))}</time>`:''}</div></div></article>`;
       }).join('') || `<div class="fm-activity-empty"><i class="fas ${loaded?'fa-clock-rotate-left':'fa-spinner'}" aria-hidden="true"></i><strong>${loaded?(query||selectedTypes.size?'No matching activity':'No activity yet'):'Loading activity…'}</strong>${loaded?(query||selectedTypes.size?'Try another search or activity type.':'Project updates will appear here as work progresses.'):''}</div>`;
-      if(before){const more=document.createElement('button');more.type='button';more.className='fm-activity-more';more.textContent='Load older activity';more.disabled=loading;more.onclick=()=>refresh(true);log.append(more);}
+      if(markup!==lastMarkup){log.innerHTML=markup;lastMarkup=markup;}
+      if(before){let more=log.querySelector('.fm-activity-more');if(!more){more=document.createElement('button');more.type='button';more.className='fm-activity-more';more.textContent='Load older activity';more.onclick=()=>refresh(true);log.append(more);}more.disabled=loading;}else log.querySelector('.fm-activity-more')?.remove();
       log.scrollTop=top;
     }
     async function refresh(older=false){
-      if(loading||dead)return;loading=true;refreshButton.disabled=true;log.setAttribute('aria-busy','true');failure.hidden=true;
+      if(dead)return;if(loading){if(!older)refreshQueued=true;return;}loading=true;log.setAttribute('aria-busy','true');failure.hidden=true;
       shell.querySelector('.fm-activity-more')?.setAttribute('disabled','');
       try{
+        presenter=await activityPresenter();activityContext ||= presenter.context();
         const [work,audit]=await Promise.all([root.PlatformAPI.work.activity(oid,{projectId:pid,limit:100,before:older?before:''}),older?{events:[]}:root.PlatformAPI.userActivity.listForProject(oid,pid,{limit:200})]);
         if(dead)return;
         // Keep previously loaded pages on polling; source namespaces prevent ID collisions.
         const next=[...(work.events||[]).map(e=>({...e,_source:'work'})),...(audit.events||[]).map(e=>({...e,_source:'audit'}))];
-        events=[...new Map([...events,...next].map(e=>[e._source+':'+(e.id||[e.type,e.created_at,format(e)].join('|')),e])).values()].sort((a,b)=>timestamp(b)-timestamp(a));
+        const merged=[...new Map([...events,...next].map(e=>[e._source+':'+(e.id||[e.type,e.created_at,format(e)].join('|')),e])).values()];
+        await presenter.hydrate(activityContext,merged,{platform:root.PlatformAPI,documents:root.DocumentsAPI,materials:root.MaterialsAPI,communications:root.CommunicationsAPI,channels:root.ChannelsAPI,projectNotes:root.Portal?.ProjectNotes},oid,pid,getProject());
+        if(dead)return;
+        events=presenter.merge(merged);
         if(older||!loaded)before=work.events?.length===100?work.next_before || '':'';
         loaded=true;
-      }catch(error){if(!dead){failure.textContent=(loaded?'Could not refresh activity. ':'Could not load activity. ')+(error.message || 'Try again.')+' Use Refresh to retry.';failure.hidden=false;}}
-      finally{loading=false;if(!dead){refreshButton.disabled=false;log.setAttribute('aria-busy','false');render();if(!loaded){count.textContent='Unavailable';log.innerHTML='';}}}
+      }catch(error){if(!dead){failure.textContent=(loaded?'Could not update activity. ':'Could not load activity. ')+(error.message || '')+' Retrying automatically.';failure.hidden=false;}}
+      finally{loading=false;if(!dead){log.setAttribute('aria-busy','false');render();if(refreshQueued){refreshQueued=false;scheduleUpdate();}}}
     }
-    search.oninput=()=>{log.scrollTop=0;render();};refreshButton.onclick=()=>refresh();
-    const onChange=()=>{if(visible)void refresh();};
+    search.oninput=()=>{log.scrollTop=0;render();};
+    log.addEventListener('click',event=>{
+      const link=event.target.closest?.('a[data-activity-note]');if(!link)return;event.preventDefault();
+      const key=link.dataset.activityNote;if(expandedNotes.has(key))expandedNotes.delete(key);else expandedNotes.add(key);
+      render();Array.from(log.querySelectorAll('a[data-activity-note]')).find(a=>a.dataset.activityNote===key)?.focus({preventScroll:true});
+    });
+    function scheduleUpdate(){if(!visible||dead)return;clearTimeout(updateTimer);updateTimer=setTimeout(()=>{if(!dead&&visible)void refresh();},250);}
+    const onChange=event=>{if(!event?.detail?.projectId||event.detail.projectId===pid)scheduleUpdate();};
     root.addEventListener('fm:project-notes:refreshed',onChange);root.addEventListener('fm:projects:refresh',onChange);
+    const stopRealtime=root.PlatformRealtime?.subscribe?.(oid,'',event=>{
+      const payload=event.payload||{},project=payload.project_id||payload.projectId||payload.context?.project_id;
+      if((!project||project===pid)&&/^(work|channels|documents|payments|materials|communication|messaging|platform\.(project|media|activity))\./.test(event.topic||''))scheduleUpdate();
+    },{onResync:scheduleUpdate});
     const poll=setInterval(()=>{if(visible)void refresh();},30000);
     render();void refresh();
-    return {refresh,setVisible(value){visible=!!value;if(!visible)closeFilter();},destroy(){dead=true;menuResize.disconnect();ownerDocument.removeEventListener('pointerdown',outside,true);clearInterval(poll);root.removeEventListener('fm:project-notes:refreshed',onChange);root.removeEventListener('fm:projects:refresh',onChange);style.remove();shell.remove();}};
+    return {refresh,setVisible(value){const changed=visible!==!!value;visible=!!value;if(!visible)closeFilter();else if(changed)scheduleUpdate();},destroy(){dead=true;stopRealtime?.();clearTimeout(updateTimer);menuResize.disconnect();ownerDocument.removeEventListener('pointerdown',outside,true);clearInterval(poll);root.removeEventListener('fm:project-notes:refreshed',onChange);root.removeEventListener('fm:projects:refresh',onChange);style.remove();shell.remove();}};
   }
 
   function mount(shell, options = {}) {

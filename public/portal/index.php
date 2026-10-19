@@ -2160,6 +2160,7 @@ session_write_close();
   <?php if ($platformExpandedAssets): ?>
   <script src="../libraries/communications-api/communications-api.js?v=<?= portalAssetVersion('../libraries/communications-api/communications-api.js') ?>"></script>
   <?php endif; ?>
+  <script src="../libraries/platform-widgets/gifs.js?v=<?= portalAssetVersion('../libraries/platform-widgets/gifs.js') ?>"></script>
   <script src="../libraries/platform-realtime/platform-realtime.js?v=<?= portalAssetVersion('../libraries/platform-realtime/platform-realtime.js') ?>"></script>
   <?php if ($platformExpandedAssets): ?>
   <script src="../libraries/calls-runtime/livekit-client.umd.js?v=<?= portalAssetVersion('../libraries/calls-runtime/livekit-client.umd.js') ?>"></script>

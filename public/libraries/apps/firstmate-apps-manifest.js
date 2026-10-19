@@ -26,22 +26,24 @@
   };
   const bookingBundle = versionedBundle('../appointment-booking/booking.js', '20261005-appointment-picker-v1');
   const priorityFieldsBundle = versionedBundle('../priority-fields/priority-fields.js', '20261015-ready-event');
-  const widgetBundles = ['scope-data','runtime','project-widgets'].map(name=>versionedBundle('../platform-widgets/'+name+'.js',name==='runtime'?'20261010-project-contact-icons':'20261003-project-widgets-v1'));
+  const gifDisplayBundle=versionedBundle('../platform-widgets/gifs.js','20261012-composer-media-fixes-v1');
+  const widgetBundles = [gifDisplayBundle,...['scope-data','runtime','project-widgets'].map(name=>versionedBundle('../platform-widgets/'+name+'.js',name==='runtime'?'20261012-composer-media-fixes-v1':'20261003-project-widgets-v1'))];
   const channelsLibBundles = [
     ...widgetBundles, bookingBundle, priorityFieldsBundle,
     versionedBundle('../platform-realtime/platform-realtime.js', '20260929-presence-controls-v3'),
-    versionedBundle('../channels-api/channels-api.js', '20260930-feed-posts-v1'),
+    versionedBundle('../channels-api/channels-api.js', '20261012-shared-polish-v1'),
     versionedBundle('../audio-notes/audio-notes.js', '20260929-presence-controls-v3'),
     versionedBundle('../audio-structure/audio-structure.js', '20260725-checklist-voice-v1'),
     versionedBundle('../window-manager/window-manager.js', '20261006-firstmeasure-localization-v1'),
     versionedBundle('../agent-chat/agent-chat.js', '20261002-widget-controls'),
     versionedBundle('../assistant-api/assistant-api.js', '20261002-agent-persistence-v1'),
     versionedBundle('../platform-assistant/platform-assistant.js', '20261002-agent-persistence-v1'),
-    versionedBundle('photos/feed.js', '20261007-feed-list-project-v4'),
-    versionedBundle('../markup/firstmate-markup.js', '20260929-shared-files-v1'),
-    versionedBundle('../channels-ui/channels-ui.js', '20261005-linear-pla31'),
-    versionedBundle('../project-notes/project-notes.js', '20261002-overview-workflow-v1'),
-    versionedBundle('../project-trays/project-trays.js', '20261003-activity-filters-v1')
+    versionedBundle('photos/feed.js', '20261012-shared-polish-v1'),
+    versionedBundle('../markup/firstmate-markup.js', '20261012-photo-comments-v1'),
+    versionedBundle('../channels-ui/channels-ui.js', '20261012-shared-polish-v1'),
+    versionedBundle('../project-notes/project-notes.js', '20261012-shared-polish-v1'),
+    versionedBundle('../project-trays/activity-presenter.js', '20261012-notes-separation-v1'),
+    versionedBundle('../project-trays/project-trays.js', '20261012-notes-separation-v1')
   ];
   const fieldApprovalBundles = [
     versionedBundle('../crew-api/crew-api.js', '20260803-field-flows-v10'),
@@ -120,7 +122,7 @@
       kind: 'portal_tab',
       surfaces: ['portal_tab'],
       portalTabId: 'photos_feed',
-      bundles: [versionedBundle('../payments-api/payments-api.js', '20260714-invoice-line-items-tax'), versionedBundle('photos/feed.js', '20261007-feed-list-project-v4')]
+      bundles: [gifDisplayBundle,versionedBundle('../payments-api/payments-api.js', '20260714-invoice-line-items-tax'), versionedBundle('photos/feed.js', '20261012-shared-polish-v1')]
     },
     {
       id: 'portal.receipts',
@@ -131,7 +133,7 @@
       kind: 'portal_tab',
       surfaces: ['portal_tab'],
       portalTabId: 'receipts',
-      bundles: [versionedBundle('../payments-api/payments-api.js', '20260714-receipt-browser'), versionedBundle('photos/feed.js', '20261007-feed-list-project-v4'), versionedBundle('receipts/app.js', '20260714-receipt-pdf-preview')]
+      bundles: [gifDisplayBundle,versionedBundle('../payments-api/payments-api.js', '20260714-receipt-browser'), versionedBundle('photos/feed.js', '20261012-shared-polish-v1'), versionedBundle('receipts/app.js', '20260714-receipt-pdf-preview')]
     },
     {
       // DEPRECATED (2026-08): legacy proposals surface — hidden by its bundle
@@ -202,7 +204,7 @@
         versionedBundle('../doc-widgets/firstmate-doc-widgets.js', '20260811-doc-audio'),
         versionedBundle('../doc-renderer/firstmate-doc-renderer.js', '20260811-word-doc-v4'),
         versionedBundle('../doc-editor/firstmate-doc-editor.js', '20260925-brand-chrome'),
-        versionedBundle('photos/feed.js', '20261007-feed-list-project-v4'),
+        versionedBundle('photos/feed.js', '20261012-shared-polish-v1'),
         bundle('../agents-api/agents-api.js'),
         versionedBundle('../agent-chat/agent-chat.js', '20261002-widget-controls'),
         versionedBundle('../doc-agent/doc-agent.js', '20260812-agent-command-actions'),
@@ -230,7 +232,7 @@
         versionedBundle('../doc-widgets/firstmate-doc-widgets.js', '20260811-doc-audio'),
         versionedBundle('../doc-renderer/firstmate-doc-renderer.js', '20260811-word-doc-v4'),
         versionedBundle('../doc-editor/firstmate-doc-editor.js', '20260925-brand-chrome'),
-        versionedBundle('photos/feed.js', '20261007-feed-list-project-v4'),
+        versionedBundle('photos/feed.js', '20261012-shared-polish-v1'),
         bundle('../agents-api/agents-api.js'),
         versionedBundle('../agent-chat/agent-chat.js', '20261002-widget-controls'),
         versionedBundle('../doc-agent/doc-agent.js', '20260812-agent-command-actions'),
@@ -283,7 +285,7 @@
       surfaces: ['project_modal'],
       requiresContext: ['project'],
       dependencies: ['project.proposal', 'project.materials'],
-      bundles: [versionedBundle('../payments-api/payments-api.js', '20260730-payment-reconciliation'), versionedBundle('../payroll-api/payroll-api.js', '20261016-my-pay-v1'), versionedBundle('../documents-api/documents-api.js', '20260730-money-reports'), versionedBundle('payroll/project.js', '20260714-money-commissions'), versionedBundle('photos/feed.js', '20261007-feed-list-project-v4'), versionedBundle('receipts/app.js', '20260714-receipt-pdf-preview'), versionedBundle('money/project.js', '20260929-overview-content-v1')]
+      bundles: [gifDisplayBundle,versionedBundle('../payments-api/payments-api.js', '20260730-payment-reconciliation'), versionedBundle('../payroll-api/payroll-api.js', '20261016-my-pay-v1'), versionedBundle('../documents-api/documents-api.js', '20260730-money-reports'), versionedBundle('payroll/project.js', '20260714-money-commissions'), versionedBundle('photos/feed.js', '20261012-shared-polish-v1'), versionedBundle('receipts/app.js', '20260714-receipt-pdf-preview'), versionedBundle('money/project.js', '20260929-overview-content-v1')]
     },
     {
       id: 'project.request',
@@ -292,7 +294,7 @@
       kind: 'modal_app',
       surfaces: ['modal', 'project_modal'],
       dependencies: ['firstmeasure.order', 'project.map', 'project.photos', 'project.proposal', 'project.materials', 'project.money', 'project.customer_portal', 'project.schedule', 'project.measurements', 'project.checklists'],
-      bundles: [...channelsLibBundles, versionedBundle('../window-manager/project-windows.js', '20261010-priority-owners-v2'), versionedBundle('project-request/app.js', '20261015-contacts-writers-v1')]
+      bundles: [...channelsLibBundles, versionedBundle('../window-manager/project-windows.js', '20261010-priority-owners-v2'), versionedBundle('project-request/app.js', '20261019-canonical-merge-v1')]
     },
     {
       id: 'firstmeasure.order',
@@ -342,7 +344,7 @@
       kind: 'project_modal_app',
       surfaces: ['project_modal'],
       requiresContext: ['project'],
-      bundles: [bundle('../comms-api/comms-api.js'), versionedBundle('../agent-chat/agent-chat.js', '20261002-widget-controls'), versionedBundle('comms/communications-ui.js', '20261008-call-center-modes-v2'), versionedBundle('comms/phone-tray.js', '20261007-phone-tabs-v1'), versionedBundle('comms/calling-runtime.js', '20261008-call-center-modes-v1'), versionedBundle('comms/workspace.js', '20261008-call-center-modes-v2'), versionedBundle('comms/project.js', '20261002-dropdown-polish-v1')]
+      bundles: [bundle('../comms-api/comms-api.js'), versionedBundle('../agent-chat/agent-chat.js', '20261002-widget-controls'), versionedBundle('comms/communications-ui.js', '20261008-call-center-modes-v2'), versionedBundle('comms/phone-tray.js', '20261007-phone-tabs-v1'), versionedBundle('comms/calling-runtime.js', '20261011-outbound-phone-v1'), versionedBundle('comms/workspace.js', '20261008-call-center-modes-v2'), versionedBundle('comms/project.js', '20261002-dropdown-polish-v1')]
     },
     {
       id: 'project.measurements',
@@ -507,7 +509,7 @@
         bundle('../agents-api/agents-api.js'),
         versionedBundle('../agent-chat/agent-chat.js', '20261002-widget-controls'),
         versionedBundle('comms/communications-ui.js', '20261008-call-center-modes-v2'),
-        versionedBundle('comms/phone-tray.js', '20261007-phone-tabs-v1'), versionedBundle('comms/calling-runtime.js', '20261008-call-center-modes-v1'),
+        versionedBundle('comms/phone-tray.js', '20261007-phone-tabs-v1'), versionedBundle('comms/calling-runtime.js', '20261011-outbound-phone-v1'),
         versionedBundle('comms/workspace.js', '20261008-call-center-modes-v2'),
         versionedBundle('chat/app.js', '20260930-phone-tray-v1')
       ]
@@ -525,14 +527,15 @@
       order: 44,
       bundles: [
         versionedBundle('../platform-realtime/platform-realtime.js', '20260929-presence-controls-v3'),
-        versionedBundle('../channels-api/channels-api.js', '20260930-feed-posts-v1'),
+        versionedBundle('../channels-api/channels-api.js', '20261012-shared-polish-v1'),
         versionedBundle('../audio-notes/audio-notes.js', '20260929-presence-controls-v3'),
         versionedBundle('../window-manager/window-manager.js', '20261006-firstmeasure-localization-v1'),
         versionedBundle('../assistant-api/assistant-api.js', '20261002-agent-persistence-v1'),
         ...widgetBundles, bookingBundle, priorityFieldsBundle, versionedBundle('../platform-assistant/platform-assistant.js', '20261002-agent-persistence-v1'),
-        versionedBundle('photos/feed.js', '20261007-feed-list-project-v4'),
-    versionedBundle('../markup/firstmate-markup.js', '20260929-shared-files-v1'),
-    versionedBundle('../channels-ui/channels-ui.js', '20261005-linear-pla31'),
+        versionedBundle('photos/feed.js', '20261012-shared-polish-v1'),
+    versionedBundle('../markup/firstmate-markup.js', '20261012-photo-comments-v1'),
+    versionedBundle('../channels-ui/channels-ui.js', '20261012-shared-polish-v1'),
+    versionedBundle('../project-notes/project-notes.js', '20261012-shared-polish-v1'),
         versionedBundle('partners/shared-list.js','20261001-sharing-polish-v1'),
         versionedBundle('partners/share-dialog.js','20261001-sharing-polish-v1'),versionedBundle('channels/app.js', '20260930-native-sharing-v2')
       ]
@@ -586,7 +589,7 @@
       surfaces: ['portal_tab'],
       portalTabId: 'company_settings',
       placement: 'settings',
-      bundles: [priorityFieldsBundle, versionedBundle('../custom-fields/firstmate-custom-fields.js', '20261015-contacts-writers-v1'), versionedBundle('../payroll-api/payroll-api.js', '20261016-my-pay-v1'), versionedBundle('../websites-api/websites-api.js', '20260731-domains-v10'), versionedBundle('../domains-api/domains-api.js', '20260731-domains-v10'), versionedBundle('../insights/firstmate-insights.js', '20260901-insights-v1'), versionedBundle('settings/domains.js', '20260731-domains-v11'), versionedBundle('settings/crm.js', '20261015-contacts-store-v1'), versionedBundle('settings/contacts.js', '20261009-contact-settings-v1'), versionedBundle('settings/payroll.js', '20261016-my-pay-v1'), versionedBundle('settings/money-overlay-enforcer.js', '20260828-money-overlay-integrity-v1'), versionedBundle('settings/platform-billing.js', '20260924-subscription-service-v3'), versionedBundle('../brand-kit/brand-kit.js', '20261006-firstmeasure-localization-v1'), bundle('../platform-terminology/editor.js'), versionedBundle('people/people-kit.js', '20261015-people-workers-v1'), versionedBundle('people/list-page.js', '20261015-people-workers-v1'), versionedBundle('people/entity-modal.js', '20261015-branches-v1'), versionedBundle('people/hover-card.js', '20261014-people-v4'), versionedBundle('people/permissions-panel.js', '20261014-people-v5'), versionedBundle('people/app-grid.js', '20261015-people-v3'), versionedBundle('people/slots.js', '20261015-branches-v1'), versionedBundle('people/people-data.js', '20261015-people-workers-v1'), versionedBundle('people/people-directory.js', '20261015-branches-v1'), versionedBundle('people/fields-panel.js', '20261013-people-fields-v1'), versionedBundle('people/compensation-panel.js', '20261014-people-compensation-v1'), versionedBundle('people/page-kit.js', '20261015-people-workers-v1'), versionedBundle('people/people-lists.js', '20261015-branches-v1'), versionedBundle('people/branches.js', '20261015-branches-v1'), versionedBundle('people/users-page.js', '20261015-people-workers-v1'), versionedBundle('people/groups-page.js', '20261015-branches-v1'), versionedBundle('people/departments-page.js', '20261015-branches-v1'), versionedBundle('people/companies-page.js', '20261015-branches-v1'), versionedBundle('people/people-home.js', '20261015-branches-v1'), versionedBundle('people/people-settings.js', '20261015-search-grouping'), versionedBundle('settings/company.js', '20261016-new-leads-v1')]
+      bundles: [priorityFieldsBundle, versionedBundle('../custom-fields/firstmate-custom-fields.js', '20261015-contacts-writers-v1'), versionedBundle('../payroll-api/payroll-api.js', '20261016-my-pay-v1'), versionedBundle('../websites-api/websites-api.js', '20260731-domains-v10'), versionedBundle('../domains-api/domains-api.js', '20260731-domains-v10'), versionedBundle('../insights/firstmate-insights.js', '20260901-insights-v1'), versionedBundle('settings/domains.js', '20260731-domains-v11'), versionedBundle('settings/crm.js', '20261015-contacts-store-v1'), versionedBundle('settings/contacts.js', '20261009-contact-settings-v1'), versionedBundle('settings/payroll.js', '20261016-my-pay-v1'), versionedBundle('settings/money-overlay-enforcer.js', '20260828-money-overlay-integrity-v1'), versionedBundle('settings/platform-billing.js', '20260924-subscription-service-v3'), versionedBundle('../brand-kit/brand-kit.js', '20261006-firstmeasure-localization-v1'), bundle('../platform-terminology/editor.js'), versionedBundle('people/people-kit.js', '20261015-people-workers-v1'), versionedBundle('people/list-page.js', '20261015-people-workers-v1'), versionedBundle('people/entity-modal.js', '20261015-branches-v1'), versionedBundle('people/hover-card.js', '20261014-people-v4'), versionedBundle('people/permissions-panel.js', '20261014-people-v5'), versionedBundle('people/app-grid.js', '20261015-people-v3'), versionedBundle('people/slots.js', '20261015-branches-v1'), versionedBundle('people/people-data.js', '20261015-people-workers-v1'), versionedBundle('people/people-directory.js', '20261015-branches-v1'), versionedBundle('people/fields-panel.js', '20261013-people-fields-v1'), versionedBundle('people/compensation-panel.js', '20261014-people-compensation-v1'), versionedBundle('people/page-kit.js', '20261015-people-workers-v1'), versionedBundle('people/people-lists.js', '20261015-branches-v1'), versionedBundle('people/branches.js', '20261015-branches-v1'), versionedBundle('people/users-page.js', '20261015-people-workers-v1'), versionedBundle('people/groups-page.js', '20261015-branches-v1'), versionedBundle('people/departments-page.js', '20261015-branches-v1'), versionedBundle('people/companies-page.js', '20261015-branches-v1'), versionedBundle('people/people-home.js', '20261015-branches-v1'), versionedBundle('people/people-settings.js', '20261015-search-grouping'), versionedBundle('settings/phone-marketing.js', '20261012-phone-marketing-v1'), versionedBundle('settings/phone.js', '20261012-phone-marketing-v1'), versionedBundle('settings/company.js', '20261019-canonical-merge-v1')]
     },
     {
       id: 'portal.crew_overview',
