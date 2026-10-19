@@ -462,7 +462,7 @@ export function addressZip(...values: unknown[]) {
   for (const value of values) {
     const source = asObject(value);
     const text = typeof value === "string" ? value : cleanText(source.postal_code || source.zip || source.zip_code || source.address);
-    const matches = cleanText(text).match(/\d{5}(?:-\d{4})?/g);
+    const matches = cleanText(text).match(/\b\d{5}(?:-\d{4})?\b/g);
     if (matches?.length) return matches[matches.length - 1]!.slice(0, 5);
   }
   return "";

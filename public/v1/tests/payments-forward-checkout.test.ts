@@ -280,7 +280,8 @@ test("a card checkout sends Forward the amount, our reference id and customer-in
   assert.equal(intentCall.body.amount, 1_000);
   assert.equal(intentCall.body.reference_id, checkout.payment_id, "reference id is the payment id we will record");
   assert.deepEqual(intentCall.body.payment_method_types, ["card"]);
-  assert.deepEqual(intentCall.body.order_details, { card_not_present_type: "ecommerce", initiated_by: "customer", is_scheduled_payment: false, invoice_id: "INV-1001" });
+  // Level 2: the job site's ZIP goes as the ship-to ZIP.
+  assert.deepEqual(intentCall.body.order_details, { card_not_present_type: "ecommerce", initiated_by: "customer", is_scheduled_payment: false, invoice_id: "INV-1001", ship_to_zip: "62704", ship_to_country: "US" });
   assert.match(intentCall.key, /^fm-pi-checkout_/);
 
   const paid = await client.request("POST", `/v1/payments/organizations/${orgId}/payments`, {
@@ -471,7 +472,7 @@ test("autopay charges are merchant-initiated recurring charges with a stable key
   const run = await client.request("POST", `/v1/payments/organizations/${orgId}/autopay/run`, {});
   assert.equal(run.charged.length, 1);
   const intentCall = calls.find((call) => call.path === "/payment_intents")!;
-  assert.deepEqual(intentCall.body.order_details, { card_not_present_type: "recurring", initiated_by: "merchant", is_scheduled_payment: true, invoice_id: intentCall.body.order_details.invoice_id, description: "Autopay: Installment" });
+  assert.deepEqual(intentCall.body.order_details, { card_not_present_type: "recurring", initiated_by: "merchant", is_scheduled_payment: true, invoice_id: intentCall.body.order_details.invoice_id, description: "Autopay: Installment", ship_to_zip: "62704", ship_to_country: "US" });
   assert.match(intentCall.key, /^fm-pi-checkout_autopay_[a-f0-9]{20}_1$/);
   const chargeCall = calls.find((call) => call.path.endsWith("/payments"))!;
   assert.equal(chargeCall.body.payment_method_id, "pm_ok_saved");
