@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+October 19 Full-house speed pass: [no shader recompiles per redraw, early-exit occlusion, a passive 2D plan during 3D gestures, an exact wall composition key, draw memos and cheaper previews](deploy/digitalocean/development-full-house-speed-20261019.md) records release `f709807f`, the measurements and the verified development rollout.
+
 October 19 Pay sheets, payables and People gaps: [the pay sheet editor, payroll bills through payables with reimbursements settled once, export templates, archive and restore, branch membership and words, and outside company onboarding](deploy/digitalocean/development-people-payroll-gaps-20261019.md) records release `c255dda3` (payroll schema version 6), the host merges, the per-host generated files and the verified four-role development rollout.
 
 October 19 Route lock-down: [platform routes stay inside the caller's organizations, the raw global document and the credits ledger need billing management, and the balance needs report ordering or billing](deploy/digitalocean/development-route-gates-20261019.md) records release `65634240`, the host merges and the verified four-role development rollout with owner and orderer checks.
