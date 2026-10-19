@@ -4,11 +4,14 @@ import { backendImplementationDigest } from "../platform/publication/implementat
 import { systemPublicationContext } from "../platform/publication/context.js";
 import { readDocument } from "../platform/storage.js";
 import { forbidden } from "../platform/errors.js";
-import { rowAccess } from "./records.js";
 import type { PublicationContext } from "../platform/publication/contracts.js";
 import type { JsonObject } from "../platform/storage.js";
-import { CRM_COLLECTIONS, type CrmCollection } from "./records.js";
-import { collectionPermission, nestRow } from "./views.js";
+import type { CrmCollection } from "./records.js";
+
+// records.ts and views.ts load only when a read or write runs: shared bootstrap imports this module, and
+// records.ts reaches bootstrap through its own imports, so a static import here would be a cycle.
+const CRM_COLLECTIONS: CrmCollection[] = ["opportunities", "contacts", "follow_ups", "appointments"];
+const collectionPermission = (collection: CrmCollection) => collection === "contacts" ? "view_contacts" : "view_projects";
 
 // The CRM collections as published data (docs/architecture/crm.md, "Published data"), so a program in a
 // scope or an organization rule can read leads, contacts, follow-ups and appointments the way the CRM
@@ -42,7 +45,7 @@ export function registerCrmPublication() {
         const built = cache.get(ctx) || new Map<CrmCollection, Promise<JsonObject[]>>();
         cache.set(ctx, built);
         if (!built.has(collection)) built.set(collection, (async () => {
-          const { collectionFor } = await import("./api.js");
+          const [{ collectionFor }, { nestRow }] = await Promise.all([import("./api.js"), import("./views.js")]);
           // Published rows are plain JSON: a field a row has no value for is absent, not undefined.
           return JSON.parse(JSON.stringify((await collectionFor(ctx.auth || null, ctx.organizationId, collection)).rows.map(nestRow))) as JsonObject[];
         })());
@@ -65,6 +68,7 @@ export function registerCrmPublication() {
     execute: async (ctx: PublicationContext, _target: unknown, input: JsonObject, execution: JsonObject) => {
       const projectId = String(input.project_id);
       const project = await readDocument(ctx.organizationId, "projects", projectId);
+      const { rowAccess } = await import("./records.js");
       if (ctx.auth && !rowAccess(ctx.auth).project({ id: projectId, ...(project.data as JsonObject) })) throw forbidden("crm_lead_denied", "This lead is outside your access.");
       const child = systemPublicationContext({ kind: "work", organizationId: ctx.organizationId, projectId, branchId: ctx.branchId, operations: ["custom-fields.project.write"], mode: "command" });
       child.auth = ctx.auth;

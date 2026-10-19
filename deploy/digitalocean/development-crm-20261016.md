@@ -96,3 +96,18 @@ default under `apps.crm`). A company sets it up for its industry under CRM > CRM
   the smoke passed.
 - Whoever owns the channels-feed and phone-settings work should land it on canonical: those
   edits exist only on the dev hosts.
+
+## Lead routing and scoring (2026-10-19)
+
+- **`c44a2f6a`, released as `10c38826`** (with the full-house engine fixes `ff9ad1c9` that
+  web, pool and legacy already ran merged in, so nothing live was rolled back; worker stays
+  on its own release plus these files). CRM settings › Lead routing and Lead scoring save the
+  `crm_routing` module and replace only the `crm_routing_*` organization rules, whose action is
+  a sandbox program (`crm/routing.ts`). Programs gain `api.data.select` over any declared
+  binding and `state.trigger`; a program in a rule must be the saved one and runs as whoever
+  saved the rules. The CRM rows are the published `crm` provider and `crm.leads.update` writes
+  a lead's fields. Bundle `20261019-crm-v6`.
+- Checks before the rollout: `tsc`, access gates (snapshot regenerated: the two routing routes,
+  the four `crm` exports and `crm.leads.update`), app experience, automation contracts, CRM
+  views, rescission, routing, the CRM tab in a browser (with the routing settings saved through
+  the UI) and the publication suite.
