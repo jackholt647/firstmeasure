@@ -7,6 +7,12 @@ const G=typeof module!=='undefined'&&module.exports?require('./wall_geometry.js'
 const EPS=1e-7,sub=(a,b)=>({x:a.x-b.x,y:a.y-b.y,z:a.z-b.z}),dot=(a,b)=>a.x*b.x+a.y*b.y+a.z*b.z;
 const length=p=>Math.hypot(p.x,p.y,p.z),distance=(a,b)=>length(sub(a,b)),scale=(v,k)=>({x:v.x*k,y:v.y*k,z:v.z*k}),cross=(a,b)=>({x:a.y*b.z-a.z*b.y,y:a.z*b.x-a.x*b.z,z:a.x*b.y-a.y*b.x});
 const at=(a,b,t)=>({x:a.x+(b.x-a.x)*t,y:a.y+(b.y-a.y)*t,z:a.z+(b.z-a.z)*t}),clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
+function collinearPair(pairs){
+ if(!pairs.length||pairs.some(pair=>pair.length!==2||distance(...pair)<1e-5))throw Error('Select one angled line or multiple collinear angled lines.');
+ const a=pairs[0][0],direction=sub(pairs[0][1],a),unit=scale(direction,1/length(direction)),points=pairs.flat();
+ if(points.some(p=>length(cross(sub(p,a),unit))>1e-5))throw Error('Selected lines must be collinear to step them together.');
+ const sorted=points.slice().sort((p,q)=>dot(sub(p,a),unit)-dot(sub(q,a),unit));return [{...sorted[0]},{...sorted.at(-1)}];
+}
 function pattern(pair,frame,count=1,anchor=null,sizeScale=1){
  if(!Number.isSafeInteger(count)||count<1)throw Error('The step count must be a positive whole number.');
  if(!frame?.n||pair.length!==2||pair.some(p=>![p.x,p.y,p.z].every(Number.isFinite)))throw Error('Select a line on a planar face.');
@@ -84,5 +90,5 @@ function basePattern(base,faceId,count=1,anchor=null,sizeScale=1,{alignToBoundar
  const names=next.faces.map(f=>f.id);S.rebind(before,transfer);transfer.faces.forEach((f,i)=>f.id=names[i]);transfer.stepPatterns=next.stepPatterns;
  return {base:transfer,pattern:t,alignedToBoundary:!!alignment};
 }
-const api={wheelScale,basePattern,pattern,apply,mapPoint,rewriteEdge,rewriteRing,onLine};if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.WallSteps=api;
+const api={collinearPair,wheelScale,basePattern,pattern,apply,mapPoint,rewriteEdge,rewriteRing,onLine};if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.WallSteps=api;
 })(typeof window!=='undefined'?window:globalThis);

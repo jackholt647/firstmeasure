@@ -19,7 +19,7 @@ test('core views fill a three by three board and open photos without closing Fil
  }finally{await browser.close();}
 });
 
-test('videos lead the edge-to-edge file list and play in the center of Core Views',async()=>{
+test('videos lead their category in the edge-to-edge file list and play in the center of Core Views',async()=>{
  const browser=await chromium.launch({headless:true,executablePath:process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH||(process.platform==='win32'?'C:/Program Files/Google/Chrome/Application/chrome.exe':'/usr/bin/chromium'),args:['--no-sandbox']});
  try{
   const page=await browser.newPage({viewport:{width:1200,height:800}}),errors=[];page.on('pageerror',e=>errors.push(e.message));
@@ -33,7 +33,9 @@ test('videos lead the edge-to-edge file list and play in the center of Core View
   await page.goto('https://core-video.test/editor.php');await page.waitForFunction(()=>document.querySelector('.resource-core-video video')?.readyState>=2);
   assert.deepEqual(await page.locator('.resource-toolbar > button').evaluateAll(es=>es.slice(0,3).map(e=>e.dataset.action)),['files','upload','coreViews']);
   assert.equal(await page.locator('.resource-library .resource-tray-heading').count(),0);assert.equal(await page.locator('.resource-library [data-action=coreViews]').count(),0);
-  assert.equal(await page.locator('.resource-section').first().getAttribute('data-role'),'videos');assert.equal(await page.locator('.resource-section[data-role=videos] .resource-media-tile').count(),2);
+  // No Videos category: each video stays in its own category and leads it.
+  assert.deepEqual(await page.locator('.resource-section').evaluateAll(es=>es.map(e=>e.dataset.role)),['qa','tech','customer']);
+  for(const role of ['tech','customer'])assert.equal(await page.locator(`.resource-section[data-role=${role}] .resource-media-tile`).first().evaluate(e=>e.classList.contains('resource-video-tile')),true);
   const pane=await page.locator('.resource-library').boundingBox(),section=await page.locator('.resource-section').first().boundingBox();assert.equal(section.x,pane.x);assert.ok(Math.abs(section.width-(pane.width-1))<1);
   assert.equal(await page.locator('.resource-core-cell').count(),9);assert.equal(await page.locator('.resource-core-cell').nth(4).locator('video[controls]').count(),1);assert.equal(await page.locator('.resource-core-grid svg').count(),0);
   const video=page.locator('.resource-core-video video');await video.evaluate(v=>{v.currentTime=.2;return v.play();});await page.waitForFunction(()=>!document.querySelector('.resource-core-video video').paused);

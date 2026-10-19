@@ -653,3 +653,20 @@ and r8 now refuse with a message). Tests that encoded the overlapping inner
 loop (two in `curved-surfaces.test.cjs`, one in `wall-solid-geometry.test.cjs`,
 whose fixture is now a wall draft as in production) and the old Reground wipe
 (`base-editor.test.cjs`) were updated.
+
+### Copying and pasting curves, 2026-10-19
+
+A face ring stores an analytic curve as tessellation vertices. Those vertices
+are evaluation results, not points: `ExteriorGeometry.curveSamplePoint(face)`
+identifies them (a ring vertex on a curve of the face, between two neighbors on
+the same curve, that is not a curve end, spline control or authored point).
+`copyGeometry` flags them `curveSample`, so paste and move snapping,
+`planeAlignment`, `planeAlignmentGuides`, `stickerAlignmentTargets`, the move
+markers and the post-placement selection use only defining points. Faces and
+edges still carry the full ring. A paste gives each pasted curve a new id
+(`paste-<op>-curve-k`), since draft import and the surface wire de-duplicate
+curves by id; and sticker placement moves face curves with their points. Before
+this, a pasted arched door kept the source curve id and an unmoved curve, so its
+samples became explicit draft points and the region split into slivers.
+Regression tests: the "arched" and "curved wall pastes" tests in
+`wall-face-draft.test.cjs`.

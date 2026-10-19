@@ -4,7 +4,10 @@ session_start();
 require_once __DIR__ . '/_full_house.php';
 require_once dirname(__DIR__, 2) . '/includes/provider_keys.php';
 header('Cache-Control: private, no-store');
+$resourceBackground = false;
 function resource_error($status, $message) {
+    // A background frame job has already answered; its failure goes to the job record.
+    if ($GLOBALS['resourceBackground']) throw new RuntimeException($message);
     if (!headers_sent()) { http_response_code($status); header('Content-Type: application/json'); echo json_encode(['error'=>$message]); }
     exit;
 }
@@ -93,6 +96,45 @@ function resource_index($name, $raw) {
         foreach ($index['sha256'] as $digest) if (!is_string($digest) || !preg_match('/^[a-f0-9]{64}$/D', $digest)) resource_error(422, 'Invalid resource checksum.');
     }
     return $index;
+}
+if ($method === 'POST' && ($_GET['action'] ?? '') === 'frame') {
+    // The browser sends a video name and timestamp; the server decodes and stores the frame
+    // after answering, so a slow connection never uploads image bytes.
+    require_once __DIR__ . '/_resource_frames.php';
+    if ($customerOrder) resource_error(403, 'Customer references cannot save frames.');
+    if (!fm_resource_frame_name_valid($name)) resource_error(400, 'Invalid frame name.');
+    $input = fopen('php://input', 'rb'); $request = json_decode((string)stream_get_contents($input, 65536), true); fclose($input);
+    $source = $request['source'] ?? ''; $time = $request['time'] ?? null;
+    if (!fm_resource_frame_source_valid($source)) resource_error(400, 'Choose a stored video.');
+    if (!(is_int($time) || is_float($time)) || !is_finite((float)$time) || $time < 0 || $time > 86400) resource_error(400, 'Invalid frame time.');
+    $favorite = null;
+    if (isset($request['favorite'])) {
+        $record = $request['favorite']['record'] ?? ''; $favoriteLabel = $request['favorite']['label'] ?? '';
+        if (!is_string($record) || !preg_match('/^internal-markup-favorite-[0-9a-f-]{36}\.json$/D', $record) || !is_string($favoriteLabel) || mb_strlen($favoriteLabel) > 160) resource_error(400, 'Invalid favorite frame.');
+        $favorite = ['record'=>$record, 'label'=>preg_replace('/[ -]/', ' ', $favoriteLabel)];
+    }
+    $originalName = $request['original_name'] ?? '';
+    $originalName = is_string($originalName) && $originalName !== '' && strlen($originalName) <= 255 ? preg_replace('/[ -]/', ' ', $originalName) : 'Video frame.png';
+    resource_api($source); // The source must exist before a job is accepted.
+    $jobName = fm_resource_frame_job_name($name);
+    $jobRecord = ['version'=>1, 'status'=>'running', 'frame'=>$name, 'source'=>$source, 'time'=>(float)$time, 'started_at'=>gmdate('c')];
+    resource_api($jobName, json_encode($jobRecord));
+    $answer = json_encode(['ok'=>true, 'job'=>$jobName, 'frame'=>$name]);
+    ignore_user_abort(true); set_time_limit(600);
+    http_response_code(202); header('Content-Type: application/json'); header('Content-Length: ' . strlen($answer)); header('Connection: close');
+    echo $answer;
+    if (function_exists('fastcgi_finish_request')) fastcgi_finish_request(); else { while (ob_get_level()) ob_end_flush(); flush(); }
+    $resourceBackground = true;
+    $job = ['project'=>$project, 'frame'=>$name, 'source'=>$source, 'time'=>(float)$time, 'original_name'=>$originalName, 'actor'=>$resourceActor,
+        'role'=>($_SERVER['HTTP_X_RESOURCE_ROLE'] ?? '') === 'qa' ? 'qa' : 'tech', 'favorite'=>$favorite];
+    try {
+        $result = fm_resource_frame_run($job, fn($part) => resource_api($part), function ($part, $bytes, $digest) {
+            resource_api($part, $bytes);
+            if ($digest !== null && !hash_equals($digest, hash('sha256', resource_api($part)))) throw new RuntimeException('Stored frame checksum mismatch.');
+        });
+    } catch (Throwable $error) { $result = ['status'=>'failed', 'error'=>$error->getMessage(), 'finished_at'=>gmdate('c')]; }
+    try { resource_api($jobName, json_encode($result + $jobRecord)); } catch (Throwable $error) { error_log('Resource frame job record failed: ' . $error->getMessage()); }
+    exit;
 }
 if ($method === 'POST') {
     if (!$name) resource_error(400, 'Resource name required.');

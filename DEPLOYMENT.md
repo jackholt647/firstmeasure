@@ -894,6 +894,8 @@ Preserve the compatibility PHP app API map: `$fm_preview_php_platform_base` maps
 
 Google/Gemini and internal API keys resolved under the actual service user on all eight hosts; Telnyx, Meta, and Statsig credential variables were present. Presence does not prove every external operation works. Test the provider affected by a change using an appropriate non-destructive check.
 
+Resources "Save Frame" decodes video frames on the PHP hosts with ffmpeg (`public/measure/internal/_resource_frames.php`). The development web, pool and compatibility hosts have the distribution `ffmpeg` package (installed 2026-10-19); production PHP hosts need it before this feature ships there. Without it a frame save fails with a clear message.
+
 Repository NGINX/systemd examples may predate these repairs. Reconcile hostname maps, TLS forwarding, secret permissions, browser provisioning, private routing, and configuration precedence before replacing live configuration.
 
 ## Verification, rollback, and DNS

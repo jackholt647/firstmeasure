@@ -64,6 +64,7 @@
     <button data-action="upload" aria-label="Add files" title="Add files">${icon('upload')} <span class="resource-action-label">Upload</span></button>
     <button data-action="coreViews" class="resource-core-button" aria-pressed="false">&#9638; <span class="resource-action-label">Core Views</span></button>
     <span class="resource-filename">Project resources</span>
+    <button data-action="jobs" class="resource-jobs" hidden aria-live="polite"></button>
     <button data-action="overlay" disabled title="Use this still image behind the 3D model" aria-label="Use image as 3D background">${icon('overlay')}<span>Overlay</span></button>
     <button data-action="markup" aria-expanded="false" aria-controls="resource-inspector" title="Open markup tools">${icon('markup')} <span class="resource-action-label">Markup</span></button>
     <button data-action="favorites" aria-expanded="false" title="Saved video frames">${icon('frames')} <span class="resource-action-label">Frames</span></button>
@@ -78,6 +79,7 @@
     <aside id="resource-library" class="resource-library" aria-label="Project files">
      <div class="resource-file-list"></div>
     </aside>
+    <div class="resource-splitter" role="separator" aria-orientation="vertical" aria-controls="resource-library" aria-label="Resize file library" title="Drag to resize the file library (double-click to reset)" tabindex="0"></div>
     <main class="resource-content">
      <div class="resource-stage" tabindex="0" aria-label="Media viewer. Wheel to zoom, drag to pan, double-click to fit.">
       <div class="resource-empty"><strong>Project references</strong><span>Open a saved project to add photos and walkthrough videos.</span></div>
@@ -128,6 +130,10 @@
   let scale = 1, ox = 0, oy = 0, gesture = null, frameTime = null, fitMode = 'contain';
   let stageWidth = 0, stageHeight = 0, frameSource = null, filesOpen = true, inspector = '', spaceDown = false, messageTimer = 0;
   let favorites = [], favoriteDraft = null, strokeWidth = 4, markupOpen = false, keyboardOwner = false;
+  // busy: a markup save is running (savingPromise). Uploads and frame jobs never block viewing.
+  let uploading = false, savingPromise = null, projectEpoch = 0, refreshSeq = 0, serverFiles = [], referenceFiles = [];
+  const defaultLibraryWidth = 336; let libraryWidth = defaultLibraryWidth;
+  const frameJobs = new Map(), pendingFrames = new Map();
   const favoritePrefix = 'internal-markup-favorite-';
   let frameLinks=new Map();
   const imageCache=referenceCache(),markupCache=referenceCache({maxBytes:2*1024*1024,maxEntries:64});
@@ -138,18 +144,22 @@
 
   const frameLink=file=>{const link=frameLinks.get(file?.name);return link&&files.some(f=>f.name===link.source)?link:null;};
   async function jumpToFrame(file){const link=frameLink(file);if(link)await open(files.find(f=>f.name===link.source),{time:link.time});}
-  function savedFrameAtPlayhead(){const time=scrub?.target??media?.currentTime;return media?.videoWidth&&files.find(f=>{const link=frameLink(f);return link?.source===current?.name&&Math.abs(link.time-time)<.02;});}
-  function updateFrameAction(){const button=$('[data-action="returnVideo"]'),video=!!media?.videoWidth,saved=video&&savedFrameAtPlayhead();button.hidden=!frameSource&&!video;button.textContent=video?(saved?'Saved Frame':'Save Frame'):'Jump to video frame';button.classList.toggle('is-saved',!!saved);button.disabled=busy||!!favoriteDraft;button.title=saved?'Open the saved frame':video?'Save this frame without a title':'Open the source video at this frame';}
+  // A saved time matches the playhead when it is the frame on screen (or the exact time asked for).
+  function atPlayhead(time){if(!media)return false;if(scrub?.element===media)return Math.abs(time-scrub.target)<.02;const shown=shownFrameTime(media),info=frameInfo.get(media),span=info?.known?info.duration:.02;return Math.abs(time-media.currentTime)<.02||time>=shown-.001&&time<shown+span-.001;}
+  function savedFrameAtPlayhead(){return media?.videoWidth&&files.find(f=>{const link=frameLink(f);return !f.pending&&link?.source===current?.name&&atPlayhead(link.time);});}
+  function updateFrameAction(){const button=$('[data-action="returnVideo"]'),video=!!media?.videoWidth,saved=video&&savedFrameAtPlayhead(),saving=video&&!saved&&pendingFrameAt(current?.name);button.hidden=!frameSource&&!video;button.textContent=video?(saved?'Saved Frame':saving?'Saving frame…':'Save Frame'):'Jump to video frame';button.classList.toggle('is-saved',!!saved);button.classList.toggle('is-saving',!!saving);button.disabled=!!favoriteDraft||!!saving;button.title=saved?'Open the saved frame':video?'Save this frame without a title (the server extracts it)':'Open the source video at this frame';}
   const uuid = () => crypto.randomUUID(), prefix = 'internal-resource-', markupPrefix = 'internal-markup-';
-  const url = (id, name = '') => 'project_resources.php?' + new URLSearchParams({ project: id, ...(name ? { name } : {}) });
+  const url = (id, name = '', action = '') => 'project_resources.php?' + new URLSearchParams({ project: id, ...(name ? { name } : {}), ...(action ? { action } : {}) });
+  // Resource names allow only ASCII letters, digits, dot, dash and underscore.
+  const safeName = text => String(text).normalize('NFKD').replace(/\p{M}/gu, '').replace(/[^a-zA-Z0-9._-]+/g, '_').replace(/^[._-]+|_+$/g, '');
   const fileId = name => name.replace(/^internal-resource-(?:v2-)?/, '').slice(0, 36);
   const label = name => files.find(file => file.name === name)?.original_name || name.replace(/^internal-resource-(?:v2-)?/, '').slice(37);
   const sourceUrl = file => file.src || url(project,file.name);
   const viewKey = id => 'firstmeasure:resources:view:'+id;
   let restoring=false,collapsedGroups={},coreActive=false,coreVideo=null,coreVideoName=null;
   function savedView(id){try{return JSON.parse(localStorage.getItem(viewKey(id)))||{};}catch{return {};}}
-  function remember(){if(!project||restoring)return;try{localStorage.setItem(viewKey(project),JSON.stringify({active,coreActive,name:current?.name,collapsedGroups,filesOpen,inspector,expanded:panel.classList.contains('expanded'),time:media?.currentTime||0,scale,ox,oy,stageWidth:stage.clientWidth,stageHeight:stage.clientHeight}));}catch{}}
-  async function restoreView(saved=savedView(project)){restoring=true;try{const file=files.find(f=>f.name===saved.name);if(file&&!saved.coreActive)await open(file,{time:saved.time});else await showCoreViews();filesOpen=saved.filesOpen!==false;inspector=['notes','markup','favorites'].includes(saved.inspector)?saved.inspector:'';panel.classList.toggle('expanded',!!saved.expanded);updateDrawers();if(file&&image&&saved.scale>0&&saved.stageWidth===stage.clientWidth&&saved.stageHeight===stage.clientHeight){scale=saved.scale;ox=saved.ox;oy=saved.oy;draw();}}finally{restoring=false;}}
+  function remember(){if(!project||restoring)return;try{localStorage.setItem(viewKey(project),JSON.stringify({active,coreActive,name:current?.name,collapsedGroups,filesOpen,inspector,expanded:panel.classList.contains('expanded'),libraryWidth,time:media?.currentTime||0,scale,ox,oy,stageWidth:stage.clientWidth,stageHeight:stage.clientHeight}));}catch{}}
+  async function restoreView(saved=savedView(project)){restoring=true;try{const file=files.find(f=>f.name===saved.name);if(file&&!saved.coreActive)await open(file,{time:saved.time});else await showCoreViews();filesOpen=saved.filesOpen!==false;inspector=['notes','markup','favorites'].includes(saved.inspector)?saved.inspector:'';panel.classList.toggle('expanded',!!saved.expanded);setLibraryWidth(saved.libraryWidth);updateDrawers();if(file&&image&&saved.scale>0&&saved.stageWidth===stage.clientWidth&&saved.stageHeight===stage.clientHeight){scale=saved.scale;ox=saved.ox;oy=saved.oy;draw();}}finally{restoring=false;}}
   async function feedback(id){for(const action of ['project_feedback','project_bundle']){const response=await fetch(window.location.pathname+'?'+new URLSearchParams({action,folder:id}),{cache:'no-store'});if(response.ok&&response.headers.get('content-type')?.includes('application/json'))return response.json();if(response.status===401||response.status===403)break;}throw Error('Reference notes could not be loaded. Refresh Files to retry.');}
   async function uploadFile(id,name,file){
    if(!file.size)throw Error('The file is empty.');
@@ -167,23 +177,21 @@
    // The index makes the completed file visible only after all parts are stored.
    return request(id,name,JSON.stringify({format:'firstmeasure-resource-chunks-v1',id:resourceId,size:file.size,chunkSize,parts,sha256,original_name:file.name||label(name),content_type:file.type||'application/octet-stream'}));
   }
-  async function request(id,name='',body,headers={}){if(/^exteriors_[a-f0-9]{32}$/.test(id)&&!name&&body===undefined)return new Response(JSON.stringify({files:[]}),{headers:{'Content-Type':'application/json'}});const response=await fetch(url(id,name),body===undefined?{cache:'no-store'}:{method:'POST',headers:{'X-Resource-Request':'1','X-Resource-Role':currentRole(),'Content-Type':'application/octet-stream',...headers},body});if(!response.ok){const data=await response.json().catch(()=>({}));throw Error(data.error||`Resource request failed (${response.status}).`);}return response;}
+  async function request(id,name='',body,headers={},action=''){if(/^exteriors_[a-f0-9]{32}$/.test(id)&&!name&&body===undefined)return new Response(JSON.stringify({files:[]}),{headers:{'Content-Type':'application/json'}});const response=await fetch(url(id,name,action),body===undefined?{cache:'no-store'}:{method:'POST',headers:{'X-Resource-Request':'1','X-Resource-Role':currentRole(),'Content-Type':'application/octet-stream',...headers},body});if(!response.ok){const data=await response.json().catch(()=>({}));throw Error(data.error||`Resource request failed (${response.status}).`);}return response;}
   function message(text, error = false) {
    status.textContent = text; status.classList.toggle('error', error); status.classList.add('visible'); clearTimeout(messageTimer);
-   if (!error) messageTimer = setTimeout(() => { if (!busy) status.classList.remove('visible'); }, 3500);
+   if (!error) messageTimer = setTimeout(() => { if (!busy && !uploading) status.classList.remove('visible'); }, 3500);
   }
   function dimensions() { return image ? { w: image.width, h: image.height } : { w: media?.videoWidth || 0, h: media?.videoHeight || 0 }; }
   function controls() {
-   for (const action of ['upload', 'refresh']) $(`[data-action="${action}"]`).disabled = busy || !project;
+   for (const action of ['upload', 'refresh']) $(`[data-action="${action}"]`).disabled = uploading || !project;
    if(/^exteriors_[a-f0-9]{32}$/.test(project||'')) $('[data-action="upload"]').disabled=true;
    const saveButton = $('[data-action="save"]'); saveButton.hidden = !dirty; saveButton.disabled = busy || !current || !dirty; saveButton.textContent = busy && dirty ? 'Saving…' : 'Save';
    $('.resource-description').disabled = !current || !!current.reference;
-   $('[data-action="favorite"]').disabled = busy || !media?.videoWidth || !!favoriteDraft;
+   $('[data-action="favorite"]').disabled = !media?.videoWidth || !!favoriteDraft;
    $('[data-action="overlay"]').setAttribute('aria-pressed',String(!!current&&window.Resource3DOverlay?.imageName===current.name));
    $('[data-action="overlay"]').setAttribute('aria-label',current&&window.Resource3DOverlay?.imageName===current.name?'Remove image from 3D background':'Use image as 3D background');
    $('[data-action="overlay"]').disabled = busy || !image || !!media || !!current?.reference || !window.Resource3DOverlay;
-   $('.resource-favorite-entry input').disabled = busy;
-   $('.resource-favorite-entry button').disabled = busy;
    $('[data-action="markup"]').disabled = !current || busy || !!current.reference || (!image && !media?.videoWidth);
    $('[data-action="notes"]').disabled = !current; $('[data-action="download"]').disabled = !current;
    $('.resource-notes-dot').hidden = !$('.resource-description').value.trim();
@@ -192,14 +200,14 @@
    $('.resource-view-controls').hidden = !dimensions().w;
    $('.resource-note').hidden = tool !== 'note' && marks[selected]?.type !== 'note'; $('[data-action="applyText"]').hidden = marks[selected]?.type !== 'note';
    $('[data-action="undo"]').disabled = !history.length; $('[data-action="redo"]').disabled = !redo.length; $('[data-action="delete"]').disabled = selected < 0;
-   panel.classList.toggle('is-busy', busy);
+   panel.classList.toggle('is-busy', busy || uploading);
   }
   function changed() { dirty = true; controls(); }
   function snapshot() { history.push(JSON.stringify(marks)); if (history.length > 100) history.shift(); redo = []; changed(); }
   function updateDrawers() {
    const opening=inspector==='markup';if(opening!==markupOpen){markupOpen=opening;gesture=null;setTool(opening?'pen':'pan');}
    panel.classList.toggle('files-open', filesOpen); panel.classList.toggle('inspector-open', !!inspector);
-   $('#resource-library').hidden = !filesOpen; $('#resource-inspector').hidden = !inspector;
+   $('#resource-library').hidden = !filesOpen; $('.resource-splitter').hidden = !filesOpen; $('#resource-inspector').hidden = !inspector;
    $('[data-action="files"]').setAttribute('aria-expanded', String(filesOpen));
    for (const kind of ['markup', 'notes', 'favorites']) $('[data-action="' + kind + '"]').setAttribute('aria-expanded', String(inspector === kind));
    $('.resource-inspector-title').textContent = inspector === 'favorites' ? 'Favorite frames' : inspector === 'notes' ? 'Reference notes' : 'Markup';
@@ -229,17 +237,29 @@
    canvas.hidden = true; player.hidden = true; empty.hidden = false; $('.resource-transport').hidden = true;
    $('.resource-description').value = ''; $('.resource-note input').value = ''; panel.classList.remove('has-video'); setTool('pan'); controls(); draw();
   }
+  let syncing = false;
+  // A pending markup save finishes (or fails visibly) before the view moves on.
+  async function settleMarkup() { if (savingPromise) await savingPromise.catch(() => {}); if (dirty) await save(); }
+  // The list is the stored files, the order's reference catalog and frames still being extracted.
+  function setServerFiles(next) {
+   serverFiles = next || [];
+   for (const [name, file] of pendingFrames) if (serverFiles.some(f => f.name === name)) { pendingFrames.delete(name); if (current?.name !== name) URL.revokeObjectURL(file.src); }
+   files = [...serverFiles, ...referenceFiles.filter(r => !r.resource_name || !serverFiles.some(f => f.name === r.resource_name)), ...pendingFrames.values()];
+  }
   async function syncProject() {
-   const next = String(window.currentProjectId || ''); if (project === next || busy) return; if (dirty) await save();
-   remember(); const priorView=savedView(next);restoring=true; epoch++; releaseMedia(); imageCache.clear(); markupCache.clear(); project = next; collapsedGroups=priorView.collapsedGroups||{}; reset(); files = []; favorites = []; renderFavorites(); list.replaceChildren(); filesOpen = true; inspector = ''; updateDrawers();
+   const next = String(window.currentProjectId || ''); if (project === next || syncing) return; syncing = true;
+   try { await settleMarkup(); } finally { syncing = false; } if (project === next) return;
+   remember(); const priorView=savedView(next);restoring=true; epoch++; projectEpoch++; releaseMedia(); for (const file of pendingFrames.values()) URL.revokeObjectURL(file.src); pendingFrames.clear(); serverFiles = []; referenceFiles = []; setLibraryWidth(priorView.libraryWidth); imageCache.clear(); markupCache.clear(); project = next; collapsedGroups=priorView.collapsedGroups||{}; reset(); files = []; favorites = []; renderFavorites(); list.replaceChildren(); filesOpen = true; inspector = ''; updateDrawers();
    empty.innerHTML = '<strong>Project references</strong><span></span>';
    empty.querySelector('span').textContent = project ? 'Choose a file, or drop photos and walkthrough videos here.' : 'Open a saved project to add reference files.';
    if (project) {await refresh();await restoreView(priorView);}else restoring=false;
   }
-  async function refresh() {
-   const id = project, ticket = epoch; if (!id) return; message('Loading project files…');
-   try { const [data,notes] = await Promise.all([(await request(id)).json(),feedback(id).then(value=>({value}),error=>({error}))]); if (ticket !== epoch) return; files = [...(data.files || []),...referenceCatalog(notes.value||{manifest:window.currentProjectManifest,app_metadata:window.currentProjectLoadedAppMetadata},name=>window.firstMeasureBuildUrl('/projects/'+encodeURIComponent(id)+'/artifacts/'+encodeURIComponent(name))).filter(r=>!r.resource_name||!(data.files||[]).some(f=>f.name===r.resource_name))]; await loadFavorites(id, ticket); if (ticket !== epoch) return; renderList(); message(notes.error?notes.error.message:'Project files updated.',!!notes.error); }
-   catch (error) { if (ticket === epoch) message(error.message, true); } controls();
+  async function refresh(options = {}) {
+   // Opening files does not cancel a refresh; only a project change or a newer refresh does.
+   const id = project, ticket = projectEpoch, seq = ++refreshSeq; if (!id) return; const quiet = !!options.quiet; if (!quiet) message('Loading project files…');
+   const stale = () => ticket !== projectEpoch || seq !== refreshSeq;
+   try { const [data,notes] = await Promise.all([(await request(id)).json(),feedback(id).then(value=>({value}),error=>({error}))]); if (stale()) return; referenceFiles = referenceCatalog(notes.value||{manifest:window.currentProjectManifest,app_metadata:window.currentProjectLoadedAppMetadata},name=>window.firstMeasureBuildUrl('/projects/'+encodeURIComponent(id)+'/artifacts/'+encodeURIComponent(name))); setServerFiles(data.files); await loadFavorites(id, ticket); if (stale()) return; renderList(); if (notes.error) message(notes.error.message, true); else if (!quiet) message('Project files updated.'); }
+   catch (error) { if (!stale()) message(error.message, true); } controls();
   }
   function renderCoreViews(){
    const grid=$('.resource-core-grid');grid.replaceChildren();
@@ -248,7 +268,7 @@
     if(!slot){
      cell.classList.add('resource-core-video');const videos=files.filter(isVideoFile),chosen=videos.find(f=>f.name===coreVideoName)||file;
      if(chosen){
-      if(!coreVideo||coreVideoName!==chosen.name){coreVideo?.pause();coreVideo=document.createElement('video');coreVideo.controls=true;coreVideo.playsInline=true;coreVideo.preload='metadata';coreVideo.src=sourceUrl(chosen);coreVideoName=chosen.name;}
+      if(!coreVideo||coreVideoName!==chosen.name){coreVideo?.pause();coreVideo=document.createElement('video');coreVideo.controls=true;coreVideo.muted=true;coreVideo.defaultMuted=true;coreVideo.playsInline=true;coreVideo.preload='metadata';coreVideo.src=sourceUrl(chosen);coreVideoName=chosen.name;}
       coreVideo.setAttribute('aria-label','Walkthrough video');cell.append(coreVideo);
       const footer=document.createElement('div');footer.className='resource-core-video-actions';
       if(videos.length>1){const select=document.createElement('select');select.setAttribute('aria-label','Core view video');for(const video of videos){const option=document.createElement('option');option.value=video.name;option.textContent=label(video.name);option.selected=video.name===chosen.name;select.append(option);}select.onchange=()=>{coreVideo?.pause();coreVideo=null;coreVideoName=select.value;renderCoreViews();};footer.append(select);}
@@ -264,37 +284,73 @@
    }
   }
   async function showCoreViews(){
-   if(busy)return;if(dirty)await save();epoch++;reset();inspector='';updateDrawers();coreActive=true;empty.hidden=true;
+   await settleMarkup();epoch++;reset();inspector='';updateDrawers();coreActive=true;empty.hidden=true;
    $('.resource-core-grid').hidden=false;$('[data-action="coreViews"]').setAttribute('aria-pressed','true');$('.resource-filename').textContent='';renderList();remember();
   }
+  const isImageFile=file=>!file.notes&&(/\.(png|jpe?g|gif|webp|avif|bmp)$/i.test(file.original_name||file.name||'')||/^data:image\//.test(file.src||''));
+  const slotNames={front:'Front',back:'Back',left:'Left',right:'Right','front-left':'Front Left','front-right':'Front Right','back-left':'Back Left','back-right':'Back Right'};
+  const displayName=file=>(file.elevation_view?(slotNames[file.elevation_view]||file.elevation_view)+' · ':'')+label(file.name);
+  // Categories are QA, Tech and Customer; within each, videos lead, then newest first.
+  function libraryGroups(){
+   const resources=files.filter(file=>file.reference||file.name.startsWith(prefix)),newest=(a,b)=>String(b.updated_at||b.uploaded_at||'').localeCompare(String(a.updated_at||a.uploaded_at||''));
+   return ['qa','tech','customer'].map(role=>({role,bucket:resources.filter(f=>(f.role||'tech')===role).sort((a,b)=>isVideoFile(b)-isVideoFile(a)||newest(a,b))}));
+  }
+  // Cards and sections are kept by name and rebuilt only when their file
+  // changes, so a click is never lost to a list redraw between press and release.
+  const sectionNodes=new Map(),cardNodes=new Map();
+  function fileCard(file,role){
+   const overlayOn=window.Resource3DOverlay?.imageName===file.name,link=frameLink(file),job=frameJobs.get(file.name);
+   const signature=JSON.stringify([role,displayName(file),file.uploaded_at,file.updated_at,sourceUrl(file),link?.time,overlayOn,job?.status,!!file.reference]);
+   const cached=cardNodes.get(file.name);if(cached?.signature===signature)return cached.card;
+   const button = document.createElement('button'); button.className = 'resource-item'; button.dataset.name = file.name;
+   const name = document.createElement('span'); name.className='resource-item-name'; name.textContent = displayName(file); button.append(name);
+   button.setAttribute('aria-label', displayName(file));
+   button.title = displayName(file)+' · '+roleName(role)+(link?' · frame '+timeLabel(link.time):'')+(file.uploaded_at ? '\n' + new Date(file.uploaded_at).toLocaleString() : '');
+   button.onclick = () => open(file).catch(error => message(error.message, true));
+   const card=document.createElement('div');card.className='resource-file-card';card.append(button);
+   const photo=isImageFile(file),video=isVideoFile(file);
+   if(photo||video){card.classList.add('resource-media-tile');card.classList.toggle('resource-video-tile',video);const preview=document.createElement('span');preview.className='resource-thumbnail';preview.setAttribute('aria-hidden','true');
+    if(photo){const img=document.createElement('img');img.alt='';img.loading='lazy';img.decoding='async';img.src=sourceUrl(file);img.onerror=()=>{img.remove();preview.prepend('Image');};preview.append(img);
+     if(file.elevation_view){const slot=document.createElement('span');slot.className='resource-tile-badge';slot.textContent=slotNames[file.elevation_view]||file.elevation_view;preview.append(slot);}
+     if(link){const time=document.createElement('span');time.className='resource-tile-badge resource-tile-time';time.textContent=timeLabel(link.time);preview.append(time);}
+     if(job&&job.status!=='done'){const state=document.createElement('span');state.className='resource-tile-state'+(job.status==='failed'?' failed':'');state.textContent=job.status==='failed'?'Not saved':'Saving…';preview.append(state);}
+    }
+    else preview.innerHTML=icon('frames');
+    button.prepend(preview);
+   }
+   if(link){const jump=document.createElement('button');jump.className='resource-frame-shortcut';jump.innerHTML=icon('frames');jump.title='Video frame · '+timeLabel(link.time)+' · Jump to video';jump.setAttribute('aria-label','Jump to video frame for '+label(file.name));jump.onclick=()=>jumpToFrame(file).catch(error=>message(error.message,true));card.append(jump);}
+   if (!file.reference&&!file.pending&&/\.(png|jpe?g|gif|webp|avif|bmp)$/i.test(file.name)) {const overlay=document.createElement('button');overlay.className='resource-overlay-shortcut';overlay.innerHTML=icon('overlay');overlay.title=overlayOn?'Remove from 3D background':'Show behind 3D model';overlay.setAttribute('aria-label',(overlayOn?'Remove ':'Use ')+label(file.name)+(overlayOn?' from 3D background':' as 3D background'));overlay.setAttribute('aria-pressed',String(overlayOn));overlay.onclick=()=>sendBackground(file).catch(error=>message(error.message,true));card.append(overlay);}
+   cardNodes.set(file.name,{signature,card,button});return card;
+  }
+  function markActive(){for(const [name,{button}]of cardNodes){const on=current?.name===name;button.classList.toggle('active',on);if(on)button.setAttribute('aria-current','true');else button.removeAttribute('aria-current');}}
   function renderList() {
    if(coreActive)renderCoreViews();
-   list.replaceChildren(); const resources = files.filter(file => file.reference||file.name.startsWith(prefix)).sort((a, b) => String(b.updated_at || '').localeCompare(String(a.updated_at || '')));
-   $('.resource-count').textContent = resources.length || '';
-   for(const role of [...(resources.some(isVideoFile)?['videos']:[]),'qa','tech','customer']){
-   const bucket=resources.filter(f=>role==='videos'?isVideoFile(f):!isVideoFile(f)&&(f.role||'tech')===role),section=document.createElement('details');section.className='resource-section';section.dataset.role=role;section.open=collapsedGroups[role]===undefined?bucket.length>0:!collapsedGroups[role];
-   const heading=document.createElement('summary');heading.className='resource-section-heading';heading.innerHTML=icon(role==='videos'?'frames':role);
-   const title=document.createElement('span');title.textContent=role==='videos'?'Videos':roleName(role)+(role===currentRole()?' (You)':'');const count=document.createElement('span');count.className='resource-section-count';count.textContent=bucket.length;heading.append(title,count);section.append(heading);list.append(section);
-   section.addEventListener('toggle',()=>{if(!section.isConnected)return;collapsedGroups[role]=!section.open;remember();});
-   const grid=document.createElement('div');grid.className='resource-file-grid';section.append(grid);
-   if(!bucket.length){const empty=document.createElement('div');empty.className='resource-section-empty';empty.textContent='No files yet';grid.append(empty);}
-   for (const file of bucket) {
-    const button = document.createElement('button'); button.className = 'resource-item'; button.classList.toggle('active', current?.name === file.name);
-    const name = document.createElement('span'); name.textContent = (file.elevation_view ? ({front:'Front',back:'Back',left:'Left',right:'Right','front-left':'Front Left','front-right':'Front Right','back-left':'Back Left','back-right':'Back Right'}[file.elevation_view]||file.elevation_view)+' · ' : '') + label(file.name); button.append(name);
-    button.title = name.textContent+' · '+roleName(role)+(file.uploaded_at ? '\n' + new Date(file.uploaded_at).toLocaleString() : '');
-    button.onclick = () => open(file).catch(error => message(error.message, true));
-    const card=document.createElement('div');card.className='resource-file-card';card.append(button);
-    const ext=(file.original_name||file.name).split('.').pop().toLowerCase(),photo=!file.notes&&/^(png|jpe?g|gif|webp|avif|bmp)$/.test(ext),video=!file.notes&&/^(mp4|webm|mov)$/.test(ext);
-    if(photo||video){card.classList.add('resource-media-tile');const preview=document.createElement('span');preview.className='resource-thumbnail';preview.setAttribute('aria-hidden','true');
-     if(photo){const img=document.createElement('img');img.alt='';img.loading='lazy';img.decoding='async';img.src=sourceUrl(file);img.onerror=()=>{img.remove();preview.textContent='Image';};preview.append(img);}
-     else {preview.innerHTML=icon('frames');const badge=document.createElement('span');badge.className='resource-media-kind';badge.textContent='Video';preview.append(badge);}
-     button.prepend(preview);
+   const groups=libraryGroups(),seen=new Set(),sections=[];
+   $('.resource-count').textContent = groups.reduce((n,g)=>n+g.bucket.length,0) || '';
+   for(const {role,bucket}of groups){
+    let node=sectionNodes.get(role);
+    if(!node){
+     const section=document.createElement('details');section.className='resource-section';section.dataset.role=role;
+     const heading=document.createElement('summary');heading.className='resource-section-heading';heading.innerHTML=icon(role);
+     const title=document.createElement('span'),count=document.createElement('span');count.className='resource-section-count';heading.append(title,count);
+     const grid=document.createElement('div');grid.className='resource-file-grid';const emptyNote=document.createElement('div');emptyNote.className='resource-section-empty';emptyNote.textContent='No files yet';
+     section.append(heading,grid);section.addEventListener('toggle',()=>{if(!section.isConnected)return;collapsedGroups[role]=!section.open;remember();});
+     node={section,title,count,grid,emptyNote};sectionNodes.set(role,node);
     }
-    const link=frameLink(file);if(link){const jump=document.createElement('button');jump.className='resource-frame-shortcut';jump.innerHTML=icon('frames');jump.title='Video frame · '+timeLabel(link.time)+' · Jump to video';jump.setAttribute('aria-label','Jump to video frame for '+label(file.name));jump.onclick=()=>jumpToFrame(file).catch(error=>message(error.message,true));card.append(jump);}
-    if (!file.reference&&/\.(png|jpe?g|gif|webp|avif|bmp)$/i.test(file.name)) {const overlay=document.createElement('button');overlay.className='resource-overlay-shortcut';overlay.innerHTML=icon('overlay');overlay.title=window.Resource3DOverlay?.imageName===file.name?'Remove from 3D background':'Show behind 3D model';overlay.setAttribute('aria-label',(window.Resource3DOverlay?.imageName===file.name?'Remove ':'Use ')+label(file.name)+(window.Resource3DOverlay?.imageName===file.name?' from 3D background':' as 3D background'));overlay.setAttribute('aria-pressed',String(window.Resource3DOverlay?.imageName===file.name));overlay.onclick=()=>sendBackground(file).catch(error=>message(error.message,true));card.append(overlay);}
-    grid.append(card);
+    node.title.textContent=roleName(role)+(role===currentRole()?' (You)':'');node.count.textContent=bucket.length;
+    const open=collapsedGroups[role]===undefined?bucket.length>0:!collapsedGroups[role];if(node.section.open!==open)node.section.open=open;
+    const cards=bucket.length?bucket.map(file=>{seen.add(file.name);return fileCard(file,role);}):[node.emptyNote];
+    if(cards.length!==node.grid.children.length||cards.some((card,i)=>node.grid.children[i]!==card))node.grid.replaceChildren(...cards);
+    sections.push(node.section);
    }
-   }
+   if(list.children.length!==sections.length||sections.some((section,i)=>list.children[i]!==section))list.replaceChildren(...sections);
+   for(const name of [...cardNodes.keys()])if(!seen.has(name))cardNodes.delete(name);
+   markActive();
+  }
+  // Left/Right on a photo walk the photos in library order.
+  function stepItem(direction){
+   const items=libraryGroups().flatMap(g=>g.bucket).filter(isImageFile),index=items.findIndex(f=>f.name===current?.name);
+   const next=items[index<0?0:index+direction];if(next&&next!==current)open(next).catch(error=>message(error.message,true));
   }
   let overlayRequest=0;
   async function sendBackground(file){
@@ -352,7 +408,7 @@
    $('[data-action="mute"]').textContent = media.muted ? '×♪' : '♪'; $('[data-action="mute"]').setAttribute('aria-label', media.muted ? 'Unmute' : 'Mute');
   }
   async function open(file, options = {}) {
-   if (busy || !file) return; if (dirty) await save(); const ticket = ++epoch; reset(); current = file; renderList();
+   if (!file) return; await settleMarkup(); const ticket = ++epoch; reset(); current = file; markActive(); panel.classList.add('is-loading');
    if (!options.keepInspector) inspector = ''; updateDrawers();
    empty.textContent = 'Loading reference…'; const src = sourceUrl(file), ext = (file.original_name||file.name).split('.').pop().toLowerCase();
    try {
@@ -361,7 +417,7 @@
     if (favorite) frameSource = { file: files.find(item => item.name === favorite.source), time: favorite.time };
     if (saved?.sourceVideo && !frameSource) frameSource = { file: files.find(item => item.name === saved.sourceVideo.name), time: saved.sourceVideo.time };
     if (frameSource && !frameSource.file) frameSource = null;
-    if(frameSource){frameLinks.set(file.name,{source:frameSource.file.name,time:frameSource.time});renderList();}
+    if(frameSource&&frameLinks.get(file.name)?.time!==frameSource.time){frameLinks.set(file.name,{source:frameSource.file.name,time:frameSource.time});renderList();}
     if (saved) { marks = Array.isArray(saved.marks) ? saved.marks : []; $('.resource-description').value = saved.notes || ''; frameTime = saved.frameTime ?? null; }
     if(file.notes){empty.textContent=file.notes;$('.resource-description').value=file.notes;}
     else if(/^(txt|md|csv)$/.test(ext)){const response=await fetch(src);if(!response.ok)throw Error('Reference could not be loaded.');const text=await response.text();if(ticket===epoch)empty.textContent=text;}
@@ -371,8 +427,12 @@
      if(retainedMedia?.key!==key||retainedMedia?.element.error)releaseMedia();
      if(!retainedMedia){
       const element=document.createElement(isVideo?'video':'audio'),entry={key,element,pendingTime:null};retainedMedia=entry;
-      element.controls=false;element.preload='auto';element.playsInline=true;
-      element.onerror=()=>{if(element===media)message('This format cannot play in this browser. Download the original from More actions.',true);};
+      // Audio starts muted; the mute button turns it on for this video.
+      element.controls=false;element.preload='auto';element.playsInline=true;element.muted=true;element.defaultMuted=true;
+      element.onerror=()=>{if(element!==media)return;panel.classList.remove('is-loading','is-buffering');empty.hidden=false;empty.textContent='This video cannot play in this browser.';message('This format cannot play in this browser. Download the original from More actions.',true);};
+      if(isVideo)watchFrames(element);
+      for(const event of ['waiting','seeking'])element.addEventListener(event,()=>{if(element===media)panel.classList.add('is-buffering');});
+      for(const event of ['playing','seeked','canplay','pause','loadeddata'])element.addEventListener(event,()=>{if(element===media&&!element.seeking&&element.readyState>=2)panel.classList.remove('is-buffering');});
       element.addEventListener('loadedmetadata',()=>{if(element!==media)return;if(entry.pendingTime!=null){element.currentTime=Math.min(entry.pendingTime,Number.isFinite(element.duration)?element.duration:entry.pendingTime);entry.pendingTime=null;}fit();controls();updateTransport();});
       for(const event of ['timeupdate','durationchange','play','pause','ended','volumechange'])element.addEventListener(event,()=>{if(element===media)updateTransport();});
       element.addEventListener('seeked',()=>{if(element===media)queueScrub();});
@@ -384,29 +444,35 @@
      $('.resource-transport').hidden=false;panel.classList.toggle('has-video',isVideo);$('.resource-rate').value=String(element.playbackRate);fit();controls();updateTransport();
     } else if(ext==='pdf'){const frame=document.createElement('iframe');frame.title=label(file.name);frame.src=src;frame.style.cssText='width:100%;height:100%;border:0';player.append(frame);player.hidden=false;empty.hidden=true;}
     else empty.textContent = 'Preview is unavailable for this file. Use More actions → Download original to open it.';
-    if (ticket !== epoch) return; renderFavorites(); if (favorites.some(item => item.source === file.name)) { inspector = 'favorites'; updateDrawers(); } message('Wheel to zoom · Drag to pan · Double-click to fit'); draw();
-   } catch (error) { if (ticket === epoch) { empty.textContent = 'Unable to load reference.'; message(error.message, true); } } controls();remember();
+    if (ticket !== epoch) return; renderFavorites(); if (favorites.some(item => item.source === file.name)) { inspector = 'favorites'; updateDrawers(); } message(media?.videoWidth||/^(mp4|webm|mov)$/.test(ext)?'←/→ frame · J/L skip · K or Space play':'Wheel to zoom · Drag to pan · ←/→ next photo'); draw();
+   } catch (error) { if (ticket === epoch) { empty.hidden = false; empty.textContent = 'Unable to load reference.'; message(error.message, true); } }
+   finally { if (ticket === epoch) panel.classList.remove('is-loading'); } controls();remember();
   }
-  async function save() {
-   if (!current || current.reference || !project || !dirty) return;
-   if (busy) throw Error('Wait for the current upload to finish.');
-   const id = project, file = current, ticket = epoch;
+  function save() {
+   if (savingPromise) return savingPromise;
+   if (!current || current.reference || !project || !dirty) return Promise.resolve();
+   savingPromise = saveMarkup().finally(() => { savingPromise = null; busy = false; controls(); });
+   return savingPromise;
+  }
+  async function saveMarkup() {
+   const id = project, file = current, ticket = epoch, projectTicket = projectEpoch;
    busy = true; controls();
-   try {
+   {
     const signature = JSON.stringify({ marks, notes: $('.resource-description').value, frameTime });
     const record = { version: 1, media: file.name, marks, notes: $('.resource-description').value, frameTime, sourceVideo: frameSource ? { name: frameSource.file.name, time: frameSource.time } : null, author: window.FIRSTMEASURE_ACTOR?.name || '', savedAt: new Date().toISOString() };
     const name = markupPrefix + fileId(file.name) + '-' + Date.now() + '-' + uuid().slice(0, 12) + '.json';
     await request(id, name, JSON.stringify(record));
     // Use storage timestamps for revision ordering, including repeated saves in this session.
     const inventory = await (await request(id)).json();
+    if (projectTicket === projectEpoch) { setServerFiles(inventory.files); renderList(); }
     if (ticket === epoch) {
-     files = inventory.files || []; renderList();
      dirty = signature !== JSON.stringify({ marks, notes: $('.resource-description').value, frameTime });
      message('Markup saved to the project.');
     }
-   } finally { busy = false; controls(); }
+   }
   }
-  async function upload(incoming){if(busy)return;if(!project){message('Open a saved project before uploading.',true);return;}if(dirty)await save();const id=project,ticket=epoch;busy=true;controls();let count=0,failed=[];try{for(const file of incoming){message('Uploading '+file.name+'…');const safe=file.name.replace(/[^a-zA-Z0-9._-]/g,'_').slice(-42)||'file';try{await uploadFile(id,prefix+'v2-'+uuid()+'-'+safe,file);count++;}catch(e){failed.push(file.name+': '+e.message);}}if(ticket===epoch){await refresh();message(`${count} file(s) saved to project.${failed.length?' '+failed.join('; '):''}`,!!failed.length);}}finally{busy=false;$('.resource-files').value='';controls();}}
+  // Uploads run beside viewing: opening other files does not cancel or wait for them.
+  async function upload(incoming){if(uploading)return;if(!project){message('Open a saved project before uploading.',true);return;}const id=project,ticket=projectEpoch;uploading=true;controls();let count=0,failed=[];try{for(const file of incoming){message('Uploading '+file.name+'…');const safe=safeName(file.name).slice(-42)||'file';try{await uploadFile(id,prefix+'v2-'+uuid()+'-'+safe,file);count++;}catch(e){failed.push(file.name+': '+e.message);}}if(ticket===projectEpoch){await refresh({quiet:true});message(`${count} file(s) saved to project.${failed.length?' '+failed.join('; '):''}`,!!failed.length);}}finally{uploading=false;$('.resource-files').value='';controls();}}
   function fit(mode = 'contain') {
    const { w, h } = dimensions(); if (!w || !h || !stage.clientWidth || !stage.clientHeight) return;
    fitMode = mode; const x = stage.clientWidth / w, y = stage.clientHeight / h;
@@ -473,10 +539,10 @@
   stage.addEventListener('wheel', event => { if (!dimensions().w || isControl(event.target)) return; event.preventDefault(); const r = stage.getBoundingClientRect(); zoom(Math.exp(-event.deltaY * .0015), event.clientX - r.left, event.clientY - r.top); }, { passive: false });
   async function loadFavorites(id, ticket) {
    const records = await Promise.all(files.filter(file => file.name.startsWith(favoritePrefix)).map(async file => ({...(await (await request(id, file.name)).json()),recordName:file.name})));
-   const captures=await Promise.all(files.filter(f=>f.name.startsWith(prefix)).map(async file=>({file,saved:await latestMarkup(file)})));
-   if (ticket !== epoch) return;
+   const captures=await Promise.all(files.filter(f=>f.name.startsWith(prefix)&&!f.pending).map(async file=>({file,saved:await latestMarkup(file)})));
+   if (ticket !== projectEpoch) return;
    favorites = records.filter(item => item.version === 1 && typeof item.label === 'string' && Number.isFinite(item.time) && files.some(file => file.name === item.frame) && files.some(file => file.name === item.source));
-   frameLinks=new Map();for(const {file,saved}of captures)if(saved?.sourceVideo&&Number.isFinite(saved.sourceVideo.time))frameLinks.set(file.name,{source:saved.sourceVideo.name,time:saved.sourceVideo.time});for(const item of favorites)frameLinks.set(item.frame,{source:item.source,time:item.time});
+   frameLinks=new Map();for(const job of frameJobs.values())if(job.project===id&&job.status!=='failed')frameLinks.set(job.frame,{source:job.source.name,time:job.time});for(const {file,saved}of captures)if(saved?.sourceVideo&&Number.isFinite(saved.sourceVideo.time))frameLinks.set(file.name,{source:saved.sourceVideo.name,time:saved.sourceVideo.time});for(const item of favorites)frameLinks.set(item.frame,{source:item.source,time:item.time});
    renderFavorites();
   }
   function renderFavorites() {
@@ -499,70 +565,164 @@
    }
    if (!visible.length) { const hint = document.createElement('p'); hint.className = 'resource-help'; hint.textContent = 'No favorite frames for this video yet.'; list.append(hint); }
   }
-  async function freezeFavorite(draft) {
-   const video = draft.video;
-   // Freeze the requested scrub position, then capture only after decoding settles.
-   if (video.seeking || Math.abs(video.currentTime - draft.time) > .001) {
-    await new Promise((resolve, reject) => {
-     const timer = setTimeout(() => done(Error('Frame is still loading. Try again.')), 15000);
-     function done(error) { clearTimeout(timer); video.removeEventListener('seeked', settled); video.removeEventListener('error', failed); error ? reject(error) : resolve(); }
-     function settled() { done(); } function failed() { done(Error('Could not decode this frame.')); }
-     video.addEventListener('seeked', settled); video.addEventListener('error', failed); video.currentTime = draft.time;
-    });
-   }
-   if (draft.ticket !== epoch || draft !== favoriteDraft) throw Error('Frame selection cancelled.');
-   const frame = document.createElement('canvas'); frame.width = video.videoWidth; frame.height = video.videoHeight; frame.getContext('2d').drawImage(video, 0, 0);
-   const blob = await new Promise(resolve => frame.toBlob(resolve, 'image/png'));
-   if (!blob) throw Error('Could not capture this frame.'); return blob;
+  // Frame timing. requestVideoFrameCallback reports the media time of the frame
+  // on screen; consecutive frames give the frame duration.
+  const frameInfo = new WeakMap(); let stepQueue = 0, stepping = false;
+  function watchFrames(element) {
+   const info = { duration: 1 / 30, known: false, mediaTime: null, presented: 0, waiters: [] }; frameInfo.set(element, info);
+   if (!element.requestVideoFrameCallback) return;
+   const tick = (now, meta) => {
+    const delta = meta.mediaTime - info.mediaTime;
+    if (meta.presentedFrames === info.presented + 1 && delta > .004 && delta < .25 && !element.paused) { info.duration = delta; info.known = true; }
+    info.mediaTime = meta.mediaTime; info.presented = meta.presentedFrames;
+    for (const resolve of info.waiters.splice(0)) resolve();
+    if (element === media && element.paused) updateFrameAction();
+    if (element.isConnected || element === retainedMedia?.element) element.requestVideoFrameCallback(tick);
+   };
+   element.requestVideoFrameCallback(tick);
   }
+  // The time of the frame on screen, which the server extracts exactly.
+  function shownFrameTime(video) {
+   const info = frameInfo.get(video), time = video.currentTime;
+   // A paused video shows the frame that starts at or before currentTime.
+   if (info?.mediaTime != null && video.paused && !video.seeking && info.mediaTime <= time + .001 && time - info.mediaTime < (info.known ? info.duration + .001 : .5)) return info.mediaTime;
+   return time;
+  }
+  function clampTime(video, time) { return Math.max(0, Math.min(Number.isFinite(video.duration) ? video.duration : time, time)); }
+  function cancelScrub() { scrub = null; cancelAnimationFrame(seekFrame); seekFrame = 0; }
+  // Seek and wait until the new frame is painted (or a short timeout).
+  function seekShown(video, time) {
+   const info = frameInfo.get(video);
+   return new Promise(resolve => {
+    let finished = false; const timer = setTimeout(done, 1000);
+    function done() { if (finished) return; finished = true; clearTimeout(timer); video.removeEventListener('seeked', onSeeked); resolve(); }
+    // A seek within the frame on screen may paint nothing new; do not wait long for it.
+    function onSeeked() { if (!info || !video.requestVideoFrameCallback) return done(); info.waiters.push(done); setTimeout(done, 150); }
+    video.addEventListener('seeked', onSeeked); video.currentTime = clampTime(video, time);
+   });
+  }
+  // One frame back or forward. Back seeks just before the frame on screen; forward
+  // seeks one frame duration on, in smaller steps until the picture changes when
+  // the frame rate is not known yet. Held keys queue and run in order.
+  async function stepFrame(direction) {
+   const video = media; if (!video?.videoWidth || favoriteDraft) return;
+   cancelScrub(); video.pause(); stepQueue += direction; if (stepping) return; stepping = true;
+   try {
+    while (stepQueue && video === media) {
+     const dir = Math.sign(stepQueue); stepQueue -= dir;
+     const info = frameInfo.get(video), from = shownFrameTime(video), end = Number.isFinite(video.duration) ? video.duration : from;
+     if (dir < 0) { if (from <= 0) { stepQueue = 0; break; } await seekShown(video, from - .0005); }
+     else {
+      let target = from;
+      for (let attempt = 0; attempt < 16 && target < end; attempt++) {
+       target = Math.min(end, target + (info?.known && !attempt ? info.duration : 1 / 120) + (attempt ? 0 : .0005));
+       await seekShown(video, target);
+       if (video !== media || shownFrameTime(video) > from + 1e-4) break;
+      }
+     }
+     const moved = Math.abs(shownFrameTime(video) - from);
+     if (info && moved > .004 && moved < .25 && (dir < 0 || !info.known)) { info.duration = moved; info.known = true; }
+     updateTransport();
+    }
+   } finally { stepping = false; if (video !== media) stepQueue = 0; }
+  }
+  function skip(seconds) {
+   const video = media; if (!video || favoriteDraft) return;
+   cancelScrub(); stepQueue = 0; video.currentTime = clampTime(video, video.currentTime + seconds); updateTransport();
+  }
+  function playMedia(video = media) { return video?.play().catch(error => { if (error.name !== 'AbortError') message(error.message, true); }); }
+  function togglePlay() { if (!media || favoriteDraft) return; if (media.paused) { cancelScrub(); stepQueue = 0; playMedia(); } else media.pause(); }
+
+  // Saved frames are decoded on the server from the stored video: the browser
+  // sends the video name and the frame time, then polls the job record. Jobs
+  // run in the background, so viewing, scrubbing and saving more continue.
+  function frameResourceName(source, time) {
+   const base = safeName(label(source.name).replace(/\.[^.]+$/, '')).slice(0, 20) || 'video';
+   return prefix + 'v2-' + uuid() + '-' + (base + '-frame-' + time.toFixed(2) + 's').slice(0, 38) + '.png';
+  }
+  function pendingFrameAt(source) { return [...frameJobs.values()].find(job => job.project === project && job.source.name === source && job.status !== 'failed' && job.status !== 'done' && atPlayhead(job.time)); }
+  function renderJobs() {
+   const chip = $('[data-action="jobs"]'), jobs = [...frameJobs.values()].filter(job => job.project === project);
+   const running = jobs.filter(job => job.status === 'sending' || job.status === 'running').length, failed = jobs.filter(job => job.status === 'failed').length;
+   chip.hidden = !jobs.length; chip.classList.toggle('failed', !!failed); chip.classList.toggle('running', !!running);
+   chip.textContent = running ? `Saving ${running} frame${running > 1 ? 's' : ''}…` : failed ? `${failed} frame${failed > 1 ? 's' : ''} not saved · Retry` : '✓ Frame saved';
+   chip.title = failed ? jobs.filter(job => job.status === 'failed').map(job => timeLabel(job.time) + ': ' + job.error).join('\n') : 'Frames are extracted on the server; keep working.';
+   updateFrameAction();
+  }
+  async function pollFrameJob(job) {
+   for (let attempt = 0; ; attempt++) {
+    await new Promise(resolve => setTimeout(resolve, Math.min(2000, 400 + attempt * 200)));
+    const response = await fetch(url(job.project, job.record), { cache: 'no-store' });
+    if (response.ok) {
+     const record = await response.json().catch(() => ({}));
+     if (record.status === 'done') return record;
+     if (record.status === 'failed') throw Error(record.error || 'The server could not extract this frame.');
+    } else if (response.status !== 404) { const data = await response.json().catch(() => ({})); throw Error(data.error || `Frame status unavailable (${response.status}).`); }
+    if (Date.now() - job.startedAt > 5 * 60 * 1000) throw Error('Frame extraction is taking too long. Refresh project files later.');
+   }
+  }
+  async function runFrameJob(job) {
+   job.status = 'sending'; job.error = ''; job.startedAt = Date.now(); renderJobs(); renderList();
+   try {
+    const response = await request(job.project, job.frame, JSON.stringify({ source: job.source.name, time: job.time, original_name: job.originalName, ...(job.favorite ? { favorite: job.favorite } : {}) }), { 'Content-Type': 'application/json' }, 'frame');
+    job.record = (await response.json()).job; job.status = 'running'; renderJobs();
+    await pollFrameJob(job);
+    job.status = 'done';
+    if (job.project === project) { await refresh({ quiet: true }); message(job.favorite?.label ? `Frame “${job.favorite.label}” saved.` : 'Frame saved to the project.'); }
+    setTimeout(() => { if (frameJobs.get(job.frame) === job && job.status === 'done') { frameJobs.delete(job.frame); renderJobs(); } }, 4000);
+   } catch (error) {
+    job.status = 'failed'; job.error = error.message; frameLinks.delete(job.frame);
+    if (job.project === project) message('Frame was not saved: ' + error.message, true);
+   }
+   renderJobs(); if (job.project === project) renderList();
+  }
+  function saveFrame({ source, time, favorite = null, placeholder = null, name = frameResourceName(source, time) }) {
+   const job = { project, frame: name, source, time, favorite, placeholder, originalName: (favorite?.label || label(source.name).replace(/\.[^.]+$/, '') + ' frame ' + timeLabel(time)) + '.png' };
+   frameJobs.set(name, job); frameLinks.set(name, { source: source.name, time });
+   runFrameJob(job); return job;
+  }
+  function retryFrames() { for (const job of frameJobs.values()) if (job.project === project && job.status === 'failed') { frameLinks.set(job.frame, { source: job.source.name, time: job.time }); runFrameJob(job); } }
   function startFavorite(quick=false) {
-   if (busy || favoriteDraft || !media?.videoWidth) return;
-   const draft = { video: media, source: current.name, time: scrub?.target ?? media.currentTime, resume: scrub?.resume ?? !media.paused, ticket: epoch, id: project, name: prefix + 'v2-' + uuid() + '-favorite.png', record: favoritePrefix + uuid() + '.json' };
-   scrub = null; cancelAnimationFrame(seekFrame); seekFrame = 0; media.pause(); favoriteDraft = draft;
-   draft.capture = freezeFavorite(draft); draft.capture.catch(() => {});
-   if(quick)draft.resume=false;$('.resource-favorite-entry').hidden = quick; const input = $('.resource-favorite-entry input'); input.value = ''; if(!quick)input.focus(); controls(); updateTransport();
+   if (favoriteDraft || !media?.videoWidth || !current) return;
+   const time = scrub?.target ?? shownFrameTime(media);
+   if (quick) {
+    if (pendingFrameAt(current.name)) { message('This frame is already being saved.'); return; }
+    // A quick save keeps playback as it is and leaves a blank title to fill in from Frames.
+    saveFrame({ source: current, time, favorite: { record: favoritePrefix + uuid() + '.json', label: '' } }); return;
+   }
+   const draft = { video: media, source: current, time, resume: scrub?.resume ?? !media.paused, ticket: epoch, id: project, name: frameResourceName(current, time), record: favoritePrefix + uuid() + '.json' };
+   cancelScrub(); media.pause(); favoriteDraft = draft;
+   $('.resource-favorite-entry').hidden = false; const input = $('.resource-favorite-entry input'); input.value = ''; input.focus(); controls(); updateTransport();
   }
   function closeFavorite(resume) {
-   const draft = favoriteDraft; favoriteDraft = null; $('.resource-favorite-entry').hidden = true; controls(); updateTransport(); stage.focus();
-   if (resume && draft?.resume && draft.video === media && active) media.play().catch(error => message(error.message, true));
+   const draft = favoriteDraft; favoriteDraft = null; $('.resource-favorite-entry').hidden = true; controls(); updateTransport(); stage.focus({ preventScroll: true });
+   if (resume && draft?.resume && draft.video === media && active) playMedia();
   }
-  $('.resource-favorite-entry').addEventListener('keydown', event => {
-   event.stopPropagation(); if (event.key === 'Escape' && !busy) { event.preventDefault(); closeFavorite(true); }
-  });
-  async function saveFavorite(title,quick=false){
-   const draft = favoriteDraft;if (!draft || busy) return;
-   busy = true; controls();
-   try {
-    let blob;
-    try { blob = await (draft.capture || (draft.capture = freezeFavorite(draft))); }
-    catch (error) { draft.capture = null; throw error; }
-    const record = { version: 1, label: title, source: draft.source, time: draft.time, frame: draft.name, createdAt: new Date().toISOString() };
-    await uploadFile(draft.id, draft.name, new File([blob], (title||'Frame '+timeLabel(draft.time).replaceAll(':','-')) + '.png', { type: 'image/png' }));
-    await request(draft.id, draft.record, JSON.stringify(record));
-    if (draft.ticket !== epoch) return;
-    await refresh(); inspector = 'favorites'; updateDrawers(); closeFavorite(true); message('Favorite frame saved to the project.');
-    if(quick){const input=[...panel.querySelectorAll('.resource-favorite-title')].find(input=>input.dataset.frame===draft.name);input?.focus();input?.scrollIntoView({block:'nearest'});}
-   } catch (error) {if(quick)closeFavorite(false);message('Frame was not saved: ' + error.message, true); }
-   finally { busy = false; controls(); if (!quick&&favoriteDraft === draft) $('.resource-favorite-entry input').focus(); }
+  function saveFavorite(title) {
+   const draft = favoriteDraft; if (!draft) return;
+   if (draft.ticket === epoch && draft.id === project) saveFrame({ source: draft.source, time: draft.time, name: draft.name, favorite: { record: draft.record, label: title } });
+   closeFavorite(true);
   }
   $('.resource-favorite-entry').addEventListener('submit',event=>{event.preventDefault();saveFavorite($('.resource-favorite-entry input').value.trim());});
+  // Drawing on a video frame starts on a local still at once; the stored frame
+  // comes from the server job, and the markup is saved against its name.
   async function captureFrame() {
-   if (busy) return false;
    const video = media;
    if (!video?.videoWidth || video.readyState < 2) { message('Wait for the video frame to load.', true); return false; }
-   video.pause(); if (dirty) await save();
-   const id = project, ticket = epoch, source = current, time = video.currentTime;
+   video.pause(); cancelScrub(); await settleMarkup();
+   const ticket = epoch, source = current, time = shownFrameTime(video);
    const view = { scale, ox, oy, height: stage.clientHeight, width: stage.clientWidth };
    const frame = document.createElement('canvas'); frame.width = video.videoWidth; frame.height = video.videoHeight; frame.getContext('2d').drawImage(video, 0, 0);
    const blob = await new Promise(resolve => frame.toBlob(resolve, 'image/png')); if (!blob) throw Error('Could not capture this frame.');
-   const name = prefix + 'v2-' + uuid() + '-' + label(source.name).replace(/\.[^.]+$/, '').slice(0, 20) + '-frame-' + time.toFixed(2) + 's.png';
-   busy = true; controls();
-   try { await uploadFile(id, name, blob); if (ticket === epoch) await refresh(); } finally { busy = false; controls(); }
    if (ticket !== epoch) return false;
-   await open(files.find(file => file.name === name), { keepInspector: true }); if(inspector==='markup')setTool('pen'); frameSource = { file: source, time };frameLinks.set(name,{source:source.name,time});renderList();
+   const name = frameResourceName(source, time);
+   const placeholder = { name, original_name: label(source.name).replace(/\.[^.]+$/, '') + ' frame ' + timeLabel(time) + '.png', role: currentRole(), src: URL.createObjectURL(blob), pending: true, uploaded_at: new Date().toISOString() };
+   pendingFrames.set(name, placeholder); setServerFiles(serverFiles); saveFrame({ source, time, name, placeholder });
+   await open(placeholder, { keepInspector: true }); if (ticket + 1 !== epoch) return false;
+   if (inspector === 'markup') setTool('pen'); frameSource = { file: source, time }; renderList();
    $('.resource-description').value = 'Frame at ' + time.toFixed(2) + ' seconds from ' + label(source.name); changed();
    scale = view.scale; ox = view.ox + (stage.clientWidth - view.width) / 2; oy = view.oy + (stage.clientHeight - view.height) / 2; fitMode = null; draw(); controls();
-   message('Frame ready for markup. Use ↩ Video to return to the walkthrough.'); return true;
+   message('Frame ready for markup; the server is saving it. Use ↩ Video to return to the walkthrough.'); return true;
   }
   async function chooseTool(next,toggle=true) {
    if (busy) return;
@@ -581,12 +741,12 @@
    overlay: async () => { if (!image || media || busy || !current) return; await sendBackground(current); },
    expand: () => { panel.classList.toggle('expanded'); $('[data-action="expand"]').setAttribute('aria-label', panel.classList.contains('expanded') ? 'Collapse resources' : 'Expand resources'); },
    fit: () => fit(), fill: () => fit('cover'), zoomIn: () => zoom(1.25), zoomOut: () => zoom(.8),
-   play: () => { if (media && !favoriteDraft) return media.paused ? media.play() : media.pause(); }, mute: () => { if (media) media.muted = !media.muted; },
+   play: togglePlay, mute: () => { if (media) media.muted = !media.muted; }, jobs: retryFrames,
    undo: () => { if (history.length) { redo.push(JSON.stringify(marks)); marks = JSON.parse(history.pop()); selected = -1; changed(); draw(); } },
    redo: () => { if (redo.length) { history.push(JSON.stringify(marks)); marks = JSON.parse(redo.pop()); selected = -1; changed(); draw(); } },
    delete: () => { if (selected >= 0) { snapshot(); marks.splice(selected, 1); selected = -1; controls(); draw(); } },
    frame: captureFrame, favorites: () => { renderFavorites(); showInspector('favorites'); }, favorite: () => startFavorite(),
-   returnVideo: async () => {if(media?.videoWidth){const saved=savedFrameAtPlayhead();if(saved)await open(saved);else{startFavorite(true);await saveFavorite('',true);}}else if (frameSource) { const source = frameSource; await open(source.file, { time: source.time }); } },
+   returnVideo: async () => {if(media?.videoWidth){const saved=savedFrameAtPlayhead();if(saved)await open(saved);else startFavorite(true);}else if (frameSource) { const source = frameSource; await open(source.file, { time: source.time }); } },
    download: () => { if (current&&!current.notes) { const link = document.createElement('a'); link.href = sourceUrl(current); link.download = label(current.name); link.click(); } },
    applyText: () => { if (marks[selected]?.type === 'note') { snapshot(); marks[selected].text = $('.resource-note input').value; draw(); } }
   };
@@ -595,31 +755,44 @@
    if (button.dataset.action !== 'more') { $('.resource-more').hidden = true; $('[data-action="more"]').setAttribute('aria-expanded', 'false'); }
    Promise.resolve().then(() => button.dataset.tool ? chooseTool(button.dataset.tool) : actions[button.dataset.action]?.()).catch(error => message(error.message, true));
   });
-  $('.resource-seek').addEventListener('pointerdown', event => {
-   if (event.button !== 0 || favoriteDraft) return; beginScrub(true);
+  const seek = $('.resource-seek');
+  seek.addEventListener('pointerdown', event => {
+   if (event.button !== 0 || favoriteDraft) return; stepQueue = 0; beginScrub(true);
    event.target.setPointerCapture(event.pointerId);
   });
-  $('.resource-seek').addEventListener('input', event => {
-   if (favoriteDraft) return; const target = Number(event.target.value); if (!scrub) beginScrub(false); if (!scrub) return;
+  seek.addEventListener('input', event => {
+   if (favoriteDraft || !media) return; const target = Number(event.target.value); if (!scrub) beginScrub(false); if (!scrub) return;
    scrub.target = Math.max(0, Math.min(media.duration, target)); scrub.pending = true; updateTransport(); queueScrub();
   });
-  for (const event of ['change', 'pointerup', 'pointercancel', 'lostpointercapture', 'blur']) $('.resource-seek').addEventListener(event, finishScrub);
-  $('.resource-rate').addEventListener('change', event => { if (media) media.playbackRate = Number(event.target.value); });
+  for (const event of ['change', 'pointerup', 'pointercancel', 'lostpointercapture', 'blur']) seek.addEventListener(event, finishScrub);
+  // The scrubber gives focus back to the viewer, so Space and arrows act on the video, not the slider.
+  for (const event of ['pointerup', 'pointercancel']) seek.addEventListener(event, () => setTimeout(() => { if (document.activeElement === seek) stage.focus({ preventScroll: true }); }));
+  $('.resource-rate').addEventListener('change', event => { if (media) media.playbackRate = Number(event.target.value); stage.focus({ preventScroll: true }); });
   for (const event of ['keydown', 'keyup', 'pointerdown', 'mousedown', 'dblclick', 'wheel']) panel.addEventListener(event, e => e.stopPropagation());
-  document.addEventListener('keydown', event => {
-   if (!active || !media?.videoWidth || busy || favoriteDraft || event.ctrlKey || event.metaKey || event.altKey || event.isComposing || event.repeat || event.key.toLowerCase() !== 'n') return;
-   if (!panel.contains(event.target) || event.target.isContentEditable || event.target.closest('textarea,select,input:not(.resource-seek)')) return;
-   event.preventDefault(); event.stopImmediatePropagation(); startFavorite();
-  }, true);
   panel.addEventListener('keydown', event => {
    if (isControl(event.target) && !event.target.matches('button')) return;
-   if (event.key === 'Escape') { inspector = ''; filesOpen = false; $('.resource-more').hidden = true; updateDrawers(); setTool('pan'); return; }
-   if (event.target !== stage) return;
-   if (event.code === 'Space') { event.preventDefault(); if (media && !event.repeat) Promise.resolve(actions.play()).catch(e => message(e.message, true)); else spaceDown = true; }
-   if (event.key === '+' || event.key === '=') zoom(1.25); if (event.key === '-') zoom(.8); if (event.key === '0') fit();
-   if (media && ['ArrowLeft', 'ArrowRight'].includes(event.key)) { event.preventDefault(); media.currentTime = Math.max(0, Math.min(Number.isFinite(media.duration) ? media.duration : Infinity, media.currentTime + (event.key === 'ArrowLeft' ? -5 : 5))); }
+   if (event.key === 'Escape') { inspector = ''; filesOpen = false; $('.resource-more').hidden = true; updateDrawers(); setTool('pan'); }
   });
   panel.addEventListener('keyup', event => { if (event.code === 'Space') spaceDown = false; }); stage.addEventListener('blur', () => { spaceDown = false; });
+  // Library width: drag the divider (or focus it and use the arrow keys). Saved per project.
+  const splitter = $('.resource-splitter');
+  function setLibraryWidth(width) {
+   const max = Math.max(160, panel.clientWidth - 220), next = Number.isFinite(width) && width > 0 ? Math.round(Math.max(120, Math.min(max, width))) : defaultLibraryWidth;
+   libraryWidth = next; panel.style.setProperty('--resource-library-width', next + 'px');
+   splitter.setAttribute('aria-valuenow', String(next)); splitter.setAttribute('aria-valuemin', '120'); splitter.setAttribute('aria-valuemax', String(max));
+  }
+  splitter.addEventListener('pointerdown', event => {
+   if (event.button !== 0) return; event.preventDefault(); splitter.setPointerCapture(event.pointerId);
+   const left = $('#resource-library').getBoundingClientRect().left; splitter.classList.add('dragging');
+   const move = e => setLibraryWidth(e.clientX - left);
+   const end = () => { splitter.classList.remove('dragging'); splitter.removeEventListener('pointermove', move); splitter.removeEventListener('pointerup', end); splitter.removeEventListener('lostpointercapture', end); remember(); };
+   splitter.addEventListener('pointermove', move); splitter.addEventListener('pointerup', end); splitter.addEventListener('lostpointercapture', end);
+  });
+  splitter.addEventListener('dblclick', () => { setLibraryWidth(defaultLibraryWidth); remember(); });
+  function splitterKey(event) {
+   const step = event.shiftKey ? 80 : 24, next = { ArrowLeft: libraryWidth - step, ArrowRight: libraryWidth + step, Home: 120, End: Infinity }[event.key];
+   if (next === undefined) return false; setLibraryWidth(next === Infinity ? panel.clientWidth : next); remember(); return true;
+  }
   $('.resource-description').addEventListener('input', changed);
   $('.resource-color').addEventListener('change', () => { if (selected >= 0) { snapshot(); marks[selected].color = $('.resource-color').value; draw(); } });
   $('.resource-width').addEventListener('click', event => {const button=event.target.closest('[data-width]');if(!button)return;strokeWidth=Number(button.dataset.width);panel.querySelectorAll('[data-width]').forEach(b=>b.setAttribute('aria-pressed',String(b===button)));if(selected>=0){snapshot();marks[selected].width=strokeWidth/scale;draw();}});
@@ -635,8 +808,8 @@
   const clearFileDrag = () => { fileDragDepth = 0; dropHint.hidden = true; };
   function showFileDrag(event) {
    event.preventDefault(); event.stopImmediatePropagation();
-   event.dataTransfer.dropEffect = busy || dropPending || !window.currentProjectId ? 'none' : 'copy';
-   dropHint.textContent = busy || dropPending ? 'Please wait for the current upload to finish.' : !window.currentProjectId ? 'Open a saved project before uploading.' : 'Drop photos or files to upload to this project';
+   event.dataTransfer.dropEffect = uploading || dropPending || !window.currentProjectId ? 'none' : 'copy';
+   dropHint.textContent = uploading || dropPending ? 'Please wait for the current upload to finish.' : !window.currentProjectId ? 'Open a saved project before uploading.' : 'Drop photos or files to upload to this project';
    dropHint.hidden = false;
   }
   document.addEventListener('dragenter', event => { if(isFileDrag(event)){fileDragDepth++;showFileDrag(event);} }, true);
@@ -647,7 +820,7 @@
    event.preventDefault(); event.stopImmediatePropagation(); clearFileDrag();
    const incoming = Array.from(event.dataTransfer.files);
    if(!incoming.length)return;
-   if(busy || dropPending){message('Please wait for the current upload to finish, then drop these files again.',true);return;}
+   if(uploading || dropPending){message('Please wait for the current upload to finish, then drop these files again.',true);return;}
    dropPending = true;
    try { await syncProject(); window.switchMapLayer('resources'); await upload(incoming); }
    catch(error){message(error.message,true);}
@@ -657,16 +830,47 @@
   window.addEventListener('blur', clearFileDrag);
   const previous = window.switchMapLayer; let mapTabClick = false;
   for(const event of ['pointerdown','focusin'])window.addEventListener(event,e=>{keyboardOwner=panel.contains(e.target)||tab.contains(e.target);},true);
+  // Every Resources shortcut is handled here, wherever focus is inside the panel,
+  // so a focused scrubber, button or file tile never swallows the keys. Typing
+  // in a text field keeps its keys, and the model editor never sees them.
+  const handledKeys=new WeakSet();
+  const typing=target=>!!target?.closest?.('textarea,select,[contenteditable]:not([contenteditable="false"])')||(!!target?.matches?.('input')&&!['range','button','checkbox','radio','color','submit','reset','file'].includes(target.type));
+  function mediaKey(event){
+   const key=event.key.length===1?event.key.toLowerCase():event.key,video=!!media?.videoWidth;
+   if(key===' '){
+    // A control reached with Tab keeps Space; otherwise Space plays or pauses (or pans a still).
+    if(event.target.closest?.('button,summary')&&event.target.matches(':focus-visible'))return null;
+    return media?()=>{if(!event.repeat)togglePlay();}:()=>{spaceDown=true;};
+   }
+   if(key==='k')return media?()=>{if(!event.repeat)togglePlay();}:null;
+   if(key==='j'||key==='l')return media?()=>skip(key==='j'?-10:10):null;
+   if(key==='ArrowLeft'||key==='ArrowRight'){const direction=key==='ArrowLeft'?-1:1;return video?()=>stepFrame(direction):media?()=>skip(direction*5):current&&!coreActive?()=>stepItem(direction):null;}
+   if(key==='n')return video&&!favoriteDraft?()=>{if(!event.repeat)startFavorite();}:null;
+   if(key==='+'||key==='=')return dimensions().w?()=>zoom(1.25):null;
+   if(key==='-')return dimensions().w?()=>zoom(.8):null;
+   if(key==='0')return dimensions().w?()=>fit():null;
+   return null;
+  }
   function handleKey(event){
+   if(handledKeys.has(event))return true;
    if(!active||!keyboardOwner)return false;
-   if(!event.isComposing&&event.target.matches?.('.resource-favorite-title')&&(['Enter','Escape'].includes(event.key)||event.code==='Space'&&!event.target.value.trim())){event.stopImmediatePropagation();event.target.onkeydown?.(event);return true;}
+   if(!event.isComposing&&event.target.matches?.('.resource-favorite-title')&&(['Enter','Escape'].includes(event.key)||event.code==='Space'&&!event.target.value.trim())){handledKeys.add(event);event.stopImmediatePropagation();event.target.onkeydown?.(event);return true;}
    // Text fields retain native text undo, while model handlers must still stop.
-   if(event.target.closest?.('input,textarea,select,[contenteditable]:not([contenteditable="false"])')||event.isComposing){event.stopImmediatePropagation();return true;}
-   const key=event.key.toLowerCase(),historyKey=(event.ctrlKey||event.metaKey)&&!event.altKey&&['z','y'].includes(key),markupKey=inspector==='markup'&&!event.ctrlKey&&!event.metaKey&&!event.altKey&&(markupKeys[key]||key==='delete');
-   if(!historyKey&&!markupKey)return false;
-   event.stopImmediatePropagation();event.preventDefault();if(busy||gesture)return true;
-   if(historyKey)actions[key==='y'||event.shiftKey?'redo':'undo']();
-   else if(!event.repeat){if(key==='delete')actions.delete();else chooseTool(markupKeys[key],false).catch(error=>message(error.message,true));}return true;
+   if(typing(event.target)||event.isComposing){
+    if(event.key==='Escape'&&favoriteDraft&&event.target.closest?.('.resource-favorite-entry')){event.preventDefault();closeFavorite(true);}
+    handledKeys.add(event);event.stopImmediatePropagation();return true;
+   }
+   const plain=!event.ctrlKey&&!event.metaKey&&!event.altKey;
+   if(plain&&event.target===splitter&&splitterKey(event)){handledKeys.add(event);event.preventDefault();event.stopImmediatePropagation();return true;}
+   const key=event.key.toLowerCase(),historyKey=(event.ctrlKey||event.metaKey)&&!event.altKey&&['z','y'].includes(key),markupKey=inspector==='markup'&&plain&&(markupKeys[key]||key==='delete');
+   if(historyKey||markupKey){
+    handledKeys.add(event);event.stopImmediatePropagation();event.preventDefault();if(busy||gesture)return true;
+    if(historyKey)actions[key==='y'||event.shiftKey?'redo':'undo']();
+    else if(!event.repeat){if(key==='delete')actions.delete();else chooseTool(markupKeys[key],false).catch(error=>message(error.message,true));}return true;
+   }
+   const action=plain&&mediaKey(event);if(!action)return false;
+   handledKeys.add(event);event.preventDefault();event.stopImmediatePropagation();
+   try{action();}catch(error){message(error.message,true);}return true;
   }
   window.addEventListener('keydown',handleKey,true);
   tabs.addEventListener('click', () => { mapTabClick = true; setTimeout(() => mapTabClick = false, 0); }, true);
@@ -700,7 +904,7 @@
   }};
   for(const event of ['pointerdown','dblclick','wheel'])$('.resource-core-grid').addEventListener(event,e=>e.stopPropagation());
   if(window.WallMode?.enabled)window.switchMapLayer('resources');
-  window.addEventListener('beforeunload', event => { if (dirty || busy) { event.preventDefault(); event.returnValue = ''; } }); updateDrawers(); controls();
+  window.addEventListener('beforeunload', event => { if (dirty || busy || uploading) { event.preventDefault(); event.returnValue = ''; } }); updateDrawers(); controls();
  }
  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
 })();
