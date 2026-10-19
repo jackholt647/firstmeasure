@@ -782,6 +782,9 @@
           <li>Every project runs scopes; a lead with no scope yet is a new lead. Projects start only through receiveLead or createProject.</li>
           <li>Appointments use the scheduling system’s booking dialog and presets, the same as production work. The CRM computes no slots.</li>
           <li>Industry differences are scope sets and presets: agreements before a sale, claim fields, rescission rules, reviews.</li>
+          <li>No place record: an address lives on the contact and on the project.</li>
+          <li>Triggers keyed on a contact will be built: contact events, dates on a contact, conditions that read the contact.</li>
+          <li>The referral routes get a sign-in and permission checks (in progress).</li>
           <li>The CRM tab is an App experience app on the CRM switch; every CRM route needs the CRM app, and lead intake reads CRM settings in-process.</li>
           <li>Every CRM word is a terminology key; features are capabilities, and Set up for your business turns them on or off for the team size.</li>
         </ul>
@@ -791,8 +794,7 @@
         <ul>
           <li>Territories and timeslot grids: they belong to the scheduling system for every kind of appointment, so they wait for that design.</li>
           <li>Financing: waits for the finance pass and a partner. The funnel and scopes will read its events.</li>
-          <li>Properties and sites as their own record: deferred.</li>
-          <li>Referral routes with no login check: proposed as its own task.</li>
+          <li>Lead scoring and routing by capacity: whether to build them, and which parts.</li>
         </ul>
       </div>
     </div>
@@ -1236,10 +1238,10 @@
     branches: ['Branches', 'live', 'Every contact has branches and the same branch scope as People data. Views apply branch scope and department access to every row.', 'docs/architecture/branches.md'],
     automations: ['Scope automations and organization rules', 'live', 'Sales plans are ordinary work plans: the same scopes, bindings, artifacts and engine as production. Organization rules act on lead received, opportunities won or lost, and results recorded in the CRM (crm.disposition.recorded). The cancellation window uses a timer and work.finishItem.v1. Not built: triggers keyed on a contact.', 'public/v1/work · work/rules.ts'],
     publication: ['Published data and actions', 'live', 'Contact records, duplicates and settings; create, update, link and merge contacts and projects are published. CRM views, results and settings are not published providers: the CRM app owns them behind its own routes, and publication/coverage.ts records that decision.', 'public/v1/contacts/publication.ts'],
-    properties: ['Properties and sites', 'od', 'Whether a place (a property or site) should be its own record, shared by contacts and projects, is deferred. For now an address lives on the contact and on the project.', 'Deferred in the contacts design'],
+    properties: ['Properties and sites', 'gone', 'Decided 19 October 2026: there is no place record. An address lives on the contact and on the project, and nothing waits on a shared property or site.', 'docs/architecture/crm.md'],
     scoring: ['Lead scoring and routing by capacity', 'designed', 'Fit and engagement scores; round robin, load-balanced and capacity-aware owner assignment. Not built; a rule can set an owner field today.', 'docs/architecture/crm.md, “Not built”'],
-    contacttriggers: ['Triggers keyed on a contact', 'designed', 'Automations that start from a contact rather than a project, such as a contact tag or a date on the contact. Not built.', 'docs/architecture/crm.md, “Not built”'],
-    sec1: ['Referral routes check no login', 'od', 'The referral routes at /v1/internal/crm/referrals check no login. Adding the right check per caller is proposed as its own task.', 'public/v1/internal/crm/api.ts'],
+    contacttriggers: ['Triggers keyed on a contact', 'plan', 'Decided to build: organization rules that start from a contact instead of a project. Contact writers emit contact events (created, updated with the fields that changed, tagged, merged), a date on a contact can fire a rule (a birthday, a yearly service date), and rule conditions read the contact. Actions can text or email the contact, create a to-do, or start a lead through receiveLead.', 'docs/architecture/crm.md, “Not built” · work/rules.ts · contacts/records.ts'],
+    sec1: ['Referral routes check no login', 'wip', 'The referral routes at /v1/internal/crm/referrals check no login, and one of them searches organizations. Adding a sign-in and the right permission per caller is being done in its own session.', 'public/v1/internal/crm/api.ts'],
     speed: ['Faster views, pickers and fewer rewrites', 'later', 'Speed only; results stay the same. Views build their rows from every record of a collection; pickers load every contact; a contact edit rewrites every linked project’s copy.', 'docs/optimization-backlog.md'],
     cremoved: ['Removed', 'gone', 'The lead project type, lead status and createPlatformLead. Standalone contact-only projects. The scope kind, replaced by categories. The old sales portal with its lead database, routes, dialer and imports. The new-lead notification hard-coded in receiveLead, now an organization rule.', 'docs/architecture/opportunities.md, “Removed”']
   };
