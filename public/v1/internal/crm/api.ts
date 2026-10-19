@@ -1,16 +1,45 @@
-import type { FastifyPluginAsync } from "fastify";
+import type { FastifyPluginAsync, FastifyRequest } from "fastify";
 import { cp, mkdir, readdir, readFile, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { ZodError, z } from "zod";
 
+import { requirePlatformAuth } from "../../platform/auth.js";
 import { PlatformError, forbidden } from "../../platform/errors.js";
+import { readInternalUser } from "../storage.js";
 import { acquisitionCampaignReport, attachReferralOrganization, ensureReferralDatabase, getReferralPartner, listAcquisitionCampaigns, listReferralPartners, referralRewardReport, referralRows, saveAcquisitionCampaign, saveReferralPartner, saveReferralPartnerLogo, searchReferralOrganizations, updateReferralRewardStatus } from "./referrals.js";
 
 
 const asObject = (value: unknown): Record<string, unknown> => value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
 const objectSchema = z.object({}).passthrough();
 const CRM_API_MODULE_DIR = path.dirname(fileURLToPath(import.meta.url));
+const LOGO_TYPES: Record<string, string> = { ".svg": "image/svg+xml", ".webp": "image/webp", ".gif": "image/gif", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png" };
+
+/**
+ * Referral partners, rewards and acquisition campaigns are FirstMate's own
+ * staff tools. The caller needs a platform session whose email is an active
+ * internal user who may manage sales: a full admin, `manage_users`,
+ * `manage_company_settings` or `manage_sales_users` (which the sales manager
+ * role has unless it is turned off). Actor headers and body fields are never
+ * trusted, and the web node's proxy secret is not a login. Writes need the
+ * session's CSRF token.
+ */
+async function requireReferralStaff(request: FastifyRequest, csrf = false) {
+  const auth = await requirePlatformAuth(request, { csrf });
+  const user = await readInternalUser(String(auth.identity.email ?? "")).catch(() => null);
+  if (!user || user.disabled || String(user.status ?? "active").toLowerCase() !== "active" || !mayManageReferrals(user)) {
+    throw forbidden("referral_staff_required", "Only FirstMate staff who manage sales can use referral and campaign tools.");
+  }
+  return user;
+}
+
+function mayManageReferrals(user: Record<string, unknown>) {
+  const role = String(user.role ?? "").trim().toLowerCase();
+  const permissions = asObject(user.permissions);
+  if (role === "admin" || role === "system_admin" || user.is_admin || permissions.is_admin_legacy || permissions.platform_admin) return true;
+  if (permissions.manage_users || permissions.manage_company_settings || permissions.manage_sales_users) return true;
+  return role === "sales_manager" && permissions.manage_sales_users !== false;
+}
 
 export const registerCrmApi: FastifyPluginAsync = async (app) => {
   app.setErrorHandler((error, _request, reply) => {
@@ -29,28 +58,35 @@ export const registerCrmApi: FastifyPluginAsync = async (app) => {
 
   await ensureReferralDatabase();
 
-  app.get("/", async () => ({
-    ok: true,
-    success: true,
-    api: "referrals",
-    routes: { referralPartners: "/referrals/partners", referralRewards: "/referrals/rewards", acquisitionCampaigns: "/referrals/acquisition/campaigns" }
-  }));
+  app.get("/", async (request) => {
+    await requireReferralStaff(request);
+    return {
+      ok: true,
+      success: true,
+      api: "referrals",
+      routes: { referralPartners: "/referrals/partners", referralRewards: "/referrals/rewards", acquisitionCampaigns: "/referrals/acquisition/campaigns" }
+    };
+  });
 
-  app.get("/referrals/partners", async () => ({
-    ok: true,
-    success: true,
-    partners: listReferralPartners()
-  }));
+  app.get("/referrals/partners", async (request) => {
+    await requireReferralStaff(request);
+    return { ok: true, success: true, partners: listReferralPartners() };
+  });
 
-  app.get("/referrals/partners/:partnerId", async (request) => getReferralPartner(param(request.params, "partnerId")));
+  app.get("/referrals/partners/:partnerId", async (request) => {
+    await requireReferralStaff(request);
+    return getReferralPartner(param(request.params, "partnerId"));
+  });
 
   app.post("/referrals/partners", async (request, reply) => {
+    await requireReferralStaff(request, true);
     const response = await saveReferralPartner(asObject(request.body));
     reply.code(201);
     return response;
   });
 
   app.post("/referrals/partners/:partnerId/logo", async (request, reply) => {
+    await requireReferralStaff(request, true);
     const file = await request.file();
     if (!file) {
       reply.code(400);
@@ -59,50 +95,63 @@ export const registerCrmApi: FastifyPluginAsync = async (app) => {
     return saveReferralPartnerLogo(param(request.params, "partnerId"), file);
   });
 
+  // Public on purpose: a partner's logo is shown to anonymous visitors on the
+  // referral landing page and sign-in page (`logo_url` from the public referral
+  // lookup). It serves only image files from the logo folder, and an SVG cannot
+  // run script when opened directly.
   app.get("/referrals/logos/:fileName", async (request, reply) => {
     const fileName = path.basename(param(request.params, "fileName"));
+    const type = LOGO_TYPES[path.extname(fileName).toLowerCase()];
+    if (!type) throw new PlatformError("logo_not_found", 404, "Logo not found.");
     const absolutePath = path.join(path.resolve(process.cwd(), process.env.CRM_STORAGE_ROOT ?? "storage/crm"), "referral-logos", fileName);
-    const content = await readFile(absolutePath);
-    const ext = path.extname(fileName).toLowerCase();
-    const type = ext === ".svg" ? "image/svg+xml"
-      : ext === ".webp" ? "image/webp"
-        : ext === ".gif" ? "image/gif"
-          : ext === ".jpg" || ext === ".jpeg" ? "image/jpeg"
-            : ext === ".png" ? "image/png"
-              : "application/octet-stream";
+    const content = await readFile(absolutePath).catch((error) => {
+      if (error?.code === "ENOENT") throw new PlatformError("logo_not_found", 404, "Logo not found.");
+      throw error;
+    });
     reply.header("content-type", type);
+    reply.header("x-content-type-options", "nosniff");
+    reply.header("content-security-policy", "default-src 'none'; style-src 'unsafe-inline'; sandbox");
     reply.header("cache-control", "public, max-age=31536000, immutable");
     return content;
   });
 
   app.get("/referrals/organizations/search", async (request) => {
+    await requireReferralStaff(request);
     const query = asObject(request.query);
     const organizations = await searchReferralOrganizations(String(query.q ?? query.query ?? ""), Number(query.limit ?? 120) || 120);
     return { ok: true, success: true, organizations, rows: organizations };
   });
 
-  app.post("/referrals/partners/:partnerId/attach-organization", async (request) => attachReferralOrganization({
-    ...asObject(request.body),
-    partner_id: param(request.params, "partnerId")
-  }));
+  app.post("/referrals/partners/:partnerId/attach-organization", async (request) => {
+    await requireReferralStaff(request, true);
+    return attachReferralOrganization({ ...asObject(request.body), partner_id: param(request.params, "partnerId") });
+  });
 
-  app.get("/referrals/acquisition/campaigns", async () => ({
-    ok: true,
-    success: true,
-    campaigns: listAcquisitionCampaigns()
-  }));
+  app.get("/referrals/acquisition/campaigns", async (request) => {
+    await requireReferralStaff(request);
+    return { ok: true, success: true, campaigns: listAcquisitionCampaigns() };
+  });
 
   app.post("/referrals/acquisition/campaigns", async (request, reply) => {
+    await requireReferralStaff(request, true);
     const response = await saveAcquisitionCampaign(asObject(request.body));
     reply.code(201);
     return response;
   });
 
-  app.get("/referrals/acquisition/report", async (request) => acquisitionCampaignReport(asObject(request.query)));
+  app.get("/referrals/acquisition/report", async (request) => {
+    await requireReferralStaff(request);
+    return acquisitionCampaignReport(asObject(request.query));
+  });
 
-  app.post("/referrals/acquisition/report", async (request) => acquisitionCampaignReport(asObject(request.body)));
+  // A read with its filters in the body; it changes nothing, so no CSRF token.
+  app.post("/referrals/acquisition/report", async (request) => {
+    await requireReferralStaff(request);
+    return acquisitionCampaignReport(asObject(request.body));
+  });
 
-  app.get("/referrals/acquisition/landing-pages", async () => {
+  app.get("/referrals/acquisition/landing-pages", async (request) => {
+    await requireReferralStaff(request);
     const discovered = await discoverLandingPages();
     return {
       ok: true,
@@ -113,6 +162,7 @@ export const registerCrmApi: FastifyPluginAsync = async (app) => {
   });
 
   app.post("/referrals/acquisition/landing-pages/clone", async (request, reply) => {
+    await requireReferralStaff(request, true);
     const cloned = await cloneLandingPage(asObject(request.body));
     reply.code(201);
     return {
@@ -122,18 +172,21 @@ export const registerCrmApi: FastifyPluginAsync = async (app) => {
     };
   });
 
-  app.get("/referrals/rewards", async () => ({
-    ok: true,
-    success: true,
-    rows: referralRewardReport(),
-    rewards: referralRows("referral_reward_ledger"),
-    attributions: referralRows("referral_attributions")
-  }));
+  app.get("/referrals/rewards", async (request) => {
+    await requireReferralStaff(request);
+    return {
+      ok: true,
+      success: true,
+      rows: referralRewardReport(),
+      rewards: referralRows("referral_reward_ledger"),
+      attributions: referralRows("referral_attributions")
+    };
+  });
 
-  app.patch("/referrals/rewards/:rewardId/status", async (request) => updateReferralRewardStatus(
-    param(request.params, "rewardId"),
-    String(asObject(request.body).status ?? "")
-  ));
+  app.patch("/referrals/rewards/:rewardId/status", async (request) => {
+    await requireReferralStaff(request, true);
+    return updateReferralRewardStatus(param(request.params, "rewardId"), String(asObject(request.body).status ?? ""));
+  });
 };
 
 function param(params: unknown, key: string) {

@@ -17,11 +17,20 @@
     return String(configured || '/v1/internal/crm/referrals').replace(/\/+$/, '');
   }
 
+  // Writes carry the platform session's CSRF token; the referral routes refuse them without it.
+  async function platformCsrf(){
+    const platform = String((window.Portal.cfg && window.Portal.cfg.endpoints && window.Portal.cfg.endpoints.platform) || '/v1/platform').replace(/\/+$/, '');
+    const res = await fetch(platform + '/auth/session', { credentials: 'include', cache: 'no-store' });
+    const session = await res.json().catch(() => ({}));
+    if (!res.ok || !session.csrf_token) throw new Error('Your session expired. Sign in again.');
+    return session.csrf_token;
+  }
+
   async function request(path, options){
-    const res = await fetch(referralBase() + path, Object.assign({
-      credentials: 'same-origin',
-      headers: { 'Accept': 'application/json' }
-    }, options || {}));
+    const opts = Object.assign({ credentials: 'include' }, options || {});
+    const method = String(opts.method || 'GET').toUpperCase();
+    opts.headers = Object.assign({ 'Accept': 'application/json' }, opts.headers || {}, method === 'GET' ? {} : { 'X-Platform-CSRF': await platformCsrf() });
+    const res = await fetch(referralBase() + path, opts);
     const text = await res.text();
     let data = {};
     try { data = text ? JSON.parse(text) : {}; } catch (err) { data = { success: false, error: text || 'Request failed.' }; }
