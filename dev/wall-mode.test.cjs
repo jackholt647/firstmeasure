@@ -189,7 +189,15 @@ test('wall mode hides comparison surfaces once and respects subsequent image tog
 test('3D comparison controls receive mouse and keyboard events while roof canvas editing stays blocked',()=>{
     const {ctx,listeners}=fixture();ctx.WallMode.setEnabled(true);
     for(const control of ['.enh-control-panel','.controls-3d-actions']){
-        for(const type of ['pointerdown','mousedown','click','dblclick','keydown']){
+        // A control reached with Tab keeps Enter and Space; the roof's window
+        // handlers still never see them. After a click, wall mode owns them.
+        for(const [tabbed,key] of [[true,' '],[true,'Enter'],[false,' '],[false,'Enter']]){
+            let blocked=false,prevented=false;const target={closest:s=>s.split(',').some(x=>[control,'button','#three-view-wrapper'].includes(x))?target:null,matches:s=>tabbed&&s===':focus-visible'};
+            const e={key,target,stopImmediatePropagation(){blocked=true;},preventDefault(){prevented=true;}};
+            listeners['window:keydown'](e);assert.equal(blocked||prevented,!tabbed,control+' '+JSON.stringify(key)+(tabbed?' after Tab':' after a click'));
+            listeners.keydown(e);assert.equal(blocked,true,'roof shortcuts never receive '+JSON.stringify(key));
+        }
+        for(const type of ['pointerdown','mousedown','click','dblclick']){
             let blocked=false;
             const e={button:0,key:' ',target:{closest:selector=>selector.split(',').some(s=>[control,'#three-view-wrapper'].includes(s))},
                 stopImmediatePropagation(){blocked=true;},preventDefault(){blocked=true;}};
@@ -973,4 +981,41 @@ test('open-edge diagnostics consume current edited faces and invalidate after a 
  const state=host.state();state.wallEdits||={};state.wallEdits.$surfaces=[{id:'edited-chimney',chimney:{id:'test'},points:[{x:2,y:2,z:0},{x:3,y:2,z:0},{x:3,y:2,z:5},{x:2,y:2,z:5}]}];
  f.elements.get('wall-centers-toggle').onclick();assert.ok(calls.at(-1).some(f=>f.id==='edited-chimney'));
  state.wallEdits.$surfaces[0].deleted=true;f.elements.get('wall-centers-toggle').onclick();assert.ok(!calls.at(-1).some(f=>f.id==='edited-chimney'));
+});
+// Full-house audit 2026-10-16, items 1 and 2.
+test('a roof change rebuilds unedited walls but asks before discarding wall edits, and Undo restores them',()=>{
+ let host,answer=false;const prompts=[],editor={leave(){},clear(){},apply:w=>w,draw2D(){},draw3D(){},hasDraft:()=>false,busy:()=>false};
+ const f=fixture(true,{confirm:m=>{prompts.push(m);return answer;},createWallEditor:h=>{host=h;return editor;}}),roofZ=z=>{f.ctx.WallMode.setEnabled(false);f.ctx.activeGeometry.points[1].z=z;f.ctx.WallMode.setEnabled(true);};
+ f.ctx.activeGeometry.connections[0].type='eave';f.ctx.WallMode.setEnabled(true);f.soffits[1].onclick();
+ roofZ(8.02);assert.equal(prompts.length,0,'nothing edited, nothing to lose');assert.match(f.ctx.WallMode.serialize().roofSignature,/8\.02/);
+ const window1={id:'window-1',feature:{type:'window'},points:[{x:1,y:0,z:1},{x:2,y:0,z:1},{x:2,y:0,z:2}]},hasWindow=()=>!!f.ctx.WallMode.serialize().wallEdits?.$surfaces?.some(s=>s.id==='window-1');
+ host.recordHistory(JSON.parse(JSON.stringify(host.state().wallEdits||{})));host.state().wallEdits={...host.state().wallEdits,$surfaces:[...(host.state().wallEdits?.$surfaces||[]),window1]};host.changed();
+ roofZ(8.04);assert.equal(prompts.length,1);assert.match(prompts[0],/discards 1 window, door or sticker/);assert.ok(hasWindow(),'Cancel keeps the walls and their edits');assert.doesNotMatch(f.ctx.WallMode.serialize().roofSignature,/8\.04/);
+ f.ctx.WallMode.setEnabled(false);f.ctx.WallMode.setEnabled(true);f.stages[3].onclick();assert.equal(prompts.length,1,'the same roof is not asked about again');assert.ok(hasWindow());
+ answer=true;roofZ(8.06);assert.equal(prompts.length,2);assert.ok(!hasWindow());assert.match(f.ctx.WallMode.serialize().roofSignature,/8\.06/);
+ f.listeners['window:keydown']({key:'z',ctrlKey:true,target:{closest:()=>null},preventDefault(){},stopImmediatePropagation(){}});assert.ok(hasWindow(),'Undo restores the edits the rebuild discarded');
+ // Without a confirmation dialog nothing is discarded.
+ const quiet=fixture(true,{createWallEditor:h=>{host=h;return editor;}});quiet.ctx.activeGeometry.connections[0].type='eave';quiet.ctx.WallMode.setEnabled(true);quiet.soffits[1].onclick();
+ host.state().wallEdits={...host.state().wallEdits,$surfaces:[...(host.state().wallEdits?.$surfaces||[]),window1]};quiet.ctx.WallMode.setEnabled(false);quiet.ctx.activeGeometry.points[1].z=8.1;quiet.ctx.WallMode.setEnabled(true);
+ assert.ok(quiet.ctx.WallMode.serialize().wallEdits.$surfaces.some(s=>s.id==='window-1'));
+});
+test('wall mode owns keys while a clicked 3D toolbar control or list has focus',()=>{
+ let host,pastes=0;const f=fixture(true,{createWallEditor:h=>{host=h;return {leave(){},clear(){},apply:w=>w,draw2D(){},draw3D(){},hasDraft:()=>false,busy:()=>false,keyDown:()=>false,clipboardCommand:kind=>{if(kind==='paste')pastes++;}};}});
+ f.ctx.activeGeometry.connections[0].type='eave';f.ctx.WallMode.setEnabled(true);f.soffits[1].onclick();
+ host.recordHistory(JSON.parse(JSON.stringify(host.state().wallEdits||{})));host.state().wallEdits={...host.state().wallEdits,marker:1};host.changed();
+ // Window capture, then document bubble (the last stop before the roof's window handlers).
+ const press=(key,target,mods={})=>{const e={key,ctrlKey:false,metaKey:false,shiftKey:false,altKey:false,repeat:false,...mods,target,stopped:false,prevented:false,stopImmediatePropagation(){this.stopped=true;},preventDefault(){this.prevented=true;}};f.listeners['window:keydown'](e);if(!e.stopped)f.listeners.keydown(e);return e;};
+ const inside=kind=>{const target={closest:s=>s.split(',').some(x=>['.enh-control-panel',kind].includes(x))?target:null,matches:()=>false};return target;},button=inside('button'),list=inside('select');
+ assert.equal(press('z',button,{ctrlKey:true}).stopped,true);assert.equal(host.state().wallEdits.marker,undefined,'Ctrl+Z undoes the wall edit, not the roof');
+ assert.equal(press('y',list,{ctrlKey:true}).stopped,true);assert.equal(host.state().wallEdits.marker,1,'Ctrl+Y redoes from a focused list');
+ for(const [key,mods] of [['v',{ctrlKey:true}],['a',{ctrlKey:true}],['w',{}],['Delete',{}]])assert.equal(press(key,button,mods).stopped,true,'roof never receives '+key);
+ assert.equal(pastes,1,'Ctrl+V pastes wall geometry');
+ const enter=press('Enter',button);assert.equal(enter.stopped&&enter.prevented,true,'Enter cannot click the focused control again');
+ const typed=press('w',list);assert.equal(typed.stopped,true);assert.equal(typed.prevented,false,'a list keeps its own typing');
+});
+test('project load runs the stored wall draft repair once',()=>{
+ let calls=0;const editor={leave(){},clear(){},apply:w=>w,draw2D(){},draw3D(){},hasDraft:()=>false,busy:()=>false,repairStoredDrafts:()=>{calls++;return false;}};
+ const f=fixture(true,{createWallEditor:()=>editor});f.ctx.activeGeometry.connections[0].type='eave';f.ctx.WallMode.setEnabled(true);f.soffits[1].onclick();
+ const saved=f.ctx.WallMode.serialize();calls=0;f.ctx.WallMode.restore('fixture',{exteriorsWalls:saved});assert.equal(calls,1);
+ calls=0;f.ctx.WallMode.beforeProjectLoad();f.ctx.currentProjectId='empty';f.ctx.WallMode.restore('empty',{});assert.equal(calls,0,'nothing to repair without walls');
 });

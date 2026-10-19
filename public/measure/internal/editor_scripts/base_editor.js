@@ -18,6 +18,9 @@ window.createBaseEditor=function(host){
 
  const face=()=>base()?.faces.find(f=>f.id===selectedFace);
 
+ // Curve evaluation points are not handles. Build the test once per draw or pick pass.
+ const sampler=()=>{const b=base(),S=window.BaseSketchGeometry;return b&&S?.curveSampleTest?S.curveSampleTest(b):()=>false;};
+
  const reference=id=>planeCycle&&planeCycle.step<planeCycle.ids.length&&planeCycle.ids[planeCycle.step]===id;
 
  const active=()=>host.enabled()&&!!base()&&base().visible!==false&&host.layer()==='base';
@@ -25,18 +28,21 @@ window.createBaseEditor=function(host){
  function checkpoint(){record(copy(base()));if(history.length>40)history.shift();}
 
  function record(before){history.push({baseBefore:copy(before),wallEditsBefore:copy(state().wallEdits||{})});const entry=history.at(-1);pendingBinding=entry;if(entry.wallEditsBefore.$base)entry.wallEditsBefore.$base=copy(before);}
- function followBase(){const entry=pendingBinding;pendingBinding=null;if(!entry?.baseBefore||!window.WallBaseBinding)return;const next=base();try{window.BaseSketchGeometry?.rebind(next,next);state().wallEdits=window.WallBaseBinding.follow(entry.wallEditsBefore,entry.baseBefore,next);if(entry.wallEditsBefore.$base)state().wallEdits.$base=next;}catch(error){state().wallEdits=entry.wallEditsBefore;state().base=entry.baseBefore;if(history.at(-1)===entry)history.pop();host.redraw();throw error;}}
+ function followBase(){const entry=pendingBinding;pendingBinding=null;if(!entry?.baseBefore||!window.WallBaseBinding)return;const next=base();try{window.BaseSketchGeometry?.rebind(next,next);window.WallBaseBinding.check?.(host.walls?.(),entry.baseBefore,next);state().wallEdits=window.WallBaseBinding.follow(entry.wallEditsBefore,entry.baseBefore,next);if(entry.wallEditsBefore.$base)state().wallEdits.$base=next;}catch(error){state().wallEdits=entry.wallEditsBefore;state().base=entry.baseBefore;if(history.at(-1)===entry)history.pop();host.redraw();throw error;}}
  function restoreHistory(){const entry=history.pop();if(entry.baseBefore){state().wallEdits=entry.wallEditsBefore;state().base=entry.baseBefore;return;}if(entry.foundationBefore){state().base=entry.foundationBefore;state().wallEdits||={};if(entry.baseCuts===null)delete state().wallEdits.$baseCuts;else state().wallEdits.$baseCuts=entry.baseCuts;}else state().base=entry;}
  function rebuildGrade(){
   cancel();sketchEditor?.clear();host.setLayer('base');
-  const before=copy(base()),wallEditsBefore=copy(state().wallEdits||{}),next=B.fitGrade(before,state().ground);
+  const before=copy(base()),wallEditsBefore=copy(state().wallEdits||{}),plan=B.reground(before,state().ground),next=plan.base;
+  // Reground keeps base edits; warn before a step pattern the new grade cannot carry is removed.
+  if(plan.lost.length&&typeof window.confirm==='function'&&!window.confirm(`Reground fits the base to the current grade. ${plan.lost.length===1?'One step pattern':plan.lost.length+' step patterns'} cannot be kept: ${plan.lost[0].message} Continue?`)){message='Reground canceled';render();return;}
   // Reground must use the same attachment mapping as an ordinary base edit.
   // Compute it first: invalid attached faces must not leave half an edit behind.
+  window.WallBaseBinding?.check?.(host.walls?.(),before,next);
   const edits=window.WallBaseBinding?window.WallBaseBinding.follow(wallEditsBefore,before,next):copy(wallEditsBefore);
-  if(edits.$base)edits.$base=next;delete edits.$baseCuts;
+  if(edits.$base)edits.$base=next;if(edits.$baseCuts)edits.$baseCuts=B.followCuts(edits.$baseCuts,next);
   history.push({baseBefore:before,wallEditsBefore});host.recordHistory?.({base:copy(before),wallEdits:copy(wallEditsBefore)});
   state().wallEdits=edits;state().base=next;
-  window.WallChimneys?.syncFoundation(state(),{force:true});select(null);message='Base and attached walls regrounded';changed(false);
+  window.WallChimneys?.syncFoundation(state(),{force:true});select(null);message='Base and attached walls regrounded'+(plan.lost.length?` · ${plan.lost.length} step pattern${plan.lost.length===1?'':'s'} removed`:'');changed(false);
  }
  function changed(rebind=true){const entry=pendingBinding;if(rebind)followBase();else pendingBinding=null;if(rebind&&entry)host.recordHistory?.({base:copy(entry.baseBefore),wallEdits:copy(entry.wallEditsBefore)});host.changed();render();}
 
@@ -194,9 +200,10 @@ window.createBaseEditor=function(host){
   }
 
 
+  const sample=sampler();
   for(const f of base().faces.filter(f=>!front||f.id===front.object.userData.baseId)){
 
-   const candidates=f.points.map((p,i)=>({p,i})).filter(c=>!window.BaseSketchGeometry?.isCurveSample?.(base(),c.p));
+   const candidates=f.points.map((p,i)=>({p,i})).filter(c=>!sample(c.p));
 
    if(state()?.wallCenters!==false)candidates.push({p:B.center(f),i:-1});
 
@@ -508,7 +515,7 @@ window.createBaseEditor=function(host){
 
   }
 
-  const candidates=base().faces.map(f=>({f,ids:f.points.flatMap((p,i)=>{if(window.BaseSketchGeometry?.isCurveSample?.(base(),p))return [];const q=screen(p,'2d');return q.x>=Math.min(box.x,box.ex)&&q.x<=Math.max(box.x,box.ex)&&q.y>=Math.min(box.y,box.ey)&&q.y<=Math.max(box.y,box.ey)?[i]:[];})})).filter(c=>c.ids.length);
+  const sample=sampler(),candidates=base().faces.map(f=>({f,ids:f.points.flatMap((p,i)=>{if(sample(p))return [];const q=screen(p,'2d');return q.x>=Math.min(box.x,box.ex)&&q.x<=Math.max(box.x,box.ex)&&q.y>=Math.min(box.y,box.ey)&&q.y<=Math.max(box.y,box.ey)?[i]:[];})})).filter(c=>c.ids.length);
 
   // Connections subdivide one face; prefer that face when adding to its selection.
 
@@ -553,13 +560,14 @@ window.createBaseEditor=function(host){
 
   if(!base()||base().visible===false)return;
 
+  const sample=sampler();
   for(const f of base().faces){const ps=f.points.map(p=>host.toPixel(p)),chosen=selectedFaces.includes(f.id);
 
    for(const poly of displayed(f))svg('polygon',{points:poly.map(p=>host.toPixel(p)).map(p=>p.x+','+p.y).join(' '),fill:reference(f.id)?'#ffbf69':chosen?'#efdcff':COLOR,'fill-opacity':chosen?.22:.08,stroke:(state()?.wallEdits?.$baseCuts||[]).length?'none':reference(f.id)?'#ffbf69':COLOR,'stroke-width':2*inv,'pointer-events':'none'},rot);
 
    if((state()?.wallEdits?.$baseCuts||[]).length){for(const ring of [f.points,...state().wallEdits.$baseCuts.filter(c=>!c.faceIds||c.faceIds.includes(f.id)).map(c=>c.points)]){const qs=ring.map(host.toPixel);svg('polyline',{points:[...qs,qs[0]].map(p=>p.x+','+p.y).join(' '),fill:'none',stroke:COLOR,'stroke-width':2*inv,'pointer-events':'none'},rot);}}
 
-   f.points.forEach((p,i)=>{if(window.BaseSketchGeometry?.isCurveSample?.(base(),p))return;const q=ps[i];svg('circle',{cx:q.x,cy:q.y,r:(chosen&&points.includes(i)?6:4)*inv,fill:chosen&&points.includes(i)?'#fff':COLOR,'pointer-events':'none'},rot);});
+   f.points.forEach((p,i)=>{if(sample(p))return;const q=ps[i];svg('circle',{cx:q.x,cy:q.y,r:(chosen&&points.includes(i)?6:4)*inv,fill:chosen&&points.includes(i)?'#fff':COLOR,'pointer-events':'none'},rot);});
 
    if(state()?.wallCenters!==false){const q=host.toPixel(B.center(f));svg('circle',{cx:q.x,cy:q.y,r:6*inv,fill:chosen?'#fff':COLOR,stroke:'#613278','stroke-width':inv,'pointer-events':'none'},rot);}
 
@@ -575,6 +583,7 @@ window.createBaseEditor=function(host){
 
   meshes=[];if(!base()||base().visible===false)return;
 
+  const sample=sampler();
   for(const f of base().faces){
 
    const polygons=displayed(f),vertices=[],indices=[];for(const poly of polygons){const offset=vertices.length/3;vertices.push(...poly.flatMap(p=>{const v=vector(p);return [v.x,v.y,v.z];}));indices.push(...B.triangles(poly).flat().map(i=>i+offset));}const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(vertices,3));g.setIndex(indices);
@@ -583,7 +592,7 @@ window.createBaseEditor=function(host){
 
    const edge=f.points.flatMap((p,i)=>[p,f.points[(i+1)%f.points.length]]),geo=new THREE.BufferGeometry();geo.setFromPoints(edge.map(vector));group.add(new THREE.LineSegments(geo,new THREE.LineBasicMaterial({color:COLOR,depthTest:false})));
 
-   const dots=f.points.map((p,i)=>({p,chosen:f.id===selectedFace&&points.includes(i)})).filter(d=>!window.BaseSketchGeometry?.isCurveSample?.(base(),d.p));if(state()?.wallCenters!==false)window.wallCenterMarker?.(group,vector,B.center(f));
+   const dots=f.points.map((p,i)=>({p,chosen:f.id===selectedFace&&points.includes(i)})).filter(d=>!sample(d.p));if(state()?.wallCenters!==false)window.wallCenterMarker?.(group,vector,B.center(f));
 
    for(const selected of [false,true]){const ps=dots.filter(d=>d.chosen===selected).map(d=>vector(d.p));const geo=new THREE.BufferGeometry().setFromPoints(ps);group.add(new THREE.Points(geo,new THREE.PointsMaterial({color:selected?'#fff':COLOR,size:selected?12:8,sizeAttenuation:false,depthTest:false})));}
 

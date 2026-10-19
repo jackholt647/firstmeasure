@@ -11,10 +11,21 @@ function draftFace(d,f,overrides={}){
  const map=p=>world(d,p),joinedChimneys=[...new Set([...(d.joinedChimneys||[]),...(f.joinedChimneys||[])])];
  return {...copy(f),...(d.closedSoffit?{closedSoffit:copy(d.closedSoffit),roofLayer:true}:{}),...(d.generatedRoofContact?{generatedRoofContact:true}:{}),...K.mapCurveData(f,map),chimney:(f.chimney||d.chimney)?copy(f.chimney||d.chimney):undefined,...(joinedChimneys.length?{joinedChimneys}:{}),points:f.points.map(map),holes:(f.holes||[]).map(r=>r.map(map)),retainedPoints:overrides.retainedPoints||(d.sketch?.nodes||[]).filter(p=>!(d.removedPoints||[]).includes(p.id)&&G.contains(f,p)).map(p=>({...map(p),anchorId:overrides.draftKey?overrides.draftKey+':'+p.id:undefined})),...overrides};
 }
+// Older edits split a face twice into the same '<id>~region-1', and saved or
+// history snapshots can still hold both. The first record keeps its identity,
+// which existing references found first; each later duplicate gets an unused
+// region identity. Geometry and ownership fields are unchanged.
+function repairFaceIdentities(edits){
+ let changed=false;
+ const unique=records=>{const ids=new Set(records.map(f=>f.id)),seen=new Set();for(const f of records){if(!seen.has(f.id)){seen.add(f.id);continue;}const base=String(f.id).replace(/~region-\d+$/,'');let k=1;while(ids.has(base+'~region-'+k))k++;f.id=base+'~region-'+k;ids.add(f.id);seen.add(f.id);changed=true;}};
+ unique(edits?.$surfaces||[]);for(const d of Object.values(edits?.$drafts||{}))unique(d.faces||[]);
+ return changed;
+}
 // Repair the missing ownership field in persisted operation replacements. The
 // stored source IDs prove ancestry; do not guess from proximity or recompute faces.
+// This is the loader's ownership pass, so it also restores unique face identities.
 function restoreDraftFaceOwnership(edits){
- let changed=false;
+ let changed=repairFaceIdentities(edits);
  for(const f of edits?.$surfaces||[]){
   const d=edits.$drafts?.[f.draftKey],source=d?.faces.find(r=>r.id===f.regionId);
   if(!source?.solidId||!(f.id===source.solidId||f.id.startsWith(source.solidId+'-')))continue;
@@ -57,20 +68,31 @@ function cutOpenings(face,features){
  if(Math.abs(parts.reduce((sum,f)=>sum+K.area(f),0)-K.area(original))<1e-8)return [face];
  return parts.map(part=>({...face,points:part.points.map(p=>W.fromFrame(frame,p)),holes:part.holes.map(r=>r.map(p=>W.fromFrame(frame,p)))}));
 }
+// A published planar face has three distinct corners and more than grid width.
+// Clipping noise is removed where an operation makes it, never published.
+function degenerateFace(f){
+ if(f.curvedSurface)return false;const r=f.points,corners=r.filter((p,i)=>K.CONTACT<Math.hypot(p.x-r[(i+1)%r.length].x,p.y-r[(i+1)%r.length].y,p.z-r[(i+1)%r.length].z));if(corners.length<3)return true;
+ const frame=K.frame(f),area=K.area({points:r.map(p=>K.local(frame,p)),holes:(f.holes||[]).map(h=>h.map(p=>K.local(frame,p)))}),longest=Math.max(...r.map((p,i)=>Math.hypot(p.x-r[(i+1)%r.length].x,p.y-r[(i+1)%r.length].y,p.z-r[(i+1)%r.length].z)));
+ return area/longest<=K.GRID;
+}
 function validateResult(result){
- for(const f of [result.cap,...(result.sides||[]),...(result.replacements||[]).flatMap(r=>r.pieces)].filter(f=>f&&!f.deleted))K.validateFace(f);
+ for(const f of [result.cap,...(result.sides||[]),...(result.replacements||[]).flatMap(r=>r.pieces)].filter(f=>f&&!f.deleted)){K.validateFace(f);if(degenerateFace(f))throw Error('The result contains a zero-area face.');}
  for(const f of result.base?.faces||[]){if(!f.points.every(K.finite3))throw Error('Base update produced a non-finite coordinate.');K.triangles(f.points,f.holes||[]);}
  return result;
 }
 function conformBase(source,cap,sides,base){
- if(!base||Math.abs(W.normal(source.points).z)>K.CONTACT)return;
- if(source.curvedSurface?.logical){
+ const n=W.normal(source.points);if(!base||!W.horizontalSweep(n))return;
+ if(source.curvedSurface?.logical){if(Math.abs(n.z)>K.CONTACT)return;
   const delta={x:cap.points[0].x-source.points[0].x,y:cap.points[0].y-source.points[0].y,z:cap.points[0].z-source.points[0].z},outline=K.surfaceOutline(source),planes=base.faces.map(f=>({f,plane:G.plane(f.points)})).filter(({f,plane})=>plane&&outline.points.some(p=>G.contains(f,p)&&Math.abs(p.z-plane.dx*p.x-plane.dy*p.y-plane.k)<.002));
   const fit=p=>{const old={x:p.x-delta.x,y:p.y-delta.y,z:p.z-delta.z},contact=planes.find(({plane})=>Math.abs(old.z-plane.dx*old.x-plane.dy*old.y-plane.k)<K.CONTACT);return contact?{...p,z:contact.plane.dx*p.x+contact.plane.dy*p.y+contact.plane.k}:p;};
   for(const f of [cap,...sides])Object.assign(f,K.mapCurveData(f,fit),{points:f.points.map(fit),holes:(f.holes||[]).map(r=>r.map(fit))});return;
  }
- const changes=[];for(let i=0;i<source.points.length;i++){const p=source.points[i],q=cap.points[i],contact=base.faces.find(f=>{const plane=G.plane(f.points);return plane&&G.contains(f,p)&&Math.abs(p.z-plane.dx*p.x-plane.dy*p.y-plane.k)<.002;});if(!contact)continue;const plane=G.plane(contact.points);changes.push({from:{...q},z:plane.dx*q.x+plane.dy*q.y+plane.k});}
- for(const f of [cap,...sides])for(const p of [f.points,...(f.holes||[])].flat()){const c=changes.find(c=>Math.hypot(p.x-c.from.x,p.y-c.from.y,p.z-c.from.z)<=K.CONTACT);if(c)p.z=c.z;}
+ // Slide a ground contact up or down within the cap plane. On a vertical
+ // wall that is a purely vertical move; on a leaning wall it keeps the cap planar.
+ const up={x:-n.x*n.z,y:-n.y*n.z,z:1-n.z*n.z},size=Math.hypot(up.x,up.y,up.z),w={x:up.x/size,y:up.y/size,z:up.z/size};
+ const changes=[];for(let i=0;i<source.points.length;i++){const p=source.points[i],q=cap.points[i],contact=base.faces.find(f=>{const plane=G.plane(f.points);return plane&&G.contains(f,p)&&Math.abs(p.z-plane.dx*p.x-plane.dy*p.y-plane.k)<.002;});if(!contact)continue;const plane=G.plane(contact.points);changes.push({from:{...q},plane,z:plane.dx*q.x+plane.dy*q.y+plane.k});}
+ // Each point slides by its own offset, so distinct nearby points stay distinct.
+ for(const f of [cap,...sides])for(const p of [f.points,...(f.holes||[])].flat()){const c=changes.find(c=>Math.hypot(p.x-c.from.x,p.y-c.from.y,p.z-c.from.z)<=K.CONTACT);if(!c)continue;if(!w.x&&!w.y){p.z=c.z;continue;}const {dx,dy,k}=c.plane,t=(dx*p.x+dy*p.y+k-p.z)/(w.z-dx*w.x-dy*w.y);p.x+=t*w.x;p.y+=t*w.y;p.z+=t*w.z;}
 }
 function extrusionTrim(scene,sources,caps,keepStatic){
  const selected=new Set(sources.map(f=>f.id)),faces=[...scene.filter(f=>!selected.has(f.id)),...caps];
@@ -84,7 +106,9 @@ function planarExtrusionReturns(sides){
 }
 function createExtrusion(input){
  const start=copy(input),face=start.face,scene=(start.scene||[]).filter(f=>!f.deleted&&!f.snapOnly&&f.id!==face.id);
- K.validateFace(face);const topology=K.topology([face,...scene,...(start.base?.faces||[]).map(f=>({...f,id:'base:'+f.id}))],scene.flatMap(f=>f.retainedPoints||[]));
+ // A face whose corners meet within contact tolerance is one edge to the
+ // incidence graph; its sweep could only publish another zero-area face.
+ K.validateFace(face);if(degenerateFace(face))throw Error('The face has no area.');const topology=K.topology([face,...scene,...(start.base?.faces||[]).map(f=>({...f,id:'base:'+f.id}))],scene.flatMap(f=>f.retainedPoints||[]));
  // Keep shared edge anchors even when boolean boundaries omit collinear points.
  face.retainedPoints=[...new Map([...(face.retainedPoints||[]),...topology.vertices.filter(v=>v.faces.has(face.id)).map(v=>v.point)].map(p=>[K.pointKey(p),p])).values()];
  let previousAmount=null,previous=null;
@@ -93,7 +117,7 @@ function createExtrusion(input){
   // A standalone face sweeps its whole boundary. A patch in a coplanar host
   // retains supported returns, including an intentionally open door threshold.
   const supports=start.supports||scene,hosted=face.supportedExtrusion||face.feature||supports.some(f=>W.coplanarContact(face,f)&&face.points.some((p,i)=>W.sharedIntervals(p,face.points[(i+1)%face.points.length],[f]).length));
-  let shape=W.extrude(face,amount,{facets:true,completeBoundary:!hosted,direction:start.direction,supports});if(hosted)shape.cap.supportedExtrusion=true;conformBase(face,shape.cap,shape.sides,start.base);shape.sides=planarExtrusionReturns(shape.sides);const fitMoves=fit?fit(shape.cap,shape.sides):null;const base=start.base?B.extrudeWall(start.base,face,shape.cap):null;shape=W.roofExtrusion(face,amount,shape,start.roof,{direction:start.direction});
+  let shape=W.extrude(face,amount,{facets:true,completeBoundary:!hosted,direction:start.direction,supports,ground:start.base?.faces});if(hosted)shape.cap.supportedExtrusion=true;conformBase(face,shape.cap,shape.sides,start.base);shape.sides=planarExtrusionReturns(shape.sides);const fitMoves=fit?fit(shape.cap,shape.sides):null;const base=start.base?B.extrudeWall(start.base,face,shape.cap):null;shape=W.roofExtrusion(face,amount,shape,start.roof,{direction:start.direction});
   const trim=extrusionTrim(scene,[face],[shape.cap],start.keepTrimStatic),trimmed=W.trimExtrusion(shape.sides,scene.filter(f=>!trim.ids.has(f.id)));trimmed.replacements.push(...trim.replacements);trimmed.sides=K.compactSurfaces(trimmed.sides);K.attachBoundaryCurves(trimmed.replacements.flatMap(r=>r.pieces),[shape.cap,...trimmed.sides]);
   const result=validateResult({cap:shape.cap,sides:trimmed.sides,replacements:trimmed.replacements,base,amount,fitMoves});
   if(!fit){previousAmount=amount;previous=copy(result);}return result;
@@ -140,14 +164,14 @@ function validateEdits(edits,before={}){
  if(edits.$surfaces)edits.$surfaces=K.compactSurfaces(edits.$surfaces);
  if(edits.$loose){if((edits.$loose.points||[]).some(p=>!K.finite3(p))||(edits.$loose.edges||[]).some(pair=>pair.length!==2||pair.some(p=>!K.finite3(p))))throw Error('Copied geometry contains an invalid point or line.');}
  const old=new Map((before.$surfaces||[]).map(f=>[f.id,JSON.stringify(f)]));
- if(edits.$surfaces)edits.$surfaces=edits.$surfaces.flatMap(f=>{if(f.deleted||f.drafted||old.get(f.id)===JSON.stringify(f))return [f];const parts=K.normalizeFaces(f);for(const part of parts)K.validateFace(part);Object.assign(f,parts[0]);return [f,...parts.slice(1)];});
- const oldDrafts=before.$drafts||{};for(const [key,d]of Object.entries(edits.$drafts||{})){if(JSON.stringify(d)===JSON.stringify(oldDrafts[key]))continue;d.faces=(d.faces||[]).flatMap(f=>{if(f.solidId||f.boundaryHole||(d.deletedFaces||[]).includes(f.points.map(p=>p.nodeId).sort().join('|')))return [f];
+ if(edits.$surfaces){const ids=new Set(edits.$surfaces.map(f=>f.id));edits.$surfaces=edits.$surfaces.flatMap(f=>{if(f.deleted||f.drafted||old.get(f.id)===JSON.stringify(f))return [f];const parts=K.normalizeFaces(f,ids);for(const part of parts){ids.add(part.id);K.validateFace(part);}Object.assign(f,parts[0]);return [f,...parts.slice(1)];});}
+ const oldDrafts=before.$drafts||{};for(const [key,d]of Object.entries(edits.$drafts||{})){if(JSON.stringify(d)===JSON.stringify(oldDrafts[key]))continue;const regionIds=new Set((d.faces||[]).map(f=>f.id));d.faces=(d.faces||[]).flatMap(f=>{if(f.solidId||f.boundaryHole||(d.deletedFaces||[]).includes(f.points.map(p=>p.nodeId).sort().join('|')))return [f];
   // A cut ending at an opening can split a bridged wall ring into multiple
   // valid regions. Retain each region and its sketch-node ownership.
-  const parts=f.feature?[K.normalizeFace(f)]:K.normalizeFaces(f),anchors=[f.points,...(f.holes||[])].flat();
+  const parts=f.feature?[K.normalizeFace(f)]:K.normalizeFaces(f,regionIds),anchors=[f.points,...(f.holes||[])].flat();for(const part of parts)regionIds.add(part.id);
   for(const part of parts){if(parts.length>1){const restore=p=>{const a=anchors.find(a=>Math.hypot(a.x-p.x,a.y-p.y,(a.z||0)-(p.z||0))<=K.CONTACT);if(a)return {...p,nodeId:a.nodeId};const n=d.sketch?.nodes.find(n=>Math.hypot(n.x-p.x,n.y-p.y)<=K.CONTACT);if(!n)throw Error('The split wall needs a connected sketch point.');return {...p,nodeId:n.id};};part.points=part.points.map(restore);part.holes=(part.holes||[]).map(r=>r.map(restore));}K.triangles(part.points,part.holes||[]);}
   Object.assign(f,parts[0]);return [f,...parts.slice(1)];});}
  if(edits.$base&&JSON.stringify(edits.$base.faces)!==JSON.stringify(before.$base?.faces))for(const f of edits.$base.faces)K.triangles(f.points,f.holes||[]);
 }
-const api={version:2,indexOpenings,cutOpenings,draftFace,restoreDraftFaceOwnership,reconcileChimneys,prepareEdits,collect,createExtrusion,createExtrusions,validateResult,validateEdits,transaction};if(node)module.exports=api;else root.ExteriorModel=api;
+const api={version:2,indexOpenings,cutOpenings,draftFace,repairFaceIdentities,restoreDraftFaceOwnership,reconcileChimneys,prepareEdits,collect,createExtrusion,createExtrusions,validateResult,validateEdits,transaction};if(node)module.exports=api;else root.ExteriorModel=api;
 })(typeof window==='undefined'?globalThis:window);

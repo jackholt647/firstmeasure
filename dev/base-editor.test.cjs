@@ -118,11 +118,13 @@ test('user point dragging and deletion preserve the fixed outline',()=>{
  assert.equal(f.state.base.faces.length,1);
 });
 
-test('rebuild foundation button fits grade, clears old edits and cuts, and Undo restores them',()=>{
+test('rebuild foundation button fits grade, keeps base edits and cuts, and Undo restores them',()=>{
  const f=fixture(true);f.state.ground={points:[{x:-1,y:-1,z:.8},{x:101,y:-1,z:11},{x:101,y:101,z:21.2},{x:-1,y:101,z:11}],faces:[[0,1,2],[0,2,3]]};
- f.click(0,0);f.click(100,100,true);f.key('c');f.state.wallEdits={$baseCuts:[{points:[{x:10,y:10,z:0},{x:20,y:10,z:0},{x:10,y:20,z:0}]}]};
- const before=JSON.stringify(f.state.base),cuts=JSON.stringify(f.state.wallEdits.$baseCuts);f.els.get('base-rebuild-grade').onclick();
- assert.equal(f.state.base.faces.length,1);assert.equal(f.state.base.sketch,undefined);assert.equal(f.state.wallEdits.$baseCuts,undefined);assert.ok(f.state.base.faces[0].points.every(p=>Math.abs(p.z-(1+.1*p.x+.1*p.y))<1e-7));
+ f.click(0,0);f.click(100,100,true);f.key('c');f.state.base.faces[1].material='brick';f.state.wallEdits={$baseCuts:[{points:[{x:10,y:10,z:0},{x:20,y:10,z:0},{x:10,y:20,z:0}]}]};
+ const before=JSON.stringify(f.state.base),cuts=JSON.stringify(f.state.wallEdits.$baseCuts),ids=f.state.base.faces.map(f=>f.id);f.els.get('base-rebuild-grade').onclick();
+ assert.deepEqual(f.state.base.faces.map(f=>f.id),ids,'faces keep their identity');assert.equal(f.state.base.faces[1].material,'brick');
+ assert.ok(f.state.base.sketch.edges.some(e=>!e.fixed),'the drawn divider survives');assert.equal(JSON.stringify(f.state.wallEdits.$baseCuts),cuts);
+ assert.ok(f.state.base.faces.every(f=>f.points.every(p=>Math.abs(p.z-(1+.1*p.x+.1*p.y))<1e-7)));assert.ok(f.state.base.sketch.nodes.every(n=>Math.abs(n.z-(1+.1*n.x+.1*n.y))<1e-7));
  f.els.get('base-undo').onclick();assert.equal(JSON.stringify(f.state.base),before);assert.equal(JSON.stringify(f.state.wallEdits.$baseCuts),cuts);
 });
 
@@ -173,7 +175,7 @@ test('Reground follows attached edited wall bottoms onto flat and pitched grade 
  const f=fixture(true),p=(x,y,z)=>({x,y,z});f.state.ground={points:[p(-1,-1,1-slope),p(101,-1,1+101*slope),p(101,101,1+101*slope),p(-1,101,1-slope)],faces:[[0,1,2],[0,2,3]]};
  const attached={id:'attached',material:'brick',points:[p(0,0,0),p(100,0,0),p(100,0,5),p(0,0,5)],retainedPoints:[p(25,0,0)]},floating={id:'floating',points:[p(0,20,.5),p(100,20,.5),p(100,20,5),p(0,20,5)]};
  f.state.wallEdits={$surfaces:[attached,floating],$baseCuts:[{points:[p(10,10,0),p(20,10,0),p(10,20,0)]}]};const before=JSON.stringify(f.state);
- f.els.get('base-rebuild-grade').onclick();const moved=f.state.wallEdits.$surfaces[0];assert.equal(moved.material,'brick');assert.ok(moved.points.some(p=>p.x===0&&p.z===1));assert.ok(moved.points.some(p=>p.x===100&&Math.abs(p.z-(1+100*slope))<1e-7));assert.ok(moved.points.filter(p=>p.z===5).length===2);assert.ok(Math.abs(moved.retainedPoints[0].z-(1+25*slope))<1e-7);assert.deepEqual(JSON.parse(JSON.stringify(f.state.wallEdits.$surfaces[1])),floating);assert.equal(f.state.wallEdits.$baseCuts,undefined);
+ f.els.get('base-rebuild-grade').onclick();const moved=f.state.wallEdits.$surfaces[0];assert.equal(moved.material,'brick');assert.ok(moved.points.some(p=>p.x===0&&p.z===1));assert.ok(moved.points.some(p=>p.x===100&&Math.abs(p.z-(1+100*slope))<1e-7));assert.ok(moved.points.filter(p=>p.z===5).length===2);assert.ok(Math.abs(moved.retainedPoints[0].z-(1+25*slope))<1e-7);assert.deepEqual(JSON.parse(JSON.stringify(f.state.wallEdits.$surfaces[1])),floating);assert.deepEqual(f.state.wallEdits.$baseCuts,JSON.parse(before).wallEdits.$baseCuts);
  f.els.get('base-undo').onclick();assert.equal(JSON.stringify(f.state),before);
  }
 });

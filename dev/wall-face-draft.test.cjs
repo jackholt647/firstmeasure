@@ -558,11 +558,15 @@ test('shared-edge double click keeps the explicitly selected drawing face',()=>{
  assert.equal(f.state.wallEdits.$drafts.perpendicular,undefined);assert.ok(f.d().sketch.nodes.some(n=>n.x===0&&Math.abs(n.y-1.3)<1e-6));
  assert.equal(f.editor.holdBoundary(f.e(1,1.3)),false);
 });
-test('saved empty merged draft rebuilds and retains its center after point insertion and deselection',()=>{
+test('saved empty merged draft draws as its generated walls until an edit rebuilds it, then retains its center',()=>{
  const c=require('./fixtures/merged-wall-empty-draft.json'),key=c.walls[0].mergeGroup;
  const f=fixture({walls:c.walls,state:{wallEdits:{$drafts:{[key]:structuredClone(c.draft)}}},globals:renderGlobals()});
- let objects=[];f.editor.draw3D({add:o=>objects.push(o)},p=>p);let d=f.state.wallEdits.$drafts[key];assert.equal(d.faces.length,1);assert.ok(d.sketch.nodes.length>0);assert.equal(objects.filter(o=>o.userData?.faceCenter).length,1);
- f.editor.doubleClick(f.e(0,160),c.walls[0]);f.editor.clear();objects=[];f.editor.draw3D({add:o=>objects.push(o)},p=>p);assert.equal(objects.filter(o=>o.userData?.faceCenter).length,1);assert.ok(objects.some(o=>o.material.opacity===.3));
+ // Drawing must not build the draft: its walls are not drafted yet, so the wall
+ // editor draws them (and their center) as generated walls.
+ const saved=JSON.stringify(f.state.wallEdits),edits=f.state.wallEdits;let objects=[];f.editor.draw3D({add:o=>objects.push(o)},p=>p);
+ assert.equal(f.state.wallEdits,edits);assert.equal(JSON.stringify(f.state.wallEdits),saved);assert.equal(f.editor.has(c.walls[0].id),false);assert.equal(objects.filter(o=>o.userData?.faceCenter).length,0);
+ f.editor.doubleClick(f.e(0,160),c.walls[0]);let d=f.state.wallEdits.$drafts[key];assert.equal(d.faces.length,1);assert.ok(d.sketch.nodes.length>0);assert.equal(f.history.length,1);assert.equal(JSON.stringify(f.history[0]),saved);
+ f.editor.clear();objects=[];f.editor.draw3D({add:o=>objects.push(o)},p=>p);assert.equal(objects.filter(o=>o.userData?.faceCenter).length,1);assert.ok(objects.some(o=>o.material.opacity===.3));
  f.state.wallCenters=false;objects=[];f.editor.draw3D({add:o=>objects.push(o)},p=>p);assert.equal(objects.filter(o=>o.userData?.faceCenter).length,0);assert.ok(objects.some(o=>o.material.opacity===.3));
 });
 test('existing shared point selection keeps the chosen plane through the early surface picker',()=>{
@@ -582,8 +586,11 @@ test('merged wall initialization preserves former divider endpoints for resplitt
 test('a shared point owned only by the perpendicular face mounts on the selected face',()=>{
  const f=fixture();f.editor.beginFace(f.e(1,2),f.w);f.listeners.pointerup(f.e(1,2));
  f.state.wallEdits.$surfaces=[{id:'other-plane',points:[{x:0,y:0,z:1.3},{x:0,y:2,z:1.3},{x:0,y:2,z:3},{x:0,y:0,z:3}]}];
- assert.equal(f.editor.pickSolid(f.e(0,1.3)),true);f.listeners.pointerup(f.e(0,1.3));assert.ok(f.d().sketch.nodes.some(n=>n.x===0&&n.y===1.3));
+ // Picking leaves the model alone; N mounts the point within its own undo step.
+ const picked=JSON.stringify(f.state.wallEdits),count=f.history.length;
+ assert.equal(f.editor.pickSolid(f.e(0,1.3)),true);f.listeners.pointerup(f.e(0,1.3));assert.equal(JSON.stringify(f.state.wallEdits),picked);assert.equal(f.history.length,count);
  f.editor.key({key:'n'});f.editor.down(f.e(4,1.3));assert.equal(f.d().faces.length,2,f.message());assert.equal(f.state.wallEdits.$surfaces[0].drafted,undefined);
+ assert.ok(f.d().sketch.nodes.some(n=>n.x===0&&n.y===1.3));assert.equal(f.history.length,count+1);assert.equal(JSON.stringify(f.history.at(-1)),picked);
 });
 test('selecting a generated surface then its retained point draws on that surface',()=>{
  const cap={id:'cap',points:[{x:0,y:0,z:0},{x:4,y:0,z:0},{x:4,y:0,z:4},{x:0,y:0,z:4}],retainedPoints:[{x:0,y:0,z:1.3}]};
@@ -2230,7 +2237,9 @@ test('V from a window corner passes through trim without cutting or importing th
 test('saved base-to-window cut splits bridged wall regions and commits without trapping selection',()=>{
  const input=structuredClone(require('./fixtures/vertical-cut-window-bridge.json')),state=input.state,before=JSON.stringify(state.wallEdits),f=fixture({state,walls:[],selected:null}),M=require('../public/measure/internal/editor_scripts/exterior_model');
  f.editor.cutFromPoint(input.point,'v');assert.equal(f.editor.busy(),true,f.message());assert.doesNotThrow(()=>M.validateEdits(structuredClone(state.wallEdits),JSON.parse(before)));
- const faces=Object.values(state.wallEdits.$drafts).flatMap(d=>d.faces);assert.ok(faces.some(f=>f.id.includes('~region-')),'both pieces of the split wall survive');assert.ok(faces.flatMap(f=>[f.points,...(f.holes||[])].flat()).every(p=>p.nodeId),'split boundaries retain sketch IDs');
+ // The bridged ring touches both openings at single vertices. They stay holes
+ // of the wall; a filled wall plus reversed patches over them is bug #10.
+ const faces=Object.values(state.wallEdits.$drafts).flatMap(d=>d.faces),K=require('../public/measure/internal/editor_scripts/exterior_geometry');assert.ok(faces.some(f=>(f.holes||[]).length===2),'the wall keeps both openings as holes');assert.ok(faces.every(f=>K.signedArea(f.points)>0&&!f.id.includes('~region-')),'no reversed patch fills an opening');assert.ok(faces.flatMap(f=>[f.points,...(f.holes||[])].flat()).every(p=>p.nodeId),'split boundaries retain sketch IDs');
  f.editor.down(f.e(input.point.x,input.point.z+.2));f.listeners.pointerup(f.e(input.point.x,input.point.z+.2));assert.equal(f.editor.busy(),false,f.message());assert.equal(f.history.length,1);assert.equal(JSON.stringify(f.history[0]),before);
  assert.equal(f.editor.pickLine3D(f.e(input.point.x,input.point.z+.2)),true,'new line is selectable');const committed=JSON.stringify(state.wallEdits);f.editor.key({key:'Escape'});assert.equal(JSON.stringify(state.wallEdits),committed);
 });
@@ -3142,4 +3151,71 @@ test('saved 3-foot cap rebuild has four editable corners despite previous deleti
 
 test('loading an existing phantom cap repairs its wire without restoring deleted faces',()=>{
  const W=require('../public/measure/internal/editor_scripts/wall_solid_geometry'),state={wallEdits:structuredClone(require('./fixtures/extrusion-reused-coordinates.json'))},edits=state.wallEdits,source=edits.$surfaces.at(-1),shape=W.extrude(source,.9144,{direction:{x:0,y:0,z:1}});edits.$surfaces=[...edits.$surfaces.slice(0,-1),shape.cap,...shape.sides];assert.ok(shape.cap.points.every(p=>!W.surfaceWire(edits).nodes.some(n=>n.id===W.vertexKey(p))),'fixture starts with invisible cap corners');const f=fixture({state,walls:[],selected:null});f.normalize();const graph=W.surfaceWire(state.wallEdits);assert.ok(shape.cap.points.every(p=>graph.nodes.some(n=>n.id===W.vertexKey(p))));assert.ok(state.wallEdits.$surfaces.filter(f=>f.id!==source.id&&!f.id.includes('-side-')).every(f=>f.deleted));const once=JSON.stringify(state.wallEdits);f.normalize();assert.equal(JSON.stringify(state.wallEdits),once);assert.equal(f.history.length,0);
+});
+// Full-house audit 2026-10-16, items 3, 19, 4 and 26-28.
+test('a distance typed after orbiting is placed, not the stale pointer preview',()=>{
+ const p=(x,z)=>({x,y:0,z}),square=()=>({wallEdits:{$surfaces:[{id:'a',points:[p(0,0),p(4,0),p(4,4),p(0,4)]}]}});
+ for(const buttons of [0,2,4]){
+  // Line move: drag 0.5 m, orbit, type 1.25 m, keep moving the pointer, click.
+  let state=square(),f=fixture({state,walls:[],selected:null});
+  f.editor.restoreSelection({lineSelection:[{id:'top',pair:[p(0,4),p(4,4)]}]});f.listeners.pointermove(f.e(2,4));f.editor.key({key:'m'});f.listeners.pointermove(f.e(2,4.5));
+  if(buttons)f.listeners.pointermove({...f.e(2,4.5),buttons});
+  f.editor.distanceInput().set(1.25);f.listeners.pointermove(f.e(2.2,5));f.editor.down(f.e(2.2,5));
+  assert.equal(f.history.length,1);assert.ok(Math.abs(Math.max(...state.wallEdits.$surfaces.flatMap(s=>s.points.map(q=>q.z)))-5.25)<1e-9,'line move, buttons '+buttons);
+  // Face extrusion: drag 1.5 m, orbit, type 0.75 m, click.
+  state=square();f=fixture({state,walls:[],selected:null});
+  f.editor.restoreSelection({selectedSolid:'a',preferredSolid:'a',faceSelection:[{solid:'a'}]});f.listeners.pointermove(f.e(2,2));f.editor.key({key:'e'});f.listeners.pointermove(f.e(2.5,2.5));
+  if(buttons)f.listeners.pointermove({...f.e(2.5,2.5),buttons});
+  f.editor.distanceInput().set(.75);f.editor.down(f.e(2.5,2.5));
+  assert.equal(f.history.length,1);assert.deepEqual([...new Set(state.wallEdits.$surfaces.flatMap(s=>s.points.map(q=>Math.abs(q.y))))].sort(),[0,.75],'extrusion, buttons '+buttons);
+ }
+});
+test('arrow nudges after orbiting move the geometry instead of placing nothing',()=>{
+ const p=(x,z)=>({x,y:0,z});
+ for(const buttons of [0,2,4]){
+  // Selected faces move through the shared geometry transform.
+  const state={wallEdits:{$surfaces:[{id:'a',points:[p(0,0),p(2,0),p(2,2),p(0,2)]},{id:'b',points:[p(3,0),p(5,0),p(5,2),p(3,2)]}]}},f=fixture({state,walls:[],selected:null}),before=JSON.stringify(state.wallEdits);
+  f.editor.restoreSelection({selectedSolid:'b',faceSelection:[{solid:'a'},{solid:'b'}]});f.listeners.pointermove({...f.e(6,6),buttons});f.editor.key({key:'ArrowLeft'});
+  assert.equal(f.history.length,1,'faces, buttons '+buttons);assert.equal(JSON.stringify(f.history[0]),before);
+  const xs=state.wallEdits.$surfaces.flatMap(s=>s.points.map(q=>q.x));assert.ok(Math.abs(Math.min(...xs)+.0254)<1e-9&&Math.abs(Math.max(...xs)-4.9746)<1e-9,'faces, buttons '+buttons);
+  // A live line move nudges from its current offset.
+  const line={wallEdits:{$surfaces:[{id:'a',points:[p(0,0),p(4,0),p(4,4),p(0,4)]}]}},g=fixture({state:line,walls:[],selected:null});
+  g.editor.restoreSelection({lineSelection:[{id:'top',pair:[p(0,4),p(4,4)]}]});g.listeners.pointermove(g.e(2,4));g.editor.key({key:'m'});g.listeners.pointermove(g.e(2,4.5));
+  if(buttons)g.listeners.pointermove({...g.e(2,4.5),buttons});
+  g.editor.key({key:'ArrowDown'});assert.equal(g.history.length,1);assert.equal(g.editor.busy(),false);assert.ok(Math.abs(Math.max(...line.wallEdits.$surfaces.flatMap(s=>s.points.map(q=>q.z)))-4.5254)<1e-9,'line, buttons '+buttons);
+ }
+});
+test('line moves and nudges keep deleted surface records, so Shift+F still restores them',()=>{
+ const W=require('../public/measure/internal/editor_scripts/wall_solid_geometry.js'),p=(x,z)=>({x,y:0,z}),gone=[p(6,0),p(8,0),p(8,2),p(6,2)];
+ const state={wallEdits:{$surfaces:[{id:'a',points:[p(0,0),p(2,0),p(2,4),p(0,4)]},{id:'b',points:[p(3,0),p(5,0),p(5,2),p(3,2)]},{id:'gone',deleted:true,points:gone}]}},f=fixture({state,walls:[],selected:null});
+ const record=()=>JSON.stringify(state.wallEdits.$surfaces.find(s=>s.id==='gone')),saved=record(),edges=W.surfaceWire(state.wallEdits).edges.length;
+ f.editor.restoreSelection({lineSelection:[{id:'top',pair:[p(0,4),p(2,4)]}]});f.listeners.pointermove(f.e(1,4));f.editor.key({key:'m'});f.listeners.pointermove(f.e(1,4.5));f.editor.down(f.e(1,4.5));
+ assert.equal(f.history.length,1,f.message());assert.equal(record(),saved);assert.equal(W.surfaceWire(state.wallEdits).edges.length,edges);
+ f.editor.restoreSelection({selectedSolid:'b',faceSelection:[{solid:'a'},{solid:'b'}]});f.editor.key({key:'ArrowLeft'});assert.equal(f.history.length,2,f.message());assert.equal(record(),saved);
+ W.restoreSurface(state.wallEdits,gone.map(W.vertexKey));assert.equal(state.wallEdits.$surfaces.find(s=>s.id==='gone').deleted,false);
+});
+test('drawing never changes saved drafts; their legacy repair runs once when the project loads',()=>{
+ const f=fixture({globals:renderGlobals()});f.editor.doubleClick(f.e(2,2),f.w);const d=f.state.wallEdits.$drafts.w;delete d.sourcePointsVersion;delete d.generatedRoofContact;
+ const saved=JSON.stringify(f.state.wallEdits),edits=f.state.wallEdits,count=f.history.length;f.editor.draw3D({add(){}},p=>p);f.editor.draw3D({add(){}},p=>p);
+ assert.equal(f.state.wallEdits,edits);assert.equal(JSON.stringify(f.state.wallEdits),saved);assert.equal(f.history.length,count);
+ assert.equal(f.editor.repairStoredDrafts(),true);assert.equal(f.state.wallEdits.$drafts.w.sourcePointsVersion,1);assert.equal(f.editor.repairStoredDrafts(),false);assert.equal(f.history.length,count);
+ // An empty draft record stays empty, and its wall stays undrafted, until an edit.
+ const g=fixture({globals:renderGlobals()});g.state.wallEdits={$drafts:{w:{origin:{x:0,y:0,z:0},u:{x:1,y:0},members:['w'],faces:[],sketch:{version:2,next:0,nodes:[],edges:[],outlines:[]}}}};
+ const empty=JSON.stringify(g.state.wallEdits),record=g.state.wallEdits;g.editor.draw3D({add(){}},p=>p);assert.equal(g.state.wallEdits,record);assert.equal(JSON.stringify(g.state.wallEdits),empty);assert.equal(g.editor.has('w'),false);
+});
+test('a plain click near a selected surface edge selects without drafting the surface',()=>{
+ const p=(x,z)=>({x,y:0,z}),state={wallEdits:{$surfaces:[{id:'a',points:[p(0,0),p(4,0),p(4,4),p(0,4)]}]}},f=fixture({state,walls:[],selected:null});
+ f.editor.restoreSelection({selectedSolid:'a',preferredSolid:'a',faceSelection:[{solid:'a'}]});const before=JSON.stringify(state.wallEdits);
+ assert.equal(f.editor.holdBoundary(f.e(2,4.05)),false);assert.equal(f.editor.pickSolid(f.e(2,4.05)),true);f.listeners.pointerup(f.e(2,4.05));
+ assert.equal(JSON.stringify(state.wallEdits),before);assert.equal(state.wallEdits.$surfaces[0].drafted,undefined);assert.equal(f.history.length,0);
+});
+test('sticker hover previews without materializing drafts; placement is one undo step from the original',()=>{
+ const p=(x,z)=>({x,y:0,z}),walls=[{id:'w1',bottom:[p(0,0),p(4,0)],top:[p(0,4),p(4,4)]},{id:'w2',bottom:[p(6,0),p(10,0)],top:[p(6,4),p(10,4)]}],state={wallEdits:{$surfaces:[{id:'s',points:[p(12,0),p(16,0),p(16,4),p(12,4)]}]}};
+ const f=fixture({state,walls,selected:null,globals:{THREE:{Raycaster:class{setFromCamera(){}intersectObjects(){return [];}},Vector2:class{constructor(x,y){this.x=x;this.y=y;}}},renderer:{domElement:{getBoundingClientRect:()=>({left:0,top:0,width:400,height:400})}}}});
+ const before=JSON.stringify(state.wallEdits),edits=state.wallEdits;
+ f.editor.featureCommand('window',0,true);for(let i=0;i<3;i++)f.listeners.pointermove(f.e(14,2+i*.1));
+ assert.match(f.message(),/^Window/);assert.equal(state.wallEdits,edits);assert.equal(JSON.stringify(state.wallEdits),before);
+ f.editor.down(f.e(14,2.2));assert.equal(f.history.length,1,f.message());assert.equal(JSON.stringify(f.history[0]),before);
+ assert.ok(Object.values(state.wallEdits.$drafts).some(d=>d.faces.some(face=>face.feature?.type==='window')));
+ const placed=JSON.stringify(state.wallEdits);f.editor.featureCommand('window',0,true);f.listeners.pointermove(f.e(14,1));f.editor.key({key:'Escape'});assert.equal(JSON.stringify(state.wallEdits),placed);assert.equal(f.history.length,1);
 });
