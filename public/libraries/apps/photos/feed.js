@@ -442,6 +442,7 @@
     }
     if (documentType && type === 'document.sent') return `${actor} sent a ${documentType} to the customer${object ? `: ${object}` : ''}`;
     if (documentType && type === 'document.viewed') return `${actor} had a ${documentType} viewed by the customer${object ? `: ${object}` : ''}`;
+    const scheduledType=firstText(activityPayload(event).event_type_label,activityPayload(event).event?.type_label,activityPayload(event).event_type_default_id,activityPayload(event).event_kind,activityPayload(event).event?.event_type_default_id,activityPayload(event).event?.kind).replace(/_/g,' ');
     const action = ({
       'payment.received':'took a payment',
       'proposal.payment.received':'took a proposal payment',
@@ -473,7 +474,7 @@
       'media.shared':'shared media with the customer',
       'project.created':'created a project',
       'project.contact.attached':'attached a contact',
-      'project.event_scheduled':'scheduled an event',
+      'project.event_scheduled':`scheduled ${scheduledType && scheduledType!=='custom' ? `${/^[aeiou]/i.test(scheduledType)?'an':'a'} ${scheduledType}` : 'an event'}`,
       'material.delivery.completed':'completed a material delivery',
       'material.order.placed':'placed a material order',
       'crew.clock.in':'clocked in',
@@ -1601,6 +1602,7 @@
     if (!id && !firstText(resolved.address, resolved.customer_name, resolved.primary_contact_name)) return;
     await window.Portal?.modules?.request?.openProject?.(resolved, {
       tab: options.tab || 'photos',
+      ...(options.photo ? { photo:options.photo } : {}),
       routePatch: options.fromFeedViewer ? { photo:null, photoScope:null } : null
     });
   }
@@ -1630,7 +1632,7 @@
       .pf-thumb{position:relative;aspect-ratio:1;border:2px solid transparent;border-radius:7px;overflow:hidden;background:#f2f4f7;padding:0;cursor:pointer;transition:transform .16s ease,border-color .16s ease,box-shadow .16s ease;user-select:none;-webkit-user-drag:none}.pf-thumb::before{content:'';position:absolute;left:50%;top:50%;z-index:1;width:22px;height:22px;margin:-11px 0 0 -11px;border-radius:999px;border:3px solid rgba(148,163,184,.32);border-top-color:var(--primary,#d93025);animation:pfSpin .8s linear infinite}.pf-thumb.loaded::before,.pf-thumb.error::before,.pf-thumb.video-placeholder::before{display:none}.pf-thumb.error::after{content:'\\f03e';font-family:'Font Awesome 6 Free';font-weight:900;position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);color:#98a2b3;font-size:22px}.pf-thumb img{width:100%;height:100%;object-fit:cover;display:block;opacity:0;transition:opacity .18s ease,transform .18s ease;user-select:none;-webkit-user-drag:none;pointer-events:none}.pf-thumb.loaded img{opacity:1}.pf-thumb:hover img{transform:scale(1.04)}.pf-video-placeholder{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:#101828;color:#fff;font-size:28px}.pf-video-badge{position:absolute;right:8px;bottom:8px;z-index:2;width:30px;height:30px;border-radius:999px;background:rgba(15,23,42,.78);color:#fff;display:flex;align-items:center;justify-content:center;font-size:11px;box-shadow:0 8px 16px rgba(15,23,42,.16);pointer-events:none}.pf-wrap.selection-mode .pf-thumb{transform:scale(.96)}.pf-wrap.selection-mode .pf-thumb:hover img{transform:scale(1)}.pf-thumb.selected{border-color:var(--primary,#d93025);box-shadow:0 0 0 3px rgba(var(--primary-rgb,217,48,37),.18)}.pf-thumb.selected img{transform:scale(.95)}.pf-select{position:absolute;top:7px;left:7px;z-index:3;width:24px;height:24px;border-radius:8px;border:1px solid rgba(255,255,255,.76);background:rgba(15,23,42,.56);color:#fff;display:flex;align-items:center;justify-content:center;opacity:0;cursor:pointer;backdrop-filter:blur(10px)}.pf-thumb:hover .pf-select,.pf-wrap.selection-mode .pf-select{opacity:1}.pf-select i{font-size:12px;opacity:0}.pf-thumb.selected .pf-select{background:var(--primary,#d93025);border-color:var(--primary,#d93025)}.pf-thumb.selected .pf-select i{opacity:1}.pf-thumb-meta{position:absolute;left:0;right:0;bottom:0;padding:18px 7px 7px;background:linear-gradient(transparent,rgba(0,0,0,.68));color:#fff;font-size:11px;text-align:left;opacity:0;transition:.16s ease}.pf-thumb:hover .pf-thumb-meta{opacity:1}@keyframes pfSpin{to{transform:rotate(360deg)}}
       .pf-thumb video{width:100%;height:100%;object-fit:cover;display:block;opacity:0;transition:opacity .18s ease,transform .18s ease;user-select:none;-webkit-user-drag:none;pointer-events:none}.pf-thumb.loaded video{opacity:1}.pf-thumb:hover video{transform:scale(1.04)}.pf-wrap.selection-mode .pf-thumb:hover video{transform:scale(1)}.pf-thumb.selected video{transform:scale(.95)}.pf-thumb.uploading::after{content:'Uploading';position:absolute;left:8px;top:8px;z-index:3;border-radius:999px;background:rgba(15,23,42,.72);color:#fff;padding:5px 8px;font-size:10px;font-weight:1000}
       .pf-empty{margin:56px auto;max-width:420px;text-align:center;color:#667085}.pf-empty i{font-size:34px;color:#98a2b3;margin-bottom:12px}.pf-empty strong{display:block;color:#344054;margin-bottom:5px}
-      .pf-sentinel{height:36px}.pf-loading{padding:18px;text-align:center;color:#667085}
+      .pf-sentinel{height:36px}.pf-feed-end{padding:24px 12px;text-align:center;color:#667085;font-size:12px}.pf-loading{padding:18px;text-align:center;color:#667085}
       .pf-user-modal{position:fixed;inset:0;z-index:2147483200;background:rgba(15,23,42,.42);backdrop-filter:blur(4px);display:flex;align-items:center;justify-content:center;padding:24px}
       .pf-user-shell{width:min(1120px,96vw);height:min(820px,92vh);background:#fff;border:1px solid rgba(15,23,42,.08);border-radius:18px;box-shadow:0 28px 80px rgba(15,23,42,.28);display:grid;grid-template-columns:280px minmax(0,1fr);overflow:hidden}
       .pf-user-side{padding:22px;border-right:1px solid #eaecf0;background:#f8fafc;min-width:0}.pf-user-close{width:36px;height:36px;flex:0 0 auto;border:1px solid rgba(15,23,42,.1);border-radius:999px;background:#fff;color:#344054;cursor:pointer;display:inline-flex;align-items:center;justify-content:center}
@@ -1753,6 +1755,7 @@
     if (state.loading) return;
     const oid = orgId();
     if (!oid || !window.PlatformAPI?.projects?.list) return;
+    const previousVisible=state.loaded ? state.visible : PAGE_SIZE;
     state.loading = true;
     render();
     try {
@@ -1799,7 +1802,7 @@
       if (state.visibleDocuments.size) await loadFeedDocuments();
       await authorizeFeedEntries();
       state.loaded = true;
-      state.visible = PAGE_SIZE;
+      state.visible = previousVisible;
       if (options.toast) showToast?.((globalThis.PlatformLanguage?.text("photos","m_1d3d11d1bf93d5","Feed refreshed") ?? "Feed refreshed"));
     } catch (error) {
       console.warn('Could not load feed', error);
@@ -2346,7 +2349,7 @@
   function feedListEntryHtml(post, showProject = true){
     if(post.kind==='manual'){
       const author=postAuthor(post);
-      return `<article class="pf-feed-list-row pf-manual-row">${actorAvatarHtml(author,'fa-pen-to-square')}<div class="pf-feed-list-copy">${feedListTitleHtml(post.timestamp,`${author.name} posted to ${manualPostScope(post.manual)}`,author.name)}${manualPostBodyHtml(post.manual)}</div></article>`;
+      return `<article class="pf-feed-list-row pf-manual-row" data-feed-entry="${escapeHtml(post.id)}">${actorAvatarHtml(author,'fa-pen-to-square')}<div class="pf-feed-list-copy">${feedListTitleHtml(post.timestamp,`${author.name} posted to ${manualPostScope(post.manual)}`,author.name)}${manualPostBodyHtml(post.manual)}</div></article>`;
     }
     const author=postAuthor(post),photos=post.entries.filter((entry)=>entry.kind==='media');
     const action=photos.length
@@ -2358,7 +2361,7 @@
     const documentEntry=post.entries.find((entry)=>entry.kind==='document');
     const fallback=`${post.kind==='note' ? feedNoteHtml(post.note,true) : ''}${feedListMediaHtml(photos,post.projectId)}${post.kind==='document' ? feedListDocumentHtml(post.document,documentEntry?.id) : ''}`;
     const actionActor=post.kind==='activity' ? feedActor(post.event) : post.pairedEvent && action.startsWith(feedActor(post.pairedEvent)) ? feedActor(post.pairedEvent) : author.name;
-    return `<article class="pf-feed-list-row${showProject?' pf-list-time-row':''}${fallback?'':' pf-no-preview'}">${actorAvatarHtml(author,postIcon(post))}<div class="pf-feed-list-copy">${feedListTitleHtml(post.timestamp,action,actionActor,!showProject)}${showProject?`<div class="pf-feed-list-project">${feedProjectLinkHtml(post.project,post.projectId,false,true)}</div>`:''}${fallback?`<div class="pf-feed-list-preview">${fallback}</div>`:''}</div>${showProject?`<time class="pf-feed-list-time" datetime="${escapeHtml(post.timestamp)}">${escapeHtml(feedDayTime(post.timestamp))}</time>`:''}</article>`;
+    return `<article class="pf-feed-list-row${showProject?' pf-list-time-row':''}${fallback?'':' pf-no-preview'}" data-feed-entry="${escapeHtml(post.id)}">${actorAvatarHtml(author,postIcon(post))}<div class="pf-feed-list-copy">${feedListTitleHtml(post.timestamp,action,actionActor,!showProject)}${showProject?`<div class="pf-feed-list-project">${feedProjectLinkHtml(post.project,post.projectId,false,true)}</div>`:''}${fallback?`<div class="pf-feed-list-preview">${fallback}</div>`:''}</div>${showProject?`<time class="pf-feed-list-time" datetime="${escapeHtml(post.timestamp)}">${escapeHtml(feedDayTime(post.timestamp))}</time>`:''}</article>`;
   }
   function feedProjectGroupsHtml(entries){
     const projects=new Map();
@@ -2448,7 +2451,7 @@
   function feedPostHtml(post){
     if (post.kind === 'note') {
       const author=postAuthor(post);
-      return `<article class="pf-post pf-note-post"><header class="pf-post-head">${actorAvatarHtml(author,'fa-note-sticky')}<div><strong>${escapeHtml(author.name)} added a note:</strong><span><time>${escapeHtml(feedListTime(post.timestamp))}</time></span><div class="pf-feed-list-project">${feedProjectLinkHtml(post.project,post.projectId,false,true)}</div></div></header><div class="pf-post-note-body">${feedNoteHtml(post.note)}</div></article>`;
+      return `<article class="pf-post pf-note-post" data-feed-entry="${escapeHtml(post.id)}"><header class="pf-post-head">${actorAvatarHtml(author,'fa-note-sticky')}<div><strong>${escapeHtml(author.name)} added a note:</strong><span><time>${escapeHtml(feedListTime(post.timestamp))}</time></span><div class="pf-feed-list-project">${feedProjectLinkHtml(post.project,post.projectId,false,true)}</div></div></header><div class="pf-post-note-body">${feedNoteHtml(post.note,true)}</div></article>`;
     }
     const current=postState(post.id),author=postAuthor(post),photos=post.entries.filter(e=>e.kind==='media'),doc=post.document;
     const amount=doc ? firstText(doc.total_formatted,doc.amount_formatted,doc.contract_value,doc.total,doc.amount) : firstText(activityPayload(post.event || {}).amount_formatted,activityPayload(post.event || {}).amount);
@@ -2671,19 +2674,31 @@
           ${String(selectionActions)}
         </div>
       </div>` : ''}
-      <div class="pf-scroll" data-feed-scroll>
+      <div class="pf-scroll" data-feed-scroll data-feed-view="${escapeHtml(feedScrollViewKey())}">
         ${state.loading && !state.loaded ? `<div class="pf-loading">${(globalThis.PlatformLanguage?.htmlText("photos","m_d9f4b62b1c74a0","Loading your feed...") ?? "Loading your feed...")}</div>` : ''}
-        ${state.documentsLoading ? `<div class="pf-feed-notice"><i class="fas fa-circle-notch fa-spin"></i>${(globalThis.PlatformLanguage?.htmlText("photos","m_c134b013b4dd64"," Adding project documents…") ?? " Adding project documents…")}</div>` : ''}
         ${!state.loading && state.loaded && !entries.length ? `<div class="pf-empty"><i class="fas fa-filter-circle-xmark"></i><strong>${(globalThis.PlatformLanguage?.htmlText("photos","m_1a6a017a3c3609","Nothing matches what is shown") ?? "Nothing matches what is shown")}</strong><div>${(globalThis.PlatformLanguage?.htmlText("photos","m_e66cd5073679a3","Adjust the Shown menu or search to bring more items into your feed.") ?? "Adjust the Shown menu or search to bring more items into your feed.")}</div></div>` : ''}
         ${dayGroups.map(([key, list]) => `<div class="pf-day"><h2 class="pf-day-title">${escapeHtml(dateLabel(key))}</h2><div class="pf-feed-grid">${state.density==='list' && state.listOrganize==='project' ? feedProjectGroupsHtml(list) : list.map((entry) => state.density === 'posts' ? feedPostHtml(entry) : state.density === 'list' ? feedListEntryHtml(entry) : entry.kind === 'manual' ? feedManualEntryHtml(entry) : entry.kind === 'media' ? feedMediaEntryHtml(entry) : entry.kind === 'document' ? feedDocumentEntryHtml(entry) : entry.kind === 'note' ? feedNoteEntryHtml(entry) : feedActivityEntryHtml(entry)).join('')}</div></div>`).join('')}
-        ${entries.length > state.visible ? '<div class="pf-sentinel" data-feed-sentinel></div>' : ''}
+        ${entries.length > state.visible ? '<div class="pf-sentinel" data-feed-sentinel></div>' : state.loaded && !state.loading && !state.documentsLoading && entries.length ? '<div class="pf-feed-end" data-feed-end role="status">You’ve reached the end of the available activity.</div>' : ''}
       </div>`;
   }
-  function openFeedViewerAt(index, options = {}){
+  async function openFeedViewerAt(index, options = {}){
     const items = filteredItems();
     const safeIndex = Math.max(0, Math.min(Number(index || 0), Math.max(0, items.length - 1)));
     const item = items[safeIndex];
     if (!item) return null;
+    if (projectRouteId(item.project)) {
+      state.openingProjectFromFeedViewer = true;
+      try {
+        state.activeFeedViewer?.close?.();
+        await openProject(item.project, { tab:'photos', photo:mediaRouteId(item.photo), fromFeedViewer:true });
+      } catch (error) {
+        console.warn('Could not open photo project', error);
+        showToast?.((globalThis.PlatformLanguage?.text("photos","m_6c0b3254cc1aac","Project unavailable") ?? "Project unavailable"), error?.message || 'Could not open this project.', false);
+      } finally {
+        state.openingProjectFromFeedViewer = false;
+      }
+      return null;
+    }
     if (!options.fromRoute) updatePhotoRoute(item, 'feed', { history:'push', source:'photo-open' });
     if (state.activeFeedViewer) {
       state.closingFeedViewerFromRoute = true;
@@ -2743,11 +2758,44 @@
     state.routeRestoreKey = key;
     window.setTimeout(() => openFeedViewerAt(index, { fromRoute: true }), 0);
   }
+  function feedScrollViewKey(){
+    return JSON.stringify([state.density,state.listOrganize,state.feedScope,state.departmentId || '',state.query,[...state.visibleActivity].sort(),[...state.visibleMedia].sort(),[...state.visibleDocuments].sort(),[...state.visibleTags].sort()]);
+  }
+  function captureFeedScroll(){
+    const scroll=state.root?.querySelector('[data-feed-scroll]');
+    if(!scroll || scroll.dataset.feedView!==feedScrollViewKey())return null;
+    const top=scroll.getBoundingClientRect().top;
+    const rows=[...scroll.querySelectorAll('[data-feed-entry],[data-feed-post]')];
+    const anchor=rows.find(row=>row.getBoundingClientRect().bottom>top+1);
+    return {top:scroll.scrollTop,left:scroll.scrollLeft,key:anchor?.dataset.feedEntry || anchor?.dataset.feedPost,offset:anchor?anchor.getBoundingClientRect().top-top:0,
+      expanded:rows.filter(row=>row.querySelector('.pf-note.expanded')).map(row=>row.dataset.feedEntry || row.dataset.feedPost)};
+  }
+  function restoreFeedScroll(snapshot){
+    if(!snapshot)return;
+    const scroll=state.root?.querySelector('[data-feed-scroll]');if(!scroll)return;
+    const rows=[...scroll.querySelectorAll('[data-feed-entry],[data-feed-post]')];
+    for(const row of rows){
+      if(!snapshot.expanded.includes(row.dataset.feedEntry || row.dataset.feedPost))continue;
+      const note=row.querySelector('.pf-note.expandable');note?.classList.add('expanded');
+      const toggle=note?.querySelector('[data-feed-note-toggle]');toggle?.setAttribute('aria-expanded','true');toggle?.setAttribute('aria-label','Collapse note');
+    }
+    scroll.scrollTop=snapshot.top;scroll.scrollLeft=snapshot.left;
+    const anchor=rows.find(row=>(row.dataset.feedEntry || row.dataset.feedPost)===snapshot.key);
+    if(anchor)scroll.scrollTop+=anchor.getBoundingClientRect().top-scroll.getBoundingClientRect().top-snapshot.offset;
+  }
   function renderDynamic(options = {}){
     const dynamic = state.root?.querySelector?.('[data-photo-feed-dynamic]');
     if (!dynamic) return render();
-    dynamic.innerHTML = dynamicHtml(options);
+    const snapshot=captureFeedScroll(),scroll=dynamic.querySelector('[data-feed-scroll]');
+    const next=document.createElement('div');next.innerHTML=dynamicHtml(options);
+    if(snapshot && scroll){
+      const replacement=next.querySelector('[data-feed-scroll]');
+      scroll.replaceChildren(...replacement.childNodes);replacement.replaceWith(scroll);
+    }
+    for(const current of state.posts.values()){current.mentionApi?.destroy?.();current.mentionApi=null;}
+    dynamic.replaceChildren(...next.childNodes);
     bindDynamic(options);
+    restoreFeedScroll(snapshot);
   }
   function shownGroupHtml(group, title, icon, items = [], selected = new Set()){
     const allSelected = items.length > 0 && items.every((item) => selected.has(item.id));
@@ -2795,6 +2843,7 @@
   }
   function render(){
     if (!state.root) return;
+    const scrollSnapshot=captureFeedScroll();
     state.composerMentionApi?.destroy?.();
     state.composerMentionApi=null;
     for(const current of state.posts.values()){current.mentionApi?.destroy?.();current.mentionApi=null;}
@@ -2827,6 +2876,7 @@
         ${feedComposerHtml()}
       </div>`;
     bind();
+    restoreFeedScroll(scrollSnapshot);
   }
   function bind(){
     const rootEl = state.root;
@@ -3241,10 +3291,11 @@
     if (sentinel && typeof sentinel.nodeType === 'number') {
       state.observer = new IntersectionObserver((entries) => {
         if (entries.some((entry) => entry.isIntersecting)) {
+          if(!sentinel.isConnected || sentinel!==state.root?.querySelector('[data-feed-sentinel]'))return;
           state.visible += PAGE_SIZE;
-          render();
+          renderDynamic();
         }
-      }, { root: rootEl.querySelector('[data-feed-scroll]'), threshold: 0.1 });
+      }, { root: rootEl.querySelector('[data-feed-scroll]'), rootMargin:`0px 0px ${Math.max(400,Math.min(900,rootEl.querySelector('[data-feed-scroll]')?.clientHeight || 600))}px 0px`, threshold: 0.1 });
       state.observer.observe(sentinel);
     }
   }

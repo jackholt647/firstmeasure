@@ -137,6 +137,24 @@ October 9 project photos: [Typed cover and reference-photo fields](deploy/digita
 
 October 8 Call Center: [Personal, caller and manager views](deploy/digitalocean/development-call-center-modes-20261008.md) records the three screens, multi-list power dialing, manager lead controls and verified development rollout.
 
+October 12 Feed photo navigation: [Open selected photos in the project window](deploy/digitalocean/development-feed-project-photo-20261012.md) records the shared Feed click change, regression coverage and verified development rollout.
+
+October 12 Feed preloading: [Load before the bottom and hide document hydration notice](deploy/digitalocean/development-feed-prefetch-20261012.md) records the continuous scrolling adjustment and development verification.
+
+October 12 Feed scrolling: [Retained pagination position and expandable Posts notes](deploy/digitalocean/development-feed-scroll-notes-20261012.md) records the scroll fix, end status, note controls and development verification.
+
+October 11 Feed images: [Missing-thumbnail fallback across list and Posts](deploy/digitalocean/development-feed-photo-fallback-20261011.md) records the small-photo handling, cached fallback fix and development verification.
+
+October 11 table editing: [Retain table controls after insertion](deploy/digitalocean/development-feed-table-selection-20261011.md) records the shared editor fix, regression and development rollout.
+
+October 10 Feed editor: [Mentions, table controls and shared GIF/emoji picker integration](deploy/digitalocean/development-feed-editor-layout-20261010.md) records source locations, validation and development rollout.
+
+October 9 Feed List: [Day panels, named appointments, and project cover placeholders](deploy/digitalocean/development-feed-list-day-panel-20261009.md) records the development rollout, validation, and file locations.
+
+October 8 Feed stability: [Stable tile layouts, Posts tools, and Settings > Feed](deploy/digitalocean/development-feed-stability-settings-20261008.md) records the latest development rollout and file locations.
+
+October 8 Feed posts: [Inline comments, media tools, composer and tile stability](deploy/digitalocean/development-feed-posts-polish-20261008.md) records the follow-up development rollout, validation and rollback baselines. [Employee posts, department audiences, and Posts settings](deploy/digitalocean/development-feed-groups-20261008.md) records the preceding rollout.
+
 October 8 header trays: [Reset placement after close](deploy/digitalocean/development-header-tray-reset-20261008.md) records docked reopening, retained drafts, browser regressions, and the verified development rollout.
 
 October 8 international roof pricing: [Prices, exchange rates and launch expediting](deploy/digitalocean/development-international-roof-pricing-20261008.md) records €25/€50 roof reports, €5 gutters, rounded USD equivalents, the admin re-enable switch and verified development rollout.
