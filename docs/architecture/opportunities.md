@@ -229,7 +229,10 @@ routes, dialer, lead imports and the generic CRM document routes of
 routes at `/v1/call-lists` (call outcomes are written to the call list store).
 Gmail sync keeps mailboxes but no longer files messages against legacy leads.
 `internal/crm/api.ts` now serves only the referral routes at
-`/v1/internal/crm/referrals`, which still check no login (audit SEC-1).
+`/v1/internal/crm/referrals`. They are FirstMate staff tools: each needs a
+platform session whose email is an active internal user who may manage sales,
+and writes need its CSRF token (audit SEC-1, closed). The partner logo route is
+the one public route, because referral landing and sign-in pages show it.
 There are no `workflow_state: "contact_only"` standalone records; contacts are
 records of their own ([contacts](contacts.md)).
 

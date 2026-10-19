@@ -156,6 +156,11 @@ test('redirect comparison requires fresh sandbox orgs and verifies the provider 
       const expected=mode==='with_redirect'?'https://dev.1m8.ai/portal/payments-setup-complete.html':'';
       assert.equal(result.redirect_test.redirect_url,expected);
       assert.equal(applications.get(result.application.id).partner_data?.redirect_url||'',expected);
+      // Hosted sign-up sends the same partner data as the API application path.
+      const partnerData=applications.get(result.application.id).partner_data||{};
+      assert.equal(typeof partnerData.paid_subscription,'boolean');
+      assert.equal(partnerData.backbook,false);
+      assert.ok(Number.isFinite(Date.parse(partnerData.merchant_joined)),'merchant_joined is the organization start date');
       assert.equal((await client.raw('POST',base+'/merchant-boarding/hosted-signup',payload)).statusCode,400,'a comparison cannot reuse an existing application');
       assert.equal((await client.request('GET',base+'/merchant-config')).redirect_test.fresh,false);
     }

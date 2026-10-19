@@ -102,7 +102,7 @@
       fullBleed: true,
       params: { crmView: { history:'push' }, crmPanel: { values:['reports','duplicates','sources','settings'], history:'push' } },
       access: { capability: 'apps.crm' },
-      bundles: [bookingBundle, versionedBundle('crm/app.js', '20261019-crm-v6')]
+      bundles: [bookingBundle, versionedBundle('crm/app.js', '20261019-crm-v7')]
     },
     {
       id: 'portal.contacts',

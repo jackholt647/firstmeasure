@@ -16,6 +16,43 @@ async function inject(method: string, url: string, payload?: unknown) {
   return json;
 }
 
+type Caller = { email: string; cookie: string; csrf: string };
+let staffCaller: Caller | null = null;
+
+/** A platform account; with `internal` it is also a FirstMate internal user. */
+async function platformCaller(label: string, internal?: Record<string, unknown>): Promise<Caller> {
+  const suffix = Math.random().toString(36).slice(2, 10);
+  const email = `${label}-${suffix}@example.test`;
+  const register = await app.inject({ method: "POST", url: "/v1/platform/auth/register", payload: {
+    phone: nextTestPhone(), email, password: "correct horse battery staple", name: label, company: `${label} Co`, organization_id: `org_${label.replace(/\W+/g, "_")}_${suffix}`
+  } });
+  assert.equal(register.statusCode, 201, register.body);
+  const cookie = String(register.headers["set-cookie"]).match(/fm_platform_session=[^;,]+/)?.[0] || "";
+  const session = await app.inject({ method: "GET", url: "/v1/platform/auth/session", headers: { cookie } });
+  if (internal) {
+    const { saveInternalUser } = await import("../internal/storage.js");
+    await saveInternalUser({ email, name: label, status: "active", ...internal });
+  }
+  return { email, cookie, csrf: String(session.json().csrf_token || "") };
+}
+
+async function callAs(caller: Caller | null, method: string, url: string, payload?: unknown, extraHeaders: Record<string, string> = {}) {
+  const headers: Record<string, string> = { ...extraHeaders };
+  if (caller) {
+    headers.cookie = caller.cookie;
+    if (method !== "GET") headers["x-platform-csrf"] = caller.csrf;
+  }
+  return app.inject({ method, url, payload, headers });
+}
+
+/** FirstMate staff who manage sales: the intended caller of the referral routes. */
+async function staffInject(method: string, url: string, payload?: unknown) {
+  staffCaller ??= await platformCaller("referral-admin", { role: "admin" });
+  const response = await callAs(staffCaller, method, url, payload);
+  assert.ok(response.statusCode < 400, `${method} ${url} failed: ${response.statusCode} ${response.body}`);
+  return response.body ? JSON.parse(response.body) : null;
+}
+
 async function writeJson(filePath: string, value: unknown) {
   await mkdir(path.dirname(filePath), { recursive: true });
   await writeFile(filePath, `${JSON.stringify(value, null, 2)}\n`, "utf8");
@@ -193,7 +230,7 @@ test("Internal CRM referral endpoints save partners and pair organizations", asy
     billing_email: "billing@example.test"
   });
 
-  const saved = await inject("POST", "/v1/internal/crm/referrals/partners", {
+  const saved = await staffInject("POST", "/v1/internal/crm/referrals/partners", {
     display_name: "Test Referral Partner",
     company_name: "Partner Co",
     type: "manufacturer_rep",
@@ -205,19 +242,19 @@ test("Internal CRM referral endpoints save partners and pair organizations", asy
   assert.ok(saved.partner.id);
   assert.equal(saved.primary_code.new_org_offer_id, "referral_week_discount_v1");
 
-  const listed = await inject("GET", "/v1/internal/crm/referrals/partners");
+  const listed = await staffInject("GET", "/v1/internal/crm/referrals/partners");
   assert.ok(listed.partners.some((partner: any) => partner.id === saved.partner.id));
 
-  const searched = await inject("GET", "/v1/internal/crm/referrals/organizations/search?q=Referral%20Test&limit=10");
+  const searched = await staffInject("GET", "/v1/internal/crm/referrals/organizations/search?q=Referral%20Test&limit=10");
   assert.ok(searched.organizations.some((organization: any) => organization.id === orgId));
 
-  const attached = await inject("POST", `/v1/internal/crm/referrals/partners/${saved.partner.id}/attach-organization`, {
+  const attached = await staffInject("POST", `/v1/internal/crm/referrals/partners/${saved.partner.id}/attach-organization`, {
     org_id: orgId,
     note: "test attach"
   });
   assert.equal(attached.attached, true);
 
-  const rewards = await inject("GET", "/v1/internal/crm/referrals/rewards");
+  const rewards = await staffInject("GET", "/v1/internal/crm/referrals/rewards");
   assert.ok(rewards.rows.some((row: any) => row.referred_org_id === orgId));
 
   const oldPath = await app.inject({ method: "GET", url: "/v1/crm/referrals/partners" });
@@ -227,7 +264,7 @@ test("Internal CRM referral endpoints save partners and pair organizations", asy
 test("Acquisition campaigns balance bonus offer assignments and carry them to signup", async () => {
   const suffix = Math.random().toString(36).slice(2, 10);
   const campaignCode = `BONUS-SPLIT-${suffix}`.toUpperCase();
-  const saved = await inject("POST", "/v1/internal/crm/referrals/acquisition/campaigns", {
+  const saved = await staffInject("POST", "/v1/internal/crm/referrals/acquisition/campaigns", {
     display_name: `Bonus Split ${suffix}`,
     code: campaignCode,
     campaign_type: "facebook",
@@ -307,7 +344,7 @@ test("Acquisition campaigns balance bonus offer assignments and carry them to si
   assert.equal(quote.threshold, 100);
   assert.equal(quote.total_account_value, 120 + quote.bonus_dollars);
 
-  const report = await inject("GET", `/v1/internal/crm/referrals/acquisition/report?campaign_id=${encodeURIComponent(saved.campaign.id)}&start_date=2020-01-01&end_date=2099-12-31`);
+  const report = await staffInject("GET", `/v1/internal/crm/referrals/acquisition/report?campaign_id=${encodeURIComponent(saved.campaign.id)}&start_date=2020-01-01&end_date=2099-12-31`);
   assert.ok(report.bonus_offers.length >= 1);
   assert.ok(report.bonus_offers.some((row: any) => row.token === firstView.bonus_offer.token && row.signups === 1));
 });
@@ -316,7 +353,7 @@ test("Acquisition lookup resolves cloned landing pages when template campaign da
   const suffix = Math.random().toString(36).slice(2, 10);
   const campaignCode = `META619A-${suffix}`.toUpperCase();
   const landingPage = "/portal/landing/variants/meta-619a/";
-  const saved = await inject("POST", "/v1/internal/crm/referrals/acquisition/campaigns", {
+  const saved = await staffInject("POST", "/v1/internal/crm/referrals/acquisition/campaigns", {
     display_name: `Meta 619A ${suffix}`,
     code: campaignCode,
     campaign_type: "facebook",
@@ -371,3 +408,83 @@ test("Acquisition lookup resolves cloned landing pages when template campaign da
   assert.equal(offer.offer.token, tracked.bonus_offer.token);
 });
 
+test("Referral routes refuse anonymous and non-staff callers and serve FirstMate sales staff", async () => {
+  const { saveReferralPartner } = await import("../internal/crm/referrals.js");
+  const partner = await saveReferralPartner({ display_name: "Gate Partner", type: "manufacturer_rep", status: "active" });
+  const partnerId = String(partner.partner.id);
+  const routes: Array<[string, string, unknown?]> = [
+    ["GET", "/v1/internal/crm"],
+    ["GET", "/v1/internal/crm/referrals/partners"],
+    ["GET", `/v1/internal/crm/referrals/partners/${partnerId}`],
+    ["POST", "/v1/internal/crm/referrals/partners", { display_name: "Sneaky Partner", type: "manufacturer_rep" }],
+    ["POST", `/v1/internal/crm/referrals/partners/${partnerId}/logo`, {}],
+    ["GET", "/v1/internal/crm/referrals/organizations/search?q=a"],
+    ["POST", `/v1/internal/crm/referrals/partners/${partnerId}/attach-organization`, { org_id: "org_nobody" }],
+    ["GET", "/v1/internal/crm/referrals/acquisition/campaigns"],
+    ["POST", "/v1/internal/crm/referrals/acquisition/campaigns", { display_name: "Sneaky Campaign", code: "SNEAKY" }],
+    ["GET", "/v1/internal/crm/referrals/acquisition/report"],
+    ["POST", "/v1/internal/crm/referrals/acquisition/report", {}],
+    ["GET", "/v1/internal/crm/referrals/acquisition/landing-pages"],
+    ["POST", "/v1/internal/crm/referrals/acquisition/landing-pages/clone", { slug: "sneaky" }],
+    ["GET", "/v1/internal/crm/referrals/rewards"],
+    ["PATCH", "/v1/internal/crm/referrals/rewards/reward_nobody/status", { status: "paid" }]
+  ];
+
+  // Anonymous, even naming an internal admin in the actor headers and body.
+  const admin = await platformCaller("gate-admin", { role: "admin" });
+  for (const [method, url, payload] of routes) {
+    const response = await callAs(null, method, url, payload === undefined ? undefined : { ...(payload as object), actor: { email: admin.email, role: "admin" } }, { "x-internal-user-email": admin.email, "x-internal-user-role": "admin" });
+    assert.equal(response.statusCode, 401, `${method} ${url} anonymous: ${response.statusCode} ${response.body}`);
+  }
+
+  // Signed in, but not an internal user (a customer organization owner), an
+  // internal user without a sales-management permission, and a disabled admin.
+  const customer = await platformCaller("gate-customer");
+  const drafter = await platformCaller("gate-drafter", { role: "drafter", permissions: { manage_queue: true } });
+  const turnedOff = await platformCaller("gate-sales-manager-off", { role: "sales_manager", permissions: { manage_sales_users: false } });
+  const inactive = await platformCaller("gate-inactive", { role: "admin", status: "inactive" });
+  for (const caller of [customer, drafter, turnedOff, inactive]) {
+    for (const [method, url, payload] of routes) {
+      const response = await callAs(caller, method, url, payload);
+      assert.equal(response.statusCode, 403, `${method} ${url} non-staff: ${response.statusCode} ${response.body}`);
+      assert.equal(response.json().error, "referral_staff_required");
+    }
+  }
+
+  // Staff writes need the session's CSRF token.
+  for (const [method, url, payload] of routes.filter(([method, url]) => method !== "GET" && !url.endsWith("/acquisition/report"))) {
+    const response = await app.inject({ method, url, payload, headers: { cookie: admin.cookie } });
+    assert.equal(response.statusCode, 403, `${method} ${url} without CSRF: ${response.statusCode} ${response.body}`);
+    assert.equal(response.json().error, "csrf_required");
+  }
+
+  // The intended callers: an admin, a sales manager by role, and a user given manage_sales_users.
+  const salesManager = await platformCaller("gate-sales-manager", { role: "sales_manager" });
+  const granted = await platformCaller("gate-granted", { role: "user", permissions: { manage_sales_users: true } });
+  for (const caller of [admin, salesManager, granted]) {
+    for (const url of ["/v1/internal/crm/referrals/partners", "/v1/internal/crm/referrals/acquisition/campaigns", "/v1/internal/crm/referrals/rewards", "/v1/internal/crm/referrals/acquisition/report"]) {
+      const response = await callAs(caller, "GET", url);
+      assert.equal(response.statusCode, 200, `${url} staff: ${response.statusCode} ${response.body}`);
+    }
+  }
+  const status = await callAs(salesManager, "PATCH", "/v1/internal/crm/referrals/rewards/reward_nobody/status", { status: "paid" });
+  assert.notEqual(status.statusCode, 401);
+  assert.notEqual(status.statusCode, 403);
+  const saved = await callAs(granted, "POST", "/v1/internal/crm/referrals/partners", { display_name: "Granted Partner", type: "manufacturer_rep", status: "active" });
+  assert.equal(saved.statusCode, 201, saved.body);
+
+  // A partner logo stays public: the referral landing and sign-in pages show it to visitors.
+  const logoDir = path.join(storageRoot, "crm", "referral-logos");
+  await mkdir(logoDir, { recursive: true });
+  await writeFile(path.join(logoDir, "gate-logo.svg"), "<svg xmlns=\"http://www.w3.org/2000/svg\"><script>alert(1)</script></svg>", "utf8");
+  await writeFile(path.join(logoDir, "gate-notes.txt"), "not an image", "utf8");
+  {
+    const logo = await callAs(null, "GET", "/v1/internal/crm/referrals/logos/gate-logo.svg");
+    assert.equal(logo.statusCode, 200, logo.body);
+    assert.equal(logo.headers["content-type"], "image/svg+xml");
+    assert.equal(logo.headers["x-content-type-options"], "nosniff");
+    assert.match(String(logo.headers["content-security-policy"]), /default-src 'none'.*sandbox/);
+    assert.equal((await callAs(null, "GET", "/v1/internal/crm/referrals/logos/gate-notes.txt")).statusCode, 404);
+    assert.equal((await callAs(null, "GET", "/v1/internal/crm/referrals/logos/missing.png")).statusCode, 404);
+  }
+});

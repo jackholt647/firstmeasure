@@ -183,6 +183,23 @@ project records (`removeStandaloneContactRecords`): a bare one is deleted and
 loses its links, one that gathered events or proposals is kept as a `draft`
 project. Both steps are idempotent.
 
+## Contact events
+
+The contact writers emit work events after a write commits (`contacts/events.ts`), so
+organization rules can start from a contact:
+
+| Event | When | Payload |
+| --- | --- | --- |
+| `contact.created` | `createContact`, by hand, an import or a lead (not the development migration) | `contact_id`, `name`, `tags` |
+| `contact.updated` | `updateContact` changed something | `contact_id`, `changed_fields` (`emails`, `phones`, `addresses`, `tags`, `name`, `company`, `birthday`, `cf.<field>`, ...), `tags_added`, `tags_removed` |
+| `contact.tagged` | a tag was added, on create or update; one event per tag | `contact_id`, `tag` |
+| `contact.merged` | `mergeContacts` | `contact_id` (the survivor), `merged_contact_id` |
+| `contact.date` | the scheduler, for a rule with `schedule.contact_date` | `rule_id`, `contact_id`, `field`, `date`, `on` |
+
+Events carry the contact id in the payload and the context, no project, and the branch of
+the contact's first branch (organization rules are read per branch). Their context names the
+change source and, for a person, `actor_user_id`.
+
 ## Not built
 
 - Readers still read `project.contacts` (the projection) rather than the

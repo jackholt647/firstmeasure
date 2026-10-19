@@ -56,6 +56,7 @@ async function contextValue(context: WorkAutomationContext, path: string): Promi
     plan: context.plan,
     node: context.node,
     project: context.project,
+    contact: context.contact || {},
     scope: context.scope,
     proposal: context.proposal,
     payment: paymentContext(context)
@@ -168,6 +169,7 @@ async function sendWorkCommunication(channel: CommunicationChannel, automation: 
       project_id: projectId,
       work_plan_id: context.plan.id,
       work_node_id: context.node.id,
+      ...(cleanText(context.contact?.id) ? { contact_id: cleanText(context.contact?.id) } : {}),
       ...asObject(resolved.context)
     },
     source: {
@@ -181,6 +183,35 @@ async function sendWorkCommunication(channel: CommunicationChannel, automation: 
   return await sendCommunication(cleanText(context.event.organization_id), parsed, {
     branchId: cleanText(context.plan.branch_id || context.event.branch_id || "default") || "default"
   });
+}
+
+/**
+ * Starts a lead for the contact the event is about (a past customer due for service, a referral partner's
+ * yearly check-in): a new project through receiveLead, so intake routing and lead.received run as for any lead.
+ */
+async function startContactLead(context: WorkAutomationContext, input: JsonObject) {
+  const resolved = asObject(await resolveValue(input, context));
+  const contact = asObject(context.contact);
+  const contactId = cleanText(contact.id);
+  if (!contactId) throw new Error("Start a lead needs a contact: use it on a contact event, or on a project with a contact.");
+  const organizationId = cleanText(context.event.organization_id);
+  const { createHash } = await import("node:crypto");
+  // One lead per execution: a retry finds the project the first attempt made.
+  const projectId = `project_r${createHash("sha256").update(context.idempotencyKey).digest("hex").slice(0, 24)}`;
+  const existing = await readDocument(organizationId, "projects", projectId).catch(() => null);
+  if (existing) return { project_id: projectId, created: false };
+  const { receiveLead } = await import("../../leads/receive.js");
+  await receiveLead(organizationId, {
+    project_id: projectId,
+    branch_id: cleanText(context.event.branch_id || asArray(contact.branch_ids)[0] || "default") || "default",
+    source: { kind: cleanText(resolved.source_kind) || "contact_rule", provider: "Organization rule", confidence: 1, provider_fields: { rule_event_id: cleanText(context.event.id), trigger: cleanText(context.event.type) } },
+    contacts: [{ contact_id: contactId, role: cleanText(resolved.role) }],
+    address: cleanText(resolved.address || contact.address),
+    title: cleanText(resolved.title) || cleanText(contact.address) || cleanText(contact.name),
+    summary: cleanText(resolved.summary),
+    ...(resolved.notify === false || resolved.notify === "false" ? { notification: false as const } : {})
+  });
+  return { project_id: projectId, created: true };
 }
 
 async function sendSms(context: WorkAutomationContext, input: JsonObject) {
@@ -198,6 +229,9 @@ async function createTodo(context: WorkAutomationContext, input: JsonObject) {
   const title = cleanText(resolved.title || "Follow up");
   const metadata = asObject(resolved.metadata);
   const followUp = cleanText(metadata.kind) === "follow_up" || asArray(metadata.type_tags).map(cleanText).includes("follow_up");
+  // A to-do from a contact rule has no project: it names the contact, and opening it opens the contact.
+  const contactId = projectId ? "" : cleanText(context.contact?.id);
+  if (contactId && !asObject(metadata.frontend_action).kind) metadata.frontend_action = { kind: "open_contact", contact_id: contactId, name: cleanText(context.contact?.name) };
   const { createWorkPlan } = await import("../service.js");
   return await createWorkPlan({
     organization_id: organizationId,
@@ -223,8 +257,8 @@ async function createTodo(context: WorkAutomationContext, input: JsonObject) {
       ...(followUp ? { external_triggers: [{ event:"project.event_scheduled", transition:"completed", conditions:{ "payload.event_type_default_id":"sales_appointment" } }] } : {}),
       metadata: { automation: "work.createTodo.v1", ...metadata, ...(followUp ? { kind:"follow_up", type_tags:[...new Set([...asArray(metadata.type_tags).map(cleanText).filter(Boolean), "follow_up"])] } : {}) }
     }],
-    context: { project_id: projectId, parent_work_plan_id: context.plan.id, parent_work_node_id: context.node.id },
-    metadata: { hide_from_boards: true, automation: "work.createTodo.v1" },
+    context: { project_id: projectId, parent_work_plan_id: context.plan.id, parent_work_node_id: context.node.id, ...(contactId ? { contact_id: contactId } : {}) },
+    metadata: { hide_from_boards: true, automation: "work.createTodo.v1", ...(contactId ? { contact_id: contactId } : {}) },
     start_immediately: true
   });
 }
@@ -857,6 +891,11 @@ export function registerBuiltinWorkAutomations() {
   registerWorkAutomation("communications.sendEmail.v1", sendEmail, {
     description: "Sends an email through the org's messaging service.",
     input: { to: "Destination address.", subject: "Subject line.", text: "Body text.", html: "Optional HTML body." }
+  });
+  registerWorkAutomation("contacts.startLead.v1", startContactLead, {
+    description: "Starts a lead (a new project through receiveLead) for the event's contact.",
+    inputSchema: { type: "object", additionalProperties: true, properties: { title: { type: "string" }, summary: { type: "string" }, source_kind: { type: "string" }, role: { type: "string" }, address: { type: "string" }, notify: { type: ["boolean", "string"] } } },
+    input: { title: "Lead title; defaults to the contact's address or name.", summary: "What the lead is for.", source_kind: "How the lead arrived; defaults to contact_rule.", role: "The contact's role on the project.", address: "Defaults to the contact's address.", notify: "false to skip the new-lead notice." }
   });
   registerWorkAutomation("work.createTodo.v1", createTodo, {
     description: "Creates a standalone to-do (a hidden one-node work plan) assigned to users, roles, or resource groups.",

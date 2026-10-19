@@ -167,8 +167,9 @@ export async function createContact(org: string, input: JsonObject, options: { i
   }, `contact:${org}:${id}`);
   const record = await readContact(org, id, { follow: false });
   await publishRealtimeEvent({ organization_id: org, topic: "contact.created", payload: { contact_id: id, revision: record.revision } });
-  // A copy of existing data is not a new person to check.
+  // A copy of existing data is not a new person to check, nor a new contact for rules to act on.
   if (!options.migration) await (await import("./merge.js")).suggestContactDuplicates(org, id);
+  if (!options.migration) await (await import("./events.js")).emitContactCreated(org, record);
   return record;
 }
 
@@ -188,11 +189,12 @@ export async function updateContact(org: string, id: string, patch: JsonObject, 
     if (samePoints && comparable(next) === comparable(previous as unknown as JsonObject)) return null;
     const data = await validated(org, target, next, previous as unknown as JsonObject);
     await writeRecord(tx, org, target, data, points, previous.revision + 1, previous.created_at);
-    return true;
+    return previous;
   }, `contact:${org}:${target}`);
   const record = await readContact(org, target, { follow: false });
   if (!changed) return record;
   await publishRealtimeEvent({ organization_id: org, topic: "contact.updated", payload: { contact_id: target, revision: record.revision } });
+  await (await import("./events.js")).emitContactUpdated(org, changed, record);
   if (options.projections !== false) await refreshProjections(org, await contactProjectIds(org, target));
   return record;
 }

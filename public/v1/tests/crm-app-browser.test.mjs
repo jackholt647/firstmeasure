@@ -254,6 +254,28 @@ test('the CRM tab: views, filters, the board, the drawer, a worklist, reports, s
     const orgRules = (await inject('GET', `/v1/work/organizations/${orgId}/branches/default/automation-rules`)).rules.map((r) => r.id);
     assert.ok(orgRules.includes('crm_routing_assign') && orgRules.includes('crm_routing_score_lead_received'), orgRules.join(', '));
 
+    // Contact automations: a birthday call, saved as a rule on the contact date.
+    const contactRules = page.locator('[data-contact-rules]');
+    await contactRules.locator('[data-cr-add]').click();
+    await contactRules.locator('[data-cr-title="0"]').fill('Birthday call');
+    await contactRules.locator('[data-cr-trigger="0"]').selectOption('date');
+    await contactRules.locator('[data-cr-days="0"]').fill('2');
+    await contactRules.locator('[data-cr-dir="0"]').selectOption('before');
+    await contactRules.locator('[data-cr-a="0.0.title"]').fill('Call {{contact.first_name}} before their birthday');
+    await contactRules.locator('[data-cr-add-action="0"]').selectOption('text');
+    await contactRules.locator('[data-cr-save]').click();
+    await page.waitForFunction(() => !document.querySelector('[data-contact-rules] [data-cr-save]')?.disabled);
+    await contactRules.scrollIntoViewIfNeeded();
+    await shot(page, '09c-contact-automations');
+    const savedContactRules = await inject('GET', `/v1/crm/organizations/${orgId}/contact-rules`);
+    const birthday = savedContactRules.contact_rules.rules[0];
+    assert.equal(birthday.trigger.kind, 'date');
+    assert.equal(birthday.trigger.date_field, 'birthday');
+    assert.equal(birthday.trigger.offset_days, -2);
+    assert.deepEqual(birthday.actions.map((a) => a.kind), ['todo', 'text']);
+    const contactRuleIds = (await inject('GET', `/v1/work/organizations/${orgId}/branches/default/automation-rules`)).rules.map((r) => r.id);
+    assert.ok(contactRuleIds.includes(`contact_rule_${birthday.id}`) && contactRuleIds.includes('crm_routing_assign'), 'contact automations and routing keep the rules of the other');
+
     // Appointments as an agenda.
     await page.locator('.crm-rail').getByText('Upcoming appointments', { exact: true }).click();
     await page.waitForSelector('.crm-agenda, .crm-content .crm-empty');

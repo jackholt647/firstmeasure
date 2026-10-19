@@ -13,6 +13,7 @@ import { recordResult, resultOutcomes, lastResults, projectResults } from "./res
 import { cancelSaleInWindow, readRescission, saveRescission } from "./rescission.js";
 import { applyCrmPreset, ensureBaseViews, INDUSTRY_PACKS, isIndustryPack, sizeTier } from "./presets.js";
 import { readRouting, saveRouting, ROUTING_PROGRAM, SCORING_PROGRAM, ROUTING_FIELDS } from "./routing.js";
+import { readContactRules, saveContactRules } from "./contact-rules.js";
 
 // The CRM routes (docs/architecture/crm.md). Every collection row is filtered by the
 // caller's branch scope and department access before a view's filter runs; nothing here
@@ -221,6 +222,40 @@ export async function registerCrmAppApi(app: FastifyInstance) {
     const orgId = param(request, "orgId");
     const ctx = await requirePlatformAuth(request, { app: CRM_APP, orgId, csrf: true, permission: "manage_company_settings", capability: "crm.views" });
     return { ok: true, routing: await saveRouting(orgId, request.body, ctx.userId) };
+  });
+
+  // ---- Contact automations: settings that generate organization rules on contact events and dates ----
+  app.get("/organizations/:orgId/contact-rules", async request => {
+    const orgId = param(request, "orgId");
+    await requirePlatformAuth(request, { app: CRM_APP, orgId, permission: "manage_company_settings", capability: "crm.views" });
+    const [settings, roles, defs, contacts] = await Promise.all([
+      readContactRules(orgId),
+      (await import("../workforce/access.js")).listAccessRoles(orgId).catch(() => []),
+      (await import("../custom_fields/records.js")).definitions(orgId, "default", "contact").catch(() => []),
+      collectionFor(null, orgId, "contacts").catch(() => null)
+    ]);
+    // What a rule's conditions can read about the contact, in the CRM's field shape.
+    const kindOf = (type: string) => ["date", "datetime"].includes(type) ? "date" : type === "boolean" ? "bool" : ["integer", "number", "money"].includes(type) ? "number" : ["select", "multi_select"].includes(type) ? (type === "select" ? "select" : "multi") : ["text", "textarea", "email", "phone", "url"].includes(type) ? "text" : "";
+    const tagOptions = (contacts?.fields || []).find((f: JsonObject) => f.key === "tags")?.options || [];
+    const custom = (defs as JsonObject[]).filter(f => !f.inferred && kindOf(String(f.type || "")) && f.enabled !== false)
+      .map(f => ({ key: `contact.cf.${String(f.path || f.key)}`, label: String(f.label || f.path), type: kindOf(String(f.type)), group: "fields", ...(Array.isArray(f.options) && f.options.length ? { options: (f.options as unknown[]).map(o => typeof o === "object" && o ? { value: String((o as JsonObject).value ?? (o as JsonObject).id ?? ""), label: String((o as JsonObject).label ?? (o as JsonObject).value ?? "") } : { value: String(o), label: String(o) }) } : {}) }));
+    const fields = [
+      { key: "contact.name", label: "Name", type: "text" }, { key: "contact.first_name", label: "First name", type: "text" },
+      { key: "contact.email", label: "Email", type: "text" }, { key: "contact.phone", label: "Phone", type: "text" },
+      { key: "contact.address", label: "Address", type: "text" }, { key: "contact.company", label: "Company", type: "text" },
+      { key: "contact.kind", label: "Kind", type: "select", options: [{ value: "human", label: "Person" }, { value: "org", label: "Company" }] },
+      { key: "contact.tags", label: "Tags", type: "multi", options: tagOptions }, { key: "contact.birthday", label: "Birthday", type: "date" },
+      ...custom
+    ];
+    return { ok: true, contact_rules: settings, fields,
+      date_fields: [{ key: "birthday", label: "Birthday" }, ...custom.filter(f => f.type === "date").map(f => ({ key: f.key.slice("contact.".length), label: f.label }))],
+      roles: (roles as JsonObject[]).map(r => ({ id: String(r.id), label: String(r.name || r.label || r.id) })),
+      tags: tagOptions };
+  });
+  app.put("/organizations/:orgId/contact-rules", async request => {
+    const orgId = param(request, "orgId");
+    const ctx = await requirePlatformAuth(request, { app: CRM_APP, orgId, csrf: true, permission: "manage_company_settings", capability: "crm.views" });
+    return { ok: true, contact_rules: await saveContactRules(orgId, request.body, ctx.userId) };
   });
 
   app.post("/organizations/:orgId/presets/apply", async request => {

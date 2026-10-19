@@ -7,6 +7,19 @@ optimization here must return exactly the same results.
 Add an entry when you knowingly ship something that reads more than it needs, repeats work, or will not scale, and
 link the entry from the architecture doc's "Not built" section. Remove an entry when it is done.
 
+## Contact date rules read every contact
+
+**Today.** A rule on a date on each contact (`schedule.contact_date`) reads every contact of the organization when its
+time of day comes (`emitContactDateEvents` in `work/scheduler.ts`), once per rule per day, and compares the date in
+code.
+
+**Where the change goes.** An index on the contact date (the birthday in `extra_json`, or a date custom field) as
+month-day and full date in the contacts store, and a query for the target day in `emitContactDateEvents`. The events
+it emits stay the same.
+
+**Why it can wait.** One read per rule per day; it matters only for organizations with very many contacts and several
+date rules. (docs/architecture/automation-authoring.md, "Rules that start from a contact")
+
 ## Indexed selections and change feeds for pay refresh
 
 **Today.** A pay rule declares its inputs as selections (`platform/publication/select.ts`). Every selection is

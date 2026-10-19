@@ -105,6 +105,15 @@ event carries, and every action's typed input schema.
   conditions}]} evaluated on EVERY event before scope bindings. A rule's
   actions run in order, each with its own optional conditions. (A single
   {automation, input} on the rule itself is still accepted.)
+- Contact rules: an organization rule can start from a contact instead of a
+  project, on contact.created, contact.updated (payload.changed_fields),
+  contact.tagged (payload.tag) or contact.merged, or on a date on each
+  contact with schedule {cron: time of day, contact_date: {field: birthday or
+  cf.<field>, offset_days (-14: two weeks before), yearly}}. Conditions read
+  contact.<field>; inputs use {{contact.phone}}, {{contact.first_name}};
+  contacts.startLead.v1 starts a lead for the contact; a to-do from a contact
+  rule opens the contact. CRM settings > Contact automations writes rules
+  with ids starting contact_rule_; leave those to that screen.
 - Testing: dry_run_automations replays events, status changes and time
   against a draft or saved definition and reports what would happen without
   doing it.

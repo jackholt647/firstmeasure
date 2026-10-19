@@ -128,6 +128,28 @@ state as left by earlier actions. A single `automation`/`input` on the rule itse
 is still accepted and runs first under the rule's own id. Rule ids, and action
 ids within a rule, must be unique.
 
+### Rules that start from a contact
+
+A rule on `contact.created`, `contact.updated`, `contact.tagged` or `contact.merged`
+([contact events](contacts.md#contact-events)) runs once per contact event. The engine loads
+the contact (`contactForEvent` in `work/engine.ts`) and gives it to conditions as
+`contact.<field>` and to inputs as `{{contact.<field>}}` (`contactView` in
+`contacts/events.ts`: name, first_name, email, phone, address, emails, phones, tags, company,
+birthday, branch_ids, `cf.<field>`). On a project event `contact` is the project's primary
+contact, read only when a rule or binding mentions it. A text or email sent from a contact
+rule carries `context.contact_id`; a to-do made without a project names the contact and
+opens it (`frontend_action.kind: "open_contact"`). `contacts.startLead.v1` starts a lead for
+the contact through `receiveLead`, with a project id derived from the execution so a retry
+makes no second lead.
+
+A **date on each contact** is a schedule: `schedule: { cron, contact_date: { field, offset_days,
+yearly } }`. `cron` is the time of day it is checked, in the organization's time zone; `field`
+is `birthday` or `cf.<field>`; `offset_days` moves the firing from the date (-14 is two weeks
+before); `yearly` matches month and day (29 February matches 28 February in other years).
+Each matching contact gets its own `contact.date` event, keyed by rule, contact and date, so
+a sweep that runs twice in a day fires once. The rule's event is `contact.date` and its
+conditions are scoped to its own id, like a cron rule.
+
 ### A program as a rule's action
 
 An action may be `scope.code.run.v1`, a sandbox program, as in a scope. In a rule the

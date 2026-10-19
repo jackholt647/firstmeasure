@@ -12,6 +12,8 @@ import { normalizePhone } from "../contacts/normalize.js";
 // the source's own ledger (leads/intake.ts) or project id.
 
 export type LeadContactInput = {
+  /** An existing contact this lead is for (a rule starting a lead for a contact); used as it is. */
+  contact_id?: string;
   name?: string; first_name?: string; last_name?: string; contact_kind?: "human" | "org";
   email?: string; emails?: string[]; phone?: string; phones?: string[]; role?: string;
 };
@@ -40,10 +42,11 @@ const strings = (value: unknown) => (Array.isArray(value) ? value : []).map(text
 
 function leadContacts(input: unknown): LeadContactInput[] {
   return (Array.isArray(input) ? input : []).map(object).map(c => ({
+    ...(text(c.contact_id) ? { contact_id: text(c.contact_id) } : {}),
     name: text(c.name), first_name: text(c.first_name), last_name: text(c.last_name),
     contact_kind: (text(c.contact_kind) === "org" ? "org" : "human") as "human" | "org",
     email: text(c.email).toLowerCase(), emails: strings(c.emails), phone: text(c.phone || strings(c.phones)[0]), phones: strings(c.phones), role: text(c.role)
-  })).filter(c => c.name || c.first_name || c.last_name || c.email || c.emails.length || c.phone);
+  })).filter(c => c.contact_id || c.name || c.first_name || c.last_name || c.email || c.emails.length || c.phone);
 }
 
 /**
@@ -52,9 +55,10 @@ function leadContacts(input: unknown): LeadContactInput[] {
  * (Anyone can type someone else's phone number into a web form.)
  */
 async function contactFor(org: string, branchId: string, input: LeadContactInput, autoAttach: boolean): Promise<{ contact: ContactRecord; matched: boolean }> {
+  if (input.contact_id) return { contact: await (await import("../contacts/records.js")).readContact(org, input.contact_id), matched: true };
   const match = autoAttach ? (await findExactMatches(org, input))[0] : undefined;
   if (match) return { contact: match, matched: true };
-  const { role: _role, ...fields } = input;
+  const { role: _role, contact_id: _contact, ...fields } = input;
   return { contact: await createContact(org, { ...fields, branch_ids: [branchId] }), matched: false };
 }
 
