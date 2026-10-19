@@ -1334,6 +1334,8 @@ export async function createDisbursement(orgId: string, input: JsonObject, ctx: 
   if (!cleanText(asObject(input.metadata).reimbursement_request_id)) {
     await import("./reimbursements.js").then(({ syncPaidReimbursementPayables }) => syncPaidReimbursementPayables(orgId, payableIds, ctx));
   }
+  // A payroll bill paid here marks its pay run item paid, once (payroll/payables.ts).
+  await import("../payroll/payables.js").then(({ settlePaidPayrollBills }) => settlePaidPayrollBills(orgId, payableIds, documentView(doc), ctx));
   return { disbursement: documentView(doc), payment };
 }
 

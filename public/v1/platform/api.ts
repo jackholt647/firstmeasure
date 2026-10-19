@@ -3120,6 +3120,8 @@ app.get("/auth/google/config", async () => ({
       throw forbidden("self_user_delete_forbidden", "You cannot delete your own organization user record.");
     }
     if (collection === "users") await (await import("../workforce/branch-guards.js")).guardUserCollection(ctx, "write", documentId);
+    // A person is archived, never deleted: kept for the record, unable to sign in, restorable (workforce/user-archive.ts).
+    if (collection === "users") return { ok: true, deleted: await (await import("../workforce/user-archive.js")).archiveOrganizationUser(ctx, documentId, cleanText(asObject(request.query).reason)), archived: true };
     const deleted = await deleteDocument(
       orgId,
       collection,

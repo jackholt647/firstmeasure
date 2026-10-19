@@ -4,11 +4,11 @@ window.FirstMateSettingsIndex = {
   "inputs": [
     [
       "libraries/apps/settings/company.js",
-      "bca67c30c5dcd146899a56ba5554efde888907ef2fc108b36c6e73c2a5fe8372"
+      "102e8acc3ccafc8b0c1c49087453ab2135398661d83c40de5d4073aede5d5d2b"
     ],
     [
       "libraries/appointment-booking/settings.js",
-      "284326a6a48b69e22152f76ab77196ebf6a133c64485ad1445abd45ea1b78c3c"
+      "534c552e3d6de9ddc4556323ef4261e6eed4a239b3df790eb391fbc9a3be91e2"
     ],
     [
       "libraries/apps/people/app-grid.js",
@@ -16,11 +16,11 @@ window.FirstMateSettingsIndex = {
     ],
     [
       "libraries/apps/people/branches.js",
-      "53e1eb295b8a851bbee26104b34d8bcf5df42a8ce4eeef30928a7b6a7166c65c"
+      "6fc4356ea2accbd84bf7424bb702df9f3ee6f1646b08afd2e014c62482ba906e"
     ],
     [
       "libraries/apps/people/companies-page.js",
-      "174ff90a4deedeeb38555c74518b79318eb3448b1aa7f7455329aec2bd36124e"
+      "5c3e42493d33148d9395a619fd5fd121f1037810f065725c66b9ecf4eaf8f6c2"
     ],
     [
       "libraries/apps/people/compensation-panel.js",
@@ -28,7 +28,7 @@ window.FirstMateSettingsIndex = {
     ],
     [
       "libraries/apps/people/departments-page.js",
-      "5d9f0380e099400ed2810427a87c7c115964dcd64b54a459101650d9b3c05c5f"
+      "e972c05486eef374c1a17c3c54d1514c91a1e776794edea597487ada0c7dea8c"
     ],
     [
       "libraries/apps/people/entity-modal.js",
@@ -40,7 +40,7 @@ window.FirstMateSettingsIndex = {
     ],
     [
       "libraries/apps/people/groups-page.js",
-      "b83f666e05fd8e535c94ba5e5f6f06ed5ce5f5f2454cb867a1820e6fc73d6142"
+      "a7fbbe57d3dfd9d7e300bf32f41cdaae3eaffe5dba448197949b2811f3873cf1"
     ],
     [
       "libraries/apps/people/hover-card.js",
@@ -51,28 +51,44 @@ window.FirstMateSettingsIndex = {
       "bee3d80e805be2421755980fa198434b4536d5f29dc219daff786b3eebbf1db6"
     ],
     [
+      "libraries/apps/people/onboarding.js",
+      "ea7970ee7dc90613022d83d0631ce5f16b6340df7f2f3cc50b2cf0996babaa0a"
+    ],
+    [
       "libraries/apps/people/page-kit.js",
-      "ac323e294df4430abc15fe09c5c9dded7ced8b6fc061374088475289450cc18c"
+      "13e8898d432a16c27a67070b9fded1990df819353d8e97f5867d1e45616422d4"
+    ],
+    [
+      "libraries/apps/people/pay-sheets-editor.js",
+      "d8b2d6ec5deb4da8f9e302b6ffe679d73832d870b16034e68bba846ee0d84868"
+    ],
+    [
+      "libraries/apps/people/pay-sheets-list.js",
+      "e57550e7655365f32dce44e7c629466b5693681c23cfdd163417d73a7da606e1"
+    ],
+    [
+      "libraries/apps/people/pay-sheets-model.js",
+      "3cc06199e120ab7a39119d82ef7742263e774add0392b3d6cc6091d59b308347"
     ],
     [
       "libraries/apps/people/people-data.js",
-      "eafe58019941514c8420e64ec3d6f475b3c43b0495c454c96d0d805db076d994"
+      "d2a84d4bfb19752ca19cd9c876abbb4b782817221a02f0b0074382c1fb441c82"
     ],
     [
       "libraries/apps/people/people-directory.js",
-      "1c7191dbd783da12fb45217858313756cf458bbff8dc2cf0cf604e9efe604022"
+      "4739f7292ecf1f3385d12047dfc19064e362f66b29860c51f08f92565e206f12"
     ],
     [
       "libraries/apps/people/people-home.js",
-      "cc2e23709aa67d635754f04592bcc3d40db146ba825636a87c17671c6614571c"
+      "9409530e378babb07df01ddc78f91b0b0f4eab3f2d5b5681aa8ed35c970794b8"
     ],
     [
       "libraries/apps/people/people-kit.js",
-      "701ba186060286f8bddb105f76fdbb918a5c52201bad2ed4f712d721f5f3eb57"
+      "50574c50d836c74fd25e6c13ec2b787cfd4e53c953770f7bc2f69002bf5b8b67"
     ],
     [
       "libraries/apps/people/people-lists.js",
-      "4d6167ae01c057f0105e6ad0e53585acbeb9108c667580de9c12f7235a8621fd"
+      "ea831f0ba2d4e799fbf6b751eaf2743a01dfca582f70165bcec10fdbf6f3c85c"
     ],
     [
       "libraries/apps/people/people-settings.js",
@@ -84,11 +100,11 @@ window.FirstMateSettingsIndex = {
     ],
     [
       "libraries/apps/people/slots.js",
-      "e8d17f930b3c6feba132fd5d43ff687e000d8f0a09f86280a79755c2e68c64e2"
+      "8a116a77db9e3feff86b1d16f00a2406b92db0bc68978d4a5cd0142d94e91059"
     ],
     [
       "libraries/apps/people/users-page.js",
-      "d959e93d1a77a51fbd4134286e4df558e5542e3b966ca6400ff8a7c1d3f70077"
+      "123613ac458e819df0d2ac125e954326336aaa5657b9c46a0304ab064cc3ca32"
     ],
     [
       "libraries/apps/settings/automations.js",
@@ -6832,6 +6848,26 @@ window.FirstMateSettingsIndex = {
     {
       "section": "people",
       "tab": "People",
+      "view": "",
+      "source": "libraries/apps/people/pay-sheets-editor.js",
+      "title": "A number typed for each job…",
+      "description": "",
+      "kind": "control",
+      "selector": ""
+    },
+    {
+      "section": "people",
+      "tab": "People",
+      "view": "",
+      "source": "libraries/apps/people/pay-sheets-editor.js",
+      "title": "A project field…",
+      "description": "",
+      "kind": "control",
+      "selector": ""
+    },
+    {
+      "section": "people",
+      "tab": "People",
       "view": "users",
       "source": "libraries/apps/people/users-page.js",
       "title": "Active",
@@ -6855,6 +6891,26 @@ window.FirstMateSettingsIndex = {
       "view": "departments",
       "source": "libraries/apps/people/departments-page.js",
       "title": "Add",
+      "description": "",
+      "kind": "control",
+      "selector": ""
+    },
+    {
+      "section": "people",
+      "tab": "People",
+      "view": "",
+      "source": "libraries/apps/people/pay-sheets-list.js",
+      "title": "Add pay sheet",
+      "description": "",
+      "kind": "control",
+      "selector": ""
+    },
+    {
+      "section": "people",
+      "tab": "People",
+      "view": "",
+      "source": "libraries/apps/people/pay-sheets-editor.js",
+      "title": "Add pay sheet for a kind of work",
       "description": "",
       "kind": "control",
       "selector": ""
@@ -6908,6 +6964,16 @@ window.FirstMateSettingsIndex = {
       "description": "",
       "kind": "control",
       "selector": ""
+    },
+    {
+      "section": "people",
+      "tab": "People",
+      "view": "",
+      "source": "libraries/apps/people/pay-sheets-editor.js",
+      "title": "Advanced",
+      "description": "",
+      "kind": "control",
+      "selector": "[data-ps-advanced=\"\"]"
     },
     {
       "section": "people",
@@ -7033,7 +7099,17 @@ window.FirstMateSettingsIndex = {
       "section": "people",
       "tab": "People",
       "view": "",
-      "source": "libraries/apps/people/people-lists.js",
+      "source": "libraries/apps/people/pay-sheets-editor.js",
+      "title": "Archive",
+      "description": "",
+      "kind": "control",
+      "selector": ""
+    },
+    {
+      "section": "people",
+      "tab": "People",
+      "view": "users",
+      "source": "libraries/apps/people/users-page.js",
       "title": "Archive",
       "description": "",
       "kind": "control",
@@ -7072,6 +7148,26 @@ window.FirstMateSettingsIndex = {
     {
       "section": "people",
       "tab": "People",
+      "view": "",
+      "source": "libraries/apps/people/pay-sheets-editor.js",
+      "title": "Assignee",
+      "description": "",
+      "kind": "control",
+      "selector": ""
+    },
+    {
+      "section": "people",
+      "tab": "People",
+      "view": "",
+      "source": "libraries/apps/people/branches.js",
+      "title": "Branch",
+      "description": "",
+      "kind": "control",
+      "selector": ""
+    },
+    {
+      "section": "people",
+      "tab": "People",
       "view": "departments",
       "source": "libraries/apps/people/departments-page.js",
       "title": "Branch",
@@ -7102,9 +7198,69 @@ window.FirstMateSettingsIndex = {
     {
       "section": "people",
       "tab": "People",
+      "view": "",
+      "source": "libraries/apps/people/pay-sheets-editor.js",
+      "title": "By amount",
+      "description": "",
+      "kind": "control",
+      "selector": "[data-ps-duration-mode=\"amount\"]"
+    },
+    {
+      "section": "people",
+      "tab": "People",
+      "view": "",
+      "source": "libraries/apps/people/pay-sheets-editor.js",
+      "title": "By hours",
+      "description": "",
+      "kind": "control",
+      "selector": "[data-ps-duration-mode=\"hours\"]"
+    },
+    {
+      "section": "people",
+      "tab": "People",
+      "view": "",
+      "source": "libraries/apps/people/pay-sheets-editor.js",
+      "title": "Called",
+      "description": "",
+      "kind": "control",
+      "selector": "[data-ps-input-field=\"label\"]"
+    },
+    {
+      "section": "people",
+      "tab": "People",
+      "view": "",
+      "source": "libraries/apps/people/onboarding.js",
+      "title": "Certificate of insurance",
+      "description": "",
+      "kind": "control",
+      "selector": ""
+    },
+    {
+      "section": "people",
+      "tab": "People",
+      "view": "",
+      "source": "libraries/apps/people/branches.js",
+      "title": "Change",
+      "description": "",
+      "kind": "control",
+      "selector": ""
+    },
+    {
+      "section": "people",
+      "tab": "People",
       "view": "departments",
       "source": "libraries/apps/people/departments-page.js",
       "title": "Change {name}’s roles in {place}",
+      "description": "",
+      "kind": "control",
+      "selector": ""
+    },
+    {
+      "section": "people",
+      "tab": "People",
+      "view": "",
+      "source": "libraries/apps/people/branches.js",
+      "title": "Change branches",
       "description": "",
       "kind": "control",
       "selector": ""
@@ -7212,6 +7368,26 @@ window.FirstMateSettingsIndex = {
     {
       "section": "people",
       "tab": "People",
+      "view": "",
+      "source": "libraries/apps/people/pay-sheets-editor.js",
+      "title": "Charged",
+      "description": "",
+      "kind": "control",
+      "selector": "[data-ps-eq-included=\"no\"]"
+    },
+    {
+      "section": "people",
+      "tab": "People",
+      "view": "",
+      "source": "libraries/apps/people/pay-sheets-editor.js",
+      "title": "Charged per job",
+      "description": "",
+      "kind": "control",
+      "selector": "[data-ps-eq-field=\"rate\"]"
+    },
+    {
+      "section": "people",
+      "tab": "People",
       "view": "subcontractors",
       "source": "libraries/apps/people/companies-page.js",
       "title": "Contact",
@@ -7232,6 +7408,36 @@ window.FirstMateSettingsIndex = {
     {
       "section": "people",
       "tab": "People",
+      "view": "",
+      "source": "libraries/apps/people/pay-sheets-model.js",
+      "title": "Cost of salaried time",
+      "description": "",
+      "kind": "control",
+      "selector": ""
+    },
+    {
+      "section": "people",
+      "tab": "People",
+      "view": "",
+      "source": "libraries/apps/people/pay-sheets-editor.js",
+      "title": "Counted in",
+      "description": "",
+      "kind": "control",
+      "selector": "[data-ps-line-field=\"unit\"]"
+    },
+    {
+      "section": "people",
+      "tab": "People",
+      "view": "",
+      "source": "libraries/apps/people/pay-sheets-editor.js",
+      "title": "Counts as",
+      "description": "",
+      "kind": "control",
+      "selector": "[data-ps-line-field=\"role\"]"
+    },
+    {
+      "section": "people",
+      "tab": "People",
       "view": "subcontractors",
       "source": "libraries/apps/people/companies-page.js",
       "title": "Days",
@@ -7248,16 +7454,6 @@ window.FirstMateSettingsIndex = {
       "description": "",
       "kind": "control",
       "selector": "[data-worker-days=\"\"]"
-    },
-    {
-      "section": "people",
-      "tab": "People",
-      "view": "users",
-      "source": "libraries/apps/people/users-page.js",
-      "title": "Delete",
-      "description": "",
-      "kind": "control",
-      "selector": ""
     },
     {
       "section": "people",
@@ -7312,6 +7508,26 @@ window.FirstMateSettingsIndex = {
     {
       "section": "people",
       "tab": "People",
+      "view": "",
+      "source": "libraries/apps/people/pay-sheets-editor.js",
+      "title": "Duplicate…",
+      "description": "",
+      "kind": "control",
+      "selector": ""
+    },
+    {
+      "section": "people",
+      "tab": "People",
+      "view": "",
+      "source": "libraries/apps/people/pay-sheets-editor.js",
+      "title": "Each",
+      "description": "",
+      "kind": "control",
+      "selector": "[data-ps-input-field=\"per_structure\"]"
+    },
+    {
+      "section": "people",
+      "tab": "People",
       "view": "subcontractors",
       "source": "libraries/apps/people/companies-page.js",
       "title": "Edit",
@@ -7362,6 +7578,16 @@ window.FirstMateSettingsIndex = {
     {
       "section": "people",
       "tab": "People",
+      "view": "",
+      "source": "libraries/apps/people/onboarding.js",
+      "title": "Email",
+      "description": "",
+      "kind": "control",
+      "selector": ""
+    },
+    {
+      "section": "people",
+      "tab": "People",
       "view": "users",
       "source": "libraries/apps/people/users-page.js",
       "title": "Email",
@@ -7373,11 +7599,71 @@ window.FirstMateSettingsIndex = {
       "section": "people",
       "tab": "People",
       "view": "",
+      "source": "libraries/apps/people/pay-sheets-editor.js",
+      "title": "Equipment",
+      "description": "",
+      "kind": "control",
+      "selector": "[data-ps-eq-field=\"name\"]"
+    },
+    {
+      "section": "people",
+      "tab": "People",
+      "view": "",
+      "source": "libraries/apps/people/onboarding.js",
+      "title": "Expires",
+      "description": "",
+      "kind": "control",
+      "selector": ""
+    },
+    {
+      "section": "people",
+      "tab": "People",
+      "view": "",
+      "source": "libraries/apps/people/onboarding.js",
+      "title": "Expiring soon: {items}",
+      "description": "",
+      "kind": "control",
+      "selector": ""
+    },
+    {
+      "section": "people",
+      "tab": "People",
+      "view": "",
+      "source": "libraries/apps/people/onboarding.js",
+      "title": "Expiry date of {title}",
+      "description": "",
+      "kind": "control",
+      "selector": ""
+    },
+    {
+      "section": "people",
+      "tab": "People",
+      "view": "",
       "source": "libraries/apps/people/fields-panel.js",
       "title": "Field",
       "description": "",
       "kind": "control",
       "selector": "[data-place-field=\"\"]"
+    },
+    {
+      "section": "people",
+      "tab": "People",
+      "view": "",
+      "source": "libraries/apps/people/pay-sheets-editor.js",
+      "title": "Find a project by name or address",
+      "description": "",
+      "kind": "control",
+      "selector": "[data-ps-try-search=\"\"]"
+    },
+    {
+      "section": "people",
+      "tab": "People",
+      "view": "",
+      "source": "libraries/apps/people/pay-sheets-model.js",
+      "title": "Flat amount",
+      "description": "",
+      "kind": "control",
+      "selector": ""
     },
     {
       "section": "people",
@@ -7412,12 +7698,72 @@ window.FirstMateSettingsIndex = {
     {
       "section": "people",
       "tab": "People",
+      "view": "",
+      "source": "libraries/apps/people/pay-sheets-editor.js",
+      "title": "Hours a day",
+      "description": "",
+      "kind": "control",
+      "selector": "[data-ps-duration-field=\"hours_per_day\"]"
+    },
+    {
+      "section": "people",
+      "tab": "People",
+      "view": "",
+      "source": "libraries/apps/people/pay-sheets-editor.js",
+      "title": "Hours estimated from the work",
+      "description": "",
+      "kind": "control",
+      "selector": ""
+    },
+    {
+      "section": "people",
+      "tab": "People",
+      "view": "",
+      "source": "libraries/apps/people/pay-sheets-editor.js",
+      "title": "Hours for each {unit} of {work}",
+      "description": "",
+      "kind": "control",
+      "selector": "[data-ps-work-field=\"hours\"]"
+    },
+    {
+      "section": "people",
+      "tab": "People",
+      "view": "",
+      "source": "libraries/apps/people/pay-sheets-editor.js",
+      "title": "How it is paid",
+      "description": "",
+      "kind": "control",
+      "selector": "[data-ps-line-field=\"kind\"]"
+    },
+    {
+      "section": "people",
+      "tab": "People",
       "view": "groups",
       "source": "libraries/apps/people/groups-page.js",
       "title": "How many",
       "description": "",
       "kind": "control",
       "selector": "[data-req-count=\"\"]"
+    },
+    {
+      "section": "people",
+      "tab": "People",
+      "view": "",
+      "source": "libraries/apps/people/pay-sheets-editor.js",
+      "title": "How much a day",
+      "description": "",
+      "kind": "control",
+      "selector": "[data-ps-duration-field=\"units_per_day\"]"
+    },
+    {
+      "section": "people",
+      "tab": "People",
+      "view": "",
+      "source": "libraries/apps/people/pay-sheets-editor.js",
+      "title": "How much it holds",
+      "description": "",
+      "kind": "control",
+      "selector": "[data-ps-provide-field=\"capacity\"]"
     },
     {
       "section": "people",
@@ -7438,6 +7784,16 @@ window.FirstMateSettingsIndex = {
       "description": "",
       "kind": "control",
       "selector": ""
+    },
+    {
+      "section": "people",
+      "tab": "People",
+      "view": "",
+      "source": "libraries/apps/people/pay-sheets-editor.js",
+      "title": "Included",
+      "description": "",
+      "kind": "control",
+      "selector": "[data-ps-work-field=\"included\"]"
     },
     {
       "section": "people",
@@ -7482,6 +7838,26 @@ window.FirstMateSettingsIndex = {
     {
       "section": "people",
       "tab": "People",
+      "view": "",
+      "source": "libraries/apps/people/pay-sheets-editor.js",
+      "title": "Item type on the lists",
+      "description": "",
+      "kind": "control",
+      "selector": "[data-ps-input-field=\"item_type\"]"
+    },
+    {
+      "section": "people",
+      "tab": "People",
+      "view": "",
+      "source": "libraries/apps/people/pay-sheets-editor.js",
+      "title": "Kind of work",
+      "description": "",
+      "kind": "control",
+      "selector": "[data-ps-kind=\"\"]"
+    },
+    {
+      "section": "people",
+      "tab": "People",
       "view": "users",
       "source": "libraries/apps/people/users-page.js",
       "title": "Last active",
@@ -7502,6 +7878,16 @@ window.FirstMateSettingsIndex = {
     {
       "section": "people",
       "tab": "People",
+      "view": "",
+      "source": "libraries/apps/people/onboarding.js",
+      "title": "License",
+      "description": "",
+      "kind": "control",
+      "selector": ""
+    },
+    {
+      "section": "people",
+      "tab": "People",
       "view": "subcontractors",
       "source": "libraries/apps/people/companies-page.js",
       "title": "Link",
@@ -7515,6 +7901,16 @@ window.FirstMateSettingsIndex = {
       "view": "subcontractors",
       "source": "libraries/apps/people/companies-page.js",
       "title": "Linked",
+      "description": "",
+      "kind": "control",
+      "selector": ""
+    },
+    {
+      "section": "people",
+      "tab": "People",
+      "view": "",
+      "source": "libraries/apps/people/pay-sheets-editor.js",
+      "title": "Material on the lists…",
       "description": "",
       "kind": "control",
       "selector": ""
@@ -7548,6 +7944,26 @@ window.FirstMateSettingsIndex = {
       "description": "",
       "kind": "control",
       "selector": ""
+    },
+    {
+      "section": "people",
+      "tab": "People",
+      "view": "",
+      "source": "libraries/apps/people/pay-sheets-editor.js",
+      "title": "Minimum $",
+      "description": "",
+      "kind": "control",
+      "selector": "[data-ps-line-field=\"minimum\"]"
+    },
+    {
+      "section": "people",
+      "tab": "People",
+      "view": "",
+      "source": "libraries/apps/people/pay-sheets-editor.js",
+      "title": "Multiplier",
+      "description": "",
+      "kind": "control",
+      "selector": "[data-ps-line-field=\"multiplier\"]"
     },
     {
       "section": "people",
@@ -7618,6 +8034,16 @@ window.FirstMateSettingsIndex = {
       "description": "",
       "kind": "control",
       "selector": "[data-identity=\"name\"]"
+    },
+    {
+      "section": "people",
+      "tab": "People",
+      "view": "",
+      "source": "libraries/apps/people/pay-sheets-editor.js",
+      "title": "Needed",
+      "description": "",
+      "kind": "control",
+      "selector": "[data-ps-input-field=\"required\"]"
     },
     {
       "section": "people",
@@ -7713,6 +8139,16 @@ window.FirstMateSettingsIndex = {
       "section": "people",
       "tab": "People",
       "view": "",
+      "source": "libraries/apps/people/pay-sheets-editor.js",
+      "title": "None (hourly or salaried)",
+      "description": "",
+      "kind": "control",
+      "selector": ""
+    },
+    {
+      "section": "people",
+      "tab": "People",
+      "view": "",
       "source": "libraries/apps/people/people-data.js",
       "title": "Not described yet",
       "description": "",
@@ -7743,6 +8179,56 @@ window.FirstMateSettingsIndex = {
       "section": "people",
       "tab": "People",
       "view": "",
+      "source": "libraries/apps/people/pay-sheets-editor.js",
+      "title": "Not set",
+      "description": "",
+      "kind": "control",
+      "selector": "[data-ps-duration-mode=\"none\"]"
+    },
+    {
+      "section": "people",
+      "tab": "People",
+      "view": "",
+      "source": "libraries/apps/people/onboarding.js",
+      "title": "Onboarding",
+      "description": "",
+      "kind": "control",
+      "selector": ""
+    },
+    {
+      "section": "people",
+      "tab": "People",
+      "view": "",
+      "source": "libraries/apps/people/onboarding.js",
+      "title": "Onboarding incomplete: {items}",
+      "description": "",
+      "kind": "control",
+      "selector": ""
+    },
+    {
+      "section": "people",
+      "tab": "People",
+      "view": "",
+      "source": "libraries/apps/people/pay-sheets-editor.js",
+      "title": "Only when",
+      "description": "",
+      "kind": "control",
+      "selector": "[data-ps-line-field=\"when\"]"
+    },
+    {
+      "section": "people",
+      "tab": "People",
+      "view": "",
+      "source": "libraries/apps/people/pay-sheets-editor.js",
+      "title": "Open",
+      "description": "",
+      "kind": "control",
+      "selector": ""
+    },
+    {
+      "section": "people",
+      "tab": "People",
+      "view": "",
       "source": "libraries/apps/people/people-lists.js",
       "title": "Open to partners",
       "description": "",
@@ -7758,6 +8244,26 @@ window.FirstMateSettingsIndex = {
       "description": "Permissions the catalog does not describe yet",
       "kind": "control",
       "selector": ""
+    },
+    {
+      "section": "people",
+      "tab": "People",
+      "view": "",
+      "source": "libraries/apps/people/onboarding.js",
+      "title": "Other documents",
+      "description": "",
+      "kind": "heading",
+      "selector": ""
+    },
+    {
+      "section": "people",
+      "tab": "People",
+      "view": "",
+      "source": "libraries/apps/people/pay-sheets-editor.js",
+      "title": "Otherwise",
+      "description": "",
+      "kind": "control",
+      "selector": "[data-ps-input-field=\"default\"]"
     },
     {
       "section": "people",
@@ -7803,11 +8309,61 @@ window.FirstMateSettingsIndex = {
       "section": "people",
       "tab": "People",
       "view": "",
+      "source": "libraries/apps/people/pay-sheets-editor.js",
+      "title": "Paid per",
+      "description": "",
+      "kind": "control",
+      "selector": "[data-ps-line-field=\"per\"]"
+    },
+    {
+      "section": "people",
+      "tab": "People",
+      "view": "",
       "source": "libraries/apps/people/compensation-panel.js",
       "title": "Pay reaches",
       "description": "",
       "kind": "control",
       "selector": "[data-comp-dist=\"\"]"
+    },
+    {
+      "section": "people",
+      "tab": "People",
+      "view": "",
+      "source": "libraries/apps/people/pay-sheets-editor.js",
+      "title": "Pay sheet name",
+      "description": "",
+      "kind": "control",
+      "selector": "[data-ps-name=\"\"]"
+    },
+    {
+      "section": "people",
+      "tab": "People",
+      "view": "subcontractors",
+      "source": "libraries/apps/people/companies-page.js",
+      "title": "Pay sheets",
+      "description": "",
+      "kind": "control",
+      "selector": ""
+    },
+    {
+      "section": "people",
+      "tab": "People",
+      "view": "groups",
+      "source": "libraries/apps/people/groups-page.js",
+      "title": "Pay sheets",
+      "description": "",
+      "kind": "control",
+      "selector": ""
+    },
+    {
+      "section": "people",
+      "tab": "People",
+      "view": "",
+      "source": "libraries/apps/people/pay-sheets-list.js",
+      "title": "Pay sheets",
+      "description": "",
+      "kind": "control",
+      "selector": ""
     },
     {
       "section": "people",
@@ -7846,6 +8402,36 @@ window.FirstMateSettingsIndex = {
       "title": "People",
       "description": "",
       "kind": "heading",
+      "selector": ""
+    },
+    {
+      "section": "people",
+      "tab": "People",
+      "view": "",
+      "source": "libraries/apps/people/pay-sheets-model.js",
+      "title": "Per hour",
+      "description": "",
+      "kind": "control",
+      "selector": ""
+    },
+    {
+      "section": "people",
+      "tab": "People",
+      "view": "",
+      "source": "libraries/apps/people/pay-sheets-editor.js",
+      "title": "per load",
+      "description": "",
+      "kind": "control",
+      "selector": "[data-ps-provide-field=\"per_load\"]"
+    },
+    {
+      "section": "people",
+      "tab": "People",
+      "view": "",
+      "source": "libraries/apps/people/pay-sheets-model.js",
+      "title": "Per unit",
+      "description": "",
+      "kind": "control",
       "selector": ""
     },
     {
@@ -7892,11 +8478,61 @@ window.FirstMateSettingsIndex = {
       "section": "people",
       "tab": "People",
       "view": "",
+      "source": "libraries/apps/people/pay-sheets-editor.js",
+      "title": "Project field",
+      "description": "",
+      "kind": "control",
+      "selector": "[data-ps-input-field=\"key\"]"
+    },
+    {
+      "section": "people",
+      "tab": "People",
+      "view": "",
       "source": "libraries/apps/people/app-grid.js",
       "title": "Project views",
       "description": "",
       "kind": "control",
       "selector": ""
+    },
+    {
+      "section": "people",
+      "tab": "People",
+      "view": "",
+      "source": "libraries/apps/people/pay-sheets-editor.js",
+      "title": "Projects have no number fields yet",
+      "description": "",
+      "kind": "control",
+      "selector": ""
+    },
+    {
+      "section": "people",
+      "tab": "People",
+      "view": "",
+      "source": "libraries/apps/people/onboarding.js",
+      "title": "Provided as",
+      "description": "",
+      "kind": "control",
+      "selector": ""
+    },
+    {
+      "section": "people",
+      "tab": "People",
+      "view": "",
+      "source": "libraries/apps/people/pay-sheets-editor.js",
+      "title": "Rate",
+      "description": "",
+      "kind": "control",
+      "selector": "[data-ps-line-field=\"rate\"]"
+    },
+    {
+      "section": "people",
+      "tab": "People",
+      "view": "",
+      "source": "libraries/apps/people/pay-sheets-editor.js",
+      "title": "Reads",
+      "description": "",
+      "kind": "control",
+      "selector": "[data-ps-input-field=\"definition\"]"
     },
     {
       "section": "people",
@@ -8001,6 +8637,16 @@ window.FirstMateSettingsIndex = {
     {
       "section": "people",
       "tab": "People",
+      "view": "users",
+      "source": "libraries/apps/people/users-page.js",
+      "title": "Restore",
+      "description": "",
+      "kind": "control",
+      "selector": ""
+    },
+    {
+      "section": "people",
+      "tab": "People",
       "view": "",
       "source": "libraries/apps/people/app-grid.js",
       "title": "Restrict: hidden everywhere and refused by the server",
@@ -8072,11 +8718,31 @@ window.FirstMateSettingsIndex = {
       "section": "people",
       "tab": "People",
       "view": "",
+      "source": "libraries/apps/people/pay-sheets-model.js",
+      "title": "Salary (not charged to jobs)",
+      "description": "",
+      "kind": "control",
+      "selector": ""
+    },
+    {
+      "section": "people",
+      "tab": "People",
+      "view": "",
       "source": "libraries/apps/people/list-page.js",
       "title": "Search",
       "description": "",
       "kind": "control",
       "selector": "[data-list-search=\"\"]"
+    },
+    {
+      "section": "people",
+      "tab": "People",
+      "view": "",
+      "source": "libraries/apps/people/onboarding.js",
+      "title": "Signed agreement",
+      "description": "",
+      "kind": "control",
+      "selector": ""
     },
     {
       "section": "people",
@@ -8101,6 +8767,17 @@ window.FirstMateSettingsIndex = {
     {
       "section": "people",
       "tab": "People",
+      "view": "subcontractors",
+      "source": "libraries/apps/people/people-settings.js",
+      "title": "Subcontractors",
+      "description": "",
+      "kind": "view",
+      "selector": "",
+      "terminology": "workforce.organization_connection_plural"
+    },
+    {
+      "section": "people",
+      "tab": "People",
       "view": "users",
       "source": "libraries/apps/people/users-page.js",
       "title": "Suspended",
@@ -8121,12 +8798,52 @@ window.FirstMateSettingsIndex = {
     {
       "section": "people",
       "tab": "People",
+      "view": "",
+      "source": "libraries/apps/people/pay-sheets-editor.js",
+      "title": "Takes care of",
+      "description": "",
+      "kind": "control",
+      "selector": "[data-ps-provide-field=\"item\"]"
+    },
+    {
+      "section": "people",
+      "tab": "People",
+      "view": "",
+      "source": "libraries/apps/people/pay-sheets-editor.js",
+      "title": "The price book has no item types yet",
+      "description": "",
+      "kind": "control",
+      "selector": ""
+    },
+    {
+      "section": "people",
+      "tab": "People",
       "view": "subcontractors",
       "source": "libraries/apps/people/companies-page.js",
       "title": "Their organization ID",
       "description": "",
       "kind": "control",
       "selector": "[data-company-field=\"linked_organization_id\"]"
+    },
+    {
+      "section": "people",
+      "tab": "People",
+      "view": "",
+      "source": "libraries/apps/people/onboarding.js",
+      "title": "Their own FirstMate organization",
+      "description": "",
+      "kind": "heading",
+      "selector": ""
+    },
+    {
+      "section": "people",
+      "tab": "People",
+      "view": "",
+      "source": "libraries/apps/people/pay-sheets-editor.js",
+      "title": "Try with a value for {label}",
+      "description": "",
+      "kind": "control",
+      "selector": ""
     },
     {
       "section": "people",
@@ -8191,12 +8908,52 @@ window.FirstMateSettingsIndex = {
     {
       "section": "people",
       "tab": "People",
+      "view": "",
+      "source": "libraries/apps/people/onboarding.js",
+      "title": "W-9",
+      "description": "",
+      "kind": "control",
+      "selector": ""
+    },
+    {
+      "section": "people",
+      "tab": "People",
+      "view": "",
+      "source": "libraries/apps/people/pay-sheets-editor.js",
+      "title": "What is typed",
+      "description": "",
+      "kind": "control",
+      "selector": ""
+    },
+    {
+      "section": "people",
+      "tab": "People",
+      "view": "",
+      "source": "libraries/apps/people/pay-sheets-editor.js",
+      "title": "What it is for",
+      "description": "",
+      "kind": "control",
+      "selector": "[data-ps-line-field=\"label\"]"
+    },
+    {
+      "section": "people",
+      "tab": "People",
       "view": "groups",
       "source": "libraries/apps/people/groups-page.js",
       "title": "What they are called",
       "description": "",
       "kind": "control",
       "selector": "[data-req-label=\"\"]"
+    },
+    {
+      "section": "people",
+      "tab": "People",
+      "view": "users",
+      "source": "libraries/apps/people/users-page.js",
+      "title": "Why (optional)",
+      "description": "",
+      "kind": "control",
+      "selector": ""
     },
     {
       "section": "people",

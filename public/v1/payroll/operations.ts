@@ -9,12 +9,16 @@ import { forbidden } from '../platform/errors.js';
 import { payeeScope, assertPayeeManageable } from './payee-scope.js';
 import { readCrewTimeShift } from '../workforce/crew_storage.js';
 import { upcomingPayroll, createPayrollBatch, patchPayrollBatchItem, applyPayrollBatchAction } from './service.js';
-import { syncContractorPayrollPayables, syncPaidContractorPayrollDisbursements } from './contractor_disbursements.js';
+import { assertBillsUnpaid, reimbursementEntriesPaidElsewhere, routesForSchedule, settleReimbursementsPaidInPayables, syncPayRunBills, withPaymentRoutes } from './payables.js';
 import { syncPaidPayrollReimbursements } from '../payments/reimbursements.js';
 import { refreshOrganizationEarnings } from './pay-refresh.js';
 
+/** Upcoming pay dates, with how each payee would be paid (with payroll, or through payables and when due). A read. */
+export async function upcomingWithRoutes(orgId:string,options:JsonObject={}){
+  return withPaymentRoutes(orgId,await upcomingPayroll(orgId,options));
+}
 export async function payrollDashboard(orgId:string,options:JsonObject={}){
-  return {...await upcomingPayroll(orgId,options),history:await listPayrollBatches(orgId,{...options,limit:Number(options.history_limit||100)})};
+  return {...await upcomingWithRoutes(orgId,options),history:await listPayrollBatches(orgId,{...options,limit:Number(options.history_limit||100)})};
 }
 export async function payrollContractors(orgId:string){
   const users:JsonObject[]=(await listDocuments(orgId,'users')).map(row=>({id:row.id,...asObject(row.data)})),connections=await listOrganizationConnections(orgId);
@@ -29,20 +33,32 @@ export async function payrollDirectory(orgId:string){
 export async function createPayrollRun(ctx:PlatformAuthContext,input:JsonObject){
   // A pay run pays what the rules say as of now, so work that out first. A rule that cannot be evaluated is reported, not a reason to block the run.
   const earnings_refresh=await refreshOrganizationEarnings(ctx.orgId).then(r=>({posted_count:r.posted_count,posted_cents:r.posted_cents,held_count:r.held_count,unresolved_count:r.unresolved_count,unresolved:r.payees.flatMap(p=>p.unresolved.map(u=>({payee:p.payee,...u}))).slice(0,50)})).catch(error=>({posted_count:0,posted_cents:0,held_count:0,unresolved_count:1,unresolved:[{rule_id:'',reason:String((error as Error)?.message||'Earnings could not be refreshed.')}]}));
-  const batch=await createPayrollBatch(ctx.orgId,input,ctx.userId);
-  const contractor_payables=await syncContractorPayrollPayables(ctx.orgId,batch,ctx);
-  return {batch,contractor_payables,earnings_refresh};
+  // A reimbursement payables already paid is not paid again here (payables.ts).
+  await settleReimbursementsPaidInPayables(ctx.orgId);
+  // How each payee is paid (with payroll, or through payables) is read now and kept on the run (payables.ts).
+  const batch=await createPayrollBatch(ctx.orgId,input,ctx.userId,await routesForSchedule(ctx.orgId,cleanText(input.schedule_id)));
+  return {batch,bills:await syncPayRunBills(ctx.orgId,batch,ctx),earnings_refresh};
 }
 async function syncPayments(ctx:PlatformAuthContext,batch:JsonObject){
   await syncPaidPayrollReimbursements(ctx.orgId,batch,ctx);
-  return {batch,contractor_disbursements:await syncPaidContractorPayrollDisbursements(ctx.orgId,batch,ctx)};
+  // A bill item entered or paid here has its payable; one marked paid here has that payment recorded on it (payables.ts).
+  const bills=await syncPayRunBills(ctx.orgId,batch,ctx);
+  return {batch:await readPayrollBatch(ctx.orgId,cleanText(batch.id)),bills};
 }
 export async function updatePayrollRunItem(ctx:PlatformAuthContext,batchId:string,itemId:string,input:JsonObject){
   return syncPayments(ctx,await patchPayrollBatchItem(ctx.orgId,batchId,itemId,input));
 }
 export async function actOnPayrollRun(ctx:PlatformAuthContext,batchId:string,input:JsonObject){
   const approvers=input.action==='submit_approval'?await Promise.all((Array.isArray(input.approvers)?input.approvers:[]).map(async value=>{const entry=asObject(value),user=await hydratedWorkforceUser(ctx.orgId,cleanText(entry.user_id));return {user_id:cleanText(entry.user_id),name:cleanText(user.name||user.email||entry.user_id)};})):input.approvers;
-  return syncPayments(ctx,await applyPayrollBatchAction(ctx.orgId,batchId,{...input,approvers,actor:{user_id:ctx.userId,name:cleanText(asObject(ctx.user).name||asObject(ctx.user).email)}}));
+  // A run whose bill has a payment in payables keeps it; reopening works out who is paid how again.
+  if(['reopen','void'].includes(cleanText(input.action)))await assertBillsUnpaid(ctx.orgId,batchId);
+  const current=input.action==='reopen'?await readPayrollBatch(ctx.orgId,batchId):null;
+  const routes=current?await routesForSchedule(ctx.orgId,cleanText(current.schedule_id),asArray(current.items).map(item=>asObject(asObject(item).payee))):undefined;
+  // Reimbursements payables paid after the run was drafted are left out when it is worked out again, then settled.
+  const skip=current?await reimbursementEntriesPaidElsewhere(ctx.orgId,current):undefined;
+  const batch=await applyPayrollBatchAction(ctx.orgId,batchId,{...input,approvers,actor:{user_id:ctx.userId,name:cleanText(asObject(ctx.user).name||asObject(ctx.user).email)}},routes,skip);
+  if(['reopen','void'].includes(cleanText(input.action)))await settleReimbursementsPaidInPayables(ctx.orgId);
+  return syncPayments(ctx,batch);
 }
 
 /*
@@ -84,7 +100,8 @@ function approvalView(batch:JsonObject,userId:string,scheduleNames:Map<string,st
       submitted_by:asObject(approval.submitted_by),submitted_at:cleanText(approval.submitted_at)},
     my_decision:cleanText(decisions.find(d=>cleanText(d.user_id)===userId)?.decision),
     items:asArray(batch.items).map(asObject).map(item=>({payee:{type:cleanText(asObject(item.payee).type),id:cleanText(asObject(item.payee).id),name:cleanText(asObject(item.payee).name),worker_type:cleanText(asObject(item.payee).worker_type||'employee')},
-      gross_cents:Number(item.gross_cents||0),deduction_cents:Number(item.deduction_cents||0),net_cents:Number(item.net_cents||0),subgroup_totals:asObject(item.subgroup_totals)}))
+      gross_cents:Number(item.gross_cents||0),deduction_cents:Number(item.deduction_cents||0),net_cents:Number(item.net_cents||0),subgroup_totals:asObject(item.subgroup_totals),
+      paid_through:cleanText(asObject(item.metadata).paid_through)||'payroll',due_date:cleanText(asObject(item.metadata).due_date)}))
   };
 }
 /** Pay runs waiting for the signed-in user's decision as a named approver. Needs no payroll permission: being named is the authority. */

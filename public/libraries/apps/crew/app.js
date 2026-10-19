@@ -513,7 +513,7 @@
 
   // ---- Earnings: the shared My pay view (libraries/apps/payroll/my-pay.js), the same in Payroll and sales. ----
   // projected_enabled is the access profile's parameter set from payroll.view_own_projected_earnings; without it the
-  // rule forecast is never asked for. Timesheets show for anyone with the time clock permission.
+  // rule forecast is never asked for. Timesheets show for anyone whose app experience turns on Today's time clock option.
   function mountMyPay(root, context = {}, options = {}){
     if (!window.FirstMateMyPay?.mount) { root.innerHTML = stateHtml('error', 'Your pay could not be loaded.'); return { destroy(){ root.innerHTML = ''; } }; }
     return window.FirstMateMyPay.mount(root, { orgId:orgId(context), projected:context.params?.projected_enabled === true, ...options });

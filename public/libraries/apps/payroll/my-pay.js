@@ -9,7 +9,7 @@
  *     orgId,
  *     projectId,          // one job only (project tab)
  *     projected,          // true: show the rule forecast; false: never; undefined: show it unless the server refuses
- *     timesheets,         // true / false / undefined (shown when the person has the time clock permission)
+ *     timesheets,         // true / false / undefined (undefined: shown when Today's time clock option is on for them)
  *     presentation,       // 'commissions': commissions first, picked by earning kind
  *     title               // a heading; left out where the surrounding app already names the page
  *   });
@@ -193,7 +193,7 @@
       // In a project, only the pay runs that paid something for this job.
       const payments = arr(report.payments).filter((payment) => !projectId || num(payment.amount_cents) !== 0);
       const runsCard = card('payments', t('pay_runs', 'Pay runs'), t('pay_runs_tip', 'Pay runs that paid you, or are paying you.'), payments.length,
-        table([{ label:t('pay_date', 'Pay date') }, { label:t('schedule', 'Schedule'), cls:'hide-sm' }, { label:t('status', 'Status') }, { label:t('amount', 'Amount'), cls:'num' }], payments.map((payment) => `<tr>${td(esc(dateLabel(payment.pay_date)), t('pay_date', 'Pay date'), 'lead')}${td(esc(clean(payment.schedule?.name)), t('schedule', 'Schedule'), 'hide-sm')}${td(pill(...(statusLabel[payment.status] || [clean(payment.status)])), t('status', 'Status'))}${td(esc(money(projectId ? payment.amount_cents : payment.net_cents, payment.currency || currency)), t('amount', 'Amount'), 'num')}</tr>`), t('no_payments', 'No pay run has paid you yet.')));
+        table([{ label:t('pay_date', 'Pay date') }, { label:t('schedule', 'Schedule'), cls:'hide-sm' }, { label:t('status', 'Status') }, { label:t('amount', 'Amount'), cls:'num' }], payments.map((payment) => `<tr>${td(esc(dateLabel(payment.pay_date)), t('pay_date', 'Pay date'), 'lead')}${td(esc(clean(payment.schedule?.name)), t('schedule', 'Schedule'), 'hide-sm')}${td(clean(payment.paid_through) === 'payables' && payment.status !== 'paid' ? pill(payment.due_date ? t('billed_due', 'Billed, due {date}', { date:dateLabel(payment.due_date) }) : t('billed', 'Billed'), '') : pill(...(statusLabel[payment.status] || [clean(payment.status)])), t('status', 'Status'))}${td(esc(money(projectId ? payment.amount_cents : payment.net_cents, payment.currency || currency)), t('amount', 'Amount'), 'num')}</tr>`), t('no_payments', 'No pay run has paid you yet.')));
       const outside = arr(report.off_cycle_payments);
       const outsideCard = projectId ? '' : card('outside', t('paid_outside', 'Paid outside a pay run'), t('paid_outside_tip', 'Payments made to you outside a pay run. Your next pay run takes each off, so nothing is paid twice.'), outside.length,
         table([{ label:t('paid_on', 'Paid on') }, { label:t('kind', 'Kind'), cls:'hide-sm' }, { label:t('reference', 'Reference'), cls:'hide-sm' }, { label:t('amount', 'Amount'), cls:'num' }], outside.map((payment) => `<tr>${td(esc(dateLabel(payment.paid_on)), t('paid_on', 'Paid on'), 'lead')}${td(esc(kindLabel(payment.kind)), t('kind', 'Kind'), 'hide-sm')}${td(esc(clean(payment.reference) || '\u2014'), t('reference', 'Reference'), 'hide-sm')}${td(esc(money(payment.amount_cents, payment.currency || currency)), t('amount', 'Amount'), 'num')}</tr>`), t('none_outside', 'Nothing has been paid to you outside a pay run.')));

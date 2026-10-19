@@ -178,7 +178,7 @@
       };
     }
     let filter = options.filter === 'empty' ? 'empty' : 'all';
-    const branchFilter = People.branches.filter('groups', { onChange:() => renderList() });
+    const branchFilter = People.branches.filter('groups', { onChange:() => renderList(), bulk:{ kind:'group', items:() => visible() } });
     const visible = () => data.state.groups.filter((group) => branchFilter.matches('group', group)).filter((group) => filter !== 'empty' || !data.groupMembers(group).length).filter((group) => !query || [group.name, data.typeName('resource_group', group.kind_id), ...users(group).map((user) => user.name)].join(' ').toLowerCase().includes(query))
       .sort((left, right) => typeOrder(left) - typeOrder(right) || typeTitle(left).localeCompare(typeTitle(right)) || String(left.name || '').localeCompare(String(right.name || '')));
     /* The list is sectioned by group type, each type under its plural name; groups with no type come last. */
@@ -229,6 +229,7 @@
       filters:{ items:[{ id:'all', label:t('filter_all', 'All') }], value:filter, onChange(next){ filter = next; renderList(); } },
       actions:[
         { id:'types', needs:'groups.view', label:t('types', 'Types'), icon:'fa-tags', onClick:(button) => pageKit.typesModal({ kind:'resource_group', opener:button }) },
+        People.paySheets ? { id:'pay_sheets', needs:'pay_sheets', label:t('pay_sheets', 'Pay sheets'), icon:'fa-file-invoice-dollar', onClick:(button) => People.paySheets.openList({ opener:button, assigneeKind:'resource_group' }) } : null, /* pay-sheets-list.js */
         { id:'tags', needs:'groups.edit', label:t('tags', 'Tags'), icon:'fa-tag', onClick:(button) => People.lists.tags({ opener:button }) },
         can.settings ? { id:'new', needs:'groups.edit', label:t('new_group', 'New {group}', { group:singular().toLowerCase() }), icon:'fa-plus', primary:true, onClick:create } : null
       ].filter(Boolean),
@@ -275,6 +276,8 @@
           if (section.id === 'tags' && data.state.tags.length) section.action = { id:'tags', label:t('change_tags', 'Change tags') };
           if (section.id === 'scopes' && data.state.scopes.length) section.action = { id:'scopes', label:t('change_kinds_of_work', 'Change kinds of work') };
         });
+        const branchesSection = People.branches.membershipSection('group', current());
+        if (branchesSection) model.sections.push(branchesSection);
         model.sections = model.sections.filter((section) => section.action || section.chips.length);
         host.innerHTML = kit.summary(model, 'panel', { editAction:editable && !editing ? t('edit_group_identity', 'Edit name and type') : '' });
         if (editing) pageKit.identity(host, [{ id:'name', value:draft.name, placeholder:t('name', 'Name') }, { id:'typeId', type:'select', value:draft.typeId, placeholder:t('type', 'Type'), options:data.types('resource_group').map((type) => ({ value:type.id, label:type.name })) }]);
@@ -356,6 +359,7 @@
           return { destroy:() => grid.destroy() };
         } } : null,
         People.slots.tab('compensation', entity, { readOnly:!can.settings }),
+        People.slots.tab('pay_sheets', entity, { readOnly:!can.settings }),
         People.slots.tab('fields', entity, { readOnly:!can.settings })
       ].filter(Boolean);
       const modal = People.entityModal.open({
@@ -391,6 +395,7 @@
         const section = button.dataset.peopleSectionAction;
         const refocus = () => modal.el.querySelector(`[data-people-section-action="${section}"]`)?.focus();
         const apply = (field) => (next) => { draft[field] = next; modal.refreshSummary(); sync(); };
+        if (section === 'branches') { People.branches.editMembership(button, 'group', current(), refocus); return; }
         if (section === 'departments') pageKit.checkMenu(button, { label:labels().departmentPlural, items:data.state.departments.map((department) => ({ id:department.id, label:department.label || department.id, color:department.color })), selected:draft.departmentIds, onChange:apply('departmentIds'), refocus });
         else if (section === 'tags') pageKit.checkMenu(button, { label:t('tags', 'Tags'), items:data.state.tags.map((tag) => ({ id:String(tag.id), label:tag.name || tag.id })), selected:draft.tagIds, onChange:apply('tagIds'), refocus });
         else if (section === 'scopes') pageKit.checkMenu(button, { label:t('kinds_of_work', 'Kinds of work'), items:data.state.scopes.map((scope) => ({ id:scope.id, label:scope.name })), selected:draft.scopeIds, onChange:apply('scopeIds'), refocus });

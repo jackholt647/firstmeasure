@@ -108,6 +108,22 @@ test("custom fields publish all owners, enforce writes, reauthorize snapshots an
     await assert.rejects(() => authorizeSourceSnapshot(ctx,ref,result),/accessible/);
     await storage.saveBranchModule(org,"default","custom_fields",{data:{fields:definitions.filter(f => f.path !== "secret")}},{replace:true});
     assert.equal((await readPublishedData(ctx,{...ref,args:{field:"secret"}})).status,"denied", "Deleting a definition must not turn private stored values into public inferred fields.");
+    // Project field definitions are read for the organization, without any project: retired fields and fields private to the reader are left out.
+    await storage.saveBranchModule(org,"default","custom_fields",{data:{fields:[...definitions.filter(f => f.path !== "secret"),{entity:"project",path:"margin",label:"Margin",type:"number",private:true},{entity:"project",path:"steep_fee",label:"Steep fee",type:"currency",scope_mode:"selected",scopes:["roof_replacement"]}]}},{replace:true});
+    const organization = {scope:"organization" as const,organizationId:org};
+    const agent = systemPublicationContext({kind:"agent",organizationId:org,operations:["custom-fields-project.definitions"]});
+    const listed = await readPublishedData(agent,{provider:"custom-fields-project",export:"definitions",target:organization}) as any;
+    assert.equal(listed.status,"ready");
+    const paths = listed.value.fields.map((f:any) => f.path);
+    assert.ok(["count","double","locked","details","steep_fee"].every(p => paths.includes(p)), paths.join(","));
+    assert.equal(paths.includes("secret"),false,"a retired field is not offered");
+    assert.equal(paths.includes("margin"),false,"a private field needs its reader's permission");
+    assert.equal(listed.value.fields.every((f:any) => (f.entity || "project") === "project"),true,"only project fields");
+    assert.deepEqual([listed.value.fields.find((f:any) => f.path === "count").every_project,listed.value.fields.find((f:any) => f.path === "steep_fee").every_project],[true,false],"a field limited to some kinds of project says so");
+    const { userPublicationContext } = await import("../platform/publication/context.js");
+    const owner = userPublicationContext({orgId:org,userId:"owner",role:"owner",permissions:{"*":true}} as any);
+    assert.ok(((await readPublishedData(owner,{provider:"custom-fields-project",export:"definitions",target:organization})) as any).value.fields.some((f:any) => f.path === "margin"),"a reader with the field's permission sees it");
+    assert.notEqual((await readPublishedData(agent,{provider:"custom-fields-project",export:"definitions",target})).status,"ready","an organization read, not a project's");
   } finally {
     await closeActionDatabase();
     await (await import("../platform/sql_store.js")).closeSqlStoresForTests();

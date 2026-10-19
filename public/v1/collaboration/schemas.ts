@@ -45,6 +45,8 @@ export const invitationSchema = z.object({
   label: z.string().trim().max(160).default(""),
   relationship: z.enum(["contact", "partner", "client"]).default("contact"),
   expires_in_days: z.number().int().min(1).max(30).default(7),
+  /** The outside company (organization connection) this invitation links, when sent from that company's window. */
+  workforce_connection_id: z.string().trim().min(1).max(180).optional(),
   grant: grantSchema.omit({recipient_org_id:true,recipient_identity_id:true}).optional()
 }).strict().refine(v=>v.kind !== "share" || !!v.grant, "Choose a resource to share.")
   .refine(v=>v.recipient_kind!=="individual"||v.kind==="share"&&!!v.email,"Individual shares require a resource and a verified recipient email.");

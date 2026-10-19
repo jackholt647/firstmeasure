@@ -464,6 +464,29 @@ become declared selections over `assignee-directory.assignees` (`type_ids`,
 equipment provider, and the `assignable-resources` and
 `assignable-subjects/resolve` routes are removed once their callers have moved.
 
+## Archived people
+
+Removing a person archives them (`workforce/user-archive.ts`): the user
+document is kept with `deleted: true`, `deleted_at`, `deleted_by`, an optional
+`archived_reason` and `status: "disabled"`, so sign-in is refused and
+everything that skips disabled or deleted users skips them. Roles, groups,
+departments and assignments stay attached. `workforce.users.restore`
+(`manage_company_users`, branch scope) clears the archive fields and puts back
+the status they had (active, invited or suspended). People lists them under
+Archived with a Restore action.
+
+## Onboarding outside companies
+
+A company type can carry `onboarding_requirements` (`{ id, label, kind:
+document | date | check, expires, required }`, saved with
+`assignees.type.save`). A company's own record is `metadata.onboarding` on its
+organization connection (`{ items, documents }`), written whole by
+`connections.onboarding.save` (`manage_company_settings`). Documents are media
+owned by the company (`owner_type: "company"`). `onboardingStatus`
+(`connections/onboarding-contract.ts`) says what is done, missing, optional,
+expiring (within 30 days) or expired; People shows it in the company's window
+and as a warning icon in the list. It never blocks work.
+
 ## Not built
 
 Any interface of this module's own (scheduling shows the roster and the check on

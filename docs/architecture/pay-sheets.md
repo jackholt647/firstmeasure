@@ -203,6 +203,10 @@ Provider `pay-sheets`. A pay sheet is a compensation record:
   still needs.
 - `evaluation` (project; arguments `sheet_id`, `fields`, `manual`).
   `manage_projects`.
+- `try` (project; arguments `sheet`, and optionally `manual`, `fields`, `legacy_measurements`): a sheet nobody has
+  saved, validated as saving would and priced as evaluation would, with what each input read and how it stands to
+  the project's work. A sheet that would not save is refused as `pay_sheet_invalid`, naming each field. Never saves.
+  `manage_projects`. An agent proposing a sheet checks it here first.
 
 Actions `pay-sheets.sheet.save` and `pay-sheets.sheet.archive` need
 `manage_company_settings`. The HTTP routes are under
@@ -212,9 +216,52 @@ Documents, scope code and the assistant read these views when granted them.
 
 Material calculations do not yet publish their declared inputs the same way.
 
+## The editor
+
+Sheets are edited in People, by whoever runs the office, not by a developer: no ids, formulas or JSON are shown
+unless **Advanced** is on.
+
+- **Where.** A **Pay sheets** tab in the window of a user, a group of users and an outside company (the People slot
+  `pay_sheets`, filled by `public/libraries/apps/people/pay-sheets-editor.js`) lists that assignee's sheets by kind
+  of work, with **Add pay sheet for a kind of work** offering only the kinds it has no sheet for. A **Pay sheets**
+  button on the Groups and outside company headers opens every assignee's sheets (`pay-sheets-list.js`), grouped by
+  kind of work, filterable by kind of work and kind of assignee, with a row for each assignee marked as able to do a
+  kind of work that has no sheet for it. Both need the Materials switch and `manage_company_settings`
+  (`pay_sheets`, `pay_sheets.edit` in People's `ACTIONS`); trying a sheet on a project also needs `manage_projects`
+  (`pay_sheets.try`).
+- **Pay lines read as sentences**: what it is for, how it is paid (per unit, per hour, flat, cost of salaried time),
+  what it is paid per, and the rate. Picking what a line is paid per makes the input it reads (a measurement the
+  kind of work selects, material of an item type on the lists, a project field, a number typed for each job, or
+  hours estimated from the work); an input the editor made that nothing reads is dropped on save. Material is
+  chosen from the price book's item types or one item (`materials-inputs.products`, which publishes the `type`
+  pay sheets match on) and a project field from the organization's number fields by label
+  (`custom-fields-project.definitions`, read for the organization; a project's contract stands in when that read is
+  unavailable). Typing either in is offered only when the list cannot be read. A line that reads a
+  part of the measurement the work is sized by shows **Adjusts the price**, with why in its tooltip
+  (`paySheetModel.coverRoles` is the same rule as `paySheetCoverRoles`).
+- **The work** is the kind of work's items, each paid, included at no charge, provided by equipment, only adjusted or
+  open, with hours for each unit. The same states run along the header, so a gap shows before saving.
+- **Try it on a project** prices the sheet as it stands, saved or not, against a project found by search: priced
+  lines, lines left unpriced (never shown as zero), what each input read, estimated days, and the project's own work
+  against the sheet. Numbers typed there are for the trial only: a measurement by its dataset key (only while the
+  project has no selected dataset), a field by its key, a typed number by its input.
+- **Save** sends the whole sheet with the revision it was opened at. A problem is shown on the field it names:
+  validation issues carry a `path` into the sheet (`inputs.0.source.definition`, `entries.2.input`,
+  `equipment.0.provides.0.item`, `duration.input`), and the editor puts ids back into words. Someone else's save in
+  between is reported with a way to load their version. **Duplicate** copies a sheet to another assignee or kind of
+  work (refused, with the reason, where one already exists); **Archive** removes one.
+
+The editor's reads, all under `/v1/materials/organizations/:orgId`: `GET pay-sheets/kinds-of-work` (each kind of
+work's measurements, which part of which whole each is, and its work items with what sizes them;
+`paySheetKindsOfWork`), `GET pay-sheets/overview` (every sheet, and the kinds of work each assignee is able to do;
+`paySheetOverview`), both `manage_company_settings`; and `POST projects/:projectId/pay-sheets/try` with
+`{ sheet, manual?, fields?, legacy_measurements? }` (`tryPaySheet`, `manage_projects`), which validates the sheet
+exactly as saving would and never saves. `DELETE pay-sheets/:sheetId` takes `expected_revision`. These live in
+`labor/pay-sheet-editor.ts`; run `tests/pay-sheets-editor-browser.test.mjs` for changes to the editor.
+
 ## Not built
 
-The editor for sheets. Pay against what was committed is in [pay rules](pay-rules.md). What a job
+Pay against what was committed is in [pay rules](pay-rules.md). What a job
 needs and what covers it is in [requirements](requirements.md). Committing a list and delivering it are described in
 [assignees](assignees.md). Development Instant
 Full Orgs start with five sample sheets (`labor/sample-pay-sheets.ts`), with

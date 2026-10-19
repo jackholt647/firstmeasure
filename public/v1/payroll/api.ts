@@ -19,7 +19,7 @@ import {
 } from "./schemas.js";
 import { generatePayrollArtifact, PAYROLL_EXPORT_CATALOG } from "./exports.js";
 import {
-  createPayrollRun, updatePayrollRunItem, actOnPayrollRun, payrollDashboard, assertRunCreatable, assertRunItemManageable, assertRunManageable,
+  createPayrollRun, updatePayrollRunItem, actOnPayrollRun, payrollDashboard, upcomingWithRoutes, assertRunCreatable, assertRunItemManageable, assertRunManageable,
   assertShiftManageable, decideOnPayRun, myPayRunApprovals
 } from "./operations.js";
 import { assertPayeeManageable, payeeScope, scopedBatch, scopedUpcoming } from "./payee-scope.js";
@@ -125,7 +125,7 @@ export const registerPayrollApi: FastifyPluginAsync = async (app) => {
     ok: true,
     api: "payroll",
     version: 1,
-    capabilities: ["schedule_groups", "schedule_layers", "worked_or_completed_recognition", "delays", "projections", "pay_rules", "clawbacks", "batches", "individual_payment_status", "named_approvals", "off_cycle_runs", "off_cycle_payments", "contractor_payables", "csv_exports", "provider_files", "report_documents", "branch_scope"]
+    capabilities: ["schedule_groups", "schedule_layers", "worked_or_completed_recognition", "delays", "projections", "pay_rules", "clawbacks", "batches", "individual_payment_status", "named_approvals", "off_cycle_runs", "off_cycle_payments", "payroll_bills", "csv_exports", "provider_files", "report_documents", "branch_scope"]
   }));
 
   app.get("/organizations/:orgId/dashboard", async (request) => {
@@ -375,7 +375,7 @@ export const registerPayrollApi: FastifyPluginAsync = async (app) => {
     const orgId = getParam(request.params, "orgId");
     const context = await requirePayrollRead(request, orgId);
     const query = queryObject(request);
-    return { ok: true, ...scopedUpcoming(await upcomingPayroll(orgId, query), payeeScope(context, query)) };
+    return { ok: true, ...scopedUpcoming(await upcomingWithRoutes(orgId, query), payeeScope(context, query)) };
   });
 
   app.get("/organizations/:orgId/batches", async (request) => {
@@ -433,7 +433,7 @@ export const registerPayrollApi: FastifyPluginAsync = async (app) => {
     const orgId = getParam(request.params, "orgId");
     const context = await requirePayrollMutation(request, orgId);
     const input = payrollExportCreateSchema.parse(request.body ?? {});
-    const artifact = await generatePayrollArtifact(orgId, input, cleanText(asObject(context).userId || asObject(context).user_id), payeeScope(context, input));
+    const artifact = await generatePayrollArtifact(orgId, input, cleanText(asObject(context).userId || asObject(context).user_id), payeeScope(context, input), context);
     reply.code(201);
     return { ok: true, artifact };
   });

@@ -107,38 +107,47 @@ export const paySheetInputSchema = z.object({
   duration: z.union([z.object({ input: name, units_per_day: z.number().finite().positive().max(1e9) }).strict(), z.object({ hours_per_day: z.number().finite().positive().max(24) }).strict()]).nullable().optional(),
   expected_revision: z.number().int().nonnegative().optional()
 }).strict().superRefine((sheet, context) => {
-  const issue = (message: string) => context.addIssue({ code: z.ZodIssueCode.custom, message });
+  // Each issue names the field it is about, so an editor can show it there.
+  const issue = (message: string, path: (string | number)[] = []) => context.addIssue({ code: z.ZodIssueCode.custom, message, path });
   const inputs = new Map<string, z.infer<typeof inputSchema>>();
-  for (const input of sheet.inputs) { if (inputs.has(input.name)) issue(`Input ${input.name} is declared twice.`); inputs.set(input.name, input); }
+  sheet.inputs.forEach((input, index) => { if (inputs.has(input.name)) issue(`Input ${input.name} is declared twice.`, ["inputs", index, "name"]); inputs.set(input.name, input); });
   const schemas = listMeasurementSchemas().filter((schema) => sheet.schema_ids.includes(schema.id));
-  for (const schemaId of sheet.schema_ids) if (!schemas.some((schema) => schema.id === schemaId)) issue(`There is no measurement schema called ${schemaId}.`);
+  for (const schemaId of sheet.schema_ids) if (!schemas.some((schema) => schema.id === schemaId)) issue(`There is no measurement schema called ${schemaId}.`, ["schema_ids"]);
   const allowed = new Set(schemas.flatMap((schema) => schema.measurements.map((entry) => entry.definition)));
   const known = new Set(listMeasurementDefinitions().map((definition) => definition.id));
-  for (const input of sheet.inputs) {
-    if (input.source.kind === "material" && !!input.source.item_id === !!input.source.item_type) issue(`Input ${input.name} names one price book item or one item type.`);
-    if (input.source.kind !== "measurement") continue;
-    if (!known.has(input.source.definition)) issue(`${input.source.definition} is not in the measurement dictionary.`);
+  sheet.inputs.forEach((input, index) => {
+    if (input.source.kind === "material" && !!input.source.item_id === !!input.source.item_type) issue(`Input ${input.name} names one price book item or one item type.`, ["inputs", index, "source"]);
+    if (input.source.kind !== "measurement") return;
+    const at = ["inputs", index, "source", "definition"];
+    if (!known.has(input.source.definition)) issue(`${input.source.definition} is not in the measurement dictionary.`, at);
     // Labor terms mean different things in different trades, so a measurement is only read through a declared kind of work.
-    else if (!sheet.schema_ids.length) issue(`Input ${input.name} reads a measurement, so the sheet must name the kind of work it prices.`);
-    else if (!allowed.has(input.source.definition)) issue(`${input.source.definition} is not part of ${sheet.schema_ids.join(" or ")}.`);
-  }
-  for (const entry of sheet.entries) {
-    for (const reference of [entry.input, entry.when]) if (reference && !inputs.has(reference)) issue(`Entry ${entry.label} reads ${reference}, which is not a declared input.`);
-    if (entry.kind === "piece_rate" && !entry.input) issue(`Piece rate ${entry.label} needs the input it is paid on.`);
-  }
-  if (sheet.duration && "input" in sheet.duration && !inputs.has(sheet.duration.input)) issue(`Duration reads ${sheet.duration.input}, which is not a declared input.`);
+    else if (!sheet.schema_ids.length) issue(`Input ${input.name} reads a measurement, so the sheet must name the kind of work it prices.`, at);
+    else if (!allowed.has(input.source.definition)) issue(`${input.source.definition} is not part of ${sheet.schema_ids.join(" or ")}.`, at);
+  });
+  sheet.entries.forEach((entry, index) => {
+    for (const [field, reference] of [["input", entry.input], ["when", entry.when]] as const) if (reference && !inputs.has(reference)) issue(`Entry ${entry.label} reads ${reference}, which is not a declared input.`, ["entries", index, field]);
+    if (entry.kind === "piece_rate" && !entry.input) issue(`Piece rate ${entry.label} needs the input it is paid on.`, ["entries", index, "input"]);
+  });
+  if (sheet.duration && "input" in sheet.duration && !inputs.has(sheet.duration.input)) issue(`Duration reads ${sheet.duration.input}, which is not a declared input.`, ["duration", "input"]);
   // Work means different things in different trades, so it is only named through a declared kind of work.
   const offered = new Set(workItemsForSchemas(sheet.schema_ids));
-  const named = [...sheet.entries.flatMap((entry) => entry.covers), ...sheet.work.map((entry) => entry.item), ...sheet.equipment.flatMap((item) => item.provides.map((entry) => entry.item))];
-  for (const item of new Set(named)) {
-    if (!workItem(item)) issue(`${item} is not in the work item dictionary.`);
-    else if (!offered.has(item)) issue(sheet.schema_ids.length ? `${item} is not something ${sheet.schema_ids.join(" or ")} requires.` : `The sheet names ${item}, so it must name the kind of work it prices.`);
+  const named: [string, (string | number)[]][] = [
+    ...sheet.entries.flatMap((entry, index) => entry.covers.map((item, at): [string, (string | number)[]] => [item, ["entries", index, "covers", at]])),
+    ...sheet.work.map((entry, index): [string, (string | number)[]] => [entry.item, ["work", index, "item"]]),
+    ...sheet.equipment.flatMap((item, index) => item.provides.map((entry, at): [string, (string | number)[]] => [entry.item, ["equipment", index, "provides", at, "item"]]))
+  ];
+  const reported = new Set<string>();
+  for (const [item, path] of named) {
+    if (reported.has(item)) continue;
+    reported.add(item);
+    if (!workItem(item)) issue(`${item} is not in the work item dictionary.`, path);
+    else if (!offered.has(item)) issue(sheet.schema_ids.length ? `${item} is not something ${sheet.schema_ids.join(" or ")} requires.` : `The sheet names ${item}, so it must name the kind of work it prices.`, path);
   }
   const listed = new Set<string>();
-  for (const entry of sheet.work) { if (listed.has(entry.item)) issue(`${entry.item} is listed twice under work.`); listed.add(entry.item); }
-  for (const item of sheet.equipment) for (const entry of item.provides) if (workItem(entry.item) && workItem(entry.item)!.kind !== "function") issue(`${item.name} can only provide a function, and ${entry.item} is work.`);
-  if (sheet.inputs.some((input) => input.source.kind === "work_hours") && !sheet.work.some((entry) => entry.hours_per_unit !== undefined)) issue("An input estimated from the work needs hours for at least one work item.");
-  if (sheet.duration && "hours_per_day" in sheet.duration && !sheet.work.some((entry) => entry.hours_per_unit !== undefined)) issue("A duration in hours needs hours for at least one work item.");
+  sheet.work.forEach((entry, index) => { if (listed.has(entry.item)) issue(`${entry.item} is listed twice under work.`, ["work", index, "item"]); listed.add(entry.item); });
+  sheet.equipment.forEach((item, index) => item.provides.forEach((entry, at) => { if (workItem(entry.item) && workItem(entry.item)!.kind !== "function") issue(`${item.name} can only provide a function, and ${entry.item} is work.`, ["equipment", index, "provides", at, "item"]); }));
+  if (sheet.inputs.some((input) => input.source.kind === "work_hours") && !sheet.work.some((entry) => entry.hours_per_unit !== undefined)) issue("An input estimated from the work needs hours for at least one work item.", ["work"]);
+  if (sheet.duration && "hours_per_day" in sheet.duration && !sheet.work.some((entry) => entry.hours_per_unit !== undefined)) issue("A duration in hours needs hours for at least one work item.", ["duration", "hours_per_day"]);
 });
 export const paySheetArchiveSchema = z.object({ id, expected_revision: z.number().int().nonnegative().optional() }).strict();
 export type PaySheetInput = z.infer<typeof inputSchema>;
@@ -240,6 +249,21 @@ function resolveInput(input: PaySheetInput, context: PayContext, sheet?: Pick<Pa
   } else { value = finite(context.manual?.[input.name]); reason = `Enter ${label} for this job.`; }
   if (value === null && !input.required && input.default !== undefined) value = input.default;
   return { value, structures, missing: value === null, reason };
+}
+
+/**
+ * What each of a sheet's inputs reads on one job, in the same terms evaluation uses: the value, whether it is missing
+ * and why, and where it came from (recorded on the job, typed for it, estimated from the work, or the input's default).
+ * Reads nothing and changes nothing; an editor shows it beside a trial evaluation.
+ */
+export function resolvePaySheetInputs(sheet: Pick<PaySheet, "inputs" | "work">, context: PayContext) {
+  return sheet.inputs.map((input) => {
+    const resolved = resolveInput(input, context, sheet);
+    const typed = finite(context.manual?.[input.name]) !== null && (input.source.kind === "manual" || input.source.kind === "work_hours");
+    const recorded = resolveInput({ ...input, required: true, default: undefined }, context, sheet);
+    const from = resolved.missing ? "missing" : typed ? "typed" : input.source.kind === "work_hours" ? "estimated" : recorded.missing ? "default" : "job";
+    return { name: input.name, label: input.label || input.name, required: input.required, source: input.source, value: resolved.value, structures: resolved.structures, missing: resolved.missing, from, reason: resolved.missing ? resolved.reason : "" };
+  });
 }
 
 export type PayLine = { entry_id: string; label: string; kind: string; quantity: number | null; unit: string; rate_cents: number; total_cents: number | null; structure_id?: string; structure_name?: string; covers?: string[]; adjusts?: string[]; covers_outside?: string[]; estimated?: boolean };

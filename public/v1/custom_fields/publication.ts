@@ -4,12 +4,13 @@ import { contentHash } from '../platform/publication/validation.js';
 import { registerAction } from "../platform/publication/actions.js";
 import { backendImplementationDigest } from "../platform/publication/implementation.js";
 import { forbidden, PlatformError } from "../platform/errors.js";
-import { canReadField, readFieldRecord, readFields, writeFields } from "./records.js";
+import { canReadField, definitions, readFieldRecord, readFields, writeFields } from "./records.js";
+import { readBranchModule } from "../platform/storage.js";
 import { FIELD_HOMES, FIELD_OWNERS, homeKindOf, type FieldEntity } from "./owners.js";
 import { homeDefinitions, homeIndex, homeNames, placeDefinition, recordHomes, saveHomeDefinitions, unassignedDefinitions } from "./homes.js";
 import { types, isManuallyEditableType } from "./contracts.js";
 import { resolvePlatformPhone } from "./platform-phone.js";
-import type { AccessPolicy, SourceRef, PublicationContext } from "../platform/publication/contracts.js";
+import type { AccessPolicy, SourceRef, PublicationContext, TargetRef } from "../platform/publication/contracts.js";
 import type { JsonObject } from "../platform/storage.js";
 
 const HOME_KINDS = Object.keys(FIELD_HOMES);
@@ -44,6 +45,28 @@ async function resolvedValue(ctx:PublicationContext,entity:FieldEntity,state:Awa
   return {entity,id:String(state.record.id || state.id),recordRevision:Number(state.row?.revision || 0),homes,unassigned:fields.filter(f=>!f.homes.length).map(f=>String(f.path)),fields,values:state.values};
 }
 
+/**
+ * The project fields an organization has defined, without reading any project: every definition in a branch's field
+ * module (the target's branch, else the caller's), less retired ones and those private to the reader. A field limited
+ * to some kinds of project says so (`every_project: false`); whether it applies to one project is that project's
+ * contract. Pay sheets choose the number field a pay line is paid per from here.
+ */
+async function projectFieldDefinitions(ctx: PublicationContext, target: TargetRef) {
+  const branchId = String(target.branchId || ctx.branchId || "default");
+  const module = await readBranchModule(ctx.organizationId, branchId, "custom_fields").catch(() => null);
+  const retiredRows: unknown[] = Array.isArray(module?.data?.retired_fields) ? module!.data.retired_fields as unknown[] : [];
+  const retired = new Set(retiredRows.map((raw) => { const row = (raw && typeof raw === "object" ? raw : {}) as JsonObject; return String(row.path || row.key || ""); }));
+  const fields = (await definitions(ctx.organizationId, branchId, "project", {})).filter((f) => !retired.has(String(f.path)) && canReadField(ctx, f)).map((f) => ({ ...f, every_project: f.scope_mode !== "selected" }));
+  return { entity: "project", branch_id: branchId, fields };
+}
+const projectDefinitionsExport = {
+  description: "Every project field this organization has defined (in the target branch, else the caller's), with its path, label and type, without reading any project. Retired fields and fields private to the reader are left out. every_project is false for a field limited to some kinds of project; read a project's contract to know whether it applies there.",
+  schema: { type: "object", required: ["entity", "branch_id", "fields"], properties: { entity: { type: "string" }, branch_id: { type: "string" }, fields: { type: "array", items: { type: "object", additionalProperties: true } } }, additionalProperties: false },
+  schemaVersion: "1",
+  access: { scopes: ["organization"], permissions: [FIELD_OWNERS.project.readPermission], systemKinds: ["work", "module", "agent"] } as AccessPolicy,
+  read: async (ctx: PublicationContext, ref: SourceRef) => { const value = await projectFieldDefinitions(ctx, ref.target); return { value, revision: contentHash(value) }; }
+};
+
 let registered = false;
 export function registerCustomFieldPublication() {
   if (registered) return; registered = true;
@@ -54,7 +77,7 @@ export function registerCustomFieldPublication() {
     const provider = `custom-fields-${entity}`;
     const argsSchema = { type:"object", properties:{ field:{type:"string",minLength:1,maxLength:780} }, additionalProperties:false };
     const resolve = (ctx:PublicationContext,ref:SourceRef) => readFields(ctx,ref.target,entity,ref.args?.field as string | undefined, ref.export === "contract",ref.export === "phones");
-    registerDataProvider({ id:provider, version:"1", apps:[entity === "project" ? "projects" : entity === "contact" ? "contacts" : "settings"], exports:Object.fromEntries(["contract","values","phones",...(homeKindOf(entity) ? ["resolved"] : [])].map(name => [name, {
+    registerDataProvider({ id:provider, version:"1", apps:[entity === "project" ? "projects" : entity === "contact" ? "contacts" : "settings"], exports:{ ...Object.fromEntries(["contract","values","phones",...(homeKindOf(entity) ? ["resolved"] : [])].map(name => [name, {
       schema:name === "phones" ? {type:"array",items:{type:"object",additionalProperties:true}} : name === "resolved" ? RESOLVED_SCHEMA : {type:"object",additionalProperties:true}, schemaVersion:"1", argsSchema, access,
       description:name === "resolved" ? `The fields one ${entity} has: each definition with the roles, types or department it comes from, grouped by that home, and the values. Values of fields the ${entity} no longer has are kept and not returned.` : `${entity} custom ${name === "contract" ? "field definitions, nested schemas, access and record revision" : "field values, including read-only and background variables"}. Optional args.field selects a declared dotted field path. Private fields require their read permission.`,
       authorizeSnapshot:async(ctx:PublicationContext,ref:SourceRef,result:any) => {
@@ -74,7 +97,7 @@ export function registerCustomFieldPublication() {
         catch(error){if(error instanceof PlatformError && (error.details as any)?.publicationStatus==='pending')return {status:'pending' as const,code:error.code,message:error.message};throw error;}
         return { value:name === "resolved" ? await resolvedValue(ctx,entity,state) : name === "contract" ? { entity, id:state.id, recordRevision:state.row?.revision || 0, fields:state.contract } : name === "phones" ? state.phones : state.values, revision:state.revision, provenance:{entity, id:state.id, fieldPaths:state.dependencies,sourceEvidence:state.sourceEvidence,platformPhones:state.phones.filter(p=>p.type === "platform_phone" && p.available).map(p=>({phone_number:p.phone_number,issuance_id:p.issuance_id}))} };
       }
-    }])) });
+    }])), ...(entity === "project" ? { definitions:projectDefinitionsExport } : {}) } });
   registerAction({id:`platform-phones.${entity}.assignment.set`,version:"1",implementation:backendImplementationDigest(),domain:"platform-phones",description:"Phone-system command: assign already issued organization phone numbers to a declared platform_phone field. Empty phoneNumbers unassigns; this never purchases, releases or routes numbers.",inputSchema:{type:"object",required:["field","phoneNumbers","expectedRevision"],properties:{field:{type:"string",minLength:1,maxLength:780},phoneNumbers:{type:"array",maxItems:100,uniqueItems:true,items:{type:"string",minLength:9,maxLength:16}},expectedRevision:{type:"integer",minimum:0}},additionalProperties:false},outputSchema:{type:"object",required:["id","revision"],properties:{id:{type:"string"},revision:{type:"integer"}},additionalProperties:false},policy:{...access,permissions:["manage_communications|manage_company_settings"],authorize:async(ctx,target)=>{await (await import("../platform/publication/context.js")).authorizePublication(ctx,target,{...access,permissions:[FIELD_OWNERS[entity].writePermission],systemKinds:[]},"platform-phone.owner");await readFieldRecord(ctx,target,entity);}},effect:"write",executionKinds:["api","agent","module","work"],idempotency:"required",execute:async(ctx,target,input)=>(await import("../comms/calls/field-assignments.js")).setPhoneFieldAssignment(ctx,target,{...input,entity})});
     registerAction({ id:`custom-fields.${entity}.write`, version:"1", implementation:backendImplementationDigest(), domain:"custom-fields",
       description:`Update declared writable ${entity} fields. values maps complete dotted field paths to replacement JSON values; dictionaries and arrays are replaced as a unit. Obtain expectedRevision from the contract export.`,

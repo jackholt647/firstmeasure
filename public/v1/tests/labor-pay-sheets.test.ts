@@ -100,6 +100,89 @@ test("the same job prices differently per sheet, leaves missing inputs unresolve
   assert.equal(entered.lines.find((row) => row.kind === "hourly")!.total_cents, 128000); assert.equal(entered.lines.find((row) => row.kind === "salary")!.total_cents, null, "salary is recorded but not charged to the job"); assert.equal(entered.total_cents, 128000);
 });
 
+test("every problem names the field it is about, so the editor can show it there", async () => {
+  const { paySheetInputSchema } = await import("../labor/pay-sheets.js");
+  const paths = (patch: object) => { const result = paySheetInputSchema.safeParse({ ...pieceRate, ...patch }); assert.equal(result.success, false); return (result as any).error.issues.map((issue: any) => [issue.path.join("."), issue.message]); };
+  assert.deepEqual(paths({ entries: [...pieceRate.entries, { label: "Mystery", kind: "piece_rate", rate_cents: 100, input: "nothing" }] }), [["entries.6.input", "Entry Mystery reads nothing, which is not a declared input."]]);
+  assert.deepEqual(paths({ schema_ids: ["siding"] }).map(([path]: string[]) => path), ["inputs.0.source.definition", "inputs.1.source.definition"]);
+  assert.deepEqual(paths({ entries: [{ label: "Tear off", kind: "piece_rate", rate_cents: 100, input: "squares", covers: ["roofing.plumbing"] }] }), [["entries.0.covers.0", "roofing.plumbing is not in the work item dictionary."]]);
+  assert.deepEqual(paths({ equipment: [{ name: "Truck", provides: [{ item: "roofing.install" }] }] }), [["equipment.0.provides.0.item", "Truck can only provide a function, and roofing.install is work."]]);
+  assert.deepEqual(paths({ duration: { input: "area", units_per_day: 10 } }), [["duration.input", "Duration reads area, which is not a declared input."]]);
+  assert.deepEqual(paths({ inputs: [...pieceRate.inputs, pieceRate.inputs[0]] }).map(([path]: string[]) => path), ["inputs.5.name"]);
+});
+
+test("the editor's reads: the words of each kind of work, who lacks a sheet, and an unsaved sheet tried on a project", async () => {
+  const s = await import("../platform/storage.js");
+  const sheets = await import("../labor/pay-sheets.js");
+  const editor = await import("../labor/pay-sheet-editor.js");
+  const d = await import("../platform/publication/datasets.js");
+  const { systemPublicationContext, userPublicationContext } = await import("../platform/publication/context.js");
+  const ORG = "org_pay_editor";
+  await s.createOrganization({ id: ORG, name: "Editor" }); await s.saveGlobal(ORG, { data: { app_flags: { platform: { expanded_access: true, materials: true } } } }, { replace: false }); await enableExpandedPlatformFixture(ORG, { "platform.materials": true, "platform.pricebook": true });
+  const owner = { orgId: ORG, userId: "owner", role: "owner", permissions: {} } as any;
+
+  // Each kind of work, with which measurements are a part of which whole and what each work item is sized by.
+  const { kinds, partitions } = editor.paySheetKindsOfWork();
+  const roofing = kinds.find((kind) => kind.id === "roofing")!;
+  const steep = roofing.measurements.find((entry) => entry.definition === "roof.squares_9_to_12")!;
+  assert.deepEqual([steep.label, steep.key, steep.part_of?.base, steep.part_of?.complete], ["Squares over 8/12 up to 12/12", "pitch9to12Squares", "roof.squares", true]);
+  assert.equal(roofing.measurements.find((entry) => entry.definition === "roof.squares")!.part_of, undefined, "a whole measurement is not a part of anything");
+  assert.equal(roofing.measurements.find((entry) => entry.definition === "roof.squares_at_pitch")!.key, "", "a family of keys cannot be typed as one number");
+  const tearOff = roofing.work.find((entry) => entry.item === "roofing.tear_off")!;
+  assert.deepEqual([tearOff.measure, tearOff.kind, tearOff.sized_by.map((entry) => entry.label)], ["roof.squares", "work", ["Roof squares"]]);
+  assert.deepEqual([roofing.work.find((entry) => entry.item === "disposal.debris")!.under, roofing.work.find((entry) => entry.item === "disposal.debris")!.per_load_default], ["roofing.tear_off", true]);
+  assert.ok(partitions.find((entry) => entry.id === "roof.pitch_bands")!.parts.includes("roof.squares_9_to_12"));
+  assert.deepEqual(kinds.find((kind) => kind.id === "gutters")!.work, [], "a kind of work with no work schema names no work");
+
+  // Who lacks a sheet: an assignee marked as able to do roofing with no roofing sheet, and one with nothing said about it.
+  const connections = await import("../connections/storage.js"), workforce = await import("../workforce/storage.js"), caps = await import("../labor/capabilities.js");
+  const summit = await connections.createOrganizationConnection(ORG, { name: "Summit", relationship_type_ids: ["work_provider"] });
+  const crew = await workforce.createResourceGroup(ORG, { name: "Crew D", kind_id: "crew" });
+  const quiet = await workforce.createResourceGroup(ORG, { name: "Crew E", kind_id: "crew" });
+  const subject = { type: "organization_connection" as const, id: String(summit.id) };
+  const saved = await sheets.savePaySheet(ORG, { ...pieceRate, subject }, owner);
+  await caps.saveCapabilities(ORG, { assignee: { type: "resource_group", id: String(crew.id) }, schema_ids: ["roofing"] }, owner);
+  const overview = await editor.paySheetOverview(ORG);
+  const row = (id: string) => overview.assignees.find((entry) => entry.assignee.id === id)!;
+  assert.deepEqual(overview.sheets.map((sheet) => sheet.id), [saved.id]);
+  assert.deepEqual([row(String(crew.id)).capable_schema_ids, row(String(crew.id)).sheet_ids, row(String(crew.id)).known], [["roofing"], [], true]);
+  assert.deepEqual([row(String(quiet.id)).known, row(String(quiet.id)).capable_schema_ids], [false, []], "nothing said is not the same as unable, and is never reported as missing");
+  assert.deepEqual(row(String(summit.id)).sheet_ids, [saved.id]);
+
+  // An unsaved sheet tried on a project: priced as a saved one would be, with what each input read and the project's work.
+  await s.upsertDocument(ORG, "projects", { id: "oak", data: { title: "12 Oak St" } });
+  await assert.rejects(() => editor.tryPaySheet(ORG, "nowhere", { sheet: { ...pieceRate, subject } }), /project is unavailable/);
+  await assert.rejects(() => editor.tryPaySheet(ORG, "oak", { sheet: { ...pieceRate, subject, schema_ids: ["siding"] } }), (error: any) => error.issues?.[0]?.path?.join(".") === "inputs.0.source.definition", "a sheet that would not save is refused with the field named");
+  const draft = { ...pieceRate, subject, entries: [...pieceRate.entries.slice(0, 2)], equipment: [{ name: "Dump trailer", included: true, provides: [{ item: "disposal.debris", capacity: 14, per_load: true }] }] };
+  const bare = await editor.tryPaySheet(ORG, "oak", { sheet: draft });
+  assert.equal(bare.measurement_source, "none"); assert.equal(bare.evaluation.complete, false);
+  assert.deepEqual(bare.evaluation.unresolved.map((entry) => entry.label), ["Tear off"], "nothing measured leaves the line unresolved");
+  assert.equal(bare.evaluation.lines.some((line) => line.label === "Tear off"), false, "and never priced at zero");
+  assert.deepEqual(bare.inputs.find((input) => input.name === "squares")!.from, "missing");
+  assert.deepEqual(bare.required_work, [], "a project whose scope names no work requires none");
+  // Numbers typed for the trial: a measurement by its dataset key, a number for the job by its input.
+  const typed = await editor.tryPaySheet(ORG, "oak", { sheet: draft, manual: { layers: 1 }, legacy_measurements: { roofSquares: { value: 30, unit: "roofing_square" }, pitch9to12Squares: { value: 4, unit: "roofing_square" } } });
+  assert.equal(typed.measurement_source, "project");
+  assert.deepEqual(typed.evaluation.lines.map((line) => [line.label, line.total_cents]), [["Tear off", 120000], ["Steep charge", 6000]]);
+  assert.deepEqual(typed.inputs.filter((input) => ["squares", "layers", "pack_out_feet"].includes(input.name)).map((input) => [input.name, input.value, input.from]), [["squares", 30, "job"], ["pack_out_feet", 0, "default"], ["layers", 1, "typed"]]);
+  // With work in the project's scope, each requirement says how this sheet stands to it.
+  const { saveManualScope } = await import("../labor/scope-artifacts.js");
+  const ctx = userPublicationContext({ ...owner, permissions: { "*": true }, capabilities: { effectiveByKey: { "platform.materials": true } }, applicationAccess: { management: { enabled: true, permissions: { "*": true } } } }, { projectId: "oak" });
+  await saveManualScope(ctx, "oak", { work: ["roofing.tear_off", "disposal.debris", "roofing.install", "roofing.cleanup"].map((item) => ({ item })) });
+  const writer = systemPublicationContext({ kind: "module", organizationId: ORG, projectId: "oak", operations: ["datasets.save", "datasets.select", "datasets.value"], mode: "command" });
+  const target = { scope: "project" as const, organizationId: ORG, projectId: "oak" };
+  const dataset = await d.importMeasurementDataset(writer, target, { name: "Manual", value: { measurements: { roofSquares: { value: 20, unit: "roofing_square", source: "manual" } } } });
+  await d.selectProjectDataset(writer, target, "measurements", dataset.id, Number((await s.readDocument(ORG, "projects", "oak")).revision));
+  const covered = await editor.tryPaySheet(ORG, "oak", { sheet: { ...draft, entries: [{ label: "Tear off", kind: "piece_rate", unit: "sq", rate_cents: 4000, input: "squares", covers: ["roofing.tear_off"] }, { label: "Steep charge", kind: "piece_rate", unit: "sq", rate_cents: 1500, input: "steep", covers: ["roofing.tear_off"] }], work: [{ item: "roofing.cleanup", included: true }] }, legacy_measurements: { roofSquares: { value: 99, unit: "roofing_square" } } });
+  assert.equal(covered.measurement_source, "dataset", "a selected dataset wins over numbers typed for the trial");
+  assert.deepEqual(Object.fromEntries(covered.required_work.map((entry) => [entry.item, entry.state])), { "roofing.tear_off": "paid", "disposal.debris": "provided", "roofing.install": "open", "roofing.cleanup": "included" });
+  assert.equal(covered.required_work.find((entry) => entry.item === "disposal.debris")!.quantity, 8, "20 squares of one layer is 8 cubic yards of debris");
+  assert.equal(covered.evaluation.lines.find((line) => line.label === "Tear off")!.total_cents, 80000);
+  assert.deepEqual(covered.evaluation.lines.find((line) => line.label === "Tear off")!.covers, ["roofing.tear_off"]);
+  // Trying never saves.
+  assert.deepEqual((await sheets.listPaySheets(ORG)).map((sheet) => [sheet.id, sheet.revision]), [[saved.id, saved.revision]]);
+});
+
 test("pay sheets are stored per organization, published with their requirements and priced against a project", async () => {
   const s = await import("../platform/storage.js");
   const sheets = await import("../labor/pay-sheets.js");
@@ -166,6 +249,23 @@ test("pay sheets are stored per organization, published with their requirements 
     assert.equal(published.status, "ready"); assert.deepEqual(published.value.map((row: any) => [row.consumer.id, row.schema_ids]), [[saved.id, ["roofing"]]]);
     const evaluated = await readPublishedData(reader, { provider: "pay-sheets", export: "evaluation", target: { scope: "project", organizationId: "org_pay", projectId: "project_pay" }, args: { manual: { layers: 0 } } }) as any;
     assert.equal(evaluated.status, "ready"); assert.equal(evaluated.value[0].complete, true);
+    // An agent checks a sheet it proposes before anyone saves it: priced on the project, refused with paths when it would not save, never stored.
+    const { publishedDataPermission } = await import("../platform/publication/permission-bundles.js");
+    assert.equal(publishedDataPermission("pay-sheets.try"), "manage_projects");
+    const trier = systemPublicationContext({ kind: "agent", organizationId: "org_pay", projectId: "project_pay", operations: ["pay-sheets.try"] });
+    const proposal = { ...real, name: "Summit proposal", entries: [{ label: "Tear off", kind: "piece_rate", unit: "sq", rate_cents: 5000, input: "squares", covers: ["roofing.tear_off"] }] };
+    const tried = await readPublishedData(trier, { provider: "pay-sheets", export: "try", target: { scope: "project", organizationId: "org_pay", projectId: "project_pay" }, args: { sheet: proposal } }) as any;
+    assert.equal(tried.status, "ready"); assert.equal(tried.value.measurement_source, "dataset");
+    assert.deepEqual(tried.value.evaluation.lines.map((line: any) => [line.label, line.total_cents]), [["Tear off", 100000]], "20 squares at $50");
+    assert.deepEqual(tried.value.inputs.find((input: any) => input.name === "squares").from, "job");
+    const refused = await readPublishedData(trier, { provider: "pay-sheets", export: "try", target: { scope: "project", organizationId: "org_pay", projectId: "project_pay" }, args: { sheet: { ...proposal, schema_ids: ["siding"] } } }) as any;
+    assert.deepEqual([refused.status, refused.code], ["error", "pay_sheet_invalid"]);
+    assert.match(refused.message, /^This sheet would not save: inputs\.0\.source\.definition: roof\.squares is not part of siding\./, "a sheet that would not save is refused, naming the field");
+    assert.deepEqual((await sheets.listPaySheets("org_pay")).map((sheet) => sheet.name), ["Summit 2026 rates"], "trying never saves");
+    // The item type a material input matches on is published with the organization's products, for choosing one.
+    const products = await readPublishedData((await import("../platform/publication/context.js")).userPublicationContext({ ...owner, permissions: { "*": true }, capabilities: { effectiveByKey: { "platform.pricebook": true, "platform.materials": true } }, applicationAccess: { management: { enabled: true, permissions: { "*": true } } } } as any), { provider: "materials-inputs", export: "products", target: { scope: "organization", organizationId: "org_pay" } }) as any;
+    assert.equal(products.status, "ready", JSON.stringify(products));
+    assert.equal(products.value.find((item: any) => item.id === "ridge_item").type, "Hip & Ridge");
 
     await sheets.archivePaySheet("org_pay", { id: saved.id }, owner);
     assert.deepEqual(await sheets.listPaySheets("org_pay"), []);

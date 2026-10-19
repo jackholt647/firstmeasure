@@ -107,7 +107,7 @@
       titleTip:options.kind === 'branch'
         ? t('roles_in_branch_tip', 'These apply only to work in {place} and its departments.', { place })
         : options.kind === 'region'
-        ? t('roles_in_region_tip', 'These apply only to work in the branches of {place}.', { place })
+        ? data.bt('roles_in_region_tip', 'These apply only to work in the {w_branches} of {place}.', { place })
         : t('roles_in_department_tip', 'These apply only to work in {place}.', { place }),
       align:options.align || 'end', search:offered.length > 8 ? t('search_roles', 'Search roles') : '',
       items:[...offered, ...kept].map((role) => {

@@ -425,3 +425,30 @@ test("named partner invitations bind email, recover privately and track opens se
  assert.equal((await a.raw('GET',ar+`/invitations/${second.invitation.id}/link`)).statusCode,400);
  assert.equal((await b.raw('POST',br+'/invitations/accept',{token:second.token})).statusCode,404);
 });
+
+test("an invitation sent from an outside company's window links that company, and revoking it unlinks it again",async()=>{
+ const a=createSessionClient(),b=createSessionClient();const ao=await registerOwner(a),bo=await registerOwner(b);
+ const ar=`/v1/collaboration/organizations/${ao.orgId}`,br=`/v1/collaboration/organizations/${bo.orgId}`;
+ const storage=await import('../platform/storage.js'),connections=await import('../connections/storage.js');
+ const user=await storage.readDocument(bo.orgId,'users',bo.ownerUserId),identity=await storage.readIdentity(String(user.data.identity_id));
+ await storage.patchIdentity(String(identity.id),{metadata:{...identity.metadata as any,email_verified:true}});
+ const company=await connections.createOrganizationConnection(ao.orgId,{name:'Summit Roofing'});
+ const created=await a.request('POST',ar+'/partner-invitations',{name:'Summit Roofing',email:identity.email,workforce_connection_id:company.id});
+ assert.equal(created.invitation.workforce_connection_id,company.id);
+ let row=await connections.readOrganizationConnection(ao.orgId,String(company.id));
+ assert.equal(row.link_status,'pending');assert.equal((row.metadata as any).collaboration_invitation_id,created.invitation.id);assert.equal((row.metadata as any).collaboration_invitation_status,'pending');
+ const sent=await a.request('POST',ar+`/invitations/${created.invitation.id}/send`,{},{'x-forwarded-host':'dev.1m8.ai'});assert.equal(sent.delivery.status,'captured','email is captured, never sent, in tests and on dev');
+ await b.request('POST',br+'/invitations/accept',{token:created.token});
+ row=await connections.readOrganizationConnection(ao.orgId,String(company.id));
+ assert.equal(row.link_status,'linked');assert.equal(row.linked_organization_id,bo.orgId);assert.ok((row.metadata as any).collaboration_connection_id);
+ const partners=(await connections.listOrganizationConnections(ao.orgId)).filter((entry:any)=>String(entry.id).startsWith('partner_'));
+ assert.equal(partners.length,0,'no second company is made for the same organization');
+ // Inviting a company that is already linked is refused.
+ assert.equal((await a.raw('POST',ar+'/partner-invitations',{name:'Summit Roofing',email:identity.email,workforce_connection_id:company.id})).statusCode,400);
+ // Revoking a pending invitation for another company puts it back to not linked.
+ const other=await connections.createOrganizationConnection(ao.orgId,{name:'Blue Ridge Gutters'});
+ const second=await a.request('POST',ar+'/partner-invitations',{name:'Blue Ridge Gutters',email:'gutters@example.test',workforce_connection_id:other.id});
+ await a.request('POST',ar+`/invitations/${second.invitation.id}/revoke`,{expected_revision:second.invitation.revision});
+ row=await connections.readOrganizationConnection(ao.orgId,String(other.id));
+ assert.equal(row.link_status,'unlinked');assert.equal((row.metadata as any).collaboration_invitation_status,'revoked');
+});

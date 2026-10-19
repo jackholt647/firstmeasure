@@ -7,7 +7,10 @@
  * What each person sees comes from their permissions and the organization's app flags only (ACTIONS below). Every
  * control names the action it needs; one that is not allowed is not drawn.
  *
- *   Pay runs    upcoming pay dates, what each will pay and to whom; draft, approve, copy out, mark paid
+ *   Pay runs    upcoming pay dates, what each will pay and to whom; draft, approve, copy out, mark paid. Payees
+ *               paid through payables are the pay run's Bills: billed when it is entered, paid when payables pays
+ *               them (payroll/payables.ts). Copy out makes files from export templates (payroll/export-templates.ts):
+ *               the built-in Gusto, QuickBooks and summary files, or the company's own, edited under Copy out
  *   Review      earnings that could not be worked out, held corrections, back pay asked for off-cycle, payments
  *               made outside a pay run, work orders finalized to be paid, reimbursements waiting to be paid
  *   Timesheets  everyone's shifts for payroll managers; your own for someone with only the time clock
@@ -126,7 +129,10 @@
     'runs.reopen':{ all:['payroll_app', 'pay_runs', 'manage_payroll'], server:'payroll.batch.action reopen' },
     'runs.void':{ all:['payroll_app', 'pay_runs', 'manage_payroll'], server:'payroll.batch.action void' },
     'runs.done':{ all:['payroll_app', 'pay_runs', 'manage_payroll'], server:'payroll.batch.action finalize, run, paid; payroll.batch.item.update' },
-    'runs.export':{ all:['payroll_app', 'manage_payroll'], server:'payroll.artifact.generate' },
+    'runs.export':{ all:['payroll_app', 'manage_payroll'], server:'payroll.artifact.generate, payroll.export_templates' },
+    'templates.edit':{ all:['payroll_app', 'manage_payroll'], server:'payroll.exportTemplate.save, archive, preview' },
+    'bills.view':{ all:['payroll_app', 'manage_payroll'], server:'payroll.bills' },
+    'bills.reconcile':{ all:['payroll_app', 'manage_payroll'], server:'payroll.bills.reconcile' },
     'earnings.refresh':{ all:['payroll_app', 'manage_payroll'], server:'payroll.earnings.refresh' },
     'earnings.why':{ all:['payroll_app', 'manage_payroll'], server:'payroll.pay_setup, pay_units, payroll.records, payroll.earnings' },
     'earnings.projected':{ all:['payroll_app', 'manage_payroll'], server:'payroll.projected_earnings' },
@@ -236,6 +242,44 @@
       .fmp a.pp-btn,.pp-modal a.pp-btn{text-decoration:none}
       .fmp-titled{display:inline-flex;align-items:center;gap:2px}
       .fmp-settings{min-width:0}
+      .fmp-file .fmp-file-actions{display:flex;align-items:center;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+      .fmp-files-foot{display:flex;justify-content:flex-start;margin-top:4px}
+      .fmp-bill{display:inline-flex;align-items:center;gap:6px;flex-wrap:wrap}
+      .fmp-tpl{display:grid;grid-template-columns:minmax(0,1fr);gap:14px;min-width:0}
+      .fmp-tpl>*{min-width:0}
+      .fmp-tpl .fmp-modal-section{grid-template-columns:minmax(0,1fr)}
+      .fmp-tpl .fmp-modal-section>*{min-width:0}
+      .fmp-tpl-top{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+      .fmp-tpl-top>.fmp-bar-fill{flex:1}
+      .fmp-tpl-top>strong{font-size:14px}
+      .fmp-tpl-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:10px 12px}
+      .fmp-tpl-grid .pp-field.wide{grid-column:1/-1}
+      .fmp-cols{display:grid;gap:6px;margin:0;padding:0;list-style:none}
+      .fmp-col{display:grid;grid-template-columns:22px minmax(120px,1fr) minmax(150px,1.2fr) minmax(110px,.8fr) auto;align-items:center;gap:6px;padding:6px 8px;border:1px solid var(--pp-line);border-radius:10px;background:var(--pp-panel)}
+      .fmp-col>.fmp-col-n{color:var(--pp-faint);font-size:11.5px;font-weight:700;text-align:center;font-variant-numeric:tabular-nums}
+      .fmp-col .pp-input{height:30px;font-size:12.5px}
+      .fmp-col .pp-select{min-width:0}
+      .fmp-col-extra{display:flex;gap:6px;min-width:0}
+      .fmp-col-extra>*{flex:1 1 auto;min-width:0}
+      .fmp-col-extra>.pp-select{display:flex}
+      .fmp-col-extra>.pp-select>select{width:100%}
+      .fmp-col-btns{display:flex;gap:2px}
+      .fmp-preview{overflow:auto;max-height:280px;border:1px solid var(--pp-line);border-radius:10px;background:var(--pp-panel)}
+      .fmp-preview table{border-collapse:collapse;font-size:12px;min-width:100%}
+      .fmp-preview th,.fmp-preview td{padding:6px 10px;border-bottom:1px solid var(--pp-line-soft);text-align:left;white-space:nowrap;font-variant-numeric:tabular-nums}
+      .fmp-preview th{position:sticky;top:0;background:var(--pp-soft);color:var(--pp-muted);font-size:11.5px;font-weight:650}
+      .fmp-preview-note{color:var(--pp-muted);font-size:12px}
+      @container (max-width:640px){
+        .fmp-col{grid-template-columns:22px minmax(0,1fr) auto;grid-template-areas:"n header btns" "n source source" "n extra extra"}
+        .fmp-col>.fmp-col-n{grid-area:n;align-self:start;padding-top:8px}
+        .fmp-col>[data-col-header]{grid-area:header}
+        .fmp-col>.pp-select{grid-area:source}
+        .fmp-col>.fmp-col-extra{grid-area:extra}
+        .fmp-col>.fmp-col-btns{grid-area:btns}
+        .fmp-tpl-grid{grid-template-columns:minmax(0,1fr)}
+        .fmp-file{flex-wrap:wrap}
+        .fmp-file .fmp-file-actions{width:100%;justify-content:flex-start}
+      }
       @container (max-width:640px){
         .fmp-wrap{padding:12px 12px 32px}
         .fmp-bar .pp-seg{max-width:100%;overflow-x:auto;scrollbar-width:none}
@@ -288,6 +332,17 @@
   }
   const payeeName = (payee) => clean(payee?.name) || clean(payee?.id) || t('someone', 'Someone');
   const paidAs = (payee) => clean(payee?.type) === 'organization_connection' ? t('company', 'Company') : clean(payee?.worker_type || 'employee') === 'employee' ? t('employee', 'Employee') : t('contractor', 'Contractor');
+  /*
+   * Which part of a pay run someone is in (payroll/payables.ts): employees and contractors are paid with payroll; bills
+   * are payees paid through payables (outside companies, contractors on net-day terms). The server says which, on the
+   * upcoming preview (`paid_through`) and on each drafted item (`metadata.paid_through`); anything else is payroll.
+   */
+  const paidThroughOf = (item) => clean(item?.paid_through || obj(item?.metadata).paid_through) || 'payroll';
+  const sectionOf = (item) => paidThroughOf(item) === 'payables' ? 'bills' : clean(obj(item?.payee).worker_type || 'employee') === 'employee' ? 'employees' : 'contractors';
+  const dueOf = (item) => clean(item?.due_date || obj(item?.metadata).due_date);
+  const termsOf = (item) => obj(item?.payment_terms || obj(item?.metadata).payment_terms);
+  const termsLabel = (terms) => clean(obj(terms).basis) === 'net_days' ? t('net_days', 'Net {days}', { days:num(obj(terms).net_days) }) : t('on_pay_date', 'Due on the pay date');
+  const SECTIONS = [['employees', 'Employees', ''], ['contractors', 'Contractors', 'Contractors paid with payroll.'], ['bills', 'Bills', 'Paid through payables: outside companies, and contractors on net-day terms. Each becomes a bill when the pay run is entered, due on their payment terms, and shows paid here once its bill is paid.']];
   function download(url){
     const link = document.createElement('a');
     link.href = url; link.download = ''; link.rel = 'noopener';
@@ -306,7 +361,8 @@
       payee:obj(item.payee), kinds, reimbursement, offCycle, clawback,
       earned:kinds.reduce((sum, [, value]) => sum + num(value), 0),
       net:num(source.net_cents), projected:preview ? num(obj(item.projected).net_cents) : 0,
-      status:preview ? '' : clean(item.status), item:preview ? null : item
+      status:preview ? '' : clean(item.status), item:preview ? null : item,
+      section:sectionOf(item), due:dueOf(item), terms:termsOf(item)
     };
   }
   function runStatus(occurrence, batch){
@@ -315,6 +371,9 @@
     const status = clean(batch.status);
     if (status === 'void') return { key:'void', label:t('voided', 'Voided'), tone:'muted' };
     if (status === 'paid') return { key:'paid', label:t('paid', 'Paid'), tone:'ok' };
+    // Everyone paid with payroll is paid; bills wait for payables.
+    const items = arr(batch.items);
+    if (['run', 'partial'].includes(status) && items.some((item) => sectionOf(item) === 'bills' && clean(item.status) !== 'paid') && items.every((item) => sectionOf(item) === 'bills' || clean(item.status) === 'paid')) return { key:'bills', label:t('bills_open', 'Bills open'), tone:'role' };
     if (status === 'run') return { key:'run', label:t('entered', 'Entered, not paid'), tone:'role' };
     if (status === 'partial') return { key:'partial', label:t('partly_paid', 'Partly paid'), tone:'role' };
     if (approval === 'pending') return { key:'pending', label:t('waiting_approval', 'Waiting for approval'), tone:'warn' };
@@ -368,6 +427,9 @@
       await loadShared();
       const view = state.view, api = window.PayrollAPI;
       const tasks = {};
+      // Bills (payees paid through payables) and the export templates are shown with the pay runs they belong to.
+      if ((view === 'upcoming' || view === 'history') && can('bills.view')) tasks.bills = () => api.published.read(state.orgId, 'bills', { status:'all', ...branchArgs() });
+      if ((view === 'upcoming' || view === 'history') && can('runs.export')) tasks.templates = () => api.published.read(state.orgId, 'export_templates');
       if (view === 'upcoming' || view === 'payees') {
         tasks.dashboard = () => api.dashboard(state.orgId, { from:state.range.from, through:state.range.through, include_projected:true, history_limit:1, ...branchArgs() });
         if (view === 'upcoming' && can('view.review')) { tasks.review = () => api.pay.review(state.orgId); tasks.unresolved = () => api.pay.unresolved(state.orgId); tasks.offCycle = () => api.offCycle.list(state.orgId, branchArgs()); }
@@ -416,17 +478,25 @@
     }
 
     // -- Shared toolbar pieces --
+    /* The organization's words for a branch and a region (terminology keys branches.*). */
+    function branchWords(){
+      const word = (key, fallback) => clean(window.Portal?.terminology?.get?.(`branches.${key}`, fallback) || window.PlatformTerminology?.get?.(`branches.${key}`, fallback)) || fallback;
+      const lower = (value) => value.charAt(0).toLowerCase() + value.slice(1);
+      const Branch = word('branch', 'Branch'), Branches = word('branches', 'Branches'), Region = word('region', 'Region'), Main = word('main_branch', 'Main branch');
+      return { Branch, Main, branch:lower(Branch), branches:lower(Branches), region:lower(Region) };
+    }
     function branchControl(){
       const structure = obj(state.structure);
       if (structure.multiple !== true) return '';
       const access = obj(structure.access);
-      const names = new Map(arr(structure.branches).map((branch) => [clean(branch.id), clean(branch.name) || t('main_branch', 'Main branch')]));
-      const options = [{ value:'', label:access.restricted ? t('my_branches', 'My branches') : t('all_branches', 'All branches') }, { value:'mine', label:t('my_branch', 'My branch') }];
-      if (arr(structure.my_region_ids).length && access.see !== 'own') options.push({ value:'region', label:t('my_region', 'My region') });
+      const words = branchWords();
+      const names = new Map(arr(structure.branches).map((branch) => [clean(branch.id), clean(branch.name) || words.Main]));
+      const options = [{ value:'', label:access.restricted ? t('my_branches', 'My {branches}', { branches:words.branches }) : t('all_branches', 'All {branches}', { branches:words.branches }) }, { value:'mine', label:t('my_branch', 'My {branch}', { branch:words.branch }) }];
+      if (arr(structure.my_region_ids).length && access.see !== 'own') options.push({ value:'region', label:t('my_region', 'My {region}', { region:words.region }) });
       arr(access.visible_branch_ids).forEach((id) => options.push({ value:id, label:names.get(clean(id)) || id }));
-      return kit().select({ name:'branch', value:state.branch, options, label:t('branch', 'Branch'), attrs:'data-branch' });
+      return kit().select({ name:'branch', value:state.branch, options, label:words.Branch, attrs:'data-branch' });
     }
-    const hiddenNote = (count) => count ? `<div class="fmp-note">${esc(t('hidden_people', '{count} people of other branches are not shown.', { count }))}</div>` : '';
+    const hiddenNote = (count) => count ? `<div class="fmp-note">${esc(t('hidden_people', '{count} people of other {branches} are not shown.', { count, branches:branchWords().branches }))}</div>` : '';
 
     // -- Pay runs --
     function occurrenceRows(){
@@ -452,9 +522,10 @@
       const rows = runs.map((occurrence) => {
         const status = runStatus(occurrence, occurrence.batch);
         const batch = occurrence.batch;
-        const people = batch ? arr(batch.items).length : arr(occurrence.employees).length + arr(occurrence.subcontractors).length;
-        const employees = batch ? num(batch.employee_total_cents) : arr(occurrence.employees).reduce((sum, item) => sum + num(item.accrued?.net_cents), 0);
-        const contractors = batch ? num(batch.subcontractor_total_cents) : arr(occurrence.subcontractors).reduce((sum, item) => sum + num(item.accrued?.net_cents), 0);
+        const lines = runLines({ occurrence, batch });
+        const people = lines.length;
+        const part = (section) => lines.filter((line) => line.section === section).reduce((sum, line) => sum + line.net, 0);
+        const employees = part('employees'), contractors = part('contractors'), bills = part('bills');
         const key = `${clean(occurrence.schedule?.id)}|${clean(occurrence.pay_date)}`;
         return `<tr data-open="run" data-run="${esc(key)}" tabindex="0">
           ${td(nameCell(dateLabel(occurrence.pay_date, { weekday:true }), clean(occurrence.schedule?.name)), t('pay_date', 'Pay date'), 'lead')}
@@ -462,7 +533,8 @@
           ${td(esc(people), t('people', 'People'), 'num hide-sm')}
           ${td(esc(money(employees, currency)), t('employees', 'Employees'), 'num hide-sm')}
           ${td(esc(money(contractors, currency)), t('contractors', 'Contractors'), 'num hide-sm')}
-          ${td(`<b>${esc(money(employees + contractors, currency))}</b>`, t('to_pay', 'To pay'), 'num')}
+          ${td(esc(money(bills, currency)), t('bills', 'Bills'), 'num hide-sm')}
+          ${td(`<b>${esc(money(employees + contractors + bills, currency))}</b>`, t('to_pay', 'To pay'), 'num')}
           ${td(pill(status.label, status.tone), t('status', 'Status'))}
         </tr>`;
       });
@@ -474,11 +546,28 @@
       ].join('');
       return `${stats}
         ${card({ id:'runs', title:t('upcoming_pay_runs', 'Upcoming pay runs'), tooltip:t('upcoming_tip', 'Each pay date of each pay schedule in the next two months that has someone to pay. Open one to see who is in it, approve it, copy it out to your payroll software and mark it paid.'), count:runs.length, actions,
-          body:`${table([{ label:t('pay_date', 'Pay date') }, { label:t('period', 'Period'), cls:'hide-sm' }, { label:t('people', 'People'), cls:'num hide-sm' }, { label:t('employees', 'Employees'), cls:'num hide-sm' }, { label:t('contractors', 'Contractors'), cls:'num hide-sm' }, { label:t('to_pay', 'To pay'), cls:'num', tooltip:t('to_pay_tip', 'After payments already made outside a pay run and clawbacks.') }, { label:t('status', 'Status') }], rows, { empty:t('no_runs', 'No pay run in the next two months has anyone to pay.'), label:t('upcoming_pay_runs', 'Upcoming pay runs') })}
+          body:`${table([{ label:t('pay_date', 'Pay date') }, { label:t('period', 'Period'), cls:'hide-sm' }, { label:t('people', 'People'), cls:'num hide-sm' }, { label:t('employees', 'Employees'), cls:'num hide-sm' }, { label:t('contractors', 'Contractors'), cls:'num hide-sm', tooltip:t('contractors_col_tip', 'Contractors paid with payroll.') }, { label:t('bills', 'Bills'), cls:'num hide-sm', tooltip:t('bills_col_tip', 'Payees paid through payables, as bills due on their payment terms.') }, { label:t('to_pay', 'To pay'), cls:'num', tooltip:t('to_pay_tip', 'After payments already made outside a pay run and clawbacks.') }, { label:t('status', 'Status') }], rows, { empty:t('no_runs', 'No pay run in the next two months has anyone to pay.'), label:t('upcoming_pay_runs', 'Upcoming pay runs') })}
           ${quiet > 0 ? `<div class="fmp-note">${esc(t('quiet_dates', '{count} more pay dates have nothing to pay yet.', { count:quiet }))}</div>` : ''}
           ${unscheduled ? `<div class="fmp-note">${esc(t('unscheduled', '{count} earnings have no pay schedule and are in no pay run. Choose the company\u2019s pay schedule in Settings.', { count:num(unscheduled.count) }))}</div>` : ''}` })}
+        ${billsCard()}
         ${offWaiting.length ? card({ id:'offcycle-waiting', title:t('paid_outside_waiting', 'Paid outside a pay run, still to take off'), tooltip:t('paid_outside_waiting_tip', 'Payments recorded as made outside a pay run that the next pay runs will take off what these people are paid.'), count:offWaiting.length,
           body:table([{ label:t('person', 'Person') }, { label:t('paid_on', 'Paid on') }, { label:t('still_to_take_off', 'Still to take off'), cls:'num' }], offWaiting.map((row) => `<tr>${td(nameCell(payeeName(row.payee), kindLabel(row.kind)), t('person', 'Person'), 'lead')}${td(esc(dateLabel(row.paid_on)), t('paid_on', 'Paid on'))}${td(esc(minus(row.waiting_cents, row.currency)), t('still_to_take_off', 'Still to take off'), 'num neg')}</tr>`)) }) : ''}`;
+    }
+    // Bills of pay runs not paid yet: who, from which pay run, when due and how much payables has paid.
+    function billsCard(){
+      if (!can('bills.view')) return '';
+      const bills = arr(state.data.bills);
+      const open = bills.filter((bill) => ['open', 'partially_paid'].includes(clean(bill.status)));
+      const stuck = bills.filter((bill) => bill.needs_settlement === true);
+      if (!open.length && !stuck.length) return '';
+      const overdue = (bill) => clean(bill.due_date) && clean(bill.due_date) < today;
+      const statusPill = (bill) => clean(bill.status) === 'partially_paid'
+        ? pill(t('partly_paid', 'Partly paid'), 'warn', t('partly_paid_of', '{paid} of {amount} paid', { paid:money(bill.paid_cents, bill.currency), amount:money(bill.amount_cents, bill.currency) }))
+        : overdue(bill) ? pill(t('overdue', 'Overdue'), 'danger') : pill(t('open', 'Open'), 'neutral');
+      const amountCell = (bill) => num(bill.paid_cents) ? `${esc(money(bill.amount_cents, bill.currency))}<br><small class="fmp-muted">${esc(t('paid_so_far', '{paid} paid', { paid:money(bill.paid_cents, bill.currency) }))}</small>` : esc(money(bill.amount_cents, bill.currency));
+      const actions = stuck.length ? button('bills.reconcile', context, { label:t('update_runs', 'Show payments in pay runs'), icon:'fa-rotate', attrs:'data-act="reconcile-bills"', tooltip:t('update_runs_tip', 'Payables paid these bills, and their pay runs do not show it yet. This marks them paid, once.') }) : '';
+      return card({ id:'bills', title:t('bills_waiting', 'Bills waiting to be paid'), tooltip:t('bills_waiting_tip', 'People and companies paid through payables. Each bill was made when its pay run was entered and is due on their payment terms. Pay it where you pay bills; it then shows paid here and in their pay.'), count:open.length, actions,
+        body:table([{ label:t('payee', 'Payee') }, { label:t('pay_run', 'Pay run'), cls:'hide-sm' }, { label:t('due', 'Due') }, { label:t('amount', 'Amount'), cls:'num' }, { label:t('status', 'Status') }], open.map((bill) => `<tr>${td(nameCell(payeeName(bill.payee), termsLabel(bill.payment_terms)), t('payee', 'Payee'), 'lead')}${td(esc(dateLabel(bill.pay_date)), t('pay_run', 'Pay run'), 'hide-sm')}${td(esc(dateLabel(bill.due_date)), t('due', 'Due'))}${td(amountCell(bill), t('amount', 'Amount'), 'num')}${td(statusPill(bill), t('status', 'Status'))}</tr>`), { empty:t('no_open_bills', 'Every bill is paid.') }) });
     }
     function kindLabel(kind){
       const labels = obj(obj(state.vocabulary).labels).earning_kinds;
@@ -506,7 +595,8 @@
         const currency = clean(batch?.currency || occurrence?.schedule?.currency || 'USD');
         const lines = runLines(current);
         const total = lines.reduce((sum, line) => sum + line.net, 0);
-        const employees = lines.filter((line) => paidAs(line.payee) === t('employee', 'Employee'));
+        const employees = lines.filter((line) => line.section === 'employees');
+        const bills = lines.filter((line) => line.section === 'bills');
         return {
           kind:'pay_run', id:clean(batch?.id || current.key), name:dateLabel(batch?.pay_date || occurrence?.pay_date, { weekday:true, year:true }),
           secondary:clean(batch?.run_type) === 'off_cycle' ? t('off_cycle_run', 'Off-cycle pay run') : clean(occurrence?.schedule?.name) || (batch ? scheduleNameOf(batch) : t('pay_run', 'Pay run')),
@@ -516,7 +606,8 @@
             ...(occurrence?.cutoff_at ? [{ icon:'fa-scissors', label:t('earnings_until', 'Earnings up to'), value:dateTimeLabel(occurrence.cutoff_at), tooltip:t('cutoff_tip', 'Earnings earned after this are paid on a later pay run.') }] : []),
             { icon:'fa-users', label:t('people', 'People'), value:String(lines.length) },
             { icon:'fa-user', label:t('employees', 'Employees'), value:money(employees.reduce((sum, line) => sum + line.net, 0), currency) },
-            { icon:'fa-building', label:t('contractors', 'Contractors'), value:money(total - employees.reduce((sum, line) => sum + line.net, 0), currency) },
+            { icon:'fa-building', label:t('contractors', 'Contractors'), value:money(lines.filter((line) => line.section === 'contractors').reduce((sum, line) => sum + line.net, 0), currency), tooltip:t('contractors_col_tip', 'Contractors paid with payroll.') },
+            ...(bills.length ? [{ icon:'fa-file-invoice-dollar', label:t('bills', 'Bills'), value:money(bills.reduce((sum, line) => sum + line.net, 0), currency), tooltip:t('bills_col_tip', 'Payees paid through payables, as bills due on their payment terms.') }] : []),
             { icon:'fa-sack-dollar', label:t('to_pay', 'To pay'), value:money(total, currency) },
             ...(!batch && num(occurrence?.projected_additional_cents) ? [{ icon:'fa-chart-line', label:t('projected_on_top', 'Projected on top'), value:money(occurrence.projected_additional_cents, currency), tooltip:t('projected_more_tip', 'Forecast earnings posted to the ledger that are not earned yet. They are not paid until they are.') }] : [])
           ]
@@ -540,18 +631,29 @@
         const currency = clean(batch?.currency || current.occurrence?.schedule?.currency || 'USD');
         const lines = runLines(current);
         const status = runStatus(current.occurrence, batch);
-        const sections = [[t('employees', 'Employees'), lines.filter((line) => paidAs(line.payee) === t('employee', 'Employee'))], [t('contractors', 'Contractors'), lines.filter((line) => paidAs(line.payee) !== t('employee', 'Employee'))]];
-        const markPaid = batch && (['approved', 'run', 'partial'].includes(status.key) || (status.key === 'draft' && obj(state.settings).approval_required === false)) && can('runs.done');
-        const rows = sections.filter(([, list]) => list.length).flatMap(([label, list]) => [
-          `<tr class="fmp-section"><td colspan="7">${esc(label)}</td></tr>`,
+        const sections = SECTIONS.map(([id, label, tooltip]) => [id, t(id, label), tooltip ? t(`${id}_section_tip`, tooltip) : '', lines.filter((line) => line.section === id)]);
+        const markPaid = batch && (['approved', 'run', 'partial', 'bills'].includes(status.key) || (status.key === 'draft' && obj(state.settings).approval_required === false)) && can('runs.done');
+        const billOf = (line) => line.item ? arr(state.data.bills).find((bill) => clean(bill.item_id) === clean(line.item.id)) : null;
+        const billNote = (line) => line.section !== 'bills' ? '' : clean(line.terms.basis) === 'net_days' ? ` \u00b7 ${t('due_on', 'Due {date}', { date:dateLabel(line.due) })} \u00b7 ${termsLabel(line.terms)}` : ` \u00b7 ${termsLabel(line.terms)}`;
+        const paidCell = (line) => {
+          if (line.status === 'paid') return pill(t('paid', 'Paid'), 'ok');
+          // A reimbursement in this run was paid in payables after it was drafted: reopen it so nobody is paid twice.
+          if (arr(obj(line.item.metadata).reimbursement_paid_in_payables).length) return pill(t('reimbursement_paid_elsewhere', 'Reopen: reimbursement paid'), 'warn', t('reimbursement_paid_elsewhere_tip', 'Their reimbursement was paid in payables after this pay run was drafted. Reopen the pay run so it is worked out again without it.'));
+          const bill = line.section === 'bills' ? billOf(line) : null;
+          const billPill = bill ? (clean(bill.status) === 'partially_paid' ? pill(t('partly_paid_short', '{paid} paid', { paid:money(bill.paid_cents, bill.currency) }), 'warn', t('partly_paid_of', '{paid} of {amount} paid', { paid:money(bill.paid_cents, bill.currency), amount:money(bill.amount_cents, bill.currency) })) : pill(t('billed', 'Billed'), 'role', t('billed_tip', 'A bill is waiting in payables. It shows paid here once payables pays it.'))) : '';
+          const action = markPaid ? `<button type="button" class="pp-btn" data-item-paid="${esc(line.item.id)}"${line.section === 'bills' ? tip(t('bill_paid_tip', 'You paid this bill yourself. The payment is recorded against the bill in payables, once.')) : ''}>${esc(t('mark_paid', 'Mark paid'))}</button>` : '';
+          return `<span class="fmp-bill">${billPill}${action}</span>`;
+        };
+        const rows = sections.filter(([, , , list]) => list.length).flatMap(([, label, tooltip, list]) => [
+          `<tr class="fmp-section"><td colspan="7"><span${tip(tooltip)}>${esc(label)}</span></td></tr>`,
           ...list.sort((a, b) => payeeName(a.payee).localeCompare(payeeName(b.payee))).map((line) => `<tr>
-            ${td(`${can('earnings.why') ? `<button type="button" class="fmp-link" data-why="${esc(payeeKey(line.payee))}" data-why-name="${esc(payeeName(line.payee))}">${esc(payeeName(line.payee))}</button>` : esc(payeeName(line.payee))}<br><small class="fmp-muted">${esc(line.kinds.map(([kind, cents]) => `${kindLabel(kind)} ${money(cents, currency)}`).join(' \u00b7 ') || paidAs(line.payee))}</small>`, t('person', 'Person'), 'lead')}
+            ${td(`${can('earnings.why') ? `<button type="button" class="fmp-link" data-why="${esc(payeeKey(line.payee))}" data-why-name="${esc(payeeName(line.payee))}">${esc(payeeName(line.payee))}</button>` : esc(payeeName(line.payee))}<br><small class="fmp-muted">${esc((line.kinds.map(([kind, cents]) => `${kindLabel(kind)} ${money(cents, currency)}`).join(' \u00b7 ') || paidAs(line.payee)) + billNote(line))}</small>`, t('person', 'Person'), 'lead')}
             ${td(esc(money(line.earned, currency)), t('earned', 'Earned'), 'num')}
             ${td(esc(money(line.reimbursement, currency)), t('reimbursements', 'Reimbursements'), 'num')}
             ${td(line.offCycle ? `<span${tip(t('already_paid_tip', 'Paid outside a pay run and taken off here.'))}>${esc(minus(line.offCycle, currency))}</span>` : '\u2014', t('already_paid', 'Already paid'), `num${line.offCycle ? ' neg' : ''}`)}
             ${td(line.clawback ? esc(minus(line.clawback, currency)) : '\u2014', t('taken_back', 'Taken back'), `num${line.clawback ? ' neg' : ''}`)}
             ${td(`<b>${esc(money(line.net, currency))}</b>`, t('to_pay', 'To pay'), 'num')}
-            ${td(line.status === 'paid' ? pill(t('paid', 'Paid'), 'ok') : markPaid ? `<button type="button" class="pp-btn" data-item-paid="${esc(line.item.id)}">${esc(t('mark_paid', 'Mark paid'))}</button>` : '', '', 'act')}
+            ${td(line.item ? paidCell(line) : '', '', 'act')}
           </tr>`)
         ]);
         panel.innerHTML = `${stepsHtml()}
@@ -582,6 +684,7 @@
           approved:t('step_approved', 'Approved. Copy it out to your payroll software, then mark it entered and, once people are paid, paid.'),
           run:t('step_run', 'Entered in your payroll software. Mark it paid once people are paid, or mark each person.'),
           partial:t('step_partial', 'Some people are marked paid. Mark the rest once they are paid.'),
+          bills:t('step_bills', 'Everyone paid with payroll is paid. The bills wait for payables, the last due {date}; each shows paid here once its bill is paid.', { date:dateLabel(runLines(current).filter((line) => line.section === 'bills' && line.status !== 'paid').map((line) => line.due).sort().pop()) }),
           paid:t('step_paid', 'Paid {date}. A change to what anyone earned now comes out as a correction on a later pay run.', { date:dateLabel(batch?.paid_at) }),
           void:t('step_void', 'This pay run was voided. Its earnings are back in the next pay run.')
         }[status.key];
@@ -593,19 +696,188 @@
           pending:[iAmNamed ? button('runs.decide', context, { label:t('approve', 'Approve'), icon:'fa-check', tone:'primary', attrs:'data-run-act="decide-approve"' }) : '', iAmNamed ? button('runs.decide', context, { label:t('reject', 'Reject'), icon:'fa-xmark', attrs:'data-run-act="decide-reject"' }) : '', button('runs.reopen', context, { label:t('reopen', 'Reopen'), icon:'fa-rotate-left', tone:'quiet', attrs:'data-run-act="reopen"' })],
           rejected:[button('runs.reopen', context, { label:t('reopen_fix', 'Reopen to fix'), icon:'fa-rotate-left', tone:'primary', attrs:'data-run-act="reopen"' }), button('runs.void', context, { label:t('void', 'Void'), icon:'fa-ban', tone:'quiet', attrs:'data-run-act="void"' })],
           approved:[button('runs.done', context, { label:t('mark_entered', 'Mark entered'), icon:'fa-file-import', attrs:'data-run-act="run"', tooltip:t('mark_entered_tip', 'You entered or imported it in your payroll software.') }), button('runs.done', context, { label:t('mark_all_paid', 'Mark all paid'), icon:'fa-circle-check', tone:'primary', attrs:'data-run-act="paid"' })],
-          run:[button('runs.done', context, { label:t('mark_all_paid', 'Mark all paid'), icon:'fa-circle-check', tone:'primary', attrs:'data-run-act="paid"' })],
+          run:[button('runs.done', context, { label:runLines(current).some((line) => line.section === 'bills') ? t('mark_payroll_paid', 'Mark payroll paid') : t('mark_all_paid', 'Mark all paid'), icon:'fa-circle-check', tone:'primary', attrs:'data-run-act="paid"', tooltip:runLines(current).some((line) => line.section === 'bills') ? t('mark_payroll_paid_tip', 'Marks everyone paid with payroll as paid. Bills are paid when payables pays them.') : '' })],
           partial:[button('runs.done', context, { label:t('mark_rest_paid', 'Mark the rest paid'), icon:'fa-circle-check', tone:'primary', attrs:'data-run-act="paid"' })],
-          paid:[], void:[]
+          bills:[], paid:[], void:[]
         }[status.key].filter(Boolean).join('');
-        return `<div class="fmp-steps" data-run-steps="${esc(status.key)}"><p>${esc(text)}</p>${buttons ? `<div class="fmp-steps-actions">${buttons}</div>` : ''}</div>`;
+        // A run with bills says what entering it does to them.
+        const hasBills = runLines(current).some((line) => line.section === 'bills');
+        const billsNote = hasBills && ['none', 'draft', 'approved', 'pending'].includes(status.key) ? ` ${t('step_bills_note', 'Those paid through payables become bills when it is entered; marking it paid pays everyone else.')}` : '';
+        return `<div class="fmp-steps" data-run-steps="${esc(status.key)}"><p>${esc(text + billsNote)}</p>${buttons ? `<div class="fmp-steps-actions">${buttons}</div>` : ''}</div>`;
       }
+      // Copy out: a file per export template. Built-in ones download as they always have; a company's own are its
+      // templates. "Make your own file" and a template's menu open the template editor in this tab, with a preview
+      // of this pay run.
+      const copy = { mode:'list', draft:null, preview:null, error:'', token:0, timer:0 };
       function drawExport(panel){
+        if (copy.mode === 'edit' && copy.draft) { drawEditor(panel); return; }
         const batch = current.batch;
         const catalog = arr(state.data.catalog).length ? arr(state.data.catalog) : null;
-        const files = catalog ? catalog.filter((entry) => entry.group === 'pay_run_file') : PAY_RUN_FILES;
-        panel.innerHTML = `<div class="fmp-modal-section"><h3${tip(t('copy_out_long', 'The platform does not move money. Copy each pay run into your payroll software with these files, then mark it entered and paid here. Employees and contractors are in separate files, earnings are by kind and reimbursements have their own line.'))}>${esc(t('files_for_run', 'Files for this pay run'))}${info(t('copy_out_long', 'The platform does not move money. Copy each pay run into your payroll software with these files, then mark it entered and paid here. Employees and contractors are in separate files, earnings are by kind and reimbursements have their own line.'))}</h3>
-          ${batch && runStatus(current.occurrence, batch).key !== 'void' ? `<div class="fmp-files">${files.map((file) => `<div class="fmp-file" data-file="${esc(file.type)}"><i class="fas ${esc(file.type.startsWith('gusto') ? 'fa-g' : file.type.startsWith('quickbooks') ? 'fa-q' : 'fa-list')}" aria-hidden="true"></i><div><span class="fmp-titled"><strong${tip(`${file.description} ${file.purpose || ''}`)}>${esc(file.label)}</strong>${info(`${file.description} ${file.purpose || ''}`)}</span></div>${arr(file.formats).map((format) => `<button type="button" class="pp-btn" data-export="${esc(file.type)}" data-format="${esc(format)}"><i class="fas fa-download" aria-hidden="true"></i>${esc(format.toUpperCase())}</button>`).join('')}</div>`).join('')}</div>`
+        const builtIns = catalog ? catalog.filter((entry) => entry.group === 'pay_run_file') : PAY_RUN_FILES;
+        const templates = arr(obj(state.data.templates).templates);
+        const described = new Map(builtIns.map((file) => [file.type, file]));
+        const files = templates.length
+          ? templates.map((template) => ({ type:template.id, label:template.name, custom:!template.built_in, template, formats:template.formats, description:clean(described.get(template.id)?.description || template.definition?.description), purpose:clean(described.get(template.id)?.purpose) }))
+          : builtIns.map((file) => ({ ...file, custom:false }));
+        const icon = (file) => file.custom ? 'fa-table-columns' : file.type.startsWith('gusto') ? 'fa-g' : file.type.startsWith('quickbooks') ? 'fa-q' : 'fa-list';
+        const basedOn = (file) => { const base = templates.find((template) => template.id === file.template?.based_on); return base ? t('based_on', 'Your file, from {name}', { name:base.name }) : t('your_file', 'Your file'); };
+        const menuButton = (file) => can('templates.edit') && file.template ? `<button type="button" class="pp-icon-btn" data-template-menu="${esc(file.type)}" aria-label="${esc(t('file_options', 'Options for {name}', { name:file.label }))}"${tip(t('file_options_tip', 'Duplicate this file to change its columns, or change or remove your own.'))}><i class="fas fa-ellipsis" aria-hidden="true"></i></button>` : '';
+        const longTip = t('copy_out_long', 'The platform does not move money. Copy each pay run into your payroll software with these files, then mark it entered and paid here. Employees and contractors are in separate files, earnings are by kind and reimbursements have their own line.');
+        panel.innerHTML = `<div class="fmp-modal-section"><h3${tip(longTip)}>${esc(t('files_for_run', 'Files for this pay run'))}${info(longTip)}</h3>
+          ${batch && runStatus(current.occurrence, batch).key !== 'void' ? `<div class="fmp-files">${files.map((file) => `<div class="fmp-file" data-file="${esc(file.type)}"><i class="fas ${esc(icon(file))}" aria-hidden="true"></i><div><span class="fmp-titled"><strong${tip(`${file.description} ${file.purpose || ''}`.trim())}>${esc(file.label)}</strong>${file.description ? info(`${file.description} ${file.purpose || ''}`.trim()) : ''}</span>${file.custom ? `<small>${esc(basedOn(file))}</small>` : ''}</div><span class="fmp-file-actions">${arr(file.formats).map((format) => `<button type="button" class="pp-btn" ${file.custom ? `data-export-template="${esc(file.type)}"` : `data-export="${esc(file.type)}"`} data-format="${esc(format)}"><i class="fas fa-download" aria-hidden="true"></i>${esc(format.toUpperCase())}</button>`).join('')}${menuButton(file)}</span></div>`).join('')}</div>
+            ${can('templates.edit') && templates.length ? `<div class="fmp-files-foot"><button type="button" class="pp-btn quiet" data-template-new${tip(t('own_file_tip', 'Start from one of these files and choose your own columns, their order and formatting, for any payroll or accounting software.'))}><i class="fas fa-plus" aria-hidden="true"></i>${esc(t('own_file', 'Make your own file'))}</button></div>` : ''}`
             : `<div class="fmp-empty">${esc(t('draft_first', 'Draft the pay run first: the files are made from what it fixes.'))}</div>`}</div>`;
+      }
+      // ---- The template editor ----
+      const sources = () => arr(obj(state.data.templates).sources);
+      const sourceInfo = (id) => sources().find((source) => source.id === id) || {};
+      function startEditing(template, duplicate){
+        const definition = JSON.parse(JSON.stringify(template.definition || {}));
+        if (duplicate) definition.name = t('copy_name', '{name} (yours)', { name:template.name });
+        copy.draft = { id:duplicate ? '' : template.id, revision:duplicate ? 0 : num(template.revision), based_on:duplicate ? template.id : clean(template.based_on), definition };
+        copy.mode = 'edit'; copy.preview = null; copy.error = '';
+        drawExport(panels.export); schedulePreview(0);
+      }
+      function stopEditing(){ copy.mode = 'list'; copy.draft = null; copy.preview = null; copy.error = ''; drawExport(panels.export); }
+      const NUMBER_PRESETS = [['plain', '1234.56', { decimals:2 }], ['grouped', '1,234.56', { decimals:2, thousands:true }], ['whole', '1235', { decimals:0 }], ['cents', t('in_cents', '123456 (in cents)'), { unit:'cents' }]];
+      const presetOf = (number) => { const value = obj(number); return value.unit === 'cents' ? 'cents' : value.decimals === 0 ? 'whole' : value.thousands ? 'grouped' : 'plain'; };
+      function editorField(label, control, tooltip = '', wide = false){ return `<label class="pp-field${wide ? ' wide' : ''}"><span${tip(tooltip)}>${esc(label)}</span>${control}</label>`; }
+      function sourceSelect(index, value, rows){
+        const groups = new Map();
+        sources().filter((source) => rows === 'pay_item' || source.rows !== 'pay_item').forEach((source) => groups.set(source.group, [...(groups.get(source.group) || []), source]));
+        return `<span class="pp-select"><select class="pp-input" data-col-source="${index}" aria-label="${esc(t('column_shows', 'What column {n} shows', { n:index + 1 }))}">${[...groups.entries()].map(([group, list]) => `<optgroup label="${esc(group)}">${list.map((source) => `<option value="${esc(source.id)}" ${source.id === value ? 'selected' : ''}>${esc(source.label)}</option>`).join('')}</optgroup>`).join('')}</select><i class="fas fa-chevron-down" aria-hidden="true"></i></span>`;
+      }
+      function columnFormat(index, column){
+        const kind = clean(sourceInfo(column.source).kind);
+        const format = obj(column.format);
+        if (kind === 'money') return kit().select({ value:format.unit === 'cents' ? 'cents' : format.zero === 'blank' ? 'blank' : format.negative === 'parentheses' ? 'parentheses' : '', options:[{ value:'', label:t('as_above', 'As set above') }, { value:'cents', label:t('in_cents_short', 'In cents') }, { value:'blank', label:t('blank_zero', 'Blank when zero') }, { value:'parentheses', label:t('parentheses', 'Negatives in ( )') }], label:t('column_format', 'Format of column {n}', { n:index + 1 }), attrs:`data-col-format="${index}"` });
+        if (kind === 'date') return kit().select({ value:clean(format.date), options:[{ value:'', label:t('as_above', 'As set above') }, ...arr(obj(state.data.templates).date_formats).map((value) => ({ value, label:value }))], label:t('column_format', 'Format of column {n}', { n:index + 1 }), attrs:`data-col-format="${index}"` });
+        return '';
+      }
+      function drawEditor(panel){
+        const draft = copy.draft, definition = draft.definition;
+        const columns = arr(definition.columns);
+        const people = new Set(arr(definition.people));
+        const rows = clean(definition.rows) || 'person';
+        const number = obj(definition.number);
+        const file = obj(definition.file);
+        panel.innerHTML = `<div class="fmp-tpl" data-template-editor>
+          <div class="fmp-tpl-top"><button type="button" class="pp-btn quiet" data-tpl-back><i class="fas fa-arrow-left" aria-hidden="true"></i>${esc(t('files', 'Files'))}</button><strong>${esc(draft.id ? t('change_file', 'Change your file') : t('new_file', 'Your own file'))}</strong><span class="fmp-bar-fill"></span><button type="button" class="pp-btn primary" data-tpl-save><i class="fas fa-check" aria-hidden="true"></i>${esc(t('save', 'Save'))}</button></div>
+          <div class="fmp-tpl-grid">
+            ${editorField(t('file_name', 'Name'), `<input class="pp-input" data-tpl="name" value="${esc(definition.name)}" maxlength="120">`, '', true)}
+            <div class="pp-field wide" role="group" aria-label="${esc(t('who_in_file', 'Who is in it'))}"><span${tip(t('who_in_file_tip', 'Employees and contractors are paid with payroll; bills are paid through payables.'))}>${esc(t('who_in_file', 'Who is in it'))}</span><div class="pp-choice-run">${SECTIONS.map(([id, label]) => `<button type="button" class="pp-choice" data-tpl-people="${id}" aria-pressed="${people.has(id)}">${esc(t(id, label))}</button>`).join('')}</div></div>
+            ${editorField(t('rows', 'Rows'), kit().select({ value:rows, options:[{ value:'person', label:t('row_person', 'One per person') }, { value:'pay_item', label:t('row_pay_item', 'One per person and pay item') }], label:t('rows', 'Rows'), attrs:'data-tpl="rows"' }), t('rows_tip', 'Payroll software often takes one row per person with a column per kind of pay; some take one row per pay item.'))}
+            ${rows === 'pay_item' ? editorField(t('pay_items', 'Pay items'), kit().select({ value:clean(definition.pay_items) || 'by_kind', options:[{ value:'by_kind', label:t('items_by_kind', 'Each kind of pay') }, { value:'work_and_reimbursement', label:t('items_work', 'Work and reimbursements') }], label:t('pay_items', 'Pay items'), attrs:'data-tpl="pay_items"' }), t('pay_items_tip', 'Each kind of pay (hourly, salary, ... and what was taken off), or two lines: the work and the reimbursements, as bills usually are.')) : ''}
+            ${editorField(t('order', 'Order'), kit().select({ value:clean(definition.sort) || 'name', options:[{ value:'name', label:t('by_name', 'By name') }, { value:'last_name', label:t('by_last_name', 'By last name') }], label:t('order', 'Order'), attrs:'data-tpl="sort"' }))}
+            ${editorField(t('grouping', 'Grouping'), kit().select({ value:clean(definition.group) || 'section', options:[{ value:'section', label:t('group_section', 'Employees, contractors, bills') }, { value:'none', label:t('group_none', 'Everyone together') }], label:t('grouping', 'Grouping'), attrs:'data-tpl="group"' }))}
+            ${rows === 'person' ? editorField(t('totals', 'Totals'), kit().select({ value:clean(definition.totals) || 'none', options:[{ value:'none', label:t('totals_none', 'No total rows') }, { value:'grand', label:t('totals_grand', 'A total at the end') }, ...(clean(definition.group) !== 'none' ? [{ value:'sections', label:t('totals_sections', 'A total per group and at the end') }] : [])], label:t('totals', 'Totals'), attrs:'data-tpl="totals"' })) : ''}
+            ${editorField(t('amounts', 'Amounts'), kit().select({ value:presetOf(number), options:NUMBER_PRESETS.map(([value, label]) => ({ value, label })), label:t('amounts', 'Amounts'), attrs:'data-tpl="number"' }), t('amounts_tip', 'How money is written. Money is in dollars with two decimals unless you choose otherwise.'))}
+            ${editorField(t('negatives', 'Negative amounts'), kit().select({ value:number.negative === 'parentheses' ? 'parentheses' : 'minus', options:[{ value:'minus', label:'-12.00' }, { value:'parentheses', label:'(12.00)' }], label:t('negatives', 'Negative amounts'), attrs:'data-tpl="negative"' }))}
+            ${editorField(t('dates', 'Dates'), kit().select({ value:clean(definition.date) || 'YYYY-MM-DD', options:arr(obj(state.data.templates).date_formats).map((value) => ({ value, label:value })), label:t('dates', 'Dates'), attrs:'data-tpl="date"' }))}
+            ${editorField(t('separator', 'Separated by'), kit().select({ value:clean(file.delimiter) || 'comma', options:[{ value:'comma', label:t('commas', 'Commas (CSV)') }, { value:'semicolon', label:t('semicolons', 'Semicolons') }, { value:'tab', label:t('tabs', 'Tabs') }], label:t('separator', 'Separated by'), attrs:'data-tpl="delimiter"' }))}
+          </div>
+          <div class="fmp-modal-section"><h3${tip(t('columns_tip', 'Each column is a header, as your software names it, and what it shows. Move columns into the order your software expects.'))}>${esc(t('columns', 'Columns'))}${info(t('columns_tip', 'Each column is a header, as your software names it, and what it shows. Move columns into the order your software expects.'))}</h3>
+            <ol class="fmp-cols">${columns.map((column, index) => `<li class="fmp-col" data-col="${index}"><span class="fmp-col-n">${index + 1}</span>
+              <input class="pp-input" data-col-header="${index}" value="${esc(column.header)}" maxlength="120" aria-label="${esc(t('column_header', 'Header of column {n}', { n:index + 1 }))}" placeholder="${esc(t('header', 'Header'))}">
+              ${sourceSelect(index, column.source, rows)}
+              <span class="fmp-col-extra">${column.source === 'fixed' ? `<input class="pp-input" data-col-value="${index}" value="${esc(column.value || '')}" maxlength="300" aria-label="${esc(t('fixed_text', 'Text'))}" placeholder="${esc(t('fixed_text', 'Text'))}">` : column.source === 'person.field' ? `<input class="pp-input" data-col-field="${index}" value="${esc(column.field || '')}" maxlength="180" aria-label="${esc(t('custom_field_path', 'Custom field'))}" placeholder="employee_number"${tip(t('custom_field_tip', 'The custom field\u2019s name as People stores it, such as employee_number.'))}>` : columnFormat(index, column)}</span>
+              <span class="fmp-col-btns"><button type="button" class="pp-icon-btn" data-col-up="${index}" ${index === 0 ? 'disabled' : ''} aria-label="${esc(t('move_up', 'Move up'))}"><i class="fas fa-arrow-up" aria-hidden="true"></i></button><button type="button" class="pp-icon-btn" data-col-down="${index}" ${index === columns.length - 1 ? 'disabled' : ''} aria-label="${esc(t('move_down', 'Move down'))}"><i class="fas fa-arrow-down" aria-hidden="true"></i></button><button type="button" class="pp-icon-btn danger" data-col-remove="${index}" ${columns.length === 1 ? 'disabled' : ''} aria-label="${esc(t('remove_column', 'Remove column {n}', { n:index + 1 }))}"><i class="fas fa-xmark" aria-hidden="true"></i></button></span>
+            </li>`).join('')}</ol>
+            <div><button type="button" class="pp-btn quiet" data-col-add><i class="fas fa-plus" aria-hidden="true"></i>${esc(t('add_column', 'Add a column'))}</button></div>
+          </div>
+          <div class="fmp-modal-section"><h3${tip(t('preview_tip', 'The first rows of this pay run as the file will show them. Nothing is saved until you save.'))}>${esc(t('preview', 'Preview'))}</h3><div data-tpl-preview>${previewHtml()}</div></div>
+        </div>`;
+      }
+      function previewHtml(){
+        if (copy.error) return `<div class="fmp-reason" role="alert">${esc(copy.error)}</div>`;
+        const preview = copy.preview;
+        if (!preview) return `<div class="fmp-preview-note" role="status">${esc(t('working_out', 'Working it out\u2026'))}</div>`;
+        const body = arr(preview.rows).map((row) => `<tr>${arr(row).map((cell) => `<td>${esc(cell)}</td>`).join('')}</tr>`).join('');
+        return `<div class="fmp-preview"><table><thead><tr>${arr(preview.headers).map((header) => `<th>${esc(header)}</th>`).join('')}</tr></thead><tbody>${body || `<tr><td colspan="${arr(preview.headers).length}">${esc(t('no_rows', 'Nobody in this pay run is in this file.'))}</td></tr>`}</tbody></table></div>
+          <p class="fmp-preview-note">${esc(t('preview_count', 'Showing {shown} of {total} rows.', { shown:arr(preview.rows).length, total:num(preview.row_count) }))}${arr(preview.warnings).map((warning) => ` ${warning}`).join('')}</p>`;
+      }
+      function schedulePreview(delay = 350){
+        clearTimeout(copy.timer);
+        copy.timer = setTimeout(async () => {
+          if (copy.mode !== 'edit' || !copy.draft || !current.batch) return;
+          const token = ++copy.token;
+          try {
+            const preview = await window.PayrollAPI.published.invoke(state.orgId, 'payroll.exportTemplate.preview', { batch_id:current.batch.id, definition:copy.draft.definition, limit:8 }, '', false);
+            if (token !== copy.token) return;
+            copy.preview = preview; copy.error = '';
+          } catch (error) {
+            if (token !== copy.token) return;
+            copy.preview = null; copy.error = clean(error?.message) || t('preview_failed', 'This file cannot be made as it is.');
+          }
+          const host = panels.export?.querySelector('[data-tpl-preview]');
+          if (host) host.innerHTML = previewHtml();
+        }, delay);
+      }
+      function editDefinition(change, redraw = false){
+        change(copy.draft.definition);
+        if (redraw) drawEditor(panels.export);
+        schedulePreview();
+      }
+      function onEditorInput(event){
+        const target = event.target;
+        if (!copy.draft || !target.closest('[data-template-editor]')) return;
+        const definition = copy.draft.definition, columns = arr(definition.columns);
+        if (target.matches('[data-tpl="name"]')) { editDefinition((value) => { value.name = target.value; }); return; }
+        if (target.matches('[data-col-header]')) { editDefinition(() => { columns[num(target.dataset.colHeader)].header = target.value; }); return; }
+        if (target.matches('[data-col-value]')) { editDefinition(() => { columns[num(target.dataset.colValue)].value = target.value; }); return; }
+        if (target.matches('[data-col-field]')) { editDefinition(() => { columns[num(target.dataset.colField)].field = target.value.trim(); }); return; }
+        if (event.type !== 'change') return;
+        const setting = target.dataset.tpl;
+        if (setting === 'rows') { editDefinition((value) => { value.rows = target.value; if (target.value === 'pay_item') { value.pay_items = value.pay_items || 'by_kind'; value.totals = 'none'; value.columns = arr(value.columns).length ? value.columns : [{ header:'Name', source:'person.name' }]; } else { delete value.pay_items; value.columns = arr(value.columns).filter((column) => clean(sourceInfo(column.source).rows) !== 'pay_item'); if (!value.columns.length) value.columns = [{ header:'Name', source:'person.name' }]; } }, true); return; }
+        if (setting === 'pay_items' || setting === 'sort' || setting === 'date') { editDefinition((value) => { value[setting] = target.value; }); return; }
+        if (setting === 'group') { editDefinition((value) => { value.group = target.value; if (target.value === 'none' && value.totals === 'sections') value.totals = 'grand'; }, true); return; }
+        if (setting === 'totals') { editDefinition((value) => { value.totals = target.value; }); return; }
+        if (setting === 'number') { editDefinition((value) => { const negative = obj(value.number).negative; value.number = { ...(NUMBER_PRESETS.find(([id]) => id === target.value)?.[2] || {}), ...(negative ? { negative } : {}) }; }); return; }
+        if (setting === 'negative') { editDefinition((value) => { value.number = { ...obj(value.number), negative:target.value }; if (target.value === 'minus') delete value.number.negative; }); return; }
+        if (setting === 'delimiter') { editDefinition((value) => { value.file = { ...obj(value.file), type:'csv', delimiter:target.value }; }); return; }
+        if (target.matches('[data-col-source]')) {
+          editDefinition(() => { const column = columns[num(target.dataset.colSource)]; const previous = sourceInfo(column.source); column.source = target.value; delete column.format; if (target.value !== 'fixed') delete column.value; if (target.value !== 'person.field') delete column.field; if (!clean(column.header) || column.header === previous.label || column.header === t('new_column', 'New column')) column.header = sourceInfo(target.value).label || column.header; }, true);
+          return;
+        }
+        if (target.matches('[data-col-format]')) {
+          editDefinition(() => { const column = columns[num(target.dataset.colFormat)]; const kind = clean(sourceInfo(column.source).kind); const value = target.value; column.format = !value ? undefined : kind === 'date' ? { date:value } : value === 'cents' ? { unit:'cents' } : value === 'blank' ? { zero:'blank' } : { negative:'parentheses' }; if (!column.format) delete column.format; });
+        }
+      }
+      async function onEditorClick(event){
+        const definition = copy.draft?.definition, columns = arr(definition?.columns);
+        if (event.target.closest('[data-tpl-back]')) { stopEditing(); return true; }
+        const people = event.target.closest('[data-tpl-people]');
+        if (people) { editDefinition((value) => { const set = new Set(arr(value.people)); if (set.has(people.dataset.tplPeople)) { if (set.size > 1) set.delete(people.dataset.tplPeople); } else set.add(people.dataset.tplPeople); value.people = SECTIONS.map(([id]) => id).filter((id) => set.has(id)); }, true); return true; }
+        const move = (from, to) => editDefinition(() => { const [column] = columns.splice(from, 1); columns.splice(to, 0, column); }, true);
+        const up = event.target.closest('[data-col-up]'); if (up) { move(num(up.dataset.colUp), num(up.dataset.colUp) - 1); return true; }
+        const down = event.target.closest('[data-col-down]'); if (down) { move(num(down.dataset.colDown), num(down.dataset.colDown) + 1); return true; }
+        const remove = event.target.closest('[data-col-remove]'); if (remove) { editDefinition(() => { columns.splice(num(remove.dataset.colRemove), 1); }, true); return true; }
+        if (event.target.closest('[data-col-add]')) { editDefinition(() => { columns.push({ header:t('new_column', 'New column'), source:'person.name' }); }, true); panels.export.querySelector(`[data-col-header="${columns.length - 1}"]`)?.focus(); return true; }
+        if (event.target.closest('[data-tpl-save]')) {
+          const draft = copy.draft;
+          const saved = await perform(t('file_saved', 'File saved'), () => window.PayrollAPI.published.invoke(state.orgId, 'payroll.exportTemplate.save', { ...(draft.id ? { id:draft.id, expected_revision:draft.revision } : {}), ...(draft.based_on ? { based_on:draft.based_on } : {}), definition:draft.definition }), t('file_saved', 'File saved'));
+          if (saved) stopEditing();
+          return true;
+        }
+        return false;
+      }
+      function templateMenu(anchor, id){
+        const template = arr(obj(state.data.templates).templates).find((entry) => entry.id === id);
+        if (!template) return;
+        kit().menu(anchor, { align:'end', items:[
+          { id:'duplicate', label:t('duplicate_change', 'Duplicate and change'), icon:'fa-copy' },
+          ...(template.built_in ? [] : [{ id:'edit', label:t('change', 'Change'), icon:'fa-pen' }, { separator:true }, { id:'remove', label:t('remove', 'Remove'), icon:'fa-trash', tone:'danger' }])
+        ], onSelect:async (item) => {
+          if (item.id === 'duplicate') startEditing(template, true);
+          if (item.id === 'edit') startEditing(template, false);
+          if (item.id === 'remove' && await kit().confirm(anchor, { title:t('remove_file_confirm', 'Remove {name}? Files made from it before stay as they are.', { name:template.name }), confirmLabel:t('remove', 'Remove'), tone:'danger' })) {
+            await perform(t('removed', 'Removed'), () => window.PayrollAPI.published.invoke(state.orgId, 'payroll.exportTemplate.archive', { expected_revision:num(template.revision) }, template.id), t('removed', 'Removed'));
+          }
+        } });
+      }
+      function newTemplateMenu(anchor){
+        const templates = arr(obj(state.data.templates).templates);
+        kit().menu(anchor, { title:t('start_from', 'Start from'), align:'start', items:templates.map((template) => ({ id:template.id, label:template.name, icon:template.built_in ? 'fa-file-lines' : 'fa-table-columns' })), onSelect:(item) => { const template = templates.find((entry) => entry.id === item.id); if (template) startEditing(template, true); } });
       }
       function drawApproval(panel){
         const approval = obj(current.batch?.approval);
@@ -615,7 +887,22 @@
           ${approval.submitted_at ? `<p class="fmp-muted">${esc(t('asked_by', 'Asked by {name} {when}.', { name:clean(obj(approval.submitted_by).name) || t('someone', 'Someone'), when:dateTimeLabel(approval.submitted_at) }))}</p>` : ''}
           ${approval.finalized_at ? `<p class="fmp-muted">${esc(t('finalized_by', 'Made final by {name} {when}.', { name:clean(obj(approval.finalized_by).name) || t('someone', 'Someone'), when:dateTimeLabel(approval.finalized_at) }))}</p>` : ''}</div>`;
       }
+      modal.el.addEventListener('input', onEditorInput);
+      modal.el.addEventListener('change', onEditorInput);
       modal.el.addEventListener('click', async (event) => {
+        if (copy.mode === 'edit' && event.target.closest('[data-template-editor]') && await onEditorClick(event)) return;
+        const templateMenuButton = event.target.closest('[data-template-menu]');
+        if (templateMenuButton) { templateMenu(templateMenuButton, templateMenuButton.dataset.templateMenu); return; }
+        const newTemplate = event.target.closest('[data-template-new]');
+        if (newTemplate) { newTemplateMenu(newTemplate); return; }
+        const templateExport = event.target.closest('[data-export-template]');
+        if (templateExport && current.batch) {
+          await perform(t('file_ready', 'The file is downloading.'), async () => {
+            const artifact = await window.PayrollAPI.artifacts.create(state.orgId, { template_id:templateExport.dataset.exportTemplate, batch_id:current.batch.id, ...branchArgs() });
+            download(artifact.artifact?.download_url || window.PayrollAPI.artifacts.downloadUrl(state.orgId, artifact.artifact?.id));
+          });
+          return;
+        }
         const why = event.target.closest('[data-why]');
         if (why) { openWhy({ type:why.dataset.why.split(':')[0], id:why.dataset.why.split(':').slice(1).join(':'), name:why.dataset.whyName }, why); return; }
         const exportButton = event.target.closest('[data-export]');
@@ -887,7 +1174,7 @@
       for (const occurrence of arr(dashboard.upcoming)) {
         for (const item of [...arr(occurrence.employees), ...arr(occurrence.subcontractors)]) {
           const key = payeeKey(item.payee);
-          const row = people.get(key) || { payee:item.payee, owed:0, projectedLedger:0, next:'' };
+          const row = people.get(key) || { payee:item.payee, owed:0, projectedLedger:0, next:'', bills:paidThroughOf(item) === 'payables', terms:termsOf(item) };
           row.owed += num(item.accrued?.net_cents);
           row.projectedLedger += num(item.projected?.net_cents);
           if (!row.next || clean(occurrence.pay_date) < row.next) row.next = clean(occurrence.pay_date);
@@ -911,7 +1198,7 @@
         </div>
         <div class="fmp-stats">${stat({ label:t('owed_upcoming', 'Owed in the next two months'), value:money(totalOwed, currency), sub:t('people_count', '{count} people', { count:list.length }) })}${projected ? stat({ label:t('projected', 'Projected'), value:money(totalProjected, currency), sub:t('from_work_not_done', 'From work not done yet'), tooltip:t('projected_tip_all', 'What everyone\u2019s pay rules project from labor committed or assigned and not done yet. Never paid until earned.') }) : ''}</div>
         ${card({ id:'payees', title:t('earnings_by_person', 'Earnings by person'), tooltip:t('earnings_by_person_tip', 'What each person is owed on the upcoming pay runs and, when shown, projected to earn. Open someone to see why.'), count:list.length,
-          body:`${table([{ label:t('person', 'Person') }, { label:t('paid_as', 'Paid as') }, { label:t('next_pay_date', 'Next pay date') }, { label:t('owed', 'Owed'), cls:'num', tooltip:t('owed_tip', 'Earned and not paid yet, after anything paid outside a pay run.') }, ...(projected ? [{ label:t('projected', 'Projected'), cls:'num' }] : [])], list.map((row) => `<tr data-open="why" data-why="${esc(payeeKey(row.payee))}" data-why-name="${esc(payeeName(row.payee))}" tabindex="0">${td(nameCell(payeeName(row.payee)), t('person', 'Person'), 'lead')}${td(esc(paidAs(row.payee)), t('paid_as', 'Paid as'))}${td(esc(row.next ? dateLabel(row.next) : '\u2014'), t('next_pay_date', 'Next pay date'))}${td(`<b>${esc(money(row.owed, currency))}</b>`, t('owed', 'Owed'), 'num')}${projected ? td(projectedCell(row), t('projected', 'Projected'), 'num') : ''}</tr>`), { empty:t('nobody_owed', 'Nobody is owed anything on the upcoming pay runs.') })}
+          body:`${table([{ label:t('person', 'Person') }, { label:t('paid_as', 'Paid as') }, { label:t('next_pay_date', 'Next pay date') }, { label:t('owed', 'Owed'), cls:'num', tooltip:t('owed_tip', 'Earned and not paid yet, after anything paid outside a pay run.') }, ...(projected ? [{ label:t('projected', 'Projected'), cls:'num' }] : [])], list.map((row) => `<tr data-open="why" data-why="${esc(payeeKey(row.payee))}" data-why-name="${esc(payeeName(row.payee))}" tabindex="0">${td(nameCell(payeeName(row.payee)), t('person', 'Person'), 'lead')}${td(esc(row.bills ? t('paid_as_bills', '{who}, bills ({terms})', { who:paidAs(row.payee), terms:termsLabel(row.terms).toLowerCase() }) : paidAs(row.payee)), t('paid_as', 'Paid as'))}${td(esc(row.next ? dateLabel(row.next) : '\u2014'), t('next_pay_date', 'Next pay date'))}${td(`<b>${esc(money(row.owed, currency))}</b>`, t('owed', 'Owed'), 'num')}${projected ? td(projectedCell(row), t('projected', 'Projected'), 'num') : ''}</tr>`), { empty:t('nobody_owed', 'Nobody is owed anything on the upcoming pay runs.') })}
           ${projected?.truncated ? `<div class="fmp-note">${esc(t('projected_truncated', 'Projected for the first {count} people only.', { count:arr(projected.payees).length }))}</div>` : ''}${projected?.hidden_payee_count ? hiddenNote(projected.hidden_payee_count) : ''}` })}`;
     }
 
@@ -1035,6 +1322,10 @@
           const result = await perform(t('refreshed', 'Earnings refreshed'), () => window.PayrollAPI.pay.refreshEarnings(state.orgId));
           if (result) toast(t('refreshed', 'Earnings refreshed'), t('refresh_result', '{posted} changes posted, {held} held for review, {unresolved} could not be worked out.', { posted:num(result.posted_count), held:num(result.held_count), unresolved:num(result.unresolved_count) }), !num(result.unresolved_count));
         } else if (kind === 'record-offcycle') await recordOffCycle(act);
+        else if (kind === 'reconcile-bills') {
+          const result = await perform(t('runs_updated', 'Pay runs updated'), () => window.PayrollAPI.published.invoke(state.orgId, 'payroll.bills.reconcile', {}));
+          if (result) toast(t('runs_updated', 'Pay runs updated'), t('runs_updated_note', '{count} bills paid in payables are now paid in their pay runs.', { count:num(result.settled_count) }));
+        }
         else if (kind === 'load-projected') {
           state.projected = { loading:true }; render();
           try { state.projected = { value:await window.PayrollAPI.pay.projected(state.orgId) }; }

@@ -457,7 +457,8 @@
         permissions: permissions || {}
       }, { source: 'org_users_set_permissions' });
     },
-    remove(orgId, userId){ return request(collectionPath(orgId, 'users', userId), { method: 'DELETE' }); },
+    // Removing a person archives them (kept for the record, unable to sign in, restorable); an optional reason is kept with them.
+    remove(orgId, userId, options = {}){ const reason = String(options.reason || '').trim(); return request(`${collectionPath(orgId, 'users', userId)}${reason ? `?reason=${encodeURIComponent(reason)}` : ''}`, { method: 'DELETE' }); },
     normalize: normalizeUserDocument
   };
 

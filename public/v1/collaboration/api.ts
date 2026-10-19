@@ -114,9 +114,9 @@ export const registerCollaborationApi:FastifyPluginAsync=async app=>{
   });
   app.post(base+"/partner-invitations",async(req,reply)=>{
     const ctx=await auth(req,"manage_external_connections",true);
-    const input=z.object({name:z.string().trim().min(1).max(160),email:z.string().trim().email().max(254).toLowerCase()}).strict().parse(req.body);
+    const input=z.object({name:z.string().trim().min(1).max(160),email:z.string().trim().email().max(254).toLowerCase(),workforce_connection_id:z.string().trim().min(1).max(180).optional()}).strict().parse(req.body);
     reply.header('Cache-Control','private, no-store');
-    return {ok:true,...await service.createInvitation(ctx,{label:input.name,email:input.email,relationship:'partner'},true)};
+    return {ok:true,...await service.createInvitation(ctx,{label:input.name,email:input.email,relationship:'partner',...(input.workforce_connection_id?{workforce_connection_id:input.workforce_connection_id}:{})},true)};
   });
   app.get(base+"/invitations/:id/link",async(req,reply)=>{
     const ctx=await auth(req,"manage_external_connections");reply.header('Cache-Control','private, no-store');

@@ -329,9 +329,12 @@ test("payroll v1 resolves schedules through pay layers, recognizes earnings, car
     assert.equal(batch.employee_total_cents, employee.net_cents);
     assert.equal(batch.subcontractor_total_cents, contractor.net_cents);
     assert.equal(batch.total_cents, employee.net_cents + contractor.net_cents);
-    assert.equal(created.contractor_payables.length, 1);
-    assert.equal(created.contractor_payables[0].payee_ref.id, contractorId);
-    assert.equal(created.contractor_payables[0].amount_cents, contractor.net_cents);
+    // An outside company is paid through payables: its item is a bill due on its terms (none here, so on the pay
+    // date), made when the run is entered. The employee is paid with payroll.
+    assert.equal(contractor.metadata.paid_through, "payables");
+    assert.equal(contractor.metadata.due_date, "2026-07-15");
+    assert.equal(employee.metadata.paid_through, "payroll");
+    assert.deepEqual(created.bills, []);
 
     assert.equal(employee.gross_cents, 8000);
     assert.equal(employee.deduction_cents, 4000);
@@ -370,14 +373,21 @@ test("payroll v1 resolves schedules through pay layers, recognizes earnings, car
       action: "paid",
       payment_reference: "batch-0715"
     })).batch;
+    // Marking the run paid pays everyone paid with payroll; the bill is entered and waits for payables.
+    assert.equal(batch.status, "run");
+    assert.equal(byPayee(batch.items, contractorId).status, "run");
+    assert.equal(byPayee(batch.items, employeeId).payment_reference, "check-employee-0715");
+    const contractorPayables = await client.request("GET", `/v1/payments/organizations/${orgId}/payables`);
+    const bill = contractorPayables.payables.find((entry: any) => entry.metadata?.payroll_batch_id === firstBatchId);
+    assert.equal(bill.status, "open");
+    assert.equal(bill.amount_cents, byPayee(batch.items, contractorId).net_cents);
+    await client.request("POST", `/v1/payments/organizations/${orgId}/disbursements`, { payable_ids: [bill.id], amount_cents: bill.amount_cents, notes: "batch-0715" });
+    batch = (await client.request("GET", `${base}/batches/${firstBatchId}`)).batch;
     assert.equal(batch.status, "paid");
     assert.ok(batch.paid_at);
     assert.ok(batch.items.every((item: any) => item.status === "paid" && item.paid_at));
-    assert.equal(byPayee(batch.items, employeeId).payment_reference, "check-employee-0715");
     assert.equal(byPayee(batch.items, contractorId).payment_reference, "batch-0715");
-    const contractorPayables = await client.request("GET", `/v1/payments/organizations/${orgId}/payables`);
-    const paidContractorPayable = contractorPayables.payables.find((entry: any) => entry.metadata?.payroll_batch_id === firstBatchId);
-    assert.equal(paidContractorPayable.status, "paid");
+    assert.equal(byPayee(batch.items, contractorId).metadata.settlement.payable_id, bill.id);
 
     await client.request("POST", `${base}/ledger`, {
       entries: [
@@ -420,7 +430,10 @@ test("payroll v1 resolves schedules through pay layers, recognizes earnings, car
       action: "paid",
       payment_reference: "batch-0731"
     });
-    assert.equal(secondPaid.batch.status, "paid");
+    assert.equal(secondPaid.batch.status, "run");
+    assert.equal(secondPaid.bills.length, 1);
+    await client.request("POST", `/v1/payments/organizations/${orgId}/disbursements`, { payable_ids: [secondPaid.bills[0].id], amount_cents: secondPaid.bills[0].amount_cents });
+    assert.equal((await client.request("GET", `${base}/batches/${second.id}`)).batch.status, "paid");
     const history = await client.request("GET", `${base}/batches?schedule_id=${commissionSchedule.id}&status=paid`);
     assert.equal(history.batches.length, 2);
     assert.deepEqual(history.batches.map((entry: any) => entry.pay_date), ["2026-07-31", "2026-07-15"]);

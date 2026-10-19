@@ -39,6 +39,20 @@ reuse stored unit digests, and run payees in batches in the background with prog
 
 **Why it can wait.** Organizations on the platform are far below 200 payees.
 
+## Payroll bills and payment routes read whole collections
+
+**Today.** Payees paid through payables (`payroll/payables.ts`): working out how each payee is paid reads every user
+document and every outside company once per pay run draft, reopen and upcoming preview; the bills list
+(`payroll.bills`), the reconcile action and every pay run action's bill sync read every payable and keep the payroll
+bills, then read each bill's pay run. Export templates that show branches or departments resolve the whole
+organization structure, and approved hours read the pay period's shifts (up to 1,000).
+
+**Where the change goes.** Payables stored with an index by kind and by `source.batch_id` in `payments/storage.ts`
+(a Money change), and a payee lookup by id in place of the user list in `paymentRoutes`. Results do not change.
+
+**Why it can wait.** Pay runs hold tens of payees and an organization has hundreds of payables, not thousands.
+(docs/architecture/pay-rules.md "Paid with payroll or through payables")
+
 ## Labor commitments are listed by reading the whole collection
 
 **Today.** Commitments for a project or an assignee are found by reading every commitment and filtering

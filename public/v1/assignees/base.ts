@@ -6,6 +6,7 @@ import { ensureSqlColumn, openSqlStore, type SqlStore } from "../platform/sql_st
 import { env } from "../src/config/env.js";
 import { assigneeAdapters } from "./adapters.js";
 import { ASSIGNEE_KINDS, assigneeKey, assigneeRefSchema, parseAssigneeKey, type AssigneeKind, type AssigneeRecord, type AssigneeRef, type AssigneeStoreRecord } from "./contract.js";
+import { onboardingRequirementsSchema, type OnboardingRequirement } from "../connections/onboarding-contract.js";
 import { staffingRequirementListSchema, type StaffingRequirement } from "./staffing-requirements.js";
 
 /**
@@ -138,7 +139,7 @@ export async function assigneeTypeIds(orgId: string, ref: AssigneeRef): Promise<
  */
 export const ASSIGNEE_TYPE_KINDS = ["resource_group", "organization_connection"] as const;
 export type AssigneeTypeKind = typeof ASSIGNEE_TYPE_KINDS[number];
-export type AssigneeType = { id: string; name: string; description: string; status: "active" | "archived"; kind: AssigneeTypeKind; member_role_ids: string[] };
+export type AssigneeType = { id: string; name: string; description: string; status: "active" | "archived"; kind: AssigneeTypeKind; member_role_ids: string[]; onboarding_requirements?: OnboardingRequirement[] };
 const typeId = z.string().trim().toLowerCase().regex(/^[a-z0-9][a-z0-9_-]{0,119}$/);
 export const assigneeTypeInputSchema = z.object({
   /** Which list: a type of group, or a type of outside company. */
@@ -146,13 +147,17 @@ export const assigneeTypeInputSchema = z.object({
   id: typeId.optional(),
   name: z.string().trim().min(1).max(120),
   description: z.string().trim().max(500).optional(),
-  status: z.enum(["active", "archived"]).optional()
-}).strict();
+  status: z.enum(["active", "archived"]).optional(),
+  /** A company type only: what onboarding a company of this type needs (connections/onboarding.ts). Omitted keeps what is saved. */
+  onboarding_requirements: onboardingRequirementsSchema.optional()
+}).strict().refine((value) => value.kind === "organization_connection" || value.onboarding_requirements === undefined, "Only a company type has onboarding requirements.");
 const TYPE_LIST = { resource_group: "resource_group_kinds", organization_connection: "organization_connection_types" } as const;
 const asType = (kind: AssigneeTypeKind, definition: Record<string, unknown>): AssigneeType => ({
   id: text(definition.id), name: text(definition.name), description: text(definition.description),
   status: text(definition.status) === "archived" ? "archived" : "active", kind,
-  member_role_ids: kind === "resource_group" ? idList(definition.member_role_ids) : []
+  member_role_ids: kind === "resource_group" ? idList(definition.member_role_ids) : [],
+  // A company type lists its onboarding requirements only when it has some.
+  ...(kind === "organization_connection" && Array.isArray(definition.onboarding_requirements) && definition.onboarding_requirements.length ? { onboarding_requirements: onboardingRequirementsSchema.safeParse(definition.onboarding_requirements).data ?? [] } : {})
 });
 /** Both type lists, group types first. Reads only: an organization that has never saved one gets the defaults without a row being written. */
 export async function listAssigneeTypes(orgId: string): Promise<{ types: AssigneeType[]; revision: number }> {
@@ -179,7 +184,7 @@ export async function saveAssigneeType(orgId: string, input: unknown, actor: Act
   const existing = (current[list] as Record<string, unknown>[]).find((definition) => text(definition.id) === id);
   // A group type's `member_role_ids` are kept by this save: only `setGroupTypeMemberRoles` changes them.
   const saved = await workforce.saveWorkforceConfiguration(orgId, {
-    [list]: [{ id, name: parsed.name, description: parsed.description ?? text(existing?.description), status: parsed.status || "active" }],
+    [list]: [{ id, name: parsed.name, description: parsed.description ?? text(existing?.description), status: parsed.status || "active", ...(parsed.onboarding_requirements ? { onboarding_requirements: parsed.onboarding_requirements } : {}) }],
     expected_revision: current.revision
   });
   return asType(parsed.kind, (saved[list] as Record<string, unknown>[]).find((definition) => text(definition.id) === id)!);

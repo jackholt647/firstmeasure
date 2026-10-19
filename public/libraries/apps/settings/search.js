@@ -76,9 +76,13 @@
     return edits+(i<a.length||j<b.length?1:0)<=1;
   }
   function localized(item){
-    const title=item.translation ? root.PlatformLanguage?.text?.(...item.translation) || item.title : item.title;
+    const translated=item.translation ? root.PlatformLanguage?.text?.(...item.translation) || item.title : item.title;
+    // A page named by the organization shows its word and still answers to the product's ("Subcontractors").
+    const word=item.terminology ? String(root.Portal?.terminology?.get?.(item.terminology, translated) || root.PlatformTerminology?.get?.(item.terminology, translated) || '').trim() : '';
+    const title=word || translated;
+    const keywords=word && word!==item.title ? [item.keywords, item.title].filter(Boolean).join(' ') : item.keywords;
     const tab=attachment?.sections.get(item.section)?.title || item.tab;
-    return {...item,title,tab};
+    return {...item,title,tab,keywords};
   }
   // Conservative English plural equivalence; keep other languages and short words intact.
   const term = word => /^[a-z]{4,}s$/.test(word)&&!/(ss|us|is)$/.test(word)?word.slice(0,-1):word;
