@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+October 19 Plane-mode stickers and arcs: [an opened door loses its face, a closing paste fills, deleting an arc removes it whole](deploy/digitalocean/development-plane-arcs-20261019.md) records release `8b7f87c2` and the verified development rollout.
+
 October 19 Sticker typing with Shift: [Shift+W/D/G types a selected face; Ctrl is left to the browser](deploy/digitalocean/development-sticker-shift-20261019.md) records release `180c64a0` and the verified development rollout.
 
 October 19 Curved copy/paste, Resources media viewer and plane Auto-step: [pasted curves keep their definition, the reworked media viewer with server-side frame extraction (ffmpeg on dev hosts) and plane Auto-step](deploy/digitalocean/development-full-house-curves-resources-20261019.md) records release `700b8d54` and the verified development rollout.

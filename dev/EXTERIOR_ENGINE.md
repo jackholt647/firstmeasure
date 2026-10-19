@@ -683,7 +683,7 @@ Regression tests: the "arched" and "curved wall pastes" tests in
   `closePlaneRegions` step that drawing uses. Construction-draft curves attached
   to such faces are qualified by their draft key; surface curves, including a
   deleted door's preserved arch, attach too, and that arch can be copied.
-- A arching a line no longer rewrites boundary edges of a consumed draft as
+- Arching a line with A no longer rewrites boundary edges of a consumed draft as
   "free" sketch segments, which used to resurrect a straight-topped region under
   the surfaces.
 - Deleting a curve's end or control removes the whole curve from the surface
