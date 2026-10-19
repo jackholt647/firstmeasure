@@ -2,6 +2,7 @@ import type {PlatformAuthContext} from '../platform/auth.js';
 import {assertResourcePermission,hasResourcePermission,resourceDepartmentIds} from '../workforce/department-access.js';
 import {readDocument,type JsonObject} from '../platform/storage.js';
 import {notFound,badRequest} from '../platform/errors.js';
+import {departmentInBranch} from './planning-contracts.js';
 export const SCHEDULE_VIEW='manage_schedule|manage_projects|view_projects';
 export const SCHEDULE_MANAGE='manage_schedule|manage_projects';
 /** A shared appointment requires authority over every classified department. */
@@ -18,6 +19,15 @@ export async function readAuthorizedAppointment(ctx:PlatformAuthContext,projectI
   if(!event)throw notFound('appointment_not_found','This appointment is unavailable.');
   assertAppointmentDepartmentPermission(ctx,event,permission);return event;
 }
+/**
+ * A department named on an appointment or a calendar event must be active and belong to the event's branch
+ * (docs/architecture/branches.md): a branch's events, like its appointment catalog, use only its own departments.
+ */
 export function validateAppointmentDepartments(ctx:PlatformAuthContext,event:JsonObject){
-  for(const id of resourceDepartmentIds(event))if(ctx.organizationStructure&&!ctx.organizationStructure.catalog.departments.some(d=>d.id===id&&d.status!=='archived'))throw badRequest('unknown_department','Choose an active department from this organization.');
+  const branchId=String(event.branch_id||ctx.branchId||'default');
+  for(const id of resourceDepartmentIds(event)){
+    const department=ctx.organizationStructure?.catalog.departments.find(d=>d.id===id&&d.status!=='archived');
+    if(ctx.organizationStructure&&!department)throw badRequest('unknown_department','Choose an active department from this organization.');
+    if(department&&!departmentInBranch(department,branchId))throw badRequest('department_other_branch','Choose a department of this branch.');
+  }
 }

@@ -2352,9 +2352,13 @@ session_write_close();
   <script src="../libraries/apps/people/people-directory.js?v=<?= portalAssetVersion('../libraries/apps/people/people-directory.js') ?>"></script>
   <script src="../libraries/apps/people/fields-panel.js?v=<?= portalAssetVersion('../libraries/apps/people/fields-panel.js') ?>"></script>
   <script src="../libraries/apps/people/compensation-panel.js?v=<?= portalAssetVersion('../libraries/apps/people/compensation-panel.js') ?>"></script>
+  <script src="../libraries/apps/people/pay-sheets-model.js?v=<?= portalAssetVersion('../libraries/apps/people/pay-sheets-model.js') ?>"></script>
+  <script src="../libraries/apps/people/pay-sheets-editor.js?v=<?= portalAssetVersion('../libraries/apps/people/pay-sheets-editor.js') ?>"></script>
+  <script src="../libraries/apps/people/pay-sheets-list.js?v=<?= portalAssetVersion('../libraries/apps/people/pay-sheets-list.js') ?>"></script>
   <script src="../libraries/apps/people/page-kit.js?v=<?= portalAssetVersion('../libraries/apps/people/page-kit.js') ?>"></script>
   <script src="../libraries/apps/people/people-lists.js?v=<?= portalAssetVersion('../libraries/apps/people/people-lists.js') ?>"></script>
   <script src="../libraries/apps/people/branches.js?v=<?= portalAssetVersion('../libraries/apps/people/branches.js') ?>"></script>
+  <script src="../libraries/apps/people/onboarding.js?v=<?= portalAssetVersion('../libraries/apps/people/onboarding.js') ?>"></script>
   <script src="../libraries/apps/people/users-page.js?v=<?= portalAssetVersion('../libraries/apps/people/users-page.js') ?>"></script>
   <script src="../libraries/apps/people/groups-page.js?v=<?= portalAssetVersion('../libraries/apps/people/groups-page.js') ?>"></script>
   <script src="../libraries/apps/people/departments-page.js?v=<?= portalAssetVersion('../libraries/apps/people/departments-page.js') ?>"></script>

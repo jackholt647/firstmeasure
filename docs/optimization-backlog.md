@@ -39,6 +39,20 @@ reuse stored unit digests, and run payees in batches in the background with prog
 
 **Why it can wait.** Organizations on the platform are far below 200 payees.
 
+## Payroll bills and payment routes read whole collections
+
+**Today.** Payees paid through payables (`payroll/payables.ts`): working out how each payee is paid reads every user
+document and every outside company once per pay run draft, reopen and upcoming preview; the bills list
+(`payroll.bills`), the reconcile action and every pay run action's bill sync read every payable and keep the payroll
+bills, then read each bill's pay run. Export templates that show branches or departments resolve the whole
+organization structure, and approved hours read the pay period's shifts (up to 1,000).
+
+**Where the change goes.** Payables stored with an index by kind and by `source.batch_id` in `payments/storage.ts`
+(a Money change), and a payee lookup by id in place of the user list in `paymentRoutes`. Results do not change.
+
+**Why it can wait.** Pay runs hold tens of payees and an organization has hundreds of payables, not thousands.
+(docs/architecture/pay-rules.md "Paid with payroll or through payables")
+
 ## Labor commitments are listed by reading the whole collection
 
 **Today.** Commitments for a project or an assignee are found by reading every commitment and filtering
@@ -177,3 +191,126 @@ path. Entries and their hashes stay the same; only how they link changes.
 
 **Why it can wait.** Signing is a few writes per agreement, so the lock is held for milliseconds and contention
 needs thousands of concurrent signers. (docs/architecture/document-signing.md, "Seal, timestamp and signing ledger")
+## Wall drafting redraws serialize the whole project to validate their caches
+
+**Today.** Every draw pass serializes the project state and composed walls (`beginRenderCache` in
+`wall_face_draft.js`) to decide whether derived geometry is still valid; wall mode serializes only the composition's
+inputs (`wallSceneInputs`, about a quarter of the state) to reuse composed walls. On a 420 KB house the full
+serialization is about 1 ms, several per frame. Frames whose model
+changed (a preview that moved, undo) also rebuild every face's parts, the wire graph and support faces.
+
+**Where the change goes.** Compute one value signature per redraw in wall mode and give it to the drafting editor
+through its host, in place of its own serialization (walls and visibility flags appended as today). Finer reuse on
+changed frames needs per-face dependencies: chimney clipping reads the whole building, so only faces whose inputs are
+known can be reused by content.
+
+**Why it can wait.** Correct invalidation depends on the full key; it is a fixed few milliseconds per frame.
+(dev/EXTERIOR_PERFORMANCE.md, "Draw memos")
+
+## The 2D wall view rebuilds every SVG element each redraw
+
+**Today.** Wall mode clears the SVG and `draw2D` emits every wire, draft edge, point and line-center tick again on
+each redraw, about 3.5 ms per frame on a large house even when nothing moved.
+
+**Where the change goes.** Retain SVG elements keyed like the 3D render parts and update only changed attributes,
+in `wall_mode.js` `render2DContent` with the drafting editor's `draw2D`.
+
+**Why it can wait.** The output is correct and the cost is bounded by the number of visible elements.
+(dev/EXTERIOR_PERFORMANCE.md, "Draw memos")
+
+## Exterior selection rebuilds the whole scene
+
+**Today.** Clicking a face, line or point in the full-house editor runs a full exterior render: the face-draft
+objects, labels and the 2D plan are rebuilt to show the new highlight. On a heavily drafted house (about 1,200 points,
+171 surfaces) a click costs roughly 40-50 ms (`wall_mode.js` `render`, `wall_face_draft.js` `draw3D`/`draw2D`). Only
+point markers have an in-place highlight path (`redrawSelection`).
+
+**Where the change goes.** Give faces and lines the same treatment as point markers: keep the built objects and
+recolour the previously and newly selected ones, falling back to a full render when the selection changes geometry
+(previews, guides). Compare the recoloured scene with a full rebuild in a WebGL test.
+
+**Why it can wait.** A click is a single frame, and the 2026-10-19 speed pass removed the shader recompiles and
+occlusion work that made it longer. Worth doing if selection still feels late on large houses.
+(dev/EXTERIOR_PERFORMANCE.md, "Speed pass, 2026-10-19")
+
+## Each committed exterior edit copies the state several times
+
+**Today.** Placing, undoing or redoing an exterior edit snapshots the history keys with `JSON.parse(JSON.stringify())`
+in `recordEdit` and again in `finishEdit`, compares the two snapshots as strings, then `persist` reads, parses and
+rewrites the whole local backup (`wall_mode.js`). On a 420 KB state that is about 10-20 ms per commit.
+
+**Where the change goes.** Build the after-snapshot once and share unchanged subtrees with the before-snapshot (as
+`EditorHistory.share` already does for stored history), and keep the last written backup timestamp in memory so
+`persist` only reads storage when another tab may have written it. Keep the existing reload and multi-tab tests.
+
+**Why it can wait.** It runs once per commit, not per frame, and is a small part of an undo (about 60 ms in total).
+
+## Textured mode redraws its shadow map while idle
+
+**Today.** In textured display the editor re-renders the lit presentation scene, including a 4096 x 4096 soft shadow
+map, at the 100 ms idle interval even when nothing moved (`scene_3d.js` `_animate3D`, `exterior_rendered.js`
+`render`). The shadow map depends only on the shadow casters and the sun, not on the camera.
+
+**Where the change goes.** Turn `shadowMap.autoUpdate` off for the presentation scene and request a shadow update from
+`update`, `lighting` and any visibility change of a caster; a test should compare a frame drawn with the reused map
+against one with a fresh map after each of those changes.
+
+**Why it can wait.** Drafting happens in the translucent and opaque modes; textured mode is for review. Worth doing if
+textured review drains laptops or slows other tabs.
+
+## Exterior point projection reads layout per point
+
+**Today.** `host.screen` in `wall_editor.js` and `wall_mode.js` reads `renderer.domElement.getBoundingClientRect()` for
+every projected point during previews and snapping, a few hundred times per frame on a large house (about 1 ms per
+frame). Inside `renderer.render` these reads already share one rectangle (`exteriorRendererRect`).
+
+**Where the change goes.** Cache the rectangle per animation frame and invalidate it from a `ResizeObserver` and any
+pane-layout change; prove the canvas cannot move during a frame before reusing the value outside rendering.
+
+**Why it can wait.** The reads are cheap once layout is clean; the cost is mostly call overhead.
+
+## Face-move previews rebuild the scene topology every frame
+
+**Today.** Moving a whole face (M, or E on a draft region) recomputes the vertex/edge topology of the gesture's
+entire snap scene on every pointer move (`moveSurface` and `moveFabric` in `wall_solid_geometry.js` call
+`ExteriorGeometry.topology`, whose edge chaining scans every vertex for every edge). On the 420 KB benchmark house
+that is roughly a quarter of a face-move frame (about 15 of 60 ms, CPU only).
+
+**Where the change goes.** Build the topology once per tool session from the tool's scene and pass it in, and give
+`topology` a spatial index for its edge chaining. Before caching, the tool scene must really be read-only:
+`applyRoofMoves` writes heights into whatever `edits.$surfaces` holds, and `moveFabric` returns unchanged faces by
+reference, so a roof fit can currently write through to scene faces. Compare cached and rebuilt previews with
+`dev/exterior-preview-equivalence.test.cjs`.
+
+**Why it can wait.** Line moves and extrusions (the common drags) do not use it; face moves are slower but stay
+interactive on typical houses. (dev/EXTERIOR_PERFORMANCE.md, "Preview interaction, 2026-10-19")
+
+## Geometry moves retry hundreds of full previews when the requested move is invalid
+
+**Today.** When a geometry transform (M on selected points or a face) cannot move as far as the cursor asks,
+`validTranslation` searches for the nearest valid translation by building complete candidate previews: up to about
+700 builds per pointer move, each copying the wall edits, transforming the selection, following trim and validating.
+On the benchmark house that is seconds per pointer move while the cursor is past the limit.
+
+**Where the change goes.** `previewGeometry` in `wall_face_draft.js` and `validTranslation` in
+`wall_solid_geometry.js`: validate a candidate translation without building and copying the whole result (a check
+that answers exactly what `build` answers), or remember the last valid limit for the gesture and search only when
+the cursor crosses it. The search's answer must not change.
+
+**Why it can wait.** It only happens while dragging beyond a valid position; valid moves preview in one build.
+(dev/EXTERIOR_PERFORMANCE.md, "Preview interaction, 2026-10-19")
+
+## Preview frames still deep-copy the wall edits and reconcile chimneys
+
+**Today.** Each line, entity and face preview frame copies the gesture's snapshot of the wall edits (and line moves
+also copy their snap scene), then `prepareEdits` copies the result again before publishing it and re-fits every
+vertical face to chimney roof contacts (`reconcileChimneys`, `WallChimneys.alignRoofContacts`). The extrude and face
+move tools also copy the shown preview for rollback. The copies are now an exact non-text clone (about 5 times faster
+than the JSON round trip), but on the 420 KB house each is still 0.5-1 ms, and the chimney fit is about 2-3 ms.
+
+**Where the change goes.** Share unchanged members of the snapshot instead of copying them, as line moves already do
+(`shareWithDrafts`), once each writer that changes edits in place is known; and restrict `alignRoofContacts` to faces
+and draft points near a chimney footprint (a bounding-box test that keeps its exact contact tests).
+
+**Why it can wait.** Rendering dominates the frame time on large houses. (dev/EXTERIOR_PERFORMANCE.md,
+"Preview interaction, 2026-10-19")

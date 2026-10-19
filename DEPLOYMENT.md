@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+October 19 Route lock-down: [platform routes stay inside the caller's organizations, the raw global document and the credits ledger need billing management, and the balance needs report ordering or billing](deploy/digitalocean/development-route-gates-20261019.md) records release `65634240`, the host merges and the verified four-role development rollout with owner and orderer checks.
+
 October 19 E-sign seal: [executed agreements are sealed, independently timestamped and recorded in an append-only signing ledger, with a public verify page](deploy/digitalocean/development-esign-seal-20261019.md) records release `36b12df9`, its checks and the verified four-role development rollout.
 
 October 19 Full-house engine fixes: [wall edits survive roof changes and typed values after orbiting, drawing never writes the model, the kernel keeps holes and unique region ids, and base sketch edits keep their points](deploy/digitalocean/development-full-house-fixes-20261019.md) records release `ff9ad1c9`, what was left uncommitted, the checks and the verified development rollout.

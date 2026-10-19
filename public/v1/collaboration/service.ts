@@ -5,7 +5,7 @@ import { isCapabilityEnabled } from "../platform/capabilities.js";
 import { badRequest, forbidden, notFound } from "../platform/errors.js";
 import { readOrganization, readDocument } from "../platform/storage.js";
 import { contactSettings, saveContactSettings } from "../contacts/service.js";
-import { createOrganizationConnection, readOrganizationConnection } from "../connections/storage.js";
+import { createOrganizationConnection, patchOrganizationConnection, readOrganizationConnection } from "../connections/storage.js";
 import { withDeferredWorkEvents } from "../work/engine.js";
 import { policySchema, grantSchema, invitationSchema, relationshipSchema, audienceSchema, type ResourceRef, type GrantInput } from "./schemas.js";
 import { withOrganizationLocks, collaborationStore, getRecord, findRecord, insertRecord, updateRecord, listRecords, audit, newId, now, resourceKey, type RecordValue } from "./storage.js";
@@ -57,14 +57,25 @@ export async function createInvitation(ctx:PlatformAuthContext,raw:unknown,partn
     const {validateDelegatedOperations,validateSharedFields}=await import("./resources.js");
     validateDelegatedOperations(ctx,input.grant.resource.type,input.grant.operations);validateSharedFields(input.grant.resource.type,input.grant.fields);
   }
+  // Sent from an outside company's window: the invitation links that company instead of making a new partner_* one.
+  const company=input.workforce_connection_id?await readOrganizationConnection(ctx.orgId,input.workforce_connection_id):null;
+  if(company&&company.link_status==="linked")throw badRequest("company_already_linked","This company is already linked to its FirstMate organization.");
   const token=randomBytes(32).toString("base64url");
-  return withOrganizationLocks([ctx.orgId],async()=>{
+  const created=await withOrganizationLocks([ctx.orgId],async()=>{
     await requireOpen(ctx.orgId,"send_shares");
     const invitation=await insertRecord("invitation",{...input,...(partnerOnboarding?{partner_onboarding:true,sealed_link:sealInvitationToken(token)}:{}),id:newId("invitation"),owner_org_id:ctx.orgId,revision:1,status:"pending",created_by:actor(ctx),created_at:now(),expires_at:new Date(Date.now()+input.expires_in_days*86400000).toISOString()});
     await collaborationStore().prepare("INSERT INTO collaboration_tokens(token_hash,invitation_id) VALUES(?,?)").run(digest(token),invitation.id);
     await audit(invitation,"collaboration.invitation.created",actor(ctx));
     return {invitation,token,url:`/portal/#collaboration_invite=${encodeURIComponent(token)}`};
   });
+  if(company)await markCompanyInvitation(ctx.orgId,company.id,{collaboration_invitation_id:created.invitation.id,collaboration_invitation_status:"pending",collaboration_invitation_email:created.invitation.email||""},"pending");
+  return created;
+}
+/** An outside company's link status follows the invitation sent for it: pending while it waits, unlinked again when revoked. */
+async function markCompanyInvitation(orgId:string,companyId:string,metadata:Record<string,unknown>,linkStatus:"pending"|"unlinked"|""){
+  const company=await readOrganizationConnection(orgId,companyId).catch(()=>null);
+  if(!company||company.link_status==="linked")return;
+  await patchOrganizationConnection(orgId,companyId,{expected_revision:company.revision,metadata,...(linkStatus?{link_status:linkStatus,linked_organization_id:""}:{})});
 }
 // A recoverable link is encrypted at rest and never included in list/accept envelopes.
 // Domain separation keeps this key independent of session signing.
@@ -188,7 +199,10 @@ async function finalizeInvitation(ctx:PlatformAuthContext,inv:RecordValue){
   if(!connection)connection=await insertRecord("connection",{id:pairId(inv.owner_org_id,inv.recipient_org_id),owner_org_id:inv.owner_org_id,recipient_org_id:inv.recipient_org_id,status:"active",revision:1,created_at:now()});
   for(const orgId of [inv.owner_org_id,inv.recipient_org_id]){
     const id=`relationship_${digest(`${connection.id}:${orgId}`)}`;
-    if(!await findRecord(id))await insertRecord("relationship",{id,owner_org_id:orgId,recipient_org_id:orgId===inv.owner_org_id?inv.recipient_org_id:inv.owner_org_id,connection_id:connection.id,classification:orgId===inv.owner_org_id?inv.relationship:"contact",note:"",payment_terms:"",status:"active",revision:1,created_at:now()});
+    const named=orgId===inv.owner_org_id&&inv.workforce_connection_id?{workforce_connection_id:inv.workforce_connection_id}:{};
+    const prior=await findRecord(id);
+    if(prior&&named.workforce_connection_id&&!prior.workforce_connection_id)await updateRecord(prior,named,prior.revision);
+    if(!prior)await insertRecord("relationship",{...named,id,owner_org_id:orgId,recipient_org_id:orgId===inv.owner_org_id?inv.recipient_org_id:inv.owner_org_id,connection_id:connection.id,classification:orgId===inv.owner_org_id?inv.relationship:"contact",note:"",payment_terms:"",status:"active",revision:1,created_at:now()});
   }
   await queueContactProjection(connection);
   if(inv.grant){
@@ -214,7 +228,9 @@ export async function revokeInvitation(ctx:PlatformAuthContext,id:string,expecte
   ctx=await currentActor(ctx);requirePermission(ctx,"manage_external_connections");
   return withOrganizationLocks([ctx.orgId],async()=>{
     const inv=await getRecord(id,"invitation");if(inv.owner_org_id!==ctx.orgId)throw forbidden("invitation_unavailable","This invitation is unavailable.");
-    const next=await updateRecord(inv,{status:"revoked"},expected);await audit(next,"collaboration.invitation.revoked",actor(ctx));return next;
+    const next=await updateRecord(inv,{status:"revoked"},expected);await audit(next,"collaboration.invitation.revoked",actor(ctx));
+    if(inv.workforce_connection_id)await markCompanyInvitation(ctx.orgId,inv.workforce_connection_id,{collaboration_invitation_status:"revoked"},"unlinked");
+    return next;
   });
 }
 export async function setConnectionStatus(ctx:PlatformAuthContext,id:string,status:"active"|"suspended"|"blocked"|"ended",expected:number){
@@ -269,8 +285,12 @@ export async function reconcileLocalContacts(connection:RecordValue){
     const tags=[...new Set([...(previous?.tags||[]).filter(v=>v!=="partner"),"org",...(relationship.classification==="partner"?["partner"]:[])])];
     if(previous)await records.updateContact(owner,previous.id,{tags,contact_kind:"org",...(previous.name?{}:{name:profile.name})});
     else await records.createContact(owner,{name:profile.name,contact_kind:"org",tags},{id:contactId});
-    const workforceId=`partner_${suffix}`;
-    try{await readOrganizationConnection(owner,workforceId);}catch(e:any){if(e.code!=="organization_connection_not_found")throw e;await createOrganizationConnection(owner,{id:workforceId,name:profile.name,linked_organization_id:other,link_status:"linked",metadata:{collaboration_connection_id:connection.id,contact_ref:{contact_id:contactId}}});}
+    // The company the invitation was sent for becomes the linked one; otherwise a partner_* company is made for it.
+    const named=String(relationship.workforce_connection_id||"");
+    const existing=named?await readOrganizationConnection(owner,named).catch((e:any)=>{if(e.code==="organization_connection_not_found")return null;throw e;}):null;
+    const workforceId=existing?named:`partner_${suffix}`;
+    if(existing&&(existing.link_status!=="linked"||existing.linked_organization_id!==other))await patchOrganizationConnection(owner,workforceId,{expected_revision:existing.revision,linked_organization_id:other,link_status:"linked",metadata:{collaboration_connection_id:connection.id,collaboration_invitation_status:"accepted"}});
+    if(!existing)try{await readOrganizationConnection(owner,workforceId);}catch(e:any){if(e.code!=="organization_connection_not_found")throw e;await createOrganizationConnection(owner,{id:workforceId,name:profile.name,linked_organization_id:other,link_status:"linked",metadata:{collaboration_connection_id:connection.id,contact_ref:{contact_id:contactId}}});}
     if(!relationship.contact_ref)await withOrganizationLocks([owner],async()=>{const fresh=await getRecord(relationship.id);await updateRecord(fresh,{contact_ref:{contact_id:contactId},workforce_connection_id:workforceId},fresh.revision);});
     });
   }

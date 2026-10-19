@@ -158,6 +158,28 @@
       "Boards"
     ]
   ],
+  "branches": [
+    [
+      "branch",
+      "Branch"
+    ],
+    [
+      "branches",
+      "Branches"
+    ],
+    [
+      "region",
+      "Region"
+    ],
+    [
+      "regions",
+      "Regions"
+    ],
+    [
+      "main_branch",
+      "Main branch"
+    ]
+  ],
   "workforce": [
     [
       "resource_group_singular",

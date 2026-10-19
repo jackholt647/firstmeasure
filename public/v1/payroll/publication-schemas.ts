@@ -24,6 +24,12 @@ export const approvalSchema=object({id:text,schedule_id:text,schedule_name:text,
 export const approvalsSchema=object({approvals:z.array(approvalSchema),count:cents});
 /** A payment recorded as made outside a pay run (off-cycle.ts). */
 export const offCyclePaymentSchema=object({id:text,payment_id:text,payee:json,kind:text,schedule_id:text,currency:text,amount_cents:cents,subtracted_cents:cents,waiting_cents:cents,status:text,paid_on:text,reference:text,note:text,recorded_by_name:text,recorded_at:text,runs:z.array(object({batch_id:text,pay_date:text,status:text,applied_cents:cents}))});
+/** A bill of a pay run: a payee paid through payables (payables.ts listPayrollBills). */
+export const billSchema=object({id:text,payee:payeeSchema,status:text,amount_cents:cents,paid_cents:cents,currency:text,due_date:text,pay_date:text,batch_id:text,item_id:text,payment_terms:json,item_status:text,needs_settlement:z.boolean()});
+/** An export template (export-templates.ts): built in, or the organization's own with a revision. */
+export const exportTemplateSchema=object({id:text,name:text,built_in:z.boolean(),based_on:text,revision:cents,formats:z.array(text),definition:json});
+export const exportTemplatesSchema=object({templates:z.array(exportTemplateSchema),sources:z.array(object({id:text,label:text,description:text,kind:text,group:text})),date_formats:z.array(text),pay_item_labels:z.record(text),people:z.array(object({id:text,label:text}))});
+export const exportPreviewSchema=object({headers:z.array(text),rows:z.array(z.array(text)),row_count:cents,person_count:cents,warnings:z.array(text),file:json});
 export const contractorSchema=object({users:z.array(object({id:text,name:text,worker_classification:text,payment_terms:json})),connections:z.array(object({id:text,name:text,payment_terms:json}))});
 /** A schedule choice as stored on a pay default or a pay setup (see payScheduleChoiceSchema in pay-rules.ts). */
 export const scheduleChoiceSchema=object({id:text,earning_kind:text,schedule_id:text,effective_from:text});

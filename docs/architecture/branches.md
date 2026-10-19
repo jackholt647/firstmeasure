@@ -304,11 +304,34 @@ needs no request; the choice is remembered per page
 `people-data.js` `ACTIONS` (`branches.*`, `regions.edit`, `users.scoped_branch`,
 `departments.branch`); the structure's `access` flags are capabilities there.
 
+### Words
+
+What an organization calls a branch and a region is terminology:
+`branches.branch`, `branches.branches`, `branches.region`, `branches.regions`
+and `branches.main_branch` (the unnamed default branch). They are the
+organization's, so they are kept on the **default** branch's `variable_mappings`
+and `readTerminologyMappings` gives every branch those words under its own
+(`platform/localization/terminology-settings.ts`). People's Wording panel sets
+them when the feature is on; with no word of its own for the default branch it
+is "Main" and the organization's word for a branch. People (`data.bt`), Payroll's
+branch filter and the CRM use them.
+
+### Membership in People
+
+A person's, group's or outside company's window has a Branches section with a
+change menu (only branches the viewer manages can be ticked), and the branch
+filter's dropdown can set the branches of everyone a list shows (add to, move
+to, or take out of one branch), one `organization-branches.membership.set`
+each.
+
+### Calendar events
+
+A department named on an appointment or a calendar event made by hand must
+belong to the event's branch (`event.branch_id`, else the caller's):
+`validateAppointmentDepartments` refuses another branch's department with
+`department_other_branch`.
+
 ## Not built
 
-Terminology keys for branch and region, so the Wording panel has no branch or
-region words yet (an unnamed default branch is called "Main branch"). Setting
-someone's branches (`membership.set`) has no People control yet. Custom fields on regions keep
-the owner name `division`. Moving a person's settings when their own branch
-changes. Manual calendar event writes (`validateAppointmentDepartments`) still
-accept any active department of the organization.
+Custom fields on regions keep the owner name `division`. Moving a person's
+settings when their own branch changes.
