@@ -93,6 +93,14 @@ export const ACTION_CATALOG: Record<string, ActionCatalogEntry> = {
     title: template("Entry title", "What the caller sees for this entry.")
   }, ["list"]) },
   "crm.callLists.remove.v1": { title: "Remove from call lists", category: "tasks", input_schema: schema() },
+  "contacts.startLead.v1": { title: "Start a lead for the contact", category: "pipeline", input_schema: schema({
+    title: template("Lead title", "Defaults to the contact's address or name."),
+    summary: longText("What it is for", "Shown on the new lead, such as Yearly gutter cleaning."),
+    source_kind: template("Source", "How the lead arrived, for reports and source rules; defaults to contact_rule."),
+    role: template("Contact's role", "Their role on the new project, such as Homeowner."),
+    address: template("Address", "Defaults to the contact's address."),
+    notify: { type: ["boolean", "string"], title: "Send the new-lead notice", description: "false skips the notice the lead.received rules act on.", default: true }
+  }) },
   "punchlist.request.v1": { title: "Ask the customer for a punch list", category: "tasks", input_schema: schema({
     title: template("Heading", "Shown to the customer."), description: longText("Message", "Body copy shown to the customer."),
     instance_key: template("List key", "Distinguishes several lists on one project."),

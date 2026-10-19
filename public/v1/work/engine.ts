@@ -90,6 +90,26 @@ async function projectForEvent(event: JsonObject, plan: JsonObject): Promise<Jso
   return document ? { id: projectId, ...asObject(document.data) } : { id: projectId };
 }
 
+/**
+ * The contact an event is about: a contact event names it; for a project event it is the project's primary
+ * contact, read only when a rule or binding mentions `contact` (docs/architecture/automation-authoring.md).
+ */
+async function contactForEvent(event: JsonObject, project: JsonObject): Promise<JsonObject> {
+  const orgId = cleanText(event.organization_id);
+  let contactId = cleanText(asObject(event.payload).contact_id || asObject(event.context).contact_id);
+  if (!contactId && cleanText(project.id)) {
+    const { projectContactLinks } = await import("../contacts/records.js");
+    const links = await projectContactLinks(orgId, cleanText(project.id)).catch(() => []);
+    contactId = cleanText((links.find((link) => link.primary) || links[0])?.contact_id);
+  }
+  if (!orgId || !contactId) return {};
+  const { readContact } = await import("../contacts/records.js");
+  const { contactView } = await import("../contacts/events.js");
+  const record = await readContact(orgId, contactId).catch(() => null);
+  return record ? contactView(record) : {};
+}
+const mentionsContact = (value: unknown) => /contact/.test(JSON.stringify(value ?? null));
+
 function automationBindingsForEvent(event: JsonObject, plan: JsonObject, node: JsonObject) {
   // A lifecycle hook means this container's own work event and nothing else;
   // see ./bindings.ts.
@@ -141,7 +161,7 @@ async function assertEventLease(event: JsonObject) {
   if (!(await renewEventLease(cleanText(event.id), cleanText(event.lease_owner)))) throw new Error("Work event lease lost.");
 }
 
-async function executeBinding(event: JsonObject, executable: ExecutableBinding, project: JsonObject) {
+async function executeBinding(event: JsonObject, executable: ExecutableBinding, project: JsonObject, contact: JsonObject = {}) {
   await assertEventLease(event);
   const orgId = cleanText(event.organization_id);
   const { binding, bindingId, plan, node } = executable;
@@ -174,6 +194,7 @@ async function executeBinding(event: JsonObject, executable: ExecutableBinding, 
       plan,
       node,
       project,
+      contact,
       scope: asObject(planContext.scope_piece || planContext.scope),
       proposal: asObject(planContext.proposal),
       now: new Date().toISOString(),
@@ -229,6 +250,14 @@ async function executeEvent(event: JsonObject) {
   const plan: JsonObject = cleanText(event.plan_id) ? (await readPlanRecord(orgId, cleanText(event.plan_id))) || {} : {};
   const node: JsonObject = cleanText(event.node_id) ? (await readNodeRecord(orgId, cleanText(event.node_id))) || {} : {};
   let project = await projectForEvent(event, plan);
+  // Loaded once per event, and for a project event only when something asks for it.
+  let contact: JsonObject | null = null;
+  const contactFor = async (...uses: unknown[]) => {
+    if (contact) return contact;
+    if (!cleanText(asObject(event.payload).contact_id) && !uses.some(mentionsContact)) return {};
+    contact = await contactForEvent(event, project);
+    return contact;
+  };
 
   await notifyWorkEvent(event);
   await (await import('../integrations/jobs.js')).enqueueConnectionEvent(event);
@@ -242,15 +271,16 @@ async function executeEvent(event: JsonObject) {
   for (const rule of expandAutomationRules(rules)) {
     if (rule.enabled === false || !cleanText(rule.automation)) continue;
     if (!matchesWorkEvent(cleanText(rule.event), event)) continue;
-    const conditionContext = { event, payload: asObject(event.payload), context: asObject(event.context), project, plan, node };
+    const ruleContact = await contactFor(rule.conditions, rule.input, rule.automation);
+    const conditionContext = { event, payload: asObject(event.payload), context: asObject(event.context), project, plan, node, contact: ruleContact };
     if (!conditionMatches(asObject(rule.conditions), conditionContext)) continue;
     const result = await executeBinding(event, {
       binding: { id: cleanText(rule.id), automation: rule.automation, input: asObject(rule.input), continue_on_error: rule.continue_on_error === true },
       bindingId: `org_rule:${cleanText(rule.id)}`,
       plan,
       node
-    }, project);
-    if (result.executed) project = await projectForEvent(event, plan);
+    }, project, ruleContact);
+    if (result.executed) { project = await projectForEvent(event, plan); if (contact) contact = null; }
   }
 
   // 2. Declarative node transitions (external triggers) across the project.
@@ -263,10 +293,11 @@ async function executeEvent(event: JsonObject) {
   const bindings = automationBindingsForEvent(event, plan, node);
   for (const [index, binding] of bindings.entries()) {
     if (binding.enabled === false) continue;
-    const conditionContext = { event, payload: asObject(event.payload), context: asObject(event.context), project, plan, node };
+    const bindingContact = await contactFor(binding.conditions, binding.input);
+    const conditionContext = { event, payload: asObject(event.payload), context: asObject(event.context), project, plan, node, contact: bindingContact };
     if (!conditionMatches(asObject(binding.conditions), conditionContext)) continue;
     const bindingId = bindingExecutionId(binding, type, index);
-    const result = await executeBinding(event, { binding, bindingId, plan, node }, project);
+    const result = await executeBinding(event, { binding, bindingId, plan, node }, project, bindingContact);
     if (result.executed && index < bindings.length - 1) project = await projectForEvent(event, plan);
   }
 }

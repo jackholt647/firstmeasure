@@ -689,6 +689,9 @@
     /* Lead routing and scoring: settings that become organization rules running sandbox programs. */
     routing(orgId){ return request(siblingPath('crm', `/organizations/${enc(orgId)}/routing`)); },
     saveRouting(orgId, settings = {}){ return request(siblingPath('crm', `/organizations/${enc(orgId)}/routing`), { method:'PUT', body:settings }); },
+    /* Contact automations: rules that start from a contact (created, changed, tagged, merged, or a date on it). */
+    contactRules(orgId){ return request(siblingPath('crm', `/organizations/${enc(orgId)}/contact-rules`)); },
+    saveContactRules(orgId, settings = {}){ return request(siblingPath('crm', `/organizations/${enc(orgId)}/contact-rules`), { method:'PUT', body:settings }); },
     /* The customer cancelled inside the cancellation window: the won sale becomes lost and production never starts. */
     /* Industry presets and the CRM features a team size starts with. */
     presets(orgId, employees = 0){ return request(siblingPath('crm', `/organizations/${enc(orgId)}/presets${employees ? `?employees=${enc(employees)}` : ''}`)); },

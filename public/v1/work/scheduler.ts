@@ -57,6 +57,58 @@ async function emitDueNodeTimers(now: number) {
   return emitted;
 }
 
+/** YYYY-MM-DD, MM-DD (yearly) or M/D[/YYYY] to [year, month, day]; year 0 when none is given. */
+function dateParts(value: string): [number, number, number] | null {
+  const iso = /^(\d{4})-(\d{1,2})-(\d{1,2})/.exec(value) || /^-{0,2}()(\d{1,2})-(\d{1,2})$/.exec(value);
+  if (iso) return [Number(iso[1] || 0), Number(iso[2]), Number(iso[3])];
+  const us = /^(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?$/.exec(value);
+  if (us) return [Number(us[3] || 0) < 100 && us[3] ? 2000 + Number(us[3]) : Number(us[3] || 0), Number(us[1]), Number(us[2])];
+  return null;
+}
+
+/**
+ * A scheduled rule on a contact date: every contact whose date falls on the day the rule looks at gets one
+ * contact.date event. `offset_days` moves the firing from the date (-3: three days before). Yearly dates
+ * match on month and day; 29 February matches 28 February in other years.
+ * Reads every contact once per firing: docs/optimization-backlog.md, "Contact date rules".
+ */
+export async function emitContactDateEvents(orgId: string, branchId: string, rule: JsonObject, fireAt: string) {
+  const spec = asObject(asObject(rule.schedule).contact_date);
+  const field = cleanText(spec.field);
+  if (!field) return 0;
+  const { resolveOrganizationTimezone } = await import("../platform/timezone.js");
+  const zone = await resolveOrganizationTimezone(orgId, branchId).catch(() => "UTC");
+  const dayOf = (ms: number) => new Intl.DateTimeFormat("en-CA", { timeZone: zone, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(ms));
+  const today = dayOf(Date.parse(fireAt));
+  // The contact date this firing is for: offset -3 fires on the 7th for a date on the 10th.
+  const target = dayOf(Date.parse(`${today}T12:00:00Z`) - Number(spec.offset_days || 0) * 86_400_000);
+  const [ty, tm, td] = target.split("-").map(Number) as [number, number, number];
+  const leap = (year: number) => (year % 4 === 0 && year % 100 !== 0) || year % 400 === 0;
+  const { listAllContacts } = await import("../contacts/records.js");
+  const { contactDate } = await import("../contacts/events.js");
+  let emitted = 0;
+  for (const contact of await listAllContacts(orgId)) {
+    const value = contactDate(contact, field);
+    const parts = value ? dateParts(value) : null;
+    if (!parts) continue;
+    const [year, month, day] = parts;
+    const onDay = spec.yearly === false
+      ? year === ty && month === tm && day === td
+      : month === tm && (day === td || (month === 2 && day === 29 && td === 28 && !leap(ty)));
+    if (!onDay) continue;
+    await emitWorkEvent({
+      organization_id: orgId,
+      branch_id: branchId,
+      type: "contact.date",
+      idempotency_key: `contact.date:${branchId}:${cleanText(rule.id)}:${contact.id}:${target}`,
+      payload: { rule_id: cleanText(rule.id), contact_id: contact.id, field, date: value, on: today },
+      context: { contact_id: contact.id }
+    }, { process: false });
+    emitted += 1;
+  }
+  return emitted;
+}
+
 // Fires scheduled organization automation rules (rules with schedule.cron).
 // Only explicitly enabled organizations enter the indexed platform sweep.
 async function emitDueCronRules() {
@@ -74,8 +126,17 @@ async function emitDueCronRules() {
       if (!cron || rule.enabled === false) continue;
       const ruleId = cleanText(rule.id);
       const state = (await readCronState(orgId, branchId, ruleId));
-      const fireAt = latestCronFire(cron, cleanText(asObject(state).last_fired_at));
+      // A contact date is checked at a time of day where the organization is, not where the server is.
+      const datedRule = !!cleanText(asObject(asObject(rule.schedule).contact_date).field);
+      const zone = datedRule ? await (await import("../platform/timezone.js")).resolveOrganizationTimezone(orgId, branchId).catch(() => undefined) : undefined;
+      const fireAt = latestCronFire(cron, cleanText(asObject(state).last_fired_at), new Date(), zone);
       if (!fireAt) continue;
+      if (datedRule) {
+        // Each contact event has its own identity, so a firing that stops part way resumes without repeats.
+        emitted += await emitContactDateEvents(orgId, branchId, rule, fireAt);
+        await saveCronState(orgId, branchId, ruleId, fireAt);
+        continue;
+      }
       await getWorkDatabase().transaction(async () => {
       await createEventRecord({
         organization_id: orgId,

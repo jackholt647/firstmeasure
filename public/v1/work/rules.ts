@@ -242,9 +242,15 @@ export function expandAutomationRules(rules: JsonObject[]): JsonObject[] {
 function normalizeRule(value: unknown, index: number): JsonObject {
   const rule = asObject(value);
   const id = cleanText(rule.id) || `automation_rule_${index + 1}`;
-  const schedule = asObject(rule.schedule);
+  const raw = asObject(rule.schedule);
+  // A date on each contact (a birthday, a yearly service date): the cron is the time of day it is checked,
+  // and every contact whose date falls on that day gets its own contact.date event.
+  const contactDate = asObject(raw.contact_date);
+  const schedule = cleanText(contactDate.field)
+    ? { ...raw, cron: cleanText(raw.cron) || "0 9 * * *", contact_date: { field: cleanText(contactDate.field), offset_days: Math.max(-365, Math.min(365, Math.round(Number(contactDate.offset_days) || 0))), yearly: contactDate.yearly !== false } }
+    : raw;
   const hasCron = !!cleanText(schedule.cron);
-  const explicitEvent = cleanText(rule.event);
+  const explicitEvent = cleanText(rule.event) || (cleanText(contactDate.field) ? "contact.date" : "");
   return {
     id,
     enabled: rule.enabled !== false,
@@ -255,7 +261,7 @@ function normalizeRule(value: unknown, index: number): JsonObject {
     // `time.cron` with the rule id, and the implicit condition scopes it.
     event: explicitEvent || (hasCron ? "time.cron" : ""),
     schedule,
-    conditions: hasCron && !explicitEvent
+    conditions: hasCron && (!explicitEvent || explicitEvent === "contact.date")
       ? { "payload.rule_id": id, ...asObject(rule.conditions) }
       : asObject(rule.conditions),
     automation: cleanText(rule.automation),
@@ -273,6 +279,8 @@ function assertRulesValid(rules: JsonObject[]) {
     if (ruleIds.has(id)) issues.push(`Rule id "${id}" is used more than once.`);
     ruleIds.add(id);
     issues.push(...validateConditions(rule.conditions, `rule "${id}" conditions`));
+    const dateField = cleanText(asObject(asObject(rule.schedule).contact_date).field);
+    if (dateField && dateField !== "birthday" && !/^cf\.[A-Za-z0-9_.-]+$/.test(dateField)) issues.push(`Rule "${id}" can only follow a contact's birthday or a date field (cf.<field>).`);
     const actionIds = new Set<string>();
     for (const action of asArray(rule.actions).map(asObject)) {
       const actionId = cleanText(action.id);

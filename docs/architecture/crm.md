@@ -340,6 +340,29 @@ standard program, with the same inputs, bindings and outputs; *Use the standard 
 clears it. A program in an organization rule must be the one saved in the rules (its hash
 is checked) and runs with the access of whoever last saved the rules.
 
+## Contact automations
+
+Rules that start from a contact instead of a project. CRM settings › Contact automations
+saves the `crm_contact_rules` module (`crm/contact-rules.ts`) and turns each automation into
+one organization rule with an id starting `contact_rule_`; saving replaces only those.
+
+- **Trigger**: a contact is created; a tag is added (any tag, or one); a contact is changed
+  (any field, or one: email, phone, address, tags, name, company, birthday, a custom field);
+  two contacts are merged; or a date on the contact (the birthday or a date custom field), a
+  number of days before or after it, at a time of day in the organization's time zone, every
+  year or once.
+- **Conditions**: the one condition contract over `contact.<field>` (name, email, phone,
+  address, company, kind, tags, birthday, `contact.cf.<field>`), in the same filter editor
+  as views.
+- **Actions**, in order: text the contact (`{{contact.phone}}`; skipped when it has none),
+  email the contact, create a to-do for roles or people (it opens the contact), or start a
+  lead for the contact (`contacts.startLead.v1`: a new project through `receiveLead` with
+  the existing contact, so intake routing, lead routing and `lead.received` run). Messages
+  use `{{contact.first_name}}` and any other contact field.
+
+The events and the engine side are in [contacts](contacts.md#contact-events) and
+[automation authoring](automation-authoring.md#rules-that-start-from-a-contact).
+
 ## The CRM app
 
 `portal.crm` (`public/libraries/apps/crm/app.js`, `crm.css`), the CRM tab. It is declared
@@ -372,29 +395,29 @@ The tab:
 - **Funnel**: period and grouping, bars and the table, each cell a link to its leads.
 - **Duplicates**: suggested contacts and projects side by side; keep one or dismiss.
 - **Sources**: the tree with rules, and spend.
-- **CRM settings**: setup, lead routing and scoring with their custom code, the funnel
-  steps, cancellation rules.
+- **CRM settings**: setup, lead routing and scoring with their custom code, contact
+  automations, the funnel steps, cancellation rules.
 - Keyboard while the CRM is on screen: `/` search, `f` filter, `j`/`k` next and
   previous row, `Esc` close, `Ctrl+K` command menu, `S` skip in a worklist.
 
 ## Not built
 
-Timeslot grids, financing, triggers keyed on a contact, and a funnel step editor for
+Timeslot grids, financing, and a funnel step editor for
 conditions (steps with conditions are
 kept and shown, and are edited through the API or presets).
 
 - **No place record** (decided 2026-10-19): an address lives on the contact and on the
   project; nothing waits on a shared property or site.
-- **Triggers keyed on a contact** (decided to build): contact writers emit contact events
-  (created, updated with the changed fields, tagged, merged); a date on a contact can fire a
-  rule; rule conditions read the contact; actions text or email the contact, create a to-do,
-  or start a lead through `receiveLead`.
+- **Contact date rules read every contact** once per firing:
+  [optimization backlog](../optimization-backlog.md#contact-date-rules-read-every-contact).
 - **Territories** are routing rules: a rule whose conditions name ZIP codes, a state or a
   branch, with the people who cover it. A map editor is not built.
 
 Validation: `tests/crm-views.test.ts` (collections, views, results, sources, spend,
 the funnel, presets, tracking tags and the cancellation window),
 `tests/crm-rescission.test.ts` (deadlines and rules), `tests/crm-routing.test.ts` (routing
-by turns, capacity, fallback and rules, scoring, passing on untouched leads) and
+by turns, capacity, fallback and rules, scoring, passing on untouched leads),
+`tests/contact-triggers.test.ts` (contact automations on created, tagged, changed and dated
+contacts) and
 `tests/crm-app-browser.test.mjs` (the app in a browser against the server; set
 `CRM_SCREENSHOTS` to keep a screenshot of each screen).

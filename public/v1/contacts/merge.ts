@@ -72,7 +72,9 @@ export async function mergeContacts(org: string, survivorId: string, mergedId: s
   // Now that both people are one, their open opportunities may be one sale.
   for (const projectId of survivorProjects) await suggestOpportunityDuplicates(org, projectId);
   await publishRealtimeEvent({ organization_id: org, topic: "contact.merged", payload: { contact_id: survivor.id, merged_id: merged.id } });
-  return { merge_id: id, contact: await readContact(org, survivor.id), moved };
+  const result = await readContact(org, survivor.id);
+  await (await import("./events.js")).emitContactMerged(org, result, merged.id);
+  return { merge_id: id, contact: result, moved };
 }
 
 // ---- Duplicate suggestions -------------------------------------------------

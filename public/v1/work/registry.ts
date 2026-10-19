@@ -17,6 +17,8 @@ export type WorkAutomationContext = {
   plan: JsonObject;
   node: JsonObject;
   project: JsonObject;
+  /** The contact the event is about (a contact event's, or the project's primary contact); empty when none. */
+  contact?: JsonObject;
   scope: JsonObject;
   proposal: JsonObject;
   now: string;

@@ -1317,6 +1317,7 @@
       content.innerHTML = `<div class="crm-page">
         ${state.meta?.can_share_views ? `<section class="crm-panel" style="margin-bottom:16px" data-setup><div class="crm-loading"></div></section>` : ''}
         ${state.meta?.can_share_views ? `<section class="crm-panel" style="margin-bottom:16px" data-routing><div class="crm-loading"></div></section>` : ''}
+        ${state.meta?.can_share_views ? `<section class="crm-panel" style="margin-bottom:16px" data-contact-rules><div class="crm-loading"></div></section>` : ''}
         ${funnel ? `<section class="crm-panel" style="margin-bottom:16px"><h3 style="margin:0 0 4px;font-size:15px">${esc(term('crm.funnel', 'Funnel'))}</h3><p class="crm-dim" style="margin:0 0 12px">${esc(L('funnel_intro', 'Each step is reached when the first matching event happens on a lead. Reports count leads by the steps they reached.'))}</p>
           <div data-funnel></div>
           <div class="crm-toolbar" style="margin-top:12px"><button type="button" class="crm-btn" data-fn-add><i class="fas fa-plus"></i>${esc(L('add_step', 'Add a step'))}</button><span style="flex:1"></span><button type="button" class="crm-btn primary" data-fn-save>${esc(L('save', 'Save'))}</button></div></section>` : ''}
@@ -1337,7 +1338,7 @@
         host2.innerHTML = rules.map((r, i) => `<div class="crm-fgroup"><div class="crm-frow" style="grid-template-columns:minmax(0,1.4fr) 70px minmax(0,1fr) minmax(0,1fr) 28px"><input type="text" data-rl="${i}" value="${esc(r.label)}" aria-label="${esc(L('rule_name', 'Rule name'))}"><input type="number" min="0" max="60" data-rdays="${i}" value="${esc(r.days)}" aria-label="${esc(L('days', 'Days'))}"><select data-rc="${i}" aria-label="${esc(L('counting', 'Counting'))}"><option value="business" ${r.count === 'business' ? 'selected' : ''}>${esc(L('business_days', 'Business days (not Sundays)'))}</option><option value="weekdays" ${r.count === 'weekdays' ? 'selected' : ''}>${esc(L('weekdays', 'Weekdays'))}</option><option value="calendar" ${r.count === 'calendar' ? 'selected' : ''}>${esc(L('calendar_days', 'Calendar days'))}</option></select><select data-rh="${i}" aria-label="${esc(L('holidays', 'Holidays'))}"><option value="us_federal" ${r.holidays !== 'none' ? 'selected' : ''}>${esc(L('no_federal_holidays', 'Skip federal holidays'))}</option><option value="none" ${r.holidays === 'none' ? 'selected' : ''}>${esc(L('count_holidays', 'Count holidays'))}</option></select><button type="button" class="crm-btn icon ghost" data-rx2="${i}" aria-label="${esc(L('remove', 'Remove'))}"><i class="fas fa-xmark"></i></button></div>
           <div class="crm-pop-row"><span class="crm-dim" style="white-space:nowrap">${esc(L('applies_when', 'Applies when'))}</span><select data-rcf="${i}" style="max-width:200px">${[['', L('always', 'Always')], ['address.state', L('state', 'State')], ['contact.age', L('customer_age', 'Customer age')], ['lead_source.kind', L('lead_type', 'How it arrived')]].map(([v, l]) => `<option value="${v}" ${(r.conditions?.rules?.[0]?.field || '') === v ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select>${r.conditions?.rules?.[0] ? `<select data-rco="${i}" style="max-width:130px">${[['in', L('is_any_of', 'is any of')], ['greater_or_equal', L('is_at_least', 'is at least')], ['equals', L('is', 'is')]].map(([v, l]) => `<option value="${v}" ${r.conditions.rules[0].operator === v ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select><input type="text" data-rcv="${i}" value="${esc(Array.isArray(r.conditions.rules[0].value) ? r.conditions.rules[0].value.join(', ') : r.conditions.rules[0].value)}" placeholder="${esc(L('rule_value_hint', 'CA, NY  or  65'))}">` : ''}</div></div>`).join('') || `<p class="crm-dim">${esc(L('no_rules_yet', 'No rules yet. The federal cooling-off rule is three business days.'))}</p>`;
       };
-      renderFunnel(); renderRescission(); renderSetup(content.querySelector('[data-setup]')); renderRouting(content.querySelector('[data-routing]'));
+      renderFunnel(); renderRescission(); renderSetup(content.querySelector('[data-setup]')); renderRouting(content.querySelector('[data-routing]')); renderContactRules(content.querySelector('[data-contact-rules]'));
       content.oninput = (e) => {
         const t = e.target;
         if (t.dataset.fl) steps[Number(t.dataset.fl)].label = t.value;
@@ -1426,6 +1427,7 @@
       };
       const peopleOf = (key) => key === 'pool' ? (r.user_ids ||= []) : key === 'fallback' ? (r.fallback_user_ids ||= []) : (r.rules[Number(key.split(':')[1])].user_ids ||= []);
       const editConditions = (anchor, target) => {
+        fieldScope = conditionFields;
         const start = arr(obj(target.conditions).rules).length ? clone(target.conditions) : { match:'all', rules:[defaultRule(conditionFields[0])] };
         openFilterEditor(anchor, -1, { filter: start, title: L('lead_matches', 'The lead matches'), onApply: (next) => { target.conditions = arr(next.rules).length ? next : {}; render(); } });
         fieldScope = conditionFields;
@@ -1474,6 +1476,112 @@
         if (d.rtSave !== undefined) {
           b.disabled = true;
           try { const saved = await api().saveRouting(orgId, settings); const next = clone(saved.routing); Object.assign(r, next.routing); Object.assign(sc, next.scoring); Object.assign(custom, next.custom); toast(L('saved', 'Saved')); render(); }
+          catch (error) { toast(error?.message || L('save_failed', 'Not saved.'), false); b.disabled = false; }
+        }
+      });
+    }
+
+    /**
+     * Contact automations (docs/architecture/crm.md, "Contact automations"): rules that start from a contact.
+     * Each is a trigger (created, updated, tagged, merged, or a date on the contact), conditions over the
+     * contact in the shared filter editor, and actions (text, email, a to-do, start a lead). Saving writes
+     * organization rules with ids starting contact_rule_; the engine runs them like any other rule.
+     */
+    async function renderContactRules(section){
+      if (!section) return;
+      let loaded, people = [];
+      try {
+        [loaded, people] = await Promise.all([
+          api().contactRules(orgId),
+          api().query(orgId, { collection:'opportunities', definition:{ filter:{ match:'all', rules:[] } }, limit:1 }).then((r) => arr(arr(r.fields).find((f) => f.type === 'user')?.options)).catch(() => [])
+        ]);
+      } catch (error) { section.innerHTML = `<p class="crm-dim">${esc(L('contact_rules_failed', 'Contact automations could not be loaded.'))} ${esc(error?.message || '')}</p>`; return; }
+      const settings = clone(loaded.contact_rules || { rules: [] });
+      const rules = settings.rules ||= [];
+      const fieldsList = arr(loaded.fields), dateFields = arr(loaded.date_fields), roles = arr(loaded.roles), tags = arr(loaded.tags);
+      const TRIGGERS = [['created', L('ct_created', 'A contact is created')], ['tagged', L('ct_tagged', 'A tag is added')], ['updated', L('ct_updated', 'A contact is changed')], ['merged', L('ct_merged', 'Two contacts are merged')], ['date', L('ct_date', 'A date on the contact')]];
+      const ACTIONS = [['text', L('ca_text', 'Text the contact')], ['email', L('ca_email', 'Email the contact')], ['todo', L('ca_todo', 'Create a to-do')], ['lead', L('ca_lead', 'Start a lead')]];
+      const CHANGED = [['', L('any_field', 'Any field')], ['emails', L('email', 'Email')], ['phones', L('phone', 'Phone')], ['addresses', L('address', 'Address')], ['tags', L('tags', 'Tags')], ['name', L('name', 'Name')], ['company', L('company', 'Company')], ['birthday', L('birthday', 'Birthday')], ...fieldsList.filter((f) => f.key.startsWith('contact.cf.')).map((f) => [f.key.slice('contact.'.length), f.label])];
+      const slug = (label, taken) => { let base = text(label).toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 40) || 'rule'; if (!/^[a-z0-9]/.test(base)) base = `r_${base}`; let id = base, n = 2; while (taken.includes(id)) id = `${base}_${n++}`; return id; };
+      const blankAction = (kind) => kind === 'text' ? { kind, text: L('ca_text_default', 'Hi {{contact.first_name}}, ') } : kind === 'email' ? { kind, subject: '', text: '' } : kind === 'todo' ? { kind, title: L('ca_todo_default', 'Call {{contact.name}}'), message: '', role_ids: [], user_ids: [], due_minutes: 0 } : { kind, summary: '', source_kind: '', role: '' };
+      const picker = (key, options, chosen, empty) => `<details class="crm-multi"><summary class="crm-btn small" style="width:100%;justify-content:space-between">${esc(arr(chosen).length ? arr(chosen).map((id) => options.find((o) => o.value === id)?.label || id).join(', ') : empty)}<i class="fas fa-caret-down"></i></summary><div class="crm-options">${options.map((o) => `<label class="crm-option"><input type="checkbox" data-cr-pick="${esc(key)}" value="${esc(o.value)}" ${arr(chosen).includes(o.value) ? 'checked' : ''}>${esc(o.label)}</label>`).join('') || `<p class="crm-dim">${esc(L('none_yet', 'None yet.'))}</p>`}</div></details>`;
+      const conditionsText = (c) => { const list = arr(obj(c).rules); if (!list.length) return esc(L('every_contact', 'Every contact')); fieldScope = fieldsList; return list.map((x) => Array.isArray(x.rules) ? esc(L('a_group', '(a group of conditions)')) : ruleSummary(x)).join(` <span class="crm-dim">${esc(obj(c).match === 'any' ? L('or', 'or') : L('and', 'and'))}</span> `); };
+      const triggerHtml = (rule, i) => {
+        const t = rule.trigger;
+        const extra = t.kind === 'tagged' ? `<input type="text" list="cr-tags" data-cr-tag="${i}" value="${esc(t.tag)}" placeholder="${esc(L('any_tag', 'Any tag'))}" aria-label="${esc(L('tag', 'Tag'))}">`
+          : t.kind === 'updated' ? `<select data-cr-field="${i}" aria-label="${esc(L('field', 'Field'))}">${CHANGED.map(([v, l]) => `<option value="${esc(v)}" ${t.field === v ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select>`
+          : t.kind === 'date' ? `<select data-cr-datefield="${i}" aria-label="${esc(L('date', 'Date'))}">${dateFields.map((f) => `<option value="${esc(f.key)}" ${t.date_field === f.key ? 'selected' : ''}>${esc(f.label)}</option>`).join('')}</select>` : '';
+        const when = t.kind === 'date' ? `<div class="crm-pop-row" style="flex-wrap:wrap"><input type="number" min="0" max="365" style="width:72px" data-cr-days="${i}" value="${esc(Math.abs(t.offset_days || 0))}" aria-label="${esc(L('days', 'Days'))}"><select data-cr-dir="${i}" aria-label="${esc(L('before_after', 'Before or after'))}"><option value="before" ${t.offset_days < 0 ? 'selected' : ''}>${esc(L('days_before', 'days before'))}</option><option value="after" ${t.offset_days >= 0 ? 'selected' : ''}>${esc(L('days_after', 'days after (0: on the day)'))}</option></select><span class="crm-dim">${esc(L('at', 'at'))}</span><input type="time" data-cr-time="${i}" value="${esc(t.time || '09:00')}" aria-label="${esc(L('time', 'Time'))}"><label class="crm-option"><input type="checkbox" data-cr-yearly="${i}" ${t.yearly !== false ? 'checked' : ''}>${esc(L('every_year', 'Every year'))}</label></div>` : '';
+        return `<div class="crm-frow" style="grid-template-columns:minmax(0,1fr) minmax(0,1fr)"><select data-cr-trigger="${i}" aria-label="${esc(L('when', 'When'))}">${TRIGGERS.map(([v, l]) => `<option value="${v}" ${t.kind === v ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select>${extra || '<span></span>'}</div>${when}`;
+      };
+      const actionHtml = (a, i, j) => {
+        const head = `<div class="crm-pop-row"><b style="flex:1">${esc(ACTIONS.find(([v]) => v === a.kind)?.[1] || a.kind)}</b><button type="button" class="crm-btn icon ghost" data-cr-aremove="${i}.${j}" aria-label="${esc(L('remove', 'Remove'))}"><i class="fas fa-xmark"></i></button></div>`;
+        const area = (key, value, ph) => `<textarea data-cr-a="${i}.${j}.${key}" rows="2" placeholder="${esc(ph)}" style="width:100%;border:1px solid var(--crm-line-strong);border-radius:8px;padding:6px 9px;font:inherit">${esc(value)}</textarea>`;
+        const input = (key, value, ph) => `<input type="text" data-cr-a="${i}.${j}.${key}" value="${esc(value)}" placeholder="${esc(ph)}" style="width:100%">`;
+        if (a.kind === 'text') return head + area('text', a.text, L('message', 'Message'));
+        if (a.kind === 'email') return head + input('subject', a.subject, L('subject', 'Subject')) + area('text', a.text, L('message', 'Message'));
+        if (a.kind === 'todo') return head + input('title', a.title, L('todo_title', 'What needs doing')) + `<div class="crm-frow" style="grid-template-columns:minmax(0,1fr) minmax(0,1fr) 110px">${picker(`roles:${i}.${j}`, roles.map((r) => ({ value: r.id, label: r.label })), a.role_ids, L('roles', 'Roles…'))}${picker(`users:${i}.${j}`, people, a.user_ids, L('people', 'People…'))}<input type="number" min="0" data-cr-a="${i}.${j}.due_minutes" value="${esc(a.due_minutes || '')}" placeholder="${esc(L('due_minutes', 'Due in min'))}" aria-label="${esc(L('due_minutes', 'Due in minutes'))}"></div>`;
+        return head + input('summary', a.summary, L('lead_for', 'What the lead is for, such as Yearly service'));
+      };
+      const render = () => {
+        fieldScope = fieldsList;
+        section.innerHTML = `<h3 style="margin:0 0 4px;font-size:15px">${esc(L('contact_rules', 'Contact automations'))}</h3>
+          <p class="crm-dim" style="margin:0 0 12px">${esc(L('contact_rules_intro', 'Do something when a contact is created, changed, tagged or merged, or on a date on the contact such as a birthday. Messages can use {{contact.first_name}}, {{contact.name}} and other contact fields.'))}</p>
+          <datalist id="cr-tags">${tags.map((t) => `<option value="${esc(t.value)}">`).join('')}</datalist>
+          ${rules.map((rule, i) => `<div class="crm-fgroup" data-cr-rule="${i}">
+            <div class="crm-pop-row"><input type="text" data-cr-title="${i}" value="${esc(rule.title)}" placeholder="${esc(L('rule_name', 'Rule name'))}" style="flex:1"><label class="crm-option"><input type="checkbox" data-cr-enabled="${i}" ${rule.enabled !== false ? 'checked' : ''}>${esc(L('on', 'On'))}</label><button type="button" class="crm-btn icon ghost" data-cr-remove="${i}" aria-label="${esc(L('remove', 'Remove'))}"><i class="fas fa-trash"></i></button></div>
+            ${triggerHtml(rule, i)}
+            <div class="crm-pop-row"><span class="crm-dim">${esc(L('only_if', 'Only if'))}</span><span style="flex:1;min-width:0">${conditionsText(rule.conditions)}</span><button type="button" class="crm-btn small" data-cr-cond="${i}"><i class="fas fa-filter"></i>${esc(L('conditions', 'Conditions'))}</button></div>
+            ${arr(rule.actions).map((a, j) => `<div style="border-top:1px solid var(--crm-line);padding:6px 4px;display:grid;gap:6px">${actionHtml(a, i, j)}</div>`).join('')}
+            <div class="crm-pop-row"><select data-cr-add-action="${i}" aria-label="${esc(L('add_action', 'Add an action'))}"><option value="">${esc(L('add_action', 'Add an action…'))}</option>${ACTIONS.map(([v, l]) => `<option value="${v}">${esc(l)}</option>`).join('')}</select></div>
+          </div>`).join('') || `<p class="crm-dim">${esc(L('no_contact_rules', 'No contact automations yet.'))}</p>`}
+          <div class="crm-toolbar" style="margin-top:12px"><button type="button" class="crm-btn" data-cr-add><i class="fas fa-plus"></i>${esc(L('add_contact_rule', 'Add a contact automation'))}</button><span style="flex:1"></span><button type="button" class="crm-btn primary" data-cr-save>${esc(L('save', 'Save'))}</button></div>`;
+      };
+      const at = (path) => { const [i, j, key] = String(path).split('.'); return { rule: rules[Number(i)], action: rules[Number(i)]?.actions?.[Number(j)], key }; };
+      render();
+      section.addEventListener('input', (e) => {
+        const t = e.target, d = t.dataset;
+        if (d.crTitle !== undefined) rules[Number(d.crTitle)].title = t.value;
+        if (d.crTag !== undefined) rules[Number(d.crTag)].trigger.tag = t.value.trim();
+        if (d.crDays !== undefined) { const tr = rules[Number(d.crDays)].trigger; const n = Math.max(0, Math.round(Number(t.value || 0))); tr.offset_days = tr.offset_days < 0 ? -n : n; }
+        if (d.crTime !== undefined) rules[Number(d.crTime)].trigger.time = t.value || '09:00';
+        if (d.crA !== undefined) { const { action, key } = at(d.crA); action[key] = key === 'due_minutes' ? Math.max(0, Math.round(Number(t.value || 0))) : t.value; }
+        e.stopPropagation();
+      });
+      section.addEventListener('change', (e) => {
+        const t = e.target, d = t.dataset;
+        if (d.crEnabled !== undefined) rules[Number(d.crEnabled)].enabled = t.checked;
+        if (d.crYearly !== undefined) rules[Number(d.crYearly)].trigger.yearly = t.checked;
+        if (d.crField !== undefined) rules[Number(d.crField)].trigger.field = t.value;
+        if (d.crDatefield !== undefined) rules[Number(d.crDatefield)].trigger.date_field = t.value;
+        if (d.crDir !== undefined) { const tr = rules[Number(d.crDir)].trigger; tr.offset_days = (t.value === 'before' ? -1 : 1) * Math.abs(tr.offset_days || 0); }
+        if (d.crTrigger !== undefined) { const tr = rules[Number(d.crTrigger)].trigger; tr.kind = t.value; if (t.value === 'date' && !tr.date_field) tr.date_field = dateFields[0]?.key || 'birthday'; render(); }
+        if (d.crAddAction !== undefined && t.value) { rules[Number(d.crAddAction)].actions.push(blankAction(t.value)); render(); }
+        if (d.crPick !== undefined) {
+          const [kind, path] = d.crPick.split(':'); const { action } = at(`${path}.x`);
+          const list = action[kind === 'roles' ? 'role_ids' : 'user_ids'] ||= [];
+          const k = list.indexOf(t.value); if (t.checked && k < 0) list.push(t.value); if (!t.checked && k >= 0) list.splice(k, 1);
+        }
+        e.stopPropagation();
+      });
+      section.addEventListener('click', async (e) => {
+        const b = e.target.closest('button'); if (!b) return;
+        const d = b.dataset;
+        if (d.crAdd !== undefined) { e.stopPropagation(); rules.push({ id: slug('contact_rule', rules.map((r) => r.id)), title: L('new_contact_rule', 'New contact automation'), enabled: true, trigger: { kind: 'tagged', tag: '', field: '', date_field: '', offset_days: 0, yearly: true, time: '09:00' }, conditions: {}, actions: [blankAction('todo')] }); render(); }
+        if (d.crRemove !== undefined) { e.stopPropagation(); rules.splice(Number(d.crRemove), 1); render(); }
+        if (d.crAremove !== undefined) { e.stopPropagation(); const [i, j] = d.crAremove.split('.').map(Number); rules[i].actions.splice(j, 1); render(); }
+        if (d.crCond !== undefined) {
+          e.stopPropagation();
+          const rule = rules[Number(d.crCond)];
+          fieldScope = fieldsList;
+          const start = arr(obj(rule.conditions).rules).length ? clone(rule.conditions) : { match:'all', rules:[defaultRule(fieldsList[0])] };
+          openFilterEditor(b, -1, { filter: start, title: L('contact_matches', 'The contact matches'), onApply: (next) => { rule.conditions = arr(next.rules).length ? next : {}; render(); } });
+          fieldScope = fieldsList;
+        }
+        if (d.crSave !== undefined) {
+          e.stopPropagation();
+          b.disabled = true;
+          try { const saved = await api().saveContactRules(orgId, settings); rules.splice(0, rules.length, ...clone(saved.contact_rules.rules)); toast(L('saved', 'Saved')); render(); }
           catch (error) { toast(error?.message || L('save_failed', 'Not saved.'), false); b.disabled = false; }
         }
       });

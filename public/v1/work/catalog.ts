@@ -32,7 +32,8 @@ const COMMON_FIELDS = [
   { field: "payload.<field>", description: "A field carried by the event (the payload. prefix may be omitted)." },
   { field: "node.status", description: "Status of the work item the automation is attached to." },
   { field: "plan.status", description: "Status of the scope instance." },
-  { field: "context.actor_user_id", description: "The user who caused the event, when there is one." }
+  { field: "context.actor_user_id", description: "The user who caused the event, when there is one." },
+  { field: "contact.<field>", description: "The contact the event is about (a contact event's, or the project's primary contact): name, first_name, email, phone, address, tags, company, birthday, branch_ids, cf.<custom field>." }
 ];
 const words = (value: string) => value.replace(/\.v\d+$/, "").replace(/([a-z])([A-Z])/g, "$1 $2").replace(/[._-]+/g, " ").replace(/^./, (letter) => letter.toUpperCase());
 
@@ -70,12 +71,20 @@ export function automationCatalog(options: { includeInternal?: boolean } = {}) {
       ] }
     },
     organization_rule: {
-      description: "Runs for every project. One trigger (event, or schedule.cron), optional conditions, and one or more actions run in order.",
+      description: "Runs for every project, or for every contact on a contact event (contact.created, contact.updated, contact.tagged, contact.merged). One trigger (event, schedule.cron, or schedule.contact_date for a date on each contact), optional conditions, and one or more actions run in order. {{contact.*}} reads the contact; contacts.startLead.v1 starts a lead for it.",
+      contact_examples: [
+        { id: "vip_welcome", title: "Welcome new VIP contacts", event: "contact.tagged", conditions: { "payload.tag": "vip" }, actions: [
+          { id: "text", automation: "communications.sendSms.v1", input: { to: "{{contact.phone}}", text: "Hi {{contact.first_name}}, welcome!" } }
+        ] },
+        { id: "yearly_service", title: "Yearly service reminder", schedule: { cron: "0 9 * * *", contact_date: { field: "cf.last_service_date", offset_days: -14, yearly: true } }, actions: [
+          { id: "lead", automation: "contacts.startLead.v1", input: { summary: "Yearly service" } }
+        ] }
+      ],
       example: { id: "deposit_thanks", title: "Thank the customer for a deposit", event: "payment.received", conditions: { "payload.payment_kind": "deposit" }, actions: [
         { id: "text", automation: "communications.sendSms.v1", input: { to: "{{project.contacts.0.phone}}", text: "We received your deposit. Thank you!" } },
         { id: "todo", automation: "work.createTodo.v1", input: { title: "Order materials", assigned_role_ids: ["production"] } }
       ] }
     },
-    data_namespaces: [...listWorkContextProviders(), "event", "payload", "plan", "node", "project", "scope", "proposal", "payment"]
+    data_namespaces: [...listWorkContextProviders(), "event", "payload", "plan", "node", "project", "contact", "scope", "proposal", "payment"]
   };
 }

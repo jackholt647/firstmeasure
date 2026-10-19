@@ -1587,6 +1587,20 @@
     }
   });
 
+  // A to-do from a contact automation names a contact, not a project.
+  registerKind('open_contact', {
+    label: (globalThis.PlatformLanguage?.text("platform-action-items","open_contact","Open contact") ?? "Open contact"),
+    open(item){
+      const action=item?.frontend_action||{};
+      const id=String(action.contact_id||item?.metadata?.contact_id||'').trim();
+      if(!id) return null;
+      const orgId=String(window.__APP?.userOrgId||window.__APP?.orgId||'').trim();
+      const open=(contact)=>window.Portal?.modules?.contacts?.open?.(contact);
+      if(!orgId||!window.PlatformAPI?.contacts?.get) return open({ id, name: String(action.name||'').trim() });
+      return window.PlatformAPI.contacts.get(orgId,id).then((result)=>open(result?.contact||{ id })).catch(()=>open({ id, name: String(action.name||'').trim() }));
+    }
+  });
+
   registerKind('send_project_proposal', {
     label: (globalThis.PlatformLanguage?.text("platform-action-items","m_ab162bd2087399","Send proposal") ?? "Send proposal"),
     orderKey: '10_proposal',
