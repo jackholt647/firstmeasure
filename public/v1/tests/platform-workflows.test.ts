@@ -91,6 +91,15 @@ function createSessionClient() {
   };
 }
 
+/** A signed-in FirstMate internal admin: the referral and campaign routes refuse anyone else. */
+async function internalStaffClient() {
+  const staff = createSessionClient();
+  const { email } = await register(staff, false);
+  const { saveInternalUser } = await import("../internal/storage.js");
+  await saveInternalUser({ email, name: "Campaign Admin", role: "admin", status: "active" });
+  return staff;
+}
+
 function readAttributionMetadata(attributionId: string) {
   const dbPath = path.join(storageRoot, "crm", "databases", "referrals.sqlite");
   const db = new DatabaseSync(dbPath, { readOnly: true });
@@ -710,11 +719,12 @@ test("Project work cannot assign itself as its crew resource", async () => {
 
 test("Acquisition campaign attribution follows landing traffic through signup and spend", async () => {
   const client = createSessionClient();
-  const landingPages = await client.request("GET", "/v1/internal/crm/referrals/acquisition/landing-pages");
+  const staff = await internalStaffClient();
+  const landingPages = await staff.request("GET", "/v1/internal/crm/referrals/acquisition/landing-pages");
   assert.equal(landingPages.success, true);
   assert.ok(landingPages.landing_pages.some((page: any) => page.url_path === "/portal/landing/variants/measurements/"));
 
-  const campaign = await client.request("POST", "/v1/internal/crm/referrals/acquisition/campaigns", {
+  const campaign = await staff.request("POST", "/v1/internal/crm/referrals/acquisition/campaigns", {
     display_name: "Facebook Roof Measurements - June",
     code: "fb-roof-measurements-june",
     campaign_type: "facebook",
@@ -728,7 +738,7 @@ test("Acquisition campaign attribution follows landing traffic through signup an
   assert.equal(campaign.campaign.type, "acquisition_campaign");
   assert.equal(campaign.campaign.primary_code.code, "fb-roof-measurements-june");
 
-  const campaigns = await client.request("GET", "/v1/internal/crm/referrals/acquisition/campaigns");
+  const campaigns = await staff.request("GET", "/v1/internal/crm/referrals/acquisition/campaigns");
   assert.ok(campaigns.campaigns.some((entry: any) => entry.id === campaign.campaign.id));
 
   const tracked = await client.request("POST", "/v1/platform/acquisition/public/track", {
@@ -839,7 +849,7 @@ test("Acquisition campaign attribution follows landing traffic through signup an
   assert.ok(credits.ledger.some((entry: any) => entry.reason === "order_submitted" && entry.delta === -19));
 
   const today = new Date().toISOString().slice(0, 10);
-  const report = await client.request("GET", `/v1/internal/crm/referrals/acquisition/report?campaign_id=${encodeURIComponent(campaign.campaign.id)}&start_date=${today}&end_date=${today}`);
+  const report = await staff.request("GET", `/v1/internal/crm/referrals/acquisition/report?campaign_id=${encodeURIComponent(campaign.campaign.id)}&start_date=${today}&end_date=${today}`);
   assert.equal(report.success, true);
   assert.equal(report.selected_campaign_id, campaign.campaign.id);
   assert.equal(report.summary.campaigns, 1);
@@ -867,7 +877,7 @@ test("Acquisition campaign attribution follows landing traffic through signup an
     spend: 19
   }]);
 
-  const updatedCampaign = await client.request("POST", "/v1/internal/crm/referrals/acquisition/campaigns", {
+  const updatedCampaign = await staff.request("POST", "/v1/internal/crm/referrals/acquisition/campaigns", {
     id: campaign.campaign.id,
     display_name: "Facebook Roof Measurements - June Updated",
     code: "fb-roof-measurements-june-updated",
@@ -883,7 +893,7 @@ test("Acquisition campaign attribution follows landing traffic through signup an
   assert.equal(updatedCampaign.campaign.primary_code.code, "fb-roof-measurements-june-updated");
   assert.equal(updatedCampaign.campaign.landing_page, "/portal/landing/variants/customer-referral/");
 
-  const autoCodeCampaign = await client.request("POST", "/v1/internal/crm/referrals/acquisition/campaigns", {
+  const autoCodeCampaign = await staff.request("POST", "/v1/internal/crm/referrals/acquisition/campaigns", {
     display_name: "Google Measurement Search",
     code: "",
     campaign_type: "google",
@@ -995,6 +1005,7 @@ test("Portal onboarding defers signup OTP to final step and records workflow eve
 
 test("Internal campaign tools clone landing page variants", async () => {
   const client = createSessionClient();
+  const staff = await internalStaffClient();
   const previousRoot = process.env.PORTAL_LANDING_ROOT;
   const landingRoot = path.join(storageRoot, "landing-clone-root");
   await mkdir(path.join(landingRoot, "variants", "measurements"), { recursive: true });
@@ -1002,7 +1013,7 @@ test("Internal campaign tools clone landing page variants", async () => {
   await writeFile(path.join(landingRoot, "variants", "measurements", "index.php"), "<?php echo 'measurements';\n", "utf8");
   process.env.PORTAL_LANDING_ROOT = landingRoot;
   try {
-    const cloned = await client.request("POST", "/v1/internal/crm/referrals/acquisition/landing-pages/clone", {
+    const cloned = await staff.request("POST", "/v1/internal/crm/referrals/acquisition/landing-pages/clone", {
       slug: "Facebook Summer",
       source_url_path: "/portal/landing/variants/measurements/"
     });

@@ -183,68 +183,13 @@
     return `<span class="ob-tier-custom-bonus">${esc(bonusText)}</span><span class="ob-tier-custom-total">${esc(totalText)}</span>`;
   }
 
-  function acquisitionCampaignApiBase(){
-    const endpoints = window.Portal?.cfg?.endpoints || {};
-    const configured = endpoints.crm_referrals
-      || (endpoints.crm ? String(endpoints.crm).replace(/\/+$/, '') + '/referrals' : '/v1/internal/crm/referrals');
-    return String(configured || '/v1/internal/crm/referrals').replace(/\/+$/, '') + '/acquisition';
-  }
-
-  async function loadInternalCampaignBonusOffer(testPayload){
-    if (testPayload?.bonus_test !== '1' || !testPayload?.cid || !testPayload?.xid) return null;
-    try {
-      const res = await fetch(acquisitionCampaignApiBase() + '/campaigns', {
-        credentials: 'same-origin',
-        headers: { 'Accept': 'application/json' },
-      });
-      const data = await res.json().catch(() => ({}));
-      const campaigns = Array.isArray(data?.campaigns) ? data.campaigns : [];
-      const campaignCode = String(testPayload.cid || '').trim();
-      const campaignCodeUpper = campaignCode.toUpperCase();
-      const campaign = campaigns.find(item => {
-        const values = [
-          item?.id,
-          item?.display_name,
-          item?.primary_code?.code,
-          item?.code,
-          item?.campaign_code,
-        ].map(value => String(value || '').trim());
-        return values.some(value => value === campaignCode || value.toUpperCase() === campaignCodeUpper);
-      });
-      const sets = campaign?.metadata?.bonus_offer_sets || {};
-      const token = String(testPayload.xid || '').trim();
-      const offerSet = Object.values(sets).find(set => {
-        return String(set?.token || '').trim() === token
-          && String(set?.status || 'active').toLowerCase() === 'active'
-          && Array.isArray(set?.tiers)
-          && set.tiers.length > 0;
-      });
-      if (!offerSet) return null;
-      return {
-        offer_id: 'acquisition_bonus_offer_v1',
-        token,
-        offer_token: token,
-        acquisition_bonus_token: token,
-        source: 'internal_campaign_bonus_offer_sets',
-        campaign_id: campaign?.id || '',
-        campaign_code: campaign?.primary_code?.code || campaignCode,
-        label: offerSet.label || offerSet.id || 'Campaign offer',
-        tiers: offerSet.tiers,
-      };
-    } catch(e){
-      try { console.warn('[OnboardingBonusOffer] internal campaign fallback failed', e); } catch(_e){}
-    }
-    return null;
-  }
-
   async function loadAcquisitionBonusOffer(){
     const testPayload = acquisitionBonusTestPayload();
     try {
       const { data } = await postAction('portal_acquisition_bonus_offer_status', testPayload);
+      // The server resolves a test campaign's offer itself; the internal
+      // campaign list is staff-only and never read during signup.
       acquisitionBonusOffer = data?.offer_enabled && data?.offer ? data.offer : null;
-      if (!acquisitionBonusOffer) {
-        acquisitionBonusOffer = await loadInternalCampaignBonusOffer(testPayload);
-      }
       try {
         console.log('[OnboardingBonusOffer]', {
           enabled: !!data?.offer_enabled,
@@ -265,7 +210,7 @@
         });
       } catch(e){}
     } catch(e){
-      acquisitionBonusOffer = await loadInternalCampaignBonusOffer(testPayload);
+      acquisitionBonusOffer = null;
       try { console.warn('[OnboardingBonusOffer] failed', e); } catch(_e){}
     }
   }
