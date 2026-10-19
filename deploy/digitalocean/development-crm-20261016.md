@@ -140,3 +140,20 @@ default under `apps.crm`). A company sets it up for its industry under CRM > CRM
   platform worker restarted; staff routes answer 401 without a session; the libraries, editor
   and portal New menu code are served; the read-only `smoke-staff-forms.mjs` passed on web and
   pool; public checks (22) passed.
+
+## Referral route checks and contact automations (2026-10-19)
+
+- **`5348cc32`** merges `8f4c4c33` (audit SEC-1): every route under `/v1/internal/crm` needs a
+  FirstMate staff session that may manage sales, and writes need its CSRF token; the partner logo
+  stays public. Its internal staff pages under `public/measure/internal/portal_scripts` were
+  added to this release by name, since the rollout otherwise ships only `public/v1`,
+  `public/libraries`, `public/portal` and `public/dev-previews`. `tests/platform-workflows.test.ts`
+  has 12 failures that canonical has without this merge too (checked in a clean checkout).
+- **`61d391ce`**: contact automations ([crm](../../docs/architecture/crm.md#contact-automations),
+  [contacts](../../docs/architecture/contacts.md#contact-events)). The release carried this
+  branch's changes since `02ee084b`, so canonical commits other sessions have not deployed stayed
+  off dev; the hosts were at `0655b0a9` (another rollout activated during the first audit, and
+  the retry merged onto it). The access-gates snapshot was kept live. Staged, activated and
+  verified on all four; platform worker restarted; public checks (26) pass, including the
+  referral routes answering 401 without a session; read-only smokes passed
+  (`smoke-contact-rules.mjs`, `smoke-routing.mjs`, `smoke-staff-forms.mjs`).
