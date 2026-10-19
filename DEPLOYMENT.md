@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+October 19 Pay sheets, payables and People gaps: [the pay sheet editor, payroll bills through payables with reimbursements settled once, export templates, archive and restore, branch membership and words, and outside company onboarding](deploy/digitalocean/development-people-payroll-gaps-20261019.md) records release `c255dda3` (payroll schema version 6), the host merges, the per-host generated files and the verified four-role development rollout.
+
 October 19 Route lock-down: [platform routes stay inside the caller's organizations, the raw global document and the credits ledger need billing management, and the balance needs report ordering or billing](deploy/digitalocean/development-route-gates-20261019.md) records release `65634240`, the host merges and the verified four-role development rollout with owner and orderer checks.
 
 October 19 E-sign seal: [executed agreements are sealed, independently timestamped and recorded in an append-only signing ledger, with a public verify page](deploy/digitalocean/development-esign-seal-20261019.md) records release `36b12df9`, its checks and the verified four-role development rollout.
