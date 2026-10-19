@@ -18,7 +18,6 @@ import { registerCustomFieldPublication } from "../../custom_fields/publication.
 import { registerPriorityFieldsPublication } from '../../priority_fields/publication.js';
 
 import { registerContactPublication } from "../../contacts/publication.js";
-import { registerCrmPublication } from "../../crm/publication.js";
 import { registerCollaborationPublication } from "../../collaboration/publication.js";
 import { registerFormsPublication } from "../../forms/publication.js";
 import { registerLeadPublication } from "../../leads/publication.js";
@@ -26,6 +25,7 @@ import { registerAssigneePublication } from "../../assignees/publication.js";
 import { registerSchedulePublication } from "../../scheduling/publication.js";
 import { registerCloseoutPublication } from "../../closeout/publication.js";
 import { registerProjectHistoryPublication } from "../../history/publication.js";
+import { registerCrmPublication } from "../../crm/publication.js";
 
 let initialized = false;
 /** All execution hosts use this same catalog. No browser can register server handlers. */
@@ -40,7 +40,6 @@ export function initializePublication() {
   registerCustomFieldPublication();
   registerPriorityFieldsPublication();
   registerContactPublication();
-  registerCrmPublication();
   registerCollaborationPublication();
   registerFormsPublication();
   registerLeadPublication();
@@ -57,5 +56,6 @@ export function initializePublication() {
   registerMaterialsInputs();
   registerCloseoutPublication();
   registerProjectHistoryPublication();
+  registerCrmPublication();
   initialized = true;
 }
