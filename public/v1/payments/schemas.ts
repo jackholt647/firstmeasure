@@ -202,7 +202,8 @@ export const hostedSignupSchema = jsonObjectSchema.extend({
 }).passthrough();
 
 export const merchantMockAdvanceSchema = jsonObjectSchema.extend({
-  op: z.enum(["underwriting", "hosted_submit", "settle", "dispute", "charge", "orphan_payment"]).optional(),
+  op: z.enum(["underwriting", "hosted_submit", "settle", "dispute", "charge", "orphan_payment", "bank_clear", "bank_fail"]).optional(),
+  provider_payment_id: z.string().trim().max(200).optional(),
   application_id: z.string().trim().max(200).optional(),
   to: z.enum(["APPROVED", "NEED_INFORMATION", "DECLINED"]).optional(),
   documents_requested: z.array(jsonObjectSchema).max(20).optional(),
@@ -220,7 +221,9 @@ export const autopayEnrollSchema = jsonObjectSchema.extend({
   saved_method_id: z.string().trim().max(200).optional(),
   contact_ref: jsonObjectSchema.optional(),
   max_amount_cents: z.number().int().min(0).nullable().optional(),
-  status: z.enum(["active", "paused"]).optional()
+  status: z.enum(["active", "paused"]).optional(),
+  customer_authorized: z.boolean().optional(),
+  authorization_note: z.string().trim().max(500).optional()
 }).passthrough();
 
 export const autopayRunSchema = jsonObjectSchema.extend({

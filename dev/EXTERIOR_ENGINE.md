@@ -653,3 +653,46 @@ and r8 now refuse with a message). Tests that encoded the overlapping inner
 loop (two in `curved-surfaces.test.cjs`, one in `wall-solid-geometry.test.cjs`,
 whose fixture is now a wall draft as in production) and the old Reground wipe
 (`base-editor.test.cjs`) were updated.
+
+### Copying and pasting curves, 2026-10-19
+
+A face ring stores an analytic curve as tessellation vertices. Those vertices
+are evaluation results, not points: `ExteriorGeometry.curveSamplePoint(face)`
+identifies them (a ring vertex on a curve of the face, between two neighbors on
+the same curve, that is not a curve end, spline control or authored point).
+`copyGeometry` flags them `curveSample`, so paste and move snapping,
+`planeAlignment`, `planeAlignmentGuides`, `stickerAlignmentTargets`, the move
+markers and the post-placement selection use only defining points. Faces and
+edges still carry the full ring. A paste gives each pasted curve a new id
+(`paste-<op>-curve-k`), since draft import and the surface wire de-duplicate
+curves by id; and sticker placement moves face curves with their points. Before
+this, a pasted arched door kept the source curve id and an unmoved curve, so its
+samples became explicit draft points and the region split into slivers.
+Regression tests: the "arched" and "curved wall pastes" tests in
+`wall-face-draft.test.cjs`.
+
+### Plane-mode stickers and arcs, 2026-10-19
+
+- Deleting an edge that opens a door/window leaves its lines (and arch) as wire
+  on the plane; it is no longer a face or sticker. A plain face invalidated by
+  the same delete is rebuilt from the remaining edges of the faces on its plane
+  (`removeFaceEdges`), so the wall closes across the opened door instead of
+  disappearing.
+- A plane-mode paste whose wire (pasted lines or curves, not pasted faces)
+  closes an outline makes that region a face, through the same
+  `closePlaneRegions` step that drawing uses. Construction-draft curves attached
+  to such faces are qualified by their draft key; surface curves, including a
+  deleted door's preserved arch, attach too, and that arch can be copied.
+- Arching a line with A no longer rewrites boundary edges of a consumed draft as
+  "free" sketch segments, which used to resurrect a straight-topped region under
+  the surfaces.
+- Deleting a curve's end or control removes the whole curve from the surface
+  wire, with the samples left on it; samples are never promoted to points.
+- Polygon booleans quantize to the 1e-6 grid in a face's own frame. On a plane
+  that is not axis-aligned, mapping back to world moves untouched vertices by
+  about a micrometre, so a rebuilt face's arc samples stopped matching the
+  arc's other vertices and surfaced as points. `W.exactPoints` restores the
+  exact source vertex (within 3 micrometres) for faces rebuilt by a closing
+  plane paste or drawing, plane subtraction, and edge-delete merge or repair;
+  `surfaceWire` snaps an edge's split points at deleted-edge intervals to the
+  edge or cut ends. Tests cover walls at 0-63 degrees.

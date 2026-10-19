@@ -51,7 +51,7 @@ export const PROJECT_DOCUMENT_COLLECTIONS_MOVED = [
   "documents", "document_events", "proposals", "proposal_events", "calendar_events", "appointment_bookings", "action_items", "activity",
   "feedback_requests", "customer_portals", "public_links", "recurrence_series", "recurrence_occurrences", "material_lists", "material_orders",
   "material_deliveries", "material_events", "payment_schedules", "payment_obligations", "payment_transactions", "payment_allocations",
-  "payment_intents", "payment_invoices", "payment_receipts", "payment_events", "payment_ledger_events", "payment_autopay", "payment_saved_methods"
+  "payment_intents", "payment_invoices", "payment_receipts", "payment_events", "payment_ledger_events", "payment_autopay", "payment_saved_methods", "payment_checkouts"
 ];
 
 const KEYS = { contact: ["contact_id", "primary_contact_id", "consent_contact"], project: ["project_id"] } as const;

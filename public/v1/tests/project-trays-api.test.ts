@@ -141,7 +141,7 @@ async function createOrgUser(
 }
 
 
-test("project note designation, atomic pinning, sharing, edits and flag reversal reuse Channels", async () => {
+test("project notes remain isolated from channel messages, pins and sharing across legacy flag changes", async () => {
   const {client,orgId,userId} = await registerOwner();
   const {saveCapabilityValues} = await import('../platform/capabilities.js');
   const project = (await client.request('POST',`/v1/platform/organizations/${orgId}/projects`,{data:{title:'Tray project'}})).document;
@@ -152,7 +152,7 @@ test("project note designation, atomic pinning, sharing, edits and flag reversal
   const note = (await client.request('POST',messages,{text:'Scope needs review',project_note:true,pin:true,client_msg_id:'note-1'})).message;
   assert.equal(note.metadata.project_note,true);
   assert.ok(note.pinned_at);
-  assert.equal((await client.request('GET',messages)).messages.length,2);
+  assert.equal((await client.request('GET',messages)).messages.length,1);
   await saveCapabilityValues(orgId,{'channels.separate_project_notes':true});
   const split = await client.request('GET',messages+'?limit=1');
   assert.equal(split.channel.separate_notes,true);
@@ -168,30 +168,26 @@ test("project note designation, atomic pinning, sharing, edits and flag reversal
   const principal=await backgroundAuthContext(orgId,userId);
   const ctx=userPublicationContext(principal,{mode:"command",executionKind:"module",projectId:project.id});
   const action={action:"channels.note.share",target:{scope:"organization" as const,organizationId:orgId,id:hidden.id}};
-  const published=await invokeAction(ctx,action,{}, {idempotencyKey:"share-one"});
-  const shared=published.value as any;
-  const replay=await invokeAction(ctx,action,{}, {idempotencyKey:"share-one"});
-  assert.equal(replay.receipt.replayed,true);
+  await assert.rejects(invokeAction(ctx,action,{}, {idempotencyKey:"share-one"}),{code:"project_notes_separate"});
   const wrong=userPublicationContext(principal,{mode:"command",executionKind:"module",projectId:"another-project"});
   await assert.rejects(invokeAction(wrong,action,{}, {idempotencyKey:"share-one"}),{code:"publication_project_denied"});
-  assert.equal(shared.note.metadata.note_shared.message_id,shared.message.id);
-  assert.match(shared.message.text,/shared a note/);
-  assert.equal(shared.message.metadata.forwarded.text,'New private note');
-  const again = await client.request('POST',`${base}/messages/${hidden.id}/share-note`,{});
-  assert.equal(again.already_shared,true);assert.equal(again.message.id,shared.message.id);
-  assert.equal((await client.request('GET',messages)).messages.length,2);
+  assert.equal((await client.raw('POST',`${base}/messages/${hidden.id}/share-note`,{})).statusCode,400);
+  assert.equal((await client.request('GET',messages)).messages.length,1);
   await client.request('PATCH',`${base}/messages/${hidden.id}`,{text:'Edited project note'});
   assert.equal((await client.request('GET',`${base}/messages/${hidden.id}/revisions`)).revisions.length,1);
   await client.request('DELETE',`${base}/messages/${hidden.id}`);
   await client.request('POST',`${base}/messages/${hidden.id}/restore`,{});
   const activity = await client.request('GET',`/v1/work/organizations/${orgId}/projects/${project.id}/activity`);
   assert.ok(activity.events.some((event:any)=>event.type==='project.note.created'));
-  assert.ok(activity.events.some((event:any)=>event.type==='project.note.shared'));
+  assert.ok(!activity.events.some((event:any)=>event.type==='project.note.shared'));
   assert.ok(activity.events.some((event:any)=>event.type==='project.note.edited'));
   assert.ok(activity.events.every((event:any)=>!event.type.startsWith('channels.message.')));
   await saveCapabilityValues(orgId,{'channels.separate_project_notes':false});
-  assert.equal((await client.request('GET',messages)).messages.length,4);
-  assert.equal((await client.request('GET',messages)).channel.separate_notes,false);
+  assert.deepEqual((await client.request('GET',messages)).messages.map((row:any)=>row.id),[plain.id]);
+  assert.deepEqual((await client.request('GET',messages+'?view=all')).messages.map((row:any)=>row.id),[plain.id]);
+  assert.equal((await client.request('GET',`${base}/channels/${channel.id}/pins?view=all`)).messages.length,0);
+  assert.equal((await client.request('GET',messages+'?view=notes')).messages.length,2);
+  assert.equal((await client.request('GET',messages)).channel.separate_notes,true);
   const publicChannel=(await client.request('POST',`${base}/channels`,{type:'public',name:'Other channel'})).channel;
   assert.equal((await client.raw('POST',`${base}/channels/${publicChannel.id}/messages`,{text:'Not a project',project_note:true})).statusCode,400);
   const crew=await createOrgUser(client,orgId,'restricted','Crew Reader',{field:true});

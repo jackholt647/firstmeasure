@@ -6,7 +6,7 @@ UI-only integration points in editor.php: load project_resources.js and expose r
 - Resources is a tab in the map pane, and follows that pane when swapped. Expand it for more drawing space.
 - Open a saved project, then add/drop reference files (no application-level total file-size cap). Images support pan, wheel zoom, fit, pen, ellipse, rectangle, line, arrow, text, selection/move, color/width changes, deletion, undo/redo, and technician notes.
 - Save markup writes an immutable revision beside the media. Switching references or projects saves pending changes first. Refresh fetches other technicians' additions. Original media remains unchanged.
-- Videos/audio use browser playback. Mark this frame creates a separate PNG reference, so multiple annotated video frames remain independent. Other file types can be downloaded with Original; PDFs and office documents are not rendered into the drawing canvas.
+- Videos/audio use browser playback and open muted. Mark this frame creates a separate PNG reference (extracted on the server, see below), so multiple annotated video frames remain independent. Other file types can be downloaded with Original; PDFs and office documents are not rendered into the drawing canvas.
 - The PHP bridge checks the existing internal editor session and forwards only prefixed resource files through the existing QA artifact store, using the server's internal API secret. It never exposes that secret to JavaScript. Resources and markup are not added to customer reports or model data.
 - Deploy the API guards together with the PHP/UI files. The guards restrict direct artifact reads/writes, exclude internal files from anonymous artifact lists, and reject public thumbnail derivatives. Restart the isolated API to load changed TypeScript; it is not a watcher. The existing runtime was left running during this work to avoid interrupting the concurrent engine task.
 
@@ -46,8 +46,8 @@ Media-focused viewer redesign:
 - One 36 px toolbar; the file list closes after selection. Files, Markup and Notes toggle side trays. Narrow panes use overlay trays, and choosing a drawing tool closes the tray to expose the media. Notes/text inputs are absent until requested.
 - Images and live videos share a viewport transform. Fit uses the full available height for portrait media and width for landscape media, preserving aspect ratio. Fill deliberately crops to cover the viewer. Resizing and opening trays refit automatically unless the user has manually zoomed/panned.
 - Wheel zoom stays anchored beneath the cursor. Left-drag pans videos and Pan-mode images; middle/right-drag pans while drawing. Double-click or Fit resets the view. Zoom buttons and Fill also work on videos.
-- Video playback controls occupy a fixed 34 px strip: play/pause, timeline, time, mute and playback speed. They remain reachable when the video is zoomed or panned. Space plays/pauses with viewer focus; arrow keys seek five seconds.
-- Opening Markup pauses the video. Choosing a drawing tool captures an independent frame reference, preserves the zoomed view and exposes a Return to video action that saves pending markup and returns to the captured timestamp. The frame is saved through the existing checksum-verified artifact path.
+- Video playback controls occupy a fixed 34 px strip: play/pause, timeline, time, mute and playback speed. They remain reachable when the video is zoomed or panned. Keyboard shortcuts are listed under "Library, keyboard and frame saving" below.
+- Opening Markup pauses the video. Choosing a drawing tool shows a local still of the frame at once, preserves the zoomed view and exposes a Return to video action that saves pending markup and returns to the captured timestamp. The stored frame is extracted on the server under a name chosen up front, and the markup is saved against that name.
 - `node dev/resources-viewer-check.cjs` checks portrait/landscape layouts, cursor-anchored wheel zoom, pan, persistent transport controls, seeking, Fill, optional trays, frame markup and return to the source timestamp. Existing resource persistence/browser tests also cover the revised drawers.
 
 ### Live video scrubbing
@@ -55,8 +55,58 @@ Media-focused viewer redesign:
 Dragging the timeline pauses playback and previews decoded frames before release. Seek requests are coalesced to the latest pointer position, allowing an outstanding seek to decode and paint before starting another. The timeline follows the requested position while decoding catches up; releasing lands at the exact selected time and resumes only if the video was playing beforehand. Media changes discard pending scrubs. The viewer browser check verifies changing decoded pixels while the mouse remains held, final seek accuracy, and pause/resume behavior. Read-only verification against the 194 MB house walkthrough also confirmed intermediate decoded frames during dragging.
 ### Shared favorite video frames
 
-With a video active, click the Note button in the playback controls or press N while focused within Resources (including during a timeline drag), type a label, then Enter to save. Ordinary typing does not start a favorite, and N remains normal input inside text fields. Starting a note freezes the requested timestamp and waits for decoding before capturing a full-resolution PNG. Playback resumes after saving only if it was playing before typing or scrubbing. Escape cancels and restores playback. Existing text fields and other editor panes retain their keyboard behavior.
+With a video active, click the Note button in the playback controls or press N while focused within Resources (including during a timeline drag), type a label, then Enter to save. Ordinary typing does not start a favorite, and N remains normal input inside text fields. Starting a note freezes the frame on screen; saving sends that frame's time to the server, which extracts the full-resolution PNG in the background. Playback resumes right away if it was playing before typing or scrubbing. Escape cancels and restores playback. Existing text fields and other editor panes retain their keyboard behavior.
 
-The Frames tray lists thumbnails and labels by timestamp. Open a thumbnail to mark it up; Jump to video returns to its source timestamp. Each favorite is an independent internal-markup-favorite UUID JSON record linking label, exact timestamp, source video and PNG artifact, published after the PNG upload is verified. This uses the existing internal QA artifact store. Concurrent additions have separate IDs; failed saves retain the label for retry. Markup records also retain source-video provenance. Refresh project files loads favorites added by other technicians. Reloading the project retrieves favorites from storage, without browser-local persistence.
+The Frames tray lists thumbnails and labels by timestamp. Open a thumbnail to mark it up; Jump to video returns to its source timestamp. Each favorite is an independent internal-markup-favorite UUID JSON record linking label, exact timestamp, source video and PNG artifact, published after the PNG upload is verified. This uses the existing internal QA artifact store. Concurrent additions have separate IDs; a failed extraction keeps its job, shown as "not saved · Retry" in the toolbar. Markup records also retain source-video provenance. Refresh project files loads favorites added by other technicians. Reloading the project retrieves favorites from storage, without browser-local persistence.
 
-Run node dev/resources-favorites-check.cjs to verify keyboard creation, paused and playing behavior, creation during an active scrub, persisted timestamps and images in a fresh browser session, and source-video return.
+`dev/resource-frame-links.test.cjs` covers favorites, saved-frame links and titles.
+
+### Library, keyboard and frame saving (2026-10-19)
+
+Library. Categories are QA, Tech and Customer only; there is no Videos category. Within each, videos come first, then
+newest first. Photos are 4:3 thumbnails with no title row (the name is the tooltip and accessible name); videos keep a
+one-line name, saved frames show their video time, and a frame still being extracted shows "Saving…". Drag the divider
+between the library and the viewer (or focus it and use Left/Right, Shift for bigger steps; double-click resets). The
+width is remembered per project with the other view state. Cards are kept by file name and only rebuilt when the file
+changes, so a list update between press and release can no longer swallow a click.
+
+Keyboard. Shortcuts work wherever focus is inside Resources (a file tile, a toolbar button, the scrubber) and never
+while typing in a text field; the model editor does not see them.
+
+| Key | Video | Photo |
+| --- | --- | --- |
+| Left / Right | one frame back / forward (pauses) | previous / next photo in library order |
+| J / L | skip 10 s back / forward | |
+| K, Space | play / pause | Space holds to pan while drawing |
+| N | favorite the frame with a title | |
+| + / - / 0 | zoom in / out / fit | zoom in / out / fit |
+
+Frame stepping reads the frame on screen from `requestVideoFrameCallback`: back seeks just before it, forward seeks one
+frame duration on (learned from playback or the first step). After a scrubber drag, focus returns to the viewer, so
+Space plays and pauses; a control reached with Tab keeps Space for itself.
+
+Reliability fixes. Opening a file no longer waits for, or is ignored during, an upload; a markup save in progress is
+shared rather than failing a second click with "Wait for the current upload"; refreshes are cancelled only by a
+project change or a newer refresh, not by opening a file (they used to drop newly uploaded files from the list); saving
+markup keeps the order's reference files in the list; play() interruptions are not reported as errors; a loading or
+buffering video shows a spinner; a video that cannot play says so in the viewer.
+
+Server-side frame saving. Save Frame, a titled favorite (N) and drawing on a video frame never upload image bytes. The
+browser POSTs `project_resources.php?action=frame&name=<frame>` with `{source, time, original_name, favorite?}`. The
+bridge checks the names (frame names use only ASCII letters, digits, `._-`; accents are folded, so names with spaces
+or accents no longer fail "Invalid resource name"), confirms the video exists, writes
+`internal-markup-framejob-<id>.json` as `running`, answers 202 and closes the response (`fastcgi_finish_request`), then
+in the same request assembles the video (part checksums verified; the copy is cached on the host for an hour), runs
+ffmpeg for the last frame at or before `time` (the frame the browser shows), publishes the PNG as an ordinary chunked
+resource with `source_video` provenance, writes the favorite record when asked, and sets the job record to `done` or
+`failed` with the error. The browser polls the job record (no new stream), refreshes the list when done, and shows
+progress, done and failures with Retry in the toolbar; viewing, stepping and saving more frames continue meanwhile. The
+job keeps running on the server if the page closes. Hosts need ffmpeg (DEPLOYMENT.md, "Other provider/configuration
+checks"); without it a save fails with a clear message. Full-video reads per host are in
+docs/optimization-backlog.md.
+
+Tests: `dev/resource-media-viewer.test.cjs` (every item above in Chrome with mocked storage),
+`dev/resource-frame-extract.test.cjs` (ffmpeg frame choice, chunked publication, favorite record, missing ffmpeg and
+corrupt parts, and the real `project_resources.php` under the PHP built-in server against a fake artifact API; needs
+php with curl and ffmpeg, set `FIRSTMEASURE_FFMPEG` when it is not on PATH, otherwise skipped).
+

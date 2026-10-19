@@ -276,6 +276,9 @@
     // provider (real providers tokenize in-browser through their SDK).
     paymentIntakeConfig(token){ return request(`/public/${enc(token)}/payments/intake-config`, { credentials: 'omit' }); },
     createPaymentMethodIntent(token, body = {}){ return request(`/public/${enc(token)}/payments/payment-method-intent`, { method: 'POST', body, credentials: 'omit' }); },
+    // Opens a processor checkout for a payment output ({ output_key, method });
+    // the server prices it from the document.
+    paymentCheckout(token, body = {}){ return request(`/public/${enc(token)}/payments/checkout`, { method: 'POST', body, credentials: 'omit' }); },
     // Customer-audience workflow attached to the shared document (contract
     // §8). Callers must treat any failure as "no workflow".
     workflow(token){ return request(`/public/${enc(token)}/workflow`, { credentials: 'omit' }); }

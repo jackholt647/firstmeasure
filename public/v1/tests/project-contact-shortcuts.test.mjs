@@ -22,6 +22,13 @@ test('contact email and text shortcuts use the chosen recipient without sending'
  open('sms','+15550001234');assert.equal(state.smsDraft.to,'+15550001234');assert.equal(state.smsComposeOpen,true);
  assert.deepEqual(views,[['email',{pushRoute:true}],['sms',{pushRoute:true}]]);assert.throws(()=>open('call','123'));
 });
+test('project contact draft waits for the internal communications tab to mount',async()=>{
+ const body=source.slice(source.indexOf('  async function openProjectContactDraft('),source.indexOf('  async function handleProjectContactAction('));
+ const actions=[],app={id:'comms'};let finishMount;const mounted=new Promise(resolve=>finishMount=resolve);
+ const window={Portal:{modules:{commsTab:{context:()=>({mounted:true}),openContactDraft:(channel,recipient)=>actions.push([channel,recipient])}}}};
+ const open=new Function('projectModalApps','validPreviewTabs','closeProjectIdentityPopover','setActivePreviewTab','mountProjectModalApp','window',body+';return openProjectContactDraft;')(()=>[app],()=>['comms'],()=>actions.push('close'),tab=>actions.push(tab),()=>mounted,window);
+ const pending=open('email','jane@example.test');assert.deepEqual(actions,['close','comms']);finishMount({});await pending;assert.deepEqual(actions,['close','comms',['email','jane@example.test']]);
+});
 
 test('all contact names appear in the title with shared surnames paired',()=>{
  const body=source.slice(source.indexOf('  function formatProjectContactNames('),source.indexOf('  function projectHeaderIdentityHtml('));

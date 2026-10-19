@@ -252,6 +252,15 @@ function curveSamples(c,tolerance=.001){
 }
 // Resolve evaluated edges in metric tolerance, including grid-rounded endpoints.
 // A sample is never an editable anchor unless explicitly authored or a junction.
+// A face ring stores its analytic curves as tessellation vertices. Those
+// vertices are evaluation results: copy, paste, snapping, guides and selection
+// use only the defining points (curve ends, spline controls, corners, and
+// authored or junction points where the ring leaves the curve).
+function curveSamplePoint(face){
+ const curves=(face.curves||[]).map(c=>{const ps=curveSamples(c),defining=c.type==='spline'?c.controls:c.type==='conic'?[c.start,c.end]:[curvePoint(c,0),curvePoint(c,1)];return {defining,on:p=>ps.some((b,i)=>{if(!i)return false;const a=ps[i-1],v=sub(b,a),l2=dot(v,v),t=l2?Math.max(0,Math.min(1,dot(sub(p,a),v)/l2)):0;return distance(p,{x:a.x+v.x*t,y:a.y+v.y*t,z:a.z+v.z*t})<=CONTACT;})};}),samples=[];
+ if(curves.length)for(const r of [face.points||[],...(face.holes||[])])r.forEach((p,i)=>{if(p.userDraftPoint||r.length<3)return;const prev=r[(i+r.length-1)%r.length],next=r[(i+1)%r.length];if(curves.some(c=>c.on(p)&&c.on(prev)&&c.on(next)&&!c.defining.some(q=>distance(p,q)<=CONTACT)))samples.push(p);});
+ return p=>samples.some(q=>distance(p,q)<=CONTACT);
+}
 function curveEdgeRange(c,a,b,samples=curveSamples(c)){
  const locate=p=>{let best=null;for(let i=1;i<samples.length;i++){const x=samples[i-1],y=samples[i],v=sub(y,x),l2=dot(v,v);if(l2<GRID*GRID)continue;const t=Math.max(0,Math.min(1,dot(sub(p,x),v)/l2)),q={x:x.x+v.x*t,y:x.y+v.y*t,z:x.z+v.z*t},d=distance(p,q);if(d<=CONTACT&&(!best||d<best.d))best={d,t:x.curveT+(y.curveT-x.curveT)*t};}return best?.t;};
  const x=locate(a),y=locate(b);if(x===undefined||y===undefined||Math.abs(x-y)<1e-10)return null;
@@ -387,6 +396,6 @@ function arcPreview(start,center,p,normal0,track={},snap=true){
  const priorSweep=track.sweep||0;let delta=angle-(track.angle||0);while(delta>Math.PI)delta-=2*Math.PI;while(delta< -Math.PI)delta+=2*Math.PI;let sweep=(track.sweep||0)+delta;if(Math.abs(sweep)>=Math.PI*2)sweep%=Math.PI*2;if(track.close&&Math.abs(priorSweep)>Math.PI)sweep=Math.sign(priorSweep)*Math.PI*2;track.angle=angle;track.sweep=sweep;
  return {type:'ellipse',version:1,center:{...center},u,v,radiusX,radiusY,sweep};
 }
-const api={curveEdgeRange,annotateCurveGraph,splineThrough,archSnap,archFaces,normalizeFaces,normalizeFace,pointRemovalChangesRegion,curveDrawGuides,curveDrawSnap,surfaceBoundaryCurves,surfaceOutline,attachBoundaryCurves,surfaceArea,surfacePoint,surfaceUV,surfaceMesh,surfaceFacets,compactSurfaces,curveSvg,mapCurveData,curvePoint,curveSamples,mapCurve,arcPreview,version:2,partition,GRID,CONTACT,finite3,signedArea,area,union,difference,intersection,pieces,triangles,normal,frame,local,world,validateFace,pointKey,edgeKey,topology};
+const api={curveEdgeRange,curveSamplePoint,annotateCurveGraph,splineThrough,archSnap,archFaces,normalizeFaces,normalizeFace,pointRemovalChangesRegion,curveDrawGuides,curveDrawSnap,surfaceBoundaryCurves,surfaceOutline,attachBoundaryCurves,surfaceArea,surfacePoint,surfaceUV,surfaceMesh,surfaceFacets,compactSurfaces,curveSvg,mapCurveData,curvePoint,curveSamples,mapCurve,arcPreview,version:2,partition,GRID,CONTACT,finite3,signedArea,area,union,difference,intersection,pieces,triangles,normal,frame,local,world,validateFace,pointKey,edgeKey,topology};
 if(typeof module==='object'&&module.exports)module.exports=api;else root.ExteriorGeometry=api;
 })(typeof window!=='undefined'?window:globalThis);

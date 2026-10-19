@@ -44,7 +44,15 @@ function readCookie(setCookie: string[] | string | undefined, name: string) {
 function createSessionClient() {
   let cookie = "";
   let csrf = "";
-  const request = async (method: string, url: string, payload?: unknown) => {
+  const request = async (method: string, url: string, payload?: unknown): Promise<any> => {
+    // A project's contacts are written through the contacts API, never with
+    // the project (docs/architecture/contacts.md).
+    if (method.toUpperCase() === "PUT" && /^\/v1\/platform\/organizations\/[^/]+\/projects\/[^/?]+$/.test(url) && Array.isArray((payload as any)?.data?.contacts)) {
+      const { contacts, ...data } = (payload as any).data;
+      const written: any = await request(method, url, { ...(payload as any), data });
+      await request("PUT", `${url}/contacts`, { contacts });
+      return written;
+    }
     const response = await (app.inject as any)({
       method,
       url,

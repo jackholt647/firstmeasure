@@ -1091,6 +1091,89 @@ export async function refundPayment(orgId: string, paymentId: string, input: Jso
   return { payment: await readPayment(orgId, paymentId), refund };
 }
 
+/**
+ * A bank debit that cleared at the processor: it becomes settled, is applied
+ * to what it was paying for and announced as received, exactly once.
+ */
+export async function settlePendingPayment(orgId: string, paymentId: string, patch: JsonObject = {}) {
+  const payment = documentView(await readDocument(orgId, PAYMENT_TRANSACTION_COLLECTION, paymentId));
+  if (cleanText(payment.status) !== "pending" || cleanText(payment.direction) !== "inbound") return { payment, allocations: [] as JsonObject[] };
+  const now = nowIso();
+  const metadata = asObject(payment.metadata);
+  const data: JsonObject = {
+    ...payment,
+    ...patch,
+    processor: { ...asObject(payment.processor), ...asObject(patch.processor) },
+    status: "settled",
+    settled_at: now,
+    metadata: { ...metadata, awaiting_clearance: false, cleared_at_provider: now },
+    updated_at: now
+  };
+  const doc = await upsertDocument(orgId, PAYMENT_TRANSACTION_COLLECTION, {
+    id: paymentId,
+    data,
+    metadata: { kind: "payment_transaction", project_id: cleanText(data.project_id), direction: "inbound", payment_kind: cleanText(data.kind), status: "settled" }
+  }, { replace: true });
+  const settled = documentView(doc);
+  const allowed = Array.isArray(metadata.allocation_obligation_ids) ? new Set(metadata.allocation_obligation_ids.map(cleanText)) : undefined;
+  const allocations = metadata.allocate === false ? [] : await autoAllocatePayment(orgId, settled, cleanText(metadata.allocation_mode || "auto_next_due"), cleanText(metadata.intended_obligation_id), allowed)
+    .catch(() => autoAllocatePayment(orgId, settled, cleanText(metadata.allocation_mode || "auto_next_due"), "", allowed));
+  await recordPaymentEvent(orgId, "payment.cleared_at_provider", { project_id: cleanText(settled.project_id), payment_id: paymentId, amount_cents: Math.round(Number(settled.amount_cents || 0)) }, null);
+  if (cleanText(settled.project_id)) await emitInboundPaymentReceived(orgId, settled, allocations, null);
+  await patchProjectFinancialRefs(orgId, cleanText(settled.project_id));
+  return { payment: settled, allocations };
+}
+
+/**
+ * A recorded payment that did not go through after all (a bank debit failed
+ * or came back, or the charge was voided at the processor): what it paid for
+ * is reopened, the books are reversed and the failure is announced.
+ */
+export async function failRecordedPayment(orgId: string, paymentId: string, input: { status: "failed" | "returned" | "voided"; reason?: string; processor?: JsonObject }) {
+  const payment = documentView(await readDocument(orgId, PAYMENT_TRANSACTION_COLLECTION, paymentId));
+  if (cleanText(payment.direction) !== "inbound" || ["failed", "returned", "voided", "refunded"].includes(cleanText(payment.status))) return payment;
+  const wasCounted = ["settled", "partially_refunded"].includes(cleanText(payment.status));
+  for (const allocation of await activePaymentAllocations(orgId, paymentId)) {
+    const amount = Math.round(Number(allocation.amount_cents || 0));
+    if (amount <= 0) continue;
+    const obligation = documentView(await readDocument(orgId, PAYMENT_OBLIGATION_COLLECTION, cleanText(allocation.obligation_id)).catch(() => ({})));
+    if (!cleanText(obligation.id)) continue;
+    await createAllocation(orgId, payment, obligation, -amount, "payment_failed");
+    await saveObligation(orgId, { ...obligation, allocated_cents: Math.max(0, Math.round(Number(obligation.allocated_cents || 0)) - amount) });
+  }
+  const now = nowIso();
+  const amount = Math.max(0, Math.round(Number(payment.amount_cents || 0)));
+  const data: JsonObject = {
+    ...payment,
+    status: input.status,
+    failed_at: now,
+    failure_reason: cleanText(input.reason),
+    processor: { ...asObject(payment.processor), ...asObject(input.processor) },
+    metadata: { ...asObject(payment.metadata), awaiting_clearance: false },
+    updated_at: now
+  };
+  const doc = await upsertDocument(orgId, PAYMENT_TRANSACTION_COLLECTION, {
+    id: paymentId,
+    data,
+    metadata: { kind: "payment_transaction", project_id: cleanText(data.project_id), direction: "inbound", payment_kind: cleanText(data.kind), status: input.status }
+  }, { replace: true });
+  // createPayment booked the cash when the payment was recorded; take it back.
+  await recordLedger(orgId, data, "payment.failed", [{ account: "accounts_receivable", debit_cents: amount, credit_cents: 0 }, { account: "cash", debit_cents: 0, credit_cents: amount }]);
+  await recordPaymentEvent(orgId, "payment.failed", { project_id: cleanText(data.project_id), payment_id: paymentId, status: input.status, reason: cleanText(input.reason), amount_cents: amount }, null);
+  if (cleanText(data.project_id)) {
+    await emitWorkEvent({
+      organization_id: orgId,
+      branch_id: cleanText(data.branch_id || "default"),
+      project_id: cleanText(data.project_id),
+      type: "payment.failed",
+      idempotency_key: `payment.failed:${paymentId}`,
+      payload: { payment_id: paymentId, status: input.status, reason: cleanText(input.reason), amount_cents: amount, was_settled: wasCounted }
+    });
+  }
+  await patchProjectFinancialRefs(orgId, cleanText(data.project_id));
+  return documentView(doc);
+}
+
 export async function reallocatePayment(orgId: string, paymentId: string, input: JsonObject, ctx: PlatformAuthContext) {
   await requireMoneyFlag(orgId);
   const payment = documentView(await readDocument(orgId, PAYMENT_TRANSACTION_COLLECTION, paymentId));

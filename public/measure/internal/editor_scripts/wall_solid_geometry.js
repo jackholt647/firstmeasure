@@ -278,8 +278,12 @@ function copyGeometry(scene,selected,lines=[]){
  }
  if(!mounts.length){const frame=faces.length?faceFrame(faces[0]):sources.map(faceFrame).find(Boolean);mounts.push({frame:clipboardFrame(centroid,frame?.n||{x:0,y:0,z:1}),count:points.length,fallback:true});}
  mounts.sort((a,b)=>b.count-a.count);
+ // Curve tessellation vertices travel with their faces and edges, but are
+ // flagged so snapping, guides and selection use only the defining points.
+ const sampled=sources.filter(f=>f.curves?.length&&rings(f).flat().some(chosen)).map(K.curveSamplePoint);if(sampled.length)for(const p of points)if(sampled.some(test=>test(p)))p.curveSample=true;
  const clean=f=>({...K.mapCurveData(f,p=>({...p})),points:f.points.map(p=>({x:p.x,y:p.y,z:p.z})),holes:(f.holes||[]).map(r=>r.map(p=>({x:p.x,y:p.y,z:p.z}))),...(f.material?{material:f.material}:{}),...(f.finishColor?{finishColor:f.finishColor}:{}),...(f.trim?{trim:true}:{}),...(f.feature?{feature:JSON.parse(JSON.stringify(f.feature))}:{}),retainedPoints:(f.retainedPoints||[]).filter(chosen).map(p=>({x:p.x,y:p.y,z:p.z}))});
- const curves=[...new Map(sources.flatMap(f=>f.curves||[]).filter(c=>c.type==='spline'&&c.controls.every(chosen)&&!faces.some(f=>f.curves?.some(v=>v.id===c.id))).map(c=>[c.id,c])).values()],samples=curves.map(c=>K.curveSamples(c)),onCurve=p=>samples.some(ps=>ps.slice(1).some((q,i)=>pointOnEdge(p,ps[i],q)));
+ // A deleted door keeps its arch as wire; that curve can still be copied.
+ const curves=[...new Map(scene.filter(f=>!f.snapOnly&&(!f.deleted||f.preserveBoundaryWire)).flatMap(f=>f.curves||[]).filter(c=>c.type==='spline'&&c.controls.every(chosen)&&!faces.some(f=>f.curves?.some(v=>v.id===c.id))).map(c=>[c.id,c])).values()],samples=curves.map(c=>K.curveSamples(c)),onCurve=p=>samples.some(ps=>ps.slice(1).some((q,i)=>pointOnEdge(p,ps[i],q)));
  return {points:curves.length&&!faces.length?points.filter(p=>!onCurve(p)||curves.some(c=>c.controls.some(q=>Math.hypot(...Object.values(sub(p,q)))<=K.CONTACT))):points,edges:curves.length?edges.filter(pair=>!samples.some(ps=>ps.slice(1).some((q,i)=>pair.every(p=>pointOnEdge(p,ps[i],q))))):edges,faces:faces.map(clean),mounts,...(curves.length?{curves:curves.map(c=>K.mapCurve(c,p=>({...p})))}:{})};
 }
 // Rigid plane edits retain depth; reflections reverse face winding as well.
@@ -315,13 +319,13 @@ function stickerAlignmentTargets(faces,frame,excluded=[]){
   const axes=parallel?['x','y']:['x','y'].filter(a=>Math.abs(frame[a==='x'?'u':'v'].z)>.99999);
   if(!axes.length)continue;
   const center=f.points.reduce((c,p)=>({x:c.x+p.x/f.points.length,y:c.y+p.y/f.points.length,z:c.z+p.z/f.points.length}),{x:0,y:0,z:0}),localCenter=K.local(frame,center);targets.push({...K.world(frame,{...localCenter,z:0}),alignmentAxes:axes,alignmentCenter:true,alignmentSource:center});
-  for(const p of f.points){const q=K.local(frame,p);targets.push({...K.world(frame,{x:q.x,y:q.y,z:0}),alignmentAxes:axes,alignmentSource:{x:p.x,y:p.y,z:p.z}});}
+  const sample=K.curveSamplePoint(f);for(const p of f.points){if(sample(p))continue;const q=K.local(frame,p);targets.push({...K.world(frame,{x:q.x,y:q.y,z:0}),alignmentAxes:axes,alignmentSource:{x:p.x,y:p.y,z:p.z}});}
  }
  return targets;
 }
 function planeAlignmentGuides(points,targets,frame){
  const guides=new Map();
- for(const p of points)for(const q of targets){const a=K.local(frame,p),b=K.local(frame,q);if(Math.abs(a.z-b.z)>K.CONTACT)continue;
+ for(const p of points)for(const q of targets){if(p.curveSample||q.curveSample)continue;const a=K.local(frame,p),b=K.local(frame,q);if(Math.abs(a.z-b.z)>K.CONTACT)continue;
   for(const axis of ['x','y']){if(q.alignmentAxes&&!q.alignmentAxes.includes(axis))continue;
    const target=q.alignmentSource||q,length=Math.hypot(target.x-p.x,target.y-p.y,target.z-p.z),sticker=!!q.alignmentSource;
    if(Math.abs(a[axis]-b[axis])>1e-6||length<1e-6)continue;
@@ -334,7 +338,7 @@ function planeAlignmentGuides(points,targets,frame){
 function planeAlignment(points,targets,frame,screen,radius=12,axes=['u','v'],pointer=null){
  // Sticker callers supply a pointer, but rank the displacement of the supplied
  // unsnapped footprint. Cursor-to-target distance is not a snap displacement.
- const delta={x:0,y:0};
+ const delta={x:0,y:0};points=points.filter(p=>!p.curveSample);targets=targets.filter(q=>!q.curveSample);
  for(const axis of axes){let best=Infinity,bestTravel=Infinity,amount=0;for(const q of targets)for(const p of q.alignmentCenter?[points.reduce((c,p)=>({x:c.x+p.x/points.length,y:c.y+p.y/points.length,z:c.z+p.z/points.length}),{x:0,y:0,z:0})]:points){if(q.alignmentAxes&&!q.alignmentAxes.includes(axis==='u'?'x':'y'))continue;const v=sub(q,p);if(Math.abs(dot(v,frame.n))>K.CONTACT)continue;const t=dot(v,frame[axis]),end={x:p.x+frame[axis].x*t,y:p.y+frame[axis].y*t,z:p.z+frame[axis].z*t},a=screen(p),b=screen(end);if(a.visible===false||b.visible===false)continue;const distance=Math.max(Math.hypot(a.x-b.x,a.y-b.y),Math.abs(t)*33.33);const travel=pointer?Math.abs(t):distance;if(distance<=radius&&(travel<bestTravel-1e-9||Math.abs(travel-bestTravel)<1e-9&&distance<best)){best=distance;bestTravel=travel;amount=t;}}
   delta[axis==='u'?'x':'y']=amount;
  }return delta;
@@ -342,7 +346,7 @@ function planeAlignment(points,targets,frame,screen,radius=12,axes=['u','v'],poi
 function snapGeometryOnPlane(clip,index,targets,edges,screen,radius=10,pointer=null,normalTolerance=K.CONTACT){
  const frame=clip.mounts[index].frame;let best=radius,delta=null;
  const offer=(p,q)=>{if(q.alignmentAxes)return;const d=sub(q,p);if(Math.abs(dot(d,frame.n))>normalTolerance||Math.hypot(d.x,d.y,d.z)>.5)return;const a=screen(p),b=screen(q),distance=Math.hypot(a.x-b.x,a.y-b.y);if(a.visible!==false&&b.visible!==false&&distance<best){best=distance;delta={x:dot(d,frame.u),y:dot(d,frame.v)};}};
- for(const p of clip.points){for(const q of targets)offer(p,q);for(const [a,b]of edges){const v=sub(b,a),l2=dot(v,v),t=l2?Math.max(0,Math.min(1,dot(sub(p,a),v)/l2)):0;offer(p,mix3(a,b,t));}}
+ for(const p of clip.points){if(p.curveSample)continue;for(const q of targets)offer(p,q);for(const [a,b]of edges){const v=sub(b,a),l2=dot(v,v),t=l2?Math.max(0,Math.min(1,dot(sub(p,a),v)/l2)):0;offer(p,mix3(a,b,t));}}
  if(!delta)for(const [a,b]of clip.edges){const v=sub(b,a),l2=dot(v,v);for(const q of targets){const t=l2?Math.max(0,Math.min(1,dot(sub(q,a),v)/l2)):0;offer(mix3(a,b,t),q);}}
  const snapped=delta?transformGeometry(clip,index,{delta}):clip;const alignment=planeAlignment(snapped.points,targets,frame,screen,radius,['u','v'],pointer);return Math.hypot(alignment.x,alignment.y)>1e-10?transformGeometry(snapped,index,{delta:alignment}):snapped;
 }
@@ -437,22 +441,22 @@ function boundedTranslation(points,regions,wanted,options={}){
 function pasteGeometry(clip,mountIndex,target,location,options={}){
  const source=clip.mounts[mountIndex%clip.mounts.length].frame,normal0=options.normal||normal(target.points),frame=options.frame?{...options.frame,origin:location}:clipboardFrame(location,normal0),transform=p=>K.world(frame,K.local(source,p));
  let points=clip.points.map(transform),delta={x:0,y:0,z:0},snap=null;
- const contacts=clip.points.map((p,i)=>Math.abs(K.local(source,p).z)<=K.CONTACT?i:-1).filter(i=>i>=0),targets=[...(options.points||rings(target).flat()),...stickerAlignmentTargets(options.stickerFaces||[],frame)];
+ const contacts=clip.points.map((p,i)=>Math.abs(K.local(source,p).z)<=K.CONTACT?i:-1).filter(i=>i>=0),anchors=contacts.filter(i=>!clip.points[i].curveSample),targets=[...(options.points||rings(target).flat()),...stickerAlignmentTargets(options.stickerFaces||[],frame)];
  const stickerPlacement=clip.faces.length>0&&clip.faces.every(f=>f.feature);
  if(stickerPlacement&&options.bound&&contacts.length){const region={points:target.points.map(p=>K.local(frame,p)),holes:(target.holes||[]).map(r=>r.map(p=>K.local(frame,p)))},localPoints=contacts.map(i=>K.local(frame,points[i])),fit=boundedTranslation(localPoints,[region],{x:0,y:0},{axis:'y'})||boundedTranslation(localPoints,[region],{x:0,y:0});if(fit)delta={x:frame.u.x*fit.x+frame.v.x*fit.y,y:frame.u.y*fit.x+frame.v.y*fit.y,z:frame.u.z*fit.x+frame.v.z*fit.y};}
- if(!stickerPlacement&&options.screen&&options.snap!==false){let best=options.radius||10;for(const i of contacts)for(const targetPoint of targets){if(targetPoint.alignmentAxes)continue;if(Math.abs(K.local(frame,targetPoint).z)>K.CONTACT)continue;const a=options.screen(points[i]),b=options.screen(targetPoint),pixels=Math.hypot(a.x-b.x,a.y-b.y);if(a.visible!==false&&b.visible!==false&&pixels<best&&Math.hypot(...Object.values(sub(targetPoint,points[i])))<.5){best=pixels;delta=sub(targetPoint,points[i]);snap={from:points[i],target:targetPoint};}}
-  if(!snap&&!options.unbounded)for(const i of contacts)for(const r of rings(target))for(let j=0;j<r.length;j++){const a=r[j],b=r[(j+1)%r.length],v=sub(b,a),l2=dot(v,v),t=l2?Math.max(0,Math.min(1,dot(sub(points[i],a),v)/l2)):0,q=mix3(a,b,t),x=options.screen(points[i]),y=options.screen(q),pixels=Math.hypot(x.x-y.x,x.y-y.y);if(pixels<best&&Math.hypot(...Object.values(sub(q,points[i])))<.5){best=pixels;delta=sub(q,points[i]);snap={from:points[i],target:q};}}
+ if(!stickerPlacement&&options.screen&&options.snap!==false){let best=options.radius||10;for(const i of anchors)for(const targetPoint of targets){if(targetPoint.alignmentAxes)continue;if(Math.abs(K.local(frame,targetPoint).z)>K.CONTACT)continue;const a=options.screen(points[i]),b=options.screen(targetPoint),pixels=Math.hypot(a.x-b.x,a.y-b.y);if(a.visible!==false&&b.visible!==false&&pixels<best&&Math.hypot(...Object.values(sub(targetPoint,points[i])))<.5){best=pixels;delta=sub(targetPoint,points[i]);snap={from:points[i],target:targetPoint};}}
+  if(!snap&&!options.unbounded)for(const i of anchors)for(const r of rings(target))for(let j=0;j<r.length;j++){const a=r[j],b=r[(j+1)%r.length],v=sub(b,a),l2=dot(v,v),t=l2?Math.max(0,Math.min(1,dot(sub(points[i],a),v)/l2)):0,q=mix3(a,b,t),x=options.screen(points[i]),y=options.screen(q),pixels=Math.hypot(x.x-y.x,x.y-y.y);if(pixels<best&&Math.hypot(...Object.values(sub(q,points[i])))<.5){best=pixels;delta=sub(q,points[i]);snap={from:points[i],target:q};}}
  }
- if(options.screen&&options.snap!==false){const current=points.map(p=>({x:p.x+delta.x,y:p.y+delta.y,z:p.z+delta.z})),aligned=planeAlignment(contacts.map(i=>current[i]),targets,frame,options.screen,options.radius||12,['u','v'],stickerPlacement?location:null);delta={x:delta.x+frame.u.x*aligned.x+frame.v.x*aligned.y,y:delta.y+frame.u.y*aligned.x+frame.v.y*aligned.y,z:delta.z+frame.u.z*aligned.x+frame.v.z*aligned.y};if(Math.hypot(aligned.x,aligned.y)>1e-7)snap={kind:'Alignment'};}
+ if(options.screen&&options.snap!==false){const current=points.map(p=>({x:p.x+delta.x,y:p.y+delta.y,z:p.z+delta.z})),aligned=planeAlignment(anchors.map(i=>current[i]),targets,frame,options.screen,options.radius||12,['u','v'],stickerPlacement?location:null);delta={x:delta.x+frame.u.x*aligned.x+frame.v.x*aligned.y,y:delta.y+frame.u.y*aligned.x+frame.v.y*aligned.y,z:delta.z+frame.u.z*aligned.x+frame.v.z*aligned.y};if(Math.hypot(aligned.x,aligned.y)>1e-7)snap={kind:'Alignment'};}
 
  if(options.bound&&contacts.length){const localPoints=contacts.map(i=>K.local(frame,points[i])),localTarget={points:target.points.map(p=>K.local(frame,p)),holes:(target.holes||[]).map(r=>r.map(p=>K.local(frame,p)))},d={x:dot(delta,frame.u),y:dot(delta,frame.v)},fit=boundedTranslation(localPoints,[localTarget],d);if(fit){delta={x:frame.u.x*fit.x+frame.v.x*fit.y,y:frame.u.y*fit.x+frame.v.y*fit.y,z:frame.u.z*fit.x+frame.v.z*fit.y};}}
- const moved=p=>{const q=transform(p);return {x:q.x+delta.x,y:q.y+delta.y,z:q.z+delta.z};};points=clip.points.map(moved);
+ const moved=p=>{const q=transform(p);return {x:q.x+delta.x,y:q.y+delta.y,z:q.z+delta.z};};points=clip.points.map(p=>p.curveSample?{...moved(p),curveSample:true}:moved(p));
  const tf=frame,local={points:target.points.map(p=>K.local(tf,p)),holes:(target.holes||[]).map(r=>r.map(p=>K.local(tf,p)))},inside=p=>{const q=K.local(tf,p);return Math.abs(q.z)<=K.CONTACT&&(pointInRing(q,local.points)||local.points.some((a,i)=>pointOnEdge(q,a,local.points[(i+1)%local.points.length])))&&!local.holes.some(r=>pointInRing(q,r)&&!r.some((a,i)=>pointOnEdge(q,a,r[(i+1)%r.length])));};
  let valid=contacts.every(i=>inside(points[i]));
  if(contacts.length>=3){const ps=contacts.map(i=>K.local(tf,points[i])).sort((a,b)=>a.x-b.x||a.y-b.y),turn=(a,b,c)=>(b.x-a.x)*(c.y-a.y)-(b.y-a.y)*(c.x-a.x),half=list=>{const out=[];for(const p of list){while(out.length>1&&turn(out.at(-2),out.at(-1),p)<=1e-10)out.pop();out.push(p);}return out;},lo=half(ps),hi=half(ps.slice().reverse()),hull=[...lo.slice(0,-1),...hi.slice(0,-1)];if(hull.length>=3&&K.difference({points:hull},[local]).reduce((s,f)=>s+K.area(f),0)>1e-8)valid=false;}
 for(const pair of clip.edges)if(pair.every(p=>Math.abs(K.local(source,p).z)<=K.CONTACT))for(let i=0;i<=20;i++)valid&&=inside(moved(mix3(pair[0],pair[1],i/20)));
  if(options.unbounded)valid=true;
- const guides=valid&&options.snap!==false?planeAlignmentGuides(contacts.map(i=>points[i]),targets,frame):[];
+ const guides=valid&&options.snap!==false?planeAlignmentGuides(anchors.map(i=>points[i]),targets,frame):[];
  return {points,...(clip.curves?{curves:clip.curves.map(c=>K.mapCurve(c,moved))}:{}),location:{x:location.x+delta.x,y:location.y+delta.y,z:location.z+delta.z},edges:clip.edges.map(pair=>pair.map(moved)),faces:clip.faces.map(f=>({...f,...K.mapCurveData(f,moved),points:f.points.map(moved),holes:f.holes.map(r=>r.map(moved)),retainedPoints:f.retainedPoints.map(moved),...(f.feature?.axis?{feature:{...f.feature,axis:sub(moved({x:source.origin.x+f.feature.axis.x,y:source.origin.y+f.feature.axis.y,z:source.origin.z+(f.feature.axis.z||0)}),moved(source.origin))}}:{})})),valid,snap,guides};
 }
 // A merged wall/chimney region owns the joined area; do not clip it back out
@@ -1187,7 +1191,7 @@ function surfaceWire(edits){const curved=K.compactSurfaces(edits.$surfaces||[]).
  const cuts=[...removedEdges].map(key=>({points:key.split('|').map(s=>{const [x,y,z]=s.split(',').map(Number);return {x,y,z};})})).filter(f=>f.points.length===2&&f.points.every(p=>[p.x,p.y,p.z].every(Number.isFinite)));
  for(const f of (edits.$surfaces||[]).filter(f=>!f.drafted&&!f.replacedBy))for(const p of (f.retainedPoints||[]).filter(p=>!f.trim||ownsPoint(f,p))){const k=vertexKey(p);if(!removed.has(k)&&!f.wireExclusions?.points?.includes(k))nodes.set(k,{...p,id:k});}
  // Surface boundaries and loose connections must use the same interval deletions.
- const addEdge=(a,b,mask)=>{const ka=vertexKey(a),kb=vertexKey(b);if(removed.has(ka)||removed.has(kb)||mask?.points?.includes(ka)||mask?.points?.includes(kb))return;const localCuts=(mask?.edges||[]).map(k=>({points:k.split('|').map(k=>{const [x,y,z]=k.split(',').map(Number);return {x,y,z};})}));const at=t=>({x:a.x+(b.x-a.x)*t,y:a.y+(b.y-a.y)*t,z:a.z+(b.z-a.z)*t});let lo=0;for(const [start,end]of [...sharedIntervals(a,b,[...cuts,...localCuts]),[1,1]]){if(start-lo>1e-7){const x=at(lo),y=at(start),kx=vertexKey(x),ky=vertexKey(y),key=edgeKey(x,y);nodes.set(kx,{...x,id:kx});nodes.set(ky,{...y,id:ky});edges.set(key,{id:key,a:kx,b:ky});}lo=Math.max(lo,end);}};
+ const addEdge=(a,b,mask)=>{const ka=vertexKey(a),kb=vertexKey(b);if(removed.has(ka)||removed.has(kb)||mask?.points?.includes(ka)||mask?.points?.includes(kb))return;const localCuts=(mask?.edges||[]).map(k=>({points:k.split('|').map(k=>{const [x,y,z]=k.split(',').map(Number);return {x,y,z};})}));const ends=[a,b,...cuts,...localCuts].flatMap(c=>c.points||[c]),at=t=>{const p={x:a.x+(b.x-a.x)*t,y:a.y+(b.y-a.y)*t,z:a.z+(b.z-a.z)*t},q=ends.find(q=>Math.hypot(p.x-q.x,p.y-q.y,p.z-q.z)<=K.CONTACT);return q?{x:q.x,y:q.y,z:q.z}:p;};let lo=0;for(const [start,end]of [...sharedIntervals(a,b,[...cuts,...localCuts]),[1,1]]){if(start-lo>1e-7){const x=at(lo),y=at(start),kx=vertexKey(x),ky=vertexKey(y),key=edgeKey(x,y);nodes.set(kx,{...x,id:kx});nodes.set(ky,{...y,id:ky});edges.set(key,{id:key,a:kx,b:ky});}lo=Math.max(lo,end);}};
  for(const f of (edits.$surfaces||[]).filter(f=>!f.drafted&&!f.replacedBy))for(const ring of [f.points,...(f.holes||[])])for(let i=0;i<ring.length;i++){const a=ring[i],b=ring[(i+1)%ring.length],ka=vertexKey(a);if(!removed.has(ka)&&!f.wireExclusions?.points?.includes(ka))nodes.set(ka,{...a,id:ka});addEdge(a,b,f.wireExclusions);}
  const curvedOwners=new Map();for(const f of edits.$surfaces||[])if(!f.drafted&&f.curvedSurface){const {range,...surface}=f.curvedSurface,key=JSON.stringify(surface)+':'+(f.material||'')+':'+(f.finishColor||'');for(const r of rings(f))for(let i=0;i<r.length;i++){const id=edgeKey(r[i],r[(i+1)%r.length]);if(!curvedOwners.has(id))curvedOwners.set(id,[]);curvedOwners.get(id).push(key);}}
  for(const [id,owners]of curvedOwners)if(owners.length===2&&owners[0]===owners[1])edges.delete(id);
@@ -1203,6 +1207,11 @@ function surfaceWire(edits){const curved=K.compactSurfaces(edits.$surfaces||[]).
  // are render samples; only interpolation points and real junctions are anchors.
  const curves=[...new Map((edits.$surfaces||[]).filter(f=>!f.drafted&&!f.replacedBy).flatMap(f=>f.curves||[]).map(c=>[c.id,c])).values()],graph={nodes:[...nodes.values()],edges:[...edges.values()]};
  K.annotateCurveGraph(graph,curves);for(const e of graph.edges)if(e.curveId){e.curve=true;e.id='spline:'+e.curveId;}
+ // Deleting a curve's end or control deletes the curve. Its samples are never
+ // promoted to points, so the dangling pieces go with it.
+ const gone=[...removed].map(k=>{const [x,y,z]=k.split(',').map(Number);return {x,y,z};}).filter(p=>[p.x,p.y,p.z].every(Number.isFinite)),near=(p,q)=>Math.hypot(p.x-q.x,p.y-q.y,p.z-q.z)<=K.CONTACT;
+ const dropped=new Set(curves.filter(c=>(c.type==='spline'?c.controls:c.type==='conic'?[c.start,c.end]:c.type==='ellipse'?[K.curvePoint(c,0),K.curvePoint(c,1)]:[]).some(p=>gone.some(q=>near(p,q)))).map(c=>c.id));
+ if(dropped.size){const kept=new Set((edits.$loose?.points||[]).map(vertexKey));for(const [key,e]of edges)if(dropped.has(e.curveId))edges.delete(key);const used=new Set([...edges.values()].flatMap(e=>[e.a,e.b])),onDropped=n=>curves.some(c=>dropped.has(c.id)&&K.curveSamples(c).some((b,i,ps)=>i&&pointOnEdge(n,ps[i-1],b)));for(const [key,n]of nodes)if(!used.has(key)&&!kept.has(key)&&onDropped(n))nodes.delete(key);}
  return {nodes:[...nodes.values()],edges:[...edges.values()]};
 }
 function structuralPoint(p,faces){return faces.filter(f=>!f.deleted&&!f.drafted).flatMap(f=>K.normalizeFaces(f)).some(f=>rings(f).some(r=>r.some((q,i)=>{if(vertexKey(q)!==vertexKey(p))return false;const a=sub(r[(i+r.length-1)%r.length],q),b=sub(r[(i+1)%r.length],q),c=cross(a,b);return dot(a,b)>=0||Math.hypot(c.x,c.y,c.z)>1e-6*Math.max(1,Math.hypot(a.x,a.y,a.z)*Math.hypot(b.x,b.y,b.z));})));}
@@ -1233,6 +1242,14 @@ function deleteSurfaceElements(edits,pointIds=[],edgeIds=[]){const points=new Se
 }
 // Removing a coplanar divider unions its incident regions. An exterior edge,
 // including a crease shared by different planes, invalidates its incident face.
+// Polygon booleans run on a 1e-6 grid in a face's own frame. On a plane that is
+// not axis-aligned, mapping back to world moves untouched vertices by about a
+// micrometre, so a curve's samples would no longer match its other faces'
+// vertices and would surface as points. Restore the exact existing vertex.
+function exactPoints(points,tolerance=3e-6){
+ const list=[...new Map(points.map(p=>[vertexKey(p),p])).values()];
+ return p=>{let best=null,d=tolerance;for(const q of list){const e=Math.hypot(p.x-q.x,p.y-q.y,p.z-q.z);if(e<d){d=e;best=q;}}return best?{x:best.x,y:best.y,z:best.z}:p;};
+}
 function removeFaceEdges(faces,segments,wire={}){
  const parent=faces.map((_,i)=>i),affected=new Set(),invalid=new Set(),find=i=>parent[i]===i?i:(parent[i]=find(parent[i]));
  const samePlane=(a,b)=>{const f=faceFrame(a),n=normal(b.points);return f&&n&&Math.abs(dot(f.n,n))>1-1e-5&&b.points.every(p=>Math.abs(dot(sub(p,f.origin),f.n))<=K.CONTACT);};
@@ -1262,18 +1279,22 @@ function removeFaceEdges(faces,segments,wire={}){
  // The supporting wall is not an alternate boundary of a door/window.
  const repaired=[];
  for(const i of invalid){const source=faces[i],frame=faceFrame(source);if(!frame)continue;
-  const cuts=segments.map(points=>({points})),pairs=[...rings(source).flatMap(r=>r.map((p,i)=>[p,r[(i+1)%r.length]])),...(wire.lines||[]).filter(pair=>pair.every(p=>Math.abs(dot(sub(p,frame.origin),frame.n))<=K.CONTACT))],nodes=[],edges=[];
+  // A plain face may close along the remaining edges of other faces on its
+  // plane (a deleted door edge leaves the wall around it). A door/window keeps
+  // only its own ring, so an opened sticker stops being a face.
+  const onPlane=p=>Math.abs(dot(sub(p,frame.origin),frame.n))<=K.CONTACT,neighbors=source.feature?[]:faces.filter(f=>f!==source&&!f.curvedSurface&&rings(f).flat().every(onPlane));
+  const cuts=segments.map(points=>({points})),pairs=[...[source,...neighbors].flatMap(f=>rings(f).flatMap(r=>r.map((p,i)=>[p,r[(i+1)%r.length]]))),...(wire.lines||[]).filter(pair=>pair.every(onPlane))],nodes=[],edges=[];
   for(const [a,b]of pairs){let lo=0;for(const [start,end]of [...sharedIntervals(a,b,cuts),[1,1]]){if(start-lo>1e-7){const at=t=>inFrame(frame,mix3(a,b,t)),x={...at(lo),id:'n'+nodes.length},y={...at(start),id:'n'+(nodes.length+1)};nodes.push(x,y);edges.push({id:'e'+edges.length,a:x.id,b:y.id});}lo=Math.max(lo,end);}}
   const original={points:source.points.map(p=>inFrame(frame,p)),holes:(source.holes||[]).map(r=>r.map(p=>inFrame(frame,p)))},regions=K.partition({nodes,edges}).regions.map(points=>({points,holes:[]})).filter(f=>K.intersection([f],[original]).some(p=>K.area(p)>K.CONTACT*K.CONTACT)&&rings(original).some(r=>r.some((p,i)=>sharedIntervals({...p,z:0},{...r[(i+1)%r.length],z:0},[{points:f.points.map(p=>({...p,z:0}))}]).length)));
   const holes=original.holes.map(points=>({points}));for(const region of K.union(regions).flatMap(r=>holes.length?K.difference(r,holes):[r])){
-   const face={...source,mergedSources:[source.id],points:region.points.map(p=>fromFrame(frame,p)),holes:region.holes.map(r=>r.map(p=>fromFrame(frame,p)))};
+   const exact=exactPoints([...rings(source).flat(),...pairs.flat()]),face={...source,mergedSources:[source.id],points:region.points.map(p=>exact(fromFrame(frame,p))),holes:region.holes.map(r=>r.map(p=>exact(fromFrame(frame,p))))};
    const curves=[...(source.curves||[]),...(wire.curves||[])].filter(c=>{const ps=K.curveSamples(c);return ps.slice(1).every((p,i)=>sharedIntervals(ps[i],p,[face]).reduce((s,[lo,hi])=>s+hi-lo,0)>1-1e-5);});
    face.curves=[...new Map(curves.map(c=>[c.id,c])).values()];repaired.push(face);
   }
  }
  const merged=[];for(const ids of groups.values()){if(ids.some(i=>invalid.has(i)))continue;const members=ids.map(i=>faces[i]),frame=faceFrame(members[0]),B=baseGeometry(),locals=members.map(f=>({points:f.points.map(p=>inFrame(frame,p)),holes:(f.holes||[]).map(r=>r.map(p=>inFrame(frame,p)))}));
   const retainedPoints=[...new Map(members.flatMap(f=>[...rings(f).flat(),...(f.retainedPoints||[])]).map(p=>[vertexKey(p),p])).values()];
-  for(const region of K.union(locals))merged.push({...members[0],...mergedOwnership(members),mergedSources:members.map(f=>f.id),points:region.points.map(p=>fromFrame(frame,p)),holes:region.holes.map(r=>r.map(p=>fromFrame(frame,p))),retainedPoints});
+  const exact=exactPoints(members.flatMap(f=>rings(f).flat()));for(const region of K.union(locals))merged.push({...members[0],...mergedOwnership(members),mergedSources:members.map(f=>f.id),points:region.points.map(p=>exact(fromFrame(frame,p))),holes:region.holes.map(r=>r.map(p=>exact(fromFrame(frame,p)))),retainedPoints});
  }
  return {removed:[...affected].map(i=>faces[i].id),merged:[...merged,...repaired]};
 }
@@ -1396,5 +1417,5 @@ function inwardSign(face,bases){
  for(const distance of [.005,.02,.1]){const a=inside({x:c.x+n.x*distance,y:c.y+n.y*distance}),b=inside({x:c.x-n.x*distance,y:c.y-n.y*distance});if(a!==b)return a?1:-1;}
  return null;
 }
-const api={horizontalSweep,ownsPoint,followTrim,pointRangeIndex,stickerAlignmentTargets,planeAlignment,planeAlignmentGuides,adoptMergedFaceSources,faceFromPoints,mergeAtPoints,fillet,validTranslation,boundedTranslation,geometryScale,snapGeometryScale,snapGeometryOnPlane,transformGeometry,transformSelection,clipboardFrame,copyGeometry,pasteGeometry,mergeConnectedFaces,pointChamferSnap,chamferSnap,chamfer,roofExtrusion,inwardSign,cleanupSweepRemnants,sweepRemnant,motionSnapCandidates,structuralIndex,joinFragments,motionSnap,slideLines,attachedLengths,unionPlanar,trimExtrusion,moveFabric,radialDraftSnap,quadDraftSnap,normal,extrusionDirections,extrusionReference,extrude,snapDirection,bridges,dragAmount,subtract,snapBase,baseScope,belowBase,draftSnap,vertexKey,edgeKey,jsonEqual,contactBox,inContactBox,surfaceWire,restoreCreatedSurfaceWire,structuralPoint,structuralEdge,deleteSurfaceElements,removeFaceEdges,restoreSurface,sharedIntervals,freeEdges,moveSurface,faceFrame,inFrame,fromFrame,containedBy,coplanarContact,containedSnap,importDraft};if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.WallSolidGeometry=api;
+const api={exactPoints,horizontalSweep,ownsPoint,followTrim,pointRangeIndex,stickerAlignmentTargets,planeAlignment,planeAlignmentGuides,adoptMergedFaceSources,faceFromPoints,mergeAtPoints,fillet,validTranslation,boundedTranslation,geometryScale,snapGeometryScale,snapGeometryOnPlane,transformGeometry,transformSelection,clipboardFrame,copyGeometry,pasteGeometry,mergeConnectedFaces,pointChamferSnap,chamferSnap,chamfer,roofExtrusion,inwardSign,cleanupSweepRemnants,sweepRemnant,motionSnapCandidates,structuralIndex,joinFragments,motionSnap,slideLines,attachedLengths,unionPlanar,trimExtrusion,moveFabric,radialDraftSnap,quadDraftSnap,normal,extrusionDirections,extrusionReference,extrude,snapDirection,bridges,dragAmount,subtract,snapBase,baseScope,belowBase,draftSnap,vertexKey,edgeKey,jsonEqual,contactBox,inContactBox,surfaceWire,restoreCreatedSurfaceWire,structuralPoint,structuralEdge,deleteSurfaceElements,removeFaceEdges,restoreSurface,sharedIntervals,freeEdges,moveSurface,faceFrame,inFrame,fromFrame,containedBy,coplanarContact,containedSnap,importDraft};if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.WallSolidGeometry=api;
 })(typeof window!=='undefined'?window:globalThis);

@@ -1,0 +1,96 @@
+{
+  "roles": [
+    {
+      "role": "web",
+      "service": "active",
+      "release": "590e75f71e40312fbe2be423a636b7a21dca0729",
+      "phone_source": "590e75f71e40312fbe2be423a636b7a21dca0729",
+      "path": "/opt/firstmeasure/releases/2f38fe5498722be076573225d56168e5a60e18f6-notes-tray",
+      "baseline": "/opt/firstmeasure/releases-oversized-mms/cab8e056-sms-identity",
+      "source_files": 24,
+      "phone_worker_owner": "0",
+      "readiness": "ready",
+      "outbound_safety": true
+    },
+    {
+      "role": "pool",
+      "service": "active",
+      "release": "590e75f71e40312fbe2be423a636b7a21dca0729",
+      "phone_source": "590e75f71e40312fbe2be423a636b7a21dca0729",
+      "path": "/opt/firstmeasure/releases/phone-590e75f71e40312fbe2be423a636b7a21dca0729-pool",
+      "baseline": "/opt/firstmeasure/releases-oversized-mms/2f38fe5498722be076573225d56168e5a60e18f6-notes-tray",
+      "source_files": 24,
+      "phone_worker_owner": "0",
+      "readiness": "ready",
+      "outbound_safety": true
+    },
+    {
+      "role": "compat",
+      "service": "active",
+      "release": "590e75f71e40312fbe2be423a636b7a21dca0729",
+      "phone_source": "590e75f71e40312fbe2be423a636b7a21dca0729",
+      "path": "/mnt/firstmeasure_dev_releases/releases/2f38fe5498722be076573225d56168e5a60e18f6-notes-tray",
+      "baseline": "/mnt/firstmeasure_dev_releases/releases-oversized-mms/cab8e056-sms-identity",
+      "source_files": 24,
+      "phone_worker_owner": "1",
+      "readiness": "ready",
+      "outbound_safety": true
+    },
+    {
+      "role": "worker",
+      "service": "active",
+      "release": "590e75f71e40312fbe2be423a636b7a21dca0729",
+      "phone_source": "590e75f71e40312fbe2be423a636b7a21dca0729",
+      "path": "/opt/firstmeasure/releases/phone-590e75f71e40312fbe2be423a636b7a21dca0729-worker",
+      "baseline": "/opt/firstmeasure/releases/cab8e056-sms-identity",
+      "source_files": 20,
+      "phone_worker_owner": "0"
+    }
+  ],
+  "public": {
+    "health": [
+      {
+        "ok": true,
+        "state": "ready",
+        "release_id": "590e75f71e40312fbe2be423a636b7a21dca0729",
+        "data_environment": "development"
+      },
+      {
+        "ok": true,
+        "state": "ready",
+        "release_id": "590e75f71e40312fbe2be423a636b7a21dca0729",
+        "data_environment": "development"
+      },
+      {
+        "ok": true,
+        "state": "ready",
+        "release_id": "590e75f71e40312fbe2be423a636b7a21dca0729",
+        "data_environment": "development"
+      }
+    ],
+    "assets": {
+      "public/libraries/apps/settings/phone.js": "412c2937496108856e9ff0991113ac4cc3fe40914c7ea6641144636f98cb2959",
+      "public/libraries/apps/settings/phone-marketing.js": "689e7bd33c666efa6ffdd402cfeab5ee1a09ecbc9c4150935272b6f0ee9688f6",
+      "public/libraries/phone-tracking/website.js": "60fb85a175440fc4bee352956a97df5a03c4d8e37224cfccfa764b35f12cabf1",
+      "public/libraries/apps/firstmate-apps-manifest.js": "a2f6679ee1fe505044b6be141d3696df2040e56bb002c514a91b8158bc4205e5"
+    }
+  },
+  "schema": {
+    "database": "postgres",
+    "tables": 6,
+    "tenant_changes": false,
+    "carrier_calls": 0
+  },
+  "probe": {
+    "domain_write": true,
+    "publication_action": true,
+    "public_assignment": true,
+    "stable_source": true,
+    "outbox": "completed",
+    "trigger": "completed",
+    "consumer": "running-compatibility-phone-owner",
+    "organization": "phone-marketing-probe-20261012",
+    "temporary_data_removed": true,
+    "carrier_calls": 0
+  }
+}

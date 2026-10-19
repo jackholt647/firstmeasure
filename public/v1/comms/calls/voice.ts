@@ -1,3 +1,4 @@
+import { canUseLine, lineMembers } from '../phone/service.js';
 import { developmentCallStatus } from './development.js';
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
@@ -14,13 +15,14 @@ import * as s from "./storage.js";
 import { text, object, type Json, type CustomerCall } from "./storage.js";
 
 export async function voiceStatus(ctx:PlatformAuthContext){
+  const usableNumbers:Array<s.Json & {assigned_user_ids:string[]}>=[];for(const n of await s.resources(ctx.orgId,"number"))if(await canUseLine(ctx,n.id))usableNumbers.push({...n,assigned_user_ids:await lineMembers(ctx.orgId,n.id)});
   const settings=(await voiceSettings(ctx.orgId));const endpoint=(await s.resource(ctx.orgId,"endpoint",ctx.userId));
   const environment=voiceEnvironmentStatus();
   return {settings,branch_id:ctx.branchId||'default',development:await developmentCallStatus(ctx.orgId),environment:manageCalls(ctx)?environment:{mode:environment.mode,ready:environment.api_key_configured&&environment.webhook_key_configured&&environment.public_https},
     permissions:{manage:manageCalls(ctx),record:canUseScopedPermission(ctx,'record_calls|manage_communications|manage_company_settings'),recordings:canUseScopedPermission(ctx,'view_call_recordings|manage_communications|manage_company_settings'),...Object.fromEntries(Object.entries(supervisionPermissions).map(([mode,permission])=>[mode,canUseScopedPermission(ctx,permission)]))},
     available_numbers:manageCalls(ctx)?(await s.database().prepare("SELECT phone_number FROM messaging_phone_number_ownership WHERE organization_id=? AND provider_phone_number_id<>''").all(ctx.orgId)).map(row=>text(object(row).phone_number)):[],
     resources:manageCalls(ctx)?[...(await s.resources(ctx.orgId,"application")),...(await s.resources(ctx.orgId,"connection")),...(await s.resources(ctx.orgId,"outbound_profile"))].map(r=>({id:r.id,kind:r.kind,status:r.status,provider_id:r.provider_id})):[],
-    numbers:(await s.resources(ctx.orgId,"number")).map(n=>({id:n.id,phone_number:n.phone_number,label:n.label,status:n.status,branch_id:n.branch_id,assigned_user_id:n.assigned_user_id||''})),
+    numbers:usableNumbers.map(n=>({id:n.id,phone_number:n.phone_number,label:n.label,status:n.status,branch_id:n.branch_id,assigned_user_id:n.assigned_user_ids.length===1?n.assigned_user_ids[0]:'',assigned_user_ids:n.assigned_user_ids})),
     sms_numbers:(await listSenderIdentities(ctx.orgId,ctx.branchId||'default','sms')).filter(n=>n.status==='active').map(n=>({phone_number:n.address,label:n.display_name||n.address})),
     default_number:text((await s.resource(ctx.orgId,'number_preference',ctx.userId))?.phone_number),
     endpoint:endpoint?{registered:endpoint.registered===true&&text(endpoint.heartbeat_at)>new Date(Date.now()-45_000).toISOString(),availability:endpoint.availability,device_id:endpoint.device_id}:null};
@@ -144,7 +146,7 @@ export async function presence(ctx:PlatformAuthContext,input:Json){
   const endpoint=(await s.resource(ctx.orgId,"endpoint",ctx.userId));
   if(!endpoint||endpoint.device_id!==input.device_id||endpoint.session_id!==ctx.sessionId)throw conflict("phone_owner_changed","This browser no longer owns your phone session.");
   if(text((await s.resource(ctx.orgId,'endpoint_lock',ctx.userId))?.expires_at)>s.now())return {...endpoint,registered:false,availability:'unavailable'};
-  let offered=false;if(text(endpoint.offered_call_id)){try{const call=(await s.readCall(ctx.orgId,text(endpoint.offered_call_id)));offered=!s.terminal.has(call.state)&&text(object(call.metadata.transfer).target_user_id)===ctx.userId&&['dialing','consulting'].includes(text(object(call.metadata.transfer).state));}catch{}}
+  let offered=false;if(text(endpoint.offered_call_id)){try{const call=(await s.readCall(ctx.orgId,text(endpoint.offered_call_id)));offered=!s.terminal.has(call.state)&&((s.strings(call.metadata.offered_user_ids).includes(ctx.userId)&&!call.metadata.winning_control_id)||text(object(call.metadata.transfer).target_user_id)===ctx.userId&&['dialing','consulting'].includes(text(object(call.metadata.transfer).state)));}catch{}}
   const supervisionCallId=await activeSupervisionCallId(ctx.orgId,ctx.userId);
   const active=offered||!!supervisionCallId||(await s.listCalls(ctx.orgId,{owner_user_id:ctx.userId,active:true,include_diagnostics:true})).total>0;
   const availability=input.registered===true&&!active&&input.availability==="available"?"available":active?"busy":"unavailable";
@@ -192,6 +194,12 @@ export async function callAction(ctx:PlatformAuthContext,callId:string,input:unk
   if(consultation&&['accept','decline','hangup'].includes(body.action)){
     const leg=(await s.legs(ctx.orgId,callId)).find(l=>l.role==='consult'&&l.state!=='ended');if(!leg)throw conflict('consult_not_ready','The consultation is still connecting.');
     (await s.transaction(async ()=>{const op=(await s.operation(ctx.orgId,'action',body.operation_id,call.id,{...body,actor:ctx.userId}));if(!op.existing){(await providerCommand(call,text(leg.control_id),body.action==='accept'?'answer':'hangup',{},op.id));(await s.finishOperation(ctx.orgId,op.id,{call_id:call.id}));}}));return {call};
+  }
+  if(call.metadata.phone_routing&&!call.connected_at&&['accept','decline'].includes(body.action)){
+    if(!s.strings(call.metadata.offered_user_ids).includes(ctx.userId))throw forbidden('call_not_offered','This call was not offered to you.');
+    const leg=(await s.legs(ctx.orgId,callId)).find(l=>l.role==='agent'&&object(l.data).ring_user_id===ctx.userId&&l.state!=='ended');
+    if(!leg)throw conflict('call_leg_not_ready','Your phone is still ringing.');
+    await s.transaction(async()=>{const op=await s.operation(ctx.orgId,'action',body.operation_id,call.id,{...body,actor:ctx.userId});if(!op.existing){await providerCommand(call,text(leg.control_id),body.action==='accept'?'answer':'hangup',{},op.id);await s.finishOperation(ctx.orgId,op.id,{call_id:call.id});}});return {call};
   }
   requireCallAccess(ctx,call,true);
   if((body.action.startsWith('record_')||body.action==='consent')&&!hasResourcePermission(ctx,'record_calls|manage_communications|manage_company_settings',callDepartmentResource(call)))throw forbidden('recording_forbidden','You do not have permission to record this call.');

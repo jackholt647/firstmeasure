@@ -92,6 +92,28 @@ after(async () => {
   }
 });
 
+/**
+ * Document payments charge through the processor; nothing is recorded as paid
+ * without one. Tests that pay a document board the in-process simulator and
+ * pay with one of its card tokens.
+ */
+async function readyToTakePayments(orgId: string) {
+  await (await operatorFixtureClient(app, orgId)).request("PUT", `/v1/platform/organizations/${orgId}/capabilities`, {
+    values: { "platform.money": true, "money.take_payment": true, "money.merchant_processing": true }
+  });
+  const { upsertMerchantConfig } = await import("../payments/merchant_config.js");
+  await upsertMerchantConfig(orgId, {
+    provider: "mock",
+    forward: { account_id: "acct_mock_documents", boarding_status: "APPROVED", processing_enabled: true }
+  }, { skipFlag: true });
+  const { createMockAdapter } = await import("../payments/providers/mock.js");
+  const intent = await createMockAdapter(orgId).createPaymentMethodIntent({
+    type: "card",
+    card: { number: "4242424242424242", exp_month: 12, exp_year: 2032, cvc: "123" }
+  });
+  return intent.payment_method_id;
+}
+
 async function registerOrg(client: ReturnType<typeof createSessionClient>) {
   const suffix = `${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
   const data = await client.request("POST", "/v1/platform/auth/register", {
@@ -551,8 +573,14 @@ test("roofing sign-and-pay template applies its percentage schedule to preview a
   const sent = await client.request("POST", `/v1/documents/organizations/${orgId}/documents/${created.document.id}/send`, {
     recipients: [{ name: "Schedule Customer", email: "schedule@example.test", role: "customer" }]
   });
-  const paid = await client.request("POST", `/v1/documents/public/${sent.snapshot.public_token}/outputs/deposit_payment`, {
+  const unpaid = await client.raw("POST", `/v1/documents/public/${sent.snapshot.public_token}/outputs/deposit_payment`, {
     value: { payment_method: "ach", amount_cents: 0 },
+    evidence: { timezone: "America/Los_Angeles", locale: "en-US" }
+  });
+  assert.equal(unpaid.statusCode, 409, "without payment setup nothing is recorded as paid");
+  const token = await readyToTakePayments(orgId);
+  const paid = await client.request("POST", `/v1/documents/public/${sent.snapshot.public_token}/outputs/deposit_payment`, {
+    value: { payment_method: "card", amount_cents: 0, payment_method_id: token },
     evidence: { timezone: "America/Los_Angeles", locale: "en-US" }
   });
   assert.equal(paid.snapshot.outputs.deposit_payment.amount_cents, 405000, "server charges the scheduled percentage amount");
@@ -763,8 +791,9 @@ test("document lifecycle: create → resolve (bindings + widget data) → overri
   });
   assert.equal(intentOnlyPayment.statusCode, 400, "opening checkout does not count as a completed payment");
 
+  const lifecycleToken = await readyToTakePayments(orgId);
   const paid = await client.request("POST", `/v1/documents/organizations/${orgId}/documents/${documentId}/outputs/deposit_payment`, {
-    value: { amount_cents: 250000, method: "mock", reference: "pay_test_1" }
+    value: { amount_cents: 250000, method: "card", reference: "pay_test_1", payment_method_id: lifecycleToken }
   });
   assert.equal(paid.status, "completed", "payment output completes the document");
 
@@ -1138,9 +1167,10 @@ test("conditional pricing: checkout-driven rows, formula fees, discounts, days_s
   assert.notEqual(previewCard.totals.total_cents, previewAch.totals.total_cents, "card and ach previews produce different totals");
   assert.equal(previewCard.totals.base_subtotal_cents, BASE_SUBTOTAL, "base subtotal excludes every conditional row");
 
-  // --- mock payment path: amount recomputed server-side, never trusted ------
+  // --- payment: amount recomputed server-side, never trusted ----------------
+  const conditionalToken = await readyToTakePayments(orgId);
   await client.request("POST", `/v1/documents/public/${token}/outputs/deposit_payment`, {
-    value: { amount_cents: 1, payment_method: "card", reference: "pay_conditional_1" }
+    value: { amount_cents: 1, payment_method: "card", reference: "pay_conditional_1", payment_method_id: conditionalToken }
   });
   const afterPay = await client.request("GET", `/v1/documents/organizations/${orgId}/documents/${documentId}`);
   assert.equal(afterPay.document.outputs.deposit_payment.amount_cents, 100000,

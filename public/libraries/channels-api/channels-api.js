@@ -68,7 +68,8 @@
       body,
       headers,
       cache: 'no-store',
-      credentials: 'include'
+      credentials: 'include',
+      signal: options.signal
     });
     const text = await res.text();
     let data = null;
@@ -114,6 +115,7 @@
       update: (orgId, channelId, patch) => request(orgPath(orgId, `/channels/${enc(channelId)}`), { method: 'PATCH', body: patch }),
       archive: (orgId, channelId) => request(orgPath(orgId, `/channels/${enc(channelId)}/archive`), { method: 'POST' }),
       unarchive: (orgId, channelId) => request(orgPath(orgId, `/channels/${enc(channelId)}/unarchive`), { method: 'POST' }),
+      ensurePhoto: (orgId, mediaId) => request(orgPath(orgId, `/channels/photo/${enc(mediaId)}`), { method: 'POST' }),
       ensureProject: (orgId, projectId) => request(orgPath(orgId, `/channels/project/${enc(projectId)}`), { method: 'POST' }),
       addMembers: (orgId, channelId, userIds) => request(orgPath(orgId, `/channels/${enc(channelId)}/members`), { method: 'POST', body: { user_ids: userIds } }),
       removeMember: (orgId, channelId, userId) => request(orgPath(orgId, `/channels/${enc(channelId)}/members/${enc(userId)}`), { method: 'DELETE' }),
@@ -121,6 +123,8 @@
     },
 
     messages: {
+      noteAuthors: (orgId, channelId) => request(orgPath(orgId, `/channels/${enc(channelId)}/note-authors`)),
+      updateVisibility: (orgId, messageId, input) => request(orgPath(orgId, `/messages/${enc(messageId)}/visibility`), { method:'PATCH', body:input }),
       list: (orgId, channelId, params = {}) => request(orgPath(orgId, `/channels/${enc(channelId)}/messages${queryString(params)}`)),
       post: (orgId, channelId, input) => request(orgPath(orgId, `/channels/${enc(channelId)}/messages`), { method: 'POST', body: input }),
       get: (orgId, messageId) => request(orgPath(orgId, `/messages/${enc(messageId)}`)),
@@ -181,6 +185,8 @@
         { method:'POST', body:{ last_reply_seq:lastReplySeq } }
       )
     },
+
+    compose: {polish:(orgId,channelId,input,options={})=>request(orgPath(orgId,`/channels/${enc(channelId)}/compose/polish`),{method:'POST',body:input,signal:options.signal})},
 
     drafts: {
       get: (orgId, draftKey) => request(orgPath(orgId, `/drafts/${enc(draftKey)}`)),
@@ -270,6 +276,7 @@
   };
 
   api.feed = {
+    polish: (orgId,input,options={}) => request(orgPath(orgId,'/feed/compose/polish'),{method:'POST',body:input,signal:options.signal}),
     catalog: (orgId,departmentId='') => request(orgPath(orgId, '/feed/catalog')+(departmentId?`?department_id=${enc(departmentId)}`:'')),
     authorize: (orgId, refs,department_id='') => request(orgPath(orgId, '/feed/authorize'), {method:'POST',body:{refs,department_id}}),
     lookup: (orgId, refs) => request(orgPath(orgId, '/feed/posts/lookup'), {method:'POST',body:{refs}}),

@@ -1,0 +1,585 @@
+diff --git a/public/libraries/apps/comms/workspace.js b/public/libraries/apps/comms/workspace.js
+index dfda7f38..d20be2b3 100644
+--- a/public/libraries/apps/comms/workspace.js
++++ b/public/libraries/apps/comms/workspace.js
+@@ -244,7 +244,7 @@
+         state.host.innerHTML=toolbar('Call scripts','<button class="fmcm-primary" data-action="new-script">'+icon('plus')+' New script</button>')+
+           `<p class="fmcm-help">${(globalThis.PlatformLanguage?.htmlText("comms","m_58f99d4623b8fc","Published scripts are available in the call workspace. Every call keeps the version used at the time.") ?? "Published scripts are available in the call workspace. Every call keeps the version used at the time.")}</p>`+
+           ((state.scripts||[]).length?`<div class="fmcm-grid">${state.scripts.map(s=>`<section class="fmcm-card"><header class="fmcm-card-head"><h3>${String(esc(s.title))}</h3><span class="fmcm-pill">v${String(s.version)} · ${String(esc(s.status))}</span></header><div style="padding:18px"><p>${String(esc(s.data?.sections?.[0]?.body?.slice(0,220)||''))}</p><button data-action="edit-script" data-id="${String(esc(s.id))}">${(globalThis.PlatformLanguage?.htmlText("comms","m_79c5dcac1f6211","Edit script") ?? "Edit script")}</button></div></section>`).join('')}</div>`:empty('Support a natural conversation','Create prompts and questions that stay beside your notes during a call.',`<button data-action="new-script">${(globalThis.PlatformLanguage?.htmlText("comms","m_933c94351d5ffc","Create a script") ?? "Create a script")}</button>`));
+-      }else if(state.view==='setup'){renderSetup();state.host.insertAdjacentHTML('afterbegin',settingsTabs());}
++      }else if(state.view==='setup'){ui.navigate({tab:'company_settings',sub:'sms'});}
+       root.querySelectorAll('[data-list-scroll]').forEach(el=>{el.scrollTop=listScroll.get(el.dataset.listScroll)||0;});
+       if(searchActive){const input=root.querySelector('[data-search]');input?.focus();try{input?.setSelectionRange(cursor,cursor);}catch{}}
+       if(state.error)showError();
+diff --git a/public/libraries/apps/firstmate-apps-manifest.js b/public/libraries/apps/firstmate-apps-manifest.js
+index 271b9197..2f588a74 100644
+--- a/public/libraries/apps/firstmate-apps-manifest.js
++++ b/public/libraries/apps/firstmate-apps-manifest.js
+@@ -611,7 +611,7 @@
+       portalTabId: 'company_settings',
+       placement: 'settings',
+       access: managementAccess,
+-      bundles: [priorityFieldsBundle, versionedBundle('../custom-fields/firstmate-custom-fields.js', '20261010-published-calculations-owners-v2'), versionedBundle('../payroll-api/payroll-api.js', '20261006-payroll-publication-v1'), versionedBundle('../websites-api/websites-api.js', '20260731-domains-v10'), versionedBundle('../domains-api/domains-api.js', '20260731-domains-v10'), versionedBundle('../insights/firstmate-insights.js', '20260901-insights-v1'), versionedBundle('settings/domains.js', '20260731-domains-v11'), versionedBundle('settings/crm.js', '20261010-priority-owners-v2'), versionedBundle('settings/contacts.js', '20261009-contact-settings-v1'), versionedBundle('settings/payroll.js', '20261006-payroll-publication-v1'), versionedBundle('settings/money-overlay-enforcer.js', '20260828-money-overlay-integrity-v1'), versionedBundle('settings/platform-billing.js', '20260924-subscription-service-v3'), versionedBundle('../brand-kit/brand-kit.js', '20261006-firstmeasure-localization-v1'), bundle('../platform-terminology/editor.js'), versionedBundle('settings/feed.js', '20261010-feed-autosave-v1'), versionedBundle('settings/company.js', '20261010-feed-permissions-v2')]
++      bundles: [priorityFieldsBundle, versionedBundle('../custom-fields/firstmate-custom-fields.js', '20261010-published-calculations-owners-v2'), versionedBundle('../payroll-api/payroll-api.js', '20261006-payroll-publication-v1'), versionedBundle('../websites-api/websites-api.js', '20260731-domains-v10'), versionedBundle('../domains-api/domains-api.js', '20260731-domains-v10'), versionedBundle('../insights/firstmate-insights.js', '20260901-insights-v1'), versionedBundle('settings/domains.js', '20260731-domains-v11'), versionedBundle('settings/crm.js', '20261010-priority-owners-v2'), versionedBundle('settings/contacts.js', '20261009-contact-settings-v1'), versionedBundle('settings/payroll.js', '20261006-payroll-publication-v1'), versionedBundle('settings/money-overlay-enforcer.js', '20260828-money-overlay-integrity-v1'), versionedBundle('settings/platform-billing.js', '20260924-subscription-service-v3'), versionedBundle('../brand-kit/brand-kit.js', '20261006-firstmeasure-localization-v1'), bundle('../platform-terminology/editor.js'), versionedBundle('settings/feed.js', '20261010-feed-autosave-v1'), versionedBundle('settings/phone.js', '20261010-phone-settings-v1'), versionedBundle('settings/company.js', '20261010-phone-settings-v1')]
+     },
+     {
+       id: 'portal.crew_overview',
+diff --git a/public/libraries/apps/settings/company.js b/public/libraries/apps/settings/company.js
+index 7ad5f1f4..dcb072d0 100644
+--- a/public/libraries/apps/settings/company.js
++++ b/public/libraries/apps/settings/company.js
+@@ -1708,7 +1708,7 @@
+     const canScopeTemplates = canCompany && appFlag('platform', 'expanded_access') && appFlag('apps', 'projects');
+     const canCallWorkflows = canCompany && appFlag('calls', 'app');
+     const canStorage = canCompany && storageLimitsEnabled();
+-    const canSmsSettings = canCompany && (appFlag('platform', 'sms_settings') || window.FirstMatePlatformBilling?.configured('platform', 'sms_settings'));
++    const canSmsSettings = appFlag('apps','comms') || canCompany && (appFlag('platform', 'sms_settings') || window.FirstMatePlatformBilling?.configured('platform', 'sms_settings'));
+     const canDomains = canCompany && appFlag('apps', 'web_editor') && appFlag('web_editor', 'custom_domains');
+     const canAssistant = appFlag('apps', 'assistant') && (canCompany || hasPerm('use_assistant') || hasPerm('view_projects') || hasPerm('manage_projects'));
+     const canInterfaceLanguage = appFlag('platform', 'my_settings');
+@@ -1726,7 +1726,7 @@
+       { id:'notifications', allowed:appFlag('apps', 'notifications'), icon:'fas fa-bell', title:(globalThis.PlatformLanguage?.text("settings","m_5a9115e4033cb3","Notifications") ?? "Notifications"), subtitle:(globalThis.PlatformLanguage?.text("settings","m_c5f15c570faa05","Choose which updates appear here and on your phone.") ?? "Choose which updates appear here and on your phone."), tabId:'csTabNotifications', paneId:'csPaneNotifications' },
+       { id:'company', allowed:canCompany, icon:'fas fa-building', term:'settings.company_tab', title:(globalThis.PlatformLanguage?.text("settings","m_500872d3c049f6","Company") ?? "Company"), subtitle:(globalThis.PlatformLanguage?.text("settings","m_b21fe34fffb4ad","Company identity, contact details, branding, and defaults.") ?? "Company identity, contact details, branding, and defaults."), tabId:'csTabCompany', paneId:'csPaneCompany' },
+       { id:'money', allowed:canPayments, icon:'fas fa-wallet', title:(globalThis.PlatformLanguage?.text("settings","m_05cb9dd7e5a780","Money") ?? "Money"), subtitle:(globalThis.PlatformLanguage?.text("settings","m_764ee227ff8bd4","Accounts, payment defaults, and disputes.") ?? "Accounts, payment defaults, and disputes."), tabId:'csTabMoney', paneId:'csPaneMoney' },
+-      { id:'calls', allowed:canCallWorkflows, icon:'fas fa-phone', title:(globalThis.PlatformLanguage?.text("settings","m_e830f5588df87c","Calls") ?? "Calls"), subtitle:(globalThis.PlatformLanguage?.text("settings","m_cb8b711a9efc4a","Configure call queues, assignments, follow-ups, and outcomes.") ?? "Configure call queues, assignments, follow-ups, and outcomes."), tabId:'csTabCalls', paneId:'csPaneCalls' },
++      { id:'calls', allowed:canCallWorkflows, icon:'fas fa-phone', title:(globalThis.PlatformLanguage?.text("settings","phone_call_lists","Call Lists") ?? "Call Lists"), subtitle:(globalThis.PlatformLanguage?.text("settings","m_cb8b711a9efc4a","Configure call lists, assignments, follow-ups, and outcomes.") ?? "Configure call lists, assignments, follow-ups, and outcomes."), tabId:'csTabCalls', paneId:'csPaneCalls' },
+       { id:'contacts', allowed:canContacts, icon:'fas fa-address-book', term:'contacts.settings_tab', title:(globalThis.PlatformLanguage?.text("settings","m_6fe082da60f3b0","Contacts") ?? "Contacts"), subtitle:(globalThis.PlatformLanguage?.text("settings","m_3b1e71af416b42","Import contacts and review prior imports.") ?? "Import contacts and review prior imports."), tabId:'csTabContacts', paneId:'csPaneContacts' },
+       { id:'connections', allowed:canCompany && appFlag('platform', 'connections'), icon:'fas fa-plug', title:'Connections', subtitle:'Connect external tools, publish data, and automate workflows.', tabId:'csTabConnections', paneId:'csPaneConnections' },
+       { id:'feedback', allowed:canFeedback, icon:'fas fa-star', term:'settings.feedback_tab', title:(globalThis.PlatformLanguage?.text("settings","m_d77e00c8c3f0b8","Feedback") ?? "Feedback"), subtitle:(globalThis.PlatformLanguage?.text("settings","m_0b7fe3900fd0b1","Configure customer feedback and review responses.") ?? "Configure customer feedback and review responses."), tabId:'csTabFeedback', paneId:'csPaneFeedback' },
+@@ -1745,7 +1745,7 @@
+       { id:'crews', allowed:canCrews, icon:'fas fa-helmet-safety', term:'workforce.settings_tab', title:(globalThis.PlatformLanguage?.text("settings","m_6fc46689992fe4","Crews and Subcontractors") ?? "Crews and Subcontractors"), subtitle:(globalThis.PlatformLanguage?.text("settings","m_26856461a3540a","Manage internal work groups and external organizations.") ?? "Manage internal work groups and external organizations."), tabId:'csTabCrews', paneId:'csPaneCrews' },
+       { id:'project_scopes', allowed:canScopeTemplates, icon:'fas fa-layer-group', title:(globalThis.PlatformLanguage?.text("settings","m_7932b921135406","Project Scopes") ?? "Project Scopes"), subtitle:(globalThis.PlatformLanguage?.text("settings","m_eeffd1a4887236","Choose project scopes and configure each scope’s workflow, fields, resources, and automations.") ?? "Choose project scopes and configure each scope’s workflow, fields, resources, and automations."), tabId:'csTabScopeTemplates', paneId:'csPaneScopeTemplates' },
+       { id:'storage', allowed:canStorage, icon:'fas fa-hard-drive', term:'settings.storage_tab', title:(globalThis.PlatformLanguage?.text("settings","m_6a8d5a5b6c23db","Storage") ?? "Storage"), subtitle:(globalThis.PlatformLanguage?.text("settings","m_4926f46a0a9736","Review media usage and storage limits.") ?? "Review media usage and storage limits."), tabId:'csTabStorage', paneId:'csPaneStorage' },
+-      { id:'sms', allowed:canSmsSettings, icon:'fas fa-message', term:'settings.sms_tab', title:(globalThis.PlatformLanguage?.text("settings","m_e1dd22c36fbc9b","SMS") ?? "SMS"), subtitle:(globalThis.PlatformLanguage?.text("settings","m_db381c7db3160e","Configure messaging registration and SMS setup.") ?? "Configure messaging registration and SMS setup."), tabId:'csTabSms', paneId:'csPaneSms' },
++      { id:'sms', allowed:canSmsSettings, icon:'fas fa-message', title:(globalThis.PlatformLanguage?.text("settings","phone_settings_title","Phone Settings") ?? "Phone Settings"), subtitle:(globalThis.PlatformLanguage?.text("settings","m_db381c7db3160e","Manage phone lines, voicemail, routing, messaging, and tracking numbers.") ?? "Manage phone lines, voicemail, routing, messaging, and tracking numbers."), tabId:'csTabSms', paneId:'csPaneSms' },
+       { id:'domains', allowed:canDomains, icon:'fas fa-globe', term:'settings.domains_tab', title:(globalThis.PlatformLanguage?.text("settings","m_7e6427ce4061f4","Domains & Hosting") ?? "Domains & Hosting"), subtitle:(globalThis.PlatformLanguage?.text("settings","m_c02d45f8191c42","Register, connect, and manage website domains.") ?? "Register, connect, and manage website domains."), tabId:'csTabDomains', paneId:'csPaneDomains' },
+       { id:'app_flags', allowed:canAppFlags, icon:'fas fa-code', term:'settings.developer_settings_tab', title:(globalThis.PlatformLanguage?.text("settings","developer_settings_title","Developer Settings") ?? "Developer Settings"), subtitle:(globalThis.PlatformLanguage?.text("settings","developer_settings_subtitle","Developer tools, feature flags, and app configuration.") ?? "Developer tools, feature flags, and app configuration."), tabId:'csTabAppFlags', paneId:'csPaneAppFlags' },
+       { id:'pricebook', allowed:canPricebook, icon:'fas fa-book', term:'pricebook.settings_tab', title:(globalThis.PlatformLanguage?.text("settings","m_f574625863d5b7","Pricebook") ?? "Pricebook"), subtitle:(globalThis.PlatformLanguage?.text("settings","m_c23b3b22698ba1","Manage the organization price book, global references, variants, and artifact pricing rules.") ?? "Manage the organization price book, global references, variants, and artifact pricing rules."), tabId:'csTabPricebook', paneId:'csPanePricebook' },
+@@ -5780,10 +5780,18 @@
+       if (step === 'number') return smsNumberSelection(profile, options.numberSearch || {});
+       return smsSummaryContent(profile);
+     }
++    let phoneSettingsHandle = null;
+     async function renderSmsSettings(){
+-      if (!paneSms) return;
++      if(!paneSms)return;
++      phoneSettingsHandle?.destroy?.();
++      if(!appFlag('apps','comms'))return renderSmsRegistration(paneSms);
++      if(!window.FirstMatePhoneSettings?.mount){paneSms.textContent='Phone Settings could not load. Refresh the page.';return;}
++      phoneSettingsHandle=await window.FirstMatePhoneSettings.mount(paneSms,{orgId:currentOrgId(),initialTab:readSettingsRoute().workflow==='10dlc'?'registration':'personal',registration:renderSmsRegistration});
++    }
++    async function renderSmsRegistration(host = paneSms){
++      if (!host) return;
+       const orgId = currentOrgId();
+-      paneSms.innerHTML = `<div class="cs-section"><h3>${(globalThis.PlatformLanguage?.htmlText("settings","m_cbd66bd6a20757","SMS Settings") ?? "SMS Settings")}</h3><p class="cs-note">${(globalThis.PlatformLanguage?.htmlText("settings","m_a0a4311c5f28de","Loading SMS setup...") ?? "Loading SMS setup...")}</p></div>`;
++      host.innerHTML = `<div class="cs-section"><h3>${(globalThis.PlatformLanguage?.htmlText("settings","phone_registration_title","10DLC Registration") ?? "10DLC Registration")}</h3><p class="cs-note">${(globalThis.PlatformLanguage?.htmlText("settings","m_a0a4311c5f28de","Loading SMS setup...") ?? "Loading SMS setup...")}</p></div>`;
+       try {
+         let setup;
+         smsRegistrationLiveMode = false;
+@@ -5791,18 +5799,18 @@
+           setup = await messagingRequest(`/organizations/${encodeURIComponent(orgId)}/sms/setup`);
+           smsRegistrationLiveMode = setup.telnyx?.registration_live === true;
+         }
+-        if (!smsRegistrationLiveMode && await window.FirstMatePlatformBilling?.setup(paneSms, {orgId,canView:canPlatformBilling,capabilityKeys:['comms.sms','apps.messaging','platform.sms_settings'],onReady:renderSmsSettings})) return;
++        if (!smsRegistrationLiveMode && await window.FirstMatePlatformBilling?.setup(host, {orgId,canView:canPlatformBilling,capabilityKeys:['comms.sms','apps.messaging','platform.sms_settings'],onReady:()=>renderSmsRegistration(host)})) return;
+         setup ||= await messagingRequest(`/organizations/${encodeURIComponent(orgId)}/sms/setup`);
+         smsRegistrationLiveMode = setup.telnyx?.registration_live === true;
+         const profiles = Array.isArray(setup.profiles) ? setup.profiles.map((item) => smsPrefillProfile(item, setup)) : [];
+         const eligibleProfiles = smsRegistrationLiveMode ? profiles.filter((item) => !(item.events || []).some((event) => ['brand_submitted','brand_updated','campaign_submitted'].includes(event.type) && event.mock === true)) : profiles;
+         const profile = eligibleProfiles[0] || smsPrefillProfile({}, setup);
+         const registrationStatus = smsCustomerRegistrationStatus(profile);
+-        paneSms.innerHTML = `
++        host.innerHTML = `
+           <div class="sms-card">
+             <div class="sms-hero">
+               <div>
+-                <h3>${(globalThis.PlatformLanguage?.htmlText("settings","m_cbd66bd6a20757","SMS Settings") ?? "SMS Settings")}</h3>
++                <h3>${(globalThis.PlatformLanguage?.htmlText("settings","phone_registration_title","10DLC Registration") ?? "10DLC Registration")}</h3>
+                 <p>${(globalThis.PlatformLanguage?.htmlText("settings","m_1ee85ae452b937","Set up standardized FirstMate SMS registration before sending customer texts.") ?? "Set up standardized FirstMate SMS registration before sending customer texts.")}</p>
+               </div>
+               <button class="cs-btn primary" type="button" id="smsStartSetup"><i class="fas fa-up-right-from-square"></i> ${String(eligibleProfiles.length ? 'Open Registration' : 'Set Up SMS Registration')}</button>
+@@ -5822,9 +5830,9 @@
+               `).join('') : `<div class="cs-note">${(globalThis.PlatformLanguage?.htmlText("settings","m_95c7c3b0210dc4","No SMS registration has been created yet.") ?? "No SMS registration has been created yet.")}</div>`)}
+             </div>
+           </div>`;
+-        if (!smsRegistrationLiveMode) void window.Portal?.PhoneTray?.developmentSetup(paneSms);
+-        paneSms.querySelector('#smsStartSetup')?.addEventListener('click', () => openSmsWizard(profile, { initialStep: smsRegistrationSubmitted(profile) ? 'summary' : 'business' }));
+-        paneSms.querySelectorAll('[data-open-sms-profile]').forEach((button) => {
++        if (!smsRegistrationLiveMode) void window.Portal?.PhoneTray?.developmentSetup(host);
++        host.querySelector('#smsStartSetup')?.addEventListener('click', () => openSmsWizard(profile, { initialStep: smsRegistrationSubmitted(profile) ? 'summary' : 'business' }));
++        host.querySelectorAll('[data-open-sms-profile]').forEach((button) => {
+           button.addEventListener('click', () => {
+             const selected = profiles.find((item) => item.id === button.getAttribute('data-open-sms-profile')) || profile;
+             openSmsWizard(selected, { initialStep: smsRegistrationSubmitted(selected) ? 'summary' : 'business' });
+@@ -5835,7 +5843,7 @@
+           openSmsWizard(profile, { initialStep: route.workflowStep || (smsRegistrationSubmitted(profile) ? 'summary' : 'business') });
+         }
+       } catch (error) {
+-        paneSms.innerHTML = `<div class="cs-note">${escapeHtml(error?.message || 'Could not load SMS settings.')}</div>`;
++        host.innerHTML = `<div class="cs-note">${escapeHtml(error?.message || 'Could not load SMS settings.')}</div>`;
+       }
+     }
+     function openSmsWizard(initialProfile, options = {}){
+@@ -17327,7 +17335,7 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
+     const canScopeFlags = canCompany;
+     const canCallWorkflows = canCompany && appFlag('calls', 'app');
+     const canStorage = canCompany && storageLimitsEnabled();
+-    const canSmsSettings = canCompany && appFlag('platform', 'sms_settings');
++    const canSmsSettings = appFlag('apps','comms') || canCompany && appFlag('platform', 'sms_settings');
+     const canAppFlags = canCompany && window.Portal?.appFlags?.current?.()?.test_admin === true;
+     const any = true; // Every authenticated user can reach harmless personal settings.
+     const link = document.querySelector('.fm-link[data-tab="company_settings"]');
+diff --git a/public/libraries/apps/settings/crm.js b/public/libraries/apps/settings/crm.js
+index 87017288..96c9c2cd 100644
+--- a/public/libraries/apps/settings/crm.js
++++ b/public/libraries/apps/settings/crm.js
+@@ -226,7 +226,7 @@
+       const pendingCount = lists.reduce((sum, list) => sum + Number(list.pending_count || 0), 0);
+       const routedCount = lists.filter((list) => list.assigned_user_ids.length || list.assigned_role_ids.length).length;
+       const listMarkup = filtered.map((list) => `<div class="crm-call-list-item ${state.callSelectedKey === list.key ? 'active' : ''}" data-call-list="${esc(list.key)}" data-tone="${esc(list.tone)}" role="button" tabindex="0"><span class="crm-call-list-icon"><i class="fas ${esc(list.icon || 'fa-phone')}"></i></span><span class="crm-call-list-copy"><strong>${esc(list.title)}</strong><span>${esc(callKindLabel(list.kind))} · ${list.status === 'active' ? esc(callAssignmentLabel(list)) : 'Inactive'}</span></span><span class="crm-call-count ${Number(list.pending_count || 0) ? 'has-calls' : ''}">${Number(list.pending_count || 0)}</span></div>`).join('') || `<div class="crm-call-empty"><div><i class="fas fa-magnifying-glass"></i><strong>${(globalThis.PlatformLanguage?.htmlText("settings","m_35c4be17ab5530","No matching lists") ?? "No matching lists")}</strong><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_c8284dfd7645f8","Try a different search or create a new list.") ?? "Try a different search or create a new list.")}</span></div></div>`;
+-      host.querySelector('.crm-settings').innerHTML = (String(subTabs()) + "<div class=\"crm-call-page\"><header class=\"crm-call-top\"><div><div class=\"crm-call-kicker\">" + (globalThis.PlatformLanguage?.htmlText("settings","m_68f1423b4d6f83","CRM · Calls") ?? "CRM · Calls") + "</div><h3>" + (globalThis.PlatformLanguage?.htmlText("settings","m_45e0ea42bd7f61","Call workflows") ?? "Call workflows") + "</h3><p>" + (globalThis.PlatformLanguage?.htmlText("settings","m_0a72968c54b3ad","Organize calls into real lists, decide which team handles each one, and connect project scopes to the right queue.") ?? "Organize calls into real lists, decide which team handles each one, and connect project scopes to the right queue.") + "</p></div><div class=\"crm-call-actions\"><button class=\"crm-btn\" type=\"button\" data-call-refresh><i class=\"fas fa-rotate\"></i>" + (globalThis.PlatformLanguage?.htmlText("settings","m_4f524800833039"," Refresh") ?? " Refresh") + "</button><button class=\"crm-btn\" type=\"button\" data-call-open><i class=\"fas fa-phone\"></i>" + (globalThis.PlatformLanguage?.htmlText("settings","m_07e64910ede841"," Open Calls") ?? " Open Calls") + "</button><button class=\"crm-btn primary\" type=\"button\" data-call-new><i class=\"fas fa-plus\"></i>" + (globalThis.PlatformLanguage?.htmlText("settings","m_9307f6f8b8e9f1"," New call list") ?? " New call list") + "</button></div></header>\n        <div class=\"crm-call-stats\"><div class=\"crm-call-stat\"><span>" + (globalThis.PlatformLanguage?.htmlText("settings","m_cdce2be16f3cc8","Total lists") ?? "Total lists") + "</span><strong>" + String(lists.length) + "</strong></div><div class=\"crm-call-stat active\"><span>" + (globalThis.PlatformLanguage?.htmlText("settings","m_3689c34b89cd39","Active lists") ?? "Active lists") + "</span><strong>" + String(activeCount) + "</strong></div><div class=\"crm-call-stat waiting\"><span>" + (globalThis.PlatformLanguage?.htmlText("settings","m_dad4a2bcff697f","Calls waiting") ?? "Calls waiting") + "</span><strong>" + String(pendingCount) + "</strong></div><div class=\"crm-call-stat routed\"><span>" + (globalThis.PlatformLanguage?.htmlText("settings","m_f6bf476d818cc0","Team-routed lists") ?? "Team-routed lists") + "</span><strong>" + String(routedCount) + "</strong></div></div>\n        " + String(followUpSettingsMarkup()) + "\n        <div class=\"crm-call-workspace\"><aside class=\"crm-call-rail\"><div class=\"crm-call-rail-head\"><div class=\"crm-call-rail-title\"><strong>" + (globalThis.PlatformLanguage?.htmlText("settings","m_81df0d1019af98","Call lists") ?? "Call lists") + "</strong><span>" + ((v6) => globalThis.PlatformLanguage?.htmlText("settings","m_2594ac3351cedd",`${v6} configured`,{v6}) ?? `${v6} configured`)(lists.length) + "</span></div><label class=\"crm-call-search\"><i class=\"fas fa-magnifying-glass\"></i><input value=\"" + String(esc(state.callSearch)) + "\" placeholder=\"" + (globalThis.PlatformLanguage?.htmlText("settings","m_c28f246d7741d6","Find a list") ?? "Find a list") + "\" data-call-search></label></div><div class=\"crm-call-list\">" + String(listMarkup) + "</div></aside><main class=\"crm-call-editor\">" + String(callEditorMarkup()) + "</main></div></div>");
++      host.querySelector('.crm-settings').innerHTML = (String(subTabs()) + "<div class=\"crm-call-page\"><header class=\"crm-call-top\"><div><div class=\"crm-call-kicker\">" + (globalThis.PlatformLanguage?.htmlText("settings","m_68f1423b4d6f83","CRM · Calls") ?? "CRM · Calls") + "</div><h3>" + (globalThis.PlatformLanguage?.htmlText("settings","phone_call_lists","Call Lists") ?? "Call Lists") + "</h3><p>" + (globalThis.PlatformLanguage?.htmlText("settings","m_0a72968c54b3ad","Organize calls into real lists, decide which team handles each one, and connect project scopes to the right queue.") ?? "Organize calls into real lists, decide which team handles each one, and connect project scopes to the right queue.") + "</p></div><div class=\"crm-call-actions\"><button class=\"crm-btn\" type=\"button\" data-call-refresh><i class=\"fas fa-rotate\"></i>" + (globalThis.PlatformLanguage?.htmlText("settings","m_4f524800833039"," Refresh") ?? " Refresh") + "</button><button class=\"crm-btn\" type=\"button\" data-call-open><i class=\"fas fa-phone\"></i>" + (globalThis.PlatformLanguage?.htmlText("settings","m_07e64910ede841"," Open Calls") ?? " Open Calls") + "</button><button class=\"crm-btn primary\" type=\"button\" data-call-new><i class=\"fas fa-plus\"></i>" + (globalThis.PlatformLanguage?.htmlText("settings","m_9307f6f8b8e9f1"," New call list") ?? " New call list") + "</button></div></header>\n        <div class=\"crm-call-stats\"><div class=\"crm-call-stat\"><span>" + (globalThis.PlatformLanguage?.htmlText("settings","m_cdce2be16f3cc8","Total lists") ?? "Total lists") + "</span><strong>" + String(lists.length) + "</strong></div><div class=\"crm-call-stat active\"><span>" + (globalThis.PlatformLanguage?.htmlText("settings","m_3689c34b89cd39","Active lists") ?? "Active lists") + "</span><strong>" + String(activeCount) + "</strong></div><div class=\"crm-call-stat waiting\"><span>" + (globalThis.PlatformLanguage?.htmlText("settings","m_dad4a2bcff697f","Calls waiting") ?? "Calls waiting") + "</span><strong>" + String(pendingCount) + "</strong></div><div class=\"crm-call-stat routed\"><span>" + (globalThis.PlatformLanguage?.htmlText("settings","m_f6bf476d818cc0","Team-routed lists") ?? "Team-routed lists") + "</span><strong>" + String(routedCount) + "</strong></div></div>\n        " + String(followUpSettingsMarkup()) + "\n        <div class=\"crm-call-workspace\"><aside class=\"crm-call-rail\"><div class=\"crm-call-rail-head\"><div class=\"crm-call-rail-title\"><strong>" + (globalThis.PlatformLanguage?.htmlText("settings","m_81df0d1019af98","Call lists") ?? "Call lists") + "</strong><span>" + ((v6) => globalThis.PlatformLanguage?.htmlText("settings","m_2594ac3351cedd",`${v6} configured`,{v6}) ?? `${v6} configured`)(lists.length) + "</span></div><label class=\"crm-call-search\"><i class=\"fas fa-magnifying-glass\"></i><input value=\"" + String(esc(state.callSearch)) + "\" placeholder=\"" + (globalThis.PlatformLanguage?.htmlText("settings","m_c28f246d7741d6","Find a list") ?? "Find a list") + "\" data-call-search></label></div><div class=\"crm-call-list\">" + String(listMarkup) + "</div></aside><main class=\"crm-call-editor\">" + String(callEditorMarkup()) + "</main></div></div>");
+       bindCallWorkspace();
+     }
+     function routeCallList(key, replace = false){
+diff --git a/public/libraries/apps/settings/search.js b/public/libraries/apps/settings/search.js
+index ebfb84e4..995bad6e 100644
+--- a/public/libraries/apps/settings/search.js
++++ b/public/libraries/apps/settings/search.js
+@@ -21,7 +21,7 @@
+     { title:(globalThis.PlatformLanguage?.text("settings","m_40f9425502b89f","Payment disputes") ?? "Payment disputes"), view:'disputes', keywords:'chargeback' },
+     { title:(globalThis.PlatformLanguage?.text("settings","m_18dc609c73fed7","Payment defaults") ?? "Payment defaults"), view:'payments', keywords:'deposit invoice' }
+   ]);
+-  add('calls', 'Calls', ['Call queues', 'Call assignments', 'Call follow-ups', 'Call outcomes', 'Phone call workflow']);
++  add('calls', 'Call Lists', ['Call queues', 'Call assignments', 'Call follow-ups', 'Call outcomes', 'Phone call workflow']);
+   add('contacts', 'Contacts', [
+     { title:(globalThis.PlatformLanguage?.text("settings","m_dd7c09f845edda","Import contacts") ?? "Import contacts"), view:'import', keywords:'csv vcard upload' },
+     { title:(globalThis.PlatformLanguage?.text("settings","m_21c1377746ce5f","Contact import history") ?? "Contact import history"), view:'history', keywords:'previous imports undo' }
+@@ -72,7 +72,7 @@
+     { title:(globalThis.PlatformLanguage?.text("settings","m_093e042581e1a6","Crew compensation") ?? "Crew compensation"), view:'groups', keywords:'pay rates commissions' }
+   ]);
+   add('storage', 'Storage', ['Media storage usage', 'Storage limits', 'Deleted media', 'Storage plan']);
+-  add('sms', 'SMS', ['Messaging registration', '10DLC registration', 'SMS setup', 'Messaging profile']);
++  add('sms', 'Phone Settings', ['SMS', 'Voicemail', 'Work hours', 'Ring groups', 'Call routing', 'Tracking numbers', 'Porting', '10DLC registration', 'Phone billing']);
+   add('domains', 'Domains & Hosting', ['Register domain', 'Connect domain', 'Website hosting', 'DNS settings']);
+   add('app_flags', 'Developer Settings', [
+     { title:(globalThis.PlatformLanguage?.text("settings","developer_settings_title","Developer Settings") ?? "Developer Settings"), view:'', keywords:'developer settings development dev tools feature flags features apps enable disable' },
+diff --git a/public/v1/comms/calls/api.ts b/public/v1/comms/calls/api.ts
+index 38019ac9..fc8734a0 100644
+--- a/public/v1/comms/calls/api.ts
++++ b/public/v1/comms/calls/api.ts
+@@ -1,4 +1,6 @@
+ import { superviseCall, supervisionView } from './supervision.js';
++import { registerPhoneSettingsApi } from '../phone/api.js';
++import { canUseLine } from '../phone/service.js';
+ import { readCallAnalysis, generateCallAnalysis } from './analysis.js';
+ import { completeDevelopmentOnboarding } from './development.js';
+ import type { FastifyPluginAsync, FastifyRequest } from "fastify";
+@@ -54,6 +56,7 @@ const voicemailStateKey=(ctx:PlatformAuthContext,callId:string)=>`${ctx.userId}:
+ 
+ export const registerCustomerCallsApi:FastifyPluginAsync=async app=>{
+   s.database();
++  registerPhoneSettingsApi(app);
+   startCallWorker(app);
+   app.addHook('onSend',async(_req,reply,payload)=>{reply.header('Cache-Control','private, no-store');return payload;});
+   app.setErrorHandler((error,_req,reply)=>{
+@@ -180,7 +183,7 @@ export const registerCustomerCallsApi:FastifyPluginAsync=async app=>{
+   app.get("/organizations/:orgId/voice/status",async req=>({ok:true,...(await voiceStatus(await auth(req)))}));
+   app.put('/organizations/:orgId/voice/default-number',async req=>{
+     const ctx=await auth(req,true),phone=z.string().max(40).parse(body(req).phone_number);
+-    const lines=(await s.resources(ctx.orgId,'number')).filter(n=>n.status==='active'&&text(n.branch_id||'default')===(ctx.branchId||'default')&&(!text(n.assigned_user_id)||text(n.assigned_user_id)===ctx.userId));
++    const lines=[];for(const n of await s.resources(ctx.orgId,'number'))if(n.status==='active'&&await canUseLine(ctx,n.id))lines.push(n);
+     if(phone&&!lines.some(n=>n.phone_number===phone))throw forbidden('business_line_unavailable','Choose a company line available to you.');
+     await s.saveResource(ctx.orgId,'number_preference',ctx.userId,{phone_number:phone});return {ok:true,phone_number:phone};
+   });
+@@ -188,7 +191,7 @@ export const registerCustomerCallsApi:FastifyPluginAsync=async app=>{
+     const ctx=await auth(req,true,true),phone=param(req,'number'),userId=z.string().max(180).parse(body(req).assigned_user_id);
+     const line=await s.resource(ctx.orgId,'number',phone);if(!line)throw badRequest('business_line_unavailable','Choose a connected business line.');
+     if(userId){const person=(await people(ctx)).find(p=>p.id===userId);if(!person||person.branch_id!==text(line.branch_id||'default'))throw badRequest('user_unavailable','Choose a teammate in the line’s branch.');}
+-    await s.saveResource(ctx.orgId,'number',phone,{...line,assigned_user_id:userId},text(line.provider_id));return {ok:true,...await voiceStatus(ctx)};
++    await s.saveResource(ctx.orgId,'number',phone,{...line,assigned_user_id:userId},text(line.provider_id));const configured=await s.resource(ctx.orgId,'phone_line',phone);if(configured)await s.saveResource(ctx.orgId,'phone_line',phone,{...configured,user_ids:userId?[userId]:[],group_id:''},'',configured.revision);return {ok:true,...await voiceStatus(ctx)};
+   });
+   app.get('/organizations/:orgId/voice/health',async req=>{const ctx=await auth(req,false,true);return {ok:true,...(await voiceHealth(ctx.orgId))};});
+   app.get("/organizations/:orgId/voice/contacts",async req=>({ok:true,contacts:await phoneContacts(await auth(req),text(query(req).query))}));
+diff --git a/public/v1/comms/calls/service.ts b/public/v1/comms/calls/service.ts
+index b4714ad4..0721ca82 100644
+--- a/public/v1/comms/calls/service.ts
++++ b/public/v1/comms/calls/service.ts
+@@ -12,6 +12,7 @@ import { patchWorkNode, transitionWorkNode } from "../../work/service.js";
+ import { emitWorkEvent } from "../../work/engine.js";
+ import { requireVoiceEnvironment, voiceWebhookUrl } from "../../telephony/telnyx.js";
+ import { normalizePhone, voiceSettings } from "./settings.js";
++import { canUseLine } from '../phone/service.js';
+ import { followUpOptions } from './follow-up-policy.js';
+ import { activeConferenceForUser } from './conference.js';
+ import * as store from "./storage.js";
+@@ -119,9 +120,9 @@ export async function createCall(ctx:PlatformAuthContext,input:unknown){
+     if(!settings.enabled)throw conflict("voice_not_enabled","Enable FirstMate phone in Phone setup before calling.");
+     if(!settings.allowed_country_prefixes.some(p=>phone.startsWith(p)))throw forbidden("destination_not_allowed","This destination is outside your enabled calling regions.");
+     if(/^\+1(900|976)/.test(phone))throw forbidden("destination_not_allowed","Premium-rate destinations are not supported.");
+-    line=(await store.resources(ctx.orgId,"number")).find(n=>n.status==="active"&&text(n.branch_id||'default')===text(project?.branch_id||ctx.branchId||'default')&&(!body.business_number||n.phone_number===body.business_number));
++    for(const candidate of await store.resources(ctx.orgId,"number")){if(candidate.status==="active"&&text(candidate.branch_id||"default")===text(project?.branch_id||ctx.branchId||"default")&&(!body.business_number||candidate.phone_number===body.business_number)&&await canUseLine(ctx,text(candidate.phone_number))){line=candidate;break;}}
+     if(!line)throw conflict("business_line_unavailable","Choose a connected business line.");
+-    if(text(line.assigned_user_id)&&text(line.assigned_user_id)!==ctx.userId)throw forbidden('business_line_assigned','This line is assigned to another teammate.');
++    if(!await canUseLine(ctx,text(line.phone_number)))throw forbidden('business_line_assigned','This line is not assigned to you.');
+     const endpoint=(await store.resource(ctx.orgId,"endpoint",ctx.userId));
+     if(text((await store.resource(ctx.orgId,'endpoint_lock',ctx.userId))?.expires_at)>store.now())throw conflict('phone_reconnecting','Wait for your phone connection change to finish.');
+     if(!endpoint||endpoint.session_id!==ctx.sessionId||endpoint.device_id!==body.device_id||text(endpoint.heartbeat_at)<new Date(Date.now()-45_000).toISOString()||endpoint.registered!==true)throw conflict("phone_not_ready","Connect this browser's phone before calling.");
+diff --git a/public/v1/comms/calls/settings.ts b/public/v1/comms/calls/settings.ts
+index 054620b1..83507eaa 100644
+--- a/public/v1/comms/calls/settings.ts
++++ b/public/v1/comms/calls/settings.ts
+@@ -6,7 +6,7 @@ const time=z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/);
+ export const voiceSettingsSchema=z.object({
+   enabled:z.boolean().default(false),
+   timezone:z.string().max(100).default("America/Los_Angeles").refine(v=>{try{new Intl.DateTimeFormat("en",{timeZone:v});return true;}catch{return false;}},"Choose a valid timezone"),
+-  business_hours:z.array(z.object({day:z.number().int().min(0).max(6),open:time,close:time})).max(14).default([1,2,3,4,5].map(day=>({day,open:"08:00",close:"17:00"}))),
++  business_hours:z.array(z.object({day:z.number().int().min(0).max(6),open:time,close:z.union([time,z.literal("24:00")])})).max(14).default([1,2,3,4,5].map(day=>({day,open:"08:00",close:"17:00"}))),
+   holidays:z.array(z.string().regex(/^\d{4}-\d{2}-\d{2}$/)).max(100).default([]),
+   routing:z.enum(["longest_idle","sequential"]).default("longest_idle"),
+   agent_user_ids:z.array(z.string().min(1).max(180)).max(100).default([]),
+diff --git a/public/v1/comms/calls/voice.ts b/public/v1/comms/calls/voice.ts
+index 6dcc4aa1..96001c3f 100644
+--- a/public/v1/comms/calls/voice.ts
++++ b/public/v1/comms/calls/voice.ts
+@@ -1,3 +1,4 @@
++import { canUseLine, lineMembers } from '../phone/service.js';
+ import { developmentCallStatus } from './development.js';
+ import { randomUUID } from "node:crypto";
+ import { z } from "zod";
+@@ -15,13 +16,14 @@ import { text, object, type Json, type CustomerCall } from "./storage.js";
+ import { activeConferenceForUser, inviteParticipant, participants, participantActive, publicParticipants, removeParticipant } from './conference.js';
+ 
+ export async function voiceStatus(ctx:PlatformAuthContext){
++  const usableNumbers:Array<s.Json & {assigned_user_ids:string[]}>=[];for(const n of await s.resources(ctx.orgId,"number"))if(await canUseLine(ctx,n.id))usableNumbers.push({...n,assigned_user_ids:await lineMembers(ctx.orgId,n.id)});
+   const settings=(await voiceSettings(ctx.orgId));const endpoint=(await s.resource(ctx.orgId,"endpoint",ctx.userId));
+   const environment=voiceEnvironmentStatus();
+   return {settings,branch_id:ctx.branchId||'default',development:await developmentCallStatus(ctx.orgId),environment:manageCalls(ctx)?environment:{mode:environment.mode,ready:environment.api_key_configured&&environment.webhook_key_configured&&environment.public_https},
+     permissions:{manage:manageCalls(ctx),record:canUseScopedPermission(ctx,'record_calls|manage_communications|manage_company_settings'),recordings:canUseScopedPermission(ctx,'view_call_recordings|manage_communications|manage_company_settings'),...Object.fromEntries(Object.entries(supervisionPermissions).map(([mode,permission])=>[mode,canUseScopedPermission(ctx,permission)]))},
+     available_numbers:manageCalls(ctx)?(await s.database().prepare("SELECT phone_number FROM messaging_phone_number_ownership WHERE organization_id=? AND provider_phone_number_id<>''").all(ctx.orgId)).map(row=>text(object(row).phone_number)):[],
+     resources:manageCalls(ctx)?[...(await s.resources(ctx.orgId,"application")),...(await s.resources(ctx.orgId,"connection")),...(await s.resources(ctx.orgId,"outbound_profile"))].map(r=>({id:r.id,kind:r.kind,status:r.status,provider_id:r.provider_id})):[],
+-    numbers:(await s.resources(ctx.orgId,"number")).map(n=>({id:n.id,phone_number:n.phone_number,label:n.label,status:n.status,branch_id:n.branch_id,assigned_user_id:n.assigned_user_id||''})),
++    numbers:usableNumbers.map(n=>({id:n.id,phone_number:n.phone_number,label:n.label,status:n.status,branch_id:n.branch_id,assigned_user_id:n.assigned_user_ids.length===1?n.assigned_user_ids[0]:'',assigned_user_ids:n.assigned_user_ids})),
+     sms_numbers:(await listSenderIdentities(ctx.orgId,ctx.branchId||'default','sms')).filter(n=>n.status==='active').map(n=>({phone_number:n.address,label:n.display_name||n.address})),
+     default_number:text((await s.resource(ctx.orgId,'number_preference',ctx.userId))?.phone_number),
+     endpoint:endpoint?{registered:endpoint.registered===true&&text(endpoint.heartbeat_at)>new Date(Date.now()-45_000).toISOString(),availability:endpoint.availability,device_id:endpoint.device_id}:null};
+@@ -145,7 +147,7 @@ export async function presence(ctx:PlatformAuthContext,input:Json){
+   const endpoint=(await s.resource(ctx.orgId,"endpoint",ctx.userId));
+   if(!endpoint||endpoint.device_id!==input.device_id||endpoint.session_id!==ctx.sessionId)throw conflict("phone_owner_changed","This browser no longer owns your phone session.");
+   if(text((await s.resource(ctx.orgId,'endpoint_lock',ctx.userId))?.expires_at)>s.now())return {...endpoint,registered:false,availability:'unavailable'};
+-  let offered=false;if(text(endpoint.offered_call_id)){try{const call=(await s.readCall(ctx.orgId,text(endpoint.offered_call_id)));offered=!s.terminal.has(call.state)&&text(object(call.metadata.transfer).target_user_id)===ctx.userId&&['dialing','consulting'].includes(text(object(call.metadata.transfer).state));}catch{}}
++  let offered=false;if(text(endpoint.offered_call_id)){try{const call=(await s.readCall(ctx.orgId,text(endpoint.offered_call_id)));offered=!s.terminal.has(call.state)&&((s.strings(call.metadata.offered_user_ids).includes(ctx.userId)&&!call.metadata.winning_control_id)||text(object(call.metadata.transfer).target_user_id)===ctx.userId&&['dialing','consulting'].includes(text(object(call.metadata.transfer).state)));}catch{}}
+   offered = offered || !!await activeConferenceForUser(ctx.orgId,ctx.userId);
+   const supervisionCallId=await activeSupervisionCallId(ctx.orgId,ctx.userId);
+   const active=offered||!!supervisionCallId||(await s.listCalls(ctx.orgId,{owner_user_id:ctx.userId,active:true,include_diagnostics:true})).total>0;
+@@ -208,6 +210,12 @@ export async function callAction(ctx:PlatformAuthContext,callId:string,input:unk
+     const leg=(await s.legs(ctx.orgId,callId)).find(l=>l.role==='consult'&&l.state!=='ended');if(!leg)throw conflict('consult_not_ready','The consultation is still connecting.');
+     (await s.transaction(async ()=>{const op=(await s.operation(ctx.orgId,'action',body.operation_id,call.id,{...body,actor:ctx.userId}));if(!op.existing){(await providerCommand(call,text(leg.control_id),body.action==='accept'?'answer':'hangup',{},op.id));(await s.finishOperation(ctx.orgId,op.id,{call_id:call.id}));}}));return {call};
+   }
++  if(call.metadata.phone_routing&&!call.connected_at&&['accept','decline'].includes(body.action)){
++    if(!s.strings(call.metadata.offered_user_ids).includes(ctx.userId))throw forbidden('call_not_offered','This call was not offered to you.');
++    const leg=(await s.legs(ctx.orgId,callId)).find(l=>l.role==='agent'&&object(l.data).ring_user_id===ctx.userId&&l.state!=='ended');
++    if(!leg)throw conflict('call_leg_not_ready','Your phone is still ringing.');
++    await s.transaction(async()=>{const op=await s.operation(ctx.orgId,'action',body.operation_id,call.id,{...body,actor:ctx.userId});if(!op.existing){await providerCommand(call,text(leg.control_id),body.action==='accept'?'answer':'hangup',{},op.id);await s.finishOperation(ctx.orgId,op.id,{call_id:call.id});}});return {call};
++  }
+   requireCallAccess(ctx,call,true);
+   if((body.action.startsWith('record_')||body.action==='consent')&&!hasResourcePermission(ctx,'record_calls|manage_communications|manage_company_settings',callDepartmentResource(call)))throw forbidden('recording_forbidden','You do not have permission to record this call.');
+   if(call.mode==='diagnostic'&&body.action!=='hangup')throw conflict("diagnostic_controls","Only ending the check is supported.");
+diff --git a/public/v1/comms/calls/worker.ts b/public/v1/comms/calls/worker.ts
+index 01d1e67a..325c101d 100644
+--- a/public/v1/comms/calls/worker.ts
++++ b/public/v1/comms/calls/worker.ts
+@@ -1,3 +1,6 @@
++import { routeConfiguredCall, ringEvent } from '../phone/routing.js';
++import { resolveRoute, trackingSnapshot, recordAttribution, userAvailable, notifyPhone } from '../phone/service.js';
++import { automaticReply } from '../phone/messaging.js';
+ import { platformBackgroundAllowed } from "../../platform/runtime.js";
+ import { randomUUID } from "node:crypto";
+ import type { FastifyInstance } from "fastify";
+@@ -47,7 +50,7 @@ async function matchInbound(orgId:string,number:string){
+ }
+ async function setCapture(call:CustomerCall,state:string,extra:Json={}){return (await s.patchCall(call.organization_id,call.id,{metadata:{...call.metadata,capture:{...object(call.metadata.capture),state,...extra}}}));}
+ async function ensureConference(call:CustomerCall){
+-  const legs=(await s.legs(call.organization_id,call.id));const agent=legs.find(l=>l.role==="agent"&&l.state==="answered");const customer=legs.find(l=>l.role==="customer"&&l.state==="answered");
++  const legs=(await s.legs(call.organization_id,call.id));const agent=legs.find(l=>l.role==="agent"&&l.state==="answered"&&(!call.metadata.winning_control_id||l.control_id===call.metadata.winning_control_id));const customer=legs.find(l=>l.role==="customer"&&l.state==="answered");
+   if(!agent||!customer)return;
+   if(!text(call.metadata.conference_id))(await s.enqueue(call.organization_id,call.id,"provider",{path:"conference_create",payload:{call_control_id:agent.control_id,name:call.id,beep_enabled:"never",start_conference_on_create:true,end_conference_on_exit:false,max_participants:conferenceLimit,
+     duration_minutes:(await voiceSettings(call.organization_id)).max_call_minutes,client_state:Buffer.from(JSON.stringify({call_id:call.id})).toString("base64")}},`${call.id}:conference`));
+@@ -84,18 +87,18 @@ export async function processVoiceEvent(body:Json){
+     const matches=(await matchInbound(app.organization_id,text(payload.from))).filter(match=>text(match.branch_id||'default')===text(number.branch_id||'default'));const unique=matches.length===1?matches[0]:null;
+     call=(await s.transaction(async ()=>{
+       const duplicate=(await s.legByControl(controlId));if(duplicate)return (await s.readCall(text(duplicate.organization_id),text(duplicate.call_id)));
+-      const settings=(await voiceSettings(app.organization_id));const created=(await s.insertCall({id:s.id("call",`inbound:${controlId}`),organization_id:app.organization_id,branch_id:text(number.branch_id)||"default",mode:"browser",direction:"inbound",state:"ringing",
++      const settings=(await voiceSettings(app.organization_id));const attribution=await trackingSnapshot(app.organization_id,text(payload.to));const lineConfig=await s.resource(app.organization_id,'phone_line',text(payload.to));const created=(await s.insertCall({id:s.id("call",`inbound:${controlId}`),organization_id:app.organization_id,branch_id:text(number.branch_id)||"default",mode:"browser",direction:"inbound",state:"ringing",
+         project_id:text(unique?.project_id),contact_id:text(unique?.contact_id),customer_name:text(unique?.name)||text(payload.from),customer_number:text(payload.from),business_number:text(payload.to),
+-        metadata:{matches,queue_entered_at:at,attempted_agents:[],consent:{state:"not_requested"},policy:{recording_enabled:settings.recording_enabled,transcription_enabled:settings.transcription_enabled,disclosure:settings.disclosure,retention_days:settings.recording_retention_days}}}));
++        metadata:{matches,attribution,department_ids:strings(lineConfig?.department_ids),queue_entered_at:at,attempted_agents:[],consent:{state:"not_requested"},policy:{recording_enabled:settings.recording_enabled,transcription_enabled:settings.transcription_enabled,disclosure:settings.disclosure,retention_days:settings.recording_retention_days}}}));
+       (await s.saveLeg(created.organization_id,created.id,"customer",{...payload,state:"initiated"},at));
+-      (await providerCommand(created,controlId,"answer",{},"inbound-answer"));(await s.appendEvent(created.organization_id,created.id,"communication.call.created",{},`${created.id}:created`));return created;
++      (await s.enqueue(created.organization_id,created.id,"phone_attribution",{},`${created.id}:attribution`));(await providerCommand(created,controlId,"answer",{},"inbound-answer"));(await s.appendEvent(created.organization_id,created.id,"communication.call.created",{},`${created.id}:created`));return created;
+     }));
+   }
+   if(!call)return;
+   const current=call;const role=text(known?.role||state.role||(call.direction==="inbound"?"customer":""));
+   if(controlId&&role){
+     const legState=type==="call.hangup"?"ended":type==="call.answered"?"answered":text(known?.state)||"initiated";
+-    (await s.saveLeg(call.organization_id,call.id,role,{...payload,...(state.operation_id?{operation_id:state.operation_id}:{}),...(state.participant_id?{participant_id:state.participant_id}:{}),...(state.supervision_id?{supervision_id:state.supervision_id}:{}),state:legState},at));
++    (await s.saveLeg(call.organization_id,call.id,role,{...payload,...(state.operation_id?{operation_id:state.operation_id}:{}),...(state.participant_id?{participant_id:state.participant_id}:{}),...(state.ring_user_id?{ring_user_id:state.ring_user_id}:{}),...(state.supervision_id?{supervision_id:state.supervision_id}:{}),state:legState},at));
+   }
+   if(type==="call.recording.saved"){
+     const recordingId=text(payload.recording_id);if(!recordingId)return;
+@@ -138,6 +141,13 @@ export async function processVoiceEvent(body:Json){
+       return;
+     }
+   }
++  if(role==='agent'&&await ringEvent(call,type,controlId,text(state.ring_user_id||object(known?.data).ring_user_id)))return;
++  call=await s.readCall(call.organization_id,call.id);
++  if(type==='call.gather.ended'&&call.state==='phone_menu'){
++    const choice=(Array.isArray(call.metadata.phone_menu)?call.metadata.phone_menu:[]).map(object).find(m=>m.digit===payload.digits);
++    await s.patchCall(call.organization_id,call.id,{state:'queued',metadata:{...call.metadata,route_target:choice?.target||call.metadata.menu_fallback||{kind:'voicemail'},queue_entered_at:s.now()}});return;
++  }
++  if(type==='call.speak.ended'&&state.phase==='phone_announcement'){await providerCommand(call,controlId,'hangup',{},'announcement-end');return;}
+   if(type==="call.answered"){
+     if(call.mode==='diagnostic'){
+       (await s.patchCall(call.organization_id,call.id,{state:'connected',connected_at:at}));
+@@ -149,8 +159,8 @@ export async function processVoiceEvent(body:Json){
+       if(!(await s.legs(call.organization_id,call.id)).some(l=>l.role==="customer"))(await queueDial(call,"customer",call.customer_number,"dial-customer"));
+       (await s.patchCall(call.organization_id,call.id,{state:"dialing"}));
+     }else if(role==="customer"&&call.direction==="inbound"&&call.state==='ringing'){
+-      (await s.patchCall(call.organization_id,call.id,{state:"queued"}));const settings=(await voiceSettings(call.organization_id));
+-      (await providerCommand(call,controlId,"speak",{payload:settings.greeting,voice:"female",language:"en-US"},"greeting"));
++      (await s.patchCall(call.organization_id,call.id,{state:"queued"}));const settings=(await voiceSettings(call.organization_id));const route=await resolveRoute(call.organization_id,call.business_number);
++      (await providerCommand(call,controlId,"speak",{payload:route?.routing.greeting||settings.greeting,voice:"female",language:"en-US"},"greeting"));
+     }else if(role==="consult"){
+       const transfer=object(call.metadata.transfer),leg=(await s.legByControl(controlId));
+       if(!['dialing','consulting'].includes(text(transfer.state))||(transfer.job_id&&object(leg?.data).operation_id!==transfer.job_id)){(await providerCommand(call,controlId,'hangup',{},`canceled-consult:${controlId}`));return;}
+@@ -166,7 +176,7 @@ export async function processVoiceEvent(body:Json){
+   if(type==="conference.participant.joined"&&role==="customer"&&!call.connected_at){
+     (await s.patchCall(call.organization_id,call.id,{state:"connected",connected_at:call.connected_at||at}));(await s.appendEvent(call.organization_id,call.id,"communication.call.connected",{},`${call.id}:connected`));
+   }
+-  if(type==="call.speak.ended"&&state.phase==='voicemail_greeting'&&object(call.metadata.voicemail).pending===true){
++  if(["call.speak.ended","call.playback.ended"].includes(type)&&state.phase==='voicemail_greeting'&&object(call.metadata.voicemail).pending===true){
+     (await s.patchCall(call.organization_id,call.id,{metadata:{...call.metadata,voicemail:{started:true},consent:{state:"voicemail_prompt",at}}}));
+     (await providerCommand(call,controlId,"record_start",{format:"mp3",channels:"single",play_beep:true,timeout_secs:5,max_length:180,transcription:(await voiceSettings(call.organization_id)).voicemail_transcription_enabled},"voicemail-record"));
+   }
+@@ -176,7 +186,7 @@ export async function processVoiceEvent(body:Json){
+     }
+     if(role==="agent"&&call.direction==="inbound"&&!call.connected_at&&!call.metadata.canceled_at){
+       const endpoint=(await s.resource(call.organization_id,'endpoint',call.owner_user_id));if(endpoint)(await s.saveResource(call.organization_id,'endpoint',call.owner_user_id,{...endpoint,availability:'unavailable'}));
+-      (await s.patchCall(call.organization_id,call.id,{state:"queued",owner_user_id:""}));return;
++      (await s.patchCall(call.organization_id,call.id,{state:"queued",owner_user_id:"",metadata:{...call.metadata,winning_control_id:""}}));return;
+     }
+     if(role==="consult"&&object(call.metadata.transfer).state!=="completed"){
+       const endpoint=(await s.resource(call.organization_id,'endpoint',text(object(call.metadata.transfer).target_user_id)));if(endpoint)(await s.saveResource(call.organization_id,'endpoint',text(endpoint.user_id),{...endpoint,availability:'unavailable'}));
+@@ -210,7 +220,7 @@ async function ingestRecording(orgId:string,callId:string,input:Json){
+     .run(JSON.stringify({...object(old.data),...artifactData}),orgId,text(input.artifact_id)));
+   if(!update.changes){await removeRecording(orgId,text(input.artifact_id),{data:artifactData});return;}
+   (await s.appendEvent(orgId,callId,"communication.call.recording_ready",{artifact_id:input.artifact_id},`recording-ready:${input.artifact_id}`));
+-  if(object(call.metadata.voicemail).started)(await s.enqueue(orgId,callId,"missed_callback",{},`${callId}:missed-callback`));
++  if(object(call.metadata.voicemail).started){await s.enqueue(orgId,callId,'phone_notice',{voicemail:true},`${callId}:voicemail-notice`);await s.enqueue(orgId,callId,'missed_callback',{},`${callId}:missed-callback`);}
+ }
+ async function executeProvider(job:Json,payload:Json){
+   if(voiceMode()!=="live")throw conflict('voice_disabled',"Voice is disabled on this server");
+@@ -229,13 +239,15 @@ async function executeProvider(job:Json,payload:Json){
+       if(!p||p.call_id!==callId||p.job_id!==commandId||p.state!=='ringing')return {canceled:true};
+       if(text(p.phone))await validateParticipantNumber(call,text(p.phone));
+     }
++    if(payload.role==='agent'&&call.metadata.phone_routing&&call.metadata.winning_control_id)return {canceled:true};
+     const settings=(await voiceSettings(orgId));if(!settings.enabled)throw conflict('voice_disabled',"Voice was disabled before dialing");
+     if(payload.role==="customer"&&(await s.resource(orgId,"suppression",call.customer_number)))throw conflict('number_suppressed',"Customer requested no further calls");
+-    const correlation={...decodeState(input),call_id:callId,role:payload.role,operation_id:commandId,...(payload.participant_id?{participant_id:payload.participant_id}:{})};
++    const correlation:Json={...decodeState(input),call_id:callId,role:payload.role,operation_id:commandId,...(payload.participant_id?{participant_id:payload.participant_id}:{})};
+     result=await voiceClient().dial({...input,client_state:Buffer.from(JSON.stringify(correlation)).toString('base64')});if(!text(result.call_control_id))throw new Error("Provider dial response did not include a call ID");
+     // Provider event timestamps beat a synchronous create response, including when the webhook arrives first.
+-    (await s.saveLeg(orgId,callId,text(payload.role),{...result,operation_id:commandId,...(payload.participant_id?{participant_id:payload.participant_id}:{}),state:"initiated"},"0000-01-01T00:00:00.000Z"));
++    (await s.saveLeg(orgId,callId,text(payload.role),{...result,operation_id:commandId,...(correlation.ring_user_id?{ring_user_id:correlation.ring_user_id}:{}),...(payload.participant_id?{participant_id:payload.participant_id}:{}),state:"initiated"},"0000-01-01T00:00:00.000Z"));
+     call=(await s.readCall(orgId,callId));if(s.terminal.has(call.state)||call.metadata.canceled_at)(await providerCommand(call,text(result.call_control_id),"hangup",{},`canceled-response:${result.call_control_id}`));
++    else if(payload.role==='agent'&&call.metadata.phone_routing&&call.metadata.winning_control_id&&call.metadata.winning_control_id!==result.call_control_id)await providerCommand(call,text(result.call_control_id),'hangup',{},`ring-late:${result.call_control_id}`);
+     else if(payload.role==='consult'&&(object(call.metadata.transfer).state!=='dialing'||object(call.metadata.transfer).job_id!==commandId))(await providerCommand(call,text(result.call_control_id),'hangup',{},`canceled-consult-response:${commandId}`));
+     else if(payload.role==='participant'){
+       const p=await s.resource(orgId,'conference_participant',text(payload.participant_id));
+@@ -290,8 +302,10 @@ export async function processOneJob(workerId:string,lane:'all'|'voice'|'backgrou
+       try { result=await (await import('./analysis.js')).processCallAnalysisJob(await s.readCall(orgId,callId),payload); }
+       finally {clearInterval(heartbeat);}
+     }
++    else if(job.kind==='phone_attribution'){await recordAttribution(await s.readCall(orgId,callId));}
++    else if(job.kind==='phone_notice'){const call=await s.readCall(orgId,callId);await notifyPhone(call,payload.voicemail?'voicemail':'missed_calls');if(!call.connected_at)await automaticReply(orgId,call.business_number,call.customer_number,'missed_call',call.id,'',{project_id:call.project_id,contact_id:call.contact_id});}
+     else if(job.kind==="missed_callback"){
+-      const call=(await s.readCall(orgId,callId));if(!call.connected_at)await createFollowUpTodo(orgId,{id:s.id("callback",callId),source_key:`missed-call:${callId}`,project_id:call.project_id,branch_id:call.branch_id,title:`Return ${call.customer_name}'s call`,due_at:s.now(),assigned_user_ids:call.owner_user_id?[call.owner_user_id]:[],metadata:{follow_up:{channel:"call",call_id:callId,phone:call.customer_number,contact_id:call.contact_id,completion_policy:"explicit"}}});
++      const call=(await s.readCall(orgId,callId));if(!call.connected_at)await s.enqueue(orgId,callId,'phone_notice',{},`${callId}:missed-notice`);if(!call.connected_at)await createFollowUpTodo(orgId,{id:s.id("callback",callId),source_key:`missed-call:${callId}`,project_id:call.project_id,branch_id:call.branch_id,title:`Return ${call.customer_name}'s call`,due_at:s.now(),assigned_user_ids:call.owner_user_id?[call.owner_user_id]:[],metadata:{follow_up:{channel:"call",call_id:callId,phone:call.customer_number,contact_id:call.contact_id,completion_policy:"explicit"}}});
+     }else throw new Error("Unknown customer-call job");
+     (await s.finishJob(text(job.id),workerId,"completed",result));
+   }catch(error){
+@@ -306,6 +320,7 @@ export async function processOneJob(workerId:string,lane:'all'|'voice'|'backgrou
+         return true;
+       }
+       if(text(payload.path).startsWith('supervisor_')) { await supervisionFailed(job,payload,ambiguous); return true; }
++      if(!ambiguous&&payload.path==='dial'&&payload.role==='agent'&&call.metadata.phone_routing){const input=object(payload.payload),state=decodeState(input);await ringEvent(call,'call.hangup',`failed:${job.id}`,text(state.ring_user_id));await s.appendEvent(orgId,callId,'phone.member_unavailable',{user_id:state.ring_user_id},`failed:${job.id}`);return true;}
+       if(!ambiguous&&payload.path==='dial'){
+         if(payload.role==='consult'){
+           const customer=(await s.legs(orgId,callId)).find(l=>l.role==='customer'&&l.state!=='ended');if(customer)(await providerCommand(call,text(customer.control_id),'conference_unhold',{},`failed-consult:${job.id}`));
+@@ -330,7 +345,7 @@ export async function routeWaitingCalls(){
+   const waiting=(await s.database().prepare("SELECT organization_id,id FROM customer_calls WHERE direction='inbound' AND state='queued' ORDER BY created_at LIMIT 50").all());
+   for(const row of waiting){const orgId=text(object(row).organization_id),callId=text(object(row).id);
+     (await s.transaction(async ()=>{
+-      let call=(await s.readCall(orgId,callId));if(call.state!=="queued")return;const settings=(await voiceSettings(orgId));const customer=(await s.legs(orgId,callId)).find(l=>l.role==="customer"&&l.state!=="ended");if(!customer)return;
++      let call=(await s.readCall(orgId,callId));if(call.state!=="queued")return;if(await routeConfiguredCall(call))return;const settings=(await voiceSettings(orgId));const customer=(await s.legs(orgId,callId)).find(l=>l.role==="customer"&&l.state!=="ended");if(!customer)return;
+       const expired=Date.now()-Date.parse(text(call.metadata.queue_entered_at)||call.created_at)>=settings.max_wait_seconds*1000;
+       if(!settings.enabled||!businessOpen(settings)||expired||call.metadata.force_voicemail){
+         if(!call.metadata.force_voicemail&&settings.enabled&&settings.fallback==="forward"&&settings.overflow_number){(await providerCommand(call,text(customer.control_id),"transfer",{to:settings.overflow_number,from:call.business_number,timeout_secs:settings.ring_seconds,time_limit_secs:settings.max_call_minutes*60,target_leg_client_state:Buffer.from(JSON.stringify({call_id:call.id,role:'forwarded'})).toString('base64')},"overflow-forward"));(await s.patchCall(orgId,callId,{state:"forwarding"}));}
+@@ -339,7 +354,7 @@ export async function routeWaitingCalls(){
+       }
+       const used=strings(call.metadata.attempted_agents);const endpoints: Json[] = [];
+       for (const e of await s.resources(orgId, "endpoint")) {
+-        if (text((await s.resource(orgId,'endpoint_lock',text(e.user_id)))?.expires_at)<=s.now()&&e.registered===true&&e.availability==="available"&&text(e.branch_id||'default')===call.branch_id&&text(e.wrap_until)<=s.now()&&text(e.heartbeat_at)>new Date(Date.now()-45_000).toISOString()&&!used.includes(text(e.user_id))&&(!settings.agent_user_ids.length||settings.agent_user_ids.includes(text(e.user_id)))) endpoints.push(e);
++        if (text((await s.resource(orgId,'endpoint_lock',text(e.user_id)))?.expires_at)<=s.now()&&await userAvailable(orgId,text(e.user_id))&&e.registered===true&&e.availability==="available"&&text(e.branch_id||'default')===call.branch_id&&text(e.wrap_until)<=s.now()&&text(e.heartbeat_at)>new Date(Date.now()-45_000).toISOString()&&!used.includes(text(e.user_id))&&(!settings.agent_user_ids.length||settings.agent_user_ids.includes(text(e.user_id)))) endpoints.push(e);
+       }
+       endpoints.sort((a,b)=>settings.routing==="sequential"?settings.agent_user_ids.indexOf(text(a.user_id))-settings.agent_user_ids.indexOf(text(b.user_id)):text(a.last_call_at).localeCompare(text(b.last_call_at)));
+       let agent: Json | undefined;
+diff --git a/public/v1/comms/notifications.ts b/public/v1/comms/notifications.ts
+index 26b8280e..05ed2878 100644
+--- a/public/v1/comms/notifications.ts
++++ b/public/v1/comms/notifications.ts
+@@ -93,8 +93,13 @@ export async function onInboundCommunication(organizationId: string, messageId:
+     }
+   }
+ 
++  let phoneNotification=false, phoneReply=false;
++  if(channel==='sms'&&!groupMms)try{
++    const {notifyText}=await import('./phone/notifications.js');phoneNotification=await notifyText(organizationId,message,resolved.notifications);
++    if(!asObject(rescheduling).handled&&!asObject(confirmation).handled){const {automaticReply}=await import('./phone/messaging.js');const recipient=(Array.isArray(message.recipients)?message.recipients:[]).map(asObject)[0];phoneReply=await automaticReply(organizationId,cleanText(recipient?.address),cleanText(asObject(message.sender).address),'text',messageId,cleanText(message.conversation_id),context);}
++  }catch(error){console.error('Phone message notification failed',error);}
+   let notification: unknown = null;
+-  if (resolved.notifications.enabled) {
++  if (resolved.notifications.enabled && !phoneNotification) {
+     const sender = asObject(message.sender);
+     const senderName = cleanText(sender.name) || cleanText(sender.address) || "A customer";
+     try {
+@@ -136,7 +141,7 @@ export async function onInboundCommunication(organizationId: string, messageId:
+ 
+   // Auto-response (project-resolved settings only — org-wide auto-reply to
+   // unmatched senders is deliberately off the table).
+-  if (!groupMms && projectId && !asObject(rescheduling).handled && resolved.agent && resolved.agent.enabled && resolved.agent.auto_response.enabled) {
++  if (!groupMms && projectId && !phoneReply && !asObject(rescheduling).handled && resolved.agent && resolved.agent.enabled && resolved.agent.auto_response.enabled) {
+     const channelEnabled = channel === "email"
+       ? resolved.agent.auto_response.channels.email
+       : channel === "sms" ? resolved.agent.auto_response.channels.sms : false;
+diff --git a/public/v1/messaging/communications_service.ts b/public/v1/messaging/communications_service.ts
+index c3333509..18416cd7 100644
+--- a/public/v1/messaging/communications_service.ts
++++ b/public/v1/messaging/communications_service.ts
+@@ -1,3 +1,5 @@
++import { canUseLine } from '../comms/phone/service.js';
++import { senderConfiguration } from '../comms/phone/messaging.js';
+ import { createHash, randomUUID } from "node:crypto";
+ 
+ import { badRequest, conflict, forbidden, PlatformError } from "../platform/errors.js";
+@@ -229,6 +231,7 @@ export async function ensureDefaultSenderIdentities(organizationId: string, bran
+ async function resolveSender(organizationId: string, branchId: string, channel: string, requested: CommunicationsJson) {
+   const identities = await ensureDefaultSenderIdentities(organizationId, branchId);
+   const requestedId = cleanText(requested.identity_id);
++  if(requestedId&&!identities.some(i=>i.id===requestedId&&i.channel===channel))throw badRequest("sender_identity_missing","Choose a configured sender for this channel.");
+   const identity = identities.find((item) => requestedId && item.id === requestedId)
+     || identities.find((item) => !requestedId && requested.address && item.channel === channel && item.address === normalizeAddress(channel, requested.address))
+     || identities.find((item) => item.channel === channel && item.is_default === true)
+@@ -360,6 +363,7 @@ export async function sendCommunication(organizationId: string, input: SendCommu
+     }
+   }
+   const sender = await resolveSender(organizationId, branchId, input.channel, asObject(input.sender));
++  if(input.channel==='sms'&&ctx?.userId&&!await canUseLine({...ctx,orgId:organizationId,branchId},cleanText(sender.address)))throw badRequest("sender_line_denied","You cannot send from this line.");
+   let context = asObject(input.context);
+   const conversation = input.conversation_id ? await readConversationRecord(organizationId, input.conversation_id) : null;
+   const conversationGroup = smsGroup(conversation?.metadata);
+@@ -399,8 +403,9 @@ export async function sendCommunication(organizationId: string, input: SendCommu
+   if (liveSms) {
+     const messagingOrganization = await ensureMessagingOrganization(organizationId);
+     const profiles = await listSmsComplianceProfiles(messagingOrganization.id);
+-    const activeProfile = groupMode ? profiles.find(profile => cleanText(asObject(profile.campaign).selectedNumber) === sender.address)
+-      : profiles.find((profile) => profile.id === messagingOrganization.default_sms_compliance_profile_id) || profiles[0];
++    const configuration=await senderConfiguration(organizationId,cleanText(sender.address));
++    if(!configuration)throw badRequest("sender_not_ready","This line is not ready to send SMS.");
++    const activeProfile = configuration.profile;
+     const issue = outboundSmsComplianceIssue(activeProfile, input.purpose || "customer_care", input.content.text);
+     if (issue) throw badRequest(issue.code, issue.message);
+   }
+diff --git a/public/v1/messaging/delivery_worker.ts b/public/v1/messaging/delivery_worker.ts
+index 00b44b2c..4a9b92f7 100644
+--- a/public/v1/messaging/delivery_worker.ts
++++ b/public/v1/messaging/delivery_worker.ts
+@@ -1,3 +1,4 @@
++import { senderConfiguration, deliveryEligibility } from '../comms/phone/messaging.js';
+ import { platformBackgroundAllowed } from "../platform/runtime.js";
+ import { randomUUID } from "node:crypto";
+ 
+@@ -138,15 +139,16 @@ async function dispatchClaimedDelivery(delivery: CommunicationsJson) {
+   const deliveryId = cleanText(delivery.id);
+   const messageId = cleanText(delivery.message_id);
+   const message = (await readMessageRecord(organizationId, messageId));
+-  if (smsGroup(message.metadata)) {
+-    await dispatchGroupMms(delivery, message, await activeConfiguration(organizationId, cleanText(asObject(message.sender).address)));
+-    await refreshParentMessageStatus(organizationId, messageId);
+-    return;
+-  }
+   const recipient = asObject(delivery.recipient);
+   const recipientAddress = cleanText(delivery.recipient_address);
+-  const scheduledFor = scheduleForProvider(message.scheduled_for);
+-
++  let eligibility=await deliveryEligibility(organizationId,message,recipient);
++  if(smsGroup(message.metadata))for(const member of (Array.isArray(message.recipients)?message.recipients:[])){const check=await deliveryEligibility(organizationId,message,asObject(member));if(check.action==='cancel'){eligibility=check;break;}if(check.action==='wait'&&(eligibility.action!=='wait'||String(check.at)>String(eligibility.at)))eligibility=check;}
++  if(eligibility.action==='cancel'){
++    await updateDeliveryRecord(organizationId,deliveryId,{status:'failed',failed_at:new Date().toISOString(),lease_owner:'',lease_until:'',error:{code:'phone_policy_canceled',message:eligibility.reason}});await refreshParentMessageStatus(organizationId,messageId);return;
++  }
++  if(eligibility.action==='wait'){
++    await updateDeliveryRecord(organizationId,deliveryId,{status:'scheduled',attempts:Math.max(0,Number(delivery.attempts||1)-1),next_attempt_at:eligibility.at,lease_owner:'',lease_until:'',error:{code:'phone_policy_wait',message:eligibility.reason}});await refreshParentMessageStatus(organizationId,messageId);return;
++  }
+   const guard = guardDevelopmentSms(recipientAddress);
+   if (!guard.allowed) {
+     (await updateDeliveryRecord(organizationId, deliveryId, {
+@@ -156,14 +158,10 @@ async function dispatchClaimedDelivery(delivery: CommunicationsJson) {
+     (await refreshParentMessageStatus(organizationId, messageId));
+     return;
+   }
++  // Retain schedules locally until due, so consent and policy are checked at actual dispatch.
++  const future=Date.parse(cleanText(message.scheduled_for))>Date.now();
++  const scheduledFor = future?'wait':'';
+ 
+-  if (scheduledFor === "later") {
+-    const nextAttempt = new Date(Date.parse(cleanText(message.scheduled_for)) - (5 * 24 * 60 * 60_000) + 60_000).toISOString();
+-    (await updateDeliveryRecord(organizationId, deliveryId, {
+-      status: "scheduled", attempts: Math.max(0, Number(delivery.attempts || 1) - 1), next_attempt_at: nextAttempt, lease_owner: "", lease_until: ""
+-    }));
+-    return;
+-  }
+   if (scheduledFor === "wait") {
+     (await updateDeliveryRecord(organizationId, deliveryId, {
+       status: "scheduled", attempts: Math.max(0, Number(delivery.attempts || 1) - 1),
+@@ -172,7 +170,7 @@ async function dispatchClaimedDelivery(delivery: CommunicationsJson) {
+     return;
+   }
+ 
+-  const configuration = await activeConfiguration(organizationId);
++  const configuration = await senderConfiguration(organizationId,cleanText(asObject(message.sender).address));
+   if (!configuration) {
+     (await updateDeliveryRecord(organizationId, deliveryId, {
+       status: "failed", failed_at: new Date().toISOString(), lease_owner: "", lease_until: "",
+@@ -182,6 +180,7 @@ async function dispatchClaimedDelivery(delivery: CommunicationsJson) {
+     return;
+   }
+ 
++  if(smsGroup(message.metadata)){await dispatchGroupMms(delivery,message,configuration);await refreshParentMessageStatus(organizationId,messageId);return;}
+   const complianceIssue = outboundSmsComplianceIssue(configuration.profile, message.purpose, message.text_body);
+   if (complianceIssue) {
+     (await updateDeliveryRecord(organizationId, deliveryId, {
+diff --git a/public/v1/telephony/telnyx.ts b/public/v1/telephony/telnyx.ts
+index 84ece404..401d4991 100644
+--- a/public/v1/telephony/telnyx.ts
++++ b/public/v1/telephony/telnyx.ts
+@@ -14,7 +14,7 @@ export class TelnyxVoiceClient {
+   async data(path:string,method="GET",body?:Json) { const result=object(await this.request(path,method,body));return object(result.data); }
+   async dial(payload:Json) {payload={...payload,to:voiceDestination(payload.to)};assertVoiceDestination(payload.to);return this.data("/calls","POST",payload);}
+   async command(controlId:string,action:string,payload:Json={}) {
+-    const allowed=new Set(["answer","hangup","bridge","send_dtmf","speak","playback_start","playback_stop","record_start","record_stop","record_pause","record_resume","transcription_start","transcription_stop","transfer","enqueue","leave_queue"]);
++    const allowed=new Set(["answer","hangup","bridge","send_dtmf","speak","gather_using_speak","playback_start","playback_stop","record_start","record_stop","record_pause","record_resume","transcription_start","transcription_stop","transfer","enqueue","leave_queue"]);
+     if(!allowed.has(action))throw badRequest("invalid_voice_command","Unsupported voice action.");
+     if(action==="transfer"){payload={...payload,to:voiceDestination(payload.to)};assertVoiceDestination(payload.to);}
+     return this.data(`/calls/${encodeURIComponent(controlId)}/actions/${action}`,"POST",payload);

@@ -15,6 +15,7 @@ import {
   createHuddleSchema,
   draftSchema,
   editMessageSchema,
+  messageVisibilitySchema,
   folderSchema,
   huddleRecordingSchema,
   huddleMediaStateSchema,
@@ -23,6 +24,7 @@ import {
   messageReminderSchema,
   memberPatchSchema,
   postMessageSchema,
+  polishDraftSchema,
   reactionSchema,
   readStateSchema,
   resourceRefSchema,
@@ -36,6 +38,7 @@ import {
   updateChannelSchema
 } from "./schemas.js";
 import * as service from "./service.js";
+import { polishChannelDraft } from "./polish.js";
 import * as collaboration from "./collaboration.js";
 import { startChannelAgentScheduler } from "./agent.js";
 import { createAttachmentRecord } from "./storage.js";
@@ -94,7 +97,13 @@ export const registerChannelsApi: FastifyPluginAsync = async (app) => {
     const ctx = await auth(request, orgId);
     const users = await service.listDirectoryUsers(ctx);
     const structure=await (await import('../workforce/organization-structure.js')).resolveOrganizationStructure(ctx.orgId);
-    return { ok: true, users, count: users.length,departments:structure.catalog.departments.filter(d=>d.status==='active').map(d=>({id:d.id,label:d.label})) };
+    const selection=(await import('../workforce/department-access.js')).relevantDepartmentContext(ctx);
+    const groupKinds=await (await import('../workforce/storage.js')).readResourceGroupKinds(ctx.orgId);
+    const member=structure.users.find(u=>u.id===ctx.userId);
+    const eligible=(ids:string[])=>selection.organization_wide || ids.some(id=>selection.department_ids.includes(id));
+    const audienceGroups=structure.groups.filter(g=>eligible(g.department_ids) || member?.resource_group_ids.includes(g.id));
+    const audienceUsers=users.filter(u=>{const member=structure.users.find(row=>row.id===u.id);return !!member && (u.id===ctx.userId || eligible(member.department_ids));});
+    return { ok: true, users, count: users.length,note_advanced_visibility:true,note_audience_groups:audienceGroups,note_audience_users:audienceUsers,note_audience_group_kinds:groupKinds.filter(k=>audienceGroups.some(g=>g.kind_id===k.id && (selection.organization_wide || g.department_ids.some(id=>selection.department_ids.includes(id))))),note_audience_kind_department_ids:selection.department_ids,note_audience_organization_wide:selection.organization_wide,departments:structure.catalog.departments.filter(d=>d.status==='active').map(d=>({id:d.id,label:d.label})),selectable_department_ids:selection.department_ids,note_department_visibility:true,note_crew_visibility:true,note_department_label:structure.catalog.terminology.department.plural };
   });
 
   app.get("/organizations/:orgId/channels", async (request) => {
@@ -113,6 +122,11 @@ export const registerChannelsApi: FastifyPluginAsync = async (app) => {
     const channel = await service.createChannel(ctx, body);
     reply.code(201);
     return { ok: true, channel };
+  });
+
+  app.post("/organizations/:orgId/channels/photo/:mediaId", async request => {
+    const ctx=await auth(request,getParam(request.params,"orgId"),{csrf:true});
+    return {ok:true,channel:await (await import('./photo-comments.js')).ensurePhotoDiscussion(ctx,getParam(request.params,"mediaId"))};
   });
 
   app.post("/organizations/:orgId/channels/project/:projectId", async (request) => {
@@ -207,6 +221,11 @@ export const registerChannelsApi: FastifyPluginAsync = async (app) => {
     return { ok: true, ...result };
   });
 
+  app.get('/organizations/:orgId/channels/:channelId/note-authors',async request=>{
+    const ctx=await auth(request,getParam(request.params,'orgId'));
+    return {ok:true,...await service.listProjectNoteAuthors(ctx,getParam(request.params,'channelId'))};
+  });
+
   // --- personal message inbox (topbar Messages dropdown) --------------------
 
   app.get("/organizations/:orgId/inbox", async (request) => {
@@ -235,6 +254,8 @@ export const registerChannelsApi: FastifyPluginAsync = async (app) => {
     return { ok: true, preferences: await service.translationPreferences(ctx) };
   });
 
+  app.post('/organizations/:orgId/channels/:channelId/compose/polish',async request=>{const ctx=await auth(request,getParam(request.params,'orgId'),{csrf:true});return {ok:true,...await polishChannelDraft(ctx,getParam(request.params,'channelId'),polishDraftSchema.parse(request.body ?? {}))};});
+
   app.post("/organizations/:orgId/channels/:channelId/messages", async (request, reply) => {
     const orgId = getParam(request.params, "orgId");
     const ctx = await auth(request, orgId, { csrf: true });
@@ -256,6 +277,12 @@ export const registerChannelsApi: FastifyPluginAsync = async (app) => {
     const ctx = await auth(request, orgId, { csrf: true });
     const translation = await service.translateMessage(ctx, getParam(request.params, "messageId"));
     return { ok: true, translation };
+  });
+
+  app.patch('/organizations/:orgId/messages/:messageId/visibility',async request=>{
+    const orgId=getParam(request.params,'orgId'),ctx=await auth(request,orgId,{csrf:true});
+    const message=await service.updateMessageVisibility(ctx,getParam(request.params,'messageId'),messageVisibilitySchema.parse(request.body ?? {}));
+    return {ok:true,message};
   });
 
   app.patch("/organizations/:orgId/messages/:messageId", async (request) => {

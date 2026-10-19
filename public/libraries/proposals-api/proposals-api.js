@@ -150,7 +150,6 @@
     signSlot(token, payload = {}){ return request(`/public/${enc(token)}/esign/slot`, { method: 'POST', credentials: 'same-origin', body: payload || {} }); },
     complete(token, payload = {}){ return request(`/public/${enc(token)}/esign/complete`, { method: 'POST', credentials: 'same-origin', body: payload || {} }); },
     payLater(token, payload = {}){ return request(`/public/${enc(token)}/pay-later`, { method: 'POST', credentials: 'same-origin', body: payload || {} }); },
-    mockDeposit(token, payload = {}){ return request(`/public/${enc(token)}/payments/mock-deposit`, { method: 'POST', credentials: 'same-origin', body: payload || {} }); },
     paymentIntakeConfig(token){ return request(`/public/${enc(token)}/payments/intake-config`, { credentials: 'same-origin' }); },
     createPaymentMethodIntent(token, payload = {}){ return request(`/public/${enc(token)}/payments/payment-method-intent`, { method: 'POST', credentials: 'same-origin', body: payload || {} }); },
     surchargeQuote(token, options = {}){

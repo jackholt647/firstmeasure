@@ -2087,17 +2087,21 @@ export const registerCrewApi: FastifyPluginAsync = async (app) => {
     // Without a token the legacy record path below is untouched.
     const providerToken = cleanText(body.payment_method_id);
     const savedMethodId = cleanText(body.saved_method_id || body.saved_payment_method_id);
+    const checkoutId = cleanText(body.checkout_id);
     let paymentResult;
-    if (providerToken || savedMethodId) {
-      const { resolveIntakeProvider, recordProviderChargedPayment } = await import("../payments/intake.js");
-      const { provider } = await resolveIntakeProvider(orgId);
-      if (!provider) {
-        throw badRequest("merchant_not_configured", "Online card processing is not available for this organization.");
-      }
-      paymentResult = await recordProviderChargedPayment(orgId, provider, {
+    if (providerToken || savedMethodId || checkoutId) {
+      // requirePaymentsReady refuses inside when the organization cannot
+      // take payments; nothing is recorded as paid without the charge.
+      const { recordProviderChargedPayment } = await import("../payments/intake.js");
+      paymentResult = await recordProviderChargedPayment(orgId, null, {
         amount_cents: expectedAmount,
         payment_method_id: providerToken,
         saved_method_id: providerToken ? "" : savedMethodId,
+        checkout_id: checkoutId,
+        checkout_context: checkoutId ? { document_id: documentId, output_key: key } : undefined,
+        channel: "field",
+        initiated_by: "customer",
+        billing_details: asObject(body.billing_details),
         method: cleanText(asObject(body.method).kind || asObject(body.method).type),
         project_id: projectId,
         branch_id: cleanText(document.branch_id || "default") || "default",
@@ -2123,6 +2127,7 @@ export const registerCrewApi: FastifyPluginAsync = async (app) => {
         }
       }, actor.ctx);
     } else {
+      // Cash or check taken in person; card and bank go through the charge above.
       paymentResult = await createPayment(orgId, {
         project_id: projectId,
         direction: "inbound",
@@ -2130,7 +2135,7 @@ export const registerCrewApi: FastifyPluginAsync = async (app) => {
         status: "settled",
         amount_cents: expectedAmount,
         currency: cleanText(body.currency || "USD") || "USD",
-        method: asObject(body.method),
+        method: crewPaymentMethod(body),
         allocate: true,
         allocation_mode: "auto_next_due",
         contact_ref: asObject(body.contact_ref),
@@ -2138,6 +2143,7 @@ export const registerCrewApi: FastifyPluginAsync = async (app) => {
           source: "crew_document_checkout",
           document_id: documentId,
           output_key: key,
+          document_output_id: `${documentId}:${key}`,
           received_by_user_id: actor.ctx.userId
         }
       }, actor.ctx);
@@ -2298,6 +2304,43 @@ export const registerCrewApi: FastifyPluginAsync = async (app) => {
     return { ok: true, payout: await projectPayoutView(orgId, result.project, actor) };
   });
 
+  // Opens a processor checkout for a card or bank payment taken in the field;
+  // its client secret is what the secure element on the crew's screen pays.
+  app.post("/organizations/:orgId/crew/projects/:projectId/payment-checkouts", async (request, reply) => {
+    const orgId = getParam(request.params, "orgId");
+    const actor = await requireCrewActor(request, orgId, "crew.payments.take", true);
+    const projectId = getParam(request.params, "projectId");
+    await assignedProject(orgId, projectId, actor);
+    const body = requestBody(request);
+    const documentId = cleanText(body.document_id);
+    const outputKey = cleanText(body.output_key);
+    let amountCents = cents(body.amount_cents);
+    let context: JsonObject | undefined;
+    if (documentId) {
+      if (!hasCrewPermission(actor, "crew.signatures.present")) throw forbidden("crew_permission_denied", "Document checkout requires field signature access.");
+      const document = await readDocumentInstance(orgId, documentId);
+      if (!canAccessDepartmentResource(actor.ctx, document)) throw forbidden("document_department_denied", "This document is outside your department access.");
+      if (cleanText(document.project_id) !== projectId) throw notFound("document_not_found", "Document was not found on this project.");
+      if (cleanText(asObject(asObject(document.output_defs)[outputKey]).type) !== "payment") throw badRequest("document_payment_output_required", "The selected document field is not a payment output.");
+      amountCents = fieldDocumentTotalCents(document);
+      if (amountCents <= 0) throw badRequest("document_payment_amount_missing", "The document does not have a payable amount.");
+      context = { document_id: documentId, output_key: outputKey };
+    }
+    const { prepareCheckout } = await import("../payments/intake.js");
+    const { view } = await prepareCheckout(orgId, {
+      amount_cents: amountCents,
+      method: cleanText(body.method),
+      channel: "field",
+      initiated_by: "customer",
+      apply_surcharge: documentId ? false : body.apply_surcharge !== false,
+      project_id: projectId,
+      contact_ref: asObject(body.contact_ref),
+      context
+    });
+    reply.code(201);
+    return { ok: true, checkout: view };
+  });
+
   app.get("/organizations/:orgId/crew/projects/:projectId/payments", async (request) => {
     const orgId = getParam(request.params, "orgId");
     const actor = await requireCrewActor(request, orgId, "crew.payments.view");
@@ -2320,22 +2363,23 @@ export const registerCrewApi: FastifyPluginAsync = async (app) => {
     // recording below stays byte-identical.
     const providerToken = cleanText(body.payment_method_id);
     const savedMethodId = cleanText(body.saved_method_id || body.saved_payment_method_id);
-    if (providerToken || savedMethodId) {
+    const checkoutId = cleanText(body.checkout_id);
+    if (providerToken || savedMethodId || checkoutId) {
       const requestedDirection = cleanText(body.direction).toLowerCase();
       const requestedStatus = cleanText(body.status).toLowerCase();
       if ((requestedDirection && requestedDirection !== "inbound") || (requestedStatus && requestedStatus !== "settled")) {
         throw badRequest("crew_payment_state_unsupported", "Crew payments must be recorded as settled inbound payments.");
       }
-      const { resolveIntakeProvider, recordProviderChargedPayment } = await import("../payments/intake.js");
-      const { provider } = await resolveIntakeProvider(orgId);
-      if (!provider) {
-        throw badRequest("merchant_not_configured", "Online card processing is not available for this organization.");
-      }
+      const { recordProviderChargedPayment } = await import("../payments/intake.js");
       const methodKind = cleanText(asObject(body.method).kind || asObject(body.method).type || body.payment_method);
-      const charged = await recordProviderChargedPayment(orgId, provider, {
+      const charged = await recordProviderChargedPayment(orgId, null, {
         amount_cents: cents(body.amount_cents),
         payment_method_id: providerToken,
         saved_method_id: providerToken ? "" : savedMethodId,
+        checkout_id: checkoutId,
+        channel: "field",
+        initiated_by: "customer",
+        billing_details: asObject(body.billing_details),
         method: methodKind,
         project_id: projectId,
         save_payment_method: body.save_payment_method === true,

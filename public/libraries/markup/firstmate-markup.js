@@ -1431,6 +1431,9 @@
       this.modalHandle = null;
       this.markup?.destroy?.();
       this.mentions?.destroy?.();
+      this.commentsClosed=true;
+      for(const workspace of this.commentWorkspaces?.values() || [])workspace.handle.destroy();
+      this.commentWorkspaces?.clear();
       this.layoutObserver?.disconnect?.();
       this.layoutObserver = null;
       if (this.layoutFrame) cancelAnimationFrame(this.layoutFrame);
@@ -1670,15 +1673,12 @@
       this.el.classList.toggle('video-active', isVideo);
       this.el.classList.toggle('non-image-active', !isImage);
       if (!isImage) this.markup?.setActive(false);
-      if (photo.media_id) {
-        const [items, comments] = await Promise.all([isImage ? loadMarkup(orgId(), photo.media_id) : Promise.resolve([]), loadComments(orgId(), photo.media_id)]);
-        if (this.current() !== photo) return;
+      this.mountPhotoComments(photo);
+      if (photo.media_id && isImage) {
+        const items=await loadMarkup(orgId(),photo.media_id);
+        if(this.current()!==photo || !this.el?.isConnected)return;
         this.markup?.setItems(items);
-        this.comments = comments;
-      } else {
-        this.comments = [];
       }
-      this.renderComments();
       if (typeof this.onChange === 'function') this.onChange({ photo, index: this.index, project, isVideo, mediaKind:kind });
     }
     photoTags(photo = {}){
@@ -1773,10 +1773,6 @@
               <div class="fm-photo-indicators" data-photo-indicators></div>
             </div>
             <div class="fm-photo-comments" data-photo-comments></div>
-            <div class="fm-photo-composer">
-              <textarea data-photo-comment-input placeholder="${(globalThis.PlatformLanguage?.htmlText("markup","m_b9ca172c33964b","Leave a comment. Type @ to tag someone.") ?? "Leave a comment. Type @ to tag someone.")}"></textarea>
-              <div class="fm-photo-composer-actions"><button type="button" data-photo-comment-post>${(globalThis.PlatformLanguage?.htmlText("markup","m_7ff4b7a245b282","Post Comment") ?? "Post Comment")}</button></div>
-            </div>
           </aside>
         </div>`;
       document.body.appendChild(this.el);
@@ -1856,8 +1852,7 @@
           avatar: btn.dataset.photoUserAvatar || ''
         }, []);
       });
-      this.el.querySelector('[data-photo-comment-post]').addEventListener('click', () => this.postComment());
-      this.mentions = root.FirstMateTags?.attachMentionTextarea?.(this.el.querySelector('[data-photo-comment-input]'), { orgId: orgId() });
+
       this.keyHandler = (event) => {
         if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
           if (event.target?.closest?.('.fm-photo-markup-text,[contenteditable="true"],textarea,input,select')) return;
@@ -2010,24 +2005,28 @@
       });
       this.markup.refreshTextBoxLayout?.();
     }
-    renderComments(){
-      const rootEl = this.el.querySelector('[data-photo-comments]');
-      if (!rootEl) return;
-      if (!this.comments.length) {
-        rootEl.innerHTML = `<div class="fm-photo-comment-empty">${(globalThis.PlatformLanguage?.htmlText("markup","m_6daba3159863bd","No comments yet.") ?? "No comments yet.")}</div>`;
-        return;
-      }
-      rootEl.innerHTML = this.comments.map((comment) => `
-        <div class="fm-photo-comment">
-          <span class="fm-photo-avatar">${escapeHtml((comment.author_name || comment.author_email || '?').slice(0, 1).toUpperCase())}</span>
-          <div class="fm-photo-comment-body">
-            <div class="fm-photo-comment-head"><strong>${escapeHtml(comment.author_name || comment.author_email || 'User')}</strong><span>${escapeHtml(formatDateTime(comment.created_at))}</span></div>
-            <div class="fm-photo-comment-text">${renderMentionText(comment.text || '', comment.mentions || [])}</div>
-          </div>
-        </div>
-      `).join('');
-      this.bindMentionInteractions(rootEl);
-      rootEl.scrollTop = rootEl.scrollHeight;
+    mountPhotoComments(photo){
+      const host=this.el.querySelector('[data-photo-comments]');
+      if(!host || this.commentsClosed)return;
+      this.commentWorkspaces=this.commentWorkspaces || new Map();
+      const mediaId=cleanText(photo.media_id || photo.mediaId);
+      for(const workspace of this.commentWorkspaces.values())workspace.handle.setVisible?.(false);
+      host.replaceChildren();
+      host.style.cssText='padding:0;overflow:hidden;gap:0;min-height:0;position:relative';
+      if(!mediaId){host.textContent='Comments are available after this photo is saved.';return;}
+      const notes=root.Portal?.ProjectNotes;
+      if(!notes?.mount){host.textContent='Comments could not load. Please reopen this viewer.';return;}
+      let workspace=this.commentWorkspaces.get(mediaId);
+      if(!workspace){
+        const node=document.createElement('div');node.style.cssText='display:flex;flex:1;min-height:0;width:100%';
+        host.append(node);
+        const handle=notes.mount(node,{project:{id:'photo:'+mediaId,commentMediaId:mediaId},kind:'photo-comments',onPosted:message=>{
+          const project=photo.__project || this.project || {};
+          root.Portal?.PhotoFeed?.trackActivity?.({type:'photo_commented',summary:'Commented on media',actor_name:userName(),actor_email:userEmail(),target:{media_id:mediaId,photo_id:photoId(photo),project_id:this.currentProjectId(project),project_title:project.title || project.address || '',project_address:project.address || ''},metadata:{comment_id:message?.id || '',mention_count:message?.mention_users?.length || 0}},{source:'photo_comments'});
+          this.onChange?.({photo,comment:message});
+        }});
+        workspace={node,handle};this.commentWorkspaces.set(mediaId,workspace);
+      }else{host.append(workspace.node);workspace.handle.refresh().catch(()=>{});}
     }
     mentionUserFromChip(chip){
       return {
@@ -2080,62 +2079,7 @@
         });
       });
     }
-    async postComment(){
-      const input = this.el.querySelector('[data-photo-comment-input]');
-      const text = cleanText(input?.value);
-      const photo = this.current();
-      const project = this.currentProject();
-      if (!text || !photo.media_id) return;
-      const mentions = this.mentions?.selectedMentions?.() || root.FirstMateTags?.extractMentions?.(text, await root.FirstMateTags.listUsers(orgId()).catch(() => [])) || [];
-      const comment = {
-        id: uid('comment'),
-        text,
-        author_name: userName(),
-        author_email: userEmail(),
-        mentions: mentions.map((user) => ({
-          id: user.id,
-          name: user.name || user.label || user.email || user.id,
-          email: user.email || '',
-          avatar: mentionAvatar(user)
-        })),
-        created_at: new Date().toISOString()
-      };
-      this.comments = [...this.comments, comment];
-      input.value = '';
-      this.renderComments();
-      await saveComments(orgId(), photo.media_id, this.comments).catch(() => null);
-      root.Portal?.PhotoFeed?.trackActivity?.({
-        type: 'photo_commented',
-        summary: 'Commented on media',
-        actor_name: userName(),
-        actor_email: userEmail(),
-        target: {
-          media_id: photo.media_id,
-          photo_id: photoId(photo),
-          project_id: project.id || '',
-          project_title: project.title || project.address || '',
-          project_address: project.address || ''
-        },
-        metadata: {
-          comment_id: comment.id,
-          mention_count: mentions.length
-        }
-      }, { source: 'photo_comments' });
-      if (mentions.length) {
-        root.FirstMateTags?.triggerMentionEvent?.(orgId(), root.FirstMateTags.mentionEventPayload({
-          mentions,
-          comment,
-          context: {
-            media_id: photo.media_id,
-            photo_id: photoId(photo),
-            project_id: project.id || '',
-            project_title: project.title || project.address || '',
-            kind: 'photo_comment'
-          }
-        })).catch(() => null);
-      }
-      if (typeof this.onChange === 'function') this.onChange({ photo, comments: this.comments });
-    }
+
   }
 
   function openMediaViewer(options = {}){

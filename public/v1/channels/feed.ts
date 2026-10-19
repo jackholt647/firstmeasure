@@ -9,7 +9,8 @@ import { readEventRecord, listEventRecords } from "../work/storage.js";
 import { grantFeedRoot } from "./feed-access.js";
 import * as store from "./storage.js";
 import * as channels from "./service.js";
-import { postMessageSchema, reactionSchema, editMessageSchema } from "./schemas.js";
+import { postMessageSchema, reactionSchema, editMessageSchema, polishDraftSchema } from "./schemas.js";
+import { polishDraft } from '../platform/draft-polish.js';
 import {canAccessDepartmentResource,hasResourcePermission,matchesDepartmentFilter,relevantDepartmentContext} from '../workforce/department-access.js';
 
 type Obj = Record<string, any>;
@@ -179,6 +180,23 @@ export function registerFeedRoutes(app:FastifyInstance) {
     const ctx=await requirePlatformAuth(request,{orgId:str(request.params.orgId),capability:"platform.photos_feed",csrf});
     requirePermission(ctx,"view_feed");return ctx;
   };
+  app.post(prefix+'/compose/polish',async request=>{
+    const ctx=await auth(request,true);
+    const body=polishDraftSchema.extend({kind:z.enum(['post','comment']),post_id:z.string().trim().min(1).max(200).optional(),reply_to:z.string().trim().min(1).max(200).optional(),refs:z.array(refSchema).min(1).max(200).optional()}).strict().parse(request.body);
+    const authorize=async()=>{
+      await feedActionAccess(ctx,'comment_feed');
+      if(body.kind==='comment'){
+        if(body.post_id){
+          const {row,root}=await authorizedRoot(ctx,body.post_id);
+          if(row.deleted_at)throw notFound('feed_post_missing','This post is not available.');
+          if(body.reply_to){const reply=await authorizedRoot(ctx,body.reply_to);if(reply.root.id!==root.id || reply.row.deleted_at)throw forbidden('feed_reply_denied','This comment is not in this post.');}
+          await channels.requireChannelAccess(ctx,root.channel_id,{post:true});
+        }else if(body.refs){await authorizeRefs(ctx,body.refs);}
+        else throw forbidden('feed_post_required','Choose a post to polish a comment.');
+      }
+    };
+    return {ok:true,...await polishDraft(ctx,body,authorize)};
+  });
   app.get(prefix+"/catalog",async request=>{
     const ctx=await auth(request);
     const departmentId=str(obj(request.query).department_id);

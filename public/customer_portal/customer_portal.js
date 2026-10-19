@@ -556,9 +556,13 @@
     const cached = cpwfObject(documentSnapshotCache[tokenKey]);
     const snapshot = cpwfObject(cached.snapshot);
     const isSignature = !!value?.__signing;
-    if (!isSignature && Object.keys(snapshot).length) snapshot.outputs = { ...cpwfObject(snapshot.outputs), [outputKey]: value };
+    // A payment is never shown as made before the processor took it: only
+    // choices update optimistically.
+    const isPayment = cleanText(cpwfObject(cpwfObject(snapshot.output_defs)[outputKey]).type) === 'payment';
+    const optimistic = !isSignature && !isPayment;
+    if (optimistic && Object.keys(snapshot).length) snapshot.outputs = { ...cpwfObject(snapshot.outputs), [outputKey]: value };
     const workflowRecord = documentWorkflowCache[tokenKey];
-    if (!isSignature && workflowRecord && workflowRecord !== 'pending') workflowRecord.outputs = { ...cpwfObject(workflowRecord.outputs), [outputKey]: value };
+    if (optimistic && workflowRecord && workflowRecord !== 'pending') workflowRecord.outputs = { ...cpwfObject(workflowRecord.outputs), [outputKey]: value };
     updateDocumentTaskPanel(tokenKey);
     try {
       // Only a signature records where it was made; a choice or a payment
@@ -572,7 +576,7 @@
       // in while retaining the page currently under the sticky toolbar.
       // Signing and paying are confirmed by the server's copy; wait for it, so
       // the to-do list and the Pay box show them straight away.
-      const isRecordedPayment = cleanText(cpwfObject(cpwfObject(snapshot.output_defs)[outputKey]).type) === 'payment';
+      const isRecordedPayment = isPayment;
       const fresh = root.DocumentsAPI.public.get(tokenKey).then((payload) => {
         if (payload) {
           documentSnapshotCache[tokenKey] = payload;
@@ -612,7 +616,7 @@
     if (documentIntakeConfigCache[key] !== undefined) return documentIntakeConfigCache[key];
     try {
       const result = await root.DocumentsAPI.public.paymentIntakeConfig(key);
-      documentIntakeConfigCache[key] = result?.provider ? result : null;
+      documentIntakeConfigCache[key] = result && typeof result.ready === 'boolean' ? result : null;
     } catch (_) {
       // Not knowing is not the same as "no processor": never remember a
       // failure, or a blip would swap the real checkout for the stand-in form.
@@ -620,21 +624,37 @@
     }
     return documentIntakeConfigCache[key];
   }
-  function documentProviderIntakeOptions(config, token){
-    if (!config || !config.provider) return {};
+  function documentProviderIntakeOptions(config, token, outputKey){
+    // Not set up: the form says so and offers no card or bank entry.
+    if (!config || config.ready !== true || !config.provider) {
+      return {
+        notReadyMessage: cleanText(config?.message) || 'Online payment is not available for this document yet. Contact the company to pay.',
+        refundPolicy: cleanText(config?.refund_policy)
+      };
+    }
     const tokenKey = cleanText(token);
+    const rails = cpwfObject(config.rails);
     // No surcharge options here on purpose: the document's authoritative
     // pricing already carries its own processing-fee rows and the server
     // charges with apply_surcharge:false.
     return {
       savedMethods: Array.isArray(config.saved_methods) ? config.saved_methods : [],
       allowSavedMethods: true,
+      refundPolicy: cleanText(config.refund_policy),
+      methods: [rails.card !== false ? 'card' : '', rails.bank !== false ? 'ach' : ''].filter(Boolean),
       tokenization: {
         mode: cleanText(config.tokenization?.mode) || 'mock',
         sdkUrl: cleanText(config.tokenization?.sdk_url),
+        publicKey: cleanText(config.tokenization?.public_key),
+        // The server prices the payment from the document, never the browser.
+        prepare: async ({ method }) => (await root.DocumentsAPI.public.paymentCheckout(tokenKey, { output_key: outputKey, method }))?.checkout,
         createPaymentMethod: (request) => root.DocumentsAPI.public.createPaymentMethodIntent(tokenKey, request)
       }
     };
+  }
+  // The organization can take online payments right now (server answer).
+  function onlinePaymentsAvailable(){
+    return activeProjectPayload()?.online_payments !== false;
   }
   async function openDocumentPayment(token, options = {}){
     if (blockPreviewAction('payment')) return false;
@@ -665,7 +685,7 @@
           showPortalToast('We could not load the payment form. Check your connection and try again.');
           return {};
         }
-        return documentProviderIntakeOptions(intakeConfig, tokenKey);
+        return documentProviderIntakeOptions(intakeConfig, tokenKey, outputKey);
       }),
       title: cleanText(options.title) || 'Make a payment',
       description: cleanText(options.description) || cleanText(document.title) || 'Project payment',
@@ -681,7 +701,7 @@
       details: [{ label: (globalThis.PlatformLanguage?.text("customer-portal","m_d7c7704979ef7e","For") ?? "For"), value: cleanText(document.title) || 'Project document' }],
       submitLabel: 'Pay',
       successTitle: 'Payment complete',
-      successDescription: `${moneyFormat(amountCents / 100)} was recorded for this project.`,
+      successDescription: `${moneyFormat(amountCents / 100)} was paid. Thank you.`,
       onSubmit: async (submitted) => {
         // Tokenized submissions (provider configured) carry the payment
         // method token; the server charges through the processor before the
@@ -697,11 +717,13 @@
           ...(tokenized ? {
             ...(cleanText(submitted?.payment_method_id) ? { payment_method_id: cleanText(submitted.payment_method_id) } : {}),
             ...(cleanText(submitted?.saved_method_id) ? { saved_method_id: cleanText(submitted.saved_method_id) } : {}),
+            ...(cleanText(submitted?.checkout_id) ? { checkout_id: cleanText(submitted.checkout_id) } : {}),
             save_payment_method: submitted?.save_method === true
           } : {})
         };
+        if (!tokenized) throw new Error('Enter your payment details to pay.');
         const saved = await submitDocumentOutput(tokenKey, outputKey, value, { rethrow: tokenized });
-        if (!saved) throw new Error('Payment could not be recorded.');
+        if (!saved) throw new Error('Payment could not be completed.');
         // A saved card may have been added — refetch the config next open.
         if (tokenized) delete documentIntakeConfigCache[tokenKey];
         const record = documentWorkflowCache[tokenKey];
@@ -903,7 +925,8 @@
           api: {
             publicToken: key,
             resolveSigning: () => documentSigningAccess(key),
-            openPayment: (options) => openDocumentPayment(key, options)
+            openPayment: (options) => openDocumentPayment(key, options),
+            onlinePayments: onlinePaymentsAvailable()
           }
         }
       });
@@ -1113,7 +1136,8 @@
           api: {
             publicToken: key,
             resolveSigning: () => documentSigningAccess(key),
-            openPayment: (options) => openDocumentPayment(key, options)
+            openPayment: (options) => openDocumentPayment(key, options),
+            onlinePayments: onlinePaymentsAvailable()
           }
         }
       });
@@ -1167,7 +1191,8 @@
             publicToken: token,
             resolveSigning: () => documentSigningAccess(token),
             portalUrl: location.href,
-            openPayment: (options) => openDocumentPayment(token, options)
+            openPayment: (options) => openDocumentPayment(token, options),
+            onlinePayments: onlinePaymentsAvailable()
           },
           outputs: snapshot.outputs || {},
           submitOutput: async (key, value) => {

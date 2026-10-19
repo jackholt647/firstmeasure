@@ -33,6 +33,7 @@ import type {
   ProviderPayout,
   ProviderPortalLoginUrl,
   ProviderPortalUser,
+  ProviderMcc,
   ProviderPayoutStatus,
   ProviderProcessingPlan,
   ProviderRefund,
@@ -50,12 +51,24 @@ export const FORWARD_PARTNER_ID = "part_3HpmN6yqGUD2C8GvrVx0XBiAXpz";
 export class ForwardApiError extends Error {
   readonly status: number;
   readonly body: JsonObject;
-  constructor(status: number, body: JsonObject, message?: string) {
+  /**
+   * True when a write may have reached Forward but no answer came back
+   * (network failure, timeout, 5xx after every retry). The caller must look
+   * the outcome up before anyone tries the operation again.
+   */
+  readonly outcomeUnknown: boolean;
+  constructor(status: number, body: JsonObject, message?: string, options: { outcomeUnknown?: boolean } = {}) {
     super(message || `Forward API request failed with status ${status}.`);
     this.name = "ForwardApiError";
     this.status = status;
     this.body = body;
+    this.outcomeUnknown = options.outcomeUnknown === true;
   }
+}
+
+/** Forward's error guidance: 429 and 5xx are safe to retry with the same idempotency key. */
+export function forwardStatusRetryable(status: number) {
+  return status === 429 || status >= 500;
 }
 
 function cleanText(value: unknown) {
@@ -92,11 +105,48 @@ type RequestOptions = {
   query?: Record<string, string | number | undefined>;
   body?: JsonObject;
   idempotency?: boolean;
+  /** Stable key for the business operation; a fresh one is minted when absent. */
+  idempotencyKey?: string;
 };
 
 export function forwardConfigured() {
   return Boolean(env.forwardApiBase && env.forwardPrivateKey);
 }
+
+/** "sandbox" for a sandbox.getfwd.com API base, "production" otherwise, "" when unconfigured. */
+export function forwardEnvironment(): "" | "sandbox" | "production" {
+  if (!forwardConfigured()) return "";
+  return env.forwardApiBase.includes("sandbox") ? "sandbox" : "production";
+}
+
+/**
+ * Forward's browser SDK for the environment this deployment talks to. A
+ * sandbox key only works with the sandbox SDK and a live key only with the
+ * production one, so the URL follows the API base unless set explicitly.
+ */
+export function forwardSdkUrl() {
+  const explicit = cleanText(env.forwardSdkUrl);
+  if (explicit) return explicit;
+  return forwardEnvironment() === "production"
+    ? "https://cdn.pci.getfwd.com/sdk/forward.js"
+    : "https://sandbox-cdn.pci.getfwd.com/sdk/forward.js";
+}
+
+/** Idempotency keys must be 10+ characters; keep them in Forward's safe alphabet. */
+export function forwardIdempotencyKey(...parts: unknown[]) {
+  const key = parts.map((part) => cleanText(part)).filter(Boolean).join("-").replace(/[^A-Za-z0-9_-]+/g, "-").slice(0, 200);
+  return key.length >= 10 ? key : `fm-${key}-${"0".repeat(10)}`.slice(0, 200);
+}
+
+const RETRY_DELAYS_MS = [400, 1500];
+
+function retryDelay(attempt: number, response?: Response) {
+  const header = Number(response?.headers.get("retry-after"));
+  if (Number.isFinite(header) && header > 0) return Math.min(header * 1000, 5000);
+  return RETRY_DELAYS_MS[Math.min(attempt, RETRY_DELAYS_MS.length - 1)] ?? 1500;
+}
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 async function forwardRequest(
   options: ForwardClientOptions,
@@ -118,23 +168,39 @@ async function forwardRequest(
     Accept: "application/json"
   };
   if (cleanText(options.accountId)) headers["x-account-id"] = cleanText(options.accountId);
-  if (request.idempotency !== false && method !== "GET") headers["x-idempotency-key"] = idempotencyKey();
+  // One key for every attempt of this call: a retry after a lost response is
+  // the same request to Forward, never a second charge or refund.
+  const idempotent = request.idempotency !== false && method !== "GET";
+  if (idempotent) headers["x-idempotency-key"] = cleanText(request.idempotencyKey) || idempotencyKey();
   if (request.body !== undefined) headers["Content-Type"] = "application/json";
 
   const timeoutMs = options.timeoutMs || env.forwardRequestTimeoutMs;
-  const attempt = () => fetch(url, {
-    method,
-    headers,
-    ...(request.body !== undefined ? { body: JSON.stringify(request.body) } : {}),
-    signal: AbortSignal.timeout(timeoutMs)
-  });
-  let response: Response;
-  try {
-    response = await attempt();
-  } catch (error) {
-    // A single network retry, only for idempotent reads.
-    if (method !== "GET") throw error;
-    response = await attempt();
+  // Without a key a write cannot be repeated safely, so it gets one attempt.
+  const maxAttempts = method === "GET" || idempotent ? RETRY_DELAYS_MS.length + 1 : 1;
+  let response: Response | null = null;
+  let networkError: unknown = null;
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+    networkError = null;
+    try {
+      response = await fetch(url, {
+        method,
+        headers,
+        ...(request.body !== undefined ? { body: JSON.stringify(request.body) } : {}),
+        signal: AbortSignal.timeout(timeoutMs)
+      });
+    } catch (error) {
+      networkError = error;
+      response = null;
+    }
+    const retryable = networkError !== null || (response !== null && forwardStatusRetryable(response.status));
+    if (!retryable || attempt === maxAttempts - 1) break;
+    await sleep(retryDelay(attempt, response ?? undefined));
+  }
+  if (!response) {
+    const timedOut = (networkError as { name?: string })?.name === "TimeoutError";
+    throw new ForwardApiError(0, { network_error: String((networkError as Error)?.message || networkError) },
+      timedOut ? "Forward did not respond in time." : "Forward could not be reached.",
+      { outcomeUnknown: method !== "GET" });
   }
   const text = await response.text();
   let parsed: JsonObject = {};
@@ -149,7 +215,9 @@ async function forwardRequest(
     const argumentErrors = asObject(parsed.argument_errors);
     const details = Object.entries(argumentErrors).map(([field, issue]) => `${field}: ${cleanText(issue)}`).join("; ");
     const message = [cleanText(parsed.message || parsed.error), details].filter(Boolean).join(" — ");
-    throw new ForwardApiError(response.status, parsed, message || undefined);
+    throw new ForwardApiError(response.status, parsed, message || undefined, {
+      outcomeUnknown: method !== "GET" && forwardStatusRetryable(response.status)
+    });
   }
   return parsed;
 }
@@ -164,13 +232,16 @@ function intentStatus(value: unknown): ProviderPaymentIntentStatus {
 
 function paymentStatus(value: unknown): ProviderPaymentStatus {
   const status = cleanText(value).toLowerCase();
-  const known: ProviderPaymentStatus[] = ["pending", "authorized", "captured", "settled", "failed", "cancelled", "refunded"];
+  // Forward payments: processing | pending | uncaptured | captured |
+  // cancelled | voided | failed | rejected (an uncaptured payment is an auth).
+  if (status === "uncaptured") return "authorized";
+  const known: ProviderPaymentStatus[] = ["pending", "processing", "authorized", "captured", "settled", "failed", "cancelled", "voided", "rejected", "refunded"];
   return (known as string[]).includes(status) ? status as ProviderPaymentStatus : "pending";
 }
 
 function refundStatus(value: unknown): ProviderRefundStatus {
   const status = cleanText(value).toLowerCase();
-  const known: ProviderRefundStatus[] = ["pending", "succeeded", "failed"];
+  const known: ProviderRefundStatus[] = ["pending", "processing", "succeeded", "failed", "cancelled"];
   return (known as string[]).includes(status) ? status as ProviderRefundStatus : "pending";
 }
 
@@ -244,6 +315,7 @@ function listQuery(listOptions: ListOptions) {
 }
 
 function mapPaymentIntent(raw: JsonObject): ProviderPaymentIntent {
+  const latest = asObject(raw.latest_payment);
   return {
     id: cleanText(raw.id),
     status: intentStatus(raw.status),
@@ -251,20 +323,34 @@ function mapPaymentIntent(raw: JsonObject): ProviderPaymentIntent {
     currency: cleanText(raw.currency || "USD").toUpperCase(),
     captured_cents: cents(raw.amount_captured ?? raw.captured_amount),
     refunded_cents: cents(raw.amount_refunded ?? raw.refunded_amount),
+    voided_cents: cents(raw.amount_voided),
     reference_id: cleanText(raw.reference_id),
+    client_secret: cleanText(raw.client_secret),
+    settlement_status: cleanText(raw.settlement_status).toLowerCase(),
+    latest_payment: cleanText(latest.id) ? mapPayment(latest) : null,
     raw
   };
 }
 
 function mapPayment(raw: JsonObject): ProviderPayment {
+  const failed = ["failed", "rejected"].includes(cleanText(raw.status).toLowerCase());
+  const method = asObject(raw.payment_method);
+  const rail = cleanText(raw.payment_rail_type || method.payment_method_type).toLowerCase();
   return {
     id: cleanText(raw.id),
     intent_id: cleanText(raw.payment_intent_id || raw.payment_intent),
     status: paymentStatus(raw.status),
     amount_cents: cents(raw.amount),
     currency: cleanText(raw.currency || "USD").toUpperCase(),
-    auth_code: cleanText(raw.auth_code),
-    decline_reason: cleanText(raw.decline_reason || raw.decline_category),
+    auth_code: failed ? "" : cleanText(raw.auth_code),
+    // LIVE-VERIFIED (sandbox 2026-10-19): a declined card answers HTTP 200
+    // with status "failed", decline_category (e.g. "RO1") and
+    // decline_category_text "Payment authorization failed".
+    decline_reason: cleanText(raw.decline_reason || raw.decline_category || raw.failure_code),
+    decline_text: cleanText(raw.decline_category_text || raw.failure_message || raw.return_message || (failed ? raw.auth_response_text : "")),
+    rail: rail === "bank" || rail === "us_bank_ach" || rail === "ca_bank" || rail === "ca_bank_eft" ? "bank" : "card",
+    settlement_status: cleanText(raw.settlement_status).toLowerCase(),
+    payment_method_id: cleanText(raw.payment_method_id || method.id),
     raw
   };
 }
@@ -353,8 +439,47 @@ function mapAccount(raw: JsonObject): ProviderAccount {
     external_account_id: cleanText(raw.external_account_id),
     processing_enabled: raw.processing_enabled === true,
     payouts_enabled: raw.payouts_enabled === true,
+    status: cleanText(raw.status).toUpperCase(),
+    gateway_mid: cleanText(raw.mid),
     raw
   };
+}
+
+/** Order details on Forward's wire: only the fields that are set. */
+function orderDetailsBody(value: unknown): JsonObject | undefined {
+  const details = asObject(value);
+  const body: JsonObject = {};
+  if (cleanText(details.card_not_present_type)) body.card_not_present_type = cleanText(details.card_not_present_type);
+  if (cleanText(details.initiated_by)) body.initiated_by = cleanText(details.initiated_by);
+  if (typeof details.is_scheduled_payment === "boolean") body.is_scheduled_payment = details.is_scheduled_payment;
+  if (cleanText(details.invoice_id)) body.invoice_id = cleanText(details.invoice_id).slice(0, 100);
+  if (cleanText(details.description)) body.description = cleanText(details.description).slice(0, 255);
+  if (cleanText(details.po_number)) body.po_number = cleanText(details.po_number).slice(0, 100);
+  if (details.tax_amount !== undefined && Number.isFinite(Number(details.tax_amount))) body.tax_amount = Math.max(0, cents(details.tax_amount));
+  if (typeof details.tax_exempt === "boolean") body.tax_exempt = details.tax_exempt;
+  const zip = cleanText(details.ship_to_zip).replace(/[^A-Za-z0-9 -]/g, "");
+  if (zip) body.ship_to_zip = zip.slice(0, 10);
+  if (cleanText(details.ship_to_country)) body.ship_to_country = cleanText(details.ship_to_country).toUpperCase().slice(0, 2);
+  return Object.keys(body).length ? body : undefined;
+}
+
+/** Billing details on Forward's wire (AVS reads address_line1 and postal_code). */
+function billingDetailsBody(value: unknown): JsonObject | undefined {
+  const details = asObject(value);
+  const address = asObject(details.address);
+  const wireAddress: JsonObject = {};
+  const fields: Array<[string, string]> = [["address_line1", "address_line1"], ["line1", "address_line1"], ["address_line2", "address_line2"], ["line2", "address_line2"], ["city", "city"], ["state", "state"], ["postal_code", "postal_code"], ["zip", "postal_code"], ["country", "country"]];
+  for (const [from, to] of fields) {
+    const text = cleanText(address[from]);
+    if (text && wireAddress[to] === undefined) wireAddress[to] = text;
+  }
+  const body: JsonObject = {
+    ...(cleanText(details.name) ? { name: cleanText(details.name).slice(0, 120) } : {}),
+    ...(cleanText(details.email) ? { email: cleanText(details.email).slice(0, 200) } : {}),
+    ...(cleanText(details.phone) ? { phone: cleanText(details.phone).replace(/[^\d+]/g, "").slice(0, 20) } : {}),
+    ...(Object.keys(wireAddress).length ? { address: { country: "US", ...wireAddress } } : {})
+  };
+  return Object.keys(body).length ? body : undefined;
 }
 
 // --- Adapters ---------------------------------------------------------------
@@ -365,39 +490,72 @@ export function createForwardAdapter(options: ForwardClientOptions = {}): Paymen
   return {
     provider: FORWARD_PROVIDER,
     async createPaymentIntent(input: CreatePaymentIntentInput) {
+      const orderDetails = orderDetailsBody(input.order_details);
       const body: JsonObject = {
         amount: cents(input.amount_cents),
         currency: cleanText(input.currency || "USD").toUpperCase(),
         ...(input.merchant_amount_cents !== undefined ? { merchant_amount: cents(input.merchant_amount_cents) } : {}),
-        ...(cleanText(input.reference_id) ? { reference_id: cleanText(input.reference_id) } : {}),
+        ...(cleanText(input.reference_id) ? { reference_id: cleanText(input.reference_id).slice(0, 300) } : {}),
         ...(input.payment_method_types?.length ? { payment_method_types: input.payment_method_types } : {}),
-        ...(input.auto_capture === false ? { capture_method: "manual" } : {}),
-        ...(cleanText(input.description) ? { description: cleanText(input.description) } : {}),
-        ...(input.user_fields ? { user_fields: input.user_fields } : {})
+        // Forward's documented field is the `capture` boolean.
+        ...(input.auto_capture === false ? { capture: false } : {}),
+        ...(cleanText(input.description) ? { description: cleanText(input.description).slice(0, 255) } : {}),
+        ...(input.user_fields ? { user_fields: input.user_fields } : {}),
+        ...(orderDetails ? { order_details: orderDetails } : {})
       };
-      return mapPaymentIntent(unwrap(await call("POST", "/payment_intents", { body }), "payment_intent"));
+      return mapPaymentIntent(unwrap(await call("POST", "/payment_intents", { body, idempotencyKey: input.idempotency_key }), "payment_intent"));
+    },
+    async getPaymentIntent(intentId) {
+      return mapPaymentIntent(unwrap(await call("GET", `/payment_intents/${encodeURIComponent(intentId)}`), "payment_intent"));
+    },
+    async searchPaymentIntents(input) {
+      const payload = await call("POST", "/payment_intents/search", {
+        body: { reference_id: cleanText(input.reference_id), limit: 10 },
+        idempotency: false
+      });
+      return unwrapList(payload, "payment_intents").map(mapPaymentIntent);
+    },
+    async updatePaymentIntent(intentId, input) {
+      const orderDetails = orderDetailsBody(input.order_details);
+      const body: JsonObject = {
+        ...(input.amount_cents !== undefined ? { amount: cents(input.amount_cents) } : {}),
+        ...(orderDetails ? { order_details: orderDetails } : {})
+      };
+      return mapPaymentIntent(unwrap(await call("PATCH", `/payment_intents/${encodeURIComponent(intentId)}`, { body, idempotencyKey: input.idempotency_key }), "payment_intent"));
     },
     async capturePaymentIntent(intentId, input = {}) {
       const body: JsonObject = input.amount_cents !== undefined ? { amount: cents(input.amount_cents) } : {};
-      return mapPaymentIntent(unwrap(await call("POST", `/payment_intents/${encodeURIComponent(intentId)}/capture`, { body }), "payment_intent"));
+      return mapPaymentIntent(unwrap(await call("POST", `/payment_intents/${encodeURIComponent(intentId)}/capture`, { body, idempotencyKey: input.idempotency_key }), "payment_intent"));
     },
-    async cancelPaymentIntent(intentId) {
-      return mapPaymentIntent(unwrap(await call("POST", `/payment_intents/${encodeURIComponent(intentId)}/cancel`, { body: {} }), "payment_intent"));
+    async cancelPaymentIntent(intentId, input = {}) {
+      // LIVE-VERIFIED (sandbox 2026-10-19): cancelling an intent whose card
+      // payment is captured but unsettled voids it — the intent answers
+      // status "cancelled" with amount_voided equal to the charge.
+      const body: JsonObject = cleanText(input.reason) ? { cancellation_reason: cleanText(input.reason) } : {};
+      return mapPaymentIntent(unwrap(await call("POST", `/payment_intents/${encodeURIComponent(intentId)}/cancel`, { body, idempotencyKey: input.idempotency_key }), "payment_intent"));
     },
     async createPayment(intentId, input: CreatePaymentInput) {
+      const billing = billingDetailsBody(input.billing_details);
+      const orderDetails = orderDetailsBody(input.order_details);
       const body: JsonObject = {
         payment_method_id: cleanText(input.payment_method_id),
         ...(input.amount_cents !== undefined ? { amount: cents(input.amount_cents) } : {}),
-        ...(input.billing_details ? { billing_details: input.billing_details } : {})
+        ...(billing ? { billing_details: billing } : {}),
+        ...(orderDetails ? { order_details: orderDetails } : {}),
+        ...(cleanText(input.reference_id) ? { reference_id: cleanText(input.reference_id).slice(0, 300) } : {})
       };
-      return mapPayment(unwrap(await call("POST", `/payment_intents/${encodeURIComponent(intentId)}/payments`, { body }), "payment"));
+      return mapPayment(unwrap(await call("POST", `/payment_intents/${encodeURIComponent(intentId)}/payments`, { body, idempotencyKey: input.idempotency_key }), "payment"));
     },
     async createRefund(intentId, input: CreateRefundInput = {}) {
+      // LIVE-VERIFIED (sandbox 2026-10-19): full and partial refunds both work
+      // on a captured payment that has not settled yet.
       const body: JsonObject = {
-        ...(input.amount_cents !== undefined ? { amount: cents(input.amount_cents) } : {}),
-        ...(cleanText(input.reason) ? { reason: cleanText(input.reason) } : {})
+        ...(input.amount_cents !== undefined ? { amount: cents(input.amount_cents) } : {})
       };
-      return mapRefund(unwrap(await call("POST", `/payment_intents/${encodeURIComponent(intentId)}/refunds`, { body }), "refund"));
+      return mapRefund(unwrap(await call("POST", `/payment_intents/${encodeURIComponent(intentId)}/refunds`, { body, idempotencyKey: input.idempotency_key }), "refund"));
+    },
+    async getRefund(refundId) {
+      return mapRefund(unwrap(await call("GET", `/refunds/${encodeURIComponent(refundId)}`), "refund"));
     },
     async getPayment(paymentId) {
       return mapPayment(unwrap(await call("GET", `/payments/${encodeURIComponent(paymentId)}`), "payment"));
@@ -746,6 +904,22 @@ export function createForwardBoardingAdapter(options: ForwardClientOptions = {})
         name: cleanText(raw.name),
         raw
       } satisfies ProviderProcessingPlan));
+    },
+    async listMccs() {
+      // GET /mccs lists the MCCs assigned to our partner account (the
+      // application's company.mcc must be one of them); paged {data, meta}.
+      const mccs: ProviderMcc[] = [];
+      for (let page = 0; page < 10; page += 1) {
+        const payload = await call("GET", "/mccs", { query: { page, size: 100, active: "true" } });
+        const rows = unwrapList(payload, "mccs");
+        for (const raw of rows) {
+          const code = cleanText(raw.code || raw.mcc);
+          if (code) mccs.push({ code, description: cleanText(raw.description), active: raw.active !== false });
+        }
+        const total = cents(asObject(payload.meta).total_count);
+        if (!rows.length || mccs.length >= total) break;
+      }
+      return mccs;
     },
     async getAccount(accountId) {
       return mapAccount(unwrap(await call("GET", `/accounts/${encodeURIComponent(accountId)}`), "account"));

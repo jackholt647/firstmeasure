@@ -4,7 +4,7 @@ window.FirstMateSettingsIndex = {
   "inputs": [
     [
       "libraries/apps/settings/company.js",
-      "102e8acc3ccafc8b0c1c49087453ab2135398661d83c40de5d4073aede5d5d2b"
+      "32b07b5e4943974a0f0ef236f4abf10bb7625122ca17ad28ce57cfe24a29d6c9"
     ],
     [
       "libraries/appointment-booking/settings.js",
@@ -112,7 +112,7 @@ window.FirstMateSettingsIndex = {
     ],
     [
       "libraries/apps/settings/channels.js",
-      "530268768c424c1894c58ed1392de7305d1783ceaf9791974b400afb649ee116"
+      "031011f5a3252536e00f4c9b00f38f2471c7168abfd875a396c87b42c72bf682"
     ],
     [
       "libraries/apps/settings/comms.js",
@@ -128,7 +128,7 @@ window.FirstMateSettingsIndex = {
     ],
     [
       "libraries/apps/settings/crm.js",
-      "0d9a7ac5b1107d725d128bd1c9c10fe70cc2095630aba18e807755696a8aa9c7"
+      "8846538b881ca609976b376e7c273bcfc16f33b0d79da0bfc738438b4b41f935"
     ],
     [
       "libraries/apps/settings/domains.js",
@@ -144,7 +144,7 @@ window.FirstMateSettingsIndex = {
     ],
     [
       "libraries/apps/settings/forms.js",
-      "56b4b43dc8fa58a73895c54bee46232c1c918c42837c5b77e63702d767c3222d"
+      "13bd48b84de38b2228e6929e84d7015eb6b7374c3650ef71c00088cd6f5b6f26"
     ],
     [
       "libraries/apps/settings/live_chat.js",
@@ -153,6 +153,10 @@ window.FirstMateSettingsIndex = {
     [
       "libraries/apps/settings/payroll.js",
       "c2c5e28a3a51530a75fca2395fc4a816417d52a7f3a69b51b05d3e879f50be4c"
+    ],
+    [
+      "libraries/apps/settings/phone.js",
+      "4be3301d4602e8713f1ca7a857ba1a501c7e6b2c4e57944ecd043ff589c943a9"
     ],
     [
       "libraries/apps/settings/platform-billing.js",
@@ -1044,7 +1048,7 @@ window.FirstMateSettingsIndex = {
     },
     {
       "section": "calls",
-      "tab": "Calls",
+      "tab": "Call Lists",
       "view": "celebrations",
       "source": "libraries/apps/settings/crm.js",
       "title": "After the final step",
@@ -1054,7 +1058,7 @@ window.FirstMateSettingsIndex = {
     },
     {
       "section": "calls",
-      "tab": "Calls",
+      "tab": "Call Lists",
       "view": "celebrations",
       "source": "libraries/apps/settings/crm.js",
       "title": "Amount",
@@ -1064,7 +1068,7 @@ window.FirstMateSettingsIndex = {
     },
     {
       "section": "calls",
-      "tab": "Calls",
+      "tab": "Call Lists",
       "view": "celebrations",
       "source": "libraries/apps/settings/crm.js",
       "title": "Attempt sequence",
@@ -1074,7 +1078,7 @@ window.FirstMateSettingsIndex = {
     },
     {
       "section": "calls",
-      "tab": "Calls",
+      "tab": "Call Lists",
       "view": "celebrations",
       "source": "libraries/apps/settings/crm.js",
       "title": "Automatic contact cadence",
@@ -1084,7 +1088,7 @@ window.FirstMateSettingsIndex = {
     },
     {
       "section": "calls",
-      "tab": "Calls",
+      "tab": "Call Lists",
       "view": "celebrations",
       "source": "libraries/apps/settings/crm.js",
       "title": "Behavior",
@@ -1094,7 +1098,7 @@ window.FirstMateSettingsIndex = {
     },
     {
       "section": "calls",
-      "tab": "Calls",
+      "tab": "Call Lists",
       "view": "celebrations",
       "source": "libraries/apps/settings/crm.js",
       "title": "Button label",
@@ -1104,7 +1108,16 @@ window.FirstMateSettingsIndex = {
     },
     {
       "section": "calls",
-      "tab": "Calls",
+      "tab": "Call Lists",
+      "title": "Call Lists",
+      "description": "Configure call lists, assignments, follow-ups, and outcomes.",
+      "view": "",
+      "kind": "section",
+      "selector": ""
+    },
+    {
+      "section": "calls",
+      "tab": "Call Lists",
       "view": "celebrations",
       "source": "libraries/apps/settings/crm.js",
       "title": "Call type",
@@ -1114,16 +1127,7 @@ window.FirstMateSettingsIndex = {
     },
     {
       "section": "calls",
-      "tab": "Calls",
-      "title": "Calls",
-      "description": "Configure call queues, assignments, follow-ups, and outcomes.",
-      "view": "",
-      "kind": "section",
-      "selector": ""
-    },
-    {
-      "section": "calls",
-      "tab": "Calls",
+      "tab": "Call Lists",
       "view": "celebrations",
       "source": "libraries/apps/settings/crm.js",
       "title": "Completion outcomes",
@@ -1133,7 +1137,7 @@ window.FirstMateSettingsIndex = {
     },
     {
       "section": "calls",
-      "tab": "Calls",
+      "tab": "Call Lists",
       "view": "celebrations",
       "source": "libraries/apps/settings/crm.js",
       "title": "Default time (optional)",
@@ -1143,7 +1147,7 @@ window.FirstMateSettingsIndex = {
     },
     {
       "section": "calls",
-      "tab": "Calls",
+      "tab": "Call Lists",
       "view": "celebrations",
       "source": "libraries/apps/settings/crm.js",
       "title": "Default to-do title",
@@ -1153,7 +1157,7 @@ window.FirstMateSettingsIndex = {
     },
     {
       "section": "calls",
-      "tab": "Calls",
+      "tab": "Call Lists",
       "view": "celebrations",
       "source": "libraries/apps/settings/crm.js",
       "title": "Description",
@@ -1163,7 +1167,7 @@ window.FirstMateSettingsIndex = {
     },
     {
       "section": "calls",
-      "tab": "Calls",
+      "tab": "Call Lists",
       "view": "celebrations",
       "source": "libraries/apps/settings/crm.js",
       "title": "Enabled",
@@ -1173,7 +1177,7 @@ window.FirstMateSettingsIndex = {
     },
     {
       "section": "calls",
-      "tab": "Calls",
+      "tab": "Call Lists",
       "view": "celebrations",
       "source": "libraries/apps/settings/crm.js",
       "title": "Follow-up behavior",
@@ -1183,7 +1187,7 @@ window.FirstMateSettingsIndex = {
     },
     {
       "section": "calls",
-      "tab": "Calls",
+      "tab": "Call Lists",
       "view": "celebrations",
       "source": "libraries/apps/settings/crm.js",
       "title": "Follow-up button",
@@ -1193,7 +1197,7 @@ window.FirstMateSettingsIndex = {
     },
     {
       "section": "calls",
-      "tab": "Calls",
+      "tab": "Call Lists",
       "view": "celebrations",
       "source": "libraries/apps/settings/crm.js",
       "title": "List key",
@@ -1203,7 +1207,7 @@ window.FirstMateSettingsIndex = {
     },
     {
       "section": "calls",
-      "tab": "Calls",
+      "tab": "Call Lists",
       "view": "celebrations",
       "source": "libraries/apps/settings/crm.js",
       "title": "List name",
@@ -1213,7 +1217,7 @@ window.FirstMateSettingsIndex = {
     },
     {
       "section": "calls",
-      "tab": "Calls",
+      "tab": "Call Lists",
       "view": "celebrations",
       "source": "libraries/apps/settings/crm.js",
       "title": "New call list",
@@ -1223,7 +1227,7 @@ window.FirstMateSettingsIndex = {
     },
     {
       "section": "calls",
-      "tab": "Calls",
+      "tab": "Call Lists",
       "view": "celebrations",
       "source": "libraries/apps/settings/crm.js",
       "title": "No answer",
@@ -1233,7 +1237,7 @@ window.FirstMateSettingsIndex = {
     },
     {
       "section": "calls",
-      "tab": "Calls",
+      "tab": "Call Lists",
       "view": "celebrations",
       "source": "libraries/apps/settings/crm.js",
       "title": "Off",
@@ -1243,7 +1247,7 @@ window.FirstMateSettingsIndex = {
     },
     {
       "section": "calls",
-      "tab": "Calls",
+      "tab": "Call Lists",
       "view": "celebrations",
       "source": "libraries/apps/settings/crm.js",
       "title": "Outcome label",
@@ -1253,7 +1257,7 @@ window.FirstMateSettingsIndex = {
     },
     {
       "section": "calls",
-      "tab": "Calls",
+      "tab": "Call Lists",
       "view": "celebrations",
       "source": "libraries/apps/settings/crm.js",
       "title": "Quick reschedule options",
@@ -1263,7 +1267,7 @@ window.FirstMateSettingsIndex = {
     },
     {
       "section": "calls",
-      "tab": "Calls",
+      "tab": "Call Lists",
       "view": "celebrations",
       "source": "libraries/apps/settings/crm.js",
       "title": "Sales pipeline",
@@ -1273,7 +1277,7 @@ window.FirstMateSettingsIndex = {
     },
     {
       "section": "calls",
-      "tab": "Calls",
+      "tab": "Call Lists",
       "view": "celebrations",
       "source": "libraries/apps/settings/crm.js",
       "title": "Step label",
@@ -1283,7 +1287,7 @@ window.FirstMateSettingsIndex = {
     },
     {
       "section": "calls",
-      "tab": "Calls",
+      "tab": "Call Lists",
       "view": "celebrations",
       "source": "libraries/apps/settings/crm.js",
       "title": "Terminology",
@@ -1293,7 +1297,7 @@ window.FirstMateSettingsIndex = {
     },
     {
       "section": "calls",
-      "tab": "Calls",
+      "tab": "Call Lists",
       "view": "celebrations",
       "source": "libraries/apps/settings/crm.js",
       "title": "The sales pipeline is now a scope template",
@@ -1303,7 +1307,7 @@ window.FirstMateSettingsIndex = {
     },
     {
       "section": "calls",
-      "tab": "Calls",
+      "tab": "Call Lists",
       "view": "celebrations",
       "source": "libraries/apps/settings/crm.js",
       "title": "Toggle list status",
@@ -1313,7 +1317,7 @@ window.FirstMateSettingsIndex = {
     },
     {
       "section": "calls",
-      "tab": "Calls",
+      "tab": "Call Lists",
       "view": "celebrations",
       "source": "libraries/apps/settings/crm.js",
       "title": "Unit",
@@ -1323,7 +1327,7 @@ window.FirstMateSettingsIndex = {
     },
     {
       "section": "calls",
-      "tab": "Calls",
+      "tab": "Call Lists",
       "view": "celebrations",
       "source": "libraries/apps/settings/crm.js",
       "title": "Voicemail",
@@ -1333,7 +1337,7 @@ window.FirstMateSettingsIndex = {
     },
     {
       "section": "calls",
-      "tab": "Calls",
+      "tab": "Call Lists",
       "view": "celebrations",
       "source": "libraries/apps/settings/crm.js",
       "title": "Wait",
@@ -1439,16 +1443,6 @@ window.FirstMateSettingsIndex = {
       "description": "",
       "kind": "heading",
       "selector": ""
-    },
-    {
-      "section": "channels",
-      "tab": "Channels",
-      "view": "",
-      "source": "libraries/apps/settings/channels.js",
-      "title": "Send messages with",
-      "description": "The other key combination inserts a new line.",
-      "kind": "control",
-      "selector": "[id=\"chsSendMode\"]"
     },
     {
       "section": "comms",
@@ -4365,6 +4359,16 @@ window.FirstMateSettingsIndex = {
       "tab": "Forms and Leads",
       "view": "",
       "source": "libraries/apps/settings/forms.js",
+      "title": "Menu label",
+      "description": "What the New menu calls it, such as Lead or Service call.",
+      "kind": "control",
+      "selector": "[data-path=\"settings\\.staff\\.label\"]"
+    },
+    {
+      "section": "forms",
+      "tab": "Forms and Leads",
+      "view": "",
+      "source": "libraries/apps/settings/forms.js",
       "title": "Message",
       "description": "",
       "kind": "control",
@@ -4575,10 +4579,40 @@ window.FirstMateSettingsIndex = {
       "tab": "Forms and Leads",
       "view": "",
       "source": "libraries/apps/settings/forms.js",
+      "title": "Show in the New menu",
+      "description": "",
+      "kind": "control",
+      "selector": "[data-path=\"settings\\.staff\\.enabled\"]"
+    },
+    {
+      "section": "forms",
+      "tab": "Forms and Leads",
+      "view": "",
+      "source": "libraries/apps/settings/forms.js",
       "title": "Shown as",
       "description": "",
       "kind": "control",
       "selector": "[data-path=\"calculation\\.pricing\\.quantity\\.label\"]"
+    },
+    {
+      "section": "forms",
+      "tab": "Forms and Leads",
+      "view": "",
+      "source": "libraries/apps/settings/forms.js",
+      "title": "Staff entry",
+      "description": "",
+      "kind": "heading",
+      "selector": ""
+    },
+    {
+      "section": "forms",
+      "tab": "Forms and Leads",
+      "view": "",
+      "source": "libraries/apps/settings/forms.js",
+      "title": "Staff only (not on your website)",
+      "description": "",
+      "kind": "control",
+      "selector": "[data-path=\"settings\\.staff\\.only\"]"
     },
     {
       "section": "forms",
@@ -10593,22 +10627,1692 @@ window.FirstMateSettingsIndex = {
     },
     {
       "section": "sms",
-      "tab": "SMS",
-      "title": "SMS",
-      "description": "Configure messaging registration and SMS setup.",
+      "tab": "Phone Settings",
+      "view": "",
+      "source": "libraries/apps/settings/phone.js",
+      "title": "[object Object] hours",
+      "description": "",
+      "kind": "control",
+      "selector": "[name=\"FM_DYNAMIC\\.dayFM_DYNAMIC\"]"
+    },
+    {
+      "section": "sms",
+      "tab": "Phone Settings",
+      "view": "",
+      "source": "libraries/apps/settings/phone.js",
+      "title": "10DLC registration",
+      "description": "",
+      "kind": "control",
+      "selector": "[name=\"profile_id\"]"
+    },
+    {
+      "section": "sms",
+      "tab": "Phone Settings",
+      "view": "registration",
+      "source": "libraries/apps/settings/phone.js",
+      "title": "10DLC Registration",
+      "description": "",
+      "kind": "view",
+      "selector": "[data-tab=\"registration\"]"
+    },
+    {
+      "section": "sms",
+      "tab": "Phone Settings",
+      "view": "",
+      "source": "libraries/apps/settings/phone.js",
+      "title": "Add a number",
+      "description": "",
+      "kind": "heading",
+      "selector": ""
+    },
+    {
+      "section": "sms",
+      "tab": "Phone Settings",
+      "view": "",
+      "source": "libraries/apps/settings/phone.js",
+      "title": "Address line 2",
+      "description": "",
+      "kind": "control",
+      "selector": "[name=\"extended_address\"]"
+    },
+    {
+      "section": "sms",
+      "tab": "Phone Settings",
+      "view": "",
+      "source": "libraries/apps/settings/phone.js",
+      "title": "Advertisement ID",
+      "description": "",
+      "kind": "control",
+      "selector": "[name=\"ad_id\"]"
+    },
+    {
+      "section": "sms",
+      "tab": "Phone Settings",
+      "view": "",
+      "source": "libraries/apps/settings/phone.js",
+      "title": "Advertising attribution",
+      "description": "",
+      "kind": "heading",
+      "selector": ""
+    },
+    {
+      "section": "sms",
+      "tab": "Phone Settings",
+      "view": "",
+      "source": "libraries/apps/settings/phone.js",
+      "title": "After hours and holidays",
+      "description": "",
+      "kind": "control",
+      "selector": "[name=\"closed\\.target\"]"
+    },
+    {
+      "section": "sms",
+      "tab": "Phone Settings",
+      "view": "",
+      "source": "libraries/apps/settings/phone.js",
+      "title": "After-hours voicemail greeting",
+      "description": "",
+      "kind": "control",
+      "selector": "[name=\"closed_greeting\"]"
+    },
+    {
+      "section": "sms",
+      "tab": "Phone Settings",
+      "view": "",
+      "source": "libraries/apps/settings/phone.js",
+      "title": "Allow consent-controlled recording",
+      "description": "",
+      "kind": "control",
+      "selector": "[name=\"recording_enabled\"]"
+    },
+    {
+      "section": "sms",
+      "tab": "Phone Settings",
+      "view": "",
+      "source": "libraries/apps/settings/phone.js",
+      "title": "Also apply sending windows to manually sent texts",
+      "description": "",
+      "kind": "control",
+      "selector": "[name=\"apply_manual\"]"
+    },
+    {
+      "section": "sms",
+      "tab": "Phone Settings",
+      "view": "",
+      "source": "libraries/apps/settings/phone.js",
+      "title": "Assigned users",
+      "description": "",
+      "kind": "heading",
+      "selector": ""
+    },
+    {
+      "section": "sms",
+      "tab": "Phone Settings",
+      "view": "",
+      "source": "libraries/apps/settings/phone.js",
+      "title": "Authorized business representative",
+      "description": "",
+      "kind": "heading",
+      "selector": ""
+    },
+    {
+      "section": "sms",
+      "tab": "Phone Settings",
+      "view": "",
+      "source": "libraries/apps/settings/phone.js",
+      "title": "Authorized person",
+      "description": "",
+      "kind": "control",
+      "selector": "[name=\"auth_person_name\"]"
+    },
+    {
+      "section": "sms",
+      "tab": "Phone Settings",
+      "view": "",
+      "source": "libraries/apps/settings/phone.js",
+      "title": "Authorized signer’s full name",
+      "description": "",
+      "kind": "control",
+      "selector": "[name=\"signer_name\"]"
+    },
+    {
+      "section": "sms",
+      "tab": "Phone Settings",
+      "view": "",
+      "source": "libraries/apps/settings/phone.js",
+      "title": "Automatic reply cooldown (minutes)",
+      "description": "",
+      "kind": "control",
+      "selector": "[name=\"cooldown_minutes\"]"
+    },
+    {
+      "section": "sms",
+      "tab": "Phone Settings",
+      "view": "",
+      "source": "libraries/apps/settings/phone.js",
+      "title": "Automatic reply to texts after hours",
+      "description": "",
+      "kind": "control",
+      "selector": "[name=\"auto_reply_closed\"]"
+    },
+    {
+      "section": "sms",
+      "tab": "Phone Settings",
+      "view": "",
+      "source": "libraries/apps/settings/phone.js",
+      "title": "Automatic reply to texts during work hours",
+      "description": "",
+      "kind": "control",
+      "selector": "[name=\"auto_reply_open\"]"
+    },
+    {
+      "section": "sms",
+      "tab": "Phone Settings",
+      "view": "",
+      "source": "libraries/apps/settings/phone.js",
+      "title": "Automatic text after a missed call",
+      "description": "",
+      "kind": "control",
+      "selector": "[name=\"missed_call_reply\"]"
+    },
+    {
+      "section": "sms",
+      "tab": "Phone Settings",
+      "view": "",
+      "source": "libraries/apps/settings/phone.js",
+      "title": "Automatically leave a prerecorded message",
+      "description": "",
+      "kind": "control",
+      "selector": "[name=\"drop_enabled\"]"
+    },
+    {
+      "section": "sms",
+      "tab": "Phone Settings",
+      "view": "",
+      "source": "libraries/apps/settings/phone.js",
+      "title": "Available for incoming calls",
+      "description": "",
+      "kind": "control",
+      "selector": "[name=\"available\"]"
+    },
+    {
+      "section": "sms",
+      "tab": "Phone Settings",
+      "view": "",
+      "source": "libraries/apps/settings/phone.js",
+      "title": "Balance calls by",
+      "description": "",
+      "kind": "control",
+      "selector": "[name=\"pool_strategy\"]"
+    },
+    {
+      "section": "sms",
+      "tab": "Phone Settings",
+      "view": "",
+      "source": "libraries/apps/settings/phone.js",
+      "title": "Balance power-dial calls across these numbers",
+      "description": "",
+      "kind": "control",
+      "selector": "[name=\"pool_enabled\"]"
+    },
+    {
+      "section": "sms",
+      "tab": "Phone Settings",
+      "view": "billing",
+      "source": "libraries/apps/settings/phone.js",
+      "title": "Billing & Usage",
+      "description": "",
+      "kind": "view",
+      "selector": "[data-tab=\"billing\"]"
+    },
+    {
+      "section": "sms",
+      "tab": "Phone Settings",
+      "view": "",
+      "source": "libraries/apps/settings/phone.js",
+      "title": "Business address",
+      "description": "",
+      "kind": "heading",
+      "selector": ""
+    },
+    {
+      "section": "sms",
+      "tab": "Phone Settings",
+      "view": "",
+      "source": "libraries/apps/settings/phone.js",
+      "title": "Business category",
+      "description": "",
+      "kind": "control",
+      "selector": "[name=\"organization_type\"]"
+    },
+    {
+      "section": "sms",
+      "tab": "Phone Settings",
+      "view": "",
+      "source": "libraries/apps/settings/phone.js",
+      "title": "Business country",
+      "description": "",
+      "kind": "control",
+      "selector": "[name=\"country_code\"]"
+    },
+    {
+      "section": "sms",
+      "tab": "Phone Settings",
+      "view": "",
+      "source": "libraries/apps/settings/phone.js",
+      "title": "Business numbers",
+      "description": "",
+      "kind": "heading",
+      "selector": ""
+    },
+    {
+      "section": "sms",
+      "tab": "Phone Settings",
+      "view": "",
+      "source": "libraries/apps/settings/phone.js",
+      "title": "Business website",
+      "description": "",
+      "kind": "control",
+      "selector": "[name=\"website\"]"
+    },
+    {
+      "section": "sms",
+      "tab": "Phone Settings",
+      "view": "",
+      "source": "libraries/apps/settings/phone.js",
+      "title": "Campaign",
+      "description": "",
+      "kind": "control",
+      "selector": "[name=\"campaign\"]"
+    },
+    {
+      "section": "sms",
+      "tab": "Phone Settings",
+      "view": "",
+      "source": "libraries/apps/settings/phone.js",
+      "title": "Cancel unsent automated messages when the customer replies",
+      "description": "",
+      "kind": "control",
+      "selector": "[name=\"cancel_on_reply\"]"
+    },
+    {
+      "section": "sms",
+      "tab": "Phone Settings",
+      "view": "",
+      "source": "libraries/apps/settings/phone.js",
+      "title": "Carrier account number",
+      "description": "",
+      "kind": "control",
+      "selector": "[name=\"account_number\"]"
+    },
+    {
+      "section": "sms",
+      "tab": "Phone Settings",
+      "view": "",
+      "source": "libraries/apps/settings/phone.js",
+      "title": "Carrier billing address",
+      "description": "",
+      "kind": "heading",
+      "selector": ""
+    },
+    {
+      "section": "sms",
+      "tab": "Phone Settings",
+      "view": "",
+      "source": "libraries/apps/settings/phone.js",
+      "title": "Carrier billing phone number",
+      "description": "",
+      "kind": "control",
+      "selector": "[name=\"billing_phone_number\"]"
+    },
+    {
+      "section": "sms",
+      "tab": "Phone Settings",
+      "view": "",
+      "source": "libraries/apps/settings/phone.js",
+      "title": "Carrier contact",
+      "description": "",
+      "kind": "heading",
+      "selector": ""
+    },
+    {
+      "section": "sms",
+      "tab": "Phone Settings",
+      "view": "",
+      "source": "libraries/apps/settings/phone.js",
+      "title": "Carrier daily spending limit",
+      "description": "",
+      "kind": "control",
+      "selector": "[name=\"daily_spend_limit\"]"
+    },
+    {
+      "section": "sms",
+      "tab": "Phone Settings",
+      "view": "",
+      "source": "libraries/apps/settings/phone.js",
+      "title": "Carrier monitoring schedule",
+      "description": "",
+      "kind": "control",
+      "selector": "[name=\"frequency\"]"
+    },
+    {
+      "section": "sms",
+      "tab": "Phone Settings",
+      "view": "",
+      "source": "libraries/apps/settings/phone.js",
+      "title": "Carrier request reference and verified outcome",
+      "description": "",
+      "kind": "control",
+      "selector": "[name=\"evidence\"]"
+    },
+    {
+      "section": "sms",
+      "tab": "Phone Settings",
+      "view": "",
+      "source": "libraries/apps/settings/phone.js",
+      "title": "Carrier requirements",
+      "description": "",
+      "kind": "heading",
+      "selector": ""
+    },
+    {
+      "section": "sms",
+      "tab": "Phone Settings",
+      "view": "",
+      "source": "libraries/apps/settings/phone.js",
+      "title": "Carrier transfer PIN",
+      "description": "",
+      "kind": "control",
+      "selector": "[name=\"pin_passcode\"]"
+    },
+    {
+      "section": "sms",
+      "tab": "Phone Settings",
+      "view": "",
+      "source": "libraries/apps/settings/phone.js",
+      "title": "Carrier-reported voice costs · last 24 hours",
+      "description": "",
+      "kind": "heading",
+      "selector": ""
+    },
+    {
+      "section": "sms",
+      "tab": "Phone Settings",
+      "view": "",
+      "source": "libraries/apps/settings/phone.js",
+      "title": "City",
+      "description": "",
+      "kind": "control",
+      "selector": "[name=\"locality\"]"
+    },
+    {
+      "section": "sms",
+      "tab": "Phone Settings",
+      "view": "",
+      "source": "libraries/apps/settings/phone.js",
+      "title": "Closed dates (YYYY-MM-DD, separated by commas)",
+      "description": "",
+      "kind": "control",
+      "selector": "[name=\"FM_DYNAMIC\\.holidays\"]"
+    },
+    {
+      "section": "sms",
+      "tab": "Phone Settings",
+      "view": "",
+      "source": "libraries/apps/settings/phone.js",
+      "title": "Company phone service",
+      "description": "",
+      "kind": "heading",
+      "selector": ""
+    },
+    {
+      "section": "sms",
+      "tab": "Phone Settings",
+      "view": "",
+      "source": "libraries/apps/settings/phone.js",
+      "title": "Company sending policy",
+      "description": "",
+      "kind": "heading",
+      "selector": ""
+    },
+    {
+      "section": "sms",
+      "tab": "Phone Settings",
+      "view": "numbers",
+      "source": "libraries/apps/settings/phone.js",
+      "title": "Configure tracking number",
+      "description": "",
+      "kind": "view",
+      "selector": "[data-tab=\"numbers\"]"
+    },
+    {
+      "section": "sms",
+      "tab": "Phone Settings",
+      "view": "",
+      "source": "libraries/apps/settings/phone.js",
+      "title": "Contact email for follow-up",
+      "description": "",
+      "kind": "control",
+      "selector": "[name=\"contact_email\"]"
+    },
+    {
+      "section": "sms",
+      "tab": "Phone Settings",
+      "view": "",
+      "source": "libraries/apps/settings/phone.js",
+      "title": "Country",
+      "description": "",
+      "kind": "control",
+      "selector": "[name=\"FM_DYNAMIC\\.country\"]"
+    },
+    {
+      "section": "sms",
+      "tab": "Phone Settings",
+      "view": "",
+      "source": "libraries/apps/settings/phone.js",
+      "title": "Country code",
+      "description": "",
+      "kind": "control",
+      "selector": "[name=\"country_code\"]"
+    },
+    {
+      "section": "sms",
+      "tab": "Phone Settings",
+      "view": "",
+      "source": "libraries/apps/settings/phone.js",
+      "title": "Customize sending policy for this line",
+      "description": "",
+      "kind": "control",
+      "selector": "[name=\"custom_messaging\"]"
+    },
+    {
+      "section": "sms",
+      "tab": "Phone Settings",
+      "view": "",
+      "source": "libraries/apps/settings/phone.js",
+      "title": "Customize this line’s routing",
+      "description": "",
+      "kind": "control",
+      "selector": "[name=\"custom_route\"]"
+    },
+    {
+      "section": "sms",
+      "tab": "Phone Settings",
+      "view": "",
+      "source": "libraries/apps/settings/phone.js",
+      "title": "Daily call limit",
+      "description": "",
+      "kind": "control",
+      "selector": "[name=\"daily_call_limit\"]"
+    },
+    {
+      "section": "sms",
+      "tab": "Phone Settings",
+      "view": "",
+      "source": "libraries/apps/settings/phone.js",
+      "title": "Default outgoing number",
+      "description": "",
+      "kind": "control",
+      "selector": "[name=\"default_number\"]"
+    },
+    {
+      "section": "sms",
+      "tab": "Phone Settings",
+      "view": "",
+      "source": "libraries/apps/settings/phone.js",
+      "title": "Departments",
+      "description": "",
+      "kind": "heading",
+      "selector": ""
+    },
+    {
+      "section": "sms",
+      "tab": "Phone Settings",
+      "view": "groups",
+      "source": "libraries/apps/settings/phone.js",
+      "title": "Departments & Groups",
+      "description": "",
+      "kind": "view",
+      "selector": "[data-tab=\"groups\"]"
+    },
+    {
+      "section": "sms",
+      "tab": "Phone Settings",
+      "view": "",
+      "source": "libraries/apps/settings/phone.js",
+      "title": "Document (PDF, PNG, JPEG, up to 8 MB)",
+      "description": "",
+      "kind": "control",
+      "selector": "[name=\"document\"]"
+    },
+    {
+      "section": "sms",
+      "tab": "Phone Settings",
+      "view": "",
+      "source": "libraries/apps/settings/phone.js",
+      "title": "Document type",
+      "description": "",
+      "kind": "control",
+      "selector": "[name=\"kind\"]"
+    },
+    {
+      "section": "sms",
+      "tab": "Phone Settings",
+      "view": "",
+      "source": "libraries/apps/settings/phone.js",
+      "title": "Draw your signature",
+      "description": "",
+      "kind": "heading",
+      "selector": ""
+    },
+    {
+      "section": "sms",
+      "tab": "Phone Settings",
+      "view": "",
+      "source": "libraries/apps/settings/phone.js",
+      "title": "During work hours",
+      "description": "",
+      "kind": "control",
+      "selector": "[name=\"open\\.target\"]"
+    },
+    {
+      "section": "sms",
+      "tab": "Phone Settings",
+      "view": "",
+      "source": "libraries/apps/settings/phone.js",
+      "title": "EIN (sent securely to Telnyx)",
+      "description": "",
+      "kind": "control",
+      "selector": "[name=\"fein\"]"
+    },
+    {
+      "section": "sms",
+      "tab": "Phone Settings",
+      "view": "",
+      "source": "libraries/apps/settings/phone.js",
+      "title": "Enable AI call summaries",
+      "description": "",
+      "kind": "control",
+      "selector": "[name=\"ai_summaries_enabled\"]"
+    },
+    {
+      "section": "sms",
+      "tab": "Phone Settings",
+      "view": "",
+      "source": "libraries/apps/settings/phone.js",
+      "title": "Enable voice service",
+      "description": "",
+      "kind": "control",
+      "selector": "[name=\"enabled\"]"
+    },
+    {
+      "section": "sms",
+      "tab": "Phone Settings",
+      "view": "",
+      "source": "libraries/apps/settings/phone.js",
+      "title": "Enforce sending windows",
+      "description": "",
+      "kind": "control",
+      "selector": "[name=\"enabled\"]"
+    },
+    {
+      "section": "sms",
+      "tab": "Phone Settings",
+      "view": "",
+      "source": "libraries/apps/settings/phone.js",
+      "title": "Evaluate hours using",
+      "description": "",
+      "kind": "control",
+      "selector": "[name=\"timezone_mode\"]"
+    },
+    {
+      "section": "sms",
+      "tab": "Phone Settings",
+      "view": "",
+      "source": "libraries/apps/settings/phone.js",
+      "title": "Existing departments",
+      "description": "",
+      "kind": "heading",
+      "selector": ""
+    },
+    {
+      "section": "sms",
+      "tab": "Phone Settings",
+      "view": "",
+      "source": "libraries/apps/settings/phone.js",
+      "title": "Expire queued messages after (hours)",
+      "description": "",
+      "kind": "control",
+      "selector": "[name=\"expiry_hours\"]"
+    },
+    {
+      "section": "sms",
+      "tab": "Phone Settings",
+      "view": "",
+      "source": "libraries/apps/settings/phone.js",
+      "title": "Explain how your business uses these numbers",
+      "description": "",
+      "kind": "control",
+      "selector": "[name=\"call_purpose\"]"
+    },
+    {
+      "section": "sms",
+      "tab": "Phone Settings",
+      "view": "",
+      "source": "libraries/apps/settings/phone.js",
+      "title": "External forwarding number",
+      "description": "",
+      "kind": "control",
+      "selector": "[name=\"FM_DYNAMIC\\.number\"]"
+    },
+    {
+      "section": "sms",
+      "tab": "Phone Settings",
+      "view": "",
+      "source": "libraries/apps/settings/phone.js",
+      "title": "Federal EIN (for example, 12-3456789)",
+      "description": "",
+      "kind": "control",
+      "selector": "[name=\"fein\"]"
+    },
+    {
+      "section": "sms",
+      "tab": "Phone Settings",
+      "view": "",
+      "source": "libraries/apps/settings/phone.js",
+      "title": "Friday hours",
+      "description": "",
+      "kind": "control",
+      "selector": "[name=\"FM_DYNAMIC\\.day5\"]"
+    },
+    {
+      "section": "sms",
+      "tab": "Phone Settings",
+      "view": "",
+      "source": "libraries/apps/settings/phone.js",
+      "title": "From (UTC)",
+      "description": "",
+      "kind": "control",
+      "selector": "[name=\"from\"]"
+    },
+    {
+      "section": "sms",
+      "tab": "Phone Settings",
+      "view": "",
+      "source": "libraries/apps/settings/phone.js",
+      "title": "Group name",
+      "description": "",
+      "kind": "control",
+      "selector": "[name=\"label\"]"
+    },
+    {
+      "section": "sms",
+      "tab": "Phone Settings",
+      "view": "",
+      "source": "libraries/apps/settings/phone.js",
+      "title": "Hours, routing & voicemail",
+      "description": "",
+      "kind": "heading",
+      "selector": ""
+    },
+    {
+      "section": "sms",
+      "tab": "Phone Settings",
+      "view": "",
+      "source": "libraries/apps/settings/phone.js",
+      "title": "I accept the Telnyx reputation-service terms and authorize carrier activation and its fees.",
+      "description": "",
+      "kind": "control",
+      "selector": "[name=\"terms_accepted\"]"
+    },
+    {
+      "section": "sms",
+      "tab": "Phone Settings",
+      "view": "",
+      "source": "libraries/apps/settings/phone.js",
+      "title": "I authorize this review and its carrier fees.",
+      "description": "",
+      "kind": "control",
+      "selector": "[name=\"confirmed\"]"
+    },
+    {
+      "section": "sms",
+      "tab": "Phone Settings",
+      "view": "",
+      "source": "libraries/apps/settings/phone.js",
+      "title": "I have reviewed the recording consent policy",
+      "description": "",
+      "kind": "control",
+      "selector": "[name=\"recording_policy_confirmed\"]"
+    },
+    {
+      "section": "sms",
+      "tab": "Phone Settings",
+      "view": "",
+      "source": "libraries/apps/settings/phone.js",
+      "title": "I have reviewed the service location and emergency calling setup",
+      "description": "",
+      "kind": "control",
+      "selector": "[name=\"emergency_policy_confirmed\"]"
+    },
+    {
+      "section": "sms",
+      "tab": "Phone Settings",
+      "view": "",
+      "source": "libraries/apps/settings/phone.js",
+      "title": "I reviewed the authorization and am authorized to sign for this business.",
+      "description": "",
+      "kind": "control",
+      "selector": "[name=\"authorized\"]"
+    },
+    {
+      "section": "sms",
+      "tab": "Phone Settings",
+      "view": "",
+      "source": "libraries/apps/settings/phone.js",
+      "title": "I verified the carrier outcome and reconciled any completed action.",
+      "description": "",
+      "kind": "control",
+      "selector": "[name=\"confirmed\"]"
+    },
+    {
+      "section": "sms",
+      "tab": "Phone Settings",
+      "view": "",
+      "source": "libraries/apps/settings/phone.js",
+      "title": "Industry",
+      "description": "",
+      "kind": "control",
+      "selector": "[name=\"industry\"]"
+    },
+    {
+      "section": "sms",
+      "tab": "Phone Settings",
+      "view": "",
+      "source": "libraries/apps/settings/phone.js",
+      "title": "Landing page",
+      "description": "",
+      "kind": "control",
+      "selector": "[name=\"landing_page\"]"
+    },
+    {
+      "section": "sms",
+      "tab": "Phone Settings",
+      "view": "",
+      "source": "libraries/apps/settings/phone.js",
+      "title": "Lead inquiries",
+      "description": "",
+      "kind": "heading",
+      "selector": ""
+    },
+    {
+      "section": "sms",
+      "tab": "Phone Settings",
+      "view": "",
+      "source": "libraries/apps/settings/phone.js",
+      "title": "Lead outcome",
+      "description": "",
+      "kind": "control",
+      "selector": "[name=\"status\"]"
+    },
+    {
+      "section": "sms",
+      "tab": "Phone Settings",
+      "view": "",
+      "source": "libraries/apps/settings/phone.js",
+      "title": "Lead source reference",
+      "description": "",
+      "kind": "control",
+      "selector": "[name=\"lead_source_id\"]"
+    },
+    {
+      "section": "sms",
+      "tab": "Phone Settings",
+      "view": "",
+      "source": "libraries/apps/settings/phone.js",
+      "title": "Legal name on carrier account",
+      "description": "",
+      "kind": "control",
+      "selector": "[name=\"entity_name\"]"
+    },
+    {
+      "section": "sms",
+      "tab": "Phone Settings",
+      "view": "",
+      "source": "libraries/apps/settings/phone.js",
+      "title": "Legal structure",
+      "description": "",
+      "kind": "control",
+      "selector": "[name=\"organization_legal_type\"]"
+    },
+    {
+      "section": "sms",
+      "tab": "Phone Settings",
+      "view": "",
+      "source": "libraries/apps/settings/phone.js",
+      "title": "Line name",
+      "description": "",
+      "kind": "control",
+      "selector": "[name=\"label\"]"
+    },
+    {
+      "section": "sms",
+      "tab": "Phone Settings",
+      "view": "",
+      "source": "libraries/apps/settings/phone.js",
+      "title": "Linked project",
+      "description": "",
+      "kind": "control",
+      "selector": "[name=\"project_id\"]"
+    },
+    {
+      "section": "sms",
+      "tab": "Phone Settings",
+      "view": "",
+      "source": "libraries/apps/settings/phone.js",
+      "title": "Marketing campaign reference",
+      "description": "",
+      "kind": "control",
+      "selector": "[name=\"marketing_campaign_id\"]"
+    },
+    {
+      "section": "sms",
+      "tab": "Phone Settings",
+      "view": "",
+      "source": "libraries/apps/settings/phone.js",
+      "title": "Maximum call duration (minutes)",
+      "description": "",
+      "kind": "control",
+      "selector": "[name=\"max_call_minutes\"]"
+    },
+    {
+      "section": "sms",
+      "tab": "Phone Settings",
+      "view": "",
+      "source": "libraries/apps/settings/phone.js",
+      "title": "Maximum calls per number in 24 hours",
+      "description": "",
+      "kind": "control",
+      "selector": "[name=\"pool_limit\"]"
+    },
+    {
+      "section": "sms",
+      "tab": "Phone Settings",
+      "view": "",
+      "source": "libraries/apps/settings/phone.js",
+      "title": "Maximum concurrent calls",
+      "description": "",
+      "kind": "control",
+      "selector": "[name=\"max_concurrent_calls\"]"
+    },
+    {
+      "section": "sms",
+      "tab": "Phone Settings",
+      "view": "",
+      "source": "libraries/apps/settings/phone.js",
+      "title": "Maximum queue wait (seconds)",
+      "description": "",
+      "kind": "control",
+      "selector": "[name=\"max_wait_seconds\"]"
+    },
+    {
+      "section": "sms",
+      "tab": "Phone Settings",
+      "view": "",
+      "source": "libraries/apps/settings/phone.js",
+      "title": "Maximum waiting callers",
+      "description": "",
+      "kind": "control",
+      "selector": "[name=\"max_queue\"]"
+    },
+    {
+      "section": "sms",
+      "tab": "Phone Settings",
+      "view": "",
+      "source": "libraries/apps/settings/phone.js",
+      "title": "Medium (for example, paid search)",
+      "description": "",
+      "kind": "control",
+      "selector": "[name=\"medium\"]"
+    },
+    {
+      "section": "sms",
+      "tab": "Phone Settings",
+      "view": "",
+      "source": "libraries/apps/settings/phone.js",
+      "title": "Members",
+      "description": "",
+      "kind": "heading",
+      "selector": ""
+    },
+    {
+      "section": "sms",
+      "tab": "Phone Settings",
+      "view": "",
+      "source": "libraries/apps/settings/phone.js",
+      "title": "Messaging",
+      "description": "",
+      "kind": "heading",
+      "selector": ""
+    },
+    {
+      "section": "sms",
+      "tab": "Phone Settings",
+      "view": "messaging",
+      "source": "libraries/apps/settings/phone.js",
+      "title": "Messaging & Automations",
+      "description": "",
+      "kind": "view",
+      "selector": "[data-tab=\"messaging\"]"
+    },
+    {
+      "section": "sms",
+      "tab": "Phone Settings",
+      "view": "",
+      "source": "libraries/apps/settings/phone.js",
+      "title": "Minimum seconds between calls from one number",
+      "description": "",
+      "kind": "control",
+      "selector": "[name=\"pool_cooldown\"]"
+    },
+    {
+      "section": "sms",
+      "tab": "Phone Settings",
+      "view": "",
+      "source": "libraries/apps/settings/phone.js",
+      "title": "Missed calls",
+      "description": "",
+      "kind": "control",
+      "selector": "[name=\"missed_calls\"]"
+    },
+    {
+      "section": "sms",
+      "tab": "Phone Settings",
+      "view": "",
+      "source": "libraries/apps/settings/phone.js",
+      "title": "Monday hours",
+      "description": "",
+      "kind": "control",
+      "selector": "[name=\"FM_DYNAMIC\\.day1\"]"
+    },
+    {
+      "section": "sms",
+      "tab": "Phone Settings",
+      "view": "personal",
+      "source": "libraries/apps/settings/phone.js",
+      "title": "My Phone",
+      "description": "",
+      "kind": "view",
+      "selector": "[data-tab=\"personal\"]"
+    },
+    {
+      "section": "sms",
+      "tab": "Phone Settings",
+      "view": "",
+      "source": "libraries/apps/settings/phone.js",
+      "title": "Notifications",
+      "description": "",
+      "kind": "heading",
+      "selector": ""
+    },
+    {
+      "section": "sms",
+      "tab": "Phone Settings",
+      "view": "",
+      "source": "libraries/apps/settings/phone.js",
+      "title": "Number of employees",
+      "description": "",
+      "kind": "control",
+      "selector": "[name=\"number_of_employees\"]"
+    },
+    {
+      "section": "sms",
+      "tab": "Phone Settings",
+      "view": "",
+      "source": "libraries/apps/settings/phone.js",
+      "title": "Number orders",
+      "description": "",
+      "kind": "heading",
+      "selector": ""
+    },
+    {
+      "section": "sms",
+      "tab": "Phone Settings",
+      "view": "ports",
+      "source": "libraries/apps/settings/phone.js",
+      "title": "Number Porting",
+      "description": "",
+      "kind": "view",
+      "selector": "[data-tab=\"ports\"]"
+    },
+    {
+      "section": "sms",
+      "tab": "Phone Settings",
+      "view": "reputation",
+      "source": "libraries/apps/settings/phone.js",
+      "title": "Number Reputation",
+      "description": "",
+      "kind": "view",
+      "selector": "[data-tab=\"reputation\"]"
+    },
+    {
+      "section": "sms",
+      "tab": "Phone Settings",
+      "view": "",
+      "source": "libraries/apps/settings/phone.js",
+      "title": "Number to port (+country code)",
+      "description": "",
+      "kind": "control",
+      "selector": "[name=\"phone_number\"]"
+    },
+    {
+      "section": "sms",
+      "tab": "Phone Settings",
+      "view": "",
+      "source": "libraries/apps/settings/phone.js",
+      "title": "Numbers",
+      "description": "",
+      "kind": "heading",
+      "selector": ""
+    },
+    {
+      "section": "sms",
+      "tab": "Phone Settings",
+      "view": "numbers",
+      "source": "libraries/apps/settings/phone.js",
+      "title": "Numbers & Users",
+      "description": "",
+      "kind": "view",
+      "selector": "[data-tab=\"numbers\"]"
+    },
+    {
+      "section": "sms",
+      "tab": "Phone Settings",
+      "view": "",
+      "source": "libraries/apps/settings/phone.js",
+      "title": "Option label",
+      "description": "",
+      "kind": "control",
+      "selector": "[name=\"menuFM_DYNAMIC\\.label\"]"
+    },
+    {
+      "section": "sms",
+      "tab": "Phone Settings",
+      "view": "",
+      "source": "libraries/apps/settings/phone.js",
+      "title": "Optional greeting or announcement",
+      "description": "",
+      "kind": "control",
+      "selector": "[name=\"FM_DYNAMIC\\.message\"]"
+    },
+    {
+      "section": "sms",
+      "tab": "Phone Settings",
+      "view": "",
+      "source": "libraries/apps/settings/phone.js",
+      "title": "Or upload a signed PDF (up to 8 MB)",
+      "description": "",
+      "kind": "control",
+      "selector": "[name=\"signed_pdf\"]"
+    },
+    {
+      "section": "sms",
+      "tab": "Phone Settings",
+      "view": "",
+      "source": "libraries/apps/settings/phone.js",
+      "title": "Outgoing voicemail drop",
+      "description": "",
+      "kind": "heading",
+      "selector": ""
+    },
+    {
+      "section": "sms",
+      "tab": "Phone Settings",
+      "view": "",
+      "source": "libraries/apps/settings/phone.js",
+      "title": "Phone menu options",
+      "description": "",
+      "kind": "heading",
+      "selector": ""
+    },
+    {
+      "section": "sms",
+      "tab": "Phone Settings",
+      "view": "service",
+      "source": "libraries/apps/settings/phone.js",
+      "title": "Phone Service",
+      "description": "",
+      "kind": "view",
+      "selector": "[data-tab=\"service\"]"
+    },
+    {
+      "section": "sms",
+      "tab": "Phone Settings",
+      "title": "Phone Settings",
+      "description": "Manage phone lines, voicemail, routing, messaging, and tracking numbers.",
       "view": "",
       "kind": "section",
       "selector": ""
     },
     {
       "section": "sms",
-      "tab": "SMS",
+      "tab": "Phone Settings",
       "view": "",
-      "source": "libraries/apps/settings/company.js",
-      "title": "SMS Settings",
+      "source": "libraries/apps/settings/phone.js",
+      "title": "Phone Settings",
       "description": "",
       "kind": "heading",
       "selector": ""
+    },
+    {
+      "section": "sms",
+      "tab": "Phone Settings",
+      "view": "ports",
+      "source": "libraries/apps/settings/phone.js",
+      "title": "Port an existing number",
+      "description": "",
+      "kind": "view",
+      "selector": "[data-tab=\"ports\"]"
+    },
+    {
+      "section": "sms",
+      "tab": "Phone Settings",
+      "view": "",
+      "source": "libraries/apps/settings/phone.js",
+      "title": "Postal code",
+      "description": "",
+      "kind": "control",
+      "selector": "[name=\"postal_code\"]"
+    },
+    {
+      "section": "sms",
+      "tab": "Phone Settings",
+      "view": "",
+      "source": "libraries/apps/settings/phone.js",
+      "title": "Power dialing numbers",
+      "description": "",
+      "kind": "heading",
+      "selector": ""
+    },
+    {
+      "section": "sms",
+      "tab": "Phone Settings",
+      "view": "",
+      "source": "libraries/apps/settings/phone.js",
+      "title": "Public business name (DBA)",
+      "description": "",
+      "kind": "control",
+      "selector": "[name=\"doing_business_as\"]"
+    },
+    {
+      "section": "sms",
+      "tab": "Phone Settings",
+      "view": "",
+      "source": "libraries/apps/settings/phone.js",
+      "title": "Push notifications",
+      "description": "",
+      "kind": "control",
+      "selector": "[name=\"push\"]"
+    },
+    {
+      "section": "sms",
+      "tab": "Phone Settings",
+      "view": "",
+      "source": "libraries/apps/settings/phone.js",
+      "title": "Recording & transcription",
+      "description": "",
+      "kind": "heading",
+      "selector": ""
+    },
+    {
+      "section": "sms",
+      "tab": "Phone Settings",
+      "view": "",
+      "source": "libraries/apps/settings/phone.js",
+      "title": "Recording disclosure",
+      "description": "",
+      "kind": "control",
+      "selector": "[name=\"disclosure\"]"
+    },
+    {
+      "section": "sms",
+      "tab": "Phone Settings",
+      "view": "",
+      "source": "libraries/apps/settings/phone.js",
+      "title": "Recording retention (days)",
+      "description": "",
+      "kind": "control",
+      "selector": "[name=\"recording_retention_days\"]"
+    },
+    {
+      "section": "sms",
+      "tab": "Phone Settings",
+      "view": "",
+      "source": "libraries/apps/settings/phone.js",
+      "title": "Registered legal business name",
+      "description": "",
+      "kind": "control",
+      "selector": "[name=\"legal_name\"]"
+    },
+    {
+      "section": "sms",
+      "tab": "Phone Settings",
+      "view": "",
+      "source": "libraries/apps/settings/phone.js",
+      "title": "Request",
+      "description": "",
+      "kind": "control",
+      "selector": "[name=\"attempt\"]"
+    },
+    {
+      "section": "sms",
+      "tab": "Phone Settings",
+      "view": "",
+      "source": "libraries/apps/settings/phone.js",
+      "title": "Request messaging transfer as well as voice",
+      "description": "",
+      "kind": "control",
+      "selector": "[name=\"enable_messaging\"]"
+    },
+    {
+      "section": "sms",
+      "tab": "Phone Settings",
+      "view": "",
+      "source": "libraries/apps/settings/phone.js",
+      "title": "Requested port time (your local time, optional)",
+      "description": "",
+      "kind": "control",
+      "selector": "[name=\"foc\"]"
+    },
+    {
+      "section": "sms",
+      "tab": "Phone Settings",
+      "view": "",
+      "source": "libraries/apps/settings/phone.js",
+      "title": "Require an outcome before the next call",
+      "description": "",
+      "kind": "control",
+      "selector": "[name=\"require_disposition\"]"
+    },
+    {
+      "section": "sms",
+      "tab": "Phone Settings",
+      "view": "",
+      "source": "libraries/apps/settings/phone.js",
+      "title": "Ring group",
+      "description": "",
+      "kind": "control",
+      "selector": "[name=\"group_id\"]"
+    },
+    {
+      "section": "sms",
+      "tab": "Phone Settings",
+      "view": "",
+      "source": "libraries/apps/settings/phone.js",
+      "title": "Ring strategy",
+      "description": "",
+      "kind": "control",
+      "selector": "[name=\"strategy\"]"
+    },
+    {
+      "section": "sms",
+      "tab": "Phone Settings",
+      "view": "",
+      "source": "libraries/apps/settings/phone.js",
+      "title": "Route to",
+      "description": "",
+      "kind": "control",
+      "selector": "[name=\"menuFM_DYNAMIC\\.target\"]"
+    },
+    {
+      "section": "sms",
+      "tab": "Phone Settings",
+      "view": "",
+      "source": "libraries/apps/settings/phone.js",
+      "title": "Routing",
+      "description": "",
+      "kind": "heading",
+      "selector": ""
+    },
+    {
+      "section": "sms",
+      "tab": "Phone Settings",
+      "view": "",
+      "source": "libraries/apps/settings/phone.js",
+      "title": "Saturday hours",
+      "description": "",
+      "kind": "control",
+      "selector": "[name=\"FM_DYNAMIC\\.day6\"]"
+    },
+    {
+      "section": "sms",
+      "tab": "Phone Settings",
+      "view": "",
+      "source": "libraries/apps/settings/phone.js",
+      "title": "Seconds per ring attempt",
+      "description": "",
+      "kind": "control",
+      "selector": "[name=\"ring_seconds\"]"
+    },
+    {
+      "section": "sms",
+      "tab": "Phone Settings",
+      "view": "",
+      "source": "libraries/apps/settings/phone.js",
+      "title": "Service location",
+      "description": "",
+      "kind": "control",
+      "selector": "[name=\"service_location\"]"
+    },
+    {
+      "section": "sms",
+      "tab": "Phone Settings",
+      "view": "",
+      "source": "libraries/apps/settings/phone.js",
+      "title": "Skip numbers with a high spam-risk score",
+      "description": "",
+      "kind": "control",
+      "selector": "[name=\"pool_skip_high\"]"
+    },
+    {
+      "section": "sms",
+      "tab": "Phone Settings",
+      "view": "broadcasts",
+      "source": "libraries/apps/settings/phone.js",
+      "title": "SMS Broadcasts",
+      "description": "",
+      "kind": "view",
+      "selector": "[data-tab=\"broadcasts\"]"
+    },
+    {
+      "section": "sms",
+      "tab": "Phone Settings",
+      "view": "",
+      "source": "libraries/apps/settings/phone.js",
+      "title": "Source (for example, Google Ads)",
+      "description": "",
+      "kind": "control",
+      "selector": "[name=\"source\"]"
+    },
+    {
+      "section": "sms",
+      "tab": "Phone Settings",
+      "view": "",
+      "source": "libraries/apps/settings/phone.js",
+      "title": "State / region",
+      "description": "",
+      "kind": "control",
+      "selector": "[name=\"administrative_area\"]"
+    },
+    {
+      "section": "sms",
+      "tab": "Phone Settings",
+      "view": "",
+      "source": "libraries/apps/settings/phone.js",
+      "title": "State or province of incorporation",
+      "description": "",
+      "kind": "control",
+      "selector": "[name=\"jurisdiction_of_incorporation\"]"
+    },
+    {
+      "section": "sms",
+      "tab": "Phone Settings",
+      "view": "",
+      "source": "libraries/apps/settings/phone.js",
+      "title": "Street address",
+      "description": "",
+      "kind": "control",
+      "selector": "[name=\"street_address\"]"
+    },
+    {
+      "section": "sms",
+      "tab": "Phone Settings",
+      "view": "",
+      "source": "libraries/apps/settings/phone.js",
+      "title": "Sunday hours",
+      "description": "",
+      "kind": "control",
+      "selector": "[name=\"FM_DYNAMIC\\.day0\"]"
+    },
+    {
+      "section": "sms",
+      "tab": "Phone Settings",
+      "view": "",
+      "source": "libraries/apps/settings/phone.js",
+      "title": "Text messages",
+      "description": "",
+      "kind": "control",
+      "selector": "[name=\"texts\"]"
+    },
+    {
+      "section": "sms",
+      "tab": "Phone Settings",
+      "view": "",
+      "source": "libraries/apps/settings/phone.js",
+      "title": "Thursday hours",
+      "description": "",
+      "kind": "control",
+      "selector": "[name=\"FM_DYNAMIC\\.day4\"]"
+    },
+    {
+      "section": "sms",
+      "tab": "Phone Settings",
+      "view": "",
+      "source": "libraries/apps/settings/phone.js",
+      "title": "Time zone",
+      "description": "",
+      "kind": "control",
+      "selector": "[name=\"FM_DYNAMIC\\.timezone\"]"
+    },
+    {
+      "section": "sms",
+      "tab": "Phone Settings",
+      "view": "tracking",
+      "source": "libraries/apps/settings/phone.js",
+      "title": "Tracking Numbers",
+      "description": "",
+      "kind": "view",
+      "selector": "[data-tab=\"tracking\"]"
+    },
+    {
+      "section": "sms",
+      "tab": "Phone Settings",
+      "view": "",
+      "source": "libraries/apps/settings/phone.js",
+      "title": "Transcribe recordings",
+      "description": "",
+      "kind": "control",
+      "selector": "[name=\"transcription_enabled\"]"
+    },
+    {
+      "section": "sms",
+      "tab": "Phone Settings",
+      "view": "",
+      "source": "libraries/apps/settings/phone.js",
+      "title": "Tuesday hours",
+      "description": "",
+      "kind": "control",
+      "selector": "[name=\"FM_DYNAMIC\\.day2\"]"
+    },
+    {
+      "section": "sms",
+      "tab": "Phone Settings",
+      "view": "",
+      "source": "libraries/apps/settings/phone.js",
+      "title": "Until (UTC, exclusive)",
+      "description": "",
+      "kind": "control",
+      "selector": "[name=\"to\"]"
+    },
+    {
+      "section": "sms",
+      "tab": "Phone Settings",
+      "view": "",
+      "source": "libraries/apps/settings/phone.js",
+      "title": "Upload MP3 or WAV greeting (up to 4 MB)",
+      "description": "",
+      "kind": "control",
+      "selector": "[data-greeting=\"voicemail_media_id\"]"
+    },
+    {
+      "section": "sms",
+      "tab": "Phone Settings",
+      "view": "",
+      "source": "libraries/apps/settings/phone.js",
+      "title": "US area code",
+      "description": "",
+      "kind": "control",
+      "selector": "[name=\"area_code\"]"
+    },
+    {
+      "section": "sms",
+      "tab": "Phone Settings",
+      "view": "",
+      "source": "libraries/apps/settings/phone.js",
+      "title": "Use a custom schedule",
+      "description": "",
+      "kind": "control",
+      "selector": "[name=\"FM_DYNAMIC\\.custom\"]"
+    },
+    {
+      "section": "sms",
+      "tab": "Phone Settings",
+      "view": "",
+      "source": "libraries/apps/settings/phone.js",
+      "title": "Use this as a tracking number",
+      "description": "",
+      "kind": "control",
+      "selector": "[name=\"tracking_enabled\"]"
+    },
+    {
+      "section": "sms",
+      "tab": "Phone Settings",
+      "view": "",
+      "source": "libraries/apps/settings/phone.js",
+      "title": "Use voicemail drop for",
+      "description": "",
+      "kind": "control",
+      "selector": "[name=\"drop_scope\"]"
+    },
+    {
+      "section": "sms",
+      "tab": "Phone Settings",
+      "view": "voicemail",
+      "source": "libraries/apps/settings/phone.js",
+      "title": "Voicemail",
+      "description": "",
+      "kind": "view",
+      "selector": "[data-tab=\"voicemail\"]"
+    },
+    {
+      "section": "sms",
+      "tab": "Phone Settings",
+      "view": "",
+      "source": "libraries/apps/settings/phone.js",
+      "title": "Voicemail",
+      "description": "",
+      "kind": "control",
+      "selector": "[name=\"voicemail\"]"
+    },
+    {
+      "section": "sms",
+      "tab": "Phone Settings",
+      "view": "",
+      "source": "libraries/apps/settings/phone.js",
+      "title": "Voicemail greeting",
+      "description": "",
+      "kind": "control",
+      "selector": "[name=\"voicemail_greeting\"]"
+    },
+    {
+      "section": "sms",
+      "tab": "Phone Settings",
+      "view": "website",
+      "source": "libraries/apps/settings/phone.js",
+      "title": "Website Tracking",
+      "description": "",
+      "kind": "view",
+      "selector": "[data-tab=\"website\"]"
+    },
+    {
+      "section": "sms",
+      "tab": "Phone Settings",
+      "view": "",
+      "source": "libraries/apps/settings/phone.js",
+      "title": "Wednesday hours",
+      "description": "",
+      "kind": "control",
+      "selector": "[name=\"FM_DYNAMIC\\.day3\"]"
+    },
+    {
+      "section": "sms",
+      "tab": "Phone Settings",
+      "view": "",
+      "source": "libraries/apps/settings/phone.js",
+      "title": "Welcome greeting",
+      "description": "",
+      "kind": "control",
+      "selector": "[name=\"greeting\"]"
+    },
+    {
+      "section": "sms",
+      "tab": "Phone Settings",
+      "view": "",
+      "source": "libraries/apps/settings/phone.js",
+      "title": "When the contact’s time zone is missing",
+      "description": "",
+      "kind": "control",
+      "selector": "[name=\"unknown_timezone\"]"
+    },
+    {
+      "section": "sms",
+      "tab": "Phone Settings",
+      "view": "",
+      "source": "libraries/apps/settings/phone.js",
+      "title": "When unanswered or the queue is full",
+      "description": "",
+      "kind": "control",
+      "selector": "[name=\"unanswered\\.target\"]"
+    },
+    {
+      "section": "sms",
+      "tab": "Phone Settings",
+      "view": "",
+      "source": "libraries/apps/settings/phone.js",
+      "title": "Work hours",
+      "description": "",
+      "kind": "heading",
+      "selector": ""
+    },
+    {
+      "section": "sms",
+      "tab": "Phone Settings",
+      "view": "",
+      "source": "libraries/apps/settings/phone.js",
+      "title": "Wrap-up time (seconds)",
+      "description": "",
+      "kind": "control",
+      "selector": "[name=\"wrap_up_seconds\"]"
+    },
+    {
+      "section": "sms",
+      "tab": "Phone Settings",
+      "view": "",
+      "source": "libraries/apps/settings/phone.js",
+      "title": "Your lines",
+      "description": "",
+      "kind": "heading",
+      "selector": ""
+    },
+    {
+      "section": "sms",
+      "tab": "Phone Settings",
+      "view": "",
+      "source": "libraries/apps/settings/phone.js",
+      "title": "Your voicemail greeting",
+      "description": "",
+      "kind": "control",
+      "selector": "[name=\"personal_greeting\"]"
     },
     {
       "section": "storage",

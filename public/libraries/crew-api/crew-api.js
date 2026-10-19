@@ -166,6 +166,11 @@
       paySignatureDocument(orgId, projectId, documentId, key, body = {}){
         return request(projectPath(orgId, projectId, `/signatures/${enc(documentId)}/payments/${enc(key)}`), { method:'POST', body });
       },
+      // Opens a processor checkout for a field payment ({ method, document_id?,
+      // output_key?, amount_cents? }); Forward's element pays its client secret.
+      paymentCheckout(orgId, projectId, body = {}){
+        return request(projectPath(orgId, projectId, '/payment-checkouts'), { method:'POST', body });
+      },
       sendSignatureDocumentToPortal(orgId, projectId, documentId){
         return request(projectPath(orgId, projectId, `/signatures/${enc(documentId)}/portal`), { method:'POST', body:{} });
       },

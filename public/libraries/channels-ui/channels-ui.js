@@ -134,6 +134,7 @@
 
   function renderBody(message, textValue, quoteDepth = 0){
     const source = String(textValue == null ? message.text || '' : textValue);
+    if(!source.trim())return '';
     const inline = (value) => {
       const tokens = [];
       const keep = html => `\u0000${tokens.push(html) - 1}\u0000`;
@@ -208,7 +209,8 @@
       else blocks.push(`<div>${inline(line) || '<br>'}</div>`);
     }
     let html = blocks.join('');
-    const labels = [...new Set(['channel','here',...(message.mention_users || []).map(user=>cleanText(user.name)).filter(Boolean)])].sort((a,b)=>b.length-a.length);
+    const broadcastLabels=Array.isArray(message.metadata?.mention_broadcasts) ? message.metadata.mention_broadcasts.filter(name=>['channel','here'].includes(name)) : ((message.mention_users || []).length ? ['channel','here'] : []);
+    const labels = [...new Set([...broadcastLabels,...(message.mention_users || []).map(user=>cleanText(user.name)).filter(Boolean)])].sort((a,b)=>b.length-a.length);
     const mentionedUsers = new Map();
     for (const user of message.mention_users || []) {
       const name = cleanText(user.name).toLowerCase(), id = user.id || user.user_id;
@@ -217,6 +219,7 @@
       else if (!mentionedUsers.has(name)) mentionedUsers.set(name, id);
     }
     const escaped = labels.map(label=>label.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'));
+    if(!escaped.length)return html;
     const expression = new RegExp(`(^|[\\s([{])(@(?:${escaped.join('|')}))(?=$|[\\s.,!?;:)\\]}])`, 'gi');
     const container = document.createElement('div'); container.innerHTML = html;
     const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT);
@@ -271,24 +274,21 @@
     return tableMarkup(rows.map(row => Array.from({length:columns}, (_, i) => row[i] || '')));
   }
 
-  function gifMessageCard(gif){
-    if (!gif || !/^https:\/\/media\d*\.giphy\.com\/media\//i.test(gif.url || '')) return null;
-    const card=el('figure','fm-ch-gif');
-    const link=el('a');link.href=`https://giphy.com/gifs/${encodeURIComponent(gif.id)}`;link.target='_blank';link.rel='noopener noreferrer';
-    const img=el('img');img.src=gif.url;img.alt=gif.title || 'GIF';img.loading='lazy';img.width=gif.width || 240;img.height=gif.height || 180;
-    link.append(img);card.append(link,el('figcaption','','Powered by GIPHY'));return card;
-  }
+  // Compatibility adapters: GIF DOM, styles and attribution belong to Platform Widgets.
+  function gifMessageCard(gif){return root.FirstMateGifWidgets?.createCard(gif) || null;}
+  function renderGifDraft(host,gif,onRemove){return root.FirstMateGifWidgets?.renderDraft(host,gif,onRemove);}
 
   function mountLinkInput(container, values = {}){
-    ensureStyles();container.innerHTML='<div class="fm-ch-link-form"><label>Link text<input type="text" data-link-text placeholder="Text people will see"></label><label>Web address<input type="url" data-url placeholder="https://example.com" inputmode="url"></label><p class="fm-ch-link-error" role="alert"></p></div>';const text=container.querySelector('[data-link-text]'),url=container.querySelector('[data-url]'),error=container.querySelector('.fm-ch-link-error');text.value=values.text||'';url.value=values.url||'';
-    return {read(){let href;try{const parsed=new URL(url.value.trim());if(!['https:','http:'].includes(parsed.protocol))throw Error();href=parsed.href;}catch{error.textContent='Enter a complete http:// or https:// web address.';url.focus();throw Error(error.textContent);}if(!text.value.trim()){error.textContent='Enter the text for your link.';text.focus();throw Error(error.textContent);}error.textContent='';return {url:href,text:text.value.trim()};},destroy(){container.replaceChildren();}};
+    ensureStyles();container.innerHTML='<div class="fm-ch-link-form"><label>Link text<input type="text" data-link-text placeholder="Text people will see"></label><label>Web address<input type="text" data-url placeholder="example.com" inputmode="url"></label><p class="fm-ch-link-error" role="alert"></p></div>';const text=container.querySelector('[data-link-text]'),url=container.querySelector('[data-url]'),error=container.querySelector('.fm-ch-link-error');text.value=values.text||'';url.value=values.url||'';
+    url.addEventListener('input',()=>error.textContent='');
+    return {read(){const address=url.value.trim();let href;try{if(!address)throw Error();const hasScheme=/^[a-z][a-z\d+.-]*:/i.test(address),hostWithPort=/^[^/?#:\s]+:\d+(?:[/?#]|$)/.test(address);const candidate=address.startsWith('//')?'https:'+address:(!hasScheme || hostWithPort ? 'https://'+address : address);const parsed=new URL(candidate);if(!['https:','http:'].includes(parsed.protocol) || !parsed.hostname || (!parsed.hostname.includes('.') && parsed.hostname!=='localhost' && !parsed.hostname.startsWith('[')))throw Error();href=parsed.href;}catch{error.textContent='Enter a valid web address, such as example.com.';url.focus();throw Error(error.textContent);}error.textContent='';return {url:href,text:text.value.trim() || address};},destroy(){container.replaceChildren();}};
   }
   // Picker implementations belong to Platform Widgets. Keep a small adapter for
   // existing composer/Feed callers; Channels owns only message delivery.
   let pickerWidgetsLoading;
   function loadPickerWidgets(){
     if(root.FirstMatePickerWidgets)return Promise.resolve(root.FirstMatePickerWidgets);
-    if(!pickerWidgetsLoading)pickerWidgetsLoading=import('/libraries/platform-widgets/pickers.js?v=20261010-loading-fix').then(()=>root.FirstMatePickerWidgets).catch(error=>{pickerWidgetsLoading=null;throw error;});
+    if(!pickerWidgetsLoading)pickerWidgetsLoading=import('/libraries/platform-widgets/pickers.js?v=20261012-photo-picker-layer-v3').then(()=>root.FirstMatePickerWidgets).catch(error=>{pickerWidgetsLoading=null;throw error;});
     return pickerWidgetsLoading;
   }
   // Compatibility for Feed callers; rendering and state stay in Platform Widgets.
@@ -300,7 +300,7 @@
   function createGifPickerButton(options){
     ensureStyles();
     const button=el('button','fm-ch-icon-btn','<span style="font-size:10px;font-weight:800;border:1.5px solid currentColor;border-radius:3px;padding:1px">GIF</span>');
-    button.type='button';button.title='Send a GIF';button.setAttribute('aria-label',button.title);
+    button.type='button';button.title='Attach a GIF';button.setAttribute('aria-label',button.title);
     button.setAttribute('aria-haspopup','dialog');button.setAttribute('aria-expanded','false');
     let destroyed=false,loading=false;
     button.onclick=async()=>{
@@ -485,7 +485,7 @@
     };
     Object.defineProperty(editor, 'value', {
       get: () => !editor.textContent.trim() && !editor.querySelector('table') ? '' : serializeChildren(editor).trim(),
-      set: value => { savedSelection = null; editor.innerHTML = value ? renderBody({ text:String(value) }) : ''; if (!expandTables) decorateTables(editor, editor); }
+      set: value => { savedSelection = null; editor.innerHTML = value ? renderBody({ text:String(value) }) : ''; if (!expandTables) decorateTables(editor, editor); editor.dispatchEvent(new Event('fm:formatting-change')); }
     });
     // Pickers move focus outside the editor. Keep the last actual caret/range,
     // rather than trusting the selection created when the editor regains focus.
@@ -513,7 +513,7 @@
       document.execCommand('insertHTML', false, clipboardRichHtml(event.clipboardData) + '<div><br></div>');
       editor.dispatchEvent(new Event('input', {bubbles:true}));
     });
-    editor.addEventListener('input', () => { if (!expandTables) decorateTables(editor, editor); });
+    editor.addEventListener('input', () => { if (!expandTables) decorateTables(editor, editor); editor.dispatchEvent(new Event('fm:formatting-change')); });
     // Drag a cell's right edge to resize its column, as in Documents.
     editor.addEventListener('pointerdown', event => {
       const cell = event.target.closest('td,th');
@@ -675,6 +675,7 @@
       button.dataset.mentionButton = 'true';
       button.onmousedown = event => { editor.saveSelection?.(); event.preventDefault(); };
       button.onclick = async () => {
+        if(openPopover?._anchor===button){closePopover();return;}
         const isCurrent = options.isCurrent || (() => editor.isConnected);
         const range = root.getSelection()?.rangeCount && editor.contains(root.getSelection().anchorNode) ? root.getSelection().getRangeAt(0).cloneRange() : null;
         const textRange = [editor.selectionStart, editor.selectionEnd];
@@ -702,33 +703,46 @@
                   closePopover();
                 }; results.append(item);
               }
+              if(!results.children.length)results.append(el('div','fm-ch-popover-head','No teammates match.'));
             }; search.oninput = render; render(); search.focus();
           });
         } catch (error) { options.onError?.(error); }
       };
-      (options.mount || (box.matches('.fm-ch-formatbar') ? box : box.querySelector('.fm-ch-formatbar')))?.append(button);
+      const toolbar=options.mount || (box.matches('.fm-ch-formatbar') ? box : box.querySelector('.fm-ch-formatbar'));
+      toolbar?.insertBefore(button,toolbar.querySelector(':scope > .fm-ch-table-controls,:scope > .fm-ch-send-pair,:scope > .fm-ch-send,:scope > button[type=submit]'));
       return button;
     }
 
 
-  function messageFormatBar(editor, tableOnly = false){
+  const formattingUpdates=new WeakMap();
+  document.addEventListener('selectionchange',()=>{const node=root.getSelection()?.anchorNode,editor=(node?.nodeType===1 ? node : node?.parentElement)?.closest('.fm-ch-rich-editor');if(editor)formattingUpdates.get(editor)?.();});
+  function messageFormatBar(editor, tableOnly = false, allowedCommands = null){
     const bar = el('div', 'fm-ch-formatbar');
     bar.setAttribute('role', 'toolbar');
     bar.setAttribute('aria-label', (globalThis.PlatformLanguage?.text("channels-ui","m_f4dce57ac0bb0e","Message formatting") ?? "Message formatting"));
-    const commands = [['Bold', '<b>B</b>', 'bold'], ['Italic', '<i>I</i>', 'italic'], ['Strikethrough', '<s>S</s>', 'strikeThrough'], ['Bulleted list', '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="4" cy="6" r="1" fill="currentColor"/><circle cx="4" cy="12" r="1" fill="currentColor"/><circle cx="4" cy="18" r="1" fill="currentColor"/><path d="M9 6h12M9 12h12M9 18h12"/></svg>', 'insertUnorderedList'], ['Numbered list', '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 4l1.5-1v6M3 9h3M2.5 15c0-3 4-3 4-.5 0 1.5-4 3-4 5.5h4M10 6h11M10 12h11M10 18h11"/></svg>', 'insertOrderedList'], ['Quote', '❞', 'formatBlock', 'blockquote'], ['Code block', '&lt;/&gt;', 'formatBlock', 'pre'], ['Link', 'Link', 'link'], ['Table', 'Table', 'table'], ['Clear formatting', 'Tx', 'removeFormat']];
+    const commands = [['Bold', '<b>B</b>', 'bold'], ['Italic', '<i>I</i>', 'italic'], ['Strikethrough', '<s>S</s>', 'strikeThrough'], ['Bulleted list', '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="4" cy="6" r="1" fill="currentColor"/><circle cx="4" cy="12" r="1" fill="currentColor"/><circle cx="4" cy="18" r="1" fill="currentColor"/><path d="M9 6h12M9 12h12M9 18h12"/></svg>', 'insertUnorderedList'], ['Numbered list', '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 4l1.5-1v6M3 9h3M2.5 15c0-3 4-3 4-.5 0 1.5-4 3-4 5.5h4M10 6h11M10 12h11M10 18h11"/></svg>', 'insertOrderedList'], ['Link', '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7 .1l3-3a5 5 0 0 0-7-7l-2 2M14 11a5 5 0 0 0-7-.1l-3 3a5 5 0 0 0 7 7l2-2"/></svg>', 'link'], ['Clear formatting', 'Tx', 'removeFormat'], ['Table', '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M3 15h18M9 3v18M15 3v18"/></svg>', 'table'], ['Quote', '❞', 'formatBlock', 'blockquote'], ['Code block', '&lt;/&gt;', 'formatBlock', 'pre']];
+    const toggles=[];
+    function blockActive(value){const selection=root.getSelection(),node=selection?.anchorNode;const parent=node?.nodeType===1?node:node?.parentElement;if(parent?.closest(value) && editor.contains(parent.closest(value)))return true;if(selection?.rangeCount && !selection.isCollapsed){const range=selection.getRangeAt(0);if([...editor.querySelectorAll(value)].some(block=>range.intersectsNode(block)))return true;}return String(document.queryCommandValue('formatBlock')).toLowerCase().replace(/[<>]/g,'')===value;}
+    function updateFormatting(){const selection=root.getSelection(),inside=!!selection?.anchorNode && editor.contains(selection.anchorNode) && editor.contains(selection.focusNode);if(!inside && editor.firstChild)return;for(const {button,command,value} of toggles){const active=inside && (command==='formatBlock' ? blockActive(value) : document.queryCommandState(command));button.setAttribute('aria-pressed',String(!!active));}}
+    formattingUpdates.set(editor,updateFormatting);
+    for(const event of ['input','keyup','mouseup','focus','fm:formatting-change'])editor.addEventListener(event,updateFormatting);
+    editor.addEventListener('keydown',()=>setTimeout(updateFormatting,0));
     for (const [title, icon, command, value] of commands) {
+      if (allowedCommands && !allowedCommands.includes(title)) continue;
       if (tableOnly && command === 'table') continue;
       const button = el('button', '', icon);
       button.type = 'button'; button.title = title; button.setAttribute('aria-label', title);
-      if (command === 'insertUnorderedList' || command === 'insertOrderedList') {
-        button.classList.add('fm-ch-list-format');
-        const update = () => { const selection = root.getSelection(); button.setAttribute('aria-pressed', String(!!selection?.anchorNode && editor.contains(selection.anchorNode) && document.queryCommandState(command))); };
+      if (['bold','italic','strikeThrough','insertUnorderedList','insertOrderedList','formatBlock'].includes(command)) {
+        if(command==='insertUnorderedList' || command==='insertOrderedList')button.classList.add('fm-ch-list-format');
+        button.dataset.formatToggle=command;
         button.setAttribute('aria-pressed', 'false');
-        for (const event of ['input', 'keyup', 'mouseup', 'focus']) editor.addEventListener(event, update);
+        toggles.push({button,command,value});
       }
       button.addEventListener('mousedown', event => { editor.saveSelection(); event.preventDefault(); });
       button.addEventListener('click', () => {
-        editor.restoreSelection();
+        const currentSelection=root.getSelection();
+        // Replacing an unchanged empty caret discards the browser's pending bold/italic state.
+        if(document.activeElement!==editor || !editor.contains(currentSelection?.anchorNode) || !editor.contains(currentSelection?.focusNode))editor.restoreSelection();
         if (command === 'table') {
           const range = root.getSelection()?.rangeCount ? root.getSelection().getRangeAt(0).cloneRange() : null;
           showPopover(button, pop => {
@@ -761,10 +775,25 @@
             // removeFormat otherwise only changes the next typed character.
             if (selection.isCollapsed) { const range = document.createRange(); range.selectNodeContents(editor); selection.removeAllRanges(); selection.addRange(range); }
             document.execCommand('removeFormat'); document.execCommand('unlink');
-            if (document.queryCommandState('insertUnorderedList')) document.execCommand('insertUnorderedList');
-            if (document.queryCommandState('insertOrderedList')) document.execCommand('insertOrderedList');
             document.execCommand('formatBlock', false, 'div');
-          } else document.execCommand(command, false, value);
+            const range=selection.getRangeAt(0);
+            const listItems=new Set([...editor.querySelectorAll('li')].filter(item=>range.intersectsNode(item)));
+            // Mixed selections make queryCommandState report false. Unwrap
+            // selected list items explicitly, retaining unselected list runs.
+            for(const list of [...editor.querySelectorAll('ul,ol')].reverse()){
+              if(![...list.children].some(item=>listItems.has(item)))continue;
+              const fragment=document.createDocumentFragment();let retained=null;
+              for(const item of [...list.children]){
+                if(listItems.has(item)){
+                  const paragraph=el('div');paragraph.append(...item.childNodes);fragment.append(paragraph);retained=null;
+                }else{
+                  if(!retained){retained=list.cloneNode(false);fragment.append(retained);}retained.append(item);
+                }
+              }
+              list.replaceWith(fragment);
+            }
+          } else if(command==='formatBlock'){if(blockActive(value) && value==='blockquote')document.execCommand('outdent');else document.execCommand(command,false,blockActive(value)?'div':value);}
+          else document.execCommand(command, false, value);
           editor.saveSelection(); editor.dispatchEvent(new Event('input', {bubbles:true}));
         }
       });
@@ -775,12 +804,18 @@
     editor.addEventListener('click', event => { selectedCell = event.target.closest('td,th'); tableControls.hidden = !selectedCell; });
     editor.addEventListener('keyup', () => { selectedCell = root.getSelection()?.anchorNode?.parentElement?.closest('td,th'); tableControls.hidden = !selectedCell || !editor.contains(selectedCell); });
     tableControls.hidden = true;
+    const insert=el('button','','Insert ▾');insert.type='button';insert.setAttribute('aria-label','Insert');insert.setAttribute('aria-haspopup','menu');
+    insert.onmousedown=event=>event.preventDefault();
+    tableControls.append(insert);
+    const insertActions=[];
     for (const [label, operation] of [['Row above', 'row-before'], ['Row below', 'row-after'], ['Column left', 'col-before'], ['Column right', 'col-after'], ['Delete row', 'delete-row'], ['Delete column', 'delete-col'], ['Delete table', 'delete-table']]) {
       const control = el('button', '', esc(label)); control.type = 'button'; control.title = label;
       control.onmousedown = event => event.preventDefault();
       control.onclick = () => {
         if (!selectedCell || !editor.contains(selectedCell)) return;
+        closePopover();
         const table = selectedCell.closest('table'), row = selectedCell.parentElement, column = selectedCell.cellIndex;
+        let nextCell = selectedCell;
         if (operation === 'delete-table') table.remove();
         else if (operation === 'delete-row') row.remove();
         else if (operation === 'delete-col') { for (const r of table.rows) r.cells[column]?.remove(); table.querySelectorAll('col')[column]?.remove(); }
@@ -788,19 +823,34 @@
           const added = el('tr');
           for (const cell of row.cells) { const item = el('td', '', '<br>'); item.style.width = cell.style.width; added.append(item); }
           row.insertAdjacentElement(operation === 'row-before' ? 'beforebegin' : 'afterend', added);
+          nextCell = added.cells[column] || added.cells[0];
         } else {
-          for (const r of table.rows) { const cell = el(r.cells[column]?.tagName.toLowerCase() || 'td', '', '<br>'); r.cells[column]?.insertAdjacentElement(operation === 'col-before' ? 'beforebegin' : 'afterend', cell); }
+          for (const r of table.rows) { const cell = el(r.cells[column]?.tagName.toLowerCase() || 'td', '', '<br>'); r.cells[column]?.insertAdjacentElement(operation === 'col-before' ? 'beforebegin' : 'afterend', cell); if(r === row)nextCell = cell; }
           // A structural change resets widths so every column remains reachable.
           table.querySelector('colgroup')?.remove(); table.style.width = '';
           table.querySelectorAll('td,th').forEach(cell => cell.style.width = '');
         }
         if (!table.rows.length || !table.rows[0].cells.length) table.remove();
-        tableControls.hidden = true; selectedCell = null;
+        selectedCell = nextCell && editor.contains(nextCell) ? nextCell : null;
+        tableControls.hidden = !selectedCell;
+        if(selectedCell){
+          editor.focus();
+          const range=document.createRange();range.selectNodeContents(selectedCell);range.collapse(true);
+          const selection=root.getSelection();selection.removeAllRanges();selection.addRange(range);
+          editor.saveSelection();
+        }
         editor.dispatchEvent(new Event('input', {bubbles:true}));
       };
-      tableControls.append(control);
+      if(operation.startsWith('row') || operation.startsWith('col'))insertActions.push(control);
+      else tableControls.append(control);
     }
-    bar.append(tableControls);
+    // Table operations share one compact menu instead of creating a second row.
+    const tableActions=[...insertActions,...tableControls.querySelectorAll('button')].filter(action=>action!==insert);
+    const tableMenu=el('button','','<i class="fas fa-table" aria-hidden="true"></i>');tableMenu.type='button';tableMenu.title='Table options';tableMenu.setAttribute('aria-label','Table options');tableMenu.setAttribute('aria-haspopup','menu');
+    tableMenu.onmousedown=event=>{editor.saveSelection();event.preventDefault();};
+    tableMenu.onclick=()=>showPopover(tableMenu,pop=>{const menu=el('div','fm-ch-message-menu');menu.setAttribute('role','menu');for(const action of tableActions){const proxy=actionProxy(action);proxy.setAttribute('role','menuitem');menu.append(proxy);}pop.append(menu);});
+    tableControls.replaceChildren(tableMenu);bar.append(tableControls);
+    responsiveFormatBar(bar,editor);
     return bar;
   }
 
@@ -872,6 +922,7 @@
 .fm-ch-workflow-list .fm-ch-resource-copy{text-align:left}
 .fm-ch-workflow-list .fm-ch-resource-copy strong{margin-bottom:3px;font-size:13px;font-weight:750;line-height:1.3}
 .fm-ch-workflow-list .fm-ch-resource-copy span{font-size:11.5px;line-height:1.45;white-space:normal}
+.fm-ch-formatbar button[data-format-toggle][aria-pressed=true]{color:#d93025!important;background:rgba(217,48,37,.1)!important}
 .fm-ch-formatbar{display:flex;align-items:center;gap:2px;padding-bottom:5px;border-bottom:1px solid #f0f2f5;margin-bottom:5px}.fm-ch-formatbar button{width:26px;height:24px;border-radius:6px;color:var(--ch-muted)}.fm-ch-formatbar button:hover{background:var(--ch-hover);color:var(--ch-accent)}
 .fm-ch-huddle{position:relative;min-width:0;min-height:0;overflow:auto;background:#111827;color:#fff;padding:14px;display:flex;flex-direction:column;gap:8px}
 
@@ -953,7 +1004,7 @@
 .fm-ch-avatar--sm{width:22px;height:22px;font-size:10px;border-radius:6px}
 .fm-ch-msg-content{flex:1;min-width:0}
 .fm-ch-msg-head{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
-.fm-ch-msg-author{font-weight:850}
+.fm-ch-msg-author.fm-ch-summary-trigger{font-weight:850}
 .fm-ch-msg-time{color:var(--ch-muted);font-size:11px}
 .fm-ch-msg-edited{color:var(--ch-muted);font-size:11px;cursor:pointer;text-decoration:none}
 .fm-ch-msg-edited:hover{text-decoration:underline}
@@ -980,7 +1031,7 @@
 .fm-ch-msg:hover .fm-ch-quick-like,.fm-ch-msg:focus-within .fm-ch-quick-like{opacity:.65}
 .fm-ch-quick-like:hover,.fm-ch-quick-like:focus-visible{opacity:1!important}
 .fm-ch-msg-body>.fm-ch-msg-edited{margin-left:6px}
-.fm-ch-gif{margin:8px 0;max-width:320px}.fm-ch-gif img{display:block;max-width:100%;height:auto;border-radius:10px}.fm-ch-gif figcaption{font-size:10px;color:var(--ch-muted);margin-top:4px}
+
 .fm-ch-member-row[hidden]{display:none}
 @media(hover:none){.fm-ch-quick-like{opacity:.65}}
 .fm-ch-reaction{display:inline-flex;align-items:center;gap:4px;border:1px solid var(--ch-border);background:#fff;border-radius:999px;padding:1px 8px;font-size:12px}
@@ -988,6 +1039,10 @@
 .fm-ch-reaction.mine{background:var(--ch-accent-soft);border-color:var(--ch-accent);color:var(--ch-accent)}
 .fm-ch-thread-link{display:inline-flex;align-items:center;gap:6px;margin-top:4px;color:var(--ch-accent);font-size:12px;font-weight:600;border-radius:6px;padding:2px 6px}
 .fm-ch-thread-link:hover{background:var(--ch-accent-soft)}
+.fm-ch-thread-link .fm-ch-reply-people{display:inline-flex;gap:3px;flex:none}
+.fm-ch-thread-link .fm-ch-reply-people .fm-ch-avatar{width:24px;height:24px;min-width:24px;font-size:10px;border-radius:6px}
+.fm-ch-thread-link .fm-ch-last-reply{color:var(--ch-muted);font-weight:400}
+.fm-ch-thread-link{flex-wrap:wrap;text-align:left}
 .fm-ch-attachments{display:flex;flex-wrap:wrap;gap:8px;margin-top:6px}
 .fm-ch-attachment{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--ch-border);border-radius:8px;padding:6px 10px;font-size:12px;color:#344054;text-decoration:none;max-width:260px}
 .fm-ch-attachment:hover{background:var(--ch-hover)}
@@ -1005,6 +1060,7 @@
 .fm-ch-composer{border-top:1px solid var(--ch-border);padding:10px 16px 12px}
 .fm-ch-composer-box{border:1px solid var(--ch-border);border-radius:10px;padding:8px 10px 9px;background:#fff}
 .fm-ch-composer-box:focus-within{border-color:var(--ch-accent)}
+.fm-ch-composer-hint{font-size:11px;color:var(--ch-muted);text-align:right;margin-top:4px}
 .fm-ch-composer textarea{width:100%;border:none;outline:none;resize:none;font:inherit;background:transparent;max-height:180px;min-height:22px;color:var(--ch-text)}
 .fm-ch-composer-box .fm-ch-composer-row{display:flex;align-items:center;gap:6px;margin-top:8px;min-height:32px;flex-wrap:wrap}
 .fm-ch-reply-broadcast{display:flex;align-items:center;gap:7px;font-size:12px;color:var(--ch-muted);margin-right:auto;cursor:pointer}.fm-ch-reply-broadcast[hidden]{display:none}.fm-ch-reply-broadcast input{width:15px;height:15px;margin:0;accent-color:var(--ch-accent)}.fm-ch-thread-broadcast{display:block;margin:0 0 6px;color:var(--ch-muted);font-size:11px;text-align:left}.fm-ch-thread-broadcast:hover{color:var(--ch-accent);text-decoration:underline}
@@ -1028,10 +1084,10 @@
 .fm-ch-table-picker-cell.active{border-color:var(--ch-accent)!important;background:var(--ch-accent-soft)!important}
 .fm-ch-table-picker-label{text-align:center;font-size:12px;font-weight:700}
 .fm-ch-formatbar{flex-wrap:wrap}.fm-ch-table-controls{display:flex;gap:4px;flex-wrap:wrap;width:100%}.fm-ch-table-controls[hidden]{display:none}.fm-ch-table-controls button{width:auto;padding:3px 6px;font-size:11px}
-.fm-ch-modal.fm-ch-table-modal{width:calc(100vw - 24px);max-width:none;height:calc(100dvh - 24px);max-height:none;display:flex;flex-direction:column}
+.fm-ch-modal.fm-ch-table-modal{width:min(1720px,96vw);max-width:calc(100vw - 24px);height:min(1180px,92dvh);max-height:calc(100dvh - 24px);display:flex;flex-direction:column}
 .fm-ch-table-modal .fm-ch-modal-body{flex:1;min-height:0;overflow:auto}.fm-ch-table-modal .fm-ch-rich-editor{max-height:none;min-height:100%;overflow:visible}
 .fm-ch-table-view table{border-collapse:collapse;min-width:100%;table-layout:fixed}.fm-ch-table-view td,.fm-ch-table-view th{border:1px solid var(--ch-border);padding:8px;min-width:80px;overflow-wrap:anywhere;vertical-align:top}
-.fm-ch-rich-editor td,.fm-ch-rich-editor th,.fm-ch-msg-body td,.fm-ch-msg-body th{border:1px solid var(--ch-border);padding:7px;min-width:60px;text-align:left;white-space:pre-wrap}
+.fm-ch-rich-editor td,.fm-ch-rich-editor th,.fm-ch-msg-body td,.fm-ch-msg-body th{border:1px solid var(--ch-border,#e4e7ec);padding:7px;min-width:60px;text-align:left;white-space:pre-wrap}
 .fm-ch-rich-editor th,.fm-ch-msg-body th{background:var(--ch-hover);font-weight:700}
 .fm-ch-rich-editor blockquote,.fm-ch-msg-body blockquote{border-left:3px solid #98a2b3;margin:6px 0;padding:4px 12px;color:var(--ch-muted)}
 .fm-ch-rich-editor pre,.fm-ch-msg-body pre{padding:10px;background:#f2f4f7;border-radius:6px;white-space:pre-wrap}
@@ -1198,35 +1254,178 @@
 .fm-ch-huddle-artifact{border:1px solid var(--ch-border);border-radius:12px;overflow:hidden;padding:10px;display:grid;gap:8px;min-width:0}
 .fm-ch-huddle-artifact video,.fm-ch-huddle-artifact audio{width:100%;max-height:180px}
 `;
+    style.textContent+=`
+.fm-ch-formatbar{flex-wrap:nowrap;min-width:0;gap:2px;padding:0;border-bottom:0;margin-bottom:2px;overflow:hidden}
+.fm-ch-formatbar>button,.fm-ch-formatbar .fm-ch-table-controls button{font:inherit;font-size:13px;cursor:pointer;border:0;background:transparent;color:var(--ch-muted,#667085);border-radius:6px;box-shadow:none;line-height:1;flex:none;height:26px}.fm-ch-formatbar button:hover{background:var(--ch-hover,#f2f4f7);color:var(--ch-accent,var(--primary,#d93025))}.fm-ch-formatbar button:focus-visible{outline:2px solid var(--ch-accent,var(--primary,#d93025));outline-offset:-2px}.fm-ch-formatbar [hidden]{display:none!important}
+.fm-ch-table-controls{width:auto;flex:none;flex-wrap:nowrap}.fm-ch-formatbar .fm-ch-table-controls button{font-size:10px;padding:3px!important}
+.fm-ch-composer-box{padding:5px 7px 3px}.fm-ch-composer-box .fm-ch-rich-editor{box-sizing:border-box;min-height:46px;padding:2px;line-height:21px}
+.fm-ch-composer-box .fm-ch-composer-row{margin-top:4px;min-height:26px;gap:4px}
+.fm-ch-composer-row .fm-ch-icon-btn,.fm-ch-composer-row [data-mention-button]{width:26px;height:26px;min-height:0;padding:3px;border:0;background:transparent;color:var(--ch-muted);cursor:pointer;border-radius:5px}
+.fm-ch-composer-row .fm-ch-send{display:inline-flex;align-items:center;justify-content:center;flex:none;width:38px;height:28px;padding:0 10px!important;min-height:28px;border:0;border-radius:6px;background:var(--ch-accent,#d93025);color:var(--on-primary,#fff);font-size:13px}.fm-ch-composer-row .fm-ch-send:hover:not(:disabled){filter:brightness(1.06)}.fm-ch-composer-row .fm-ch-send:disabled{opacity:.4}.fm-ch-send-pair{border-left:0;padding-left:0;gap:0}.fm-ch-send-pair>.fm-ch-send{border-radius:6px 0 0 6px}.fm-ch-send-pair>.fm-ch-icon-btn{width:26px;height:28px;background:var(--ch-accent,#d93025);color:var(--on-primary,#fff);border-left:1px solid #ffffff55;border-radius:0 6px 6px 0}.fm-ch-composer-box>.fm-ch-reply-broadcast{margin:5px 0 0;font-size:11px}
+.fm-ch-popover{overflow-x:hidden}.fm-ch-emoji-search{display:block;box-sizing:border-box;min-width:0;height:auto;line-height:1.45;background:#fff;color:var(--ch-text)}.fm-ch-emoji-search::placeholder{color:var(--ch-muted)}.fm-ch-message-menu{min-width:0;width:100%}.fm-ch-message-menu>button{width:100%;height:auto;min-height:32px;color:var(--ch-text);background:transparent;white-space:normal;overflow-wrap:anywhere}
+.fm-ch-polish-icon{display:block;width:16px;height:16px;flex:none}
+.fm-ch-rich-editor.fm-ch-polishing{pointer-events:none;user-select:none;-webkit-user-select:none;caret-color:transparent;mask-image:linear-gradient(110deg,#000 35%,#0008 50%,#000 65%);mask-size:250% 100%;animation:fm-ch-polish-shimmer 2s ease-in-out infinite}
+@keyframes fm-ch-polish-shimmer{from{mask-position:100% 0}to{mask-position:0 0}}
+.fm-ch-polish-spinner{display:block;width:16px;height:16px;animation:fm-ch-polish-spin .9s linear infinite}
+@keyframes fm-ch-polish-spin{to{transform:rotate(360deg)}}
+.fm-ch-polish-cancel-tip{position:fixed;inset:auto;margin:0;padding:5px 8px;border:0;border-radius:5px;background:#344054;color:#fff;box-shadow:0 2px 6px #10182826;font:500 11px/16px system-ui,sans-serif;white-space:nowrap;pointer-events:none;z-index:1700}
+@media(prefers-reduced-motion:reduce){.fm-ch-rich-editor.fm-ch-polishing{animation:none;mask-image:none;opacity:.75}.fm-ch-polish-spinner{animation:none}}
+.fm-ch-image-draft{position:relative;display:inline-block;flex:none;width:84px;height:84px;margin:7px 6px 3px 0;vertical-align:top}.fm-ch-image-draft>.fm-ch-image-preview{display:block;width:84px;height:84px;padding:0!important;border:0!important;border-radius:8px;overflow:hidden;background:#f2f4f7;cursor:zoom-in}.fm-ch-image-preview img{display:block;width:100%;height:100%;object-fit:cover}.fm-ch-image-draft>.fm-ch-image-remove{position:absolute;right:-5px;top:-5px;display:grid;place-items:center;width:22px;height:22px;padding:0!important;border:0!important;border-radius:50%;background:#344054!important;color:#fff!important;cursor:pointer;z-index:1}.fm-ch-image-remove svg{width:12px;height:12px}.fm-ch-image-view{display:block;max-width:100%;max-height:70vh;margin:auto;object-fit:contain}.fm-ch-pending-files:empty{display:none}
+.fm-ch-format-menu{display:flex;flex-wrap:wrap;gap:4px;max-width:100%;padding:4px}.fm-ch-format-menu>button{display:grid;place-items:center;flex:none;width:32px;height:32px;padding:3px;border:0;border-radius:6px;background:transparent;color:var(--ch-muted,#667085);font:inherit;font-size:13px;cursor:pointer}.fm-ch-format-menu>button:hover{background:var(--ch-hover,#f2f4f7)}.fm-ch-format-menu>button[aria-pressed="true"]{color:#d93025;background:#fff0ee}
+.fm-ch-recording-menu{display:flex;gap:4px;padding:4px}.fm-ch-recording-menu button{display:grid;place-items:center;width:32px;height:32px;border:0;border-radius:6px;background:transparent;color:var(--ch-text,#475467);cursor:pointer}.fm-ch-recording-menu button:hover{background:var(--ch-hover,#f2f4f7)}
+.fm-ch-schedule-menu{min-width:240px;padding:4px}.fm-ch-schedule-menu header{font-size:12px;color:var(--ch-muted,#667085);padding:7px 10px}.fm-ch-schedule-menu button{display:block;width:100%;text-align:left;border:0;background:transparent;padding:10px;font:inherit;cursor:pointer;border-radius:5px}.fm-ch-schedule-menu button:hover{background:var(--ch-hover,#f2f4f7)}.fm-ch-schedule-menu hr{border:0;border-top:1px solid var(--ch-border,#e4e7ec);margin:4px 0}
+`;
     document.head.appendChild(style);
   }
+
+  function attachmentDraft(attachment,{url,onRemove}={}){
+    if(!url)return null;
+    try{if(!['http:','https:','blob:'].includes(new URL(url,location.href).protocol))return null;}catch{return null;}
+    ensureStyles();const draft=el('div','fm-ch-image-draft'),preview=el('button','fm-ch-image-preview'),image=el('img');
+    preview.type='button';preview.setAttribute('aria-label','Preview image');preview.title=attachment.file_name || 'Image attachment';image.src=url;image.alt='Image attachment';preview.append(image);
+    preview.onclick=()=>showModal('Image',body=>{body.closest('.fm-ch-modal').style.width='min(900px,94vw)';const full=el('img','fm-ch-image-view');full.src=url;full.alt='Image attachment';body.append(full);},[]);
+    const remove=el('button','fm-ch-image-remove','<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8"/></svg>');remove.type='button';remove.setAttribute('aria-label','Remove attachment');remove.onclick=()=>onRemove?.();draft.append(preview,remove);return draft;
+  }
+  function actionProxy(action){
+    const proxy=el('button');proxy.type='button';
+    const sync=()=>{proxy.innerHTML=action.innerHTML;const label=action.getAttribute('aria-label') || action.getAttribute('data-fm-native-title') || action.title || action.textContent;proxy.title=label;proxy.setAttribute('aria-label',label);proxy.disabled=action.disabled;if(action.hasAttribute('aria-pressed'))proxy.setAttribute('aria-pressed',action.getAttribute('aria-pressed'));};
+    sync();proxy.onmousedown=event=>event.preventDefault();
+    proxy.onclick=()=>{if(action.disabled)return;const anchor=proxy.getBoundingClientRect();const selection=getSelection();const range=selection?.rangeCount ? selection.getRangeAt(0).cloneRange() : null;closePopover();if(range){selection.removeAllRanges();selection.addRange(range);}action._popoverRect=anchor;try{action.click();}finally{delete action._popoverRect;}};
+    return proxy;
+  }
+  const formatBars=new Set();
+  const formatResize=new ResizeObserver(entries=>{for(const entry of entries)entry.target._fitFormatting?.();});
+  new MutationObserver(()=>{for(const bar of formatBars){if(bar.isConnected)bar._wasConnected=true;else if(bar._wasConnected){formatResize.unobserve(bar);formatBars.delete(bar);}}}).observe(document.documentElement,{childList:true,subtree:true});
+  function responsiveFormatBar(bar,editor){
+    const commands=[...bar.children].filter(node=>node.tagName==='BUTTON');
+    const more=el('button','fm-ch-format-more','⋯');more.type='button';more.title='See more formatting';more.setAttribute('aria-label',more.title);more.setAttribute('aria-haspopup','menu');
+    more.onmousedown=event=>{editor.saveSelection();event.preventDefault();};
+    more.onclick=()=>showPopover(more,pop=>{pop.style.minWidth='0';const menu=el('div','fm-ch-format-menu');menu.setAttribute('role','menu');for(const action of commands.filter(button=>button.hidden)){const proxy=actionProxy(action);proxy.setAttribute('role','menuitem');menu.append(proxy);}pop.append(menu);});
+    bar.append(more);
+    bar._fitFormatting=()=>{
+      if(!bar.isConnected || !bar.clientWidth)return;
+      for(const button of commands)button.hidden=false;more.hidden=false;
+      const gap=parseFloat(getComputedStyle(bar).gap)||2;
+      const controls=bar.querySelector('.fm-ch-table-controls');
+      const available=bar.clientWidth-(controls?.hidden ? 0 : (controls?.getBoundingClientRect().width || 0)+gap);
+      const widths=commands.map(button=>button.getBoundingClientRect().width+gap);
+      const total=widths.reduce((a,b)=>a+b,0);
+      if(total-gap<=available){more.hidden=true;return;}
+      let used=more.getBoundingClientRect().width+gap,overflow=false;
+      commands.forEach((button,index)=>{if(overflow || used+widths[index]>available){button.hidden=true;overflow=true;}else used+=widths[index];});
+    };
+    formatBars.add(bar);formatResize.observe(bar);
+    new MutationObserver(()=>bar._fitFormatting()).observe(bar.querySelector('.fm-ch-table-controls'),{attributes:true,attributeFilter:['hidden']});
+    requestAnimationFrame(bar._fitFormatting);
+  }
+  function labelComposerSend(button,label){button.innerHTML='<i class="fas fa-paper-plane" aria-hidden="true"></i>';button.title=label;button.setAttribute('aria-label',label);}
+  function composerSendButton(label){const button=el('button','fm-ch-send');button.type='button';labelComposerSend(button,label);return button;}
+  function moreActions(mount,actions){
+    actions=actions.filter(Boolean);if(!mount || !actions.length)return null;
+    if(actions.length===1){const action=actions[0];if(action.parentElement!==mount)mount.insertBefore(action,mount.querySelector(':scope > button[type=submit],:scope > .fm-ch-send-pair,:scope > .fm-ch-send'));return null;}
+    const originals=el('span');originals.hidden=true;originals.append(...actions);
+    const button=el('button','fm-ch-icon-btn fm-ch-more-actions','<i class="fas fa-ellipsis" aria-hidden="true"></i>');button.type='button';button.title='More options';button.setAttribute('aria-label',button.title);button.setAttribute('aria-haspopup','menu');
+    button.onclick=()=>showPopover(button,pop=>{pop.style.minWidth='0';const menu=el('div','fm-ch-recording-menu');menu.setAttribute('role','menu');for(const action of actions){const proxy=actionProxy(action);proxy.setAttribute('role','menuitem');menu.append(proxy);}pop.append(menu);});
+    mount.append(originals);mount.insertBefore(button,mount.querySelector(':scope > button[type=submit]'));return button;
+  }
+
+  // One lifecycle for Channels, Notes and Feed rich-text drafts.
+  function mountDraftPolish(editor,row,options={}){
+      if(!editor || !row || !options.request)return null;
+      ensureStyles();
+      const identity=options.identity || (()=>editor),isBusy=options.isBusy,isCurrent=options.isCurrent || (()=>true),showError=options.onError || (()=>{});
+      const lockRoot=options.lockRoot || editor.closest('form,.fm-ch-composer-box') || editor.parentElement;
+      const icon='<svg class="fm-ch-polish-icon" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1.75 4.92H8.4M1.75 9H8.75M1.75 13.08H9.92"/><g transform="translate(9 1) scale(.2916667)" stroke-width="3"><path d="M11.017 2.814a1 1 0 0 1 1.966 0l1.051 5.558a2 2 0 0 0 1.594 1.594l5.558 1.051a1 1 0 0 1 0 1.966l-5.558 1.051a2 2 0 0 0-1.594 1.594l-1.051 5.558a1 1 0 0 1-1.966 0l-1.051-5.558a2 2 0 0 0-1.594-1.594l-5.558-1.051a1 1 0 0 1 0-1.966l5.558-1.051a2 2 0 0 0 1.594-1.594z"/></g></svg>';
+      const button=el('button','fm-ch-icon-btn',icon);button.type='button';button.dataset.polishDraft='';button.title='Polish text';button.setAttribute('aria-label',button.title);let active=null,revision=0;
+      const refresh=()=>button.disabled=!active && (!editor.value.trim() || !!isBusy?.() || !!editor.uploadingFiles);
+      const onInput=()=>{revision++;refresh();};editor.addEventListener('input',onInput);editor.addEventListener('fm:formatting-change',refresh);
+      const preserveAttributes=(node,names)=>{const values=names.map(name=>[name,node.getAttribute(name)]);return ()=>{for(const [name,value] of values)if(value===null)node.removeAttribute(name);else node.setAttribute(name,value);};};
+      function lockDraft(run){
+        const box=lockRoot,selection=root.getSelection();
+        editor.saveSelection();editor.blur();button.blur();if(selection?.anchorNode && editor.contains(selection.anchorNode))selection.removeAllRanges();
+        closePopover();root.FirstMatePickerWidgets?.closeFor?.();options.closeMenus?.();root.PlatformUI?.hideTooltip?.(button);
+        const restoreEditor=preserveAttributes(editor,['contenteditable','inert','tabindex','aria-busy','aria-readonly']);
+        const restoreButton=preserveAttributes(button,['title','data-fm-tooltip','data-fm-tooltip-html','data-fm-native-title','aria-describedby']);
+        for(const name of ['title','data-fm-tooltip','data-fm-tooltip-html','data-fm-native-title'])button.removeAttribute(name);
+        editor.contentEditable='false';editor.inert=true;editor.tabIndex=-1;editor.setAttribute('aria-busy','true');editor.setAttribute('aria-readonly','true');editor.classList.add('fm-ch-polishing');
+        const controls=[...box.querySelectorAll('button,input,select,textarea')].filter(control=>control!==button).map(control=>[control,control.disabled]);
+        for(const [control] of controls)control.disabled=true;
+        // Guard non-button controls and rich-editor event handlers as well.
+        const events=['beforeinput','keydown','paste','drop','pointerdown','click','submit'];
+        const block=event=>{if(!button.contains(event.target)){event.preventDefault();event.stopImmediatePropagation();}};
+        for(const name of events)box.addEventListener(name,block,true);
+        button.setAttribute('aria-busy','true');button.setAttribute('aria-label','Click to cancel');
+        button.innerHTML='<svg class="fm-ch-polish-spinner" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><circle cx="8" cy="8" r="6" opacity=".2"/><path d="M8 2a6 6 0 0 1 6 6" stroke-linecap="round"/></svg>';
+        const tip=el('div','fm-ch-polish-cancel-tip','Click to cancel');tip.id='fm-ch-polish-tip-'+Math.random().toString(36).slice(2);tip.setAttribute('role','tooltip');
+        button.setAttribute('aria-describedby',[button.getAttribute('aria-describedby'),tip.id].filter(Boolean).join(' '));document.body.append(tip);
+        if(tip.showPopover){tip.popover='manual';tip.showPopover();}
+        const position=()=>{const r=button.getBoundingClientRect(),t=tip.getBoundingClientRect();tip.style.left=Math.max(8,Math.min(root.innerWidth-t.width-8,r.left+(r.width-t.width)/2))+'px';tip.style.top=(r.top>=t.height+8 ? r.top-t.height-6 : r.bottom+6)+'px';};
+        position();root.addEventListener('resize',position);document.addEventListener('scroll',position,true);
+        const watcher=new MutationObserver(()=>{if(!editor.isConnected || !isCurrent() || identity()!==run.context)cancel(false);else position();});watcher.observe(document.body,{childList:true,subtree:true,attributes:true,attributeFilter:['hidden']});
+        run.unlock=()=>{watcher.disconnect();root.removeEventListener('resize',position);document.removeEventListener('scroll',position,true);tip.remove();for(const name of events)box.removeEventListener(name,block,true);restoreEditor();restoreButton();editor.classList.remove('fm-ch-polishing');for(const [control,disabled] of controls)control.disabled=disabled;button.removeAttribute('aria-busy');button.setAttribute('aria-label','Polish text');button.innerHTML=icon;};
+        refresh();
+      }
+      function finish(run){if(active!==run)return;active=null;run.unlock();options.onSettled?.();refresh();}
+      function cancel(focus=true){const run=active;if(!run)return;run.controller.abort();finish(run);if(focus && editor.isConnected)editor.restoreSelection();}
+      button.onclick=async()=>{
+        if(active){cancel();return;}
+        if(isBusy?.() || editor.uploadingFiles || !editor.value.trim())return;
+        const text=editor.value,version=revision,context=identity(),mentions=editor._mentionApi?.confirmedMentions?.() || editor.mentionUsers || [];
+        const run={context,controller:new AbortController(),unlock(){}};active=run;
+        try{
+          lockDraft(run);
+          const result=await options.request({text,mention_names:mentions.map(user=>user.name).filter(Boolean)},{signal:run.controller.signal});
+          if(active!==run || !isCurrent() || !editor.isConnected || identity()!==context)return;
+          finish(run); // Native insertHTML needs an editable host, and retains Undo.
+          if(revision!==version || editor.value!==text || isBusy?.()){showError(new Error('Your draft changed while polishing. Click Polish text again to polish the latest version.'));return;}
+          if(!result?.text?.trim())throw Error('Text could not be polished. Your draft is unchanged.');
+          if(result.text!==text){editor.focus();const range=document.createRange();range.selectNodeContents(editor);const selection=root.getSelection();selection.removeAllRanges();selection.addRange(range);if(!document.execCommand('insertHTML',false,renderBody({text:result.text})))throw Error('Text could not be updated. Your draft is unchanged.');editor.saveSelection();editor.dispatchEvent(new Event('input',{bubbles:true}));editor._mentionApi?.setSelectedMentions?.(mentions);}
+        }catch(error){if(!run.controller.signal.aborted && editor.isConnected && identity()===context)showError(error);}
+        finally{finish(run);}
+      };
+      row.insertBefore(button,row.querySelector(':scope>.fm-ch-more-actions,:scope>.fm-ch-send-pair,:scope>.fm-ch-send,:scope>.pn-add,:scope>[data-comment-attachments],:scope>button[type=submit]'));
+      const mention=row.querySelector(':scope>[data-mention-button]');if(mention)mention.after(button);const more=row.querySelector(':scope>.fm-ch-more-actions');if(more && (more.compareDocumentPosition(button) & Node.DOCUMENT_POSITION_FOLLOWING))button.after(more);
+      const handle={button,refresh,cancel:()=>cancel(false),get polishing(){return !!active;},destroy(){cancel(false);editor.removeEventListener('input',onInput);editor.removeEventListener('fm:formatting-change',refresh);button.remove();}};
+      editor._polishApi=handle;refresh();return handle;
+  }
+
 
   // --- popover / modal plumbing -------------------------------------------------
 
   let openPopover = null;
   function closePopover(){
     if (openPopover) {
-      openPopover.remove();
+      openPopover._anchor?.setAttribute('aria-expanded','false');openPopover.remove();
       openPopover = null;
       document.removeEventListener('mousedown', popoverOutside, true);
+      document.removeEventListener('keydown',popoverEscape,true);
     }
   }
+  function popoverEscape(event){if(event.key==='Escape' && openPopover){event.preventDefault();event.stopImmediatePropagation();const anchor=openPopover._anchor;closePopover();anchor?.focus();}}
   function popoverOutside(event){
-    if (openPopover && !openPopover.contains(event.target)) closePopover();
+    if (openPopover && !openPopover.contains(event.target) && !openPopover._anchor?.contains(event.target)) closePopover();
   }
   function showPopover(anchor, build){
+    if(openPopover?._anchor===anchor){closePopover();return null;}
+    const rect = anchor._popoverRect || anchor.getBoundingClientRect();
     closePopover();
     const pop = el('div', 'fm-ch-popover');
     build(pop);
-    document.body.appendChild(pop);
-    const rect = anchor.getBoundingClientRect();
+    (anchor.closest('dialog[open]') || document.body).appendChild(pop);
+    pop.style.margin='0';pop.style.inset='auto';
+    if(pop.showPopover){pop.setAttribute('popover','manual');pop.showPopover();}
+    else {let layer=1601;for(let node=anchor;node;node=node.parentElement){const z=parseInt(getComputedStyle(node).zIndex,10);if(Number.isFinite(z))layer=Math.max(layer,z+20);}pop.style.zIndex=Math.min(layer,2147483647);}
     const popRect = pop.getBoundingClientRect();
     let top = rect.bottom + 6;
     if (top + popRect.height > window.innerHeight - 8) top = Math.max(8, rect.top - popRect.height - 6);
     let left = Math.min(rect.left, window.innerWidth - popRect.width - 8);
     pop.style.top = `${Math.max(8, top)}px`;
     pop.style.left = `${Math.max(8, left)}px`;
-    openPopover = pop;
+    openPopover = pop;pop._anchor=anchor;anchor.setAttribute('aria-expanded','true');
+    const items=()=>[...pop.querySelectorAll('[role=menuitem]')].filter(item=>!item.disabled);
+    pop.addEventListener('keydown',event=>{if(!['ArrowDown','ArrowUp','ArrowRight','ArrowLeft','Home','End'].includes(event.key))return;const nodes=items();if(!nodes.length)return;event.preventDefault();const index=nodes.indexOf(document.activeElement),next=event.key==='Home' ? 0 : event.key==='End' ? nodes.length-1 : (index+(event.key==='ArrowUp' || event.key==='ArrowLeft' ? -1 : 1)+nodes.length)%nodes.length;nodes[next].focus();});
+    items()[0]?.focus();
+    document.addEventListener('keydown',popoverEscape,true);
     setTimeout(() => document.addEventListener('mousedown', popoverOutside, true), 0);
     return pop;
   }
@@ -1277,7 +1476,8 @@
       foot.appendChild(node);
     }
     onClose = buildBody(body, close);
-    document.body.appendChild(backdrop);
+    (previousFocus?.closest('dialog[open]') || document.body).appendChild(backdrop);
+    if(backdrop.showPopover){backdrop.setAttribute('popover','manual');Object.assign(backdrop.style,{margin:'0',border:'0',width:'100%',height:'100%',boxSizing:'border-box'});backdrop.showPopover();}
     closeBtn.focus();
     return { close, body };
   }
@@ -1712,7 +1912,7 @@
     }
 
     function applyIncomingMessage(topic, message, payload){
-      if (state.activeChannel?.separate_notes && message.metadata?.project_note === true) {
+      if (state.activeChannel?.type === "project" && message.metadata?.project_note === true) {
         projectNotesWorkspace?.refresh?.(); return;
       }
       const inThread = Boolean(message.parent_id);
@@ -1734,7 +1934,7 @@
       if (state.threadRootId && (message.parent_id === state.threadRootId || message.id === state.threadRootId)) {
         openThread(state.threadRootId, { silent: true });
       }
-      if (inThread && !state.threadRootId) {
+      if (inThread && message.parent_id !== state.threadRootId) {
         const rootIndex = state.messages.findIndex((item) => item.id === message.parent_id);
         if (rootIndex >= 0) refreshActiveMessages();
       }
@@ -3990,7 +4190,9 @@
       }
 
       if (features.threads && !inThread && message.reply_count > 0) {
-        const link = el('button', 'fm-ch-thread-link', `<i class="fas fa-comment-dots"></i> ${message.reply_count} ${message.reply_count === 1 ? 'reply' : 'replies'}`);
+        const people = (message.reply_participants || []).slice(0, 4);
+        const link = el('button', 'fm-ch-thread-link', `${people.length ? `<span class="fm-ch-reply-people" aria-hidden="true">${people.map(person => `<span title="${esc(person.name || 'Unknown')}">${avatarHtml(person, 'sm')}</span>`).join('')}</span>` : ''}<span>${message.reply_count} ${message.reply_count === 1 ? 'reply' : 'replies'}</span>${message.last_reply_at ? `<span class="fm-ch-last-reply">Last reply ${esc(fmtDateTime(message.last_reply_at))}</span>` : ''}`);
+        link.type = 'button';
         link.addEventListener('click', () => openThread(message.parent_id || message.id));
         content.appendChild(link);
       }
@@ -4312,6 +4514,7 @@
 
     // --- composer ------------------------------------------------------------------------
 
+    const gifDrafts = new Map();
     const composerState = {
       audience: [...(defaults.audience || [])],
       tags: [...(defaults.tags || [])]
@@ -4324,8 +4527,25 @@
       return Boolean(document.getElementById('fmMentionMenu')?.classList.contains('visible'));
     }
 
+    function bindEnterToSend(editor, send){
+      // Capture before rich-text list/quote handlers can consume plain Enter.
+      editor.addEventListener('keydown', event => {
+        if (event.key !== 'Enter' || event.shiftKey || event.defaultPrevented
+          || event.isComposing || event.keyCode === 229 || mentionMenuOpen()) return;
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        if (!event.repeat) send();
+      }, {capture: true});
+    }
+
+    function composerHint(){
+      const hint = el('div', 'fm-ch-composer-hint');
+      hint.textContent = globalThis.PlatformLanguage?.text('channels-ui', 'composer_new_line_hint', 'Shift+Enter for a new line') ?? 'Shift+Enter for a new line';
+      return hint;
+    }
+
     function collectMentions(text){
-      const confirmed = [...new Map([...(mentionApi?.confirmedMentions?.() || []), ...(textarea?.mentionUsers?.filter(user => text.includes(`@${user.name}`)) || [])].map(user=>[user.id || user.user_id || user.email,user])).values()];
+      const confirmed = [...new Map((mentionApi ? mentionApi.confirmedMentions() : (textarea?.mentionUsers?.filter(user => text.includes(`@${user.name}`)) || [])).map(user=>[user.id || user.user_id || user.email,user])).values()];
       if (Array.isArray(confirmed) && confirmed.length) {
         return confirmed.map((user) => ({
           id: cleanText(user.id || user.user_id),
@@ -4341,9 +4561,9 @@
       return (state.activeChannel?.members || []).map(user => user.id || user.user_id);
     }
 
-    function bindRichMentions(editor, box){
+    function bindRichMentions(editor, box, row){
       const channelId = state.activeChannel?.id;
-      mountMentionButton(editor, box, {
+      mountMentionButton(editor, box, {mount:row,
         isCurrent:()=>editor.isConnected && state.activeChannel?.id === channelId,
         candidates:async()=>[
           {id:'broadcast:channel',name:'channel',email:'Everyone in this conversation'},
@@ -4366,8 +4586,11 @@
             const data = await api.uploads.send(orgId, file, channelId);
             if (state.destroyed || state.activeChannelId !== channelId || !editor.isConnected) { chip.remove(); continue; }
             onAdd(data.attachment);
-            chip.innerHTML = `<i class="fas fa-paperclip"></i> ${esc(file.name || data.attachment.file_name || 'Clipboard file')} <button type="button" aria-label="Remove attachment">×</button>`;
-            chip.querySelector('button').onclick = () => { onRemove(data.attachment.id); chip.remove(); editor.dispatchEvent(new Event('input', {bubbles:true})); };
+            const remove=()=>{onRemove(data.attachment.id);(preview || chip).remove();editor.dispatchEvent(new Event('input',{bubbles:true}));};
+            const url=api.mediaFileUrl?.(orgId,data.attachment.media_id) || data.attachment.url || data.attachment.public_url || '';
+            const preview=String(data.attachment.content_type || file.type).startsWith('image/') ? attachmentDraft(data.attachment,{url,onRemove:remove}) : null;
+            if(preview)chip.replaceWith(preview);
+            else {chip.innerHTML = `<i class="fas fa-paperclip"></i> ${esc(file.name || data.attachment.file_name || 'Clipboard file')} <button type="button" aria-label="Remove attachment">×</button>`;chip.querySelector('button').onclick=remove;}
             editor.dispatchEvent(new Event('input', {bubbles:true}));
           } catch (error) { chip.remove(); showError(error); }
           finally { editor.uploadingFiles--; }
@@ -4377,13 +4600,6 @@
       return upload;
     }
 
-    function gifPickerButton(parentId = null){
-      const channelId = state.activeChannelId;
-      return createGifPickerButton({ orgId, onError:showError, onSend:async (selected, operationId) => {
-        const result = await api.messages.post(orgId, channelId, { text:'', metadata:{giphy:selected}, ...(parentId ? {parent_id:parentId} : {}), client_msg_id:operationId });
-        if (state.activeChannelId === channelId) applyIncomingMessage('channels.message.created', result.message, {channel_id:channelId});
-      } });
-    }
 
     function postingBlocked(){ return state.activeChannel?.can_post === false || (state.activeChannel?.settings?.posting_locked === true && !state.activeChannel?.can_manage); }
 
@@ -4402,12 +4618,19 @@
       const dictationMount = el('div', 'fm-ch-audio-mount');
       textarea = createMessageEditor(cleanText(options.composerPlaceholder)
         || (state.activeChannel.type === 'project' ? 'Add a note…' : `Message ${state.activeChannel.display_name || '#' + state.activeChannel.name}`));
-      if (features.richMessages) box.appendChild(messageFormatBar(textarea));
-      box.appendChild(textarea);
-      bindRichMentions(textarea, box);
+      const composerInput=textarea;
+      if (features.richMessages) box.appendChild(messageFormatBar(composerInput));
+      box.appendChild(composerInput);
+
 
       const row = el('div', 'fm-ch-composer-row');
+      const recordingActions=[];
       const pendingWrap = el('div', 'fm-ch-pending-files');
+      const channelId=state.activeChannelId, gifPreview=el('div');
+      let schedule;
+      const paintGif=()=>{renderGifDraft(gifPreview,gifDrafts.get(channelId),()=>{if(send.disabled)return;gifDrafts.delete(channelId);paintGif();});if(schedule)schedule.disabled=!!gifDrafts.get(channelId);};
+      const gifButton=createGifPickerButton({orgId,onError:showError,onSelect:selected=>{if(!box.isConnected)return;if(send.disabled)throw Error('Wait for the message to finish sending.');gifDrafts.set(channelId,selected);paintGif();}});
+      paintGif();
 
       // audience chips (project surfaces)
       if (features.audienceSelector && state.activeChannel.type === 'project') {
@@ -4438,22 +4661,24 @@
 
       const emojiBtn = el('button', 'fm-ch-icon-btn', '<i class="fas fa-face-smile"></i>');
       emojiBtn.title = (globalThis.PlatformLanguage?.text("channels-ui","m_1832447bbc385c","Insert emoji") ?? "Insert emoji");
+      emojiBtn.setAttribute('aria-label',emojiBtn.title);
       emojiBtn.addEventListener('click', () => openEmojiPicker(emojiBtn, (emoji) => {
-        textarea.insertText(emoji);
-        textarea.focus();
+        composerInput.insertText(emoji);
+        composerInput.focus();
       }));
       row.appendChild(emojiBtn);
-      if(features.attachments)row.append(gifPickerButton());
+      if(features.attachments)row.append(gifButton);
 
       if (features.attachments) {
         const fileBtn = el('button', 'fm-ch-icon-btn', '<i class="fas fa-paperclip"></i>');
         fileBtn.title = (globalThis.PlatformLanguage?.text("channels-ui","m_281fbe3da74b11","Attach a file") ?? "Attach a file");
+        fileBtn.setAttribute('aria-label',fileBtn.title);
         const fileInput = document.createElement('input');
         fileInput.type = 'file';
         fileInput.multiple = true;
         fileInput.style.display = 'none';
         fileBtn.addEventListener('click', () => fileInput.click());
-        const upload = composerFileUploads(textarea, pendingWrap,
+        const upload = composerFileUploads(composerInput, pendingWrap,
           attachment => state.pendingAttachments.push(attachment),
           id => { state.pendingAttachments = state.pendingAttachments.filter(item => item.id !== id); });
         fileInput.addEventListener('change', async () => { await upload([...fileInput.files || []]); fileInput.value = ''; });
@@ -4479,7 +4704,7 @@
           button.title=control?(button===dictateBtn?'Finish dictation':'Finish recording'):(button===dictateBtn?'Dictate message':'Record an audio note');
           button.setAttribute('aria-label',button.title);
         };
-        const voiceEditor = textarea;
+        const voiceEditor = composerInput;
         dictateBtn.addEventListener('click', async () => {
           if (capturing) { if(captureMode==='dictation') recorderControl?.stop(); return; }
           captureMode='dictation';
@@ -4488,7 +4713,7 @@
           const channelId = state.activeChannelId;
           try {
             const prepared = await root.FirstMateAudioNotes.prepareInline(orgId, channelId, { mount:dictationMount, mode:'dictation', onRecordingState:recordingState(dictateBtn) });
-            if (state.activeChannelId !== channelId || textarea !== voiceEditor || !voiceEditor.isConnected) return;
+            if (state.activeChannelId !== channelId || composerInput !== voiceEditor || !voiceEditor.isConnected) return;
             voiceEditor.value = [voiceEditor.value, prepared.text].filter(Boolean).join(' ');
             voiceEditor.dispatchEvent(new Event('input', { bubbles:true }));
             voiceEditor.focus();
@@ -4524,7 +4749,7 @@
               onRecordingState:recordingState(audioBtn),
               onRemove:removeAudio
             });
-            if (state.activeChannelId !== channelId || textarea !== voiceEditor || !voiceEditor.isConnected) return;
+            if (state.activeChannelId !== channelId || composerInput !== voiceEditor || !voiceEditor.isConnected) return;
             attachmentId = prepared.attachment.id;
             state.pendingAudioNote = prepared.metadata;
             state.pendingAttachments.push(prepared.attachment);
@@ -4540,7 +4765,7 @@
             dictateBtn.disabled = false;
           }
         });
-        row.append(dictateBtn, audioBtn);
+        row.append(dictateBtn);recordingActions.push(audioBtn);
       }
 
       if (features.clips && features.attachments && root.MediaRecorder && navigator.mediaDevices) {
@@ -4560,32 +4785,35 @@
         screenClip.title = (globalThis.PlatformLanguage?.text("channels-ui","m_be0922566fcacc","Record screen clip") ?? "Record screen clip");
         screenClip.setAttribute('aria-label', screenClip.title);
         screenClip.addEventListener('click', () => prepareScreenClip(addClipAttachment));
-        row.append(videoClip, screenClip);
+        videoClip.type=screenClip.type='button';videoClip.setAttribute('aria-label',videoClip.title);
+        recordingActions.push(videoClip,screenClip);
       }
 
-      const schedule = features.richMessages ? el('button', 'fm-ch-icon-btn', '<i class="fas fa-clock"></i>') : null;
+      bindRichMentions(composerInput,box,row);moreActions(row,recordingActions);
+      schedule = features.richMessages ? el('button', 'fm-ch-icon-btn', '<i class="fas fa-clock"></i>') : null;
       if (schedule) {
         schedule.title = (globalThis.PlatformLanguage?.text("channels-ui","m_dc866baaa05168","Schedule message") ?? "Schedule message");
         schedule.setAttribute('aria-label', (globalThis.PlatformLanguage?.text("channels-ui","m_dc866baaa05168","Schedule message") ?? "Schedule message"));
       }
-      const send = el('button', 'fm-ch-send', 'Send');
+      const send = composerSendButton('Send');
       send.type = 'button';
       const sendPair = el('div', 'fm-ch-send-pair');
-      if (schedule) sendPair.appendChild(schedule);
       sendPair.appendChild(send);
+      if (schedule) sendPair.appendChild(schedule);
       row.appendChild(sendPair);
-      box.appendChild(row);
-      composer.append(editNote, box, dictationMount, audioMount, pendingWrap);
+      box.append(pendingWrap,gifPreview,row);
+      composer.append(editNote, box, composerHint(), dictationMount, audioMount);
+      paintGif();
 
       const autosize = () => {
-        textarea.style.height = 'auto';
-        textarea.style.height = `${Math.min(180, textarea.scrollHeight)}px`;
+        composerInput.style.height = 'auto';
+        composerInput.style.height = `${Math.min(180, composerInput.scrollHeight)}px`;
       };
-      textarea.addEventListener('input', autosize);
+      composerInput.addEventListener('input', autosize);
       const draftKey = `channel:${state.activeChannelId}`;
       const saveDraft = debounce(() => {
         if (state.editingMessageId) return;
-        const value = textarea.value;
+        const value = composerInput.value;
         if (!value.trim() && !state.pendingAttachments.length) {
           api.drafts?.remove?.(orgId, draftKey).catch(() => {});
           return;
@@ -4597,10 +4825,10 @@
           attachment_ids:state.pendingAttachments.map((attachment) => attachment.id)
         }).catch(() => {});
       }, 450);
-      if (features.richMessages) textarea.addEventListener('input', saveDraft);
+      if (features.richMessages) composerInput.addEventListener('input', saveDraft);
       if (features.richMessages) api.drafts?.get?.(orgId, draftKey).then((data) => {
-        if (!textarea.value && data?.draft?.text && state.activeChannelId === data.draft.channel_id) {
-          textarea.value = data.draft.text;
+        if (!composerInput.value && data?.draft?.text && state.activeChannelId === data.draft.channel_id) {
+          composerInput.value = data.draft.text;
           autosize();
         }
       }).catch(() => {});
@@ -4610,18 +4838,21 @@
       mentionApi = null;
       try {
         if (root.FirstMateTags?.attachMentionTextarea) {
-          mentionApi = root.FirstMateTags.attachMentionTextarea(textarea, { orgId, source: 'channels', memberIds: conversationMemberIds, onSelect:user=>{if (!textarea.mentionUsers.some(item=>item.id===user.id)) textarea.mentionUsers.push(user);} }) || null;
-          textarea._mentionApi = mentionApi;
+          mentionApi = root.FirstMateTags.attachMentionTextarea(composerInput, { orgId, source: 'channels', memberIds: conversationMemberIds, onSelect:user=>{if (!composerInput.mentionUsers.some(item=>item.id===user.id)) composerInput.mentionUsers.push(user);} }) || null;
+          composerInput._mentionApi = mentionApi;
         }
       } catch (error) {}
 
-      bindTyping(textarea);
+      bindTyping(composerInput);
+      mountPolishButton(composerInput,row,()=>state.activeChannelId+':'+state.editingMessageId,()=>send.disabled || !!box.querySelector('.voice-active'));
 
       const doSend = async () => {
+        if(send.disabled)return;
         if (postingBlocked()) return showError(new Error('Only channel managers can post here.'));
-        if (textarea.uploadingFiles) return showError(new Error('Wait for attachments to finish uploading.'));
-        const text = textarea.value.trim();
-        if (!text && !state.pendingAttachments.length) return;
+        if (composerInput.uploadingFiles) return showError(new Error('Wait for attachments to finish uploading.'));
+        const text = composerInput.value.trim();
+        if (!text && !state.pendingAttachments.length && (state.editingMessageId || !gifDrafts.get(channelId))) return;
+        const selectedGif=gifDrafts.get(channelId);
         const wasEditing=Boolean(state.editingMessageId && !state.editingThread);
         send.disabled = true;
         try {
@@ -4635,41 +4866,75 @@
             cancelEdit();
           } else {
             const clientMsgId = `c_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
-            const data = await api.messages.post(orgId, state.activeChannelId, {
+            const data = await api.messages.post(orgId, channelId, {
               text,
               content:{ type:'doc', blocks:[{ type:'paragraph', text:text || '' }] },
               content_schema_version:1,
               client_msg_id: clientMsgId,
               mention_users: collectMentions(text),
               attachment_ids: state.pendingAttachments.map((attachment) => attachment.id),
-              ...(state.pendingAudioNote ? { metadata:{ audio_note:state.pendingAudioNote } } : {}),
+              metadata:{...(state.pendingAudioNote?{audio_note:state.pendingAudioNote}:{}),...(selectedGif?{giphy:selectedGif}:{})},
               ...(features.audienceSelector && state.activeChannel.type === 'project' ? { audience: composerState.audience } : {}),
               ...(composerState.tags.length ? { tags: composerState.tags } : {})
             });
+            if(gifDrafts.get(channelId)===selectedGif)gifDrafts.delete(channelId);
+            if(!box.isConnected || state.activeChannelId!==channelId){if(features.richMessages)api.drafts?.remove?.(orgId,draftKey).catch(()=>{});return;}
             if (!state.messages.some((item) => item.id === data.message.id)) state.messages.push(data.message);
             state.pendingAttachments = [];
             state.pendingAudioNote = null;
+            paintGif();
             audioMount.innerHTML = '';
             pendingWrap.innerHTML = '';
             if (features.richMessages) api.drafts?.remove?.(orgId, draftKey).catch(() => {});
             renderMessages();
             scheduleMarkRead();
           }
-          stopTyping(); if(!wasEditing)textarea.value = '';
+          stopTyping(); if(!wasEditing)composerInput.value = '';
           autosize();
-          mentionApi?.setSelectedMentions?.([]);
+          composerInput.mentionUsers=[];mentionApi?.setSelectedMentions?.([]);
         } catch (error) {
           showError(error);
         } finally {
           send.disabled = false;
-          textarea.focus();
+          composerInput.focus();
         }
       };
       send.addEventListener('click', doSend);
-      schedule?.addEventListener('click', async () => {
-        if (textarea.uploadingFiles) return showError(new Error('Wait for attachments to finish uploading.'));
-        const text = textarea.value.trim();
-        if (!text && !state.pendingAttachments.length) return;
+      schedule?.addEventListener('click', () => {
+        if(schedule.disabled || gifDrafts.has(channelId))return;
+        const validateDraft=()=>{if(composerInput.uploadingFiles)throw new Error('Wait for attachments to finish uploading.');if(gifDrafts.has(channelId))throw new Error('GIF messages cannot be scheduled.');return composerInput.value.trim();};
+        try{if(!validateDraft() && !state.pendingAttachments.length)return;}catch(error){showError(error);return;}
+        let scheduling=false;
+        const saveSchedule=async(date,close)=>{
+          if(scheduling)return;
+          scheduling=true;schedule.disabled=true;send.disabled=true;
+          try {
+            const text=validateDraft();
+            if(!text && !state.pendingAttachments.length)throw new Error('Write a message or add an attachment.');
+            if (!Number.isFinite(date.getTime()) || date.getTime() <= Date.now()) throw new Error('Choose a future date and time.');
+            const scheduledResult = await api.scheduled.create(orgId, {
+              channel_id:channelId,
+              text,
+              content:{ type:'doc', blocks:[{ type:'paragraph', text }] },
+              attachment_ids:state.pendingAttachments.map((attachment) => attachment.id),
+              scheduled_at:date.toISOString(),
+              timezone:Intl.DateTimeFormat(globalThis.PlatformLanguage?.formatLocale?.()).resolvedOptions().timeZone || 'UTC',
+              client_operation_id:`schedule_${Date.now().toString(36)}`
+            });
+            if(state.destroyed || state.activeChannelId!==channelId || !composerInput.isConnected){close();return;}
+            if (scheduledResult.scheduled_message) { state.scheduledMessages.push(scheduledResult.scheduled_message); renderMessages(); }
+            composerInput.value = '';autosize();
+            state.pendingAttachments = [];
+            pendingWrap.innerHTML = '';
+            api.drafts?.remove?.(orgId, draftKey).catch(() => {});
+            close();
+            await refreshScheduledMessages();
+            root.Portal?.ui?.showToast?.((globalThis.PlatformLanguage?.text("channels-ui","m_adcf3157ee531f","Message scheduled") ?? "Message scheduled"), ((v0) => globalThis.PlatformLanguage?.text("channels-ui","m_030b85747ce9b2",`It will send ${v0}.`,{v0}) ?? `It will send ${v0}.`)(date.toLocaleString(globalThis.PlatformLanguage?.formatLocale?.())), true);
+          } catch (error) { showError(error); }
+          finally{scheduling=false;schedule.disabled=gifDrafts.has(channelId);send.disabled=false;}
+
+        };
+        const customTime=async()=>{
         if (!root.FirstMateDateTimePicker?.mount) {
           try { await new Promise((resolve,reject)=>{const script=document.createElement('script');script.src='/libraries/date-time-picker/date-time-picker.js?v=20260929-inline';script.onload=resolve;script.onerror=reject;document.head.append(script);}); }
           catch (_) { showError(new Error('The scheduling calendar could not load. Please try again.')); return; }
@@ -4684,42 +4949,18 @@
           body.querySelector('input').min=new Date(earliest.getTime()-earliest.getTimezoneOffset()*60_000).toISOString().slice(0,16);
           inlinePicker=root.FirstMateDateTimePicker.mount(body.querySelector('[data-schedule-calendar]'),body.querySelector('input'));
           return ()=>inlinePicker?.destroy();
-        }, [{ label:'Schedule send', primary:true, onClick:async (close, body) => {
-          try {
-            const date = new Date(inlinePicker?.readValue() || '');
-            if (!Number.isFinite(date.getTime()) || date.getTime() <= Date.now()) throw new Error('Choose a future date and time.');
-            const scheduledResult = await api.scheduled.create(orgId, {
-              channel_id:state.activeChannelId,
-              text,
-              content:{ type:'doc', blocks:[{ type:'paragraph', text }] },
-              attachment_ids:state.pendingAttachments.map((attachment) => attachment.id),
-              scheduled_at:date.toISOString(),
-              timezone:Intl.DateTimeFormat(globalThis.PlatformLanguage?.formatLocale?.()).resolvedOptions().timeZone || 'UTC',
-              client_operation_id:`schedule_${Date.now().toString(36)}`
-            });
-            if (scheduledResult.scheduled_message) { state.scheduledMessages.push(scheduledResult.scheduled_message); renderMessages(); }
-            textarea.value = '';
-            state.pendingAttachments = [];
-            pendingWrap.innerHTML = '';
-            api.drafts?.remove?.(orgId, draftKey).catch(() => {});
-            close();
-            await refreshScheduledMessages();
-            root.Portal?.ui?.showToast?.((globalThis.PlatformLanguage?.text("channels-ui","m_adcf3157ee531f","Message scheduled") ?? "Message scheduled"), ((v0) => globalThis.PlatformLanguage?.text("channels-ui","m_030b85747ce9b2",`It will send ${v0}.`,{v0}) ?? `It will send ${v0}.`)(date.toLocaleString(globalThis.PlatformLanguage?.formatLocale?.())), true);
-          } catch (error) { showError(error); }
-        } }]);
+        }, [{label:'Schedule send',primary:true,onClick:(close)=>saveSchedule(new Date(inlinePicker?.readValue() || ''),close)}]);
+        };
+        showPopover(schedule,pop=>{
+          const menu=el('div','fm-ch-schedule-menu');menu.setAttribute('role','menu');menu.append(el('header','','Schedule message'));
+          for(const [label,days] of [['Tomorrow at 9:00 AM',1],['Next Monday at 9:00 AM',null]]){
+            const button=el('button','',label);button.type='button';button.setAttribute('role','menuitem');button.onclick=async()=>{if(scheduling)return;const date=new Date();date.setDate(date.getDate()+(days ?? ((1-date.getDay()+7)%7 || 7)));date.setHours(9,0,0,0);button.disabled=true;await saveSchedule(date,closePopover);if(button.isConnected)button.disabled=false;};menu.append(button);
+          }
+          menu.append(el('hr'));const custom=el('button','','Custom time');custom.type='button';custom.setAttribute('role','menuitem');custom.onclick=()=>{closePopover();customTime();};menu.append(custom);pop.append(menu);
+        });
       });
-      textarea.addEventListener('keydown', (event) => {
-        const modifiedSend = state.collaborationPreferences.send_mode === 'modified_enter';
-        const sendKey = event.key === 'Enter'
-          && !event.defaultPrevented
-          && !event.shiftKey
-          && !event.isComposing
-          && !mentionMenuOpen()
-          && (modifiedSend ? (event.ctrlKey || event.metaKey) : !(event.ctrlKey || event.metaKey));
-        if (sendKey) {
-          event.preventDefault();
-          doSend();
-        }
+      bindEnterToSend(composerInput, doSend);
+      composerInput.addEventListener('keydown', (event) => {
         if (event.key === 'Escape' && state.editingMessageId) cancelEdit();
       });
 
@@ -4727,25 +4968,25 @@
       function cancelEdit(){
         state.editingMessageId = '';
         editNote.style.display = 'none';
-        textarea.value = draftBeforeEdit ?? '';
-        draftBeforeEdit=null;send.textContent='Send';if(schedule)schedule.hidden=false;
+        composerInput.value = draftBeforeEdit ?? '';
+        draftBeforeEdit=null;labelComposerSend(send,'Send');if(schedule)schedule.hidden=false;gifButton.disabled=false;gifPreview.hidden=false;
         autosize();
       }
 
       composer._startEdit = (message) => {
-        if(!state.editingMessageId)draftBeforeEdit=textarea.value;
+        if(!state.editingMessageId)draftBeforeEdit=composerInput.value;
         state.editingMessageId = message.id;
         state.editingThread = false;
         editNote.style.display = 'flex';
         editNote.innerHTML = `<span>${(globalThis.PlatformLanguage?.htmlText("channels-ui","m_6a6c0d2dcfcb47","Editing message") ?? "Editing message")}</span><button>${(globalThis.PlatformLanguage?.htmlText("channels-ui","m_cbef679b21abb4","Cancel") ?? "Cancel")}</button>`;
         editNote.querySelector('button').addEventListener('click', cancelEdit);
-        textarea.value = message.text;
-        textarea.mentionUsers = [...(message.mention_users || [])];
-        mentionApi?.setSelectedMentions?.(textarea.mentionUsers);
-        send.textContent='Save changes';if(schedule)schedule.hidden=true;
+        composerInput.value = message.text;
+        composerInput.mentionUsers = [...(message.mention_users || []),...(message.metadata?.mention_broadcasts || []).map(name=>({id:'broadcast:'+name,name}))];
+        mentionApi?.setSelectedMentions?.(composerInput.mentionUsers);
+        labelComposerSend(send,'Save changes');if(schedule)schedule.hidden=true;gifButton.disabled=true;gifPreview.hidden=true;
         composerState.audience = [...(message.audience || [])];
         autosize();
-        textarea.focus();
+        composerInput.focus();
       };
     }
 
@@ -4766,6 +5007,11 @@
         const preserveComposer = silent && !resetComposer && state.threadRootId === rootId;
         state.threadRootId = rootId;
         state.thread = { root: data.root, replies: data.replies || [] };
+        const rootIndex = state.messages.findIndex(message => message.id === rootId);
+        if (rootIndex >= 0) {
+          state.messages[rootIndex] = data.root;
+          renderMessages();
+        }
         renderPanel({ scrollToEnd: !silent, preserveComposer });
         const lastReplySeq = Math.max(0, ...(state.thread.replies || []).map((reply) => Number(reply.seq) || 0));
         api.threads.markRead?.(orgId, rootId, lastReplySeq).catch(() => {});
@@ -4862,28 +5108,66 @@
       panel.innerHTML = '';
     }
 
+    function mountPolishButton(editor,row,identity,isBusy){
+      if(!features.ai || !api.compose?.polish)return;
+      return mountDraftPolish(editor,row,{identity,isBusy,isCurrent:()=>!state.destroyed,onError:showError,lockRoot:editor.closest('.fm-ch-composer-box'),request:(input,options)=>api.compose.polish(orgId,state.activeChannelId,input,options)});
+    }
+
     function buildThreadComposer(node){
       if (postingBlocked()) { node.append(el('div','fm-ch-empty','Only channel managers can reply here. You can still react to messages.')); return; }
+      const channelId=state.activeChannelId, rootId=state.threadRootId;
       const box = el('div', 'fm-ch-composer-box');
       const threadInput = createMessageEditor('Reply…');
       bindTyping(threadInput);
       const threadFiles = [];
+      let threadGif=null,threadAudioNote=null,threadCapturing=false,threadCaptureMode='',threadControl=null,editingId='';
+      const threadCurrent=()=>node.isConnected && !state.destroyed && state.activeChannelId===channelId && state.threadRootId===rootId;
+      const audioMount=el('div','fm-ch-audio-mount'),dictationMount=el('div','fm-ch-audio-mount');
+      const removeThreadFile=id=>{const index=threadFiles.findIndex(file=>file.id===id);if(index>=0)threadFiles.splice(index,1);};
+      const gifPreview=el('div');
+      const paintGif=()=>renderGifDraft(gifPreview,threadGif,()=>{if(send.disabled)return;threadGif=null;paintGif();});
+      const gifButton=createGifPickerButton({orgId,onError:showError,onSelect:selected=>{if(!node.isConnected)return;if(send.disabled)throw Error('Wait for the reply to finish sending.');threadGif=selected;paintGif();}});
       const pendingWrap = el('div', 'fm-ch-pending-files');
-      composerFileUploads(threadInput, pendingWrap, attachment => threadFiles.push(attachment), id => { const i = threadFiles.findIndex(item => item.id === id); if (i >= 0) threadFiles.splice(i, 1); });
+      const uploadThreadFiles=composerFileUploads(threadInput,pendingWrap,attachment=>threadFiles.push(attachment),removeThreadFile);
       if (features.richMessages) box.appendChild(messageFormatBar(threadInput));
       box.appendChild(threadInput);
-      bindRichMentions(threadInput, box);
+
       const row = el('div', 'fm-ch-composer-row');
-      const send = el('button', 'fm-ch-send', 'Reply');
+      const send = composerSendButton('Reply');
       send.type = 'button';
       const broadcastLabel = el('label', 'fm-ch-reply-broadcast');
       const broadcast = document.createElement('input');
       broadcast.type = 'checkbox';
       broadcastLabel.append(broadcast, document.createTextNode('Also send to channel'));
-      row.append(broadcastLabel, send);
-      if(features.attachments)row.prepend(gifPickerButton(state.threadRootId));
-      box.appendChild(row);
-      node.append(pendingWrap, box);
+      box.append(pendingWrap,gifPreview,broadcastLabel);
+      const tool=(label,html)=>{const button=el('button','fm-ch-icon-btn',html);button.type='button';button.title=label;button.setAttribute('aria-label',label);return button;};
+      const emoji=tool('Insert emoji','<i class="fas fa-face-smile" aria-hidden="true"></i>');emoji.onmousedown=()=>threadInput.saveSelection();emoji.onclick=()=>openEmojiPicker(emoji,value=>{threadInput.insertText(value);threadInput.focus();});row.append(emoji);
+      const uploadControls=[],recordingActions=[];
+      if(features.attachments){
+        row.append(gifButton);const attach=tool('Attach a file','<i class="fas fa-paperclip" aria-hidden="true"></i>'),input=el('input');input.type='file';input.multiple=true;input.hidden=true;attach.onclick=()=>input.click();input.onchange=async()=>{await uploadThreadFiles([...input.files || []]);input.value='';};row.append(attach,input);uploadControls.push(attach);
+      }
+      if(features.audioNotes && root.FirstMateAudioNotes?.prepareInline){
+        const icon=mode=>'<span class="fm-voice-icon" aria-hidden="true" style="display:inline-block;width:18px;height:18px;background:currentColor;mask:url(/libraries/voice-icons/'+mode+'.svg) center/contain no-repeat;-webkit-mask:url(/libraries/voice-icons/'+mode+'.svg) center/contain no-repeat"></span>';
+        const dictate=tool('Dictate message',icon('dictation')),audio=tool('Record an audio note',icon('record'));audio.dataset.voiceMode='record';dictate.dataset.voiceMode='dictation';row.append(dictate);recordingActions.push(audio);uploadControls.push(audio);
+        for(const [mode,button,mount] of [['dictation',dictate,dictationMount],['record',audio,audioMount]])button.onclick=async()=>{
+          if(threadCapturing){if(threadCaptureMode===mode)threadControl?.stop();return;}
+          if(send.disabled || (mode==='record' && (editingId || threadAudioNote)))return;
+          threadCapturing=true;threadCaptureMode=mode;dictate.disabled=audio.disabled=true;let audioId='';
+          try{
+            const prepared=await root.FirstMateAudioNotes.prepareInline(orgId,channelId,{mount,mode,onRecordingState:control=>{if(!threadCurrent()){control?.stop();return;}threadControl=control;button.classList.toggle('voice-active',!!control);button.disabled=!control;button.setAttribute('aria-pressed',String(!!control));button.title=control ? (mode==='record'?'Finish recording':'Finish dictation') : (mode==='record'?'Record an audio note':'Dictate message');button.setAttribute('aria-label',button.title);},onRemove:()=>{removeThreadFile(audioId);threadAudioNote=null;audio.disabled=!!editingId;}});
+            if(!threadCurrent())return;
+            if(mode==='dictation'){threadInput.value=[threadInput.value,prepared.text].filter(Boolean).join(' ');threadInput.dispatchEvent(new Event('input',{bubbles:true}));threadInput.focus();}
+            else{audioId=prepared.attachment.id;threadFiles.push(prepared.attachment);threadAudioNote=prepared.metadata;}
+          }catch(error){if(!String(error?.message || '').toLowerCase().includes('cancelled'))showError(error);}
+          finally{threadCapturing=false;threadControl=null;for(const [b,label] of [[dictate,'Dictate message'],[audio,'Record an audio note']]){b.classList.remove('voice-active');b.setAttribute('aria-pressed','false');b.title=label;b.setAttribute('aria-label',label);}dictate.disabled=false;audio.disabled=!!editingId || !!threadAudioNote;}
+        };
+        const watcher=new MutationObserver(()=>{if(!node.isConnected){threadControl?.stop();watcher.disconnect();}});watcher.observe(container,{childList:true,subtree:true});
+      }
+      if(features.clips && features.attachments && root.MediaRecorder && navigator.mediaDevices){
+        const addClip=attachment=>{if(!threadCurrent())return;threadFiles.push(attachment);const chip=el('span','fm-ch-chip','<i class="fas fa-video" aria-hidden="true"></i> '+esc(attachment.file_name || 'Clip')+' <button type="button" aria-label="Remove attachment">×</button>');chip.querySelector('button').onclick=()=>{removeThreadFile(attachment.id);chip.remove();};pendingWrap.append(chip);};
+        const video=tool('Record video clip','<i class="fas fa-video" aria-hidden="true"></i>'),screen=tool('Record screen clip','<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>');video.onclick=()=>recordClip('camera',addClip).catch(showError);screen.onclick=()=>prepareScreenClip(addClip);recordingActions.push(video,screen);uploadControls.push(video,screen);
+      }
+      bindRichMentions(threadInput,box,row);moreActions(row,recordingActions);row.append(send);box.append(row);node.append(box,composerHint(),dictationMount,audioMount);
       let threadMentionApi = null;
       try {
         if (root.FirstMateTags?.attachMentionTextarea) {
@@ -4891,38 +5175,42 @@
           threadInput._mentionApi = threadMentionApi;
         }
       } catch (error) {}
+      mountPolishButton(threadInput,row,()=>state.activeChannelId+':'+state.threadRootId+':'+editingId,()=>send.disabled || threadCapturing);
       const editNote = el('div', 'fm-ch-edit-note');
       editNote.style.display = 'none';
       node.prepend(editNote);
-      let editingId = '';
       const doSend = async () => {
         if (send.disabled) return;
+        if(threadCapturing)return showError(new Error('Finish recording before sending your reply.'));
         const text = threadInput.value.trim();
         if (threadInput.uploadingFiles) return showError(new Error('Wait for attachments to finish uploading.'));
-        if (!text && !threadFiles.length) return;
+        if (!text && !threadFiles.length && (editingId || !threadGif)) return;
         send.disabled = true;
         try {
-          const mentions = [...new Map([...(threadMentionApi?.confirmedMentions?.() || []), ...threadInput.mentionUsers.filter(user => text.includes(`@${user.name}`))].map(user=>[user.id || user.user_id || user.email,user])).values()];
+          const mentions = [...new Map((threadMentionApi ? threadMentionApi.confirmedMentions() : threadInput.mentionUsers.filter(user => text.includes(`@${user.name}`))).map(user=>[user.id || user.user_id || user.email,user])).values()];
           if (editingId) {
             const data = await api.messages.edit(orgId, editingId, { text, mention_users: mentions });
             replaceMessage(data.message);
             editingId = '';
             editNote.style.display = 'none';
-            broadcastLabel.hidden = false;
+            broadcastLabel.hidden = false;gifButton.disabled=false;gifPreview.hidden=false;
           } else {
-            await api.messages.post(orgId, state.activeChannelId, {
+            await api.messages.post(orgId, channelId, {
               text,
-              parent_id: state.threadRootId,
+              parent_id: rootId,
               reply_broadcast: broadcast.checked,
+              metadata:{...(threadGif?{giphy:threadGif}:{}),...(threadAudioNote?{audio_note:threadAudioNote}:{})},
               attachment_ids: threadFiles.map(file => file.id),
               client_msg_id: `c_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`,
               mention_users: mentions
             });
-            await openThread(state.threadRootId, { silent: true, resetComposer: true });
+            threadGif=null;threadAudioNote=null;audioMount.replaceChildren();paintGif();threadFiles.length=0;pendingWrap.replaceChildren();threadInput.value='';
+            if(!node.isConnected || state.activeChannelId!==channelId || state.threadRootId!==rootId)return;
+            await openThread(rootId, { silent: true, resetComposer: true });
             await refreshActiveMessages();
           }
           stopTyping(); threadInput.value = '';
-          threadMentionApi?.setSelectedMentions?.([]);
+          threadInput.mentionUsers=[];threadMentionApi?.setSelectedMentions?.([]);
         } catch (error) {
           showError(error);
         } finally {
@@ -4930,32 +5218,20 @@
         }
       };
       send.addEventListener('click', doSend);
-      threadInput.addEventListener('keydown', (event) => {
-        const modifiedSend = state.collaborationPreferences.send_mode === 'modified_enter';
-        const sendKey = event.key === 'Enter'
-          && !event.defaultPrevented
-          && !event.shiftKey
-          && !event.isComposing
-          && !mentionMenuOpen()
-          && (modifiedSend ? (event.ctrlKey || event.metaKey) : !(event.ctrlKey || event.metaKey));
-        if (sendKey) {
-          event.preventDefault();
-          doSend();
-        }
-      });
+      bindEnterToSend(threadInput, doSend);
       panel._startEdit = (message) => {
-        editingId = message.id;
+        editingId = message.id;gifButton.disabled=true;gifPreview.hidden=true;uploadControls.forEach(button=>button.disabled=true);
         broadcastLabel.hidden = true;
         editNote.style.display = 'flex';
         editNote.innerHTML = `<span>${(globalThis.PlatformLanguage?.htmlText("channels-ui","m_34e633033239eb","Editing reply") ?? "Editing reply")}</span><button>${(globalThis.PlatformLanguage?.htmlText("channels-ui","m_cbef679b21abb4","Cancel") ?? "Cancel")}</button>`;
         editNote.querySelector('button').addEventListener('click', () => {
-          editingId = '';
+          editingId = '';gifButton.disabled=false;gifPreview.hidden=false;uploadControls.forEach(button=>button.disabled=button.dataset.voiceMode==='record' && !!threadAudioNote);
           broadcastLabel.hidden = false;
           editNote.style.display = 'none';
           threadInput.value = '';
         });
         threadInput.value = message.text;
-        threadInput.mentionUsers = [...(message.mention_users || [])];
+        threadInput.mentionUsers = [...(message.mention_users || []),...(message.metadata?.mention_broadcasts || []).map(name=>({id:'broadcast:'+name,name}))];
         threadMentionApi?.setSelectedMentions?.(threadInput.mentionUsers);
         threadInput.focus();
       };
@@ -6094,6 +6370,6 @@
     return title;
   }
 
-  const composerWidgets={createEditor:(placeholder)=>{ensureStyles();return createMessageEditor(placeholder);},formatBar:(editor)=>{ensureStyles();return messageFormatBar(editor);},mentionButton:mountMentionButton,renderBody};
+  const composerWidgets={polishButton:mountDraftPolish,renderGifDraft,renderGifCard:gif=>{ensureStyles();return gifMessageCard(gif)?.outerHTML || '';},createEditor:(placeholder)=>{ensureStyles();return createMessageEditor(placeholder);},formatBar:(editor,commands)=>{ensureStyles();return messageFormatBar(editor,false,commands);},mentionButton:mountMentionButton,moreActions,attachmentDraft,renderBody:(message)=>{ensureStyles();return renderBody(message);}};
   root.FirstMateChannels = { create, createChannelTitle, openChannelProject, createGifPickerButton, mountEmojiPicker, mountLinkInput, composerWidgets, DEFAULT_FEATURES };
 })();

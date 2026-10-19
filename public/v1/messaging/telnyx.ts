@@ -85,14 +85,14 @@ export class TelnyxClient {
     return Boolean(this.apiKey);
   }
 
-  async request(path: string, init: RequestInit = {}) {
+  async request(path: string, init: RequestInit = {}, format: "json" | "pdf" = "json") {
     if (!this.apiKey) {
       throw new TelnyxError("TELNYX_API_KEY is not configured.", 500, { code: "missing_telnyx_api_key" });
     }
     const url = `${this.baseUrl}${path.startsWith("/") ? path : `/${path}`}`;
     const headers = new Headers(init.headers);
     headers.set("Authorization", `Bearer ${this.apiKey}`);
-    headers.set("Accept", "application/json");
+    headers.set("Accept", format === "pdf" ? "application/pdf" : "application/json");
     if (init.body != null && !headers.has("Content-Type")) {
       headers.set("Content-Type", "application/json");
     }
@@ -108,6 +108,12 @@ export class TelnyxClient {
         502,
         { code: timedOut ? "telnyx_timeout" : "telnyx_network_error", message: error instanceof Error ? error.message : String(error), submission_unknown: init.method?.toUpperCase() === "POST" }
       );
+    }
+    if (response.ok && format === "pdf") {
+      if (!response.headers.get("content-type")?.includes("application/pdf")) throw new TelnyxError("Expected an authorization PDF.",502);
+      const file=Buffer.from(await response.arrayBuffer());
+      if(file.length>10*1024*1024 || file.subarray(0,5).toString()!=="%PDF-")throw new TelnyxError("Invalid authorization PDF.",502);
+      return file;
     }
     const text = await response.text();
     let payload: unknown = null;

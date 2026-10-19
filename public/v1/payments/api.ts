@@ -89,10 +89,15 @@ import {
   deleteSavedMethod,
   listSavedMethods,
   paymentIntakeConfig,
+  checkoutStatusView,
+  prepareCheckout,
+  providerFailure,
   recordProviderChargedPayment,
   surchargeQuote,
   tokenizePaymentMethod
 } from "./intake.js";
+import { refundPaymentWithProvider } from "./provider_refunds.js";
+import { mockProviderAllowed, paymentsReadiness, requirePaymentsReady } from "./readiness.js";
 import { registerForwardWebhooks } from "./webhooks_forward.js";
 import {
   getProjectAutopay,
@@ -182,7 +187,8 @@ export const registerPaymentsApi: FastifyPluginAsync = async (app) => {
   // every attention-feed read (see onboarding_attention.ts).
   registerMoneyOnboardingAttentionSource();
 
-  app.setErrorHandler((error, _request, reply) => {
+  app.setErrorHandler((rawError, _request, reply) => {
+    const error = rawError instanceof ForwardApiError ? providerFailure(rawError, "The payment request could not be completed.") : rawError;
     if (error instanceof ZodError) {
       reply.code(400);
       return reply.send({ ok: false, error: "validation_error", issues: error.issues });
@@ -628,26 +634,34 @@ export const registerPaymentsApi: FastifyPluginAsync = async (app) => {
     // flow below runs unchanged (tokens are simply ignored without one).
     const token = cleanText(body.payment_method_id);
     const savedMethodId = cleanText(body.saved_method_id);
-    if (token || savedMethodId) {
-      const provider = await getPaymentProvider(orgId);
-      if (provider) {
-        const result = await recordProviderChargedPayment(orgId, provider, {
-          amount_cents: Number(body.amount_cents ?? (Number(body.amount) || 0) * 100),
-          payment_method_id: token,
-          saved_method_id: savedMethodId,
-          method: cleanText(asObject(body.method).type || body.method_type),
-          method_label: cleanText(body.method_label || asObject(body.method).label),
-          method_descriptor: asObject(body.method),
-          project_id: cleanText(body.project_id),
-          branch_id: cleanText(body.branch_id || ctx.branchId || "default") || "default",
-          save_payment_method: body.save_payment_method === true,
-          apply_surcharge: body.apply_surcharge !== false,
-          contact_ref: asObject(body.contact_ref),
-          payment: body
-        }, ctx);
-        reply.code(201);
-        return { ok: true, ...result };
-      }
+    const checkoutId = cleanText(body.checkout_id);
+    if (token || savedMethodId || checkoutId) {
+      // Card and bank payments are charged through the processor, never
+      // recorded as paid without one; requirePaymentsReady refuses inside.
+      const { payment_method_id: _token, saved_method_id: _saved, checkout_id: _checkout, billing_details: billing, ...paymentFields } = body;
+      const result = await recordProviderChargedPayment(orgId, null, {
+        amount_cents: Number(body.amount_cents ?? (Number(body.amount) || 0) * 100),
+        payment_method_id: token,
+        saved_method_id: savedMethodId,
+        checkout_id: checkoutId,
+        channel: "staff",
+        // Staff charging a stored method is merchant-initiated; card details
+        // the customer is giving right now are customer-initiated.
+        initiated_by: savedMethodId && !token ? "merchant" : "customer",
+        billing_details: asObject(billing),
+        method: cleanText(asObject(body.method).type || body.method_type),
+        method_label: cleanText(body.method_label || asObject(body.method).label),
+        method_descriptor: asObject(body.method),
+        project_id: cleanText(body.project_id),
+        branch_id: cleanText(body.branch_id || ctx.branchId || "default") || "default",
+        save_payment_method: body.save_payment_method === true,
+        apply_surcharge: body.apply_surcharge !== false,
+        contact_ref: asObject(body.contact_ref),
+        invoice_id: cleanText(asObject(body.metadata).invoice_id),
+        payment: paymentFields
+      }, ctx);
+      reply.code(201);
+      return { ok: true, ...result };
     }
     const result = await createPayment(orgId, body, ctx);
     reply.code(201);
@@ -673,12 +687,47 @@ export const registerPaymentsApi: FastifyPluginAsync = async (app) => {
     return { ok: true, ...config };
   });
 
+  // Opens a checkout: the processor's payment intent the browser's secure
+  // card or bank element pays (its client secret goes to the element).
+  app.post("/organizations/:orgId/payment-checkouts", async (request, reply) => {
+    const orgId = getParam(request.params, "orgId");
+    const ctx = await requirePlatformAuth(request, { orgId, csrf: true, permission: "manage_projects" });
+    await requireMoneyFeature(orgId, "take_payment", "Taking payments");
+    const body = asObject(request.body);
+    const { view } = await prepareCheckout(orgId, {
+      amount_cents: Math.round(Number(body.amount_cents) || 0),
+      method: cleanText(body.method),
+      channel: "staff",
+      initiated_by: "customer",
+      apply_surcharge: body.apply_surcharge !== false,
+      project_id: cleanText(body.project_id),
+      branch_id: cleanText(body.branch_id || ctx.branchId || "default") || "default",
+      contact_ref: asObject(body.contact_ref),
+      invoice_id: cleanText(body.invoice_id),
+      description: cleanText(body.description)
+    });
+    reply.code(201);
+    return { ok: true, checkout: view };
+  });
+
+  app.get("/organizations/:orgId/payment-checkouts/:checkoutId", async (request) => {
+    const orgId = getParam(request.params, "orgId");
+    await requirePlatformAuth(request, { orgId, permission: "manage_projects" });
+    return { ok: true, checkout: await checkoutStatusView(orgId, getParam(request.params, "checkoutId")) };
+  });
+
+  app.get("/organizations/:orgId/payments-readiness", async (request) => {
+    const orgId = getParam(request.params, "orgId");
+    await requirePlatformAuth(request, { orgId, permission: "view_projects|manage_projects" });
+    const readiness = await paymentsReadiness(orgId);
+    return { ok: true, readiness: { ready: readiness.ready, reason: readiness.reason, message: readiness.message, rails: readiness.rails, payouts_enabled: readiness.payouts_enabled } };
+  });
+
   app.post("/organizations/:orgId/payment-method-intents", async (request, reply) => {
     const orgId = getParam(request.params, "orgId");
     await requirePlatformAuth(request, { orgId, csrf: true, permission: "manage_projects" });
     const body = paymentMethodIntentSchema.parse(request.body ?? {});
-    const provider = await getPaymentProvider(orgId);
-    if (!provider) throw badRequest("merchant_not_configured", "This organization has no payment provider configured.");
+    const { provider } = await requirePaymentsReady(orgId, { rail: cleanText(body.type) === "bank" || cleanText(body.type) === "ach" ? "bank" : "card" });
     const result = await tokenizePaymentMethod(orgId, provider, body);
     reply.code(201);
     return { ok: true, ...result };
@@ -688,8 +737,9 @@ export const registerPaymentsApi: FastifyPluginAsync = async (app) => {
     const orgId = getParam(request.params, "orgId");
     const ctx = await requirePlatformAuth(request, { orgId, permission: "view_projects" });
     const query = asObject(request.query);
-    const provider = await getPaymentProvider(orgId);
-    if (!provider) return { ok: true, quote: { amount_cents: Math.max(0, Math.round(Number(query.amount_cents) || 0)), surcharge_cents: 0, total_cents: Math.max(0, Math.round(Number(query.amount_cents) || 0)), enabled: false } };
+    const readiness = await paymentsReadiness(orgId);
+    if (!readiness.ready) return { ok: true, quote: { amount_cents: Math.max(0, Math.round(Number(query.amount_cents) || 0)), surcharge_cents: 0, total_cents: Math.max(0, Math.round(Number(query.amount_cents) || 0)), enabled: false } };
+    const { provider } = await requirePaymentsReady(orgId);
     const quote = await surchargeQuote(orgId, provider, {
       amount_cents: Math.max(0, Math.round(Number(query.amount_cents) || 0)),
       method: cleanText(query.method),
@@ -709,8 +759,7 @@ export const registerPaymentsApi: FastifyPluginAsync = async (app) => {
     const orgId = getParam(request.params, "orgId");
     const ctx = await requirePlatformAuth(request, { orgId, csrf: true, permission: "manage_projects" });
     const body = createSavedMethodSchema.parse(request.body ?? {});
-    const provider = await getPaymentProvider(orgId);
-    if (!provider) throw badRequest("merchant_not_configured", "This organization has no payment provider configured.");
+    const { provider } = await requirePaymentsReady(orgId);
     const details = await provider.getPaymentMethod(cleanText(body.provider_payment_method_id)).catch(() => null);
     const method = await createSavedMethod(orgId, getParam(request.params, "contactRef"), {
       provider: provider.provider,
@@ -747,7 +796,7 @@ export const registerPaymentsApi: FastifyPluginAsync = async (app) => {
     const orgId = getParam(request.params, "orgId");
     const ctx = await requirePlatformAuth(request, { orgId, csrf: true, permission: "manage_projects" });
     const body = refundPaymentSchema.parse(request.body ?? {});
-    const result = await refundPayment(orgId, getParam(request.params, "paymentId"), body, ctx);
+    const result = await refundPaymentWithProvider(orgId, getParam(request.params, "paymentId"), body, ctx);
     reply.code(201);
     return { ok: true, ...result };
   });
@@ -923,8 +972,16 @@ export const registerPaymentsApi: FastifyPluginAsync = async (app) => {
     const orgId = getParam(request.params, "orgId");
     const ctx = await requirePlatformAuth(request, { orgId, csrf: true, permission: "manage_projects" });
     const body = patchMerchantConfigSchema.parse(request.body ?? {});
-    const config = await upsertMerchantConfig(orgId, body);
-    await recordPaymentEvent(orgId, "merchant_config.updated", { provider: cleanText(config.provider) }, ctx);
+    // Which processor, which merchant account and whether it is approved come
+    // only from the processor (webhooks, boarding sync) or FirstMate staff
+    // (Boarding Ops). An organization chooses which rails it accepts.
+    const rails = asObject(asObject(body.forward).enabled_rails);
+    const allowedRails: JsonObject = {};
+    for (const key of ["card", "bank", "wallets", "terminals"]) if (typeof rails[key] === "boolean") allowedRails[key] = rails[key];
+    const config = Object.keys(allowedRails).length
+      ? await upsertMerchantConfig(orgId, { forward: { enabled_rails: allowedRails } })
+      : await getMerchantConfig(orgId);
+    await recordPaymentEvent(orgId, "merchant_config.updated", { provider: cleanText(config.provider), enabled_rails: allowedRails }, ctx);
     return { ok: true, merchant_config: config };
   });
 
@@ -989,6 +1046,14 @@ export const registerPaymentsApi: FastifyPluginAsync = async (app) => {
     return { ok: true, processing_plans: plans, count: plans.length };
   });
 
+  app.get("/organizations/:orgId/merchant-boarding/mccs", async (request) => {
+    const orgId = getParam(request.params, "orgId");
+    await requirePlatformAuth(request, { orgId, permission: "manage_projects" });
+    const boarding = await requireBoardingProvider(orgId);
+    const mccs = await boardingCall(() => boarding.listMccs());
+    return { ok: true, mccs, count: mccs.length };
+  });
+
   app.post("/organizations/:orgId/merchant-boarding/applications", async (request, reply) => {
     const orgId = getParam(request.params, "orgId");
     const ctx = await requirePlatformAuth(request, { orgId, csrf: true, permission: "manage_projects" });
@@ -1005,11 +1070,12 @@ export const registerPaymentsApi: FastifyPluginAsync = async (app) => {
       businessId = business.id;
     }
     const { business: _business, ...applicationInput } = body;
+    const partnerData = boarding.provider === "forward" ? await forwardPartnerData(orgId, request, body.partner_data) : null;
     const application = await boardingCall(() => boarding.createApplication({
       ...applicationInput,
       business_id: businessId || undefined,
       external_account_id: cleanText(body.external_account_id) || orgId,
-      ...(boarding.provider === "forward" ? { partner_data: { ...asObject(body.partner_data), redirect_url: forwardApplicationRedirectUrl(request) } } : {})
+      ...(partnerData ? { partner_data: partnerData } : {})
     }));
     // Record identifiers immediately (webhook projections also update these,
     // but business_id only travels through this seam).
@@ -1069,9 +1135,10 @@ export const registerPaymentsApi: FastifyPluginAsync = async (app) => {
     const body = boardingApplicationSchema.parse(request.body ?? {});
     const boarding = await requireBoardingProvider(orgId);
     const { business: _business, ...applicationInput } = body;
+    const partnerData = boarding.provider === "forward" ? await forwardPartnerData(orgId, request, body.partner_data) : null;
     const application = await boardingCall(() => boarding.updateApplication(getParam(request.params, "applicationId"), {
       ...applicationInput,
-      ...(boarding.provider === "forward" ? { partner_data: { ...asObject(body.partner_data), redirect_url: forwardApplicationRedirectUrl(request) } } : {})
+      ...(partnerData ? { partner_data: partnerData } : {})
     }));
     return { ok: true, application };
   });
@@ -1400,6 +1467,7 @@ export const registerPaymentsApi: FastifyPluginAsync = async (app) => {
   app.post("/organizations/:orgId/merchant-mock/advance", async (request) => {
     const orgId = getParam(request.params, "orgId");
     const ctx = await requirePlatformAuth(request, { orgId, csrf: true, permission: "manage_projects" });
+    if (!mockProviderAllowed()) throw forbidden("merchant_mock_unavailable", "The payment simulator is not available here.");
     const body = merchantMockAdvanceSchema.parse(request.body ?? {});
     const op = cleanText(body.op) || "underwriting";
     // op "charge" is handled here (not in the mock adapter) — it drives the
@@ -1465,6 +1533,28 @@ function asObject(value: unknown): Record<string, unknown> {
 
 function cleanText(value: unknown) {
   return String(value ?? "").trim();
+}
+
+/**
+ * Forward's partner data on a merchant application: what we know about the
+ * merchant from our side, which Forward's risk engine uses for auto-approval
+ * (PartnerDataDto), plus the hosted application's return address.
+ */
+async function forwardPartnerData(orgId: string, request: FastifyRequest, supplied: unknown) {
+  const organization = asObject(await readOrganization(orgId).catch(() => ({})));
+  const createdAt = cleanText(organization.created_at || asObject(organization.data).created_at);
+  const { records } = await import("../platform-billing/storage.js");
+  const subscriptions = await records<{ ends_at?: string }>(orgId, "subscription").catch(() => []);
+  const paidSubscription = subscriptions.some((subscription) => !cleanText(subscription.ends_at) || Date.parse(cleanText(subscription.ends_at)) > Date.now());
+  const ip = cleanText(request.headers["x-forwarded-for"]).split(",")[0]?.trim() || cleanText(request.ip);
+  return {
+    ...asObject(supplied),
+    paid_subscription: paidSubscription,
+    backbook: false,
+    ...(createdAt && Number.isFinite(Date.parse(createdAt)) ? { merchant_joined: new Date(createdAt).toISOString() } : {}),
+    ...(ip ? { last_ip_address: ip.slice(0, 45) } : {}),
+    redirect_url: forwardApplicationRedirectUrl(request)
+  };
 }
 
 function forwardApplicationRedirectUrl(request: FastifyRequest) {

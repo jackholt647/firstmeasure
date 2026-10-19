@@ -1417,6 +1417,16 @@
       const intake = root ? root.FirstMatePaymentIntake : null;
       const buttonLabel = cleanText(cfg.button_label) || "Pay";
 
+      // A host that cannot take online payments (or has no checkout at all)
+      // shows what is due and where to pay; nothing here records a payment.
+      if ((ctx.api || {}).onlinePayments === false || typeof (ctx.api || {}).openPayment !== "function") {
+        const box = payNowSummary(ctx);
+        box.appendChild(h("div", "fmdoc-pay-now-note", (ctx.api || {}).onlinePayments === false
+          ? "Online payment isn't available for this document yet. Contact the company to pay."
+          : "Pay online from your customer portal."));
+        el.appendChild(box);
+        return {};
+      }
       // Portal hosts own the actual checkout. Opening it here keeps payment
       // collection in context and avoids treating a click as a completed or
       // remotely "sent" request.

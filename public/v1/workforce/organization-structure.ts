@@ -12,7 +12,7 @@ import {listOrganizationConnections} from '../connections/storage.js';
  * branch belongs to every branch. A department belongs to one branch; a role or a group type puts someone in a
  * department only when they belong to that department's branch. Direct assignment is explicit and is kept as made.
  */
-export type StructureSubject={id:string;status?:string;role_ids?:string[];branch_id?:string;branch_ids?:string[];kind_id?:string;members?:Array<{user_id:string;status?:string}>};
+export type StructureSubject={id:string;name?:string;status?:string;role_ids?:string[];branch_id?:string;branch_ids?:string[];kind_id?:string;members?:Array<{user_id:string;status?:string}>};
 export type StructureBranch={id:string;name:string;status:'active'|'archived';is_default:boolean};
 export type MembershipSource={department_id:string;kind:'direct'|'role'|'group'|'group_kind';id:string};
 export type EffectiveMembership={id:string;department_ids:string[];branch_ids:string[];region_ids:string[];sources:MembershipSource[]};
@@ -54,14 +54,14 @@ export function buildOrganizationStructure(catalog:DepartmentCatalog,users:Struc
   const groupMemberships=groups.filter(g=>!inactive(g.status)).map(g=>{
     const branch_ids=subjectBranchIds(g,'resource_group');
     const sources:MembershipSource[]=departments.flatMap(d=>[...(d.subject_keys.includes(`resource_group:${g.id}`)?[{department_id:d.id,kind:'direct' as const,id:g.id}]:[]),...(d.group_kind_ids.includes(g.kind_id||'')&&inBranch(branch_ids,d.branch_id)?[{department_id:d.id,kind:'group_kind' as const,id:g.kind_id!}]:[])]);
-    return {id:g.id,department_ids:unique(sources.map(s=>s.department_id)),branch_ids,region_ids:regionIds(branch_ids),sources};
+    return {id:g.id,label:g.name||g.id,kind_id:g.kind_id||'',department_ids:unique(sources.map(s=>s.department_id)),branch_ids,region_ids:regionIds(branch_ids),sources};
   });
   const userMemberships=users.filter(u=>!inactive(u.status)).map(u=>{
     const branch_ids=subjectBranchIds(u,'organization_user');
     const memberGroups=groups.filter(g=>!inactive(g.status)&&g.members?.some(m=>m.user_id===u.id&&(!m.status||m.status==='active')));
     const sources:MembershipSource[]=departments.flatMap(d=>[...(d.subject_keys.includes(`organization_user:${u.id}`)?[{department_id:d.id,kind:'direct' as const,id:u.id}]:[]),...(inBranch(branch_ids,d.branch_id)?d.role_ids.filter(r=>u.role_ids?.includes(r)).map(id=>({department_id:d.id,kind:'role' as const,id})):[])]);
     for(const group of memberGroups)for(const department_id of groupMemberships.find(g=>g.id===group.id)?.department_ids||[])sources.push({department_id,kind:'group',id:group.id});
-    return {id:u.id,department_ids:unique(sources.map(s=>s.department_id)),branch_ids,region_ids:regionIds(branch_ids),sources};
+    return {id:u.id,resource_group_ids:unique(memberGroups.map(g=>g.id)),department_ids:unique(sources.map(s=>s.department_id)),branch_ids,region_ids:regionIds(branch_ids),sources};
   });
   const connectionMemberships=connections.filter(c=>!inactive(c.status)).map(c=>{
     const branch_ids=subjectBranchIds(c,'organization_connection');

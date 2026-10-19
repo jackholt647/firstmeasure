@@ -100,6 +100,8 @@ export async function getInvoicePaymentSettings(orgId: string, branchIdValue = "
     // Additive pass-through surcharge flags (provider charge path + intake
     // modal line item). Off by default; "card_only" is the only mode today.
     surcharge_enabled: paymentSettings.surcharge_enabled === true,
+    // Shown next to the Pay button on every online checkout (empty: a default notice).
+    refund_policy: cleanText(paymentSettings.refund_policy).slice(0, 2000),
     surcharge_mode: cleanText(paymentSettings.surcharge_mode) === "card_only" || !cleanText(paymentSettings.surcharge_mode)
       ? "card_only"
       : cleanText(paymentSettings.surcharge_mode)
@@ -923,6 +925,9 @@ export async function emailInvoice(orgId: string, invoiceId: string, input: Json
   const recipient = cleanText(input.recipient || asObject(invoice.customer).email).toLowerCase();
   if (!recipient) throw badRequest("invoice_email_required", "A customer email address is required.");
   const includePortal = input.include_portal_link === true && !!cleanText(portalUrl);
+  // The email asks for an online payment only when the organization can take one.
+  const { canTakeOnlinePayments } = await import("./readiness.js");
+  const payOnline = invoice.render_paid_in_full !== true && await canTakeOnlinePayments(orgId);
   const org = asObject(await readOrganization(orgId).catch(() => ({})));
   const orgName = cleanText(org.name || "Company");
   const subject = cleanText(input.subject || `${orgName} invoice ${invoice.invoice_number}`);
@@ -931,14 +936,14 @@ export async function emailInvoice(orgId: string, invoiceId: string, input: Json
   const defaultMessage = invoice.render_paid_in_full === true
     ? `Your paid-in-full invoice ${cleanText(invoice.invoice_number)} is attached for your records.`
     : `Your invoice ${cleanText(invoice.invoice_number)} for ${money(renderedBalanceCents)} is attached.`;
-  const portalCopy = invoice.render_paid_in_full === true
-    ? `Review project details in your customer portal: ${portalUrl}`
-    : `Pay or review project details in your customer portal: ${portalUrl}`;
+  const portalCopy = payOnline
+    ? `Pay or review project details in your customer portal: ${portalUrl}`
+    : `Review project details in your customer portal: ${portalUrl}`;
   const textBody = [
     customMessage || defaultMessage,
     includePortal ? portalCopy : ""
   ].filter(Boolean).join("\n\n");
-  const htmlBody = `<p>${escapeHtml(customMessage || defaultMessage)}</p>${includePortal ? `<p><a href="${escapeHtml(portalUrl)}">${invoice.render_paid_in_full === true ? "Open customer portal" : "Open customer portal to pay"}</a></p>` : ""}`;
+  const htmlBody = `<p>${escapeHtml(customMessage || defaultMessage)}</p>${includePortal ? `<p><a href="${escapeHtml(portalUrl)}">${payOnline ? "Open customer portal to pay" : "Open customer portal"}</a></p>` : ""}`;
   const sent = await sendOrganizationTransactionalEmail({
     organizationId: orgId,
     branchId: cleanText(invoice.branch_id || "default") || "default",

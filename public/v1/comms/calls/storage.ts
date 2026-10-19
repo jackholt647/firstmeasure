@@ -1,3 +1,5 @@
+import {initializePhoneMarketingSchema} from '../phone/marketing-storage.js';
+import {resourcePhoneEvent,callPhoneEvent,isPublishedPhoneCallEvent} from '../phone/event-contracts.js';
 import { env } from '../../src/config/env.js';
 import { createHash, randomUUID } from "node:crypto";
 import type { SQLInputValue } from "node:sqlite";
@@ -107,6 +109,7 @@ export async function initializeCustomerCallsSchema(db: SqlStore) {
       PRIMARY KEY(organization_id,user_id,kind,source_id)
     );
   `));
+  await initializePhoneMarketingSchema(db);
 }
 
 export async function transaction<T>(fn: (db: SqlStore) => T | Promise<T>): Promise<T> {
@@ -200,8 +203,12 @@ export async function listCalls(orgId: string, filter: Json = {}) {
 }
 export async function appendEvent(orgId:string,callId:string,type:string,data:Json={},key:string=randomUUID()) {
   return (await database().transaction(async () => {
-  (await database().prepare("INSERT INTO customer_call_events(id,organization_id,call_id,type,created_at,data_json) VALUES(?,?,?,?,?,?) ON CONFLICT DO NOTHING")
+  const inserted=(await database().prepare("INSERT INTO customer_call_events(id,organization_id,call_id,type,created_at,data_json) VALUES(?,?,?,?,?,?) ON CONFLICT DO NOTHING")
     .run(id("ce",`${orgId}:${key}`),orgId,callId,type,now(),JSON.stringify(data)));
+  if(inserted.changes&&callId&&isPublishedPhoneCallEvent(type)){
+    const event=callPhoneEvent(type,await readCall(orgId,callId),data);
+    if(event)await enqueue(orgId,callId,'phone_event',event,`phone-event:${key}`);
+  }
 
   }));
 }
@@ -222,7 +229,10 @@ export async function saveResource(orgId:string,kind:string,key:string,data:Json
   (await database().prepare(`INSERT INTO customer_voice_resources(organization_id,kind,id,provider_id,data_json,updated_at) VALUES(?,?,?,?,?,?)
     ON CONFLICT(organization_id,kind,id) DO UPDATE SET provider_id=excluded.provider_id,data_json=excluded.data_json,updated_at=excluded.updated_at,revision=customer_voice_resources.revision+1`)
     .run(orgId,kind,key,data.development_shared?'':providerId||text(current?.provider_id),JSON.stringify(data),now()));
-  return (await resource(orgId,kind,key))!;
+  const saved=(await resource(orgId,kind,key))!;
+  const event=resourcePhoneEvent(kind,key,current,saved);
+  if(event)await enqueue(orgId,'','phone_event',event,`phone-resource:${kind}:${key}:${saved.revision}`);
+  return saved;
 
   }));
 }
@@ -258,18 +268,18 @@ export async function enqueue(orgId:string,callId:string,kind:string,payload:Jso
 
   }));
 }
-export async function claimJob(worker:string,lane:'all'|'voice'|'background'='all',callId=''): Promise<(Json & {payload:Json;attempts:number}) | null> {
+export async function claimJob(worker:string,lane:'all'|'voice'|'background'|'events'='all',callId=''): Promise<(Json & {payload:Json;attempts:number}) | null> {
   return (await transaction(async db=>{
     // A timed-out provider POST may already have succeeded. Never replay it automatically after a worker crash.
     (await db.prepare("UPDATE customer_call_jobs SET state='uncertain',error='Worker stopped while provider command was in flight',updated_at=? WHERE state='running' AND kind='provider' AND lease_until<?").run(now(),now()));
     const row=object((await db.prepare(`SELECT j.* FROM customer_call_jobs j WHERE
       (j.state='pending' OR (j.state='running' AND j.kind<>'provider' AND j.lease_until<?)) AND j.available_at<=?
-      ${lane==='voice'?"AND j.kind IN ('provider','provider_reject')":lane==='background'?"AND j.kind NOT IN ('provider','provider_reject')":''}
+      ${lane==='voice'?"AND j.kind IN ('provider','provider_reject')":lane==='background'?"AND j.kind NOT IN ('provider','provider_reject','phone_event')":lane==='events'?"AND j.kind='phone_event'":''}
       AND (j.kind<>'provider' OR ${db.isPostgres ? "j.payload_json::jsonb->>'path'" : "json_extract(j.payload_json,'$.path')"}='hangup' OR NOT EXISTS
         (SELECT 1 FROM customer_call_jobs u WHERE u.organization_id=j.organization_id AND u.call_id=j.call_id AND u.kind='provider' AND u.state='uncertain'))
-      AND NOT EXISTS (SELECT 1 FROM customer_call_jobs other WHERE other.organization_id=j.organization_id
-        AND other.call_id=j.call_id AND other.id<>j.id AND other.state='running' AND other.lease_until>?)
-      AND (?='' OR j.call_id=?) ORDER BY j.created_at,j.${db.isPostgres ? "job_sequence" : "rowid"} LIMIT 1`).get(now(),now(),now(),callId,callId)));
+      AND (j.kind='phone_event' OR NOT EXISTS (SELECT 1 FROM customer_call_jobs other WHERE other.organization_id=j.organization_id
+        AND other.call_id=j.call_id AND other.id<>j.id AND other.kind<>'phone_event' AND other.state='running' AND other.lease_until>?))
+      AND (?='' OR j.call_id=?) ORDER BY CASE WHEN j.kind='phone_event' THEN 1 ELSE 0 END,j.created_at,j.${db.isPostgres ? "job_sequence" : "rowid"} LIMIT 1`).get(now(),now(),now(),callId,callId)));
     if(!row.id)return null;
     (await db.prepare("UPDATE customer_call_jobs SET state='running',attempts=attempts+1,lease_owner=?,lease_until=?,updated_at=? WHERE id=?")
       .run(worker,new Date(Date.now()+90_000).toISOString(),now(),text(row.id)));

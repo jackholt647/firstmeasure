@@ -204,6 +204,7 @@ path. Entries and their hashes stay the same; only how they link changes.
 
 **Why it can wait.** Signing is a few writes per agreement, so the lock is held for milliseconds and contention
 needs thousands of concurrent signers. (docs/architecture/document-signing.md, "Seal, timestamp and signing ledger")
+
 ## Wall drafting redraws serialize the whole project to validate their caches
 
 **Today.** Every draw pass serializes the project state and composed walls (`beginRenderCache` in
@@ -327,3 +328,31 @@ and draft points near a chimney footprint (a bounding-box test that keeps its ex
 
 **Why it can wait.** Rendering dominates the frame time on large houses. (dev/EXTERIOR_PERFORMANCE.md,
 "Preview interaction, 2026-10-19")
+
+## Resources frame extraction reads the whole video
+
+**Today.** To save one video frame, `public/measure/internal/_resource_frames.php` copies every stored part of the
+video from artifact storage into a temporary file on the PHP host, then runs ffmpeg on it. The copy is reused for an
+hour on that host, so saving several frames from one walkthrough fetches it once, but a different host, or the first
+frame, reads the whole video (about 25 requests for a 200 MB walkthrough) to decode a few seconds of it.
+
+**Where the change goes.** Only `fm_resource_frame_video_file`: give ffmpeg a byte-range source instead of a full copy
+(a local range endpoint or an `ffmpeg -i` URL backed by the part index), so only the container index and the parts
+around the frame are read. The frame chosen must stay exactly the same (the extraction test checks frame identity).
+
+**Why it can wait.** It is server-to-storage traffic in the background; the browser sends no image and the UI never
+waits on it. Worth doing if frame saves on long videos feel slow or storage egress matters. (dev/RESOURCES_UI.md,
+"Server-side frame saving")
+## Payment checkouts and refunds scan collections
+
+**Today.** `findCheckoutByPaymentId` (`payments/intake.ts`) derives the checkout id from the payment id and only
+falls back to reading every `payment_checkouts` record for payment ids it did not mint. `refundsOf`
+(`payments/provider_refunds.ts`) reads every payment transaction to find one payment's refunds, as `refundPayment`
+already did.
+
+**Where the change goes.** Store the checkout id in the payment's metadata lookup index and list refunds through a
+`related_payment_id` metadata query in the storage layer.
+
+**Why it can wait.** Both run once per refund or per unmatched processor event, on one organization's records.
+(docs/architecture/payments.md "Not built")
+

@@ -15,8 +15,8 @@ test('working plane edits use real camera rays, keyboard events, WebGL rendering
    window.screenPoint=p=>{const q=getVector3(p).project(camera);return {x:(q.x+1)*500,y:(1-q.y)*375,visible:q.z>=-1&&q.z<=1};};
    const scene=new THREE.Scene();let group;
    window.render=()=>{if(group){scene.remove(group);group.traverse(o=>{o.geometry?.dispose();o.material?.dispose();});}group=new THREE.Group();scene.add(group);editor.draw3D(group,getVector3);renderer.render(scene,camera);};
-   window.editor=createWallFaceDraft({state:()=>model,walls:()=>[],active:()=>true,selected:()=>null,toPixel:p=>p,screen:screenPoint,commit:before=>historyEdits.push(JSON.parse(JSON.stringify(before))),redraw:()=>render(),message:s=>document.getElementById('status').textContent=s});
-   const canvas=renderer.domElement;canvas.addEventListener('pointerdown',e=>editor.down(e));canvas.addEventListener('dblclick',e=>editor.doubleClick(e));window.addEventListener('keydown',e=>{if(editor.key(e)){e.preventDefault();e.stopImmediatePropagation();}});
+   window.editor=createWallFaceDraft({state:()=>model,walls:()=>[],active:()=>true,selected:()=>null,select:()=>{},toPixel:p=>p,screen:screenPoint,commit:before=>historyEdits.push(JSON.parse(JSON.stringify(before))),redraw:()=>render(),message:s=>document.getElementById('status').textContent=s});
+   const canvas=renderer.domElement;canvas.addEventListener('pointerdown',e=>editor.down(e));canvas.addEventListener('dblclick',e=>editor.doubleClick(e));canvas.addEventListener('wheel',e=>{if(editor.stepWheel(e))e.preventDefault();},{passive:false});window.addEventListener('keydown',e=>{if(editor.key(e)){e.preventDefault();e.stopImmediatePropagation();}});
    editor.togglePlane(model.wallEdits.$surfaces[0]);render();
   });
   const clickWorld=async(p,modifiers=[])=>{const q=await page.evaluate(p=>screenPoint(p),p);for(const k of modifiers)await page.keyboard.down(k);await page.mouse.click(q.x,q.y);for(const k of modifiers)await page.keyboard.up(k);};
@@ -30,6 +30,18 @@ test('working plane edits use real camera rays, keyboard events, WebGL rendering
   const out=path.join(process.env.TEMP||require('os').tmpdir(),'exterior-plane-editor');fs.mkdirSync(out,{recursive:true});await page.screenshot({path:path.join(out,'plane-edit.png')});
   const saved=await page.evaluate(()=>JSON.stringify(model.wallEdits));await page.keyboard.press('m');await page.mouse.move(700,300);await page.waitForTimeout(60);await page.keyboard.press('Escape');assert.equal(await page.evaluate(()=>JSON.stringify(model.wallEdits)),saved);
   await page.keyboard.press('Delete');assert.equal(await page.evaluate(()=>editor.pointSelection().length),0);assert.equal(await page.evaluate(()=>editor.planeActive()),true);
+  await page.evaluate(()=>{
+   const p=(x,z)=>({x,y:0,z}),pairs=[[p(5,1),p(6,2)],[p(7,3),p(6,2)]];model.wallEdits={$loose:{points:[p(5,1),p(6,2),p(7,3)],edges:pairs}};
+   const s=editor.selectionSnapshot();s.workingPlane.selection=[];s.workingPlane.selectedLines=[];s.workingPlane.selectedFaces=[];editor.restoreSelection(s);document.getElementById('base-selection').value='line';render();
+  });
+  await clickWorld({x:5.5,y:0,z:1.5});await clickWorld({x:6.5,y:0,z:2.5},['Shift']);assert.equal(await page.evaluate(()=>editor.selectionSnapshot().workingPlane.selectedLines.length),2);
+  const beforeSteps=await page.evaluate(()=>JSON.stringify(model.wallEdits)),stepHistory=await page.evaluate(()=>historyEdits.length);
+  await page.keyboard.press('s');await page.keyboard.press('s');assert.match(await page.locator('#status').textContent(),/^2 steps/);
+  const stepTarget=await page.evaluate(()=>screenPoint({x:5.7,y:0,z:1.7}));await page.mouse.move(stepTarget.x,stepTarget.y);await page.waitForTimeout(60);
+  const offsetSteps=await page.evaluate(()=>JSON.stringify(model.wallEdits));await page.keyboard.down('Control');await page.mouse.wheel(0,-120);await page.keyboard.up('Control');await page.waitForTimeout(60);assert.notEqual(await page.evaluate(()=>JSON.stringify(model.wallEdits)),offsetSteps);
+  await page.keyboard.press('Escape');assert.equal(await page.evaluate(()=>JSON.stringify(model.wallEdits)),beforeSteps);assert.equal(await page.evaluate(()=>historyEdits.length),stepHistory);
+  await page.keyboard.press('s');await page.keyboard.press('s');await page.mouse.click(stepTarget.x,stepTarget.y);assert.equal(await page.evaluate(()=>historyEdits.length),stepHistory+1);assert.equal(await page.evaluate(()=>editor.busy()),false);
+  assert.ok(await page.evaluate(()=>model.wallEdits.$loose.edges.every(([a,b])=>Math.abs(a.x-b.x)<1e-7||Math.abs(a.z-b.z)<1e-7)));
   assert.deepEqual(errors,[]);
  }finally{await browser.close();}
 });

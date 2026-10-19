@@ -11,3 +11,13 @@ Validation: Focused browser/contract tests cover actual image/runtime sizing, ca
 Resource columns read an organization resource-type catalog, with roofing defaults supplied without mutating reads. New categories and lists use inline empty Untitled placeholders; category icon and color are edited together through the shared icon picker. Lists inherit category appearance. Catalog writes enforce organization membership, project management permission, registration and revision conflicts. Typed publication adapters delegate to the domain writer.
 
 Columns retain equal relative widths regardless of item content. Compact item cards replace wide table layouts, redundant section headers and the separate labor estimate panel. Each column has a compact total footer; labor totals retain the existing expense projection.
+
+## Completed development rollout
+
+Main source: `121e046e6bf8c4de5d0d3a5bbe1a786726bf54a8` (feature commit `5c49e988b33dfaac35ce16a2b038af55b44d8612` plus imported-row total fallback). Shared picker follow-up: `08027737edaeed696a79b714911fb6580bc5dd2b`. The web, pool and legacy development services activated verified picker overlays containing the main changes. Worker catalog alignment activated `d9c782333468487fb60b363e25ceff41cbcf0773`. Source was pushed through merge `8567108e87bf094210f25e0943d2dc3414954c65`, preserving concurrent development work.
+
+The shared icon picker lazily loads its color control when requested inside an app iframe. Imported rows without an explicit projected total use quantity times unit price; explicit totals remain authoritative.
+
+Validation completed: 19 focused browser tests, six materials backend tests, the isolated lazy-color-picker test, imported-total fallback checks and TypeScript checking passed. Hosted desktop and mobile checks reported no page errors. Hosted inline creation verified empty name placeholders, category icon and color, list and item persistence after reload, a $150 footer for two $75 items, and removal of the test list. Accepted-document preview and dense measurement rendering were also exercised in the hosted app. The broader publication suite had 85 passing tests, one skipped test and two existing fixture failures: duplicate `org_custom_fields_test` and `platform_phone_not_issued`; both reproduce in isolation.
+
+Owned-file manifests and exact prior release paths for rollback are recorded under `output/project-measurement-fit-20261010`, `output/project-resource-picker-20261010` and `output/project-resource-worker-catalog-20261010`. Each activation checked service health, release identity, owned source hashes and development isolation. Concurrent release changes were re-audited before staging; stale-baseline guards prevented replacement of newer work.

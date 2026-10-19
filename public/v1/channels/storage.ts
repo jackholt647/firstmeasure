@@ -2,7 +2,7 @@ import { createHash, randomUUID } from "node:crypto";
 import path from "node:path";
 import { openSqlStore, ensureSqlColumn, type SqlStore } from "../platform/sql_store.js";
 
-import { notFound } from "../platform/errors.js";
+import { badRequest, notFound } from "../platform/errors.js";
 import { env } from "../src/config/env.js";
 
 export type JsonObject = Record<string, unknown>;
@@ -945,6 +945,7 @@ export async function editMessageRecord(orgId: string, message: MessageRow, inpu
   mention_users?: JsonObject[];
   audience?: string[];
   tags?: string[];
+  metadata?: JsonObject;
   edited_by: string;
 }) {
   return (await getChannelsDatabase().transaction(async () => {
@@ -968,7 +969,7 @@ export async function editMessageRecord(orgId: string, message: MessageRow, inpu
 
     const mentionUsers = input.mention_users !== undefined ? input.mention_users : message.mention_users;
     (await db.prepare(`
-      UPDATE messages SET text = ?, content_json = ?, content_schema_version = ?, language_code = ?, language_confidence = ?, mention_users_json = ?, audience_json = ?, tags_json = ?, edited_at = ?
+      UPDATE messages SET text = ?, content_json = ?, content_schema_version = ?, language_code = ?, language_confidence = ?, mention_users_json = ?, audience_json = ?, tags_json = ?, metadata_json = ?, edited_at = ?
       WHERE id = ?
     `).run(
       input.text,
@@ -979,9 +980,19 @@ export async function editMessageRecord(orgId: string, message: MessageRow, inpu
       JSON.stringify(mentionUsers ?? []),
       JSON.stringify(input.audience !== undefined ? asStringArray(input.audience) : message.audience),
       JSON.stringify(input.tags !== undefined ? asStringArray(input.tags) : message.tags),
+      JSON.stringify(input.metadata !== undefined ? input.metadata : message.metadata),
       now,
       message.id
     ));
+
+    // A note thread follows its root's audience, including already-written replies.
+    if (input.metadata && !message.parent_id && message.metadata.project_note === true) {
+      const replies = await db.prepare('SELECT id, metadata_json FROM messages WHERE organization_id = ? AND parent_id = ?').all(orgId,message.id) as JsonObject[];
+      for (const reply of replies) {
+        const metadata={...(parseJson(reply.metadata_json,{}) as JsonObject),department_ids:input.metadata.department_ids || [],department_access:input.metadata.department_access || 'shared',note_audience_crew:input.metadata.note_audience_crew === true,note_audience_refs:input.metadata.note_audience_refs || [],note_audience_owner_id:input.metadata.note_audience_owner_id || ''};
+        await db.prepare('UPDATE messages SET metadata_json = ? WHERE organization_id = ? AND id = ?').run(JSON.stringify(metadata),orgId,String(reply.id));
+      }
+    }
 
     const mentionIds = [...new Set((mentionUsers ?? []).map((user) => cleanText((user as JsonObject).id || (user as JsonObject).user_id)).filter(Boolean))];
     for (const userId of mentionIds) {
@@ -999,6 +1010,25 @@ export async function editMessageRecord(orgId: string, message: MessageRow, inpu
   return (await readMessageRecord(orgId, message.id))!;
 
   }));
+}
+
+export async function updateMessageVisibilityRecord(orgId:string,messageId:string,input:{audience?:string[];departmentVisibility?:JsonObject}) {
+  return getChannelsDatabase().transaction(async()=>{
+    const db=getChannelsDatabase(),message=await readMessageRecord(orgId,messageId);
+    if(!message)throw notFound('message_not_found','This note does not exist.');
+    if(message.deleted_at)throw badRequest('message_deleted','Unarchive the note before changing visibility.');
+    const metadata={...message.metadata,...input.departmentVisibility};
+    await db.prepare('UPDATE messages SET audience_json = ?, metadata_json = ? WHERE organization_id = ? AND id = ?').run(JSON.stringify(input.audience ?? message.audience),JSON.stringify(metadata),orgId,message.id);
+    if(input.departmentVisibility || input.audience !== undefined){
+      const replies=await db.prepare('SELECT id, metadata_json FROM messages WHERE organization_id = ? AND parent_id = ?').all(orgId,message.id) as JsonObject[];
+      for(const reply of replies){
+        const data={...(parseJson(reply.metadata_json,{}) as JsonObject),...input.departmentVisibility};
+        if(input.audience !== undefined)await db.prepare('UPDATE messages SET metadata_json = ?, audience_json = ? WHERE organization_id = ? AND id = ?').run(JSON.stringify(data),JSON.stringify(input.audience),orgId,String(reply.id));
+        else await db.prepare('UPDATE messages SET metadata_json = ? WHERE organization_id = ? AND id = ?').run(JSON.stringify(data),orgId,String(reply.id));
+      }
+    }
+    return (await readMessageRecord(orgId,message.id))!;
+  });
 }
 
 function translationFromRow(row: JsonObject): MessageTranslationRow {
@@ -1084,6 +1114,24 @@ export async function softDeleteMessageRecord(orgId: string, messageId: string, 
   }));
 }
 
+/** Identity and visibility records for active replies across a page of roots. */
+export async function listReplySummaryRecords(orgId: string, channelId: string, rootIds: string[]): Promise<MessageRow[]> {
+  if (!rootIds.length) return [];
+  // Load only identity and visibility fields, never reply bodies or attachments.
+  const rows = await getChannelsDatabase().prepare(`SELECT id, organization_id, channel_id, parent_id, author_id, created_at, seq,
+    audience_json, mention_users_json, metadata_json FROM messages
+    WHERE organization_id = ? AND channel_id = ? AND parent_id IN (${rootIds.map(() => '?').join(',')})
+      AND deleted_at IS NULL ORDER BY created_at DESC, seq DESC`).all(orgId, channelId, ...rootIds) as JsonObject[];
+  return rows.map(messageFromRow);
+}
+
+/** Read current counts, including for older roots whose stored count includes archives. */
+export async function listActiveReplyCounts(orgId:string,rootIds:string[]):Promise<Map<string,number>> {
+  if(!rootIds.length)return new Map();
+  const rows=await getChannelsDatabase().prepare(`SELECT parent_id, COUNT(*) AS total FROM messages WHERE organization_id = ? AND parent_id IN (${rootIds.map(()=>'?').join(',')}) AND deleted_at IS NULL GROUP BY parent_id`).all(orgId,...rootIds) as JsonObject[];
+  return new Map(rows.map(row=>[String(row.parent_id),Number(row.total)]));
+}
+
 export async function restoreMessageRecord(orgId: string, messageId: string) {
   return (await getChannelsDatabase().transaction(async () => {
   const db = getChannelsDatabase();
@@ -1113,9 +1161,11 @@ export async function listMessageRecords(orgId: string, channelId: string, optio
   limit?: number;
   parentId?: string | null;
   projectNotes?: boolean;
+  author_ids?:string[];
 } = {}) {
   const clauses = ["organization_id = ?", "channel_id = ?"];
   const params: unknown[] = [orgId, channelId];
+  if(options.author_ids?.length){clauses.push(`author_id IN (${options.author_ids.map(()=>'?').join(',')})`);params.push(...options.author_ids);}
   if (options.projectNotes !== undefined) clauses.push(options.projectNotes ? projectNoteSql : `NOT (${projectNoteSql})`);
   if (options.parentId !== undefined) {
     if (options.parentId === null) clauses.push(`(parent_id IS NULL OR ${broadcastReplySql})`);
@@ -1140,6 +1190,13 @@ export async function listMessageRecords(orgId: string, channelId: string, optio
     .all(...(params as string[]), limit)) as JsonObject[];
   const messages = rows.map(messageFromRow);
   return descending ? messages.reverse() : messages;
+}
+
+/** Only audience fields are read; private note text never enters the author-filter response. */
+export async function listProjectNoteAuthorPolicies(orgId:string,channelId:string){
+  const sql=`SELECT author_id,audience_json,metadata_json,mention_users_json,deleted_at FROM messages WHERE organization_id = ? AND channel_id = ? AND parent_id IS NULL AND ${projectNoteSql}`;
+  const rows=await getChannelsDatabase().prepare(sql,sql.replace(projectNoteSql,projectNotePostgresSql)).all(orgId,channelId) as JsonObject[];
+  return rows.map(row=>({author_id:String(row.author_id),audience:parseJson(row.audience_json,[]) as string[],metadata:parseJson(row.metadata_json,{}) as JsonObject,mention_users:parseJson(row.mention_users_json,[]) as JsonObject[],deleted_at:row.deleted_at})) as MessageRow[];
 }
 
 export async function listMessageRevisions(messageId: string) {

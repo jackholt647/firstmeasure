@@ -1330,7 +1330,7 @@
     const canScopeTemplates = canCompany && appFlag('platform', 'expanded_access') && appFlag('apps', 'projects');
     const canCallWorkflows = canCompany && appFlag('calls', 'app');
     const canStorage = canCompany && storageLimitsEnabled();
-    const canSmsSettings = canCompany && (appFlag('platform', 'sms_settings') || window.FirstMatePlatformBilling?.configured('platform', 'sms_settings'));
+    const canSmsSettings = appFlag('apps','comms') || canCompany && (appFlag('platform', 'sms_settings') || window.FirstMatePlatformBilling?.configured('platform', 'sms_settings'));
     const canDomains = canCompany && appFlag('apps', 'web_editor') && appFlag('web_editor', 'custom_domains');
     const canAssistant = appFlag('apps', 'assistant') && (canCompany || hasPerm('use_assistant') || hasPerm('view_projects') || hasPerm('manage_projects'));
     const canInterfaceLanguage = appFlag('platform', 'my_settings');
@@ -1347,7 +1347,7 @@
       { id:'notifications', allowed:appFlag('apps', 'notifications'), icon:'fas fa-bell', title:(globalThis.PlatformLanguage?.text("settings","m_5a9115e4033cb3","Notifications") ?? "Notifications"), subtitle:(globalThis.PlatformLanguage?.text("settings","m_c5f15c570faa05","Choose which updates appear here and on your phone.") ?? "Choose which updates appear here and on your phone."), tabId:'csTabNotifications', paneId:'csPaneNotifications' },
       { id:'company', allowed:canCompany, icon:'fas fa-building', term:'settings.company_tab', title:(globalThis.PlatformLanguage?.text("settings","m_500872d3c049f6","Company") ?? "Company"), subtitle:(globalThis.PlatformLanguage?.text("settings","m_b21fe34fffb4ad","Company identity, contact details, branding, and defaults.") ?? "Company identity, contact details, branding, and defaults."), tabId:'csTabCompany', paneId:'csPaneCompany' },
       { id:'money', allowed:canPayments, icon:'fas fa-wallet', title:(globalThis.PlatformLanguage?.text("settings","m_05cb9dd7e5a780","Money") ?? "Money"), subtitle:(globalThis.PlatformLanguage?.text("settings","m_764ee227ff8bd4","Accounts, payment defaults, and disputes.") ?? "Accounts, payment defaults, and disputes."), tabId:'csTabMoney', paneId:'csPaneMoney' },
-      { id:'calls', allowed:canCallWorkflows, icon:'fas fa-phone', title:(globalThis.PlatformLanguage?.text("settings","m_e830f5588df87c","Calls") ?? "Calls"), subtitle:(globalThis.PlatformLanguage?.text("settings","m_cb8b711a9efc4a","Configure call queues, assignments, follow-ups, and outcomes.") ?? "Configure call queues, assignments, follow-ups, and outcomes."), tabId:'csTabCalls', paneId:'csPaneCalls' },
+      { id:'calls', allowed:canCallWorkflows, icon:'fas fa-phone', title:(globalThis.PlatformLanguage?.text("settings","phone_call_lists","Call Lists") ?? "Call Lists"), subtitle:(globalThis.PlatformLanguage?.text("settings","m_cb8b711a9efc4a","Configure call lists, assignments, follow-ups, and outcomes.") ?? "Configure call lists, assignments, follow-ups, and outcomes."), tabId:'csTabCalls', paneId:'csPaneCalls' },
       { id:'contacts', allowed:canContacts, icon:'fas fa-address-book', term:'contacts.settings_tab', title:(globalThis.PlatformLanguage?.text("settings","m_6fe082da60f3b0","Contacts") ?? "Contacts"), subtitle:(globalThis.PlatformLanguage?.text("settings","m_3b1e71af416b42","Import contacts and review prior imports.") ?? "Import contacts and review prior imports."), tabId:'csTabContacts', paneId:'csPaneContacts' },
       { id:'connections', allowed:canCompany && appFlag('platform', 'connections'), icon:'fas fa-plug', title:'Connections', subtitle:'Connect external tools, publish data, and automate workflows.', tabId:'csTabConnections', paneId:'csPaneConnections' },
       { id:'feedback', allowed:canFeedback, icon:'fas fa-star', term:'settings.feedback_tab', title:(globalThis.PlatformLanguage?.text("settings","m_d77e00c8c3f0b8","Feedback") ?? "Feedback"), subtitle:(globalThis.PlatformLanguage?.text("settings","m_0b7fe3900fd0b1","Configure customer feedback and review responses.") ?? "Configure customer feedback and review responses."), tabId:'csTabFeedback', paneId:'csPaneFeedback' },
@@ -1364,7 +1364,7 @@
       { id:'scheduling', allowed:canScheduling, icon:'fas fa-calendar-days', term:'scheduling.settings_tab', title:(globalThis.PlatformLanguage?.text("settings","m_4249990706c50e","Scheduling") ?? "Scheduling"), subtitle:(globalThis.PlatformLanguage?.text("settings","m_25f4aecc27c9a1","Appointment confirmations, availability, and assignment rules.") ?? "Appointment confirmations, availability, and assignment rules."), tabId:'csTabScheduling', paneId:'csPaneScheduling' },
       { id:'project_scopes', allowed:canScopeTemplates, parent:canConfiguration ? 'configuration' : '', icon:'fas fa-layer-group', title:(globalThis.PlatformLanguage?.text("settings","m_7932b921135406","Project Scopes") ?? "Project Scopes"), subtitle:(globalThis.PlatformLanguage?.text("settings","m_eeffd1a4887236","Choose project scopes and configure each scope’s workflow, fields, resources, and automations.") ?? "Choose project scopes and configure each scope’s workflow, fields, resources, and automations."), tabId:'csTabScopeTemplates', paneId:'csPaneScopeTemplates' },
       { id:'storage', allowed:canStorage, icon:'fas fa-hard-drive', term:'settings.storage_tab', title:(globalThis.PlatformLanguage?.text("settings","m_6a8d5a5b6c23db","Storage") ?? "Storage"), subtitle:(globalThis.PlatformLanguage?.text("settings","m_4926f46a0a9736","Review media usage and storage limits.") ?? "Review media usage and storage limits."), tabId:'csTabStorage', paneId:'csPaneStorage' },
-      { id:'sms', allowed:canSmsSettings, icon:'fas fa-message', term:'settings.sms_tab', title:(globalThis.PlatformLanguage?.text("settings","m_e1dd22c36fbc9b","SMS") ?? "SMS"), subtitle:(globalThis.PlatformLanguage?.text("settings","m_db381c7db3160e","Configure messaging registration and SMS setup.") ?? "Configure messaging registration and SMS setup."), tabId:'csTabSms', paneId:'csPaneSms' },
+      { id:'sms', allowed:canSmsSettings, icon:'fas fa-message', title:(globalThis.PlatformLanguage?.text("settings","phone_settings_title","Phone Settings") ?? "Phone Settings"), subtitle:(globalThis.PlatformLanguage?.text("settings","m_db381c7db3160e","Manage phone lines, voicemail, routing, messaging, and tracking numbers.") ?? "Manage phone lines, voicemail, routing, messaging, and tracking numbers."), tabId:'csTabSms', paneId:'csPaneSms' },
       { id:'domains', allowed:canDomains, icon:'fas fa-globe', term:'settings.domains_tab', title:(globalThis.PlatformLanguage?.text("settings","m_7e6427ce4061f4","Domains & Hosting") ?? "Domains & Hosting"), subtitle:(globalThis.PlatformLanguage?.text("settings","m_c02d45f8191c42","Register, connect, and manage website domains.") ?? "Register, connect, and manage website domains."), tabId:'csTabDomains', paneId:'csPaneDomains' },
       { id:'app_flags', allowed:canAppFlags, icon:'fas fa-code', term:'settings.developer_settings_tab', title:(globalThis.PlatformLanguage?.text("settings","developer_settings_title","Developer Settings") ?? "Developer Settings"), subtitle:(globalThis.PlatformLanguage?.text("settings","developer_settings_subtitle","Developer tools, feature flags, and app configuration.") ?? "Developer tools, feature flags, and app configuration."), tabId:'csTabAppFlags', paneId:'csPaneAppFlags' },
       { id:'pricebook', allowed:canPricebook, icon:'fas fa-book', term:'pricebook.settings_tab', title:(globalThis.PlatformLanguage?.text("settings","m_f574625863d5b7","Pricebook") ?? "Pricebook"), subtitle:(globalThis.PlatformLanguage?.text("settings","m_c23b3b22698ba1","Manage the organization price book, global references, variants, and artifact pricing rules.") ?? "Manage the organization price book, global references, variants, and artifact pricing rules."), tabId:'csTabPricebook', paneId:'csPanePricebook' },
@@ -4909,21 +4909,29 @@
       if (step === 'number') return smsNumberSelection(profile, options.numberSearch || {});
       return smsSummaryContent(profile);
     }
+    let phoneSettingsHandle = null;
     async function renderSmsSettings(){
-      if (!paneSms) return;
+      if(!paneSms)return;
+      phoneSettingsHandle?.destroy?.();
+      if(!appFlag('apps','comms'))return renderSmsRegistration(paneSms);
+      if(!window.FirstMatePhoneSettings?.mount){paneSms.textContent='Phone Settings could not load. Refresh the page.';return;}
+      phoneSettingsHandle=await window.FirstMatePhoneSettings.mount(paneSms,{orgId:currentOrgId(),initialTab:readSettingsRoute().workflow==='10dlc'?'registration':'personal',registration:renderSmsRegistration});
+    }
+    async function renderSmsRegistration(host = paneSms){
+      if (!host) return;
       const orgId = currentOrgId();
-      paneSms.innerHTML = `<div class="cs-section"><h3>${(globalThis.PlatformLanguage?.htmlText("settings","m_cbd66bd6a20757","SMS Settings") ?? "SMS Settings")}</h3><p class="cs-note">${(globalThis.PlatformLanguage?.htmlText("settings","m_a0a4311c5f28de","Loading SMS setup...") ?? "Loading SMS setup...")}</p></div>`;
+      host.innerHTML = `<div class="cs-section"><h3>${(globalThis.PlatformLanguage?.htmlText("settings","phone_registration_title","10DLC Registration") ?? "10DLC Registration")}</h3><p class="cs-note">${(globalThis.PlatformLanguage?.htmlText("settings","m_a0a4311c5f28de","Loading SMS setup...") ?? "Loading SMS setup...")}</p></div>`;
       try {
-        if (await window.FirstMatePlatformBilling?.setup(paneSms, {orgId,canView:canPlatformBilling,capabilityKeys:['comms.sms','apps.messaging','platform.sms_settings'],onReady:renderSmsSettings})) return;
+        if (await window.FirstMatePlatformBilling?.setup(host, {orgId,canView:canPlatformBilling,capabilityKeys:['comms.sms','apps.messaging','platform.sms_settings'],onReady:()=>renderSmsRegistration(host)})) return;
         const setup = await messagingRequest(`/organizations/${encodeURIComponent(orgId)}/sms/setup`);
         const profiles = Array.isArray(setup.profiles) ? setup.profiles.map((item) => smsPrefillProfile(item, setup)) : [];
         const profile = profiles[0] || smsPrefillProfile({}, setup);
         const registrationStatus = smsCustomerRegistrationStatus(profile);
-        paneSms.innerHTML = `
+        host.innerHTML = `
           <div class="sms-card">
             <div class="sms-hero">
               <div>
-                <h3>${(globalThis.PlatformLanguage?.htmlText("settings","m_cbd66bd6a20757","SMS Settings") ?? "SMS Settings")}</h3>
+                <h3>${(globalThis.PlatformLanguage?.htmlText("settings","phone_registration_title","10DLC Registration") ?? "10DLC Registration")}</h3>
                 <p>${(globalThis.PlatformLanguage?.htmlText("settings","m_1ee85ae452b937","Set up standardized FirstMate SMS registration before sending customer texts.") ?? "Set up standardized FirstMate SMS registration before sending customer texts.")}</p>
               </div>
               <button class="cs-btn primary" type="button" id="smsStartSetup"><i class="fas fa-up-right-from-square"></i> ${String(profiles.length ? 'Open Registration' : 'Set Up SMS Registration')}</button>
@@ -4942,9 +4950,9 @@
               `).join('') : `<div class="cs-note">${(globalThis.PlatformLanguage?.htmlText("settings","m_95c7c3b0210dc4","No SMS registration has been created yet.") ?? "No SMS registration has been created yet.")}</div>`)}
             </div>
           </div>`;
-        void window.Portal?.PhoneTray?.developmentSetup(paneSms);
-        paneSms.querySelector('#smsStartSetup')?.addEventListener('click', () => openSmsWizard(profile, { initialStep: smsRegistrationSubmitted(profile) ? 'summary' : 'business' }));
-        paneSms.querySelectorAll('[data-open-sms-profile]').forEach((button) => {
+        void window.Portal?.PhoneTray?.developmentSetup(host);
+        host.querySelector('#smsStartSetup')?.addEventListener('click', () => openSmsWizard(profile, { initialStep: smsRegistrationSubmitted(profile) ? 'summary' : 'business' }));
+        host.querySelectorAll('[data-open-sms-profile]').forEach((button) => {
           button.addEventListener('click', () => {
             const selected = profiles.find((item) => item.id === button.getAttribute('data-open-sms-profile')) || profile;
             openSmsWizard(selected, { initialStep: smsRegistrationSubmitted(selected) ? 'summary' : 'business' });
@@ -4955,7 +4963,7 @@
           openSmsWizard(profile, { initialStep: route.workflowStep || (smsRegistrationSubmitted(profile) ? 'summary' : 'business') });
         }
       } catch (error) {
-        paneSms.innerHTML = `<div class="cs-note">${escapeHtml(error?.message || 'Could not load SMS settings.')}</div>`;
+        host.innerHTML = `<div class="cs-note">${escapeHtml(error?.message || 'Could not load SMS settings.')}</div>`;
       }
     }
     function openSmsWizard(initialProfile, options = {}){
@@ -7156,9 +7164,12 @@
         const parsed = Number(input?.default_sales_tax_percent);
         const parsedDueDays = Number(input?.default_due_days);
         return {
+          // Keep settings this pane does not edit (surcharge flags, ...).
+          ...(input && typeof input === 'object' ? input : {}),
           sales_tax_enabled: input?.sales_tax_enabled !== false,
           default_sales_tax_percent: Math.min(100, Math.max(0, Number.isFinite(parsed) ? parsed : Number(fallbackPercent || 0))),
-          default_due_days: Math.min(365, Math.max(0, Number.isFinite(parsedDueDays) ? Math.round(parsedDueDays) : 0))
+          default_due_days: Math.min(365, Math.max(0, Number.isFinite(parsedDueDays) ? Math.round(parsedDueDays) : 0)),
+          refund_policy: String(input?.refund_policy || '').slice(0, 2000)
         };
       };
       panePayments.innerHTML = `<div data-payment-defaults></div><div data-merchant-processing></div>`;
@@ -7189,6 +7200,7 @@
             </label>
             ${String(settings.sales_tax_enabled ? `<div class="cs-row"><label class="cs-lbl" for="paymentDefaultTaxPercent">${(globalThis.PlatformLanguage?.htmlText("settings","m_0b2aa0314e8f6d","Default sales tax percentage") ?? "Default sales tax percentage")}</label><input class="cs-in" id="paymentDefaultTaxPercent" type="number" min="0" max="100" step="0.01" value="${escapeHtml(String(settings.default_sales_tax_percent))}"></div>` : '')}
             <div class="cs-row"><label class="cs-lbl" for="paymentDefaultDueDays">${(globalThis.PlatformLanguage?.htmlText("settings","m_ba77a691139cae","Invoice payment terms (days until due)") ?? "Invoice payment terms (days until due)")}</label><input class="cs-in" id="paymentDefaultDueDays" type="number" min="0" max="365" step="1" value="${String(escapeHtml(String(settings.default_due_days)))}"><div class="cs-note" style="margin:4px 0 0">${(globalThis.PlatformLanguage?.htmlText("settings","m_681824b42fad0b","0 means due on receipt. Applied when an invoice is created without an explicit due date — for example Net 30.") ?? "0 means due on receipt. Applied when an invoice is created without an explicit due date — for example Net 30.")}</div></div>
+            <div class="cs-row"><label class="cs-lbl" for="paymentRefundPolicy">Refund policy</label><textarea class="cs-in" id="paymentRefundPolicy" rows="3" maxlength="2000" placeholder="Refunds follow the terms of your agreement with us. To ask for a refund, contact us.">${String(escapeHtml(settings.refund_policy || ''))}</textarea><div class="cs-note" style="margin:4px 0 0">Shown next to the Pay button on every online payment. Leave blank to tell customers refunds follow their agreement and how to reach you.</div></div>
             <div class="li-actions"><button class="cs-btn primary" type="button" data-payment-settings-save ${String(saving ? 'disabled' : '')}>${String(saving ? '<i class="fas fa-spinner fa-spin"></i> Saving...' : '<i class="fas fa-save"></i> Save Payment Settings')}</button></div>
             <div class="cs-note">${String(escapeHtml(status))}</div>
           </div>`;
@@ -7199,7 +7211,8 @@
         panePayments.querySelector('[data-payment-settings-save]')?.addEventListener('click', async () => {
           const percent = Number(panePayments.querySelector('#paymentDefaultTaxPercent')?.value ?? settings.default_sales_tax_percent);
           const dueDays = Number(panePayments.querySelector('#paymentDefaultDueDays')?.value ?? settings.default_due_days);
-          settings = normalize({ ...settings, default_sales_tax_percent: percent, default_due_days: dueDays });
+          const refundPolicy = String(panePayments.querySelector('#paymentRefundPolicy')?.value ?? settings.refund_policy ?? '').trim();
+          settings = normalize({ ...settings, default_sales_tax_percent: percent, default_due_days: dueDays, refund_policy: refundPolicy });
           render(true);
           try {
             const result = await window.PlatformAPI.branchModules.save(orgId, branchId, 'payment_settings', settings, { kind:'branch_payment_settings', source:'company_settings_payments' });
@@ -7287,7 +7300,8 @@
         return Number.isFinite(amount) ? `$${amount.toLocaleString((globalThis.PlatformLanguage?.formatLocale?.("en-US") || "en-US"), { maximumFractionDigits: 2 })}` : '$0';
       };
       const OWNERSHIP_TYPES = [['sole_proprietorship','Sole proprietorship'],['llc','LLC'],['corporation','Corporation'],['partnership','Partnership'],['non_profit','Non-profit']];
-      const MCC_OPTIONS = [['1761','1761 - Roofing, Siding, Sheet Metal Work'],['5039','5039 - Construction Materials']];
+      // Replaced by the codes Forward assigned to us once they load (GET /mccs).
+      let MCC_OPTIONS = [['1761','1761 - Roofing, Siding, Sheet Metal Work'],['5039','5039 - Construction Materials']];
       const OWNER_TITLES = ['Owner','CEO','President','CFO','Manager','Member'];
       const boardingStatus = () => mcText(mp.config?.forward?.boarding_status).toUpperCase();
       const planName = (planId) => {
@@ -7342,6 +7356,14 @@
         mp.forwardEnv = mcText(result?.forward_environment);
       };
       const loadPlans = async () => {
+        if (!mp.mccsLoaded && paymentsApi.merchantBoarding.mccs) {
+          mp.mccsLoaded = true;
+          try {
+            const result = await paymentsApi.merchantBoarding.mccs(orgId);
+            const rows = (Array.isArray(result?.mccs) ? result.mccs : []).filter((row) => row && row.active !== false && mcText(row.code));
+            if (rows.length) MCC_OPTIONS = rows.map((row) => [mcText(row.code), `${mcText(row.code)} - ${mcText(row.description) || 'Merchant category'}`]);
+          } catch (_) { mp.mccsLoaded = false; }
+        }
         if (mp.plans) return;
         const result = await paymentsApi.merchantBoarding.plans(orgId);
         mp.plans = Array.isArray(result?.processing_plans) ? result.processing_plans : [];
@@ -7581,6 +7603,7 @@
               <dl class="mp-kv">
                 <dt>${(globalThis.PlatformLanguage?.htmlText("settings","m_33f29b94cb696f","Merchant account") ?? "Merchant account")}</dt><dd data-mp-account-id>${String(escapeHtml(mcText(forward.account_id) || '—'))}</dd>
                 <dt>${(globalThis.PlatformLanguage?.htmlText("settings","m_cec7c804d01cf9","Processing plan") ?? "Processing plan")}</dt><dd data-mp-plan-name>${String(escapeHtml(planName(forward.processing_plan_id) || '—'))}</dd>
+                <dt>Gateway</dt><dd data-mp-gateway>${String(escapeHtml(forward.gateway_updated_at ? `Boarded${forward.gateway_mid ? ` (MID ${forward.gateway_mid})` : ''}` : (mcText(forward.account_status) ? mcText(forward.account_status).toLowerCase().replace(/^./, (c) => c.toUpperCase()) : 'Waiting for Forward')))}</dd>
               </dl>
               <div data-mp-bank-section>
                 <div class="cs-lbl" style="margin-bottom:6px">${(globalThis.PlatformLanguage?.htmlText("settings","m_40b6f06484042c","Bank account") ?? "Bank account")}</div>
@@ -14485,7 +14508,7 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
     const canScopeFlags = canCompany;
     const canCallWorkflows = canCompany && appFlag('calls', 'app');
     const canStorage = canCompany && storageLimitsEnabled();
-    const canSmsSettings = canCompany && appFlag('platform', 'sms_settings');
+    const canSmsSettings = appFlag('apps','comms') || canCompany && appFlag('platform', 'sms_settings');
     const canAppFlags = canCompany && window.Portal?.appFlags?.current?.()?.test_admin === true;
     const any = true; // Every authenticated user can reach harmless personal settings.
     const link = document.querySelector('.fm-link[data-tab="company_settings"]');

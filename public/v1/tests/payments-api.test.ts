@@ -30,7 +30,22 @@ function createSessionClient() {
       }
     });
   };
-  const request = async (method: string, url: string, payload?: unknown, extraHeaders: Record<string, string> = {}) => {
+  const request = async (method: string, url: string, payload?: unknown, extraHeaders: Record<string, string> = {}): Promise<any> => {
+    // Legacy proposal links no longer collect signatures; tests sign the
+    // snapshot directly (tests/helpers/signed-proposal.ts).
+    const legacySign = method.toUpperCase() === "POST" ? /^\/v1\/proposals\/public\/([^/]+)\/sign$/.exec(url) : null;
+    if (legacySign) {
+      const { signLegacyProposalForTest } = await import("./helpers/signed-proposal.js");
+      return signLegacyProposalForTest(decodeURIComponent(legacySign[1] || ""), String((payload as any)?.signer_name || "Customer"));
+    }
+    // A project's contacts are written through the contacts API, never with
+    // the project (docs/architecture/contacts.md).
+    if (method.toUpperCase() === "PUT" && /^\/v1\/platform\/organizations\/[^/]+\/projects\/[^/?]+$/.test(url) && Array.isArray((payload as any)?.data?.contacts)) {
+      const { contacts, ...data } = (payload as any).data;
+      const written: any = await request(method, url, { ...(payload as any), data }, extraHeaders);
+      await request("PUT", `${url}/contacts`, { contacts });
+      return written;
+    }
     const response = await raw(method, url, payload, extraHeaders);
     const setCookie = response.headers["set-cookie"];
     const sessionCookie = readCookie(setCookie, "fm_platform_session");
@@ -382,10 +397,8 @@ test("project payments partially satisfy a signed deposit and spill over only af
   assert.equal(summary.obligations.find((item: any) => item.label === "Deposit").status, "partially_paid");
   assert.equal(summary.obligations.find((item: any) => item.label === "Final Payment").allocated_cents, 0);
   const depositObligationId = summary.obligations.find((item: any) => item.label === "Deposit").id;
-  let project = await client.request("GET", `/v1/platform/organizations/${orgId}/projects/${projectId}`);
-  let pipelineInstance = project.document.data.work_projection.active_instances
-    .find((instance: any) => instance.sales === true);
-  assert.equal(pipelineInstance.stage_id, "closing_stage");
+  // (Legacy proposal links no longer sign, so the sales pipeline those
+  // signatures drove is not part of this payments test.)
 
   const overage = await client.request("POST", `/v1/payments/organizations/${orgId}/payments`, {
     project_id: projectId,
@@ -397,11 +410,6 @@ test("project payments partially satisfy a signed deposit and spill over only af
   summary = (await client.request("GET", `/v1/payments/organizations/${orgId}/projects/${projectId}/money-summary`)).summary;
   assert.equal(summary.obligations.find((item: any) => item.label === "Deposit").status, "paid");
   assert.equal(summary.obligations.find((item: any) => item.label === "Final Payment").allocated_cents, 50_000);
-  project = await client.request("GET", `/v1/platform/organizations/${orgId}/projects/${projectId}`);
-  // The deposit completed the pipeline's last node; with no production
-  // scope on this piece-less proposal the project lifecycle completes.
-  assert.equal(project.document.data.work_projection.active_instances.length, 0);
-  assert.equal(project.document.data.lifecycle.status, "completed");
 
   const events = await client.request("GET", `/v1/payments/organizations/${orgId}/events?project_id=${projectId}`);
   const partialEvent = events.events.find((event: any) => event.type === "payment.received" && event.payload.payment_id === partial.payment.id);
@@ -520,9 +528,16 @@ test("project invoices generate PDFs, publish due payments to the portal, email 
   assert.equal(invoiceDeliveries[0]?.recipient_address, "ivy-invoice@example.test");
   assert.equal(invoiceDeliveries[0]?.transport_mode, "capture");
 
-  const paid = await client.request("POST", `/v1/proposals/public/${publicToken}/payments/mock-deposit`, {
+  // This organization has no payment setup, so the email does not ask for
+  // an online payment.
+  assert.doesNotMatch(String(invoiceMessage.html_body), /to pay/i);
+  // The customer pays by check; staff record it against the final payment.
+  const paid = await client.request("POST", `/v1/payments/organizations/${orgId}/payments`, {
+    project_id: projectId,
     obligation_id: finalObligation.id,
-    amount_cents: 400_000
+    amount_cents: 400_000,
+    kind: "customer_final",
+    method: { type: "check", label: "Check" }
   });
   assert.equal(paid.payment.kind, "customer_final");
   assert.equal(paid.allocations[0].obligation_id, finalObligation.id);
@@ -584,153 +599,7 @@ test("project invoices generate PDFs, publish due payments to the portal, email 
   assert.equal(mixedPublished.balance_due_cents, 43_825);
 });
 
-test("public customer portal e-sign workflow signs proposal and records mock deposit", async () => {
-  const client = createSessionClient();
-  const { orgId, userId } = await register(client);
-  const projectId = "project_customer_portal_money_test";
-
-  await client.request("PUT", `/v1/platform/organizations/${orgId}/projects/${projectId}`, {
-    data: {
-      id: projectId,
-      address: "422 Portal Pay Street",
-      title: "Portal Payment Roof",
-      contacts: [{ id: "contact_portal_pay", role: "customer", name: "Pat Portal", email: "pat-portal@example.test", primary: true }]
-    },
-    metadata: { kind: "platform_project" }
-  });
-
-  const created = await client.request("POST", `/v1/proposals/organizations/${orgId}/projects/${projectId}/proposals`, {
-    title: "Portal Proposal",
-    contacts: [{ role: "customer", name: "Pat Portal", email: "pat-portal@example.test" }],
-    editable: {
-      title: "Portal Proposal",
-      pricing: { total: 8800 },
-      scope: {
-        schema_version: 1,
-        root_items: [
-          {
-            id: "scope_roof_replacement",
-            scope_piece_id: "scope_roof_replacement",
-            scope_template_id: "roof_replacement",
-            type: "scope_item",
-            name: "Roof Replacement",
-            display_name: "Roof Replacement",
-            unit: "ea",
-            quantity: "1",
-            unit_price: 8000,
-            included: false,
-            price_driving: true,
-            selection: { mode: "fixed", selected: true, selectable_by: ["internal"] },
-            children: [
-              {
-                id: "scope_underlayment",
-                type: "scope_item",
-                name: "Synthetic Underlayment",
-                display_name: "Synthetic Underlayment",
-                unit: "sq",
-                quantity: "20",
-                unit_price: 0,
-                included: true,
-                price_driving: false,
-                selection: { mode: "fixed", selected: true, selectable_by: ["internal"] },
-                children: []
-              }
-            ]
-          }
-        ],
-        variables: {},
-        measurements: {},
-        selection_state: {}
-      },
-      pages: [
-        { id: "pricing", kind: "pricing", scope_view: { root_item_id: "root", render_depth: 1, show_included_items: true } },
-        { id: "signature", kind: "signature", depositAmount: 2200, completionAmount: 6600, taxAmount: 800 },
-        { id: "terms", kind: "fine_print", title: "Terms", body: "Standard terms apply.", requireCustomerSignature: true }
-      ]
-    }
-  });
-
-  const sent = await client.request("POST", `/v1/proposals/organizations/${orgId}/proposals/${created.proposal.id}/send`, {
-    expected_revision: created.proposal.revision,
-    recipients: [{ role: "customer", name: "Pat Portal", email: "pat-portal@example.test" }],
-    include_pdf: false,
-    include_portal: true
-  });
-  const publicToken = sent.snapshot.delivery.public_token;
-  assert.ok(publicToken);
-
-  const html = await client.raw("GET", `/v1/proposals/public/${publicToken}/app`);
-  assert.equal(html.statusCode, 200);
-  assert.match(html.body, /Deposit due/i);
-
-  let publicView = await client.request("GET", `/v1/proposals/public/${publicToken}`);
-  assert.equal(publicView.workflow.payment.deposit_amount_cents, 220_000);
-  assert.equal(publicView.workflow.payment.tax_cents, 80_000);
-
-  const adopted = await client.request("POST", `/v1/proposals/public/${publicToken}/esign/adopt`, {
-    signer_name: "Pat Portal",
-    signature: { type: "typed", text: "Pat Portal", style: "signature" },
-    visitor_session_id: "visitor_test"
-  });
-  assert.equal(adopted.signature.signer_name, "Pat Portal");
-
-  await client.request("POST", `/v1/proposals/public/${publicToken}/esign/slot`, {
-    slot_id: "signature:customer_signature",
-    page_id: "signature",
-    page_index: 1,
-    signer_name: "Pat Portal",
-    signature: { type: "typed", text: "Pat Portal", style: "signature" }
-  });
-  await client.request("POST", `/v1/proposals/public/${publicToken}/esign/slot`, {
-    slot_id: "terms:customer_signature",
-    page_id: "terms",
-    page_index: 2,
-    signer_name: "Pat Portal",
-    signature: { type: "typed", text: "Pat Portal", style: "signature" }
-  });
-
-  publicView = await client.request("POST", `/v1/proposals/public/${publicToken}/esign/complete`, {
-    signer_name: "Pat Portal",
-    signature: { type: "typed", text: "Pat Portal", style: "signature" }
-  });
-  assert.equal(publicView.snapshot.status, "signed");
-  assert.equal(publicView.workflow.payment.deposit_due_cents, 220_000);
-
-  const preDepositMoney = (await client.request("GET", `/v1/payments/organizations/${orgId}/projects/${projectId}/money-summary`)).summary;
-  assert.equal(preDepositMoney.accrued_commissions_cents, 0);
-  assert.equal(preDepositMoney.expense_summary.groups.some((group: any) => group.targets?.some((target: any) => target.resource_type === "commission")), false);
-
-  const paid = await client.request("POST", `/v1/proposals/public/${publicToken}/payments/mock-deposit`, {});
-  assert.equal(paid.payment.kind, "customer_deposit");
-  assert.equal(paid.payment.status, "settled");
-  assert.equal(paid.payment.amount_cents, 220_000);
-  assert.equal(paid.snapshot.customer_payment.status, "deposit_paid");
-
-  const soldProject = await client.request("GET", `/v1/platform/organizations/${orgId}/projects/${projectId}`);
-  const soldProjection = soldProject.document.data.work_projection;
-  const soldRoof = soldProjection.active_instances.find((instance: any) => instance.template_id === "roof_replacement");
-  assert.ok(["newly_sold_stage", "scheduled_stage"].includes(soldRoof.stage_id));
-  assert.equal(soldProject.document.data.lifecycle.status, "open");
-  assert.ok(soldProject.document.data.lifecycle.sold_at);
-
-  const summary = (await client.request("GET", `/v1/payments/organizations/${orgId}/projects/${projectId}/money-summary`)).summary;
-  assert.equal(summary.total_collected_cents, 220_000);
-  assert.ok(summary.obligations.some((item: any) => item.label === "Deposit" && item.status === "paid"));
-  const portal = await client.request("POST", `/v1/platform/organizations/${orgId}/projects/${projectId}/customer-portal`, {
-    contact_id: "contact_portal_pay"
-  });
-  const portalPayload = await client.request("GET", `/v1/platform/customer-portals/${portal.portal.public_uuid}`);
-  const shared = portalPayload.resources.proposals.find((proposal: any) => proposal.proposal_id === created.proposal.id);
-  assert.ok(shared, "sent proposal should be visible in customer portal resources");
-  assert.equal(shared.workflow.payment.status, "deposit_paid");
-  const pricingPage = shared.pages.find((page: any) => page.kind === "pricing");
-  assert.equal(pricingPage.line_items[0].label, "Roof Replacement");
-  assert.equal(pricingPage.line_items[0].amount, "$8,000.00");
-  assert.equal(pricingPage.line_items[1].label, "Synthetic Underlayment");
-  assert.equal(pricingPage.line_items[1].included, true);
-});
-
-test("public customer portal mock deposit can be recorded before proposal signature", async () => {
+test("the legacy proposal page takes no payment: no Pay button, and the old deposit route is gone", async () => {
   const client = createSessionClient();
   const { orgId } = await register(client);
   const projectId = "project_customer_portal_unsigned_payment_test";
@@ -744,7 +613,6 @@ test("public customer portal mock deposit can be recorded before proposal signat
     },
     metadata: { kind: "platform_project" }
   });
-
   const created = await client.request("POST", `/v1/proposals/organizations/${orgId}/projects/${projectId}/proposals`, {
     title: "Unsigned Payment Proposal",
     contacts: [{ role: "customer", name: "Una Signed", email: "una@example.test" }],
@@ -757,7 +625,6 @@ test("public customer portal mock deposit can be recorded before proposal signat
       ]
     }
   });
-
   const sent = await client.request("POST", `/v1/proposals/organizations/${orgId}/proposals/${created.proposal.id}/send`, {
     expected_revision: created.proposal.revision,
     recipients: [{ role: "customer", name: "Una Signed", email: "una@example.test" }],
@@ -767,47 +634,21 @@ test("public customer portal mock deposit can be recorded before proposal signat
   const publicToken = sent.snapshot.delivery.public_token;
   assert.ok(publicToken);
 
-  const paid = await client.request("POST", `/v1/proposals/public/${publicToken}/payments/mock-deposit`, {
-    amount_cents: 150_000
-  });
-  assert.equal(paid.payment.kind, "customer_deposit");
-  assert.equal(paid.payment.status, "settled");
-  assert.equal(paid.payment.amount_cents, 150_000);
-  assert.equal(paid.snapshot.customer_payment.status, "deposit_paid");
-  assert.notEqual(paid.snapshot.status, "signed");
-  assert.notEqual(paid.snapshot.delivery.state, "signed");
+  // The page never had secure card entry, so it offers no payment at all.
+  const html = await client.raw("GET", `/v1/proposals/public/${publicToken}/app`);
+  assert.equal(html.statusCode, 200);
+  assert.doesNotMatch(html.body, /mock-deposit|id="pay"|Pay deposit/);
 
-  const publicView = await client.request("GET", `/v1/proposals/public/${publicToken}`);
-  assert.equal(publicView.workflow.payment.status, "deposit_paid");
-  assert.notEqual(publicView.snapshot.status, "signed");
+  // The route that recorded a "paid" deposit from an empty request is gone.
+  const mockDeposit = await client.raw("POST", `/v1/proposals/public/${publicToken}/payments/mock-deposit`, { amount_cents: 150_000 });
+  assert.equal(mockDeposit.statusCode, 404);
+  const payments = await client.request("GET", `/v1/payments/organizations/${orgId}/projects/${projectId}/payments`);
+  assert.equal(payments.payments.length, 0, "nothing was recorded as paid");
 
-  await client.request("POST", `/v1/proposals/public/${publicToken}/sign`, {
-    signer_name: "Una Signed",
-    signature: { type: "adopt", text: "Una Signed" }
-  });
-
-  const signedMoney = (await client.request("GET", `/v1/payments/organizations/${orgId}/projects/${projectId}/money-summary`)).summary;
-  const deposit = signedMoney.obligations.find((item: any) => item.label === "Deposit");
-  const finalPayment = signedMoney.obligations.find((item: any) => item.label === "Final Payment");
-  assert.equal(deposit.status, "paid");
-  assert.equal(deposit.allocated_cents, 125_000);
-  assert.equal(finalPayment.status, "partially_paid");
-  assert.equal(finalPayment.allocated_cents, 25_000);
-
-  const signedPublicView = await client.request("GET", `/v1/proposals/public/${publicToken}`);
-  assert.equal(signedPublicView.workflow.payment.deposit_paid_cents, 125_000);
-  assert.equal(signedPublicView.workflow.payment.deposit_due_cents, 0);
-  assert.equal(signedPublicView.workflow.payment.remaining_cents, 350_000);
-  assert.equal(signedPublicView.workflow.payment.obligations.find((item: any) => item.label === "Final Payment").allocated_cents, 25_000);
-
-  const soldProject = await client.request("GET", `/v1/platform/organizations/${orgId}/projects/${projectId}`);
-  const soldProjection = soldProject.document.data.work_projection;
-  assert.ok(soldProjection.instances.some((instance: any) => instance.sales === true && instance.status === "completed"));
-  assert.equal(soldProject.document.data.lifecycle.status, "completed");
-  const paymentEvents = await client.request("GET", `/v1/payments/organizations/${orgId}/events?project_id=${projectId}`);
-  assert.ok(paymentEvents.events.some((event: any) => event.type === "payment.automatically_applied"
-    && event.payload.payment_id === paid.payment.id
-    && event.payload.payment_kind === "deposit"));
+  // Without payment setup the proposal's intake config offers no card entry.
+  const intake = await client.request("GET", `/v1/proposals/public/${publicToken}/payments/intake-config`);
+  assert.equal(intake.ready, false);
+  assert.equal(intake.tokenization, null);
 });
 
 test("expense tracking projects labor from its list lines, preserves receipt evidence, and groups overlapping attributions transitively", async () => {

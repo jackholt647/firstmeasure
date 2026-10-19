@@ -21,17 +21,20 @@ import {
   createMessageRecord,
   dmKeyForMembers,
   editMessageRecord,
+  updateMessageVisibilityRecord,
   findChannelByDmKey,
   findChannelByProject,
   findMessageByClientId,
   getChannelsDatabase,
   listAttachmentsForMessages,
+  listReplySummaryRecords,
   listChannelAttachmentResources,
   listChannelMembers,
   listChannelRecords,
   listMembershipChannelIds,
   listMentionRowsForUser,
   listMessageRecords,
+  listProjectNoteAuthorPolicies,
   listMessageRevisions,
   listMessageTranslations,
   listPinnedMessages,
@@ -89,7 +92,8 @@ registerWorkEvents(["created", "edited", "deleted", "restored", "pinned", "unpin
   notification:{group:"projects", source:"channels", tab:"messaging"}
 })));
 
-async function separateProjectNotes(ctx: PlatformAuthContext) { return can(ctx, "channels.separate_project_notes"); }
+// Notes and project conversations are separate domains, regardless of legacy feature settings.
+async function separateProjectNotes(_ctx: PlatformAuthContext) { return true; }
 async function messageWorkEvent(ctx: PlatformAuthContext, channel: ChannelRow, message: MessageRow, action: string, at = nowIso()) {
   if (channel.type === "feed") return;
   const note = message.metadata.project_note === true && await separateProjectNotes(ctx);
@@ -108,6 +112,8 @@ const translationRuns = new Map<string, Promise<JsonObject>>();
 function cleanText(value: unknown) {
   return String(value ?? "").trim();
 }
+
+function asStringArray(value:unknown):string[]{return Array.isArray(value) ? value.map(cleanText).filter(Boolean) : [];}
 
 function asObject(value: unknown): JsonObject {
   return value && typeof value === "object" && !Array.isArray(value) ? (value as JsonObject) : {};
@@ -159,14 +165,30 @@ export function viewerAudienceGroups(ctx: PlatformAuthContext): string[] {
   return [...groups];
 }
 
+import {matchesNoteAudienceRefs,validateNoteAudienceRefs,type NoteAudienceRef} from '../workforce/note-audiences.js';
+
 function messageVisibleTo(message: MessageRow, ctx: PlatformAuthContext, groups: string[]) {
-  if(!canAccessDepartmentResource(ctx,message.metadata))return false;
+  if(message.metadata.project_note === true && Array.isArray(message.metadata.note_audience_refs) && message.metadata.note_audience_refs.length)return matchesNoteAudienceRefs(ctx,message.metadata.note_audience_refs,message.metadata.note_audience_owner_id);
+  const crewNote = message.metadata.project_note === true && message.metadata.note_audience_crew === true && hasPermission(ctx, "crew.projects.view");
+  if(!crewNote && !canAccessDepartmentResource(ctx,message.metadata))return false;
   if (message.metadata.feed_post === true || message.metadata.feed_comment === true) return feedMessageGranted(ctx, message);
   if (!message.audience.length) return true;
   if (message.author_id === ctx.userId) return true;
   const mentioned = message.mention_users.some((user) => cleanText(user.id || user.user_id) === ctx.userId);
   if (mentioned) return true;
   return message.audience.some((group) => groups.includes(group));
+}
+
+/** A project note's explicit department audience reuses the resource access boundary. */
+export function projectNoteDepartmentVisibility(ctx: PlatformAuthContext, channelType: string, isRootNote: boolean, departmentIds?: string[], includeCrew?: boolean, audienceRefs?:NoteAudienceRef[]): JsonObject | undefined {
+  if (departmentIds === undefined && includeCrew === undefined && audienceRefs === undefined) return undefined;
+  if (channelType !== 'project' || !isRootNote) throw badRequest('note_audience_only', 'Department visibility is available for project notes.');
+  const selected = [...new Set((departmentIds || []).map(cleanText).filter(Boolean))];
+  const allowed = relevantDepartmentContext(ctx).department_ids;
+  if (selected.some(id => !allowed.includes(id))) throw forbidden('department_denied', 'Choose active departments available to you.');
+  const refs=audienceRefs===undefined ? undefined : validateNoteAudienceRefs(ctx,audienceRefs);
+  if(refs?.length && (selected.length || includeCrew))throw badRequest('note_audience_mixed','Choose departments or an advanced audience.');
+  return {...(refs===undefined ? {} : {note_audience_refs:refs,note_audience_owner_id:refs.length ? ctx.userId : ''}),department_ids:selected, note_audience_crew:includeCrew === true, department_access:selected.length || includeCrew === true || refs?.length ? 'restricted' : 'shared'};
 }
 
 // --- user directory -----------------------------------------------------------
@@ -277,7 +299,9 @@ export async function requireChannelAccess(ctx: PlatformAuthContext, channelId: 
   const departmentMembers=await departmentChannelMembers(channel);
   if(departmentMembers&&!departmentMembers.includes(ctx.userId))throw forbidden('channel_forbidden','You are not a member of this department channel.');
   if (channel.type === "feed" && !hasFeedGrant(ctx)) throw notFound("channel_not_found", "This channel does not exist.");
-  if (requiresChannelMembership(channel)) {
+  if (channel.settings.photo_media_id) {
+    await (await import("./photo-comments.js")).authorizePhotoDiscussion(ctx,cleanText(channel.settings.photo_media_id),!!(options.write || options.post));
+  } else if (requiresChannelMembership(channel)) {
     // Ordinary channels are member-only, including for organization admins.
     if (!membership && !departmentMembers?.includes(ctx.userId)) throw forbidden("channel_forbidden", "You are not a member of this channel.");
   } else if (channel.type === "project") {
@@ -570,14 +594,14 @@ export async function realtimeChannelTargets(orgId: string, channelId: string): 
 }
 
 function messageIsAudienceRestricted(message: MessageRow) {
-  return message.audience.length > 0 && message.audience.length < AUDIENCE_GROUPS.length;
+  return message.metadata.department_access === 'restricted' || (message.audience.length > 0 && message.audience.length < AUDIENCE_GROUPS.length);
 }
 
 async function publishMessageEvent(topic: string, channel: ChannelRow, message: MessageRow, hydrated: JsonObject | null | undefined) {
   if (channel.type === "feed") return; // Feed clients poll only the authorized post; no organization-wide body broadcast.
   // Audience-restricted messages are announced as stubs so the body never
   // reaches a connection the read API would have filtered; clients refetch.
-  const payload: JsonObject = messageIsAudienceRestricted(message) || message.deleted_at || !hydrated
+  const payload: JsonObject = channel.settings.photo_media_id || messageIsAudienceRestricted(message) || message.deleted_at || !hydrated
     ? { channel_id: channel.id, channel_type: channel.type, project_id: channel.project_id, message_id: message.id, seq: message.seq, parent_id: message.parent_id, stub: true }
     : { channel_id: channel.id, channel_type: channel.type, project_id: channel.project_id, message: hydrated, seq: message.seq, parent_id: message.parent_id };
   (await publishRealtimeEvent({ organization_id: channel.organization_id, topic, user_ids: (await realtimeTargets(channel)), payload }));
@@ -607,8 +631,33 @@ export async function hydrateMessages(ctx: PlatformAuthContext, channel: Channel
   const manage = await channelAdminAllowed(ctx, channel);
   const preferences = await viewerTranslationPreferences(ctx);
   const translations = (await listMessageTranslations(ids, preferences.language));
+  const groups = viewerAudienceGroups(ctx);
+  const summaries = new Map<string, { count: number; last: string; people: MessageRow[]; seen: Set<string> }>();
+  for (const reply of await listReplySummaryRecords(ctx.orgId, channel.id, messages.filter(message => !message.parent_id && !message.deleted_at).map(message => message.id))) {
+    if (!messageVisibleTo(reply, ctx, groups)) continue;
+    const summary = summaries.get(reply.parent_id!) ?? { count: 0, last: reply.created_at, people: [], seen: new Set<string>() };
+    summary.count++;
+    if (!summary.seen.has(reply.author_id) && summary.people.length < 4) {
+      summary.seen.add(reply.author_id);
+      summary.people.push(reply);
+    }
+    summaries.set(reply.parent_id!, summary);
+  }
   return Promise.all(messages.map(async message => {
-    const hydrated = hydrateMessage(ctx, message, { directory, reactions, attachments, saved, manage, preferences, translations });
+    const hydrated = hydrateMessage(ctx, message, { directory, reactions, attachments, saved, manage, preferences, translations, archivedNoteReadable:channel.type === 'project' && message.metadata.project_note === true && messageVisibleTo(message,ctx,viewerAudienceGroups(ctx)) });
+    if (!message.parent_id) {
+      const summary = summaries.get(message.id);
+      hydrated.reply_count = summary?.count || 0;
+      hydrated.last_reply_at = summary?.last || null;
+      hydrated.reply_participants = await Promise.all((summary?.people || []).map(async reply => {
+        if (reply.metadata.collaboration_actor) {
+          const { participantView, verifiedMessageContributor } = await import('../collaboration/service.js');
+          const contributor = await verifiedMessageContributor(reply);
+          if (contributor) return { id: reply.author_id, ...await participantView(ctx.orgId, contributor, true).catch(() => ({ name: 'External participant' })) };
+        }
+        return directory.get(reply.author_id) ?? (cleanText(asObject(reply.metadata.legacy_photo_author).id) === reply.author_id ? asObject(reply.metadata.legacy_photo_author) : { id: reply.author_id, name: 'Unknown', avatar: '' });
+      }));
+    }
     if(message.metadata.collaboration_actor){
       const {participantView,verifiedMessageContributor}=await import("../collaboration/service.js");
       const contributor=await verifiedMessageContributor(message);
@@ -630,6 +679,7 @@ function hydrateMessage(
   ctx: PlatformAuthContext,
   message: MessageRow,
   helpers: {
+    archivedNoteReadable: boolean;
     directory: Map<string, UserProfile>;
     reactions: Map<string, { message_id: string; user_id: string; emoji: string; created_at: string }[]>;
     attachments: Map<string, unknown[]>;
@@ -639,7 +689,7 @@ function hydrateMessage(
     translations: Map<string, MessageTranslationRow>;
   }
 ): JsonObject {
-  const author = helpers.directory.get(message.author_id) ?? { id: message.author_id, name: "Unknown", email: "", avatar: "" };
+  const author = helpers.directory.get(message.author_id) ?? (cleanText(asObject(message.metadata.legacy_photo_author).id) === message.author_id ? asObject(message.metadata.legacy_photo_author) : { id: message.author_id, name: "Unknown", email: "", avatar: "" });
   const isAuthor = message.author_id === ctx.userId;
   const deleted = Boolean(message.deleted_at);
   const canModerate = isAuthor || helpers.manage;
@@ -692,14 +742,14 @@ function hydrateMessage(
   };
 
   if (deleted) {
-    // Tombstone: the body only survives for people who could restore it.
+    // Archived project notes remain readable within their original audience.
     return {
       ...base,
-      text: "",
-      mention_users: [],
+      text: helpers.archivedNoteReadable ? message.text : "",
+      mention_users: helpers.archivedNoteReadable ? message.mention_users : [],
       reactions: [],
       attachments: [],
-      metadata: message.metadata.reply_broadcast === true ? { reply_broadcast: true } : {}
+      metadata: helpers.archivedNoteReadable ? message.metadata : message.metadata.reply_broadcast === true ? { reply_broadcast: true } : {}
     };
   }
 
@@ -735,7 +785,7 @@ async function channelView(ctx: PlatformAuthContext, channel: ChannelRow, extras
     display_name: displayName || channel.name,
     topic: channel.topic,
     project_id: channel.project_id,
-    separate_notes: channel.type === "project" && await separateProjectNotes(ctx),
+    separate_notes: channel.type === "project" && !channel.settings.photo_media_id && await separateProjectNotes(ctx),
     archived_at: channel.archived_at,
     message_seq: channel.message_seq,
     last_message_at: channel.last_message_at,
@@ -764,6 +814,7 @@ export async function listChannelsForUser(ctx: PlatformAuthContext, options: { i
   for(const channel of all){const members=await departmentChannelMembers(channel);if(members){if(members.includes(ctx.userId))membershipIds.add(channel.id);else membershipIds.delete(channel.id);}}
   const canSeeProjects = canAccessProjectChannels(ctx);
   const visible = all.filter((channel) => {
+    if (channel.settings.photo_media_id) return false;
     if (requiresChannelMembership(channel)) return membershipIds.has(channel.id);
     if (channel.type === "project") return membershipIds.has(channel.id) && canSeeProjects && channel.last_message_at;
     return true;
@@ -980,6 +1031,7 @@ export async function getChannel(ctx: PlatformAuthContext, channelId: string) {
 
 export async function updateChannel(ctx: PlatformAuthContext, channelId: string, patch: { name?: string; topic?: string; settings?: JsonObject }) {
   const { channel } = await requireChannelAccess(ctx, channelId);
+  if (channel.settings.photo_media_id || patch.settings && (Object.hasOwn(patch.settings,"photo_media_id") || Object.hasOwn(patch.settings,"photo_comments_imported"))) throw badRequest("photo_discussion_owned", "Photo discussions are managed with their media.");
   if (!(await channelAdminAllowed(ctx, channel))) throw forbidden("permission_denied", "Only channel admins can update this channel.");
   if (channel.type === "dm" || channel.type === "group_dm") throw badRequest("dm_not_editable", "Direct messages cannot be renamed.");
   if(patch.settings&&Object.hasOwn(patch.settings,'department_id')&&patch.settings.department_id!==channel.settings.department_id)throw badRequest('department_channel_owned','Department channels are managed in department settings.');
@@ -1087,13 +1139,23 @@ export async function removeMember(ctx: PlatformAuthContext, channelId: string, 
 
 // --- messages -----------------------------------------------------------------
 
-export async function listMessages(ctx: PlatformAuthContext, channelId: string, options: { before?: number; after?: number; limit?: number; view?: "messages" | "notes" | "all" }) {
+export async function listMessages(ctx: PlatformAuthContext, channelId: string, options: { before?: number; after?: number; limit?: number; author_ids?:string[]; view?: "messages" | "notes" | "all" }) {
   const { channel } = await requireChannelAccess(ctx, channelId);
   const groups = viewerAudienceGroups(ctx);
-  const raw = (await listMessageRecords(ctx.orgId, channelId, { ...options, parentId: null, projectNotes: options.view === "notes" ? true : options.view === "all" || channel.type !== "project" || !await separateProjectNotes(ctx) ? undefined : false }))
-    .filter((message) => messageVisibleTo(message, ctx, groups));
+  const records=await listMessageRecords(ctx.orgId, channelId, { ...options, parentId: null, projectNotes: options.view === "notes" ? true : channel.type !== "project" || channel.settings.photo_media_id ? undefined : false });
+  const raw=records.filter(message=>messageVisibleTo(message,ctx,groups));
   const messages = await hydrateMessages(ctx, channel, raw);
-  return { channel: await channelView(ctx, channel), messages };
+  const limit=Math.min(Math.max(Number(options.limit)||50,1),200);
+  return { channel: await channelView(ctx, channel), messages,next_before:records.length===limit ? records[0]?.seq || 0 : 0 };
+}
+
+export async function listProjectNoteAuthors(ctx:PlatformAuthContext,channelId:string){
+  const {channel}=await requireChannelAccess(ctx,channelId);
+  if(channel.type!=='project')throw badRequest('project_only','Note filters are available in projects.');
+  const policies=await listProjectNoteAuthorPolicies(ctx.orgId,channelId),groups=viewerAudienceGroups(ctx),directory=await userDirectory(ctx.orgId);
+  const authors=new Map<string,{id:string;name:string;avatar:string;count:number;archived_count:number}>();
+  for(const note of policies){if(!messageVisibleTo(note,ctx,groups))continue;const user=directory.get(note.author_id);const row=authors.get(note.author_id) || {id:note.author_id,name:user?.name || 'Teammate',avatar:user?.avatar || '',count:0,archived_count:0};note.deleted_at ? row.archived_count++ : row.count++;authors.set(row.id,row);}
+  return {authors:[...authors.values()].sort((a,b)=>a.name.localeCompare(b.name))};
 }
 
 export async function listThread(ctx: PlatformAuthContext, messageId: string, options: { after?: number; limit?: number }) {
@@ -1116,6 +1178,9 @@ export async function postMessage(ctx: PlatformAuthContext, channelId: string, i
   parent_id?: string;
   reply_broadcast?: boolean;
   audience?: string[];
+  department_ids?: string[];
+  include_crew?: boolean;
+  audience_refs?:NoteAudienceRef[];
   tags?: string[];
   mention_users?: JsonObject[];
   attachment_ids?: string[];
@@ -1139,21 +1204,26 @@ export async function postMessage(ctx: PlatformAuthContext, channelId: string, i
 
   let parentId: string | null = null;
   let parentNote = false;
+  let parentDepartmentVisibility: JsonObject | undefined;
   if (input.parent_id) {
     const parent = (await readMessageRecord(ctx.orgId, input.parent_id));
     if (!parent || parent.channel_id !== channelId || parent.deleted_at || !messageVisibleTo(parent, ctx, viewerAudienceGroups(ctx))) throw badRequest("invalid_parent", "The thread parent does not exist in this channel.");
     // Replies attach to the thread root, never nest.
     parentId = parent.parent_id ?? parent.id;
     const root = parent.parent_id ? await readMessageRecord(ctx.orgId, parent.parent_id) : parent;
+    if (!root || root.deleted_at || !messageVisibleTo(root, ctx, viewerAudienceGroups(ctx))) throw badRequest("invalid_parent", "The thread root is not available to you.");
     parentNote = root?.metadata.project_note === true;
+    if (parentNote && root) parentDepartmentVisibility = {department_ids:root.metadata.department_ids || [],department_access:root.metadata.department_access || 'shared',note_audience_crew:root.metadata.note_audience_crew === true,note_audience_refs:root.metadata.note_audience_refs || [],note_audience_owner_id:root.metadata.note_audience_owner_id || ''};
   }
 
   // Forward attribution is a server-authored snapshot of a message the sender
   // can read. Clients cannot inject a forged original author or hidden body.
   const metadata = { ...input.metadata };
+  delete metadata.note_audience_refs;delete metadata.note_audience_owner_id;delete metadata.note_audience_crew;
   const allowedDepartments=relevantDepartmentContext(ctx).department_ids;
   if(Array.isArray(metadata.department_ids)&&metadata.department_ids.some(id=>!allowedDepartments.includes(String(id))))throw forbidden('department_denied','Choose a department available to you.');
   if(!Array.isArray(metadata.department_ids))metadata.department_ids=ctx.organizationStructure?.users.find(u=>u.id===ctx.userId)?.department_ids||[];
+  Object.assign(metadata, projectNoteDepartmentVisibility(ctx, channel.type, input.project_note === true && !parentId, input.department_ids, input.include_crew,input.audience_refs), parentDepartmentVisibility);
   delete metadata.feed_post;
   delete metadata.feed_comment;
   delete metadata.feed_source;
@@ -1162,6 +1232,7 @@ export async function postMessage(ctx: PlatformAuthContext, channelId: string, i
     metadata.feed_comment = true;
   }
   if (metadata.giphy) metadata.giphy = giphyMessageSchema.parse(metadata.giphy);
+  delete metadata.legacy_photo_author;
   delete metadata.project_note;
   delete metadata.note_shared;
   if (input.project_note && (channel.type !== "project" || parentId)) throw badRequest("invalid_project_note", "Notes must be added directly to a project channel.");
@@ -1197,6 +1268,7 @@ export async function postMessage(ctx: PlatformAuthContext, channelId: string, i
   }
   const channelTags = (input.mention_users || []).filter(user => cleanText(user.id).startsWith("channel:"));
   const detectedLanguage = detectMessageLanguage(input.text);
+  metadata.mention_broadcasts = selectedBroadcastMentions(input.mention_users || []);
   input.mention_users = await resolveMentionUsers(ctx, input.mention_users, channelId, input.text);
   const message = await getChannelsDatabase().transaction(async () => {
     const existing = clientMsgId ? await findMessageByClientId(channelId, ctx.userId, clientMsgId) : null;
@@ -1314,8 +1386,7 @@ export async function postAgentMessage(orgId: string, channelId: string, input: 
     metadata: { source: "agent", ...asObject(input.metadata) }
   }));
   if (parentId) (await collaboration.ensureThreadSubscriptionRecord(orgId, channelId, parentId, cleanText(input.author_id)));
-  const split = (await import("../platform/capabilities.js")).effectiveCapabilities;
-  const hiddenAgentNote = channel.type === "project" && message.metadata.project_note === true && (await split(orgId)).effectiveByKey["channels.separate_project_notes"] === true;
+  const hiddenAgentNote = channel.type === "project" && message.metadata.project_note === true;
   if (!hiddenAgentNote) (await collaboration.recordAttentionForMessage(channel, message));
   (await publishMessageEvent("channels.message.created", channel, message, null));
   if (hiddenAgentNote) {
@@ -1400,6 +1471,9 @@ export async function editMessage(ctx: PlatformAuthContext, messageId: string, i
   content?: JsonObject;
   content_schema_version?: number;
   audience?: string[];
+  department_ids?: string[];
+  include_crew?: boolean;
+  audience_refs?:NoteAudienceRef[];
   tags?: string[];
   mention_users?: JsonObject[];
 }) {
@@ -1410,9 +1484,13 @@ export async function editMessage(ctx: PlatformAuthContext, messageId: string, i
   if (message.author_id !== ctx.userId) throw forbidden("not_message_author", "Only the author can edit a message.");
   if (message.deleted_at) throw badRequest("message_deleted", "Removed messages cannot be edited. Restore it first.");
 
+  if(input.audience_refs===undefined && Array.isArray(message.metadata.note_audience_refs) && message.metadata.note_audience_refs.length && (input.department_ids!==undefined || input.include_crew!==undefined))throw badRequest('note_audience_refresh','Refresh Notes before changing an advanced audience.');
+  const audienceChanged=input.department_ids !== undefined || input.include_crew !== undefined || input.audience_refs !== undefined;
+  const departmentVisibility=projectNoteDepartmentVisibility(ctx,channel.type,message.metadata.project_note === true && !message.parent_id,audienceChanged ? input.department_ids ?? asStringArray(message.metadata.department_ids) : undefined,audienceChanged ? input.include_crew ?? message.metadata.note_audience_crew === true : undefined,audienceChanged ? input.audience_refs ?? [] : undefined);
   const channelTags = (input.mention_users || []).filter(user => cleanText(user.id).startsWith("channel:"));
   const previousMentions = new Set(message.mention_users.map((user) => cleanText(user.id || user.user_id)).filter(Boolean));
   const detectedLanguage = detectMessageLanguage(input.text);
+  const mentionBroadcasts=input.mention_users !== undefined ? selectedBroadcastMentions(input.mention_users) : message.metadata.mention_broadcasts;
   input.mention_users = await resolveMentionUsers(ctx, input.mention_users || message.mention_users, channel.id, input.text);
   const updated = (await editMessageRecord(ctx.orgId, message, {
     text: input.text,
@@ -1422,6 +1500,7 @@ export async function editMessage(ctx: PlatformAuthContext, messageId: string, i
     language_confidence: detectedLanguage.confidence,
     audience: channel.type === "project" ? input.audience : undefined,
     tags: input.tags,
+    metadata:{...message.metadata,...departmentVisibility,...(mentionBroadcasts !== undefined ? {mention_broadcasts:mentionBroadcasts} : {})},
     mention_users: input.mention_users,
     edited_by: ctx.userId
   }));
@@ -1431,6 +1510,23 @@ export async function editMessage(ctx: PlatformAuthContext, messageId: string, i
   await messageWorkEvent(ctx, channel, updated, "edited", updated.edited_at ?? nowIso());
   if (!(updated.metadata.project_note === true && await separateProjectNotes(ctx))) await notifyMentions(ctx, channel, updated, previousMentions);
   if (!(updated.metadata.project_note === true && await separateProjectNotes(ctx)) && channel.type === "project" && channelTags.length) await postChannelTagNotices(ctx, channelTags, "project_note", {project_id:channel.project_id,note_id:message.id}, {id:message.id});
+  return hydrated;
+}
+
+/** Change note visibility without rewriting text or creating a text revision. */
+export async function updateMessageVisibility(ctx: PlatformAuthContext, messageId: string, input: {audience?:string[];department_ids?:string[];include_crew?:boolean;audience_refs?:NoteAudienceRef[]}) {
+  const message=await readMessageRecord(ctx.orgId,messageId);
+  if(!message)throw notFound('message_not_found','This note does not exist.');
+  const {channel}=await requireChannelAccess(ctx,message.channel_id,{post:true});
+  if(channel.type !== 'project' || message.metadata.project_note !== true || message.parent_id)throw badRequest('note_audience_only','Only project notes have this visibility control.');
+  if(message.author_id !== ctx.userId)throw forbidden('not_message_author','Only the author can change note visibility.');
+  if(message.deleted_at)throw badRequest('message_deleted','Unarchive the note before changing its visibility.');
+  if(input.audience_refs===undefined && Array.isArray(message.metadata.note_audience_refs) && message.metadata.note_audience_refs.length && (input.department_ids!==undefined || input.include_crew!==undefined))throw badRequest('note_audience_refresh','Refresh Notes before changing an advanced audience.');
+  const changed=input.department_ids !== undefined || input.include_crew !== undefined || input.audience_refs !== undefined;
+  const visibility=projectNoteDepartmentVisibility(ctx,channel.type,true,changed ? input.department_ids ?? asStringArray(message.metadata.department_ids) : undefined,changed ? input.include_crew ?? message.metadata.note_audience_crew === true : undefined,changed ? input.audience_refs ?? [] : undefined);
+  const updated=await updateMessageVisibilityRecord(ctx.orgId,message.id,{audience:input.audience,departmentVisibility:visibility});
+  const [hydrated]=await hydrateMessages(ctx,channel,[updated]);
+  await publishMessageEvent('channels.message.updated',channel,updated,hydrated);
   return hydrated;
 }
 
@@ -1539,8 +1635,9 @@ export async function restoreMessage(ctx: PlatformAuthContext, messageId: string
 
 export async function messageRevisions(ctx: PlatformAuthContext, messageId: string) {
   const message = (await readMessageRecord(ctx.orgId, messageId));
-  if (!message || message.deleted_at) throw notFound("message_not_found", "This message does not exist.");
-  await requireChannelAccess(ctx, message.channel_id);
+  if (!message) throw notFound("message_not_found", "This message does not exist.");
+  const {channel}=await requireChannelAccess(ctx, message.channel_id);
+  if(message.deleted_at && (channel.type !== 'project' || message.metadata.project_note !== true))throw notFound('message_not_found','This message does not exist.');
   const groups = viewerAudienceGroups(ctx);
   if (!messageVisibleTo(message, ctx, groups)) throw notFound("message_not_found", "This message does not exist.");
   const directory = await userDirectory(ctx.orgId);
@@ -1597,6 +1694,7 @@ export async function shareProjectNote(ctx: PlatformAuthContext, messageId: stri
   const {channel} = await requireChannelAccess(ctx, initial.channel_id, {post:true});
   if (channel.type !== "project" || initial.parent_id || initial.metadata.project_note !== true || initial.deleted_at || !messageVisibleTo(initial, ctx, viewerAudienceGroups(ctx)))
     throw notFound("message_not_found", "This note is not available.");
+  if (!channel.settings.photo_media_id) throw badRequest("project_notes_separate", "Project notes stay in Notes and cannot be shared to the project channel.");
   return getChannelsDatabase().transaction(async db => {
     // Serialize two simultaneous shares on the source row before checking its marker.
     await db.prepare("UPDATE messages SET metadata_json=metadata_json WHERE organization_id=? AND id=?").run(ctx.orgId, messageId);
@@ -1610,7 +1708,7 @@ export async function shareProjectNote(ctx: PlatformAuthContext, messageId: stri
     }
     const actor = cleanText(ctx.identity.name) || "A teammate";
     const posted = await postMessage(ctx, channel.id, {
-      text:`${actor} shared a note`, client_msg_id:`note-share:${messageId}`, audience:note.audience,
+      text:`${actor} shared ${channel.settings.photo_media_id ? 'a comment' : 'a note'}`, ...(channel.settings.photo_media_id ? {project_note:true} : {}), client_msg_id:`note-share:${messageId}`, audience:note.audience,
       forwarded_message_id:messageId, forward_include_attachments:true
     });
     const shared = {message_id:posted.message!.id, user_id:ctx.userId, at:nowIso()};
@@ -1627,8 +1725,8 @@ export async function pinnedMessages(ctx: PlatformAuthContext, channelId: string
   const { channel } = await requireChannelAccess(ctx, channelId);
   const groups = viewerAudienceGroups(ctx);
   const pinned = (await listPinnedMessages(ctx.orgId, channelId)).filter((message) => messageVisibleTo(message, ctx, groups));
-  const separate = channel.type === "project" && await separateProjectNotes(ctx);
-  return hydrateMessages(ctx, channel, pinned.filter(message => view === "all" || !separate || (message.metadata.project_note === true) === (view === "notes")));
+  const separate = channel.type === "project" && !channel.settings.photo_media_id;
+  return hydrateMessages(ctx, channel, pinned.filter(message => separate ? (message.metadata.project_note === true) === (view === "notes") : view !== "notes" || message.metadata.project_note === true));
 }
 
 export async function savedMessages(ctx: PlatformAuthContext) {
@@ -2516,14 +2614,15 @@ export async function searchMessages(ctx: PlatformAuthContext, query: string, op
 
 // Expand group mentions at send time so membership and online status are fresh.
 // Outside Channels callers can select channel:<id>; never trust client member lists.
+function selectedBroadcastMentions(mentions:JsonObject[]){
+  return [...new Set(mentions.map(user=>cleanText(user.id || user.user_id)).filter(id=>id==='broadcast:channel' || id==='broadcast:here').map(id=>id.slice(10)))];
+}
+
 export async function resolveMentionUsers(ctx: PlatformAuthContext, mentions: JsonObject[] = [], channelId?: string, text = "") {
   const selected = [...mentions];
   const conversation = channelId ? (await requireChannelAccess(ctx, channelId)).channel : null;
   const restricted = conversation && conversation.type !== "project";
   const members = restricted ? new Set((await effectiveChannelMembers(conversation!)).map(member => member.user_id)) : null;
-  if (channelId) for (const name of ["channel", "here"]) {
-    if (new RegExp(`(^|\\s)@${name}(?=$|[\\s.,!?;:])`, "i").test(text)) selected.push({id:`broadcast:${name}`});
-  }
   const targets = new Map<string, JsonObject>();
   const directory = await userDirectory(ctx.orgId);
   for (const mention of selected) {

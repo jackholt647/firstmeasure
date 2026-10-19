@@ -55,21 +55,15 @@
       ach: methods.has('ach') || methods.has('bank')
     };
   }
-  function fakeSavedMethods(options = {}, methods){
-    const canUseSaved = options.allowSavedMethods === true || options.useSavedMethods === true || options.allowPreviousPaymentMethods === true;
-    if (!canUseSaved || !options.contact) return [];
-    const contact = options.contact || {};
-    const name = cleanText(contact.name || contact.display_name || contact.email || 'Customer');
-    const saved = [];
-    if (methods.card) saved.push({ id: 'test_card_on_file', type: 'card', label: (globalThis.PlatformLanguage?.text("payment-intake","m_176d224f76f11e","Visa ending in 4242") ?? "Visa ending in 4242"), detail: `${name} card on file`, brand: 'Visa', last4: '4242' });
-    if (methods.ach) saved.push({ id: 'test_ach_on_file', type: 'ach', label: (globalThis.PlatformLanguage?.text("payment-intake","m_8ac3a593a96e78","Bank account ending in 6789") ?? "Bank account ending in 6789"), detail: `${name} ACH on file`, bank: 'Test Bank', last4: '6789' });
-    return saved;
-  }
   // ── Provider tokenization ────────────────────────────────────────────────
-  // options.tokenization switches the card/bank fields into a tokenizing
-  // element: the raw values are exchanged for a payment_method_id BEFORE
-  // onSubmit runs, and the sensitive inputs are cleared. Without it the modal
-  // behaves exactly as before (raw fields passed through to onSubmit).
+  // options.tokenization switches the card/bank fields into the processor's
+  // secure element. Forward ("forward"): card and bank details are typed into
+  // Forward's iframe and never touch this page or our servers; the element
+  // pays a payment intent the server opened (tokenization.prepare returns its
+  // client secret) and hands back a payment_method token for onSubmit. The
+  // in-process simulator ("mock", development only) tokenizes typed test
+  // numbers through tokenization.createPaymentMethod. Without tokenization the
+  // organization cannot take payments and no card or bank entry is offered.
   function normalizeTokenization(value){
     if (!value || typeof value !== 'object') return null;
     const mode = cleanText(value.mode).toLowerCase();
@@ -77,6 +71,7 @@
     return {
       mode,
       createPaymentMethod: typeof value.createPaymentMethod === 'function' ? value.createPaymentMethod : null,
+      prepare: typeof value.prepare === 'function' ? value.prepare : null,
       sdkUrl: cleanText(value.sdkUrl || value.sdk_url),
       publicKey: cleanText(value.publicKey || value.public_key)
     };
@@ -90,79 +85,178 @@
     };
   }
 
-  // ── Forward SDK scaffold (activates ONLY when tokenization.mode === "forward").
-  // Untestable until sandbox keys exist, so every step is defensive: the SDK
-  // loads once from the configured URL, the element mounts into the existing
-  // card-field container, and any failure surfaces as a normal modal error.
-  const forwardSdk = { promise: null };
+  // ── Forward Payment Elements SDK (verified against the sandbox 2026-10-19):
+  // window.Forward.createCardElement / createBankElement({ apiKey, clientSecret })
+  // then element.mount(selector, { onChange, onReady(tokenize), onSuccess({ token }),
+  // onError }). mount returns an unmount function. onSuccess must return a
+  // promise that settles when our server has finished the payment.
+  const forwardSdk = { promise: null, url: '' };
   function loadForwardSdk(url){
-    if (root.Forward) return Promise.resolve(root.Forward);
-    if (forwardSdk.promise) return forwardSdk.promise;
+    const src = cleanText(url);
+    if (!src) return Promise.reject(new Error('Secure payment entry is not configured.'));
+    if (root.Forward && forwardSdk.url === src) return Promise.resolve(root.Forward);
+    if (forwardSdk.promise && forwardSdk.url === src) return forwardSdk.promise;
+    forwardSdk.url = src;
     forwardSdk.promise = new Promise((resolve, reject) => {
-      const src = cleanText(url) || 'https://sandbox-cdn.pci.getfwd.com/sdk/forward.js';
       const script = document.createElement('script');
       script.src = src;
       script.async = true;
-      script.onload = () => root.Forward ? resolve(root.Forward) : reject(new Error('Secure card entry could not be loaded.'));
-      script.onerror = () => { forwardSdk.promise = null; reject(new Error('Secure card entry could not be loaded.')); };
+      script.onload = () => root.Forward ? resolve(root.Forward) : reject(new Error('Secure payment entry could not be loaded.'));
+      script.onerror = () => { forwardSdk.promise = null; reject(new Error('Secure payment entry could not be loaded. Check your connection and try again.')); };
       document.head.appendChild(script);
     });
     return forwardSdk.promise;
   }
-  async function mountForwardElement(ctx){
-    const tokenization = ctx.options.tokenization;
-    if (!tokenization || tokenization.mode !== 'forward') return;
-    const container = host(ctx).querySelector('[data-fmpi-forward-element]');
-    if (!container || container.dataset.fmpiForwardMounted === '1') return;
-    try {
-      const sdk = await loadForwardSdk(tokenization.sdkUrl);
-      const client = typeof sdk === 'function' ? sdk(tokenization.publicKey) : (sdk.init ? sdk.init(tokenization.publicKey) : sdk);
-      const elements = client && typeof client.elements === 'function' ? client.elements() : client;
-      const kind = ctx.method === 'ach' ? 'bank' : 'card';
-      const element = elements && typeof elements.create === 'function' ? elements.create(kind) : null;
-      if (!element || typeof element.mount !== 'function') throw new Error('Secure card entry could not be initialized.');
-      element.mount(container);
-      container.dataset.fmpiForwardMounted = '1';
-      ctx.forwardElement = element;
-      ctx.forwardClient = client;
-      ctx.forwardElementComplete = false;
-      if (typeof element.on === 'function') {
-        element.on('change', (event) => {
-          ctx.forwardElementComplete = !event || event.complete !== false;
-          updateSubmitState(ctx);
-        });
-      } else {
-        ctx.forwardElementComplete = true;
-      }
-      updateSubmitState(ctx);
-    } catch (error) {
-      ctx.error = cleanText(error?.message) || 'Secure card entry could not be loaded.';
-      render(ctx);
+  function forwardStyle(ctx){
+    return {
+      borderColor: '#d0d5dd',
+      borderRadius: '7px',
+      focusBorderColor: ctx.options.primaryColor,
+      errorColor: '#b42318',
+      textColor: '#111827',
+      fontFamily: 'Inter, Arial, sans-serif',
+      fontSize: '15px',
+      inputHeight: '42px',
+      placeholderColor: '#98a2b3'
+    };
+  }
+  function forwardKind(ctx){ return ctx.method === 'ach' ? 'bank' : 'card'; }
+  function setForwardError(ctx, message){
+    ctx.error = cleanText(message);
+    const node = host(ctx).querySelector('[data-fmpi-forward-error]');
+    if (node) {
+      node.textContent = ctx.error;
+      node.hidden = !ctx.error;
     }
   }
-  async function exchangeForwardPaymentMethod(ctx){
+  function unmountForwardElement(ctx){
+    try { ctx.forwardUnmount?.(); } catch {}
+    ctx.forwardUnmount = null;
+    ctx.forwardTokenize = null;
+    ctx.forwardElementComplete = false;
+  }
+  // One processor checkout per method and amount; re-rendering the form
+  // remounts the element on the same checkout instead of opening another.
+  async function forwardCheckout(ctx, kind, amountCents){
+    const key = `${kind}:${amountCents}`;
+    ctx.checkouts = ctx.checkouts || {};
+    if (!ctx.checkouts[key]) {
+      ctx.checkouts[key] = Promise.resolve(ctx.options.tokenization.prepare({ method: kind, amountCents }))
+        .then((checkout) => {
+          const value = checkout?.checkout || checkout || {};
+          if (!cleanText(value.client_secret)) throw new Error('The payment could not be started.');
+          return value;
+        })
+        .catch((error) => { delete ctx.checkouts[key]; throw error; });
+    }
+    return ctx.checkouts[key];
+  }
+  async function mountForwardElement(ctx){
     const tokenization = ctx.options.tokenization;
-    if (!ctx.forwardElement || !tokenization?.createPaymentMethod) {
-      throw new Error('Secure card entry is not ready yet.');
+    if (!tokenization || tokenization.mode !== 'forward' || !ctx.method || ctx.savedMethodId) return;
+    const container = host(ctx).querySelector('[data-fmpi-forward-element]');
+    if (!container || container.dataset.fmpiForwardMounted === '1') return;
+    container.dataset.fmpiForwardMounted = '1';
+    unmountForwardElement(ctx);
+    const kind = forwardKind(ctx);
+    const amountCents = currentAmount(ctx);
+    if (amountCents <= 0) {
+      container.innerHTML = `<span class="fmpi-element-note">Enter the payment amount to continue.</span>`;
+      return;
     }
-    // The mount's callback creates the payment-method intent server-side and
-    // returns {client_secret}; the element exchanges it for a payment method.
-    const intent = await tokenization.createPaymentMethod({ type: ctx.method === 'ach' ? 'bank' : 'card' });
-    const secret = cleanText(intent?.intent?.client_secret || intent?.client_secret);
-    const element = ctx.forwardElement;
-    const client = ctx.forwardClient;
-    const exchange = (element && typeof element.confirm === 'function' && ((s) => element.confirm(s)))
-      || (client && typeof client.confirmPaymentMethodIntent === 'function' && ((s) => client.confirmPaymentMethodIntent(s, { element })))
-      || (client && typeof client.createPaymentMethod === 'function' && ((s) => client.createPaymentMethod({ element, client_secret: s })));
-    if (!exchange) {
-      const direct = cleanText(intent?.intent?.payment_method_id || intent?.payment_method_id);
-      if (direct) return { payment_method_id: direct, brand: cleanText(intent?.payment_method?.brand), last4: cleanText(intent?.payment_method?.last4) };
-      throw new Error('Secure card entry could not tokenize this payment method.');
+    if (!tokenization.prepare) { setForwardError(ctx, 'Secure payment entry is not configured.'); return; }
+    container.innerHTML = `<span class="fmpi-element-note"><span class="fmpi-spinner small"></span> Loading secure ${kind === 'bank' ? 'bank' : 'card'} entry…</span>`;
+    const mountId = `fmpi-forward-${Math.random().toString(36).slice(2)}`;
+    try {
+      const [sdk, checkout] = await Promise.all([loadForwardSdk(tokenization.sdkUrl), forwardCheckout(ctx, kind, amountCents)]);
+      // The form may have re-rendered while the checkout opened.
+      if (!container.isConnected || forwardKind(ctx) !== kind || currentAmount(ctx) !== amountCents) return;
+      ctx.checkout = checkout;
+      const factory = kind === 'bank'
+        ? sdk.createBankElement
+        : (sdk.createCardElement || sdk.createPaymentElement);
+      if (typeof factory !== 'function') throw new Error('Secure payment entry could not be initialized.');
+      const element = await factory.call(sdk, { apiKey: tokenization.publicKey, clientSecret: checkout.client_secret });
+      if (!container.isConnected) return;
+      container.innerHTML = '';
+      container.id = mountId;
+      const unmount = element.mount(`#${mountId}`, {
+        style: forwardStyle(ctx),
+        onChange: (event) => {
+          ctx.forwardElementComplete = event?.ready === true;
+          if (ctx.error && !event?.errors) setForwardError(ctx, '');
+          updateSubmitState(ctx);
+        },
+        onReady: (tokenize) => {
+          ctx.forwardTokenize = typeof tokenize === 'function' ? tokenize : null;
+          ctx.forwardElementComplete = true;
+          updateSubmitState(ctx);
+        },
+        // Card: fires after our Pay button calls tokenize(). Bank: fires once
+        // the customer links their account in Forward's bank element, whose
+        // own authorization text the customer accepts by continuing.
+        // A decline is already shown in the form; nothing awaits this callback.
+        onSuccess: ({ token } = {}) => submitForwardToken(ctx, cleanText(token)).catch(() => undefined),
+        onError: (error) => {
+          setForwardError(ctx, cleanText(error?.message || error) || 'Those payment details could not be used. Check them and try again.');
+          setProcessingState(ctx, false);
+        }
+      });
+      ctx.forwardUnmount = typeof unmount === 'function' ? unmount : null;
+      updateSubmitState(ctx);
+    } catch (error) {
+      container.dataset.fmpiForwardMounted = '';
+      container.innerHTML = '';
+      setForwardError(ctx, cleanText(error?.message) || 'Secure payment entry could not be loaded.');
     }
-    const result = await exchange(secret);
-    const paymentMethodId = cleanText(result?.payment_method_id || result?.payment_method?.id || result?.id);
-    if (!paymentMethodId) throw new Error(cleanText(result?.error?.message) || 'The payment method could not be tokenized.');
-    return { payment_method_id: paymentMethodId, brand: cleanText(result?.brand || result?.payment_method?.brand), last4: cleanText(result?.last4 || result?.payment_method?.last4) };
+  }
+  function setProcessingState(ctx, processing){
+    ctx.forwardProcessing = processing;
+    const button = host(ctx).querySelector('[data-fmpi-submit]');
+    if (button) {
+      button.disabled = processing || !hasRequiredInput(ctx);
+      button.textContent = processing ? 'Processing payment…' : ctx.options.submitLabel;
+    }
+    host(ctx).querySelector('.fmpi-modal')?.classList.toggle('fmpi-busy', processing);
+  }
+  // The token goes to our server, which charges the checkout. A decline
+  // keeps the form (and the same checkout) so the customer can try again.
+  async function submitForwardToken(ctx, token){
+    if (!token) {
+      setForwardError(ctx, 'Those payment details could not be used. Check them and try again.');
+      setProcessingState(ctx, false);
+      throw new Error('missing_token');
+    }
+    if (ctx.forwardSubmitting) throw new Error('payment_in_progress');
+    ctx.forwardSubmitting = true;
+    setProcessingState(ctx, true);
+    setForwardError(ctx, '');
+    const base = payload(ctx);
+    const submitted = {
+      ...base,
+      method: ctx.method,
+      payment_method_id: token,
+      checkout_id: cleanText(ctx.checkout?.id),
+      save_method: base.savePaymentMethod === true,
+      surchargeCents: Number(ctx.checkout?.surcharge_cents) || 0,
+      totalCents: Number(ctx.checkout?.amount_cents) || base.amountCents,
+      fields: {}
+    };
+    try {
+      const result = await ctx.options.onSubmit(submitted);
+      ctx.result = { ...(result || {}), amountCents: submitted.amountCents };
+      ctx.forwardSubmitting = false;
+      unmountForwardElement(ctx);
+      ctx.step = 'success';
+      await ctx.options.onSuccess?.(ctx.result, submitted);
+      if (!ctx.inline && state.active !== ctx) return;
+      render(ctx);
+    } catch (error) {
+      ctx.forwardSubmitting = false;
+      setProcessingState(ctx, false);
+      setForwardError(ctx, cleanText(error?.message) || 'Payment could not be processed.');
+      throw error;
+    }
   }
 
   function normalizeHex(value, fallback){
@@ -194,7 +288,7 @@
 .fmpi-pane{display:grid;gap:12px;animation:fmpiFade .22s ease-out both}.fmpi-pane h3,.fmpi-form h3{margin:0;color:var(--fmpi-secondary)}.fmpi-details{display:grid;gap:8px}.fmpi-detail{display:flex;justify-content:space-between;gap:12px;border:1px solid #e4e7ec;border-radius:8px;background:#fff;padding:12px}.fmpi-detail span{color:#667085;font-size:12px;font-weight:900;text-transform:uppercase}.fmpi-detail strong{text-align:right}
 .fmpi-form{display:grid;gap:14px;border:1px solid #e4e7ec;border-radius:8px;background:#fff;padding:14px}.fmpi-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.fmpi-field{display:grid;gap:6px}.fmpi-field.wide{grid-column:1/-1}.fmpi-field span,.fmpi-check span{color:#667085;font-size:12px;font-weight:900;text-transform:uppercase}.fmpi-field input,.fmpi-field select{width:100%;border:1px solid #d0d5dd;border-radius:7px;background:#fff;color:#111827;padding:10px 11px;font:inherit}.fmpi-field input:focus,.fmpi-field select:focus{outline:0;border-color:rgba(var(--fmpi-primary-rgb),.48);box-shadow:0 0 0 3px rgba(var(--fmpi-primary-rgb),.10)}.fmpi-expiry{display:grid;grid-template-columns:1fr 1fr;gap:8px}.fmpi-check{display:grid;grid-template-columns:auto minmax(0,1fr);gap:8px;align-items:start;color:#475467;font-size:13px;line-height:1.35}.fmpi-check span{text-transform:none;font-weight:700}.fmpi-error{border:1px solid rgba(220,38,38,.24);border-radius:8px;background:#fef2f2;color:#991b1b;padding:10px 12px;font-size:13px;font-weight:800}.fmpi-actions{display:flex;justify-content:flex-end;gap:10px}.fmpi-primary,.fmpi-secondary{border-radius:8px;padding:10px 13px;font-size:13px;font-weight:900;cursor:pointer}.fmpi-primary{border:1px solid var(--fmpi-secondary);background:var(--fmpi-secondary);color:#fff}.fmpi-primary:disabled{opacity:.5;cursor:not-allowed;background:#98a2b3;border-color:#98a2b3}.fmpi-secondary{border:1px solid #d0d5dd;background:#fff;color:#344054}.fmpi-success{text-align:center;padding:30px 0;display:grid;gap:10px;justify-items:center}.fmpi-success svg{width:68px;height:68px;color:#10b981}.fmpi-success circle{fill:rgba(16,185,129,.10);stroke:currentColor;stroke-width:3}.fmpi-success path{fill:none;stroke:currentColor;stroke-width:4;stroke-linecap:round;stroke-linejoin:round}.fmpi-spinner{width:32px;height:32px;border:4px solid rgba(var(--fmpi-primary-rgb),.18);border-top-color:var(--fmpi-primary);border-radius:999px;animation:fmpiSpin .7s linear infinite}
 .fmpi-surcharge{display:flex;justify-content:space-between;gap:12px;border:1px solid rgba(var(--fmpi-primary-rgb),.18);border-radius:8px;background:rgba(var(--fmpi-primary-rgb),.04);padding:10px 12px;font-size:13px;color:#475467}.fmpi-surcharge strong{color:#111827}.fmpi-surcharge small{display:block;color:#667085;font-size:11px;margin-top:2px}
-.fmpi-provider-element{border:1px solid #d0d5dd;border-radius:7px;background:#fff;padding:10px 11px;min-height:44px}
+.fmpi-provider-element{min-height:44px}.fmpi-element-note{display:flex;align-items:center;gap:8px;color:#667085;font-size:13px;padding:10px 0}.fmpi-spinner.small{width:16px;height:16px;border-width:3px}.fmpi-busy .fmpi-side{pointer-events:none;opacity:.75}.fmpi-policy{margin:0;color:#667085;font-size:12px;line-height:1.45}.fmpi-policy strong{color:#475467}.fmpi-secure{display:flex;align-items:center;gap:6px;color:#667085;font-size:12px}.fmpi-notice{border:1px solid #e4e7ec;border-radius:8px;background:#f9fafb;color:#475467;padding:12px;font-size:13px;line-height:1.45}
 @keyframes fmpiFade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}@keyframes fmpiSpin{to{transform:rotate(360deg)}}@media(max-width:760px){.fmpi-grid{grid-template-columns:1fr}.fmpi-fields{grid-template-columns:1fr}.fmpi-modal{width:100%;padding:18px}#rOverlay .mn-mobile-payment-intake-view .fmpi-modal{padding:14px 12px;gap:12px}#rOverlay .mn-mobile-payment-intake-view .fmpi-head{gap:8px}#rOverlay .mn-mobile-payment-intake-view .fmpi-head strong{font-size:18px}#rOverlay .mn-mobile-payment-intake-view .fmpi-head span{margin-top:2px;font-size:12px}#rOverlay .mn-mobile-payment-intake-view .fmpi-grid{gap:12px}#rOverlay .mn-mobile-payment-intake-view .fmpi-main,#rOverlay .mn-mobile-payment-intake-view .fmpi-side{gap:10px}#rOverlay .mn-mobile-payment-intake-view .fmpi-amount{padding:12px;border-radius:10px}#rOverlay .mn-mobile-payment-intake-view .fmpi-custom-amount{gap:5px}#rOverlay .mn-mobile-payment-intake-view .fmpi-custom-amount input{padding:10px 11px;font-size:18px}#rOverlay .mn-mobile-payment-intake-view .fmpi-saved,#rOverlay .mn-mobile-payment-intake-view .fmpi-methods{grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}#rOverlay .mn-mobile-payment-intake-view .fmpi-saved>.fmpi-label{grid-column:1/-1}#rOverlay .mn-mobile-payment-intake-view .fmpi-saved-method,#rOverlay .mn-mobile-payment-intake-view .fmpi-method{min-width:0;min-height:66px;padding:8px;gap:7px;border-radius:10px}#rOverlay .mn-mobile-payment-intake-view .fmpi-saved-method>span,#rOverlay .mn-mobile-payment-intake-view .fmpi-method>span{min-width:0}#rOverlay .mn-mobile-payment-intake-view .fmpi-saved-method strong,#rOverlay .mn-mobile-payment-intake-view .fmpi-method strong{display:block;font-size:11px;line-height:1.2}#rOverlay .mn-mobile-payment-intake-view .fmpi-saved-method small,#rOverlay .mn-mobile-payment-intake-view .fmpi-method small{font-size:10px;line-height:1.2}#rOverlay .mn-mobile-payment-intake-view .fmpi-icon{width:28px;height:28px;border-radius:7px}#rOverlay .mn-mobile-payment-intake-view .fmpi-form{padding:12px;gap:10px}#rOverlay .mn-mobile-payment-intake-view .fmpi-form h3{font-size:16px}.fmpi-actions .fmpi-primary{min-height:40px}}
 `;
     document.head.appendChild(style);
@@ -228,11 +322,11 @@
       contact: options.contact || null,
       tokenization: normalizeTokenization(options.tokenization),
       surcharge: normalizeSurcharge(options.surcharge),
-      // With provider tokenization active, saved methods come only from real
-      // data; the hardcoded stubs remain the legacy no-provider fallback.
-      savedMethods: Array.isArray(options.savedMethods)
-        ? options.savedMethods
-        : (normalizeTokenization(options.tokenization) ? [] : fakeSavedMethods(options, methods)),
+      // Saved methods come only from real, processor-backed data.
+      savedMethods: Array.isArray(options.savedMethods) && normalizeTokenization(options.tokenization) ? options.savedMethods : [],
+      refundPolicy: cleanText(options.refundPolicy || options.refund_policy),
+      notReadyMessage: cleanText(options.notReadyMessage) || 'Online payments are not set up for this business yet.',
+      billingDetails: options.billingDetails && typeof options.billingDetails === 'object' ? options.billingDetails : null,
       savePaymentMethodDefault: options.savePaymentMethodDefault === true,
       allowSavePaymentMethod: options.allowSavePaymentMethod !== false,
       requireAchAuthorization: options.requireAchAuthorization !== false,
@@ -319,6 +413,8 @@
   }
   function methodHtml(ctx){
     const opts = ctx.options;
+    // No processor, no card or bank entry: nothing here may look like a charge.
+    if (!opts.tokenization) return '';
     const methods = [];
     if (opts.methods.card) methods.push(['card', 'Card', 'Credit or debit card', 'card']);
     if (opts.methods.ach) methods.push(['ach', 'ACH', 'Bank transfer', 'bank']);
@@ -329,24 +425,34 @@
     if (!saved.length) return '';
     return `<div class="fmpi-saved"><span class="fmpi-label">${(globalThis.PlatformLanguage?.htmlText("payment-intake","m_4164e71993536a","Saved payment methods") ?? "Saved payment methods")}</span>${String(saved.map((item) => `<button type="button" class="fmpi-saved-method ${ctx.savedMethodId === item.id ? 'active' : ''}" data-fmpi-saved="${escapeHtml(item.id)}"><i class="fmpi-icon ${item.type === 'ach' ? 'bank' : 'card'}"></i><span><strong>${escapeHtml(item.label)}</strong><small>${escapeHtml(item.detail || '')}</small></span></button>`).join(''))}</div>`;
   }
+  function policyHtml(ctx){
+    if (!ctx.options.refundPolicy) return '';
+    return `<p class="fmpi-policy" data-fmpi-refund-policy><strong>Refund policy.</strong> ${escapeHtml(ctx.options.refundPolicy)}</p>`;
+  }
   function formHtml(ctx){
+    if (!ctx.options.tokenization) return `<div class="fmpi-pane"><div class="fmpi-notice" data-fmpi-not-ready>${escapeHtml(ctx.options.notReadyMessage)}</div>${detailsHtml(ctx)}</div>`;
     if (!ctx.method && !ctx.savedMethodId) return `<div class="fmpi-pane"><h3>${(globalThis.PlatformLanguage?.htmlText("payment-intake","m_eabc1e9c634739","Payment details") ?? "Payment details")}</h3>${String(detailsHtml(ctx) || `<p style="margin:0;color:#667085">${(globalThis.PlatformLanguage?.htmlText("payment-intake","m_ea4c400c014ca3","Choose a payment method to continue.") ?? "Choose a payment method to continue.")}</p>`)}</div>`;
     if (ctx.savedMethodId) {
       const saved = ctx.options.savedMethods.find((item) => item.id === ctx.savedMethodId) || {};
-      return `<div class="fmpi-pane"><form class="fmpi-form" data-fmpi-form><h3>${String(escapeHtml(saved.label || 'Saved payment method'))}</h3><label class="fmpi-check"><input type="checkbox" data-fmpi-save ${String(ctx.save ? 'checked' : '')}><span>${(globalThis.PlatformLanguage?.htmlText("payment-intake","m_9d33b52c6133f4","Keep this payment method available for future payments.") ?? "Keep this payment method available for future payments.")}</span></label>${String(ctx.error ? `<div class="fmpi-error">${escapeHtml(ctx.error)}</div>` : '')}<div class="fmpi-actions"><button type="submit" class="fmpi-primary" data-fmpi-submit disabled>${String(escapeHtml(ctx.options.submitLabel))}</button></div></form></div>`;
+      return `<div class="fmpi-pane"><form class="fmpi-form" data-fmpi-form><h3>${String(escapeHtml(saved.label || 'Saved payment method'))}</h3>${String(ctx.error ? `<div class="fmpi-error">${escapeHtml(ctx.error)}</div>` : '')}${policyHtml(ctx)}<div class="fmpi-actions"><button type="submit" class="fmpi-primary" data-fmpi-submit disabled>${String(escapeHtml(ctx.options.submitLabel))}</button></div></form></div>`;
     }
     if (ctx.options.tokenization?.mode === 'forward') {
-      // Forward SDK path: the provider element owns the sensitive inputs; we
-      // never see raw card/bank data. Mounted after render (see render()).
-      return `<div class="fmpi-pane"><form class="fmpi-form" data-fmpi-form><h3>${ctx.method === 'ach' ? 'ACH payment' : 'Card payment'}</h3><div class="fmpi-field wide"><span>${ctx.method === 'ach' ? 'Bank details' : 'Card details'}</span><div class="fmpi-provider-element" data-fmpi-forward-element></div></div>${ctx.options.allowSavePaymentMethod ? `<label class="fmpi-check"><input type="checkbox" data-fmpi-save ${String(ctx.save ? 'checked' : '')}><span>${((v1) => globalThis.PlatformLanguage?.htmlText("payment-intake","m_296905a8811757",`Save this ${v1} for future payments.`,{v1}) ?? `Save this ${v1} for future payments.`)(ctx.method === 'ach' ? 'bank account' : 'card')}</span></label>` : ''}${ctx.error ? `<div class="fmpi-error">${escapeHtml(ctx.error)}</div>` : ''}<div class="fmpi-actions"><button type="submit" class="fmpi-primary" data-fmpi-submit disabled>${escapeHtml(ctx.options.submitLabel)}</button></div></form></div>`;
+      // Forward's element owns the sensitive inputs; this page never sees
+      // card or bank numbers. Mounted after render (see render()). A bank
+      // payment is confirmed inside Forward's element, so it has no Pay button.
+      const bank = ctx.method === 'ach';
+      const saveLabel = bank ? 'Save this bank account for future payments.' : 'Save this card for future payments.';
+      return `<div class="fmpi-pane"><form class="fmpi-form" data-fmpi-form><h3>${bank ? 'Bank payment (ACH)' : 'Card payment'}</h3><div class="fmpi-provider-element" data-fmpi-forward-element></div>${ctx.options.allowSavePaymentMethod ? `<label class="fmpi-check"><input type="checkbox" data-fmpi-save ${String(ctx.save ? 'checked' : '')}><span>${escapeHtml(saveLabel)}</span></label>` : ''}<div class="fmpi-error" data-fmpi-forward-error ${ctx.error ? '' : 'hidden'}>${escapeHtml(ctx.error)}</div>${policyHtml(ctx)}<div class="fmpi-secure"><i class="fas fa-lock" aria-hidden="true"></i><span>Payment details are entered securely with Forward and never stored by us.</span></div>${bank ? '' : `<div class="fmpi-actions"><button type="submit" class="fmpi-primary" data-fmpi-submit disabled>${escapeHtml(ctx.options.submitLabel)}</button></div>`}</form></div>`;
     }
     if (ctx.method === 'ach') {
-      return `<div class="fmpi-pane"><form class="fmpi-form" data-fmpi-form><h3>${(globalThis.PlatformLanguage?.htmlText("payment-intake","m_474c1095f06ee2","ACH payment") ?? "ACH payment")}</h3><div class="fmpi-fields"><label class="fmpi-field wide"><span>${(globalThis.PlatformLanguage?.htmlText("payment-intake","m_8506755b32ab8f","Account holder name") ?? "Account holder name")}</span><input type="text" autocomplete="name" data-fmpi-field="achName" placeholder="${(globalThis.PlatformLanguage?.htmlText("payment-intake","m_4fce17318219ed","Jordan Smith") ?? "Jordan Smith")}"></label><label class="fmpi-field"><span>${(globalThis.PlatformLanguage?.htmlText("payment-intake","m_308a9ca41691ca","Routing number") ?? "Routing number")}</span><input type="text" inputmode="numeric" data-fmpi-field="routing" placeholder="021000021" maxlength="9"></label><label class="fmpi-field"><span>${(globalThis.PlatformLanguage?.htmlText("payment-intake","m_a2ee1cfe84c2c3","Account type") ?? "Account type")}</span><select data-fmpi-field="accountType"><option value="checking">${(globalThis.PlatformLanguage?.htmlText("payment-intake","m_8f2aa52d7e253b","Checking") ?? "Checking")}</option><option value="savings">${(globalThis.PlatformLanguage?.htmlText("payment-intake","m_5b503699d80ad2","Savings") ?? "Savings")}</option></select></label><label class="fmpi-field"><span>${(globalThis.PlatformLanguage?.htmlText("payment-intake","m_b028fb8bb8ac0a","Account number") ?? "Account number")}</span><input type="password" inputmode="numeric" data-fmpi-field="account" placeholder="${(globalThis.PlatformLanguage?.htmlText("payment-intake","m_b1011e3f2fdec3","4-17 digits") ?? "4-17 digits")}"></label><label class="fmpi-field"><span>${(globalThis.PlatformLanguage?.htmlText("payment-intake","m_3e51d57ae99ede","Confirm account") ?? "Confirm account")}</span><input type="password" inputmode="numeric" data-fmpi-field="accountConfirm" placeholder="${(globalThis.PlatformLanguage?.htmlText("payment-intake","m_ec1fbf411120da","Retype account") ?? "Retype account")}"></label></div>${String(ctx.options.requireAchAuthorization ? `<label class="fmpi-check"><input type="checkbox" data-fmpi-field="achAuthorize"><span>${(globalThis.PlatformLanguage?.htmlText("payment-intake","m_2c721c4e180145","I authorize this ACH debit from the bank account above for the payment amount shown.") ?? "I authorize this ACH debit from the bank account above for the payment amount shown.")}</span></label>` : '')}${String(ctx.options.allowSavePaymentMethod ? `<label class="fmpi-check"><input type="checkbox" data-fmpi-save ${ctx.save ? 'checked' : ''}><span>${(globalThis.PlatformLanguage?.htmlText("payment-intake","m_e9a6566891f25b","Save this bank account for future payments.") ?? "Save this bank account for future payments.")}</span></label>` : '')}${String(ctx.error ? `<div class="fmpi-error">${escapeHtml(ctx.error)}</div>` : '')}<div class="fmpi-actions"><button type="submit" class="fmpi-primary" data-fmpi-submit disabled>${String(escapeHtml(ctx.options.submitLabel))}</button></div></form></div>`;
+      return `<div class="fmpi-pane"><form class="fmpi-form" data-fmpi-form><h3>${(globalThis.PlatformLanguage?.htmlText("payment-intake","m_474c1095f06ee2","ACH payment") ?? "ACH payment")}</h3><div class="fmpi-fields"><label class="fmpi-field wide"><span>${(globalThis.PlatformLanguage?.htmlText("payment-intake","m_8506755b32ab8f","Account holder name") ?? "Account holder name")}</span><input type="text" autocomplete="name" data-fmpi-field="achName" placeholder="${(globalThis.PlatformLanguage?.htmlText("payment-intake","m_4fce17318219ed","Jordan Smith") ?? "Jordan Smith")}"></label><label class="fmpi-field"><span>${(globalThis.PlatformLanguage?.htmlText("payment-intake","m_308a9ca41691ca","Routing number") ?? "Routing number")}</span><input type="text" inputmode="numeric" data-fmpi-field="routing" placeholder="021000021" maxlength="9"></label><label class="fmpi-field"><span>${(globalThis.PlatformLanguage?.htmlText("payment-intake","m_a2ee1cfe84c2c3","Account type") ?? "Account type")}</span><select data-fmpi-field="accountType"><option value="checking">${(globalThis.PlatformLanguage?.htmlText("payment-intake","m_8f2aa52d7e253b","Checking") ?? "Checking")}</option><option value="savings">${(globalThis.PlatformLanguage?.htmlText("payment-intake","m_5b503699d80ad2","Savings") ?? "Savings")}</option></select></label><label class="fmpi-field"><span>${(globalThis.PlatformLanguage?.htmlText("payment-intake","m_b028fb8bb8ac0a","Account number") ?? "Account number")}</span><input type="password" inputmode="numeric" data-fmpi-field="account" placeholder="${(globalThis.PlatformLanguage?.htmlText("payment-intake","m_b1011e3f2fdec3","4-17 digits") ?? "4-17 digits")}"></label><label class="fmpi-field"><span>${(globalThis.PlatformLanguage?.htmlText("payment-intake","m_3e51d57ae99ede","Confirm account") ?? "Confirm account")}</span><input type="password" inputmode="numeric" data-fmpi-field="accountConfirm" placeholder="${(globalThis.PlatformLanguage?.htmlText("payment-intake","m_ec1fbf411120da","Retype account") ?? "Retype account")}"></label></div>${String(ctx.options.requireAchAuthorization ? `<label class="fmpi-check"><input type="checkbox" data-fmpi-field="achAuthorize"><span>${(globalThis.PlatformLanguage?.htmlText("payment-intake","m_2c721c4e180145","I authorize this ACH debit from the bank account above for the payment amount shown.") ?? "I authorize this ACH debit from the bank account above for the payment amount shown.")}</span></label>` : '')}${String(ctx.options.allowSavePaymentMethod ? `<label class="fmpi-check"><input type="checkbox" data-fmpi-save ${ctx.save ? 'checked' : ''}><span>${(globalThis.PlatformLanguage?.htmlText("payment-intake","m_e9a6566891f25b","Save this bank account for future payments.") ?? "Save this bank account for future payments.")}</span></label>` : '')}${String(ctx.error ? `<div class="fmpi-error">${escapeHtml(ctx.error)}</div>` : '')}${policyHtml(ctx)}<div class="fmpi-actions"><button type="submit" class="fmpi-primary" data-fmpi-submit disabled>${String(escapeHtml(ctx.options.submitLabel))}</button></div></form></div>`;
     }
-    return `<div class="fmpi-pane"><form class="fmpi-form" data-fmpi-form><h3>${(globalThis.PlatformLanguage?.htmlText("payment-intake","m_997bb5a9e56d22","Card payment") ?? "Card payment")}</h3><div class="fmpi-fields"><label class="fmpi-field wide"><span>${(globalThis.PlatformLanguage?.htmlText("payment-intake","m_3a7bcfa366c064","Name on card") ?? "Name on card")}</span><input type="text" autocomplete="cc-name" data-fmpi-field="cardName" placeholder="${(globalThis.PlatformLanguage?.htmlText("payment-intake","m_4fce17318219ed","Jordan Smith") ?? "Jordan Smith")}"></label><label class="fmpi-field wide"><span>${(globalThis.PlatformLanguage?.htmlText("payment-intake","m_cbbfb3da2ddfde","Card number") ?? "Card number")}</span><input type="text" inputmode="numeric" autocomplete="cc-number" data-fmpi-field="cardNumber" placeholder="4242 4242 4242 4242" maxlength="23"></label><label class="fmpi-field"><span>${(globalThis.PlatformLanguage?.htmlText("payment-intake","m_95af41e20221e6","Expiration") ?? "Expiration")}</span><span class="fmpi-expiry"><input type="text" inputmode="numeric" autocomplete="cc-exp-month" data-fmpi-field="expMonth" placeholder="${(globalThis.PlatformLanguage?.htmlText("payment-intake","m_65c801480ef4cc","MM") ?? "MM")}" maxlength="5"><input type="text" inputmode="numeric" autocomplete="cc-exp-year" data-fmpi-field="expYear" placeholder="${(globalThis.PlatformLanguage?.htmlText("payment-intake","m_4cbe3961dabf19","YY") ?? "YY")}" maxlength="4"></span></label><label class="fmpi-field"><span>${(globalThis.PlatformLanguage?.htmlText("payment-intake","m_7e7759fb0c36df","CVC") ?? "CVC")}</span><input type="text" inputmode="numeric" autocomplete="cc-csc" data-fmpi-field="cvc" placeholder="123" maxlength="4"></label><label class="fmpi-field"><span>${(globalThis.PlatformLanguage?.htmlText("payment-intake","m_37e7c561258701","Billing ZIP") ?? "Billing ZIP")}</span><input type="text" inputmode="numeric" autocomplete="postal-code" data-fmpi-field="zip" placeholder="90210"></label></div>${String(ctx.options.allowSavePaymentMethod ? `<label class="fmpi-check"><input type="checkbox" data-fmpi-save ${ctx.save ? 'checked' : ''}><span>${(globalThis.PlatformLanguage?.htmlText("payment-intake","m_13463f6c0ed33a","Save this card for future payments.") ?? "Save this card for future payments.")}</span></label>` : '')}${String(ctx.error ? `<div class="fmpi-error">${escapeHtml(ctx.error)}</div>` : '')}<div class="fmpi-actions"><button type="submit" class="fmpi-primary" data-fmpi-submit disabled>${String(escapeHtml(ctx.options.submitLabel))}</button></div></form></div>`;
+    return `<div class="fmpi-pane"><form class="fmpi-form" data-fmpi-form><h3>${(globalThis.PlatformLanguage?.htmlText("payment-intake","m_997bb5a9e56d22","Card payment") ?? "Card payment")}</h3><div class="fmpi-fields"><label class="fmpi-field wide"><span>${(globalThis.PlatformLanguage?.htmlText("payment-intake","m_3a7bcfa366c064","Name on card") ?? "Name on card")}</span><input type="text" autocomplete="cc-name" data-fmpi-field="cardName" placeholder="${(globalThis.PlatformLanguage?.htmlText("payment-intake","m_4fce17318219ed","Jordan Smith") ?? "Jordan Smith")}"></label><label class="fmpi-field wide"><span>${(globalThis.PlatformLanguage?.htmlText("payment-intake","m_cbbfb3da2ddfde","Card number") ?? "Card number")}</span><input type="text" inputmode="numeric" autocomplete="cc-number" data-fmpi-field="cardNumber" placeholder="4242 4242 4242 4242" maxlength="23"></label><label class="fmpi-field"><span>${(globalThis.PlatformLanguage?.htmlText("payment-intake","m_95af41e20221e6","Expiration") ?? "Expiration")}</span><span class="fmpi-expiry"><input type="text" inputmode="numeric" autocomplete="cc-exp-month" data-fmpi-field="expMonth" placeholder="${(globalThis.PlatformLanguage?.htmlText("payment-intake","m_65c801480ef4cc","MM") ?? "MM")}" maxlength="5"><input type="text" inputmode="numeric" autocomplete="cc-exp-year" data-fmpi-field="expYear" placeholder="${(globalThis.PlatformLanguage?.htmlText("payment-intake","m_4cbe3961dabf19","YY") ?? "YY")}" maxlength="4"></span></label><label class="fmpi-field"><span>${(globalThis.PlatformLanguage?.htmlText("payment-intake","m_7e7759fb0c36df","CVC") ?? "CVC")}</span><input type="text" inputmode="numeric" autocomplete="cc-csc" data-fmpi-field="cvc" placeholder="123" maxlength="4"></label><label class="fmpi-field"><span>${(globalThis.PlatformLanguage?.htmlText("payment-intake","m_37e7c561258701","Billing ZIP") ?? "Billing ZIP")}</span><input type="text" inputmode="numeric" autocomplete="postal-code" data-fmpi-field="zip" placeholder="90210"></label></div>${String(ctx.options.allowSavePaymentMethod ? `<label class="fmpi-check"><input type="checkbox" data-fmpi-save ${ctx.save ? 'checked' : ''}><span>${(globalThis.PlatformLanguage?.htmlText("payment-intake","m_13463f6c0ed33a","Save this card for future payments.") ?? "Save this card for future payments.")}</span></label>` : '')}${String(ctx.error ? `<div class="fmpi-error">${escapeHtml(ctx.error)}</div>` : '')}${policyHtml(ctx)}<div class="fmpi-actions"><button type="submit" class="fmpi-primary" data-fmpi-submit disabled>${String(escapeHtml(ctx.options.submitLabel))}</button></div></form></div>`;
   }
   function render(ctx){
     const opts = ctx.options;
+    // Replacing the markup removes Forward's iframe; it is mounted again below.
+    unmountForwardElement(ctx);
     const style = `--fmpi-primary:${opts.primaryColor};--fmpi-primary-rgb:${opts.primaryRgb};--fmpi-secondary:${opts.secondaryColor};`;
     const closeButton = ctx.inline ? '' : ("<button type=\"button\" class=\"fmpi-close\" data-fmpi-close aria-label=\"" + (globalThis.PlatformLanguage?.text("payment-intake","m_3742924668fb10","Close") ?? "Close") + "\">x</button>");
     const checkoutHtml = opts.detailsOnly ? `<div class="fmpi-details-only">${formHtml(ctx)}</div>` : `<div class="fmpi-grid"><div class="fmpi-main">${amountHtml(ctx)}${surchargeHtml(ctx)}${savedHtml(ctx)}${methodHtml(ctx)}</div><aside class="fmpi-side">${formHtml(ctx)}</aside></div>`;
@@ -367,14 +473,16 @@
     return `<div class="fmpi-success"><span class="fmpi-spinner"></span><strong>${(globalThis.PlatformLanguage?.htmlText("payment-intake","m_c094604d7b92f1","Processing payment...") ?? "Processing payment...")}</strong><p style="margin:0;color:#667085">${(globalThis.PlatformLanguage?.htmlText("payment-intake","m_2f639ee25d94d2","Please keep this window open.") ?? "Please keep this window open.")}</p></div>`;
   }
   function successHtml(ctx){
-    return `<div class="fmpi-success"><svg viewBox="0 0 56 56" aria-hidden="true"><circle cx="28" cy="28" r="25"></circle><path d="M17 29.5 24.5 37 40 20"></path></svg><h3 style="margin:0">${String(escapeHtml(ctx.options.successTitle))}</h3><p style="margin:0;color:#667085">${String(escapeHtml(ctx.options.successDescription || `${money(ctx.result?.amountCents || currentAmount(ctx), '$0.00')} was recorded.`))}</p><div class="fmpi-actions">${String(ctx.options.successActions.map((action, index) => `<button type="button" class="${action.primary ? 'fmpi-primary' : 'fmpi-secondary'}" data-fmpi-success-action="${index}">${escapeHtml(action.label || 'Done')}</button>`).join(''))}<button type="button" class="fmpi-primary" data-fmpi-close>${(globalThis.PlatformLanguage?.htmlText("payment-intake","m_8cb6b086a0e69c","Done") ?? "Done")}</button></div></div>`;
+    return `<div class="fmpi-success"><svg viewBox="0 0 56 56" aria-hidden="true"><circle cx="28" cy="28" r="25"></circle><path d="M17 29.5 24.5 37 40 20"></path></svg><h3 style="margin:0">${String(escapeHtml(ctx.result?.pending ? 'Bank payment submitted' : ctx.options.successTitle))}</h3><p style="margin:0;color:#667085">${String(escapeHtml(ctx.result?.pending ? `${money(ctx.result?.amountCents || currentAmount(ctx), '$0.00')} will be drawn from the bank account. Bank payments take a few business days to clear.` : (ctx.options.successDescription || `${money(ctx.result?.amountCents || currentAmount(ctx), '$0.00')} was paid.`)))}</p><div class="fmpi-actions">${String(ctx.options.successActions.map((action, index) => `<button type="button" class="${action.primary ? 'fmpi-primary' : 'fmpi-secondary'}" data-fmpi-success-action="${index}">${escapeHtml(action.label || 'Done')}</button>`).join(''))}<button type="button" class="fmpi-primary" data-fmpi-close>${(globalThis.PlatformLanguage?.htmlText("payment-intake","m_8cb6b086a0e69c","Done") ?? "Done")}</button></div></div>`;
   }
   function field(hostNode, name){ return hostNode.querySelector(`[data-fmpi-field="${name}"]`)?.value || ''; }
   function hasRequiredInput(ctx){
     const hostNode = host(ctx);
     if (currentAmount(ctx) <= 0) return false;
     if (ctx.savedMethodId) return true;
-    if (ctx.options.tokenization?.mode === 'forward' && ctx.method) return ctx.forwardElementComplete === true;
+    if (ctx.options.tokenization?.mode === 'forward' && ctx.method) {
+      return ctx.method !== 'ach' && ctx.forwardElementComplete === true && typeof ctx.forwardTokenize === 'function' && !ctx.forwardProcessing;
+    }
     if (ctx.method === 'ach') {
       return !!cleanText(field(hostNode, 'achName'))
         && digits(field(hostNode, 'routing')).length > 0
@@ -401,7 +509,7 @@
     const amount = currentAmount(ctx);
     if (amount <= 0) return 'Enter a payment amount greater than zero.';
     if (ctx.savedMethodId) return '';
-    if (ctx.options.tokenization?.mode === 'forward' && ctx.method) return ctx.forwardElementComplete === true ? '' : 'Complete the payment details to continue.';
+    if (ctx.options.tokenization?.mode === 'forward' && ctx.method) return ctx.forwardElementComplete === true && ctx.forwardTokenize ? '' : 'Complete the payment details to continue.';
     if (ctx.method === 'ach') {
       if (!cleanText(field(hostNode, 'achName'))) return 'Enter the account holder name.';
       if (!/^\d{9}$/.test(digits(field(hostNode, 'routing')))) return 'Enter a valid 9-digit routing number.';
@@ -471,15 +579,13 @@
     }
     if (ctx.savedMethodId) {
       const saved = base.savedPaymentMethod || {};
-      base.payment_method_id = cleanText(saved.provider_payment_method_id);
+      // The server resolves the stored token from the saved method id.
       base.saved_method_id = ctx.savedMethodId;
       return base;
     }
     let result;
-    if (tokenization.mode === 'forward') {
-      result = await exchangeForwardPaymentMethod(ctx);
-    } else {
-      if (!tokenization.createPaymentMethod) throw new Error('Payment tokenization is not configured.');
+    {
+      if (tokenization.mode !== 'mock' || !tokenization.createPaymentMethod) throw new Error('Payment tokenization is not configured.');
       const fields = base.fields || {};
       const request = base.method === 'ach'
         ? { type: 'bank', bank: {
@@ -514,6 +620,24 @@
     captured.account = '';
     return base;
   }
+  function forwardBillingDetails(ctx){
+    const contact = ctx.options.contact || {};
+    const billing = ctx.options.billingDetails || {};
+    const address = billing.address && typeof billing.address === 'object' ? billing.address : {};
+    const details = {
+      ...(cleanText(billing.name || contact.name || contact.display_name) ? { name: cleanText(billing.name || contact.name || contact.display_name) } : {}),
+      ...(cleanText(billing.email || contact.email) ? { email: cleanText(billing.email || contact.email) } : {}),
+      ...(cleanText(billing.phone || contact.phone) ? { phone: cleanText(billing.phone || contact.phone) } : {}),
+      ...(cleanText(address.address_line1 || address.line1) ? { address: {
+        line1: cleanText(address.address_line1 || address.line1),
+        ...(cleanText(address.city) ? { city: cleanText(address.city) } : {}),
+        ...(cleanText(address.state) ? { state: cleanText(address.state) } : {}),
+        ...(cleanText(address.postal_code || address.zip) ? { postal_code: cleanText(address.postal_code || address.zip) } : {}),
+        country: cleanText(address.country) || 'US'
+      } } : {})
+    };
+    return Object.keys(details).length ? { billingDetails: details } : undefined;
+  }
   function bindFormatters(ctx){
     const hostNode = host(ctx);
     const card = hostNode.querySelector('[data-fmpi-field="cardNumber"]');
@@ -539,6 +663,7 @@
     const hostNode = host(ctx);
     hostNode.querySelectorAll('[data-fmpi-close]').forEach((btn) => btn.addEventListener('click', () => close(ctx)));
     hostNode.querySelectorAll('[data-fmpi-method]').forEach((btn) => btn.addEventListener('click', () => {
+      if (ctx.forwardProcessing) return;
       ctx.method = cleanText(btn.dataset.fmpiMethod);
       ctx.savedMethodId = '';
       ctx.error = '';
@@ -546,6 +671,7 @@
       host(ctx).querySelector('.fmpi-side input, .fmpi-side select')?.focus();
     }));
     hostNode.querySelectorAll('[data-fmpi-saved]').forEach((btn) => btn.addEventListener('click', () => {
+      if (ctx.forwardProcessing) return;
       ctx.savedMethodId = cleanText(btn.dataset.fmpiSaved);
       ctx.method = '';
       ctx.error = '';
@@ -558,9 +684,42 @@
     });
     hostNode.querySelector('[data-fmpi-form]')?.addEventListener('input', () => updateSubmitState(ctx));
     hostNode.querySelector('[data-fmpi-form]')?.addEventListener('change', () => updateSubmitState(ctx));
-    hostNode.querySelector('[data-fmpi-custom-amount]')?.addEventListener('input', () => { updateSubmitState(ctx); refreshSurcharge(ctx); });
+    hostNode.querySelector('[data-fmpi-custom-amount]')?.addEventListener('input', () => {
+      updateSubmitState(ctx);
+      refreshSurcharge(ctx);
+      // A new amount needs a new processor checkout; remount once typing stops.
+      if (ctx.options.tokenization?.mode === 'forward' && ctx.method && !ctx.savedMethodId) {
+        clearTimeout(ctx.amountRemountTimer);
+        ctx.amountRemountTimer = setTimeout(() => {
+          const element = host(ctx).querySelector('[data-fmpi-forward-element]');
+          if (!element || ctx.forwardProcessing) return;
+          unmountForwardElement(ctx);
+          element.dataset.fmpiForwardMounted = '';
+          void mountForwardElement(ctx);
+        }, 700);
+      }
+    });
     hostNode.querySelector('[data-fmpi-form]')?.addEventListener('submit', async (event) => {
       event.preventDefault();
+      if (ctx.options.tokenization?.mode === 'forward' && ctx.method && !ctx.savedMethodId) {
+        // Forward card: tokenize inside the iframe; onSuccess charges it. The
+        // form stays mounted until the payment finishes so a decline can be
+        // retried in place.
+        const problem = validate(ctx);
+        if (problem) { setForwardError(ctx, problem); return; }
+        if (ctx.forwardProcessing) return;
+        setForwardError(ctx, '');
+        setProcessingState(ctx, true);
+        try {
+          await ctx.forwardTokenize(forwardBillingDetails(ctx));
+        } catch (error) {
+          if (!ctx.forwardSubmitting && ctx.step !== 'success') {
+            setProcessingState(ctx, false);
+            if (!ctx.error) setForwardError(ctx, cleanText(error?.message) || 'Payment could not be processed.');
+          }
+        }
+        return;
+      }
       ctx.error = validate(ctx);
       if (ctx.error) return render(ctx);
       // Capture the payload BEFORE the processing view replaces the form —
@@ -604,9 +763,13 @@
       result: null,
       surchargeQuote: null,
       surchargeKey: '',
-      forwardElement: null,
-      forwardClient: null,
+      forwardUnmount: null,
+      forwardTokenize: null,
       forwardElementComplete: false,
+      forwardProcessing: false,
+      forwardSubmitting: false,
+      checkouts: {},
+      checkout: null,
       container,
       inline: !!container
     };
@@ -653,6 +816,7 @@
     };
   }
   function close(ctx = state.active){
+    if (ctx) unmountForwardElement(ctx);
     host(ctx).innerHTML = '';
     if (!ctx || state.active === ctx) state.active = null;
   }

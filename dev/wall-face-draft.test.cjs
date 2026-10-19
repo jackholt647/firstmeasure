@@ -24,6 +24,43 @@ function fixture(options={}){const listeners={},state=options.state||{wallEdits:
  const e=(x,y,shiftKey=false)=>({clientX:x*100,clientY:y*100,button:0,buttons:1,shiftKey,target:{closest:s=>s==='#three-view-wrapper'},stopImmediatePropagation(){},preventDefault(){}});return {editor,state,w,e,listeners,history,normalize:()=>ctx.normalizeWallDraftOwnership(state.wallEdits),clipboard:()=>ctx.exteriorGeometryClipboard,message:()=>message,d:()=>state.wallEdits.$drafts.w};}
 function planeSelection(f,points){const s=f.editor.selectionSnapshot();s.workingPlane.selection=points;f.editor.restoreSelection(s);}
 
+function planeStepFixture(pairs,options={}){
+ const state=options.state||{wallEdits:{$loose:{points:pairs.flat(),edges:pairs}}},f=fixture({...options,state,walls:[],selected:null});
+ f.editor.togglePlane({points:[{x:0,y:0,z:0},{x:10,y:0,z:0},{x:10,y:0,z:6},{x:0,y:0,z:6}]});
+ const s=f.editor.selectionSnapshot();s.workingPlane.selection=pairs.flat();s.workingPlane.selectedLines=pairs;f.editor.restoreSelection(s);return f;
+}
+test('plane Auto-step shares count, offset, wheel, cancel and placement controls on loose collinear lines',()=>{
+ const p=(x,z)=>({x,y:0,z}),pairs=[[p(0,0),p(2,1)],[p(4,2),p(2,1)]],f=planeStepFixture(pairs),before=JSON.stringify(f.state.wallEdits),selection=JSON.stringify(f.editor.selectionSnapshot().workingPlane);
+ f.editor.key({key:'s'});assert.match(f.message(),/^1 step/);assert.equal(f.history.length,0);
+ f.editor.key({key:'s'});assert.match(f.message(),/^2 steps/);const original=JSON.stringify(f.state.wallEdits);
+ f.listeners.pointermove(f.e(1,.5));assert.notEqual(JSON.stringify(f.state.wallEdits),original);
+ const offset=JSON.stringify(f.state.wallEdits);assert.equal(f.editor.stepWheel({...f.e(1,.5),ctrlKey:true,deltaY:-120}),true);assert.notEqual(JSON.stringify(f.state.wallEdits),offset);
+ f.editor.key({key:'escape'});assert.equal(JSON.stringify(f.state.wallEdits),before);assert.equal(JSON.stringify(f.editor.selectionSnapshot().workingPlane),selection);assert.equal(f.history.length,0);
+ f.editor.key({key:'s'});f.editor.key({key:'s'});const preview=JSON.stringify(f.state.wallEdits);f.editor.planeDown(f.e(1,.5));assert.equal(JSON.stringify(f.state.wallEdits),preview);assert.equal(f.history.length,1);assert.equal(JSON.stringify(f.history[0]),before);assert.equal(f.editor.busy(),false);assert.equal(f.editor.planeActive(),true);
+ for(const [a,b]of f.state.wallEdits.$loose.edges)assert.ok(Math.abs(a.x-b.x)<1e-6||Math.abs(a.z-b.z)<1e-6);assert.ok(f.editor.pointSelection().some(q=>q.x===0&&q.z===0));assert.ok(f.editor.pointSelection().some(q=>q.x===4&&q.z===2));
+});
+test('plane Auto-step rejects noncollinear, axis-aligned and mixed face selections without editing',()=>{
+ const p=(x,z)=>({x,y:0,z});for(const pairs of [[[p(0,0),p(2,1)],[p(2,1),p(4,3)]],[[p(0,0),p(2,1)],[p(0,1),p(2,2)]],[[p(0,0),p(4,0)]],[[p(0,0),p(0,4)]]]){
+  const f=planeStepFixture(pairs),before=JSON.stringify(f.state.wallEdits);f.editor.key({key:'s'});assert.equal(f.editor.busy(),false,f.message());assert.equal(JSON.stringify(f.state.wallEdits),before);assert.equal(f.history.length,0);
+ }
+ const f=planeStepFixture([[p(0,0),p(4,2)]]),s=f.editor.selectionSnapshot();s.workingPlane.selectedFaces=[{id:'face'}];f.editor.restoreSelection(s);f.editor.key({key:'s'});assert.equal(f.editor.busy(),false);assert.match(f.message(),/Select one angled/);
+});
+test('plane Auto-step works on a face boundary and Enter commits; single point S remains a curve',()=>{
+ const p=(x,z)=>({x,y:0,z}),face={id:'slope',points:[p(0,0),p(4,2),p(4,5),p(0,5)]},f=planeStepFixture([[p(0,0),p(4,2)]],{state:{wallEdits:{$surfaces:[face]}}});f.editor.key({key:'s'});f.editor.key({key:'Enter'});assert.equal(f.history.length,1,f.message());assert.equal(f.state.wallEdits.$surfaces[0].points.length,6);
+ const g=planeStepFixture([]);planeSelection(g,[p(1,1)]);g.editor.key({key:'s'});assert.match(g.message(),/^Curve:/);
+});
+test('plane Auto-step stays on tilted and horizontal planes and supports point-inferred line selection',()=>{
+ const K=require('../public/measure/internal/editor_scripts/exterior_geometry.js');
+ for(const face of [{points:[{x:0,y:0,z:0},{x:4,y:0,z:1},{x:4,y:4,z:3},{x:0,y:4,z:2}]},{points:[{x:0,y:0,z:3},{x:4,y:0,z:3},{x:4,y:4,z:3},{x:0,y:4,z:3}]}]){
+  const frame=K.frame(face),pair=[K.world(frame,{x:0,y:0,z:0}),K.world(frame,{x:4,y:2,z:0})],f=planeStepFixture([pair]);const s=f.editor.selectionSnapshot();s.workingPlane.frame=frame;s.workingPlane.selectedLines=[];f.editor.restoreSelection(s);
+  f.editor.key({key:'s'});f.editor.key({key:'s'});assert.match(f.message(),/^2 steps/);f.editor.key({key:'Enter'});assert.equal(f.history.length,1,f.message());assert.ok(f.state.wallEdits.$loose.edges.flat().every(p=>Math.abs(K.local(frame,p).z)<1e-7));
+ }
+});
+test('plane Auto-step replaces draft construction lines without changing their supporting face',()=>{
+ const f=fixture();f.editor.doubleClick(f.e(.5,1),f.w);f.editor.key({key:'n'});f.editor.down(f.e(3.5,3));f.listeners.pointerup(f.e(3.5,3));const d=f.d(),nodes=d.sketch.nodes.filter(n=>!n.fixed),pair=nodes.map(n=>({x:n.x,y:0,z:n.y})),before=JSON.stringify(f.state.wallEdits),count=f.history.length;
+ f.editor.togglePlane({points:[{x:0,y:0,z:0},{x:4,y:0,z:0},{x:4,y:0,z:4},{x:0,y:0,z:4}]});const s=f.editor.selectionSnapshot();s.workingPlane.selection=pair;s.workingPlane.selectedLines=[pair];f.editor.restoreSelection(s);f.listeners.pointermove(f.e(2,2));f.editor.key({key:'s'});assert.match(f.message(),/^1 step/);assert.equal(f.d().sketch.edges.filter(e=>!e.fixed).length,3);assert.equal(f.d().faces.length,1);f.editor.key({key:'escape'});assert.equal(JSON.stringify(f.state.wallEdits),before);assert.equal(f.history.length,count);
+});
+
 test('line centers display virtual midpoints and toggle point-placement snapping',()=>{
  for(const enabled of [undefined,false,true]){
   const f=fixture({globals:renderGlobals()});if(enabled!==undefined)f.state.lineCenters=enabled;
@@ -659,8 +696,8 @@ test('line M snaps to a retained edge point with a yellow cue and commits the ex
 });
 test('window labeling, size cycling, nudging and metadata survive resolve and reload',()=>{
  const f=fixture({globals:renderGlobals()});f.editor.doubleClick(f.e(1,1),f.w);for(const [x,y]of [[2,1],[2,2],[1,2],[1,1]]){f.editor.key({key:'n'});f.editor.down(f.e(x,y));f.listeners.pointerup(f.e(x,y));}f.editor.down(f.e(1.5,1.5));f.listeners.pointerup(f.e(1.5,1.5));
- const selected=()=>f.d().faces.find(f=>f.feature),before=f.d().faces.find(f=>f.opening).points.map(p=>({...p}));f.editor.key({key:'w',ctrlKey:true});assert.equal(selected().feature.type,'window');assert.equal(JSON.stringify(selected().points),JSON.stringify(before));
- f.editor.key({key:'w',ctrlKey:true});assert.equal(selected().feature.preset,0,f.message());const F=require('../public/measure/internal/editor_scripts/wall_features.js'),b=F.bounds(selected().points);assert.ok(Math.abs(b.right-b.left-3*F.FT)<1e-8);
+ const selected=()=>f.d().faces.find(f=>f.feature),before=f.d().faces.find(f=>f.opening).points.map(p=>({...p}));f.editor.key({key:'W',shiftKey:true});assert.equal(selected().feature.type,'window');assert.equal(JSON.stringify(selected().points),JSON.stringify(before));
+ f.editor.key({key:'W',shiftKey:true});assert.equal(selected().feature.preset,0,f.message());const F=require('../public/measure/internal/editor_scripts/wall_features.js'),b=F.bounds(selected().points);assert.ok(Math.abs(b.right-b.left-3*F.FT)<1e-8);
  f.editor.key({key:'ArrowRight'});assert.ok(Math.abs(F.bounds(selected().points).left-b.left-F.FT/12)<1e-8,f.message());S.resolve(f.d());assert.equal(selected().feature.type,'window');const restored=fixture({state:JSON.parse(JSON.stringify(f.state)),globals:renderGlobals()});restored.editor.draw3D({add(){}},p=>p);assert.equal(restored.d().faces.find(f=>f.feature).feature.type,'window');
 });
 test('library placement creates editable geometry and cancellation leaves no sticker',()=>{
@@ -668,7 +705,7 @@ test('library placement creates editable geometry and cancellation leaves no sti
  f.editor.featureCommand('window',0,true);f.listeners.pointermove(f.e(2,2));f.editor.down(f.e(2,2));assert.ok(f.d().faces.some(f=>f.feature?.type==='window'),f.message());assert.equal(f.editor.busy(),false);assert.ok(f.d().sketch.edges.some(e=>!e.fixed));
 });
 function stickerFixture(type='window',point=[2,2],options={}){let f;const W=require('../public/measure/internal/editor_scripts/wall_solid_geometry.js');f=fixture({...options,featureHost:()=>{const d=f.d();return {d,f:d.faces[0],points:d.faces[0].points.map(p=>({x:p.x,y:0,z:p.y}))};},globals:renderGlobals(),projectPoint:(d,e)=>d.frame?W.inFrame(d.frame,{x:e.clientX/100,y:0,z:e.clientY/100}):({x:e.clientX/100,y:e.clientY/100,z:0})});f.editor.beginFace(f.e(2,2),f.w);f.listeners.pointerup(f.e(2,2));f.editor.featureCommand(type,0,true);f.listeners.pointermove(f.e(...point));f.editor.down(f.e(...point));return f;}
-test('door resizing keeps its floor anchor and corner with boundary split points intact',()=>{const F=require('../public/measure/internal/editor_scripts/wall_features.js'),f=stickerFixture('door',[.4572,1.04]);let door=()=>f.d().faces.find(f=>f.feature);assert.ok(door(),f.message());assert.ok(Math.abs(F.bounds(door().points).bottom)<1e-8);assert.ok(Math.abs(F.bounds(door().points).left)<1e-8);f.editor.key({key:'d',ctrlKey:true});assert.equal(door().feature.preset,1,f.message());assert.ok(Math.abs(F.bounds(door().points).bottom)<1e-8);assert.ok(Math.abs(F.bounds(door().points).left)<1e-8);assert.ok(f.d().faces.length>1);});
+test('door resizing keeps its floor anchor and corner with boundary split points intact',()=>{const F=require('../public/measure/internal/editor_scripts/wall_features.js'),f=stickerFixture('door',[.4572,1.04]);let door=()=>f.d().faces.find(f=>f.feature);assert.ok(door(),f.message());assert.ok(Math.abs(F.bounds(door().points).bottom)<1e-8);assert.ok(Math.abs(F.bounds(door().points).left)<1e-8);f.editor.key({key:'D',shiftKey:true});assert.equal(door().feature.preset,1,f.message());assert.ok(Math.abs(F.bounds(door().points).bottom)<1e-8);assert.ok(Math.abs(F.bounds(door().points).left)<1e-8);assert.ok(f.d().faces.length>1);});
 test('vent cycles rectangle square circle and back without losing the host face',()=>{const f=stickerFixture('vent');for(const index of [1,2,0]){f.editor.featureCommand('vent',index);const vent=f.d().faces.find(f=>f.feature);assert.equal(vent?.feature.preset,index,f.message());assert.ok(index===2?vent.points.length===48:vent.points.length>=4);assert.ok(f.d().faces.some(f=>!f.feature));}});
 test('feature edge nudge stretches the selected edge, and invalid resize is atomic',()=>{const F=require('../public/measure/internal/editor_scripts/wall_features.js'),f=stickerFixture(),feature=()=>f.d().faces.find(f=>f.feature),b=F.bounds(feature().points);f.editor.pickSolid(f.e(b.right,(b.top+b.bottom)/2));f.listeners.pointerup(f.e(b.right,(b.top+b.bottom)/2));f.editor.key({key:'ArrowRight'});assert.ok(Math.abs(F.bounds(feature().points).right-b.right-F.FT/12)<1e-8,f.message());assert.ok(Math.abs(F.bounds(feature().points).left-b.left)<1e-8);const before=JSON.stringify(f.state.wallEdits);f.editor.featureCommand('garage',0);assert.equal(JSON.stringify(f.state.wallEdits),before,f.message());});
 test('arrow nudge moves an unlabeled internal face and shared divider without creating returns',()=>{const f=stickerFixture();f.editor.featureCommand('none');const before=f.d().faces.find(f=>f.opening).points[0].x;f.editor.key({key:'ArrowRight'});assert.ok(f.d().faces.find(f=>f.opening).points[0].x>before);assert.equal(f.state.wallEdits.$surfaces,undefined);});
@@ -1737,7 +1774,8 @@ test('closing a loop on the working plane partitions an existing face without du
  const faces=f.state.wallEdits.$surfaces.filter(f=>!f.deleted),K=require('../public/measure/internal/editor_scripts/exterior_geometry.js');
  assert.equal(faces.length,2);assert.ok(f.d().faces.every(f=>f.solidId));
  const areas=faces.map(f=>{const frame=K.frame(f);return K.area({points:f.points.map(p=>K.local(frame,p)),holes:f.holes.map(r=>r.map(p=>K.local(frame,p)))});});
- assert.deepEqual(areas.sort((a,b)=>a-b),[4,12]);
+ // Rebuilt rings keep their source vertices exactly, floating-point noise included.
+ assert.ok(areas.sort((a,b)=>a-b).every((a,i)=>Math.abs(a-[4,12][i])<1e-9),JSON.stringify(areas));
 });
 
 test('drawing on a tilted face plane keeps new geometry on that exact plane',()=>{
@@ -3218,4 +3256,138 @@ test('sticker hover previews without materializing drafts; placement is one undo
  f.editor.down(f.e(14,2.2));assert.equal(f.history.length,1,f.message());assert.equal(JSON.stringify(f.history[0]),before);
  assert.ok(Object.values(state.wallEdits.$drafts).some(d=>d.faces.some(face=>face.feature?.type==='window')));
  const placed=JSON.stringify(state.wallEdits);f.editor.featureCommand('window',0,true);f.listeners.pointermove(f.e(14,1));f.editor.key({key:'Escape'});assert.equal(JSON.stringify(state.wallEdits),placed);assert.equal(f.history.length,1);
+});
+
+// Curve tessellation vertices are evaluation results. Copy, paste, guides and
+// selection use the defining points, and a pasted curve stays one curve.
+function archedDoorFixture(){
+ const F=require('../public/measure/internal/editor_scripts/wall_features.js'),f=stickerFixture('door',[1,1.04]),door=()=>f.d().faces.find(face=>face.feature),b=F.bounds(door().points),pair=[{x:b.left,y:0,z:b.top},{x:b.right,y:0,z:b.top}];
+ f.editor.restoreSelection({lineSelection:[{pair}]});f.listeners.pointermove(f.e((b.left+b.right)/2,b.top));f.editor.key({key:'a'});f.listeners.pointermove(f.e((b.left+b.right)/2,b.top+.3));f.editor.down(f.e((b.left+b.right)/2,b.top+.3));f.editor.key({key:'Enter'});
+ assert.match(f.message(),/Arch placed/);return {f,door,b,apex:b.top+.3};
+}
+test('copying an arched door pastes one analytic curve with guides and points only at its defining points',()=>{
+ const K=require('../public/measure/internal/editor_scripts/exterior_geometry.js'),{f,door,b,apex}=archedDoorFixture(),original=JSON.parse(JSON.stringify(door()));
+ assert.ok(original.points.length>10,'the arched region ring carries tessellation vertices');
+ f.editor.restoreSelection({selectedRegion:{draft:'w',face:original.id},activeDraftKey:'w'});f.editor.clipboardCommand('copy');assert.match(f.message(),/Copied 5 points/);
+ const clip=f.clipboard();assert.equal(clip.points.filter(p=>!p.curveSample).length,5);assert.equal(clip.faces[0].points.length,original.points.length);assert.equal(clip.faces[0].curves.length,1);
+ f.editor.clipboardCommand('paste');
+ for(const x of [2.6,2.9,3.05]){f.listeners.pointermove(f.e(x,1));const objects=[];f.editor.draw3D({add:o=>objects.push(o)},p=>p);const guides=objects.filter(o=>o.userData?.alignmentGuide);
+  assert.ok(guides.length>0&&guides.length<=4,'guides: '+guides.length);
+  for(const p of guides.flatMap(o=>o.geometry.points))assert.ok([0,b.top,apex].some(z=>Math.abs(p.z-z)<1e-6),'guide endpoint at a curve sample height '+p.z);}
+ f.editor.down(f.e(3.05,1));assert.match(f.message(),/Stickers placed/);
+ const d=f.d(),doors=d.faces.filter(face=>face.feature&&!face.solidId),ids=d.sketch.curves.map(c=>c.id);
+ assert.equal(doors.length,2);assert.equal(ids.length,2);assert.equal(new Set(ids).size,2,'the pasted curve has its own id');
+ assert.equal(d.sketch.nodes.filter(n=>n.userDraftPoint).length,10,'each door keeps four corners and one arch control');assert.equal(d.sketch.edges.filter(e=>e.curveId).length,4);
+ for(const face of doors){assert.equal(face.points.length,original.points.length);assert.ok(Math.abs(K.area({points:face.points})-K.area({points:original.points}))<1e-8);assert.equal(face.curves.length,1);
+  const c=face.curves[0];assert.equal(c.controls.length,3);for(const end of [K.curvePoint(c,0),K.curvePoint(c,1)])assert.ok(face.points.some(p=>Math.hypot(p.x-end.x,p.y-end.y)<1e-7),'the curve stays attached to its region');}
+ const live=d.faces.filter(face=>!face.solidId);assert.equal(live.length,3,'wall plus two doors, no slivers');assert.ok(Math.abs(live.reduce((s,face)=>s+K.area({points:face.points,holes:face.holes||[]}),0)-16)<1e-6);
+});
+for(const plane of [false,true])test(`copying an arched panel ${plane?'in plane mode ':''}keeps one analytic curve and defining points through paste`,()=>{
+ const K=require('../public/measure/internal/editor_scripts/exterior_geometry.js'),p=(x,z)=>({x,y:0,z}),c={...K.splineThrough([p(1,3),p(3,3)],[p(2,3.8)],{x:0,y:1,z:0}),id:'arch'},panel=K.archFaces([{id:'panel',points:[p(1,1),p(3,1),p(3,3),p(1,3)],holes:[],material:'brick'}],c).faces[0],wall={id:'wall',points:[p(0,0),p(8,0),p(8,6),p(0,6)]};
+ const state={wallEdits:{$surfaces:[wall,panel]}},f=fixture({state,walls:[],selected:null,globals:renderGlobals(),featureHost:()=>({points:wall.points,solid:wall})});
+ if(plane){f.editor.togglePlane(wall);planeSelection(f,panel.points);}
+ f.editor.clipboardCommand('copy',plane?undefined:{points:panel.points});assert.match(f.message(),/Copied 5 points/);f.editor.clipboardCommand('paste');
+ f.listeners.pointermove(f.e(5.5,2.02));const objects=[];f.editor.draw3D({add:o=>objects.push(o)},p=>p);
+ for(const q of objects.filter(o=>o.userData?.alignmentGuide).flatMap(o=>o.geometry.points))assert.ok([0,1,3,3.8,6].some(z=>Math.abs(q.z-z)<1e-6),'guide endpoint at a curve sample height '+q.z);
+ f.editor.down(f.e(5.5,2.02));assert.match(f.message(),/pasted/);
+ if(plane){const pasted=state.wallEdits.$surfaces.find(s=>s.id.startsWith('paste-'));assert.equal(pasted.points.length,panel.points.length);assert.equal(pasted.curves.length,1);assert.notEqual(pasted.curves[0].id,'arch');assert.equal(f.editor.pointSelection().length,5);
+  planeSelection(f,[]);const drawn=[];f.editor.draw3D({add:o=>drawn.push(o)},p=>p);const markers=drawn.filter(o=>o.userData.planeGuide&&o.material.color==='#8fefff'&&o.material.size===7);assert.equal(markers[0].geometry.points.length,14,'wall corners plus five defining points per panel');}
+ else{const d=Object.values(state.wallEdits.$drafts)[0];assert.equal(d.sketch.curves.length,1);assert.notEqual(d.sketch.curves[0].id,'arch');assert.equal(d.sketch.nodes.filter(n=>n.userDraftPoint).length,5);assert.equal(d.sketch.edges.filter(e=>e.curveId).length,2);
+  const region=d.faces.find(face=>face.material==='brick'&&!face.solidId);assert.equal(region.points.length,panel.points.length);assert.equal(region.curves.length,1);}
+ assert.ok(!(state.wallEdits.$loose?.points||[]).length,'no loose sample points');
+});
+test('moving an arched face guides and marks only its defining points',()=>{
+ const K=require('../public/measure/internal/editor_scripts/exterior_geometry.js'),W=require('../public/measure/internal/editor_scripts/wall_solid_geometry.js'),p=(x,z)=>({x,y:0,z}),arch=(x,id)=>K.archFaces([{id,points:[p(x,1),p(x+2,1),p(x+2,3),p(x,3)],holes:[]}],{...K.splineThrough([p(x,3),p(x+2,3)],[p(x+1,3.8)],{x:0,y:1,z:0}),id}).faces[0],panel=arch(1,'panel'),other=arch(5,'other');
+ const state={wallEdits:{$surfaces:[{id:'wall',points:[p(0,0),p(8,0),p(8,6),p(0,6)]},panel,other]}},f=fixture({state,walls:[],selected:null,globals:renderGlobals()});
+ f.editor.restoreSelection({solidPoints:panel.points.map(W.vertexKey)});f.listeners.pointermove(f.e(2,2));f.editor.key({key:'m'});assert.equal(f.editor.interaction(),'Transform geometry');f.listeners.pointermove(f.e(2.3,2));
+ const objects=[];f.editor.draw3D({add:o=>objects.push(o)},p=>p);const guides=objects.filter(o=>o.userData?.alignmentGuide);assert.ok(guides.length>0&&guides.length<=4,'guides: '+guides.length);
+ for(const q of guides.flatMap(o=>o.geometry.points))assert.ok([1,3,3.8].some(z=>Math.abs(q.z-z)<1e-6),'guide endpoint at a curve sample height '+q.z);
+ assert.equal(objects.find(o=>o.material.size===9).geometry.points.length,5);f.editor.down(f.e(2.3,2));assert.equal(f.editor.pointSelection().length,5);
+});
+test('a copied curved wall pastes as one analytic surface with only its corners as points',()=>{
+ const K=require('../public/measure/internal/editor_scripts/exterior_geometry.js'),W=require('../public/measure/internal/editor_scripts/wall_solid_geometry.js'),curve={type:'ellipse',center:{x:2,y:2,z:0},u:{x:1,y:0,z:0},v:{x:0,y:1,z:0},radiusX:1,radiusY:1,sweep:Math.PI},face=W.extrude({id:'arc',points:K.curveSamples(curve),curves:[curve]},3).sides.find(f=>f.curvedSurface),host={id:'host',points:[{x:-3,y:-5,z:0},{x:9,y:-5,z:0},{x:9,y:9,z:0},{x:-3,y:9,z:0}]};
+ const state={wallEdits:{$surfaces:[face,host]}},f=fixture({state,walls:[],selected:null,globals:renderGlobals(),featureHost:()=>({points:host.points,solid:host}),projectPoint:(d,e)=>({x:e.clientX/100,y:e.clientY/100,z:0}),screen:p=>({x:p.x*100,y:p.y*100})});
+ f.editor.clipboardCommand('copy',{points:face.points});assert.match(f.message(),/Copied 4 points/);f.editor.clipboardCommand('paste');f.listeners.pointermove(f.e(6,6));f.editor.down(f.e(6,6));assert.match(f.message(),/pasted/);
+ const pasted=state.wallEdits.$surfaces.find(s=>s.id.startsWith('paste-'));assert.equal(pasted.points.length,4);assert.equal(pasted.curvedSurface.logical,true);assert.equal(pasted.curvedSurface.type,'ellipse-extrusion');
+ const objects=[];f.editor.draw3D({add:o=>objects.push(o)},p=>p);assert.equal(objects.filter(o=>o.userData.curvedSurface).length,2);
+});
+test('curve sample test keeps curve ends, controls, authored points and junctions where a ring leaves the curve',()=>{
+ const K=require('../public/measure/internal/editor_scripts/exterior_geometry.js'),p=(x,y)=>({x,y,z:0}),c=K.splineThrough([p(0,2),p(2,2)],[p(1,3)]),samples=K.curveSamples(c).slice(1,-1),junction=samples[3],authored={...samples[8],userDraftPoint:true};
+ const arch={points:[p(0,0),p(2,0),...K.curveSamples(c).reverse()],curves:[c]},isSample=K.curveSamplePoint(arch);
+ for(const q of [p(0,0),p(2,0),p(0,2),p(2,2),p(1,3)])assert.equal(isSample(q),false);assert.ok(samples.filter(q=>!c.controls.some(v=>Math.hypot(v.x-q.x,v.y-q.y)<1e-6)).every(isSample));
+ const cut={points:[p(0,0),{...junction,y:0},junction,...K.curveSamples(c).filter(q=>q.curveT<junction.curveT).reverse()],curves:[c]};assert.equal(K.curveSamplePoint(cut)(junction),false,'a divider meeting the arch is a real corner');
+ const kept={...arch,points:arch.points.map(q=>Math.hypot(q.x-authored.x,q.y-authored.y)<1e-9?authored:q)};assert.equal(K.curveSamplePoint(kept)(authored),false);
+});
+
+test('Ctrl+W/D/G is left to the browser: the editor does not consume it or change the model',()=>{
+ const f=fixture();f.editor.doubleClick(f.e(2,2),f.w);const before=JSON.stringify(f.state.wallEdits);
+ for(const key of ['w','d','g'])assert.equal(f.editor.key({key,ctrlKey:true}),false);
+ assert.equal(JSON.stringify(f.state.wallEdits),before);
+});
+
+// A door sticker with an angled top whose left half is arched, built in plane
+// mode with the editor's own tools (point, nudge, A).
+function planeArchedDoorFixture(){
+ const F=require('../public/measure/internal/editor_scripts/wall_features.js'),f=stickerFixture('door',[1,1.04]),b=F.bounds(f.d().faces.find(face=>face.feature).points),mid=(b.left+b.right)/2;
+ f.editor.doubleClick(f.e(mid,b.top),f.w);f.editor.togglePlane({points:[{x:0,y:0,z:0},{x:4,y:0,z:0},{x:4,y:0,z:4},{x:0,y:0,z:4}]});planeSelection(f,[{x:mid,y:0,z:b.top}]);for(let i=0;i<12;i++)f.editor.key({key:'ArrowDown'});
+ const apex={x:mid,y:0,z:b.top+12*.0254},lt={x:b.left,y:0,z:b.top},rt={x:b.right,y:0,z:b.top},s=f.editor.selectionSnapshot();s.workingPlane.selection=[lt,apex];s.workingPlane.selectedLines=[[lt,apex]];f.editor.restoreSelection(s);
+ f.listeners.pointermove(f.e((b.left+mid)/2,b.top+.15));f.editor.key({key:'a'});f.listeners.pointermove(f.e((b.left+mid)/2-.05,b.top+.5));f.editor.planeDown(f.e((b.left+mid)/2-.05,b.top+.5));f.editor.key({key:'Enter'});assert.match(f.message(),/Arch placed/);
+ const markers=()=>{const objects=[];f.editor.draw3D({add:o=>objects.push(o)},p=>p);return objects.find(o=>o.userData.planeGuide&&o.material.color==='#8fefff'&&o.material.size===7)?.geometry.points||[];},meshes=()=>{const objects=[];f.editor.draw3D({add:o=>objects.push(o)},p=>p);return objects.filter(o=>o.userData.solidId||o.userData.draftKey);};
+ const ctl=markers().find(p=>p.x>b.left+.01&&p.x<mid-.1&&p.z>b.top+.05&&p.z<b.top+1);assert.ok(ctl,'the arch exposes its control point');
+ const deleteLine=()=>{const s=f.editor.selectionSnapshot();s.workingPlane.selection=[apex,rt];s.workingPlane.selectedLines=[[apex,rt]];f.editor.restoreSelection(s);f.editor.key({key:'Delete'});};
+ const live=()=>(f.state.wallEdits.$surfaces||[]).filter(s=>!s.deleted&&!s.drafted),area=s=>Math.abs(require('../public/measure/internal/editor_scripts/exterior_geometry.js').area({points:s.points.map(p=>({x:p.x,y:p.z}))}));
+ return {f,b,mid,apex,lt,rt,ctl,markers,meshes,deleteLine,live,area};
+}
+const near=(p,q)=>Math.hypot(p.x-q.x,(p.y||0)-(q.y||0),p.z-q.z)<1e-6;
+test('arching a plane-mode door edge keeps the consumed draft regions consumed',()=>{
+ const {f,live,meshes}=planeArchedDoorFixture();assert.ok(f.d().faces.every(face=>face.solidId),'no straight-topped draft region is resurrected under the surfaces');
+ assert.equal(live().length,2);assert.ok(live().every(s=>s.curves?.length===1));assert.equal(meshes().length,2);
+});
+test('deleting a door sticker edge in plane mode leaves its wire, not a face, and keeps the wall',()=>{
+ const {f,lt,rt,apex,ctl,markers,meshes,deleteLine,live,area}=planeArchedDoorFixture(),count=f.history.length;deleteLine();assert.equal(f.history.length,count+1,f.message());
+ assert.ok(!live().some(s=>s.feature),'an opened sticker stops being a face');assert.equal(live().length,1);assert.ok(Math.abs(area(live()[0])-16)<1e-6,'the wall closes along the remaining door lines');
+ assert.equal(meshes().length,1);const points=markers();for(const p of [lt,rt,apex,ctl])assert.ok(points.some(q=>near(p,q)),'door geometry stays on the plane');
+});
+for(const order of ['before','after'])test(`pasting a flipped arch copied ${order} the edge delete closes the door as a typeable face`,()=>{
+ const {f,lt,apex,rt,ctl,markers,meshes,deleteLine,live,area}=planeArchedDoorFixture(),copyArch=()=>{planeSelection(f,[lt,ctl,apex]);f.editor.key({key:'c',ctrlKey:true});assert.equal(f.clipboard().curves?.length,1,f.message());};
+ if(order==='after')deleteLine();copyArch();if(order==='before')deleteLine();
+ const segments=()=>{const objects=[];f.editor.draw3D({add:o=>objects.push(o)},p=>p);return objects.filter(o=>o.material.color==='#8ce9ff'&&o.material.size===undefined&&o.geometry.points?.length===2).map(o=>o.geometry.points);};
+ f.listeners.pointermove(f.e(2,3));f.editor.key({key:'v',ctrlKey:true});f.editor.key({key:'t'});f.editor.key({key:'t'});assert.match(f.message(),/Flip x/);f.editor.key({key:'m'});f.listeners.pointermove(f.e(2,3));
+ const end=segments().at(-1)[1],x=2+apex.x-end.x,z=3+apex.z-end.z;f.listeners.pointermove(f.e(x,z));assert.ok(near(segments()[0][0],rt)&&near(segments().at(-1)[1],apex),'the flipped arch runs from the right jamb to the apex');
+ f.editor.planeDown(f.e(x,z));assert.match(f.message(),/pasted/);
+ const faces=live().sort((a,b)=>area(a)-area(b));assert.equal(faces.length,2);assert.ok(Math.abs(area(faces[0])+area(faces[1])-16)<1e-6);assert.ok(area(faces[0])>2&&area(faces[0])<2.3,'the door region fills both arches');
+ for(const face of faces){assert.equal(face.curves.length,2);assert.equal(new Set(face.curves.map(c=>c.id)).size,2);}assert.equal(meshes().length,2);
+ planeSelection(f,[]);assert.equal(markers().length,11,'corners, door corners, apex and one control per arch');
+ f.editor.togglePlane();f.editor.restoreSelection({selectedSolid:faces[0].id,faceSelection:[{solid:faces[0].id}]});f.editor.key({key:'D',shiftKey:true});assert.equal(live().find(s=>s.id===faces[0].id).feature?.type,'door',f.message());
+});
+test('deleting an arch end, control and apex removes the whole arch without promoting its samples',()=>{
+ const {f,b,lt,apex,ctl,markers,live}=planeArchedDoorFixture();planeSelection(f,[lt,ctl,apex]);f.editor.key({key:'Delete'});
+ assert.ok(!live().some(s=>s.feature),f.message());const points=markers();assert.ok(!points.some(p=>p.z>b.top+1e-6&&p.z<4-1e-6),'no point remains where the arch was: '+JSON.stringify(points));
+ const objects=[];f.editor.draw3D({add:o=>objects.push(o)},p=>p);assert.ok(!objects.some(o=>o.geometry?.points?.length===2&&!o.material.size&&o.geometry.points.every(p=>p.x>lt.x-1e-6&&p.x<apex.x+1e-6&&p.z>b.top+.01&&p.z<b.top+.5)),'no arc fragments');
+});
+
+// The same door on a wall that is not axis-aligned: rebuilt faces must keep the
+// arcs' exact vertices, or their samples surface as points.
+function rotatedArchedDoorFixture(deg){
+ const K=require('../public/measure/internal/editor_scripts/exterior_geometry.js'),W=require('../public/measure/internal/editor_scripts/wall_solid_geometry.js'),a=deg*Math.PI/180,u={x:Math.cos(a),y:Math.sin(a),z:0},P=(s,z)=>({x:1.3+u.x*s,y:.7+u.y*s,z}),along=p=>(p.x-1.3)*u.x+(p.y-.7)*u.y;
+ const lt=P(.6,2),apex=P(1,2.3),rt=P(1.4,2),c={...K.splineThrough([lt,apex],[P(.72,2.35)],{x:-u.y,y:u.x,z:0}),id:'arch-left'};
+ const faces=K.archFaces([{id:'wall',points:[P(0,0),P(.6,0),lt,apex,rt,P(1.4,0),P(4,0),P(4,4),P(0,4)],holes:[]},{id:'door',points:[P(.6,0),P(1.4,0),rt,apex,lt],holes:[],feature:{type:'door'}}],c).faces;
+ const state={wallEdits:{$surfaces:faces}},f=fixture({state,walls:[],selected:null,globals:renderGlobals(),screen:p=>({x:along(p)*100,y:p.z*100}),projectPoint:(d,e)=>d.frame?W.inFrame(d.frame,P(e.clientX/100,e.clientY/100)):{x:e.clientX/100,y:e.clientY/100,z:0}});
+ f.editor.togglePlane({points:[P(0,0),P(4,0),P(4,4),P(0,4)]});
+ const markers=()=>{const objects=[];f.editor.draw3D({add:o=>objects.push(o)},p=>p);return objects.find(o=>o.userData.planeGuide&&o.material.color==='#8fefff'&&o.material.size===7)?.geometry.points||[];};
+ return {f,K,W,lt,apex,rt,ctl:markers().find(p=>along(p)>.61&&along(p)<.95&&p.z>2.05),markers,along};
+}
+for(const deg of [0,17,30,45,63])test(`a closing paste on a wall at ${deg} degrees keeps both arcs to their defining points`,()=>{
+ const {f,K,W,lt,apex,rt,ctl,markers,along}=rotatedArchedDoorFixture(deg);assert.equal(markers().length,10);
+ planeSelection(f,[lt,ctl,apex]);f.editor.key({key:'c',ctrlKey:true});assert.equal(f.clipboard().curves.length,1);
+ const s=f.editor.selectionSnapshot();s.workingPlane.selection=[apex,rt];s.workingPlane.selectedLines=[[apex,rt]];f.editor.restoreSelection(s);f.editor.key({key:'Delete'});
+ const segments=()=>{const objects=[];f.editor.draw3D({add:o=>objects.push(o)},p=>p);return objects.filter(o=>o.material.color==='#8ce9ff'&&o.material.size===undefined&&o.geometry.points?.length===2).map(o=>o.geometry.points);};
+ f.listeners.pointermove(f.e(2,3));f.editor.key({key:'v',ctrlKey:true});f.editor.key({key:'t'});f.editor.key({key:'t'});f.editor.key({key:'m'});
+ let x=2,z=3;for(let i=0;i<3;i++){f.listeners.pointermove(f.e(x,z));const end=segments().at(-1)[1];x+=along(apex)-along(end);z+=apex.z-end.z;}
+ f.listeners.pointermove(f.e(x,z));f.editor.planeDown(f.e(x,z));assert.match(f.message(),/pasted/);
+ const live=f.state.wallEdits.$surfaces.filter(face=>!face.deleted);assert.equal(live.length,2);
+ for(const face of live){const ids=face.curves.map(c=>c.id);assert.equal(ids.length,2);assert.ok(ids.includes('arch-left'),'the left arc keeps its curve');assert.ok(face.curves.every(c=>c.controls.length===3));}
+ planeSelection(f,[]);assert.equal(markers().length,11,'no curve sample became a point');
+ const real=W.surfaceWire(f.state.wallEdits).nodes.filter(n=>!n.curveSample);assert.equal(real.length,11);
+ const draft=Object.values(f.state.wallEdits.$drafts).find(d=>d.constructionPlane);assert.equal(draft.sketch.nodes.length,3);assert.equal(draft.sketch.nodes.filter(n=>n.userDraftPoint).length,3);
 });

@@ -1,3 +1,4 @@
+import { selectPowerDialLine, outgoingDrop } from '../phone/outbound.js';
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { hasPermission, type PlatformAuthContext } from "../../platform/auth.js";
@@ -11,6 +12,7 @@ import { patchWorkNode, transitionWorkNode } from "../../work/service.js";
 import { emitWorkEvent } from "../../work/engine.js";
 import { requireVoiceEnvironment, voiceWebhookUrl } from "../../telephony/telnyx.js";
 import { normalizePhone, voiceSettings } from "./settings.js";
+import { canUseLine } from '../phone/service.js';
 import { followUpOptions } from './follow-up-policy.js';
 import * as store from "./storage.js";
 import { text, object, strings, type Json, type CustomerCall } from "./storage.js";
@@ -78,7 +80,7 @@ export async function readEntry(ctx:PlatformAuthContext,entryId:string){
 }
 export const createCallSchema=z.object({
   department_ids:z.array(z.string().min(1).max(120)).max(200).optional(),
-  operation_id:z.string().min(8).max(180),mode:z.enum(["external","browser"]).default("external"),direction:z.enum(["outbound","inbound"]).default("outbound"),
+  power_dial:z.boolean().default(false),operation_id:z.string().min(8).max(180),mode:z.enum(["external","browser"]).default("external"),direction:z.enum(["outbound","inbound"]).default("outbound"),
   project_id:z.string().max(180).default(""),contact_id:z.string().max(180).default(""),entry_id:z.string().max(180).default(""),
   customer_number:z.string().max(40).default(""),customer_name:z.string().max(250).default(""),business_number:z.string().max(40).default(""),
   purpose:z.string().max(500).default(""),script_id:z.string().max(180).default(""),device_id:z.string().max(180).default(""),
@@ -117,9 +119,9 @@ export async function createCall(ctx:PlatformAuthContext,input:unknown){
     if(!settings.enabled)throw conflict("voice_not_enabled","Enable FirstMate phone in Phone setup before calling.");
     if(!settings.allowed_country_prefixes.some(p=>phone.startsWith(p)))throw forbidden("destination_not_allowed","This destination is outside your enabled calling regions.");
     if(/^\+1(900|976)/.test(phone))throw forbidden("destination_not_allowed","Premium-rate destinations are not supported.");
-    line=(await store.resources(ctx.orgId,"number")).find(n=>n.status==="active"&&text(n.branch_id||'default')===text(project?.branch_id||ctx.branchId||'default')&&(!body.business_number||n.phone_number===body.business_number));
+    for(const candidate of await store.resources(ctx.orgId,"number")){if(candidate.status==="active"&&text(candidate.branch_id||"default")===text(project?.branch_id||ctx.branchId||"default")&&(!body.business_number||candidate.phone_number===body.business_number)&&await canUseLine(ctx,text(candidate.phone_number))){line=candidate;break;}}
     if(!line)throw conflict("business_line_unavailable","Choose a connected business line.");
-    if(text(line.assigned_user_id)&&text(line.assigned_user_id)!==ctx.userId)throw forbidden('business_line_assigned','This line is assigned to another teammate.');
+    if(!await canUseLine(ctx,text(line.phone_number)))throw forbidden('business_line_assigned','This line is not assigned to you.');
     const endpoint=(await store.resource(ctx.orgId,"endpoint",ctx.userId));
     if(text((await store.resource(ctx.orgId,'endpoint_lock',ctx.userId))?.expires_at)>store.now())throw conflict('phone_reconnecting','Wait for your phone connection change to finish.');
     if(!endpoint||endpoint.session_id!==ctx.sessionId||endpoint.device_id!==body.device_id||text(endpoint.heartbeat_at)<new Date(Date.now()-45_000).toISOString()||endpoint.registered!==true)throw conflict("phone_not_ready","Connect this browser's phone before calling.");
@@ -142,6 +144,7 @@ export async function createCall(ctx:PlatformAuthContext,input:unknown){
       const daily=object((await store.database().prepare("SELECT count(*) AS total FROM customer_calls WHERE organization_id=? AND mode='browser' AND created_at>=?").get(ctx.orgId,new Date(Date.now()-86400_000).toISOString())));
       if(Number(daily.total)>=settings.daily_call_limit)throw conflict("voice_daily_limit","Your daily call limit has been reached.");
     }
+    if(body.mode==='browser'&&body.power_dial)line=await selectPowerDialLine(ctx,text(project?.branch_id||ctx.branchId||'default'))||line;
     if(body.entry_id)(await store.claimResource(ctx.orgId,`entry:${body.entry_id}`,ctx.userId,callId));
     (await store.claimResource(ctx.orgId,`phone:${phone}`,ctx.userId,callId));
     const script=body.script_id?(await publishedScript(ctx.orgId,body.script_id)):null;
@@ -152,7 +155,7 @@ export async function createCall(ctx:PlatformAuthContext,input:unknown){
       state:body.mode==="browser"?"agent_connecting":"created",metadata:{...(body.department_ids?{department_ids:body.department_ids}:{}),purpose:body.purpose||linked?.entry.title||"Customer call",entity:body.entity,
         script:script||{},list_settings:linked?.column.settings||{},device_id:body.device_id,source_node_ids:[...new Set([...body.source_node_ids,...(linked?(strings(linked.entry.work_node_ids).length?strings(linked.entry.work_node_ids):linked.entry.work_node_id?[linked.entry.work_node_id]:[]):[])])],entry_updated_at:linked?.entry.updated_at,
         policy:{recording_enabled:settings.recording_enabled,transcription_enabled:settings.transcription_enabled,disclosure:settings.disclosure,retention_days:settings.recording_retention_days},
-        consent:{state:"not_requested"},actor_email:text(ctx.identity.email),actor_name:text(ctx.user.name||ctx.identity.name)}}));
+        voicemail_drop:body.mode==='browser'?await outgoingDrop(ctx.orgId,ctx.userId,body.power_dial):{},power_dial:body.power_dial,consent:{state:"not_requested"},actor_email:text(ctx.identity.email),actor_name:text(ctx.user.name||ctx.identity.name)}}));
     (await store.appendEvent(ctx.orgId,call.id,"communication.call.created",{},`${call.id}:created`));
     if(body.mode==="browser"){
       const endpoint=(await store.resource(ctx.orgId,"endpoint",ctx.userId))!;const app=(await store.resource(ctx.orgId,"application"))!;

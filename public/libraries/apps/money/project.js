@@ -467,6 +467,7 @@
               ${String(methods.map((method) => `<option value="${escapeHtml(method.id)}">${escapeHtml(cleanText(method.label, `${method.brand || 'Card'} ending in ${method.last4 || '????'}`))}</option>`).join(''))}
             </select>
             <input class="mn-input" type="text" inputmode="decimal" placeholder="${(globalThis.PlatformLanguage?.htmlText("money","m_142ec283dfa33b","Max charge (optional, $)") ?? "Max charge (optional, $)")}" data-money-autopay-max aria-label="${(globalThis.PlatformLanguage?.htmlText("money","m_2403460d906098","Maximum autopay amount") ?? "Maximum autopay amount")}">
+            <label class="mn-autopay-consent" style="display:flex;gap:6px;align-items:flex-start;font-size:10px;line-height:1.35;color:#475467"><input type="checkbox" data-money-autopay-consent><span>The customer agreed to have this payment method charged automatically when each scheduled payment comes due.</span></label>
             <div class="mn-autopay-actions">
               <button type="button" class="mn-btn primary" data-money-autopay-enroll ${String(busy)}><i class="fas fa-check"></i>${(globalThis.PlatformLanguage?.htmlText("money","m_f3a69b458730ed"," Enroll") ?? " Enroll")}</button>
               <button type="button" class="mn-btn" data-money-autopay-cancel ${String(busy)}>${(globalThis.PlatformLanguage?.htmlText("money","m_cbef679b21abb4","Cancel") ?? "Cancel")}</button>
@@ -1597,11 +1598,17 @@
       const maxRaw = cleanText(sidebarRoot.querySelector('[data-money-autopay-max]')?.value);
       const maxCents = maxRaw ? centsFromDollars(maxRaw) : 0;
       if (!methodId) return;
+      if (!sidebarRoot.querySelector('[data-money-autopay-consent]')?.checked) {
+        state.autopayError = 'Confirm the customer agreed to automatic payments first.';
+        renderLeft();
+        return;
+      }
       void autopayMutate(() => {
         const contact = primaryContact(state.project);
         return rootWindow.PaymentsAPI.autopay.enroll(orgId(), projectId(), {
           saved_method_id: methodId,
           status: 'active',
+          customer_authorized: true,
           max_amount_cents: maxCents > 0 ? maxCents : null,
           ...(contact ? { contact_ref: contact } : {})
         });
@@ -2129,19 +2136,36 @@
   }
 
   function paymentIntakeProviderOptions(){
-    // Provider tokenization options — present only when the org resolves a
-    // payment provider (state.paymentIntakeConfig.config non-null). Without
-    // one every option below is omitted and the modal behaves exactly as the
-    // legacy mock-record flow.
+    // The payment form offers card or bank entry only when the organization
+    // can take payments (the server's readiness answer). Otherwise it says
+    // why, and nothing in it can record a payment.
     const entry = state.paymentIntakeConfig;
     const config = entry && entry.key === `${orgId()}:${projectId()}` ? entry.config : null;
-    if (!config || !config.provider) return {};
+    if (!config || config.ready !== true || !config.provider) {
+      return {
+        notReadyMessage: cleanText(config?.message) || 'Online payments are not set up yet. Finish payment setup in Settings, Payments.',
+        refundPolicy: cleanText(config?.refund_policy)
+      };
+    }
     const requestedOrgId = orgId();
+    const rails = config.rails || {};
+    const contact = primaryContact(state.project || {}) || {};
     return {
       savedMethods: Array.isArray(config.saved_methods) ? config.saved_methods : [],
+      refundPolicy: cleanText(config.refund_policy),
+      methods: [rails.card !== false ? 'card' : '', rails.bank !== false ? 'ach' : ''].filter(Boolean),
       tokenization: {
         mode: cleanText(config.tokenization?.mode) || 'mock',
         sdkUrl: cleanText(config.tokenization?.sdk_url),
+        publicKey: cleanText(config.tokenization?.public_key),
+        prepare: async ({ method, amountCents }) => (await rootWindow.PaymentsAPI.intake.checkout(requestedOrgId, {
+          amount_cents: amountCents,
+          method,
+          project_id: projectId(),
+          branch_id: branchId(),
+          contact_ref: contact,
+          apply_surcharge: config.surcharge?.enabled === true
+        }))?.checkout,
         createPaymentMethod: (request) => rootWindow.PaymentsAPI.intake.createPaymentMethodIntent(requestedOrgId, request)
       },
       ...(config.surcharge?.enabled === true ? {
@@ -2164,9 +2188,8 @@
           contact_ref: paymentIntakeContactRef(),
           branch_id: branchId()
         });
-        config = result?.provider ? result : null;
-        // Cache only definitive answers; a failed/aborted fetch must not pin
-        // the org to the legacy flow for the rest of the session.
+        config = result && typeof result.ready === 'boolean' ? result : null;
+        // Cache only definitive answers; a failed/aborted fetch is asked again.
         state.paymentIntakeConfig = { key: requestedKey, config };
       }
     } catch (_) {
@@ -2187,6 +2210,7 @@
       amountCents: null,
       allowCustomAmount: true,
       methods: ['card', 'ach'],
+      ...paymentIntakeProviderOptions(),
       contact,
       allowSavedMethods: !!contact,
       allowSavePaymentMethod: true,
@@ -2199,7 +2223,6 @@
       ],
       successActions: [
         { label: (globalThis.PlatformLanguage?.text("money","m_1641c7d3dd9d7c","Print receipt") ?? "Print receipt"), onClick: (result) => printReceipt(result) },
-        { label: (globalThis.PlatformLanguage?.text("money","m_44d5a64ac2cb37","Email receipt") ?? "Email receipt"), onClick: () => showToast((globalThis.PlatformLanguage?.text("money","m_ba3d2dc718b8ac","Receipt email is ready for processor wiring.") ?? "Receipt email is ready for processor wiring."), (globalThis.PlatformLanguage?.text("money","m_b4e54589824dc5","success") ?? "success")) },
         { label: (globalThis.PlatformLanguage?.text("money","m_f4305fea9e5634","Back to Money") ?? "Back to Money"), primary: true, onClick: () => { setMoneyView('overview'); void loadData(); } }
       ],
       onSubmit: async (payment) => {
@@ -2212,6 +2235,9 @@
         const methodLabel = payment.savedPaymentMethod?.label || titleText(payment.method || 'payment');
         try {
           const tokenized = !!(payment.payment_method_id || payment.saved_method_id);
+          // Card and bank payments are charged through the processor; this
+          // form never records one as paid without a charge.
+          if (!tokenized) throw new Error('Enter the payment details to continue.');
           const result = await rootWindow.PaymentsAPI.payments.create(requestedOrgId, {
             project_id: requestedProjectId,
             branch_id: requestedBranchId,
@@ -2234,6 +2260,7 @@
             ...(tokenized ? {
               payment_method_id: cleanText(payment.payment_method_id),
               saved_method_id: cleanText(payment.saved_method_id),
+              checkout_id: cleanText(payment.checkout_id),
               save_payment_method: payment.save_method === true,
               method_label: methodLabel
             } : {})
