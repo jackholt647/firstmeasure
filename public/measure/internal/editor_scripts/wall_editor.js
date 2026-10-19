@@ -24,6 +24,19 @@ function wallOcclusionFrame(renderer,scene,camera){
   }
  return frame;
 }
+// Same answer as ray.intersectObjects(frame.meshes,false).length>0, without collecting and sorting every hit:
+// the layer test and world bounding-sphere test are the ones Mesh.raycast starts with, computed once per frame.
+function wallOcclusionHit(ray,frame){
+ if(!frame.spheres)frame.spheres=frame.meshes.map(m=>{const g=m.geometry;if(g.boundingSphere===null)g.computeBoundingSphere();return new THREE.Sphere().copy(g.boundingSphere).applyMatrix4(m.matrixWorld);});
+ const hits=frame.hits||(frame.hits=[]);
+ for(let i=0;i<frame.meshes.length;i++){const m=frame.meshes[i];if(!m.layers.test(ray.layers)||m.material===undefined||!ray.ray.intersectsSphere(frame.spheres[i]))continue;hits.length=0;m.raycast(ray,hits);if(hits.length)return true;}
+ return false;
+}
+window.wallOcclusionHit=wallOcclusionHit;
+// Nothing writes to the DOM during renderer.render, so the canvas rectangle is constant for one render call:
+// overlays drawn in that call share a single layout read (render.frame advances once per render).
+const exteriorRenderRects=new WeakMap();
+window.exteriorRendererRect=function(renderer){const frame=renderer.info?.render?.frame;if(frame===undefined)return renderer.domElement.getBoundingClientRect();const hit=exteriorRenderRects.get(renderer);if(hit&&hit.frame===frame)return hit.rect;const rect=renderer.domElement.getBoundingClientRect();exteriorRenderRects.set(renderer,{frame,rect});return rect;};
 window.wallPointOcclusion=function(object,enabled){
  object.userData.pointOcclusionEnabled=enabled;
  if(object.userData.pointOcclusionInstalled||!object.geometry?.getAttribute)return;
@@ -38,7 +51,7 @@ window.wallPointOcclusion=function(object,enabled){
   const position=this.geometry.getAttribute('position'),size=renderer.getSize(new THREE.Vector2()),material=this.material;
   const key=frame.key+':'+size.x+','+size.y+','+material.size+':'+position.version+':'+this.matrixWorld.elements.join(',');
   if(key===lastKey)return;lastKey=key;
-  const ray=new THREE.Raycaster(),p=new THREE.Vector3(),projected=new THREE.Vector3(),sample=new THREE.Vector2(),indices=[];
+  const ray=new THREE.Raycaster(),p=new THREE.Vector3(),projected=new THREE.Vector3(),sample=new THREE.Vector2(),indices=[],forward=new THREE.Vector3(0,0,-1).transformDirection(camera.matrixWorld);
   for(let j=0;j<(originalIndex?originalIndex.count:position.count);j++){
    const i=originalIndex?originalIndex.getX(j):j;
    p.fromBufferAttribute(position,i).applyMatrix4(this.matrixWorld);projected.copy(p).project(camera);
@@ -48,9 +61,8 @@ window.wallPointOcclusion=function(object,enabled){
    const view=p.clone().applyMatrix4(camera.matrixWorldInverse),pixelDepth=2*(camera.isPerspectiveCamera?Math.abs(view.z):1)/(camera.projectionMatrix.elements[5]*Math.max(1,size.y));
    const epsilon=Math.max(Math.max(1,p.length(),Math.abs(view.z))*2e-6,pixelDepth*wallPointBiasPixels);
    ray.setFromCamera(sample.set(projected.x,projected.y),camera);
-   const forward=new THREE.Vector3(0,0,-1).transformDirection(camera.matrixWorld);
    ray.far=Math.max(0,p.clone().sub(ray.ray.origin).dot(ray.ray.direction)-epsilon/Math.max(.001,ray.ray.direction.dot(forward)));
-   const visible=!ray.intersectObjects(frame.meshes,false).length;
+   const visible=!wallOcclusionHit(ray,frame);
    if(visible)indices.push(i);
   }
   filteredIndex.array.set(indices);filteredIndex.needsUpdate=true;
@@ -70,7 +82,7 @@ window.wallLabelOcclusion=function(object,enabled){
   if(!this.userData.labelOcclusionEnabled){this.material.opacity=opacity;lastKey=null;return;}
   const frame=wallOcclusionFrame(renderer,scene,camera),key=frame.key+':'+this.matrixWorld.elements.join(',');
   if(key!==lastKey){lastKey=key;const p=new THREE.Vector3().setFromMatrixPosition(this.matrixWorld),q=p.clone().project(camera),ray=new THREE.Raycaster();visible=q.z>=-1&&q.z<=1;
-   if(visible){ray.setFromCamera(new THREE.Vector2(q.x,q.y),camera);ray.far=p.clone().sub(ray.ray.origin).dot(ray.ray.direction)-Math.max(1,p.length())*2e-6;visible=!ray.intersectObjects(frame.meshes,false).length;}
+   if(visible){ray.setFromCamera(new THREE.Vector2(q.x,q.y),camera);ray.far=p.clone().sub(ray.ray.origin).dot(ray.ray.direction)-Math.max(1,p.length())*2e-6;visible=!wallOcclusionHit(ray,frame);}
   }
   this.material.opacity=visible?opacity:0;
  };
@@ -97,7 +109,7 @@ window.wallLineDepthBias=function(object,enabled){
  state.pixels.value=enabled?wallLineBiasPixels:0;
  if(object.userData.wallLineDepthInstalled)return;object.userData.wallLineDepthInstalled=true;
  const previous=object.onBeforeRender;
- object.onBeforeRender=function(renderer,...args){previous?.call(this,renderer,...args);state.height.value=Math.max(1,renderer.domElement.getBoundingClientRect().height);};
+ object.onBeforeRender=function(renderer,...args){previous?.call(this,renderer,...args);state.height.value=Math.max(1,window.exteriorRendererRect(renderer).height);};
 };
 window.exteriorSurfaceDisplay=function(group,mode=true){
  const translucent=mode===true||mode==='translucent',textured=['textured','rendered','match-textured'].includes(mode);
@@ -369,7 +381,7 @@ window.wallSelectedLine=function(group,vector,pair){
  const depths={value:new THREE.Vector2()};
  sprite.material.onBeforeCompile=shader=>{shader.uniforms.wallSelectedLineDepth=depths;shader.vertexShader='uniform vec2 wallSelectedLineDepth;\n'+shader.vertexShader;shader.vertexShader=shader.vertexShader.replace('#include <logdepthbuf_vertex>','gl_Position.z = mix(wallSelectedLineDepth.x, wallSelectedLineDepth.y, uv.x) * gl_Position.w;\n#include <logdepthbuf_vertex>');};
  sprite.material.customProgramCacheKey=()=> 'wall-selected-line-depth-v1';
- sprite.onBeforeRender=(renderer,scene,camera)=>{const r=renderer.domElement.getBoundingClientRect(),p=vector(a).clone().project(camera),q=vector(b).clone().project(camera),dx=(q.x-p.x)*r.width/2,dy=(q.y-p.y)*r.height/2,scale=2/(r.height*camera.projectionMatrix.elements[5]);// Perspective does not project the world midpoint to the screen midpoint.
+ sprite.onBeforeRender=(renderer,scene,camera)=>{const r=window.exteriorRendererRect(renderer),p=vector(a).clone().project(camera),q=vector(b).clone().project(camera),dx=(q.x-p.x)*r.width/2,dy=(q.y-p.y)*r.height/2,scale=2/(r.height*camera.projectionMatrix.elements[5]);// Perspective does not project the world midpoint to the screen midpoint.
  const biasedDepth=point=>{const v=vector(point).clone().applyMatrix4(camera.matrixWorldInverse),pixel=2*(camera.isPerspectiveCamera?Math.abs(v.z):1)/(r.height*camera.projectionMatrix.elements[5]);v.z=Math.min(-.00001,v.z+pixel*3);return Math.max(-1,v.applyMatrix4(camera.projectionMatrix).z);};depths.value.set(biasedDepth(a),biasedDepth(b));
  const center=vector(a).clone().set((p.x+q.x)/2,(p.y+q.y)/2,(p.z+q.z)/2).unproject(camera);sprite.position.copy(sprite.parent? sprite.parent.worldToLocal(center):center);sprite.material.rotation=Math.atan2(dy,dx);sprite.scale.set(Math.hypot(dx,dy)*scale,3*scale,1);sprite.updateMatrixWorld(true);sprite.modelViewMatrix.multiplyMatrices(camera.matrixWorldInverse,sprite.matrixWorld);};group.add(sprite);
 };
@@ -380,7 +392,7 @@ window.wallCurveCenterMarker=function(group,vector,point){
  if(!curveCenterTexture){const canvas=document.createElement('canvas');canvas.width=canvas.height=64;const ctx=canvas.getContext('2d');if(!ctx)return;
  ctx.beginPath();ctx.arc(32,32,23,0,Math.PI*2);ctx.strokeStyle='#15251e';ctx.lineWidth=9;ctx.stroke();ctx.strokeStyle='#72ffb0';ctx.lineWidth=4;ctx.stroke();curveCenterTexture=new THREE.CanvasTexture(canvas);}
  const sprite=new THREE.Sprite(new THREE.SpriteMaterial({map:curveCenterTexture,transparent:true,depthTest:false,depthWrite:false,sizeAttenuation:false}));sprite.position.copy(vector(point));sprite.renderOrder=1003;sprite.userData.curveCenterIndicator=true;
- sprite.onBeforeRender=(renderer,scene,camera)=>{const height=renderer.domElement.getBoundingClientRect().height,scale=48/(height*camera.projectionMatrix.elements[5]);sprite.scale.set(scale,scale,1);sprite.updateMatrixWorld(true);};group.add(sprite);
+ sprite.onBeforeRender=(renderer,scene,camera)=>{const height=window.exteriorRendererRect(renderer).height,scale=48/(height*camera.projectionMatrix.elements[5]);sprite.scale.set(scale,scale,1);sprite.updateMatrixWorld(true);};group.add(sprite);
 };
 window.wallCurveGuides=function(group,vector,guides){
  for(const guide of guides||[]){const line=new THREE.Line(new THREE.BufferGeometry().setFromPoints(guide.points.map(vector)),new THREE.LineDashedMaterial({color:guide.color,dashSize:.12,gapSize:.08,transparent:true,opacity:guide.role==='radius-circle'?.65:.95,depthTest:false,depthWrite:false}));line.computeLineDistances();line.renderOrder=1002;line.userData.curveSnapGuide=guide.role;group.add(line);}

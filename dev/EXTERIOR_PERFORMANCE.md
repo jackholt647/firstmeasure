@@ -110,3 +110,86 @@ Synthetic timings are noisy and are not a claimed user-project FPS improvement.
 The localhost smoke check on this run could not connect: port 8031 refused the
 connection. The existing sandbox asset allowlist and template include both new
 modules, ready for its runtime to restart. No project data was saved.
+
+## Draw memos (2026-10-19)
+
+Most wall-mode redraws draw an unchanged model: selection and hover changes, a
+preview pointer move that lands on the same result, and the second view of every
+frame. The drafting editor's render cache (`beginRenderCache`) already keyed
+derived topology by the serialized state, walls and visibility. `draw2D` and
+`draw3D` now keep their per-face derivations in that same generation:
+
+- each solid's drawn parts (chimney clipping, opening cuts, closed-soffit
+  presentation) and each draft face's 3D parts;
+- support classification and marker keys of wire and draft edges and points;
+- the draft nodes shown, keyed by that draft's picked ids;
+- draft visibility, inner regions and wall ownership.
+
+Chimney clipping of a surface is computed once per generation and shared by the
+wire graph, the support faces and the solid drawing; its readers never write to it.
+
+Invalidation: any change to the serialized state, walls or visibility starts a new
+generation; entries are keyed by the identity of the state object and of the face,
+node, edge or draft they describe, so an equal-valued replacement is recomputed,
+never substituted; 3D parts are also keyed by the features and closed-soffit panels
+read before the key. Draw memos apply only inside draw passes; picking and edits
+recompute. `window.EXTERIOR_DISABLE_DRAW_MEMO = true` turns them off. Also exact:
+the selection is resolved once per draw pass, a division index with no seams
+answers without building grid keys, and `draw3D` collects features once for seams
+and openings.
+
+`dev/wall-face-draft-draw-memo.test.cjs` compares SVG calls, 3D objects (geometry,
+materials, userData, persistent-part reuse) and state frame by frame, memos on
+against off and against the editor before this change, over saved houses, and
+freezes shared chimney parts. A browser capture of the real editors on three saved
+projects matched the earlier editor at every one of 223 interaction steps.
+
+On the 420 KB saved house (real Chrome), face-draft `draw3D` fell from about 775 to
+595 ms and `drawSolids` from about 410 to 200 ms over a 70-frame move preview;
+selection clicks no longer produce long tasks. Frames whose model changed still
+rebuild everything. Remaining costs are listed in the optimization backlog
+(`docs/optimization-backlog.md`, wall drafting entries).
+
+## Preview interaction (2026-10-19)
+
+Pointer-move previews (line move and extrude, point and line entity tools, face
+extrude and move, geometry move and rotate, arrow nudges) now do less work per
+frame and return exactly what they returned before:
+
+- `copy` in `wall_face_draft.js` and `exterior_model.js` is an exact clone of
+  the JSON round trip without the text (same keys and order, -0 becomes 0,
+  non-finite numbers become null, dropped members, nothing shared). Anything
+  that is not plain data takes the JSON round trip itself, including its
+  errors. About 5 times faster.
+- Previews copy the gesture's edits once: `copyWithDrafts` skips the drafts a
+  preview replaces at once, line slides share the members of their private
+  snapshot that nothing changes in place (`shareWithDrafts`), and entity
+  previews no longer copy edits that are immediately replaced.
+- Snap candidates for line moves and line extrusions across a face are built
+  once per line, axis and face, as the other tools already did. `motionSnap`
+  does not project candidates already beyond the radius by distance alone and
+  projects each start point once per call (a large drop in
+  `getBoundingClientRect` calls).
+- `vertexKey` and `edgeKey` build the same strings without temporary arrays.
+  `jsonEqual` answers `JSON.stringify(a)===JSON.stringify(b)` without
+  building the strings; `validateEdits` compares prior surfaces on demand when
+  the caller guarantees nothing is shared with them.
+- Bounding boxes skip exact contact tests that cannot pass (`contactBox`),
+  keeping every remaining test and its order: base binding, line slides,
+  trim-following bindings, geometry transforms and draft-node moves. Move
+  lookups by vertex key are indexed.
+- Arrow nudges no longer build the wire graph unless solid edges are selected.
+
+`dev/exterior-preview-equivalence.test.cjs` proves the equivalence: pure
+helpers against their reference definitions, and every editor gesture run in
+a current and a reference build (each shortcut textually reverted), comparing
+state, history, selection, message and drawn preview after every step,
+including -0, undefined keys and shared references. Set
+`PREVIEW_EQUIVALENCE_MODELS` to add saved houses and
+`PREVIEW_EQUIVALENCE_BASE` to compare against a commit.
+
+On the 420 KB benchmark house (CPU only, no rendering, median of three), line
+move previews went from about 17 to 8 ms, line extrusions from 27 to 16 ms,
+point moves from 15 to 7 ms and arrow nudges of a line from 34 to 18 ms. Face
+moves, geometry moves past a valid limit and the remaining copies are listed
+in docs/optimization-backlog.md.

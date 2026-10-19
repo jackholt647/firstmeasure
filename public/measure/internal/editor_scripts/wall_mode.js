@@ -477,13 +477,37 @@ function perf_persist(touch=true) {
         }
         syncVisibility();
     }
-    let wallSceneDepth=0,wallSceneSnapshot=null,wallSceneKey=null,wallSceneCached=null;
+    let wallSceneDepth=0,wallSceneSnapshot=null,wallSceneKey=null,wallSceneCached=null,wallSceneOwner=null;
     function withWallScene(fn){const outer=wallSceneDepth++===0;try{const run=()=>outer&&window.WallChimneys?.withVisibilitySnapshot?window.WallChimneys.withVisibilitySnapshot(state,fn):fn();return outer&&window.WallClosedSoffits?.withSnapshot?window.WallClosedSoffits.withSnapshot(state,run):run();}finally{wallSceneDepth--;if(outer)wallSceneSnapshot=null;}}
+    // Exactly the parts of the state perf_composeCurrentWalls can read (audited 2026-10-19; dev/wall-scene-key.test.cjs
+    // composes from this projection alone and scrambles everything it leaves out). Serialising these instead of the
+    // whole state keeps the cache exact at about a quarter of the cost; retained points, trim data, sketches and
+    // finishes are not inputs to the composition. Add a path here whenever the composition starts reading one.
+    const WALL_STAGE_ARRAYS={2:'extruded',3:'deduplicated',4:'gapRepaired',5:'mergedWalls',6:'cleanedWalls'};
+    function wallSceneInputs(s,stageValue){
+        if(!s)return null;if(stageValue<2)return {};
+        const own=(o,k)=>o!=null&&Object.prototype.hasOwnProperty.call(o,k),floor=b=>({faces:b.faces&&b.faces.map(f=>({points:f.points,holes:f.holes,chimneyFoundation:f.chimneyFoundation})),chimneyFoundationParts:b.chimneyFoundationParts});
+        const array=WALL_STAGE_ARRAYS[stageValue]||'alignedWalls',e=s.wallEdits||{},keys=Object.keys(e),items=s.chimneys&&s.chimneys.items||[],chimneys=items.length>0,P={[array]:s[array]},we={};
+        if(keys.length)we.$nonEmpty=1;for(const k of keys)if(!k.startsWith('$'))we[k]=e[k];if(own(e,'$merges'))we.$merges=e.$merges;
+        if(e.$drafts)we.$drafts=Object.fromEntries(Object.entries(e.$drafts).map(([k,d])=>[k,!chimneys?{members:d.members}:{members:d.members,chimney:d.chimney,mergedInto:d.mergedInto,frame:d.frame,origin:d.origin,u:d.u,deletedFaces:d.deletedFaces,removedPoints:d.removedPoints,
+            faces:d.faces&&d.faces.map(f=>({boundaryHole:f.boundaryHole,solidId:f.solidId,points:f.points&&f.points.map(p=>({x:p.x,y:p.y,nodeId:p.nodeId})),holes:f.holes&&f.holes.map(r=>r.map(p=>({x:p.x,y:p.y})))}))}]));
+        if(e.$base)we.$base=floor(e.$base);
+        if(own(s,'base'))P.base=s.base&&(e.$base?true:floor(s.base));if(own(s,'ground'))P.ground=s.ground;if(own(s,'options'))P.options=s.options&&{ground:s.options.ground,roofContacts:s.options.roofContacts};
+        if(stageValue>=7&&own(s,'chimneyCleanupReport')){const r=s.chimneyCleanupReport;P.chimneyCleanupReport=r&&{alignments:r.alignments&&r.alignments.map(a=>({sourceIds:a.sourceIds,chimneyId:a.chimneyId,side:a.side}))};}
+        if(chimneys){
+            P.chimneys={items};if(s.roof)P.roof={faces:s.roof.faces&&s.roof.faces.map(f=>({points:f.points,holes:f.holes}))};
+            if(own(e,'$chimneys'))we.$chimneys=e.$chimneys;if(own(e,'$chimneyVolumes'))we.$chimneyVolumes=e.$chimneyVolumes;
+            if(e.$surfaces)we.$surfaces=e.$surfaces.filter(f=>f.chimney||!f.deleted&&!f.drafted).map(f=>f.chimney?{chimney:f.chimney,deleted:f.deleted,drafted:f.drafted,points:f.points}:{points:f.points,holes:f.holes,parapet:f.parapet});
+        }
+        P.wallEdits=we;return P;
+    }
     function currentWalls(){
         if(wallSceneDepth&&wallSceneSnapshot)return wallSceneSnapshot;
         // Selection and camera changes do not alter the composed building. Compare
         // values, not references: previews and undo can mutate or replace inputs.
-        const key=JSON.stringify([stage,state]);
+        // A replaced state object always recomposes: the chimney scene is stored against it.
+        if(state!==wallSceneOwner){wallSceneOwner=state;wallSceneKey=null;}
+        const key=JSON.stringify([stage,wallSceneInputs(state,stage)]);
         if(key!==wallSceneKey){wallSceneCached=composeCurrentWalls();wallSceneKey=key;}
         if(wallSceneDepth)wallSceneSnapshot=wallSceneCached;return wallSceneCached;}
     function composeCurrentWalls(...args){if(!window.ExteriorPerf?.enabled)return perf_composeCurrentWalls.apply(this,args);return window.ExteriorPerf.measure('Compose walls',()=>perf_composeCurrentWalls.apply(this,args));}
@@ -580,15 +604,27 @@ function perf_render2DContent() {
         if(nudgeSettleTimer!==null)clearTimeout(nudgeSettleTimer);
         nudgeSettleTimer=setTimeout(()=>settleNudges(),180);
     }
-    function requestEditorRender(full=false){
+        // While a tool or drag runs in the 3D view, the 2D plan is a passive pane: during that gesture it redraws at
+    // most every PASSIVE_2D_MS and always once more afterwards, so the active view keeps the frame budget. Full
+    // renders (placement, undo, selection, mode changes) and gestures in the 2D view redraw it immediately.
+    const PASSIVE_2D_MS=100;let pointerView=null,last2D=0,passive2DTimer=null;
+    function trackPointerView(e){const target=e.target;if(!target?.closest)return;if(target.closest('#three-view-wrapper'))pointerView='3d';else if(target.closest('#geoSvg,#canvas-container,#viewport'))pointerView='2d';}
+    function passive2D(){return pointerView==='3d'&&!!(wallEditor?.busy?.()||baseEditor?.busy?.());}
+    function settle2D(){clearTimeout(passive2DTimer);passive2DTimer=null;last2D=typeof performance!=='undefined'?performance.now():Date.now();}
+    function preview2D(){
+        const now=typeof performance!=='undefined'?performance.now():Date.now();
+        if(!passive2D()||now-last2D>=PASSIVE_2D_MS){settle2D();render2D();return;}
+        if(passive2DTimer===null)passive2DTimer=setTimeout(()=>{passive2DTimer=null;if(!enabled)return;last2D=typeof performance!=='undefined'?performance.now():Date.now();render2D();},PASSIVE_2D_MS-(now-last2D));
+    }
+function requestEditorRender(full=false){
         editorRenderFull ||= full;
         if(editorRenderFrame!==null)return;
-        const flush=()=>{editorRenderFrame=null;const full=editorRenderFull;if(nudgeSettleTimer!==null){render2D();drawNudgePreview();return;}editorRenderFull=false;withWallScene(()=>{if(full)render();else{render2D();render3D();}});};
+        const flush=()=>{editorRenderFrame=null;const full=editorRenderFull;if(nudgeSettleTimer!==null){preview2D();drawNudgePreview();return;}editorRenderFull=false;withWallScene(()=>{if(full)render();else{preview2D();render3D();}});};
         if(window.ExteriorFramePipeline){editorRenderFrame=true;window.ExteriorFramePipeline.enqueue('wall-view',flush,20);return;}
         if(typeof requestAnimationFrame==='undefined'){flush();return;}
         editorRenderFrame=requestAnimationFrame(flush);
     }
-    function render3D(){if(nudgeSettleTimer!==null){drawNudgePreview();return;}clearNudgePreview();return withWallScene(render3DFrame);}
+    function render3D(){window.ExteriorFramePipeline?.retainPrograms?.();if(nudgeSettleTimer!==null){drawNudgePreview();return;}clearNudgePreview();return withWallScene(render3DFrame);}
     function render3DFrame(...args){if(!window.ExteriorPerf?.enabled)return perf_render3DFrame.apply(this,args);return window.ExteriorPerf.measure('3D scene rebuild',()=>perf_render3DFrame.apply(this,args));}
 function perf_render3DFrame() {
         if(typeof scene==='undefined'||!scene||!window.THREE)return;
@@ -685,7 +721,7 @@ function perf_render3DFrame() {
     }
     function inspect(id) {selected=id;const s=state?.sources.find(s=>s.id===id),setback=stage>=6?state?.rakeCleanupReport?.setbackCorrections?.find(c=>c.sourceIds.includes(id))?.after:undefined;details.textContent=s?`${s.id} · ${s.kind==='return'?'lower wall return':s.type.replaceAll('_',' ')} · ${s.direction==='up'?'up to next roof':'down to roof or ground'} · ${s.joins?`continues straight to ${s.joins}`:`${window.ReportUnits?.current().metric ? window.ReportUnits.current().quantity((setback??s.setback)/G.INCH, 'inch') : ((setback??s.setback)/G.INCH).toFixed(1)+' in'} setback`}`:'';render2D();}
     function render() {
-        if(!panel)return;document.getElementById('wall-clear-model').disabled=!state;if(state?.displayMode==='rendered')state.displayMode='textured';document.body.classList.toggle('exterior-textured',enabled&&['textured','match-textured'].includes(surfaceMode()));
+        if(!panel)return;settle2D();document.getElementById('wall-clear-model').disabled=!state;if(state?.displayMode==='rendered')state.displayMode='textured';document.body.classList.toggle('exterior-textured',enabled&&['textured','match-textured'].includes(surfaceMode()));
         for(const mode of ['all','moving','off'])document.getElementById('wall-lengths-'+mode).setAttribute('aria-pressed',String(mode===(state?.lineLengthMode||(state?.wallLengths===false?'off':'moving'))));document.getElementById('wall-feature-dimensions')?.setAttribute('aria-pressed',String(displayPreference('featureDimensions')));
         document.getElementById('wall-roof-bounds').checked=state?.boundExtrusionToRoof!==false;
         document.getElementById('wall-static-trim').checked=state?.keepTrimStatic===true;
@@ -867,7 +903,7 @@ function perf_render3DFrame() {
         }
         // Capture before roof/plugin handlers. Panning, wheel zoom and orbit remain available.
         let groundSampleClick=false;
-        for(const type of ['pointerdown','mousedown','dblclick','click'])window.addEventListener(type,e=>{
+        for(const type of ['pointerdown','mousedown','dblclick','click'])window.addEventListener(type,e=>{if(type==='pointerdown')trackPointerView(e);
             if(type==='pointerdown'){settleNudges(true);nudgeEpoch++;nudgeKey=null;}
             if(!enabled)return;if(e.target.closest?.('#exterior-graphics,#resource-3d-controls,#roof-trim-control,#wall-panel,#exterior-toolbar,#axis-gizmo-container,.enh-control-panel,.controls-3d-actions,.exterior-sticker-bar,.exterior-sticker-menu'))return;
             if(e.target.closest?.('#viewport,#three-view-wrapper') && e.button===0){
@@ -901,7 +937,7 @@ function perf_render3DFrame() {
         // Transient drag state must not survive a missed release (for example
         // releasing over another pane). Click-to-place tools remain active.
         window.addEventListener('pointermove',e=>{
-            if(!enabled||(e.buttons&1))return;
+            trackPointerView(e);if(!enabled||(e.buttons&1))return;
             baseEditor?.cancelPointerGesture();wallEditor?.cancelPointerGesture();
         },true);
         const devControls=document.getElementById('wall-show-dev-controls');
