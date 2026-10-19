@@ -73,9 +73,15 @@ exists, so every browser payment is two steps:
 Outcomes:
 
 - **Captured** (card) → the payment is recorded settled and allocated.
-- **Pending** (bank) → recorded `pending`, not applied to anything; the
-  `v2.payment.captured` webhook settles it (`settlePendingPayment`) and a
+- **Bank (ACH)**: a charge Forward answers as pending is recorded `pending`,
+  not applied to anything, until the `v2.payment.captured` webhook settles it
+  (`settlePendingPayment`). Forward's sandbox answers ACH debits `captured`
+  (settlement pending) at once, so they are recorded as received. Either way a
   failure or return reverses it (`failRecordedPayment`, `payment.failed`).
+- **Bank link windows**: Forward's bank element links the bank through
+  GrailPay and MoneyKit, which add their windows to the page at z-index
+  999999; `payment-intake.js` lifts them above FirstMate's windows while a bank
+  element is mounted, or the bank link opens hidden behind the project window.
 - **Declined** (Forward answers 200 with `status: failed` and
   `decline_category_text`) → nothing is recorded; the customer sees Forward's
   reason; the checkout stays open for another card (next attempt, new key).

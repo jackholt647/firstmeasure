@@ -20,7 +20,8 @@ repository (it includes Forward's sandbox keys):
 | Boarding AP05 (video of the boarding flow) | Jack records |
 | Webhooks WH00 (mandatory), WH01 | Blocked: the dev webhook endpoint is not registered at Forward and dev has no signing secret |
 | Card not present CNP00–CNP07 | Done (real UI, staff and customer portal) |
-| ACH00–ACH01 | Not run: needs Jack's go-ahead to accept MoneyKit's sandbox bank-link terms; ACH01 is then triggered by Forward from a successful ACH payment id |
+| ACH00 | Done (real UI, staff Take a payment; also paid a deposit by ACH in the customer portal) |
+| ACH01 | $5.55 ACH payment made; Forward triggers the failure (a return) from its payment id, which needs the webhook to reach our books |
 | MIT and CIT RC00–RC07 | Done |
 | Refunds R00 (full), R01 (partial $9.00) | Run after Forward settles the payments (refunding an unsettled payment voids it, which is V00) |
 | Void V00 | Done |
@@ -56,6 +57,34 @@ Forward: CIT intents carry `ecommerce`/`customer`, MIT intents
 | RC06 | $26.50 | DISCOVER | customer | `pm_3KvlHN0UXr7bjl40VwIZCG64hpW` | `pi_3KvlH5sPktoWoGnpASQodxksUx6` | `pmt_3KvlHUArFda2BrhUlD8VcKkUewf` | captured |
 | RC07 | $13.85 | AMEX | customer | `pm_3KvlJBNCpz7Y5PRJSneHspN5SgQ` | `pi_3KvlIpxljuWCPTUmocdzZ0Gupqw` | `pmt_3KvlJEgMAF4BV1FGCmPnmwWOEmV` | captured |
 | V00 | $10.00 | VISA | customer | — | `pi_3KvlMdb5Fcblyl2vnEwzzfd468p` | `pmt_3KvlN4FpzEBmyF4oVRDw5LrKTua` | voided (intent cancelled, $10.00 voided) |
+
+ACH, through Forward's bank element in staff "Take a payment" (MoneyKit's sandbox
+Chase bank, an OAuth sandbox bank that needs no credentials; GrailPay's default
+account picker; Forward then creates the bank payment method):
+
+| Case | Amount | Payment method | Payment intent | Payment | Result |
+| --- | --- | --- | --- | --- | --- |
+| ACH00 | $10.00 | `pm_3Kvpwr8ErDBoNE2Nl3FmuOT7xjh` | `pi_3KvppJdsX7QA0kWW75pOKtsn861` | `pmt_3KvpwzVV9R1YaVb7JhCh6OQ6e1m` | captured (rail `us_bank_ach`, unsettled) |
+| ACH01 | $5.55 | `pm_3KvrP20bb5gF6WSqkybiRFgma4N` | `pi_3KvrHKqwYb3unLt7NymKcK9igKh` | `pmt_3KvrPADpeurKfkJ8ZhwhGkkvzoi` | captured; ask Forward to fail it (return) |
+
+A $10.00 deposit was also paid by ACH from a document in the customer portal
+(the path the checkout video uses).
+
+Found while running ACH, fixed and live (release `6fed67a7`): GrailPay's
+account picker and MoneyKit's bank link are added to the page at z-index
+999999, below FirstMate's project window, so in Take a payment the bank link
+opened invisibly and the account could never be chosen. The payment form now
+lifts both above everything while a bank element is mounted.
+
+Two things for Forward or Jack, not bugs in FirstMate:
+
+- The sandbox bank link is branded "Maple Ridge Supp…" (MoneyKit/GrailPay
+  configuration on Forward's side), not FirstMate. Ask Forward to set the
+  production branding to FirstMate.
+- Forward answers an ACH debit as `captured` at once (settlement pending), so
+  FirstMate records it as received and a later return reverses it. If Jack
+  wants ACH shown as "processing" until it settles, that is a product
+  decision and a small change.
 
 Boarding, through Settings › Payments › Set up payments on a fresh dev sandbox
 organization (`org_5fc5b06045060cdc`):
@@ -128,9 +157,9 @@ and the other `v2.account.*` events, `v2.application.*`, `v2.payment.*`,
    events, and put its signing secret (`whsec_…`) on the dev web and pool hosts
    as `FORWARD_WEBHOOK_SECRET`. Then boarding a sandbox account produces
    `v2.account.gateway_updated`; its event id goes in WH00.
-2. **ACH00/ACH01:** say go to accept MoneyKit's sandbox terms in the bank
-   element; ACH00 is a $10.00 bank payment, ACH01 asks Forward to fail a
-   successful ACH payment (send them its payment id).
+2. **ACH01:** ask Forward to fail (return) ACH payment
+   `pmt_3KvrPADpeurKfkJ8ZhwhGkkvzoi`; with the webhook set up, FirstMate
+   reverses it and records `payment.failed`.
 3. **R00/R01** after the card payments settle (next business day): run
    `node scripts/forward-certification-run.mjs refunds` (see below).
 4. **Videos:** AP05 (Settings › Payments › Set up payments on a fresh sandbox

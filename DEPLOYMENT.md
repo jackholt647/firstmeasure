@@ -2,7 +2,7 @@
 
 October 19 Partial payouts and payroll history: [work orders paid out in parts with Cancel the rest and the organization's confirmation method, payroll type and membership history, split rule previews, the work roster, reports for dates and final pay on removal](deploy/digitalocean/development-payroll-closeout-20261019.md) records release `d63d657f` (assignees and workforce schema version 3), the per-host generated files and the verified four-role development rollout.
 
-October 19 Forward certification: [one payments gate, the two-step Forward checkout, voids and refunds through Forward, and the fixes found testing on dev](deploy/digitalocean/development-forward-cert-20261019.md) records releases `dd213586`, `0655b0a9`, `e5d8475a` and `dd704773`, the host merges and the verified four-role development rollouts; [Forward certification](docs/forward-certification.md) holds the evidence and what is left.
+October 19 Forward certification: [one payments gate, the two-step Forward checkout, voids and refunds through Forward, and the fixes found testing on dev](deploy/digitalocean/development-forward-cert-20261019.md) records releases `dd213586`, `0655b0a9`, `e5d8475a`, `dd704773` and `6fed67a7`, the host merges and the verified four-role development rollouts; [Forward certification](docs/forward-certification.md) holds the evidence and what is left.
 
 October 19 Plane-mode arcs on rotated walls: [a closing paste no longer turns an existing arc's samples into points](deploy/digitalocean/development-plane-arcs-rotated-20261019.md) records release `10212b7a` and the verified development rollout.
 
