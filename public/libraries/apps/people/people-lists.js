@@ -158,9 +158,10 @@
           used = { refresh:paint, destroy(){ detach(); list.destroy(); } };
           return used;
         } },
+        forGroups ? null : People.onboarding?.requirementsTab(id),
         People.slots.tab('compensation', entity, { readOnly:!can.settings }),
         People.slots.tab('fields', entity, { readOnly:!can.settings })
-      ],
+      ].filter(Boolean),
       async onSave(){
         if (draft.name.trim() !== base.name.trim() || draft.description.trim() !== base.description.trim()) await data.saveType({ kind, id, name:draft.name, description:draft.description });
         if (!same(sorted(draft.roleIds), sorted(base.roleIds))) await data.setTypeMemberRoles(id, draft.roleIds);
@@ -210,7 +211,9 @@
     return [
       data.can.groups ? ['member', kit.ICONS.user] : null,
       data.can.companies ? ['company', kit.ICONS.company] : null,
-      data.allows('departments.edit') ? ['department', kit.ICONS.department] : null
+      data.allows('departments.edit') ? ['department', kit.ICONS.department] : null,
+      data.multipleBranches() ? ['branch', 'fa-location-dot'] : null,
+      data.multipleBranches() ? ['region', 'fa-map-location-dot'] : null
     ].filter(Boolean);
   }
   function wording(anchor){

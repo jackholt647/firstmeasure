@@ -2,6 +2,7 @@ import {listResourceTypes,saveResourceType,archiveResourceType} from './resource
 import {listSuppliers,saveSupplier,archiveSupplier,saveSupplierLocation,archiveSupplierLocation} from './suppliers.js';
 import {listPaySheets,savePaySheet,archivePaySheet,paySheetRequirements} from '../labor/pay-sheets.js';
 import {evaluateProjectPaySheets,requireLaborEnabled} from '../labor/pay-sheet-publication.js';
+import {paySheetKindsOfWork,paySheetOverview,tryPaySheet} from '../labor/pay-sheet-editor.js';
 import {assigneeSchema} from '../labor/assignees.js';
 import {assigneeCapabilities,saveCapabilities} from '../labor/capabilities.js';
 import {projectRequirements} from '../labor/requirements.js';
@@ -109,7 +110,11 @@ export const registerMaterialsApi: FastifyPluginAsync = async (app) => {
   app.get('/organizations/:orgId/pay-sheets',async request=>{const {orgId}=await laborAuth(request,'manage_company_settings');const sheets=await listPaySheets(orgId);return {ok:true,pay_sheets:sheets,requirements:sheets.map(paySheetRequirements)};});
   app.post('/organizations/:orgId/pay-sheets',async(request,reply)=>{const {orgId,ctx}=await laborAuth(request,'manage_company_settings',true);const {id:_id,...body}=(request.body||{}) as Record<string,unknown>;reply.code(201);return {ok:true,pay_sheet:await savePaySheet(orgId,body,ctx)};});
   app.patch('/organizations/:orgId/pay-sheets/:sheetId',async request=>{const {orgId,ctx}=await laborAuth(request,'manage_company_settings',true);return {ok:true,pay_sheet:await savePaySheet(orgId,{...(request.body as object),id:getParam(request.params,'sheetId')},ctx)};});
-  app.delete('/organizations/:orgId/pay-sheets/:sheetId',async request=>{const {orgId,ctx}=await laborAuth(request,'manage_company_settings',true);return {ok:true,...await archivePaySheet(orgId,{id:getParam(request.params,'sheetId')},ctx)};});
+  app.delete('/organizations/:orgId/pay-sheets/:sheetId',async request=>{const {orgId,ctx}=await laborAuth(request,'manage_company_settings',true);const revision=((request.body||{}) as {expected_revision?:number}).expected_revision;return {ok:true,...await archivePaySheet(orgId,{id:getParam(request.params,'sheetId'),...(revision!==undefined?{expected_revision:revision}:{})},ctx)};});
+  // The pay sheet editor (docs/architecture/pay-sheets.md#the-editor): the words each kind of work speaks in, who could use a sheet they lack, and an unsaved sheet tried on a project. All read only.
+  app.get('/organizations/:orgId/pay-sheets/kinds-of-work',async request=>{await laborAuth(request,'manage_company_settings');return {ok:true,...paySheetKindsOfWork()};});
+  app.get('/organizations/:orgId/pay-sheets/overview',async request=>{const {orgId}=await laborAuth(request,'manage_company_settings');return {ok:true,...await paySheetOverview(orgId)};});
+  app.post('/organizations/:orgId/projects/:projectId/pay-sheets/try',async request=>{const {orgId}=await laborAuth(request,'manage_projects');return {ok:true,...await tryPaySheet(orgId,getParam(request.params,'projectId'),request.body||{})};});
   // Prices every pay sheet (or one) against a project, so assignees can be compared on the same job. Reads only.
   app.post('/organizations/:orgId/projects/:projectId/pay-sheets/evaluate',async request=>{const {orgId}=await laborAuth(request,'manage_projects');const body=(request.body||{}) as {sheet_id?:string;fields?:Record<string,number>;manual?:Record<string,number>};return {ok:true,evaluations:await evaluateProjectPaySheets(orgId,getParam(request.params,'projectId'),{sheet_id:body.sheet_id,fields:body.fields,manual:body.manual})};});
   // A labor list's lines come from its assignee's pay sheet. Preview and compare read only; generate writes the lines.

@@ -7,7 +7,9 @@ its payroll or accounts-payable software.
 Anyone work can be assigned to can be paid: a person, a group of users paid as
 one, or an outside company ([assignees](assignees.md)). Employees and
 subcontractors go through the same rules, ledger and pay runs and are only
-shown, and handed off, separately.
+shown, and handed off, separately. Some payees are paid through payables
+instead of payroll: their part of a pay run becomes a bill
+([paid with payroll or through payables](#paid-with-payroll-or-through-payables)).
 
 ## The pieces
 
@@ -624,7 +626,8 @@ access profile's `projected_enabled` parameter or the permission allows it, and
 hidden when the server refuses), **Held for review** (ledger entries waiting on
 a manager; the ledger's `projected` state is never called projected on a
 screen), anything of theirs that could not be worked out, pay runs, payments
-made outside a pay run and, with `crew.time_clock.use`, their own timesheets.
+made outside a pay run and, when Today's time clock option is on for them, their
+own timesheets.
 `payroll.my_earnings` carries `next_payment` and `unresolved` for it. The Payroll tab shows a payee's projection in their
 "Why" drawer and, on request, projected totals per payee.
 
@@ -650,10 +653,14 @@ The time clock is data about when somebody worked, when they clocked in and
 out, and where they were. It knows nothing about pay, and nothing about pay
 decides who may use it.
 
-**Who may clock.** The time clock permission (`crew.time_clock.use`, which also
-sets the `time_clock_enabled` parameter of the field overview) and nothing
-else. Someone on a salary, on piece rates or with no pay set up at all can
-clock if their role lets them. Whether clocked hours are paid is only a
+**Who may clock.** Today's time clock option (`time_clock` on
+`portal.crew_overview`, passed to Today as `time_clock_enabled`;
+[app experience](app-experience.md)) and nothing else. It is not a permission.
+Someone on a salary, on piece rates or with no pay set up at all can clock if
+their app experience turns it on. Their own timesheets (My pay,
+`payroll.my_timesheets`, `GET .../timesheets/me`) follow the same option;
+everyone's timesheets need `manage_payroll` or
+`manage_company_settings`. Whether clocked hours are paid is only a
 question of whether the person's pay rules select the published clock.
 
 **What is published** (`payroll/time-clock-sources.ts`). Everything the clock
@@ -722,6 +729,162 @@ way. Rates live in pay rule parameters.
 The payroll timesheet screens (`payroll.timesheets`, approve, correct, reject)
 manage this data; they are not a pay system.
 
+## Paid with payroll or through payables
+
+`payroll/payables.ts`. The payroll ledger is the one record of what everyone is
+owed, however they are paid. What differs is how a payee's part of a pay run is
+paid, and that is read from settings People already has; payroll adds none:
+
+| Payee | Paid |
+|---|---|
+| Employee (a user) | with payroll |
+| Independent contractor whose payment terms are "on the pay schedule" (People, Compensation) | with payroll |
+| Independent contractor whose payment terms are net days | through payables, due that many days after the pay date |
+| Outside company (People, Subcontractors, payment terms) | through payables, due after its net days, or on the pay date when it is paid on the pay schedule |
+| Group of users | with payroll |
+| Anyone, while the organization has Money turned off | with payroll (there are no payables) |
+
+A pay run is the same for everyone: it is drafted from the same ledger
+entries, takes off payments made outside a run and clawbacks by the same rules
+(`planDeductions`; reimbursements are never reduced), and allocates the
+entries to each payee's item, so none of them is in a later run. The answer
+above is worked out when the run is drafted (and again when it is reopened)
+and kept on each item: `metadata.paid_through` (`payroll` or `payables`),
+`payment_terms` and, for payables, `due_date`. The upcoming preview carries
+the same fields per payee.
+
+**Bills.** A payables item becomes a bill when the run is entered (marked run),
+or when it is marked paid in Payroll: a payable of kind `contractor_payroll`
+whose id is fixed by the run and the item
+(`payment_payable_payroll_<run>_<item>`), so making it again finds the same
+one. It is due on the item's `due_date`, names the payee, and under
+`metadata.payroll_ledger_entries` lists every ledger entry the item pays and
+how much of each, with the amounts by kind under `metadata.breakdown`. Its
+amount is the item's amount to pay less approved reimbursements that already
+have a payable of their own (those are paid by theirs when the item is paid),
+so nothing is in payables twice. A payables item with nothing left to bill is
+paid like everyone else.
+
+**Paid exactly once.** Paying the bill wherever payables are paid
+(`createDisbursement` in `payments/storage.ts`, used by the Money tab and
+`POST /v1/payments/.../disbursements`) calls `settlePaidPayrollBills`: once
+the bill is fully paid, its item is marked paid with what paid it under
+`metadata.settlement` (`source: payables`, the payable and payment), its
+reimbursements are marked paid, and the run is paid when everyone in it is.
+Its entries were already allocated to the item, so the Payroll app, the
+earnings reports and My pay now count them as paid; nothing posted is edited.
+A second report of the same payment, or any re-run, changes nothing. A partly
+paid bill leaves the item open (the Payroll app shows how much is paid).
+Marking the item paid in Payroll instead records the payment against the bill
+(a disbursement with a fixed id), once. If recording the payment in payroll
+fails after payables was paid, `payroll.bills.reconcile` finishes it; the
+Payroll app offers it when a bill shows `needs_settlement`.
+
+**What a run's actions do to bills.** Marking a run paid marks everyone paid
+with payroll paid and enters the bills; the run stays entered until every
+bill is paid (the Payroll app calls that "Bills open"). Reopening or voiding a
+run removes its unpaid bills; a run whose bill has any payment in payables
+cannot be reopened or voided (`payroll_bill_paid`): correct it on a later run.
+
+**Handoff.** The pay run files keep payroll and payables apart: the Gusto and
+QuickBooks Payroll files hold people paid with payroll, and
+`quickbooks_bills` holds the bills with their due dates, for an accounting
+system that pays bills. The pay run summary lists employees, contractors and
+bills as three sections.
+
+**Branch scope.** Bills are listed only for payees the viewer may see, and
+reconcile only touches payees the viewer manages. Paying a bill in payables
+needs payables' own permission (`manage_projects`); the payment is a fact
+payroll records, not a payroll write.
+
+### Reimbursements paid in payables
+
+An approved reimbursement to be paid "with the next payroll" has both a ledger
+entry and a payable of its own (`payments/reimbursements.ts`; the entry's
+`metadata.payable_id`). Once payables records any payment on that payable,
+payables owns it and payroll never pays it too (`settleReimbursementsPaidInPayables`,
+run from the same `createDisbursement` hook, before a pay run is drafted or
+reopened, and by `payroll.bills.reconcile`):
+
+- **Paid in payables before any pay run holds it:** the entry, unused, is
+  voided with what paid it under `metadata.settled_in_payables`, so no run
+  includes it.
+- **Already in a pay run whose item is not paid:** the payment cannot be
+  refused (payables has recorded it), so the run is held instead: the item
+  carries `metadata.reimbursement_paid_in_payables`, and marking it or the
+  run entered or paid is refused (`payroll_reimbursement_paid_in_payables`)
+  until the run is reopened. Reopening works the run out again without the
+  entry, which is then voided as above. The Payroll app shows "Reopen:
+  reimbursement paid" on that person.
+- **Already paid by payroll:** payroll marked its payable paid itself; nothing
+  changes.
+
+Every step finds what is already settled and does nothing again, so it is
+safe to run any number of times.
+
+## Export templates
+
+`payroll/export-templates.ts`. A pay run is copied out with a template: which
+people are in the file, one row per person or per person and pay item, and a
+list of columns. The five pay run files (the pay run summary, Gusto employees
+and contractors, QuickBooks Payroll and QuickBooks bills) are the **built-in
+templates** and make exactly the files they made before templates existed
+(`tests/fixtures/payroll-pay-run-files.json` holds those files). A company
+duplicates one and changes it; it never edits a built-in.
+
+A template's `definition`:
+
+| Field | Meaning |
+|---|---|
+| `name`, `description` | What the file is called. |
+| `people` | Any of `employees`, `contractors` (paid with payroll) and `bills` (paid through payables). |
+| `rows` | `person`, or `pay_item` (one row per person and pay item). |
+| `pay_items` | For pay item rows: `by_kind` (each kind of earning, then what was taken off, as negatives) or `work_and_reimbursement` (two lines, as bills are). Lines of zero are left out. |
+| `pay_item_labels` | Names for pay items by key (`hourly`, ..., `work`, `reimbursements`). |
+| `sort`, `group` | By `name` or `last_name`; grouped by `section` (employees, contractors, bills) or `none`. |
+| `totals` | Person rows only: `none`, `grand` (a row at the end) or `sections` (one per group and at the end). Amounts are added up; a total row names its group. |
+| `skip_zero` | Leave out people with nothing to pay. |
+| `number` | `decimals` (0 to 4), `unit` (`dollars` or `cents`), `negative` (`minus` or `parentheses`), `thousands`, `zero` (`show` or `blank`). Default: dollars with two decimals and a minus sign. |
+| `date` | `YYYY-MM-DD` (default), `MM/DD/YYYY`, `M/D/YYYY`, `DD/MM/YYYY`, `YYYYMMDD`. |
+| `file` | `type: csv`; `delimiter` `comma`, `semicolon` or `tab` (a `.tsv` file); `bom`; `header_row`. CSV is written with a byte order mark and CRLF unless turned off. |
+| `columns` | Up to 60, each `{ header, source, value?, field?, format? }`; `format` overrides the number or date format for that column. |
+
+The **sources** a column can show are published with the templates
+(`export_templates.sources`, `EXPORT_SOURCES`), each with a label, a
+description and a kind: the payee (name, first and last name, email, platform
+ID, a **custom field** of a user by its path such as an employee number,
+person/group/company, worker classification, individual or business, paid as,
+paid through, payment terms, branch, department, approved hours on shifts that
+ended in the period); amounts (each kind of earning, reimbursements, paid
+outside a run, clawbacks, earnings, earnings and reimbursements, taken off,
+to pay without reimbursements, amount to pay); pay item (name, amount, code,
+description); the pay run (pay date, period, schedule, regular or off-cycle,
+status, currency, memo, memo with what was taken off); the payment (status,
+reference, paid on); the bill (number, date, due date); and fixed text. A
+template reads only what its columns need: branches and departments from the
+organization structure, hours from the time clock, a custom field only when
+the viewer may read it (a private field is left blank, with a warning).
+
+**Stored and used.** A company's templates are rows of the payroll store
+(`payroll_export_templates`, schema version 6) with a revision; saving needs
+the current revision. A file is made from the template as it is then
+(`payroll.artifact.generate` with `template_id`, or `type` for a built-in) and
+records the template's id, revision and definition under `metadata.template`;
+files made before never change, and the same template on the same run gives
+the same file back. A removed template is no longer offered or used; its files
+stay. The pay run summary's PDF is made from the same table. Everything is
+limited to the branches the viewer may see, like every pay run file.
+
+| To | Call |
+|---|---|
+| list the templates and sources | data `payroll.export_templates` (action `payroll.exportTemplates.list`) |
+| save one (create, or replace with `id` and `expected_revision`; `based_on` names what it was copied from) | action `payroll.exportTemplate.save` |
+| remove one | action `payroll.exportTemplate.archive` with `expected_revision`, target id the template |
+| see the first rows a template, saved or not, makes from a pay run | action `payroll.exportTemplate.preview` with `batch_id` and `template_id` or `definition` (a read) |
+| make the file | action `payroll.artifact.generate` with `batch_id` and `template_id` (or `type`) |
+
+All need `manage_payroll` or `manage_company_settings`.
+
 ## Published
 
 Data (provider `payroll`): the sources above; `pay_rules`, `pay_split_rules`,
@@ -735,8 +898,10 @@ divided it, and why anything is unresolved); `pay_unresolved`; `pay_review`;
 read: provider, export, description, units, known fields, the options each
 takes and whether it needs any); `pay_rule_vocabulary` (the condition operators
 of `work/conditions.ts`, parameter types, kinds of earning and default
-subjects, so no screen keeps its own copy); and `configuration` (pay schedules
-and the organization's schedule choices). The vocabulary also carries `periods`
+subjects, so no screen keeps its own copy); `configuration` (pay schedules
+and the organization's schedule choices); `bills` (bills of pay runs, `status`
+open, paid or all; see [paid with payroll or through payables](#paid-with-payroll-or-through-payables));
+and `export_templates` ([export templates](#export-templates)). The vocabulary also carries `periods`
 and, under `labels`, what each kind of earning, parameter type and period is
 called. Projected earnings are
 `projected_earnings` and `my_projected_earnings`, with the actions
@@ -747,7 +912,8 @@ Actions: `payroll.payRule.save`, `.preview`, `.archive`;
 `payroll.paySplitRule.save`, `.archive`; `payroll.payPlan.save`, `.preview`,
 `.archive`; `payroll.paySetup.preview`, `.save`; `payroll.payDefault.save`,
 `.preview`; `payroll.paySchedule.resolve`; `payroll.earnings.refresh`;
-`payroll.correction.decline`. All need `manage_payroll` or
+`payroll.correction.decline`; `payroll.bills.reconcile`;
+`payroll.exportTemplate.save`, `.archive`, `.preview`. All need `manage_payroll` or
 `manage_company_settings`. The browser reaches them through `PayrollAPI.pay`.
 
 ## Screens
@@ -771,17 +937,29 @@ Actions: `payroll.payRule.save`, `.preview`, `.archive`;
   server refuses to mark a run entered or paid while an approval someone asked
   for is waiting or was rejected. With it on, named approvers approve and the
   run is made final first.
-  - *Pay runs* (payroll managers): upcoming pay dates with who is paid what;
-    a pay run opens with its people (earned, reimbursements, already paid
-    outside a run, taken back, to pay), the next step (draft, approve or ask
-    named approvers, mark entered, mark paid, reopen, void) and its files
-    (`Copy out`: the pay run summary, Gusto and QuickBooks files).
+  - *Pay runs* (payroll managers): upcoming pay dates with who is paid what,
+    split into employees, contractors and bills; bills waiting to be paid,
+    with their due dates and what payables has paid (and "Show payments in
+    pay runs" when payables paid one the run does not show yet). A pay run
+    opens with its people in those three sections (earned, reimbursements,
+    already paid outside a run, taken back, to pay; a bill's due date, terms
+    and payment), the next step (draft, approve or ask named approvers, mark
+    entered, mark paid, reopen, void; "Bills open" once only bills are left)
+    and its files (`Copy out`: every export template, built in or the
+    company's own, with a download per format. A file's menu duplicates it,
+    or changes or removes the company's own; "Make your own file" starts from
+    any of them. The editor, in the same tab, sets who is in the file, rows,
+    order, grouping, totals, number, date and separator formats, and the
+    columns (header, source, a fixed text or custom field, a format per
+    column, moved up or down), with a preview of the first rows of that pay
+    run).
   - *Review*: earnings that could not be worked out, held corrections (accept
     or decline), back pay asked to be paid off-cycle, payments made outside a
     pay run, work orders finalized to be paid with the earnings they produced
     (`payroll.finalized_work`), and reimbursements waiting to be paid.
   - *Timesheets*: everyone's shifts for payroll managers (fix, approve, reject);
-    your own for someone with only the time clock (`payroll.my_timesheets`).
+    your own for someone with only Today's time clock option
+    (`payroll.my_timesheets`).
   - *Earnings*: each payee's amount owed and projected, and "Why" (rules and
     the layer each came from, schedules and who chose them, what each rule
     worked out, ledger entries, projected earnings, payments).
@@ -796,6 +974,18 @@ Actions: `payroll.payRule.save`, `.preview`, `.archive`;
 
 ## Not built
 
+- An organization-wide list in Money to pay bills that belong to no project or
+  several. A payroll bill with one project shows in that project's Money tab;
+  others are paid by marking them paid in Payroll (recorded against the bill)
+  or through `POST .../disbursements`. Owned by the Money app.
+- Export templates for date-range reports (`earnings_ledger`, `commissions`,
+  ...); templates make pay run files only. A template's own PDF; only the pay
+  run summary prints.
+- Contractors on payment terms in the Gusto contractors file: they are bills,
+  in the QuickBooks bills file; a company that pays them through Gusto sets
+  them to be paid on the pay schedule.
+- Payroll bill and route reads scan whole collections; see
+  [the optimization backlog](../optimization-backlog.md#payroll-bills-and-payment-routes-read-whole-collections).
 - A deep link from the People compensation panel to one payee's "Why" on the
   Payroll tab; the panel's link opens the tab.
 - A history of roles and types. Payroll records when it *noticed* a role or
@@ -843,5 +1033,7 @@ Run `tests/pay-rules.test.ts`, `tests/pay-defaults.test.ts`, `tests/pay-splits.t
 `node tests/run-embedded-postgres.mjs`), `tests/pay-sources.test.ts`,
 `tests/payroll-publication.test.ts`, `tests/publication-select.test.ts`,
 `tests/payroll-settings-browser.test.mjs`, `tests/payroll-pay-rules-browser.test.mjs`,
-`tests/pay-projections.test.ts`, `tests/payouts-projected-browser.test.mjs`
-and `npm run test:payroll` for changes here.
+`tests/pay-projections.test.ts`, `tests/payouts-projected-browser.test.mjs`,
+`tests/payroll-payables.test.ts`, `tests/payroll-reimbursement-settlement.test.ts`, `tests/payroll-export-templates.test.ts`,
+`tests/payroll-bills-templates-browser.test.mjs` and `npm run test:payroll` for
+changes here.

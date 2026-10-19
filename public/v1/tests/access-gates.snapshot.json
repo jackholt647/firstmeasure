@@ -1,11 +1,11 @@
 {
   "summary": {
     "routes": {
-      "total": 1816,
+      "total": 1819,
       "by_kind": {
         "any:login_only": 121,
         "any:login_only+handler_checks": 339,
-        "any:permission": 677,
+        "any:permission": 680,
         "app(contact.media|portal.crew_receipts|portal.photos_feed|portal.receipts|portal.viewer|project.crew_materials|project.photos):login_only": 1,
         "app(contact.media|portal.photos_feed|portal.viewer|project.photos):login_only": 6,
         "app(contact.media|portal.photos_feed|portal.viewer|project.photos):login_only+handler_checks": 1,
@@ -34,17 +34,17 @@
       }
     },
     "data": {
-      "total": 219,
+      "total": 223,
       "by_kind": {
         "any:membership_only": 11,
-        "any:permission": 208
+        "any:permission": 212
       }
     },
     "actions": {
-      "total": 296,
+      "total": 304,
       "by_kind": {
         "any:membership_only": 24,
-        "any:permission": 272
+        "any:permission": 280
       }
     },
     "tabs": {
@@ -558,6 +558,8 @@
     "GET /v1/materials/organizations/:orgId/material-orders/:orderId": {"file":"materials/api.ts","gates":[{"app":"any","permission":"view_projects"}],"kind":"any:permission"},
     "GET /v1/materials/organizations/:orgId/material-orders/:orderId/deliveries": {"file":"materials/api.ts","gates":[{"app":"any","permission":"view_projects"}],"kind":"any:permission"},
     "GET /v1/materials/organizations/:orgId/pay-sheets": {"file":"materials/api.ts","gates":[{"app":"any","permission":"manage_company_settings"}],"kind":"any:permission"},
+    "GET /v1/materials/organizations/:orgId/pay-sheets/kinds-of-work": {"file":"materials/api.ts","gates":[{"app":"any","permission":"manage_company_settings"}],"kind":"any:permission"},
+    "GET /v1/materials/organizations/:orgId/pay-sheets/overview": {"file":"materials/api.ts","gates":[{"app":"any","permission":"manage_company_settings"}],"kind":"any:permission"},
     "GET /v1/materials/organizations/:orgId/projects/:projectId/calculus": {"file":"materials/calculus-api.ts","gates":[{"app":"any","permission":"view_materials"}],"checks":["requireCapability(platform.connections)","hasPermission(manage_company_settings)"],"publication":true,"kind":"any:permission"},
     "GET /v1/materials/organizations/:orgId/projects/:projectId/labor-commitments": {"file":"materials/api.ts","gates":[{"app":"any","permission":"manage_projects"}],"kind":"any:permission"},
     "GET /v1/materials/organizations/:orgId/projects/:projectId/material-lists": {"file":"materials/api.ts","gates":[{"app":"any","permission":"view_projects"}],"kind":"any:permission"},
@@ -1488,6 +1490,7 @@
     "POST /v1/materials/organizations/:orgId/projects/:projectId/material-lists": {"file":"materials/api.ts","gates":[{"app":"any","permission":"manage_projects","csrf":true}],"kind":"any:permission"},
     "POST /v1/materials/organizations/:orgId/projects/:projectId/material-lists/initialize-from-scope": {"file":"materials/api.ts","gates":[{"app":"any","permission":"manage_projects","csrf":true}],"kind":"any:permission"},
     "POST /v1/materials/organizations/:orgId/projects/:projectId/pay-sheets/evaluate": {"file":"materials/api.ts","gates":[{"app":"any","permission":"manage_projects"}],"kind":"any:permission"},
+    "POST /v1/materials/organizations/:orgId/projects/:projectId/pay-sheets/try": {"file":"materials/api.ts","gates":[{"app":"any","permission":"manage_projects"}],"kind":"any:permission"},
     "POST /v1/materials/organizations/:orgId/projects/:projectId/requirements": {"file":"materials/api.ts","gates":[{"app":"any","permission":"manage_projects"}],"kind":"any:permission"},
     "POST /v1/materials/organizations/:orgId/resource-types": {"file":"materials/api.ts","gates":[{"app":"any","permission":"manage_projects","csrf":true}],"checks":["hasPermission(manage_projects)"],"kind":"any:permission"},
     "POST /v1/materials/organizations/:orgId/suppliers": {"file":"materials/api.ts","gates":[{"app":"any","permission":"manage_company_settings","csrf":true}],"checks":["hasPermission(manage_company_settings)"],"kind":"any:permission"},
@@ -1551,7 +1554,7 @@
     "POST /v1/payments/organizations/:orgId/reconciliation/unmatched/:recordId/match": {"file":"payments/api.ts","gates":[{"app":"any","permission":"manage_projects","csrf":true}],"kind":"any:permission"},
     "POST /v1/payments/organizations/:orgId/reimbursements/:receiptId/actions": {"file":"payments/api.ts","gates":[{"app":"any","csrf":true}],"checks":["hasPermission(dynamic)"],"kind":"any:login_only+handler_checks"},
     "POST /v1/payments/webhooks/forward": {"file":"payments/webhooks_forward.ts","kind":"no_platform_session"},
-    "POST /v1/payroll/organizations/:orgId/artifacts": {"file":"payroll/api.ts","gates":[{"app":"any","permission":"manage_payroll|manage_company_settings","capability":"apps.payroll","csrf":true}],"checks":["hasPermission(manage_company_settings)","hasPermission(manage_company_user_permissions)","hasPermission(dynamic)","hasPermission(manage_projects|manage_company_settings)"],"publication":true,"kind":"any:permission"},
+    "POST /v1/payroll/organizations/:orgId/artifacts": {"file":"payroll/api.ts","gates":[{"app":"any","permission":"manage_payroll|manage_company_settings","capability":"apps.payroll","csrf":true}],"checks":["hasPermission(dynamic)","hasPermission(manage_company_settings)","hasPermission(manage_company_user_permissions)","hasPermission(manage_projects|manage_company_settings)"],"publication":true,"kind":"any:permission"},
     "POST /v1/payroll/organizations/:orgId/batches": {"file":"payroll/api.ts","gates":[{"app":"any","permission":"manage_payroll|manage_company_settings","capability":"apps.payroll","csrf":true}],"checks":["hasPermission(dynamic)","requireCapability(platform.connections)","hasPermission(manage_company_settings)"],"publication":true,"kind":"any:permission"},
     "POST /v1/payroll/organizations/:orgId/batches/:batchId/actions": {"file":"payroll/api.ts","gates":[{"app":"any","permission":"manage_payroll|manage_company_settings","capability":"apps.payroll","csrf":true}],"checks":["hasPermission(dynamic)"],"kind":"any:permission"},
     "POST /v1/payroll/organizations/:orgId/batches/:batchId/decision": {"file":"payroll/api.ts","gates":[{"app":"any","capability":"apps.payroll","csrf":true}],"kind":"any:login_only"},
@@ -1926,6 +1929,7 @@
     "custom-fields-organization.phones@1": {"app":"any","permissions":["view_projects"],"scopes":["organization"],"kind":"any:permission"},
     "custom-fields-organization.values@1": {"app":"any","permissions":["view_projects"],"scopes":["organization"],"kind":"any:permission"},
     "custom-fields-project.contract@1": {"app":"any","permissions":["view_projects"],"scopes":["project"],"kind":"any:permission"},
+    "custom-fields-project.definitions@1": {"app":"any","permissions":["view_projects"],"scopes":["organization"],"kind":"any:permission"},
     "custom-fields-project.phones@1": {"app":"any","permissions":["view_projects"],"scopes":["project"],"kind":"any:permission"},
     "custom-fields-project.values@1": {"app":"any","permissions":["view_projects"],"scopes":["project"],"kind":"any:permission"},
     "custom-fields-team.contract@1": {"app":"any","permissions":["manage_company_settings"],"scopes":["organization"],"kind":"any:permission"},
@@ -1976,11 +1980,13 @@
     "pay-sheets.catalog@1": {"app":"any","permissions":["manage_company_settings"],"capabilities":["platform.materials"],"scopes":["organization"],"kind":"any:permission"},
     "pay-sheets.evaluation@1": {"app":"any","permissions":["manage_projects"],"capabilities":["platform.materials"],"scopes":["project"],"kind":"any:permission"},
     "pay-sheets.requirements@1": {"app":"any","permissions":["manage_company_settings"],"capabilities":["platform.materials"],"scopes":["organization"],"kind":"any:permission"},
+    "pay-sheets.try@1": {"app":"any","permissions":["manage_projects"],"capabilities":["platform.materials"],"scopes":["project"],"kind":"any:permission"},
     "payments.records@1": {"app":"any","permissions":["view_financials"],"scopes":["project"],"kind":"any:permission"},
     "payroll.artifact@1": {"app":"any","permissions":["manage_payroll|manage_company_settings"],"capabilities":["apps.payroll"],"scopes":["organization"],"kind":"any:permission"},
     "payroll.artifacts@1": {"app":"any","permissions":["manage_payroll|manage_company_settings"],"capabilities":["apps.payroll"],"scopes":["organization"],"kind":"any:permission"},
     "payroll.batch@1": {"app":"any","permissions":["manage_payroll|manage_company_settings"],"capabilities":["apps.payroll"],"scopes":["organization"],"kind":"any:permission"},
     "payroll.batches@1": {"app":"any","permissions":["manage_payroll|manage_company_settings"],"capabilities":["apps.payroll"],"scopes":["organization"],"kind":"any:permission"},
+    "payroll.bills@1": {"app":"any","permissions":["manage_payroll|manage_company_settings"],"capabilities":["apps.payroll"],"scopes":["organization"],"kind":"any:permission"},
     "payroll.configuration@1": {"app":"any","permissions":["manage_payroll|manage_company_settings"],"capabilities":["apps.payroll"],"scopes":["organization"],"kind":"any:permission"},
     "payroll.contractors@1": {"app":"any","permissions":["manage_payroll|manage_company_settings"],"capabilities":["apps.payroll"],"scopes":["organization"],"kind":"any:permission"},
     "payroll.dashboard@1": {"app":"any","permissions":["manage_payroll|manage_company_settings"],"capabilities":["apps.payroll"],"scopes":["organization"],"kind":"any:permission"},
@@ -1988,6 +1994,7 @@
     "payroll.earnings@1": {"app":"any","permissions":["manage_payroll|manage_company_settings"],"capabilities":["apps.payroll"],"scopes":["organization","project"],"kind":"any:permission"},
     "payroll.entry@1": {"app":"any","permissions":["manage_payroll|manage_company_settings"],"capabilities":["apps.payroll"],"scopes":["organization","project"],"kind":"any:permission"},
     "payroll.export_catalog@1": {"app":"any","permissions":["manage_payroll|manage_company_settings"],"capabilities":["apps.payroll"],"scopes":["organization"],"kind":"any:permission"},
+    "payroll.export_templates@1": {"app":"any","permissions":["manage_payroll|manage_company_settings"],"capabilities":["apps.payroll"],"scopes":["organization"],"kind":"any:permission"},
     "payroll.finalized_work@1": {"app":"any","permissions":["manage_payroll|manage_company_settings"],"capabilities":["apps.payroll"],"scopes":["organization"],"kind":"any:permission"},
     "payroll.labor_commitments@1": {"app":"any","permissions":["manage_payroll|manage_company_settings"],"capabilities":["apps.payroll"],"scopes":["organization"],"kind":"any:permission"},
     "payroll.my_approvals@1": {"app":"any","permissions":[],"capabilities":["apps.payroll"],"scopes":["organization"],"kind":"any:membership_only"},
@@ -2138,6 +2145,7 @@
     "communications.sendEmail.v1@1": {"app":"any","permissions":["manage_company_settings"],"scopes":["organization","project"],"system_kinds":["work"],"kind":"any:permission","effect":"external","execution_kinds":["work"]},
     "communications.sendSms.v1@1": {"app":"any","permissions":["manage_company_settings"],"scopes":["organization","project"],"system_kinds":["work"],"kind":"any:permission","effect":"external","execution_kinds":["work"]},
     "completion.request.v1@1": {"app":"any","permissions":["manage_company_settings"],"scopes":["organization","project"],"system_kinds":["work"],"kind":"any:permission","effect":"external","execution_kinds":["work"]},
+    "connections.onboarding.save@1": {"app":"any","permissions":["manage_company_settings"],"scopes":["organization"],"kind":"any:permission","effect":"write","execution_kinds":["api","agent"]},
     "contacts.create@1": {"app":"any","permissions":["manage_projects"],"scopes":["organization"],"system_kinds":["work","module","agent"],"kind":"any:permission","effect":"write","execution_kinds":["api","agent","module","work"]},
     "contacts.link_project@1": {"app":"any","permissions":["manage_projects"],"scopes":["organization"],"system_kinds":["work","module","agent"],"kind":"any:permission","effect":"write","execution_kinds":["api","agent","module","work"]},
     "contacts.merge@1": {"app":"any","permissions":["manage_projects"],"scopes":["organization"],"system_kinds":["work","module","agent"],"kind":"any:permission","effect":"write","execution_kinds":["api","agent","module"]},
@@ -2249,6 +2257,8 @@
     "payroll.batch.item.update@1": {"app":"any","permissions":["manage_payroll|manage_company_settings"],"capabilities":["apps.payroll"],"scopes":["organization"],"kind":"any:permission","effect":"write","execution_kinds":["api","agent","module","work"]},
     "payroll.batch.read@1": {"app":"any","permissions":["manage_payroll|manage_company_settings"],"capabilities":["apps.payroll"],"scopes":["organization"],"kind":"any:permission","effect":"read","execution_kinds":["api","agent","module","work"]},
     "payroll.batches.list@1": {"app":"any","permissions":["manage_payroll|manage_company_settings"],"capabilities":["apps.payroll"],"scopes":["organization"],"kind":"any:permission","effect":"read","execution_kinds":["api","agent","module","work"]},
+    "payroll.bills.list@1": {"app":"any","permissions":["manage_payroll|manage_company_settings"],"capabilities":["apps.payroll"],"scopes":["organization"],"kind":"any:permission","effect":"read","execution_kinds":["api","agent","module","work"]},
+    "payroll.bills.reconcile@1": {"app":"any","permissions":["manage_payroll|manage_company_settings"],"capabilities":["apps.payroll"],"scopes":["organization"],"kind":"any:permission","effect":"write","execution_kinds":["api","agent","module","work"]},
     "payroll.configuration.read@1": {"app":"any","permissions":["manage_payroll|manage_company_settings"],"capabilities":["apps.payroll"],"scopes":["organization"],"kind":"any:permission","effect":"read","execution_kinds":["api","agent","module","work"]},
     "payroll.contractor.company.update@1": {"app":"any","permissions":["manage_company_settings"],"capabilities":["apps.payroll"],"scopes":["organization"],"kind":"any:permission","effect":"write","execution_kinds":["api","agent","module","work"]},
     "payroll.contractor.worker.update@1": {"app":"any","permissions":["manage_payroll|manage_company_users|manage_company_settings"],"capabilities":["apps.payroll"],"scopes":["organization"],"kind":"any:permission","effect":"write","execution_kinds":["api","agent","module","work"]},
@@ -2259,6 +2269,10 @@
     "payroll.earnings.me@1": {"app":"any","permissions":[],"capabilities":["payroll.self_service_earnings"],"scopes":["organization"],"kind":"any:membership_only","effect":"read","execution_kinds":["api","agent","module","work"]},
     "payroll.earnings.read@1": {"app":"any","permissions":["manage_payroll|manage_company_settings"],"capabilities":["apps.payroll"],"scopes":["organization","project"],"kind":"any:permission","effect":"read","execution_kinds":["api","agent","module","work"]},
     "payroll.earnings.refresh@1": {"app":"any","permissions":["manage_payroll|manage_company_settings"],"capabilities":["apps.payroll"],"scopes":["organization"],"kind":"any:permission","effect":"write","execution_kinds":["api","agent","module","work"]},
+    "payroll.exportTemplate.archive@1": {"app":"any","permissions":["manage_payroll|manage_company_settings"],"capabilities":["apps.payroll"],"scopes":["organization"],"kind":"any:permission","effect":"write","execution_kinds":["api","agent","module","work"]},
+    "payroll.exportTemplate.preview@1": {"app":"any","permissions":["manage_payroll|manage_company_settings"],"capabilities":["apps.payroll"],"scopes":["organization"],"kind":"any:permission","effect":"read","execution_kinds":["api","agent","module","work"]},
+    "payroll.exportTemplate.save@1": {"app":"any","permissions":["manage_payroll|manage_company_settings"],"capabilities":["apps.payroll"],"scopes":["organization"],"kind":"any:permission","effect":"write","execution_kinds":["api","agent","module","work"]},
+    "payroll.exportTemplates.list@1": {"app":"any","permissions":["manage_payroll|manage_company_settings"],"capabilities":["apps.payroll"],"scopes":["organization"],"kind":"any:permission","effect":"read","execution_kinds":["api","agent","module","work"]},
     "payroll.exports.catalog@1": {"app":"any","permissions":["manage_payroll|manage_company_settings"],"capabilities":["apps.payroll"],"scopes":["organization"],"kind":"any:permission","effect":"read","execution_kinds":["api","agent","module","work"]},
     "payroll.finalizedWork.list@1": {"app":"any","permissions":["manage_payroll|manage_company_settings"],"capabilities":["apps.payroll"],"scopes":["organization"],"kind":"any:permission","effect":"read","execution_kinds":["api","agent","module","work"]},
     "payroll.ledger.list@1": {"app":"any","permissions":["manage_payroll|manage_company_settings"],"capabilities":["apps.payroll"],"scopes":["organization","project"],"kind":"any:permission","effect":"read","execution_kinds":["api","agent","module","work"]},
@@ -2391,7 +2405,8 @@
     "workforce.departments.assign@1": {"app":"any","permissions":[],"scopes":["organization"],"kind":"any:membership_only","effect":"write","execution_kinds":["api","module","agent","work"]},
     "workforce.departments.read@1": {"app":"any","permissions":[],"scopes":["organization"],"kind":"any:membership_only","effect":"read","execution_kinds":["api","module","agent","work"]},
     "workforce.departments.save@1": {"app":"any","permissions":["manage_company_settings"],"scopes":["organization"],"kind":"any:permission","effect":"write","execution_kinds":["api","module","agent","work"]},
-    "workforce.users.list@1": {"app":"any","permissions":["manage_company_users"],"scopes":["organization"],"kind":"any:permission","effect":"read","execution_kinds":["api","module","agent","work"]}
+    "workforce.users.list@1": {"app":"any","permissions":["manage_company_users"],"scopes":["organization"],"kind":"any:permission","effect":"read","execution_kinds":["api","module","agent","work"]},
+    "workforce.users.restore@1": {"app":"any","permissions":["manage_company_users"],"scopes":["organization"],"kind":"any:permission","effect":"write","execution_kinds":["api","agent"]}
   },
   "tabs": {
     "contact.docs": {"surface":"contact_modal","devices":["mobile","desktop"],"default_visible":true,"capabilities":["platform.contacts"]},

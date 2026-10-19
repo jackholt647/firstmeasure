@@ -62,6 +62,10 @@ function evaluate(node,env={},depth=0){
   if(/PlatformLanguage\??\.(?:htmlText|text)$/.test(name))return args[2]??unknown;
   if(/^(?:String|escapeHtml|esc|clean)$/.test(name))return args[0]??unknown;
   if(/^(?:settingsText|t|text)$/.test(name))return args[1]??unknown;
+  // term(key, fallback): the organization's word for something, by terminology key; the index keeps the fallback.
+  if(/(?:^|\.)term$/.test(name))return args[1]??unknown;
+  // People's bt(key, fallback): a sentence in the organization's words for branches; {w_Branch} reads Branch, {w_main} main branch.
+  if(/(?:^|\.)bt$/.test(name))return typeof args[1]==='string'?args[1].replace(/\{w_(\w+)\}/g,(m,word)=>word==='Main'?'Main branch':word==='main'?'main branch':word):unknown;
   if(ts.isPropertyAccessExpression(callee)){
    const target=ev(callee.expression);
    if(callee.name.text==='join'&&Array.isArray(target))return target.join(args[0]===unknown?'':args[0]??',');
@@ -169,6 +173,11 @@ for(const [file,section]of fileSections){
    if(!props.has('label')||!(props.has('key')||props.has('id')))return;
    let title=evaluate(props.get('label'));
    if(title===unknown){const label=props.get('label');const fn=ts.isIdentifier(label)?resolve(label.text,label):label;if(fn&&(ts.isArrowFunction(fn)||ts.isFunctionExpression(fn)))title=invoke(fn,[],{},0);}
+   // A label named by the organization (term('workforce.organization_connection_plural', 'Subcontractors')) is indexed
+   // under its fallback with the terminology key, so search can show and match the organization's own word.
+   let terminology;
+   {const label=props.get('label');const fn=label&&ts.isIdentifier(label)?resolve(label.text,label):label;
+    if(fn)visit(fn,c=>{if(terminology||!ts.isCallExpression(c)||!/(?:^|\.)term$/.test(c.expression.getText()))return;const a=c.arguments.map(x=>evaluate(x));if(typeof a[0]==='string'&&typeof a[1]==='string'&&!a[1].includes(unknown)){terminology=a[0];if(typeof title!=='string'||title.includes(unknown))title=a[1];}});}
    const key=evaluate(props.get('key')||props.get('id'));
    if(typeof title!=='string'||title.includes(unknown)||typeof key!=='string'||key.includes(unknown))return;
    const desc=evaluate(props.get('tip')||props.get('description')||props.get('help'));
@@ -176,7 +185,7 @@ for(const [file,section]of fileSections){
    visit(props.get('label'),c=>{if(ts.isCallExpression(c)&&/PlatformLanguage.*\.text$/.test(c.expression.getText())){const a=c.arguments.map(x=>evaluate(x));if(a.slice(0,3).every(x=>typeof x==='string'&&!x.includes(unknown)))translation=a.slice(0,3);}});
    const declaration=ancestor(n,p=>ts.isVariableDeclaration(p));
    const isView=props.has('id')&&(viewIds.includes(key)||/views/i.test(declaration?.name?.getText()||''));
-   objects.push({...context,view:isView?key:context.view,title,description:desc===unknown?'':desc,kind:isView?'view':'control',selector:props.has('key')?`[data-key="${key}"]`:'',...(translation?{translation}:{})});
+   objects.push({...context,view:isView?key:context.view,title,description:desc===unknown?'':desc,kind:isView?'view':'control',selector:props.has('key')?`[data-key="${key}"]`:'',...(translation?{translation}:{}),...(terminology?{terminology}:{})});
   }
  });
 }

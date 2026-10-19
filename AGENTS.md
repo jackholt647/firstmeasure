@@ -194,7 +194,7 @@ shared catalogue of priced labor tasks: each party has a pay sheet that declares
 its inputs and is evaluated against a job. A sheet that reads a measurement
 names a measurement schema. Evaluation is deterministic and leaves a line
 unresolved rather than pricing it at zero; an agent may author a sheet but never
-computes pay. Run `tests/labor-pay-sheets.test.ts` for changes here.
+computes pay. Run `tests/labor-pay-sheets.test.ts` and `tests/pay-sheets-editor-browser.test.mjs` for changes here.
 
 Read [pay rules](docs/architecture/pay-rules.md) before changing how anyone is
 paid, payroll earnings, pay runs or time clock pay. Earnings are derived: a pay

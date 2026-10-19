@@ -1551,6 +1551,26 @@
     "label": "Boards",
     "kind": "entity"
   },
+  "branches.branch": {
+    "label": "Branch",
+    "kind": "entity"
+  },
+  "branches.branches": {
+    "label": "Branches",
+    "kind": "entity"
+  },
+  "branches.region": {
+    "label": "Region",
+    "kind": "entity"
+  },
+  "branches.regions": {
+    "label": "Regions",
+    "kind": "entity"
+  },
+  "branches.main_branch": {
+    "label": "Main branch",
+    "kind": "entity"
+  },
   "roles.sales_appointments": {
     "label": "Sales Appointments",
     "kind": "entity"

@@ -362,7 +362,47 @@ export async function upcomingPayroll(orgId: string, options: JsonObject = {}) {
   return { from, through, schedules, upcoming, diagnostics };
 }
 
-async function insertBatchItem(db: SqlStore, orgId: string, batchId: string, group: JsonObject[], schedule: JsonObject) {
+/**
+ * How one payee is paid (`payables.ts`): with payroll, or through payables as a bill due on their payment terms. Decided
+ * when a pay run is drafted or reopened and kept on its item, so the run says the same thing however terms change later.
+ */
+export type PayeeRoute = { paid_through: "payroll" | "payables"; payment_terms: { basis: "payroll_schedule" | "net_days"; net_days: number } };
+export type PayeeRoutes = Map<string, PayeeRoute>;
+const routeKey = (payee: { type?: unknown; id?: unknown }) => `${cleanText(payee.type)}:${cleanText(payee.id)}`;
+
+/** The day a bill is due: the pay date plus the payee's net days (none when they are paid on the pay schedule). */
+export function billDueDate(payDate: string, route: PayeeRoute) {
+  const date = new Date(`${cleanText(payDate).slice(0, 10)}T12:00:00.000Z`);
+  if (!Number.isFinite(date.getTime())) return cleanText(payDate).slice(0, 10);
+  date.setUTCDate(date.getUTCDate() + (route.payment_terms.basis === "net_days" ? Math.max(0, Math.min(365, Math.floor(route.payment_terms.net_days))) : 0));
+  return date.toISOString().slice(0, 10);
+}
+
+function routeMetadata(payee: PayrollPayeeRef, payDate: string, routes?: PayeeRoutes) {
+  const route = routes?.get(routeKey(payee));
+  if (!route) return {};
+  return route.paid_through === "payables"
+    ? { paid_through: "payables", payment_terms: route.payment_terms, due_date: billDueDate(payDate, route) }
+    : { paid_through: "payroll" };
+}
+
+/**
+ * What a bill asks for: the item's amount to pay, less approved reimbursements that already have a payable of their
+ * own (those are paid by theirs when the item is paid, `payments/reimbursements.ts`), so nothing is in payables twice.
+ */
+export function billAmountCents(item: JsonObject) {
+  const separately = asArray(item.entries).map(asObject)
+    .filter((entry) => cleanText(entry.kind) === "reimbursement" && cleanText(asObject(entry.metadata).payable_id) && Number(entry.allocation_cents || 0) > 0)
+    .reduce((sum, entry) => sum + Number(entry.allocation_cents || 0), 0);
+  return Math.max(0, Number(item.net_cents || 0) - separately);
+}
+
+/** A pay run item paid through payables: it becomes a bill when the run is entered, and is paid when the bill is. */
+export function isBillItem(item: JsonObject) {
+  return cleanText(asObject(item.metadata).paid_through) === "payables" && billAmountCents(item) > 0;
+}
+
+async function insertBatchItem(db: SqlStore, orgId: string, batchId: string, group: JsonObject[], schedule: JsonObject, payDate = "", routes?: PayeeRoutes) {
   const payee = entryPayee(group[0] || {});
   const positives = group.filter((entry) => Number(entry.remaining_cents || 0) > 0);
   const negatives = group.filter((entry) => Number(entry.remaining_cents || 0) < 0);
@@ -383,9 +423,9 @@ async function insertBatchItem(db: SqlStore, orgId: string, batchId: string, gro
   (await db.prepare(`INSERT INTO payroll_batch_items
     (id, batch_id, organization_id, payee_type, payee_id, payee_name, worker_type, status, gross_cents, commission_cents,
      deduction_cents, net_cents, subgroup_totals_json, payment_reference, metadata_json, revision, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, 'draft', ?, ?, ?, ?, ?, '', '{}', 1, ?, ?)`)
+    VALUES (?, ?, ?, ?, ?, ?, ?, 'draft', ?, ?, ?, ?, ?, '', ?, 1, ?, ?)`)
     .run(itemId, batchId, orgId, payee.type, payee.id, payee.name || payee.id, payee.worker_type || "employee", gross, commission,
-      deduction, gross - deduction, JSON.stringify(subgroupTotals), now, now));
+      deduction, gross - deduction, JSON.stringify(subgroupTotals), JSON.stringify(routeMetadata(payee, payDate, routes)), now, now));
   const allocationInsert = db.prepare(`INSERT INTO payroll_allocations
     (id, organization_id, batch_id, batch_item_id, ledger_entry_id, applied_cents, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)`);
   for (const entry of positives) {
@@ -397,7 +437,7 @@ async function insertBatchItem(db: SqlStore, orgId: string, batchId: string, gro
   return { net_cents: gross - deduction, worker_type: payee.worker_type || "employee" };
 }
 
-export async function createPayrollBatch(orgId: string, input: JsonObject, actorUserId = "") {
+export async function createPayrollBatch(orgId: string, input: JsonObject, actorUserId = "", routes?: PayeeRoutes) {
   return (await getPayrollDatabase().transaction(async () => {
   const schedule = (await readPayrollSchedule(orgId, cleanText(input.schedule_id)));
   const runType = cleanText(input.run_type) === "off_cycle" ? "off_cycle" : "regular";
@@ -447,7 +487,7 @@ export async function createPayrollBatch(orgId: string, input: JsonObject, actor
     let subcontractorTotal = 0;
     let itemCount = 0;
     for (const group of groups.values()) {
-      const item = (await insertBatchItem(db, orgId, batchId, group, schedule));
+      const item = (await insertBatchItem(db, orgId, batchId, group, schedule, cleanText(occurrence.pay_date), routes));
       if (!item) continue;
       itemCount += 1;
       if (item.worker_type !== "employee") subcontractorTotal += item.net_cents;
@@ -477,7 +517,7 @@ async function syncBatchStatus(db: SqlStore, orgId: string, batchId: string) {
     .run(status, now, status, now, status, now, orgId, batchId));
 }
 
-async function rebuildDraftPayrollBatch(orgId: string, batch: JsonObject) {
+async function rebuildDraftPayrollBatch(orgId: string, batch: JsonObject, routes?: PayeeRoutes, skipEntryIds?: Set<string>) {
   return (await getPayrollDatabase().transaction(async () => {
   const schedule = (await readPayrollSchedule(orgId, cleanText(batch.schedule_id)));
   const runType = cleanText(batch.run_type || asObject(batch.metadata).run_type || "regular");
@@ -490,7 +530,8 @@ async function rebuildDraftPayrollBatch(orgId: string, batch: JsonObject) {
     (await db.prepare("DELETE FROM payroll_allocations WHERE organization_id=? AND batch_id=?").run(orgId, cleanText(batch.id)));
     (await db.prepare("DELETE FROM payroll_batch_items WHERE organization_id=? AND batch_id=?").run(orgId, cleanText(batch.id)));
     const groups = new Map<string, JsonObject[]>();
-    for (const entry of (await listPayrollLedgerEntries(orgId, { schedule_id: schedule.id, state: "accrued", eligible_through: cutoffAt, open_only: true, limit: 5000 }))) {
+    for (const entry of (await listPayrollLedgerEntries(orgId, { schedule_id: schedule.id, state: "accrued", eligible_through: cutoffAt, open_only: true, limit: 5000 }))
+      .filter((row) => !skipEntryIds?.has(cleanText(row.id)))) {
       const payee = entryPayee(entry);
       const key = `${payee.type}:${payee.id}`;
       groups.set(key, [...(groups.get(key) || []), entry]);
@@ -499,7 +540,7 @@ async function rebuildDraftPayrollBatch(orgId: string, batch: JsonObject) {
     let subcontractorTotal = 0;
     let itemCount = 0;
     for (const group of groups.values()) {
-      const item = (await insertBatchItem(db, orgId, cleanText(batch.id), group, schedule));
+      const item = (await insertBatchItem(db, orgId, cleanText(batch.id), group, schedule, cleanText(batch.pay_date), routes));
       if (!item) continue;
       itemCount += 1;
       if (item.worker_type === "employee") employeeTotal += item.net_cents;
@@ -521,6 +562,7 @@ export async function patchPayrollBatchItem(orgId: string, batchId: string, item
   await assertReadyToPay(orgId, asObject(batch.approval || asObject(batch.metadata).approval));
   const current = (await readPayrollBatchItem(orgId, batchId, itemId));
   if (cleanText(current.status) === "paid") throw badRequest("payroll_item_paid", "A paid payroll item cannot be changed.");
+  assertNoReimbursementPaidElsewhere(current);
   const nextStatus = cleanText(input.status) === "paid" ? "paid" : "run";
   (await withPayrollTransaction(async (db) => {
     const now = nowIso();
@@ -553,7 +595,7 @@ async function assertReadyToPay(orgId: string, approval: JsonObject) {
   throw badRequest("payroll_batch_not_finalized", "Pay runs need approval: its named approvers must approve and it must be made final before it is marked run or paid.");
 }
 
-export async function applyPayrollBatchAction(orgId: string, batchId: string, input: JsonObject) {
+export async function applyPayrollBatchAction(orgId: string, batchId: string, input: JsonObject, routes?: PayeeRoutes, skipEntryIds?: Set<string>) {
   return (await getPayrollDatabase().transaction(async () => {
   const batch = (await readPayrollBatch(orgId, batchId));
   const action = cleanText(input.action);
@@ -589,7 +631,7 @@ export async function applyPayrollBatchAction(orgId: string, batchId: string, in
       next = { ...approval, status: "finalized", finalized_by: { user_id: actorUserId, name: actorName }, finalized_at: now };
     } else {
       next = { status: "draft", reopened_by: { user_id: actorUserId, name: actorName }, reopened_at: now, note: cleanText(input.note), prior: approval };
-      (await rebuildDraftPayrollBatch(orgId, batch));
+      (await rebuildDraftPayrollBatch(orgId, batch, routes, skipEntryIds));
     }
     const metadata = { ...asObject(batch.metadata), ...asObject(input.metadata), approval: next };
     (await getPayrollDatabase().prepare("UPDATE payroll_batches SET metadata_json=?, revision=revision+1, updated_at=? WHERE organization_id=? AND id=?")
@@ -608,14 +650,20 @@ export async function applyPayrollBatchAction(orgId: string, batchId: string, in
   if (!["run", "paid"].includes(action)) throw badRequest("invalid_payroll_batch_action", "Payroll batch action must be run, paid, or void.");
   await assertReadyToPay(orgId, approval);
   if (cleanText(batch.status) === "void") throw badRequest("payroll_batch_void", "A void payroll batch cannot be changed.");
+  asArray(batch.items).map(asObject).filter((item) => cleanText(item.status) !== "paid").forEach(assertNoReimbursementPaidElsewhere);
   (await withPayrollTransaction(async (db) => {
     const now = nowIso();
-    (await db.prepare(`UPDATE payroll_batch_items SET status=?, payment_reference=CASE WHEN ?<>'' THEN ? ELSE payment_reference END,
-      metadata_json=?, revision=revision+1, updated_at=?, run_at=COALESCE(run_at, ?),
-      paid_at=CASE WHEN ?='paid' THEN COALESCE(paid_at, ?) ELSE paid_at END
-      WHERE organization_id=? AND batch_id=? AND status<>'paid'`)
-      .run(action, cleanText(input.payment_reference), cleanText(input.payment_reference), JSON.stringify(asObject(input.metadata)),
-        now, now, action, now, orgId, batchId));
+    // A bill (a payee paid through payables) is entered by the run and paid when its payable is (`payables.ts`), so
+    // marking the run paid enters it rather than calling it paid. An item's own metadata (how it is paid) is kept.
+    for (const item of asArray(batch.items).map(asObject).filter((row) => cleanText(row.status) !== "paid")) {
+      const status = action === "paid" && isBillItem(item) ? "run" : action;
+      (await db.prepare(`UPDATE payroll_batch_items SET status=?, payment_reference=CASE WHEN ?<>'' THEN ? ELSE payment_reference END,
+        metadata_json=?, revision=revision+1, updated_at=?, run_at=COALESCE(run_at, ?),
+        paid_at=CASE WHEN ?='paid' THEN COALESCE(paid_at, ?) ELSE paid_at END
+        WHERE organization_id=? AND batch_id=? AND id=? AND status<>'paid'`)
+        .run(status, status === "paid" ? cleanText(input.payment_reference) : "", cleanText(input.payment_reference),
+          JSON.stringify({ ...asObject(item.metadata), ...asObject(input.metadata) }), now, now, status, now, orgId, batchId, cleanText(item.id)));
+    }
     (await syncBatchStatus(db, orgId, batchId));
   }));
   const updated = (await readPayrollBatch(orgId, batchId));
@@ -637,5 +685,65 @@ export async function applyPayrollBatchAction(orgId: string, batchId: string, in
   });
   return updated;
 
+  }));
+}
+
+/**
+ * A reimbursement this item pays was paid in payables after the run was drafted (`payables.ts`). Paying the item too
+ * would pay it twice, so the item cannot be marked entered or paid until the run is reopened, which works it out
+ * again without that reimbursement.
+ */
+function assertNoReimbursementPaidElsewhere(item: JsonObject) {
+  const held = asArray(asObject(item.metadata).reimbursement_paid_in_payables).map(asObject);
+  if (!held.length) return;
+  throw badRequest("payroll_reimbursement_paid_in_payables", `${cleanText(asObject(item.payee).name) || "Someone"}'s reimbursement in this pay run was already paid in payables. Reopen the pay run so it is worked out again without it, then pay it.`, { entry_ids: held.map((row) => cleanText(row.ledger_entry_id)) });
+}
+
+/**
+ * Marks every unpaid item that pays this ledger entry as holding a reimbursement paid in payables (see above). Returns
+ * how many items were marked; an item already marked for the entry is left as it is, so this can run any number of times.
+ */
+export async function holdItemsForReimbursementPaidElsewhere(orgId: string, entryId: string, note: JsonObject) {
+  return (await withPayrollTransaction(async (db) => {
+    const rows = (await db.prepare(`SELECT i.id, i.batch_id, i.status, i.metadata_json FROM payroll_allocations a
+      JOIN payroll_batches b ON b.id=a.batch_id JOIN payroll_batch_items i ON i.id=a.batch_item_id
+      WHERE a.organization_id=? AND a.ledger_entry_id=? AND b.status<>'void'`).all(orgId, entryId)).map(asObject);
+    let held = 0;
+    for (const row of rows.filter((value) => cleanText(value.status) !== "paid")) {
+      let metadata: JsonObject = {};
+      try { metadata = asObject(JSON.parse(cleanText(row.metadata_json) || "{}")); } catch { metadata = {}; }
+      const list = asArray(metadata.reimbursement_paid_in_payables).map(asObject);
+      if (list.some((value) => cleanText(value.ledger_entry_id) === entryId)) continue;
+      await db.prepare("UPDATE payroll_batch_items SET metadata_json=?, revision=revision+1, updated_at=? WHERE organization_id=? AND id=?")
+        .run(JSON.stringify({ ...metadata, reimbursement_paid_in_payables: [...list, { ...note, ledger_entry_id: entryId, held_at: nowIso() }] }), nowIso(), orgId, cleanText(row.id));
+      held++;
+    }
+    return held;
+  }));
+}
+
+/**
+ * A bill of a pay run was paid in payables (`payables.ts`). The item is marked paid once, with what paid it kept under
+ * `metadata.settlement`. Its ledger entries are already allocated to it, so they now count as paid everywhere and no
+ * later run includes them; nothing posted is edited. A second report of the same payment changes nothing.
+ */
+export async function recordBillPaid(orgId: string, batchId: string, itemId: string, settlement: JsonObject) {
+  return (await getPayrollDatabase().transaction(async () => {
+    const batch = (await readPayrollBatch(orgId, batchId));
+    if (cleanText(batch.status) === "void") return { changed: false, batch };
+    const item = (await readPayrollBatchItem(orgId, batchId, itemId));
+    if (cleanText(item.status) === "paid") return { changed: false, batch };
+    const now = nowIso();
+    const paidAt = cleanText(settlement.paid_at) || now;
+    (await withPayrollTransaction(async (db) => {
+      (await db.prepare(`UPDATE payroll_batch_items SET status='paid', payment_reference=CASE WHEN ?<>'' THEN ? ELSE payment_reference END,
+        metadata_json=?, revision=revision+1, updated_at=?, run_at=COALESCE(run_at, ?), paid_at=?
+        WHERE organization_id=? AND batch_id=? AND id=? AND status<>'paid'`)
+        .run(cleanText(settlement.reference), cleanText(settlement.reference),
+          JSON.stringify({ ...asObject(item.metadata), settlement: { ...settlement, paid_at: paidAt, recorded_at: now } }),
+          now, now, paidAt, orgId, batchId, itemId));
+      (await syncBatchStatus(db, orgId, batchId));
+    }));
+    return { changed: true, batch: (await readPayrollBatch(orgId, batchId)) };
   }));
 }

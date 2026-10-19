@@ -152,15 +152,17 @@ export const payrollExportTypeSchema = z.enum([
   "pay_run_summary", "gusto_employees", "gusto_contractors", "quickbooks_payroll", "quickbooks_bills"
 ]);
 
+/** A report, a pay run file by `type`, or a pay run file made from the organization's own export template (`template_id`). */
 export const payrollExportCreateSchema = jsonObjectSchema.extend({
-  type: payrollExportTypeSchema,
+  type: payrollExportTypeSchema.optional(),
+  template_id: z.string().trim().min(1).max(120).optional(),
   batch_id: payrollIdSchema.optional(),
   from: isoDateSchema.optional(),
   through: isoDateSchema.optional(),
   format: z.enum(["csv", "pdf"]).optional(),
   include_projected: z.boolean().optional(),
   metadata: jsonObjectSchema.optional()
-});
+}).refine((value) => !!value.type || !!value.template_id, { message: "Choose a report or an export template.", path: ["type"] });
 
 export type PayrollScheduleInput = z.infer<typeof payrollScheduleInputSchema>;
 export type PayrollPayeeRef = z.infer<typeof payrollPayeeRefSchema>;

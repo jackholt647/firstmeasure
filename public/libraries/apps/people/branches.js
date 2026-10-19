@@ -8,6 +8,9 @@
  *   FirstMatePeople.branches.filter(page, { onChange }) -> { attach(host), matches(kind, record), selection(), destroy() }
  *                                                    the header filter of a list page; kind as data.branchIdsOf
  *   FirstMatePeople.branches.manageable(keepId)      active branches the viewer manages (and keepId, so a select shows its value)
+ *   FirstMatePeople.branches.membershipSection(kind, record)          the Branches section of a window (null with one branch)
+ *   FirstMatePeople.branches.editMembership(button, kind, record, refocus)   its change menu; saves as each branch is ticked
+ *   (the branch filter's dropdown also offers "Set the branches of the N shown" when the page passes { bulk })
  *
  * Every write is a published organization-branches.* action; each returns the new structure.
  */
@@ -19,6 +22,7 @@
   const data = People.data;
   const pageKit = People.pageKit;
   const { esc, t, tip } = kit;
+  const bt = (...args) => data.bt(...args);
   const arr = (value) => Array.isArray(value) ? value : [];
   const text = (...values) => { for (const value of values) { const clean = String(value ?? '').trim(); if (clean) return clean; } return ''; };
   const store = {
@@ -48,6 +52,7 @@
       .pp-bf-foot{display:flex;gap:6px;justify-content:flex-end}
       .pp-bf-foot>button{border:0;background:transparent;color:var(--pp-muted)}
       .pp-bf-foot>button:hover{color:var(--pp-text)}
+      .pp-bf-foot>.pp-bf-bulk{margin-right:auto;color:var(--pp-accent,#3538cd)}
       .pp-bf-tree{display:grid;gap:4px;margin:0;padding:0;list-style:none}
       .pp-bf-rhead{display:flex;align-items:center;gap:2px}
       .pp-bf-fold{display:grid;place-items:center;flex:none;width:24px;height:28px;padding:0;border:0;border-radius:6px;background:transparent;color:var(--pp-faint);cursor:pointer}
@@ -96,16 +101,16 @@
 
   /* ---- writing ---- */
   const ERRORS = {
-    branch_name_taken:() => t('branch_name_taken', 'There is already a branch with that name.'),
-    region_name_taken:() => t('region_name_taken', 'There is already a region with that name.'),
-    branch_name_required:() => t('branch_name_required', 'Give the branch a name.'),
-    default_branch_required:() => t('default_branch_required', 'The main branch cannot be archived.'),
-    branch_in_use:() => t('branch_in_use', 'People, groups or departments belong only to this branch. Move them first.'),
-    branch_scope_denied:() => t('branch_scope_denied', 'That branch is outside the branches you manage.'),
-    branch_structure_denied:() => t('branch_structure_denied', 'You cannot change branches or regions.'),
-    multiple_branches_disabled:() => t('multiple_branches_disabled', 'Multiple branches is turned off for this organization.'),
-    stale_branch_structure:() => t('stale_branch_structure', 'Someone else changed the branches. Try again.'),
-    unknown_region:() => t('unknown_region', 'That region no longer exists.')
+    branch_name_taken:() => bt('branch_name_taken', 'There is already a {w_branch} with that name.'),
+    region_name_taken:() => bt('region_name_taken', 'There is already a {w_region} with that name.'),
+    branch_name_required:() => bt('branch_name_required', 'Give the {w_branch} a name.'),
+    default_branch_required:() => bt('default_branch_required', 'The {w_main} cannot be archived.'),
+    branch_in_use:() => bt('branch_in_use', 'People, groups or departments belong only to this {w_branch}. Move them first.'),
+    branch_scope_denied:() => bt('branch_scope_denied', 'That {w_branch} is outside the {w_branches} you manage.'),
+    branch_structure_denied:() => bt('branch_structure_denied', 'You cannot change {w_branches} or {w_regions}.'),
+    multiple_branches_disabled:() => bt('multiple_branches_disabled', 'Multiple {w_branches} is turned off for this organization.'),
+    stale_branch_structure:() => bt('stale_branch_structure', 'Someone else changed the {w_branches}. Try again.'),
+    unknown_region:() => bt('unknown_region', 'That {w_region} no longer exists.')
   };
   const codeOf = (error) => text(error?.code, error?.error?.code, error?.body?.error?.code, error?.details?.code, error?.data?.error?.code);
   function friendly(error){
@@ -129,33 +134,106 @@
     setBranchRegion:(id, regionId) => act('organization-branches.branch.region.set', { branch_id:String(id), region_id:regionId || '', ...(regionRevision() ? { expected_revision:regionRevision() } : {}) })
   };
 
+  /* ---- who belongs to which branch (organization-branches.membership.set) ---- */
+  const MEMBER_KINDS = {
+    user:{ type:'organization_user', needs:'branches.membership_users', min:1, words:[t('user_one', 'user'), t('user_many', 'users')] },
+    group:{ type:'resource_group', needs:'branches.membership', min:1, words:[t('group_one', 'group'), t('group_many', 'groups')] },
+    company:{ type:'organization_connection', needs:'branches.membership', min:0, words:[t('company_one', 'company'), t('company_many', 'companies')] }
+  };
+  const canSetMembership = (kind) => !!MEMBER_KINDS[kind] && data.multipleBranches() && structure().access?.can_set_membership !== false && data.allows(MEMBER_KINDS[kind].needs);
+  async function setMembership(kind, id, branchIds){
+    const spec = MEMBER_KINDS[kind];
+    const list = [...new Set(branchIds.map(String))];
+    if (list.length < spec.min) throw new Error(bt('branch_required', 'Keep at least one {w_branch}.'));
+    let result;
+    try { result = await data.internal.invoke('organization-branches.membership.set', { assignee:{ type:spec.type, id:String(id) }, branch_ids:list, ...(list.length ? { primary_branch_id:list[0] } : {}) }); }
+    catch (error) { throw friendly(error); }
+    await data.internal.reload({ type:'branches' });
+    return result;
+  }
+  /* The Branches section of a person's, group's or company's window. A company with none works in every branch. */
+  function membershipSection(kind, record){
+    if (!data.multipleBranches() || !record) return null;
+    const own = data.branchIdsOf(kind, record);
+    const chips = kind === 'company' && !own.length
+      ? [{ label:bt('every_branch', 'Every {w_branch}'), tone:'muted', tooltip:bt('every_branch_tip', 'A company in no {w_branch} works in every {w_branch}') }]
+      : own.map((id, index) => ({ label:data.branchName(id), tone:'muted', tooltip:index === 0 && kind !== 'company' && own.length > 1 ? bt('own_branch_tip', 'Their own {w_branch}: it picks their settings') : '' }));
+    return { id:'branches', title:bt('branches', '{w_Branches}'), icon:'fa-location-dot', chips, empty:t('none', 'None'), ...(canSetMembership(kind) ? { action:{ id:'branches', label:bt('change_branches', 'Change {w_branches}') } } : {}) };
+  }
+  function editMembership(button, kind, record, refocus){
+    const spec = MEMBER_KINDS[kind];
+    const reach = new Set(manageable().map((entry) => String(entry.id)));
+    let saving = Promise.resolve();
+    return pageKit.checkMenu(button, {
+      label:bt('branches', '{w_Branches}'), min:spec.min, align:'end',
+      items:data.branches().map((entry) => ({ id:String(entry.id), label:data.branchName(entry.id), disabled:!reach.has(String(entry.id)), tooltip:reach.has(String(entry.id)) ? '' : bt('branch_not_managed', 'Outside the {w_branches} you manage') })),
+      selected:data.branchIdsOf(kind, record),
+      onChange:(next) => { saving = saving.then(() => setMembership(kind, record.id, next).then(() => kit.toast(t('saved', 'Saved'), '', true)).catch((error) => pageKit.failed(t('not_saved', 'Not saved'), error))); },
+      refocus
+    });
+  }
+  /* Set the branches of every row a page shows: add one, move all to one, or take one away. */
+  function bulkMembership(anchor, bulk){
+    const spec = MEMBER_KINDS[bulk.kind];
+    const rows = bulk.items().filter((row) => row && !row.deleted);
+    const options = manageable().map((entry) => ({ value:String(entry.id), label:data.branchName(entry.id) }));
+    return kit.form(anchor, {
+      title:bt('set_branches_of', '{w_Branches} of the {count} shown', { count:kit.countPhrase([[rows.length, spec.words[0], spec.words[1]]]) }), submitLabel:t('apply', 'Apply'),
+      note:t('set_branches_note', 'Applies to everyone the list shows now. Narrow it with the search and filters first.'),
+      fields:[
+        { id:'mode', label:t('change', 'Change'), type:'select', required:true, value:'add', options:[{ value:'add', label:bt('add_to_branch', 'Add to a {w_branch}') }, { value:'move', label:bt('move_to_branch', 'Move to a {w_branch}') }, { value:'remove', label:bt('remove_from_branch', 'Take out of a {w_branch}') }] },
+        { id:'branch', label:bt('branch', '{w_Branch}'), type:'select', required:true, value:options[0]?.value || '', options }
+      ],
+      submit:async (values) => {
+        const failures = [];
+        let done = 0;
+        for (const row of rows) {
+          const now = data.branchIdsOf(bulk.kind, row);
+          const next = values.mode === 'move' ? [values.branch] : values.mode === 'remove' ? now.filter((id) => id !== values.branch) : [...now, values.branch];
+          if (next.length === now.length && next.every((id, index) => id === now[index])) continue;
+          if (next.length < spec.min) { failures.push(`${row.name || row.email || row.id}: ${bt('branch_required', 'Keep at least one {w_branch}.')}`); continue; }
+          try {
+            await data.internal.invoke('organization-branches.membership.set', { assignee:{ type:spec.type, id:String(row.id) }, branch_ids:next, ...(next.length ? { primary_branch_id:next[0] } : {}) });
+            done += 1;
+          } catch (error) { failures.push(`${row.name || row.email || row.id}: ${friendly(error).message}`); }
+        }
+        await data.internal.reload({ type:'branches' });
+        if (failures.length && !done) throw new Error(failures.slice(0, 3).join('; '));
+        return { done, failures };
+      }
+    }).then((result) => {
+      if (!result) return;
+      kit.toast(t('saved', 'Saved'), t('branches_changed', 'Changed {count}', { count:kit.countPhrase([[result.done, spec.words[0], spec.words[1]]]) }) + (result.failures.length ? `. ${t('not_changed', 'Not changed')}: ${result.failures.join('; ')}` : ''), !result.failures.length);
+    });
+  }
+
   /* ---- the Branches modal ---- */
   function open(options = {}){
     ensureStyles();
     let host = null;
-    const branchWord = () => t('branches', 'Branches');
+    const branchWord = () => bt('branches', '{w_Branches}');
     const nameHtml = (entry) => text(entry.name) && entry.name !== 'Default Branch'
       ? esc(entry.name)
-      : `<span class="pp-br-unnamed"${tip(t('unnamed_branch_tip', 'This branch has no name yet. With one branch it needs none.'))}>${esc(data.branchName(entry.id))}</span>`;
+      : `<span class="pp-br-unnamed"${tip(bt('unnamed_branch_tip', 'This {w_branch} has no name yet. With one {w_branch} it needs none.'))}>${esc(data.branchName(entry.id))}</span>`;
     function branchRow(entry){
       const archived = text(entry.status, 'active') === 'archived';
-      const regionLabel = data.region(entry.region_id)?.label || t('no_region', 'No region');
+      const regionLabel = data.region(entry.region_id)?.label || bt('no_region', 'No {w_region}');
       const chips = [
-        entry.is_mine ? kit.chip({ label:t('my_branch', 'My branch'), tone:'role' }) : '',
-        entry.is_default && data.multipleBranches() ? kit.chip({ label:t('main', 'Main'), tone:'muted', tooltip:t('main_branch_tip', 'The branch everyone was in before there were others') }) : ''
+        entry.is_mine ? kit.chip({ label:bt('my_branch', 'My {w_branch}'), tone:'role' }) : '',
+        entry.is_default && data.multipleBranches() ? kit.chip({ label:t('main', 'Main'), tone:'muted', tooltip:bt('main_branch_tip', 'The {w_branch} everyone was in before there were others') }) : ''
       ].join('');
       const users = Number(entry.counts?.users || 0);
       const actions = [
-        !archived && canRename(entry.id) ? { id:'rename', needs:'branches.rename', icon:kit.ICONS.edit, label:text(entry.name) && entry.name !== 'Default Branch' ? t('rename', 'Rename') : t('name_branch', 'Name this branch') } : null,
+        !archived && canRename(entry.id) ? { id:'rename', needs:'branches.rename', icon:kit.ICONS.edit, label:text(entry.name) && entry.name !== 'Default Branch' ? t('rename', 'Rename') : bt('name_branch', 'Name this {w_branch}') } : null,
         entry.is_default ? null : { id:archived ? 'restore' : 'archive', needs:'branches.archive', icon:archived ? 'fa-rotate-left' : 'fa-box-archive', label:archived ? t('restore', 'Restore') : t('archive', 'Archive'), tone:archived ? '' : 'danger' }
       ];
       const regionControl = !archived && data.allows('branches.region') && data.regions().length
-        ? `<button type="button" class="pp-br-region" data-br-region="${esc(entry.id)}" aria-haspopup="menu" aria-expanded="false" aria-label="${esc(t('region_of', 'Region of {branch}: {region}', { branch:data.branchName(entry.id), region:regionLabel }))}"><i class="fas fa-map-location-dot" aria-hidden="true"></i> ${esc(regionLabel)}</button>` : '';
+        ? `<button type="button" class="pp-br-region" data-br-region="${esc(entry.id)}" aria-haspopup="menu" aria-expanded="false" aria-label="${esc(bt('region_of', '{w_Region} of {{w_branch}}: {{w_region}}', { branch:data.branchName(entry.id), region:regionLabel }))}"><i class="fas fa-map-location-dot" aria-hidden="true"></i> ${esc(regionLabel)}</button>` : '';
       return `<div class="pp-type" role="listitem" data-type-id="${esc(entry.id)}" data-branch-row="${esc(entry.id)}">
         <span class="pp-type-name">${nameHtml(entry)}</span>
         <div class="pp-chip-run">${chips}</div>
         ${regionControl}
-        <span class="pp-type-count"${tip(t('branch_users_tip', 'Users in this branch'))}>${users.toLocaleString()}</span>
+        <span class="pp-type-count"${tip(bt('branch_users_tip', 'Users in this {w_branch}'))}>${users.toLocaleString()}</span>
         ${data.gate(actions, 'branch-row').map((action) => `<button type="button" class="pp-icon-btn ${action.tone === 'danger' ? 'danger' : ''}" data-br-action="${esc(action.id)}" aria-label="${esc(action.label)}"${tip(action.label)}><i class="fas ${esc(action.icon)}" aria-hidden="true"></i></button>`).join('')}
       </div>`;
     }
@@ -167,24 +245,24 @@
       const regions = arr(structure().regions);
       const inRegion = (region) => active.filter((entry) => arr(region.branch_ids).map(String).includes(String(entry.id)) || String(entry.region_id || '') === String(region.id));
       const regionTools = (region) => data.gate([
-        { id:'rename-region', needs:'regions.edit', icon:kit.ICONS.edit, label:t('rename_region', 'Rename region') },
-        { id:text(region.status, 'active') === 'archived' ? 'restore-region' : 'archive-region', needs:'regions.edit', icon:text(region.status, 'active') === 'archived' ? 'fa-rotate-left' : 'fa-box-archive', label:text(region.status, 'active') === 'archived' ? t('restore', 'Restore') : t('archive_region', 'Archive region'), tone:text(region.status, 'active') === 'archived' ? '' : 'danger' }
+        { id:'rename-region', needs:'regions.edit', icon:kit.ICONS.edit, label:bt('rename_region', 'Rename {w_region}') },
+        { id:text(region.status, 'active') === 'archived' ? 'restore-region' : 'archive-region', needs:'regions.edit', icon:text(region.status, 'active') === 'archived' ? 'fa-rotate-left' : 'fa-box-archive', label:text(region.status, 'active') === 'archived' ? t('restore', 'Restore') : bt('archive_region', 'Archive {w_region}'), tone:text(region.status, 'active') === 'archived' ? '' : 'danger' }
       ], 'region').map((action) => `<button type="button" class="pp-icon-btn ${action.tone === 'danger' ? 'danger' : ''}" data-region-action="${esc(action.id)}" data-region-id="${esc(region.id)}" aria-label="${esc(`${action.label}: ${region.label}`)}"${tip(action.label)}><i class="fas ${esc(action.icon)}" aria-hidden="true"></i></button>`).join('');
       const placed = new Set();
       const regionSections = regions.map((region) => {
         const list = inRegion(region);
         list.forEach((entry) => placed.add(String(entry.id)));
         const archived = text(region.status, 'active') === 'archived';
-        return section(`region:${region.id}`, region.label, 'fa-map-location-dot', list.map(branchRow).join('') || `<p class="pp-sum-empty">${esc(t('no_branches_in_region', 'No branches in this region'))}</p>`, regionTools(region), archived ? ' archived' : '');
+        return section(`region:${region.id}`, region.label, 'fa-map-location-dot', list.map(branchRow).join('') || `<p class="pp-sum-empty">${esc(bt('no_branches_in_region', 'No {w_branches} in this {w_region}'))}</p>`, regionTools(region), archived ? ' archived' : '');
       }).join('');
       const loose = active.filter((entry) => !placed.has(String(entry.id)));
       const archivedBranches = all.filter((entry) => text(entry.status, 'active') === 'archived');
       const newButtons = [
-        data.allows('regions.edit') ? `<button type="button" class="pp-btn" data-br-new-region><i class="fas fa-map-location-dot" aria-hidden="true"></i>${esc(t('new_region', 'New region'))}</button>` : '',
-        data.allows('branches.add') ? `<button type="button" class="pp-btn primary" data-br-new-branch><i class="fas fa-plus" aria-hidden="true"></i>${esc(t('new_branch', 'New branch'))}</button>` : ''
+        data.allows('regions.edit') ? `<button type="button" class="pp-btn" data-br-new-region><i class="fas fa-map-location-dot" aria-hidden="true"></i>${esc(bt('new_region', 'New {w_region}'))}</button>` : '',
+        data.allows('branches.add') ? `<button type="button" class="pp-btn primary" data-br-new-branch><i class="fas fa-plus" aria-hidden="true"></i>${esc(bt('new_branch', 'New {w_branch}'))}</button>` : ''
       ].join('');
-      host.innerHTML = `<div class="pp-tab-bar"><strong>${esc(kit.countPhrase([[active.length, t('branch_one', 'branch'), t('branch_many', 'branches')], [regions.filter((entry) => text(entry.status, 'active') !== 'archived').length, t('region_one', 'region'), t('region_many', 'regions')]]))}</strong>${kit.info(t('branches_tip', 'Each branch has its own departments and settings, and most people see only their own. A region groups branches. With one branch none of this shows anywhere else.'))}<span class="pp-spacer"></span>${newButtons}</div>
-        <div class="pp-br">${regionSections}${loose.length || !regions.length ? section('none', regions.length ? t('not_in_region', 'Not in a region') : branchWord(), 'fa-location-dot', loose.map(branchRow).join('')) : ''}${archivedBranches.length ? section('archived', t('archived', 'Archived'), 'fa-box-archive', archivedBranches.map(branchRow).join(''), '', ' archived') : ''}</div>`;
+      host.innerHTML = `<div class="pp-tab-bar"><strong>${esc(kit.countPhrase([[active.length, bt('branch_one', '{w_branch}'), bt('branch_many', '{w_branches}')], [regions.filter((entry) => text(entry.status, 'active') !== 'archived').length, bt('region_one', '{w_region}'), bt('region_many', '{w_regions}')]]))}</strong>${kit.info(bt('branches_tip', 'Each {w_branch} has its own departments and settings, and most people see only their own. A {w_region} groups {w_branches}. With one {w_branch} none of this shows anywhere else.'))}<span class="pp-spacer"></span>${newButtons}</div>
+        <div class="pp-br">${regionSections}${loose.length || !regions.length ? section('none', regions.length ? bt('not_in_region', 'Not in a {w_region}') : branchWord(), 'fa-location-dot', loose.map(branchRow).join('')) : ''}${archivedBranches.length ? section('archived', t('archived', 'Archived'), 'fa-box-archive', archivedBranches.map(branchRow).join(''), '', ' archived') : ''}</div>`;
     }
     const modal = People.entityModal.open({
       label:branchWord(), opener:options.opener, footer:false,
@@ -195,24 +273,24 @@
     });
     const unsubscribe = data.subscribe(() => draw());
     const guarded = (work, title) => Promise.resolve().then(work).catch((error) => pageKit.failed(title || t('not_saved', 'Not saved'), friendly(error)));
-    const regionOptions = () => [{ value:'', label:t('no_region', 'No region') }, ...data.regions().map((entry) => ({ value:entry.id, label:entry.label }))];
+    const regionOptions = () => [{ value:'', label:bt('no_region', 'No {w_region}') }, ...data.regions().map((entry) => ({ value:entry.id, label:entry.label }))];
     modal.el.addEventListener('click', async (event) => {
       const button = event.target.closest('button');
       if (!button || button.disabled) return;
       if (button.matches('[data-br-new-branch]')) {
-        kit.form(button, { title:t('new_branch', 'New branch'), submitLabel:t('create', 'Create'), fields:[{ id:'name', label:t('name', 'Name'), required:true }, ...(data.regions().length && data.allows('branches.region') ? [{ id:'region_id', label:t('region', 'Region'), type:'select', value:'', options:regionOptions() }] : [])], submit:(values) => writes.addBranch(values.name, values.region_id) })
-          .then((result) => { if (result) kit.toast(t('saved', 'Saved'), t('branch_added', 'Branch added.'), true); });
+        kit.form(button, { title:bt('new_branch', 'New {w_branch}'), submitLabel:t('create', 'Create'), fields:[{ id:'name', label:t('name', 'Name'), required:true }, ...(data.regions().length && data.allows('branches.region') ? [{ id:'region_id', label:bt('region', '{w_Region}'), type:'select', value:'', options:regionOptions() }] : [])], submit:(values) => writes.addBranch(values.name, values.region_id) })
+          .then((result) => { if (result) kit.toast(t('saved', 'Saved'), bt('branch_added', '{w_Branch} added.'), true); });
         return;
       }
       if (button.matches('[data-br-new-region]')) {
-        kit.form(button, { title:t('new_region', 'New region'), submitLabel:t('create', 'Create'), fields:[{ id:'label', label:t('name', 'Name'), required:true }], submit:(values) => writes.saveRegion({ label:String(values.label || '').trim() }) });
+        kit.form(button, { title:bt('new_region', 'New {w_region}'), submitLabel:t('create', 'Create'), fields:[{ id:'label', label:t('name', 'Name'), required:true }], submit:(values) => writes.saveRegion({ label:String(values.label || '').trim() }) });
         return;
       }
       const regionPick = button.closest('[data-br-region]');
       if (regionPick) {
         const branchId = regionPick.dataset.brRegion;
         const now = String(data.branch(branchId)?.region_id || data.regions().find((entry) => arr(entry.branch_ids).map(String).includes(branchId))?.id || '');
-        kit.menu(regionPick, { align:'end', label:t('region', 'Region'), items:regionOptions().map((option) => ({ id:option.value || '__none', label:option.label, checked:option.value === now })), onSelect(item, menu){ menu.close(); guarded(() => writes.setBranchRegion(branchId, item.id === '__none' ? '' : item.id)); return false; } });
+        kit.menu(regionPick, { align:'end', label:bt('region', '{w_Region}'), items:regionOptions().map((option) => ({ id:option.value || '__none', label:option.label, checked:option.value === now })), onSelect(item, menu){ menu.close(); guarded(() => writes.setBranchRegion(branchId, item.id === '__none' ? '' : item.id)); return false; } });
         return;
       }
       const action = button.dataset.brAction;
@@ -220,7 +298,7 @@
       if (action && rowEl) {
         const id = rowEl.dataset.branchRow;
         const entry = data.branch(id) || { id };
-        if (action === 'rename') kit.form(button, { title:t('name_branch', 'Name this branch'), submitLabel:t('save', 'Save'), fields:[{ id:'name', label:t('name', 'Name'), value:text(entry.name) === 'Default Branch' ? '' : text(entry.name), required:!entry.is_default }], submit:(values) => writes.renameBranch(id, values.name) });
+        if (action === 'rename') kit.form(button, { title:bt('name_branch', 'Name this {w_branch}'), submitLabel:t('save', 'Save'), fields:[{ id:'name', label:t('name', 'Name'), value:text(entry.name) === 'Default Branch' ? '' : text(entry.name), required:!entry.is_default }], submit:(values) => writes.renameBranch(id, values.name) });
         else if (action === 'archive') { if (await kit.confirm(button, { title:t('archive_confirm', 'Archive {name}?', { name:data.branchName(id) }), confirmLabel:t('archive', 'Archive'), tone:'danger' })) guarded(() => writes.archiveBranch(id, true), t('not_archived', 'Not archived')); }
         else if (action === 'restore') guarded(() => writes.archiveBranch(id, false));
         return;
@@ -229,7 +307,7 @@
       if (regionAction) {
         const region = data.region(button.dataset.regionId);
         if (!region) return;
-        if (regionAction === 'rename-region') kit.form(button, { title:t('rename_region', 'Rename region'), submitLabel:t('save', 'Save'), fields:[{ id:'label', label:t('name', 'Name'), value:region.label, required:true }], submit:(values) => writes.saveRegion({ id:region.id, label:String(values.label || '').trim() }) });
+        if (regionAction === 'rename-region') kit.form(button, { title:bt('rename_region', 'Rename {w_region}'), submitLabel:t('save', 'Save'), fields:[{ id:'label', label:t('name', 'Name'), value:region.label, required:true }], submit:(values) => writes.saveRegion({ id:region.id, label:String(values.label || '').trim() }) });
         else if (regionAction === 'archive-region') { if (await kit.confirm(button, { title:t('archive_confirm', 'Archive {name}?', { name:region.label }), confirmLabel:t('archive', 'Archive'), tone:'danger' })) guarded(() => writes.saveRegion({ id:region.id, label:region.label, status:'archived' }), t('not_archived', 'Not archived')); }
         else if (regionAction === 'restore-region') guarded(() => writes.saveRegion({ id:region.id, label:region.label, status:'active' }));
       }
@@ -274,18 +352,18 @@
     }
     function label(){
       const chosen = ids();
-      if (selection.mode === 'mine') return { title:t('my_branch', 'My branch'), sub:myIds().map(data.branchName).join(', ') };
-      if (selection.mode === 'region') return { title:t('my_region', 'My region'), sub:myRegionIds().map((id) => data.region(id)?.label || id).join(', ') };
-      if (selection.mode === 'all') return { title:t('all_branches', 'All branches'), sub:kit.countPhrase([[chosen.length, t('branch_one', 'branch'), t('branch_many', 'branches')]]) };
-      if (!chosen.length) return { title:t('no_branches', 'No branches'), sub:t('nothing_shown', 'Nothing shown') };
-      if (chosen.length === 1) return { title:data.branchName(chosen[0]), sub:t('branch', 'Branch') };
-      return { title:kit.countPhrase([[chosen.length, t('branch_one', 'branch'), t('branch_many', 'branches')]]), sub:chosen.map(data.branchName).join(', ') };
+      if (selection.mode === 'mine') return { title:bt('my_branch', 'My {w_branch}'), sub:myIds().map(data.branchName).join(', ') };
+      if (selection.mode === 'region') return { title:bt('my_region', 'My {w_region}'), sub:myRegionIds().map((id) => data.region(id)?.label || id).join(', ') };
+      if (selection.mode === 'all') return { title:bt('all_branches', 'All {w_branches}'), sub:kit.countPhrase([[chosen.length, bt('branch_one', '{w_branch}'), bt('branch_many', '{w_branches}')]]) };
+      if (!chosen.length) return { title:bt('no_branches', 'No {w_branches}'), sub:t('nothing_shown', 'Nothing shown') };
+      if (chosen.length === 1) return { title:data.branchName(chosen[0]), sub:bt('branch', '{w_Branch}') };
+      return { title:kit.countPhrase([[chosen.length, bt('branch_one', '{w_branch}'), bt('branch_many', '{w_branches}')]]), sub:chosen.map(data.branchName).join(', ') };
     }
     function paint(){
       if (!host) return;
       if (!active()) { layer?.close(); host.replaceChildren(); return; }
       const { title, sub } = label();
-      const name = t('branches_shown', 'Branches shown: {title}, {sub}', { title, sub });
+      const name = bt('branches_shown', '{w_Branches} shown: {title}, {sub}', { title, sub });
       let button = host.querySelector('[data-branch-filter]');
       if (!button) {
         host.innerHTML = `<button type="button" class="pp-branch-btn" data-branch-filter aria-haspopup="dialog" aria-expanded="false"><i class="fas fa-location-dot" aria-hidden="true"></i><span class="pp-branch-text"><b></b><small></small></span><i class="fas fa-chevron-down pp-caret" aria-hidden="true"></i></button>`;
@@ -311,23 +389,23 @@
         const state = picked === 0 ? 'false' : picked === inside.length ? 'true' : 'mixed';
         const open = !folded.has(String(region.id));
         const listId = `pp-bf-${String(region.id).replace(/[^a-zA-Z0-9_-]/g, '')}`;
-        return `<li data-bf-region="${esc(region.id)}"><div class="pp-bf-rhead"><button type="button" class="pp-bf-fold" data-bf-fold="${esc(region.id)}" aria-expanded="${open}" aria-controls="${listId}" aria-label="${esc(t(open ? 'hide_branches_of' : 'show_branches_of', open ? 'Hide the branches of {region}' : 'Show the branches of {region}', { region:region.label }))}"><i class="fas fa-chevron-down" aria-hidden="true"></i></button><button type="button" class="pp-bf-pick" role="checkbox" aria-checked="${state}" data-bf-region-pick="${esc(region.id)}"${tip(t('region_pick_tip', 'Choose every branch in {region}', { region:region.label }))}>${box}<span class="pp-bf-name">${esc(region.label)}</span><span class="pp-bf-mine">${picked}/${inside.length}</span></button></div><ul class="pp-bf-branches" id="${listId}" ${open ? '' : 'hidden'}>${inside.map((id) => data.branch(id)).filter(Boolean).map(branchItem).join('')}</ul></li>`;
+        return `<li data-bf-region="${esc(region.id)}"><div class="pp-bf-rhead"><button type="button" class="pp-bf-fold" data-bf-fold="${esc(region.id)}" aria-expanded="${open}" aria-controls="${listId}" aria-label="${esc(t(open ? 'hide_branches_of' : 'show_branches_of', open ? 'Hide the branches of {region}' : 'Show the branches of {region}', { region:region.label }))}"><i class="fas fa-chevron-down" aria-hidden="true"></i></button><button type="button" class="pp-bf-pick" role="checkbox" aria-checked="${state}" data-bf-region-pick="${esc(region.id)}"${tip(bt('region_pick_tip', 'Choose every {w_branch} in {{w_region}}', { region:region.label }))}>${box}<span class="pp-bf-name">${esc(region.label)}</span><span class="pp-bf-mine">${picked}/${inside.length}</span></button></div><ul class="pp-bf-branches" id="${listId}" ${open ? '' : 'hidden'}>${inside.map((id) => data.branch(id)).filter(Boolean).map(branchItem).join('')}</ul></li>`;
       }).join('');
       const loose = looseBranches();
       const quick = [
-        { id:'mine', label:t('my_branch', 'My branch') },
-        regionAllowed() ? { id:'region', label:t('my_region', 'My region') } : null,
+        { id:'mine', label:bt('my_branch', 'My {w_branch}') },
+        regionAllowed() ? { id:'region', label:bt('my_region', 'My {w_region}') } : null,
         { id:'all', label:t('all', 'All') }
       ].filter(Boolean);
       panel.innerHTML = `<div class="pp-bf-quick" role="group" aria-label="${esc(t('quick_choices', 'Quick choices'))}">${quick.map((item) => `<button type="button" data-bf-quick="${item.id}" aria-pressed="${selection.mode === item.id}">${esc(item.label)}</button>`).join('')}</div>
-        <ul class="pp-bf-tree" role="list">${regionHtml}${loose.length ? `${regions.length ? `<li class="pp-bf-heading">${esc(t('not_in_region', 'Not in a region'))}</li>` : ''}<li><ul class="pp-bf-branches loose">${loose.map(branchItem).join('')}</ul></li>` : ''}</ul>
-        <div class="pp-bf-foot"><button type="button" data-bf-select-all>${esc(t('select_all', 'Select all'))}</button><button type="button" data-bf-none>${esc(t('select_none', 'None'))}</button></div>`;
+        <ul class="pp-bf-tree" role="list">${regionHtml}${loose.length ? `${regions.length ? `<li class="pp-bf-heading">${esc(bt('not_in_region', 'Not in a {w_region}'))}</li>` : ''}<li><ul class="pp-bf-branches loose">${loose.map(branchItem).join('')}</ul></li>` : ''}</ul>
+        <div class="pp-bf-foot">${options.bulk && canSetMembership(options.bulk.kind) ? `<button type="button" class="pp-bf-bulk" data-bf-bulk>${esc(bt('set_branches_shown', 'Set {w_branches} of those shown'))}</button>` : ''}<button type="button" data-bf-select-all>${esc(t('select_all', 'Select all'))}</button><button type="button" data-bf-none>${esc(t('select_none', 'None'))}</button></div>`;
     }
     function openPanel(button){
       const panel = document.createElement('div');
       panel.className = 'pp-bf';
       panel.setAttribute('role', 'dialog');
-      panel.setAttribute('aria-label', t('branches', 'Branches'));
+      panel.setAttribute('aria-label', bt('branches', '{w_Branches}'));
       drawPanel(panel);
       layer = kit.layer(button, panel, { align:'end', onClose(){ layer = null; } });
       const refocus = (selector) => panel.querySelector(selector)?.focus();
@@ -355,7 +433,9 @@
           return;
         }
         if (event.target.closest('[data-bf-select-all]')) { choose(visibleIds()); refocus('[data-bf-select-all]'); return; }
-        if (event.target.closest('[data-bf-none]')) { choose([]); refocus('[data-bf-none]'); }
+        if (event.target.closest('[data-bf-none]')) { choose([]); refocus('[data-bf-none]'); return; }
+        const bulkButton = event.target.closest('[data-bf-bulk]');
+        if (bulkButton) { const anchor = host.querySelector('[data-branch-filter]') || bulkButton; layer?.close(); bulkMembership(anchor, options.bulk); }
       });
       panel.addEventListener('change', (event) => {
         const box = event.target.closest('[data-bf-branch]');
@@ -375,5 +455,5 @@
     };
   }
 
-  People.branches = { open, filter, manageable, writes, friendly, ensureStyles };
+  People.branches = { open, filter, manageable, writes, friendly, ensureStyles, membershipSection, editMembership, setMembership, bulkMembership };
 })();

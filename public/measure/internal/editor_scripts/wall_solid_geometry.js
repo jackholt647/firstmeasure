@@ -10,7 +10,9 @@ function normal(points){return K.normal(points);}
 // XY must lie on the actual boundary: nearby independent lines stay separate.
 function bindSharedBase(faces){
  const bases=faces.filter(f=>f.baseFaceId!=null||f.baseId!=null),edges=bases.flatMap(f=>rings(f).flatMap(r=>r.map((a,i)=>[a,r[(i+1)%r.length]])));
- const point=p=>{let nearest=null,error=.002;for(const [a,b]of edges){const dx=b.x-a.x,dy=b.y-a.y,l2=dx*dx+dy*dy;if(l2<K.CONTACT*K.CONTACT)continue;const t=((p.x-a.x)*dx+(p.y-a.y)*dy)/l2;if(t<0||t>1||Math.hypot(p.x-a.x-t*dx,p.y-a.y-t*dy)>K.CONTACT)continue;const q=mix3(a,b,t),d=Math.abs(p.z-q.z);if(d<error){nearest=q;error=d;}}return nearest?{...p,...nearest}:p;};
+ // A binding edge lies within CONTACT of the point in plan and .002 in height.
+ const boxes=edges.map(edge=>contactBox(edge,K.CONTACT+1e-6,.002+1e-6)),all=boxes.every(Boolean)?contactBox(boxes.flatMap(b=>[{x:b.x0,y:b.y0,z:b.z0},{x:b.x1,y:b.y1,z:b.z1}]),0):null;
+ const point=p=>{if(edges.length&&!inContactBox(p,all))return p;let nearest=null,error=.002;for(let i=0;i<edges.length;i++){if(!inContactBox(p,boxes[i]))continue;const [a,b]=edges[i],dx=b.x-a.x,dy=b.y-a.y,l2=dx*dx+dy*dy;if(l2<K.CONTACT*K.CONTACT)continue;const t=((p.x-a.x)*dx+(p.y-a.y)*dy)/l2;if(t<0||t>1||Math.hypot(p.x-a.x-t*dx,p.y-a.y-t*dy)>K.CONTACT)continue;const q=mix3(a,b,t),d=Math.abs(p.z-q.z);if(d<error){nearest=q;error=d;}}return nearest?{...p,...nearest}:p;};
  return {point,faces:faces.map(f=>f.baseFaceId!=null||f.baseId!=null?f:{...f,points:f.points.map(point),holes:(f.holes||[]).map(r=>r.map(point)),retainedPoints:(f.retainedPoints||[]).map(point)})};
 }
 // Resolve selected visual runs against all face intervals, not a count of
@@ -359,7 +361,9 @@ function reshapeSplineFace(face,map){
 }
 function transformSelection(scene,original,preview,options={}){
  const moves=original.points.map((from,i)=>({from,to:preview.points[i]}));
- const find=p=>moves.find(m=>Math.hypot(p.x-m.from.x,p.y-m.from.y,p.z-m.from.z)<=K.CONTACT);
+ // A move applies within CONTACT of its start; points outside the bounds of the
+ // current starts (rebuilt when stickers add moves) cannot match one.
+ let box=null,boxed=-1;const find=p=>{if(boxed!==moves.length){box=contactBox(moves.map(m=>m.from),2*K.CONTACT);boxed=moves.length;}return inContactBox(p,box)?moves.find(m=>Math.hypot(p.x-m.from.x,p.y-m.from.y,p.z-m.from.z)<=K.CONTACT):undefined;};
  // Carry interior stickers for whole-face translations as well as normal moves.
  for(const source of scene.filter(f=>!f.feature&&!f.deleted)){
   const corners=source.points.map(find);if(corners.some(m=>!m))continue;
@@ -372,7 +376,7 @@ function transformSelection(scene,original,preview,options={}){
   const transformed=whole&&copied>=0?preview.faces[copied]:null;
   if(!transformed){const reshaped=reshapeSplineFace(f,mapped);if(reshaped)return reshaped;}
   return {...f,...(transformed?K.mapCurveData(transformed,p=>({...p})):{}),points:transformed?transformed.points:f.points.map(mapped),holes:transformed?transformed.holes:(f.holes||[]).map(r=>r.map(mapped)),retainedPoints:(f.retainedPoints||[]).map(mapped),...(transformed?.feature?{feature:transformed.feature}:{})};
- });return followTrim(scene,{faces,moves,affected},scene.filter(f=>f.points.every(p=>original.points.some(q=>vertexKey(p)===vertexKey(q)))).map(f=>f.id),options.keepTrimStatic);
+ });const originalKeys=new Set(original.points.map(vertexKey));return followTrim(scene,{faces,moves,affected},scene.filter(f=>f.points.every(p=>originalKeys.has(vertexKey(p)))).map(f=>f.id),options.keepTrimStatic);
 }
 // Fit against the actual connected geometry too: footprint bounds alone do not
 // catch a neighboring face folding or collapsing as its shared vertices move.
@@ -762,6 +766,12 @@ function trimExtrusion(sides,neighbors){
 }
 const mix3=(a,b,t)=>({x:a.x+(b.x-a.x)*t,y:a.y+(b.y-a.y)*t,z:a.z+(b.z-a.z)*t});
 const rings=f=>[f.points,...(f.holes||[])];
+// Conservative bounds for an exact contact test: a point outside the box cannot
+// pass the test it was built for, so only those calls are skipped and every other
+// candidate keeps its original test and order. Margins include the test's own
+// tolerance plus slack. Non-finite coordinates give no box, so every test runs.
+function contactBox(points,margin,zMargin=margin){let x0=Infinity,y0=Infinity,z0=Infinity,x1=-Infinity,y1=-Infinity,z1=-Infinity;for(const p of points){const x=p.x,y=p.y,z=p.z;if(!Number.isFinite(x)||!Number.isFinite(y)||!Number.isFinite(z))return null;if(x<x0)x0=x;if(x>x1)x1=x;if(y<y0)y0=y;if(y>y1)y1=y;if(z<z0)z0=z;if(z>z1)z1=z;}return {x0:x0-margin,x1:x1+margin,y0:y0-margin,y1:y1+margin,z0:z0-zMargin,z1:z1+zMargin};}
+function inContactBox(p,box){return !box||p.x>=box.x0&&p.x<=box.x1&&p.y>=box.y0&&p.y<=box.y1&&p.z>=box.z0&&p.z<=box.z1;}
 function sharedIntervals(a,b,faces){
  const ux=b.x-a.x,uy=b.y-a.y,uz=b.z-a.z,l2=ux*ux+uy*uy+uz*uz;if(l2<1e-12)return [];const intervals=[];
  const minX=Math.min(a.x,b.x)-1e-5,maxX=Math.max(a.x,b.x)+1e-5,minY=Math.min(a.y,b.y)-1e-5,maxY=Math.max(a.y,b.y)+1e-5,minZ=Math.min(a.z,b.z)-1e-5,maxZ=Math.max(a.z,b.z)+1e-5;
@@ -780,13 +790,19 @@ function freeEdges(face,supports){const edges=[];for(const ring of rings(face))f
 function pointOnEdge(p,a,b){const u=sub(b,a),l2=dot(u,u);if(l2<1e-12)return false;const t=dot(sub(p,a),u)/l2;return t>=-1e-6&&t<=1+1e-6&&Math.hypot(...Object.values(sub(p,mix3(a,b,t))))<1e-5;}
 function slideLines(faces,pairs,direction,amount,options={}){
  const bound=Math.abs(amount)>1e-12?bindSharedBase(faces):{faces,point:p=>p};faces=bound.faces;pairs=pairs.map(pair=>pair.map(bound.point));
- const selected=p=>pairs.some(([a,b])=>Math.hypot(a.x-b.x,a.y-b.y,a.z-b.z)<1e-8?Math.hypot(p.x-a.x,p.y-a.y,p.z-a.z)<1e-5:pointOnEdge(p,a,b)),vertices=[...pairs.flat(),...faces.flatMap(f=>[...rings(f).flat(),...(f.retainedPoints||[])])].filter(selected),moves=[];
+ // pointOnEdge holds within 1e-5 of the segment extended by 1e-6 of its length.
+ const pairBoxes=pairs.map(pair=>contactBox(pair,2e-5+2e-6*Math.hypot(pair[0].x-pair[1].x,pair[0].y-pair[1].y,pair[0].z-pair[1].z)));
+ const selected=p=>pairs.some(([a,b],i)=>inContactBox(p,pairBoxes[i])&&(Math.hypot(a.x-b.x,a.y-b.y,a.z-b.z)<1e-8?Math.hypot(p.x-a.x,p.y-a.y,p.z-a.z)<1e-5:pointOnEdge(p,a,b))),vertices=[...pairs.flat(),...faces.flatMap(f=>[...rings(f).flat(),...(f.retainedPoints||[])])].filter(selected),moves=[];
  for(const p of vertices)if(!moves.some(m=>Math.hypot(...Object.values(sub(m.from,p)))<1e-6)){
   const target=options.pointMoves?.find(m=>Math.hypot(...Object.values(sub(bound.point(m.from),p)))<1e-5)?.to;
   moves.push({from:p,to:target||{x:p.x+direction.x*amount,y:p.y+direction.y*amount,z:p.z+direction.z*amount}});
  }
- const matching=p=>moves.find(m=>Math.hypot(...Object.values(sub(m.from,p)))<1e-5),affected=[],returns=[];
+ const moveBox=contactBox(moves.map(m=>m.from),2e-5),matching=p=>inContactBox(p,moveBox)?moves.find(m=>Math.hypot(...Object.values(sub(m.from,p)))<1e-5):undefined,affected=[],returns=[];
+ // A face is incident only if a moved point lies within 1e-5 of one of its
+ // points, or a selected endpoint lies on one of its edges (see pointOnEdge).
+ const probes=[...moves.map(m=>m.from),...pairs.flat()],touches=f=>{const ps=[...rings(f).flat(),...(f.retainedPoints||[])];let longest=0;for(const r of rings(f))for(let i=0;i<r.length;i++){const a=r[i],b=r[(i+1)%r.length];longest=Math.max(longest,Math.hypot(a.x-b.x,a.y-b.y,a.z-b.z));}const box=Number.isFinite(longest)?contactBox(ps,2e-5+2e-6*longest):null;return !box||probes.some(p=>inContactBox(p,box));};
  const result=faces.map(f=>{if(f.deleted)return f;
+  if(!touches(f))return f;
   // Only incident faces can change. Normalizing every other polygon makes a
   // one-point edit pay the triangulation cost of the entire building.
   if(![...rings(f).flat(),...(f.retainedPoints||[])].some(matching)&&!rings(f).some(r=>r.some((a,i)=>pairs.flat().some(p=>pointOnEdge(p,a,r[(i+1)%r.length])))))return f;
@@ -815,9 +831,9 @@ function slideLines(faces,pairs,direction,amount,options={}){
    return f;
   }
   const next=K.normalizeFace({...f,...(curveChanges.length?{curves:f.curves.map(c=>curveChanges.find(change=>change.curve===c)?.next||c)}:{}),points:replace(f.points),holes:(f.holes||[]).map(replace),retainedPoints:(f.retainedPoints||[]).map(translated)});
-  if(JSON.stringify(next.points)===JSON.stringify(f.points)&&JSON.stringify(next.holes)===JSON.stringify(f.holes||[])&&JSON.stringify(next.retainedPoints)===JSON.stringify(f.retainedPoints||[]))return f;
+  if(jsonEqual(next.points,f.points)&&jsonEqual(next.holes,f.holes||[])&&jsonEqual(next.retainedPoints,f.retainedPoints||[]))return f;
   const frame=faceFrame(next);if(!frame||rings(next).flat().some(p=>Math.abs(dot(sub(p,frame.origin),frame.n))>1e-5))throw Error('That position would bend an adjoining face out of plane.');
-  for(const ring of rings(next))baseGeometry().validate({points:ring.map(p=>inFrame(frame,p))});if(JSON.stringify(next.points)!==JSON.stringify(f.points)||JSON.stringify(next.holes)!==JSON.stringify(f.holes||[]))affected.push(f.id);return next;
+  for(const ring of rings(next))baseGeometry().validate({points:ring.map(p=>inFrame(frame,p))});if(!jsonEqual(next.points,f.points)||!jsonEqual(next.holes,f.holes||[]))affected.push(f.id);return next;
  });
  // Keep only uncovered return material; the selected supporting face may
  // already contain the swept strip. Never subtract it from that face.
@@ -898,15 +914,17 @@ function followTrim(scene,result,selectedIds=[],keepStatic=false){
  for(const [id,face]of changed)try{K.validateFace(face);}catch(e){e.message+=' [trim '+id+']';throw e;}
  // Repair the other side of each moved trim boundary as part of the same
  // transaction. This stretches return-wall faces and the ends of crossing bands.
- const bindings=scene.filter(f=>maps.has(f.id)).flatMap(f=>edges(f).map(([a,b])=>({a,b,map:maps.get(f.id)})));
- const bindingPoint=(p,available)=>{for(const {a,b,map}of available)if(pointOnEdge(p,a,b)){const q=map(p);if(Math.hypot(...Object.values(sub(q,p)))>1e-8)return {...p,...q};}return p;},bind=p=>bindingPoint(p,bindings);
+ // Each binding carries the bounds within which pointOnEdge can hold.
+ const binding=(a,b,map)=>({a,b,map,box:contactBox([a,b],2e-5+2e-6*Math.hypot(a.x-b.x,a.y-b.y,a.z-b.z))});
+ const bindings=scene.filter(f=>maps.has(f.id)).flatMap(f=>edges(f).map(([a,b])=>binding(a,b,maps.get(f.id))));
+ const bindingPoint=(p,available)=>{for(const {a,b,map,box}of available)if(inContactBox(p,box)&&pointOnEdge(p,a,b)){const q=map(p);if(Math.hypot(...Object.values(sub(q,p)))>1e-8)return {...p,...q};}return p;},bind=p=>bindingPoint(p,bindings);
  if(!keepStatic)for(const face of [...scene.filter(f=>f.trim),...scene.filter(f=>!f.trim)]){if(selected.has(face.id)||changed.has(face.id)||face.feature||face.deleted||face.snapOnly)continue;
   if(!rings(face).flat().some(p=>bind(p)!==p))continue;
   const available=bindings.slice(),map=face.trim?trimRunMap(face,p=>bindingPoint(p,available)):p=>bindingPoint(p,available);
   const next={...face,points:face.points.map(map),holes:(face.holes||[]).map(r=>r.map(map)),retainedPoints:(face.retainedPoints||[]).filter(p=>!face.trim||ownsPoint(face,p)).map(map)};
   if(face.trimData)next.trimData={...face.trimData,layers:face.trimData.layers.map(l=>({...l,pair:l.pair?.map(map)}))};
   const support=faceFrame(face);if(!support||next.points.some(p=>Math.abs(dot(sub(p,support.origin),support.n))>K.CONTACT))continue;
-  const normalized=[K.normalizeFace(next,true)].flat();normalized.forEach(K.validateFace);changed.set(face.id,normalized[0]);if(normalized.length>1)fragments[face.id]=normalized.slice(1);maps.set(face.id,map);if(face.trim)bindings.push(...edges(face).map(([a,b])=>({a,b,map})));
+  const normalized=[K.normalizeFace(next,true)].flat();normalized.forEach(K.validateFace);changed.set(face.id,normalized[0]);if(normalized.length>1)fragments[face.id]=normalized.slice(1);maps.set(face.id,map);if(face.trim)bindings.push(...edges(face).map(([a,b])=>binding(a,b,map)));
  }
  // Publish one authoritative destination for each anchor. Intermediate corner
  // maps must not leave duplicate moves whose first entry wins in draft rebinding.
@@ -926,7 +944,7 @@ function moveFabric(faces,id,amount,options={}){
  const moves=graph.vertices.filter(v=>v.faces.has(id)||[...v.faces].some(id=>attached.has(id))||v.anchors.some(p=>(source.retainedPoints||[]).some(q=>Math.hypot(q.x-p.x,q.y-p.y,q.z-p.z)<=K.CONTACT))).map(v=>v.point).map(p=>({from:p,to:{x:p.x+n.x*amount,y:p.y+n.y*amount,z:p.z+n.z*amount}}));
  const replace=ring=>{const expanded=[];for(let i=0;i<ring.length;i++){const a=ring[i],b=ring[(i+1)%ring.length],u=sub(b,a),l2=dot(u,u);expanded.push(a);const cuts=moves.filter(m=>pointOnEdge(m.from,a,b)).map(m=>({p:m.from,t:l2?dot(sub(m.from,a),u)/l2:0})).filter(v=>v.t>1e-6&&v.t<1-1e-6).sort((a,b)=>a.t-b.t);for(const v of cuts)if(!expanded.some(p=>vertexKey(p)===vertexKey(v.p)))expanded.push(v.p);}return expanded.map(p=>({...p,...(moves.find(m=>Math.hypot(m.from.x-p.x,m.from.y-p.y,m.from.z-p.z)<=K.CONTACT)?.to||{})}));};
  const affected=new Set([id]);
- const moved=faces.map(f=>{if(f.deleted)return f;const next={...f,retainedPoints:(f.retainedPoints||[]).map(p=>({...p,...(moves.find(m=>Math.hypot(m.from.x-p.x,m.from.y-p.y,m.from.z-p.z)<=K.CONTACT)?.to||{})})),points:replace(f.points),holes:(f.holes||[]).map(replace)};if(JSON.stringify(next.points)===JSON.stringify(f.points)&&JSON.stringify(next.holes)===JSON.stringify(f.holes||[]))return f;affected.add(f.id);
+ const moved=faces.map(f=>{if(f.deleted)return f;const next={...f,retainedPoints:(f.retainedPoints||[]).map(p=>({...p,...(moves.find(m=>Math.hypot(m.from.x-p.x,m.from.y-p.y,m.from.z-p.z)<=K.CONTACT)?.to||{})})),points:replace(f.points),holes:(f.holes||[]).map(replace)};if(jsonEqual(next.points,f.points)&&jsonEqual(next.holes,f.holes||[]))return f;affected.add(f.id);
   return next;
  });
  // The caller may construct connecting returns, but must never silently detach.
@@ -1091,8 +1109,38 @@ function quadDraftSnap(raw,corners,nodes,edges,anchors,screen,radius=20,options=
  return valid(fallback.point)?fallback:{point:raw,guides:[],kind:null};
 }
 // Face visibility is independent of its retained boundary wire.
-const vertexKey=p=>[p.x,p.y,p.z].map(v=>Number(v).toFixed(6)).join(',');
-const edgeKey=(a,b)=>[vertexKey(a),vertexKey(b)].sort().join('|');
+// Same strings as [x,y,z].map(v=>Number(v).toFixed(6)).join(',') and a
+// default-sorted pair joined by '|', without the temporary arrays.
+const vertexKey=p=>Number(p.x).toFixed(6)+','+Number(p.y).toFixed(6)+','+Number(p.z).toFixed(6);
+const edgeKey=(a,b)=>{const x=vertexKey(a),y=vertexKey(b);return y<x?y+'|'+x:x+'|'+y;};
+// JSON.stringify(a)===JSON.stringify(b) for data JSON.stringify accepts, without
+// building either string. JSON kinds: 0 omitted (undefined, function, symbol),
+// 1 null (also NaN and infinities), 2 boolean, 3 finite number (-0 equals 0),
+// 4 string, 5 array, 6 object; omitted array members serialize as null.
+// toJSON, boxed primitives, other classes and BigInt use the string comparison.
+const JSON_EQUAL_FAIL={},JSON_EQUAL_ROOT=Object.prototype,jsonEqualTag=Object.prototype.toString;
+function jsonKind(v){
+ switch(typeof v){
+  case 'undefined':case 'function':case 'symbol':return 0;
+  case 'boolean':return 2;case 'number':return v-v===0?3:1;case 'string':return 4;
+  case 'object':{if(v===null)return 1;if(typeof v.toJSON==='function')throw JSON_EQUAL_FAIL;if(Array.isArray(v))return 5;
+   const p=Object.getPrototypeOf(v);if(p!==JSON_EQUAL_ROOT&&(p===null?typeof JSON.isRawJSON==='function'&&JSON.isRawJSON(v):Object.getPrototypeOf(p)!==null||jsonEqualTag.call(v)!=='[object Object]'))throw JSON_EQUAL_FAIL;return 6;}
+  default:throw JSON_EQUAL_FAIL;
+ }
+}
+function jsonSame(a,b,kind){
+ if(kind<2)return true;if(kind<5)return a===b;
+ if(kind===5){const n=a.length;if(n!==b.length)return false;for(let i=0;i<n;i++){const x=a[i],y=b[i],kx=jsonKind(x)||1;if(kx!==(jsonKind(y)||1)||!jsonSame(x,y,kx))return false;}return true;}
+ const ka=Object.keys(a),kb=Object.keys(b);let i=0,j=0;
+ for(;;){
+  let x,kx=0,y,ky=0;
+  for(;i<ka.length;i++){x=a[ka[i]];kx=jsonKind(x);if(kx)break;}
+  for(;j<kb.length;j++){y=b[kb[j]];ky=jsonKind(y);if(ky)break;}
+  if(i>=ka.length||j>=kb.length)return i>=ka.length&&j>=kb.length;
+  if(ka[i]!==kb[j]||kx!==ky||!jsonSame(x,y,kx))return false;i++;j++;
+ }
+}
+function jsonEqual(a,b){try{const kind=jsonKind(a);return kind===jsonKind(b)&&jsonSame(a,b,kind);}catch{return JSON.stringify(a)===JSON.stringify(b);}}
 // Sorted-axis broad phase for point/segment contact searches. Query the most
 // selective axis, then apply the full box; callers retain their exact contact test.
 function pointRangeIndex(points){
@@ -1112,7 +1160,7 @@ function restoreCreatedSurfaceWire(edits,before={}){
  if(!oldPoints.size&&!oldEdges.size)return;
  const old=new Map((before.$surfaces||[]).map(f=>[f.id,f])),created=[],points=new Set();
  for(const f of edits.$surfaces||[]){if(f.deleted||f.drafted||f.replacedBy)continue;const prior=old.get(f.id),live=prior&&!prior.deleted&&!prior.drafted&&!prior.replacedBy?prior:null;
-  if(live&&JSON.stringify(rings(live))===JSON.stringify(rings(f)))continue;const previous=new Set(live?rings(live).flat().map(vertexKey):[]);
+  if(live&&jsonEqual(rings(live),rings(f)))continue;const previous=new Set(live?rings(live).flat().map(vertexKey):[]);
   for(const r of rings(f))for(let i=0;i<r.length;i++){const a=r[i],b=r[(i+1)%r.length];if(!previous.has(vertexKey(a)))points.add(vertexKey(a));if(!live||sharedIntervals(a,b,[live]).reduce((n,[lo,hi])=>n+hi-lo,0)<1-1e-7)created.push({points:[a,b]});}
  }
  const previousLoosePoints=new Set((before.$loose?.points||[]).map(vertexKey)),previousLooseEdges=(before.$loose?.edges||[]).map(points=>({points})),previousLooseKeys=new Set((before.$loose?.edges||[]).map(pair=>edgeKey(...pair))),newLoosePoints=(edits.$loose?.points||[]).filter(p=>!previousLoosePoints.has(vertexKey(p))),newLooseEdges=(edits.$loose?.edges||[]).filter(pair=>!previousLooseKeys.has(edgeKey(...pair))&&sharedIntervals(...pair,previousLooseEdges).reduce((n,[lo,hi])=>n+hi-lo,0)<1-1e-7);
@@ -1304,10 +1352,15 @@ function motionSnapCandidates(points,edges,direction,faces,options={}){
  return candidates;
 }
 function motionSnap(points,edges,direction,amount,faces,options={}){
- const candidates=options.candidates||motionSnapCandidates(points,edges,direction,faces,options);let best=null;
+ const candidates=options.candidates||motionSnapCandidates(points,edges,direction,faces,options),radius=options.radius??.15,screens=new Map();let best=null;
  for(const candidate of candidates){const t=candidate.amount,p=candidate.from;let distance=Math.abs(t-amount);
-  if(options.screen){const at=t=>({x:p.x+direction.x*t,y:p.y+direction.y*t,z:p.z+direction.z*t}),a=options.screen(at(amount)),b=options.screen(at(t));if(a.visible===false||b.visible===false)continue;distance=Math.max(Math.hypot(a.x-b.x,a.y-b.y),Math.abs(t-amount)*(options.minPixelsPerMeter||0));}
-  if(!Number.isFinite(distance)||distance>(options.radius??.15))continue;
+  if(options.screen){
+   // The metric floor alone can exceed the radius; such a candidate is rejected
+   // whatever its projection, so it is not projected. Each start point's current
+   // position is projected once per call (the screen mapping is pure).
+   const floor=Math.abs(t-amount)*(options.minPixelsPerMeter||0);if(floor>radius)continue;
+   const at=t=>({x:p.x+direction.x*t,y:p.y+direction.y*t,z:p.z+direction.z*t});let a=screens.get(p);if(a===undefined){a=options.screen(at(amount));screens.set(p,a);}const b=options.screen(at(t));if(a.visible===false||b.visible===false)continue;distance=Math.max(Math.hypot(a.x-b.x,a.y-b.y),floor);}
+  if(!Number.isFinite(distance)||distance>radius)continue;
   if(!best||distance<best.distance-1e-7||(Math.abs(distance-best.distance)<1e-7&&candidate.kind==='Point'))best={...candidate,distance};
  }return best;
 }
@@ -1343,5 +1396,5 @@ function inwardSign(face,bases){
  for(const distance of [.005,.02,.1]){const a=inside({x:c.x+n.x*distance,y:c.y+n.y*distance}),b=inside({x:c.x-n.x*distance,y:c.y-n.y*distance});if(a!==b)return a?1:-1;}
  return null;
 }
-const api={horizontalSweep,ownsPoint,followTrim,pointRangeIndex,stickerAlignmentTargets,planeAlignment,planeAlignmentGuides,adoptMergedFaceSources,faceFromPoints,mergeAtPoints,fillet,validTranslation,boundedTranslation,geometryScale,snapGeometryScale,snapGeometryOnPlane,transformGeometry,transformSelection,clipboardFrame,copyGeometry,pasteGeometry,mergeConnectedFaces,pointChamferSnap,chamferSnap,chamfer,roofExtrusion,inwardSign,cleanupSweepRemnants,sweepRemnant,motionSnapCandidates,structuralIndex,joinFragments,motionSnap,slideLines,attachedLengths,unionPlanar,trimExtrusion,moveFabric,radialDraftSnap,quadDraftSnap,normal,extrusionDirections,extrusionReference,extrude,snapDirection,bridges,dragAmount,subtract,snapBase,baseScope,belowBase,draftSnap,vertexKey,edgeKey,surfaceWire,restoreCreatedSurfaceWire,structuralPoint,structuralEdge,deleteSurfaceElements,removeFaceEdges,restoreSurface,sharedIntervals,freeEdges,moveSurface,faceFrame,inFrame,fromFrame,containedBy,coplanarContact,containedSnap,importDraft};if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.WallSolidGeometry=api;
+const api={horizontalSweep,ownsPoint,followTrim,pointRangeIndex,stickerAlignmentTargets,planeAlignment,planeAlignmentGuides,adoptMergedFaceSources,faceFromPoints,mergeAtPoints,fillet,validTranslation,boundedTranslation,geometryScale,snapGeometryScale,snapGeometryOnPlane,transformGeometry,transformSelection,clipboardFrame,copyGeometry,pasteGeometry,mergeConnectedFaces,pointChamferSnap,chamferSnap,chamfer,roofExtrusion,inwardSign,cleanupSweepRemnants,sweepRemnant,motionSnapCandidates,structuralIndex,joinFragments,motionSnap,slideLines,attachedLengths,unionPlanar,trimExtrusion,moveFabric,radialDraftSnap,quadDraftSnap,normal,extrusionDirections,extrusionReference,extrude,snapDirection,bridges,dragAmount,subtract,snapBase,baseScope,belowBase,draftSnap,vertexKey,edgeKey,jsonEqual,contactBox,inContactBox,surfaceWire,restoreCreatedSurfaceWire,structuralPoint,structuralEdge,deleteSurfaceElements,removeFaceEdges,restoreSurface,sharedIntervals,freeEdges,moveSurface,faceFrame,inFrame,fromFrame,containedBy,coplanarContact,containedSnap,importDraft};if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.WallSolidGeometry=api;
 })(typeof window!=='undefined'?window:globalThis);

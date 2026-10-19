@@ -106,6 +106,9 @@ function publicPayment(value: unknown) {
       name: cleanText(asObject(payment.schedule).name)
     },
     allocations,
+    // Paid through payables: a bill due on the payee's terms, paid when payables pays it (payables.ts).
+    paid_through: cleanText(asObject(payment.metadata).paid_through) || "payroll",
+    due_date: cleanText(asObject(payment.metadata).due_date),
     run_at: cleanText(payment.run_at),
     paid_at: cleanText(payment.paid_at)
   };

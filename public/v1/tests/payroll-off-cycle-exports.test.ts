@@ -106,19 +106,20 @@ test('off-cycle payments subtract from the next pay run, exports follow Gusto an
       const aliceRow = gusto.find((row) => row[0] === 'Archer')!;
       assert.deepEqual(aliceRow.slice(0, 12), ['Archer', 'Alice', 'alice@example.com', '1000.00', '0.00', '0.00', '250.00', '0.00', '42.00', '-300.00', '0.00', '992.00']);
       assert.equal(gusto.some((row) => row.includes('Acme Roofing')), false, 'contractors are not in the employee file');
+      // An outside company is paid through payables: it is a bill, not a Gusto contractor payment.
       const contractors = await file('gusto_contractors');
       assert.deepEqual(contractors[0]!.slice(0, 6), ['Contractor', 'Email', 'Contractor Type', 'Wage', 'Reimbursement', 'Total']);
-      assert.deepEqual(contractors[1]!.slice(0, 6), ['Acme Roofing', '', 'Business', '800.00', '15.00', '815.00']);
-      assert.equal(contractors.length, 2);
+      assert.equal(contractors.length, 1);
       const quickbooks = await file('quickbooks_payroll');
       assert.deepEqual(quickbooks[0], ['Employee', 'Email', 'Pay Item', 'Amount', 'Pay date', 'Period start', 'Period end', 'Memo']);
       assert.deepEqual(quickbooks.filter((row) => row[0] === 'Alice Archer').map((row) => [row[2], row[3]]),
         [['Hourly pay', '1000.00'], ['Commission', '250.00'], ['Reimbursement', '42.00'], ['Already paid outside a pay run', '-300.00']]);
       const bills = await file('quickbooks_bills');
       assert.deepEqual(bills.slice(1).map((row) => [row[0], row[4], row[6]]), [['Acme Roofing', 'Subcontractor payments', '800.00'], ['Acme Roofing', 'Reimbursements', '15.00']]);
+      assert.deepEqual(bills.slice(1).map((row) => row[3]), [batch.pay_date, batch.pay_date], 'due on the pay date: Acme has no net days');
       const summary = await file('pay_run_summary');
       assert.deepEqual(summary.map((row) => [row[0], row[1], row[10]]).slice(1),
-        [['Employees', 'Alice Archer', '992.00'], ['Employees', 'Bob Builder', '0.00'], ['Employees', 'Employees total', '992.00'], ['Contractors', 'Acme Roofing', '815.00'], ['Contractors', 'Contractors total', '815.00'], ['Total', 'Pay run total', '1807.00']]);
+        [['Employees', 'Alice Archer', '992.00'], ['Employees', 'Bob Builder', '0.00'], ['Employees', 'Employees total', '992.00'], ['Bills', 'Acme Roofing', '815.00'], ['Bills', 'Bills total', '815.00'], ['Total', 'Pay run total', '1807.00']]);
       const pdf = await run(command, 'payroll.artifact.generate', { type: 'gusto_employees', format: 'pdf', batch_id: batch.id });
       assert.equal(pdf.metadata.format, 'csv', 'provider files are CSV only');
     });

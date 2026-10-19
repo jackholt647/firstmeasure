@@ -41,6 +41,18 @@ External access is restricted to the explicit adapters above. It is not general 
 
 The implementation is not yet the entire requested system. These limitations must not be presented as completed features. See the [development rollout record](../../deploy/digitalocean/development-organization-collaboration-20260930.md) for hosted acceptance, active artifacts and rollback.
 
+## Linking an existing outside company
+
+A partner invitation sent from an outside company's window in People names it
+(`workforce_connection_id` on the invitation). The company shows
+`link_status: "pending"` and `metadata.collaboration_invitation_id` /
+`collaboration_invitation_status` while it waits. When the invitation is
+accepted, `reconcileLocalContacts` links that company (`link_status: "linked"`,
+`linked_organization_id`, `metadata.collaboration_connection_id`) instead of
+creating a `partner_*` company; revoking it sets the company back to unlinked.
+Email goes through the communications service and is captured, never sent, in
+tests and on development.
+
 ## Verification
 
 - PostgreSQL integration: 8 tests pass for organization isolation, conditional edits, denials and recipient audience ceilings, identity-bound invitations, photo exclusions/privacy revocation, invitation races/replay, engagement lifecycle, mock payments/idempotency, real signing review/receipt flow, and shared-channel visibility/idempotency.

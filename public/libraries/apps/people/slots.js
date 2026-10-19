@@ -20,6 +20,7 @@
  *       // context.readOnly true when the viewer may not edit this entity
  *       // context.onDirty(isDirty)   tell the modal there are unsaved changes (enables its Save)
  *       // context.onSaved()          tell the modal a save you made yourself finished
+ *       // context.setStatus(state, text)   the modal's footer status ('' clears a notice the tab no longer stands by)
  *       return { save: async () => {}, destroy() {} };  // both optional; save() runs from the modal's Save
  *     }
  *   });
@@ -43,7 +44,9 @@
 
   const DECLARED = {
     compensation:{ label:() => t('compensation', 'Compensation'), icon:kit.ICONS.compensation },
-    fields:{ label:() => t('fields', 'Fields'), icon:kit.ICONS.fields }
+    fields:{ label:() => t('fields', 'Fields'), icon:kit.ICONS.fields },
+    /* Pay sheets: how an assignee prices each kind of work (pay-sheets-editor.js fills it). */
+    pay_sheets:{ label:() => t('pay_sheets', 'Pay sheets'), icon:'fa-file-invoice-dollar' }
   };
 
   function ensureStyles(){
@@ -111,6 +114,7 @@
           branchId:options.branchId || String(window.Portal?.branchModules?.currentBranchId?.() || window.__APP?.userBranchId || 'default'),
           readOnly:options.readOnly === true,
           onDirty:(isDirty = true) => ctx.setDirty(isDirty),
+          setStatus:(state, text) => ctx.setStatus(state, text),
           onSaved:() => { ctx.setDirty(false); ctx.setStatus('saved', t('saved', 'Saved')); }
         });
       }

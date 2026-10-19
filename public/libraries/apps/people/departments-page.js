@@ -115,7 +115,7 @@
       catch (error) { pageKit.failed(t('not_archived', 'Not archived'), error); return false; }
     }
     /* With several branches a department is made in a branch the viewer manages; the server puts it in their own otherwise. */
-    const branchField = (value) => data.allows('departments.branch') ? [{ id:'branch_id', label:t('branch', 'Branch'), type:'select', required:true, value:value || data.structure()?.my_branch_id || '', options:People.branches.manageable().map((entry) => ({ value:entry.id, label:data.branchName(entry.id) })) }] : [];
+    const branchField = (value) => data.allows('departments.branch') ? [{ id:'branch_id', label:data.bt('branch', '{w_Branch}'), type:'select', required:true, value:value || data.structure()?.my_branch_id || '', options:People.branches.manageable().map((entry) => ({ value:entry.id, label:data.branchName(entry.id) })) }] : [];
     const create = (button) => kit.form(button, {
       title:t('new_department', 'New {department}', { department:singular().toLowerCase() }), submitLabel:t('create', 'Create'),
       fields:[{ id:'label', label:t('name', 'Name'), required:true }, ...branchField()],
@@ -128,7 +128,7 @@
       if (!place.length) return null;
       const branch = place[place.length - 1];
       const order = data.departmentOutline({}).filter((row) => row.kind === 'branch').findIndex((row) => row.id === branch.id);
-      return { key:`branch:${branch.id}`, title:place.map((step) => step.label).join(' › '), icon:'fa-location-dot', tooltip:t('branch', 'Branch'), order };
+      return { key:`branch:${branch.id}`, title:place.map((step) => step.label).join(' › '), icon:'fa-location-dot', tooltip:data.bt('branch', '{w_Branch}'), order };
     }
     const memberCount = (department) => data.departmentMembers(department).users.length;
     const list = People.listPage.mount(container, {
@@ -172,13 +172,13 @@
         const model = data.departmentSummary(current(), draft);
         model.sections.forEach((section) => { if (editable) section.action = { id:section.id, label:section.id === 'roles' ? t('change_roles', 'Change roles') : t('change_types', 'Change types') }; });
         model.sections = model.sections.filter((section) => section.action || section.chips.length);
-        model.pills = data.multipleBranches() ? [{ label:data.branchName(draft.branch_id), tone:'neutral', icon:'fa-location-dot', tooltip:t('branch', 'Branch') }] : [];
+        model.pills = data.multipleBranches() ? [{ label:data.branchName(draft.branch_id), tone:'neutral', icon:'fa-location-dot', tooltip:data.bt('branch', '{w_Branch}') }] : [];
         People.lists.ensureStyles();
-        host.innerHTML = kit.summary(model, 'panel', { photoAction:editable ? t('icon_and_color', 'Icon and color') : '', photoIcon:'fa-palette', editAction:editable && !editing ? (data.allows('departments.branch') ? t('edit_department_name_branch', 'Edit name and branch') : t('edit_department_name', 'Edit name')) : '' })
+        host.innerHTML = kit.summary(model, 'panel', { photoAction:editable ? t('icon_and_color', 'Icon and color') : '', photoIcon:'fa-palette', editAction:editable && !editing ? (data.allows('departments.branch') ? data.bt('edit_department_name_branch', 'Edit name and {w_branch}') : t('edit_department_name', 'Edit name')) : '' })
           + `<div class="pp-sum-extra"><label class="pp-sum-switch"><i class="fas fa-hashtag" aria-hidden="true"></i><span>${esc(t('default_channel', 'Channel'))}</span>${kit.info(t('default_channel_tip', 'Keep a channel for this department that its members are in.'))}<button type="button" class="pp-switch" role="switch" data-dept-channel aria-checked="${draft.default_channel}" aria-label="${esc(t('default_channel', 'Channel'))}" ${editable ? '' : 'disabled'}></button></label></div>`;
         if (editing) pageKit.identity(host, [
           { id:'label', value:draft.label, placeholder:t('name', 'Name') },
-          ...(data.allows('departments.branch') ? [{ id:'branch_id', type:'select', value:draft.branch_id, placeholder:t('branch', 'Branch'), options:People.branches.manageable(draft.branch_id).map((entry) => ({ value:entry.id, label:data.branchName(entry.id) })) }] : [])
+          ...(data.allows('departments.branch') ? [{ id:'branch_id', type:'select', value:draft.branch_id, placeholder:data.bt('branch', '{w_Branch}'), options:People.branches.manageable(draft.branch_id).map((entry) => ({ value:entry.id, label:data.branchName(entry.id) })) }] : [])
         ]);
       }
       const saving = async (work) => { try { await work(); modal.setStatus('saved', t('saved', 'Saved')); } catch (error) { pageKit.failed(t('not_saved', 'Not saved'), error); } };

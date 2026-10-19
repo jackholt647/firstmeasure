@@ -5,9 +5,13 @@ import {forbidden} from '../platform/errors.js';
 import {departmentCatalogSchema,assertDepartmentRead,readOrganizationDepartments} from './departments.js';
 import {branchScope,canSeeBranches} from './branch-scope.js';
 import {registerBranchPublication} from './branch-publication.js';
+import {registerUserArchivePublication} from './user-archive.js';
+import {registerCompanyOnboardingPublication} from '../connections/onboarding.js';
 
 export function registerDepartmentPublication(){
   registerBranchPublication();
+  registerUserArchivePublication();
+  registerCompanyOnboardingPublication();
   registerDataProvider({id:'workforce-departments',version:'1',apps:['settings','scheduling','crew'],exports:{catalog:{
     description:'Organization departments, each in one branch, with their role and group-type defaults and direct assignments; the regions that group branches; and department terminology. A viewer limited to some branches sees only the departments of those branches.',
     schema:zodToJsonSchema(departmentCatalogSchema,{$refStrategy:'none'}) as JsonSchema,schemaVersion:'1',

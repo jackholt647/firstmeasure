@@ -314,7 +314,7 @@
 
   /*
    * form(anchor, options) -> Promise<values | null>     a small anchored form (invite, new role)
-   *   title, submitLabel, submitIcon, align
+   *   title, note (a line under the title), submitLabel, submitIcon, align
    *   fields: [{ id, label, type:'text'|'email'|'select'|'photo', value, required, autocomplete, options:[{ value, label }], placeholder }]
    *   choices: { id, label, items:[{ id, label, tooltip }], value:[ids], min }     toggle chips, several allowed
    *   submit: async (values) => result   runs before closing; a thrown error is shown and the form stays open
@@ -328,7 +328,7 @@
       const fields = options.fields || [];
       const choices = options.choices;
       const chosen = new Set(choices?.value || []);
-      panel.innerHTML = `<strong class="pp-form-title">${esc(options.title || '')}</strong>
+      panel.innerHTML = `<strong class="pp-form-title">${esc(options.title || '')}</strong>${options.note ? `<p class="pp-form-note">${esc(options.note)}</p>` : ''}
         ${fields.map((field) => field.type === 'select'
           ? `<label class="pp-field"><span>${esc(field.label)}</span>${select({ name:field.id, value:field.value, options:field.options, placeholder:field.placeholder, label:field.label })}</label>`
           : field.type === 'photo'
@@ -575,6 +575,7 @@
       .pp-sum-camera{position:absolute;inset:0;display:grid;place-items:center;border-radius:50%;background:rgba(16,24,40,.5);color:#fff;font-size:18px;opacity:0;transition:opacity .14s ease}
       button.pp-sum-photo:hover .pp-sum-camera,button.pp-sum-photo:focus-visible .pp-sum-camera{opacity:1}
       .pp-sum-id{display:grid;gap:3px;justify-items:center;min-width:0;max-width:100%}
+      .pp-form-note{margin:-4px 0 2px;color:var(--pp-muted);font-size:12px;line-height:1.4}
       .pp-name-mark{display:inline-block;margin-left:6px;color:var(--pp-muted);font-size:.78em;vertical-align:.08em}
       .pp-sum-name{max-width:100%;font-size:16px;font-weight:700;line-height:1.25;overflow-wrap:anywhere}
       .pp-sum-secondary{max-width:100%;color:var(--pp-muted);font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}

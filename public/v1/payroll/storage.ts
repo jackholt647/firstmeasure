@@ -13,8 +13,8 @@ export type JsonObject = Record<string, unknown>;
  * Raised whenever `initializeSchema` changes. On PostgreSQL the schema is only initialized again when this number is
  * higher than the one recorded for the store, so a table dropped there stays until it is raised.
  */
-// 5: payroll_settings (whether pay runs need approval).
-const DATABASE_SCHEMA_VERSION = 5;
+// 5: payroll_settings (whether pay runs need approval). 6: payroll_export_templates (export-templates.ts).
+const DATABASE_SCHEMA_VERSION = 6;
 let database: SqlStore | null = null;
 let databasePath = "";
 
@@ -220,6 +220,21 @@ async function initializeSchema(db: SqlStore) {
       ON payroll_artifacts (organization_id, created_at DESC);
     CREATE INDEX IF NOT EXISTS payroll_artifacts_batch_idx
       ON payroll_artifacts (organization_id, batch_id, created_at DESC);
+
+    CREATE TABLE IF NOT EXISTS payroll_export_templates (
+      id TEXT NOT NULL,
+      organization_id TEXT NOT NULL,
+      name TEXT NOT NULL,
+      based_on TEXT NOT NULL DEFAULT '',
+      status TEXT NOT NULL DEFAULT 'active',
+      definition_json TEXT NOT NULL,
+      revision INTEGER NOT NULL DEFAULT 1,
+      created_by TEXT NOT NULL DEFAULT '',
+      updated_by TEXT NOT NULL DEFAULT '',
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      PRIMARY KEY (organization_id, id)
+    );
   `));
   await ensureSqlColumn(db, "payroll_work_outbox", "state", "TEXT NOT NULL DEFAULT 'pending'");
   await ensureSqlColumn(db, "payroll_work_outbox", "retry_at", "TEXT NOT NULL DEFAULT ''");
@@ -700,6 +715,47 @@ export async function readPayrollArtifact(orgId: string, artifactId: string, inc
   const row = (await getPayrollDatabase().prepare("SELECT * FROM payroll_artifacts WHERE organization_id=? AND id=?").get(orgId, artifactId));
   if (!row) throw notFound("payroll_artifact_not_found", "Payroll export or report was not found.");
   return payrollArtifactView(row, includeContent);
+}
+
+/** A company's own export template (export-templates.ts): its definition as data, with a revision for safe saves. */
+function exportTemplateView(rowValue: unknown) {
+  const row = asObject(rowValue);
+  return {
+    id: cleanText(row.id), name: cleanText(row.name), based_on: cleanText(row.based_on), status: cleanText(row.status || "active"),
+    definition: asObject(parseJson(row.definition_json)), revision: Number(row.revision || 1),
+    created_by: cleanText(row.created_by), updated_by: cleanText(row.updated_by), created_at: cleanText(row.created_at), updated_at: cleanText(row.updated_at)
+  };
+}
+export type StoredExportTemplate = ReturnType<typeof exportTemplateView>;
+
+export async function listPayrollExportTemplates(orgId: string, includeArchived = false) {
+  return (await getPayrollDatabase().prepare(`SELECT * FROM payroll_export_templates WHERE organization_id=? ${includeArchived ? "" : "AND status<>'archived'"} ORDER BY name, id`)
+    .all(orgId)).map(exportTemplateView);
+}
+
+export async function readPayrollExportTemplate(orgId: string, id: string) {
+  const row = await getPayrollDatabase().prepare("SELECT * FROM payroll_export_templates WHERE organization_id=? AND id=?").get(orgId, id);
+  if (!row) throw notFound("payroll_export_template_not_found", "That export template was not found.");
+  return exportTemplateView(row);
+}
+
+/** Creates (no expected revision) or replaces (the current revision) a template. Files made before keep what they were. */
+export async function savePayrollExportTemplate(orgId: string, input: { id: string; name: string; based_on?: string; status?: string; definition: JsonObject; expected_revision?: number }, actorUserId = "") {
+  return (await withPayrollTransaction(async (db) => {
+    const current = await db.prepare("SELECT revision FROM payroll_export_templates WHERE organization_id=? AND id=?").get(orgId, input.id);
+    const now = nowIso();
+    if (!current) {
+      if (input.expected_revision) throw conflict("payroll_export_template_revision_conflict", "That export template no longer exists. Reload and try again.");
+      await db.prepare(`INSERT INTO payroll_export_templates (id, organization_id, name, based_on, status, definition_json, revision, created_by, updated_by, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?)`).run(input.id, orgId, input.name, cleanText(input.based_on), cleanText(input.status || "active"), json(input.definition), actorUserId, actorUserId, now, now);
+    } else {
+      const revision = Number(asObject(current).revision || 0);
+      if (input.expected_revision !== revision) throw conflict("payroll_export_template_revision_conflict", "Someone changed this export template. Reload and try again.", { current_revision: revision });
+      await db.prepare(`UPDATE payroll_export_templates SET name=?, status=?, definition_json=?, revision=revision+1, updated_by=?, updated_at=? WHERE organization_id=? AND id=?`)
+        .run(input.name, cleanText(input.status || "active"), json(input.definition), actorUserId, now, orgId, input.id);
+    }
+    return readPayrollExportTemplate(orgId, input.id);
+  }));
 }
 
 export async function listPayrollArtifacts(orgId: string, options: JsonObject = {}) {

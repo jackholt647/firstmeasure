@@ -20,8 +20,8 @@ const shots = process.env.PEOPLE_SCREENSHOTS ? path.resolve(import.meta.dirname,
 // The two slot panels are other modules' work; most cases run without them so the slot contract itself is what is tested.
 // The Settings bundle can name a file another module has not written yet; the portal would skip it the same way. People's own files must all be there.
 const present = (file) => file.startsWith('apps/people/') || existsSync(new URL(file, new URL('../../libraries/', import.meta.url)));
-const PANELS = ['fields-panel', 'compensation-panel'];
-const FILES = ['people-kit', 'list-page', 'entity-modal', 'hover-card', 'permissions-panel', 'app-grid', 'slots', 'people-data', 'people-directory', 'page-kit', 'people-lists', 'branches', 'users-page', 'groups-page', 'departments-page', 'companies-page', 'people-home', 'people-settings'];
+const PANELS = ['fields-panel', 'compensation-panel', 'pay-sheets-model', 'pay-sheets-editor', 'pay-sheets-list'];
+const FILES = ['people-kit', 'list-page', 'entity-modal', 'hover-card', 'permissions-panel', 'app-grid', 'slots', 'people-data', 'people-directory', 'page-kit', 'people-lists', 'branches', 'onboarding', 'users-page', 'groups-page', 'departments-page', 'companies-page', 'people-home', 'people-settings'];
 const TABS = ['home', 'users', 'groups', 'departments', 'subcontractors'];
 
 // A stand-in for the Settings shell: the same grid, card and sub-tab hoisting the real shell applies to a category pane.
@@ -122,7 +122,7 @@ function stubPlatform(){
   window.Portal = {
     util:{ hasPerm:() => true },
     ui:{ showToast:(title, message, ok) => { window.__people.toasts.push({ title, message, ok }); window.PlatformUI?.showToast?.(title, message, ok); } },
-    terminology:{ get:(key, fallback) => ({ 'workforce.resource_group_plural':'Crews and teams', 'workforce.resource_group_singular':'Crew or team' }[key] || fallback) },
+    terminology:{ words:{}, get(key, fallback){ const branch = String(key).startsWith('branches.') ? this.words[String(key).slice(9)] : ''; return branch || ({ 'workforce.resource_group_plural':'Crews and teams', 'workforce.resource_group_singular':'Crew or team' }[key] || fallback); } },
     navigation:{ read:() => ({ ...window.__people.route }), write:(route) => { window.__people.routes.push(route); }, navigate:(route) => { window.__people.routes.push({ navigate:route }); } }
   };
   window.PlatformRealtime = { watchPresence(orgId, scope, listener){ window.__people.presence = listener; listener([]); return () => { window.__people.presence = null; }; } };
@@ -135,7 +135,7 @@ function stubPlatform(){
       patch:async (orgId, id, patch) => { Object.assign(users.find((user) => user.id === id), patch); calls.push({ op:'patch', id, patch }); return { document:{ id, data:copy(users.find((user) => user.id === id)) } }; },
       setDisabled:async (orgId, id, disabled) => { const user = users.find((entry) => entry.id === id); user.status = disabled ? 'disabled' : 'active'; user.disabled = !!disabled; calls.push({ op:'setDisabled', id, disabled }); return { document:{ id, data:copy(user) } }; },
       resendInvite:async (orgId, id) => { calls.push({ op:'resendInvite', id }); return { ok:true, emailed:true }; },
-      remove:async (orgId, id) => { users.splice(users.findIndex((user) => user.id === id), 1); calls.push({ op:'remove', id }); return { ok:true }; },
+      remove:async (orgId, id, options = {}) => { const user = users.find((entry) => entry.id === id); Object.assign(user, { deleted:true, status:'disabled', status_before_archive:user.status, deleted_at:'2026-10-19T12:00:00Z', ...(options.reason ? { archived_reason:options.reason } : {}) }); calls.push({ op:'remove', id, reason:options.reason || '' }); return { ok:true, archived:true }; },
       setPermissions:async (orgId, id, level, items) => { const user = users.find((entry) => entry.id === id); user.role = level; user.org_permissions = { level, items }; calls.push({ op:'setPermissions', id, level, items }); return { document:{ id, data:copy(user) } }; }
     },
     workforce:{
@@ -203,6 +203,24 @@ function stubDirectory(){
   ];
   Object.assign(window.__people, { groups, connections, types, companyTypes, staffing });
   const api = window.PlatformAPI;
+  // Documents an outside company uploads; collaboration invitations; the organization's words (variable mappings).
+  const media = [];
+  api.media = { upload:async (orgId, file, options = {}) => { const item = { id:`media_${media.length + 1}`, file_name:file.name, owner:{ type:options.ownerType, id:options.ownerId } }; media.push(item); calls.push({ op:'mediaUpload', owner:item.owner, name:file.name }); return { ok:true, media:item }; } };
+  const invitations = [];
+  api.request = async (url, options = {}) => {
+    const path = new URL(url).pathname.replace(/^\/v1\/collaboration\/organizations\/[^/]+/, '');
+    calls.push({ op:'collaboration', path, method:options.method || 'GET', body:copy(options.body || null) });
+    if (path === '/partner-invitations') { const invitation = { id:`invitation_${invitations.length + 1}`, revision:1, status:'pending', email:options.body.email, label:options.body.name, workforce_connection_id:options.body.workforce_connection_id }; invitations.push(invitation); const company = connections.find((entry) => entry.id === options.body.workforce_connection_id); if (company) { company.link_status = 'pending'; company.metadata = { ...(company.metadata || {}), collaboration_invitation_id:invitation.id, collaboration_invitation_status:'pending', collaboration_invitation_email:invitation.email }; company.revision += 1; } return { ok:true, invitation:copy(invitation), url:'/portal/#collaboration_invite=x' }; }
+    const match = path.match(/^\/invitations\/([^/]+)\/(send|link|revoke)$/);
+    const invitation = match && invitations.find((entry) => entry.id === match[1]);
+    if (match && match[2] === 'send') return { ok:true, invitation:copy(invitation), delivery:{ status:'captured' } };
+    if (match && match[2] === 'link') return { ok:true, invitation:copy(invitation), url:'/portal/#collaboration_invite=x' };
+    if (match && match[2] === 'revoke') { invitation.status = 'revoked'; invitation.revision += 1; const company = connections.find((entry) => entry.id === invitation.workforce_connection_id); if (company) { company.link_status = 'unlinked'; company.metadata = { ...company.metadata, collaboration_invitation_status:'revoked' }; company.revision += 1; } return { ok:true, invitation:copy(invitation) }; }
+    throw new Error(`Unknown request ${path}`);
+  };
+  const variableMappings = { labels:{} };
+  api.branches = { modules:{ get:async (orgId, branchId, moduleId) => ({ ok:true, module:{ data:copy(moduleId === 'variable_mappings' && branchId === 'default' ? variableMappings : {}) } }), patch:async (orgId, branchId, moduleId, data) => { calls.push({ op:'modulePatch', branchId, moduleId, data:copy(data) }); if (moduleId === 'variable_mappings' && branchId === 'default') Object.assign(variableMappings, copy(data)); const words = (variableMappings.labels || {}).branches || {}; window.Portal.terminology.words = words; return { ok:true }; } } };
+  Object.assign(window.__people, { media, invitations, variableMappings });
   api.scopes = { list:async () => ({ templates:copy(scopes) }) };
   const terminology = {};
   let revision = 1;
@@ -253,7 +271,7 @@ function stubDirectory(){
     const count = (id) => users.filter((user) => (user.branch_ids || ['default']).includes(id)).length;
     return copy({
       feature_enabled:feature, multiple:feature && active.length > 1, default_branch_id:'default', my_branch_id:branchState.my[0], my_branch_ids:branchState.my, my_region_ids:myRegions,
-      branches:branchState.branches.map((entry) => ({ ...entry, region_id:regionOf(entry.id), is_mine:branchState.my.includes(entry.id), counts:{ users:count(entry.id), groups:0, companies:0, departments:departments.filter((department) => department.branch_id === entry.id).length }, can_manage:true })),
+      branches:branchState.branches.map((entry) => ({ ...entry, region_id:regionOf(entry.id), is_mine:branchState.my.includes(entry.id), counts:{ users:count(entry.id), groups:0, companies:0, departments:departments.filter((department) => department.branch_id === entry.id).length }, can_manage:!branchState.access.manageable_branch_ids || branchState.access.manageable_branch_ids.includes(entry.id) })),
       regions:branchState.regions.map((region) => ({ ...region, is_mine:myRegions.includes(region.id) })),
       companies_in_every_branch:1,
       access:{ see:'all', manage:'all', restricted:false, visible_branch_ids:branchState.branches.map((entry) => entry.id), manageable_branch_ids:branchState.branches.map((entry) => entry.id), can_add_branch:true, can_archive_branch:true, can_manage_regions:true, can_rename_branch_ids:branchState.branches.map((entry) => entry.id), can_set_membership:true, ...branchState.access },
@@ -284,6 +302,14 @@ function stubDirectory(){
     } else if (action === 'organization-branches.branch.region.set') {
       branchState.regions.forEach((region) => { region.branch_ids = region.branch_ids.filter((id) => id !== input.branch_id); });
       if (input.region_id) branchState.regions.find((region) => region.id === input.region_id).branch_ids.push(input.branch_id);
+    } else if (action === 'organization-branches.membership.set') {
+      const { type, id } = input.assignee;
+      if (type !== 'organization_connection' && !input.branch_ids.length) fail('branch_required');
+      if (window.__people.membershipDenied?.includes(id)) fail('branch_scope_denied');
+      const record = type === 'organization_user' ? users.find((entry) => entry.id === id) : type === 'resource_group' ? window.__people.groups.find((entry) => entry.id === id) : window.__people.connections.find((entry) => entry.id === id);
+      record.branch_ids = [...input.branch_ids];
+      if (type !== 'organization_connection') record.branch_id = input.primary_branch_id || input.branch_ids[0];
+      return { value:{ assignee:`${type}:${id}`, branch_ids:[...input.branch_ids], primary_branch_id:input.primary_branch_id || '' } };
     } else return null;
     branchState.revision += 1;
     return { value:structure() };
@@ -301,11 +327,13 @@ function stubDirectory(){
     invoke:async (orgId, action, target, input, options) => {
       calls.push({ op:'invoke', action, target:copy(target), input:copy(input), idempotencyKey:options?.idempotencyKey || '' });
       if (action.startsWith('organization-branches.')) { const done = branchAction(action, input); if (done) return done; }
+      if (action === 'workforce.users.restore') { const user = users.find((entry) => entry.id === target.id); const status = user.status_before_archive === 'invited' ? 'invited' : 'active'; ['deleted', 'deleted_at', 'archived_reason', 'status_before_archive'].forEach((key) => delete user[key]); user.status = status; user.disabled = false; return { value:{ id:user.id, status, restored:true } }; }
+      if (action === 'connections.onboarding.save') { const company = connections.find((entry) => entry.id === target.id); if (input.expected_revision !== company.revision) { const error = new Error('Reload and try again.'); error.code = 'organization_connection_revision_conflict'; throw error; } company.metadata = { ...(company.metadata || {}), onboarding:copy(input.onboarding) }; company.revision += 1; return { value:{ id:company.id, revision:company.revision, onboarding:copy(input.onboarding), status:{} } }; }
       if (action === 'payroll.contractor.worker.update') { const user = users.find((entry) => entry.id === target.id); Object.assign(user, { worker_classification:input.worker_classification, payment_terms:copy(input.payment_terms) }); return { value:{ id:user.id, name:user.name, worker_classification:user.worker_classification, payment_terms:copy(user.payment_terms) } }; }
       if (action === 'assignees.type.save') {
         let type = types.find((entry) => entry.id === input.id && entry.kind === input.kind);
         if (!type) { type = { id:input.id || input.name.toLowerCase().replace(/[^a-z0-9]+/g, '_'), kind:input.kind, name:input.name, description:'', status:'active', member_role_ids:[] }; types.push(type); }
-        Object.assign(type, { name:input.name }, input.description !== undefined ? { description:input.description } : {}, input.status ? { status:input.status } : {});
+        Object.assign(type, { name:input.name }, input.description !== undefined ? { description:input.description } : {}, input.status ? { status:input.status } : {}, input.onboarding_requirements ? { onboarding_requirements:copy(input.onboarding_requirements) } : {});
         return { value:copy(type) };
       }
       if (action === 'assignees.type.member-roles.set') { const type = types.find((entry) => entry.id === input.id); type.member_role_ids = input.member_role_ids; return { value:copy(type) }; }
@@ -487,7 +515,7 @@ test('People category: Users list, hover card, user and role modals, invitations
 
     // Quick actions are inline on the row.
     await page.locator('[data-row-key="u5"]').hover();
-    assert.deepEqual(await page.locator('[data-row-key="u5"] .pp-row-actions button').evaluateAll((buttons) => buttons.map((button) => button.getAttribute('aria-label'))), ['Edit', 'Resend invitation', 'Suspend', 'Delete']);
+    assert.deepEqual(await page.locator('[data-row-key="u5"] .pp-row-actions button').evaluateAll((buttons) => buttons.map((button) => button.getAttribute('aria-label'))), ['Edit', 'Resend invitation', 'Suspend', 'Archive']);
     await shot(page, 'row-quick-actions');
     await page.locator('[data-row-key="u5"] [data-row-action="invite"]').click();
     await page.waitForFunction(() => window.__people.calls.some((call) => call.op === 'resendInvite' && call.id === 'u5'));
@@ -496,7 +524,7 @@ test('People category: Users list, hover card, user and role modals, invitations
     await page.locator('[data-row-key="u3"] .pp-row-name').first().click();
     const dialog = page.getByRole('dialog');
     await dialog.waitFor();
-    assert.deepEqual(await dialog.locator('.pp-tab').allInnerTexts().then((texts) => texts.map((text) => text.trim().replace(/\s+\d+$/, ''))), ['Permissions', 'App experience', 'Compensation', 'Fields', 'Activity']);
+    assert.deepEqual(await dialog.locator('.pp-tab').allInnerTexts().then((texts) => texts.map((text) => text.trim().replace(/\s+\d+$/, '')).filter((text) => text !== 'Pay sheets')), ['Permissions', 'App experience', 'Compensation', 'Fields', 'Activity']);
     assert.ok(await page.evaluate(() => document.querySelector('.pp-modal').contains(document.activeElement)), 'focus moves into the modal');
     assert.match(await dialog.locator('[data-section="roles"]').innerText(), /Sales/);
     assert.match(await dialog.locator('[data-section="departments"]').innerText(), /Sales[\s\S]*Service and warranty/, 'departments in the order they are organized');
@@ -700,7 +728,7 @@ test('People category: Users list, hover card, user and role modals, invitations
     assert.equal(await page.locator('.pp-list-sub').innerText(), '43 users, 4 never signed in, 1 suspended');
     assert.equal(await page.locator('[data-row-key="u43"] .pp-pill.warn').innerText(), 'Never signed in');
 
-    // Suspend and delete from the row.
+    // Suspend and archive from the row.
     await page.locator('[data-row-key="u20"]').hover();
     await page.locator('[data-row-key="u20"] [data-row-action="suspend"]').click();
     await page.locator('[data-row-key="u20"].dimmed').waitFor();
@@ -708,9 +736,10 @@ test('People category: Users list, hover card, user and role modals, invitations
     assert.equal(await page.locator('.pp-list-sub').innerText(), '43 users, 4 never signed in, 2 suspended');
     assert.equal(await page.locator('[data-row-key="u1"] [data-row-action="suspend"]').isDisabled(), true, 'you cannot suspend yourself');
     await page.locator('[data-row-key="u21"]').hover();
-    await page.locator('[data-row-key="u21"] [data-row-action="delete"]').click();
-    await page.getByRole('alertdialog').getByRole('button', { name:'Delete' }).click();
-    await page.waitForFunction(() => !document.querySelector('[data-row-key="u21"]'));
+    await page.locator('[data-row-key="u21"] [data-row-action="archive"]').click();
+    await page.locator('.pp-form .pp-form-note').waitFor();
+    await page.locator('.pp-form [type="submit"]').click();
+    await page.waitForFunction(() => !document.querySelector('.pp-list-body [data-row-key="u21"]'));
 
     // Sub-pages are routed.
     await openView(page, 'groups');
@@ -909,7 +938,7 @@ test('Groups: rows, types with roles on joining, members and what joining gave, 
     await north.locator('.pp-row-name').click();
     const dialog = page.getByRole('dialog', { name:'North team' });
     await dialog.waitFor();
-    assert.deepEqual(await dialog.locator('.pp-tab').allInnerTexts().then((texts) => texts.map((text) => text.trim().replace(/\s+\d+$/, ''))), ['Members', 'Staffing requirements', 'App experience', 'Compensation', 'Fields']);
+    assert.deepEqual(await dialog.locator('.pp-tab').allInnerTexts().then((texts) => texts.map((text) => text.trim().replace(/\s+\d+$/, '')).filter((text) => text !== 'Pay sheets')), ['Members', 'Staffing requirements', 'App experience', 'Compensation', 'Fields']);
     assert.doesNotMatch(await dialog.locator('.pp-modal-summary').innerText(), /Members/);
     assert.match(await dialog.locator('.pp-modal-summary').innerText(), /Install crew[\s\S]*Lead[\s\S]*Production[\s\S]*Shingle[\s\S]*Roofing/i);
     assert.match(await dialog.locator('.pp-members .pp-list-sub').innerText(), /^7 members$/);
@@ -1091,7 +1120,7 @@ test('Subcontractors: several types, link status, overview, link, payment terms;
     await summit.locator('.pp-row-name').click();
     const dialog = page.getByRole('dialog', { name:'Summit Roofing' });
     await dialog.waitFor();
-    assert.deepEqual(await dialog.locator('.pp-tab').allInnerTexts().then((texts) => texts.map((text) => text.trim())), ['Overview', 'Link', 'Payment terms', 'Compensation', 'Fields']);
+    assert.deepEqual(await dialog.locator('.pp-tab').allInnerTexts().then((texts) => texts.map((text) => text.trim().replace(/\s+\d+$/, '')).filter((text) => text !== 'Pay sheets')), ['Overview', 'Onboarding', 'Link', 'Payment terms', 'Compensation', 'Fields']);
     assert.match(await dialog.locator('.pp-modal-summary').innerText(), /Summit Roofing[\s\S]*Linked[\s\S]*Roofing[\s\S]*Gutters[\s\S]*Debris hauling/);
     assert.doesNotMatch(await dialog.locator('.pp-modal-summary').innerText(), /Dale Whitaker/, 'the summary does not repeat the contact the Overview shows');
     assert.equal(await dialog.locator('[data-company-field="contact.name"]').inputValue(), 'Dale Whitaker');
@@ -1436,7 +1465,7 @@ test('Users: status filter chips, photo at invite, activity, and roles held in o
     await page.locator('[data-list-filter="archived"]').click();
     assert.equal(await page.locator('.pp-row').count(), 1);
     assert.match(await page.locator('.pp-row').innerText(), /Otto Former[\s\S]*Archived/);
-    assert.equal(await page.locator('.pp-row [data-row-action]').count(), 0, 'an archived person is shown for the record only');
+    assert.deepEqual(await page.locator('.pp-row [data-row-action]').evaluateAll((buttons) => buttons.map((button) => button.dataset.rowAction)), ['restore'], 'an archived person is shown for the record, and can be restored');
     await shot(page, 'users-filter-archived');
     await page.locator('[data-list-filter="all"]').click();
     await shot(page, 'users-filter-chips');
@@ -1844,7 +1873,7 @@ test('FirstMeasure-only organization: People is Users alone, with only what the 
     assert.equal(await page.locator('.pp-row .pp-chip-dot').count(), 0, 'no departments');
     assert.equal(await page.locator('[data-name-mark]').count(), 0, 'no contractor icon without payroll');
     await page.locator('[data-row-key="u5"]').hover();
-    assert.deepEqual(await page.locator('[data-row-key="u5"] .pp-row-actions button').evaluateAll((buttons) => buttons.map((button) => button.getAttribute('aria-label'))), ['Edit', 'Resend invitation', 'Suspend', 'Delete']);
+    assert.deepEqual(await page.locator('[data-row-key="u5"] .pp-row-actions button').evaluateAll((buttons) => buttons.map((button) => button.getAttribute('aria-label'))), ['Edit', 'Resend invitation', 'Suspend', 'Archive']);
     await shot(page, 'firstmeasure-only-users');
     await page.locator('[data-row-key="u9"] .pp-row-name').hover();
     await page.locator('.pp-hover.open').waitFor();
@@ -1920,9 +1949,10 @@ test('Every People action and tab declares the capability and permission it need
       assert.ok(String(entry.server || '').length > 0, `${id} names the server route or action it calls`);
       for (const key of [...(entry.all || []), ...(entry.any || [])]) assert.ok(capabilities.includes(key), `${id}: unknown capability ${key}`);
     }
-    // Every needs:'...' and allows('...') in People's own files names a declared action, and every declared action is used.
+    // Every needs:'...' and allows('...') in People's files (whoever wrote them) names a declared action, and every declared action is used.
     const used = new Set();
-    for (const name of FILES) {
+    const { readdir } = await import('node:fs/promises');
+    for (const name of (await readdir(new URL('apps/people/', libraries))).filter((entry) => entry.endsWith('.js')).map((entry) => entry.slice(0, -3))) {
       const source = await readFile(new URL(`apps/people/${name}.js`, libraries), 'utf8');
       for (const match of source.matchAll(/(?:needs:\(?|allows\()(?:[^'"]*\? )?'([a-z_.]+)'(?: : '([a-z_.]+)')?/g)) { used.add(match[1]); if (match[2]) used.add(match[2]); }
     }
@@ -2302,5 +2332,243 @@ test('Worker classification: a contractor icon beside the name, and Paid as in t
     await noPayroll.page.locator('.pp-list-body [data-row-key="u7"] .pp-row-name').first().click();
     assert.equal(await noPayroll.page.getByRole('dialog').locator('.pp-tab', { hasText:'Compensation' }).count(), 0);
     assert.deepEqual(noPayroll.errors, []);
+  } finally { await browser.close(); }
+});
+
+test('Archive a person (kept, cannot sign in, restorable) and restore them from Archived', async () => {
+  const browser = await launch();
+  try {
+    const { page, errors } = await openPage(browser, { width:1440, height:900 });
+    await page.locator('.pp-list-body [data-row-key="u21"]').first().hover();
+    await page.locator('.pp-list-body [data-row-key="u21"] [data-row-action="archive"]').first().click();
+    const form = page.locator('.pp-form');
+    assert.match(await form.locator('.pp-form-note').innerText(), /kept for the record[\s\S]*can no longer sign in[\s\S]*restored/);
+    await form.locator('[name="reason"]').fill('Left the company');
+    await shot(page, 'user-archive-form');
+    await form.locator('[type="submit"]').click();
+    await page.waitForFunction(() => !document.querySelector('.pp-list-body [data-row-key="u21"]'));
+    assert.deepEqual(await page.evaluate(() => window.__people.calls.find((call) => call.op === 'remove')), { op:'remove', id:'u21', reason:'Left the company' });
+    await page.locator('[data-list-filter="archived"]').click();
+    const row = page.locator('.pp-list-body [data-row-key="u21"]');
+    await row.waitFor();
+    assert.match(await row.locator('.pp-pill').getAttribute('data-fm-tooltip'), /Left the company/);
+    await shot(page, 'users-archived-restore');
+    await row.hover();
+    await row.locator('[data-row-action="restore"]').click();
+    await page.waitForFunction(() => window.__people.calls.some((call) => call.action === 'workforce.users.restore'));
+    const call = await page.evaluate(() => window.__people.calls.find((entry) => entry.action === 'workforce.users.restore'));
+    assert.equal(call.target.id, 'u21');
+    assert.ok(call.idempotencyKey);
+    await page.locator('.pp-list-body [data-row-key="u21"]').waitFor({ state:'detached' });
+    await page.locator('[data-list-filter="all"]').click();
+    await page.locator('.pp-list-body [data-row-key="u21"]').first().waitFor();
+    assert.deepEqual(errors, []);
+    await page.close();
+    // A FirstMeasure-only organization archives too, but restoring needs the workforce actions, so it is not offered.
+    const legacy = await openPage(browser, { width:1440, height:900 }, { view:'direct', flags:{ 'platform.people_access':false, 'platform.expanded_access':false }, setup:() => { window.__people.users.find((user) => user.id === 'u30').deleted = true; } });
+    await legacy.page.locator('[data-list-filter="archived"]').click();
+    await legacy.page.locator('.pp-list-body [data-row-key="u30"]').waitFor();
+    assert.equal(await legacy.page.locator('.pp-list-body [data-row-action="restore"]').count(), 0);
+    assert.deepEqual(legacy.errors, []);
+  } finally { await browser.close(); }
+});
+
+test('Branches of a person, a group and an outside company: changed in each window and for everyone a list shows', async () => {
+  const browser = await launch();
+  try {
+    const { page, errors } = await openPage(browser, { width:1440, height:900 }, { setup:[multiBranch, () => { window.__people.branchState.access = { manageable_branch_ids:['default', 'asheville', 'boone'] }; }] });
+    const calls = () => page.evaluate(() => window.__people.calls.filter((call) => call.action === 'organization-branches.membership.set').map((call) => call.input));
+    // A person: one of Asheville's.
+    await page.locator('.pp-list-body [data-row-key="u5"] .pp-row-name').first().click();
+    let dialog = page.getByRole('dialog');
+    const section = dialog.locator('[data-section="branches"]');
+    assert.deepEqual(await section.locator('.pp-chip').allInnerTexts(), ['Asheville']);
+    await section.locator('[data-people-section-action="branches"]').click();
+    const menu = page.getByRole('menu', { name:'Branches' });
+    await menu.waitFor();
+    assert.equal(await menu.getByRole('menuitemcheckbox', { name:'Knoxville' }).isDisabled(), true, 'a branch outside the viewer\'s reach cannot be picked');
+    await shot(page, 'user-branches-menu');
+    await menu.getByRole('menuitemcheckbox', { name:'Boone' }).click();
+    await page.waitForFunction(() => window.__people.calls.some((call) => call.action === 'organization-branches.membership.set'));
+    assert.deepEqual((await calls()).pop(), { assignee:{ type:'organization_user', id:'u5' }, branch_ids:['asheville', 'boone'], primary_branch_id:'asheville' });
+    await page.keyboard.press('Escape');
+    await section.locator('.pp-chip', { hasText:'Boone' }).waitFor();
+    await dialog.locator('[data-modal-close]').click();
+    await page.waitForFunction(() => !document.querySelector('.pp-modal-back'));
+    // A group and an outside company.
+    await openView(page, 'groups');
+    await page.locator('.pp-list-body [data-row-key="g1"] .pp-row-name').click();
+    dialog = page.getByRole('dialog');
+    await dialog.locator('[data-section="branches"] [data-people-section-action="branches"]').click();
+    await page.getByRole('menuitemcheckbox', { name:'Main branch' }).click();
+    await page.waitForFunction(() => window.__people.calls.filter((call) => call.action === 'organization-branches.membership.set').length === 2);
+    assert.deepEqual((await calls()).pop(), { assignee:{ type:'resource_group', id:'g1' }, branch_ids:['asheville', 'default'], primary_branch_id:'asheville' });
+    await page.keyboard.press('Escape');
+    await dialog.locator('[data-modal-close]').click();
+    await page.waitForFunction(() => !document.querySelector('.pp-modal-back'));
+    await openView(page, 'subcontractors');
+    await page.locator('.pp-list-body [data-row-key="c1"] .pp-row-name').click();
+    dialog = page.getByRole('dialog');
+    assert.deepEqual(await dialog.locator('[data-section="branches"] .pp-chip').allInnerTexts(), ['Every branch'], 'a company in no branch works in every branch');
+    await dialog.locator('[data-modal-close]').click();
+    await page.waitForFunction(() => !document.querySelector('.pp-modal-back'));
+    // Everyone a list shows: the filter's dropdown offers it.
+    await openView(page, 'users');
+    const shown = await page.evaluate(() => [...new Set(Array.from(document.querySelectorAll('.pp-list-body [data-row-key]')).map((row) => row.dataset.rowKey))].length);
+    await page.locator('[data-branch-filter]').click();
+    await page.locator('[data-bf-bulk]').click();
+    const form = page.locator('.pp-form');
+    assert.match(await form.locator('.pp-form-title').innerText(), new RegExp(`${shown} users shown`));
+    await form.locator('[name="mode"]').selectOption('add');
+    await form.locator('[name="branch"]').selectOption('boone');
+    await shot(page, 'users-branches-bulk');
+    const before = (await calls()).length;
+    await form.locator('[type="submit"]').click();
+    await page.waitForFunction((count) => !document.querySelector('.pp-form') && window.__people.calls.filter((call) => call.action === 'organization-branches.membership.set').length > count, before);
+    const bulk = (await calls()).slice(before);
+    assert.ok(bulk.length >= shown - 1, 'one change per person shown (those already in Boone are skipped)');
+    assert.ok(bulk.every((input) => input.branch_ids.includes('boone') && input.assignee.type === 'organization_user'));
+    assert.deepEqual(errors, []);
+    await page.close();
+    // One branch: no Branches section anywhere.
+    const single = await openPage(browser, { width:1440, height:900 });
+    await single.page.locator('.pp-list-body [data-row-key="u5"] .pp-row-name').first().click();
+    await single.page.getByRole('dialog').waitFor();
+    assert.equal(await single.page.locator('[data-section="branches"]').count(), 0);
+    assert.deepEqual(single.errors, []);
+  } finally { await browser.close(); }
+});
+
+test('Branch and region words are the organization\'s: Wording sets them, and People uses them everywhere', async () => {
+  const browser = await launch();
+  try {
+    const { page, errors } = await openPage(browser, { width:1440, height:900 }, { view:'home', setup:multiBranch });
+    await page.locator('[data-home-wording]').click();
+    const panel = page.locator('.pp-wording');
+    await panel.locator('[name="branch_singular"]').fill('Yard');
+    await panel.locator('[name="branch_plural"]').fill('Yards');
+    await panel.locator('[name="region_singular"]').fill('District');
+    await panel.locator('[name="region_plural"]').fill('Districts');
+    await shot(page, 'wording-branches');
+    await panel.locator('[type="submit"]').click();
+    await panel.waitFor({ state:'detached' });
+    const patch = await page.evaluate(() => window.__people.calls.filter((call) => call.op === 'modulePatch').pop());
+    assert.equal(patch.branchId, 'default', 'kept with the default branch: the words are the organization\'s');
+    assert.equal(patch.moduleId, 'variable_mappings');
+    assert.deepEqual(patch.data.labels.branches, { branch:'Yard', branches:'Yards', region:'District', regions:'Districts' });
+    assert.equal(await page.locator('[data-home-branches] .pp-btn-label').innerText(), 'Yards');
+    await openView(page, 'users');
+    const button = page.locator('[data-branch-filter]');
+    assert.equal(await button.locator('b').innerText(), 'My yard');
+    await button.click();
+    assert.deepEqual(await page.locator('[data-bf-quick]').allInnerTexts(), ['My yard', 'My district', 'All']);
+    assert.ok(await page.locator('.pp-bf-name', { hasText:'Main yard' }).count(), 'the unnamed default branch takes the organization\'s word');
+    await shot(page, 'branch-filter-own-words');
+    await page.keyboard.press('Escape');
+    assert.deepEqual(errors, []);
+  } finally { await browser.close(); }
+});
+
+test('Outside company onboarding: requirements on the company type, a checklist with documents and expiry dates, and a warning in the list', async () => {
+  const browser = await launch();
+  try {
+    const { page, errors } = await openPage(browser, { width:1440, height:900 }, { view:'subcontractors' });
+    // The company type says what is needed.
+    await page.locator('.pp-list-tools .pp-btn', { hasText:'Types' }).click();
+    const typesDialog = page.getByRole('dialog').last();
+    await typesDialog.locator('[data-type-id="roofing_sub"] .pp-type-open').click();
+    const typeDialog = page.getByRole('dialog', { name:'Roofing' });
+    await typeDialog.locator('.pp-tab', { hasText:'Onboarding' }).click();
+    await typeDialog.locator('[data-onb-usual]').click();
+    await typeDialog.locator('.pp-type', { hasText:'Certificate of insurance' }).waitFor();
+    const saved = await page.evaluate(() => window.__people.calls.filter((call) => call.action === 'assignees.type.save').pop().input);
+    assert.deepEqual(saved.onboarding_requirements.map((entry) => [entry.id, entry.kind, entry.expires, entry.required]), [['w9', 'document', false, true], ['insurance', 'document', true, true], ['license', 'document', true, true], ['agreement', 'document', false, true]]);
+    await typeDialog.locator('[data-onb-edit="agreement"]').click();
+    await page.locator('.pp-form [name="kind"]').selectOption('check');
+    await page.locator('.pp-form [name="required"]').selectOption('no');
+    await page.locator('.pp-form [type="submit"]').click();
+    await typeDialog.locator('.pp-type[data-type-id="agreement"]', { hasText:'Optional' }).waitFor();
+    await shot(page, 'company-type-onboarding');
+    await typeDialog.locator('[data-modal-close]').click();
+    await page.waitForFunction(() => !document.querySelector('.pp-modal-back'));
+    // The list warns about a company that has not provided them.
+    const mark = page.locator('.pp-list-body [data-row-key="c1"] [data-name-mark="onboarding-incomplete"]');
+    await mark.waitFor();
+    assert.match(await mark.getAttribute('data-fm-tooltip'), /Onboarding incomplete: W-9, Certificate of insurance, License/);
+    // The company's window: upload, date and check.
+    await page.locator('.pp-list-body [data-row-key="c1"] .pp-row-name').click();
+    const dialog = page.getByRole('dialog', { name:'Summit Roofing' });
+    await dialog.locator('.pp-tab', { hasText:'Onboarding' }).click();
+    assert.deepEqual(await dialog.locator('.pp-onb-item').evaluateAll((items) => items.map((item) => `${item.dataset.onbItem}:${item.dataset.status}`)), ['w9:missing', 'insurance:missing', 'license:missing', 'agreement:optional']);
+    const upload = async (id, name) => {
+      const chooser = page.waitForEvent('filechooser');
+      await dialog.locator(`[data-onb-upload="${id}"]`).click();
+      await (await chooser).setFiles({ name, mimeType:'application/pdf', buffer:Buffer.from('%PDF-1.4') });
+      await dialog.locator('.pp-onb-doc', { hasText:name }).waitFor();
+    };
+    await upload('w9', 'w9-2026.pdf');
+    await upload('insurance', 'coi.pdf');
+    const soon = new Date(Date.now() + 10 * 86400000).toISOString().slice(0, 10);
+    await dialog.locator('.pp-onb-item[data-onb-item="insurance"] [data-onb-doc-expiry]').fill(soon);
+    await dialog.locator('.pp-onb-item[data-onb-item="insurance"] [data-onb-doc-expiry]').dispatchEvent('change');
+    await dialog.locator('.pp-onb-item[data-onb-item="insurance"][data-status="expiring"]').waitFor();
+    await upload('license', 'license.pdf');
+    await dialog.locator('.pp-onb-item[data-onb-item="license"] [data-onb-doc-expiry]').fill('2020-01-01');
+    await dialog.locator('.pp-onb-item[data-onb-item="license"] [data-onb-doc-expiry]').dispatchEvent('change');
+    await dialog.locator('.pp-onb-item[data-onb-item="license"][data-status="expired"]').waitFor();
+    await dialog.locator('[data-onb-check="agreement"]').click();
+    await dialog.locator('.pp-onb-item[data-onb-item="agreement"][data-status="done"]').waitFor();
+    const uploads = await page.evaluate(() => window.__people.calls.filter((call) => call.op === 'mediaUpload').map((call) => call.owner));
+    assert.ok(uploads.every((owner) => owner.type === 'company' && owner.id === 'c1'), 'documents are media owned by the company');
+    const record = await page.evaluate(() => window.__people.connections.find((entry) => entry.id === 'c1').metadata.onboarding);
+    assert.deepEqual(record.items, { agreement:{ done:true } });
+    assert.deepEqual(record.documents.map((entry) => [entry.requirement_id, entry.title, entry.expires_at || '']), [['w9', 'w9-2026.pdf', ''], ['insurance', 'coi.pdf', soon], ['license', 'license.pdf', '2020-01-01']]);
+    await shot(page, 'company-onboarding');
+    await dialog.locator('[data-modal-close]').click();
+    await page.waitForFunction(() => !document.querySelector('.pp-modal-back'));
+    assert.match(await mark.getAttribute('data-fm-tooltip'), /Onboarding incomplete: License/, 'an expired required item');
+    await shot(page, 'subcontractors-onboarding-warning');
+    assert.deepEqual(errors, []);
+  } finally { await browser.close(); }
+});
+
+test('Invite an outside company to link its own organization: invite, resend, withdraw; hidden without collaboration', async () => {
+  const browser = await launch();
+  try {
+    const { page, errors } = await openPage(browser, { width:1440, height:900 }, { view:'subcontractors' });
+    await page.locator('.pp-list-body [data-row-key="c3"] .pp-row-name').click();
+    const dialog = page.getByRole('dialog', { name:'Volt Brothers' });
+    await dialog.locator('.pp-tab', { hasText:'Link' }).click();
+    const invite = dialog.locator('[data-company-invite]');
+    assert.equal(await invite.locator('[data-invite-state]').getAttribute('data-invite-state'), 'none');
+    await invite.locator('[data-invite-send]').click();
+    await page.locator('.pp-form [name="email"]').fill('office@voltbrothers.example');
+    await page.locator('.pp-form [type="submit"]').click();
+    await dialog.locator('[data-invite-state="pending"]').waitFor();
+    const requests = await page.evaluate(() => window.__people.calls.filter((call) => call.op === 'collaboration').map((call) => [call.method, call.path, call.body]));
+    assert.deepEqual(requests[0], ['POST', '/partner-invitations', { name:'Volt Brothers', email:'office@voltbrothers.example', workforce_connection_id:'c3' }]);
+    assert.deepEqual(requests[1].slice(0, 2), ['POST', '/invitations/invitation_1/send']);
+    assert.match(await dialog.locator('[data-company-invite]').innerText(), /Invited, waiting for them[\s\S]*office@voltbrothers.example/);
+    await shot(page, 'company-invite-pending');
+    await dialog.locator('[data-invite-resend]').click();
+    await page.waitForFunction(() => window.__people.calls.filter((call) => call.op === 'collaboration' && call.path.endsWith('/send')).length === 2);
+    await dialog.locator('[data-invite-revoke]').click();
+    await page.getByRole('alertdialog').getByRole('button', { name:'Withdraw' }).click();
+    await dialog.locator('[data-invite-state="revoked"]').waitFor();
+    assert.ok(await page.evaluate(() => window.__people.calls.some((call) => call.op === 'collaboration' && call.path === '/invitations/invitation_1/revoke' && call.body.expected_revision === 1)));
+    await dialog.locator('[data-modal-close]').click();
+    await page.waitForFunction(() => !document.querySelector('.pp-modal-back'));
+    // A linked company shows its link and nothing to send.
+    await page.locator('.pp-list-body [data-row-key="c1"] .pp-row-name').click();
+    await page.getByRole('dialog').locator('.pp-tab', { hasText:'Link' }).click();
+    await page.locator('[data-invite-state="linked"]').waitFor();
+    assert.equal(await page.locator('[data-invite-send], [data-invite-resend]').count(), 0);
+    assert.deepEqual(errors, []);
+    await page.close();
+    const off = await openPage(browser, { width:1440, height:900 }, { view:'subcontractors', flags:{ 'platform.collaboration':false } });
+    await off.page.locator('.pp-list-body [data-row-key="c3"] .pp-row-name').click();
+    await off.page.getByRole('dialog').locator('.pp-tab', { hasText:'Link' }).click();
+    assert.equal(await off.page.locator('[data-company-invite]').count(), 0, 'no invitation without collaboration');
+    assert.deepEqual(off.errors, []);
   } finally { await browser.close(); }
 });

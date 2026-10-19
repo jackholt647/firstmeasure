@@ -44,6 +44,27 @@ roles.
 Employee and subcontractor items share a batch only when they share the exact
 schedule ID, but API responses always keep them in separate sections.
 
+## Paid with payroll or through payables
+
+`payables.ts`. The ledger is the one record of what is owed. Outside companies,
+and independent contractors whose payment terms are net days, are paid
+through payables; everyone else with payroll (People's existing settings;
+nothing new is stored on people). A pay run keeps the answer on each item
+(`metadata.paid_through`, `payment_terms`, `due_date`). When the run is entered,
+each payables item becomes a bill: a payable of kind `contractor_payroll` with a
+fixed id (`payment_payable_payroll_<run>_<item>`) that lists the ledger entries
+it pays. Paying the bill wherever payables are paid (`createDisbursement`) marks
+the item paid once (`recordBillPaid`, `metadata.settlement`); marking the item
+paid here records the payment against the bill once. Marking a run paid pays
+payroll payees and enters the bills; reopening or voiding removes unpaid
+bills, and is refused once a bill has a payment. `payroll.bills` lists bills;
+`payroll.bills.reconcile` finishes a payment payables recorded that a run does
+not show yet. A reimbursement whose own payable is paid in payables is never
+paid by a run as well: unused, its entry is voided; already in an unpaid run,
+the run is held until reopened without it
+([details](../../../docs/architecture/pay-rules.md#reimbursements-paid-in-payables)). See
+[pay rules](../../../docs/architecture/pay-rules.md#paid-with-payroll-or-through-payables).
+
 ## Recognition and delay
 
 `timing_basis: worked` recognizes each earning from `worked_at`.
@@ -90,7 +111,7 @@ Payroll operations:
 
 - `GET|POST /v1/payroll/organizations/:orgId/off-cycle-payments`, `DELETE .../off-cycle-payments/:entryId`
 - `GET /v1/payroll/organizations/:orgId/approvals/me`, `POST .../batches/:batchId/decision` (a named approver; no payroll permission needed)
-- `GET /v1/payroll/organizations/:orgId/timesheets/me` (the time clock permission only)
+- `GET /v1/payroll/organizations/:orgId/timesheets/me` (Today's time clock option in the person's app experience only)
 - `GET /v1/payroll/organizations/:orgId/dashboard`
 - `GET /v1/payroll/organizations/:orgId/upcoming`
 - `GET|POST /v1/payroll/organizations/:orgId/batches`
@@ -123,20 +144,28 @@ PayrollAPI.earnings.list(orgId, [{ type: 'organization_user', id: userId }], opt
 
 ## Pay run files
 
-`exports.ts`. The platform does not move money; a pay run is copied out to the
-company's payroll or accounting software. Per pay run, CSV unless noted:
+`exports.ts`, `export-templates.ts`. The platform does not move money; a pay
+run is copied out to the company's payroll or accounting software with an
+export template. The built-in templates, CSV unless noted:
 
 | Type | What |
 |---|---|
-| `pay_run_summary` | Everyone, employees then contractors, earnings by kind, reimbursements, already paid outside a run, clawbacks or corrections, amount to pay; section and run totals. Also PDF. |
+| `pay_run_summary` | Everyone: employees, contractors paid with payroll, then bills; earnings by kind, reimbursements, already paid outside a run, clawbacks or corrections, amount to pay; section and run totals. Also PDF. |
 | `gusto_employees` | One row per employee: Last Name, First Name, Email, an amount column per kind, Reimbursement, deductions, Total To Pay, dates, note. |
-| `gusto_contractors` | One row per contractor or company: Wage, Reimbursement, Total. |
+| `gusto_contractors` | One row per contractor paid with payroll: Wage, Reimbursement, Total. |
 | `quickbooks_payroll` | One row per employee and pay item (Hourly pay, Salary, Piece rate, Commission, Bonus or adjustment, Reimbursement, deductions as negative amounts). |
-| `quickbooks_bills` | Contractors as bills: one line per vendor and category (Subcontractor payments, Reimbursements). |
+| `quickbooks_bills` | Payees paid through payables as bills: one line per vendor and category (Subcontractor payments, Reimbursements), due on their payment terms. |
 
 The column headers follow each product's import vocabulary; check the column
-mapping on the first import. A viewer limited to some branches exports only
-those branches' payees.
+mapping on the first import. A company duplicates a built-in template and
+changes who is in the file, rows, columns (header and source from the
+published catalog), order and formatting; its templates are stored in the
+payroll store with a revision (`payroll.exportTemplate.save`, `.archive`,
+`.preview`, data `payroll.export_templates`) and used with
+`POST .../artifacts` or `payroll.artifact.generate` and `template_id`. A file
+records the template and revision that made it. A viewer limited to some
+branches exports only those branches' payees. See
+[export templates](../../../docs/architecture/pay-rules.md#export-templates).
 
 ## Branch scope
 

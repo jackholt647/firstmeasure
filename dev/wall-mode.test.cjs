@@ -1019,3 +1019,21 @@ test('project load runs the stored wall draft repair once',()=>{
  const saved=f.ctx.WallMode.serialize();calls=0;f.ctx.WallMode.restore('fixture',{exteriorsWalls:saved});assert.equal(calls,1);
  calls=0;f.ctx.WallMode.beforeProjectLoad();f.ctx.currentProjectId='empty';f.ctx.WallMode.restore('empty',{});assert.equal(calls,0,'nothing to repair without walls');
 });
+
+test('while a tool runs in the 3D view the 2D plan redraws at most every 100 ms and settles; full renders and 2D gestures redraw it at once',()=>{
+ const frames=new Map(),counts={};let next=0,host,busy=false,now=1000;
+ const wall={apply:w=>w,draw2D(){},draw3D(){},clear(){},busy:()=>busy,planeActive:()=>false,cancelPointerGesture(){}};
+ const f=fixture(true,{performance:{now:()=>now},requestAnimationFrame:fn=>{frames.set(++next,fn);return next;},cancelAnimationFrame:id=>frames.delete(id),ExteriorPerf:{mount(){},enabled:true,measure(label,fn){counts[label]=(counts[label]||0)+1;return fn();}},createWallEditor:h=>{host=h;return wall;}});
+ f.ctx.WallMode.setEnabled(true);f.soffits[1].onclick();
+ const frame=()=>{for(const [id,fn] of [...frames]){frames.delete(id);fn();}},reset=()=>{for(const k in counts)counts[k]=0;};
+ const pointer=view=>f.listeners['window:pointermove']({buttons:0,target:{closest:s=>view==='3d'?s==='#three-view-wrapper':String(s).includes('#geoSvg')}});
+ f.flushTimers();frame();now+=500;reset();
+ busy=true;pointer('3d');
+ for(let i=0;i<12;i++){now+=16;host.redraw();frame();}
+ assert.equal(counts['3D scene rebuild'],12,'the active 3D view redraws every preview frame');
+ assert.equal(counts['2D redraw'],2,'the passive plan redraws once per 100 ms of the gesture');
+ f.flushTimers();assert.equal(counts['2D redraw'],3,'a trailing plan redraw shows the latest preview');
+ now+=16;host.redraw();frame();reset();now+=16;host.changed();frame();assert.equal(counts['2D redraw'],1,'a full render redraws the plan in its frame, during the gesture too');
+ reset();pointer('2d');for(let i=0;i<5;i++){now+=16;host.redraw();frame();}assert.equal(counts['2D redraw'],5,'a gesture in the plan redraws it every frame');
+ reset();pointer('3d');busy=false;for(let i=0;i<3;i++){now+=16;host.redraw();frame();}assert.equal(counts['2D redraw'],3,'without a running tool both views redraw every frame');
+});

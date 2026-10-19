@@ -2,7 +2,28 @@
 (function(root){'use strict';
 const node=typeof module==='object'&&module.exports;
 const K=node?require('./exterior_geometry.js'):root.ExteriorGeometry,W=node?require('./wall_solid_geometry.js'):root.WallSolidGeometry,B=node?require('./base_geometry.js'):root.BaseGeometry,G=node?require('./wall_geometry.js'):root.WallGeometry;
-const copy=x=>JSON.parse(JSON.stringify(x));
+// Exactly JSON.parse(JSON.stringify(value)) for plain data, without the text
+// round trip: same keys and order, -0 becomes 0, non-finite numbers become
+// null, undefined/function/symbol members are dropped (null in arrays), and
+// nothing is shared with the input. Anything else (toJSON, boxed primitives,
+// other classes, a "__proto__" key, cycles, BigInt, a top-level undefined)
+// takes the JSON round trip, including its errors. wall_face_draft.js keeps
+// the same function for its own realm.
+const JSON_COPY_FAIL={},JSON_COPY_ROOT=Object.prototype,jsonCopyTag=Object.prototype.toString;
+function jsonCopyValue(v){
+ if(v===null)return null;
+ switch(typeof v){case 'number':return v-v===0?(v===0?0:v):null;case 'string':case 'boolean':return v;case 'object':break;default:throw JSON_COPY_FAIL;}
+ if(typeof v.toJSON==='function')throw JSON_COPY_FAIL;
+ if(Array.isArray(v)){const n=v.length,out=new Array(n);for(let i=0;i<n;i++){const x=v[i],t=typeof x;out[i]=t==='undefined'||t==='function'||t==='symbol'?null:jsonCopyValue(x);}return out;}
+ const p=Object.getPrototypeOf(v);
+ if(p!==JSON_COPY_ROOT&&(p===null?typeof JSON.isRawJSON==='function'&&JSON.isRawJSON(v):Object.getPrototypeOf(p)!==null||jsonCopyTag.call(v)!=='[object Object]'))throw JSON_COPY_FAIL;
+ const out={},keys=Object.keys(v);
+ for(let i=0;i<keys.length;i++){const k=keys[i],x=v[k],t=typeof x;if(t==='undefined'||t==='function'||t==='symbol')continue;if(k==='__proto__')throw JSON_COPY_FAIL;out[k]=jsonCopyValue(x);}
+ return out;
+}
+function copy(x){try{return jsonCopyValue(x);}catch{return JSON.parse(JSON.stringify(x));}}
+// JSON.stringify(a)===JSON.stringify(b), compared without building the strings.
+const same=(a,b)=>W.jsonEqual?W.jsonEqual(a,b):JSON.stringify(a)===JSON.stringify(b);
 const world=(d,p)=>d.frame?W.fromFrame(d.frame,p):{x:d.origin.x+d.u.x*p.x,y:d.origin.y+d.u.y*p.x,z:p.y};
 // One boundary between editable local regions and world-space engine faces.
 // Geometry and appearance belong to the region; joined-plane ownership can be
@@ -154,24 +175,27 @@ function reconcileChimneys(state,edits){
  const C=node?require('./wall_chimneys.js'):root.WallChimneys;if(!C)return edits;
  const base=edits.$base||state.base;if(!state.chimneys?.items?.length&&!base?.chimneyFoundationVersion&&!base?.faces?.some(f=>f.chimneyFoundation))return edits;
  const candidate={...state,base:copy(state.base||null),wallEdits:copy(edits)};C.syncFoundation(candidate);C.alignRoofContacts?.(candidate);
- if(!candidate.wallEdits.$base&&JSON.stringify(candidate.base)!==JSON.stringify(state.base||null))candidate.wallEdits.$base=candidate.base;
+ if(!candidate.wallEdits.$base&&!same(candidate.base,state.base||null))candidate.wallEdits.$base=candidate.base;
  return candidate.wallEdits;
 }
 // Preview and placement must publish the same normalized candidate. Never mutate
 // the caller while reconciling or validating: failures leave its preview intact.
-function prepareEdits(state,edits,before={}){const reconciled=reconcileChimneys(state,edits),next=reconciled===edits?copy(edits):reconciled;validateEdits(next,before);W.restoreCreatedSurfaceWire(next,before);return next;}
-function validateEdits(edits,before={}){
+function prepareEdits(state,edits,before={}){const reconciled=reconcileChimneys(state,edits),next=reconciled===edits?copy(edits):reconciled;validateEdits(next,before,true);W.restoreCreatedSurfaceWire(next,before);return next;}
+// unshared: the caller guarantees edits and before have no objects in common
+// (e.g. prepareEdits' fresh copy), so a prior surface can be compared when
+// needed instead of first serializing every one; nothing here changes before.
+function validateEdits(edits,before={},unshared=false){
  if(edits.$surfaces)edits.$surfaces=K.compactSurfaces(edits.$surfaces);
  if(edits.$loose){if((edits.$loose.points||[]).some(p=>!K.finite3(p))||(edits.$loose.edges||[]).some(pair=>pair.length!==2||pair.some(p=>!K.finite3(p))))throw Error('Copied geometry contains an invalid point or line.');}
- const old=new Map((before.$surfaces||[]).map(f=>[f.id,JSON.stringify(f)]));
- if(edits.$surfaces){const ids=new Set(edits.$surfaces.map(f=>f.id));edits.$surfaces=edits.$surfaces.flatMap(f=>{if(f.deleted||f.drafted||old.get(f.id)===JSON.stringify(f))return [f];const parts=K.normalizeFaces(f,ids);for(const part of parts){ids.add(part.id);K.validateFace(part);}Object.assign(f,parts[0]);return [f,...parts.slice(1)];});}
- const oldDrafts=before.$drafts||{};for(const [key,d]of Object.entries(edits.$drafts||{})){if(JSON.stringify(d)===JSON.stringify(oldDrafts[key]))continue;const regionIds=new Set((d.faces||[]).map(f=>f.id));d.faces=(d.faces||[]).flatMap(f=>{if(f.solidId||f.boundaryHole||(d.deletedFaces||[]).includes(f.points.map(p=>p.nodeId).sort().join('|')))return [f];
+ let unchanged;if(unshared){const old=new Map((before.$surfaces||[]).map(f=>[f.id,f]));unchanged=f=>old.has(f.id)&&same(old.get(f.id),f);}else{const old=new Map((before.$surfaces||[]).map(f=>[f.id,JSON.stringify(f)]));unchanged=f=>old.get(f.id)===JSON.stringify(f);}
+ if(edits.$surfaces){const ids=new Set(edits.$surfaces.map(f=>f.id));edits.$surfaces=edits.$surfaces.flatMap(f=>{if(f.deleted||f.drafted||unchanged(f))return [f];const parts=K.normalizeFaces(f,ids);for(const part of parts){ids.add(part.id);K.validateFace(part);}Object.assign(f,parts[0]);return [f,...parts.slice(1)];});}
+ const oldDrafts=before.$drafts||{};for(const [key,d]of Object.entries(edits.$drafts||{})){if(same(d,oldDrafts[key]))continue;const regionIds=new Set((d.faces||[]).map(f=>f.id));d.faces=(d.faces||[]).flatMap(f=>{if(f.solidId||f.boundaryHole||(d.deletedFaces||[]).includes(f.points.map(p=>p.nodeId).sort().join('|')))return [f];
   // A cut ending at an opening can split a bridged wall ring into multiple
   // valid regions. Retain each region and its sketch-node ownership.
   const parts=f.feature?[K.normalizeFace(f)]:K.normalizeFaces(f,regionIds),anchors=[f.points,...(f.holes||[])].flat();for(const part of parts)regionIds.add(part.id);
   for(const part of parts){if(parts.length>1){const restore=p=>{const a=anchors.find(a=>Math.hypot(a.x-p.x,a.y-p.y,(a.z||0)-(p.z||0))<=K.CONTACT);if(a)return {...p,nodeId:a.nodeId};const n=d.sketch?.nodes.find(n=>Math.hypot(n.x-p.x,n.y-p.y)<=K.CONTACT);if(!n)throw Error('The split wall needs a connected sketch point.');return {...p,nodeId:n.id};};part.points=part.points.map(restore);part.holes=(part.holes||[]).map(r=>r.map(restore));}K.triangles(part.points,part.holes||[]);}
   Object.assign(f,parts[0]);return [f,...parts.slice(1)];});}
- if(edits.$base&&JSON.stringify(edits.$base.faces)!==JSON.stringify(before.$base?.faces))for(const f of edits.$base.faces)K.triangles(f.points,f.holes||[]);
+ if(edits.$base&&!same(edits.$base.faces,before.$base?.faces))for(const f of edits.$base.faces)K.triangles(f.points,f.holes||[]);
 }
-const api={version:2,indexOpenings,cutOpenings,draftFace,repairFaceIdentities,restoreDraftFaceOwnership,reconcileChimneys,prepareEdits,collect,createExtrusion,createExtrusions,validateResult,validateEdits,transaction};if(node)module.exports=api;else root.ExteriorModel=api;
+const api={version:2,indexOpenings,cutOpenings,draftFace,repairFaceIdentities,restoreDraftFaceOwnership,reconcileChimneys,prepareEdits,collect,createExtrusion,createExtrusions,validateResult,validateEdits,transaction,jsonCopy:copy};if(node)module.exports=api;else root.ExteriorModel=api;
 })(typeof window==='undefined'?globalThis:window);

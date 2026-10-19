@@ -57,7 +57,7 @@
   const types = (kind) => state.types.filter((type) => type.kind === kind && text(type.status, 'active') !== 'archived').sort((left, right) => text(left.name).localeCompare(text(right.name)));
   const typeName = (kind, id) => text(state.types.find((type) => type.kind === kind && type.id === String(id))?.name, id);
   async function saveType(input){
-    const saved = await invoke('assignees.type.save', { kind:input.kind, ...(input.id ? { id:input.id } : {}), name:String(input.name || '').trim(), ...(input.description !== undefined ? { description:String(input.description || '').trim() } : {}), ...(input.status ? { status:input.status } : {}) });
+    const saved = await invoke('assignees.type.save', { kind:input.kind, ...(input.id ? { id:input.id } : {}), name:String(input.name || '').trim(), ...(input.description !== undefined ? { description:String(input.description || '').trim() } : {}), ...(Array.isArray(input.onboarding_requirements) ? { onboarding_requirements:input.onboarding_requirements } : {}), ...(input.status ? { status:input.status } : {}) });
     await reload({ type:'types' });
     return saved;
   }
@@ -338,7 +338,9 @@
       group:pair(terms.resource_group, state.groupLabels.singular, state.groupLabels.plural),
       member:pair(terms.resource_group_member, t('member_word', 'Member'), t('members', 'Members')),
       company:pair(terms.organization_connection, state.groupLabels.connectionSingular, state.groupLabels.connectionPlural),
-      department:pair(obj(state.departmentState?.terminology).department, state.groupLabels.departmentSingular, state.groupLabels.departmentPlural)
+      department:pair(obj(state.departmentState?.terminology).department, state.groupLabels.departmentSingular, state.groupLabels.departmentPlural),
+      branch:{ singular:data.branchWords().Branch, plural:data.branchWords().Branches },
+      region:{ singular:data.branchWords().Region, plural:data.branchWords().Regions }
     };
   };
   async function saveWording(next){
@@ -346,8 +348,20 @@
     const changed = (key) => next[key] && (next[key].singular !== now[key].singular || next[key].plural !== now[key].plural);
     if (changed('group') || changed('member') || changed('company')) await saveConfiguration({ terminology:{ resource_group:next.group, resource_group_member:next.member, organization_connection:next.company } });
     if (changed('department')) await writeDepartments((all) => all, { ...obj(state.departmentState?.terminology), department:next.department });
+    /* Branch and region words are the organization's: terminology keys branches.*, kept on the default branch's variable mappings. */
+    if (changed('branch') || changed('region')) {
+      const modules = api().branches?.modules;
+      if (!modules?.get || !modules?.patch) throw new Error(t('api_unavailable', 'People is unavailable right now.'));
+      const current = obj(obj(obj(await modules.get(orgId(), 'default', 'variable_mappings')).module).data);
+      const labels = obj(current.labels);
+      const words = { ...obj(labels.branches), ...(next.branch ? { branch:next.branch.singular, branches:next.branch.plural } : {}), ...(next.region ? { region:next.region.singular, regions:next.region.plural } : {}) };
+      await modules.patch(orgId(), 'default', 'variable_mappings', { labels:{ ...labels, branches:words } });
+    }
     await reload({ type:'configuration' });
-    try { await window.PlatformTerminology?.refresh?.(orgId(), branchId()); } catch (_) {}
+    try {
+      if (window.PlatformTerminology?.refresh) await window.PlatformTerminology.refresh(orgId(), branchId());
+      else await window.PlatformTerminology?.load?.(orgId(), branchId(), { refresh:true });
+    } catch (_) {}
     window.dispatchEvent(new CustomEvent('fm:terminology:updated'));
   }
 

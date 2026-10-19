@@ -22,11 +22,11 @@
  *
  * Writing (each resolves after the store is current again)
  *   data.invite({ name, email, roleIds, photo })
- *   data.resendInvite(id)  data.setSuspended(id, bool)  data.removeUser(id)
+ *   data.resendInvite(id)  data.setSuspended(id, bool)  data.removeUser(id, reason) (archives)  data.restoreUser(id)
  *   data.saveUser(id, { name, email, roleIds, permissionOverrides, appOverrides })
  *   data.uploadPhoto(id, file)  data.saveUserDepartments(id, departmentIds)
- *   data.saveRole(id, { name, description, permissions, appDefaults, applicationIds })
- *   data.createRole({ name, applicationIds })  data.archiveRole(id)
+ *   data.saveRole(id, { name, description, permissions, appDefaults })
+ *   data.createRole({ name })  data.archiveRole(id)
  *
  * Branches (docs/architecture/branches.md): the organization-branches.structure read, as this viewer may see it
  *   data.structure()  data.multipleBranches()  data.branches()  data.regions()  data.branch(id)  data.branchName(id)  data.region(id)
@@ -88,6 +88,9 @@
     groups_app:() => flag('apps', 'crew'),
     payroll_app:() => flag('apps', 'payroll'),
     custom_fields:() => flag('platform', 'custom_fields'),
+    /* Pay sheets (pay-sheets-editor.js): the Materials switch the /v1/materials pay sheet routes check, and project access for trying one on a project. */
+    materials_app:() => flag('platform', 'materials'),
+    manage_projects:() => hasPerm('manage_projects'),
     manage_company_users:() => hasPerm('manage_company_users'),
     manage_company_user_permissions:() => hasPerm('manage_company_user_permissions'),
     manage_company_settings:() => hasPerm('manage_company_settings'),
@@ -95,6 +98,10 @@
     view_projects:() => hasPerm('view_projects'),
     /* payroll.contractor.worker.update asks for manage_company_users or manage_company_settings. */
     payroll_and_users:() => hasPerm('manage_payroll') && hasPerm('manage_company_users'),
+    /* Collaboration: inviting an outside company to link its own organization (collaboration/api.ts partner-invitations). */
+    collaboration:() => flag('platform', 'collaboration'),
+    manage_external_connections:() => hasPerm('manage_external_connections'),
+    send_email:() => ['manage_projects', 'manage_sales', 'send_communications', 'manage_company_settings'].some(hasPerm),
     /* Branches: the feature, then what the structure read says this organization has and this viewer may do. */
     branches_feature:() => flag('platform', 'multiple_branches') && state.structure?.feature_enabled !== false,
     multiple_branches:() => flag('platform', 'multiple_branches') && state.structure?.feature_enabled === true && state.structure?.multiple === true,
@@ -117,16 +124,17 @@
    * record in FirstMatePeople.undeclared, any action or tab whose `needs` is missing or unknown.
    */
   const ACTIONS = Object.freeze({
-    'users.view':{ any:ADMIN, server:'GET /v1/platform/organizations/:org/collections/users' },
-    'users.open':{ any:ADMIN, server:'GET /v1/platform/organizations/:org/collections/users/:id' },
-    'users.invite':{ all:['manage_company_users'], server:'POST /v1/platform/organizations/:org/collections/users' },
+    'users.view':{ any:ADMIN, server:'GET /v1/platform/organizations/:org/users' },
+    'users.open':{ any:ADMIN, server:'GET /v1/platform/organizations/:org/users/:id' },
+    'users.invite':{ all:['manage_company_users'], server:'POST /v1/platform/organizations/:org/users' },
     'users.photo':{ all:['manage_company_users'], server:'POST portal action org_users_upload_avatar_my' },
-    'users.identity':{ all:['manage_company_users'], server:'PATCH /v1/platform/organizations/:org/collections/users/:id' },
+    'users.identity':{ all:['manage_company_users'], server:'PATCH /v1/platform/organizations/:org/users/:id' },
     'users.resend_invite':{ all:['manage_company_users'], server:'POST /v1/platform/organizations/:org/users/:id/invite' },
-    'users.suspend':{ all:['manage_company_users'], server:'PATCH /v1/platform/organizations/:org/collections/users/:id (status)' },
-    'users.delete':{ all:['manage_company_users'], server:'DELETE /v1/platform/organizations/:org/collections/users/:id' },
-    'users.activity':{ any:['manage_company_users', 'manage_company_settings'], server:'GET /v1/platform/organizations/:org/collections/activity' },
-    'users.legacy_permissions':{ all:['legacy_access'], any:ADMIN, server:'PATCH /v1/platform/organizations/:org/collections/users/:id (org_permissions)' },
+    'users.suspend':{ all:['manage_company_users'], server:'PATCH /v1/platform/organizations/:org/users/:id (status)' },
+    'users.archive':{ all:['manage_company_users'], server:'DELETE /v1/platform/organizations/:org/users/:id (archives: kept, cannot sign in)' },
+    'users.restore':{ all:['expanded_access', 'manage_company_users'], server:'workforce.users.restore' },
+    'users.activity':{ any:['manage_company_users', 'manage_company_settings'], server:'GET /v1/platform/organizations/:org/activity' },
+    'users.legacy_permissions':{ all:['legacy_access'], any:ADMIN, server:'PATCH /v1/platform/organizations/:org/users/:id (org_permissions)' },
     'users.roles':{ all:WORKFORCE, any:ADMIN, server:'PATCH /v1/workforce/organizations/:org/users/:id/profile' },
     'users.permissions':{ all:WORKFORCE, any:ADMIN, server:'PATCH /v1/workforce/organizations/:org/users/:id/profile (permission_overrides)' },
     'users.apps':{ all:WORKFORCE, any:ADMIN, server:'PATCH /v1/workforce/organizations/:org/users/:id/profile (app_access_overrides)' },
@@ -136,6 +144,10 @@
     'roles.view':{ all:WORKFORCE, any:ADMIN, server:'GET /v1/workforce/organizations/:org/access/catalog' },
     'roles.edit':{ all:WORKFORCE, any:ADMIN, server:'POST|PATCH|DELETE /v1/workforce/organizations/:org/access/roles' },
     'compensation':{ all:['expanded_access', 'payroll_app'], any:['manage_payroll', 'manage_company_settings'], server:'/v1/payroll pay setups and defaults (PayrollAPI.pay)' },
+    /* Pay sheets: compensation records, read and written with company settings access (docs/architecture/pay-sheets.md). */
+    'pay_sheets':{ all:['materials_app', 'manage_company_settings'], server:'GET /v1/materials/organizations/:org/pay-sheets, .../pay-sheets/kinds-of-work, .../pay-sheets/overview' },
+    'pay_sheets.edit':{ all:['materials_app', 'manage_company_settings'], server:'POST|PATCH|DELETE /v1/materials/organizations/:org/pay-sheets (pay-sheets.sheet.save, pay-sheets.sheet.archive)' },
+    'pay_sheets.try':{ all:['materials_app', 'manage_company_settings', 'manage_projects'], server:'POST /v1/materials/organizations/:org/projects/:projectId/pay-sheets/try' },
     /* How a person is paid: employee or independent contractor. Seen and changed with Compensation. */
     'users.classification_view':{ all:['expanded_access', 'payroll_app'], any:['manage_payroll', 'manage_company_settings'], server:'GET /v1/workforce/organizations/:org/users (worker_classification)' },
     'users.classification':{ all:['expanded_access', 'payroll_app'], any:['manage_company_settings', 'payroll_and_users'], server:'payroll.contractor.worker.update (manage_company_users | manage_company_settings)' },
@@ -154,6 +166,9 @@
     'companies.edit':{ all:[...GROUPS, 'manage_company_settings'], server:'POST|PATCH|DELETE /v1/connections/..., assignees.profile.set, assignees.type.save' },
     'companies.terms':{ all:[...GROUPS, 'payroll_app'], any:['manage_payroll', 'manage_company_settings'], server:'payroll.contractor.company.update' },
     'companies.permissions':{ all:[...GROUPS, 'manage_company_user_permissions'], server:'assignee-directory.permission-defaults, assignees.permission-defaults.set' },
+    'companies.onboarding':{ all:[...GROUPS, 'manage_company_settings'], server:'connections.onboarding.save, POST /v1/platform/organizations/:org/media (owner company)' },
+    'companies.onboarding_requirements':{ all:[...GROUPS, 'manage_company_settings'], server:'assignees.type.save (onboarding_requirements)' },
+    'companies.invite':{ all:[...GROUPS, 'collaboration', 'manage_external_connections', 'send_email'], server:'POST /v1/collaboration/organizations/:org/partner-invitations (workforce_connection_id), /invitations/:id/send, /invitations/:id/revoke' },
     /* Branches and regions. The Branches button shows even with one branch; nothing else does until there are several. */
     'branches.view':{ all:[...BRANCHES, 'people_access', 'branch_admin'], server:'organization-branches.structure' },
     'branches.add':{ all:[...BRANCHES, 'manage_all_branches', 'can_add_branch'], server:'organization-branches.branch.add' },
@@ -162,6 +177,8 @@
     'branches.region':{ all:[...BRANCHES, 'manage_all_branches', 'can_manage_regions'], server:'organization-branches.branch.region.set' },
     'regions.edit':{ all:[...BRANCHES, 'manage_all_branches', 'can_manage_regions'], server:'organization-branches.region.save' },
     'branches.filter':{ all:['expanded_access', 'multiple_branches'], server:'users, resource-groups and organization-connections lists with branch_ids=all; filtered on the rows\' branch_ids' },
+    'branches.membership_users':{ all:['expanded_access', 'multiple_branches', 'manage_company_users'], server:'organization-branches.membership.set (a person)' },
+    'branches.membership':{ all:['expanded_access', 'multiple_branches', 'manage_company_settings'], server:'organization-branches.membership.set (a group or outside company)' },
     'branches.filter_region':{ all:['expanded_access', 'multiple_branches'], any:['view_region_branches', 'view_all_branches'], server:'branch_ids=region' },
     'users.scoped_branch':{ all:[...WORKFORCE, 'multiple_branches', 'manage_company_user_permissions'], server:'PATCH /v1/workforce/.../users/:id/profile (scoped_access_assignments, scope kind branch | region)' },
     'departments.branch':{ all:[...DEPARTMENTS, 'multiple_branches', 'manage_company_settings'], server:'PUT /v1/workforce/organizations/:org/departments (branch_id)' }
@@ -315,8 +332,18 @@
   const regions = () => arr(state.structure?.regions).filter((entry) => text(entry.status, 'active') !== 'archived');
   const branch = (id) => arr(state.structure?.branches).find((entry) => String(entry.id) === String(id)) || null;
   const region = (id) => arr(state.structure?.regions).find((entry) => String(entry.id) === String(id)) || null;
-  /* An unnamed default branch is called by the default-branch phrase. (No terminology key exists for it yet.) */
-  const branchName = (id) => { const entry = branch(id); const name = text(entry?.name); return name && name !== 'Default Branch' ? name : (entry?.is_default || String(id) === 'default' ? t('main_branch', 'Main branch') : String(id)); };
+  /* What the organization calls a branch and a region (terminology keys branches.*; organization-wide, kept on the default branch). */
+  const lower = (value) => value ? value.charAt(0).toLowerCase() + value.slice(1) : value;
+  function branchWords(){
+    const word = (key, fallback) => text(term(`branches.${key}`, fallback), fallback);
+    const words = { Branch:word('branch', 'Branch'), Branches:word('branches', 'Branches'), Region:word('region', 'Region'), Regions:word('regions', 'Regions'), Main:word('main_branch', 'Main branch') };
+    if (words.Main === 'Main branch' && words.Branch !== 'Branch') words.Main = t('main_branch_word', 'Main {branch}', { branch:lower(words.Branch) });
+    return { ...words, branch:lower(words.Branch), branches:lower(words.Branches), region:lower(words.Region), regions:lower(words.Regions), main:lower(words.Main) };
+  }
+  /* A sentence about branches in the organization's words: {w_Branch} {w_branches} {w_Region} {w_main} ... */
+  const bt = (key, fallback, values = {}) => { const words = branchWords(); return t(key, fallback, { ...Object.fromEntries(Object.entries(words).map(([name, value]) => [`w_${name}`, value])), ...values }); };
+  /* An unnamed default branch is called by the organization's word for it (branches.main_branch). */
+  const branchName = (id) => { const entry = branch(id); const name = text(entry?.name); return name && name !== 'Default Branch' ? name : (entry?.is_default || String(id) === 'default' ? branchWords().Main : String(id)); };
   /* The branches a record belongs to, the way each kind keeps them. */
   function branchIdsOf(kind, record = {}){
     if (!record) return [];
@@ -591,10 +618,18 @@
     replaceUser({ ...next, id:String(id), disabled:!!suspended, status:suspended ? 'disabled' : text(next.status === 'disabled' ? 'active' : next.status, 'active') });
     emit({ type:'user', id:String(id) });
   }
-  async function removeUser(id){
-    await api().users.remove(orgId(), id);
+  /* Archives: the person is kept for the record (Archived), cannot sign in, and can be restored with everything they had. */
+  async function removeUser(id, reason = ''){
+    await api().users.remove(orgId(), id, { reason });
+    const gone = state.users.find((entry) => entry.id === String(id));
     state.users = state.users.filter((entry) => entry.id !== String(id));
+    if (gone) state.archivedUsers = [...state.archivedUsers.filter((entry) => entry.id !== String(id)), { ...gone, deleted:true, status:'disabled', archived_reason:text(reason) }];
     emit({ type:'remove', id:String(id) });
+  }
+  async function restoreUser(id){
+    await api().publication.invoke(orgId(), 'workforce.users.restore', { scope:'organization', organizationId:orgId(), id:String(id) }, {}, { idempotencyKey:newKey('restore') });
+    await reload({ type:'user', id:String(id) });
+    return user(id);
   }
   /* Scoped entries People does not edit (permission-only ones) are written back untouched. */
   const keptScoped = (entry) => arr((entry.profile || entry).scoped_access_assignments).filter((assignment) => assignment && !assignment.role_id);
@@ -730,10 +765,10 @@
     internal:{ emit, reload, api, arr, obj, text, ids, records, invoke, newKey },
     userTagIds, userScopedAssignments, scopableRoles, legacyMode, userLegacy, legacyLevelItems, LEGACY_FLAGS, LEGACY_LEVELS:Object.keys(LEGACY_LEVELS), invoke,
     classificationOf, paymentTermsOf, workerMarks, saveClassification,
-    structure, multipleBranches, branches, regions, branch, region, branchName, branchIdsOf,
+    structure, multipleBranches, branches, regions, branch, region, branchName, branchIdsOf, branchWords, bt,
     state, load, subscribe(listener){ listeners.add(listener); return () => listeners.delete(listener); }, can, orgId, branchId, assetUrl,
     user, role, activeRoles, userRoleIds, userRoles, userPermissionOverrides, userAppOverrides, userDepartments, userDirectDepartmentIds, userGroups,
     neverSignedIn, isSuspended, isMe, isOwner, roleMembers, permissionGroups, inheritedPermission, inheritedApp, roleAppValue, appSettings, catalogDefaultApp, userSummary,
-    invite, resendInvite, setSuspended, removeUser, saveUser, uploadPhoto, saveUserDepartments, saveRole, createRole, archiveRole, setRoleMembership
+    invite, resendInvite, setSuspended, removeUser, restoreUser, saveUser, uploadPhoto, saveUserDepartments, saveRole, createRole, archiveRole, setRoleMembership
   };
 })();
