@@ -407,7 +407,8 @@ export async function readPaySplitRule(orgId: string, ruleId: string) {
   if (!rule) throw notFound("pay_split_rule_unknown", "That split rule does not exist.");
   return rule;
 }
-export async function savePaySplitRule(orgId: string, input: unknown, actor: Actor): Promise<PaySplitRule> {
+/** The split rule as saving this input would leave it, without saving: what `savePaySplitRule` writes and what a preview evaluates. */
+export async function draftPaySplitRule(orgId: string, input: unknown, actor: Actor) {
   const parsed = paySplitRuleSaveSchema.parse(input);
   const ruleId = parsed.id || slug(parsed.name, "split");
   const current = await readRow<Omit<PaySplitRule, "revision">>(orgId, "split", ruleId) as PaySplitRule | null;
@@ -416,7 +417,11 @@ export async function savePaySplitRule(orgId: string, input: unknown, actor: Act
     definition: parsed.definition, entered_at: nowIso(), entered_by: actor.userId
   };
   const data = { id: ruleId, name: parsed.name, description: parsed.description || "", status: "active" as const, versions: withVersion(current?.versions || [], version) };
-  return { ...data, revision: await writeRow(orgId, "split", ruleId, data, parsed.expected_revision, current?.revision ?? null) };
+  return { data, current, expected: parsed.expected_revision };
+}
+export async function savePaySplitRule(orgId: string, input: unknown, actor: Actor): Promise<PaySplitRule> {
+  const { data, current, expected } = await draftPaySplitRule(orgId, input, actor);
+  return { ...data, revision: await writeRow(orgId, "split", data.id, data, expected, current?.revision ?? null) };
 }
 /** An archived split rule is no longer offered. Groups whose pay already names it keep being divided by it until their setting changes. */
 export async function archivePaySplitRule(orgId: string, input: unknown) {
@@ -595,9 +600,10 @@ export async function savePayDefault(orgId: string, input: unknown, actor: Actor
  * roles a user resolves to today (saved, or inferred when none are saved), a group's one type, a company's types.
  * A payee that no longer exists is covered by nothing.
  */
-export async function payDefaultSubjectsFor(orgId: string, payee: Assignee): Promise<PayDefaultSubject[]> {
+export async function payDefaultSubjectsFor(orgId: string, payee: Assignee, options: { includeArchived?: boolean } = {}): Promise<PayDefaultSubject[]> {
   const { readAssignee } = await import("../labor/assignees.js");
-  const found = await readAssignee(orgId, payee);
+  // A removed payee's final refresh still asks what covered them, from their archived record.
+  const found = options.includeArchived ? await (await import("../assignees/base.js")).readAssigneeStoreRecord(orgId, payee).catch(() => null) : await readAssignee(orgId, payee);
   if (!found) return [];
   const subjects: PayDefaultSubject[] = [{ type: "organization", id: orgId }, { type: "assignee_kind", id: payee.type }];
   if (payee.type === "organization_user") {
@@ -618,12 +624,32 @@ export async function payDefaultSubjectsFor(orgId: string, payee: Assignee): Pro
  */
 export type CoverageSpan = { subject: PayDefaultSubject; from: string; through: string };
 const dayBefore = (date: string) => new Date(Date.parse(`${date}T00:00:00.000Z`) - 86_400_000).toISOString().slice(0, 10);
-async function coverageSpans(orgId: string, payee: Assignee, options: { day: string; record: boolean; unknownPayee?: "organization" }): Promise<CoverageSpan[]> {
-  const current = await payDefaultSubjectsFor(orgId, payee);
+async function coverageSpans(orgId: string, payee: Assignee, options: { day: string; record: boolean; unknownPayee?: "organization"; includeArchived?: boolean }): Promise<CoverageSpan[]> {
+  const current = await payDefaultSubjectsFor(orgId, payee, { includeArchived: options.includeArchived });
   const spans = await notePayCoverage(orgId, payee, current, options);
   // Nothing is known about a payee with no record. A ledger entry posted by hand for one still follows the organization's schedule.
   if (!current.length && !spans.length && options.unknownPayee) return [{ subject: { type: "organization", id: orgId }, from: "", through: "" }, { subject: { type: "assignee_kind", id: payee.type }, from: "", through: "" }];
-  return spans;
+  return order(await withTypeHistory(orgId, payee, spans));
+}
+/**
+ * A payee's types (roles, group type, company types) as recorded at the writes that changed them
+ * (`assigneeTypeHistory`), in place of the days a refresh happened to notice. For days before history was kept, the
+ * noticed spans still answer: a type the history found already held keeps the start payroll noticed for it, and a
+ * type that stopped before history began keeps its noticed span.
+ */
+async function withTypeHistory(orgId: string, payee: Assignee, spans: CoverageSpan[]): Promise<CoverageSpan[]> {
+  const history = await (await import("../assignees/base.js")).assigneeTypeHistory(orgId, payee).catch(() => []);
+  if (!history.length) return spans;
+  const typed = (payee.type === "organization_user" ? "role" : payee.type === "resource_group" ? "group_type" : "company_type") as PayDefaultSubject["type"];
+  const began = history.map((row) => row.recorded_at.slice(0, 10)).filter(Boolean).sort()[0] || "";
+  const noticed = spans.filter((span) => span.subject.type === typed);
+  // A type history found held at its start (blank start) answers for that type on every day; others ended before it began.
+  const before = noticed.filter((span) => span.through && (!began || span.through < began) && !history.some((row) => row.type_id === span.subject.id && !row.active_from));
+  const recorded = history.map((row): CoverageSpan => {
+    const seen = noticed.filter((span) => span.subject.id === row.type_id && !before.includes(span));
+    return { subject: { type: typed, id: row.type_id }, from: row.active_from || seen.map((span) => span.from).sort()[0] || "", through: row.active_until ? dayBefore(row.active_until) : "" };
+  });
+  return [...spans.filter((span) => span.subject.type !== typed), ...before, ...recorded.filter((span) => !span.through || !span.from || span.from <= span.through)];
 }
 /**
  * Compares the subjects that cover a payee today (`current`) with the spans kept for them and returns every span,
@@ -668,6 +694,8 @@ export type PayLayerOptions = {
   record?: boolean;
   /** Give a payee with no record the organization and kind defaults. Only for choosing a schedule for an entry posted by hand. */
   unknownPayee?: "organization";
+  /** Read a removed payee's archived record, for their final refresh. */
+  includeArchived?: boolean;
 };
 /**
  * A payee's pay, layer by layer: every default that covers or covered them, lowest first, then their own setup.
@@ -678,7 +706,7 @@ export async function payLayersFor(orgId: string, payee: Assignee, own?: PayLaye
   const defaults = new Map<string, Pick<PayDefault, "subject" | "entries" | "distribution" | "schedules">>((await listPayDefaults(orgId)).map((entry) => [defaultKey(entry.subject), entry]));
   for (const entry of options.defaults || []) defaults.set(defaultKey(entry.subject), entry);
   const layers: PayLayer[] = [];
-  for (const span of defaults.size ? await coverageSpans(orgId, payee, { day: options.day || today(), record: !!options.record, unknownPayee: options.unknownPayee }) : []) {
+  for (const span of defaults.size ? await coverageSpans(orgId, payee, { day: options.day || today(), record: !!options.record, unknownPayee: options.unknownPayee, includeArchived: options.includeArchived }) : []) {
     const found = defaults.get(defaultKey(span.subject));
     if (found && (found.entries.length || found.distribution?.length || found.schedules?.length)) layers.push({
       source: span.subject, entries: found.entries as PaySetupEntry[], ...(found.distribution ? { distribution: found.distribution } : {}), ...(found.schedules ? { schedules: found.schedules } : {}),

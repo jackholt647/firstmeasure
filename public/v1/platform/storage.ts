@@ -1156,9 +1156,15 @@ export type UpsertDocumentOptions = {
 };
 
 export async function upsertDocument(orgId: string, collectionValue: string, input: JsonObject = {}, options: UpsertDocumentOptions = {}) {
-  return isFirstMeasurePostgresEnabled()
+  const saved = isFirstMeasurePostgresEnabled()
     ? await (await postgresStorage()).upsertDocument(orgId, collectionValue, input, options) as StoredDocument
     : await upsertFileDocument(orgId, collectionValue, input, options);
+  // A person's types are their roles: a write that sets roles records the day they changed (assignees/base.ts noteAssigneeTypes).
+  const data = asObject(input.data);
+  if (collectionValue === "users" && saved?.id && ("access_role_ids" in data || "roles" in data || options.replace)) {
+    await import("../assignees/base.js").then(({ noteAssigneeTypes }) => noteAssigneeTypes(orgId, { type: "organization_user", id: String(saved.id) })).catch(() => undefined);
+  }
+  return saved;
 }
 
 /** What the contact service projects onto a project (contacts/records.ts `projectContactsProjection`). */

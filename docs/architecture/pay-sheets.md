@@ -259,7 +259,20 @@ work's measurements, which part of which whole each is, and its work items with 
 exactly as saving would and never saves. `DELETE pay-sheets/:sheetId` takes `expected_revision`. These live in
 `labor/pay-sheet-editor.ts`; run `tests/pay-sheets-editor-browser.test.mjs` for changes to the editor.
 
+**No line suggestions for labor.** A work order's lines come from generating it.
+The Labor resource type suggests no lines while someone types one in: the old
+`piece_rate` and `hourly_labor` sources read compensation plans, which are
+removed, and suggesting a pay sheet's lines by hand would bypass the sheet's own
+rules (an adder whose gate is zero on this job) and leave a hand-added line that
+regenerating keeps beside the generated one, paying twice. Stored resource types
+that still name those sources are read without them. Neither a labor list nor a
+scope template's labor piece carries a `compensation` record (pay mode,
+estimated hours) any more; how a list is paid is its assignee's sheet.
+
 ## Not built
+
+- A pay sheet's line offered as a suggestion that writes a generated line (with
+  its entry and coverage) rather than a hand-added one.
 
 Pay against what was committed is in [pay rules](pay-rules.md). What a job
 needs and what covers it is in [requirements](requirements.md). Committing a list and delivering it are described in

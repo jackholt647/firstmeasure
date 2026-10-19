@@ -212,6 +212,8 @@
     previewRule(orgId, rule){ return payAction(orgId, 'payroll.payRule.preview', rule, '', false); },
     previewPlan(orgId, plan){ return payAction(orgId, 'payroll.payPlan.preview', plan, '', false); },
     previewDefault(orgId, value){ return payAction(orgId, 'payroll.payDefault.preview', value, '', false); },
+    // A split rule's preview also carries, per group, how its latest earnings would be divided (`samples`).
+    previewSplitRule(orgId, rule){ return payAction(orgId, 'payroll.paySplitRule.preview', rule, '', false); },
     // Which schedule pays one kind of a payee's earnings on a day, and which layer chose it. Null when nothing is chosen.
     resolveSchedule(orgId, payee, earningKind, date){ return payAction(orgId, 'payroll.paySchedule.resolve', { payee:{ type:payee.type, id:payee.id }, ...(earningKind ? { earning_kind:earningKind } : {}), ...(date ? { date } : {}) }, '', false); },
     archiveRule(orgId, id, expectedRevision){ return payAction(orgId, 'payroll.payRule.archive', { id, ...(expectedRevision === undefined ? {} : { expected_revision:expectedRevision }) }); },

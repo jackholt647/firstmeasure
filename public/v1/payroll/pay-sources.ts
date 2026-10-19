@@ -72,6 +72,8 @@ async function projectedLaborRows(orgId: string): Promise<JsonObject[]> {
   const commitments = await listCommitments(orgId);
   // A store that is not registered holds no completions; any other failure to read them fails the reading, since
   // projecting finalized work as well would count it twice.
+  // A list paid out in part is projected only for its lines nobody has been paid for yet.
+  const unpaid = await (await import("../labor/completion.js")).unpaidShares(orgId);
   const finalized = await (await import("../labor/completion.js")).finalizedCommitmentIds(orgId)
     .catch((error: { code?: string }) => { if (error?.code === "invalid_collection") return new Set<string>(); throw error; });
   const lists = new Map((await listDocuments(orgId, MATERIAL_LIST_COLLECTION)).map((document) => [document.id, object(document.data)]));
@@ -92,7 +94,7 @@ async function projectedLaborRows(orgId: string): Promise<JsonObject[]> {
     if (isLaborDone(entry, finalized)) continue;
     rows.push(asDone({
       id: entry.id, assignee_key: `${entry.assignee.type}:${entry.assignee.id}`, assignee_name: entry.assignee.name, unit_id: entry.unit?.id || "",
-      project_id: entry.project_id, project_title: entry.project_title, list_id: entry.list_id, title: entry.title, total_cents: entry.total_cents, unpriced_lines: entry.unpriced_lines,
+      project_id: entry.project_id, project_title: entry.project_title, list_id: entry.list_id, title: entry.title, ...unpaid(entry),
       committed_at: entry.committed_at, projected_from: "commitment"
     }, expected(lists.get(entry.list_id), entry.project_id, entry.schedule)));
   }
@@ -115,7 +117,7 @@ async function projectedLaborRows(orgId: string): Promise<JsonObject[]> {
 }
 
 /** The time clock is published beside these (time-clock-sources.ts); a rule reads it like any other collection. */
-export const PAY_SOURCE_EXPORTS = [...TIME_CLOCK_EXPORTS, "project_records", "labor_commitments"] as const;
+export const PAY_SOURCE_EXPORTS = [...TIME_CLOCK_EXPORTS, "project_records", "labor_commitments", "work_roster"] as const;
 export function paySourceExports(): Record<typeof PAY_SOURCE_EXPORTS[number], DataExport> {
   return {
     ...timeClockExports(),
@@ -142,17 +144,17 @@ export function paySourceExports(): Record<typeof PAY_SOURCE_EXPORTS[number], Da
         return { value };
       }
     },
+    work_roster: {
+      description: "Who is on each scheduled piece of work, from the schedule roster (the same answer as schedule-roster.events): one row per person, or outside company, per interval they are on a project's schedule event, after removals, time off and unavailability. `assignee_key` (`organization_user:<id>`, or the company's key), `user_id`, `name`, `via` (the assignees that put them there), `project_id`, `event_id`, `parent_event_id`, `title`, exact `from` and `until` instants and `seconds`. Past and future work alike; `revision` changes with anything in the row. Split rules read it to divide an earning by who was actually on the work.",
+      schema: rows, schemaVersion: "1", access, units: { seconds: "seconds" },
+      read: async (ctx) => ({ value: await (await import("./roster-sources.js")).workRosterRows(ctx.organizationId, ctx.auth) })
+    },
     labor_commitments: {
       description: "Labor lists committed to an assignee, one row per commitment: `assignee_key`, `unit_id`, `project_id`, `status` (committed, released, superseded), `total_cents` of its priced lines, `unpriced_lines`, `committed_at` and `released_at`. A release covers both finished work and work taken back; `release_reason` says which when someone recorded it. With args `{ \"projected\": true }` the rows are instead the labor not done yet, each as it is expected to look once done, for projected pay: every current commitment that is neither released nor finalized, and every assigned labor list that has never been committed (`committed_at` blank), each as finished work looks: `status` committed and `finalized_at` the expected date (the end of its schedule event, else the list's or the commitment's schedule; blank when nothing is scheduled), `expected_from` (schedule_event, labor_list, commitment or blank), `projected_from` (commitment or labor_list) and `projected: true`. Once its work is confirmed as done and marked to be paid it also carries `finalized_at`, `finalized_by_user_id` and `completion_method` (empty until then, and again if a manager reopens it); piece-rate pay is earned on `finalized_at`. Finished work is finalized, never released.",
       schema: rows, schemaVersion: "1", access, units: { total_cents: "currency minor units" },
       argsSchema: { type: "object", properties: { projected: { type: "boolean" } }, additionalProperties: false },
-      read: async (ctx, ref) => ref.args?.projected === true ? { value: await projectedLaborRows(ctx.organizationId) } : await (async () => { const finalized = new Map((await (await import("../labor/completion.js")).listCompletions(ctx.organizationId)).filter((entry) => entry.state === "finalized").map((entry) => [entry.commitment_id, entry])); return { value: (await listCommitments(ctx.organizationId)).map((entry) => ({
-        id: entry.id, assignee_key: `${entry.assignee.type}:${entry.assignee.id}`, assignee_name: entry.assignee.name, unit_id: entry.unit?.id || "",
-        project_id: entry.project_id, list_id: entry.list_id, status: entry.status, total_cents: entry.total_cents, unpriced_lines: entry.unpriced_lines,
-        committed_at: entry.committed_at, released_at: entry.released_at || "", release_reason: entry.release_reason || "",
-        // Finished and confirmed to be paid (labor/completion.ts). Empty until then, and again if a manager reopens it.
-        finalized_at: finalized.get(entry.id)?.finalized_at || "", finalized_by_user_id: finalized.get(entry.id)?.finalized_by_user_id || "", completion_method: finalized.get(entry.id)?.method || ""
-      })) }; })()
+      // One row per commitment, and one per payout of part of a list (labor/completion.ts laborPayRows): each earns on its own finalized_at.
+      read: async (ctx, ref) => ({ value: ref.args?.projected === true ? await projectedLaborRows(ctx.organizationId) : await (await import("../labor/completion.js")).laborPayRows(ctx.organizationId, await listCommitments(ctx.organizationId)) })
     }
   };
 }

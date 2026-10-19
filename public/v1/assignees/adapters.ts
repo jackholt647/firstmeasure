@@ -26,7 +26,8 @@ async function absent<T>(read: () => Promise<T>): Promise<T | null> {
 }
 const status = (record: JsonObject): AssigneeStatus => {
   const value = text(record.status || "active").toLowerCase();
-  if (record.archived_at || value === "archived" || value === "deleted") return "archived";
+  // A removed person is kept with `deleted: true` (workforce/user-archive.ts): archived, like a removed group or company.
+  if (record.archived_at || record.deleted === true || value === "archived" || value === "deleted") return "archived";
   return value === "active" ? "active" : "inactive";
 };
 

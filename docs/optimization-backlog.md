@@ -105,6 +105,24 @@ For the per-event directory load, `checkAssignment` / `loadRoster` would take an
 minute. Cost grows with the total number of events and with events on screen.
 (docs/architecture/schedule-events.md, "Roster and warnings")
 
+## Payroll work roster reads every scheduled event
+
+**Today.** `payroll.work_roster` and the time clock's projected reading (`public/v1/payroll/roster-sources.ts`,
+`workRosterRows` and `projectedShiftRows`) read every project to find the schedule events that name an assignee, then
+ask `readEventRosters` for each of them in batches of 200, each batch paying the schedule roster's own cost (see
+[Schedule roster reads every project](#schedule-roster-reads-every-project)). A split rule that reads the roster selects
+it once per group refresh, and a projection of a rule that reads the time clock selects the projected reading once per
+payee, so a refresh of many groups reads every event's roster once per group.
+
+**Where the change goes.** `workRosterRows` only: take the window from the selection (the earliest and latest earned
+day the refresh can touch) instead of reading every event, and keep one answer for a whole organization refresh
+rather than one per group. With an index on schedule events by time and assignee (the schedule roster entry), the window
+becomes one bounded query.
+
+**Why it can wait.** Organizations on the platform schedule a few hundred events, a roster read is milliseconds per
+event, and an unchanged refresh skips the formulas by digest; only the reads repeat.
+(docs/architecture/pay-rules.md, "Split rules" and "Projected earnings")
+
 ## Stats datasets over full scans and fast-changing sources
 
 **Today.** Stats materializations accept sources that can only be fully scanned; very high-cardinality or

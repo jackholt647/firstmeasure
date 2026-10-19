@@ -2285,7 +2285,7 @@
     "id": "work.completion",
     "version": "1",
     "title": "Confirm work",
-    "description": "Confirm that work is done before it is paid: a work order's line items, and optionally the project's material lines and requirement rows. Set method to approve (one button, no checkboxes), select_all (checkboxes with Select all; the default) or each (every item checked on its own). Set list_id for one work order. Reports which items were confirmed; pass that to labor.list.finalize or project-closeout.close.",
+    "description": "Confirm that work is done before it is paid: a work order's line items, and optionally the project's material lines and requirement rows. Set method to approve (one button, no checkboxes), select_all (checkboxes with Select all; the default) or each (every item checked on its own). Set list_id for one work order. Set partial to let some lines be paid out now and the rest later (with select_all or each); lines already paid out show as done. The organization's choice of method is labor-completion.settings. Reports which items were confirmed; pass that to labor.list.finalize or project-closeout.close.",
     "app": "materials",
     "surfaces": [
       "project",
@@ -2319,6 +2319,9 @@
         "requirements": {
           "type": "boolean"
         },
+        "partial": {
+          "type": "boolean"
+        },
         "prompt": {
           "type": "string",
           "maxLength": 200
@@ -2349,6 +2352,9 @@
             ]
           },
           "complete": {
+            "type": "boolean"
+          },
+          "partial": {
             "type": "boolean"
           },
           "approved": {

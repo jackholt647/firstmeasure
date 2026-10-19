@@ -4,7 +4,7 @@ window.FirstMateSettingsIndex = {
   "inputs": [
     [
       "libraries/apps/settings/company.js",
-      "32b07b5e4943974a0f0ef236f4abf10bb7625122ca17ad28ce57cfe24a29d6c9"
+      "6fb0502cc1eac9182d4a7c443080c057dd284e253404b7ce3f22d6d3a3fbf43a"
     ],
     [
       "libraries/appointment-booking/settings.js",
@@ -24,7 +24,7 @@ window.FirstMateSettingsIndex = {
     ],
     [
       "libraries/apps/people/compensation-panel.js",
-      "6993f7a963226382372a84cd7c24f5e856a4dc7a08ad7ec2a7995d9a0c57372a"
+      "d5aa7536acdaae034f1424e3e2dc8becf31a57171732d12f960193aa12bbd9dd"
     ],
     [
       "libraries/apps/people/departments-page.js",
@@ -60,7 +60,7 @@ window.FirstMateSettingsIndex = {
     ],
     [
       "libraries/apps/people/pay-sheets-editor.js",
-      "d8b2d6ec5deb4da8f9e302b6ffe679d73832d870b16034e68bba846ee0d84868"
+      "452bed023af6f27ab163cce24ec4f278d3a401ce348c3bc765100b02631813c7"
     ],
     [
       "libraries/apps/people/pay-sheets-list.js",
@@ -128,7 +128,7 @@ window.FirstMateSettingsIndex = {
     ],
     [
       "libraries/apps/settings/crm.js",
-      "8846538b881ca609976b376e7c273bcfc16f33b0d79da0bfc738438b4b41f935"
+      "28ada69a1a1b20da43b0b6c21acbed7cf76a7d0f8896bb8a2b38318a3ed69b0a"
     ],
     [
       "libraries/apps/settings/domains.js",
@@ -152,7 +152,7 @@ window.FirstMateSettingsIndex = {
     ],
     [
       "libraries/apps/settings/payroll.js",
-      "c2c5e28a3a51530a75fca2395fc4a816417d52a7f3a69b51b05d3e879f50be4c"
+      "33cc48fe5a8c33584d5d1d6bb08714c32a7dd18e51f68297fac5fd0541c71344"
     ],
     [
       "libraries/apps/settings/phone.js",
@@ -168,7 +168,7 @@ window.FirstMateSettingsIndex = {
     ],
     [
       "libraries/apps/settings/scope-artifacts.js",
-      "2f5b46ea10fcb88ef7e677a46aa203ed75d0942902d030bacf2c958e22dd58ac"
+      "d3397f8ab7a400abdb9de74d9789341250c83ee8db2e3757287537c63fdc17ff"
     ],
     [
       "libraries/apps/settings/scope-events.js",
@@ -1131,6 +1131,16 @@ window.FirstMateSettingsIndex = {
       "view": "celebrations",
       "source": "libraries/apps/settings/crm.js",
       "title": "Completion outcomes",
+      "description": "",
+      "kind": "heading",
+      "selector": ""
+    },
+    {
+      "section": "calls",
+      "tab": "Call Lists",
+      "view": "celebrations",
+      "source": "libraries/apps/settings/crm.js",
+      "title": "Confirming work orders",
       "description": "",
       "kind": "heading",
       "selector": ""
@@ -5857,6 +5867,16 @@ window.FirstMateSettingsIndex = {
       "tab": "Money",
       "view": "",
       "source": "libraries/apps/settings/company.js",
+      "title": "Refund policy",
+      "description": "",
+      "kind": "heading",
+      "selector": ""
+    },
+    {
+      "section": "money",
+      "tab": "Money",
+      "view": "",
+      "source": "libraries/apps/settings/company.js",
       "title": "Routing number",
       "description": "",
       "kind": "control",
@@ -6365,6 +6385,26 @@ window.FirstMateSettingsIndex = {
       "tab": "Payroll",
       "view": "",
       "source": "libraries/apps/settings/payroll.js",
+      "title": "Advanced: the formula",
+      "description": "",
+      "kind": "heading",
+      "selector": ""
+    },
+    {
+      "section": "payroll",
+      "tab": "Payroll",
+      "view": "",
+      "source": "libraries/apps/settings/payroll.js",
+      "title": "Advanced: the formula Run once per earning line. It returns each member's weight, not money.",
+      "description": "",
+      "kind": "heading",
+      "selector": ""
+    },
+    {
+      "section": "payroll",
+      "tab": "Payroll",
+      "view": "",
+      "source": "libraries/apps/settings/payroll.js",
       "title": "Clawback cap / check %",
       "description": "",
       "kind": "control",
@@ -6409,6 +6449,16 @@ window.FirstMateSettingsIndex = {
       "description": "",
       "kind": "control",
       "selector": "[data-cadence-anchor=\"\"]"
+    },
+    {
+      "section": "payroll",
+      "tab": "Payroll",
+      "view": "",
+      "source": "libraries/apps/settings/payroll.js",
+      "title": "Days before",
+      "description": "",
+      "kind": "control",
+      "selector": "[data-in=\"window_days\"]"
     },
     {
       "section": "payroll",
@@ -6489,6 +6539,26 @@ window.FirstMateSettingsIndex = {
       "description": "",
       "kind": "control",
       "selector": "[data-plan=\"effective_from\"]"
+    },
+    {
+      "section": "payroll",
+      "tab": "Payroll",
+      "view": "",
+      "source": "libraries/apps/settings/payroll.js",
+      "title": "End field",
+      "description": "",
+      "kind": "control",
+      "selector": "[data-in=\"window_end\"]"
+    },
+    {
+      "section": "payroll",
+      "tab": "Payroll",
+      "view": "",
+      "source": "libraries/apps/settings/payroll.js",
+      "title": "Equals the earning's",
+      "description": "",
+      "kind": "control",
+      "selector": "[data-m=\"token\"]"
     },
     {
       "section": "payroll",
@@ -6595,6 +6665,16 @@ window.FirstMateSettingsIndex = {
       "tab": "Payroll",
       "view": "",
       "source": "libraries/apps/settings/payroll.js",
+      "title": "Member field",
+      "description": "The field naming the member ( organization_user:<id> ) a row is about. Rows about anyone who did not share the earning are left out.",
+      "kind": "control",
+      "selector": "[data-in=\"member\"]"
+    },
+    {
+      "section": "payroll",
+      "tab": "Payroll",
+      "view": "",
+      "source": "libraries/apps/settings/payroll.js",
       "title": "Monthly",
       "description": "",
       "kind": "control",
@@ -6629,6 +6709,16 @@ window.FirstMateSettingsIndex = {
       "description": "Other inputs arrive whole as shared .",
       "kind": "control",
       "selector": "[data-in=\"primary\"]"
+    },
+    {
+      "section": "payroll",
+      "tab": "Payroll",
+      "view": "",
+      "source": "libraries/apps/settings/payroll.js",
+      "title": "Only rows that touch the earned day",
+      "description": "A row is in when the span from its start to its end touches the window. With an end field each row also carries the exact seconds inside it.",
+      "kind": "control",
+      "selector": "[data-in=\"window_on\"]"
     },
     {
       "section": "payroll",
@@ -6744,6 +6834,16 @@ window.FirstMateSettingsIndex = {
       "tab": "Payroll",
       "view": "",
       "source": "libraries/apps/settings/payroll.js",
+      "title": "Row field",
+      "description": "",
+      "kind": "control",
+      "selector": "[data-m=\"field\"]"
+    },
+    {
+      "section": "payroll",
+      "tab": "Payroll",
+      "view": "",
+      "source": "libraries/apps/settings/payroll.js",
       "title": "Rule name",
       "description": "",
       "kind": "control",
@@ -6764,6 +6864,26 @@ window.FirstMateSettingsIndex = {
       "tab": "Payroll",
       "view": "",
       "source": "libraries/apps/settings/payroll.js",
+      "title": "Split rule name",
+      "description": "",
+      "kind": "control",
+      "selector": "[data-split=\"name\"]"
+    },
+    {
+      "section": "payroll",
+      "tab": "Payroll",
+      "view": "",
+      "source": "libraries/apps/settings/payroll.js",
+      "title": "Start field",
+      "description": "",
+      "kind": "control",
+      "selector": "[data-in=\"window_start\"]"
+    },
+    {
+      "section": "payroll",
+      "tab": "Payroll",
+      "view": "",
+      "source": "libraries/apps/settings/payroll.js",
       "title": "Start from version",
       "description": "The form is filled from this version. Saving never changes it unless the dates match.",
       "kind": "control",
@@ -6778,6 +6898,16 @@ window.FirstMateSettingsIndex = {
       "description": "",
       "kind": "control",
       "selector": "[data-when-from=\"\"]"
+    },
+    {
+      "section": "payroll",
+      "tab": "Payroll",
+      "view": "",
+      "source": "libraries/apps/settings/payroll.js",
+      "title": "The window starts",
+      "description": "",
+      "kind": "control",
+      "selector": "[data-in=\"window_from\"]"
     },
     {
       "section": "payroll",

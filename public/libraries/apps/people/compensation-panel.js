@@ -47,6 +47,7 @@
   const versionOn = (versions, day) => arr(versions).filter((version) => text(version.effective_from) <= day).sort((a, b) => text(a.effective_from).localeCompare(text(b.effective_from))).pop() || arr(versions)[0] || null;
   const money = (cents) => (Number(cents || 0) / 100).toLocaleString(undefined, { minimumFractionDigits:2, maximumFractionDigits:2 });
   const signed = (cents) => `${Number(cents) < 0 ? '-' : '+'}${money(Math.abs(Number(cents) || 0))}`;
+  const dayLabel = (day) => { const at = Date.parse(`${text(day)}T12:00:00.000Z`); return Number.isFinite(at) ? new Date(at).toLocaleDateString(undefined, { month:'short', day:'numeric', year:'numeric', timeZone:'UTC' }) : text(day); };
 
   /* Ends what is in effect on a day and drops what would start on or after it, for the entries a test picks out. */
   function endFrom(list, matches, day){
@@ -79,6 +80,7 @@
       .pp-comp-bar{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
       .pp-comp-bar>strong{font-size:12px;font-weight:700;color:var(--pp-strong,#344054);text-transform:uppercase;letter-spacing:.04em}
       .pp-comp-bar .grow{flex:1}
+      .pp-comp-link{font-size:12px;font-weight:600;color:var(--pp-accent,#1d4ed8);cursor:pointer;text-decoration:underline;text-underline-offset:2px}
       .pp-comp-bar label{display:inline-flex;align-items:center;gap:6px;color:var(--pp-muted,#667085);font-weight:600}
       .pp-comp .pp-input{height:30px;font-size:12px;min-width:0}
       .pp-comp .pp-btn{height:30px;font-size:12px}
@@ -303,13 +305,13 @@
       const result = obj(preview.result);
       // A payee preview lists every earning that would post; a default preview lists, per payee, what the change itself moves.
       const lines = who.mode === 'payee'
-        ? arr(result.differences).map((difference) => ({ label:`${ruleName(difference.rule_id)} · ${text(difference.unit)}`, from:difference.posted_cents, to:difference.target_cents, delta:difference.delta_cents, held:difference.handling === 'hold' }))
-        : arr(result.payees).flatMap((payee) => arr(payee.differences).map((difference) => ({ label:`${text(payee.payee_name, payee.payee?.id)} · ${ruleName(difference.rule_id)} · ${text(difference.unit)}`, from:difference.without_change_cents, to:difference.target_cents, delta:difference.change_cents, held:difference.handling === 'hold' })));
+        ? arr(result.differences).map((difference) => ({ label:`${ruleName(difference.rule_id)} · ${text(difference.unit)}`, from:difference.posted_cents, to:difference.target_cents, delta:difference.delta_cents, held:difference.handling === 'hold', pay_date:text(difference.pay_date), schedule:text(difference.schedule_name) }))
+        : arr(result.payees).flatMap((payee) => arr(payee.differences).map((difference) => ({ label:`${text(payee.payee_name, payee.payee?.id)} · ${ruleName(difference.rule_id)} · ${text(difference.unit)}`, from:difference.without_change_cents, to:difference.target_cents, delta:difference.change_cents, held:difference.handling === 'hold', pay_date:text(difference.pay_date), schedule:text(difference.schedule_name) })));
       const unresolved = who.mode === 'payee' ? arr(result.unresolved) : arr(result.payees).flatMap((payee) => arr(payee.unresolved));
       const total = who.mode === 'payee' ? result.total_delta_cents : result.change_cents;
       return `<div class="pp-comp-preview" data-comp-preview>
         <div><strong>${esc(lines.length ? t('preview_changes', '{count} earnings would change', { count:lines.length }).replace('{count}', lines.length) : t('preview_none', 'No earnings would change'))}</strong>${lines.length ? `<b>${esc(signed(total))}</b>` : ''}</div>
-        ${lines.slice(0, 12).map((line) => `<div data-comp-difference><span>${esc(line.label)}: ${esc(money(line.from))} → ${esc(money(line.to))}${line.held ? ` (${esc(t('held', 'held for review'))})` : ''}</span><b>${esc(signed(line.delta))}</b></div>`).join('')}
+        ${lines.slice(0, 12).map((line) => `<div data-comp-difference><span>${esc(line.label)}: ${esc(money(line.from))} → ${esc(money(line.to))}${line.held ? ` (${esc(t('held', 'held for review'))})` : line.pay_date ? `, ${esc(t('paid_on', 'paid'))} ${esc(dayLabel(line.pay_date))}${line.schedule ? ` ${esc(t('paid_on_schedule', 'on'))} ${esc(line.schedule)}` : ''}` : ''}</span><b>${esc(signed(line.delta))}</b></div>`).join('')}
         ${lines.length > 12 ? `<div><span>${esc(`+${lines.length - 12}`)}</span></div>` : ''}
         ${unresolved.slice(0, 3).map((entry) => `<div data-comp-preview-unresolved><span>${esc(t('not_worked_out', 'Could not be worked out'))}: ${esc(text(entry.reason))}</span></div>`).join('')}
       </div>`;
@@ -330,6 +332,7 @@
         ${warning}
         <div class="pp-comp-bar"><strong${tip(t('paid_by_tip', 'The pay rules in effect on the day chosen'))}>${esc(t('paid_by', 'Paid by'))}</strong>
           ${who.mode === 'default' ? `<span data-comp-covers>${pill({ label:`${Number(state.base?.covers_count || 0)} ${t('covered', 'covered')}`, tone:'role', tooltip:arr(state.base?.covers).slice(0, 12).map((payee) => text(payee.name, payee.id)).join(', ') })}</span>` : ''}
+          ${who.mode === 'payee' ? `<a class="pp-comp-link" data-comp-why role="link" tabindex="0"${tip(t('why_tip', 'Opens Payroll on why they are paid what they are'))}>${esc(t('why_paid_link', 'Why'))}</a>${who.payee.type === 'resource_group' ? `<a class="pp-comp-link" data-comp-why="divided" role="link" tabindex="0"${tip(t('divided_tip', 'How what the group earned was divided among its members'))}>${esc(t('how_divided', 'How pay was divided'))}</a>` : ''}` : ''}
           <span class="grow"></span>
           <label class="pp-comp-date"${tip(t('from_tip', 'Changes made here start on this day. What was in effect before ends the day before.'))}>${esc(t('from', 'From'))}<input class="pp-input" type="date" data-comp-date value="${esc(state.date)}" ${disabled}></label>
           ${readOnly ? '' : `${pickButton('data-comp-add-rule', t('add_rule', 'Add rule'), addable.map((rule) => `<option value="${esc(rule.id)}">${esc(text(rule.name, rule.id))}</option>`).join(''))}${pickButton('data-comp-add-plan', t('add_plan', 'Add plan'), addablePlans.map((plan) => `<option value="${esc(plan.id)}">${esc(text(plan.name, plan.id))}</option>`).join(''))}`}
@@ -418,7 +421,12 @@
       if (element.dataset.compMode) { setMode(element.closest('[data-comp-rule]').dataset.compRule, element.dataset.compMode); changed(); }
       else if (element.dataset.compPreviewRun !== undefined) preview();
       else if (element.dataset.compRemovePlan !== undefined) { const planId = element.closest('[data-comp-plan]').dataset.compPlan; own().entries = endFrom(own().entries, (entry) => entry.kind === 'plan' && entry.plan_id === planId, state.date); changed(); }
-      else if (element.dataset.compWhy !== undefined) { event.preventDefault(); try { window.Portal?.navigation?.push?.({ tab:'payroll', payrollView:'upcoming' }, { source:'people-compensation' }); } catch (_) {} }
+      else if (element.dataset.compWhy !== undefined) {
+        // The payee's own Why on the Payroll tab (payroll/app.js reads payrollWhy); "divided" opens how a group's pay was divided.
+        event.preventDefault();
+        const route = { tab:'payroll', payrollView:'payees', ...(who.mode === 'payee' ? { payrollWhy:`${who.payee.type}:${who.payee.id}`, payrollWhyTab:text(element.dataset.compWhy) } : {}) };
+        try { window.Portal?.navigation?.push?.(route, { source:'people-compensation' }); } catch (_) {}
+      }
     }
     function onChange(event){
       const control = event.target;

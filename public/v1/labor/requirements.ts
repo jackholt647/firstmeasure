@@ -197,8 +197,11 @@ export async function projectRequirements(orgId: string, projectId: string, inpu
 async function markProgress(orgId: string, projectId: string, lists: JsonObject[], rows: Requirement[]) {
   const project = await readDocument(orgId, "projects", projectId).catch(() => null);
   const events = (Array.isArray(project?.data?.events) ? project!.data.events as unknown[] : []).map(obj).filter((event) => !["cancelled", "canceled"].includes(text(event.status).toLowerCase()));
-  const { listCompletions } = await import("./completion.js");
-  const finalized = new Set((await listCompletions(orgId, { project_id: projectId })).filter((entry) => entry.state === "finalized").map((entry) => entry.list_id));
+  const { listCompletions, listPayState } = await import("./completion.js");
+  // A labor list's part is done once every line is paid out, in one payout or several.
+  const completions = await listCompletions(orgId, { project_id: projectId });
+  const finalized = new Set<string>();
+  for (const list of lists.filter((entry) => text(entry.resource_type) === "labor")) if ((await listPayState(orgId, list, completions)).state === "paid") finalized.add(text(list.id));
   const byList = new Map(lists.map((list) => [text(list.id), list]));
   const now = Date.now();
   const state = new Map<string, { scheduled: boolean; completed: boolean }>();

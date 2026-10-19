@@ -21,16 +21,16 @@ let widgetsReady = null;
 /** The widget runtime and the completion widgets. Their definitions come from catalog.json; a page that cached an older catalog registers the two from a fresh copy. */
 export function ensureWidgets() {
   return widgetsReady ||= (async () => {
-    if (!window.FirstMateWidgets) await loadScript(new URL('../../platform-widgets/runtime.js?v=20261014-completion', base).href);
+    if (!window.FirstMateWidgets) await loadScript(new URL('../../platform-widgets/runtime.js?v=20261019-partial-payouts', base).href);
     const W = window.FirstMateWidgets;
     await W.ready;
     const wanted = ['work.completion', 'project.photos.review'];
     const missing = (await Promise.all(wanted.map((id) => W.describe(id)))).some((def) => !def);
     if (missing) {
-      const rows = await fetch(new URL('../../platform-widgets/catalog.json?v=20261014-completion', base), { credentials: 'same-origin' }).then((response) => response.json());
+      const rows = await fetch(new URL('../../platform-widgets/catalog.json?v=20261019-partial-payouts', base), { credentials: 'same-origin' }).then((response) => response.json());
       for (const def of rows.filter((row) => wanted.includes(row.id))) { if (!(await W.describe(def.id, def.version))) W.register(def); }
     }
-    if (!window.FirstMateCompletionWidgets) await loadScript(new URL('../../platform-widgets/completion-widgets.js?v=20261014-completion', base).href);
+    if (!window.FirstMateCompletionWidgets) await loadScript(new URL('../../platform-widgets/completion-widgets.js?v=20261019-partial-payouts', base).href);
     return W;
   })().catch((error) => { widgetsReady = null; throw error; });
 }
@@ -81,6 +81,9 @@ function styles() {
   .fmco-menu hr{border:0;border-top:1px solid #eaecf0;margin:4px 2px}
   .fmco-reason{display:grid;gap:8px;padding:16px}.fmco-reason p{margin:0;font-size:12px;color:#475467;line-height:1.5}.fmco-reason textarea{min-height:84px;border:1px solid #d0d5dd;border-radius:9px;padding:9px;font:inherit;font-size:12px;resize:vertical}
   .fmco-error{color:#b42318;font-size:11px;font-weight:650}
+  .fmco-rest{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:-2px 0 10px;padding:8px 10px;border-radius:9px;background:#f0f9ff;color:#026aa2;font-size:11px;font-weight:650}.fmco-rest i{margin-right:6px}.fmco-rest .fmco-btn{height:28px;font-size:11px}
+  .fmco-method{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:700;color:#475467;white-space:nowrap}.fmco-method select{height:30px;border:1px solid #d0d5dd;border-radius:8px;padding:0 8px;font:inherit;font-size:12px;background:#fff}
+  .fmco-pane-head{display:flex;justify-content:flex-end;margin:-2px 0 8px}
   @media (max-width:760px){.fmco-split,.fmco-final{grid-template-columns:1fr}.fmco-layout{grid-template-columns:1fr;grid-template-rows:auto minmax(0,1fr)}.fmco-rail{flex-direction:row;overflow-x:auto;border-right:0;border-bottom:1px solid #eaecf0}.fmco-rail button{width:auto;grid-template-columns:22px auto}.fmco-rail .fmco-state{display:none}.fmco-foot-info input{width:40vw}}
   `;
   document.head.append(el);
@@ -94,7 +97,25 @@ function styles() {
 function target(host) { return { scope: 'project', organizationId: host.orgId, projectId: host.projectId }; }
 function api() { const publication = window.PlatformAPI?.publication; if (!publication) throw Error('The platform API is unavailable.'); return publication; }
 function assigneeName(list) { return String(list?.assignment?.work_resource_ref?.name || '').trim() || String(list?.title || '').trim() || 'Work order'; }
-export function completionFor(host, listId) { return (host.completions() || []).find((entry) => entry.list_id === listId && entry.state === 'finalized') || null; }
+export function completionFor(host, listId) { const paid = (host.completions() || []).filter((entry) => entry.list_id === listId && entry.state === 'finalized'); return paid.length && paid.every((entry) => entry.list_paid !== 'part') ? paid[paid.length - 1] : null; }
+/** The payouts of part of a work order whose other lines are still open: [] when nothing or everything is paid out. */
+export function partialPayouts(host, listId) { return (host.completions() || []).filter((entry) => entry.list_id === listId && entry.state === 'finalized' && entry.list_paid === 'part'); }
+const METHOD_LABELS = { approve: 'One approval', select_all: 'Select all', each: 'Each line' };
+/** How this organization confirms work (labor-completion.settings); select_all when it cannot be read. */
+async function orgMethod(host) {
+  try { const result = await api().read(host.orgId, { provider: 'labor-completion', export: 'settings', target: { scope: 'organization', organizationId: host.orgId } }); return result?.status === 'ready' && METHOD_LABELS[result.value?.method] ? result.value : { method: 'select_all', revision: 0 }; }
+  catch (_) { return { method: 'select_all', revision: 0 }; }
+}
+const canChooseMethod = () => { try { return window.Portal?.util?.hasPerm?.('manage_company_settings') === true; } catch (_) { return false; } };
+/** A select that changes the organization's completion method, for people with company settings access. */
+function methodPicker(current) {
+  if (!canChooseMethod()) return '';
+  return `<label class="fmco-method" title="How everyone in your organization confirms work before it is paid, here and in Closeout"><span>Confirm by</span><select data-fmco-method aria-label="How work is confirmed">${Object.entries(METHOD_LABELS).map(([id, label]) => `<option value="${id}" ${id === current ? 'selected' : ''}>${esc(label)}</option>`).join('')}</select></label>`;
+}
+async function saveMethod(host, method, revision) {
+  const result = await api().invoke(host.orgId, 'labor-completion.settings.save', { scope: 'organization', organizationId: host.orgId }, { method, expected_revision: revision }, { idempotencyKey: key('completion-method') });
+  return result?.value || result;
+}
 
 function dialog(host, { title, subtitle = '', icon = 'fa-money-check-dollar', small = false, fit = false, body = '', foot = '' }) {
   styles();
@@ -131,12 +152,14 @@ function askReason(host, { title, body, confirm }) {
 export function openListMenu(host, listId, anchor) {
   styles();
   document.querySelectorAll('[data-fmco-menu]').forEach((node) => node.remove());
-  const done = completionFor(host, listId);
+  const done = completionFor(host, listId), parts = done ? [] : partialPayouts(host, listId);
   const menu = document.createElement('div');
   menu.className = 'fmco-menu'; menu.dataset.fmcoMenu = ''; menu.setAttribute('role', 'menu');
   menu.innerHTML = done
     ? `<button type="button" role="menuitem" disabled><i class="fas fa-circle-check" aria-hidden="true"></i>Paid out ${esc(when(done.finalized_at))} · ${esc(money(done.total_cents))}</button><hr><button type="button" role="menuitem" data-fmco-reopen><i class="fas fa-unlock" aria-hidden="true"></i>Reopen…</button>`
-    : `<button type="button" role="menuitem" data-fmco-payout><i class="fas fa-money-check-dollar" aria-hidden="true"></i>Pay out</button>`;
+    : parts.length
+      ? `<button type="button" role="menuitem" disabled><i class="fas fa-circle-half-stroke" aria-hidden="true"></i>${parts.reduce((sum, entry) => sum + entry.line_ids.length, 0)} line${parts.reduce((sum, entry) => sum + entry.line_ids.length, 0) === 1 ? '' : 's'} paid out · ${esc(money(parts.reduce((sum, entry) => sum + entry.total_cents, 0)))}</button><hr><button type="button" role="menuitem" data-fmco-payout><i class="fas fa-money-check-dollar" aria-hidden="true"></i>Pay out the rest</button><button type="button" role="menuitem" data-fmco-reopen><i class="fas fa-unlock" aria-hidden="true"></i>Reopen…</button>`
+      : `<button type="button" role="menuitem" data-fmco-payout><i class="fas fa-money-check-dollar" aria-hidden="true"></i>Pay out</button>`;
   (host.portal || document.body).append(menu);
   const rect = anchor.getBoundingClientRect(), width = menu.offsetWidth || 220;
   menu.style.left = `${Math.max(8, Math.min(window.innerWidth - width - 8, rect.right - width))}px`;
@@ -162,23 +185,40 @@ export async function openPayOut(host, listId, options = {}) {
   if (!list) return null;
   const items = host.listItems(list), total = items.reduce((sum, item) => sum + Math.round(Number(item.projected_total ?? (Number(item.quantity) || 0) * (Number(item.projected_unit_price) || 0)) * 100 || 0), 0);
   const view = dialog(host, { fit: true, title: `Pay out ${assigneeName(list)}`, subtitle: `${host.projectTitle || 'This project'} · ${items.length} line item${items.length === 1 ? '' : 's'} · ${money(total)}`,
-    body: `<div class="fmco-split"><section class="fmco-pane" data-fmco-completion></section><section class="fmco-pane is-photos" data-fmco-photos></section></div>`,
+    body: `<div class="fmco-split"><section class="fmco-pane"><div class="fmco-pane-head" data-fmco-method-host></div><div data-fmco-completion></div></section><section class="fmco-pane is-photos" data-fmco-photos></section></div>`,
     foot: `<div class="fmco-foot-info"><input type="text" data-fmco-note maxlength="2000" placeholder="Note for the record (optional)" aria-label="Note"><span data-fmco-summary></span></div><div class="fmco-actions"><span class="fmco-error" data-fmco-error></span><button type="button" class="fmco-btn" data-fmco-cancel>Cancel</button><button type="button" class="fmco-btn is-primary" data-fmco-confirm disabled><i class="fas fa-lock" aria-hidden="true"></i>Mark completed · to be paid</button></div>` });
   view.node.querySelector('[data-fmco-cancel]').onclick = view.close;
   const button = view.node.querySelector('[data-fmco-confirm]'), summary = view.node.querySelector('[data-fmco-summary]'), error = view.node.querySelector('[data-fmco-error]');
-  let picked = null, photos = { media_ids: [] };
+  let picked = null, photos = { media_ids: [] }, completion = null;
+  const label = button.innerHTML;
+  // Every open line confirmed pays the work order out; some of them pays out just those, and the rest stay open.
+  const onPick = (value) => {
+    picked = value;
+    button.disabled = !(value?.complete || value?.partial);
+    button.innerHTML = value?.partial && !value?.complete ? `<i class="fas fa-money-check-dollar" aria-hidden="true"></i>Pay out ${value.confirmed_item_ids.length} line${value.confirmed_item_ids.length === 1 ? '' : 's'} now` : label;
+    summary.textContent = value ? `${value.confirmed_item_ids.length} of ${items.length} confirmed${photos.media_ids.length ? ` · ${photos.media_ids.length} photo${photos.media_ids.length === 1 ? '' : 's'} reviewed` : ''}` : '';
+  };
   try {
     const W = await ensureWidgets();
-    view.widgets.push(mount(W, view.node.querySelector('[data-fmco-completion]'), host, 'work.completion', { list_id: listId, method: options.method || 'select_all', prompt: 'Confirm the work is done' }, (value) => { picked = value; button.disabled = !value?.complete; summary.textContent = value ? `${value.confirmed_item_ids.length} of ${items.length} confirmed${photos.media_ids.length ? ` · ${photos.media_ids.length} photo${photos.media_ids.length === 1 ? '' : 's'} reviewed` : ''}` : ''; }));
+    const setting = options.method ? { method: options.method, revision: 0 } : await orgMethod(host);
+    const mountCompletion = (method) => { completion?.destroy?.(); completion = mount(W, view.node.querySelector('[data-fmco-completion]'), host, 'work.completion', { list_id: listId, method, partial: true, prompt: 'Confirm the work is done' }, onPick); return completion; };
+    view.widgets.push(mountCompletion(setting.method));
+    const methodHost = view.node.querySelector('[data-fmco-method-host]');
+    methodHost.innerHTML = methodPicker(setting.method);
+    methodHost.querySelector('[data-fmco-method]')?.addEventListener('change', async (event) => {
+      try { const saved = await saveMethod(host, event.target.value, setting.revision); Object.assign(setting, saved); view.widgets.push(mountCompletion(setting.method)); host.toast('Confirmation method saved', `Work is now confirmed by ${METHOD_LABELS[setting.method].toLowerCase()} everywhere in your organization.`, true); }
+      catch (failure) { event.target.value = setting.method; error.textContent = failure?.message || 'The method could not be saved.'; }
+    });
     view.widgets.push(mount(W, view.node.querySelector('[data-fmco-photos]'), host, 'project.photos.review', { prompt: 'Photos of the work', limit: 60 }, (value) => { photos = value || { media_ids: [] }; if (picked) summary.textContent = `${picked.confirmed_item_ids.length} of ${items.length} confirmed${photos.media_ids.length ? ` · ${photos.media_ids.length} photo${photos.media_ids.length === 1 ? '' : 's'} reviewed` : ''}`; }));
   } catch (failure) { error.textContent = failure?.message || 'The confirmation could not load.'; }
   button.onclick = async () => {
-    if (!picked?.complete) return;
+    if (!picked?.complete && !picked?.partial) return;
+    const partly = !picked.complete;
     button.disabled = true; error.textContent = '';
     try {
-      await api().invoke(host.orgId, 'labor.list.finalize', target(host), { list_id: listId, method: picked.method, ...(picked.method === 'approve' ? {} : { confirmed_item_ids: picked.confirmed_item_ids }), ...(photos.media_ids.length ? { evidence_media_ids: photos.media_ids } : {}), ...(view.node.querySelector('[data-fmco-note]').value.trim() ? { note: view.node.querySelector('[data-fmco-note]').value.trim() } : {}) }, { idempotencyKey: key('labor-finalize') });
+      await api().invoke(host.orgId, 'labor.list.finalize', target(host), { list_id: listId, method: picked.method, ...(picked.method === 'approve' ? {} : { confirmed_item_ids: picked.confirmed_item_ids }), ...(partly ? { partial: true } : {}), ...(photos.media_ids.length ? { evidence_media_ids: photos.media_ids } : {}), ...(view.node.querySelector('[data-fmco-note]').value.trim() ? { note: view.node.querySelector('[data-fmco-note]').value.trim() } : {}) }, { idempotencyKey: key('labor-finalize') });
       view.close();
-      host.toast('Marked to be paid', `${assigneeName(list)}'s work order is completed and locked.`, true);
+      host.toast(partly ? 'Lines paid out' : 'Marked to be paid', partly ? `${picked.confirmed_item_ids.length} line${picked.confirmed_item_ids.length === 1 ? '' : 's'} of ${assigneeName(list)}'s work order ${picked.confirmed_item_ids.length === 1 ? 'is' : 'are'} to be paid and locked. The rest stay open.` : `${assigneeName(list)}'s work order is completed and locked.`, true);
       await host.refresh();
     } catch (failure) { error.textContent = failure?.message || 'It could not be finalized.'; button.disabled = false; }
   };
@@ -209,8 +249,16 @@ export async function openCloseout(host) {
   let current = closed() ? steps().length - 1 : 0;
   const picks = new Map(), photos = { media_ids: [] };
   const remaining = () => (checks.open_work_orders || []).map((id) => host.lists().find((list) => list.id === id)).filter(Boolean);
-  const confirmed = () => remaining().filter((list) => picks.get(list.id)?.complete);
+  // A work order is ready to pay out when every open line is confirmed, or some of them (the rest stay open).
+  const confirmed = () => remaining().filter((list) => picks.get(list.id)?.complete || picks.get(list.id)?.partial);
   const workIndex = () => steps().findIndex((step) => step.id === 'work_orders');
+  /** A work order paid out in part: what is paid, and the owner's choice for the rest (pay it out, or cancel it). */
+  function restBar(list) {
+    const parts = partialPayouts(host, list.id);
+    if (!parts.length) return '';
+    const lines = parts.reduce((sum, entry) => sum + entry.line_ids.length, 0), paid = parts.reduce((sum, entry) => sum + entry.total_cents, 0);
+    return `<div class="fmco-rest" data-fmco-rest="${esc(list.id)}"><span><i class="fas fa-circle-half-stroke" aria-hidden="true"></i>${lines} line${lines === 1 ? '' : 's'} paid out · ${esc(money(paid))}. Pay out the rest below, or cancel it if it will not be done.</span><button type="button" class="fmco-btn" data-fmco-cancel-rest="${esc(list.id)}"><i class="fas fa-ban" aria-hidden="true"></i>Cancel the rest…</button></div>`;
+  }
   function rail() {
     return `<nav class="fmco-rail" aria-label="Closeout steps">${steps().map((step, index) => `<button type="button" data-fmco-step="${index}" data-status="${esc(step.status)}" ${index === current ? 'aria-current="step"' : ''}><span class="fmco-letter">${STEP_LETTERS[index]}</span><span class="fmco-name">${esc(step.title)}</span><i class="fas ${STATE_LABEL[step.status] || 'fa-minus'} fmco-state" aria-hidden="true"></i></button>`).join('')}</nav>`;
   }
@@ -222,7 +270,7 @@ export async function openCloseout(host) {
     if (last && closed()) main += banner('closed', 'fa-lock', `Closed out ${when(record().closed_at)}. ${record().lists.length} work order${record().lists.length === 1 ? '' : 's'} finalized to be paid, ${money(record().lists.reduce((sum, entry) => sum + entry.total_cents, 0))} in all. Only a manager can reopen it.`);
     else main += banner(step.status, step.status === 'ok' ? 'fa-circle-check' : step.status === 'warning' ? 'fa-triangle-exclamation' : 'fa-circle-info', step.summary);
     if (last && closed()) main += stepRows({ rows: record().lists.map((entry) => ({ id: entry.list_id, label: entry.title, detail: `Finalized · ${money(entry.total_cents)}`, status: 'ok' })) });
-    else if (work && remaining().length && !closed()) main += `<p class="fmco-note">Confirm each work order as done, then finalize it. Finalizing marks it completed and to be paid and locks it; its cost then counts as actual in the final expenses.</p><div class="fmco-final"><div data-fmco-orders>${remaining().map((list) => `<section class="fmco-card" data-fmco-order="${esc(list.id)}"></section>`).join('')}</div><div><section class="fmco-card" data-fmco-closeout-photos></section></div></div>`;
+    else if (work && remaining().length && !closed()) main += `<p class="fmco-note">Confirm each work order as done, then finalize it. Finalizing marks it completed and to be paid and locks it; its cost then counts as actual in the final expenses. Lines that are not done yet can be paid out later; to finish this step, pay out the rest of each work order or cancel it.</p><div class="fmco-final"><div data-fmco-orders>${remaining().map((list) => `<section class="fmco-card" data-fmco-order="${esc(list.id)}">${restBar(list)}<div data-fmco-order-widget></div></section>`).join('')}</div><div><section class="fmco-card" data-fmco-closeout-photos></section></div></div>`;
     else main += stepRows(step);
     if (last && !closed()) main += remaining().length
       ? `<div class="fmco-banner" data-status="warning"><i class="fas fa-lock" aria-hidden="true"></i><span>${esc(`Finalize the work orders first: ${remaining().map(assigneeName).join(', ')}.`)}</span><button type="button" class="fmco-btn" data-fmco-goto-work>Go to step ${STEP_LETTERS[workIndex()].toUpperCase()}</button></div>`
@@ -242,10 +290,12 @@ export async function openCloseout(host) {
     view.foot.querySelector('[data-fmco-close-out]')?.addEventListener('click', closeOut);
     const finalize = view.foot.querySelector('[data-fmco-finalize]');
     finalize?.addEventListener('click', finalizeConfirmed);
-    const sync = () => { if (!finalize) return; const count = confirmed().length; finalize.disabled = !count; finalize.querySelector('span').textContent = count ? `Finalize ${count} work order${count === 1 ? '' : 's'}` : 'Finalize confirmed'; };
+    const sync = () => { if (!finalize) return; const count = confirmed().length, partly = confirmed().some((list) => !picks.get(list.id)?.complete); finalize.disabled = !count; finalize.querySelector('span').textContent = count ? `${partly ? 'Pay out' : 'Finalize'} ${count} work order${count === 1 ? '' : 's'}` : 'Finalize confirmed'; };
+    view.body.querySelectorAll('[data-fmco-cancel-rest]').forEach((button) => button.addEventListener('click', () => cancelRest(button.dataset.fmcoCancelRest)));
     if (finalizeButton) {
       const W = await ensureWidgets();
-      for (const list of remaining()) view.widgets.push(mount(W, view.body.querySelector(`[data-fmco-order="${CSS.escape(list.id)}"]`), host, 'work.completion', { list_id: list.id, method: 'select_all', prompt: `Confirm ${assigneeName(list)}'s work is done` }, (value) => { picks.set(list.id, value); sync(); }));
+      const { method } = await orgMethod(host);
+      for (const list of remaining()) view.widgets.push(mount(W, view.body.querySelector(`[data-fmco-order="${CSS.escape(list.id)}"] [data-fmco-order-widget]`), host, 'work.completion', { list_id: list.id, method, partial: true, prompt: `Confirm ${assigneeName(list)}'s work is done` }, (value) => { picks.set(list.id, value); sync(); }));
       view.widgets.push(mount(W, view.body.querySelector('[data-fmco-closeout-photos]'), host, 'project.photos.review', { prompt: 'Photos of the work', limit: 60 }, (value) => { photos.media_ids = value?.media_ids || []; }));
     }
   }
@@ -258,7 +308,7 @@ export async function openCloseout(host) {
     const failed = [];
     for (const list of lists) {
       const pick = picks.get(list.id);
-      try { await api().invoke(host.orgId, 'labor.list.finalize', target(host), { list_id: list.id, method: pick.method, ...(pick.method === 'approve' ? {} : { confirmed_item_ids: pick.confirmed_item_ids }), ...(photos.media_ids.length ? { evidence_media_ids: photos.media_ids } : {}) }, { idempotencyKey: key('labor-finalize') }); picks.delete(list.id); }
+      try { await api().invoke(host.orgId, 'labor.list.finalize', target(host), { list_id: list.id, method: pick.method, ...(pick.method === 'approve' ? {} : { confirmed_item_ids: pick.confirmed_item_ids }), ...(pick.complete ? {} : { partial: true }), ...(photos.media_ids.length ? { evidence_media_ids: photos.media_ids } : {}) }, { idempotencyKey: key('labor-finalize') }); picks.delete(list.id); }
       catch (failure) { failed.push(`${assigneeName(list)}: ${failure?.message || 'it could not be finalized'}`); }
     }
     await host.refresh();
@@ -266,6 +316,19 @@ export async function openCloseout(host) {
     if (!remaining().length) current = steps().length - 1;
     await render();
     if (failed.length) { const shown = view.foot.querySelector('[data-fmco-error]'); if (shown) shown.textContent = failed.join(' '); }
+  }
+  /** The owner says the rest of a partly paid work order will not be done: its open lines come off and it is finalized on what was paid out. */
+  async function cancelRest(listId) {
+    const list = host.lists().find((entry) => entry.id === listId);
+    const reason = await askReason(host, { title: 'Cancel the rest of this work order?', body: `The lines of ${assigneeName(list)}'s work order that are not paid out are taken off it and will not be paid. What was paid out stays paid, and the work order is then finalized. This is recorded with your reason.`, confirm: 'Cancel the rest' });
+    if (!reason) return;
+    const error = view.foot.querySelector('[data-fmco-error]');
+    try { await api().invoke(host.orgId, 'labor.list.cancel-remaining', target(host), { list_id: listId, reason }, { idempotencyKey: key('labor-cancel-rest') }); picks.delete(listId); }
+    catch (failure) { if (error) error.textContent = failure?.message || 'The rest could not be cancelled.'; return; }
+    await host.refresh();
+    try { await readChecks(); } catch (_) {}
+    if (!remaining().length) current = steps().length - 1;
+    await render();
   }
   async function closeOut() {
     const error = view.foot.querySelector('[data-fmco-error]'), button = view.foot.querySelector('[data-fmco-close-out]');

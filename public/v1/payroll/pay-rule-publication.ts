@@ -15,7 +15,7 @@ import { CONDITION_OPERATORS } from "../work/conditions.js";
 import { PAYROLL_PERMISSION_KEYS } from "../workforce/access.js";
 import { getWorkforceDatabase } from "../workforce/storage.js";
 import {
-  declinePayCorrection, listPayReview, listPayUnits, listUnresolvedPay, payeesCoveredBy, previewPayDefaultSave, previewPayPlanSave, previewPayRuleSave, previewPaySetup, projectOrganizationEarnings, projectPayeeEarnings,
+  declinePayCorrection, listPayReview, listPayUnits, listUnresolvedPay, payeesCoveredBy, previewPayDefaultSave, previewPayPlanSave, previewPayRuleSave, previewPaySetup, previewPaySplitRuleSave, projectOrganizationEarnings, projectPayeeEarnings,
   projectUserEarnings, refreshOrganizationEarnings
 } from "./pay-refresh.js";
 import {
@@ -216,7 +216,7 @@ export function registerPayRuleActions() {
     execute: async (ctx, target, value) => JSON.parse(JSON.stringify(await execute(ctx, target, input.parse(value))))
   });
   const archive = z.object({ id: z.string().min(1).max(120), expected_revision: z.number().int().nonnegative().optional() }).strict();
-  const changes = "Returns the payees it reaches (`payee_count`), and for each one it would change the earnings that would come to a different amount (`change_cents` each and in total), how many of those have already been in a pay run and would be held for review (`held_count`), and anything it would leave unresolved. Differences already waiting for the next refresh for other reasons are not counted. Nothing is saved or posted.";
+  const changes = "Returns the payees it reaches (`payee_count`), and for each one it would change the earnings that would come to a different amount (`change_cents` each and in total), how many of those have already been in a pay run and would be held for review (`held_count`), and anything it would leave unresolved. Differences already waiting for the next refresh for other reasons are not counted. Nothing is saved or posted. Each difference also says when it would be paid: the pay schedule (`schedule_id`, `schedule_name`) and the pay date it lands on (`pay_date`; blank while it is held for review).";
   add("payroll.payRule.save", "Create a pay rule or add a version of one. A version applies to earnings from its effective_from date; a past date backdates it. Read pay_rules first for the shape and existing versions, pay_rule_sources for the collections an input can select from and pay_rule_vocabulary for condition operators and parameter types.", payRuleSaveSchema, "write",
     (ctx, _target, value) => savePayRule(ctx.organizationId, value, actor(ctx)));
   add("payroll.payRule.preview", `Work out what saving this version of a pay rule would change across everyone the rule pays, without changing anything. Takes exactly what payroll.payRule.save takes. ${changes}`, payRuleSaveSchema, "read",
@@ -225,6 +225,8 @@ export function registerPayRuleActions() {
     (ctx, _target, value) => archivePayRule(ctx.organizationId, value));
   add("payroll.paySplitRule.save", "Create a split rule or add a version of one: how an earning of a group of users is divided among its members, from an effective_from date. Read pay_split_rules first for the shape and existing versions. The formula returns a weight per member; weight 0 excludes a member, and an earning nobody has a weight for stays unresolved.", paySplitRuleSaveSchema, "write",
     (ctx, _target, value) => savePaySplitRule(ctx.organizationId, value, actor(ctx)));
+  add("payroll.paySplitRule.preview", `Work out what saving this version of a split rule would change for every group of users whose pay is divided by it, without changing anything. Takes exactly what payroll.paySplitRule.save takes. Each group also has \`samples\`: how its latest earnings divided by the rule would be divided (members, weights, cents and the rule's reasons, line by line). ${changes}`, paySplitRuleSaveSchema, "read",
+    (ctx, _target, value) => previewPaySplitRuleSave(ctx.organizationId, value, actor(ctx)));
   add("payroll.paySplitRule.archive", "Stop offering a split rule. Groups whose pay already names it keep being divided by it until their distribution changes.", archive, "write",
     (ctx, _target, value) => archivePaySplitRule(ctx.organizationId, value));
   add("payroll.payPlan.save", "Create a pay plan or add a version of one: the rules it groups and the parameters it sets, from an effective date.", payPlanSaveSchema, "write",

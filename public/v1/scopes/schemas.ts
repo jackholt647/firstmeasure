@@ -91,7 +91,6 @@ export const scopeResourceListDefinitionSchema = jsonObjectSchema.extend({
   schedule: scopeMaterialScheduleSchema.optional(),
   items: z.array(jsonObjectSchema).optional(),
   controls: jsonObjectSchema.optional(),
-  compensation: jsonObjectSchema.optional(),
   order_source_ids: z.array(scopeDefinitionIdSchema).optional(),
   metadata: jsonObjectSchema.optional()
 }).passthrough();

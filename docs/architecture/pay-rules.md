@@ -84,7 +84,11 @@ Provider `payroll`, organization scope, `manage_payroll|manage_company_settings`
 (`payroll/pay-sources.ts`):
 
 - `time_shifts`, `time_clock_events` and `time_shift_changes` — the whole time
-  clock; see [Time clock](#time-clock).
+  clock; see [Time clock](#time-clock). `time_shifts` with
+  `args: { "projected": true }` publishes scheduled time from now on as the
+  shifts it is expected to become; see [Projected earnings](#projected-earnings).
+- `work_roster` — who the schedule roster has on each piece of scheduled work,
+  one row per exact interval; see [Split rules](#split-rules).
 - `project_records` — every project with its stored custom field values under
   `fields`, and under `assignee_keys` the same paths for assignee fields as
   lists of `type:id` (match with `contains`, which covers one-valued and
@@ -177,28 +181,43 @@ A `role` is checked against the role store and a `group_type` or
 
 ### When a role or a type is given or taken away
 
-Roles, a group's type and a company's types have no history of their own, so
-payroll keeps the days it saw each default subject cover each payee
-(`pay_layer_spans`, `notePayCoverage`):
+A payee's types have a history, recorded **at the write that changes them**
+(`assignee_type_history` in `assignees/base.ts`, `noteAssigneeTypes`,
+`assigneeTypeHistory`): a user's roles when their user record is saved
+(`platform/storage.ts` `upsertDocument` notes it for `users`), a group's type
+when the group is created or its kind changes (`workforce/storage.ts`), and a
+company's types when its assignee base is written. Each row is one type over
+`active_from` to `active_until`, by day; a type already held when history began
+has a blank `active_from` (since always). Default coverage
+(`coverageSpans` in `payroll/pay-rules.ts`) follows that history: a role given
+on the 1st pays what is earned from the 1st, whenever the next refresh runs,
+and one taken away stops the day before it was taken away.
+
+For anything before the history began, payroll still has the days a refresh
+saw each default subject cover each payee (`pay_layer_spans`,
+`notePayCoverage`), and uses them as a fallback:
 
 - the first time a payee's pay is worked out, everything that covers them is
   taken to have always done so;
 - after that, a subject that appears covers them **from the day a refresh
   noticed it**, and one that disappears stops covering them **the day before**.
 
+A noticed span is used only where the history says nothing: it is kept when it
+ended before the type's first recorded day, and dropped for a type whose history
+starts "since always". Subjects that are not types (everyone, a kind of
+assignee, a worker classification) follow the noticed spans alone.
+
 So removing a role stops only what is earned afterwards. Earnings earned while
 the role covered someone stay theirs: nothing posted under it is edited, and
 nothing is taken back. This is how a setup entry *ended* with
 `effective_through` behaves, not how a *deleted* entry behaves (deleting an
 entry says it never applied, and what it posted is taken back as corrections).
-Given the role again later, it pays from the day that was noticed, not for the
-time in between. A layer whose cover has a start or an end carries
+Given the role again later, it pays from the day it was given again, not for
+the time in between. A layer whose cover has a start or an end carries
 `covered_from` and `covered_through`.
 
 Only a refresh that posts records what it noticed; previews and every other
-reader see the same answer without writing. Because the day is the day a
-refresh noticed, an organization that changes roles often should refresh often
-(an organization rule on a schedule does this).
+reader see the same answer without writing.
 
 ## Groups: paid as one, or split
 
@@ -214,8 +233,18 @@ With a split, the group's rules still decide what was earned, and each line is
 posted to the members in whole cents that add up exactly. Every such entry
 names the group and the line it is a share of. Who shared an earning is fixed
 when it is first worked out: someone who joins later shares only new work, and
-changing the setting never moves pay already earned. A split with no active
-members is unresolved, not paid to nobody.
+changing the setting never moves pay already earned. A split with no members on
+the earned day is unresolved, not paid to nobody.
+
+**Who was a member on the day.** Group membership has dates
+(`resource_group_membership_history` in `workforce/storage.ts`): every path that
+adds or removes a member records it, and a join or a removal may be dated in
+the past (`effective_from` on the member write, `effective_on` on the removal),
+so one entered late still counts from when it happened. A member removed on a
+day is not a member that day. Members there before the history began were
+backfilled as members since always. An earning first worked out is divided
+among `membersOfGroupOn(earned day)`, not today's members, so a group whose
+pay is worked out a month late still pays the people who were in it then.
 
 ### Split rules
 
@@ -285,10 +314,10 @@ hands over `seconds` rather than leaving time arithmetic to the formula.
 **What is fixed and what follows data.** With a split rule:
 
 - *Fixed when the earning is first worked out:* the members it is divided
-  among. Membership history is not tracked, so this is the only record of who
-  was in the group then; someone who joins or leaves later does not move old
-  earnings. An earning that was split equally before a rule was put in place
-  from a past date keeps the members it had.
+  among, the group's members on the earned day. Someone whose join or removal
+  is entered after that does not move earnings already worked out. An earning
+  that was split equally before a rule was put in place from a past date keeps
+  the members it had.
 - *Follows data:* the weights. Attendance can arrive or be corrected after the
   earning was worked out (a shift approved late). At each refresh the weights
   are worked out again among the same members whenever something the split
@@ -325,27 +354,37 @@ line.
 the same per earning under `split`: the method, the rule, the members, and for
 each line every member's weight, cents and reason.
 
+**Who was on the work** (`payroll.work_roster`, `payroll/roster-sources.ts`).
+Payroll publishes the schedule roster as rows a split rule selects like any
+other input: for every project schedule event that names an assignee,
+`schedule-roster.events` (`scheduling/roster.ts` `readEventRosters`) says who
+is on it, through which assignee, and the exact intervals they are on it after
+removals, time off and unavailability. Each interval is one row: `id`,
+`revision` (changes with anything in the row), `assignee_key`
+(`organization_user:<id>`, or an outside company's key), `user_id`, `name`,
+`via`, `project_id`, `event_id`, `parent_event_id`, `title`, `from`, `until`
+and `seconds`. Matched on `project_id` and windowed on `from` to `until`, it
+says who the schedule had on the earning's job that day, to the second.
+
 **Samples** (`SAMPLE_PAY_SPLIT_RULES` in `payroll/sample-pay-rules.ts`):
 
-- `present_on_the_job`: members with an approved shift on the earning's
-  project on the day it was earned share equally; others get nothing.
-  `minimum_minutes` sets how long counts as present, measured in exact time
-  inside the day.
+- `present_on_the_job`: members who were on the earning's project on the day it
+  was earned share equally: on its schedule that day (the roster) or with an
+  approved shift on it (the time clock). Others get nothing. `minimum_minutes`
+  sets how long counts as present, measured in exact time inside the day. Each
+  share's reason says which (clocked for so many hours, or on the schedule for
+  so many hours, or neither), and `details` carries `seconds_scheduled` and
+  `seconds_clocked`.
 - `by_hours_on_the_job`: in proportion to approved `worked_seconds` (net of
   breaks) on that project, counting every shift that started before the end of
   the earned day, however long the job ran. A shift counts whole; hours clocked
-  on the project after the day it was earned are not part of that earning.
+  on the project after the day it was earned are not part of that earning. When
+  nobody clocked any hours on it, the hours the roster had each member on it
+  count instead, and the reason says so.
 - `whole_team`: equal among members whatever happened, written as a rule.
 
-The two that read the time clock divide earnings that carry a project (a
-record rule naming its `project` field). **A roster source**, when one is
-published, is selected the same way and needs no change here: a split rule
-reads it in place of, or alongside, the time clock. It is usable when each row
-has a stable `id` and a `revision` that changes with the row, names who it is
-about as `type:id` in one field, names the piece of work in a field an earning
-can match (`project_id`, or the id of the record the pay rule's primary input
-publishes), and gives exact start and end instants for the time the person was
-on, or unavailable for, the work, with a removal changing or removing the row.
+The two that read who was on the job divide earnings that carry a project (a
+record rule naming its `project` field).
 
 ## Pay schedules
 
@@ -546,14 +585,24 @@ before it is earned. A projection is the payee's own pay rules evaluated over
 projected inputs, never a second formula:
 
 - **Which rules.** Every rule that pays per record (`grain: "record"`) whose
-  primary input publishes a projected reading. A collection does that by taking
-  a boolean `projected` argument; with it, it publishes the work that is not
-  done yet, each row as it is expected to look once done. The collection owns
-  what "done" means and when it is expected. Rules that pay by period (hours,
-  salary) are not projected.
+  primary input publishes a projected reading, and every rule that pays by
+  period (`grain: "period"`) with an input that publishes one or with `always`
+  (a salary). A collection publishes a projected reading by taking a boolean
+  `projected` argument (`projected: true` in its options schema); with it, it
+  publishes the work that is not done yet, each row as it is expected to look
+  once done. The collection owns what "done" means and when it is expected.
+- **Periods.** For a rule that pays by period, the periods projected are the
+  current one and every one that ends within `PROJECTED_PERIOD_DAYS` (35) of
+  today. Each holds its real rows so far (what happened earlier this period)
+  and its projected rows (what is scheduled), dated by the input's `date`
+  field, and is expected on its last day. With `always` every period counts,
+  rows or not, so a salary paid by the day projects one earning a day. A period
+  whose last day has passed is earned, not projected.
 - **How.** The rule's own selection, with `projected: true` added to the
-  primary input's arguments (other inputs are read as they are), split into
-  records and run in the sandbox exactly as a refresh runs it: the version and
+  arguments of the primary input (a record rule) or of every dated input that
+  takes it (a period rule), and the real rows read beside them; other inputs are
+  read as they are. The rows are split into records or periods and run in the
+  sandbox exactly as a refresh runs them: the version and
   parameters in effect on the expected day (today when no day is known), as the
   person who last saved the rule. A record the rule has already earned (a
   stored result) is not projected again.
@@ -586,6 +635,16 @@ on the commitment; `expected_from` says which (`schedule_event`, `labor_list`,
 `commitment`, or blank when nothing is scheduled). `asDone` in the same file is
 the one place that says what finished looks like; change it with the finished
 row's shape.
+
+**Hours** (`payroll/roster-sources.ts`, `projectedShiftRows`). The time
+clock's projected reading (`time_shifts` with `projected: true`) is everyone's
+scheduled time from now to `PROJECTED_SHIFT_DAYS` (35) ahead, from the schedule
+roster (`work_roster`): each future interval a person is on scheduled work
+looks like the approved, closed shift it is expected to become
+(`clocked_in_at`, `clocked_out_at`, `worked_seconds`, no breaks), with
+`projected: true` and `expected_from: schedule_event`. The part of an interval
+already past is left to the real time clock. So the sample hourly rule
+projects a week's scheduled hours at the payee's rate, overtime included.
 
 **Groups.** A group's projection is the group's own. When the group's pay is
 split on the expected day, each earning says how it would be divided among
@@ -640,12 +699,24 @@ entries, paid or not, the results their rules last worked out, their pay setup
 and the record of which defaults covered them, and reports how much it kept.
 The setup is marked `closed`, so the payee is no longer refreshed; saving the
 setup again reopens it. What they had already accrued stays payable in the next
-pay run. Earnings not yet worked out when they were removed are not worked out
-afterwards, so refresh before removing someone.
+pay run.
 
-The step is registered when `payroll/assignee-cleanup.ts` loads, which the
-payroll publication does at startup. `assignees/base.ts` should also list it in
-`cleanupOwners` so it is loaded before a cleanup in any process.
+**Their last day.** Before the setup is closed the step runs one last refresh
+(`finalPayOnRemoval`, `refreshPayeeEarnings` with `removed.closeThrough`): what
+their rules say they earned up to and including their last active day is worked
+out and posted, and nothing after it. The last day is the day they were
+removed (`deleted_at` on a user, `archived_at` on a group or an outside
+company), whenever the cleanup runs, so a daily salary stops on that day and a
+week's hours that run past it are earned up to it. The step's report says the
+day and how many entries it posted. A second cleanup changes nothing.
+
+Archiving a user (`workforce/user-archive.ts`) runs the assignee cleanup for
+them as it does for a group or an outside company, as the platform: the archive
+is the authority, and a step that fails is reported and the archive stands.
+
+The step is registered when `payroll/assignee-cleanup.ts` loads;
+`assignees/base.ts` lists it in `cleanupOwners`, so it is loaded before a
+cleanup in any process.
 
 ## Time clock
 
@@ -832,17 +903,29 @@ templates** and make exactly the files they made before templates existed
 (`tests/fixtures/payroll-pay-run-files.json` holds those files). A company
 duplicates one and changes it; it never edits a built-in.
 
+**Reports for dates** are templates too, with one row per `earning` (a ledger
+entry whose earned day is in the dates) or per `reimbursement` (a request asked
+for in the dates). The All earnings, Commission and Reimbursement reports are
+built-in templates of that kind (`earnings_ledger`, `commissions`,
+`reimbursements`) and make exactly the CSV files the reports made before
+(`tests/fixtures/payroll-date-range-reports.json`). A template's `scope`
+(`pay_run` or `date_range`, from its rows) says which it is. Every template,
+built in or a company's own, prints: its PDF is made from the same table as its
+CSV, with a total row when the template has one. A report for dates is limited
+to the payees of the branches the viewer may see, as a pay run file is.
+
 A template's `definition`:
 
 | Field | Meaning |
 |---|---|
 | `name`, `description` | What the file is called. |
 | `people` | Any of `employees`, `contractors` (paid with payroll) and `bills` (paid through payables). |
-| `rows` | `person`, or `pay_item` (one row per person and pay item). |
+| `rows` | `person`, or `pay_item` (one row per person and pay item), for a pay run; `earning` or `reimbursement`, for dates. |
+| `kinds`, `include_projected` | Earning rows: only these kinds of earning (every kind when left out), and forecasts and held corrections too. |
 | `pay_items` | For pay item rows: `by_kind` (each kind of earning, then what was taken off, as negatives) or `work_and_reimbursement` (two lines, as bills are). Lines of zero are left out. |
 | `pay_item_labels` | Names for pay items by key (`hourly`, ..., `work`, `reimbursements`). |
-| `sort`, `group` | By `name` or `last_name`; grouped by `section` (employees, contractors, bills) or `none`. |
-| `totals` | Person rows only: `none`, `grand` (a row at the end) or `sections` (one per group and at the end). Amounts are added up; a total row names its group. |
+| `sort`, `group` | By `name` or `last_name` (or `none`, as recorded, for dates); grouped by `section` (employees, contractors, bills) or `none`. |
+| `totals` | Person rows: `none`, `grand` (a row at the end) or `sections` (one per group and at the end); rows for dates: `none` or `grand`. Amounts are added up; a total row names its group. |
 | `skip_zero` | Leave out people with nothing to pay. |
 | `number` | `decimals` (0 to 4), `unit` (`dollars` or `cents`), `negative` (`minus` or `parentheses`), `thousands`, `zero` (`show` or `blank`). Default: dollars with two decimals and a minus sign. |
 | `date` | `YYYY-MM-DD` (default), `MM/DD/YYYY`, `M/D/YYYY`, `DD/MM/YYYY`, `YYYYMMDD`. |
@@ -860,7 +943,7 @@ outside a run, clawbacks, earnings, earnings and reimbursements, taken off,
 to pay without reimbursements, amount to pay); pay item (name, amount, code,
 description); the pay run (pay date, period, schedule, regular or off-cycle,
 status, currency, memo, memo with what was taken off); the payment (status,
-reference, paid on); the bill (number, date, due date); and fixed text. A
+reference, paid on); the bill (number, date, due date); the earning (earned on, kind and its code, project, description, status, amount, already in a pay run, still owed, currency, ID); the reimbursement (project, amount, currency, status, requested, approved and paid on, how it is paid, note); the report's dates; and fixed text. Each source lists the kinds of `rows` it can fill. A
 template reads only what its columns need: branches and departments from the
 organization structure, hours from the time clock, a custom field only when
 the viewer may read it (a private field is left blank, with a warning).
@@ -880,8 +963,8 @@ limited to the branches the viewer may see, like every pay run file.
 | list the templates and sources | data `payroll.export_templates` (action `payroll.exportTemplates.list`) |
 | save one (create, or replace with `id` and `expected_revision`; `based_on` names what it was copied from) | action `payroll.exportTemplate.save` |
 | remove one | action `payroll.exportTemplate.archive` with `expected_revision`, target id the template |
-| see the first rows a template, saved or not, makes from a pay run | action `payroll.exportTemplate.preview` with `batch_id` and `template_id` or `definition` (a read) |
-| make the file | action `payroll.artifact.generate` with `batch_id` and `template_id` (or `type`) |
+| see the first rows a template, saved or not, makes from a pay run or for dates | action `payroll.exportTemplate.preview` with `batch_id`, or `from` and `through`, and `template_id` or `definition` (a read) |
+| make the file | action `payroll.artifact.generate` with `batch_id`, or `from` and `through`, and `template_id` (or `type`), `format` `csv` or `pdf` |
 
 All need `manage_payroll` or `manage_company_settings`.
 
@@ -909,9 +992,14 @@ called. Projected earnings are
 [Projected earnings](#projected-earnings) for who may read them.
 
 Actions: `payroll.payRule.save`, `.preview`, `.archive`;
-`payroll.paySplitRule.save`, `.archive`; `payroll.payPlan.save`, `.preview`,
+`payroll.paySplitRule.save`, `.preview`, `.archive`; `payroll.payPlan.save`, `.preview`,
 `.archive`; `payroll.paySetup.preview`, `.save`; `payroll.payDefault.save`,
 `.preview`; `payroll.paySchedule.resolve`; `payroll.earnings.refresh`;
+every preview's changed earning carries `pay_date`, `schedule_id` and
+`schedule_name`: the pay date it lands on (a correction to an earning already in
+a pay run lands on the next one; one held for review on none), and a split
+rule's preview carries, per group, `samples`: how its latest three earnings
+would be divided, member by member;
 `payroll.correction.decline`; `payroll.bills.reconcile`;
 `payroll.exportTemplate.save`, `.archive`, `.preview`. All need `manage_payroll` or
 `manage_company_settings`. The browser reaches them through `PayrollAPI.pay`.
@@ -920,15 +1008,23 @@ Actions: `payroll.payRule.save`, `.preview`, `.archive`;
 
 - **Payroll settings** (`apps/settings/payroll.js`): pay schedules; the
   organization's schedule for everyone and per kind of earning; an editor for
-  pay plans and pay rules with version history (who entered each version), a
-  picker for the collection an input reads, the published condition operators,
-  parameter kinds, and a preview of what a version would change before saving.
+  pay plans, pay rules and split rules with version history (who entered each
+  version), a picker for the collection an input reads, the published condition
+  operators, parameter kinds, and a preview of what a version would change
+  before saving, with the pay date each change lands on. A split rule's editor
+  also sets, per input, the member field, the fields that match the earning and
+  the time window; its formula is under Advanced; its preview shows how each
+  group's latest earnings would be divided, with every member's share and
+  reason.
 - **People, Compensation tab** (`apps/people/compensation-panel.js`, the
   `compensation` slot): for a payee, the rules in effect with the layer each
   came from, and per rule inherit, override or remove, add a rule or a plan,
   an own schedule choice, and how a group's pay is divided; for a role, a type
   of group or a type of company, the same editor on its default with who it
   covers. Every change starts on a chosen day and is previewed before saving.
+  A payee's "Why" opens their Why on the Payroll tab (route `payrollWhy`
+  `type:id`), and a group's "How pay was divided" opens its Divided tab
+  (`payrollWhyTab: divided`).
 - **Payroll** (`apps/payroll/app.js`), views by permission and app flag only
   (its `ACTIONS` table):
   - Whether pay runs need approval is the organization's payroll setting
@@ -962,8 +1058,16 @@ Actions: `payroll.payRule.save`, `.preview`, `.archive`;
     (`payroll.my_timesheets`).
   - *Earnings*: each payee's amount owed and projected, and "Why" (rules and
     the layer each came from, schedules and who chose them, what each rule
-    worked out, ledger entries, projected earnings, payments).
-  - *History*, *Reports* (date-range reports and prepared files), *Approvals*
+    worked out, how pay was divided, ledger entries, projected earnings,
+    payments). *Divided*, for a group, shows each earning it divided, line by
+    line, with the method, the split rule and its parameters, and every
+    member's weight, share, amount and reason (from `pay_units`); for a person,
+    each share of a group's earning they were paid, with their weight out of
+    the total and the reason (from the ledger entries' `metadata.split`). The
+    route `payrollWhy` opens it from anywhere.
+  - *History*, *Reports* (date-range reports, the company's own reports for
+    dates made in the same template editor with a preview of the dates chosen,
+    as CSV or PDF, and prepared files), *Approvals*
     (pay runs waiting for you as a named approver, `payroll.my_approvals`,
     `payroll.batch.decide`), *My pay* (your own earnings, payments and, with
     `payroll.view_own_projected_earnings`, projections) and *Settings* (the
@@ -978,24 +1082,9 @@ Actions: `payroll.payRule.save`, `.preview`, `.archive`;
   several. A payroll bill with one project shows in that project's Money tab;
   others are paid by marking them paid in Payroll (recorded against the bill)
   or through `POST .../disbursements`. Owned by the Money app.
-- Export templates for date-range reports (`earnings_ledger`, `commissions`,
-  ...); templates make pay run files only. A template's own PDF; only the pay
-  run summary prints.
 - Contractors on payment terms in the Gusto contractors file: they are bills,
   in the QuickBooks bills file; a company that pays them through Gusto sets
   them to be paid on the pay schedule.
-- Payroll bill and route reads scan whole collections; see
-  [the optimization backlog](../optimization-backlog.md#payroll-bills-and-payment-routes-read-whole-collections).
-- A deep link from the People compensation panel to one payee's "Why" on the
-  Payroll tab; the panel's link opens the tab.
-- A history of roles and types. Payroll records when it *noticed* a role or
-  type start or stop covering a payee, at a refresh; the day it actually
-  changed is not known.
-- A final refresh when a payee is removed.
-- A preview for split rules, and a preview's effect on when people are paid: a
-  preview reports earnings, not pay dates.
-- An index for the time clock collections. A selection reads every shift or
-  event and filters, up to the host's 50,000-row scan limit.
 - Labor line suggestions from an assignee's rates. A labor category's
   `piece_rate` and `hourly_labor` line item sources (`materials/resource-types.ts`)
   used to read the assigned group's compensation plan and now suggest nothing;
@@ -1003,30 +1092,29 @@ Actions: `payroll.payRule.save`, `.preview`, `.archive`;
 - The `compensation` object on a labor list and on a scope template's labor
   piece (pay mode, estimated hours) is still stored and copied but nothing
   reads it: a labor list's projected cost is its own priced lines.
-- Change feeds on the sources, so a refresh still selects every input.
-- Projections from rules that pay by period (hours, salary) and from sources
-  other than labor commitments; a source opts in with a `projected` argument.
-- Projected earnings in the sales app's Earnings tab (`portal.sales_earnings`).
-- An editor for split rules and a screen showing how an earning was divided.
-  The data is in `pay_units` and on each ledger entry.
-- A published roster (who is on a piece of work, with removals and
-  unavailability). Until it exists, split rules that depend on who was there
-  read the time clock; see "Split rules" for what a roster source must provide.
-- Membership history for groups. A split captures the members when an earning
-  is first worked out and cannot reconstruct who was a member on a past date.
 - Splits of a group that has groups or outside companies as members: members
   are users.
-- A bound on how far back a split input reads. Like a pay rule's inputs, the
-  selection covers the group's whole history up to the 5,000-row selection
-  limit; beyond that the earnings it divides are unresolved until the selection
-  is narrowed. Per-earning lookups against an index, or a change feed, remove
-  this.
-- Labor completion is published: the `labor_commitments` source carries
-  `finalized_at` once the work is confirmed as done and marked to be paid
-  ([closeout](closeout.md)), and the sample `committed_labor` rule earns on it.
-  `released` now means only taken back.
-- Running projects created before this change may still hold bindings to the
-  removed `payroll.commission.*` automations; those bindings fail when reached.
+- Restoring a removed payee does not reopen their pay setup: saving the setup
+  again does, and what was earned after their last day is then worked out.
+- Performance only, with the same results when done:
+  - change feeds on the sources and an index for the time clock collections, so
+    a refresh selects only what changed instead of every input, up to the host's
+    50,000-row scan limit; see
+    [indexed selections and change feeds](../optimization-backlog.md#indexed-selections-and-change-feeds-for-pay-refresh);
+  - a bound on how far back a split input reads: like a pay rule's inputs, the
+    selection covers the group's whole history up to the 5,000-row selection
+    limit, beyond which the earnings it divides are unresolved until the
+    selection is narrowed; per-earning lookups against an index, or a change
+    feed, remove this (same entry);
+  - the published work roster reads every project and the roster of every
+    scheduled event each time it is selected; see
+    [payroll work roster](../optimization-backlog.md#payroll-work-roster-reads-every-scheduled-event);
+  - payroll bill and route reads scan whole collections; see
+    [the optimization backlog](../optimization-backlog.md#payroll-bills-and-payment-routes-read-whole-collections).
+
+Running projects created before pay rules may have held bindings to the removed
+`payroll.commission.*` automations; a scan of the development organizations
+found none, so nothing is left to migrate.
 
 Run `tests/pay-rules.test.ts`, `tests/pay-defaults.test.ts`, `tests/pay-splits.test.ts`,
 `tests/pay-cadence.test.ts`, `tests/pay-rules-store.test.ts` (also through
@@ -1035,5 +1123,7 @@ Run `tests/pay-rules.test.ts`, `tests/pay-defaults.test.ts`, `tests/pay-splits.t
 `tests/payroll-settings-browser.test.mjs`, `tests/payroll-pay-rules-browser.test.mjs`,
 `tests/pay-projections.test.ts`, `tests/payouts-projected-browser.test.mjs`,
 `tests/payroll-payables.test.ts`, `tests/payroll-reimbursement-settlement.test.ts`, `tests/payroll-export-templates.test.ts`,
-`tests/payroll-bills-templates-browser.test.mjs` and `npm run test:payroll` for
+`tests/payroll-bills-templates-browser.test.mjs`, `tests/pay-history-roster-removal.test.ts`,
+`tests/payroll-split-rules-browser.test.mjs`, `tests/payroll-report-templates-browser.test.mjs`,
+`tests/people-compensation-panel-browser.test.mjs` and `npm run test:payroll` for
 changes here.

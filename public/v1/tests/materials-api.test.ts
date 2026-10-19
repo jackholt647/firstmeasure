@@ -592,8 +592,7 @@ test("scope resources create independent material, labor, and equipment lists wi
         {
           id: "labor", resource_type: "labor", title: "Roofing Labor",
           items: [{ id: "install", name: "Roof installation", quantity: 16, unit: "hour" }],
-          controls: { crew_assignment: true, compensation: true },
-          compensation: { default_mode: "crew_default", allowed_modes: ["hourly", "piece_rate", "hybrid", "none"] },
+          controls: { crew_assignment: true },
           assignment: {
             work_resource_ref: { kind: "resource_group", id: "crew_alpha", name: "Alpha Crew" },
             unit_id: "unit_north"
@@ -649,8 +648,8 @@ test("roof replacement scopes automatically create piece-rate labor and equipmen
   const equipment = result.material_lists.find((list: any) => list.resource_type === "equipment");
   assert.ok(labor);
   assert.ok(equipment);
-  assert.equal(labor.compensation.mode, "piece_rate");
-  assert.equal(labor.compensation.default_mode, "piece_rate");
+  // How a labor list is paid is its assignee's pay sheet; the list carries no pay mode of its own.
+  assert.equal(labor.compensation, undefined);
   assert.equal(labor.current_items[0].unit, "sq");
   assert.equal(labor.current_items[0].quantity, 28);
   assert.equal(labor.current_items[0].projected_unit_price, 85);
@@ -731,8 +730,7 @@ test("roof replacement scopes automatically create piece-rate labor and equipmen
   });
   assert.equal(laborOnly.count, 1);
   assert.equal(laborOnly.material_lists[0].resource_type, "labor");
-  assert.equal(laborOnly.material_lists[0].compensation.mode, "hourly");
-  assert.equal(laborOnly.material_lists[0].compensation.estimated_hours, 24);
+  assert.equal(laborOnly.material_lists[0].compensation, undefined, "a pay mode sent with an override is not stored");
   assert.equal(laborOnly.material_lists[0].assignment.work_resource_ref.id, "crew_roof");
   assert.equal(laborOnly.material_lists[0].current_items[0].quantity, 32);
   assert.equal(laborOnly.material_lists[0].current_items[0].projected_unit_price, 95);

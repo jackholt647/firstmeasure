@@ -133,6 +133,28 @@ default, and it is why the roles are chosen by a permission administrator.
 the group type, a company type. That wiring is payroll's
 ([pay rules](pay-rules.md)) and is not in this module.
 
+### History of types and memberships
+
+What an assignee's types were, and who was in a group, is kept with dates, so
+anything that works something out for a past day (pay, first of all) asks what
+was true that day rather than what is true now.
+
+- **Types** (`assignee_type_history` in `assignees/base.ts`, schema version 3):
+  one row per type over `active_from` to `active_until`, by day, written at the
+  change: a user's roles whenever their user record is saved, a group's type
+  when it is created or its kind changes, a company's types when its base
+  record is written (`noteAssigneeTypes`). A type held when the history began
+  has a blank `active_from`. Read it with `assigneeTypeHistory`.
+- **Group membership** (`resource_group_membership_history` in
+  `workforce/storage.ts`, schema version 3): one row per member over
+  `active_from` to `active_until`, written by every path that adds or removes a
+  member. A member write takes `effective_from` and a removal `effective_on`
+  (`DELETE .../members/:userId?effective_on=`), each a day on or before today,
+  so a change entered late is dated when it happened; a member removed on a day
+  is not a member that day. Members there before the history began were
+  backfilled as members since always. Read it with `membersOfGroupOn(day)` and
+  `groupMembershipHistory`.
+
 ### The base record
 
 `assignee_base` (in `assignees.sqlite`, or PostgreSQL in cluster mode) has one
@@ -165,11 +187,11 @@ with `registerAssigneeCleanup` and is listed in `cleanupOwners` in `base.ts`.
 | `labor-pay-sheets` | archives the assignee's pay sheets |
 | `assignee-units` | archives units from the bottom up; one that holds committed work is kept and reported |
 | `assignee-capabilities`, `labor-delivery-settings` | deletes the record |
-| `payroll-pay` | payroll's own step (`payroll/assignee-cleanup.ts`): it keeps what was earned and closes the pay setup |
+| `payroll-pay` | payroll's own step (`payroll/assignee-cleanup.ts`): it works out and posts what was earned through the last active day, keeps everything and closes the pay setup |
 
 It runs when a group or an outside company is archived through its HTTP route
-(the response carries `assignee_cleanup`). Not wired: archiving or deleting a
-user; the scheduling setting in `assignee_scheduling_settings`; `subject_keys`
+(the response carries `assignee_cleanup`), and when a user is archived
+(`workforce/user-archive.ts`, as the platform). Not wired: the scheduling setting in `assignee_scheduling_settings`; `subject_keys`
 in the department catalog; a removed user's group memberships; commitments,
 which are frozen and never touched. Restoring an archived assignee does not bring cleaned up
 records back.
@@ -474,6 +496,14 @@ departments and assignments stay attached. `workforce.users.restore`
 (`manage_company_users`, branch scope) clears the archive fields and puts back
 the status they had (active, invited or suspended). People lists them under
 Archived with a Restore action.
+
+Archiving also runs the [assignee cleanup](#removal) for them, as the platform:
+what was kept against them as an assignee (their base record, time off, pay
+sheets, units, declared capabilities and delivery setting) is removed, and
+payroll pays them through the day they were archived and closes their pay
+([pay rules](pay-rules.md#when-a-payee-is-removed)). Restoring them does not
+bring those back; their roles, groups, departments and assignments, which the
+cleanup does not touch, are as they were.
 
 ## Onboarding outside companies
 

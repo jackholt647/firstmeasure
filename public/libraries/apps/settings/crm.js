@@ -317,10 +317,40 @@
       for (const item of [{id:'off',label:'Off'},...(root.FirstMateProjectTrays?.definitions() || [])]) {const option=document.createElement('option');option.value=item.id;option.textContent=item.label;traySelect.append(option);}
       traySelect.value=config.default_project_tray;traySelect.onchange=()=>{config.default_project_tray=traySelect.value;};
       trayLabel.append(traySelect);traySection.append(trayLabel);host.querySelector('.crm-settings').append(traySection);
+      mountCompletionMethod(host.querySelector('.crm-settings'));
       bindSubTabs();
       host.querySelectorAll('[data-title-mode]').forEach((button) => button.addEventListener('click', () => { config.title_mode = button.dataset.titleMode; renderProjects(); }));
       root.FirstMatePriorityFields.mountOwnerEditor(host.querySelector('[data-priority-editor]'),{orgId,branchId,config}).then(editor=>{if(editor && host.querySelector('[data-priority-editor]'))host.querySelector('[data-priority-editor]').priorityEditor=editor;}).catch(error=>{const node=host.querySelector('[data-priority-editor]');if(node)node.textContent=error.message||'Priority fields could not be loaded.';});
       host.querySelector('#crmSaveProjectConfig')?.addEventListener('click', saveProjectConfig);
+    }
+    /* How work orders are confirmed before they are paid (docs/architecture/closeout.md): the organization's choice,
+       which Pay out and Closeout use. Saved on its own through the published setting; shown only with Materials on and
+       company settings access. */
+    function mountCompletionMethod(container){
+      const publication = root.PlatformAPI?.publication;
+      const allowed = root.PlatformAPI?.appFlags?.has?.('platform', 'materials') === true && root.Portal?.util?.hasPerm?.('manage_company_settings') === true;
+      if (!container || !publication?.read || !publication?.invoke || !allowed) return;
+      const methods = [['approve', 'One approval', 'One button confirms every line.'], ['select_all', 'Select all', 'Checkboxes, with Select all.'], ['each', 'Each line', 'Every line is checked on its own.']];
+      const section = document.createElement('section');
+      section.className = 'crm-settings-block'; section.dataset.completionMethod = '';
+      section.innerHTML = `<h4>Confirming work orders</h4><p>How the work on a work order is confirmed before it is paid out, in Pay out and in Closeout, for everyone in your organization.</p><div class="crm-option-grid">${methods.map(([id, label, description]) => `<button type="button" class="crm-option" data-completion-method="${id}" disabled><strong>${label}</strong><span>${description}</span></button>`).join('')}</div><p data-completion-status aria-live="polite"></p>`;
+      container.append(section);
+      const target = { scope:'organization', organizationId:orgId }, status = section.querySelector('[data-completion-status]');
+      let current = '', revision = 0;
+      const paint = () => section.querySelectorAll('[data-completion-method]').forEach((button) => { button.classList.toggle('active', button.dataset.completionMethod === current); button.disabled = false; button.setAttribute('aria-pressed', String(button.dataset.completionMethod === current)); });
+      Promise.resolve(publication.read(orgId, { provider:'labor-completion', export:'settings', target })).then((result) => {
+        if (!result || (result.status && result.status !== 'ready')) { section.remove(); return; }
+        current = result.value.method; revision = Number(result.value.revision || 0); paint();
+      }).catch(() => section.remove());
+      section.addEventListener('click', async (event) => {
+        const button = event.target.closest('[data-completion-method]');
+        if (!button || button.disabled || button.dataset.completionMethod === current) return;
+        status.textContent = 'Saving…';
+        try {
+          const result = await publication.invoke(orgId, 'labor-completion.settings.save', target, { method:button.dataset.completionMethod, expected_revision:revision }, { idempotencyKey:`completion-method:${Date.now().toString(36)}${Math.random().toString(36).slice(2)}` });
+          const value = result?.value || result; current = value.method; revision = Number(value.revision || 0); paint(); status.textContent = 'Saved';
+        } catch (error) { status.textContent = error?.message || 'Could not save'; }
+      });
     }
     function renderMisc(){
       const config = state.projectConfig;

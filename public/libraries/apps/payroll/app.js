@@ -449,6 +449,8 @@
       }
       if (view === 'history') { tasks.batches = () => api.batches.list(state.orgId, { limit:100, ...branchArgs() }).then((result) => arr(result?.batches)); tasks.schedules = () => api.schedules.list(state.orgId, { includeArchived:true }).then((result) => result.schedules); tasks.offCycle = () => api.offCycle.list(state.orgId, branchArgs()); }
       if (view === 'exports') { tasks.catalog = () => api.artifacts.catalog(state.orgId).then((result) => arr(result?.exports)); tasks.artifacts = () => api.artifacts.list(state.orgId, { limit:100 }).then((result) => arr(result?.artifacts)); }
+      // Reports for dates are export templates too (earning or reimbursement rows): the built-in ones and the company's own.
+      if (view === 'exports' && can('runs.export')) tasks.templates = () => api.published.read(state.orgId, 'export_templates');
       if (view === 'approvals') tasks.approvals = () => api.approvals.mine(state.orgId);
       const entries = Object.entries(tasks);
       const results = await Promise.all(entries.map(([, read]) => guarded(read)));
@@ -708,13 +710,15 @@
       // Copy out: a file per export template. Built-in ones download as they always have; a company's own are its
       // templates. "Make your own file" and a template's menu open the template editor in this tab, with a preview
       // of this pay run.
-      const copy = { mode:'list', draft:null, preview:null, error:'', token:0, timer:0 };
+      const editor = templateEditor({ panel:() => panels.export, list:() => drawExport(panels.export), previewArgs:() => (current.batch ? { batch_id:current.batch.id } : null),
+        templates:() => arr(obj(state.data.templates).templates).filter((template) => template.scope !== 'date_range') });
+      const { copy, drawEditor, onEditorInput, onEditorClick, templateMenu, newTemplateMenu } = editor;
       function drawExport(panel){
         if (copy.mode === 'edit' && copy.draft) { drawEditor(panel); return; }
         const batch = current.batch;
         const catalog = arr(state.data.catalog).length ? arr(state.data.catalog) : null;
         const builtIns = catalog ? catalog.filter((entry) => entry.group === 'pay_run_file') : PAY_RUN_FILES;
-        const templates = arr(obj(state.data.templates).templates);
+        const templates = arr(obj(state.data.templates).templates).filter((template) => template.scope !== 'date_range');
         const described = new Map(builtIns.map((file) => [file.type, file]));
         const files = templates.length
           ? templates.map((template) => ({ type:template.id, label:template.name, custom:!template.built_in, template, formats:template.formats, description:clean(described.get(template.id)?.description || template.definition?.description), purpose:clean(described.get(template.id)?.purpose) }))
@@ -727,157 +731,6 @@
           ${batch && runStatus(current.occurrence, batch).key !== 'void' ? `<div class="fmp-files">${files.map((file) => `<div class="fmp-file" data-file="${esc(file.type)}"><i class="fas ${esc(icon(file))}" aria-hidden="true"></i><div><span class="fmp-titled"><strong${tip(`${file.description} ${file.purpose || ''}`.trim())}>${esc(file.label)}</strong>${file.description ? info(`${file.description} ${file.purpose || ''}`.trim()) : ''}</span>${file.custom ? `<small>${esc(basedOn(file))}</small>` : ''}</div><span class="fmp-file-actions">${arr(file.formats).map((format) => `<button type="button" class="pp-btn" ${file.custom ? `data-export-template="${esc(file.type)}"` : `data-export="${esc(file.type)}"`} data-format="${esc(format)}"><i class="fas fa-download" aria-hidden="true"></i>${esc(format.toUpperCase())}</button>`).join('')}${menuButton(file)}</span></div>`).join('')}</div>
             ${can('templates.edit') && templates.length ? `<div class="fmp-files-foot"><button type="button" class="pp-btn quiet" data-template-new${tip(t('own_file_tip', 'Start from one of these files and choose your own columns, their order and formatting, for any payroll or accounting software.'))}><i class="fas fa-plus" aria-hidden="true"></i>${esc(t('own_file', 'Make your own file'))}</button></div>` : ''}`
             : `<div class="fmp-empty">${esc(t('draft_first', 'Draft the pay run first: the files are made from what it fixes.'))}</div>`}</div>`;
-      }
-      // ---- The template editor ----
-      const sources = () => arr(obj(state.data.templates).sources);
-      const sourceInfo = (id) => sources().find((source) => source.id === id) || {};
-      function startEditing(template, duplicate){
-        const definition = JSON.parse(JSON.stringify(template.definition || {}));
-        if (duplicate) definition.name = t('copy_name', '{name} (yours)', { name:template.name });
-        copy.draft = { id:duplicate ? '' : template.id, revision:duplicate ? 0 : num(template.revision), based_on:duplicate ? template.id : clean(template.based_on), definition };
-        copy.mode = 'edit'; copy.preview = null; copy.error = '';
-        drawExport(panels.export); schedulePreview(0);
-      }
-      function stopEditing(){ copy.mode = 'list'; copy.draft = null; copy.preview = null; copy.error = ''; drawExport(panels.export); }
-      const NUMBER_PRESETS = [['plain', '1234.56', { decimals:2 }], ['grouped', '1,234.56', { decimals:2, thousands:true }], ['whole', '1235', { decimals:0 }], ['cents', t('in_cents', '123456 (in cents)'), { unit:'cents' }]];
-      const presetOf = (number) => { const value = obj(number); return value.unit === 'cents' ? 'cents' : value.decimals === 0 ? 'whole' : value.thousands ? 'grouped' : 'plain'; };
-      function editorField(label, control, tooltip = '', wide = false){ return `<label class="pp-field${wide ? ' wide' : ''}"><span${tip(tooltip)}>${esc(label)}</span>${control}</label>`; }
-      function sourceSelect(index, value, rows){
-        const groups = new Map();
-        sources().filter((source) => rows === 'pay_item' || source.rows !== 'pay_item').forEach((source) => groups.set(source.group, [...(groups.get(source.group) || []), source]));
-        return `<span class="pp-select"><select class="pp-input" data-col-source="${index}" aria-label="${esc(t('column_shows', 'What column {n} shows', { n:index + 1 }))}">${[...groups.entries()].map(([group, list]) => `<optgroup label="${esc(group)}">${list.map((source) => `<option value="${esc(source.id)}" ${source.id === value ? 'selected' : ''}>${esc(source.label)}</option>`).join('')}</optgroup>`).join('')}</select><i class="fas fa-chevron-down" aria-hidden="true"></i></span>`;
-      }
-      function columnFormat(index, column){
-        const kind = clean(sourceInfo(column.source).kind);
-        const format = obj(column.format);
-        if (kind === 'money') return kit().select({ value:format.unit === 'cents' ? 'cents' : format.zero === 'blank' ? 'blank' : format.negative === 'parentheses' ? 'parentheses' : '', options:[{ value:'', label:t('as_above', 'As set above') }, { value:'cents', label:t('in_cents_short', 'In cents') }, { value:'blank', label:t('blank_zero', 'Blank when zero') }, { value:'parentheses', label:t('parentheses', 'Negatives in ( )') }], label:t('column_format', 'Format of column {n}', { n:index + 1 }), attrs:`data-col-format="${index}"` });
-        if (kind === 'date') return kit().select({ value:clean(format.date), options:[{ value:'', label:t('as_above', 'As set above') }, ...arr(obj(state.data.templates).date_formats).map((value) => ({ value, label:value }))], label:t('column_format', 'Format of column {n}', { n:index + 1 }), attrs:`data-col-format="${index}"` });
-        return '';
-      }
-      function drawEditor(panel){
-        const draft = copy.draft, definition = draft.definition;
-        const columns = arr(definition.columns);
-        const people = new Set(arr(definition.people));
-        const rows = clean(definition.rows) || 'person';
-        const number = obj(definition.number);
-        const file = obj(definition.file);
-        panel.innerHTML = `<div class="fmp-tpl" data-template-editor>
-          <div class="fmp-tpl-top"><button type="button" class="pp-btn quiet" data-tpl-back><i class="fas fa-arrow-left" aria-hidden="true"></i>${esc(t('files', 'Files'))}</button><strong>${esc(draft.id ? t('change_file', 'Change your file') : t('new_file', 'Your own file'))}</strong><span class="fmp-bar-fill"></span><button type="button" class="pp-btn primary" data-tpl-save><i class="fas fa-check" aria-hidden="true"></i>${esc(t('save', 'Save'))}</button></div>
-          <div class="fmp-tpl-grid">
-            ${editorField(t('file_name', 'Name'), `<input class="pp-input" data-tpl="name" value="${esc(definition.name)}" maxlength="120">`, '', true)}
-            <div class="pp-field wide" role="group" aria-label="${esc(t('who_in_file', 'Who is in it'))}"><span${tip(t('who_in_file_tip', 'Employees and contractors are paid with payroll; bills are paid through payables.'))}>${esc(t('who_in_file', 'Who is in it'))}</span><div class="pp-choice-run">${SECTIONS.map(([id, label]) => `<button type="button" class="pp-choice" data-tpl-people="${id}" aria-pressed="${people.has(id)}">${esc(t(id, label))}</button>`).join('')}</div></div>
-            ${editorField(t('rows', 'Rows'), kit().select({ value:rows, options:[{ value:'person', label:t('row_person', 'One per person') }, { value:'pay_item', label:t('row_pay_item', 'One per person and pay item') }], label:t('rows', 'Rows'), attrs:'data-tpl="rows"' }), t('rows_tip', 'Payroll software often takes one row per person with a column per kind of pay; some take one row per pay item.'))}
-            ${rows === 'pay_item' ? editorField(t('pay_items', 'Pay items'), kit().select({ value:clean(definition.pay_items) || 'by_kind', options:[{ value:'by_kind', label:t('items_by_kind', 'Each kind of pay') }, { value:'work_and_reimbursement', label:t('items_work', 'Work and reimbursements') }], label:t('pay_items', 'Pay items'), attrs:'data-tpl="pay_items"' }), t('pay_items_tip', 'Each kind of pay (hourly, salary, ... and what was taken off), or two lines: the work and the reimbursements, as bills usually are.')) : ''}
-            ${editorField(t('order', 'Order'), kit().select({ value:clean(definition.sort) || 'name', options:[{ value:'name', label:t('by_name', 'By name') }, { value:'last_name', label:t('by_last_name', 'By last name') }], label:t('order', 'Order'), attrs:'data-tpl="sort"' }))}
-            ${editorField(t('grouping', 'Grouping'), kit().select({ value:clean(definition.group) || 'section', options:[{ value:'section', label:t('group_section', 'Employees, contractors, bills') }, { value:'none', label:t('group_none', 'Everyone together') }], label:t('grouping', 'Grouping'), attrs:'data-tpl="group"' }))}
-            ${rows === 'person' ? editorField(t('totals', 'Totals'), kit().select({ value:clean(definition.totals) || 'none', options:[{ value:'none', label:t('totals_none', 'No total rows') }, { value:'grand', label:t('totals_grand', 'A total at the end') }, ...(clean(definition.group) !== 'none' ? [{ value:'sections', label:t('totals_sections', 'A total per group and at the end') }] : [])], label:t('totals', 'Totals'), attrs:'data-tpl="totals"' })) : ''}
-            ${editorField(t('amounts', 'Amounts'), kit().select({ value:presetOf(number), options:NUMBER_PRESETS.map(([value, label]) => ({ value, label })), label:t('amounts', 'Amounts'), attrs:'data-tpl="number"' }), t('amounts_tip', 'How money is written. Money is in dollars with two decimals unless you choose otherwise.'))}
-            ${editorField(t('negatives', 'Negative amounts'), kit().select({ value:number.negative === 'parentheses' ? 'parentheses' : 'minus', options:[{ value:'minus', label:'-12.00' }, { value:'parentheses', label:'(12.00)' }], label:t('negatives', 'Negative amounts'), attrs:'data-tpl="negative"' }))}
-            ${editorField(t('dates', 'Dates'), kit().select({ value:clean(definition.date) || 'YYYY-MM-DD', options:arr(obj(state.data.templates).date_formats).map((value) => ({ value, label:value })), label:t('dates', 'Dates'), attrs:'data-tpl="date"' }))}
-            ${editorField(t('separator', 'Separated by'), kit().select({ value:clean(file.delimiter) || 'comma', options:[{ value:'comma', label:t('commas', 'Commas (CSV)') }, { value:'semicolon', label:t('semicolons', 'Semicolons') }, { value:'tab', label:t('tabs', 'Tabs') }], label:t('separator', 'Separated by'), attrs:'data-tpl="delimiter"' }))}
-          </div>
-          <div class="fmp-modal-section"><h3${tip(t('columns_tip', 'Each column is a header, as your software names it, and what it shows. Move columns into the order your software expects.'))}>${esc(t('columns', 'Columns'))}${info(t('columns_tip', 'Each column is a header, as your software names it, and what it shows. Move columns into the order your software expects.'))}</h3>
-            <ol class="fmp-cols">${columns.map((column, index) => `<li class="fmp-col" data-col="${index}"><span class="fmp-col-n">${index + 1}</span>
-              <input class="pp-input" data-col-header="${index}" value="${esc(column.header)}" maxlength="120" aria-label="${esc(t('column_header', 'Header of column {n}', { n:index + 1 }))}" placeholder="${esc(t('header', 'Header'))}">
-              ${sourceSelect(index, column.source, rows)}
-              <span class="fmp-col-extra">${column.source === 'fixed' ? `<input class="pp-input" data-col-value="${index}" value="${esc(column.value || '')}" maxlength="300" aria-label="${esc(t('fixed_text', 'Text'))}" placeholder="${esc(t('fixed_text', 'Text'))}">` : column.source === 'person.field' ? `<input class="pp-input" data-col-field="${index}" value="${esc(column.field || '')}" maxlength="180" aria-label="${esc(t('custom_field_path', 'Custom field'))}" placeholder="employee_number"${tip(t('custom_field_tip', 'The custom field\u2019s name as People stores it, such as employee_number.'))}>` : columnFormat(index, column)}</span>
-              <span class="fmp-col-btns"><button type="button" class="pp-icon-btn" data-col-up="${index}" ${index === 0 ? 'disabled' : ''} aria-label="${esc(t('move_up', 'Move up'))}"><i class="fas fa-arrow-up" aria-hidden="true"></i></button><button type="button" class="pp-icon-btn" data-col-down="${index}" ${index === columns.length - 1 ? 'disabled' : ''} aria-label="${esc(t('move_down', 'Move down'))}"><i class="fas fa-arrow-down" aria-hidden="true"></i></button><button type="button" class="pp-icon-btn danger" data-col-remove="${index}" ${columns.length === 1 ? 'disabled' : ''} aria-label="${esc(t('remove_column', 'Remove column {n}', { n:index + 1 }))}"><i class="fas fa-xmark" aria-hidden="true"></i></button></span>
-            </li>`).join('')}</ol>
-            <div><button type="button" class="pp-btn quiet" data-col-add><i class="fas fa-plus" aria-hidden="true"></i>${esc(t('add_column', 'Add a column'))}</button></div>
-          </div>
-          <div class="fmp-modal-section"><h3${tip(t('preview_tip', 'The first rows of this pay run as the file will show them. Nothing is saved until you save.'))}>${esc(t('preview', 'Preview'))}</h3><div data-tpl-preview>${previewHtml()}</div></div>
-        </div>`;
-      }
-      function previewHtml(){
-        if (copy.error) return `<div class="fmp-reason" role="alert">${esc(copy.error)}</div>`;
-        const preview = copy.preview;
-        if (!preview) return `<div class="fmp-preview-note" role="status">${esc(t('working_out', 'Working it out\u2026'))}</div>`;
-        const body = arr(preview.rows).map((row) => `<tr>${arr(row).map((cell) => `<td>${esc(cell)}</td>`).join('')}</tr>`).join('');
-        return `<div class="fmp-preview"><table><thead><tr>${arr(preview.headers).map((header) => `<th>${esc(header)}</th>`).join('')}</tr></thead><tbody>${body || `<tr><td colspan="${arr(preview.headers).length}">${esc(t('no_rows', 'Nobody in this pay run is in this file.'))}</td></tr>`}</tbody></table></div>
-          <p class="fmp-preview-note">${esc(t('preview_count', 'Showing {shown} of {total} rows.', { shown:arr(preview.rows).length, total:num(preview.row_count) }))}${arr(preview.warnings).map((warning) => ` ${warning}`).join('')}</p>`;
-      }
-      function schedulePreview(delay = 350){
-        clearTimeout(copy.timer);
-        copy.timer = setTimeout(async () => {
-          if (copy.mode !== 'edit' || !copy.draft || !current.batch) return;
-          const token = ++copy.token;
-          try {
-            const preview = await window.PayrollAPI.published.invoke(state.orgId, 'payroll.exportTemplate.preview', { batch_id:current.batch.id, definition:copy.draft.definition, limit:8 }, '', false);
-            if (token !== copy.token) return;
-            copy.preview = preview; copy.error = '';
-          } catch (error) {
-            if (token !== copy.token) return;
-            copy.preview = null; copy.error = clean(error?.message) || t('preview_failed', 'This file cannot be made as it is.');
-          }
-          const host = panels.export?.querySelector('[data-tpl-preview]');
-          if (host) host.innerHTML = previewHtml();
-        }, delay);
-      }
-      function editDefinition(change, redraw = false){
-        change(copy.draft.definition);
-        if (redraw) drawEditor(panels.export);
-        schedulePreview();
-      }
-      function onEditorInput(event){
-        const target = event.target;
-        if (!copy.draft || !target.closest('[data-template-editor]')) return;
-        const definition = copy.draft.definition, columns = arr(definition.columns);
-        if (target.matches('[data-tpl="name"]')) { editDefinition((value) => { value.name = target.value; }); return; }
-        if (target.matches('[data-col-header]')) { editDefinition(() => { columns[num(target.dataset.colHeader)].header = target.value; }); return; }
-        if (target.matches('[data-col-value]')) { editDefinition(() => { columns[num(target.dataset.colValue)].value = target.value; }); return; }
-        if (target.matches('[data-col-field]')) { editDefinition(() => { columns[num(target.dataset.colField)].field = target.value.trim(); }); return; }
-        if (event.type !== 'change') return;
-        const setting = target.dataset.tpl;
-        if (setting === 'rows') { editDefinition((value) => { value.rows = target.value; if (target.value === 'pay_item') { value.pay_items = value.pay_items || 'by_kind'; value.totals = 'none'; value.columns = arr(value.columns).length ? value.columns : [{ header:'Name', source:'person.name' }]; } else { delete value.pay_items; value.columns = arr(value.columns).filter((column) => clean(sourceInfo(column.source).rows) !== 'pay_item'); if (!value.columns.length) value.columns = [{ header:'Name', source:'person.name' }]; } }, true); return; }
-        if (setting === 'pay_items' || setting === 'sort' || setting === 'date') { editDefinition((value) => { value[setting] = target.value; }); return; }
-        if (setting === 'group') { editDefinition((value) => { value.group = target.value; if (target.value === 'none' && value.totals === 'sections') value.totals = 'grand'; }, true); return; }
-        if (setting === 'totals') { editDefinition((value) => { value.totals = target.value; }); return; }
-        if (setting === 'number') { editDefinition((value) => { const negative = obj(value.number).negative; value.number = { ...(NUMBER_PRESETS.find(([id]) => id === target.value)?.[2] || {}), ...(negative ? { negative } : {}) }; }); return; }
-        if (setting === 'negative') { editDefinition((value) => { value.number = { ...obj(value.number), negative:target.value }; if (target.value === 'minus') delete value.number.negative; }); return; }
-        if (setting === 'delimiter') { editDefinition((value) => { value.file = { ...obj(value.file), type:'csv', delimiter:target.value }; }); return; }
-        if (target.matches('[data-col-source]')) {
-          editDefinition(() => { const column = columns[num(target.dataset.colSource)]; const previous = sourceInfo(column.source); column.source = target.value; delete column.format; if (target.value !== 'fixed') delete column.value; if (target.value !== 'person.field') delete column.field; if (!clean(column.header) || column.header === previous.label || column.header === t('new_column', 'New column')) column.header = sourceInfo(target.value).label || column.header; }, true);
-          return;
-        }
-        if (target.matches('[data-col-format]')) {
-          editDefinition(() => { const column = columns[num(target.dataset.colFormat)]; const kind = clean(sourceInfo(column.source).kind); const value = target.value; column.format = !value ? undefined : kind === 'date' ? { date:value } : value === 'cents' ? { unit:'cents' } : value === 'blank' ? { zero:'blank' } : { negative:'parentheses' }; if (!column.format) delete column.format; });
-        }
-      }
-      async function onEditorClick(event){
-        const definition = copy.draft?.definition, columns = arr(definition?.columns);
-        if (event.target.closest('[data-tpl-back]')) { stopEditing(); return true; }
-        const people = event.target.closest('[data-tpl-people]');
-        if (people) { editDefinition((value) => { const set = new Set(arr(value.people)); if (set.has(people.dataset.tplPeople)) { if (set.size > 1) set.delete(people.dataset.tplPeople); } else set.add(people.dataset.tplPeople); value.people = SECTIONS.map(([id]) => id).filter((id) => set.has(id)); }, true); return true; }
-        const move = (from, to) => editDefinition(() => { const [column] = columns.splice(from, 1); columns.splice(to, 0, column); }, true);
-        const up = event.target.closest('[data-col-up]'); if (up) { move(num(up.dataset.colUp), num(up.dataset.colUp) - 1); return true; }
-        const down = event.target.closest('[data-col-down]'); if (down) { move(num(down.dataset.colDown), num(down.dataset.colDown) + 1); return true; }
-        const remove = event.target.closest('[data-col-remove]'); if (remove) { editDefinition(() => { columns.splice(num(remove.dataset.colRemove), 1); }, true); return true; }
-        if (event.target.closest('[data-col-add]')) { editDefinition(() => { columns.push({ header:t('new_column', 'New column'), source:'person.name' }); }, true); panels.export.querySelector(`[data-col-header="${columns.length - 1}"]`)?.focus(); return true; }
-        if (event.target.closest('[data-tpl-save]')) {
-          const draft = copy.draft;
-          const saved = await perform(t('file_saved', 'File saved'), () => window.PayrollAPI.published.invoke(state.orgId, 'payroll.exportTemplate.save', { ...(draft.id ? { id:draft.id, expected_revision:draft.revision } : {}), ...(draft.based_on ? { based_on:draft.based_on } : {}), definition:draft.definition }), t('file_saved', 'File saved'));
-          if (saved) stopEditing();
-          return true;
-        }
-        return false;
-      }
-      function templateMenu(anchor, id){
-        const template = arr(obj(state.data.templates).templates).find((entry) => entry.id === id);
-        if (!template) return;
-        kit().menu(anchor, { align:'end', items:[
-          { id:'duplicate', label:t('duplicate_change', 'Duplicate and change'), icon:'fa-copy' },
-          ...(template.built_in ? [] : [{ id:'edit', label:t('change', 'Change'), icon:'fa-pen' }, { separator:true }, { id:'remove', label:t('remove', 'Remove'), icon:'fa-trash', tone:'danger' }])
-        ], onSelect:async (item) => {
-          if (item.id === 'duplicate') startEditing(template, true);
-          if (item.id === 'edit') startEditing(template, false);
-          if (item.id === 'remove' && await kit().confirm(anchor, { title:t('remove_file_confirm', 'Remove {name}? Files made from it before stay as they are.', { name:template.name }), confirmLabel:t('remove', 'Remove'), tone:'danger' })) {
-            await perform(t('removed', 'Removed'), () => window.PayrollAPI.published.invoke(state.orgId, 'payroll.exportTemplate.archive', { expected_revision:num(template.revision) }, template.id), t('removed', 'Removed'));
-          }
-        } });
-      }
-      function newTemplateMenu(anchor){
-        const templates = arr(obj(state.data.templates).templates);
-        kit().menu(anchor, { title:t('start_from', 'Start from'), align:'start', items:templates.map((template) => ({ id:template.id, label:template.name, icon:template.built_in ? 'fa-file-lines' : 'fa-table-columns' })), onSelect:(item) => { const template = templates.find((entry) => entry.id === item.id); if (template) startEditing(template, true); } });
       }
       function drawApproval(panel){
         const approval = obj(current.batch?.approval);
@@ -993,14 +846,16 @@
     }
 
     // -- Why someone is paid what they are --
-    async function openWhy(payee, opener){
+    async function openWhy(payee, opener, startTab = ''){
       const modalKit = window.FirstMatePeople?.entityModal;
       if (!modalKit || !can('earnings.why')) return;
       const api = window.PayrollAPI;
       const data = { loading:true };
       const panels = {};
+      // How pay was divided: a group's earnings among its members, or the shares a person was paid from their groups.
+      const divisible = ['resource_group', 'organization_user'].includes(clean(payee.type));
       const modal = modalKit.open({
-        label:t('why_paid', 'Why {name} is paid what they are', { name:payeeName(payee) }), opener, footer:false, tab:'paid_by',
+        label:t('why_paid', 'Why {name} is paid what they are', { name:payeeName(payee) }), opener, footer:false, tab:startTab === 'divided' && divisible ? 'divided' : 'paid_by',
         summary(host){
           const report = obj(data.earnings);
           const totals = obj(report.totals);
@@ -1020,6 +875,7 @@
         tabs:[
           { id:'paid_by', label:t('paid_by', 'Paid by'), icon:'fa-scale-balanced', needs:null, mount(panel){ panels.paid_by = panel; draw(); return {}; } },
           { id:'results', label:t('worked_out', 'Worked out'), icon:'fa-calculator', needs:null, mount(panel){ panels.results = panel; draw(); return {}; } },
+          ...(divisible ? [{ id:'divided', label:t('divided', 'Divided'), icon:'fa-people-arrows', needs:null, mount(panel){ panels.divided = panel; draw(); return {}; } }] : []),
           { id:'ledger', label:t('ledger', 'Ledger'), icon:'fa-receipt', needs:null, mount(panel){ panels.ledger = panel; draw(); return {}; } },
           ...(can('earnings.projected') ? [{ id:'projected', label:t('projected', 'Projected'), icon:'fa-chart-line', needs:null, mount(panel){ panels.projected = panel; draw(); return {}; } }] : []),
           { id:'payments', label:t('payments', 'Payments'), icon:'fa-clock-rotate-left', needs:null, mount(panel){ panels.payments = panel; draw(); return {}; } }
@@ -1030,6 +886,44 @@
         if (!origin) return t('own_setup', 'Their own setup');
         const name = clean(origin.name) || clean(origin.id);
         return ({ organization:t('everyone', 'Everyone'), role:t('role_default', '{name} role', { name }), group_type:t('group_type_default', '{name} groups', { name }), company_type:t('company_type_default', '{name} companies', { name }) })[clean(origin.type)] || name;
+      }
+      function personName(id){ const user = arr(state.directory?.users).find((entry) => clean(entry.id) === clean(id)); return clean(user?.name || user?.display_name || [user?.first_name, user?.last_name].filter(Boolean).join(' ')) || clean(id); }
+      function groupName(key){ const id = clean(key).split(':').slice(1).join(':'); const group = arr(state.directory?.resource_groups).find((entry) => clean(entry.id) === id); return clean(group?.name) || id; }
+      function splitRuleName(id, version){ const rule = arr(data.splitRules).find((entry) => entry.id === id); const name = clean(rule?.name) || clean(id).replace(/_/g, ' '); return version ? `${name} \u00b7 ${clean(version).slice(0, 7)}` : name; }
+      function methodText(split){
+        if (!split) return '';
+        if (split.method === 'rule') return t('divided_by_rule', 'Divided by the split rule {name}', { name:splitRuleName(split.split_rule_id, split.split_rule_version) });
+        if (split.method === 'shares') return t('divided_by_shares', 'Divided by fixed shares');
+        return t('divided_equally', 'Divided equally among the members');
+      }
+      const paramsText = (params) => Object.entries(obj(params)).map(([key, value]) => `${key.replace(/_/g, ' ')}: ${value}`).join(', ');
+      // A group: each earning it divided, line by line, with every member's weight, share and the rule's reason.
+      // A person: each share they were paid from a group's earning, with their weight out of the total and the reason.
+      function dividedHtml(currency){
+        if (clean(payee.type) === 'resource_group') {
+          const divided = arr(data.units).filter((unit) => unit.split && unit.status === 'ok').slice(0, 40);
+          if (!divided.length) return `<div class="fmp-modal-section"><div class="fmp-empty">${esc(t('nothing_divided', 'Nothing this group earned has been divided among its members yet.'))}</div></div>`;
+          return divided.map((unit) => {
+            const split = obj(unit.split);
+            const lines = Object.entries(obj(split.lines)).filter(([, line]) => num(line.amount_cents));
+            return `<div class="fmp-modal-section" data-divided-unit="${esc(unit.id)}"><h3${tip(paramsText(split.params))}>${esc(ruleName(unit.rule_id))} \u00b7 ${esc(dateLabel(unit.earned_at))}</h3>
+              <p class="fmp-muted">${esc(methodText(split))}${split.params && Object.keys(split.params).length ? ` (${esc(paramsText(split.params))})` : ''}</p>
+              ${lines.map(([key, line]) => {
+                const description = clean(arr(unit.lines).find((entry) => entry.key === key)?.description) || ruleName(unit.rule_id);
+                const total = num(line.total_weight);
+                return `<p><strong>${esc(description)}</strong> ${esc(money(line.amount_cents, currency))}</p>` + table([{ label:t('member', 'Member') }, { label:t('weight', 'Weight'), cls:'num' }, { label:t('share', 'Share'), cls:'num' }, { label:t('amount', 'Amount'), cls:'num' }, { label:t('reason', 'Reason') }],
+                  arr(line.shares).map((share) => `<tr data-divided-member="${esc(share.id)}">${td(esc(personName(share.id)), t('member', 'Member'), 'lead')}${td(esc(String(num(share.weight))), t('weight', 'Weight'), 'num')}${td(esc(total ? `${Math.round(num(share.weight) / total * 1000) / 10}%` : '\u2014'), t('share', 'Share'), 'num')}${td(esc(money(share.cents, currency)), t('amount', 'Amount'), 'num')}${td(esc(clean(share.reason)), t('reason', 'Reason'))}</tr>`),
+                  { empty:t('nobody_paid', 'Nobody was paid a share of this.') });
+              }).join('')}</div>`;
+          }).join('');
+        }
+        const shares = arr(data.ledger).filter((entry) => entry.state !== 'void' && obj(entry.metadata).split).sort((a, b) => clean(b.metadata?.pay_rule?.earned_on).localeCompare(clean(a.metadata?.pay_rule?.earned_on))).slice(0, 200);
+        return `<div class="fmp-modal-section"><h3${tip(t('shares_tip', 'Each share of a group\u2019s earning paid to them, with their weight out of the group\u2019s total and why.'))}>${esc(t('shares_from_groups', 'Shares of group earnings'))}</h3>
+          ${table([{ label:t('earning', 'Earning') }, { label:t('group', 'Group') }, { label:t('weight', 'Weight'), cls:'num' }, { label:t('amount', 'Amount'), cls:'num' }, { label:t('reason', 'Reason') }], shares.map((entry) => {
+            const split = obj(entry.metadata.split);
+            const weight = split.method === 'rule' ? `${num(split.weight)} / ${num(split.total_weight)}` : `1 / ${num(split.members) || 1}`;
+            return `<tr data-divided-entry="${esc(entry.id)}">${td(nameCell(clean(entry.description) || kindLabel(entry.kind), [dateLabel(entry.metadata?.pay_rule?.earned_on), `${t('of', 'of')} ${money(split.line_cents, currency)}`].filter(Boolean).join(' \u00b7 ')), t('earning', 'Earning'), 'lead')}${td(esc(groupName(split.of)), t('group', 'Group'))}${td(esc(weight), t('weight', 'Weight'), 'num')}${td(esc(money(entry.amount_cents, currency)), t('amount', 'Amount'), 'num')}${td(esc(clean(split.reason) || methodText(split)), t('reason', 'Reason'))}</tr>`;
+          }), { empty:t('no_shares', 'They have not been paid a share of a group\u2019s earnings.') })}</div>`;
       }
       function draw(){
         const currency = clean(data.earnings?.currency || 'USD');
@@ -1052,6 +946,7 @@
           panels.results.innerHTML = data.loading ? loading : `<div class="fmp-modal-section"><h3${tip(t('results_tip', 'What each pay rule last worked out, one row per record or period it pays. Something that could not be worked out is never paid as zero.'))}>${esc(t('what_rules_worked_out', 'What each rule worked out'))}</h3>
             ${table([{ label:t('rule', 'Rule') }, { label:t('earned_on', 'Earned on') }, { label:t('result', 'Result') }, { label:t('amount', 'Amount'), cls:'num' }], units.slice(0, 200).map((unit) => { const total = arr(unit.lines).reduce((sum, line) => sum + num(line.amount_cents), 0); const failed = unit.status === 'error'; return `<tr>${td(nameCell(ruleName(unit.rule_id), arr(unit.lines).map((line) => clean(line.description)).filter(Boolean).join(', ')), t('rule', 'Rule'), 'lead')}${td(esc(dateLabel(unit.earned_at)), t('earned_on', 'Earned on'))}${td(failed ? `<span class="fmp-reason">${esc(clean(unit.error) || t('could_not', 'Could not be worked out'))}</span>` : unit.status === 'withdrawn' ? pill(t('taken_back', 'Taken back'), 'muted') : pill(t('worked_out', 'Worked out'), 'ok'), t('result', 'Result'))}${td(failed ? '\u2014' : esc(money(total, currency)), t('amount', 'Amount'), 'num')}</tr>`; }), { empty:t('no_results', 'No pay rule has worked out anything for them yet. Refresh earnings once they have a pay setup.') })}</div>`;
         }
+        if (panels.divided) panels.divided.innerHTML = data.loading ? loading : dividedHtml(currency);
         if (panels.ledger) {
           const entries = arr(data.ledger).slice().sort((a, b) => clean(b.created_at).localeCompare(clean(a.created_at)));
           const stateLabel = (entry) => entry.state === 'void' ? t('void', 'Void') : entry.state === 'projected' ? (entry.metadata?.review_required ? t('held', 'Held for review') : t('projected', 'Projected')) : num(entry.remaining_cents) === 0 ? t('in_a_run', 'In a pay run') : num(entry.applied_cents) ? t('partly_in_run', 'Partly in a pay run') : t('waiting_run', 'Waiting for a pay run');
@@ -1076,6 +971,14 @@
         can('earnings.projected') ? api.pay.projected(state.orgId, payee).catch(() => null) : null,
         state.rules ? Promise.resolve(state.rules) : api.pay.rules(state.orgId).catch(() => [])
       ]);
+      if (divisible) {
+        const [splitRules, directory] = await Promise.all([
+          api.pay.splitRules(state.orgId).catch(() => []),
+          state.directory ? Promise.resolve(state.directory) : api.published.read(state.orgId, 'directory').catch(() => ({ users:[], connections:[], resource_groups:[] }))
+        ]);
+        state.directory = directory;
+        Object.assign(data, { splitRules:arr(splitRules) });
+      }
       Object.assign(data, { setup, units, ledger, earnings, projected, rules, loading:false });
       state.rules = rules;
       modal.refreshSummary();
@@ -1216,14 +1119,229 @@
     }
     function scheduleNameOf(batch){ return clean([...arr(state.data.schedules), ...arr(state.data.dashboard?.schedules)].find((schedule) => schedule.id === batch.schedule_id)?.name) || clean(batch.schedule_name) || t('pay_run', 'Pay run'); }
 
+    // ---- The export template editor (payroll/export-templates.ts) ----
+    // One editor for pay run files (in a pay run, under Copy out) and reports for dates (in Reports). `options` says where
+    // it draws (`panel`), how to draw the list it returns to (`list`), what a preview reads (`previewArgs`: a pay run, or
+    // dates; null while there is nothing to preview) and which templates it starts from (`templates`).
+    const DATED_ROWS = ['earning', 'reimbursement'];
+    const EARNING_KINDS = ['hourly', 'salary', 'piece_rate', 'commission', 'reimbursement', 'adjustment', 'clawback'];
+    // Which kinds of row a column source can fill. Older catalogs said only `pay_item` for pay item sources.
+    const sourceAllows = (source, rows) => Array.isArray(source?.rows) ? source.rows.includes(rows) : source?.rows === 'pay_item' ? rows === 'pay_item' : !DATED_ROWS.includes(rows) || source?.id === 'fixed';
+    function templateEditor(options){
+      const copy = { mode:'list', draft:null, preview:null, error:'', token:0, timer:0 };
+    // ---- The template editor ----
+    const sources = () => arr(obj(state.data.templates).sources);
+    const sourceInfo = (id) => sources().find((source) => source.id === id) || {};
+    function startEditing(template, duplicate){
+      const definition = JSON.parse(JSON.stringify(template.definition || {}));
+      if (duplicate) definition.name = t('copy_name', '{name} (yours)', { name:template.name });
+      copy.draft = { id:duplicate ? '' : template.id, revision:duplicate ? 0 : num(template.revision), based_on:duplicate ? template.id : clean(template.based_on), definition };
+      copy.mode = 'edit'; copy.preview = null; copy.error = '';
+      options.list(); schedulePreview(0);
+    }
+    function stopEditing(){ copy.mode = 'list'; copy.draft = null; copy.preview = null; copy.error = ''; options.list(); }
+    const NUMBER_PRESETS = [['plain', '1234.56', { decimals:2 }], ['grouped', '1,234.56', { decimals:2, thousands:true }], ['whole', '1235', { decimals:0 }], ['cents', t('in_cents', '123456 (in cents)'), { unit:'cents' }]];
+    const presetOf = (number) => { const value = obj(number); return value.unit === 'cents' ? 'cents' : value.decimals === 0 ? 'whole' : value.thousands ? 'grouped' : 'plain'; };
+    function editorField(label, control, tooltip = '', wide = false){ return `<label class="pp-field${wide ? ' wide' : ''}"><span${tip(tooltip)}>${esc(label)}</span>${control}</label>`; }
+    function sourceSelect(index, value, rows){
+      const groups = new Map();
+      sources().filter((source) => sourceAllows(source, rows)).forEach((source) => groups.set(source.group, [...(groups.get(source.group) || []), source]));
+      return `<span class="pp-select"><select class="pp-input" data-col-source="${index}" aria-label="${esc(t('column_shows', 'What column {n} shows', { n:index + 1 }))}">${[...groups.entries()].map(([group, list]) => `<optgroup label="${esc(group)}">${list.map((source) => `<option value="${esc(source.id)}" ${source.id === value ? 'selected' : ''}>${esc(source.label)}</option>`).join('')}</optgroup>`).join('')}</select><i class="fas fa-chevron-down" aria-hidden="true"></i></span>`;
+    }
+    function columnFormat(index, column){
+      const kind = clean(sourceInfo(column.source).kind);
+      const format = obj(column.format);
+      if (kind === 'money') return kit().select({ value:format.unit === 'cents' ? 'cents' : format.zero === 'blank' ? 'blank' : format.negative === 'parentheses' ? 'parentheses' : '', options:[{ value:'', label:t('as_above', 'As set above') }, { value:'cents', label:t('in_cents_short', 'In cents') }, { value:'blank', label:t('blank_zero', 'Blank when zero') }, { value:'parentheses', label:t('parentheses', 'Negatives in ( )') }], label:t('column_format', 'Format of column {n}', { n:index + 1 }), attrs:`data-col-format="${index}"` });
+      if (kind === 'date') return kit().select({ value:clean(format.date), options:[{ value:'', label:t('as_above', 'As set above') }, ...arr(obj(state.data.templates).date_formats).map((value) => ({ value, label:value }))], label:t('column_format', 'Format of column {n}', { n:index + 1 }), attrs:`data-col-format="${index}"` });
+      return '';
+    }
+    function drawEditor(panel){
+      const draft = copy.draft, definition = draft.definition;
+      const columns = arr(definition.columns);
+      const people = new Set(arr(definition.people));
+      const rows = clean(definition.rows) || 'person';
+      const number = obj(definition.number);
+      const file = obj(definition.file);
+      const dated = DATED_ROWS.includes(rows);
+      const kinds = new Set(arr(definition.kinds));
+      panel.innerHTML = `<div class="fmp-tpl" data-template-editor>
+        <div class="fmp-tpl-top"><button type="button" class="pp-btn quiet" data-tpl-back><i class="fas fa-arrow-left" aria-hidden="true"></i>${esc(dated ? t('reports', 'Reports') : t('files', 'Files'))}</button><strong>${esc(dated ? (draft.id ? t('change_report', 'Change your report') : t('new_report', 'Your own report')) : draft.id ? t('change_file', 'Change your file') : t('new_file', 'Your own file'))}</strong><span class="fmp-bar-fill"></span><button type="button" class="pp-btn primary" data-tpl-save><i class="fas fa-check" aria-hidden="true"></i>${esc(t('save', 'Save'))}</button></div>
+        <div class="fmp-tpl-grid">
+          ${editorField(t('file_name', 'Name'), `<input class="pp-input" data-tpl="name" value="${esc(definition.name)}" maxlength="120">`, '', true)}
+          <div class="pp-field wide" role="group" aria-label="${esc(t('who_in_file', 'Who is in it'))}"><span${tip(t('who_in_file_tip', 'Employees and contractors are paid with payroll; bills are paid through payables.'))}>${esc(t('who_in_file', 'Who is in it'))}</span><div class="pp-choice-run">${SECTIONS.map(([id, label]) => `<button type="button" class="pp-choice" data-tpl-people="${id}" aria-pressed="${people.has(id)}">${esc(t(id, label))}</button>`).join('')}</div></div>
+          ${editorField(t('rows', 'Rows'), kit().select({ value:rows, options:dated ? [{ value:'earning', label:t('row_earning', 'One per earning') }, { value:'reimbursement', label:t('row_reimbursement', 'One per reimbursement') }] : [{ value:'person', label:t('row_person', 'One per person') }, { value:'pay_item', label:t('row_pay_item', 'One per person and pay item') }], label:t('rows', 'Rows'), attrs:'data-tpl="rows"' }), t('rows_tip', 'Payroll software often takes one row per person with a column per kind of pay; some take one row per pay item.'))}
+          ${rows === 'pay_item' ? editorField(t('pay_items', 'Pay items'), kit().select({ value:clean(definition.pay_items) || 'by_kind', options:[{ value:'by_kind', label:t('items_by_kind', 'Each kind of pay') }, { value:'work_and_reimbursement', label:t('items_work', 'Work and reimbursements') }], label:t('pay_items', 'Pay items'), attrs:'data-tpl="pay_items"' }), t('pay_items_tip', 'Each kind of pay (hourly, salary, ... and what was taken off), or two lines: the work and the reimbursements, as bills usually are.')) : ''}
+          ${editorField(t('order', 'Order'), kit().select({ value:clean(definition.sort) || (dated ? 'none' : 'name'), options:[...(dated ? [{ value:'none', label:t('by_date', 'As recorded') }] : []), { value:'name', label:t('by_name', 'By name') }, { value:'last_name', label:t('by_last_name', 'By last name') }], label:t('order', 'Order'), attrs:'data-tpl="sort"' }))}
+          ${editorField(t('grouping', 'Grouping'), kit().select({ value:clean(definition.group) || 'section', options:[{ value:'section', label:t('group_section', 'Employees, contractors, bills') }, { value:'none', label:t('group_none', 'Everyone together') }], label:t('grouping', 'Grouping'), attrs:'data-tpl="group"' }))}
+          ${dated && rows === 'earning' ? `<div class="pp-field wide" role="group" aria-label="${esc(t('kinds_in_report', 'Which earnings'))}"><span${tip(t('kinds_in_report_tip', 'Only these kinds of earning; every kind when none is chosen.'))}>${esc(t('kinds_in_report', 'Which earnings'))}</span><div class="pp-choice-run">${EARNING_KINDS.map((id) => `<button type="button" class="pp-choice" data-tpl-kind="${id}" aria-pressed="${kinds.has(id)}">${esc(kindLabel(id))}</button>`).join('')}</div></div>
+            ${editorField(t('forecasts', 'Forecasts'), kit().select({ value:definition.include_projected ? 'yes' : 'no', options:[{ value:'no', label:t('earned_only', 'Earned only') }, { value:'yes', label:t('with_forecasts', 'With forecasts and held corrections') }], label:t('forecasts', 'Forecasts'), attrs:'data-tpl="include_projected"' }))}` : ''}
+          ${dated ? editorField(t('totals', 'Totals'), kit().select({ value:clean(definition.totals) === 'grand' ? 'grand' : 'none', options:[{ value:'none', label:t('totals_none', 'No total rows') }, { value:'grand', label:t('totals_grand', 'A total at the end') }], label:t('totals', 'Totals'), attrs:'data-tpl="totals"' })) : ''}
+          ${rows === 'person' ? editorField(t('totals', 'Totals'), kit().select({ value:clean(definition.totals) || 'none', options:[{ value:'none', label:t('totals_none', 'No total rows') }, { value:'grand', label:t('totals_grand', 'A total at the end') }, ...(clean(definition.group) !== 'none' ? [{ value:'sections', label:t('totals_sections', 'A total per group and at the end') }] : [])], label:t('totals', 'Totals'), attrs:'data-tpl="totals"' })) : ''}
+          ${editorField(t('amounts', 'Amounts'), kit().select({ value:presetOf(number), options:NUMBER_PRESETS.map(([value, label]) => ({ value, label })), label:t('amounts', 'Amounts'), attrs:'data-tpl="number"' }), t('amounts_tip', 'How money is written. Money is in dollars with two decimals unless you choose otherwise.'))}
+          ${editorField(t('negatives', 'Negative amounts'), kit().select({ value:number.negative === 'parentheses' ? 'parentheses' : 'minus', options:[{ value:'minus', label:'-12.00' }, { value:'parentheses', label:'(12.00)' }], label:t('negatives', 'Negative amounts'), attrs:'data-tpl="negative"' }))}
+          ${editorField(t('dates', 'Dates'), kit().select({ value:clean(definition.date) || 'YYYY-MM-DD', options:arr(obj(state.data.templates).date_formats).map((value) => ({ value, label:value })), label:t('dates', 'Dates'), attrs:'data-tpl="date"' }))}
+          ${editorField(t('separator', 'Separated by'), kit().select({ value:clean(file.delimiter) || 'comma', options:[{ value:'comma', label:t('commas', 'Commas (CSV)') }, { value:'semicolon', label:t('semicolons', 'Semicolons') }, { value:'tab', label:t('tabs', 'Tabs') }], label:t('separator', 'Separated by'), attrs:'data-tpl="delimiter"' }))}
+        </div>
+        <div class="fmp-modal-section"><h3${tip(t('columns_tip', 'Each column is a header, as your software names it, and what it shows. Move columns into the order your software expects.'))}>${esc(t('columns', 'Columns'))}${info(t('columns_tip', 'Each column is a header, as your software names it, and what it shows. Move columns into the order your software expects.'))}</h3>
+          <ol class="fmp-cols">${columns.map((column, index) => `<li class="fmp-col" data-col="${index}"><span class="fmp-col-n">${index + 1}</span>
+            <input class="pp-input" data-col-header="${index}" value="${esc(column.header)}" maxlength="120" aria-label="${esc(t('column_header', 'Header of column {n}', { n:index + 1 }))}" placeholder="${esc(t('header', 'Header'))}">
+            ${sourceSelect(index, column.source, rows)}
+            <span class="fmp-col-extra">${column.source === 'fixed' ? `<input class="pp-input" data-col-value="${index}" value="${esc(column.value || '')}" maxlength="300" aria-label="${esc(t('fixed_text', 'Text'))}" placeholder="${esc(t('fixed_text', 'Text'))}">` : column.source === 'person.field' ? `<input class="pp-input" data-col-field="${index}" value="${esc(column.field || '')}" maxlength="180" aria-label="${esc(t('custom_field_path', 'Custom field'))}" placeholder="employee_number"${tip(t('custom_field_tip', 'The custom field\u2019s name as People stores it, such as employee_number.'))}>` : columnFormat(index, column)}</span>
+            <span class="fmp-col-btns"><button type="button" class="pp-icon-btn" data-col-up="${index}" ${index === 0 ? 'disabled' : ''} aria-label="${esc(t('move_up', 'Move up'))}"><i class="fas fa-arrow-up" aria-hidden="true"></i></button><button type="button" class="pp-icon-btn" data-col-down="${index}" ${index === columns.length - 1 ? 'disabled' : ''} aria-label="${esc(t('move_down', 'Move down'))}"><i class="fas fa-arrow-down" aria-hidden="true"></i></button><button type="button" class="pp-icon-btn danger" data-col-remove="${index}" ${columns.length === 1 ? 'disabled' : ''} aria-label="${esc(t('remove_column', 'Remove column {n}', { n:index + 1 }))}"><i class="fas fa-xmark" aria-hidden="true"></i></button></span>
+          </li>`).join('')}</ol>
+          <div><button type="button" class="pp-btn quiet" data-col-add><i class="fas fa-plus" aria-hidden="true"></i>${esc(t('add_column', 'Add a column'))}</button></div>
+        </div>
+        <div class="fmp-modal-section"><h3${tip(dated ? t('preview_dates_tip', 'The first rows for the dates chosen in Reports, as the report will show them. Nothing is saved until you save.') : t('preview_tip', 'The first rows of this pay run as the file will show them. Nothing is saved until you save.'))}>${esc(t('preview', 'Preview'))}</h3><div data-tpl-preview>${previewHtml()}</div></div>
+      </div>`;
+    }
+    function previewHtml(){
+      if (copy.error) return `<div class="fmp-reason" role="alert">${esc(copy.error)}</div>`;
+      const preview = copy.preview;
+      if (!preview) return `<div class="fmp-preview-note" role="status">${esc(t('working_out', 'Working it out\u2026'))}</div>`;
+      const body = arr(preview.rows).map((row) => `<tr>${arr(row).map((cell) => `<td>${esc(cell)}</td>`).join('')}</tr>`).join('');
+      return `<div class="fmp-preview"><table><thead><tr>${arr(preview.headers).map((header) => `<th>${esc(header)}</th>`).join('')}</tr></thead><tbody>${body || `<tr><td colspan="${arr(preview.headers).length}">${esc(DATED_ROWS.includes(clean(copy.draft?.definition?.rows)) ? t('no_rows_dates', 'Nothing in these dates is in this report.') : t('no_rows', 'Nobody in this pay run is in this file.'))}</td></tr>`}</tbody></table></div>
+        <p class="fmp-preview-note">${esc(t('preview_count', 'Showing {shown} of {total} rows.', { shown:arr(preview.rows).length, total:num(preview.row_count) }))}${arr(preview.warnings).map((warning) => ` ${warning}`).join('')}</p>`;
+    }
+    function schedulePreview(delay = 350){
+      clearTimeout(copy.timer);
+      copy.timer = setTimeout(async () => {
+        const args = options.previewArgs();
+        if (copy.mode !== 'edit' || !copy.draft || !args) return;
+        const token = ++copy.token;
+        try {
+          const preview = await window.PayrollAPI.published.invoke(state.orgId, 'payroll.exportTemplate.preview', { ...args, definition:copy.draft.definition, limit:8 }, '', false);
+          if (token !== copy.token) return;
+          copy.preview = preview; copy.error = '';
+        } catch (error) {
+          if (token !== copy.token) return;
+          copy.preview = null; copy.error = clean(error?.message) || t('preview_failed', 'This file cannot be made as it is.');
+        }
+        const host = options.panel()?.querySelector('[data-tpl-preview]');
+        if (host) host.innerHTML = previewHtml();
+      }, delay);
+    }
+    function editDefinition(change, redraw = false){
+      change(copy.draft.definition);
+      if (redraw) drawEditor(options.panel());
+      schedulePreview();
+    }
+    function onEditorInput(event){
+      const target = event.target;
+      if (!copy.draft || !target.closest('[data-template-editor]')) return;
+      const definition = copy.draft.definition, columns = arr(definition.columns);
+      if (target.matches('[data-tpl="name"]')) { editDefinition((value) => { value.name = target.value; }); return; }
+      if (target.matches('[data-col-header]')) { editDefinition(() => { columns[num(target.dataset.colHeader)].header = target.value; }); return; }
+      if (target.matches('[data-col-value]')) { editDefinition(() => { columns[num(target.dataset.colValue)].value = target.value; }); return; }
+      if (target.matches('[data-col-field]')) { editDefinition(() => { columns[num(target.dataset.colField)].field = target.value.trim(); }); return; }
+      if (event.type !== 'change') return;
+      const setting = target.dataset.tpl;
+      if (setting === 'rows') {
+        editDefinition((value) => {
+          value.rows = target.value;
+          if (target.value === 'pay_item') { value.pay_items = value.pay_items || 'by_kind'; value.totals = 'none'; } else delete value.pay_items;
+          if (target.value !== 'earning') { delete value.kinds; delete value.include_projected; }
+          // Columns that cannot fill this kind of row are dropped; at least one that can is kept.
+          value.columns = arr(value.columns).filter((column) => sourceAllows(sourceInfo(column.source), target.value));
+          if (!value.columns.length) { const first = sources().find((source) => source.id !== 'fixed' && sourceAllows(source, target.value)); value.columns = [{ header:first?.label || 'Name', source:first?.id || 'person.name' }]; }
+        }, true);
+        return;
+      }
+      if (setting === 'pay_items' || setting === 'sort' || setting === 'date') { editDefinition((value) => { value[setting] = target.value; }); return; }
+      if (setting === 'group') { editDefinition((value) => { value.group = target.value; if (target.value === 'none' && value.totals === 'sections') value.totals = 'grand'; }, true); return; }
+      if (setting === 'totals') { editDefinition((value) => { value.totals = target.value; }); return; }
+      if (setting === 'include_projected') { editDefinition((value) => { if (target.value === 'yes') value.include_projected = true; else delete value.include_projected; }); return; }
+      if (setting === 'number') { editDefinition((value) => { const negative = obj(value.number).negative; value.number = { ...(NUMBER_PRESETS.find(([id]) => id === target.value)?.[2] || {}), ...(negative ? { negative } : {}) }; }); return; }
+      if (setting === 'negative') { editDefinition((value) => { value.number = { ...obj(value.number), negative:target.value }; if (target.value === 'minus') delete value.number.negative; }); return; }
+      if (setting === 'delimiter') { editDefinition((value) => { value.file = { ...obj(value.file), type:'csv', delimiter:target.value }; }); return; }
+      if (target.matches('[data-col-source]')) {
+        editDefinition(() => { const column = columns[num(target.dataset.colSource)]; const previous = sourceInfo(column.source); column.source = target.value; delete column.format; if (target.value !== 'fixed') delete column.value; if (target.value !== 'person.field') delete column.field; if (!clean(column.header) || column.header === previous.label || column.header === t('new_column', 'New column')) column.header = sourceInfo(target.value).label || column.header; }, true);
+        return;
+      }
+      if (target.matches('[data-col-format]')) {
+        editDefinition(() => { const column = columns[num(target.dataset.colFormat)]; const kind = clean(sourceInfo(column.source).kind); const value = target.value; column.format = !value ? undefined : kind === 'date' ? { date:value } : value === 'cents' ? { unit:'cents' } : value === 'blank' ? { zero:'blank' } : { negative:'parentheses' }; if (!column.format) delete column.format; });
+      }
+    }
+    async function onEditorClick(event){
+      const definition = copy.draft?.definition, columns = arr(definition?.columns);
+      if (event.target.closest('[data-tpl-back]')) { stopEditing(); return true; }
+      const kind = event.target.closest('[data-tpl-kind]');
+      if (kind) { editDefinition((value) => { const set = new Set(arr(value.kinds)); if (set.has(kind.dataset.tplKind)) set.delete(kind.dataset.tplKind); else set.add(kind.dataset.tplKind); value.kinds = EARNING_KINDS.filter((id) => set.has(id)); if (!value.kinds.length) delete value.kinds; }, true); return true; }
+      const people = event.target.closest('[data-tpl-people]');
+      if (people) { editDefinition((value) => { const set = new Set(arr(value.people)); if (set.has(people.dataset.tplPeople)) { if (set.size > 1) set.delete(people.dataset.tplPeople); } else set.add(people.dataset.tplPeople); value.people = SECTIONS.map(([id]) => id).filter((id) => set.has(id)); }, true); return true; }
+      const move = (from, to) => editDefinition(() => { const [column] = columns.splice(from, 1); columns.splice(to, 0, column); }, true);
+      const up = event.target.closest('[data-col-up]'); if (up) { move(num(up.dataset.colUp), num(up.dataset.colUp) - 1); return true; }
+      const down = event.target.closest('[data-col-down]'); if (down) { move(num(down.dataset.colDown), num(down.dataset.colDown) + 1); return true; }
+      const remove = event.target.closest('[data-col-remove]'); if (remove) { editDefinition(() => { columns.splice(num(remove.dataset.colRemove), 1); }, true); return true; }
+      if (event.target.closest('[data-col-add]')) { editDefinition(() => { columns.push({ header:t('new_column', 'New column'), source:'person.name' }); }, true); options.panel().querySelector(`[data-col-header="${columns.length - 1}"]`)?.focus(); return true; }
+      if (event.target.closest('[data-tpl-save]')) {
+        const draft = copy.draft;
+        const saved = await perform(t('file_saved', 'File saved'), () => window.PayrollAPI.published.invoke(state.orgId, 'payroll.exportTemplate.save', { ...(draft.id ? { id:draft.id, expected_revision:draft.revision } : {}), ...(draft.based_on ? { based_on:draft.based_on } : {}), definition:draft.definition }), t('file_saved', 'File saved'));
+        if (saved) stopEditing();
+        return true;
+      }
+      return false;
+    }
+    function templateMenu(anchor, id){
+      const template = arr(obj(state.data.templates).templates).find((entry) => entry.id === id);
+      if (!template) return;
+      kit().menu(anchor, { align:'end', items:[
+        { id:'duplicate', label:t('duplicate_change', 'Duplicate and change'), icon:'fa-copy' },
+        ...(template.built_in ? [] : [{ id:'edit', label:t('change', 'Change'), icon:'fa-pen' }, { separator:true }, { id:'remove', label:t('remove', 'Remove'), icon:'fa-trash', tone:'danger' }])
+      ], onSelect:async (item) => {
+        if (item.id === 'duplicate') startEditing(template, true);
+        if (item.id === 'edit') startEditing(template, false);
+        if (item.id === 'remove' && await kit().confirm(anchor, { title:t('remove_file_confirm', 'Remove {name}? Files made from it before stay as they are.', { name:template.name }), confirmLabel:t('remove', 'Remove'), tone:'danger' })) {
+          await perform(t('removed', 'Removed'), () => window.PayrollAPI.published.invoke(state.orgId, 'payroll.exportTemplate.archive', { expected_revision:num(template.revision) }, template.id), t('removed', 'Removed'));
+        }
+      } });
+    }
+    function newTemplateMenu(anchor){
+      const templates = options.templates();
+      kit().menu(anchor, { title:t('start_from', 'Start from'), align:'start', items:templates.map((template) => ({ id:template.id, label:template.name, icon:template.built_in ? 'fa-file-lines' : 'fa-table-columns' })), onSelect:(item) => { const template = templates.find((entry) => entry.id === item.id); if (template) startEditing(template, true); } });
+    }
+      return { copy, startEditing, stopEditing, drawEditor, onEditorInput, onEditorClick, templateMenu, newTemplateMenu };
+    }
+
     // -- Reports --
+    // The company's own reports for dates are export templates with earning or reimbursement rows, edited here in a
+    // modal with a preview of the dates chosen above. A built-in report that is a template can be duplicated and changed.
+    const datedTemplates = () => arr(obj(state.data.templates).templates).filter((template) => template.scope === 'date_range');
+    function openReportEditor(template, duplicate, opener){
+      const modalKit = window.FirstMatePeople?.entityModal;
+      if (!modalKit || !template || !can('templates.edit')) return;
+      let host = null, modal = null;
+      const editor = templateEditor({
+        panel:() => host,
+        list:() => { if (editor.copy.mode === 'edit' && editor.copy.draft) editor.drawEditor(host); else { modal?.close(true); load({ silent:true }); } },
+        previewArgs:() => ({ from:state.reports.from, through:state.reports.through }),
+        templates:datedTemplates
+      });
+      modal = modalKit.open({
+        label:duplicate ? t('new_report', 'Your own report') : t('change_report', 'Change your report'), opener, footer:false, tab:'edit',
+        summary(target){ target.innerHTML = kit().summary({ kind:'report', id:clean(template.id), name:clean(editor.copy.draft?.definition?.name) || clean(template.name), secondary:t('report_for_dates', 'Report for dates'), icon:'fa-table-columns',
+          facts:[{ icon:'fa-calendar', label:t('preview_dates', 'Previewing'), value:`${dateLabel(state.reports.from)} \u2013 ${dateLabel(state.reports.through)}`, tooltip:t('preview_dates_note', 'Change the dates in Reports to preview other dates.') }] }, 'panel'); },
+        actions:() => [],
+        tabs:[{ id:'edit', label:t('report', 'Report'), icon:'fa-table-columns', needs:null, mount(panel){ host = panel; editor.startEditing(template, duplicate); return {}; } }]
+      });
+      modal.el.addEventListener('input', editor.onEditorInput);
+      modal.el.addEventListener('change', editor.onEditorInput);
+      modal.el.addEventListener('click', (event) => { if (editor.copy.mode === 'edit' && event.target.closest('[data-template-editor]')) editor.onEditorClick(event); });
+    }
     function reportsView(){
       const catalog = arr(state.data.catalog).filter((entry) => entry.group !== 'pay_run_file' && entry.scope !== 'payroll_run');
       const artifacts = arr(state.data.artifacts);
-      const rows = catalog.map((report) => `<tr>${td(`<span class="fmp-titled"><strong${tip(`${report.description} ${report.purpose}`)}>${esc(report.label)}</strong>${info(`${report.description} ${report.purpose}`)}</span>`, t('report', 'Report'), 'lead')}${td(arr(report.formats).map((format) => button('reports.generate', context, { label:format.toUpperCase(), icon:'fa-download', attrs:`data-report="${esc(report.type)}" data-format="${esc(format)}"` })).join(' '), '', 'act')}</tr>`);
+      const templates = datedTemplates();
+      const editable = can('templates.edit') && templates.length;
+      const reportMenu = (id, label) => editable && templates.some((template) => template.id === id) ? `<button type="button" class="pp-icon-btn" data-report-menu="${esc(id)}" aria-label="${esc(t('report_options', 'Options for {name}', { name:label }))}"${tip(t('report_options_tip', 'Duplicate this report to choose its columns, or change or remove your own.'))}><i class="fas fa-ellipsis" aria-hidden="true"></i></button>` : '';
+      const rows = catalog.map((report) => `<tr>${td(`<span class="fmp-titled"><strong${tip(`${report.description} ${report.purpose}`)}>${esc(report.label)}</strong>${info(`${report.description} ${report.purpose}`)}</span>`, t('report', 'Report'), 'lead')}${td(arr(report.formats).map((format) => button('reports.generate', context, { label:format.toUpperCase(), icon:'fa-download', attrs:`data-report="${esc(report.type)}" data-format="${esc(format)}"` })).join(' ') + reportMenu(report.type, report.label), '', 'act')}</tr>`);
+      const based = (template) => { const base = templates.find((entry) => entry.id === template.based_on); return base ? t('based_on_report', 'Your report, from {name}', { name:base.name }) : t('your_report', 'Your report'); };
+      const own = templates.filter((template) => !template.built_in).map((template) => `<tr data-own-report="${esc(template.id)}">${td(nameCell(template.name, based(template)), t('report', 'Report'), 'lead')}${td(arr(template.formats).map((format) => button('reports.generate', context, { label:format.toUpperCase(), icon:'fa-download', attrs:`data-report-template="${esc(template.id)}" data-format="${esc(format)}"` })).join(' ') + reportMenu(template.id, template.name), '', 'act')}</tr>`);
       const saved = artifacts.map((artifact) => { const metadata = obj(artifact.metadata); return `<tr>${td(nameCell(clean(metadata.report_label) || clean(artifact.report_type), clean(metadata.coverage_label)), t('file', 'File'), 'lead')}${td(esc(clean(metadata.format || '').toUpperCase()), t('format', 'Format'))}${td(esc(dateTimeLabel(artifact.created_at)), t('prepared', 'Prepared'))}${td(`<a class="pp-btn" href="${esc(window.PayrollAPI.artifacts.downloadUrl(state.orgId, artifact.id))}" download><i class="fas fa-download" aria-hidden="true"></i>${esc(t('download', 'Download'))}</a>`, '', 'act')}</tr>`; });
       return `<div class="fmp-bar"><label class="fmp-date">${esc(t('from', 'From'))}<input class="pp-input" type="date" data-report-from value="${esc(state.reports.from)}"></label><label class="fmp-date">${esc(t('to', 'To'))}<input class="pp-input" type="date" data-report-through value="${esc(state.reports.through)}"></label></div>
         ${card({ id:'reports', title:t('reports', 'Reports'), tooltip:t('reports_tip', 'Reports for the dates above. Files for one pay run (Gusto, QuickBooks, the pay run summary) are in that pay run, under Copy out.'), count:catalog.length, body:table([{ label:t('report', 'Report') }, { label:'', cls:'act' }], rows, { empty:state.errors.catalog || t('no_reports', 'No reports are available.') }) })}
+        ${editable ? card({ id:'own-reports', title:t('own_reports', 'Your reports'), tooltip:t('own_reports_tip', 'Reports with the columns, order and formatting you choose, for the dates above, as a CSV or a PDF.'), count:own.length,
+          actions:`<button type="button" class="pp-btn quiet" data-report-new><i class="fas fa-plus" aria-hidden="true"></i>${esc(t('own_report', 'Make your own report'))}</button>`,
+          body:table([{ label:t('report', 'Report') }, { label:'', cls:'act' }], own, { empty:t('no_own_reports', 'You have not made a report of your own yet. Start from one above.') }) }) : ''}
         ${card({ id:'saved', title:t('saved_files', 'Prepared files'), tooltip:t('saved_files_tip', 'Every file prepared before, newest first. The same numbers prepared again reuse the file.'), count:artifacts.length, body:table([{ label:t('file', 'File') }, { label:t('format', 'Format') }, { label:t('prepared', 'Prepared') }, { label:'', cls:'act' }], saved, { empty:t('no_files', 'No file has been prepared yet.') }) })}`;
     }
 
@@ -1384,6 +1502,35 @@
         if (values) { toast(t('fixed', 'Shift fixed'), t('fixed_note', 'Pay rules price the new hours at the next earnings refresh.')); await load({ silent:true }); }
         return;
       }
+      const ownReport = event.target.closest('[data-report-template]');
+      if (ownReport) {
+        await perform(t('file_ready', 'The file is downloading.'), async () => {
+          const result = await window.PayrollAPI.artifacts.create(state.orgId, { template_id:ownReport.dataset.reportTemplate, format:ownReport.dataset.format, from:state.reports.from, through:state.reports.through });
+          download(result.artifact?.download_url || window.PayrollAPI.artifacts.downloadUrl(state.orgId, result.artifact?.id));
+        });
+        return;
+      }
+      const reportMenuButton = event.target.closest('[data-report-menu]');
+      if (reportMenuButton) {
+        const template = datedTemplates().find((entry) => entry.id === reportMenuButton.dataset.reportMenu);
+        if (!template) return;
+        kit().menu(reportMenuButton, { align:'end', items:[
+          { id:'duplicate', label:t('duplicate_change', 'Duplicate and change'), icon:'fa-copy' },
+          ...(template.built_in ? [] : [{ id:'edit', label:t('change', 'Change'), icon:'fa-pen' }, { separator:true }, { id:'remove', label:t('remove', 'Remove'), icon:'fa-trash', tone:'danger' }])
+        ], onSelect:async (item) => {
+          if (item.id === 'duplicate' || item.id === 'edit') openReportEditor(template, item.id === 'duplicate', reportMenuButton);
+          if (item.id === 'remove' && await kit().confirm(reportMenuButton, { title:t('remove_report_confirm', 'Remove {name}? Files made from it before stay as they are.', { name:template.name }), confirmLabel:t('remove', 'Remove'), tone:'danger' })) {
+            await perform(t('removed', 'Removed'), () => window.PayrollAPI.published.invoke(state.orgId, 'payroll.exportTemplate.archive', { expected_revision:num(template.revision) }, template.id), t('removed', 'Removed'));
+          }
+        } });
+        return;
+      }
+      const newReport = event.target.closest('[data-report-new]');
+      if (newReport) {
+        const templates = datedTemplates().filter((template) => template.built_in);
+        kit().menu(newReport, { title:t('start_from', 'Start from'), align:'start', items:templates.map((template) => ({ id:template.id, label:template.name, icon:'fa-file-lines' })), onSelect:(item) => { const template = templates.find((entry) => entry.id === item.id); if (template) openReportEditor(template, true, newReport); } });
+        return;
+      }
       const report = event.target.closest('[data-report]');
       if (report) {
         await perform(t('file_ready', 'The file is downloading.'), async () => {
@@ -1438,11 +1585,31 @@
     const onUpdated = () => { if (active && state.view !== 'settings') load({ silent:true }); };
     if (context.params?.widget !== true) window.addEventListener('fm:payroll:updated', onUpdated);
     if (['exports', 'upcoming', 'history'].includes(state.view)) window.PayrollAPI?.artifacts?.catalog?.(state.orgId).then((result) => { state.data.catalog = arr(result?.exports); }).catch(() => {});
+    // A link from elsewhere (People, Compensation) names a payee in the route: open their Why once this view is up.
+    let routedWhy = '';
+    function openRoutedWhy(route = window.Portal?.navigation?.read?.() || {}){
+      const key = clean(route.payrollWhy);
+      if (!key || !key.includes(':') || route.tab !== 'payroll' || key + clean(route.payrollWhyTab) === routedWhy || state.view !== 'payees') return;
+      routedWhy = key + clean(route.payrollWhyTab);
+      const [type, ...rest] = key.split(':');
+      const id = rest.join(':');
+      const named = () => {
+        const directory = obj(state.directory);
+        const list = type === 'organization_user' ? directory.users : type === 'resource_group' ? directory.resource_groups : directory.connections;
+        const found = arr(list).find((entry) => clean(entry.id) === id);
+        return clean(found?.name || found?.display_name || [found?.first_name, found?.last_name].filter(Boolean).join(' '));
+      };
+      Promise.resolve(state.directory || window.PayrollAPI?.published?.read?.(state.orgId, 'directory')).then((directory) => { state.directory = directory || state.directory; }).catch(() => {})
+        .then(() => openWhy({ type, id, name:named() }, null, clean(route.payrollWhyTab)));
+    }
+    const unrouteWhy = window.Portal?.navigation?.registerHandler?.(`payroll-why:${context.instanceId || 'main'}`, { priority:300, apply:(route) => { if (!state.destroyed) openRoutedWhy(route); } });
     render();
     load();
+    openRoutedWhy();
 
     return {
       destroy(){
+        unrouteWhy?.();
         state.destroyed = true; state.token++;
         window.removeEventListener('fm:payroll:updated', onUpdated);
         settingsHandle?.destroy?.();
@@ -1461,11 +1628,11 @@
 
   // The pay run files the server offers (payroll/exports.ts); used until the catalog has loaded.
   const PAY_RUN_FILES = [
-    { type:'pay_run_summary', label:'Pay run summary', description:'Everyone in this pay run, employees then contractors, with earnings by kind, reimbursements, what was taken off and the amount to pay.', formats:['csv', 'pdf'] },
-    { type:'gusto_employees', label:'Gusto: employees', description:'One row per employee with earnings by kind, reimbursements and what was already paid or taken back.', formats:['csv'] },
-    { type:'gusto_contractors', label:'Gusto: contractors', description:'One row per contractor or subcontractor company.', formats:['csv'] },
-    { type:'quickbooks_payroll', label:'QuickBooks Payroll: employees', description:'One row per employee and pay item.', formats:['csv'] },
-    { type:'quickbooks_bills', label:'QuickBooks: contractor bills', description:'Contractors as bills to vendors.', formats:['csv'] }
+    { type:'pay_run_summary', label:(globalThis.PlatformLanguage?.text("payroll","m_a657ec42ae93a7","Pay run summary") ?? "Pay run summary"), description:(globalThis.PlatformLanguage?.text("payroll","m_121928e2b979be","Everyone in this pay run, employees then contractors, with earnings by kind, reimbursements, what was taken off and the amount to pay.") ?? "Everyone in this pay run, employees then contractors, with earnings by kind, reimbursements, what was taken off and the amount to pay."), formats:['csv', 'pdf'] },
+    { type:'gusto_employees', label:(globalThis.PlatformLanguage?.text("payroll","m_e5c7f5704a5f50","Gusto: employees") ?? "Gusto: employees"), description:(globalThis.PlatformLanguage?.text("payroll","m_6cb5001f3703d0","One row per employee with earnings by kind, reimbursements and what was already paid or taken back.") ?? "One row per employee with earnings by kind, reimbursements and what was already paid or taken back."), formats:['csv'] },
+    { type:'gusto_contractors', label:(globalThis.PlatformLanguage?.text("payroll","m_0984a1d34ed329","Gusto: contractors") ?? "Gusto: contractors"), description:(globalThis.PlatformLanguage?.text("payroll","m_06dfb3f85b2116","One row per contractor or subcontractor company.") ?? "One row per contractor or subcontractor company."), formats:['csv'] },
+    { type:'quickbooks_payroll', label:(globalThis.PlatformLanguage?.text("payroll","m_5edac2f8933450","QuickBooks Payroll: employees") ?? "QuickBooks Payroll: employees"), description:(globalThis.PlatformLanguage?.text("payroll","m_f59ae134c0d8dd","One row per employee and pay item.") ?? "One row per employee and pay item."), formats:['csv'] },
+    { type:'quickbooks_bills', label:(globalThis.PlatformLanguage?.text("payroll","m_9ff2e21dcaf60e","QuickBooks: contractor bills") ?? "QuickBooks: contractor bills"), description:(globalThis.PlatformLanguage?.text("payroll","m_3914b677cfab36","Contractors as bills to vendors.") ?? "Contractors as bills to vendors."), formats:['csv'] }
   ];
 
   // Which widget shows a view: timesheets are everyone's for payroll managers and your own otherwise.

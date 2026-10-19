@@ -149,7 +149,12 @@ say `labor`. Units belong to assignees in general and are named for them.
 
 ## Not built
 
-The interface for any of this; sharing a commitment into an outside company's
+Pay sheets are edited in People ([pay sheets](pay-sheets.md#the-editor)); work
+orders are generated, committed and paid out from the Project tab, and a work
+order can be paid out in parts ([closeout](closeout.md)). A list paid out in
+part is still held by its assignee for its open lines, and its paid lines stay
+paid when it is committed again. Still not built: a page for units and delivery
+settings; sharing a commitment into an outside company's
 own account; commitments are listed by reading the whole collection,
 which will need an index before there are many thousands; a rendered work order document (the email carries a
 table); actuals against a commitment (what a released commitment pays is a
@@ -157,10 +162,12 @@ table); actuals against a commitment (what a released commitment pays is a
 moved. Equipment an assignee brings is on their pay sheet and covers a job's
 functions; see [requirements](requirements.md).
 
-Archiving a group or an outside company removes its pay sheets, units, delivery
-setting and declared capabilities through `cleanupAssignee`
+Archiving a group, an outside company or a user removes its pay sheets, units,
+delivery setting and declared capabilities through `cleanupAssignee`
 ([assignee base](assignee-base.md#removal)); a unit that still holds committed
-work is kept and reported. Removing a user does not run it yet.
+work is kept and reported. A user's cleanup runs when they are archived
+(`workforce/user-archive.ts`), as the platform; payroll pays them through their
+last day before closing their pay ([pay rules](pay-rules.md#when-a-payee-is-removed)).
 
 Run `tests/labor-commitments.test.ts` for changes here.
 

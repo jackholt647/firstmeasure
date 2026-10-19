@@ -5,12 +5,16 @@ import { forbidden, badRequest, conflict } from '../platform/errors.js';
 import { listDocuments, upsertDocument, type JsonObject } from '../platform/storage.js';
 export const RESOURCE_TYPE_COLLECTION='material_resource_types';
 export const resourceTypeIdSchema=z.string().trim().regex(/^[a-z][a-z0-9_-]{0,79}$/);
-export const LINE_ITEM_SOURCES=['pricebook','piece_rate','hourly_labor','equipment'] as const;
+// Where a type's line suggestions come from. Labor has none: a work order's lines are generated from its assignee's
+// pay sheet (labor/generation.ts), which prices every pay line and leaves what it cannot price unresolved; a suggested
+// line typed in by hand would bypass the sheet's own rules and survive regenerating as a second charge. The pay plan
+// sources ('piece_rate', 'hourly_labor') that read removed compensation plans are gone; stored values are dropped on read.
+export const LINE_ITEM_SOURCES=['pricebook','equipment'] as const;
 // Sources a type suggests line items from until someone chooses otherwise.
-const DEFAULT_LINE_ITEM_SOURCES:Record<string,string[]>={material:['pricebook'],labor:['piece_rate','hourly_labor'],equipment:['equipment']};
+const DEFAULT_LINE_ITEM_SOURCES:Record<string,string[]>={material:['pricebook'],labor:[],equipment:['equipment']};
 export const resourceTypeInputSchema=z.object({id:resourceTypeIdSchema,name:z.string().trim().max(100),icon:z.string().regex(/^fa-[a-z0-9-]{1,76}$/),color:z.string().regex(/^#[0-9a-fA-F]{6}$/),line_item_sources:z.array(z.enum(LINE_ITEM_SOURCES)).max(LINE_ITEM_SOURCES.length).optional(),pricebook_sku_only:z.boolean().optional(),expected_revision:z.number().int().nonnegative().optional()}).strict();
 export const resourceTypeArchiveSchema=z.object({id:resourceTypeIdSchema,expected_revision:z.number().int().nonnegative().optional()}).strict();
-export const defaultResourceTypes=[{id:'material',name:'Materials',icon:'fa-boxes-stacked',color:'#d93025',line_item_sources:['pricebook'],pricebook_sku_only:true,revision:0},{id:'labor',name:'Labor',icon:'fa-helmet-safety',color:'#2563eb',line_item_sources:['piece_rate','hourly_labor'],pricebook_sku_only:false,revision:0},{id:'equipment',name:'Equipment',icon:'fa-truck-pickup',color:'#0f766e',line_item_sources:['equipment'],pricebook_sku_only:false,revision:0}];
+export const defaultResourceTypes=[{id:'material',name:'Materials',icon:'fa-boxes-stacked',color:'#d93025',line_item_sources:['pricebook'],pricebook_sku_only:true,revision:0},{id:'labor',name:'Labor',icon:'fa-helmet-safety',color:'#2563eb',line_item_sources:[],pricebook_sku_only:false,revision:0},{id:'equipment',name:'Equipment',icon:'fa-truck-pickup',color:'#0f766e',line_item_sources:['equipment'],pricebook_sku_only:false,revision:0}];
 export async function listResourceTypes(orgId:string){
  if(!await isAppFlagEnabled(orgId,'platform','materials'))throw forbidden('app_flag_disabled','Materials are not enabled for this organization.');
  const documents=(await listDocuments(orgId,RESOURCE_TYPE_COLLECTION)).filter(doc=>!doc.data.archived_at),rows=documents.map(doc=>resourceTypeRow({...doc.data,id:doc.id,revision:doc.revision}));

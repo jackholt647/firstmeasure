@@ -109,7 +109,8 @@ export function getWorkforceDatabase() {
   if (database && databasePath === nextPath) return database;
   void closeWorkforceDatabase();
   // Bump the version when a column is added: PostgreSQL runs initializeSchema again only when it rises.
-  database = openSqlStore({ id: "workforce", schemaVersion: 2, filename: nextPath, initialize: initializeSchema });
+  // 3: resource_group_membership_history (who was a member on which days), backfilled with today's members.
+  database = openSqlStore({ id: "workforce", schemaVersion: 3, filename: nextPath, initialize: initializeSchema });
   databasePath = nextPath;
   return database;
 }
@@ -233,6 +234,17 @@ async function initializeSchema(db: SqlStore) {
   await ensureSqlColumn(db, "workforce_configuration", "assignment_tags_json", "TEXT NOT NULL DEFAULT '[]'");
   await ensureSqlColumn(db, "workforce_configuration", "organization_connection_types_json", "TEXT NOT NULL DEFAULT '[]'");
   await ensureSqlColumn(db, "resource_group_memberships", "joined_role_ids_json", "TEXT NOT NULL DEFAULT '[]'");
+  // Who was a member of a group on which days (`membersOfGroupOn`). A row covers active_from (inclusive, blank: since
+  // always) to active_until (exclusive, blank: still a member). Members from before history was kept are "since always".
+  await db.exec(`CREATE TABLE IF NOT EXISTS resource_group_membership_history (
+      organization_id TEXT NOT NULL, group_id TEXT NOT NULL, user_id TEXT NOT NULL,
+      active_from TEXT NOT NULL DEFAULT '', active_until TEXT NOT NULL DEFAULT '', recorded_at TEXT NOT NULL,
+      PRIMARY KEY (organization_id, group_id, user_id, active_from)
+    );
+    CREATE INDEX IF NOT EXISTS resource_group_membership_history_group_idx ON resource_group_membership_history (organization_id, group_id);`);
+  await db.prepare(`INSERT INTO resource_group_membership_history (organization_id, group_id, user_id, active_from, active_until, recorded_at)
+    SELECT m.organization_id, m.group_id, m.user_id, '', '', ? FROM resource_group_memberships m
+    WHERE m.status='active' AND NOT EXISTS (SELECT 1 FROM resource_group_membership_history h WHERE h.organization_id=m.organization_id AND h.group_id=m.group_id AND h.user_id=m.user_id)`).run(nowIso());
   await db.prepare("UPDATE workforce_configuration SET schema_version=? WHERE schema_version<?").run(DATABASE_SCHEMA_VERSION, DATABASE_SCHEMA_VERSION);
   // Extension schemas are part of the same atomic initialization, so no replica
   // can see a partially initialized staff/access database.
@@ -681,6 +693,48 @@ async function validateGroupMembers(orgId: string, members: JsonObject[]) {
     .map((member) => requireActiveOrganizationUser(orgId, cleanText(member.user_id))));
 }
 
+/**
+ * Brings a group's membership history in line with its members as they are now, inside the write that changed them:
+ * an active member with no open row joined today; an open row whose member is no longer active ends today. A member
+ * whose history has no rows at all and who is active is a member from today. Runs any number of times.
+ */
+/** A join or leave date given with a member change: a past or today's YYYY-MM-DD; anything else is today. */
+function membershipDay(value: unknown) {
+  const day = cleanText(value), today = nowIso().slice(0, 10);
+  if (!day) return today;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(day) || !Number.isFinite(Date.parse(`${day}T00:00:00.000Z`))) throw badRequest("membership_day_invalid", "Give the day as YYYY-MM-DD.");
+  if (day > today) throw badRequest("membership_day_future", "A member joins or leaves today or on a past day.");
+  return day;
+}
+async function recordMembershipChanges(db: SqlStore, orgId: string, groupId: string, on = nowIso().slice(0, 10)) {
+  const active = new Set((await db.prepare("SELECT user_id FROM resource_group_memberships WHERE organization_id=? AND group_id=? AND status='active'").all(orgId, groupId)).map((row) => cleanText(asObject(row).user_id)));
+  const open = (await db.prepare("SELECT user_id, active_from FROM resource_group_membership_history WHERE organization_id=? AND group_id=? AND active_until=''").all(orgId, groupId)).map(asObject);
+  const now = nowIso();
+  for (const row of open) {
+    if (active.has(cleanText(row.user_id))) continue;
+    // Left on the day they joined: the row covered no day at all.
+    if (cleanText(row.active_from) === on) await db.prepare("DELETE FROM resource_group_membership_history WHERE organization_id=? AND group_id=? AND user_id=? AND active_from=?").run(orgId, groupId, cleanText(row.user_id), on);
+    else await db.prepare("UPDATE resource_group_membership_history SET active_until=?, recorded_at=? WHERE organization_id=? AND group_id=? AND user_id=? AND active_from=?").run(on, now, orgId, groupId, cleanText(row.user_id), cleanText(row.active_from));
+  }
+  const openIds = new Set(open.map((row) => cleanText(row.user_id)));
+  for (const userId of active) if (!openIds.has(userId)) {
+    await db.prepare(`INSERT INTO resource_group_membership_history (organization_id, group_id, user_id, active_from, active_until, recorded_at) VALUES (?, ?, ?, ?, '', ?)
+      ON CONFLICT(organization_id, group_id, user_id, active_from) DO UPDATE SET active_until='', recorded_at=excluded.recorded_at`).run(orgId, groupId, userId, on, now);
+  }
+}
+/** Who was an active member of a group on a day (YYYY-MM-DD), from its membership history. Sorted user ids. Reads only. */
+export async function membersOfGroupOn(orgIdValue: string, groupIdValue: string, day: string) {
+  const orgId = cleanId(orgIdValue, "organization_id"), groupId = cleanId(groupIdValue, "resource_group_id");
+  const rows = (await getWorkforceDatabase().prepare("SELECT user_id, active_from, active_until FROM resource_group_membership_history WHERE organization_id=? AND group_id=?").all(orgId, groupId)).map(asObject);
+  return [...new Set(rows.filter((row) => cleanText(row.active_from) <= day && (!cleanText(row.active_until) || day < cleanText(row.active_until))).map((row) => cleanText(row.user_id)))].sort();
+}
+/** A group's membership history: each stretch a person was a member, oldest first. Reads only. */
+export async function groupMembershipHistory(orgIdValue: string, groupIdValue: string) {
+  const orgId = cleanId(orgIdValue, "organization_id"), groupId = cleanId(groupIdValue, "resource_group_id");
+  return (await getWorkforceDatabase().prepare("SELECT user_id, active_from, active_until, recorded_at FROM resource_group_membership_history WHERE organization_id=? AND group_id=? ORDER BY active_from, user_id").all(orgId, groupId))
+    .map(asObject).map((row) => ({ user_id: cleanText(row.user_id), active_from: cleanText(row.active_from), active_until: cleanText(row.active_until), recorded_at: cleanText(row.recorded_at) }));
+}
+
 async function replaceGroupMembers(db: SqlStore, orgId: string, groupId: string, members: JsonObject[]) {
   const existing = new Map((await db.prepare(`SELECT user_id, joined_at, joined_role_ids_json FROM resource_group_memberships
     WHERE organization_id=? AND group_id=?`).all(orgId, groupId)).map((row) => [cleanText(asObject(row).user_id), asObject(row)]));
@@ -693,6 +747,7 @@ async function replaceGroupMembers(db: SqlStore, orgId: string, groupId: string,
     (await insert.run(orgId, groupId, userId, cleanText(member.role || "member"), member.is_lead === true ? 1 : 0,
       cleanText(member.status || "active"), cleanText(existing.get(userId)?.joined_role_ids_json) || "[]", cleanText(existing.get(userId)?.joined_at) || now, now));
   }
+  await recordMembershipChanges(db, orgId, groupId);
 }
 
 async function replaceGroupCapabilities(db: SqlStore, orgId: string, groupId: string, scopeIds: string[]) {
@@ -730,6 +785,8 @@ export async function createResourceGroup(orgIdValue: string, input: JsonObject)
     if (String(error).includes("UNIQUE constraint failed")) throw conflict("resource_group_exists", `Resource group '${groupId}' already exists.`);
     throw error;
   }
+  // A group's type is recorded with the day it held it (pay coverage, docs/architecture/pay-rules.md).
+  await (await import("../assignees/base.js")).noteAssigneeTypes(orgId, { type: "resource_group", id: groupId }).catch(() => undefined);
   // Everyone a group is created with joins it.
   const memberRoleGrants = cleanText(input.status || "active") === "active" ? await grantGroupTypeRolesOnJoin(orgId, groupId, kindId, activeMemberIds(members)) : [];
   return { ...(await readResourceGroup(orgId, groupId)), member_role_grants: memberRoleGrants };
@@ -790,6 +847,7 @@ export async function patchResourceGroup(orgIdValue: string, groupIdValue: strin
     if (hasMembers) (await replaceGroupMembers(db, orgId, groupId, members));
     if (hasCapabilities) (await replaceGroupCapabilities(db, orgId, groupId, capabilities));
   }));
+  if (nextKindId !== cleanText(current.kind_id || "crew")) await (await import("../assignees/base.js")).noteAssigneeTypes(orgId, { type: "resource_group", id: groupId }).catch(() => undefined);
   // A replaced member list: whoever is an active member now and was not one before has joined.
   const before = new Set(activeMemberIds(current.members));
   const saved = await readResourceGroup(orgId, groupId);
@@ -835,6 +893,7 @@ export async function putResourceGroupMember(orgIdValue: string, groupIdValue: s
     } else {
       (await db.prepare(`UPDATE resource_groups SET revision=revision+1, updated_at=? WHERE organization_id=? AND id=?`).run(now, orgId, groupId));
     }
+    await recordMembershipChanges(db, orgId, groupId, membershipDay(input.effective_from));
   }));
   // Adding a member, or making an inactive one active again, is joining. Changing a member who is already active is not.
   const joins = cleanText(input.status || "active") === "active" && current.status === "active" && !activeMemberIds(current.members).includes(userId);
@@ -842,7 +901,9 @@ export async function putResourceGroupMember(orgIdValue: string, groupIdValue: s
   return { ...(await readResourceGroup(orgId, groupId)), member_role_grants: memberRoleGrants };
 }
 
-export async function removeResourceGroupMember(orgIdValue: string, groupIdValue: string, userIdValue: string, expectedRevision: number) {
+/** `effectiveOn` is the day they stopped being a member (today when left out); it may be in the past. */
+export async function removeResourceGroupMember(orgIdValue: string, groupIdValue: string, userIdValue: string, expectedRevision: number, effectiveOn = "") {
+  const leftOn = membershipDay(effectiveOn);
   const orgId = cleanId(orgIdValue, "organization_id");
   const groupId = cleanId(groupIdValue, "resource_group_id");
   const userId = cleanId(userIdValue, "user_id");
@@ -858,6 +919,7 @@ export async function removeResourceGroupMember(orgIdValue: string, groupIdValue
     if (!Number(result.changes || 0)) throw notFound("resource_group_member_not_found", "Resource group member was not found.");
     (await db.prepare(`UPDATE resource_groups SET primary_member_user_id=CASE WHEN primary_member_user_id=? THEN NULL ELSE primary_member_user_id END,
       revision=revision+1, updated_at=? WHERE organization_id=? AND id=?`).run(userId, nowIso(), orgId, groupId));
+    await recordMembershipChanges(db, orgId, groupId, leftOn);
   }));
   return await readResourceGroup(orgId, groupId);
 }

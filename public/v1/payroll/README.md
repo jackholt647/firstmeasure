@@ -164,7 +164,10 @@ payroll store with a revision (`payroll.exportTemplate.save`, `.archive`,
 `.preview`, data `payroll.export_templates`) and used with
 `POST .../artifacts` or `payroll.artifact.generate` and `template_id`. A file
 records the template and revision that made it. A viewer limited to some
-branches exports only those branches' payees. See
+branches exports only those branches' payees. Reports for dates (`earnings_ledger`,
+`commissions`, `reimbursements` and a company's own, one row per earning or
+reimbursement) are templates too, made with `from` and `through` instead of a
+pay run; every template, built in or not, makes a CSV and a PDF. See
 [export templates](../../../docs/architecture/pay-rules.md#export-templates).
 
 ## Branch scope
