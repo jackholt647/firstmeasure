@@ -1,5 +1,13 @@
 # FirstMeasure: local development and production deployment
 
+October 19 Plane-mode arcs on rotated walls: [a closing paste no longer turns an existing arc's samples into points](deploy/digitalocean/development-plane-arcs-rotated-20261019.md) records release `10212b7a` and the verified development rollout.
+
+October 19 Plane-mode stickers and arcs: [an opened door loses its face, a closing paste fills, deleting an arc removes it whole](deploy/digitalocean/development-plane-arcs-20261019.md) records release `8b7f87c2` and the verified development rollout.
+
+October 19 Sticker typing with Shift: [Shift+W/D/G types a selected face; Ctrl is left to the browser](deploy/digitalocean/development-sticker-shift-20261019.md) records release `180c64a0` and the verified development rollout.
+
+October 19 Curved copy/paste, Resources media viewer and plane Auto-step: [pasted curves keep their definition, the reworked media viewer with server-side frame extraction (ffmpeg on dev hosts) and plane Auto-step](deploy/digitalocean/development-full-house-curves-resources-20261019.md) records release `700b8d54` and the verified development rollout.
+
 October 19 Full-house speed pass: [no shader recompiles per redraw, early-exit occlusion, a passive 2D plan during 3D gestures, an exact wall composition key, draw memos and cheaper previews](deploy/digitalocean/development-full-house-speed-20261019.md) records release `f709807f`, the measurements and the verified development rollout.
 October 11 Feed Settings: [Search, categories and descriptions](deploy/digitalocean/development-feed-settings-ui-20261011.md) records the Settings UI update, browser/visual checks and development rollout.
 

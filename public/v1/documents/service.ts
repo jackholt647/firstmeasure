@@ -2296,16 +2296,15 @@ function documentPaymentTransactionId(documentId: string, outputKey: string) {
 /**
  * Phase 0 gap fix: the public document-payment path used to emit
  * document.payment.received without ever writing a payment_transactions row.
- * When the org resolves a payment provider AND the submitted envelope carries
- * a tokenized (or saved) payment method, the charge runs through the SAME
- * provider charge path the intake modal uses; otherwise the legacy/mock path
- * records the transaction through createPayment with method type
- * "mock_document" (the document twin of the portal's mock_customer_portal).
+ * The submitted envelope must carry a tokenized (or saved) payment method and
+ * its checkout; the charge runs through the SAME provider charge path the
+ * intake modal uses. Nothing is recorded as paid without a charge.
  *
- * Idempotent per output: keyed by `${documentId}:${outputKey}` — the mock path
- * uses a stable transaction id and the provider path is guarded by a
- * metadata.document_output_id lookup, so replayed outputs never double-create
- * (or double-charge).
+ * Idempotent per output: keyed by `${documentId}:${outputKey}` — guarded by a
+ * metadata.document_output_id lookup and by the checkout's recorded payment,
+ * so replayed outputs never double-create (or double-charge). The charge
+ * normally happens before the document's signing transaction (see
+ * chargeDocumentPaymentBeforeLock); the locked step then finds it here.
  */
 async function recordDocumentPaymentTransaction(
   orgId: string,
@@ -2332,6 +2331,15 @@ async function recordDocumentPaymentTransaction(
       .find((payment) => cleanText(asObject(payment.metadata).document_output_id) === outputRef)
     : null;
   if (priorProviderCharge) return priorProviderCharge;
+  const checkoutId = cleanText(submitted.checkout_id);
+  if (checkoutId) {
+    const { checkoutStatusView } = await import("../payments/intake.js");
+    const checkout = await checkoutStatusView(orgId, checkoutId).catch(() => null);
+    const recorded = checkout?.status === "succeeded" && checkout.recorded_payment_id
+      ? asObject(asObject(await readDocument(orgId, paymentsStorage.PAYMENT_TRANSACTION_COLLECTION, checkout.recorded_payment_id).catch(() => null)).data)
+      : null;
+    if (recorded && cleanText(asObject(recorded.metadata).document_output_id) === outputRef) return recorded;
+  }
   // Staff and field surfaces may attach a payment already recorded for this
   // job (cash or check taken in person, or a charge they just ran).
   const attachedPaymentId = cleanText(submitted.payment_id);
@@ -2536,8 +2544,42 @@ export async function recordDocumentOutput(
     await syncProjectSignatureRequirements(orgId, cleanText(current.project_id)).catch(() => null);
     return { document: accepted.document, snapshot: await readDocumentSnapshot(orgId, access.pkg.snapshot_id), status: cleanText(accepted.document.status), receipt: accepted.receipt };
   }
+  await chargeDocumentPaymentBeforeLock(orgId, current, key, input, audit, ctx, options);
   return withSigningLock(orgId, documentId, () => recordDocumentOutputLocked(orgId, documentId, key, input, audit, ctx, options));
 }
+
+/**
+ * A payment output is charged before the document's signing transaction
+ * starts. On Postgres everything written inside that transaction rolls back
+ * when it throws, so a charge made inside it could lose its checkout attempt
+ * (a decline, then another card, replayed the first attempt) or, worse, its
+ * payment record while the processor kept the money. Out here the checkout
+ * and the payment commit on their own; the locked step re-checks everything
+ * and attaches the payment through recordDocumentPaymentTransaction's lookup.
+ * Anything the locked step would refuse is left for it to refuse, uncharged.
+ */
+async function chargeDocumentPaymentBeforeLock(orgId: string, document: JsonObject, key: string, input: JsonObject, audit: JsonObject, ctx: PlatformAuthContext | null | undefined, options: { snapshotId?: string; surface?: "public" | "internal" | "field"; imported?: boolean }) {
+  const outputKey = cleanText(key);
+  const def = asObject(asObject(document.output_defs)[outputKey]);
+  const submitted = asObject(input.value);
+  if (cleanText(def.type) !== "payment" || options.imported) return;
+  if (!cleanText(submitted.payment_method_id) && !cleanText(submitted.saved_payment_method_id || submitted.saved_method_id)) return;
+  if (!cleanText(submitted.payment_method || submitted.method || asObject(submitted.checkout).payment_method)) return;
+  if (["void", "declined", "expired"].includes(cleanText(document.status))) return;
+  if (options.snapshotId && options.snapshotId !== deliveryState(document.delivery).current_snapshot_id) return;
+  const surface = options.surface || (ctx ? "internal" : "public");
+  const capabilities = await documentCapabilityState(orgId);
+  const capability = documentOutputCapability(def);
+  if (capability && !documentCapabilityEnabled(capabilities, capability)) return;
+  if (surface === "public" && capability === DOCUMENT_CAPABILITIES.payments && !documentCapabilityEnabled(capabilities, DOCUMENT_CAPABILITIES.portalPayments)) return;
+  const now = nowIso();
+  const params = asObject(document.params);
+  const due = await documentPaymentDue(orgId, cleanText(document.id), document, params, submitted);
+  const value = { ...asObject(normalizeOutputValue(def, input.value, outputEvidence(asObject(input.evidence), audit, now), now)), ...due.value };
+  const amountCents = Math.max(0, Math.round(Number(asObject(value).amount_cents ?? submitted.amount_cents) || 0));
+  await recordDocumentPaymentTransaction(orgId, document, params, outputKey, submitted, amountCents, ctx, due.target, surface);
+}
+
 async function recordDocumentOutputLocked(orgId: string, documentId: string, key: string, input: JsonObject, audit: JsonObject, ctx: PlatformAuthContext | null | undefined, options: { snapshotId?: string; surface?: "public" | "internal" | "field"; publicToken?: string; imported?: boolean }) {
   const document = await readDocumentInstance(orgId, documentId);
   const currentStatus = cleanText(document.status);

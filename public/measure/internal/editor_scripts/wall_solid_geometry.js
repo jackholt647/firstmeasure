@@ -282,7 +282,8 @@ function copyGeometry(scene,selected,lines=[]){
  // flagged so snapping, guides and selection use only the defining points.
  const sampled=sources.filter(f=>f.curves?.length&&rings(f).flat().some(chosen)).map(K.curveSamplePoint);if(sampled.length)for(const p of points)if(sampled.some(test=>test(p)))p.curveSample=true;
  const clean=f=>({...K.mapCurveData(f,p=>({...p})),points:f.points.map(p=>({x:p.x,y:p.y,z:p.z})),holes:(f.holes||[]).map(r=>r.map(p=>({x:p.x,y:p.y,z:p.z}))),...(f.material?{material:f.material}:{}),...(f.finishColor?{finishColor:f.finishColor}:{}),...(f.trim?{trim:true}:{}),...(f.feature?{feature:JSON.parse(JSON.stringify(f.feature))}:{}),retainedPoints:(f.retainedPoints||[]).filter(chosen).map(p=>({x:p.x,y:p.y,z:p.z}))});
- const curves=[...new Map(sources.flatMap(f=>f.curves||[]).filter(c=>c.type==='spline'&&c.controls.every(chosen)&&!faces.some(f=>f.curves?.some(v=>v.id===c.id))).map(c=>[c.id,c])).values()],samples=curves.map(c=>K.curveSamples(c)),onCurve=p=>samples.some(ps=>ps.slice(1).some((q,i)=>pointOnEdge(p,ps[i],q)));
+ // A deleted door keeps its arch as wire; that curve can still be copied.
+ const curves=[...new Map(scene.filter(f=>!f.snapOnly&&(!f.deleted||f.preserveBoundaryWire)).flatMap(f=>f.curves||[]).filter(c=>c.type==='spline'&&c.controls.every(chosen)&&!faces.some(f=>f.curves?.some(v=>v.id===c.id))).map(c=>[c.id,c])).values()],samples=curves.map(c=>K.curveSamples(c)),onCurve=p=>samples.some(ps=>ps.slice(1).some((q,i)=>pointOnEdge(p,ps[i],q)));
  return {points:curves.length&&!faces.length?points.filter(p=>!onCurve(p)||curves.some(c=>c.controls.some(q=>Math.hypot(...Object.values(sub(p,q)))<=K.CONTACT))):points,edges:curves.length?edges.filter(pair=>!samples.some(ps=>ps.slice(1).some((q,i)=>pair.every(p=>pointOnEdge(p,ps[i],q))))):edges,faces:faces.map(clean),mounts,...(curves.length?{curves:curves.map(c=>K.mapCurve(c,p=>({...p})))}:{})};
 }
 // Rigid plane edits retain depth; reflections reverse face winding as well.
@@ -1190,7 +1191,7 @@ function surfaceWire(edits){const curved=K.compactSurfaces(edits.$surfaces||[]).
  const cuts=[...removedEdges].map(key=>({points:key.split('|').map(s=>{const [x,y,z]=s.split(',').map(Number);return {x,y,z};})})).filter(f=>f.points.length===2&&f.points.every(p=>[p.x,p.y,p.z].every(Number.isFinite)));
  for(const f of (edits.$surfaces||[]).filter(f=>!f.drafted&&!f.replacedBy))for(const p of (f.retainedPoints||[]).filter(p=>!f.trim||ownsPoint(f,p))){const k=vertexKey(p);if(!removed.has(k)&&!f.wireExclusions?.points?.includes(k))nodes.set(k,{...p,id:k});}
  // Surface boundaries and loose connections must use the same interval deletions.
- const addEdge=(a,b,mask)=>{const ka=vertexKey(a),kb=vertexKey(b);if(removed.has(ka)||removed.has(kb)||mask?.points?.includes(ka)||mask?.points?.includes(kb))return;const localCuts=(mask?.edges||[]).map(k=>({points:k.split('|').map(k=>{const [x,y,z]=k.split(',').map(Number);return {x,y,z};})}));const at=t=>({x:a.x+(b.x-a.x)*t,y:a.y+(b.y-a.y)*t,z:a.z+(b.z-a.z)*t});let lo=0;for(const [start,end]of [...sharedIntervals(a,b,[...cuts,...localCuts]),[1,1]]){if(start-lo>1e-7){const x=at(lo),y=at(start),kx=vertexKey(x),ky=vertexKey(y),key=edgeKey(x,y);nodes.set(kx,{...x,id:kx});nodes.set(ky,{...y,id:ky});edges.set(key,{id:key,a:kx,b:ky});}lo=Math.max(lo,end);}};
+ const addEdge=(a,b,mask)=>{const ka=vertexKey(a),kb=vertexKey(b);if(removed.has(ka)||removed.has(kb)||mask?.points?.includes(ka)||mask?.points?.includes(kb))return;const localCuts=(mask?.edges||[]).map(k=>({points:k.split('|').map(k=>{const [x,y,z]=k.split(',').map(Number);return {x,y,z};})}));const ends=[a,b,...cuts,...localCuts].flatMap(c=>c.points||[c]),at=t=>{const p={x:a.x+(b.x-a.x)*t,y:a.y+(b.y-a.y)*t,z:a.z+(b.z-a.z)*t},q=ends.find(q=>Math.hypot(p.x-q.x,p.y-q.y,p.z-q.z)<=K.CONTACT);return q?{x:q.x,y:q.y,z:q.z}:p;};let lo=0;for(const [start,end]of [...sharedIntervals(a,b,[...cuts,...localCuts]),[1,1]]){if(start-lo>1e-7){const x=at(lo),y=at(start),kx=vertexKey(x),ky=vertexKey(y),key=edgeKey(x,y);nodes.set(kx,{...x,id:kx});nodes.set(ky,{...y,id:ky});edges.set(key,{id:key,a:kx,b:ky});}lo=Math.max(lo,end);}};
  for(const f of (edits.$surfaces||[]).filter(f=>!f.drafted&&!f.replacedBy))for(const ring of [f.points,...(f.holes||[])])for(let i=0;i<ring.length;i++){const a=ring[i],b=ring[(i+1)%ring.length],ka=vertexKey(a);if(!removed.has(ka)&&!f.wireExclusions?.points?.includes(ka))nodes.set(ka,{...a,id:ka});addEdge(a,b,f.wireExclusions);}
  const curvedOwners=new Map();for(const f of edits.$surfaces||[])if(!f.drafted&&f.curvedSurface){const {range,...surface}=f.curvedSurface,key=JSON.stringify(surface)+':'+(f.material||'')+':'+(f.finishColor||'');for(const r of rings(f))for(let i=0;i<r.length;i++){const id=edgeKey(r[i],r[(i+1)%r.length]);if(!curvedOwners.has(id))curvedOwners.set(id,[]);curvedOwners.get(id).push(key);}}
  for(const [id,owners]of curvedOwners)if(owners.length===2&&owners[0]===owners[1])edges.delete(id);
@@ -1206,6 +1207,11 @@ function surfaceWire(edits){const curved=K.compactSurfaces(edits.$surfaces||[]).
  // are render samples; only interpolation points and real junctions are anchors.
  const curves=[...new Map((edits.$surfaces||[]).filter(f=>!f.drafted&&!f.replacedBy).flatMap(f=>f.curves||[]).map(c=>[c.id,c])).values()],graph={nodes:[...nodes.values()],edges:[...edges.values()]};
  K.annotateCurveGraph(graph,curves);for(const e of graph.edges)if(e.curveId){e.curve=true;e.id='spline:'+e.curveId;}
+ // Deleting a curve's end or control deletes the curve. Its samples are never
+ // promoted to points, so the dangling pieces go with it.
+ const gone=[...removed].map(k=>{const [x,y,z]=k.split(',').map(Number);return {x,y,z};}).filter(p=>[p.x,p.y,p.z].every(Number.isFinite)),near=(p,q)=>Math.hypot(p.x-q.x,p.y-q.y,p.z-q.z)<=K.CONTACT;
+ const dropped=new Set(curves.filter(c=>(c.type==='spline'?c.controls:c.type==='conic'?[c.start,c.end]:c.type==='ellipse'?[K.curvePoint(c,0),K.curvePoint(c,1)]:[]).some(p=>gone.some(q=>near(p,q)))).map(c=>c.id));
+ if(dropped.size){const kept=new Set((edits.$loose?.points||[]).map(vertexKey));for(const [key,e]of edges)if(dropped.has(e.curveId))edges.delete(key);const used=new Set([...edges.values()].flatMap(e=>[e.a,e.b])),onDropped=n=>curves.some(c=>dropped.has(c.id)&&K.curveSamples(c).some((b,i,ps)=>i&&pointOnEdge(n,ps[i-1],b)));for(const [key,n]of nodes)if(!used.has(key)&&!kept.has(key)&&onDropped(n))nodes.delete(key);}
  return {nodes:[...nodes.values()],edges:[...edges.values()]};
 }
 function structuralPoint(p,faces){return faces.filter(f=>!f.deleted&&!f.drafted).flatMap(f=>K.normalizeFaces(f)).some(f=>rings(f).some(r=>r.some((q,i)=>{if(vertexKey(q)!==vertexKey(p))return false;const a=sub(r[(i+r.length-1)%r.length],q),b=sub(r[(i+1)%r.length],q),c=cross(a,b);return dot(a,b)>=0||Math.hypot(c.x,c.y,c.z)>1e-6*Math.max(1,Math.hypot(a.x,a.y,a.z)*Math.hypot(b.x,b.y,b.z));})));}
@@ -1236,6 +1242,14 @@ function deleteSurfaceElements(edits,pointIds=[],edgeIds=[]){const points=new Se
 }
 // Removing a coplanar divider unions its incident regions. An exterior edge,
 // including a crease shared by different planes, invalidates its incident face.
+// Polygon booleans run on a 1e-6 grid in a face's own frame. On a plane that is
+// not axis-aligned, mapping back to world moves untouched vertices by about a
+// micrometre, so a curve's samples would no longer match its other faces'
+// vertices and would surface as points. Restore the exact existing vertex.
+function exactPoints(points,tolerance=3e-6){
+ const list=[...new Map(points.map(p=>[vertexKey(p),p])).values()];
+ return p=>{let best=null,d=tolerance;for(const q of list){const e=Math.hypot(p.x-q.x,p.y-q.y,p.z-q.z);if(e<d){d=e;best=q;}}return best?{x:best.x,y:best.y,z:best.z}:p;};
+}
 function removeFaceEdges(faces,segments,wire={}){
  const parent=faces.map((_,i)=>i),affected=new Set(),invalid=new Set(),find=i=>parent[i]===i?i:(parent[i]=find(parent[i]));
  const samePlane=(a,b)=>{const f=faceFrame(a),n=normal(b.points);return f&&n&&Math.abs(dot(f.n,n))>1-1e-5&&b.points.every(p=>Math.abs(dot(sub(p,f.origin),f.n))<=K.CONTACT);};
@@ -1265,18 +1279,22 @@ function removeFaceEdges(faces,segments,wire={}){
  // The supporting wall is not an alternate boundary of a door/window.
  const repaired=[];
  for(const i of invalid){const source=faces[i],frame=faceFrame(source);if(!frame)continue;
-  const cuts=segments.map(points=>({points})),pairs=[...rings(source).flatMap(r=>r.map((p,i)=>[p,r[(i+1)%r.length]])),...(wire.lines||[]).filter(pair=>pair.every(p=>Math.abs(dot(sub(p,frame.origin),frame.n))<=K.CONTACT))],nodes=[],edges=[];
+  // A plain face may close along the remaining edges of other faces on its
+  // plane (a deleted door edge leaves the wall around it). A door/window keeps
+  // only its own ring, so an opened sticker stops being a face.
+  const onPlane=p=>Math.abs(dot(sub(p,frame.origin),frame.n))<=K.CONTACT,neighbors=source.feature?[]:faces.filter(f=>f!==source&&!f.curvedSurface&&rings(f).flat().every(onPlane));
+  const cuts=segments.map(points=>({points})),pairs=[...[source,...neighbors].flatMap(f=>rings(f).flatMap(r=>r.map((p,i)=>[p,r[(i+1)%r.length]]))),...(wire.lines||[]).filter(pair=>pair.every(onPlane))],nodes=[],edges=[];
   for(const [a,b]of pairs){let lo=0;for(const [start,end]of [...sharedIntervals(a,b,cuts),[1,1]]){if(start-lo>1e-7){const at=t=>inFrame(frame,mix3(a,b,t)),x={...at(lo),id:'n'+nodes.length},y={...at(start),id:'n'+(nodes.length+1)};nodes.push(x,y);edges.push({id:'e'+edges.length,a:x.id,b:y.id});}lo=Math.max(lo,end);}}
   const original={points:source.points.map(p=>inFrame(frame,p)),holes:(source.holes||[]).map(r=>r.map(p=>inFrame(frame,p)))},regions=K.partition({nodes,edges}).regions.map(points=>({points,holes:[]})).filter(f=>K.intersection([f],[original]).some(p=>K.area(p)>K.CONTACT*K.CONTACT)&&rings(original).some(r=>r.some((p,i)=>sharedIntervals({...p,z:0},{...r[(i+1)%r.length],z:0},[{points:f.points.map(p=>({...p,z:0}))}]).length)));
   const holes=original.holes.map(points=>({points}));for(const region of K.union(regions).flatMap(r=>holes.length?K.difference(r,holes):[r])){
-   const face={...source,mergedSources:[source.id],points:region.points.map(p=>fromFrame(frame,p)),holes:region.holes.map(r=>r.map(p=>fromFrame(frame,p)))};
+   const exact=exactPoints([...rings(source).flat(),...pairs.flat()]),face={...source,mergedSources:[source.id],points:region.points.map(p=>exact(fromFrame(frame,p))),holes:region.holes.map(r=>r.map(p=>exact(fromFrame(frame,p))))};
    const curves=[...(source.curves||[]),...(wire.curves||[])].filter(c=>{const ps=K.curveSamples(c);return ps.slice(1).every((p,i)=>sharedIntervals(ps[i],p,[face]).reduce((s,[lo,hi])=>s+hi-lo,0)>1-1e-5);});
    face.curves=[...new Map(curves.map(c=>[c.id,c])).values()];repaired.push(face);
   }
  }
  const merged=[];for(const ids of groups.values()){if(ids.some(i=>invalid.has(i)))continue;const members=ids.map(i=>faces[i]),frame=faceFrame(members[0]),B=baseGeometry(),locals=members.map(f=>({points:f.points.map(p=>inFrame(frame,p)),holes:(f.holes||[]).map(r=>r.map(p=>inFrame(frame,p)))}));
   const retainedPoints=[...new Map(members.flatMap(f=>[...rings(f).flat(),...(f.retainedPoints||[])]).map(p=>[vertexKey(p),p])).values()];
-  for(const region of K.union(locals))merged.push({...members[0],...mergedOwnership(members),mergedSources:members.map(f=>f.id),points:region.points.map(p=>fromFrame(frame,p)),holes:region.holes.map(r=>r.map(p=>fromFrame(frame,p))),retainedPoints});
+  const exact=exactPoints(members.flatMap(f=>rings(f).flat()));for(const region of K.union(locals))merged.push({...members[0],...mergedOwnership(members),mergedSources:members.map(f=>f.id),points:region.points.map(p=>exact(fromFrame(frame,p))),holes:region.holes.map(r=>r.map(p=>exact(fromFrame(frame,p)))),retainedPoints});
  }
  return {removed:[...affected].map(i=>faces[i].id),merged:[...merged,...repaired]};
 }
@@ -1399,5 +1417,5 @@ function inwardSign(face,bases){
  for(const distance of [.005,.02,.1]){const a=inside({x:c.x+n.x*distance,y:c.y+n.y*distance}),b=inside({x:c.x-n.x*distance,y:c.y-n.y*distance});if(a!==b)return a?1:-1;}
  return null;
 }
-const api={horizontalSweep,ownsPoint,followTrim,pointRangeIndex,stickerAlignmentTargets,planeAlignment,planeAlignmentGuides,adoptMergedFaceSources,faceFromPoints,mergeAtPoints,fillet,validTranslation,boundedTranslation,geometryScale,snapGeometryScale,snapGeometryOnPlane,transformGeometry,transformSelection,clipboardFrame,copyGeometry,pasteGeometry,mergeConnectedFaces,pointChamferSnap,chamferSnap,chamfer,roofExtrusion,inwardSign,cleanupSweepRemnants,sweepRemnant,motionSnapCandidates,structuralIndex,joinFragments,motionSnap,slideLines,attachedLengths,unionPlanar,trimExtrusion,moveFabric,radialDraftSnap,quadDraftSnap,normal,extrusionDirections,extrusionReference,extrude,snapDirection,bridges,dragAmount,subtract,snapBase,baseScope,belowBase,draftSnap,vertexKey,edgeKey,jsonEqual,contactBox,inContactBox,surfaceWire,restoreCreatedSurfaceWire,structuralPoint,structuralEdge,deleteSurfaceElements,removeFaceEdges,restoreSurface,sharedIntervals,freeEdges,moveSurface,faceFrame,inFrame,fromFrame,containedBy,coplanarContact,containedSnap,importDraft};if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.WallSolidGeometry=api;
+const api={exactPoints,horizontalSweep,ownsPoint,followTrim,pointRangeIndex,stickerAlignmentTargets,planeAlignment,planeAlignmentGuides,adoptMergedFaceSources,faceFromPoints,mergeAtPoints,fillet,validTranslation,boundedTranslation,geometryScale,snapGeometryScale,snapGeometryOnPlane,transformGeometry,transformSelection,clipboardFrame,copyGeometry,pasteGeometry,mergeConnectedFaces,pointChamferSnap,chamferSnap,chamfer,roofExtrusion,inwardSign,cleanupSweepRemnants,sweepRemnant,motionSnapCandidates,structuralIndex,joinFragments,motionSnap,slideLines,attachedLengths,unionPlanar,trimExtrusion,moveFabric,radialDraftSnap,quadDraftSnap,normal,extrusionDirections,extrusionReference,extrude,snapDirection,bridges,dragAmount,subtract,snapBase,baseScope,belowBase,draftSnap,vertexKey,edgeKey,jsonEqual,contactBox,inContactBox,surfaceWire,restoreCreatedSurfaceWire,structuralPoint,structuralEdge,deleteSurfaceElements,removeFaceEdges,restoreSurface,sharedIntervals,freeEdges,moveSurface,faceFrame,inFrame,fromFrame,containedBy,coplanarContact,containedSnap,importDraft};if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.WallSolidGeometry=api;
 })(typeof window!=='undefined'?window:globalThis);

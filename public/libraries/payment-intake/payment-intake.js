@@ -195,7 +195,8 @@
         // Card: fires after our Pay button calls tokenize(). Bank: fires once
         // the customer links their account in Forward's bank element, whose
         // own authorization text the customer accepts by continuing.
-        onSuccess: ({ token } = {}) => submitForwardToken(ctx, cleanText(token)),
+        // A decline is already shown in the form; nothing awaits this callback.
+        onSuccess: ({ token } = {}) => submitForwardToken(ctx, cleanText(token)).catch(() => undefined),
         onError: (error) => {
           setForwardError(ctx, cleanText(error?.message || error) || 'Those payment details could not be used. Check them and try again.');
           setProcessingState(ctx, false);

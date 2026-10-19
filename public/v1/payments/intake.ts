@@ -177,7 +177,7 @@ export function savedMethodView(method: JsonObject) {
     last4,
     exp_month: cents(method.exp_month) || null,
     exp_year: cents(method.exp_year) || null,
-    label: cleanText(method.label) || `${brand} ending in ${last4 || "????"}`,
+    label: cleanText(method.label) || `${brandLabel(brand)} ending in ${last4 || "????"}`,
     contact_ref: cleanText(method.contact_ref),
     default: method.default === true,
     created_at: cleanText(method.created_at)
@@ -462,7 +462,7 @@ export function addressZip(...values: unknown[]) {
   for (const value of values) {
     const source = asObject(value);
     const text = typeof value === "string" ? value : cleanText(source.postal_code || source.zip || source.zip_code || source.address);
-    const matches = cleanText(text).match(/\d{5}(?:-\d{4})?/g);
+    const matches = cleanText(text).match(/\b\d{5}(?:-\d{4})?\b/g);
     if (matches?.length) return matches[matches.length - 1]!.slice(0, 5);
   }
   return "";
@@ -973,8 +973,8 @@ async function finishChargedPayment(
     methodDescriptor = {
       ...methodDescriptor,
       type: savedMethod.type === "bank" ? "saved_ach" : "saved_card",
-      label: cleanText(savedMethod.label),
-      brand: cleanText(savedMethod.brand),
+      label: cleanText(savedMethod.label) || `${brandLabel(savedMethod.brand) || (savedMethod.type === "bank" ? "Bank" : "Card")} ending in ${cleanText(savedMethod.last4)}`,
+      brand: brandLabel(savedMethod.brand),
       last4: cleanText(savedMethod.last4)
     };
   } else if (charge.provider_payment_id) {
