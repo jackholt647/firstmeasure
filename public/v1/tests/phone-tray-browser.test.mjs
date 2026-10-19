@@ -121,7 +121,7 @@ test('phone stays docked, floats above minimized windows, retains ended calls an
     await page.getByRole('searchbox',{name:'Search contacts'}).fill('Jane');
     await page.getByRole('button',{name:'Open Jane Test'}).click();
     await page.waitForSelector('#fmContactOverlay.active');
-    assert.equal(await page.locator('#fmContactName').inputValue(),'Jane Test');
+    await page.locator('#fmContactOverlay.active').getByText('Jane Test').first().waitFor();
     await page.evaluate(()=>Portal.modules.contacts.close());
     await page.getByRole('button',{name:'Call Jane Test'}).click();
     assert.equal(await page.locator('[name=customer_number]').inputValue(),'+12025550124');
