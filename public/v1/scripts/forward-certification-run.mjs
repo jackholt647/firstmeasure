@@ -177,7 +177,7 @@ async function openTakePayment(projectId) {
   throw new Error("Take a payment did not open");
 }
 
-async function payByCard(projectId, { amount, pan, cvc, save = false }) {
+async function payByCard(projectId, { amount, pan, cvc, save = false, waitMs = 60000 }) {
   lastCheckoutId = "";
   const win = await openTakePayment(projectId);
   await win.evaluate(() => document.querySelector('[data-fmpi-method="card"]').click());
@@ -203,7 +203,7 @@ async function payByCard(projectId, { amount, pan, cvc, save = false }) {
     const error = document.querySelector("[data-fmpi-forward-error]:not([hidden])");
     if (error && error.textContent.trim()) return { ok: false, error: error.textContent.trim() };
     return false;
-  }, null, { timeout: 60000, polling: 300 }).then((handle) => handle.jsonValue());
+  }, null, { timeout: waitMs, polling: 300 }).then((handle) => handle.jsonValue());
   return { outcome, checkoutId: lastCheckoutId };
 }
 
@@ -280,6 +280,23 @@ try {
     await record("V00", {
       amount_cents: 1000, payment_intent_id: checkout.provider_intent_id, payment_id: checkout.provider_payment_id, charged: outcome.ok,
       action: refunded.provider_action, result: refunded.payment?.status, pass: outcome.ok && refunded.provider_action === "voided" && refunded.payment?.status === "voided"
+    });
+  }
+
+  if (phases.includes("timeout")) {
+    // Error handling: Forward's sandbox "timeout" card (sheet notes, Visa ending 1122). Our request gives up after
+    // FORWARD_REQUEST_TIMEOUT_MS; the checkout must then be looked up at Forward, never charged twice.
+    await ensureBrowser();
+    const projectId = await newProject("timeout");
+    const started = Date.now();
+    const { outcome, checkoutId } = await payByCard(projectId, { amount: 1000, pan: "4242424242431122", cvc: "123", waitMs: 180000 }).catch((error) => ({ outcome: { ok: false, error: String(error?.message || error) }, checkoutId: lastCheckoutId }));
+    await page.screenshot({ path: path.join(SHOTS, "ERR-timeout.png") });
+    const checkout = checkoutId ? await checkoutView(checkoutId) : null;
+    const payments = (await api.req("GET", `/v1/payments/organizations/${orgId}/projects/${projectId}/payments`)).payments.filter((p) => p.direction === "inbound");
+    await record("ERR-timeout", {
+      seconds: Math.round((Date.now() - started) / 1000), outcome, checkout_status: checkout?.status, attempts: checkout?.attempts, last_error: checkout?.last_error,
+      payment_intent_id: checkout?.provider_intent_id, provider_payment_id: checkout?.provider_payment_id || checkout?.last_provider_payment_id,
+      payments_recorded: payments.length, pass: payments.length <= 1 && (outcome.ok ? payments.length === 1 : payments.length === 0)
     });
   }
 
