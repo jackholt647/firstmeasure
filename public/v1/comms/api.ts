@@ -10,7 +10,9 @@ import "./definition.js";
 import { registerCustomerCallsApi } from "./calls/api.js";
 import { projectContext as customerCallProjectContext, manageCalls } from "./calls/service.js";
 import { requirePlatformAuth } from "../platform/auth.js";
+import { readMediaFile } from "../platform/storage.js";
 import { PlatformError, forbidden } from "../platform/errors.js";
+import { validSmsImageToken, validateSmsImage } from "./sms-images.js";
 import {
   dispatchAutoReplyDraft,
   dismissAutoReplyDraft,
@@ -66,11 +68,13 @@ const sendEmailSchema = z.object({
 
 const sendSmsSchema = z.object({
   to: z.union([z.string().trim().max(40), z.array(z.string().trim().min(1).max(40)).min(1).max(20)]).optional(),
-  text: z.string().trim().min(1).max(1600),
+  text: z.string().trim().max(1600),
   conversation_id: z.string().trim().max(180).optional(),
+  business_number: z.string().trim().max(40).optional(),
   idempotency_key: z.string().trim().max(500).optional(),
-  audio_note: objectSchema.optional()
-});
+  audio_note: objectSchema.optional(),
+  image: z.object({ media_id: z.string().trim().min(1).max(180) }).optional()
+}).refine(value => value.text || value.image, { message: "Enter a message or attach an image." });
 
 const simulateSchema = z.object({
   channel: z.enum(["email", "sms"]),
@@ -152,6 +156,17 @@ export const registerCommsApi: FastifyPluginAsync = async (app) => {
     }
   }));
 
+  app.get("/public/sms-images/:orgId/:mediaId/:token", async (request, reply) => {
+    const orgId = getParam(request.params, "orgId"), mediaId = getParam(request.params, "mediaId");
+    if (!validSmsImageToken(orgId, mediaId, getParam(request.params, "token"))) throw forbidden("invalid_sms_image_link", "This image link is invalid.");
+    const file = await readMediaFile(orgId, mediaId);
+    if (!/^image\/(jpeg|png|gif)$/.test(file.contentType)) throw forbidden("invalid_sms_image", "This is not a text image.");
+    reply.header("Content-Type", file.contentType);
+    reply.header("Content-Length", String(file.bytes.length));
+    reply.header("Cache-Control", "private, max-age=3600");
+    return reply.send(file.bytes);
+  });
+
   // ── Overview + feed ──────────────────────────────────────────────────────
 
   app.get("/organizations/:orgId/projects/:projectId/overview", async (request) => {
@@ -219,6 +234,10 @@ export const registerCommsApi: FastifyPluginAsync = async (app) => {
     const orgId = getParam(request.params, "orgId");
     const ctx = await requirePlatformAuth(request, { orgId, csrf: true, permission: SEND_PERMISSION, capability: "comms.sms" });
     const body = sendSmsSchema.parse(request.body ?? {});
+    if(body.business_number){
+      const available=(await voiceResources(orgId,'number')).some(line=>line.phone_number===body.business_number&&line.status==='active'&&cleanText(line.branch_id||'default')===(ctx.branchId||'default')&&(!cleanText(line.assigned_user_id)||cleanText(line.assigned_user_id)===ctx.userId));
+      if(!available)throw forbidden('business_line_unavailable','Choose a company line available to you.');
+    }
     const result = await sendProjectSms(orgId, ctx.branchId || "default", getParam(request.params, "projectId"), {
       ...body,
       source: { type: "user", user_id: ctx.userId }
@@ -469,18 +488,19 @@ export const registerCommsApi: FastifyPluginAsync = async (app) => {
       return { ok: true, ...result };
     }
     if (channel === "sms") {
-      if(!text.trim()||text.length>1600)throw new PlatformError('invalid_text_message',400,'Enter a text message of up to 1,600 characters.');
+      const imageId=cleanText(asObject(body.image).media_id);
+      if((!text.trim()&&!imageId)||text.length>1600)throw new PlatformError('invalid_text_message',400,'Enter a text message or attach an image.');
       const requested=cleanText(body.business_number),lines=(await voiceResources(orgId,'number')).filter(n=>n.status==='active'&&cleanText(n.branch_id||'default')===(ctx.branchId||'default')&&(!cleanText(n.assigned_user_id)||cleanText(n.assigned_user_id)===ctx.userId));
       if(requested&&!lines.some(line=>line.phone_number===requested))throw forbidden('business_line_unavailable','Choose a company line available to you.');
       const identities=(await ensureDefaultSenderIdentities(orgId,ctx.branchId||'default')).filter(n=>n.channel==='sms'&&n.status==='active');
       const sender=identities.find(n=>n.address===requested)||(!requested?identities.find(n=>n.is_default):null);
       if(!sender)throw new PlatformError('sms_sender_unavailable',400,'This line is not ready to send text messages.');
       const result = projectId?await sendProjectSms(orgId, ctx.branchId || "default", projectId, {
-        text,conversation_id:conversationId,business_number:cleanText(sender.address),audio_note: asObject(body.audio_note),idempotency_key: cleanText(body.idempotency_key) || undefined
+        text,conversation_id:conversationId,business_number:cleanText(sender.address),audio_note: asObject(body.audio_note),...(imageId?{image:{media_id:imageId}}:{}),idempotency_key: cleanText(body.idempotency_key) || undefined
       }, ctx):await sendCommunication(orgId,{
         branch_id:ctx.branchId||'default',conversation_id:conversationId,channel:'sms',purpose:'customer_care',sender:{identity_id:sender.id},
         recipients:(Array.isArray(detail.participants)?detail.participants:[]).map(asObject).filter(p=>cleanText(p.type)!=='internal'&&/^\+[1-9]\d{7,14}$/.test(cleanText(p.address))).map(p=>({address:cleanText(p.address)})),
-        content:{text},context:{},idempotency_key:cleanText(body.idempotency_key)||undefined
+        content:{text},context:{},metadata:imageId?{sms_image:await validateSmsImage(orgId,imageId,ctx.userId)}:{},idempotency_key:cleanText(body.idempotency_key)||undefined
       } as never,ctx);
       return { ok: true, ...result };
     }

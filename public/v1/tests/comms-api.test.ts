@@ -108,7 +108,7 @@ async function registerOwner() {
     organization_id: `org_comms_${suffix}`
   });
   await enableExpandedPlatformFixture(String(registered.organization.id));
-  return { client, orgId: String(registered.organization.id), suffix };
+  return { client, orgId: String(registered.organization.id), userId: String(registered.user.id), suffix };
 }
 
 async function createProject(client: TestClient, orgId: string, suffix: string) {
@@ -333,6 +333,29 @@ test("comms: SMS send + simulated inbound share a project conversation and cross
   assert.ok(overview.overview.org_inbox_address.includes("@firstmatemail.com"));
 });
 
+test("comms: text images are owner-validated, saved in threads, and served through signed MMS links", async () => {
+  const { client, orgId, userId, suffix } = await registerOwner();
+  const { projectId } = await createProject(client, orgId, suffix);
+  const { storeMediaUpload } = await import("../platform/storage.js");
+  const { smsImagePublicUrl } = await import("../comms/sms-images.js");
+  const bytes = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=", "base64");
+  const image = await storeMediaUpload(orgId, { bytes, fileName: "photo.png", contentType: "image/png", ownerType: "user", ownerId: userId, slot: "sms_image", scope: "communications" });
+  const sent = await client.request("POST", `/v1/comms/organizations/${orgId}/projects/${projectId}/sms/send`, { text: "", image: { media_id: image.id } });
+  assert.equal(sent.message.metadata.sms_image.media_id, image.id);
+  const thread = await client.request("GET", `/v1/comms/organizations/${orgId}/projects/${projectId}/sms`);
+  assert.equal(thread.messages[0].metadata.sms_image.media_id, image.id);
+  const publicPath = new URL(smsImagePublicUrl(orgId, String(image.id))).pathname;
+  const served = await client.raw("GET", publicPath);
+  assert.equal(served.statusCode, 200);
+  assert.deepEqual(Buffer.from((await app.inject({ method: "GET", url: publicPath })).rawPayload), bytes);
+  const invalid = await client.raw("GET", publicPath.replace(/.$/, "x"));
+  assert.equal(invalid.statusCode, 403);
+  const foreign = await storeMediaUpload(orgId, { bytes, fileName: "other.png", contentType: "image/png", ownerType: "user", ownerId: "other-user", slot: "sms_image" });
+  const rejected = await client.raw("POST", `/v1/comms/organizations/${orgId}/projects/${projectId}/sms/send`, { text: "Image", image: { media_id: foreign.id } });
+  assert.equal(rejected.statusCode, 403);
+  assert.equal(rejected.data.error, "sms_image_owner");
+});
+
 test("comms: explicit email recipients and recipient-combination SMS threads support project contacts and arbitrary addresses", async () => {
   const { client, orgId, suffix } = await registerOwner();
   const { projectId, contactEmail, secondaryEmail, contactPhone, secondaryPhone } = await createProject(client, orgId, suffix);
@@ -364,6 +387,13 @@ test("comms: explicit email recipients and recipient-combination SMS threads sup
     to: secondaryPhone,
     text: "A separate thread for Jordan."
   });
+  const unavailableLine = await client.raw("POST", `/v1/comms/organizations/${orgId}/projects/${projectId}/sms/send`, {
+    to: secondaryPhone,
+    text: "This sender is not assigned.",
+    business_number: "+12065550999"
+  });
+  assert.equal(unavailableLine.statusCode, 403);
+  assert.equal(unavailableLine.data.error, "business_line_unavailable");
   const group = await client.request("POST", `/v1/comms/organizations/${orgId}/projects/${projectId}/sms/send`, {
     to: [contactPhone, secondaryPhone, "+12065550000"],
     text: "A project group text."

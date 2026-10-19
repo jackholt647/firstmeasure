@@ -53,6 +53,7 @@ before(async () => {
   storageRoot = await mkdtemp(path.join(os.tmpdir(), "firstmate-messaging-test-"));
   process.env.NODE_ENV = "test";
   process.env.PLATFORM_HEARTBEAT_DISABLED = "1";
+  process.env.FIRSTMEASURE_JOB_WORKERS = "0";
   process.env.V1_LOG_LEVEL = "error";
   process.env.PLATFORM_STORAGE_ROOT = path.join(storageRoot, "platform");
   process.env.MESSAGING_STORAGE_ROOT = path.join(storageRoot, "messaging");
@@ -335,7 +336,7 @@ test("registered 10DLC use cases default-deny every mismatched SMS purpose", asy
     }
   }
 
-  for (const usecase of ["AGENTS_FRANCHISES", "MIXED", "SOLE_PROPRIETOR"]) {
+  for (const usecase of ["AGENTS_FRANCHISES", "LOW_VOLUME", "MIXED", "SOLE_PROPRIETOR"]) {
     const profile = { brand: { displayName: "Acme" }, campaign: { usecase, enabledFeatures: ["crm_conversations", "operations", "customer_growth"] } };
     for (const purpose of everyPurpose) {
       const issue = outboundSmsComplianceIssue(profile, purpose, text);
@@ -345,10 +346,19 @@ test("registered 10DLC use cases default-deny every mismatched SMS purpose", asy
 
   assert.equal(outboundSmsComplianceIssue({ brand: {}, campaign: { usecase: "UNMAPPED" } }, "transactional", text)?.code, "sms_purpose_not_registered");
   assert.equal(outboundSmsComplianceIssue({ brand: {}, campaign: { usecase: "AGENTS_FRANCHISES", enabledFeatures: [] } }, "customer_care", text)?.code, "sms_purpose_not_registered");
+  assert.equal(outboundSmsComplianceIssue({ brand: {}, campaign: { usecase: "LOW_VOLUME", enabledFeatures: ["crm_conversations"] } }, "marketing", text)?.code, "sms_purpose_not_registered");
   assert.equal(smsConsentPurposesAllow(["customer_care"], "appointment"), false);
   assert.equal(smsConsentPurposesAllow(["appointment"], "appointment"), true);
   assert.equal(smsConsentPurposesAllow(["transactional"], "two_factor_auth"), false);
   assert.equal(smsConsentPurposesAllow(["two_factor_auth"], "two_factor_auth"), true);
+});
+
+test("10DLC setup defaults new campaigns to Low Volume Mixed", async () => {
+  const response = await app.inject({ method: "GET", url: "/v1/messaging/sms/10dlc/options" });
+  assert.equal(response.statusCode, 200, response.body);
+  const options = JSON.parse(response.body);
+  assert.equal(options.defaults.campaign.usecase, "LOW_VOLUME");
+  assert.ok(options.campaign_usecases.includes("LOW_VOLUME"));
 });
 
 test("10DLC provider fees separate brand, prepaid subscription, and campaign review costs", async () => {
@@ -826,6 +836,76 @@ test("masked EIN values from public profiles cannot overwrite stored legal data 
   const organization = await ensureMessagingOrganization(orgId);
   const stored = await readSmsComplianceProfile(organization.id, created.profile.id);
   assert.equal(stored.brand.ein, "12-3456789");
+});
+
+test("development carrier registration is scoped independently of captured message delivery", async () => {
+  const client = createSessionClient();
+  const { orgId } = await register(client, true);
+  const otherClient = createSessionClient();
+  const { orgId: otherOrgId } = await register(otherClient, true);
+  const { env } = await import("../src/config/env.js");
+  const previous = {
+    dataEnvironment: env.dataEnvironment,
+    communicationsDeliveryMode: env.communicationsDeliveryMode,
+    smsLiveRegistrationOrganizationIds: env.smsLiveRegistrationOrganizationIds,
+    telnyxApiKey: env.telnyxApiKey,
+    telnyxBaseUrl: env.telnyxBaseUrl
+  };
+  const requests: string[] = [];
+  const server = createServer((request, response) => {
+    requests.push(`${request.method} ${request.url}`);
+    response.setHeader("content-type", "application/json");
+    response.end(JSON.stringify({ data: [{ phone_number: "+12065550123", features: [{ name: "sms" }], cost_information: { monthly_cost: "1.00", upfront_cost: "0.00", currency: "USD" } }] }));
+  });
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const address = server.address();
+  assert.ok(address && typeof address !== "string");
+  Object.assign(env, { dataEnvironment: "development", communicationsDeliveryMode: "capture", smsLiveRegistrationOrganizationIds: [orgId], telnyxApiKey: "TEST", telnyxBaseUrl: `http://127.0.0.1:${address.port}/v2` });
+  try {
+    const setup = await client.request("GET", `/v1/messaging/organizations/${orgId}/sms/setup`);
+    assert.equal(setup.telnyx.registration_live, true);
+    assert.equal(setup.telnyx.live_mode, false);
+    const otherSetup = await otherClient.request("GET", `/v1/messaging/organizations/${otherOrgId}/sms/setup`);
+    assert.equal(otherSetup.telnyx.registration_live, false);
+    const created = await client.request("POST", `/v1/messaging/organizations/${orgId}/sms/compliance-profiles`, {
+      brand: { country: "US", displayName: "FirstMate", companyName: "FirstMate Test LLC", entityType: "PRIVATE_PROFIT", vertical: "TECHNOLOGY", email: "support@example.test", ein: "123456789", phone: "2065550100", street: "100 Main Street", city: "Boise", state: "ID", postalCode: "83702", website: "example.test", mock: true },
+      campaign: { usecase: "LOW_VOLUME", mock: true, brandId: "UNTRUSTED", enabledFeatures: ["crm_conversations"] }
+    });
+    assert.equal(created.profile.brand.mock, undefined);
+    assert.equal(created.profile.campaign.brandId, undefined);
+    assert.ok(created.profile.validation.campaign.missing.includes("consentAcknowledged"));
+    assert.ok(created.profile.validation.campaign.missing.includes("messageFlowConfirmed"));
+    const base = `/v1/messaging/organizations/${orgId}/sms/compliance-profiles/${created.profile.id}`;
+    const preview = await client.request("POST", `${base}/submit-brand`, { dry_run: true });
+    assert.equal(preview.payload.mock, undefined);
+    const refused = await client.raw("POST", `${base}/submit-brand`, { submit: true });
+    assert.equal(JSON.parse(refused.body).error, "registration_attestation_required");
+    const numbers = await client.request("GET", `${base}/available-numbers?area_code=206`);
+    assert.equal(numbers.mock, false);
+    assert.equal(numbers.numbers[0].phone_number, "+12065550123");
+    assert.equal(requests.length, 1, "only the inventory read reaches the provider");
+    assert.match(requests[0] || "", /^GET \/v2\/available_phone_numbers/);
+    const other = await otherClient.request("POST", `/v1/messaging/organizations/${otherOrgId}/sms/compliance-profiles`, { brand: {}, campaign: {} });
+    const simulated = await otherClient.request("GET", `/v1/messaging/organizations/${otherOrgId}/sms/compliance-profiles/${other.profile.id}/available-numbers?area_code=206`);
+    assert.equal(simulated.mock, true);
+    assert.equal(requests.length, 1);
+    const { recordBrandRegistrationFee } = await import("../messaging/api.js");
+    const { listUsageEvents } = await import("../messaging/communications_storage.js");
+    await recordBrandRegistrationFee(orgId, "PILOT_BRAND", created.profile.id, "PRIVATE_PROFIT");
+    assert.equal((await listUsageEvents(orgId, { direction: "brand_registration" })).length, 1);
+    const { ensureMessagingOrganization, readSmsComplianceProfile, updateSmsComplianceProfile } = await import("../messaging/storage.js");
+    const messagingOrg = await ensureMessagingOrganization(orgId);
+    const stored = await readSmsComplianceProfile(messagingOrg.id, created.profile.id);
+    await updateSmsComplianceProfile(stored, { events: [...stored.events, { type: "brand_submitted", mock: true }] });
+    const mockReplay = await client.raw("POST", `${base}/submit-brand`, { dry_run: true });
+    assert.equal(JSON.parse(mockReplay.body).error, "mock_registration_requires_new_profile");
+    const { smsRegistrationIsLive } = await import("../messaging/registration_mode.js");
+    Object.assign(env, { dataEnvironment: "production" });
+    assert.equal(smsRegistrationIsLive(orgId), false, "the development pilot does not enable registration in another environment");
+  } finally {
+    Object.assign(env, previous);
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+  }
 });
 
 test("10DLC compliance profile workflow saves drafts and builds dry-run provider payloads", async () => {
@@ -1718,7 +1798,7 @@ test("10DLC mock campaign submit records qualification failure and still calls T
       const body = Buffer.concat(chunks).toString("utf8");
       requests.push({ method: request.method || "", url: request.url || "", body });
       response.setHeader("content-type", "application/json");
-      if (request.method === "GET" && request.url === "/10dlc/campaignBuilder/brand/B_MOCK_PENDING/usecase/MIXED") {
+      if (request.method === "GET" && request.url === "/10dlc/campaignBuilder/brand/B_MOCK_PENDING/usecase/LOW_VOLUME") {
         response.statusCode = 400;
         response.end(JSON.stringify({ errors: [{ detail: "Cannot qualify usecase: brand registration is still pending." }] }));
         return;
@@ -1769,7 +1849,7 @@ test("10DLC mock campaign submit records qualification failure and still calls T
       },
       campaign: {
         brandId: "B_MOCK_PENDING",
-        usecase: "MIXED",
+        usecase: "LOW_VOLUME",
         description: "Customer care messages for project updates and appointment coordination.",
         messageFlow: "Customers opt in by submitting a website form or asking for project updates from staff.",
         sample1: "Hi Jane, this is FirstMate with an update on your roof appointment. Reply STOP to opt out.",
@@ -1810,11 +1890,13 @@ test("10DLC mock campaign submit records qualification failure and still calls T
     assert.equal(submitted.profile.phone_number_campaign_status, "unassigned");
     assert.equal(submitted.profile.phone_number_campaign_id, "");
     assert.deepEqual(requests.map((request) => `${request.method} ${request.url}`), [
-      "GET /10dlc/campaignBuilder/brand/B_MOCK_PENDING/usecase/MIXED",
+      "GET /10dlc/campaignBuilder/brand/B_MOCK_PENDING/usecase/LOW_VOLUME",
       "POST /10dlc/campaignBuilder"
     ]);
 
     const firstSubmission = JSON.parse(requests.find((request) => request.method === "POST")?.body || "{}");
+    assert.equal(firstSubmission.usecase, "LOW_VOLUME");
+    assert.deepEqual(firstSubmission.subUsecases, ["CUSTOMER_CARE", "ACCOUNT_NOTIFICATION"]);
     const rejected = await readSmsComplianceProfile(messagingOrganization.id, created.profile.id);
     await updateSmsComplianceProfile(rejected, {
       status: "provider_update_pending",

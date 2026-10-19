@@ -1,0 +1,630 @@
+diff --git a/public/libraries/apps/firstmate-apps-manifest.js b/public/libraries/apps/firstmate-apps-manifest.js
+index 17723320..f856effc 100644
+--- a/public/libraries/apps/firstmate-apps-manifest.js
++++ b/public/libraries/apps/firstmate-apps-manifest.js
+@@ -348,7 +348,7 @@
+       surfaces: ['project_modal'],
+       requiresContext: ['project'],
+       access: managementAccess,
+-      bundles: [bundle('../comms-api/comms-api.js'), versionedBundle('../window-manager/window-shell.js', '20261008-tray-shell-v1'), versionedBundle('../agent-chat/agent-chat.js', '20261002-widget-controls'), versionedBundle('comms/communications-ui.js', '20261008-call-center-modes-v2'), versionedBundle('comms/phone-tray.js', '20261009-phone-workspace-v2'), versionedBundle('comms/calling-runtime.js', '20261009-phone-workspace-v2'), versionedBundle('comms/phone-modal.js', '20261009-phone-workspace-v2'), versionedBundle('comms/workspace.js', '20261008-voicemail-settings-v1'), versionedBundle('comms/project.js', '20261002-dropdown-polish-v1')]
++      bundles: [bundle('../comms-api/comms-api.js'), versionedBundle('../window-manager/window-shell.js', '20261008-tray-shell-v1'), versionedBundle('../agent-chat/agent-chat.js', '20261002-widget-controls'), versionedBundle('comms/communications-ui.js', '20261009-conference-v1'), versionedBundle('comms/phone-tray.js', '20261009-conference-v1'), versionedBundle('comms/calling-runtime.js', '20261009-conference-v1'), versionedBundle('comms/phone-modal.js', '20261009-phone-workspace-v2'), versionedBundle('comms/workspace.js', '20261008-voicemail-settings-v1'), versionedBundle('comms/project.js', '20261002-dropdown-polish-v1')]
+     },
+     {
+       id: 'project.measurements',
+@@ -523,9 +523,9 @@
+         bundle('../comms-api/comms-api.js'),
+         bundle('../agents-api/agents-api.js'),
+         versionedBundle('../agent-chat/agent-chat.js', '20261002-widget-controls'),
+-        versionedBundle('comms/communications-ui.js', '20261008-call-center-modes-v2'),
++        versionedBundle('comms/communications-ui.js', '20261009-conference-v1'),
+         versionedBundle('../window-manager/window-shell.js', '20261008-tray-shell-v1'),
+-        versionedBundle('comms/phone-tray.js', '20261009-phone-workspace-v2'), versionedBundle('comms/calling-runtime.js', '20261009-phone-workspace-v2'), versionedBundle('comms/phone-modal.js', '20261009-phone-workspace-v2'),
++        versionedBundle('comms/phone-tray.js', '20261009-conference-v1'), versionedBundle('comms/calling-runtime.js', '20261009-conference-v1'), versionedBundle('comms/phone-modal.js', '20261009-phone-workspace-v2'),
+         versionedBundle('comms/workspace.js', '20261008-voicemail-settings-v1'),
+         versionedBundle('chat/app.js', '20260930-phone-tray-v1')
+       ]
+diff --git a/public/libraries/apps/comms/calling-runtime.js b/public/libraries/apps/comms/calling-runtime.js
+index 8db95829..4f17d5c0 100644
+--- a/public/libraries/apps/comms/calling-runtime.js
++++ b/public/libraries/apps/comms/calling-runtime.js
+@@ -5,6 +5,9 @@
+   const ui=Portal.CommunicationsUI;
+   const {esc,request,uid,icon,label,date,field,area,select,dialog}=ui;
+   const terminal=new Set(['ended','canceled','failed','no_answer','busy','rejected']);
++  const participantActive=p=>['ringing','connecting','connected','uncertain','leaving'].includes(p.state);
++  const ourParticipant=()=>state.detail?.participants?.find(p=>p.user_id===ui.user()&&participantActive(p));
++  const formatPhone=value=>Portal.PhoneTray?.formatPhone(value)||value;
+   const state={call:null,detail:null,entry:null,scripts:[],status:null,client:null,sdkCall:null,registered:false,available:false,
+     busy:false,error:'',dirty:false,notes:'',answers:{},panel:null,minimized:false,muted:false,localId:uid(),prepared:{},poll:0,saveTimer:0,tokenTimer:0,heartbeat:0,readyPromise:null,connectionSequence:0,connecting:false,disconnectPromise:null,openSequence:0};
+   const audioKey='fm-customer-phone-audio';
+@@ -150,6 +153,7 @@
+     const checked=new Set([...state.panel?.querySelectorAll('[data-source]:checked')||[]].map(e=>e.dataset.source));
+     const el=ensurePanel(),c=state.call,p=state.prepared,values=readForm();el.hidden=false;el.classList.toggle('minimized',state.minimized);
+     if(state.loadingCall){el.innerHTML=`<header class="fmcp-header"><strong style="flex:1" role="status">${(globalThis.PlatformLanguage?.htmlText("comms","m_8f38504a814a9d","Opening call…") ?? "Opening call…")}</strong><button data-phone="close" aria-label="${(globalThis.PlatformLanguage?.htmlText("comms","m_314202e0941af2","Close call workspace") ?? "Close call workspace")}">`+icon('xmark')+'</button></header>';return;}
++    const guest=ourParticipant();
+     const consultation=c?.metadata?.transfer?.target_user_id===ui.user()&&c.owner_user_id!==ui.user()&&['dialing','consulting'].includes(c.metadata.transfer.state);
+     const observer=c?.owner_user_id&&c.owner_user_id!==ui.user();
+     const supervising=state.detail?.supervision?.session&&!['ended','failed','taken_over'].includes(state.detail.supervision.session.state);
+@@ -169,12 +173,13 @@
+       ${String(c?.metadata?.provider_error&&!terminal.has(c.state)?`<p class="fmcm-error">${esc(c.metadata.provider_error.message)} <button data-phone="reconcile">${(globalThis.PlatformLanguage?.htmlText("comms","m_0594685d991928","Check provider status") ?? "Check provider status")}</button></p>`:'')}
+       ${String((state.detail?.operations||[]).filter(job=>job.state==='failed'&&['wrap_up','recording_ingest','missed_callback'].includes(job.kind)).map(job=>`<p class="fmcm-error">${((v0) => globalThis.PlatformLanguage?.htmlText("comms","m_c27c615bb5fb5f",`${v0} could not finish. Your call record is saved. `,{v0}) ?? `${v0} could not finish. Your call record is saved. `)(esc(label(job.kind)))}<button data-phone="retry-work" data-job="${esc(job.id)}">${(globalThis.PlatformLanguage?.htmlText("comms","m_6bf817428776f2","Retry saved work") ?? "Retry saved work")}</button></p>`).join(''))}
+       ${String(c?`<div class="fmcp-controls">${incoming?`<button class="fmcm-primary" data-phone="answer">${((v0) => globalThis.PlatformLanguage?.htmlText("comms","m_0675e6689d03c4",`${v0} Answer`,{v0}) ?? `${v0} Answer`)(icon('phone'))}</button><button data-phone="decline">${(globalThis.PlatformLanguage?.htmlText("comms","m_0bba16c1fd1444","Decline") ?? "Decline")}</button>`:''}
+-      ${consultation?`<p class="fmcm-help">${(globalThis.PlatformLanguage?.htmlText("comms","m_9dd0f47c454eb7","Consultation in progress. The customer is on hold with your teammate.") ?? "Consultation in progress. The customer is on hold with your teammate.")}</p><button data-phone="decline">${(globalThis.PlatformLanguage?.htmlText("comms","m_61a1d24eba2d59","Leave consultation") ?? "Leave consultation")}</button>`:active&&!observer?`<button data-phone="mute" ${!state.sdkCall?'disabled':''}>${icon(state.muted?'microphone-slash':'microphone')} ${state.muted?'Unmute':'Mute'}</button><button data-phone="${c.state==='held'?'resume':'hold'}" ${!connected?'disabled':''}>${icon(c.state==='held'?'play':'pause')} ${c.state==='held'?'Resume':'Hold'}</button><button data-phone="keypad" ${!connected?'disabled':''}>${((v8) => globalThis.PlatformLanguage?.htmlText("comms","m_a5d2ced26e1d6f",`${v8} Keypad`,{v8}) ?? `${v8} Keypad`)(icon('grip'))}</button><button data-phone="transfer" ${!connected?'disabled':''}>${((v10) => globalThis.PlatformLanguage?.htmlText("comms","m_63420f2e9bb582",`${v10} Transfer`,{v10}) ?? `${v10} Transfer`)(icon('arrow-right-arrow-left'))}</button><button class="fmcm-danger" data-phone="hangup">${((v11) => globalThis.PlatformLanguage?.htmlText("comms","m_121a37c1f0d952",`${v11} End call`,{v11}) ?? `${v11} End call`)(icon('phone-slash'))}</button>`:''}
++      ${guest?`<button data-phone="mute" ${!state.sdkCall?'disabled':''}>${icon(state.muted?'microphone-slash':'microphone')} ${state.muted?'Unmute':'Mute'}</button><button data-phone="hangup">${icon('phone-slash')} Leave call</button>`:consultation?`<p class="fmcm-help">${(globalThis.PlatformLanguage?.htmlText("comms","m_9dd0f47c454eb7","Consultation in progress. The customer is on hold with your teammate.") ?? "Consultation in progress. The customer is on hold with your teammate.")}</p><button data-phone="decline">${(globalThis.PlatformLanguage?.htmlText("comms","m_61a1d24eba2d59","Leave consultation") ?? "Leave consultation")}</button>`:active&&!observer?`<button data-phone="mute" ${!state.sdkCall?'disabled':''}>${icon(state.muted?'microphone-slash':'microphone')} ${state.muted?'Unmute':'Mute'}</button><button data-phone="${c.state==='held'?'resume':'hold'}" ${!connected?'disabled':''}>${icon(c.state==='held'?'play':'pause')} ${c.state==='held'?'Resume':'Hold'}</button><button data-phone="keypad" ${!connected?'disabled':''}>${((v8) => globalThis.PlatformLanguage?.htmlText("comms","m_a5d2ced26e1d6f",`${v8} Keypad`,{v8}) ?? `${v8} Keypad`)(icon('grip'))}</button><button data-phone="add-person" ${!connected?'disabled':''}>${icon('user-plus')} Add person</button><button data-phone="transfer" ${!connected||state.detail?.participants?.some(participantActive)?'disabled':''}>${((v10) => globalThis.PlatformLanguage?.htmlText("comms","m_63420f2e9bb582",`${v10} Transfer`,{v10}) ?? `${v10} Transfer`)(icon('arrow-right-arrow-left'))}</button><button class="fmcm-danger" data-phone="hangup">${((v11) => globalThis.PlatformLanguage?.htmlText("comms","m_121a37c1f0d952",`${v11} End call`,{v11}) ?? `${v11} End call`)(icon('phone-slash'))}</button>`:''}
+       ${c.project_id?`<button data-phone="project">${((v0) => globalThis.PlatformLanguage?.htmlText("comms","m_d29bbd8b50abe3",`${v0} Project`,{v0}) ?? `${v0} Project`)(icon('folder-open'))}</button><button data-phone="schedule">${((v1) => globalThis.PlatformLanguage?.htmlText("comms","m_1ba8da8140fc77",`${v1} Schedule`,{v1}) ?? `${v1} Schedule`)(icon('calendar-plus'))}</button><button data-phone="message">${((v2) => globalThis.PlatformLanguage?.htmlText("comms","m_b1ce44f713880b",`${v2} Message`,{v2}) ?? `${v2} Message`)(icon('comment'))}</button>`:`<button data-phone="link">${((v0) => globalThis.PlatformLanguage?.htmlText("comms","m_d6f0ce6293e8d9",`${v0} Link project`,{v0}) ?? `${v0} Link project`)(icon('link'))}</button>`}
+       ${connected&&(state.status?.settings?.recording_enabled||['recording','paused'].includes(capture))?`<button data-phone="record">${icon('circle-dot')} ${capture==='recording'?'Pause recording':capture==='paused'?'Resume recording':'Record with consent'}</button>${['recording','paused'].includes(capture)?`<button data-phone="record_stop">${(globalThis.PlatformLanguage?.htmlText("comms","m_71ef1099bbe0fc","Stop recording") ?? "Stop recording")}</button>`:''}`:''}</div>`:
+       `${field('Phone number or contact','customer_number',values.customer_number??number,'text','required autocomplete="off"')}
+       <div class="fmcm-form-grid">${select('Call method','mode',state.status?.settings?.enabled?[['browser','FirstMate phone'],['external','My external phone']]:[['external','My external phone']],values.mode||(state.status?.settings?.enabled?'browser':'external'))}${select('Call script','script_id',[['','No script'],...state.scripts.filter(s=>s.status==='published').map(s=>[s.id,s.title])],values.script_id||'')}</div>
+       <p class="fmcm-help">External phone lets you record call notes without browser audio.</p><button data-phone="start" class="fmcm-primary">${icon('phone')} ${state.waitingToCall?'Connecting…':(values.mode|| (state.status?.settings?.enabled?'browser':'external'))==='browser'?'Start call':'Start call notes'}</button>`)}
++      ${c?conferenceMarkup(observer||!!guest):''}
+       ${String(script?.title?`<details class="fmcp-script" open><summary>${esc(script.title)} <span class="fmcm-pill">v${esc(script.version)}</span></summary>${(scriptData.sections||[]).map(s=>`<h4>${esc(s.title)}</h4><p>${esc(s.body)}</p>`).join('')}${(scriptData.questions||[]).map((q,i)=>`<label class="fmcm-field">${esc(q)}<input data-question="${i}" value="${esc(state.answers[i]||'')}"></label>`).join('')}</details>`:'')}
+       ${String(c?.mode==='external'?`<p class="fmcm-help"><a href="tel:${esc(number)}">${((v1) => globalThis.PlatformLanguage?.htmlText("comms","m_4b023574d976a1",`Open ${v1} in your phone app`,{v1}) ?? `Open ${v1} in your phone app`)(esc(number))}</a></p>`:'')}
+       ${String(c?`<label class="fmcm-field">${(globalThis.PlatformLanguage?.htmlText("comms","m_d885eb7f0cdaa0","Call notes ") ?? "Call notes ")}<textarea class="fmcp-notes" name="notes" placeholder="${(globalThis.PlatformLanguage?.htmlText("comms","m_d59c66e54984e5","What happened? Capture decisions, concerns, and next steps.") ?? "What happened? Capture decisions, concerns, and next steps.")}">${esc(state.notes)}</textarea></label><p class="fmcm-help" data-save-state>${state.dirty?'Saving notes…':'Notes saved'}</p>`:'')}
+@@ -186,7 +191,7 @@
+       ${String(c?`<div data-artifacts>${mediaMarkup()}</div>${analysisMarkup()}`:'')}</div>
+       <footer class="fmcp-footer"><span class="fmcm-help">${String(c?`${c.direction==='inbound'?'Incoming':'Outgoing'} call`:'Communications')}</span><div class="fmcm-actions">${String(!c&&state.entry?`<button data-phone="skip">${(globalThis.PlatformLanguage?.htmlText("comms","m_80ad5d823ed757","Skip for now") ?? "Skip for now")}</button>`:'')}${String(c&&!active&&!saved&&!processing&&state.status?.settings?.require_disposition?`<button class="fmcm-primary" data-phone="wrap">${(globalThis.PlatformLanguage?.htmlText("comms","m_6b7aea73ef8d46","Save outcome") ?? "Save outcome")}</button>`:'')}${String(saved&&state.entry?`<button class="fmcm-primary" data-phone="next">${(globalThis.PlatformLanguage?.htmlText("comms","m_db479b7b19a749","Next contact") ?? "Next contact")}</button>`:'')}${String(c&&!active?`<button data-phone="artifacts">${(globalThis.PlatformLanguage?.htmlText("comms","m_f15ce71ba3db6f","Recording & transcript") ?? "Recording & transcript")}</button>`:'')}</div></footer>`;
+     el.querySelectorAll('[data-phone]').forEach(b=>{if(state.busy&&!['minimize','close','pause-dialer'].includes(b.dataset.phone))b.disabled=true;});
+-    if(observer){el.querySelectorAll('[name], [data-question], [data-source]').forEach(e=>e.disabled=true);el.querySelectorAll('[data-phone]').forEach(b=>{if(!['minimize','close','project','schedule','message','artifacts','supervise','analysis-generate','analysis-load','analysis-ask',...(consultation||supervising?['answer','decline']:[])].includes(b.dataset.phone))b.disabled=true;});}
++    if(observer||guest){el.querySelectorAll('[name], [data-question], [data-source]').forEach(e=>e.disabled=true);el.querySelectorAll('[data-phone]').forEach(b=>{if(!['minimize','close','project','schedule','message','artifacts','supervise','analysis-generate','analysis-load','analysis-ask',...(consultation||supervising?['answer','decline']:[]),...(guest?['answer','decline','mute','hangup']:[])].includes(b.dataset.phone))b.disabled=true;});}
+     if(!callPermission('record'))el.querySelectorAll('[data-phone^="record"]').forEach(b=>b.hidden=true);
+     if(!callPermission('recordings'))el.querySelectorAll('[data-phone="artifacts"]').forEach(b=>b.hidden=true);
+     el.querySelectorAll('[name=analysis_prompt],[name=analysis_question]').forEach(e=>e.disabled=state.analysisBusy);
+@@ -263,7 +268,7 @@
+     const message=state.panel?.querySelector('[data-save-state]');if(message)message.textContent=state.dirty?'Saving notes…':'Notes saved';
+     if(state.dirty)scheduleSave();else try{sessionStorage.removeItem(localKey());}catch{}
+   }
+-  async function action(action,extra={}){const result=await request(callPath('/actions'),{operation_id:uid(),action,...extra});state.call=result.call||state.call;changed();return result;}
++  async function action(action,extra={}){const result=await request(callPath('/actions'),{operation_id:uid(),action,...extra});state.call=result.call||state.call;if(result.participants)state.detail={...state.detail,participants:result.participants};changed();return result;}
+   async function wrap(){
+     const values=readForm();await saveNotes();
+     const due=values.due_at?new Date(values.due_at).toISOString():'';
+@@ -279,10 +284,11 @@
+     const id=state.call.id;
+     const result=await request(`calls/${encodeURIComponent(id)}`);if(state.call?.id!==id)return;
+     if(result.call.owner_user_id===ui.user()&&!terminal.has(result.call.state)&&(!state.lastLease||Date.now()-state.lastLease>30000)){await request(`calls/${encodeURIComponent(id)}/lease`,{});state.lastLease=Date.now();}
+-    const prior=state.call,priorPermissions=state.detail?.permissions;state.call=result.call;state.detail=result;
++    const prior=state.call,priorPermissions=state.detail?.permissions,priorParticipants=JSON.stringify(state.detail?.participants),wasGuest=!!ourParticipant();state.call=result.call;state.detail=result;
++    if(wasGuest&&!ourParticipant()){state.call=null;state.detail=null;state.notes='';state.answers={};state.dirty=false;state.prepared={};render();changed();return;}
+     if(!state.dirty){state.notes=state.call.notes||'';state.answers=state.call.metadata?.script_answers||{};}
+     // Preserve the user's caret and unsaved form values; redraw only a call-state transition.
+-    if(prior.state!==state.call.state||prior.wrap_up_state!==state.call.wrap_up_state||JSON.stringify(prior.metadata?.capture)!==JSON.stringify(state.call.metadata?.capture)||JSON.stringify(prior.metadata?.transfer)!==JSON.stringify(state.call.metadata?.transfer)||JSON.stringify(priorPermissions)!==JSON.stringify(state.detail?.permissions)||JSON.stringify(state.lastSupervision)!==JSON.stringify(state.detail?.supervision))render();
++    if(prior.state!==state.call.state||prior.wrap_up_state!==state.call.wrap_up_state||JSON.stringify(prior.metadata?.capture)!==JSON.stringify(state.call.metadata?.capture)||JSON.stringify(prior.metadata?.transfer)!==JSON.stringify(state.call.metadata?.transfer)||priorParticipants!==JSON.stringify(state.detail?.participants)||JSON.stringify(priorPermissions)!==JSON.stringify(state.detail?.permissions)||JSON.stringify(state.lastSupervision)!==JSON.stringify(state.detail?.supervision))render();
+     state.lastSupervision=state.detail?.supervision;
+     if((callPermission('analyze')||callPermission('analysis_read'))&&state.analysis&&(state.analysisOpen||state.analysis.notes?.some(n=>['pending','running'].includes(n.state)))){const analysis=await request(`calls/${encodeURIComponent(id)}/analysis`);if(state.call?.id!==id)return;state.analysis=analysis;render();}
+     changed();updateTransferDialog();
+@@ -322,6 +328,29 @@
+     const agents=(result.agents||[]).filter(a=>a.user_id!==ui.user()&&a.availability==='available');
+     dialog('Transfer call',select('Available teammate','target_user_id',agents.map(a=>[a.user_id,a.name]))+select('Handoff','transfer_mode',[['warm','Consult first'],['cold','Transfer when they answer']])+`<p class="fmcm-help">${(globalThis.PlatformLanguage?.htmlText("comms","m_e0e91e4856c71f","The customer waits on hold while your teammate answers. A failed transfer returns the customer to you.") ?? "The customer waits on hold while your teammate answers. A failed transfer returns the customer to you.")}</p>`,async data=>{if(!data.target_user_id)throw new Error('No teammates are available.');await action('transfer',data);render();},{submit:'Call teammate'});
+   }
++  function conferenceMarkup(readOnly){
++    const items=state.detail?.participants||[];if(!items.length)return '';
++    const statuses={ringing:'Ringing',connecting:'Joining',connected:'On call',uncertain:'Check connection',left:'Left',removed:'Removed',declined:'Declined',no_answer:'No answer',failed:'Could not connect'};
++    return `<section class="fmcp-participants" aria-label="Call participants"><strong>${icon('users')} People on this call</strong><div class="fmcp-participant"><span>${state.call.owner_user_id===ui.user()?'You':'Call host'}<small>Host</small></span><small>${terminal.has(state.call.state)?'Ended':'On call'}</small></div><div class="fmcp-participant"><span>${esc(state.call.customer_name||formatPhone(state.call.customer_number))}<small>${esc(formatPhone(state.call.customer_number))}</small></span><small>${terminal.has(state.call.state)?'Ended':'On call'}</small></div>${items.map(p=>`<div class="fmcp-participant"><span>${esc(p.name===p.phone?formatPhone(p.phone):p.name||formatPhone(p.phone))}${p.phone&&p.name!==p.phone?`<small>${esc(formatPhone(p.phone))}</small>`:''}${p.error?`<small role="status">${esc(p.error)}</small>`:''}</span><small>${esc(statuses[p.state]||label(p.state))}</small>${!readOnly&&participantActive(p)&&!terminal.has(state.call.state)?`<button type="button" data-phone="remove-person" data-participant="${esc(p.id)}" title="${p.state==='ringing'?'Cancel invitation':'Remove from call'}" aria-label="Remove ${esc(p.name||p.phone)} from call">${icon('xmark')}</button>`:''}</div>`).join('')}</section>`;
++  }
++  async function addPerson(){
++    const callId=state.call.id,result=await request('voice/center');
++    const agents=(result.agents||[]).filter(a=>a.user_id!==ui.user()&&a.user_id!==state.call.owner_user_id&&a.availability==='available'&&(!a.branch_id||a.branch_id===state.call.branch_id));
++    let selected=null,timer,ticket=0;
++    const el=dialog('Add person to call',`<div class="fmcp-invite-modes" role="radiogroup" aria-label="Add person using"><label><input type="radio" name="invite_kind" value="teammate" checked>Teammate</label><label><input type="radio" name="invite_kind" value="phone">Phone number</label></div><div data-invite-teammate>${select('Available teammate','target_user_id',[['',agents.length?'Choose a teammate':'No teammates available'],...agents.map(a=>[a.user_id,a.name])])}</div><div data-invite-phone hidden>${field('Number or contact','participant_search','','text','autocomplete="off" placeholder="Enter a phone number or name"')}<div class="fmcp-invite-results" data-invite-results></div><small data-invite-selection></small></div>`,async data=>{
++      if(state.call?.id!==callId||terminal.has(state.call.state))throw new Error('This call has ended.');
++      const extra=data.invite_kind==='teammate'?{target_user_id:data.target_user_id}:{target_phone:selected?.phone||data.participant_search,target_name:selected?.name||''};
++      if(data.invite_kind==='teammate'&&!data.target_user_id)throw new Error('Choose an available teammate.');
++      await action('add_participant',extra);render();
++    },{submit:'Call and add'});
++    el.classList.add('fmcp-invite');
++    el.querySelectorAll('[name=invite_kind]').forEach(input=>input.onchange=()=>{const phone=input.value==='phone';el.querySelector('[data-invite-teammate]').hidden=phone;el.querySelector('[data-invite-phone]').hidden=!phone;(phone?el.querySelector('[name=participant_search]'):el.querySelector('[name=target_user_id]')).focus();});
++    const input=el.querySelector('[name=participant_search]'),list=el.querySelector('[data-invite-results]');
++    input.oninput=()=>{selected=null;el.querySelector('[data-invite-selection]').textContent='';clearTimeout(timer);const current=++ticket,query=input.value.trim();list.replaceChildren();if(!query)return;
++      timer=setTimeout(async()=>{try{const result=await request(`voice/contacts?query=${encodeURIComponent(query)}`);if(current!==ticket||!el.isConnected)return;const contacts=(result.contacts||[]).slice(0,8);list.innerHTML=contacts.map((c,i)=>`<button type="button" data-contact="${i}"><span>${esc(c.name)}<small>${esc(c.phone)}</small></span>${icon('plus')}</button>`).join('');list.onclick=e=>{const button=e.target.closest('[data-contact]');if(!button)return;selected=contacts[Number(button.dataset.contact)];input.value=selected.name;el.querySelector('[data-invite-selection]').textContent=selected.phone;list.replaceChildren();};}catch{if(current===ticket)list.textContent='Contact search is unavailable. You can enter a phone number.';}},180);
++    };
++    el.addEventListener('close',()=>{clearTimeout(timer);ticket++;});
++  }
+   function updateTransferDialog(){
+     const el=document.querySelector('dialog[data-transfer-call]');if(!el||el.dataset.transferCall!==state.call?.id)return;
+     const current=state.call.metadata?.transfer?.state;
+@@ -351,6 +380,7 @@
+     if(name==='dismiss-check'&&!state.busy){state.deviceCheckRequired=false;state.checkMessage='';state.error='';render();return;}
+     if(name==='minimize'){state.minimized=!state.minimized;render();return;}
+     if(name==='close'){
++      if(ourParticipant()){state.minimized=true;render();return;}
+       if(dialer.active)pauseDialer();
+       if(state.detail?.supervision?.session&&!['ended','failed','taken_over'].includes(state.detail.supervision.session.state)){state.minimized=true;render();return;}
+       if(state.busy&&!state.waitingToCall){state.minimized=false;render();return;}
+@@ -379,11 +409,16 @@
+       else if(name==='retry-work'){await request(callPath('/retry-work'),{job_id:button.dataset.job});await poll();}
+       else if(name==='tone')await action('dtmf',{digits:button.dataset.digit});
+       else if(name==='answer'){await state.sdkCall?.answer();}
+-      else if(name==='decline'){await action('decline');await state.sdkCall?.hangup();}
++      else if(name==='decline'||name==='hangup'&&ourParticipant()){
++        const guest=!!ourParticipant();await action(name);await state.sdkCall?.hangup();
++        if(guest){state.call=null;state.detail=null;state.notes='';state.answers={};state.dirty=false;state.prepared={};changed();}
++      }
+       else if(name==='mute'){if(!state.sdkCall)throw new Error('This tab does not own the phone audio.');state.muted=!state.muted;if(state.muted)state.sdkCall.muteAudio();else state.sdkCall.unmuteAudio();}
+       else if(['project','schedule','message'].includes(name)){state.minimized=true;ui.project(state.call.project_id,name==='schedule'?'schedule':'comms',name==='message'?{commsView:'sms'}:{});}
+       else if(name==='refresh-context')await refreshContext();
+       else if(name==='policy-date'){state.policyDate=button.dataset.due;state.usePolicy=button.dataset.policy==='true';const input=state.panel.querySelector('[name=due_at]');if(input){const due=new Date(state.policyDate);input.value=state.policyDate.length===10?`${state.policyDate}T09:00`:new Date(due.getTime()-due.getTimezoneOffset()*60000).toISOString().slice(0,16);}}
++      else if(name==='add-person')await addPerson();
++      else if(name==='remove-person')await action('remove_participant',{participant_id:button.dataset.participant});
+       else if(name==='link')await linkProject();else if(name==='keypad')keypad();else if(name==='transfer')await transfer();else if(name==='record')await record();
+       else if(name==='artifacts')await artifacts();
+       else if(name==='delete-artifact')removeArtifact(button.dataset.artifact);
+diff --git a/public/libraries/apps/comms/communications-ui.js b/public/libraries/apps/comms/communications-ui.js
+index f321a31b..c3285b2e 100644
+--- a/public/libraries/apps/comms/communications-ui.js
++++ b/public/libraries/apps/comms/communications-ui.js
+@@ -27,7 +27,7 @@
+     if (document.getElementById('fm-communications-css')) return;
+     const link = document.createElement('link'); link.id='fm-communications-css'; link.rel='stylesheet';
+     const source=new URL(document.currentScript?.src || `${location.origin}/libraries/apps/comms/communications-ui.js`);
+-    link.href=new URL('communications.css?v=20261008-call-center-modes-v2',source).href;
++    link.href=new URL('communications.css?v=20261009-conference-v1',source).href;
+     document.head.append(link);
+   }
+   css();
+diff --git a/public/libraries/apps/comms/communications.css b/public/libraries/apps/comms/communications.css
+index f8086cd4..256ffd7d 100644
+--- a/public/libraries/apps/comms/communications.css
++++ b/public/libraries/apps/comms/communications.css
+@@ -111,6 +111,19 @@
+ 
+ .fmcm-empty>i{margin:0 auto 8px}
+ 
++.fmcp-participants{margin:12px 0;padding:10px 0;border-top:1px solid var(--cm-line,#dadce0);border-bottom:1px solid var(--cm-line,#dadce0)}
++.fmcp-participants>strong{display:flex;align-items:center;gap:7px;font-size:12px;margin-bottom:5px}
++.fmcp-participant{display:flex;align-items:center;gap:8px;padding:7px 0;font-size:12px;min-width:0}
++.fmcp-participant>span{flex:1;min-width:0;overflow-wrap:anywhere}.fmcp-participant small{display:block;color:var(--cm-muted,#5f6368);font-size:11px;line-height:1.5}
++.fmcp .fmcp-participant button{display:grid;place-items:center;flex:none;width:28px;height:28px;padding:0;border:0;background:transparent}
++.fmcp-invite{width:min(420px,calc(100vw - 32px));box-sizing:border-box}.fmcp-invite .fmcm-form-body{min-height:180px}
++.fmcp-invite-modes{display:flex;gap:4px;padding:3px;background:var(--cm-bg,#f1f3f5);border-radius:7px;margin-bottom:16px}
++.fmcp-invite-modes label{position:relative;flex:1;padding:8px;text-align:center;border-radius:5px;font-size:12px;cursor:pointer}
++.fmcp-invite-modes label:has(input:checked){background:var(--panel,#fff);box-shadow:0 1px 3px #0002;font-weight:600}
++.fmcp-invite-modes label:focus-within{outline:2px solid var(--primary,#d93025);outline-offset:1px}.fmcp-invite-modes input{position:absolute;width:1px;height:1px;opacity:0}
++.fmcp-invite-results{max-height:180px;overflow:auto}.fmcp-invite-results button{display:flex;align-items:center;gap:8px;width:100%;padding:9px 2px;border:0;border-bottom:1px solid var(--cm-line,#dadce0);background:transparent;text-align:left;font:inherit;font-size:12px;cursor:pointer}
++.fmcp-invite-results button>span{flex:1;min-width:0;overflow-wrap:anywhere}.fmcp-invite-results small,.fmcp-invite [data-invite-selection]{display:block;color:var(--cm-muted,#5f6368);font-size:11px}
++
+ /* Call assistance stays inside the existing phone surface. */
+ .fmcp-dialer,.fmcp-supervision{padding:12px;border:1px solid var(--border,#e2e5eb);border-radius:8px;margin:12px 0;background:var(--panel,#fff)}
+ .fmcp-dialer p{font-size:12px;line-height:1.5;margin:6px 0 10px;color:var(--muted,#667085)}
+diff --git a/public/libraries/apps/comms/phone-tray.js b/public/libraries/apps/comms/phone-tray.js
+index a0e9becd..8d21071e 100644
+--- a/public/libraries/apps/comms/phone-tray.js
++++ b/public/libraries/apps/comms/phone-tray.js
+@@ -164,7 +164,7 @@
+     }catch(error){if(ticket===sequence)target.textContent=error.message;}
+   }
+   function emptyState(symbol,heading,copy){return `<div class="fm-phone-empty"><span>${icon(symbol)}</span><strong>${heading}</strong><p>${copy}</p></div>`;}
+-  function syncTrayMini(){if(!shell||!win)return;const state=Portal.CustomerPhone?.state,call=state?.call,active=call&&!['ended','failed','canceled','no_answer','busy','rejected'].includes(call.state),compact=win.state.mode==='floating'&&shell.getBoundingClientRect().height<300&&active;shell.dataset.compactCall=String(!!compact);if(!compact)return;const mini=callPane?.querySelector('.fm-phone-mini');if(!mini)return;mini.innerHTML=`<strong>${esc(call.customer_name||formatPhone(call.customer_number)||'Active call')}</strong><small>${esc(ui.label(call.state))} · ${esc(formatPhone(call.customer_number))}</small><div><button type="button" data-phone-mini="mute" ${!state.sdkCall||state.busy?'disabled':''}>${icon(state.muted?'microphone-slash':'microphone')} ${state.muted?'Unmute':'Mute'}</button><button type="button" data-phone-mini="${call.state==='held'?'resume':'hold'}" ${!['held','connected'].includes(call.state)||state.busy?'disabled':''}>${icon(call.state==='held'?'play':'pause')} ${call.state==='held'?'Resume':'Hold'}</button><button type="button" data-phone-mini="hangup" ${state.busy?'disabled':''}>${icon('phone-slash')} End</button></div>`;mini.onclick=event=>{const button=event.target.closest('[data-phone-mini]');if(button)void runtime.action(button.dataset.phoneMini,button);};}
++  function syncTrayMini(){if(!shell||!win)return;const state=Portal.CustomerPhone?.state,call=state?.call,active=call&&!['ended','failed','canceled','no_answer','busy','rejected'].includes(call.state),compact=win.state.mode==='floating'&&shell.getBoundingClientRect().height<300&&active;shell.dataset.compactCall=String(!!compact);if(!compact)return;const mini=callPane?.querySelector('.fm-phone-mini');if(!mini)return;const guest=state.detail?.participants?.some(p=>p.user_id===ui.user()&&['ringing','connecting','connected','uncertain'].includes(p.state));mini.innerHTML=`<strong>${esc(call.customer_name||formatPhone(call.customer_number)||'Active call')}</strong><small>${esc(ui.label(call.state))} · ${esc(formatPhone(call.customer_number))}</small><div><button type="button" data-phone-mini="mute" ${!state.sdkCall||state.busy?'disabled':''}>${icon(state.muted?'microphone-slash':'microphone')} ${state.muted?'Unmute':'Mute'}</button>${guest?'':`<button type="button" data-phone-mini="${call.state==='held'?'resume':'hold'}" ${!['held','connected'].includes(call.state)||state.busy?'disabled':''}>${icon(call.state==='held'?'play':'pause')} ${call.state==='held'?'Resume':'Hold'}</button>`}<button type="button" data-phone-mini="hangup" ${state.busy?'disabled':''}>${icon('phone-slash')} ${guest?'Leave':'End'}</button></div>`;mini.onclick=event=>{const button=event.target.closest('[data-phone-mini]');if(button)void runtime.action(button.dataset.phoneMini,button);};}
+   function audioTools(body){if(body.querySelector('[data-audio-tools]'))return;const tools=document.createElement('div');tools.className='fm-phone-tools';tools.dataset.audioTools='';tools.innerHTML=`<button type="button" class="fm-phone-tools-toggle" data-audio-toggle aria-expanded="false" aria-label="Test audio" title="Test audio">${icon('headphones')}</button><div class="fm-phone-audio-menu" hidden><strong>Test audio</strong><p>Optional microphone and speaker check</p><div class="fm-phone-audio-actions"><button type="button" data-audio-record>${icon('microphone')} Record</button><button type="button" data-audio-tone>${icon('volume-high')} Tone</button></div><audio controls hidden></audio><p data-audio-status role="status"></p></div>`;body.append(tools);
+     const toggle=tools.querySelector('[data-audio-toggle]'),menu=tools.querySelector('.fm-phone-audio-menu'),record=tools.querySelector('[data-audio-record]'),audio=tools.querySelector('audio'),status=tools.querySelector('[data-audio-status]');
+     toggle.onclick=()=>{menu.hidden=!menu.hidden;toggle.setAttribute('aria-expanded',String(!menu.hidden));};
+diff --git a/public/v1/comms/calls/api.ts b/public/v1/comms/calls/api.ts
+index 4c92074d..38019ac9 100644
+--- a/public/v1/comms/calls/api.ts
++++ b/public/v1/comms/calls/api.ts
+@@ -20,6 +20,7 @@ import { changeConversationWorkflow } from "./workflow.js";
+ import { reconcileCall } from "./recovery.js";
+ import { voiceHealth } from './operations.js';
+ import { followUpOptions } from './follow-up-policy.js';
++import { participants, publicParticipants } from './conference.js';
+ import * as s from "./storage.js";
+ import { text, object, type Json } from "./storage.js";
+ 
+@@ -88,7 +89,7 @@ export const registerCustomerCallsApi:FastifyPluginAsync=async app=>{
+     const ctx=await auth(req);const call=requireCallAccess(ctx,(await s.readCall(ctx.orgId,param(req,"callId"))));
+     const artifacts=hasResourcePermission(ctx,"view_call_recordings|manage_communications|manage_company_settings",callDepartmentResource(call))
+       ?(await s.artifacts(ctx.orgId,call.id)).filter(a=>text(a.expires_at)>s.now()).map(a=>({id:a.id,kind:a.kind,state:a.state,expires_at:a.expires_at})):[];
+-    return {ok:true,call,artifacts,permissions:{record:hasResourcePermission(ctx,'record_calls|manage_communications|manage_company_settings',callDepartmentResource(call)),recordings:hasResourcePermission(ctx,'view_call_recordings|manage_communications|manage_company_settings',callDepartmentResource(call)),analysis_read:hasResourcePermission(ctx,'view_call_recordings',callDepartmentResource(call)),analyze:hasResourcePermission(ctx,'analyze_call_recordings',callDepartmentResource(call))&&hasResourcePermission(ctx,'view_call_recordings',callDepartmentResource(call))},supervision:await supervisionView(ctx,call),work:(await Promise.all(s.strings(call.metadata.source_node_ids).map(async id=>(await readNodeRecord(ctx.orgId,id))))).filter(Boolean).map(node=>({id:node!.id,title:node!.title,status:node!.status})),legs:(await s.legs(ctx.orgId,call.id)).map(l=>({id:l.id,role:l.role,state:l.state})),events:(await s.callEvents(ctx.orgId,call.id)),operations:(await s.jobs(ctx.orgId,call.id))};
++    return {ok:true,call,participants:publicParticipants(await participants(ctx.orgId,call.id)),artifacts,permissions:{record:hasResourcePermission(ctx,'record_calls|manage_communications|manage_company_settings',callDepartmentResource(call)),recordings:hasResourcePermission(ctx,'view_call_recordings|manage_communications|manage_company_settings',callDepartmentResource(call)),analysis_read:hasResourcePermission(ctx,'view_call_recordings',callDepartmentResource(call)),analyze:hasResourcePermission(ctx,'analyze_call_recordings',callDepartmentResource(call))&&hasResourcePermission(ctx,'view_call_recordings',callDepartmentResource(call))},supervision:await supervisionView(ctx,call),work:(await Promise.all(s.strings(call.metadata.source_node_ids).map(async id=>(await readNodeRecord(ctx.orgId,id))))).filter(Boolean).map(node=>({id:node!.id,title:node!.title,status:node!.status})),legs:(await s.legs(ctx.orgId,call.id)).map(l=>({id:l.id,role:l.role,state:l.state})),events:(await s.callEvents(ctx.orgId,call.id)),operations:(await s.jobs(ctx.orgId,call.id))};
+   });
+   app.get('/organizations/:orgId/calls/:callId/follow-up-options',async req=>{const ctx=await auth(req);return {ok:true,...await followUpOptions(requireCallAccess(ctx,(await s.readCall(ctx.orgId,param(req,'callId')))))};});
+   app.patch("/organizations/:orgId/calls/:callId/draft",async req=>({ok:true,call:(await saveDraft(await auth(req,true),param(req,"callId"),body(req)))}));
+@@ -239,7 +240,7 @@ export const registerCustomerCallsApi:FastifyPluginAsync=async app=>{
+   app.post("/organizations/:orgId/voice/diagnostics/start",async req=>({ok:true,...(await startDiagnostic(await phoneAuth(req),boundedId.parse(body(req).device_id)))}));
+   app.get("/organizations/:orgId/voice/center",async req=>{
+     const ctx=await auth(req);const filters=callListDepartmentFilter(ctx,{...query(req),active:true});const calls=await s.listCalls(ctx.orgId,filters);
+-    return {ok:true,...calls,calls:await Promise.all(calls.calls.map(async call=>({...call,supervision:await supervisionView(ctx,call)}))),department_context:relevantDepartmentContext(ctx),agents:(await s.resources(ctx.orgId,"endpoint")).filter(e=>!Array.isArray(filters._department_ids)||ctx.organizationStructure?.users.find(u=>u.id===e.user_id)?.department_ids.some(id=>(filters._department_ids as string[]).includes(id))).map(e=>({user_id:e.user_id,name:e.name,availability:text(e.heartbeat_at)<new Date(Date.now()-45_000).toISOString()?"offline":e.availability}))};
++    return {ok:true,...calls,calls:await Promise.all(calls.calls.map(async call=>({...call,supervision:await supervisionView(ctx,call)}))),department_context:relevantDepartmentContext(ctx),agents:(await s.resources(ctx.orgId,"endpoint")).filter(e=>!Array.isArray(filters._department_ids)||ctx.organizationStructure?.users.find(u=>u.id===e.user_id)?.department_ids.some(id=>(filters._department_ids as string[]).includes(id))).map(e=>({user_id:e.user_id,name:e.name,branch_id:text(e.branch_id||'default'),availability:e.registered!==true||text(e.heartbeat_at)<new Date(Date.now()-45_000).toISOString()?"offline":e.availability}))};
+   });
+   // Isolated parser: signatures must be checked against the original bytes, never reserialized JSON.
+   await app.register(async webhook=>{
+diff --git a/public/v1/comms/calls/conference.ts b/public/v1/comms/calls/conference.ts
+new file mode 100644
+--- /dev/null
++++ b/public/v1/comms/calls/conference.ts
+@@ -0,0 +1,101 @@
++import { badRequest, conflict, notFound } from '../../platform/errors.js';
++import { normalizePhone, voiceSettings } from './settings.js';
++import * as s from './storage.js';
++import { object, text, type CustomerCall, type Json } from './storage.js';
++
++export const conferenceLimit = 6;
++export const participantActive = (p: Json) => ['ringing','connecting','connected','uncertain','leaving'].includes(text(p.state));
++export async function participants(orgId: string, callId: string) {
++  const rows=await s.database().prepare("SELECT id FROM customer_voice_resources WHERE organization_id=? AND kind='conference_participant' AND json_extract(data_json,'$.call_id')=?", "SELECT id FROM customer_voice_resources WHERE organization_id=? AND kind='conference_participant' AND data_json::jsonb->>'call_id'=?").all(orgId,callId);
++  return Promise.all(rows.map(async row => (await s.resource(orgId,'conference_participant',text(object(row).id)))!));
++}
++export async function participantForLeg(orgId: string, callId: string, leg: Json | null) {
++  if (!leg || leg.role !== 'participant') return null;
++  const data = object(leg.data);
++  return (await participants(orgId, callId)).find(p => p.id === data.participant_id || p.job_id === data.operation_id) || null;
++}
++export async function activeConferenceForUser(orgId: string, userId: string) {
++  const endpoint = await s.resource(orgId, 'endpoint', userId);
++  if (!text(endpoint?.offered_call_id)) return null;
++  const call = await s.readCall(orgId, text(endpoint?.offered_call_id)).catch(() => null);
++  if (!call || s.terminal.has(call.state)) return null;
++  return (await participants(orgId, call.id)).find(p => p.user_id === userId && participantActive(p)) || null;
++}
++export async function conferenceOccupancy(call: CustomerCall) {
++  const current=await participants(call.organization_id,call.id), legs=await s.legs(call.organization_id,call.id);
++  const guests=current.filter(p=>participantActive(p)||legs.some(l=>l.state!=='ended'&&object(l.data).participant_id===p.id)).length;
++  const pending=await s.database().prepare("SELECT id,data_json FROM customer_voice_resources WHERE organization_id=? AND kind='supervision' AND json_extract(data_json,'$.call_id')=?", "SELECT id,data_json FROM customer_voice_resources WHERE organization_id=? AND kind='supervision' AND data_json::jsonb->>'call_id'=?").all(call.organization_id,call.id);
++  const supervisors=pending.map(row=>object({...object(JSON.parse(text(object(row).data_json))),id:object(row).id})).filter(p=>['dialing','joining','active','updating','leaving','uncertain'].includes(text(p.state))&&!legs.some(l=>l.state!=='ended'&&object(l.data).supervision_id===p.id)).length;
++  return guests+supervisors+legs.filter(l=>l.role!=='participant'&&l.state!=='ended').length;
++}
++export async function observeParticipant(call: CustomerCall, p: Json, leg: Json | null, type: string) {
++  for(const row of await s.database().prepare("SELECT id,payload_json FROM customer_call_jobs WHERE organization_id=? AND call_id=? AND state='uncertain'").all(call.organization_id,call.id)){
++    const job=object(row), intent=object(JSON.parse(text(job.payload_json)));
++    const dial=intent.path==='dial'&&intent.participant_id===p.id&&object(leg?.data).operation_id===job.id;
++    const command=intent.control_id===leg?.control_id&&((intent.path==='conference_join'&&['conference.participant.joined','call.hangup'].includes(type))||(intent.path==='hangup'&&type==='call.hangup'));
++    if(dial||command)await s.database().prepare("UPDATE customer_call_jobs SET state='completed',error='',updated_at=? WHERE organization_id=? AND id=? AND state='uncertain'").run(s.now(),call.organization_id,text(job.id));
++  }
++}
++export async function updateParticipant(orgId: string, callId: string, id: string, patch: Json) {
++  return s.transaction(async () => {
++    const p = await s.resource(orgId, 'conference_participant', id);
++    if (!p || p.call_id !== callId) throw notFound('participant_not_found', 'This participant is unavailable.');
++    // A late answer or provider response must not resurrect a canceled invitation.
++    if (!participantActive(p) && patch.state && patch.state !== p.state) return p;
++    const next = await s.saveResource(orgId, 'conference_participant', id, {...p, ...patch});
++    if (patch.state && patch.state !== p.state) await s.appendEvent(orgId, callId, `communication.call.participant.${patch.state}`, {participant_id:id, name:p.name, phone:p.phone, user_id:p.user_id});
++    if (!participantActive(next) && text(p.user_id)) {
++      const endpoint = await s.resource(orgId, 'endpoint', text(p.user_id));
++      if (endpoint?.offered_call_id === callId) await s.saveResource(orgId, 'endpoint', text(p.user_id), {...endpoint, offered_call_id:'', availability:'unavailable'});
++    }
++    return next;
++  });
++}
++export async function inviteParticipant(call: CustomerCall, actorId: string, input: Json, operationId: string) {
++  if (!['connected','held'].includes(call.state) || !text(call.metadata.conference_id)) throw conflict('conference_not_ready', 'Connect the call before adding someone.');
++  if (['dialing','consulting'].includes(text(object(call.metadata.transfer).state))) throw conflict('transfer_in_progress', 'Finish or cancel the transfer before adding someone.');
++  const settings = await voiceSettings(call.organization_id);
++  if (!settings.enabled) throw conflict('voice_disabled', 'Phone calling is disabled.');
++  const userId = text(input.target_user_id), phone = input.target_phone ? normalizePhone(input.target_phone) : '';
++  if (!!userId === !!phone) throw badRequest('participant_target_required', 'Choose a teammate or enter one phone number.');
++  const current = await participants(call.organization_id, call.id), legs = await s.legs(call.organization_id, call.id);
++  const occupied = current.filter(p => participantActive(p) || legs.some(l => l.state !== 'ended' && object(l.data).participant_id === p.id));
++  if (await conferenceOccupancy(call) >= conferenceLimit) throw conflict('conference_full', `This call supports ${conferenceLimit} people, including you.`);
++  if (occupied.some(p => userId ? p.user_id === userId : p.phone === phone)) throw conflict('participant_already_added', 'This person is already on the call or being called.');
++  let endpoint: Json | null = null;
++  if (userId) {
++    if (userId === actorId || userId === call.owner_user_id) throw badRequest('participant_self', 'You are already on the call.');
++    endpoint = await s.resource(call.organization_id, 'endpoint', userId);
++    if (!endpoint || endpoint.registered !== true || endpoint.availability !== 'available' || text(endpoint.branch_id || 'default') !== call.branch_id || text(endpoint.heartbeat_at) < new Date(Date.now()-45000).toISOString() || !text(endpoint.sip_username)) throw conflict('participant_unavailable', 'Choose an available teammate in this branch.');
++  } else {
++    await validateParticipantNumber(call, phone);
++    if ([call.customer_number, call.business_number].includes(phone) || (await s.resources(call.organization_id,'number')).some(n => n.phone_number === phone)) throw conflict('participant_already_added', 'Choose a different number, or add your teammate by name.');
++  }
++  const app = await s.resource(call.organization_id, 'application');
++  if (!app?.provider_id) throw conflict('phone_not_ready', 'The phone connection is unavailable.');
++  const id = s.id('cp', `${call.id}:${operationId}`);
++  const p = await s.saveResource(call.organization_id, 'conference_participant', id, {call_id:call.id, user_id:userId, phone, name:userId ? text(endpoint?.name) || 'Teammate' : text(input.target_name) || phone, state:'ringing', invited_by:actorId, invited_at:s.now()});
++  if (endpoint) await s.saveResource(call.organization_id, 'endpoint', userId, {...endpoint, offered_call_id:call.id, availability:'busy', last_call_at:s.now()});
++  const jobId = await s.enqueue(call.organization_id, call.id, 'provider', {path:'dial', role:'participant', participant_id:id, payload:{connection_id:app.provider_id, to:userId ? `sip:${text(endpoint?.sip_username)}@sip.telnyx.com` : phone, from:call.business_number, timeout_secs:settings.ring_seconds, time_limit_secs:settings.max_call_minutes*60, custom_headers:[{name:'X-FirstMate-Call',value:call.id}]}}, `${operationId}:participant`);
++  await s.saveResource(call.organization_id,'conference_participant',id,{...p,job_id:jobId});
++  await s.appendEvent(call.organization_id,call.id,'communication.call.participant.invited',{participant_id:id,name:p.name,phone,user_id:userId,actor_user_id:actorId},operationId);
++}
++export async function validateParticipantNumber(call: CustomerCall, phone: string) {
++  const settings = await voiceSettings(call.organization_id);
++  if (!settings.allowed_country_prefixes.some(prefix => phone.startsWith(prefix)) || /^\+1(900|976)/.test(phone)) throw badRequest('destination_not_allowed','This destination is outside your enabled calling regions.');
++  if (await s.resource(call.organization_id,'suppression',phone)) throw conflict('number_suppressed','This contact has requested no phone calls.');
++}
++export async function removeParticipant(call: CustomerCall, id: string, operationId: string, state = 'removed') {
++  const p = (await participants(call.organization_id,call.id)).find(p => p.id === id);
++  if (!p) throw notFound('participant_not_found','This participant is unavailable.');
++  await updateParticipant(call.organization_id,call.id,id,{state,ended_at:s.now()});
++  for (const leg of await s.legs(call.organization_id,call.id)) {
++    if (leg.state !== 'ended' && (object(leg.data).participant_id === id || object(leg.data).operation_id === p.job_id)) await s.enqueue(call.organization_id,call.id,'provider',{path:'hangup',control_id:leg.control_id,payload:{}},`${operationId}:${leg.id}`);
++  }
++}
++export async function finishParticipants(call: CustomerCall) {
++  for (const p of await participants(call.organization_id,call.id)) if (participantActive(p)) await updateParticipant(call.organization_id,call.id,p.id,{state:'left',ended_at:s.now()});
++}
++export function publicParticipants(items: Json[]) {
++  return items.map(p => ({id:p.id,user_id:p.user_id,name:p.name,phone:p.phone,state:p.state,invited_at:p.invited_at,joined_at:p.joined_at,ended_at:p.ended_at,error:p.error}));
++}
+diff --git a/public/v1/comms/calls/recovery.ts b/public/v1/comms/calls/recovery.ts
+index c7f64c7f..db661369 100644
+--- a/public/v1/comms/calls/recovery.ts
++++ b/public/v1/comms/calls/recovery.ts
+@@ -4,6 +4,7 @@ import { processVoiceEvent } from "./worker.js";
+ import { providerCommand,withEndpointLease } from "./voice.js";
+ import * as s from "./storage.js";
+ import { object,text,type Json } from "./storage.js";
++import { activeConferenceForUser } from './conference.js';
+ 
+ /** Reconciliation only accepts provider evidence; an uncertain dial is never replayed. */
+ export async function reconcileCall(orgId:string,callId:string){
+@@ -39,10 +40,10 @@ export async function maintainVoiceSessions(){
+   const endpoints=(await s.database().prepare("SELECT organization_id,id,provider_id,data_json FROM customer_voice_resources WHERE kind='endpoint' AND (json_extract(data_json,'$.heartbeat_at')<? OR json_extract(data_json,'$.credential_expires_at')<?) LIMIT 10", "SELECT organization_id,id,provider_id,data_json FROM customer_voice_resources WHERE kind='endpoint' AND (data_json::jsonb #>> '{heartbeat_at}'<? OR data_json::jsonb #>> '{credential_expires_at}'<?) LIMIT 10")
+     .all(new Date(Date.now()-86400000).toISOString(),s.now()));
+   for(const row of endpoints){const endpoint=object(row),orgId=text(endpoint.organization_id),userId=text(endpoint.id);
+-    if((await s.listCalls(orgId,{owner_user_id:userId,active:true,include_diagnostics:true})).total)continue;
++    if((await s.listCalls(orgId,{owner_user_id:userId,active:true,include_diagnostics:true})).total||await activeConferenceForUser(orgId,userId))continue;
+     try{await withEndpointLease(orgId,userId,async()=>{
+       const current=object((await s.database().prepare("SELECT data_json FROM customer_voice_resources WHERE organization_id=? AND kind='endpoint' AND id=?").get(orgId,userId)));
+-      if(current.data_json!==endpoint.data_json||(await s.listCalls(orgId,{owner_user_id:userId,active:true,include_diagnostics:true})).total)return;
++      if(current.data_json!==endpoint.data_json||(await s.listCalls(orgId,{owner_user_id:userId,active:true,include_diagnostics:true})).total||await activeConferenceForUser(orgId,userId))return;
+       if(endpoint.provider_id)await voiceClient().revokeCredential(text(endpoint.provider_id));
+       (await s.database().prepare("DELETE FROM customer_voice_resources WHERE organization_id=? AND kind='endpoint' AND id=? AND data_json=?").run(orgId,userId,text(endpoint.data_json)));
+     });
+diff --git a/public/v1/comms/calls/service.ts b/public/v1/comms/calls/service.ts
+index fc9693f1..b4714ad4 100644
+--- a/public/v1/comms/calls/service.ts
++++ b/public/v1/comms/calls/service.ts
+@@ -13,6 +13,7 @@ import { emitWorkEvent } from "../../work/engine.js";
+ import { requireVoiceEnvironment, voiceWebhookUrl } from "../../telephony/telnyx.js";
+ import { normalizePhone, voiceSettings } from "./settings.js";
+ import { followUpOptions } from './follow-up-policy.js';
++import { activeConferenceForUser } from './conference.js';
+ import * as store from "./storage.js";
+ import { text, object, strings, type Json, type CustomerCall } from "./storage.js";
+ 
+@@ -134,6 +135,7 @@ export async function createCall(ctx:PlatformAuthContext,input:unknown){
+     const op=(await store.operation(ctx.orgId,"create",body.operation_id,callId,{...body,actor:ctx.userId}));
+     if(op.existing)return (await store.readCall(ctx.orgId,callId));
+     if(body.mode==="browser"){
++      if(await activeConferenceForUser(ctx.orgId,ctx.userId))throw conflict('call_in_progress','Leave the conference before starting another call.');
+       if(await (await import('./supervision.js')).activeSupervisionCallId(ctx.orgId,ctx.userId))throw conflict('supervision_phone_busy','Leave your supervisor session before starting another call.');
+       const active=(await store.listCalls(ctx.orgId,{active:true,limit:200}));
+       if(active.total>=settings.max_concurrent_calls)throw conflict("voice_capacity","All phone lines are busy. Try again shortly.");
+diff --git a/public/v1/comms/calls/supervision.ts b/public/v1/comms/calls/supervision.ts
+index e964c830..deff49ac 100644
+--- a/public/v1/comms/calls/supervision.ts
++++ b/public/v1/comms/calls/supervision.ts
+@@ -6,6 +6,7 @@ import { hasResourcePermission } from '../../workforce/department-access.js';
+ import { requireVoiceEnvironment, voiceClient, voiceWebhookUrl } from '../../telephony/telnyx.js';
+ import { callDepartmentResource, requireCallAccess } from './service.js';
+ import { voiceSettings } from './settings.js';
++import { activeConferenceForUser, conferenceOccupancy, conferenceLimit } from './conference.js';
+ import { providerCommand, withEndpointLease } from './voice.js';
+ import * as s from './storage.js';
+ import { text, object, type Json, type CustomerCall } from './storage.js';
+@@ -87,6 +88,8 @@ export async function superviseCall(ctx: PlatformAuthContext, callId: string, in
+         session = await save(session, {mode: body.mode, state: 'updating', generation: randomUUID()});
+         await queue(session, 'update', op.id);
+       } else {
++        if(await activeConferenceForUser(ctx.orgId,ctx.userId))throw conflict('supervision_phone_busy','Leave your conference before supervising another call.');
++        if(await conferenceOccupancy(call)>=conferenceLimit)throw conflict('conference_full','This call is full.');
+         if ((await s.jobs(ctx.orgId,callId)).some(job => job.state === 'uncertain')) throw conflict('supervision_reconciliation_required', 'A previous provider operation has an unknown result. Reconcile the call before joining again.');
+         if ((await s.listCalls(ctx.orgId, {owner_user_id: ctx.userId, active: true})).total || await activeSupervisionCallId(ctx.orgId, ctx.userId)) throw conflict('supervision_phone_busy', 'Finish your current call before joining another.');
+         if ((await sessions(ctx.orgId, callId)).filter(v => live.has(text(v.state))).length >= 3) throw conflict('supervision_full', 'This call already has the maximum number of supervisors.');
+diff --git a/public/v1/comms/calls/voice.ts b/public/v1/comms/calls/voice.ts
+index f9b9ea57..6dcc4aa1 100644
+--- a/public/v1/comms/calls/voice.ts
++++ b/public/v1/comms/calls/voice.ts
+@@ -12,6 +12,7 @@ import { canUseScopedPermission, hasResourcePermission } from '../../workforce/d
+ import { activeSupervisionCallId, supervisionCallControl, supervisionPermissions } from './supervision.js';
+ import * as s from "./storage.js";
+ import { text, object, type Json, type CustomerCall } from "./storage.js";
++import { activeConferenceForUser, inviteParticipant, participants, participantActive, publicParticipants, removeParticipant } from './conference.js';
+ 
+ export async function voiceStatus(ctx:PlatformAuthContext){
+   const settings=(await voiceSettings(ctx.orgId));const endpoint=(await s.resource(ctx.orgId,"endpoint",ctx.userId));
+@@ -117,7 +118,7 @@ async function createEndpointToken(ctx:PlatformAuthContext,deviceId:string){
+   let endpoint=current;
+   if(!endpoint?.provider_id||endpoint.session_id!==ctx.sessionId||Date.parse(text(endpoint.credential_expires_at))<Date.now()+settings.max_call_minutes*60000+300_000){
+     if(current?.provider_id){
+-      if((await s.listCalls(ctx.orgId,{owner_user_id:ctx.userId,active:true,include_diagnostics:true})).total||await activeSupervisionCallId(ctx.orgId,ctx.userId))throw conflict('call_in_progress','Finish this call before renewing the phone credential.');
++      if((await s.listCalls(ctx.orgId,{owner_user_id:ctx.userId,active:true,include_diagnostics:true})).total || await activeConferenceForUser(ctx.orgId,ctx.userId)||await activeSupervisionCallId(ctx.orgId,ctx.userId))throw conflict('call_in_progress','Finish this call before renewing the phone credential.');
+       await voiceClient().revokeCredential(text(current.provider_id));
+     }
+     const credentialName=`FirstMate ${s.id('user',`${ctx.orgId}:${ctx.userId}:${ctx.sessionId}`)}`;
+@@ -145,6 +146,7 @@ export async function presence(ctx:PlatformAuthContext,input:Json){
+   if(!endpoint||endpoint.device_id!==input.device_id||endpoint.session_id!==ctx.sessionId)throw conflict("phone_owner_changed","This browser no longer owns your phone session.");
+   if(text((await s.resource(ctx.orgId,'endpoint_lock',ctx.userId))?.expires_at)>s.now())return {...endpoint,registered:false,availability:'unavailable'};
+   let offered=false;if(text(endpoint.offered_call_id)){try{const call=(await s.readCall(ctx.orgId,text(endpoint.offered_call_id)));offered=!s.terminal.has(call.state)&&text(object(call.metadata.transfer).target_user_id)===ctx.userId&&['dialing','consulting'].includes(text(object(call.metadata.transfer).state));}catch{}}
++  offered = offered || !!await activeConferenceForUser(ctx.orgId,ctx.userId);
+   const supervisionCallId=await activeSupervisionCallId(ctx.orgId,ctx.userId);
+   const active=offered||!!supervisionCallId||(await s.listCalls(ctx.orgId,{owner_user_id:ctx.userId,active:true,include_diagnostics:true})).total>0;
+   const availability=input.registered===true&&!active&&input.availability==="available"?"available":active?"busy":"unavailable";
+@@ -153,7 +155,7 @@ export async function presence(ctx:PlatformAuthContext,input:Json){
+ export async function disconnectEndpoint(ctx:PlatformAuthContext,deviceId:string){
+   return withEndpointLease(ctx.orgId,ctx.userId,async()=>{
+   const endpoint=(await s.resource(ctx.orgId,"endpoint",ctx.userId));if(!endpoint||endpoint.device_id!==deviceId||endpoint.session_id!==ctx.sessionId)return;
+-  if((await s.listCalls(ctx.orgId,{owner_user_id:ctx.userId,active:true,include_diagnostics:true})).total||await activeSupervisionCallId(ctx.orgId,ctx.userId))throw conflict("call_in_progress","End or leave the active call before disconnecting your phone.");
++  if((await s.listCalls(ctx.orgId,{owner_user_id:ctx.userId,active:true,include_diagnostics:true})).total || await activeConferenceForUser(ctx.orgId,ctx.userId)||await activeSupervisionCallId(ctx.orgId,ctx.userId))throw conflict("call_in_progress","Leave or end the active call before disconnecting your phone.");
+   (await s.saveResource(ctx.orgId,'endpoint',ctx.userId,{...endpoint,registered:false,availability:'unavailable'}));
+   if(endpoint.provider_id)await voiceClient().revokeCredential(text(endpoint.provider_id));
+   (await s.database().prepare("DELETE FROM customer_voice_resources WHERE organization_id=? AND kind='endpoint' AND id=?").run(ctx.orgId,ctx.userId));
+@@ -170,7 +172,7 @@ export async function startDiagnostic(ctx:PlatformAuthContext,deviceId:string){
+   if(!endpoint?.provider_id||!app?.provider_id||endpoint.session_id!==ctx.sessionId||endpoint.device_id!==deviceId||endpoint.registered!==true||text(endpoint.heartbeat_at)<new Date(Date.now()-45000).toISOString())throw conflict("phone_not_ready","Connect your browser phone first.");
+   return (await s.transaction(async ()=>{
+     const active=(await s.listCalls(ctx.orgId,{active:true,include_diagnostics:true}));
+-    if(active.calls.some(c=>c.owner_user_id===ctx.userId)||await activeSupervisionCallId(ctx.orgId,ctx.userId))throw conflict("call_in_progress","Run the device check between calls.");
++    if(await activeConferenceForUser(ctx.orgId,ctx.userId)||active.calls.some(c=>c.owner_user_id===ctx.userId)||await activeSupervisionCallId(ctx.orgId,ctx.userId))throw conflict("call_in_progress","Run the device check between calls.");
+     const recent=Number(object((await s.database().prepare("SELECT count(*) AS n FROM customer_calls WHERE organization_id=? AND mode='diagnostic' AND created_at>?").get(ctx.orgId,new Date(Date.now()-86400000).toISOString()))).n);
+     if(recent>=50)throw conflict("diagnostic_daily_limit","The organization has reached today's device-check limit.");
+     const number=(await s.resources(ctx.orgId,"number")).find(n=>n.status==='active');if(!number)throw conflict("voice_number_required","Connect a business number first.");
+@@ -183,10 +185,23 @@ export async function startDiagnostic(ctx:PlatformAuthContext,deviceId:string){
+ export async function providerCommand(call:CustomerCall,controlId:string,action:string,payload:Json={},key:string=randomUUID()){
+   return (await s.enqueue(call.organization_id,call.id,"provider",{path:action,control_id:controlId,payload},`${call.id}:${key}`));
+ }
+-export const callActionSchema=z.object({operation_id:z.string().min(8).max(180),action:z.enum(["hangup","hold","resume","dtmf","consent","record_start","record_stop","record_pause","record_resume","transfer","transfer_cancel","transfer_complete","accept","decline"]),
+-  digits:z.string().regex(/^[0-9*#wW]{1,32}$/).optional(),consent:z.enum(["granted","refused","withdrawn"]).optional(),target_user_id:z.string().max(180).optional(),transfer_mode:z.enum(["warm","cold"]).default("warm")});
++export const callActionSchema=z.object({operation_id:z.string().min(8).max(180),action:z.enum(["hangup","hold","resume","dtmf","consent","record_start","record_stop","record_pause","record_resume","transfer","transfer_cancel","transfer_complete","accept","decline","add_participant","remove_participant"]),
++  digits:z.string().regex(/^[0-9*#wW]{1,32}$/).optional(),consent:z.enum(["granted","refused","withdrawn"]).optional(),target_user_id:z.string().max(180).optional(),target_phone:z.string().max(40).optional(),target_name:z.string().max(250).optional(),participant_id:z.string().max(180).optional(),transfer_mode:z.enum(["warm","cold"]).default("warm")});
+ export async function callAction(ctx:PlatformAuthContext,callId:string,input:unknown){
+   const body=callActionSchema.parse(input);const call=requireCallAccess(ctx,(await s.readCall(ctx.orgId,callId)));
++  const guest=(await participants(ctx.orgId,callId)).find(p=>p.user_id===ctx.userId&&participantActive(p));
++  if(guest&&['accept','decline','hangup'].includes(body.action)){
++    await s.transaction(async()=>{
++      const op=await s.operation(ctx.orgId,'action',body.operation_id,call.id,{...body,actor:ctx.userId});if(op.existing)return;
++      if(body.action==='accept'){
++        const leg=(await s.legs(ctx.orgId,callId)).find(l=>object(l.data).participant_id===guest.id&&l.state!=='ended');
++        if(!leg)throw conflict('participant_not_ready','Your invitation is still connecting.');
++        await providerCommand(call,text(leg.control_id),'answer',{},op.id);
++      }else await removeParticipant(call,guest.id,op.id,body.action==='decline'?'declined':'left');
++      await s.finishOperation(ctx.orgId,op.id,{call_id:call.id});
++    });
++    return {call,participants:publicParticipants(await participants(ctx.orgId,callId))};
++  }
+   if(await supervisionCallControl(ctx,call,body))return {call:await s.readCall(ctx.orgId,callId)};
+   const consultation=text(object(call.metadata.transfer).target_user_id)===ctx.userId&&call.owner_user_id!==ctx.userId&&['dialing','consulting'].includes(text(object(call.metadata.transfer).state));
+   if(consultation&&['accept','decline','hangup'].includes(body.action)){
+@@ -214,7 +229,12 @@ export async function callAction(ctx:PlatformAuthContext,callId:string,input:unk
+       for(const leg of callLegs.filter(l=>l.state!=="ended"))(await send(leg,"hangup",{},`hangup:${leg.id}`));
+       if(!callLegs.length)updated=(await s.patchCall(ctx.orgId,call.id,{state:"canceled",ended_at:s.now(),wrap_up_state:"needs_wrap_up"}));
+     }else if(body.action==="accept")(await send(agent,"answer"));
+-    else if(body.action==="hold"||body.action==="resume")(await send(customer,body.action==="hold"?"conference_hold":"conference_unhold",{},body.action));
++    else if(body.action==="hold"||body.action==="resume"){
++      await send(customer,body.action==="hold"?"conference_hold":"conference_unhold",{},body.action);
++      for(const leg of callLegs.filter(l=>l.role==='participant'&&l.state==='answered'))await send(leg,body.action==="hold"?"conference_hold":"conference_unhold",{},`${body.action}:${leg.id}`);
++    }
++    else if(body.action==='add_participant')await inviteParticipant(requireCallAccess(ctx,await s.readCall(ctx.orgId,callId),true),ctx.userId,body,op.id);
++    else if(body.action==='remove_participant')await removeParticipant(call,text(body.participant_id),op.id);
+     else if(body.action==="dtmf"){if(!body.digits)throw badRequest("digits_required","Enter keypad digits.");(await send(customer,"send_dtmf",{digits:body.digits}));}
+     else if(body.action==="consent"){
+       if(!body.consent)throw badRequest("consent_required","Record whether the caller agreed to recording.");
+@@ -228,6 +248,7 @@ export async function callAction(ctx:PlatformAuthContext,callId:string,input:unk
+       (await send(customer,body.action,body.action==="record_start"?{format:"mp3",channels:"dual",play_beep:true,transcription:settings.transcription_enabled,max_length:settings.max_call_minutes*60}:{}));
+       updated=(await s.patchCall(ctx.orgId,call.id,{metadata:{...call.metadata,capture:{state:"pending",action:body.action,requested_at:s.now()}}}));
+     }else if(body.action==="transfer"){
++      if((await participants(ctx.orgId,callId)).some(participantActive))throw conflict('conference_transfer_unavailable','Remove added participants before transferring this call.');
+       if(!customer||!agent)throw conflict("call_not_connected","Connect the call before transferring it.");
+       if(['dialing','consulting'].includes(text(object(call.metadata.transfer).state)))throw conflict("transfer_in_progress","Finish or cancel the current transfer first.");
+       const target=(await s.resource(ctx.orgId,"endpoint",text(body.target_user_id)));
+@@ -252,6 +273,6 @@ export async function callAction(ctx:PlatformAuthContext,callId:string,input:unk
+       updated=(await s.patchCall(ctx.orgId,call.id,{owner_user_id:text(object(call.metadata.transfer).target_user_id),metadata:{...call.metadata,transfer:{...object(call.metadata.transfer),state:"completed"}}}));
+     }
+     (await s.appendEvent(ctx.orgId,call.id,`communication.call.action.${body.action}`,{actor_user_id:ctx.userId},op.id));
+-    (await s.finishOperation(ctx.orgId,op.id,{call_id:call.id}));return {call:updated};
++    (await s.finishOperation(ctx.orgId,op.id,{call_id:call.id}));return {call:updated,participants:publicParticipants(await participants(ctx.orgId,callId))};
+   }));
+ }
+diff --git a/public/v1/comms/calls/worker.ts b/public/v1/comms/calls/worker.ts
+index 6cf0f384..01d1e67a 100644
+--- a/public/v1/comms/calls/worker.ts
++++ b/public/v1/comms/calls/worker.ts
+@@ -16,6 +16,7 @@ import { recordVoiceCost } from './operations.js';
+ import { executeSupervision, supervisionEvent, supervisionFailed, maintainSupervisionSessions } from './supervision.js';
+ import * as s from "./storage.js";
+ import { text, object, strings, type Json, type CustomerCall } from "./storage.js";
++import { observeParticipant, conferenceLimit, finishParticipants, participantActive, participantForLeg, updateParticipant, validateParticipantNumber } from './conference.js';
+ 
+ function decodeState(payload:Json){try{return object(JSON.parse(Buffer.from(text(payload.client_state),"base64").toString()));}catch{return {};}}
+ async function queueDial(call:CustomerCall,role:string,to:string,key:string){
+@@ -29,6 +30,7 @@ async function endCall(call:CustomerCall,cause:string,at=s.now()){
+   (await s.patchCall(call.organization_id,call.id,{state:call.connected_at?"ended":cause==="USER_BUSY"?"busy":cause==="ORIGINATOR_CANCEL"?"canceled":"no_answer",
+     ended_at:at,wrap_up_state:"needs_wrap_up",metadata:{...call.metadata,hangup_cause:cause}}));
+   for(const leg of (await s.legs(call.organization_id,call.id)).filter(l=>l.state!=="ended"))(await providerCommand(call,text(leg.control_id),"hangup",{},`end:${leg.id}`));
++  await finishParticipants(call);
+   (await s.releaseClaims(call.organization_id,call.id));
+   const endpoint=(await s.resource(call.organization_id,"endpoint",call.owner_user_id));
+   if(endpoint)(await s.saveResource(call.organization_id,"endpoint",call.owner_user_id,{...endpoint,availability:"unavailable",wrap_until:new Date(Date.now()+(await voiceSettings(call.organization_id)).wrap_up_seconds*1000).toISOString()}));
+@@ -47,7 +49,7 @@ async function setCapture(call:CustomerCall,state:string,extra:Json={}){return (
+ async function ensureConference(call:CustomerCall){
+   const legs=(await s.legs(call.organization_id,call.id));const agent=legs.find(l=>l.role==="agent"&&l.state==="answered");const customer=legs.find(l=>l.role==="customer"&&l.state==="answered");
+   if(!agent||!customer)return;
+-  if(!text(call.metadata.conference_id))(await s.enqueue(call.organization_id,call.id,"provider",{path:"conference_create",payload:{call_control_id:agent.control_id,name:call.id,beep_enabled:"never",start_conference_on_create:true,end_conference_on_exit:false,max_participants:6,
++  if(!text(call.metadata.conference_id))(await s.enqueue(call.organization_id,call.id,"provider",{path:"conference_create",payload:{call_control_id:agent.control_id,name:call.id,beep_enabled:"never",start_conference_on_create:true,end_conference_on_exit:false,max_participants:conferenceLimit,
+     duration_minutes:(await voiceSettings(call.organization_id)).max_call_minutes,client_state:Buffer.from(JSON.stringify({call_id:call.id})).toString("base64")}},`${call.id}:conference`));
+   else (await providerCommand(call,text(customer.control_id),"conference_join",{},"join-customer"));
+ }
+@@ -93,7 +95,7 @@ export async function processVoiceEvent(body:Json){
+   const current=call;const role=text(known?.role||state.role||(call.direction==="inbound"?"customer":""));
+   if(controlId&&role){
+     const legState=type==="call.hangup"?"ended":type==="call.answered"?"answered":text(known?.state)||"initiated";
+-    (await s.saveLeg(call.organization_id,call.id,role,{...payload,...(state.operation_id?{operation_id:state.operation_id}:{}),...(state.supervision_id?{supervision_id:state.supervision_id}:{}),state:legState},at));
++    (await s.saveLeg(call.organization_id,call.id,role,{...payload,...(state.operation_id?{operation_id:state.operation_id}:{}),...(state.participant_id?{participant_id:state.participant_id}:{}),...(state.supervision_id?{supervision_id:state.supervision_id}:{}),state:legState},at));
+   }
+   if(type==="call.recording.saved"){
+     const recordingId=text(payload.recording_id);if(!recordingId)return;
+@@ -117,6 +119,25 @@ export async function processVoiceEvent(body:Json){
+   }
+   // Delayed events for a previous ringing leg cannot reroute or end its replacement.
+   if(known?.state==='ended'&&['call.answered','call.hangup','call.initiated'].includes(type))return;
++  if(role==='participant'){
++    const p=await participantForLeg(call.organization_id,call.id,await s.legByControl(controlId));
++    if(p)await observeParticipant(call,p,await s.legByControl(controlId),type);
++    if(type==='call.hangup'||type==='conference.participant.left'){
++      if(p)await updateParticipant(call.organization_id,call.id,p.id,{state:p.state==='connected'?'left':p.state==='connecting'?'failed':'no_answer',ended_at:at});
++      if(type==='conference.participant.left')await providerCommand(call,controlId,'hangup',{},`left-participant:${controlId}`);
++      return;
++    }
++    if(['call.initiated','call.answered'].includes(type)&&(!p||!participantActive(p))){await providerCommand(call,controlId,'hangup',{},`removed-participant:${controlId}`);return;}
++    if(type==='call.answered'&&p){
++      if(p.state!=='connected')await updateParticipant(call.organization_id,call.id,p.id,{state:'connecting',error:''});
++      await providerCommand(call,controlId,'conference_join',{},`join-participant:${controlId}`);return;
++    }
++    if(type==='conference.participant.joined'&&p){
++      if(!participantActive(p))await providerCommand(call,controlId,'hangup',{},`removed-participant:${controlId}`);
++      else await updateParticipant(call.organization_id,call.id,p.id,{state:'connected',joined_at:p.joined_at||at,error:''});
++      return;
++    }
++  }
+   if(type==="call.answered"){
+     if(call.mode==='diagnostic'){
+       (await s.patchCall(call.organization_id,call.id,{state:'connected',connected_at:at}));
+@@ -203,14 +224,23 @@ async function executeProvider(job:Json,payload:Json){
+   let result:Json;
+   if(action==="dial"){
+     if(payload.role==='consult'&&object(call.metadata.transfer).state!=='dialing')return {canceled:true};
++    if(payload.role==='participant'){
++      const p=await s.resource(orgId,'conference_participant',text(payload.participant_id));
++      if(!p||p.call_id!==callId||p.job_id!==commandId||p.state!=='ringing')return {canceled:true};
++      if(text(p.phone))await validateParticipantNumber(call,text(p.phone));
++    }
+     const settings=(await voiceSettings(orgId));if(!settings.enabled)throw conflict('voice_disabled',"Voice was disabled before dialing");
+     if(payload.role==="customer"&&(await s.resource(orgId,"suppression",call.customer_number)))throw conflict('number_suppressed',"Customer requested no further calls");
+-    const correlation={...decodeState(input),call_id:callId,role:payload.role,operation_id:commandId};
++    const correlation={...decodeState(input),call_id:callId,role:payload.role,operation_id:commandId,...(payload.participant_id?{participant_id:payload.participant_id}:{})};
+     result=await voiceClient().dial({...input,client_state:Buffer.from(JSON.stringify(correlation)).toString('base64')});if(!text(result.call_control_id))throw new Error("Provider dial response did not include a call ID");
+     // Provider event timestamps beat a synchronous create response, including when the webhook arrives first.
+-    (await s.saveLeg(orgId,callId,text(payload.role),{...result,operation_id:commandId,state:"initiated"},"0000-01-01T00:00:00.000Z"));
++    (await s.saveLeg(orgId,callId,text(payload.role),{...result,operation_id:commandId,...(payload.participant_id?{participant_id:payload.participant_id}:{}),state:"initiated"},"0000-01-01T00:00:00.000Z"));
+     call=(await s.readCall(orgId,callId));if(s.terminal.has(call.state)||call.metadata.canceled_at)(await providerCommand(call,text(result.call_control_id),"hangup",{},`canceled-response:${result.call_control_id}`));
+     else if(payload.role==='consult'&&(object(call.metadata.transfer).state!=='dialing'||object(call.metadata.transfer).job_id!==commandId))(await providerCommand(call,text(result.call_control_id),'hangup',{},`canceled-consult-response:${commandId}`));
++    else if(payload.role==='participant'){
++      const p=await s.resource(orgId,'conference_participant',text(payload.participant_id));
++      if(!p||!participantActive(p))await providerCommand(call,text(result.call_control_id),'hangup',{},`canceled-participant-response:${commandId}`);
++    }
+   }else if(action==="conference_create"){
+     result=await voiceClient().createConference(input);if(!text(result.id))throw new Error("Provider conference response did not include an ID");
+     call=(await s.readCall(orgId,callId));
+@@ -218,13 +248,19 @@ async function executeProvider(job:Json,payload:Json){
+   }else if(action.startsWith("conference_")){
+     const conferenceId=text(call.metadata.conference_id);if(!conferenceId)throw new Error("The call conference is not ready");
+     const command=action.slice(11);const control=text(payload.control_id);
+-    result=await voiceClient().conference(conferenceId,command,command==="join"?{call_control_id:control,beep_enabled:"never",end_conference_on_exit:false,command_id:commandId}:{call_control_ids:[control],command_id:commandId});
++    const participant=await participantForLeg(orgId,callId,await s.legByControl(control));
++    if(command==='join'&&participant&&!participantActive(participant))return {canceled:true};
++    result=await voiceClient().conference(conferenceId,command,command==="join"?{call_control_id:control,beep_enabled:participant?'on_enter':'never',end_conference_on_exit:false,hold:!!participant&&call.state==='held',command_id:commandId}:{call_control_ids:[control],command_id:commandId});
+     call=(await s.readCall(orgId,callId));
+     const leg=(await s.legByControl(control));
+     if(command==="join"&&leg?.role==="customer"){
+       (await s.patchCall(orgId,callId,{state:"connected",connected_at:call.connected_at||s.now()}));(await s.appendEvent(orgId,callId,"communication.call.connected",{},`${callId}:connected`));
+     }
+-    if(command==="hold"||command==="unhold")(await s.patchCall(orgId,callId,{state:command==="hold"?"held":"connected"}));
++    if((command==="hold"||command==="unhold")&&leg?.role==='customer')(await s.patchCall(orgId,callId,{state:command==="hold"?"held":"connected"}));
++    if(command==='join'&&participant){
++      const current=await updateParticipant(orgId,callId,participant.id,{state:'connected',joined_at:participant.joined_at||s.now(),error:''});
++      if(!participantActive(current)||s.terminal.has(call.state)||call.metadata.canceled_at)await providerCommand(call,control,'hangup',{},`canceled-participant-join:${commandId}`);
++    }
+     if(command==="join"&&leg?.role==="consult"&&object(call.metadata.transfer).mode==="cold"&&['dialing','consulting'].includes(text(object(call.metadata.transfer).state))){
+       const agent=(await s.legs(orgId,callId)).find(l=>l.role==="agent"&&l.state!=="ended");const customer=(await s.legs(orgId,callId)).find(l=>l.role==="customer"&&l.state!=="ended");
+       (await s.transaction(async db=>{
+@@ -263,6 +299,12 @@ export async function processOneJob(workerId:string,lane:'all'|'voice'|'backgrou
+     const retry=!ambiguous&&!(error instanceof PlatformError)&&job.kind!=="provider"&&job.attempts<8;
+     (await s.finishJob(text(job.id),workerId,ambiguous?"uncertain":retry?"pending":"failed",{},job.kind==='provider'?(ambiguous?'Provider response is uncertain; reconcile before retrying.':error instanceof PlatformError?error.message:'Provider rejected this operation.'):error instanceof Error?error.message:"Call processing failed",Math.min(300_000,1000*2**job.attempts)));
+     if(job.kind==="provider"&&callId){let call=(await s.readCall(orgId,callId));
++      const participant=payload.participant_id?await s.resource(orgId,'conference_participant',text(payload.participant_id)):await participantForLeg(orgId,callId,await s.legByControl(text(payload.control_id)));
++      if(participant){
++        await updateParticipant(orgId,callId,participant.id,{state:ambiguous?'uncertain':'failed',error:ambiguous?'Connection status is unknown. Check call status before trying again.':error instanceof PlatformError?error.message:'Could not connect this person.'});
++        if(!ambiguous&&payload.control_id&&payload.path!=='hangup')await providerCommand(call,text(payload.control_id),'hangup',{},`failed-participant:${job.id}`);
++        return true;
++      }
+       if(text(payload.path).startsWith('supervisor_')) { await supervisionFailed(job,payload,ambiguous); return true; }
+       if(!ambiguous&&payload.path==='dial'){
+         if(payload.role==='consult'){

@@ -5,10 +5,17 @@
   const ui=Portal.CommunicationsUI;
   const {esc,request,uid,icon,label,date,field,area,select,dialog}=ui;
   const terminal=new Set(['ended','canceled','failed','no_answer','busy','rejected']);
+  const participantActive=p=>['ringing','connecting','connected','held','holding','resuming','uncertain','leaving'].includes(p.state);
+  const ourParticipant=()=>state.detail?.participants?.find(p=>p.user_id===ui.user()&&participantActive(p));
+  const formatPhone=value=>Portal.PhoneTray?.formatPhone(value)||value;
   const state={call:null,detail:null,entry:null,scripts:[],status:null,client:null,sdkCall:null,registered:false,available:false,
     busy:false,error:'',dirty:false,notes:'',answers:{},panel:null,minimized:false,muted:false,localId:uid(),prepared:{},poll:0,saveTimer:0,tokenTimer:0,heartbeat:0,readyPromise:null,connectionSequence:0,connecting:false,disconnectPromise:null,openSequence:0};
   const audioKey='fm-customer-phone-audio';
   function audioPreferences(){try{return JSON.parse(localStorage.getItem(`${audioKey}:${scope()}`)||'{}');}catch{return {};}}
+  const checkKey=()=>`fm-customer-phone-check:${scope()}:${deviceId}`;
+  function checkValid(){try{const saved=JSON.parse(sessionStorage.getItem(checkKey())||'null');return saved&&saved.at>Date.now()-24*3600_000&&saved.audio===JSON.stringify(audioPreferences());}catch{return false;}}
+  function rememberCheck(){try{sessionStorage.setItem(checkKey(),JSON.stringify({at:Date.now(),audio:JSON.stringify(audioPreferences())}));}catch{}}
+  function clearCheck(){try{sessionStorage.removeItem(checkKey());}catch{}state.deviceChecked=false;}
   function audioElement(){const audio=document.getElementById('fm-customer-call-audio')||document.createElement('audio');audio.id='fm-customer-call-audio';audio.autoplay=true;audio.hidden=true;if(!audio.isConnected)document.body.append(audio);return audio;}
   async function applyAudio(client,preferences=audioPreferences()){
     if(client)await client.setAudioSettings(preferences.microphone?{micId:preferences.microphone,deviceId:{exact:preferences.microphone}}:{});
@@ -146,6 +153,7 @@
     const checked=new Set([...state.panel?.querySelectorAll('[data-source]:checked')||[]].map(e=>e.dataset.source));
     const el=ensurePanel(),c=state.call,p=state.prepared,values=readForm();el.hidden=false;el.classList.toggle('minimized',state.minimized);
     if(state.loadingCall){el.innerHTML=`<header class="fmcp-header"><strong style="flex:1" role="status">${(globalThis.PlatformLanguage?.htmlText("comms","m_8f38504a814a9d","Opening call…") ?? "Opening call…")}</strong><button data-phone="close" aria-label="${(globalThis.PlatformLanguage?.htmlText("comms","m_314202e0941af2","Close call workspace") ?? "Close call workspace")}">`+icon('xmark')+'</button></header>';return;}
+    const guest=ourParticipant();
     const consultation=c?.metadata?.transfer?.target_user_id===ui.user()&&c.owner_user_id!==ui.user()&&['dialing','consulting'].includes(c.metadata.transfer.state);
     const observer=c?.owner_user_id&&c.owner_user_id!==ui.user();
     const supervising=state.detail?.supervision?.session&&!['ended','failed','taken_over'].includes(state.detail.supervision.session.state);
@@ -162,16 +170,17 @@
       ${state.deviceChecked&&state.checkMessage&&!c?`<p data-phone-check-success class="fmcm-help" role="status">${esc(state.checkMessage)} Click Start call when you are ready.</p>`:''}
       ${state.outcomeRequested&&c&&!saved?`<p class="fmcm-help" role="status">${active?'Ending the call…':'Choose the call outcome, then click Save outcome to finish.'}</p>`:''}
       ${dialerMarkup()}${supervisionMarkup()}
-      ${String(c?.metadata?.provider_error?`<p class="fmcm-error">${esc(c.metadata.provider_error.message)} <button data-phone="reconcile">${(globalThis.PlatformLanguage?.htmlText("comms","m_0594685d991928","Check provider status") ?? "Check provider status")}</button></p>`:'')}
+      ${String(c?.metadata?.provider_error&&!terminal.has(c.state)?`<p class="fmcm-error">${esc(c.metadata.provider_error.message)} <button data-phone="reconcile">${(globalThis.PlatformLanguage?.htmlText("comms","m_0594685d991928","Check provider status") ?? "Check provider status")}</button></p>`:'')}
       ${String((state.detail?.operations||[]).filter(job=>job.state==='failed'&&['wrap_up','recording_ingest','missed_callback'].includes(job.kind)).map(job=>`<p class="fmcm-error">${((v0) => globalThis.PlatformLanguage?.htmlText("comms","m_c27c615bb5fb5f",`${v0} could not finish. Your call record is saved. `,{v0}) ?? `${v0} could not finish. Your call record is saved. `)(esc(label(job.kind)))}<button data-phone="retry-work" data-job="${esc(job.id)}">${(globalThis.PlatformLanguage?.htmlText("comms","m_6bf817428776f2","Retry saved work") ?? "Retry saved work")}</button></p>`).join(''))}
       ${String(c?`<div class="fmcp-controls">${incoming?`<button class="fmcm-primary" data-phone="answer">${((v0) => globalThis.PlatformLanguage?.htmlText("comms","m_0675e6689d03c4",`${v0} Answer`,{v0}) ?? `${v0} Answer`)(icon('phone'))}</button><button data-phone="decline">${(globalThis.PlatformLanguage?.htmlText("comms","m_0bba16c1fd1444","Decline") ?? "Decline")}</button>`:''}
       ${c?.metadata?.voicemail_drop?.enabled?`<p class="fmcm-help">Voicemail drop: ${esc(({pending:'Listening for a person or voicemail',machine:'Waiting for the voicemail beep',playing:'Leaving your recorded message',completed:'Message delivered',skipped:'Continuing with the caller',interrupted:'Playback interrupted',failed:'Message could not be delivered',uncertain:'Delivery could not be confirmed'})[c.metadata.voicemail_drop.state]||c.metadata.voicemail_drop.state)}</p>`:''}
-      ${consultation?`<p class="fmcm-help">${(globalThis.PlatformLanguage?.htmlText("comms","m_9dd0f47c454eb7","Consultation in progress. The customer is on hold with your teammate.") ?? "Consultation in progress. The customer is on hold with your teammate.")}</p><button data-phone="decline">${(globalThis.PlatformLanguage?.htmlText("comms","m_61a1d24eba2d59","Leave consultation") ?? "Leave consultation")}</button>`:active&&!observer?`<button data-phone="mute" ${!state.sdkCall?'disabled':''}>${icon(state.muted?'microphone-slash':'microphone')} ${state.muted?'Unmute':'Mute'}</button><button data-phone="${c.state==='held'?'resume':'hold'}" ${!connected?'disabled':''}>${icon(c.state==='held'?'play':'pause')} ${c.state==='held'?'Resume':'Hold'}</button><button data-phone="keypad" ${!connected?'disabled':''}>${((v8) => globalThis.PlatformLanguage?.htmlText("comms","m_a5d2ced26e1d6f",`${v8} Keypad`,{v8}) ?? `${v8} Keypad`)(icon('grip'))}</button><button data-phone="transfer" ${!connected?'disabled':''}>${((v10) => globalThis.PlatformLanguage?.htmlText("comms","m_63420f2e9bb582",`${v10} Transfer`,{v10}) ?? `${v10} Transfer`)(icon('arrow-right-arrow-left'))}</button><button class="fmcm-danger" data-phone="hangup">${((v11) => globalThis.PlatformLanguage?.htmlText("comms","m_121a37c1f0d952",`${v11} End call`,{v11}) ?? `${v11} End call`)(icon('phone-slash'))}</button>`:''}
+      ${guest?`<button data-phone="mute" ${!state.sdkCall?'disabled':''}>${icon(state.muted?'microphone-slash':'microphone')} ${state.muted?'Unmute':'Mute'}</button><button data-phone="hangup">${icon('phone-slash')} Leave call</button>`:consultation?`<p class="fmcm-help">${(globalThis.PlatformLanguage?.htmlText("comms","m_9dd0f47c454eb7","Consultation in progress. The customer is on hold with your teammate.") ?? "Consultation in progress. The customer is on hold with your teammate.")}</p><button data-phone="decline">${(globalThis.PlatformLanguage?.htmlText("comms","m_61a1d24eba2d59","Leave consultation") ?? "Leave consultation")}</button>`:active&&!observer?`<button data-phone="mute" ${!state.sdkCall?'disabled':''}>${icon(state.muted?'microphone-slash':'microphone')} ${state.muted?'Unmute':'Mute'}</button><button data-phone="${c.state==='held'?'resume':'hold'}" ${!connected?'disabled':''}>${icon(c.state==='held'?'play':'pause')} ${c.state==='held'?'Resume':'Hold'}</button><button data-phone="keypad" ${!connected?'disabled':''}>${((v8) => globalThis.PlatformLanguage?.htmlText("comms","m_a5d2ced26e1d6f",`${v8} Keypad`,{v8}) ?? `${v8} Keypad`)(icon('grip'))}</button><button data-phone="add-person" ${!connected?'disabled':''}>${icon('user-plus')} Add person</button><button data-phone="transfer" ${!connected||state.detail?.participants?.some(participantActive)?'disabled':''}>${((v10) => globalThis.PlatformLanguage?.htmlText("comms","m_63420f2e9bb582",`${v10} Transfer`,{v10}) ?? `${v10} Transfer`)(icon('arrow-right-arrow-left'))}</button>${state.detail?.participants?.some(p=>['connected','held'].includes(p.state))&&c.state==='connected'?`<button data-phone="leave-conference">${icon('arrow-right-from-bracket')} Leave call</button>`:''}<button class="fmcm-danger" data-phone="hangup">${icon('phone-slash')} ${state.detail?.participants?.some(participantActive)?'End for everyone':'End call'}</button>`:''}
       ${c.project_id?`<button data-phone="project">${((v0) => globalThis.PlatformLanguage?.htmlText("comms","m_d29bbd8b50abe3",`${v0} Project`,{v0}) ?? `${v0} Project`)(icon('folder-open'))}</button><button data-phone="schedule">${((v1) => globalThis.PlatformLanguage?.htmlText("comms","m_1ba8da8140fc77",`${v1} Schedule`,{v1}) ?? `${v1} Schedule`)(icon('calendar-plus'))}</button><button data-phone="message">${((v2) => globalThis.PlatformLanguage?.htmlText("comms","m_b1ce44f713880b",`${v2} Message`,{v2}) ?? `${v2} Message`)(icon('comment'))}</button>`:`<button data-phone="link">${((v0) => globalThis.PlatformLanguage?.htmlText("comms","m_d6f0ce6293e8d9",`${v0} Link project`,{v0}) ?? `${v0} Link project`)(icon('link'))}</button>`}
       ${connected&&(state.status?.settings?.recording_enabled||['recording','paused'].includes(capture))?`<button data-phone="record">${icon('circle-dot')} ${capture==='recording'?'Pause recording':capture==='paused'?'Resume recording':'Record with consent'}</button>${['recording','paused'].includes(capture)?`<button data-phone="record_stop">${(globalThis.PlatformLanguage?.htmlText("comms","m_71ef1099bbe0fc","Stop recording") ?? "Stop recording")}</button>`:''}`:''}</div>`:
       `${field('Phone number or contact','customer_number',values.customer_number??number,'text','required autocomplete="off"')}
       <div class="fmcm-form-grid">${select('Call method','mode',state.status?.settings?.enabled?[['browser','FirstMate phone'],['external','My external phone']]:[['external','My external phone']],values.mode||(state.status?.settings?.enabled?'browser':'external'))}${select('Call script','script_id',[['','No script'],...state.scripts.filter(s=>s.status==='published').map(s=>[s.id,s.title])],values.script_id||'')}</div>
       <p class="fmcm-help">External phone lets you record call notes without browser audio.</p><button data-phone="start" class="fmcm-primary">${icon('phone')} ${state.waitingToCall?'Connecting…':(values.mode|| (state.status?.settings?.enabled?'browser':'external'))==='browser'?'Start call':'Start call notes'}</button>`)}
+      ${c?conferenceMarkup(observer||!!guest):''}
       ${String(script?.title?`<details class="fmcp-script" open><summary>${esc(script.title)} <span class="fmcm-pill">v${esc(script.version)}</span></summary>${(scriptData.sections||[]).map(s=>`<h4>${esc(s.title)}</h4><p>${esc(s.body)}</p>`).join('')}${(scriptData.questions||[]).map((q,i)=>`<label class="fmcm-field">${esc(q)}<input data-question="${i}" value="${esc(state.answers[i]||'')}"></label>`).join('')}</details>`:'')}
       ${String(c?.mode==='external'?`<p class="fmcm-help"><a href="tel:${esc(number)}">${((v1) => globalThis.PlatformLanguage?.htmlText("comms","m_4b023574d976a1",`Open ${v1} in your phone app`,{v1}) ?? `Open ${v1} in your phone app`)(esc(number))}</a></p>`:'')}
       ${String(c?`<label class="fmcm-field">${(globalThis.PlatformLanguage?.htmlText("comms","m_d885eb7f0cdaa0","Call notes ") ?? "Call notes ")}<textarea class="fmcp-notes" name="notes" placeholder="${(globalThis.PlatformLanguage?.htmlText("comms","m_d59c66e54984e5","What happened? Capture decisions, concerns, and next steps.") ?? "What happened? Capture decisions, concerns, and next steps.")}">${esc(state.notes)}</textarea></label><p class="fmcm-help" data-save-state>${state.dirty?'Saving notes…':'Notes saved'}</p>`:'')}
@@ -183,7 +192,7 @@
       ${String(c?`<div data-artifacts>${mediaMarkup()}</div>${analysisMarkup()}`:'')}</div>
       <footer class="fmcp-footer"><span class="fmcm-help">${String(c?`${c.direction==='inbound'?'Incoming':'Outgoing'} call`:'Communications')}</span><div class="fmcm-actions">${String(!c&&state.entry?`<button data-phone="skip">${(globalThis.PlatformLanguage?.htmlText("comms","m_80ad5d823ed757","Skip for now") ?? "Skip for now")}</button>`:'')}${String(c&&!active&&!saved&&!processing&&state.status?.settings?.require_disposition?`<button class="fmcm-primary" data-phone="wrap">${(globalThis.PlatformLanguage?.htmlText("comms","m_6b7aea73ef8d46","Save outcome") ?? "Save outcome")}</button>`:'')}${String(saved&&state.entry?`<button class="fmcm-primary" data-phone="next">${(globalThis.PlatformLanguage?.htmlText("comms","m_db479b7b19a749","Next contact") ?? "Next contact")}</button>`:'')}${String(c&&!active?`<button data-phone="artifacts">${(globalThis.PlatformLanguage?.htmlText("comms","m_f15ce71ba3db6f","Recording & transcript") ?? "Recording & transcript")}</button>`:'')}</div></footer>`;
     el.querySelectorAll('[data-phone]').forEach(b=>{if(state.busy&&!['minimize','close','pause-dialer'].includes(b.dataset.phone))b.disabled=true;});
-    if(observer){el.querySelectorAll('[name], [data-question], [data-source]').forEach(e=>e.disabled=true);el.querySelectorAll('[data-phone]').forEach(b=>{if(!['minimize','close','project','schedule','message','artifacts','supervise','analysis-generate','analysis-load','analysis-ask',...(consultation||supervising?['answer','decline']:[])].includes(b.dataset.phone))b.disabled=true;});}
+    if(observer||guest){el.querySelectorAll('[name], [data-question], [data-source]').forEach(e=>e.disabled=true);el.querySelectorAll('[data-phone]').forEach(b=>{if(!['minimize','close','project','schedule','message','artifacts','supervise','analysis-generate','analysis-load','analysis-ask',...(consultation||supervising?['answer','decline']:[]),...(guest?['answer','decline','mute','hangup']:[])].includes(b.dataset.phone))b.disabled=true;});}
     if(!callPermission('record'))el.querySelectorAll('[data-phone^="record"]').forEach(b=>b.hidden=true);
     if(!callPermission('recordings'))el.querySelectorAll('[data-phone="artifacts"]').forEach(b=>b.hidden=true);
     el.querySelectorAll('[name=analysis_prompt],[name=analysis_question]').forEach(e=>e.disabled=state.analysisBusy);
@@ -200,6 +209,8 @@
   async function refreshStatus(){const requestedScope=scope(),status=await request('voice/status');if(requestedScope!==scope())return {};const first=!state.status;state.status=status;if(first&&status.settings?.enabled)state.panel?.querySelector('[name=mode]')?.remove();changed();return status;}
   async function open(input={},options={}){
     state.boundScope=scope();
+    await identityReady;
+    if(!state.deviceChecked&&checkValid())state.deviceChecked=true;
     if(state.diagnosing)throw new Error('Wait for the audio check to finish before opening a call.');
     if(state.call&&!terminal.has(state.call.state)&&state.call.id!==input.call_id){state.minimized=false;if(input.call_id||input.entry_id)state.error='Finish the active call before opening another contact.';render();return false;}
     if(state.call&&state.call.wrap_up_state!=='saved'&&terminal.has(state.call.state)&&state.status?.settings?.require_disposition&&state.call.id!==input.call_id){state.minimized=false;state.error='Save this call outcome before starting another call.';render();return false;}
@@ -236,7 +247,6 @@
     const dialed=values.customer_number.startsWith('+')?values.customer_number:`${values.country_code||'+1'}${values.customer_number.replace(/\D/g,'')}`;
     if(!/^\+[1-9]\d{7,14}$/.test(dialed))throw new Error('Choose a contact or enter a valid phone number.');
     if(values.mode==='browser'){const ticket=state.openSequence;state.waitingToCall=true;render();try{await connect();}finally{state.waitingToCall=false;}if(ticket!==state.openSequence||state.panel?.hidden)return;}
-    if(values.mode==='browser'&&!state.deviceChecked){state.deviceCheckRequired=true;state.checkMessage='';return;}
     state.deviceCheckRequired=false;
     const body={...state.prepared,entry_id:state.entry?.id||state.prepared.entry_id||'',customer_name:state.prepared.customer_name||'',customer_number:dialed,
       power_dial:!!(dialer.active&&dialer.fast),purpose:state.prepared.purpose||'',business_number:values.business_number||'',mode:values.mode,script_id:values.script_id,device_id:deviceId,operation_id:state.localId};delete body.entry;delete body.call_id;
@@ -259,7 +269,7 @@
     const message=state.panel?.querySelector('[data-save-state]');if(message)message.textContent=state.dirty?'Saving notes…':'Notes saved';
     if(state.dirty)scheduleSave();else try{sessionStorage.removeItem(localKey());}catch{}
   }
-  async function action(action,extra={}){const result=await request(callPath('/actions'),{operation_id:uid(),action,...extra});state.call=result.call||state.call;changed();return result;}
+  async function action(action,extra={}){const result=await request(callPath('/actions'),{operation_id:uid(),action,...extra});state.call=result.call||state.call;if(result.participants)state.detail={...state.detail,participants:result.participants};changed();return result;}
   async function wrap(){
     const values=readForm();await saveNotes();
     const due=values.due_at?new Date(values.due_at).toISOString():'';
@@ -275,10 +285,11 @@
     const id=state.call.id;
     const result=await request(`calls/${encodeURIComponent(id)}`);if(state.call?.id!==id)return;
     if(result.call.owner_user_id===ui.user()&&!terminal.has(result.call.state)&&(!state.lastLease||Date.now()-state.lastLease>30000)){await request(`calls/${encodeURIComponent(id)}/lease`,{});state.lastLease=Date.now();}
-    const prior=state.call,priorPermissions=state.detail?.permissions;state.call=result.call;state.detail=result;
+    const prior=state.call,priorPermissions=state.detail?.permissions,priorParticipants=JSON.stringify(state.detail?.participants),wasGuest=!!ourParticipant();state.call=result.call;state.detail=result;
+    if(wasGuest&&!ourParticipant()||state.call.metadata?.host_left_user_id===ui.user()&&!terminal.has(state.call.state)){state.call=null;state.detail=null;state.notes='';state.answers={};state.dirty=false;state.prepared={};render();changed();return;}
     if(!state.dirty){state.notes=state.call.notes||'';state.answers=state.call.metadata?.script_answers||{};}
     // Preserve the user's caret and unsaved form values; redraw only a call-state transition.
-    if(prior.state!==state.call.state||prior.wrap_up_state!==state.call.wrap_up_state||JSON.stringify(prior.metadata?.capture)!==JSON.stringify(state.call.metadata?.capture)||JSON.stringify(prior.metadata?.transfer)!==JSON.stringify(state.call.metadata?.transfer)||JSON.stringify(priorPermissions)!==JSON.stringify(state.detail?.permissions)||JSON.stringify(state.lastSupervision)!==JSON.stringify(state.detail?.supervision))render();
+    if(prior.state!==state.call.state||prior.wrap_up_state!==state.call.wrap_up_state||JSON.stringify(prior.metadata?.capture)!==JSON.stringify(state.call.metadata?.capture)||JSON.stringify(prior.metadata?.transfer)!==JSON.stringify(state.call.metadata?.transfer)||JSON.stringify(prior.metadata?.customer_hold_state)!==JSON.stringify(state.call.metadata?.customer_hold_state)||priorParticipants!==JSON.stringify(state.detail?.participants)||JSON.stringify(priorPermissions)!==JSON.stringify(state.detail?.permissions)||JSON.stringify(state.lastSupervision)!==JSON.stringify(state.detail?.supervision))render();
     state.lastSupervision=state.detail?.supervision;
     if((callPermission('analyze')||callPermission('analysis_read'))&&state.analysis&&(state.analysisOpen||state.analysis.notes?.some(n=>['pending','running'].includes(n.state)))){const analysis=await request(`calls/${encodeURIComponent(id)}/analysis`);if(state.call?.id!==id)return;state.analysis=analysis;render();}
     changed();updateTransferDialog();
@@ -318,6 +329,34 @@
     const agents=(result.agents||[]).filter(a=>a.user_id!==ui.user()&&a.availability==='available');
     dialog('Transfer call',select('Available teammate','target_user_id',agents.map(a=>[a.user_id,a.name]))+select('Handoff','transfer_mode',[['warm','Consult first'],['cold','Transfer when they answer']])+`<p class="fmcm-help">${(globalThis.PlatformLanguage?.htmlText("comms","m_e0e91e4856c71f","The customer waits on hold while your teammate answers. A failed transfer returns the customer to you.") ?? "The customer waits on hold while your teammate answers. A failed transfer returns the customer to you.")}</p>`,async data=>{if(!data.target_user_id)throw new Error('No teammates are available.');await action('transfer',data);render();},{submit:'Call teammate'});
   }
+  function conferenceMarkup(readOnly){
+    const items=state.detail?.participants||[];if(!items.length)return '';
+    const statuses={ringing:'Ringing',connecting:'Joining',connected:'On call',held:'On hold',holding:'Holding...',resuming:'Resuming...',uncertain:'Check connection',left:'Left',removed:'Removed',declined:'Declined',no_answer:'No answer',failed:'Could not connect'},live=items.filter(participantActive),prior=[...items.filter(p=>!participantActive(p)),...(state.call.metadata?.customer_removed_at?[{id:'customer',name:state.call.customer_name,phone:state.call.customer_number,state:'removed'}]:[])],ended=terminal.has(state.call.state),controls=!readOnly&&!ended;
+    const row=p=>{const name=p.name===p.phone?formatPhone(p.phone):p.name||formatPhone(p.phone);return `<div class="fmcp-participant ${p.state==='held'?'on-hold':''}"><span>${esc(name)}${p.phone&&p.name!==p.phone?`<small>${esc(formatPhone(p.phone))}</small>`:''}${p.error?`<small role="status">${esc(p.error)}</small>`:''}</span><small>${esc(p.state==='connected'&&state.call.state==='held'?'On hold':statuses[p.state]||label(p.state))}</small><div class="fmcp-person-actions">${controls&&['connected','held'].includes(p.state)?`<button type="button" data-phone="${p.state==='held'?'resume-person':'hold-person'}" data-participant="${esc(p.id)}" aria-label="${p.state==='held'?'Resume':'Hold'} ${esc(name)}" title="${p.state==='held'?'Resume':'Hold'} ${esc(name)}" ${state.call.state==='held'?'disabled':''}>${icon(p.state==='held'?'play':'pause')}</button>`:''}${controls&&participantActive(p)?`<button type="button" data-phone="remove-person" data-participant="${esc(p.id)}" title="${p.state==='ringing'?'Cancel invitation':'Remove from call'}" aria-label="Remove ${esc(name)} from call">${icon('xmark')}</button>`:controls?`<button type="button" data-phone="reinvite-person" data-participant="${esc(p.id)}" ${live.some(v=>p.user_id&&v.user_id===p.user_id||p.phone&&v.phone===p.phone)?'disabled':''} title="Try adding ${esc(name)} again" aria-label="Add ${esc(name)} again">${icon('user-plus')}</button>`:''}</div></div>`;};
+    return `<section class="fmcp-participants" aria-label="Call participants"><strong>${icon('users')} People on this call</strong><div class="fmcp-participant"><span>${state.call.owner_user_id===ui.user()?'You':'Call host'}<small>Host</small></span><small>${state.call.metadata?.host_left_at?'Left':ended?'Ended':'On call'}</small></div>${state.call.metadata?.customer_removed_at?'':`<div class="fmcp-participant"><span>${esc(state.call.customer_name||formatPhone(state.call.customer_number))}<small>${esc(formatPhone(state.call.customer_number))}</small></span><small>${ended?'Ended':state.call.state==='held'||state.call.metadata?.customer_hold_state==='held'?'On hold':label(state.call.metadata?.customer_hold_state||'On call')}</small>${controls&&live.length?`<div class="fmcp-person-actions"><button type="button" data-phone="${state.call.metadata?.customer_hold_state==='held'?'resume-person':'hold-person'}" data-participant="customer" title="${state.call.metadata?.customer_hold_state==='held'?'Resume':'Hold'} ${esc(state.call.customer_name||'caller')}" aria-label="${state.call.metadata?.customer_hold_state==='held'?'Resume':'Hold'} ${esc(state.call.customer_name||'caller')}" ${state.call.state==='held'||['holding','resuming','uncertain'].includes(state.call.metadata?.customer_hold_state)?'disabled':''}>${icon(state.call.metadata?.customer_hold_state==='held'?'play':'pause')}</button><button type="button" data-phone="remove-person" data-participant="customer" aria-label="Remove ${esc(state.call.customer_name||'caller')} from call" title="Remove from call">${icon('xmark')}</button></div>`:''}</div>`}${live.map(row).join('')}${prior.length?`<details class="fmcp-prior" open><summary>Prior participants (${prior.length})</summary>${prior.map(row).join('')}</details>`:''}</section>`;
+  }
+  async function addPerson(){
+    const callId=state.call.id,result=await request('voice/center');
+    const agents=(result.agents||[]).filter(a=>a.user_id!==ui.user()&&a.user_id!==state.call.owner_user_id&&a.availability==='available'&&(!a.branch_id||a.branch_id===state.call.branch_id));
+    let selected=null,timer,ticket=0;
+    const testPhones=state.status?.development?.enabled?(state.status.development.destinations||[]):[];
+    const el=dialog('Add person to call',`<div class="fmcp-invite-modes" role="radiogroup" aria-label="Add person using"><label><input type="radio" name="invite_kind" value="teammate" checked>Teammate</label><label><input type="radio" name="invite_kind" value="phone">Phone number</label></div><div data-invite-teammate>${select('Available teammate','target_user_id',[['',agents.length?'Choose a teammate':'No teammates available'],...agents.map(a=>[a.user_id,a.name])])}</div><div data-invite-phone hidden>${testPhones.length?select('Development test phone','development_target',[['','Choose a test phone'],...testPhones.map(phone=>[phone,formatPhone(phone)])]):''}${field('Number or contact','participant_search','','text','autocomplete="off" placeholder="Enter a phone number or name"')}<div class="fmcp-invite-results" data-invite-results></div><small data-invite-selection></small></div>`,async data=>{
+      if(state.call?.id!==callId||terminal.has(state.call.state))throw new Error('This call has ended.');
+      const extra=data.invite_kind==='teammate'?{target_user_id:data.target_user_id}:{target_phone:selected?.phone||data.participant_search,target_name:selected?.name||''};
+      if(data.invite_kind==='teammate'&&!data.target_user_id)throw new Error('Choose an available teammate.');
+      await action('add_participant',extra);render();
+    },{submit:'Call and add'});
+    el.classList.add('fmcp-invite');
+    el.querySelectorAll('[name=invite_kind]').forEach(input=>input.onchange=()=>{const phone=input.value==='phone';el.querySelector('[data-invite-teammate]').hidden=phone;el.querySelector('[data-invite-phone]').hidden=!phone;(phone?el.querySelector('[name=participant_search]'):el.querySelector('[name=target_user_id]')).focus();});
+    const input=el.querySelector('[name=participant_search]'),list=el.querySelector('[data-invite-results]');
+    const testPhone=el.querySelector('[name=development_target]');
+    if(testPhone)testPhone.onchange=()=>{selected=null;clearTimeout(timer);ticket++;list.replaceChildren();input.value=testPhone.value;el.querySelector('[data-invite-selection]').textContent='';};
+    input.oninput=()=>{selected=null;el.querySelector('[data-invite-selection]').textContent='';clearTimeout(timer);const current=++ticket,query=input.value.trim();list.replaceChildren();if(!query)return;
+      if(testPhone)testPhone.value='';
+      timer=setTimeout(async()=>{try{const result=await request(`voice/contacts?query=${encodeURIComponent(query)}`);if(current!==ticket||!el.isConnected)return;const contacts=(result.contacts||[]).slice(0,8);list.innerHTML=contacts.map((c,i)=>`<button type="button" data-contact="${i}"><span>${esc(c.name)}<small>${esc(c.phone)}</small></span>${icon('plus')}</button>`).join('');list.onclick=e=>{const button=e.target.closest('[data-contact]');if(!button)return;selected=contacts[Number(button.dataset.contact)];input.value=selected.name;el.querySelector('[data-invite-selection]').textContent=selected.phone;list.replaceChildren();};}catch{if(current===ticket)list.textContent='Contact search is unavailable. You can enter a phone number.';}},180);
+    };
+    el.addEventListener('close',()=>{clearTimeout(timer);ticket++;});
+  }
   function updateTransferDialog(){
     const el=document.querySelector('dialog[data-transfer-call]');if(!el||el.dataset.transferCall!==state.call?.id)return;
     const current=state.call.metadata?.transfer?.state;
@@ -347,6 +386,7 @@
     if(name==='dismiss-check'&&!state.busy){state.deviceCheckRequired=false;state.checkMessage='';state.error='';render();return;}
     if(name==='minimize'){state.minimized=!state.minimized;render();return;}
     if(name==='close'){
+      if(ourParticipant()){state.minimized=true;render();return;}
       if(dialer.active)pauseDialer();
       if(state.detail?.supervision?.session&&!['ended','failed','taken_over'].includes(state.detail.supervision.session.state)){state.minimized=true;render();return;}
       if(state.busy&&!state.waitingToCall){state.minimized=false;render();return;}
@@ -375,16 +415,24 @@
       else if(name==='retry-work'){await request(callPath('/retry-work'),{job_id:button.dataset.job});await poll();}
       else if(name==='tone')await action('dtmf',{digits:button.dataset.digit});
       else if(name==='answer'){await state.sdkCall?.answer();}
-      else if(name==='decline'){await action('decline');await state.sdkCall?.hangup();}
+      else if(name==='decline'||name==='hangup'&&ourParticipant()){
+        const guest=!!ourParticipant();await action(name);await state.sdkCall?.hangup();
+        if(guest){state.call=null;state.detail=null;state.notes='';state.answers={};state.dirty=false;state.prepared={};changed();}
+      }
       else if(name==='mute'){if(!state.sdkCall)throw new Error('This tab does not own the phone audio.');state.muted=!state.muted;if(state.muted)state.sdkCall.muteAudio();else state.sdkCall.unmuteAudio();}
       else if(['project','schedule','message'].includes(name)){state.minimized=true;ui.project(state.call.project_id,name==='schedule'?'schedule':'comms',name==='message'?{commsView:'sms'}:{});}
       else if(name==='refresh-context')await refreshContext();
       else if(name==='policy-date'){state.policyDate=button.dataset.due;state.usePolicy=button.dataset.policy==='true';const input=state.panel.querySelector('[name=due_at]');if(input){const due=new Date(state.policyDate);input.value=state.policyDate.length===10?`${state.policyDate}T09:00`:new Date(due.getTime()-due.getTimezoneOffset()*60000).toISOString().slice(0,16);}}
+      else if(name==='add-person')await addPerson();
+      else if(name==='remove-person')await action('remove_participant',{participant_id:button.dataset.participant});
+      else if(name==='hold-person'||name==='resume-person')await action(name==='hold-person'?'hold_participant':'resume_participant',{participant_id:button.dataset.participant});
+      else if(name==='reinvite-person'){const p=button.dataset.participant==='customer'?{phone:state.call.customer_number,name:state.call.customer_name}:state.detail?.participants?.find(p=>p.id===button.dataset.participant);if(p)await action('add_participant',p.user_id?{target_user_id:p.user_id}:{target_phone:p.phone,target_name:p.name});}
+      else if(name==='leave-conference'){if(state.dirty)await saveNotes();await action('leave_conference');const sdk=state.sdkCall;state.call=null;state.detail=null;state.notes='';state.answers={};state.prepared={};state.dirty=false;await sdk?.hangup();changed();}
       else if(name==='link')await linkProject();else if(name==='keypad')keypad();else if(name==='transfer')await transfer();else if(name==='record')await record();
       else if(name==='artifacts')await artifacts();
       else if(name==='delete-artifact')removeArtifact(button.dataset.artifact);
       else await action(name);
-    }catch(error){if(dialer.active)pauseDialer('Automatic dialing paused. Review the phone error before continuing.');if(error.code==='device_check_required'){state.deviceChecked=false;state.deviceCheckRequired=true;state.checkMessage='';}else if(error.name!=='AbortError')state.error=error.message;}
+    }catch(error){if(dialer.active)pauseDialer('Automatic dialing paused. Review the phone error before continuing.');if(error.code==='device_check_required'){clearCheck();state.deviceCheckRequired=true;state.checkMessage='';}else if(error.name!=='AbortError')state.error=error.message;}
     finally{state.busy=false;queueMicrotask(()=>void advanceDialer());if(state.panel&&!state.panel.hidden){render();if(name==='artifacts')state.panel.querySelector('[data-artifacts]')?.scrollIntoView({block:'nearest'});}}
   }
   async function loadSDK(){
@@ -511,8 +559,8 @@
       if(microphone==='ready'){checks[2]=providerFailed?'Failed':connected?'Passed':'Timed out';checks[3]=metrics?'Measured':'No measurements';}
       const failedStep=step;progress(4,'Saving the device result and ending the test connection.');
       const result=await request('voice/diagnostics',{device_id:deviceId,microphone,connectivity:connected?'ready':'inconclusive',provider_verdict:providerFailed?'blocked':metrics?'ready':'inconclusive',...(metrics?{metrics}:{})});checks[4]='Saved';
-      state.deviceChecked=['ready','degraded'].includes(result.result?.verdict);step=state.deviceChecked?4:failedStep;finish(result.result);return result;
-    }catch(error){state.deviceChecked=false;finish({verdict:'blocked',reason:error.message||'The check could not finish. Reconnect your phone and retry.'});throw error;
+      state.deviceChecked=['ready','degraded'].includes(result.result?.verdict);if(state.deviceChecked)rememberCheck();else clearCheck();step=state.deviceChecked?4:failedStep;finish(result.result);return result;
+    }catch(error){clearCheck();finish({verdict:'blocked',reason:error.message||'The check could not finish. Reconnect your phone and retry.'});throw error;
     }finally{
       clearInterval(elapsed);if(!finished&&el)el.querySelector('[data-check-progress]').textContent='Check stopped. Retry when you are ready.';
       if(state.diagnosticId){await request(`calls/${encodeURIComponent(state.diagnosticId)}/actions`,{operation_id:uid(),action:'hangup'}).catch(()=>{});await Promise.resolve(state.sdkCall?.hangup()).catch(()=>{});}
@@ -528,7 +576,7 @@
     dialog('Audio devices',select('Microphone','microphone',[['','System default'],...list.filter(d=>d.kind==='audioinput').map(d=>[d.deviceId,d.label||'Microphone'])],preferences.microphone)+select('Speaker','speaker',[['','System default'],...list.filter(d=>d.kind==='audiooutput').map(d=>[d.deviceId,d.label||'Speaker'])],preferences.speaker)+`<p class="fmcm-help">${(globalThis.PlatformLanguage?.htmlText("comms","m_9640d651adce54","Saved for your account in this browser. Run the readiness check after changing devices.") ?? "Saved for your account in this browser. Run the readiness check after changing devices.")}</p>`,async data=>{
       if(state.call&&!terminal.has(state.call.state))throw new Error('Change devices between calls.');
       const probe=await navigator.mediaDevices.getUserMedia({audio:data.microphone?{deviceId:{exact:data.microphone}}:true});probe.getTracks().forEach(track=>track.stop());
-      await applyAudio(state.client,data);localStorage.setItem(`${audioKey}:${scope()}`,JSON.stringify({microphone:data.microphone,speaker:data.speaker}));
+      await applyAudio(state.client,data);localStorage.setItem(`${audioKey}:${scope()}`,JSON.stringify({microphone:data.microphone,speaker:data.speaker}));clearCheck();
     });
   }
   Portal.navigation?.registerSchema?.('customerCall',{history:'push'});

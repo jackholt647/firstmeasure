@@ -4,13 +4,14 @@ import { mutateGlobal } from '../../platform/storage.js';
 import type { PlatformAuthContext } from '../../platform/auth.js';
 import * as store from './storage.js';
 import { voiceSettings } from './settings.js';
+import { developmentVoiceDestinations } from '../../telephony/telnyx.js';
 
 export const DEVELOPMENT_CALL_DESTINATION='+14259700671';
 export function developmentCalls(){return env.dataEnvironment==='development';}
 export async function developmentCallStatus(orgId:string){
   if(!developmentCalls())return undefined;
   const saved=await store.resource(orgId,'development_onboarding');
-  return {enabled:true,destination:DEVELOPMENT_CALL_DESTINATION,onboarded:saved?.status==='complete',registrations:saved?.registrations||{},live_transport:saved?.live_transport===true};
+  return {enabled:true,destination:DEVELOPMENT_CALL_DESTINATION,destinations:developmentVoiceDestinations(),onboarded:saved?.status==='complete',registrations:saved?.registrations||{},live_transport:saved?.live_transport===true};
 }
 /** No provider registrations, number purchases, attestations or billing are performed here. */
 export async function completeDevelopmentOnboarding(ctx:PlatformAuthContext){

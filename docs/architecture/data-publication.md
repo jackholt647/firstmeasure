@@ -150,3 +150,8 @@ Not built: exposure of selections to the module sandbox and HTTP, and cursors.
 A field that holds several values is matched by member with `contains` when the
 row publishes it as a list: rows that carry assignees publish `assignee_keys`
 lists of `type:id` for exactly this (`payroll.project_records`). Run `tests/publication-select.test.ts` for changes here.
+## Group MMS Data
+
+Comms also publishes `comms-sms-groups@1` with typed `conversations` and
+`messages` exports. See [group MMS](group-mms.md) for paginated contracts,
+branch/project checks and frozen replay authorization.

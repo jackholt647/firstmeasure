@@ -242,6 +242,7 @@ export const env = {
   cloudflareApiBaseUrl: trimTrailingSlashes(process.env.CLOUDFLARE_API_BASE_URL ?? "https://api.cloudflare.com/client/v4"),
   cloudflareWebsiteTarget: process.env.CLOUDFLARE_WEBSITE_TARGET ?? "",
   communicationsDeliveryMode: process.env.COMMUNICATIONS_DELIVERY_MODE === "live" ? "live" : "capture",
+  smsLiveRegistrationOrganizationIds: readCsv("SMS_LIVE_REGISTRATION_ORGANIZATION_IDS"),
   openaiTranscriptionModel: process.env.OPENAI_TRANSCRIPTION_MODEL ?? "gpt-4o-transcribe",
   openaiTranscriptionTimeoutMs: readNumber("OPENAI_TRANSCRIPTION_TIMEOUT_MS", 90_000),
   openaiAudioStructureModel: process.env.OPENAI_AUDIO_STRUCTURE_MODEL ?? "gpt-realtime-2.1-mini",

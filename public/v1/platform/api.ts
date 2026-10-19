@@ -1709,6 +1709,11 @@ app.get("/auth/google/config", async () => ({
       && (slot === "logo" || scope === "branding" || collection === "branding" || slot.includes("brand") || slot.includes("logo"));
     // Photos and receipt images belong to the apps that show them.
     const ctx = !isOrganizationBrandingMedia ? await requirePlatformAuth(request, { orgId, app: ["portal.photos_feed", "project.photos", "contact.media", "portal.viewer", "portal.receipts", "portal.crew_receipts", "project.crew_materials"] }) : null;
+    const feedRootId = String(asObject(metadata.metadata).feed_root_id || "").trim();
+    if (feedRootId && String(owner.type || "").toLowerCase() === "channel") {
+      const { authorizeFeedAttachment } = await import("../channels/feed.js");
+      await authorizeFeedAttachment(ctx!, feedRootId);
+    }
     if (!canReadReceiptMedia(metadata, ctx)) {
       throw forbidden("receipt_media_forbidden", "This receipt media is not available to this user.");
     }

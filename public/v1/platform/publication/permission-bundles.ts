@@ -8,6 +8,7 @@
  * member reading that channel), not unrestricted access.
  */
 const bundles: Record<string, { actions?: readonly string[]; data?: readonly string[] }> = {
+  make_calls:{actions:['customer-calls.conference.add','customer-calls.conference.remove','customer-calls.conference.hold','customer-calls.conference.resume','customer-calls.conference.leave','customer-calls.conference.end']},
   use_external_shares:{data:["collaboration.resource","collaboration.resources"],actions:["collaboration.project.update","collaboration.note.create","collaboration.message.post","collaboration.work.update","collaboration.schedule.update"]},
   manage_communications: {data:["phone-marketing.source","phone-marketing.pool","phone-marketing.call","phone-marketing.visit","phone-marketing.broadcast","phone-marketing.recipient","phone-marketing.broadcast_report","phone-settings.tracking_report","phone-settings.line","phone-settings.group","phone-settings.messaging","phone-settings.lead","phone-settings.port","phone-settings.order","phone-settings.reputation","phone-settings.reputation_settings","phone-settings.reputation_onboarding","phone-settings.reputation_remediation"],actions:["phone-marketing.source.save","phone-marketing.pool.save","phone-marketing.broadcast.save","phone-marketing.broadcast.audience.add","phone-marketing.broadcast.control","phone-marketing.broadcast.preview","phone-settings.line.save","phone-settings.group.save","phone-settings.messaging.save","phone-settings.lead.save","phone-settings.port.draft","platform-phones.project.assignment.set", "platform-phones.contact.assignment.set", "platform-phones.organization.assignment.set", "platform-phones.user.assignment.set", "platform-phones.branch.assignment.set", "platform-phones.department.assignment.set", "platform-phones.division.assignment.set", "platform-phones.team.assignment.set", "platform-phones.company.assignment.set"]},
   manage_external_sharing:{actions:["collaboration.share.revoke"]},
@@ -45,8 +46,8 @@ const bundles: Record<string, { actions?: readonly string[]; data?: readonly str
   takeover_calls: { actions: ["customer-calls.supervision.takeover"] },
   analyze_call_recordings: { actions: ["customer-calls.analysis.generate", "customer-calls.analysis.ask"] },
   view_call_recordings: { actions:["phone-settings.voicemail.handle"],data: ["phone-settings.voicemail","customer-calls.transcripts", "customer-calls.recordings", "customer-call-analysis.notes"] },
-  view_comms: { actions: ["comms.project.feed"], data: ["comms.records", "customer-calls.record"] },
-  send_communications: { actions: ["comms.project.sendSms", "comms.project.sendEmail"] },
+  view_comms: { actions: ["comms.project.feed"], data: ["comms.records", "customer-calls.record", "comms-sms-groups.conversations", "comms-sms-groups.messages", "customer-call-conference.participants"] },
+  send_communications: { actions: ["comms.project.sendSms", "comms.project.sendEmail", "comms.smsGroup.create", "comms.smsGroup.send", "comms.smsGroup.replyPrivately"] },
   view_live_chat: { actions: ["chat.inbox"], data: ["chat.records"] },
   send_live_chat: { actions: ["chat.conversation.claim", "chat.conversation.release", "chat.conversation.send"] },
   view_customer_portals: { data: ["customer-portal.record"] },

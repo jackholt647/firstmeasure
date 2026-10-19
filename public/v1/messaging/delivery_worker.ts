@@ -3,6 +3,7 @@ import { platformBackgroundAllowed } from "../platform/runtime.js";
 import { randomUUID } from "node:crypto";
 
 import { env } from "../src/config/env.js";
+import { guardDevelopmentSms } from "../src/environment_safety.js";
 import {
   claimNextSmsDelivery,
   claimNextSmsCancellation,
@@ -24,6 +25,9 @@ import { createTelnyxClient, telnyxDeliveryWebhookUrl, TelnyxError } from "./tel
 import { outboundSmsComplianceIssue, smsConsentPurposesAllow } from "./compliance_rules.js";
 import { smsAutoresponsesReady } from "./autoresponses.js";
 import { audioMediaPublicUrl } from "../audio-notes/links.js";
+import { smsImagePublicUrl } from "../comms/sms-images.js";
+import { smsGroup } from "./group_mms.js";
+import { dispatchGroupMms } from "./group_delivery.js";
 
 const workerId = `sms_worker_${process.pid}_${randomUUID().slice(0, 8)}`;
 let timer: ReturnType<typeof setInterval> | null = null;
@@ -56,7 +60,7 @@ export function deliveryAggregateStatus(deliveries: CommunicationsJson[]) {
   if (statuses.length && statuses.every((status) => status === "delivered")) return "delivered";
   if (statuses.some((status) => status === "sent")) return "sent";
   if (statuses.some((status) => status === "scheduled")) return "scheduled";
-  if (statuses.some((status) => ["queued", "retry_pending", "submitting", "cancel_pending", "cancelling"].includes(status))) return "queued";
+  if (statuses.some((status) => ["queued", "group_pending", "retry_pending", "submitting", "cancel_pending", "cancelling"].includes(status))) return "queued";
   const failureStatuses = new Set(["failed", "cancel_failed", "submission_unknown", "delivery_unconfirmed"]);
   if (statuses.some((status) => status === "delivered") && statuses.some((status) => failureStatuses.has(status))) return "partially_delivered";
   if (statuses.some((status) => ["submission_unknown", "delivery_unconfirmed"].includes(status))) return "delivery_unconfirmed";
@@ -77,10 +81,11 @@ export async function refreshParentMessageStatus(organizationId: string, message
   }));
 }
 
-async function activeConfiguration(organizationId: string) {
+async function activeConfiguration(organizationId: string, requestedNumber = "") {
   const organization = await ensureMessagingOrganization(organizationId);
   const profiles = await listSmsComplianceProfiles(organization.id);
-  const profile = profiles.find((entry) => entry.id === organization.default_sms_compliance_profile_id) || profiles[0];
+  const profile = requestedNumber ? profiles.find(entry => cleanText(asObject(entry.campaign).selectedNumber) === requestedNumber)
+    : profiles.find((entry) => entry.id === organization.default_sms_compliance_profile_id) || profiles[0];
   if (!profile) return null;
   const refs = asObject(profile.provider_refs);
   const campaign = asObject(profile.campaign);
@@ -136,12 +141,22 @@ async function dispatchClaimedDelivery(delivery: CommunicationsJson) {
   const message = (await readMessageRecord(organizationId, messageId));
   const recipient = asObject(delivery.recipient);
   const recipientAddress = cleanText(delivery.recipient_address);
-  const eligibility=await deliveryEligibility(organizationId,message,recipient);
+  let eligibility=await deliveryEligibility(organizationId,message,recipient);
+  if(smsGroup(message.metadata))for(const member of (Array.isArray(message.recipients)?message.recipients:[])){const check=await deliveryEligibility(organizationId,message,asObject(member));if(check.action==='cancel'){eligibility=check;break;}if(check.action==='wait'&&(eligibility.action!=='wait'||String(check.at)>String(eligibility.at)))eligibility=check;}
   if(eligibility.action==='cancel'){
     await updateDeliveryRecord(organizationId,deliveryId,{status:'failed',failed_at:new Date().toISOString(),lease_owner:'',lease_until:'',error:{code:'phone_policy_canceled',message:eligibility.reason}});await refreshParentMessageStatus(organizationId,messageId);return;
   }
   if(eligibility.action==='wait'){
     await updateDeliveryRecord(organizationId,deliveryId,{status:'scheduled',attempts:Math.max(0,Number(delivery.attempts||1)-1),next_attempt_at:eligibility.at,lease_owner:'',lease_until:'',error:{code:'phone_policy_wait',message:eligibility.reason}});await refreshParentMessageStatus(organizationId,messageId);return;
+  }
+  const guard = guardDevelopmentSms(recipientAddress);
+  if (!guard.allowed) {
+    (await updateDeliveryRecord(organizationId, deliveryId, {
+      status: "failed", failed_at: new Date().toISOString(), lease_owner: "", lease_until: "",
+      error: { code: guard.reason, message: "SMS delivery to this number is blocked in development." }
+    }));
+    (await refreshParentMessageStatus(organizationId, messageId));
+    return;
   }
   // Retain schedules locally until due, so consent and policy are checked at actual dispatch.
   const future=Date.parse(cleanText(message.scheduled_for))>Date.now();
@@ -165,6 +180,7 @@ async function dispatchClaimedDelivery(delivery: CommunicationsJson) {
     return;
   }
 
+  if(smsGroup(message.metadata)){await dispatchGroupMms(delivery,message,configuration);await refreshParentMessageStatus(organizationId,messageId);return;}
   const complianceIssue = outboundSmsComplianceIssue(configuration.profile, message.purpose, message.text_body);
   if (complianceIssue) {
     (await updateDeliveryRecord(organizationId, deliveryId, {
@@ -204,13 +220,18 @@ async function dispatchClaimedDelivery(delivery: CommunicationsJson) {
   try {
     const audioNote = asObject(asObject(message.metadata).audio_note);
     const audioMediaId = cleanText(audioNote.media_id);
+    const imageMediaId = cleanText(asObject(asObject(message.metadata).sms_image).media_id);
+    const mediaUrls = [
+      ...(audioMediaId ? [audioMediaPublicUrl(organizationId, audioMediaId)] : []),
+      ...(imageMediaId ? [smsImagePublicUrl(organizationId, imageMediaId)] : [])
+    ];
     const response = await createTelnyxClient().sendMessage({
       from: configuration.phoneNumber,
       to: recipientAddress,
       messaging_profile_id: configuration.messagingProfileId,
       text: cleanText(message.text_body),
-      type: audioMediaId ? "MMS" : "SMS",
-      ...(audioMediaId ? { media_urls: [audioMediaPublicUrl(organizationId, audioMediaId)] } : {}),
+      type: mediaUrls.length ? "MMS" : "SMS",
+      ...(mediaUrls.length ? { media_urls: mediaUrls } : {}),
       encoding: "auto",
       auto_detect: true,
       use_profile_webhooks: false,
@@ -357,6 +378,24 @@ export async function runSmsReconciliation(limit = 25) {
     const organizationId = cleanText(delivery.organization_id);
     const deliveryId = cleanText(delivery.id);
     try {
+      if (asObject(delivery.response).group_mms === true) {
+        const groupId = cleanText(asObject(delivery.response).group_message_id);
+        const result = asObject(await createTelnyxClient().getGroupMessages(groupId));
+        const records = Array.isArray(result.data) ? result.data.map(asObject) : [];
+        const { acceptTelnyxWebhook } = await import("./telnyx_webhooks.js");
+        for (const record of records) {
+          if (cleanText(record.direction) !== "outbound") continue;
+          const to = Array.isArray(record.to) ? record.to.map(asObject) : [];
+          const recipient = to.find(item => item.phone_number === delivery.recipient_address);
+          if (!recipient || !["sent", "delivered", "delivery_failed", "delivery_unconfirmed", "sending_failed", "failed", "expired", "unknown"].includes(cleanText(recipient.status))) continue;
+          const happened = cleanText(record.completed_at || record.sent_at || record.updated_at);
+          if (!happened) continue;
+          await acceptTelnyxWebhook({ data: { id: `group-reconcile:${record.id}:${delivery.recipient_address}:${happened}:${recipient.status}`, event_type: recipient.status === "sent" ? "message.sent" : "message.finalized", occurred_at: happened, payload: { ...record, group_message_id: groupId, to: [recipient] } } });
+        }
+        await updateDeliveryRecord(organizationId, deliveryId, { last_reconciled_at: new Date().toISOString() });
+        reconciled += 1;
+        continue;
+      }
       const response = await createTelnyxClient().getMessage(cleanText(delivery.provider_message_id));
       const data = providerData(response);
       const to = Array.isArray(data.to) ? asObject(data.to[0]) : {};

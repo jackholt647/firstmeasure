@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { randomUUID } from 'node:crypto';
 
-test('voice health works on PostgreSQL before usage exists and reports deduplicated costs', {skip:!process.env.TEST_POSTGRES_URL}, async t => {
+test('voice health and concurrent conference invitations work on PostgreSQL', {skip:!process.env.TEST_POSTGRES_URL}, async t => {
   Object.assign(process.env,{NODE_ENV:'test',FIRSTMATE_ENV:'test',FIRSTMEASURE_DATA_ENVIRONMENT:'test',FIRSTMEASURE_DATABASE_MODE:'postgres',DATABASE_URL:process.env.TEST_POSTGRES_URL,POSTGRES_POOL_MAX:'1',POSTGRES_AUTO_MIGRATE:'false'});
   const storage=await import('../messaging/communications_storage.js');
   const {closePostgresPools}=await import('../src/database/postgres.js');
@@ -21,4 +21,16 @@ test('voice health works on PostgreSQL before usage exists and reports deduplica
   assert.equal(Number(health.usage_last_24_hours[0]?.legs),1);
   assert.ok(Math.abs(Number(health.usage_last_24_hours[0]?.reported_amount)-0.0123)<0.000001);
   assert.deepEqual((await voiceHealth('another-org')).usage_last_24_hours,[]);
+  const s=await import('../comms/calls/storage.js'),{callAction}=await import('../comms/calls/voice.js');
+  const {participants}=await import('../comms/calls/conference.js');
+  const call=await s.insertCall({id:s.id('pg-conference'),organization_id:org,branch_id:'default',owner_user_id:'host',mode:'browser',direction:'outbound',state:'connected',customer_number:'+12065550100',business_number:'+12065550101',metadata:{conference_id:'room'}});
+  await s.saveResource(org,'settings','default',{enabled:true});await s.saveResource(org,'application','default',{},s.id('app'));
+  await s.saveLeg(org,call.id,'agent',{call_control_id:s.id('host'),state:'answered'});await s.saveLeg(org,call.id,'customer',{call_control_id:s.id('customer'),state:'answered'});
+  const ctx={orgId:org,userId:'host',branchId:'default',permissions:{make_calls:true}} as any;
+  const results=await Promise.allSettled([2,3,4,5,6].map(i=>callAction(ctx,call.id,{operation_id:`pg-conference-${i}`,action:'add_participant',target_phone:`+1206555010${i}`})));
+  assert.equal(results.filter(r=>r.status==='fulfilled').length,4);assert.equal(results.filter(r=>r.status==='rejected').length,1);
+  const guests=await participants(org,call.id);assert.equal(guests.length,4);
+  await callAction(ctx,call.id,{operation_id:'pg-remove-participant',action:'remove_participant',participant_id:guests[0]!.id});
+  assert.equal((await participants(org,call.id)).filter(p=>p.state==='removed').length,1);
+  assert.deepEqual(await participants('another-org',call.id),[]);
 });

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 import {chromium} from 'playwright-core';
 
-test('required outcomes remain open and first browser call offers actionable readiness checks', async () => {
+test('required outcomes remain open and browser calling does not require an audio check', async () => {
   const browser=await chromium.launch({executablePath:process.env.CHROME_PATH||'C:/Program Files/Google/Chrome/Application/chrome.exe',headless:true});
   try {
     const page=await browser.newPage();const errors=[];page.on('pageerror',e=>errors.push(e.message));
@@ -67,54 +67,17 @@ test('required outcomes remain open and first browser call offers actionable rea
     assert.equal(await page.evaluate(()=>window.fixtureCall.notes),'Keep these call notes');
     await page.evaluate(async()=>{await Portal.CustomerPhone.open({customer_name:'My phone',customer_number:'+12069415049',purpose:'Voice test'});});
     await page.locator('[data-phone=start]').click();
-    await page.waitForSelector('[data-phone=diagnose]');
-    assert.equal(await page.evaluate(()=>window.requests.filter(r=>r.path==='calls').length),0);
-    await page.evaluate(()=>window.pauseMicrophone=true);
-    await page.locator('[data-phone=diagnose]').click();
-    await page.waitForFunction(()=>typeof window.releaseMicrophone==='function');
-    assert.equal(await page.locator('[data-check-step="0"]').textContent(),'Passed');
-    assert.equal(await page.locator('[data-check-step="1"]').textContent(),'Checking…');
-    assert.match(await page.locator('[data-check-progress]').textContent(),/click Allow/);
-    await page.evaluate(()=>{window.pauseMicrophone=false;window.releaseMicrophone();});
-    await page.waitForFunction(()=>!document.querySelector('[data-phone=diagnose]').disabled);
-    assert.match(await page.locator('.fmcp-body').textContent(),/Allow microphone access/);
-    assert.match(await page.locator('dialog[open]').textContent(),/Allow microphone access/);
-    assert.equal(await page.locator('[data-check-step="1"]').textContent(),'Blocked');
-    await page.locator('dialog[open] [data-close]').first().click();
-    assert.equal(await page.locator('[name=purpose]').inputValue(),'Voice test');
-    await page.evaluate(()=>{window.verdict='ready';const now=Date.now.bind(Date);let tick=0;Date.now=()=>now()+(tick+=3000);});
-    await page.locator('[data-phone=diagnose]').click();
-    await page.waitForFunction(()=>!document.querySelector('[data-phone=diagnose]'));
-    assert.match(await page.locator('dialog[open]').textContent(),/Microphone and network checks passed/);
-    assert.match(await page.locator('dialog[open]').textContent(),/Latency: 20 ms/);
-    await page.locator('dialog[open] [data-close]').first().click();
-    assert.match(await page.locator('.fmcp-body').textContent(),/Click Start call when you are ready/);
-    assert.equal(await page.evaluate(()=>window.requests.filter(r=>r.path==='calls').length),0);
-    await page.evaluate(()=>window.expireCheck=true);
-    await page.locator('[data-phone=start]').click();
-    await page.waitForSelector('[data-phone=diagnose]');
-    await page.locator('[data-phone=diagnose]').click();
-    await page.waitForFunction(()=>!document.querySelector('[data-phone=diagnose]'));
-    await page.locator('dialog[open] [data-close]').first().click();
-    await page.evaluate(async()=>{await Portal.CustomerPhone.disconnect();window.delayReady=true;});
-    await page.locator('[data-phone=start]').click();
-    await page.waitForFunction(()=>Portal.CustomerPhone.connecting);
-    assert.match(await page.locator('[data-phone=start]').textContent(),/Connecting/);
-    assert.equal(await page.locator('[name=mode]').inputValue(),'browser');
-    const beforeDial=await page.evaluate(()=>window.requests.filter(r=>r.path==='calls').length);
-    await page.evaluate(()=>window.client.handlers['telnyx.ready']());
     await page.waitForFunction(()=>Portal.CustomerPhone.currentCall?.id==='browser');
-    assert.equal(await page.evaluate(()=>window.requests.filter(r=>r.path==='calls').length),beforeDial+1);
+    assert.equal(await page.evaluate(()=>window.requests.filter(r=>r.path==='calls').length),1);
+    assert.equal(await page.locator('[data-phone=diagnose]').count(),0);
     await page.locator('[data-phone=minimize]').click();await page.locator('[data-phone=close]').click();
     assert.equal(await page.evaluate(()=>Portal.CustomerPhone.currentCall.state),'connected');
     await page.locator('[data-phone=minimize]').click();await page.locator('[data-phone=hangup]').click();
     await page.waitForSelector('[name=disposition]');
     assert.equal(await page.evaluate(()=>Portal.CustomerPhone.currentCall.state),'ended');
-    await page.evaluate(()=>{window.providerFailure=true;window.verdict='ready';});
-    await page.evaluate(()=>{window.checkPromise=Portal.CustomerPhone.diagnose();});
-    await page.waitForFunction(()=>document.querySelector('[data-check-retry]')&&!document.querySelector('[data-check-retry]').disabled);
-    assert.equal(await page.evaluate(()=>window.requests.filter(r=>r.path==='voice/diagnostics').at(-1).body.provider_verdict),'blocked');
-    assert.equal(await page.locator('[data-check-step="2"]').textContent(),'Blocked');
+    await page.evaluate(()=>{window.fixtureCall.metadata.provider_error={message:'The provider operation needs attention.'};});
+    await page.evaluate(()=>Portal.CustomerPhone.open({call_id:'browser'}));
+    assert.equal(await page.getByText('The provider operation needs attention.').count(),0);
     assert.deepEqual(errors,[]);
   } finally {await browser.close();}
 });

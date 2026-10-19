@@ -26,6 +26,7 @@ export const voiceSettingsSchema=z.object({
   allowed_destination_countries:z.array(z.string().regex(/^[A-Z]{2}$/)).min(1).max(30).default(["US","CA"]),
   recording_enabled:z.boolean().default(false),
   transcription_enabled:z.boolean().default(false),
+  voicemail_transcription_enabled:z.boolean().default(false),
   recording_retention_days:z.number().int().min(1).max(365).default(30),
   disclosure:z.string().max(1500).default("With your permission, we would like to record and transcribe this call to keep accurate notes. Is that okay?"),
   emergency_policy_confirmed:z.boolean().default(false),
@@ -43,7 +44,7 @@ export async function updateVoiceSettings(orgId:string,input:unknown){
 export async function validateVoiceSettings(orgId:string,input:unknown){
   const settings=voiceSettingsSchema.parse(input);
   if(settings.enabled&&(!settings.emergency_policy_confirmed||!settings.service_location.trim()))throw badRequest("service_setup_required","Complete the service location and emergency calling setup before activating voice.");
-  if((settings.recording_enabled||settings.transcription_enabled)&&!settings.recording_policy_confirmed)throw badRequest("recording_policy_required","Configure and confirm your recording consent policy before enabling capture.");
+  if((settings.recording_enabled||settings.transcription_enabled||settings.voicemail_transcription_enabled)&&!settings.recording_policy_confirmed)throw badRequest("recording_policy_required","Configure and confirm your recording consent policy before enabling capture.");
   if(settings.transcription_enabled&&!settings.recording_enabled)throw badRequest("recording_required","Enable consent-controlled recording before enabling call transcription.");
   if(settings.fallback==="forward"&&!/^\+[1-9]\d{7,14}$/.test(settings.overflow_number))throw badRequest("overflow_number_required","Enter a valid international overflow number.");
   if(settings.business_hours.some(h=>h.close<=h.open))throw badRequest("business_hours_invalid","Each business-hours interval must close after it opens. Split overnight intervals across two days.");

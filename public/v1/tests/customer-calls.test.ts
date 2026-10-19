@@ -47,6 +47,172 @@ test("call API authenticates, enforces tenant boundaries, and logs external call
   const calls=await c.request("GET",`${base}/calls`);assert.equal(calls.total,1);
   const control=await c.raw("POST",`${base}/calls/${created.call.id}/actions`,{operation_id:"manual-control-1",action:"hold"});assert.equal(control.status,409);
 });
+
+async function conferenceFixture(){
+  const {c,orgId}=await owner(),base=`/v1/comms/organizations/${orgId}`;
+  const seed=await c.request('POST',`${base}/calls`,{operation_id:'conference-owner-fixture',customer_number:'+12065550101'});
+  const call=await store.insertCall({id:store.id('conference'),organization_id:orgId,branch_id:'default',mode:'browser',direction:'outbound',state:'connected',owner_user_id:seed.call.owner_user_id,customer_number:'+12065550101',business_number:'+12065550100',metadata:{conference_id:'room'}});
+  await store.patchCall(orgId,call.id,{connected_at:store.now()});
+  await store.saveResource(orgId,'settings','default',{enabled:true});await store.saveResource(orgId,'application','default',{},store.id('app'));
+  await store.saveLeg(orgId,call.id,'agent',{call_control_id:`${call.id}-host`,state:'answered'});
+  await store.saveLeg(orgId,call.id,'customer',{call_control_id:`${call.id}-customer`,state:'answered'});
+  const submissions:Array<{path:string;body:any}>=[];
+  const {TelnyxVoiceClient,setVoiceClientFactoryForTests}=await import('../telephony/telnyx.js');
+  let rejectDial=false,uncertainDial=false;
+  class Provider extends TelnyxVoiceClient{override async request(path:string,_method='GET',body:any={}){
+    submissions.push({path,body});
+    if(path==='/calls'&&(rejectDial||uncertainDial)){const {TelnyxError}=await import('../messaging/telnyx.js');throw new TelnyxError('Test rejection',422,{submission_unknown:uncertainDial});}
+    return {data:path==='/calls'?{call_control_id:`${call.id}-guest-${submissions.length}`}:{result:'ok'}};
+  }}
+  setVoiceClientFactoryForTests(()=>new Provider());process.env.TELNYX_VOICE_MODE='live';
+  const action=async(action:string,extra:any={},operation_id=store.id('op'))=>c.request('POST',`${base}/calls/${call.id}/actions`,{action,operation_id,...extra});
+  const pump=async()=>{for(let n=0;n<15;n++)if(!await worker.processOneJob('conference-tests','voice',call.id))break;};
+  const detail=async()=>c.request('GET',`${base}/calls/${call.id}`);
+  const event=async(type:string,control:string)=>worker.processVoiceEvent({data:{id:store.id('event'),event_type:type,occurred_at:store.now(),payload:{call_control_id:control,hangup_cause:'NORMAL_CLEARING'}}});
+  return {c,orgId,base,call,submissions,action,pump,detail,event,fail:(uncertain=false)=>{rejectDial=true;uncertainDial=uncertain;},close:()=>{setVoiceClientFactoryForTests(null);process.env.TELNYX_VOICE_MODE='disabled';}};
+}
+test('conference invitations are idempotent, join the existing bridge, and a guest leaving preserves the call',async()=>{
+  const f=await conferenceFixture();try{
+    const input={target_phone:'+12065550102',target_name:'External guest'};
+    await f.action('add_participant',input,'conference-invite-one');await f.action('add_participant',input,'conference-invite-one');
+    assert.equal((await f.detail()).participants.length,1);
+    await assert.rejects(()=>f.action('add_participant',input),/already on the call/);
+    await f.pump();const control=`${f.call.id}-guest-1`;
+    assert.equal(f.submissions[0]!.body.to,input.target_phone);
+    assert.equal(f.submissions.filter(s=>s.path==='/calls').length,1);
+    await f.event('call.answered',control);await f.pump();
+    assert.equal((await f.detail()).participants[0].state,'connected');
+    assert.ok(f.submissions.some(s=>s.path==='/conferences/room/actions/join'&&s.body.call_control_id===control&&s.body.end_conference_on_exit===false));
+    await f.action('hold');await f.pump();assert.equal((await f.detail()).call.state,'held');
+    assert.ok(f.submissions.some(s=>s.path.endsWith('/actions/hold')&&s.body.call_control_ids.includes(control)));
+    await f.action('resume');await f.pump();
+    await f.event('call.hangup',control);await f.pump();
+    assert.equal((await f.detail()).participants[0].state,'left');assert.equal((await f.detail()).call.state,'connected');
+    assert.ok(!f.submissions.some(s=>s.path.includes(`${f.call.id}-host/actions/hangup`)||s.path.includes(`${f.call.id}-customer/actions/hangup`)));
+  }finally{f.close();}
+});
+test('teammate invitations reserve availability and allow only their own guest controls',async()=>{
+  const f=await conferenceFixture();try{
+    const user='guest-user',ctx={orgId:f.orgId,userId:user,branchId:'default',sessionId:'guest-session',permissions:{make_calls:true,view_comms:true}} as any;
+    await store.saveResource(f.orgId,'endpoint',user,{user_id:user,name:'Jordan',branch_id:'default',registered:true,availability:'available',heartbeat_at:store.now(),sip_username:'guest',session_id:'guest-session',device_id:'guest-device'});
+    await f.action('add_participant',{target_user_id:user});
+    const {presence,callAction,disconnectEndpoint}=await import('../comms/calls/voice.js');
+    assert.equal((await presence(ctx,{device_id:'guest-device',registered:true,availability:'available'})).availability,'busy');
+    await assert.rejects(()=>disconnectEndpoint(ctx,'guest-device'),/active call/);
+    await assert.rejects(()=>callAction(ctx,f.call.id,{operation_id:'guest-cannot-add',action:'add_participant',target_phone:'+12065550103'}),/Only the call owner/);
+    await f.pump();assert.equal(f.submissions[0]!.body.to,'sip:guest@sip.telnyx.com');
+    await f.event('call.answered',`${f.call.id}-guest-1`);await f.pump();
+    await callAction(ctx,f.call.id,{operation_id:'guest-leaves-only-self',action:'hangup'});await f.pump();
+    assert.equal((await f.detail()).call.state,'connected');assert.equal((await f.detail()).participants[0].state,'left');
+    assert.equal((await store.resource(f.orgId,'endpoint',user))?.offered_call_id,'');
+    assert.ok(!f.submissions.some(s=>s.path.includes(`${f.call.id}-host/actions/hangup`)));
+  }finally{f.close();}
+});
+
+test('conference hosts can hold one person, reinvite removed guests, or leave the other people connected',async()=>{
+  const f=await conferenceFixture();try{
+    await assert.rejects(()=>f.action('leave_conference'),/two other connected/);
+    await f.action('add_participant',{target_phone:'+12065550102',target_name:'Guest'});await f.pump();
+    const control=f.submissions.find(s=>s.path==='/calls')!.body.command_id;
+    const leg=(await store.legs(f.orgId,f.call.id)).find(l=>l.role==='participant')!;
+    await f.event('call.answered',String(leg.control_id));await f.pump();
+    const p=(await f.detail()).participants[0];
+    assert.ok(f.submissions.some(s=>s.path.endsWith('/actions/join')&&s.body.beep_enabled==='on_enter'));
+    await f.action('hold_participant',{participant_id:'customer'});await f.pump();assert.equal((await f.detail()).call.metadata.customer_hold_state,'held');assert.equal((await f.detail()).call.state,'connected');
+    await f.action('resume_participant',{participant_id:'customer'});await f.pump();assert.equal((await f.detail()).call.metadata.customer_hold_state,'connected');
+    await f.action('hold_participant',{participant_id:p.id});await f.pump();
+    assert.equal((await f.detail()).participants[0].state,'held');assert.equal((await f.detail()).call.state,'connected');
+    await f.action('hold');await f.pump();await f.action('resume');await f.pump();
+    assert.equal((await f.detail()).participants[0].state,'held');
+    await f.action('resume_participant',{participant_id:p.id});await f.pump();assert.equal((await f.detail()).participants[0].state,'connected');
+    await f.action('remove_participant',{participant_id:p.id});await f.pump();await f.event('call.hangup',String(leg.control_id));
+    await f.action('add_participant',{target_phone:'+12065550102',target_name:'Guest'});await f.pump();
+    const replacement=(await store.legs(f.orgId,f.call.id)).find(l=>l.role==='participant'&&l.state!=='ended')!;
+    await f.event('call.answered',String(replacement.control_id));await f.pump();
+    await f.action('leave_conference',{},'host-leave-once');await f.action('leave_conference',{},'host-leave-once');await f.pump();
+    await f.event('call.hangup',`${f.call.id}-host`);assert.equal((await f.detail()).call.state,'connected');
+    await store.database().prepare('UPDATE customer_calls SET updated_at=? WHERE organization_id=? AND id=?').run('2000-01-01T00:00:00Z',f.orgId,f.call.id);
+    await (await import('../comms/calls/recovery.js')).maintainVoiceSessions();await f.pump();assert.notEqual((await f.detail()).call.metadata.provider_error?.state,'disconnecting');
+    assert.equal((await store.listCalls(f.orgId,{active:true,owner_user_id:f.call.owner_user_id})).calls.some(c=>c.id===f.call.id),false);
+    assert.ok(!f.submissions.some(s=>s.path.includes(`${f.call.id}-customer/actions/hangup`)));
+    await f.event('call.hangup',String(replacement.control_id));await f.pump();assert.equal((await f.detail()).call.state,'ended');
+  }finally{f.close();}
+});
+
+test('conference publications expose typed participants and enforce receipts, effects and tenant access',async()=>{
+  const f=await conferenceFixture();try{
+    const {backgroundAuthContext}=await import('../platform/auth.js'),{initializePublication}=await import('../platform/publication/bootstrap.js');initializePublication();
+    const {readPublishedData}=await import('../platform/publication/providers.js'),{invokeAction}=await import('../platform/publication/actions.js');
+    const auth=await backgroundAuthContext(f.orgId,f.call.owner_user_id),ctx={auth,organizationId:f.orgId,executionKind:'api',mode:'command'} as any,target={scope:'organization',organizationId:f.orgId,id:f.call.id} as any;
+    const ref={action:'customer-calls.conference.add',target},input={target_phone:'+12065550102',target_name:'Published guest'};
+    await assert.rejects(()=>invokeAction({...ctx,mode:'evaluate'},ref,input,{idempotencyKey:'published-add'}));
+    await invokeAction(ctx,ref,input,{idempotencyKey:'published-add'});await invokeAction(ctx,ref,input,{idempotencyKey:'published-add'});
+    assert.equal((await f.detail()).participants.length,1);
+    const result=await readPublishedData({...ctx,mode:'evaluate'},{provider:'customer-call-conference',export:'participants',target});assert.equal(result.status,'ready');if(result.status==='ready'){assert.equal((result.value as any).participants[0].name,'Published guest');assert.equal((result.value as any).participants[0].control_id,undefined);}
+    await f.pump();
+    const other=await owner(),otherAuth=await backgroundAuthContext(other.orgId,(await other.c.request('POST',`/v1/comms/organizations/${other.orgId}/calls`,{operation_id:'publication-other-owner',customer_number:'+12065550106'})).call.owner_user_id);
+    const denied=await readPublishedData({...ctx,auth:otherAuth,organizationId:other.orgId},{provider:'customer-call-conference',export:'participants',target});assert.notEqual(denied.status,'ready');
+    await assert.rejects(()=>invokeAction({...ctx,auth:otherAuth,organizationId:other.orgId},ref,input,{idempotencyKey:'published-add'}));
+  }finally{f.close();}
+});
+
+test('removing and reinviting the original caller preserves other participants and allows host departure',async()=>{
+  const f=await conferenceFixture();try{
+    for(const phone of ['+12065550102','+12065550103']){await f.action('add_participant',{target_phone:phone});await f.pump();const leg=(await store.legs(f.orgId,f.call.id)).find(l=>l.role==='participant'&&l.state==='initiated')!;await f.event('call.answered',String(leg.control_id));await f.pump();}
+    await f.action('remove_participant',{participant_id:'customer'});await f.pump();
+    await assert.rejects(()=>f.action('add_participant',{target_phone:f.call.customer_number}),/Wait for the removed/);
+    await f.event('call.hangup',`${f.call.id}-customer`);assert.equal((await f.detail()).call.state,'connected');
+    await f.action('hold');await f.pump();await f.action('resume');await f.pump();assert.equal((await f.detail()).call.state,'connected');
+    await f.action('add_participant',{target_phone:f.call.customer_number});await f.pump();
+    const invited=(await store.legs(f.orgId,f.call.id)).find(l=>l.role==='participant'&&l.state==='initiated')!;await f.event('call.answered',String(invited.control_id));await f.pump();
+    await f.action('leave_conference');await f.pump();await f.event('call.hangup',`${f.call.id}-host`);assert.equal((await f.detail()).call.state,'connected');
+    await f.action('hangup');await f.pump();assert.equal((await f.detail()).call.state,'ending');
+  }finally{f.close();}
+});
+test('canceled conference invitations never dial and late answers cannot rejoin',async()=>{
+  const f=await conferenceFixture();try{
+    await f.action('add_participant',{target_phone:'+12065550104'});const p=(await f.detail()).participants[0];
+    const resource=await store.resource(f.orgId,'conference_participant',p.id);
+    await f.action('remove_participant',{participant_id:p.id});await f.pump();assert.equal(f.submissions.length,0);
+    await store.saveLeg(f.orgId,f.call.id,'participant',{call_control_id:'late-conference-leg',participant_id:p.id,operation_id:resource!.job_id,state:'initiated'});
+    await f.event('call.answered','late-conference-leg');await f.pump();
+    assert.ok(f.submissions.some(s=>s.path==='/calls/late-conference-leg/actions/hangup'));
+    assert.ok(!f.submissions.some(s=>s.path.endsWith('/actions/join')));assert.equal((await f.detail()).call.state,'connected');
+    assert.equal((await f.detail()).participants[0].state,'removed');
+  }finally{f.close();}
+});
+test('conference limits and destination policy include pending invites; failures never end the original call',async()=>{
+  const f=await conferenceFixture();try{
+    await store.saveResource(f.orgId,'suppression','+12065550109',{});
+    await assert.rejects(()=>f.action('add_participant',{target_phone:'+12065550109'}),/requested no phone calls/);
+    await assert.rejects(()=>f.action('add_participant',{target_phone:'+442079460123'}),/enabled calling regions/);
+    await assert.rejects(()=>f.action('add_participant',{target_phone:f.call.customer_number}),/different number/);
+    for(let i=2;i<6;i++)await f.action('add_participant',{target_phone:`+1206555010${i}`});
+    await assert.rejects(()=>f.action('add_participant',{target_phone:'+12065550106'}),/supports 6 people/);
+    f.fail();await f.pump();const detail=await f.detail();
+    assert.ok(detail.participants.every((p:any)=>p.state==='failed'));assert.equal(detail.call.state,'connected');
+    assert.ok(!detail.call.metadata.provider_error);assert.ok(!f.submissions.some(s=>s.path.endsWith('/hangup')));
+    await f.action('add_participant',{target_phone:'+12065550106'});f.fail(true);await f.pump();
+    assert.equal((await f.detail()).participants.find((p:any)=>p.phone==='+12065550106').state,'uncertain');
+    await assert.rejects(()=>f.action('add_participant',{target_phone:'+12065550106'}),/already on the call/);
+    assert.equal((await f.detail()).call.state,'connected');
+  }finally{f.close();}
+});
+test('conference capacity reserves pending supervisors and correlated events clear uncertainty',async()=>{
+  const f=await conferenceFixture();try{
+    await store.saveResource(f.orgId,'supervision','waiting-supervisor',{call_id:f.call.id,state:'dialing'});
+    for(let i=2;i<5;i++)await f.action('add_participant',{target_phone:`+1206555010${i}`});
+    await assert.rejects(()=>f.action('add_participant',{target_phone:'+12065550105'}),/supports 6 people/);
+    f.fail(true);await f.pump();
+    const p=(await f.detail()).participants.find((v:any)=>v.state==='uncertain'),resource=await store.resource(f.orgId,'conference_participant',p.id);
+    for(const other of (await f.detail()).participants.filter((v:any)=>v.id!==p.id))await f.action('remove_participant',{participant_id:other.id});
+    await store.saveLeg(f.orgId,f.call.id,'participant',{call_control_id:'uncertain-confirmed',participant_id:p.id,operation_id:resource!.job_id,state:'initiated'});
+    await f.event('call.answered','uncertain-confirmed');await f.pump();
+    assert.equal((await f.detail()).participants.find((v:any)=>v.id===p.id).state,'connected');
+    assert.equal((await store.jobs(f.orgId,f.call.id)).find(j=>j.id===resource!.job_id)?.state,'completed');
+    assert.equal((await f.detail()).call.state,'connected');
+  }finally{f.close();}
+});
 test("call creation and wrap-up retries keep one attempt and one follow-up",async()=>{
   const {c,orgId}=await owner();const base=`/v1/comms/organizations/${orgId}`;
   const input={operation_id:"idempotent-create",customer_name:"Avery",customer_number:"+12065550101"};
@@ -123,7 +289,7 @@ test("readiness distinguishes missing media from a fast connection",async()=>{
   assert.equal(diagnosticVerdict({microphone:"ready",connectivity:"ready",metrics:{rtt_ms:900,jitter_ms:80,packet_loss_percent:8}}).verdict,"blocked");
 });
 
-test("full outbound voice flow dials staff first, joins the customer, holds, records, and ends both legs",async()=>{
+test("outbound voice calls work without a diagnostic, then join, hold, record, and end both legs",async()=>{
   const {TelnyxVoiceClient,setVoiceClientFactoryForTests}=await import("../telephony/telnyx.js");
   const submissions:Array<{path:string;method:string;body:Record<string,unknown>}> = [];
   let sequence=0;
@@ -147,7 +313,6 @@ test("full outbound voice flow dials staff first, joins the customer, holds, rec
     (await store.saveResource(orgId,'settings','default',{enabled:true,recording_enabled:true,recording_policy_confirmed:true,emergency_policy_confirmed:true,service_location:'Test office'}));
     await c.request('POST',`${base}/voice/endpoint/token`,{device_id:'simulated-device'});
     await c.request('POST',`${base}/voice/endpoint/presence`,{device_id:'simulated-device',registered:true,availability:'available'});
-    await c.request('POST',`${base}/voice/diagnostics`,{device_id:'simulated-device',microphone:'ready',connectivity:'ready',provider_verdict:'ready',metrics:{rtt_ms:60,jitter_ms:3,packet_loss_percent:0}});
     const {call}=await c.request('POST',`${base}/calls`,{operation_id:'simulated-outbound-call',mode:'browser',device_id:'simulated-device',customer_number:'+12065550111',customer_name:'Simulated customer'});
     await worker.processOneJob('simulation');assert.equal(submissions.filter(s=>s.path==='/calls').length,1);assert.equal(submissions.find(s=>s.path==='/calls')?.body.to,'sip:staff-endpoint@sip.telnyx.com');
     const event=async(type:string,control:string,extra:Record<string,unknown>={})=>worker.processVoiceEvent({data:{id:`evt-${Math.random()}`,event_type:type,occurred_at:new Date().toISOString(),payload:{call_control_id:control,...extra}}});
@@ -184,6 +349,9 @@ test("call history cursor pages do not repeat rows and wrap-up filters are appli
   const first=await c.request('GET',`${base}/calls?limit=2`);assert.equal(first.calls.length,2);assert.ok(first.next_cursor);
   const next=await c.request('GET',`${base}/calls?limit=2&cursor=${encodeURIComponent(first.next_cursor)}`);assert.equal(next.calls.length,1);assert.ok(!first.calls.some((call:any)=>call.id===next.calls[0].id));
   assert.equal((await c.request('GET',`${base}/calls?wrap_up_state=needs_wrap_up`)).calls.length,0);
+  assert.equal((await c.request('GET',`${base}/calls?state=${encodeURIComponent(first.calls[0].state)}`)).total,3);
+  assert.equal((await c.request('GET',`${base}/calls?created_after=${encodeURIComponent(new Date(Date.now()+86400_000).toISOString())}`)).total,0);
+  assert.equal((await c.request('GET',`${base}/calls?created_before=${encodeURIComponent(new Date(Date.now()-86400_000).toISOString())}`)).total,0);
 });
 
 test('delayed answered events preserve a connected or held call',async()=>{
@@ -235,6 +403,21 @@ test('recording range playback, expiry, and deletion are enforced by the authent
   (await store.database().prepare("UPDATE customer_call_artifacts SET expires_at='2000-01-01' WHERE id=?").run(artifact));
   assert.equal((await c.raw('GET',url)).status,404);
   await (await import('../comms/calls/media.js')).expireArtifacts();assert.equal((await store.artifacts(orgId,call.id)).length,0);
+});
+
+test('new recording media is stored and playable through the authenticated API',async()=>{
+  const {c,orgId}=await owner(),base=`/v1/comms/organizations/${orgId}`;
+  const {call}=await c.request('POST',`${base}/calls`,{operation_id:'voicemail-media-fixture',customer_number:'+12065550145'});
+  const key='playable-recording',artifactId=store.id('ca',`${orgId}:recording:${key}`);
+  const media=await import('../comms/calls/media.js');
+  const recording=await media.saveRecording(orgId,artifactId,Buffer.from('RIFFtest'),'wav');
+  assert.equal(recording.content_type,'audio/wav');
+  const saved=await store.saveArtifact(orgId,call.id,'recording',key,recording);
+  assert.equal(saved,artifactId);
+  const response=await c.raw('GET',`${base}/calls/${call.id}/artifacts/${artifactId}/media`);
+  assert.equal(response.status,200);assert.equal(response.body,'RIFFtest');
+  await media.deleteArtifact(orgId,call.id,artifactId);
+  assert.equal((await c.raw('GET',`${base}/calls/${call.id}/artifacts/${artifactId}/media`)).status,404);
 });
 
 test('new inbound activity reopens a resolved conversation and read markers remain per user',async()=>{
@@ -374,7 +557,7 @@ test('provider resource reconciliation searches later inventory pages',async()=>
 test('canceling a transfer before provider submission cannot ring the teammate or rejoin a late leg',async()=>{
   const {TelnyxVoiceClient,setVoiceClientFactoryForTests}=await import('../telephony/telnyx.js');const submissions:string[]=[];
   class Provider extends TelnyxVoiceClient{override async request(path:string){submissions.push(path);return {data:{result:'ok'}};}}
-  const {callAction}=await import('../comms/calls/voice.js');const orgId='cancel-consult-org',ctx={orgId,userId:'owner',branchId:'default',permissions:{make_calls:true,view_comms:true}} as any;
+  const {callAction}=await import('../comms/calls/voice.js');const orgId='cancel-consult-org',ctx={orgId,userId:'owner',branchId:'default',permissions:{view_comms:true,make_calls:true}} as any;
   const call=(await store.insertCall({id:'cancel-consult-call',organization_id:orgId,branch_id:'default',owner_user_id:'owner',mode:'browser',direction:'outbound',state:'connected',connected_at:store.now(),metadata:{conference_id:'cancel-conference'}}));
   (await store.saveResource(orgId,'settings','default',{enabled:true}));(await store.saveResource(orgId,'application','default',{},'cancel-app'));
   (await store.saveResource(orgId,'endpoint','consultant',{user_id:'consultant',registered:true,availability:'available',branch_id:'default',heartbeat_at:store.now(),sip_username:'consultant'}));

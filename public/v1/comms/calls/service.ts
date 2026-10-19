@@ -14,6 +14,7 @@ import { requireVoiceEnvironment, voiceWebhookUrl } from "../../telephony/telnyx
 import { normalizePhone, voiceSettings } from "./settings.js";
 import { canUseLine } from '../phone/service.js';
 import { followUpOptions } from './follow-up-policy.js';
+import { activeConferenceForUser } from './conference.js';
 import * as store from "./storage.js";
 import { text, object, strings, type Json, type CustomerCall } from "./storage.js";
 
@@ -126,8 +127,6 @@ export async function createCall(ctx:PlatformAuthContext,input:unknown){
     if(text((await store.resource(ctx.orgId,'endpoint_lock',ctx.userId))?.expires_at)>store.now())throw conflict('phone_reconnecting','Wait for your phone connection change to finish.');
     if(!endpoint||endpoint.session_id!==ctx.sessionId||endpoint.device_id!==body.device_id||text(endpoint.heartbeat_at)<new Date(Date.now()-45_000).toISOString()||endpoint.registered!==true)throw conflict("phone_not_ready","Connect this browser's phone before calling.");
     if(Date.parse(text(endpoint.credential_expires_at))<Date.now()+settings.max_call_minutes*60000+60000)throw conflict('phone_refresh_required','Reconnect your phone so its credential lasts through the call.');
-    const diagnostic=(await store.resource(ctx.orgId,"diagnostic",`${ctx.userId}:${body.device_id}`));
-    if(!diagnostic||!['ready','degraded'].includes(text(diagnostic.verdict))||text(diagnostic.updated_at)<new Date(Date.now()-24*3600_000).toISOString())throw conflict("device_check_required","Run the microphone and network check before your first call on this device.");
   }
   return (await store.transaction(async ()=>{
     if(settings.require_disposition){
@@ -137,6 +136,7 @@ export async function createCall(ctx:PlatformAuthContext,input:unknown){
     const op=(await store.operation(ctx.orgId,"create",body.operation_id,callId,{...body,actor:ctx.userId}));
     if(op.existing)return (await store.readCall(ctx.orgId,callId));
     if(body.mode==="browser"){
+      if(await activeConferenceForUser(ctx.orgId,ctx.userId))throw conflict('call_in_progress','Leave the conference before starting another call.');
       if(await (await import('./supervision.js')).activeSupervisionCallId(ctx.orgId,ctx.userId))throw conflict('supervision_phone_busy','Leave your supervisor session before starting another call.');
       const active=(await store.listCalls(ctx.orgId,{active:true,limit:200}));
       if(active.total>=settings.max_concurrent_calls)throw conflict("voice_capacity","All phone lines are busy. Try again shortly.");
@@ -315,14 +315,14 @@ export async function people(ctx:PlatformAuthContext){
 
 export async function phoneContacts(ctx:PlatformAuthContext,query:string){
   const needle=query.trim().toLowerCase().slice(0,150);
-  const matches=new Map<string,{id:string;project_id:string;name:string;phone:string}>();
+  const matches=new Map<string,{id:string;project_id:string;name:string;phone:string;tags:string[]}>();
   const projects=(await listDocuments(ctx.orgId,'projects')).sort((a,b)=>Number(b.data.workflow_state==='contact_only')-Number(a.data.workflow_state==='contact_only'));
   for(const project of projects){
     const data=object(project.data);
     if(!manageCalls(ctx)&&text(data.branch_id||'default')!==(ctx.branchId||'default'))continue;
     for(const raw of Array.isArray(data.contacts)?data.contacts:[]){
       const contact=object(raw),id=text(contact.id||contact.contact_id),name=text(contact.name||contact.display_name),phone=text(contact.phone||contact.phone_number||contact.mobile);
-      if(id&&phone&&!matches.has(id)&&`${name} ${phone}`.toLowerCase().includes(needle))matches.set(id,{id,project_id:project.id,name,phone});
+      if(id&&phone&&!matches.has(id)&&`${name} ${phone}`.toLowerCase().includes(needle))matches.set(id,{id,project_id:project.id,name,phone,tags:Array.isArray(contact.tags)?contact.tags.map(text).filter(Boolean):[]});
     }
   }
   return [...matches.values()].sort((a,b)=>a.name.localeCompare(b.name,undefined,{sensitivity:'base'}));

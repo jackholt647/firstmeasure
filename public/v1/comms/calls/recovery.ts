@@ -4,6 +4,7 @@ import { processVoiceEvent } from "./worker.js";
 import { providerCommand,withEndpointLease } from "./voice.js";
 import * as s from "./storage.js";
 import { object,text,type Json } from "./storage.js";
+import { activeConferenceForUser } from './conference.js';
 
 /** Reconciliation only accepts provider evidence; an uncertain dial is never replayed. */
 export async function reconcileCall(orgId:string,callId:string){
@@ -30,7 +31,7 @@ export async function maintainVoiceSessions(){
     .all(new Date(Date.now()-30000).toISOString()));
   for(const row of rows){const orgId=text(object(row).organization_id),callId=text(object(row).id);let call=(await s.readCall(orgId,callId));
     await reconcileCall(orgId,callId).catch(()=>{});call=(await s.readCall(orgId,callId));if(s.terminal.has(call.state))continue;
-    if(call.owner_user_id){const endpoint=(await s.resource(orgId,'endpoint',call.owner_user_id));const fresh=endpoint&&text(endpoint.heartbeat_at)>new Date(Date.now()-60000).toISOString();
+    if(call.owner_user_id&&!call.metadata.host_left_at){const endpoint=(await s.resource(orgId,'endpoint',call.owner_user_id));const fresh=endpoint&&text(endpoint.heartbeat_at)>new Date(Date.now()-60000).toISOString();
       const session=fresh?await readAuthSession(text(endpoint.session_id)).catch(()=>null):null;
       if(!session){for(const leg of (await s.legs(orgId,callId)).filter(l=>l.state!=='ended'))(await providerCommand(call,text(leg.control_id),'hangup',{},`owner-disconnected:${leg.id}`));
         (await s.patchCall(orgId,callId,{metadata:{...call.metadata,provider_error:{state:'disconnecting',message:'The staff phone disconnected. Ending the call.'}}}));}
@@ -39,10 +40,10 @@ export async function maintainVoiceSessions(){
   const endpoints=(await s.database().prepare("SELECT organization_id,id,provider_id,data_json FROM customer_voice_resources WHERE kind='endpoint' AND (json_extract(data_json,'$.heartbeat_at')<? OR json_extract(data_json,'$.credential_expires_at')<?) LIMIT 10", "SELECT organization_id,id,provider_id,data_json FROM customer_voice_resources WHERE kind='endpoint' AND (data_json::jsonb #>> '{heartbeat_at}'<? OR data_json::jsonb #>> '{credential_expires_at}'<?) LIMIT 10")
     .all(new Date(Date.now()-86400000).toISOString(),s.now()));
   for(const row of endpoints){const endpoint=object(row),orgId=text(endpoint.organization_id),userId=text(endpoint.id);
-    if((await s.listCalls(orgId,{owner_user_id:userId,active:true,include_diagnostics:true})).total)continue;
+    if((await s.listCalls(orgId,{owner_user_id:userId,active:true,include_diagnostics:true})).total||await activeConferenceForUser(orgId,userId))continue;
     try{await withEndpointLease(orgId,userId,async()=>{
       const current=object((await s.database().prepare("SELECT data_json FROM customer_voice_resources WHERE organization_id=? AND kind='endpoint' AND id=?").get(orgId,userId)));
-      if(current.data_json!==endpoint.data_json||(await s.listCalls(orgId,{owner_user_id:userId,active:true,include_diagnostics:true})).total)return;
+      if(current.data_json!==endpoint.data_json||(await s.listCalls(orgId,{owner_user_id:userId,active:true,include_diagnostics:true})).total||await activeConferenceForUser(orgId,userId))return;
       if(endpoint.provider_id)await voiceClient().revokeCredential(text(endpoint.provider_id));
       (await s.database().prepare("DELETE FROM customer_voice_resources WHERE organization_id=? AND kind='endpoint' AND id=? AND data_json=?").run(orgId,userId,text(endpoint.data_json)));
     });

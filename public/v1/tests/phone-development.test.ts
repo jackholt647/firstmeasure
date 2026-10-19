@@ -79,10 +79,12 @@ test('mandatory dispositions block a new call while optional outcomes remain ski
 test('phone search finds saved Contacts records and preserves their project link',async()=>{
   const {c,orgId}=await owner();
   const projectId='phone_contact_project',contactId='phone_contact_person';
-  await c.request('POST',`/v1/platform/organizations/${orgId}/projects`,{id:projectId,data:{title:'Taylor Reed'}});
-  await putProjectContacts(c,orgId,projectId,[{id:contactId,name:'Taylor Reed',phone:'+12025550131',primary:true}]);
+  await c.request('PUT',`/v1/platform/organizations/${orgId}/contacts/settings`,{tags:[{id:'lead',label:'Lead'}]});
+  await c.request('POST',`/v1/platform/organizations/${orgId}/projects`,{id:projectId,data:{
+    title:'Taylor Reed',workflow_state:'contact_only',contacts:[{id:contactId,name:'Taylor Reed',phone:'+12025550131',primary:true,tags:['lead']}]
+  }});
   const result=await c.request('GET',`/v1/comms/organizations/${orgId}/voice/contacts?query=Taylor`);
-  assert.deepEqual(result.contacts,[{id:contactId,project_id:projectId,name:'Taylor Reed',phone:'+12025550131'}]);
+  assert.deepEqual(result.contacts,[{id:contactId,project_id:projectId,name:'Taylor Reed',phone:'+12025550131',tags:['lead']}]);
   assert.deepEqual((await c.request('GET',`/v1/comms/organizations/${orgId}/voice/contacts`)).contacts,result.contacts);
   assert.deepEqual((await c.request('GET',`/v1/comms/organizations/${orgId}/voice/contacts?query=a`)).contacts,result.contacts);
   const call=await c.request('POST',`/v1/comms/organizations/${orgId}/calls`,{
@@ -90,6 +92,35 @@ test('phone search finds saved Contacts records and preserves their project link
   });
   assert.equal(call.call.contact_id,contactId);
   assert.equal(call.call.project_id,projectId);
+});
+test('voicemail inbox returns audio and transcripts and keeps read/archive state per user',async()=>{
+  const {c,orgId}=await owner(),base=`/v1/comms/organizations/${orgId}`;
+  await store.saveResource(orgId,'number','+12065550199',{status:'active',phone_number:'+12065550199',branch_id:'default',label:'Main'});
+  const callId=store.id('call',`voicemail-test:${orgId}`),recordingId=`sample:${callId}`;
+  await store.insertCall({id:callId,organization_id:orgId,branch_id:'default',mode:'browser',direction:'inbound',state:'ended',customer_number:'+12025550131',business_number:'+12065550199',customer_name:'Taylor Reed',metadata:{voicemail:{started:true}}});
+  const recordingRoot=path.join(root,'messaging','call-recordings',store.id('org',orgId));
+  await mkdir(recordingRoot,{recursive:true});
+  const filePath=path.join(recordingRoot,'message.wav');
+  await writeFile(filePath,Buffer.from('RIFF0000WAVEfmt '));
+  const audioId=await store.saveArtifact(orgId,callId,'voicemail',recordingId,{file_path:filePath,content_type:'audio/wav',provider_recording_id:recordingId});
+  await store.saveArtifact(orgId,callId,'transcript',recordingId,{text:'Please call me back.',recording_id:recordingId});
+  const first=await c.request('GET',`${base}/voice/voicemails`);
+  assert.equal(first.voicemails.length,1);
+  assert.equal(first.voicemails[0].transcript,'Please call me back.');
+  assert.equal(first.voicemails[0].audio_artifact_id,audioId);
+  assert.equal(first.voicemails[0].read_at,'');
+  const media=await c.raw('GET',`${base}/calls/${callId}/artifacts/${audioId}/media`);
+  assert.equal(media.status,200);
+  assert.match(String(media.body),/RIFF/);
+  const state=await c.request('PATCH',`${base}/voice/voicemails/${callId}`,{read:true,archived:true});
+  assert.ok(state.state.read_at);
+  assert.ok(state.state.archived_at);
+  const second=await c.request('GET',`${base}/voice/voicemails`);
+  assert.equal(second.voicemails[0].read_at,state.state.read_at);
+  assert.equal(second.voicemails[0].archived_at,state.state.archived_at);
+  const restored=await c.request('PATCH',`${base}/voice/voicemails/${callId}`,{read:false,archived:false});
+  assert.equal(restored.state.read_at,'');
+  assert.equal(restored.state.archived_at,'');
 });
 test('phone defaults are saved per user and assigned lines remain restricted',async()=>{
   const {c,orgId}=await owner(),base=`/v1/comms/organizations/${orgId}`;
@@ -116,7 +147,18 @@ test('carrier boundary reroutes development PSTN calls and transfers; production
     await adapter.dial({to:'+442012345678'});await adapter.command('test','transfer',{to:'+12065550122'});
     assert.deepEqual(payloads.map(p=>p.to),['+14259700671','+14259700671']);
     await adapter.dial({to:'sip:test@sip.telnyx.com'});assert.equal(payloads[2].to,'sip:test@sip.telnyx.com');
+    process.env.TELNYX_VOICE_DEVELOPMENT_ALLOWED_NUMBERS='+14259700671, +12068590917,+15099600721,+12068590917,invalid';
+    await adapter.dial({to:'+12068590917'});await adapter.dial({to:'+15099600721'});
+    await adapter.command('test','transfer',{to:'+15099600721'});
+    assert.deepEqual(payloads.slice(-3).map(p=>p.to),['+12068590917','+15099600721','+15099600721']);
+    const {developmentCallStatus}=await import('../comms/calls/development.js');
+    assert.deepEqual((await developmentCallStatus('test-routing'))?.destinations,['+14259700671','+12068590917','+15099600721']);
+    process.env.TELNYX_VOICE_DEVELOPMENT_ALLOWED_NUMBERS='+14259700671';
+    await adapter.dial({to:'+12068590917'});assert.equal(payloads.at(-1).to,'+14259700671');
     process.env.TELNYX_VOICE_DEVELOPMENT_ALLOWED_NUMBERS='';await assert.rejects(adapter.dial({to:'+12065550111'}));
+    await assert.rejects(adapter.dial({to:'+15099600721'}));
+    await assert.rejects(adapter.dial({to:'sip:test@untrusted.example'}));
     Object.assign(env,{dataEnvironment:'production'});await adapter.dial({to:'+12065550111'});assert.equal(payloads.at(-1).to,'+12065550111');
+    assert.equal(await developmentCallStatus('test-routing'),undefined);
   }finally{Object.assign(env,{dataEnvironment:previous});if(allowed===undefined)delete process.env.TELNYX_VOICE_DEVELOPMENT_ALLOWED_NUMBERS;else process.env.TELNYX_VOICE_DEVELOPMENT_ALLOWED_NUMBERS=allowed;}
 });

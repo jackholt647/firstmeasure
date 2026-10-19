@@ -164,6 +164,32 @@ October 8 international roof pricing: [Prices, exchange rates and launch expedit
 
 October 7 call center: [Supervisor controls, automatic dialing and AI notes](deploy/digitalocean/development-call-center-assistance-20261007.md) records the reusable agent analysis library, validation, UI handoff and verified four-role development rollout.
 
+October 11 phone second pass: [Texting, voicemail, and conference controls](deploy/digitalocean/development-phone-second-pass-20261011.md) records shared composer/recipient improvements, synthetic conversations, individual conference controls, recording findings, verification, and the development-only rollout.
+
+October 11 oversized incoming MMS: [Read-only groups and explicit private replies](deploy/digitalocean/development-oversized-mms-20261011.md) records complete incoming membership/media, safe private replies, typed publications, verification and development rollout continuity.
+
+October 9 phone group texting: [Tray and modal group MMS](deploy/digitalocean/development-phone-group-text-20261009.md) records multi-contact selection, image/group replies, focused verification and the development-only frontend rollout.
+
+October 9 group MMS: [Telnyx backend and publication contracts](deploy/digitalocean/development-group-mms-20261009.md) records explicit group threads, images, delivery safety, typed data/actions, development rollout continuity and remaining live-delivery requirements.
+
+October 9 FirstMate SMS registration: [Pioneer Puffin carrier-registration pilot](deploy/digitalocean/development-sms-registration-pilot-20261009.md) records scoped real Low Volume Mixed onboarding, encrypted legal details, the development rollout, and the remaining real-delivery activation requirements.
+
+October 9 SMS registration default: [Low Volume Mixed](deploy/digitalocean/development-sms-low-volume-default-20261009.md) records the default change, focused tests, and verified development rollout across web, pool, and compatibility.
+
+October 9 additional test phones: [Development conference test destinations](deploy/digitalocean/development-test-phones-20261009.md) records approved direct dialing, the conference test-phone picker and the verified development-only rollout.
+
+October 9 conference calls: [Add people to active calls](deploy/digitalocean/development-conference-20261009.md) records teammate/external invitations, participant controls, current-development integration, verification and the development-only rollout.
+
+October 9 phone workspace: [Calls layout, badges, optional audio, and group-safe routing](deploy/digitalocean/development-phone-workspace-20261009.md) records the verified development-only rollout and the remaining true group-MMS decision.
+
+October 8 shared trays: [Unified tray headers and tabs](deploy/digitalocean/development-tray-shell-20261008.md) records the AI Assistant, To Do, and Phone tray shell, phone workspace entry repair, focused browser checks, and development-only rollout.
+
+October 8 modal phone: [Phone workspace and call history](deploy/digitalocean/development-phone-modal-20261008.md) records the Windows-managed modal, browser validation, development-only rollout, and release handoff.
+
+October 8 Communications samples: [Pioneer Puffin call history, scripts, follow-ups, lists, and History repair](deploy/digitalocean/development-pioneer-puffin-calls-20261008.md) records the additive development schema repair and verified sample data.
+
+October 8 phone tray: [Contact actions, country picker, and texting polish](deploy/digitalocean/development-phone-tray-polish-20261008.md) records the verified development-only rollout and subsequent release handoff.
+
 October 7 phone tray: [Call, Text, and Contacts](deploy/digitalocean/development-phone-tabs-20261007.md) records the redesigned tray, sender restrictions, validation, and verified development-only rollout.
 
 October 7 Feed follow-up: [Wrapped note toggles and project Photos link](deploy/digitalocean/development-feed-note-toggle-project-photos-20261007.md) records the latest verified development rollout. [List photo previews and long notes](deploy/digitalocean/development-feed-list-media-20261007.md) records the preceding rollout. [Notes, member portraits, and project photos](deploy/digitalocean/development-feed-notes-project-media-20261007.md) records the earlier Pioneer Puffin media repair and Feed changes.

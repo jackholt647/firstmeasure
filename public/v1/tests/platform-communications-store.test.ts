@@ -19,6 +19,9 @@ test("communications, chat and customer calls share atomic records, search and r
   const org = `comms_${randomUUID()}`;
   const conversation = await store.createConversationRecord({ organization_id: org, participants: [{ address: "+12025550100" }] });
   assert.equal((await store.findSmsConversationRecord(org, "+12025550100"))!.id, conversation.id);
+  await store.createConversationRecord({ organization_id: org, channel_strategy: "sms", participants: [{ address: "+12025550100" }, { address: "+12025550101" }] });
+  assert.equal((await store.findSmsConversationRecord(org, "+12025550100"))!.id, conversation.id);
+  assert.equal(await store.findSmsConversationRecord(org, "+12025550101"), null);
   assert.equal(await store.findSmsConversationRecord("another_org", "+12025550100"), null);
   const writes = await Promise.all(Array.from({ length: 12 }, async () => (await store.createMessageRecord({ organization_id: org,
     conversation_id: conversation.id, channel: "sms", text_body: "Roof measurement confirmation", idempotency_key: "order-confirmation" }))));

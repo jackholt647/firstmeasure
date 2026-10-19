@@ -13,10 +13,12 @@ test('header to-dos work without a left column, retain the list across placement
       window.Portal={cfg:__APP,can:key=>key==='topbar.todos'?flag:true,topbar:{isVisible:()=>true},branchModules:{currentBranchId:()=>branch}};
       window.PlatformAPI={actionItems:{list:async(org,query)=>{reads.push({org,query});return {items:[{id:'t1',title:'Call Jane',kind:'manual',status:'open',assigned_user_ids:['user'],project_ids:['p1'],project_title:'Jane project'}]};}},work:{configuration:async()=>({})}};
     });
-    for(const file of ['window-manager/window-manager.js','platform-action-items/platform-action-items.js','platform-action-items/todo-tray.js'])await page.addScriptTag({content:await readFile(new URL('../../libraries/'+file,import.meta.url),'utf8')});
+    for(const file of ['window-manager/window-manager.js','window-manager/window-shell.js','platform-action-items/platform-action-items.js','platform-action-items/todo-tray.js'])await page.addScriptTag({content:await readFile(new URL('../../libraries/'+file,import.meta.url),'utf8')});
     await page.getByRole('button',{name:'To Do',exact:true}).first().click();
     await page.getByText('Call Jane',{exact:true}).waitFor();
     assert.equal(await page.locator('.fm-todo-tray').getAttribute('data-window'),'docked');
+    assert.equal(await page.locator('.fm-todo-tray .fm-tray-tabs').isVisible(),false);
+    if(process.env.TRAY_SHELL_SCREENSHOTS)await page.screenshot({path:process.env.TRAY_SHELL_SCREENSHOTS+'/todos.png'});
     assert.equal(await page.evaluate(()=>reads[0].query.projectId||''),'');
     assert.equal(await page.locator('.fm-todo-tray [data-window-action=minimize]').isVisible(),false);
     assert.equal(await page.locator('.fm-todo-body').evaluate(element=>getComputedStyle(element).padding),'12px');

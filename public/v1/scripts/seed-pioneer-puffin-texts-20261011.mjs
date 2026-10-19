@@ -1,0 +1,54 @@
+/** Retained SMS/MMS samples only. This script never invokes a delivery transport. */
+import {createHash} from 'node:crypto';
+import {readFileSync,realpathSync} from 'node:fs';
+import {execFileSync} from 'node:child_process';
+import {pathToFileURL} from 'node:url';
+const ORG='org_983c8e17cd313149',SOURCE='pioneer_puffin_texts_20261011',apply=process.argv.includes('--apply');
+const pid=execFileSync('systemctl',['show','firstmeasure-development-web','-p','MainPID','--value'],{encoding:'utf8'}).trim();
+for(const entry of readFileSync(`/proc/${pid}/environ`,'utf8').split('\0')){const i=entry.indexOf('=');if(i>0)process.env[entry.slice(0,i)]=entry.slice(i+1);}
+const root=realpathSync(`/proc/${pid}/cwd`);process.chdir(root);const load=file=>import(pathToFileURL(`${root}/dist/${file}`));
+await load('src/app.js');const {env}=await load('src/config/env.js');
+if(env.dataEnvironment!=='development'||env.communicationsDeliveryMode!=='capture'||!env.smsRequireConsent)throw Error('Development capture and consent safeguards required');
+const platform=await load('platform/storage.js'),messages=await load('messaging/communications_storage.js'),groups=await load('messaging/group_mms.js'),voice=await load('comms/calls/storage.js');
+const organization=await platform.readOrganization(ORG);if(!organization.name.startsWith('Pioneer Puffin Test Co')||organization.metadata?.sandbox_test_org!==true)throw Error('Wrong sandbox organization');
+const projects=await platform.listDocuments(ORG,'projects'),users=await platform.listDocuments(ORG,'users');
+const people=projects.filter(p=>p.data?.tags?.includes('Synthetic')).flatMap(p=>(p.data.contacts||[]).map(c=>({...c,project_id:p.id}))).filter(c=>c.name&&/^202-555-01\d\d$/.test(c.phone||''));
+const unique=[...new Map(people.map(c=>[c.phone,c])).values()].slice(0,8).map(c=>({name:c.name,address:'+1'+c.phone.replace(/\D/g,''),contact_id:c.id,project_id:c.project_id,type:'external'}));
+if(unique.length<8)throw Error('Eight synthetic contacts required');
+const actor=users.find(u=>u.data?.permissions?.manage_company_settings&&!u.data?.synthetic)||users[0];if(!actor)throw Error('Missing sandbox member');
+const line=(await voice.resources(ORG,'number')).find(n=>n.status==='active');if(!line?.phone_number)throw Error('No active sandbox line');
+const hash=v=>createHash('sha256').update(`${ORG}:${SOURCE}:${v}`).digest('hex'),key=v=>`pp_text_${hash(v).slice(0,24)}`,db=messages.getCommunicationsDatabase();
+const phases=[
+  ['Access plan','The delivery truck needs a clear driveway from 7:30 until 9 tomorrow. We will protect the pavers before setting down materials. Please let us know about any gate codes or areas the crew should avoid.','I can move both cars to the street tonight. The side gate will be unlocked, and the patio furniture is already under the covered porch. Please keep the garden path clear.'],
+  ['Material selection','The charcoal shingle sample is reserved, along with matching ridge caps. The ventilation option is included in the written scope; we will confirm the exact vent positions during the morning site check.','Charcoal is the one we want. Could you double-check that the detached garage matches the house? The afternoon light makes the existing colors look different.'],
+  ['Weather review','We have checked the morning forecast. Tear-off and dry-in are planned for the same day, and the crew will keep temporary covering on site. A weather change will get a new update before anyone arrives.','Thanks for the update. I am available by text all morning. If the start time changes, please include everyone in this conversation so we can coordinate access.'],
+  ['Delivery photo','Here is the material delivery photo. The pallets are staged away from the door, with a walking route left open. The crew will inspect the wrappers and quantities before opening them.','The placement looks good from this angle. Please keep the smaller delivery by the garage wall, not under the tree; that is where we need to park the second truck.'],
+  ['Walkthrough video','This short sample walkthrough shows the roof preparation and the work area. We are checking flashing, the vent openings, and the edges before installing the final courses.','The walkthrough makes the sequence much clearer. Can the crew take another photo of the chimney side after the flashing is finished? We want that in the project record.'],
+  ['Flashing detail','The chimney-side flashing is being checked against the inspection notes. We will photograph the finished detail and include it with the completion report so you can compare the before and after views.','That would be helpful. The leak used to appear above the hallway during heavy rain. Please note that location even if everything is dry during the inspection.'],
+  ['Garage work','The garage section is complete and the crew is moving back to the main roof. We have kept the material choices consistent and are checking the final ridge alignment before cleanup.','Great. I will be home after 3:30 if anyone needs access to the garage. There is an outlet on the inside wall, and the breaker for it is labeled garage west.'],
+  ['Gutter routing','The downspout elbow will point toward the garden side as discussed. Before fastening it, we will confirm there is enough clearance from the walkway and that water drains away from the foundation.','The garden-side position still works. Please do not route it across the path to the shed. A photo before fastening would help us confirm the final placement.'],
+  ['Cleanup check','The crew is collecting packaging and doing a magnetic sweep of the driveway and lawn. We will also check the patio and garden edges before opening the driveway for parking again.','Thank you. Our children use the side yard in the evening, so please give that area a second pass. Let us know when it is safe to bring the cars back.'],
+  ['Punch list','We have a short punch list: verify the porch corner, photograph the chimney flashing, and check the final downspout elbow. Those items are tracked separately and will be reviewed during the walkthrough.','That matches my notes. The porch corner is the front left when facing the house. I can point it out during the walkthrough if it is not obvious from the photos.'],
+  ['Final walkthrough','We can do the walkthrough tomorrow between 1 and 2. We will review the completed roof, the ventilation, the gutters, and the cleanup together, then record any remaining items with an owner and a follow-up date.','Tomorrow at 1:30 works for us. Please include the garage in the review. We also want to know which documents to keep for the material warranty.'],
+  ['Completion report','The completion report will include the scope, final photos, warranty information, and the resolved punch-list items. We will send it after the walkthrough and keep the project open until you have reviewed it.','Perfect. Thanks to everyone for keeping the updates together. The photos and video helped us follow the work without interrupting the crew. We will review the report tomorrow evening.']
+];
+const specs=[{name:'Jamie - roof updates',count:36,members:unique.slice(0,1)},{name:'Casey - gutter walkthrough',count:40,members:unique.slice(1,2)},{name:'Sample - roof installation group',count:60,members:unique.slice(0,3)},{name:'Sample - inspection coordination',count:72,members:unique.slice(0,5)},{name:'Sample - full project walkthrough',count:84,members:unique}];
+const assetRoot=process.env.PIONEER_PUFFIN_MEDIA_ROOT||`${root}/scripts/assets/pioneer-puffin-profiles`;
+const mediaSpecs=[['roof-photo','image/webp','roof-installation.webp',`${assetRoot}/roof-installation.webp`],['gutter-photo','image/webp','gutter-siding.webp',`${assetRoot}/gutter-siding.webp`],['roof-video','video/webm','roof-walkthrough.webm','/tmp/pioneer-puffin-roof-walkthrough.webm']];
+const assets=[];for(const [name,type,fileName,file]of mediaSpecs){const id=key(name);if(apply){try{await platform.readMediaMetadata(ORG,id);}catch(error){if(error.statusCode!==404)throw error;await platform.storeMediaUpload(ORG,{id,ownerType:'user',ownerId:actor.id,slot:'sms_sample',scope:'communications',fileName,contentType:type,bytes:readFileSync(file),metadata:{synthetic:true,source:SOURCE}});}}assets.push({url:`https://dev.1m8.ai/v1/platform/organizations/${ORG}/media/${id}/file`,content_type:type});}
+const stats={mode:apply?'applied':'dry-run',organization:organization.name,threads:specs.length,messages:0,created:0,existing:0,media:assets.length};
+for(const [threadIndex,spec]of specs.entries()){
+  if(!apply){stats.messages+=spec.count;continue;}
+  const context={project_id:spec.members[0].project_id,contact_id:spec.members[0].contact_id};
+  const input={id:key('thread:'+threadIndex),organization_id:ORG,branch_id:'default',channel_strategy:'sms',subject:spec.name,participants:spec.members,context,metadata:{synthetic:true,source:SOURCE,sms_local_number:line.phone_number},created_by_user_id:actor.id};
+  const conversation=spec.members.length>1?await groups.ensureGroupMmsConversation(input,line.phone_number,spec.members):await messages.createConversationRecord(input,true);
+  let latest='';for(let i=0;i<spec.count;i++){
+    const phase=phases[Math.floor(i/2)%phases.length],outbound=i%3===0,member=spec.members[i%spec.members.length],text=i<24?phase[outbound?1:2]:`${phase[0]} follow-up: ${phase[outbound?1:2]} ${i%2?'We have added this detail to the site notes so the whole team can review it.':'Please keep this update with the project photos for the final walkthrough.'}`;
+    latest=new Date(Date.now()-86400000+(threadIndex*spec.count+i)*120000).toISOString();
+    const media=i%9===6?[assets[Math.floor(i/9)%assets.length]]:[];
+    const result=await messages.createMessageRecord({id:key(`message:${threadIndex}:${i}`),idempotency_key:key(`message:${threadIndex}:${i}`),organization_id:ORG,branch_id:'default',conversation_id:conversation.id,context,direction:outbound?'outbound':'inbound',channel:'sms',status:outbound?'captured':'received',text_body:text,sender:outbound?{name:'Pioneer Puffin team',address:line.phone_number,type:'internal',user_id:actor.id}:member,recipients:outbound?spec.members:[{address:line.phone_number,type:'internal'}],metadata:{synthetic:true,source:SOURCE,transport_mode:'capture',media},source:{type:'user',id:actor.id},tags:['synthetic'],created_by_user_id:actor.id});
+    stats.messages++;if(result.created){stats.created++;await db.prepare('UPDATE communication_messages SET created_at=?,updated_at=?,sent_at=? WHERE organization_id=? AND id=?').run(latest,latest,outbound?latest:null,ORG,result.message.id);}else stats.existing++;
+  }
+  await messages.touchConversationForMessage(ORG,conversation.id,latest);
+}
+console.log(JSON.stringify(stats));await (await load('platform/sql_store.js')).closeSqlStoresForTests();await (await load('src/database/postgres.js')).closePostgresPools();

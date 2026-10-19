@@ -25,6 +25,16 @@ See `../.env.example`. Live startup fails closed unless the API key, webhook pub
 
 `COMMUNICATIONS_DELIVERY_MODE` defaults to `capture`; it must explicitly be `live` in production.
 
+For a controlled development registration pilot, `SMS_LIVE_REGISTRATION_ORGANIZATION_IDS`
+can list exact development organization IDs that use real carrier number inventory,
+number orders, brand registration, campaign registration, and provider fee records
+while message delivery remains captured. It has no effect outside the development
+data environment. All live-registration configuration requirements still apply,
+including the public HTTPS callback, webhook signing key, and shared compliance
+encryption key. Simulated submitted profiles cannot be converted into real ones;
+create a new legal-business registration. The UI leaves new carrier-registration
+business fields blank and does not replace this workflow with simulated phone onboarding.
+
 SQLite is supported for the current single-host, multi-process deployment only. `MESSAGING_STORAGE_ROOT` must be durable local storage shared by every worker on that host and covered by tested backups. A multi-host deployment requires moving the messaging state to a shared transactional database before scaling out.
 
 ## 10DLC setup routes
@@ -44,7 +54,7 @@ SQLite is supported for the current single-host, multi-process deployment only. 
 
 Sole proprietor profiles additionally use the `/sole-proprietor/otp/request`, `/otp/status`, and `/otp/verify` routes before campaign submission.
 
-The provider/reseller setup UI registers `AGENTS_FRANCHISES` (or `SOLE_PROPRIETOR` when applicable), matching FirstMate's provider model. API-imported campaigns with a narrower Telnyx use case are enforced through an explicit purpose mapping; unknown and mismatched purposes fail closed. The submitted message flow and samples are organization-owned attestations; FirstMate does not manufacture opt-in claims.
+The setup UI defaults new non-sole-proprietor campaigns to Telnyx `LOW_VOLUME` (Low Volume Mixed), with sub-use cases derived from the organization's selected messaging features; sole proprietors continue to use `SOLE_PROPRIETOR`. Previously submitted campaigns retain their registered use case. API-imported campaigns with a narrower Telnyx use case are enforced through an explicit purpose mapping; unknown and mismatched purposes fail closed. The submitted message flow and samples are organization-owned attestations; FirstMate does not manufacture opt-in claims.
 
 Number selection is chargeable in live mode. It creates/reuses the organization Messaging Profile, records an idempotent provider operation, claims unique ownership, revalidates current provider inventory and price, creates the Telnyx number order with an organization customer reference, and records setup/monthly provider cost metadata. Brand and campaign submissions likewise record their non-recurring fees and campaign recurring commitment. These are provider-cost records, not customer invoices.
 
@@ -125,3 +135,9 @@ Scheduled timestamps must be RFC 3339 with an explicit timezone. Telnyx native s
 ## Developer capture mode
 
 Capture mode remains available for local UI/automation tests. Developer simulation routes are unavailable in production or live mode. Telnyx configuration and health routes require authenticated company-management access and never expose credentials or profile details.
+## Group MMS
+
+True Telnyx group MMS is available through the group endpoints and the shared
+action/data publications. Existing bulk SMS remains individual delivery.
+See [the group MMS architecture and API guide](../../../docs/architecture/group-mms.md)
+for contracts, authorization, participant limits, delivery safety and activation.

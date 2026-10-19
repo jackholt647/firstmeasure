@@ -11,6 +11,33 @@ minimization/restoration, maximization, and coordinated side, corner, top and bo
 their content, routing, and what Close means. Maximization fills the host's
 available workspace; it does not invoke the browser's native fullscreen API.
 
+## Tray headers and tabs
+
+Load `window-shell.js` after `window-manager.js`. `FirstMateWindowShell.trayWindow`
+gives docked trays the same title-bar sizing, tab navigation, and content-panel
+contract. Pass its returned `body` to `FirstMateWindows.attach`; the shell moves
+each supplied element into a retained panel. One tab hides the tab bar; adding a
+second tab shows it. Arrow, Home, and End keys move between tabs.
+
+```js
+const tray = FirstMateWindowShell.trayWindow({
+  element: frame, header, title, body,
+  tabs: [{id:'main', label:'Main', element:body}],
+  onSelect: id => showView(id)
+});
+const windowController = FirstMateWindows.attach({
+  element:frame, header, title, body:tray.body, host, name:'example'
+});
+const historyPanel = tray.register({id:'history', label:'History'});
+historyPanel.append(historyView);
+tray.select('history');
+```
+
+`panel(id)` returns a panel for additional trusted app content;
+`unregister(id)` removes a tab. Selection hides inactive panels without
+recreating their nodes, so drafts and media can survive a tab switch. The app
+still owns its data loading, permissions, and lifecycle.
+
 ```js
 const windowController = FirstMateWindows.attach({
   element: frame,                 // Existing frame, already mounted in host

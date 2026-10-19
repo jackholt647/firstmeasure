@@ -1109,6 +1109,7 @@
 .fm-ch-panel .fm-ch-composer{padding:8px 12px 10px}
 .fm-ch-empty{color:var(--ch-muted);text-align:center;padding:32px 20px;font-size:13px}
 .fm-ch-popover{position:fixed;z-index:1601;background:#fff;border:1px solid var(--ch-border);border-radius:10px;box-shadow:0 8px 28px rgba(15,23,42,.16);max-width:360px;min-width:240px;max-height:340px;overflow-y:auto}
+.fm-ch-popover.fm-ch-emoji-popover{z-index:2147483400}
 .fm-ch-popover-head{padding:8px 12px;border-bottom:1px solid var(--ch-border);font-weight:700;font-size:12px;color:var(--ch-muted)}
 .fm-ch-revision{padding:8px 12px;border-bottom:1px solid var(--ch-border)}
 .fm-ch-revision:last-child{border-bottom:none}
