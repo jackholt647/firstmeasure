@@ -75,6 +75,7 @@
       error.status = res.status;
       error.code = cleanText(data?.error);
       error.data = data;
+      error.issues = Array.isArray(data?.details?.issues) ? data.details.issues : [];
       throw error;
     }
     return data;
@@ -100,6 +101,15 @@
     insights: (orgId, formId) => request(`${org(orgId)}/forms/${enc(formId)}/insights`),
     /** The private assistant conversation about one form (the editor's AI tab). */
     conversation: (orgId, formId) => request(`${org(orgId)}/forms/${enc(formId)}/conversation`, { method: 'POST', body: {} }),
+    /** Staff entry: published forms offered in the New menu, filled in by a signed-in person. */
+    staff: {
+      list: (orgId) => request(`${org(orgId)}/staff-forms`).then((data) => data.forms || []),
+      get: (orgId, formId) => request(`${org(orgId)}/staff-forms/${enc(formId)}`).then((data) => data.form),
+      availability: (orgId, formId, query = {}) => request(`${org(orgId)}/staff-forms/${enc(formId)}/availability?${new URLSearchParams(query)}`),
+      measurement: (orgId, formId, input) => request(`${org(orgId)}/staff-forms/${enc(formId)}/measurement`, { method: 'POST', body: input }),
+      // The submission id makes a resend land on the same lead, so a retry is safe.
+      submit: (orgId, formId, input) => request(`${org(orgId)}/staff-forms/${enc(formId)}/submit`, { method: 'POST', body: input })
+    },
     /** Transport the embed uses to run an unsaved draft inside the editor. */
     preview: {
       measurement: (orgId, input) => request(`${org(orgId)}/preview/measurement`, { method: 'POST', body: input }),

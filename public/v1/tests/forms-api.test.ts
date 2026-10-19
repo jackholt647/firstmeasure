@@ -144,7 +144,7 @@ test("Forms context lists templates, blocks and appointment types gated by capab
   const client = createSessionClient();
   const { orgId } = await register(client);
   const context = await client.request("GET", `/v1/forms/organizations/${orgId}/context`);
-  assert.deepEqual(context.templates.map((template: any) => template.id), ["blank", "contact", "service_request", "appointment", "estimate", "roofing_instant_estimate"]);
+  assert.deepEqual(context.templates.map((template: any) => template.id), ["blank", "contact", "call_in_lead", "service_request", "appointment", "estimate", "roofing_instant_estimate"]);
   assert.ok(context.templates.every((template: any) => template.available));
   assert.ok(context.blocks.some((block: any) => block.kind === "appointment" && block.available));
   assert.ok(context.appointment_types.some((type: any) => type.id === "sales" && type.bookable_online));
@@ -619,4 +619,58 @@ test("Rate limits follow the visitor's address behind the platform's proxies", a
   } finally {
     process.env.FORMS_RATE_LIMIT_DISABLED = "1";
   }
+});
+
+test("Staff entry: a staff form is offered in the New menu, kept off the website, and makes a manual lead entered by that person", async () => {
+  const client = createSessionClient();
+  const { orgId } = await register(client);
+  const call = await createPublished(client, orgId, "call_in_lead");
+  const website = await createPublished(client, orgId, "contact");
+  const listed = (await client.request("GET", `/v1/forms/organizations/${orgId}/staff-forms`)).forms;
+  assert.deepEqual(listed.map((form: any) => [form.id, form.label]), [[call.id, "Lead"]], "only forms marked for staff entry are offered");
+  assert.equal((await publicCall("GET", `/v1/forms/public/${call.public_key}`)).status, 404, "a staff-only form is not on the website");
+  assert.equal((await publicCall("POST", `/v1/forms/public/${call.public_key}/submit`, { answers: { contact: { name: "X", phone: "5550001111" } } })).status, 404);
+  assert.equal((await client.raw("GET", `/v1/forms/organizations/${orgId}/staff-forms/${website.id}`)).statusCode, 404, "a website-only form is not offered to staff");
+
+  const loaded = (await client.request("GET", `/v1/forms/organizations/${orgId}/staff-forms/${call.id}`)).form;
+  assert.equal(loaded.steps[0].items[0].kind, "contact");
+  assert.equal(JSON.stringify(loaded).includes("notify_role_ids"), false, "settings stay server-side");
+
+  const invalid = await client.raw("POST", `/v1/forms/organizations/${orgId}/staff-forms/${call.id}/submit`, { answers: { contact: { name: "No Phone" } } });
+  assert.equal(invalid.statusCode, 422, invalid.body);
+  const payload = { submission_id: "staff-1", answers: { contact: { name: "Caller Person", phone: "(555) 222-3333" }, address: "12 Elm Street, Tacoma, WA 98402", found_us: "referral", referred_by: "Pat Neighbor", notes: "Wants a quote this week." } };
+  const saved = await client.request("POST", `/v1/forms/organizations/${orgId}/staff-forms/${call.id}/submit`, payload);
+  assert.equal(saved.accepted, true);
+  assert.ok(saved.project_id, "a staff submission answers with the new lead");
+  const again = await client.request("POST", `/v1/forms/organizations/${orgId}/staff-forms/${call.id}/submit`, payload);
+  assert.equal(again.project_id, saved.project_id, "a resend lands on the same lead");
+
+  const project = (await client.request("GET", `/v1/platform/organizations/${orgId}/projects/${saved.project_id}`)).document.data;
+  assert.equal(project.source, "manual_lead");
+  assert.equal(project.lead_source.provider, "Call-in lead");
+  assert.ok(project.lead_source.entered_by_user_id, "the lead records who entered it");
+  assert.equal(project.contacts[0].name, "Caller Person");
+  assert.equal(project.form_submission.answers.referred_by, "Pat Neighbor");
+  assert.equal(project.summary, "Wants a quote this week.");
+  const submissions = await client.request("GET", `/v1/forms/organizations/${orgId}/forms/${call.id}/submissions`);
+  assert.equal(submissions.submissions.length, 1);
+  assert.ok(submissions.submissions[0].entered_by_user_id);
+
+  // Turning staff entry off takes it out of the menu once republished.
+  const form = (await client.request("GET", `/v1/forms/organizations/${orgId}/forms/${call.id}`)).form;
+  form.definition.settings.staff.enabled = false;
+  const edited = (await client.request("PATCH", `/v1/forms/organizations/${orgId}/forms/${call.id}`, { definition: form.definition, expected_revision: form.revision })).form;
+  await client.request("POST", `/v1/forms/organizations/${orgId}/forms/${call.id}/publish`, { expected_revision: edited.revision });
+  assert.deepEqual((await client.request("GET", `/v1/forms/organizations/${orgId}/staff-forms`)).forms, []);
+});
+
+test("Staff entry is offered by role: no roles means everyone who may create projects", async () => {
+  const { staffFormOfferedTo } = await import("../forms/service.js");
+  const definition = (staff: Record<string, unknown>) => ({ settings: { staff: { enabled: true, only: true, label: "", role_ids: [], ...staff } } }) as any;
+  const person = (role: string, roles: string[] = []) => ({ orgId: "o", userId: "u", role, accessProfile: { access_role_ids: roles } }) as any;
+  assert.equal(staffFormOfferedTo(person("member"), definition({})), true);
+  assert.equal(staffFormOfferedTo(person("member"), definition({ enabled: false })), false);
+  assert.equal(staffFormOfferedTo(person("member", ["inside_sales"]), definition({ role_ids: ["inside_sales"] })), true);
+  assert.equal(staffFormOfferedTo(person("member", ["installer"]), definition({ role_ids: ["inside_sales"] })), false);
+  assert.equal(staffFormOfferedTo(person("admin"), definition({ role_ids: ["inside_sales"] })), true, "administrators are offered every staff form");
 });

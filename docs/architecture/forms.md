@@ -150,9 +150,10 @@ Multi-day and recurring appointment types cannot be booked from a form.
 
 ## Where answers go
 
-- A lead via `createPlatformLead` (`source: "web_form"`), with the answers,
-  estimate and source page under `form_submission`. Lead routing and
-  automations key on `project.created` as for any lead.
+- A lead via `receiveLead` (`source: "web_form"`, or `manual_lead` from staff
+  entry), with the answers, estimate and source page under `form_submission`.
+  Intake routing runs and `lead.received` fires as for any lead, so lead
+  routing, scoring and the organization's rules act on it.
 - A `form_submissions` record, listed in the form's Submissions tab.
 - Blocks with `maps_to` write the project's declared custom fields through the
   `custom-fields.project.write` action.
@@ -162,13 +163,51 @@ Multi-day and recurring appointment types cannot be booked from a form.
 Follow-ups (email, field mapping, the module instance) run after the visitor's
 confirmation is returned and never fail the submission.
 
+## Staff entry
+
+A form can be filled in by the team as well as by visitors. `settings.staff`
+(`enabled`, `only`, `label`, `role_ids`) offers the published form in the
+portal's **New** menu, under its label (New › Lead, New › Service call). That
+is how a call-in or walk-in lead is entered: there is no fixed "new lead"
+form, so what a company asks a caller is the form it builds. The Call-in lead
+template (`call_in_lead`) is a starting point.
+
+| Route (`/v1/forms/organizations/:orgId/…`) | Purpose |
+| --- | --- |
+| `GET staff-forms` | The forms this person is offered |
+| `GET staff-forms/:formId` | The published form, as the public route gives it |
+| `GET staff-forms/:formId/availability` | Open times for an appointment block |
+| `POST staff-forms/:formId/measurement` | Measure and preview a property |
+| `POST staff-forms/:formId/submit` | Create the lead, book, map fields |
+
+- Every staff route needs `manage_projects` (a submission makes a project) and
+  the form's branch within the caller's branch scope. `role_ids` limits who is
+  offered the form; empty means everyone who may create projects, and
+  administrators are offered every staff form.
+- A submission runs the same code as a website submission (`submitLiveForm`):
+  the same validation, booking, field mapping, events and retry identity. It
+  differs only where a person is involved: the lead's source is `manual_lead`
+  with the form's name as provider and `entered_by_user_id`, the change is
+  recorded as made by that person, there is no honeypot, a consent block
+  records who took the consent, and the response carries `project_id` so the
+  portal can open the lead.
+- `only` keeps the form off the website: the public routes answer 404, no
+  embed code is shown and the website builder does not list it.
+- In the portal, `libraries/forms-staff/forms-staff.js` lists the offered forms
+  for the New menu (`form:<id>` modes in `portal/index.php`, placed after
+  Project unless `platform.new_button_items` places them) and opens one in a
+  modal with the public renderer over the staff routes. After saving, the
+  person can open the lead or enter another.
+- Which scope a staff lead starts is intake routing's decision, as for any
+  lead.
+
 ## Authoring
 
 The editor's tabs are AI, Build, Style, Pricing, Settings and Submissions. Build
 holds every block, including the form-level wording (introduction, buttons, the
 thank-you screen). Style holds only look: colors, font, header, corners, flow.
-Settings holds what happens on submission and, once published, the embed code
-and share link. The draft autosaves.
+Settings holds staff entry, what happens on submission and, once published, the
+embed code and share link (not for a staff-only form). The draft autosaves.
 
 Beside the tabs sits the **form preview widget**: the real public embed running
 the unsaved draft through authenticated preview routes

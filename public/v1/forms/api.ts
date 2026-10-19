@@ -14,6 +14,7 @@ import {
   getForm,
   listFormSubmissions,
   listForms,
+  listStaffForms,
   previewAvailability,
   previewMeasurement,
   publicAvailability,
@@ -22,7 +23,11 @@ import {
   publishForm,
   recordPublicActivity,
   rotateFormKey,
+  staffAvailability,
+  staffForm,
+  staffMeasurement,
   submitPublicForm,
+  submitStaffForm,
   testForm,
   updateForm
 } from "./service.js";
@@ -132,6 +137,25 @@ export const registerFormsApi: FastifyPluginAsync = async (app) => {
   app.post("/organizations/:orgId/preview/submit", async (request) => {
     const input = z.object({ definition: z.unknown(), answers: z.unknown().optional(), measurements: z.unknown().optional() }).parse(request.body ?? {});
     return testForm(await auth(request), input);
+  });
+
+  // Staff entry: published forms a signed-in person may fill in for a caller, offered in the New menu.
+  // Who may: anyone who may create projects (a submission makes one), in the form's branch.
+  const staffAuth = (request: FastifyRequest) => requirePlatformAuth(request, {
+    orgId: param(request, "orgId"),
+    permission: "manage_projects",
+    csrf: !["GET", "HEAD"].includes(request.method)
+  });
+  app.get("/organizations/:orgId/staff-forms", async (request) => ({ ok: true, forms: await listStaffForms(await staffAuth(request)) }));
+  app.get("/organizations/:orgId/staff-forms/:formId", async (request) => staffForm(await staffAuth(request), param(request, "formId")));
+  app.get("/organizations/:orgId/staff-forms/:formId/availability", async (request) => staffAvailability(await staffAuth(request), param(request, "formId"), record(request.query)));
+  app.post("/organizations/:orgId/staff-forms/:formId/measurement", async (request) => staffMeasurement(await staffAuth(request), param(request, "formId"), body.parse(request.body ?? {})));
+  app.post("/organizations/:orgId/staff-forms/:formId/submit", async (request, reply) => {
+    const auth = await staffAuth(request);
+    const { response, background } = await submitStaffForm(auth, param(request, "formId"), body.parse(request.body ?? {}), { userAgent: String(request.headers["user-agent"] || "") });
+    void background;
+    reply.code(201);
+    return response;
   });
 
   app.get("/public/:formKey", async (request) => {

@@ -125,3 +125,18 @@ default under `apps.crm`). A company sets it up for its industry under CRM > CRM
   (`smoke-routing.mjs`, `smoke-crm.mjs`) passed.
 - Landed on canonical at `54eff559` (the CRM publication registers last in bootstrap, so another
   session's uncommitted bootstrap edits in the shared checkout merged cleanly).
+
+## Staff entry forms (2026-10-19)
+
+- **`702908be`.** A form marked for staff entry (`settings.staff`) appears in the portal's New
+  menu under its label and makes a `manual_lead` entered by that person through the website
+  submission code; the Call-in lead template is the starting point. See
+  [forms](../../docs/architecture/forms.md#staff-entry). The renderer now repaints "show when"
+  questions after a dropdown or typed answer changes them (a fix for website forms too).
+- Rollout: the release carried only this commit's files (base `4d864372`), so canonical commits
+  other sessions had not deployed stayed off dev. The hosts were at `65634240`; the first build
+  stopped on `package.json` and the access-gates snapshot, where the hosts carry other sessions'
+  test-only entries, so both were kept live. Staged, activated and verified on all four;
+  platform worker restarted; staff routes answer 401 without a session; the libraries, editor
+  and portal New menu code are served; the read-only `smoke-staff-forms.mjs` passed on web and
+  pool; public checks (22) passed.

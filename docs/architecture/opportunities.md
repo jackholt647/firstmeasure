@@ -149,7 +149,8 @@ Every source builds one `LeadSubmission` (`leads/receive.ts`) and calls
   notification? }
 ```
 
-Sources: website forms, inbound email, Connections webhooks and polling and
+Sources: website forms and staff entry forms (the portal's New menu, recorded
+as `manual_lead` entered by that person; [forms](forms.md#staff-entry)), inbound email, Connections webhooks and polling and
 `leads.import` (through the `lead_deliveries` ledger in `leads/intake.ts`),
 live chat (one lead per conversation), canvassing (one lead per pin), the
 manual `POST /leads` route (`manage_projects`, branch-checked, lead fields only)

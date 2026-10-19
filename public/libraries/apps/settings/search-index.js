@@ -144,7 +144,7 @@ window.FirstMateSettingsIndex = {
     ],
     [
       "libraries/apps/settings/forms.js",
-      "56b4b43dc8fa58a73895c54bee46232c1c918c42837c5b77e63702d767c3222d"
+      "13bd48b84de38b2228e6929e84d7015eb6b7374c3650ef71c00088cd6f5b6f26"
     ],
     [
       "libraries/apps/settings/live_chat.js",
@@ -4359,6 +4359,16 @@ window.FirstMateSettingsIndex = {
       "tab": "Forms and Leads",
       "view": "",
       "source": "libraries/apps/settings/forms.js",
+      "title": "Menu label",
+      "description": "What the New menu calls it, such as Lead or Service call.",
+      "kind": "control",
+      "selector": "[data-path=\"settings\\.staff\\.label\"]"
+    },
+    {
+      "section": "forms",
+      "tab": "Forms and Leads",
+      "view": "",
+      "source": "libraries/apps/settings/forms.js",
       "title": "Message",
       "description": "",
       "kind": "control",
@@ -4569,10 +4579,40 @@ window.FirstMateSettingsIndex = {
       "tab": "Forms and Leads",
       "view": "",
       "source": "libraries/apps/settings/forms.js",
+      "title": "Show in the New menu",
+      "description": "",
+      "kind": "control",
+      "selector": "[data-path=\"settings\\.staff\\.enabled\"]"
+    },
+    {
+      "section": "forms",
+      "tab": "Forms and Leads",
+      "view": "",
+      "source": "libraries/apps/settings/forms.js",
       "title": "Shown as",
       "description": "",
       "kind": "control",
       "selector": "[data-path=\"calculation\\.pricing\\.quantity\\.label\"]"
+    },
+    {
+      "section": "forms",
+      "tab": "Forms and Leads",
+      "view": "",
+      "source": "libraries/apps/settings/forms.js",
+      "title": "Staff entry",
+      "description": "",
+      "kind": "heading",
+      "selector": ""
+    },
+    {
+      "section": "forms",
+      "tab": "Forms and Leads",
+      "view": "",
+      "source": "libraries/apps/settings/forms.js",
+      "title": "Staff only (not on your website)",
+      "description": "",
+      "kind": "control",
+      "selector": "[data-path=\"settings\\.staff\\.only\"]"
     },
     {
       "section": "forms",

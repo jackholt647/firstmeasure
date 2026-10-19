@@ -404,3 +404,118 @@ test("The AI tab is the shared assistant in a conversation about the form, and t
     assert.deepEqual(errors, []);
   } finally { await context.close(); }
 });
+
+test("Staff entry: the New menu's form opens in a modal, saves a lead and offers to open it", { skip }, async () => {
+  const org = await registerOrg();
+  const form = await publishedForm(org, "call_in_lead");
+  const context = await newContext({ width: 1280, height: 900 });
+  try {
+    await context.addCookies(org.cookies.map((cookie) => ({ ...cookie, url: origin })));
+    await context.route(`${origin}/t/portal`, (route) => route.fulfill({ contentType: "text/html", body: `<!doctype html><html><head><meta charset="utf-8"></head><body style="font-family:Inter,Arial,sans-serif">
+      <script>window.__APP={formsApiBase:"${origin}/v1/forms",orgId:${JSON.stringify(org.orgId)}};window.toasts=[];window.opened=[];
+        window.Portal={ui:{showToast:function(m,k){window.toasts.push([m,k]);}}};window.FirstMateProjectWindows={open:function(id){window.opened.push(id);}};</script>
+      <script src="/libraries/forms-api/forms-api.js"></script><script src="/libraries/forms-staff/forms-staff.js"></script></body></html>` }));
+    const page = await context.newPage();
+    const errors: string[] = [];
+    page.on("pageerror", (error) => errors.push(error.message));
+    await page.goto(`${origin}/t/portal`);
+    const offered = await page.evaluate("window.FirstMateStaffForms.list().then(function (forms) { return forms.map(function (f) { return f.label; }); })");
+    assert.deepEqual(offered, ["Lead"]);
+    await page.evaluate(`window.FirstMateStaffForms.open(${JSON.stringify(form.id)}, { label: "New Lead" }); undefined`);
+    const modal = page.locator(".fm-staff-form");
+    await modal.getByRole("heading", { name: "New Lead" }).waitFor();
+    await modal.getByLabel("Full name").fill("Walk In Caller");
+    await modal.getByLabel("Phone").fill("(555) 777-8888");
+    await modal.getByLabel("How did they find us?").selectOption("referral");
+    await modal.getByLabel("Who referred them?").fill("Sam Referrer");
+    await page.waitForTimeout(400);
+    await shot(page, "staff-entry-form");
+    await modal.getByRole("button", { name: "Save lead" }).click();
+    await modal.getByRole("button", { name: "Open the lead" }).waitFor();
+    await shot(page, "staff-entry-saved");
+    await modal.getByRole("button", { name: "Open the lead" }).click();
+    const opened = await page.evaluate("window.opened") as string[];
+    assert.equal(opened.length, 1);
+    assert.equal(await page.locator(".fm-staff-form").count(), 0, "the modal closes when the lead opens");
+    const project = (await org.call("GET", `/v1/platform/organizations/${org.orgId}/projects/${opened[0]}`)).document.data;
+    assert.equal(project.source, "manual_lead");
+    assert.equal(project.form_submission.answers.referred_by, "Sam Referrer");
+    assert.deepEqual(errors, []);
+  } finally {
+    await context.close();
+  }
+});
+
+test("Staff entry in the editor: a call-in form shows in the New menu, staff only, with its label and roles", { skip }, async () => {
+  const org = await registerOrg();
+  const form = await publishedForm(org, "call_in_lead");
+  const context = await newContext({ width: 1440, height: 950 });
+  try {
+    await context.addCookies(org.cookies.map((cookie) => ({ ...cookie, url: origin })));
+    const page = await context.newPage();
+    const errors: string[] = [];
+    page.on("pageerror", (error) => errors.push(error.message));
+    await page.goto(`${origin}/t/settings`);
+    await page.evaluate(`window.PlatformAssistant = { mountSurface: function (container) { return { ready: Promise.resolve(), destroy: function () {} }; } };
+    window.FirstMateFormsSettings.mount(document.getElementById("host"), {
+      orgId: ${JSON.stringify(org.orgId)},
+      initialFormId: ${JSON.stringify(form.id)},
+      roles: [{ id: "inside_sales", label: "Inside Sales" }, { id: "setter", label: "Setter" }],
+      branding: { primary: "#0f766e", logo: "" },
+      showToast: function () {},
+      confirm: function () { return Promise.resolve(true); }
+    }); undefined`);
+    await page.getByRole("tab", { name: "Settings" }).click();
+    const section = page.locator(".fms-section").filter({ has: page.getByRole("heading", { name: "Staff entry" }) });
+    await section.waitFor();
+    assert.equal(await section.getByLabel("Show in the New menu").isChecked(), true);
+    assert.equal(await section.getByLabel("Staff only (not on your website)").isChecked(), true);
+    assert.equal(await page.getByRole("heading", { name: "Embed on any website" }).count(), 0, "a staff-only form offers no embed code");
+    await section.getByLabel("Setter").check();
+    await section.getByLabel("Staff only (not on your website)").uncheck();
+    await page.getByRole("heading", { name: "Embed on any website" }).waitFor();
+    await shot(page, "staff-entry-editor");
+    assert.deepEqual(errors, []);
+  } finally {
+    await context.close();
+  }
+});
+
+test("Staff entry in the portal's New menu: offered forms appear after Project and open the form", { skip }, async () => {
+  const org = await registerOrg();
+  const form = await publishedForm(org, "call_in_lead");
+  // The New menu's own code, taken from the portal page as it ships.
+  const portal = await readFile(fileURLToPath(new URL("../../portal/index.php", import.meta.url)), "utf8");
+  const start = portal.indexOf("(function initNewMenu(){");
+  const end = portal.indexOf("\n    })();", start);
+  assert.ok(start > 0 && end > start, "the New menu script is found");
+  const newMenu = portal.slice(start, end + "\n    })();".length);
+  assert.equal(/<\?/.test(newMenu), false, "the New menu script has no server-side parts");
+  const context = await newContext({ width: 1280, height: 900 });
+  try {
+    await context.addCookies(org.cookies.map((cookie) => ({ ...cookie, url: origin })));
+    await context.route(`${origin}/t/new-menu`, (route) => route.fulfill({ contentType: "text/html", body: `<!doctype html><html><head><meta charset="utf-8"></head><body>
+      <aside id="mainSidebar"><div class="new-menu-wrap" id="newMenuWrap"><button id="btnNewReq"><span>New</span><i></i></button><div class="new-menu-popout" id="newMenuPopout" role="menu"></div></div></aside>
+      <script>window.__APP={formsApiBase:"${origin}/v1/forms",orgId:${JSON.stringify(org.orgId)}};window.events=[];
+        window.Portal={ui:{showToast:function(){}},util:{hasPerm:function(){return true;}},currentUser:{accessProfile:{access_role_ids:["owner"]}},
+          appFlags:{current:function(){return {};},value:function(app,key,fallback){return key==="new_button_mode"?"selector":fallback;}}};
+        window.addEventListener("fm:new-project-workflow",function(e){window.events.push(e.detail);});
+        var sidebar=document.getElementById("mainSidebar");function closeSidebar(){}</script>
+      <script src="/libraries/forms-api/forms-api.js"></script><script src="/libraries/forms-staff/forms-staff.js"></script>
+      <script>${newMenu.replace(/<\/script>/g, "<\/script>")}</script></body></html>` }));
+    const page = await context.newPage();
+    const errors: string[] = [];
+    page.on("pageerror", (error) => errors.push(error.message));
+    await page.goto(`${origin}/t/new-menu`);
+    await page.locator("#newMenuPopout [data-new-workflow^='form:']").waitFor({ state: "attached" });
+    const items = await page.locator("#newMenuPopout [data-new-workflow]").evaluateAll((nodes) => nodes.map((node) => [node.getAttribute("data-new-workflow"), node.textContent?.trim()]));
+    assert.deepEqual(items.slice(0, 3), [["project", "Project"], [`form:${form.id}`, "Lead"], ["contact", "Contact"]]);
+    await page.locator("#btnNewReq").click();
+    await page.locator(`#newMenuPopout [data-new-workflow="form:${form.id}"]`).click();
+    await page.locator(".fm-staff-form").getByRole("heading", { name: "New Lead" }).waitFor();
+    assert.deepEqual(await page.evaluate("window.events"), [], "a staff form does not start the New Project flow");
+    assert.deepEqual(errors, []);
+  } finally {
+    await context.close();
+  }
+});

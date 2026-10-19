@@ -11,7 +11,7 @@ export type FormTemplate = {
   name: string;
   description: string;
   icon: string;
-  category: "General" | "Scheduling" | "Estimates";
+  category: "General" | "Staff" | "Scheduling" | "Estimates";
   industry?: string;
   /** lead_forms capability flags the template's blocks need. */
   requires: string[];
@@ -62,6 +62,37 @@ const TEMPLATES: FormTemplate[] = [
           { id: "message", kind: "paragraph", param: "message", label: "How can we help?", placeholder: "A few details about what you need" }
         ]
       }]
+    })
+  },
+  {
+    id: "call_in_lead",
+    name: "Call-in lead",
+    description: "For your team, not your website: who is calling, where, what they need and how they found you. Shows in the New menu.",
+    icon: "fa-phone-volume",
+    category: "Staff",
+    requires: ["contact_form"],
+    build: () => ({
+      template: "call_in_lead",
+      presentation: {
+        // The New menu's window already names it; a headline would repeat it.
+        subheadline: "Take the caller's details. Saving creates the lead and runs your intake rules.",
+        submit_label: "Save lead",
+        layout: "page",
+        progress: "none",
+        success: { title: "Lead saved", body: "The lead is in New leads and your intake rules have run." }
+      },
+      steps: [{
+        id: "caller",
+        items: [
+          contact({ label: "Caller", fields: { name: { enabled: true, required: true }, phone: { enabled: true, required: true }, email: { enabled: true, required: false } } }),
+          { id: "address", kind: "address", param: "address", label: "Address", placeholder: "Street, city, state" },
+          { id: "need", kind: "select", param: "need", label: "What do they need?", style: "dropdown", options: [choice("estimate", "An estimate"), choice("repair", "A repair"), choice("inspection", "An inspection"), choice("other", "Something else")] },
+          { id: "found_us", kind: "select", param: "found_us", label: "How did they find us?", style: "dropdown", options: [choice("referral", "Referral"), choice("search", "Online search"), choice("sign", "Yard sign or truck"), choice("repeat", "Past customer"), choice("other", "Other")] },
+          { id: "referred_by", kind: "text", param: "referred_by", label: "Who referred them?", visible_when: [{ param: "found_us", op: "eq", value: "referral" }] },
+          { id: "notes", kind: "paragraph", param: "notes", label: "Notes", placeholder: "What they said, best time to call back" }
+        ]
+      }],
+      settings: { notify_role_ids: [], staff: { enabled: true, only: true, label: "Lead" } }
     })
   },
   {

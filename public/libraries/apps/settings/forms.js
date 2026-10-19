@@ -651,7 +651,16 @@
     function settingsTab(){
       const settings = state.draft.settings;
       const roles = (ctx.roles || []).length ? ctx.roles : [{ id: 'inside_sales', label: 'Inside Sales' }, { id: 'sales_appointments', label: 'Sales Appointments' }];
-      return shareSection() + `<div class="fms-section"><h4>When someone submits</h4><p>Every submission creates a lead with the answers attached${state.draft.calculation ? ', the estimate' : ''}${items().some((item) => item.kind === 'appointment') ? ' and a booked appointment' : ''}.</p>
+      const staff = settings.staff ||= { enabled: false, only: false, label: '', role_ids: [] };
+      // Staff entry: the form is offered in the New menu, for a person taking a caller's details.
+      const staffSection = `<div class="fms-section"><h4>Staff entry</h4><p>Offer this form in the New menu, so your team can fill it in for a caller or walk-in. Saving it creates the lead, recorded as entered by them, and runs your intake rules.</p>
+          ${check('settings.staff.enabled', 'Show in the New menu', true)}
+          ${staff.enabled ? `${field('Menu label', input('settings.staff.label', `placeholder="${esc(state.name || 'Uses the form name')}"`), 'What the New menu calls it, such as Lead or Service call.')}
+          ${check('settings.staff.only', 'Staff only (not on your website)', true)}
+          <div class="fms-field"><span>Offered to</span><div class="fms-add">${roles.map((role) => `<label class="fms-check"><input type="checkbox" data-staff-role="${esc(role.id)}" ${staff.role_ids.includes(role.id) ? 'checked' : ''}>${esc(role.label)}</label>`).join('')}</div><small class="fms-note">None ticked: everyone who can create projects.</small></div>` : ''}
+          ${state.form.published ? '' : '<div class="fms-note">Publish the form to put it in the New menu.</div>'}
+        </div>`;
+      return staffSection + (staff.enabled && staff.only ? '' : shareSection()) + `<div class="fms-section"><h4>When someone submits</h4><p>Every submission creates a lead with the answers attached${state.draft.calculation ? ', the estimate' : ''}${items().some((item) => item.kind === 'appointment') ? ' and a booked appointment' : ''}.</p>
           <div class="fms-field"><span>Notify these roles</span><div class="fms-add">${roles.map((role) => `<label class="fms-check"><input type="checkbox" data-role="${esc(role.id)}" ${settings.notify_role_ids.includes(role.id) ? 'checked' : ''}>${esc(role.label)}</label>`).join('')}</div></div>
         </div>
         <div class="fms-section"><h4>Confirmation email</h4><p>Sent to the visitor when they give an email address. Includes the estimate and appointment time when the form has them.</p>
@@ -868,6 +877,14 @@
         const style = state.draft.presentation.style;
         style.use_company_font = !el.value;
         if (el.value) style.font_family = el.value;
+        return touch();
+      }
+      if (el.dataset.staffRole) {
+        const staff = state.draft.settings.staff ||= { enabled: false, only: false, label: '', role_ids: [] };
+        const roles = new Set(staff.role_ids);
+        if (roles.has(el.dataset.staffRole) === el.checked) return;
+        if (el.checked) roles.add(el.dataset.staffRole); else roles.delete(el.dataset.staffRole);
+        staff.role_ids = [...roles];
         return touch();
       }
       if (el.dataset.role) {
