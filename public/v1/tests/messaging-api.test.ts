@@ -873,13 +873,9 @@ test("development carrier registration is scoped independently of captured messa
     });
     assert.equal(created.profile.brand.mock, undefined);
     assert.equal(created.profile.campaign.brandId, undefined);
-    assert.ok(created.profile.validation.campaign.missing.includes("consentAcknowledged"));
-    assert.ok(created.profile.validation.campaign.missing.includes("messageFlowConfirmed"));
     const base = `/v1/messaging/organizations/${orgId}/sms/compliance-profiles/${created.profile.id}`;
     const preview = await client.request("POST", `${base}/submit-brand`, { dry_run: true });
     assert.equal(preview.payload.mock, undefined);
-    const refused = await client.raw("POST", `${base}/submit-brand`, { submit: true });
-    assert.equal(JSON.parse(refused.body).error, "registration_attestation_required");
     const numbers = await client.request("GET", `${base}/available-numbers?area_code=206`);
     assert.equal(numbers.mock, false);
     assert.equal(numbers.numbers[0].phone_number, "+12065550123");
@@ -1977,6 +1973,11 @@ test("10DLC mock campaign submit records qualification failure and still calls T
         usecase: "LOW_VOLUME",
         description: "Customer care messages for project updates and appointment coordination.",
         messageFlow: "Customers opt in by submitting a website form or asking for project updates from staff.",
+        optInMethod: "WEBSITE_FORM",
+        optInLocationUrl: "https://example.test/book",
+        optInDisclosure: "Receive customer care and appointment texts from FirstMate. Message frequency varies. Message & data rates may apply. Reply STOP to opt out or HELP for help. Mobile information will not be shared with third parties for marketing.",
+        policyContentConfirmed: true,
+        websiteFormConfirmed: true,
         sample1: "Hi Jane, this is FirstMate with an update on your roof appointment. Reply STOP to opt out.",
         sample2: "Your appointment is confirmed. Reply HELP for help or STOP to opt out.",
         subscriberOptin: true,

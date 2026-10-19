@@ -133,12 +133,15 @@ test('Feed draft polish uses Feed access without Channels and never creates or p
 
 test('manual company and department posts obey membership and posts settings', async () => {
   const {client,orgId,userId}=await registerOwner();
-  const {upsertDocument}=await import('../platform/storage.js');
+  const {upsertDocument,readDocument}=await import('../platform/storage.js');
   const base=`/v1/channels/organizations/${orgId}/feed`;
   const company=await client.request('POST',base+'/posts/manual',{text:'Happy birthday, team!',mention_user_ids:[userId],client_msg_id:'birthday'});
   const duplicate=await client.request('POST',base+'/posts/manual',{text:'Happy birthday, team!',mention_user_ids:[userId],client_msg_id:'birthday'});
   assert.equal(company.post.id,duplicate.post.id);
   assert.equal(company.post.mention_users[0].id,userId);
+  const gif=await client.request('POST',base+'/posts/manual',{text:'',giphy:{id:'birthday123',url:'https://media1.giphy.com/media/birthday123/giphy.gif',title:'Birthday GIF',width:200,height:150}});
+  assert.equal(gif.post.metadata.giphy.id,'birthday123');
+  assert.equal((await client.raw('POST',base+'/posts/manual',{text:''})).statusCode,400);
   assert.equal((await client.request('GET',base+'/catalog')).manual_posts.some((post:any)=>post.id===company.post.id),true);
   const comment=await client.request('POST',`${base}/posts/${company.post.id}/comments`,{text:'Cheers!'});
   assert.equal(comment.message.parent_id,company.post.id);
@@ -146,9 +149,14 @@ test('manual company and department posts obey membership and posts settings', a
   const department=await client.request('POST',base+'/posts/manual',{text:'Roofing crew update',department_id:'roofing'});
   assert.equal((await client.request('GET',base+'/catalog')).manual_posts.some((post:any)=>post.id===department.post.id),true);
   const settings=await client.request('GET',base+'/settings');
+  assert.equal(settings.activity_options.find((option:Json)=>option.type==='project.event.completed')?.label,'Scheduled event completed');
+  assert.ok(settings.activity_options.some((option:Json)=>option.type==='work.node.completed'));
+  assert.ok(settings.activity_options.some((option:Json)=>option.type==='work.plan.completed'));
   const saved=await client.request('PUT',base+'/settings',{...settings.settings,company_activity_types:['media.uploaded'],department_activity_types:{roofing:['note.created']}});
   assert.deepEqual(saved.settings.department_activity_types.roofing,['note.created']);
   await upsertDocument(orgId,'organization_departments',{id:'catalog',data:{departments:[{id:'roofing',label:'Roofing',color:'#64748b',group_id:'',subject_keys:[],role_ids:[],group_kind_ids:[]}],groups:[]},expected_revision:1},{replace:true});
+  const owner=await readDocument(orgId,'users',userId);
+  await upsertDocument(orgId,'users',{id:userId,data:{...owner.data,permission_overrides:{view_feed_all_departments:false}}});
   const hidden=await client.request('GET',base+'/catalog');
   assert.equal(hidden.manual_posts.some((post:any)=>post.id===department.post.id),false);
   assert.equal((await client.raw('GET',`${base}/posts/${department.post.id}`)).statusCode,403);

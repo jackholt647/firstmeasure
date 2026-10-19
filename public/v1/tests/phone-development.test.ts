@@ -80,9 +80,8 @@ test('phone search finds saved Contacts records and preserves their project link
   const {c,orgId}=await owner();
   const projectId='phone_contact_project',contactId='phone_contact_person';
   await c.request('PUT',`/v1/platform/organizations/${orgId}/contacts/settings`,{tags:[{id:'lead',label:'Lead'}]});
-  await c.request('POST',`/v1/platform/organizations/${orgId}/projects`,{id:projectId,data:{
-    title:'Taylor Reed',workflow_state:'contact_only',contacts:[{id:contactId,name:'Taylor Reed',phone:'+12025550131',primary:true,tags:['lead']}]
-  }});
+  await c.request('POST',`/v1/platform/organizations/${orgId}/projects`,{id:projectId,data:{title:'Taylor Reed'}});
+  await putProjectContacts(c,orgId,projectId,[{id:contactId,name:'Taylor Reed',phone:'+12025550131',primary:true,tags:['lead']}]);
   const result=await c.request('GET',`/v1/comms/organizations/${orgId}/voice/contacts?query=Taylor`);
   assert.deepEqual(result.contacts,[{id:contactId,project_id:projectId,name:'Taylor Reed',phone:'+12025550131',tags:['lead']}]);
   assert.deepEqual((await c.request('GET',`/v1/comms/organizations/${orgId}/voice/contacts`)).contacts,result.contacts);
