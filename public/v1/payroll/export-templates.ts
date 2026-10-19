@@ -73,6 +73,10 @@ export type TemplateContext = {
   hours?: Map<string, number>;
   fields?: Map<string, Record<string, string>>;
   warnings?: string[];
+  /** Date-range reports: the dates, the ledger entries (earning rows) and the reimbursement requests (reimbursement rows). */
+  range?: { from: string; through: string };
+  entries?: JsonObject[];
+  reimbursements?: JsonObject[];
 };
 
 function peopleOf(ctx: TemplateContext): Person[] {
@@ -101,7 +105,21 @@ function linesOf(person: Person, definition: TemplateDefinition): Line[] {
 // ---- The source catalog -----------------------------------------------------------------------------------------
 
 type Kind = "text" | "money" | "date" | "number";
-type SourceDef = { id: string; label: string; description: string; kind: Kind; group: string; rows?: "person" | "pay_item"; needs?: "field" | "value" };
+/** What a template makes one row of: a person or a person and pay item of a pay run, or, for a date range, an earning of the ledger or a reimbursement. */
+export const TEMPLATE_ROWS = ["person", "pay_item", "earning", "reimbursement"] as const;
+export type TemplateRows = typeof TEMPLATE_ROWS[number];
+const PAY_RUN_ROWS: readonly TemplateRows[] = ["person", "pay_item"];
+/** Which kinds of row a source can fill, by what it is about. */
+function rowsOf(id: string): TemplateRows[] {
+  if (id === "fixed") return [...TEMPLATE_ROWS];
+  if (id.startsWith("line.")) return ["pay_item"];
+  if (id.startsWith("entry.")) return ["earning"];
+  if (id.startsWith("reimbursement.")) return ["reimbursement"];
+  if (id.startsWith("range.")) return ["earning", "reimbursement"];
+  if (id.startsWith("person.")) return ["person", "pay_item", "earning"];
+  return ["person", "pay_item"];
+}
+type SourceDef = { id: string; label: string; description: string; kind: Kind; group: string; needs?: "field" | "value"; rows?: TemplateRows[] };
 /** Every value a column can show. Published (`export_templates.sources`) so no screen keeps its own copy. */
 export const EXPORT_SOURCES: SourceDef[] = [
   { id: "person.name", group: "Person", kind: "text", label: "Name", description: "The person's, group's or company's name." },
@@ -151,8 +169,34 @@ export const EXPORT_SOURCES: SourceDef[] = [
   { id: "bill.number", group: "Bill", kind: "text", label: "Bill number", description: "The pay date and the end of the payee's ID: the same number every time the file is made." },
   { id: "bill.date", group: "Bill", kind: "date", label: "Bill date", description: "The pay date." },
   { id: "bill.due_date", group: "Bill", kind: "date", label: "Due date", description: "The pay date plus the payee's net days; the pay date for anyone else." },
+  { id: "entry.earned_on", group: "Earning", kind: "date", label: "Earned on", description: "The day the earning counts from for pay (its eligible date)." },
+  { id: "entry.earned_at", group: "Earning", kind: "text", label: "Earned (date and time)", description: "The exact moment the earning counts from, as stored." },
+  { id: "entry.kind", group: "Earning", kind: "text", label: "Earning type", description: "Hourly, Salary, Piece rate, Commission, Reimbursement, Adjustment or Clawback." },
+  { id: "entry.kind_key", group: "Earning", kind: "text", label: "Earning type code", description: "A fixed code for the earning type (hourly, salary, ...), for software that maps codes." },
+  { id: "entry.state", group: "Earning", kind: "text", label: "Earning status", description: "Accrued (earned), Projected (forecast or held for review) or Void." },
+  { id: "entry.project_title", group: "Earning", kind: "text", label: "Project", description: "The project the earning came from, when it came from one." },
+  { id: "entry.project_id", group: "Earning", kind: "text", label: "Project ID", description: "The project's ID." },
+  { id: "entry.description", group: "Earning", kind: "text", label: "Earning description", description: "What the earning is for." },
+  { id: "entry.amount", group: "Earning", kind: "money", label: "Earning amount", description: "The earning's amount; what is taken back is negative." },
+  { id: "entry.applied", group: "Earning", kind: "money", label: "Already in a pay run", description: "How much of the earning pay runs have included." },
+  { id: "entry.remaining", group: "Earning", kind: "money", label: "Still owed", description: "How much of the earning no pay run has included yet." },
+  { id: "entry.currency", group: "Earning", kind: "text", label: "Earning currency", description: "The earning's currency code." },
+  { id: "entry.id", group: "Earning", kind: "text", label: "Earning ID", description: "The ledger entry's ID. It never changes." },
+  { id: "reimbursement.requested_by", group: "Reimbursement", kind: "text", label: "Requested by", description: "Who asked to be reimbursed." },
+  { id: "reimbursement.project_id", group: "Reimbursement", kind: "text", label: "Reimbursement project", description: "The project the expense was for, when it was for one." },
+  { id: "reimbursement.amount", group: "Reimbursement", kind: "money", label: "Reimbursement amount", description: "The amount asked for or approved." },
+  { id: "reimbursement.currency", group: "Reimbursement", kind: "text", label: "Reimbursement currency", description: "The reimbursement's currency code." },
+  { id: "reimbursement.status", group: "Reimbursement", kind: "text", label: "Reimbursement status", description: "Submitted, Approved, Paid, Rejected and so on." },
+  { id: "reimbursement.requested_on", group: "Reimbursement", kind: "date", label: "Requested on (date)", description: "The day it was asked for." },
+  { id: "reimbursement.requested_at", group: "Reimbursement", kind: "text", label: "Requested on", description: "The moment it was asked for, as stored." },
+  { id: "reimbursement.approved_at", group: "Reimbursement", kind: "text", label: "Approved on", description: "The moment it was approved, as stored." },
+  { id: "reimbursement.paid_at", group: "Reimbursement", kind: "text", label: "Paid on", description: "The moment it was paid, as stored." },
+  { id: "reimbursement.timing", group: "Reimbursement", kind: "text", label: "Paid how", description: "With the next payroll, or off cycle." },
+  { id: "reimbursement.note", group: "Reimbursement", kind: "text", label: "Reimbursement note", description: "The note given with the request." },
+  { id: "range.from", group: "Dates", kind: "date", label: "From", description: "The first day of the report's dates." },
+  { id: "range.through", group: "Dates", kind: "date", label: "Through", description: "The last day of the report's dates." },
   { id: "fixed", group: "Other", kind: "text", needs: "value", label: "Fixed text", description: "The same text on every row, such as a company code or an account name." }
-];
+].map((source) => ({ ...source, rows: rowsOf(source.id) })) as SourceDef[];
 const SOURCE_IDS = EXPORT_SOURCES.map((source) => source.id) as [string, ...string[]];
 const sourceOf = (id: string) => EXPORT_SOURCES.find((source) => source.id === id)!;
 export const DATE_FORMATS = ["YYYY-MM-DD", "MM/DD/YYYY", "M/D/YYYY", "DD/MM/YYYY", "YYYYMMDD"] as const;
@@ -180,12 +224,17 @@ const columnSchema = z.object({
 export const templateDefinitionSchema = z.object({
   name: z.string().trim().min(1).max(120),
   description: z.string().trim().max(500).optional(),
-  rows: z.enum(["person", "pay_item"]),
+  /** person and pay_item make a file from one pay run; earning and reimbursement make a report for a date range. */
+  rows: z.enum(TEMPLATE_ROWS),
+  /** Earning rows: only these kinds of earning (all when left out), and forecasts and held corrections too when true. */
+  kinds: z.array(z.enum(["hourly", "salary", "piece_rate", "commission", "reimbursement", "adjustment", "clawback"])).max(7).optional(),
+  include_projected: z.boolean().optional(),
   pay_items: z.enum(["by_kind", "work_and_reimbursement"]).optional(),
   pay_item_labels: z.record(z.string().trim().max(120)).optional(),
   people: z.array(z.enum(["employees", "contractors", "bills"])).min(1).max(3),
   skip_zero: z.boolean().optional(),
-  sort: z.enum(["name", "last_name"]).optional(),
+  /** Pay run rows: by `name` (default) or `last_name`. Date-range rows keep the ledger's order unless sorted by name. */
+  sort: z.enum(["name", "last_name", "none"]).optional(),
   group: z.enum(["section", "none"]).optional(),
   totals: z.enum(["none", "grand", "sections"]).optional(),
   number: formatSchema.omit({ date: true }).optional(),
@@ -193,20 +242,32 @@ export const templateDefinitionSchema = z.object({
   file: z.object({ type: z.literal("csv"), delimiter: z.enum(["comma", "semicolon", "tab"]).optional(), bom: z.boolean().optional(), header_row: z.boolean().optional() }).strict().optional(),
   columns: z.array(columnSchema).min(1).max(60)
 }).strict().superRefine((definition, issues) => {
+  const rowWords: Record<TemplateRows, string> = { person: "one row per person of a pay run", pay_item: "one row per pay item", earning: "one row per earning", reimbursement: "one row per reimbursement" };
   definition.columns.forEach((column, index) => {
-    if (sourceOf(column.source).rows === "pay_item" && definition.rows !== "pay_item") issues.addIssue({ code: z.ZodIssueCode.custom, path: ["columns", index, "source"], message: `${sourceOf(column.source).label} needs one row per pay item.` });
+    const allowed = rowsOf(column.source);
+    if (!allowed.includes(definition.rows)) issues.addIssue({ code: z.ZodIssueCode.custom, path: ["columns", index, "source"], message: `${sourceOf(column.source).label} needs ${allowed.map((rows) => rowWords[rows]).join(" or ")}.` });
   });
+  if (!PAY_RUN_ROWS.includes(definition.rows) && definition.totals && definition.totals !== "none" && definition.totals !== "grand") issues.addIssue({ code: z.ZodIssueCode.custom, path: ["totals"], message: "A report for dates has at most a total at the end." });
   if (definition.rows === "pay_item" && definition.totals && definition.totals !== "none") issues.addIssue({ code: z.ZodIssueCode.custom, path: ["totals"], message: "Totals need one row per person." });
   if (definition.totals === "sections" && definition.group === "none") issues.addIssue({ code: z.ZodIssueCode.custom, path: ["totals"], message: "Totals per group need people grouped." });
 });
 export type TemplateDefinition = z.infer<typeof templateDefinitionSchema>;
-export type ExportTemplate = { id: string; name: string; built_in: boolean; based_on: string; revision: number; formats: string[]; definition: TemplateDefinition; updated_at?: string; updated_by?: string };
+export type ExportTemplate = { id: string; name: string; built_in: boolean; based_on: string; revision: number; formats: string[]; scope: "pay_run" | "date_range"; definition: TemplateDefinition; updated_at?: string; updated_by?: string };
+/** A pay run file (person or pay item rows), or a report for a date range (earning or reimbursement rows). */
+export const templateScope = (definition: Pick<TemplateDefinition, "rows">): ExportTemplate["scope"] => PAY_RUN_ROWS.includes(definition.rows) ? "pay_run" : "date_range";
 
 const money = (header: string, source: string, key: string) => ({ header, source, key });
 const kindColumns = [
   money("Hourly pay", "pay.hourly", "hourly_cents"), money("Salary", "pay.salary", "salary_cents"), money("Piece rate", "pay.piece_rate", "piece_rate_cents"),
   money("Commission", "pay.commission", "commission_cents"), money("Bonus or adjustment", "pay.adjustment", "adjustment_cents"), money("Reimbursement", "pay.reimbursement", "reimbursement_cents"),
   money("Already paid outside a pay run", "pay.off_cycle", "off_cycle_cents"), money("Clawback or correction", "pay.taken_back", "taken_back_cents")
+];
+const ledgerColumns = [
+  { header: "Earned on", source: "entry.earned_at", key: "eligible_at" }, { header: "Worker or company", source: "person.name", key: "payee_name" },
+  { header: "Paid as", source: "person.classification", key: "worker_classification" }, { header: "Earning type", source: "entry.kind", key: "earning_kind" },
+  { header: "Project", source: "entry.project_title", key: "project_title" }, { header: "Description", source: "entry.description", key: "description" },
+  { header: "Amount", source: "entry.amount", key: "amount_cents" }, { header: "Already included", source: "entry.applied", key: "applied_cents" },
+  { header: "Still owed", source: "entry.remaining", key: "remaining_cents" }, { header: "Status", source: "entry.state", key: "state" }
 ];
 const period = [{ header: "Pay date", source: "run.pay_date", key: "pay_date" }, { header: "Period start", source: "run.period_start", key: "period_start" }, { header: "Period end", source: "run.period_end", key: "period_end" }];
 /**
@@ -223,8 +284,13 @@ export const BUILT_IN_TEMPLATES: ExportTemplate[] = ([
   { id: "quickbooks_payroll", formats: ["csv"], definition: { name: "QuickBooks Payroll: employees", description: "One row per employee and pay item, the shape QuickBooks Payroll takes.", rows: "pay_item", pay_items: "by_kind", people: ["employees"], sort: "name", group: "section", totals: "none",
     columns: [{ header: "Employee", source: "person.name", key: "employee" }, { header: "Email", source: "person.email", key: "email" }, { header: "Pay Item", source: "line.label", key: "pay_item" }, { header: "Amount", source: "line.amount", key: "amount_cents" }, ...period, { header: "Memo", source: "run.memo", key: "memo" }] } },
   { id: "quickbooks_bills", formats: ["csv"], definition: { name: "QuickBooks: contractor bills", description: "Payees paid through payables as bills to vendors, one line per vendor and category, due on their payment terms.", rows: "pay_item", pay_items: "work_and_reimbursement", people: ["bills"], sort: "name", group: "section", totals: "none",
-    columns: [{ header: "Vendor", source: "person.name", key: "vendor" }, { header: "Bill No", source: "bill.number", key: "bill_no" }, { header: "Bill Date", source: "bill.date", key: "bill_date" }, { header: "Due Date", source: "bill.due_date", key: "due_date" }, { header: "Category", source: "line.label", key: "category" }, { header: "Description", source: "line.description", key: "description" }, { header: "Amount", source: "line.amount", key: "amount_cents" }, { header: "Memo", source: "run.memo", key: "memo" }] } }
-] as Array<{ id: string; formats: string[]; definition: unknown }>).map((entry) => ({ id: entry.id, name: (entry.definition as TemplateDefinition).name, built_in: true, based_on: "", revision: 0, formats: entry.formats, definition: templateDefinitionSchema.parse(entry.definition) }));
+    columns: [{ header: "Vendor", source: "person.name", key: "vendor" }, { header: "Bill No", source: "bill.number", key: "bill_no" }, { header: "Bill Date", source: "bill.date", key: "bill_date" }, { header: "Due Date", source: "bill.due_date", key: "due_date" }, { header: "Category", source: "line.label", key: "category" }, { header: "Description", source: "line.description", key: "description" }, { header: "Amount", source: "line.amount", key: "amount_cents" }, { header: "Memo", source: "run.memo", key: "memo" }] } },
+  // Reports for a date range, as templates (tests/fixtures/payroll-date-range-reports.json holds the files they always made).
+  { id: "earnings_ledger", formats: ["csv", "pdf"], definition: { name: "All earnings", description: "Every earning recorded for the dates, employees and contractors, with what pay runs have included and what is still owed.", rows: "earning", people: ["employees", "contractors"], sort: "none", group: "none", totals: "none", columns: ledgerColumns } },
+  { id: "commissions", formats: ["csv", "pdf"], definition: { name: "Commission report", description: "Commission earnings for the dates, with what pay runs have included and what is still owed.", rows: "earning", kinds: ["commission"], people: ["employees", "contractors"], sort: "none", group: "none", totals: "none", columns: ledgerColumns } },
+  { id: "reimbursements", formats: ["csv", "pdf"], definition: { name: "Reimbursement report", description: "Reimbursements asked for in the dates, with their status.", rows: "reimbursement", people: ["employees", "contractors"], sort: "none", group: "none", totals: "none",
+    columns: [{ header: "Employee", source: "reimbursement.requested_by", key: "requested_by_name" }, { header: "Project", source: "reimbursement.project_id", key: "project_id" }, { header: "Amount", source: "reimbursement.amount", key: "amount_cents" }, { header: "Currency", source: "reimbursement.currency", key: "currency" }, { header: "Status", source: "reimbursement.status", key: "status" }, { header: "Requested on", source: "reimbursement.requested_at", key: "requested_at" }, { header: "Approved on", source: "reimbursement.approved_at", key: "approved_at" }, { header: "Paid on", source: "reimbursement.paid_at", key: "paid_at" }, { header: "Note", source: "reimbursement.note", key: "note" }] } }
+] as Array<{ id: string; formats: string[]; definition: unknown }>).map((entry) => { const definition = templateDefinitionSchema.parse(entry.definition); return { id: entry.id, name: definition.name, built_in: true, based_on: "", revision: 0, formats: entry.formats, scope: templateScope(definition), definition }; });
 export const isBuiltInTemplate = (id: string) => BUILT_IN_TEMPLATES.some((template) => template.id === id);
 
 // ---- Making the table --------------------------------------------------------------------------------------------
@@ -235,6 +301,31 @@ function valueOf(source: string, column: TemplateDefinition["columns"][number], 
   const text = (value: unknown): Value => ({ kind: "text", value: cleanText(value) });
   const cents = (value: number): Value => ({ kind: "money", value });
   const date = (value: unknown): Value => ({ kind: "date", value: cleanText(value).slice(0, 10) });
+  if (source === "range.from") return date(ctx.range?.from);
+  if (source === "range.through") return date(ctx.range?.through);
+  if (source.startsWith("entry.")) {
+    const entry = asObject(person?.item);
+    if (source === "entry.earned_on") return date(entry.eligible_at);
+    if (source === "entry.earned_at") return text(entry.eligible_at);
+    if (source === "entry.kind") return text(humanize(entry.kind));
+    if (source === "entry.kind_key") return text(entry.kind);
+    if (source === "entry.state") return text(humanize(entry.state));
+    if (source === "entry.amount") return cents(Number(entry.amount_cents || 0));
+    if (source === "entry.applied") return cents(Number(entry.applied_cents || 0));
+    if (source === "entry.remaining") return cents(Number(entry.remaining_cents || 0));
+    if (source === "entry.currency") return text(entry.currency || "USD");
+    return text(entry[source.slice("entry.".length)]);
+  }
+  if (source.startsWith("reimbursement.")) {
+    const request = asObject(person?.item);
+    if (source === "reimbursement.requested_by") return text(asObject(request.requested_by).name);
+    if (source === "reimbursement.amount") return cents(Number(request.amount_cents || 0));
+    if (source === "reimbursement.currency") return text(request.currency || "USD");
+    if (source === "reimbursement.status") return text(humanize(request.status));
+    if (source === "reimbursement.requested_on") return date(request.requested_at);
+    if (source === "reimbursement.timing") return text(humanize(request.payment_timing));
+    return text(request[source.slice("reimbursement.".length).replace(/^requested_at$/, "requested_at")]);
+  }
   if (source.startsWith("run.") || source === "fixed") {
     if (source === "fixed") return text(column.value);
     if (source === "run.pay_date") return date(batch.pay_date);
@@ -325,12 +416,42 @@ export function formatValue(value: Value, column: TemplateDefinition["columns"][
 }
 
 export type RenderedTable = { headers: string[]; keys: string[]; rows: string[][]; person_count: number };
+/** Ledger entries as rows: each carries the entry as its `item` and its payee, so person sources read the payee. */
+function recordsOfEntries(ctx: TemplateContext, definition: TemplateDefinition): Person[] {
+  const kinds = definition.kinds?.length ? new Set<string>(definition.kinds) : null;
+  return asArray(ctx.entries).map(asObject).filter((entry) => !kinds || kinds.has(cleanText(entry.kind))).map((entry) => {
+    const payee = asObject(entry.payee);
+    return { item: entry, payee, lines: payeeLines({}), section: isEmployee(entry) ? "employees" : "contractors", ...nameParts(cleanText(payee.name)), name: cleanText(payee.name || payee.id),
+      email: cleanText(payee.type) === "organization_user" ? cleanText(ctx.emails.get(cleanText(payee.id))) : "", net: Number(entry.amount_cents || 0), deductions: 0, due_date: "" } as Person;
+  });
+}
+function recordsOfReimbursements(ctx: TemplateContext): Person[] {
+  return asArray(ctx.reimbursements).map(asObject).map((request) => {
+    const by = asObject(request.requested_by);
+    const payee = { type: "organization_user", id: cleanText(by.user_id), name: cleanText(by.name) };
+    return { item: request, payee, lines: payeeLines({}), section: "employees", ...nameParts(cleanText(by.name)), name: cleanText(by.name), email: cleanText(ctx.emails.get(cleanText(by.user_id))), net: Number(request.amount_cents || 0), deductions: 0, due_date: "" } as Person;
+  });
+}
+
 /** The file's table: headers and display strings, one row per person (and total), or per person and pay item. */
 export function renderTemplate(definitionValue: TemplateDefinition, ctx: TemplateContext): RenderedTable {
   const definition = templateDefinitionSchema.parse(definitionValue);
   const columns = definition.columns;
   const keys = columns.map((column, index) => column.key || `c${index + 1}`);
   const wanted = new Set(definition.people);
+  const cellOf = (person: Person | null, line: Line | null, total: null | { section: PayRunSection | "all"; people: Person[] }) => columns.map((column) => formatValue(valueOf(column.source, column, person, line, ctx, total), column, definition));
+  if (!PAY_RUN_ROWS.includes(definition.rows)) {
+    // A report for dates: one row per ledger entry or reimbursement request, in the order they were read unless sorted by name.
+    const subjects = definition.rows === "earning" ? recordsOfEntries(ctx, definition).filter((row) => wanted.has(row.section)) : recordsOfReimbursements(ctx);
+    if (definition.sort === "name" || definition.sort === "last_name") subjects.sort(definition.sort === "last_name" ? (a, b) => a.last.localeCompare(b.last) || a.first.localeCompare(b.first) : (a, b) => a.name.localeCompare(b.name));
+    const rows = subjects.map((subject) => cellOf(subject, null, null));
+    if (definition.totals === "grand") rows.push(columns.map((column, index) => {
+      const def = sourceOf(column.source);
+      if (def.kind === "money") return formatValue({ kind: "money", value: subjects.reduce((sum, subject) => sum + Number(valueOf(column.source, column, subject, null, ctx, null).value || 0), 0) }, column, definition);
+      return index === 0 ? "Total" : "";
+    }));
+    return { headers: columns.map((column) => column.header), keys, rows, person_count: new Set(subjects.map((subject) => `${cleanText(subject.payee.type)}:${cleanText(subject.payee.id)}`)).size };
+  }
   let people = peopleOf(ctx).filter((row) => wanted.has(row.section));
   if (definition.skip_zero) people = people.filter((row) => row.net !== 0);
   const byName = (a: Person, b: Person) => a.name.localeCompare(b.name);
@@ -371,9 +492,23 @@ export function fileTypeOf(definition: TemplateDefinition) {
  * Reads only what the template's columns use. Branches and departments come from the organization structure; approved
  * hours from the time clock in the pay period; a custom field only when the viewer may read it (custom_fields).
  */
-export async function templateContext(orgId: string, batch: JsonObject, definition: TemplateDefinition, auth?: PlatformAuthContext | null): Promise<TemplateContext> {
+export async function templateContext(orgId: string, batch: JsonObject, definition: TemplateDefinition, auth?: PlatformAuthContext | null, range?: { from: string; through: string; include_projected?: boolean; scope?: PayeeScope }): Promise<TemplateContext> {
   const uses = new Set(definition.columns.map((column) => column.source));
-  const ctx: TemplateContext = { batch, emails: new Map(), warnings: [] };
+  const ctx: TemplateContext = { batch, emails: new Map(), warnings: [], ...(range ? { range: { from: range.from, through: range.through } } : {}) };
+  if (range && definition.rows === "earning") {
+    // The ledger for the dates, as the earnings report always read it: by eligible day, forecasts only when asked for.
+    const projected = range.include_projected === true || definition.include_projected === true;
+    const entries = await (await import("./storage.js")).listPayrollLedgerEntries(orgId, { limit: 5000 });
+    ctx.entries = entries.filter((entry) => cleanText(entry.eligible_at).slice(0, 10) >= range.from && cleanText(entry.eligible_at).slice(0, 10) <= range.through
+      && (projected || cleanText(entry.state) !== "projected") && (!range.scope || range.scope.visible(asObject(entry.payee))));
+    if (entries.length >= 5000) ctx.warnings!.push("Only the first 5,000 earnings of the ledger were read.");
+  }
+  if (range && definition.rows === "reimbursement") {
+    const receipts = await listDocuments(orgId, "payment_receipts");
+    ctx.reimbursements = receipts.map((doc) => asObject(asObject(doc.data).reimbursement_request)).filter((request) => cleanText(request.id)
+      && cleanText(request.requested_at).slice(0, 10) >= range.from && cleanText(request.requested_at).slice(0, 10) <= range.through
+      && (!range.scope || range.scope.visible({ type: "organization_user", id: cleanText(asObject(request.requested_by).user_id) })));
+  }
   const users = uses.has("person.email") || uses.has("person.field") ? await listDocuments(orgId, "users") : [];
   ctx.emails = new Map(users.map((row) => [cleanText(row.id), cleanText(asObject(row.data).email)]));
   if (uses.has("run.schedule")) ctx.schedule_name = cleanText((await (await import("./storage.js")).readPayrollSchedule(orgId, cleanText(batch.schedule_id)).catch(() => null))?.name);
@@ -388,7 +523,7 @@ export async function templateContext(orgId: string, batch: JsonObject, definiti
   }
   if (uses.has("person.hours")) {
     const { listPayrollTimesheets } = await import("./timesheets.js");
-    const result = await listPayrollTimesheets(orgId, { from: cleanText(batch.period_start).slice(0, 10), through: cleanText(batch.period_end).slice(0, 10), approval_status: "approved", limit: 1000 });
+    const result = await listPayrollTimesheets(orgId, { from: cleanText(batch.period_start || range?.from).slice(0, 10), through: cleanText(batch.period_end || range?.through).slice(0, 10), approval_status: "approved", limit: 1000 });
     ctx.hours = new Map();
     for (const shift of asArray(result.timesheets).map(asObject).filter((row) => cleanText(row.status) === "closed")) ctx.hours.set(cleanText(shift.user_id), (ctx.hours.get(cleanText(shift.user_id)) || 0) + Number(shift.worked_seconds || 0));
     if (asArray(result.timesheets).length >= 1000) ctx.warnings!.push("Approved hours were read from the first 1,000 shifts of the period only.");
@@ -396,7 +531,7 @@ export async function templateContext(orgId: string, batch: JsonObject, definiti
   const paths = [...new Set(definition.columns.filter((column) => column.source === "person.field").map((column) => cleanText(column.field)))];
   if (paths.length) {
     const { definitions, valuesOf, canReadField } = await import("../custom_fields/records.js");
-    const ids = new Set(asArray(batch.items).map(asObject).map((item) => asObject(item.payee)).filter((payee) => cleanText(payee.type) === "organization_user").map((payee) => cleanText(payee.id)));
+    const ids = new Set([...asArray(batch.items).map(asObject).map((item) => asObject(item.payee)), ...asArray(ctx.entries).map((entry) => asObject(asObject(entry).payee))].filter((payee) => cleanText(payee.type) === "organization_user").map((payee) => cleanText(payee.id)));
     ctx.fields = new Map();
     const hidden = new Set<string>();
     for (const row of users.filter((doc) => ids.has(cleanText(doc.id)))) {
@@ -420,7 +555,9 @@ export async function templateContext(orgId: string, batch: JsonObject, definiti
 
 function storedView(row: Awaited<ReturnType<typeof readPayrollExportTemplate>>): ExportTemplate {
   const parsed = templateDefinitionSchema.safeParse(row.definition);
-  return { id: row.id, name: row.name, built_in: false, based_on: row.based_on, revision: row.revision, formats: ["csv"], definition: parsed.success ? parsed.data : { ...(row.definition as TemplateDefinition), name: row.name }, updated_at: row.updated_at, updated_by: row.updated_by };
+  const definition = parsed.success ? parsed.data : { ...(row.definition as TemplateDefinition), name: row.name };
+  // A company's own template also prints: the same table as a PDF.
+  return { id: row.id, name: row.name, built_in: false, based_on: row.based_on, revision: row.revision, formats: ["csv", "pdf"], scope: templateScope(definition), definition, updated_at: row.updated_at, updated_by: row.updated_by };
 }
 /** The built-in templates, then the organization's own, by name. */
 export async function listExportTemplates(orgId: string) {
@@ -464,7 +601,11 @@ export async function exportTemplateCatalog(orgId: string) {
 }
 
 export const exportTemplatePreviewSchema = z.object({
-  batch_id: z.string().trim().min(1).max(180),
+  /** A pay run, for a pay run file; or `from` and `through`, for a report for dates. */
+  batch_id: z.string().trim().min(1).max(180).optional(),
+  from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  through: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  include_projected: z.boolean().optional(),
   template_id: z.string().trim().max(120).optional(),
   definition: templateDefinitionSchema.optional(),
   limit: z.number().int().min(1).max(50).optional()
@@ -472,8 +613,11 @@ export const exportTemplatePreviewSchema = z.object({
 /** The first rows a template makes from one pay run, as the file would show them. Saves nothing. */
 export async function previewExportTemplate(orgId: string, input: z.infer<typeof exportTemplatePreviewSchema>, scope: PayeeScope, auth?: PlatformAuthContext | null) {
   const definition = input.definition || (await readExportTemplate(orgId, cleanText(input.template_id))).definition;
-  const batch = scopedBatch(await readPayrollBatch(orgId, input.batch_id) as JsonObject, scope);
-  const ctx = await templateContext(orgId, batch, definition, auth);
+  const dated = templateScope(definition) === "date_range";
+  if (dated && (!input.from || !input.through)) throw badRequest("payroll_export_dates_required", "Choose a start date and end date for this report.");
+  if (!dated && !input.batch_id) throw badRequest("payroll_export_batch_required", "Choose the pay run this file should cover.");
+  const batch = dated ? {} : scopedBatch(await readPayrollBatch(orgId, input.batch_id!) as JsonObject, scope);
+  const ctx = await templateContext(orgId, batch, definition, auth, dated ? { from: input.from!, through: input.through!, include_projected: input.include_projected, scope } : undefined);
   const table = renderTemplate(definition, ctx);
   return { headers: table.headers, rows: table.rows.slice(0, input.limit || 8), row_count: table.rows.length, person_count: table.person_count, warnings: ctx.warnings || [], file: fileTypeOf(definition) };
 }

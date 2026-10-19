@@ -37,7 +37,8 @@ export function getAssigneeDatabase() {
   if (database && databasePath === filename) return database;
   void database?.close();
   databasePath = filename;
-  database = openSqlStore({ id: "assignees", filename, schemaVersion: 2, initialize: async (db) => {
+  // 3: assignee_type_history (when an assignee's types actually changed, recorded at the write).
+  database = openSqlStore({ id: "assignees", filename, schemaVersion: 3, initialize: async (db) => {
     await db.exec(`
       CREATE TABLE IF NOT EXISTS assignee_base (
         organization_id TEXT NOT NULL,
@@ -67,6 +68,16 @@ export function getAssigneeDatabase() {
       );
       CREATE INDEX IF NOT EXISTS assignee_time_off_range_idx ON assignee_time_off (organization_id, ends_at, starts_at);
       CREATE INDEX IF NOT EXISTS assignee_time_off_assignee_idx ON assignee_time_off (organization_id, assignee_kind, assignee_id, ends_at);
+      CREATE TABLE IF NOT EXISTS assignee_type_history (
+        organization_id TEXT NOT NULL,
+        assignee_kind TEXT NOT NULL,
+        assignee_id TEXT NOT NULL,
+        type_id TEXT NOT NULL,
+        active_from TEXT NOT NULL DEFAULT '',
+        active_until TEXT NOT NULL DEFAULT '',
+        recorded_at TEXT NOT NULL,
+        PRIMARY KEY (organization_id, assignee_kind, assignee_id, type_id, active_from)
+      );
     `);
     // A database made before these columns existed gets them here.
     await ensureSqlColumn(db, "assignee_base", "type_ids_json", "TEXT NOT NULL DEFAULT '[]'");
@@ -257,6 +268,40 @@ export async function readAssigneeBase(orgId: string, ref: AssigneeRef): Promise
 export async function listAssigneeBases(orgId: string): Promise<AssigneeBase[]> {
   return (await getAssigneeDatabase().prepare("SELECT * FROM assignee_base WHERE organization_id=? ORDER BY assignee_kind, assignee_id").all(orgId)).map(baseRow);
 }
+// ---- When an assignee's types actually changed ----
+export type AssigneeTypeSpan = { type_id: string; active_from: string; active_until: string; recorded_at: string };
+/**
+ * Records an assignee's types as they are now, called by every write that can change them (a user's roles, a group's
+ * type, a company's types). A type held with no open row starts today (or `on`); an open row whose type is no longer
+ * held ends then (exclusive). The first time an assignee is seen, what it holds is recorded as held since before
+ * history was kept (`active_from` blank), so pay coverage falls back to what payroll noticed for earlier days.
+ * Running it again changes nothing. Reads the types from `assigneeTypeIds`, the one place that knows them.
+ */
+export async function noteAssigneeTypes(orgId: string, ref: AssigneeRef, on = new Date().toISOString().slice(0, 10)) {
+  const current = new Set(idList(await assigneeTypeIds(orgId, ref)));
+  const db = getAssigneeDatabase();
+  const key = [orgId, ref.type, ref.id] as const;
+  const rows = await db.prepare("SELECT type_id, active_from, active_until FROM assignee_type_history WHERE organization_id=? AND assignee_kind=? AND assignee_id=?").all(...key);
+  const now = new Date().toISOString();
+  const first = !rows.length;
+  const open = rows.filter((row) => !text(row.active_until));
+  for (const row of open) {
+    if (current.has(text(row.type_id))) continue;
+    if (text(row.active_from) === on) await db.prepare("DELETE FROM assignee_type_history WHERE organization_id=? AND assignee_kind=? AND assignee_id=? AND type_id=? AND active_from=?").run(...key, text(row.type_id), on);
+    else await db.prepare("UPDATE assignee_type_history SET active_until=?, recorded_at=? WHERE organization_id=? AND assignee_kind=? AND assignee_id=? AND type_id=? AND active_from=?").run(on, now, ...key, text(row.type_id), text(row.active_from));
+  }
+  const held = new Set(open.map((row) => text(row.type_id)));
+  for (const typeId of current) if (!held.has(typeId)) {
+    await db.prepare(`INSERT INTO assignee_type_history (organization_id, assignee_kind, assignee_id, type_id, active_from, active_until, recorded_at) VALUES (?, ?, ?, ?, ?, '', ?)
+      ON CONFLICT(organization_id, assignee_kind, assignee_id, type_id, active_from) DO UPDATE SET active_until='', recorded_at=excluded.recorded_at`).run(...key, typeId, first ? "" : on, now);
+  }
+}
+/** Every stretch an assignee held each of its types, as recorded at the writes. Empty before any was recorded. Reads only. */
+export async function assigneeTypeHistory(orgId: string, ref: AssigneeRef): Promise<AssigneeTypeSpan[]> {
+  return (await getAssigneeDatabase().prepare("SELECT type_id, active_from, active_until, recorded_at FROM assignee_type_history WHERE organization_id=? AND assignee_kind=? AND assignee_id=? ORDER BY type_id, active_from").all(orgId, ref.type, ref.id))
+    .map((row) => ({ type_id: text(row.type_id), active_from: text(row.active_from), active_until: text(row.active_until), recorded_at: text(row.recorded_at) }));
+}
+
 /** The one writer of a base record. Callers authorize and validate first. */
 export async function writeAssigneeBase(orgId: string, ref: AssigneeRef, change: Partial<Pick<AssigneeBase, "type_ids" | "permission_defaults" | "staffing_requirements">>, actor: Actor, expectedRevision?: number): Promise<AssigneeBase> {
   return getAssigneeDatabase().transaction(async (db) => {
@@ -270,7 +315,10 @@ export async function writeAssigneeBase(orgId: string, ref: AssigneeRef, change:
     else await db.prepare("INSERT INTO assignee_base (organization_id, assignee_kind, assignee_id, type_ids_json, permission_defaults_json, staffing_requirements_json, revision, updated_at, updated_by_user_id) VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?)")
       .run(orgId, ref.type, ref.id, JSON.stringify(next.type_ids), JSON.stringify(next.permission_defaults), JSON.stringify(next.staffing_requirements), now, text(actor.userId));
     return { ...next, revision: current.revision + 1 };
-  }, `${orgId}:${assigneeKey(ref)}`);
+  }, `${orgId}:${assigneeKey(ref)}`).then(async (saved) => {
+    if (change.type_ids !== undefined) await noteAssigneeTypes(orgId, ref);
+    return saved;
+  });
 }
 
 // ---- Types and tags of one assignee ----

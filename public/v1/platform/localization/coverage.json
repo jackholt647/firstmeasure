@@ -1,7 +1,7 @@
 {
   "files": 252,
   "namespaces": 111,
-  "messages": 16246,
+  "messages": 16307,
   "migration": [
     {
       "file": "public/libraries/account-switcher/account-switcher.js",
@@ -329,15 +329,15 @@
       "file": "public/libraries/apps/materials/closeout.js",
       "namespace": "materials",
       "references": 0,
-      "candidates": 35,
-      "edits": 33
+      "candidates": 44,
+      "edits": 37
     },
     {
       "file": "public/libraries/apps/materials/project.js",
       "namespace": "materials",
       "references": 146,
-      "candidates": 139,
-      "edits": 95
+      "candidates": 136,
+      "edits": 92
     },
     {
       "file": "public/libraries/apps/materials/scope-of-work.js",
@@ -405,9 +405,9 @@
     {
       "file": "public/libraries/apps/payroll/app.js",
       "namespace": "payroll",
-      "references": 0,
-      "candidates": 11,
-      "edits": 11
+      "references": 10,
+      "candidates": 1,
+      "edits": 1
     },
     {
       "file": "public/libraries/apps/payroll/my-pay.js",
@@ -503,9 +503,9 @@
     {
       "file": "public/libraries/apps/people/pay-sheets-editor.js",
       "namespace": "people",
-      "references": 0,
-      "candidates": 1,
-      "edits": 1
+      "references": 1,
+      "candidates": 0,
+      "edits": 0
     },
     {
       "file": "public/libraries/apps/people/pay-sheets-list.js",
@@ -728,8 +728,8 @@
       "file": "public/libraries/apps/settings/crm.js",
       "namespace": "settings",
       "references": 126,
-      "candidates": 4,
-      "edits": 4
+      "candidates": 8,
+      "edits": 7
     },
     {
       "file": "public/libraries/apps/settings/domains.js",
@@ -791,8 +791,8 @@
       "file": "public/libraries/apps/settings/payroll.js",
       "namespace": "settings",
       "references": 36,
-      "candidates": 126,
-      "edits": 40
+      "candidates": 177,
+      "edits": 43
     },
     {
       "file": "public/libraries/apps/settings/phone-marketing.js",
@@ -840,8 +840,8 @@
       "file": "public/libraries/apps/settings/search-index.js",
       "namespace": "settings",
       "references": 0,
-      "candidates": 1309,
-      "edits": 1309
+      "candidates": 1322,
+      "edits": 1322
     },
     {
       "file": "public/libraries/apps/settings/search.js",
@@ -1477,8 +1477,8 @@
       "file": "public/libraries/platform-widgets/completion-widgets.js",
       "namespace": "platform-widgets",
       "references": 0,
-      "candidates": 9,
-      "edits": 9
+      "candidates": 8,
+      "edits": 8
     },
     {
       "file": "public/libraries/platform-widgets/extended-widgets.js",

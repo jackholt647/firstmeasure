@@ -12,7 +12,7 @@
     events:['Events','fa-calendar-days','Calendar requirements and the workflow moments that create them.','#377bac'],
     notifications:['Notifications','fa-bell','The updates, reminders, and celebrations this scope sends to the team.','#b16a48'],
     communications:['Communications','fa-comments','Email, text messages, forwarding, and customer feedback requests.','#6979aa'],
-    resources:['Labor & equipment','fa-helmet-safety','Generated work orders, equipment lists, quantities, and compensation.','#568371'],
+    resources:['Labor & equipment','fa-helmet-safety','Generated work orders, equipment lists and quantities.','#568371'],
     fields:['Project fields','fa-sliders','The project data and assignment fields this scope contributes.','#67728c'],
     calls:['Calls','fa-phone','Call queues, the work that enters them, and when it leaves.','#6c80aa'],
     transitions:['Scope transitions','fa-code-branch','Other scopes this workflow brings into the project.','#7671b4'],
@@ -28,7 +28,7 @@
     calls:{title:(globalThis.PlatformLanguage?.text("settings","m_7cf42392a179bc","New call") ?? "New call"),list:{key:'',title:''}}, transitions:{template_id:'',instance_key:''}
   };
   const listFields = ['assigned_role_ids','assigned_user_ids','assigned_resource_group_ids','target_role_ids','target_user_ids','order_source_ids'];
-  const jsonFields = ['selector','placement','items','steps','values','params','ui','default_from','default_value','compensation','controls','customer_access','customer_scheduling','confirmation','assignment_policy','celebration','defaults','frontend_action','recipients','list','target','config','labels','depends_on'];
+  const jsonFields = ['selector','placement','items','steps','values','params','ui','default_from','default_value','controls','customer_access','customer_scheduling','confirmation','assignment_policy','celebration','defaults','frontend_action','recipients','list','target','config','labels','depends_on'];
   function styles() {
     if (document.getElementById('scope-artifact-style')) return;
     const style = document.createElement('style'); style.id='scope-artifact-style';

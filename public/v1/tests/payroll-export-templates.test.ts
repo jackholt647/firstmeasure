@@ -13,13 +13,15 @@ const root = await mkdtemp(path.join(os.tmpdir(), 'payroll-templates-'));
 Object.assign(process.env, { NODE_ENV: 'test', FIRSTMATE_ENV: 'test', PLATFORM_STORAGE_ROOT: root, FIRSTMEASURE_DATABASE_MODE: 'local', FIRSTMEASURE_INDEX_DB_PATH: path.join(root, 'index.sqlite') });
 const golden = JSON.parse(await readFile(new URL('./fixtures/payroll-pay-run-files.json', import.meta.url), 'utf8'));
 const templates = await import('../payroll/export-templates.js');
+const range = JSON.parse(await readFile(new URL('./fixtures/payroll-date-range-reports.json', import.meta.url), 'utf8'));
 const contextOf = (extra: Record<string, unknown> = {}): any => ({ batch: golden.batch, emails: new Map(Object.entries(golden.emails)), ...extra });
 const parse = (definition: unknown) => templates.templateDefinitionSchema.parse(definition);
 const rows = (csv: string, delimiter = ',') => csv.replace(/^﻿/, '').trim().split('\r\n').map((line) => line.split(delimiter));
 
 test('the built-in templates make exactly the files the pay run export made before', () => {
-  assert.deepEqual(templates.BUILT_IN_TEMPLATES.map((template) => template.id), ['pay_run_summary', 'gusto_employees', 'gusto_contractors', 'quickbooks_payroll', 'quickbooks_bills']);
-  for (const template of templates.BUILT_IN_TEMPLATES) {
+  const payRun = templates.BUILT_IN_TEMPLATES.filter((template) => template.scope === 'pay_run');
+  assert.deepEqual(payRun.map((template) => template.id), ['pay_run_summary', 'gusto_employees', 'gusto_contractors', 'quickbooks_payroll', 'quickbooks_bills']);
+  for (const template of payRun) {
     const csv = templates.tableCsv(templates.renderTemplate(template.definition, contextOf()), template.definition);
     assert.equal(csv, golden.files[template.id], template.id);
   }
@@ -27,6 +29,24 @@ test('the built-in templates make exactly the files the pay run export made befo
   const summary = templates.BUILT_IN_TEMPLATES[0]!;
   assert.deepEqual(summary.formats, ['csv', 'pdf']);
   assert.deepEqual(templates.renderTemplate(summary.definition, contextOf()).keys, ['section', 'name', 'hourly_cents', 'salary_cents', 'piece_rate_cents', 'commission_cents', 'adjustment_cents', 'reimbursement_cents', 'off_cycle_cents', 'taken_back_cents', 'net_cents', 'status', 'payment_reference']);
+});
+
+// The reports for a date range are templates too, and make exactly the files they made before (July 2026 of the same organization).
+test('the built-in date-range reports make exactly the files they made before, and print', () => {
+  const dated = templates.BUILT_IN_TEMPLATES.filter((template) => template.scope === 'date_range');
+  assert.deepEqual(dated.map((template) => [template.id, template.formats.join()]), [['earnings_ledger', 'csv,pdf'], ['commissions', 'csv,pdf'], ['reimbursements', 'csv,pdf']]);
+  const ctx = (projected = false): any => ({ batch: {}, emails: new Map(), range: range.range,
+    entries: range.entries.filter((entry: any) => entry.eligible_at.slice(0, 10) >= range.range.from && entry.eligible_at.slice(0, 10) <= range.range.through && (projected || entry.state !== 'projected')),
+    reimbursements: range.receipts.map((receipt: any) => receipt.reimbursement_request).filter((request: any) => request.id && request.requested_at.slice(0, 10) >= range.range.from && request.requested_at.slice(0, 10) <= range.range.through) });
+  for (const [file, id, projected] of [['earnings_ledger', 'earnings_ledger', false], ['commissions', 'commissions', false], ['reimbursements', 'reimbursements', false], ['earnings_ledger_projected', 'earnings_ledger', true]] as const) {
+    const template = dated.find((entry) => entry.id === id)!;
+    assert.equal(templates.tableCsv(templates.renderTemplate(template.definition, ctx(projected)), template.definition), range.files[file], file);
+  }
+  // A company's report for dates: its own columns, a total, sorted by name.
+  const own = parse({ name: 'Commissions by rep', rows: 'earning', kinds: ['commission'], people: ['employees'], sort: 'name', totals: 'grand',
+    columns: [{ header: 'Rep', source: 'person.name' }, { header: 'Day', source: 'entry.earned_on', format: { date: 'MM/DD/YYYY' } }, { header: 'Amount', source: 'entry.amount' }, { header: 'From', source: 'range.from' }] });
+  assert.deepEqual(templates.renderTemplate(own, ctx()).rows, [['Ana Lopez', '07/06/2026', '250.00', '2026-07-01'], ['Mary Ann de la Cruz', '07/06/2026', '999.99', '2026-07-01'], ['Total', '', '1249.99', '']]);
+  assert.throws(() => parse({ name: 'x', rows: 'earning', people: ['employees'], columns: [{ header: 'Gross', source: 'pay.net' }] }), /one row per person of a pay run or one row per pay item/);
 });
 
 test('a company template sets its columns, their order, formatting and who is in the file', () => {
@@ -113,7 +133,8 @@ test('templates are stored per organization, previewed, used for files, gated by
 
     await t.test('the list holds the built-in templates and every source a column can use', async () => {
       const catalog = (await readPublishedData(userPublicationContext(manager), { provider: 'payroll', export: 'export_templates', target }) as any).value;
-      assert.deepEqual(catalog.templates.map((row: any) => [row.id, row.built_in]), [['pay_run_summary', true], ['gusto_employees', true], ['gusto_contractors', true], ['quickbooks_payroll', true], ['quickbooks_bills', true]]);
+      assert.deepEqual(catalog.templates.map((row: any) => [row.id, row.built_in, row.scope]), [['pay_run_summary', true, 'pay_run'], ['gusto_employees', true, 'pay_run'], ['gusto_contractors', true, 'pay_run'], ['quickbooks_payroll', true, 'pay_run'], ['quickbooks_bills', true, 'pay_run'], ['earnings_ledger', true, 'date_range'], ['commissions', true, 'date_range'], ['reimbursements', true, 'date_range']]);
+      assert.deepEqual(catalog.sources.find((source: any) => source.id === 'entry.amount').rows, ['earning']);
       assert.ok(catalog.sources.some((source: any) => source.id === 'person.field' && source.needs === 'field'));
       assert.deepEqual(catalog.date_formats, ['YYYY-MM-DD', 'MM/DD/YYYY', 'M/D/YYYY', 'DD/MM/YYYY', 'YYYYMMDD']);
     });

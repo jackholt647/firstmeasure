@@ -436,7 +436,7 @@ export const registerWorkforceApi: FastifyPluginAsync = async (app) => {
     const branchId = getParam(request.params, "branchId") || "default";
     const context = await requireWorkforceMutation(request, orgId);
     assertGroupManageable(context, await readResourceGroup(orgId, getParam(request.params, "groupId")));
-    const group = await removeResourceGroupMember(orgId, getParam(request.params, "groupId"), getParam(request.params, "userId"), expectedRevision(request));
+    const group = await removeResourceGroupMember(orgId, getParam(request.params, "groupId"), getParam(request.params, "userId"), expectedRevision(request), String(asObject(request.query).effective_on ?? ""));
     return { ok: true, branch_id: branchId, resource_group: group, group };
   });
 

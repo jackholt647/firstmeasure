@@ -17,7 +17,7 @@ function fn(name) {
   const start = source.search(new RegExp(`  (?:async )?function ${name}\\(`));
   assert.ok(start >= 0, name); return source.slice(start, source.indexOf('\n  }', start) + 4);
 }
-const PROJECT_FUNCTIONS = ['css','renderMaterialSections','renderLaborListControls','renderListHeaderActions','laborSettings','laborCompletions','laborListFinalized','closeoutButton','renderRequirementRow','requirementTooltip','requirementWhy','renderRequirementsTray','requirementAmount','requirementKind','renderResourceHeader','scheduleJobButton'].map(fn).join('\n')
+const PROJECT_FUNCTIONS = ['css','laborLinePaidAt','renderPaidLineRow','renderMaterialSections','renderLaborListControls','renderListHeaderActions','laborSettings','laborCompletions','laborListFinalized','closeoutButton','renderRequirementRow','requirementTooltip','requirementWhy','renderRequirementsTray','requirementAmount','requirementKind','renderResourceHeader','scheduleJobButton'].map(fn).join('\n')
   + '\n' + source.match(/  const REQUIREMENT_STATUS = .*\r?\n/)[0];
 const photo = (hue) => `<svg xmlns="http://www.w3.org/2000/svg" width="640" height="480"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="hsl(${hue},45%,62%)"/><stop offset="1" stop-color="hsl(${hue + 40},40%,32%)"/></linearGradient></defs><rect width="640" height="480" fill="url(#g)"/><path d="M0 330 L200 180 L330 270 L470 150 L640 300 L640 480 L0 480Z" fill="rgba(255,255,255,.22)"/></svg>`;
 const page = `<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"><style>body{margin:0;font-family:Inter,system-ui,sans-serif;background:#f7f8fb}</style></head><body><div id="root"></div></body></html>`;
@@ -80,13 +80,14 @@ async function open(browser) {
       media:{fileUrl:(org, id, variant) => `/media/${id}-${variant}.svg`},
       publication:{
         read: async (org, source) => {
-          if (source.provider === 'labor-completion' && source.export === 'items') return {status:'ready',value:{project_id:'p1',list_id:source.args?.list_id || '',items:items.filter((item) => !source.args?.list_id || item.list_id === source.args.list_id)}};
+          if (source.provider === 'labor-completion' && source.export === 'items') return {status:'ready',value:{project_id:'p1',list_id:source.args?.list_id || '',items:items.filter((item) => !source.args?.list_id || item.list_id === source.args.list_id).map((item) => (window.paidLines?.[item.id] ? {...item, done:true, paid_at:window.paidLines[item.id]} : item))}};
+          if (source.provider === 'labor-completion' && source.export === 'settings') return window.completionMethod ? {status:'ready',value:window.completionMethod} : {status:'denied',message:'No access'};
           if (source.provider === 'labor-completion') return {status:'ready',value:window.completions};
           if (source.provider === 'media') return {status:'ready',value:{items:fixture.photos,truncated:false}};
           if (source.provider === 'project-closeout') return {status:'ready',value:{project_id:'p1',steps,closeout:window.closeoutRecord,open_work_orders:window.closeoutRecord ? [] : ['l1','l2'].filter((id) => !window.finalizedIds?.includes(id))}};
           return {status:'missing',message:'No fixture'};
         },
-        invoke: async (org, action, target, input) => { window.calls.push({action, target, input}); if (action === 'labor.list.finalize') window.finalizedIds = [...(window.finalizedIds || []), input.list_id]; return {value:{ok:true}}; }
+        invoke: async (org, action, target, input) => { window.calls.push({action, target, input}); if (action === 'labor-completion.settings.save') { window.completionMethod = {method:input.method, revision:(window.completionMethod?.revision || 0) + 1}; return {value:window.completionMethod}; } if (action === 'labor.list.finalize' && input.partial) { const list = window.fixture.lists.find((entry) => entry.id === input.list_id); window.paidLines = {...(window.paidLines || {}), ...Object.fromEntries(input.confirmed_item_ids.map((id) => [id, '2026-10-14T15:00:00Z']))}; window.completions = [...window.completions, {id:`lp_${input.list_id}`, list_id:input.list_id, state:'finalized', list_paid:'part', line_ids:input.confirmed_item_ids, finalized_at:'2026-10-14T15:00:00Z', total_cents:list.current_items.filter((item) => input.confirmed_item_ids.includes(item.id)).reduce((sum, item) => sum + Math.round(item.projected_total * 100), 0)}]; return {value:{ok:true}}; } if (action === 'labor.list.cancel-remaining') { window.finalizedIds = [...(window.finalizedIds || []), input.list_id]; return {value:{ok:true}}; } if (action === 'labor.list.finalize') window.finalizedIds = [...(window.finalizedIds || []), input.list_id]; return {value:{ok:true}}; }
       }
     };
   }, {fixture:FIXTURE, steps:STEPS, items:itemsFor('')});
@@ -154,7 +155,7 @@ async function projectTab(tab) {
       listItems:(list) => list?.current_items || [], assignmentWorkResourceRef:(list) => list?.assignment?.work_resource_ref || null, workResourcesForScopeList:() => [], workResourceById:() => null,
       filteredItems:() => state.lists.flatMap((list) => list.current_items.map((item) => ({...item, section:item.section || 'material', __material_list_id:list.id}))),
       materialSectionDefinitions:() => [{key:'material',resource_type:'material'},{key:'labor',resource_type:'labor'},{key:'equipment',resource_type:'equipment'}], lineSectionKey:(item) => item.section,
-      renderMaterialSection:(section, rows) => `<section class="mt-section" style="padding:2px 4px">${rows.map((row) => `<div style="display:grid;grid-template-columns:minmax(0,1fr) 58px 72px;gap:6px;align-items:center;padding:5px 6px;border-bottom:1px solid #f0f2f5;font-size:12px"><input value="${row.name}" style="border:0;background:transparent;font:inherit;min-width:0"><input value="${row.quantity} ${row.unit}" style="border:0;background:transparent;font:inherit;text-align:right"><strong style="text-align:right;font-variant-numeric:tabular-nums">$${Number(row.projected_total).toFixed(2)}</strong></div>`).join('')}</section>`,
+      renderMaterialSection:(section, rows) => `<section class="mt-section" style="padding:2px 4px">${rows.map((row) => typeof laborLinePaidAt === 'function' && laborLinePaidAt(row.__material_list_id, row.id) ? `<table class="mt-table mt-paid-table" style="width:100%;border-collapse:collapse"><tbody>${renderPaidLineRow(row, laborLinePaidAt(row.__material_list_id, row.id))}</tbody></table>` : `<div style="display:grid;grid-template-columns:minmax(0,1fr) 58px 72px;gap:6px;align-items:center;padding:5px 6px;border-bottom:1px solid #f0f2f5;font-size:12px"><input value="${row.name}" style="border:0;background:transparent;font:inherit;min-width:0"><input value="${row.quantity} ${row.unit}" style="border:0;background:transparent;font:inherit;text-align:right"><strong style="text-align:right;font-variant-numeric:tabular-nums">$${Number(row.projected_total).toFixed(2)}</strong></div>`).join('')}</section>`,
       renderAssignBlock:() => '', renderListActionControls:() => '', resourceScheduleEnabled:() => false, materialListOrdered:(list) => list?.status === 'ordered', listProjected:(list) => list.current_items.reduce((sum, item) => sum + item.projected_total, 0), categoryProjected:(type, lists) => lists.reduce((sum, list) => sum + list.current_items.reduce((total, item) => total + item.projected_total, 0), 0), projectProjected:() => 10474, projectedDelivery:() => ({available:false}),
       requirementSet:() => ({data:window.fixture.requirements}), loadRequirements:() => Promise.resolve(null), requirementsOpen:() => true, syncMaterialsGrid:() => window.draw(), syncResourceHeader:() => window.draw(),
       headerDone:() => ({}), jobSchedule:() => ({done:false}), showToast:(title, body) => { window.toasts = [...(window.toasts || []), title]; }
@@ -293,6 +294,158 @@ test('Closeout: each check warns and never blocks; work orders are finalized in 
     await dialog.locator('[data-fmco-reopen-closeout]').waitFor();
     assert.match(await dialog.locator('.fmco-banner').innerText(), /Closed out Oct 14, 2026\. 2 work orders finalized to be paid, \$5,520\.00 in all/);
     await tab.screenshot({path:path.join(shots, 'closeout-closed.png')});
+    assert.deepEqual(errors, []);
+  } finally { await browser.close(); await new Promise((resolve) => server.close(resolve)); }
+});
+
+test('Pay out part of a work order now and the rest later, with the organization\'s confirmation method', async () => {
+  const server = await serve(); serverPort = server.address().port;
+  const browser = await chromium.launch({channel:'chrome', headless:true});
+  try {
+    const {tab, errors} = await open(browser);
+    await tab.evaluate(() => { window.completionMethod = {method:'select_all', revision:2}; window.Portal = {util:{hasPerm:(key) => key === 'manage_company_settings'}}; });
+    await projectTab(tab);
+    await tab.locator('[data-mt-pane-list="l1"] [data-mt-labor-more]').click();
+    await tab.getByRole('menuitem', {name:'Pay out'}).click();
+    const dialog = tab.locator('dialog.fmco-dialog');
+    await dialog.locator('[data-fmc-row]').first().waitFor();
+    const confirm = dialog.locator('[data-fmco-confirm]');
+    // The method is the organization's, and someone with company settings access can change it here.
+    assert.equal(await dialog.locator('[data-fmco-method]').inputValue(), 'select_all');
+    assert.match(await dialog.locator('.fmc-head').innerText(), /What you leave unchecked can be paid out later/);
+    // The tear-off is done: paying out just that line is offered.
+    await dialog.locator('[data-fmc-item="l1a"]').check();
+    assert.equal(await confirm.isDisabled(), false, 'some lines can be paid out on their own');
+    assert.equal((await confirm.innerText()).trim(), 'Pay out 1 line now');
+    await tab.screenshot({path:path.join(shots, 'pay-out-partial.png')});
+    await confirm.click();
+    await dialog.waitFor({state:'detached'});
+    let calls = await tab.evaluate(() => window.calls);
+    assert.deepEqual(calls.at(-1), {action:'labor.list.finalize', target:{scope:'project', organizationId:'org', projectId:'p1'}, input:{list_id:'l1', method:'select_all', confirmed_item_ids:['l1a'], partial:true}});
+
+    // Paid out in part: the list stays open for its other lines; its More menu says how much was paid and offers the rest.
+    await tab.evaluate(() => { window.paidLines = {l1a:'2026-10-14T15:00:00Z'}; window.completions = [{id:'lp_1', list_id:'l1', state:'finalized', list_paid:'part', scope:'lines', line_ids:['l1a'], finalized_at:'2026-10-14T15:00:00Z', total_cents:128000}]; state.laborCompletions = null; window.draw(); });
+    assert.equal(await tab.locator('[data-mt-pane-list="l1"].is-finalized').count(), 0, 'a work order paid out in part is not locked as a whole');
+    await tab.locator('[data-mt-pane-list="l1"] [data-mt-labor-more]').click();
+    assert.match(await tab.getByRole('menuitem').first().innerText(), /1 line paid out · \$1,280\.00/);
+    await tab.screenshot({path:path.join(shots, 'work-order-partly-paid-menu.png'), clip:{x:700, y:0, width:740, height:360}});
+    await tab.getByRole('menuitem', {name:'Pay out the rest'}).click();
+    await dialog.locator('[data-fmc-row="l1a"]').waitFor();
+    assert.match(await dialog.locator('[data-fmc-row="l1a"]').innerText(), /Paid out Oct 14/);
+    assert.equal(await dialog.locator('[data-fmc-row="l1a"] input').count(), 0, 'a paid line is shown, not confirmed again');
+    await dialog.locator('[data-fmc-all]').click();
+    assert.equal((await confirm.innerText()).trim(), 'Mark completed · to be paid', 'every open line confirmed pays out the rest');
+    await tab.screenshot({path:path.join(shots, 'pay-out-rest.png')});
+
+    // Changing the method is the organization's setting, saved against its revision; the widget follows it.
+    await dialog.locator('[data-fmco-method]').selectOption('each');
+    await tab.waitForFunction(() => window.calls.some((call) => call.action === 'labor-completion.settings.save'));
+    calls = await tab.evaluate(() => window.calls);
+    assert.deepEqual(calls.find((call) => call.action === 'labor-completion.settings.save'), {action:'labor-completion.settings.save', target:{scope:'organization', organizationId:'org'}, input:{method:'each', expected_revision:2}});
+    await dialog.locator('.fmc[data-method="each"]').waitFor();
+    assert.equal(await dialog.locator('[data-fmc-all]').count(), 0, 'each line is now checked on its own');
+    await dialog.locator('[data-fmc-item="l1b"]').check(); await dialog.locator('[data-fmc-item="l1c"]').check();
+    await tab.screenshot({path:path.join(shots, 'pay-out-method-each.png')});
+    await confirm.click();
+    await dialog.waitFor({state:'detached'});
+    assert.deepEqual((await tab.evaluate(() => window.calls)).at(-1).input, {list_id:'l1', method:'each', confirmed_item_ids:['l1b','l1c']});
+
+    // Closeout confirms the remaining work orders by the organization's method too.
+    await tab.evaluate(() => { window.completionMethod = {method:'approve', revision:3}; window.Portal = {util:{hasPerm:() => false}}; });
+    await tab.locator('[data-mt-closeout]').click();
+    await dialog.locator('.fmco-rail [data-fmco-step="5"]').click();
+    await dialog.locator('[data-fmco-order="l2"] [data-fmc-approve]').waitFor();
+    assert.equal(await dialog.locator('[data-fmco-order="l2"] input[type=checkbox]').count(), 0);
+    await tab.screenshot({path:path.join(shots, 'closeout-step-f-approve-method.png')});
+    await dialog.locator('.mt-modal-close[data-fmco-close]').click(); await dialog.waitFor({state:'detached'});
+    // Without company settings access, Pay out uses the method and does not offer to change it.
+    await tab.locator('[data-mt-pane-list="l2"] [data-mt-labor-more]').click();
+    await tab.getByRole('menuitem', {name:'Pay out'}).click();
+    await dialog.locator('[data-fmc-approve]').waitFor();
+    assert.equal(await dialog.locator('[data-fmco-method]').count(), 0);
+    assert.deepEqual(errors, []);
+  } finally { await browser.close(); await new Promise((resolve) => server.close(resolve)); }
+});
+
+test('Closeout pays out part of a work order, finishes it only by paying or cancelling the rest, and paid lines are read-only', async () => {
+  const server = await serve(); serverPort = server.address().port;
+  const browser = await chromium.launch({channel:'chrome', headless:true});
+  try {
+    const {tab, errors} = await open(browser);
+    await projectTab(tab);
+    // A paid-out line in the Project tab: greyed, a lock that says when, and no inputs or remove.
+    assert.match(source.slice(source.indexOf('  function renderLineRow(item){'), source.indexOf('  function renderLineRow(item){') + 400), /if \(paidAt\) return renderPaidLineRow\(item, paidAt\);/, 'every line row goes through the paid-out check first');
+    await tab.evaluate(() => { window.completions = [{id:'lp_l2', list_id:'l2', state:'finalized', list_paid:'part', line_ids:['l2a'], finalized_at:'2026-10-14T15:00:00Z', total_cents:84000}]; state.laborCompletions = null; window.draw(); });
+    const paid = tab.locator('[data-mt-pane-list="l2"] [data-mt-paid-line="l2a"]');
+    await paid.waitFor();
+    assert.equal(await paid.locator('input, button, [data-mt-remove], [data-mt-list-trigger]').count(), 0, 'nothing on a paid line can be edited, removed or dragged');
+    assert.equal(await paid.locator('.mt-paid-lock').getAttribute('data-fm-tooltip'), 'Paid out Oct 14, 2026');
+    assert.equal(await tab.locator('[data-mt-pane-list="l2"].is-finalized').count(), 0, 'its other lines stay open');
+    assert.ok(await tab.locator('[data-mt-pane-list="l2"] input').count() > 0);
+    await tab.locator('[data-mt-pane-list="l2"]').screenshot({path:path.join(shots, 'work-order-paid-line-read-only.png')});
+    await tab.evaluate(() => { window.completions = []; window.paidLines = {}; state.laborCompletions = null; window.draw(); });
+
+    // Closeout step F: the same widget, with part of a work order paid out now.
+    await tab.locator('[data-mt-closeout]').click();
+    const dialog = tab.locator('dialog.fmco-dialog');
+    await dialog.locator('.fmco-rail [data-fmco-step="5"]').click();
+    await dialog.locator('[data-fmco-order="l1"] [data-fmc-item="l1a"]').check();
+    const finalize = dialog.locator('[data-fmco-finalize]');
+    assert.equal(await finalize.innerText(), 'Pay out 1 work order');
+    await finalize.click();
+    await dialog.locator('[data-fmco-rest="l1"]').waitFor();
+    assert.deepEqual((await tab.evaluate(() => window.calls)).at(-1).input, {list_id:'l1', method:'select_all', confirmed_item_ids:['l1a'], partial:true});
+    assert.match(await dialog.locator('[data-fmco-rest="l1"]').innerText(), /1 line paid out · \$1,280\.00/);
+    assert.match(await dialog.locator('[data-fmco-order="l1"] [data-fmc-row="l1a"]').innerText(), /Paid out Oct 14/);
+    await tab.screenshot({path:path.join(shots, 'closeout-step-f-partly-paid.png')});
+    // The step finishes only once the rest is paid out or cancelled; closing still waits for it.
+    await dialog.locator('.fmco-rail [data-fmco-step="6"]').click();
+    assert.equal(await dialog.locator('[data-fmco-close-out]').isDisabled(), true);
+    await dialog.locator('[data-fmco-goto-work]').click();
+    await dialog.locator('[data-fmco-cancel-rest="l1"]').click();
+    const ask = tab.locator('dialog.fmco-dialog').last();
+    await ask.locator('[data-fmco-reason]').fill('Owner chose to keep the old ridge');
+    await tab.screenshot({path:path.join(shots, 'closeout-cancel-rest.png')});
+    await ask.locator('[data-fmco-ok]').click();
+    await tab.waitForFunction(() => window.calls.some((call) => call.action === 'labor.list.cancel-remaining'));
+    assert.deepEqual((await tab.evaluate(() => window.calls)).find((call) => call.action === 'labor.list.cancel-remaining').input, {list_id:'l1', reason:'Owner chose to keep the old ridge'});
+    await dialog.locator('[data-fmco-order="l1"]').waitFor({state:'detached'});
+    await dialog.locator('[data-fmco-order="l2"] [data-fmc-all]').click();
+    await finalize.click();
+    await dialog.locator('[data-fmco-close-out]:not([disabled])').waitFor();
+    assert.deepEqual(errors, []);
+  } finally { await browser.close(); await new Promise((resolve) => server.close(resolve)); }
+});
+
+test('Settings › Configuration › Projects is where the organization chooses how work orders are confirmed', async () => {
+  const server = await serve(); serverPort = server.address().port;
+  const browser = await chromium.launch({channel:'chrome', headless:true});
+  try {
+    const {tab, errors} = await open(browser);
+    const crm = await readFile(new URL('../../libraries/apps/settings/crm.js', import.meta.url), 'utf8');
+    const start = crm.indexOf('    function mountCompletionMethod(container){');
+    assert.ok(start > 0); assert.ok(crm.includes("mountCompletionMethod(host.querySelector('.crm-settings'));"), 'the Projects settings page mounts it');
+    const body = crm.slice(start, crm.indexOf('\n    }', crm.indexOf('section.addEventListener', start)) + 6);
+    const css = crm.match(/\.crm-settings-block\{[^}]*\}|\.crm-option-grid\{[^}]*\}|\.crm-option\{[^}]*\}|\.crm-option strong\{[^}]*\}|\.crm-option span\{[^}]*\}|\.crm-option\.active\{[^}]*\}/g).join('');
+    const mounted = async (allowed) => tab.evaluate(({body, css, allowed}) => {
+      document.getElementById('root').innerHTML = `<style>${css}</style><div class="crm-settings" style="max-width:820px;margin:20px;font-family:Inter,system-ui,sans-serif"></div>`;
+      window.completionMethod = {method:'select_all', revision:4};
+      window.PlatformAPI.appFlags = {has:() => true};
+      window.Portal = {util:{hasPerm:(key) => allowed && key === 'manage_company_settings'}};
+      const root = window, orgId = 'org';
+      (0, eval)(`window.__mountCompletionMethod = (function(root, orgId){ ${body}; return mountCompletionMethod; })`);
+      window.__mountCompletionMethod(root, orgId)(document.querySelector('.crm-settings'));
+    }, {body, css, allowed});
+    await mounted(false);
+    assert.equal(await tab.locator('[data-completion-method]').count(), 0, 'shown only with company settings access');
+    await mounted(true);
+    await tab.locator('[data-completion-method="select_all"].active').waitFor();
+    assert.deepEqual(await tab.locator('[data-completion-method] strong').allInnerTexts(), ['One approval', 'Select all', 'Each line']);
+    await tab.locator('[data-completion-method="each"]').click();
+    await tab.locator('[data-completion-method="each"].active').waitFor();
+    assert.deepEqual((await tab.evaluate(() => window.calls)).at(-1), {action:'labor-completion.settings.save', target:{scope:'organization', organizationId:'org'}, input:{method:'each', expected_revision:4}});
+    assert.equal(await tab.locator('[data-completion-status]').innerText(), 'Saved');
+    await tab.locator('section[data-completion-method]').screenshot({path:path.join(shots, 'settings-completion-method.png')});
     assert.deepEqual(errors, []);
   } finally { await browser.close(); await new Promise((resolve) => server.close(resolve)); }
 });

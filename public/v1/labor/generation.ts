@@ -139,7 +139,8 @@ export async function generateLaborList(orgId: string, input: unknown, actor: Ac
   requireActor(orgId, actor, "manage_projects", "labor_generate_denied", "Generating labor requires project management access.");
   const parsed = generateInputSchema.parse(input);
   // A list finalized for payment is locked: generating would rewrite lines someone has already confirmed as done.
-  await (await import("./completion.js")).assertLaborListOpen(orgId, parsed.list_id);
+  // Generating rewrites every generated line, so a list with any line paid out is not generated again.
+  await (await import("./completion.js")).assertLaborListOpen(orgId, parsed.list_id, { strict: true });
   const preview = await previewLaborList(orgId, parsed);
   const auth = actor as PlatformAuthContext;
   // The run is recorded with what it was given, and every line it writes carries the run, so what people do to those

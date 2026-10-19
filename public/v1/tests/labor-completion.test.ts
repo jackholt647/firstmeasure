@@ -200,3 +200,116 @@ test("the tray reads progress from the covering lists: scheduled, then completed
   const published = await (await import("../platform/publication/providers.js")).readPublishedData(userPublicationContext(owner, { executionKind: "api" }), { provider: "work-requirements", export: "project", target: { scope: "project", organizationId: ORG, projectId: "tray" } } as any);
   assert.equal(published.status, "ready"); assert.equal(row((published as any).value, "roofing.tear_off").progress, "completed");
 });
+
+test("paying out part of a work order: each payout is its own record, locks only its lines, and earns on its own date", async () => {
+  const { crew } = await setup();
+  const s = await import("../platform/storage.js");
+  await s.upsertDocument(ORG, "projects", { id: "partial", data: { title: "partial street", events: [] } });
+  const done = await import("../labor/completion.js"), c = await import("../labor/commitments.js"), g = await import("../labor/generation.js"), lists = await import("../materials/storage.js");
+  const THREE = [...ITEMS, { id: "l3", name: "Ridge", quantity: 100, unit: "ft", projected_unit_price: 2 }];
+  const list = await labor("partial", crew, "In parts", THREE);
+  const id = String(list.id);
+  await assert.rejects(() => done.finalizeLaborList(ORG, { list_id: id, method: "select_all", confirmed_item_ids: [], partial: true }, manager), /at least one line/);
+  // The tear-off is done and paid out now; the rest later.
+  const first = await done.finalizeLaborList(ORG, { list_id: id, method: "select_all", confirmed_item_ids: ["l1"], partial: true }, manager);
+  assert.deepEqual([first.scope, first.line_ids, first.fully_paid, first.total_cents], ["lines", ["l1"], false, 30 * 40 * 100]);
+  assert.match(first.id, /^lp_/); assert.equal(first.pay_unit, first.id, "a payout of part of a list earns under its own row");
+  assert.deepEqual(first.items.map((item) => [item.id, item.confirmed]), [["l1", true], ["l2", false], ["l3", false]]);
+  assert.equal(await done.finalizedCompletionFor(ORG, id), null, "the work order is not finalized while lines are open");
+  assert.equal((await done.listPayState(ORG, await lists.readMaterialList(ORG, id))).state, "part");
+  await assert.rejects(() => done.finalizeLaborList(ORG, { list_id: id, method: "each", confirmed_item_ids: ["l1", "l2"], partial: true }, manager), /already paid out/);
+
+  // Only the paid line is locked. The open lines change; the paid one and the assignee do not; nothing regenerates it or archives it.
+  const now = async () => lists.readMaterialList(ORG, id);
+  const version = async (items: object[]) => lists.createMaterialVersion(ORG, id, { expected_revision: Number((await now()).revision), reason: "revision", items }, owner);
+  await assert.rejects(() => version(THREE.map((item: any) => (item.id === "l1" ? { ...item, quantity: 31 } : item))), /"Tear off" was paid out/);
+  await assert.rejects(() => version(THREE.filter((item: any) => item.id !== "l1")), /"Tear off" was paid out/);
+  const changed = THREE.map((item: any) => (item.id === "l3" ? { ...item, quantity: 120 } : item));
+  assert.ok(await version(changed), "an open line can still change");
+  assert.equal((await lists.patchMaterialList(ORG, id, { title: "In parts, renamed" }, owner)).title, "In parts, renamed");
+  await assert.rejects(() => lists.patchMaterialList(ORG, id, { assignment: { work_resource_ref: { id: "someone_else", kind: "resource_group", name: "Crew B" } } }, owner), /cannot be given to someone else/);
+  await assert.rejects(() => lists.archiveMaterialList(ORG, id, { reason: "x" }, owner), /already paid out/);
+  await assert.rejects(() => g.generateLaborList(ORG, { list_id: id }, manager), /already paid out/);
+  const items = (await done.completionItems(ORG, "partial", { list_id: id })).items;
+  assert.deepEqual(items.map((item) => [item.id, item.done, !!item.paid_at]), [["l1", true, true], ["l2", false, false], ["l3", false, false]]);
+  assert.equal((await c.currentCommitmentsFor(ORG, { type: "resource_group", id: crew })).some((entry) => entry.list_id === id), true, "the assignee still holds the open work");
+
+  // Pay: the payout is its own row with its own date; the commitment carries only what is still open.
+  let rows = (await payRows()).filter((row) => row.list_id === id);
+  const payout = rows.find((row) => row.id === first.pay_unit);
+  assert.deepEqual([payout.total_cents, payout.finalized_at, payout.status, payout.payout_id], [30 * 40 * 100, first.finalized_at, "committed", first.id]);
+  assert.ok(rows.filter((row) => row.id !== first.pay_unit).every((row) => !row.finalized_at), "nothing else on the list is earned yet");
+  const { paySourceExports } = await import("../payroll/pay-sources.js");
+  const projected = ((await paySourceExports().labor_commitments.read!({ organizationId: ORG } as any, { args: { projected: true } } as any)) as any).value.filter((row: any) => row.list_id === id);
+  assert.deepEqual(projected.map((row: any) => row.total_cents), [30 * 90 * 100 + 100 * 2 * 100], "projected pay counts only the lines not paid out, as they were committed");
+
+  // The rest, in a second payout: every open line must be confirmed unless it is partial again.
+  await assert.rejects(() => done.finalizeLaborList(ORG, { list_id: id, method: "each", confirmed_item_ids: ["l2"] }, manager), /Confirm every line item.*"Ridge"/);
+  const second = await done.finalizeLaborList(ORG, { list_id: id, method: "each", confirmed_item_ids: ["l2", "l3"] }, manager);
+  assert.deepEqual([second.scope, second.line_ids, second.fully_paid], ["lines", ["l2", "l3"], true]);
+  assert.equal((await done.finalizedCompletionFor(ORG, id))?.id, second.id, "every line paid out: the work order is finalized");
+  await assert.rejects(() => lists.patchMaterialList(ORG, id, { title: "Again" }, owner), /finalized to be paid/);
+  assert.equal((await c.currentCommitmentsFor(ORG, { type: "resource_group", id: crew })).some((entry) => entry.list_id === id), false);
+  rows = (await payRows()).filter((row) => row.list_id === id && row.finalized_at);
+  assert.deepEqual(rows.map((row) => row.total_cents).sort((a, b) => a - b), [30 * 40 * 100, 30 * 90 * 100 + 120 * 2 * 100], "two payouts, each earned once");
+  assert.equal(rows.reduce((sum, row) => sum + row.total_cents, 0), 30 * 40 * 100 + 30 * 90 * 100 + 120 * 2 * 100, "together they are the whole list, never more");
+  const { finalizedWorkToPay } = await import("../payroll/finalized-work.js");
+  assert.deepEqual((await finalizedWorkToPay(ORG)).filter((row) => row.list_id === id).map((row) => row.id).sort(), [first.id, second.id].sort());
+
+  // A manager reopens the first payout only: its line is open again and its pay is reversed; the second stands.
+  const supervisor = member("supervisor", { manage_projects: true, reopen_finalized_work: true });
+  const reopened = await done.reopenLaborList(ORG, { list_id: id, reason: "Tear-off was redone", completion_id: first.id }, supervisor);
+  assert.equal(reopened.id, first.id); assert.equal(reopened.state, "reopened");
+  assert.equal((await done.listPayState(ORG, await now())).state, "part");
+  assert.deepEqual((await payRows()).filter((row) => row.list_id === id && row.finalized_at).map((row) => row.id), [second.pay_unit]);
+});
+
+test("how work is confirmed is the organization's setting, select_all unless chosen, changed only with company settings access", async () => {
+  await setup();
+  const done = await import("../labor/completion.js");
+  assert.deepEqual(await done.readCompletionSettings(ORG), { method: "select_all", revision: 0 });
+  await assert.rejects(() => done.saveCompletionSettings(ORG, { method: "each" }, manager), /company settings access/);
+  await assert.rejects(() => done.saveCompletionSettings(ORG, { method: "sometimes" }, owner));
+  const saved = await done.saveCompletionSettings(ORG, { method: "each" }, owner);
+  assert.equal(saved.method, "each"); assert.ok(saved.revision > 0);
+  await assert.rejects(() => done.saveCompletionSettings(ORG, { method: "approve", expected_revision: saved.revision + 5 }, owner), /Someone else changed/);
+  const { userPublicationContext } = await import("../platform/publication/context.js");
+  const read: any = await (await import("../platform/publication/providers.js")).readPublishedData(userPublicationContext(manager, { executionKind: "api" }), { provider: "labor-completion", export: "settings", target: { scope: "organization", organizationId: ORG } });
+  assert.equal(read.status, "ready"); assert.equal(read.value.method, "each", "Pay out and Closeout read it with project access");
+  const actions = await import("../platform/publication/actions.js");
+  await assert.rejects(() => actions.invokeAction(userPublicationContext(manager, { executionKind: "api", mode: "command" }), { action: "labor-completion.settings.save", target: { scope: "organization", organizationId: ORG } } as any, { method: "approve" }, { idempotencyKey: "cs-denied" }), /denied|permission|forbidden|not permitted/i);
+  const changed: any = (await actions.invokeAction(userPublicationContext(owner, { executionKind: "api", mode: "command" }), { action: "labor-completion.settings.save", target: { scope: "organization", organizationId: ORG } } as any, { method: "approve" }, { idempotencyKey: "cs-ok" })).value;
+  assert.equal(changed.method, "approve");
+  await done.saveCompletionSettings(ORG, { method: "select_all" }, owner);
+});
+
+test("the rest of a partly paid work order can be cancelled: it comes off the list, its commitment is released, and the work order is finalized on what was paid", async () => {
+  const { crew } = await setup();
+  const s = await import("../platform/storage.js");
+  await s.upsertDocument(ORG, "projects", { id: "cancelling", data: { title: "cancelling street", events: [] } });
+  const done = await import("../labor/completion.js"), c = await import("../labor/commitments.js"), lists = await import("../materials/storage.js");
+  const list = await labor("cancelling", crew, "Half done");
+  const id = String(list.id);
+  await assert.rejects(() => done.cancelRemainingLines(ORG, { list_id: id, reason: "Owner stopped" }, manager), /Nothing on this work order is paid out yet/);
+  const first = await done.finalizeLaborList(ORG, { list_id: id, method: "each", confirmed_item_ids: ["l1"], partial: true }, manager);
+  await assert.rejects(() => done.cancelRemainingLines(ORG, { list_id: id, reason: "Owner stopped" }, viewer), /project management access/);
+  await assert.rejects(() => done.cancelRemainingLines(ORG, { list_id: id, reason: "" }, manager));
+  const result = await done.cancelRemainingLines(ORG, { list_id: id, reason: "Owner decided against the new shingles" }, manager);
+  assert.deepEqual([result.state, result.cancelled.map((line) => line.id), result.paid_cents], ["paid", ["l2"], 30 * 40 * 100]);
+  assert.deepEqual(((await lists.readMaterialList(ORG, id)).current_items as any[]).map((item: any) => item.id), ["l1"], "the open line is off the list");
+  assert.equal((await done.finalizedCompletionFor(ORG, id))?.id, first.id, "finalized on the lines already paid out");
+  assert.deepEqual((await c.listCommitments(ORG, { list_id: id })).map((entry) => [entry.status, entry.release_reason]), [["released", "Rest cancelled: Owner decided against the new shingles"]]);
+  assert.equal((await c.currentCommitmentsFor(ORG, { type: "resource_group", id: crew })).some((entry) => entry.list_id === id), false, "the assignee no longer holds it");
+  const rows = (await payRows()).filter((row) => row.list_id === id);
+  assert.deepEqual(rows.filter((row) => row.finalized_at).map((row) => row.total_cents), [30 * 40 * 100], "only what was paid out is earned");
+  const { paySourceExports } = await import("../payroll/pay-sources.js");
+  assert.equal(((await paySourceExports().labor_commitments.read!({ organizationId: ORG } as any, { args: { projected: true } } as any)) as any).value.some((row: any) => row.list_id === id), false, "nothing more is projected for it");
+  const events = (await lists.listMaterialEvents(ORG, id)).map((event: any) => event.type || event.event_type);
+  assert.ok(events.includes("labor_completion.remainder_cancelled"));
+  await assert.rejects(() => done.cancelRemainingLines(ORG, { list_id: id, reason: "Again" }, manager), /already paid out/);
+  // Closing out sees it as finished.
+  const { closeoutChecks } = await import("../closeout/closeout.js");
+  const { userPublicationContext } = await import("../platform/publication/context.js");
+  const checks = await closeoutChecks(userPublicationContext(owner, { executionKind: "api", projectId: "cancelling" }), "cancelling");
+  assert.deepEqual(checks.open_work_orders, []);
+});

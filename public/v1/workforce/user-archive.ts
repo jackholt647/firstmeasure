@@ -28,6 +28,10 @@ export async function archiveOrganizationUser(ctx:PlatformAuthContext,userId:str
   if(data.deleted===true)return true;
   const status=text(data.status)||'active';
   await upsertDocument(ctx.orgId,'users',{id,data:{...data,deleted:true,deleted_at:new Date().toISOString(),deleted_by:ctx.userId,status:'disabled',disabled:true,status_before_archive:status,...(text(reason)?{archived_reason:text(reason).slice(0,500)}:{})}},{mustExist:true});
+  // A removed person is no longer an assignee: what was kept against them is cleaned up as for a group or company, and
+  // payroll works out their pay through today before closing it (payroll/assignee-cleanup.ts). The archive is the
+  // authority for this, so it runs as the platform; a step that fails is reported by the step and the archive stands.
+  await (await import('../assignees/base.js')).cleanupAssignee(ctx.orgId,{type:'organization_user',id},{orgId:ctx.orgId,userId:ctx.userId,system:true}).catch(()=>null);
   return true;
 }
 

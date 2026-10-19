@@ -22,7 +22,7 @@ test("a split rule divides a group's earning by data, follows that data as corre
   try {
     await core.createOrganization({ id: ORG, name: "Pay splits" });
     for (const id of ["ana", "ben", "cara", "dan", "owner"]) await core.upsertDocument(ORG, "users", { id, data: { name: id.charAt(0).toUpperCase() + id.slice(1), status: "active", worker_classification: "employee" } });
-    const addMember = async (groupId: string, userId: string) => workforce.putResourceGroupMember(ORG, groupId, userId, { role: "member", expected_revision: Number((await workforce.readResourceGroup(ORG, groupId)).revision) });
+    const addMember = async (groupId: string, userId: string) => workforce.putResourceGroupMember(ORG, groupId, userId, { role: "member", effective_from: "2026-01-01", expected_revision: Number((await workforce.readResourceGroup(ORG, groupId)).revision) });
     const group = async (name: string, kind: string, members: string[]) => {
       const id = (await workforce.createResourceGroup(ORG, { name, kind_id: kind })).id as string;
       for (const member of members) await addMember(id, member);
@@ -35,6 +35,8 @@ test("a split rule divides a group's earning by data, follows that data as corre
     // Jobs are what the group is paid for; shifts are the time clock. Both are published collections a rule selects from.
     const jobs: Record<string, any>[] = [];
     const shifts: Record<string, any>[] = [];
+    // Who the schedule roster had on each job (payroll work_roster); empty unless a part of the test fills it.
+    const roster: Record<string, any>[] = [];
     const job = (id: string, groupId: string, project: string, day: string, cents: number) => jobs.push({ id, revision: 1, assignee_key: `resource_group:${groupId}`, project_id: project, done_at: `2026-06-${day}T15:00:00.000Z`, pay_cents: cents });
     const shift = (id: string, user: string, project: string, day: string, from: string, to: string, status = "approved", worked?: number) => {
       const clocked_in_at = `2026-06-${day}T${from}:00.000Z`, clocked_out_at = `2026-06-${day}T${to}:00.000Z`;
@@ -47,7 +49,8 @@ test("a split rule divides a group's earning by data, follows that data as corre
     const collection = { type: "array", items: { type: "object", additionalProperties: true } };
     registerDataProvider({ id: "pay-splits-test", version: "1", apps: [], exports: {
       jobs: { schema: collection, schemaVersion: "1", description: "test", access, read: async () => ({ value: jobs }) },
-      shifts: { schema: collection, schemaVersion: "1", description: "test", access, read: async () => { selections += 1; return { value: shifts }; } }
+      shifts: { schema: collection, schemaVersion: "1", description: "test", access, read: async () => { selections += 1; return { value: shifts }; } },
+      roster: { schema: collection, schemaVersion: "1", description: "test", access, read: async () => ({ value: roster }) }
     } });
     const context = userPublicationContext({ orgId: ORG, userId: "owner", role: "member", permissions: { manage_payroll: true }, applicationAccess: { management: { enabled: true, permissions: { "*": true } } } } as any);
     const actor = { userId: "owner" };
@@ -67,7 +70,7 @@ test("a split rule divides a group's earning by data, follows that data as corre
     // The sample split rules, reading this test's shifts in place of the real time clock.
     const sample = (id: string) => {
       const found = SAMPLE_PAY_SPLIT_RULES.find((rule) => rule.id === id)!;
-      const inputs = Object.fromEntries(Object.entries(found.definition.inputs).map(([name, input]) => [name, { ...(input as object), source: { provider: "pay-splits-test", export: "shifts" } }]));
+      const inputs = Object.fromEntries(Object.entries(found.definition.inputs).map(([name, input]) => [name, { ...(input as object), source: { provider: "pay-splits-test", export: name === "roster" ? "roster" : "shifts" } }]));
       return { id, name: found.name, effective_from: "2026-01-01", definition: { ...found.definition, inputs } };
     };
     for (const id of ["present_on_the_job", "by_hours_on_the_job", "whole_team"]) await rules.savePaySplitRule(ORG, sample(id), actor);
@@ -104,11 +107,11 @@ test("a split rule divides a group's earning by data, follows that data as corre
     const anaEntry = present.posted.find((entry) => (entry.payee as any).id === "ana")!.metadata as any;
     assert.deepEqual({ ...anaEntry.split, reason: undefined, params: undefined, split_rule_version: undefined }, {
       of: `resource_group:${crew}`, line_cents: 90_000, members: 3, method: "rule", split_rule_id: "present_on_the_job", weight: 1, total_weight: 2, share_cents: 45_000,
-      details: { seconds_on_the_job: 28_800 }, reason: undefined, params: undefined, split_rule_version: undefined });
-    assert.equal(anaEntry.split.reason, "On the job for 8.00 hours that day");
+      details: { seconds_scheduled: 0, seconds_clocked: 28_800 }, reason: undefined, params: undefined, split_rule_version: undefined });
+    assert.equal(anaEntry.split.reason, "Clocked on the job for 8.00 hours that day");
     assert.deepEqual(anaEntry.split.params, { minimum_minutes: 1 });
     const caraEntry = present.posted.find((entry) => (entry.payee as any).id === "cara")!.metadata as any;
-    assert.deepEqual([caraEntry.split.weight, caraEntry.split.share_cents, caraEntry.split.reason], [0, 0, "No approved shift on this job that day"], "the entry that takes a share back says why");
+    assert.deepEqual([caraEntry.split.weight, caraEntry.split.share_cents, caraEntry.split.reason], [0, 0, "Not on this job's schedule and no approved shift on it that day"], "the entry that takes a share back says why");
     const unit = async (payee: { type: "resource_group"; id: string }, key: string) => (await engine.listPayUnits(ORG, payee)).find((entry) => entry.unit === key)!;
     const explained = (await unit(team, "j1")).split!;
     assert.deepEqual([explained.method, explained.split_rule_id, explained.members], ["rule", "present_on_the_job", ["ana", "ben", "cara"]]);
@@ -140,7 +143,7 @@ test("a split rule divides a group's earning by data, follows that data as corre
     assert.deepEqual(afterRun.posted.map((entry) => [(entry.payee as any).id, entry.amount_cents, entry.state, (entry.metadata as any).back_pay === true, (entry.metadata as any).review_required === true]).sort(), [
       ["ana", 15_000, "accrued", true, false], ["ben", -30_000, "projected", false, true], ["cara", 15_000, "accrued", true, false]],
       "the increases are back pay on the next run; the decrease is held for review");
-    assert.equal((afterRun.posted.find((entry) => (entry.payee as any).id === "ben")!.metadata as any).split.reason, "No approved shift on this job that day");
+    assert.equal((afterRun.posted.find((entry) => (entry.payee as any).id === "ben")!.metadata as any).split.reason, "Not on this job's schedule and no approved shift on it that day");
     assert.equal((await store.readPayrollBatch(ORG, run.id)).total_cents, 120_000);
     await quiet(team, 2);
 

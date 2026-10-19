@@ -127,7 +127,7 @@
       .pycfg{max-width:1380px;margin:0 auto}.pycfg-head{padding:2px 0 16px;border-bottom:1px solid #eaecf0;margin-bottom:16px;align-items:center}.pycfg-head h3{font-size:20px}.pycfg-head p{max-width:640px}.pycfg-schedule-bar{display:grid;gap:9px;margin-bottom:14px}.pycfg-schedule-bar-head{display:flex;align-items:center;justify-content:space-between;gap:12px}.pycfg-schedule-bar-head strong{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:#475467}.pycfg-schedule-scroll{display:flex;gap:8px;overflow-x:auto;padding:1px 1px 4px;scrollbar-width:thin}.pycfg-schedule-choice{appearance:none;display:grid;grid-template-columns:32px minmax(130px,1fr) auto;align-items:center;gap:9px;min-width:225px;max-width:310px;border:1px solid #e4e7ec;border-radius:11px;background:#fff;padding:9px 10px;color:#344054;text-align:left;cursor:pointer}.pycfg-schedule-choice:hover{border-color:#b9c0cc;background:#fcfcfd}.pycfg-schedule-choice.active{border-color:var(--primary-readable,var(--primary,#d93025));box-shadow:0 0 0 2px rgba(var(--primary-rgb,217,48,37),.08)}.pycfg-schedule-choice.archived{opacity:.68}.pycfg-schedule-choice>i{width:32px;height:32px;border-radius:8px;background:#f2f4f7;display:grid;place-items:center}.pycfg-schedule-choice.active>i{background:rgba(var(--primary-rgb,217,48,37),.09);color:var(--primary-readable,var(--primary,#d93025))}.pycfg-schedule-choice span{min-width:0}.pycfg-schedule-choice strong,.pycfg-schedule-choice small{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.pycfg-schedule-choice strong{font-size:11px}.pycfg-schedule-choice small{font-size:9px;color:#667085;margin-top:3px}.pycfg-add-schedule{flex:0 0 auto;min-width:120px}.pycfg-workspace{display:grid;grid-template-columns:minmax(0,1.08fr) minmax(380px,.92fr);gap:14px;align-items:start}.pycfg-panel{border:1px solid #e4e7ec;border-radius:14px;background:#fff;overflow:hidden;box-shadow:0 2px 7px rgba(16,24,40,.025)}.pycfg-panel.new{border-color:#b2ddff;box-shadow:0 0 0 3px #eff8ff}.pycfg-panel-head{min-height:58px;padding:11px 13px;border-bottom:1px solid #eaecf0;display:flex;align-items:center;justify-content:space-between;gap:12px;background:#fcfcfd}.pycfg-panel-head>span:first-child{min-width:0}.pycfg-panel-head small,.pycfg-panel-head strong{display:block}.pycfg-panel-head small{font-size:8.5px;font-weight:1000;text-transform:uppercase;letter-spacing:.055em;color:#667085;margin-bottom:3px}.pycfg-panel-head strong{font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.pycfg-panel-head-actions{display:flex;align-items:center;gap:7px}.pycfg-panel-body{padding:14px}.pycfg-detail-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:11px}.pycfg-icon-btn{appearance:none;width:30px;height:30px;border:0;border-radius:8px;background:transparent;color:#667085;cursor:pointer}.pycfg-icon-btn:hover{background:#f2f4f7}.pycfg-icon-btn.danger:hover{background:#fef3f2;color:#b42318}.pycfg-percent{position:relative}.pycfg-percent .pycfg-input{padding-right:25px}.pycfg-percent>span{position:absolute;right:9px;top:12px;color:#667085;font-size:10px;font-weight:900}.pycfg-notice{margin-bottom:12px}
       .pycfg-advanced{border:1px solid #e4e7ec;border-radius:10px;margin-top:12px;background:#fcfcfd;overflow:hidden}.pycfg-advanced>summary{list-style:none;min-height:43px;padding:9px 11px;display:flex;align-items:center;justify-content:space-between;gap:12px;cursor:pointer;color:#475467}.pycfg-advanced>summary::-webkit-details-marker{display:none}.pycfg-advanced>summary>span{display:grid;grid-template-columns:22px auto;grid-template-rows:auto auto;align-items:center}.pycfg-advanced>summary>span>i{grid-row:1/3}.pycfg-advanced>summary strong{font-size:10.5px}.pycfg-advanced>summary small{font-size:9px;color:#667085;margin-top:2px}.pycfg-advanced>summary>i{font-size:9px;transition:transform .16s}.pycfg-advanced[open]>summary>i{transform:rotate(180deg)}.pycfg-advanced-grid{border-top:1px solid #eaecf0;padding:11px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;background:#fff}
       .pycfg-cadence{grid-column:1/-1;border:1px solid #e4e7ec;border-radius:10px;background:#fff;padding:11px;display:grid;gap:11px;min-width:0}.pycfg-cadence-group{display:grid;gap:6px;min-width:0}.pycfg-cadence-group>span:first-child,.pycfg-cadence-preview>span{color:#475467;font-size:9.5px;font-weight:1000;text-transform:uppercase;letter-spacing:.035em}.pycfg-chips{display:flex;flex-wrap:wrap;gap:5px}.pycfg-chip{appearance:none;min-height:30px;min-width:34px;border:1px solid #d0d5dd;border-radius:8px;background:#fff;color:#475467;padding:6px 9px;font:900 10.5px/1 inherit;cursor:pointer}.pycfg-chip:hover:not(:disabled){background:#f9fafb}.pycfg-chip.active{border-color:#84adff;background:#eff4ff;color:#3538cd}.pycfg-chip:disabled{opacity:.55;cursor:default}.pycfg-chips.days .pycfg-chip{width:34px;padding:6px 0}.pycfg-chips.days .pycfg-chip.text{width:auto;padding:6px 9px}.pycfg-cadence-row{display:flex;align-items:center;gap:7px;flex-wrap:wrap;color:#344054;font-size:11px;font-weight:850}.pycfg-cadence-row .pycfg-input,.pycfg-cadence-row .pycfg-select{width:auto;min-width:0}.pycfg-cadence-row .pycfg-input[type=number]{width:72px}.pycfg-cadence-summary{border:1px solid #b2ddff;border-radius:9px;background:#f5faff;color:#175cd3;padding:9px 11px;font-size:11.5px;font-weight:900;line-height:1.45}.pycfg-cadence-summary.bad{border-color:#fecdca;background:#fef3f2;color:#b42318}.pycfg-cadence-preview{display:grid;gap:6px}.pycfg-cadence-preview ol{list-style:none;margin:0;padding:0;display:flex;flex-wrap:wrap;gap:5px}.pycfg-cadence-preview li{border:1px solid #e4e7ec;border-radius:999px;background:#f9fafb;color:#344054;padding:5px 9px;font-size:10px;font-weight:900}
-      .pycfg-approval{display:flex;align-items:center;gap:9px;margin:0 0 14px;padding:11px 12px;border:1px solid #e4e7ec;border-radius:10px;background:#fff;cursor:pointer;font-size:12.5px}.pycfg-approval input{width:16px;height:16px;margin:0;accent-color:var(--primary,#d93025)}.pycfg-stack{display:grid;gap:12px}.pycfg-section{display:grid;gap:10px;margin-bottom:22px}.pycfg-textarea{width:100%;min-height:64px;border:1px solid #d0d5dd;border-radius:8px;background:#fff;color:#101828;padding:8px 9px;font:800 11.5px/1.45 inherit;outline:none;resize:vertical}.pycfg-textarea:focus{border-color:var(--primary-readable,var(--primary,#d93025));box-shadow:0 0 0 3px rgba(var(--primary-rgb,217,48,37),.07)}.pycfg-textarea.code{min-height:230px;font:500 12px/1.55 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;tab-size:2;white-space:pre;overflow:auto}.pycfg-textarea.json{min-height:90px;font:500 11px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;white-space:pre}.pycfg-pre{margin:0;border:1px solid #1d2939;border-radius:9px;background:#101828;color:#f2f4f7;padding:11px;font:500 11px/1.55 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;overflow:auto;max-height:340px;white-space:pre;tab-size:2}.pycfg-dl{display:grid;grid-template-columns:150px minmax(0,1fr);gap:8px 12px;margin:0;font-size:11px}.pycfg-dl dt{color:#475467;font-size:9.5px;font-weight:1000;text-transform:uppercase;letter-spacing:.035em;padding-top:2px}.pycfg-dl dd{margin:0;color:#182230;font-weight:750;line-height:1.5;min-width:0;overflow-wrap:anywhere}.pycfg-dl dd>div+div{margin-top:5px}.pycfg-dl code,.pycfg-help code{font:600 10.5px/1.4 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;background:#f2f4f7;border-radius:4px;padding:1px 4px;color:#344054}.pycfg-block{border:1px solid #e4e7ec;border-radius:10px;background:#fff;padding:11px;display:grid;gap:10px;min-width:0}.pycfg-block.nested{background:#fcfcfd}.pycfg-block-head{display:flex;align-items:center;justify-content:space-between;gap:10px}.pycfg-block-head strong{font-size:11.5px}.pycfg-block-head small{display:block;color:#667085;font-size:9.5px;font-weight:750;margin-top:2px}.pycfg-rowgrid{display:grid;gap:7px;align-items:end}.pycfg-rowgrid.cond{grid-template-columns:minmax(0,1.2fr) minmax(0,.9fr) minmax(0,1.2fr) 30px}.pycfg-rowgrid.kv{grid-template-columns:minmax(0,1fr) minmax(0,1fr) 30px}.pycfg-rowgrid.param{grid-template-columns:minmax(0,.9fr) minmax(0,1.5fr) 110px minmax(0,.8fr) 30px}.pycfg-rowgrid .pycfg-icon-btn{align-self:end;height:38px}.pycfg-warn{color:#93370d;background:#fffaeb;border:1px solid #fedf89;border-radius:9px;padding:9px 11px;font-size:10.5px;font-weight:800;line-height:1.5}.pycfg-plan-rule{border:1px solid #e4e7ec;border-radius:10px;background:#fff;padding:10px;display:grid;gap:10px}.pycfg-plan-rule.on{border-color:#b2ddff;background:#f5faff}.pycfg-check{display:flex;align-items:flex-start;gap:9px;cursor:pointer;font-size:11px;font-weight:850;color:#344054}.pycfg-check input{margin:2px 0 0}.pycfg-check strong{display:block;font-size:11.5px;color:#182230}.pycfg-check small{display:block;color:#667085;font-size:10px;font-weight:750;margin-top:2px}.pycfg-card-detail{display:grid;gap:12px}.pycfg-card-detail .pycfg-actions{margin-top:0}
+      .pycfg-approval{display:flex;align-items:center;gap:9px;margin:0 0 14px;padding:11px 12px;border:1px solid #e4e7ec;border-radius:10px;background:#fff;cursor:pointer;font-size:12.5px}.pycfg-approval input{width:16px;height:16px;margin:0;accent-color:var(--primary,#d93025)}.pycfg-stack{display:grid;gap:12px}.pycfg-section{display:grid;gap:10px;margin-bottom:22px}.pycfg-textarea{width:100%;min-height:64px;border:1px solid #d0d5dd;border-radius:8px;background:#fff;color:#101828;padding:8px 9px;font:800 11.5px/1.45 inherit;outline:none;resize:vertical}.pycfg-textarea:focus{border-color:var(--primary-readable,var(--primary,#d93025));box-shadow:0 0 0 3px rgba(var(--primary-rgb,217,48,37),.07)}.pycfg-textarea.code{min-height:230px;font:500 12px/1.55 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;tab-size:2;white-space:pre;overflow:auto}.pycfg-textarea.json{min-height:90px;font:500 11px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;white-space:pre}.pycfg-pre{margin:0;border:1px solid #1d2939;border-radius:9px;background:#101828;color:#f2f4f7;padding:11px;font:500 11px/1.55 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;overflow:auto;max-height:340px;white-space:pre;tab-size:2}.pycfg-dl{display:grid;grid-template-columns:150px minmax(0,1fr);gap:8px 12px;margin:0;font-size:11px}.pycfg-dl dt{color:#475467;font-size:9.5px;font-weight:1000;text-transform:uppercase;letter-spacing:.035em;padding-top:2px}.pycfg-dl dd{margin:0;color:#182230;font-weight:750;line-height:1.5;min-width:0;overflow-wrap:anywhere}.pycfg-dl dd>div+div{margin-top:5px}.pycfg-dl code,.pycfg-help code{font:600 10.5px/1.4 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;background:#f2f4f7;border-radius:4px;padding:1px 4px;color:#344054}.pycfg-block{border:1px solid #e4e7ec;border-radius:10px;background:#fff;padding:11px;display:grid;gap:10px;min-width:0}.pycfg-block.nested{background:#fcfcfd}.pycfg-block-head{display:flex;align-items:center;justify-content:space-between;gap:10px}.pycfg-block-head strong{font-size:11.5px}.pycfg-block-head small{display:block;color:#667085;font-size:9.5px;font-weight:750;margin-top:2px}.pycfg-rowgrid{display:grid;gap:7px;align-items:end}.pycfg-rowgrid.cond{grid-template-columns:minmax(0,1.2fr) minmax(0,.9fr) minmax(0,1.2fr) 30px}.pycfg-rowgrid.kv{grid-template-columns:minmax(0,1fr) minmax(0,1fr) 30px}.pycfg-rowgrid.param{grid-template-columns:minmax(0,.9fr) minmax(0,1.5fr) 110px minmax(0,.8fr) 30px}.pycfg-rowgrid .pycfg-icon-btn{align-self:end;height:38px}.pycfg-warn{color:#93370d;background:#fffaeb;border:1px solid #fedf89;border-radius:9px;padding:9px 11px;font-size:10.5px;font-weight:800;line-height:1.5}.pycfg-plan-rule{border:1px solid #e4e7ec;border-radius:10px;background:#fff;padding:10px;display:grid;gap:10px}.pycfg-plan-rule.on{border-color:#b2ddff;background:#f5faff}.pycfg-check{display:flex;align-items:flex-start;gap:9px;cursor:pointer;font-size:11px;font-weight:850;color:#344054}.pycfg-check input{margin:2px 0 0}.pycfg-check strong{display:block;font-size:11.5px;color:#182230}.pycfg-check small{display:block;color:#667085;font-size:10px;font-weight:750;margin-top:2px}.pycfg-card-detail{display:grid;gap:12px}.pycfg-card-detail .pycfg-actions{margin-top:0}.pycfg-advanced>summary{cursor:pointer;font-size:11.5px;font-weight:900;color:#344054;list-style:revert}.pycfg-advanced>summary small{display:block;color:#667085;font-size:9.5px;font-weight:750;margin-top:2px}.pycfg-advanced[open]>summary{margin-bottom:8px}
       .pycfg-when-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(170px,250px);gap:12px;align-items:center;padding:10px 12px;border:1px solid #e4e7ec;border-radius:10px;background:#fff;cursor:default}.pycfg-when-row.main{border-color:#b2ddff;background:#f5faff;padding:13px 12px}.pycfg-when-copy{min-width:0}.pycfg-when-copy strong{display:block;font-size:12px;color:#182230}.pycfg-when-row.main .pycfg-when-copy strong{font-size:13px}.pycfg-when-copy small{display:block;color:#667085;font-size:10px;font-weight:750;line-height:1.45;margin-top:3px}.pycfg-when-group{display:grid;gap:6px}.pycfg-when-group>span{color:#475467;font-size:9.5px;font-weight:1000;text-transform:uppercase;letter-spacing:.035em;margin-top:2px}.pycfg-preview{display:grid;gap:9px}.pycfg-preview-row{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;border-top:1px solid #eaecf0;padding-top:8px;font-size:11px}.pycfg-preview-row strong{display:block;font-size:11.5px}.pycfg-preview-row small{display:block;color:#667085;font-size:10px;font-weight:750;line-height:1.5;margin-top:2px}.pycfg-preview-row b{white-space:nowrap;font-size:11.5px}.pycfg-source-help{grid-column:1/-1}
       @media(max-width:660px){.pycfg-when-row{grid-template-columns:1fr}}
       @media(max-width:660px){.pycfg-grid>[style*="span 2"]{grid-column:auto!important}.pycfg-rowgrid.cond,.pycfg-rowgrid.kv,.pycfg-rowgrid.param{grid-template-columns:1fr}.pycfg-dl{grid-template-columns:1fr}.pycfg-card>summary{grid-template-columns:38px minmax(0,1fr)}.pycfg-card-meta{grid-column:1/-1;justify-content:flex-start}}
@@ -595,9 +595,11 @@
     if (result.truncated) summary += 'Only the first 200 payees were worked out. ';
     const rows = payees.slice(0, 25).map((entry) => {
       const differences = array(entry.differences);
-      const lines = differences.slice(0, 4).map((difference) => `${esc(text(difference.unit))}: ${esc((Number(difference.without_change_cents || 0) / 100).toFixed(2))} to ${esc((Number(difference.target_cents || 0) / 100).toFixed(2))}${difference.handling === 'hold' ? ' (held for review)' : ''}`);
+      // A group's split moves pay between its members: each line names the member it is for.
+      const who = (difference) => { const key = text(difference.payee); const own = `${text(entry.payee?.type)}:${text(entry.payee?.id)}`; if (!key || key === own) return ''; const id = key.split(':').slice(1).join(':'); return `${esc(text(object(preview.people)[id], id))}, `; };
+      const lines = differences.slice(0, 4).map((difference) => `${who(difference)}${esc(text(difference.unit))}: ${esc((Number(difference.without_change_cents || 0) / 100).toFixed(2))} to ${esc((Number(difference.target_cents || 0) / 100).toFixed(2))}${difference.handling === 'hold' ? ' (held for review)' : difference.pay_date ? `, paid ${esc(formatDay(difference.pay_date))}${difference.schedule_name ? ` on ${esc(difference.schedule_name)}` : ''}` : ''}`);
       const unresolved = array(entry.unresolved);
-      return `<div class="pycfg-preview-row" data-pay-preview-payee="${esc(text(entry.payee?.type))}:${esc(text(entry.payee?.id))}"><span><strong>${esc(text(entry.payee_name, entry.payee?.id))}</strong><small>${lines.join(' · ')}${differences.length > 4 ? ` · and ${differences.length - 4} more` : ''}${unresolved.length ? `${lines.length ? ' · ' : ''}Unresolved: ${esc(text(unresolved[0].reason))}` : ''}</small></span><b>${differences.length ? esc(signedMoney(entry.change_cents)) : ''}</b></div>`;
+      return `<div class="pycfg-preview-row" data-pay-preview-payee="${esc(text(entry.payee?.type))}:${esc(text(entry.payee?.id))}"><span><strong>${esc(text(entry.payee_name, entry.payee?.id))}</strong><small>${lines.join(' · ')}${differences.length > 4 ? ` · and ${differences.length - 4} more` : ''}${unresolved.length ? `${lines.length ? ' · ' : ''}Unresolved: ${esc(text(unresolved[0].reason))}` : ''}</small></span><b>${differences.length ? esc(signedMoney(entry.change_cents)) : ''}</b></div>${entry.samples ? splitSamplesMarkup(entry.samples, preview.people) : ''}`;
     }).join('');
     return `<div class="pycfg-block nested" data-pay-preview-result><div class="pycfg-help" data-pay-preview-summary><strong>${esc(summary)}</strong>Nothing has been saved.</div>${rows}${payees.length > 25 ? `<div class="pycfg-help">And ${payees.length - 25} more payees.</div>` : ''}</div>`;
   }
@@ -749,6 +751,8 @@
       const kind = operatorEntry(rule.operator)?.[2] || 'one';
       if (kind === 'none') return { field:text(rule.field), operator:rule.operator };
       if (text(rule.value) === '') throw new Error(`${label}: give ${text(rule.field)} a value to compare with.`);
+      // A token such as $members.keys stands for a whole list and is sent as written.
+      if (kind === 'list' && /^\$[A-Za-z_.]+$/.test(text(rule.value))) return { field:text(rule.field), operator:rule.operator, value:text(rule.value) };
       if (kind === 'list') return { field:text(rule.field), operator:rule.operator, value:text(rule.value).split(',').map((entry) => entry.trim()).filter(Boolean).map(looseParse) };
       if (kind === 'number') {
         if (!Number.isFinite(Number(rule.value))) throw new Error(`${label}: ${text(rule.field)} needs a number.`);
@@ -757,6 +761,30 @@
       return { field:text(rule.field), operator:rule.operator, value:kind === 'time' ? text(rule.value) : looseParse(rule.value) };
     });
     return rules.length ? { ...(input.match === 'any' ? { match:'any' } : {}), rules } : undefined;
+  }
+
+  // The declared parameters of a pay rule or split rule draft. Throws a sentence the form can show.
+  function parameterDefinitions(draft){
+    const nameRule = /^[a-z][a-z0-9_]{0,59}$/;
+    const parameters = {};
+    draft.parameters.forEach((parameter) => {
+      const key = text(parameter.key);
+      if (!key && !text(parameter.label) && text(parameter.default) === '') return;
+      if (!nameRule.test(key)) throw new Error(`Parameter ${key || '(unnamed)'}: name it with lowercase letters, digits and underscores, starting with a letter.`);
+      if (parameters[key]) throw new Error(`Two parameters are named ${key}.`);
+      const raw = text(parameter.default);
+      let fallback;
+      if (parameter.type === 'boolean') fallback = raw === 'true' ? true : raw === 'false' ? false : undefined;
+      else if (parameter.type === 'text') fallback = raw === '' ? undefined : raw;
+      else if (raw !== '') {
+        if (!Number.isFinite(Number(raw))) throw new Error(`Parameter ${key}: the default is a number.`);
+        fallback = Number(raw);
+        if ((parameter.type === 'cents' || parameter.type === 'basis_points') && !Number.isInteger(fallback)) throw new Error(`Parameter ${key}: the default is a whole number of ${parameter.type === 'cents' ? 'cents' : 'basis points'}.`);
+      }
+      const type = PARAMETER_TYPES.some(([id]) => id === parameter.type) ? parameter.type : 'number';
+      parameters[key] = { ...(text(parameter.label) ? { label:text(parameter.label) } : {}), type, ...(fallback === undefined ? {} : { default:fallback }) };
+    });
+    return parameters;
   }
 
   // The definition the API stores for a working copy. Throws a sentence the form can show.
@@ -787,24 +815,7 @@
       };
     });
     if (Object.keys(inputs).length > 8) throw new Error('A rule reads at most eight inputs.');
-    const parameters = {};
-    draft.parameters.forEach((parameter) => {
-      const key = text(parameter.key);
-      if (!key && !text(parameter.label) && text(parameter.default) === '') return;
-      if (!nameRule.test(key)) throw new Error(`Parameter ${key || '(unnamed)'}: name it with lowercase letters, digits and underscores, starting with a letter.`);
-      if (parameters[key]) throw new Error(`Two parameters are named ${key}.`);
-      const raw = text(parameter.default);
-      let fallback;
-      if (parameter.type === 'boolean') fallback = raw === 'true' ? true : raw === 'false' ? false : undefined;
-      else if (parameter.type === 'text') fallback = raw === '' ? undefined : raw;
-      else if (raw !== '') {
-        if (!Number.isFinite(Number(raw))) throw new Error(`Parameter ${key}: the default is a number.`);
-        fallback = Number(raw);
-        if ((parameter.type === 'cents' || parameter.type === 'basis_points') && !Number.isInteger(fallback)) throw new Error(`Parameter ${key}: the default is a whole number of ${parameter.type === 'cents' ? 'cents' : 'basis points'}.`);
-      }
-      const type = PARAMETER_TYPES.some(([id]) => id === parameter.type) ? parameter.type : 'number';
-      parameters[key] = { ...(text(parameter.label) ? { label:text(parameter.label) } : {}), type, ...(fallback === undefined ? {} : { default:fallback }) };
-    });
+    const parameters = parameterDefinitions(draft);
     if (!String(draft.code || '').trim()) throw new Error('Write the formula.');
     const definition = { grain:record ? 'record' : 'period' };
     if (record) {
@@ -912,7 +923,7 @@
 
   function payCardActions(kind, item){
     const attributes = `data-pay-kind="${kind}" data-pay-id="${esc(item.id)}"`;
-    return `<div class="pycfg-actions"><button class="pycfg-btn danger" type="button" data-pay-archive ${attributes} ${item.status === 'archived' ? 'disabled' : ''}><i class="fas fa-box-archive"></i> Archive</button>${kind === 'rule' ? `<button class="pycfg-btn" type="button" data-pay-copy ${attributes}><i class="fas fa-copy"></i> Duplicate</button>` : ''}<button class="pycfg-btn primary" type="button" data-pay-edit ${attributes}><i class="fas fa-pen"></i> ${item.status === 'archived' ? 'Edit and restore' : 'Edit'}</button></div>`;
+    return `<div class="pycfg-actions"><button class="pycfg-btn danger" type="button" data-pay-archive ${attributes} ${item.status === 'archived' ? 'disabled' : ''}><i class="fas fa-box-archive"></i> Archive</button>${kind !== 'plan' ? `<button class="pycfg-btn" type="button" data-pay-copy ${attributes}><i class="fas fa-copy"></i> Duplicate</button>` : ''}<button class="pycfg-btn primary" type="button" data-pay-edit ${attributes}><i class="fas fa-pen"></i> ${item.status === 'archived' ? 'Edit and restore' : 'Edit'}</button></div>`;
   }
 
   function ruleCardMarkup(rule, open){
@@ -991,16 +1002,15 @@
       </form></section>`;
   }
 
-  function ruleEditorMarkup(draft, rule, preview){
-    const isNew = !draft.id;
-    const record = draft.grain !== 'period';
-    const removeButton = (attribute, label) => `<button class="pycfg-icon-btn danger" type="button" ${attribute} title="${label}" aria-label="${label}"><i class="fas fa-xmark"></i></button>`;
-    const inputBlocks = draft.inputs.map((input, index) => {
+  const removeIconButton = (attribute, label) => `<button class="pycfg-icon-btn danger" type="button" ${attribute} title="${label}" aria-label="${label}"><i class="fas fa-xmark"></i></button>`;
+
+  // One declared input of a pay rule or a split rule. A split rule's input also says whom each row is about and which rows belong to an earning.
+  function inputBlockMarkup(input, index, record, split = false){
       const conditions = input.whereMode === 'json'
-        ? `<label class="pycfg-field"><span>Filter (JSON)</span><textarea class="pycfg-textarea json" data-in="whereJson" spellcheck="false">${esc(input.whereJson)}</textarea><small class="pycfg-help">This filter has nested groups, so it is edited as written. <code>$payee.key</code>, <code>$payee.type</code> and <code>$payee.id</code> stand for the payee.</small></label><div>${CONDITION_OPERATORS.length ? '<button class="pycfg-btn" type="button" data-in-where-mode="rules"><i class="fas fa-list"></i> Edit as rows</button>' : '<small class="pycfg-help">The list of conditions could not be loaded, so filters are edited as written.</small>'}</div>`
+        ? `<label class="pycfg-field"><span>Filter (JSON)</span><textarea class="pycfg-textarea json" data-in="whereJson" spellcheck="false">${esc(input.whereJson)}</textarea><small class="pycfg-help">This filter has nested groups, so it is edited as written. <code>$payee.key</code>, <code>$payee.type</code> and <code>$payee.id</code> stand for the payee${split ? ', <code>$members.keys</code> and <code>$members.ids</code> for the members' : ''}.</small></label><div>${CONDITION_OPERATORS.length ? '<button class="pycfg-btn" type="button" data-in-where-mode="rules"><i class="fas fa-list"></i> Edit as rows</button>' : '<small class="pycfg-help">The list of conditions could not be loaded, so filters are edited as written.</small>'}</div>`
         : `${input.rules.map((rule) => {
           const kind = operatorEntry(rule.operator)?.[2] || 'one';
-          return `<div class="pycfg-rowgrid cond" data-in-cond><label class="pycfg-field"><span>Field</span><input class="pycfg-input" data-c="field" list="pycfgFields${index}" value="${esc(rule.field)}" placeholder="assignee_key" spellcheck="false"></label><label class="pycfg-field"><span>Condition</span><select class="pycfg-select" data-c="operator" data-pay-rerender>${optionsMarkup(operatorChoices(rule.operator), rule.operator)}</select></label>${kind === 'none' ? '<span></span>' : `<label class="pycfg-field"><span>${kind === 'list' ? 'Values, comma separated' : 'Value'}</span><input class="pycfg-input" data-c="value" value="${esc(rule.value)}" placeholder="${kind === 'time' ? 'now-30d' : '$payee.key'}" spellcheck="false"></label>`}${removeButton('data-in-remove-cond', 'Remove this condition')}</div>`;
+          return `<div class="pycfg-rowgrid cond" data-in-cond><label class="pycfg-field"><span>Field</span><input class="pycfg-input" data-c="field" list="pycfgFields${index}" value="${esc(rule.field)}" placeholder="assignee_key" spellcheck="false"></label><label class="pycfg-field"><span>Condition</span><select class="pycfg-select" data-c="operator" data-pay-rerender>${optionsMarkup(operatorChoices(rule.operator), rule.operator)}</select></label>${kind === 'none' ? '<span></span>' : `<label class="pycfg-field"><span>${kind === 'list' ? 'Values, comma separated' : 'Value'}</span><input class="pycfg-input" data-c="value" value="${esc(rule.value)}" placeholder="${kind === 'time' ? 'now-30d' : '$payee.key'}" spellcheck="false"></label>`}${removeIconButton('data-in-remove-cond', 'Remove this condition')}</div>`;
         }).join('')}<div class="pycfg-cadence-row"><button class="pycfg-btn" type="button" data-in-add-cond><i class="fas fa-plus"></i> Add a condition</button>${input.rules.length > 1 ? `<select class="pycfg-select" data-in="match" aria-label="How conditions combine">${optionsMarkup([['all', 'Rows must match every condition'], ['any', 'Rows may match any condition']], input.match)}</select>` : ''}<button class="pycfg-btn" type="button" data-in-where-mode="json"><i class="fas fa-code"></i> Edit as JSON</button></div>`;
       // The collection is picked from what the server publishes as selectable; one that is not listed can still be named.
       const source = sourceFor(input);
@@ -1014,15 +1024,230 @@
       const sourceHelp = source ? `<small class="pycfg-help pycfg-source-help" data-in-source-help>${esc(text(source.description))}${source.needs_args ? ` It cannot be read without ${esc(joinList(array(source.required_args)))}: add ${array(source.required_args).length === 1 ? 'it' : 'them'} under options below.` : takes.length ? ` Options it takes: ${esc(joinList(takes))}.` : ''}</small>` : '';
       const fieldList = `<datalist id="pycfgFields${index}">${array(source?.fields).map((name) => `<option value="${esc(name)}"></option>`).join('')}</datalist>`;
       return `<div class="pycfg-block nested" data-rule-input="${index}">
-        <div class="pycfg-block-head"><span><strong>${esc(text(input.name, `Input ${index + 1}`))}</strong></span>${removeButton('data-rule-remove-input', 'Remove this input')}</div>
+        <div class="pycfg-block-head"><span><strong>${esc(text(input.name, `Input ${index + 1}`))}</strong></span>${removeIconButton('data-rule-remove-input', 'Remove this input')}</div>
         <div class="pycfg-grid"><label class="pycfg-field"><span>Name in the formula</span><input class="pycfg-input" data-in="name" value="${esc(input.name)}" placeholder="projects" spellcheck="false" maxlength="60"></label>${sourceFields}<label class="pycfg-field"><span>Most rows it may read</span><input class="pycfg-input" type="number" min="1" max="5000" step="1" data-in="limit" value="${esc(input.limit)}" placeholder="Default"></label>${sourceHelp}${fieldList}
-          <label class="pycfg-field"><span>Date field</span><input class="pycfg-input" data-in="date" list="pycfgFields${index}" value="${esc(input.date)}" placeholder="${record ? 'Optional' : 'clocked_out_at'}" spellcheck="false"><small class="pycfg-help">${record ? 'Not needed for the input each earning comes from.' : 'Rows are grouped into periods by this date. Without one the input arrives whole as shared.'}</small></label>
-          ${record ? `<label class="pycfg-check" style="align-self:center"><input type="radio" name="pycfgRulePrimary" data-in="primary" ${input.primary ? 'checked' : ''}><span><strong>One earning per row</strong><small>Other inputs arrive whole as <code>shared</code>.</small></span></label>` : ''}</div>
+          ${split ? '' : `          <label class="pycfg-field"><span>Date field</span><input class="pycfg-input" data-in="date" list="pycfgFields${index}" value="${esc(input.date)}" placeholder="${record ? 'Optional' : 'clocked_out_at'}" spellcheck="false"><small class="pycfg-help">${record ? 'Not needed for the input each earning comes from.' : 'Rows are grouped into periods by this date. Without one the input arrives whole as shared.'}</small></label>
+          ${record ? `<label class="pycfg-check" style="align-self:center"><input type="radio" name="pycfgRulePrimary" data-in="primary" ${input.primary ? 'checked' : ''}><span><strong>One earning per row</strong><small>Other inputs arrive whole as <code>shared</code>.</small></span></label>` : ''}`}</div>
         <div class="pycfg-cadence-group"><span>Which rows</span>${conditions}</div>
-        <div class="pycfg-cadence-group"><span>Options the collection takes</span>${input.args.map((entry) => `<div class="pycfg-rowgrid kv" data-in-arg><label class="pycfg-field"><span>Option</span><input class="pycfg-input" data-a="key" value="${esc(entry.key)}" placeholder="facts" spellcheck="false"></label><label class="pycfg-field"><span>Value</span><input class="pycfg-input" data-a="value" value="${esc(entry.value)}" placeholder="true" spellcheck="false"></label>${removeButton('data-in-remove-arg', 'Remove this option')}</div>`).join('')}<div><button class="pycfg-btn" type="button" data-in-add-arg><i class="fas fa-plus"></i> Add an option</button></div></div>
+        ${split ? splitInputExtras(input, index) : ''}
+        <div class="pycfg-cadence-group"><span>Options the collection takes</span>${input.args.map((entry) => `<div class="pycfg-rowgrid kv" data-in-arg><label class="pycfg-field"><span>Option</span><input class="pycfg-input" data-a="key" value="${esc(entry.key)}" placeholder="facts" spellcheck="false"></label><label class="pycfg-field"><span>Value</span><input class="pycfg-input" data-a="value" value="${esc(entry.value)}" placeholder="true" spellcheck="false"></label>${removeIconButton('data-in-remove-arg', 'Remove this option')}</div>`).join('')}<div><button class="pycfg-btn" type="button" data-in-add-arg><i class="fas fa-plus"></i> Add an option</button></div></div>
       </div>`;
-    }).join('');
-    const parameterRows = draft.parameters.map((parameter) => `<div class="pycfg-rowgrid param" data-rule-param><label class="pycfg-field"><span>Name in the formula</span><input class="pycfg-input" data-p="key" value="${esc(parameter.key)}" placeholder="rate_bps" spellcheck="false" maxlength="60"></label><label class="pycfg-field"><span>Label people see</span><input class="pycfg-input" data-p="label" value="${esc(parameter.label)}" placeholder="Share of contract (basis points)" maxlength="200"></label><label class="pycfg-field"><span>Kind</span><select class="pycfg-select" data-p="type" data-pay-rerender>${optionsMarkup(PARAMETER_TYPES, parameter.type)}</select></label><label class="pycfg-field"><span>Default</span>${parameter.type === 'boolean' ? `<select class="pycfg-select" data-p="default">${optionsMarkup([['', 'No default'], ['true', 'Yes'], ['false', 'No']], parameter.default)}</select>` : `<input class="pycfg-input" ${parameter.type === 'text' ? '' : `type="number" step="${parameter.type === 'number' ? 'any' : '1'}"`} data-p="default" value="${esc(parameter.default)}" placeholder="${parameter.type === 'cents' ? 'No default (in cents)' : parameter.type === 'basis_points' ? 'No default (100 is 1%)' : 'No default'}">`}</label>${removeButton('data-rule-remove-param', 'Remove this parameter')}</div>`).join('');
+  }
+
+  function parameterRowsMarkup(draft){
+    return draft.parameters.map((parameter) => `<div class="pycfg-rowgrid param" data-rule-param><label class="pycfg-field"><span>Name in the formula</span><input class="pycfg-input" data-p="key" value="${esc(parameter.key)}" placeholder="rate_bps" spellcheck="false" maxlength="60"></label><label class="pycfg-field"><span>Label people see</span><input class="pycfg-input" data-p="label" value="${esc(parameter.label)}" placeholder="Share of contract (basis points)" maxlength="200"></label><label class="pycfg-field"><span>Kind</span><select class="pycfg-select" data-p="type" data-pay-rerender>${optionsMarkup(PARAMETER_TYPES, parameter.type)}</select></label><label class="pycfg-field"><span>Default</span>${parameter.type === 'boolean' ? `<select class="pycfg-select" data-p="default">${optionsMarkup([['', 'No default'], ['true', 'Yes'], ['false', 'No']], parameter.default)}</select>` : `<input class="pycfg-input" ${parameter.type === 'text' ? '' : `type="number" step="${parameter.type === 'number' ? 'any' : '1'}"`} data-p="default" value="${esc(parameter.default)}" placeholder="${parameter.type === 'cents' ? 'No default (in cents)' : parameter.type === 'basis_points' ? 'No default (100 is 1%)' : 'No default'}">`}</label>${removeIconButton('data-rule-remove-param', 'Remove this parameter')}</div>`).join('');
+  }
+
+  // ---- Split rules: how a group's earning is divided among its members (docs/architecture/pay-rules.md "Split rules") ----
+
+  const EARNING_TOKENS = [
+    ['$earning.project_id', 'The earning’s project'],
+    ['$earning.unit', 'The record or period it pays'],
+    ['$earning.rule_id', 'The pay rule that earned it'],
+    ['$earning.record.', 'A field of the record it pays (add the field name)']
+  ];
+  const SPLIT_STARTER_CODE = '// Equal weights for every member. Return { [member.key]: weight } or { weight, reason }.\nreturn Object.fromEntries(members.map((member) => [member.key, 1]));';
+
+  function blankSplitInput(){
+    return { ...blankRuleInput(false), member:'', matches:[], window:{ on:false, start:'', end:'', from:'day', days:'' } };
+  }
+
+  function splitInputDraft(name, value){
+    const input = object(value);
+    const window = object(input.window);
+    return {
+      ...ruleInputDraft(name, value),
+      member:text(input.member),
+      matches:Object.entries(object(input.match)).map(([field, token]) => ({ field, token:text(token) })),
+      window:{ on:!!input.window, start:text(window.start), end:text(window.end), from:window.any_time_before ? 'any' : window.days_before !== undefined ? 'days' : 'day', days:window.days_before === undefined ? '' : String(window.days_before) }
+    };
+  }
+
+  // The form's working copy of a split rule, started from one of its versions.
+  function splitDraft(rule, version){
+    const definition = object(version?.definition);
+    return {
+      id:text(rule?.id),
+      revision:Number(rule?.revision || 0),
+      status:text(rule?.status, 'active'),
+      name:text(rule?.name),
+      description:text(rule?.description),
+      effective_from:localToday(),
+      based_on:text(version?.effective_from),
+      inputs:Object.entries(object(definition.inputs)).map(([name, input]) => splitInputDraft(name, input)),
+      parameters:Object.entries(object(definition.parameters)).map(([key, parameter]) => ({
+        key,
+        label:text(parameter?.label),
+        type:parameterTypeOf(parameter) || 'number',
+        default:parameter?.default === undefined ? '' : String(parameter.default)
+      })),
+      code:rule ? String(definition.code ?? '') : SPLIT_STARTER_CODE,
+      advanced:!rule
+    };
+  }
+
+  // The definition the API stores for a split rule's working copy. Throws a sentence the form can show.
+  function splitDefinition(draft){
+    const nameRule = /^[a-z][a-z0-9_]{0,59}$/;
+    const pathRule = /^[A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]+)*$/;
+    const tokenRule = /^\$earning\.(?:project_id|unit|rule_id|record\.[A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]+)*)$/;
+    const inputs = {};
+    draft.inputs.forEach((input, index) => {
+      const name = text(input.name);
+      const label = name ? `Input ${name}` : `Input ${index + 1}`;
+      if (!nameRule.test(name)) throw new Error(`${label}: name it with lowercase letters, digits and underscores, starting with a letter.`);
+      if (inputs[name]) throw new Error(`Two inputs are named ${name}.`);
+      if (!text(input.provider) || !text(input.export)) throw new Error(`${label}: say which published collection it reads.`);
+      const args = {};
+      input.args.forEach((entry) => { if (text(entry.key)) args[text(entry.key)] = looseParse(entry.value); });
+      const where = ruleInputWhere(input, label);
+      const limit = text(input.limit) ? Math.round(Number(input.limit)) : 0;
+      if (text(input.limit) && !(limit >= 1 && limit <= 5000)) throw new Error(`${label}: the row limit is between 1 and 5000.`);
+      const member = text(input.member);
+      if (member && !pathRule.test(member)) throw new Error(`${label}: the member field is a dot path such as assignee_key.`);
+      const match = {};
+      input.matches.filter((entry) => text(entry.field) || text(entry.token)).forEach((entry) => {
+        if (!pathRule.test(text(entry.field))) throw new Error(`${label}: name the row field that must equal something about the earning.`);
+        if (!tokenRule.test(text(entry.token))) throw new Error(`${label}: compare ${text(entry.field)} with $earning.project_id, $earning.unit, $earning.rule_id or $earning.record.<field>.`);
+        match[text(entry.field)] = text(entry.token);
+      });
+      if (Object.keys(match).length > 4) throw new Error(`${label}: an input matches on at most four fields.`);
+      let window;
+      if (input.window.on) {
+        if (!pathRule.test(text(input.window.start))) throw new Error(`${label}: name the field holding when each row starts.`);
+        if (text(input.window.end) && !pathRule.test(text(input.window.end))) throw new Error(`${label}: the end field is a dot path such as until.`);
+        window = { start:text(input.window.start), ...(text(input.window.end) ? { end:text(input.window.end) } : {}) };
+        if (input.window.from === 'any') window.any_time_before = true;
+        else if (input.window.from === 'days') {
+          const days = Math.round(Number(input.window.days));
+          if (!(text(input.window.days) !== '' && days >= 0 && days <= 3660)) throw new Error(`${label}: say how many days before the earned day the window starts (0 to 3660).`);
+          window.days_before = days;
+        }
+      }
+      inputs[name] = {
+        source:{ provider:text(input.provider), export:text(input.export), ...(Object.keys(args).length ? { args } : {}) },
+        ...(where === undefined ? {} : { where }),
+        ...(limit ? { limit } : {}),
+        ...(member ? { member } : {}),
+        ...(Object.keys(match).length ? { match } : {}),
+        ...(window ? { window } : {})
+      };
+    });
+    if (Object.keys(inputs).length > 8) throw new Error('A split rule reads at most eight inputs.');
+    const parameters = parameterDefinitions(draft);
+    if (!String(draft.code || '').trim()) throw new Error('Write the formula under Advanced.');
+    return { inputs, parameters, code:String(draft.code) };
+  }
+
+  function splitPayload(draft){
+    const name = text(draft.name);
+    if (!name) throw new Error('Name the split rule.');
+    const definition = splitDefinition(draft);
+    return {
+      ...(draft.id ? { id:draft.id } : {}),
+      name,
+      description:text(draft.description),
+      effective_from:effectiveDate(draft),
+      definition,
+      ...(draft.id && draft.revision > 0 ? { expected_revision:draft.revision } : {})
+    };
+  }
+
+  // What only a split rule's input says: whom each row is about, and which rows belong to the earning being divided.
+  function splitInputExtras(input, index){
+    const window = input.window;
+    const matches = input.matches.map((entry) => `<div class="pycfg-rowgrid kv" data-in-match><label class="pycfg-field"><span>Row field</span><input class="pycfg-input" data-m="field" list="pycfgFields${index}" value="${esc(entry.field)}" placeholder="project_id" spellcheck="false"></label><label class="pycfg-field"><span>Equals the earning's</span><input class="pycfg-input" data-m="token" list="pycfgEarningTokens" value="${esc(entry.token)}" placeholder="$earning.project_id" spellcheck="false"></label>${removeIconButton('data-in-remove-match', 'Remove this match')}</div>`).join('');
+    return `<div class="pycfg-cadence-group"><span>Whom each row is about</span><label class="pycfg-field"><span>Member field</span><input class="pycfg-input" data-in="member" list="pycfgFields${index}" value="${esc(input.member)}" placeholder="assignee_key" spellcheck="false"><small class="pycfg-help">The field naming the member (<code>organization_user:&lt;id&gt;</code>) a row is about. Rows about anyone who did not share the earning are left out.</small></label></div>
+        <div class="pycfg-cadence-group" data-in-matches><span>Rows that belong to the earning</span>${matches}<div><button class="pycfg-btn" type="button" data-in-add-match ${input.matches.length >= 4 ? 'disabled' : ''}><i class="fas fa-plus"></i> Match a field</button></div><small class="pycfg-help">Each row field must equal that value of the earning, such as the job it was earned on. An earning without that value gets no rows.</small></div>
+        <div class="pycfg-cadence-group" data-in-window><span>Rows that belong to the earning by time</span><label class="pycfg-check"><input type="checkbox" data-in="window_on" data-pay-rerender ${window.on ? 'checked' : ''}><span><strong>Only rows that touch the earned day</strong><small>A row is in when the span from its start to its end touches the window. With an end field each row also carries the exact <code>seconds</code> inside it.</small></span></label>
+          ${window.on ? `<div class="pycfg-grid two"><label class="pycfg-field"><span>Start field</span><input class="pycfg-input" data-in="window_start" list="pycfgFields${index}" value="${esc(window.start)}" placeholder="from" spellcheck="false"></label><label class="pycfg-field"><span>End field</span><input class="pycfg-input" data-in="window_end" list="pycfgFields${index}" value="${esc(window.end)}" placeholder="Optional, such as until" spellcheck="false"></label><label class="pycfg-field"><span>The window starts</span><select class="pycfg-select" data-in="window_from" data-pay-rerender>${optionsMarkup([['day', 'When the earned day starts'], ['days', 'Some days before'], ['any', 'At any time before']], window.from)}</select></label>${window.from === 'days' ? `<label class="pycfg-field"><span>Days before</span><input class="pycfg-input" type="number" min="0" max="3660" step="1" data-in="window_days" value="${esc(window.days)}"></label>` : ''}</div>` : ''}</div>`;
+  }
+
+  function splitCardMarkup(rule, open){
+    const info = versionInfo(rule);
+    const definition = object(info.shown?.definition);
+    const inputs = Object.entries(object(definition.inputs));
+    const parameters = Object.entries(object(definition.parameters));
+    const describe = (input) => {
+      const parts = [`${esc(text(object(input?.source).provider))}.${esc(text(object(input?.source).export))}`];
+      if (input?.where) parts.push(`where ${esc(whereText(input.where))}`);
+      if (input?.member) parts.push(`about the member in <code>${esc(input.member)}</code>`);
+      if (input?.match) parts.push(`belonging to the earning when ${Object.entries(object(input.match)).map(([field, token]) => `<code>${esc(field)}</code> = <code>${esc(token)}</code>`).join(' and ')}`);
+      if (input?.window) parts.push(`touching the earned day by <code>${esc(input.window.start)}</code>${input.window.end ? ` to <code>${esc(input.window.end)}</code>` : ''}${input.window.any_time_before ? ', from any time before' : input.window.days_before !== undefined ? `, from ${esc(input.window.days_before)} days before` : ''}`);
+      return parts.join(', ');
+    };
+    return `<details class="pycfg-card" data-pay-card="split:${esc(rule.id)}" ${open ? 'open' : ''}>
+      <summary><span class="pycfg-card-icon"><i class="fas fa-people-arrows"></i></span><span class="pycfg-card-title"><strong>${esc(text(rule.name, rule.id))}</strong><span>${esc(text(rule.description, 'Divides a group’s earnings among its members'))}</span></span><span class="pycfg-card-meta"><span class="pycfg-pill">${inputs.length ? plural(inputs.length, 'input') : 'Reads no data'}</span>${versionPills(rule)}</span></summary>
+      <div class="pycfg-editor pycfg-card-detail"><dl class="pycfg-dl">
+        <dt>Reads</dt><dd>${inputs.length ? inputs.map(([name, input]) => `<div><code>${esc(name)}</code>: ${describe(input)}</div>`).join('') : 'Nothing. It weighs members from who they are alone.'}</dd>
+        <dt>Parameters</dt><dd>${parameters.length ? parameters.map(([key, parameter]) => `<div><code>${esc(key)}</code>${parameter?.label ? ` ${esc(parameter.label)}` : ''}: ${parameter?.default === undefined ? 'no default, the group sets it' : `default ${esc(parameterText(parameter.type, parameter.default))}`}</div>`).join('') : 'None'}</dd>
+        <dt>Versions</dt><dd>${versionHistoryMarkup(rule) || 'None'}</dd>
+      </dl><details class="pycfg-advanced"><summary>Advanced: the formula</summary><pre class="pycfg-pre" data-split-code>${esc(definition.code)}</pre></details>${payCardActions('split', rule)}</div>
+    </details>`;
+  }
+
+  function splitEditorMarkup(draft, rule, preview){
+    const isNew = !draft.id;
+    const inputBlocks = draft.inputs.map((input, index) => inputBlockMarkup(input, index, false, true)).join('');
+    return `<section class="pycfg-panel ${isNew ? 'new' : ''}"><header class="pycfg-panel-head"><span><small>${isNew ? 'New split rule' : 'Split rule'}</small><strong>${esc(text(draft.name, 'New split rule'))}</strong></span><div class="pycfg-panel-head-actions"><button class="pycfg-btn" type="button" data-pay-close><i class="fas fa-arrow-left"></i> Plans and rules</button></div></header>
+      <form class="pycfg-panel-body pycfg-stack" data-pay-form="split">
+        <datalist id="pycfgEarningTokens">${EARNING_TOKENS.map(([value, label]) => `<option value="${esc(value)}">${esc(label)}</option>`).join('')}</datalist>
+        <div class="pycfg-grid two"><label class="pycfg-field"><span>Split rule name</span><input class="pycfg-input" data-split="name" value="${esc(draft.name)}" placeholder="By hours on the job" maxlength="200" required></label><label class="pycfg-field"><span>Description</span><input class="pycfg-input" data-split="description" value="${esc(draft.description)}" placeholder="How the group's pay is divided and from what" maxlength="2000"></label></div>
+        <div class="pycfg-block"><div class="pycfg-block-head"><span><strong>Inputs</strong><small>The published data the split may read, such as who was on the job and the hours each person clocked. Selected once per refresh for the whole group.</small></span><button class="pycfg-btn" type="button" data-rule-add-input ${draft.inputs.length >= 8 ? 'disabled' : ''}><i class="fas fa-plus"></i> Add input</button></div>${inputBlocks || '<div class="pycfg-help">No inputs. The split weighs members from who they are alone, such as equally.</div>'}</div>
+        <div class="pycfg-block"><div class="pycfg-block-head"><span><strong>Parameters</strong><small>Numbers and switches each group sets without touching the formula, such as a lead's extra share.</small></span><button class="pycfg-btn" type="button" data-rule-add-param><i class="fas fa-plus"></i> Add parameter</button></div>${parameterRowsMarkup(draft)}</div>
+        <details class="pycfg-block pycfg-advanced" data-split-advanced ${draft.advanced ? 'open' : ''}><summary><strong>Advanced: the formula</strong><small>Run once per earning line. It returns each member's weight, not money.</small></summary><textarea class="pycfg-textarea code" data-split="code" spellcheck="false" autocapitalize="off" autocomplete="off">${esc(draft.code)}</textarea><small class="pycfg-help">It sees <code>earning</code> (<code>{ rule_id, unit, project_id, earned_on, record or period, line }</code>), <code>members</code> (<code>[{ key, id, name }]</code>, who shared it on the day it was earned), <code>rows</code> (each input's rows for this earning), <code>params</code> and <code>group</code>. Return <code>{ [member.key]: weight }</code> or <code>{ [member.key]: { weight, reason, details } }</code>. A member left out or given 0 gets nothing. If it throws, the earning is left unresolved, never divided as zero.</small></details>
+        <div class="pycfg-block"><div class="pycfg-block-head"><span><strong>When this version takes effect</strong><small>Split rules keep every version. An earning is divided with the version in effect on the day it was earned.</small></span></div><div class="pycfg-grid two"><label class="pycfg-field"><span>Effective from</span><input class="pycfg-input" type="date" data-split="effective_from" data-pay-rerender value="${esc(draft.effective_from)}" required></label>${isNew ? '' : versionPickerMarkup(draft, rule)}</div>${effectiveNoteMarkup(draft, rule)}${previewBoxMarkup(preview)}</div>
+        <div class="pycfg-actions"><span class="pycfg-form-status" data-form-status></span><button class="pycfg-btn" type="button" data-pay-close>Cancel</button><button class="pycfg-btn primary" type="submit"><i class="fas fa-floppy-disk"></i> ${isNew ? 'Create split rule' : 'Save as a version'}</button></div>
+      </form></section>`;
+  }
+
+  // Reads a split rule form back into its working copy.
+  function collectSplitDraft(form, draft){
+    ['name', 'description', 'effective_from', 'code'].forEach((key) => { draft[key] = controlValue(form, `[data-split="${key}"]`, draft[key]); });
+    const advanced = form.querySelector('[data-split-advanced]');
+    if (advanced) draft.advanced = advanced.open;
+    draft.inputs = [...form.querySelectorAll('[data-rule-input]')].map((block, index) => {
+      const current = draft.inputs[index] || blankSplitInput();
+      return {
+        ...current,
+        name:controlValue(block, '[data-in="name"]', current.name),
+        ...pickedSource(block, current),
+        limit:controlValue(block, '[data-in="limit"]', current.limit),
+        primary:false, date:'',
+        match:controlValue(block, '[data-in="match"]', current.match),
+        whereJson:controlValue(block, '[data-in="whereJson"]', current.whereJson),
+        rules:current.whereMode === 'json' ? current.rules : [...block.querySelectorAll('[data-in-cond]')].map((row) => ({ field:controlValue(row, '[data-c="field"]', ''), operator:controlValue(row, '[data-c="operator"]', 'equals'), value:controlValue(row, '[data-c="value"]', '') })),
+        args:[...block.querySelectorAll('[data-in-arg]')].map((row) => ({ key:controlValue(row, '[data-a="key"]', ''), value:controlValue(row, '[data-a="value"]', '') })),
+        member:controlValue(block, '[data-in="member"]', current.member),
+        matches:[...block.querySelectorAll('[data-in-match]')].map((row) => ({ field:controlValue(row, '[data-m="field"]', ''), token:controlValue(row, '[data-m="token"]', '') })),
+        window:{
+          on:controlValue(block, '[data-in="window_on"]', current.window.on) === true,
+          start:controlValue(block, '[data-in="window_start"]', current.window.start),
+          end:controlValue(block, '[data-in="window_end"]', current.window.end),
+          from:controlValue(block, '[data-in="window_from"]', current.window.from),
+          days:controlValue(block, '[data-in="window_days"]', current.window.days)
+        }
+      };
+    });
+    draft.parameters = [...form.querySelectorAll('[data-rule-param]')].map((row) => ({ key:controlValue(row, '[data-p="key"]', ''), label:controlValue(row, '[data-p="label"]', ''), type:controlValue(row, '[data-p="type"]', 'number'), default:controlValue(row, '[data-p="default"]', '') }));
+    return draft;
+  }
+
+  // How a split rule's preview would divide each group's latest earnings: member, weight out of the total, cents and why.
+  function splitSamplesMarkup(samples, people){
+    const name = (id) => text(people?.[id], id);
+    return array(samples).map((sample) => Object.entries(object(sample.lines)).map(([key, line]) => {
+      const total = Number(line.total_weight || 0);
+      const shares = array(line.shares).map((share) => `${esc(name(share.id))} ${total ? `${Math.round(Number(share.weight || 0) / total * 1000) / 10}%` : '0%'} (${esc((Number(share.cents || 0) / 100).toFixed(2))})${share.reason ? `: ${esc(share.reason)}` : ''}`);
+      return `<div class="pycfg-help" data-split-sample="${esc(sample.unit)}:${esc(key)}">Earned ${esc(formatDay(sample.earned_on))}, ${esc((Number(line.amount_cents || 0) / 100).toFixed(2))}: ${shares.join(' · ') || 'nobody would be paid a share'}</div>`;
+    }).join('')).join('');
+  }
+
+  function ruleEditorMarkup(draft, rule, preview){
+    const isNew = !draft.id;
+    const record = draft.grain !== 'period';
+    const inputBlocks = draft.inputs.map((input, index) => inputBlockMarkup(input, index, record)).join('');
+    const parameterRows = parameterRowsMarkup(draft);
     return `<section class="pycfg-panel ${isNew ? 'new' : ''}"><header class="pycfg-panel-head"><span><small>${isNew ? 'New pay rule' : 'Pay rule'}</small><strong>${esc(text(draft.name, 'New pay rule'))}</strong></span><div class="pycfg-panel-head-actions"><button class="pycfg-btn" type="button" data-pay-close><i class="fas fa-arrow-left"></i> Plans and rules</button></div></header>
       <form class="pycfg-panel-body pycfg-stack" data-pay-form="rule">
         <div class="pycfg-grid"><label class="pycfg-field" style="grid-column:span 2"><span>Rule name</span><input class="pycfg-input" data-rule="name" value="${esc(draft.name)}" placeholder="Estimator commission when sold" maxlength="200" required></label><label class="pycfg-field"><span>Earning type</span><select class="pycfg-select" data-rule="kind">${optionsMarkup(PAY_RULE_KINDS, draft.kind)}</select></label><label class="pycfg-field"><span>Pays</span><select class="pycfg-select" data-rule="grain" data-pay-rerender>${optionsMarkup([['record', 'Once per record'], ['period', 'Once per period']], record ? 'record' : 'period')}</select></label>
@@ -1130,7 +1355,7 @@
       addingSchedule:false,
       selectedScheduleId:text(initialRoute.settingsEntity),
       section:'schedules',
-      pay:{ loaded:false, loading:false, error:'', rules:[], plans:[] },
+      pay:{ loaded:false, loading:false, error:'', rules:[], plans:[], splits:[] },
       payOpen:new Set(),
       payEditor:null
     };
@@ -1273,7 +1498,7 @@
     }
 
     function payItem(kind, id){
-      return (kind === 'plan' ? state.pay.plans : state.pay.rules).find((item) => item.id === id) || null;
+      return (kind === 'plan' ? state.pay.plans : kind === 'split' ? state.pay.splits : state.pay.rules).find((item) => item.id === id) || null;
     }
 
     function sortedPayItems(items){
@@ -1284,6 +1509,7 @@
       if (state.pay.loading && !state.pay.loaded) return `<div class="pycfg-loading"><i class="fas fa-spinner fa-spin"></i> Loading pay plans and pay rules...</div>`;
       if (state.pay.error && !state.pay.loaded) return `<div class="pycfg-empty"><i class="fas fa-triangle-exclamation"></i>${esc(state.pay.error)}<div style="margin-top:12px"><button class="pycfg-btn" type="button" data-pay-retry><i class="fas fa-rotate"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_cbfbb44ff35f0f"," Try again") ?? " Try again")}</button></div></div>`;
       const editor = state.payEditor;
+      if (editor && editor.kind === 'split') return splitEditorMarkup(editor.draft, payItem('split', editor.draft.id), editor.preview);
       if (editor) return editor.kind === 'plan' ? planEditorMarkup(editor.draft, payItem('plan', editor.draft.id), state.pay.rules, editor.preview) : ruleEditorMarkup(editor.draft, payItem('rule', editor.draft.id), editor.preview);
       const plans = sortedPayItems(state.pay.plans);
       const rules = sortedPayItems(state.pay.rules);
@@ -1291,7 +1517,9 @@
         <section class="pycfg-section" data-pay-list="plans"><div class="pycfg-toolbar"><div class="pycfg-toolbar-copy"><strong>Pay plans</strong><span>A plan is a named group of pay rules with the rates it sets, so the same pay can be given to many people. Who is on which plan is set up separately.</span></div><button class="pycfg-btn primary" type="button" data-pay-new="plan"><i class="fas fa-plus"></i> New plan</button></div>
           <div class="pycfg-list">${plans.map((plan) => planCardMarkup(plan, state.pay.rules, state.payOpen.has(`plan:${plan.id}`))).join('') || '<div class="pycfg-empty"><i class="fas fa-layer-group"></i>No pay plans yet. Group pay rules into a plan to pay the same way for many people.</div>'}</div></section>
         <section class="pycfg-section" data-pay-list="rules"><div class="pycfg-toolbar"><div class="pycfg-toolbar-copy"><strong>Pay rules</strong><span>A rule is one formula over published data. It says what was earned and on which day. Earnings are worked out from the rules at each refresh.</span></div><button class="pycfg-btn primary" type="button" data-pay-new="rule"><i class="fas fa-plus"></i> New rule</button></div>
-          <div class="pycfg-list">${rules.map((rule) => ruleCardMarkup(rule, state.payOpen.has(`rule:${rule.id}`))).join('') || '<div class="pycfg-empty"><i class="fas fa-calculator"></i>No pay rules yet. A rule pays hours, a commission, a salary or committed labor.</div>'}</div></section>`;
+          <div class="pycfg-list">${rules.map((rule) => ruleCardMarkup(rule, state.payOpen.has(`rule:${rule.id}`))).join('') || '<div class="pycfg-empty"><i class="fas fa-calculator"></i>No pay rules yet. A rule pays hours, a commission, a salary or committed labor.</div>'}</div></section>
+        <section class="pycfg-section" data-pay-list="splits"><div class="pycfg-toolbar"><div class="pycfg-toolbar-copy"><strong>Split rules</strong><span>A split rule divides what a group earns among its members, from data such as who was on the job and the hours they clocked. A group chooses its split rule in People, Compensation.</span></div><button class="pycfg-btn primary" type="button" data-pay-new="split"><i class="fas fa-plus"></i> New split rule</button></div>
+          <div class="pycfg-list">${sortedPayItems(state.pay.splits).map((rule) => splitCardMarkup(rule, state.payOpen.has(`split:${rule.id}`))).join('') || '<div class="pycfg-empty"><i class="fas fa-people-arrows"></i>No split rules yet. Groups divide their pay equally or by fixed shares until one is written.</div>'}</div></section>`;
     }
 
     function collectPayEditor(){
@@ -1299,13 +1527,14 @@
       const form = host.querySelector('[data-pay-form]');
       if (!editor || !form) return null;
       if (editor.kind === 'plan') collectPlanDraft(form, editor.draft);
+      else if (editor.kind === 'split') collectSplitDraft(form, editor.draft);
       else collectRuleDraft(form, editor.draft);
       return form;
     }
 
     function openPayEditor(kind, item, copy = false){
       const version = versionInfo(item).shown;
-      const draft = kind === 'plan' ? planDraft(item, version) : ruleDraft(item, version);
+      const draft = kind === 'plan' ? planDraft(item, version) : kind === 'split' ? splitDraft(item, version) : ruleDraft(item, version);
       if (copy) Object.assign(draft, { id:'', revision:0, status:'active', based_on:'', name:`Copy of ${draft.name}` });
       state.payEditor = { kind, draft };
       setNotice('');
@@ -1323,11 +1552,12 @@
       try {
         if (typeof pay?.rules !== 'function' || typeof pay?.plans !== 'function') throw new Error('Pay rules and pay plans are not available here.');
         const optional = (read) => typeof read === 'function' ? Promise.resolve().then(() => read(orgId)).catch(() => null) : Promise.resolve(null);
-        const [rules, plans, sources, vocabulary] = await Promise.all([pay.rules(orgId), pay.plans(orgId), optional(pay.ruleSources), optional(pay.vocabulary)]);
+        const [rules, plans, sources, vocabulary, splits] = await Promise.all([pay.rules(orgId), pay.plans(orgId), optional(pay.ruleSources), optional(pay.vocabulary), optional(pay.splitRules)]);
         PAY_SOURCES = array(sources).map((source) => ({ ...object(source), id:text(source?.id, `${text(source?.provider)}.${text(source?.export)}`) })).filter((source) => source.provider && source.export);
         applyVocabulary(vocabulary);
         state.pay.rules = rows(rules, 'rules', 'pay_rules').map((item) => ({ ...object(item) })).filter((item) => item.id);
         state.pay.plans = rows(plans, 'plans', 'pay_plans').map((item) => ({ ...object(item) })).filter((item) => item.id);
+        state.pay.splits = rows(splits, 'split_rules', 'pay_split_rules').map((item) => ({ ...object(item) })).filter((item) => item.id);
         state.pay.loaded = true;
       } catch(error) {
         state.pay.error = error?.message || 'Could not load pay plans and pay rules.';
@@ -1340,11 +1570,12 @@
       const editor = state.payEditor;
       if (!editor) return;
       const plan = editor.kind === 'plan';
-      const noun = plan ? 'Pay plan' : 'Pay rule';
+      const split = editor.kind === 'split';
+      const noun = plan ? 'Pay plan' : split ? 'Split rule' : 'Pay rule';
       collectPayEditor();
       let payload;
       try {
-        payload = plan ? planPayload(editor.draft) : rulePayload(editor.draft);
+        payload = plan ? planPayload(editor.draft) : split ? splitPayload(editor.draft) : rulePayload(editor.draft);
         if (plan) {
           const missing = editor.draft.rules.find((reference) => !payItem('rule', reference.rule_id));
           if (missing) throw new Error(`Take ${missing.rule_id} out of the plan. That rule no longer exists.`);
@@ -1355,9 +1586,10 @@
       }
       try {
         const pay = root.PayrollAPI?.pay;
-        if (typeof pay?.saveRule !== 'function' || typeof pay?.savePlan !== 'function') throw new Error('Pay rules and pay plans cannot be saved here.');
+        if (!split && (typeof pay?.saveRule !== 'function' || typeof pay?.savePlan !== 'function')) throw new Error('Pay rules and pay plans cannot be saved here.');
         formBusy(form, true, `Saving ${noun.toLowerCase()}...`);
-        const saved = await (plan ? pay.savePlan(orgId, payload) : pay.saveRule(orgId, payload));
+        if (split && typeof pay?.saveSplitRule !== 'function') throw new Error('Split rules cannot be saved here.');
+        const saved = await (plan ? pay.savePlan(orgId, payload) : split ? pay.saveSplitRule(orgId, payload) : pay.saveRule(orgId, payload));
         const backdated = payload.effective_from < localToday();
         state.payEditor = null;
         if (saved?.id) state.payOpen.add(`${editor.kind}:${saved.id}`);
@@ -1374,16 +1606,20 @@
       const item = payItem(kind, id);
       const pay = root.PayrollAPI?.pay;
       if (!item) return;
-      const noun = kind === 'plan' ? 'pay plan' : 'pay rule';
-      if (!root.confirm(`Archive ${text(item.name, id)}? It is no longer offered for new ${kind === 'plan' ? 'pay setups' : 'plans and pay setups'}. Anyone already paid by it keeps being paid by it until it is taken off them.`)) return;
+      const noun = kind === 'plan' ? 'pay plan' : kind === 'split' ? 'split rule' : 'pay rule';
+      const question = kind === 'split'
+        ? `Archive ${text(item.name, id)}? It is no longer offered to groups. A group whose pay is divided by it keeps being divided by it until its setting changes.`
+        : `Archive ${text(item.name, id)}? It is no longer offered for new ${kind === 'plan' ? 'pay setups' : 'plans and pay setups'}. Anyone already paid by it keeps being paid by it until it is taken off them.`;
+      if (!root.confirm(question)) return;
       try {
         button.disabled = true;
-        const archive = kind === 'plan' ? pay?.archivePlan : pay?.archiveRule;
+        const archive = kind === 'plan' ? pay?.archivePlan : kind === 'split' ? pay?.archiveSplitRule : pay?.archiveRule;
         if (typeof archive !== 'function') throw new Error(`A ${noun} cannot be archived here.`);
         await archive(orgId, id, Number(item.revision || 0) || undefined);
-        setNotice(`${kind === 'plan' ? 'Pay plan' : 'Pay rule'} archived.`);
+        const archivedNoun = noun.charAt(0).toUpperCase() + noun.slice(1);
+        setNotice(`${archivedNoun} archived.`);
         await loadPay(true);
-        toast((globalThis.PlatformLanguage?.text("settings","m_26b28a86126a93","Archived") ?? "Archived"), `${kind === 'plan' ? 'Pay plan' : 'Pay rule'} archived.`, true);
+        toast((globalThis.PlatformLanguage?.text("settings","m_26b28a86126a93","Archived") ?? "Archived"), `${archivedNoun} archived.`, true);
       } catch(error) {
         setNotice(error?.message || `Could not archive this ${noun}.`, 'bad');
         render();
@@ -1422,7 +1658,7 @@
           const version = array(item?.versions).find((entry) => text(entry?.effective_from) === control.value);
           if (!version) return;
           const effective = controlValue(form, `[data-${editor.kind}="effective_from"]`, draft.effective_from);
-          editor.draft = { ...(editor.kind === 'plan' ? planDraft(item, version) : ruleDraft(item, version)), effective_from:effective };
+          editor.draft = { ...(editor.kind === 'plan' ? planDraft(item, version) : editor.kind === 'split' ? splitDraft(item, version) : ruleDraft(item, version)), effective_from:effective };
           render();
         } else if (control.matches('[data-plan-include]')) {
           redraw();
@@ -1434,11 +1670,13 @@
       });
       form.addEventListener('click', (event) => {
         const button = event.target.closest('button');
-        if (!button || !form.contains(button) || editor.kind !== 'rule' || button.dataset.payPreview !== undefined) return;
+        if (!button || !form.contains(button) || editor.kind === 'plan' || button.dataset.payPreview !== undefined) return;
         const data = button.dataset;
         const inputIndex = Number(button.closest('[data-rule-input]')?.dataset.ruleInput);
         const indexIn = (selector) => [...(button.closest('[data-rule-input]') || form).querySelectorAll(selector)].indexOf(button.closest(selector));
-        if (data.ruleAddInput !== undefined) redraw(() => { if (draft.inputs.length < 8) draft.inputs.push(blankRuleInput(draft.grain !== 'period' && !draft.inputs.some((input) => input.primary))); });
+        if (data.ruleAddInput !== undefined) redraw(() => { if (draft.inputs.length < 8) draft.inputs.push(editor.kind === 'split' ? blankSplitInput() : blankRuleInput(draft.grain !== 'period' && !draft.inputs.some((input) => input.primary))); });
+        else if (data.inAddMatch !== undefined) redraw(() => { if (draft.inputs[inputIndex]?.matches.length < 4) draft.inputs[inputIndex].matches.push({ field:'', token:'$earning.project_id' }); });
+        else if (data.inRemoveMatch !== undefined) { const index = indexIn('[data-in-match]'); redraw(() => { draft.inputs[inputIndex]?.matches.splice(index, 1); }); }
         else if (data.ruleRemoveInput !== undefined) redraw(() => { draft.inputs.splice(inputIndex, 1); });
         else if (data.inAddCond !== undefined) redraw(() => { draft.inputs[inputIndex]?.rules.push({ field:'', operator:'equals', value:'' }); });
         else if (data.inRemoveCond !== undefined) { const index = indexIn('[data-in-cond]'); redraw(() => { draft.inputs[inputIndex]?.rules.splice(index, 1); }); }
@@ -1567,17 +1805,24 @@
       const editor = state.payEditor;
       if (!editor) return;
       const plan = editor.kind === 'plan';
+      const split = editor.kind === 'split';
       collectPayEditor();
       let payload;
-      try { payload = plan ? planPayload(editor.draft) : rulePayload(editor.draft); }
+      try { payload = plan ? planPayload(editor.draft) : split ? splitPayload(editor.draft) : rulePayload(editor.draft); }
       catch(error) { formBusy(form, false, error?.message || 'This cannot be previewed yet.', true); return; }
       const pay = root.PayrollAPI?.pay;
-      const run = plan ? pay?.previewPlan : pay?.previewRule;
+      const run = plan ? pay?.previewPlan : split ? pay?.previewSplitRule : pay?.previewRule;
       editor.preview = { loading:true };
       render();
       try {
         if (typeof run !== 'function') throw new Error('A preview is not available here.');
-        editor.preview = { result:await run(orgId, payload) };
+        const result = await run(orgId, payload);
+        // A split rule's samples name members by id; the directory gives the names people know them by.
+        if (split && !state.pay.people) {
+          const directory = await Promise.resolve(root.PayrollAPI?.published?.read?.(orgId, 'directory')).catch(() => null);
+          state.pay.people = Object.fromEntries(array(directory?.users).map((user) => [text(user.id), text(user.name || user.display_name || [user.first_name, user.last_name].filter(Boolean).join(' '), user.id)]));
+        }
+        editor.preview = { result, people:state.pay.people || {} };
       } catch(error) {
         editor.preview = { error:error?.message || 'The preview could not be worked out.' };
       }

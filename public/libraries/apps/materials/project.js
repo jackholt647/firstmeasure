@@ -7,7 +7,7 @@
   let refreshTimer;
   const scopeWorkspaceUrl = new URL('./scope-of-work.js?v=20261016-widen', document.currentScript?.src || `${location.origin}/libraries/apps/materials/project.js`).href;
   const calculusAdapterUrl = new URL('./calculus-native.js?v=20261013-scope', document.currentScript?.src || `${location.origin}/libraries/apps/materials/project.js`).href;
-  const closeoutUrl = new URL('./closeout.js?v=20261015-closeout-order', document.currentScript?.src || `${location.origin}/libraries/apps/materials/project.js`).href;
+  const closeoutUrl = new URL('./closeout.js?v=20261019-closeout-partial', document.currentScript?.src || `${location.origin}/libraries/apps/materials/project.js`).href;
   const runtime = window.FirstMateEmbeddableApps;
   const Portal = window.Portal;
   const util = Portal?.util || {};
@@ -1035,6 +1035,7 @@
       .sw-panel.sw-enter-forward{animation:sw-enter-forward .26s cubic-bezier(.22,1,.36,1) both}.sw-panel.sw-enter-back{animation:sw-enter-back .26s cubic-bezier(.22,1,.36,1) both}
       @media (prefers-reduced-motion: reduce){.sw-panel.sw-enter-forward,.sw-panel.sw-enter-back{animation:none}}
       tr.mt-list-row.is-brought .mt-c-name input{font-style:italic;color:#475467}
+      tr.mt-list-row.is-paid-out{background:#f9fafb}tr.mt-list-row.is-paid-out td{color:#667085}.mt-paid-text{display:inline-block;padding:2px 4px;font-size:11px;color:#667085;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}.mt-paid-lock{display:inline-grid;place-items:center;width:16px;color:#079455;font-size:9px;cursor:help}
       tr.mt-list-row.is-estimated .mt-c-qty input{font-style:italic;color:#475467}
       .mt-resource-column .mt-table tr.mt-list-row td.mt-c-warn{flex:none;width:16px;text-align:center;color:#dc6803;font-size:10px;cursor:help}
       .mt-req-tray{flex:none;align-self:stretch;display:flex;min-height:0;margin-left:10px;border:1px solid #e4e7ec;border-radius:8px;background:#fff;overflow:hidden}
@@ -2874,7 +2875,6 @@
         resourceOverrides: {
           [definitionId]: {
             assignment: { ...(list.assignment || {}) },
-            compensation: { ...(list.compensation || {}), user_overridden: true },
             items: laborItemsForRegeneration(list)
           }
         }
@@ -3271,13 +3271,14 @@
   // Where a category's line item suggestions come from. Each entry reads data another app already owns; none is a fixed list.
   const LINE_ITEM_SOURCE_DEFS = [
     { id: 'pricebook', label: 'Price Book', detail: 'Items and variants from the price book' },
-    { id: 'piece_rate', label: 'Piece Rate Items', detail: "Piece rates on the pay plan of the crew assigned to the list" },
-    { id: 'hourly_labor', label: 'Hourly Labor', detail: "The hourly rate on the assigned crew's pay plan" },
     { id: 'equipment', label: 'Equipment', detail: 'Units and their daily rates from the Equipment app' }
   ];
+  // Labor has no suggestions: its lines come from the assignee's pay sheet when the work order is generated
+  // (docs/architecture/pay-sheets.md#generating-a-labor-list). A line typed in by hand stays the person's own.
   function categorySources(type){
     const category = resourceCategories().find((row) => row.id === type);
-    return Array.isArray(category?.line_item_sources) ? category.line_item_sources : (({ material: ['pricebook'], labor: ['piece_rate', 'hourly_labor'], equipment: ['equipment'] })[type] || []);
+    const known = LINE_ITEM_SOURCE_DEFS.map((source) => source.id);
+    return (Array.isArray(category?.line_item_sources) ? category.line_item_sources : (({ material: ['pricebook'], equipment: ['equipment'] })[type] || [])).filter((id) => known.includes(id));
   }
   function categorySkuOnly(type){
     const category = resourceCategories().find((row) => row.id === type);
@@ -3312,21 +3313,6 @@
       if (skuOnly && !cleanText(item.code)) return;
       if (matches(`${item.name || ''} ${item.variantName || ''} ${item.category || ''}`)) entries.push({ label: item.name, group: autofillGroup(item), detail: `${money(item.unitPrice || 0)}/${item.unit || 'ea'}`, catalogItem: item });
     });
-    const resource = sources.includes('piece_rate') || sources.includes('hourly_labor') ? laborSettings(list).resource : null;
-    const plans = [resource?.compensation_plan, ...(Array.isArray(resource?.members) ? resource.members.map((member) => member?.compensation_plan) : [])].filter(Boolean);
-    if (sources.includes('piece_rate')) {
-      const seen = new Set();
-      plans.flatMap((plan) => Array.isArray(plan.piece_rates) ? plan.piece_rates : []).forEach((rate) => {
-        const key = cleanText(rate.id || rate.label);
-        if (!key || seen.has(key) || !matches(rate.label)) return;
-        seen.add(key);
-        entries.push({ label: cleanText(rate.label), detail: `Piece rate · ${money(number(rate.rate_cents, 0) / 100)} per ${cleanText(rate.unit) || 'unit'}`, patch: { name: cleanText(rate.label), unit: cleanText(rate.unit) || 'unit', projected_unit_price: number(rate.rate_cents, 0) / 100, metadata: { compensation_kind: 'piece_rate', piece_rate_id: cleanText(rate.id) } } });
-      });
-    }
-    if (sources.includes('hourly_labor')) {
-      const hourly = plans.find((plan) => number(plan.hourly_rate_cents, 0) > 0);
-      if (hourly && matches('Hourly labor hours')) entries.push({ label: 'Hourly labor', detail: `${cleanText(resource?.name) || 'Assigned crew'} · ${money(number(hourly.hourly_rate_cents, 0) / 100)} per hour`, patch: { name: 'Hourly labor', unit: 'hour', projected_unit_price: number(hourly.hourly_rate_cents, 0) / 100, metadata: { compensation_kind: 'hourly' } } });
-    }
     if (sources.includes('equipment')) {
       loadEquipmentUnits();
       (state.equipmentUnits || []).forEach((unit) => {
@@ -4373,6 +4359,9 @@
   }
 
   function renderLineRow(item){
+    // A labor line already paid out is shown, never edited: no inputs, no remove, no drag (docs/architecture/closeout.md).
+    const paidAt = laborLinePaidAt(cleanText(item.__material_list_id || state.activeListId), item.id);
+    if (paidAt) return renderPaidLineRow(item, paidAt);
     const variants = variantsForLine(item);
     const secondary = materialSecondaryText(item, variants.length > 1);
     const listId = cleanText(item.__material_list_id || state.activeListId);
@@ -6333,8 +6322,34 @@
       .catch(() => {});
     return entry.rows;
   }
+  // When a labor line was paid out, from the payouts of its list ('' while it is open).
+  function laborLinePaidAt(listId, itemId){
+    const list = materialListById(listId);
+    if (!list || resourceType(list) !== 'labor') return '';
+    const payout = laborCompletions().find((entry) => entry.state === 'finalized' && cleanText(entry.list_id) === cleanText(listId) && (Array.isArray(entry.line_ids) ? entry.line_ids : (entry.items || []).map((row) => row.id)).map(cleanText).includes(cleanText(itemId)));
+    return payout ? cleanText(payout.finalized_at) || 'paid' : '';
+  }
+  // The read-only row of a paid-out line: the same cells, greyed, with a lock saying when it was paid out.
+  function renderPaidLineRow(item, paidAt){
+    const when = Number.isFinite(Date.parse(paidAt)) ? new Date(paidAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '';
+    const label = when ? `Paid out ${when}` : 'Paid out';
+    const quantity = number(item.quantity, 0), unitPrice = number(item.projected_unit_price, NaN);
+    const total = item.projected_total != null ? number(item.projected_total, NaN) : quantity * unitPrice;
+    return `
+      <tr class="mt-list-row is-paid-out" data-mt-paid-line="${escapeHtml(item.id)}">
+        <td class="mt-c-drag"><span class="mt-paid-lock" data-fm-tooltip="${escapeHtml(label)}" title="${escapeHtml(label)}" role="img" aria-label="${escapeHtml(label)}"><i class="fas fa-lock" aria-hidden="true"></i></span></td>
+        <td class="mt-c-name"><span class="mt-paid-text">${escapeHtml(cleanText(item.name) || 'Labor item')}</span></td>
+        <td class="mt-c-qty"><span class="mt-paid-text">${escapeHtml(String(quantity || 0))}</span></td>
+        <td class="mt-c-unit"><span class="mt-paid-text">${escapeHtml(cleanText(item.unit))}</span></td>
+        <td class="mt-c-total">${Number.isFinite(total) ? `$${Math.round(total).toLocaleString('en-US')}` : ''}</td>
+        <td class="mt-c-expand"></td>
+      </tr>
+    `;
+  }
+  // Locked and "To be paid" once every line is paid out; a work order paid out in part stays open for its other lines.
   function laborListFinalized(list){
-    return laborCompletions().find((entry) => entry.state === 'finalized' && cleanText(entry.list_id) === cleanText(list?.id)) || null;
+    const paid = laborCompletions().filter((entry) => entry.state === 'finalized' && cleanText(entry.list_id) === cleanText(list?.id));
+    return paid.length && paid.every((entry) => entry.list_paid !== 'part') ? paid[paid.length - 1] : null;
   }
   function closeoutHost(){
     return {

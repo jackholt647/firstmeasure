@@ -481,7 +481,7 @@ function historyDomain(list: JsonObject): ChangeDomain {
   return type === "labor" ? "work_order" : type === "equipment" ? "equipment" : "materials";
 }
 // What a list's own fields say that a person changes; its lines are recorded with each version.
-const HISTORY_LIST_FIELDS = ["title", "status", "delivery_status", "assignment", "color", "scope_template_id", "scope_piece_id", "schedule.enabled", "schedule.group_id", "controls", "compensation", "metadata.work_scope"];
+const HISTORY_LIST_FIELDS = ["title", "status", "delivery_status", "assignment", "color", "scope_template_id", "scope_piece_id", "schedule.enabled", "schedule.group_id", "controls", "metadata.work_scope"];
 
 async function commitMaterialVersion(
   orgId: string,
@@ -493,7 +493,8 @@ async function commitMaterialVersion(
   const list = documentView(listDoc);
   assertLegacyMaterialSnapshotWritable(list);
   // A labor list finalized to be paid is locked (docs/architecture/closeout.md); its lines cannot change until a manager reopens it.
-  if (cleanText(list.resource_type) === "labor") await (await import("../labor/completion.js")).assertLaborListOpen(orgId, cleanText(list.id));
+  // Paid-out lines of a list paid out in part must come through unchanged; the open ones may change.
+  if (cleanText(list.resource_type) === "labor") await (await import("../labor/completion.js")).assertLaborListOpen(orgId, cleanText(list.id), { items: Array.isArray(input.items) ? input.items : undefined, strict: options.forceStatus === "archived" });
   const expectedRevision = Number(input.expected_revision || 0);
   if (expectedRevision && expectedRevision !== Number(listDoc.revision || 0)) {
     throw conflict("material_list_revision_conflict", "Material list revision does not match.");
@@ -639,7 +640,6 @@ export async function createMaterialList(orgId: string, projectId: string, input
     resource_subtype: cleanText(input.resource_subtype),
     terminology: asObject(input.terminology),
     controls: asObject(input.controls),
-    compensation: asObject(input.compensation),
     assignment: listAssignment(input.assignment),
     color: cleanText(input.color || asObject(input.metadata).color || "var(--primary,#d93025)"),
     sort_order: Number(input.sort_order || 0),
@@ -1721,7 +1721,8 @@ async function buildProjectListsFromScope(
         ...definition,
         ...override,
         controls: { ...asObject(definition.controls), ...asObject(override.controls) },
-        compensation: { ...asObject(definition.compensation), ...asObject(override.compensation) },
+        // How a labor list is paid is its assignee's pay sheet; nothing about pay is copied from a scope definition.
+        compensation: undefined,
         assignment: listAssignment({ ...asObject(definition.assignment), ...asObject(override.assignment) }),
         items: mergedItems
       } as JsonObject;
@@ -1819,7 +1820,6 @@ async function buildProjectListsFromScope(
           resource_subtype: cleanText(definition.resource_subtype || definitionId),
           terminology: asObject(asObject(materials.terminology)[resourceType]),
           controls: asObject(definition.controls),
-          compensation: asObject(definition.compensation),
           assignment: listAssignment(definition.assignment),
           color: cleanText(definition.color || "var(--primary,#d93025)"),
           sort_order: definitionIndex,
@@ -1845,13 +1845,7 @@ async function buildProjectListsFromScope(
           const templateChanged = Number(list.scope_template_version || 0) !== Number(templateVersion || 0);
           const definitionChanged = cleanText(list.title) !== cleanText(definition.title || definitionId)
             || cleanText(list.color) !== cleanText(definition.color || list.color || "var(--primary,#d93025)")
-            || Number(list.sort_order || 0) !== definitionIndex
-            || (
-              resourceType === "labor"
-              && asObject(list.compensation).user_overridden !== true
-              && cleanText(asObject(list.compensation).mode || asObject(list.compensation).default_mode)
-                !== cleanText(asObject(definition.compensation).mode || asObject(definition.compensation).default_mode)
-            );
+            || Number(list.sort_order || 0) !== definitionIndex;
           if (itemsChanged || forceRegenerate) {
             const version = await createMaterialVersion(orgId, listId, {
               expected_revision: Number(list.revision || 0),
@@ -1861,7 +1855,6 @@ async function buildProjectListsFromScope(
               resource_subtype: cleanText(definition.resource_subtype || definitionId),
               terminology: asObject(asObject(materials.terminology)[resourceType]),
               controls: asObject(definition.controls),
-              compensation: asObject(definition.compensation),
               assignment: listAssignment(definition.assignment),
               items,
               sections,
@@ -1878,7 +1871,6 @@ async function buildProjectListsFromScope(
               resource_subtype: cleanText(definition.resource_subtype || definitionId),
               terminology: asObject(asObject(materials.terminology)[resourceType]),
               controls: asObject(definition.controls),
-              compensation: asObject(definition.compensation),
               assignment: listAssignment(definition.assignment),
               color: cleanText(definition.color || list.color || "var(--primary,#d93025)"),
               sort_order: definitionIndex,
@@ -1929,7 +1921,7 @@ async function buildProjectListsFromScope(
 export async function patchMaterialList(orgId: string, listId: string, patch: JsonObject, ctx: PlatformAuthContext) {
   const artifactSource=await readMaterialList(orgId,listId);
   if(artifactSource.resource_type==='material')await assertLegacyMaterialWritable(orgId,String(artifactSource.project_id),listId);
-  if(artifactSource.resource_type==='labor')await (await import("../labor/completion.js")).assertLaborListOpen(orgId,listId);
+  if(artifactSource.resource_type==='labor')await (await import("../labor/completion.js")).assertLaborListOpen(orgId,listId,{strict:patch.status==='archived',...(Object.prototype.hasOwnProperty.call(patch,'assignment')?{assignment:patch.assignment}:{})});
   await requireMaterialsFlag(orgId);
   const currentDoc = await readDocument(orgId, MATERIAL_LIST_COLLECTION, listId);
   const current = documentView(currentDoc);
@@ -1950,7 +1942,8 @@ export async function patchMaterialList(orgId: string, listId: string, patch: Js
     resource_subtype: Object.prototype.hasOwnProperty.call(patch, "resource_subtype") ? cleanText(patch.resource_subtype) : cleanText(current.resource_subtype),
     terminology: Object.prototype.hasOwnProperty.call(patch, "terminology") ? { ...asObject(current.terminology), ...asObject(patch.terminology) } : asObject(current.terminology),
     controls: Object.prototype.hasOwnProperty.call(patch, "controls") ? { ...asObject(current.controls), ...asObject(patch.controls) } : asObject(current.controls),
-    compensation: Object.prototype.hasOwnProperty.call(patch, "compensation") ? { ...asObject(current.compensation), ...asObject(patch.compensation) } : asObject(current.compensation),
+    // A list's pay comes from its assignee's pay sheet. The old `compensation` record is dropped when a list is next written.
+    compensation: undefined,
     assignment: listAssignment(Object.prototype.hasOwnProperty.call(patch, "assignment") ? { ...asObject(current.assignment), ...asObject(patch.assignment) } : current.assignment),
     color: Object.prototype.hasOwnProperty.call(patch, "color") ? cleanText(patch.color) : cleanText(current.color),
     sort_order: Object.prototype.hasOwnProperty.call(patch, "sort_order") ? Number(patch.sort_order || 0) : Number(current.sort_order || 0),

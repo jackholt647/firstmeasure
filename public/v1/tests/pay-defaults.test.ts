@@ -23,7 +23,7 @@ test("defaults give each kind of payee a starting pay and a schedule, roles and 
       await core.upsertDocument(ORG, "users", { id, data: { name: id.charAt(0).toUpperCase() + id.slice(1), status: "active", worker_classification: classification } });
     }
     const crew = (await workforce.createResourceGroup(ORG, { name: "Install team", kind_id: "crew" })).id as string;
-    const addMember = async (groupId: string, userId: string) => workforce.putResourceGroupMember(ORG, groupId, userId, { role: "member", expected_revision: Number((await workforce.readResourceGroup(ORG, groupId)).revision) });
+    const addMember = async (groupId: string, userId: string) => workforce.putResourceGroupMember(ORG, groupId, userId, { role: "member", effective_from: "2026-01-01", expected_revision: Number((await workforce.readResourceGroup(ORG, groupId)).revision) });
     for (const id of ["ana", "ben"]) await addMember(crew, id);
     const schedule = await store.createPayrollSchedule(ORG, { name: "Weekly", recurrence: { frequency: "weekly", weekday: 5 }, timezone: "UTC" });
     await (await import("../payroll/pay-rules.js")).savePayDefault(ORG, { subject: { type: "organization", id: ORG }, entries: [], schedules: [{ effective_from: "2026-01-01", schedule_id: schedule.id }] }, { userId: "owner" });
@@ -116,7 +116,7 @@ test("defaults give each kind of payee a starting pay and a schedule, roles and 
     const second = (await workforce.createResourceGroup(ORG, { name: "Second team", kind_id: "crew" })).id as string;
     jobs.push({ id: "j5", revision: 1, assignee_key: `resource_group:${second}`, done_at: "2026-06-20T15:00:00.000Z", pay_cents: 20_000 });
     const empty = await engine.refreshPayeeEarnings(ORG, { type: "resource_group", id: second }, { context, asOf: AS_OF });
-    assert.deepEqual([empty.posted.length, empty.unresolved.map((entry) => entry.reason)], [0, ["This group has no active members to split its pay among."]], "nobody to pay is reported, not paid to nobody");
+    assert.deepEqual([empty.posted.length, empty.unresolved.map((entry) => entry.reason)], [0, ["This group had no active members on the day this was earned to split its pay among."]], "nobody to pay is reported, not paid to nobody");
     await addMember(second, "dan");
     const filled = await engine.refreshPayeeEarnings(ORG, { type: "resource_group", id: second }, { context, asOf: AS_OF });
     assert.deepEqual(filled.posted.map((entry) => [(entry.payee as any).id, entry.amount_cents]), [["dan", 20_000]]);
@@ -153,9 +153,12 @@ test("defaults give each kind of payee a starting pay and a schedule, roles and 
     await rules.savePayDefault(ORG, { subject: { type: "role", id: inferred[0]! }, entries: [{ kind: "add", rule_id: "inferred_bonus", effective_from: "2026-06-01" }] }, actor);
     assert.ok(byRule(await engine.refreshPayeeEarnings(ORG, user("fay"), { context, asOf: "2026-07-01T12:00:00.000Z" })).some(([rule, unit, cents]) => rule === "inferred_bonus" && unit === "2026-06-01" && cents === 1234));
 
-    // The supervisor role is taken away. A role has no history, so payroll notices at the next refresh, on July 1: she is
-    // covered through June 30. May and June were earned while she held the role and stay hers; July is not paid by it.
+    // The supervisor role is taken away. The write records the day it changed (assignee type history); here that day is
+    // set to July 1, so she is covered through June 30. May and June were earned while she held the role and stay hers;
+    // July is not paid by it.
     await eveWith(["salesperson"]);
+    await (await import("../assignees/base.js")).getAssigneeDatabase().prepare("UPDATE assignee_type_history SET active_until='2026-07-01' WHERE organization_id=? AND assignee_id='eve' AND type_id='supervisor'").run(ORG);
+    assert.deepEqual((await (await import("../assignees/base.js")).assigneeTypeHistory(ORG, eve)).map((row) => [row.type_id, row.active_from, row.active_until]), [["salesperson", "", ""], ["supervisor", "", "2026-07-01"]], "roles are recorded at the write that changed them");
     assert.deepEqual(byRule(await engine.refreshPayeeEarnings(ORG, eve, { context, asOf: "2026-07-01T12:00:00.000Z" })), [["lead_bonus", "2026-06-01", 3_000], ["sales_bonus", "2026-06-01", 7_000], ["stipend", "2026-06-01", 10_000]]);
     assert.deepEqual(byRule(await engine.refreshPayeeEarnings(ORG, eve, { context, asOf: "2026-08-01T12:00:00.000Z" })), [["sales_bonus", "2026-07-01", 7_000], ["stipend", "2026-07-01", 10_000]],
       "only new earnings from the role she lost stop; the role she kept still pays");
@@ -181,8 +184,9 @@ test("defaults give each kind of payee a starting pay and a schedule, roles and 
     assert.equal((await rules.readPayRule(ORG, "stipend")).versions.length, 1, "and saves nothing");
     assert.deepEqual((await rules.readPayDefault(ORG, { type: "role", id: "salesperson" })).entries.map((entry) => (entry as any).params), [undefined]);
 
-    // Given back later, the role pays from the day payroll noticed, not for the months she did not have it.
+    // Given back later, the role pays from the day the write recorded (set here to September 1), not for the months she did not have it.
     await eveWith(["supervisor", "salesperson"]);
+    await (await import("../assignees/base.js")).getAssigneeDatabase().prepare("UPDATE assignee_type_history SET active_from='2026-09-01' WHERE organization_id=? AND assignee_id='eve' AND type_id='supervisor' AND active_until=''").run(ORG);
     assert.deepEqual(byRule(await engine.refreshPayeeEarnings(ORG, eve, { context, asOf: "2026-09-01T12:00:00.000Z" })), [["sales_bonus", "2026-08-01", 7_000], ["stipend", "2026-08-01", 10_000]]);
     assert.deepEqual(byRule(await engine.refreshPayeeEarnings(ORG, eve, { context, asOf: "2026-10-01T12:00:00.000Z" })), [["lead_bonus", "2026-09-01", 3_000], ["sales_bonus", "2026-09-01", 7_000], ["stipend", "2026-09-01", 10_000]]);
 
@@ -210,12 +214,17 @@ test("defaults give each kind of payee a starting pay and a schedule, roles and 
     await import("../payroll/assignee-cleanup.js");
     const benBefore = { entries: (await ledger("ben")).length, total: await total("ben"), setup: (await rules.readPaySetup(ORG, user("ben"))).entries.length, units: (await engine.listPayUnits(ORG, user("ben"))).length };
     await assert.rejects(() => cleanupAssignee(ORG, user("ben"), { orgId: ORG, userId: "owner", system: true }), /has not been removed/);
-    await core.upsertDocument(ORG, "users", { id: "ben", data: { name: "Ben", status: "archived", worker_classification: "employee" } });
+    // Removed on the day of his last refresh, so the final refresh through that day finds nothing new to post.
+    await core.upsertDocument(ORG, "users", { id: "ben", data: { name: "Ben", status: "archived", deleted: true, deleted_at: "2026-07-01T12:00:00.000Z", worker_classification: "employee" } });
     const cleaned = (await cleanupAssignee(ORG, user("ben"), { orgId: ORG, userId: "owner", system: true })).steps.find((step) => step.name === "payroll-pay")!;
-    assert.deepEqual([cleaned.removed, cleaned.kept, cleaned.error], [0, benBefore.entries + benBefore.units + 1, ""]);
+    // The final refresh through his last day records what it could not work out (here the rule's saver cannot read its
+    // inputs without a session); what was earned and posted is unchanged.
+    const benUnits = await engine.listPayUnits(ORG, user("ben"));
+    assert.deepEqual([cleaned.removed, cleaned.kept, cleaned.error], [0, benBefore.entries + benUnits.length + 1, ""]);
+    assert.match(cleaned.detail, /worked out through 2026-07-01, their last day/);
     assert.match(cleaned.detail, /Kept \d+ ledger entr(y|ies), \d+ worked-out results?, their pay setup, now closed\..*No new earnings are worked out for them\./);
     const benSetup = await rules.readPaySetup(ORG, user("ben"));
-    assert.deepEqual([benSetup.entries.length, !!benSetup.closed, (await ledger("ben")).length, await total("ben"), (await engine.listPayUnits(ORG, user("ben"))).length], [benBefore.setup, true, benBefore.entries, benBefore.total, benBefore.units]);
+    assert.deepEqual([benSetup.entries.length, !!benSetup.closed, (await ledger("ben")).length, await total("ben"), (await engine.listPayUnits(ORG, user("ben"))).filter((unit) => unit.status === "ok").length], [benBefore.setup, true, benBefore.entries, benBefore.total, benBefore.units]);
     assert.equal((await engine.payeesWithPay(ORG)).some((payee) => payee.id === "ben"), false);
     const gone = await engine.refreshPayeeEarnings(ORG, user("ben"), { context, asOf: "2026-10-01T12:00:00.000Z" });
     assert.deepEqual([gone.posted.length, gone.differences.length], [0, 0], "nothing is taken back either");

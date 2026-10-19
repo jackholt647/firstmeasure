@@ -129,6 +129,27 @@
       node.hidden = !ctx.error;
     }
   }
+  // Forward's bank element links a bank through GrailPay, which appends its
+  // own modal (".gp__modal-overlay", where the customer picks the account)
+  // and MoneyKit's full-page iframe to <body>, both at z-index 999999. Our
+  // windows (the project window is 2147483200) sit above that, so the bank
+  // link would open hidden behind them and the account could never be chosen.
+  // Lift both to the top whenever they appear; one observer per page.
+  let bankLinkWatch = null;
+  function liftBankLink(node){
+    if (!node || node.nodeType !== 1) return;
+    const host = node.tagName === 'IFRAME' ? (() => { try { return new URL(node.src).hostname; } catch { return ''; } })() : '';
+    const grailPay = [...(node.classList || [])].some((name) => /^gp_/.test(name));
+    if (grailPay || node.id === 'moneykit-connect-frame' || /(^|\.)moneykit\.com$/i.test(host)) {
+      node.style.setProperty('z-index', '2147483647', 'important');
+    }
+  }
+  function keepBankLinkOnTop(){
+    if (bankLinkWatch || typeof MutationObserver !== 'function' || !document.body) return;
+    [...document.body.children].forEach(liftBankLink);
+    bankLinkWatch = new MutationObserver((records) => records.forEach((record) => record.addedNodes.forEach(liftBankLink)));
+    bankLinkWatch.observe(document.body, { childList: true });
+  }
   function unmountForwardElement(ctx){
     try { ctx.forwardUnmount?.(); } catch {}
     ctx.forwardUnmount = null;
@@ -176,6 +197,7 @@
         ? sdk.createBankElement
         : (sdk.createCardElement || sdk.createPaymentElement);
       if (typeof factory !== 'function') throw new Error('Secure payment entry could not be initialized.');
+      if (kind === 'bank') keepBankLinkOnTop();
       const element = await factory.call(sdk, { apiKey: tokenization.publicKey, clientSecret: checkout.client_secret });
       if (!container.isConnected) return;
       container.innerHTML = '';

@@ -1,0 +1,1034 @@
+{
+ "note": "Date-range reports as produced before export templates (payroll/exports.ts, 2026-10-19), July 2026. Built-in templates must reproduce them byte for byte.",
+ "range": {
+  "from": "2026-07-01",
+  "through": "2026-07-31"
+ },
+ "entries": [
+  {
+   "id": "pay_entry_f41adc2b8dffabb731",
+   "organization_id": "org_golden",
+   "payee": {
+    "type": "organization_user",
+    "id": "u_ana",
+    "name": "Ana Lopez",
+    "worker_type": "employee"
+   },
+   "schedule_id": "pay_schedule_f80057b71be9a6026d",
+   "kind": "hourly",
+   "subgroup": "hourly",
+   "state": "accrued",
+   "amount_cents": 123456,
+   "applied_cents": 123456,
+   "remaining_cents": 0,
+   "currency": "USD",
+   "project_id": "",
+   "project_title": "",
+   "worked_at": "2026-07-06T15:00:00.000Z",
+   "completed_at": "",
+   "eligible_at": "2026-07-06T15:00:00.000Z",
+   "source_event_id": "golden-1",
+   "source_trigger_id": "",
+   "description": "",
+   "metadata": {
+    "recognition_basis": "worked",
+    "pay_schedule": {
+     "source": "explicit_schedule"
+    },
+    "schedule_snapshot": {
+     "id": "pay_schedule_f80057b71be9a6026d",
+     "name": "Weekly",
+     "revision": 1,
+     "recurrence": {
+      "frequency": "weekly",
+      "weekday": 5
+     },
+     "delay": {},
+     "timezone": "UTC"
+    }
+   },
+   "revision": 1,
+   "created_at": "2026-10-19T20:39:07.667Z",
+   "updated_at": "2026-10-19T20:39:07.667Z",
+   "voided_at": ""
+  },
+  {
+   "id": "pay_entry_770df9af5dd31fbf94",
+   "organization_id": "org_golden",
+   "payee": {
+    "type": "organization_user",
+    "id": "u_ana",
+    "name": "Ana Lopez",
+    "worker_type": "employee"
+   },
+   "schedule_id": "pay_schedule_f80057b71be9a6026d",
+   "kind": "commission",
+   "subgroup": "commission",
+   "state": "accrued",
+   "amount_cents": 25000,
+   "applied_cents": 25000,
+   "remaining_cents": 0,
+   "currency": "USD",
+   "project_id": "",
+   "project_title": "",
+   "worked_at": "2026-07-06T15:00:00.000Z",
+   "completed_at": "",
+   "eligible_at": "2026-07-06T15:00:00.000Z",
+   "source_event_id": "golden-2",
+   "source_trigger_id": "",
+   "description": "",
+   "metadata": {
+    "recognition_basis": "worked",
+    "pay_schedule": {
+     "source": "explicit_schedule"
+    },
+    "schedule_snapshot": {
+     "id": "pay_schedule_f80057b71be9a6026d",
+     "name": "Weekly",
+     "revision": 1,
+     "recurrence": {
+      "frequency": "weekly",
+      "weekday": 5
+     },
+     "delay": {},
+     "timezone": "UTC"
+    }
+   },
+   "revision": 1,
+   "created_at": "2026-10-19T20:39:07.668Z",
+   "updated_at": "2026-10-19T20:39:07.668Z",
+   "voided_at": ""
+  },
+  {
+   "id": "pay_entry_9ea1f9c06e1e65fc17",
+   "organization_id": "org_golden",
+   "payee": {
+    "type": "organization_user",
+    "id": "u_ana",
+    "name": "Ana Lopez",
+    "worker_type": "employee"
+   },
+   "schedule_id": "pay_schedule_f80057b71be9a6026d",
+   "kind": "reimbursement",
+   "subgroup": "reimbursement",
+   "state": "accrued",
+   "amount_cents": 4200,
+   "applied_cents": 4200,
+   "remaining_cents": 0,
+   "currency": "USD",
+   "project_id": "",
+   "project_title": "",
+   "worked_at": "2026-07-06T15:00:00.000Z",
+   "completed_at": "",
+   "eligible_at": "2026-07-06T15:00:00.000Z",
+   "source_event_id": "golden-3",
+   "source_trigger_id": "",
+   "description": "",
+   "metadata": {
+    "recognition_basis": "worked",
+    "pay_schedule": {
+     "source": "explicit_schedule"
+    },
+    "schedule_snapshot": {
+     "id": "pay_schedule_f80057b71be9a6026d",
+     "name": "Weekly",
+     "revision": 1,
+     "recurrence": {
+      "frequency": "weekly",
+      "weekday": 5
+     },
+     "delay": {},
+     "timezone": "UTC"
+    }
+   },
+   "revision": 1,
+   "created_at": "2026-10-19T20:39:07.670Z",
+   "updated_at": "2026-10-19T20:39:07.670Z",
+   "voided_at": ""
+  },
+  {
+   "id": "pay_entry_f2babd0426bc244a75",
+   "organization_id": "org_golden",
+   "payee": {
+    "type": "organization_user",
+    "id": "u_ben",
+    "name": "Ben \"Benny\" Carter",
+    "worker_type": "employee"
+   },
+   "schedule_id": "pay_schedule_f80057b71be9a6026d",
+   "kind": "salary",
+   "subgroup": "salary",
+   "state": "accrued",
+   "amount_cents": 200000,
+   "applied_cents": 200000,
+   "remaining_cents": 0,
+   "currency": "USD",
+   "project_id": "",
+   "project_title": "",
+   "worked_at": "2026-07-06T15:00:00.000Z",
+   "completed_at": "",
+   "eligible_at": "2026-07-06T15:00:00.000Z",
+   "source_event_id": "golden-4",
+   "source_trigger_id": "",
+   "description": "",
+   "metadata": {
+    "recognition_basis": "worked",
+    "pay_schedule": {
+     "source": "explicit_schedule"
+    },
+    "schedule_snapshot": {
+     "id": "pay_schedule_f80057b71be9a6026d",
+     "name": "Weekly",
+     "revision": 1,
+     "recurrence": {
+      "frequency": "weekly",
+      "weekday": 5
+     },
+     "delay": {},
+     "timezone": "UTC"
+    }
+   },
+   "revision": 1,
+   "created_at": "2026-10-19T20:39:07.672Z",
+   "updated_at": "2026-10-19T20:39:07.672Z",
+   "voided_at": ""
+  },
+  {
+   "id": "pay_entry_bb8389f108fafe7584",
+   "organization_id": "org_golden",
+   "payee": {
+    "type": "organization_user",
+    "id": "u_ben",
+    "name": "Ben \"Benny\" Carter",
+    "worker_type": "employee"
+   },
+   "schedule_id": "pay_schedule_f80057b71be9a6026d",
+   "kind": "adjustment",
+   "subgroup": "adjustment",
+   "state": "accrued",
+   "amount_cents": 5000,
+   "applied_cents": 5000,
+   "remaining_cents": 0,
+   "currency": "USD",
+   "project_id": "",
+   "project_title": "",
+   "worked_at": "2026-07-06T15:00:00.000Z",
+   "completed_at": "",
+   "eligible_at": "2026-07-06T15:00:00.000Z",
+   "source_event_id": "golden-5",
+   "source_trigger_id": "",
+   "description": "",
+   "metadata": {
+    "recognition_basis": "worked",
+    "pay_schedule": {
+     "source": "explicit_schedule"
+    },
+    "schedule_snapshot": {
+     "id": "pay_schedule_f80057b71be9a6026d",
+     "name": "Weekly",
+     "revision": 1,
+     "recurrence": {
+      "frequency": "weekly",
+      "weekday": 5
+     },
+     "delay": {},
+     "timezone": "UTC"
+    }
+   },
+   "revision": 1,
+   "created_at": "2026-10-19T20:39:07.673Z",
+   "updated_at": "2026-10-19T20:39:07.673Z",
+   "voided_at": ""
+  },
+  {
+   "id": "pay_entry_cb8701d728769f5005",
+   "organization_id": "org_golden",
+   "payee": {
+    "type": "organization_user",
+    "id": "u_ben",
+    "name": "Ben \"Benny\" Carter",
+    "worker_type": "employee"
+   },
+   "schedule_id": "pay_schedule_f80057b71be9a6026d",
+   "kind": "clawback",
+   "subgroup": "clawback",
+   "state": "accrued",
+   "amount_cents": -30000,
+   "applied_cents": -30000,
+   "remaining_cents": 0,
+   "currency": "USD",
+   "project_id": "",
+   "project_title": "",
+   "worked_at": "2026-07-06T15:00:00.000Z",
+   "completed_at": "",
+   "eligible_at": "2026-07-06T15:00:00.000Z",
+   "source_event_id": "golden-6",
+   "source_trigger_id": "",
+   "description": "",
+   "metadata": {
+    "recognition_basis": "worked",
+    "pay_schedule": {
+     "source": "explicit_schedule"
+    },
+    "schedule_snapshot": {
+     "id": "pay_schedule_f80057b71be9a6026d",
+     "name": "Weekly",
+     "revision": 1,
+     "recurrence": {
+      "frequency": "weekly",
+      "weekday": 5
+     },
+     "delay": {},
+     "timezone": "UTC"
+    }
+   },
+   "revision": 1,
+   "created_at": "2026-10-19T20:39:07.675Z",
+   "updated_at": "2026-10-19T20:39:07.675Z",
+   "voided_at": ""
+  },
+  {
+   "id": "pay_entry_87e7e2b279d2359765",
+   "organization_id": "org_golden",
+   "payee": {
+    "type": "organization_user",
+    "id": "u_amy",
+    "name": "Amy Lopez",
+    "worker_type": "employee"
+   },
+   "schedule_id": "pay_schedule_f80057b71be9a6026d",
+   "kind": "hourly",
+   "subgroup": "hourly",
+   "state": "accrued",
+   "amount_cents": 80000,
+   "applied_cents": 80000,
+   "remaining_cents": 0,
+   "currency": "USD",
+   "project_id": "",
+   "project_title": "",
+   "worked_at": "2026-07-06T15:00:00.000Z",
+   "completed_at": "",
+   "eligible_at": "2026-07-06T15:00:00.000Z",
+   "source_event_id": "golden-7",
+   "source_trigger_id": "",
+   "description": "",
+   "metadata": {
+    "recognition_basis": "worked",
+    "pay_schedule": {
+     "source": "explicit_schedule"
+    },
+    "schedule_snapshot": {
+     "id": "pay_schedule_f80057b71be9a6026d",
+     "name": "Weekly",
+     "revision": 1,
+     "recurrence": {
+      "frequency": "weekly",
+      "weekday": 5
+     },
+     "delay": {},
+     "timezone": "UTC"
+    }
+   },
+   "revision": 1,
+   "created_at": "2026-10-19T20:39:07.677Z",
+   "updated_at": "2026-10-19T20:39:07.677Z",
+   "voided_at": ""
+  },
+  {
+   "id": "pay_entry_1fa032770965408c87",
+   "organization_id": "org_golden",
+   "payee": {
+    "type": "organization_user",
+    "id": "u_amy",
+    "name": "Amy Lopez",
+    "worker_type": "employee"
+   },
+   "schedule_id": "pay_schedule_f80057b71be9a6026d",
+   "kind": "piece_rate",
+   "subgroup": "piece_rate",
+   "state": "accrued",
+   "amount_cents": 15050,
+   "applied_cents": 15050,
+   "remaining_cents": 0,
+   "currency": "USD",
+   "project_id": "",
+   "project_title": "",
+   "worked_at": "2026-07-06T15:00:00.000Z",
+   "completed_at": "",
+   "eligible_at": "2026-07-06T15:00:00.000Z",
+   "source_event_id": "golden-8",
+   "source_trigger_id": "",
+   "description": "",
+   "metadata": {
+    "recognition_basis": "worked",
+    "pay_schedule": {
+     "source": "explicit_schedule"
+    },
+    "schedule_snapshot": {
+     "id": "pay_schedule_f80057b71be9a6026d",
+     "name": "Weekly",
+     "revision": 1,
+     "recurrence": {
+      "frequency": "weekly",
+      "weekday": 5
+     },
+     "delay": {},
+     "timezone": "UTC"
+    }
+   },
+   "revision": 1,
+   "created_at": "2026-10-19T20:39:07.680Z",
+   "updated_at": "2026-10-19T20:39:07.680Z",
+   "voided_at": ""
+  },
+  {
+   "id": "pay_entry_4b4c189cb0898de96d",
+   "organization_id": "org_golden",
+   "payee": {
+    "type": "organization_user",
+    "id": "u_cher",
+    "name": "Cher",
+    "worker_type": "employee"
+   },
+   "schedule_id": "pay_schedule_f80057b71be9a6026d",
+   "kind": "hourly",
+   "subgroup": "hourly",
+   "state": "accrued",
+   "amount_cents": 1,
+   "applied_cents": 1,
+   "remaining_cents": 0,
+   "currency": "USD",
+   "project_id": "",
+   "project_title": "",
+   "worked_at": "2026-07-06T15:00:00.000Z",
+   "completed_at": "",
+   "eligible_at": "2026-07-06T15:00:00.000Z",
+   "source_event_id": "golden-9",
+   "source_trigger_id": "",
+   "description": "",
+   "metadata": {
+    "recognition_basis": "worked",
+    "pay_schedule": {
+     "source": "explicit_schedule"
+    },
+    "schedule_snapshot": {
+     "id": "pay_schedule_f80057b71be9a6026d",
+     "name": "Weekly",
+     "revision": 1,
+     "recurrence": {
+      "frequency": "weekly",
+      "weekday": 5
+     },
+     "delay": {},
+     "timezone": "UTC"
+    }
+   },
+   "revision": 1,
+   "created_at": "2026-10-19T20:39:07.682Z",
+   "updated_at": "2026-10-19T20:39:07.682Z",
+   "voided_at": ""
+  },
+  {
+   "id": "pay_entry_e791e98b32252b0573",
+   "organization_id": "org_golden",
+   "payee": {
+    "type": "organization_user",
+    "id": "u_mary",
+    "name": "Mary Ann de la Cruz",
+    "worker_type": "employee"
+   },
+   "schedule_id": "pay_schedule_f80057b71be9a6026d",
+   "kind": "commission",
+   "subgroup": "commission",
+   "state": "accrued",
+   "amount_cents": 99999,
+   "applied_cents": 99999,
+   "remaining_cents": 0,
+   "currency": "USD",
+   "project_id": "",
+   "project_title": "",
+   "worked_at": "2026-07-06T15:00:00.000Z",
+   "completed_at": "",
+   "eligible_at": "2026-07-06T15:00:00.000Z",
+   "source_event_id": "golden-10",
+   "source_trigger_id": "",
+   "description": "",
+   "metadata": {
+    "recognition_basis": "worked",
+    "pay_schedule": {
+     "source": "explicit_schedule"
+    },
+    "schedule_snapshot": {
+     "id": "pay_schedule_f80057b71be9a6026d",
+     "name": "Weekly",
+     "revision": 1,
+     "recurrence": {
+      "frequency": "weekly",
+      "weekday": 5
+     },
+     "delay": {},
+     "timezone": "UTC"
+    }
+   },
+   "revision": 1,
+   "created_at": "2026-10-19T20:39:07.684Z",
+   "updated_at": "2026-10-19T20:39:07.684Z",
+   "voided_at": ""
+  },
+  {
+   "id": "pay_entry_24fea927bccb182c68",
+   "organization_id": "org_golden",
+   "payee": {
+    "type": "organization_user",
+    "id": "u_cora",
+    "name": "Cora Clark",
+    "worker_type": "independent_contractor"
+   },
+   "schedule_id": "pay_schedule_f80057b71be9a6026d",
+   "kind": "piece_rate",
+   "subgroup": "piece_rate",
+   "state": "accrued",
+   "amount_cents": 45000,
+   "applied_cents": 45000,
+   "remaining_cents": 0,
+   "currency": "USD",
+   "project_id": "",
+   "project_title": "",
+   "worked_at": "2026-07-06T15:00:00.000Z",
+   "completed_at": "",
+   "eligible_at": "2026-07-06T15:00:00.000Z",
+   "source_event_id": "golden-11",
+   "source_trigger_id": "",
+   "description": "",
+   "metadata": {
+    "recognition_basis": "worked",
+    "pay_schedule": {
+     "source": "explicit_schedule"
+    },
+    "schedule_snapshot": {
+     "id": "pay_schedule_f80057b71be9a6026d",
+     "name": "Weekly",
+     "revision": 1,
+     "recurrence": {
+      "frequency": "weekly",
+      "weekday": 5
+     },
+     "delay": {},
+     "timezone": "UTC"
+    }
+   },
+   "revision": 1,
+   "created_at": "2026-10-19T20:39:07.685Z",
+   "updated_at": "2026-10-19T20:39:07.685Z",
+   "voided_at": ""
+  },
+  {
+   "id": "pay_entry_f946da9f0d42f60aa8",
+   "organization_id": "org_golden",
+   "payee": {
+    "type": "organization_user",
+    "id": "u_cora",
+    "name": "Cora Clark",
+    "worker_type": "independent_contractor"
+   },
+   "schedule_id": "pay_schedule_f80057b71be9a6026d",
+   "kind": "reimbursement",
+   "subgroup": "reimbursement",
+   "state": "accrued",
+   "amount_cents": 1250,
+   "applied_cents": 1250,
+   "remaining_cents": 0,
+   "currency": "USD",
+   "project_id": "",
+   "project_title": "",
+   "worked_at": "2026-07-06T15:00:00.000Z",
+   "completed_at": "",
+   "eligible_at": "2026-07-06T15:00:00.000Z",
+   "source_event_id": "golden-12",
+   "source_trigger_id": "",
+   "description": "",
+   "metadata": {
+    "recognition_basis": "worked",
+    "pay_schedule": {
+     "source": "explicit_schedule"
+    },
+    "schedule_snapshot": {
+     "id": "pay_schedule_f80057b71be9a6026d",
+     "name": "Weekly",
+     "revision": 1,
+     "recurrence": {
+      "frequency": "weekly",
+      "weekday": 5
+     },
+     "delay": {},
+     "timezone": "UTC"
+    }
+   },
+   "revision": 1,
+   "created_at": "2026-10-19T20:39:07.687Z",
+   "updated_at": "2026-10-19T20:39:07.687Z",
+   "voided_at": ""
+  },
+  {
+   "id": "pay_entry_dcb14ae3774935d2b9",
+   "organization_id": "org_golden",
+   "payee": {
+    "type": "organization_user",
+    "id": "u_dev",
+    "name": "Dev Patel",
+    "worker_type": "independent_contractor"
+   },
+   "schedule_id": "pay_schedule_f80057b71be9a6026d",
+   "kind": "piece_rate",
+   "subgroup": "piece_rate",
+   "state": "accrued",
+   "amount_cents": 60000,
+   "applied_cents": 60000,
+   "remaining_cents": 0,
+   "currency": "USD",
+   "project_id": "",
+   "project_title": "",
+   "worked_at": "2026-07-06T15:00:00.000Z",
+   "completed_at": "",
+   "eligible_at": "2026-07-06T15:00:00.000Z",
+   "source_event_id": "golden-13",
+   "source_trigger_id": "",
+   "description": "",
+   "metadata": {
+    "recognition_basis": "worked",
+    "pay_schedule": {
+     "source": "explicit_schedule"
+    },
+    "schedule_snapshot": {
+     "id": "pay_schedule_f80057b71be9a6026d",
+     "name": "Weekly",
+     "revision": 1,
+     "recurrence": {
+      "frequency": "weekly",
+      "weekday": 5
+     },
+     "delay": {},
+     "timezone": "UTC"
+    }
+   },
+   "revision": 1,
+   "created_at": "2026-10-19T20:39:07.689Z",
+   "updated_at": "2026-10-19T20:39:07.689Z",
+   "voided_at": ""
+  },
+  {
+   "id": "pay_entry_8484a5e5b8f43243f1",
+   "organization_id": "org_golden",
+   "payee": {
+    "type": "organization_user",
+    "id": "u_dev",
+    "name": "Dev Patel",
+    "worker_type": "independent_contractor"
+   },
+   "schedule_id": "pay_schedule_f80057b71be9a6026d",
+   "kind": "clawback",
+   "subgroup": "clawback",
+   "state": "accrued",
+   "amount_cents": -2000,
+   "applied_cents": -2000,
+   "remaining_cents": 0,
+   "currency": "USD",
+   "project_id": "",
+   "project_title": "",
+   "worked_at": "2026-07-06T15:00:00.000Z",
+   "completed_at": "",
+   "eligible_at": "2026-07-06T15:00:00.000Z",
+   "source_event_id": "golden-14",
+   "source_trigger_id": "",
+   "description": "",
+   "metadata": {
+    "recognition_basis": "worked",
+    "pay_schedule": {
+     "source": "explicit_schedule"
+    },
+    "schedule_snapshot": {
+     "id": "pay_schedule_f80057b71be9a6026d",
+     "name": "Weekly",
+     "revision": 1,
+     "recurrence": {
+      "frequency": "weekly",
+      "weekday": 5
+     },
+     "delay": {},
+     "timezone": "UTC"
+    }
+   },
+   "revision": 1,
+   "created_at": "2026-10-19T20:39:07.692Z",
+   "updated_at": "2026-10-19T20:39:07.692Z",
+   "voided_at": ""
+  },
+  {
+   "id": "pay_entry_cb4a9a2592a147765c",
+   "organization_id": "org_golden",
+   "payee": {
+    "type": "organization_connection",
+    "id": "conn_acme_roofing",
+    "name": "Acme Roofing, LLC",
+    "worker_type": "subcontractor"
+   },
+   "schedule_id": "pay_schedule_f80057b71be9a6026d",
+   "kind": "piece_rate",
+   "subgroup": "piece_rate",
+   "state": "accrued",
+   "amount_cents": 800000,
+   "applied_cents": 800000,
+   "remaining_cents": 0,
+   "currency": "USD",
+   "project_id": "",
+   "project_title": "",
+   "worked_at": "2026-07-06T15:00:00.000Z",
+   "completed_at": "",
+   "eligible_at": "2026-07-06T15:00:00.000Z",
+   "source_event_id": "golden-15",
+   "source_trigger_id": "",
+   "description": "",
+   "metadata": {
+    "recognition_basis": "worked",
+    "pay_schedule": {
+     "source": "explicit_schedule"
+    },
+    "schedule_snapshot": {
+     "id": "pay_schedule_f80057b71be9a6026d",
+     "name": "Weekly",
+     "revision": 1,
+     "recurrence": {
+      "frequency": "weekly",
+      "weekday": 5
+     },
+     "delay": {},
+     "timezone": "UTC"
+    }
+   },
+   "revision": 1,
+   "created_at": "2026-10-19T20:39:07.696Z",
+   "updated_at": "2026-10-19T20:39:07.696Z",
+   "voided_at": ""
+  },
+  {
+   "id": "pay_entry_e9b15787a9cee6376e",
+   "organization_id": "org_golden",
+   "payee": {
+    "type": "organization_connection",
+    "id": "conn_acme_roofing",
+    "name": "Acme Roofing, LLC",
+    "worker_type": "subcontractor"
+   },
+   "schedule_id": "pay_schedule_f80057b71be9a6026d",
+   "kind": "reimbursement",
+   "subgroup": "reimbursement",
+   "state": "accrued",
+   "amount_cents": 1500,
+   "applied_cents": 1500,
+   "remaining_cents": 0,
+   "currency": "USD",
+   "project_id": "",
+   "project_title": "",
+   "worked_at": "2026-07-06T15:00:00.000Z",
+   "completed_at": "",
+   "eligible_at": "2026-07-06T15:00:00.000Z",
+   "source_event_id": "golden-16",
+   "source_trigger_id": "",
+   "description": "",
+   "metadata": {
+    "recognition_basis": "worked",
+    "pay_schedule": {
+     "source": "explicit_schedule"
+    },
+    "schedule_snapshot": {
+     "id": "pay_schedule_f80057b71be9a6026d",
+     "name": "Weekly",
+     "revision": 1,
+     "recurrence": {
+      "frequency": "weekly",
+      "weekday": 5
+     },
+     "delay": {},
+     "timezone": "UTC"
+    }
+   },
+   "revision": 1,
+   "created_at": "2026-10-19T20:39:07.700Z",
+   "updated_at": "2026-10-19T20:39:07.700Z",
+   "voided_at": ""
+  },
+  {
+   "id": "pay_entry_d6a655b87f82376216",
+   "organization_id": "org_golden",
+   "payee": {
+    "type": "organization_connection",
+    "id": "conn_haul",
+    "name": "Haul Away",
+    "worker_type": "subcontractor"
+   },
+   "schedule_id": "pay_schedule_f80057b71be9a6026d",
+   "kind": "piece_rate",
+   "subgroup": "piece_rate",
+   "state": "accrued",
+   "amount_cents": 12000,
+   "applied_cents": 12000,
+   "remaining_cents": 0,
+   "currency": "USD",
+   "project_id": "",
+   "project_title": "",
+   "worked_at": "2026-07-06T15:00:00.000Z",
+   "completed_at": "",
+   "eligible_at": "2026-07-06T15:00:00.000Z",
+   "source_event_id": "golden-17",
+   "source_trigger_id": "",
+   "description": "",
+   "metadata": {
+    "recognition_basis": "worked",
+    "pay_schedule": {
+     "source": "explicit_schedule"
+    },
+    "schedule_snapshot": {
+     "id": "pay_schedule_f80057b71be9a6026d",
+     "name": "Weekly",
+     "revision": 1,
+     "recurrence": {
+      "frequency": "weekly",
+      "weekday": 5
+     },
+     "delay": {},
+     "timezone": "UTC"
+    }
+   },
+   "revision": 1,
+   "created_at": "2026-10-19T20:39:07.703Z",
+   "updated_at": "2026-10-19T20:39:07.703Z",
+   "voided_at": ""
+  },
+  {
+   "id": "pay_entry_f08b7f31e954cfd865",
+   "organization_id": "org_golden",
+   "payee": {
+    "type": "organization_user",
+    "id": "u_ana",
+    "name": "Ana Lopez",
+    "worker_type": "employee"
+   },
+   "schedule_id": "pay_schedule_f80057b71be9a6026d",
+   "kind": "hourly",
+   "subgroup": "off_cycle",
+   "state": "accrued",
+   "amount_cents": -30000,
+   "applied_cents": -30000,
+   "remaining_cents": 0,
+   "currency": "USD",
+   "project_id": "",
+   "project_title": "",
+   "worked_at": "2026-07-07T12:00:00.000Z",
+   "completed_at": "2026-07-07T12:00:00.000Z",
+   "eligible_at": "2026-07-07T00:00:00.000Z",
+   "source_event_id": "off_cycle_payment:offcycle_fdfe8701b9542a6294",
+   "source_trigger_id": "paid",
+   "description": "Paid outside a pay run on 2026-07-07 (Check 1042)",
+   "metadata": {
+    "recognition_basis": "worked",
+    "pay_schedule": {
+     "source": "organization:org_golden",
+     "earning_kind": "*",
+     "effective_from": "2026-01-01"
+    },
+    "schedule_snapshot": {
+     "id": "pay_schedule_f80057b71be9a6026d",
+     "name": "Weekly",
+     "revision": 1,
+     "recurrence": {
+      "frequency": "weekly",
+      "weekday": 5
+     },
+     "delay": {},
+     "timezone": "UTC"
+    },
+    "off_cycle_payment": {
+     "id": "offcycle_fdfe8701b9542a6294",
+     "paid_on": "2026-07-07",
+     "amount_cents": 30000,
+     "kind": "hourly",
+     "reference": "Check 1042",
+     "note": "",
+     "recorded_by_user_id": "owner",
+     "recorded_by_name": "Owner",
+     "recorded_at": "2026-10-19T20:39:07.773Z"
+    }
+   },
+   "revision": 1,
+   "created_at": "2026-10-19T20:39:07.824Z",
+   "updated_at": "2026-10-19T20:39:07.824Z",
+   "voided_at": ""
+  },
+  {
+   "id": "pay_entry_a00cc3fec7550d7ed9",
+   "organization_id": "org_golden",
+   "payee": {
+    "type": "organization_connection",
+    "id": "conn_acme_roofing",
+    "name": "Acme Roofing, LLC",
+    "worker_type": "subcontractor"
+   },
+   "schedule_id": "pay_schedule_f80057b71be9a6026d",
+   "kind": "piece_rate",
+   "subgroup": "off_cycle",
+   "state": "accrued",
+   "amount_cents": -10000,
+   "applied_cents": -10000,
+   "remaining_cents": 0,
+   "currency": "USD",
+   "project_id": "",
+   "project_title": "",
+   "worked_at": "2026-07-07T12:00:00.000Z",
+   "completed_at": "2026-07-07T12:00:00.000Z",
+   "eligible_at": "2026-07-07T00:00:00.000Z",
+   "source_event_id": "off_cycle_payment:offcycle_0b7ad5d6620b24706b",
+   "source_trigger_id": "paid",
+   "description": "Paid outside a pay run on 2026-07-07",
+   "metadata": {
+    "recognition_basis": "worked",
+    "pay_schedule": {
+     "source": "organization:org_golden",
+     "earning_kind": "*",
+     "effective_from": "2026-01-01"
+    },
+    "schedule_snapshot": {
+     "id": "pay_schedule_f80057b71be9a6026d",
+     "name": "Weekly",
+     "revision": 1,
+     "recurrence": {
+      "frequency": "weekly",
+      "weekday": 5
+     },
+     "delay": {},
+     "timezone": "UTC"
+    },
+    "off_cycle_payment": {
+     "id": "offcycle_0b7ad5d6620b24706b",
+     "paid_on": "2026-07-07",
+     "amount_cents": 10000,
+     "kind": "piece_rate",
+     "reference": "",
+     "note": "",
+     "recorded_by_user_id": "owner",
+     "recorded_by_name": "Owner",
+     "recorded_at": "2026-10-19T20:39:07.827Z"
+    }
+   },
+   "revision": 1,
+   "created_at": "2026-10-19T20:39:07.831Z",
+   "updated_at": "2026-10-19T20:39:07.831Z",
+   "voided_at": ""
+  },
+  {
+   "id": "pay_entry_d50c6311f834b9af14",
+   "organization_id": "org_golden",
+   "payee": {
+    "type": "organization_user",
+    "id": "u_ana",
+    "name": "Ana Lopez",
+    "worker_type": "employee"
+   },
+   "schedule_id": "pay_schedule_f80057b71be9a6026d",
+   "kind": "commission",
+   "subgroup": "commission",
+   "state": "projected",
+   "amount_cents": 12345,
+   "applied_cents": 0,
+   "remaining_cents": 12345,
+   "currency": "USD",
+   "project_id": "",
+   "project_title": "",
+   "worked_at": "2026-07-08T15:00:00.000Z",
+   "completed_at": "",
+   "eligible_at": "2026-07-08T15:00:00.000Z",
+   "source_event_id": "golden-18",
+   "source_trigger_id": "",
+   "description": "",
+   "metadata": {
+    "recognition_basis": "worked",
+    "pay_schedule": {
+     "source": "explicit_schedule"
+    },
+    "schedule_snapshot": {
+     "id": "pay_schedule_f80057b71be9a6026d",
+     "name": "Weekly",
+     "revision": 1,
+     "recurrence": {
+      "frequency": "weekly",
+      "weekday": 5
+     },
+     "delay": {},
+     "timezone": "UTC"
+    }
+   },
+   "revision": 1,
+   "created_at": "2026-10-19T20:39:08.175Z",
+   "updated_at": "2026-10-19T20:39:08.175Z",
+   "voided_at": ""
+  }
+ ],
+ "receipts": [
+  {
+   "id": "rcpt_3",
+   "reimbursement_request": {
+    "id": "reimbursement_request_rcpt_3",
+    "status": "submitted",
+    "requested_by": {
+     "user_id": "u_amy",
+     "name": "Amy Lopez"
+    },
+    "amount_cents": 500,
+    "requested_at": "2026-08-01T16:00:00.000Z"
+   }
+  },
+  {
+   "id": "rcpt_2",
+   "reimbursement_request": {
+    "id": "reimbursement_request_rcpt_2",
+    "status": "paid",
+    "requested_by": {
+     "user_id": "u_ben",
+     "name": "Ben Carter"
+    },
+    "project_id": "",
+    "amount_cents": 999,
+    "currency": "USD",
+    "requested_at": "2026-07-09T16:00:00.000Z",
+    "approved_at": "2026-07-09T17:00:00.000Z",
+    "paid_at": "2026-07-10T09:00:00.000Z",
+    "payment_timing": "off_cycle",
+    "note": ""
+   }
+  },
+  {
+   "id": "rcpt_1",
+   "reimbursement_request": {
+    "id": "reimbursement_request_rcpt_1",
+    "status": "approved",
+    "requested_by": {
+     "user_id": "u_ana",
+     "name": "Ana Lopez"
+    },
+    "project_id": "proj_1",
+    "amount_cents": 4200,
+    "currency": "USD",
+    "requested_at": "2026-07-03T16:00:00.000Z",
+    "approved_at": "2026-07-04T10:00:00.000Z",
+    "paid_at": "",
+    "payment_timing": "next_payroll",
+    "note": "Shingles, \"extra\" run"
+   }
+  }
+ ],
+ "files": {
+  "earnings_ledger": "﻿Earned on,Worker or company,Paid as,Earning type,Project,Description,Amount,Already included,Still owed,Status\r\n2026-07-06T15:00:00.000Z,Ana Lopez,Employee,Hourly,,,1234.56,1234.56,0.00,Accrued\r\n2026-07-06T15:00:00.000Z,Ana Lopez,Employee,Commission,,,250.00,250.00,0.00,Accrued\r\n2026-07-06T15:00:00.000Z,Ana Lopez,Employee,Reimbursement,,,42.00,42.00,0.00,Accrued\r\n2026-07-06T15:00:00.000Z,\"Ben \"\"Benny\"\" Carter\",Employee,Salary,,,2000.00,2000.00,0.00,Accrued\r\n2026-07-06T15:00:00.000Z,\"Ben \"\"Benny\"\" Carter\",Employee,Adjustment,,,50.00,50.00,0.00,Accrued\r\n2026-07-06T15:00:00.000Z,\"Ben \"\"Benny\"\" Carter\",Employee,Clawback,,,-300.00,-300.00,0.00,Accrued\r\n2026-07-06T15:00:00.000Z,Amy Lopez,Employee,Hourly,,,800.00,800.00,0.00,Accrued\r\n2026-07-06T15:00:00.000Z,Amy Lopez,Employee,Piece rate,,,150.50,150.50,0.00,Accrued\r\n2026-07-06T15:00:00.000Z,Cher,Employee,Hourly,,,0.01,0.01,0.00,Accrued\r\n2026-07-06T15:00:00.000Z,Mary Ann de la Cruz,Employee,Commission,,,999.99,999.99,0.00,Accrued\r\n2026-07-06T15:00:00.000Z,Cora Clark,Independent contractor,Piece rate,,,450.00,450.00,0.00,Accrued\r\n2026-07-06T15:00:00.000Z,Cora Clark,Independent contractor,Reimbursement,,,12.50,12.50,0.00,Accrued\r\n2026-07-06T15:00:00.000Z,Dev Patel,Independent contractor,Piece rate,,,600.00,600.00,0.00,Accrued\r\n2026-07-06T15:00:00.000Z,Dev Patel,Independent contractor,Clawback,,,-20.00,-20.00,0.00,Accrued\r\n2026-07-06T15:00:00.000Z,\"Acme Roofing, LLC\",Subcontractor,Piece rate,,,8000.00,8000.00,0.00,Accrued\r\n2026-07-06T15:00:00.000Z,\"Acme Roofing, LLC\",Subcontractor,Reimbursement,,,15.00,15.00,0.00,Accrued\r\n2026-07-06T15:00:00.000Z,Haul Away,Subcontractor,Piece rate,,,120.00,120.00,0.00,Accrued\r\n2026-07-07T00:00:00.000Z,Ana Lopez,Employee,Hourly,,Paid outside a pay run on 2026-07-07 (Check 1042),-300.00,-300.00,0.00,Accrued\r\n2026-07-07T00:00:00.000Z,\"Acme Roofing, LLC\",Subcontractor,Piece rate,,Paid outside a pay run on 2026-07-07,-100.00,-100.00,0.00,Accrued\r\n",
+  "commissions": "﻿Earned on,Worker or company,Paid as,Earning type,Project,Description,Amount,Already included,Still owed,Status\r\n2026-07-06T15:00:00.000Z,Ana Lopez,Employee,Commission,,,250.00,250.00,0.00,Accrued\r\n2026-07-06T15:00:00.000Z,Mary Ann de la Cruz,Employee,Commission,,,999.99,999.99,0.00,Accrued\r\n",
+  "reimbursements": "﻿Employee,Project,Amount,Currency,Status,Requested on,Approved on,Paid on,Note\r\nBen Carter,,9.99,USD,Paid,2026-07-09T16:00:00.000Z,2026-07-09T17:00:00.000Z,2026-07-10T09:00:00.000Z,\r\nAna Lopez,proj_1,42.00,USD,Approved,2026-07-03T16:00:00.000Z,2026-07-04T10:00:00.000Z,,\"Shingles, \"\"extra\"\" run\"\r\n",
+  "earnings_ledger_projected": "﻿Earned on,Worker or company,Paid as,Earning type,Project,Description,Amount,Already included,Still owed,Status\r\n2026-07-06T15:00:00.000Z,Ana Lopez,Employee,Hourly,,,1234.56,1234.56,0.00,Accrued\r\n2026-07-06T15:00:00.000Z,Ana Lopez,Employee,Commission,,,250.00,250.00,0.00,Accrued\r\n2026-07-06T15:00:00.000Z,Ana Lopez,Employee,Reimbursement,,,42.00,42.00,0.00,Accrued\r\n2026-07-06T15:00:00.000Z,\"Ben \"\"Benny\"\" Carter\",Employee,Salary,,,2000.00,2000.00,0.00,Accrued\r\n2026-07-06T15:00:00.000Z,\"Ben \"\"Benny\"\" Carter\",Employee,Adjustment,,,50.00,50.00,0.00,Accrued\r\n2026-07-06T15:00:00.000Z,\"Ben \"\"Benny\"\" Carter\",Employee,Clawback,,,-300.00,-300.00,0.00,Accrued\r\n2026-07-06T15:00:00.000Z,Amy Lopez,Employee,Hourly,,,800.00,800.00,0.00,Accrued\r\n2026-07-06T15:00:00.000Z,Amy Lopez,Employee,Piece rate,,,150.50,150.50,0.00,Accrued\r\n2026-07-06T15:00:00.000Z,Cher,Employee,Hourly,,,0.01,0.01,0.00,Accrued\r\n2026-07-06T15:00:00.000Z,Mary Ann de la Cruz,Employee,Commission,,,999.99,999.99,0.00,Accrued\r\n2026-07-06T15:00:00.000Z,Cora Clark,Independent contractor,Piece rate,,,450.00,450.00,0.00,Accrued\r\n2026-07-06T15:00:00.000Z,Cora Clark,Independent contractor,Reimbursement,,,12.50,12.50,0.00,Accrued\r\n2026-07-06T15:00:00.000Z,Dev Patel,Independent contractor,Piece rate,,,600.00,600.00,0.00,Accrued\r\n2026-07-06T15:00:00.000Z,Dev Patel,Independent contractor,Clawback,,,-20.00,-20.00,0.00,Accrued\r\n2026-07-06T15:00:00.000Z,\"Acme Roofing, LLC\",Subcontractor,Piece rate,,,8000.00,8000.00,0.00,Accrued\r\n2026-07-06T15:00:00.000Z,\"Acme Roofing, LLC\",Subcontractor,Reimbursement,,,15.00,15.00,0.00,Accrued\r\n2026-07-06T15:00:00.000Z,Haul Away,Subcontractor,Piece rate,,,120.00,120.00,0.00,Accrued\r\n2026-07-07T00:00:00.000Z,Ana Lopez,Employee,Hourly,,Paid outside a pay run on 2026-07-07 (Check 1042),-300.00,-300.00,0.00,Accrued\r\n2026-07-07T00:00:00.000Z,\"Acme Roofing, LLC\",Subcontractor,Piece rate,,Paid outside a pay run on 2026-07-07,-100.00,-100.00,0.00,Accrued\r\n2026-07-08T15:00:00.000Z,Ana Lopez,Employee,Commission,,,123.45,0.00,123.45,Projected\r\n"
+ }
+}

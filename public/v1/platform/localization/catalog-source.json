@@ -4458,7 +4458,27 @@
     "m_9375ea07e12ed2": "The schedule could not load here.",
     "m_139d25dd63fc7a": "Accepted documents",
     "m_a4e41417cad3ab": "Loading accepted document…",
-    "m_b1c0e9782001c3": "Resize project widgets and scope of work"
+    "m_b1c0e9782001c3": "Resize project widgets and scope of work",
+    "m_75b6f6539a463d": "Confirm by",
+    "m_58a51d7c8f6402": "How everyone in your organization confirms work before it is paid, here and in Closeout",
+    "m_7d6816bf794980": "How work is confirmed",
+    "m_371174b73db795": {
+      "message": "{v0} line{v1} paid out · {v2}",
+      "format": "icu"
+    },
+    "m_843816a1d59a9f": "Pay out the rest",
+    "m_89b372f17cd70f": "Confirmation method saved",
+    "m_2c3b85d1d7055f": {
+      "message": "Work is now confirmed by {v0} everywhere in your organization.",
+      "format": "icu"
+    },
+    "m_0b79badbf56f5e": {
+      "message": "{v1} line{v2} paid out · {v3}. Pay out the rest below, or cancel it if it will not be done.",
+      "format": "icu"
+    },
+    "m_6ec42894be6710": "Cancel the rest…",
+    "m_bae3966338ea32": "Confirm each work order as done, then finalize it. Finalizing marks it completed and to be paid and locks it; its cost then counts as actual in the final expenses. Lines that are not done yet can be paid out later; to finish this step, pay out the rest of each work order or cancel it.",
+    "m_c3275f879c07ed": "Cancel the rest of this work order?"
   },
   "measurements": {
     "m_aaf397f737f7b1": "Residential",
@@ -13052,7 +13072,51 @@
     "m_9108e5c2225737": "Work hours",
     "m_ddfd6d8530be4c": "Wrap-up time (seconds)",
     "m_0380c5d48bed57": "Your lines",
-    "m_6a7449ce7927ec": "Your voicemail greeting"
+    "m_6a7449ce7927ec": "Your voicemail greeting",
+    "m_d987f50b080450": "Confirming work orders",
+    "m_6788c0f72d7a7c": "How the work on a work order is confirmed before it is paid out, in Pay out and in Closeout, for everyone in your organization.",
+    "m_c48ac59ac306ad": "Row field",
+    "m_0ef2536fb7f42e": "Equals the earning's",
+    "m_0dd50a1a5187ef": "project_id",
+    "m_34155ec48384a5": "$earning.project_id",
+    "m_f448988d380718": "Whom each row is about",
+    "m_e13243f3ede2be": "Member field",
+    "m_ec229817c535f9": "The field naming the member (",
+    "m_a0da6f00858857": "organization_user:&lt;id&gt;",
+    "m_074373c4cfa864": ") a row is about. Rows about anyone who did not share the earning are left out.",
+    "m_5323c502f1384c": "Rows that belong to the earning",
+    "m_c74ed37669ecf9": " Match a field",
+    "m_1541e88b0edac2": "Each row field must equal that value of the earning, such as the job it was earned on. An earning without that value gets no rows.",
+    "m_bebe32f13cfd37": "Rows that belong to the earning by time",
+    "m_e35dd04ae3e190": "Only rows that touch the earned day",
+    "m_bd57c10509213c": "A row is in when the span from its start to its end touches the window. With an end field each row also carries the exact ",
+    "m_9d86f20f8905ef": "seconds",
+    "m_82be95ffb11115": " inside it.",
+    "m_751884912db505": "assignee_key",
+    "m_248e6279ed5ae0": "Advanced: the formula",
+    "m_1acd822c8bd9cf": "Split rule name",
+    "m_34c08e93da3a58": "The published data the split may read, such as who was on the job and the hours each person clocked. Selected once per refresh for the whole group.",
+    "m_d7a10d2c493435": "Numbers and switches each group sets without touching the formula, such as a lead's extra share.",
+    "m_8d611102db6a7e": "Run once per earning line. It returns each member's weight, not money.",
+    "m_3c7331bafd8d13": "earning",
+    "m_3a154022374c6a": "members",
+    "m_df9e995911bb14": ", who shared it on the day it was earned), ",
+    "m_99a90b8ec4d79e": "rows",
+    "m_df4517d8493396": " (each input's rows for this earning), ",
+    "m_578a67ce9a87b3": "group",
+    "m_fde1da98af96b9": ". Return ",
+    "m_5bb654b8ae848c": ". A member left out or given 0 gets nothing. If it throws, the earning is left unresolved, never divided as zero.",
+    "m_22c4ceb564f5f7": "Split rules keep every version. An earning is divided with the version in effect on the day it was earned.",
+    "m_4d643b6f57af31": "By hours on the job",
+    "m_f6d2d0142d43b9": "How the group's pay is divided and from what",
+    "m_2817c74543aae8": "Split rules",
+    "m_1c3d5e4aebe6ff": "A split rule divides what a group earns among its members, from data such as who was on the job and the hours they clocked. A group chooses its split rule in People, Compensation.",
+    "m_da834a78043f34": " New split rule",
+    "m_60de4e88f595cb": "Advanced: the formula Run once per earning line. It returns each member's weight, not money.",
+    "m_318c0b4455422f": "End field",
+    "m_cf56c8e1c1e9ff": "A row is in when the span from its start to its end touches the window. With an end field each row also carries the exact seconds inside it.",
+    "m_76d0a0f6b92b6b": "Start field",
+    "m_6945dd9fd27fb0": "The window starts"
   },
   "signatures": {
     "m_2ebfdc1730afd2": "Add Work",
@@ -19506,7 +19570,13 @@
     "polish_empty": "The AI returned no usable text. Your original draft is unchanged.",
     "polish_format_changed": "The polish could not preserve your formatting. Your original draft is unchanged.",
     "note_audience_denied": "Choose active groups and users available in your departments.",
-    "referral_staff_required": "Only FirstMate staff who manage sales can use referral and campaign tools."
+    "referral_staff_required": "Only FirstMate staff who manage sales can use referral and campaign tools.",
+    "labor_finalize_unconfirmed": "Confirm at least one line item to pay out.",
+    "completion_settings_revision": "Someone else changed how work is confirmed. Reload and try again.",
+    "labor_cancel_not_labor": "Only a work order's labor list is cancelled this way.",
+    "payroll_export_type_unknown": "This report is not available.",
+    "membership_day_invalid": "Give the day as YYYY-MM-DD.",
+    "membership_day_future": "A member joins or leaves today or on a past day."
   },
   "notifications": {
     "document_greeting": {

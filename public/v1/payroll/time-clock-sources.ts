@@ -136,8 +136,12 @@ export function timeClockExports(): Record<typeof TIME_CLOCK_EXPORTS[number], Da
     time_shifts: {
       description: "Every time clock shift, one row each, including shifts still on the clock (`status` active or closed): who worked (`user_id`, `assignee_key`), `project_id`, `clocked_in_at`, `clocked_out_at`, finished `break_seconds` and `break_count`, `timezone`, and under `clock_in` and `clock_out` when and where each happened (`occurred_at`, `location_status` captured, denied or unavailable, `latitude`, `longitude`, `accuracy_meters`, `location_reason`, `distance_to_project_meters`). Review: `approval_status` (active, pending, approved, rejected), who approved or rejected it and when, `manager_note`, and whether and when it was corrected. `elapsed_seconds` and `worked_seconds` (net of breaks) are present only once a shift is closed. `revision` changes whenever anything in the row does.",
       schema: rows, schemaVersion: "2", access, units: { worked_seconds: "seconds", elapsed_seconds: "seconds", break_seconds: "seconds", "clock_in.accuracy_meters": "meters", "clock_in.distance_to_project_meters": "meters", "clock_out.accuracy_meters": "meters", "clock_out.distance_to_project_meters": "meters" },
+      // `projected: true` reads the time not worked yet: each person's scheduled time over the next weeks as the approved,
+      // closed shifts it is expected to become (roster-sources.ts), for projected pay. Never mixed with real shifts.
+      argsSchema: { type: "object", properties: { projected: { type: "boolean" } }, additionalProperties: false },
       read: listOnly("time shifts"),
-      list: async (ctx, _ref, page) => {
+      list: async (ctx, ref, page) => {
+        if (ref.args?.projected === true) return { items: await (await import("./roster-sources.js")).projectedShiftRows(ctx.organizationId, ctx.auth) };
         const shifts = await listCrewTimeShiftPage(ctx.organizationId, { after: page.cursor, limit: page.limit + 1 });
         const shown = shifts.slice(0, page.limit) as JsonObject[];
         const locations = await projectLocations(ctx.organizationId, shown.map((shift) => text(shift.project_id)));

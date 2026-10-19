@@ -7,7 +7,7 @@ import { describeDataProvider } from "../platform/publication/providers.js";
 import { selectPublishedData, type SelectedRow } from "../platform/publication/select.js";
 import { contentHash as hashJson } from "../platform/publication/validation.js";
 import {
-  candidateRuleSlots, distributionOn, draftPayDefault, draftPayPlan, draftPayRule, effectiveRuleSlots, ensurePayRuleSchema, listPayDefaults, listPayPlans, listPayRules, listPaySetups, listPaySplitRules, payDefaultSubjectsFor, payeeKey, payLayersFor, resolvePaySchedule, resolvedParams, versionOn,
+  candidateRuleSlots, distributionOn, draftPayDefault, draftPayPlan, draftPayRule, draftPaySplitRule, effectiveRuleSlots, ensurePayRuleSchema, listPayDefaults, listPayPlans, listPayRules, listPaySetups, listPaySplitRules, payDefaultSubjectsFor, payeeKey, payLayersFor, resolvePaySchedule, resolvedParams, versionOn,
   type Actor, type PayDefault, type PayLayer, type PayPlan, type PayRule, type PayRuleDefinition, type PayRuleVersion, type PaySetup, type PaySplitDefinition, type PaySplitRule, type PaySplitRuleVersion
 } from "./pay-rules.js";
 import type { PayrollLedgerEntryInput, PayrollPayeeRef } from "./schemas.js";
@@ -31,6 +31,8 @@ export type PayRefreshResult = {
   payee: Assignee; payee_name?: string; evaluated: number; unchanged: number; differences: PayDifference[]; unresolved: PayUnresolved[];
   /** Ledger entries written by this refresh. Empty for a preview. */
   posted: JsonObject[];
+  /** With `explain`: how each earning divided by a split rule would be divided, line by line (`explainSplit`). */
+  splits?: Array<{ rule_id: string; unit: string; earned_on: string } & ReturnType<typeof explainSplit>>;
 };
 export type PayRefreshOptions = {
   /** Work out and report differences without posting or remembering anything. */
@@ -38,11 +40,19 @@ export type PayRefreshOptions = {
   /** Evaluate as if the payee had this setup. Only with `dryRun`. */
   setup?: Pick<PaySetup, "entries" | "distribution" | "schedules">;
   /** Evaluate as if these rules, plans and defaults had been saved, in place of the stored ones with the same id or subject. Only with `dryRun`. */
-  overrides?: { rules?: PayRule[]; plans?: PayPlan[]; defaults?: Pick<PayDefault, "subject" | "entries" | "distribution" | "schedules">[] };
+  overrides?: { rules?: PayRule[]; plans?: PayPlan[]; splitRules?: PaySplitRule[]; defaults?: Pick<PayDefault, "subject" | "entries" | "distribution" | "schedules">[] };
+  /** Only with `dryRun`: work every earning out again (not only what changed) and say how each one divided by a split rule would be divided. */
+  explain?: boolean;
   /** The instant "now" is. Periods that end after it are not earned yet. */
   asOf?: string;
   /** Reads run as each rule's author unless a trusted caller supplies the context. */
   context?: PublicationContext;
+  /**
+   * The final refresh of a payee who was removed (`finalPayOnRemoval`): their archived record still says who they were
+   * and which defaults covered them, and nothing is earned after `closeThrough`, their last active day. A period that
+   * runs past it (this week's hours) is earned up to and including that day.
+   */
+  removed?: { closeThrough: string };
 };
 
 type Row = SelectedRow;
@@ -149,8 +159,8 @@ const shapeOf = (definition: PayRuleDefinition) => contentHash({
   timezone: definition.timezone, earned_at: definition.earned_at, project: definition.project, inputs: definition.inputs
 });
 
-async function payeeRef(orgId: string, payee: Assignee): Promise<PayrollPayeeRef | null> {
-  const found = await readAssignee(orgId, payee);
+async function payeeRef(orgId: string, payee: Assignee, includeArchived = false): Promise<PayrollPayeeRef | null> {
+  const found = includeArchived ? await (await import("../assignees/base.js")).readAssigneeStoreRecord(orgId, payee).catch(() => null) : await readAssignee(orgId, payee);
   if (!found) return null;
   const classification = text(found.record.worker_classification);
   const worker_type = payee.type === "organization_connection" ? "subcontractor"
@@ -172,8 +182,8 @@ async function readInputs(ctx: PublicationContext, orgId: string, definition: Pa
   return { rows };
 }
 
-/** Every record or period one shape of a rule could pay, before asking whether the rule applied on that day. */
-function unitsFor(definition: PayRuleDefinition, rows: Record<string, Row[]>, timezone: string, asOfDay: string, firstDay: string) {
+/** Every record or period one shape of a rule could pay, before asking whether the rule applied on that day. `closeThrough`: nothing after this day is earned. */
+function unitsFor(definition: PayRuleDefinition, rows: Record<string, Row[]>, timezone: string, asOfDay: string, firstDay: string, closeThrough = "") {
   const sharedNames = Object.entries(definition.inputs).filter(([, input]) => definition.grain === "record" ? !input.primary : !input.date).map(([name]) => name);
   const shared: JsonObject = Object.fromEntries(sharedNames.map((name) => [name, rows[name]!.map((row) => row.value)]));
   const sharedEvidence = sharedNames.flatMap((name) => rows[name]!.map((row): [string, string, string] => [name, row.key, row.revision]));
@@ -182,7 +192,7 @@ function unitsFor(definition: PayRuleDefinition, rows: Record<string, Row[]>, ti
     const [name] = Object.entries(definition.inputs).find(([, input]) => input.primary)!;
     for (const row of rows[name]!) {
       const earned = rowDate(row.value, definition.earned_at!, timezone);
-      if (!earned || earned.date > asOfDay) continue;
+      if (!earned || earned.date > asOfDay || (closeThrough && earned.date > closeThrough)) continue;
       units.push({ key: row.key, date: earned.date, earned_at: earned.instant, payload: { record: row.value, earned_at: earned.instant },
         evidence: [[name, row.key, row.revision]], project_id: definition.project ? text(readField(row.value, definition.project)) : "" });
     }
@@ -197,13 +207,15 @@ function unitsFor(definition: PayRuleDefinition, rows: Record<string, Row[]>, ti
     const dated = Object.entries(definition.inputs).filter(([, input]) => input.date);
     for (const [name, input] of dated) for (const row of rows[name]!) {
       const at = rowDate(row.value, input.date!, timezone);
-      if (at) (bucket(at.date).rows[name] ||= []).push(row);
+      if (at && !(closeThrough && at.date > closeThrough)) (bucket(at.date).rows[name] ||= []).push(row);
     }
     if (definition.always && firstDay) for (let at = utc(payPeriodOf(firstDay, period, definition.week_starts).from), count = 0; dayOf(at) <= asOfDay && count < 4000; count++) {
       const range = bucket(dayOf(at));
       at = utc(range.through) + DAY;
     }
     for (const [key, entry] of buckets) {
+      // A payee who was removed earns nothing after their last active day; a period that runs past it ends on it.
+      if (closeThrough) { if (entry.from > closeThrough) continue; if (entry.through > closeThrough) entry.through = closeThrough; }
       // A period is earned once its last day is over.
       if (entry.through >= asOfDay) continue;
       units.push({ key, date: entry.through, earned_at: `${entry.through}T12:00:00.000Z`, project_id: "",
@@ -485,13 +497,14 @@ export async function refreshPayeeEarnings(orgId: string, payee: Assignee, optio
   const dryRun = !!options.dryRun;
   const asOf = options.asOf || nowIso();
   const owner = payeeKey(payee);
-  const ref = await payeeRef(orgId, payee);
-  // Someone who was removed keeps everything already worked out and posted; nothing new is worked out for them.
+  const closeThrough = options.removed?.closeThrough || "";
+  const ref = await payeeRef(orgId, payee, !!closeThrough);
+  // Someone who was removed keeps everything already worked out and posted; nothing new is worked out for them (only their final refresh, at removal).
   if (!ref) { result.unresolved.push({ rule_id: "", reason: "This payee is no longer available in the organization." }); return result; }
   result.payee_name = ref.name || "";
   const overrides = dryRun ? options.overrides : undefined;
   // A refresh that posts also notes which defaults cover the payee today, so a role given or taken away later starts or stops paying from that day.
-  const layers = await payLayersFor(orgId, payee, dryRun && options.setup ? options.setup : undefined, { day: asOf.slice(0, 10), record: !dryRun, defaults: overrides?.defaults });
+  const layers = await payLayersFor(orgId, payee, dryRun && options.setup ? options.setup : undefined, { day: asOf.slice(0, 10), record: !dryRun, defaults: overrides?.defaults, includeArchived: !!closeThrough });
   const rules = new Map((await listPayRules(orgId)).map((rule) => [rule.id, rule]));
   const plans = new Map<string, PayPlan>((await listPayPlans(orgId)).map((plan) => [plan.id, plan]));
   for (const rule of overrides?.rules || []) rules.set(rule.id, rule);
@@ -521,14 +534,12 @@ export async function refreshPayeeEarnings(orgId: string, payee: Assignee, optio
     if (!refs.has(key)) { const [type, ...rest] = key.split(":"); refs.set(key, await payeeRef(orgId, { type, id: rest.join(":") } as Assignee)); }
     return refs.get(key)!;
   };
-  const NO_MEMBERS = "This group has no active members to split its pay among.";
-  let members: string[] | null = null;
-  const currentMembers = async () => {
-    if (!members) {
-      const group = (await (await import("../workforce/storage.js")).listAssignmentGroups(orgId, true)).find((entry) => text((entry as JsonObject).id) === payee.id) as JsonObject | undefined;
-      members = (Array.isArray(group?.members) ? group!.members as JsonObject[] : []).filter((member) => text(member.status || "active") === "active").map((member) => text(member.user_id)).filter(Boolean).sort();
-    }
-    return members;
+  const NO_MEMBERS = "This group had no active members on the day this was earned to split its pay among.";
+  // Who was a member on the day an earning was earned, from the group's membership history (workforce store).
+  const memberDays = new Map<string, Promise<string[]>>();
+  const membersOn = (date: string) => {
+    if (!memberDays.has(date)) memberDays.set(date, payee.type === "resource_group" ? import("../workforce/storage.js").then((store) => store.membersOfGroupOn(orgId, payee.id, date)).catch(() => []) : Promise.resolve([]));
+    return memberDays.get(date)!;
   };
   /** Who shares this earning under `equal` or `shares`. Kept from the first time it was worked out unless the distribution setting itself has changed. */
   const allocationFor = async (date: string, prior: PayAllocation | null | undefined): Promise<PayAllocation | null | { error: string }> => {
@@ -537,17 +548,23 @@ export async function refreshPayeeEarnings(orgId: string, payee: Assignee, optio
     const basis = contentHash(setting);
     if (prior && prior.basis === basis) return prior;
     if (setting.method === "shares") return { basis, method: "shares", members: Object.entries(setting.shares || {}).map(([id, weight]) => ({ id, weight })).sort((a, b) => a.id.localeCompare(b.id)) };
-    const active = await currentMembers();
+    const active = await membersOn(date);
     return active.length ? { basis, method: "equal", members: active.map((id) => ({ id, weight: 1 })) } : { error: NO_MEMBERS };
   };
 
   // ---- Split rules: weights worked out from data, among the members captured when the earning was first worked out ----
   const splitRules = new Map<string, PaySplitRule>(payee.type === "resource_group" ? (await listPaySplitRules(orgId)).map((rule) => [rule.id, rule]) : []);
+  for (const rule of payee.type === "resource_group" ? overrides?.splitRules || [] : []) splitRules.set(rule.id, rule);
+  const explain = dryRun && !!options.explain;
+  if (explain) result.splits = [];
   /** Members captured from the group itself (not named in fixed shares), which a split rule keeps dividing among. */
   const captured = (allocation: PayAllocation | null | undefined) => allocation && (allocation.method === "equal" || allocation.method === "rule") && allocation.members.length ? allocation.members.map((member) => member.id) : null;
   let universe: string[] | null = null;
-  /** Everyone any of this group's earnings could be divided among: today's members and those captured on earlier earnings. One selection per input covers them all. */
-  const memberUniverse = async () => universe ||= [...new Set([...await currentMembers(), ...stored.flatMap((entry) => captured(entry.allocation) || [])])].sort();
+  /** Everyone any of this group's earnings could be divided among: everyone who was ever a member and those captured on earlier earnings. One selection per input covers them all. */
+  const memberUniverse = async () => universe ||= [...new Set([
+    ...(payee.type === "resource_group" ? (await (await import("../workforce/storage.js")).groupMembershipHistory(orgId, payee.id).catch(() => [])).map((row) => row.user_id) : []),
+    ...stored.flatMap((entry) => captured(entry.allocation) || [])
+  ])].sort();
   const splitReads = new Map<string, Promise<SplitRead>>();
   const readSplit = (version: PaySplitRuleVersion) => {
     const shape = contentHash(version.definition.inputs);
@@ -570,7 +587,7 @@ export async function refreshPayeeEarnings(orgId: string, payee: Assignee, optio
     const rule = splitRules.get(setting.split_rule_id!);
     const version = rule && versionOn(rule.versions, unit.date);
     if (!rule || !version) return { ...plan, error: rule ? `Split rule ${rule.name} has no version in effect on ${unit.date}.` : `Split rule ${setting.split_rule_id} does not exist.` };
-    Object.assign(plan, { rule, version, params: resolvedParams(version.definition, setting.params || {}), members: captured(prior?.allocation) || await currentMembers() });
+    Object.assign(plan, { rule, version, params: resolvedParams(version.definition, setting.params || {}), members: captured(prior?.allocation) || await membersOn(unit.date) });
     if (!plan.members.length) return { ...plan, error: NO_MEMBERS };
     const read = await readSplit(version);
     if ("failure" in read) return { ...plan, error: `${rule.name}: ${read.failure}` };
@@ -649,7 +666,9 @@ export async function refreshPayeeEarnings(orgId: string, payee: Assignee, optio
       if (!read.rows) { await ruleFailed(ruleId, read.failure!); break; }
       const schedule = definition.timezone ? null : await scheduleFor(owner, definition.kind, asOf.slice(0, 10));
       const timezone = definition.timezone || text((schedule?.schedule as JsonObject | undefined)?.timezone) || "UTC";
-      const built = unitsFor(definition, read.rows, timezone, localDay(Date.parse(asOf), timezone), firstDay);
+      const asOfDay = closeThrough ? dayOf(utc(closeThrough) + DAY) : localDay(Date.parse(asOf), timezone);
+      // A final refresh earns through the last active day itself (its daily salary included), and nothing after it.
+      const built = unitsFor(definition, read.rows, timezone, asOfDay, firstDay, closeThrough);
       const sharedDigest = contentHash(built.sharedEvidence);
       const earlier = new Map(stored.filter((entry) => entry.rule_id === ruleId).map((entry) => [entry.unit_key, entry]));
       for (const unit of built.units) {
@@ -672,7 +691,7 @@ export async function refreshPayeeEarnings(orgId: string, payee: Assignee, optio
       await getPayrollDatabase().prepare("DELETE FROM pay_rule_units WHERE organization_id=? AND payee_type=? AND payee_id=? AND rule_id=? AND unit_key=?").run(orgId, payee.type, payee.id, ruleId, WHOLE_RULE);
     }
     const before = new Map(stored.filter((entry) => entry.rule_id === ruleId).map((entry) => [entry.unit_key, entry]));
-    const changed = planned.filter((unit) => { desired.add(`${ruleId}\u0000${unit.key}`); const prior = before.get(unit.key); return !(prior && prior.status === "ok" && prior.digest === unit.digest); });
+    const changed = planned.filter((unit) => { desired.add(`${ruleId}\u0000${unit.key}`); const prior = before.get(unit.key); return explain || !(prior && prior.status === "ok" && prior.digest === unit.digest); });
     result.unchanged += planned.length - changed.length;
     // Could not be worked out is not zero: what was posted before stays, with who shared it, and the reason is reported.
     const unresolved = async (unit: Planned, reason: string) => {
@@ -714,6 +733,7 @@ export async function refreshPayeeEarnings(orgId: string, payee: Assignee, optio
             ? { basis: unit.split.basis, method: "rule", members: unit.split.members.map((id) => ({ id, weight: 1 })), rule: { id: unit.split.rule!.id, version: unit.split.version!.version, params: unit.split.params, lines: weights!.lines! } }
             : await allocationFor(unit.date, prior?.allocation);
           if (allocation && "error" in allocation) throw new Error(allocation.error);
+          if (explain && allocation?.rule) result.splits!.push({ rule_id: ruleId, unit: unit.key, earned_on: unit.date, ...explainSplit(allocation, outcome.lines) });
           await reconcile(ruleId, unit, unit.rule, unit.version, unit.params, outcome.lines, prior?.lines || [], allocation);
           if (!dryRun) await saveUnit(orgId, payee, ruleId, { key: unit.key, digest: unit.digest, status: "ok", earned_at: unit.earned_at, version: unit.version.version, lines: outcome.lines, error: "", evidence: unit.evidence, allocation });
         } catch (error) {
@@ -747,10 +767,42 @@ export async function declinePayCorrection(orgId: string, entryId: string, actor
   return voidPayrollLedgerEntry(orgId, entryId, { pay_rule_declined: true, declined_by_user_id: actor.userId, declined_at: nowIso(), ...(note ? { declined_note: note.slice(0, 500) } : {}) });
 }
 
+/**
+ * When each difference a preview reports would be paid: the pay schedule that pays that kind of earning for that
+ * payee (`resolvePaySchedule`, as the ledger would choose it) and its first pay date on or after today whose cut-off
+ * the earning makes. A correction to an earning already in a pay run is paid from now on, so it lands on the next pay
+ * date; one held for review lands on none until someone accepts it.
+ */
+export async function withPayDates<T extends PayDifference>(orgId: string, owner: Assignee, differences: T[], kinds: Map<string, string>, asOf = nowIso()) {
+  const { payrollEligibleAt, payrollOccurrences } = await import("./schedule.js");
+  const today = asOf.slice(0, 10), through = dayOf(utc(today) + 400 * DAY);
+  const cache = new Map<string, Promise<Awaited<ReturnType<typeof resolvePaySchedule>>>>();
+  const out: (T & { pay_date: string; schedule_id: string; schedule_name: string })[] = [];
+  for (const difference of differences) {
+    const who = difference.payee ? { type: difference.payee.split(":")[0], id: difference.payee.split(":").slice(1).join(":") } as Assignee : owner;
+    const kind = kinds.get(difference.rule_id) || "adjustment";
+    const corrected = difference.handling !== "normal";
+    const day = corrected ? today : difference.earned_on;
+    const key = `${payeeKey(who)}|${kind}|${day}`;
+    if (!cache.has(key)) cache.set(key, resolvePaySchedule(orgId, who, kind, day).catch(() => null));
+    const chosen = await cache.get(key)!;
+    if (!chosen || difference.handling === "hold") { out.push({ ...difference, pay_date: "", schedule_id: chosen?.schedule_id || "", schedule_name: chosen ? text(chosen.schedule.name) : "" }); continue; }
+    const at = corrected ? asOf : payrollEligibleAt({ worked_at: `${difference.earned_on}T12:00:00.000Z`, completed_at: `${difference.earned_on}T12:00:00.000Z` }, chosen.timing_basis || text(chosen.schedule.timing_basis));
+    const landing = payrollOccurrences(chosen.schedule, today, through).find((occurrence) => Date.parse(text(occurrence.cutoff_at)) >= Date.parse(at));
+    out.push({ ...difference, pay_date: text(landing?.pay_date), schedule_id: chosen.schedule_id, schedule_name: text(chosen.schedule.name) });
+  }
+  return out;
+}
+async function ruleKinds(orgId: string, extra: PayRule[] = []) {
+  const kinds = new Map((await listPayRules(orgId)).map((rule) => [rule.id, versionOn(rule.versions, "9999-12-31")?.definition.kind || "adjustment"] as [string, string]));
+  for (const rule of extra) kinds.set(rule.id, versionOn(rule.versions, "9999-12-31")?.definition.kind || "adjustment");
+  return kinds;
+}
+
 /** What saving this setup would change, earning by earning, without changing anything. Use it before backdating. */
 export async function previewPaySetup(orgId: string, payee: Assignee, setup: Pick<PaySetup, "entries" | "distribution" | "schedules">, options: Pick<PayRefreshOptions, "asOf" | "context"> = {}) {
   const preview = await refreshPayeeEarnings(orgId, payee, { ...options, dryRun: true, setup });
-  return { ...preview, total_delta_cents: preview.differences.reduce((sum, difference) => sum + difference.delta_cents, 0) };
+  return { ...preview, differences: await withPayDates(orgId, payee, preview.differences, await ruleKinds(orgId), options.asOf), total_delta_cents: preview.differences.reduce((sum, difference) => sum + difference.delta_cents, 0) };
 }
 
 type Overrides = NonNullable<PayRefreshOptions["overrides"]>;
@@ -763,14 +815,16 @@ export const PAY_PREVIEW_PAYEE_LIMIT = 200;
  * they would be; only what differs between the two is reported, so differences that are already waiting for the next
  * refresh for other reasons are not blamed on this change.
  */
-export async function previewPayChange(orgId: string, change: { rule?: PayRule; plan?: PayPlan; default?: DefaultDraft }, options: Pick<PayRefreshOptions, "asOf" | "context"> = {}) {
-  const overrides: Overrides = { ...(change.rule ? { rules: [change.rule] } : {}), ...(change.plan ? { plans: [change.plan] } : {}), ...(change.default ? { defaults: [change.default] } : {}) };
+export async function previewPayChange(orgId: string, change: { rule?: PayRule; plan?: PayPlan; default?: DefaultDraft; split?: PaySplitRule }, options: Pick<PayRefreshOptions, "asOf" | "context"> = {}) {
+  const overrides: Overrides = { ...(change.rule ? { rules: [change.rule] } : {}), ...(change.plan ? { plans: [change.plan] } : {}), ...(change.default ? { defaults: [change.default] } : {}), ...(change.split ? { splitRules: [change.split] } : {}) };
+  const kinds = await ruleKinds(orgId, change.rule ? [change.rule] : []);
   const plans = new Map<string, PayPlan>((await listPayPlans(orgId)).map((plan) => [plan.id, plan]));
   if (change.plan) plans.set(change.plan.id, change.plan);
   const affected: Assignee[] = [];
   for (const payee of await payeesWithPay(orgId, overrides.defaults)) {
     const layers = await payLayersFor(orgId, payee, undefined, { defaults: overrides.defaults });
-    const touches = change.default ? layers.some((layer) => layer.source?.type === change.default!.subject.type && layer.source.id === change.default!.subject.id)
+    const touches = change.split ? payee.type === "resource_group" && layers.some((layer) => (layer.distribution || []).some((entry) => entry.split_rule_id === change.split!.id))
+      : change.default ? layers.some((layer) => layer.source?.type === change.default!.subject.type && layer.source.id === change.default!.subject.id)
       : change.plan ? layers.some((layer) => layer.entries.some((entry) => entry.kind === "plan" && entry.plan_id === change.plan!.id))
         : [...candidateRuleSlots(layers, plans).values()].some((definitions) => definitions.has(change.rule!.id));
     if (touches) affected.push(payee);
@@ -784,7 +838,8 @@ export async function previewPayChange(orgId: string, change: { rule?: PayRule; 
   const payees = [];
   for (const payee of affected.slice(0, PAY_PREVIEW_PAYEE_LIMIT)) {
     const before = await refreshPayeeEarnings(orgId, payee, { ...options, dryRun: true });
-    const after = await refreshPayeeEarnings(orgId, payee, { ...options, dryRun: true, overrides });
+    // A split rule's preview also says how the group's latest earnings would be divided under it.
+    const after = await refreshPayeeEarnings(orgId, payee, { ...options, dryRun: true, overrides, explain: !!change.split });
     const waiting = new Map(before.differences.map((difference) => [key(difference), difference.target_cents]));
     // What the change itself moves: the amount an earning would come to with it, against what it would come to without it.
     const differences = after.differences.map((difference) => ({ ...difference, without_change_cents: waiting.get(key(difference)) ?? difference.posted_cents }))
@@ -796,11 +851,12 @@ export async function previewPayChange(orgId: string, change: { rule?: PayRule; 
     }
     const known = new Set(before.unresolved.map((entry) => `${entry.rule_id}\u0000${entry.unit || ""}\u0000${entry.reason}`));
     const unresolved = after.unresolved.filter((entry) => !known.has(`${entry.rule_id}\u0000${entry.unit || ""}\u0000${entry.reason}`));
-    if (differences.length || unresolved.length) payees.push({ payee, payee_name: after.payee_name || "", differences, unresolved, change_cents: differences.reduce((sum, difference) => sum + difference.change_cents, 0) });
+    const samples = change.split ? (after.splits || []).sort((a, b) => b.earned_on.localeCompare(a.earned_on) || a.unit.localeCompare(b.unit)).slice(0, 3) : [];
+    if (differences.length || unresolved.length || samples.length) payees.push({ payee, payee_name: after.payee_name || "", differences: await withPayDates(orgId, payee, differences, kinds, options.asOf), unresolved, change_cents: differences.reduce((sum, difference) => sum + difference.change_cents, 0), ...(change.split ? { samples } : {}) });
   }
   const all = payees.flatMap((entry) => entry.differences);
   return {
-    payee_count: affected.length, changed_payee_count: payees.length, payees,
+    payee_count: affected.length, changed_payee_count: payees.filter((entry) => entry.differences.length).length, payees,
     difference_count: all.length, change_cents: all.reduce((sum, difference) => sum + difference.change_cents, 0),
     /** Changes to earnings that have already been in a pay run and would be held for someone to accept. */
     held_count: all.filter((difference) => difference.handling === "hold").length,
@@ -820,6 +876,11 @@ export async function previewPayPlanSave(orgId: string, input: unknown, actor: A
 export async function previewPayDefaultSave(orgId: string, input: unknown, actor: Actor, options: Pick<PayRefreshOptions, "asOf" | "context"> = {}) {
   const { data } = await draftPayDefault(orgId, input, actor, { lookUpRoles: false });
   return previewPayChange(orgId, { default: data }, options);
+}
+/** What saving this version of a split rule would change for every group divided by it, with how each group's latest earnings would be divided. Writes nothing. */
+export async function previewPaySplitRuleSave(orgId: string, input: unknown, actor: Actor, options: Pick<PayRefreshOptions, "asOf" | "context"> = {}) {
+  const { data, current } = await draftPaySplitRule(orgId, input, actor);
+  return previewPayChange(orgId, { split: { ...data, revision: current?.revision || 0 } }, options);
 }
 
 /** Everyone who could be paid today: users, groups of users and outside companies that have not been removed. Reads only. */
@@ -934,11 +995,44 @@ export type PayProjection = {
 };
 export type PayProjectionOptions = Pick<PayRefreshOptions, "asOf" | "context">;
 
+/** How far ahead a rule that pays by period is projected: the periods that end within this many days of today. */
+export const PROJECTED_PERIOD_DAYS = 35;
+/**
+ * The periods of a rule that pays by period that are not earned yet and end within the projection's reach: the
+ * current period and the ones after it. Each holds the rows dated in it, real (what happened so far this period)
+ * and projected (what is scheduled to happen). With `always` (a salary) every period counts, rows or not.
+ */
+function projectedPeriodUnits(definition: PayRuleDefinition, rows: Record<string, Row[]>, timezone: string, today: string, horizon: string) {
+  const period = definition.period!;
+  const buckets = new Map<string, { from: string; through: string; rows: Record<string, Row[]> }>();
+  const bucket = (date: string) => {
+    const range = payPeriodOf(date, period, definition.week_starts);
+    if (!buckets.has(range.key)) buckets.set(range.key, { from: range.from, through: range.through, rows: {} });
+    return buckets.get(range.key)!;
+  };
+  const dated = Object.entries(definition.inputs).filter(([, input]) => input.date);
+  for (const [name, input] of dated) for (const row of rows[name] || []) {
+    const at = rowDate(row.value, input.date!, timezone);
+    if (at && at.date <= horizon) (bucket(at.date).rows[name] ||= []).push(row);
+  }
+  if (definition.always) for (let at = utc(payPeriodOf(today, period, definition.week_starts).from), count = 0; dayOf(at) <= horizon && count < 400; count++) at = utc(bucket(dayOf(at)).through) + DAY;
+  const shared: JsonObject = Object.fromEntries(Object.entries(definition.inputs).filter(([, input]) => !input.date).map(([name]) => [name, (rows[name] || []).map((row) => row.value)]));
+  const units: Unit[] = [];
+  for (const [key, entry] of buckets) {
+    // Earned periods are paid, not projected; a period is projected while its last day has not passed.
+    if (entry.through < today || entry.through > horizon) continue;
+    units.push({ key, date: entry.through, earned_at: `${entry.through}T12:00:00.000Z`, project_id: "", evidence: [],
+      payload: { period: { key, from: entry.from, through: entry.through, ...calendarFacts(entry.from, entry.through) }, rows: Object.fromEntries(dated.map(([name]) => [name, (entry.rows[name] || []).map((row) => row.value)])) } });
+  }
+  return { units: units.sort((a, b) => a.key.localeCompare(b.key)), shared };
+}
+
 /** A source projects its rows when its options take a boolean `projected`. */
 function projectsRows(source: { provider: string; export: string }) {
   const args = describeDataProvider(source.provider)?.exports[source.export]?.argsSchema as { properties?: Record<string, { type?: unknown }> } | undefined;
   return args?.properties?.projected?.type === "boolean";
 }
+const PAY_PERIOD_WORDS: Record<string, string> = { day: "Day", week: "Week", month: "Month", quarter: "Quarter", year: "Year" };
 const LAST = "￿";
 const byExpected = (a: { expected_on: string }, b: { expected_on: string }) => (a.expected_on || LAST).localeCompare(b.expected_on || LAST);
 
@@ -1015,6 +1109,32 @@ export async function projectPayeeEarnings(orgId: string, payee: Assignee, optio
     const planned: (Planned & { record: JsonObject })[] = [];
     for (const [shape, sample] of shapes) {
       const definition = sample.version.definition;
+      if (definition.grain === "period") {
+        // Hours, a salary: the periods not earned yet, from rows so far plus each dated input's projected reading.
+        const projecting = new Set(Object.entries(definition.inputs).filter(([, input]) => input.date && projectsRows(input.source)).map(([name]) => name));
+        if (!definition.always && !projecting.size) continue;
+        let ctx = options.context;
+        if (!ctx) try { ctx = userPublicationContext(await backgroundAuthContext(orgId, sample.version.entered_by)); }
+        catch { unresolved.push({ rule_id: ruleId, reason: "The person who last saved this rule can no longer read its inputs. Save the rule again." }); break; }
+        const actual = await readInputs(ctx, orgId, definition, payee);
+        const ahead = projecting.size ? await readInputs(ctx, orgId, definition, payee, projecting) : { rows: {} as Record<string, Row[]> };
+        if (!actual.rows || !ahead.rows) { unresolved.push({ rule_id: ruleId, reason: (actual.failure || ahead.failure)! }); break; }
+        const rows: Record<string, Row[]> = Object.fromEntries(Object.keys(definition.inputs).map((name) => [name, [...(actual.rows![name] || []), ...(projecting.has(name) ? ahead.rows![name] || [] : [])]]));
+        const schedule = definition.timezone ? null : await resolvePaySchedule(orgId, payee, definition.kind, day, layers).catch(() => null);
+        const timezone = definition.timezone || text((schedule?.schedule as JsonObject | undefined)?.timezone) || "UTC";
+        const today = localDay(Date.parse(asOf), timezone);
+        const built = projectedPeriodUnits(definition, rows, timezone, today, dayOf(utc(today) + PROJECTED_PERIOD_DAYS * DAY));
+        for (const unit of built.units) {
+          if (earned.has(`${ruleId} ${unit.key}`) || planned.some((entry) => entry.key === unit.key)) continue;
+          const slot = effectiveRuleSlots(layers, plans, unit.date).get(ruleId);
+          const rule = slot && rules.get(slot.definition_rule_id);
+          const version = rule && versionOn(rule.versions, unit.date);
+          if (!slot || !rule || !version || shapeOf(version.definition) !== shape) continue;
+          planned.push({ ...unit, rule, version, params: resolvedParams(version.definition, slot.params), digest: "", shared: built.shared, timezone, split: null,
+            record: { title: `${PAY_PERIOD_WORDS[definition.period!] || "Period"} ending ${unit.date}`, expected_from: projecting.size ? "schedule" : "pay_rule", projected_from: projecting.size ? "period_rule" : "salary" } });
+        }
+        continue;
+      }
       const primary = definition.grain === "record" ? Object.entries(definition.inputs).find(([, input]) => input.primary) : undefined;
       if (!primary || !projectsRows(primary[1].source)) continue;
       let ctx = options.context;

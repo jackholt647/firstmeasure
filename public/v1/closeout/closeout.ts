@@ -6,7 +6,7 @@ import { listPublishedData, readPublishedData } from "../platform/publication/pr
 import { listProjectMaterialLists } from "../materials/storage.js";
 import { registerWorkEvents } from "../work/events.js";
 import { requireActor, type Actor } from "../labor/assignees.js";
-import { COMPLETION_METHODS, finalizeLaborList, listCompletions, REOPEN_PERMISSION } from "../labor/completion.js";
+import { COMPLETION_METHODS, finalizeLaborList, listCompletions, listPayState, REOPEN_PERMISSION } from "../labor/completion.js";
 
 /**
  * Closing out a project: checking that everything that should have happened did, then confirming the remaining work
@@ -170,9 +170,11 @@ async function expenseStep(ctx: PublicationContext, projectId: string, lists: Js
 export async function closeoutChecks(ctx: PublicationContext, projectId: string) {
   const lists = (await listProjectMaterialLists(ctx.organizationId, projectId)).filter((list) => text(list.status) !== "archived");
   const completions = (await listCompletions(ctx.organizationId, { project_id: projectId })).filter((entry) => entry.state === "finalized");
-  const finalized = new Map(completions.map((entry) => [entry.list_id, entry.total_cents]));
   const workOrders = lists.filter((list) => text(list.resource_type) === "labor" && (Array.isArray(list.current_items) ? list.current_items : []).length);
-  const workRows = workOrders.map((list): CheckRow => { const done = completions.find((entry) => entry.list_id === text(list.id)); return { id: text(list.id), label: text(obj(obj(list.assignment).work_resource_ref).name) || text(list.title) || "Work order", detail: done ? `Finalized ${day(done.finalized_at)} · ${money(done.total_cents)}` : "Not finalized", status: done ? "ok" : "warning" }; });
+  // A work order is finalized once every line is paid out, in one payout or several; its cost is then the payouts' sum.
+  const pays = new Map(await Promise.all(workOrders.map(async (list) => [text(list.id), await listPayState(ctx.organizationId, list, completions)] as const)));
+  const finalized = new Map([...pays].filter(([, pay]) => pay.state === "paid").map(([id, pay]) => [id, pay.paid_cents]));
+  const workRows = workOrders.map((list): CheckRow => { const pay = pays.get(text(list.id))!; return { id: text(list.id), label: text(obj(obj(list.assignment).work_resource_ref).name) || text(list.title) || "Work order", detail: pay.state === "paid" ? `Finalized ${day(pay.last!.finalized_at)} · ${money(pay.paid_cents)}` : pay.state === "part" ? `${pay.paid.size} of ${pay.lines.length} lines paid out · ${money(pay.paid_cents)}` : "Not finalized", status: pay.state === "paid" ? "ok" : "warning" }; });
   const left = workRows.filter((row) => row.status !== "ok").length;
   const [changes, signatures] = await documentSteps(ctx, projectId);
   const steps: CloseoutStep[] = [changes, signatures, await paymentStep(ctx, projectId), await requirementStep(ctx, projectId), await receiptStep(ctx, projectId, lists),
@@ -219,7 +221,8 @@ export async function closeProject(ctx: PublicationContext, projectId: string, i
   const closeoutId = `closeout_${projectId}_${(existing?.history.length || 0) + 1}`;
   for (const entry of parsed.finalize) await finalizeLaborList(ctx.organizationId, entry, actor, { closeoutId });
   const completions = (await listCompletions(ctx.organizationId, { project_id: projectId })).filter((entry) => entry.state === "finalized");
-  const open = lists.filter((list) => text(list.resource_type) === "labor" && (Array.isArray(list.current_items) ? list.current_items : []).length && !completions.some((entry) => entry.list_id === text(list.id)));
+  const open: typeof lists = [];
+  for (const list of lists.filter((entry) => text(entry.resource_type) === "labor" && (Array.isArray(entry.current_items) ? entry.current_items : []).length)) if ((await listPayState(ctx.organizationId, list, completions)).state !== "paid") open.push(list);
   if (open.length) throw conflict("closeout_work_orders_open", `Confirm and finalize every work order first: ${open.map((list) => text(obj(obj(list.assignment).work_resource_ref).name) || text(list.title) || "a work order").join(", ")}.`);
   const checks = (await closeoutChecks(ctx, projectId)).steps.map((step) => ({ id: step.id, status: step.status, summary: step.summary }));
   const now = new Date().toISOString(), by = text(actor.userId);

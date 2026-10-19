@@ -34,17 +34,17 @@
       }
     },
     "data": {
-      "total": 226,
+      "total": 228,
       "by_kind": {
         "any:membership_only": 11,
-        "any:permission": 215
+        "any:permission": 217
       }
     },
     "actions": {
-      "total": 314,
+      "total": 317,
       "by_kind": {
         "any:membership_only": 24,
-        "any:permission": 290
+        "any:permission": 293
       }
     },
     "tabs": {
@@ -1992,6 +1992,7 @@
     "labor-commitments.settings@1": {"app":"any","permissions":["manage_company_settings"],"capabilities":["platform.materials"],"scopes":["organization"],"kind":"any:permission"},
     "labor-completion.items@1": {"app":"any","permissions":["manage_projects"],"capabilities":["platform.materials"],"scopes":["project"],"kind":"any:permission"},
     "labor-completion.project@1": {"app":"any","permissions":["manage_projects"],"capabilities":["platform.materials"],"scopes":["project"],"kind":"any:permission"},
+    "labor-completion.settings@1": {"app":"any","permissions":["manage_projects"],"capabilities":["platform.materials"],"scopes":["organization","project"],"kind":"any:permission"},
     "lead-import.deliveries@1": {"app":"any","permissions":["manage_projects"],"capabilities":["platform.lead_import"],"scopes":["organization"],"kind":"any:permission"},
     "material-resource-types.catalog@1": {"app":"any","permissions":["view_materials"],"capabilities":["platform.materials"],"scopes":["organization"],"kind":"any:permission"},
     "materials-calculus.ledger@1": {"app":"any","permissions":["view_materials"],"capabilities":["platform.materials"],"scopes":["project"],"kind":"any:permission"},
@@ -2054,6 +2055,7 @@
     "payroll.time_shifts@1": {"app":"any","permissions":["manage_payroll|manage_company_settings"],"capabilities":["apps.payroll"],"scopes":["organization"],"kind":"any:permission"},
     "payroll.timesheets@1": {"app":"any","permissions":["manage_payroll|manage_company_settings"],"capabilities":["apps.payroll"],"scopes":["organization","project"],"kind":"any:permission"},
     "payroll.upcoming@1": {"app":"any","permissions":["manage_payroll|manage_company_settings"],"capabilities":["apps.payroll"],"scopes":["organization"],"kind":"any:permission"},
+    "payroll.work_roster@1": {"app":"any","permissions":["manage_payroll|manage_company_settings"],"capabilities":["apps.payroll"],"scopes":["organization"],"kind":"any:permission"},
     "phone-marketing.broadcast@1": {"app":"any","permissions":["manage_communications"],"scoped":true,"capabilities":["apps.comms"],"scopes":["organization"],"kind":"any:permission"},
     "phone-marketing.broadcast_report@1": {"app":"any","permissions":["manage_communications"],"scoped":true,"capabilities":["apps.comms"],"scopes":["organization"],"kind":"any:permission"},
     "phone-marketing.call@1": {"app":"any","permissions":["manage_communications"],"scoped":true,"capabilities":["apps.comms"],"scopes":["organization"],"kind":"any:permission"},
@@ -2250,10 +2252,12 @@
     "feedback.requestReview.v1@1": {"app":"any","permissions":["manage_company_settings"],"scopes":["organization","project"],"system_kinds":["work"],"kind":"any:permission","effect":"external","execution_kinds":["work"]},
     "firstmeasure.exteriors.quote@1": {"app":"any","permissions":["order_reports"],"scopes":["organization"],"kind":"any:permission","effect":"read","execution_kinds":["api","module","agent","work"]},
     "firstmeasure.measurements.import@1": {"app":"any","permissions":["manage_project_data"],"scopes":["project"],"system_kinds":["work","module"],"kind":"any:permission","effect":"write","execution_kinds":["api","agent","work","module"]},
+    "labor-completion.settings.save@1": {"app":"any","permissions":["manage_company_settings"],"capabilities":["platform.materials"],"scopes":["organization"],"kind":"any:permission","effect":"write","execution_kinds":["api","module","agent","work"]},
     "labor.commitment.confirm-delivery@1": {"app":"any","permissions":["manage_projects"],"capabilities":["platform.materials"],"scopes":["organization","project"],"system_kinds":["work","module"],"kind":"any:permission","effect":"write","execution_kinds":["api","module","agent","work"]},
     "labor.commitment.deliver@1": {"app":"any","permissions":["manage_projects"],"capabilities":["platform.materials"],"scopes":["organization","project"],"system_kinds":["work","module"],"kind":"any:permission","effect":"write","execution_kinds":["api","module","agent","work"]},
     "labor.commitment.release@1": {"app":"any","permissions":["manage_projects"],"capabilities":["platform.materials"],"scopes":["organization","project"],"system_kinds":["work","module"],"kind":"any:permission","effect":"write","execution_kinds":["api","module","agent","work"]},
     "labor.delivery-setting.save@1": {"app":"any","permissions":["manage_company_settings"],"capabilities":["platform.materials"],"scopes":["organization"],"kind":"any:permission","effect":"write","execution_kinds":["api","module","agent","work"]},
+    "labor.list.cancel-remaining@1": {"app":"any","permissions":["manage_projects"],"capabilities":["platform.materials"],"scopes":["project"],"system_kinds":["work","module"],"kind":"any:permission","effect":"write","execution_kinds":["api","agent"]},
     "labor.list.commit@1": {"app":"any","permissions":["manage_projects"],"capabilities":["platform.materials"],"scopes":["organization","project"],"system_kinds":["work","module"],"kind":"any:permission","effect":"write","execution_kinds":["api","module","agent","work"]},
     "labor.list.finalize@1": {"app":"any","permissions":["manage_projects"],"capabilities":["platform.materials"],"scopes":["project"],"system_kinds":["work","module"],"kind":"any:permission","effect":"write","execution_kinds":["api","module","agent","work"]},
     "labor.list.generate@1": {"app":"any","permissions":["manage_projects"],"capabilities":["platform.materials"],"scopes":["organization","project"],"kind":"any:permission","effect":"write","execution_kinds":["api","agent"]},
@@ -2334,6 +2338,7 @@
     "payroll.paySetup.preview@1": {"app":"any","permissions":["manage_payroll|manage_company_settings"],"capabilities":["apps.payroll"],"scopes":["organization"],"kind":"any:permission","effect":"read","execution_kinds":["api","agent","module","work"]},
     "payroll.paySetup.save@1": {"app":"any","permissions":["manage_payroll|manage_company_settings"],"capabilities":["apps.payroll"],"scopes":["organization"],"kind":"any:permission","effect":"write","execution_kinds":["api","agent","module","work"]},
     "payroll.paySplitRule.archive@1": {"app":"any","permissions":["manage_payroll|manage_company_settings"],"capabilities":["apps.payroll"],"scopes":["organization"],"kind":"any:permission","effect":"write","execution_kinds":["api","agent","module","work"]},
+    "payroll.paySplitRule.preview@1": {"app":"any","permissions":["manage_payroll|manage_company_settings"],"capabilities":["apps.payroll"],"scopes":["organization"],"kind":"any:permission","effect":"read","execution_kinds":["api","agent","module","work"]},
     "payroll.paySplitRule.save@1": {"app":"any","permissions":["manage_payroll|manage_company_settings"],"capabilities":["apps.payroll"],"scopes":["organization"],"kind":"any:permission","effect":"write","execution_kinds":["api","agent","module","work"]},
     "payroll.projectedEarnings.me@1": {"app":"any","permissions":["payroll.view_own_projected_earnings"],"capabilities":["payroll.self_service_earnings"],"scopes":["organization"],"kind":"any:permission","effect":"read","execution_kinds":["api","agent","module","work"]},
     "payroll.projectedEarnings.read@1": {"app":"any","permissions":["manage_payroll|manage_company_settings"],"capabilities":["apps.payroll"],"scopes":["organization"],"kind":"any:permission","effect":"read","execution_kinds":["api","agent","module","work"]},

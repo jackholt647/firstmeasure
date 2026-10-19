@@ -74,36 +74,56 @@ const shiftsOnTheJob = {
   source: { provider: "payroll", export: "time_shifts" }, member: "assignee_key", match: { project_id: "$earning.project_id" },
   where: { rules: [{ field: "assignee_key", operator: "in", value: "$members.keys" }, { field: "approval_status", operator: "equals", value: "approved" }] }
 };
+/** Who the schedule roster had on the earning's project (`work_roster`), for the group's members. */
+const rosterOnTheJob = {
+  source: { provider: "payroll", export: "work_roster" }, member: "assignee_key", match: { project_id: "$earning.project_id" },
+  where: { rules: [{ field: "assignee_key", operator: "in", value: "$members.keys" }] }
+};
 /**
  * Ways of dividing a group's earning among its members, written as split
- * rules. A group's pay names one under `distribution`. The two that read the
- * time clock divide earnings that carry a project (a rule that pays by record
- * and names its `project` field); an earning with no project has no shifts to
- * go by and stays unresolved rather than being shared out by guesswork.
+ * rules. A group's pay names one under `distribution`. The two that go by who
+ * was on the job read the schedule roster (who was actually on the work, after
+ * removals and time off) and the time clock (who clocked in, and for how long).
+ * They divide earnings that carry a project (a rule that pays by record and
+ * names its `project` field); an earning with no project has nothing to go by
+ * and stays unresolved rather than being shared out by guesswork.
  */
 export const SAMPLE_PAY_SPLIT_RULES = [
-  { id: "present_on_the_job", name: "Present on the job", description: "Members with an approved shift on the earning's project on the day it was earned share it equally. Anyone who was not there gets nothing for that job.", definition: {
-    inputs: { shifts: { ...shiftsOnTheJob, window: { start: "clocked_in_at", end: "clocked_out_at" } } },
+  { id: "present_on_the_job", name: "Present on the job", description: "Members who were on the earning's project on the day it was earned share it equally: on its schedule that day, or with an approved shift on it. Anyone who was not there gets nothing for that job.", definition: {
+    inputs: {
+      roster: { ...rosterOnTheJob, window: { start: "from", end: "until" } },
+      shifts: { ...shiftsOnTheJob, window: { start: "clocked_in_at", end: "clocked_out_at" } }
+    },
     parameters: { minimum_minutes: { label: "Minutes on the job that day to count as present", default: 1 } },
     code: `const shares = {};
+const enough = params.minimum_minutes * 60;
 for (const member of members) {
-  // seconds is the exact part of each shift that fell inside the earned day.
-  const seconds = rows.shifts.filter((shift) => shift.member === member.key).reduce((sum, shift) => sum + shift.seconds, 0);
-  const present = seconds > 0 && seconds >= params.minimum_minutes * 60;
-  shares[member.key] = { weight: present ? 1 : 0, details: { seconds_on_the_job: seconds },
-    reason: present ? "On the job for " + (seconds / 3600).toFixed(2) + " hours that day" : seconds > 0 ? "On the job for less than " + params.minimum_minutes + " minutes that day" : "No approved shift on this job that day" };
+  // seconds is the exact part of each row that fell inside the earned day.
+  const scheduled = rows.roster.filter((row) => row.member === member.key).reduce((sum, row) => sum + row.seconds, 0);
+  const clocked = rows.shifts.filter((shift) => shift.member === member.key).reduce((sum, shift) => sum + shift.seconds, 0);
+  const present = (scheduled > 0 && scheduled >= enough) || (clocked > 0 && clocked >= enough);
+  shares[member.key] = { weight: present ? 1 : 0, details: { seconds_scheduled: scheduled, seconds_clocked: clocked },
+    reason: clocked >= enough && clocked > 0 ? "Clocked on the job for " + (clocked / 3600).toFixed(2) + " hours that day"
+      : scheduled >= enough && scheduled > 0 ? "On the job's schedule for " + (scheduled / 3600).toFixed(2) + " hours that day"
+      : scheduled > 0 || clocked > 0 ? "On the job for less than " + params.minimum_minutes + " minutes that day" : "Not on this job's schedule and no approved shift on it that day" };
 }
 return shares;`
   } },
-  { id: "by_hours_on_the_job", name: "By hours on the job", description: "Members share an earning in proportion to their approved hours on its project, counting every shift that started before the end of the day it was earned.", definition: {
-    inputs: { shifts: { ...shiftsOnTheJob, window: { start: "clocked_in_at", end: "clocked_out_at", any_time_before: true } } },
+  { id: "by_hours_on_the_job", name: "By hours on the job", description: "Members share an earning in proportion to their approved hours on its project, counting every shift that started before the end of the day it was earned. When nobody clocked hours on it, the hours the schedule roster had each of them on it count instead.", definition: {
+    inputs: {
+      shifts: { ...shiftsOnTheJob, window: { start: "clocked_in_at", end: "clocked_out_at", any_time_before: true } },
+      roster: { ...rosterOnTheJob, window: { start: "from", end: "until", any_time_before: true } }
+    },
     parameters: {},
     code: `const shares = {};
+const clocked = (member) => rows.shifts.filter((shift) => shift.member === member.key).reduce((sum, shift) => sum + (shift.row.worked_seconds || 0), 0);
+const scheduled = (member) => rows.roster.filter((row) => row.member === member.key).reduce((sum, row) => sum + row.seconds, 0);
+// Hours worked, net of breaks, as the time clock recorded them; the schedule only when nobody clocked any.
+const byClock = members.some((member) => clocked(member) > 0);
 for (const member of members) {
-  // Hours worked, net of breaks, as the time clock recorded them.
-  const seconds = rows.shifts.filter((shift) => shift.member === member.key).reduce((sum, shift) => sum + (shift.row.worked_seconds || 0), 0);
-  shares[member.key] = { weight: seconds, details: { worked_seconds: seconds },
-    reason: seconds > 0 ? (seconds / 3600).toFixed(2) + " approved hours on this job" : "No approved hours on this job" };
+  const seconds = byClock ? clocked(member) : scheduled(member);
+  shares[member.key] = { weight: seconds, details: byClock ? { worked_seconds: seconds } : { scheduled_seconds: seconds },
+    reason: seconds > 0 ? (seconds / 3600).toFixed(2) + (byClock ? " approved hours on this job" : " scheduled hours on this job (nobody clocked any)") : byClock ? "No approved hours on this job" : "Not on this job's schedule" };
 }
 return shares;`
   } },

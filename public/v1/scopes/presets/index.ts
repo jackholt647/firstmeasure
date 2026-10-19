@@ -1170,7 +1170,7 @@ const ROOFING_SCOPE_RESOURCES = {
   },
   types: {
     material: { icon: "fa-boxes-stacked", capabilities: ["items", "ordering", "scheduling"] },
-    labor: { icon: "fa-helmet-safety", capabilities: ["items", "crew_assignment", "compensation", "scheduling"] },
+    labor: { icon: "fa-helmet-safety", capabilities: ["items", "crew_assignment", "scheduling"] },
     equipment: { icon: "fa-truck-ramp-box", capabilities: ["items", "scheduling_optional"] }
   },
   lists: [
@@ -1190,15 +1190,7 @@ const ROOFING_SCOPE_RESOURCES = {
         { id: "hip_installation", name: "Hip installation", unit: "lf", quantity: 0, projected_unit_price: 2.5, metadata: { estimate_mode: "piece_rate", compensation_kind: "piece_rate", quantity_measurement: "hipsLf", omit_when_zero: true } },
         { id: "valley_installation", name: "Valley installation", unit: "lf", quantity: 0, projected_unit_price: 3.5, metadata: { estimate_mode: "piece_rate", compensation_kind: "piece_rate", quantity_measurement: "valleyLf", omit_when_zero: true } }
       ],
-      controls: { crew_assignment: true, compensation: true },
-      compensation: {
-        allowed_modes: ["hourly", "piece_rate", "hybrid", "none"],
-        mode: "piece_rate",
-        default_mode: "piece_rate",
-        allow_override: true,
-        estimated_hours: 0,
-        salary_expense_mode: "ignore"
-      },
+      controls: { crew_assignment: true },
       schedule: {
         enabled: true,
         event_type_default_id: "project_work",

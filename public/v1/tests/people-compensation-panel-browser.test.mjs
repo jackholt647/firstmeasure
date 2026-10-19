@@ -52,7 +52,7 @@ test('the compensation slot edits a payee\'s own layer and a default, previews b
           unresolved:async () => [{ payee:{ type:'organization_user', id:'ada' }, rule_id:'hourly', unit:'2026-05-25', reason:'Set this payee\'s hourly rate.' }, { payee:{ type:'organization_user', id:'someone_else' }, rule_id:'hourly', reason:'Other' }],
           setup:async (_org, payee) => copy(db.setups[key(payee)]),
           default:async (_org, subject) => copy(db.defaults[key(subject)]),
-          previewSetup:async (_org, payload) => { calls.push({ op:'setup.preview', payload:copy(payload) }); return { differences:[{ rule_id:'hourly', unit:'2026-05-25', line:'main', posted_cents:100000, target_cents:120000, delta_cents:20000, handling:'normal' }], unresolved:[{ rule_id:'bonus', reason:'No amount set.' }], total_delta_cents:20000 }; },
+          previewSetup:async (_org, payload) => { calls.push({ op:'setup.preview', payload:copy(payload) }); return { differences:[{ rule_id:'hourly', unit:'2026-05-25', line:'main', posted_cents:100000, target_cents:120000, delta_cents:20000, handling:'normal', pay_date:'2026-06-05', schedule_id:'weekly', schedule_name:'Weekly' }], unresolved:[{ rule_id:'bonus', reason:'No amount set.' }], total_delta_cents:20000 }; },
           saveSetup:async (_org, payload) => { calls.push({ op:'setup.save', payload:copy(payload) }); return stored(db.setups, key(payload.payee), payload); },
           previewDefault:async (_org, payload) => { calls.push({ op:'default.preview', payload:copy(payload) }); return { payee_count:4, changed_payee_count:1, difference_count:1, change_cents:5000, payees:[{ payee:{ type:'organization_user', id:'ada' }, payee_name:'Ada', change_cents:5000, unresolved:[], differences:[{ rule_id:'commission', unit:'p1', without_change_cents:10000, target_cents:15000, change_cents:5000, handling:'hold' }] }] }; },
           saveDefault:async (_org, payload) => { calls.push({ op:'default.save', payload:copy(payload) }); return stored(db.defaults, key(payload.subject), payload); }
@@ -100,7 +100,7 @@ test('the compensation slot edits a payee\'s own layer and a default, previews b
     assert.deepEqual(await page.evaluate(() => handles.user.save().then(() => ['saved'], (error) => [error.code, error.message])), ['preview_required', 'Check what this changes, then save again']);
     await user.locator('[data-comp-preview]').waitFor();
     const preview = await user.locator('[data-comp-preview]').innerText();
-    assert.match(preview, /1 earnings would change\s*\+200\.00[\s\S]*Hourly · 2026-05-25: 1,000\.00 → 1,200\.00\s*\+200\.00[\s\S]*Could not be worked out: No amount set\./);
+    assert.match(preview, /1 earnings would change\s*\+200\.00[\s\S]*Hourly · 2026-05-25: 1,000\.00 → 1,200\.00, paid Jun 5, 2026 on Weekly\s*\+200\.00[\s\S]*Could not be worked out: No amount set\./);
     const userPayload = { payee:{ type:'organization_user', id:'ada' }, expected_revision:3,
       entries:[{ kind:'override', rule_id:'hourly', params:{ rate_cents:3000, overtime_after_hours:40 }, effective_from:'2026-06-01' }, { kind:'remove', rule_id:'commission', effective_from:'2026-06-01' }, { kind:'add', rule_id:'bonus', effective_from:'2026-06-01' }],
       schedules:[{ effective_from:'2026-06-01', earning_kind:'*', schedule_id:'monthly' }] };
@@ -132,6 +132,14 @@ test('the compensation slot edits a payee\'s own layer and a default, previews b
     await group.locator('[data-comp-status]', { hasText:'Saved' }).waitFor();
     const groupPayload = await last('setup.save');
     assert.deepEqual(groupPayload, { payee:{ type:'resource_group', id:'g1' }, entries:[], schedules:[], expected_revision:0, distribution:[{ effective_from:'2026-06-01', mode:'split', method:'rule', split_rule_id:'present' }] });
+    // Why and how the group's pay was divided open that payee on the Payroll tab (payroll/app.js reads payrollWhy).
+    await page.evaluate(() => { window.pushed = []; window.Portal = { ...(window.Portal || {}), navigation:{ push:(route, options) => pushed.push({ route, options }) } }; });
+    await group.locator('[data-comp-why="divided"]').click();
+    await page.locator('#user [data-comp-why]').first().click();
+    assert.deepEqual(await page.evaluate(() => pushed), [
+      { route:{ tab:'payroll', payrollView:'payees', payrollWhy:'resource_group:g1', payrollWhyTab:'divided' }, options:{ source:'people-compensation' } },
+      { route:{ tab:'payroll', payrollView:'payees', payrollWhy:'organization_user:ada', payrollWhyTab:'' }, options:{ source:'people-compensation' } }
+    ]);
 
     // ---- A role: the default everyone with it starts from, with who it covers, saved through the modal's own Save ----
     await mountSlot('role', { kind:'access_role', id:'sales', key:'access_role:sales', name:'Sales' });

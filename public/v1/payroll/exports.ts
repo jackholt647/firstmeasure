@@ -3,7 +3,6 @@ import { createHash } from "node:crypto";
 import { renderTemplatedArtifact } from "../documents/artifacts.js";
 import { badRequest } from "../platform/errors.js";
 import type { PlatformAuthContext } from "../platform/auth.js";
-import { listDocuments } from "../platform/storage.js";
 import { fileTypeOf, isBuiltInTemplate, readExportTemplate, renderTemplate, tableCsv, templateContext } from "./export-templates.js";
 import { listPayrollTimesheets } from "./timesheets.js";
 import { scopedBatch, type PayeeScope } from "./payee-scope.js";
@@ -184,27 +183,8 @@ async function exportRows(orgId: string, input: JsonObject, scope?: PayeeScope) 
       approval_status: cleanText(shift.approval_status), manager_note: cleanText(shift.manager_note)
     })) };
   }
-  if (type === "reimbursements") {
-    const docs = await listDocuments(orgId, "payment_receipts");
-    const rows = docs.map((doc) => asObject(asObject(doc.data).reimbursement_request)).map((request) => ({
-      request_id: cleanText(request.id), status: cleanText(request.status), requested_by_name: cleanText(asObject(request.requested_by).name),
-      project_id: cleanText(request.project_id), amount_cents: Number(request.amount_cents || 0), currency: cleanText(request.currency || "USD"),
-      requested_at: cleanText(request.requested_at), approved_at: cleanText(request.approved_at), paid_at: cleanText(request.paid_at),
-      payment_timing: cleanText(request.payment_timing), note: cleanText(request.note)
-    })).filter((row) => row.request_id && row.requested_at.slice(0, 10) >= cleanText(input.from) && row.requested_at.slice(0, 10) <= cleanText(input.through));
-    return { batch: null, rows };
-  }
-  const ledger = (await filteredLedger(orgId, input, type === "commissions" ? "commission" : ""));
-  return { batch: null, rows: ledger.map((entry) => {
-    const payee = asObject(entry.payee);
-    return {
-      entry_id: cleanText(entry.id), state: cleanText(entry.state), earning_kind: cleanText(entry.kind), subgroup: cleanText(entry.subgroup),
-      payee_name: cleanText(payee.name), worker_classification: cleanText(payee.worker_type), project_title: cleanText(entry.project_title),
-      amount_cents: Number(entry.amount_cents || 0), applied_cents: Number(entry.applied_cents || 0),
-      remaining_cents: Number(entry.remaining_cents || 0), currency: cleanText(entry.currency || "USD"),
-      eligible_at: cleanText(entry.eligible_at), description: cleanText(entry.description)
-    };
-  }) };
+  // All earnings, commissions and reimbursements are reports for dates made from export templates (export-templates.ts).
+  throw badRequest("payroll_export_type_unknown", "This report is not available.");
 }
 
 function columnsFor(type: string): ExportColumn[] {
@@ -233,36 +213,29 @@ function columnsFor(type: string): ExportColumn[] {
     { key: "worked_seconds", label: "Hours worked" }, { key: "break_seconds", label: "Break hours" },
     { key: "approval_status", label: "Approval status" }, { key: "manager_note", label: "Manager note", width: 1.5 }
   ];
-  if (type === "reimbursements") return [
-    { key: "requested_by_name", label: "Employee", width: 1.4 }, { key: "project_id", label: "Project" },
-    { key: "amount_cents", label: "Amount" }, { key: "currency", label: "Currency" }, { key: "status", label: "Status" },
-    { key: "requested_at", label: "Requested on" }, { key: "approved_at", label: "Approved on" }, { key: "paid_at", label: "Paid on" },
-    { key: "note", label: "Note", width: 1.6 }
-  ];
-  return [
-    { key: "eligible_at", label: "Earned on" }, { key: "payee_name", label: "Worker or company", width: 1.5 },
-    { key: "worker_classification", label: "Paid as" }, { key: "earning_kind", label: "Earning type" },
-    { key: "project_title", label: "Project", width: 1.4 }, { key: "description", label: "Description", width: 1.5 },
-    { key: "amount_cents", label: "Amount" }, { key: "applied_cents", label: "Already included" },
-    { key: "remaining_cents", label: "Still owed" }, { key: "state", label: "Status" }
-  ];
+  return [];
 }
 
 /**
- * A pay run file made from an export template: a built-in one (`type` names it) or the organization's own
+ * A pay run file or a report for dates made from an export template: a built-in one (`type` names it) or the organization's own
  * (`template_id`). The artifact records the template and the revision that made it, and a copy of its definition.
  */
 async function generateTemplateArtifact(orgId: string, input: JsonObject, actorUserId: string, scope?: PayeeScope, auth?: PlatformAuthContext | null) {
   const template = await readExportTemplate(orgId, cleanText(input.template_id || input.type));
   const format = cleanText(input.format) === "pdf" && template.formats.includes("pdf") ? "pdf" : "csv";
-  if (!cleanText(input.batch_id)) throw badRequest("payroll_export_batch_required", "Choose the payroll run this report should cover.");
-  const stored = await readPayrollBatch(orgId, cleanText(input.batch_id));
+  // A report for dates (earning or reimbursement rows) reads the ledger or the requests in the dates; a pay run file reads one pay run.
+  const dated = template.scope === "date_range";
+  const from = cleanText(input.from), through = cleanText(input.through);
+  if (dated && (!from || !through)) throw badRequest("payroll_export_dates_required", "Choose a start date and end date for this report.");
+  if (!dated && !cleanText(input.batch_id)) throw badRequest("payroll_export_batch_required", "Choose the payroll run this report should cover.");
+  const stored = dated ? null : await readPayrollBatch(orgId, cleanText(input.batch_id));
   // A viewer limited to some branches exports only the payees of those branches.
-  const batch = scope ? scopedBatch(stored as JsonObject, scope) : stored as JsonObject;
-  const table = renderTemplate(template.definition, await templateContext(orgId, batch, template.definition, auth));
+  const batch: JsonObject = !stored ? {} : scope ? scopedBatch(stored as JsonObject, scope) : stored as JsonObject;
+  const projected = input.include_projected === true;
+  const table = renderTemplate(template.definition, await templateContext(orgId, batch, template.definition, auth, dated ? { from, through, include_projected: projected, scope } : undefined));
   const generatedAt = new Date();
-  const schedule = await readPayrollSchedule(orgId, cleanText(batch.schedule_id)).catch(() => null);
-  const coverageLabel = `${cleanText(batch.run_type) === "off_cycle" ? "Off-cycle payroll" : cleanText(schedule?.name || "Payroll")} - pay date ${friendlyDate(batch.pay_date)}`;
+  const schedule = dated ? null : await readPayrollSchedule(orgId, cleanText(batch.schedule_id)).catch(() => null);
+  const coverageLabel = dated ? `${friendlyDate(from)} through ${friendlyDate(through)}` : `${cleanText(batch.run_type) === "off_cycle" ? "Off-cycle payroll" : cleanText(schedule?.name || "Payroll")} - pay date ${friendlyDate(batch.pay_date)}`;
   const label = template.name;
   const contentHash = createHash("sha256").update(JSON.stringify({ template: template.id, revision: template.revision, definition: template.definition, format, coverageLabel, table })).digest("hex");
   const fileType = fileTypeOf(template.definition);
@@ -275,12 +248,12 @@ async function generateTemplateArtifact(orgId: string, input: JsonObject, actorU
           columns: table.keys.map((key, index) => ({ key, label: table.headers[index] })),
           rows: table.rows.map((row) => Object.fromEntries(table.keys.map((key, index) => [key, row[index]])))
         },
-        metadata: { source_system: "payroll", report_type: template.built_in ? template.id : "pay_run_template", coverage_label: coverageLabel }
+        metadata: { source_system: "payroll", report_type: template.built_in ? template.id : dated ? "report_template" : "pay_run_template", coverage_label: coverageLabel }
       })).bytes
     : Buffer.from(tableCsv(table, template.definition));
-  const reportType = template.built_in ? template.id : "pay_run_template";
-  const scopeKey = `payroll:${cleanText(batch.id)}:revision:${Number(batch.revision || 0)}${scope?.active ? `:branches:${(scope.branch_ids || []).join(",")}` : ""}`;
-  const existing = (await listPayrollArtifacts(orgId, { report_type: reportType, batch_id: cleanText(batch.id), limit: 250 })).find((artifact) => {
+  const reportType = template.built_in ? template.id : dated ? "report_template" : "pay_run_template";
+  const scopeKey = `${dated ? `dates:${from}:${through}:projected:${projected ? "yes" : "no"}` : `payroll:${cleanText(batch.id)}:revision:${Number(batch.revision || 0)}`}${scope?.active ? `:branches:${(scope.branch_ids || []).join(",")}` : ""}`;
+  const existing = (await listPayrollArtifacts(orgId, { report_type: reportType, ...(dated ? {} : { batch_id: cleanText(batch.id) }), limit: 250 })).find((artifact) => {
     const metadata = asObject(artifact.metadata);
     return cleanText(metadata.format) === format && cleanText(metadata.scope_key) === scopeKey && cleanText(metadata.content_hash) === contentHash;
   });
@@ -292,8 +265,8 @@ async function generateTemplateArtifact(orgId: string, input: JsonObject, actorU
     content_type: format === "pdf" ? "application/pdf" : fileType.content_type, content: rawContent,
     metadata: {
       ...asObject(input.metadata), report_label: label, report_description: cleanText(template.definition.description), purpose: cleanText(PAYROLL_EXPORT_CATALOG.find((entry) => entry.type === template.id)?.purpose),
-      scope_label: "Payroll run", coverage_label: coverageLabel, scope_key: scopeKey, ...(scope?.active ? { branch_ids: scope.branch_ids } : {}),
-      batch_pay_date: cleanText(batch.pay_date), schedule_name: cleanText(schedule?.name), format, row_count: table.rows.length, from: cleanText(batch.period_start), through: cleanText(batch.period_end),
+      scope_label: dated ? "Date range" : "Payroll run", coverage_label: coverageLabel, scope_key: scopeKey, ...(scope?.active ? { branch_ids: scope.branch_ids } : {}),
+      batch_pay_date: cleanText(batch.pay_date), schedule_name: cleanText(schedule?.name), format, row_count: table.rows.length, from: dated ? from : cleanText(batch.period_start), through: dated ? through : cleanText(batch.period_end),
       content_hash: contentHash, generated_at: generatedAt.toISOString(),
       // Which template made the file, at which revision and as it was then: later changes to the template change nothing here.
       template: { id: template.id, built_in: template.built_in, revision: template.revision, name: template.name, definition: template.definition }

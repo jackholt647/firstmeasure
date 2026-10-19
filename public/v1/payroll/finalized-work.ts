@@ -13,7 +13,7 @@ import { asObject, cleanText, listPayrollLedgerEntries, type JsonObject } from "
 export async function finalizedWorkToPay(orgId: string, scope?: PayeeScope) {
   const completions = (await listCompletions(orgId)).filter((entry) => entry.state === "finalized")
     .filter((entry) => !scope || scope.visible(entry.assignee));
-  const ids = new Set(completions.map((entry) => entry.commitment_id));
+  const ids = new Set(completions.map((entry) => entry.pay_unit || entry.commitment_id)); // a payout of part of a list earns under its own row
   const earnings = new Map<string, JsonObject[]>();
   for (const entry of await listPayrollLedgerEntries(orgId, { limit: 5000 })) {
     const unit = cleanText(asObject(asObject(entry.metadata).pay_rule).unit);
@@ -27,7 +27,7 @@ export async function finalizedWorkToPay(orgId: string, scope?: PayeeScope) {
     titles.set(projectId, cleanText(data.title || data.name || data.address) || projectId);
   }
   const rows = completions.map((completion) => {
-    const produced = (earnings.get(completion.commitment_id) || []).map((entry) => ({
+    const produced = (earnings.get(completion.pay_unit || completion.commitment_id) || []).map((entry) => ({
       id: cleanText(entry.id), payee: asObject(entry.payee), kind: cleanText(entry.kind), state: cleanText(entry.state),
       amount_cents: Number(entry.amount_cents || 0), applied_cents: Number(entry.applied_cents || 0), remaining_cents: Number(entry.remaining_cents || 0),
       description: cleanText(entry.description), held: asObject(entry.metadata).review_required === true

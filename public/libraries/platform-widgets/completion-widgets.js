@@ -28,7 +28,7 @@
     .fmc-row.is-confirmed{background:#f6fef9}.fmc-row.is-confirmed .fmc-label strong{color:#067647}
     .fmc-row.is-done{cursor:default;opacity:.75}.fmc-row .fmc-dot{width:8px;height:8px;border-radius:50%;background:#d0d5dd;justify-self:center}
     .fmc-row.is-confirmed .fmc-dot{background:#079455}
-    .fmc-done{font-size:10px;font-weight:800;color:#067647;background:#ecfdf3;border-radius:999px;padding:2px 7px;margin-left:6px}
+    .fmc-done{font-size:10px;font-weight:800;color:#067647;background:#ecfdf3;border-radius:999px;padding:2px 7px;margin-left:6px}.fmc-row .fmc-label strong .fmc-done{display:inline-block;margin-top:0;vertical-align:1px}
     .fmc-foot{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:2px 2px 0;color:#475467}
     .fmc-foot strong{font-size:13px;color:#101828;font-variant-numeric:tabular-nums}
     .fmc-approve{height:34px;padding:0 16px;border-color:#079455;background:#079455;color:#fff;font-size:12px}
@@ -60,6 +60,8 @@
   W.attachRenderer('work.completion','1',async(root,{data,config,context,reference,state,notifySelection})=>{
     styles();
     const method=METHODS.includes(config.method)?config.method:'select_all',target=reference.target||context.target||{};
+    // partial: some lines may be paid out now and the rest later. One approval always confirms everything, so it is never partial.
+    const partial=config.partial===true&&method!=='approve';
     const args={...(config.list_id?{list_id:config.list_id}:{}),...(config.materials?{materials:true}:{}),...(config.requirements?{requirements:true}:{})};
     async function load(){const result=await reader(context)({provider:'labor-completion',export:'items',args},target);if(result.status!=='ready')throw Error(result.message||'The items are unavailable.');return result.value;}
     // The runtime's first read carries no arguments; read again when this instance asks for one list or for more kinds.
@@ -70,21 +72,22 @@
     const pending=()=>items.filter(item=>!item.done),lines=()=>pending().filter(item=>item.kind==='line');
     const isOn=item=>item.done||(method==='approve'?approved:confirmed.has(item.id));
     const complete=()=>method==='approve'?approved||!lines().length:lines().every(item=>confirmed.has(item.id));
+    const someLines=()=>partial&&!complete()&&lines().some(item=>confirmed.has(item.id));
     function selection(){
       const ids=kind=>pending().filter(item=>item.kind===kind&&isOn(item)).map(item=>item.id).slice(0,100);
-      return {method,complete:complete(),approved:method==='approve'&&approved,confirmed_item_ids:ids('line'),confirmed_material_ids:ids('material'),confirmed_requirement_ids:ids('requirement')};
+      return {method,complete:complete(),...(partial?{partial:someLines()}:{}),approved:method==='approve'&&approved,confirmed_item_ids:ids('line'),confirmed_material_ids:ids('material'),confirmed_requirement_ids:ids('requirement')};
     }
     const label=()=>{const total=pending().length,on=pending().filter(isOn).length;return method==='approve'?(approved?'Approved':'Not approved yet'):`${on} of ${total} confirmed`;};
-    function report(){notifySelection(selection(),{confirmed:complete(),label:label()});}
+    function report(){notifySelection(selection(),{confirmed:complete()||someLines(),label:label()});}
     function render(){
       const groups=new Map();
       for(const item of items){const key=item.kind==='line'?'line:'+item.list_id:item.kind;if(!groups.has(key))groups.set(key,{title:item.kind==='line'?item.list_title:item.kind==='material'?'Materials':'Requirements',items:[]});groups.get(key).items.push(item);}
-      const total=pending().length,on=pending().filter(isOn).length,sum=items.filter(item=>item.kind==='line'&&isOn(item)).reduce((value,item)=>value+(Number(item.total_cents)||0),0);
+      const total=pending().length,on=pending().filter(isOn).length,sum=items.filter(item=>item.kind==='line'&&!item.done&&isOn(item)).reduce((value,item)=>value+(Number(item.total_cents)||0),0);
       const allOn=total>0&&on===total;
       const prompt=esc(config.prompt||(method==='approve'?'Approve the work as done':method==='each'?'Check each item that is done':'Confirm what is done'));
-      const hint=method==='approve'?'One approval confirms every item.':method==='each'?'Each item has to be checked on its own.':'Check what is done, or select all.';
+      const hint=method==='approve'?'One approval confirms every item.':partial?(method==='each'?'Check each item that is done. What you leave unchecked can be paid out later.':'Check what is done, or select all. What you leave unchecked can be paid out later.'):method==='each'?'Each item has to be checked on its own.':'Check what is done, or select all.';
       const row=item=>{const on=isOn(item),control=method==='approve'||item.done?'<span class="fmc-dot" aria-hidden="true"></span>':`<input type="checkbox" data-fmc-item="${esc(item.id)}" ${on?'checked':''} aria-label="${esc(item.label)} is done">`;
-        return `<label class="fmc-row${on?' is-confirmed':''}${item.done?' is-done':''}" data-fmc-row="${esc(item.id)}">${control}<span class="fmc-label"><strong title="${esc(item.label)}">${esc(item.label)}${item.done?'<span class="fmc-done">Done</span>':''}</strong>${item.detail&&item.kind!=='line'?`<span>${esc(item.detail)}</span>`:item.kind==='line'&&item.detail?`<span>${esc(String(item.detail).split(' · ')[0])}</span>`:''}</span><span class="fmc-amount">${item.kind==='line'?esc(money(item.total_cents)):''}</span></label>`;};
+        return `<label class="fmc-row${on?' is-confirmed':''}${item.done?' is-done':''}" data-fmc-row="${esc(item.id)}">${control}<span class="fmc-label"><strong title="${esc(item.label)}">${esc(item.label)}${item.done?`<span class="fmc-done">${item.kind==='line'?(item.paid_at?`Paid out ${esc(new Date(item.paid_at).toLocaleDateString('en-US',{month:'short',day:'numeric'}))}`:'Paid out'):'Done'}</span>`:''}</strong>${item.detail&&item.kind!=='line'?`<span>${esc(item.detail)}</span>`:item.kind==='line'&&item.detail?`<span>${esc(String(item.detail).split(' · ')[0])}</span>`:''}</span><span class="fmc-amount">${item.kind==='line'?esc(money(item.total_cents)):''}</span></label>`;};
       root.innerHTML=`<div class="fmc" data-method="${method}"><div class="fmc-head"><div><strong>${prompt}</strong><span>${esc(hint)}</span></div>${method==='select_all'&&total?`<button type="button" data-fmc-all>${allOn?'Clear all':'Select all'}</button>`:''}</div>
         ${items.length?[...groups.values()].map(group=>`<section class="fmc-group"><header><span>${esc(group.title)}</span><em>${group.items.filter(isOn).length} of ${group.items.length}</em></header>${group.items.map(row).join('')}</section>`).join(''):'<div class="fmc-empty">Nothing to confirm.</div>'}
         <div class="fmc-foot"><span class="fmc-hint" data-fmc-status>${esc(label())}</span>${method==='approve'&&total?`<button type="button" class="fmc-approve${approved?' is-approved':''}" data-fmc-approve><i class="fas ${approved?'fa-check':'fa-thumbs-up'}" aria-hidden="true"></i>${approved?'Approved':'Approve'}</button>`:`<span>Confirmed <strong>${esc(money(sum))}</strong></span>`}</div></div>`;
