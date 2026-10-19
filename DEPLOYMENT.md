@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+October 19 Plane-mode arcs on rotated walls: [a closing paste no longer turns an existing arc's samples into points](deploy/digitalocean/development-plane-arcs-rotated-20261019.md) records release `10212b7a` and the verified development rollout.
+
 October 19 Plane-mode stickers and arcs: [an opened door loses its face, a closing paste fills, deleting an arc removes it whole](deploy/digitalocean/development-plane-arcs-20261019.md) records release `8b7f87c2` and the verified development rollout.
 
 October 19 Sticker typing with Shift: [Shift+W/D/G types a selected face; Ctrl is left to the browser](deploy/digitalocean/development-sticker-shift-20261019.md) records release `180c64a0` and the verified development rollout.
