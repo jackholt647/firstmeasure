@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+October 19 Forward certification: [one payments gate, the two-step Forward checkout, voids and refunds through Forward, and the fixes found testing on dev](deploy/digitalocean/development-forward-cert-20261019.md) records releases `dd213586`, `0655b0a9`, `e5d8475a` and `dd704773`, the host merges and the verified four-role development rollouts; [Forward certification](docs/forward-certification.md) holds the evidence and what is left.
+
 October 19 Plane-mode arcs on rotated walls: [a closing paste no longer turns an existing arc's samples into points](deploy/digitalocean/development-plane-arcs-rotated-20261019.md) records release `10212b7a` and the verified development rollout.
 
 October 19 Plane-mode stickers and arcs: [an opened door loses its face, a closing paste fills, deleting an arc removes it whole](deploy/digitalocean/development-plane-arcs-20261019.md) records release `8b7f87c2` and the verified development rollout.
