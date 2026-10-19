@@ -156,31 +156,38 @@ async function ensureBrowser() {
   return page;
 }
 
+// The project opens in its own window frame (?projectWindow=...); the Money tab and the payment form live there.
 async function openTakePayment(projectId) {
   await page.goto(`${BASE}/portal/?project=${encodeURIComponent(projectId)}&projectTab=money`, { waitUntil: "domcontentloaded" });
-  await page.waitForFunction(() => !!window.Portal?.currentUser, null, { timeout: 60000 });
-  for (let attempt = 0; attempt < 40; attempt += 1) {
-    await page.evaluate(() => {
-      const button = document.querySelector("[data-money-take-payment]");
-      if (button) button.click();
-      else [...document.querySelectorAll('[data-tab="money"]')].find((tab) => !tab.classList.contains("active"))?.click();
-    });
-    if (await page.waitForSelector("[data-money-payment-intake] .fmpi-modal", { timeout: 1500 }).then(() => true).catch(() => false)) return;
+  for (let attempt = 0; attempt < 60; attempt += 1) {
+    const win = page.frames().find((frame) => frame.url().includes("projectWindow="));
+    if (win) {
+      const opened = await win.evaluate(() => {
+        if (document.querySelector("[data-money-payment-intake] .fmpi-modal")) return true;
+        const button = document.querySelector("[data-money-take-payment]");
+        if (button && !button.disabled) button.click();
+        else [...document.querySelectorAll('[data-tab="money"]')].find((tab) => !tab.classList.contains("active"))?.click();
+        return false;
+      }).catch(() => false);
+      if (opened || await win.waitForSelector("[data-money-payment-intake] .fmpi-modal", { timeout: 1500 }).then(() => true).catch(() => false)) return win;
+    } else {
+      await page.waitForTimeout(1500);
+    }
   }
   throw new Error("Take a payment did not open");
 }
 
 async function payByCard(projectId, { amount, pan, cvc, save = false }) {
   lastCheckoutId = "";
-  await openTakePayment(projectId);
-  await page.evaluate(() => document.querySelector('[data-fmpi-method="card"]').click());
-  await page.evaluate((value) => {
+  const win = await openTakePayment(projectId);
+  await win.evaluate(() => document.querySelector('[data-fmpi-method="card"]').click());
+  await win.evaluate((value) => {
     const input = document.querySelector("[data-fmpi-custom-amount]");
     input.value = value;
     input.dispatchEvent(new Event("input", { bubbles: true }));
   }, (amount / 100).toFixed(2));
   await page.waitForTimeout(1500);
-  const frame = page.frameLocator("iframe[data-forward-element]");
+  const frame = win.frameLocator("iframe[data-forward-element]");
   const type = async (locator, value) => { await locator.click(); await locator.press("Control+A"); await locator.press("Backspace"); await locator.pressSequentially(value, { delay: 20 }); };
   await frame.getByPlaceholder("1234 1234 1234 1234").waitFor({ timeout: 45000 });
   await type(frame.getByPlaceholder("1234 1234 1234 1234"), pan);
@@ -188,10 +195,10 @@ async function payByCard(projectId, { amount, pan, cvc, save = false }) {
   await type(frame.getByPlaceholder("CVC"), cvc);
   await frame.locator("select").first().selectOption({ label: "United States" }).catch(() => frame.locator("select").first().selectOption("US"));
   await type(frame.getByPlaceholder(/postal code/i), "60606");
-  if (save) await page.evaluate(() => { const box = document.querySelector("[data-fmpi-save]"); if (box && !box.checked) box.click(); });
-  await page.waitForFunction(() => document.querySelector("[data-fmpi-submit]") && !document.querySelector("[data-fmpi-submit]").disabled, null, { timeout: 20000 });
-  await page.evaluate(() => document.querySelector("[data-fmpi-submit]").click());
-  const outcome = await page.waitForFunction(() => {
+  if (save) await win.evaluate(() => { const box = document.querySelector("[data-fmpi-save]"); if (box && !box.checked) box.click(); });
+  await win.waitForFunction(() => document.querySelector("[data-fmpi-submit]") && !document.querySelector("[data-fmpi-submit]").disabled, null, { timeout: 20000 });
+  await win.evaluate(() => document.querySelector("[data-fmpi-submit]").click());
+  const outcome = await win.waitForFunction(() => {
     if (document.querySelector(".fmpi-success h3")) return { ok: true };
     const error = document.querySelector("[data-fmpi-forward-error]:not([hidden])");
     if (error && error.textContent.trim()) return { ok: false, error: error.textContent.trim() };
@@ -211,7 +218,7 @@ try {
       const checkout = checkoutId ? await checkoutView(checkoutId) : null;
       await record(caseId, {
         brand, amount_cents: amount, expected, outcome,
-        payment_method_id: checkout?.payment_method_id,
+        payment_method_id: checkout?.payment_method_id, our_payment_id: checkout?.recorded_payment_id || checkout?.payment_id,
         payment_intent_id: checkout?.provider_intent_id,
         payment_id: checkout?.provider_payment_id || checkout?.last_provider_payment_id,
         result: expected === "success" ? (outcome.ok ? "Success (captured)" : "UNEXPECTED FAILURE") : (outcome.ok ? "UNEXPECTED SUCCESS" : `Declined: ${outcome.error}`),
@@ -231,7 +238,7 @@ try {
       const checkout = checkoutId ? await checkoutView(checkoutId) : null;
       await record(caseId, {
         brand, amount_cents: RC_AMOUNTS[brand], initiated_by: checkout?.initiated_by, card_not_present_type: checkout?.scheduled ? "recurring" : "ecommerce",
-        payment_method_id: checkout?.payment_method_id, payment_intent_id: checkout?.provider_intent_id, payment_id: checkout?.provider_payment_id,
+        payment_method_id: checkout?.payment_method_id, payment_intent_id: checkout?.provider_intent_id, payment_id: checkout?.provider_payment_id, our_payment_id: checkout?.recorded_payment_id || checkout?.payment_id,
         api_response: outcome.ok ? "captured" : outcome.error, pass: outcome.ok && checkout?.initiated_by === "customer"
       });
     }
@@ -241,7 +248,7 @@ try {
     const saved = (await api.req("GET", `/v1/payments/organizations/${orgId}/customers/${encodeURIComponent(evidence.contact_id)}/payment-methods`)).payment_methods;
     for (const [caseId, brand] of RC_MIT) {
       if (evidence.cases[caseId]?.pass) { console.log(caseId, "already recorded"); continue; }
-      const method = saved.find((entry) => entry.type === "card" && String(entry.brand).toLowerCase().replace(/\s+/g, "").startsWith(brand === "AMEX" ? "american" : brand.toLowerCase()));
+      const method = saved.find((entry) => entry.type === "card" && (brand === "AMEX" ? /^(amex|american_?express)/ : new RegExp("^" + brand.toLowerCase())).test(String(entry.brand).toLowerCase().replace(/\s+/g, "")));
       if (!method) { await record(caseId, { brand, error: "no saved card of this brand (run the cit phase first)", pass: false }); continue; }
       const projectId = await newProject(`mit-${brand}`);
       const invoice = await api.req("POST", `/v1/payments/organizations/${orgId}/projects/${projectId}/invoices`, {
@@ -277,21 +284,21 @@ try {
   }
 
   if (phases.includes("refunds")) {
-    const candidates = ["CNP02", "CNP04", "CNP06", "RC05", "RC06"].map((id) => evidence.cases[id]).filter((entry) => entry?.payment_intent_id);
-    const payments = [];
-    for (const projectId of [evidence.cit_project_id].filter(Boolean)) {
-      payments.push(...(await api.req("GET", `/v1/payments/organizations/${orgId}/projects/${projectId}/payments`)).payments);
-    }
-    const all = (await api.req("GET", `/v1/payments/organizations/${orgId}/reconciliation`));
-    const settledPayments = [...(all.uncleared || []), ...(all.cleared || [])].filter((p) => p.direction === "inbound" && p.status === "settled" && candidates.some((c) => c.payment_intent_id === p.processor?.provider_intent_id));
-    const [full, partial] = settledPayments;
-    if (full && !evidence.cases.R00?.pass) {
-      const result = await api.req("POST", `/v1/payments/organizations/${orgId}/payments/${full.id}/refunds`, { reason: "requested_by_customer" }).catch((error) => ({ error: error.message }));
-      await record("R00", { amount_cents: full.amount_cents, refund_cents: full.amount_cents, payment_intent_id: full.processor.provider_intent_id, action: result.provider_action, refund_id: result.refund?.processor?.provider_refund_id, result: result.payment?.status || result.error, pass: result.provider_action === "refunded" && result.payment?.status === "refunded" });
-    }
-    if (partial && !evidence.cases.R01?.pass) {
-      const result = await api.req("POST", `/v1/payments/organizations/${orgId}/payments/${partial.id}/refunds`, { amount_cents: 900, reason: "requested_by_customer" }).catch((error) => ({ error: error.message }));
-      await record("R01", { amount_cents: partial.amount_cents, refund_cents: 900, payment_intent_id: partial.processor.provider_intent_id, action: result.provider_action, refund_id: result.refund?.processor?.provider_refund_id, result: result.payment?.status || result.error, pass: result.provider_action === "refunded" && result.payment?.status === "partially_refunded" });
+    // R00 needs a payment Forward has settled (an unsettled one is voided instead); R01 refunds $9.00 of another.
+    const candidates = ["CNP02", "CNP04", "CNP06", "RC05", "RC06", "RC07", "CNP00"].map((id) => [id, evidence.cases[id]]).filter(([, c]) => c?.our_payment_id);
+    const used = new Set([evidence.cases.R00?.from, evidence.cases.R01?.from].filter(Boolean));
+    const next = () => candidates.find(([id]) => !used.has(id));
+    for (const [caseId, amount] of [["R00", null], ["R01", 900]]) {
+      if (evidence.cases[caseId]?.pass) { console.log(caseId, "already recorded"); continue; }
+      const pick = next();
+      if (!pick) { console.log(caseId, "no payment left to refund"); continue; }
+      const [from, source] = pick; used.add(from);
+      const result = await api.req("POST", `/v1/payments/organizations/${orgId}/payments/${source.our_payment_id}/refunds`, { ...(amount ? { amount_cents: amount } : {}), reason: "requested_by_customer" }).catch((error) => ({ error: error.message }));
+      await record(caseId, {
+        from, amount_cents: source.amount_cents, refund_cents: amount || source.amount_cents, payment_intent_id: source.payment_intent_id, payment_id: source.payment_id,
+        action: result.provider_action, refund_id: result.refund?.processor?.provider_refund_id || result.refund?.provider_refund_id, result: result.payment?.status || result.error,
+        pass: result.provider_action === "refunded"
+      });
     }
   }
 

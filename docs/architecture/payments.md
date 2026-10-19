@@ -85,6 +85,16 @@ Outcomes:
   The customer is told not to pay again. Autopay retries the same checkout,
   never a new charge.
 
+A charge never runs inside another feature's database transaction. On
+PostgreSQL a transaction that throws rolls back everything written in it, so a
+charge made inside one could lose its checkout attempt (the next card would
+replay the first card's answer) or its payment record while Forward kept the
+money. A document's payment output is therefore charged before the document's
+signing transaction starts (`chargeDocumentPaymentBeforeLock` in
+`documents/service.ts`); the locked step finds that payment and attaches it.
+`tests/document-payment-checkout.test.ts` covers this, also on PostgreSQL
+(`npm run test:payments:postgres`).
+
 A Forward token without a checkout is refused (`checkout_required`), and raw
 card or bank numbers are refused (`raw_payment_details_refused`): they are
 typed only into Forward's iframe. A checkout belongs to its job, amount, rail

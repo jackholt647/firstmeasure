@@ -18,7 +18,9 @@
  *   node scripts/forward-checkout-ui-e2e.mjs      (from public/v1)
  *
  * WEB_ORIGIN / API_ORIGIN default to the local stack (:8011 / :3101). The
- * organization must already be approved on a Forward sandbox account.
+ * organization must already be approved on a Forward sandbox account. On the
+ * hosted development stack a login file may instead be {sandbox, orgId}: a
+ * signup-sandbox test organization, signed in without a password.
  */
 import { chromium } from "playwright-core";
 import { access, mkdir, readFile, writeFile } from "node:fs/promises";
@@ -56,6 +58,7 @@ function apiClient() {
         method,
         headers: {
           "Content-Type": "application/json",
+          Origin: WEB,
           ...(jar.size ? { cookie: [...jar.values()].join("; ") } : {}),
           ...(csrf && !["GET", "HEAD"].includes(method) ? { "x-platform-csrf": csrf } : {})
         },
@@ -64,7 +67,7 @@ function apiClient() {
       for (const raw of res.headers.getSetCookie?.() || []) {
         const pair = raw.split(";")[0];
         jar.set(pair.split("=")[0], pair);
-        if (pair.startsWith("fm_platform_session_csrf=")) csrf = decodeURIComponent(pair.split("=")[1] || "");
+        if (/^fm_platform_session(_[a-z]+)?_csrf=/.test(pair)) csrf = decodeURIComponent(pair.split("=")[1] || "");
       }
       const text = await res.text();
       let data = null;
@@ -75,9 +78,44 @@ function apiClient() {
   };
 }
 
+async function signIn(api, account) {
+  if (account.sandbox) return api.req("POST", `/v1/signup-sandbox/test-orgs/${account.sandbox}/login`, {});
+  return api.req("POST", "/v1/platform/auth/login", { email: account.email, password: account.password, organization_id: account.orgId });
+}
+
+/** Signs the browser in as the account (same origin as the API on hosted stacks). */
+async function signInPage(page, account) {
+  await page.goto(`${WEB}/portal/login.php`, { waitUntil: "domcontentloaded" });
+  await page.evaluate(async ({ api, account }) => {
+    const url = account.sandbox ? `${api}/v1/signup-sandbox/test-orgs/${account.sandbox}/login` : `${api}/v1/platform/auth/login`;
+    const body = account.sandbox ? "{}" : JSON.stringify({ email: account.email, password: account.password, organization_id: account.orgId });
+    await fetch(url, { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body });
+  }, { api: API, account });
+}
+
+/** A project opens in its own window frame (?projectWindow=); its Money tab and payment form live there. */
+async function openTakePayment(page, projectId) {
+  await page.goto(`${WEB}/portal/?project=${encodeURIComponent(projectId)}&projectTab=money`, { waitUntil: "domcontentloaded" });
+  for (let attempt = 0; attempt < 60; attempt += 1) {
+    const scopes = [page.frames().find((frame) => frame.url().includes("projectWindow=")), page.mainFrame()].filter(Boolean);
+    for (const scope of scopes) {
+      const opened = await scope.evaluate(() => {
+        if (document.querySelector("[data-money-payment-intake] .fmpi-modal")) return true;
+        const button = document.querySelector("[data-money-take-payment]");
+        if (button && !button.disabled) button.click();
+        else [...document.querySelectorAll('[data-tab="money"]')].find((tab) => !tab.classList.contains("active"))?.click();
+        return false;
+      }).catch(() => false);
+      if (opened) return scope;
+    }
+    await page.waitForTimeout(1500);
+  }
+  return null;
+}
+
 async function seedProject(account, withDocument) {
   const api = apiClient();
-  await api.req("POST", "/v1/platform/auth/login", { email: account.email, password: account.password, organization_id: account.orgId });
+  await signIn(api, account);
   const suffix = Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
   const projectId = `project_fwdui_${suffix}`;
   await api.req("PUT", `/v1/platform/organizations/${account.orgId}/projects/${projectId}`, {
@@ -111,8 +149,8 @@ async function shot(page, name) {
 }
 
 /** Types a card into Forward's iframe (cross-origin; Playwright frame locator). */
-async function fillForwardCard(page, pan, zip = "60606") {
-  const frame = page.frameLocator('iframe[data-forward-element]');
+async function fillForwardCard(scope, pan, zip = "60606") {
+  const frame = scope.frameLocator('iframe[data-forward-element]');
   await frame.getByPlaceholder("1234 1234 1234 1234").waitFor({ timeout: 30000 });
   // Retyping after a decline replaces what is there.
   const type = async (field, value) => {
@@ -128,7 +166,7 @@ async function fillForwardCard(page, pan, zip = "60606") {
     await frame.locator("select").first().selectOption("US");
   });
   await type(frame.getByPlaceholder(/postal code/i), zip);
-  await page.waitForFunction(() => document.querySelector("[data-fmpi-submit]") && !document.querySelector("[data-fmpi-submit]").disabled, null, { timeout: 15000 });
+  await scope.waitForFunction(() => document.querySelector("[data-fmpi-submit]") && !document.querySelector("[data-fmpi-submit]").disabled, null, { timeout: 15000 });
 }
 
 async function clickPay(page) {
@@ -153,6 +191,10 @@ const browser = await chromium.launch({ executablePath: await browserPath(), hea
 const context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
 const page = await context.newPage();
 page.on("pageerror", (error) => console.log("pageerror:", error.message));
+if (process.env.FORWARD_UI_DEBUG) {
+  page.on("request", (request) => { if (/\/v1\/(documents\/public|payments)/.test(request.url()) && request.method() !== "GET") console.log("->", request.method(), new URL(request.url()).pathname, (request.postData() || "").replace(/"(client_secret|payment_method_id)":"[^"]*"/g, '"$1":"…"').slice(0, 400)); });
+  page.on("response", async (response) => { if (/\/v1\/(documents\/public|payments)/.test(response.url()) && response.request().method() !== "GET") console.log("<-", response.status(), new URL(response.url()).pathname, (await response.text().catch(() => "")).replace(/"client_secret":"[^"]*"/g, '"client_secret":"…"').slice(0, 400)); });
+}
 
 try {
   // ── 1. Customer portal: decline in place, then pay the same checkout ─────
@@ -186,30 +228,18 @@ try {
 
   // ── 2. Staff Money tab: custom amount, save the card, charge it again ────
   const staffSeed = await seedProject(login, false);
-  await page.goto(`${WEB}/portal/login.php`, { waitUntil: "domcontentloaded" });
-  await page.evaluate(async ({ api, email, password, org }) => {
-    await fetch(api + "/v1/platform/auth/login", { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email, password, organization_id: org }) });
-  }, { api: API, email: login.email, password: login.password, org: login.orgId });
-  await page.goto(`${WEB}/portal/?project=${encodeURIComponent(staffSeed.projectId)}&projectTab=money`, { waitUntil: "domcontentloaded" });
-  await page.waitForFunction(() => !!window.Portal?.currentUser, null, { timeout: 45000 });
-  let mounted = false;
-  for (let attempt = 0; attempt < 30 && !mounted; attempt += 1) {
-    await page.evaluate(() => {
-      const button = document.querySelector("[data-money-take-payment]");
-      if (button) button.click();
-      else [...document.querySelectorAll('[data-tab="money"]')].find((tab) => !tab.classList.contains("active"))?.click();
-    });
-    mounted = await page.waitForSelector("[data-money-payment-intake] .fmpi-modal", { timeout: 2000 }).then(() => true).catch(() => false);
-  }
+  await signInPage(page, login);
+  const win = await openTakePayment(page, staffSeed.projectId);
+  const mounted = !!win;
   check("staff: Take a payment opens", mounted);
-  await page.evaluate(() => document.querySelector('[data-fmpi-method="card"]').click());
-  await page.evaluate(() => { const input = document.querySelector("[data-fmpi-custom-amount]"); input.value = "11.00"; input.dispatchEvent(new Event("input", { bubbles: true })); });
+  await win.evaluate(() => document.querySelector('[data-fmpi-method="card"]').click());
+  await win.evaluate(() => { const input = document.querySelector("[data-fmpi-custom-amount]"); input.value = "11.00"; input.dispatchEvent(new Event("input", { bubbles: true })); });
   await page.waitForTimeout(1500);
-  await fillForwardCard(page, SUCCESS_VISA);
-  await page.evaluate(() => { const save = document.querySelector("[data-fmpi-save]"); if (save && !save.checked) save.click(); });
+  await fillForwardCard(win, SUCCESS_VISA);
+  await win.evaluate(() => { const save = document.querySelector("[data-fmpi-save]"); if (save && !save.checked) save.click(); });
   await shot(page, "staff-card-entered");
-  await clickPay(page);
-  const staffPaid = await waitOutcome(page);
+  await clickPay(win);
+  const staffPaid = await waitOutcome(win);
   await shot(page, "staff-paid");
   check("staff: card payment for a custom amount goes through Forward", staffPaid.ok === true, staffPaid);
   let staffPayments = (await staffSeed.api.req("GET", `/v1/payments/organizations/${login.orgId}/projects/${staffSeed.projectId}/payments`)).payments;
@@ -231,6 +261,13 @@ try {
     const note = await notReadyPage.waitForFunction(() => [...document.querySelectorAll(".fmdoc-pay-now-note")].map((node) => node.textContent).join(" "), null, { timeout: 30000 }).then((h) => h.jsonValue()).catch(() => "");
     await notReadyPage.screenshot({ path: path.join(SHOTS, "not-ready-portal.png") });
     check("not set up: the document offers no Pay button", /isn't available/i.test(String(note)) && !(await notReadyPage.evaluate(() => [...document.querySelectorAll("button")].some((b) => b.textContent.trim() === "Pay"))), { note });
+    // Staff side: Take a payment shows the not-set-up notice and no card or bank entry.
+    await signInPage(notReadyPage, notReadyLogin);
+    const notReadyWin = await openTakePayment(notReadyPage, notReady.projectId);
+    const staffNotice = notReadyWin ? await notReadyWin.waitForSelector("[data-fmpi-not-ready]", { timeout: 20000 }).then((node) => node.textContent()).catch(() => "") : "";
+    await notReadyPage.screenshot({ path: path.join(SHOTS, "not-ready-staff.png") });
+    const staffEntry = notReadyWin ? await notReadyWin.evaluate(() => !!document.querySelector("iframe[data-forward-element], [data-fmpi-method]")) : true;
+    check("not set up: Take a payment shows the notice and no card or bank entry", /not set up/i.test(staffNotice) && !staffEntry, { staffNotice, staffEntry });
     await notReadyPage.close();
   }
 } catch (error) {
