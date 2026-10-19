@@ -273,6 +273,73 @@ Capabilities (`apps.crm` children): `crm.views`, `crm.worklists`, `crm.sources`,
 setting uses `scheduling.appointment_slots`. A pack with cancellation rules turns on
 `crm.rescission`. A feature that is off renders nothing: no menu, panel or setting.
 
+## Published data
+
+The CRM collections are published as the `crm` provider (`crm/publication.ts`), with the
+exports `opportunities`, `contacts`, `follow_ups` and `appointments`: the rows the CRM tab
+shows, nested by their dotted keys (`cf.crm.owner` is the path `cf` › `crm` › `owner`),
+limited by the caller's branch scope and department access. An export reads its collection
+once per execution, so a program's selections share one build. Reads never write.
+
+`crm.leads.update` (organization scope, `manage_projects`, idempotent) writes declared
+custom fields on one lead's project, `{ project_id, values }`, through
+`custom-fields.project.write` with the caller's own access. It is how a program that works
+across many leads (routing, a reassignment sweep, a score) changes one of them.
+
+## Lead routing and scoring
+
+Routing and scoring are programs, not features. CRM settings › Lead routing saves the
+`crm_routing` branch module (`crm/routing.ts`) and turns it into organization rules, every
+one with an id starting `crm_routing_`, whose action is `scope.code.run.v1`: a sandbox
+program with the settings as its inputs. Saving replaces only those rules; a company's own
+rules are left alone.
+
+| Rule | Trigger | Program |
+| --- | --- | --- |
+| `crm_routing_assign` | `lead.received` | routing, mode `assign` |
+| `crm_routing_reassign` | every five minutes, when *Pass on if untouched* is set | routing, mode `reassign` |
+| `crm_routing_score_<event>` | lead received, result recorded, appointment booked or held, won, lost | scoring |
+
+The settings:
+
+- **Method**: take turns (whoever has waited longest for a lead), by share (each person's
+  share of leads routed in the last 30 days, from their weight), fewest open leads, or by
+  rules (the first rule whose conditions the lead matches picks the people, who take turns;
+  no match falls through to the people list).
+- **Most open leads per person** skips anyone at the limit; **When nobody can take it**
+  names the fallback people.
+- **Pass on if untouched after** moves a lead whose owner has not touched it since it was
+  routed, to the next person (never back to the same one), up to **Times a lead may be
+  passed on**. A touch is the lead's `last_touch_at`.
+- **Lead scoring**: rules of conditions and points; the score is the sum of the points of
+  the rules the lead matches, and is written only when it changes.
+- Conditions are the one condition contract over the lead's row (any opportunities field:
+  source, scope, stage, value, custom fields, funnel milestones), edited with the same
+  filter editor as views.
+
+The programs write four declared project fields, added to every branch when routing or
+scoring is turned on: `crm.owner` (Lead owner, a person), `crm.score` (Lead score),
+`crm.routed_at` and `crm.route_count` (background). Because they are ordinary fields,
+views filter and group on them, worklists and the board use them, and pay rules can read
+the owner.
+
+**What a program can read.** A program declares bindings; each binding names a published
+source (`provider`/`export` and a target). It may read a binding whole with
+`api.data.read(name)` or query it with `api.data.select(name, selection)`: the shared
+selection (`where` in the condition contract, `orderBy`, `period`, `limit` up to 5,000)
+plus `fields`, a list of dotted paths returned as flat keys. Any published provider can be
+a binding, so a program may draw on the whole data layer; nothing is hidden from
+automation beyond what its author may see. The standard routing program selects open
+leads and leads routed in the last 30 days to count each person's load, and selects a
+single lead with a rule's conditions to test whether it matches. The trigger is
+`state.trigger` (`type`, `project_id`, `payload`, `at`).
+
+**Custom code.** CRM settings › Custom code shows both programs. Editing one stores it in
+`custom.routing_source` or `custom.scoring_source`, and the rules run it instead of the
+standard program, with the same inputs, bindings and outputs; *Use the standard program*
+clears it. A program in an organization rule must be the one saved in the rules (its hash
+is checked) and runs with the access of whoever last saved the rules.
+
 ## The CRM app
 
 `portal.crm` (`public/libraries/apps/crm/app.js`, `crm.css`), the CRM tab. It is declared
@@ -305,14 +372,15 @@ The tab:
 - **Funnel**: period and grouping, bars and the table, each cell a link to its leads.
 - **Duplicates**: suggested contacts and projects side by side; keep one or dismiss.
 - **Sources**: the tree with rules, and spend.
-- **CRM settings**: setup, the funnel steps, cancellation rules.
+- **CRM settings**: setup, lead routing and scoring with their custom code, the funnel
+  steps, cancellation rules.
 - Keyboard while the CRM is on screen: `/` search, `f` filter, `j`/`k` next and
   previous row, `Esc` close, `Ctrl+K` command menu, `S` skip in a worklist.
 
 ## Not built
 
-Territories and timeslot grids, financing, triggers keyed on a contact, lead scoring,
-routing by capacity, and a funnel step editor for conditions (steps with conditions are
+Timeslot grids, financing, triggers keyed on a contact, and a funnel step editor for
+conditions (steps with conditions are
 kept and shown, and are edited through the API or presets).
 
 - **No place record** (decided 2026-10-19): an address lives on the contact and on the
@@ -321,11 +389,12 @@ kept and shown, and are edited through the API or presets).
   (created, updated with the changed fields, tagged, merged); a date on a contact can fire a
   rule; rule conditions read the contact; actions text or email the contact, create a to-do,
   or start a lead through `receiveLead`.
-- **Lead scoring and routing by capacity**: undecided. Today a new lead notifies roles and
-  queues the first call; whoever books the sales appointment fills the estimator field.
+- **Territories** are routing rules: a rule whose conditions name ZIP codes, a state or a
+  branch, with the people who cover it. A map editor is not built.
 
 Validation: `tests/crm-views.test.ts` (collections, views, results, sources, spend,
 the funnel, presets, tracking tags and the cancellation window),
-`tests/crm-rescission.test.ts` (deadlines and rules) and
+`tests/crm-rescission.test.ts` (deadlines and rules), `tests/crm-routing.test.ts` (routing
+by turns, capacity, fallback and rules, scoring, passing on untouched leads) and
 `tests/crm-app-browser.test.mjs` (the app in a browser against the server; set
 `CRM_SCREENSHOTS` to keep a screenshot of each screen).

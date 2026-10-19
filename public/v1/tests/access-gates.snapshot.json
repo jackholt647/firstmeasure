@@ -1,7 +1,7 @@
 {
   "summary": {
     "routes": {
-      "total": 1753,
+      "total": 1755,
       "by_kind": {
         "any:login_only": 120,
         "any:login_only+handler_checks": 284,
@@ -21,7 +21,7 @@
         "app(portal.contacts|portal.viewer):permission": 1,
         "app(portal.crm):login_only": 3,
         "app(portal.crm):login_only+handler_checks": 7,
-        "app(portal.crm):permission": 12,
+        "app(portal.crm):permission": 14,
         "app(project.measurements):login_only": 137,
         "app(project.measurements):login_only+handler_checks": 1,
         "app(project.measurements):permission": 2,
@@ -34,17 +34,17 @@
       }
     },
     "data": {
-      "total": 193,
+      "total": 197,
       "by_kind": {
         "any:membership_only": 9,
-        "any:permission": 184
+        "any:permission": 188
       }
     },
     "actions": {
-      "total": 282,
+      "total": 283,
       "by_kind": {
         "any:membership_only": 23,
-        "any:permission": 259
+        "any:permission": 260
       }
     },
     "tabs": {
@@ -311,6 +311,7 @@
     "GET /v1/crm/organizations/:orgId/presets": {"file":"crm/api.ts","gates":[{"app":"portal.crm","permission":"manage_company_settings","capability":"crm.views"}],"kind":"app(portal.crm):permission"},
     "GET /v1/crm/organizations/:orgId/projects/:projectId/results": {"file":"crm/api.ts","gates":[{"app":"portal.crm","permission":"view_projects","capability":"crm.views"}],"kind":"app(portal.crm):permission"},
     "GET /v1/crm/organizations/:orgId/rescission": {"file":"crm/api.ts","gates":[{"app":"portal.crm","capability":"crm.rescission"}],"kind":"app(portal.crm):login_only"},
+    "GET /v1/crm/organizations/:orgId/routing": {"file":"crm/api.ts","gates":[{"app":"portal.crm","permission":"manage_company_settings","capability":"crm.views"}],"kind":"app(portal.crm):permission"},
     "GET /v1/crm/organizations/:orgId/sources": {"file":"crm/api.ts","gates":[{"app":"portal.crm","capability":"crm.sources"}],"kind":"app(portal.crm):login_only"},
     "GET /v1/crm/organizations/:orgId/spend": {"file":"crm/api.ts","gates":[{"app":"portal.crm","permission":"manage_company_settings","capability":"crm.source_spend"}],"kind":"app(portal.crm):permission"},
     "GET /v1/crm/organizations/:orgId/views": {"file":"crm/api.ts","gates":[{"app":"portal.crm","capability":"crm.views"}],"checks":["hasPermission(manage_company_settings)","hasPermission(dynamic)"],"kind":"app(portal.crm):login_only+handler_checks"},
@@ -1747,6 +1748,7 @@
     "PUT /v1/comms/organizations/:orgId/voice/settings": {"file":"comms/calls/api.ts","gates":[{"app":"any","permission":"manage_communications|manage_company_settings","capability":"apps.comms","csrf":true}],"checks":["hasPermission(dynamic)"],"hook_gates":[{"app":"any"}],"kind":"any:permission"},
     "PUT /v1/crm/organizations/:orgId/funnel": {"file":"crm/api.ts","gates":[{"app":"portal.crm","permission":"manage_company_settings","capability":"crm.funnel","csrf":true}],"kind":"app(portal.crm):permission"},
     "PUT /v1/crm/organizations/:orgId/rescission": {"file":"crm/api.ts","gates":[{"app":"portal.crm","permission":"manage_company_settings","capability":"crm.rescission","csrf":true}],"kind":"app(portal.crm):permission"},
+    "PUT /v1/crm/organizations/:orgId/routing": {"file":"crm/api.ts","gates":[{"app":"portal.crm","permission":"manage_company_settings","capability":"crm.views","csrf":true}],"kind":"app(portal.crm):permission"},
     "PUT /v1/crm/organizations/:orgId/sources": {"file":"crm/api.ts","gates":[{"app":"portal.crm","permission":"manage_company_settings","capability":"crm.sources","csrf":true}],"kind":"app(portal.crm):permission"},
     "PUT /v1/crm/organizations/:orgId/spend/:spendId": {"file":"crm/api.ts","gates":[{"app":"portal.crm","permission":"manage_company_settings","capability":"crm.source_spend","csrf":true}],"kind":"app(portal.crm):permission"},
     "PUT /v1/crm/organizations/:orgId/views/:viewId": {"file":"crm/api.ts","gates":[{"app":"portal.crm","capability":"crm.views","csrf":true}],"checks":["hasPermission(manage_company_settings)"],"kind":"app(portal.crm):login_only+handler_checks"},
@@ -1834,6 +1836,10 @@
     "contacts.record@1": {"app":"any","permissions":["view_contacts"],"scopes":["organization"],"kind":"any:permission"},
     "contacts.records@1": {"app":"any","permissions":["view_contacts"],"scopes":["organization"],"kind":"any:permission"},
     "contacts.settings@1": {"app":"any","permissions":["view_contacts"],"scopes":["organization"],"kind":"any:permission"},
+    "crm.appointments@1": {"app":"any","permissions":["view_projects"],"scopes":["organization"],"kind":"any:permission"},
+    "crm.contacts@1": {"app":"any","permissions":["view_contacts"],"scopes":["organization"],"kind":"any:permission"},
+    "crm.follow_ups@1": {"app":"any","permissions":["view_projects"],"scopes":["organization"],"kind":"any:permission"},
+    "crm.opportunities@1": {"app":"any","permissions":["view_projects"],"scopes":["organization"],"kind":"any:permission"},
     "custom-fields-branch.contract@1": {"app":"any","permissions":["manage_company_settings"],"scopes":["organization"],"kind":"any:permission"},
     "custom-fields-branch.phones@1": {"app":"any","permissions":["manage_company_settings"],"scopes":["organization"],"kind":"any:permission"},
     "custom-fields-branch.values@1": {"app":"any","permissions":["manage_company_settings"],"scopes":["organization"],"kind":"any:permission"},
@@ -2056,6 +2062,7 @@
     "contacts.update@1": {"app":"any","permissions":["manage_projects"],"scopes":["organization"],"system_kinds":["work","module","agent"],"kind":"any:permission","effect":"write","execution_kinds":["api","agent","module","work"]},
     "crm.callLists.add.v1@1": {"app":"any","permissions":["manage_company_settings"],"scopes":["organization","project"],"system_kinds":["work"],"kind":"any:permission","effect":"write","execution_kinds":["work"]},
     "crm.callLists.remove.v1@1": {"app":"any","permissions":["manage_company_settings"],"scopes":["organization","project"],"system_kinds":["work"],"kind":"any:permission","effect":"write","execution_kinds":["work"]},
+    "crm.leads.update@1": {"app":"any","permissions":["manage_projects"],"scopes":["organization"],"system_kinds":["work","module","agent"],"kind":"any:permission","effect":"write","execution_kinds":["api","agent","module","work"]},
     "custom-fields.branch.write@1": {"app":"any","permissions":["manage_company_settings"],"scopes":["organization"],"system_kinds":["work","module","agent"],"kind":"any:permission","effect":"write","execution_kinds":["api","agent","module","work"]},
     "custom-fields.company.write@1": {"app":"any","permissions":["manage_company_settings"],"scopes":["organization"],"system_kinds":["work","module","agent"],"kind":"any:permission","effect":"write","execution_kinds":["api","agent","module","work"]},
     "custom-fields.contact.write@1": {"app":"any","permissions":["manage_projects"],"scopes":["project","organization"],"system_kinds":["work","module","agent"],"kind":"any:permission","effect":"write","execution_kinds":["api","agent","module","work"]},

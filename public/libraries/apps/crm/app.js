@@ -81,7 +81,9 @@
     };
     const viewById = (id) => state.views.find((v) => v.id === id) || null;
     const collectionInfo = (id) => arr(state.meta?.collections).find((c) => c.id === id) || { id, label: id };
-    const fields = () => arr(state.result?.fields);
+    // A settings panel that edits conditions over leads (routing, scoring) sets fieldScope to the leads' fields.
+    let fieldScope = null;
+    const fields = () => fieldScope || arr(state.result?.fields);
     const fieldByKey = (key) => fields().find((f) => f.key === key) || null;
     const feature = (key) => state.meta?.features?.[key] === true;
     const dirty = () => state.saved && state.draft && !same(normalizedDefinition(state.saved.definition), normalizedDefinition(state.draft.definition));
@@ -132,7 +134,7 @@
 
     function openView(id, options = {}){
       const view = viewById(id); if (!view) return;
-      state.panel = 'view'; state.saved = clone(view); state.draft = clone(view); state.offset = 0; state.selected.clear(); state.search = ''; closeDrawer(false);
+      fieldScope = null; state.panel = 'view'; state.saved = clone(view); state.draft = clone(view); state.offset = 0; state.selected.clear(); state.search = ''; closeDrawer(false);
       if (options.history !== false && !navigation?.applying) navigation?.push?.({ tab:'crm', crmView:id, crmPanel:null }, { source:'crm-view', ownedKeys:['crmView', 'crmPanel'] });
       renderShell(); query();
       host.classList.remove('rail-open');
@@ -584,9 +586,9 @@
       return { field: field?.key || '', operator: op, value };
     }
 
-    /** The filter editor: every condition of the view, with all-or-any groups one level deep. */
+    /** The filter editor: every condition of the view, with all-or-any groups one level deep; or any conditions, given options.filter and options.onApply. */
     function openFilterEditor(anchor, focusIndex = -1, options = {}){
-      let working = clone(normalizedDefinition(state.draft.definition).filter);
+      let working = clone(options.filter || normalizedDefinition(state.draft.definition).filter);
       if (!arr(working.rules).length) working = { match:'all', rules:[defaultRule(fields()[0])] };
       const valueControl = (rule, path) => {
         const field = fieldByKey(rule.field), type = field?.type || 'text';
@@ -614,7 +616,7 @@
           if (Array.isArray(rule.rules)) return `<div class="crm-fgroup"><div class="crm-pop-row"><select data-fmatch="${path}" aria-label="${esc(L('match', 'Match'))}"><option value="all" ${rule.match !== 'any' ? 'selected' : ''}>${esc(L('all_of', 'All of these'))}</option><option value="any" ${rule.match === 'any' ? 'selected' : ''}>${esc(L('any_of', 'Any of these'))}</option></select><button type="button" class="crm-btn icon ghost" data-fremove="${path}" aria-label="${esc(L('remove_group', 'Remove group'))}"><i class="fas fa-trash"></i></button></div>${groupHtml(rule, path)}<button type="button" class="crm-btn small ghost" data-fadd="${path}"><i class="fas fa-plus"></i>${esc(L('add_condition', 'Add condition'))}</button></div>`;
           return rowHtml(rule, path);
         }).join('')}`;
-        el.innerHTML = `<h5>${esc(L('filter_rows', 'Show rows that match'))}</h5>
+        el.innerHTML = `<h5>${esc(options.title || L('filter_rows', 'Show rows that match'))}</h5>
           <div class="crm-pop-row"><select data-fmatch="" aria-label="${esc(L('match', 'Match'))}"><option value="all" ${working.match !== 'any' ? 'selected' : ''}>${esc(L('all_of', 'All of these'))}</option><option value="any" ${working.match === 'any' ? 'selected' : ''}>${esc(L('any_of', 'Any of these'))}</option></select></div>
           ${groupHtml(working, '')}
           <div class="crm-pop-row"><button type="button" class="crm-btn small ghost" data-fadd=""><i class="fas fa-plus"></i>${esc(L('add_condition', 'Add condition'))}</button><button type="button" class="crm-btn small ghost" data-faddgroup><i class="fas fa-layer-group"></i>${esc(L('add_group', 'Add group'))}</button></div>
@@ -638,8 +640,9 @@
         if (b.dataset.fremove !== undefined) { const { parent, idx } = at(b.dataset.fremove); parent.rules.splice(idx, 1); render(); }
         else if (b.dataset.fadd !== undefined) { const target = b.dataset.fadd === '' ? working : at(b.dataset.fadd).node; target.rules = [...arr(target.rules), defaultRule(fields()[0])]; render(); }
         else if (b.dataset.faddgroup !== undefined) { working.rules = [...arr(working.rules), { match:'any', rules:[defaultRule(fields()[0])] }]; render(); }
+        else if (b.dataset.fcancel !== undefined && options.onApply) closePop();
         else if (b.dataset.fcancel !== undefined) { if (options.fresh) changeDraft((def) => { def.filter = { ...def.filter, rules: arr(def.filter.rules).slice(0, -1) }; }, { query:false }); closePop(); renderFilters(); }
-        else if (b.dataset.fapply !== undefined) { const clean = (g) => ({ match: g.match === 'any' ? 'any' : 'all', rules: arr(g.rules).map((r) => Array.isArray(r.rules) ? clean(r) : r).filter((r) => Array.isArray(r.rules) ? r.rules.length : r.field) }); const next = clean(working); closePop(); changeDraft((def) => { def.filter = next; }); }
+        else if (b.dataset.fapply !== undefined) { const clean = (g) => ({ match: g.match === 'any' ? 'any' : 'all', rules: arr(g.rules).map((r) => Array.isArray(r.rules) ? clean(r) : r).filter((r) => Array.isArray(r.rules) ? r.rules.length : r.field) }); const next = clean(working); closePop(); if (options.onApply) options.onApply(next); else changeDraft((def) => { def.filter = next; }); }
       });
     }
 
@@ -1113,6 +1116,7 @@
 
     // ---- Panels: funnel, duplicates, sources, settings ------------------------------------
     function renderPanel(){
+      fieldScope = null;
       host.querySelector('.crm-filterbar').hidden = true; host.querySelector('.crm-savebar').hidden = true; host.querySelector('.crm-bulkbar').hidden = true;
       const content = host.querySelector('.crm-content');
       content.innerHTML = '<div class="crm-loading"></div>';
@@ -1312,6 +1316,7 @@
       const EVENTS = [['lead.received', L('ev_lead', 'A lead arrives')], ['project.event_scheduled', L('ev_scheduled', 'An appointment is booked')], ['appointment.confirmed', L('ev_confirmed', 'An appointment is confirmed')], ['project.event.completed', L('ev_completed', 'An appointment is completed')], ['document.sent', L('ev_doc_sent', 'A document is sent')], ['document.signed', L('ev_doc_signed', 'A document is signed')], ['payment.received', L('ev_paid', 'A payment is received')], ['opportunity.won', L('ev_won', 'The sale is won')], ['opportunity.lost', L('ev_lost', 'The sale is lost')], ['work.node.completed', L('ev_step_done', 'A scope step is completed')], ['work.node.skipped', L('ev_step_skipped', 'A scope step is skipped')], ['crm.disposition.recorded', L('ev_result', 'A result is recorded')]];
       content.innerHTML = `<div class="crm-page">
         ${state.meta?.can_share_views ? `<section class="crm-panel" style="margin-bottom:16px" data-setup><div class="crm-loading"></div></section>` : ''}
+        ${state.meta?.can_share_views ? `<section class="crm-panel" style="margin-bottom:16px" data-routing><div class="crm-loading"></div></section>` : ''}
         ${funnel ? `<section class="crm-panel" style="margin-bottom:16px"><h3 style="margin:0 0 4px;font-size:15px">${esc(term('crm.funnel', 'Funnel'))}</h3><p class="crm-dim" style="margin:0 0 12px">${esc(L('funnel_intro', 'Each step is reached when the first matching event happens on a lead. Reports count leads by the steps they reached.'))}</p>
           <div data-funnel></div>
           <div class="crm-toolbar" style="margin-top:12px"><button type="button" class="crm-btn" data-fn-add><i class="fas fa-plus"></i>${esc(L('add_step', 'Add a step'))}</button><span style="flex:1"></span><button type="button" class="crm-btn primary" data-fn-save>${esc(L('save', 'Save'))}</button></div></section>` : ''}
@@ -1332,7 +1337,7 @@
         host2.innerHTML = rules.map((r, i) => `<div class="crm-fgroup"><div class="crm-frow" style="grid-template-columns:minmax(0,1.4fr) 70px minmax(0,1fr) minmax(0,1fr) 28px"><input type="text" data-rl="${i}" value="${esc(r.label)}" aria-label="${esc(L('rule_name', 'Rule name'))}"><input type="number" min="0" max="60" data-rdays="${i}" value="${esc(r.days)}" aria-label="${esc(L('days', 'Days'))}"><select data-rc="${i}" aria-label="${esc(L('counting', 'Counting'))}"><option value="business" ${r.count === 'business' ? 'selected' : ''}>${esc(L('business_days', 'Business days (not Sundays)'))}</option><option value="weekdays" ${r.count === 'weekdays' ? 'selected' : ''}>${esc(L('weekdays', 'Weekdays'))}</option><option value="calendar" ${r.count === 'calendar' ? 'selected' : ''}>${esc(L('calendar_days', 'Calendar days'))}</option></select><select data-rh="${i}" aria-label="${esc(L('holidays', 'Holidays'))}"><option value="us_federal" ${r.holidays !== 'none' ? 'selected' : ''}>${esc(L('no_federal_holidays', 'Skip federal holidays'))}</option><option value="none" ${r.holidays === 'none' ? 'selected' : ''}>${esc(L('count_holidays', 'Count holidays'))}</option></select><button type="button" class="crm-btn icon ghost" data-rx2="${i}" aria-label="${esc(L('remove', 'Remove'))}"><i class="fas fa-xmark"></i></button></div>
           <div class="crm-pop-row"><span class="crm-dim" style="white-space:nowrap">${esc(L('applies_when', 'Applies when'))}</span><select data-rcf="${i}" style="max-width:200px">${[['', L('always', 'Always')], ['address.state', L('state', 'State')], ['contact.age', L('customer_age', 'Customer age')], ['lead_source.kind', L('lead_type', 'How it arrived')]].map(([v, l]) => `<option value="${v}" ${(r.conditions?.rules?.[0]?.field || '') === v ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select>${r.conditions?.rules?.[0] ? `<select data-rco="${i}" style="max-width:130px">${[['in', L('is_any_of', 'is any of')], ['greater_or_equal', L('is_at_least', 'is at least')], ['equals', L('is', 'is')]].map(([v, l]) => `<option value="${v}" ${r.conditions.rules[0].operator === v ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select><input type="text" data-rcv="${i}" value="${esc(Array.isArray(r.conditions.rules[0].value) ? r.conditions.rules[0].value.join(', ') : r.conditions.rules[0].value)}" placeholder="${esc(L('rule_value_hint', 'CA, NY  or  65'))}">` : ''}</div></div>`).join('') || `<p class="crm-dim">${esc(L('no_rules_yet', 'No rules yet. The federal cooling-off rule is three business days.'))}</p>`;
       };
-      renderFunnel(); renderRescission(); renderSetup(content.querySelector('[data-setup]'));
+      renderFunnel(); renderRescission(); renderSetup(content.querySelector('[data-setup]')); renderRouting(content.querySelector('[data-routing]'));
       content.oninput = (e) => {
         const t = e.target;
         if (t.dataset.fl) steps[Number(t.dataset.fl)].label = t.value;
@@ -1357,6 +1362,121 @@
         if (b.dataset.rx2 !== undefined) { rules.splice(Number(b.dataset.rx2), 1); renderRescission(); }
         if (b.dataset.rsSave !== undefined) { try { await api().saveRescission(orgId, { enabled: content.querySelector('[data-rs-enabled]').checked, rules }); toast(L('saved', 'Saved')); } catch (error) { toast(error?.message || L('save_failed', 'Not saved.'), false); } }
       };
+    }
+
+    /**
+     * Lead routing and scoring (docs/architecture/crm.md, "Lead routing and scoring"). The settings are data:
+     * saving them writes organization rules whose action is a sandbox program that selects from the published
+     * CRM leads. The method, people, rules and points are the standard program's inputs; Custom code replaces
+     * the program itself and keeps the same inputs.
+     */
+    async function renderRouting(section){
+      if (!section) return;
+      let loaded, leadFields = [];
+      try {
+        [loaded, leadFields] = await Promise.all([api().routing(orgId), api().query(orgId, { collection:'opportunities', definition:{ filter:{ match:'all', rules:[] } }, limit:1 }).then((r) => arr(r.fields))]);
+      } catch (error) { section.innerHTML = `<p class="crm-dim">${esc(L('routing_failed', 'Lead routing could not be loaded.'))} ${esc(error?.message || '')}</p>`; return; }
+      const settings = clone(loaded.routing), presets = obj(loaded.presets);
+      const r = settings.routing, sc = settings.scoring, custom = settings.custom ||= { routing_source:'', scoring_source:'' };
+      const people = arr(leadFields.find((f) => f.key === 'cf.crm.owner')?.options || leadFields.find((f) => f.type === 'user')?.options);
+      const conditionFields = leadFields.filter((f) => !['cf.crm.routed_at', 'cf.crm.route_count'].includes(f.key));
+      const nameOf = (id) => people.find((p) => p.value === id)?.label || id;
+      const slug = (label, taken) => { let base = text(label).toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 40) || 'rule'; let id = base, n = 2; while (taken.includes(id)) id = `${base}_${n++}`; return id; };
+      const METHODS = [
+        ['rotation', L('m_rotation', 'Take turns'), L('m_rotation_hint', 'Each new lead goes to whoever has waited longest for one.')],
+        ['weighted', L('m_weighted', 'By share'), L('m_weighted_hint', 'Each person gets their share of new leads over the last 30 days.')],
+        ['balanced', L('m_balanced', 'Fewest open leads'), L('m_balanced_hint', 'Each new lead goes to whoever has the fewest open leads.')],
+        ['rules', L('m_rules', 'By rules'), L('m_rules_hint', 'The first rule the lead matches picks the people, who then take turns. A lead no rule matches goes to the people below.')]
+      ];
+      const peoplePicker = (key, chosen) => `<details class="crm-multi"><summary class="crm-btn small" style="width:100%;justify-content:space-between">${esc(arr(chosen).length ? arr(chosen).map(nameOf).join(', ') : L('choose_people', 'Choose people…'))}<i class="fas fa-caret-down"></i></summary><div class="crm-options">${people.map((p) => `<label class="crm-option"><input type="checkbox" data-rt-person="${esc(key)}" value="${esc(p.value)}" ${arr(chosen).includes(p.value) ? 'checked' : ''}>${esc(p.label)}</label>`).join('') || `<p class="crm-dim">${esc(L('no_people', 'Nobody to choose yet.'))}</p>`}</div></details>`;
+      const conditionsText = (c) => {
+        const rules = arr(obj(c).rules); if (!rules.length) return esc(L('every_lead', 'Every lead'));
+        return rules.map((x) => Array.isArray(x.rules) ? esc(L('a_group', '(a group of conditions)')) : ruleSummary(x)).join(` <span class="crm-dim">${esc(obj(c).match === 'any' ? L('or', 'or') : L('and', 'and'))}</span> `);
+      };
+      const conditionRow = (kind, i, conditions) => `<div class="crm-pop-row"><span class="crm-dim">${esc(L('when', 'When'))}</span><span style="flex:1;min-width:0">${conditionsText(conditions)}</span><button type="button" class="crm-btn small" data-rt-${kind}cond="${i}"><i class="fas fa-filter"></i>${esc(L('conditions', 'Conditions'))}</button></div>`;
+      const render = () => {
+        fieldScope = conditionFields;
+        const codeOpen = section.querySelector('details[data-rt-custom]')?.open || text(custom.routing_source) || text(custom.scoring_source);
+        const hint = METHODS.find(([v]) => v === r.method)?.[2] || '';
+        section.innerHTML = `<h3 style="margin:0 0 4px;font-size:15px">${esc(L('routing', 'Lead routing'))}</h3>
+          <p class="crm-dim" style="margin:0 0 12px">${esc(L('routing_intro', 'Who owns each new lead. The owner is the Lead owner field, so views, worklists and pay rules can use it.'))}</p>
+          <label class="crm-option"><input type="checkbox" data-rt-enabled ${r.enabled ? 'checked' : ''}>${esc(L('routing_on', 'Route new leads automatically'))}</label>
+          <div ${r.enabled ? '' : 'hidden'} style="display:grid;gap:12px;margin-top:8px">
+            <div class="crm-field"><label>${esc(L('routing_method', 'How leads are shared'))}</label><select data-rt-method>${METHODS.map(([v, l]) => `<option value="${v}" ${r.method === v ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select><p class="crm-dim" style="margin:4px 0 0;font-size:12px">${esc(hint)}</p></div>
+            ${r.method === 'rules' ? `<div><div class="crm-dim" style="font-weight:700;font-size:12px">${esc(L('routing_rules', 'Rules, first match wins'))}</div>${arr(r.rules).map((rule, i) => `<div class="crm-fgroup"><div class="crm-frow" style="grid-template-columns:minmax(0,1fr) minmax(0,1.2fr) 28px"><input type="text" data-rt-rlabel="${i}" value="${esc(rule.label)}" placeholder="${esc(L('rule_name', 'Rule name'))}">${peoplePicker(`rule:${i}`, rule.user_ids)}<button type="button" class="crm-btn icon ghost" data-rt-rremove="${i}" aria-label="${esc(L('remove', 'Remove'))}"><i class="fas fa-xmark"></i></button></div>${conditionRow('r', i, rule.conditions)}</div>`).join('')}<button type="button" class="crm-btn small" data-rt-radd><i class="fas fa-plus"></i>${esc(L('add_rule', 'Add a rule'))}</button></div>` : ''}
+            <div class="crm-field"><label>${esc(r.method === 'rules' ? L('routing_people_else', 'Everyone else goes to') : L('routing_people', 'People who get leads'))}</label>${peoplePicker('pool', r.user_ids)}</div>
+            ${r.method === 'weighted' && arr(r.user_ids).length ? `<div class="crm-field"><label>${esc(L('shares', 'Shares'))}</label>${arr(r.user_ids).map((id) => `<div class="crm-pop-row"><span style="flex:1">${esc(nameOf(id))}</span><input type="number" min="0" max="100" style="width:80px" data-rt-weight="${esc(id)}" value="${esc(r.weights?.[id] ?? 1)}" aria-label="${esc(L('share_of', 'Share for {name}', { name: nameOf(id) }))}"></div>`).join('')}<p class="crm-dim" style="margin:4px 0 0;font-size:12px">${esc(L('shares_hint', 'Someone with 2 gets twice as many leads as someone with 1; 0 gets none.'))}</p></div>` : ''}
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px">
+              <div class="crm-field"><label>${esc(L('max_open', 'Most open leads per person'))}</label><input type="number" min="0" data-rt-max value="${esc(r.max_open_leads || '')}" placeholder="${esc(L('no_limit', 'No limit'))}"></div>
+              <div class="crm-field"><label>${esc(L('reassign_after', 'Pass on if untouched after (minutes)'))}</label><input type="number" min="0" max="10080" data-rt-reassign value="${esc(r.reassign_after_minutes || '')}" placeholder="${esc(L('never', 'Never'))}"></div>
+              <div class="crm-field"><label>${esc(L('reassign_limit', 'Times a lead may be passed on'))}</label><input type="number" min="0" max="20" data-rt-rlimit value="${esc(r.reassign_limit ?? 2)}"></div>
+            </div>
+            <div class="crm-field"><label>${esc(L('fallback', 'When nobody can take it'))}</label>${peoplePicker('fallback', r.fallback_user_ids)}</div>
+            <label class="crm-option"><input type="checkbox" data-rt-notify ${r.notify !== false ? 'checked' : ''}>${esc(L('routing_notify', 'Tell the owner when a lead is routed to them'))}</label>
+          </div>
+          <h3 style="margin:20px 0 4px;font-size:15px">${esc(L('scoring', 'Lead scoring'))}</h3>
+          <p class="crm-dim" style="margin:0 0 12px">${esc(L('scoring_intro', 'Points for each rule a lead matches, added up into the Lead score field. The score is worked out again when a lead arrives, a result is recorded, an appointment is booked or held, and when the sale is won or lost.'))}</p>
+          <label class="crm-option"><input type="checkbox" data-rt-scoring ${sc.enabled ? 'checked' : ''}>${esc(L('scoring_on', 'Score leads'))}</label>
+          <div ${sc.enabled ? '' : 'hidden'}>${arr(sc.rules).map((rule, i) => `<div class="crm-fgroup"><div class="crm-frow" style="grid-template-columns:minmax(0,1fr) 90px 28px"><input type="text" data-rt-slabel="${i}" value="${esc(rule.label)}" placeholder="${esc(L('rule_name', 'Rule name'))}"><input type="number" min="-1000" max="1000" data-rt-spoints="${i}" value="${esc(rule.points)}" aria-label="${esc(L('points', 'Points'))}"><button type="button" class="crm-btn icon ghost" data-rt-sremove="${i}" aria-label="${esc(L('remove', 'Remove'))}"><i class="fas fa-xmark"></i></button></div>${conditionRow('s', i, rule.conditions)}</div>`).join('')}<button type="button" class="crm-btn small" data-rt-sadd><i class="fas fa-plus"></i>${esc(L('add_points', 'Add points'))}</button></div>
+          <details data-rt-custom style="margin-top:16px" ${codeOpen ? 'open' : ''}><summary style="cursor:pointer;font-weight:700">${esc(L('custom_code', 'Custom code'))}</summary>
+            <p class="crm-dim" style="margin:6px 0 10px;font-size:12px">${esc(L('custom_code_intro', 'The programs that do the routing and scoring. They run in the sandbox with the settings above as inputs, can select from any published data (api.data.select) and write through the lead update action. Edit one to change how it works; use the standard program to go back.'))}</p>
+            ${[['routing_source', L('routing_program', 'Routing program')], ['scoring_source', L('scoring_program', 'Scoring program')]].map(([key, label]) => `<div class="crm-field" style="margin-bottom:10px"><label>${esc(label)}${text(custom[key]) ? ` <span class="crm-dim">· ${esc(L('customized', 'customized'))}</span>` : ''}</label><textarea data-rt-code="${key}" spellcheck="false" style="min-height:220px;font-family:ui-monospace,Consolas,monospace;font-size:12px;white-space:pre">${esc(text(custom[key]) ? custom[key] : text(presets[key]))}</textarea><div class="crm-toolbar" style="margin:6px 0 0"><button type="button" class="crm-btn small ghost" data-rt-reset="${key}">${esc(L('use_standard', 'Use the standard program'))}</button></div></div>`).join('')}
+          </details>
+          <div class="crm-toolbar" style="margin-top:12px"><span style="flex:1"></span><button type="button" class="crm-btn primary" data-rt-save>${esc(L('save', 'Save'))}</button></div>`;
+      };
+      const peopleOf = (key) => key === 'pool' ? (r.user_ids ||= []) : key === 'fallback' ? (r.fallback_user_ids ||= []) : (r.rules[Number(key.split(':')[1])].user_ids ||= []);
+      const editConditions = (anchor, target) => {
+        const start = arr(obj(target.conditions).rules).length ? clone(target.conditions) : { match:'all', rules:[defaultRule(conditionFields[0])] };
+        openFilterEditor(anchor, -1, { filter: start, title: L('lead_matches', 'The lead matches'), onApply: (next) => { target.conditions = arr(next.rules).length ? next : {}; render(); } });
+        fieldScope = conditionFields;
+      };
+      render();
+      section.addEventListener('input', (e) => {
+        const t = e.target, d = t.dataset;
+        if (d.rtRlabel !== undefined) r.rules[Number(d.rtRlabel)].label = t.value;
+        if (d.rtSlabel !== undefined) sc.rules[Number(d.rtSlabel)].label = t.value;
+        if (d.rtSpoints !== undefined) sc.rules[Number(d.rtSpoints)].points = Math.round(Number(t.value || 0));
+        if (d.rtWeight !== undefined) (r.weights ||= {})[d.rtWeight] = Number(t.value || 0);
+        if (d.rtMax !== undefined) r.max_open_leads = Math.max(0, Math.round(Number(t.value || 0)));
+        if (d.rtReassign !== undefined) r.reassign_after_minutes = Math.max(0, Math.round(Number(t.value || 0)));
+        if (d.rtRlimit !== undefined) r.reassign_limit = Math.max(0, Math.round(Number(t.value || 0)));
+        if (d.rtCode !== undefined) custom[d.rtCode] = t.value.trim() === text(presets[d.rtCode]) ? '' : t.value;
+        e.stopPropagation();
+      });
+      section.addEventListener('change', (e) => {
+        const t = e.target, d = t.dataset;
+        if (d.rtEnabled !== undefined) { r.enabled = t.checked; render(); }
+        if (d.rtScoring !== undefined) { sc.enabled = t.checked; render(); }
+        if (d.rtNotify !== undefined) r.notify = t.checked;
+        if (d.rtMethod !== undefined) { r.method = t.value; render(); }
+        if (d.rtPerson !== undefined) {
+          const list = peopleOf(d.rtPerson), at = list.indexOf(t.value);
+          if (t.checked && at < 0) list.push(t.value);
+          if (!t.checked && at >= 0) list.splice(at, 1);
+          const summary = t.closest('details')?.querySelector('summary');
+          if (summary) summary.firstChild.textContent = list.length ? list.map(nameOf).join(', ') : L('choose_people', 'Choose people…');
+        }
+        e.stopPropagation();
+      });
+      // Shares are listed per person, so closing the people list redraws them.
+      section.addEventListener('toggle', (e) => { if (r.method === 'weighted' && !e.target.open && e.target.querySelector?.('[data-rt-person="pool"]')) render(); }, true);
+      section.addEventListener('click', async (e) => {
+        const b = e.target.closest('button'); if (!b) return;
+        e.stopPropagation();
+        const d = b.dataset;
+        if (d.rtRadd !== undefined) { r.rules = [...arr(r.rules), { id: slug('rule', arr(r.rules).map((x) => x.id)), label: L('new_rule', 'New rule'), conditions: {}, user_ids: [] }]; render(); }
+        if (d.rtRremove !== undefined) { r.rules.splice(Number(d.rtRremove), 1); render(); }
+        if (d.rtRcond !== undefined) editConditions(b, r.rules[Number(d.rtRcond)]);
+        if (d.rtSadd !== undefined) { sc.rules = [...arr(sc.rules), { id: slug('points', arr(sc.rules).map((x) => x.id)), label: '', conditions: {}, points: 10 }]; render(); }
+        if (d.rtSremove !== undefined) { sc.rules.splice(Number(d.rtSremove), 1); render(); }
+        if (d.rtScond !== undefined) editConditions(b, sc.rules[Number(d.rtScond)]);
+        if (d.rtReset !== undefined) { custom[d.rtReset] = ''; const area = section.querySelector(`[data-rt-code="${d.rtReset}"]`); if (area) area.value = text(presets[d.rtReset]); }
+        if (d.rtSave !== undefined) {
+          b.disabled = true;
+          try { const saved = await api().saveRouting(orgId, settings); const next = clone(saved.routing); Object.assign(r, next.routing); Object.assign(sc, next.scoring); Object.assign(custom, next.custom); toast(L('saved', 'Saved')); render(); }
+          catch (error) { toast(error?.message || L('save_failed', 'Not saved.'), false); b.disabled = false; }
+        }
+      });
     }
 
     boot();

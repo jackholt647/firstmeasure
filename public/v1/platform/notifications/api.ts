@@ -97,7 +97,7 @@ export async function registerNotificationRulesApi(app:FastifyInstance){
    const input=(rule.input||{}) as Json,targets=Array.isArray(input.target_user_ids)?input.target_user_ids.map(String):[];
    if(!targets.includes(auth.userId))throw badRequest('notification_registration_denied','Choose one of your notification registrations.');
    const remaining=targets.filter(id=>id!==auth.userId),roles=Array.isArray(input.target_role_ids)?input.target_role_ids:[];
-   await saveAutomationRules(org,auth.branchId||'default',{expected_revision:legacy.revision,rules:legacy.rules.flatMap(item=>item!==rule?[item]:remaining.length||roles.length?[{...rule,input:{...input,target_user_ids:remaining}}]:[])});
+   await saveAutomationRules(org,auth.branchId||'default',{expected_revision:legacy.revision,rules:legacy.rules.flatMap(item=>item!==rule?[item]:remaining.length||roles.length?[{...rule,input:{...input,target_user_ids:remaining}}]:[])},{authorUserId:auth.userId});
   }else if(!customKeys.includes(key)&&!key.startsWith('event.'))throw badRequest('notification_registration_denied','This notification is managed by its app.');
   const next:Json={...prefs,custom_keys:customKeys.filter(k=>k!==key)};
   for(const method of ['in_app','push','email','sms','toast','audio','celebration'])next[method]={...(prefs[method] as Json||{}),[key]:false};

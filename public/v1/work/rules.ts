@@ -303,14 +303,22 @@ export async function readAutomationRules(orgId: string, branchId = "default") {
   return { rules, revision };
 }
 
-export async function saveAutomationRules(orgId: string, branchId: string, value: unknown) {
+/** Who saved the organization's rules last: custom code in a rule runs with that person's permissions. */
+export async function automationRulesAuthor(orgId: string, branchId = "default") {
+  const module = await readBranchModule(orgId, branchId || "default", AUTOMATION_RULES_MODULE_ID).catch(() => null);
+  return cleanText(asObject(module?.metadata).author_user_id);
+}
+
+export async function saveAutomationRules(orgId: string, branchId: string, value: unknown, options: { authorUserId?: string } = {}) {
   const input = asObject(value);
   const rules = asArray(asObject(input.data || input).rules).map(normalizeRule);
   assertRulesValid(rules);
+  // Custom code in a rule reads and writes with the permissions of whoever saved the rules last
+  // (work/automations/code.ts), the way a scope's code runs as its publisher.
   const module = await saveBranchModule(orgId, branchId || "default", AUTOMATION_RULES_MODULE_ID, {
     expected_revision: input.expected_revision,
     data: { schema_version: 1, rules },
-    metadata: { kind: "branch_automation_rules" }
+    metadata: { kind: "branch_automation_rules", ...(options.authorUserId ? { author_user_id: options.authorUserId } : {}) }
   }, { replace: true });
   await (await import('../integrations/usage.js')).indexConnectionUses(orgId,`organization-rules:${branchId}`,{rules});
   return { rules: asArray(asObject(module.data).rules).map(normalizeRule), revision: Number(module.revision || 0) };

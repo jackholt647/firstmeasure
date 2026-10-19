@@ -225,6 +225,35 @@ test('the CRM tab: views, filters, the board, the drawer, a worklist, reports, s
     await page.waitForSelector('[data-setup] .crm-packs');
     await shot(page, '09-settings');
 
+    // Lead routing: by rules, a rule with conditions edited in the filter editor, people, saved as organization rules.
+    const routing = page.locator('[data-routing]');
+    await routing.locator('[data-rt-enabled]').check();
+    await routing.locator('[data-rt-method]').selectOption('rules');
+    await routing.locator('[data-rt-radd]').click();
+    await routing.locator('[data-rt-rlabel="0"]').fill('Referrals');
+    await routing.locator('[data-rt-rcond="0"]').click();
+    await page.locator('.crm-pop select[data-ffield]').first().selectOption('source_kind');
+    await page.locator('.crm-pop [data-fapply]').click();
+    await routing.locator('summary').filter({ hasText: 'Choose people' }).first().click();
+    await routing.locator('[data-rt-person="rule:0"]').first().check();
+    await routing.locator('summary').filter({ hasText: 'Choose people' }).first().click();
+    await routing.locator('[data-rt-person="pool"]').first().check();
+    await routing.locator('[data-rt-scoring]').check();
+    await routing.locator('[data-rt-sadd]').click();
+    await routing.locator('[data-rt-slabel="0"]').fill('Any lead');
+    await routing.locator('[data-rt-save]').click();
+    await page.waitForFunction(() => !document.querySelector('[data-routing] [data-rt-save]')?.disabled);
+    await routing.scrollIntoViewIfNeeded();
+    await shot(page, '09b-routing');
+    const saved = await inject('GET', `/v1/crm/organizations/${orgId}/routing`);
+    assert.equal(saved.routing.routing.method, 'rules');
+    assert.equal(saved.routing.routing.rules[0].label, 'Referrals');
+    assert.equal(saved.routing.routing.rules[0].conditions.rules[0].field, 'source_kind');
+    assert.equal(saved.routing.routing.rules[0].user_ids.length, 1);
+    assert.equal(saved.routing.scoring.rules[0].points, 10);
+    const orgRules = (await inject('GET', `/v1/work/organizations/${orgId}/branches/default/automation-rules`)).rules.map((r) => r.id);
+    assert.ok(orgRules.includes('crm_routing_assign') && orgRules.includes('crm_routing_score_lead_received'), orgRules.join(', '));
+
     // Appointments as an agenda.
     await page.locator('.crm-rail').getByText('Upcoming appointments', { exact: true }).click();
     await page.waitForSelector('.crm-agenda, .crm-content .crm-empty');

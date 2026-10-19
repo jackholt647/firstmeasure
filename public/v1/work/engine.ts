@@ -169,6 +169,7 @@ async function executeBinding(event: JsonObject, executable: ExecutableBinding, 
     };
     const planContext = asObject(plan.context);
     const automationContext: WorkAutomationContext = {
+      origin: bindingId.startsWith("org_rule:") ? "organization_rule" : "scope",
       event,
       plan,
       node,

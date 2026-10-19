@@ -26,6 +26,8 @@ export type WorkAutomationContext = {
   // are provider-registered — see work/context.ts.
   data: WorkDataResolver;
   services: WorkAutomationServices;
+  /** Where the binding came from: a scope template's node or plan, or an organization rule. */
+  origin?: "scope" | "organization_rule";
 };
 
 export type WorkAutomationHandler = (context: WorkAutomationContext, input: JsonObject) => Promise<unknown> | unknown;

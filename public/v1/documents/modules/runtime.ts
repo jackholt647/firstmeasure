@@ -7,6 +7,8 @@ import { jsonClone } from "../../platform/publication/validation.js";
 export type ModuleBroker = {
   read(name: string): Promise<unknown>;
   invoke(name: string, input: unknown): Promise<unknown>;
+  /** Rows of a declared list source matching a selection (where, orderBy, period, limit); brokers without it refuse. */
+  select?(name: string, selection: unknown): Promise<unknown>;
 };
 export type ModuleRunInput = {
   source: string;
@@ -74,6 +76,7 @@ export async function runModuleCode(input: ModuleRunInput, broker: ModuleBroker)
           if (typeof message.name !== "string" || !/^[a-zA-Z][a-zA-Z0-9_-]{0,79}$/.test(message.name)) throw new Error("Invalid binding name.");
           const result = message.kind === "read" ? await broker.read(message.name)
             : message.kind === "invoke" ? await broker.invoke(message.name, jsonClone(message.input, limits.bytes))
+            : message.kind === "select" ? await (broker.select ? broker.select(message.name, jsonClone(message.input, limits.bytes)) : Promise.reject(new Error("Selections are not available here.")))
             : (() => { throw new Error("Unknown capability."); })();
           if (!finished && !guestReturned) worker.postMessage({ type: "reply", id: message.id, value: jsonClone(result, limits.bytes) });
         } catch (error) {

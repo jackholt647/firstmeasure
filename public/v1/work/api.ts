@@ -310,9 +310,9 @@ export const registerWorkApi: FastifyPluginAsync = async (app) => {
 
   app.put("/organizations/:orgId/branches/:branchId/automation-rules", async (request) => {
     const orgId = getParam(request.params, "orgId");
-    await requirePlatformAuth(request, { orgId, csrf: true, permission: "manage_company_settings" });
+    const ctx = await requirePlatformAuth(request, { orgId, csrf: true, permission: "manage_company_settings" });
     const { saveAutomationRules } = await import("./rules.js");
-    return { ok: true, ...(await saveAutomationRules(orgId, getParam(request.params, "branchId") || "default", objectSchema.parse(request.body ?? {}))) };
+    return { ok: true, ...(await saveAutomationRules(orgId, getParam(request.params, "branchId") || "default", objectSchema.parse(request.body ?? {}), { authorUserId: ctx.userId })) };
   });
 
   // Browsable catalog of every registered platform event — the trigger picker

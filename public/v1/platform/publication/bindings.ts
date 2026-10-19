@@ -155,6 +155,32 @@ export function createBindingSession(ctx: PublicationContext, consumerId: string
       if (result.status === "missing" && binding.required === false) return null;
       throw badRequest(`binding_${result.status}`, result.message, { binding: name, code: result.code });
     },
+    /**
+     * Rows of a declared list source that match a selection (platform/publication/select.ts): the
+     * program chooses the filter at run time, the binding fixes which source it may query. Always a
+     * live read, recorded with its rows' keys and revisions.
+     */
+    async select(name: string, selection: unknown) {
+      const binding = named(name, "data") as DataBinding;
+      const { path: _path, revision: _revision, ...source } = binding.source as SourceRef & { revision?: unknown };
+      // `fields` (dotted paths) returns only those parts of each row, so a program can scan many rows cheaply.
+      const { fields, ...query } = (selection && typeof selection === "object" ? selection : {}) as { fields?: unknown } & Record<string, unknown>;
+      const paths = Array.isArray(fields) ? fields.map(String).filter(Boolean).slice(0, 64) : null;
+      const pick = (value: Record<string, unknown>) => {
+        if (!paths) return jsonClone(value);
+        const out: Record<string, unknown> = {};
+        for (const path of paths) {
+          const found = path.split(".").reduce<unknown>((v, k) => (v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>)[k] : undefined), value);
+          if (found !== undefined) out[path] = jsonClone(found);
+        }
+        return out;
+      };
+      const { selectPublishedData } = await import("./select.js");
+      const result = await selectPublishedData(ctx, source as SourceRef, query);
+      if (result.status !== "ready") throw badRequest(`binding_${result.status}`, result.message, { binding: name, code: result.code });
+      evidence.set(`${name}:select:${calls++}`, { kind: "select", selection: jsonClone(selection), rows: result.rows.map(row => ({ key: row.key, revision: row.revision })), source: result.source });
+      return result.rows.map(row => ({ key: row.key, revision: row.revision, value: pick(row.value) }));
+    },
     async invoke(name: string, input: unknown) {
       const binding = named(name, "action") as ActionBinding;
       const action = await resolveActionBinding(ctx, consumerId, name, binding);

@@ -12,6 +12,7 @@ import { readFunnel, saveFunnel, projectMilestones, milestoneFields, funnelRepor
 import { recordResult, resultOutcomes, lastResults, projectResults } from "./results.js";
 import { cancelSaleInWindow, readRescission, saveRescission } from "./rescission.js";
 import { applyCrmPreset, ensureBaseViews, INDUSTRY_PACKS, isIndustryPack, sizeTier } from "./presets.js";
+import { readRouting, saveRouting, ROUTING_PROGRAM, SCORING_PROGRAM, ROUTING_FIELDS } from "./routing.js";
 
 // The CRM routes (docs/architecture/crm.md). Every collection row is filtered by the
 // caller's branch scope and department access before a view's filter runs; nothing here
@@ -210,6 +211,18 @@ export async function registerCrmAppApi(app: FastifyInstance) {
     const employees = Number(object(request.query).employees || 0);
     return { ok: true, packs: Object.entries(INDUSTRY_PACKS).map(([id, pack]) => ({ id, ...pack })), ...(employees ? { tier: sizeTier(employees) } : {}) };
   });
+  // ---- Lead routing and scoring: settings that generate organization rules running sandbox programs ----
+  app.get("/organizations/:orgId/routing", async request => {
+    const orgId = param(request, "orgId");
+    await requirePlatformAuth(request, { app: CRM_APP, orgId, permission: "manage_company_settings", capability: "crm.views" });
+    return { ok: true, routing: await readRouting(orgId), presets: { routing_source: ROUTING_PROGRAM.trim(), scoring_source: SCORING_PROGRAM.trim() }, fields: ROUTING_FIELDS.map(f => ({ path: f.path, label: f.label, type: f.type })) };
+  });
+  app.put("/organizations/:orgId/routing", async request => {
+    const orgId = param(request, "orgId");
+    const ctx = await requirePlatformAuth(request, { app: CRM_APP, orgId, csrf: true, permission: "manage_company_settings", capability: "crm.views" });
+    return { ok: true, routing: await saveRouting(orgId, request.body, ctx.userId) };
+  });
+
   app.post("/organizations/:orgId/presets/apply", async request => {
     const orgId = param(request, "orgId");
     await requirePlatformAuth(request, { app: CRM_APP, orgId, csrf: true, permission: "manage_company_settings", capability: "crm.views" });

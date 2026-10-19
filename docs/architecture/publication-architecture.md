@@ -90,6 +90,12 @@ const estimatedHours = inventory
 return { outputs: { estimatedHours: inputs.overrideHours ?? estimatedHours } };
 ```
 
+A binding whose source is a list can also be queried instead of read whole:
+`api.data.select(name, { where, orderBy, period, limit, fields })` runs the shared
+selection (`selectPublishedData`) with the binding's source and returns
+`[{ key, revision, value }]`, where `fields` limits each value to the listed dotted paths
+(returned as flat keys). Each selection is recorded as evidence like a read.
+
 The author must declare input/output schemas and publish the desired output.
 The sample formula is illustrative, not a built-in moving tariff. Optional
 absence returns null; permission errors, invalid data and provider failures do

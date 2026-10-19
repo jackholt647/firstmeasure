@@ -52,7 +52,24 @@ export async function executeScopeCode(context: WorkAutomationContext, raw: Json
   const requested = validateScopeProgram(raw);
   // Resolve authority from the immutable template version, not guest inputs.
   let principal;
-  if (context.plan.template_id && context.plan.template_version) {
+  if (context.origin === "organization_rule") {
+    // A rule's program must be one the organization saved, and runs as whoever saved the rules.
+    const orgId = String(context.event.organization_id), branchId = String(context.event.branch_id || "default");
+    const { readAutomationRules, automationRulesAuthor } = await import("../rules.js");
+    const { rules } = await readAutomationRules(orgId, branchId);
+    const authored: unknown[] = [];
+    const collect = (value: unknown) => {
+      if (!value || typeof value !== "object") return;
+      const record = value as JsonObject;
+      if (record.automation === "scope.code.run.v1" && record.input) authored.push(record.input);
+      for (const child of Object.values(record)) if (typeof child === "object") collect(child);
+    };
+    collect(rules);
+    if (!authored.some(program => { try { return contentHash(validateScopeProgram(program)) === contentHash(requested); } catch { return false; } })) throw forbidden("rule_program_not_authored", "This program is not in the organization's saved rules.");
+    const author = await automationRulesAuthor(orgId, branchId);
+    if (author) principal = await backgroundAuthContext(orgId, author);
+    if (!principal) throw forbidden("rule_author_required", "Save the automation rules again so their custom code has an author.");
+  } else if (context.plan.template_id && context.plan.template_version) {
     const { readScopeTemplateVersion } = await import("../../scopes/storage.js");
     const template = await readScopeTemplateVersion(String(context.event.organization_id), String(context.plan.branch_id || context.event.branch_id || "default"), String(context.plan.template_id), Number(context.plan.template_version));
     const metadata = ((template?.definition as JsonObject)?.metadata || {}) as JsonObject;
@@ -69,7 +86,7 @@ export async function executeScopeCode(context: WorkAutomationContext, raw: Json
     if (!principal) throw forbidden("scope_author_required", "Republish this scope with an authorized author before executing custom code.");
   }
   assertSafeTenantSchema(requested.inputSchema); assertSafeTenantSchema(requested.outputSchema);
-  const consumer = `scope:${String(context.plan.id)}:${String(context.node.id)}:${requested.id}`;
+  const consumer = context.origin === "organization_rule" ? `rule:${String(context.event.project_id || "organization")}:${requested.id}` : `scope:${String(context.plan.id)}:${String(context.node.id)}:${requested.id}`;
   const artifact = await withWorkPublicationContext(context, ["scope.code.run.v1"], ctx => resolveCodeBinding(ctx, consumer, "code", {
     kind: "code", policy: requested.policy, moduleId: consumer
   }, async () => ({ id: consumer, version: contentHash(requested), source: requested.source, engine,
@@ -111,8 +128,10 @@ export async function executeScopeCode(context: WorkAutomationContext, raw: Json
     } }, { createOnly: true });
     const session = createBindingSession(ctx, consumer, bindings);
     try {
-      const result = await runModuleCode({ source: artifact.source, inputs: requested.inputs, mode, now: context.now }, {
-        read: name => session.read(name), invoke: (name, input) => session.invoke(name, input)
+      // `state.trigger` tells the program what started it (the event and its project); inputs stay as authored.
+      const trigger = { type: String(context.event.type || ""), project_id: String(context.event.project_id || context.project.id || ""), plan_id: String(context.event.plan_id || ""), node_id: String(context.event.node_id || ""), payload: jsonClone(context.event.payload || {}), at: String(context.event.created_at || context.now) };
+      const result = await runModuleCode({ source: artifact.source, inputs: requested.inputs, state: { trigger }, mode, now: context.now, limits: { milliseconds: 10_000, calls: 64 } }, {
+        read: name => session.read(name), invoke: (name, input) => session.invoke(name, input), select: (name, selection) => session.select(name, selection)
       });
       if (!result.outputs || typeof result.outputs !== "object" || Array.isArray(result.outputs)) {
         throw badRequest("scope_code_output_invalid", "Scope code must publish an object of named outputs.");

@@ -51,7 +51,10 @@ try {
   const setup = context.evalCode(`
     globalThis.__runInput = JSON.parse(__input); delete globalThis.__input;
     globalThis.api = Object.freeze({
-      data: Object.freeze({ read: async name => JSON.parse(await __capability('read', name, 'null')) }),
+      data: Object.freeze({
+        read: async name => JSON.parse(await __capability('read', name, 'null')),
+        select: async (name, selection) => JSON.parse(await __capability('select', name, JSON.stringify(selection || {})))
+      }),
       actions: Object.freeze({ invoke: async (name, value) => JSON.parse(await __capability('invoke', name, JSON.stringify(value))) }),
       now: __runInput.now, mode: __runInput.mode
     });

@@ -128,6 +128,16 @@ state as left by earlier actions. A single `automation`/`input` on the rule itse
 is still accepted and runs first under the rule's own id. Rule ids, and action
 ids within a rule, must be unique.
 
+### A program as a rule's action
+
+An action may be `scope.code.run.v1`, a sandbox program, as in a scope. In a rule the
+program must be the one saved in the rules (a content hash is checked, else
+`rule_program_not_authored`) and runs with the access of whoever last saved the rules
+(`automationRulesAuthor`; a rule set nobody saved cannot run programs). The program sees
+the trigger as `state.trigger` and may read and select from any published source it
+declares as a binding (`api.data.read`, `api.data.select`). CRM lead routing and scoring
+are generated rules of this kind ([CRM](crm.md#lead-routing-and-scoring)).
+
 ## Dry run
 
 `POST /v1/scopes/organizations/:orgId/branches/:branchId/automation-dry-run`

@@ -20,7 +20,7 @@ export type ModuleExecutionBroker = ModuleBroker & { manifest?: () => unknown };
 export type ModuleBrokerFactory = (ctx: PublicationContext, instance: ModuleInstance) => ModuleExecutionBroker | Promise<ModuleExecutionBroker>;
 let factory: ModuleBrokerFactory = (ctx, instance) => {
   const session = createBindingSession(ctx, instance.id, instance.bindings);
-  return { read: name => session.read(name), invoke: (name, input) => session.invoke(name, input), manifest: () => session.manifest() };
+  return { read: name => session.read(name), invoke: (name, input) => session.invoke(name, input), select: (name, selection) => session.select(name, selection), manifest: () => session.manifest() };
 };
 export function configureModuleBroker(value: ModuleBrokerFactory) { factory = value; }
 const id = (prefix: string) => `${prefix}_${randomUUID().replace(/-/g, "")}`;
@@ -153,6 +153,11 @@ export async function evaluateModuleInstance(ctx: PublicationContext, instanceId
     broker = await factory(boundContext, instance);
     const checkedBroker: ModuleBroker = {
       read: name => { if (instance.bindings[name]?.kind !== "data") throw badRequest("module_binding_undeclared", "Data binding is not declared."); return broker!.read(name); },
+      select: (name, selection) => {
+        if (instance.bindings[name]?.kind !== "data") throw badRequest("module_binding_undeclared", "Data binding is not declared.");
+        if (!broker!.select) throw badRequest("module_select_unavailable", "Selections are not available to this module.");
+        return broker!.select(name, selection);
+      },
       invoke: (name, input) => {
         const binding = instance.bindings[name];
         if (binding?.kind !== "action") throw badRequest("module_binding_undeclared", "Action binding is not declared.");

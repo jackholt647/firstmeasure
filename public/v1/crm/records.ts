@@ -154,6 +154,17 @@ export async function opportunityRows(src: CrmSources, ctx: PlatformAuthContext 
   const { stages, scopes, fields: templateFields } = await stageCatalog(src.org, src.plans);
   const now = Date.now();
   const customDefs = new Map<string, CustomFieldDef>(templateFields.filter(f => FIELD_TYPE[f.type]).map(f => [f.path, f]));
+  // Project fields a branch declares for every project (Settings, Custom fields; the lead owner and score).
+  const branchDefs = new Map<string, CustomFieldDef[]>();
+  const fieldsOfBranch = async (branch: string) => {
+    if (!branchDefs.has(branch)) {
+      const { readBranchModule } = await import("../platform/storage.js");
+      const module = await readBranchModule(src.org, branch, "custom_fields").catch(() => null);
+      const declared = (Array.isArray(object(module?.data).fields) ? object(module?.data).fields as unknown[] : []).map(object).filter(f => text(f.entity || "project") === "project" && f.enabled !== false);
+      branchDefs.set(branch, projectFieldDefs({ custom_field_schema: { fields: declared } }));
+    }
+    return branchDefs.get(branch)!;
+  };
   const rows: CrmRow[] = [];
   for (const project of src.projects) {
     const plans = src.plansByProject.get(text(project.id)) || [];
@@ -197,7 +208,7 @@ export async function opportunityRows(src: CrmSources, ctx: PlatformAuthContext 
       department_ids: list(project.department_ids)
     };
     const values = object(project.custom_field_values || project.custom_fields);
-    for (const def of projectFieldDefs(project)) {
+    for (const def of [...await fieldsOfBranch(text(project.branch_id) || "default"), ...projectFieldDefs(project)]) {
       if (!FIELD_TYPE[def.type]) continue;
       customDefs.set(def.path, def);
       row[`cf.${def.path}`] = flatFieldValue(customFieldValueAtPath(values, def.path));

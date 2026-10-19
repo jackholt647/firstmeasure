@@ -326,7 +326,7 @@ const TOOLS: AgentTool[] = [
       if (errors.length) return { ok: false, errors };
       let saved;
       try {
-        saved = await saveAutomationRules(run.orgId, run.branchId, { rules });
+        saved = await saveAutomationRules(run.orgId, run.branchId, { rules }, { authorUserId: run.userId });
       } catch (error) {
         const issues = asArray(asObject(asObject(error).details).issues).map(String);
         if (!issues.length) throw error;

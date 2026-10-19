@@ -18,6 +18,7 @@ import { registerCustomFieldPublication } from "../../custom_fields/publication.
 import { registerPriorityFieldsPublication } from '../../priority_fields/publication.js';
 
 import { registerContactPublication } from "../../contacts/publication.js";
+import { registerCrmPublication } from "../../crm/publication.js";
 import { registerCollaborationPublication } from "../../collaboration/publication.js";
 import { registerFormsPublication } from "../../forms/publication.js";
 import { registerLeadPublication } from "../../leads/publication.js";
@@ -39,6 +40,7 @@ export function initializePublication() {
   registerCustomFieldPublication();
   registerPriorityFieldsPublication();
   registerContactPublication();
+  registerCrmPublication();
   registerCollaborationPublication();
   registerFormsPublication();
   registerLeadPublication();
