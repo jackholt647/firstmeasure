@@ -2132,10 +2132,6 @@ const definitions: CapabilityDefinition[] = [
     ["view_canvassing", "canvassing.app", "read", "canvassing", "View canvassing", "See canvassing pins."],
     ["manage_canvassing", "canvassing.app", "write", "canvassing", "Manage canvassing", "Create and edit canvassing pins."],
     ["view_feed", "platform.photos_feed", "read", "photo_feed", "View the photo feed", "See permitted posts in the company feed."],
-    ["view_feed_list", "platform.photos_feed", "read", "photo_feed", "List view", "Use the list view of the feed."],
-    ["view_feed_small", "platform.photos_feed", "read", "photo_feed", "Small tiles view", "Use the small tiles view of the feed."],
-    ["view_feed_large", "platform.photos_feed", "read", "photo_feed", "Large tiles view", "Use the large tiles view of the feed."],
-    ["view_feed_mosaic", "platform.photos_feed", "read", "photo_feed", "Mosaic view", "Use the mosaic view of the feed."],
     ["view_feed_posts", "platform.photos_feed", "read", "photo_feed", "Posts view", "Use the posts view of the feed."],
     ["comment_feed", "platform.photos_feed", "write", "photo_feed", "Comment on posts", "Reply to permitted feed posts."],
     ["react_feed", "platform.photos_feed", "write", "photo_feed", "React to posts", "React to permitted feed posts and comments."],
@@ -2145,7 +2141,10 @@ const definitions: CapabilityDefinition[] = [
     ["manage_customer_portals", "platform.customer_portal", "write", "customer_portals", "Manage customer portals", "Create and set up customer portals."],
     ["view_project_data", "apps.projects", "read", "project_data", "View project data", "Read published project datasets."],
     ["manage_project_data", "apps.projects", "write", "project_data", "Manage project data", "Save and select project datasets."],
-    ["manage_training", "apps.training", "write", "training", "Manage training", "Manage training assignments and course progress."]
+    ["manage_training", "apps.training", "write", "training", "Manage training", "Manage training assignments and course progress."],
+    ["manage_feed", "platform.photos_feed", "write", "photo_feed", "Manage Feed", "Manage automatic post settings and remove feed comments."],
+    ["view_feed_all_departments", "platform.photos_feed", "read", "photo_feed", "Feed: All Departments", "View feed content from all departments, subject to existing project and document access. Without this permission, department content is limited to your own departments."],
+    ["view_feed_activity", "platform.photos_feed", "read", "photo_feed", "Feed: Activity", "Use the activity feed in List, Small tiles, Large tiles, and Mosaic views."],
   ] as const).map(([permission_key, parent, access, permission_group, label, description]) => ({
     key: `permission.${permission_key}`,
     kind: "permission" as const,

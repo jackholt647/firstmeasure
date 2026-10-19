@@ -1296,6 +1296,7 @@
     const canLeftColumnSettings = appFlag('platform', 'left_column_settings');
     const canMessageTranslation = appFlag('apps', 'channels');
     const canCompany = hasPerm('manage_company_settings');
+    const canFeed = hasPerm('manage_feed') && appFlag('platform', 'photos_feed');
     const extendedPalette = appFlag('platform', 'company_extended_palette');
     const companyBusinessAddress = appFlag('platform', 'company_business_address');
     const advancedLogos = appFlag('platform', 'company_advanced_logos');
@@ -11319,7 +11320,7 @@
       if (which === 'comms' && canComms) renderCommsSettings();
       if (which === 'assistant' && canAssistant) renderAssistantSettings();
       if (which === 'channels' && canChannels) renderChannelsSettings();
-      if (which === 'feed' && canCompany) void renderFeedSettings();
+      if (which === 'feed' && canFeed) void renderFeedSettings();
       if (which === 'payroll' && canPayroll) renderPayrollSettings();
       if (which === 'reports' && canReports) renderReports();
       if (which === 'documents' && canDocuments) renderDocumentSettings();
@@ -12270,52 +12271,34 @@
       });
     }
 
-    let feedSettingsState = null;
-    const defaultFeedPostActivityTypes = new Set(['media.uploaded','note.created','project.created','project.event_scheduled','project.event.completed','crew.checklist.completed','proposal.signed','contract.signed','payment.received']);
     async function renderFeedSettings(){
-      if (!paneFeed) return;
-      if (!feedSettingsState) {
-        paneFeed.innerHTML = '<p role="status">Loading Feed settings…</p>';
-        try {
-          const result = await window.ChannelsAPI.feed.settings(currentOrgId());
-          feedSettingsState = { draft:structuredClone(result.settings), departments:result.departments || [], options:result.activity_options || [], scope:'company', saving:false };
-        } catch (error) {
-          paneFeed.textContent = error?.message || 'Could not load Feed settings.';
-          return;
+      if (!paneFeed || paneFeed.dataset.feedMounted === '1') return;
+      paneFeed.dataset.feedMounted = '1';
+      try {
+        if (!window.FirstMateFeedSettings?.mount) {
+          paneFeed.textContent = 'Loading Feed settings…';
+          if (!window.firstMateFeedSettingsLoading) {
+            window.firstMateFeedSettingsLoading = new Promise((resolve, reject) => {
+              const script = document.createElement('script');
+              script.src = '/libraries/apps/settings/feed.js?v=20261011-feed-settings-ui-v2';
+              script.onload = () => window.FirstMateFeedSettings?.mount ? resolve() : reject(new Error('Feed settings component unavailable.'));
+              script.onerror = () => { script.remove(); reject(new Error('Could not load Feed settings.')); };
+              document.head.appendChild(script);
+            }).catch(error => { window.firstMateFeedSettingsLoading = null; throw error; });
+          }
+          await window.firstMateFeedSettingsLoading;
         }
+        await window.FirstMateFeedSettings.mount(paneFeed, {orgId:currentOrgId()});
+      } catch (error) {
+        delete paneFeed.dataset.feedMounted;
+        paneFeed.replaceChildren();
+        const message = document.createElement('p');
+        message.textContent = error?.message || 'Could not load Feed settings.';
+        const retry = document.createElement('button');
+        retry.type = 'button'; retry.className = 'cs-btn'; retry.textContent = 'Retry';
+        retry.onclick = () => void renderFeedSettings();
+        paneFeed.append(message, retry);
       }
-      const model = feedSettingsState;
-      const selection = model.scope === 'company' ? model.draft.company_activity_types : model.draft.department_activity_types?.[model.scope];
-      const checked = type => Array.isArray(selection) ? selection.includes(type) : defaultFeedPostActivityTypes.has(type);
-      paneFeed.innerHTML = `<section class="cs-feed-settings" data-settings-autosave="off" style="max-width:760px;display:grid;gap:16px">
-        <div><h3 style="margin:0 0 5px">Posts view</h3><p style="margin:0;color:#667085">Choose which automatic activities become posts across the company or in each department. Manual posts always appear in Posts view.</p></div>
-        <label style="display:grid;gap:6px;font-weight:700">Audience<select data-feed-board style="max-width:340px;padding:10px;border:1px solid #d0d5dd;border-radius:8px"><option value="company" ${model.scope==='company'?'selected':''}>Everyone in the company</option>${model.departments.map(department=>`<option value="${escapeHtml(department.id)}" ${model.scope===department.id?'selected':''}>${escapeHtml(department.label)}</option>`).join('')}</select></label>
-        <div style="display:flex;gap:14px"><button type="button" data-feed-all>Show all</button><button type="button" data-feed-none>Hide all</button></div>
-        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:8px">${model.options.map(option=>`<label style="display:flex;gap:9px;align-items:center;padding:9px;border:1px solid #e4e7ec;border-radius:8px"><input type="checkbox" data-feed-activity value="${escapeHtml(option.type)}" ${checked(option.type)?'checked':''}><span>${escapeHtml(option.label)}</span></label>`).join('')}</div>
-        <div style="display:flex;align-items:center;gap:12px"><button type="button" class="cs-btn primary" data-feed-save ${model.saving?'disabled':''}>${model.saving?'Saving…':'Save settings'}</button><span role="status" data-feed-status></span></div>
-      </section>`;
-      const setSelection = types => {
-        if(model.scope==='company')model.draft.company_activity_types=types;
-        else (model.draft.department_activity_types ||= {})[model.scope]=types;
-        void renderFeedSettings();
-      };
-      paneFeed.querySelector('[data-feed-board]').onchange = event => {model.scope=event.target.value;void renderFeedSettings();};
-      paneFeed.querySelector('[data-feed-all]').onclick = () => setSelection(model.options.map(option=>option.type));
-      paneFeed.querySelector('[data-feed-none]').onclick = () => setSelection([]);
-      paneFeed.querySelectorAll('[data-feed-activity]').forEach(input => {input.onchange = () => setSelection([...paneFeed.querySelectorAll('[data-feed-activity]:checked')].map(node=>node.value));});
-      paneFeed.querySelector('[data-feed-save]').onclick = async () => {
-        if(model.saving)return;
-        model.saving=true;
-        const button=paneFeed.querySelector('[data-feed-save]'),status=paneFeed.querySelector('[data-feed-status]');
-        button.disabled=true;button.textContent='Saving…';
-        try {
-          const result=await window.ChannelsAPI.feed.saveSettings(currentOrgId(),model.draft);
-          model.draft=structuredClone(result.settings);
-          status.textContent='Saved.';
-          showToast?.('Feed settings saved');
-        } catch(error) { status.textContent=error?.message || 'Could not save Feed settings.'; }
-        finally {model.saving=false;button.disabled=false;button.textContent='Save settings';}
-      };
     }
 
     function renderChannelsSettings(){
@@ -14524,7 +14507,7 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
       if (canCallWorkflows && activeTab === 'calls') renderCallsSettings();
       if (canContacts && activeTab === 'contacts') renderContactsSettings();
       if (canCompany && activeTab === 'connections') renderConnectionsSettings();
-      if (canCompany && activeTab === 'feed') void renderFeedSettings();
+      if (canFeed && activeTab === 'feed') void renderFeedSettings();
       if (canFeedback && activeTab === 'feedback') renderFeedbackSettings();
       if (canEquipment && activeTab === 'equipment') renderEquipmentSettings();
       if (canAssistant && activeTab === 'assistant') renderAssistantSettings();
@@ -14546,6 +14529,7 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
   // --- TAB REGISTRATION & VISIBILITY CONTROL ---
   function updateSidebarVisibility() {
     const canCompany = hasPerm('manage_company_settings');
+    const canFeed = hasPerm('manage_feed') && appFlag('platform', 'photos_feed');
     const canUsers   = hasPerm('manage_company_users') || hasPerm('manage_company_user_permissions');
     const canPayroll = (canCompany || hasPerm('manage_payroll')) && appFlag('apps', 'payroll');
     const canReports = hasPerm('manage_report_settings') && appFlag('apps', 'firstmeasure');

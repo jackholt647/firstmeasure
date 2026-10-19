@@ -26,7 +26,7 @@ export function isDepartmentScopeablePermission(permission: string) {
   return !!permission && !permission.includes('|') && permission !== '*' && ![
     'manage_billing', 'manage_company_settings', 'manage_company_users', 'manage_company_user_permissions',
     'manage_report_settings', 'manage_notification_defaults', 'manage_integrations', 'manage_security',
-    'manage_roles', 'manage_organization', 'manage_capabilities',
+    'manage_roles', 'manage_organization', 'manage_capabilities', 'manage_feed', 'view_feed_all_departments',
     // Branch reach is about the organization's structure; a department, branch or region cannot confer it.
     'view_region_branches', 'manage_region_branches', 'view_all_branches', 'manage_all_branches'
   ].includes(permission);

@@ -316,43 +316,6 @@
   }
   function showPickerError(error){root.alert(error.message||'The picker is unavailable.');}
 
-  function mountLinkInput(container, values = {}){
-    ensureStyles();container.innerHTML='<div class="fm-ch-link-form"><label>Link text<input type="text" data-link-text placeholder="Text people will see"></label><label>Web address<input type="url" data-url placeholder="https://example.com" inputmode="url"></label><p class="fm-ch-link-error" role="alert"></p></div>';const text=container.querySelector('[data-link-text]'),url=container.querySelector('[data-url]'),error=container.querySelector('.fm-ch-link-error');text.value=values.text||'';url.value=values.url||'';
-    return {read(){let href;try{const parsed=new URL(url.value.trim());if(!['https:','http:'].includes(parsed.protocol))throw Error();href=parsed.href;}catch{error.textContent='Enter a complete http:// or https:// web address.';url.focus();throw Error(error.textContent);}if(!text.value.trim()){error.textContent='Enter the text for your link.';text.focus();throw Error(error.textContent);}error.textContent='';return {url:href,text:text.value.trim()};},destroy(){container.replaceChildren();}};
-  }
-  // Picker implementations belong to Platform Widgets. Keep a small adapter for
-  // existing composer/Feed callers; Channels owns only message delivery.
-  let pickerWidgetsLoading;
-  function loadPickerWidgets(){
-    if(root.FirstMatePickerWidgets)return Promise.resolve(root.FirstMatePickerWidgets);
-    if(!pickerWidgetsLoading)pickerWidgetsLoading=import('/libraries/platform-widgets/pickers.js?v=20261010-loading-fix').then(()=>root.FirstMatePickerWidgets).catch(error=>{pickerWidgetsLoading=null;throw error;});
-    return pickerWidgetsLoading;
-  }
-  // Compatibility for Feed callers; rendering and state stay in Platform Widgets.
-  function mountEmojiPicker(container,onPick){
-    let picker,destroyed=false;
-    const ready=loadPickerWidgets().then(widgets=>{if(!destroyed)picker=widgets.mountEmojiPicker(container,onPick);}).catch(showPickerError);
-    return {focus:()=>ready.then(()=>picker?.focus()),destroy(){destroyed=true;picker?.destroy();}};
-  }
-  function createGifPickerButton(options){
-    ensureStyles();
-    const button=el('button','fm-ch-icon-btn','<span style="font-size:10px;font-weight:800;border:1.5px solid currentColor;border-radius:3px;padding:1px">GIF</span>');
-    button.type='button';button.title='Send a GIF';button.setAttribute('aria-label',button.title);
-    button.setAttribute('aria-haspopup','dialog');button.setAttribute('aria-expanded','false');
-    let destroyed=false,loading=false;
-    button.onclick=async()=>{
-      if(loading||destroyed)return;loading=true;
-      // Feed invokes a temporary button from its own focused toolbar trigger.
-      const anchor=button.isConnected?button:(options.anchor||document.activeElement);
-      try{const widgets=await loadPickerWidgets();if(!destroyed&&anchor?.isConnected){closePopover();widgets.openGifPicker(anchor,options);}}
-      catch(error){(options.onError||showPickerError)(error);}
-      finally{loading=false;}
-    };
-    button.destroy=()=>{destroyed=true;root.FirstMatePickerWidgets?.closeFor(button);};
-    return button;
-  }
-  function showPickerError(error){root.alert(error.message||'The picker is unavailable.');}
-
   function clipboardRichHtml(data){
     const html = data.getData('text/html');
     if (!html) return clipboardTable(data) || renderBody({text:data.getData('text/plain')});

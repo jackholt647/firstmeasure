@@ -160,9 +160,9 @@ test('feed layouts, upload collages, comments, reactions and mobile controls',as
   assert.equal(await documentRow.locator('[data-feed-summary-request]').count(),0);
   await documentRow.locator('.pf-feed-list-document-thumb').click();
   await page.waitForFunction(()=>window.lastOpenedProject?.options.tab==='docs');
-  assert.match(await page.locator('.pf-feed-list-row').filter({hasText:'scheduled a sales appointment'}).textContent(),/Roof inspection and estimate/);
-  assert.match(await page.locator('.pf-feed-list-row').filter({hasText:'started a sales appointment'}).textContent(),/Roof inspection and estimate/);
-  assert.match(await page.locator('.pf-feed-list-row').filter({hasText:'completed a sales appointment'}).textContent(),/Roof inspection and estimate/);
+  assert.match(await page.locator('.pf-feed-list-row').filter({hasText:'scheduled an event'}).textContent(),/Roof inspection and estimate/);
+  assert.match(await page.locator('.pf-feed-list-row').filter({hasText:'started an event'}).textContent(),/Roof inspection and estimate/);
+  assert.match(await page.locator('.pf-feed-list-row').filter({hasText:'completed an event'}).textContent(),/Roof inspection and estimate/);
   assert.equal(await page.getByText('scheduled event',{exact:false}).count(),0);
   assert.match(await page.locator('.pf-feed-list-row').filter({hasText:'Pending Deposit'}).textContent(),/moved the project to Pending Deposit/);
   assert.match(await page.locator('.pf-feed-list-row').filter({hasText:'sent a proposal'}).textContent(),/sent a proposal to the customer/);
@@ -512,6 +512,23 @@ test('feed layouts, upload collages, comments, reactions and mobile controls',as
    }
    if(name==='Posts')assert.equal(await page.locator('[data-feed-manual-only]').count(),0);
   }
+  await page.evaluate(()=>{
+    const previous=window.ChannelsAPI.feed.catalog;
+    window.ChannelsAPI.feed.catalog=async()=>({...await previous(),views:['posts'],can_view_all_departments:false,member_department_ids:['sales']});
+    window.feedApp.mount(document.querySelector('#feed'));
+  });
+  await page.waitForFunction(()=>document.querySelector('[data-density="posts"][aria-pressed="true"]'));
+  for(const name of ['Small tiles','Large tiles','List','Mosaic']) assert.equal(await page.getByRole('button',{name,exact:true}).count(),0,`${name} is hidden for posts-only access`);
+  await page.getByRole('button',{name:/Show Company and my departments/}).click();
+  assert.equal(await page.getByRole('option',{name:'All company activity',exact:true}).count(),0);
+  await page.getByRole('option',{name:'Company and my departments',exact:true}).click();
+  await page.evaluate(()=>{
+    const previous=window.ChannelsAPI.feed.catalog;
+    window.ChannelsAPI.feed.catalog=async()=>({...await previous(),can_view_all_departments:true,departments:[{id:'sales',label:'Sales'},{id:'roofing',label:'Roofing'}],member_department_ids:['sales'],user_departments:{sam:['roofing']},post_settings:{company_activity_types:[],department_activity_types:{roofing:['media.uploaded']}}});
+    window.feedApp.mount(document.querySelector('#feed'));
+  });
+  await page.waitForFunction(()=>document.querySelectorAll('.pf-post-collage .pf-thumb').length===4);
+  assert.equal(await page.locator('.pf-post-collage .pf-thumb').count(),4,'all-department readers see enabled automatic posts from another department');
   assert.deepEqual(errors,[]);
  }finally{await browser.close();}
 });

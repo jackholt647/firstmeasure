@@ -1,8 +1,10 @@
 # FirstMeasure: local development and production deployment
 
 October 19 Full-house speed pass: [no shader recompiles per redraw, early-exit occlusion, a passive 2D plan during 3D gestures, an exact wall composition key, draw memos and cheaper previews](deploy/digitalocean/development-full-house-speed-20261019.md) records release `f709807f`, the measurements and the verified development rollout.
+October 11 Feed Settings: [Search, categories and descriptions](deploy/digitalocean/development-feed-settings-ui-20261011.md) records the Settings UI update, browser/visual checks and development rollout.
 
 October 19 Pay sheets, payables and People gaps: [the pay sheet editor, payroll bills through payables with reimbursements settled once, export templates, archive and restore, branch membership and words, and outside company onboarding](deploy/digitalocean/development-people-payroll-gaps-20261019.md) records release `c255dda3` (payroll schema version 6), the host merges, the per-host generated files and the verified four-role development rollout.
+October 11 Feed: [Terminology and workflow context](deploy/digitalocean/development-feed-terminology-flexibility-20261011.md) records the focused activity/catalog update, checks, development rollout and scope limits.
 
 October 19 Route lock-down: [platform routes stay inside the caller's organizations, the raw global document and the credits ledger need billing management, and the balance needs report ordering or billing](deploy/digitalocean/development-route-gates-20261019.md) records release `65634240`, the host merges and the verified four-role development rollout with owner and orderer checks.
 
@@ -112,6 +114,7 @@ October 10 Project resource lists: [dense line-item rows](deploy/digitalocean/de
 October 10 Priority field owners: [shared contact, user and resource priorities](deploy/digitalocean/development-priority-owners-20261010.md) records the owner architecture, verified development rollout and rollback baselines.
 
 October 10 shared pickers: [Widget-owned GIF and emoji pickers](deploy/digitalocean/development-shared-pickers-20261010.md) records Channels consumption, compact popovers, preserved Feed composer changes, and verified development rollout.
+October 10 Feed: [Permissions and auto-save](deploy/digitalocean/development-feed-permissions-autosave-20261010.md) records the settings redesign, verified three-app-role development rollout, and October 11 correction that the report worker is not a Feed deployment dependency.
 
 October 10 Project preview contact card: [Conditional primary label and icon actions](deploy/digitalocean/development-project-preview-contact-icons-20261010.md) records the checks and verified development rollout.
 
