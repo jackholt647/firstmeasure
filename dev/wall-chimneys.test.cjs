@@ -130,7 +130,8 @@ test('deleting a coplanar chimney/wall divider retains the joined face and all o
 test('saved overlapping chimney seam merges the coplanar wall despite a perpendicular side and roof crossing',()=>{
  const input=require('./fixtures/chimney-overlapping-wall.json'),before=JSON.stringify(input),result=W.removeFaceEdges(input.faces,[input.pair]),K=require('../public/measure/internal/editor_scripts/exterior_geometry.js');
  assert.equal(result.merged.length,1);assert.deepEqual(result.removed,input.faces.slice(0,2).map(f=>f.id));assert.ok(!result.removed.includes(input.faces[2].id));
- const merged=result.merged[0];K.validateFace(merged);const frame=W.faceFrame(merged),expected=K.union(input.faces.slice(0,2).map(f=>({points:f.points.map(p=>W.inFrame(frame,p)),holes:[]}))).reduce((s,f)=>s+K.area(f),0);assert.ok(Math.abs(area(merged)-expected)<1e-6);
+ const merged=result.merged[0];K.validateFace(merged);const frame=W.faceFrame(merged),expected=K.union(input.faces.slice(0,2).map(f=>({points:f.points.map(p=>W.inFrame(frame,p)),holes:[]}))).reduce((s,f)=>s+K.area(f),0);// The merge keeps the exact source vertices; the expected union is on the 1e-6 grid.
+ assert.ok(Math.abs(area(merged)-expected)<1e-5);
  assert.ok(W.sharedIntervals(...input.pair,[merged]).some(([lo,hi])=>hi-lo>0),'outer portion above the wall stays defined');assert.equal(JSON.stringify(input),before);
 });
 

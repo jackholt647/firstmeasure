@@ -688,3 +688,11 @@ Regression tests: the "arched" and "curved wall pastes" tests in
   the surfaces.
 - Deleting a curve's end or control removes the whole curve from the surface
   wire, with the samples left on it; samples are never promoted to points.
+- Polygon booleans quantize to the 1e-6 grid in a face's own frame. On a plane
+  that is not axis-aligned, mapping back to world moves untouched vertices by
+  about a micrometre, so a rebuilt face's arc samples stopped matching the
+  arc's other vertices and surfaced as points. `W.exactPoints` restores the
+  exact source vertex (within 3 micrometres) for faces rebuilt by a closing
+  plane paste or drawing, plane subtraction, and edge-delete merge or repair;
+  `surfaceWire` snaps an edge's split points at deleted-edge intervals to the
+  edge or cut ends. Tests cover walls at 0-63 degrees.

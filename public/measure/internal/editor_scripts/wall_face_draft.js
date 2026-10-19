@@ -247,7 +247,7 @@ window.createWallFaceDraft=function(host){
   const plane=workingPlane,K=window.ExteriorGeometry;if(plane.selection.length<3){host.message('Select the boundary of the region to subtract.');return true;}
   const ok=transaction(()=>{const frame=plane.frame,local=p=>({...K.local(frame,p),z:0}),world=p=>K.world(frame,p),boundary=W.faceFromPoints(plane.selection.map(planeProject),planeScene().lines),cutter={points:boundary.points.map(local)},base=host.state().wallEdits.$base||host.state().base,owners=[...moveScene().filter(f=>!f.deleted&&!f.snapOnly&&!f.curvedSurface),...(base?.faces||[]).map(f=>({...f,baseId:f.id}))].filter(f=>[f.points,...(f.holes||[])].flat().every(onWorkingPlane));const edits=host.state().wallEdits;let next=0;
    for(const owner of owners){const shape={points:owner.points.map(local),holes:(owner.holes||[]).map(r=>r.map(local))},pieces=K.difference(shape,[cutter]);if(Math.abs(pieces.reduce((s,f)=>s+K.area(f),0)-K.area(shape))<1e-8)continue;
-    const faces=pieces.map(piece=>{let id;do{id='plane-cut-'+Date.now()+'-'+next++;}while(edits.$surfaces?.some(f=>f.id===id));return {...owner,id,draft:false,drafted:false,points:piece.points.map(world),holes:piece.holes.map(r=>r.map(world))};});
+    const exact=W.exactPoints([...[owner.points,...(owner.holes||[])].flat(),...boundary.points]),faces=pieces.map(piece=>{let id;do{id='plane-cut-'+Date.now()+'-'+next++;}while(edits.$surfaces?.some(f=>f.id===id));return {...owner,id,draft:false,drafted:false,points:piece.points.map(p=>exact(world(p))),holes:piece.holes.map(r=>r.map(p=>exact(world(p))))};});
     if(owner.baseId){const before=copy(edits.$base||base),after=copy(before);after.faces=after.faces.flatMap(f=>f.id===owner.baseId?faces.map((f,i)=>({...f,id:i?f.id:owner.baseId})):f);S.rebind(before,after);edits.$base=after;}
     else{if(owner.draft){const d=all()[owner.draftKey],f=d.faces.find(f=>f.id===owner.regionId);d.deletedFaces=[...new Set([...(d.deletedFaces||[]),signature(f)])];}else{const f=edits.$surfaces.find(f=>f.id===owner.id);f.deleted=true;}edits.$surfaces||=[];edits.$surfaces.push(...faces);}
    }
@@ -277,9 +277,11 @@ window.createWallFaceDraft=function(host){
   const plane=workingPlane,K=window.ExteriorGeometry,frame=plane.frame,edits=host.state().wallEdits;
   plane.scene=null;const scene=planeScene(),nodes=[],lookup=new Map(),node=p=>{const local={...K.local(frame,p),z:0},key=K.pointKey(local);if(!lookup.has(key)){lookup.set(key,'plane-node-'+nodes.length);nodes.push({...local,id:lookup.get(key)});}return lookup.get(key);};
   const edges=scene.lines.map(([a,b],i)=>({id:'plane-edge-'+i,a:node(a),b:node(b)}));
-  const graph=K.partition({nodes,edges}),local=p=>({...K.local(frame,p),z:0}),world=p=>K.world(frame,p);
+  // Rebuilt rings keep the exact coordinates of the vertices they came from.
+  let exact=p=>p;const graph=K.partition({nodes,edges}),local=p=>({...K.local(frame,p),z:0}),world=p=>exact(K.world(frame,p));
   const owners=moveScene().filter(f=>!f.deleted&&!f.snapOnly&&!f.curvedSurface&&[f.points,...(f.holes||[])].flat().every(onWorkingPlane)),shape=f=>({points:f.points.map(local),holes:(f.holes||[]).map(r=>r.map(local))}),covered=owners.map(shape);
   const base=edits.$base||host.state().base;for(const f of base?.faces||[])if(!f.deleted&&f.points.every(onWorkingPlane)){covered.push(shape(f));owners.push({...f,planeBaseId:f.id});}
+  exact=W.exactPoints([...scene.lines.flat(),...owners.flatMap(f=>[f.points,...(f.holes||[])].flat())]);
   const target=host.state().wallEdits;target.$surfaces||=[];let next=0;
   // Surface curves include a deleted door's preserved arch wire.
   const curves=[...new Map([...Object.entries(target.$drafts||{}).filter(([,d])=>d.frame).flatMap(([key,d])=>(d.sketch?.curves||[]).map(c=>({...K.mapCurve(c,p=>K.world(d.frame,p)),id:key+':'+c.id}))),...(target.$surfaces||[]).filter(f=>!f.drafted&&!f.replacedBy&&!f.curvedSurface).flatMap(f=>f.curves||[])].map(c=>[c.id??JSON.stringify(c),c])).values()].filter(c=>K.curveSamples(c).every(onWorkingPlane));

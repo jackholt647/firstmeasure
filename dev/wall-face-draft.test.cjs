@@ -1774,7 +1774,8 @@ test('closing a loop on the working plane partitions an existing face without du
  const faces=f.state.wallEdits.$surfaces.filter(f=>!f.deleted),K=require('../public/measure/internal/editor_scripts/exterior_geometry.js');
  assert.equal(faces.length,2);assert.ok(f.d().faces.every(f=>f.solidId));
  const areas=faces.map(f=>{const frame=K.frame(f);return K.area({points:f.points.map(p=>K.local(frame,p)),holes:f.holes.map(r=>r.map(p=>K.local(frame,p)))});});
- assert.deepEqual(areas.sort((a,b)=>a-b),[4,12]);
+ // Rebuilt rings keep their source vertices exactly, floating-point noise included.
+ assert.ok(areas.sort((a,b)=>a-b).every((a,i)=>Math.abs(a-[4,12][i])<1e-9),JSON.stringify(areas));
 });
 
 test('drawing on a tilted face plane keeps new geometry on that exact plane',()=>{
@@ -3363,4 +3364,30 @@ test('deleting an arch end, control and apex removes the whole arch without prom
  const {f,b,lt,apex,ctl,markers,live}=planeArchedDoorFixture();planeSelection(f,[lt,ctl,apex]);f.editor.key({key:'Delete'});
  assert.ok(!live().some(s=>s.feature),f.message());const points=markers();assert.ok(!points.some(p=>p.z>b.top+1e-6&&p.z<4-1e-6),'no point remains where the arch was: '+JSON.stringify(points));
  const objects=[];f.editor.draw3D({add:o=>objects.push(o)},p=>p);assert.ok(!objects.some(o=>o.geometry?.points?.length===2&&!o.material.size&&o.geometry.points.every(p=>p.x>lt.x-1e-6&&p.x<apex.x+1e-6&&p.z>b.top+.01&&p.z<b.top+.5)),'no arc fragments');
+});
+
+// The same door on a wall that is not axis-aligned: rebuilt faces must keep the
+// arcs' exact vertices, or their samples surface as points.
+function rotatedArchedDoorFixture(deg){
+ const K=require('../public/measure/internal/editor_scripts/exterior_geometry.js'),W=require('../public/measure/internal/editor_scripts/wall_solid_geometry.js'),a=deg*Math.PI/180,u={x:Math.cos(a),y:Math.sin(a),z:0},P=(s,z)=>({x:1.3+u.x*s,y:.7+u.y*s,z}),along=p=>(p.x-1.3)*u.x+(p.y-.7)*u.y;
+ const lt=P(.6,2),apex=P(1,2.3),rt=P(1.4,2),c={...K.splineThrough([lt,apex],[P(.72,2.35)],{x:-u.y,y:u.x,z:0}),id:'arch-left'};
+ const faces=K.archFaces([{id:'wall',points:[P(0,0),P(.6,0),lt,apex,rt,P(1.4,0),P(4,0),P(4,4),P(0,4)],holes:[]},{id:'door',points:[P(.6,0),P(1.4,0),rt,apex,lt],holes:[],feature:{type:'door'}}],c).faces;
+ const state={wallEdits:{$surfaces:faces}},f=fixture({state,walls:[],selected:null,globals:renderGlobals(),screen:p=>({x:along(p)*100,y:p.z*100}),projectPoint:(d,e)=>d.frame?W.inFrame(d.frame,P(e.clientX/100,e.clientY/100)):{x:e.clientX/100,y:e.clientY/100,z:0}});
+ f.editor.togglePlane({points:[P(0,0),P(4,0),P(4,4),P(0,4)]});
+ const markers=()=>{const objects=[];f.editor.draw3D({add:o=>objects.push(o)},p=>p);return objects.find(o=>o.userData.planeGuide&&o.material.color==='#8fefff'&&o.material.size===7)?.geometry.points||[];};
+ return {f,K,W,lt,apex,rt,ctl:markers().find(p=>along(p)>.61&&along(p)<.95&&p.z>2.05),markers,along};
+}
+for(const deg of [0,17,30,45,63])test(`a closing paste on a wall at ${deg} degrees keeps both arcs to their defining points`,()=>{
+ const {f,K,W,lt,apex,rt,ctl,markers,along}=rotatedArchedDoorFixture(deg);assert.equal(markers().length,10);
+ planeSelection(f,[lt,ctl,apex]);f.editor.key({key:'c',ctrlKey:true});assert.equal(f.clipboard().curves.length,1);
+ const s=f.editor.selectionSnapshot();s.workingPlane.selection=[apex,rt];s.workingPlane.selectedLines=[[apex,rt]];f.editor.restoreSelection(s);f.editor.key({key:'Delete'});
+ const segments=()=>{const objects=[];f.editor.draw3D({add:o=>objects.push(o)},p=>p);return objects.filter(o=>o.material.color==='#8ce9ff'&&o.material.size===undefined&&o.geometry.points?.length===2).map(o=>o.geometry.points);};
+ f.listeners.pointermove(f.e(2,3));f.editor.key({key:'v',ctrlKey:true});f.editor.key({key:'t'});f.editor.key({key:'t'});f.editor.key({key:'m'});
+ let x=2,z=3;for(let i=0;i<3;i++){f.listeners.pointermove(f.e(x,z));const end=segments().at(-1)[1];x+=along(apex)-along(end);z+=apex.z-end.z;}
+ f.listeners.pointermove(f.e(x,z));f.editor.planeDown(f.e(x,z));assert.match(f.message(),/pasted/);
+ const live=f.state.wallEdits.$surfaces.filter(face=>!face.deleted);assert.equal(live.length,2);
+ for(const face of live){const ids=face.curves.map(c=>c.id);assert.equal(ids.length,2);assert.ok(ids.includes('arch-left'),'the left arc keeps its curve');assert.ok(face.curves.every(c=>c.controls.length===3));}
+ planeSelection(f,[]);assert.equal(markers().length,11,'no curve sample became a point');
+ const real=W.surfaceWire(f.state.wallEdits).nodes.filter(n=>!n.curveSample);assert.equal(real.length,11);
+ const draft=Object.values(f.state.wallEdits.$drafts).find(d=>d.constructionPlane);assert.equal(draft.sketch.nodes.length,3);assert.equal(draft.sketch.nodes.filter(n=>n.userDraftPoint).length,3);
 });
