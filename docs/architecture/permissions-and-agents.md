@@ -82,6 +82,27 @@ the seeded administrator roles have them. Branch scope only removes records:
 the record's ordinary permission is still required. See
 [branches](branches.md#access-the-branch-scope-rule).
 
+## Organization boundary
+
+A platform route never answers beyond the caller's organizations. There is no
+platform operator in a customer session: every organization on the platform,
+and creating an identity on its own, are internal-staff work under
+`/v1/internal`. `GET /v1/platform/organizations` lists only the caller's own
+memberships, and an identity is made only by the routes that add a person to an
+organization (`POST /v1/platform/identities` was removed: it took memberships
+and a password hash from the body).
+
+The organization's global document holds billing, payment-method and credits
+records. Reading it raw (`/organizations/:orgId/global`) needs
+`manage_billing`; patching its `branding` needs `manage_company_settings` (the
+brand kit) and every other key `manage_billing`. Everyone else sees only its
+branding, in `/me` and `portal-state`. Credits are split: the balance
+(`/credits`, and `credits.balance` in `portal-state`) needs
+`order_reports|manage_billing`; the entries (`/credits/ledger`, and
+`credits.ledger_count` and `billing` in `portal-state`) need `manage_billing`.
+Without expanded access an owner or administrator holds all of these, as
+before. Covered by `tests/platform-organization-boundary.test.ts`.
+
 ## Shared agent runtime
 
 `agents/runtime.ts` runs the common conversation loop for all registered

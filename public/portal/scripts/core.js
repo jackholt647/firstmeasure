@@ -4082,6 +4082,7 @@
           window.PlatformAPI.credits.get(orgId).catch(() => null),
           window.PlatformAPI.auth?.me ? window.PlatformAPI.auth.me().catch(() => null) : Promise.resolve(null)
         ]);
+        const sessionPermissions = session?.membership?.permissions || session?.membership?.org_permissions?.items || session?.user?.permissions || session?.user?.org_permissions?.items || null;
         const creditsMissing = directCredits?.missing === true;
         const hasDirectBalance = directCredits
           && directCredits.ok !== false
@@ -4097,10 +4098,15 @@
             commerce: directCredits.commerce,
             credits_balance: directCredits.balance ?? directCredits.credits_balance ?? directCredits.organization?.credits_balance ?? 0,
             free_expedite_uses: directCredits.free_expedite_uses ?? directCredits.organization?.free_expedite_uses ?? 0,
-            permissions: session?.membership?.permissions || session?.membership?.org_permissions?.items || session?.user?.permissions || session?.user?.org_permissions?.items || null,
+            permissions: sessionPermissions,
             referral_discount: null
           };
           if (!data.permissions) data.permissions = frontendFallbackPermissions();
+        } else if (sessionPermissions) {
+          // The balance is refused to people who neither order reports nor
+          // manage billing; they keep their own permissions, not the fallback.
+          setCurrentPermissions(sessionPermissions);
+          return { ok:false, balance: lastCredits };
         } else {
           const portalActionCredits = await postAction('get_credits').catch(() => null);
           data = portalActionCredits?.data || null;

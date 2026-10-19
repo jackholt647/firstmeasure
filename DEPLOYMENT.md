@@ -1,5 +1,9 @@
 # FirstMeasure: local development and production deployment
 
+October 19 E-sign seal: [executed agreements are sealed, independently timestamped and recorded in an append-only signing ledger, with a public verify page](deploy/digitalocean/development-esign-seal-20261019.md) records release `36b12df9`, its checks and the verified four-role development rollout.
+
+October 19 Full-house engine fixes: [wall edits survive roof changes and typed values after orbiting, drawing never writes the model, the kernel keeps holes and unique region ids, and base sketch edits keep their points](deploy/digitalocean/development-full-house-fixes-20261019.md) records release `ff9ad1c9`, what was left uncommitted, the checks and the verified development rollout.
+
 October 16 CRM: [the CRM tab with views, worklists, the lead drawer, sources and spend, the funnel, cancellation windows and industry presets, and the system diagram on dev](deploy/digitalocean/development-crm-20261016.md) records what shipped from `claude/crm-20261016`, the checks and the development rollout.
 
 October 15 Payroll and My pay: [the Payroll rebuild and People worker classification, the widget catalog revalidated, and My pay with reimbursements protected from deductions and optional pay run approval](deploy/digitalocean/development-payroll-rebuild-20261015.md) records releases `57c8a2ea`, `07544bd5` and `81df90e7` (payroll schema version 5), the host merges and the verified development rollouts.

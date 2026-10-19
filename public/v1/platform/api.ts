@@ -75,6 +75,7 @@ import {
   authContextFromRequest,
   buildAuthContext,
   hashPassword,
+  hasPermission,
   listRememberedPlatformAccounts,
   loginPlatformIdentity,
   logoutAllRememberedPlatformAccounts,
@@ -244,17 +245,6 @@ const createOrganizationSchema = objectBodySchema.extend({
   status: z.string().optional(),
   metadata: z.record(z.unknown()).optional(),
   global: z.record(z.unknown()).optional()
-});
-const createIdentitySchema = objectBodySchema.extend({
-  id: z.string().optional(),
-  email: z.string(),
-  password_hash: z.string().optional(),
-  password_algo: z.string().optional(),
-  name: z.string().optional(),
-  phone: z.string().optional(),
-  status: z.string().optional(),
-  memberships: z.array(z.unknown()).optional(),
-  metadata: z.record(z.unknown()).optional()
 });
 const registerSchema = objectBodySchema.extend({
   email: z.string(),
@@ -718,11 +708,13 @@ app.get("/auth/google/config", async () => ({
     receivedAt: new Date().toISOString()
   }));
 
+  // Only the organizations this person belongs to. Every organization on the
+  // platform is an internal-staff view (/v1/internal/organizations).
   app.get("/organizations", async (request) => {
-    await requirePlatformAuth(request, { app: ["portal.company_settings"] });
+    const ctx = await requirePlatformAuth(request);
     return {
       ok: true,
-      organizations: await listOrganizations()
+      organizations: (await listIdentityMemberships(ctx.identityId)).map(membership => membership.organization)
     };
   });
 
@@ -733,14 +725,6 @@ app.get("/auth/google/config", async () => ({
     const organization = await createOrganization(body);
     reply.code(201);
     return { ok: true, organization };
-  });
-
-  app.post("/identities", async (request, reply) => {
-    await requirePlatformAuth(request, { app: ["portal.company_settings"], csrf: true });
-    const body = createIdentitySchema.parse(request.body ?? {});
-    const identity = await createIdentity(body);
-    reply.code(201);
-    return { ok: true, identity: publicIdentity(identity) };
   });
 
   app.get("/identities/:identityId", async (request) => {
@@ -939,7 +923,7 @@ app.get("/auth/google/config", async () => ({
     return {
       ok: true,
       ...publicAuthContext(ctx),
-      global,
+      global: memberGlobalView(global),
       branch
     };
   });
@@ -1204,6 +1188,7 @@ app.get("/auth/google/config", async () => ({
     ]);
     const globalData = asObject(global.data);
     const branchData = asObject(branch?.data);
+    const managesBilling = hasPermission(ctx, "manage_billing");
     return {
       ok: true,
       organization,
@@ -1217,12 +1202,12 @@ app.get("/auth/google/config", async () => ({
         permissions: ctx.permissions
       },
       branch,
-      global,
+      global: memberGlobalView(global),
       credits: {
-        balance: numericValue(globalData.credits_balance),
-        ledger_count: Array.isArray(globalData.credits_ledger) ? globalData.credits_ledger.length : 0
+        ...(hasPermission(ctx, CREDIT_BALANCE_PERMISSION) ? { balance: numericValue(globalData.credits_balance) } : {}),
+        ...(managesBilling ? { ledger_count: Array.isArray(globalData.credits_ledger) ? globalData.credits_ledger.length : 0 } : {})
       },
-      billing: safeBillingView(globalData.billing),
+      billing: managesBilling ? safeBillingView(globalData.billing) : {},
       commerce: customerCommercialView(),
       branding: asObject(branchData.branding),
       contact: asObject(branchData.contact),
@@ -1240,9 +1225,11 @@ app.get("/auth/google/config", async () => ({
     };
   });
 
+  // The raw global document holds billing, payment-method and credits records;
+  // members read the safe views through portal-state, commerce and credits.
   app.get("/organizations/:orgId/global", async (request) => {
     const orgId = getParam(request.params, "orgId");
-    await requirePlatformAuth(request, { orgId });
+    await requirePlatformAuth(request, { app: ["portal.company_settings"], orgId, permission: "manage_billing" });
     return {
       ok: true,
       document: await readGlobal(orgId)
@@ -1257,21 +1244,32 @@ app.get("/auth/google/config", async () => ({
     return { ok: true, ...customerCommercialView(profile), exchange: profile.credit_display === "credits" ? await exchangeEstimate(profile.currency, profile.local_currency) : null };
   });
 
+  // The balance is what ordering needs; the entries behind it are billing
+  // records and live at /credits/ledger.
   app.get("/organizations/:orgId/credits", async (request) => {
     const orgId = getParam(request.params, "orgId");
-    await requirePlatformAuth(request, { orgId });
+    await requirePlatformAuth(request, { orgId, permission: CREDIT_BALANCE_PERMISSION });
+    const data = asObject((await readGlobal(orgId)).data);
+    return {
+      ok: true,
+      balance: numericValue(data.credits_balance),
+      commerce: customerCommercialView(),
+      free_expedite_uses: Math.max(0, Math.round(numericValue(data.free_expedite_uses)))
+    };
+  });
+
+  app.get("/organizations/:orgId/credits/ledger", async (request) => {
+    const orgId = getParam(request.params, "orgId");
+    await requirePlatformAuth(request, { orgId, permission: "manage_billing" });
     const query = request.query && typeof request.query === "object" ? request.query as Record<string, unknown> : {};
     const limit = Math.max(0, Math.min(500, Math.round(numericValue(query.limit, 100))));
     const global = await readGlobal(orgId);
     const data = asObject(global.data);
     const ledger = Array.isArray(data.credits_ledger) ? data.credits_ledger : [];
-    const items = limit > 0 ? ledger.slice(-limit).reverse() : [];
     return {
       ok: true,
       balance: numericValue(data.credits_balance),
-      commerce: customerCommercialView(),
-      free_expedite_uses: Math.max(0, Math.round(numericValue(data.free_expedite_uses))),
-      ledger: items,
+      ledger: limit > 0 ? ledger.slice(-limit).reverse() : [],
       ledger_count: ledger.length,
       document_revision: global.revision
     };
@@ -1797,9 +1795,13 @@ app.get("/auth/google/config", async () => ({
 
   app.patch("/organizations/:orgId/global", async (request) => {
     const orgId = getParam(request.params, "orgId");
-    await requirePlatformAuth(request, { app: ["portal.company_settings"], orgId, csrf: true });
+    const ctx = await requirePlatformAuth(request, { app: ["portal.company_settings"], orgId, csrf: true, permission: "manage_company_settings|manage_billing" });
     const body = objectBodySchema.parse(request.body ?? {});
     if (containsAppFlagMutation(body)) throw forbidden("app_flags_operator_only", "App rollout flags are operator-controlled and cannot be changed from Platform.");
+    // Branding is a company setting (the brand kit); every other key is billing.
+    const keys = Object.keys(asObject(body.data || body));
+    if (keys.includes("branding") && !hasPermission(ctx, "manage_company_settings")) throw forbidden("permission_denied", "This session does not have permission to perform this action.");
+    if (keys.some(key => key !== "branding") && !hasPermission(ctx, "manage_billing")) throw forbidden("permission_denied", "This session does not have permission to perform this action.");
     return {
       ok: true,
       document: await saveGlobal(orgId, await protectCommercialProfile(orgId, body, false), { replace: false })
@@ -5095,6 +5097,19 @@ async function protectCommercialProfile(orgId: string, body: JsonObject, replace
   if (replace && saved !== undefined) return { ...body, data: { ...data, commercial_profile: saved } };
   return body;
 }
+
+/**
+ * What every member sees of the organization's global document: its branding.
+ * The rest is billing records (payment method, credits ledger), read through
+ * the gated /global, /credits and /credits/ledger routes.
+ */
+function memberGlobalView(global: unknown) {
+  const document = asObject(global);
+  return { ...document, data: { branding: asObject(asObject(document.data).branding) } };
+}
+
+/** Who may see the credit balance: people who order reports or manage billing. */
+const CREDIT_BALANCE_PERMISSION = "order_reports|manage_billing";
 
 function safeBillingView(value: unknown) {
   const billing = asObject(value);

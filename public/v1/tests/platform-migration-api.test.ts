@@ -136,7 +136,8 @@ test("migrated org/user data supports portal state, credits, and Node-created or
 
   const me = await owner.request("GET", "/v1/platform/me");
   assert.equal(me.user.email, "owner-api@example.test");
-  assert.equal(me.global.data.credits_balance, 50);
+  // /me carries only branding from the global document; the balance is on /credits.
+  assert.equal(me.global.data.credits_balance, undefined);
 
   const portalState = await owner.request("GET", `/v1/platform/organizations/${orgId}/portal-state`);
   assert.equal(portalState.organization.name, "Migrated API Roofing");
@@ -158,7 +159,7 @@ test("migrated org/user data supports portal state, credits, and Node-created or
   });
   assert.equal(refunded.balance, 45);
 
-  const credits = await owner.request("GET", `/v1/platform/organizations/${orgId}/credits?limit=10`);
+  const credits = await owner.request("GET", `/v1/platform/organizations/${orgId}/credits/ledger?limit=10`);
   assert.equal(credits.balance, 45);
   assert.equal(credits.ledger_count, 3);
 

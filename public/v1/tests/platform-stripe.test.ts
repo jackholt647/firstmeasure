@@ -210,7 +210,7 @@ test("simulated Stripe checkout webhook credits org exactly once and saves check
   assert.equal(metaRequest.body.data[0].custom_data.value, 250);
   assert.equal(metaRequest.body.data[0].custom_data.currency, "USD");
 
-  const creditsAfterFirst = await client.request("GET", "/v1/platform/organizations/org_stripe_sim/credits?limit=20");
+  const creditsAfterFirst = await client.request("GET", "/v1/platform/organizations/org_stripe_sim/credits/ledger?limit=20");
   assert.equal(creditsAfterFirst.balance, 250);
   assert.equal(creditsAfterFirst.ledger_count, 1);
   assert.equal(creditsAfterFirst.ledger[0].reason, "stripe_checkout_paid");
@@ -220,7 +220,7 @@ test("simulated Stripe checkout webhook credits org exactly once and saves check
   assert.equal(duplicate.duplicate, true);
   assert.equal(metaCapiRequests.length, 1);
 
-  const creditsAfterDuplicate = await client.request("GET", "/v1/platform/organizations/org_stripe_sim/credits?limit=20");
+  const creditsAfterDuplicate = await client.request("GET", "/v1/platform/organizations/org_stripe_sim/credits/ledger?limit=20");
   assert.equal(creditsAfterDuplicate.balance, 250);
   assert.equal(creditsAfterDuplicate.ledger_count, 1);
 
@@ -284,7 +284,7 @@ test("simulated auto top-up charges saved card when a spend crosses the threshol
   assert.equal(charged.auto_topup.payment_intent_id, "pi_test_auto_topup");
   assert.equal(charged.auto_topup.balance, 290);
 
-  const credits = await client.request("GET", "/v1/platform/organizations/org_stripe_sim/credits?limit=10");
+  const credits = await client.request("GET", "/v1/platform/organizations/org_stripe_sim/credits/ledger?limit=10");
   assert.equal(credits.balance, 290);
   assert.equal(credits.ledger[0].reason, "stripe_auto_topup");
   assert.equal(credits.ledger[0].delta, 50);
@@ -321,7 +321,7 @@ test("simulated auto top-up does not charge after it is disabled", async () => {
   assert.equal(charged.balance, 280);
   assert.equal(charged.auto_topup, undefined);
 
-  const credits = await client.request("GET", "/v1/platform/organizations/org_stripe_sim/credits?limit=10");
+  const credits = await client.request("GET", "/v1/platform/organizations/org_stripe_sim/credits/ledger?limit=10");
   assert.equal(credits.balance, 280);
   assert.notEqual(credits.ledger[0].reason, "stripe_auto_topup");
 
