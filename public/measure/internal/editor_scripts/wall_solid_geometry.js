@@ -242,12 +242,13 @@ function chamferConnections(output,patches,openBoundaries){
 }
 // Intersect a planar region with a convex volume. The mask is built on the
 // region's own plane; the shared kernel preserves holes and concave boundaries.
-function volumeSection(face,planes,subtractVolume=false){
+// A point within the tolerance of a bounding plane is inside that volume.
+function volumeSection(face,planes,subtractVolume=false,tolerance=1e-9){
  const frame=K.frame(face);if(!frame)return [];
  const local={points:face.points.map(p=>K.local(frame,p)),holes:(face.holes||[]).map(r=>r.map(p=>K.local(frame,p)))};
  const xs=local.points.map(p=>p.x),ys=local.points.map(p=>p.y),loX=Math.min(...xs)-1,hiX=Math.max(...xs)+1,loY=Math.min(...ys)-1,hiY=Math.max(...ys)+1;
  let mask=[{x:loX,y:loY},{x:hiX,y:loY},{x:hiX,y:hiY},{x:loX,y:hiY}].map(p=>K.world(frame,p));
- for(const plane of planes){const next=[];for(let i=0;i<mask.length;i++){const a=mask[i],b=mask[(i+1)%mask.length],da=dot(plane.n,a)-plane.k,db=dot(plane.n,b)-plane.k,ia=da>=-1e-9,ib=db>=-1e-9;if(ia)next.push(a);if(ia!==ib)next.push(mix3(a,b,da/(da-db)));}mask=next;if(mask.length<3)break;}
+ for(const plane of planes){const next=[];for(let i=0;i<mask.length;i++){const a=mask[i],b=mask[(i+1)%mask.length],da=dot(plane.n,a)-plane.k,db=dot(plane.n,b)-plane.k,ia=da>=-tolerance,ib=db>=-tolerance;if(ia)next.push(a);if(ia!==ib)next.push(mix3(a,b,da/(da-db)));}mask=next;if(mask.length<3)break;}
  const cut=mask.length>=3?[{points:mask.map(p=>K.local(frame,p)),holes:[]}]:[];
  const regions=subtractVolume?K.difference(local,cut):cut.length?K.intersection([local],cut):[];
  return regions.map(r=>({...face,points:r.points.map(p=>K.world(frame,p)),holes:r.holes.map(h=>h.map(p=>K.world(frame,p)))}));
@@ -487,6 +488,8 @@ function roofContactExtensions(source,roof){
  const hull=ps=>{const sorted=ps.slice().sort((a,b)=>a.x-b.x||a.y-b.y),half=ps=>{const out=[];for(const p of ps){while(out.length>1&&(out.at(-1).x-out.at(-2).x)*(p.y-out.at(-2).y)-(out.at(-1).y-out.at(-2).y)*(p.x-out.at(-2).x)<=1e-12)out.pop();out.push(p);}return out;};return [...half(sorted).slice(0,-1),...half(sorted.slice().reverse()).slice(0,-1)];};
  for(const face of roof.faces){
   if(face.deleted||!face.points?.every(K.finite3))continue;
+  // A vertical or zero-area face has no plan area and cannot cover a sweep.
+  const facing=normal(face.points);if(!facing||Math.abs(facing.z)<K.CONTACT)continue;
   const mesh=K.triangles(face.points,face.holes||[]),triangles=mesh.triangles.map(ids=>ids.map(i=>mesh.points[i]));
   for(const points of triangles){const n=normal(points);if(!n||Math.abs(n.z)<K.CONTACT)continue;const k=dot(n,points[0]),offsets=[];
    for(const ring of rings(source))for(let i=0;i<ring.length;i++){
@@ -540,23 +543,28 @@ function generatedContactRoof(source,roof){
   return face;
  })};
 }
+// Measured and drafted walls lean slightly; their sweeps still pass beneath
+// the roof. Within two degrees of horizontal (the engine's plane alignment
+// tolerance) a sweep is clipped by the roof and fitted to the ground.
+const horizontalSweepLimit=Math.sin(2*Math.PI/180);
+function horizontalSweep(n){return !!n&&Math.abs(n.z)<=horizontalSweepLimit;}
 function roofExtrusion(source,amount,shape,roof,options={}){
- const n=extrusionDirection(source,options.direction);if(!roof?.faces?.length||!n||Math.abs(n.z)>K.CONTACT||Math.abs(amount)<K.CONTACT)return shape;
+ const n=extrusionDirection(source,options.direction);if(!roof?.faces?.length||!horizontalSweep(n)||Math.abs(amount)<K.CONTACT)return shape;
  roof=generatedContactRoof(source,roof);
  const measuredRoof=roof,continuations=roofContactExtensions(source,roof);if(continuations.length)roof={...roof,faces:[...roof.faces,...continuations]};
  // The roof owns its surface. Keep only exposed portions of sweep returns,
  // including when motion is exactly coplanar and never enters a roof cutter.
- const exposed=faces=>faces.flatMap(f=>{const frame=K.frame(f),local=g=>({points:g.points.map(p=>K.local(frame,p)),holes:(g.holes||[]).map(r=>r.map(p=>K.local(frame,p)))});
+ const exposed=faces=>faces.flatMap(f=>{const frame=K.frame(f);if(!frame)return [];const local=g=>({points:g.points.map(p=>K.local(frame,p)),holes:(g.holes||[]).map(r=>r.map(p=>K.local(frame,p)))});
   const roofs=measuredRoof.faces.filter(r=>!r.deleted&&r.points?.every(K.finite3)&&r.points.every(p=>Math.abs(K.local(frame,p).z)<=K.CONTACT));if(!roofs.length)return [f];
   return K.difference(local(f),roofs.map(local)).map((r,i)=>({...f,id:i?f.id+'-exposed-'+i:f.id,points:r.points.map(p=>K.world(frame,p)),holes:r.holes.map(r=>r.map(p=>K.world(frame,p)))}));});
- const direction={x:n.x*Math.sign(amount),y:n.y*Math.sign(amount),z:0},length=Math.abs(amount),frame=K.frame(source);
+ const direction={x:n.x*Math.sign(amount),y:n.y*Math.sign(amount),z:0},sweep={x:n.x*Math.sign(amount),y:n.y*Math.sign(amount),z:n.z*Math.sign(amount)},length=Math.abs(amount),frame=K.frame(source);
  const mesh=source.curvedSurface?.logical?K.surfaceMesh(source):null,triangles=mesh?mesh.triangles.map(t=>t.map(i=>mesh.positions[i])):(()=>{const m=K.triangles(source.points.map(p=>K.local(frame,p)),(source.holes||[]).map(r=>r.map(p=>K.local(frame,p))));return m.triangles.map(t=>t.map(i=>K.world(frame,m.points[i])));})();
- const prisms=triangles.map(points=>prismPlanes(points,direction,length));
+ const prisms=triangles.map(points=>prismPlanes(points,sweep,length));
  const sweepShell=[...K.surfaceFacets(shape.cap),...extrude(source,amount,{facets:true,direction:options.direction}).sides];
  const zMax=Math.max(...source.points.map(p=>p.z),...shape.cap.points.map(p=>p.z))+1,cutters=[];
  for(const roofFace of roof.faces){
   if(roofFace.deleted||!roofFace.points?.every(K.finite3))continue;
-  const rf=K.frame(roofFace),rt=K.triangles(roofFace.points.map(p=>K.local(rf,p)),(roofFace.holes||[]).map(r=>r.map(p=>K.local(rf,p))));
+  const rf=K.frame(roofFace);if(!rf||Math.abs(rf.n.z)<K.CONTACT)continue;const rt=K.triangles(roofFace.points.map(p=>K.local(rf,p)),(roofFace.holes||[]).map(r=>r.map(p=>K.local(rf,p))));
   const measured=[roofFace.points,...(roofFace.holes||[])].flat().map(p=>({world:p,local:K.local(rf,p)}));
   for(const ids of rt.triangles){const points=ids.map(i=>{const q=rt.points[i],hit=measured.find(p=>Math.hypot(p.local.x-q.x,p.local.y-q.y)<K.CONTACT);return hit?{...hit.world}:K.world(rf,q);});let rn=normal(points);if(!rn||Math.abs(rn.z)<K.CONTACT)continue;if(rn.z<0)rn={x:-rn.x,y:-rn.y,z:-rn.z};const roofPlane={n:rn,k:dot(rn,points[0])};
    // Use the rendered triangle plane: measured roof polygons need not be exactly
@@ -591,10 +599,18 @@ function roofExtrusion(source,amount,shape,roof,options={}){
   }
  }
  if(!cutters.length)return {...shape,sides:exposed(shape.sides)};
- const trim=(faces,skip=-1)=>{for(let i=0;i<cutters.length;i++)if(i!==skip)faces=faces.flatMap(f=>volumeSection(f,cutters[i].planes,true));return faces;};
- const caps=K.compactSurfaces(trim(K.surfaceFacets(shape.cap)));
+ // Neighboring cutters share boundaries that a boolean rounded to the grid
+ // (an eave between a roof triangle and the region beyond it). A face lying
+ // on such a boundary within contact tolerance is inside the neighbor, so the
+ // wall between two cutters' equal ceilings does not survive as a curtain.
+ const trim=(faces,skip=-1)=>{for(let i=0;i<cutters.length;i++)if(i!==skip)faces=faces.flatMap(f=>volumeSection(f,cutters[i].planes,true,K.CONTACT));return faces;};
+ // A measured roof corner or edge that misses a sweep boundary by measurement
+ // noise leaves seam remnants of the cap, its sides and the roof-contact
+ // patches. Compare each with what it was cut from; a roof patch cannot be
+ // wider than the sweep, so its limit also scales with the distance.
+ const caps=K.compactSurfaces(trim(K.surfaceFacets(shape.cap)).filter(f=>!seamFragment(f,shape.cap)));
  const shell=[...K.surfaceFacets(source),...sweepShell];
- const patches=cutters.flatMap((c,i)=>trim(c.bounds.filter(f=>!f.roofContact&&!shell.some(s=>{const sf=K.frame(s);return sf&&f.points.every(p=>Math.abs(K.local(sf,p).z)<=K.CONTACT);})).flatMap(f=>volumeSection(f,c.planes)).flatMap(f=>prisms.flatMap(planes=>volumeSection(f,planes))),i));
+ const patches=cutters.flatMap((c,i)=>trim(c.bounds.filter(f=>!f.roofContact&&!shell.some(s=>{const sf=K.frame(s);return sf&&f.points.every(p=>Math.abs(K.local(sf,p).z)<=K.CONTACT);})).flatMap(f=>volumeSection(f,c.planes)).flatMap(f=>prisms.flatMap(planes=>volumeSection(f,planes))),i)).filter(f=>!seamFragment(f,source,Math.min(.003,length/10)));
  // A roof cut through a smooth surface produces evaluated boundary samples,
  // not a new editable corner at every triangle crossing. Keep the roof-plane
  // transitions and endpoints as controls, while retaining the full trim domain.
@@ -609,8 +625,10 @@ function roofExtrusion(source,amount,shape,roof,options={}){
  for(const endFace of endFaces)for(const p of endFace.deleted?[]:shape.cap.retainedPoints||[]){const q={...p};for(const c of cutters)if(c.planes.slice(0,-c.ceilingPlanes.length).every(plane=>dot(plane.n,q)>=plane.k-K.CONTACT)){q.z=Math.min(q.z,Math.max(...c.ceilingPlanes.map(plane=>(plane.k-plane.n.x*q.x-plane.n.y*q.y)/plane.n.z)));}const cf=K.frame(endFace),v=K.local(cf,q),rs=[endFace.points,...endFace.holes].map(r=>r.map(p=>K.local(cf,p)));const boundary=rs.some(r=>r.some((a,i)=>{const b=r[(i+1)%r.length],d=sub(b,a),l2=dot(d,d),t=l2?dot(sub(v,a),d)/l2:0;return t>=0&&t<=1&&Math.hypot(v.x-a.x-d.x*t,v.y-a.y-d.y*t)<=K.CONTACT;}));if(boundary||pointInRing(v,rs[0])&&!rs.slice(1).some(r=>pointInRing(v,r)))endFace.retainedPoints.push(q);}
  // Planar union cannot transfer the first patch's curve range to an entire
  // joined strip. Retain curved patches until their parameter domains unite.
- const returns=exposed([...endFaces.slice(1),...trim(shape.sides),...patches.map(f=>({...f,material:source.material,finishColor:source.finishColor,chimney:source.chimney?{...source.chimney,derived:true,drivesFootprint:false}:undefined}))]);
- const sides=[...planarUnion(returns.filter(f=>!f.curvedSurface)),...returns.filter(f=>f.curvedSurface)].map((f,i)=>({...f,id:source.id+'-roof-return-'+i,opening:false}));
+ const returns=exposed([...endFaces.slice(1),...shape.sides.flatMap(side=>trim([side]).filter(f=>!seamFragment(f,side))),...patches.map(f=>({...f,material:source.material,finishColor:source.finishColor,chimney:source.chimney?{...source.chimney,derived:true,drivesFootprint:false}:undefined}))]);
+ // A return narrower than the contact tolerance is the seam between two
+ // independently rounded cutter boundaries, not material.
+ const sides=[...planarUnion(returns.filter(f=>!f.curvedSurface)).filter(f=>faceMeasure(f).width>K.CONTACT),...returns.filter(f=>f.curvedSurface)].map((f,i)=>({...f,id:source.id+'-roof-return-'+i,opening:false}));
  return {cap,sides};
 }
 // A cap finish belongs to the top, never to newly exposed shaft walls.
@@ -639,8 +657,17 @@ function extrusionReference(face,direction,amount){
  const map=p=>{const d=level-dot(p,n);return {...p,x:p.x+n.x*d,y:p.y+n.y*d,z:p.z+n.z*d};};
  return {...face,...K.mapCurveData(face,map),points:face.points.map(map),holes:(face.holes||[]).map(r=>r.map(map)),retainedPoints:(face.retainedPoints||[]).map(map)};
 }
-function extrude(face,amount,options={}){if(face.curvedSurface?.logical)return extrudeCurved(face,amount,options);const n=extrusionDirection(face,options.direction),reference=Math.abs(amount)>1e-6?extrusionReference(face,options.direction,amount):face,level=reference===face?null:dot(reference.points[0],n);const moved=p=>{const d=amount+(level===null?0:level-dot(p,n));return {x:p.x+n.x*d,y:p.y+n.y*d,z:p.z+n.z*d};},cap={...face,...K.mapCurveData(face,moved),opening:false,points:face.points.map(moved),retainedPoints:(face.retainedPoints||[]).map(moved),holes:(face.holes||[]).map(h=>h.map(moved))},sides=[];
- if(Math.abs(amount)>1e-6)for(const [ring,points]of [face.points,...(face.holes||[])].entries())for(let i=0;i<points.length;i++){const a=points[i],b=points[(i+1)%points.length],intervals=options.supports&&!options.completeBoundary?sharedIntervals(a,b,options.supports):[[0,1]];for(const [part,[lo,hi]]of intervals.entries()){const p=mix3(a,b,lo),q=mix3(a,b,hi);let curvedSurface;for(const curve of face.curves||[]){const samples=K.curveSamples(curve);for(let j=1;j<samples.length;j++)if(pointOnEdge(p,samples[j-1],samples[j])&&pointOnEdge(q,samples[j-1],samples[j])){const start=samples[j-1],end=samples[j],v=sub(end,start),l2=dot(v,v),parameter=p=>start.curveT+(end.curveT-start.curveT)*dot(sub(p,start),v)/l2;curvedSurface=level===null?{type:'ellipse-extrusion',curve,offset:{x:n.x*amount,y:n.y*amount,z:n.z*amount},range:[parameter(p),parameter(q)]}:{type:'conic-ruled',start:curve,finish:K.mapCurve(curve,moved),range:[parameter(p),parameter(q)]};break;}}sides.push({... (curvedSurface?{curvedSurface}:{}),...((face.material)?{material:face.material}:{}),...(face.finishColor?{finishColor:face.finishColor}:{}),...((face.chimney)?{chimney:{...face.chimney,drivesFootprint:false,derived:true}}:{}),id:face.id+'-side-'+ring+'-'+i+'-'+part,points:[p,q,moved(q),moved(p)],holes:[],opening:false});}}
+// A complete sweep still leaves ground contacts to the base update: an edge
+// resting on a base face (within the 2 mm attachment tolerance) has no return.
+// A face lying entirely on the ground sweeps every edge.
+function groundContacts(face,faces){
+ if(!faces?.length)return ()=>false;const G=wallGeometry(),planes=faces.map(f=>({f,plane:G.plane(f.points)})).filter(g=>g.plane);
+ const on=p=>planes.some(({f,plane})=>G.contains(f,p)&&Math.abs(p.z-plane.dx*p.x-plane.dy*p.y-plane.k)<.002);
+ const samples=face.curvedSurface?.logical?K.surfaceBoundaryCurves(face).flat(2).flatMap(c=>K.curveSamples(c)):rings(face).flat();
+ return samples.every(on)?()=>false:points=>points.every(on);
+}
+function extrude(face,amount,options={}){if(face.curvedSurface?.logical)return extrudeCurved(face,amount,options);const grounded=options.completeBoundary?groundContacts(face,options.ground):()=>false;const n=extrusionDirection(face,options.direction),reference=Math.abs(amount)>1e-6?extrusionReference(face,options.direction,amount):face,level=reference===face?null:dot(reference.points[0],n);const moved=p=>{const d=amount+(level===null?0:level-dot(p,n));return {x:p.x+n.x*d,y:p.y+n.y*d,z:p.z+n.z*d};},cap={...face,...K.mapCurveData(face,moved),opening:false,points:face.points.map(moved),retainedPoints:(face.retainedPoints||[]).map(moved),holes:(face.holes||[]).map(h=>h.map(moved))},sides=[];
+ if(Math.abs(amount)>1e-6)for(const [ring,points]of [face.points,...(face.holes||[])].entries())for(let i=0;i<points.length;i++){const a=points[i],b=points[(i+1)%points.length],intervals=options.supports&&!options.completeBoundary?sharedIntervals(a,b,options.supports):grounded([a,mix3(a,b,.5),b])?[]:[[0,1]];for(const [part,[lo,hi]]of intervals.entries()){const p=mix3(a,b,lo),q=mix3(a,b,hi);if(Math.hypot(q.x-p.x,q.y-p.y,q.z-p.z)<=K.CONTACT)continue;let curvedSurface;for(const curve of face.curves||[]){const samples=K.curveSamples(curve);for(let j=1;j<samples.length;j++)if(pointOnEdge(p,samples[j-1],samples[j])&&pointOnEdge(q,samples[j-1],samples[j])){const start=samples[j-1],end=samples[j],v=sub(end,start),l2=dot(v,v),parameter=p=>start.curveT+(end.curveT-start.curveT)*dot(sub(p,start),v)/l2;curvedSurface=level===null?{type:'ellipse-extrusion',curve,offset:{x:n.x*amount,y:n.y*amount,z:n.z*amount},range:[parameter(p),parameter(q)]}:{type:'conic-ruled',start:curve,finish:K.mapCurve(curve,moved),range:[parameter(p),parameter(q)]};break;}}sides.push({... (curvedSurface?{curvedSurface}:{}),...((face.material)?{material:face.material}:{}),...(face.finishColor?{finishColor:face.finishColor}:{}),...((face.chimney)?{chimney:{...face.chimney,drivesFootprint:false,derived:true}}:{}),id:face.id+'-side-'+ring+'-'+i+'-'+part,points:[p,q,moved(q),moved(p)],holes:[],opening:false});}}
  delete cap.attachment;finishExtrusionSides(face,sides,options);return {cap,sides:options.facets?sides:K.compactSurfaces(sides)};}
 // Sweep evaluated boundaries, never the chord joining logical control points.
 // Keep the cap exact and use temporary planar patches for neighboring booleans.
@@ -648,9 +675,9 @@ function extrudeCurved(face,amount,options){
  const n=extrusionDirection(face,options.direction);
  const offset={x:n.x*amount,y:n.y*amount,z:n.z*amount},moved=p=>({x:p.x+offset.x,y:p.y+offset.y,z:p.z+offset.z}),cap={...face,...K.mapCurveData(face,moved),points:face.points.map(moved),holes:[],retainedPoints:[],opening:false},sides=[];
  delete cap.attachment;
- const supports=options.supports?.map(K.surfaceOutline);
+ const supports=options.supports?.map(K.surfaceOutline),grounded=options.completeBoundary?groundContacts(face,options.ground):()=>false;
  if(Math.abs(amount)>K.CONTACT)for(const [i,curve]of K.surfaceBoundaryCurves(face).flat(2).entries()){
-  const samples=K.curveSamples(curve),onBoundary=p=>supports.some(f=>rings(f).some(r=>r.some((a,i)=>{const b=r[(i+1)%r.length],v=sub(b,a),l2=dot(v,v),t=l2?Math.max(0,Math.min(1,dot(sub(p,a),v)/l2)):0;return Math.hypot(...Object.values(sub(p,mix3(a,b,t))))<=.002;}))),attached=options.completeBoundary||!supports||samples.every(onBoundary);
+  const samples=K.curveSamples(curve);if(grounded(samples))continue;const onBoundary=p=>supports.some(f=>rings(f).some(r=>r.some((a,i)=>{const b=r[(i+1)%r.length],v=sub(b,a),l2=dot(v,v),t=l2?Math.max(0,Math.min(1,dot(sub(p,a),v)/l2)):0;return Math.hypot(...Object.values(sub(p,mix3(a,b,t))))<=.002;}))),attached=options.completeBoundary||!supports||samples.every(onBoundary);
   for(let j=1;j<samples.length;j++){const a=samples[j-1],b=samples[j],intervals=attached?[[0,1]]:sharedIntervals(a,b,supports);
    for(const [part,[lo,hi]]of intervals.entries()){const p=mix3(a,b,lo),q=mix3(a,b,hi),points=[p,q,moved(q),moved(p)];if(!normal(points))continue;
     const crossArea=cross(sub(q,p),offset);if(Math.hypot(crossArea.x,crossArea.y,crossArea.z)<1e-10)continue;
@@ -670,13 +697,22 @@ function pointInRing(p,ring){let inside=false;for(let i=0,j=ring.length-1;i<ring
 function fragmentRings(pieces){return K.union(pieces.map(points=>({points}))).flatMap(f=>[f.points,...f.holes]);}
 function joinFragments(pieces){return K.union(pieces.map(points=>({points})));}
 function unionPlanar(polys){return K.union(polys.map(points=>({points})));}
-// Roof-derived wall seams carry millimetre measurement differences. Only a
-// newly clipped remnant of a much larger generated wall uses this tolerance;
-// existing thin faces and explicitly typed features are not simplified.
+// Roof-derived wall seams carry millimetre measurement differences. A newly
+// clipped piece at most 3 mm wide (area over longest edge) that keeps under 1%
+// of a substantial, over 30 mm wide, unclipped source is a seam remnant.
+// Existing thin faces, thin sources and explicitly typed features are kept.
+// A sweep's own pieces are remnants only as short local fragments (span): a
+// long thin strip is the exact result of a distance just past a boundary.
+function clippedRemnant(piece,source,{width=.003,span=Infinity}={}){
+ if(source.feature||piece.feature)return false;
+ const a=faceMeasure(source),b=faceMeasure(piece);return a.width>.03&&b.width<=width&&b.length<=span&&b.area<a.area*.01;
+}
+function faceMeasure(f){const frame=faceFrame(f);if(!frame)return {area:0,width:0,length:0};const area=K.area({points:f.points.map(p=>inFrame(frame,p)),holes:(f.holes||[]).map(r=>r.map(p=>inFrame(frame,p)))}),length=Math.max(...f.points.map((p,i)=>Math.hypot(...Object.values(sub(p,f.points[(i+1)%f.points.length])))));return {area,width:area/length,length};}
+const seamFragment=(piece,source,width=.003)=>!piece.curvedSurface&&!source.curvedSurface&&clippedRemnant(piece,source,{width,span:.1});
+// Only a generated wall's remnant uses this tolerance when trimming a neighbor.
 function sweepRemnant(piece,source){
- if(source.feature||piece.feature||!source.draftKey||source.draftKey.startsWith('solid:'))return false;
- const measure=f=>{const frame=faceFrame(f);if(!frame)return {area:0,width:0};const area=K.area({points:f.points.map(p=>inFrame(frame,p)),holes:(f.holes||[]).map(r=>r.map(p=>inFrame(frame,p)))}),length=Math.max(...f.points.map((p,i)=>Math.hypot(...Object.values(sub(p,f.points[(i+1)%f.points.length])))));return {area,width:area/length};};
- const a=measure(source),b=measure(piece);return a.width>.03&&b.width<=.003&&b.area<a.area*.01;
+ if(!source.draftKey||source.draftKey.startsWith('solid:'))return false;
+ return clippedRemnant(piece,source);
 }
 function cleanupSweepRemnants(edits){if(!edits?.$surfaces)return false;const before=edits.$surfaces.length;edits.$surfaces=edits.$surfaces.filter(f=>{
  if(f.deleted||f.drafted||!String(f.id).startsWith('swept-'))return true;const d=edits.$drafts?.[f.draftKey],region=d?.faces.find(r=>r.id===f.regionId&&r.solidId);if(!region)return true;
@@ -690,12 +726,12 @@ function trimExtrusion(sides,neighbors){
   const frame=faceFrame(face),local=f=>({points:f.points.map(p=>inFrame(frame,p)),holes:(f.holes||[]).map(r=>r.map(p=>inFrame(frame,p)))});
   return K.difference(local(face),cuts.map(local)).map((region,i)=>({...face,id:face.id+'-trim-'+i,points:region.points.map(p=>fromFrame(frame,p)),holes:region.holes.map(r=>r.map(p=>fromFrame(frame,p))),retainedPoints:(face.retainedPoints||[]).filter(p=>{const q=inFrame(frame,p);return pointInRing(q,region.points)||region.points.some((a,j)=>pointOnEdge(q,a,region.points[(j+1)%region.points.length]));})}));
  };
- const area=f=>{const frame=faceFrame(f);return Math.abs(signedArea(f.points.map(p=>inFrame(frame,p))))-(f.holes||[]).reduce((s,r)=>s+Math.abs(signedArea(r.map(p=>inFrame(frame,p)))),0);};
+ const area=f=>{const frame=faceFrame(f);if(!frame)return 0;return Math.abs(signedArea(f.points.map(p=>inFrame(frame,p))))-(f.holes||[]).reduce((s,r)=>s+Math.abs(signedArea(r.map(p=>inFrame(frame,p)))),0);};
  const remaining=[];
  for(const side of sides){
   const overlaps=originals.filter(f=>coplanarContact(side,f)&&area(side)-difference(side,[f]).reduce((s,p)=>s+area(p),0)>1e-7);
   if(!overlaps.length){remaining.push(side);continue;}
-  remaining.push(...difference(side,overlaps));
+  remaining.push(...difference(side,overlaps).filter(p=>!seamFragment(p,side)));
   for(const f of overlaps){const prior=changes.get(f.id)||{face:f,cuts:[]};prior.cuts.push(side);changes.set(f.id,prior);}
  }
  // Sub-micron residual strips are clipping noise between independently rounded
@@ -1307,5 +1343,5 @@ function inwardSign(face,bases){
  for(const distance of [.005,.02,.1]){const a=inside({x:c.x+n.x*distance,y:c.y+n.y*distance}),b=inside({x:c.x-n.x*distance,y:c.y-n.y*distance});if(a!==b)return a?1:-1;}
  return null;
 }
-const api={ownsPoint,followTrim,pointRangeIndex,stickerAlignmentTargets,planeAlignment,planeAlignmentGuides,adoptMergedFaceSources,faceFromPoints,mergeAtPoints,fillet,validTranslation,boundedTranslation,geometryScale,snapGeometryScale,snapGeometryOnPlane,transformGeometry,transformSelection,clipboardFrame,copyGeometry,pasteGeometry,mergeConnectedFaces,pointChamferSnap,chamferSnap,chamfer,roofExtrusion,inwardSign,cleanupSweepRemnants,sweepRemnant,motionSnapCandidates,structuralIndex,joinFragments,motionSnap,slideLines,attachedLengths,unionPlanar,trimExtrusion,moveFabric,radialDraftSnap,quadDraftSnap,normal,extrusionDirections,extrusionReference,extrude,snapDirection,bridges,dragAmount,subtract,snapBase,baseScope,belowBase,draftSnap,vertexKey,edgeKey,surfaceWire,restoreCreatedSurfaceWire,structuralPoint,structuralEdge,deleteSurfaceElements,removeFaceEdges,restoreSurface,sharedIntervals,freeEdges,moveSurface,faceFrame,inFrame,fromFrame,containedBy,coplanarContact,containedSnap,importDraft};if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.WallSolidGeometry=api;
+const api={horizontalSweep,ownsPoint,followTrim,pointRangeIndex,stickerAlignmentTargets,planeAlignment,planeAlignmentGuides,adoptMergedFaceSources,faceFromPoints,mergeAtPoints,fillet,validTranslation,boundedTranslation,geometryScale,snapGeometryScale,snapGeometryOnPlane,transformGeometry,transformSelection,clipboardFrame,copyGeometry,pasteGeometry,mergeConnectedFaces,pointChamferSnap,chamferSnap,chamfer,roofExtrusion,inwardSign,cleanupSweepRemnants,sweepRemnant,motionSnapCandidates,structuralIndex,joinFragments,motionSnap,slideLines,attachedLengths,unionPlanar,trimExtrusion,moveFabric,radialDraftSnap,quadDraftSnap,normal,extrusionDirections,extrusionReference,extrude,snapDirection,bridges,dragAmount,subtract,snapBase,baseScope,belowBase,draftSnap,vertexKey,edgeKey,surfaceWire,restoreCreatedSurfaceWire,structuralPoint,structuralEdge,deleteSurfaceElements,removeFaceEdges,restoreSurface,sharedIntervals,freeEdges,moveSurface,faceFrame,inFrame,fromFrame,containedBy,coplanarContact,containedSnap,importDraft};if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.WallSolidGeometry=api;
 })(typeof window!=='undefined'?window:globalThis);

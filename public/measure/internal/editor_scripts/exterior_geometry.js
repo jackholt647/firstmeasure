@@ -14,10 +14,25 @@ function paths(faces){const out=[];for(const f of faces){for(const [index,ring]o
  if(!ring?.length)continue;if(!ring.every(finite))throw Error('Geometry contains a non-finite coordinate.');
  const path=[];for(const p of ring){const q={X:Math.round(p.x*SCALE),Y:Math.round(p.y*SCALE)};if(Math.max(Math.abs(q.X),Math.abs(q.Y))>1e12)throw Error('Geometry exceeds the supported local coordinate range.');if(!path.length||q.X!==path.at(-1).X||q.Y!==path.at(-1).Y)path.push(q);}
  if(path.length>1&&path[0].X===path.at(-1).X&&path[0].Y===path.at(-1).Y)path.pop();
- if(path.length<3)continue;if(C.Clipper.Orientation(path)!==(index===0))path.reverse();out.push(path);
+ // A ring that collapsed on the grid (a sliver whose apexes round to one
+ // point) bounds no material under nonzero filling, but its retraced edges
+ // make Clipper's intersection ordering fail. Omitting it is exact.
+ if(path.length<3||!C.Clipper.Area(path))continue;if(C.Clipper.Orientation(path)!==(index===0))path.reverse();out.push(path);
  }}return out;}
 function simplify(ring){
  let r=ring.slice(),changed=true;while(changed&&r.length>3){changed=false;for(let i=0;i<r.length;i++){const a=r[(i+r.length-1)%r.length],p=r[i],b=r[(i+1)%r.length],dx=b.x-a.x,dy=b.y-a.y,l2=dx*dx+dy*dy,t=l2?((p.x-a.x)*dx+(p.y-a.y)*dy)/l2:0;if((l2===0||t>=0&&t<=1)&&Math.hypot(p.x-a.x-dx*t,p.y-a.y-dy*t)<=GRID){r.splice(i,1);changed=true;break;}}}return r;
+}
+// Vertices lying strictly inside an edge of the same or another ring, within
+// tolerance and away from that edge's endpoints, ordered along each edge. A
+// ring touches itself only at a vertex not adjacent to the edge; a neighbor on
+// the edge is a collinear spike. Vertices are swept in x order so large rings
+// do not compare every pair.
+function edgeContacts(rings,tolerance){
+ const all=[];rings.forEach((r,k)=>r.forEach((p,i)=>all.push({k,i,p})));all.sort((a,b)=>a.p.x-b.p.x);
+ const xs=all.map(v=>v.p.x),first=x=>{let lo=0,hi=xs.length;while(lo<hi){const mid=(lo+hi)>>1;if(xs[mid]<x)lo=mid+1;else hi=mid;}return lo;};
+ return rings.map((r,m)=>r.map((a,n)=>{const b=r[(n+1)%r.length],dx=b.x-a.x,dy=b.y-a.y,l2=dx*dx+dy*dy,cuts=[];if(!(l2>tolerance*tolerance))return cuts;const length=Math.sqrt(l2),x1=Math.max(a.x,b.x)+tolerance,y0=Math.min(a.y,b.y)-tolerance,y1=Math.max(a.y,b.y)+tolerance;
+  for(let s=first(Math.min(a.x,b.x)-tolerance);s<all.length&&xs[s]<=x1;s++){const {k,i,p}=all[s];if(p.y<y0||p.y>y1||k===m&&(i===n||i===(n+1)%r.length||i===(n+2)%r.length||i===(n+r.length-1)%r.length)||Math.hypot(p.x-a.x,p.y-a.y)<=tolerance||Math.hypot(p.x-b.x,p.y-b.y)<=tolerance||Math.abs((p.x-a.x)*dy-(p.y-a.y)*dx)/length>tolerance)continue;const t=((p.x-a.x)*dx+(p.y-a.y)*dy)/l2;if(t>0&&t<1)cuts.push({ring:k,index:i,t});}
+  return cuts.sort((x,y)=>x.t-y.t);}));
 }
 // Node shared boundaries before quantization. A point on a sloping edge must
 // become the same endpoint in both paths, not two independently rounded lines.
@@ -35,8 +50,19 @@ function boolean(operation,subjects,clips=[]){
  engine.AddPaths(input,C.PolyType.ptSubject,true);if(cut.length)engine.AddPaths(cut,C.PolyType.ptClip,true);
  if(!engine.Execute(C.ClipType[operation],tree,C.PolyFillType.pftNonZero,C.PolyFillType.pftNonZero))throw Error('Polygon operation could not complete.');
  const ring=p=>simplify(p.map(q=>({x:q.X/SCALE,y:q.Y/SCALE,z:0})));
+ // Non-strict output can also pinch a ring at a vertex lying on one of its
+ // own edges. Repeat that vertex on the edge so the pinch splits like any other.
+ const pinch=r=>{const cuts=edgeContacts([r.map(q=>({x:q.X,y:q.Y}))],1)[0];return cuts.some(c=>c.length)?r.flatMap((q,i)=>[q,...cuts[i].map(c=>r[c.index])]):r;};
  const split=r=>{const seen=new Map();for(let i=0;i<r.length;i++){const key=r[i].X+':'+r[i].Y;if(seen.has(key)){const j=seen.get(key);return [...split(r.slice(j,i)),...split([...r.slice(0,j),...r.slice(i)])];}seen.set(key,i);}return r.length>=3?[r]:[];};
- const regions=C.JS.PolyTreeToExPolygons(tree).flatMap(p=>split(p.outer).map(outer=>({points:ring(outer),holes:p.holes.flatMap(split).filter(h=>C.Clipper.PointInPolygon(h[0],outer)!==0).map(ring)}))).filter(f=>area(f)>GRID*GRID);
+ // A ring pinched at a repeated vertex is several simple loops. Orientation,
+ // not the ring that carried a loop, says whether it bounds material or a
+ // hole: a hole touching its outline arrives as a reversed loop of the outer.
+ const loops=C.JS.PolyTreeToExPolygons(tree).flatMap(p=>[p.outer,...p.holes].map(pinch).flatMap(split)).map(path=>({path,size:C.Clipper.Area(path)})).filter(l=>Math.abs(l.size)>1);
+ const outers=loops.filter(l=>l.size>0).map(l=>({...l,holes:[]}));
+ // Test containment away from shared contacts: vertices, then edge midpoints.
+ const inside=(hole,outer)=>{for(const p of [...hole,...hole.map((p,i)=>({X:Math.round((p.X+hole[(i+1)%hole.length].X)/2),Y:Math.round((p.Y+hole[(i+1)%hole.length].Y)/2)}))]){const s=C.Clipper.PointInPolygon(p,outer);if(s!==-1)return s===1;}return false;};
+ for(const hole of loops.filter(l=>l.size<0)){const owner=outers.filter(o=>o.size>-hole.size&&inside(hole.path,o.path)).sort((a,b)=>a.size-b.size)[0];if(owner)owner.holes.push(hole.path);}
+ const regions=outers.map(o=>({points:ring(o.path),holes:o.holes.map(ring)})).filter(f=>area(f)>GRID*GRID);
  // Order by position/area, never the traversal order of a clipping algorithm.
  const key=r=>r.points.reduce((a,p)=>p.x<a.x||(p.x===a.x&&p.y<a.y)?p:a,r.points[0]);
  regions.sort((a,b)=>key(a).x-key(b).x||key(a).y-key(b).y||area(b)-area(a));return regions;
@@ -44,22 +70,30 @@ function boolean(operation,subjects,clips=[]){
 const union=faces=>boolean('ctUnion',faces),difference=(face,cuts)=>boolean('ctDifference',[face],cuts),intersection=(a,b)=>boolean('ctIntersection',a,b);
 function triangles(points,holes=[]){
  if(!points?.every(finite)||holes.some(r=>!r.every(finite)))throw Error('Geometry contains a non-finite coordinate.');
- const flat=[points,...holes].flat(),projected=flat.map(p=>({x:p.x,y:p.y}));
- // A roof cut can meet the outer ring exactly in world space, then miss it
- // by floating-point roundoff after projection. Earcut interprets that as
- // an overlapping hole. Stabilize only numerical contact, retaining all
- // original vertices and indices for rendering, editing and area validation.
- for(let i=points.length;i<projected.length;i++){const p=projected[i];let best=null;
-  for(let j=0;j<points.length;j++){const a=points[j],b=points[(j+1)%points.length],dx=b.x-a.x,dy=b.y-a.y,l2=dx*dx+dy*dy;if(l2<1e-20)continue;const t=((p.x-a.x)*dx+(p.y-a.y)*dy)/l2;if(t<0||t>1)continue;const q={x:a.x+dx*t,y:a.y+dy*t},distance=Math.hypot(q.x-p.x,q.y-p.y);if(distance<=1e-9&&(!best||distance<best.distance))best={q,distance};}
-  if(best)projected[i]=best.q;
- }
- const data=projected.flatMap(p=>[p.x,p.y]),starts=[];let count=points.length;for(const h of holes){starts.push(count);count+=h.length;}
- const ids=ear.default(data,starts,2),out=[];let total=0;
+ const rings=[points,...holes],flat=rings.flat(),projected=flat.map(p=>({x:p.x,y:p.y})),TOUCH=GRID;
+ let next=0;const loops=rings.map(r=>r.map(()=>next++));
+ // A ring may touch itself, its outline or another hole: exactly, within
+ // roundoff after projection, or within the polygon grid where a boolean
+ // rounded the contact beside a sloping edge. Earcut only bridges a contact
+ // reliably when both sides carry it as the same vertex. Weld coincident
+ // vertices of different rings and insert a touching vertex into the edge it
+ // lies on. Inserted copies reuse original indices: every rendered, edited
+ // and validated vertex is still an input point.
+ const box=loop=>loop.reduce((b,i)=>({x0:Math.min(b.x0,projected[i].x),y0:Math.min(b.y0,projected[i].y),x1:Math.max(b.x1,projected[i].x),y1:Math.max(b.y1,projected[i].y)}),{x0:Infinity,y0:Infinity,x1:-Infinity,y1:-Infinity}),boxes=loops.map(box);
+ const near=(a,b)=>a.x0<=b.x1+TOUCH&&b.x0<=a.x1+TOUCH&&a.y0<=b.y1+TOUCH&&b.y0<=a.y1+TOUCH;
+ for(let k=1;k<loops.length;k++)for(const i of loops[k]){const p=projected[i];for(let m=0;m<k;m++){if(!near(boxes[k],boxes[m]))continue;const j=loops[m].find(j=>Math.hypot(projected[j].x-p.x,projected[j].y-p.y)<=TOUCH);if(j!==undefined){projected[i]=projected[j];break;}}}
+ const contacts=edgeContacts(loops.map(l=>l.map(i=>projected[i])),TOUCH),augmented=loops.map((loop,m)=>loop.flatMap((i,n)=>[i,...contacts[m][n].map(c=>loops[c.ring][c.index])]));
+ const order=augmented.flat(),data=order.flatMap(i=>[projected[i].x,projected[i].y]),starts=[];let count=augmented[0].length;for(const h of augmented.slice(1)){starts.push(count);count+=h.length;}
+ const ids=ear.default(data,starts,2).map(i=>order[i]),out=[];let total=0;
  // Sub-grid slivers from almost-collinear anchors cannot define a sweep plane.
  // Keep the original points/indices, but omit these numerical triangles.
  for(let i=0;i<ids.length;i+=3){const t=ids.slice(i,i+3),a=Math.abs(signedArea(t.map(j=>flat[j])));if(a>GRID*GRID){out.push(t);total+=a;}}
+ // Check the triangulation against the rings it triangulated. A resolved
+ // contact moves the outline by at most the grid at each touching vertex.
+ const ringArea=loop=>Math.abs(signedArea(loop.map(i=>flat[i]))),resolved=ringArea(augmented[0])-augmented.slice(1).reduce((s,l)=>s+ringArea(l),0);
+ const perimeter=rings.reduce((s,r)=>s+r.reduce((t,p,i)=>t+Math.hypot(r[(i+1)%r.length].x-p.x,r[(i+1)%r.length].y-p.y),0),0);
  const expected=area({points,holes}),allowance=Math.max(1e-8,Math.abs(expected)*1e-8);
- if(expected<=1e-12||!out.length||Math.abs(total-expected)>allowance)throw Error('The face does not define a valid planar region.');
+ if(expected<=1e-12||!out.length||Math.abs(total-resolved)>allowance||Math.abs(resolved-expected)>perimeter*TOUCH+allowance)throw Error('The face does not define a valid planar region.');
  return {points:flat,triangles:out};
 }
 function pieces(regions){return regions.flatMap(f=>f.holes.length?triangles(f.points,f.holes).triangles.map(t=>t.map(i=>[f.points,...f.holes].flat()[i])):[f.points]);}
@@ -74,9 +108,13 @@ const local=(f,p)=>{const q=sub(p,f.origin);return {x:dot(q,f.u),y:dot(q,f.v),z:
 const world=(f,p)=>({x:f.origin.x+f.u.x*p.x+f.v.x*p.y+f.n.x*(p.z||0),y:f.origin.y+f.u.y*p.x+f.v.y*p.y+f.n.y*(p.z||0),z:f.origin.z+f.u.z*p.x+f.v.z*p.y+f.n.z*(p.z||0)});
 function validateFace(face){if(face.curvedSurface?.logical){const mesh=surfaceMesh(face);if(!mesh.triangles.length||mesh.positions.some(p=>!finite3(p)))throw Error('The curved surface has an invalid domain.');return face;}const f=frame(face);if(!f)throw Error('A face needs three non-collinear finite points.');const rings=[face.points,...(face.holes||[])];if(rings.flat().some(p=>!finite3(p)||Math.abs(local(f,p).z)>CONTACT))throw Error('A face must remain on its supporting plane.');triangles(face.points.map(p=>local(f,p)),(face.holes||[]).map(r=>r.map(p=>local(f,p))));return face;}
 const pointKey=p=>[p.x,p.y,p.z||0].map(n=>Math.round(n/CONTACT)).join(':');
+const onRing=(r,p,tolerance)=>r.some((a,i)=>{const b=r[(i+1)%r.length],dx=b.x-a.x,dy=b.y-a.y,l2=dx*dx+dy*dy,t=l2?Math.max(0,Math.min(1,((p.x-a.x)*dx+(p.y-a.y)*dy)/l2)):0;return Math.hypot(a.x+dx*t-p.x,a.y+dy*t-p.y)<=tolerance;});
+const inRing=(r,p)=>{let inside=false;for(let i=0,j=r.length-1;i<r.length;j=i++){const a=r[i],b=r[j];if((a.y>p.y)!==(b.y>p.y)&&p.x<(b.x-a.x)*(p.y-a.y)/(b.y-a.y)+a.x)inside=!inside;}return inside;};
+// A planar point belongs to a region on any of its boundaries or in its filled interior.
+const regionContains=(f,p,tolerance)=>[f.points,...(f.holes||[])].some(r=>onRing(r,p,tolerance))||inRing(f.points,p)&&!(f.holes||[]).some(r=>inRing(r,p));
 // Rebuild filled boundaries after a merge, including retraced/overlapping runs.
 // Different faces may legitimately share edges; their ownership stays separate.
-function normalizeFace(face,split=false){
+function normalizeFace(face,split=false,taken=[]){
  if(face.curvedSurface||face.curves?.length)return face;
  if([face.points,...(face.holes||[])].flat().some(p=>!finite3(p)))throw Error('Geometry contains a non-finite coordinate.');
  const f=frame(face);if(!f)throw Error('The face collapsed to zero area.');
@@ -103,24 +141,31 @@ function normalizeFace(face,split=false){
  if(!dirty)return face;
  const regions=union([{points:planar[0],holes:planar.slice(1)}]);
  // A single-face edit cannot silently discard disconnected components.
- if(regions.length>1&&split)return regions.map((r,i)=>({...face,id:i?face.id+'~region-'+i:face.id,points:r.points.map(p=>world(f,p)),holes:r.holes.map(h=>h.map(p=>world(f,p))),retainedPoints:[...(face.retainedPoints||[]),...source.flat()]}));
- if(regions.length!==1)throw Error('The edit would collapse or disconnect a face.');
- const anchors=source.flat(),region=regions[0],restore=ring=>{
+ if(!regions.length||regions.length>1&&!split)throw Error('The edit would collapse or disconnect a face.');
+ const anchors=source.flat(),restore=ring=>{
   let result=ring.map(p=>{const q=world(f,p),original=anchors.find(a=>distance(a,q)<=GRID*2);return original?{...original}:{...q};});
   // Preserve collinear boundary anchors and node IDs. Discarded spikes remain
   // drawing anchors, not edges or corners of the filled face.
   result=result.flatMap((a,i)=>{const b=result[(i+1)%result.length],v=sub(b,a),l2=dot(v,v);const cuts=anchors.map(p=>({p,t:dot(sub(p,a),v)/l2})).filter(({p,t})=>t>GRID&&t<1-GRID&&distance(p,{x:a.x+v.x*t,y:a.y+v.y*t,z:a.z+v.z*t})<=GRID*2).sort((a,b)=>a.t-b.t);return [a,...cuts.filter((c,j)=>!j||distance(c.p,cuts[j-1].p)>GRID).map(c=>({...c.p}))];});
   return result;
  };
- let points=restore(region.points),holes=region.holes.map(restore);
- if(dot(normal(points),f.n)<0){points.reverse();holes.forEach(r=>r.reverse());}
  const ordered=(ring,original)=>{const first=original.find(p=>ring.some(q=>distance(p,q)<=GRID));if(!first)return ring;const index=ring.findIndex(p=>distance(p,first)<=GRID);return [...ring.slice(index),...ring.slice(0,index)];};
- points=ordered(points,face.points);holes=holes.map(r=>ordered(r,(face.holes||[]).find(old=>old.some(p=>r.some(q=>distance(p,q)<=GRID)))||[]));
- const retainedPoints=[...new Map([...(face.retainedPoints||[]),...anchors.filter(p=>![points,...holes].flat().some(q=>distance(p,q)<=GRID))].map(p=>[pointKey(p),p])).values()];
- const next={...face,points,holes,...(retainedPoints.length||face.retainedPoints?{retainedPoints}:{})};
- validateFace(next);return next;
+ const build=(region,owns)=>{
+  let points=restore(region.points),holes=region.holes.map(restore);
+  if(dot(normal(points),f.n)<0){points.reverse();holes.forEach(r=>r.reverse());}
+  points=ordered(points,face.points);holes=holes.map(r=>ordered(r,(face.holes||[]).find(old=>old.some(p=>r.some(q=>distance(p,q)<=GRID)))||[]));
+  const retainedPoints=[...new Map([...(face.retainedPoints||[]).filter(owns),...anchors.filter(p=>owns(p)&&![points,...holes].flat().some(q=>distance(p,q)<=GRID))].map(p=>[pointKey(p),p])).values()];
+  const next={...face,points,holes,...(retainedPoints.length||face.retainedPoints?{retainedPoints}:{})};
+  validateFace(next);return next;
+ };
+ if(regions.length===1)return build(regions[0],()=>true);
+ // Split regions are separate faces. Each keeps only the anchors on or inside
+ // it, and each new region gets an identity its collection does not use yet.
+ const used=new Set([face.id,...taken]),fresh=()=>{let k=1;while(used.has(face.id+'~region-'+k))k++;used.add(face.id+'~region-'+k);return face.id+'~region-'+k;};
+ return regions.map((r,i)=>({...build(r,p=>regionContains(r,local(f,p),GRID*2)),id:i?fresh():face.id}));
 }
-const normalizeFaces=face=>[normalizeFace(face,true)].flat();
+// Pass the identities already used beside the face so split regions stay unique.
+const normalizeFaces=(face,taken=[])=>[normalizeFace(face,true,taken)].flat();
 // Compare filled shapes, including holes, rather than scalar area alone.
 function pointRemovalChangesRegion(face,keys){
  const clean=normalizeFace(face),selected=new Set(keys),f=frame(clean);
