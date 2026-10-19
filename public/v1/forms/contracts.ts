@@ -179,6 +179,18 @@ export const settingsSchema = z.object({
   stage_id: text(120).default("new_lead"),
   notify_role_ids: z.array(text(120).min(1)).max(40).default(["inside_sales", "sales_appointments"]),
   tracking_key: text(120).default(""),
+  /**
+   * Staff entry: the form is offered in the portal's New menu, and a signed-in person who may create
+   * projects fills it in for a caller or walk-in. Their submission makes the lead the same way a
+   * website submission does, recorded as entered by them. `only` keeps it off the website;
+   * `role_ids` limits who is offered it (empty: everyone who may create projects).
+   */
+  staff: z.object({
+    enabled: z.boolean().default(false),
+    only: z.boolean().default(false),
+    label: text(60).default(""),
+    role_ids: z.array(text(120).min(1)).max(40).default([])
+  }).strict().default({}),
   customer_email: z.object({
     enabled: z.boolean().default(false),
     subject: text(200).default(""),

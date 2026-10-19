@@ -2172,6 +2172,7 @@ session_write_close();
   <script src="../libraries/project-trays/project-trays.js?v=<?= portalAssetVersion('../libraries/project-trays/project-trays.js') ?>"></script>
   <?php endif; ?>
   <script src="../libraries/forms-api/forms-api.js?v=<?= portalAssetVersion('../libraries/forms-api/forms-api.js') ?>"></script>
+  <script src="../libraries/forms-staff/forms-staff.js?v=<?= portalAssetVersion('../libraries/forms-staff/forms-staff.js') ?>"></script>
   <script src="../libraries/canvassing-api/canvassing-api.js?v=<?= portalAssetVersion('../libraries/canvassing-api/canvassing-api.js') ?>"></script>
   <script src="../libraries/platform-celebrations/platform-celebrations.js?v=<?= portalAssetVersion('../libraries/platform-celebrations/platform-celebrations.js') ?>"></script>
   <script src="../libraries/platform-notifications/platform-notifications.js?v=<?= portalAssetVersion('../libraries/platform-notifications/platform-notifications.js') ?>"></script>
@@ -2459,8 +2460,26 @@ session_write_close();
       };
       const docTypeIcon = (id) => docTypes.find((entry) => entry.id === id)?.icon || DOC_TYPE_ICONS[id] || 'fa-file-lines';
       const isDocMode = (mode) => mode === 'document' || String(mode || '').startsWith('doc:');
+      /* Staff entry forms: every published form the organization offers in the New menu is a
+         "form:<form_id>" mode, labelled by the form (docs/architecture/forms.md, "Staff entry"). */
+      let staffForms = [];
+      const staffForm = (mode) => String(mode || '').startsWith('form:') ? staffForms.find((form) => form.id === String(mode).slice(5)) || null : null;
+      const loadStaffForms = () => {
+        if (!window.FirstMateStaffForms?.list || isAssignedOnlyUser()) return;
+        window.FirstMateStaffForms.list().then((forms) => {
+          const next = Array.isArray(forms) ? forms : [];
+          if (JSON.stringify(next.map((form) => [form.id, form.label])) === JSON.stringify(staffForms.map((form) => [form.id, form.label]))) return;
+          staffForms = next;
+          renderMenuItems();
+          setButtonMode();
+        }).catch(() => null);
+      };
       const modeConfig = (mode) => {
         const raw = String(mode || '');
+        if (raw.startsWith('form:')) {
+          const form = staffForm(raw);
+          return form ? { label: `New ${form.label || form.name}`, icon: 'fa-user-plus', workflow: 'form', formId: form.id } : null;
+        }
         if (raw.startsWith('doc:')) {
           const typeId = raw.slice(4);
           return { label: `New ${docTypeLabel(typeId)}`, icon: docTypeIcon(typeId), workflow: 'document', documentType: typeId };
@@ -2496,6 +2515,7 @@ session_write_close();
         if (raw === 'proposal' || raw === 'new_proposal') return 'doc:proposal';
         if (raw === 'new_document') return 'document';
         if (raw.startsWith('doc:')) return raw;
+        if (raw.startsWith('form:')) return String(value || '').trim();
         if (raw === 'new_payment' || raw === 'payment') return 'payment';
         if (raw === 'new_appointment' || raw === 'schedule' || raw === 'scheduling') return 'appointment';
         if (raw === 'off' || raw === 'none' || raw === 'hidden' || raw === 'disabled') return 'off';
@@ -2504,6 +2524,7 @@ session_write_close();
       const DEFAULT_MENU_ITEMS = ['project', 'contact', 'report', 'document', 'payment', 'appointment'];
       const itemAvailable = (id) => {
         if (isDocMode(id)) return documentsEnabled();
+        if (String(id).startsWith('form:')) return !!staffForm(id);
         return !!modes[id] && id !== 'selector';
       };
       const configuredMenuItems = () => {
@@ -2512,7 +2533,11 @@ session_write_close();
         const ids = raw
           ? raw.split(',').map((part) => normalizeMode(part)).filter(Boolean)
           : DEFAULT_MENU_ITEMS;
-        return [...new Set(ids)].filter(itemAvailable);
+        // Offered staff forms not placed in the list come right after Project (or first).
+        const forms = staffForms.map((form) => `form:${form.id}`).filter((id) => !ids.includes(id));
+        const at = ids.indexOf('project');
+        const ordered = at >= 0 ? [...ids.slice(0, at + 1), ...forms, ...ids.slice(at + 1)] : [...forms, ...ids];
+        return [...new Set(ordered)].filter(itemAvailable);
       };
       const renderMenuItems = () => {
         const items = configuredMenuItems()
@@ -2567,6 +2592,7 @@ session_write_close();
         }
         renderMenuItems();
         loadDocTypes();
+        loadStaffForms();
       };
       const closeMenu = () => {
         wrap.classList.remove('open');
@@ -2760,6 +2786,11 @@ session_write_close();
         if (sidebar?.classList.contains('mob-open')) closeSidebar();
         if (mode === 'payment') {
           openNewPaymentModal();
+          return;
+        }
+        if (String(mode).startsWith('form:')) {
+          const form = staffForm(mode);
+          if (form && window.FirstMateStaffForms?.open) window.FirstMateStaffForms.open(form.id, { label: `New ${form.label || form.name}` });
           return;
         }
         const config = modeConfig(mode) || modes.project;

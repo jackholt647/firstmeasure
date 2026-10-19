@@ -19,6 +19,8 @@ import { readDocument, readOrganization, type JsonObject } from "../platform/sto
 import { env } from "../src/config/env.js";
 import { resolveOrganizationTimezone } from "../platform/timezone.js";
 import { emitWorkEvent } from "../work/engine.js";
+import { withChangeSource } from "../history/source.js";
+import { assertBranchManageable } from "../workforce/branch-guards.js";
 import { collectAnswers, summarizeAnswers } from "./answers.js";
 import { calculationSource, compileFormModule, formInputSchema } from "./compile.js";
 import { FORM_BLOCKS, FORM_FONTS, estimateOutputSchema, formDefinitionSchema, formDraftSchema, formItems, type FormDefinition, type FormItem } from "./contracts.js";
@@ -410,7 +412,9 @@ export async function listFormSubmissions(auth: PlatformAuthContext, formId: str
       estimate: submission.estimate || null,
       appointment: submission.appointment || null,
       project_id: str(submission.project_id),
-      page_url: str(submission.page_url)
+      page_url: str(submission.page_url),
+      /** Set when a team member entered it from the New menu. */
+      entered_by_user_id: str(submission.entered_by_user_id)
     }));
 }
 
@@ -476,6 +480,7 @@ async function liveForm(publicKey: string): Promise<LiveForm> {
   const record = parsed ? await findRecord(parsed.orgId, FORMS, parsed.formId).catch(() => null) as FormRecord | null : null;
   if (!parsed || !record || record.public_key !== publicKey || !record.published) throw notFound("form_not_found", "This form is not available.");
   if (record.enabled === false) throw forbidden("form_paused", "This form is not accepting responses right now.");
+  if (record.published.definition.settings.staff?.only) throw notFound("form_not_found", "This form is not available.");
   await requireFormsEnabled(parsed.orgId);
   await requireFormFlags(parsed.orgId, record.published.definition);
   return { orgId: parsed.orgId, branchId: str(record.branch_id) || "default", record, published: record.published, definition: record.published.definition };
@@ -494,17 +499,17 @@ export async function recordPublicActivity(publicKey: string, event: ActivityEve
 }
 
 export async function publicForm(publicKey: string) {
-  const { record, published, definition, orgId, branchId } = await liveForm(publicKey);
+  return { ok: true, form: await renderedForm(await liveForm(publicKey), publicKey) };
+}
+
+async function renderedForm({ record, published, definition, orgId, branchId }: LiveForm, key: string) {
   return {
-    ok: true,
-    form: {
-      key: publicKey,
-      name: published.name || record.name,
-      version: published.version,
-      presentation: withBrand(definition.presentation, await companyBrand(orgId, branchId)),
-      steps: definition.steps.map((step) => ({ ...step, items: step.items.map(publicItem) })),
-      features: formFeatures(definition)
-    }
+    key,
+    name: published.name || record.name,
+    version: published.version,
+    presentation: withBrand(definition.presentation, await companyBrand(orgId, branchId)),
+    steps: definition.steps.map((step) => ({ ...step, items: step.items.map(publicItem) })),
+    features: formFeatures(definition)
   };
 }
 
@@ -515,14 +520,20 @@ function itemOfKind(definition: FormDefinition, itemId: string, kind: FormItem["
 }
 
 export async function publicAvailability(publicKey: string, query: { item_id?: unknown; date?: unknown; address?: unknown }) {
-  const form = await liveForm(publicKey);
+  return formAvailability(await liveForm(publicKey), query);
+}
+
+async function formAvailability(form: LiveForm, query: { item_id?: unknown; date?: unknown; address?: unknown }) {
   const item = itemOfKind(form.definition, str(query.item_id), "appointment");
   const date = str(query.date);
   return { ok: true, date, slots: await openSlots(systemActor(form.orgId, form.branchId), item, date, str(query.address).slice(0, 400)) };
 }
 
 export async function publicMeasurement(publicKey: string, body: { item_id?: unknown; address?: unknown }) {
-  const form = await liveForm(publicKey);
+  return formMeasurement(await liveForm(publicKey), body);
+}
+
+async function formMeasurement(form: LiveForm, body: { item_id?: unknown; address?: unknown }) {
   const item = itemOfKind(form.definition, str(body.item_id), "property_measurement");
   const address = str(body.address).slice(0, 400);
   if (!address) throw badRequest("form_address_required", "Enter an address first.");
@@ -605,10 +616,23 @@ async function attachModuleInstance(form: LiveForm, projectId: string, submissio
 export type SubmissionMeta = { ip?: string; userAgent?: string };
 
 export async function submitPublicForm(publicKey: string, body: JsonObject, meta: SubmissionMeta = {}) {
-  const form = await liveForm(publicKey);
+  return submitLiveForm(await liveForm(publicKey), body, meta, null);
+}
+
+/**
+ * A form's submission, from a website visitor or (`staff`) a signed-in person entering a caller's
+ * details. Both make the lead through receiveLead with the same answers, booking and field mapping;
+ * a staff submission is a manual lead recorded as made by that person.
+ */
+async function submitLiveForm(form: LiveForm, body: JsonObject, meta: SubmissionMeta, staff: PlatformAuthContext | null) {
+  if (staff) return withChangeSource({ kind: "person", user_id: staff.userId }, () => submitLiveFormAs(form, body, meta, staff));
+  return submitLiveFormAs(form, body, meta, null);
+}
+
+async function submitLiveFormAs(form: LiveForm, body: JsonObject, meta: SubmissionMeta, staff: PlatformAuthContext | null) {
   const { definition, orgId, branchId, record, published } = form;
   // Bots fill every field; a real visitor never sees this one. Answer as if it worked.
-  if (str(body.website_url)) return { response: { ok: true, accepted: true, success: definition.presentation.success }, background: Promise.resolve() };
+  if (!staff && str(body.website_url)) return { response: { ok: true, accepted: true, success: definition.presentation.success }, background: Promise.resolve() };
 
   const raw = obj(body.answers);
   const items = formItems(definition);
@@ -628,7 +652,7 @@ export async function submitPublicForm(publicKey: string, body: JsonObject, meta
   const addressItem = items.find((item) => item.kind === "address" && item.param && answers[item.param]);
   const address = str(addressItem?.param ? answers[addressItem.param] : "");
   const summary = summarizeAnswers(definition, answers);
-  if (!Object.keys(contact).length && !address && !summary.length) throw badRequest("form_empty", "Add your details before submitting.");
+  if (!Object.keys(contact).length && !address && !summary.length) throw badRequest("form_empty", staff ? "Add the caller's details before saving." : "Add your details before submitting.");
 
   const clientId = str(body.submission_id).slice(0, 80) || randomUUID();
   const submissionId = `sub_${createHash("sha256").update(`${record.id}:${clientId}`).digest("hex").slice(0, 32)}`;
@@ -673,8 +697,9 @@ export async function submitPublicForm(publicKey: string, body: JsonObject, meta
       form_name: published.name,
       template: definition.template,
       tracking_key: definition.settings.tracking_key || record.id,
-      page_url: str(body.page_url).slice(0, 2000),
-      referrer: str(body.referrer).slice(0, 2000)
+      page_url: staff ? "" : str(body.page_url).slice(0, 2000),
+      referrer: staff ? "" : str(body.referrer).slice(0, 2000),
+      ...(staff ? { entered_by_user_id: staff.userId } : {})
     };
     // A ticked consent block that records an SMS opt-in, with the sentence the visitor agreed to.
     const smsConsent = items.find((item) => item.kind === "consent" && item.sms_opt_in === true && item.param && answers[item.param] === true);
@@ -683,19 +708,21 @@ export async function submitPublicForm(publicKey: string, body: JsonObject, meta
     if (!earlier) await receiveLead(orgId, {
       project_id: projectId,
       branch_id: branchId,
-      source: { kind: "web_form", provider: "Web form", confidence: 1, provider_fields: { ...source, answers: summary }, ...source },
+      source: staff
+        ? { kind: "manual_lead", provider: published.name, confidence: 1, provider_fields: { ...source, answers: summary }, ...source }
+        : { kind: "web_form", provider: "Web form", confidence: 1, provider_fields: { ...source, answers: summary }, ...source },
       address,
       title: address || name || published.name,
       summary: message,
       contacts: name || email || phone ? [{ name, email, phone, phones: phone ? [phone] : [] }] : [],
-      ...(smsConsent ? { consent: { sms: true, disclosure_text: smsConsent.label, evidence: { form_id: record.id, submission_id: submissionId, page_url: source.page_url } } } : {}),
+      ...(smsConsent ? { consent: { sms: true, disclosure_text: smsConsent.label, evidence: { form_id: record.id, submission_id: submissionId, ...(staff ? { recorded_by_user_id: staff.userId, channel: "staff_entry" } : { page_url: source.page_url }) } } } : {}),
       project_data: {
         form_submission: { id: submissionId, ...source, version: published.version, answers, summary, ...(estimate ? { estimate } : {}), ...(estimateError ? { estimate_error: estimateError } : {}), ...(requestedStart ? { requested_start_at: requestedStart } : {}) }
       },
       notification: {
-        source: "web_form_lead_import",
-        title: estimate || estimateError ? `New estimate request: ${published.name}` : requestedStart ? `New booking: ${published.name}` : `New form lead: ${published.name}`,
-        body: [address, name, phone, email].filter(Boolean).join(" · ") || message || "A website form was submitted.",
+        source: staff ? "staff_form_lead" : "web_form_lead_import",
+        title: staff ? `New lead: ${name || address || published.name}` : estimate || estimateError ? `New estimate request: ${published.name}` : requestedStart ? `New booking: ${published.name}` : `New form lead: ${published.name}`,
+        body: [address, name, phone, email].filter(Boolean).join(" · ") || message || (staff ? `Entered with ${published.name}.` : "A website form was submitted."),
         target_role_ids: definition.settings.notify_role_ids,
         context: { form_id: record.id, submission_id: submissionId }
       }
@@ -718,6 +745,7 @@ export async function submitPublicForm(publicKey: string, body: JsonObject, meta
       ok: true,
       accepted: true,
       submission_id: submissionId,
+      ...(staff ? { project_id: projectId } : {}),
       success: definition.presentation.success,
       ...(estimate ? { estimate } : {}),
       ...(estimateError ? { estimate_unavailable: true } : {}),
@@ -740,18 +768,19 @@ export async function submitPublicForm(publicKey: string, body: JsonObject, meta
       page_url: source.page_url,
       referrer: source.referrer,
       user_agent: str(meta.userAgent).slice(0, 300),
+      ...(staff ? { entered_by_user_id: staff.userId } : {}),
       response,
       created_at: now()
     });
 
     // The submission is complete from here on: nothing below may fail the visitor's confirmation.
     const quiet = (label: string, work: Promise<unknown>) => work.then(() => undefined).catch((error) => { console.warn(`[forms] ${label} failed for ${submissionId}:`, error instanceof Error ? error.message : error); });
-    const event = { organization_id: orgId, branch_id: branchId, ...(projectId ? { project_id: projectId } : {}), context: { source: "forms_public_submission" } };
+    const event = { organization_id: orgId, branch_id: branchId, ...(projectId ? { project_id: projectId } : {}), context: { source: staff ? "forms_staff_submission" : "forms_public_submission" } };
     await quiet("submitted event", emitWorkEvent({
       ...event,
       type: "lead.form.submitted",
       idempotency_key: `lead.form.submitted:${submissionId}`,
-      payload: { form_id: record.id, form_name: published.name, template: definition.template, submission_id: submissionId, ...(projectId ? { project_id: projectId } : {}), ...(appointment ? { appointment_status: appointment.status } : {}) }
+      payload: { form_id: record.id, form_name: published.name, template: definition.template, submission_id: submissionId, channel: staff ? "staff" : "website", ...(staff ? { entered_by_user_id: staff.userId } : {}), ...(projectId ? { project_id: projectId } : {}), ...(appointment ? { appointment_status: appointment.status } : {}) }
     }));
     if (estimate) {
       const quantity = obj(estimate.quantity);
@@ -787,6 +816,55 @@ export async function submitPublicForm(publicKey: string, body: JsonObject, meta
   }
 }
 
+// ---------------------------------------------------------------------------
+// Staff entry: the New menu
+// ---------------------------------------------------------------------------
+
+const ADMIN_ROLES = new Set(["owner", "admin"]);
+/** Whether this person is offered the form in the New menu: it is a staff form, and either names no roles or one of theirs. */
+export function staffFormOfferedTo(auth: PlatformAuthContext, definition: Pick<FormDefinition, "settings">) {
+  const staff = definition.settings.staff;
+  if (!staff?.enabled) return false;
+  if (!staff.role_ids.length || ADMIN_ROLES.has(str(auth.role))) return true;
+  const roles = new Set([str(auth.role), ...((auth.accessProfile?.access_role_ids || []) as string[]).map(str)]);
+  return staff.role_ids.some((role) => roles.has(role));
+}
+
+async function staffLiveForm(auth: PlatformAuthContext, formId: string): Promise<LiveForm> {
+  const record = await findRecord(auth.orgId, FORMS, formId).catch(() => null) as FormRecord | null;
+  if (!record?.published || record.enabled === false || !staffFormOfferedTo(auth, record.published.definition)) throw notFound("form_not_found", "This form is not available.");
+  const branchId = str(record.branch_id) || "default";
+  assertBranchManageable(auth, branchId);
+  await requireFormsEnabled(auth.orgId);
+  await requireFormFlags(auth.orgId, record.published.definition);
+  return { orgId: auth.orgId, branchId, record, published: record.published, definition: record.published.definition };
+}
+
+/** The published forms this person is offered in the New menu, by their menu label. */
+export async function listStaffForms(auth: PlatformAuthContext) {
+  if (!(await isAppFlagEnabled(auth.orgId, "platform", "website_embed_import"))) return [];
+  const records = await listRecords(auth.orgId, FORMS).catch(() => []);
+  return records
+    .map((record) => record as FormRecord)
+    .filter((record) => record.published && record.enabled !== false && staffFormOfferedTo(auth, record.published.definition))
+    .filter((record) => { try { assertBranchManageable(auth, str(record.branch_id) || "default"); return true; } catch { return false; } })
+    .map((record) => ({ id: record.id, name: record.published!.name || record.name, label: record.published!.definition.settings.staff.label || record.published!.name || record.name, branch_id: str(record.branch_id) || "default", features: formFeatures(record.published!.definition) }))
+    .sort((a, b) => a.label.localeCompare(b.label));
+}
+
+export async function staffForm(auth: PlatformAuthContext, formId: string) {
+  return { ok: true, form: await renderedForm(await staffLiveForm(auth, formId), formId) };
+}
+export async function staffAvailability(auth: PlatformAuthContext, formId: string, query: JsonObject) {
+  return formAvailability(await staffLiveForm(auth, formId), query);
+}
+export async function staffMeasurement(auth: PlatformAuthContext, formId: string, body: JsonObject) {
+  return formMeasurement(await staffLiveForm(auth, formId), body);
+}
+export async function submitStaffForm(auth: PlatformAuthContext, formId: string, body: JsonObject, meta: SubmissionMeta = {}) {
+  return submitLiveForm(await staffLiveForm(auth, formId), body, meta, auth);
+}
+
 /** For the web builder: forms that can be placed on a page. */
 export async function embeddableForms(orgId: string) {
   return (await listRecords(orgId, FORMS).catch(() => [])).map((record) => {
@@ -796,8 +874,8 @@ export async function embeddableForms(orgId: string) {
       id: form.id,
       name: form.published?.name || form.name,
       kind: features.appointment ? "appointment" : features.estimate ? "estimate" : "contact",
-      enabled: !!form.published && form.enabled !== false,
-      public_key: form.published ? form.public_key : ""
+      enabled: !!form.published && form.enabled !== false && !form.published.definition.settings.staff?.only,
+      public_key: form.published && !form.published.definition.settings.staff?.only ? form.public_key : ""
     };
   });
 }

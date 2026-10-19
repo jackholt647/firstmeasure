@@ -1,11 +1,11 @@
 {
   "summary": {
     "routes": {
-      "total": 1759,
+      "total": 1764,
       "by_kind": {
         "any:login_only": 118,
         "any:login_only+handler_checks": 285,
-        "any:permission": 677,
+        "any:permission": 682,
         "app(contact.media|portal.crew_receipts|portal.photos_feed|portal.receipts|portal.viewer|project.crew_materials|project.photos):login_only": 1,
         "app(contact.media|portal.photos_feed|portal.viewer|project.photos):login_only": 6,
         "app(contact.media|portal.photos_feed|portal.viewer|project.photos):login_only+handler_checks": 1,
@@ -461,6 +461,9 @@
     "GET /v1/forms/organizations/:orgId/forms/:formId": {"file":"forms/api.ts","gates":[{"app":"any","permission":"manage_company_settings","csrf":{"dynamic":"![\"GET\", \"HEAD\"].includes(request.method)"}}],"kind":"any:permission"},
     "GET /v1/forms/organizations/:orgId/forms/:formId/insights": {"file":"forms/api.ts","gates":[{"app":"any","permission":"manage_company_settings","csrf":{"dynamic":"![\"GET\", \"HEAD\"].includes(request.method)"}}],"kind":"any:permission"},
     "GET /v1/forms/organizations/:orgId/forms/:formId/submissions": {"file":"forms/api.ts","gates":[{"app":"any","permission":"manage_company_settings","csrf":{"dynamic":"![\"GET\", \"HEAD\"].includes(request.method)"}}],"kind":"any:permission"},
+    "GET /v1/forms/organizations/:orgId/staff-forms": {"file":"forms/api.ts","gates":[{"app":"any","permission":"manage_projects","csrf":{"dynamic":"![\"GET\", \"HEAD\"].includes(request.method)"}}],"checks":["hasPermission(dynamic)"],"kind":"any:permission"},
+    "GET /v1/forms/organizations/:orgId/staff-forms/:formId": {"file":"forms/api.ts","gates":[{"app":"any","permission":"manage_projects","csrf":{"dynamic":"![\"GET\", \"HEAD\"].includes(request.method)"}}],"checks":["hasPermission(dynamic)"],"kind":"any:permission"},
+    "GET /v1/forms/organizations/:orgId/staff-forms/:formId/availability": {"file":"forms/api.ts","gates":[{"app":"any","permission":"manage_projects","csrf":{"dynamic":"![\"GET\", \"HEAD\"].includes(request.method)"}}],"checks":["hasPermission(manage_company_settings)","hasPermission(manage_company_user_permissions)","hasPermission(dynamic)"],"kind":"any:permission"},
     "GET /v1/forms/public/:formKey": {"file":"forms/api.ts","kind":"no_platform_session"},
     "GET /v1/forms/public/:formKey/availability": {"file":"forms/api.ts","checks":["hasPermission(manage_company_settings)","hasPermission(manage_company_user_permissions)","hasPermission(dynamic)"],"kind":"no_platform_session"},
     "GET /v1/health/live": {"file":"src/routes/root.ts","kind":"no_platform_session"},
@@ -1372,9 +1375,11 @@
     "POST /v1/forms/organizations/:orgId/preview/availability": {"file":"forms/api.ts","gates":[{"app":"any","permission":"manage_company_settings","csrf":{"dynamic":"![\"GET\", \"HEAD\"].includes(request.method)"}}],"checks":["hasPermission(manage_company_settings)","hasPermission(manage_company_user_permissions)","hasPermission(dynamic)"],"kind":"any:permission"},
     "POST /v1/forms/organizations/:orgId/preview/measurement": {"file":"forms/api.ts","gates":[{"app":"any","permission":"manage_company_settings","csrf":{"dynamic":"![\"GET\", \"HEAD\"].includes(request.method)"}}],"kind":"any:permission"},
     "POST /v1/forms/organizations/:orgId/preview/submit": {"file":"forms/api.ts","gates":[{"app":"any","permission":"manage_company_settings","csrf":{"dynamic":"![\"GET\", \"HEAD\"].includes(request.method)"}}],"kind":"any:permission"},
+    "POST /v1/forms/organizations/:orgId/staff-forms/:formId/measurement": {"file":"forms/api.ts","gates":[{"app":"any","permission":"manage_projects","csrf":{"dynamic":"![\"GET\", \"HEAD\"].includes(request.method)"}}],"checks":["hasPermission(dynamic)"],"kind":"any:permission"},
+    "POST /v1/forms/organizations/:orgId/staff-forms/:formId/submit": {"file":"forms/api.ts","gates":[{"app":"any","permission":"manage_projects","csrf":{"dynamic":"![\"GET\", \"HEAD\"].includes(request.method)"}}],"checks":["hasPermission(manage_company_settings)","hasPermission(manage_company_user_permissions)","hasPermission(dynamic)","requireCapability(platform.connections)"],"publication":true,"kind":"any:permission"},
     "POST /v1/forms/public/:formKey/activity": {"file":"forms/api.ts","kind":"no_platform_session"},
     "POST /v1/forms/public/:formKey/measurement": {"file":"forms/api.ts","kind":"no_platform_session"},
-    "POST /v1/forms/public/:formKey/submit": {"file":"forms/api.ts","checks":["hasPermission(manage_company_settings)","hasPermission(manage_company_user_permissions)","hasPermission(dynamic)","hasPermission(view_projects|manage_company_settings)","hasPermission(manage_own_notifications)","hasPermission(manage_notification_defaults)","requireCapability(platform.connections)"],"publication":true,"kind":"publication_policy"},
+    "POST /v1/forms/public/:formKey/submit": {"file":"forms/api.ts","checks":["hasPermission(manage_company_settings)","hasPermission(manage_company_user_permissions)","hasPermission(dynamic)","requireCapability(platform.connections)"],"publication":true,"kind":"publication_policy"},
     "POST /v1/integrations/organizations/:orgId/automations": {"file":"integrations/api.ts","gates":[{"app":"any","permission":"manage_company_settings","capability":"platform.connections","csrf":{"dynamic":"request.method !== \"GET\""}}],"checks":["hasPermission(manage_company_settings)","requireCapability(platform.connections)"],"kind":"any:permission"},
     "POST /v1/integrations/organizations/:orgId/connections": {"file":"integrations/api.ts","gates":[{"app":"any","permission":"manage_company_settings","capability":"platform.connections","csrf":{"dynamic":"request.method !== \"GET\""}}],"checks":["hasPermission(manage_company_settings)","requireCapability(platform.connections)"],"kind":"any:permission"},
     "POST /v1/integrations/organizations/:orgId/connections/:connectionId/activate": {"file":"integrations/api.ts","gates":[{"app":"any","permission":"manage_company_settings","capability":"platform.connections","csrf":{"dynamic":"request.method !== \"GET\""}}],"checks":["hasPermission(manage_company_settings)","requireCapability(platform.connections)","hasPermission(manage_projects)","requireCapability(platform.lead_import)"],"kind":"any:permission"},

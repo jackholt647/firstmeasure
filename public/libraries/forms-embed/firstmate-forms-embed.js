@@ -8,7 +8,8 @@
  * A form is steps of blocks. Every block kind has one renderer below; the
  * server validates the same definition, so nothing here is trusted. The form
  * mounts in a shadow root so host-page CSS cannot restyle it. Host pages can
- * listen for `fm-form:ready`, `fm-form:step` and `fm-form:submitted` on the
+ * listen for `fm-form:ready`, `fm-form:step` and `fm-form:submitted` (with the new lead's
+ * project_id when a staff transport answers with one) on the
  * mount element.
  *
  * Keep this file ASCII-only (use \u escapes): it is served to pages of any
@@ -478,6 +479,7 @@
       if (state.result) return paintResult();
       const presentation = state.form.presentation;
       const steps = visibleSteps();
+      painted = signature();
       if (!steps.length) { wrap.innerHTML = '<div class="ff-state">This form has no questions yet.</div>'; return; }
       state.step = Math.max(0, Math.min(steps.length - 1, state.step));
       const isPaged = paged();
@@ -515,6 +517,9 @@
       return false;
     }
     const signature = () => visibleSteps().map((step) => `${step.id}:${visibleItems(step).map((item) => item.id).join(',')}`).join('|');
+    // What was on screen at the last paint. Typing records an answer on every keystroke, so a change
+    // compares against this, not the moment before it, to know whether "show when" rules now differ.
+    let painted = '';
 
     function bind(steps){
       const form = wrap.querySelector('form');
@@ -560,8 +565,8 @@
         } else {
           const input = el.querySelector('[data-value]');
           input?.addEventListener('input', () => { setAnswer(item, item.kind === 'number' ? (input.value === '' ? undefined : Number(input.value)) : input.value); });
-          input?.addEventListener('change', () => { const before = signature(); setAnswer(item, item.kind === 'number' ? (input.value === '' ? undefined : Number(input.value)) : clean(input.value));
-            if (before !== signature()) return paint();
+          input?.addEventListener('change', () => { setAnswer(item, item.kind === 'number' ? (input.value === '' ? undefined : Number(input.value)) : clean(input.value));
+            if (painted !== signature()) return paint();
             // A measurement on the same screen follows the address without repainting the form under the visitor.
             if (item.kind === 'address') for (const entry of allItems()) if (entry.kind === 'property_measurement' && onScreen(entry)) measure(entry);
           });
@@ -668,7 +673,7 @@
         state.result = result;
         state.busy = false;
         paint();
-        emit('submitted', { estimate: result.estimate || null, appointment: result.appointment || null, preview });
+        emit('submitted', { estimate: result.estimate || null, appointment: result.appointment || null, preview, ...(result.project_id ? { project_id: result.project_id } : {}) });
         mount.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
       } catch (error) {
         state.busy = false;
