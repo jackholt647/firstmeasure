@@ -1,7 +1,7 @@
 {
   "files": 252,
   "namespaces": 111,
-  "messages": 16245,
+  "messages": 16246,
   "migration": [
     {
       "file": "public/libraries/account-switcher/account-switcher.js",
@@ -840,8 +840,8 @@
       "file": "public/libraries/apps/settings/search-index.js",
       "namespace": "settings",
       "references": 0,
-      "candidates": 1302,
-      "edits": 1302
+      "candidates": 1309,
+      "edits": 1309
     },
     {
       "file": "public/libraries/apps/settings/search.js",
@@ -1364,7 +1364,7 @@
     {
       "file": "public/libraries/platform-action-items/platform-action-items.js",
       "namespace": "platform-action-items",
-      "references": 77,
+      "references": 78,
       "candidates": 0,
       "edits": 0
     },

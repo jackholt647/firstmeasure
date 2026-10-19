@@ -19505,7 +19505,8 @@
     "polish_failed": "Text could not be polished right now. Your original draft is unchanged.",
     "polish_empty": "The AI returned no usable text. Your original draft is unchanged.",
     "polish_format_changed": "The polish could not preserve your formatting. Your original draft is unchanged.",
-    "note_audience_denied": "Choose active groups and users available in your departments."
+    "note_audience_denied": "Choose active groups and users available in your departments.",
+    "referral_staff_required": "Only FirstMate staff who manage sales can use referral and campaign tools."
   },
   "notifications": {
     "document_greeting": {
