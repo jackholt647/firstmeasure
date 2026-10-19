@@ -4,7 +4,7 @@ window.FirstMateSettingsIndex = {
   "inputs": [
     [
       "libraries/apps/settings/company.js",
-      "32b07b5e4943974a0f0ef236f4abf10bb7625122ca17ad28ce57cfe24a29d6c9"
+      "48451f8b5c46a9d48e6839a5db3fe089f37db32cbfbf3ba62c9ed4cd2a77ece2"
     ],
     [
       "libraries/appointment-booking/settings.js",
@@ -139,6 +139,10 @@ window.FirstMateSettingsIndex = {
       "5a9361a012d5e17878e49f5264b3c5c1381486d622f0afcfd4b2596d76139a60"
     ],
     [
+      "libraries/apps/settings/feed.js",
+      "58d233030d510d71c6a51379e6ecba0aae89d3137b98ae763e088d28d969c8ca"
+    ],
+    [
       "libraries/apps/settings/feedback.js",
       "2fdda23a7fa570f7b0a365313e5b4c09399670a495af6122eb2a1d7c43c54321"
     ],
@@ -156,7 +160,7 @@ window.FirstMateSettingsIndex = {
     ],
     [
       "libraries/apps/settings/phone.js",
-      "4be3301d4602e8713f1ca7a857ba1a501c7e6b2c4e57944ecd043ff589c943a9"
+      "412c2937496108856e9ff0991113ac4cc3fe40914c7ea6641144636f98cb2959"
     ],
     [
       "libraries/apps/settings/platform-billing.js",
@@ -3532,6 +3536,55 @@ window.FirstMateSettingsIndex = {
       ]
     },
     {
+      "section": "feed",
+      "tab": "Feed",
+      "view": "",
+      "source": "libraries/apps/settings/feed.js",
+      "title": "All activity",
+      "description": "",
+      "kind": "control",
+      "selector": ""
+    },
+    {
+      "section": "feed",
+      "tab": "Feed",
+      "view": "",
+      "source": "libraries/apps/settings/feed.js",
+      "title": "Audience",
+      "description": "",
+      "kind": "control",
+      "selector": "[data-feed-board=\"\"]"
+    },
+    {
+      "section": "feed",
+      "tab": "Feed",
+      "view": "",
+      "source": "libraries/apps/settings/feed.js",
+      "title": "Automatic posts",
+      "description": "",
+      "kind": "heading",
+      "selector": ""
+    },
+    {
+      "section": "feed",
+      "tab": "Feed",
+      "title": "Feed",
+      "description": "Choose which activities appear as posts on each board.",
+      "view": "",
+      "kind": "section",
+      "selector": ""
+    },
+    {
+      "section": "feed",
+      "tab": "Feed",
+      "view": "",
+      "source": "libraries/apps/settings/feed.js",
+      "title": "Find activity",
+      "description": "",
+      "kind": "control",
+      "selector": "[data-feed-search=\"\"]"
+    },
+    {
       "section": "feedback",
       "tab": "Feedback",
       "view": "",
@@ -5851,6 +5904,16 @@ window.FirstMateSettingsIndex = {
       "description": "",
       "kind": "control",
       "selector": "[data-mp-field=\"address\\.postal_code\"]"
+    },
+    {
+      "section": "money",
+      "tab": "Money",
+      "view": "",
+      "source": "libraries/apps/settings/company.js",
+      "title": "Refund policy",
+      "description": "",
+      "kind": "heading",
+      "selector": ""
     },
     {
       "section": "money",
@@ -10648,16 +10711,6 @@ window.FirstMateSettingsIndex = {
     {
       "section": "sms",
       "tab": "Phone Settings",
-      "view": "registration",
-      "source": "libraries/apps/settings/phone.js",
-      "title": "10DLC Registration",
-      "description": "",
-      "kind": "view",
-      "selector": "[data-tab=\"registration\"]"
-    },
-    {
-      "section": "sms",
-      "tab": "Phone Settings",
       "view": "",
       "source": "libraries/apps/settings/phone.js",
       "title": "Add a number",
@@ -12023,6 +12076,16 @@ window.FirstMateSettingsIndex = {
       "description": "",
       "kind": "view",
       "selector": "[data-tab=\"broadcasts\"]"
+    },
+    {
+      "section": "sms",
+      "tab": "Phone Settings",
+      "view": "registration",
+      "source": "libraries/apps/settings/phone.js",
+      "title": "SMS registration",
+      "description": "",
+      "kind": "view",
+      "selector": "[data-tab=\"registration\"]"
     },
     {
       "section": "sms",
