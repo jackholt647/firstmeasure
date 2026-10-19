@@ -20,6 +20,7 @@
  *   CERT_BASE         web + API origin (default https://dev.1m8.ai)
  *   CERT_API          API origin when different (local stack: http://127.0.0.1:3101)
  *   CERT_SANDBOX_ORG  signup-sandbox test org instance id (dev, password-less)
+ *   CERT_ORG_ID       that test org's organization id
  *   CERT_LOGIN_FILE   or a JSON {email,password,orgId} (local stack)
  *   CERT_EVIDENCE     evidence JSON file (merged across runs)
  *   CERT_SHOTS        screenshot directory
@@ -87,8 +88,9 @@ function apiClient() {
 
 async function signIn(api) {
   if (process.env.CERT_SANDBOX_ORG) {
-    const result = await api.req("POST", `/v1/signup-sandbox/test-orgs/${process.env.CERT_SANDBOX_ORG}/login`, {});
-    return result?.organization?.id || result?.org_id || result?.organization_id || (await api.req("GET", "/v1/platform/me")).organization?.id;
+    // The sandbox login answers with a redirect only, so the organization id is passed in.
+    await api.req("POST", `/v1/signup-sandbox/test-orgs/${process.env.CERT_SANDBOX_ORG}/login`, {});
+    return process.env.CERT_ORG_ID;
   }
   const login = JSON.parse(await readFile(process.env.CERT_LOGIN_FILE, "utf8"));
   await api.req("POST", "/v1/platform/auth/login", { email: login.email, password: login.password, organization_id: login.orgId });
