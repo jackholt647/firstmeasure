@@ -1,4 +1,10 @@
 /**
+ * SUPERSEDED (2026-10-19) by scripts/forward-checkout-ui-e2e.mjs and
+ * scripts/forward-certification-run.mjs. This harness asserts the retired
+ * "no provider" stubs and mock document records (steps 1 and 7), which the
+ * payments gate removed on purpose, so it fails against current code. See
+ * docs/architecture/payments.md.
+ *
  * Payment-intake tokenization slice, driven end-to-end through the real UI:
  *
  *  1. Org WITHOUT a provider — the staff Money take-payment modal behaves
