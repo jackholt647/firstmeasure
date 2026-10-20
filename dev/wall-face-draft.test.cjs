@@ -3500,3 +3500,35 @@ test('a plain line click drops a stale base-point selection, so Delete removes t
  assert.ok(Math.abs(b.faces.reduce((s,g)=>s+K.area(g),0)-area)<1e-9,'the base is unchanged');assert.equal(b.faces.length,1);
  assert.ok((state.wallEdits.$removedSurfaceEdges||[]).includes(W.edgeKey(p(1,0,2),p(3,0,2)))||state.wallEdits.$surfaces.find(f=>f.id==='wall').deleted,'the selected line is deleted');
 });
+
+// A recess pushed in plane mode left a 5 mm sliver face along the opening's bottom, plus loose wire of the old
+// opening outline and a hidden triangle. Deleting that bottom line refilled the opening from the loose outline and
+// revived the hidden triangle (project fullhouse_ce52..., 2026-10-20).
+function planeSliverFixture(globals={}){const x=structuredClone(require('./fixtures/recess-plane-sliver.json')),state={wallEdits:x.wallEdits};return {...fixture({state,walls:[],selected:null,globals:{...renderGlobals(),...globals}}),line:x.line};}
+test('deleting a sliver face line in a plane-mode recess only removes: no faces from loose wire, nothing un-hidden, loose wire kept',()=>{
+ const W=require('../public/measure/internal/editor_scripts/wall_solid_geometry.js'),f=planeSliverFixture(),before=structuredClone(f.state.wallEdits),nodes=new Set(W.surfaceWire(before).nodes.map(n=>n.id));
+ f.editor.restoreSelection({lineSelection:[{id:W.edgeKey(...f.line),pair:f.line}]});f.editor.key({key:'Delete'});
+ const after=f.state.wallEdits,live=after.$surfaces.filter(s=>!s.deleted);
+ assert.equal(f.history.length,1,f.message());
+ assert.deepEqual(live.map(s=>s.id).sort(),before.$surfaces.map(s=>s.id).filter(id=>id!=='plane-face-5').sort(),'only the sliver that owned the line is gone; nothing is added');
+ assert.deepEqual([...after.$removedSurfacePoints].sort(),[...before.$removedSurfacePoints].sort(),'hidden points stay hidden');
+ assert.equal(JSON.stringify(after.$loose),JSON.stringify(before.$loose),'loose wire is unchanged');
+ assert.deepEqual(W.surfaceWire(after).nodes.map(n=>n.id).filter(id=>!nodes.has(id)),[],'no point becomes visible');
+});
+test('a line delete never rebuilds a face from loose wire outside the face it invalidates',()=>{
+ const W=require('../public/measure/internal/editor_scripts/wall_solid_geometry.js'),x=require('./fixtures/recess-plane-sliver.json'),e=x.wallEdits;
+ const r=W.removeFaceEdges(e.$surfaces.map(s=>({...s,id:'solid:'+s.id})),[x.line],{lines:e.$loose.edges});
+ assert.deepEqual(r.removed,['solid:plane-face-5']);assert.deepEqual(r.merged,[],'the old opening outline does not become a face');
+});
+test('a face first appearing from a merge or repair revives no hidden points or wire',()=>{
+ const W=require('../public/measure/internal/editor_scripts/wall_solid_geometry.js'),x=require('./fixtures/recess-plane-sliver.json'),before=structuredClone(x.wallEdits);
+ const T=before.$loose.edges.slice(1,4).map(e=>e[0]),edits=structuredClone(before);edits.$surfaces.push({id:'line-merge-0',mergedSources:['solid:plane-face-5'],points:[...T,before.$loose.edges[4][0]],holes:[]});
+ W.restoreCreatedSurfaceWire(edits,before);
+ assert.deepEqual(edits.$removedSurfacePoints,before.$removedSurfacePoints);assert.equal(JSON.stringify(edits.$loose),JSON.stringify(before.$loose));
+});
+test('a line delete that would add surface area is refused and rolled back',()=>{
+ const W=require('../public/measure/internal/editor_scripts/wall_solid_geometry.js'),p=(x,z)=>({x,y:0,z}),grown={id:'grown',points:[p(0,0),p(10,0),p(10,10),p(0,10)],holes:[]};
+ const f=planeSliverFixture({WallSolidGeometry:{...W,removeFaceEdges:(faces)=>({removed:[faces.find(s=>s.id==='solid:plane-face-5').id],merged:[grown]})}}),before=JSON.stringify(f.state.wallEdits);
+ f.editor.restoreSelection({lineSelection:[{id:W.edgeKey(...f.line),pair:f.line}]});f.editor.key({key:'Delete'});
+ assert.match(f.message(),/would add surface area/);assert.equal(f.history.length,0);assert.equal(JSON.stringify(f.state.wallEdits),before);
+});

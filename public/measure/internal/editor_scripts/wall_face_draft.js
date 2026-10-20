@@ -1417,6 +1417,11 @@ function perf_previewLineMove(e){
   for(const [key,d]of Object.entries(all()))if(visibleDraft(d))for(const f of d.faces)if(!f.boundaryHole&&!f.solidId&&!deleted(d,f)){const id='draft:'+key+':'+f.id;faces.push(engineFace(d,f,{id}));refs.set(id,{d,f});}
   for(const f of solids())if(!f.deleted&&!f.drafted){const id='solid:'+f.id;faces.push({...f,id});refs.set(id,{f});}
   const edits=host.state().wallEdits,openDrafts=Object.values(all()).filter(visibleDraft),lines=[...(edits.$loose?.edges||[]),...openDrafts.flatMap(d=>draftSegments(d).filter(e=>d.constructionPlane||e.userConnection).map(e=>[world(d,e.start),world(d,e.end)]))],curves=openDrafts.flatMap(d=>(d.sketch.curves||[]).map(c=>({...window.ExteriorGeometry.mapCurve(c,p=>world(d,p)),id:draftKey(d)+':'+c.id}))),result=W.removeFaceEdges(faces,segments,{lines,curves});
+  // A delete only removes: every merged or rebuilt face must lie on surface
+  // that was already there on its plane (a sticker's fill alone follows its
+  // own wire, such as a pasted arc). Throwing rolls the transaction back.
+  const K=window.ExteriorGeometry;for(const m of result.merged){const frame=W.faceFrame(m);if(!frame||m.curvedSurface||m.feature)continue;const local=f=>({points:f.points.map(p=>W.inFrame(frame,p)),holes:(f.holes||[]).map(r=>r.map(p=>W.inFrame(frame,p)))}),cover=faces.filter(f=>!f.curvedSurface&&[f.points,...(f.holes||[])].flat().every(p=>Math.abs(W.inFrame(frame,p).z)<=K.CONTACT)).map(local);
+   if(K.difference(local(m),cover).reduce((s,r)=>s+K.area(r),0)>1e-6)throw Error('Deleting this line would add surface area, so nothing was deleted.');}
   for(const id of result.removed){const {d,f}=refs.get(id);if(f.feature)f.preserveBoundaryWire=true;if(d)d.deletedFaces=[...new Set([...(d.deletedFaces||[]),signature(f)])];else f.deleted=true;}
   // Keep any part of the selected edge still on the merged outer boundary
   // (for example the chimney portion above the adjoining roof/wall).
