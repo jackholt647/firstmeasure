@@ -4458,7 +4458,10 @@ async function loadProjectFromFolder(folderHash) {
         }
 
         window.restoreRoofHistory?.(savedEditorHistory?.roof);
-        window.WallMode?.restore(requestedProjectId, meta, savedEditorHistory?.walls);
+        // The local model backup may be newer than this Save; its matching undo history lives in the browser too.
+        const localWallHistory = await window.EditorHistory?.loadLocal?.('walls:' + requestedProjectId).catch(e => { console.warn('[History] Local wall undo history unavailable:', e); return null; });
+        if (String(window.currentProjectId) !== requestedProjectId) return;
+        window.WallMode?.restore(requestedProjectId, meta, savedEditorHistory?.walls, localWallHistory);
         window.HeightMapMask?.restore(requestedProjectId, meta.exteriorsHeightMask);
         window.__editorHistoryReady=true;
         console.log("Project loaded.");

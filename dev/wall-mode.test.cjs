@@ -1037,3 +1037,23 @@ test('while a tool runs in the 3D view the 2D plan redraws at most every 100 ms 
  reset();pointer('2d');for(let i=0;i<5;i++){now+=16;host.redraw();frame();}assert.equal(counts['2D redraw'],5,'a gesture in the plan redraws it every frame');
  reset();pointer('3d');busy=false;for(let i=0;i<3;i++){now+=16;host.redraw();frame();}assert.equal(counts['2D redraw'],3,'without a running tool both views redraw every frame');
 });
+test('a reload that resumes the newer local backup resumes its own undo history, not the last Save plus a jump',()=>{
+ const H=require('../public/measure/internal/editor_scripts/editor_history.js');
+ const make=extra=>{let host;const f=fixture(true,{...extra,createWallEditor:h=>{host=h;return {leave(){},clear(){},apply:w=>w,draw2D(){},draw3D(){},hasDraft:()=>false,busy:()=>false};}});f.ctx.activeGeometry.connections[0].type='eave';return {...f,get host(){return host;},key:k=>f.listeners['window:keydown']({key:k,ctrlKey:true,target:{closest:()=>false},preventDefault(){},stopImmediatePropagation(){}})};};
+ const edit=(f,value)=>{f.host.recordHistory(JSON.parse(JSON.stringify(f.host.state().wallEdits||{})));f.host.state().wallEdits={value};f.host.changed();};
+ const f=make();f.ctx.WallMode.setEnabled(true);f.soffits[1].onclick();
+ for(let i=1;i<=3;i++)edit(f,i);
+ // Project Save here; then more work that only reaches the local backup (e.g. after Reset and a rebuild).
+ const saved={...f.ctx.WallMode.serialize(),savedAt:1},savedHistory=H.unpack(H.pack(f.ctx.WallMode.serializeHistory()));
+ for(let i=4;i<=6;i++)edit(f,i);f.flushTimers();
+ const local=f.ctx.WallMode.serialize(),localHistory={stamp:local.savedAt,history:H.unpack(H.pack(f.ctx.WallMode.serializeHistory()))};
+ // Each reload reads the same backup but keeps its own later writes.
+ const fork=()=>{const own=new Map();return {getItem:k=>own.has(k)?own.get(k):f.ctx.localStorage.getItem(k),setItem:(k,v)=>own.set(k,v)};};
+ const resumed=make({localStorage:fork()});resumed.ctx.WallMode.restore('fixture',{exteriorsWalls:saved},savedHistory,localHistory);
+ assert.equal(resumed.host.state().wallEdits.value,6);
+ resumed.key('z');assert.equal(resumed.host.state().wallEdits.value,5,'undo steps back one edit, not to the last Save');
+ resumed.key('z');resumed.key('z');assert.equal(resumed.host.state().wallEdits.value,3);
+ // A history recorded against a different backup is not trusted: the Save's history plus one recovery step, as before.
+ const stale=make({localStorage:fork()});stale.ctx.WallMode.restore('fixture',{exteriorsWalls:saved},savedHistory,{...localHistory,stamp:local.savedAt-1});
+ assert.equal(stale.host.state().wallEdits.value,6);stale.key('z');assert.equal(stale.host.state().wallEdits.value,3);
+});

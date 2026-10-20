@@ -81,6 +81,25 @@
   if(p._lockedPlanes)p._lockedPlanes=p._lockedPlanes.map(pl=>({a:pl.a/sx,b:pl.b/sy,c:pl.c-pl.a*dx/sx-pl.b*dy/sy}));
   return p;
  }
- const api={pack,unpack,save,load,projectPoint,share};
+ // The browser keeps a copy of the undo history next to its local model backup, so a reload that resumes the local
+ // model (newer than the last project Save) also resumes its own history instead of the last saved one.
+ const LOCAL_DB='firstmeasure-editor-history';
+ function localDb(){return new Promise((resolve,reject)=>{const r=root.indexedDB.open(LOCAL_DB,1);r.onupgradeneeded=()=>r.result.createObjectStore('history');r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error);});}
+ async function saveLocal(key,value,stamp){
+  if(!root.indexedDB)return false;const gzip=typeof CompressionStream!=='undefined';
+  let blob=new Blob([JSON.stringify(pack(value))],{type:'application/json'});if(gzip)blob=await new Response(blob.stream().pipeThrough(new CompressionStream('gzip'))).blob();
+  const db=await localDb();try{await new Promise((resolve,reject)=>{const t=db.transaction('history','readwrite');t.objectStore('history').put({stamp,gzip,blob,at:Date.now()},key);t.oncomplete=resolve;t.onerror=()=>reject(t.error);t.onabort=()=>reject(t.error);});}finally{db.close();}
+  return true;
+ }
+ async function loadLocal(key){
+  if(!root.indexedDB)return null;const db=await localDb();
+  try{
+   const record=await new Promise((resolve,reject)=>{const r=db.transaction('history').objectStore('history').get(key);r.onsuccess=()=>resolve(r.result||null);r.onerror=()=>reject(r.error);});
+   if(!record)return null;let blob=record.blob;
+   if(record.gzip){if(typeof DecompressionStream==='undefined')return null;blob=await new Response(blob.stream().pipeThrough(new DecompressionStream('gzip'))).blob();}
+   return {stamp:record.stamp,history:unpack(JSON.parse(await blob.text()))};
+  }finally{db.close();}
+ }
+ const api={pack,unpack,save,load,saveLocal,loadLocal,projectPoint,share};
  if(typeof module==='object'&&module.exports)module.exports=api;else root.EditorHistory=api;
 })(typeof window==='undefined'?globalThis:window);
