@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+October 19-20 Full-house editor fixes: [Resoffit closes like a dropdown, base pitch follows leaning walls, pushing a wall in makes a recess, and deleting a line keeps neighbouring walls](deploy/digitalocean/development-editor-fixes-20261020.md) records releases `9e823e59`, `d7c5eaaf` and `58249cdc` and the verified development rollouts.
+
 October 19 Survey-station clean-up on every rebuild: [Resoffit, Wallless, line moves and nudges no longer bring back measured-roof load-bearing points](deploy/digitalocean/development-station-cleanup-20261019.md) records release `600d2b21` and the verified development rollout.
 
 October 19 From Roof survey stations: [straight eave and side runs with flashing strips no longer keep load-bearing survey points](deploy/digitalocean/development-survey-stations-20261019.md) records release `220f7be0` and the verified development rollout.
