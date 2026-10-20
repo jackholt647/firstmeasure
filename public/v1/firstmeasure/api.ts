@@ -3422,6 +3422,35 @@ export const registerFirstMeasureApi: FastifyPluginAsync = async (app) => {
 
 
 
+  // A full-house customer's summary rows: only the saved exterior totals, as dictionary keys with explicit units.
+  // The customer cannot read the project's measurement dataset, so this route checks the organization itself.
+  app.get("/projects/:id/exterior-measurements", async (request) => {
+
+    const auth = await requirePlatformAuth(request, { permission: 'view_reports' });
+
+    const projectId = getProjectId(request.params);
+
+    const manifest = await readManifest(projectId);
+
+    const legacy = buildLegacyManifest(manifest);
+
+    const email = String(auth.identity.email || '').toLowerCase();
+
+    if (String(legacy.organization_id || '') !== auth.orgId &&
+        ![legacy.owner_email, legacy.issuer_email].some(value => email && String(value || '').toLowerCase() === email)) {
+      throw new FirstMeasureError('project_forbidden', 403, 'This project is not available to this account.');
+    }
+
+    if (!isCustomerFullHouse(manifest) || String(manifest.status ?? '').toLowerCase() !== 'completed') return { ok: true, measurements: {} };
+
+    const { measurementPayloadFromExterior } = await import("../platform/publication/firstmeasure-datasets.js");
+
+    return { ok: true, measurements: measurementPayloadFromExterior(asRecord(asRecord(await readPdfState(projectId)).exteriorReport), projectId).measurements };
+
+  });
+
+
+
   app.put("/projects/:id/pdf-state", { bodyLimit: PDF_JSON_BODY_LIMIT_BYTES }, async (request) => {
 
     const body = jsonDocumentSchema.parse(request.body ?? null);

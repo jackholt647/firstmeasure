@@ -14,7 +14,7 @@ test('Full House ordering validates flags, references, prices and paid queue art
  const {buildApp}=await import('../src/app.js');
  const {saveCapabilityValues}=await import('../platform/capabilities.js');
  const {saveGlobal,readGlobal,readMediaMetadata}=await import('../platform/storage.js');
- const {readManifest,readArtifact,saveAppMetadata,readAppMetadata}=await import('../firstmeasure/storage.js');
+ const {readManifest,readArtifact,saveAppMetadata,readAppMetadata,savePdfState,updateStatus}=await import('../firstmeasure/storage.js');
  const {exteriorQuote,EXTERIOR_VIEWS,validateExteriorOrder}=await import('../firstmeasure/exteriors.js');
  const {pricingContext,DEFAULT_EXPEDITE_PRICING}=await import('../firstmeasure/pricing_config.js');
  const app=await buildApp();await app.ready();
@@ -70,6 +70,15 @@ test('Full House ordering validates flags, references, prices and paid queue art
  assert.deepEqual(videoManifest.exterior_reference_videos.map((v:any)=>[v.file_name,v.view,v.content_type]),[['customer-reference-0.mp4','orbital_video','video/mp4'],['customer-reference-2.webm','additional','video/webm']]);
  assert.deepEqual(videoManifest.elevation_photos.map((p:any)=>p.file_name),['customer-reference-1.png']);
  assert.ok(await readArtifact(videoOrder.json().folder,'customer-reference-0.mp4'));assert.equal((await readGlobal(orgId)).data.credits_balance,75);
+ // The customer's summary reads a completed full-house report's wall totals; other projects and accounts get none.
+ const wallsUrl=(project:string)=>'/v1/firstmeasure/projects/'+project+'/exterior-measurements';
+ assert.deepEqual((await app.inject({method:'GET',url:wallsUrl(id),headers:{cookie}})).json().measurements,{},'not before delivery');
+ await savePdfState(id,{exteriorReport:{version:1,units:'ft',totals:{gross:500,net:450,openingArea:50,top:120}}});await updateStatus(id,'completed');
+ const walls=await app.inject({method:'GET',url:wallsUrl(id),headers:{cookie}});assert.equal(walls.statusCode,200,walls.body);
+ assert.deepEqual(walls.json().measurements.wallNetArea,{value:450,unit:'ft2',source:'firstmeasure.exterior'});assert.equal(walls.json().measurements.wallTopLf.value,120);
+ assert.ok([401,403].includes((await app.inject({method:'GET',url:wallsUrl(id)})).statusCode),'signed-out request refused');
+ const other=await app.inject({method:'POST',url:'/v1/platform/auth/register',payload:{email:'exterior-other@test.example',name:'Other Org',password:'Local-only-test-123!',phone:'+15550103783'}});assert.equal(other.statusCode,201,other.body);
+ assert.equal((await app.inject({method:'GET',url:wallsUrl(id),headers:{cookie:String(other.headers['set-cookie']).match(/fm_platform_session=[^;,]+/)![0]}})).statusCode,403,'another organization is refused');
  // A reference that cannot be copied cancels the new project and refunds the order; nothing is left awaiting references.
  const lost=await action('exteriors_upload',{project_type:'residential',__file:{filename:'lost.png',bytes_base64:png.toString('base64')}});assert.equal(lost.statusCode,200,lost.body);
  const lostId=lost.json().media_id,lostPath=String((await readMediaMetadata(orgId,lostId) as any).variants.original.path);

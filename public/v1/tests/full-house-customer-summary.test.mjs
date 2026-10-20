@@ -8,14 +8,16 @@ const pilot={roofSquares:{value:43.5958,unit:'roofing_square'},eavesLf:{value:33
  wallTopLf:{value:385.06,unit:'ft'},wallBottomLf:{value:399.237,unit:'ft'},insideCornersLf:{value:182.35,unit:'ft'},outsideCornersLf:{value:357.479,unit:'ft'},wallTransitionsLf:{value:0,unit:'ft'},wallTerminationsLf:{value:108.884,unit:'ft'}};
 const roofValues=Object.fromEntries(Object.entries(pilot).filter(([k])=>!/^wall|Corners/.test(k)).map(([k,v])=>[k,v.value]));
 
-function summaryContext(scope){
+function summaryContext(scope,{roofLoadFails=false}={}){
  const names=['formatSummaryNumber','reportSummaryRowsFromRoofMeasurements','reportSummaryIsFullHouse','reportSummaryWallRows','reportSummaryWithWallRows','reportSummaryStandardDetail','reportSummaryMetricCacheKey','loadReportSummaryMetricsFromXml','csvCell','csvNumericCell','summaryMetricLabel','reportSummaryMeasurementsCsv'];
  const context={Intl,Map,Set,Promise,measurementSummaryMetricCache:new Map(),measurementSummaryMetricLoads:new Set(),activeBaseProject:{id:'project_1'},activePreviewTab:'measurements',activeMeasurementTab:'summary',renderMeasurementsPanel(){},
-  reportOrderManifest:()=>({measurement_scope:scope}),reportSummaryMetricsFromXml:()=>[],fetch:async()=>{throw new Error('XML is not read when the dataset has roof rows');},
-  window:{reportOrderState:{},FirstMeasureAPI:{roofMeasurements:{load:async()=>({measurements:roofValues,source:{status:'ready',value:{measurements:pilot}},origin:'project_measurement_dataset'})}}}};
+  reportOrderManifest:()=>({measurement_scope:scope}),reportSummaryMetricsFromXml:()=>[],fmUrl:path=>'/v1/firstmeasure/'+path,requested:[],
+  fetch:async url=>{context.requested.push(url);if(url==='/v1/firstmeasure/projects/exteriors_x/exterior-measurements')return {ok:true,json:async()=>({ok:true,measurements:pilot})};throw new Error('XML is not read when the dataset has roof rows');},
+  // A customer is refused the publication dataset (403), so the shared roof load fails for them.
+  window:{reportOrderState:{},FirstMeasureAPI:{roofMeasurements:{load:async()=>{if(roofLoadFails)throw new Error('403 capability_denied');return {measurements:roofValues,source:{status:'ready',value:{measurements:pilot}},origin:'project_measurement_dataset'};}}}}};
  vm.createContext(context);vm.runInContext(functions('public/libraries/apps/measurements/project.js',names),context);return context;
 }
-async function loadedRows(scope){const context=summaryContext(scope);context.loadReportSummaryMetricsFromXml('model_data.xml','exteriors_x');for(let i=0;i<20&&!context.measurementSummaryMetricCache.has('exteriors_x');i++)await new Promise(r=>setImmediate(r));return {context,rows:context.measurementSummaryMetricCache.get('exteriors_x')};}
+async function loadedRows(scope,options){const context=summaryContext(scope,options);context.loadReportSummaryMetricsFromXml('model_data.xml','exteriors_x');for(let i=0;i<20&&!context.measurementSummaryMetricCache.has('exteriors_x');i++)await new Promise(r=>setImmediate(r));return {context,rows:context.measurementSummaryMetricCache.get('exteriors_x')};}
 
 test('a full-house customer summary adds the Report.pdf exterior summary and quantities after the roof rows',async()=>{
  const {context,rows}=await loadedRows('full_house');
@@ -26,6 +28,9 @@ test('a full-house customer summary adds the Report.pdf exterior summary and qua
  const merged=context.reportSummaryWithWallRows([{label:'Roof squares',value:'43.6',unit:'sq'}],rows);
  assert.match(context.reportSummaryMeasurementsCsv(merged),/\r\nNet wall area,4430.8,sq ft\r\n/);
  assert.equal(context.reportSummaryStandardDetail(context.reportSummaryIsFullHouse(),true),'Full house PDF with roof, gutter and exterior wall measurements');
+ // The wall rows still load when the customer's roof dataset load is refused.
+ const refused=await loadedRows('full_house',{roofLoadFails:true});
+ assert.deepEqual(plain(refused.rows.map(r=>r.label)),plain(walls.map(w=>w[0])));
  // Values in another unit are never shown as square feet.
  assert.equal(context.reportSummaryWallRows({wallNetArea:{value:400,unit:'m2'}}).length,0);assert.equal(context.reportSummaryWallRows(undefined).length,0);
 });
@@ -33,7 +38,8 @@ test('a full-house customer summary adds the Report.pdf exterior summary and qua
 test('a roof-only summary renders exactly as before, even when its dataset holds wall keys',async()=>{
  const {context,rows}=await loadedRows('roof');
  assert.deepEqual(JSON.parse(JSON.stringify(rows)),JSON.parse(JSON.stringify(context.reportSummaryRowsFromRoofMeasurements(roofValues))));
- assert.ok(!rows.some(r=>r.wall));
+ assert.ok(!rows.some(r=>r.wall));assert.equal(context.requested.length,0,'a roof-only summary makes no exterior request');
+ const refused=await loadedRows('roof',{roofLoadFails:true});assert.equal(refused.rows.length,0);assert.equal(refused.context.requested.length,0);
  const roofRows=[{label:'Roof squares',value:'43.6',unit:'sq'},{label:'Eaves',value:'336',unit:'ft'}];
  assert.deepEqual(JSON.parse(JSON.stringify(context.reportSummaryWithWallRows(roofRows,rows))),roofRows);
  assert.equal(context.reportSummaryStandardDetail(false,true),'Main roof measurement PDF with gutter measurements');

@@ -1965,14 +1965,13 @@ window.PlatformCommerce.onReady(function(){
       ? sharedMeasurements.load(activeBaseProject || {}, { reportOrderState: window.reportOrderState || {} })
         .then((result) => {
           const rows = reportSummaryRowsFromRoofMeasurements(result?.measurements || {});
-          const walls = reportSummaryIsFullHouse() ? reportSummaryWallRows(result?.source?.value?.measurements) : [];
-          if (rows.length) return rows.concat(walls);
+          if (rows.length) return rows;
           return fetch(xmlUrl, { credentials: 'include' })
             .then((response) => {
               if (!response.ok) throw new Error(((v0) => globalThis.PlatformLanguage?.text("measurements","m_fc55e992b0fa41",`Measurement XML unavailable (${v0})`,{v0}) ?? `Measurement XML unavailable (${v0})`)(response.status));
               return response.text();
             })
-            .then((text) => reportSummaryMetricsFromXml(text).concat(walls));
+            .then((text) => reportSummaryMetricsFromXml(text));
         })
       : fetch(xmlUrl, { credentials: 'include' })
       .then((response) => {
@@ -1980,8 +1979,15 @@ window.PlatformCommerce.onReady(function(){
         return response.text();
       })
       .then((text) => reportSummaryMetricsFromXml(text));
-    sourceLoad.then((rows) => {
-        measurementSummaryMetricCache.set(key, rows);
+    // Wall rows load on their own: a customer cannot read the measurement dataset, so the roof load may fail.
+    const wallLoad = reportSummaryIsFullHouse() && projectId
+      ? fetch(fmUrl(`projects/${encodeURIComponent(projectId)}/exterior-measurements`), { credentials: 'include' })
+        .then((response) => (response.ok ? response.json() : {}))
+        .then((data) => reportSummaryWallRows(data?.measurements))
+        .catch(() => [])
+      : Promise.resolve([]);
+    Promise.all([sourceLoad.catch(() => []), wallLoad]).then(([rows, walls]) => {
+        measurementSummaryMetricCache.set(key, rows.concat(walls));
       })
       .catch(() => {
         measurementSummaryMetricCache.set(key, []);
