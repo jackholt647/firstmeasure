@@ -3487,3 +3487,16 @@ test('captured house: E pushes a base-standing wall region in as a recess with a
  const area=state.wallEdits.$base.faces.reduce((s,g)=>s+K.area(g),0);assert.ok(Math.abs(area0-area-regionWidth*depth)<.01,'the base is pulled back by the recess footprint');
  const bottom=cap().points.filter(p=>Math.abs(p.z-start.z)<1e-6);assert.equal(bottom.length,2);assert.ok(state.wallEdits.$base.faces.some(g=>W.sharedIntervals(...bottom,[g]).length),'the back wall stands on the moved base');
 });
+
+test('a plain line click drops a stale base-point selection, so Delete removes the line and leaves the base alone',()=>{
+ const W=require('../public/measure/internal/editor_scripts/wall_solid_geometry.js'),K=require('../public/measure/internal/editor_scripts/exterior_geometry.js'),p=(x,y,z)=>({x,y,z});
+ const base={faces:[{id:'base',points:[p(0,0,0),p(4,0,0),p(4,4,0),p(0,4,0)]}]},wall={id:'wall',points:[p(1,0,0),p(3,0,0),p(3,0,2),p(1,0,2)]};
+ const state={base,wallEdits:{$surfaces:[wall]}},f=fixture({state,walls:[],selected:null,globals:renderGlobals(),screen:p=>({x:(p.x+p.y*.5)*100,y:p.z*100})});
+ const corner=S.read(state.base).nodes.find(n=>Math.hypot(n.x,n.y,n.z)<1e-9);assert.ok(corner,'the base has a corner point');
+ f.editor.restoreSelection({selectedBasePoints:[W.vertexKey(corner)]});const area=state.base.faces.reduce((s,g)=>s+K.area(g),0);
+ f.editor.down(f.e(2,2));f.listeners.pointerup(f.e(2,2));const s=f.editor.selectionSnapshot();
+ assert.equal(s.lineSelection.length,1,f.message());assert.equal(s.selectedBasePoints.length,0,'a plain line click replaces the base-point selection');
+ f.editor.key({key:'Delete'});const b=state.wallEdits.$base||state.base;
+ assert.ok(Math.abs(b.faces.reduce((s,g)=>s+K.area(g),0)-area)<1e-9,'the base is unchanged');assert.equal(b.faces.length,1);
+ assert.ok((state.wallEdits.$removedSurfaceEdges||[]).includes(W.edgeKey(p(1,0,2),p(3,0,2)))||state.wallEdits.$surfaces.find(f=>f.id==='wall').deleted,'the selected line is deleted');
+});
