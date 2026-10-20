@@ -406,7 +406,8 @@ test('moving a contained face onto a larger generated face produces an orange de
  const W=require('../public/measure/internal/editor_scripts/wall_solid_geometry.js'),large={id:'large',drafted:true,points:[{x:0,y:0,z:0},{x:4,y:0,z:0},{x:4,y:0,z:4},{x:0,y:0,z:4}]},frame=W.faceFrame(large),d={frame,solidHost:'large',members:[],faces:[{id:'outer',points:large.points.map(p=>W.inFrame(frame,p))}]};S.ensure(d);W.importDraft(d,[[{x:1,y:0,z:0},{x:3,y:0,z:0},{x:3,y:2,z:0},{x:1,y:2,z:0}]]);
  const state={wallEdits:{$surfaces:[large],$drafts:{'solid:large':d}}},f=fixture({state,walls:[],globals:renderGlobals(),screen:p=>({x:(p.x+p.y*.5)*100,y:p.z*100})});
  f.editor.draw3D({add(){}},p=>p);f.editor.down(f.e(2,1));f.listeners.pointerup(f.e(2,1));f.listeners.pointermove(f.e(2,1));f.editor.key({key:'e'});f.listeners.pointermove(f.e(1.5,1));
- const created=state.wallEdits.$surfaces.filter(f=>!f.drafted);assert.equal(created.length,4,f.message());assert.equal(created.filter(f=>f.points.every(p=>Math.abs(p.z)<1e-8)).length,0);
+ // The cap, three returns around the door notch and the wall's free ends and top; the open bottom has none.
+ const created=state.wallEdits.$surfaces.filter(f=>!f.drafted);assert.equal(created.length,7,f.message());assert.equal(created.filter(f=>f.points.every(p=>Math.abs(p.z)<1e-8)).length,0);
  });
 
  test('moving a door return onto the parent corner keeps the original opening consumed',()=>{
@@ -533,7 +534,7 @@ test('E extrudes a divided region; M instead moves its shared neighbors, with pr
  for(const x of [1,3]){f.editor.doubleClick(f.e(x,0),f.w);f.editor.doubleClick(f.e(x,4),f.w);f.editor.down(f.e(x,0,true));f.listeners.pointerup(f.e(x,0,true));f.editor.key({key:'u'});}
  assert.equal(f.d().faces.length,3);f.editor.down(f.e(2,2));f.listeners.pointerup(f.e(2,2));f.listeners.pointermove(f.e(2,2));const before=JSON.stringify(f.state.wallEdits);
  f.editor.key({key:'m'});f.listeners.pointermove(f.e(1.5,2));let surfaces=f.state.wallEdits.$surfaces;assert.equal(surfaces.filter(s=>!s.deleted&&!s.drafted).length,3,f.message());assert.ok(surfaces.every(s=>!s.id.includes('-side-')));assert.equal(f.d().faces.filter(r=>r.solidId).length,3);f.editor.key({key:'escape'});assert.equal(JSON.stringify(f.state.wallEdits),before);
- f.listeners.pointermove(f.e(2,2));f.editor.key({key:'e'});f.listeners.pointermove(f.e(1.5,2));assert.equal(f.state.wallEdits.$surfaces.filter(s=>s.id.includes('-side-')).length,2);f.editor.key({key:'escape'});assert.equal(JSON.stringify(f.state.wallEdits),before);
+ f.listeners.pointermove(f.e(2,2));f.editor.key({key:'e'});f.listeners.pointermove(f.e(1.5,2));assert.equal(f.state.wallEdits.$surfaces.filter(s=>s.id.includes('-side-')).length,3,'two side returns and a top return; the bottom threshold stays open');f.editor.key({key:'escape'});assert.equal(JSON.stringify(f.state.wallEdits),before);
  f.listeners.pointermove(f.e(2,2));f.editor.key({key:'m'});f.listeners.pointermove(f.e(1.5,2));const preview=JSON.stringify(f.state.wallEdits);f.editor.down(f.e(1.5,2));assert.equal(JSON.stringify(f.state.wallEdits),preview);assert.equal(JSON.stringify(f.history.at(-1)),before);
  const loaded=fixture({state:JSON.parse(JSON.stringify(f.state))});assert.equal(loaded.state.wallEdits.$surfaces.length,3);
 });
@@ -3466,4 +3467,23 @@ for(const deg of [0,17,30,45,63])test(`a closing paste on a wall at ${deg} degre
  planeSelection(f,[]);assert.equal(markers().length,11,'no curve sample became a point');
  const real=W.surfaceWire(f.state.wallEdits).nodes.filter(n=>!n.curveSample);assert.equal(real.length,11);
  const draft=Object.values(f.state.wallEdits.$drafts).find(d=>d.constructionPlane);assert.equal(draft.sketch.nodes.length,3);assert.equal(draft.sketch.nodes.filter(n=>n.userDraftPoint).length,3);
+});
+
+test('captured house: E pushes a base-standing wall region in as a recess with a ceiling, no floor and the base pulled back',()=>{
+ // Project fullhouse_ce52...: a region of the long front wall pushed 6 ft into the building.
+ const K=require('../public/measure/internal/editor_scripts/exterior_geometry.js'),W=require('../public/measure/internal/editor_scripts/wall_solid_geometry.js'),{state,walls}=capturedHouses['editor From Roof'](),f=fixture({state,walls,selected:null,roof:state.roof,globals:{...renderGlobals(),WallChimneys:require('../public/measure/internal/editor_scripts/wall_chimneys.js')}});
+ const members=walls.filter(w=>String(w.id).startsWith('envelope-0-18-2')),start=members.find(w=>w.id==='envelope-0-18-2:roof-1').bottom[0],end=members.find(w=>w.id==='envelope-0-18-2:roof-6').bottom[1];
+ const at=t=>({x:start.x+(end.x-start.x)*t,y:start.y+(end.y-start.y)*t,z:start.z});
+ for(const t of [.393,.712]){assert.equal(f.editor.cutFromPoint(at(t),'v'),true,f.message());f.editor.finishAxisCut();}
+ const key=members.map(w=>w.id).join('|'),d=state.wallEdits.$drafts[key],center=r=>r.points.reduce((s,p)=>s+p.x,0)/r.points.length;
+ assert.equal(d.faces.length,3,f.message());const region=d.faces.slice().sort((a,b)=>center(a)-center(b))[1];const base0=state.base,area0=base0.faces.reduce((s,g)=>s+K.area(g),0),xs=region.points.map(p=>p.x),regionWidth=Math.max(...xs)-Math.min(...xs),top=Math.max(...region.points.map(p=>p.y)),depth=1.8288;
+ const tryDepth=amount=>{f.editor.restoreSelection({activeDraftKey:key,selectedRegion:{draft:key,face:region.id}});f.listeners.pointermove(f.e(0,0));f.editor.key({key:'e'});f.editor.distanceInput().set(amount);};
+ // Inward is the sign that keeps the moved wall inside the old base.
+ tryDepth(depth);const cap=()=>state.wallEdits.$surfaces.find(s=>s.id.endsWith(region.id));const inside=cap().points.every(p=>base0.faces.some(g=>G.contains(g,p)));f.editor.key({key:'Escape'});tryDepth(inside?depth:-depth);f.editor.down(f.e(0,0));
+ const sides=state.wallEdits.$surfaces.filter(s=>s.id.includes(region.id+'-side-')&&!s.deleted);
+ assert.ok(!sides.some(s=>s.points.every(p=>Math.abs(p.z-start.z)<1e-6)),'no floor on the base');
+ const ceiling=sides.filter(s=>s.points.every(p=>Math.abs(p.z-top)<.01));assert.equal(ceiling.length,1,'a ceiling at the top edge');assert.ok(Math.abs(K.area(ceiling[0])-regionWidth*depth)<.01);
+ assert.equal(sides.length,3,'two side walls and the ceiling');
+ const area=state.wallEdits.$base.faces.reduce((s,g)=>s+K.area(g),0);assert.ok(Math.abs(area0-area-regionWidth*depth)<.01,'the base is pulled back by the recess footprint');
+ const bottom=cap().points.filter(p=>Math.abs(p.z-start.z)<1e-6);assert.equal(bottom.length,2);assert.ok(state.wallEdits.$base.faces.some(g=>W.sharedIntervals(...bottom,[g]).length),'the back wall stands on the moved base');
 });

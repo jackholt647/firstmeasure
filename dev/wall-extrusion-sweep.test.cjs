@@ -5,7 +5,10 @@ const side={id:'left',points:[p(0,0,0),p(0,2,0),p(0,2,4),p(0,0,4)]};
 test('extruding a slanted edge over pitched ground tessellates returns without gaps or moving the source',()=>{
  const M=require('../public/measure/internal/editor_scripts/exterior_model.js'),K=require('../public/measure/internal/editor_scripts/exterior_geometry.js'),input=require('./fixtures/extrusion-pitched-base-slanted-edge.json'),before=JSON.stringify(input),engine=M.createExtrusion({...input,supports:[input.face]});
  for(const amount of [-.3,.3,1]){const r=engine.preview(amount),faces=[input.face,r.cap,...r.sides];assert.ok(r.sides.some(f=>f.id.includes('-facet-')));faces.forEach(f=>assert.doesNotThrow(()=>K.validateFace(f)));
-  const counts=new Map();for(const f of faces)for(let i=0;i<f.points.length;i++){const key=W.edgeKey(f.points[i],f.points[(i+1)%f.points.length]);counts.set(key,(counts.get(key)||0)+1);}assert.ok([...counts.values()].every(n=>n===2),'every boundary and triangulation seam is sealed');
+  // The ground outline has no return: the base update owns it (open there by one face).
+  const G=require('../public/measure/internal/editor_scripts/wall_geometry.js'),ground=q=>[...input.base.faces,...r.base.faces].some(f=>{const pl=G.plane(f.points);return G.contains(f,q)&&Math.abs(q.z-pl.dx*q.x-pl.dy*q.y-pl.k)<.002;});
+  const counts=new Map(),ends=new Map();for(const f of faces)for(let i=0;i<f.points.length;i++){const a=f.points[i],b=f.points[(i+1)%f.points.length],key=W.edgeKey(a,b);counts.set(key,(counts.get(key)||0)+1);ends.set(key,[a,b]);}
+  assert.ok([...counts].every(([key,n])=>n===2||n===1&&ends.get(key).every(ground)),'every boundary and triangulation seam above the ground is sealed');assert.ok(r.sides.every(f=>!f.points.every(ground)),'no return lies on the ground');
   const n=W.normal(input.face.points);r.cap.points.forEach((q,i)=>{const p=input.face.points[i];assert.ok(Math.hypot(q.x-p.x-n.x*amount,q.y-p.y-n.y*amount)<1e-8);});assert.equal(JSON.stringify(input),before);assert.deepEqual(engine.preview(amount),r);
  }
 });
@@ -88,4 +91,28 @@ for(const amount of [-.3,.3])test(`oblique edge extrusion keeps its neighbor pla
  const K=require('../public/measure/internal/editor_scripts/exterior_geometry'),a=p(0,0,2),b=p(4,0,2),top={id:'top',points:[a,b,p(4,3,2),p(0,3,2)]},side={id:'side',points:[b,a,p(0,-.35,0),p(4,-.35,0)]},before=JSON.stringify([top,side]),r=W.slideLines([top,side],[[a,b]],p(0,1,0),amount,{preserveConnections:true});
  assert.equal(JSON.stringify([top,side]),before,'immutable source');assert.deepEqual(r.faces.find(f=>f.id==='side').points,side.points,'neighbor is not bent');
  r.faces.forEach(K.validateFace);const horizontal=r.faces.filter(f=>f.points.every(p=>Math.abs(p.z-2)<1e-8));assert.ok(Math.abs(horizontal.reduce((sum,f)=>sum+K.area(f),0)-(12+Math.max(0,-amount)*4))<1e-6,'sweep has no holes or overlapping duplicate area');assert.equal(new Set(r.faces.map(f=>f.id)).size,r.faces.length);
+});
+
+// A wall region standing on the base, pushed into the building (project fullhouse_ce52...: a 0.24 mm
+// sliver region left along the region's bottom edge was a support, so the bottom got a floor and the
+// top, which no face shares, got no ceiling).
+for(const sliver of [false,true])test(`a recess pushed into a wall from the base gets a ceiling, no floor, and pulls the base back (${sliver?'with':'without'} a sliver sharing its bottom)`,()=>{
+ const M=require('../public/measure/internal/editor_scripts/exterior_model.js'),K=require('../public/measure/internal/editor_scripts/exterior_geometry.js'),G=require('../public/measure/internal/editor_scripts/wall_geometry.js');
+ const region={id:'region',points:[p(1,0,0),p(3,0,0),p(3,0,3),p(1,0,3)]},left={id:'left',points:[p(-1,0,0),p(1,0,0),p(1,0,3),p(-1,0,3)]},right={id:'right',points:[p(3,0,0),p(5,0,0),p(5,0,3),p(3,0,3)]};
+ const base={faces:[{id:'base',points:[p(-1,0,0),p(5,0,0),p(5,6,0),p(-1,6,0)]}]},scene=[region,left,right,...(sliver?[{id:'sliver',points:[p(3,0,0),p(1,0,0),p(.9,0,-.0002)]}]:[])];
+ const r=M.createExtrusion({face:region,scene,supports:scene.filter(f=>f!==region),base}).preview(-1),faces=[r.cap,...r.sides];faces.forEach(K.validateFace);
+ assert.ok(r.cap.points.every(q=>Math.abs(q.y-1)<1e-9),'the back wall is one metre in');
+ assert.ok(!r.sides.some(f=>f.points.every(q=>Math.abs(q.z)<1e-6)),'no floor on the ground');
+ const ceiling=r.sides.filter(f=>f.points.every(q=>Math.abs(q.z-3)<1e-9));assert.equal(ceiling.length,1,'one ceiling at the top edge');assert.ok(Math.abs(K.area(ceiling[0])-2)<1e-9);
+ for(const x of [1,3])assert.ok(r.sides.some(f=>f.points.every(q=>Math.abs(q.x-x)<1e-9)),'a side wall at x='+x);
+ const area=r.base.faces.reduce((s,f)=>s+K.area(f),0);assert.ok(Math.abs(area-(36-2))<1e-6,'the base loses the recess footprint');
+ assert.ok(!r.base.faces.some(f=>G.contains(f,p(2,.5,0))),'the base is pulled back under the recess');assert.ok(r.base.faces.some(f=>G.contains(f,p(2,1.5,0))));
+ for(const q of r.cap.points.filter(q=>q.z===0))assert.ok(r.base.faces.some(f=>W.sharedIntervals(...r.cap.points.filter(q=>q.z===0),[f]).length),'the back wall stands on the moved base edge');
+});
+// A door at the wall base with no base below keeps its open threshold, and a sticker keeps only supported returns.
+test('a hosted door region keeps an open threshold without a base, and a sticker still sweeps only along its host',()=>{
+ const M=require('../public/measure/internal/editor_scripts/exterior_model.js');
+ const door={id:'door',points:[p(1,0,0),p(3,0,0),p(3,0,2),p(1,0,2)]},wall={id:'wall',points:[p(0,0,0),p(1,0,0),p(1,0,2),p(3,0,2),p(3,0,0),p(4,0,0),p(4,0,4),p(0,0,4)]};
+ const r=M.createExtrusion({face:door,scene:[door,wall]}).preview(-.5);assert.equal(r.sides.length,3);assert.ok(!r.sides.some(f=>f.points.every(q=>Math.abs(q.z)<1e-9)));
+ const sticker={...door,feature:{type:'garage'}},s=M.createExtrusion({face:sticker,scene:[sticker]}).preview(-.5);assert.equal(s.sides.length,0);
 });

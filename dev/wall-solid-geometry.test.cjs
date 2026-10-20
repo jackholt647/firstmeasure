@@ -305,3 +305,10 @@ test('new loose connections survive revival while a new deletion remains authori
 test('wire revival leaves unrelated sub-micron loose geometry and its exclusions unchanged',()=>{
  const M=require('../public/measure/internal/editor_scripts/exterior_model'),a=p(10,10,0),b=p(10.0000001,10,0),q=p(0,0,0),before={$loose:{points:[{...a,anchorId:'keep'}],edges:[[a,b]]},$removedSurfacePoints:[G.vertexKey(a),G.vertexKey(q)]},candidate=structuredClone(before);candidate.$surfaces=[{id:'new',points:[q,p(2,0,0),p(0,2,0)]}];const next=M.prepareEdits({},candidate,before);assert.ok(next.$removedSurfacePoints.includes(G.vertexKey(a)));assert.deepEqual(next.$loose,before.$loose);
 });
+test('deleting a line that overlaps a neighbour wall by a sub-millimetre sliver leaves that wall alone',()=>{
+ // Measured houses carry 0.1-0.3 mm slivers; the recess's front line ran 0.3 mm onto the next wall's bottom edge,
+ // which made Delete invalidate and drop that unrelated wall.
+ const wall={id:'left',points:[p(0,0,0),p(2,0,0),p(2,0,3),p(0,0,3)]},floor={id:'floor',points:[p(1.9997,0,0),p(4,0,0),p(4,-1,0),p(1.9997,-1,0)]};
+ const result=G.removeFaceEdges([wall,floor],[[p(1.9997,0,0),p(4,0,0)]]);assert.ok(!result.removed.includes('left'));assert.deepEqual(result.removed,['floor']);
+ assert.deepEqual(G.removeFaceEdges([wall],[[p(0,0,0),p(2,0,0)]]).removed,['left'],'a line the wall really runs along is still its own');
+});

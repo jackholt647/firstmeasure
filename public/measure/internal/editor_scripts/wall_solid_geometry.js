@@ -665,8 +665,9 @@ function extrusionReference(face,direction,amount){
  const map=p=>{const d=level-dot(p,n);return {...p,x:p.x+n.x*d,y:p.y+n.y*d,z:p.z+n.z*d};};
  return {...face,...K.mapCurveData(face,map),points:face.points.map(map),holes:(face.holes||[]).map(r=>r.map(map)),retainedPoints:(face.retainedPoints||[]).map(map)};
 }
-// A complete sweep still leaves ground contacts to the base update: an edge
-// resting on a base face (within the 2 mm attachment tolerance) has no return.
+// Every sweep leaves ground contacts to the base update: an edge resting on a
+// base face (within the 2 mm attachment tolerance) has no return, even where
+// another face shares it; the base is pulled back or extended there instead.
 // A face lying entirely on the ground sweeps every edge.
 function groundContacts(face,faces){
  if(!faces?.length)return ()=>false;const G=wallGeometry(),planes=faces.map(f=>({f,plane:G.plane(f.points)})).filter(g=>g.plane);
@@ -674,8 +675,14 @@ function groundContacts(face,faces){
  const samples=face.curvedSurface?.logical?K.surfaceBoundaryCurves(face).flat(2).flatMap(c=>K.curveSamples(c)):rings(face).flat();
  return samples.every(on)?()=>false:points=>points.every(on);
 }
-function extrude(face,amount,options={}){if(face.curvedSurface?.logical)return extrudeCurved(face,amount,options);const grounded=options.completeBoundary?groundContacts(face,options.ground):()=>false;const n=extrusionDirection(face,options.direction),reference=Math.abs(amount)>1e-6?extrusionReference(face,options.direction,amount):face,level=reference===face?null:dot(reference.points[0],n);const moved=p=>{const d=amount+(level===null?0:level-dot(p,n));return {x:p.x+n.x*d,y:p.y+n.y*d,z:p.z+n.z*d};},cap={...face,...K.mapCurveData(face,moved),opening:false,points:face.points.map(moved),retainedPoints:(face.retainedPoints||[]).map(moved),holes:(face.holes||[]).map(h=>h.map(moved))},sides=[];
- if(Math.abs(amount)>1e-6)for(const [ring,points]of [face.points,...(face.holes||[])].entries())for(let i=0;i<points.length;i++){const a=points[i],b=points[(i+1)%points.length],intervals=options.supports&&!options.completeBoundary?sharedIntervals(a,b,options.supports):grounded([a,mix3(a,b,.5),b])?[]:[[0,1]];for(const [part,[lo,hi]]of intervals.entries()){const p=mix3(a,b,lo),q=mix3(a,b,hi);if(Math.hypot(q.x-p.x,q.y-p.y,q.z-p.z)<=K.CONTACT)continue;let curvedSurface;for(const curve of face.curves||[]){const samples=K.curveSamples(curve);for(let j=1;j<samples.length;j++)if(pointOnEdge(p,samples[j-1],samples[j])&&pointOnEdge(q,samples[j-1],samples[j])){const start=samples[j-1],end=samples[j],v=sub(end,start),l2=dot(v,v),parameter=p=>start.curveT+(end.curveT-start.curveT)*dot(sub(p,start),v)/l2;curvedSurface=level===null?{type:'ellipse-extrusion',curve,offset:{x:n.x*amount,y:n.y*amount,z:n.z*amount},range:[parameter(p),parameter(q)]}:{type:'conic-ruled',start:curve,finish:K.mapCurve(curve,moved),range:[parameter(p),parameter(q)]};break;}}sides.push({... (curvedSurface?{curvedSurface}:{}),...((face.material)?{material:face.material}:{}),...(face.finishColor?{finishColor:face.finishColor}:{}),...((face.chimney)?{chimney:{...face.chimney,drivesFootprint:false,derived:true}}:{}),id:face.id+'-side-'+ring+'-'+i+'-'+part,points:[p,q,moved(q),moved(p)],holes:[],opening:false});}}
+// With supports and no complete boundary, only supported intervals return.
+// A hostedPatch in a wall is closed like a complete sweep except at its
+// threshold: an unsupported outer edge facing down stays open (a door at the
+// wall base), while its other unsupported edges, such as the wall top under
+// the roof, return (a recess gets its ceiling). Holes, and patches in
+// non-wall planes, return only along supports.
+function extrude(face,amount,options={}){if(face.curvedSurface?.logical)return extrudeCurved(face,amount,options);const grounded=groundContacts(face,options.ground),hosted=options.supports&&!options.completeBoundary,fn=normal(face.points),wall=hosted&&options.hostedPatch&&horizontalSweep(fn),threshold=(a,b)=>{const o=cross(sub(b,a),fn),l=Math.hypot(o.x,o.y,o.z);return l>0&&o.z<-Math.SQRT1_2*l;};const n=extrusionDirection(face,options.direction),reference=Math.abs(amount)>1e-6?extrusionReference(face,options.direction,amount):face,level=reference===face?null:dot(reference.points[0],n);const moved=p=>{const d=amount+(level===null?0:level-dot(p,n));return {x:p.x+n.x*d,y:p.y+n.y*d,z:p.z+n.z*d};},cap={...face,...K.mapCurveData(face,moved),opening:false,points:face.points.map(moved),retainedPoints:(face.retainedPoints||[]).map(moved),holes:(face.holes||[]).map(h=>h.map(moved))},sides=[];
+ if(Math.abs(amount)>1e-6)for(const [ring,points]of [face.points,...(face.holes||[])].entries())for(let i=0;i<points.length;i++){const a=points[i],b=points[(i+1)%points.length],intervals=grounded([a,mix3(a,b,.5),b])?[]:hosted&&(ring||!wall||threshold(a,b))?sharedIntervals(a,b,options.supports):[[0,1]];for(const [part,[lo,hi]]of intervals.entries()){const p=mix3(a,b,lo),q=mix3(a,b,hi);if(Math.hypot(q.x-p.x,q.y-p.y,q.z-p.z)<=K.CONTACT)continue;let curvedSurface;for(const curve of face.curves||[]){const samples=K.curveSamples(curve);for(let j=1;j<samples.length;j++)if(pointOnEdge(p,samples[j-1],samples[j])&&pointOnEdge(q,samples[j-1],samples[j])){const start=samples[j-1],end=samples[j],v=sub(end,start),l2=dot(v,v),parameter=p=>start.curveT+(end.curveT-start.curveT)*dot(sub(p,start),v)/l2;curvedSurface=level===null?{type:'ellipse-extrusion',curve,offset:{x:n.x*amount,y:n.y*amount,z:n.z*amount},range:[parameter(p),parameter(q)]}:{type:'conic-ruled',start:curve,finish:K.mapCurve(curve,moved),range:[parameter(p),parameter(q)]};break;}}sides.push({... (curvedSurface?{curvedSurface}:{}),...((face.material)?{material:face.material}:{}),...(face.finishColor?{finishColor:face.finishColor}:{}),...((face.chimney)?{chimney:{...face.chimney,drivesFootprint:false,derived:true}}:{}),id:face.id+'-side-'+ring+'-'+i+'-'+part,points:[p,q,moved(q),moved(p)],holes:[],opening:false});}}
  delete cap.attachment;finishExtrusionSides(face,sides,options);return {cap,sides:options.facets?sides:K.compactSurfaces(sides)};}
 // Sweep evaluated boundaries, never the chord joining logical control points.
 // Keep the cap exact and use temporary planar patches for neighboring booleans.
@@ -683,7 +690,7 @@ function extrudeCurved(face,amount,options){
  const n=extrusionDirection(face,options.direction);
  const offset={x:n.x*amount,y:n.y*amount,z:n.z*amount},moved=p=>({x:p.x+offset.x,y:p.y+offset.y,z:p.z+offset.z}),cap={...face,...K.mapCurveData(face,moved),points:face.points.map(moved),holes:[],retainedPoints:[],opening:false},sides=[];
  delete cap.attachment;
- const supports=options.supports?.map(K.surfaceOutline),grounded=options.completeBoundary?groundContacts(face,options.ground):()=>false;
+ const supports=options.supports?.map(K.surfaceOutline),grounded=groundContacts(face,options.ground);
  if(Math.abs(amount)>K.CONTACT)for(const [i,curve]of K.surfaceBoundaryCurves(face).flat(2).entries()){
   const samples=K.curveSamples(curve);if(grounded(samples))continue;const onBoundary=p=>supports.some(f=>rings(f).some(r=>r.some((a,i)=>{const b=r[(i+1)%r.length],v=sub(b,a),l2=dot(v,v),t=l2?Math.max(0,Math.min(1,dot(sub(p,a),v)/l2)):0;return Math.hypot(...Object.values(sub(p,mix3(a,b,t))))<=.002;}))),attached=options.completeBoundary||!supports||samples.every(onBoundary);
   for(let j=1;j<samples.length;j++){const a=samples[j-1],b=samples[j],intervals=attached?[[0,1]]:sharedIntervals(a,b,supports);
@@ -1259,7 +1266,9 @@ function removeFaceEdges(faces,segments,wire={}){
   for(const r of local)for(let i=0;i<r.length;i++){const p=r[i],q=r[(i+1)%r.length],ux=q.x-p.x,uy=q.y-p.y,den=dx*uy-dy*ux;if(Math.abs(den)<1e-12)continue;const t=((p.x-x.x)*uy-(p.y-x.y)*ux)/den,u=((p.x-x.x)*dy-(p.y-x.y)*dx)/den;if(t>0&&t<1&&u>=0&&u<=1)ts.push(t);}
   ts.sort((a,b)=>a-b);return ts.slice(1).some((t,i)=>{const mid=(t+ts[i])/2,p={x:x.x+dx*mid,y:x.y+dy*mid};return t-ts[i]>1e-6&&pointInRing(p,local[0])&&!local.slice(1).some(r=>pointInRing(p,r));});
  };
- for(const [a,b] of segments){const boundary=faces.map((f,i)=>({f,i})).filter(({f})=>sharedIntervals(a,b,[f]).some(([lo,hi])=>hi-lo>1e-6));
+ // A face owns the line only where it runs along it; an end that overlaps a neighbour by a sub-millimetre sliver
+ // (measured houses have them) must not make that neighbour's edge part of the deletion.
+ for(const [a,b] of segments){const own=Math.min(.5,1e-3/Math.max(1e-9,Math.hypot(b.x-a.x,b.y-a.y,b.z-a.z))),boundary=faces.map((f,i)=>({f,i})).filter(({f})=>sharedIntervals(a,b,[f]).some(([lo,hi])=>hi-lo>own));
   const incident=faces.map((f,i)=>({f,i})).filter(v=>boundary.some(b=>b.i===v.i)||(!v.f.feature&&covers(a,b,v.f)&&boundary.some(b=>samePlane(b.f,v.f))));
   const pairs=[];for(const v of incident)for(const peer of incident)if(v.i<peer.i&&!!v.f.feature===!!peer.f.feature&&samePlane(v.f,peer.f)){
    const frame=faceFrame(v.f),regions=K.union([v.f,peer.f].map(f=>({points:f.points.map(p=>inFrame(frame,p)),holes:(f.holes||[]).map(r=>r.map(p=>inFrame(frame,p)))}))).map(f=>({points:f.points.map(p=>fromFrame(frame,p)),holes:f.holes.map(r=>r.map(p=>fromFrame(frame,p)))}));

@@ -135,10 +135,12 @@ function createExtrusion(input){
  let previousAmount=null,previous=null;
  return {face:copy(face),topology,preview(amount,{fit=null}={}){
   if(!Number.isFinite(amount))throw Error('Enter a finite extrusion distance.');if(!fit&&amount===previousAmount&&previous)return copy(previous);
-  // A standalone face sweeps its whole boundary. A patch in a coplanar host
-  // retains supported returns, including an intentionally open door threshold.
-  const supports=start.supports||scene,hosted=face.supportedExtrusion||face.feature||supports.some(f=>W.coplanarContact(face,f)&&face.points.some((p,i)=>W.sharedIntervals(p,face.points[(i+1)%face.points.length],[f]).length));
-  let shape=W.extrude(face,amount,{facets:true,completeBoundary:!hosted,direction:start.direction,supports,ground:start.base?.faces});if(hosted)shape.cap.supportedExtrusion=true;conformBase(face,shape.cap,shape.sides,start.base);shape.sides=planarExtrusionReturns(shape.sides);const fitMoves=fit?fit(shape.cap,shape.sides):null;const base=start.base?B.extrudeWall(start.base,face,shape.cap):null;shape=W.roofExtrusion(face,amount,shape,start.roof,{direction:start.direction});
+  // A standalone face sweeps its whole boundary. A sticker or an earlier cap
+  // retains supported returns. A region of a coplanar host wall closes
+  // everything except an intentionally open door threshold (a recess gets its
+  // ceiling). None returns along the ground: the base update moves the base.
+  const supports=start.supports||scene,patch=supports.some(f=>W.coplanarContact(face,f)&&face.points.some((p,i)=>W.sharedIntervals(p,face.points[(i+1)%face.points.length],[f]).length)),hosted=face.supportedExtrusion||face.feature||patch;
+  let shape=W.extrude(face,amount,{facets:true,completeBoundary:!hosted,hostedPatch:patch&&!face.feature&&!face.supportedExtrusion,direction:start.direction,supports,ground:start.base?.faces});if(hosted)shape.cap.supportedExtrusion=true;conformBase(face,shape.cap,shape.sides,start.base);shape.sides=planarExtrusionReturns(shape.sides);const fitMoves=fit?fit(shape.cap,shape.sides):null;const base=start.base?B.extrudeWall(start.base,face,shape.cap):null;shape=W.roofExtrusion(face,amount,shape,start.roof,{direction:start.direction});
   const trim=extrusionTrim(scene,[face],[shape.cap],start.keepTrimStatic),trimmed=W.trimExtrusion(shape.sides,scene.filter(f=>!trim.ids.has(f.id)));trimmed.replacements.push(...trim.replacements);trimmed.sides=K.compactSurfaces(trimmed.sides);K.attachBoundaryCurves(trimmed.replacements.flatMap(r=>r.pieces),[shape.cap,...trimmed.sides]);
   const result=validateResult({cap:shape.cap,sides:trimmed.sides,replacements:trimmed.replacements,base,amount,fitMoves});
   if(!fit){previousAmount=amount;previous=copy(result);}return result;
