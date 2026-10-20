@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+October 19-20 Full-house production points: [a full house is scored at submission as roof points plus twice a wall-complexity proxy, and the drafter sees only a stopwatch until then](deploy/digitalocean/development-full-house-points-20261020.md) records releases `7c811330` and `03d57cc1` and the verified development rollouts.
+
 October 19-20 Full-house staff fixes: [the browser API base is the public origin, embedded QA and manager sign-off show and send the full-house checks, approval adopts the newest reviewed PDF revision, plus Full House badges and qualified-only reservation lists](deploy/digitalocean/development-full-house-staff-fixes-20261019.md) records release `c1240ed1` on all four development roles.
 
 October 19-20 Full-house editor fixes: [Resoffit closes like a dropdown, base pitch follows leaning walls, pushing a wall in makes a recess, and deleting a line keeps neighbouring walls](deploy/digitalocean/development-editor-fixes-20261020.md) records releases `9e823e59`, `d7c5eaaf` and `58249cdc` and the verified development rollouts.
