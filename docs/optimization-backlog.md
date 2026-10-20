@@ -7,6 +7,20 @@ optimization here must return exactly the same results.
 Add an entry when you knowingly ship something that reads more than it needs, repeats work, or will not scale, and
 link the entry from the architecture doc's "Not built" section. Remove an entry when it is done.
 
+## Full-house filter in the drafting queue reads the manifest
+
+**Today.** A drafter without the full-house qualification claims from the queue with an extra condition on
+`manifest_json->>'measurement_scope'` (`candidateSql` in `firstmeasure/queue_postgres.ts`). The claim indexes narrow
+the rows first (queued, unassigned, unreserved or reserved to the drafter), so the JSON is read only for those
+candidates, not the whole table. The "PostgreSQL hot queue paths do not search JSON documents" check in
+`tests/firstmeasure-postgres-indexed-queue.test.ts` fails because of it.
+
+**Where the change goes.** A derived `measurement_scope` column on `projects`, filled by `migrateDerivedQueueColumns`
+like the other queue columns (schema version bump), and the condition on that column instead of the JSON.
+
+**Why it can wait.** The candidate set is small (the queued backlog), and adding a column to the core order queue
+was not done on the October 20 production release day.
+
 ## Contact date rules read every contact
 
 **Today.** A rule on a date on each contact (`schedule.contact_date`) reads every contact of the organization when its

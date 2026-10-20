@@ -2391,7 +2391,9 @@ session_write_close();
 
   <!-- Signup Sandbox dev bar: no-ops unless the logged-in org is a sandbox
        test org (and /v1/signup-sandbox is dead in production entirely). -->
+  <?php require_once __DIR__ . '/signup-sandbox/available.php'; if (fm_signup_sandbox_available()): ?>
   <script src="signup-sandbox/devbar.js?v=<?= portalAssetVersion('signup-sandbox/devbar.js') ?>" defer></script>
+  <?php endif; ?>
 
   <!-- Mobile sidebar toggle -->
   <script>

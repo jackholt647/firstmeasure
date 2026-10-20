@@ -1516,6 +1516,8 @@ src="https://www.facebook.com/tr?id=636685175264715&ev=PageView&noscript=1"
     initializeGoogleAuth();
 </script>
 
+<?php require_once __DIR__ . '/signup-sandbox/available.php'; if (fm_signup_sandbox_available()): ?>
 <script src="signup-sandbox/devbar.js" defer></script>
+<?php endif; ?>
 </body>
 </html>

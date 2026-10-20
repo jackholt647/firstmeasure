@@ -1,3 +1,12 @@
+<?php
+require_once __DIR__ . '/available.php';
+if (!fm_signup_sandbox_available()) {
+    http_response_code(404);
+    header('Content-Type: text/plain; charset=utf-8');
+    echo 'Not found.';
+    exit;
+}
+?>
 <!DOCTYPE html>
 <html lang="en">
 <head>

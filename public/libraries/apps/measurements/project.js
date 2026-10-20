@@ -186,6 +186,10 @@ window.PlatformCommerce.onReady(function(){
   function measurementReportSummaryEnabled(){
     return firstMeasureFlagEnabled('measurement_report_summary', false);
   }
+  // The 3D viewer is part of Full House; roof-only reports show it once the organization turns on roof_model_viewer.
+  function reportModelViewerEnabled(){
+    return reportSummaryIsFullHouse() || firstMeasureFlagEnabled('roof_model_viewer', false);
+  }
   const fmtCredit = value => window.PlatformCommerce.credit(value);
   function fmtMoney(value){ return callHost('fmtMoney', value) || String(Math.round((Number(value) || 0) * 100) / 100); }
   function addMinutes(date, minutes){ return new Date(date.getTime() + (Number(minutes) || 0) * 60000); }
@@ -322,7 +326,7 @@ window.PlatformCommerce.onReady(function(){
     const projectId = activeMeasurementProjectId();
     const cachedAssets = projectId ? primeMeasurementAssetCacheFromKnownUrls(projectId) : null;
     const hasXml = ready && !!cachedAssets?.xmlUrl;
-    if(ready) tabs.push({id:'model',get label(){ return (globalThis.PlatformLanguage?.text("measurements","m_c78580f5f4885e","Model & photos") ?? "Model & photos"); },icon:'fa-cube',active:activeMeasurementTab==='model',disabled:false,pending:false});
+    if(ready && reportModelViewerEnabled()) tabs.push({id:'model',get label(){ return (globalThis.PlatformLanguage?.text("measurements","m_c78580f5f4885e","Model & photos") ?? "Model & photos"); },icon:'fa-cube',active:activeMeasurementTab==='model',disabled:false,pending:false});
     const changes = reportFollowupEnabled() ? reportChangeRequests() : [];
     const supportView = !changes.length || reportRequestsAreSupportOnly(changes);
     if (inlineProjectMapWithReports()) {

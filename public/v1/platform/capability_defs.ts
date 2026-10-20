@@ -802,6 +802,14 @@ const definitions: CapabilityDefinition[] = [
     default: true
   },
   {
+    key: "firstmeasure.roof_model_viewer",
+    kind: "feature",
+    parent: "firstmeasure.report_orders",
+    label: "Roof Model Viewer",
+    description: "The 3D Model & photos tab for roof-only reports. Full House reports always show it.",
+    default: false
+  },
+  {
     key: "firstmeasure.report_expedite_options",
     kind: "feature",
     parent: "firstmeasure.report_orders",
