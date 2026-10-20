@@ -2260,6 +2260,9 @@ $tutorialStudentEmail = strtolower(trim((string)($_GET['student_email'] ?? $_GET
 
         window.firstMeasureSetTimerZone = function(el, zone) {
             if (!el) return;
+            // Called every frame by the claim timer: leave the classes alone unless the zone changed.
+            if (el.dataset.zone === String(zone || '')) return;
+            el.dataset.zone = String(zone || '');
             el.classList.remove('zone-green', 'zone-yellow', 'zone-orange', 'zone-red', 'zone-expired');
             if (zone) el.classList.add(`zone-${zone}`);
         };
@@ -2368,11 +2371,10 @@ $tutorialStudentEmail = strtolower(trim((string)($_GET['student_email'] ?? $_GET
             const elapsedMs = window.firstMeasureGetActiveElapsedMs(state.timing);
             el.textContent = window.firstMeasureFormatElapsed(elapsedMs);
             window.firstMeasureSetTimerZone(el, window.firstMeasureTimelineZone(elapsedMs, state.timeline));
-            if (state.timeline && elapsedMs > state.timeline.totalMs) {
-                el.title = 'Elapsed since project claim (full time expired: 5 PHP per point)';
-            } else {
-                el.title = 'Elapsed since project claim';
-            }
+            const title = state.timeline && elapsedMs > state.timeline.totalMs
+                ? 'Elapsed since project claim (full time expired: 5 PHP per point)'
+                : 'Elapsed since project claim';
+            if (el.title !== title) el.title = title;
             if (marker && state.timeline) {
                 const progress = state.timeline.totalMs > 0 ? Math.max(0, Math.min(1, elapsedMs / state.timeline.totalMs)) : 0;
                 marker.style.transform = `translate3d(${(progress * state.timeline.markerWidth) - 0.5}px, 0, 0)`;
@@ -3071,11 +3073,13 @@ $tutorialStudentEmail = strtolower(trim((string)($_GET['student_email'] ?? $_GET
             const toolbar = document.getElementById('global-toolbar');
             if (!toolbar) return;
 
-            const refreshToolbarLayout = () => requestAnimationFrame(() => {
+            let toolbarLayoutFrame = 0;
+            const refreshToolbarLayout = () => { if (!toolbarLayoutFrame) toolbarLayoutFrame = requestAnimationFrame(() => {
+                toolbarLayoutFrame = 0;
                 if (typeof window.updateToolbarLayout === 'function') {
                     window.updateToolbarLayout();
                 }
-            });
+            }); };
 
             refreshToolbarLayout();
             window.addEventListener('resize', refreshToolbarLayout);
@@ -3086,7 +3090,10 @@ $tutorialStudentEmail = strtolower(trim((string)($_GET['student_email'] ?? $_GET
             }
 
             if (typeof MutationObserver !== 'undefined') {
-                const toolbarMutationObserver = new MutationObserver(refreshToolbarLayout);
+                // The layout pass writes the toolbar's own class; reacting to that write re-ran it every frame forever.
+                const toolbarMutationObserver = new MutationObserver(records => {
+                    if (records.some(r => !(r.type === 'attributes' && r.target === toolbar && r.attributeName === 'class'))) refreshToolbarLayout();
+                });
                 toolbarMutationObserver.observe(toolbar, { childList: true, subtree: true, attributes: true, characterData: true });
             }
         });

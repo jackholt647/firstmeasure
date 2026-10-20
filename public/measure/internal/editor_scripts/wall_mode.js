@@ -956,22 +956,24 @@ function perf_render3DFrame() {
         const planeDisplay=document.createElement('select');planeDisplay.id='plane-other-geometry';planeDisplay.setAttribute('aria-label','Off-plane geometry');
         for(const [value,text]of [['normal','Normal'],['faint','Faint'],['hidden','Hidden']]){const option=document.createElement('option');option.value=value;option.textContent=text;planeDisplay.appendChild(option);}planeDisplay.value='faint';planeDisplay.onchange=()=>wallEditor?.setPlaneDisplay(planeDisplay.value);planeControls.appendChild(planeDisplay);interaction.appendChild(planeControls);
         const lineDimension=document.createElement('span');lineDimension.id='wall-selected-line-length';lineDimension.hidden=true;lineDimension.setAttribute('aria-label','Selected line length');
+        // This runs on every redraw: write only what changed, since each DOM write wakes the toolbar layout observer.
+        const put=(el,key,value)=>{if(el&&el[key]!==value)el[key]=value;};
         const updateInteraction=()=>{
-            const counts=selectionCounts();document.getElementById('wall-resoffit-count').textContent=counts.lines+' lines selected';document.getElementById('wall-resoffit-apply').disabled=!counts.lines;selectionReadout.textContent='Selected: '+counts.points+' points · '+counts.lines+' lines · '+counts.faces+' faces';
-            const plane=wallEditor?.planeView?.();planeControls.hidden=!plane;cancelButton.textContent=plane?.rotating?'Cancel - Esc':plane?'Exit plane (P)':'Cancel - Esc';if(plane)planeDisplay.value=plane.display;
+            const counts=selectionCounts();put(document.getElementById('wall-resoffit-count'),'textContent',counts.lines+' lines selected');put(document.getElementById('wall-resoffit-apply'),'disabled',!counts.lines);put(selectionReadout,'textContent','Selected: '+counts.points+' points · '+counts.lines+' lines · '+counts.faces+' faces');
+            const plane=wallEditor?.planeView?.();put(planeControls,'hidden',!plane);put(cancelButton,'textContent',plane?.rotating?'Cancel - Esc':plane?'Exit plane (P)':'Cancel - Esc');if(plane)put(planeDisplay,'value',plane.display);
 
-            const toolbar=document.querySelector('#three-container .enh-control-panel');const mainToolbar=document.getElementById('exterior-main-toolbar');if(mainToolbar&&advanced.parentElement!==mainToolbar)mainToolbar.appendChild(advanced);advanced.hidden=!enabled;if(!enabled)advanced.open=false;if(toolbar&&interaction.parentElement!==toolbar)toolbar.appendChild(interaction);
+            const toolbar=document.querySelector('#three-container .enh-control-panel');const mainToolbar=document.getElementById('exterior-main-toolbar');if(mainToolbar&&advanced.parentElement!==mainToolbar)mainToolbar.appendChild(advanced);put(advanced,'hidden',!enabled);if(!enabled)put(advanced,'open',false);if(toolbar&&interaction.parentElement!==toolbar)toolbar.appendChild(interaction);
             const lengthSlot=document.getElementById('selected-line-length-slot');if(lengthSlot&&lineDimension.parentElement!==lengthSlot)lengthSlot.appendChild(lineDimension);
             let length=enabled?(editingLayer==='base'?baseEditor:wallEditor)?.selectedLineLength?.():null;
             if(!enabled&&selectedLines.size){
                 const mpp=Number(window.getMetersPerPx?.());
                 if(Number.isFinite(mpp)&&mpp>0)length=[...selectedLines].reduce((sum,line)=>{const a=line.start,b=line.end;return sum+(a&&b?Math.hypot((b.x-a.x)*mpp,(b.y-a.y)*mpp,(b.z??0)-(a.z??0)):0);},0);
             }
-            lineDimension.hidden=!(Number.isFinite(length)&&length>=0);
-            if(!lineDimension.hidden)lineDimension.textContent='Length: '+(window.ReportUnits?.current().distance(length,(length/.3048).toFixed(2)+'′')??(length/.3048).toFixed(2)+'′');
+            put(lineDimension,'hidden',!(Number.isFinite(length)&&length>=0));
+            if(!lineDimension.hidden)put(lineDimension,'textContent','Length: '+(window.ReportUnits?.current().distance(length,(length/.3048).toFixed(2)+'′')??(length/.3048).toFixed(2)+'′'));
             const name=enabled&&(groundEditor?.interaction?.()||wallEditor?.interaction()||baseEditor?.interaction());
-            interaction.hidden=!name;interaction.style.display=name?'flex':'none';
-            interactionText.hidden=name==='Drawing plane';
+            put(interaction,'hidden',!name);put(interaction.style,'display',name?'flex':'none');
+            put(interactionText,'hidden',name==='Drawing plane');
             if(name&&name!=='Drawing plane'){const detail=document.getElementById(groundEditor?.sampling?.()?'ground-status':'base-status')?.textContent||'';const text=name+' · '+(name==='Rectangle selection'?'drag and release':detail||'Click to place; Escape cancels');if(interactionText.textContent!==text)interactionText.textContent=text;}
         };
         setInterval(updateInteraction,150);
