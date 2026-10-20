@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+October 19 From Roof survey stations: [straight eave and side runs with flashing strips no longer keep load-bearing survey points](deploy/digitalocean/development-survey-stations-20261019.md) records release `220f7be0` and the verified development rollout.
+
 October 19 Base pitch: [a pitched base face no longer snaps back when an attached wall folds by a sliver](deploy/digitalocean/development-base-pitch-20261019.md) records release `3e6e03c0` and the verified development rollout.
 
 October 19 Partial payouts and payroll history: [work orders paid out in parts with Cancel the rest and the organization's confirmation method, payroll type and membership history, split rule previews, the work roster, reports for dates and final pay on removal](deploy/digitalocean/development-payroll-closeout-20261019.md) records release `d63d657f` (assignees and workforce schema version 3), the per-host generated files and the verified four-role development rollout.
