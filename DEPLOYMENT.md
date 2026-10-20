@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+October 20 Production release gates on dev: [the roof 3D viewer behind `firstmeasure.roof_model_viewer` (Full House always shows it) and the signup sandbox limited to development hosts](deploy/digitalocean/development-release-gates-20261020.md) records release `067deb12` and the verified four-role development rollout.
+
 October 19 Full-house customer wall numbers: [the customer summary, CSV and Summary.pdf show the exterior summary for full-house orders, and a Full House order whose references fail to copy is cancelled with its refund](deploy/digitalocean/development-fh-customer-walls-20261019.md) records releases `41c43b98` and `42ca4abc` and the verified development rollout.
 
 October 19-20 Full-house production points: [a full house is scored at submission as roof points plus twice a wall-complexity proxy, and the drafter sees only a stopwatch until then](deploy/digitalocean/development-full-house-points-20261020.md) records releases `7c811330` and `03d57cc1` and the verified development rollouts.
