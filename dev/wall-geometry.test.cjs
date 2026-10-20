@@ -250,6 +250,62 @@ test('flashing strips on a generated wall run drop survey stations like perimete
  assert.ok(kept.some(q=>q.x===4&&q.z===7.998)&&kept.some(q=>q.x===4&&q.z===2.002),'stations shared with the side wall stay');
  assert.deepEqual(joined.find(w=>w.id==='side').top,side.top,'the side wall is not moved');
 });
+test('two generated runs sharing a survey line drop its stations together; another run protects a station only where it turns',()=>{
+ // A perimeter run and a flashing run above it keep separate merge groups
+ // (as chimney clean-up and flashing groups leave them) but share the roof
+ // contact line z=3. Both carry the same survey stations at x=2 and x=4, and
+ // deduplication left a 0.3 mm crack between the perimeter strips at x=4.
+ const runs=()=>[
+  {id:'a1',sourceId:'R1.0',kind:'perimeter',mergeGroup:'A',bottom:[p(0,0,0),p(2,0,0)],top:[p(0,0,3),p(2,0,3.004)]},
+  {id:'a2',sourceId:'R1.0',kind:'perimeter',mergeGroup:'A',bottom:[p(2,0,0),p(4,0,0)],top:[p(2,0,3.004),p(4,0,2.997)]},
+  {id:'a3',sourceId:'R1.0',kind:'perimeter',mergeGroup:'A',bottom:[p(4.0003,0,0),p(6,0,0)],top:[p(4.0003,0,2.997),p(6,0,3)]},
+  {id:'b1',sourceId:'R2',kind:'flashing',mergeGroup:'B',bottom:[p(0,0,3),p(2,0,3.004)],top:[p(0,0,5),p(2,0,5)]},
+  {id:'b2',sourceId:'R2',kind:'flashing',mergeGroup:'B',bottom:[p(2,0,3.004),p(4,0,2.997)],top:[p(2,0,5),p(4,0,5)]},
+  {id:'b3',sourceId:'R2',kind:'flashing',mergeGroup:'B',bottom:[p(4,0,2.997),p(6,0,3)],top:[p(4,0,5),p(6,0,5)]}];
+ const outline=(geo,group)=>geo.faces.filter(f=>f.mergeGroup===group).flatMap(f=>f.pointIndices.map(i=>geo.points[i])).map(q=>[q.x,q.z].map(v=>+v.toFixed(4)).join(',')).sort();
+ const geo=G.topology(runs());
+ assert.deepEqual(outline(geo,'A'),['0,0','0,3','6,0','6,3'],'the perimeter run has only its corners');
+ assert.deepEqual(outline(geo,'B'),['0,3','0,5','6,3','6,5'],'the flashing run has only its corners');
+ // Every strip that has a station, on either side of the shared line and of the crack, is snapped onto the same straight line.
+ const walls=G.canonicalGeneratedWalls(runs()),z=(id,edge,i)=>walls.find(w=>w.id===id)[edge][i].z;
+ for(const [id,edge,i]of [['a1','top',1],['a2','top',0],['b1','bottom',1],['b2','bottom',0],['a2','top',1],['a3','top',0],['b2','bottom',1],['b3','bottom',0]])assert.ok(Math.abs(z(id,edge,i)-3)<1e-9,id+' '+edge+' '+i);
+ assert.deepEqual(outline(G.topology(walls),'A'),outline(geo,'A'),'a second pass keeps the same outline');
+ // A side wall turning away at x=4 is a real junction: both runs keep that station.
+ const side={id:'side',sourceId:'R9.0',kind:'perimeter',bottom:[p(4,0,0),p(4,-3,0)],top:[p(4,0,2.997),p(4,-3,2.997)]};
+ const turned=G.topology([...runs(),side]);
+ assert.ok(outline(turned,'A').includes('4,2.997')&&outline(turned,'B').includes('4,2.997'));
+ assert.ok(!outline(turned,'A').includes('2,3.004')&&!outline(turned,'B').includes('2,3.004'),'the straight station at x=2 still goes');
+ // The same outline seeds a new wall draft.
+ const rings=G.generatedGroupOutline(runs(),runs().filter(w=>w.mergeGroup==='A'));
+ assert.deepEqual(rings.flatMap(f=>f.points).map(q=>[q.x,q.z].map(v=>+v.toFixed(4)).join(',')).sort(),outline(geo,'A'));
+});
+test('rebuilt faces drop survey stations together and keep user points, other faces\' vertices and shared edges',()=>{
+ // A rebuilt wall and the rebuilt flashing face above it share a roof-contact
+ // edge carrying Resoffit roof samples at x=1, 2 and 3.
+ const wall=()=>({id:'wall',surveyedRun:true,points:[p(0,0,0),p(4,0,0),p(4,0,3),p(3,0,3.003),p(2,0,2.996),p(1,0,3.002),p(0,0,3)],retainedPoints:[p(2,0,2.996),p(1,0,1)]});
+ const flashing=()=>({id:'flashing',surveyedRun:true,points:[p(0,0,3),p(1,0,3.002),p(2,0,2.996),p(3,0,3.003),p(4,0,3),p(4,0,5),p(0,0,5)]});
+ const xs=f=>f.points.filter(q=>q.z>2.5&&q.z<3.5).map(q=>q.x).sort((a,b)=>a-b);
+ let r=G.cleanSurveyedFaces([wall(),flashing()]);
+ assert.deepEqual(r.faces.map(xs),[[0,4],[0,4]],'both faces lose the same stations');
+ assert.deepEqual(r.faces[0].retainedPoints,[p(1,0,1)],'retained anchors at removed stations go too');
+ assert.ok(r.chords.length&&r.chords.every(c=>[c.a.x,c.b.x].sort().join()==='0,4'&&c.stations.length===3),'selections on the station edges map to the kept edge');
+ // A side wall that is not rebuilt meets the run at x=2: that station stays in both.
+ const side={id:'side',points:[p(2,0,2.996),p(2,-3,2.996),p(2,-3,0),p(2,0,0)]};
+ r=G.cleanSurveyedFaces([wall(),flashing(),side]);
+ assert.deepEqual(r.faces.slice(0,2).map(xs),[[0,2,4],[0,2,4]]);assert.equal(r.faces[2],side,'other faces are never rewritten');
+ // So does a corner of another face a fraction of a millimetre away.
+ const near={id:'near',points:[p(2.0004,0,2.996),p(2.0004,-3,2.996),p(2.0004,-3,0)]};
+ assert.deepEqual(G.cleanSurveyedFaces([wall(),flashing(),near]).faces.slice(0,2).map(xs),[[0,2,4],[0,2,4]]);
+ // A user point stays.
+ assert.deepEqual(G.cleanSurveyedFaces([wall(),flashing()],{protect:[p(3,0,3.003)]}).faces.map(xs),[[0,3,4],[0,3,4]]);
+ // A station on another face's edge goes only where the kept edge still passes through it.
+ const ledge={id:'ledge',points:[p(0,0,3),p(2,0,2.996),p(2,1,2.996),p(0,1,3)]};
+ assert.deepEqual(xs(G.cleanSurveyedFaces([wall(),ledge],{eligible:f=>f.id==='wall'}).faces[0]),[0,2,4]);
+ const exact={id:'wall',surveyedRun:true,points:[p(0,0,0),p(4,0,0),p(4,0,3),p(2,0,3),p(0,0,3)]},flat={id:'ledge',points:[p(0,0,3),p(4,0,3),p(4,1,3),p(0,1,3)]};
+ assert.deepEqual(xs(G.cleanSurveyedFaces([exact,flat]).faces[0]),[0,4]);
+ // Faces that are not rebuilt from generated geometry keep every point.
+ const user={...wall(),surveyedRun:false};assert.equal(G.cleanSurveyedFaces([user]).faces[0],user);
+});
 
 test('flashing alignment retains substantial height differences and unrelated nearby returns',()=>{
  const input=driftedFlashing();for(const p of input[0].top)p.z=4.8;input[2].sourceRoofId='unrelated';

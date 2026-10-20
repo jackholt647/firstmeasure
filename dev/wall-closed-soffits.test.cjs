@@ -7,3 +7,19 @@ test('partial soffit deletion only restores the newly exposed siding interval',(
 test('zero setbacks, parapets and skylights do not produce closed soffits',()=>{for(const change of [{setback:0},{type:'parapet'},{type:'skylight'}]){const {w,state}=fixture();Object.assign(state.sources[0],change);assert.equal(C.build(state,[w]).length,0);}});
 test('drafted soffits retain classification and roof ownership through save/reload',()=>{const {face,state}=fixture(),M=require('../public/measure/internal/editor_scripts/exterior_model.js'),S=require('../public/measure/internal/editor_scripts/base_sketch_geometry.js'),panel=state.wallEdits.$surfaces[0],frame=W.faceFrame(panel),d={frame,closedSoffit:panel.closedSoffit,roofLayer:true,members:[],faces:[{id:'panel',points:panel.points.map(p=>W.inFrame(frame,p))}]};S.ensure(d);panel.drafted=true;state.wallEdits.$drafts={soffit:d};assert.equal(M.draftFace(d,d.faces[0]).roofLayer,true);assert.ok(C.presentation(face,JSON.parse(JSON.stringify(state))).some(f=>f.constructionOnly));d.deletedFaces=[d.faces[0].points.map(p=>p.nodeId).sort().join('|')];assert.deepEqual(C.presentation(face,state),[face]);});
 test('neighboring undersides meet at their common outer roof corner',()=>{const {w,state}=fixture(),p=(x,y,z)=>({x,y,z}),right={id:'right',bottom:[p(9,1,0),p(9,9,0)],top:[p(9,1,4.5),p(9,9,4.5)]};state.sources.push({id:'right',kind:'perimeter',type:'eave',setback:1,a:p(9,0,4.5),b:p(9,10,4.5),originalA:p(10,0,4),originalB:p(10,10,4)});const faces=C.build(state,[w,right]);assert.equal(faces.length,2);for(const f of faces){K.validateFace(f);assert.ok(f.points.some(p=>p.x===10&&p.y===0&&p.z===4));}});
+test('closed-soffit panels join across the survey stations the wall outline drops (captured house)',()=>{
+ // Roof geometry from a captured house: eave and rake walls are split into
+ // strips at measured-roof survey stations that the wall outline does not show.
+ const G=require('../public/measure/internal/editor_scripts/wall_geometry.js'),r=require('./roof-generation-fixture.cjs').build(require('./fixtures/flashing-survey-stations-roof.json'),12),walls=G.canonicalGeneratedWalls(r.composed),state={...r.state,closedSoffits:true};
+ const panels=C.build(state,walls),kept=G.topology(walls).points,onOutline=q=>kept.some(k=>Math.hypot(k.x-q.x,k.y-q.y)<1e-4);
+ assert.ok(panels.some(f=>f.closedSoffit.wallIds?.length>1),'strips of one straight run share one panel');
+ for(const f of panels.filter(f=>f.closedSoffit.wallIds))K.validateFace(f);
+ // Where two panels continue one straight eave, they meet only at a point the wall outline has.
+ const d3=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y,a.z-b.z),dir=f=>{const l=d3(f.points[0],f.points[1]);return {x:(f.points[1].x-f.points[0].x)/l,y:(f.points[1].y-f.points[0].y)/l};};
+ for(const a of panels)for(const b of panels){if(a===b||d3(a.points[1],b.points[0])>.001||[a,b].some(f=>d3(f.points[0],f.points[1])<.002))continue;const u=dir(a),v=dir(b);if(u.x*v.x+u.y*v.y<Math.cos(5*Math.PI/180))continue;
+  assert.ok(onOutline(a.points[1]),'panels '+a.id+' and '+b.id+' meet where the wall has no point');}
+ // Every strip with an underside is still covered, by the same area.
+ const single=walls.flatMap(w=>C.build(state,[w])),total=fs=>fs.reduce((s,f)=>s+area(f),0);
+ assert.deepEqual([...new Set(panels.flatMap(f=>f.closedSoffit.wallIds||[f.closedSoffit.wallId]))].sort(),single.map(f=>f.closedSoffit.wallId).sort());
+ assert.ok(Math.abs(total(panels)-28.7115)<.001,'one panel per strip covered 28.7115 m2, got '+total(panels));
+});

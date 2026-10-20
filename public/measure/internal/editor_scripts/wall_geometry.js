@@ -954,7 +954,8 @@
     }
     function simplifyGeneratedEdges(points,edges,junctions=new Set(),tolerance=.05,corrections=null) {
         const result=edges.map(e=>({ids:e.slice(),samples:e.slice()}));
-        const distance3=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y,a.z-b.z);
+        // `tolerance` may be a function of the vertex id: a station that must stay on another face's edge allows no deviation.
+        const distance3=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y,a.z-b.z),limit=typeof tolerance==='function'?tolerance:()=>tolerance;
         let changed=true;
         while(changed){changed=false;
             for(const id of new Set(result.flatMap(e=>e.ids))){
@@ -968,10 +969,10 @@
                 // Very short survey stations can have steep local angles even on
                 // a long, nearly level eave. The whole-run deviation bound below
                 // decides those runs; short physical corners keep the angle test.
-                const surveyRun=tolerance>.001&&distance(p,q)>2&&Math.abs(q.z-p.z)/distance(p,q)<Math.tan(5*Math.PI/180);
+                const surveyRun=limit(id)>.001&&distance(p,q)>2&&Math.abs(q.z-p.z)/distance(p,q)<Math.tan(5*Math.PI/180);
                 if(cosine<Math.cos(5*Math.PI/180)&&!surveyRun)continue;
                 const samples=[...new Set(incident.flatMap(e=>e.samples))];
-                if(samples.some(i=>{const s=points[i],t=((s.x-p.x)*(q.x-p.x)+(s.y-p.y)*(q.y-p.y)+(s.z-p.z)*(q.z-p.z))/(l*l);return t<-1e-8||t>1+1e-8||distance3(s,mix(p,q,t))>tolerance;}))continue;
+                if(samples.some(i=>{const s=points[i],t=((s.x-p.x)*(q.x-p.x)+(s.y-p.y)*(q.y-p.y)+(s.z-p.z)*(q.z-p.z))/(l*l);return t<-1e-8||t>1+1e-8||distance3(s,mix(p,q,t))>limit(i);}))continue;
                 result.splice(result.indexOf(incident[0]),1);result.splice(result.indexOf(incident[1]),1);result.push({ids:[a,b],samples});changed=true;break;
             }
         }
@@ -982,6 +983,97 @@
             }
         }
         return result.map(e=>e.ids);
+    }
+    // The one survey-station clean-up for outlines that come from the measured
+    // roof: the merged wall preview (topology), new wall drafts (which read the
+    // topology outline) and faces rebuilt by Resoffit, Wallless and line moves
+    // (cleanSurveyedFaces). `rings` are vertex-id loops of those outlines. An
+    // edge that several rings share is one edge here, so a station is removed
+    // or snapped identically in every face that has it. A vertex stays when it
+    // is in `fixed` (vertices of other walls, user points, chimneys), where any
+    // ring turns or leaves the run (more or fewer than two boundary edges meet),
+    // or where the run's whole deviation would exceed `tolerance`. A vertex that
+    // is only a straight station of every ring through it protects nothing.
+    function cleanSurveyRings(points,rings,fixed=new Set(),tolerance=.05,corrections=null) {
+        const edges=new Map();
+        for(const r of rings)r.forEach((a,i)=>{const b=r[(i+1)%r.length];if(a!==b)edges.set(a<b?a+':'+b:b+':'+a,[a,b]);});
+        const list=[...edges.entries()],order=new Map(list.map(([k],i)=>[k,i])),adj=new Map();
+        for(const [k,[a,b]] of list)for(const [p,q] of [[a,b],[b,a]]){if(!adj.has(p))adj.set(p,[]);adj.get(p).push([k,q]);}
+        const hard=new Set([...adj.keys()].filter(id=>fixed.has(id)||adj.get(id).length!==2)),seen=new Set(),bundles=new Map();
+        // Runs between kept vertices are independent: simplify each on its own
+        // (with any parallel run between the same two vertices), not the whole house.
+        for(const [k,[a,b]] of list){
+            if(seen.has(k))continue;seen.add(k);const chain=[k],ends=[];
+            for(const start of [b,a]){let edge=k,at=start;
+                while(!hard.has(at)){const next=adj.get(at).find(([e])=>e!==edge);if(!next||seen.has(next[0]))break;seen.add(next[0]);chain.push(next[0]);edge=next[0];at=next[1];}
+                ends.push(at);}
+            const key=ends.every(e=>hard.has(e))?ends.slice().sort((x,y)=>x-y).join(':'):'loop:'+k;
+            if(!bundles.has(key))bundles.set(key,[]);bundles.get(key).push(...chain);
+        }
+        const kept=new Set();
+        for(const keys of bundles.values())for(const e of simplifyGeneratedEdges(points,keys.sort((x,y)=>order.get(x)-order.get(y)).map(k=>edges.get(k)),hard,tolerance,corrections))for(const id of e)kept.add(id);
+        return rings.map(r=>{const out=r.filter(id=>kept.has(id));return out.length>=3?out:r;});
+    }
+    // World-space faces rebuilt by an edit. `eligible` faces have outlines from
+    // generated roof-contact geometry and may be rewritten; every vertex of any
+    // other face, and every point in `protect` (user points), stays, as does an
+    // eligible vertex lying on another face's edge. Returns the faces with
+    // eligible rings cleaned, their retained points at removed stations
+    // dropped, and `chords` (each kept edge with the stations it replaced).
+    function cleanSurveyedFaces(faces,options={}) {
+        const eligible=options.eligible||(f=>!!f.surveyedRun),tolerance=options.tolerance??.05,K=typeof module==='object'&&module.exports?require('./exterior_geometry.js'):root.ExteriorGeometry;
+        const points=[],index=new Map(),key=p=>[p.x,p.y,p.z].map(v=>v.toFixed(5)).join('|');
+        const add=p=>{const k=key(p);if(!index.has(k)){index.set(k,points.length);points.push({x:p.x,y:p.y,z:p.z});}return index.get(k);};
+        const ringsOf=f=>[f.points,...(f.holes||[])],live=faces.filter(f=>f&&!f.deleted&&!f.snapOnly&&f.points?.length>=3);
+        const cleanable=live.filter(f=>eligible(f));if(!cleanable.length)return {faces,chords:[],removed:[]};
+        const plans=cleanable.map(f=>({f,rings:ringsOf(f).map(r=>r.map(add).filter((id,i,a)=>id!==a[(i+a.length-1)%a.length]))}));
+        const fixed=new Set(),others=live.filter(f=>!cleanable.includes(f)),otherEdges=[];
+        for(const f of others)for(const r of ringsOf(f))r.forEach((p,i)=>{const k=index.get(key(p));if(k!=null)fixed.add(k);otherEdges.push([p,r[(i+1)%r.length]]);});
+        const d3=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y,a.z-b.z),candidates=[...new Set(plans.flatMap(p=>p.rings.flat()))];
+        // A station lying on another face's edge may only go where the kept run
+        // still passes through it, so that edge stays closed.
+        const protect=options.protect||[],onOther=new Set(),limit=id=>onOther.has(id)?1e-5:tolerance;
+        // Faces of a measured house can meet a fraction of a millimetre apart.
+        // A vertex within 1 mm protects a station like a shared one does: any
+        // vertex of another face, or a corner (5 degrees or more) of a rebuilt one.
+        const near=[];for(const f of live)for(const r of ringsOf(f))r.forEach((q,i)=>{const a=r[(i+r.length-1)%r.length],b=r[(i+1)%r.length],u={x:q.x-a.x,y:q.y-a.y,z:q.z-a.z},v={x:b.x-q.x,y:b.y-q.y,z:b.z-q.z},lu=Math.hypot(u.x,u.y,u.z),lv=Math.hypot(v.x,v.y,v.z);
+            near.push({q,id:index.get(key(q)),fixed:!cleanable.includes(f)||lu<1e-9||lv<1e-9||(u.x*v.x+u.y*v.y+u.z*v.z)/(lu*lv)<Math.cos(5*Math.PI/180)});});
+        for(const id of candidates){const p=points[id];
+            if(protect.some(q=>d3(p,q)<1e-5)||near.some(n=>n.fixed&&n.id!==id&&d3(p,n.q)<=.001))fixed.add(id);
+            else if(otherEdges.some(([a,b])=>{const l2=(b.x-a.x)**2+(b.y-a.y)**2+(b.z-a.z)**2;if(l2<1e-12)return d3(p,a)<1e-5;const t=((p.x-a.x)*(b.x-a.x)+(p.y-a.y)*(b.y-a.y)+(p.z-a.z)*(b.z-a.z))/l2;return t>-1e-9&&t<1+1e-9&&d3(p,mix(a,b,t))<1e-5;}))onOther.add(id);
+        }
+        // A face the clean-up would make invalid keeps all of its vertices, and
+        // so does every face sharing them, so shared edges stay closed.
+        let result;
+        for(let attempt=0;attempt<8;attempt++){
+            const cleaned=cleanSurveyRings(points,plans.flatMap(p=>p.rings),fixed,limit);let n=0,failed=false;
+            result=plans.map(p=>{const rings=p.rings.map(()=>cleaned[n++]);if(rings.every((r,i)=>r.length===p.rings[i].length))return null;
+                const ids=new Set(rings.flat()),keep=r=>r.filter(p=>ids.has(index.get(key(p))));
+                const face={...p.f,points:keep(p.f.points),...(p.f.holes?{holes:p.f.holes.map(keep)}:{})};
+                try{if(face.points.length<3||(face.holes||[]).some(h=>h.length<3))throw Error('degenerate');K.validateFace(face);}catch{for(const id of p.rings.flat())fixed.add(id);failed=true;}
+                return {face,removed:p.rings.flat().filter(id=>!ids.has(id))};});
+            if(!failed)break;result=null;
+        }
+        if(!result)return {faces,chords:[],removed:[]};
+        const removed=new Set(result.flatMap(r=>r?r.removed:[])),byFace=new Map(plans.map((p,i)=>[p.f,result[i]]));
+        const out=faces.map(f=>{const r=byFace.get(f);if(!r)return f;const face=r.face;if(face.retainedPoints)face.retainedPoints=face.retainedPoints.filter(p=>!removed.has(index.get(key(p))));return face;});
+        // Each kept edge of a cleaned run, with the stations it replaced, so
+        // callers can carry selections made on the former station edges.
+        const chords=[];for(const p of plans)for(const r of p.rings){const kept=r.filter(id=>!removed.has(id));if(kept.length===r.length)continue;
+            for(let i=0;i<r.length;i++){if(removed.has(r[i]))continue;let j=i+1;const between=[];while(removed.has(r[j%r.length])){between.push(points[r[j%r.length]]);j++;}if(between.length)chords.push({a:points[r[i]],b:points[r[j%r.length]],stations:between});}}
+        return {faces:out,chords,removed:[...removed].map(id=>points[id])};
+    }
+    // The outline topology draws for one generated merge group, from just the
+    // walls that can meet its line, so a new draft starts from the same cleaned
+    // boundary the undrafted preview showed. Returns world rings.
+    function generatedGroupOutline(walls,members) {
+        const group=members[0]?.mergeGroup;if(!group||members.some(w=>w.mergeGroup!==group))return null;
+        const a=members[0].bottom[0],b=members[0].bottom[1],len=distance(a,b);if(len<EPS)return null;
+        const u={x:(b.x-a.x)/len,y:(b.y-a.y)/len},along=p=>(p.x-a.x)*u.x+(p.y-a.y)*u.y,off=p=>Math.abs((p.x-a.x)*u.y-(p.y-a.y)*u.x);
+        const ids=new Set(members.map(w=>w.id)),span=members.flatMap(w=>[...w.bottom,...w.top].map(along)),lo=Math.min(...span)-.01,hi=Math.max(...span)+.01;
+        const touching=walls.filter(w=>!ids.has(w.id)&&[...w.bottom,...w.top].some(p=>off(p)<1e-5&&along(p)>=lo&&along(p)<=hi)),joined=new Set(touching.map(w=>w.mergeGroup).filter(Boolean));
+        const geo=topology(walls.filter(w=>ids.has(w.id)||touching.includes(w)||joined.has(w.mergeGroup)));
+        return geo.faces.filter(f=>f.mergeGroup===group||String(f.mergeGroup).startsWith(group+'|region:')).map(f=>({points:f.pointIndices.map(i=>geo.points[i]),holes:(f.holes||[]).map(r=>r.map(i=>geo.points[i]))}));
     }
     function simplifyGeneratedRing(points,junctions=[]) {
         const protectedIds=new Set(points.flatMap((p,i)=>junctions.some(q=>Math.hypot(p.x-q.x,p.y-q.y,p.z-q.z)<1e-5)?[i]:[]));
@@ -1017,40 +1109,67 @@
             if(area>EPS)faces.push({pointIndices:ids,triangles,area,sourceId:w.sourceId,kind:w.kind,...(w.material?{material:w.material}:{}),...(w.color?{color:w.color}:{}),...(w.chimney?{chimney:{...w.chimney},type:'chimney'}:{}),...(w.mergeGroup?{mergeGroup:w.mergeGroup}:{})});
         });
         const groups=[...new Set(faces.map(f=>f.mergeGroup).filter(Boolean))];
+        // Strips of a surveyed run can end a fraction of a millimetre apart
+        // where deduplication trimmed an overlap. Weld those vertices so the
+        // crack is not drawn as two corners on a straight run.
+        const surveyedRuns=new Set(groups.filter(g=>{const m=faces.filter(f=>f.mergeGroup===g);return m.every(f=>f.sourceId)&&surveyedGeneratedRun(m);})),welded=new Map();
+        if(surveyedRuns.size){
+            const reps=[];
+            for(const id of [...new Set(faces.filter(f=>surveyedRuns.has(f.mergeGroup)).flatMap(f=>f.pointIndices))].sort((a,b)=>a-b)){
+                const p=points[id],rep=reps.find(r=>Math.hypot(points[r].x-p.x,points[r].y-p.y,points[r].z-p.z)<=.001);if(rep==null)reps.push(id);else welded.set(id,rep);
+            }
+            if(welded.size)for(let i=faces.length-1;i>=0;i--){const f=faces[i];if(!surveyedRuns.has(f.mergeGroup))continue;
+                f.pointIndices=f.pointIndices.map(id=>welded.get(id)??id).filter((id,j,a)=>id!==a[(j+a.length-1)%a.length]);if(f.pointIndices.length<3)faces.splice(i,1);}
+        }
         if(groups.length){
-            const output=faces.filter(f=>!f.mergeGroup),boundary=[];
+            const output=faces.filter(f=>!f.mergeGroup),boundary=[],plans=[],K=typeof module==='object'&&module.exports?require('./exterior_geometry.js'):root.ExteriorGeometry;
             for(const group of groups){
-                const members=faces.filter(f=>f.mergeGroup===group),K=typeof module==='object'&&module.exports?require('./exterior_geometry.js'):root.ExteriorGeometry;
+                const members=faces.filter(f=>f.mergeGroup===group);if(!members.length)continue;
                 const owner=members.find(f=>!f.chimney)||members[0],origin=points[owner.pointIndices[0]],other=owner.pointIndices.map(i=>points[i]).reduce((a,b)=>distance(origin,b)>distance(origin,a)?b:a,origin),length=distance(origin,other),u={x:(other.x-origin.x)/length,y:(other.y-origin.y)/length};
                 const local=p=>({x:(p.x-origin.x)*u.x+(p.y-origin.y)*u.y,y:p.z-origin.z,z:0}),world=p=>({x:origin.x+u.x*p.x,y:origin.y+u.y*p.x,z:origin.z+p.y});
                 // Shared-edge parity cannot represent overlapping source strips.
                 // Union the filled regions, then derive BOTH mesh and wire from it.
                 const regions=K.union(members.map(f=>({points:f.pointIndices.map(i=>local(points[i]))}))),junctions=new Set(faces.filter(f=>f.mergeGroup!==group).flatMap(f=>f.pointIndices));
+                const sourced=members.every(f=>f.sourceId),surveyed=sourced&&surveyedGeneratedRun(members);
                 for(const region of regions){
-                    const anchors=members.every(f=>f.sourceId)?[...junctions]:members.flatMap(f=>f.pointIndices);
+                    const anchors=sourced?[...junctions]:members.flatMap(f=>f.pointIndices);
                     const rings=[region.points,...region.holes].map(r=>r.flatMap((p,i)=>{const q=r[(i+1)%r.length],dx=q.x-p.x,dy=q.y-p.y,l2=dx*dx+dy*dy;return [add(world(p)),...anchors.map(id=>({id,v:local(points[id])})).map(v=>({...v,t:((v.v.x-p.x)*dx+(v.v.y-p.y)*dy)/l2})).filter(v=>v.t>1e-6&&v.t<1-1e-6&&Math.hypot(v.v.x-p.x-v.t*dx,v.v.y-p.y-v.t*dy)<1e-5&&Math.abs((points[v.id].x-origin.x)*u.y-(points[v.id].y-origin.y)*u.x)<1e-5).sort((a,b)=>a.t-b.t).map(v=>v.id)];}));
-                    const clean=r=>{
-                        let e=r.map((id,i)=>[id,r[(i+1)%r.length]]);
-                        if(members.every(f=>f.sourceId))e=simplifyGeneratedEdges(points,e,junctions,surveyedGeneratedRun(members)?.05:1e-5,corrections);
-                        const kept=new Set(e.flat());return r.filter(i=>kept.has(i));
-                    },result=rings.map(clean),outside=result.flatMap(r=>r.map((id,i)=>[id,r[(i+1)%r.length]]));
-                    // Boolean union also removes collinear stations. Carry every
-                    // original boundary sample onto its surviving run, including
-                    // samples that disappeared before simplification.
-                    if(members.every(f=>f.sourceId))for(const id of new Set(members.flatMap(f=>f.pointIndices))){
-                        if(junctions.has(id)||outside.some(e=>e.includes(id)))continue;
-                        const p=points[id],q=local(p),onRaw=rings.some(r=>r.some((a,i)=>{const b=r[(i+1)%r.length],v=local(points[a]),w=local(points[b]),dx=w.x-v.x,dy=w.y-v.y,l2=dx*dx+dy*dy,t=l2?((q.x-v.x)*dx+(q.y-v.y)*dy)/l2:-1;return t>=-1e-6&&t<=1+1e-6&&Math.hypot(q.x-v.x-t*dx,q.y-v.y-t*dy)<1e-5;}));
-                        if(!onRaw)continue;
-                        const tolerance=surveyedGeneratedRun(members)?.05:1e-5;
-                        for(const [a,b]of outside){const v=local(points[a]),w=local(points[b]),dx=w.x-v.x;if(Math.abs(dx)<1e-8)continue;const t=(q.x-v.x)/dx,z=origin.z+v.y+(w.y-v.y)*t;if(t>=0&&t<=1&&Math.abs(z-p.z)<=tolerance){if(Math.abs(z-p.z)>1e-9)corrections.set(id,{...p,z});break;}}
-                    }
-                    boundary.push(...outside);
-                    const mesh=K.triangles(result[0].map(i=>local(points[i])),result.slice(1).map(r=>r.map(i=>local(points[i])))),flat=result.flat();
-                    output.push({...owner,pointIndices:result[0],...(result.length>1?{holes:result.slice(1)}:{}),boundary:outside,triangles:mesh.triangles.map(t=>t.map(i=>flat[i])),area:K.area(region)});
+                    plans.push({group,members,owner,origin,local,region,rings,junctions,sourced,surveyed});
                 }
+            }
+            // Survey stations of every surveyed run are cleaned on one shared
+            // boundary graph. Vertices of all other walls (single strips, chimney
+            // and user walls) stay; where surveyed runs meet, a vertex stays only
+            // where one of them turns or leaves the line.
+            const surveyedGroups=new Set(plans.filter(p=>p.surveyed).map(p=>p.group)),fixed=new Set(faces.filter(f=>!surveyedGroups.has(f.mergeGroup)).flatMap(f=>f.pointIndices));
+            for(const [id,rep]of welded)if(fixed.has(id))fixed.add(rep);
+            const surveyedPlans=plans.filter(p=>p.surveyed),cleaned=cleanSurveyRings(points,surveyedPlans.flatMap(p=>p.rings),fixed,.05,corrections);
+            let next=0;for(const plan of surveyedPlans)plan.result=plan.rings.map(()=>cleaned[next++]);
+            for(const plan of plans){
+                const {members,owner,origin,local,region,rings,sourced,surveyed}=plan,junctions=surveyed?fixed:plan.junctions;
+                const clean=r=>{
+                    let e=r.map((id,i)=>[id,r[(i+1)%r.length]]);
+                    if(sourced)e=simplifyGeneratedEdges(points,e,junctions,1e-5,corrections);
+                    const kept=new Set(e.flat());return r.filter(i=>kept.has(i));
+                },result=plan.result||rings.map(clean),outside=result.flatMap(r=>r.map((id,i)=>[id,r[(i+1)%r.length]]));
+                // Boolean union also removes collinear stations. Carry every
+                // original boundary sample onto its surviving run, including
+                // samples that disappeared before simplification.
+                if(sourced)for(const id of new Set(members.flatMap(f=>f.pointIndices))){
+                    if(junctions.has(id)||outside.some(e=>e.includes(id)))continue;
+                    const p=points[id],q=local(p),onRaw=rings.some(r=>r.some((a,i)=>{const b=r[(i+1)%r.length],v=local(points[a]),w=local(points[b]),dx=w.x-v.x,dy=w.y-v.y,l2=dx*dx+dy*dy,t=l2?((q.x-v.x)*dx+(q.y-v.y)*dy)/l2:-1;return t>=-1e-6&&t<=1+1e-6&&Math.hypot(q.x-v.x-t*dx,q.y-v.y-t*dy)<1e-5;}));
+                    if(!onRaw)continue;
+                    const tolerance=surveyed?.05:1e-5;
+                    for(const [a,b]of outside){const v=local(points[a]),w=local(points[b]),dx=w.x-v.x;if(Math.abs(dx)<1e-8)continue;const t=(q.x-v.x)/dx,z=origin.z+v.y+(w.y-v.y)*t;if(t>=0&&t<=1&&Math.abs(z-p.z)<=tolerance){if(Math.abs(z-p.z)>1e-9)corrections.set(id,{...p,z});break;}}
+                }
+                boundary.push(...outside);
+                const mesh=K.triangles(result[0].map(i=>local(points[i])),result.slice(1).map(r=>r.map(i=>local(points[i])))),flat=result.flat();
+                output.push({...owner,pointIndices:result[0],...(result.length>1?{holes:result.slice(1)}:{}),boundary:outside,triangles:mesh.triangles.map(t=>t.map(i=>flat[i])),area:K.area(region)});
             }
             const ordinary=output.filter(f=>!f.mergeGroup).flatMap(f=>f.pointIndices.map((id,i)=>[id,f.pointIndices[(i+1)%f.pointIndices.length]]));
             const unique=new Map([...ordinary,...boundary].map(ids=>[ids.slice().sort((a,b)=>a-b).join(':'),{startIdx:ids[0],endIdx:ids[1],type:'wall'}]));
+            // A welded vertex follows its run's snapped height, so the next pass welds it again.
+            for(const [id,rep]of welded)if(corrections.has(rep)&&!corrections.has(id))corrections.set(id,{...points[id],z:corrections.get(rep).z});
             const moved=[...corrections].map(([i,to])=>({from:{...points[i]},to}));for(const [i,to]of corrections)points[i]=to;
             for(const face of output)face.area=face.triangles.reduce((area,t)=>{const [a,b,c]=t.map(i=>points[i]),u={x:b.x-a.x,y:b.y-a.y,z:b.z-a.z},v={x:c.x-a.x,y:c.y-a.y,z:c.z-a.z};return area+Math.hypot(u.y*v.z-u.z*v.y,u.z*v.x-u.x*v.z,u.x*v.y-u.y*v.x)/2;},0);
             const used=[...new Set(output.flatMap(f=>[...f.pointIndices,...(f.holes||[]).flat(),...f.triangles.flat()]))],remap=new Map(used.map((id,i)=>[id,i])),edge=e=>e.map(i=>remap.get(i));
@@ -1080,7 +1199,7 @@
         }
         return group.map(w=>w.id);
     }
-    const api={canonicalGeneratedWalls,chimneyContact,layerSetback,roofLayers:roof=>roofLayers(roof,surfaces(roof)),soffitWithoutSources,splitParameters,mergeCoplanar,build,buildSources,extrude,deduplicate,topology,simplifyGeneratedRing,surveyedGeneratedRun,plane,contains,onEdge,generatedMoveGroup,INCH};
+    const api={canonicalGeneratedWalls,chimneyContact,layerSetback,roofLayers:roof=>roofLayers(roof,surfaces(roof)),soffitWithoutSources,splitParameters,mergeCoplanar,build,buildSources,extrude,deduplicate,topology,simplifyGeneratedRing,surveyedGeneratedRun,cleanSurveyRings,cleanSurveyedFaces,generatedGroupOutline,plane,contains,onEdge,generatedMoveGroup,INCH};
     if(typeof module!=='undefined'&&module.exports)module.exports=api;
     else root.WallGeometry=api;
 })(typeof window!=='undefined'?window:globalThis);

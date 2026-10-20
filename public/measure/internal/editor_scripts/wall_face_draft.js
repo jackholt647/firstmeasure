@@ -451,7 +451,10 @@ window.createWallFaceDraft=function(host){
   const generated=current.filter(w=>d.members?.includes(w.id));if(generated.length&&generated.every(w=>w.sourceId&&w.kind==='perimeter'&&!w.chimney))d.generatedRoofContact=true;
   if(d.sourcePointsVersion===1||d.frame)return;
   const members=walls().filter(w=>d.members.includes(w.id)),junctions=walls().filter(w=>!d.members.includes(w.id)).flatMap(w=>[...w.bottom,...w.top]);
-  const candidates=members.flatMap(w=>[...w.bottom,...w.top].filter(p=>!w.sourceId||junctions.some(q=>Math.hypot(p.x-q.x,p.y-q.y,p.z-q.z)<1e-5)));
+  // On a surveyed run another wall's vertex is a junction only where the
+  // shared survey clean-up kept it (that wall turns or leaves the run there).
+  const outline=G.surveyedGeneratedRun(members)?G.generatedGroupOutline(walls(),members):null,kept=outline&&outline.flatMap(f=>[f.points,...f.holes]).flat();
+  const candidates=members.flatMap(w=>[...w.bottom,...w.top].filter(p=>!w.sourceId||junctions.some(q=>Math.hypot(p.x-q.x,p.y-q.y,p.z-q.z)<1e-5)&&(!kept||kept.some(q=>Math.hypot(p.x-q.x,p.y-q.y,p.z-q.z)<1e-5))));
   for(const p of candidates){const q={x:(p.x-d.origin.x)*d.u.x+(p.y-d.origin.y)*d.u.y,y:p.z,z:0};
    if(d.sketch.nodes.some(n=>Math.hypot(n.x-q.x,n.y-q.y)<.0001)||(d.removedPoints||[]).length||!d.faces.some(f=>!deleted(d,f)&&G.contains(f,q)))continue;
    const n={...q,id:'p'+(++d.sketch.next),fixed:false,sourceSplit:true};d.sketch.nodes.push(n);
@@ -473,10 +476,22 @@ window.createWallFaceDraft=function(host){
   const edits=host.state().wallEdits={...host.state().wallEdits},drafts=edits.$drafts||={};if(drafts[id(w)]&&(drafts[id(w)].faces.length||drafts[id(w)].sketch?.nodes.length||drafts[id(w)].deletedFaces?.length)){retainSourcePoints(drafts[id(w)]);return drafts[id(w)];}
   const origin={...w.bottom[0]},len=Math.hypot(w.bottom[1].x-origin.x,w.bottom[1].y-origin.y),u={x:(w.bottom[1].x-origin.x)/len,y:(w.bottom[1].y-origin.y)/len};
   const members=walls().filter(v=>id(v)===id(w)),local=p=>({x:(p.x-origin.x)*u.x+(p.y-origin.y)*u.y,y:p.z,z:0});
-  const filled=members.map(v=>[v.bottom[0],v.bottom[1],v.top[1],v.top[0]].map(local)),union=W.unionPlanar(filled);
+  const filled=members.map(v=>[v.bottom[0],v.bottom[1],v.top[1],v.top[0]].map(local));let union=W.unionPlanar(filled);
   if(G.surveyedGeneratedRun(members)){
-   const junctions=walls().filter(v=>!members.includes(v)).flatMap(v=>[...v.bottom,...v.top]).filter(p=>Math.abs((p.x-origin.x)*u.y-(p.y-origin.y)*u.x)<1e-5).map(local);
-   for(const face of union){face.points=G.simplifyGeneratedRing(face.points.map(p=>({...p,z:0})),junctions);face.holes=(face.holes||[]).map(r=>G.simplifyGeneratedRing(r.map(p=>({...p,z:0})),junctions));}
+   // Start from the outline the undrafted preview draws (the shared survey
+   // clean-up in G.topology), keeping only vertices of these strips: a point
+   // where a neighbouring run merely continues straight is not a wall point.
+   const outline=G.generatedGroupOutline(walls(),members),own=members.flatMap(v=>[...v.bottom,...v.top]),strip=p=>own.some(q=>Math.hypot(p.x-q.x,p.y-q.y,p.z-q.z)<=.0011);
+   const ring=r=>r.filter(strip).map(local).filter((p,i,a)=>{const q=a[(i+a.length-1)%a.length];return a.length<2||Math.hypot(p.x-q.x,p.y-q.y)>=.0001;}),signed=r=>r.reduce((s,p,i)=>{const q=r[(i+1)%r.length];return s+p.x*q.y-q.x*p.y;},0)/2;
+   const faces=outline?.map(f=>({points:ring(f.points),holes:f.holes.map(ring)}));
+   if(faces?.length&&faces.every(f=>f.points.length>=3&&f.holes.every(h=>h.length>=3))){
+    // The preview's local frame can run the other way along the wall.
+    if(signed(faces[0].points)<0)for(const f of faces){f.points.reverse();for(const h of f.holes)h.reverse();}
+    union=faces;
+   }else{
+    const junctions=walls().filter(v=>!members.includes(v)).flatMap(v=>[...v.bottom,...v.top]).filter(p=>Math.abs((p.x-origin.x)*u.y-(p.y-origin.y)*u.x)<1e-5).map(local);
+    for(const face of union){face.points=G.simplifyGeneratedRing(face.points.map(p=>({...p,z:0})),junctions);face.holes=(face.holes||[]).map(r=>G.simplifyGeneratedRing(r.map(p=>({...p,z:0})),junctions));}
+   }
   }
   const loops=union.map(f=>f.points),holes=union.flatMap(f=>f.holes);if(!loops.length)throw Error("Could not build the merged wall outline.");
   const d={origin,u,chimney:w.chimney&&copy(w.chimney),members:members.map(v=>v.id),faces:loops.map((points,i)=>({id:'wall-region-'+i,points:points.map(p=>({...p,z:0}))}))};d.faces.push(...holes.map((points,i)=>({id:'wall-hole-'+i,boundaryHole:true,points:points.map(p=>({...p,z:0}))})));S.ensure(d);for(const p of members.filter(v=>!v.sourceId).flatMap(v=>[...v.bottom,...v.top].map(local)))if(!d.sketch.nodes.some(n=>Math.hypot(n.x-p.x,n.y-p.y)<.0001)){const nodeId=S.add(d,p,.0001);if(d.chimney)d.sketch.nodes.find(n=>n.id===nodeId).generatedBoundary=true;}retainSourcePoints(d);classify(d);drafts[id(w)]=d;return d;
@@ -1338,15 +1353,35 @@ function perf_previewLineMove(e){
     const previous=host.state().wallEdits;host.state().wallEdits=edits;
     try{result={pairs:moveDraftLines(edits.$drafts[t.planarDraftKey],t.pairs,{x:t.direction.x*amount,y:t.direction.y*amount,z:t.direction.z*amount})};}
     finally{host.state().wallEdits=previous;}
-   }else{result=W.slideLines(copy(t.scene),t.pairs,t.direction,amount,{preserveConnections:t.extrude,pointMoves:t.extrude?extrusionBoundaryMoves(t,amount):undefined});applyLineResult(t,result,edits);}
+   }else{result=W.slideLines(copy(t.scene),t.pairs,t.direction,amount,{preserveConnections:t.extrude,pointMoves:t.extrude?extrusionBoundaryMoves(t,amount):undefined});result=applyLineResult(t,result,edits);}
    host.state().wallEdits=window.ExteriorModel.prepareEdits(host.state(),edits,t.before);t.invalid=false;t.changed=Math.abs(amount)>1e-6;t.amount=amount;t.result=result;lineSelection=result.pairs.map(pair=>({id:W.edgeKey(...pair),pair}));host.message(t.pathSnap?t.pathSnap.kind+' snap - click to place':'Face '+(t.planeIndex+1)+' / '+t.candidates.length+' - Line offset: '+(window.ReportUnits?.current().metric ? window.ReportUnits.current().quantity((amount/.3048), 'ft') : (amount/.3048).toFixed(2)+" ft")+" - M changes face; click to place");
   }catch(error){t.invalid=true;t.pathSnap=null;host.message(error.message);}host.redraw();
  }
  // Operation scenes leave deleted faces out, but their records keep the outline
  // Shift+F restores. A $surfaces rebuild from a result must carry them over.
  function keptSurfaces(edits,faces){const ids=new Set(faces.map(f=>f.id));return (edits.$surfaces||[]).filter(f=>f.drafted||f.deleted&&!ids.has(f.id));}
+ // Resoffit and Wallless re-sample the measured roof along every roof-contact
+ // edge they rebuild, and line moves rebuild faces from wall drafts. Run the
+ // shared survey-station clean-up (G.cleanSurveyedFaces) on faces whose outline
+ // comes from generated roof-contact geometry: rebuilt regions of surveyed-run
+ // drafts and the surfaces made from them, which keep `surveyedRun`. User
+ // points, chimneys and every vertex of any other face stay.
+ function cleanSurveyedResult(result,edits){
+  const drafts=edits.$drafts||{},affected=new Set(result.affected||[]),composed=walls(),surveyed=new Map();
+  const surveyedDraft=key=>{if(!surveyed.has(key)){const d=drafts[key],members=d&&!d.frame&&!d.chimney&&!d.closedSoffit&&!(d.joinedChimneys||[]).length?composed.filter(w=>d.members?.includes(w.id)):[];surveyed.set(key,members.length>0&&G.surveyedGeneratedRun(members));}return surveyed.get(key);};
+  const plain=f=>!f.deleted&&!f.chimney&&!f.trim&&!f.feature&&!f.curvedSurface&&!f.closedSoffit&&!f.parapet&&!f.baseId&&!f.roofLayer&&!(f.joinedChimneys||[]).length;
+  const eligible=f=>plain(f)&&(f.surveyedRun===true||f.draftKey!=null&&surveyedDraft(f.draftKey)&&(!f.draft||affected.has(f.id)));
+  if(!result.faces.some(eligible))return result;
+  const protect=[];for(const d of Object.values(drafts))for(const n of d.sketch?.nodes||[])if(n.userDraftPoint||!n.fixed&&!n.sourceSplit){const p=world(d,n),m=result.moves?.find(m=>distance3(m.from,p)<1e-5);protect.push(m?m.to:p);}
+  const cleaned=G.cleanSurveyedFaces(result.faces,{eligible,protect}),faces=cleaned.faces.map((f,i)=>eligible(result.faces[i])?{...f,surveyedRun:true}:f);
+  // A selection made on former station edges continues on the kept edge.
+  const near=(p,q)=>distance3(p,q)<1e-5,chord=pair=>cleaned.chords.find(c=>pair.every(p=>[c.a,c.b,...c.stations].some(q=>near(p,q))));
+  const pairs=result.pairs&&[...new Map(result.pairs.map(pair=>{const c=chord(pair);return c?[c.a,c.b]:pair;}).map(pair=>[W.edgeKey(...pair),pair])).values()];
+  return {...result,faces,...(pairs?{pairs}:{})};
+ }
  function applyLineResult(t,result,edits){
   if(t.scene&&!result.trimFollowed)result=W.followTrim(t.scene,result,(result.affected||[]).filter(id=>!t.scene.find(f=>f.id===id)?.trim),host.state()?.keepTrimStatic===true);
+  result=cleanSurveyedResult(result,edits);
   if(edits.$loose&&!t.extrude){const move=p=>({...p,...(result.moves.find(m=>distance3(m.from,p)<1e-5)?.to||{})});edits.$loose={points:edits.$loose.points.map(move),edges:edits.$loose.edges.map(pair=>pair.map(move))};}
    edits.$surfaces=[...keptSurfaces(edits,result.faces),...result.faces.filter(f=>!f.draft&&!f.baseId)];
    for(const f of result.faces.filter(f=>f.draft&&result.affected.includes(f.id))){const region=edits.$drafts[f.draftKey]?.faces.find(r=>r.id===f.regionId);if(region){const id='line-move-'+f.id+'-'+t.op;region.solidId=id;edits.$surfaces.push({...f,id,draft:false});}}
@@ -1370,6 +1405,7 @@ function perf_previewLineMove(e){
    }
   }
   if(result.faces.some(f=>f.baseId&&result.affected.includes(f.id))){const base=copy(t.base||edits.$base||host.state().base);for(const f of result.faces.filter(f=>f.baseId)){const target=base.faces.find(b=>b.id===f.baseId);if(target){target.points=f.points;if(f.curves)target.curves=copy(f.curves);}}const before=copy(t.base||edits.$base||host.state().base);S.rebind(before,base);edits.$base=base;}
+  return result;
  }
  function deleteLines3D(selectedSegments=lineSelection.map(l=>l.pair)){
   selectedSegments=removeDivisionSegments(selectedSegments);if(!selectedSegments.length)return;
@@ -1459,7 +1495,7 @@ function perf_previewLineMove(e){
    scene.push(...(base?.faces||[]).filter(f=>!f.deleted).map(f=>({...f,id:'resoffit-base:'+f.id,baseId:f.id})));
    const options={keepTrimStatic:host.state().keepTrimStatic,ground:host.state().ground,walllessRoofIds:host.state().wallEdits.$walllessRoofIds,selectedSources};
    result=depth==='wallless'?window.WallResoffit.wallless(scene,pairs,host.state().roof,host.state().sources,options):window.WallResoffit.apply(scene,pairs,depth,host.state().roof,host.state().sources,options);
-   const edits=copy(host.state().wallEdits);applyLineResult({scene,base,op:Date.now()},result,edits);host.state().wallEdits=edits;
+   const edits=copy(host.state().wallEdits);result=applyLineResult({scene,base,op:Date.now()},result,edits);host.state().wallEdits=edits;
    if(result.wallless)edits.$walllessRoofIds=result.walllessRoofIds;
    lineSelection=result.pairs.map(pair=>({id:W.edgeKey(...pair),pair}));
   },before);
@@ -2002,7 +2038,7 @@ function perf_nudge(e){const step=(e.altKey ? .25 : e.shiftKey ? 6 : 1)*F.FT/12*
     const frame=F.viewFrame(face.points.map(p=>world(d,p)),p=>host.screen(p,'3d')),delta={x:frame.u.x*dx+frame.v.x*dy,y:frame.u.y*dx+frame.v.y*dy,z:frame.u.z*dx+frame.v.z*dy};
     const segments=pairs.map(l=>l.pair),scene=moveScene().filter(f=>!f.snapOnly&&!f.deleted),owner=planarLineOwner(scene,segments);
     let movedPairs;if(owner===draftKey(d))movedPairs=moveDraftLines(d,segments,delta);
-    else{const result=W.slideLines(scene,segments,delta,1),edits=copy(host.state().wallEdits);applyLineResult({scene,op:Date.now()},result,edits);host.state().wallEdits=edits;movedPairs=result.pairs;}
+    else{const result=W.slideLines(scene,segments,delta,1),edits=copy(host.state().wallEdits);movedPairs=applyLineResult({scene,op:Date.now()},result,edits).pairs;host.state().wallEdits=edits;}
     lineSelection=movedPairs.map(pair=>({pair,id:W.edgeKey(...pair)}));preferredDraft=draftKey(d);
    });}
   if(!selection)return false;return transaction(()=>{const {d,f,points}=asDraft(selection),frame=F.viewFrame(points,p=>host.screen(p,'3d')),next=points.map(p=>toLocal(d,{x:p.x+frame.u.x*dx+frame.v.x*dy,y:p.y+frame.u.y*dx+frame.v.y*dy,z:p.z+frame.u.z*dx+frame.v.z*dy}));editRegion(d,f,next);});

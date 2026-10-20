@@ -2477,8 +2477,12 @@ for(const source of ['R37.0','R38.0','R43.0','R44.0','R46.1','R57.0','R58.0','R6
 test('mixed and combined turret depths retain shared corners and exact selections',()=>{
  const R=require('../public/measure/internal/editor_scripts/wall_resoffit'),K=require('../public/measure/internal/editor_scripts/exterior_geometry'),r=require('./roof-generation-fixture.cjs').build(require('./fixtures/layered-turrets-roof.json'),18),f=fixture({state:r.state,walls:r.composed,selected:null,globals:{WallResoffit:R}});
  const ids=['R37.0','R38.0','R43.0','R44.0','R46.1'];
+ let previous=null;
  for(const [selected,depth]of [[ids,.6096],[['R37.0'],.1524],[['R38.0','R44.0'],.3048],[ids,0],[ids,.6096]]){
-  const lines=f.editor.soffitEdges().filter(c=>selected.includes(c.source.id));assert.ok(lines.length>=selected.length);
+  // Each straight roof contact is one line (survey stations are not split
+  // points). Zero depth consumes the short R44.0 return, so it has none after.
+  const lines=f.editor.soffitEdges().filter(c=>selected.includes(c.source.id)),sources=new Set(lines.map(c=>c.source.id));
+  assert.deepEqual(selected.filter(id=>!sources.has(id)),previous===0?['R44.0']:[]);previous=depth;
   f.editor.restoreSelection({lineSelection:lines.map(c=>({pair:c.pair}))});assert.equal(f.editor.resoffit(depth),true,f.message());
   for(const face of r.state.wallEdits.$surfaces.filter(f=>!f.deleted))K.validateFace(face);
   assert.ok(f.editor.soffitEdges().filter(c=>selected.includes(c.source.id)).every(c=>Math.abs(c.inset-depth)<.002));
@@ -2651,6 +2655,48 @@ test('captured house walls with flashing strips have no load-bearing points on s
   ring.forEach((id,i)=>{const a=geo.points[ring[(i+ring.length-1)%ring.length]],b=geo.points[id],c=geo.points[ring[(i+1)%ring.length]],u={x:b.x-a.x,y:b.y-a.y,z:b.z-a.z},v={x:c.x-b.x,y:c.y-b.y,z:c.z-b.z};
    const angle=Math.atan2(Math.hypot(u.y*v.z-u.z*v.y,u.z*v.x-u.x*v.z,u.x*v.y-u.y*v.x),u.x*v.x+u.y*v.y+u.z*v.z)*180/Math.PI;
    assert.ok(angle>=5||ids.has(id),'preview station '+face.mergeGroup+' '+JSON.stringify(b));});}
+});
+
+// One captured house twice: its roof alone (From Roof rebuilt by the fixture builder), and
+// ce52-from-roof-walls.json, the same roof after From Roof in the editor (sources, base and walls).
+const capturedHouses={
+ 'roof only':()=>{const r=require('./roof-generation-fixture.cjs').build(require('./fixtures/flashing-survey-stations-roof.json'),12);return {state:r.state,walls:G.canonicalGeneratedWalls(r.composed)};},
+ 'editor From Roof':()=>{const x=structuredClone(require('./fixtures/ce52-from-roof-walls.json'));return {state:{roof:x.roof,sources:x.sources,base:x.base,ground:x.ground,chimneys:x.chimneys,options:x.options,wallEdits:{}},walls:G.canonicalGeneratedWalls(x.walls.filter(w=>Math.hypot(w.bottom[1].x-w.bottom[0].x,w.bottom[1].y-w.bottom[0].y)>.005))};}};
+function surveyStationReport(state,walls){
+ const M=require('../public/measure/internal/editor_scripts/exterior_model'),d3=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y,a.z-b.z),rings=f=>[f.points,...(f.holes||[])];
+ const along=(v,a,b)=>{const l2=d3(a,b)**2;if(l2<1e-12)return {t:-1,d:d3(v,a)};const t=((v.x-a.x)*(b.x-a.x)+(v.y-a.y)*(b.y-a.y)+(v.z-a.z)*(b.z-a.z))/l2;return {t,d:Math.hypot(v.x-a.x-t*(b.x-a.x),v.y-a.y-t*(b.y-a.y),v.z-a.z-t*(b.z-a.z))};};
+ const rebuilt=(state.wallEdits.$surfaces||[]).filter(s=>!s.deleted&&!s.drafted&&String(s.id).startsWith('line-move-')&&!s.chimney&&!(s.joinedChimneys||[]).length&&!s.closedSoffit),faces=[...M.collect(state,walls),...((state.wallEdits.$base||state.base)?.faces||[])],stations=[],gaps=[];
+ for(const s of rebuilt){const others=faces.filter(o=>o.id!==s.id);
+  for(const ring of rings(s))ring.forEach((v,i)=>{const a=ring[(i+ring.length-1)%ring.length],b=ring[(i+1)%ring.length],u={x:v.x-a.x,y:v.y-a.y,z:v.z-a.z},w={x:b.x-v.x,y:b.y-v.y,z:b.z-v.z},lu=Math.hypot(u.x,u.y,u.z),lw=Math.hypot(w.x,w.y,w.z);
+   // A point is a survey station when its run continues within 5 degrees and 5 cm and no other face meets it there.
+   if(lu<1e-9||lw<1e-9||(u.x*w.x+u.y*w.y+u.z*w.z)/(lu*lw)<Math.cos(5*Math.PI/180)||along(v,a,b).d>.05)return;
+   if(!others.some(o=>rings(o).some(r=>r.some((q,j)=>{if(d3(q,v)<=.001)return true;const e=along(v,q,r[(j+1)%r.length]);return e.t>0&&e.t<1&&e.d<1e-5;}))))stations.push(s.id+' '+JSON.stringify(v));
+   // Closed shared edges: no other face's vertex sits off this edge by more than 1 mm but within 5 cm of it.
+   for(const o of others)for(const q of rings(o).flat()){const e=along(q,v,b);if(e.t>.001&&e.t<.999&&e.d>.001&&e.d<.05)gaps.push(s.id+' / '+o.id+' '+e.d.toFixed(4));}
+  });}
+ return {rebuilt:rebuilt.length,stations,gaps};
+}
+for(const house of Object.keys(capturedHouses))for(const closed of [false,true])test(`captured house (${house}${closed?', closed soffits':''}): Resoffit, a second Resoffit and a line nudge add no survey stations to straight runs`,()=>{
+ // Resoffit re-samples the measured roof along every rebuilt roof contact (the
+ // long front wall gained seven stations from one turret edit). The rebuilt
+ // faces get the same survey clean-up as the generated walls they came from.
+ const R=require('../public/measure/internal/editor_scripts/wall_resoffit'),C=require('../public/measure/internal/editor_scripts/wall_chimneys'),CS=require('../public/measure/internal/editor_scripts/wall_closed_soffits'),K=require('../public/measure/internal/editor_scripts/exterior_geometry');
+ const {state,walls}=capturedHouses[house]();if(closed){state.closedSoffits=true;state.wallEdits.$surfaces=CS.build(state,walls);}
+ let f=fixture({state,walls,selected:null,globals:{...renderGlobals(),WallResoffit:R,WallChimneys:C,WallClosedSoffits:CS}});
+ const turret=['R57.0','R58.0','R29.0','R33.0','R134.0','R133.0','R137.0','R136.0'];
+ for(const [ids,depth]of closed?[[['R33.0'],.3048],[['R33.0'],.1524]]:[[turret,.1524],[turret,.3048]]){
+  const lines=f.editor.soffitEdges().filter(c=>ids.includes(c.source.id));assert.ok(lines.length);
+  f.editor.restoreSelection({lineSelection:lines.map(c=>({pair:c.pair}))});assert.equal(f.editor.resoffit(depth),true,f.message());
+  for(const c of f.editor.soffitEdges().filter(c=>ids.includes(c.source.id)))assert.ok(Math.abs(c.inset-Math.max(depth,c.source.clearanceRoofIds?.length?c.source.contactSetback||0:0))<.002,c.source.id+' depth '+c.inset);
+  for(const s of state.wallEdits.$surfaces.filter(s=>!s.deleted&&s.surveyedRun))K.validateFace(s);
+  const report=surveyStationReport(state,walls);assert.ok(report.rebuilt>0);assert.ok(state.wallEdits.$surfaces.some(s=>!s.deleted&&s.surveyedRun),'rebuilt generated walls stay marked for the next clean-up');assert.deepEqual(report.stations,[]);assert.deepEqual(report.gaps,[]);
+ }
+ // The Resoffit selection continues on the kept edges: nudge the longest one up an inch.
+ const longest=f.editor.selectionSnapshot().lineSelection.slice().sort((a,b)=>Math.hypot(b.pair[0].x-b.pair[1].x,b.pair[0].y-b.pair[1].y,b.pair[0].z-b.pair[1].z)-Math.hypot(a.pair[0].x-a.pair[1].x,a.pair[0].y-a.pair[1].y,a.pair[0].z-a.pair[1].z))[0];
+ f.editor.restoreSelection({lineSelection:[longest]});const before=JSON.stringify(state.wallEdits);assert.equal(f.editor.key({key:'ArrowUp',preventDefault(){},stopPropagation(){},stopImmediatePropagation(){}}),true,f.message());assert.notEqual(JSON.stringify(state.wallEdits),before);
+ assert.deepEqual(surveyStationReport(state,walls).stations,[]);
+ const saved=JSON.parse(JSON.stringify(state));f=fixture({state:saved,walls,selected:null,globals:{...renderGlobals(),WallResoffit:R,WallChimneys:C,WallClosedSoffits:CS}});f.normalize();
+ assert.deepEqual(surveyStationReport(saved,walls).stations,[],'after reload');
 });
 
 test('point drawing continues outside the active wall plane outline',()=>{
