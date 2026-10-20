@@ -945,6 +945,13 @@
     // stations must be reconciled in the source mesh and editable outline together.
     // Bound the total deviation of a joined run (not just each local bend),
     // and retain actual turns and shared wall junctions.
+    // Perimeter and flashing strips are both clipped from the measured roof, so
+    // both carry survey stations: a flashing strip's eave top and roof-contact
+    // bottom are as noisy as a perimeter wall's. Chimney strips, gap repairs
+    // and walls without a generated source keep every vertex.
+    function surveyedGeneratedRun(walls) {
+        return walls.length>0&&walls.every(w=>w.sourceId&&(w.kind==='perimeter'||w.kind==='flashing')&&!w.chimney);
+    }
     function simplifyGeneratedEdges(points,edges,junctions=new Set(),tolerance=.05,corrections=null) {
         const result=edges.map(e=>({ids:e.slice(),samples:e.slice()}));
         const distance3=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y,a.z-b.z);
@@ -1024,7 +1031,7 @@
                     const rings=[region.points,...region.holes].map(r=>r.flatMap((p,i)=>{const q=r[(i+1)%r.length],dx=q.x-p.x,dy=q.y-p.y,l2=dx*dx+dy*dy;return [add(world(p)),...anchors.map(id=>({id,v:local(points[id])})).map(v=>({...v,t:((v.v.x-p.x)*dx+(v.v.y-p.y)*dy)/l2})).filter(v=>v.t>1e-6&&v.t<1-1e-6&&Math.hypot(v.v.x-p.x-v.t*dx,v.v.y-p.y-v.t*dy)<1e-5&&Math.abs((points[v.id].x-origin.x)*u.y-(points[v.id].y-origin.y)*u.x)<1e-5).sort((a,b)=>a.t-b.t).map(v=>v.id)];}));
                     const clean=r=>{
                         let e=r.map((id,i)=>[id,r[(i+1)%r.length]]);
-                        if(members.every(f=>f.sourceId))e=simplifyGeneratedEdges(points,e,junctions,members.every(f=>f.kind==='perimeter'&&!f.chimney)?.05:1e-5,corrections);
+                        if(members.every(f=>f.sourceId))e=simplifyGeneratedEdges(points,e,junctions,surveyedGeneratedRun(members)?.05:1e-5,corrections);
                         const kept=new Set(e.flat());return r.filter(i=>kept.has(i));
                     },result=rings.map(clean),outside=result.flatMap(r=>r.map((id,i)=>[id,r[(i+1)%r.length]]));
                     // Boolean union also removes collinear stations. Carry every
@@ -1034,7 +1041,7 @@
                         if(junctions.has(id)||outside.some(e=>e.includes(id)))continue;
                         const p=points[id],q=local(p),onRaw=rings.some(r=>r.some((a,i)=>{const b=r[(i+1)%r.length],v=local(points[a]),w=local(points[b]),dx=w.x-v.x,dy=w.y-v.y,l2=dx*dx+dy*dy,t=l2?((q.x-v.x)*dx+(q.y-v.y)*dy)/l2:-1;return t>=-1e-6&&t<=1+1e-6&&Math.hypot(q.x-v.x-t*dx,q.y-v.y-t*dy)<1e-5;}));
                         if(!onRaw)continue;
-                        const tolerance=members.every(f=>f.kind==='perimeter'&&!f.chimney)?.05:1e-5;
+                        const tolerance=surveyedGeneratedRun(members)?.05:1e-5;
                         for(const [a,b]of outside){const v=local(points[a]),w=local(points[b]),dx=w.x-v.x;if(Math.abs(dx)<1e-8)continue;const t=(q.x-v.x)/dx,z=origin.z+v.y+(w.y-v.y)*t;if(t>=0&&t<=1&&Math.abs(z-p.z)<=tolerance){if(Math.abs(z-p.z)>1e-9)corrections.set(id,{...p,z});break;}}
                     }
                     boundary.push(...outside);
@@ -1073,7 +1080,7 @@
         }
         return group.map(w=>w.id);
     }
-    const api={canonicalGeneratedWalls,chimneyContact,layerSetback,roofLayers:roof=>roofLayers(roof,surfaces(roof)),soffitWithoutSources,splitParameters,mergeCoplanar,build,buildSources,extrude,deduplicate,topology,simplifyGeneratedRing,plane,contains,onEdge,generatedMoveGroup,INCH};
+    const api={canonicalGeneratedWalls,chimneyContact,layerSetback,roofLayers:roof=>roofLayers(roof,surfaces(roof)),soffitWithoutSources,splitParameters,mergeCoplanar,build,buildSources,extrude,deduplicate,topology,simplifyGeneratedRing,surveyedGeneratedRun,plane,contains,onEdge,generatedMoveGroup,INCH};
     if(typeof module!=='undefined'&&module.exports)module.exports=api;
     else root.WallGeometry=api;
 })(typeof window!=='undefined'?window:globalThis);

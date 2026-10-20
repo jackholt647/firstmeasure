@@ -474,7 +474,7 @@ window.createWallFaceDraft=function(host){
   const origin={...w.bottom[0]},len=Math.hypot(w.bottom[1].x-origin.x,w.bottom[1].y-origin.y),u={x:(w.bottom[1].x-origin.x)/len,y:(w.bottom[1].y-origin.y)/len};
   const members=walls().filter(v=>id(v)===id(w)),local=p=>({x:(p.x-origin.x)*u.x+(p.y-origin.y)*u.y,y:p.z,z:0});
   const filled=members.map(v=>[v.bottom[0],v.bottom[1],v.top[1],v.top[0]].map(local)),union=W.unionPlanar(filled);
-  if(members.every(v=>v.sourceId&&v.kind==='perimeter'&&!v.chimney)){
+  if(G.surveyedGeneratedRun(members)){
    const junctions=walls().filter(v=>!members.includes(v)).flatMap(v=>[...v.bottom,...v.top]).filter(p=>Math.abs((p.x-origin.x)*u.y-(p.y-origin.y)*u.x)<1e-5).map(local);
    for(const face of union){face.points=G.simplifyGeneratedRing(face.points.map(p=>({...p,z:0})),junctions);face.holes=(face.holes||[]).map(r=>G.simplifyGeneratedRing(r.map(p=>({...p,z:0})),junctions));}
   }
