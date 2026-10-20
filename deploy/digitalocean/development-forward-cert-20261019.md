@@ -9,6 +9,7 @@ legacy, web, pool) and verified. Production is unchanged.
 | `0655b0a9` | Document payments are charged before the signing transaction |
 | `e5d8475a` | The job site's ZIP goes to Forward as `ship_to_zip`; a declined card leaves no uncaught page error (`c9fa7542`) |
 | `dd704773` | Hosted sign-up sends Forward the full partner data |
+| `6fed67a7` | The bank-link windows (GrailPay, MoneyKit) open above the project window. Legacy, web and pool only (browser code); the worker kept another session's `d63d657f` |
 
 `35aa58f6` was staged on legacy, web and pool but never activated (another rollout activated in between and the
 activation refused); it was superseded by `e5d8475a`.
@@ -36,6 +37,9 @@ Design: [payments](../../docs/architecture/payments.md). Certification evidence 
 - **No ship-to ZIP.** A scripted edit had turned the ZIP regex's `\b` into backspace characters.
 - **Hosted sign-up partner data** carried only the return URL.
 - Staff saw saved cards as `american_express ending in …`.
+- **ACH bank link hidden.** GrailPay's account picker and MoneyKit's bank link sit at z-index 999999, under the
+  project window (2147483200); the bank could be "linked" but never chosen, so no payment was ever made. Verified
+  after the fix by ACH00, ACH01 and a customer-portal deposit paid by ACH.
 
 ## Host merges
 
