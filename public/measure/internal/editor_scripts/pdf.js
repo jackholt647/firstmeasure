@@ -2227,6 +2227,12 @@ async function generatePDFFromState(state, mode = 'full', updateStatusCallback, 
     }
     let outlineImg = null;
     const hasExterior = mode === 'full' && state.exteriorReport?.walls?.length && (isCustomerFullHousePdf(state) || state.exteriorSettings?.include !== false);
+    // Roof-only reports keep the original section titles and page order. The Full House layout (roof-prefixed
+    // titles, summary and materials ahead of the diagrams) applies only to a report with Full House pages.
+    // Other report languages keep the translated Full House titles: those reports never had the original ones.
+    const fullHouseLayout = isCustomerFullHousePdf(state) || !!(state.exteriorReport?.walls?.length && state.exteriorSettings?.include !== false);
+    const originalRoofTitles = !fullHouseLayout && /^en\b/i.test(String(window.ReportUnits?.current?.().language || 'en-US'));
+    const roofTitle = (fullHouseTitle, originalTitle) => originalRoofTitles ? originalTitle : fullHouseTitle;
 
     let pageCount = 0;
     const beginReportPage = (title, isCover = false) => {
@@ -2277,7 +2283,7 @@ async function generatePDFFromState(state, mode = 'full', updateStatusCallback, 
         const boxWidth = (availableW / 2) - 3;
         const pad = 8;
 
-        drawSummaryBox(doc, marginLeft, boxTopY, boxWidth, boxHeight, "Roof Summary", {
+        drawSummaryBox(doc, marginLeft, boxTopY, boxWidth, boxHeight, roofTitle("Roof Summary", "Project Summary"), {
             forceDefault: forceDefaultBoxes,
             colors: brandingColors,
             pad
@@ -2337,7 +2343,7 @@ async function generatePDFFromState(state, mode = 'full', updateStatusCallback, 
         doc.text(coverWasteSquaresText, marginLeft + pad, yCursor);
 
         const box2X = marginLeft + boxWidth + 6;
-        drawSummaryBox(doc, box2X, boxTopY, boxWidth, boxHeight, hasExterior ? "Exterior Summary" : "Roof Measurements", {
+        drawSummaryBox(doc, box2X, boxTopY, boxWidth, boxHeight, hasExterior ? "Exterior Summary" : roofTitle("Roof Measurements", "Measurement Breakdown"), {
             forceDefault: forceDefaultBoxes,
             colors: brandingColors,
             pad
@@ -2386,7 +2392,7 @@ async function generatePDFFromState(state, mode = 'full', updateStatusCallback, 
     }
     // Top View
     if (state.solarImg && s.page_top_view) {
-        beginReportPage(pdfLabel("Roof Imagery"));
+        beginReportPage(roofTitle(pdfLabel("Roof Imagery"), "Top View"));
         const tvTopY = 35;
         const tvSize = Math.min(availableW, pageHeight - tvTopY - 30);
         const tvX = marginLeft + (availableW - tvSize) / 2;
@@ -2430,7 +2436,7 @@ async function generatePDFFromState(state, mode = 'full', updateStatusCallback, 
         doc.roundedRect(tvX, tvTopY, tvSize, tvSize, tvR, tvR, 'S');
     }
 
-    if (mode === 'full' && typeof window.drawReportImagery === 'function') {
+    if (mode === 'full' && fullHouseLayout && typeof window.drawReportImagery === 'function') {
         await window.drawReportImagery(doc, state, beginReportPage, brandingColors);
     }
 
@@ -2438,7 +2444,7 @@ async function generatePDFFromState(state, mode = 'full', updateStatusCallback, 
     const hasQuadImage = !firstMeasurePdfQuadViewsDisabled() && typeof state.quadImage === 'string' && state.quadImage.trim() !== '';
     const includeElev = hasQuadImage && !(state.elevationSettings && state.elevationSettings.include === false);
     if (s.page_elevations && includeElev && !hasExterior) {
-        beginReportPage(pdfLabel("Roof Elevations"));
+        beginReportPage(roofTitle(pdfLabel("Roof Elevations"), "3D Elevations"));
         const qImg = new Image(); qImg.src = state.quadImage;
         await new Promise(r => qImg.onload = r);
         const qRatio = qImg.width / qImg.height;
@@ -2498,16 +2504,17 @@ async function generatePDFFromState(state, mode = 'full', updateStatusCallback, 
     if (s.page_3d && hasExterior && state.exteriorReport.roof?.length) {
         window.ExteriorPDF.drawRoofElevations(doc, state.exteriorReport, state.exteriorSettings || {}, beginReportPage, brandingColors);
     } else if (s.page_3d && hasWireframePage) {
-        beginReportPage(includeElev ? pdfLabel("Roof Facets") : pdfLabel("Roof Elevations"));
+        beginReportPage(roofTitle(includeElev ? pdfLabel("Roof Facets") : pdfLabel("Roof Elevations"), "3D Facets"));
         drawQuadGridPage(doc, wireframesForPage, marginLeft, 35, availableW, pageHeight - 55, brandingColors);
     } else if (s.page_3d) {
         console.warn('[PDF 3D] Skipping the 3D facets page because the wireframe capture was unavailable.');
     }
 
+    const drawSummarySections = async () => {
     // Summary
     if (s.page_summary) {
         if (updateStatusCallback) updateStatusCallback("Generating Summary Page...");
-        beginReportPage(pdfLabel("Roof Summary"));
+        beginReportPage(roofTitle(pdfLabel("Roof Summary"), "Project Summary"));
         emitPdfDebug('page:summary', {
             mode,
             page: pageCount,
@@ -2527,7 +2534,7 @@ async function generatePDFFromState(state, mode = 'full', updateStatusCallback, 
         const hasFlat  = pitchSplit.flatTotal > 0;
 
         if (hasSteep) {
-            const steepTitle = hasFlat ? "Steep-Slope Roof Materials" : "Roof Materials";
+            const steepTitle = hasFlat ? roofTitle("Steep-Slope Roof Materials", "Steep-Slope Materials") : roofTitle("Roof Materials", "Materials");
             beginReportPage(steepTitle);
 
             const matEst = estimateMaterials(state.report, hasFlat ? pitchSplit : null);
@@ -2542,7 +2549,7 @@ async function generatePDFFromState(state, mode = 'full', updateStatusCallback, 
         }
 
         if (hasFlat) {
-            const flatTitle = hasSteep ? "Flat Roof Materials" : "Roof Materials";
+            const flatTitle = hasSteep ? "Flat Roof Materials" : roofTitle("Roof Materials", "Materials");
             beginReportPage(flatTitle);
 
             const flatEst = estimateFlatMaterials(pitchSplit.flatTotal, state.report);
@@ -2560,7 +2567,7 @@ async function generatePDFFromState(state, mode = 'full', updateStatusCallback, 
     if (s.page_ventilation) {
         const includeVent = !(state.ventSettings && state.ventSettings.include === false);
         if (includeVent) {
-            beginReportPage(pdfLabel("Roof Ventilation"));
+            beginReportPage(roofTitle(pdfLabel("Roof Ventilation"), "Ventilation"));
             const matEst = estimateMaterials(state.report);
             emitPdfDebug('page:ventilation', {
                 mode,
@@ -2577,10 +2584,13 @@ async function generatePDFFromState(state, mode = 'full', updateStatusCallback, 
         }
     }
 
+    };
+    if (fullHouseLayout) await drawSummarySections();
+
     // Pitch Diagram
     if (s.page_pitch) {
         if (updateStatusCallback) updateStatusCallback(`Generating Labels (${mode})...`);
-        beginReportPage(pdfLabel("Roof Pitch Diagram"));
+        beginReportPage(roofTitle(pdfLabel("Roof Pitch Diagram"), "Pitch Diagram"));
         const pitchCanvas = await createFacetCanvasFromState(state, 'PITCH');
         const pitchImg = pitchCanvas.toDataURL('image/jpeg', 0.40);
         const topY = 35;
@@ -2600,7 +2610,7 @@ async function generatePDFFromState(state, mode = 'full', updateStatusCallback, 
 
     // Area Diagram
     if (s.page_area) {
-        beginReportPage(pdfLabel("Roof Area Diagram"));
+        beginReportPage(roofTitle(pdfLabel("Roof Area Diagram"), "Area Diagram"));
         emitPdfDebug('page:area-diagram', {
             mode,
             page: pageCount,
@@ -2624,7 +2634,7 @@ async function generatePDFFromState(state, mode = 'full', updateStatusCallback, 
             const layerNum = allLayers[i];
             if (updateStatusCallback) updateStatusCallback(`Generating Layer ${layerNum}...`);
 
-            beginReportPage(pdfLabel("Roof Layer {value1} Measurements", {value1: layerNum}));
+            beginReportPage(roofTitle(pdfLabel("Roof Layer {value1} Measurements", {value1: layerNum}), `Layer ${layerNum} Measurements`));
 
             const layerCanvas = await createLayerCanvasFromState(state, layerNum, true, false);
             const layerImg = layerCanvas.toDataURL('image/jpeg', 0.40);
@@ -2764,6 +2774,8 @@ async function generatePDFFromState(state, mode = 'full', updateStatusCallback, 
         }
     }
 
+    if (!fullHouseLayout) await drawSummarySections();
+
     // Gutters
     if (s.page_gutters) {
         const gutterMetrics = buildPdfGutterMetrics(state);
@@ -2790,7 +2802,7 @@ async function generatePDFFromState(state, mode = 'full', updateStatusCallback, 
     // ==========================================
     if (s.page_notes) {
         if (updateStatusCallback) updateStatusCallback("Generating Notes Page...");
-        beginReportPage(pdfLabel("Roof Notes"));
+        beginReportPage(roofTitle(pdfLabel("Roof Notes"), "Notes"));
 
         if (!outlineImg) {
             const outlineCanvas = await createFacetCanvasFromState(state, 'OUTLINE');
