@@ -150,6 +150,7 @@ function portalNodeInternalRequest($method, $path, $body = null, $query = []) {
     $headers = ['Accept: application/json'];
     if ($actorEmail !== '') $headers[] = 'X-Internal-User-Email: ' . $actorEmail;
     if (!empty($_SESSION['user_name'])) $headers[] = 'X-Internal-User-Name: ' . (string)$_SESSION['user_name'];
+    $headers = array_merge($headers, fm_api_forwarded_headers($url));
 
     $payload = null;
     if ($body !== null) {
@@ -6554,7 +6555,7 @@ $ver = time(); // cache busting
     </div>
 
 <script>
-    const FIRSTMEASURE_API_BASE_RAW = <?php echo json_encode(rtrim((string)fm_api_base_url(), '/')); ?>;
+    const FIRSTMEASURE_API_BASE_RAW = <?php echo json_encode(rtrim((string)fm_browser_api_base_url(), '/')); ?>;
     const FIRSTMEASURE_API_BASE = (() => {
         const raw = String(FIRSTMEASURE_API_BASE_RAW || '').replace(/\/+$/, '');
         if (!raw) return `${location.origin}/v1/firstmeasure`;

@@ -5987,7 +5987,7 @@ export const registerFirstMeasureApi: FastifyPluginAsync = async (app) => {
 
     return { ok: true, success: true, users: users.filter(isQaReservationUser).map(user => ({
 
-      email: user.email, name: user.name || user.email
+      email: user.email, name: user.name || user.email, can_qa_full_house: user.can_qa_full_house === true
 
     })) };
 

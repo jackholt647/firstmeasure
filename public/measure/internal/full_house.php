@@ -28,6 +28,7 @@ if (isset($_GET['path'])) {
     $headers = fm_full_house_headers();
     $headers[] = 'Accept: */*';
     if (isset($_SERVER['HTTP_RANGE'])) $headers[] = 'Range: ' . $_SERVER['HTTP_RANGE'];
+    $headers = array_merge($headers, fm_api_forwarded_headers(fm_api_base_url()));
     $ch = curl_init(rtrim(fm_api_base_url(), '/') . $path);
     curl_setopt_array($ch, [CURLOPT_CUSTOMREQUEST => $method, CURLOPT_HTTPHEADER => $headers,
         CURLOPT_CONNECTTIMEOUT => 5, CURLOPT_TIMEOUT => 240,

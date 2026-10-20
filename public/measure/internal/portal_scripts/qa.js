@@ -1426,6 +1426,7 @@
       .qa-badge.submission-failed { background:#b3261e; color:#fff; border:1px solid #7f1d1d; box-shadow:0 0 0 2px rgba(179,38,30,.16); }
       .qa-badge.rejected { background:#f1f3f4; color:#5f6368; border:1px solid #dadce0; }
       .qa-badge.manager-review { background:#ede7f6; color:#5e35b1; border:1px solid #d1c4e9; }
+      .qa-badge.full-house { background:#1e3a8a; color:#fff; border:1px solid #1e3a8a; margin-left:6px; }
       .qa-badge.customer-rework { background:#fbf7ff; color:#5e1681; border:1px solid #d7b7ff; }
       .qa-btn {
         border:1px solid var(--border); background:#fff; padding:8px 10px;
@@ -5226,13 +5227,26 @@
     panel.innerHTML='<legend>Full-house review</legend>'+fullHouseReviewFields.map(([key,label])=>`<label style="display:block;margin:6px 0"><input type="checkbox" data-full-house-review="${key}"> ${label}</label>`).join('');
     host.before(panel);
   }
-  function fullHouseReviewPayload(){return isFullHouseReview()?{full_house_review:Object.fromEntries(fullHouseReviewFields.map(([key])=>[key,document.querySelector(`[data-full-house-review="${key}"]`)?.checked===true]))}:{};}
+  // In embedded QA the checklist above is hidden: the editor's PDF page shows the
+  // same seven checks and reports them with firstmeasure:qa_full_house_review.
+  let embeddedFullHouseReview={folder:'',checks:{}};
+  function setEmbeddedFullHouseReview(folder,review){
+    if(!review||typeof review!=='object'||String(folder||'')!==String(currentId||''))return;
+    embeddedFullHouseReview={folder:String(folder),checks:Object.fromEntries(fullHouseReviewFields.map(([key])=>[key,review[key]===true]))};
+  }
+  function fullHouseReviewPayload(){
+    if(!isFullHouseReview())return{};
+    const embedded=embeddedFullHouseReview.folder===String(currentId||'')?embeddedFullHouseReview.checks:{};
+    return{full_house_review:Object.fromEntries(fullHouseReviewFields.map(([key])=>[key,document.querySelector(`#qaFullHouseReview [data-full-house-review="${key}"]`)?.checked===true||embedded[key]===true]))};
+  }
   function fullHouseReviewReady(){
     if(!isFullHouseReview())return true;
     const checks=fullHouseReviewPayload().full_house_review;
     if(fullHouseReviewFields.every(([key])=>checks[key]))return true;
-    document.getElementById('qaFullHouseReview')?.scrollIntoView({block:'center'});
-    alert('Complete the full-house review checks before approving this report.');return false;
+    const panel=document.getElementById('qaFullHouseReview');
+    if(panel&&panel.getClientRects().length){panel.scrollIntoView({block:'center'});alert('Complete the full-house review checks before approving this report.');}
+    else alert('Tick every full-house review check on the PDF page before approving this report.');
+    return false;
   }
   function updateActionButtons(){
     renderFullHouseReview();
@@ -5481,6 +5495,9 @@
         setQaSubmitBlocking(true, 'Saving latest editor changes...');
         await saveEmbeddedEditorStateForQaApproval();
         reviewedPdfSync = await ensureQaPdfReportsReadyForSend(requestedPdfSync);
+        setQaSubmitBlocking(true, 'Waiting for the PDF to finish syncing...');
+        reviewedPdfSync = await settleQaReviewedPdfSync(reviewedPdfSync);
+        setQaSubmitBlocking(true, 'Submitting approval...');
         if (mySubmit !== submitSeq) return;
         if (!inQAView) return;
         btn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> Submitting...`;
@@ -5672,6 +5689,8 @@
         setQaSubmitBlocking(true, 'Saving latest editor changes...');
         await saveEmbeddedEditorStateForQaApproval();
         reviewedPdfSync = await ensureQaPdfReportsReadyForSend(requestedPdfSync);
+        setQaSubmitBlocking(true, 'Waiting for the PDF to finish syncing...');
+        reviewedPdfSync = await settleQaReviewedPdfSync(reviewedPdfSync);
         if (mySubmit !== submitSeq) return;
         if (!inQAView) return;
         btn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> Processing...`;
@@ -7468,7 +7487,53 @@
     }, Number.isFinite(Number(delay)) ? Number(delay) : 500);
   }
 
+  let qaPdfRendersInFlight = 0;
   async function renderQaPdfPreview(options){
+    qaPdfRendersInFlight += 1;
+    try {
+      return await renderQaPdfPreviewNow(options);
+    } finally {
+      qaPdfRendersInFlight -= 1;
+    }
+  }
+
+  // A review can synchronize more than one PDF revision: the inspector renders on
+  // open and the embedded editor renders its PDF page. Approval waits for both,
+  // then names the newest revision this review produced, so a render landing
+  // just after Approve no longer fails with stale_pdf_sync_reference.
+  async function settleQaReviewedPdfSync(reviewed){
+    const started = Date.now();
+    while (Date.now() - started < 120000) {
+      let editorBusy = false;
+      try {
+        const editorWin = getActiveQaEditorFrame()?.contentWindow;
+        editorBusy = typeof editorWin?.firstMeasurePdfPreviewBusy === 'function' && editorWin.firstMeasurePdfPreviewBusy();
+      } catch (e) {}
+      if (!qaPdfRendersInFlight && !qaPdfPersistActive && !qaPdfPreviewTimer && !editorBusy) break;
+      await sleep(250);
+    }
+    if (!currentId || !reviewed?.jobId) return reviewed;
+    let latest = {};
+    try {
+      const res = await fetch(Portal.fmUrl(`projects/${encodeURIComponent(currentId)}`), { credentials: 'include', headers: { Accept: 'application/json' } });
+      const json = await res.json();
+      latest = (json?.project?.manifest || json?.manifest || {}).pdf_sync || {};
+    } catch (e) {
+      return reviewed;
+    }
+    const jobId = String(latest.latest_job_id || ''), revision = String(latest.latest_revision || '');
+    if (!jobId || (jobId === reviewed.jobId && revision === reviewed.revision)) return reviewed;
+    const own = [{ jobId: qaPdfLastSyncJobId, revision: qaPdfLastSyncRevision }];
+    try {
+      const editorSync = getActiveQaEditorFrame()?.contentWindow?.__lastFirstMeasureReviewedPdfSync;
+      if (editorSync) own.push({ jobId: String(editorSync.jobId || ''), revision: String(editorSync.revision || '') });
+    } catch (e) {}
+    if (!own.some((sync) => sync.jobId === jobId && sync.revision === revision)) return reviewed;
+    console.info('[PDF SYNC] Approval adopts the newest revision this review synchronized.', { projectId: currentId, from: reviewed, to: { jobId, revision } });
+    return { jobId, revision };
+  }
+
+  async function renderQaPdfPreviewNow(options){
     options = options && typeof options === 'object' ? options : {};
     if (!currentId || !qaPdfBaseSnapshot || !qaPdfTopViewSettings) return;
     const syncSeq = Number.isFinite(Number(options.syncSeq)) ? Number(options.syncSeq) : ++qaPdfSyncSeq;
@@ -9125,6 +9190,7 @@
                 <strong>${esc(item.address || '')}</strong>
                 ${managerReviewReasonPill(item)}
                 ${fillerPill(!!item.is_filler)}
+                ${/^exteriors_[a-f0-9]{32}$/.test(String(item.id || '')) || item.measurement_scope === 'full_house' ? '<span class="qa-badge full-house"><i class="fas fa-house"></i> Full house</span>' : ''}
               </td>
               <td class="nowrap muted" title="${esc(fmtDate(item.created_at || ''))}">${esc(fmtDateShort(item.created_at || ''))}</td>
               <td class="nowrap">${esc(qaApproval.display)}</td>
@@ -9946,8 +10012,13 @@
       const data = event.data || {};
       if (!data) return;
       if (String(data.type || '').indexOf('firstmeasure:') === 0) markQaActivity();
+      if (data.type === 'firstmeasure:qa_full_house_review') {
+        setEmbeddedFullHouseReview(data.folder, data.full_house_review);
+        return;
+      }
       if (data.type === 'firstmeasure:qa_decision_request') {
         if (!currentId || String(data.folder || '') !== String(currentId)) return;
+        setEmbeddedFullHouseReview(data.folder, data.full_house_review);
         if (Array.isArray(data.threads)) {
           qaThreads = mergeThreadDrafts(qaThreads, data.threads);
           renderChecklist();

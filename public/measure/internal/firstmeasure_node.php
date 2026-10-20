@@ -56,6 +56,47 @@ function fm_api_base_url() {
     return $base;
 }
 
+// The origin the browser used for this request, or '' outside a web request.
+function fm_public_request_origin() {
+    $host = trim((string)($_SERVER['HTTP_HOST'] ?? ''));
+    if ($host === '' || !preg_match('/^[A-Za-z0-9.-]+(?::\d+)?$/D', $host)) return '';
+    $forwardedProto = strtolower(trim(explode(',', (string)($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? ''))[0]));
+    $scheme = ($forwardedProto === 'https' || (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')) ? 'https' : 'http';
+    return $scheme . '://' . strtolower($host);
+}
+
+function fm_is_local_host($host) {
+    $hostOnly = preg_replace('/:\d+$/', '', strtolower((string)$host));
+    return $hostOnly === '127.0.0.1' || $hostOnly === 'localhost';
+}
+
+// The API base for URLs that reach the browser. FIRSTMEASURE_API_BASE is for
+// PHP-to-Node calls and may be a private address (development points it at the
+// web node's private IP), which a page served over HTTPS cannot load.
+function fm_browser_api_base_url() {
+    static $base = null;
+    if ($base !== null) return $base;
+    $envBase = getenv('FIRSTMEASURE_BROWSER_API_BASE');
+    if (is_string($envBase) && trim($envBase) !== '') return $base = rtrim(trim($envBase), '/');
+    $origin = fm_public_request_origin();
+    if ($origin === '' || fm_is_local_host(parse_url($origin, PHP_URL_HOST))) return $base = rtrim(fm_api_base_url(), '/');
+    return $base = $origin . '/v1/firstmeasure';
+}
+
+// When PHP reaches Node at a different address than the browser used, tell Node
+// the public origin so the URLs it builds (editor imagery, artifacts) load in the page.
+function fm_api_forwarded_headers($url) {
+    $origin = fm_public_request_origin();
+    if ($origin === '') return [];
+    $public = parse_url($origin);
+    if (fm_is_local_host($public['host'] ?? '')) return [];
+    $publicHost = $public['host'] . (isset($public['port']) ? ':' . $public['port'] : '');
+    $target = parse_url((string)$url);
+    $targetHost = strtolower((string)($target['host'] ?? '')) . (isset($target['port']) ? ':' . $target['port'] : '');
+    if ($targetHost === '' || $targetHost === $publicHost) return [];
+    return ['X-Forwarded-Host: ' . $publicHost, 'X-Forwarded-Proto: ' . $public['scheme']];
+}
+
 function fm_json_decode($raw, $fallback = null) {
     if (!is_string($raw) || trim($raw) === '') return $fallback;
     $decoded = json_decode($raw, true);
@@ -103,6 +144,7 @@ function fm_api_request($method, $path, $opts = []) {
         $body = $opts['body'];
     }
 
+    $headers = array_merge($headers, fm_api_forwarded_headers($url));
     if (function_exists('fm_full_house_headers') && (strpos((string)$path, 'internal-exteriors/') === 0 || strpos((string)$path, 'fullhouse_') !== false)) $headers = array_merge($headers, fm_full_house_headers());
     if (function_exists('curl_init')) {
         $ch = curl_init($url);
@@ -749,17 +791,17 @@ function fm_legacy_manifest($manifest) {
 }
 
 function fm_project_asset_url($projectId, $fileName) {
-    return rtrim(fm_api_base_url(), '/') . '/projects/' . rawurlencode((string)$projectId) . '/artifacts/' . rawurlencode((string)$fileName);
+    return rtrim(fm_browser_api_base_url(), '/') . '/projects/' . rawurlencode((string)$projectId) . '/artifacts/' . rawurlencode((string)$fileName);
 }
 
 function fm_project_pdf_url($projectId, $slot = 'main') {
-    return rtrim(fm_api_base_url(), '/') . '/projects/' . rawurlencode((string)$projectId) . '/pdf?slot=' . rawurlencode((string)$slot);
+    return rtrim(fm_browser_api_base_url(), '/') . '/projects/' . rawurlencode((string)$projectId) . '/pdf?slot=' . rawurlencode((string)$slot);
 }
 
 function fm_project_doc_url($projectId, $doc) {
     $doc = trim((string)$doc);
     if ($doc === 'pdf_state') {
-        return rtrim(fm_api_base_url(), '/') . '/projects/' . rawurlencode((string)$projectId) . '/editor/pdf-state';
+        return rtrim(fm_browser_api_base_url(), '/') . '/projects/' . rawurlencode((string)$projectId) . '/editor/pdf-state';
     }
     $map = [
         'app_metadata' => 'app-metadata',
@@ -767,7 +809,7 @@ function fm_project_doc_url($projectId, $doc) {
         'pdf_state_wrapped' => 'pdf-state',
     ];
     $target = $map[$doc] ?? $doc;
-    return rtrim(fm_api_base_url(), '/') . '/projects/' . rawurlencode((string)$projectId) . '/' . rawurlencode((string)$target);
+    return rtrim(fm_browser_api_base_url(), '/') . '/projects/' . rawurlencode((string)$projectId) . '/' . rawurlencode((string)$target);
 }
 
 function fm_build_assets_map($projectId, $files) {

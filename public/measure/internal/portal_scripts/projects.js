@@ -4550,6 +4550,7 @@ Note: Our coverage is based on individual structure, not area - so we may have c
                     <span class="projects-priority-tag status">${Portal.escapeHtml(this.priorityStatusLabel(project.status))}</span>
                     ${isReserved ? '<span class="projects-priority-tag reserved"><i class="fas fa-bookmark"></i> Reserved</span>' : ''}
                     ${project.is_vip ? '<span class="projects-priority-tag status">VIP</span>' : ''}
+                    ${this.isFullHouseProject(project) ? '<span class="projects-priority-tag status full-house"><i class="fas fa-house"></i> Full House</span>' : ''}
                     ${project.is_expedited ? '<span class="projects-priority-tag status">Expedited</span>' : ''}
                     ${project.is_filler ? '<span class="projects-priority-tag status">Filler</span>' : ''}
                   </div>
@@ -5841,6 +5842,7 @@ Note: Our coverage is based on individual structure, not area - so we may have c
               ${vipBadgeHtml}
               ${expeditedBadgeHtml}
               ${guttersBadgeHtml}
+              ${this.isFullHouseProject({ ...m, id: folderId }) ? '<span class="pm-full-house-badge" style="margin-left:6px;padding:3px 8px;border-radius:6px;background:#1e3a8a;color:#fff;font-size:9px;font-weight:950;"><i class="fas fa-house"></i> FULL HOUSE</span>' : ''}
               ${queuePriorityBadgeHtml}
               ${isFiller ? '<span style="margin-left:6px;padding:3px 8px;border-radius:6px;background:#555;color:#fff;font-size:9px;font-weight:950;">FILLER</span>' : ''}
               ${isTutorial ? '<span style="margin-left:6px;padding:3px 8px;border-radius:6px;background:#673ab7;color:#fff;font-size:9px;font-weight:950;">TUTORIAL</span>' : ''}
@@ -6416,6 +6418,7 @@ Note: Our coverage is based on individual structure, not area - so we may have c
         if (queueNote) queueNote.remove();
         if (reservePill) reservePill.style.display = 'none';
       } else {
+        if (sel) sel.dataset.fullHouse = this.isFullHouseProject({ id: folderId }) ? '1' : '';
         this.populateReserveSelect(sel, reservedToEmail, reservedToName);
       }
       if (canCancelProjects) {
@@ -6458,7 +6461,7 @@ Note: Our coverage is based on individual structure, not area - so we may have c
             const res = v
               ? await this.fmPost(`projects/${encodeURIComponent(folderId)}/queue/reserve`, { reserved_for: { email: v } })
               : await this.fmPost(`projects/${encodeURIComponent(folderId)}/queue/release-reservation`, {});
-            if (!res || !res.success) { alert(res?.error || 'Reservation failed.'); return; }
+            if (!res || !res.success) { alert(res?.message || res?.error || 'Reservation failed.'); return; }
             const pill = document.getElementById('pmReservePill');
             const newEmail = res.reserved_to_email || ''; const newName = res.reserved_to_name || '';
             if (pill) pill.textContent = newEmail ? `Reserved for ${newName || newEmail}` : `No reservation`;
@@ -6512,7 +6515,7 @@ Note: Our coverage is based on individual structure, not area - so we may have c
       try{
         const response=await this.fmPost('qa/reservation/users',{});
         if(!response.success)throw new Error(response.message||response.error||'Sign in again to manage QA reservations.');
-        const users=Array.isArray(response.users)?response.users:[];
+        const users=(Array.isArray(response.users)?response.users:[]).filter(user=>!this.isFullHouseProject({id:folderId})||user.can_qa_full_house===true);
         select.innerHTML='<option value="">Clear QA reservation</option>'+users.map(user=>`<option value="${Portal.escapeHtml(user.email)}">${Portal.escapeHtml(user.name||user.email)}</option>`).join('');
         if(selectedEmail&&!users.some(user=>user.email===selectedEmail))select.insertAdjacentHTML('beforeend',`<option value="${Portal.escapeHtml(selectedEmail)}">${Portal.escapeHtml(selectedEmail)} (unavailable — clear or reassign)</option>`);
         select.value=selectedEmail;select.disabled=false;button.disabled=false;
@@ -6533,9 +6536,15 @@ Note: Our coverage is based on individual structure, not area - so we may have c
         };
       }catch(error){if(note)note.textContent=error.message||'Unable to load QA reviewers.';}
     },
+    // A customer full-house order (exteriors_ id) or any full-house scope.
+    isFullHouseProject(project){
+      const id = String(project?.id || project?.folder || project?.project_id || '');
+      return /^exteriors_[a-f0-9]{32}$/.test(id) || (project?.measurement_scope === 'full_house' && !id.startsWith('fullhouse_'));
+    },
     populateReserveSelect(selectEl, reservedToEmail, reservedToName=''){
       if (!selectEl) return;
-      const users = Array.isArray(this.queueAssignableUsers) ? this.queueAssignableUsers : null;
+      const allUsers = Array.isArray(this.queueAssignableUsers) ? this.queueAssignableUsers : null;
+      const users = allUsers && selectEl.dataset.fullHouse === '1' ? allUsers.filter((u) => u.can_draft_full_house === true) : allUsers;
       const currentEmail = (reservedToEmail || '').toLowerCase().trim();
       const currentName = String(reservedToName || '').trim();
       if (!users) { selectEl.innerHTML = `<option value="">Clear reservation</option><option value="_loading">Loading users…</option>`; selectEl.value = '_loading'; return; }

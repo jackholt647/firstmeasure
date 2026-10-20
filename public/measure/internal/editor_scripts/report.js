@@ -6974,6 +6974,85 @@ const QA_PDF_REVIEW_ITEMS = [
     { key: 'diagram_labels', label: 'Diagram Labels' }
 ];
 
+// The seven confirmations the server requires before a customer full-house
+// report is approved (full_house_workflow.ts FULL_HOUSE_REVIEW_FIELDS). In
+// embedded QA the portal's own checklist is hidden, so the PDF page shows them
+// and sends them with the QA or manager decision.
+const QA_FULL_HOUSE_REVIEW_ITEMS = [
+    { key: 'roof', label: 'Roof measurements' },
+    { key: 'walls', label: 'Exterior walls and dimensions' },
+    { key: 'openings', label: 'Windows and doors' },
+    { key: 'finishes_trim', label: 'Finishes and trim' },
+    { key: 'gutters', label: 'Gutters and stories' },
+    { key: 'references', label: 'Customer photos and walkthroughs' },
+    { key: 'pdf', label: 'Complete full-house PDF' }
+];
+let qaFullHouseReviewChecks = { folder: '', checks: {} };
+
+function isQaFullHouseReviewMode() {
+    return window.FIRSTMEASURE_CUSTOMER_FULL_HOUSE === true;
+}
+
+function getQaFullHouseReviewChecks() {
+    const folder = String(window.currentProjectId || '');
+    if (qaFullHouseReviewChecks.folder !== folder) qaFullHouseReviewChecks = { folder, checks: {} };
+    return qaFullHouseReviewChecks.checks;
+}
+
+function qaFullHouseReviewPayload() {
+    if (!isQaFullHouseReviewMode()) return null;
+    const checks = getQaFullHouseReviewChecks();
+    return Object.fromEntries(QA_FULL_HOUSE_REVIEW_ITEMS.map((item) => [item.key, checks[item.key] === true]));
+}
+
+function isQaFullHouseReviewComplete() {
+    const payload = qaFullHouseReviewPayload();
+    return !payload || QA_FULL_HOUSE_REVIEW_ITEMS.every((item) => payload[item.key] === true);
+}
+
+function postQaFullHouseReviewState() {
+    const review = qaFullHouseReviewPayload();
+    if (!review || window.parent === window) return;
+    window.parent.postMessage({
+        type: 'firstmeasure:qa_full_house_review',
+        folder: window.currentProjectId || reportConfigState?.folderId || '',
+        full_house_review: review
+    }, window.location.origin);
+}
+
+function renderQaFullHouseReviewHtml() {
+    if (!isQaFullHouseReviewMode()) return '';
+    const checks = getQaFullHouseReviewChecks();
+    return `
+        <fieldset class="qa-full-house-review" id="qaPdfFullHouseReview" style="margin:0 0 10px; padding:10px 12px; border:1px solid #d0d5dd; border-radius:10px;">
+            <legend style="font-weight:700; padding:0 4px;">Full-house review</legend>
+            ${QA_FULL_HOUSE_REVIEW_ITEMS.map((item) => `
+                <label style="display:block; margin:6px 0;"><input type="checkbox" data-full-house-review="${item.key}" ${checks[item.key] === true ? 'checked' : ''}> ${escapeHtml(item.label)}</label>
+            `).join('')}
+        </fieldset>
+    `;
+}
+
+// Each PDF preview render synchronizes a new server revision. Approval waits for
+// renders in flight so it names the newest revision, not one replaced seconds later.
+let firstMeasurePdfPreviewsInFlight = 0;
+let firstMeasurePdfPreviewIdleWaiters = [];
+function firstMeasureTrackPdfPreview() {
+    firstMeasurePdfPreviewsInFlight += 1;
+    let open = true;
+    return () => {
+        if (!open) return;
+        open = false;
+        firstMeasurePdfPreviewsInFlight = Math.max(0, firstMeasurePdfPreviewsInFlight - 1);
+        if (!firstMeasurePdfPreviewsInFlight) firstMeasurePdfPreviewIdleWaiters.splice(0).forEach((resolve) => resolve());
+    };
+}
+function firstMeasureWaitForPdfPreviews() {
+    if (!firstMeasurePdfPreviewsInFlight) return Promise.resolve();
+    return new Promise((resolve) => firstMeasurePdfPreviewIdleWaiters.push(resolve));
+}
+window.firstMeasurePdfPreviewBusy = () => firstMeasurePdfPreviewsInFlight > 0;
+
 function isQaPortalPdfReviewMode() {
     try {
         const params = new URLSearchParams(window.location.search || '');
@@ -7034,6 +7113,7 @@ function renderQaPdfReviewHtml(state) {
     return `
         <div class="qa-pdf-review-panel" id="qaPdfReviewPanel">
             <div class="qa-pdf-review-grid">${itemsHtml}</div>
+            ${renderQaFullHouseReviewHtml()}
             <div class="qa-pdf-review-actions">
                 <button class="fin-submit-btn qa-sendback disabled" id="qaPdfSendBackBtn" disabled>
                     <i class="fas fa-undo"></i> Request Tech Correction
@@ -7298,6 +7378,7 @@ function postQaPdfDecision(status, threads) {
         folder: window.currentProjectId || reportConfigState?.folderId || '',
         pdf_sync_job_id: reviewedSync.jobId || reviewedSync.job_id || '',
         pdf_sync_revision: reviewedSync.revision || '',
+        ...(isQaFullHouseReviewMode() ? { full_house_review: qaFullHouseReviewPayload() } : {}),
         threads: Array.isArray(threads) ? threads : (window.DrafterQA?.getThreads ? window.DrafterQA.getThreads() : [])
     }, window.location.origin);
 }
@@ -7386,13 +7467,15 @@ function setupQaPdfReviewControls(container, state, storiesReady) {
         const allPass = allReviewed && values.every((item) => item.status === 'pass');
         const failed = values.filter((item) => item.status === 'fail');
         const failedWithComments = failed.length > 0 && failed.every((item) => String(item.comment || '').trim().length > 0);
-        const canApprove = storiesReady && allPass;
-        const canCorrectApprove = storiesReady && failedWithComments;
+        const fullHouseReady = isQaFullHouseReviewComplete();
+        const canApprove = storiesReady && allPass && fullHouseReady;
+        const canCorrectApprove = storiesReady && failedWithComments && fullHouseReady;
         const canSendBack = failedWithComments && !fixOnlyMode;
 
         if (approveBtn) {
             approveBtn.disabled = !canApprove;
             approveBtn.className = `fin-submit-btn qa-approve ${canApprove ? 'enabled' : 'disabled'}`;
+            approveBtn.title = fullHouseReady ? '' : 'Tick every full-house review check first.';
         }
         if (correctApproveBtn) {
             correctApproveBtn.disabled = !canCorrectApprove;
@@ -7404,6 +7487,15 @@ function setupQaPdfReviewControls(container, state, storiesReady) {
             sendBackBtn.className = `fin-submit-btn qa-sendback ${canSendBack ? 'enabled' : 'disabled'}`;
         }
     };
+
+    container.querySelectorAll('#qaPdfFullHouseReview [data-full-house-review]').forEach((input) => {
+        input.addEventListener('change', () => {
+            getQaFullHouseReviewChecks()[input.getAttribute('data-full-house-review')] = input.checked;
+            postQaFullHouseReviewState();
+            refresh();
+        });
+    });
+    postQaFullHouseReviewState();
 
     container.querySelectorAll('.qa-pdf-check').forEach((card) => {
         const key = card.getAttribute('data-qa-review');
@@ -7437,6 +7529,10 @@ function setupQaPdfReviewControls(container, state, storiesReady) {
             try {
                 if (blockReportFacetOverlapsForSubmission(state)) return;
                 if (!state || blockUnrealisticReportGeometryForSubmission(state)) return;
+                if (window.firstMeasurePdfPreviewBusy()) {
+                    approveBtn.innerHTML = '<i class="fas fa-circle-notch fa-spin"></i> Waiting for the PDF...';
+                    await firstMeasureWaitForPdfPreviews();
+                }
                 postQaPdfDecision('approved');
             } finally {
                 approveBtn.innerHTML = original;
@@ -7455,6 +7551,10 @@ function setupQaPdfReviewControls(container, state, storiesReady) {
                 if (!state || blockUnrealisticReportGeometryForSubmission(state)) return;
                 correctApproveBtn.innerHTML = '<i class="fas fa-circle-notch fa-spin"></i> Saving...';
                 const threads = await addQaPdfReviewFailuresToThreads(state, { resolve: true });
+                if (window.firstMeasurePdfPreviewBusy()) {
+                    correctApproveBtn.innerHTML = '<i class="fas fa-circle-notch fa-spin"></i> Waiting for the PDF...';
+                    await firstMeasureWaitForPdfPreviews();
+                }
                 postQaPdfDecision('corrected_approved', threads);
             } finally {
                 correctApproveBtn.innerHTML = original;
@@ -7598,6 +7698,7 @@ async function renderFinalizePage(container) {
         }
 
         previewSyncReady = false;
+        const finishPreviewTracking = firstMeasureTrackPdfPreview();
         const existingReviewedSync = window.__lastFirstMeasureReviewedPdfSync;
         if (existingReviewedSync && String(existingReviewedSync.folderId || '') === String(state.folderId || window.currentProjectId || '')) {
             window.__lastFirstMeasureReviewedPdfSync = null;
@@ -7751,6 +7852,7 @@ async function renderFinalizePage(container) {
             showPreviewError(e && e.message ? e.message : 'Unable to generate PDF preview.');
             setPreviewStatus('Preview failed', true);
         } finally {
+            finishPreviewTracking();
             if (typeof refreshSubmitState === 'function') refreshSubmitState();
             if (refreshBtn) {
                 refreshBtn.disabled = false;
@@ -7775,10 +7877,11 @@ async function renderFinalizePage(container) {
             ? 'Ready to submit the reviewed PDF.'
             : (missingStories.length ? 'Fill in all gutter stories to enable submission.' : 'Waiting for the reviewed PDF revision to be accepted...');
         if (reqBox) {
-            reqBox.style.borderColor = ok ? '#c5d8c9' : '#f2c6c2';
-            reqBox.style.background = ok ? '#f7fbf8' : '#fff5f5';
-            reqBox.style.color = ok ? '#188038' : '#b3261e';
-            reqBox.textContent = ok
+            const storiesFilled = missingStories.length === 0;
+            reqBox.style.borderColor = storiesFilled ? '#c5d8c9' : '#f2c6c2';
+            reqBox.style.background = storiesFilled ? '#f7fbf8' : '#fff5f5';
+            reqBox.style.color = storiesFilled ? '#188038' : '#b3261e';
+            reqBox.textContent = storiesFilled
                 ? 'Gutter stories requirement: All gutter stories are filled in.'
                 : `Gutter stories requirement: Set stories for ${missingStories.map((dir) => GUTTER_DIRECTION_LABELS[dir]).join(', ')} before submission.`;
         }
