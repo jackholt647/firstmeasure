@@ -2107,6 +2107,8 @@ export const registerFirstMeasureApi: FastifyPluginAsync = async (app) => {
       // Videos are kept out of elevation_photos, which the editor renders as images.
       const referenceVideos: Record<string,unknown>[]=[];
 
+      try {
+
       for(const [index,ref] of checked.references.entries()) {
 
         const media=await readExteriorMediaFile(orgId,ref.media_id);
@@ -2134,6 +2136,17 @@ export const registerFirstMeasureApi: FastifyPluginAsync = async (app) => {
       await saveArtifact(created.manifest.id,"customer-references.json",JSON.stringify(checked.references.map((ref,index)=>({...ref,file_prefix:`customer-reference-${index}.`}))));
 
       await patchManifest(created.manifest.id,{status:"queued",elevation_photos:elevationPhotos,...(referenceVideos.length?{exterior_reference_videos:referenceVideos}:{})});
+
+      } catch(error) {
+
+        // The failed request is refunded, so the project must not wait for references forever; cancel it, then fail.
+        const failedId=created.manifest.id;
+
+        await patchManifest(failedId,{status:"cancelled",cancellation_reason:"reference_copy_failed",timestamps:{cancelled_at:toSqlDateString(new Date())}}).catch(cancelError=>request.log.error({err:cancelError,projectId:failedId},"Could not cancel a Full House order whose references failed to copy"));
+
+        throw error;
+
+      }
 
     } else created = reordered ? { manifest: reordered } : await createProject(projectInput);
 

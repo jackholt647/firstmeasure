@@ -35,6 +35,15 @@ test("completed reports publish linked same-organization measurements and preser
   const exteriorContext=systemPublicationContext({kind:"module",organizationId:"org_projection",projectId:"exterior_project",operations:["datasets.value"]});
   const exterior=await effectiveProjectMeasurements(exteriorContext,"exterior_project");
   assert.equal(exterior.status,"ready");assert.equal((exterior.value as any).measurements.wallNetArea.value,450);
+  // A metric report converts only for display: the editor saves wall totals in feet, so they publish as square feet.
+  const metricId="exteriors_"+"b".repeat(32);
+  await s.upsertDocument("org_projection","projects",{id:"metric_exterior_project",data:{measurement_project:{id:metricId}}});
+  await fm.createProject({id:metricId,address:"789 Test Street",organization_ref:{id:"org_projection"},measurement_scope:"full_house",measurement_system:"metric"},{customerExteriors:true});
+  await fm.savePdfState(metricId,{exteriorReport:{version:1,units:"ft",totals:{gross:500,net:450,openingArea:50}}});
+  await fm.updateStatus(metricId,"completed");
+  const metric=await effectiveProjectMeasurements(systemPublicationContext({kind:"module",organizationId:"org_projection",projectId:"metric_exterior_project",operations:["datasets.value"]}),"metric_exterior_project");
+  assert.equal((await fm.readManifest(metricId)).measurement_system,"metric");
+  assert.deepEqual((metric.value as any).measurements.wallNetArea,{value:450,unit:"ft2",source:"firstmeasure.exterior"});assert.equal((metric.value as any).measurements.wallOpeningArea.value,50);
  }finally{await (await import("../firstmeasure/project_index.js")).closeFirstMeasureProjectIndex();await rm(dir,{recursive:true,force:true});}
 });
 

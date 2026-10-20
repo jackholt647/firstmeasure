@@ -2774,6 +2774,12 @@ async function generatePDFFromState(state, mode = 'full', updateStatusCallback, 
         }
     }
 
+    // A full-house customer summary carries the Exterior Summary page; elevations and dimensions stay in the full report.
+    if (mode === 'summary' && isCustomerFullHousePdf(state) && state.exteriorReport?.walls?.length) {
+        if (updateStatusCallback) updateStatusCallback('Generating exterior summary page...');
+        window.ExteriorPDF.drawExteriorSummaryPage(doc, state.exteriorReport, state.exteriorSettings || {}, beginReportPage, brandingColors);
+    }
+
     if (hasExterior) {
         if (updateStatusCallback) updateStatusCallback('Generating exterior report pages...');
         window.drawExteriorReportPages(doc, state.exteriorReport, state.exteriorSettings || {}, beginReportPage, brandingColors);

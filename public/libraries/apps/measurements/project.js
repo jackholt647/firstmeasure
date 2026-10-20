@@ -1493,7 +1493,7 @@ window.PlatformCommerce.onReady(function(){
   }
 
   function summaryMetricLabel(label){
-    const key = {"Roof squares":"m_35205e970a2cdd","Roof area":"m_b4a198f9d6044c","Facets":"m_23c27ba7741b73","Main pitch":"m_fffeb2d8c3e57d","Suggested waste":"m_f77370bf46dd5a","Squares with waste":"m_f6ea64a8f11eca","Eaves":"m_f2baa3de1eb35b","Valleys":"m_230a183ddb6e96","Rakes":"m_48029c2aaa37c6","Ridges":"m_217bf30b990d24","Hips":"m_baa2f693c3883e","Headwall flashing":"m_3bcef36c5987a6","Sidewall flashing":"m_58ab5ba41ae1c9","Step flashing":"m_06fc435805a90a","Transitions":"m_8ba24778829c38","Parapet wall":"m_4d80da8e9e6ebe","Counter flashing":"m_7aeda3ce508c46","Sidewalls":"m_46afa7474f4ef1","Headwalls":"m_10e472dc761ed6"}[label];
+    const key = {"Roof squares":"m_35205e970a2cdd","Roof area":"m_b4a198f9d6044c","Facets":"m_23c27ba7741b73","Main pitch":"m_fffeb2d8c3e57d","Suggested waste":"m_f77370bf46dd5a","Squares with waste":"m_f6ea64a8f11eca","Eaves":"m_f2baa3de1eb35b","Valleys":"m_230a183ddb6e96","Rakes":"m_48029c2aaa37c6","Ridges":"m_217bf30b990d24","Hips":"m_baa2f693c3883e","Headwall flashing":"m_3bcef36c5987a6","Sidewall flashing":"m_58ab5ba41ae1c9","Step flashing":"m_06fc435805a90a","Transitions":"m_8ba24778829c38","Parapet wall":"m_4d80da8e9e6ebe","Counter flashing":"m_7aeda3ce508c46","Sidewalls":"m_46afa7474f4ef1","Headwalls":"m_10e472dc761ed6","Net wall area":"m_af73cd065f186c","Gross wall area":"m_a2bda2f3e4fe6f","Opening area":"m_e298acc48ec650","Opening perimeter":"m_741ae5de637276","Horizontal returns":"m_5539539c66159b","Top of walls":"m_1dd2d42e99988b","Bottom of walls":"m_8ff9f220c726ca","Inside corners":"m_5b932b3e2e6690","Outside corners":"m_201ef65f894b3a","Material transitions":"m_b165057c48d339","Exposed vertical terminations":"m_960d3089f4438b"}[label];
     return key ? (globalThis.PlatformLanguage?.text('measurements',key,label) ?? label) : label;
   }
   function summaryMetricNumber(value){
@@ -1918,6 +1918,44 @@ window.PlatformCommerce.onReady(function(){
     return rows;
   }
 
+  function reportSummaryIsFullHouse(){
+    return reportOrderManifest().measurement_scope === 'full_house';
+  }
+
+  // The Report.pdf Exterior Summary and Exterior Quantities, read from the published measurement dataset
+  // (dictionary keys with explicit units; the exterior report stores feet). Only full-house reports ask for these.
+  function reportSummaryWallRows(measurements = {}){
+    const rows = [];
+    const add = (label, key, unit, expected) => {
+      const entry = measurements && measurements[key];
+      const value = Number(entry?.value);
+      if (!entry || entry.value == null || entry.unit !== expected || !Number.isFinite(value) || value < 0) return;
+      rows.push({ label, value: formatSummaryNumber(value, 1), unit, wall: true });
+    };
+    add("Net wall area", 'wallNetArea', 'sq ft', 'ft2');
+    add("Gross wall area", 'wallGrossArea', 'sq ft', 'ft2');
+    add("Opening area", 'wallOpeningArea', 'sq ft', 'ft2');
+    add("Opening perimeter", 'wallOpeningPerimeter', 'ft', 'ft');
+    add("Horizontal returns", 'wallReturnsArea', 'sq ft', 'ft2');
+    add("Top of walls", 'wallTopLf', 'ft', 'ft');
+    add("Bottom of walls", 'wallBottomLf', 'ft', 'ft');
+    add("Inside corners", 'insideCornersLf', 'ft', 'ft');
+    add("Outside corners", 'outsideCornersLf', 'ft', 'ft');
+    add("Material transitions", 'wallTransitionsLf', 'ft', 'ft');
+    add("Exposed vertical terminations", 'wallTerminationsLf', 'ft', 'ft');
+    return rows;
+  }
+
+  // Exterior wall rows follow every roof row, so a roof-only report's rows and order are unchanged.
+  function reportSummaryWithWallRows(rows, loadedRows = []){
+    return rows.concat((Array.isArray(loadedRows) ? loadedRows : []).filter((row) => row?.wall));
+  }
+
+  function reportSummaryStandardDetail(fullHouse, guttersOrdered){
+    if (fullHouse) return (globalThis.PlatformLanguage?.text("measurements","m_e5eb5b7b856321","Full house PDF with roof, gutter and exterior wall measurements") ?? "Full house PDF with roof, gutter and exterior wall measurements");
+    return guttersOrdered ? (globalThis.PlatformLanguage?.text("measurements","m_1313f5db221c3d","Main roof measurement PDF with gutter measurements") ?? "Main roof measurement PDF with gutter measurements") : (globalThis.PlatformLanguage?.text("measurements","m_9898713daf99e1","Main roof measurement PDF") ?? "Main roof measurement PDF");
+  }
+
   function loadReportSummaryMetricsFromXml(xmlUrl, projectId){
     const key = reportSummaryMetricCacheKey(projectId, xmlUrl);
     if (!xmlUrl || !key || measurementSummaryMetricCache.has(key) || measurementSummaryMetricLoads.has(key)) return;
@@ -1927,13 +1965,14 @@ window.PlatformCommerce.onReady(function(){
       ? sharedMeasurements.load(activeBaseProject || {}, { reportOrderState: window.reportOrderState || {} })
         .then((result) => {
           const rows = reportSummaryRowsFromRoofMeasurements(result?.measurements || {});
-          if (rows.length) return rows;
+          const walls = reportSummaryIsFullHouse() ? reportSummaryWallRows(result?.source?.value?.measurements) : [];
+          if (rows.length) return rows.concat(walls);
           return fetch(xmlUrl, { credentials: 'include' })
             .then((response) => {
               if (!response.ok) throw new Error(((v0) => globalThis.PlatformLanguage?.text("measurements","m_fc55e992b0fa41",`Measurement XML unavailable (${v0})`,{v0}) ?? `Measurement XML unavailable (${v0})`)(response.status));
               return response.text();
             })
-            .then((text) => reportSummaryMetricsFromXml(text));
+            .then((text) => reportSummaryMetricsFromXml(text).concat(walls));
         })
       : fetch(xmlUrl, { credentials: 'include' })
       .then((response) => {
@@ -2116,7 +2155,7 @@ window.PlatformCommerce.onReady(function(){
     if (Array.isArray(xmlRows) && xmlRows.length) {
       const labels = new Set(rows.map((row) => row.label));
       xmlRows.forEach((row) => {
-        if (!labels.has(row.label)) rows.push(row);
+        if (!row?.wall && !labels.has(row.label)) rows.push(row);
       });
     }
     collectReportObstacleRows().forEach((row) => {
@@ -2138,7 +2177,7 @@ window.PlatformCommerce.onReady(function(){
         });
       }
     }
-    return rows;
+    return reportSummaryWithWallRows(rows, xmlRows);
   }
 
   function reportSummaryStatusLabel(row){
@@ -2171,7 +2210,7 @@ window.PlatformCommerce.onReady(function(){
     const rows = [
       {
         get label(){ return (globalThis.PlatformLanguage?.text("measurements","m_555c8c46294794","Standard report") ?? "Standard report"); },
-        detail: guttersOrdered ? (globalThis.PlatformLanguage?.text("measurements","m_1313f5db221c3d","Main roof measurement PDF with gutter measurements") ?? "Main roof measurement PDF with gutter measurements") : (globalThis.PlatformLanguage?.text("measurements","m_9898713daf99e1","Main roof measurement PDF") ?? "Main roof measurement PDF"),
+        detail: reportSummaryStandardDetail(reportSummaryIsFullHouse(), guttersOrdered),
         ...standardState
       },
       {

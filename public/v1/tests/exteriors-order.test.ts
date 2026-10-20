@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import {mkdtemp,writeFile,rm} from 'node:fs/promises';
+import {mkdtemp,writeFile,rm,readdir} from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
@@ -13,7 +13,7 @@ test('Full House ordering validates flags, references, prices and paid queue art
  globalThis.fetch=(async(input:any)=>new Response(JSON.stringify(String(input).includes('/geocode/')?{status:'OK',results:[{address_components:[{types:['country'],short_name:'US'}]}]}:{}),{status:String(input).includes('/geocode/')?200:503})) as typeof fetch;
  const {buildApp}=await import('../src/app.js');
  const {saveCapabilityValues}=await import('../platform/capabilities.js');
- const {saveGlobal,readGlobal}=await import('../platform/storage.js');
+ const {saveGlobal,readGlobal,readMediaMetadata}=await import('../platform/storage.js');
  const {readManifest,readArtifact,saveAppMetadata,readAppMetadata}=await import('../firstmeasure/storage.js');
  const {exteriorQuote,EXTERIOR_VIEWS,validateExteriorOrder}=await import('../firstmeasure/exteriors.js');
  const {pricingContext,DEFAULT_EXPEDITE_PRICING}=await import('../firstmeasure/pricing_config.js');
@@ -70,6 +70,17 @@ test('Full House ordering validates flags, references, prices and paid queue art
  assert.deepEqual(videoManifest.exterior_reference_videos.map((v:any)=>[v.file_name,v.view,v.content_type]),[['customer-reference-0.mp4','orbital_video','video/mp4'],['customer-reference-2.webm','additional','video/webm']]);
  assert.deepEqual(videoManifest.elevation_photos.map((p:any)=>p.file_name),['customer-reference-1.png']);
  assert.ok(await readArtifact(videoOrder.json().folder,'customer-reference-0.mp4'));assert.equal((await readGlobal(orgId)).data.credits_balance,75);
+ // A reference that cannot be copied cancels the new project and refunds the order; nothing is left awaiting references.
+ const lost=await action('exteriors_upload',{project_type:'residential',__file:{filename:'lost.png',bytes_base64:png.toString('base64')}});assert.equal(lost.statusCode,200,lost.body);
+ const lostId=lost.json().media_id,lostPath=String((await readMediaMetadata(orgId,lostId) as any).variants.original.path);
+ const platformFiles=(await readdir(process.env.PLATFORM_STORAGE_ROOT!,{recursive:true})).map(f=>String(f).replaceAll(path.sep,'/'));
+ const lostFile=platformFiles.find(f=>f.includes(lostId)&&f.endsWith(lostPath));assert.ok(lostFile,'uploaded bytes found');await rm(path.join(process.env.PLATFORM_STORAGE_ROOT!,lostFile!));
+ const exteriorIds=async()=>new Set((await readdir(process.env.FIRSTMEASURE_STORAGE_ROOT!,{recursive:true})).map(f=>path.basename(String(f))).filter(f=>/^exteriors_[a-f0-9]{32}$/.test(f)));
+ const before=await exteriorIds();await saveGlobal(orgId,{data:{credits_balance:100}});
+ const failed=await action('queue',{...body,report_expedite_option:'exteriors_standard',exterior_references:JSON.stringify(refs.map((r,i)=>i===0?{...r,media_id:lostId}:r))});
+ assert.notEqual(failed.json().success,true,failed.body);assert.equal((await readGlobal(orgId)).data.credits_balance,100,'failed copy is refunded');
+ const orphaned=[...await exteriorIds()].filter(id=>!before.has(id));assert.equal(orphaned.length,1,'the failed order created one project');
+ const cancelled=await readManifest(orphaned[0]!) as any;assert.equal(cancelled.status,'cancelled');assert.equal(cancelled.cancellation_reason,'reference_copy_failed');assert.ok(cancelled.timestamps?.cancelled_at);
  const direct=await app.inject({method:'POST',url:'/v1/firstmeasure/projects/queue',payload:{...body,pins:JSON.parse(body.pins),report_pricing_revision:0,exterior_references:refs}});assert.ok([401,403].includes(direct.statusCode),'direct public queue cannot bypass charging');
  const roof=await action('queue',{address:'456 Fictional Roof Lane',project_type:'residential',pins:body.pins,report_pricing_revision:String(quote.json().pricing_revision)});assert.equal(roof.json().success,true,roof.body);assert.equal((await readManifest(roof.json().folder)).amount_charged,7);
  }finally{globalThis.fetch=originalFetch;await app.close();await(await import('./helpers/platform-fixture.js')).closePlatformFixtureStores();await rm(root,{recursive:true,force:true,maxRetries:5});}

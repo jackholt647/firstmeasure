@@ -160,12 +160,17 @@ function drawRoofElevations(doc,model,settings,begin,colors){
  const {x,w,bottom,text}=writer(doc,colors),gap=6,ww=(w-gap)/2,hh=(bottom-37-gap)/2;begin(reportText('Roof Elevations'));
  houseDirections(settings).slice(4).forEach((view,i)=>{const xx=x+i%2*(ww+gap),yy=37+Math.floor(i/2)*(hh+gap);text(reportText(view.name),xx+2,yy+5,10,true);drawDiagram(doc,(model.roof||[]).map(f=>({...f,surface:'roof',id:''})),{x:xx,y:yy+10,w:ww,h:hh-12},view,{iso:true,labels:false});});
 }
-function drawExteriorReportPages(doc,model,settings,begin,colors){
- const {x,w,bottom,text,note,table,paginate}=writer(doc,colors),material=a=>reportText(a.material||'Unassigned');
+/* The one-page Exterior Summary: the full report opens its exterior pages with it, and a full-house customer Summary.pdf carries only it. */
+function drawExteriorSummaryPage(doc,model,settings,begin,colors){
+ const {x,w,text,note,table}=writer(doc,colors);
  begin(reportText('Exterior Summary'));let y=38;
  [['Net wall area',measure(model.totals.net,"sf",number(model.totals.net)+' sq ft')],['Gross wall area',measure(model.totals.gross,"sf",number(model.totals.gross)+' sq ft')],['Openings',String(model.openings.length)]].forEach(([label,value],i)=>{const bx=x+i*(w+3)/3;doc.setFillColor(242,245,249);doc.roundedRect(bx,y,(w-6)/3,23,2,2,'F');text(label,bx+4,y+7,8);text(value,bx+4,y+17,12,true);});
  drawDiagram(doc,houseFaces(model),{x,y:68,w,h:111},coverView(model),{iso:true});
  table([reportText('Measurement'),reportText('Quantity')],[[reportText('Wall regions'),model.walls.length],[reportText('Opening area'),measure(model.totals.openingArea,"sf",number(model.totals.openingArea)+' sq ft')],[reportText('Opening perimeter'),measure(model.totals.openingPerimeter,"ft",number(model.totals.openingPerimeter),false)+' '+unit('ft','ft')],[reportText('Horizontal returns'),measure(model.totals.returns,"sf",number(model.totals.returns)+' sq ft')]],188,[2,1]);note(reportText('Wall IDs connect the diagrams, dimensions, opening schedule and notes.'),240);
+}
+function drawExteriorReportPages(doc,model,settings,begin,colors){
+ const {x,w,bottom,text,note,table,paginate}=writer(doc,colors),material=a=>reportText(a.material||'Unassigned');
+ drawExteriorSummaryPage(doc,model,settings,begin,colors);let y;
  for(const direction of houseDirections(settings)){
   begin(reportText(direction.name)+reportText(' Elevation'));drawOrientationKey(doc,model,settings,{x:x+w-58,y:31,w:56,h:27});const scene=drawDiagram(doc,model.walls.concat(model.returns||[]),{x,y:63,w,h:85},direction);
   const visible=new Set(scene.surfaces.filter((f,i)=>!f.featureType&&scene.counts[i]>20).map(f=>f.id)),walls=model.walls.filter(a=>visible.has(a.id));
@@ -233,6 +238,6 @@ async function drawReportImagery(doc,state,begin,colors){
   doc.addImage(item.dataUrl||reportImageData(img),'JPEG',xx+(ww-iw)/2,yy+9+(boxH-ih)/2,iw,ih);doc.setFontSize(7);text(doc.splitTextToSize(item.label||reportText('Untitled frame'),ww).slice(0,2),xx,yy+hh-8,7);
  }}
 }
-const api={directions,photoSlots,houseDirections,relativeSide,initializePhotoSlots,selectedPhotos,photosComplete,planShapes,frontBearing,dimensionPages,rasterScene,drawDiagram,drawOrientationKey,drawRoofElevations,drawExteriorCover,drawExteriorReportPages,drawExteriorNotes,drawReportImagery,prepareImagerySnapshot};
+const api={directions,photoSlots,houseDirections,relativeSide,initializePhotoSlots,selectedPhotos,photosComplete,planShapes,frontBearing,dimensionPages,rasterScene,drawDiagram,drawOrientationKey,drawRoofElevations,drawExteriorCover,drawExteriorSummaryPage,drawExteriorReportPages,drawExteriorNotes,drawReportImagery,prepareImagerySnapshot};
 if(typeof module==='object'&&module.exports)module.exports=api;else {root.ExteriorPDF=api;Object.assign(root,{drawExteriorReportPages,drawExteriorNotes,drawExteriorCover,drawReportImagery});}
 })(typeof window==='undefined'?globalThis:window);
