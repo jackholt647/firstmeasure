@@ -63,6 +63,7 @@ export function wallComplexityProxy(input: WallComplexityInput, params: WallComp
 
 const pointsForComplexity = (complexity: number) => FIRSTMEASURE_COMPLEXITY_POINT_VALUES[String(complexity)] ?? 0;
 
+const MIN_WALL_PLANE_SQFT = 1;
 const DOOR_TYPES = new Set(["door", "garage", "garagedoor", "garage-door"]);
 
 // Port of the editor's isObstacleFace (pdf.js): a face whose every corner is on
@@ -94,7 +95,9 @@ export function countFullHouseModel(snapshotValue: unknown) {
     if (type === "window") windows += 1;
     else if (DOOR_TYPES.has(type)) doors += 1;
   }
-  return { roof_facets: roofFacets, windows, doors, wall_planes: list(exterior.walls).length };
+  // Zero-area slivers the wall schedule can contain are not planes anyone drew.
+  const wallPlanes = list(exterior.walls).filter(wall => Number(record(wall).gross) >= MIN_WALL_PLANE_SQFT).length;
+  return { roof_facets: roofFacets, windows, doors, wall_planes: wallPlanes };
 }
 
 // The roof complexity whose full-house total is nearest the computed total, so

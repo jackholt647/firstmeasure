@@ -37,13 +37,13 @@ test("the completed model is counted from the reviewed snapshot", () => {
     report: { lines: [skylight, skylightBack, { type: "ridge", points: [{ x: 0, y: 0 }, { x: 1, y: 0 }] }] },
     facesData: [square(0, 0), square(2, 0), square(4, 0), square(10, 10), { points: [{ x: 0, y: 0 }, { x: 1, y: 1 }] }],
     exteriorReport: {
-      walls: [{ id: "W01" }, { id: "W02" }, { id: "W03" }],
+      walls: [{ id: "W01", gross: 1289 }, { id: "W02", gross: 20 }, { id: "W03", gross: 1 }, { id: "W04", gross: 0.4 }, { id: "W05", gross: 0 }],
       roof: [square(0, 0)],
       openings: [{ type: "window" }, { type: "window" }, { type: "door" }, { type: "garageDoor" }, { type: "garage-door" }, { type: "vent" }, { type: "gable-vent" }]
     }
   };
   assert.deepEqual(countFullHouseModel(snapshot), { roof_facets: 3, windows: 2, doors: 3, wall_planes: 3 },
-    "obstacle (skylight) faces and degenerate faces are not facets; vents are neither windows nor doors");
+    "obstacle (skylight) faces and degenerate faces are not facets; vents are neither windows nor doors; walls under 1 sq ft are slivers, not planes");
   assert.equal(countFullHouseModel({ exteriorReport: { roof: [square(0, 0), square(1, 0)] } }).roof_facets, 2, "falls back to the wall-mode roof faces");
   assert.deepEqual(countFullHouseModel(null), { roof_facets: 0, windows: 0, doors: 0, wall_planes: 0 });
 });

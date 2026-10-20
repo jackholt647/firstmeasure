@@ -15,8 +15,10 @@ completed model from the snapshot pinned to the reviewed PDF
   (`firstMeasureComplexityForRoofSegments`, facet count to 1-5) applied to the
   drawn roof facets, with skylight and chimney faces left out as the PDF does.
 - **Wall complexity** comes from `wallComplexityProxy`: windows, doors and wall
-  planes, weighted and banded into 1-5. It is a stand-in that will be
-  improved; replace that one function and bump `WALL_COMPLEXITY_PROXY_VERSION`.
+  planes, weighted and banded into 1-5. Wall planes are the wall schedule's
+  walls of at least 1 sq ft (it also holds zero-area slivers). It is a
+  stand-in that will be improved; replace that one function and bump
+  `WALL_COMPLEXITY_PROXY_VERSION`.
 - **Total points** = roof points + 2 × wall points (the usual 2/3/4/6/10 point
   table). When the walls score the same complexity as the roof, a full house is
   exactly 3× the same roof.
@@ -49,6 +51,16 @@ organization projects from published data and do not read FirstMeasure
 production work yet. Scoring a full house is a change to how points are
 assigned, so it stays in the points system; moving drafter pay onto pay rules
 would be a separate migration of every consumer above.
+
+## Calibration data
+
+The first scored dev pilot (`exteriors_e98e14a5…`, 4725 W Mercer Way, a model
+copied from an internal draft) had 39 roof facets (complexity 5; the solar
+estimate had said 2), 66 wall-schedule entries of which 30 were under 20 sq ft
+and 7 had no area, and no windows or doors placed. It scored 30 points,
+complexity 5. Many small dormer and chimney walls count as planes, so the
+proxy's bands probably need raising, or small walls weighting less, once real
+drafted houses with openings are available.
 
 ## Known gaps
 
