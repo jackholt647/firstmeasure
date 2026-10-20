@@ -2697,7 +2697,9 @@ window.addEventListener('load', () => {
 
             try {
                 // Perform Save (Silent Mode)
+                window.__lastProjectSaveError = null;
                 const success = await window.saveProjectData(true);
+                window.firstMeasureShowSaveError?.(success ? null : (window.__lastProjectSaveError || new Error('Save failed.')));
 
                 if (success) {
                     // Success State
@@ -2734,6 +2736,26 @@ window.addEventListener('load', () => {
         helpBtn.parentNode.insertBefore(saveBtn, helpBtn);
     }
 });
+
+// A failed toolbar or Ctrl+S save used to show only a two-second red cross; keep the reason on screen until dismissed
+// or the next successful save.
+window.firstMeasureShowSaveError = function(error) {
+    let banner = document.getElementById('save-error-banner');
+    if (!error) { banner?.remove(); return; }
+    if (!banner) {
+        banner = document.createElement('div');
+        banner.id = 'save-error-banner';
+        banner.setAttribute('role', 'alert');
+        banner.style.cssText = 'position:fixed;top:12px;left:50%;transform:translateX(-50%);z-index:100000;max-width:min(640px,calc(100vw - 32px));padding:10px 36px 10px 14px;background:#ffebee;color:#8e1b1b;border:1px solid #c62828;border-radius:6px;box-shadow:0 4px 14px #0003;font:14px/1.4 system-ui,sans-serif;white-space:pre-wrap';
+        const close = document.createElement('button');
+        close.type = 'button'; close.textContent = '×'; close.setAttribute('aria-label', 'Dismiss');
+        close.style.cssText = 'position:absolute;top:4px;right:6px;border:0;background:none;color:inherit;font-size:20px;cursor:pointer';
+        close.onclick = () => banner.remove();
+        banner.append(document.createElement('span'), close);
+        document.body.appendChild(banner);
+    }
+    banner.firstChild.textContent = 'The project was not saved: ' + (error?.message || String(error || 'unknown error'));
+};
 
 window.addEventListener('keydown', (e) => {
     // Check for Ctrl+S or Cmd+S (Mac)
@@ -3268,6 +3290,7 @@ window.saveProjectData = async function(isSilent = false, runInBackground = fals
 
     } catch (e) {
         console.error(e);
+        window.__lastProjectSaveError = e;
         if (!isSilent) alert("Error saving: " + e.message);
         return false;
     } finally {
