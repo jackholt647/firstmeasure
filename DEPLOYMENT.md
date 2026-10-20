@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+October 20 Production release staging: [release `31f87be5` installed on compatibility and the worker, the web nodes' installer replaced and the platform index prepared; nothing activated](deploy/digitalocean/production-release-staging-20261020.md).
+
 October 20 Original roof report layout on dev: [roof-only PDFs keep the production titles and page order; the Full House layout applies only with Full House pages](deploy/digitalocean/development-pdf-original-layout-20261020.md) records release `128d7f2b` and the verified development rollout.
 
 October 20 Production release gates on dev: [the roof 3D viewer behind `firstmeasure.roof_model_viewer` (Full House always shows it) and the signup sandbox limited to development hosts](deploy/digitalocean/development-release-gates-20261020.md) records release `067deb12` and the verified four-role development rollout.
