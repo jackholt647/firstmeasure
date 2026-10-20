@@ -43,3 +43,11 @@ suites pass 1,274. The full suite passes 1,664, with 1 known failure (exterior-a
 
 **Rollout.** `wall_solid_geometry.js`, `wall_face_draft.js` and `main.js` were overlaid on web, legacy and pool. All roles
 were verified and the served files match. The worker and production were not changed.
+
+## Follow-up — `f778eea5448c33d66b5c61dd9926de872f4b31b9`
+
+The rule is now exact. Deleting a line removes the faces that use it and leaves their other edges as wire. A rebuilt
+face may keep only its own area plus the faces across the deleted line. That still covers a wall absorbing the door
+whose edge was deleted, which is the only behaviour the repair step existed for. It never keeps area bounded by other
+wire or by untouched faces on the plane. Wall and base suites: 1,274 pass. `wall_solid_geometry.js` was overlaid on web,
+legacy and pool, and the served file matches.
