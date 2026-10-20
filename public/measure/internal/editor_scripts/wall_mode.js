@@ -831,7 +831,10 @@ function perf_render3DFrame() {
         resoffitPresets.forEach(b=>b.onclick=()=>{const value=b.dataset.resoffit;if(value!=='wallless')resoffitDepth.value=value;selectResoffit(value);});
         resoffitDepth.oninput=()=>selectResoffit(resoffitDepth.value.trim()?String(Number(resoffitDepth.value)):'');
         selectResoffit('2');
-        document.getElementById('wall-resoffit-apply').onclick=()=>{const wallless=resoffitChoice==='wallless',input=resoffitDepth;if(!wallless&&(!input.value.trim()||!input.checkValidity())){input.reportValidity();return;}wallEditor?.resoffit(wallless?'wallless':Number(input.value)*.3048);document.getElementById('wall-resoffit-result').textContent=document.getElementById('base-status').textContent;};
+        document.getElementById('wall-resoffit-apply').onclick=()=>{const wallless=resoffitChoice==='wallless',input=resoffitDepth;if(!wallless&&(!input.value.trim()||!input.checkValidity())){input.reportValidity();return;}const ok=wallEditor?.resoffit(wallless?'wallless':Number(input.value)*.3048);document.getElementById('wall-resoffit-result').textContent=document.getElementById('base-status').textContent;if(ok)setResoffit(false);};
+        // Resoffit is a dropdown: a press anywhere outside it closes it, except on a roof-contact line in the 3D view
+        // (that press toggles the line) and the camera controls (used to reach lines).
+        window.addEventListener('pointerdown',e=>{if(!resoffitMode||e.target.closest?.('#wall-resoffit-control,#axis-gizmo-container,#resource-3d-controls,.controls-3d-actions'))return;if(e.button===0&&e.target.closest?.('#three-view-wrapper')&&wallEditor?.resoffitHit?.(e))return;setResoffit(false);},true);
         window.mountExteriorToolbar?.();
         menu=document.getElementById('wall-soffit-menu');badge=document.getElementById('wall-stage-label');status=document.getElementById('wall-status');details=document.getElementById('wall-details');warning=document.getElementById('wall-warning');stageButtons=[...panel.querySelectorAll('[data-stage]')];
         document.getElementById('wall-auto').onclick=e=>{menu.hidden=!menu.hidden;e.currentTarget.setAttribute('aria-expanded',String(!menu.hidden));};
