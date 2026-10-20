@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+October 20 PRODUCTION RELEASE: [canonical `31f87be5` is live on compatibility, the worker and all six web nodes (platform, Full House and the roof 3D viewer off), with the 10-minute PDF sync changeover issue and rollback](deploy/digitalocean/production-release-20261020.md). Production now runs the canonical branch.
+
 October 20 Production release staging: [release `31f87be5` installed on compatibility and the worker, the web nodes' installer replaced and the platform index prepared; nothing activated](deploy/digitalocean/production-release-staging-20261020.md).
 
 October 20 Original roof report layout on dev: [roof-only PDFs keep the production titles and page order; the Full House layout applies only with Full House pages](deploy/digitalocean/development-pdf-original-layout-20261020.md) records release `128d7f2b` and the verified development rollout.
