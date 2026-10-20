@@ -1,4 +1,5 @@
 import { badRequest } from "./errors.js";
+import { firstMeasureComplexityForRoofSegments } from "./constants.js";
 import { fetchRequiredSolarLayers, fetchRequiredSolarDsm } from './solar_imagery.js';
 import { env } from "../src/config/env.js";
 import { INSTANT_STRUCTURE_INSIGHTS_FILE_NAME } from "./instant.js";
@@ -366,14 +367,7 @@ function pointInsideLatLngBox(lat: number, lng: number, bounds: { sw: { latitude
   );
 }
 
-function computeComplexityRating(segmentCount: number) {
-  if (segmentCount <= 0) return 3;
-  if (segmentCount <= 5) return 1;
-  if (segmentCount <= 10) return 2;
-  if (segmentCount <= 20) return 3;
-  if (segmentCount <= 35) return 4;
-  return 5;
-}
+const computeComplexityRating = firstMeasureComplexityForRoofSegments;
 
 function pointValueForComplexity(complexity: number) {
   switch (complexity) {

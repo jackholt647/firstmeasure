@@ -958,7 +958,7 @@ function normalizeProjectPointValue(manifest: ProjectManifest) {
   const pointCalculation = asRecord(manifest.point_calculation);
   const explicitPointValue = toNullableNumber(manifest.point_value);
   if (
-    String(pointCalculation.mode ?? "").trim().toLowerCase() === "multi_structure_rollup"
+    ["multi_structure_rollup", "full_house"].includes(String(pointCalculation.mode ?? "").trim().toLowerCase())
     && explicitPointValue !== null
     && explicitPointValue > 0
   ) {

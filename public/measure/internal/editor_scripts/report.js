@@ -8444,6 +8444,25 @@ function firstMeasureBuildFinalSubmissionSummary(state = null, overrides = {}) {
     };
 }
 
+// A full-house job is scored by the server at submission (roof + walls), so its
+// complexity, points and pay are read back after the submit is accepted.
+async function firstMeasureSummaryWithSubmittedPoints(state, summary) {
+    if (typeof window.firstMeasureHidesPayWhileDrafting !== 'function'
+        || !window.firstMeasureHidesPayWhileDrafting(window.currentProjectManifest)) return summary;
+    try {
+        const folderId = state?.folderId || window.currentProjectId;
+        const manifest = await window.firstMeasureGetProjectManifest(folderId, { refresh: true });
+        if (!manifest || !(Number(manifest.point_value) > 0)) return summary;
+        return {
+            ...firstMeasureBuildFinalSubmissionSummary(state, { elapsedMs: summary?.elapsedMs, points: Number(manifest.point_value) }),
+            complexity: manifest.complexity ?? null
+        };
+    } catch (e) {
+        console.warn('[PDF SUBMIT] Could not read the submitted full-house points:', e);
+        return summary;
+    }
+}
+
 function firstMeasureSetSubmittedUrl(summary) {
     try {
         const url = new URL(window.location.href);
@@ -8453,6 +8472,7 @@ function firstMeasureSetSubmittedUrl(summary) {
         if (Number.isFinite(Number(summary?.earned))) url.searchParams.set('final_earned', String(Math.round(Number(summary.earned))));
         if (Number.isFinite(Number(summary?.rate))) url.searchParams.set('final_rate', String(Math.round(Number(summary.rate))));
         if (Number.isFinite(Number(summary?.points))) url.searchParams.set('final_points', String(Number(summary.points)));
+        if (summary?.complexity != null && summary.complexity !== '') url.searchParams.set('final_complexity', String(summary.complexity));
         window.history.replaceState({}, '', url.toString());
     } catch (e) {}
 }
@@ -8465,12 +8485,13 @@ function firstMeasureReadSubmittedSummaryFromUrl() {
         const earned = Number(params.get('final_earned'));
         const rate = Number(params.get('final_rate'));
         const points = Number(params.get('final_points'));
-        return firstMeasureBuildFinalSubmissionSummary(null, {
+        const summary = firstMeasureBuildFinalSubmissionSummary(null, {
             elapsedMs: Number.isFinite(elapsedMs) ? elapsedMs : undefined,
             earned: Number.isFinite(earned) ? earned : undefined,
             rate: Number.isFinite(rate) ? rate : undefined,
             points: Number.isFinite(points) ? points : undefined
         });
+        return params.has('final_complexity') ? { ...summary, complexity: params.get('final_complexity') } : summary;
     } catch (e) {
         return null;
     }
@@ -8520,9 +8541,9 @@ function firstMeasureShowPostSubmitModal(summary = null) {
     firstMeasureEnsurePostSubmitModalStyles();
 
     const earnedText = `&#8369;${Math.round(Number(finalSummary.earned) || 0).toLocaleString()}`;
-    const pointsText = Number.isFinite(Number(finalSummary.points))
+    const pointsText = (finalSummary.complexity != null ? `Complexity ${escapeHtml(String(finalSummary.complexity))} &middot; ` : '') + (Number.isFinite(Number(finalSummary.points))
         ? `${Number(finalSummary.points).toLocaleString()} pts at &#8369;${Number(finalSummary.rate || 0).toLocaleString()}/pt`
-        : `&#8369;${Number(finalSummary.rate || 0).toLocaleString()}/pt`;
+        : `&#8369;${Number(finalSummary.rate || 0).toLocaleString()}/pt`);
     const backdrop = document.createElement('div');
     backdrop.className = 'fm-submit-modal-backdrop';
     backdrop.id = 'firstMeasurePostSubmitModal';
@@ -8756,7 +8777,7 @@ async function submitFinalReportLegacyRegenerate() {
         }
 
         closeReportConfig();
-        firstMeasureShowPostSubmitModal(postSubmitSummary);
+        firstMeasureShowPostSubmitModal(await firstMeasureSummaryWithSubmittedPoints(state, postSubmitSummary));
 
     } catch (e) {
         logPdfSubmissionError(e, submitStage, reportConfigState || window.reportConfigState || null);
@@ -8885,10 +8906,11 @@ async function submitFinalReport() {
             jobId: reviewedSync.jobId,
             accepted: response?.accepted !== false
         });
+        const submittedSummary = await firstMeasureSummaryWithSubmittedPoints(state, postSubmitSummary);
         setOverlay(false);
         btn.innerHTML = '<i class="fas fa-check"></i> Submitted';
         closeReportConfig();
-        firstMeasureShowPostSubmitModal(postSubmitSummary);
+        firstMeasureShowPostSubmitModal(submittedSummary);
     } catch (e) {
         logPdfSubmissionError(e, submitStage, state);
         alert('Error: ' + e.message);

@@ -599,7 +599,15 @@ Note: Our coverage is based on individual structure, not area - so we may have c
     fmtProjectTimerDateMs(ms){
       return Number.isFinite(ms) && ms > 0 ? new Date(ms).toLocaleString() : '\u2014';
     },
+    // A customer full-house job is scored (roof + walls) at its first submission;
+    // until then it has no allotted time or bands.
+    fullHouseAwaitingPoints(project){
+      const id = String(project?.id || project?.folder || project?.project_id || '');
+      if (!/^exteriors_[a-f0-9]{32}$/.test(id)) return false;
+      return project?.point_calculation?.mode !== 'full_house' && !project?.uploaded_at && !project?.timestamps?.uploaded_at;
+    },
     buildProjectTimingSummary(project, useNowIfOpen=false){
+      if (this.fullHouseAwaitingPoints(project)) return null;
       const points = this.resolveProjectPoints(project);
       const timeline = this.buildProjectTimerTimeline(points);
       if (!timeline) return null;

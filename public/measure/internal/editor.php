@@ -1778,6 +1778,15 @@ $tutorialStudentEmail = strtolower(trim((string)($_GET['student_email'] ?? $_GET
             lastActive: false
         };
 
+        // A customer full-house job is scored only at submission (roof + walls),
+        // so while drafting the header shows the elapsed stopwatch alone.
+        window.firstMeasureHidesPayWhileDrafting = function(manifest) {
+            if (!manifest || typeof manifest !== 'object') return false;
+            const id = String(manifest.id || manifest.project_id || '');
+            return /^exteriors_[a-f0-9]{32}$/.test(id)
+                || (manifest.measurement_scope === 'full_house' && manifest.internal_only !== true && !id.startsWith('fullhouse_'));
+        };
+
         window.firstMeasureFormatRushCountdown = function(seconds) {
             const safe = Math.max(0, Math.floor(Number(seconds) || 0));
             const hours = Math.floor(safe / 3600);
@@ -1821,11 +1830,12 @@ $tutorialStudentEmail = strtolower(trim((string)($_GET['student_email'] ?? $_GET
             }
 
             const endMs = Date.parse(String(rushMode.end_at || ''));
+            const payHidden = window.firstMeasureHidesPayWhileDrafting(window.currentProjectManifest);
             state.activeId = String(rushMode.id || '');
             state.endMs = Number.isFinite(endMs) ? endMs : null;
-            if (header) header.classList.add('editor-rush-active');
-            if (pill) pill.classList.add('active');
-            if (options.announce && !state.lastActive) window.firstMeasureShowRushToast();
+            if (header && !payHidden) header.classList.add('editor-rush-active');
+            if (pill && !payHidden) pill.classList.add('active');
+            if (options.announce && !state.lastActive && !payHidden) window.firstMeasureShowRushToast();
             state.lastActive = true;
 
             const tick = () => {
@@ -2427,7 +2437,12 @@ $tutorialStudentEmail = strtolower(trim((string)($_GET['student_email'] ?? $_GET
             }
             window.firstMeasureSetClaimTimerVisible(true);
             const startMs = window.firstMeasureFindClaimStartedAt(manifest);
-            const points = window.firstMeasureResolveProjectPoints(manifest);
+            const payHidden = window.firstMeasureHidesPayWhileDrafting(manifest);
+            if (payHidden) {
+                document.querySelector('header')?.classList.remove('editor-rush-active');
+                document.getElementById('editorRushPill')?.classList.remove('active');
+            }
+            const points = payHidden ? null : window.firstMeasureResolveProjectPoints(manifest);
             const timeline = window.firstMeasureBuildTimeline(points);
             const timing = window.firstMeasureBuildClaimTiming(manifest, startMs);
 

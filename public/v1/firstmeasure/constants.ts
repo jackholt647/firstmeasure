@@ -36,6 +36,18 @@ export function firstMeasurePointValueForComplexity(value: unknown): number | nu
   return FIRSTMEASURE_COMPLEXITY_POINT_VALUES[key] ?? null;
 }
 
+// The roof complexity calculation: roof segment (facet) count -> complexity 1-5.
+// Roof jobs use it on solar segments; full-house submissions use it on the
+// drawn roof facets (full_house_points.ts).
+export function firstMeasureComplexityForRoofSegments(segmentCount: number) {
+  if (segmentCount <= 0) return 3;
+  if (segmentCount <= 5) return 1;
+  if (segmentCount <= 10) return 2;
+  if (segmentCount <= 20) return 3;
+  if (segmentCount <= 35) return 4;
+  return 5;
+}
+
 export const FIRSTMEASURE_FILE_NAMES = {
   manifest: "manifest.json",
   appMetadata: "app_metadata.json",

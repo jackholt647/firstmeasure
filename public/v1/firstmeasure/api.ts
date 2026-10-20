@@ -2,6 +2,7 @@ import { isTransientProviderFailure } from './transient_failure.js';
 import { catalogState, catalogReadsEnabled } from "../src/storage/artifact_catalog.js";
 import { projectPageChanges } from "./project_refresh.js";
 import { assertFullHouseEligible, assertFullHouseReview, assertFullHouseSnapshot, fullHouseEligible, isCustomerFullHouse } from './full_house_workflow.js';
+import { computeFullHousePoints, countFullHouseModel } from './full_house_points.js';
 import { withReportPropertyMarket } from "../commerce/property-market.js";
 import { reportPrice, assertCommercialRevision } from "../commerce/profile.js";
 import { resolveOrderReportPreferences, normalizeReportPreferences } from "./report_preferences.js";
@@ -16620,7 +16621,14 @@ export async function updateStatusForSubmission(projectId: string, requestedStat
   if (isCustomerFullHouse(manifest) && isReviewSubmissionStatus(requestedStatus)) {
     const assigned = asRecord(asRecord(manifest.workflow).assigned_to);
     await assertFullHouseEligible(manifest, assigned.email ?? manifest.assigned_to_email, 'draft');
-    await resolveProjectPdfSyncReference(projectId);
+    const sync = await resolveProjectPdfSyncReference(projectId);
+    const status = String(manifest.status ?? "").trim().toLowerCase();
+    if (sync && !REVIEW_SUBMISSION_STATUSES.has(status) && !IMMUTABLE_TERMINAL_PROJECT_STATUSES.has(status)) {
+      // The drafter's submission scores the completed roof and walls once.
+      const job = await getFirstMeasureJob(sync.jobId);
+      const points = computeFullHousePoints(countFullHouseModel(job?.payload?.snapshot));
+      await patchManifest(projectId, { ...points, point_calculation: { ...points.point_calculation, computed_at: new Date().toISOString() } });
+    }
   }
 
   const currentStatus = String(manifest.status ?? "").trim().toLowerCase();
