@@ -2623,6 +2623,36 @@ test('captured house front wall stays a four-corner outline when selected',()=>{
  const d=f.state.wallEdits.$drafts[wall.mergeGroup];assert.ok(d);assert.equal(d.sketch.nodes.length,4);
 });
 
+test('captured house walls with flashing strips have no load-bearing points on straight edges after From Roof',()=>{
+ // Geometry from a captured house: eave and side walls continue above lower
+ // roofs as flashing strips, and their roof-contact lines carry survey noise.
+ const r=require('./roof-generation-fixture.cjs').build(require('./fixtures/flashing-survey-stations-roof.json'),12),walls=G.canonicalGeneratedWalls(r.composed);
+ const f=fixture({walls,state:r.state,globals:{WallChimneys:require('../public/measure/internal/editor_scripts/wall_chimneys')}});
+ const groups=[...new Set(walls.filter(w=>w.mergeGroup&&!w.chimney).map(w=>w.mergeGroup))];
+ assert.ok(groups.filter(g=>new Set(walls.filter(w=>w.mergeGroup===g).map(w=>w.kind)).size>1).length>=4,'flashing strips join perimeter walls');
+ const turn=(a,b,c)=>{const u={x:b.x-a.x,y:b.y-a.y},v={x:c.x-b.x,y:c.y-b.y};return Math.abs(Math.atan2(u.x*v.y-u.y*v.x,u.x*v.x+u.y*v.y))*180/Math.PI;};
+ const straight=[];
+ for(const group of groups){
+  const wall=walls.find(w=>w.mergeGroup===group),members=walls.filter(w=>w.mergeGroup===group),length=Math.hypot(wall.bottom[1].x-wall.bottom[0].x,wall.bottom[1].y-wall.bottom[0].y);
+  const at=f.e(length/2,(wall.bottom[0].z+wall.bottom[1].z+wall.top[0].z+wall.top[1].z)/4);f.editor.beginFace(at,wall);f.listeners.pointerup(at);
+  const d=f.state.wallEdits.$drafts[group];assert.ok(d,group);assert.ok(d.faces.some(face=>!face.boundaryHole),group);
+  const world=q=>({x:d.origin.x+d.u.x*q.x,y:d.origin.y+d.u.y*q.x,z:q.y});
+  // A station stays only where another wall meets it (a junction).
+  const junction=q=>walls.some(w=>!members.includes(w)&&[...w.bottom,...w.top].some(v=>Math.hypot(v.x-q.x,v.y-q.y,v.z-q.z)<1e-5));
+  for(const face of d.faces.filter(face=>!face.boundaryHole))face.points.forEach((q,i,ring)=>{
+   if(turn(ring[(i+ring.length-1)%ring.length],q,ring[(i+1)%ring.length])<5&&!junction(world(q)))straight.push(group+' @ '+[q.x,q.y].map(v=>v.toFixed(3)).join(','));
+  });
+  assert.ok(d.sketch.nodes.every(n=>n.fixed),'generated outline only');
+ }
+ assert.deepEqual(straight,[],'survey stations on straight runs are not wall points');
+ // The undrafted preview draws the same outline.
+ const geo=G.topology(walls),others=f=>new Set(geo.faces.filter(g=>g!==f).flatMap(g=>[...g.pointIndices,...(g.holes||[]).flat()]));
+ for(const face of geo.faces.filter(face=>face.mergeGroup&&!face.chimney)){const ids=others(face),ring=face.pointIndices;
+  ring.forEach((id,i)=>{const a=geo.points[ring[(i+ring.length-1)%ring.length]],b=geo.points[id],c=geo.points[ring[(i+1)%ring.length]],u={x:b.x-a.x,y:b.y-a.y,z:b.z-a.z},v={x:c.x-b.x,y:c.y-b.y,z:c.z-b.z};
+   const angle=Math.atan2(Math.hypot(u.y*v.z-u.z*v.y,u.z*v.x-u.x*v.z,u.x*v.y-u.y*v.x),u.x*v.x+u.y*v.y+u.z*v.z)*180/Math.PI;
+   assert.ok(angle>=5||ids.has(id),'preview station '+face.mergeGroup+' '+JSON.stringify(b));});}
+});
+
 test('point drawing continues outside the active wall plane outline',()=>{
  const f=fixture({globals:{isFreeMove:true}});f.editor.doubleClick(f.e(1,1),f.w);f.editor.doubleClick(f.e(5,6));
  assert.ok(f.d().sketch.nodes.some(p=>p.x===5&&p.y===6),f.message());

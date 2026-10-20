@@ -224,6 +224,32 @@ test('generated boundary cleanup keeps junctions, real corners and cumulative cu
  assert.ok(simplified.length>4,'local near-collinearity cannot accumulate into flattening a curved boundary');
  assert.equal(G.simplifyGeneratedRing([{x:0,y:0,z:0},{x:2,y:0,z:.001},{x:4,y:0,z:0}]).length,3,'never collapse a face into a line');
 });
+test('flashing strips on a generated wall run drop survey stations like perimeter strips',()=>{
+ // A perimeter strip and two flashing strips over a lower roof share one
+ // plane. The eave top and the roof-contact bottom carry millimetre noise
+ // at the strip stations; only the step at x=2 is a real corner.
+ const strips=()=>[
+  {id:'w',sourceId:'R1.0',kind:'perimeter',bottom:[p(0,0,0),p(2,0,0)],top:[p(0,0,8),p(2,0,8.003)]},
+  {id:'f1',sourceId:'R2',kind:'flashing',bottom:[p(2,0,1),p(4,0,2.002)],top:[p(2,0,8.003),p(4,0,7.998)]},
+  {id:'f2',sourceId:'R2',kind:'flashing',bottom:[p(4,0,2.002),p(6,0,3)],top:[p(4,0,7.998),p(6,0,8)]}];
+ assert.equal(G.surveyedGeneratedRun(strips()),true);
+ assert.equal(G.surveyedGeneratedRun([...strips(),{...strips()[0],id:'c',chimney:{id:'c'}}]),false,'chimney strips keep their stations');
+ assert.equal(G.surveyedGeneratedRun([{...strips()[0],sourceId:undefined}]),false,'user walls keep their points');
+ const walls=G.mergeCoplanar(strips()).walls,geo=G.topology(walls),face=geo.faces[0];
+ assert.equal(geo.faces.length,1);
+ const ring=face.pointIndices.map(i=>geo.points[i]).map(q=>[q.x,q.z].map(v=>+v.toFixed(6)).join(',')).sort();
+ assert.deepEqual(ring,['0,0','0,8','2,0','2,1','6,3','6,8'],'only the corners remain');
+ // The stations are snapped onto their straight runs in every strip that shares them.
+ const at=(id,edge,i)=>walls.find(w=>w.id===id)[edge][i].z;
+ assert.ok(Math.abs(at('w','top',1)-8)<1e-9&&Math.abs(at('f1','top',0)-8)<1e-9&&Math.abs(at('f1','top',1)-8)<1e-9&&Math.abs(at('f2','top',0)-8)<1e-9);
+ assert.ok(Math.abs(at('f1','bottom',1)-2)<1e-9&&Math.abs(at('f2','bottom',0)-2)<1e-9);
+ // A wall turning away at a station is a real junction: that station stays.
+ const side={id:'side',sourceId:'R9.0',kind:'perimeter',bottom:[p(4,0,2.002),p(4,-3,2.002)],top:[p(4,0,7.998),p(4,-3,7.998)]};
+ const joined=G.mergeCoplanar([...strips(),side]).walls,geo2=G.topology(joined),run=geo2.faces.find(f=>f.mergeGroup);
+ const kept=run.pointIndices.map(i=>geo2.points[i]);
+ assert.ok(kept.some(q=>q.x===4&&q.z===7.998)&&kept.some(q=>q.x===4&&q.z===2.002),'stations shared with the side wall stay');
+ assert.deepEqual(joined.find(w=>w.id==='side').top,side.top,'the side wall is not moved');
+});
 
 test('flashing alignment retains substantial height differences and unrelated nearby returns',()=>{
  const input=driftedFlashing();for(const p of input[0].top)p.z=4.8;input[2].sourceRoofId='unrelated';
