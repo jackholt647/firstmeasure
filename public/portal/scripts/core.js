@@ -1303,18 +1303,21 @@
     if (project.has_meaningful_activity === true || project.meaningful_activity === true) return true;
     const workflow = cleanText(project.workflow_state).toLowerCase();
     if (['proposal_only', 'document_only', 'drafting_proposal', 'proposal_sent', 'newly_sold', 'measurement_ordered'].includes(workflow)) return true;
-    const populatedArrays = ['photos', 'documents', 'document_ids', 'material_lists', 'material_list_ids', 'work_plan_ids', 'todos', 'action_items'];
+    // Work plans are created automatically when a project starts a scope, so they are not activity.
+    const populatedArrays = ['photos', 'documents', 'document_ids', 'material_lists', 'material_list_ids', 'todos', 'action_items'];
     if (populatedArrays.some((key) => Array.isArray(project[key]) && project[key].length)) return true;
     const scope = project.scope && typeof project.scope === 'object' ? project.scope : {};
     if ((Array.isArray(scope.root_items) && scope.root_items.length) || (Array.isArray(scope.pieces) && scope.pieces.length)) return true;
-    const workProjection = project.work_projection && typeof project.work_projection === 'object' ? project.work_projection : {};
-    if (Array.isArray(workProjection.plans) && workProjection.plans.length) return true;
     return !!cleanText(project.project_notes, project.notes, project.tech_notes);
   };
 
   function isDraftPlatformProject(project = {}){
     const status = cleanText(project.status, project.measurement_project?.status, project.measurement?.status, project.workflow_state).toLowerCase();
     if (projectMeasurementKeys(project).length && ['queued', 'processing', 'in_progress', 'awaiting_review', 'awaiting_manager_review', 'pending_rejection'].includes(status)) return false;
+    // A project saved as a draft stays one until it has an order, a proposal or an appointment.
+    if (cleanText(project.workflow_state).toLowerCase() === 'draft') {
+      return !projectMeasurementKeys(project).length && !hasProjectProposals(project) && !hasScheduledAppointment(project);
+    }
     return !projectMeasurementKeys(project).length
       && !hasMeaningfulProjectActivity(project);
   }
@@ -1429,9 +1432,11 @@
     );
     if (!measurementId || measurementId === cleanText(project.platform_project_id)) return project;
     try {
-      if (options.summaries && !options.summaries.has(measurementId)) return project;
-      const data = options.summaries ? { project: options.summaries.get(measurementId) }
-        : options.summaryOnly ? await readFirstMeasureSummary(measurementId) : await fmJson(`projects/${encodeURIComponent(measurementId)}`);
+      // The batched summary omits some ids (visibility filters, Full House ids); those read their own
+      // summary so an old order never keeps the status it had when it was placed.
+      const batched = options.summaries?.get(measurementId);
+      const data = batched ? { project: batched }
+        : (options.summaries || options.summaryOnly) ? await readFirstMeasureSummary(measurementId) : await fmJson(`projects/${encodeURIComponent(measurementId)}`);
       const fmProject = data?.project && typeof data.project === 'object' ? data.project : {};
       const manifest = fmProject?.manifest && typeof fmProject.manifest === 'object' ? fmProject.manifest : {};
       const files = Array.isArray(fmProject.files) ? fmProject.files : [];
@@ -1675,7 +1680,16 @@
     return base;
   }
 
+  // Platform projects exist only with expanded platform access. Without it the projects API refuses
+  // these writes, so FirstMeasure orders are listed directly instead of mirrored.
+  function platformExpandedAccess(){
+    const capabilities = window.Portal?.capabilities || window.PlatformAPI?.capabilities;
+    if (capabilities?.current?.()) return capabilities.value?.('platform.expanded_access', false) === true;
+    return APP.platformExpandedAssets === true;
+  }
+
   async function savePlatformProjectFromFirstMeasure(project = {}, existingProject = {}){
+    if (!platformExpandedAccess()) return null;
     const orgId = cleanText(APP.userOrgId || APP.orgId);
     if (!orgId) return null;
     const base = platformProjectFromFirstMeasure(project, existingProject);
@@ -1849,10 +1863,10 @@
     if (!actor.email) return null;
 
     if (action === 'list_projects') {
-      const platformProjects = await listPlatformProjectCandidates().catch((error) => {
+      const platformProjects = platformExpandedAccess() ? await listPlatformProjectCandidates().catch((error) => {
         console.warn('Platform project list failed; falling back to FirstMeasure', error);
         return null;
-      });
+      }) : null;
       const platformList = Array.isArray(platformProjects) ? platformProjects : [];
       if (platformList.length) {
         const includeFirstMeasure = truthyField(fields.include_firstmeasure) || truthyField(fields.duplicate_check);
