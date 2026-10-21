@@ -158,7 +158,10 @@ function sync3DViewportSize() {
         canvas.style.width = '100%';
         canvas.style.height = '100%';
     }
-    renderer.setSize(width, height, false);
+    // During a pane divider drag the canvas (100% of its pane) just stretches: reallocating the drawing buffer every
+    // frame stalls the GPU on large high-DPI views. The camera takes the new aspect so the stretched image keeps its
+    // proportions; the buffer is resized once when the drag ends (its final resize event).
+    if (!window.firstMeasurePaneResizing) renderer.setSize(width, height, false);
     camera.aspect = width / Math.max(height, 1);
     camera.updateProjectionMatrix();
     return true;
