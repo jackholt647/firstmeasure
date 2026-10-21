@@ -53,6 +53,8 @@ window.PlatformCommerce.onReady(function(){
   let cancellationCountdownTimer = null;
   let pendingExpediteSelection = '';
   let activeMeasurementTab = 'model';
+  let userMeasurementTab = '';
+  let userMeasurementTabProject = '';
   let roofViewer = null;
   let roofViewerKey = '';
   let activeInstantMountKey = '';
@@ -2191,6 +2193,7 @@ window.PlatformCommerce.onReady(function(){
   }
 
   function reportSummaryStatusLabel(row){
+    if (row.cancelled) return (globalThis.PlatformLanguage?.text("measurements","m_9863f11d60b2fa","Cancelled") ?? "Cancelled");
     if (row.processing) return (globalThis.PlatformLanguage?.text("measurements","m_7244c568a68bff","Processing") ?? "Processing");
     if (row.ready) return (globalThis.PlatformLanguage?.text("measurements","m_d0dd61f9c0e1d2","Ready") ?? "Ready");
     if (row.pending) return (globalThis.PlatformLanguage?.text("measurements","m_2175240180a38e","Pending") ?? "Pending");
@@ -2209,11 +2212,14 @@ window.PlatformCommerce.onReady(function(){
     const weather = weatherReportInfo();
     const instantOrdered = reportOrderIncludesInstant();
     const guttersOrdered = reportOrderIncludesGutters();
+    const cancelled = reportOrderIsCancelled();
+    const closed = cancelled || reportOrderIsRejected() || reportOrderReleaseHoldIsActive();
     const documentState = (url, pendingWhenUnlocked = false) => ({
-      url: documentsUnlocked ? (url || '') : '',
-      ready: documentsUnlocked && !!url,
-      pending: documentsUnlocked && !!pendingWhenUnlocked,
-      processing: !documentsUnlocked
+      url: documentsUnlocked && !closed ? (url || '') : '',
+      ready: documentsUnlocked && !closed && !!url,
+      pending: documentsUnlocked && !closed && !!pendingWhenUnlocked,
+      processing: !documentsUnlocked && !closed,
+      cancelled
     });
     const standardState = documentState(cachedAssets?.reportUrl || '', pending && !cachedAssets?.reportUrl);
     const summaryState = documentState(cachedAssets?.summaryUrl || '', pending && !cachedAssets?.summaryUrl);
@@ -3548,10 +3554,31 @@ window.PlatformCommerce.onReady(function(){
 
   function setActiveMeasurementTab(tab, options = {}){
     const available = measurementTabs();
-    const next = available.find((entry) => entry.id === tab && !entry.disabled) || available.find((entry) => !entry.disabled) || available[0];
+    const next = available.find((entry) => entry.id === tab && !entry.disabled)
+      || available.find((entry) => entry.id === 'standard' && !entry.disabled)
+      || available.find((entry) => !entry.disabled)
+      || available[0];
     activeMeasurementTab = next?.id || 'standard';
+    if (options.user) {
+      userMeasurementTab = activeMeasurementTab;
+      userMeasurementTabProject = activeMeasurementProjectId() || '';
+    }
     if (options.updateRoute !== false && !window.Portal?.navigation?.applying) window.Portal?.navigation?.push?.({ reportView:activeMeasurementTab }, { source:'project-report-view', ownedKeys:['reportView'] });
     renderMeasurementsPanel();
+  }
+
+  // Hydrating a project picks its opening report view. A view the route names or the user picked wins;
+  // otherwise the 3D model opens only where it is offered, then the caller's fallback, then Standard.
+  function selectInitialMeasurementTab(fallback = 'standard', options = {}){
+    const available = measurementTabs().filter((entry) => !entry.disabled);
+    const offered = (id) => !!id && available.some((entry) => entry.id === id);
+    const routed = window.Portal?.navigation?.read?.().reportView || '';
+    const projectId = activeMeasurementProjectId() || '';
+    const chosen = userMeasurementTab && userMeasurementTabProject === projectId ? userMeasurementTab : '';
+    const model = options.model && reportModelViewerEnabled() ? 'model' : '';
+    const next = [routed, chosen, model, fallback, 'standard'].find(offered) || fallback || 'standard';
+    setActiveMeasurementTab(next, { updateRoute:false });
+    return activeMeasurementTab;
   }
 
   function mergeReportManifestIntoActiveProject(manifest = {}){
@@ -3908,7 +3935,7 @@ window.PlatformCommerce.onReady(function(){
       if (tab.id.startsWith('project:')) setActivePreviewTab(tab.id.slice(8), {history:'push',source:'report-header'});
       else {
         if (flat && context.activeTab !== 'measurements') setActivePreviewTab('measurements', {history:'push',source:'report-header'});
-        setActiveMeasurementTab(tab.id);
+        setActiveMeasurementTab(tab.id, { user:true });
       }
     }});
     tabsEl.querySelectorAll('[data-tab]').forEach(button => button.setAttribute('aria-selected',String(button.dataset.tab === selected)));
@@ -4092,6 +4119,8 @@ window.PlatformCommerce.onReady(function(){
     pendingExpediteSelection = '';
     roofViewer?.destroy();roofViewer=null;roofViewerKey='';
     activeMeasurementTab = 'model';
+    userMeasurementTab = '';
+    userMeasurementTabProject = '';
     reportRequestModalState = null;
     weatherReportPollAttempt = 0;
   }
@@ -4214,6 +4243,8 @@ window.PlatformCommerce.onReady(function(){
     renderInstantMeasurement,
     loadMeasurementAssets,
     setActiveMeasurementTab,
+    selectInitialMeasurementTab,
+    reportModelViewerEnabled,
     mergeReportManifestIntoActiveProject,
     snapshotReportExpediteState,
     restoreReportExpediteState,
@@ -4249,7 +4280,8 @@ window.PlatformCommerce.onReady(function(){
     priority:600,
     apply:(route) => {
       if (!route.project || route.projectTab !== 'measurements' || !state.mounted) return;
-      setActiveMeasurementTab(route.reportView || 'model', { updateRoute:false });
+      if (route.reportView) setActiveMeasurementTab(route.reportView, { updateRoute:false });
+      else selectInitialMeasurementTab('standard', { model:true });
     }
   });
 
