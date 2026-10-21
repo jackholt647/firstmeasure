@@ -28,3 +28,16 @@ Profiled on dev, a 60-move drag took 14.9 s, with p95 frames of 117–134 ms and
 The first attempt failed while staging on legacy (connection reset during its health check) and was retried onto
 another session's newer live release (`14a6e3de`). All roles verified, and the served files match. Pane-layout and
 history tests pass.
+
+## Also: sticker centre snapping — `d4d6ea7af215aac52e0e16aa89a1b7b286007f0f`
+
+When placing, pasting or moving a sticker (door, window, garage door or vent), its horizontal and vertical centres
+snap independently to the centre of the face it sits on, within the usual 12 px snap radius. Active centre snaps
+show a yellow centre line across the face, and free move (F) disables them.
+- The centre is the bounding-box centre of the largest face outline containing the sticker. Existing openings and
+  dividers do not shift it. On a gable wall the vertical centre includes the triangle.
+- Snap order is unchanged: the snap needing the smallest move wins.
+
+Tests: four new tests fail on the previous code and pass now. The related suites pass 672, and the full suite has
+1,675 passing with the known exterior-ai failure. `wall_solid_geometry.js` and `wall_face_draft.js` were overlaid on
+web, legacy and pool, and the served files match.
