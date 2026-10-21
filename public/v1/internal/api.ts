@@ -673,6 +673,15 @@ export const registerInternalApi: FastifyPluginAsync = async (app) => {
     return { ok: true, success: true, teams };
   });
 
+  // Paid Stripe checkouts that could not be credited automatically.
+  app.get("/payments/stripe-reviews", async (request) => {
+    const status = cleanText(asObject(request.query).status).toLowerCase();
+    const reviews = (await listInternalDocuments("stripe_payment_reviews"))
+      .map((document) => asObject(document.data ?? document))
+      .filter((review) => !status || cleanText(review.status).toLowerCase() === status);
+    return { ok: true, success: true, reviews, count: reviews.length };
+  });
+
   app.get("/organizations", async (request) => {
     const query = asObject(request.query);
     if (query.paginate === "1" || query.paginate === "true" || query.paginate === true) {

@@ -10377,6 +10377,10 @@ window.PlatformCommerce.onReady(async function(){
         reorder_project_id: reorderSourceCanReopenInPlace && reorderMeasurementProjectId ? reorderMeasurementProjectId : '',
         source_project_id: reorderSourceCanReopenInPlace && reorderMeasurementProjectId ? reorderMeasurementProjectId : '',
         ...(window.Portal.ExteriorOrder?.payload() || {}),
+        // The quote shown here; the billing page tops up and resubmits
+        // against it instead of recomputing prices.
+        order_original_amount: window.Portal.ExteriorOrder?.active() ? '' : String(currentPriceQuote().original_amount ?? ''),
+        order_quoted_amount: String(currentPrice() ?? ''),
       }
     };
     try { localStorage.setItem(PENDING_ORDER_KEY, JSON.stringify(obj)); } catch (e) {}
