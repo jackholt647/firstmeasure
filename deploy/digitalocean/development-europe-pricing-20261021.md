@@ -35,3 +35,11 @@ were kept live. All four roles were activated and verified on `cd556525`.
 €25/€40/€40/€5. A Paris quote offered standard €25, under-1-hour €28.45 and 1–3-hour €26.15 on `Europe/Paris`
 windows. Multifamily cost €40 per structure, with €41.97 for a 1–3-hour rush. The Stripe test checkout came back in
 `eur` for €100.00. Production was not changed.
+
+## Follow-up: credits page VAT text — release `ebc56372`
+
+Keeping the hosts' `billing/app.js` whole had dropped this release's two credits-page edits. The follow-up
+(`output/europe-pricing-billing-20261021/`) replays only those edits onto the live copy: VAT included on the "Needed for
+order" total and on the pending order summary. It also bumps the billing bundle to `20261021-europe-pricing-v2`.
+Legacy, web and pool were activated and verified, and the served file contains the change. The candidate is the record
+commit, whose `billing/app.js` matches `cd556525`. The ship script's parent check was disabled for this follow-up only.
