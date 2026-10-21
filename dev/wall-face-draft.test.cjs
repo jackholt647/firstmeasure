@@ -3573,3 +3573,11 @@ test('plane-mode clicks and typed points within a centimetre of the base line la
  assert.ok(Math.abs(out[1].x-7)<1e-9&&Math.abs(out[1].y-.0105)<1e-9&&out[1].edge===0,JSON.stringify(out[1]));assert.deepEqual(out[2],{x:7,y:2},'a point far from geometry stays');
  assert.deepEqual(W.conformPlanePoints([q(5,.5)],[],[line]),[{x:5,y:.5}],'clearly off the line stays');
 });
+test('Resoffit draws every roof-contact line whatever the occlusion test says; elsewhere hidden ones stay hidden',()=>{
+ const contacts=[{id:'c1',pair:[{x:0,y:0,z:3},{x:4,y:0,z:3}]},{id:'c2',pair:[{x:6,y:0,z:3},{x:10,y:0,z:3}]}];let drawn=0;
+ const f=fixture({state:{wallEdits:{},roof:{faces:[]}},selected:null,pickLineVisible:()=>false,pickSoffitVisible:()=>false,globals:{WallResoffit:{candidates:()=>contacts},THREE:require('../public/v1/node_modules/three')}});
+ const draw=()=>{drawn=0;f.editor.draw3D({add(o){if(o?.userData?.exteriorSoffit)drawn++;},children:[]},p=>p);return drawn;};
+ assert.equal(draw(),0,'hidden contact lines are not drawn through walls');
+ f.editor.setResoffitMode(true);assert.equal(draw(),2,'in Resoffit the camera angle cannot hide a selectable line');
+ assert.equal(f.editor.pickLine3D(f.e(2,3)),true);f.listeners.pointerup(f.e(2,3));assert.equal(f.editor.selectionSnapshot().lineSelection.length,1,'and it can be clicked');
+});
