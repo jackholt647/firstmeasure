@@ -57,3 +57,29 @@ transaction, with `INSERT … ON CONFLICT DO NOTHING` followed by a read of the
 winning row. `saveGlobal` and `mutateGlobal` still lock, as writes should.
 
 Branch: `codex/hotfix-global-read-lock-20261021`, on top of `31141b11`.
+
+## Rollout of c144dd1b (Jack authorized; October 21, UTC)
+
+**Dev.** The fix was merged onto the live files on all four roles. Twenty pairs
+of concurrent `readGlobal` calls returned the same document, with 0 errors.
+
+**Build.** Built on the dev worker with the same `build.sh`: archive
+`d4637107…`, 358,616,199 bytes, verified.
+
+| Time | Role | Result |
+| --- | --- | --- |
+| 22:35 | Compatibility | Activated in 69 s, previously on `10d8d525`. The background-off drop-in still applies. |
+| 22:37 | Worker | Waited for 0 running jobs, then activated in 1 s, previously on `7b4b9df6`. Settings unchanged: 8 job workers, heartbeat off. |
+| 22:38 | Signed web channel | Published, checked against `30ef0eb0…` (`10d8d525`). |
+| 22:38–22:48 | Six web nodes, one at a time | Each drained and activated in about 94 s. Each passed readiness, the asset match and the sandbox 404. |
+
+**First minute after the rollout, compared with 22:00–22:48:**
+
+- Database-pool timeouts: 0, against 149.
+- Web nodes: 2–4 HTTP 500s per node, against about 370.
+- On the compatibility host, every 500 left is the existing
+  `trackAcquisitionEvent` duplicate-key error.
+
+**Rollback.** Each role keeps its previous release: `10d8d525` for compatibility
+and web, `7b4b9df6` for the worker. Republish `10d8d525` (`30ef0eb0…`) to the
+channel before rolling back a web node.
