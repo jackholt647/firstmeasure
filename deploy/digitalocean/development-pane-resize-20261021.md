@@ -41,3 +41,13 @@ show a yellow centre line across the face, and free move (F) disables them.
 Tests: four new tests fail on the previous code and pass now. The related suites pass 672, and the full suite has
 1,675 passing with the known exterior-ai failure. `wall_solid_geometry.js` and `wall_face_draft.js` were overlaid on
 web, legacy and pool, and the served files match.
+
+## Follow-up: the 3D view stretches while dragging — `7b3a27d970b8cd06a86dbfefc90c25932eb72a32`
+
+The user still saw slow resizing, with the 3D view in the main pane. Every frame of the drag still reallocated the
+WebGL drawing buffer (`sync3DViewportSize` → `renderer.setSize`). That is cheap in a 1× software browser but stalls a
+real GPU on large high-DPI views: measured at 2× density on a 2400×1350 window, `setSize` was the top cost, at about
+14 ms per frame even in software. During a divider drag the canvas, which is 100% of its pane, now only stretches, and
+the camera takes the new aspect so proportions stay correct. The buffer is resized once on release. Measured at 2×,
+the 60-move drag dropped from 2.1 s to 1.1 s with p95 frames of 17 ms, and `setSize` no longer appears during the drag.
+`scene_3d.js` was overlaid on web, legacy and pool, and the served file matches.
