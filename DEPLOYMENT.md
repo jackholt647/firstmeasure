@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+October 21 PRODUCTION HOTFIX: [`10d8d525` serves project artifacts byte for byte, so projects with saved undo history open again ("Load Error: Failed to fetch")](deploy/digitalocean/production-hotfix-artifact-encoding-20261020.md); compatibility and all six web nodes, verified.
+
 October 20 PRODUCTION RELEASE: [canonical `31f87be5` is live on compatibility, the worker and all six web nodes (platform, Full House and the roof 3D viewer off), with the 10-minute PDF sync changeover issue and rollback](deploy/digitalocean/production-release-20261020.md). Production now runs the canonical branch.
 
 October 20 Production release staging: [release `31f87be5` installed on compatibility and the worker, the web nodes' installer replaced and the platform index prepared; nothing activated](deploy/digitalocean/production-release-staging-20261020.md).
