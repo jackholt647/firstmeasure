@@ -1446,7 +1446,7 @@ window.PlatformCommerce.onReady(function(){
       });
 
       if (!data || !data.success){
-        showToast((globalThis.PlatformLanguage?.text("billing","m_cb54e163f7df44","Couldn’t submit order") ?? "Couldn’t submit order"), data?.error || 'Order submission failed.', false);
+        showToast((globalThis.PlatformLanguage?.text("billing","m_cb54e163f7df44","Couldn’t submit order") ?? "Couldn’t submit order"), data?.message || data?.error || 'Order submission failed.', false);
         return false;
       }
 

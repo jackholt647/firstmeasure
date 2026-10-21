@@ -11013,7 +11013,7 @@ async function stripeFulfillFromSession(session: JsonObject, source: string) {
 
 // A paid checkout that cannot be credited automatically is held for an
 // operator: a structured log line, a record on the organization and an entry
-// in the internal stripe_payment_reviews queue (/v1/internal/payments/stripe-reviews).
+// in the internal stripe_payment_reviews document collection.
 async function recordStripePaymentReview(orgId: string, email: string, session: JsonObject, meta: JsonObject, check: Extract<StripeCheckoutAmountCheck, { accept: false }>, source: string, existing: JsonObject) {
   const sessionId = cleanText(session.id);
   const now = new Date().toISOString();
