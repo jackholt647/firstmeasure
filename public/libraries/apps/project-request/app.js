@@ -144,6 +144,7 @@ window.PlatformCommerce.onReady(async function(){
   let reportExpediteOptionsAuthoritative = false;
   let reportExpeditePropertyKey = "";
   let reportPropertyPrices = null;
+  let reportPropertyVatIncluded = null;
   function reportDisplayedBasePrice(type){ return reportExpeditePropertyKey === reportPropertyKey() && Number.isFinite(Number(reportPropertyPrices?.[type])) ? Number(reportPropertyPrices[type]) : (TYPE_META[type]?.price ?? PRICE_RESIDENTIAL); }
   function reportPropertyKey(){ return JSON.stringify([$("#rAddress")?.value || "", $("#rLat")?.value || "", $("#rLng")?.value || ""]); }
   let reportExpediteMinuteTimer = null;
@@ -5792,8 +5793,23 @@ window.PlatformCommerce.onReady(async function(){
     return `<span class="r-info-tip r-addon-info-trigger" data-addon-info-trigger="${String(escapeHtml(key))}" role="button" tabindex="0" aria-label="${((v1) => globalThis.PlatformLanguage?.htmlText("project-request","m_6e4ba38fa02b85",`${v1} information`,{v1}) ?? `${v1} information`)(escapeHtml(info.title))}"><i class="fas fa-info"></i></span>`;
   }
 
+  /** Price text as charged for this property: VAT included outside the US and Canada. */
+  function reportVatText(text){
+    const quoted = reportExpeditePropertyKey === reportPropertyKey() && reportPropertyVatIncluded !== null;
+    return window.PlatformCommerce.withVat(text, quoted ? { vat_included: reportPropertyVatIncluded } : undefined);
+  }
+
+  /** A type card's price: this property's quote once known, shown as VAT included outside the US and Canada. */
+  function typePriceLabel(type){
+    const price = fmtCredit(reportDisplayedBasePrice(type));
+    const text = type === 'residential'
+      ? (globalThis.PlatformLanguage?.text("project-request","price_flat_rate","{price} flat rate",{price}) ?? `${price} flat rate`)
+      : (globalThis.PlatformLanguage?.text("project-request","price_per_structure","{price} / structure",{price}) ?? `${price} / structure`);
+    return reportVatText(text);
+  }
+
   function buildTypeButtons(){
-    const pricingLabels = Object.fromEntries(['residential','commercial','multifamily'].map(type => [type, globalThis.PlatformLanguage?.text('project-request', type === 'residential' ? 'price_flat_rate' : 'price_per_structure', fmtCredit(reportDisplayedBasePrice(type)) + (type === 'residential' ? ' flat rate' : ' / structure'), {price:fmtCredit(reportDisplayedBasePrice(type))})]));
+    const pricingLabels = Object.fromEntries(['residential','commercial','multifamily'].map(type => [type, escapeHtml(typePriceLabel(type))]));
     return Object.entries(TYPE_META).map(([key, meta]) => `
       <button type="button" class="r-type-btn" data-type="${key}">
         <div class="r-type-icon"><i class="fas ${meta.icon}"></i></div>
@@ -6235,11 +6251,9 @@ window.PlatformCommerce.onReady(async function(){
         if (propertyKey !== reportPropertyKey()) return;
         reportExpeditePropertyKey = propertyKey;
         reportPropertyPrices = data.report_prices || null;
+        reportPropertyVatIncluded = typeof data.vat_included === 'boolean' ? data.vat_included : null;
         document.querySelectorAll('.r-type-btn[data-type] .r-type-price').forEach(label => {
-          const type = label.closest('[data-type]').dataset.type;
-          label.textContent = type === 'residential'
-            ? (globalThis.PlatformLanguage?.text("project-request","price_flat_rate","{price} flat rate",{price:fmtCredit(reportDisplayedBasePrice(type))}) ?? `${fmtCredit(reportDisplayedBasePrice(type))} flat rate`)
-            : (globalThis.PlatformLanguage?.text("project-request","price_per_structure","{price} / structure",{price:fmtCredit(reportDisplayedBasePrice(type))}) ?? `${fmtCredit(reportDisplayedBasePrice(type))} / structure`);
+          label.textContent = typePriceLabel(label.closest('[data-type]').dataset.type);
         });
         if (!quotedType || quotedType !== selectedType) return;
         const options = normalizeReportExpediteOptionsResponse(data, selectedType, structureCount);
@@ -6970,6 +6984,7 @@ window.PlatformCommerce.onReady(async function(){
             ? (globalThis.PlatformLanguage?.text("project-request","order_roof_report_discount","Order Roof Report - {price} (save {saving})",{price:fmtCredit(quote.final_amount),saving:fmtCredit(quote.discount_amount)}) ?? `Order Roof Report - ${fmtCredit(quote.final_amount)} (save ${fmtCredit(quote.discount_amount)})`)
             : (globalThis.PlatformLanguage?.text("project-request","order_roof_report_price","Order Roof Report - {price}",{price:fmtCredit(quote.final_amount)}) ?? `Order Roof Report - ${fmtCredit(quote.final_amount)}`))))
         : (globalThis.PlatformLanguage?.text("project-request","order_roof_report","Order Roof Report") ?? "Order Roof Report");
+      if (selectedType && !pricingPending) text = reportVatText(text);
     } else if (isProposalChoice() && proposalsEnabled()) {
       text = 'Proposals';
     } else if (isScheduleChoice()) {

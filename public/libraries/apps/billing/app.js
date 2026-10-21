@@ -1208,7 +1208,7 @@ window.PlatformCommerce.onReady(function(){
     }
     $('#bFirstReportCard .b-first-number:first-child span').textContent = (purchaseActive || reportGateActive) ? (globalThis.PlatformLanguage?.text("billing","needed_for_order","Needed for order") ?? "Needed for order") : (globalThis.PlatformLanguage?.text("billing","first_report_from","First report from") ?? "First report from");
     $('#bFirstReportCard .b-first-number.due span').textContent = (purchaseActive || reportGateActive) ? (globalThis.PlatformLanguage?.text("billing","difference","Difference") ?? "Difference") : (globalThis.PlatformLanguage?.text("billing","credit_to_add_lower","Credit to add") ?? "Credit to add");
-    $('#bFirstReportTotal').textContent = `${fmtCredit(required)}`;
+    $('#bFirstReportTotal').textContent = window.PlatformCommerce.withVat(fmtCredit(required));
     $('#bFirstBalance').textContent = `${fmtCredit(balance)}`;
     $('#bFirstDue').textContent = `${fmtCredit(needed)}`;
     if (autoSubmit) {
@@ -1286,7 +1286,7 @@ window.PlatformCommerce.onReady(function(){
     const priceLabel = quote.active
       ? (globalThis.PlatformLanguage?.text("billing","discount_price","{price} (save {saving})",{price:fmtCredit(quote.final_amount),saving:fmtCredit(quote.discount_amount)}) ?? `${fmtCredit(quote.final_amount)} (save ${fmtCredit(quote.discount_amount)})`)
       : `${fmtCredit(quote.final_amount)}`;
-    $('#bPendingSub').textContent = [typeLabel, packageLabel, priceLabel, rn, em, ph].filter(Boolean).join(' - ') || '-';
+    $('#bPendingSub').textContent = [typeLabel, packageLabel, window.PlatformCommerce.withVat(priceLabel), rn, em, ph].filter(Boolean).join(' - ') || '-';
     renderFundingContext();
   }
 
@@ -1313,7 +1313,7 @@ window.PlatformCommerce.onReady(function(){
     const priceLabel = quote.active
       ? (globalThis.PlatformLanguage?.text("billing","discount_price","{price} (save {saving})",{price:fmtCredit(quote.final_amount),saving:fmtCredit(quote.discount_amount)}) ?? `${fmtCredit(quote.final_amount)} (save ${fmtCredit(quote.discount_amount)})`)
       : `${fmtCredit(quote.final_amount)}`;
-    $('#bPendingSub').textContent = [typeLabel, packageLabel, priceLabel, rn, em, ph].filter(Boolean).join(' • ') || '—';
+    $('#bPendingSub').textContent = [typeLabel, packageLabel, window.PlatformCommerce.withVat(priceLabel), rn, em, ph].filter(Boolean).join(' • ') || '—';
   }
 
   async function startCheckout(e){

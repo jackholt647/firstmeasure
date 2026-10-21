@@ -179,6 +179,13 @@
     return globalThis.PlatformLanguage?.text('onboarding', key, readable, values) ?? readable;
   }
 
+  /** Outside the US and Canada amounts are charged with VAT included. */
+  function vatNoteHtml(){
+    let included = false;
+    try { included = !!window.PlatformCommerce.current().vat_included; } catch (_) {}
+    return included ? `<p class="ob-sub ob-vat-note">${esc(creditText('prices_include_vat', 'Prices include VAT.'))}</p>` : '';
+  }
+
   function totalCreditsText(amount){
     const quote = bonusQuoteForAmount(amount);
     const total = quote.valid ? quote.total_account_value : Math.max(0, Math.round(Number(amount || 0)));
@@ -3889,6 +3896,7 @@
       ${String(bonusIntroHtml)}
 
       <div class="ob-tier-grid" id="obTierGrid">${String(tiersHtml)}${String(customTileHtml)}</div>
+      ${vatNoteHtml()}
       <div class="ob-topup-msg" id="obLoadMsg" aria-live="polite"></div>
 
       ${String(SIGNUP_AUTO_TOPUP_ENABLED ? `

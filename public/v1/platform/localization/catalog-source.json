@@ -5308,7 +5308,8 @@
     "m_f38174b09afe58": {
       "message": "If your balance falls below ${v0}, we will automatically add ${v1} to your account.",
       "format": "icu"
-    }
+    },
+    "prices_include_vat": "Prices include VAT."
   },
   "payroll": {
     "m_4a04382820d2e1": "Other",
@@ -13128,7 +13129,9 @@
     "m_318c0b4455422f": "End field",
     "m_cf56c8e1c1e9ff": "A row is in when the span from its start to its end touches the window. With an end field each row also carries the exact seconds inside it.",
     "m_76d0a0f6b92b6b": "Start field",
-    "m_6945dd9fd27fb0": "The window starts"
+    "m_6945dd9fd27fb0": "The window starts",
+    "m_61e1bda0af7448": "Project Summary",
+    "m_2a3205adcd6f09": "Measurement Breakdown"
   },
   "signatures": {
     "m_2ebfdc1730afd2": "Add Work",
@@ -19781,6 +19784,10 @@
     },
     "exchange_estimate": {
       "message": "Approximately {amount} · exchange rate at payment may differ.",
+      "format": "icu"
+    },
+    "vat_included": {
+      "message": "{price}, VAT included",
       "format": "icu"
     }
   },

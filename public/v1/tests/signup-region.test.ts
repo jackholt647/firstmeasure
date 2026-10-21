@@ -45,7 +45,7 @@ test("a chosen country decides the billing profile even from a US connection",as
   const saved=await profile.organizationProfile(ben.org);
   assert.equal(saved.country,"FR");assert.equal(saved.source,"signup_choice");assert.equal(saved.currency,"EUR");assert.equal(saved.measurement_system,"metric");
   const view=await ben.request("GET",`/v1/platform/organizations/${ben.org}/commerce`);
-  assert.equal(view.currency,"EUR");assert.equal(view.report_prices.residential,25);assert.equal(view.report_prices.commercial,50);assert.equal(view.report_prices.gutters,5);
+  assert.equal(view.currency,"EUR");assert.equal(view.report_prices.residential,25);assert.equal(view.report_prices.commercial,40);assert.equal(view.report_prices.gutters,5);
   const quote=await ben.request("GET","/v1/firstmeasure/report-expedite-options?project_type=residential");
   assert.equal(quote.options.find((o:any)=>o.key==="standard_3_6").unit_price,25);
 

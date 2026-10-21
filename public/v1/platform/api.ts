@@ -14,6 +14,7 @@ import { registerNotificationRulesApi } from "./notifications/api.js";
 import { TRANSLATION_CODES, normalizeTranslationLanguage } from "./localization/languages.js";
 import { messageTranslationPreferences } from "./localization/message-preferences.js";
 import { signupLanguage, signupOptions, signupPhoneInput } from "../commerce/signup-options.js";
+import { reportExpediteTimeZone, reportPricesIncludeVat } from "../commerce/profile.js";
 import { signupCommercialProfile, profileFromGlobal, organizationProfile, currentProfile, customerCommercialView, creditLabel, creditMinorAmount, reportPrice, assertCommercialRevision } from "../commerce/profile.js";
 import { exchangeEstimate } from "../commerce/exchange.js";
 import { isReceiptMedia, canReadReceiptMedia, canWriteReceiptMedia, publicMediaMetadata } from "./media_access.js";
@@ -10889,6 +10890,8 @@ async function portalStripeCreateCheckout(orgId: string, email: string, body: Js
     fields["line_items[0][price_data][product_data][description]"] = useBonus
       ? `${creditLabel(qty)} purchased + ${creditLabel(bonus)} limited-time bonus (${matchPercent}% bonus) = ${creditLabel(totalCredit)} added to your account`
       : `${creditLabel(totalCredit)} added to your FirstMate account`;
+    // Outside the US and Canada the charged amount includes VAT (commercial policy international_prices.vat_included).
+    if (reportPricesIncludeVat()) fields["line_items[0][price_data][product_data][description]"] += ". VAT included.";
     fields["line_items[0][quantity]"] = qty;
   }
   const created = await stripeApiRequest("POST", "/v1/checkout/sessions", fields);
@@ -11533,7 +11536,7 @@ function reportExpediteWindowLabel(start: Date, end: Date) {
     hour: "numeric",
     minute: "2-digit",
     hour12: true,
-    timeZone: "America/Los_Angeles"
+    timeZone: reportExpediteTimeZone()
   });
   return `${format(start)} - ${format(end)}`;
 }
