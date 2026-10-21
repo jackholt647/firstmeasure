@@ -3581,3 +3581,35 @@ test('Resoffit draws every roof-contact line whatever the occlusion test says; e
  f.editor.setResoffitMode(true);assert.equal(draw(),2,'in Resoffit the camera angle cannot hide a selectable line');
  assert.equal(f.editor.pickLine3D(f.e(2,3)),true);f.listeners.pointerup(f.e(2,3));assert.equal(f.editor.selectionSnapshot().lineSelection.length,1,'and it can be clicked');
 });
+
+test('placed stickers snap their centres to the wall centre on each axis; off centre and F stay free',()=>{
+ const F=require('../public/measure/internal/editor_scripts/wall_features.js'),W=require('../public/measure/internal/editor_scripts/wall_solid_geometry.js'),near=(a,b)=>Math.abs(a-b)<1e-8;
+ const centre=f=>{const b=F.bounds(f.d().faces.find(s=>s.feature).points);return {x:(b.left+b.right)/2,y:(b.bottom+b.top)/2,bottom:b.bottom};};
+ const free=(type,point)=>{let f;f=fixture({featureHost:()=>{const d=f.d();return {d,f:d.faces[0],points:d.faces[0].points.map(p=>({x:p.x,y:0,z:p.y}))};},globals:{...renderGlobals(),isFreeMove:true},projectPoint:(d,e)=>d.frame?W.inFrame(d.frame,{x:e.clientX/100,y:0,z:e.clientY/100}):({x:e.clientX/100,y:e.clientY/100,z:0})});f.editor.beginFace(f.e(2,2),f.w);f.listeners.pointerup(f.e(2,2));f.editor.featureCommand(type,0,true);f.listeners.pointermove(f.e(...point));f.editor.down(f.e(...point));return f;};
+ let f=stickerFixture('door',[2.06,1.05]),c=centre(f);assert.ok(near(c.x,2),f.message());assert.ok(near(c.bottom,0),'the floor still wins vertically for a door');
+ f=stickerFixture('window',[1,2.07]);c=centre(f);assert.ok(near(c.y,2),f.message());assert.ok(near(c.x,1),'horizontal stays where the pointer put it');
+ f=stickerFixture('window',[2.05,1.95]);c=centre(f);assert.ok(near(c.x,2)&&near(c.y,2),'both axes snap together');
+ f=stickerFixture('window',[2.3,2.3]);c=centre(f);assert.ok(near(c.x,2.3)&&near(c.y,2.3),'clearly off centre does not snap');
+ f=free('window',[2.05,1.95]);c=centre(f);assert.ok(near(c.x,2.05)&&near(c.y,1.95),'free move disables centre snapping');
+});
+
+test('moving a sticker snaps its centre to its face centre with centre-line guides',()=>{
+ const p=(x,z)=>({x,y:0,z}),centre=points=>({x:(Math.min(...points.map(p=>p.x))+Math.max(...points.map(p=>p.x)))/2,z:(Math.min(...points.map(p=>p.z))+Math.max(...points.map(p=>p.z)))/2}),near=(a,b)=>Math.abs(a-b)<1e-8;
+ const run=(to,globals={})=>{const moving={id:'moving',feature:{type:'window',axis:p(1,0)},points:[p(1,1),p(2,1),p(2,2),p(1,2)]},host={id:'host',points:[p(0,0),p(8,0),p(8,6),p(0,6)]};
+  const f=fixture({state:{wallEdits:{$surfaces:[moving,host]}},walls:[],selected:null,globals:{...renderGlobals(),...globals}}),objects=[],draw=()=>{objects.length=0;f.editor.draw3D({add:o=>objects.push(o)},p=>p);};
+  draw();f.editor.pickSolid(f.e(1.5,1.5));f.listeners.pointerup(f.e(1.5,1.5));f.listeners.pointermove(f.e(1.5,1.5));f.editor.key({key:'m'});assert.equal(f.editor.interaction(),'Transform geometry');f.listeners.pointermove(f.e(...to));draw();
+  return {f,c:centre(f.state.wallEdits.$surfaces.find(s=>s.id==='moving').points),guides:objects.filter(o=>o.userData.alignmentGuide)};};
+ let {f,c,guides}=run([3.97,2.96]);assert.ok(near(c.x,4)&&near(c.z,3),f.message());
+ assert.ok(guides.some(g=>g.geometry.points.every(q=>near(q.x,4))&&g.geometry.points.some(q=>near(q.z,0))&&g.geometry.points.some(q=>near(q.z,6))),'vertical centre line of the face');
+ assert.ok(guides.some(g=>g.geometry.points.every(q=>near(q.z,3))&&g.geometry.points.some(q=>near(q.x,0))&&g.geometry.points.some(q=>near(q.x,8))),'horizontal centre line of the face');
+ ({c}=run([3.96,2.3]));assert.ok(near(c.x,4)&&near(c.z,2.3),'one axis alone');
+ ({c,guides}=run([4.3,3.3]));assert.ok(near(c.x,4.3)&&near(c.z,3.3),'clearly off centre does not snap');assert.equal(guides.filter(g=>g.geometry.points.every(q=>near(q.x,4))||g.geometry.points.every(q=>near(q.z,3))).length,0);
+ ({c}=run([3.97,2.96],{isFreeMove:true}));assert.ok(near(c.x,3.97)&&near(c.z,2.96),'free move disables centre snapping');
+});
+
+test('moving a placed draft sticker snaps its centre to the wall centre',()=>{
+ const F=require('../public/measure/internal/editor_scripts/wall_features.js'),f=stickerFixture('window',[1,1.2]),start=B.center(f.d().faces.find(s=>s.feature));
+ f.editor.down(f.e(start.x,start.y));f.listeners.pointerup(f.e(start.x,start.y));f.listeners.pointermove(f.e(start.x,start.y));f.editor.key({key:'m'});f.listeners.pointermove(f.e(start.x+1.04,start.y+.77));
+ assert.match(f.message(),/Free on face/);const b=F.bounds(f.d().faces.find(s=>s.feature).points);
+ assert.ok(Math.abs((b.left+b.right)/2-2)<1e-8&&Math.abs((b.bottom+b.top)/2-2)<1e-8,JSON.stringify(b)+' '+f.message());
+});

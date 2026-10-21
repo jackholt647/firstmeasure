@@ -323,12 +323,23 @@ function stickerAlignmentTargets(faces,frame,excluded=[]){
  }
  return targets;
 }
+// The supporting face's own centre is a sticker centre target on each in-plane
+// axis. Use the bounding box, in the working frame, of the largest coplanar
+// outline containing the sticker, so notches and dividers do not move it.
+function faceCenterTarget(outlines,frame,points){
+ const c=points.reduce((c,p)=>({x:c.x+p.x/points.length,y:c.y+p.y/points.length,z:c.z+p.z/points.length}),{x:0,y:0,z:0}),q=K.local(frame,c);let best=null;
+ for(const ring of outlines){if(!ring||ring.length<3)continue;const local=ring.map(p=>K.local(frame,p));if(local.some(p=>Math.abs(p.z-q.z)>K.CONTACT)||!pointInRing(q,local))continue;const xs=local.map(p=>p.x),ys=local.map(p=>p.y),box={left:Math.min(...xs),right:Math.max(...xs),bottom:Math.min(...ys),top:Math.max(...ys)},area=(box.right-box.left)*(box.top-box.bottom);if(!best||area>best.area)best={...box,area};}
+ if(!best)return [];const cx=(best.left+best.right)/2,cy=(best.bottom+best.top)/2,at=(x,y)=>K.world(frame,{x,y,z:q.z}),center=at(cx,cy);
+ // Its guide is the face's centre line on the snapped axis, so it stays visible once both axes coincide.
+ return [{...center,alignmentAxes:['x','y'],alignmentCenter:true,alignmentSource:center,faceCenter:true,centerLines:{x:[at(cx,best.bottom),at(cx,best.top)],y:[at(best.left,cy),at(best.right,cy)]}}];
+}
 function planeAlignmentGuides(points,targets,frame){
- const guides=new Map();
- for(const p of points)for(const q of targets){if(p.curveSample||q.curveSample)continue;const a=K.local(frame,p),b=K.local(frame,q);if(Math.abs(a.z-b.z)>K.CONTACT)continue;
+ const guides=new Map(),corners=points.filter(p=>!p.curveSample),centre=(corners.length?corners:points).reduce((c,p,i,a)=>({x:c.x+p.x/a.length,y:c.y+p.y/a.length,z:c.z+p.z/a.length}),{x:0,y:0,z:0});
+ // The face centre aligns the sticker's centre, never one of its corners.
+ for(const [p,q] of [...points.flatMap(p=>targets.filter(q=>!q.faceCenter).map(q=>[p,q])),...targets.filter(q=>q.faceCenter).map(q=>[centre,q])]){if(p.curveSample||q.curveSample)continue;const a=K.local(frame,p),b=K.local(frame,q);if(Math.abs(a.z-b.z)>K.CONTACT)continue;
   for(const axis of ['x','y']){if(q.alignmentAxes&&!q.alignmentAxes.includes(axis))continue;
    const target=q.alignmentSource||q,length=Math.hypot(target.x-p.x,target.y-p.y,target.z-p.z),sticker=!!q.alignmentSource;
-   if(Math.abs(a[axis]-b[axis])>1e-6||length<1e-6)continue;
+   if(Math.abs(a[axis]-b[axis])>1e-6)continue;if(q.centerLines){const [from,to]=q.centerLines[axis];guides.set('face:'+axis+':'+Math.round(a[axis]*1e6),{from,target:to,length:Math.hypot(to.x-from.x,to.y-from.y,to.z-from.z),sticker:true,faceCenter:true});continue;}if(length<1e-6)continue;
    const key=axis+':'+Math.round(a[axis]*1e6)+':'+Math.round(a.z*1e6),previous=guides.get(key);
    // Keep the actual sticker as the guide endpoint, ahead of nearer wall edges.
    if(!previous||sticker&&!previous.sticker||sticker===previous.sticker&&length<previous.length)guides.set(key,{from:p,target,length,sticker});
@@ -1471,5 +1482,5 @@ function inwardSign(face,bases){
  for(const distance of [.005,.02,.1]){const a=inside({x:c.x+n.x*distance,y:c.y+n.y*distance}),b=inside({x:c.x-n.x*distance,y:c.y-n.y*distance});if(a!==b)return a?1:-1;}
  return null;
 }
-const api={exactPoints,PLANE_CONFORM,conformPlanePoints,horizontalSweep,ownsPoint,followTrim,pointRangeIndex,stickerAlignmentTargets,planeAlignment,planeAlignmentGuides,adoptMergedFaceSources,faceFromPoints,mergeAtPoints,fillet,validTranslation,boundedTranslation,geometryScale,snapGeometryScale,snapGeometryOnPlane,transformGeometry,transformSelection,clipboardFrame,copyGeometry,pasteGeometry,mergeConnectedFaces,pointChamferSnap,chamferSnap,chamfer,roofExtrusion,inwardSign,cleanupSweepRemnants,sweepRemnant,motionSnapCandidates,structuralIndex,joinFragments,motionSnap,slideLines,attachedLengths,unionPlanar,trimExtrusion,moveFabric,radialDraftSnap,quadDraftSnap,normal,extrusionDirections,extrusionReference,extrude,snapDirection,bridges,dragAmount,subtract,snapBase,baseScope,belowBase,draftSnap,vertexKey,edgeKey,jsonEqual,contactBox,inContactBox,surfaceWire,restoreCreatedSurfaceWire,structuralPoint,structuralEdge,deleteSurfaceElements,removeFaceEdges,restoreSurface,sharedIntervals,freeEdges,moveSurface,faceFrame,inFrame,fromFrame,containedBy,coplanarContact,containedSnap,importDraft};if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.WallSolidGeometry=api;
+const api={exactPoints,PLANE_CONFORM,conformPlanePoints,horizontalSweep,ownsPoint,followTrim,pointRangeIndex,stickerAlignmentTargets,faceCenterTarget,planeAlignment,planeAlignmentGuides,adoptMergedFaceSources,faceFromPoints,mergeAtPoints,fillet,validTranslation,boundedTranslation,geometryScale,snapGeometryScale,snapGeometryOnPlane,transformGeometry,transformSelection,clipboardFrame,copyGeometry,pasteGeometry,mergeConnectedFaces,pointChamferSnap,chamferSnap,chamfer,roofExtrusion,inwardSign,cleanupSweepRemnants,sweepRemnant,motionSnapCandidates,structuralIndex,joinFragments,motionSnap,slideLines,attachedLengths,unionPlanar,trimExtrusion,moveFabric,radialDraftSnap,quadDraftSnap,normal,extrusionDirections,extrusionReference,extrude,snapDirection,bridges,dragAmount,subtract,snapBase,baseScope,belowBase,draftSnap,vertexKey,edgeKey,jsonEqual,contactBox,inContactBox,surfaceWire,restoreCreatedSurfaceWire,structuralPoint,structuralEdge,deleteSurfaceElements,removeFaceEdges,restoreSurface,sharedIntervals,freeEdges,moveSurface,faceFrame,inFrame,fromFrame,containedBy,coplanarContact,containedSnap,importDraft};if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.WallSolidGeometry=api;
 })(typeof window!=='undefined'?window:globalThis);

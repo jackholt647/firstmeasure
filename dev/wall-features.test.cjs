@@ -130,3 +130,17 @@ test('percentage placement rejects holes, concave overflow, curved faces and inv
  assert.throws(()=>F.percentageSticker(gable,g,{type:'window',x:0,y:0,width:20,height:20}),/beyond/);
  const door=F.percentageSticker({...face,holes:[]},frame,{type:'door',x:10,y:40,width:20,height:60});assert.equal(Math.min(...door.points.map(p=>p.z)),0);
 });
+
+test('sticker centres snap to the supporting face centre on each axis independently',()=>{
+ const frame={origin:p(0,0),u:p(1,0),v:p(0,1),n:p(0,0,1)},wall=F.shape({left:0,right:4,bottom:0,top:3}),notched=[p(0,0),p(1,0),p(1,2),p(2,2),p(2,0),p(4,0),p(4,3),p(0,3)],screen=p=>({x:p.x*100,y:p.y*100}),size={w:3,h:4};
+ const at=(x,y,radius=12,outline=wall)=>{const draft=F.shape({left:x-.5,right:x+.5,bottom:y-.5,top:y+.5}),targets=W.faceCenterTarget([outline],frame,draft),points=F.place(p(x,y),size,[wall,...targets.map(t=>[{...t}])],screen,radius,[{points:wall}]),b=F.bounds(points);return {x:(b.left+b.right)/2,y:(b.bottom+b.top)/2,points,targets};};
+ let r=at(2.06,2.2);assert.equal(r.x,2,'horizontal centre locks exactly');assert.ok(Math.abs(r.y-2.2)<1e-9,'vertical stays free');
+ r=at(1.2,1.46);assert.equal(r.y,1.5,'vertical centre locks exactly');assert.ok(Math.abs(r.x-1.2)<1e-9,'horizontal stays free');
+ r=at(1.95,1.54);assert.equal(r.x,2);assert.equal(r.y,1.5);
+ const guides=W.planeAlignmentGuides(r.points,r.targets,frame).filter(g=>g.faceCenter);assert.equal(guides.length,2,'both centre lines show once the centres coincide');
+ assert.ok(guides.some(g=>g.from.x===2&&g.target.x===2&&g.from.y===0&&g.target.y===3));assert.ok(guides.some(g=>g.from.y===1.5&&g.target.y===1.5&&g.from.x===0&&g.target.x===4));
+ r=at(2.4,1.85);assert.ok(Math.abs(r.x-2.4)<1e-9&&Math.abs(r.y-1.85)<1e-9,'clearly off centre does not snap');assert.equal(W.planeAlignmentGuides(r.points,r.targets,frame).filter(g=>g.faceCenter).length,0);
+ r=at(2.05,1.55,0);assert.ok(Math.abs(r.x-2.05)<1e-9&&Math.abs(r.y-1.55)<1e-9,'free move (radius 0) disables it');
+ r=at(2.06,2.2,12,notched);assert.equal(r.x,2,'a notch from another opening does not move the face centre');
+ assert.deepEqual(W.faceCenterTarget([wall],frame,F.shape({left:1,right:2,bottom:1,top:2}).map(q=>({...q,z:.5}))),[],'only a coplanar outline is a host');
+});
