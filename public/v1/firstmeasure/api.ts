@@ -2227,9 +2227,9 @@ export const registerFirstMeasureApi: FastifyPluginAsync = async (app) => {
 
     });
 
-    const result = await queryIndexedProjectManifests(query);
-
     const view = getProjectListView(input);
+
+    const result = await queryIndexedProjectManifests({ ...query, include_language_snapshot: view === "full" });
 
     return {
 
@@ -2413,9 +2413,9 @@ export const registerFirstMeasureApi: FastifyPluginAsync = async (app) => {
 
     });
 
-    const result = await queryIndexedProjectManifests(query);
-
     const view = getProjectListView(input);
+
+    const result = await queryIndexedProjectManifests({ ...query, include_language_snapshot: view === "full" });
 
     return {
 

@@ -767,10 +767,16 @@ export async function getPostgresProjectIndexStatus(): Promise<ProjectIndexStatu
   };
 }
 
+// Many-row reads leave out the order's frozen report language (about 26 KB per order since October 20). Only the
+// report reads it, through a single-project read; lists, queues and leaderboards never do, and parsing it on every
+// row made those reads several times slower. Writers patch named fields, so a slim copy never erases it.
+export const LIST_MANIFEST_COLUMN = "(manifest_json - 'language_snapshot') AS manifest_json";
+const LIST_MANIFEST_COLUMN_P = "(p.manifest_json - 'language_snapshot') AS manifest_json";
+
 export async function listPostgresProjectManifests(): Promise<ProjectManifest[]> {
   await ensurePostgresProjectIndexReady();
   const result = await queryPostgres<{ manifest_json: unknown }>(
-    "SELECT manifest_json FROM projects WHERE left(id, 10) <> 'fullhouse_' ORDER BY sort_ts DESC, updated_at_ms DESC, id DESC"
+    `SELECT ${LIST_MANIFEST_COLUMN} FROM projects WHERE left(id, 10) <> 'fullhouse_' ORDER BY sort_ts DESC, updated_at_ms DESC, id DESC`
   );
   return result.rows.map((row) => manifestFromValue(row.manifest_json));
 }
@@ -784,7 +790,7 @@ export async function findPostgresProjectsByNormalizedAddress(address: string, o
   await ensurePostgresProjectIndexReady();
   const limit = Math.max(1, Math.min(50, Math.floor(options.limit ?? 10)));
   const result = await queryPostgres<{ manifest_json: unknown }>(`
-    SELECT manifest_json FROM projects WHERE left(id, 10) <> 'fullhouse_' AND address_normalized = $1
+    SELECT ${LIST_MANIFEST_COLUMN} FROM projects WHERE left(id, 10) <> 'fullhouse_' AND address_normalized = $1
     ORDER BY sort_ts DESC, updated_at_ms DESC, id DESC LIMIT $2
   `, [normalizeSearch(address), limit]);
   return result.rows.map((row) => manifestFromValue(row.manifest_json));
@@ -797,7 +803,7 @@ export async function queryPostgresProjectManifests(query: ProjectIndexManifestQ
   const count = await queryPostgres<{ count: string }>(`SELECT COUNT(*)::text AS count FROM projects p WHERE ${built.where.join(" AND ")}`, built.values);
   const values = [...built.values, limit];
   const rows = await queryPostgres<{ manifest_json: unknown }>(`
-    SELECT p.manifest_json FROM projects p WHERE ${built.where.join(" AND ")}
+    SELECT ${query.include_language_snapshot ? "p.manifest_json" : LIST_MANIFEST_COLUMN_P} FROM projects p WHERE ${built.where.join(" AND ")}
     ORDER BY p.sort_ts DESC, p.updated_at_ms DESC, p.id DESC LIMIT $${values.length}
   `, values);
   return { count: Number(count.rows[0]?.count ?? 0), projects: rows.rows.map((row) => manifestFromValue(row.manifest_json)) };
@@ -891,7 +897,7 @@ export async function queryPostgresQueueBucket(query: QueueBucketQuery) {
   const pagingValues = [...values, limit, offset];
   const pagingSql = `LIMIT $${values.length + 1} OFFSET $${values.length + 2}`;
   const result = await queryPostgres<{ manifest_json: unknown; thumbnail_artifact_name: string }>(`
-    SELECT p.manifest_json, p.thumbnail_artifact_name FROM projects p WHERE ${where.join(" AND ")}
+    SELECT ${LIST_MANIFEST_COLUMN_P}, p.thumbnail_artifact_name FROM projects p WHERE ${where.join(" AND ")}
     ${queueGroupOrderSql("p", group)} ${pagingSql}
   `, pagingValues);
   const parsed = result.rows.map((row) => ({ manifest: manifestFromValue(row.manifest_json), thumbnailArtifactName: row.thumbnail_artifact_name || null }));
@@ -985,7 +991,7 @@ export async function searchPostgresProjectsForLegacyList(query: LegacyListQuery
   }
   searchOrderValues.push(query.limit, (query.page - 1) * query.limit);
   const result = await queryPostgres<{ manifest_json: unknown; thumbnail_artifact_name: string; revision: string }>(`
-    SELECT p.manifest_json, p.thumbnail_artifact_name, p.revision::text FROM projects p WHERE ${where.join(" AND ")}
+    SELECT ${LIST_MANIFEST_COLUMN_P}, p.thumbnail_artifact_name, p.revision::text FROM projects p WHERE ${where.join(" AND ")}
     ORDER BY ${order} LIMIT $${searchOrderValues.length - 1} OFFSET $${searchOrderValues.length}
   `, searchOrderValues);
   return {

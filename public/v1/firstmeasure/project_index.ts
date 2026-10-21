@@ -88,6 +88,8 @@ export type IndexedProjectDocument = SqlParams & {
 };
 
 export type ProjectIndexManifestQuery = {
+  /** Return each order's frozen report language too; many-row reads leave it out by default. */
+  include_language_snapshot?: boolean;
   search?: string;
   statuses?: string[];
   limit?: number;
