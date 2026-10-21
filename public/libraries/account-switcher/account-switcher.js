@@ -38,6 +38,7 @@
       localStorage.setItem(cacheKey, JSON.stringify((accounts || []).map((account) => ({
         account_id: String(account.account_id || ''),
         email: String(account.email || ''),
+        organization_id: String(account.organization_id || ''),
         name: String(account.name || ''),
         organization_name: String(account.organization_name || ''),
         active: !!account.active,
@@ -53,6 +54,7 @@
     return {
       account_id: '',
       email,
+      organization_id: String(window.__APP?.userOrgId || '').trim(),
       name: String(window.__APP?.userName || email).trim(),
       organization_name: String(window.__APP?.userCompany || '').trim(),
       active: true,
@@ -61,11 +63,17 @@
     };
   }
 
+  /* One email can sign in to several organizations, so an account is its email and its organization. */
+  function sameAccount(account, current) {
+    if (String(account.email || '').toLowerCase() !== current.email) return false;
+    return !account.organization_id || !current.organization_id || String(account.organization_id) === current.organization_id;
+  }
+
   function mergeCurrentAccount(accounts) {
     const current = currentAccount();
     const next = Array.isArray(accounts) ? accounts.map((account) => ({ ...account, active: false })) : [];
     if (!current) return next;
-    const existing = next.find((account) => String(account.email || '').toLowerCase() === current.email);
+    const existing = next.find((account) => sameAccount(account, current));
     if (existing) Object.assign(existing, {
       email: current.email,
       name: current.name,
@@ -360,12 +368,128 @@
       .fm-account-row-actions{position:absolute;z-index:3;right:10px;min-width:150px;margin:0;padding:3px;border:1px solid #e5e8eb;border-radius:8px;background:#fff;box-shadow:0 4px 12px rgba(60,64,67,.14)}.fm-account-row-actions button{display:flex;width:100%;align-items:center;gap:8px;border:0;border-radius:5px;background:#fff;padding:7px 9px;color:#3c4043;font:inherit;font-size:12.5px;text-align:left;cursor:pointer}.fm-account-row-actions button:hover,.fm-account-row-actions button:focus{background:#f5f7f8;outline:0}.fm-account-row-actions i{width:15px;text-align:center;color:#a33b32;font-size:11px}
       .fm-account-reauth{color:#b45309!important;font-weight:700}.fm-account-login-modal{position:fixed;inset:0;z-index:2147483647;display:grid;place-items:center;padding:20px}.fm-account-login-backdrop{position:absolute;inset:0;background:rgba(15,23,42,.54)}.fm-account-login-card{position:relative;width:min(460px,100%);max-height:calc(100vh - 40px);overflow:auto;border-radius:18px;background:#fff;box-shadow:0 24px 80px rgba(15,23,42,.35)}.fm-account-login-card header{display:flex;align-items:flex-start;gap:12px;padding:19px 20px 15px;border-bottom:1px solid #edf0f2}.fm-account-login-card header>div{display:grid;gap:3px;flex:1}.fm-account-login-card header strong{font-size:17px;color:#202124}.fm-account-login-card header span{font-size:12px;color:#5f6368}.fm-account-login-card header button{width:32px;height:32px;border:0;border-radius:50%;background:transparent;color:#5f6368;cursor:pointer}.fm-account-login-card header button:hover{background:#f1f3f4}.fm-account-login-widget{padding:0 20px 20px}.fm-account-login-widget .fm-auth{margin:0}
       @media (max-width:720px){.fm-account-switcher-menu{bottom:12px!important;left:12px!important;width:calc(100vw - 24px)!important}.sidebar-footer{padding-bottom:8px!important}}
+      .fm-account-changed{position:fixed;inset:0;z-index:2147483647;display:grid;place-items:center;padding:16px;background:rgba(32,33,36,.55)}.fm-account-changed-card{width:min(440px,100%);border-radius:14px;background:#fff;padding:22px;color:#202124;box-shadow:0 18px 50px rgba(0,0,0,.3);font:14px/1.45 Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif}.fm-account-changed-card strong{display:block;font-size:17px;margin-bottom:8px}.fm-account-changed-card p{margin:0 0 16px;color:#3c4043}.fm-account-changed-actions{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:8px}.fm-account-changed-actions button{border:1px solid #dadce0;border-radius:20px;background:#fff;padding:9px 16px;color:#1a73e8;font:700 13px inherit;cursor:pointer}.fm-account-changed-actions button.primary{border-color:#1a73e8;background:#1a73e8;color:#fff}.fm-account-changed-actions button:disabled{opacity:.6;cursor:wait}.fm-account-changed-error{margin:12px 0 0!important;color:#b3261e!important;font-size:12px}
       @media (prefers-reduced-motion:reduce){.fm-account-switcher-menu:not([hidden]),.fm-account-switcher-menu.closing{animation:none}}
     `;
     document.head.appendChild(style);
   }
 
+  /* A browser has one active account. Every request a tab makes is answered for that account, so a tab that loaded as
+     another account (before a switch or sign-in in another tab) would show and change the active account's data under
+     its own name. Each page announces its account; a tab whose account is no longer active stops and says so. */
+  const activeAccountKey = 'fm_active_account_v1';
+  const say = (key, fallback, values = {}) => {
+    const readable = String(fallback).replace(/\{(\w+)\}/g, (_, name) => String(values[name] ?? ''));
+    return globalThis.PlatformLanguage?.text?.('account-switcher', key, readable, values) ?? readable;
+  };
+  const pageAccount = () => ({
+    organization_id: String(window.__APP?.userOrgId || '').trim(),
+    email: String(window.__APP?.userEmail || '').trim().toLowerCase(),
+    organization_name: String(window.__APP?.userCompany || '').trim()
+  });
+  const isPageAccount = (account) => {
+    const page = pageAccount();
+    return String(account?.organization_id || '').trim() === page.organization_id && String(account?.email || '').trim().toLowerCase() === page.email;
+  };
+
+  function announceActiveAccount() {
+    const page = pageAccount();
+    if (!page.organization_id || !page.email) return;
+    try { localStorage.setItem(activeAccountKey, JSON.stringify({ ...page, at: Date.now() })); } catch (_) {}
+  }
+
+  function storedActiveAccount() {
+    try { return JSON.parse(localStorage.getItem(activeAccountKey) || 'null'); } catch (_) { return null; }
+  }
+
+  function accountLabel(account) {
+    const email = String(account?.email || '').trim();
+    const organization = String(account?.organization_name || '').trim();
+    return organization && email ? `${organization} (${email})` : organization || email;
+  }
+
+  function showAccountChanged(active) {
+    if (!pageAccount().organization_id || isPageAccount(active)) return;
+    document.getElementById('fmAccountChanged')?.remove();
+    const page = pageAccount();
+    const notice = document.createElement('div');
+    notice.id = 'fmAccountChanged';
+    notice.className = 'fm-account-changed';
+    notice.setAttribute('role', 'alertdialog');
+    notice.setAttribute('aria-modal', 'true');
+    const title = say('account_changed_title', 'You switched accounts in another tab');
+    const body = say('account_changed_body', 'This tab was opened as {page}. You are now signed in as {active}, so this tab has stopped to keep the two accounts apart.', { page: accountLabel(page), active: accountLabel(active) || '-' });
+    const continueLabel = say('account_changed_continue', 'Continue as {active}', { active: accountLabel(active) || '-' });
+    const backLabel = say('account_changed_back', 'Switch back to {page}', { page: accountLabel(page) });
+    notice.innerHTML = `<div class="fm-account-changed-card"><strong>${escapeHtml(title)}</strong><p>${escapeHtml(body)}</p><div class="fm-account-changed-actions"><button type="button" data-fm-account-back>${escapeHtml(backLabel)}</button><button type="button" class="primary" data-fm-account-continue>${escapeHtml(continueLabel)}</button></div><p class="fm-account-changed-error" hidden></p></div>`;
+    injectStyles();
+    document.body.appendChild(notice);
+    notice.querySelector('[data-fm-account-continue]').addEventListener('click', () => window.location.reload());
+    notice.querySelector('[data-fm-account-back]').addEventListener('click', async (event) => {
+      event.currentTarget.disabled = true;
+      const switcher = window.FirstMateAccountSwitcher;
+      const accounts = switcher ? await switcher.refreshAccounts() : [];
+      const match = (accounts || []).find((account) => account.account_id && isPageAccount(account));
+      const error = notice.querySelector('.fm-account-changed-error');
+      if (!match || !switcher) {
+        error.hidden = false;
+        error.textContent = say('account_changed_back_missing', 'That account is not saved on this device. Sign in to it again from the account menu.');
+        return;
+      }
+      try {
+        await switcher.request('/auth/accounts/switch', { method: 'POST', body: JSON.stringify({ account_id: match.account_id }) });
+        window.location.reload();
+      } catch (failure) {
+        error.hidden = false;
+        error.textContent = failure.message || '';
+        event.currentTarget.disabled = false;
+      }
+    });
+    notice.querySelector('[data-fm-account-continue]').focus();
+  }
+
+  /* Asks the server which account is active, for a request refused as belonging to another organization. */
+  let checking = null;
+  function checkActiveAccount() {
+    if (checking) return checking;
+    checking = fetch(endpoint('/auth/session'), { credentials: 'include', headers: { Accept: 'application/json' } })
+      .then((response) => response.json().catch(() => ({})))
+      .then((session) => {
+        if (!session?.authenticated) return true;
+        const active = {
+          organization_id: String(session.membership?.organization_id || session.organization?.id || ''),
+          email: String(session.identity?.email || session.user?.email || '').toLowerCase(),
+          organization_name: String(session.organization?.name || '')
+        };
+        if (isPageAccount(active)) return true;
+        showAccountChanged(active);
+        return false;
+      })
+      .catch(() => true)
+      .finally(() => { checking = null; });
+    return checking;
+  }
+
+  function watchActiveAccount() {
+    if (!pageAccount().organization_id) return;
+    announceActiveAccount();
+    window.addEventListener('storage', (event) => {
+      if (event.key !== activeAccountKey || !event.newValue) return;
+      let active = null;
+      try { active = JSON.parse(event.newValue); } catch (_) { return; }
+      if (active && !isPageAccount(active)) showAccountChanged(active);
+    });
+    // A tab restored from the back/forward cache missed the announcements made while it was away.
+    window.addEventListener('pageshow', (event) => {
+      if (!event.persisted) return;
+      const active = storedActiveAccount();
+      if (active && !isPageAccount(active)) void checkActiveAccount();
+    });
+    window.FirstMateAccountGuard = { check: checkActiveAccount, isPageAccount };
+  }
+
   function init() {
+    if (!window.FirstMateAccountGuard) watchActiveAccount();
     const button = document.getElementById('accountSwitcherButton');
     if (!button || button.dataset.fmAccountSwitcherReady) return;
     button.dataset.fmAccountSwitcherReady = 'true';

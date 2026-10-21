@@ -71,7 +71,7 @@
   if (!ORG_NAME) {
     try {
       const cached = JSON.parse(localStorage.getItem('fm_org_theme_v1') || '{}');
-      if (cached.name) ORG_NAME = cached.name;
+      if (cached.name && String(cached.orgId || '') === String(APP.userOrgId || APP.orgId || '')) ORG_NAME = cached.name;
     } catch(e){}
   }
   if (!ORG_NAME) {

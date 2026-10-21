@@ -649,6 +649,7 @@
     } catch (error) {
       const data = error?.data || null;
       const text = error?.responseText || '';
+      if (data?.error === 'organization_forbidden') void window.FirstMateAccountGuard?.check?.();
       if (isAuthFailure({ status: error?.status || 0 }, data, text)) {
         redirectToLogin('expired');
         throw authRequiredError();
@@ -696,6 +697,8 @@
       redirectToLogin('expired');
       throw authRequiredError();
     }
+    // Another tab switched this browser to a different account.
+    if (data?.error === 'organization_forbidden') void window.FirstMateAccountGuard?.check?.();
     return { res, data };
   }
 

@@ -1591,7 +1591,8 @@ session_write_close();
         const currentBranchId = String(window.__APP?.userBranchId || 'default').trim() || 'default';
         const cachedOrgId = String(theme.orgId || '').trim();
         const cachedBranchId = String(theme.branchId || 'default').trim() || 'default';
-        if (currentOrgId && cachedOrgId && currentOrgId !== cachedOrgId) return false;
+        // A theme without its organization may belong to another account signed in on this browser.
+        if (currentOrgId && currentOrgId !== cachedOrgId) return false;
         if (currentBranchId && cachedBranchId && currentBranchId !== cachedBranchId) return false;
         return true;
       }

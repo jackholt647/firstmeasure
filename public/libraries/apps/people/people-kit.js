@@ -332,7 +332,7 @@
         ${fields.map((field) => field.type === 'select'
           ? `<label class="pp-field"><span>${esc(field.label)}</span>${select({ name:field.id, value:field.value, options:field.options, placeholder:field.placeholder, label:field.label })}</label>`
           : field.type === 'photo'
-            ? `<label class="pp-field pp-field-photo"><span>${esc(field.label)}</span><span class="pp-photo-pick"><span class="pp-avatar" style="--pp-avatar:34px;--pp-hue:210" data-photo-preview><i class="fas fa-camera" aria-hidden="true"></i></span><input type="file" name="${esc(field.id)}" accept="image/png,image/jpeg,image/webp"></span></label>`
+            ? `<label class="pp-field pp-field-photo"><span>${esc(field.label)}</span><span class="pp-photo-pick"><span class="pp-avatar" style="--pp-avatar:34px;--pp-hue:210" data-photo-preview><i class="fas fa-camera" aria-hidden="true"></i></span><span class="pp-btn pp-photo-button"><i class="fas fa-arrow-up-from-bracket" aria-hidden="true"></i><span data-photo-name>${esc(t('choose_photo', 'Choose photo'))}</span></span><input type="file" class="pp-photo-file" name="${esc(field.id)}" accept="image/png,image/jpeg,image/webp"></span></label>`
           : `<label class="pp-field"><span>${esc(field.label)}</span><input type="${esc(field.type || 'text')}" name="${esc(field.id)}" value="${esc(field.value || '')}" autocomplete="${esc(field.autocomplete || 'off')}" ${field.required ? 'required' : ''} spellcheck="false"></label>`).join('')}
         ${choices ? `<div class="pp-field" role="group" aria-label="${esc(choices.label)}"><span>${esc(choices.label)}</span><div class="pp-choice-run">${choices.items.map((item) => `<button type="button" class="pp-choice" data-choice-id="${esc(item.id)}" aria-pressed="${chosen.has(item.id)}"${tip(item.tooltip)}>${esc(item.label)}</button>`).join('')}</div></div>` : ''}
         <div class="pp-form-foot"><span class="pp-form-error" role="alert"></span><button type="button" class="pp-btn quiet" data-form-cancel>${esc(t('cancel', 'Cancel'))}</button><button type="submit" class="pp-btn primary">${options.submitIcon ? `<i class="fas ${esc(options.submitIcon)}" aria-hidden="true"></i>` : ''}${esc(options.submitLabel || t('save', 'Save'))}</button></div>`;
@@ -390,6 +390,8 @@
         const file = event.target.matches?.('input[type="file"]') ? event.target.files?.[0] : null;
         const preview = file ? event.target.closest('.pp-photo-pick')?.querySelector('[data-photo-preview]') : null;
         if (preview) { const url = URL.createObjectURL(file); preview.innerHTML = `<img src="${url}" alt="">`; }
+        const name = file ? event.target.closest('.pp-photo-pick')?.querySelector('[data-photo-name]') : null;
+        if (name) name.textContent = file.name;
       });
       panel.querySelector('input,select')?.focus();
     });
@@ -456,7 +458,8 @@
       .pp-avatar{position:relative;display:inline-grid;place-items:center;flex:none;width:var(--pp-avatar,30px);height:var(--pp-avatar,30px);border-radius:50%;background:var(--pp-avatar-bg,hsl(var(--pp-hue,210) 55% 92%));color:hsl(var(--pp-hue,210) 45% 32%);font-size:calc(var(--pp-avatar,30px)*.38);font-weight:700;letter-spacing:.01em;user-select:none}
       .pp-avatar.square{border-radius:calc(var(--pp-avatar,30px)*.28)}
       .pp-avatar[style*="--pp-avatar-bg"]{color:#fff}
-      .pp-avatar>img{width:100%;height:100%;border-radius:inherit;object-fit:cover;display:block}
+      /* Out of the grid: a tall photo's own height would otherwise size the row and stretch the circle into an oval (1M8-201). */
+      .pp-avatar>img{position:absolute;inset:0;width:100%;height:100%;border-radius:inherit;object-fit:cover;display:block}
       .pp-online{position:absolute;right:-1px;bottom:-1px;width:clamp(9px,calc(var(--pp-avatar,30px)*.26),15px);height:clamp(9px,calc(var(--pp-avatar,30px)*.26),15px);border-radius:50%;background:var(--pp-online);box-shadow:0 0 0 2px var(--pp-panel)}
       .pp-online[data-status="away"]{background:var(--pp-away)}
 
@@ -537,7 +540,8 @@
       .pp-menu-title>strong{flex:1;min-width:0;color:var(--pp-text);font-size:13px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
       .pp-menu-heading{padding:7px 9px 3px;color:var(--pp-faint);font-size:10.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase}
       .pp-photo-pick{display:flex;align-items:center;gap:10px;min-width:0}
-      .pp-photo-pick>input{min-width:0;flex:1;font:inherit;font-size:12px;color:var(--pp-muted)}
+      .pp-photo-pick{position:relative}.pp-photo-pick>.pp-photo-file{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
+      .pp-photo-button{min-width:0;max-width:100%;height:32px}.pp-photo-button>span{overflow:hidden;text-overflow:ellipsis}.pp-photo-pick:focus-within .pp-photo-button{outline:2px solid var(--pp-accent,#1a73e8);outline-offset:1px}
       .pp-photo-pick .pp-avatar>i{font-size:13px;color:var(--pp-faint)}
       .pp-select{position:relative;display:block;min-width:0}
       .pp-select>select{appearance:none;-webkit-appearance:none;padding-right:28px;cursor:pointer;text-overflow:ellipsis}

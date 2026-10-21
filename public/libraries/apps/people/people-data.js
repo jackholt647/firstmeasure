@@ -391,7 +391,8 @@
     const myEmail = text(window.__APP?.userEmail).toLowerCase();
     return (!!myId && entry.id === myId) || (!!myEmail && text(entry.email).toLowerCase() === myEmail);
   };
-  const isOwner = (entry = {}) => text(entry.org_permissions?.level, entry.org_permission_level, entry.role).toLowerCase() === 'super_admin';
+  /* Signup writes the account's first user as role "owner" with no level; that user is a super admin. */
+  const isOwner = (entry = {}) => ['super_admin', 'owner'].includes(text(entry.org_permissions?.level, entry.org_permission_level, entry.role).toLowerCase());
   const roleMembers = (roleId) => state.users.filter((entry) => userRoleIds(entry).includes(String(roleId)));
 
   const sentence = (value) => { const words = String(value || '').replace(/[_-]+/g, ' ').trim(); return words ? words.charAt(0).toUpperCase() + words.slice(1) : ''; };
@@ -589,7 +590,7 @@
   const replaceUser = (next) => { const index = state.users.findIndex((entry) => entry.id === next.id); if (index >= 0) state.users[index] = { ...state.users[index], ...next }; else state.users.push(next); };
   async function reload(change){ await load({ refresh:true }).catch(() => {}); emit(change); return state; }
 
-  async function invite({ name, email, roleIds = [], photo = null }){
+  async function invite({ name, email, roleIds = [], photo = null, level = '' }){
     const platform = api();
     const result = await platform.users.create(orgId(), {
       email:String(email || '').trim().toLowerCase(), name:String(name || '').trim(), role:'viewer', status:'invited', permissions:{}, account_type:'customer',
@@ -601,10 +602,17 @@
       try { await platform.workforce.saveUserProfile(orgId(), created.id, { access_role_ids:ids(roleIds), permission_overrides:{}, app_access_overrides:{} }); }
       catch (error) { profileError = error?.message || 'profile'; }
     }
+    /* The level goes through the permissions endpoint, which checks the inviter may set it. */
+    let levelError = '';
+    const chosenLevel = text(level).toLowerCase();
+    if (created.id && chosenLevel && chosenLevel !== 'viewer' && LEGACY_LEVELS[chosenLevel] && can.permissions) {
+      try { await platform.users.setPermissions(orgId(), created.id, chosenLevel, legacyLevelItems(chosenLevel)); }
+      catch (error) { levelError = error?.message || 'level'; }
+    }
     let photoError = '';
     if (created.id && photo) { try { await uploadPhoto(created.id, photo, { silent:true }); } catch (error) { photoError = error?.message || 'photo'; } }
     await reload({ type:'invite', id:created.id });
-    return { user:user(created.id) || created, emailed:!!(result?.emailed || result?.email_sent), activateUrl:result?.activate_url || result?.invite?.activate_url || '', inviteError:result?.invite?.error || '', profileError, photoError };
+    return { user:user(created.id) || created, emailed:!!(result?.emailed || result?.email_sent), activateUrl:result?.activate_url || result?.invite?.activate_url || '', existingAccount:result?.existing_account === true || result?.invite?.existing_account === true, inviteError:result?.invite?.error || '', profileError, photoError, levelError };
   }
   async function resendInvite(id){
     const result = await api().users.resendInvite(orgId(), id);
@@ -746,10 +754,18 @@
   const LEGACY_LEVELS = { viewer:[0, 1, 0, 0, 0, 0, 0], manager:[1, 1, 0, 0, 0, 0, 0], admin:[1, 1, 1, 1, 1, 1, 0], super_admin:[1, 1, 1, 1, 1, 1, 1] };
   const legacyLevelItems = (level) => Object.fromEntries(LEGACY_FLAGS.map((key, index) => [key, !!(LEGACY_LEVELS[level] || LEGACY_LEVELS.viewer)[index]]));
   const legacyMode = () => { try { return window.PlatformAPI?.appFlags?.has?.('platform', 'expanded_access') !== true; } catch (_) { return false; } };
+  /* A level outside the five (signup's "owner", a platform role such as "member") is read from the user's flags, never assumed to be viewer. */
   function userLegacy(entry = {}){
-    const level = text(entry.org_permissions?.level, entry.org_permission_level, entry.role, 'viewer').toLowerCase();
-    const items = level === 'custom' ? Object.fromEntries(LEGACY_FLAGS.map((key) => [key, obj(entry.org_permissions?.items)[key] === true])) : legacyLevelItems(level);
-    return { level:LEGACY_LEVELS[level] || level === 'custom' ? level : 'viewer', items };
+    const stored = text(entry.org_permissions?.level, entry.org_permission_level, entry.role, 'viewer').toLowerCase();
+    if (stored === 'owner') return { level:'super_admin', items:legacyLevelItems('super_admin') };
+    if (stored === 'custom') return { level:'custom', items:Object.fromEntries(LEGACY_FLAGS.map((key) => [key, obj(entry.org_permissions?.items)[key] === true])) };
+    if (LEGACY_LEVELS[stored]) return { level:stored, items:legacyLevelItems(stored) };
+    const granted = { ...obj(entry.permissions), ...obj(entry.effective_permissions), ...obj(entry.org_permissions?.items) };
+    if (granted['*'] === true) return { level:'super_admin', items:legacyLevelItems('super_admin') };
+    const items = Object.fromEntries(LEGACY_FLAGS.map((key) => [key, granted[key] === true]));
+    const preset = Object.keys(LEGACY_LEVELS).find((level) => LEGACY_FLAGS.every((key) => legacyLevelItems(level)[key] === items[key]));
+    if (preset) return { level:preset, items };
+    return LEGACY_FLAGS.some((key) => items[key]) ? { level:'custom', items } : { level:'viewer', items:legacyLevelItems('viewer') };
   }
   const newKey = (prefix) => `${prefix}-${window.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`}`;
   /* Published actions: the workforce domain's own writers, with a fresh idempotency key per intent. */

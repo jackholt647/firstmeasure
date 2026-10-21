@@ -2964,6 +2964,7 @@ app.get("/auth/google/config", async () => ({
         emailed: invite.ok,
         email_sent: invite.ok,
         activate_url: invite.activate_url || "",
+        existing_account: (invite as { existing_account?: boolean }).existing_account === true,
         invite
       } : {})
     };
@@ -9225,7 +9226,8 @@ async function handleAuthLegacyAction(request: FastifyRequest, reply: FastifyRep
     await patchIdentity(String(identity.id || ""), {
       metadata: { ...asObject(identity.metadata), password_reset: reset }
     });
-    const postmark = await sendPasswordResetOtpEmail(email, code);
+    const activation = cleanText(body.purpose).toLowerCase() === "activation";
+    const postmark = await sendPasswordResetOtpEmail(email, code, activation ? "activation" : "reset");
     if (!postmark.ok) {
       return {
         success: false,
@@ -9242,7 +9244,7 @@ async function handleAuthLegacyAction(request: FastifyRequest, reply: FastifyRep
       recovery_token: createPasswordRecoveryToken(String(identity.id || ""), reset.request_id),
       delivery_channel: "email",
       masked_destination: maskEmailAddress(email),
-      message: "Password reset code sent.",
+      message: activation ? "Activation code sent." : "Password reset code sent.",
       email_sent: true,
       ...(env.isProduction ? {} : { dev_otp: code })
     };
@@ -9378,35 +9380,62 @@ async function sendPostmarkEmail(input: { to: string; subject: string; textBody:
   }
 }
 
-async function sendPasswordResetOtpEmail(email: string, code: string) {
-  const subject = `1m8 Verification Code: ${code}`;
-  const textBody = `Your verification code is: ${code}\n\nThis code expires in 10 minutes. If you did not request this, you can ignore this email.`;
-  const htmlBody = `<p>Your verification code is:</p>
+async function sendPasswordResetOtpEmail(email: string, code: string, purpose: "reset" | "activation" = "reset") {
+  const label = purpose === "activation" ? "activation" : "verification";
+  const subject = `1m8 ${purpose === "activation" ? "Activation" : "Verification"} Code: ${code}`;
+  const textBody = `Your ${label} code is: ${code}\n\nThis code expires in 10 minutes. If you did not request this, you can ignore this email.`;
+  const htmlBody = `<p>Your ${label} code is:</p>
     <div style="font-size:24px;font-weight:700;letter-spacing:4px;margin:12px 0;">${escapeHtml(code)}</div>
     <p>This code expires in 10 minutes.</p>
     <p>If you did not request this, you can ignore this email.</p>`;
   return sendPostmarkEmail({ to: email, subject, textBody, htmlBody });
 }
 
-function portalActivateUrl(request: { headers: Record<string, unknown> }, email: string) {
+function portalActivateUrl(request: { headers: Record<string, unknown> }, email: string, orgId = "") {
   const base = publicRequestBaseUrl(request).replace(/\/+$/, "");
   const params = new URLSearchParams({
     email,
     redirect: "./",
-    start: "start"
+    start: "start",
+    ...(orgId ? { org: orgId } : {})
   });
   return `${base}/portal/activate.php?${params.toString()}`;
+}
+
+/* Someone who already signs in to FirstMate (for another company) joins with that account: no new password. */
+function portalJoinUrl(request: { headers: Record<string, unknown> }, email: string, orgId: string) {
+  const base = publicRequestBaseUrl(request).replace(/\/+$/, "");
+  const params = new URLSearchParams({ email, org: orgId, redirect: "./" });
+  return `${base}/portal/login.php?${params.toString()}`;
+}
+
+async function inviteeHasAccount(email: string) {
+  const identity = await findIdentityByEmail(email).catch(() => null);
+  if (!identity) return false;
+  const passwordAlgo = cleanText(identity.password_algo).toLowerCase();
+  return Boolean(cleanText(identity.last_login_at)) || (Boolean(cleanText(identity.password_hash)) && passwordAlgo !== "pending");
 }
 
 async function sendPlatformOrgUserInvite(orgId: string, userDoc: JsonObject, request: { headers: Record<string, unknown> }, actorEmail = "") {
   const data = asObject(userDoc.data);
   const email = cleanEmail(data.email);
   const name = cleanText(data.name) || email;
-  const activateUrl = portalActivateUrl(request, email);
+  const existingAccount = await inviteeHasAccount(email);
+  const activateUrl = existingAccount ? portalJoinUrl(request, email, orgId) : portalActivateUrl(request, email, orgId);
   const organization = asObject(await readOrganization(orgId).catch(() => ({})));
   const orgName = cleanText(organization.name) || "your company";
-  const subject = `You're invited to FirstMate`;
-  const textBody = [
+  const subject = existingAccount ? `You've been added to ${orgName} in FirstMate` : `You're invited to FirstMate`;
+  const textBody = existingAccount ? [
+    `Hi ${name},`,
+    "",
+    `You've been added to ${orgName} in FirstMate.`,
+    "",
+    "Sign in with your existing FirstMate account (this email address and your current password) to open it:",
+    activateUrl,
+    "",
+    "Your other companies stay on your account; switch between them from the account menu.",
+    actorEmail ? `Invite sent by: ${actorEmail}` : ""
+  ].filter((line, index, lines) => line || index < lines.length - 1).join("\n") : [
     `Hi ${name},`,
     "",
     `You've been invited to join ${orgName} in FirstMate.`,
@@ -9416,7 +9445,15 @@ async function sendPlatformOrgUserInvite(orgId: string, userDoc: JsonObject, req
     "",
     actorEmail ? `Invite sent by: ${actorEmail}` : ""
   ].filter((line, index, lines) => line || index < lines.length - 1).join("\n");
-  const htmlBody = `
+  const htmlBody = existingAccount ? `
+    <p>Hi ${escapeHtml(name)},</p>
+    <p>You've been added to <strong>${escapeHtml(orgName)}</strong> in FirstMate.</p>
+    <p>
+      <a href="${escapeHtml(activateUrl)}" style="display:inline-block;background:#d93025;color:#fff;text-decoration:none;font-weight:700;padding:10px 14px;border-radius:6px;">Sign in to ${escapeHtml(orgName)}</a>
+    </p>
+    <p style="color:#555;">Use your existing FirstMate account: this email address and your current password. Your other companies stay on your account; switch between them from the account menu.</p>
+    ${actorEmail ? `<p style="color:#777;font-size:12px;">Invite sent by ${escapeHtml(actorEmail)}</p>` : ""}
+  ` : `
     <p>Hi ${escapeHtml(name)},</p>
     <p>You've been invited to join <strong>${escapeHtml(orgName)}</strong> in FirstMate.</p>
     <p>
@@ -9457,6 +9494,7 @@ async function sendPlatformOrgUserInvite(orgId: string, userDoc: JsonObject, req
     emailed: sent.ok,
     email_sent: sent.ok,
     activate_url: activateUrl,
+    existing_account: existingAccount,
     error: sent.ok ? "" : cleanText(sent.error),
     postmark: sent
   };

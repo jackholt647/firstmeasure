@@ -290,14 +290,17 @@
         fields:[
           { id:'name', label:t('name', 'Name'), autocomplete:'off' },
           { id:'email', label:t('email', 'Email'), type:'email', required:true, autocomplete:'off' },
-          { id:'photo', label:t('photo', 'Photo'), type:'photo' }
-        ],
+          { id:'photo', label:t('photo', 'Photo'), type:'photo' },
+          legacy && can.permissions ? { id:'level', label:t('permission_level', 'Permission level'), type:'select', value:'viewer', options:['viewer', 'manager', 'admin', 'super_admin'].map((level) => ({ value:level, label:t(`level_${level}`, LEVEL_LABELS[level]) })) } : null
+        ].filter(Boolean),
         choices:roles.length ? { id:'roleIds', label:t('roles', 'Roles'), items:roles.map((role) => ({ id:role.id, label:role.name || role.id, tooltip:role.description })), value:preferred ? [preferred.id] : [], min:1 } : null,
-        submit:(values) => data.invite({ name:values.name, email:values.email, roleIds:values.roleIds || [], photo:values.photo || null })
+        submit:(values) => data.invite({ name:values.name, email:values.email, roleIds:values.roleIds || [], photo:values.photo || null, level:values.level || '' })
       }).then(async (result) => {
         if (!result) return;
         if (!result.emailed && result.activateUrl) { try { await navigator.clipboard.writeText(result.activateUrl); } catch (_) {} kit.toast(t('invite_link_copied', 'Invitation link copied'), t('invite_link_copied_detail', 'The email could not be sent, so the link is on your clipboard.'), true); }
+        else if (result.existingAccount) kit.toast(t('invite_existing_account', 'Added to your company'), t('invite_existing_account_detail', '{email} already has a FirstMate account. They were emailed a link to sign in and open your company, and they keep access to their other companies.', { email:result.user?.email || '' }), true);
         else kit.toast(t('invite_sent', 'Invitation sent'), result.user?.email || '', true);
+        if (result.levelError) kit.toast(t('level_not_saved', 'Permission level not saved'), result.levelError, false);
         if (result.profileError) kit.toast(t('roles_not_saved', 'Roles not saved'), result.profileError, false);
         if (result.photoError) kit.toast(t('photo_failed_title', 'Photo not saved'), result.photoError, false);
       });

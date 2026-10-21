@@ -257,8 +257,9 @@
     });
     return distinct.map(rgbHex);
   }
+  /* The theme cache is shared by every account in this browser, so it carries its organization and is read only for it. */
   function cacheTheme(theme){
-    try{ localStorage.setItem(LS_KEY, JSON.stringify(theme || {})); }catch(e){}
+    try{ localStorage.setItem(LS_KEY, JSON.stringify({ ...(theme || {}), orgId: currentOrgId(), branchId: String(window.__APP?.userBranchId || 'default').trim() || 'default' })); }catch(e){}
   }
   function readCachedTheme(){
     try{
@@ -266,6 +267,7 @@
       if (!raw) return null;
       const obj = JSON.parse(raw);
       if (!obj || typeof obj !== 'object') return null;
+      if (String(obj.orgId || '') !== currentOrgId()) return null;
       return obj;
     }catch(e){ return null; }
   }
@@ -429,7 +431,8 @@
   }
   function normLevel(u){
     const lvl = (u && u.org_permissions && u.org_permissions.level) ? u.org_permissions.level : 'viewer';
-    return String(lvl || 'viewer').toLowerCase().trim();
+    const level = String(lvl || 'viewer').toLowerCase().trim();
+    return level === 'owner' ? 'super_admin' : level;
   }
   function normEmail(u){
     return String(u?.email || '').toLowerCase().trim();
@@ -761,7 +764,10 @@
     fd.append('logo', file);
     const res = await fetch(APP.serverEndpoint, { method:'POST', body: fd, credentials:'include' });
     const data = await res.json().catch(()=>null);
-    if (!data || !data.success) return { ok:false, error: data?.error || 'Upload failed' };
+    // Refused when another tab switched this browser to a different account: say so instead of a bare code.
+    if (data?.error === 'organization_forbidden') void window.FirstMateAccountGuard?.check?.();
+    if (res.status === 413) return { ok:false, error: (globalThis.PlatformLanguage?.text("settings","logo_too_large","That image is too large. Choose a smaller file.") ?? "That image is too large. Choose a smaller file.") };
+    if (!data || !data.success) return { ok:false, error: data?.message || data?.error || 'Upload failed' };
     return { ok:true, logo: data.logo || null };
   }
   // Billing actions (server hooks you'll add)
