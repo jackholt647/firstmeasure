@@ -1106,7 +1106,12 @@ export const registerFirstMeasureApi: FastifyPluginAsync = async (app) => {
       else await processProjectImagery(projectId, asRecord(job.payload.input));
       return { processed: true };
     } catch (error) {
-      await patchManifest(projectId, imageryFailurePatch(error));
+      // An order whose imagery fails (including no Google height-map coverage) stays in the drafting queue for
+      // the technician to judge, as it did before imagery became a durable job. Only an explicit structure-pin
+      // request records the failure on the project and moves it to review.
+      if (job.payload.structure_pins === true) await patchManifest(projectId, imageryFailurePatch(error));
+      else console.warn(JSON.stringify({ event: "firstmeasure_order_imagery_failed", project_id: projectId,
+        code: String((error as { code?: string })?.code || ""), transient: isTransientProviderFailure(error) }));
       if (isTransientProviderFailure(error)) throw error;
       return { processed: false, needs_attention: true };
     }
