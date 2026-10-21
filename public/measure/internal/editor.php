@@ -2841,16 +2841,21 @@ $tutorialStudentEmail = strtolower(trim((string)($_GET['student_email'] ?? $_GET
         const leftCol = paneSlots?.main || document.getElementById('leftColumn');
         const workspace = document.getElementById('workspace');
         let isResizing = false;
-        resizer.addEventListener('mousedown', (e) => { isResizing=true; document.body.style.cursor='col-resize'; e.preventDefault(); });
+        // A divider drag moves on every mouse event, but views re-lay out at most once per frame, and only cheaply
+        // (window.firstMeasurePaneResizing) until the drag ends; the full redraw runs once on release.
+        let paneResizeFrame = 0;
+        const queuePaneResize = () => { if (!paneResizeFrame) paneResizeFrame = requestAnimationFrame(() => { paneResizeFrame = 0; window.dispatchEvent(new Event('resize')); }); };
+        const endPaneResize = () => { if (paneResizeFrame) { cancelAnimationFrame(paneResizeFrame); paneResizeFrame = 0; } window.firstMeasurePaneResizing = false; document.body.style.cursor = 'default'; window.dispatchEvent(new Event('resize')); };
+        resizer.addEventListener('mousedown', (e) => { isResizing=true; window.firstMeasurePaneResizing=true; document.body.style.cursor='col-resize'; e.preventDefault(); });
         window.addEventListener('mousemove', (e) => {
             if(isResizing) {
                 const w = ((e.clientX-workspace.getBoundingClientRect().left) / workspace.clientWidth) * 100;
                 if(w>20 && w<80) leftCol.style.setProperty('width', w+'%');
-                window.dispatchEvent(new Event('resize'));
+                queuePaneResize();
             }
         });
         window.addEventListener('mouseup', () => { 
-            if(isResizing) { isResizing=false; document.body.style.cursor='default'; window.dispatchEvent(new Event('resize')); }
+            if(isResizing) { isResizing=false; endPaneResize(); }
         });
 
         // NEW: Resizer Logic (Vertical for Right Column)
@@ -2897,7 +2902,7 @@ $tutorialStudentEmail = strtolower(trim((string)($_GET['student_email'] ?? $_GET
         window.resizeEditorPanes = (widthRatio, heightRatio) => {
             if (widthRatio !== null) leftCol.style.width = `${Math.min(.8, Math.max(.2, widthRatio)) * 100}%`;
             if (heightRatio !== null) applyRightColumnSplit(heightRatio);
-            window.dispatchEvent(new Event('resize'));
+            queuePaneResize();
         };
 
         queueRightColumnSplitSync();
@@ -2913,6 +2918,7 @@ $tutorialStudentEmail = strtolower(trim((string)($_GET['student_email'] ?? $_GET
 
         vResizer.addEventListener('mousedown', (e) => { 
             isResizingV = true; 
+            window.firstMeasurePaneResizing = true;
             document.body.style.cursor = 'row-resize'; 
             e.preventDefault(); 
         });
@@ -2930,15 +2936,14 @@ $tutorialStudentEmail = strtolower(trim((string)($_GET['student_email'] ?? $_GET
             if (availableHeight > 100 && relativeY > 50 && relativeY < containerRect.height - 50) {
                 rightSplitRatio = clampRightSplitRatio(relativeY / availableHeight);
                 applyRightColumnSplit(rightSplitRatio);
-                window.dispatchEvent(new Event('resize'));
+                queuePaneResize();
             }
         });
 
         window.addEventListener('mouseup', () => {
             if (isResizingV) {
                 isResizingV = false;
-                document.body.style.cursor = 'default';
-                window.dispatchEvent(new Event('resize'));
+                endPaneResize();
             }
         });
 

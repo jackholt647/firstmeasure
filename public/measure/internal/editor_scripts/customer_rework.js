@@ -383,8 +383,14 @@
     if (typeof window.renderGeometry2D === 'function') window.renderGeometry2D();
   };
 
+  // Pane resizes fire this many times a second; redraw the plan once per frame and not until a divider drag ends.
+  let resizeFrame = 0;
   window.addEventListener('resize', () => {
-    clearMapMarkers();
-    if (window.currentProjectManifest && typeof window.renderGeometry2D === 'function') window.renderGeometry2D();
+    if (resizeFrame || window.firstMeasurePaneResizing) return;
+    resizeFrame = requestAnimationFrame(() => {
+      resizeFrame = 0;
+      clearMapMarkers();
+      if (window.currentProjectManifest && typeof window.renderGeometry2D === 'function') window.renderGeometry2D();
+    });
   });
 })();

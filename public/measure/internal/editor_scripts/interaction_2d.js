@@ -2412,11 +2412,18 @@ function setup2DListeners() {
         window.nudgeGroupTimer = null;
         window.isNudgeSequenceActive = false;
     };
+    // The plan lives in a pan/zoom layer in image coordinates, so a pane resize changes only what is in view: one redraw
+    // per frame (redrawCanvas also renders the geometry), and during a divider drag just the transform and the
+    // viewport-sized grid until the drag ends.
+    let resizeRedrawFrame = 0;
     window.addEventListener('resize', () => {
-        requestAnimationFrame(() => {
+        if (resizeRedrawFrame) return;
+        resizeRedrawFrame = requestAnimationFrame(() => {
+             resizeRedrawFrame = 0;
              updateTransform(); 
+             if (window.firstMeasurePaneResizing) { drawVisualGrid(); return; }
              redrawCanvas();    
-             if (typeof renderGeometry2D === 'function') renderGeometry2D();
+             if (!activeGeometry && typeof renderGeometry2D === 'function') renderGeometry2D();
         });
     });
     let isRotatingView = false;
