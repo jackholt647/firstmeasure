@@ -57,6 +57,29 @@ across those regions; keep a feature on one host section for this prototype.
 Horizontal/sloped returns are listed separately from vertical cladding area.
 Length totals exclude shared coplanar seams and distinguish material transitions.
 
+## Elevation pages
+
+The cover, Exterior Summary and Front elevation all look from the configured front
+bearing (the orientation key's Front); nothing derives the view from the geometry.
+Elevations draw walls and the roof as light faces with dark edges on white; the roof
+only occludes and is never labeled.
+
+Each wall face is counted on exactly one elevation (`elevationPlan` in
+`exterior_pdf.js`): among the eight views where the face points toward the viewer
+within 60 degrees and at least a quarter of its area is visible, the one that looks
+most directly at it. A face no view shows that well goes to the view showing most of
+it; a face no view shows at all is listed on **Hidden Wall Faces**. Faces under 1 sq ft
+are one **Small pieces** row on the view they face. Elevation totals plus hidden
+faces therefore equal the gross wall area. Every face in an elevation's table is
+labeled in its drawing (inside, smaller, or beside it with a leader line) and every
+label is in the table; faces counted elsewhere are drawn pale and unlabeled.
+"Openings" is the area of modeled windows, doors and other openings cut from the face.
+
+Report configuration warns while any face has no material (the editor's "Smooth"
+default with no default texture), with buttons to list those faces or open Wall
+materials. The tray opens at 36% of the workspace, resizes from its left edge, and
+keeps each person's width in this browser.
+
 ## Local verification and artifacts
 
 - `node --test dev/*.test.cjs`: existing geometry/editor suite plus focused

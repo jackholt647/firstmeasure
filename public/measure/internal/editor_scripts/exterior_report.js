@@ -38,7 +38,7 @@ function renderExteriorReportConfig(container,state){
  const toggle=document.createElement('label'),input=document.createElement('input');input.type='checkbox';if(window.FIRSTMEASURE_CUSTOMER_FULL_HOUSE===true){s.include=true;input.disabled=true;}input.checked=s.include!==false;input.onchange=()=>{s.include=input.checked;};toggle.append(input,document.createTextNode(' Include exterior pages in full PDF'));container.appendChild(toggle);
  renderHouseOrientation(container,state);
  const table=document.createElement('table');table.style.cssText='width:100%;font-size:12px;border-collapse:collapse';const head=table.insertRow();['Wall','Side',(window.ReportUnits?.current().metric?'Net m²':'Net sq ft'),'Material'].forEach(t=>{const th=document.createElement('th');th.textContent=t;th.style.textAlign='left';head.appendChild(th);});
- m.walls.forEach(w=>{const row=table.insertRow();[w.id+(w.chimney?' (chimney)':''),window.ExteriorPDF.relativeSide(w.normal,s),(window.ReportUnits?.current().metric?window.ReportUnits.current().number(w.net,"sf"):w.net.toFixed(1)),w.material||'Unassigned'].forEach(t=>row.insertCell().textContent=t);});container.appendChild(table);
+ m.walls.forEach(w=>{const row=table.insertRow(),missing=!w.material||w.material==='Unassigned';row.dataset.wallId=w.id;if(missing){row.dataset.unassigned='';row.style.background='#fff4e5';}[w.id+(w.chimney?' (chimney)':''),window.ExteriorPDF.relativeSide(w.normal,s),(window.ReportUnits?.current().metric?window.ReportUnits.current().number(w.net,"sf"):w.net.toFixed(1)),missing?'Not assigned':w.material].forEach(t=>row.insertCell().textContent=t);});container.appendChild(table);
  container.addEventListener('house-orientation-change',()=>{m.walls.forEach((w,i)=>{table.rows[i+1].cells[1].textContent=window.ExteriorPDF.relativeSide(w.normal,s);});});
  const notes=document.createElement('textarea');notes.placeholder='Wall / structure notes. Use wall IDs (for example W01) to reference the diagrams.';notes.setAttribute('aria-label','Wall and structure notes');notes.maxLength=1600;notes.value=s.notes||'';notes.style.cssText='width:100%;min-height:80px;margin-top:16px';notes.oninput=()=>{s.notes=notes.value;};container.appendChild(notes);
 }
@@ -64,3 +64,23 @@ async function renderReportImageryConfig(container,state){
   select.onchange=()=>{const file=choices.find(f=>f.key===select.value);entry.assignment='manual';entry.image=file?{key:file.key,resourceName:file.resourceName,url:file.resourceName?undefined:file.url,label:file.label,role:file.role,frame:file.frame}:null;if(file){entry.enabled=true;check.checked=true;}touchElevationSettings(settings);preview();update();};
  }
 }
+/* Report configuration warns while any wall face has no material. Show faces opens the Exteriors
+ page, where those rows are highlighted; Assign in Walls opens Wall materials with colors on. */
+function assignWallMaterials(){
+ window.closeReportConfig?.();
+ if(!window.WallMode?.enabled)document.getElementById('wall-mode-toggle')?.click();
+ setTimeout(()=>{const trigger=document.getElementById('wall-material-toggle');if(trigger&&trigger.getAttribute('aria-expanded')!=='true')trigger.click();const colors=document.querySelector('#wall-material-picker input[type=checkbox]');if(colors&&!colors.checked){colors.checked=true;colors.dispatchEvent(new Event('change'));}},400);
+}
+function renderUnassignedMaterialWarning(state){
+ const panel=document.getElementById('report-config-panel'),warning=window.ExteriorReportModel?.materialWarning(state?.exteriorReport);let box=document.getElementById('report-unassigned-warning');
+ if(!panel||!warning){box?.remove();return null;}
+ if(!box){box=document.createElement('div');box.id='report-unassigned-warning';box.dataset.unassignedWarning='';box.setAttribute('role','alert');box.style.cssText='display:flex;gap:10px;align-items:flex-start;padding:10px 12px;background:#fff4e5;border-bottom:1px solid #f0c36d;color:#5c3c00;font-size:12px;line-height:1.45;flex:0 0 auto';(panel.querySelector('#reportPreviewContent')||panel.lastChild)?.before(box);}
+ const icon=document.createElement('i');icon.className='fas fa-exclamation-triangle';icon.setAttribute('aria-hidden','true');icon.style.cssText='margin-top:2px;color:#b26a00';
+ const body=document.createElement('div');body.style.flex='1';const title=document.createElement('strong');title.textContent='Unassigned materials. ';body.append(title,document.createTextNode(warning.text));
+ const actions=document.createElement('div');actions.style.cssText='display:flex;gap:6px;margin-top:6px;flex-wrap:wrap';
+ const button=(label,fn)=>{const b=document.createElement('button');b.type='button';b.textContent=label;b.style.cssText='padding:4px 10px;border:1px solid #d9a441;border-radius:4px;background:#fff;color:#5c3c00;font-weight:700;cursor:pointer;font-size:12px';b.onclick=fn;actions.appendChild(b);return b;};
+ const page=typeof _pagePlan!=='undefined'?_pagePlan.findIndex(p=>p.key==='exterior'):-1;
+ if(page>=0)button('Show faces',()=>{window.goToConfigPage?.(page+1);setTimeout(()=>document.querySelector('#reportPreviewContent [data-unassigned]')?.scrollIntoView({block:'center'}),300);});
+ button('Assign in Walls',assignWallMaterials);body.appendChild(actions);box.replaceChildren(icon,body);return warning;
+}
+window.renderUnassignedMaterialWarning=renderUnassignedMaterialWarning;

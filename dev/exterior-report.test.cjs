@@ -23,3 +23,35 @@ test('browser script order initializes report dependencies and includes the roof
  assert.equal(model.walls.length,1);assert.equal(model.roof.length,1);assert.ok(Math.abs(model.totals.net-16/.3048**2)<1e-5);
  model.roof[0].points[0].z=50;assert.equal(roof.faces[0].points[0].z,4);
 });
+test('a door cut as a notch in the bottom edge of its wall is a counted opening',()=>{
+ const wall=[{x:0,y:0,z:0},{x:1,y:0,z:0},{x:1,y:0,z:2},{x:2,y:0,z:2},{x:2,y:0,z:0},{x:4,y:0,z:0},{x:4,y:0,z:3},{x:0,y:0,z:3}];
+ const m=R.build({faces:[{points:wall},{points:rect(1,0,2,2),feature:{type:'door'}}]});
+ assert.equal(m.warnings.length,0);assert.equal(m.openings.length,1);assert.equal(m.walls.length,1);
+ assert.ok(Math.abs(m.walls[0].gross-12/.3048**2)<1e-6);assert.ok(Math.abs(m.walls[0].openingArea-2/.3048**2)<1e-6);assert.ok(Math.abs(m.walls[0].net-10/.3048**2)<1e-6);
+});
+test('chimney faces point away from their own chimney',()=>{
+ const side=y=>({points:[{x:5,y,z:3},{x:6,y,z:3},{x:6,y,z:5},{x:5,y,z:5}],chimney:{id:'c1',side:0}});
+ const m=R.build({faces:[{points:rect(0,0,4,3)},side(5),side(6)],base:{faces:[{points:[{x:0,y:0,z:0},{x:4,y:0,z:0},{x:4,y:8,z:0},{x:0,y:8,z:0}]}]}});
+ const chimney=m.walls.filter(w=>w.chimney).sort((a,b)=>a.points[0].y-b.points[0].y);
+ assert.equal(chimney.length,2);assert.ok(chimney[0].normal.y<0);assert.ok(chimney[1].normal.y>0);
+});
+test('report configuration warns about wall faces without a material',()=>{
+ const m=R.build({faces:[{points:rect(0,0,4,2),material:'brick'},{points:rect(0,2,4,4)},{points:rect(0,4,4,6),material:'unassigned'}]});
+ const warning=R.materialWarning(m);assert.equal(warning.count,1);assert.equal(warning.total,2);assert.deepEqual(warning.ids,R.unassigned(m).map(w=>w.id));
+ assert.match(warning.text,/1 of 2 wall faces have no material assigned/);
+ assert.equal(R.materialWarning(R.build({faces:[{points:rect(0,0,4,2),material:'siding'}]})),null);
+ const many=R.build({faces:Array.from({length:10},(_,i)=>({points:rect(i*5,0,i*5+4,2)}))});assert.match(R.materialWarning(many).text,/No wall face has a material assigned \(W01, .*W08, \+2 more\)/);
+});
+test('the report tray opens about half again wider than before, resizes within limits and remembers each person\'s width',()=>{
+ const fs=require('node:fs'),vm=require('node:vm'),ts=require('../public/v1/node_modules/typescript'),file='public/measure/internal/editor_scripts/report.js',source=fs.readFileSync(file,'utf8'),tree=ts.createSourceFile(file,source,ts.ScriptTarget.Latest,true),parts=[];
+ const wanted=new Set(['reportTrayWidthKey','clampReportTrayWidth','readReportTrayWidth','saveReportTrayWidth']);
+ ts.forEachChild(tree,node=>{if(ts.isFunctionDeclaration(node)&&wanted.has(node.name?.text))parts.push(node.getText(tree));if(ts.isVariableStatement(node)&&node.getText(tree).includes('REPORT_TRAY_DEFAULT_SHARE'))parts.push(node.getText(tree).replace(/^const /,'var '));});
+ assert.equal(parts.length,5);
+ const store=new Map(),c={localStorage:{getItem:k=>store.get(k)??null,setItem:(k,v)=>store.set(k,String(v)),removeItem:k=>store.delete(k)},FIRSTMEASURE_ACTOR:{email:'Tech@Example.com'}};c.window=c;vm.createContext(c);vm.runInContext(parts.join('\n'),c);
+ assert.equal(c.clampReportTrayWidth(null,1920),691);assert.ok(c.clampReportTrayWidth(null,1920)>=1920*.35*1.0&&c.clampReportTrayWidth(null,1440)>=270*1.5);
+ assert.equal(c.clampReportTrayWidth(100,1440),360);assert.equal(c.clampReportTrayWidth(5000,1440),1440-605);assert.equal(c.clampReportTrayWidth(600,1440),600);
+ c.saveReportTrayWidth(640.4);assert.equal(store.get('firstmeasure:report-tray-width:tech@example.com'),'640');assert.equal(c.readReportTrayWidth(),640);
+ c.FIRSTMEASURE_ACTOR={email:'other@example.com'};assert.equal(c.readReportTrayWidth(),null);
+ c.localStorage={getItem(){throw Error('blocked');},setItem(){throw Error('blocked');}};assert.equal(c.readReportTrayWidth(),null);assert.doesNotThrow(()=>c.saveReportTrayWidth(500));
+ assert.match(source,/body\.report-mode-active #main-pane-slot \{ flex-shrink:1; \}/);assert.doesNotMatch(source,/report-column \{ display:flex; width:35%; \}/);
+});

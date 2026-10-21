@@ -303,6 +303,7 @@ async function openReportConfiguration() {
     }
 
     panel.style.display = 'flex';
+    applyReportTrayWidth(panel);
     document.body.classList.add('report-mode-active');
 
     renderConfigPage();
@@ -762,6 +763,7 @@ function createReportPanel() {
             </div>
         </div>
 
+        <div class="report-resize-handle" role="separator" aria-orientation="vertical" aria-label="Resize report configuration" title="Drag to resize. Double-click to reset."></div>
         <div class="report-preview-container" id="reportPreviewContent"></div>
 
         <div class="report-footer">
@@ -775,8 +777,11 @@ function createReportPanel() {
 
     const style = document.createElement('style');
     style.innerHTML = `
-        .report-column { width: 40%; background:#f0f2f5; border-left:1px solid #ccc; display:none; flex-direction:column; z-index:50; transition:width .3s ease; }
-        .report-column.fullscreen { width:100% !important; position:absolute; top:0; left:0; height:100%; }
+        .report-column { width: 36%; min-width:360px; max-width:calc(100% - 605px); flex:0 0 auto; position:relative; background:#f0f2f5; border-left:1px solid #ccc; display:none; flex-direction:column; z-index:50; }
+        .report-column.fullscreen { width:100% !important; min-width:0; max-width:none; position:absolute; top:0; left:0; height:100%; }
+        .report-resize-handle { position:absolute; left:-4px; top:0; bottom:0; width:8px; cursor:col-resize; z-index:60; touch-action:none; }
+        .report-resize-handle:hover, .report-resize-handle.dragging { background:rgba(26,115,232,.28); }
+        .report-column.fullscreen .report-resize-handle { display:none; }
         .report-header { height:40px; background:#fff; border-bottom:1px solid #ddd; display:flex; justify-content:space-between; align-items:center; padding:0 10px; font-weight:bold; font-size:13px; }
         .report-header button { background:none; border:none; cursor:pointer; color:#555; }
         .advanced-settings-wrap { position:relative; display:flex; align-items:center; }
@@ -818,7 +823,8 @@ function createReportPanel() {
 
         body.report-mode-active .left-column { width:30%; }
         body.report-mode-active .right-column { width:30%; }
-        body.report-mode-active .report-column { display:flex; width:35%; }
+        body.report-mode-active .report-column { display:flex; }
+        body.report-mode-active #main-pane-slot { flex-shrink:1; }
         body.report-mode-active.report-fullscreen .left-column,
         body.report-mode-active.report-fullscreen .right-column { display:none; }
 
@@ -1143,6 +1149,64 @@ function createReportPanel() {
     document.head.appendChild(style);
 
     workspace.appendChild(panel);
+    wireReportTrayResize(panel);
+}
+
+// The tray opens at about 36% of the workspace (it was 35% nominal, but the 2D/3D pane slot did not
+// shrink, so most of it sat off screen). Its left edge resizes it, and each person's width is kept
+// in this browser. The views beside it always keep their 300px minimums.
+const REPORT_TRAY_DEFAULT_SHARE = 0.36, REPORT_TRAY_MIN_WIDTH = 360, REPORT_TRAY_VIEWS_MIN_WIDTH = 605;
+function reportTrayWidthKey() {
+    const actor = window.FIRSTMEASURE_ACTOR && typeof window.FIRSTMEASURE_ACTOR === 'object' ? window.FIRSTMEASURE_ACTOR : {};
+    return 'firstmeasure:report-tray-width:' + String(actor.email || window.currentUserEmail || 'default').toLowerCase();
+}
+function clampReportTrayWidth(width, workspaceWidth) {
+    const max = Math.max(REPORT_TRAY_MIN_WIDTH, workspaceWidth - REPORT_TRAY_VIEWS_MIN_WIDTH);
+    const value = Number.isFinite(width) && width > 0 ? width : workspaceWidth * REPORT_TRAY_DEFAULT_SHARE;
+    return Math.round(Math.min(max, Math.max(REPORT_TRAY_MIN_WIDTH, value)));
+}
+function readReportTrayWidth() {
+    try { const value = Number(localStorage.getItem(reportTrayWidthKey())); return value > 0 ? value : null; } catch (e) { return null; }
+}
+function saveReportTrayWidth(width) {
+    try { localStorage.setItem(reportTrayWidthKey(), String(Math.round(width))); } catch (e) {}
+}
+function applyReportTrayWidth(panel = document.getElementById('report-config-panel')) {
+    if (!panel) return;
+    const workspaceWidth = document.getElementById('workspace')?.clientWidth || window.innerWidth;
+    panel.style.width = clampReportTrayWidth(readReportTrayWidth(), workspaceWidth) + 'px';
+}
+function wireReportTrayResize(panel) {
+    const handle = panel.querySelector('.report-resize-handle');
+    if (!handle) return;
+    let drag = null;
+    handle.addEventListener('pointerdown', e => {
+        if (e.button !== 0 || isReportFullscreen) return;
+        e.preventDefault();
+        drag = { id: e.pointerId, x: e.clientX, width: panel.getBoundingClientRect().width };
+        handle.setPointerCapture(e.pointerId);
+        handle.classList.add('dragging');
+        document.body.style.cursor = 'col-resize';
+    });
+    handle.addEventListener('pointermove', e => {
+        if (!drag || drag.id !== e.pointerId) return;
+        const workspaceWidth = document.getElementById('workspace')?.clientWidth || window.innerWidth;
+        panel.style.width = clampReportTrayWidth(drag.width - (e.clientX - drag.x), workspaceWidth) + 'px';
+    });
+    const finish = e => {
+        if (!drag || drag.id !== e.pointerId) return;
+        drag = null;
+        handle.classList.remove('dragging');
+        document.body.style.cursor = '';
+        saveReportTrayWidth(panel.getBoundingClientRect().width);
+        syncEditorLayoutAfterReportChange();
+    };
+    for (const type of ['pointerup', 'pointercancel', 'lostpointercapture']) handle.addEventListener(type, finish);
+    handle.addEventListener('dblclick', () => {
+        try { localStorage.removeItem(reportTrayWidthKey()); } catch (e) {}
+        applyReportTrayWidth(panel);
+        syncEditorLayoutAfterReportChange();
+    });
 }
 
 
@@ -2611,6 +2675,7 @@ async function renderConfigPage() {
     const nextBtn = document.getElementById('btnNextPage');
 
     if (!container || !pageList) return;
+    window.renderUnassignedMaterialWarning?.(reportConfigState);
 
     if (_labelsOverlayCleanup) {
         try { _labelsOverlayCleanup(); } catch (e) {}
