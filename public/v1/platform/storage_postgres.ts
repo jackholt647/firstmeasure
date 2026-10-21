@@ -536,14 +536,18 @@ export async function deleteDocument(orgId: string, collectionValue: string, doc
 export async function readGlobal(orgId: string) {
   await ensurePostgresPlatformStorage();
   const organizationId = sanitizeId(orgId, "organization_id");
+  // A read takes no row lock: almost every request reads its organization's global document, and a
+  // FOR UPDATE here queued them all behind each other across every web node. Only seeding a missing
+  // document needs a transaction, and a concurrent seed loses to ON CONFLICT and reads the winner.
+  if (!(await queryPostgres("SELECT 1 FROM platform_organizations WHERE id = $1", [organizationId])).rowCount) throw notFound("not_found", "The requested platform record was not found.");
+  const found = await queryPostgres<DocumentRow>("SELECT document FROM platform_documents WHERE organization_id = $1 AND collection = 'global' AND id = 'global'", [organizationId]);
+  if (found.rows[0]) return asObject(found.rows[0].document);
   return withPostgresTransaction(async (client) => {
-    await ensureOrg(client, organizationId);
-    const found = await client.query<DocumentRow>("SELECT document FROM platform_documents WHERE organization_id = $1 AND collection = 'global' AND id = 'global' FOR UPDATE", [organizationId]);
-    if (found.rows[0]) return asObject(found.rows[0].document);
     const now = nowIso();
     const doc = { schema_version: SCHEMA_VERSION, id: "global", organization_id: organizationId, collection: "global", data: {}, metadata: {}, revision: 1, created_at: now, updated_at: now };
-    await client.query("INSERT INTO platform_documents(organization_id, collection, id, document) VALUES ($1,'global','global',$2::jsonb)", [organizationId, JSON.stringify(doc)]);
-    return doc;
+    await client.query("INSERT INTO platform_documents(organization_id, collection, id, document) VALUES ($1,'global','global',$2::jsonb) ON CONFLICT DO NOTHING", [organizationId, JSON.stringify(doc)]);
+    const seeded = await client.query<DocumentRow>("SELECT document FROM platform_documents WHERE organization_id = $1 AND collection = 'global' AND id = 'global'", [organizationId]);
+    return asObject(seeded.rows[0]?.document ?? doc);
   });
 }
 export async function saveGlobal(orgId: string, input: JsonObject = {}, options: { replace?: boolean } = {}) {
