@@ -1171,6 +1171,9 @@ function restoreCreatedSurfaceWire(edits,before={}){
  if(!oldPoints.size&&!oldEdges.size)return;
  const old=new Map((before.$surfaces||[]).map(f=>[f.id,f])),created=[],points=new Set();
  for(const f of edits.$surfaces||[]){if(f.deleted||f.drafted||f.replacedBy)continue;const prior=old.get(f.id),live=prior&&!prior.deleted&&!prior.drafted&&!prior.replacedBy?prior:null;
+  // A face first appearing from a merge or a delete repair is made of edges
+  // that already existed; it creates no geometry that may revive hidden wire.
+  if(!live&&f.mergedSources)continue;
   if(live&&jsonEqual(rings(live),rings(f)))continue;const previous=new Set(live?rings(live).flat().map(vertexKey):[]);
   for(const r of rings(f))for(let i=0;i<r.length;i++){const a=r[i],b=r[(i+1)%r.length];if(!previous.has(vertexKey(a)))points.add(vertexKey(a));if(!live||sharedIntervals(a,b,[live]).reduce((n,[lo,hi])=>n+hi-lo,0)<1-1e-7)created.push({points:[a,b]});}
  }
@@ -1268,7 +1271,8 @@ function removeFaceEdges(faces,segments,wire={}){
  };
  // A face owns the line only where it runs along it; an end that overlaps a neighbour by a sub-millimetre sliver
  // (measured houses have them) must not make that neighbour's edge part of the deletion.
- for(const [a,b] of segments){const own=Math.min(.5,1e-3/Math.max(1e-9,Math.hypot(b.x-a.x,b.y-a.y,b.z-a.z))),boundary=faces.map((f,i)=>({f,i})).filter(({f})=>sharedIntervals(a,b,[f]).some(([lo,hi])=>hi-lo>own));
+ const touching=new Set();
+ for(const [a,b] of segments){const own=Math.min(.5,1e-3/Math.max(1e-9,Math.hypot(b.x-a.x,b.y-a.y,b.z-a.z))),boundary=faces.map((f,i)=>({f,i})).filter(({f})=>sharedIntervals(a,b,[f]).some(([lo,hi])=>hi-lo>own));for(const {i}of boundary)touching.add(i);
   const incident=faces.map((f,i)=>({f,i})).filter(v=>boundary.some(b=>b.i===v.i)||(!v.f.feature&&covers(a,b,v.f)&&boundary.some(b=>samePlane(b.f,v.f))));
   const pairs=[];for(const v of incident)for(const peer of incident)if(v.i<peer.i&&!!v.f.feature===!!peer.f.feature&&samePlane(v.f,peer.f)){
    const frame=faceFrame(v.f),regions=K.union([v.f,peer.f].map(f=>({points:f.points.map(p=>inFrame(frame,p)),holes:(f.holes||[]).map(r=>r.map(p=>inFrame(frame,p)))}))).map(f=>({points:f.points.map(p=>fromFrame(frame,p)),holes:f.holes.map(r=>r.map(p=>fromFrame(frame,p)))}));
@@ -1295,7 +1299,14 @@ function removeFaceEdges(faces,segments,wire={}){
   const cuts=segments.map(points=>({points})),pairs=[...[source,...neighbors].flatMap(f=>rings(f).flatMap(r=>r.map((p,i)=>[p,r[(i+1)%r.length]]))),...(wire.lines||[]).filter(pair=>pair.every(onPlane))],nodes=[],edges=[];
   for(const [a,b]of pairs){let lo=0;for(const [start,end]of [...sharedIntervals(a,b,cuts),[1,1]]){if(start-lo>1e-7){const at=t=>inFrame(frame,mix3(a,b,t)),x={...at(lo),id:'n'+nodes.length},y={...at(start),id:'n'+(nodes.length+1)};nodes.push(x,y);edges.push({id:'e'+edges.length,a:x.id,b:y.id});}lo=Math.max(lo,end);}}
   const original={points:source.points.map(p=>inFrame(frame,p)),holes:(source.holes||[]).map(r=>r.map(p=>inFrame(frame,p)))},regions=K.partition({nodes,edges}).regions.map(points=>({points,holes:[]})).filter(f=>K.intersection([f],[original]).some(p=>K.area(p)>K.CONTACT*K.CONTACT)&&rings(original).some(r=>r.some((p,i)=>sharedIntervals({...p,z:0},{...r[(i+1)%r.length],z:0},[{points:f.points.map(p=>({...p,z:0}))}]).length)));
+  // Deleting a line removes the faces that use it and leaves their other edges
+  // as wire. The only area a rebuilt plain face may keep is its own plus the
+  // faces across the deleted line (a wall absorbing the door whose edge went);
+  // never area bounded by other wire on the plane (an old opening outline).
+  // A sticker's fill alone follows its own wire (a door closes along a pasted arc).
+  const within=K.union([original,...faces.filter((f,j)=>f!==source&&touching.has(j)&&!f.curvedSurface&&rings(f).flat().every(onPlane)).map(f=>({points:f.points.map(p=>inFrame(frame,p)),holes:(f.holes||[]).map(r=>r.map(p=>inFrame(frame,p)))}))]);
   const holes=original.holes.map(points=>({points}));for(const region of K.union(regions).flatMap(r=>holes.length?K.difference(r,holes):[r])){
+   if(!source.feature&&K.difference(region,within).reduce((s,r)=>s+K.area(r),0)>1e-8)continue;
    const exact=exactPoints([...rings(source).flat(),...pairs.flat()]),face={...source,mergedSources:[source.id],points:region.points.map(p=>exact(fromFrame(frame,p))),holes:region.holes.map(r=>r.map(p=>exact(fromFrame(frame,p))))};
    const curves=[...(source.curves||[]),...(wire.curves||[])].filter(c=>{const ps=K.curveSamples(c);return ps.slice(1).every((p,i)=>sharedIntervals(ps[i],p,[face]).reduce((s,[lo,hi])=>s+hi-lo,0)>1-1e-5);});
    face.curves=[...new Map(curves.map(c=>[c.id,c])).values()];repaired.push(face);

@@ -34,7 +34,7 @@
     const disabledRoofControls=new Map();
     let groundEditor=null,baseEditor=null,wallEditor=null,editingLayer='base',wallsVisible=true,baseTerrainCache=null,baseTerrainKey='';
     // One chronological history for the building, independent of selection layer.
-    let editHistory=[],editFuture=[],pendingEdit=null,nudgeEpoch=0,nudgeKey=null;
+    let editHistory=[],editFuture=[],pendingEdit=null,nudgeEpoch=0,nudgeKey=null;let localHistoryTimer=null,localHistoryChain=Promise.resolve();
     const historyKeys=['finishDefaults','roofTrim','base','closedSoffits','closedSoffitWalls','wallEdits','chimneys','extruded','deduplicated','extrusionWarnings','gapRepaired','gapReport','mergedWalls','mergeReport','cleanedWalls','rakeCleanupReport','preCleanupBase','cleanedBase','baseCleanupApplied','alignedWalls','chimneyCleanupReport','preAlignmentBase','alignedBase','baseAlignmentApplied'];
     const editSnapshot=()=>{const value=JSON.parse(JSON.stringify(Object.fromEntries(historyKeys.map(k=>[k,k==='wallEdits'?(state?.[k]||{}):state?.[k]]))));return window.EditorHistory?.share(editHistory.at(-1)?.after,value)||value;};
     let stableSelection=null,pendingSelection=null,selectionTimer=null,selectionRevision=0,restoringHistory=false,gestureSelection=null,selectionInputType='';
@@ -316,17 +316,32 @@ function perf_finishEdit(){
 function perf_persist(touch=true) {
         if(nudgeSettleTimer!==null){nudgeBackupPending=true;return;}
         if(!projectId)return;
-        if(!state){try{localStorage.setItem(key(projectId),JSON.stringify(clearedAt?{cleared:true,savedAt:clearedAt}:null));}catch(e){}return;}
+        if(!state){try{localStorage.setItem(key(projectId),JSON.stringify(clearedAt?{cleared:true,savedAt:clearedAt}:null));}catch(e){}if(touch)scheduleLocalHistory();return;}
         if(touch)state.savedAt=Date.now();
         try{const existing=JSON.parse(localStorage.getItem(key(projectId))||'null');if(!touch&&existing?.savedAt>state.savedAt)return;if(touch)state.savedAt=Math.max(state.savedAt,(existing?.savedAt||0)+1);localStorage.setItem(key(projectId),JSON.stringify(snapshot()));storageError='';}
         catch(e){storageError='Local backup unavailable. Use Save to store wall data with the project.';}
+        if(touch)scheduleLocalHistory();
     }
+    // The undo history belongs to the local backup it was recorded against: keep a copy stamped with the backup's
+    // savedAt, so a reload that resumes this backup resumes this history (not the last project Save's).
+    function scheduleLocalHistory(){if(!projectId||!window.indexedDB||!window.EditorHistory?.saveLocal)return;if(localHistoryTimer)clearTimeout(localHistoryTimer);localHistoryTimer=setTimeout(()=>saveLocalHistory(),1500);}
+    function saveLocalHistory(force=false){
+        if(localHistoryTimer){clearTimeout(localHistoryTimer);localHistoryTimer=null;}
+        if(!projectId||!window.EditorHistory?.saveLocal)return;
+        if(!force&&(pendingEdit||nudgeSettleTimer!==null)){scheduleLocalHistory();return;}
+        const id=projectId,stamp=state?state.savedAt:clearedAt,value={version:1,undo:editHistory.slice(),redo:editFuture.slice(),selection:selectionSnapshot(),trimUndo:roofTrimHistory.slice(),trimRedo:roofTrimFuture.slice()};
+        localHistoryChain=localHistoryChain.then(()=>window.EditorHistory.saveLocal('walls:'+id,value,stamp)).catch(e=>console.warn('[Walls] Local undo history was not kept:',e));
+    }
+    window.addEventListener('pagehide',()=>{if(localHistoryTimer)saveLocalHistory(true);});
+    document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden'&&localHistoryTimer)saveLocalHistory(true);});
     function exportState() {return projectId===currentId()?snapshot():null;}
     function serializeHistory(){
         settleNudges();finishEdit();flushSelectionHistory();
         return {version:1,undo:editHistory.map(e=>({...e})),redo:editFuture.map(e=>({...e})),selection:selectionSnapshot(),trimUndo:roofTrimHistory.slice(),trimRedo:roofTrimFuture.slice()};
     }
-    function restoreHistory(history,serverState){
+    function restoreHistory(history,serverState,localHistory=null){
+        // Resuming the local backup: its own recorded history replaces the last Save's plus a recovery jump.
+        if(localHistory){history=localHistory;serverState=null;}
         if(!history)return;
         if(history.version!==1||!Array.isArray(history.undo)||!Array.isArray(history.redo))throw Error('Unsupported wall undo history.');
         // Detach mutable queues/entries from the deduplicated immutable graph.
@@ -343,7 +358,7 @@ function perf_persist(touch=true) {
     }
 
     function valid(s) {return s?.schemaVersion===1 && s.roof?.points?.length && Array.isArray(s.sources) && Number.isFinite(s.options?.ground) && s.context?.mpp>0;}
-    function restore(id,metadata,history=null) {
+    function restore(id,metadata,history=null,localHistory=null) {
         if(nudgeSettleTimer!==null){clearTimeout(nudgeSettleTimer);nudgeSettleTimer=null;nudgeBackupPending=false;}pendingNudge=null;clearNudgePreview();
         editHistory=[];editFuture=[];pendingEdit=null;nudgeKey=null;nudgeEpoch++;
         roofTrimEditor?.reset();roofTrimHistory=[];roofTrimFuture=[];projectId=String(id||'');roofTrimOnly=copy(metadata?.exteriorsRoofTrim||{});try{const localTrim=JSON.parse(localStorage.getItem(key(projectId)+':roof-trim')||'null');if(localTrim&&(localTrim.savedAt||0)>(roofTrimOnly.savedAt||0))roofTrimOnly=localTrim;}catch(e){}state=null;sourceContext=null;selected=null;stage=1;
@@ -351,12 +366,13 @@ function perf_persist(touch=true) {
         const server=metadata?.exteriorsWalls;
         clearedAt=local?.cleared&&local.savedAt>=(server?.savedAt||0)?local.savedAt:0;
         const candidates=(clearedAt?[]:[server,local]).filter(valid).sort((a,b)=>(b.savedAt||0)-(a.savedAt||0));
+        const resumedLocal=clearedAt?local:candidates[0]===local?local:null,localStamp=resumedLocal?.savedAt??null;
         if(candidates.length){state=copy(candidates[0]);sourceContext=state.context;stage=Math.max(1,Math.min(7,state.stage||1));roofVisible=state.roofVisible!==false;gapHighlights=state.gapHighlights!==false;initializeGround();}
         applyDisplayPreferences();if(state&&!state.roofTrim)state.roofTrim=copy(roofTrimOnly);wallsVisible=state?.wallsVisible!==false;editingLayer=state?.editingLayer||'base';
         const upgraded=upgradeEngine(),contactsRepaired=window.BaseGeometry?.repairStoredRoofContacts?.(state);retainGradeDraftOwnership();window.WallChimneys?.normalizeDrafts(state?.wallEdits);window.normalizeWallDraftOwnership?.(state?.wallEdits);window.WallBaseBinding?.upgrade(state?.wallEdits);window.WallSolidGeometry?.cleanupSweepRemnants(state?.wallEdits);if(state)calculateStage(stage);const draftsRepaired=!!state&&wallEditor?.repairStoredDrafts?.();
-        restoreView(metadata,local);const prepared=enabled&&(!state||state.phase==='grade')&&ensureGradeSetup();if(upgraded||contactsRepaired||draftsRepaired||prepared)persist();setModeUI();render();stableSelection=selectionSnapshot();pendingSelection=null;gestureSelection=null;restoreHistory(history,metadata?.exteriorsWalls);
+        restoreView(metadata,local);const prepared=enabled&&(!state||state.phase==='grade')&&ensureGradeSetup();if(upgraded||contactsRepaired||draftsRepaired||prepared)persist();setModeUI();render();stableSelection=selectionSnapshot();pendingSelection=null;gestureSelection=null;restoreHistory(history,metadata?.exteriorsWalls,localStamp!==null&&localHistory?.stamp===localStamp&&String(localHistory?.history?.version)==='1'?localHistory.history:null);
     }
-    function beforeProjectLoad() {drivenSoffits=true;autoParapets=true;closedSoffits=false;settleNudges();closeResoffit();wallEditor?.leave?.();baseEditor?.leave?.();window.ExteriorFramePipeline?.cancel('wall-view');if(editorRenderFrame!==null&&editorRenderFrame!==true)cancelAnimationFrame(editorRenderFrame);editorRenderFrame=null;editorRenderFull=false;roofTrimEditor?.finish();roofTrimEditor?.reset();if(roofTrimGroup){roofTrimGroup.parent?.remove(roofTrimGroup);disposeObject3D(roofTrimGroup);roofTrimGroup=null;}roofTrimOnly={};editHistory=[];editFuture=[];pendingEdit=null;stableSelection=null;pendingSelection=null;gestureSelection=null;groundEditor?.leave();persist(false);enabled=false;state=null;sourceContext=null;projectId='';setModeUI();disposeGroup();syncVisibility();}
+    function beforeProjectLoad() {if(localHistoryTimer)saveLocalHistory(true);drivenSoffits=true;autoParapets=true;closedSoffits=false;settleNudges();closeResoffit();wallEditor?.leave?.();baseEditor?.leave?.();window.ExteriorFramePipeline?.cancel('wall-view');if(editorRenderFrame!==null&&editorRenderFrame!==true)cancelAnimationFrame(editorRenderFrame);editorRenderFrame=null;editorRenderFull=false;roofTrimEditor?.finish();roofTrimEditor?.reset();if(roofTrimGroup){roofTrimGroup.parent?.remove(roofTrimGroup);disposeObject3D(roofTrimGroup);roofTrimGroup=null;}roofTrimOnly={};editHistory=[];editFuture=[];pendingEdit=null;stableSelection=null;pendingSelection=null;gestureSelection=null;groundEditor?.leave();persist(false);enabled=false;state=null;sourceContext=null;projectId='';setModeUI();disposeGroup();syncVisibility();}
     // A roof change rebuilds generated walls, but a rebuild starts wall edits
     // over. Fingerprint the edits From Roof produced so a later rebuild can
     // tell whether anything the person did would be lost.

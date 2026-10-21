@@ -2698,7 +2698,8 @@ window.addEventListener('load', () => {
             try {
                 // Perform Save (Silent Mode)
                 window.__lastProjectSaveError = null;
-                const success = await window.saveProjectData(true);
+                window.__projectSaveInFlight = true;
+                const success = await window.firstMeasureSaveWithin(window.saveProjectData(true), 120000);
                 window.firstMeasureShowSaveError?.(success ? null : (window.__lastProjectSaveError || new Error('Save failed.')));
 
                 if (success) {
@@ -2711,12 +2712,15 @@ window.addEventListener('load', () => {
                     throw new Error("Save failed");
                 }
             } catch (e) {
+                // A hung save rejects here with its reason (see firstMeasureSaveWithin).
+                if (e?.saveTimedOut) window.firstMeasureShowSaveError?.(e);
                 // Error State
                 this.innerHTML = '<i class="fas fa-times"></i>';
                 this.style.borderColor = '#c62828';
                 this.style.color = '#c62828';
                 this.style.backgroundColor = '#ffebee';
             } finally {
+                window.__projectSaveInFlight = false;
                 // Revert
                 setTimeout(() => {
                     this.innerHTML = originalContent;
@@ -2739,6 +2743,22 @@ window.addEventListener('load', () => {
 
 // A failed toolbar or Ctrl+S save used to show only a two-second red cross; keep the reason on screen until dismissed
 // or the next successful save.
+// Saves are queued, so one save that never settles would silently block every
+// later save. Give up on it after `ms`: reject with a visible reason and start
+// later saves on a fresh queue.
+window.firstMeasureSaveWithin = function(save, ms) {
+    return new Promise((resolve, reject) => {
+        const timer = setTimeout(() => {
+            window.__firstMeasureProjectSaveQueue = null;
+            const error = new Error('The save did not finish within ' + Math.round(ms / 1000) + ' seconds and was abandoned. Please save again; if this repeats, reload the editor.');
+            error.saveTimedOut = true;
+            window.__lastProjectSaveError = error;
+            reject(error);
+        }, ms);
+        Promise.resolve(save).then(value => { clearTimeout(timer); resolve(value); }, error => { clearTimeout(timer); reject(error); });
+    });
+};
+
 window.firstMeasureShowSaveError = function(error) {
     let banner = document.getElementById('save-error-banner');
     if (!error) { banner?.remove(); return; }
@@ -2767,6 +2787,8 @@ window.addEventListener('keydown', (e) => {
         // Only trigger if button exists and isn't currently saving (disabled)
         if (btn && !btn.disabled) {
             btn.click(); // Triggers the animation logic defined above
+        } else if (btn && window.__projectSaveInFlight) {
+            window.firstMeasureShowSaveError?.(new Error('A save is still in progress. Wait for it to finish, then save again.'));
         }
     }
 });
@@ -4445,7 +4467,10 @@ async function loadProjectFromFolder(folderHash) {
         }
 
         window.restoreRoofHistory?.(savedEditorHistory?.roof);
-        window.WallMode?.restore(requestedProjectId, meta, savedEditorHistory?.walls);
+        // The local model backup may be newer than this Save; its matching undo history lives in the browser too.
+        const localWallHistory = await window.EditorHistory?.loadLocal?.('walls:' + requestedProjectId).catch(e => { console.warn('[History] Local wall undo history unavailable:', e); return null; });
+        if (String(window.currentProjectId) !== requestedProjectId) return;
+        window.WallMode?.restore(requestedProjectId, meta, savedEditorHistory?.walls, localWallHistory);
         window.HeightMapMask?.restore(requestedProjectId, meta.exteriorsHeightMask);
         window.__editorHistoryReady=true;
         console.log("Project loaded.");
