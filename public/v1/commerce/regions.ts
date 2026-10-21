@@ -39,6 +39,10 @@ export function localCurrency(country:string) { return CURRENCIES[country] || TE
 
 /** Used once during registration. Never called on login or when changing a branch. */
 export function detectSignupCountry(headers:Record<string,unknown>, input:Record<string,unknown>={}) {
+  // The country the person chose at signup wins. Choosing a non-domestic country only
+  // raises prices, and property-market pricing still applies to every order.
+  const chosen=countryCode(input.signup_country);
+  if(chosen)return {country:chosen,source:"signup_choice"};
   for(const name of ["cf-ipcountry","x-vercel-ip-country","x-appengine-country"]) {
     const country=countryCode(headers[name]); if(country)return {country,source:name};
   }

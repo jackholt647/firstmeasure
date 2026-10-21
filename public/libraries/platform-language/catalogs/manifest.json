@@ -85,7 +85,8 @@
     "doc-present",
     "image-viewer",
     "priority-fields",
-    "forms-staff"
+    "forms-staff",
+    "signup-region"
   ],
   "namespaces": {
     "billing": "billing.19b77e35a93e1525.json",
@@ -109,7 +110,7 @@
     "materials": "materials.8e6c64a62ed1192d.json",
     "measurements": "measurements.05c2c18e6b7494c5.json",
     "money": "money.be239c68114ddf3c.json",
-    "onboarding": "onboarding.640ae94ce8151d14.json",
+    "onboarding": "onboarding.4754440fc5a54dab.json",
     "payroll": "payroll.d9bc1c5252231375.json",
     "photos": "photos.429feadf949e806e.json",
     "project-map": "project-map.e09f8fc7044a8da9.json",
@@ -173,7 +174,7 @@
     "web-widgets": "web-widgets.e728515d924f58e1.json",
     "window-manager": "window-manager.6cb6eadd9e643d59.json",
     "reports": "reports.cd7f528b759dfc3e.json",
-    "errors": "errors.2f619692f2a3719b.json",
+    "errors": "errors.29caae30b34f0c10.json",
     "notifications": "notifications.47ceed6a7a52fb6d.json",
     "mobile": "mobile.35647c76c870d74d.json",
     "google-auth": "google-auth.fe5bfb1d435938b4.json",
@@ -198,6 +199,7 @@
     "doc-present": "doc-present.2f612edf05abf718.json",
     "image-viewer": "image-viewer.878b66c76551224e.json",
     "priority-fields": "priority-fields.f9eb328e03831341.json",
-    "forms-staff": "forms-staff.bca0f8d25a941797.json"
+    "forms-staff": "forms-staff.bca0f8d25a941797.json",
+    "signup-region": "signup-region.1a44e02eb2431ed4.json"
   }
 }

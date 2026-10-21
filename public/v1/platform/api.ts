@@ -13,6 +13,7 @@ import { baselinePlan, enqueueNotification, persistNotificationOccurrence, recip
 import { registerNotificationRulesApi } from "./notifications/api.js";
 import { TRANSLATION_CODES, normalizeTranslationLanguage } from "./localization/languages.js";
 import { messageTranslationPreferences } from "./localization/message-preferences.js";
+import { signupLanguage, signupOptions, signupPhoneInput } from "../commerce/signup-options.js";
 import { signupCommercialProfile, profileFromGlobal, organizationProfile, currentProfile, customerCommercialView, creditLabel, creditMinorAmount, reportPrice, assertCommercialRevision } from "../commerce/profile.js";
 import { exchangeEstimate } from "../commerce/exchange.js";
 import { isReceiptMedia, canReadReceiptMedia, canWriteReceiptMedia, publicMediaMetadata } from "./media_access.js";
@@ -516,13 +517,11 @@ app.post("/auth/google", async (request, reply) => {
 
     const company = cleanText(body.company) || "Your Company";
     const requestedPhone = cleanText(body.phone);
-    const phone = requestedPhone ? formatSignupPhone(requestedPhone) : "";
+    const phone = requestedPhone ? formatSignupPhone(signupPhoneInput(body)) : "";
     if (requestedPhone && !phone) throw badRequest("invalid_phone_number", "Enter a valid mobile phone number, including the country code outside the US and Canada.");
     const workspaceWebsite = googleWorkspaceWebsite(google.hostedDomain);
 
-    const defaultAppFlags = await newOrganizationAppFlagDefaults();
-    const commercialProfile = await signupCommercialProfile(request?.headers || {}, body);
-    if (commercialProfile.country !== "US") defaultAppFlags.firstmeasure = { ...asObject(defaultAppFlags.firstmeasure), report_localization: true, metric_measurements: commercialProfile.measurement_system === "metric" };
+    const { defaultAppFlags, commercialProfile, branchLocalization } = await signupOrganizationDefaults(request, body);
     const requestedGlobal = asObject(body.global);
     delete requestedGlobal.app_flags;
     delete requestedGlobal.feature_flags;
@@ -551,6 +550,7 @@ app.post("/auth/google", async (request, reply) => {
         }
       });
       transaction.createdOrganization(organization);
+      await saveSignupBranchLocalization(String(organization.id), branchLocalization);
       const createdIdentity = await createIdentity({
         email: google.email,
         password_hash: "",
@@ -632,6 +632,8 @@ app.post("/auth/google", async (request, reply) => {
       ...publicAuthContext(ctx)
     };
   });
+
+app.get("/auth/signup-options", async (request) => signupOptions(request.headers as Record<string, unknown>, asObject(request.query)));
 
 app.get("/auth/google/config", async () => ({
     ok: true,
@@ -995,13 +997,11 @@ app.get("/auth/google/config", async () => ({
     const body = registerSchema.parse(request.body ?? {});
     const passwordHash = body.password_hash || (body.password ? await hashPassword(body.password) : "");
     if (!passwordHash) throw badRequest("password_required", "A password is required.");
-    const phone = formatSignupPhone(body.phone);
+    const phone = formatSignupPhone(signupPhoneInput(body));
     if (!phone) throw badRequest("invalid_phone_number", "Enter a valid mobile phone number, including the country code outside the US and Canada.");
     const orgInput = body.organization && typeof body.organization === "object" ? body.organization : {};
     const orgName = String(body.company ?? orgInput.name ?? "Your Company");
-    const defaultAppFlags = await newOrganizationAppFlagDefaults();
-    const commercialProfile = await signupCommercialProfile(request?.headers || {}, body);
-    if (commercialProfile.country !== "US") defaultAppFlags.firstmeasure = { ...asObject(defaultAppFlags.firstmeasure), report_localization: true, metric_measurements: commercialProfile.measurement_system === "metric" };
+    const { defaultAppFlags, commercialProfile, branchLocalization } = await signupOrganizationDefaults(request, body);
     const requestedGlobal = asObject(body.global);
     delete requestedGlobal.app_flags;
     delete requestedGlobal.feature_flags;
@@ -1028,6 +1028,7 @@ app.get("/auth/google/config", async () => ({
         }
       });
       transaction.createdOrganization(organization);
+      await saveSignupBranchLocalization(String(organization.id), branchLocalization);
       const identity = await createIdentity({
         email: body.email,
         password_hash: passwordHash,
@@ -5099,6 +5100,23 @@ function numericValue(value: unknown, fallback = 0) {
   return Number.isFinite(parsed) ? parsed : fallback;
 }
 
+/**
+ * What a new organization starts with from its signup form: the billing profile (the
+ * chosen country, else detection), the company language and the app flags that follow.
+ */
+async function signupOrganizationDefaults(request: { headers?: Record<string, unknown> } | undefined, body: JsonObject) {
+  const defaultAppFlags = await newOrganizationAppFlagDefaults();
+  const commercialProfile = await signupCommercialProfile(request?.headers || {}, body);
+  const locale = signupLanguage(body, commercialProfile);
+  const localized = commercialProfile.country !== "US" || locale !== "en-US";
+  if (localized) defaultAppFlags.firstmeasure = { ...asObject(defaultAppFlags.firstmeasure), report_localization: true, metric_measurements: commercialProfile.measurement_system === "metric" };
+  return { defaultAppFlags, commercialProfile, branchLocalization: localized ? { locale } : null };
+}
+
+async function saveSignupBranchLocalization(orgId: string, localization: { locale: string } | null) {
+  if (localization) await upsertDocument(orgId, "branch", { id: "default", data: { localization } });
+}
+
 async function protectCommercialProfile(orgId: string, body: JsonObject, replace: boolean) {
   const saved = asObject((await readGlobal(orgId)).data).commercial_profile;
   const data = asObject(body.data || body);
@@ -9029,16 +9047,14 @@ async function handleAuthLegacyAction(request: FastifyRequest, reply: FastifyRep
     requirePublicRegistration();
     const password = String(body.password || "");
     const company = cleanText(body.company || body.company_name || body.organization_name) || "Your Company";
-    const phone = formatSignupPhone(body.phone);
+    const phone = formatSignupPhone(signupPhoneInput(body));
     if (!password || !cleanText(body.email)) {
       return { success: false, ok: false, status_code: 400, error: "Missing required account fields." };
     }
     if (!phone) {
       return { success: false, ok: false, status_code: 400, error: "Enter a valid mobile phone number, including the country code outside the US and Canada." };
     }
-    const defaultAppFlags = await newOrganizationAppFlagDefaults();
-    const commercialProfile = await signupCommercialProfile(request?.headers || {}, body);
-    if (commercialProfile.country !== "US") defaultAppFlags.firstmeasure = { ...asObject(defaultAppFlags.firstmeasure), report_localization: true, metric_measurements: commercialProfile.measurement_system === "metric" };
+    const { defaultAppFlags, commercialProfile, branchLocalization } = await signupOrganizationDefaults(request, body);
     const registered = await withNewIdentityRegistration(cleanText(body.email), async (transaction) => {
       const organization = await createOrganization({
         name: company,
@@ -9057,6 +9073,7 @@ async function handleAuthLegacyAction(request: FastifyRequest, reply: FastifyRep
         }
       });
       transaction.createdOrganization(organization);
+      await saveSignupBranchLocalization(String(organization.id), branchLocalization);
       const identity = await createIdentity({
         email: cleanText(body.email),
         password_hash: await hashPassword(password),

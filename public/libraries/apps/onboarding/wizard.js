@@ -159,10 +159,30 @@
     return { valid:true, bonus_dollars:bonus, total_account_value:value + bonus, match_percent:match, tier };
   }
 
+  // Account amounts follow the organization's billing currency (1M8-215).
+  function creditAmountText(amount){
+    try { return window.PlatformCommerce.credit(amount); } catch (_) { return String(amount); }
+  }
+
+  /** The currency symbol shown beside amount inputs; none for credit-denominated accounts. */
+  function creditCurrencyAffix(){
+    try {
+      const view = window.PlatformCommerce.current();
+      if (view.credit_display === 'credits') return '';
+      const locale = window.PlatformLanguage?.companyContext?.().locale || window.PlatformLanguage?.locale?.() || 'en-US';
+      return new Intl.NumberFormat(locale, { style:'currency', currency:view.currency }).formatToParts(0).find(part => part.type === 'currency')?.value || '';
+    } catch (_) { return ''; }
+  }
+
+  function creditText(key, fallback, values){
+    const readable = fallback.replace(/\{(\w+)\}/g, (_, name) => String(values?.[name] ?? ''));
+    return globalThis.PlatformLanguage?.text('onboarding', key, readable, values) ?? readable;
+  }
+
   function totalCreditsText(amount){
     const quote = bonusQuoteForAmount(amount);
     const total = quote.valid ? quote.total_account_value : Math.max(0, Math.round(Number(amount || 0)));
-    return `$${total} total credit`;
+    return creditText('total_credit', '{amount} total credit', { amount: creditAmountText(total) });
   }
 
   function bonusMinimumLoadAmount(){
@@ -173,7 +193,7 @@
 
   function bonusDollarsText(amount){
     const quote = bonusQuoteForAmount(amount);
-    return quote.valid && quote.bonus_dollars > 0 ? `+ $${Math.round(quote.bonus_dollars)} Bonus` : '';
+    return quote.valid && quote.bonus_dollars > 0 ? creditText('bonus_amount', '+ {amount} Bonus', { amount: creditAmountText(Math.round(quote.bonus_dollars)) }) : '';
   }
 
   function customBonusPreviewHtml(amount){
@@ -2616,6 +2636,10 @@
     renderPage2();
     renderPage3();
     renderProgress();
+    let commerceReady = true;
+    try { window.PlatformCommerce.current(); } catch (_) { commerceReady = false; }
+    // Amounts render in the account currency once billing settings arrive.
+    if (!commerceReady) window.PlatformCommerce?.onReady?.(() => renderPage2());
     currentPageEnteredAt = Date.now();
     trackOnboarding('wizard_start', { metadata: { restored: !!hasWizardState(), mobile_flow: isMobileOnboarding() } });
     trackOnboarding('step_view', { step: pageName(currentPage), step_index: visiblePages().indexOf(currentPage) });
@@ -3830,14 +3854,14 @@
     const loadTiers = activeLoadTiers();
     const bonusMinimum = bonusMinimumLoadAmount();
     const bonusIntroHtml = bonusOfferEnabled()
-      ? `<p class="ob-sub ob-bonus-copy"><i class="fas fa-gift" aria-hidden="true"></i>${(globalThis.PlatformLanguage?.htmlText("onboarding","m_95ed713993880f","As a new customer, we're offering a ") ?? "As a new customer, we're offering a ")}<strong>${(globalThis.PlatformLanguage?.htmlText("onboarding","m_dbf7ed5d0bf61d","one time bonus match") ?? "one time bonus match")}</strong>${((v0) => globalThis.PlatformLanguage?.htmlText("onboarding","m_71f966e787feb1",` on your first load of more than ${v0}.`,{v0}) ?? ` on your first load of more than ${v0}.`)(esc(`$${bonusMinimum}`))}</p>`
+      ? `<p class="ob-sub ob-bonus-copy"><i class="fas fa-gift" aria-hidden="true"></i>${(globalThis.PlatformLanguage?.htmlText("onboarding","m_95ed713993880f","As a new customer, we're offering a ") ?? "As a new customer, we're offering a ")}<strong>${(globalThis.PlatformLanguage?.htmlText("onboarding","m_dbf7ed5d0bf61d","one time bonus match") ?? "one time bonus match")}</strong>${((v0) => globalThis.PlatformLanguage?.htmlText("onboarding","m_71f966e787feb1",` on your first load of more than ${v0}.`,{v0}) ?? ` on your first load of more than ${v0}.`)(esc(creditAmountText(bonusMinimum)))}</p>`
       : `<p class="ob-sub">${(globalThis.PlatformLanguage?.htmlText("onboarding","m_8f203cf0d6d287","Load your account now, then add your card in our secure checkout.") ?? "Load your account now, then add your card in our secure checkout.")}</p>`;
     const tiersHtml = loadTiers.map(t => {
       const bonusText = bonusDollarsText(t.amount);
       return `
         <div class="ob-tier ${selectedTier === t.amount ? 'selected' : ''}" data-amount="${t.amount}">
           <div class="ob-tier-main">
-            <div class="ob-tier-amount">$${t.amount}</div>
+            <div class="ob-tier-amount">${esc(creditAmountText(t.amount))}</div>
             ${bonusText ? `<div class="ob-tier-bonus">${esc(bonusText)}</div>` : ''}
           </div>
           <div class="ob-tier-total">${esc(totalCreditsText(t.amount))}</div>
@@ -3851,7 +3875,7 @@
       <div class="ob-tier ob-tier-custom ${String(customSelected ? 'selected' : '')}" id="obCustomTile">
         <div class="ob-tier-custom-label">${(globalThis.PlatformLanguage?.htmlText("onboarding","m_6edcf7d7d41112","Custom") ?? "Custom")}</div>
         <div style="display:flex;align-items:center;gap:3px;">
-          <span style="font-size:16px;font-weight:900;color:rgba(0,0,0,.35);">$</span>
+          <span style="font-size:16px;font-weight:900;color:rgba(0,0,0,.35);">${esc(creditCurrencyAffix())}</span>
           <input class="ob-tier-custom-input" id="obCustomAmount" placeholder="—" inputmode="numeric" value="${String(esc(customAmount))}">
         </div>
         <div class="ob-tier-custom-preview" id="obCustomPreview" style="${String(customPreviewAmount ? '' : 'display:none;')}">${String(customPreviewAmount ? customBonusPreviewHtml(customPreviewAmount) : '')}</div>
@@ -3882,7 +3906,7 @@
             <div class="ob-topup-label"><i class="fas fa-arrow-down"></i>${(globalThis.PlatformLanguage?.htmlText("onboarding","m_cc2003d4e4237c"," Top up when below") ?? " Top up when below")}</div>
             <div class="ob-topup-ctrl">
               <button class="ob-topup-step" id="obThMinus" type="button"><i class="fas fa-minus"></i></button>
-              <span class="ob-usd" style="color:rgba(0,0,0,.4);font-weight:900;">$</span>
+              <span class="ob-usd" style="color:rgba(0,0,0,.4);font-weight:900;">${esc(creditCurrencyAffix())}</span>
               <input class="ob-input ob-topup-input" id="obThreshold" value="${topupThreshold}" inputmode="numeric">
               <button class="ob-topup-step" id="obThPlus" type="button"><i class="fas fa-plus"></i></button>
             </div>
@@ -3891,7 +3915,7 @@
             <div class="ob-topup-label"><i class="fas fa-cart-plus"></i>${(globalThis.PlatformLanguage?.htmlText("onboarding","m_56c6c9cbb10acb"," Auto top-up amount") ?? " Auto top-up amount")}</div>
             <div class="ob-topup-ctrl">
               <button class="ob-topup-step" id="obAmtMinus" type="button"><i class="fas fa-minus"></i></button>
-              <span class="ob-usd" style="color:rgba(0,0,0,.4);font-weight:900;">$</span>
+              <span class="ob-usd" style="color:rgba(0,0,0,.4);font-weight:900;">${esc(creditCurrencyAffix())}</span>
               <input class="ob-input ob-topup-input" id="obTopupAmt" value="${topupAmount}" inputmode="numeric">
               <button class="ob-topup-step" id="obAmtPlus" type="button"><i class="fas fa-plus"></i></button>
             </div>
@@ -3955,7 +3979,7 @@
         return;
       }
       autoSummary.style.display = '';
-      autoSummary.textContent = ((v0,v1) => globalThis.PlatformLanguage?.text("onboarding","m_f38174b09afe58",`If your balance falls below $${v0}, we will automatically add $${v1} to your account.`,{v0,v1}) ?? `If your balance falls below $${v0}, we will automatically add $${v1} to your account.`)(topupThreshold,topupAmount);
+      autoSummary.textContent = creditText('auto_topup_summary', 'If your balance falls below {threshold}, we will automatically add {amount} to your account.', { threshold: creditAmountText(topupThreshold), amount: creditAmountText(topupAmount) });
     }
 
     function setLoadMessage(text){

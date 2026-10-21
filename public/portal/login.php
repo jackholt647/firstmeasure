@@ -763,6 +763,7 @@ src="https://www.facebook.com/tr?id=636685175264715&ev=PageView&noscript=1"
 <script src="/libraries/phone-features/phone-features.js"></script>
 <script src="/portal/landing/shared/password-toggle.js?v=<?= htmlspecialchars(substr((string)@hash_file('sha256', __DIR__ . '/landing/shared/password-toggle.js'), 0, 16), ENT_QUOTES) ?>"></script>
 <script>window.FirstMatePasswordToggle?.enhance(document);</script>
+<script src="/libraries/signup-region/signup-region.js"></script>
 <script src="/libraries/google-auth/firstmate-google-auth.js"></script>
 <script>
     // --- HELPER: Parse URL params ---
@@ -812,21 +813,26 @@ src="https://www.facebook.com/tr?id=636685175264715&ev=PageView&noscript=1"
 
     function isValidSignupPhone(value) {
         const digits = String(value || '').replace(/\D/g, '');
-        if (String(value || '').trim().startsWith('+')) return /^[1-9]\d{6,14}$/.test(digits);
+        if (String(value || '').trim().startsWith('+')) return /^[1-9]\d{7,14}$/.test(digits);
         return digits.length === 10 || (digits.length === 11 && digits.startsWith('1'));
     }
 
     const registrationPhoneInput = document.querySelector('#registerForm input[name="phone"]');
+    // Country, calling code and language choices; the chosen country sets the account's currency.
+    const signupRegion = window.FirstMateSignupRegion && registrationPhoneInput
+        ? window.FirstMateSignupRegion.mount({ form: document.getElementById('registerForm'), phoneInput: registrationPhoneInput, apiBase: platformApiBaseUrl(), classes: { field: 'form-group' } })
+        : null;
+    const formatsAsNorthAmerican = () => !signupRegion || signupRegion.formatsAsNorthAmerican();
 
     function validateRegistrationPhone() {
-        const valid = !!registrationPhoneInput && isValidSignupPhone(registrationPhoneInput.value);
+        const valid = !!registrationPhoneInput && (signupRegion ? signupRegion.valid() : isValidSignupPhone(registrationPhoneInput.value));
         registrationPhoneInput?.setCustomValidity(valid ? '' : 'Enter a valid mobile phone number, including the country code outside the US and Canada.');
-        if (valid) registrationPhoneInput.value = formatSignupPhone(registrationPhoneInput.value);
+        if (valid && formatsAsNorthAmerican()) registrationPhoneInput.value = formatSignupPhone(registrationPhoneInput.value);
         return valid;
     }
 
     registrationPhoneInput?.addEventListener('input', () => {
-        registrationPhoneInput.value = formatSignupPhone(registrationPhoneInput.value);
+        if (formatsAsNorthAmerican()) registrationPhoneInput.value = formatSignupPhone(registrationPhoneInput.value);
         registrationPhoneInput.setCustomValidity('');
     });
     registrationPhoneInput?.addEventListener('blur', validateRegistrationPhone);
@@ -1379,6 +1385,7 @@ src="https://www.facebook.com/tr?id=636685175264715&ev=PageView&noscript=1"
             return;
         }
         const fd = new FormData(form);
+        if (signupRegion) fd.set('phone', signupRegion.phone());
 
         // Passwords Check
         if(fd.get('password') !== fd.get('confirm_password')) {

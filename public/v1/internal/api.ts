@@ -707,6 +707,7 @@ export const registerInternalApi: FastifyPluginAsync = async (app) => {
     const body = objectSchema.parse(request.body ?? {});
     const manifestPatch = asObject(body.manifest ?? body.organization ?? body);
     const globalPatch = asObject(body.global);
+    if (globalPatch.commercial_profile !== undefined) throw forbidden("billing_profile_fixed", "Reassign the billing profile with the commercial profile action, which checks for credit history and Stripe charges.");
     const organization = Object.keys(manifestPatch).length ? await patchOrganization(orgId, manifestPatch) : await readOrganization(orgId);
     const global = Object.keys(globalPatch).length ? await saveGlobal(orgId, { data: globalPatch }) : await readGlobal(orgId);
     return { ok: true, success: true, organization, global };

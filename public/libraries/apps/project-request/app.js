@@ -6217,18 +6217,22 @@ window.PlatformCommerce.onReady(async function(){
   }
 
   function loadReportExpediteOptions(force = false){
-    if (!selectedType || !fmJson || !addressSelected) return;
+    if (!fmJson || !addressSelected) return;
     const currentSlot = Math.floor(Date.now() / 600000);
-    const structureCount = reportExpediteStructureCount(selectedType);
     const propertyKey = reportPropertyKey();
-    if (!force && reportExpeditePropertyKey === propertyKey && reportExpediteOptionsProjectType === selectedType && reportExpediteOptionsStructureCount === structureCount && reportExpediteOptionsSlot === currentSlot && reportExpediteOptions.length) return;
+    // Before a type is chosen, quote residential: the response carries this property's
+    // prices for every type, so the type cards show them instead of the account's base prices.
+    if (!selectedType && reportExpeditePropertyKey === propertyKey) return;
+    const requestType = selectedType || 'residential';
+    const structureCount = reportExpediteStructureCount(requestType);
+    if (!force && selectedType && reportExpeditePropertyKey === propertyKey && reportExpediteOptionsProjectType === selectedType && reportExpediteOptionsStructureCount === structureCount && reportExpediteOptionsSlot === currentSlot && reportExpediteOptions.length) return;
     if (reportExpediteOptionsLoading) return;
     reportExpediteOptionsLoading = true;
-    reportExpediteOptionsAuthoritative = false;
+    if (selectedType) reportExpediteOptionsAuthoritative = false;
     const quotedType = selectedType;
-    fmJson(`report-expedite-options?address=${encodeURIComponent($("#rAddress")?.value || "")}&lat=${encodeURIComponent($("#rLat")?.value || "")}&lng=${encodeURIComponent($("#rLng")?.value || "")}&project_type=${encodeURIComponent(selectedType)}&structure_count=${encodeURIComponent(String(structureCount))}`)
+    fmJson(`report-expedite-options?address=${encodeURIComponent($("#rAddress")?.value || "")}&lat=${encodeURIComponent($("#rLat")?.value || "")}&lng=${encodeURIComponent($("#rLng")?.value || "")}&project_type=${encodeURIComponent(requestType)}&structure_count=${encodeURIComponent(String(structureCount))}`)
       .then((data) => {
-        if (propertyKey !== reportPropertyKey() || quotedType !== selectedType) return;
+        if (propertyKey !== reportPropertyKey()) return;
         reportExpeditePropertyKey = propertyKey;
         reportPropertyPrices = data.report_prices || null;
         document.querySelectorAll('.r-type-btn[data-type] .r-type-price').forEach(label => {
@@ -6237,6 +6241,7 @@ window.PlatformCommerce.onReady(async function(){
             ? (globalThis.PlatformLanguage?.text("project-request","price_flat_rate","{price} flat rate",{price:fmtCredit(reportDisplayedBasePrice(type))}) ?? `${fmtCredit(reportDisplayedBasePrice(type))} flat rate`)
             : (globalThis.PlatformLanguage?.text("project-request","price_per_structure","{price} / structure",{price:fmtCredit(reportDisplayedBasePrice(type))}) ?? `${fmtCredit(reportDisplayedBasePrice(type))} / structure`);
         });
+        if (!quotedType || quotedType !== selectedType) return;
         const options = normalizeReportExpediteOptionsResponse(data, selectedType, structureCount);
         if (options.length) {
           reportExpediteOptions = options;
@@ -6249,8 +6254,11 @@ window.PlatformCommerce.onReady(async function(){
         }
       })
       .catch((error) => {
-        if (propertyKey !== reportPropertyKey() || quotedType !== selectedType) return;
+        if (propertyKey !== reportPropertyKey()) return;
+        // Remember the failed property so renders do not retry it in a loop; its cards keep base prices.
+        if (reportExpeditePropertyKey !== propertyKey) reportPropertyPrices = null;
         reportExpeditePropertyKey = propertyKey;
+        if (!quotedType || quotedType !== selectedType) return;
         console.warn('Report prices unavailable; ordering waits for a verified quote.', error);
         const options = buildLocalReportExpediteOptions(selectedType, new Date(), structureCount);
         if (options.length) {
@@ -9602,6 +9610,7 @@ window.PlatformCommerce.onReady(async function(){
   }
 
   function renderWorkflowStateBody(options = {}){
+    if (addressSelected && !selectedType) loadReportExpediteOptions();
     ensureOrderContactFields();
     syncOverviewWorkflow();
     syncDevelopmentReportControls();

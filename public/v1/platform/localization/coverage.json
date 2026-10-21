@@ -1,7 +1,7 @@
 {
-  "files": 252,
-  "namespaces": 111,
-  "messages": 16307,
+  "files": 253,
+  "namespaces": 112,
+  "messages": 16315,
   "migration": [
     {
       "file": "public/libraries/account-switcher/account-switcher.js",
@@ -349,7 +349,7 @@
     {
       "file": "public/libraries/apps/measurements/project.js",
       "namespace": "measurements",
-      "references": 293,
+      "references": 294,
       "candidates": 0,
       "edits": 0
     },
@@ -1645,6 +1645,13 @@
       "file": "public/libraries/setup-wizard/setup-wizard.js",
       "namespace": "setup-wizard",
       "references": 5,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/libraries/signup-region/signup-region.js",
+      "namespace": "signup-region",
+      "references": 1,
       "candidates": 0,
       "edits": 0
     },

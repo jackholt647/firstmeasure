@@ -5281,10 +5281,6 @@
     "m_6edcf7d7d41112": "Custom",
     "m_3460e2ac6317dc": "Load your account",
     "m_8fd20318945f78": "\n            Checkout ",
-    "m_f38174b09afe58": {
-      "message": "If your balance falls below ${v0}, we will automatically add ${v1} to your account.",
-      "format": "icu"
-    },
     "m_5932492ff03dc7": "Checkout failed",
     "m_77325c78a828d9": "Error",
     "m_1d63b35618bdc9": "Could not open checkout. Please try again.",
@@ -5296,7 +5292,23 @@
     "m_bc9847e2ca77cb": "Auto Top-up",
     "m_db0d748a115fcb": "Keep my account funded automatically.",
     "m_cc2003d4e4237c": " Top up when below",
-    "m_56c6c9cbb10acb": " Auto top-up amount"
+    "m_56c6c9cbb10acb": " Auto top-up amount",
+    "total_credit": {
+      "message": "{amount} total credit",
+      "format": "icu"
+    },
+    "bonus_amount": {
+      "message": "+ {amount} Bonus",
+      "format": "icu"
+    },
+    "auto_topup_summary": {
+      "message": "If your balance falls below {threshold}, we will automatically add {amount} to your account.",
+      "format": "icu"
+    },
+    "m_f38174b09afe58": {
+      "message": "If your balance falls below ${v0}, we will automatically add ${v1} to your account.",
+      "format": "icu"
+    }
   },
   "payroll": {
     "m_4a04382820d2e1": "Other",
@@ -19576,7 +19588,8 @@
     "labor_cancel_not_labor": "Only a work order's labor list is cancelled this way.",
     "payroll_export_type_unknown": "This report is not available.",
     "membership_day_invalid": "Give the day as YYYY-MM-DD.",
-    "membership_day_future": "A member joins or leaves today or on a past day."
+    "membership_day_future": "A member joins or leaves today or on a past day.",
+    "invalid_country": "Choose a valid country."
   },
   "notifications": {
     "document_greeting": {
@@ -20508,5 +20521,11 @@
     "m_e1dd76595b278a": "Open the lead",
     "m_3742924668fb10": "Close",
     "m_16070d647d1e54": "Lead saved."
+  },
+  "signup-region": {
+    "country": "Country",
+    "language": "Language (app and reports)",
+    "calling_code": "Country calling code",
+    "choose_country": "Choose your country"
   }
 }
