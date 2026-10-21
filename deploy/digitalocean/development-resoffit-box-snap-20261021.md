@@ -30,3 +30,11 @@ pass now. The related suites pass 699. The full suite passes apart from the know
 
 **Rollout.** `wall_face_draft.js`, `wall_mode.js`, `ground_geometry.js` and `wall_solid_geometry.js` were overlaid on web,
 legacy and pool. All roles verified, and the served files match. The worker and production were not changed.
+
+## Follow-up: Resoffit dims the scene — `338f53ad91c247ae1ed1075f4cd43a445e021c73`
+
+While the Resoffit menu is open, everything in the 3D view is dimmed to 12% except roof-contact lines (`exteriorSoffit`)
+and the selection (`exteriorSelection`), in the same way plane mode dims off-plane geometry. Dimming swaps in a copy of
+each material and keeps the original, which is put back when the menu closes, because some scene parts survive between
+redraws. Checked in a headless browser: the scene dims when the menu opens, selected lines stay white, and Done restores
+it. The wall suites pass 641. `wall_mode.js` was overlaid on web, legacy and pool, and the served file matches.
