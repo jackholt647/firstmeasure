@@ -691,9 +691,21 @@ function perf_render3DFrame() {
         roofTrimEditor?.update();groundEditor?.draw3D(group3D,vector);baseEditor?.draw3D(group3D,vector);wallEditor?.draw3D(group3D,vector);window.ExteriorDistanceInput?.render(wallEditor?.distanceInput()||baseEditor?.distanceInput());
         if(wallsVisible&&gapHighlights&&stage>=2){const points=[],connections=[];for(const gap of currentGaps()){const i=points.length;points.push(gap.bottom,gap.top);connections.push({startIdx:i,endIdx:i+1});}addLines(points,connections,GAP_COLOR);}
         window.exteriorSurfaceDisplay?.(group3D,surfaceMode());
-        applyPlaneDisplay(group3D,vector);
+        applyPlaneDisplay(group3D,vector);applyResoffitDisplay(group3D);
         syncVisibility();
     }
+    // Resoffit: only roof-contact lines and the selection stay bright, so the mode is obvious and the lines easy to pick.
+    // Dim with a copy of each material, keeping the original, since some scene parts survive between redraws.
+    let resoffitDimmed=false;
+    function applyResoffitDisplay(group){
+        if(!resoffitMode&&!resoffitDimmed)return;resoffitDimmed=resoffitMode;
+        group.traverse(o=>{if(!o.material)return;const original=o.userData.resoffitOriginal;
+            if(!resoffitMode||o.userData.exteriorSoffit||o.userData.exteriorSelection||o.userData.planeGuide){if(original){o.material=original;delete o.userData.resoffitOriginal;}return;}
+            const base=original||o.material;o.userData.resoffitOriginal=base;
+            o.material=Array.isArray(base)?base.map(dim):dim(base);
+        });
+    }
+    function dim(material){const m=material.clone();m.transparent=true;m.opacity=material.opacity*.12;m.depthWrite=false;return m;}
     function applyPlaneDisplay(group,vector){
         const view=wallEditor?.planeView?.();if(!view||view.display==='normal')return;
         const K=window.ExteriorGeometry,f=view.frame,origin=vector(K.world(f,{x:0,y:0,z:0})),u=vector(K.world(f,{x:1,y:0,z:0})).sub(origin),v=vector(K.world(f,{x:0,y:1,z:0})).sub(origin),normal=u.clone().cross(v).normalize(),tolerance=Math.max(u.length(),v.length())*K.CONTACT;
