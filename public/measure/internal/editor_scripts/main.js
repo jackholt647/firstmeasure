@@ -4051,13 +4051,22 @@ async function loadProjectFromFolder(folderHash) {
         if (manifest.address) setHeaderAddress(manifest.address);
 
         const meta = data.app_metadata || manifest.app_metadata || {};
-        const savedEditorHistory=window.EditorHistory?await window.EditorHistory.load(requestedProjectId,meta.editorHistory,async(project,name)=>{
-            const response=await fetch(window.firstMeasureBuildUrl('/projects/'+encodeURIComponent(project)+'/artifacts/'+encodeURIComponent(name)),{credentials:'same-origin'});
-            if(!response.ok)throw new Error('Could not load undo history ('+response.status+'). Please reload.');
-            return response.arrayBuffer();
-        }):null;
+        let savedEditorHistory=null;
+        if(window.EditorHistory){
+            // Undo history is not needed to open the project: one that cannot be read starts a fresh history.
+            try{
+                savedEditorHistory=await window.EditorHistory.load(requestedProjectId,meta.editorHistory,async(project,name)=>{
+                    const response=await fetch(window.firstMeasureBuildUrl('/projects/'+encodeURIComponent(project)+'/artifacts/'+encodeURIComponent(name)),{credentials:'same-origin'});
+                    if(!response.ok)throw new Error('Could not load undo history ('+response.status+'). Please reload.');
+                    return response.arrayBuffer();
+                });
+                if(savedEditorHistory&&savedEditorHistory.version!==1)throw new Error('Unsupported editor undo history.');
+            }catch(historyError){
+                console.warn('Saved undo history could not be loaded; this project opens with a fresh undo history.',historyError);
+                savedEditorHistory=null;
+            }
+        }
         if(String(window.currentProjectId)!==requestedProjectId)return;
-        if(savedEditorHistory&&savedEditorHistory.version!==1)throw new Error('Unsupported editor undo history.');
 
         window.currentProjectLoadedAppMetadata = (meta && typeof meta === 'object')
             ? JSON.parse(JSON.stringify(meta))

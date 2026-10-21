@@ -3569,7 +3569,9 @@ export const registerFirstMeasureApi: FastifyPluginAsync = async (app) => {
 
 
 
-  app.get("/projects/:id/artifacts/:name", async (request, reply) => {
+  // Artifacts are sent byte for byte: response compression would label an already-gzipped artifact (saved
+  // undo history) with the browser's preferred encoding without re-encoding it, and the download fails.
+  app.get("/projects/:id/artifacts/:name", { compress: false }, async (request, reply) => {
 
     await requireResourceAccess(request, getFileName(request.params));
 
