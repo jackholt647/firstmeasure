@@ -18,6 +18,8 @@ October 20 Original roof report layout on dev: [roof-only PDFs keep the producti
 
 October 20 Production release gates on dev: [the roof 3D viewer behind `firstmeasure.roof_model_viewer` (Full House always shows it) and the signup sandbox limited to development hosts](deploy/digitalocean/development-release-gates-20261020.md) records release `067deb12` and the verified four-role development rollout.
 
+October 21 Europe signup: [signup chooses country (billing profile), phone calling code and language; wizard and project-type prices follow the account currency; operator-only commercial profile reassignment](deploy/digitalocean/development-europe-signup-20261021.md) records release `45143009` on branch `claude/lucid-yonath-777e5b` (not yet canonical) and the verified development rollout.
+
 October 19 Full-house customer wall numbers: [the customer summary, CSV and Summary.pdf show the exterior summary for full-house orders, and a Full House order whose references fail to copy is cancelled with its refund](deploy/digitalocean/development-fh-customer-walls-20261019.md) records releases `41c43b98` and `42ca4abc` and the verified development rollout.
 
 October 19-20 Full-house production points: [a full house is scored at submission as roof points plus twice a wall-complexity proxy, and the drafter sees only a stopwatch until then](deploy/digitalocean/development-full-house-points-20261020.md) records releases `7c811330` and `03d57cc1` and the verified development rollouts.
