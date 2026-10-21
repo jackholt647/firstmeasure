@@ -57,3 +57,12 @@ test('single DSM samples preserve zero and negative elevations, reject no-data, 
  const moved=T.sampleDSMPoint(data,ctx,{x:1,y:1},{...ctx,lng:1/111132,lat:2/111132});near(moved.x,-1.5);near(moved.y,1.5);
  const roof={faces:[{points:[p(0,0,8),p(1,0,8),p(1,1,8),p(0,1,8)]}]},ground=T.fromPlane(T.bounds(roof),{dx:0,dy:0,k:0},{source:'DSM point',sampledPoint:p(-.5,-.5,0),simpleGrade:1});assert.deepEqual(T.reference(ground,roof).sampledPoint,ground.sampledPoint);assert.equal(T.reference(ground,roof).source,'DSM point');assert.equal(T.initial(null,ctx,roof,NaN).plane.k,0);
 });
+test('a nearly level DSM grade is placed exactly level at its average height; a sloped grade is kept',()=>{
+    const B=require('../public/measure/internal/editor_scripts/base_geometry.js'),roof={faces:[{points:[p(0,0,9),p(6,0,9),p(6,4,9),p(0,4,9)]}]},b=T.bounds(roof),center={x:(b.x0+b.x1)/2,y:(b.y0+b.y1)/2};
+    const nearly={dx:.003/6,dy:-.0002,k:63.64},placed=T.reference(T.fromPlane(b,nearly,{source:'DSM'}),roof);
+    assert.deepEqual([placed.plane.dx,placed.plane.dy],[0,0]);near(placed.plane.k,T.at(nearly,center),1e-9);assert.ok(placed.points.every(q=>q.z===placed.points[0].z));
+    const base={faces:[{id:'base',points:[p(0,0,60),p(6,0,60),p(6,4,60),p(0,4,60)]}]},fitted=B.reground(base,placed).base;
+    assert.ok(fitted.faces.every(f=>f.points.every(q=>q.z===placed.plane.k)),'the base fitted to it is exactly level');
+    const sloped={dx:.05,dy:0,k:63.64},kept=T.reference(T.fromPlane(b,sloped,{source:'DSM'}),roof);near(kept.plane.dx,.05,1e-9);near(kept.plane.k,63.64,1e-9);
+    assert.deepEqual(T.level(sloped,b),sloped);assert.equal(T.LEVEL_SLOPE,.005);
+});

@@ -2405,7 +2405,7 @@ test('Resoffit picks roof-contact lines despite near-surface occlusion and adds 
  f.editor.setResoffitMode(true);f.editor.restoreSelection({lineSelection:[{id:'other',pair:[p(6,0,4),p(8,0,4)]}]});
  assert.equal(f.editor.pickLine3D(f.e(2,4)),true);f.listeners.pointerup(f.e(2,4));assert.equal(f.editor.selectionSnapshot().lineSelection.length,2);
  assert.equal(f.editor.pickLine3D(f.e(2,4)),true);f.listeners.pointerup(f.e(2,4));assert.equal(f.editor.selectionSnapshot().lineSelection.length,1);
- assert.equal(f.editor.pickLine3D(f.e(2,0)),false,'base edges are excluded');
+ assert.equal(f.editor.pickLine3D({...f.e(2,0),shiftKey:true}),true,'a miss starts a Resoffit box');f.listeners.pointerup({...f.e(2,0),shiftKey:true});assert.equal(f.editor.selectionSnapshot().lineSelection.length,1,'base edges are excluded');
 });
 
 
@@ -2874,7 +2874,7 @@ for(const replacement of [true,false])test(`deleting a sticker chord preserves a
 
 test('first Resoffit selection clears on an empty click while modifier misses preserve it',()=>{
  const pair=[{x:1,y:0,z:3},{x:3,y:0,z:3}],f=fixture({state:{wallEdits:{},roof:{faces:[]}},selected:null,pickLineVisible:()=>false,pickSoffitVisible:()=>true,globals:{WallResoffit:{candidates:()=>[{id:'contact',pair}]}}});f.editor.setResoffitMode(true);
- for(let i=0;i<2;i++){const hit=f.e(2,3);assert.equal(f.editor.pickLine3D(hit),true);f.listeners.pointerup(hit);assert.equal(f.editor.selectionSnapshot().lineSelection.length,1);assert.equal(f.editor.pickLine3D(f.e(20,20,true)),false);assert.equal(f.editor.selectionSnapshot().lineSelection.length,1);assert.equal(f.editor.pickLine3D(f.e(20,20)),false);assert.equal(f.editor.selectionSnapshot().lineSelection.length,0);}
+ for(let i=0;i<2;i++){const hit=f.e(2,3);assert.equal(f.editor.pickLine3D(hit),true);f.listeners.pointerup(hit);assert.equal(f.editor.selectionSnapshot().lineSelection.length,1);assert.equal(f.editor.pickLine3D(f.e(20,20,true)),true);f.listeners.pointerup(f.e(20,20,true));assert.equal(f.editor.selectionSnapshot().lineSelection.length,1);assert.equal(f.editor.pickLine3D(f.e(20,20)),true);f.listeners.pointerup(f.e(20,20));assert.equal(f.editor.selectionSnapshot().lineSelection.length,0);}
  assert.equal(f.history.length,0,'selection changes do not edit geometry');
 });
 
@@ -3531,4 +3531,45 @@ test('a line delete that would add surface area is refused and rolled back',()=>
  const f=planeSliverFixture({WallSolidGeometry:{...W,removeFaceEdges:(faces)=>({removed:[faces.find(s=>s.id==='solid:plane-face-5').id],merged:[grown]})}}),before=JSON.stringify(f.state.wallEdits);
  f.editor.restoreSelection({lineSelection:[{id:W.edgeKey(...f.line),pair:f.line}]});f.editor.key({key:'Delete'});
  assert.match(f.message(),/would add surface area/);assert.equal(f.history.length,0);assert.equal(JSON.stringify(f.state.wallEdits),before);
+});
+test('Resoffit box adds every roof-contact line it touches, keeps prior picks, and Ctrl removes',()=>{
+ const contacts=[{id:'c1',pair:[{x:0,y:0,z:3},{x:4,y:0,z:3}]},{id:'c2',pair:[{x:6,y:0,z:3},{x:10,y:0,z:3}]},{id:'c3',pair:[{x:20,y:0,z:3},{x:24,y:0,z:3}]}];
+ const f=fixture({state:{wallEdits:{},roof:{faces:[]}},selected:null,pickLineVisible:()=>false,pickSoffitVisible:()=>true,globals:{WallResoffit:{candidates:()=>contacts}}});f.editor.setResoffitMode(true);
+ const hit=f.e(22,3);assert.equal(f.editor.pickLine3D(hit),true);f.listeners.pointerup(hit);assert.equal(JSON.stringify(f.editor.selectionSnapshot().lineSelection.map(l=>l.id)),'["c3"]');
+ // The box spans x 3..7 at the line height: it only crosses c1's end and c2's start, contains neither line.
+ assert.equal(f.editor.pickLine3D(f.e(3,2)),true);f.listeners.pointermove(f.e(7,4));f.listeners.pointerup(f.e(7,4));
+ assert.equal(JSON.stringify(f.editor.selectionSnapshot().lineSelection.map(l=>l.id).sort()),'["c1","c2","c3"]','touching is enough and earlier picks stay');
+ assert.equal(f.editor.pickLine3D({...f.e(3,2),ctrlKey:true}),true);f.listeners.pointermove({...f.e(7,4),ctrlKey:true});f.listeners.pointerup({...f.e(7,4),ctrlKey:true});
+ assert.equal(JSON.stringify(f.editor.selectionSnapshot().lineSelection.map(l=>l.id)),'["c3"]','Ctrl box removes');
+ // The editor starts every view press with startBox and picks on release; a drag from there is a Resoffit box too.
+ let clicked=0;assert.equal(f.editor.startBox(f.e(3,2),()=>clicked++),true);f.listeners.pointermove(f.e(7,4));f.listeners.pointerup(f.e(7,4));
+ assert.equal(JSON.stringify(f.editor.selectionSnapshot().lineSelection.map(l=>l.id).sort()),'["c1","c2","c3"]');assert.equal(clicked,0,'a drag is not a click');
+ assert.equal(f.history.length,0,'selection changes do not edit geometry');
+});
+function slopedBaseDoor(){
+ // A wall whose base is 1.5 mm per metre off level. Pixel snaps reach only 0.1 px (1 mm here), as when zoomed out,
+ // so landing on the base comes from the model-unit conform alone.
+ const p=(x,z)=>({x,y:0,z}),base=x=>.0015*x,wall={id:'wall',points:[p(0,0),p(8,base(8)),p(8,3),p(0,3)]};
+ const f=fixture({state:{wallEdits:{$surfaces:[wall]}},walls:[],selected:null,globals:{isFreeMove:false,snapRadius:.1}});f.editor.togglePlane(wall);
+ return {f,p,base,wall};
+}
+const baseSlivers=(f,base)=>{const K=require('../public/measure/internal/editor_scripts/exterior_geometry.js'),live=f.state.wallEdits.$surfaces.filter(s=>!s.deleted);
+ return {live,off:live.flatMap(s=>s.points).filter(q=>Math.abs(q.y)<1e-9&&Math.abs(q.z-base(q.x))<.01&&Math.abs(q.z-base(q.x))>1e-9),small:live.filter(s=>{const fr=K.frame(s);return fr&&K.area({points:s.points.map(q=>K.local(fr,q))})<1e-3;})};};
+test('a plane-mode door quadrilateral with one bottom corner a few millimetres off a sloped base lands both corners on it and pushes in without a sliver',()=>{
+ const {f,p,base}=slopedBaseDoor();planeSelection(f,[p(5,base(5)),p(3,base(3)+.004)]);f.editor.key({key:'q'});f.editor.down(f.e(4,2.1));
+ let r=baseSlivers(f,base);assert.ok(r.live.length>1,f.message());assert.deepEqual(r.off,[],'no vertex is left a few millimetres off the base');assert.deepEqual(r.small.map(s=>s.id),[]);
+ const door=r.live.find(s=>s.points.every(q=>q.x>=3-1e-3&&q.x<=5+2e-3));assert.ok(door,JSON.stringify(r.live.map(s=>s.points)));
+ const [bl,tl]=door.points.filter(q=>q.x<4).sort((a,b)=>a.z-b.z),tr=door.points.find(q=>q.x>4&&q.z>1),side={x:tl.x-bl.x,z:tl.z-bl.z},top={x:tr.x-tl.x,z:tr.z-tl.z};
+ assert.ok(Math.abs(side.x*top.x+side.z*top.z)/Math.hypot(side.x,side.z)/Math.hypot(top.x,top.z)<1e-9,'the left side slid along itself and is still square to the top: '+JSON.stringify([bl,tl,tr]));
+ f.editor.togglePlane();f.editor.extrudeFace({face:door,event:f.e(4,1)});f.editor.distanceInput().set(-.1);f.editor.down(f.e(4,1));
+ r=baseSlivers(f,base);assert.equal(f.history.length,2,f.message());assert.deepEqual(r.small.map(s=>s.id),[],'no sliver face after the push in');
+});
+test('plane-mode clicks and typed points within a centimetre of the base line land on it; a new side nearly collinear with the base brings its far end onto it',()=>{
+ const {f,p,base}=slopedBaseDoor(),W=require('../public/measure/internal/editor_scripts/wall_solid_geometry.js');
+ for(const [x,z] of [[5,base(5)],[3,base(3)+.006],[3,2],[5,2],[5,base(5)]])planeStep(f,x,z);
+ const r=baseSlivers(f,base);assert.deepEqual(r.off,[]);assert.deepEqual(r.small.map(s=>s.id),[]);
+ // 2 cm off over 6 m is within 0.5% of the base direction: the far end comes onto the base, sliding along its own side.
+ const q=(x,y)=>({x,y}),line=[q(0,0),q(10,.015)],out=W.conformPlanePoints([q(1,.0015),q(7,.0105+.02),q(7,2)],[...line],[line],[[0,1],[1,2]],[0]);
+ assert.ok(Math.abs(out[1].x-7)<1e-9&&Math.abs(out[1].y-.0105)<1e-9&&out[1].edge===0,JSON.stringify(out[1]));assert.deepEqual(out[2],{x:7,y:2},'a point far from geometry stays');
+ assert.deepEqual(W.conformPlanePoints([q(5,.5)],[],[line]),[{x:5,y:.5}],'clearly off the line stays');
 });

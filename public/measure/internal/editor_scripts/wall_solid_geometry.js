@@ -1260,6 +1260,40 @@ function exactPoints(points,tolerance=3e-6){
  const list=[...new Map(points.map(p=>[vertexKey(p),p])).values()];
  return p=>{let best=null,d=tolerance;for(const q of list){const e=Math.hypot(p.x-q.x,p.y-q.y,p.z-q.z);if(e<d){d=e;best=q;}}return best?{x:best.x,y:best.y,z:best.z}:p;};
 }
+// Plane-mode geometry lands exactly on the plane geometry it nearly touches, so
+// no sub-centimetre sliver face forms. Lengths are model metres in the drawing
+// plane, not pixels: a new vertex within `distance` of an existing vertex or
+// edge moves onto it, and a new side running within `slope` (rise over its
+// length, at most `reach`) of an edge one of its ends lies on brings its other
+// end onto that edge. A vertex slides along another of its own sides when that
+// keeps the side's direction, otherwise it moves straight across. Points are
+// local {x,y}; links are index pairs (the new sides); fixed indices never move.
+// Each result carries {node} or {edge,t} when it landed on scene geometry.
+const PLANE_CONFORM={distance:.01,slope:.005,reach:.03,exact:1e-7};
+function conformPlanePoints(points,nodes,edges,links=[],fixed=[],options={}){
+ const o={...PLANE_CONFORM,...options},hold=new Set(fixed),out=points.map(p=>({x:p.x,y:p.y})),hits=points.map(()=>null);
+ const segs=edges.map(([a,b],index)=>({a,b,index,dx:b.x-a.x,dy:b.y-a.y,l:Math.hypot(b.x-a.x,b.y-a.y)})).filter(s=>s.l>1e-9);
+ const foot=(s,p)=>({t:((p.x-s.a.x)*s.dx+(p.y-s.a.y)*s.dy)/(s.l*s.l),d:Math.abs((p.x-s.a.x)*s.dy-(p.y-s.a.y)*s.dx)/s.l}),within=(s,f,pad=0)=>f.t>=-pad/s.l&&f.t<=1+pad/s.l;
+ const carriers=p=>segs.filter(s=>{const f=foot(s,p);return f.d<=o.exact&&within(s,f,o.exact);});
+ const settled=i=>hold.has(i)||!!hits[i]||nodes.some(n=>Math.hypot(n.x-out[i].x,n.y-out[i].y)<=o.exact)||carriers(out[i]).length>0;
+ const sides=i=>links.filter(l=>l[0]===i||l[1]===i).map(l=>l[0]===i?l[1]:l[0]);
+ const land=(i,s,except=-1)=>{const p=out[i];let best=null;
+  for(const j of sides(i)){if(j===except||j==null||j<0)continue;const q=out[j],ux=p.x-q.x,uy=p.y-q.y,lu=Math.hypot(ux,uy),den=ux*s.dy-uy*s.dx;if(lu<1e-9||Math.abs(den)<.2*lu*s.l)continue;
+   const k=((s.a.x-q.x)*s.dy-(s.a.y-q.y)*s.dx)/den,x={x:q.x+k*ux,y:q.y+k*uy},f=foot(s,x),move=Math.hypot(x.x-p.x,x.y-p.y);if(within(s,f)&&move<=o.reach&&(!best||move<best.move))best={t:f.t,move};}
+  const t=best?best.t:Math.max(0,Math.min(1,foot(s,p).t));out[i]={x:s.a.x+s.dx*t,y:s.a.y+s.dy*t};hits[i]={edge:s.index,t};};
+ for(let i=0;i<out.length;i++){if(settled(i))continue;const p=out[i];let node=-1,nd=o.distance,seg=null,sd=o.distance;
+  nodes.forEach((n,k)=>{const d=Math.hypot(n.x-p.x,n.y-p.y);if(d<=nd){nd=d;node=k;}});
+  if(node>=0){out[i]={x:nodes[node].x,y:nodes[node].y};hits[i]={node};continue;}
+  for(const s of segs){const f=foot(s,p);if(f.d<=sd&&within(s,f)){sd=f.d;seg=s;}}if(seg)land(i,seg);
+ }
+ for(let pass=0,changed=true;changed&&pass<=out.length;pass++){changed=false;
+  for(const [i,j] of links.flatMap(l=>[l,[l[1],l[0]]])){if(i==null||j==null||i<0||j<0||settled(i)||!settled(j))continue;
+   const p=out[i],q=out[j],limit=Math.min(o.reach,o.slope*Math.hypot(p.x-q.x,p.y-q.y));
+   const s=carriers(q).find(s=>{const f=foot(s,p);return f.d<=limit&&within(s,f);});if(s){land(i,s,j);changed=true;}
+  }
+ }
+ return out.map((p,i)=>({...p,...(hits[i]||{})}));
+}
 function removeFaceEdges(faces,segments,wire={}){
  const parent=faces.map((_,i)=>i),affected=new Set(),invalid=new Set(),find=i=>parent[i]===i?i:(parent[i]=find(parent[i]));
  const samePlane=(a,b)=>{const f=faceFrame(a),n=normal(b.points);return f&&n&&Math.abs(dot(f.n,n))>1-1e-5&&b.points.every(p=>Math.abs(dot(sub(p,f.origin),f.n))<=K.CONTACT);};
@@ -1437,5 +1471,5 @@ function inwardSign(face,bases){
  for(const distance of [.005,.02,.1]){const a=inside({x:c.x+n.x*distance,y:c.y+n.y*distance}),b=inside({x:c.x-n.x*distance,y:c.y-n.y*distance});if(a!==b)return a?1:-1;}
  return null;
 }
-const api={exactPoints,horizontalSweep,ownsPoint,followTrim,pointRangeIndex,stickerAlignmentTargets,planeAlignment,planeAlignmentGuides,adoptMergedFaceSources,faceFromPoints,mergeAtPoints,fillet,validTranslation,boundedTranslation,geometryScale,snapGeometryScale,snapGeometryOnPlane,transformGeometry,transformSelection,clipboardFrame,copyGeometry,pasteGeometry,mergeConnectedFaces,pointChamferSnap,chamferSnap,chamfer,roofExtrusion,inwardSign,cleanupSweepRemnants,sweepRemnant,motionSnapCandidates,structuralIndex,joinFragments,motionSnap,slideLines,attachedLengths,unionPlanar,trimExtrusion,moveFabric,radialDraftSnap,quadDraftSnap,normal,extrusionDirections,extrusionReference,extrude,snapDirection,bridges,dragAmount,subtract,snapBase,baseScope,belowBase,draftSnap,vertexKey,edgeKey,jsonEqual,contactBox,inContactBox,surfaceWire,restoreCreatedSurfaceWire,structuralPoint,structuralEdge,deleteSurfaceElements,removeFaceEdges,restoreSurface,sharedIntervals,freeEdges,moveSurface,faceFrame,inFrame,fromFrame,containedBy,coplanarContact,containedSnap,importDraft};if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.WallSolidGeometry=api;
+const api={exactPoints,PLANE_CONFORM,conformPlanePoints,horizontalSweep,ownsPoint,followTrim,pointRangeIndex,stickerAlignmentTargets,planeAlignment,planeAlignmentGuides,adoptMergedFaceSources,faceFromPoints,mergeAtPoints,fillet,validTranslation,boundedTranslation,geometryScale,snapGeometryScale,snapGeometryOnPlane,transformGeometry,transformSelection,clipboardFrame,copyGeometry,pasteGeometry,mergeConnectedFaces,pointChamferSnap,chamferSnap,chamfer,roofExtrusion,inwardSign,cleanupSweepRemnants,sweepRemnant,motionSnapCandidates,structuralIndex,joinFragments,motionSnap,slideLines,attachedLengths,unionPlanar,trimExtrusion,moveFabric,radialDraftSnap,quadDraftSnap,normal,extrusionDirections,extrusionReference,extrude,snapDirection,bridges,dragAmount,subtract,snapBase,baseScope,belowBase,draftSnap,vertexKey,edgeKey,jsonEqual,contactBox,inContactBox,surfaceWire,restoreCreatedSurfaceWire,structuralPoint,structuralEdge,deleteSurfaceElements,removeFaceEdges,restoreSurface,sharedIntervals,freeEdges,moveSurface,faceFrame,inFrame,fromFrame,containedBy,coplanarContact,containedSnap,importDraft};if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.WallSolidGeometry=api;
 })(typeof window!=='undefined'?window:globalThis);
