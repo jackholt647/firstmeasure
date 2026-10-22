@@ -504,11 +504,18 @@ async function handleCopy() {
     persistGeometryClipboard(payload);
     await writeGeometryClipboardToSystem(geometryClipboard);
 }
+let pasteInFlight = false;
+let pasteMoveActive = false;
 async function handlePaste() {
-    if (!activeGeometry) return;
-    const systemClipboard = await readGeometryClipboardFromSystem();
+    // The clipboard read is async; a second Ctrl+V meanwhile would stack an
+    // identical copy under the first.
+    if (!activeGeometry || pasteInFlight) return;
+    pasteInFlight = true;
+    let systemClipboard = null;
+    try { systemClipboard = await readGeometryClipboardFromSystem(); }
+    finally { pasteInFlight = false; }
     if (systemClipboard) persistGeometryClipboard(systemClipboard);
-    if (!geometryClipboard) return;
+    if (!geometryClipboard || !activeGeometry) return;
     save2DState(); 
     selectedPoints.clear();
     selectedLines.clear();
@@ -569,6 +576,7 @@ async function handlePaste() {
     renderGeometry3D();
     
     enterMoveMode();
+    pasteMoveActive = true;
 }
 function enterResizeMode() {
     if ((selectedPoints.size === 0 && selectedLines.size === 0 && selectedVents.size === 0) || !activeGeometry) return;
@@ -680,6 +688,7 @@ function handleRotationMove() {
 }
 function enterMoveMode() {
     interactState = 'MOVING';
+    pasteMoveActive = false;
     moveOriginals.clear();
     const ptsToSave = new Set();
     
@@ -1590,6 +1599,7 @@ function mergePoints(sourcePt, targetPt) {
     });
     activeGeometry.points = activeGeometry.points.filter(p => p !== sourcePt);
     activeGeometry.connections = activeGeometry.connections.filter(c => c.start !== c.end);
+    removeDuplicateConnections();
     if (selectedPoints.has(sourcePt)) {
         selectedPoints.delete(sourcePt);
         selectedPoints.add(targetPt);
@@ -1597,6 +1607,32 @@ function mergePoints(sourcePt, targetPt) {
     renderGeometry3D();
     triggerLiveUpdate();
     checkAndTriggerMeasurementUpdate();
+}
+
+// Two connections between the same pair of points draw as one line but are
+// measured twice. Merging pasted or moved points onto existing ones produces
+// them, so keep the earliest (existing) connection and drop later copies.
+function removeDuplicateConnections() {
+    if (!activeGeometry || !Array.isArray(activeGeometry.connections)) return;
+    const seen = new Map();
+    activeGeometry.connections = activeGeometry.connections.filter(conn => {
+        if (!conn || !conn.start || !conn.end) return true;
+        let ends = seen.get(conn.start);
+        if (ends && ends.has(conn.end)) {
+            if (selectedLines.delete(conn)) {
+                const kept = activeGeometry.connections.find(c =>
+                    (c.start === conn.start && c.end === conn.end) || (c.start === conn.end && c.end === conn.start));
+                if (kept) selectedLines.add(kept);
+            }
+            return false;
+        }
+        if (!ends) seen.set(conn.start, ends = new Set());
+        ends.add(conn.end);
+        let back = seen.get(conn.end);
+        if (!back) seen.set(conn.end, back = new Set());
+        back.add(conn.start);
+        return true;
+    });
 }
 
 function cleanPointRingAfterMerge(points, mergeSet, mergedPoint) {
@@ -3064,7 +3100,7 @@ function setup2DListeners() {
         const lowerKey = key.toLowerCase();
         // --- Clipboard & History ---
         if (matchesKey(e, K.COPY))  { e.preventDefault(); handleCopy(); return; }
-        if (matchesKey(e, K.PASTE)) { e.preventDefault(); handlePaste(); return; }
+        if (matchesKey(e, K.PASTE)) { e.preventDefault(); if (!e.repeat) handlePaste(); return; }
         if (matchesKey(e, K.UNDO))  { e.preventDefault(); undo2D(); return; }
         if (matchesKey(e, K.REDO))  { e.preventDefault(); redo2DAction(); return; }
         // --- Tools & Modes ---
@@ -3143,6 +3179,7 @@ function setup2DListeners() {
         if (matchesKey(e, K.TYPES))   { if(typeof toggleLineTypes === 'function') toggleLineTypes(); }
         if (matchesKey(e, K.FACES))   { if(typeof toggleFacesGlobal === 'function') toggleFacesGlobal(); }
         if (matchesKey(e, K.SNAP))    { if(typeof toggleSnapMode === 'function') toggleSnapMode(); }
+        if (matchesKey(e, K.PITCHES) && !e.repeat && !document.querySelector('.wall-mode-active')) { if(typeof window.togglePitchLabels === 'function') window.togglePitchLabels(); }
         // --- Nudge (Move Selection) ---
         if (isArrow && !e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey) {
             const itemsToMove = new Set();
@@ -5074,14 +5111,23 @@ function calculateVentSnapping(mouseX, mouseY, radius) {
 }
 // --- NEW FUNCTION: Shared Finalize Logic ---
 function finalizeMoveLogic() {
-    if (selectionMode === 'POINT') {
+    // Pasted lines merge onto existing points in line mode as well as point mode.
+    const pasted = pasteMoveActive;
+    pasteMoveActive = false;
+    let movedPoints = null;
+    if (selectionMode === 'POINT') movedPoints = selectedPoints;
+    else if (pasted) {
+        movedPoints = new Set();
+        selectedLines.forEach(l => { movedPoints.add(l.start); movedPoints.add(l.end); });
+    }
+    if (movedPoints) {
         const sRad = snapRadius / currentZoom;
-        const excludeSet = selectedPoints; 
+        const excludeSet = movedPoints; 
         
         // We collect all necessary actions first, then execute them
         const mergesToPerform = [];
         const splitsToPerform = [];
-        selectedPoints.forEach(pt => {
+        movedPoints.forEach(pt => {
             // 1. Check for Point-to-Point Snap (Merge)
             const snapTarget = getClosestPoint(pt.x, pt.y, sRad, excludeSet);
             
@@ -5146,6 +5192,7 @@ function finalizeMoveLogic() {
                 }
             }
         });
+        removeDuplicateConnections();
     }
 }
 // Paste into console, then call:
