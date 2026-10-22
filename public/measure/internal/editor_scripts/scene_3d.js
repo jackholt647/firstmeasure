@@ -161,9 +161,18 @@ function sync3DViewportSize() {
     // During a pane divider drag the canvas (100% of its pane) just stretches: reallocating the drawing buffer every
     // frame stalls the GPU on large high-DPI views. The camera takes the new aspect so the stretched image keeps its
     // proportions; the buffer is resized once when the drag ends (its final resize event).
-    if (!window.firstMeasurePaneResizing) renderer.setSize(width, height, false);
+    let resized = false;
+    if (!window.firstMeasurePaneResizing) {
+        const size = renderer.getSize(new THREE.Vector2());
+        if (size.x !== width || size.y !== height) { renderer.setSize(width, height, false); resized = true; }
+    }
     camera.aspect = width / Math.max(height, 1);
     camera.updateProjectionMatrix();
+    _sceneDirty3D = true;
+    // Resizing clears the WebGL buffer; draw in the same frame so the blank (white) buffer never reaches the screen.
+    if (resized && typeof scene !== 'undefined' && scene) {
+        try { if (!window.ExteriorRendered?.render(renderer, scene, camera)) renderer.render(scene, camera); _sceneDirty3D = false; _lastSceneRender3D = performance.now(); } catch (e) { _sceneDirty3D = true; }
+    }
     return true;
 }
 
