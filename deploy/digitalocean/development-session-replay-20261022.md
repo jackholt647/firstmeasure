@@ -55,3 +55,23 @@ organizations".
 
 **Not done.** The viewer could not be opened as a platform administrator from this session (no administrator sign-in
 in the browser pane). The viewer itself is covered by `session-replay-e2e-browser.test.mjs` against the real routes.
+
+**Cost calculator (`ca31b276`).** Browser-only release to compatibility, web and pool, which were on `d12a4c71`.
+Storage now shows the cost of a page load (its first 15 seconds) apart from the cost per minute after it, and the
+organization's per-hour rate says how much recording it is based on. The monthly cost is average concurrent users ×
+730 hours × (loads per user-hour × KB per load + 60 × KB per minute after loading), with retention and an optional
+archive ratio. Verify passed on all three roles, and dev serves the committed files.
+
+**Compression baseline (2026-10-22).** Scripts and data are in `output/session-replay-compression-20261022/`.
+- Jack's first session (60 s, full platform portal, 79.2 KB): 82% of the bytes were the first 15 seconds. That is the
+  snapshot (17.9 KB) and the portal rendering its UI right after it. The remaining 45 seconds cost about 14 KB. The
+  raw JSON was 42% string table, 35% added subtrees and 11% attribute changes; the pointer, clicks, hover and
+  diagnostics were under 4%.
+- Five pilot-org sessions (FirstMeasure-only portal, scripted, 0.4–3.2 minutes) cost 11–12 KB per page load and 9–13
+  KB per minute after loading, idle time included.
+- After the fact, each session re-packed alone is 1.3–1.6× smaller (brotli 11 is best). With the organization's
+  earlier sessions as a zstd-19 dictionary it is 1.7× smaller after one session of history, 3.0× after two, and
+  4.1–4.3× after three or four. Over all five that is 2.54× against 1.32× for zstd alone. Jack's session, from
+  another organization, was still 1.7× smaller with the pilot sessions as the dictionary. The scripted sessions
+  resemble each other, so real gains will be lower.
+- The dev hosts' Node (v22.23.2) has zstd with dictionaries, so an archive job needs no new dependency.
