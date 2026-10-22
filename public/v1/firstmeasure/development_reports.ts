@@ -24,6 +24,13 @@ export function developmentCriteria(body: JsonObject) {
   if (scope === 'full_house' && type !== 'residential') throw badRequest('invalid_sample_criteria', 'Full-house reports are available for residential properties only.');
   return { type, scope };
 }
+// The completed 4725 W Mercer Way pilot is dev's one complex finished full house, so full-house
+// samples use it first; FIRSTMEASURE_DEV_FULL_HOUSE_SAMPLE_ID overrides it (empty means random).
+const DEFAULT_FULL_HOUSE_SAMPLE_ID = 'exteriors_057d257e0423cdceb010a24af21c3b8f';
+export function preferredDevelopmentSample(scope: string) {
+  if (scope !== 'full_house') return '';
+  return String(process.env.FIRSTMEASURE_DEV_FULL_HOUSE_SAMPLE_ID ?? DEFAULT_FULL_HOUSE_SAMPLE_ID).trim();
+}
 const signature = (text: string) => createHmac('sha256', env.platformSessionSecret).update(`development-report:${text}`).digest('base64url');
 function token(auth: PlatformAuthContext, id: string, type: string, scope: string) {
   const text = Buffer.from(JSON.stringify({ id, type, scope, user: auth.userId, org: auth.orgId, expires: Date.now() + 3600000 })).toString('base64url');
@@ -44,9 +51,14 @@ export async function pickDevelopmentReport(auth: PlatformAuthContext, body: Jso
     const index=await import('./project_index.js');await index.ensureFirstMeasureProjectIndexReady();
     rows=index.getFirstMeasureProjectIndexDb().prepare(sql.replaceAll('$1','$type').replaceAll('$2','$scope').replaceAll('$3','$exclude')).all({type,scope,exclude:String(body.exclude_id||'')}) as Array<{id:string}>;
   }
-  for (const {id} of rows) {
+  const exclude = String(body.exclude_id || '');
+  const preferred = preferredDevelopmentSample(scope);
+  const ids = [...(preferred && preferred !== exclude ? [preferred] : []), ...rows.map(r => r.id).filter(id => id !== preferred)];
+  for (const id of ids) {
     try {
       const m = await readManifest(id);
+      // The preferred id skipped the indexed query, so it must pass the same checks here.
+      if (m.status !== 'completed' || m.project_type !== type || String(m.measurement_scope || 'roof') !== scope || [true, 1, 'true', '1'].includes(m.internal_only as any)) continue;
       const names = new Set((await listProjectFiles(id)).filter(f => f.size > 0).map(f => f.name));
       if (!['Report.pdf', 'Summary.pdf', 'model_data.xml'].every(n => names.has(n)) || m.lat == null || m.lng == null) continue;
       return {success: true, sample: {id, address: m.address, lat: m.lat, lng: m.lng, pins: m.pins, project_type: type, measurement_scope: scope, selection_token: token(auth, id, type, scope)}};

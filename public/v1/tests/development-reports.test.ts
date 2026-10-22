@@ -45,6 +45,18 @@ test('development copies require a developer, matching signed selection and comp
   await storage.saveManifest('development-source-2',{...await storage.readManifest(source),id:'development-source-2',address:'20 Test Street'});
   for(const name of ['Report.pdf','Summary.pdf','model_data.xml'])await storage.saveArtifact('development-source-2',name,Buffer.from(name));
   assert.equal((await service.pickDevelopmentReport(auth,{project_type:'residential',exclude_id:source})).sample?.id,'development-source-2');
+  for(const id of ['fh-random','fh-preferred','fh-internal']){
+    await storage.saveManifest(id,{...await storage.readManifest(source),id,measurement_scope:'full_house',address:id,...(id==='fh-internal'?{internal_only:true}:{})});
+    for(const name of ['Report.pdf','Summary.pdf','model_data.xml'])await storage.saveArtifact(id,name,Buffer.from(name));
+  }
+  assert.equal(service.preferredDevelopmentSample('roof'),'');
+  process.env.FIRSTMEASURE_DEV_FULL_HOUSE_SAMPLE_ID='fh-preferred';
+  for(let i=0;i<5;i++)assert.equal((await service.pickDevelopmentReport(auth,{project_type:'residential',measurement_scope:'full_house'})).sample?.id,'fh-preferred');
+  assert.equal((await service.pickDevelopmentReport(auth,{project_type:'residential',measurement_scope:'full_house',exclude_id:'fh-preferred'})).sample?.id,'fh-random');
+  assert.equal((await service.pickDevelopmentReport(auth,{project_type:'residential'})).sample?.id!=='fh-preferred',true);
+  process.env.FIRSTMEASURE_DEV_FULL_HOUSE_SAMPLE_ID='fh-internal';
+  for(let i=0;i<5;i++)assert.notEqual((await service.pickDevelopmentReport(auth,{project_type:'residential',measurement_scope:'full_house'})).sample?.id,'fh-internal');
+  delete process.env.FIRSTMEASURE_DEV_FULL_HOUSE_SAMPLE_ID;
   const makeToken=(changes={})=>{const text=Buffer.from(JSON.stringify({id:source,type:'residential',scope:'roof',user:auth.userId,org:auth.orgId,expires:Date.now()+60000,...changes})).toString('base64url');return text+'.'+createHmac('sha256',env.platformSessionSecret).update('development-report:'+text).digest('base64url');};
   const body={project_type:'residential',measurement_scope:'roof',address:'10 Test Street',development_selection_token:makeToken()};
   await assert.rejects(service.copyDevelopmentReport(auth,{...body,address:'Changed address'}),/no longer a matching/);
