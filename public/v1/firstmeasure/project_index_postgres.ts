@@ -809,6 +809,31 @@ export async function queryPostgresProjectManifests(query: ProjectIndexManifestQ
   return { count: Number(count.rows[0]?.count ?? 0), projects: rows.rows.map((row) => manifestFromValue(row.manifest_json)) };
 }
 
+/**
+ * The rows queryPostgresProjectManifests({ organization_id, limit, includeInstantOnly }) returns, for many
+ * organizations in one query (same filter, order and per-organization limit). A customer-list page read
+ * them one organization at a time, holding the small compatibility pool for seconds (1M8-225).
+ */
+export async function queryPostgresProjectManifestsByOrganization(orgIds: string[], options: { limit?: number; includeInstantOnly?: boolean } = {}) {
+  await ensurePostgresProjectIndexReady();
+  const ids = [...new Set(orgIds.map((id) => String(id).trim()).filter(Boolean))];
+  const byOrganization = new Map<string, ProjectManifest[]>(ids.map((id) => [id, []]));
+  if (!ids.length) return byOrganization;
+  const built = buildProjectWhere({ includeInstantOnly: options.includeInstantOnly });
+  const limit = Math.min(Math.max(Number(options.limit ?? 100), 1), 20_000);
+  const values = [...built.values, ids, limit];
+  const rows = await queryPostgres<{ organization_id: string; manifest_json: unknown }>(`
+    SELECT organization_id, manifest_json FROM (
+      SELECT p.organization_id, ${LIST_MANIFEST_COLUMN_P},
+        row_number() OVER (PARTITION BY p.organization_id ORDER BY p.sort_ts DESC, p.updated_at_ms DESC, p.id DESC) AS organization_rank
+      FROM projects p WHERE ${built.where.join(" AND ")} AND p.organization_id = ANY($${values.length - 1}::text[])
+    ) ranked WHERE organization_rank <= $${values.length}
+    ORDER BY organization_id, organization_rank
+  `, values);
+  for (const row of rows.rows) byOrganization.get(row.organization_id)?.push(manifestFromValue(row.manifest_json));
+  return byOrganization;
+}
+
 function buildProjectWhere(query: ProjectIndexManifestQuery) {
   const where = ["left(p.id, 10) <> 'fullhouse_'"];
   const values: unknown[] = [];

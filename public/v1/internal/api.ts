@@ -25,7 +25,7 @@ import { ZodError, z } from "zod";
 
 import { handleCommunicationsLegacyAction } from "../communications/api.js";
 import { getAppleKeyInfo, readAppleKeyStore, setAppleKey } from "../firstmeasure/apple.js";
-import { getFirstMeasureProjectIndexStatus, listIndexedProjectManifests, queryIndexedProjectManifests, readIndexedProjectManifestsByIds, rebuildFirstMeasureProjectIndex } from "../firstmeasure/project_index.js";
+import { getFirstMeasureProjectIndexStatus, listIndexedProjectManifests, queryIndexedProjectManifests, queryIndexedProjectManifestsByOrganization, readIndexedProjectManifestsByIds, rebuildFirstMeasureProjectIndex } from "../firstmeasure/project_index.js";
 import { getCurrentRushMode, listRushModes } from "../firstmeasure/rush.js";
 import { MANAGEMENT_TIME_ZONE, managementDateKey, managementDayBounds } from "../firstmeasure/reporting_time.js";
 import {
@@ -3484,11 +3484,7 @@ async function paginatedOrganizationDashboard(query: JsonObject) {
     const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
     const page = Math.min(requestedPage, totalPages);
     const pageManifests = manifests.slice((page - 1) * pageSize, page * pageSize);
-    matchingRows = compactOrganizationSummaries(await mapCustomerOrganizationsWithConcurrency(
-      pageManifests,
-      16,
-      (org) => buildOrganizationSummaryRow(org, true)
-    ));
+    matchingRows = compactOrganizationSummaries(await buildOrganizationSummaryRows(pageManifests, true));
     totals = {
       organizations: totalCount,
       test_organizations: 0,
@@ -3612,11 +3608,7 @@ async function buildOrganizationSummaries(query: JsonObject) {
   const internalOrgId = internalPlatformOrgId();
   const orgs = await listOrganizations();
   const visibleOrgs = orgs.filter((org) => includeInternal || String(org.id ?? "").toLowerCase() !== internalOrgId);
-  const rows = await mapCustomerOrganizationsWithConcurrency(
-    visibleOrgs,
-    16,
-    (org) => buildOrganizationSummaryRow(org, includeCredits)
-  );
+  const rows = await buildOrganizationSummaryRows(visibleOrgs, includeCredits);
   return rows.filter((row) => {
     if (!search) return true;
     return `${row.id} ${row.name} ${row.sales_owner_email ?? ""}`.toLowerCase().includes(search);
@@ -3630,7 +3622,62 @@ type OrganizationSummaryPreloadedData = {
   indexedProjectRows: Awaited<ReturnType<typeof firstMeasureProjectRowsForOrg>>;
 };
 
-async function buildOrganizationSummaryRow(
+const ORGANIZATION_SUMMARY_PRELOAD_BATCH = 250;
+
+/**
+ * Summary rows for many organizations. In PostgreSQL each batch of organizations is read with two
+ * queries instead of about eight per organization: a 200-row customer page used to queue some 1,600
+ * reads on the compatibility host's four-connection pool (1M8-225). The rows are the same as
+ * buildOrganizationSummaryRow's own reads, except that a missing global document is not seeded
+ * (a summary only needs its empty data). If a batch read fails, its organizations fall back to the
+ * per-organization reads, which already treat a failed read as empty.
+ */
+export async function buildOrganizationSummaryRows(orgs: JsonObject[], includeCredits: boolean) {
+  const rows: Awaited<ReturnType<typeof buildOrganizationSummaryRow>>[] = [];
+  for (let start = 0; start < orgs.length; start += ORGANIZATION_SUMMARY_PRELOAD_BATCH) {
+    const batch = orgs.slice(start, start + ORGANIZATION_SUMMARY_PRELOAD_BATCH);
+    const preloaded = await preloadOrganizationSummaryData(batch.map((org) => String(org.id ?? ""))).catch(() => null);
+    rows.push(...await mapCustomerOrganizationsWithConcurrency(
+      batch,
+      16,
+      (org) => buildOrganizationSummaryRow(org, includeCredits, preloaded?.get(String(org.id ?? "")))
+    ));
+  }
+  return rows;
+}
+
+async function preloadOrganizationSummaryData(orgIds: string[]) {
+  const { isFirstMeasurePostgresEnabled, queryPostgres } = await import("../src/database/postgres.js");
+  const ids = [...new Set(orgIds.filter(Boolean))];
+  if (!isFirstMeasurePostgresEnabled() || !ids.length) return null;
+  // Same rows and order as readGlobal and listDocuments (updated_at DESC), without their per-call checks.
+  const [documents, manifests] = await Promise.all([
+    queryPostgres<{ organization_id: string; collection: string; document: JsonObject }>(`
+      SELECT organization_id, collection, document FROM platform_documents
+      WHERE organization_id = ANY($1::text[])
+        AND (collection IN ('users', 'projects') OR (collection = 'global' AND id = 'global'))
+      ORDER BY updated_at DESC
+    `, [ids]),
+    queryIndexedProjectManifestsByOrganization(ids, { limit: 20_000, includeInstantOnly: true })
+  ]);
+  const preloaded = new Map<string, OrganizationSummaryPreloadedData>(ids.map((id) => [id, {
+    global: null as unknown as OrganizationSummaryPreloadedData["global"],
+    users: [],
+    projects: [],
+    indexedProjectRows: (manifests.get(id) ?? []).map(firstMeasureManifestOrderRow)
+  }]));
+  for (const row of documents.rows) {
+    const entry = preloaded.get(row.organization_id);
+    if (!entry) continue;
+    const document = asObject(row.document);
+    if (row.collection === "global") entry.global = document as OrganizationSummaryPreloadedData["global"];
+    else if (row.collection === "users") entry.users.push(document as OrganizationSummaryPreloadedData["users"][number]);
+    else entry.projects.push(document as OrganizationSummaryPreloadedData["projects"][number]);
+  }
+  return preloaded;
+}
+
+export async function buildOrganizationSummaryRow(
   org: JsonObject,
   includeCredits: boolean,
   preloaded?: OrganizationSummaryPreloadedData
