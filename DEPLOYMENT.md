@@ -31,6 +31,14 @@ October 19-20 Full-house production points: [a full house is scored at submissio
 
 October 19-20 Full-house staff fixes: [the browser API base is the public origin, embedded QA and manager sign-off show and send the full-house checks, approval adopts the newest reviewed PDF revision, plus Full House badges and qualified-only reservation lists](deploy/digitalocean/development-full-house-staff-fixes-20261019.md) records release `c1240ed1` on all four development roles.
 
+October 21 Exterior report fixes: [front-facing cover, readable elevations, each face counted and labelled once, real opening areas, unassigned-material warning and a resizable configuration tray](deploy/digitalocean/development-report-fixes-20261021.md) records release `a6f649b3` and the verified development rollout.
+
+October 21 Editor paste and pitches: [pasting no longer leaves duplicate stacked lines on shared edges (1M8-226) and K toggles pitch labels (1M8-191)](deploy/digitalocean/development-paste-pitch-20261021.md) records release `a8154fde` and the verified development rollout.
+
+October 21 Pane divider drags at 60 fps: [views re-lay out once per frame and the 2D plan is not rebuilt until release](deploy/digitalocean/development-pane-resize-20261021.md) records release `0f066dc4` and the verified development rollout.
+
+October 21 Resoffit box select and exact snapping: [drag-select roof-contact lines in Resoffit, near-level grades place exactly level, and plane-mode corners land exactly on nearby edges](deploy/digitalocean/development-resoffit-box-snap-20261021.md) records release `0a3a740d` and the verified development rollout.
+
 October 20 Wall undo survives a reload: [a reload that resumes the browser's newer local model also resumes its own undo history, instead of jumping back to the last Save (and past a reset)](deploy/digitalocean/development-local-undo-history-20261020.md) records release `77bc9692` and the verified development rollout.
 
 October 20 A delete only removes: [deleting a line never refills an opening from loose wire or revives deleted points, and a hung save no longer silently blocks Ctrl+S](deploy/digitalocean/development-delete-only-removes-20261020.md) records release `d5928a33` and the verified development rollout. Failed saves show their reason (`5f45f385`).
