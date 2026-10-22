@@ -1,6 +1,9 @@
 import { mutatePlatformConfiguration } from "../platform/storage.js";
-import { profileFromGlobal } from "../commerce/profile.js";
 import { countryCode } from "../commerce/regions.js";
+import { countryRecord, organizationCountry, orderPropertyCountry, saveOrganizationCountry } from "../platform/organization_country.js";
+import { profileFromGlobal } from "../commerce/profile.js";
+import { commercialProfileLock, reassignCommercialProfile } from "../commerce/reassign.js";
+import { readCapabilityCountryRules, saveCapabilityCountryRules } from "../platform/capabilities.js";
 import { assignedTutorialCourses, hasTutorialCourse, OPTIONAL_TUTORIAL_COURSES } from "./tutorial_courses.js";
 import { assertFullHouseEligible, fullHouseEligible, isCustomerFullHouse, FULL_HOUSE_QUALITY_CATEGORIES } from '../firstmeasure/full_house_workflow.js';
 import { managerReviewCsv } from "./manager_review_export.js";
@@ -748,6 +751,17 @@ export const registerInternalApi: FastifyPluginAsync = async (app) => {
   app.post("/bonus-offers/rollouts/:rolloutId/cancel", async (request) => {
     const body = objectSchema.parse(request.body ?? {});
     return await internalCancelBonusOfferRollout(param(request.params, "rolloutId"), body, actorFromRequest(request));
+  });
+
+  // 1M8-228: capability values for organizations by country of record (platform/capabilities.ts).
+  app.get("/admin/capability-country-rules", async (request) => {
+    await requireInternalFeatureFlagAdmin(request);
+    return { ok: true, success: true, rules: await readCapabilityCountryRules(true) };
+  });
+  app.put("/admin/capability-country-rules", async (request) => {
+    const actor = await requireInternalFeatureFlagAdmin(request);
+    const rules = await saveCapabilityCountryRules(objectSchema.parse(request.body ?? {}), cleanText(actor.email).toLowerCase());
+    return { ok: true, success: true, rules };
   });
 
   app.post("/admin/organizations/:orgId/app-flags", async (request) => {
@@ -3271,7 +3285,7 @@ export function customerDashboardRowMatches(row: JsonObject, filters: JsonObject
     else if (column === "salesperson") haystack = String(row.assigned_sales_name ?? row.assigned_sales_email ?? "Unassigned");
     else if (column === "country") {
       // An exact two-letter code matches only that country; otherwise match the code or name.
-      if (/^[a-z]{2}$/.test(needle)) { if (String(row.country ?? "").toLowerCase() === needle) continue; }
+      if (/^[a-z]{2}$/.test(needle)) { if (String(row.country ?? "").toLowerCase() === needle) continue; return false; }
       haystack = `${String(row.country ?? "")} ${String(row.country_name ?? "")}`;
     }
     else if (column === "created") {
@@ -4489,33 +4503,7 @@ function compactOrder(order: unknown) {
   };
 }
 
-/** The country the order's property was verified in (manifest report_property_country); "" for older orders. */
-function orderPropertyCountry(order: JsonObject) {
-  return countryCode(order.property_country ?? order.report_property_country ?? asObject(order.manifest).report_property_country);
-}
-
-/**
- * A customer organization's country. The commercial profile (chosen or detected at signup, or reassigned by an
- * operator) is the source of truth. Organizations from before profiles existed fall back to their orders'
- * verified property countries, then the company contact's country, then the legacy US/USD default.
- */
-export function organizationCountry(globalData: JsonObject, orders: JsonObject[] = []) {
-  const name = (code: string) => { try { return new Intl.DisplayNames(["en"], { type: "region" }).of(code) || code; } catch { return code; } };
-  const result = (country: string, source: string) => ({ country, country_name: country ? name(country) : "", country_source: source, currency: profileFromGlobal(globalData).currency });
-  if (globalData.commercial_profile !== undefined) {
-    const profile = profileFromGlobal(globalData);
-    const source = profile.source === "signup_choice" ? "signup_choice" : profile.source.startsWith("operator") ? "operator" : "signup_detected";
-    return result(countryCode(profile.country), source);
-  }
-  const counts = new Map<string, number>();
-  for (const order of orders) { const code = orderPropertyCountry(order); if (code) counts.set(code, (counts.get(code) || 0) + 1); }
-  const fromOrders = [...counts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0]?.[0];
-  if (fromOrders) return result(fromOrders, "orders");
-  const contact = asObject(globalData.contact), address = asObject(contact.address);
-  const fromContact = countryCode(contact.country ?? address.country ?? address.country_code);
-  if (fromContact) return result(fromContact, "contact");
-  return result("US", "legacy_default");
-}
+export { organizationCountry } from "../platform/organization_country.js";
 
 function compactLedgerEntry(entry: unknown) {
   const data = asObject(entry);
@@ -5158,6 +5146,30 @@ async function handleLegacyAction(app: FastifyInstance, body: JsonObject, reques
       const organization = await patchOrganization(orgId, { sales_owner_email: String(body.email ?? body.sales_owner_email ?? "").trim().toLowerCase() });
       clearOrganizationSummaryCache();
       return { ok: true, success: true, organization };
+    }
+    case "capability_country_rules_get": {
+      await requireInternalFeatureFlagAdmin(request);
+      return { ok: true, success: true, rules: await readCapabilityCountryRules(true) };
+    }
+    case "capability_country_rules_save": {
+      const admin = await requireInternalFeatureFlagAdmin(request);
+      const rules = await saveCapabilityCountryRules({ rules: parseJsonish(body.rules, []) }, cleanText(admin.email).toLowerCase());
+      return { ok: true, success: true, rules };
+    }
+    case "org_set_country": {
+      // 1M8-228: staff set an organization's country of record. Report pricing and currency follow while
+      // the organization has no credit history or Stripe charges; after that the billing profile is kept.
+      const orgId = String(body.org_id ?? "").trim();
+      const record = countryRecord(body.country, "staff", actor.email);
+      if (!orgId || !record) throw badRequest("invalid_country", "Choose a valid country.");
+      await readOrganization(orgId);
+      await saveOrganizationCountry(orgId, record);
+      const profile = profileFromGlobal(asObject((await readGlobal(orgId)).data));
+      const lock = await commercialProfileLock(orgId);
+      const billing = profile.country === record.code ? "unchanged" : lock ? "locked" : "reassigned";
+      if (billing === "reassigned") await reassignCommercialProfile(orgId, record.code, actor.email);
+      clearOrganizationSummaryCache();
+      return { ok: true, success: true, org_id: orgId, country: record, billing, billing_locked_reason: billing === "locked" ? lock : null };
     }
     case "org_set_test_flag": {
       const orgId = String(body.org_id ?? "").trim();

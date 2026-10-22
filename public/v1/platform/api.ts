@@ -15,6 +15,7 @@ import { TRANSLATION_CODES, normalizeTranslationLanguage } from "./localization/
 import { messageTranslationPreferences } from "./localization/message-preferences.js";
 import { signupLanguage, signupOptions, signupPhoneInput } from "../commerce/signup-options.js";
 import { reportExpediteTimeZone, reportPricesIncludeVat } from "../commerce/profile.js";
+import { countryRecord, profileCountrySource } from "./organization_country.js";
 import { signupCommercialProfile, profileFromGlobal, organizationProfile, currentProfile, customerCommercialView, creditLabel, creditMinorAmount, reportPrice, assertCommercialRevision } from "../commerce/profile.js";
 import { exchangeEstimate } from "../commerce/exchange.js";
 import { isReceiptMedia, canReadReceiptMedia, canWriteReceiptMedia, publicMediaMetadata } from "./media_access.js";
@@ -522,7 +523,7 @@ app.post("/auth/google", async (request, reply) => {
     if (requestedPhone && !phone) throw badRequest("invalid_phone_number", "Enter a valid mobile phone number, including the country code outside the US and Canada.");
     const workspaceWebsite = googleWorkspaceWebsite(google.hostedDomain);
 
-    const { defaultAppFlags, commercialProfile, branchLocalization } = await signupOrganizationDefaults(request, body);
+    const { defaultAppFlags, commercialProfile, signupCountry, branchLocalization } = await signupOrganizationDefaults(request, body);
     const requestedGlobal = asObject(body.global);
     delete requestedGlobal.app_flags;
     delete requestedGlobal.feature_flags;
@@ -547,6 +548,7 @@ app.post("/auth/google", async (request, reply) => {
           report_settings: {},
           ...requestedGlobal,
           commercial_profile: commercialProfile,
+          ...(signupCountry ? { country: signupCountry } : {}),
           app_flags: defaultAppFlags
         }
       });
@@ -1002,7 +1004,7 @@ app.get("/auth/google/config", async () => ({
     if (!phone) throw badRequest("invalid_phone_number", "Enter a valid mobile phone number, including the country code outside the US and Canada.");
     const orgInput = body.organization && typeof body.organization === "object" ? body.organization : {};
     const orgName = String(body.company ?? orgInput.name ?? "Your Company");
-    const { defaultAppFlags, commercialProfile, branchLocalization } = await signupOrganizationDefaults(request, body);
+    const { defaultAppFlags, commercialProfile, signupCountry, branchLocalization } = await signupOrganizationDefaults(request, body);
     const requestedGlobal = asObject(body.global);
     delete requestedGlobal.app_flags;
     delete requestedGlobal.feature_flags;
@@ -1025,6 +1027,7 @@ app.get("/auth/google/config", async () => ({
           report_settings: {},
           ...requestedGlobal,
           commercial_profile: commercialProfile,
+          ...(signupCountry ? { country: signupCountry } : {}),
           app_flags: defaultAppFlags
         }
       });
@@ -5111,7 +5114,9 @@ async function signupOrganizationDefaults(request: { headers?: Record<string, un
   const locale = signupLanguage(body, commercialProfile);
   const localized = commercialProfile.country !== "US" || locale !== "en-US";
   if (localized) defaultAppFlags.firstmeasure = { ...asObject(defaultAppFlags.firstmeasure), report_localization: true, metric_measurements: commercialProfile.measurement_system === "metric" };
-  return { defaultAppFlags, commercialProfile, branchLocalization: localized ? { locale } : null };
+  // The organization's country of record starts as the billing profile's country (platform/organization_country.ts).
+  const signupCountry = countryRecord(commercialProfile.country, profileCountrySource(commercialProfile.source));
+  return { defaultAppFlags, commercialProfile, signupCountry, branchLocalization: localized ? { locale } : null };
 }
 
 async function saveSignupBranchLocalization(orgId: string, localization: { locale: string } | null) {
@@ -9055,12 +9060,13 @@ async function handleAuthLegacyAction(request: FastifyRequest, reply: FastifyRep
     if (!phone) {
       return { success: false, ok: false, status_code: 400, error: "Enter a valid mobile phone number, including the country code outside the US and Canada." };
     }
-    const { defaultAppFlags, commercialProfile, branchLocalization } = await signupOrganizationDefaults(request, body);
+    const { defaultAppFlags, commercialProfile, signupCountry, branchLocalization } = await signupOrganizationDefaults(request, body);
     const registered = await withNewIdentityRegistration(cleanText(body.email), async (transaction) => {
       const organization = await createOrganization({
         name: company,
         global: {
           commercial_profile: commercialProfile,
+          ...(signupCountry ? { country: signupCountry } : {}),
           app_flags: defaultAppFlags,
           credits_balance: 0,
           credits_ledger: [],

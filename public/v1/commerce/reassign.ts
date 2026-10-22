@@ -3,6 +3,7 @@ import { badRequest, conflict } from "../platform/errors.js";
 import { records } from "../platform-billing/storage.js";
 import { commercialPolicy, profileForCountry, profileFromGlobal } from "./profile.js";
 import { countryCode } from "./regions.js";
+import { countryRecord, storedOrganizationCountry } from "../platform/organization_country.js";
 
 type JsonObject = Record<string, unknown>;
 const asObject = (value: unknown): JsonObject => value && typeof value === "object" && !Array.isArray(value) ? value as JsonObject : {};
@@ -37,6 +38,8 @@ export async function reassignCommercialProfile(orgId: string, country: unknown,
   const global = await readGlobal(orgId), data = asObject(global.data);
   const previous = profileFromGlobal(data), policy = await commercialPolicy();
   const profile = profileForCountry(code, "operator_reassigned", policy.config, policy.revision);
+  // The country of record follows unless staff set it directly (an explicit staff record is kept).
+  const countryOfRecord = storedOrganizationCountry(data)?.source === "staff" ? null : countryRecord(code, "operator", operatorEmail);
   const appFlags = asObject(data.app_flags), firstmeasure = asObject(appFlags.firstmeasure);
   const nextFlags = {
     ...appFlags,
@@ -49,7 +52,7 @@ export async function reassignCommercialProfile(orgId: string, country: unknown,
   };
   await saveGlobal(orgId, {
     expected_revision: global.revision,
-    data: { commercial_profile: profile, app_flags: nextFlags },
+    data: { commercial_profile: profile, app_flags: nextFlags, ...(countryOfRecord ? { country: countryOfRecord } : {}) },
     metadata: { commercial_profile_reassigned_by: operatorEmail, commercial_profile_reassigned_at: new Date().toISOString(), previous_commercial_profile: previous }
   });
   return { previous, profile };

@@ -843,6 +843,11 @@
                 <div class="label">Country</div>
                 <div class="value" id="detailOrgCountry">-</div>
                 <div style="font-size:11px;color:#667085;" id="detailOrgCountrySource"></div>
+                <div style="display:flex;gap:6px;margin-top:6px;align-items:center;">
+                  <select id="detailOrgCountrySelect" style="max-width:190px;font-size:12px;"><option value="">Change country…</option></select>
+                  <button class="btn-secondary" id="detailOrgCountrySave" type="button" style="font-size:12px;padding:3px 8px;" disabled>Save</button>
+                </div>
+                <div style="font-size:11px;color:#667085;" id="detailOrgCountryStatus"></div>
               </div>
               <div class="info-item">
                 <div class="label">Credit Balance</div>
@@ -1037,7 +1042,42 @@
     try { return new Intl.NumberFormat('en-US', { style:'currency', currency, maximumFractionDigits:0 }).format(parseFloat(n) || 0); }
     catch (_) { return fmtCurrency(n) + ' ' + currency; }
   }
-  const COUNTRY_SOURCE_LABELS = { signup_choice:'Chosen at signup', signup_detected:'Detected at signup', operator:'Reassigned by staff', orders:'From order properties', contact:'From company address', legacy_default:'Pre-launch account (US default)' };
+  const COUNTRY_SOURCE_LABELS = { signup_choice:'Chosen at signup', signup_detected:'Detected at signup', operator:'Billing reassigned by staff', staff:'Set by staff', orders:'From order properties', contact:'From company address', legacy_default:'Pre-launch account (US default)' };
+  let countryOptionsPromise = null;
+  /** The signup country list (the same list customers choose from). */
+  function countryOptions(){
+    countryOptionsPromise ||= fetch(`${location.origin}/v1/platform/auth/signup-options?locale=en-US`, { credentials:'omit', cache:'no-store' })
+      .then(res => res.ok ? res.json() : { countries: [] }).then(data => data.countries || []).catch(() => { countryOptionsPromise = null; return []; });
+    return countryOptionsPromise;
+  }
+  /** Staff set the country of record; pricing follows only while the org has no credit history or Stripe charges. */
+  async function bindCountryEditor(org){
+    const select = document.getElementById('detailOrgCountrySelect'), save = document.getElementById('detailOrgCountrySave'), status = document.getElementById('detailOrgCountryStatus');
+    if (!select || !save) return;
+    status.textContent = '';
+    if (select.options.length <= 1) (await countryOptions()).forEach(c => { const o = document.createElement('option'); o.value = c.code; o.textContent = `${c.name} (${c.code})`; select.appendChild(o); });
+    select.value = '';
+    save.disabled = true;
+    select.onchange = () => { save.disabled = !select.value || select.value === org.country; };
+    save.onclick = async () => {
+      const country = select.value;
+      if (!country || !window.confirm(`Set ${org.name || org.id}'s country to ${country}?`)) return;
+      save.disabled = true;
+      try {
+        const payload = { action:'org_set_country', org_id: org.id, country };
+        const data = typeof window.Portal?.apiPost === 'function'
+          ? await window.Portal.apiPost(apiServer(), payload)
+          : await fetch(apiServer(), { method:'POST', body: new URLSearchParams(payload) }).then(res => res.json());
+        if (!data || !data.success) throw new Error((data && (data.message || data.error)) || 'Could not save the country');
+        org.country = data.country.code; org.country_source = 'staff';
+        document.getElementById('detailOrgCountry').textContent = country;
+        document.getElementById('detailOrgCountrySource').textContent = COUNTRY_SOURCE_LABELS.staff;
+        status.textContent = data.billing === 'reassigned' ? 'Saved. Billing currency and prices now follow this country.'
+          : data.billing === 'locked' ? `Saved. Billing stays as it was (${data.billing_locked_reason === 'credits_ledger' ? 'credit history' : 'Stripe charges'}).`
+          : 'Saved.';
+      } catch (err) { status.textContent = err.message; save.disabled = false; }
+    };
+  }
   /** Country from the organization's commercial profile (internal/api.ts organizationCountry). */
   function countryCell(o){
     if (!o.country) return '<span style="color:#999;">-</span>';
@@ -2094,6 +2134,7 @@
     document.getElementById('detailOrgBalance').textContent = fmtBalance(org.credits_balance, org.currency);
     document.getElementById('detailOrgCountry').textContent = org.country ? `${org.country_name || org.country} (${org.country})${org.currency ? ' \u00b7 ' + org.currency : ''}` : '-';
     document.getElementById('detailOrgCountrySource').textContent = COUNTRY_SOURCE_LABELS[org.country_source] || '';
+    bindCountryEditor(org);
 
     const pairedLeadEl = document.getElementById('detailOrgPairedLead');
     const pairedLeadActionsEl = document.getElementById('detailOrgPairedLeadActions');
