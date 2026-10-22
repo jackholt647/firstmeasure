@@ -25,7 +25,7 @@ import { ZodError, z } from "zod";
 
 import { handleCommunicationsLegacyAction } from "../communications/api.js";
 import { getAppleKeyInfo, readAppleKeyStore, setAppleKey } from "../firstmeasure/apple.js";
-import { getFirstMeasureProjectIndexStatus, listIndexedProjectManifests, queryIndexedProjectManifests, readIndexedProjectManifestsByIds, rebuildFirstMeasureProjectIndex } from "../firstmeasure/project_index.js";
+import { getFirstMeasureProjectIndexStatus, listIndexedProjectManifests, queryIndexedProjectManifests, queryIndexedProjectManifestsByOrganization, readIndexedProjectManifestsByIds, rebuildFirstMeasureProjectIndex } from "../firstmeasure/project_index.js";
 import { getCurrentRushMode, listRushModes } from "../firstmeasure/rush.js";
 import { MANAGEMENT_TIME_ZONE, managementDateKey, managementDayBounds } from "../firstmeasure/reporting_time.js";
 import {
@@ -684,7 +684,7 @@ export const registerInternalApi: FastifyPluginAsync = async (app) => {
       const result = await paginatedOrganizationDashboard(query);
       return { ok: true, success: true, ...result };
     }
-    const organizations = compactOrganizationSummaries(await buildOrganizationSummaries(query));
+    const organizations = await compactOrganizationSummariesFor(query);
     return { ok: true, success: true, organizations, count: organizations.length };
   });
 
@@ -694,7 +694,7 @@ export const registerInternalApi: FastifyPluginAsync = async (app) => {
       const result = await paginatedOrganizationDashboard(query);
       return { ok: true, success: true, ...result };
     }
-    const organizations = compactOrganizationSummaries(await buildOrganizationSummaries(query));
+    const organizations = await compactOrganizationSummariesFor(query);
     const totals = organizations.reduce((acc, org) => {
       acc.credits_balance += Number(org.credits_balance || 0);
       acc.users += Number(org.user_count || 0);
@@ -3122,7 +3122,7 @@ async function handleTutorialLegacyAction(action: string, body: JsonObject, acto
 }
 
 async function buildInternalStats() {
-  const [users, organizations] = await Promise.all([listInternalUsers(), buildOrganizationSummaries({})]);
+  const [users, organizations] = await Promise.all([listInternalUsers(), compactOrganizationSummariesFor({})]);
   return {
     internal_users: users.length,
     trained_users: users.filter((user) => user.training_complete).length,
@@ -3184,6 +3184,8 @@ type OrganizationSummaryCacheEntry = {
 
 const ORGANIZATION_SUMMARY_CACHE_TTL_MS = 60_000;
 const organizationSummaryCache = new Map<string, OrganizationSummaryCacheEntry>();
+// One build per key at a time: concurrent staff requests share it instead of each loading every organization.
+const organizationSummaryInflight = new Map<string, Promise<{ organizations: JsonObject[]; totals: JsonObject }>>();
 
 type StatsCreditRevenueCacheEntry = {
   expiresAt: number;
@@ -3195,6 +3197,7 @@ const statsCreditRevenueCache = new Map<string, StatsCreditRevenueCacheEntry>();
 
 function clearOrganizationSummaryCache() {
   organizationSummaryCache.clear();
+  organizationSummaryInflight.clear();
 }
 
 function clearStatsCreditRevenueCache() {
@@ -3215,13 +3218,21 @@ async function compactCachedOrganizationSummaries(query: JsonObject) {
   if (cached && cached.expiresAt > Date.now()) {
     return { organizations: cached.organizations, totals: cached.totals, cached: true };
   }
-  const organizations = compactOrganizationSummaries(await buildOrganizationSummaries(query));
-  const totals = summarizeOrganizations(organizations);
-  organizationSummaryCache.set(key, {
-    expiresAt: Date.now() + ORGANIZATION_SUMMARY_CACHE_TTL_MS,
-    organizations,
-    totals
-  });
+  let build = organizationSummaryInflight.get(key);
+  if (!build) {
+    build = (async () => {
+      const organizations = await compactOrganizationSummariesFor(query);
+      const totals = summarizeOrganizations(organizations);
+      if (organizationSummaryInflight.get(key) === build) {
+        organizationSummaryCache.set(key, { expiresAt: Date.now() + ORGANIZATION_SUMMARY_CACHE_TTL_MS, organizations, totals });
+      }
+      return { organizations, totals };
+    })().finally(() => {
+      if (organizationSummaryInflight.get(key) === build) organizationSummaryInflight.delete(key);
+    });
+    organizationSummaryInflight.set(key, build);
+  }
+  const { organizations, totals } = await build;
   return { organizations, totals, cached: false };
 }
 
@@ -3484,11 +3495,7 @@ async function paginatedOrganizationDashboard(query: JsonObject) {
     const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
     const page = Math.min(requestedPage, totalPages);
     const pageManifests = manifests.slice((page - 1) * pageSize, page * pageSize);
-    matchingRows = compactOrganizationSummaries(await mapCustomerOrganizationsWithConcurrency(
-      pageManifests,
-      16,
-      (org) => buildOrganizationSummaryRow(org, true)
-    ));
+    matchingRows = compactOrganizationSummaries(await buildOrganizationSummaryRows(pageManifests, true));
     totals = {
       organizations: totalCount,
       test_organizations: 0,
@@ -3605,22 +3612,32 @@ async function customerUsersExportPage(body: JsonObject) {
   return { ok: true, success: true, organizations, next_cursor };
 }
 
+type OrganizationSummaryRow = Awaited<ReturnType<typeof buildOrganizationSummaryRow>>;
+
 async function buildOrganizationSummaries(query: JsonObject) {
+  return await buildOrganizationSummariesAs(query, (row) => row);
+}
+
+/**
+ * Every organization's summary row, each passed through `transform` as soon as its batch is built. Full
+ * rows carry every project, user and ledger entry; holding all 11,000+ at once exhausted the
+ * compatibility workers' heap (1M8-225), so callers that only need compact rows compact per batch.
+ */
+async function buildOrganizationSummariesAs<T>(query: JsonObject, transform: (row: OrganizationSummaryRow) => T) {
   const search = String(query.q ?? query.search ?? "").trim().toLowerCase();
   const includeCredits = query.include_credits !== false && query.include_credits !== "0";
   const includeInternal = query.include_internal === true || query.include_internal === "1" || query.include_internal === "true";
   const internalOrgId = internalPlatformOrgId();
   const orgs = await listOrganizations();
   const visibleOrgs = orgs.filter((org) => includeInternal || String(org.id ?? "").toLowerCase() !== internalOrgId);
-  const rows = await mapCustomerOrganizationsWithConcurrency(
-    visibleOrgs,
-    16,
-    (org) => buildOrganizationSummaryRow(org, includeCredits)
-  );
-  return rows.filter((row) => {
-    if (!search) return true;
-    return `${row.id} ${row.name} ${row.sales_owner_email ?? ""}`.toLowerCase().includes(search);
+  return await buildOrganizationSummaryRows(visibleOrgs, includeCredits, (row) => {
+    if (search && !`${row.id} ${row.name} ${row.sales_owner_email ?? ""}`.toLowerCase().includes(search)) return null;
+    return transform(row);
   });
+}
+
+async function compactOrganizationSummariesFor(query: JsonObject) {
+  return await buildOrganizationSummariesAs(query, compactOrganizationSummary);
 }
 
 type OrganizationSummaryPreloadedData = {
@@ -3630,7 +3647,70 @@ type OrganizationSummaryPreloadedData = {
   indexedProjectRows: Awaited<ReturnType<typeof firstMeasureProjectRowsForOrg>>;
 };
 
-async function buildOrganizationSummaryRow(
+const ORGANIZATION_SUMMARY_PRELOAD_BATCH = 250;
+
+/**
+ * Summary rows for many organizations. In PostgreSQL each batch of organizations is read with two
+ * queries instead of about eight per organization: a 200-row customer page used to queue some 1,600
+ * reads on the compatibility host's four-connection pool (1M8-225). The rows are the same as
+ * buildOrganizationSummaryRow's own reads, except that a missing global document is not seeded
+ * (a summary only needs its empty data). If a batch read fails, its organizations fall back to the
+ * per-organization reads, which already treat a failed read as empty.
+ */
+export async function buildOrganizationSummaryRows(orgs: JsonObject[], includeCredits: boolean): Promise<OrganizationSummaryRow[]>;
+export async function buildOrganizationSummaryRows<T>(orgs: JsonObject[], includeCredits: boolean, transform: (row: OrganizationSummaryRow) => T | null): Promise<T[]>;
+export async function buildOrganizationSummaryRows<T>(orgs: JsonObject[], includeCredits: boolean, transform?: (row: OrganizationSummaryRow) => T | null) {
+  const rows: Array<T | OrganizationSummaryRow> = [];
+  for (let start = 0; start < orgs.length; start += ORGANIZATION_SUMMARY_PRELOAD_BATCH) {
+    const batch = orgs.slice(start, start + ORGANIZATION_SUMMARY_PRELOAD_BATCH);
+    const preloaded = await preloadOrganizationSummaryData(batch.map((org) => String(org.id ?? ""))).catch(() => null);
+    const built = await mapCustomerOrganizationsWithConcurrency(
+      batch,
+      16,
+      (org) => buildOrganizationSummaryRow(org, includeCredits, preloaded?.get(String(org.id ?? "")))
+    );
+    for (const row of built) {
+      const kept = transform ? transform(row) : row;
+      if (kept !== null) rows.push(kept);
+    }
+  }
+  return rows;
+}
+
+async function preloadOrganizationSummaryData(orgIds: string[]) {
+  const { isFirstMeasurePostgresEnabled, queryPostgres } = await import("../src/database/postgres.js");
+  const ids = [...new Set(orgIds.filter(Boolean))];
+  if (!isFirstMeasurePostgresEnabled() || !ids.length) return null;
+  // Same rows and order as readGlobal and listDocuments, without their per-call checks. listDocuments reads
+  // platform_documents_list_idx (organization_id, collection, updated_at DESC), which returns equal
+  // timestamps in heap order; ctid breaks ties the same way, so users and projects keep their order.
+  const [documents, manifests] = await Promise.all([
+    queryPostgres<{ organization_id: string; collection: string; document: JsonObject }>(`
+      SELECT organization_id, collection, document FROM platform_documents
+      WHERE organization_id = ANY($1::text[])
+        AND (collection IN ('users', 'projects') OR (collection = 'global' AND id = 'global'))
+      ORDER BY updated_at DESC, ctid
+    `, [ids]),
+    queryIndexedProjectManifestsByOrganization(ids, { limit: 20_000, includeInstantOnly: true })
+  ]);
+  const preloaded = new Map<string, OrganizationSummaryPreloadedData>(ids.map((id) => [id, {
+    global: null as unknown as OrganizationSummaryPreloadedData["global"],
+    users: [],
+    projects: [],
+    indexedProjectRows: (manifests.get(id) ?? []).map(firstMeasureManifestOrderRow)
+  }]));
+  for (const row of documents.rows) {
+    const entry = preloaded.get(row.organization_id);
+    if (!entry) continue;
+    const document = asObject(row.document);
+    if (row.collection === "global") entry.global = document as OrganizationSummaryPreloadedData["global"];
+    else if (row.collection === "users") entry.users.push(document as OrganizationSummaryPreloadedData["users"][number]);
+    else entry.projects.push(document as OrganizationSummaryPreloadedData["projects"][number]);
+  }
+  return preloaded;
+}
+
+export async function buildOrganizationSummaryRow(
   org: JsonObject,
   includeCredits: boolean,
   preloaded?: OrganizationSummaryPreloadedData
