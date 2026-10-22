@@ -145,3 +145,14 @@ for(const view of ['2d','3d'])for(const count of [2,3,4])test(`base N previews a
  for(const p of corners.slice(0,count)){const anchor=s.nodes.find(n=>n.x===p.x&&n.y===p.y);assert.ok(s.edges.some(e=>[e.a,e.b].includes(anchor.id)&&[e.a,e.b].includes(end.id)));}
  editor.selectEntities(corners.slice(0,count),[]);editor.keyDown({key:'n'});editor.down({clientX:0,clientY:0,button:0},view);assert.ok(S.read(base).edges.every(e=>e.a!==e.b),'reusing an anchor never creates a self edge');
 });
+test('base boundary points are gold only where the boundary turns or edges meet, not along a straight edge',()=>{
+ const q=(x,y)=>({x,y,z:0}),base={faces:[{id:'left',points:[q(0,0),q(1,0),q(3,0),q(3,4),q(0,4)]},{id:'right',points:[q(3,0),q(4,0),q(4,4),q(3,4)]}]},ctx={BaseSketchGeometry:S,WallGeometry:G,WallSolidGeometry:W};ctx.window=ctx;
+ class Geometry{setFromPoints(points){this.points=points;return this;}}class Material{constructor(o){Object.assign(this,o);}}class Obj{constructor(geometry,material){Object.assign(this,{geometry,material});}}
+ ctx.THREE={BufferGeometry:Geometry,Points:Obj,Line:Obj,PointsMaterial:Material,LineBasicMaterial:Material};vm.createContext(ctx);vm.runInContext(fs.readFileSync('public/measure/internal/editor_scripts/base_sketch_editor.js','utf8'),ctx);
+ const editor=ctx.createBaseSketchEditor({base:()=>base,active:()=>true,mode:()=>'point',faceAt:()=>base.faces[0],position:e=>({x:e.clientX/100,y:e.clientY/100,z:0}),screen:p=>({x:p.x*100,y:p.y*100}),commit(){},restore:b=>Object.assign(base,b),message(){},redraw(){},isCenter:()=>false});
+ S.ensure(base);const straight=S.read(base).nodes.find(n=>n.x===1&&n.y===0).id;
+ const colour=p=>{const objects=[];editor.draw3D({add:o=>objects.push(o)},q=>q);return objects.filter(o=>o.geometry.points.length===1&&o.material.size).find(o=>Math.hypot(o.geometry.points[0].x-p.x,o.geometry.points[0].y-p.y)<1e-9)?.material.color;};
+ assert.ok(base.sketch.nodes.find(n=>n.id===straight).fixed,'the point lies on the boundary');
+ assert.equal(colour({x:1,y:0}),'#6ce4ed','a point straight along one boundary edge is not load-bearing');
+ assert.equal(colour({x:0,y:0}),'#e7ad52','a corner is load-bearing');assert.equal(colour({x:3,y:0}),'#e7ad52','a junction of three edges is load-bearing');
+});

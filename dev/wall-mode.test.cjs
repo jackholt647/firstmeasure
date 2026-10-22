@@ -479,6 +479,17 @@ test('sticker defaults persist with the finish defaults, undo, redo and survive 
  f.elements.get('wall-rebuild').onclick();const saved=f.ctx.WallMode.serialize();f.ctx.WallMode.restore('fixture',{exteriorsWalls:saved});assert.deepEqual(plain(materials.stickers()),{...F.stickerDefaults({trimColor:'#abcdef'}),...trims,garageMain:'#663322'});
 });
 
+test('opening Wall materials shows Textured and closing it restores the previous mode unless the user changed it',()=>{
+ let materials;const f=fixture(true,{ExteriorMaterials:{siding:{},unassigned:{}},WallFeatures:{mountUI:(a,b,c,m)=>materials=m,closeUI(){}}});f.ctx.activeGeometry.connections[0].type='eave';f.ctx.WallMode.setEnabled(true);f.soffits[1].onclick();
+ const mode=()=>f.ctx.WallMode.serialize().displayMode||null,toggle=f.elements.get('wall-translucency-toggle');
+ toggle.onclick();assert.equal(mode(),'opaque');
+ materials.pickerOpened();assert.equal(mode(),'textured');materials.pickerClosed();assert.equal(mode(),'opaque','closing restores the mode it replaced');
+ toggle.onclick();toggle.onclick();toggle.onclick();assert.equal(mode(),'opaque');toggle.onclick();assert.equal(mode(),'textured');
+ materials.pickerOpened();materials.pickerClosed();assert.equal(mode(),'textured','already Textured: nothing to restore');
+ toggle.onclick();toggle.onclick();assert.equal(mode(),'opaque');materials.pickerOpened();toggle.onclick();toggle.onclick();toggle.onclick();assert.equal(mode(),'textured');materials.pickerClosed();assert.equal(mode(),'textured','a manual change while open is respected, even back to Textured');
+ toggle.onclick();assert.equal(mode(),'translucent');materials.pickerOpened();toggle.onclick();assert.equal(mode(),'translucent');materials.pickerClosed();assert.equal(mode(),'translucent');
+});
+
 test('marquee releases cannot invoke the face double-click handler',()=>{
  let afterBox=true,draws=0;
  const wall={apply:w=>w,draw2D(){},draw3D(){},clear(){},consumeSelectionClick:()=>afterBox,doubleClick(){draws++;return true;}};
@@ -1084,4 +1095,25 @@ test('a reload that resumes the newer local backup resumes its own undo history,
  // A history recorded against a different backup is not trusted: the Save's history plus one recovery step, as before.
  const stale=make({localStorage:fork()});stale.ctx.WallMode.restore('fixture',{exteriorsWalls:saved},savedHistory,{...localHistory,stamp:local.savedAt-1});
  assert.equal(stale.host.state().wallEdits.value,6);stale.key('z');assert.equal(stale.host.state().wallEdits.value,3);
+});
+test('Trim mode follows the Trim menu and ends with an outside press, Escape or Resoffit, hiding points and greying ridges, hips and valleys',()=>{
+ const all={},modes=[];let trimHost,open=false,draws=0;
+ const wall={leave(){},clear(){},apply:w=>w,draw2D(){},draw3D(){draws++;},hasDraft:()=>false,busy:()=>false,setResoffitMode(){},setLineSelectMode:kind=>modes.push(kind)};
+ const trim={reset(){},finish(){},update(){},refresh:()=>[],busy:()=>false,hasSelection:()=>false,key:()=>false,pick:()=>false,clear(){open=false;trimHost.openChanged(false);}};
+ const menu=on=>{open=on;trimHost.openChanged(on);};
+ const f=fixture(true,{addEventListener:(name,fn)=>(all[name]||=[]).push(fn),createWallEditor:()=>wall,createRoofTrimEditor:h=>{trimHost=h;return trim;}});f.ctx.activeGeometry.connections[0].type='eave';f.ctx.activeGeometry.connections.push({start:f.ctx.activeGeometry.points[0],end:f.ctx.activeGeometry.points[2],type:'hip'});f.ctx.WallMode.setEnabled(true);f.soffits[1].onclick();
+ const press=inside=>{for(const fn of all.pointerdown.filter(fn=>String(fn).includes('trimMode')))fn({target:{closest:s=>inside&&s.includes('#three-view-wrapper')?{}:null}});};
+ const key=k=>{for(const fn of all.keydown.filter(fn=>String(fn).includes('roofTrimEditor?.key')))fn({key:k,target:{closest:()=>null},preventDefault(){},stopImmediatePropagation(){}});};
+ menu(true);assert.equal(modes.at(-1),'trim','opening the menu enters Trim mode');
+ press(true);assert.equal(open,true,'a press in the views selects lines and keeps the menu');
+ press(false);assert.equal(open,false,'a press outside closes the menu');assert.equal(modes.at(-1),null,'closing returns to normal selection');
+ menu(true);key('Escape');assert.equal(open,false);assert.equal(modes.at(-1),null,'Escape closes Trim');
+ menu(true);f.elements.get('wall-resoffit').onclick();assert.equal(open,false,'opening Resoffit closes Trim');assert.equal(modes.at(-1),null);
+ f.elements.get('wall-resoffit-done').onclick();
+ // The display: points hidden and untrimmable roof lines greyed while Trim is on, and restored after.
+ const {ctx}=f;ctx.THREE=require('../public/v1/node_modules/three');ctx.scene=new ctx.THREE.Scene();ctx.getVector3=p=>new ctx.THREE.Vector3(p.x,p.z,p.y);ctx.disposeObject3D=()=>{};ctx.ExteriorFinishes={roofPresentation:r=>({faces:r.faces,skylights:[]}),roofMeshes:()=>[],prepare(){}};
+ const shown=()=>{ctx.WallMode.render3D();const group=ctx.scene.children.find(o=>o.name==='exteriors-wall-preview'),objects=[];group.traverse(o=>objects.push(o));return {points:objects.filter(o=>o.isPoints),hip:objects.filter(o=>o.userData.untrimmedRoofLine),roof:objects.filter(o=>o.isLineSegments&&!o.userData.untrimmedRoofLine)};};
+ let view=shown();assert.ok(view.points.length&&view.points.every(o=>o.visible),'points draw normally');assert.equal(view.hip.length,1);const green=view.hip[0].material.color.getHexString();assert.equal(view.roof[0].material.color.getHexString(),green);
+ menu(true);view=shown();assert.ok(view.points.every(o=>!o.visible),'Trim draws no points');assert.notEqual(view.hip[0].material.color.getHexString(),green,'ridges, hips and valleys are greyed');assert.equal(view.roof[0].material.color.getHexString(),green,'other roof lines stay as they are');
+ press(false);view=shown();assert.ok(view.points.every(o=>o.visible));assert.equal(view.hip[0].material.color.getHexString(),green);
 });

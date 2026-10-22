@@ -3613,3 +3613,86 @@ test('moving a placed draft sticker snaps its centre to the wall centre',()=>{
  assert.match(f.message(),/Free on face/);const b=F.bounds(f.d().faces.find(s=>s.feature).points);
  assert.ok(Math.abs((b.left+b.right)/2-2)<1e-8&&Math.abs((b.bottom+b.top)/2-2)<1e-8,JSON.stringify(b)+' '+f.message());
 });
+// Two arched doors standing on the wall's foot, as in the garage-door report:
+// four corners each, the bottom two on the wall's base edge, and an arch
+// through one control point. The base footprint shares that edge.
+function archedDoorPairFixture(){
+ const F=require('../public/measure/internal/editor_scripts/wall_features.js'),state={wallEdits:{},base:{faces:[{id:'base',points:[{x:0,y:0,z:0},{x:0,y:4,z:0},{x:4,y:4,z:0},{x:4,y:0,z:0}]}]}};
+ const f=stickerFixture('door',[1,1.04],{state}),door=()=>f.d().faces.find(face=>face.feature),b=F.bounds(door().points),pair=[{x:b.left,y:0,z:b.top},{x:b.right,y:0,z:b.top}];
+ f.editor.restoreSelection({lineSelection:[{pair}]});f.listeners.pointermove(f.e((b.left+b.right)/2,b.top));f.editor.key({key:'a'});f.listeners.pointermove(f.e((b.left+b.right)/2,b.top+.3));f.editor.down(f.e((b.left+b.right)/2,b.top+.3));f.editor.key({key:'Enter'});
+ f.editor.restoreSelection({selectedRegion:{draft:'w',face:door().id},activeDraftKey:'w'});f.editor.clipboardCommand('copy');f.editor.clipboardCommand('paste');f.listeners.pointermove(f.e(3.05,1));f.editor.down(f.e(3.05,1));
+ const doors=()=>f.d().faces.filter(face=>face.feature&&!face.solidId).sort((a,b)=>F.bounds(a.points).left-F.bounds(b.points).left);assert.equal(doors().length,2,f.message());
+ const shape=face=>face.points.map(p=>p.x.toFixed(6)+','+p.y.toFixed(6)),shifted=(face,dx)=>face.points.map(p=>(p.x+dx).toFixed(6)+','+p.y.toFixed(6));
+ // Gold (load-bearing) points drawn on the wall's foot, by x.
+ const goldOnFoot=()=>{const objects=[];f.editor.draw3D({add:o=>objects.push(o)},p=>p);return objects.filter(o=>o.material?.color==='#e7ad52'&&o.material.size).flatMap(o=>o.geometry.points).filter(p=>Math.abs(p.z)<1e-9).map(p=>+p.x.toFixed(6));};
+ const baseNodes=()=>(f.state.wallEdits.$base||f.state.base).sketch?.nodes.length??4;
+ return {f,F,doors,shape,shifted,goldOnFoot,baseNodes};
+}
+const sortPoints=ps=>ps.map(p=>({x:p.x,z:p.z})).sort((a,b)=>a.x-b.x||a.z-b.z);
+test('all points of two arched floor doors nudge together, stay selected and leave nothing behind',()=>{
+ const {f,F,doors,shape,shifted,goldOnFoot,baseNodes}=archedDoorPairFixture(),d=f.d(),ids=d.sketch.nodes.filter(n=>n.userDraftPoint).map(n=>n.id);assert.equal(ids.length,10);
+ f.editor.restoreSelection({activeDraftKey:'w',draftSelection:{w:ids},picked:ids});
+ const start=sortPoints(f.editor.pointSelection()),originals=doors().map(face=>JSON.parse(JSON.stringify(face))),nodeCount=d.sketch.nodes.length,before=JSON.stringify(f.state.wallEdits),count=f.history.length;let total=0;
+ for(const [i,e]of [{key:'ArrowRight'},{key:'ArrowRight'},{key:'ArrowRight',shiftKey:true},{key:'ArrowRight',altKey:true},{key:'ArrowRight',nudgeCount:3}].entries()){
+  f.editor.key(e);total+=(e.altKey?.25:e.shiftKey?6:1)*(e.nudgeCount||1)*F.FT/12;assert.equal(f.history.length,count+i+1,f.message());
+  const now=sortPoints(f.editor.pointSelection());assert.equal(now.length,10,'the whole selection stays selected');
+  now.forEach((p,j)=>{assert.ok(Math.abs(p.x-start[j].x-total)<1e-7&&Math.abs(p.z-start[j].z)<1e-7,'every point moves by the same amount: '+JSON.stringify([p,start[j],total]));});
+  doors().forEach((face,j)=>{assert.deepEqual(shape(face),shifted(originals[j],total),'the door keeps its shape');assert.equal(face.curves.length,1);});
+  assert.equal(f.d().sketch.nodes.length,nodeCount,'no point is added or left behind');
+  const foot=f.d().sketch.nodes.filter(n=>Math.abs(n.y)<1e-9).map(n=>+n.x.toFixed(6)).sort((a,b)=>a-b);assert.deepEqual(foot,[0,...start.filter(p=>Math.abs(p.z)<1e-9).map(p=>+(p.x+total).toFixed(6)),4]);
+  assert.ok(!f.state.wallEdits.$surfaces?.length,'the wall draft is not polygonized');assert.equal(baseNodes(),4,'the base edge gains no points');
+  assert.deepEqual(goldOnFoot().sort((a,b)=>a-b),[0,4],'only the wall corners on its foot are load-bearing');
+ }
+ assert.equal(JSON.stringify(f.history[count]),before);
+});
+test('selected arched floor doors nudge as stickers, one or both, with their arches and openings',()=>{
+ for(const both of [false,true]){
+  const {f,F,doors,shape,shifted,baseNodes}=archedDoorPairFixture(),originals=doors().map(face=>JSON.parse(JSON.stringify(face))),nodeCount=f.d().sketch.nodes.length,before=JSON.stringify(f.state.wallEdits),count=f.history.length;
+  const refs=doors().map(face=>({draft:'w',face:face.id}));f.editor.restoreSelection(both?{selectedRegion:refs[1],faceSelection:refs,activeDraftKey:'w'}:{selectedRegion:refs[0],activeDraftKey:'w'});
+  for(let i=1;i<=3;i++){
+   f.editor.key({key:'ArrowRight'});assert.equal(f.history.length,count+i,f.message());const total=i*F.FT/12;
+   assert.deepEqual(shape(doors()[0]),shifted(originals[0],total),f.message());assert.deepEqual(shape(doors()[1]),shifted(originals[1],both?total:0));
+   const snapshot=JSON.parse(JSON.stringify(f.editor.selectionSnapshot())),selected=(both?snapshot.faceSelection:[snapshot.selectedRegion]).map(r=>r.face).sort();
+   assert.deepEqual(selected,(both?doors():[doors()[0]]).map(face=>face.id).sort(),'the sticker selection is kept');
+   assert.equal(f.d().sketch.nodes.length,nodeCount);assert.ok(!f.state.wallEdits.$surfaces?.length);assert.equal(baseNodes(),4);
+   assert.ok(doors().every(door=>Math.abs(F.bounds(door.points).bottom)<1e-9),'doors stay on the wall foot');
+  }
+  assert.equal(JSON.stringify(f.history[count]),before);
+ }
+});
+test('selected points of stored arched floor doors translate together and leave the base edge clean',()=>{
+ const K=require('../public/measure/internal/editor_scripts/exterior_geometry.js'),W=require('../public/measure/internal/editor_scripts/wall_solid_geometry.js'),p=(x,z)=>({x,y:0,z});
+ const arch=(x,id)=>K.archFaces([{id,feature:{type:'garage',axis:p(1,0)},points:[p(x,0),p(x+2,0),p(x+2,2),p(x,2)],holes:[]}],{...K.splineThrough([p(x,2),p(x+2,2)],[p(x+1,2.4)],{x:0,y:1,z:0}),id}).faces[0],doors=[arch(1,'d1'),arch(5,'d2')];
+ const base={faces:[{id:'base',points:[{x:0,y:0,z:0},{x:0,y:6,z:0},{x:8,y:6,z:0},{x:8,y:0,z:0}]}]},state={base,wallEdits:{$surfaces:[{id:'wall',points:[p(0,0),p(8,0),p(8,6),p(0,6)],holes:doors.map(d=>d.points)},...doors]}},f=fixture({state,walls:[],selected:null,globals:renderGlobals()});
+ const selected=doors.flatMap(d=>d.points.filter(q=>!K.curveSamplePoint(d)(q)));assert.equal(selected.length,10);f.editor.restoreSelection({solidPoints:selected.map(W.vertexKey)});
+ const start=sortPoints(selected),baseBefore=JSON.stringify(base.faces);
+ for(let i=1;i<=3;i++){
+  f.editor.key({key:'ArrowRight'});assert.equal(f.history.length,i,f.message());const total=i*.0254,now=sortPoints(f.editor.pointSelection());assert.equal(now.length,10);
+  now.forEach((q,j)=>assert.ok(Math.abs(q.x-start[j].x-total)<1e-7&&Math.abs(q.z-start[j].z)<1e-7,JSON.stringify([q,start[j]])));
+  const live=state.wallEdits.$surfaces.filter(s=>!s.deleted&&!s.drafted);
+  for(const door of doors){const moved=live.find(s=>s.feature&&Math.abs(Math.min(...s.points.map(q=>q.x))-Math.min(...door.points.map(q=>q.x))-total)<1e-7);assert.ok(moved,'door moved as a whole');assert.equal(moved.points.length,door.points.length);}
+  const foot=live.filter(s=>!s.feature).flatMap(s=>s.points).filter(q=>Math.abs(q.z)<1e-9).map(q=>+q.x.toFixed(6));assert.deepEqual([...new Set(foot)].sort((a,b)=>a-b),[0,1,3,5,7,8].map(x=>[0,8].includes(x)?x:+(x+total).toFixed(6)),'the wall foot has no point at a former door corner');
+  assert.equal(JSON.stringify(state.wallEdits.$base?.faces||base.faces),baseBefore,'the base footprint is not edited');
+ }
+});
+test('a door corner sliding along the wall foot does not split the base edge',()=>{
+ const {f,baseNodes}=archedDoorPairFixture(),d=f.d(),ids=d.sketch.nodes.filter(n=>n.userDraftPoint&&n.fixed).slice(0,2).map(n=>n.id);
+ f.editor.restoreSelection({activeDraftKey:'w',draftSelection:{w:ids},picked:ids});for(let i=0;i<3;i++){f.editor.key({key:'ArrowRight'});assert.equal(f.editor.pointSelection().length,2,f.message());}
+ assert.equal(baseNodes(),4,'no base point is inserted or left behind');
+});
+test('Trim line mode selects every line but roof ridges, hips and valleys, by click or box, and shows and picks no points',()=>{
+ const p=(x,y,z)=>({x,y,z}),roof={faces:[],points:[p(4,0,0),p(4,0,4),p(0,0,4),p(4,0,4)],connections:[{startIdx:0,endIdx:1,type:'valley'},{startIdx:2,endIdx:3,type:'eave'}]};
+ const f=fixture({state:{roof,wallEdits:{}},globals:{...renderGlobals(),WallResoffit:{candidates:()=>[]}}}),snapshot=()=>JSON.parse(JSON.stringify(f.editor.selectionSnapshot()));
+ f.editor.doubleClick(f.e(2,0),f.w);assert.equal(f.editor.pointSelection().length,1);
+ f.editor.setLineSelectMode('trim');assert.equal(f.editor.lineSelectMode(),'trim');assert.equal(f.editor.pointSelection().length,0,'Trim holds no hidden point selection');
+ assert.equal(f.editor.pickPoint(f.e(2,0)),false,'points cannot be picked');assert.equal(f.editor.pickVisiblePoint(f.e(2,0)),false);
+ const objects=[];f.editor.draw3D({add:o=>objects.push(o)},q=>q);assert.ok(!objects.some(o=>o.material?.size&&!o.userData?.lineCenters&&!o.userData?.faceCenter),'no selectable points are drawn');
+ assert.equal(f.editor.pickLine3D(f.e(1,4)),true);f.listeners.pointerup(f.e(1,4));assert.equal(snapshot().lineSelection.length,1,f.message());
+ const vertical=pair=>Math.abs(pair[0].x-pair[1].x)<1e-9,at=x=>pair=>vertical(pair)&&Math.abs(pair[0].x-x)<1e-9;
+ assert.equal(f.editor.pickLine3D(f.e(4,2)),true,'a press on a valley starts a box instead');f.listeners.pointerup(f.e(4,2));assert.ok(!snapshot().lineSelection.some(l=>at(4)(l.pair)),'the valley is not selectable');
+ assert.equal(f.editor.pickLine3D(f.e(-1,-1)),true);f.listeners.pointermove(f.e(5,5));f.listeners.pointerup(f.e(5,5));
+ const boxed=snapshot().lineSelection.map(l=>l.pair);assert.ok(boxed.some(at(0))&&boxed.some(pair=>!vertical(pair)&&pair[0].z===0)&&boxed.some(pair=>!vertical(pair)&&pair[0].z===4),JSON.stringify(boxed));assert.ok(!boxed.some(at(4)),'the box skips the valley');
+ assert.equal(f.editor.pickLine3D({...f.e(-1,-1),ctrlKey:true}),true);f.listeners.pointermove({...f.e(.5,5),ctrlKey:true});f.listeners.pointerup({...f.e(.5,5),ctrlKey:true});assert.ok(!snapshot().lineSelection.some(l=>at(0)(l.pair)),'Ctrl box removes touched lines');assert.ok(snapshot().lineSelection.length>0);
+ f.editor.setResoffitMode(false);f.editor.clear();assert.equal(f.editor.lineSelectMode(),'trim','only the Trim menu ends Trim mode');
+ f.editor.setLineSelectMode(null);assert.equal(f.editor.lineSelectMode(),null);assert.ok(f.editor.pickPoint(f.e(2,0)),'points pick again after Trim');
+});

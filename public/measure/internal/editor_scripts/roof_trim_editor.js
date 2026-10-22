@@ -1,7 +1,7 @@
 /* Editable roof fascia for wall mode. */
 (function(root){'use strict';
 root.createRoofTrimEditor=function(host){
- let selected=new Set(),panels=[],before=null,buffer='',control=null,input=null,count=null,open=false;
+ let selected=new Set(),panels=[],before=null,buffer='',control=null,input=null,count=null,open=false,announced=false;
  let openingType=null;let materialIds=[],materialSignature='';const materialChoices=new Map();
  const chosenMaterials=()=>materialIds.filter(id=>materialChoices.get(id));
  const copy=o=>JSON.parse(JSON.stringify(o||{}));
@@ -38,7 +38,8 @@ root.createRoofTrimEditor=function(host){
   if(signature!==materialSignature){materialSignature=signature;grid.replaceChildren();for(const id of ids){const def=root.ExteriorMaterials?.[id],button=document.createElement('button');button.type='button';button.dataset.material=id;button.textContent=def?.label||id;button.style.setProperty('--material-color',def?.color||'#c1ccd5');button.onclick=()=>{materialChoices.set(id,!materialChoices.get(id));refreshMaterials();};grid.appendChild(button);}}
   for(const button of grid.querySelectorAll('button'))button.setAttribute('aria-pressed',String(materialChoices.get(button.dataset.material)));
  }
- function update(){mount();if(!control)return;if(open){refreshMaterials();refreshOpenings();}
+ // The host follows the menu: while it is open, the views select lines for trim.
+ function update(){if(announced!==open){announced=open;host.openChanged?.(open);}mount();if(!control)return;if(open){refreshMaterials();refreshOpenings();}
 control.hidden=!(host.enabled?.()??host.visible());control.style.display=control.hidden?'none':'flex';control.querySelector('#roof-trim-options').hidden=!open;control.querySelector('#roof-trim-tool').setAttribute('aria-pressed',String(open));count.textContent=selected.size+' roof trim '+(selected.size===1?'side':'sides');const heights=panels.filter(p=>selected.has(p.id)).map(p=>p.height/root.RoofTrim.INCH),same=heights.every(h=>Math.abs(h-heights[0])<1e-6);if(document.activeElement!==input){input.value=buffer||(same&&heights.length?String(Math.round(toInput(heights[0])*1000)/1000):'');input.placeholder=same?'':'Mixed';}input.disabled=!selected.size;for(const id of ['roof-trim-six','roof-trim-eight'])control.querySelector('#'+id).disabled=!selected.size;}
  function refresh(roof){panels=root.RoofTrim.panels(roof,host.settings());selected=new Set([...selected].filter(id=>panels.some(p=>p.id===id)));update();return panels;}
  function clear(){openingType=null;selected.clear();buffer='';open=false;update();host.redraw();}

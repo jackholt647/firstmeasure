@@ -47,3 +47,11 @@ test('roof fascia wins coplanar depth ties without offsetting measured or picked
 });
 
 test('roof trim is absent by default and eaves/rakes retain separate classifications',()=>{const panels=R.panels(roof);assert.ok(panels.every(p=>p.deleted&&p.height===0));assert.equal(panels.filter(p=>p.type==='eave').length,2);assert.equal(panels.filter(p=>p.type==='rake').length,4);});
+test('the Trim menu tells its host when it opens and closes',()=>{
+ const vm=require('node:vm'),fs=require('node:fs'),nodes=new Map(),changes=[];
+ const element=()=>({style:{setProperty(){}},dataset:{},children:[],replaceChildren(){this.children=[];},appendChild(n){this.children.push(n);},value:'',hidden:false,addEventListener(){},setAttribute(){},focus(){},blur(){},querySelector:q=>nodes.get(q.slice(1)),querySelectorAll(){return this.children;},set innerHTML(html){for(const m of html.matchAll(/<(?:button|input|select|span|section|div)[^>]*id="([^"]+)"[^>]*>/g)){const n=element();n.value=m[0].match(/value="([^"]+)"/)?.[1]||'';nodes.set(m[1],n);}},get parentElement(){return parent;}}),parent={insertBefore(node){nodes.set(node.id,node);}};
+ const ctx={RoofTrim:R,WallTrim:require('../public/measure/internal/editor_scripts/wall_trim.js'),document:{querySelector:()=>parent,createElement:element,head:{appendChild(){}},getElementById:()=>null}},settings={};ctx.window=ctx;vm.createContext(ctx);vm.runInContext(fs.readFileSync('public/measure/internal/editor_scripts/roof_trim_editor.js','utf8'),ctx);
+ const editor=ctx.createRoofTrimEditor({settings:()=>settings,enabled:()=>true,visible:()=>true,redraw(){},wallMaterials:()=>[],applyWallTrim(){},openChanged:open=>changes.push(open)});editor.refresh(roof);
+ nodes.get('roof-trim-tool').onclick();assert.deepEqual(changes,[true]);nodes.get('wall-trim-apply').onclick();editor.update();assert.deepEqual(changes,[true],'applying keeps the menu open');
+ nodes.get('roof-trim-tool').onclick();assert.deepEqual(changes,[true,false]);nodes.get('roof-trim-tool').onclick();editor.clear();assert.deepEqual(changes,[true,false,true,false]);
+});

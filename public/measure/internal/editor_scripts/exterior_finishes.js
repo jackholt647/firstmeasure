@@ -210,7 +210,54 @@ function doorNormalMap(outline,type,rectangle){
  for(const [k,old]of doorMaps){if(doorMaps.size<=48)break;doorMaps.delete(k);old.dispose();}
  return t;
 }
+// Stone and masonry have no photo set, so they get seeded procedural maps in natural colour (the photo brick stays
+// brick). size is one tile in metres; wall UVs run in 2 ft units, so the map repeats at 0.6096/size.
+const wallTiles={stone:{size:[1.2192,1.2192],description:'Fieldstone: irregular rubble, about 20-35 cm stones, recessed mortar'},masonry:{size:[1.2192,.6096],description:'CMU block: 16 x 8 in units, running bond, 3/8 in mortar'}};
+function wallCanvas(type){
+ const spec=wallTiles[type];if(!spec)return null;const ppm=420,W=Math.round(spec.size[0]*ppm),H=Math.round(spec.size[1]*ppm),canvas=document.createElement('canvas');canvas.width=W;canvas.height=H;const c=canvas.getContext('2d');
+ let seed=[...('wall'+type)].reduce((s,ch)=>s*31+ch.charCodeAt(0)|0,17);const rnd=()=>{seed=seed+0x6D2B79F5|0;let t=Math.imul(seed^seed>>>15,1|seed);t=t+Math.imul(t^t>>>7,61|t)^t;return ((t^t>>>14)>>>0)/4294967296;};
+ const image=c.createImageData?.(W,H);if(!image?.data){c.fillStyle=type==='stone'?'#8f8a80':'#b9b6ae';c.fillRect(0,0,W,H);return canvas;}
+ const px=image.data,put=(i,r,g,b)=>{px[i]=Math.max(0,Math.min(255,r));px[i+1]=Math.max(0,Math.min(255,g));px[i+2]=Math.max(0,Math.min(255,b));px[i+3]=255;};
+ if(type==='stone'){
+  // Voronoi rubble on a torus (seamless): each cell a stone with its own warm-grey tone, mortar between cells.
+  const n=5,cells=[],cw=W/n,ch=H/n;for(let j=0;j<n;j++)for(let i=0;i<n;i++){const tone=.42+rnd()*.3,warm=rnd()*.12-.04;cells.push({x:(i+.15+rnd()*.7)*cw,y:(j+.15+rnd()*.7)*ch,i,j,r:tone+warm,g:tone+warm*.4,b:tone-warm*.6,grain:rnd()*1000});}
+  const mortar=.011*ppm,noise=(x,y,s)=>{const v=Math.sin(x*12.9898+y*78.233+s)*43758.5453;return v-Math.floor(v);};
+  for(let y=0;y<H;y++)for(let x=0;x<W;x++){
+   const ci=Math.floor(x/cw),cj=Math.floor(y/ch);let d1=Infinity,d2=Infinity,best=null;
+   for(let dj=-2;dj<=2;dj++)for(let di=-2;di<=2;di++){const cell=cells[((cj+dj+n)%n)*n+((ci+di+n)%n)],ox=Math.floor((ci+di)/n)*W,oy=Math.floor((cj+dj)/n)*H,dx=cell.x+ox-x,dy=cell.y+oy-y,d=Math.sqrt(dx*dx+dy*dy);if(d<d1){d2=d1;d1=d;best=cell;}else if(d<d2)d2=d;}
+   const edge=(d2-d1)/2,i=(y*W+x)*4;
+   if(edge<mortar/2){const m=150+noise(x,y,3)*25;put(i,m,m-4,m-10);continue;}
+   const bevel=Math.min(1,(edge-mortar/2)/(mortar*1.6)),shade=.72+.28*bevel,fleck=(noise(x,y,best.grain)-.5)*.12,k=255*shade;
+   put(i,(best.r+fleck)*k,(best.g+fleck)*k,(best.b+fleck)*k);
+  }
+ }else{
+  // CMU: 16 x 8 in blocks in running bond with thin recessed mortar; concrete pores, slight per-block tone.
+  const bw=.4064*ppm,bh=.2032*ppm,mortar=Math.max(2,Math.round(.0095*ppm)),rows=Math.round(H/bh),cols=Math.round(W/bw),tones=[];for(let k=0;k<rows*cols;k++)tones.push(.68+rnd()*.1);
+  for(let y=0;y<H;y++){const row=Math.floor(y/bh)%rows,yy=y-row*bh,offset=row%2?bw/2:0;for(let x=0;x<W;x++){
+   const sx=(x+offset)%W,col=Math.floor(sx/bw)%cols,xx=sx-col*bw,i=(y*W+x)*4,joint=Math.min(xx,bw-xx,yy,bh-yy);
+   if(joint<mortar/2){put(i,128,126,121);continue;}
+   const tone=tones[row*cols+col]*(joint<mortar*1.5?.9:1),pore=rnd()<.05?-.12:(rnd()-.5)*.05,k=255*(tone+pore);put(i,k,k-1,k-4);
+  }}
+ }
+ c.putImageData(image,0,0);return canvas;
+}
+const wallMaps=new Map(),wallNormals=new Map(),wallMeans=new Map();
+function wallTexture(type){
+ if(!wallTiles[type])return null;if(!wallMaps.has(type)){const t=srgb(new THREE.CanvasTexture(wallCanvas(type))),s=wallTiles[type].size;t.wrapS=t.wrapT=THREE.RepeatWrapping;t.repeat.set(.6096/s[0],.6096/s[1]);t.anisotropy=8;t.userData||={};t.userData.wallType=type;wallMaps.set(type,t);}return wallMaps.get(type);
+}
+function wallNormalMap(type){
+ if(!wallTiles[type])return null;if(!wallNormals.has(type)){const map=wallTexture(type),t=normalFromCanvas(map.image,type==='stone'?5:3);if(t)t.repeat.copy(map.repeat);wallNormals.set(type,t);}return wallNormals.get(type);
+}
+// Mean albedo in linear light and the mean paint-grain factor (see ExteriorRendered), for chimney caps.
+function wallTextureMean(type){
+ if(!wallTiles[type])return null;if(wallMeans.has(type))return wallMeans.get(type);
+ const canvas=wallTexture(type).image,read=canvas.getContext?.('2d')?.getImageData?.(0,0,canvas.width,canvas.height);if(!read?.data)return null;
+ const lin=v=>{v/=255;return v<=.04045?v/12.92:((v+.055)/1.055)**2.4;},sum=[0,0,0];let grain=0,n=0;
+ for(let i=0;i<read.data.length;i+=4){const r=lin(read.data[i]),g=lin(read.data[i+1]),b=lin(read.data[i+2]);sum[0]+=r;sum[1]+=g;sum[2]+=b;grain+=.82+.24*Math.min(1,Math.max(0,(.2126*r+.7152*g+.0722*b)*2));n++;}
+ const mean={linear:sum.map(v=>v/n),grain:grain/n};wallMeans.set(type,mean);return mean;
+}
 function texture(type){
+ if(wallTiles[type])return wallTexture(type);
  if(cache.has(type))return cache.get(type);
  const canvas=document.createElement('canvas');canvas.width=canvas.height=256;const c=canvas.getContext('2d');
  c.fillStyle='#eee';c.fillRect(0,0,256,256);
@@ -394,5 +441,5 @@ function apply(mesh,material){
  const n=finish.normal;if(n)material.color.multiplyScalar(.78+.22*Math.abs(n.x*.37+n.y*.53+n.z*.76));
  material.map=['unassigned','chimney-top'].includes(resolved.material)?null:resolved.material==='shingles'?(finish.roofCap?roofCapTexture(resolved.category):roofTexture(resolved.category)):texture(resolved.material);
 }
-root.ExteriorFinishes={prepare,apply,reset,resolve,defaults,roofMeshes,roofSkylights,roofPresentation,skylightMesh,roofMaterials,roofDefault,resolveRoof,roofCanvas,roofTexture,roofNormalMap,roofCapSpecs,roofCapCanvas,roofCapTexture,roofCapNormalMap,roofCapGeometry,roofCaps,doorFinishes,doorInset,doorNormalMap,stickerPieces,stickerKind,stickerDefaults,stickerColor,stickerTrimOwnColor};
+root.ExteriorFinishes={prepare,apply,reset,resolve,defaults,roofMeshes,roofSkylights,roofPresentation,skylightMesh,roofMaterials,roofDefault,resolveRoof,roofCanvas,roofTexture,roofNormalMap,roofCapSpecs,roofCapCanvas,roofCapTexture,roofCapNormalMap,roofCapGeometry,roofCaps,doorFinishes,doorInset,doorNormalMap,stickerPieces,stickerKind,stickerDefaults,stickerColor,stickerTrimOwnColor,wallTiles,wallCanvas,wallTexture,wallNormalMap,wallTextureMean};
 })(window);

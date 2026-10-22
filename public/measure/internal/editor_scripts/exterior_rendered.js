@@ -47,7 +47,7 @@ const PACK_MEANS={brick:{linear:[.1402,.0776,.0516],grain:.8627},siding:{linear:
 // when its map is unavailable (the material is then drawn untextured in that color too).
 function averageFinishColor(finish){
  const f=root.ExteriorFinishes.resolve(finish),type=f.material;if(['unassigned','chimney-top','shingles'].includes(type))return color(f.color);
- const name=packName(type),mean=PACK_MEANS[name];if(!mean||errors.has(name+'-albedo.jpg'))return color(f.color);
+ const name=packName(type),procedural=!!root.ExteriorFinishes.wallTiles?.[type],mean=procedural?root.ExteriorFinishes.wallTextureMean(type):PACK_MEANS[name];if(!mean||(!procedural&&errors.has(name+'-albedo.jpg')))return color(f.color);
  if(['brick','masonry','stone'].includes(type)&&!finish.color)return new THREE.Color(...mean.linear);
  return color(f.color).multiplyScalar(mean.grain*(type.startsWith('siding')?.97:1));
 }
@@ -79,7 +79,8 @@ function materialFor(finish,base,context){
  const c=base?(finish.color||'#b3afa7'):natural?'#ffffff':f.color;
  const m=new THREE.MeshStandardMaterial({color:color(c),roughness:.82,metalness:0,side:THREE.DoubleSide,envMapIntensity:.7});
  if(!['unassigned','chimney-top'].includes(type)&&!base){
-  const maps=pack(name);Object.assign(m,maps);m.aoMap=maps.roughnessMap;m.aoMapIntensity=.4;m.normalScale=new THREE.Vector2(name==='siding'?.22:.6,name==='siding'?.22:.6);
+  // Stone and masonry use their own procedural maps; the photo packs cover brick, siding, plaster and wood.
+  const own=root.ExteriorFinishes.wallTexture?.(type),maps=own?{map:own,normalMap:root.ExteriorFinishes.wallNormalMap(type)}:pack(name);Object.assign(m,maps);m.aoMap=maps.roughnessMap||null;m.aoMapIntensity=.4;m.normalScale=new THREE.Vector2(name==='siding'?.22:.6,name==='siding'?.22:.6);
   const siding=type.startsWith('siding'),roof=type==='shingles',vertical=type.includes('vertical');
   // Neutralize scanned paint/wood color so the project's chosen finish remains authoritative.
   // Real grain and roughness remain; siding and asphalt receive correctly scaled course joints.

@@ -22,8 +22,10 @@
     const surfaceModes=()=>window.FIRSTMEASURE_MATCH_TEXTURED===true?['translucent','opaque','textured','match-textured']:['translucent','opaque','textured'];
     const surfaceMode=()=>groundEditor?.sampling?.()?'translucent':state?.displayMode==='rendered'?'textured':state?.displayMode||(state?.translucent===false?'opaque':'translucent');
     const surfaceLabel=mode=>mode==='match-textured'?'Match textured':mode[0].toUpperCase()+mode.slice(1);
-    let resoffitMode=false,drivenSoffits=true,autoParapets=true,closedSoffits=false;
+    let resoffitMode=false,trimMode=false,drivenSoffits=true,autoParapets=true,closedSoffits=false;
     function closeResoffit(){resoffitMode=false;wallEditor?.setResoffitMode?.(false);const menu=document.getElementById('wall-resoffit-menu'),button=document.getElementById('wall-resoffit');if(menu)menu.hidden=true;if(button){button.setAttribute('aria-expanded','false');button.setAttribute('aria-pressed','false');}}
+    // Trim mode lasts while the Trim menu is open: the views select lines for trim.
+    function setTrimMode(on){on=!!on;if(on===trimMode)return;trimMode=on;if(on&&resoffitMode)closeResoffit();wallEditor?.setLineSelectMode?.(on?'trim':resoffitMode?'resoffit':null);requestEditorRender(true);}
     let gapHighlights=true,gapCacheKey='',gapCache=[];
     let enabled=false, roofVisible=true, state=null, projectId='', stage=1, selected=null, group3D=null, lastScene=null;
     let clearedAt=0;
@@ -659,11 +661,12 @@ function perf_render3DFrame() {
         if(!enabled){syncVisibility();return;}
         if(roofTrimGroup){roofTrimGroup.parent?.remove(roofTrimGroup);disposeObject3D(roofTrimGroup);roofTrimGroup=null;}
         const vector=p=>getVector3(toPixel(p));
-        const addLines=(points,connections,color)=>{const vertices=[];for(const c of connections){for(const i of [c.startIdx,c.endIdx]){const v=vector(points[i]);vertices.push(v.x,v.y,v.z);}}const geo=new THREE.BufferGeometry();geo.setAttribute('position',new THREE.Float32BufferAttribute(vertices,3));const obj=new THREE.LineSegments(geo,new THREE.LineBasicMaterial({color,depthTest:false,transparent:true,opacity:.95}));obj.renderOrder=10;group3D.add(obj);};
+        const addLines=(points,connections,color,userData=null)=>{const vertices=[];for(const c of connections){for(const i of [c.startIdx,c.endIdx]){const v=vector(points[i]);vertices.push(v.x,v.y,v.z);}}const geo=new THREE.BufferGeometry();geo.setAttribute('position',new THREE.Float32BufferAttribute(vertices,3));const obj=new THREE.LineSegments(geo,new THREE.LineBasicMaterial({color,depthTest:false,transparent:true,opacity:.95}));if(userData)Object.assign(obj.userData,userData);obj.renderOrder=10;group3D.add(obj);};
         let roof=state?.roof;
         if(!roof){try{const c=captureRoof();roof=c.roof;sourceContext=c.context;}catch(e){syncVisibility();return;}}
         if(roofVisible){
-            addLines(roof.points,roof.connections,GREEN);
+            // Ridges, hips and valleys take no trim; Trim mode greys them out.
+            const untrimmed=c=>['ridge','hip','valley'].includes(c.type);addLines(roof.points,roof.connections.filter(c=>!untrimmed(c)),GREEN);addLines(roof.points,roof.connections.filter(untrimmed),GREEN,{untrimmedRoofLine:true});
             const textured=['textured','match-textured'].includes(surfaceMode()),visibleRoof=window.WallChimneys?.roofWithOpenings(state)||roof;
             const presentation=textured?window.ExteriorFinishes.roofPresentation(visibleRoof):{faces:visibleRoof.faces,skylights:[]};
             presentation.faces.forEach((f,index)=>renderChunk('roof:'+index,f,group3D,target=>{for(const mesh of window.ExteriorFinishes.roofMeshes(f,vector,textured))target.add(mesh);}));
@@ -693,20 +696,29 @@ function perf_render3DFrame() {
         roofTrimEditor?.update();groundEditor?.draw3D(group3D,vector);baseEditor?.draw3D(group3D,vector);wallEditor?.draw3D(group3D,vector);window.ExteriorDistanceInput?.render(wallEditor?.distanceInput()||baseEditor?.distanceInput());
         if(wallsVisible&&gapHighlights&&stage>=2){const points=[],connections=[];for(const gap of currentGaps()){const i=points.length;points.push(gap.bottom,gap.top);connections.push({startIdx:i,endIdx:i+1});}addLines(points,connections,GAP_COLOR);}
         window.exteriorSurfaceDisplay?.(group3D,surfaceMode());
-        applyPlaneDisplay(group3D,vector);applyResoffitDisplay(group3D);
+        applyPlaneDisplay(group3D,vector);applyLineSelectDisplay(group3D);
         syncVisibility();
     }
-    // Resoffit: only roof-contact lines and the selection stay bright, so the mode is obvious and the lines easy to pick.
-    // Dim with a copy of each material, keeping the original, since some scene parts survive between redraws.
-    let resoffitDimmed=false;
-    function applyResoffitDisplay(group){
-        if(!resoffitMode&&!resoffitDimmed)return;resoffitDimmed=resoffitMode;
-        group.traverse(o=>{if(!o.material)return;const original=o.userData.resoffitOriginal;
-            if(!resoffitMode||o.userData.exteriorSoffit||o.userData.exteriorSelection||o.userData.planeGuide){if(original){o.material=original;delete o.userData.resoffitOriginal;}return;}
-            const base=original||o.material;o.userData.resoffitOriginal=base;
-            o.material=Array.isArray(base)?base.map(dim):dim(base);
+    // Line selection modes show what cannot be selected differently:
+    // Resoffit keeps only roof-contact lines and the selection bright, so the mode is obvious and the lines easy to pick;
+    // Trim dims nothing, greys the roof lines that take no trim and hides every point, since trim goes on lines.
+    const lineSelectDisplays={
+        resoffit:{points:true,muted:o=>!(o.userData.exteriorSoffit||o.userData.exteriorSelection||o.userData.planeGuide),mute:dim},
+        trim:{points:false,muted:o=>!!o.userData.untrimmedRoofLine,mute:grey}
+    };
+    // Change a copy of each material, keeping the original, since some scene parts survive between redraws.
+    let lineSelectShown=null;
+    function applyLineSelectDisplay(group){
+        const mode=resoffitMode?'resoffit':trimMode?'trim':null,display=lineSelectDisplays[mode];if(!mode&&!lineSelectShown)return;lineSelectShown=mode;
+        group.traverse(o=>{
+            if(o.isPoints&&display?.points===false){if(o.visible!==false){o.visible=false;o.userData.lineSelectHidden=true;}}else if(o.userData?.lineSelectHidden){o.visible=true;delete o.userData.lineSelectHidden;}
+            if(!o.material)return;const original=o.userData.lineSelectOriginal;
+            if(!display||!display.muted(o)){if(original){o.material=original;delete o.userData.lineSelectOriginal;}return;}
+            const base=original||o.material;o.userData.lineSelectOriginal=base;
+            o.material=Array.isArray(base)?base.map(display.mute):display.mute(base);
         });
     }
+    function grey(material){const m=material.clone();m.color?.set?.('#6f767d');m.transparent=true;m.opacity=material.opacity*.6;return m;}
     function dim(material){const m=material.clone();m.transparent=true;m.opacity=material.opacity*.12;m.depthWrite=false;return m;}
     function applyPlaneDisplay(group,vector){
         const view=wallEditor?.planeView?.();if(!view||view.display==='normal')return;
@@ -852,7 +864,7 @@ function perf_render3DFrame() {
         resoffitControl.innerHTML='<button id="wall-resoffit" aria-expanded="false" aria-pressed="false" title="Change the depth of selected roof-contact soffits">Resoffit</button><div id="wall-resoffit-menu" hidden><p>Select red-orange roof-contact lines. Click to add or remove; then Apply.</p><label>Soffit depth (ft)<input id="wall-resoffit-depth" type="number" min="0" max="16" step="any" value="2"></label><div id="wall-resoffit-presets"><button data-resoffit="0">0</button><button data-resoffit="0.5">½ ft</button><button data-resoffit="1">1 ft</button><button data-resoffit="1.5">1½ ft</button><button data-resoffit="2">2 ft</button><button data-resoffit="wallless" title="Keep the roof, remove selected walls and continue adjoining walls where supported">Wallless</button></div><p id="wall-resoffit-count" role="status"></p><button id="wall-resoffit-apply">Apply</button><button id="wall-resoffit-done">Done</button><p id="wall-resoffit-result" role="status"></p></div>';
         panel.appendChild(resoffitControl);
         const resoffitButton=document.getElementById('wall-resoffit'),resoffitMenu=document.getElementById('wall-resoffit-menu');
-        function setResoffit(on){resoffitMode=!!on;wallEditor?.setResoffitMode?.(resoffitMode);resoffitMenu.hidden=!resoffitMode;resoffitButton.setAttribute('aria-expanded',String(resoffitMode));resoffitButton.setAttribute('aria-pressed',String(resoffitMode));if(on){document.getElementById('wall-resoffit-result').textContent='';setLayer('walls',true);document.getElementById('base-status').textContent='Select red-orange soffit lines, then choose a depth and Apply.';}}
+        function setResoffit(on){if(on&&trimMode)roofTrimEditor?.clear();resoffitMode=!!on;wallEditor?.setResoffitMode?.(resoffitMode);resoffitMenu.hidden=!resoffitMode;resoffitButton.setAttribute('aria-expanded',String(resoffitMode));resoffitButton.setAttribute('aria-pressed',String(resoffitMode));if(on){document.getElementById('wall-resoffit-result').textContent='';setLayer('walls',true);document.getElementById('base-status').textContent='Select red-orange soffit lines, then choose a depth and Apply.';}}
         resoffitButton.onclick=()=>{if(!state)return;if(!resoffitMode&&(wallEditor?.busy()||baseEditor?.busy())){status.textContent='Finish the current edit before resoffiting.';return;}setResoffit(!resoffitMode);};
         document.getElementById('wall-resoffit-done').onclick=()=>setResoffit(false);
         const resoffitDepth=document.getElementById('wall-resoffit-depth'),resoffitPresets=[...resoffitMenu.querySelectorAll('[data-resoffit]')];
@@ -865,6 +877,8 @@ function perf_render3DFrame() {
         // While Resoffit is open the views select roof-contact lines (click or box), so presses there keep it open;
         // Done, the Resoffit button, a successful Apply, Escape or a press elsewhere in the toolbars closes it.
         window.addEventListener('pointerdown',e=>{if(!resoffitMode||e.target.closest?.('#wall-resoffit-control,#axis-gizmo-container,#resource-3d-controls,.controls-3d-actions,#three-view-wrapper,#viewport'))return;setResoffit(false);},true);
+        // Trim works the same way: presses in the views select lines; a press anywhere else closes the menu.
+        window.addEventListener('pointerdown',e=>{if(!trimMode||e.target.closest?.('#roof-trim-control,#axis-gizmo-container,#resource-3d-controls,.controls-3d-actions,#three-view-wrapper,#viewport'))return;roofTrimEditor?.clear();},true);
         window.mountExteriorToolbar?.();
         menu=document.getElementById('wall-soffit-menu');badge=document.getElementById('wall-stage-label');status=document.getElementById('wall-status');details=document.getElementById('wall-details');warning=document.getElementById('wall-warning');stageButtons=[...panel.querySelectorAll('[data-stage]')];
         document.getElementById('wall-auto').onclick=e=>{menu.hidden=!menu.hidden;e.currentTarget.setAttribute('aria-expanded',String(!menu.hidden));};
@@ -886,7 +900,9 @@ function perf_render3DFrame() {
         document.getElementById('wall-undo-selections').onchange=e=>{if(!state)return;state.undoSelections=e.target.checked;persist();baseEditor?.render();};
         for(const event of ['pointerdown','pointerup','mousedown','mouseup','click','dblclick','keydown','change'])window.addEventListener(event,watchSelectionInput,true);
         document.getElementById('wall-roof-bounds').onchange=e=>{if(!state)return;state.boundExtrusionToRoof=e.target.checked;persist();render();};
-        function cycleSurfaceDisplay(){if(!state)return;const modes=surfaceModes(),mode=surfaceMode();state.displayMode=modes[(modes.indexOf(mode)+1)%modes.length];state.translucent=state.displayMode==='translucent';persist();render();}
+        // Opening Wall materials shows Textured; closing it puts back the mode it replaced, unless the user picked one meanwhile.
+        let pickerDisplay=null;
+        function cycleSurfaceDisplay(){if(!state)return;pickerDisplay=null;const modes=surfaceModes(),mode=surfaceMode();state.displayMode=modes[(modes.indexOf(mode)+1)%modes.length];state.translucent=state.displayMode==='translucent';persist();render();}
         document.getElementById('wall-translucency-toggle').onclick=cycleSurfaceDisplay;
         document.getElementById('wall-line-centers-toggle').onclick=()=>toggleDisplayPreference('lineCenters');
         document.getElementById('wall-centers-toggle').onclick=()=>toggleDisplayPreference('wallCenters');
@@ -903,10 +919,12 @@ function perf_render3DFrame() {
             if(!Number.isFinite(value)||(prop==='tolerance'&&(value<0||value>36*G.INCH))){render();return;}
             state.options[prop]=value;invalidateWalls();ensureStage(stage);
         };
-        roofTrimEditor=window.createRoofTrimEditor?.({openingTrimItems:type=>wallEditor?.openingTrimItems(type)||[],selectOpeningTrim:(...args)=>{setLayer('walls',true);wallEditor?.selectOpeningTrim(...args);},applyOpeningTrim:(...args)=>wallEditor?.applyOpeningTrim(...args),wallMaterials:()=>wallEditor?.trimMaterials()||[],removeWallTrim:()=>wallEditor?.removeTrim(),selectWallTrim:(kind,materials)=>{setLayer('walls',true);wallEditor?.selectTrimEdges(kind,materials);},applyWallTrim:(width,color,materials)=>{const edges=editingLayer==='base'?baseEditor?.chamferSelection?.()?.edges||[]:[];setLayer('walls',true);wallEditor?.applyTrim(width*G.INCH,color,edges,materials);},wallWidth:()=>state?.wallTrimWidthInches===8?8:6,setWallWidth:value=>{if(state&&[6,8].includes(value)){state.wallTrimWidthInches=value;persist();}},settings:()=>state?.roofTrim||roofTrimOnly,set:value=>{if(state)state.roofTrim=value;else roofTrimOnly=value;},enabled:()=>enabled,prepare:()=>{if(!roofVisible){roofVisible=true;render3D();}},visible:roofTrimVisible,redraw:()=>enabled?render3D():renderRoofTrim3D(),screen:p=>{const r=renderer.domElement.getBoundingClientRect(),q=getVector3(toPixel(p)).project(camera);if(q.z<-1||q.z>1)return null;return {x:r.left+(q.x+1)*r.width/2,y:r.top+(1-q.y)*r.height/2};},clearSelection:()=>{baseEditor?.clearSelection();wallEditor?.clear();if(!enabled){selectedPoints.clear();selectedLines.clear();}},commit:before=>{if(state){recordEdit({roofTrim:before});finishEdit();persist();baseEditor?.render();}else{roofTrimHistory.push(before);roofTrimFuture=[];}persistRoofTrim();},undo:redo=>{if(state)undoEdit(redo);else{const from=redo?roofTrimFuture:roofTrimHistory,to=redo?roofTrimHistory:roofTrimFuture;if(from.length){to.push(copy(roofTrimOnly));roofTrimOnly=copy(from.pop());persistRoofTrim();renderRoofTrim3D();}}}});
+        roofTrimEditor=window.createRoofTrimEditor?.({openChanged:setTrimMode,openingTrimItems:type=>wallEditor?.openingTrimItems(type)||[],selectOpeningTrim:(...args)=>{setLayer('walls',true);wallEditor?.selectOpeningTrim(...args);},applyOpeningTrim:(...args)=>wallEditor?.applyOpeningTrim(...args),wallMaterials:()=>wallEditor?.trimMaterials()||[],removeWallTrim:()=>wallEditor?.removeTrim(),selectWallTrim:(kind,materials)=>{setLayer('walls',true);wallEditor?.selectTrimEdges(kind,materials);},applyWallTrim:(width,color,materials)=>{const edges=editingLayer==='base'?baseEditor?.chamferSelection?.()?.edges||[]:[];setLayer('walls',true);wallEditor?.applyTrim(width*G.INCH,color,edges,materials);},wallWidth:()=>state?.wallTrimWidthInches===8?8:6,setWallWidth:value=>{if(state&&[6,8].includes(value)){state.wallTrimWidthInches=value;persist();}},settings:()=>state?.roofTrim||roofTrimOnly,set:value=>{if(state)state.roofTrim=value;else roofTrimOnly=value;},enabled:()=>enabled,prepare:()=>{if(!roofVisible){roofVisible=true;render3D();}},visible:roofTrimVisible,redraw:()=>enabled?render3D():renderRoofTrim3D(),screen:p=>{const r=renderer.domElement.getBoundingClientRect(),q=getVector3(toPixel(p)).project(camera);if(q.z<-1||q.z>1)return null;return {x:r.left+(q.x+1)*r.width/2,y:r.top+(1-q.y)*r.height/2};},clearSelection:()=>{baseEditor?.clearSelection();wallEditor?.clear();if(!enabled){selectedPoints.clear();selectedLines.clear();}},commit:before=>{if(state){recordEdit({roofTrim:before});finishEdit();persist();baseEditor?.render();}else{roofTrimHistory.push(before);roofTrimFuture=[];}persistRoofTrim();},undo:redo=>{if(state)undoEdit(redo);else{const from=redo?roofTrimFuture:roofTrimHistory,to=redo?roofTrimHistory:roofTrimFuture;if(from.length){to.push(copy(roofTrimOnly));roofTrimOnly=copy(from.pop());persistRoofTrim();renderRoofTrim3D();}}}});
         function pickPointer(e){return withWallScene(()=>pickPointerInScene(e));}
         function pickPointerInScene(e){
                     if(resoffitMode){wallEditor?.pickLine?.(e);return true;}
+                    // Trim mode: a roof side keeps its own selection; everything else is a line pick or box.
+                    if(trimMode){if(roofTrimEditor?.pick(e,group3D,p=>getVector3(toPixel(p))))return true;setLayer('walls',true);wallEditor?.pickLine?.(e);return true;}
                     if(wallEditor?.planeActive?.())return wallEditor.planeDown(e);
                     // A tool on an inactive layer cannot consume input for the active one.
                     if(baseEditor?.busy()){if(editingLayer==='base')return baseEditor.down(e);baseEditor.leave();}
@@ -1042,7 +1060,7 @@ function perf_render3DFrame() {
             if(e.key==='Tab'&&!e.ctrlKey&&!e.metaKey&&!e.altKey&&!e.target.closest?.('input,textarea,select,[contenteditable=true]')){if(!e.repeat)cycleSurfaceDisplay();e.preventDefault();e.stopImmediatePropagation();return true;}
             if(!e.target.closest?.('input,textarea,select,[contenteditable=true]')&&!e.ctrlKey&&!e.metaKey&&(e.key.toLowerCase()==='p'||wallEditor?.planeActive?.())){if(e.key.toLowerCase()==='p'){if(!e.repeat){const entity=editingLayer==='base'?baseEditor?.chamferSelection?.():null,source=entity?.points?.length?{axisPoints:entity.points}:editingLayer==='base'?baseEditor?.selectedFaceGeometry?.():null;setLayer('walls',true);wallEditor?.togglePlane(source);}}else if(!window.ExteriorDistanceInput?.key(e,wallEditor?.distanceInput()))wallEditor?.keyDown(e);e.preventDefault();e.stopImmediatePropagation();return true;}
             if(wallEditor?.planeActive?.()&&(e.ctrlKey||e.metaKey)&&['a','c','v','x'].includes(e.key.toLowerCase())&&!e.target.closest?.('input,textarea,select,[contenteditable=true]')){wallEditor.keyDown(e);e.preventDefault();e.stopImmediatePropagation();return true;}
-            if(window.editorKeyBlockedByField?window.editorKeyBlockedByField(e):e.target.closest?.('input,textarea,select,[contenteditable=true]'))return;if(roofTrimEditor?.key(e))return true;
+            if(window.editorKeyBlockedByField?window.editorKeyBlockedByField(e):e.target.closest?.('input,textarea,select,[contenteditable=true]'))return;if(roofTrimEditor?.key(e))return true;if(trimMode&&!e.ctrlKey&&!e.metaKey&&!['Shift','Control','Alt','Meta','Tab'].includes(e.key))roofTrimEditor?.clear();
             if((e.ctrlKey||e.metaKey)&&['c','v'].includes(e.key.toLowerCase())){const copy=e.key.toLowerCase()==='c',selection=copy&&editingLayer==='base'?baseEditor?.chamferSelection?.():null;if(!copy)setLayer('walls',true);wallEditor?.clipboardCommand(copy?'copy':'paste',selection);e.preventDefault();e.stopImmediatePropagation();return true;}
             if(editingLayer==='base'&&!baseEditor?.busy()&&!wallEditor?.busy()&&!e.ctrlKey&&!e.metaKey&&['m','r','t','y'].includes(e.key.toLowerCase())){const selection=baseEditor?.chamferSelection?.();if(selection?.points?.length>=3){setLayer('walls',true);wallEditor?.geometryCommand(e.key.toLowerCase(),selection);e.preventDefault();e.stopImmediatePropagation();return true;}}
             if(window.ExteriorDistanceInput?.key(e,wallEditor?.distanceInput()||baseEditor?.distanceInput()))return;
@@ -1088,6 +1106,8 @@ function perf_render3DFrame() {
             stickers(value){const F=window.ExteriorFinishes;if(!F?.stickerDefaults)return null;const current=F.stickerDefaults(state?.finishDefaults||{});if(!value)return current;if(!enabled||!state||typeof value!=='object')return current;const ids=new Set(F.stickerPieces.map(p=>p.id)),entries=Object.entries(value);if(!entries.length||entries.some(([id,color])=>!ids.has(id)||!/^#[0-9a-f]{6}$/i.test(color||'')))return current;const next={...state.finishDefaults?.stickers};for(const [id,color]of entries)next[id]=color.toLowerCase();if(entries.every(([id,color])=>current[id]===color.toLowerCase())&&state.finishDefaults?.stickers)return current;recordEdit({});state.finishDefaults={...state.finishDefaults,stickers:next};finishEdit();persist();render();return F.stickerDefaults(state.finishDefaults);},
             roof(value){const F=window.ExteriorFinishes,current=F?.resolveRoof(state?.finishDefaults?.roof)||{category:'shingles',color:'#4a4c4f'};if(!value)return current;if(!enabled||!state||!F?.roofMaterials?.[value.category]||!/^#[0-9a-f]{6}$/i.test(value.color||''))return current;const next={category:value.category,color:value.color.toLowerCase()};if(state.finishDefaults?.roof&&next.category===current.category&&next.color===current.color)return current;recordEdit({});state.finishDefaults={...state.finishDefaults,roof:next};finishEdit();persist();render();return next;},
             finish(){if(wallEditor?.interaction()==='Paint material'){wallEditor.clear();render();}},
+            pickerOpened(){if(!enabled||!state||['textured','match-textured'].includes(surfaceMode())){pickerDisplay=null;return;}pickerDisplay={displayMode:state.displayMode,translucent:state.translucent};state.displayMode='textured';state.translucent=false;persist();render();},
+            pickerClosed(){const saved=pickerDisplay;pickerDisplay=null;if(!saved||!state||state.displayMode!=='textured')return;state.displayMode=saved.displayMode;state.translucent=saved.translucent;persist();render();},
             colors(value){if(!state)return true;if(typeof value==='boolean'){state.materialColors=value;persist();render();}return state.materialColors!==false;}
         });
         window.addEventListener('beforeunload',()=>persist(false));
