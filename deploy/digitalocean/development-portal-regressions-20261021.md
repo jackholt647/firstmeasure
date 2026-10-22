@@ -52,3 +52,17 @@ that is also present at the base commit (typed-address geocode regex). `npm run 
 `338f53ad`; legacy keeps its older `core.js` with this change merged in). The one-line apps manifest conflicted with
 other bumps, so the three bundle keys were replayed onto the live manifest. Legacy, web and pool were staged,
 activated and verified. The worker and production were not changed.
+
+## Follow-up: expedite wait bar (1M8-197) - `d706f831`
+
+The order form's "Estimated wait time right now" bar labelled its ends with fixed "4 hrs" / "7 hrs" while the marker was
+placed against a hard-coded 3-6 hour window (the October 14 build had the reverse: "3 hrs" / "6 hrs" labels against a 4-7
+hour window). Both now come from the standard option's configured turnaround window (`base_start_minutes` /
+`base_end_minutes` from the server, 4-7 hrs by default): a 5-hour estimate in a 3-6 hour window sits at 67% and the
+ends read 3 and 6 hrs. The end labels use a new `wait_range_hours` message ("{hours} hrs"); until the catalogs are
+regenerated it shows the English fallback in every language. Tests: 5 new cases in
+`portal-regressions-20261021.test.mjs` (20 pass with report-header), `npm run check` passes. `project-request/app.js` and the
+manifest key (`20261021-expedite-wait-bar-v1`, replayed onto the live manifest) were merged onto web, legacy and pool
+(hosts were on `a8154fde`) with `output/expedite-wait-bar-20261021/`; all roles verified and dev serves the new code.
+
+1M8-195 ("Update XML file property names") has no description in Linear; it waits on the required names.
