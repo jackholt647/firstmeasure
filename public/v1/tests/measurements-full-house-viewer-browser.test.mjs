@@ -43,8 +43,8 @@ test('full-house viewer draws walls, openings, base and fascia with editor finis
     await page.route('http://house.test/**',route=>{const url=route.request().url();
       if(url.endsWith('/model.xml'))return route.fulfill({contentType:'application/xml',body:xml()});
       if(url.endsWith('/exterior-model'))return route.fulfill({contentType:'application/json',body:JSON.stringify({ok:true,model})});
-      // The viewer loads the editor's own kernel and finishes from the editor's script folder.
-      if(url.includes('/measure/internal/editor_scripts/'))return readFile(new URL('../../measure/internal/editor_scripts/'+new URL(url).pathname.split('/editor_scripts/')[1],import.meta.url),'utf8').then(body=>route.fulfill({contentType:'text/javascript',body}));
+      // The viewer loads the editor's own kernel, finishes, rendered presentation and its assets.
+      if(url.includes('/measure/internal/')){const path=new URL(url).pathname.split('/measure/internal/')[1];return readFile(new URL('../../measure/internal/'+path,import.meta.url)).then(body=>route.fulfill({contentType:path.endsWith('.js')?'text/javascript':path.endsWith('.jpg')?'image/jpeg':'application/octet-stream',body}),()=>route.fulfill({status:404,body:''}));}
       return route.fulfill({contentType:'text/html',body:'<style>body{margin:0;font-family:Arial}#viewer{height:740px}</style><div id="viewer"></div>'});});
     await page.goto('http://house.test/');
     await page.addScriptTag({url:'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js'});
@@ -98,6 +98,10 @@ test('full-house viewer draws walls, openings, base and fascia with editor finis
     const brick=await screen(await scenePoint([5,8,1.5]));await page.mouse.click(brick.x,brick.y);
     assert.match(await page.locator('[data-card] strong').textContent(),/W02 · Brick/);assert.match(await page.locator('[data-card]').innerText(),/South/);
     await page.keyboard.press('Escape');assert.equal(await page.locator('[data-card]').isHidden(),true);
+    await page.mouse.move(brick.x,brick.y);await page.waitForTimeout(150);
+    meshes=await scene();assert.ok(meshes.filter(m=>m.category==='material:brick').some(m=>m.lit),'hovering a face washes it faintly');
+    assert.equal(await page.locator('[data-card]').isHidden(),true,'hover never opens the card');
+    await page.mouse.move(5,5);
 
     // Line lengths.
     await page.getByRole('button',{name:'Line lengths',exact:true}).click();
@@ -134,7 +138,10 @@ test('the exterior model projection keeps geometry and finishes and drops editor
     edges:[{a:{x:0,y:0,z:0},b:{x:1,y:0,z:0},type:'Bottom',length:3.28,walls:['W01']},{a:{x:0,y:0,z:0},b:{x:0,y:0,z:1},type:'Nonsense',length:1,walls:[]}],
     base:[{points:[{x:0,y:0,z:0},{x:1,y:0,z:0},{x:1,y:1,z:0}],holes:[]}],roof:[],roofTrim:[{points:[{x:0,y:0,z:1},{x:1,y:0,z:1},{x:1,y:0,z:.9}],material:'Roof trim',materialKey:'trim-horizontal'}],caps:[],returns:[],
     totals:{gross:10.76,net:10.76},coverRender:'data:image/jpeg;base64,AAAA',construction:[{secret:true}]};
-  const model=exteriorModelProjection(report,{exteriorsWalls:{finishDefaults:{roof:{category:'slate',color:'#626970'},color:'#80868b'},wallEdits:{private:true}},qa:{reviewer:'x'}});
+  report.walls.push({...report.walls[0],id:'W02',material:'Horizontal siding',finishColor:'#80868B',openings:[]});
+  const model=exteriorModelProjection(report,{exteriorsWalls:{finishDefaults:{roof:{category:'slate',color:'#626970'},color:'#80868b',stickers:{doorMain:'#564437',bad:'red'}},wallEdits:{private:true}},qa:{reviewer:'x'}});
+  assert.equal(model.walls[1].finishColor,null,'a color equal to the default it resolved from is not a choice');
+  assert.deepEqual(model.finishDefaults,{color:'#80868b',roof:{category:'slate',color:'#626970'},stickers:{doorMain:'#564437'}});
   assert.equal(model.walls[0].materialKey,'brick');assert.equal(model.walls[0].finishColor,'#a65d4b');assert.deepEqual(model.walls[0].points[2],[1,0,1]);
   assert.equal(model.walls[0].openings.length,1);assert.equal('trimFaces' in model.walls[0].openings[0],false);
   assert.deepEqual(model.edges.map(e=>e.type),['Bottom']);assert.equal(model.roofTrim[0].materialKey,'trim-horizontal');

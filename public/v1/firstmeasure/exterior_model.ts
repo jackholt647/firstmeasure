@@ -43,6 +43,13 @@ function feet(value: unknown): number { const n = number(value); return n === nu
 
 export function exteriorModelProjection(reportValue: unknown, metadataValue: unknown = {}) {
   const report = object(reportValue);
+  const walled = object(object(metadataValue).exteriorsWalls), defaults = object(walled.finishDefaults), roof = object(defaults.roof);
+  // The report bakes each face's resolved color in. A color equal to the default it resolved from is not a choice:
+  // drop it, so finishes that look different when uncolored (brick photo color) render as they do in the editor.
+  const explicit = (value: unknown, materialKey: string) => {
+    const c = color(value), fallback = materialKey === 'chimney-top' ? '#d4d0c8' : materialKey.startsWith('trim') ? (color(defaults.trimColor) || '#f5f3ef') : (color(defaults.color) || '#80868b');
+    return c && c !== fallback ? c : null;
+  };
   const walls = list(report.walls).slice(0, MAX_ITEMS).flatMap(value => {
     const wall = object(value), shape = surface(wall);
     if (!shape) return [];
@@ -52,7 +59,7 @@ export function exteriorModelProjection(reportValue: unknown, metadataValue: unk
       return [{ id: text(opening.id, 40) || '', type, label: text(opening.label) || type, points, area: feet(opening.area), perimeter: feet(opening.perimeter), width: feet(opening.width), height: feet(opening.height) }];
     });
     return [{
-      id: text(wall.id, 40) || '', ...shape, material: text(wall.material) || 'Unassigned', materialKey: materialKey(wall), finishColor: color(wall.finishColor),
+      id: text(wall.id, 40) || '', ...shape, material: text(wall.material) || 'Unassigned', materialKey: materialKey(wall), finishColor: explicit(wall.finishColor, materialKey(wall)),
       elevation: text(wall.elevation, 12) || '', chimney: wall.chimney === true, curved: !!wall.curvedSurface,
       gross: feet(wall.gross), net: feet(wall.net), openingArea: feet(wall.openingArea), width: feet(wall.width), height: feet(wall.height), openings
     }];
@@ -65,9 +72,8 @@ export function exteriorModelProjection(reportValue: unknown, metadataValue: unk
   });
   const finishes = (values: unknown) => list(values).slice(0, MAX_ITEMS).flatMap(value => {
     const face = object(value), shape = surface(face);
-    return shape ? [{ ...shape, materialKey: materialKey(face), finishColor: color(face.finishColor) }] : [];
+    return shape ? [{ ...shape, materialKey: materialKey(face), finishColor: explicit(face.finishColor, materialKey(face)) }] : [];
   });
-  const walled = object(object(metadataValue).exteriorsWalls), defaults = object(walled.finishDefaults), roof = object(defaults.roof);
   // The editor's own roof graph: ridge and hip caps, skylights and fascia are drawn from it exactly as the editor does.
   const source = object(walled.roof), sourcePoints = list(source.points).slice(0, MAX_ITEMS).map(point);
   const sourceRoof = sourcePoints.length && sourcePoints.every(Boolean) ? {
@@ -90,6 +96,14 @@ export function exteriorModelProjection(reportValue: unknown, metadataValue: unk
     reportHasTrim: Array.isArray(report.roofTrim), sourceRoof, roofTrimSettings: { edges: trimEdges },
     roofFinish: category ? { category, color: color(roof.color) } : null,
     defaults: { material: text(defaults.material, 40), color: color(defaults.color), trimColor: color(defaults.trimColor) },
+    // The editor's finish defaults as ExteriorFinishes and ExteriorRendered read them (WallMode.finishDefaults).
+    finishDefaults: {
+      ...(text(defaults.material, 40) ? { material: text(defaults.material, 40) } : {}),
+      ...(color(defaults.color) ? { color: color(defaults.color) } : {}),
+      ...(color(defaults.trimColor) ? { trimColor: color(defaults.trimColor) } : {}),
+      ...(category ? { roof: { category, ...(color(roof.color) ? { color: color(roof.color) } : {}) } } : {}),
+      stickers: Object.fromEntries(Object.entries(object(defaults.stickers)).slice(0, 20).flatMap(([key, value]) => key.length <= 40 && color(value) ? [[key, color(value)]] : []))
+    },
     totals
   };
 }

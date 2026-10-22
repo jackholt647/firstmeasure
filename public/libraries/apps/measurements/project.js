@@ -3910,6 +3910,14 @@ window.PlatformCommerce.onReady(function(){
     tabsEl.querySelectorAll('[data-tab]').forEach(button => button.setAttribute('aria-selected',String(button.dataset.tab === selected)));
   }
 
+  // The host refreshes the tab strip on its own (modal presentation). If the active tab moved since the panes were
+  // drawn, redraw the panel too, so the strip never marks one tab while another tab's content is showing.
+  function syncReportNavigation(){
+    const shown = currentPanelRoot()?.querySelector('.r-measure-pane.active')?.dataset.measurePane;
+    if (shown && shown !== activeMeasurementTab) renderMeasurementsPanel();
+    else renderReportNavigation();
+  }
+
   function renderMeasurementsPanel(){
     const root = currentPanelRoot();
     if (!root) return;
@@ -3919,7 +3927,7 @@ window.PlatformCommerce.onReady(function(){
     const reportTabs = measurementTabs();
     const context = callHost('reportNavigationContext') || {};
     const compactTabs = reportHeaderTabs(context.tabs || [], reportTabs, context.ordered);
-    const tabs = compactTabs ? reportTabs.filter(tab => ['customer','standard','summary'].includes(tab.id)) : reportTabs;
+    const tabs = compactTabs ? reportTabs.filter(tab => ['model','customer','standard','summary'].includes(tab.id)) : reportTabs;
     if (!tabs.some((tab) => tab.id === activeMeasurementTab)) {
       activeMeasurementTab = tabs.find((tab) => tab.id === 'standard' && !tab.disabled)?.id || tabs.find((tab) => !tab.disabled)?.id || 'standard';
     }
@@ -4106,7 +4114,7 @@ window.PlatformCommerce.onReady(function(){
     unmount: reset,
     invoke,
     measurementTabs,
-    renderReportNavigation,
+    renderReportNavigation: syncReportNavigation,
     isPlatformProjectId,
     isFirstMeasureCompleteStatus,
     isFirstMeasureReturnedReportStatus,

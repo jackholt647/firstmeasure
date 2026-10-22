@@ -29,7 +29,7 @@
   })().catch(e=>{libraries=null;throw e;});}
   // The editor's own exterior kernel and finishes, loaded in the editor's order, so the customer model is built and
   // textured by the same code as the editor's Textured view (and the report cover).
-  const editorScripts=[['ClipperLib','vendor/clipper-lib-6.4.2-clipper.js'],['earcut','vendor/earcut-3.2.3-earcut.dev.js'],['ExteriorGeometry','exterior_geometry.js'],['WallSolidGeometry','wall_solid_geometry.js'],['WallFeatures','wall_features.js'],['RoofTrim','roof_trim.js'],['ExteriorFinishes','exterior_finishes.js']];
+  const editorScripts=[['ClipperLib','vendor/clipper-lib-6.4.2-clipper.js'],['earcut','vendor/earcut-3.2.3-earcut.dev.js'],['ExteriorGeometry','exterior_geometry.js'],['WallSolidGeometry','wall_solid_geometry.js'],['WallFeatures','wall_features.js'],['RoofTrim','roof_trim.js'],['ExteriorFinishes','exterior_finishes.js'],['ExteriorRendered','exterior_rendered.js']];
   function loadFinishes(){return finishesLibrary ||= (async()=>{for(const [name,file] of editorScripts)if(!window[name])await script(new URL('../../../measure/internal/editor_scripts/'+file+'?v=20261022-viewer',scriptBase).href);return window.ExteriorFinishes&&window.WallSolidGeometry&&window.ExteriorGeometry?window.ExteriorFinishes:null;})().catch(()=>{finishesLibrary=null;return null;});}
   function parseModel(xml,edgeTypes=[]){
     const classified=new Map(edgeTypes.map(edge=>[String(edge.path),lineType(edge.type)]));
@@ -157,7 +157,7 @@
       .fm-roof-legend{flex:0 0 auto;background:#fffe;border-top:1px solid #d5deeb;padding:5px 8px;max-height:45%;overflow:auto}.fm-roof-legend>button{display:flex;align-items:center;justify-content:center;gap:6px;width:100%;border:0;background:none;color:#475467;cursor:pointer;font:inherit;font-size:10px;padding:3px}.fm-roof-legend>button svg{height:12px;width:12px;transition:transform .15s}.fm-roof-legend>button[aria-expanded=false] svg{transform:rotate(180deg)}.fm-roof-legend>button:focus-visible{outline:2px solid var(--primary,#d93025)}.fm-roof-key-tray{display:grid;grid-template-rows:1fr;opacity:1;transition:grid-template-rows 260ms cubic-bezier(.2,.8,.2,1),opacity 200ms ease}.fm-roof-key-tray>.fm-roof-key-body{min-height:0;overflow:hidden}.fm-roof-legend.is-collapsed .fm-roof-key-tray{grid-template-rows:0fr;opacity:0}.fm-roof-legend.is-collapsed .fm-roof-key{padding-top:0;padding-bottom:0}@media(prefers-reduced-motion:reduce){.fm-roof-key-tray{transition:none}}.fm-roof-measure-tabs{display:flex;align-items:center;gap:4px;overflow-x:auto;scrollbar-width:none}.fm-roof-measure-tabs button{font:inherit;font-size:10px;cursor:pointer;padding:5px 7px;border:0;background:transparent;color:#667085;white-space:nowrap}.fm-roof-measure-tabs button[aria-selected=true]{color:var(--primary,#344054);box-shadow:inset 0 -2px var(--primary,#344054)}.fm-roof-measure-tabs [data-key]{margin-left:auto}.fm-roof-measure-tabs svg{width:12px;height:12px;transition:transform 200ms}.fm-roof-measure-tabs [aria-expanded=false] svg{transform:rotate(180deg)}.fm-roof-measure-tabs button:focus-visible{outline:2px solid var(--primary,#344054)}.fm-roof-pitches{overflow-x:auto;scrollbar-width:thin}.fm-roof-pitches table{width:100%;border-collapse:collapse;font-size:11px}.fm-roof-pitches th{font-weight:400;text-align:right;padding:7px 10px;white-space:nowrap}.fm-roof-pitches th[scope=row]{width:1%;padding-left:2px;padding-right:14px;text-align:left;font-size:10px;font-weight:600;color:#667085}.fm-roof-pitches tr:first-child th{border-bottom:1px solid #d0d5dd}.fm-roof-pitches td{text-align:right;padding:5px 4px}.fm-roof-pitches input{width:100%;min-width:46px;box-sizing:border-box;text-align:right;font:inherit;border:1px solid transparent;background:transparent;border-radius:3px;padding:4px 6px}.fm-roof-pitches input:not([readonly]):hover{border-color:#cbd5e1}.fm-roof-pitches input:focus{outline:2px solid var(--primary,#344054)}.fm-roof-summary{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:4px 12px;padding:5px 0;font-size:11px}.fm-roof-summary>div{display:flex;justify-content:space-between;gap:8px}.fm-roof-summary>h4{grid-column:1/-1;margin:6px 0 0;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:#667085}.fm-roof-summary strong{font-weight:500;font-variant-numeric:tabular-nums}.fm-roof-key,.fm-roof-keys{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:4px;font-size:10px;padding:4px 0}.fm-roof-key-row{display:flex;align-items:center;gap:3px;min-width:0;background:#f8f9fb;border:1px solid #e4e7ec;border-radius:3px;padding:3px}.fm-roof-key-row button{display:flex;align-items:center;gap:3px;flex:1;min-width:0;overflow:hidden;font:inherit;font-size:10px;background:transparent;border:0;padding:2px 0;cursor:pointer;color:#344054}.fm-roof-key-row button[aria-pressed=true]{color:var(--primary,#175cd3);font-weight:600}.fm-roof-key-row:has(button[aria-pressed=true]){border-color:var(--primary,#175cd3);background:#fff}.fm-roof-key-row button:focus-visible{outline:2px solid var(--primary,#175cd3)}.fm-roof-key-row input{width:37px;min-width:0;font:inherit;font-size:10px;font-variant-numeric:tabular-nums;text-align:right;border:1px solid transparent;background:transparent;border-radius:2px;padding:2px}.fm-roof-key-row input:not([readonly]):hover{border-color:#cbd5e1}.fm-roof-key-row input:focus{outline:2px solid var(--primary,#175cd3);background:white}.fm-roof-key-row small,.fm-roof-key-row output{font-size:9px;color:#667085}.fm-roof-key-row output{font-size:10px;color:#344054;font-variant-numeric:tabular-nums;white-space:nowrap}.fm-roof-key span,.fm-roof-keys span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block;min-width:0;line-height:1.2}.fm-roof-key i,.fm-roof-keys i{width:9px;height:9px;border-radius:1px;display:inline-block;flex:0 0 9px}
       .fm-roof-key-group{grid-column:1/-1;margin:4px 0 0;font-size:10px;font-weight:600;color:#667085;text-transform:uppercase;letter-spacing:.04em}
       .fm-roof-measures{display:grid;gap:4px;font-size:11px;padding:4px 0}.fm-roof-measures>div{display:flex;align-items:center;gap:8px}.fm-roof-measures span{flex:1}.fm-roof-measures strong{font-weight:500;font-variant-numeric:tabular-nums}.fm-roof-measures button{border:0;background:none;color:#667085;cursor:pointer;font:inherit;padding:2px 4px}
-      .fm-roof-section-title{display:none}
+      .fm-roof-section-title{display:none}#exterior-graphics{display:none!important}
       /* Side layout: every panel stacked in a left column beside a full-height model. */
       .fm-roof-gallery.is-side{display:grid;grid-template-columns:clamp(260px,30%,340px) minmax(0,1fr);gap:0;padding:0}
       .fm-roof-gallery.is-side .fm-roof-stage{grid-column:2;border:0;border-radius:0}
@@ -175,7 +175,7 @@
   function mount(root,{xmlUrl,exteriorUrl,edgeTypes=[],media=[],standalone=false,layout='auto',initialState={},measurements={},getMeasurements,onMeasurementChange,subscribeMeasurements}={}){
     injectStyle();let disposed=false,renderer,controls,scene,camera,observer,geometryGroup,lineGroup,texture,selection='model',textureEnabled=initialState.texture!==false,coloredLinesEnabled=initialState.lines!==false,keyVisible=initialState.key!==false,pitchEnabled=initialState.pitch===true,pitchGroup,areaEnabled=initialState.area===true,keyTab=initialState.keyTab||'lines';
     let selectedCategory=initialState.category||(initialState.selectedType?'line:'+initialState.selectedType:null),lengthsEnabled=initialState.lengths===true,layers={roof:initialState.layers?.roof!==false,walls:initialState.layers?.walls!==false,base:initialState.layers?.base!==false};
-    let modelLoaded=false,exterior=null,finishes=null,frame=null,scale=1,picked=null,measuring=false,measureStart=null,measurePreview=null,sideLayout=false;
+    let modelLoaded=false,exterior=null,finishes=null,frame=null,scale=1,picked=null,hovered=null,exteriorVector=null,gradeMesh=null,renderedKey='',ownsWallMode=false,measuring=false,measureStart=null,measurePreview=null,sideLayout=false;
     const controller=new AbortController();const objects=[];const ownedUrls=[];const lengths={},faceMetrics=[],openingGroups=[],items=[],measures=[];let unsubscribeMeasurements,syncMeasurements;
     const groups={};
     root.innerHTML=`<div class="fm-roof-gallery"><div class="fm-roof-library" aria-label="Roof model and report media"></div><div class="fm-roof-stage"><div class="fm-roof-canvas"></div><div class="fm-roof-tools"><div class="fm-roof-control-row"><button type="button" class="fm-roof-icon" data-texture aria-label="Texture" title="Texture" aria-pressed="true">${icon('<path d="M3 4h18v16H3zM3 9h18M3 14h18M8 4v5m8-5v5M6 9v5m8-5v5m-4 0v6m8-6v6"/>')}</button><button type="button" class="fm-roof-icon" data-lines aria-label="Colored lines" title="Colored lines" aria-pressed="true">${icon('<path d="m3 18 5-10 6 6 7-10"/><circle cx="8" cy="8" r="2" fill="currentColor" stroke="none"/><circle cx="14" cy="14" r="2" fill="currentColor" stroke="none"/>')}</button><button type="button" class="fm-roof-icon" data-pitch aria-label="Pitch labels" title="Pitch labels" aria-pressed="false">${icon('<path d="M3 19h18V7z"/><path d="M17 19v-3h4"/>')}</button><button type="button" class="fm-roof-icon" data-area aria-label="Area labels" title="Area labels (roofing squares, wall square feet)" aria-pressed="false">${icon('<rect x="4" y="4" width="16" height="16" rx="1.5"/><path d="M4 12h16M12 4v16"/>')}</button><button type="button" class="fm-roof-icon" data-lengths aria-label="Line lengths" title="Line lengths" aria-pressed="false">${icon('<path d="M4 17h16M4 14v6M20 14v6"/><path d="M8 9h8M8 9l2-2M8 9l2 2M16 9l-2-2M16 9l-2 2"/>')}</button><button type="button" class="fm-roof-icon" data-measure aria-label="Measure" title="Measure: click two points on the model" aria-pressed="false">${icon('<path d="m3 17 14-14 4 4L7 21z"/><path d="m7 13 2 2m1-5 2 2m1-5 2 2"/>')}</button><button type="button" class="fm-roof-icon" data-reset aria-label="Reset view" title="Reset view">${icon('<path d="M3 10a9 9 0 1 1 2.5 9M3 4v6h6"/>')}</button></div><div class="fm-roof-control-row" data-layer-row hidden><div class="fm-roof-layers" role="group" aria-label="Layers"><button type="button" data-layer="roof" aria-pressed="true">Roof</button><button type="button" data-layer="walls" aria-pressed="true">Walls</button><button type="button" data-layer="base" aria-pressed="true">Base</button></div></div><div class="fm-roof-measure-bar" data-measure-bar hidden><span data-measure-status>Click a point on the model</span><button type="button" data-measure-clear hidden>Clear</button><button type="button" data-measure-done>Done</button></div></div><div class="fm-roof-card" data-card hidden></div><div class="fm-roof-legend"><div class="fm-roof-measure-tabs" role="tablist" aria-label="Roof measurements"><button type="button" role="tab" data-key-tab="lines" aria-selected="true">Line types</button><button type="button" role="tab" data-key-tab="walls" aria-selected="false" hidden>Walls</button><button type="button" role="tab" data-key-tab="openings" aria-selected="false" hidden>Openings</button><button type="button" role="tab" data-key-tab="pitches" aria-selected="false">Pitches</button><button type="button" role="tab" data-key-tab="summary" aria-selected="false">Summary</button><button type="button" role="tab" data-key-tab="measures" aria-selected="false" hidden>Measured</button><button type="button" data-key aria-expanded="true">${icon('<path d="m6 9 6 6 6-6"/>')}</button></div><div class="fm-roof-key-tray"><div class="fm-roof-key-body"><div class="fm-roof-key" data-key-panel="lines" role="tabpanel"></div><div class="fm-roof-keys" data-key-panel="walls" role="tabpanel" hidden></div><div class="fm-roof-keys" data-key-panel="openings" role="tabpanel" hidden></div><div class="fm-roof-pitches" data-key-panel="pitches" role="tabpanel" hidden></div><div class="fm-roof-summary" data-key-panel="summary" role="tabpanel" hidden></div><div class="fm-roof-measures" data-key-panel="measures" role="tabpanel" hidden data-empty></div></div></div></div><div class="fm-roof-message" role="status">Loading roof model…</div><div class="fm-roof-hint">Drag to orbit · Scroll to zoom · Click to inspect</div></div></div>`;
@@ -185,7 +185,29 @@
     canvas.append(hint);legend.classList.toggle('is-collapsed',!keyVisible);keyToggle.setAttribute('aria-expanded',String(keyVisible));keyToggle.setAttribute('aria-label',keyVisible?'Collapse key':'Expand key');
     const entries=[{id:'model',label:'3D roof model'},...media.map((m,i)=>({...m,id:'media-'+i}))];
     let drawQueued=false;
-    function draw(){if(!disposed&&renderer&&selection==='model'){declutter();renderer.render(scene,camera);}}
+    function draw(){if(disposed||!renderer||selection!=='model')return;declutter();
+      if(renderedKey&&window.ExteriorRendered?.render(renderer,scene,camera)){overlayPass();return;}
+      renderer.render(scene,camera);}
+    // Over the rendered scene (whose depth is kept): every line, label and measure, and a translucent wash over
+    // the hovered, selected or highlighted surfaces. House surfaces themselves are drawn by ExteriorRendered.
+    let washes;
+    function overlayPass(){
+      const T=window.THREE;washes||={picked:wash(T,.42),category:wash(T,.3),hovered:wash(T,.16)};
+      const swapped=[],background=scene.background;scene.background=null;
+      for(const item of items){if(!item.mesh||item.roofOnly)continue;const tone=picked===item?'picked':item.category===selectedCategory?'category':hovered===item?'hovered':null;
+        for(const mesh of meshesOf(item)){swapped.push([mesh,mesh.material,mesh.visible]);if(tone)mesh.material=washes[tone];else mesh.visible=false;}}
+      const clear=renderer.autoClear;renderer.autoClear=false;
+      try{renderer.render(scene,camera);}finally{renderer.autoClear=clear;scene.background=background;for(const [mesh,material,visible] of swapped){mesh.material=material;mesh.visible=visible;}}
+    }
+    function wash(T,opacity){const m=new T.MeshBasicMaterial({color:'#2e90fa',transparent:true,opacity,depthWrite:false,side:T.DoubleSide,polygonOffset:true,polygonOffsetFactor:-4,polygonOffsetUnits:-4});objects.push(m);return m;}
+    // The editor's Textured view: rebuilt only when the texture mode or a layer changes, never on hover.
+    function syncRendered(){
+      const R=window.ExteriorRendered;if(!exterior||!R||!finishes||!scene)return;
+      const key=textureEnabled?JSON.stringify(layers):'';if(key===renderedKey)return;renderedKey=key;
+      try{if(key){if(gradeMesh)gradeMesh.visible=layers.base!==false;R.update(scene,{enabled:true,scene,vector:exteriorVector});R.assetsReady?.().then(()=>drawSoon());}else R.update(null,{enabled:false});}
+      catch(_){renderedKey='';try{R.update(null,{enabled:false});}catch(__){}}
+      finally{if(gradeMesh)gradeMesh.visible=false;}
+    }
     // Length pills: the house hides the ones behind it, and a smaller pill yields to a larger one it overlaps.
     function declutter(){
       const wanted=items.filter(item=>item.lengthLabel&&item.lengthWanted);if(!wanted.length)return;
@@ -248,27 +270,29 @@
       geometryGroup?.children.forEach(mesh=>{if(mesh.userData.roofOnlyMaterial){const mat=mesh.material;mat.map=textureEnabled?texture:null;mat.color.set(textureEnabled?'#ffffff':'#cbd5e1');mat.transparent=!textureEnabled;mat.opacity=textureEnabled?1:.62;mat.depthWrite=textureEnabled;mat.needsUpdate=true;}});
       for(const item of items)if(item.mesh)(item.roofOnly?glow(item):finishMaterial(item));
       for(const [name,group] of Object.entries(groups))group.visible=layers[name]!==false;
-      if(lineGroup){lineGroup.visible=layers.roof!==false&&(coloredLinesEnabled||!!selectedCategory||!!picked);}
+      if(lineGroup)lineGroup.visible=layers.roof!==false;
       for(const item of items){
-        if(!item.line)continue;const inCategory=item.category===selectedCategory,isPicked=picked===item,lit=inCategory||isPicked,dim=(!!selectedCategory||!!picked)&&!lit;
+        if(!item.line)continue;const inCategory=item.category===selectedCategory,isPicked=picked===item,isHovered=hovered===item&&!isPicked,lit=inCategory||isPicked,dim=(!!selectedCategory||!!picked)&&!lit&&!isHovered;
         const base=item.layer==='walls'?wallEdges[item.edgeType][0]:styles[item.type][0];
-        item.line.material.color.set(isPicked?'#fdb022':inCategory?'#ffffff':base);item.line.material.transparent=dim;item.line.material.opacity=dim?.18:1;item.line.material.depthTest=!lit;item.line.renderOrder=lit?5:2;
-        item.line.visible=item.layer==='roof'?true:(coloredLinesEnabled||lit||!!selectedCategory);
+        item.line.material.color.set(isPicked||isHovered?'#fdb022':inCategory?'#ffffff':base);item.line.material.transparent=dim||isHovered;item.line.material.opacity=dim?.18:isHovered?.6:1;item.line.material.depthTest=!(lit||isHovered);item.line.renderOrder=lit||isHovered?5:2;
+        item.line.visible=coloredLinesEnabled||lit||isHovered||!!selectedCategory;
       }
-      for(const item of items)if(item.lengthLabel){item.lengthWanted=visibleLayer(item)&&(picked===item||lengthsEnabled&&(item.category===selectedCategory||!selectedCategory&&item.length>=2&&(item.kind!=='wallEdge'||!!wallEdges[item.edgeType][2])));item.lengthLabel.visible=item.lengthWanted;}
+      for(const item of items)if(item.lengthLabel){const solid=picked===item||lengthsEnabled;item.lengthLabel.material.opacity=solid?1:.62;item.lengthWanted=visibleLayer(item)&&(picked===item||hovered===item||lengthsEnabled&&(item.category===selectedCategory||!selectedCategory&&item.length>=2&&(item.kind!=='wallEdge'||!!wallEdges[item.edgeType][2])));item.lengthLabel.visible=item.lengthWanted;}
       if(pitchGroup){pitchGroup.visible=layers.roof!==false&&(pitchEnabled||areaEnabled);if(pitchEnabled||areaEnabled)pitchGroup.children.forEach(sprite=>{const squares=sprite.userData.area/100,parts=[];
         if(pitchEnabled)parts.push({icon:'pitch',text:sprite.userData.pitch+'/12'});if(areaEnabled)parts.push({icon:'area',text:(squares>0&&squares<.05?'<0.1':squares.toFixed(1))+' sq'});paintLabel(sprite,parts);});}
-      if(groups.wallLabels){groups.wallLabels.visible=layers.walls!==false;groups.wallLabels.children.forEach(sprite=>{const item=sprite.userData.item;sprite.visible=areaEnabled&&(item.area>=12||picked===item||item.category===selectedCategory)||picked===item;});}
+      if(groups.wallLabels){groups.wallLabels.visible=layers.walls!==false;groups.wallLabels.children.forEach(sprite=>{const item=sprite.userData.item;sprite.visible=areaEnabled&&(item.area>=12||picked===item||item.category===selectedCategory)||picked===item||hovered===item;sprite.material.opacity=areaEnabled||picked===item?1:.62;});}
+      // Roof faces and openings show their measurement while hovered (faint) or selected.
+      for(const item of items)if(item.faceLabel){item.faceLabel.visible=visibleLayer(item)&&(picked===item||hovered===item);item.faceLabel.material.opacity=picked===item?1:.62;}
       legend.querySelectorAll('[data-category]').forEach(button=>button.setAttribute('aria-pressed',String(button.dataset.category===selectedCategory)));
       key.querySelectorAll('[data-edge-select]').forEach(button=>button.setAttribute('aria-pressed',String('line:'+button.dataset.edgeSelect===selectedCategory)));
       for(const [name,on] of [['area',areaEnabled],['pitch',pitchEnabled],['texture',textureEnabled],['lines',coloredLinesEnabled],['lengths',lengthsEnabled],['measure',measuring]])tools.querySelector(`[data-${name}]`).setAttribute('aria-pressed',String(on));
       tools.querySelectorAll('[data-layer]').forEach(button=>button.setAttribute('aria-pressed',String(layers[button.dataset.layer]!==false)));
-      renderCard();drawSoon();
+      syncRendered();renderCard();drawSoon();
     }
     // Faces: the editor's finish when textured, its flat color otherwise; a selected face or category glows.
     const meshesOf=item=>item.meshes||[item.mesh];
     // Unlit editor materials have no emissive: a selected face blends toward the highlight from its own finish color.
-    function glow(item){const lit=picked===item?.55:item.category===selectedCategory?.35:0;for(const mesh of meshesOf(item)){const m=mesh.material;if(m.emissive&&item.roofOnly){m.emissive.set(lit?'#2e90fa':'#000000');m.emissiveIntensity=lit;continue;}if(!mesh.userData.baseColor)continue;m.color.copy(mesh.userData.baseColor);if(lit)m.color.lerp(highlight(),lit);}}
+    function glow(item){const lit=picked===item?.55:item.category===selectedCategory?.35:hovered===item?.18:0;for(const mesh of meshesOf(item)){const m=mesh.material;if(m.emissive&&item.roofOnly){m.emissive.set(lit?'#2e90fa':'#000000');m.emissiveIntensity=lit;continue;}if(!mesh.userData.baseColor)continue;m.color.copy(mesh.userData.baseColor);if(lit)m.color.lerp(highlight(),lit);}}
     let highlightColor;const highlight=()=>highlightColor||=new window.THREE.Color('#2e90fa').convertSRGBToLinear();
     // Textured is exactly the editor's Textured view (ExteriorFinishes.apply); untextured keeps its flat finish colors,
     // shaded by facing as apply() shades them.
@@ -305,8 +329,11 @@
       card.append(header,list);
     }
     // ---- Picking and measuring ----
-    let raycaster,pointer;
-    const pickables=()=>items.filter(item=>visibleLayer(item)&&(item.mesh||item.line&&item.line.visible&&(item.layer!=='roof'||lineGroup.visible))).flatMap(item=>item.mesh?meshesOf(item):[item.line]);
+    let raycaster,pointer,hoverEvent=null,hoverQueued=false;
+    // Hover previews exactly what a click would select, fainter than the selection.
+    function setHovered(item){if(item===hovered)return;hovered=item;if(item?.line)addLengthLabel(item);if(item)ensureFaceLabel(item);if(renderer)renderer.domElement.style.cursor=item?'pointer':'';applyAppearance();}
+    function ensureFaceLabel(item){if(item.faceLabel||!item.labelAnchor||!item.labelParts)return;const sprite=labelSprite(item.labelAnchor,{size:2.1});paintLabel(sprite,item.labelParts());(item.layer==='roof'?groups.roof:groups.walls).add(sprite);item.faceLabel=sprite;}
+    const pickables=()=>items.filter(item=>visibleLayer(item)&&(item.mesh||item.line)).flatMap(item=>item.mesh?meshesOf(item):[item.line]);
     function ndc(event){const box=renderer.domElement.getBoundingClientRect();pointer.set((event.clientX-box.left)/box.width*2-1,-(event.clientY-box.top)/box.height*2+1);raycaster.setFromCamera(pointer,camera);raycaster.params.Line.threshold=camera.position.distanceTo(controls.target)*.012;}
     function pick(event){
       ndc(event);const hits=raycaster.intersectObjects(pickables(),false);if(!hits.length)return null;
@@ -352,7 +379,9 @@
       if(!response.ok)throw new Error('The roof model could not be loaded.');
       const roofs=parseModel(await response.text(),edgeTypes);if(disposed)return;
       exterior=exteriorResult?.model&&Array.isArray(exteriorResult.model.walls)&&exteriorResult.model.walls.length?exteriorResult.model:null;
-      if(exterior){finishes=await loadFinishes();frame=exteriorFrame(exterior,roofs);if(disposed)return;}
+      if(exterior){finishes=await loadFinishes();frame=exteriorFrame(exterior,roofs);if(disposed)return;
+        // ExteriorFinishes and ExteriorRendered read the editor's finish defaults from WallMode; the portal has no editor.
+        if(finishes&&(!window.WallMode||window.WallMode.viewerShim)){window.WallMode={viewerShim:true,finishDefaults:exterior.finishDefaults||{}};ownsWallMode=true;}}
       const T=window.THREE;scene=new T.Scene();scene.background=new T.Color('#eef1f5');camera=new T.PerspectiveCamera(42,1,.1,3000);
       renderer=new T.WebGLRenderer({antialias:true});renderer.setPixelRatio(Math.min(devicePixelRatio||1,2));canvas.append(renderer.domElement);
       controls=new T.OrbitControls(camera,renderer.domElement);controls.enableDamping=false;controls.addEventListener('change',draw);
@@ -440,8 +469,9 @@
       syncMeasurements();unsubscribeMeasurements=subscribeMeasurements?.(syncMeasurements);renderMeasures();showKeyTab(keyTab);applyAppearance();
       // Click (not drag) selects; in measure mode it places points.
       let down=null;renderer.domElement.tabIndex=-1;renderer.domElement.style.outline='none';renderer.domElement.addEventListener('pointerdown',event=>{down={x:event.clientX,y:event.clientY};renderer.domElement.focus({preventScroll:true});});
-      renderer.domElement.addEventListener('pointerup',event=>{if(!down||Math.hypot(event.clientX-down.x,event.clientY-down.y)>6){down=null;return;}down=null;if(measuring){measureClick(event);return;}picked=pick(event);if(picked?.kind==='roofLine'||picked?.kind==='wallEdge')addLengthLabel(picked);applyAppearance();});
-      renderer.domElement.addEventListener('pointermove',event=>{if(measuring&&!event.buttons)measureMove(event);});
+      renderer.domElement.addEventListener('pointerup',event=>{if(!down||Math.hypot(event.clientX-down.x,event.clientY-down.y)>6){down=null;return;}down=null;if(measuring){measureClick(event);return;}picked=pick(event);if(picked?.line)addLengthLabel(picked);if(picked)ensureFaceLabel(picked);applyAppearance();});
+      renderer.domElement.addEventListener('pointermove',event=>{if(measuring&&!event.buttons){measureMove(event);return;}if(event.buttons)return;hoverEvent=event;if(!hoverQueued){hoverQueued=true;requestAnimationFrame(()=>{hoverQueued=false;if(disposed||!hoverEvent)return;setHovered(pick(hoverEvent));});}});
+      renderer.domElement.addEventListener('pointerleave',()=>{hoverEvent=null;setHovered(null);});
       root.addEventListener('keydown',event=>{if(event.key==='Escape'){if(measuring&&measureStart){cancelMeasure();drawSoon();}else if(measuring)setMeasuring(false);else if(picked){picked=null;applyAppearance();}}});
       modelLoaded=true;message.hidden=true;resize();reset();
     })().catch(error=>{if(!disposed){message.textContent=error.message;message.hidden=selection!=='model';tools.hidden=true;legend.hidden=true;hint.hidden=true;}});
@@ -454,7 +484,9 @@
       // Solid display as the editor's exteriorSurfaceDisplay sets it: opaque, depth-written, features and fascia in front.
       const solid=(mesh,offset=1,order=0)=>{const m=mesh.material;Object.assign(m,{opacity:1,transparent:false,depthWrite:true,depthTest:true,polygonOffset:true,polygonOffsetFactor:offset,polygonOffsetUnits:offset});mesh.renderOrder=order;objects.push(m);return mesh;};
       // The organization's finish defaults, which the editor reads from its own state.
-      const withDefaults=mesh=>{const f=mesh.userData.exteriorFinish;if(!f||f.feature)return mesh;if(f.material==='default'&&defaults.material)f.material=defaults.material;if(f.material==='shingles'){if(roofFinish&&!f.roofMaterial)f.roofMaterial=roofFinish;if(!f.color&&roofFinish?.color&&!f.roofCap)f.color=roofFinish.color;}else if(!f.color)f.color=(f.trim?defaults.trimColor:defaults.color)||null;return mesh;};
+      // Finish defaults come from WallMode.finishDefaults, exactly as in the editor.
+      const withDefaults=mesh=>mesh;exteriorVector=vector;
+      // No grade: the editor draws its grade only when the drafter shows it, and reports do not carry it.
       // A face triangulated in its own frame (as the editor triangulates wall parts), then prepared by ExteriorFinishes.
       const editorMesh=(face,{offset=1,order=0}={})=>{
         const K=window.ExteriorGeometry,W=window.WallSolidGeometry,rings=[face.points,...(face.holes||[])],flat=rings.flat(),frame3=W.faceFrame({points:face.points}),local=p=>W.inFrame(frame3,p);
@@ -474,7 +506,8 @@
         const anchor=wallAnchor(wall);if(anchor){const sprite=labelSprite(toScene(anchor),{item,size:2.1});paintLabel(sprite,[{icon:'area',text:decimal(wall.net,0)+' sf'}]);groups.wallLabels.add(sprite);}
         for(const opening of wall.openings){const type=openingKind(opening.type);if(!openingKinds[type])continue;
           const feature=safe(()=>editorMesh({points:ring(opening.points),feature:{type}},{offset:-1,order:1}),null);if(!feature)continue;feature.userData.exteriorFeature=true;
-          own({kind:'opening',category:'opening:'+type,openingType:type,priority:3,area:opening.area,width:opening.width,height:opening.height,swatch:flatOpening[type],flat:flatOpening[type],title:`${openingKinds[type][1]} ${opening.id}`,
+          const on=newell(opening.points)||[0,0,0],middle=opening.points.reduce((a,p)=>a.map((v,i)=>v+p[i]/opening.points.length),[0,0,0]);
+          own({kind:'opening',labelAnchor:toScene(middle.map((v,i)=>v+on[i]*.2)),labelParts:()=>[{text:`${ftIn(opening.width)} × ${ftIn(opening.height)}`}],category:'opening:'+type,openingType:type,priority:3,area:opening.area,width:opening.width,height:opening.height,swatch:flatOpening[type],flat:flatOpening[type],title:`${openingKinds[type][1]} ${opening.id}`,
             details:()=>[['Size',`${ftIn(opening.width)} × ${ftIn(opening.height)}`],['Area',`${decimal(opening.area,1)} sq ft`],['Perimeter',`${decimal(opening.perimeter,1)} ft`],['Wall',`${wall.id} · ${wall.elevation}`]]},[feature],'walls');}
       }
       for(const face of exterior.caps||[]){const mesh=safe(()=>editorMesh({...faceOf(face),material:'chimney-top',finishColor:face.finishColor}),null);if(mesh)own({kind:'cap',category:'chimney',categoryName:'Chimneys',area:0,swatch:'#d4d0c8',flat:'#d4d0c8',title:'Chimney top',details:()=>[]},[mesh],'walls');}
@@ -486,7 +519,8 @@
       for(const face of presentation.faces){
         const meshes=safe(()=>F.roofMeshes(face,vector,true),[]).map(mesh=>{objects.push(mesh.geometry);return withDefaults(solid(mesh,1));});if(!meshes.length)continue;
         const n=newell(face.points.map(p=>[p.x,p.y,p.z]))||[0,0,1],area=(area3(face.points)-(face.holes||[]).reduce((sum,hole)=>sum+area3(hole),0))*FT*FT,pitch=Math.abs(n[2])>1e-6?Math.round(Math.hypot(n[0],n[1])/Math.abs(n[2])*120)/10:null;
-        own({kind:'roofFace',category:'roof',priority:1,area,pitch,swatch:roofFinish?.color||'#4a4c4f',flat:'#9aa4b2',title:'Roof face',details:()=>[['Pitch',pitch!=null?pitch+'/12':null],['Area',`${decimal(area,0)} sq ft (${decimal(area/100,2)} sq)`],['Covering',F.roofMaterials?.[F.resolveRoof(roofFinish).category]?.label||null]]},meshes,'roof');
+        const roofAnchor=faceLabelAnchor({points:face.points.map(p=>[p.x,p.y,p.z]),holes:(face.holes||[]).map(r=>r.map(p=>[p.x,p.y,p.z])),area:1,pitch:0});
+        own({kind:'roofFace',category:'roof',priority:1,area,pitch,labelAnchor:roofAnchor?toScene([roofAnchor.point[0],roofAnchor.point[1],roofAnchor.point[2]+.25]):null,labelParts:()=>[...(pitch!=null?[{icon:'pitch',text:pitch+'/12'}]:[]),{icon:'area',text:`${decimal(area,0)} sf`}],swatch:roofFinish?.color||'#4a4c4f',flat:'#9aa4b2',title:'Roof face',details:()=>[['Pitch',pitch!=null?pitch+'/12':null],['Area',`${decimal(area,0)} sq ft (${decimal(area/100,2)} sq)`],['Covering',F.roofMaterials?.[F.resolveRoof(roofFinish).category]?.label||null]]},meshes,'roof');
       }
       for(const face of presentation.skylights||[]){const mesh=safe(()=>F.skylightMesh(face,vector),null);if(!mesh)continue;objects.push(mesh.geometry);solid(mesh,-1,1);mesh.userData.exteriorFeature=true;own({kind:'skylight',category:'line:SKYLIGHT',area:0,swatch:styles.SKYLIGHT[0],flat:'#88a5ad',title:'Skylight',details:()=>[]},[mesh],'roof');}
       const caps=safe(()=>F.roofCaps?.(roofModel,vector,roofFinish?.category),null);if(caps){objects.push(caps.geometry);withDefaults(solid(caps,1));if(roofFinish?.color&&!caps.userData.exteriorFinish.color)caps.userData.exteriorFinish.color=roofFinish.color;own({kind:'caps',category:'roof',area:0,flat:'#8a929e',title:'Ridge caps',details:()=>[]},[caps],'roof');}
@@ -502,7 +536,7 @@
     // A point inside a vertical wall, away from its holes, nudged off the face along its normal.
     function wallAnchor(wall){const n=newell(wall.points);if(!n)return null;const l=Math.hypot(n[0],n[1]);if(l<.5)return null;const u=[-n[1]/l,n[0]/l,0],o=wall.points[0],to2=p=>[dot3([p[0]-o[0],p[1]-o[1],p[2]-o[2]],u),p[2]-o[2],0];
       const anchor=faceLabelAnchor({points:wall.points.map(to2),holes:(wall.holes||[]).map(r=>r.map(to2)),area:1,pitch:0});if(!anchor)return null;const [s,h]=anchor.point;return [o[0]+u[0]*s+n[0]*.15,o[1]+u[1]*s+n[1]*.15,o[2]+h];}
-    return {serialize(){return {texture:textureEnabled,lines:coloredLinesEnabled,key:keyVisible,keyTab,pitch:pitchEnabled,area:areaEnabled,lengths:lengthsEnabled,layers:{...layers},category:selectedCategory,selectedType:selectedCategory?.startsWith('line:')?selectedCategory.slice(5):null};},setVisible(value){if(value)resize();},destroy(){disposed=true;clearPreview?.();unsubscribeMeasurements?.();controller.abort();observer.disconnect();controls?.dispose();objects.forEach(o=>o.dispose());texture?.dispose();renderer?.dispose();ownedUrls.forEach(URL.revokeObjectURL);root.replaceChildren();}};
+    return {serialize(){return {texture:textureEnabled,lines:coloredLinesEnabled,key:keyVisible,keyTab,pitch:pitchEnabled,area:areaEnabled,lengths:lengthsEnabled,layers:{...layers},category:selectedCategory,selectedType:selectedCategory?.startsWith('line:')?selectedCategory.slice(5):null};},setVisible(value){if(value)resize();},destroy(){disposed=true;clearPreview?.();if(renderedKey){try{window.ExteriorRendered?.update(null,{enabled:false});}catch(_){}}if(ownsWallMode&&window.WallMode?.viewerShim)delete window.WallMode;unsubscribeMeasurements?.();controller.abort();observer.disconnect();controls?.dispose();objects.forEach(o=>o.dispose());texture?.dispose();renderer?.dispose();ownedUrls.forEach(URL.revokeObjectURL);root.replaceChildren();}};
   }
   window.FirstMeasureRoofViewer={mount,parseModel,faceTextureUVs,faceLabelAnchor,exteriorFrame,finishUVs};
 })();

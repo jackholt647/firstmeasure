@@ -82,6 +82,8 @@
       if(reportTabs.some(tab=>!['customer','standard','summary','model','xml'].includes(tab.id)) || !['customer','standard','summary'].every(id=>reportTabs.some(tab=>tab.id===id)))return null;
       return [
         {...projectTabs.find(tab=>tab.id==='map'),id:'project:map',label:'Map',icon:'fa-map-location-dot'},
+        // The report model leads when the report has one.
+        ...reportTabs.filter(tab=>tab.id==='model').map(tab=>({...tab,icon:'fa-cube'})),
         ...['summary','standard','customer'].map(id=>({...reportTabs.find(tab=>tab.id===id),icon:id==='summary'?'fa-list-ul':'fa-file-pdf',iconBadge:id==='customer'?'fa-user':''})),
         ...projectTabs.filter(tab=>tab.id==='photos').map(tab=>({...tab,id:'project:photos'}))
       ];
