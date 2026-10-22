@@ -6008,13 +6008,23 @@ window.PlatformCommerce.onReady(async function(){
     return 240;
   }
 
+  // The wait bar spans the standard turnaround window the server is configured with. Its end labels and
+  // its marker both come from this range, so a wait near the end of the window sits near the right end.
+  function reportExpediteWaitRange(option){
+    const start = Number(option?.waitRangeStartMinutes ?? option?.baseStartMinutes ?? option?.base_start_minutes ?? 240);
+    const end = Number(option?.waitRangeEndMinutes ?? option?.baseEndMinutes ?? option?.base_end_minutes ?? 420);
+    return Number.isFinite(start) && Number.isFinite(end) && end > start ? { start, end } : { start:240, end:420 };
+  }
+
   function reportExpediteWaitPosition(option){
-    const isStandard = option?.key === 'standard_3_6';
-    const start = isStandard ? 180 : Number(option?.baseStartMinutes ?? option?.base_start_minutes ?? option?.startMinutes ?? 180);
-    const end = isStandard ? 360 : Number(option?.baseEndMinutes ?? option?.base_end_minutes ?? option?.endMinutes ?? 360);
+    const { start, end } = reportExpediteWaitRange(option);
     const wait = reportExpediteEstimatedWaitMinutes(option);
-    const range = Math.max(1, end - start);
-    return Math.max(0, Math.min(100, Math.round(((wait - start) / range) * 100)));
+    return Math.max(0, Math.min(100, Math.round(((wait - start) / (end - start)) * 100)));
+  }
+
+  function reportExpediteWaitRangeLabel(minutes){
+    const hours = Number((Number(minutes) / 60).toFixed(1));
+    return (globalThis.PlatformLanguage?.text("project-request","wait_range_hours",`${hours} hrs`,{hours}) ?? `${hours} hrs`);
   }
 
   function reportExpediteEstimatedWaitLabel(option){
@@ -6177,6 +6187,8 @@ window.PlatformCommerce.onReady(async function(){
         endMinutes: useUiWindow ? fallbackEndMinutes : (option.end_minutes ?? option.endMinutes ?? fallback.endMinutes ?? null),
         baseStartMinutes: useUiWindow ? (fallback.startMinutes ?? null) : (option.base_start_minutes ?? option.baseStartMinutes ?? fallback.startMinutes ?? null),
         baseEndMinutes: useUiWindow ? (fallback.endMinutes ?? null) : (option.base_end_minutes ?? option.baseEndMinutes ?? fallback.endMinutes ?? null),
+        waitRangeStartMinutes: option.base_start_minutes ?? option.baseStartMinutes ?? fallback.startMinutes ?? null,
+        waitRangeEndMinutes: option.base_end_minutes ?? option.baseEndMinutes ?? fallback.endMinutes ?? null,
         structureCount: Number(option.structure_count ?? option.structureCount ?? structureCount) || structureCount,
         additionalStructureMinutes,
         productionDeadlineMinutes: useUiWindow && fallback.productionDeadlineMinutes != null
@@ -6393,6 +6405,7 @@ window.PlatformCommerce.onReady(async function(){
       waitMount.innerHTML = '';
     } else if (waitMount && defaultOption) {
       const position = reportExpediteWaitPosition(defaultOption);
+      const waitRange = reportExpediteWaitRange(defaultOption);
       waitMount.innerHTML = `
         <div class="r-expedite-default-head">
           <div class="r-expedite-status">
@@ -6402,7 +6415,7 @@ window.PlatformCommerce.onReady(async function(){
           <div class="r-expedite-eta">${String(escapeHtml(reportExpediteEstimatedWaitLabel(defaultOption)))}</div>
         </div>
         <div class="r-expedite-bar" style="--wait-position:${String(position)}%"><span class="r-expedite-marker" aria-hidden="true"></span></div>
-        <div class="r-expedite-bar-labels"><span>${(globalThis.PlatformLanguage?.htmlText("project-request","m_c025d9e87eaacd","4 hrs") ?? "4 hrs")}</span><span>${(globalThis.PlatformLanguage?.htmlText("project-request","m_ed52be56a2ea6c","7 hrs") ?? "7 hrs")}</span></div>`;
+        <div class="r-expedite-bar-labels"><span>${String(escapeHtml(reportExpediteWaitRangeLabel(waitRange.start)))}</span><span>${String(escapeHtml(reportExpediteWaitRangeLabel(waitRange.end)))}</span></div>`;
     } else if (waitMount) {
       waitMount.innerHTML = '';
     }
@@ -7172,7 +7185,7 @@ window.PlatformCommerce.onReady(async function(){
       isMobileReportOrder: () => shouldUseMobileOrderPagination(),
       mobileOrderPinsLocked: () => shouldUseMobileOrderPagination() && !mobileOrderScopeReady(),
       inlineProjectMapWithReports: () => projectModalAppsShouldInlineMap(),
-      reportNavigationContext: () => ({ordered:hasReportOrdered(),tabs:projectViewerTabs(),activeTab:activePreviewTab}),
+      reportNavigationContext: () => ({ordered:reportOrderExists(),tabs:projectViewerTabs(),activeTab:activePreviewTab}),
       showStructurePinLimitNotice: () => showStructurePinLimitNotice(),
       invalidateReportExpediteOptions: () => invalidateReportExpediteOptions(),
       renderPinInfo: () => renderPinInfo(),
@@ -7725,13 +7738,27 @@ window.PlatformCommerce.onReady(async function(){
     return tabs;
   }
 
+  // A report order exists once the project carries a report, an order status or a measurement id,
+  // cancelled and rejected orders included. The opening header and the hydrated header share this
+  // rule, so a cancelled order keeps the report layout instead of flipping to the full tab set.
+  function projectReportOrderExists(project){
+    const measurement=project?.measurement_project || project?.measurement || {};
+    const manifest=project?.manifest || measurement.raw?.manifest || {};
+    const rows=[project || {},measurement,measurement.raw || {},manifest];
+    return rows.some(row=>row.has_report || row.report_url || row.pdf_url || row.summary_url || row.xml_url || ['measurement_ordered','submitted','processing','in_progress','completed','complete','queued'].includes(String(row.workflow_state || row.status || '').toLowerCase())) || !!(project?.measurement_project_id || project?.firstmeasure_project_id || measurement.id || measurement.project_id);
+  }
+  function reportOrderExists(){
+    if (reorderMeasurementProjectId) return false;
+    return hasReportOrdered() || projectReportOrderExists(activeBaseProject);
+  }
+
   function openingProjectTabs(project, options = {}){
     if (!project && normalizeWorkflow(options.workflow || options.createWorkflow || options.intent)!=='project') return [];
     const tabs=projectViewerTabs({opening:true,project});
     const measurement=project?.measurement_project || project?.measurement || {};
     const manifest=project?.manifest || measurement.raw?.manifest || {};
     const rows=[project || {},measurement,measurement.raw || {},manifest];
-    const ordered=rows.some(row=>row.has_report || row.report_url || row.pdf_url || row.summary_url || row.xml_url || ['measurement_ordered','submitted','processing','in_progress','completed','complete','queued'].includes(String(row.workflow_state || row.status || '').toLowerCase())) || !!(project?.measurement_project_id || project?.firstmeasure_project_id || measurement.id || measurement.project_id);
+    const ordered=projectReportOrderExists(project);
     if(!ordered || weatherReportsEnabled() || reportFollowupEnabled() || !appFeatureEnabled('firstmeasure','measurement_report_summary',false) || rows.some(row=>row.include_inspection || row.include_instant || row.include_instant_preview || row.report_mode === 'both'))return tabs;
     const reportTabs=[{id:'summary',label:(globalThis.PlatformLanguage?.text("project-request","m_9b03ccb29ba168","Summary") ?? "Summary")},{id:'standard',label:window.Portal?.terminology?.get?.('reports.standard_view','Standard Report') || 'Standard Report'},{id:'customer',label:window.Portal?.terminology?.get?.('reports.customer_view','Customer Report') || 'Customer Report'}];
     return window.Portal.ProjectViewer.reportHeaderTabs(tabs,reportTabs,true) || tabs;
@@ -7749,7 +7776,7 @@ window.PlatformCommerce.onReady(async function(){
     const selected=activePreviewTab==='measurements' ? reportView : 'project:'+activePreviewTab;
     window.Portal.ProjectViewer.renderTabs(nav,tabs.map(tab=>({...tab,active:tab.id===selected})),{tabClass:'r-measure-tab',iconOnly:true,onTabClick:tab=>{
       if(tab.id.startsWith('project:'))setActivePreviewTab(tab.id.slice(8),{history:'push'});
-      else {setActivePreviewTab('measurements',{history:'push'});setActiveMeasurementTab(tab.id);}
+      else {setActivePreviewTab('measurements',{history:'push'});setActiveMeasurementTab(tab.id,{user:true});}
     }});
   }
 
@@ -7862,6 +7889,7 @@ window.PlatformCommerce.onReady(async function(){
   }
 
   function measurementTabs(...args){ return projectMeasurementsInvoke('measurementTabs', args); }
+  function selectInitialMeasurementTab(...args){ return projectMeasurementsInvoke('selectInitialMeasurementTab', args); }
   function isPlatformProjectId(...args){ return projectMeasurementsInvoke('isPlatformProjectId', args); }
   function normalizedStatusList(values = []){
     return values.map((value) => projectText(value).toLowerCase()).filter(Boolean);
@@ -9453,7 +9481,7 @@ window.PlatformCommerce.onReady(async function(){
     if (activeBaseProject) syncProjectPhotosFromLibrary();
     setProjectionMode(true);
     refreshProjectModalAppsForOrderTransition();
-    setActiveMeasurementTab(data?.development_report ? 'model' : (reportOrderState.includeInspection ? 'instant' : 'standard'));
+    selectInitialMeasurementTab(reportOrderState.includeInspection ? 'instant' : 'standard', { model:data?.development_report === true });
     projectViewer?.setActiveTab('measurements');
     renderMeasurementsPanel();
     refreshProjectModalAppsForOrderTransition('measurements');
@@ -11011,7 +11039,7 @@ window.PlatformCommerce.onReady(async function(){
           || !!summaryUrl
         ),
       };
-      setActiveMeasurementTab(cancelledMeasurement ? 'standard' : (reportOrderState.hasReadyReport ? 'model' : (reportOrderState.includeInspection ? 'instant' : 'standard')));
+      selectInitialMeasurementTab(!cancelledMeasurement && reportOrderState.includeInspection ? 'instant' : 'standard', { model:!cancelledMeasurement && reportOrderState.hasReadyReport });
       setProjectionMode(true);
       if (!options.preferredTab) setActivePreviewTab('measurements');
     }

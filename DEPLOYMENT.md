@@ -2,6 +2,8 @@
 
 October 21 Customer billing fixes on dev: [an order placed while adding funds is submitted after payment (market revision sent, priced from the shown quote, paid sessions with tax credited, mismatches held for review), the top-up page uses the organization's currency, and the statement counts refunds apart from payments](deploy/digitalocean/development-billing-topup-20261021.md) records releases `14a6e3de` and `039723d8` (1M8-198, 1M8-200, 1M8-218) and the verified development rollout. Not on canonical yet.
 
+October 21 Portal regressions on dev: [1M8-202/205/206/208/210/211 and the platform sync gate (report tab highlight, cancelled-order layout and status, stale Processing summaries, drafts, contact placeholder, impersonation Settings row)](deploy/digitalocean/development-portal-regressions-20261021.md) records session-branch release `41b65307` on legacy, web and pool; not on canonical yet.
+
 October 21 PRODUCTION HOTFIX: [`10d8d525` serves project artifacts byte for byte, so projects with saved undo history open again ("Load Error: Failed to fetch")](deploy/digitalocean/production-hotfix-artifact-encoding-20261020.md); compatibility and all six web nodes, verified.
 
 October 20 PRODUCTION RELEASE: [canonical `31f87be5` is live on compatibility, the worker and all six web nodes (platform, Full House and the roof 3D viewer off), with the 10-minute PDF sync changeover issue and rollback](deploy/digitalocean/production-release-20261020.md). Production now runs the canonical branch.

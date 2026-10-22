@@ -88,7 +88,7 @@
       kind: 'portal_tab',
       surfaces: ['portal_tab'],
       portalTabId: 'viewer',
-      bundles: [versionedBundle('partners/shared-list.js','20261001-sharing-polish-v1'), versionedBundle('projects/viewer.js', '20261019-storage-refresh-v1')]
+      bundles: [versionedBundle('partners/shared-list.js','20261001-sharing-polish-v1'), versionedBundle('projects/viewer.js', '20261021-portal-regressions-v1')]
     },
     {
       id: 'portal.crm',
@@ -295,7 +295,7 @@
       kind: 'modal_app',
       surfaces: ['modal', 'project_modal'],
       dependencies: ['firstmeasure.order', 'project.map', 'project.photos', 'project.proposal', 'project.materials', 'project.money', 'project.customer_portal', 'project.schedule', 'project.measurements', 'project.checklists'],
-      bundles: [...channelsLibBundles, versionedBundle('../window-manager/project-windows.js', '20261010-priority-owners-v2'), versionedBundle('project-request/app.js', '20261021-billing-topup-v1')]
+      bundles: [...channelsLibBundles, versionedBundle('../window-manager/project-windows.js', '20261010-priority-owners-v2'), versionedBundle('project-request/app.js', '20261022-rc1-v1')]
     },
     {
       id: 'firstmeasure.order',
@@ -355,7 +355,7 @@
       kind: 'project_modal_app',
       surfaces: ['project_modal'],
       requiresContext: ['project'],
-      bundles: [...widgetBundles, versionedBundle('measurements/roof-viewer.js', '20261002-key-vertical'), versionedBundle('measurements/project.js', '20261020-model-viewer-gate-v1')]
+      bundles: [...widgetBundles, versionedBundle('measurements/roof-viewer.js', '20261002-key-vertical'), versionedBundle('measurements/project.js', '20261021-portal-regressions-v1')]
     },
     {
       id: 'project.checklists',

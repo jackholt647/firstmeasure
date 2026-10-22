@@ -57,9 +57,9 @@ test('mobile opening header has final tabs and no desktop pills before child boo
  await page.goto('https://shell.test/');
  await page.evaluate(()=>{window.Portal={modules:{request:{openingHeader:()=>({title:'Test roof',identityHtml:'Test roof',pillsHtml:'<button>Residential</button>'})}}};});
  await page.addScriptTag({content:await load('public/portal/scripts/project_viewer.js')});
- const start=shell.indexOf('  function openingProjectTabs(');
+ const start=shell.indexOf('  function projectReportOrderExists(');
  await page.evaluate(()=>{window.projectViewerTabs=()=>[{id:'map'},{id:'measurements'}];window.weatherReportsEnabled=()=>false;window.reportFollowupEnabled=()=>false;window.appFeatureEnabled=()=>true;});
- await page.addScriptTag({content:shell.slice(start,shell.indexOf('\n  }',start)+4)+'\nPortal.modules.request.openingTabs=openingProjectTabs;'});
+ await page.addScriptTag({content:shell.slice(start,shell.indexOf('\n  }',shell.indexOf('  function openingProjectTabs(',start))+4)+'\nPortal.modules.request.openingTabs=openingProjectTabs;'});
  for(const file of ['window-manager.js','window-shell.js','project-windows.js'])await page.addScriptTag({content:await load('public/libraries/window-manager/'+file)});
  const initial=await page.evaluate(()=>{
   window.record=FirstMateProjectWindows.open({id:'project_test',status:'processing'},{tab:'measurements'});

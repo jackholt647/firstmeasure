@@ -1922,7 +1922,11 @@ session_write_close();
         /* Push everything below the banner */
         body { padding-top: 44px !important; }
         .mobile-topbar { top: 44px !important; }
-        .sidebar { top: 44px !important; height: calc(var(--fm-visual-vh, 100vh) - 44px) !important; }
+        /* On desktop the sidebar sits in body's flow below the padding; offsetting it again clipped
+           its last 44px (the Settings row). Only the fixed mobile drawer needs the offset. */
+        @media (max-width: 820px) {
+            .sidebar { top: 44px !important; height: calc(var(--fm-visual-vh, 100vh) - 44px) !important; }
+        }
     </style>
     <script>
     async function stopImpersonating() {
