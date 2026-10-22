@@ -32,3 +32,21 @@ conflicts kept both sides: compact tabs Model and XML; mount() applies a moved r
 reset() clears `appliedRouteView` but keeps the person's tab. The merged payload passed the test before activation.
 Two earlier attempts were refused at activation because other rollouts activated meanwhile; nothing was changed then.
 All roles verified; dev serves the new code under bundle key `20261022-report-tabs-v1`. Production was not changed.
+
+## Follow-up: release-held orders read Processing; no drafts inside existing projects (1M8-234) - `772f66fb`
+
+Livia's "processing" order (`3c3c672c...`, read-only production lookup) was completed at 20:36 UTC and held for the
+standard release window until 00:18 UTC (`delivery.release_hold.status = holding`), which customers see as processing.
+`41b65307` (1M8-210) counted an active release hold as a closed order, so its Summary report rows said "Not available"
+like a cancelled or rejected order. Only cancelled and rejected orders are closed now (measurements/project.js).
+Production has no platform document for the order or for `project_mvk3j5kc_ffp4ewq6`, the draft her browser offered as
+an order form: it was minted in the page cache at 22:11:58 UTC over the order's address. `persistActiveBaseProject`
+(project-request/app.js) now starts a draft only for a new project, never inside a window opened for an existing one.
+The exact step that left that window without its project record was not reproduced.
+
+Test: `public/v1/tests/order-status-real-app-browser.test.mjs` runs the real project-request, measurements and map apps,
+project store, navigation, window manager and apps runtime in Chrome without expanded access, and opens processing,
+queued, release-held, completed and cancelled orders as the FirstMeasure-only board passes them (3 pass; the held case
+fails on `7098c2cd`). `portal-regressions-20261021` updated (held reads Processing); related suites and `npm run check`
+pass. Rolled with `output/order-status-20261022/` onto dev's live `e3db0de0` (clean 3-way merge, manifest keys
+`20261022-order-status-v1` replayed); verified on legacy, web and pool, and the test passes on the merged files.
