@@ -2225,7 +2225,8 @@ window.PlatformCommerce.onReady(function(){
     const instantOrdered = reportOrderIncludesInstant();
     const guttersOrdered = reportOrderIncludesGutters();
     const cancelled = reportOrderIsCancelled();
-    const closed = cancelled || reportOrderIsRejected() || reportOrderReleaseHoldIsActive();
+    // A release-held order is finished but not yet delivered: the customer still sees it processing (1M8-234).
+    const closed = cancelled || reportOrderIsRejected();
     const documentState = (url, pendingWhenUnlocked = false) => ({
       url: documentsUnlocked && !closed ? (url || '') : '',
       ready: documentsUnlocked && !closed && !!url,

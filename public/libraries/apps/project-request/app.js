@@ -8823,7 +8823,9 @@ window.PlatformCommerce.onReady(async function(){
     if (activeBaseProject?.__projectShellLoading) return;
     if (!activeBaseProject && requestedWorkflow === 'contact') ensureContactDraftBaseProject();
     if (!activeBaseProject && requestedWorkflow === 'document' && docPickerDismissed) ensureDocumentBaseProject();
-    if (!activeBaseProject && addressSelected) ensureDraftBaseProject();
+    // Only a new project starts a draft here. A window opened for an existing project (an order whose record has not
+    // loaded yet, or failed to) must not save a new draft over the order's address (1M8-234).
+    if (!activeBaseProject && addressSelected && !viewingExistingProject) ensureDraftBaseProject();
     if (!activeBaseProject || !window.Portal.ProjectStore) return;
     syncProjectPhotosFromLibrary();
     // Without the Overview details form there are no edited values to read;

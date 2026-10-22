@@ -177,7 +177,8 @@ function summaryRows({ cancelled = false, rejected = false, held = false, comple
 test('1M8-210: report summary rows say Cancelled or Not available, never Processing, for closed orders', () => {
   assert.deepEqual(summaryRows({ cancelled: true }).map(row => row.label), ['Cancelled', 'Cancelled']);
   assert.deepEqual(summaryRows({ rejected: true }).map(row => row.label), ['Not available', 'Not available']);
-  assert.deepEqual(summaryRows({ held: true }).map(row => row.label), ['Not available', 'Not available']);
+  // A release-held order is finished but not yet delivered; the customer still sees it processing (1M8-234).
+  assert.deepEqual(summaryRows({ held: true }).map(row => row.label), ['Processing', 'Processing']);
   assert.deepEqual(summaryRows().map(row => row.label), ['Processing', 'Processing'], 'an open order is still processing');
 });
 
