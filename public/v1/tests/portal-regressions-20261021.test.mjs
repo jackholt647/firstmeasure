@@ -281,3 +281,35 @@ test('platform sync is skipped and the board lists FirstMeasure directly without
   const list = between(core, "    if (action === 'list_projects') {", "    if (action === 'queue') {");
   assert.match(list, /const platformProjects = platformExpandedAccess\(\) \? await listPlatformProjectCandidates\(\)/);
 });
+
+// 1M8-197: the wait bar's marker and its end labels use the same configured turnaround window.
+function waitBar() {
+  const ctx = vm.createContext({ globalThis: {}, Number, Math });
+  vm.runInContext(fn(shell, 'reportExpediteEstimatedWaitMinutes') + fn(shell, 'reportExpediteWaitRange')
+    + fn(shell, 'reportExpediteWaitPosition') + fn(shell, 'reportExpediteWaitRangeLabel'), ctx);
+  return ctx;
+}
+
+test('1M8-197: a 5-hour wait in a 3-6 hour window sits near the right end, labelled 3 and 6 hrs', () => {
+  const ctx = waitBar();
+  const option = { key: 'standard_3_6', waitRangeStartMinutes: 180, waitRangeEndMinutes: 360, estimatedWaitMinutes: 300 };
+  assert.equal(ctx.reportExpediteWaitPosition(option), 67);
+  const range = ctx.reportExpediteWaitRange(option);
+  assert.deepEqual([ctx.reportExpediteWaitRangeLabel(range.start), ctx.reportExpediteWaitRangeLabel(range.end)], ['3 hrs', '6 hrs']);
+  assert.equal(ctx.reportExpediteWaitPosition({ ...option, estimatedWaitMinutes: 350 }), 94);
+  assert.equal(ctx.reportExpediteWaitPosition({ ...option, estimatedWaitMinutes: 180 }), 0);
+  assert.equal(ctx.reportExpediteWaitPosition({ ...option, estimatedWaitMinutes: 500 }), 100);
+});
+
+test('1M8-197: the default 4-7 hour window labels and positions from the same range', () => {
+  const ctx = waitBar();
+  const option = { key: 'standard_3_6', baseStartMinutes: 240, baseEndMinutes: 420, estimatedWaitMinutes: 300 };
+  assert.equal(ctx.reportExpediteWaitPosition(option), 33);
+  const range = ctx.reportExpediteWaitRange(option);
+  assert.deepEqual([ctx.reportExpediteWaitRangeLabel(range.start), ctx.reportExpediteWaitRangeLabel(range.end)], ['4 hrs', '7 hrs']);
+  const render = between(shell, '      const position = reportExpediteWaitPosition(defaultOption);', '    } else if (waitMount) {');
+  assert.match(render, /reportExpediteWaitRangeLabel\(waitRange\.start\)/);
+  assert.match(render, /reportExpediteWaitRangeLabel\(waitRange\.end\)/);
+  assert.doesNotMatch(render, /"4 hrs"|"7 hrs"|"3 hrs"|"6 hrs"/);
+  assert.match(shell, /waitRangeStartMinutes: option\.base_start_minutes \?\? option\.baseStartMinutes \?\? fallback\.startMinutes \?\? null,/);
+});
