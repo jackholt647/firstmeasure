@@ -56,3 +56,19 @@ per roof and shown in the textured views only.
 **Tests and rollout.** Five new tests. The full suite has 1,708 passing, with the known exterior-ai failure.
 `exterior_cover.js`, `exterior_finishes.js`, `exterior_rendered.js`, `pdf.js` and `wall_mode.js` were overlaid on web,
 legacy and pool. The served `pdf.js` also carries another session's live roof-title change, merged in.
+
+## Follow-up: table style everywhere and the orientation-only Exteriors tab — `1b40b5bca91204fa3c3211bfd0d53a3b5cf0d66b`
+
+**Tables.** Exterior Summary, Opening Schedule, Measured lengths, Net area by material and Material Allowances use
+the left-bar boxed roof-table style, with numeric columns right-aligned. Tables of three columns or fewer and more
+than ten rows split into two columns. Row capacity accounts for the new row height, and a section heading is never
+left stranded at a page bottom.
+
+**Exteriors tab.** The "Include exterior pages" and "house context" toggles, the faces list, the notes box and the
+front-wall picker are removed from the UI. `exteriorSettings.include`, `.dimensionContext` and `.notes` are still
+honoured as parameters, and the Company › Reports toggle is unchanged. The tab is one large dial: drag the footprint,
+use the slider or type a bearing. It snaps within 3° of the strongest wall directions (Shift disables snapping), saves
+on release, and fires one change event, which re-renders the textured cover.
+
+**Tests and rollout.** Exterior suites pass. The full suite has 1,708 of 1,711 passing, with the known exterior-ai
+failure. `exterior_pdf.js` and `exterior_report.js` were overlaid on web, legacy and pool, and the served files match.
