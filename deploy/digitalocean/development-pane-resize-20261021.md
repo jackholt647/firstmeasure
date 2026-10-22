@@ -65,3 +65,13 @@ GPU-side and does not show in main-thread timings.
 
 Checked headed at 2×: Cesium no longer appears in the drag profile, its loop resumes after release, and the canvas
 returns to automatic sizing. Resource tests pass. Not yet confirmed on the user's own machine.
+
+## Follow-up: no white flash on release — `f759aa3115f6ab02f0e04c994e3365d19b7282dd`
+
+After the drag fixes, the 3D view sometimes flashed white for a few frames when a drag ended. The release resize
+called `renderer.setSize`, which clears the WebGL buffer even when the size is unchanged, and the scene was redrawn
+only on a later animation frame. That could be the next frame or, when idle, up to 100 ms later, depending on
+callback order. `sync3DViewportSize` now resizes only when the size changed and draws in the same frame. Checked by
+logging resize and redraw frame numbers: the old code redrew one frame after the resize, and the new code redraws
+in the same frame and skips the resize when the size is unchanged. The served `scene_3d.js` contains the change,
+merged with another session's live tooltip edit.
