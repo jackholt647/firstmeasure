@@ -7784,6 +7784,7 @@ window.PlatformCommerce.onReady(async function(){
     const ordered=projectReportOrderExists(project);
     if(!ordered || weatherReportsEnabled() || reportFollowupEnabled() || !appFeatureEnabled('firstmeasure','measurement_report_summary',false) || rows.some(row=>row.include_inspection || row.include_instant || row.include_instant_preview || row.report_mode === 'both'))return tabs;
     const reportTabs=[{id:'summary',label:(globalThis.PlatformLanguage?.text("project-request","m_9b03ccb29ba168","Summary") ?? "Summary")},{id:'standard',label:window.Portal?.terminology?.get?.('reports.standard_view','Standard Report') || 'Standard Report'},{id:'customer',label:window.Portal?.terminology?.get?.('reports.customer_view','Customer Report') || 'Customer Report'}];
+    if(rows.some(row=>row.xml_url))reportTabs.push({id:'xml',label:(globalThis.PlatformLanguage?.text("project-request","m_8efb983a491620","XML") ?? "XML")});
     return window.Portal.ProjectViewer.reportHeaderTabs(tabs,reportTabs,true) || tabs;
   }
 
@@ -7791,15 +7792,19 @@ window.PlatformCommerce.onReady(async function(){
     const header=$('#rOverlay .r-modal-header');
     if(!header || header.querySelector('#rMeasureTabs'))return;
     const tabs=openingProjectTabs(activeBaseProject,{workflow:requestedWorkflow});
+    // This strip stands in only until the report app draws its own tabs (in the header or its panel).
+    const reportTabsDrawn=!!$('#rOverlay #rMeasureTabs [data-tab]');
+    if(reportTabsDrawn){header.querySelector('#rOpeningReportTabs')?.remove();return;}
     if(!tabs.some(tab=>tab.id==='project:map')){const pending=header.querySelector('#rOpeningReportTabs');if(pending){pending.remove();$('#rOverlay')?.classList.remove('flat-report-navigation','report-tabs-in-header');}return;}
     let nav=header.querySelector('#rOpeningReportTabs');
     if(!nav){nav=document.createElement('nav');nav.id='rOpeningReportTabs';nav.className='r-measure-tabs';header.append(nav);}
     $('#rOverlay')?.classList.add('flat-report-navigation','report-tabs-in-header');
-    const reportView=window.Portal?.navigation?.read?.().reportView || 'standard';
+    const reportView=projectMeasurementsModule()?.activeTab?.() || window.Portal?.navigation?.read?.().reportView || 'standard';
     const selected=activePreviewTab==='measurements' ? reportView : 'project:'+activePreviewTab;
     window.Portal.ProjectViewer.renderTabs(nav,tabs.map(tab=>({...tab,active:tab.id===selected})),{tabClass:'r-measure-tab',iconOnly:true,onTabClick:tab=>{
       if(tab.id.startsWith('project:'))setActivePreviewTab(tab.id.slice(8),{history:'push'});
       else {setActivePreviewTab('measurements',{history:'push'});setActiveMeasurementTab(tab.id,{user:true});}
+      renderOpeningReportTabs();
     }});
   }
 

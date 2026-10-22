@@ -4,6 +4,14 @@
 window.PlatformCommerce.onReady(function(){
   const runtime = window.FirstMateEmbeddableApps;
   const Portal = window.Portal;
+  // index.php and the apps runtime can both load this file (under different ?v= keys). A second copy
+  // would keep its own report-tab state and repaint the shared tab strip from it, so the highlighted tab
+  // stopped following the open report (1M8-205). Every later copy defers to the first.
+  const loadedMeasurementsApp = Portal?.modules?.projectMeasurements;
+  if (loadedMeasurementsApp?.singleton) {
+    if (loadedMeasurementsApp.definition) runtime?.registerApp?.(loadedMeasurementsApp.definition);
+    return;
+  }
   const util = Portal?.util || {};
   const cfg = Portal?.cfg || window.__APP || {};
   const $ = util.$ || ((sel, root = document) => root.querySelector(sel));
@@ -137,7 +145,11 @@ window.PlatformCommerce.onReady(function(){
   function resolveRoot(context = {}){
     const root = context.panelRoot || context.roots?.main || state.panelRoot || document.querySelector('#rOverlay .r-preview-panel[data-panel="measurements"]');
     if (!root) return null;
-    if (!root.querySelector?.('.r-measure-body')) root.innerHTML = panelHtml();
+    // The project modal mounts with its outer panel and the runtime with the panel's main region. Both
+    // resolve to the element holding the report body, so every render finds the same tab strip and panes.
+    const body = root.querySelector?.('.r-measure-body');
+    if (body?.parentElement) return body.parentElement;
+    root.innerHTML = panelHtml();
     return root;
   }
 
@@ -3914,7 +3926,9 @@ window.PlatformCommerce.onReady(function(){
     const root = currentPanelRoot();
     const overlay = root?.closest('#rOverlay');
     const header = overlay?.querySelector('.r-modal-header');
-    const tabsEl = root?.querySelector('#rMeasureTabs') || header?.querySelector('#rMeasureTabs');
+    // The strip may sit anywhere in this panel or in the header; a render that missed it left the old
+    // highlight (and its click handlers) in place while the panes switched (1M8-205).
+    const tabsEl = root?.querySelector('#rMeasureTabs') || root?.closest('.r-preview-panel')?.querySelector('#rMeasureTabs') || header?.querySelector('#rMeasureTabs');
     if (!root || !header || !tabsEl) return;
     const context = callHost('reportNavigationContext') || {};
     const reports = measurementTabs();
@@ -3939,6 +3953,10 @@ window.PlatformCommerce.onReady(function(){
       }
     }});
     tabsEl.querySelectorAll('[data-tab]').forEach(button => button.setAttribute('aria-selected',String(button.dataset.tab === selected)));
+    // The project modal repaints only this strip on many header updates; the open pane follows it.
+    root.querySelectorAll('.r-measure-pane').forEach((pane) => {
+      pane.classList.toggle('active', pane.dataset.measurePane === activeMeasurementTab);
+    });
   }
 
   function renderMeasurementsPanel(){
@@ -3950,7 +3968,7 @@ window.PlatformCommerce.onReady(function(){
     const reportTabs = measurementTabs();
     const context = callHost('reportNavigationContext') || {};
     const compactTabs = reportHeaderTabs(context.tabs || [], reportTabs, context.ordered);
-    const tabs = compactTabs ? reportTabs.filter(tab => ['customer','standard','summary'].includes(tab.id)) : reportTabs;
+    const tabs = compactTabs ? reportTabs.filter(tab => ['customer','standard','summary','xml'].includes(tab.id)) : reportTabs;
     if (!tabs.some((tab) => tab.id === activeMeasurementTab)) {
       activeMeasurementTab = tabs.find((tab) => tab.id === 'standard' && !tab.disabled)?.id || tabs.find((tab) => !tab.disabled)?.id || 'standard';
     }
@@ -4092,12 +4110,13 @@ window.PlatformCommerce.onReady(function(){
     state.panelRoot = resolveRoot(context);
     state.mounted = !!state.panelRoot;
     state.active = context.active !== false;
-    const routedView = window.Portal?.navigation?.read?.().reportView;
-    if (routedView) activeMeasurementTab = routedView;
     if (state.model && window.FirstMateAppContext?.installProjectContextAccessors) {
       window.FirstMateAppContext.installProjectContextAccessors(state.model, { overwrite: false });
     }
     installHostGlobals();
+    const routedView = window.Portal?.navigation?.read?.().reportView;
+    const chosenView = userMeasurementTab && userMeasurementTabProject === (activeMeasurementProjectId() || '') ? userMeasurementTab : '';
+    if (routedView || chosenView) activeMeasurementTab = routedView || chosenView;
     if (state.active && state.panelRoot) renderMeasurementsPanel();
     return api;
   }
@@ -4119,8 +4138,6 @@ window.PlatformCommerce.onReady(function(){
     pendingExpediteSelection = '';
     roofViewer?.destroy();roofViewer=null;roofViewerKey='';
     activeMeasurementTab = 'model';
-    userMeasurementTab = '';
-    userMeasurementTabProject = '';
     reportRequestModalState = null;
     weatherReportPollAttempt = 0;
   }
@@ -4253,7 +4270,8 @@ window.PlatformCommerce.onReady(function(){
     cancelPendingReportOrder,
     renderMeasurementsPanel,
     cache: () => ({ measurementAssetCache, measurementAssetLoads }),
-    context: () => ({ mounted: state.mounted, active: state.active, activeMeasurementTab })
+    context: () => ({ mounted: state.mounted, active: state.active, activeMeasurementTab }),
+    activeTab: () => activeMeasurementTab
   };
 
   const definition = {
@@ -4273,6 +4291,8 @@ window.PlatformCommerce.onReady(function(){
     mount
   };
 
+  api.singleton = true;
+  api.definition = definition;
   Portal.modules = Portal.modules || {};
   Portal.modules.projectMeasurements = api;
   Portal.ProjectMeasurementsApp = api;

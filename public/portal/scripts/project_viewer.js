@@ -83,6 +83,8 @@
       return [
         {...projectTabs.find(tab=>tab.id==='map'),id:'project:map',label:'Map',icon:'fa-map-location-dot'},
         ...['summary','standard','customer'].map(id=>({...reportTabs.find(tab=>tab.id===id),icon:id==='summary'?'fa-list-ul':'fa-file-pdf',iconBadge:id==='customer'?'fa-user':''})),
+        // The XML model downloads from its own tab; the flat header must not drop it (1M8-232).
+        ...reportTabs.filter(tab=>tab.id==='xml').map(tab=>({...tab,icon:'fa-code'})),
         ...projectTabs.filter(tab=>tab.id==='photos').map(tab=>({...tab,id:'project:photos'}))
       ];
     }
