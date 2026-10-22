@@ -6008,13 +6008,23 @@ window.PlatformCommerce.onReady(async function(){
     return 240;
   }
 
+  // The wait bar spans the standard turnaround window the server is configured with. Its end labels and
+  // its marker both come from this range, so a wait near the end of the window sits near the right end.
+  function reportExpediteWaitRange(option){
+    const start = Number(option?.waitRangeStartMinutes ?? option?.baseStartMinutes ?? option?.base_start_minutes ?? 240);
+    const end = Number(option?.waitRangeEndMinutes ?? option?.baseEndMinutes ?? option?.base_end_minutes ?? 420);
+    return Number.isFinite(start) && Number.isFinite(end) && end > start ? { start, end } : { start:240, end:420 };
+  }
+
   function reportExpediteWaitPosition(option){
-    const isStandard = option?.key === 'standard_3_6';
-    const start = isStandard ? 180 : Number(option?.baseStartMinutes ?? option?.base_start_minutes ?? option?.startMinutes ?? 180);
-    const end = isStandard ? 360 : Number(option?.baseEndMinutes ?? option?.base_end_minutes ?? option?.endMinutes ?? 360);
+    const { start, end } = reportExpediteWaitRange(option);
     const wait = reportExpediteEstimatedWaitMinutes(option);
-    const range = Math.max(1, end - start);
-    return Math.max(0, Math.min(100, Math.round(((wait - start) / range) * 100)));
+    return Math.max(0, Math.min(100, Math.round(((wait - start) / (end - start)) * 100)));
+  }
+
+  function reportExpediteWaitRangeLabel(minutes){
+    const hours = Number((Number(minutes) / 60).toFixed(1));
+    return (globalThis.PlatformLanguage?.text("project-request","wait_range_hours",`${hours} hrs`,{hours}) ?? `${hours} hrs`);
   }
 
   function reportExpediteEstimatedWaitLabel(option){
@@ -6177,6 +6187,8 @@ window.PlatformCommerce.onReady(async function(){
         endMinutes: useUiWindow ? fallbackEndMinutes : (option.end_minutes ?? option.endMinutes ?? fallback.endMinutes ?? null),
         baseStartMinutes: useUiWindow ? (fallback.startMinutes ?? null) : (option.base_start_minutes ?? option.baseStartMinutes ?? fallback.startMinutes ?? null),
         baseEndMinutes: useUiWindow ? (fallback.endMinutes ?? null) : (option.base_end_minutes ?? option.baseEndMinutes ?? fallback.endMinutes ?? null),
+        waitRangeStartMinutes: option.base_start_minutes ?? option.baseStartMinutes ?? fallback.startMinutes ?? null,
+        waitRangeEndMinutes: option.base_end_minutes ?? option.baseEndMinutes ?? fallback.endMinutes ?? null,
         structureCount: Number(option.structure_count ?? option.structureCount ?? structureCount) || structureCount,
         additionalStructureMinutes,
         productionDeadlineMinutes: useUiWindow && fallback.productionDeadlineMinutes != null
@@ -6393,6 +6405,7 @@ window.PlatformCommerce.onReady(async function(){
       waitMount.innerHTML = '';
     } else if (waitMount && defaultOption) {
       const position = reportExpediteWaitPosition(defaultOption);
+      const waitRange = reportExpediteWaitRange(defaultOption);
       waitMount.innerHTML = `
         <div class="r-expedite-default-head">
           <div class="r-expedite-status">
@@ -6402,7 +6415,7 @@ window.PlatformCommerce.onReady(async function(){
           <div class="r-expedite-eta">${String(escapeHtml(reportExpediteEstimatedWaitLabel(defaultOption)))}</div>
         </div>
         <div class="r-expedite-bar" style="--wait-position:${String(position)}%"><span class="r-expedite-marker" aria-hidden="true"></span></div>
-        <div class="r-expedite-bar-labels"><span>${(globalThis.PlatformLanguage?.htmlText("project-request","m_c025d9e87eaacd","4 hrs") ?? "4 hrs")}</span><span>${(globalThis.PlatformLanguage?.htmlText("project-request","m_ed52be56a2ea6c","7 hrs") ?? "7 hrs")}</span></div>`;
+        <div class="r-expedite-bar-labels"><span>${String(escapeHtml(reportExpediteWaitRangeLabel(waitRange.start)))}</span><span>${String(escapeHtml(reportExpediteWaitRangeLabel(waitRange.end)))}</span></div>`;
     } else if (waitMount) {
       waitMount.innerHTML = '';
     }
