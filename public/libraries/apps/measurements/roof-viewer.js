@@ -382,9 +382,9 @@
       if(exterior){finishes=await loadFinishes();frame=exteriorFrame(exterior,roofs);if(disposed)return;
         // ExteriorFinishes and ExteriorRendered read the editor's finish defaults from WallMode; the portal has no editor.
         if(finishes&&(!window.WallMode||window.WallMode.viewerShim)){window.WallMode={viewerShim:true,finishDefaults:exterior.finishDefaults||{}};ownsWallMode=true;}}
-      const T=window.THREE;scene=new T.Scene();scene.background=new T.Color('#eef1f5');camera=new T.PerspectiveCamera(42,1,.1,3000);
+      const T=window.THREE;scene=new T.Scene();scene.background=new T.Color('#eef1f5');camera=new T.PerspectiveCamera(42,1,1,3000);
       renderer=new T.WebGLRenderer({antialias:true});renderer.setPixelRatio(Math.min(devicePixelRatio||1,2));canvas.append(renderer.domElement);
-      controls=new T.OrbitControls(camera,renderer.domElement);controls.enableDamping=false;controls.addEventListener('change',draw);
+      controls=new T.OrbitControls(camera,renderer.domElement);controls.enableDamping=false;controls.minDistance=4;controls.addEventListener('change',draw);
       raycaster=new T.Raycaster();pointer=new T.Vector2();
       scene.add(new T.HemisphereLight(0xffffff,0x687080,.8));const light=new T.DirectionalLight(0xffffff,.45);light.position.set(30,80,40);scene.add(light);
       const exteriorPoints=exterior?[...exterior.walls.flatMap(w=>w.points),...(exterior.base||[]).flatMap(f=>f.points)].map(frame.toFeet):[];
@@ -497,20 +497,27 @@
       const own=(item,meshes,layer)=>{item.meshes=meshes;item.mesh=meshes[0];item.layer=layer;item.finish=true;for(const mesh of meshes){mesh.userData.item=item;groups[layer].add(mesh);}items.push(item);return item;};
       const ring=r=>r.map(obj),faceOf=f=>({points:ring(f.points),holes:(f.holes||[]).map(ring)});
       const safe=(fn,fallback)=>{try{return fn();}catch(_){return fallback;}};
+      const chimneyCaps=(exterior.caps||[]).map((face,index)=>{const xs=face.points.map(p=>p[0]),ys=face.points.map(p=>p[1]);return {face,id:'viewer-chimney-'+index,box:[Math.min(...xs)-.15,Math.max(...xs)+.15,Math.min(...ys)-.15,Math.max(...ys)+.15],center:[(Math.min(...xs)+Math.max(...xs))/2,(Math.min(...ys)+Math.max(...ys))/2]};});
+      const chimneyOf=wall=>{if(!wall.chimney||!chimneyCaps.length)return null;const c=wall.points.reduce((a,p)=>[a[0]+p[0]/wall.points.length,a[1]+p[1]/wall.points.length],[0,0]);
+        return (chimneyCaps.find(cap=>c[0]>=cap.box[0]&&c[0]<=cap.box[1]&&c[1]>=cap.box[2]&&c[1]<=cap.box[3])||chimneyCaps.reduce((best,cap)=>Math.hypot(cap.center[0]-c[0],cap.center[1]-c[1])<Math.hypot(best.center[0]-c[0],best.center[1]-c[1])?cap:best)).id;};
+      const allWallPoints=exterior.walls.flatMap(w=>w.points),houseCenter=allWallPoints.reduce((a,p)=>a.map((v,i)=>v+p[i]/allWallPoints.length),[0,0,0]);
       for(const wall of exterior.walls){
         const category=wall.chimney?'chimney':'material:'+wall.materialKey,swatch=flatColor(wall.materialKey,wall.finishColor);
         const item={kind:'wall',category,categoryName:wall.chimney?'Chimneys':labelFor(wall.materialKey),area:wall.net,swatch,flat:swatch,title:`${wall.chimney?'Chimney':'Wall'} ${wall.id} · ${wall.material}`,
           details:()=>[['Elevation',wall.elevation],['Material',wall.material],['Net area',`${decimal(wall.net,0)} sq ft`],['Gross area',wall.openingArea>0?`${decimal(wall.gross,0)} sq ft`:null],['Openings',wall.openings.length?String(wall.openings.length):null],['Height',wall.height?ftIn(wall.height):null],['Width',wall.width?ftIn(wall.width):null]]};
-        const mesh=safe(()=>editorMesh({...faceOf(wall),material:wall.materialKey,finishColor:wall.finishColor,...(wall.chimney?{chimney:{}}:{})}),null);if(!mesh)continue;own(item,[mesh],'walls');
+        const chimneyId=chimneyOf(wall),mesh=safe(()=>editorMesh({...faceOf(wall),material:wall.materialKey,finishColor:wall.finishColor,...(wall.chimney?{chimney:{id:chimneyId}}:{})}),null);if(!mesh)continue;own(item,[mesh],'walls');
         // Wall area pills sit just off the face, outside its holes.
         const anchor=wallAnchor(wall);if(anchor){const sprite=labelSprite(toScene(anchor),{item,size:2.1});paintLabel(sprite,[{icon:'area',text:decimal(wall.net,0)+' sf'}]);groups.wallLabels.add(sprite);}
+        const wallCenter=wall.points.reduce((a,p)=>a.map((v,i)=>v+p[i]/wall.points.length),[0,0,0]),wallNormal=newell(wall.points)||[0,0,0],outward=dot3(wallNormal,wallCenter.map((v,i)=>v-houseCenter[i]))<0?-1:1;
         for(const opening of wall.openings){const type=openingKind(opening.type);if(!openingKinds[type])continue;
-          const feature=safe(()=>editorMesh({points:ring(opening.points),feature:{type}},{offset:-1,order:1}),null);if(!feature)continue;feature.userData.exteriorFeature=true;
+          const proud=opening.points.map(p=>p.map((v,i)=>v+wallNormal[i]*outward*.03));
+          const feature=safe(()=>editorMesh({points:ring(proud),feature:{type}},{offset:-1,order:1}),null);if(!feature)continue;feature.userData.exteriorFeature=true;
           const on=newell(opening.points)||[0,0,0],middle=opening.points.reduce((a,p)=>a.map((v,i)=>v+p[i]/opening.points.length),[0,0,0]);
           own({kind:'opening',labelAnchor:toScene(middle.map((v,i)=>v+on[i]*.2)),labelParts:()=>[{text:`${ftIn(opening.width)} × ${ftIn(opening.height)}`}],category:'opening:'+type,openingType:type,priority:3,area:opening.area,width:opening.width,height:opening.height,swatch:flatOpening[type],flat:flatOpening[type],title:`${openingKinds[type][1]} ${opening.id}`,
             details:()=>[['Size',`${ftIn(opening.width)} × ${ftIn(opening.height)}`],['Area',`${decimal(opening.area,1)} sq ft`],['Perimeter',`${decimal(opening.perimeter,1)} ft`],['Wall',`${wall.id} · ${wall.elevation}`]]},[feature],'walls');}
       }
-      for(const face of exterior.caps||[]){const mesh=safe(()=>editorMesh({...faceOf(face),material:'chimney-top',finishColor:face.finishColor}),null);if(mesh)own({kind:'cap',category:'chimney',categoryName:'Chimneys',area:0,swatch:'#d4d0c8',flat:'#d4d0c8',title:'Chimney top',details:()=>[]},[mesh],'walls');}
+      // A plain cap carries no material, as in the editor: prepare marks it chimney-top and links it to its chimney.
+      for(const {face,id} of chimneyCaps){const mesh=safe(()=>editorMesh({...faceOf(face),...(face.materialKey&&face.materialKey!=='chimney-top'?{material:face.materialKey}:{}),finishColor:face.finishColor,chimney:{id,cap:true}}),null);if(mesh)own({kind:'cap',category:'chimney',categoryName:'Chimneys',area:0,swatch:'#d4d0c8',flat:'#d4d0c8',title:'Chimney top',details:()=>[]},[mesh],'walls');}
       for(const face of exterior.returns||[]){const mesh=safe(()=>editorMesh({...faceOf(face),material:face.materialKey,finishColor:face.finishColor}),null);if(mesh)own({kind:'return',category:'material:'+face.materialKey,categoryName:labelFor(face.materialKey),area:0,swatch:flatColor(face.materialKey,face.finishColor),flat:flatColor(face.materialKey,face.finishColor),title:'Horizontal return',details:()=>[['Material',labelFor(face.materialKey)]]},[mesh],'walls');}
       for(const face of exterior.base||[]){const mesh=safe(()=>editorMesh({...faceOf(face),material:'default'}),null);if(!mesh)continue;mesh.userData.baseId=0;mesh.userData.pickLayer='base';own({kind:'base',category:'base',area:0,swatch:'#b3afa7',flat:'#b3afa7',title:'Base',details:()=>[['Footprint',`${decimal(planArea(face.points)*FT*FT,0)} sq ft`]]},[mesh],'base');}
       // Roof: the editor's roof meshes (covering and soffit underside), ridge and hip caps, and skylights.
