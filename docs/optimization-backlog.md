@@ -7,6 +7,21 @@ optimization here must return exactly the same results.
 Add an entry when you knowingly ship something that reads more than it needs, repeats work, or will not scale, and
 link the entry from the architecture doc's "Not built" section. Remove an entry when it is done.
 
+## Customer summaries load every order's manifest
+
+**Today.** Each internal Customers row (`buildOrganizationSummaryRow` in `internal/api.ts`) is built from the
+organization's full user and project documents and every indexed order's list manifest, then compacted to about
+6 KB (`compactOrganizationSummary`). On dev the 200 full rows of one page serialize to about 260 MB. The reads are
+batched (1M8-225, two queries per 250 organizations) and full summaries are compacted per batch, so the pool and the
+heap are no longer the limit, but a page still spends about 3 s on dev (5,700 organizations) moving and parsing that
+data, and sorting or filtering by a summary column still builds every organization's row.
+
+**Where the change goes.** A summary query that returns only what the compact row uses: per-order timestamps, owner
+and issuer emails, status, property country and currency, plus the user fields `organizationUserView` reads. Or a
+per-organization summary table kept current by order and user writes, which would also make column sorts a query.
+
+**Why it can wait.** The October 22 hotfix had to keep every row identical and ship the same day.
+
 ## Full-house filter in the drafting queue reads the manifest
 
 **Today.** A drafter without the full-house qualification claims from the queue with an extra condition on
