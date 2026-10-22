@@ -37,3 +37,9 @@ Releases `cb0f8ddc` (viewer, all four roles) and `8181a0f8` (report tabs, legacy
 
 Tests: `measurements-full-house-viewer-browser` and `measurements-roof-viewer-browser` 4/4.
 Scripts: `output/fh-rendered-viewer-20261022/`, `output/fh-tab-route-20261022/`, `output/fh-model-viewer-20261022/`.
+
+**Follow-up `21cc3bc1` (legacy/web/pool, verified)**
+- Openings are built 3 cm proud of their wall on its outside, and the camera near plane is 1. This stops sticker
+  z-fighting, including doors whose material `ExteriorRendered` replaces without a depth offset.
+- Chimney walls and caps get rebuilt chimney ids: each cap is a chimney, and a chimney wall joins the cap above it. The
+  rendered caps then take their chimney's average side color, as in the editor.
