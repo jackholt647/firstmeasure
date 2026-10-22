@@ -95,3 +95,24 @@ before and after this change; this has not been investigated.
 **Tests and rollout.** Related suites: 665 pass. Full suite: 1,711 passing, with the known exterior-ai and media-viewer
 failures. `exterior_finishes.js`, `exterior_rendered.js`, `wall_face_draft.js`, `wall_features.js` and `wall_mode.js` were
 overlaid on web, legacy and pool, and the served files match.
+
+## Follow-up: colour picker, undo on swatches, tray-aware dividers, window trim
+
+**`77ec2925` — shared "Choose color" picker and undo.**
+- The picker's palette now shows recently used colours instead of stock primaries. Recent colours persist in
+  `firstmate:recent-colors` and also include the page's own recent list.
+- A "Pick from screen" button uses the browser EyeDropper.
+- Undo and redo now reach the editor from a focused colour swatch, checkbox or slider. Before, focus returned to the
+  swatch after a pick, and both key handlers ignored any focused input, so Ctrl+Z did nothing.
+- Checked in a browser: Ctrl+Z reverts and Ctrl+Y re-applies the default colour and the sticker trim. This change is
+  platform-wide, because the picker is shared.
+
+**`e7cb1bf8` — tray-aware dividers.** In report mode the right column kept a fixed 30% basis. Beside a wide tray the
+panes overflowed, and the browser shrank the main pane away from the dragged divider (69 px off with a 1,000 px tray).
+The right column now takes the remaining space. Measured: the handle stays on the mouse.
+
+**`e7cb1bf8` — window trim.** Window frames and sills use the Window trim default in Textured mode, Match textured and
+the plain-mode trim strips. A trim colour copied in from the wall trim at placement counts as the default.
+
+All files were overlaid on web, legacy and pool and the served files match. The served `interaction_2d.js` merges
+another session's live copy-and-paste change.
