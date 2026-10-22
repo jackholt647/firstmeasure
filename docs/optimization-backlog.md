@@ -7,6 +7,19 @@ optimization here must return exactly the same results.
 Add an entry when you knowingly ship something that reads more than it needs, repeats work, or will not scale, and
 link the entry from the architecture doc's "Not built" section. Remove an entry when it is done.
 
+## Exterior PDF dimension drawings rasterize the whole house per face
+
+**Today.** With house context on, each Wall/Trim Dimensions drawing rasterizes every house face (walls, roof,
+chimney tops, trim) behind the measured face (`drawDiagram` with `context` in
+`public/measure/internal/editor_scripts/exterior_pdf.js`), so the work grows with faces times house size. On the
+pilot house that is about 12 ms more per face.
+
+**Where the change goes.** Cull context faces to the drawing's frame and to the region behind the face plane before
+meshing them (or cache each face's mesh across drawings) in `rasterScene`. The pixels drawn stay the same.
+
+**Why it can wait.** About a second on a 66-face house, inside a PDF that takes several seconds anyway.
+(dev/EXTERIOR_REPORT.md, "House context behind wall dimension drawings")
+
 ## Contact date rules read every contact
 
 **Today.** A rule on a date on each contact (`schedule.contact_date`) reads every contact of the organization when its

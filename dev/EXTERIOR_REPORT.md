@@ -64,16 +64,69 @@ bearing (the orientation key's Front); nothing derives the view from the geometr
 Elevations draw walls and the roof as light faces with dark edges on white; the roof
 only occludes and is never labeled.
 
-Each wall face is counted on exactly one elevation (`elevationPlan` in
-`exterior_pdf.js`): among the eight views where the face points toward the viewer
+There are four elevations: **Front, Back, Left and Right**, looking from the
+configured front bearing turned by 0, 180, +90 and -90 degrees (`elevationViews`).
+Each wall face is counted on exactly one of them (`elevationPlan` in
+`exterior_pdf.js`): among the views where the face points toward the viewer
 within 60 degrees and at least a quarter of its area is visible, the one that looks
 most directly at it. A face no view shows that well goes to the view showing most of
 it; a face no view shows at all is listed on **Hidden Wall Faces**. Faces under 1 sq ft
 are one **Small pieces** row on the view they face. Elevation totals plus hidden
 faces therefore equal the gross wall area. Every face in an elevation's table is
 labeled in its drawing (inside, smaller, or beside it with a leader line) and every
-label is in the table; faces counted elsewhere are drawn pale and unlabeled.
-"Openings" is the area of modeled windows, doors and other openings cut from the face.
+label is in the table; faces counted elsewhere are drawn pale and unlabeled. The
+Wall Dimensions headings name the elevation each face is counted on.
+
+An elevation page has no explanatory note. Its header carries a small key beside the
+page title: the north-up footprint with the viewed side marked by an accent bar (the
+viewing plane) and an arrow toward the house, and a small compass. The drawing starts
+just under the header and is only as tall as the house needs at full width (at most
+110 mm). The faces are listed in two boxed tables side by side, in the roof pages'
+style (white box, accent bar on the left, bold headers over a rule); each has Wall,
+Material, Gross and Openings columns. Rows fill the left box, then the right (split
+evenly on the last page), and one totals box under both gives the face count and the
+gross, openings and net area. Hidden Wall Faces uses the same tables. On the pilot
+house all four elevations fit on one page each. "Openings" is the area of modeled
+windows, doors and other openings cut from the face.
+
+### What the drawings include
+
+The report model carries two render-only lists that are never wall area:
+`caps` (plain chimney tops, material `chimney-top`, which the wall schedule skips)
+and `roofTrim` (roof fascia panels built by `RoofTrim.panels` from the roof and the
+saved trim heights that `WallMode.reportSnapshot` passes in, so a house with no trim
+height set has none, exactly as in the editor). `houseFaces` draws walls, returns,
+chimney tops, roof trim and the roof in the cover, summary, elevation and notes
+views; the roof elevations add the trim to the roof.
+
+### PDF-only z-fight rule
+
+Wall tops along soffit lines often lie in, or a few centimetres through, the roof
+plane. The editor keeps that exact geometry (and its slight z-fighting) for precise
+control. The PDF rasterizer (`rasterScene`) resolves it like a polygon offset: against
+any non-roof surface, the roof and roof trim win a depth comparison within 4 cm plus
+1.5 px of their own depth slope (capped at 30 cm, `roofDepthBias`). Roof against roof
+compares exact depths, so overlapping roof layers never fight. A wall that really
+rises above the roof by more than that still shows.
+
+### House context behind wall dimension drawings
+
+Each Wall/Trim Dimensions drawing keeps its framing, angle, dimensions and look (dark
+outline, grey face), and the rest of the house is drawn behind it in very light grey
+with light-grey edges and no labels or measurements (`rasterScene` with `focus`).
+Context is kept only behind the face's plane, so nothing between the camera and the
+face can hide it, and it is clipped to the drawing's frame. On the pilot house (66
+faces) it costs about 12 ms more per face (17 ms instead of 6 ms at 600x400 px; the
+whole PDF is within run-to-run noise at about 8 s) and adds about 215 KB to a 2.4 MB PDF.
+
+It is on by default. An organization turns it off with **Company › Reports ›
+Exterior report › Show house context behind wall dimension drawings**, saved as
+`report_settings.general.exterior_dimension_context` on the branch (the same place as
+the other report defaults). A report overrides the organization default from its own
+Exteriors configuration page (`exteriorSettings.dimensionContext`, saved with the
+report's PDF configuration). Off draws each face alone, exactly as before. Rasterizing
+the whole house per face is a known shortcut, listed in
+[the optimization backlog](../docs/optimization-backlog.md).
 
 Report configuration warns while any face has no material (the editor's "Smooth"
 default with no default texture), with buttons to list those faces or open Wall

@@ -1080,7 +1080,9 @@ function perf_render3DFrame() {
                 add(state.finishDefaults?.color);add(state.finishDefaults?.trimColor);
                 return [...counts].sort((a,b)=>b[1]-a[1]||a[0].localeCompare(b[0])).map(([color])=>color);
             },
-            defaults(value){const current={material:'unassigned',color:'#80868b',trimColor:'#f5f3ef',...state?.finishDefaults};if(!value)return current;if(!enabled||!state||!window.ExteriorMaterials?.[value.material]||value.material==='default'||!/^#[0-9a-f]{6}$/i.test(value.color)||!/^#[0-9a-f]{6}$/i.test(value.trimColor))return current;recordEdit({});state.finishDefaults=copy(value);finishEdit();persist();render();return value;},
+            defaults(value){const current={material:'unassigned',color:'#80868b',trimColor:'#f5f3ef',...state?.finishDefaults};if(!value)return current;if(!enabled||!state||!window.ExteriorMaterials?.[value.material]||value.material==='default'||!/^#[0-9a-f]{6}$/i.test(value.color)||!/^#[0-9a-f]{6}$/i.test(value.trimColor))return current;recordEdit({});state.finishDefaults={...state.finishDefaults,...copy(value)};finishEdit();persist();render();return value;},
+            // Roof covering for the whole roof: a category from ExteriorFinishes.roofMaterials and a color. Saved with the other defaults; undoable.
+            roof(value){const F=window.ExteriorFinishes,current=F?.resolveRoof(state?.finishDefaults?.roof)||{category:'shingles',color:'#4a4c4f'};if(!value)return current;if(!enabled||!state||!F?.roofMaterials?.[value.category]||!/^#[0-9a-f]{6}$/i.test(value.color||''))return current;const next={category:value.category,color:value.color.toLowerCase()};if(state.finishDefaults?.roof&&next.category===current.category&&next.color===current.color)return current;recordEdit({});state.finishDefaults={...state.finishDefaults,roof:next};finishEdit();persist();render();return next;},
             finish(){if(wallEditor?.interaction()==='Paint material'){wallEditor.clear();render();}},
             colors(value){if(!state)return true;if(typeof value==='boolean'){state.materialColors=value;persist();render();}return state.materialColors!==false;}
         });
@@ -1091,7 +1093,18 @@ function perf_render3DFrame() {
     function reportSnapshot(){
         if(!state||stage<2)return null;
         const faces=window.ExteriorModel.collect(state,currentWalls()).flatMap(f=>window.WallChimneys?.visibleParts(f,state)||[f]).flatMap(f=>window.WallClosedSoffits?.presentation(f,state)||[f]);
-        return window.ExteriorReportModel.build({faces:faces.map(f=>{const finish=window.ExteriorFinishes?.resolve(f,state.finishDefaults);return finish?{...f,material:finish.material,finishColor:finish.color}:f;}),base:state.wallEdits?.$base||state.base,roof:state.roof,context:state.context});
+        return window.ExteriorReportModel.build({faces:faces.map(f=>{const finish=window.ExteriorFinishes?.resolve(f,state.finishDefaults);return finish?{...f,material:finish.material,finishColor:finish.color}:f;}),base:state.wallEdits?.$base||state.base,roof:state.roof,roofTrim:state.roofTrim||roofTrimOnly,context:state.context});
+    }
+    // The PDF cover's textured render travels with the report snapshot: server renders have no editor scene.
+    function reportSnapshotWithCover(){
+        const model=reportSnapshot();
+        if(model&&window.ExteriorCover)try{const cover=window.ExteriorCover.render((window.reportConfigState||window.loadedPdfConfig||{}).exteriorSettings||{});if(cover)model.coverRender=cover;}catch(error){console.warn('Textured cover render failed; the cover keeps the line drawing.',error);}
+        return model;
+    }
+    // Live sources for the offscreen cover render. The roof is rebuilt from the model, so a hidden roof layer still appears.
+    function coverParts(){
+        if(!enabled||!state?.roof||stage<2||!group3D||typeof scene==='undefined'||!scene||!window.THREE)return null;
+        return withWallScene(()=>({group:group3D,roof:window.WallChimneys?.roofWithOpenings(state)||state.roof,vector:p=>getVector3(toPixel(p))}));
     }
     // Read-only camera experiment bridge; uses the same metric-to-scene mapping as walls.
     function aiGeometry(){
@@ -1155,6 +1168,6 @@ function perf_render3DFrame() {
         }
         return {placed:added.length,ids:added.map(f=>f.id),skipped};
     }
-    window.WallMode={selectionActions,prepareHeightMask:()=>{settleNudges();closeResoffit();groundEditor?.leave();roofTrimEditor?.finish();wallEditor?.leave?.();baseEditor?.leave?.();},applyAIPlacements,aiStickerScene,selectAIFace,prepareAICapture,aiGeometry,renderChunk,get finishDefaults(){return state?.finishDefaults||{};},renderRoofTrim3D,serializeRoofTrim:()=>copy(state?.roofTrim||roofTrimOnly),reportSnapshot,registerLayerVisibility,get enabled(){return enabled;},render2D,render3D,syncVisibility,serialize:exportState,serializeHistory,serializeView:()=>projectId===currentId()?viewSnapshot():null,restore,beforeProjectLoad,setEnabled};
+    window.WallMode={selectionActions,prepareHeightMask:()=>{settleNudges();closeResoffit();groundEditor?.leave();roofTrimEditor?.finish();wallEditor?.leave?.();baseEditor?.leave?.();},applyAIPlacements,aiStickerScene,selectAIFace,prepareAICapture,aiGeometry,renderChunk,get finishDefaults(){return state?.finishDefaults||{};},renderRoofTrim3D,serializeRoofTrim:()=>copy(state?.roofTrim||roofTrimOnly),reportSnapshot:reportSnapshotWithCover,coverParts,registerLayerVisibility,get enabled(){return enabled;},render2D,render3D,syncVisibility,serialize:exportState,serializeHistory,serializeView:()=>projectId===currentId()?viewSnapshot():null,restore,beforeProjectLoad,setEnabled};
     if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',initialize,{once:true});else initialize();
 })();

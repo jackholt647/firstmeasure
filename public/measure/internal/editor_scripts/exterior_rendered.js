@@ -31,6 +31,8 @@ function environmentMap(renderer){
 }
 function materialFor(finish,base){
  const f=root.ExteriorFinishes.resolve(finish),type=f.material;
+ // Roof coverings use the seeded procedural maps of their category, tinted by the roof color.
+ if(type==='shingles'&&!base){const F=root.ExteriorFinishes,spec=F.roofMaterials[f.category],m=new THREE.MeshStandardMaterial({color:color(f.color),roughness:spec.roughness,metalness:spec.metalness,side:THREE.DoubleSide,envMapIntensity:spec.metalness>.1?.5:.8});m.map=F.roofTexture(f.category);const normal=F.roofNormalMap(f.category);if(normal){m.normalMap=normal;m.normalScale=new THREE.Vector2(.9,.9);}return m;}
  let name=type.startsWith('siding')?'siding':type==='brick'||type==='masonry'?'brick':type==='shingles'?'roof':type==='stone'?'brick':type.startsWith('trim')||type==='opening-trim'||type==='soffit'?'wood':'plaster';
  const natural=['brick','masonry','stone'].includes(type)&&!finish.color;
  const c=base?(finish.color||'#b3afa7'):natural?'#ffffff':f.color;

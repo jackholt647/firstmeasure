@@ -61,7 +61,11 @@
     : '';
   const DEFAULT_GENERAL_REPORT_SETTINGS = {
     nfva_ratio: 300,
+    // Full-house PDF: draw the dimmed house behind each wall dimension drawing (exterior_pdf.js dimensionContext).
+    exterior_dimension_context: true,
   };
+  // Report toggles stored in report_settings.general (the full report) rather than .customer.
+  const GENERAL_REPORT_TOGGLES = new Set(['exterior_dimension_context']);
   const DEFAULT_CUSTOMER_REPORT_SETTINGS = {
     cover_show_customer: true,
     cover_show_squares: true,
@@ -413,6 +417,7 @@
     const out = Object.assign({}, DEFAULT_GENERAL_REPORT_SETTINGS);
     if (rs && typeof rs === 'object'){
       if ('nfva_ratio' in rs) out.nfva_ratio = rs.nfva_ratio;
+      if ('exterior_dimension_context' in rs) out.exterior_dimension_context = rs.exterior_dimension_context !== false;
     }
     out.nfva_ratio = Math.max(1, Math.min(1000, parseInt(out.nfva_ratio, 10) || DEFAULT_GENERAL_REPORT_SETTINGS.nfva_ratio));
     return out;
@@ -13524,8 +13529,16 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
           items: [
             { key:'page_gutters', short:(globalThis.PlatformLanguage?.text("settings","rp_short_gutters","Gutters (when ordered)") ?? "Gutters (when ordered)"), label:(globalThis.PlatformLanguage?.text("settings","m_8d9d09be0b319b","Include gutters page when gutters are ordered") ?? "Include gutters page when gutters are ordered"), tip:(globalThis.PlatformLanguage?.text("settings","rp_tip_page_gutters","Adds the gutters page to the customer PDF whenever gutters were ordered with the report.") ?? "Adds the gutters page to the customer PDF whenever gutters were ordered with the report.") }
           ]
+        },
+        {
+          title: (globalThis.PlatformLanguage?.text("settings","rp_section_exterior","Exterior report") ?? "Exterior report"),
+          subtitle: (globalThis.PlatformLanguage?.text("settings","rp_section_exterior_sub","Choices for the full-house exterior pages. Each report can still change them in its own configuration.") ?? "Choices for the full-house exterior pages. Each report can still change them in its own configuration."),
+          items: [
+            { key:'exterior_dimension_context', label:(globalThis.PlatformLanguage?.text("settings","rp_exterior_dimension_context","Show house context behind wall dimension drawings") ?? "Show house context behind wall dimension drawings"), tip:(globalThis.PlatformLanguage?.text("settings","rp_tip_exterior_dimension_context","Each wall dimension drawing shows the rest of the house, dimmed, behind the measured face. Off draws the face alone.") ?? "Each wall dimension drawing shows the rest of the house, dimmed, behind the measured face. Off draws the face alone.") }
+          ]
         }
       ];
+      const reportToggleTarget = key => GENERAL_REPORT_TOGGLES.has(key) ? (state.report_general ||= mergeGeneralReportSettings(null)) : state.report_customer;
       const wrap = $('#rpToggles', paneReports);
       // The live report preview: every page of the customer and internal PDFs for the sample report.
       const renderSample = () => {
@@ -13548,7 +13561,7 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
                 key: it.key,
                 label: it.label,
                 tip: it.tip,
-                value: !!state.report_customer[it.key]
+                value: !!reportToggleTarget(it.key)[it.key]
               })).join('')}
             </div>
           </section>
@@ -13557,8 +13570,8 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
           btn.addEventListener('click', ()=>{
             const k = btn.getAttribute('data-key');
             if (!k) return;
-            const next = !state.report_customer[k];
-            state.report_customer[k] = next;
+            const target = reportToggleTarget(k), next = !target[k];
+            target[k] = next;
             btn.classList.toggle('on', next);
             btn.classList.toggle('off', !next);
             btn.setAttribute('data-val', next ? '1' : '0');

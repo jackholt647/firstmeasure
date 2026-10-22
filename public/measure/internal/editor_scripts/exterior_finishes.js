@@ -2,9 +2,81 @@
 (function(root){'use strict';
 const cache=new Map();
 const defaults={material:'unassigned',color:'#80868b',trimColor:'#f5f3ef'};
+// Roof coverings are data. tile is one texture repeat in metres: [along the eave, up the slope].
+// The first color of each category is its default; the roof default is industry standard charcoal shingles.
+const roofMaterials={
+ shingles:{label:'Shingles',description:'Architectural asphalt',tile:[1,.572],courses:4,roughness:.9,metalness:0,colors:[{id:'charcoal',label:'Charcoal',color:'#4a4c4f'},{id:'weathered-wood',label:'Weathered wood',color:'#6e6459'},{id:'driftwood',label:'Driftwood',color:'#8c8478'},{id:'pewter',label:'Pewter gray',color:'#7a7e82'},{id:'barkwood',label:'Barkwood',color:'#5e4838'},{id:'hunter-green',label:'Hunter green',color:'#424f44'}]},
+ shake:{label:'Shake',description:'Cedar shake',tile:[1.2,1.016],courses:4,roughness:.95,metalness:0,colors:[{id:'natural-cedar',label:'Natural cedar',color:'#a8784e'},{id:'weathered',label:'Weathered',color:'#8f8c85'},{id:'aged-cedar',label:'Aged cedar',color:'#7c5d44'},{id:'honey',label:'Honey',color:'#bb8f5e'}]},
+ slate:{label:'Slate',description:'Natural slate',tile:[1.016,.864],courses:4,roughness:.72,metalness:.04,colors:[{id:'gray',label:'Slate gray',color:'#626970'},{id:'black',label:'Black',color:'#34373b'},{id:'purple',label:'Purple',color:'#5e4f5d'},{id:'green',label:'Green',color:'#5a685e'}]},
+ metal:{label:'Standing seam metal',description:'16 in panels',tile:[.8128,1],courses:0,roughness:.55,metalness:.25,colors:[{id:'charcoal',label:'Charcoal',color:'#404347'},{id:'galvalume',label:'Galvalume',color:'#b6babd'},{id:'barn-red',label:'Barn red',color:'#8e3127'},{id:'forest-green',label:'Forest green',color:'#324b3c'},{id:'matte-black',label:'Matte black',color:'#2a2c2e'},{id:'bronze',label:'Bronze',color:'#51412f'}]}
+};
+const roofDefault={category:'shingles',color:roofMaterials.shingles.colors[0].color};
+function resolveRoof(value){const category=roofMaterials[value?.category]?value.category:roofDefault.category,color=typeof value?.color==='string'&&/^#[0-9a-f]{6}$/i.test(value.color)?value.color.toLowerCase():roofMaterials[category].colors[0].color;return {category,color};}
 function resolve(face={},settings=root.WallMode?.finishDefaults||{}){
  const normal=face.normal||(face.points&&root.WallSolidGeometry?.faceFrame(face)?.n),d={...defaults,...settings},source=face.material||(face.chimney?.cap&&!face.chimney.derived&&!face.trim?'chimney-top':normal?.z<-.5?'soffit':'default'),type=source==='default'?d.material:source;
- return {material:type==='default'?'unassigned':type,color:face.finishColor||face.color||((face.trim||type.startsWith('trim-')||type==='opening-trim')?d.trimColor:source==='chimney-top'?'#d4d0c8':source==='shingles'?'#74777a':d.color)};
+ if(source==='shingles'){const roof=resolveRoof(face.roofMaterial||d.roof);return {material:'shingles',category:roof.category,color:face.finishColor||face.color||roof.color};}
+ return {material:type==='default'?'unassigned':type,color:face.finishColor||face.color||((face.trim||type.startsWith('trim-')||type==='opening-trim')?d.trimColor:source==='chimney-top'?'#d4d0c8':d.color)};
+}
+// Neutral roof maps (gray, mean near 0.85) so the chosen color tints them. Seeded, so every render is identical.
+const roofMaps=new Map();
+function roofCanvas(category){
+ const spec=roofMaterials[category],W=512,H=Math.round(W*spec.tile[1]/spec.tile[0]),canvas=document.createElement('canvas');canvas.width=W;canvas.height=H;const c=canvas.getContext('2d');
+ let seed=[...category].reduce((s,ch)=>s*31+ch.charCodeAt(0)|0,7);const rnd=()=>{seed=seed+0x6D2B79F5|0;let t=Math.imul(seed^seed>>>15,1|seed);t=t+Math.imul(t^t>>>7,61|t)^t;return ((t^t>>>14)>>>0)/4294967296;};
+ const gray=(v,a=1)=>{const n=Math.max(0,Math.min(255,Math.round(v*255)));return a<1?'rgba('+n+','+n+','+n+','+a+')':'rgb('+n+','+n+','+n+')';};
+ // Every shape repeats across both tile edges so the map tiles seamlessly.
+ const each=(x,y,fn)=>{for(const dx of [0,-W,W])for(const dy of [0,-H,H])fn(x+dx,y+dy);};
+ const rect=(x,y,w,h,fill)=>{c.fillStyle=fill;each(x,y,(px,py)=>c.fillRect(px,py,w,h));};
+ const shadow=(y,h,strength)=>{each(0,y,(px,py)=>{const g=c.createLinearGradient(0,py,0,py+h);g.addColorStop(0,gray(0,strength));g.addColorStop(1,gray(0,0));c.fillStyle=g;c.fillRect(0,py,W,h);});};
+ const speckle=(count,size,alpha)=>{for(let i=0;i<count;i++){c.fillStyle=gray(rnd()<.5?1:0,alpha*rnd());c.fillRect(Math.floor(rnd()*W),Math.floor(rnd()*H),size,size);}};
+ const rows=spec.courses,ch=rows?H/rows:H;
+ if(category==='shingles'){
+  rect(0,0,W,H,gray(.5));
+  for(let r=rows-1;r>=0;r--){const y=r*ch;let x=rnd()*W,end=x+W;
+   while(x<end){const w=Math.round(W*(.09+rnd()*.11)),short=rnd()<.45?ch*(.1+rnd()*.12):0;rect(x,y,w-1,ch,gray(.48));rect(x+1,y,w-2,ch-short-1,gray(.74+rnd()*.2));rect(x+1,y+ch-short-2,w-2,1,gray(.38));x+=w;}
+   shadow(y,ch*.2,.42);}
+  speckle(W*H/2.5,1,.22);
+ }else if(category==='shake'){
+  rect(0,0,W,H,gray(.28));
+  for(let r=rows-1;r>=0;r--){const y=r*ch;let x=rnd()*W,end=x+W;
+   while(x<end){const w=Math.round(W*(.07+rnd()*.17)),drop=Math.round(rnd()*ch*.05),tone=.7+rnd()*.22;rect(x+2,y,w-3,ch+drop,gray(tone));
+    for(let k=0;k<w*.7;k++){const gx=x+2+rnd()*(w-4),gy=y+rnd()*ch*.4,len=ch*(.4+rnd()*.7);rect(Math.floor(gx),gy,1,Math.min(len,ch+drop-(gy-y)),gray(rnd()<.5?tone+.12:tone-.16,.55));}
+    if(rnd()<.18){const sx=Math.floor(x+3+rnd()*(w-6));rect(sx,y+ch*.3,1.5,ch*.7+drop,gray(.25));}
+    rect(x+2,y+ch+drop-2,w-3,2,gray(.4));x+=w;}
+   shadow(y,ch*.24,.55);}
+  speckle(W*H/6,1,.15);
+ }else if(category==='slate'){
+  rect(0,0,W,H,gray(.22));const sw=W/4;
+  for(let r=rows-1;r>=0;r--){const y=r*ch,offset=r%2?sw/2:0;
+   for(let k=0;k<4;k++){const x=offset+k*sw+1,w=sw-2,h=ch-1,tone=.68+rnd()*.24,cut=[rnd()*5,rnd()*5];
+    c.fillStyle=gray(tone);each(x,y,(px,py)=>{c.beginPath();c.moveTo(px,py);c.lineTo(px+w,py);c.lineTo(px+w,py+h-cut[1]);c.lineTo(px+w-cut[1],py+h);c.lineTo(px+cut[0],py+h);c.lineTo(px,py+h-cut[0]);c.closePath();c.fill();});
+    for(let s=0;s<6;s++)rect(x+rnd()*w*.6,y+ch*(.25+rnd()*.7),w*(.2+rnd()*.4),1,gray(rnd()<.5?tone+.08:tone-.08,.6));
+    rect(x,y+h-1,w,1,gray(.35));}
+   shadow(y,ch*.16,.5);}
+  speckle(W*H/3,1,.12);
+ }else{
+  const panels=2,pw=W/panels,rib=Math.max(6,Math.round(.025/spec.tile[0]*W));
+  for(let p=0;p<panels;p++){const x=p*pw;
+   each(x,0,(px)=>{const g=c.createLinearGradient(px,0,px+pw,0);g.addColorStop(0,gray(.8));g.addColorStop(.5,gray(.86));g.addColorStop(1,gray(.8));c.fillStyle=g;c.fillRect(px,0,pw,H);});
+   for(const at of [1/3,2/3]){rect(x+pw*at,0,2,H,gray(.74));rect(x+pw*at+2,0,1,H,gray(.92));}}
+  // Seams after every pan, so the seam on the tile edge is not painted over by the next pan.
+  for(let p=0;p<panels;p++){const x=p*pw;
+   rect(x-rib/2-2,0,2,H,gray(.42));each(x-rib/2,0,px=>{const gg=c.createLinearGradient(px,0,px+rib,0);gg.addColorStop(0,gray(.97));gg.addColorStop(.55,gray(.9));gg.addColorStop(1,gray(.62));c.fillStyle=gg;c.fillRect(px,0,rib,H);});rect(x+rib/2,0,3,H,gray(.5,.8));}
+  for(let i=0;i<40;i++)rect(rnd()*W,0,1,H,gray(rnd()<.5?1:0,.03));
+ }
+ return canvas;
+}
+function roofTexture(category){
+ category=roofMaterials[category]?category:roofDefault.category;if(roofMaps.has(category))return roofMaps.get(category);
+ const t=new THREE.CanvasTexture(roofCanvas(category));t.wrapS=t.wrapT=THREE.RepeatWrapping;t.anisotropy=8;if(THREE.SRGBColorSpace)t.colorSpace=THREE.SRGBColorSpace;else if(THREE.sRGBEncoding)t.encoding=THREE.sRGBEncoding;t.userData||={};t.userData.roofCategory=category;roofMaps.set(category,t);return t;
+}
+// Tangent-space normals from the map's brightness: butts, keyways and seams read as relief under real light.
+const roofNormals=new Map();
+function roofNormalMap(category){
+ category=roofMaterials[category]?category:roofDefault.category;if(roofNormals.has(category))return roofNormals.get(category);
+ const source=roofTexture(category).image,W=source.width,H=source.height,read=source.getContext?.('2d')?.getImageData?.(0,0,W,H);if(!read?.data)return null;
+ const canvas=document.createElement('canvas');canvas.width=W;canvas.height=H;const c=canvas.getContext('2d'),out=c.createImageData(W,H),h=(x,y)=>{const i=(((y+H)%H)*W+((x+W)%W))*4;return (read.data[i]+read.data[i+1]+read.data[i+2])/765;},k=category==='metal'?3:category==='shake'?5:4;
+ for(let y=0;y<H;y++)for(let x=0;x<W;x++){const dx=(h(x+1,y)-h(x-1,y))*k,dy=(h(x,y+1)-h(x,y-1))*k,l=Math.hypot(dx,dy,1),i=(y*W+x)*4;out.data[i]=Math.round((-dx/l*.5+.5)*255);out.data[i+1]=Math.round((dy/l*.5+.5)*255);out.data[i+2]=Math.round((1/l*.5+.5)*255);out.data[i+3]=255;}
+ c.putImageData(out,0,0);const t=new THREE.CanvasTexture(canvas);t.wrapS=t.wrapT=THREE.RepeatWrapping;t.anisotropy=8;roofNormals.set(category,t);return t;
 }
 function texture(type){
  if(cache.has(type))return cache.get(type);
@@ -101,7 +173,9 @@ function prepare(mesh,face,points,parameters){
  // keep their width around the bend. Sampling here belongs only to rendering.
  let arcAt=null;const curve=face.curvedSurface?.start||face.curvedSurface?.curve;if(curve&&parameters){const K=root.ExteriorGeometry,lengths=[0];let previous=K.curvePoint(curve,0);for(let i=1;i<=128;i++){const p=K.curvePoint(curve,i/128);lengths.push(lengths.at(-1)+Math.hypot(p.x-previous.x,p.y-previous.y,p.z-previous.z));previous=p;}arcAt=t=>{const q=Math.max(0,Math.min(128,t*128)),i=Math.min(127,Math.floor(q));return lengths[i]+(lengths[i+1]-lengths[i])*(q-i);};}
  let axes=face.textureAxes;if(['shingles','soffit'].includes(face.material)&&frame){const n=frame.n.z<0?{x:-frame.n.x,y:-frame.n.y,z:-frame.n.z}:frame.n,l=Math.hypot(n.x,n.y),a=l>1e-8?{x:-n.y/l,y:n.x/l,z:0}:{x:1,y:0,z:0};axes={u:a,v:{x:n.y*a.z-n.z*a.y,y:n.z*a.x-n.x*a.z,z:n.x*a.y-n.y*a.x}};}const dot=(p,a)=>p.x*a.x+p.y*a.y+p.z*a.z;
- const horizontal=Math.abs(frame?.n.z||0)>.999,uv=points.flatMap((p,i)=>[(axes?dot(p,axes.u):arcAt?arcAt(parameters[i].x):p.x*u.x+p.y*u.y+p.z*u.z)/(face.material==='shingles'?.9144:.6096),(axes?dot(p,axes.v):horizontal?p.x*(frame?.v.x||0)+p.y*(frame?.v.y||1):p.z)/.6096]);
+ // A roof covering repeats at its own metric size: one tile is whole courses up the slope.
+ const tile=face.material==='shingles'?roofMaterials[resolve(face).category].tile:[.6096,.6096];
+ const horizontal=Math.abs(frame?.n.z||0)>.999,uv=points.flatMap((p,i)=>[(axes?dot(p,axes.u):arcAt?arcAt(parameters[i].x):p.x*u.x+p.y*u.y+p.z*u.z)/tile[0],(axes?dot(p,axes.v):horizontal?p.x*(frame?.v.x||0)+p.y*(frame?.v.y||1):p.z)/tile[1]]);
  mesh.geometry.setAttribute('uv',new THREE.Float32BufferAttribute(uv,2));mesh.userData.exteriorFinish={material:face.material||(face.chimney?.cap&&!face.chimney.derived&&!face.trim?'chimney-top':frame?.n.z<-.5?'soffit':'default'),color:face.finishColor||null,feature:!!face.feature,trim:!!face.trim,normal:frame?.n};
 }
 // Roof features stay in the roof model. These derived surfaces are presentation-only.
@@ -186,7 +260,7 @@ function apply(mesh,material){
  colorManagedFinish(material);
  material.color.set(resolved.color);material.color.convertSRGBToLinear?.();
  const n=finish.normal;if(n)material.color.multiplyScalar(.78+.22*Math.abs(n.x*.37+n.y*.53+n.z*.76));
- material.map=['unassigned','chimney-top'].includes(resolved.material)?null:texture(resolved.material);
+ material.map=['unassigned','chimney-top'].includes(resolved.material)?null:resolved.material==='shingles'?roofTexture(resolved.category):texture(resolved.material);
 }
-root.ExteriorFinishes={prepare,apply,reset,resolve,defaults,roofMeshes,roofSkylights,roofPresentation,skylightMesh};
+root.ExteriorFinishes={prepare,apply,reset,resolve,defaults,roofMeshes,roofSkylights,roofPresentation,skylightMesh,roofMaterials,roofDefault,resolveRoof,roofCanvas,roofTexture,roofNormalMap};
 })(window);

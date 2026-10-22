@@ -451,6 +451,20 @@ test('default finish settings persist, undo, redo and survive From Roof',()=>{
  f.elements.get('wall-rebuild').onclick();assert.equal(materials.defaults().trimColor,expected.trimColor);const saved=f.ctx.WallMode.serialize();f.ctx.WallMode.restore('fixture',{exteriorsWalls:saved});assert.equal(materials.defaults().material,'siding');assert.equal(f.ctx.WallMode.finishDefaults.color,expected.color);
 });
 
+test('the roof material persists with the finish defaults, undoes, redoes and survives From Roof',()=>{
+ const F=(()=>{const c={THREE:{},document:{}};c.window=c;vm.createContext(c);vm.runInContext(fs.readFileSync(require.resolve('../public/measure/internal/editor_scripts/exterior_finishes.js'),'utf8'),c);return c.ExteriorFinishes;})();
+ let materials;const f=fixture(true,{ExteriorFinishes:F,ExteriorMaterials:{siding:{},unassigned:{}},WallFeatures:{mountUI:(a,b,c,m)=>materials=m,closeUI(){}}});f.ctx.activeGeometry.connections[0].type='eave';f.ctx.WallMode.setEnabled(true);f.soffits[1].onclick();
+ const plain=v=>JSON.parse(JSON.stringify(v));assert.deepEqual(plain(materials.roof()),{category:'shingles',color:F.roofDefault.color},'charcoal shingles until chosen');
+ const walls={material:'siding',color:'#123456',trimColor:'#abcdef'};materials.defaults(walls);
+ assert.deepEqual(plain(materials.roof({category:'slate',color:'#5E4F5D'})),{category:'slate',color:'#5e4f5d'});
+ assert.deepEqual(plain(f.ctx.WallMode.serialize().finishDefaults),{...walls,roof:{category:'slate',color:'#5e4f5d'}},'saved with the other defaults');
+ assert.deepEqual(plain(materials.roof({category:'clay',color:'#123456'})),{category:'slate',color:'#5e4f5d'},'unknown categories are refused');assert.deepEqual(plain(materials.roof({category:'metal',color:'red'})),{category:'slate',color:'#5e4f5d'},'invalid colors are refused');
+ materials.defaults({...walls,color:'#222222'});assert.deepEqual(plain(materials.roof()),{category:'slate',color:'#5e4f5d'},'wall defaults keep the roof');
+ const key=k=>f.listeners['window:keydown']({key:k,ctrlKey:true,target:{closest:()=>false},preventDefault(){},stopImmediatePropagation(){}});
+ key('z');assert.equal(materials.defaults().color,'#123456');assert.equal(materials.roof().category,'slate');key('z');assert.deepEqual(plain(materials.roof()),{category:'shingles',color:F.roofDefault.color});key('y');assert.equal(materials.roof().color,'#5e4f5d');
+ f.elements.get('wall-rebuild').onclick();assert.equal(materials.roof().category,'slate');const saved=f.ctx.WallMode.serialize();f.ctx.WallMode.restore('fixture',{exteriorsWalls:saved});assert.deepEqual(plain(materials.roof()),{category:'slate',color:'#5e4f5d'});assert.deepEqual(plain(f.ctx.WallMode.finishDefaults.roof),{category:'slate',color:'#5e4f5d'});
+});
+
 test('marquee releases cannot invoke the face double-click handler',()=>{
  let afterBox=true,draws=0;
  const wall={apply:w=>w,draw2D(){},draw3D(){},clear(){},consumeSelectionClick:()=>afterBox,doubleClick(){draws++;return true;}};

@@ -44,9 +44,28 @@ function drawOrientationKey(doc,model,settings,rect){
  doc.setFillColor(215,223,230);doc.setDrawColor(125,140,153);doc.setLineWidth(.2);
  for(const shape of ps){const q=shape.map(p=>({x:cx+(p.x-(minX+maxX)/2)*scale,y:cy+(p.y-(minY+maxY)/2)*scale}));doc.lines(q.slice(1).concat(q[0]).map((p,i)=>[p.x-q[i].x,p.y-q[i].y]),q[0].x,q[0].y,[1,1],'FD',true);}
  const a=frontBearing(settings)*Math.PI/180,ux=Math.sin(a),uy=-Math.cos(a);doc.setDrawColor(196,40,45);doc.setLineWidth(.7);doc.line(cx+ux*r*.65,cy+uy*r*.65,cx+ux*r*1.3,cy+uy*r*1.3);text(reportText('Front'),cx+ux*r*1.8-3,cy+uy*r*1.8+1,5.5,true,[196,40,45]);text(reportText('Back'),cx-ux*r*1.8-3,cy-uy*r*1.8+1,5.5,true);
- const compassX=rect.x+rect.w*.72;doc.setDrawColor(75,87,100);doc.setLineWidth(.3);doc.line(compassX,cy-r,compassX,cy+r);doc.line(compassX-r,cy,compassX+r,cy);
- text(reportText('N'),compassX-1,cy-r-1.5,6,true,[196,40,45]);text(reportText('S'),compassX-1,cy+r+3,6);text(reportText('W'),compassX-r-4,cy+1,6);text(reportText('E'),compassX+r+1,cy+1,6);
+ drawCompass(doc,rect.x+rect.w*.72,cy,r*.75);
  text(Number.isFinite(settings?.frontBearing)?reportText('Front ')+Math.round(frontBearing(settings))+reportText(' deg / North up'):reportText('Front direction not set'),rect.x+1,rect.y+rect.h,6);
+}
+function drawCompass(doc,cx,cy,r){
+ const {text}=writer(doc);doc.setDrawColor(75,87,100);doc.setLineWidth(.25);doc.line(cx,cy-r,cx,cy+r);doc.line(cx-r,cy,cx+r,cy);doc.setFillColor(196,40,45);doc.triangle(cx,cy-r-.6,cx-1,cy-r+1.6,cx+1,cy-r+1.6,'F');
+ text(reportText('N'),cx-.9,cy-r-1.6,5,true,[196,40,45]);text(reportText('S'),cx-.8,cy+r+2.4,5);text(reportText('W'),cx-r-2.6,cy+.9,5);text(reportText('E'),cx+r+.7,cy+.9,5);
+}
+/* Elevation pages carry a small key in the header beside the page title: the footprint, north-up,
+ with the side this elevation looks at marked by a bar (the viewing plane) and an arrow toward the
+ house, and a small compass. */
+function drawElevationKey(doc,model,settings,rect,view,colors){
+ const {text,accent}=writer(doc,colors),ps=planShapes(model),all=ps.flat();if(!all.length)return;
+ const size=rect.h,cx=rect.x+size/2,cy=rect.y+size/2,minX=Math.min(...all.map(p=>p.x)),maxX=Math.max(...all.map(p=>p.x)),minY=Math.min(...all.map(p=>p.y)),maxY=Math.max(...all.map(p=>p.y)),scale=size*.42/Math.max(maxX-minX,maxY-minY,.01);
+ const len=Math.hypot(view.x,view.y)||1,vx=view.x/len,vy=view.y/len,px=-vy,py=vx,map=p=>({x:cx+(p.x-(minX+maxX)/2)*scale,y:cy+(p.y-(minY+maxY)/2)*scale}),pts=all.map(map);
+ doc.setFillColor(215,223,230);doc.setDrawColor(125,140,153);doc.setLineWidth(.15);
+ for(const shape of ps){const q=shape.map(map);doc.lines(q.slice(1).concat(q[0]).map((p,i)=>[p.x-q[i].x,p.y-q[i].y]),q[0].x,q[0].y,[1,1],'FD',true);}
+ const along=pts.map(p=>(p.x-cx)*vx+(p.y-cy)*vy),across=pts.map(p=>(p.x-cx)*px+(p.y-cy)*py),reach=Math.max(...along)+1.4,lo=Math.min(...across)-1,hi=Math.max(...across)+1;
+ doc.setDrawColor(accent.r,accent.g,accent.b);doc.setLineWidth(.8);doc.line(cx+vx*reach+px*lo,cy+vy*reach+py*lo,cx+vx*reach+px*hi,cy+vy*reach+py*hi);
+ const tail=reach+4.2,tip=reach+.9,mid=(lo+hi)/2,ax=cx+px*mid,ay=cy+py*mid;doc.setLineWidth(.45);doc.line(ax+vx*tail,ay+vy*tail,ax+vx*(tip+1.4),ay+vy*(tip+1.4));doc.setFillColor(accent.r,accent.g,accent.b);
+ doc.triangle(ax+vx*tip,ay+vy*tip,ax+vx*(tip+1.8)+px*1.1,ay+vy*(tip+1.8)+py*1.1,ax+vx*(tip+1.8)-px*1.1,ay+vy*(tip+1.8)-py*1.1,'F');
+ drawCompass(doc,rect.x+rect.w-5,cy,3.6);
+ if(!Number.isFinite(settings?.frontBearing))text(reportText('Front not set'),rect.x+size+1,rect.y+rect.h-.5,4.5,false,[150,150,150]);
 }
 const number=v=>v>0&&v<.05?'<0.1':Number(v||0).toLocaleString(root.ReportUnits?.current().language||'en-US',{minimumFractionDigits:1,maximumFractionDigits:1});
 const isTrim=a=>a.trim||/^trim-/.test(a.materialKey||'')||/\btrim\b/i.test(a.material||'');
@@ -85,44 +104,65 @@ function surfaceColor(face,camera,muted=false){
  const tint=muted?.1:face.featureType?.55:face.surface==='roof'?.34:.42,shade=muted?.98+.02*facing:.84+.16*facing;
  return color.map(v=>Math.round(Math.min(246,255-(255-v)*tint)*shade));
 }
-const EDGE=[34,41,49,255],BACKGROUND=255;
+const EDGE=[34,41,49,255],BACKGROUND=255,CONTEXT_FACE=[243,244,246],CONTEXT_EDGE=[203,207,212,255];
 // Colors, edges and dividers come from the owner buffer, so a scene can be repainted
 // (for example to mute faces counted elsewhere) without rasterizing it again.
 function paintScene(scene,muted=null){
- const {width,height,owners,surfaces,camera,at}=scene,pixels=scene.pixels,colors=surfaces.map(face=>surfaceColor(face,camera,!!muted&&!!face.id&&!face.featureType&&muted(face)));
+ const {width,height,owners,surfaces,camera,at}=scene,pixels=scene.pixels,dim=scene.dim,colors=surfaces.map((face,id)=>dim?.[id]?CONTEXT_FACE:surfaceColor(face,camera,!!muted&&!!face.id&&!face.featureType&&muted(face)));
  for(let index=0;index<width*height;index++){const id=owners[index],n=index*4;if(id<0){pixels[n]=pixels[n+1]=pixels[n+2]=BACKGROUND;}else{const c=colors[id];pixels[n]=c[0];pixels[n+1]=c[1];pixels[n+2]=c[2];}pixels[n+3]=255;}
- // Two-pixel edges wherever the visible surface changes, including the silhouette.
+ // Two-pixel edges wherever the visible surface changes, including the silhouette. In a context
+ // render, edges between context surfaces (or context and background) are light; any edge of the
+ // measured face stays dark and wins.
+ const dark=dim?new Uint8Array(width*height):null,faint=id=>id<0||dim[id],edge=(i,j)=>{if(!dim||!faint(owners[i])||!faint(owners[j])){pixels.set(EDGE,i*4);pixels.set(EDGE,j*4);if(dark)dark[i]=dark[j]=1;}else{if(!dark[i])pixels.set(CONTEXT_EDGE,i*4);if(!dark[j])pixels.set(CONTEXT_EDGE,j*4);}};
  for(let y=0;y<height;y++)for(let x=0;x<width;x++){const index=y*width+x,id=owners[index];
-  if(x+1<width&&owners[index+1]!==id){pixels.set(EDGE,index*4);pixels.set(EDGE,(index+1)*4);}
-  if(y+1<height&&owners[index+width]!==id){pixels.set(EDGE,index*4);pixels.set(EDGE,(index+width)*4);}
+  if(x+1<width&&owners[index+1]!==id)edge(index,index+1);
+  if(y+1<height&&owners[index+width]!==id)edge(index,index+width);
  }
  // Draw grouped opening divisions after depth resolution. Dashes remain
  // visible on the opening, but never bleed through a closer wall or roof.
- surfaces.forEach((face,id)=>{for(const pair of face.dividers||[]){const [a,b]=pair.map(at),length=Math.hypot(b.x-a.x,b.y-a.y),steps=Math.ceil(length*2);for(let i=0;i<=steps;i++){if(Math.floor(i/2/6)%2)continue;const t=steps?i/steps:0,x=Math.round(a.x+(b.x-a.x)*t),y=Math.round(a.y+(b.y-a.y)*t);if(x<0||x>=width||y<0||y>=height)continue;const index=y*width+x;if(owners[index]===id)pixels.set([72,85,97,255],index*4);}}});
+ surfaces.forEach((face,id)=>{if(dim?.[id])return;for(const pair of face.dividers||[]){const [a,b]=pair.map(at),length=Math.hypot(b.x-a.x,b.y-a.y),steps=Math.ceil(length*2);for(let i=0;i<=steps;i++){if(Math.floor(i/2/6)%2)continue;const t=steps?i/steps:0,x=Math.round(a.x+(b.x-a.x)*t),y=Math.round(a.y+(b.y-a.y)*t);if(x<0||x>=width||y<0||y>=height)continue;const index=y*width+x;if(owners[index]===id)pixels.set([72,85,97,255],index*4);}}});
  return scene;
+}
+/* PDF-only depth bias, like polygon offset. A wall top drawn in (or a few centimetres through) the
+ roof plane would win the depth test along soffit lines and print as a dotted line on the roof. The
+ roof and roof trim win any depth comparison with a non-roof surface within ROOF_DEPTH_BIAS metres
+ plus ROOF_SLOPE_PX pixels of their own depth slope (capped), so those wall tops stay under the
+ roof. Roof against roof compares exact depths, so overlapping roof layers never fight. The editor keeps the
+ exact geometry. Depth z is metres toward the viewer; x and y are pixels. */
+const ROOF_DEPTH_BIAS=.04,ROOF_SLOPE_PX=1.5,ROOF_SLOPE_CAP=.3;
+function roofDepthBias(a,b,c,den){
+ const gx=((b.y-c.y)*(a.z-c.z)+(c.y-a.y)*(b.z-c.z))/den,gy=((c.x-b.x)*(a.z-c.z)+(a.x-c.x)*(b.z-c.z))/den;
+ return ROOF_DEPTH_BIAS+Math.min(ROOF_SLOPE_CAP,ROOF_SLOPE_PX*Math.max(Math.abs(gx),Math.abs(gy)));
 }
 // Resolve depth at each pixel, including holes, openings and curved triangles.
 // A single average depth per wall cannot resolve intersecting/overlapping faces.
-function rasterScene(faces,view,width,height,iso=false,pad=30){
+/* `focus` (a count) makes a context render: the first `focus` faces are framed and drawn as usual;
+ the faces after them are a dimmed context, kept only behind the focus faces' frontmost depth (so
+ nothing between the camera and the measured face can hide it) and clipped to the frame. */
+function rasterScene(faces,view,width,height,iso=false,pad=30,{focus=null}={}){
  const angle=iso?35*Math.PI/180:0,len=Math.hypot(view.x,view.y),nx=view.x/len,ny=view.y/len,camera={x:nx*Math.cos(angle),y:ny*Math.cos(angle),z:Math.sin(angle)};
  const project=p=>({x:p.x*ny-p.y*nx,y:-p.z*Math.cos(angle)+(p.x*nx+p.y*ny)*Math.sin(angle),z:(p.x*nx+p.y*ny)*Math.cos(angle)+p.z*Math.sin(angle)});
- const surfaces=faces.flatMap(face=>[face,...(face.openings||[]).map(o=>({...o,featureType:o.type,normal:face.normal})),...(face.openings||[]).flatMap(o=>(o.trimFaces||[]).map(t=>({...t,id:'',normal:face.normal,openingTrim:true}))) ]),meshes=surfaces.map(mesh);
- const pixels=new Uint8ClampedArray(width*height*4),depth=new Float64Array(width*height).fill(-Infinity),owners=new Int32Array(width*height).fill(-1);
- let minX=Infinity,maxX=-Infinity,minY=Infinity,maxY=-Infinity;
- for(const m of meshes)for(const p of m.positions){const q=project(p);minX=Math.min(minX,q.x);maxX=Math.max(maxX,q.x);minY=Math.min(minY,q.y);maxY=Math.max(maxY,q.y);}
+ const parents=[],surfaces=faces.flatMap((face,i)=>{const list=[face,...(face.openings||[]).map(o=>({...o,featureType:o.type,normal:face.normal})),...(face.openings||[]).flatMap(o=>(o.trimFaces||[]).map(t=>({...t,id:'',normal:face.normal,openingTrim:true})))];for(const s of list)parents.push(i);return list;}),meshes=surfaces.map(mesh);
+ const pixels=new Uint8ClampedArray(width*height*4),depth=new Float64Array(width*height).fill(-Infinity),owners=new Int32Array(width*height).fill(-1),dim=surfaces.map((s,i)=>focus!=null&&parents[i]>=focus);
+ let minX=Infinity,maxX=-Infinity,minY=Infinity,maxY=-Infinity,front=-Infinity;
+ for(const [i,m]of meshes.entries()){if(dim[i])continue;for(const p of m.positions){const q=project(p);minX=Math.min(minX,q.x);maxX=Math.max(maxX,q.x);minY=Math.min(minY,q.y);maxY=Math.max(maxY,q.y);front=Math.max(front,q.z);}}
+ const clip=front+1e-3,FOCUS_BIAS=1,roofOwner=new Uint8Array(width*height),roofBias=new Float32Array(width*height);
  if(!Number.isFinite(minX)){minX=minY=0;maxX=maxY=1;}
  const scale=Math.min((width-2*pad)/Math.max(maxX-minX,.01),(height-2*pad)/Math.max(maxY-minY,.01));
  const at=p=>{const q=project(p);return {x:width/2+(q.x-(minX+maxX)/2)*scale,y:height/2+(q.y-(minY+maxY)/2)*scale,z:q.z};};
  surfaces.forEach((face,id)=>{
-  const m=meshes[id],ps=m.positions.map(at),bias=face.openingTrim?2e-4:face.featureType?1e-4:0;
+  const m=meshes[id],ps=m.positions.map(at),roofish=face.surface==='roof'||!!face.roofTrim,context=dim[id],lift=focus!=null&&!context?FOCUS_BIAS:0,bias=roofish?0:lift+(face.openingTrim?2e-4:face.featureType?1e-4:0);
   for(const tri of m.triangles){
    const [a,b,c]=tri.map(i=>ps[i]),den=(b.y-c.y)*(a.x-c.x)+(c.x-b.x)*(a.y-c.y);if(Math.abs(den)<1e-8)continue;
+   // The roof bias applies only against non-roof surfaces; roof against roof compares exact depths.
+   const rb=roofish?roofDepthBias(a,b,c,den):0;
    const x0=Math.max(0,Math.floor(Math.min(a.x,b.x,c.x))),x1=Math.min(width-1,Math.ceil(Math.max(a.x,b.x,c.x))),y0=Math.max(0,Math.floor(Math.min(a.y,b.y,c.y))),y1=Math.min(height-1,Math.ceil(Math.max(a.y,b.y,c.y)));
    for(let y=y0;y<=y1;y++)for(let x=x0;x<=x1;x++){
     const u=((b.y-c.y)*(x+.5-c.x)+(c.x-b.x)*(y+.5-c.y))/den,v=((c.y-a.y)*(x+.5-c.x)+(a.x-c.x)*(y+.5-c.y))/den;
     if(u< -1e-9||v< -1e-9||u+v>1+1e-9)continue;
-    const z=u*a.z+v*b.z+(1-u-v)*c.z+bias,index=y*width+x;
-    if(z>depth[index]+1e-8){depth[index]=z;owners[index]=id;}
+    const raw=u*a.z+v*b.z+(1-u-v)*c.z;if(context&&raw>clip)continue;
+    const z=raw+bias,index=y*width+x,other=owners[index]<0?roofish:roofOwner[index]===1;
+    if(roofish===other?z>depth[index]+1e-8:roofish?z+rb>depth[index]+1e-8:z>depth[index]+roofBias[index]+1e-8){depth[index]=z;owners[index]=id;roofOwner[index]=roofish?1:0;roofBias[index]=rb;}
    }
   }
  });
@@ -137,7 +177,7 @@ function rasterScene(faces,view,width,height,iso=false,pad=30){
   const d=(x-sums[id].x/counts[id])**2+(y-sums[id].y/counts[id])**2;
   if(d<labels[id].distance){labels[id].point={x,y};labels[id].distance=d;}
  }
- return paintScene({width,height,pixels,depth,owners,surfaces,counts,sums,bounds,labels,at,scale,camera});
+ return paintScene({width,height,pixels,depth,owners,surfaces,counts,sums,bounds,labels,at,scale,camera,dim:focus!=null?dim:null});
 }
 function writer(doc,colors){
  const x=25,w=doc.internal.pageSize.getWidth()-40,bottom=doc.internal.pageSize.getHeight()-22,accent=colors?.primary||{r:200,g:40,b:40};
@@ -149,7 +189,32 @@ function writer(doc,colors){
   rows.forEach((row,r)=>{if(r%2===0){doc.setFillColor(245,247,250);doc.rect(x,y,w,8,'F');}let px=x;row.forEach((v,i)=>{let str=String(v);doc.setFontSize(8);while(doc.getTextWidth(str)>cols[i]-4&&str.length>1)str=str.slice(0,-2)+'~';text(str,px+2,y+5.3,8);px+=cols[i];});y+=8;});return y;
  };
  const paginate=(begin,heading,headers,rows,widths,description)=>{let index=0;do{begin(reportText(heading)+(index?reportText(' - continued'):''));let y=38;if(description)y=note(description,y)+5;const count=Math.max(1,Math.floor((bottom-y-9)/8));if(rows.length)table(headers,rows.slice(index,index+count),y,widths);else note(reportText('No modeled openings are present in this snapshot.'),y+12);index+=count;}while(index<rows.length);};
- return {x,w,bottom,accent,text,note,table,paginate};
+ /* Boxed tables in the roof pages' style (drawSummaryBox in pdf.js): a white rounded box with a
+  shadow and the accent bar on its left, bold headers over a rule, plain rows. */
+ const panel=(bx,by,bw,bh)=>{doc.setFillColor(230,230,230);doc.roundedRect(bx+1.5,by+1.5,bw,bh,3,3,'F');doc.setFillColor(255,255,255);doc.setDrawColor(220,220,220);doc.setLineWidth(.3);doc.roundedRect(bx,by,bw,bh,3,3,'FD');
+  const r=3,bar=2,k=r*.55228;doc.setFillColor(accent.r,accent.g,accent.b);doc.lines([[r-bar,0],[-k,0,-r,r-k,-r,r],[0,bh-r*2],[0,k,r-k,r,r,r],[-(r-bar),0],[0,-bh]],bx+bar,by,[1,1],'F',false);};
+ const fit=(value,width,size,bold=false)=>{let str=String(value);doc.setFont('Montserrat',bold?'bold':'normal');doc.setFontSize(size);while(doc.getTextWidth(str)>width&&str.length>1)str=str.slice(0,-2)+'~';return str;};
+ const cell=(value,px,py,width,right,size=8,bold=false)=>{const str=fit(value,width,size,bold);doc.setFont('Montserrat',bold?'bold':'normal');doc.setFontSize(size);doc.setTextColor(...(bold?[44,51,60]:[60,66,74]));right?doc.text(str,px+width,py,{align:'right'}):doc.text(str,px,py);};
+ const ROW=5.5,HEAD=12.5,FOOT=2.5,boxHeight=n=>HEAD+n*ROW+FOOT;
+ // Columns 2+ are numbers and right-aligned. A row {span:true,cells} spans its first two columns.
+ const boxTable=(headers,rows,bx,by,bw,widths)=>{
+  const inner=bw-10,weights=widths||headers.map(()=>1),cols=weights.map(v=>v/weights.reduce((a,b)=>a+b,0)*inner),left=cols.map((c,i)=>bx+6+cols.slice(0,i).reduce((a,b)=>a+b,0)),bh=boxHeight(rows.length);panel(bx,by,bw,bh);
+  headers.forEach((h,i)=>{let size=7.5;doc.setFont('Montserrat','bold');while(size>5.5&&(doc.setFontSize(size),doc.getTextWidth(h)>cols[i]-1.5))size-=.5;cell(h,left[i]+(i>1?1.5:0),by+7,cols[i]-1.5,i>1,size,true);});
+  doc.setDrawColor(200,205,212);doc.setLineWidth(.25);doc.line(bx+6,by+9,bx+bw-4,by+9);
+  rows.forEach((row,r)=>{const cells=row.cells||row,py=by+HEAD+r*ROW+1.5;cells.forEach((v,i)=>{if(row.span&&i===1)return;const width=row.span&&i===0?cols[0]+cols[1]-1.5:cols[i]-1.5;cell(v,left[i]+(i>1?1.5:0),py,width,i>1);});});
+  return by+bh;
+ };
+ // Two side-by-side boxes: rows fill the left box, then the right (split evenly on the last page),
+ // and the totals box spans both columns under them. `more()` starts a continuation page.
+ const columns=(headers,rows,y,widths,total,more)=>{
+  const gap=5,cw=(w-gap)/2,totalH=10;let index=0;
+  for(;;){const capacity=Math.max(1,Math.floor((bottom-y-totalH-4-HEAD-FOOT)/ROW)),rest=rows.length-index,last=rest<=2*capacity,leftCount=last?Math.ceil(rest/2):capacity,rightCount=last?rest-leftCount:capacity;
+   const a=rows.slice(index,index+leftCount),b=rows.slice(index+leftCount,index+leftCount+rightCount);let end=boxTable(headers,a,x,y,cw,widths);if(b.length)end=Math.max(end,boxTable(headers,b,x+cw+gap,y,cw,widths));index+=a.length+b.length;
+   if(index>=rows.length){const ty=end+4;panel(x,ty,w,totalH);cell(total[0],x+6,ty+6.5,40,false,8.5,true);const parts=total.slice(1);let px=x+w-4;for(let i=parts.length-1;i>=0;i--){const str=String(parts[i]);doc.setFont('Montserrat',i===parts.length-1?'bold':'normal');doc.setFontSize(8);const tw=doc.getTextWidth(str);cell(str,px-tw,ty+6.5,tw+.5,false,8,i===parts.length-1);px-=tw+6;}return ty+totalH;}
+   y=more();
+  }
+ };
+ return {x,w,bottom,accent,text,note,table,paginate,panel,boxTable,columns};
 }
 const DENSITY=8;
 // Label placement. With `ids`, every listed face gets a label: inside the face when it fits
@@ -194,8 +259,9 @@ function placeLabels(doc,scene,rect,ids=null){
  }
  return placed;
 }
-function drawDiagram(doc,faces,rect,view,{dimensions=false,iso=false,labels=true,labelIds=null,scene:given=null}={}){
- const density=DENSITY,width=Math.ceil(rect.w*density),height=Math.ceil(rect.h*density),scene=given||rasterScene(faces,view,width,height,iso,(dimensions?9:5)*density);
+// `context` faces are drawn dimmed behind `faces` (see rasterScene `focus`), never measured or labeled.
+function drawDiagram(doc,faces,rect,view,{dimensions=false,iso=false,labels=true,labelIds=null,scene:given=null,context=null}={}){
+ const density=DENSITY,width=Math.ceil(rect.w*density),height=Math.ceil(rect.h*density),scene=given||(context?.length?rasterScene([...faces,...context],view,width,height,iso,(dimensions?9:5)*density,{focus:faces.length}):rasterScene(faces,view,width,height,iso,(dimensions?9:5)*density));
  if(root.document){const canvas=root.document.createElement('canvas');canvas.width=width;canvas.height=height;const ctx=canvas.getContext('2d'),data=ctx.createImageData(width,height);data.data.set(scene.pixels);ctx.putImageData(data,0,0);doc.addImage(canvas.toDataURL('image/png'),'PNG',rect.x,rect.y,rect.w,rect.h,undefined,'FAST');}
  const {text}=writer(doc),at=p=>{const q=scene.at(p);return {x:rect.x+q.x/density,y:rect.y+q.y/density};};
  scene.placed=labels&&!dimensions?placeLabels(doc,scene,rect,labelIds):[];
@@ -205,14 +271,17 @@ function drawDiagram(doc,faces,rect,view,{dimensions=false,iso=false,labels=true
  }}
  return scene;
 }
-const houseFaces=model=>[...model.walls,...(model.returns||[]).map(f=>({...f,id:'',openings:[]})),...(model.roof||[]).map(f=>({...f,id:'',surface:'roof',openings:[]}))];
+// Everything the editor shows of the house: walls, returns, chimney tops, roof trim and the roof.
+// Only walls carry ids; the rest is drawn but never labeled or counted.
+const roofTrimFaces=model=>(model.roofTrim||[]).map(f=>({...f,id:'',roofTrim:true,trim:true,openings:[]}));
+const houseFaces=model=>[...model.walls,...(model.returns||[]).map(f=>({...f,id:'',openings:[]})),...(model.caps||[]).map(f=>({...f,id:'',chimney:true,openings:[]})),...roofTrimFaces(model),...(model.roof||[]).map(f=>({...f,id:'',surface:'roof',openings:[]}))];
 // The cover and summary views look down at the house from the configured front: the same front as
 // the Front elevation and the orientation key, never a direction derived from the geometry.
 function coverView(settings){const {x,y}=houseDirections(settings)[0];return {x,y};}
-function drawExteriorCover(doc,model,rect,settings={}){drawDiagram(doc,houseFaces(model),{...rect,h:rect.h-28},coverView(settings),{iso:true,labels:false});drawOrientationKey(doc,model,settings,{x:rect.x+rect.w/2-28,y:rect.y+rect.h-27,w:56,h:24});}
+function drawExteriorCover(doc,model,rect,settings={}){const box={...rect,h:rect.h-28},cover=model.coverRender;/* Textured render captured with the snapshot (exterior_cover.js); first cover page only, and only for the front it was rendered from. */if(cover?.image&&cover.width>0&&cover.height>0&&Math.abs(bearing(cover.bearing)-frontBearing(settings))<.01){const s=Math.min(box.w/cover.width,box.h/cover.height),w=cover.width*s,h=cover.height*s;doc.addImage(cover.image,'JPEG',box.x+(box.w-w)/2,box.y+(box.h-h)/2,w,h);}else drawDiagram(doc,houseFaces(model),box,coverView(settings),{iso:true,labels:false});drawOrientationKey(doc,model,settings,{x:rect.x+rect.w/2-28,y:rect.y+rect.h-27,w:56,h:24});}
 function drawRoofElevations(doc,model,settings,begin,colors){
  const {x,w,bottom,text}=writer(doc,colors),gap=6,ww=(w-gap)/2,hh=(bottom-37-gap)/2;begin(reportText('Roof Elevations'));
- houseDirections(settings).slice(4).forEach((view,i)=>{const xx=x+i%2*(ww+gap),yy=37+Math.floor(i/2)*(hh+gap);text(reportText(view.name),xx+2,yy+5,10,true);drawDiagram(doc,(model.roof||[]).map(f=>({...f,surface:'roof',id:''})),{x:xx,y:yy+10,w:ww,h:hh-12},view,{iso:true,labels:false});});
+ houseDirections(settings).slice(4).forEach((view,i)=>{const xx=x+i%2*(ww+gap),yy=37+Math.floor(i/2)*(hh+gap);text(reportText(view.name),xx+2,yy+5,10,true);drawDiagram(doc,[...roofTrimFaces(model),...(model.roof||[]).map(f=>({...f,surface:'roof',id:''}))],{x:xx,y:yy+10,w:ww,h:hh-12},view,{iso:true,labels:false});});
 }
 /* The one-page Exterior Summary: the full report opens its exterior pages with it, and a full-house customer Summary.pdf carries only it. */
 function drawExteriorSummaryPage(doc,model,settings,begin,colors){
@@ -220,17 +289,27 @@ function drawExteriorSummaryPage(doc,model,settings,begin,colors){
  begin(reportText('Exterior Summary'));let y=38;
  [['Net wall area',measure(model.totals.net,"sf",number(model.totals.net)+' sq ft')],['Gross wall area',measure(model.totals.gross,"sf",number(model.totals.gross)+' sq ft')],['Openings',String(model.openings.length)]].forEach(([label,value],i)=>{const bx=x+i*(w+3)/3;doc.setFillColor(242,245,249);doc.roundedRect(bx,y,(w-6)/3,23,2,2,'F');text(label,bx+4,y+7,8);text(value,bx+4,y+17,12,true);});
  drawDiagram(doc,houseFaces(model),{x,y:68,w,h:111},coverView(settings),{iso:true});
- table([reportText('Measurement'),reportText('Quantity')],[[reportText('Wall regions'),model.walls.length],[reportText('Opening area'),measure(model.totals.openingArea,"sf",number(model.totals.openingArea)+' sq ft')],[reportText('Opening perimeter'),measure(model.totals.openingPerimeter,"ft",number(model.totals.openingPerimeter),false)+' '+unit('ft','ft')],[reportText('Horizontal returns'),measure(model.totals.returns,"sf",number(model.totals.returns)+' sq ft')]],188,[2,1]);note(reportText('Wall IDs connect the diagrams, dimensions, opening schedule and notes. Each wall face is counted once, on one elevation or as a hidden face, so those totals add up to the gross wall area.'),240);
+ table([reportText('Measurement'),reportText('Quantity')],[[reportText('Wall regions'),model.walls.length],[reportText('Opening area'),measure(model.totals.openingArea,"sf",number(model.totals.openingArea)+' sq ft')],[reportText('Opening perimeter'),measure(model.totals.openingPerimeter,"ft",number(model.totals.openingPerimeter),false)+' '+unit('ft','ft')],[reportText('Horizontal returns'),measure(model.totals.returns,"sf",number(model.totals.returns)+' sq ft')]],188,[2,1]);note(reportText('Wall IDs connect the diagrams, dimensions, opening schedule and notes. Each wall face is counted once, on one of the four elevations (front, back, left, right) or as a hidden face, so those totals add up to the gross wall area.'),240);
 }
-/* Which elevation counts each wall face. A face is counted once, on the elevation that looks
- most directly at it among those where it faces the viewer (within 60 degrees) and at least a
- quarter of it is visible. A face that no elevation shows that well goes to the elevation that
- shows most of it, and a face no elevation shows at all is listed as hidden. Faces under
- 1 sq ft are not separate rows: they are summed as small pieces on the elevation they face. */
+/* There are four elevations: Front, Back, Left and Right, looking from the configured front bearing
+ and from it turned by 180, 90 and -90 degrees. Which elevation counts each wall face: a face is
+ counted once, on the elevation that looks most directly at it among those where it faces the
+ viewer (within 60 degrees) and at least a quarter of it is visible. A face that no elevation shows
+ that well goes to the elevation that shows most of it, and a face no elevation shows at all is
+ listed as hidden. Faces under 1 sq ft are not separate rows: they are summed as small pieces on
+ the elevation they face. */
 const SMALL_PIECE_SF=1,FACING_MIN=.5,VISIBLE_SHARE=.25,MIN_PIXELS=24;
+const elevationViews=settings=>houseDirections(settings).filter(v=>['front','back','left','right'].includes(v.id));
+// An elevation drawing is only as tall as the house needs at full width (plus room for leader
+// labels), so a wide, low house leaves more of the page to its tables. `rect.h` is the maximum.
+function fitHeight(faces,view,rect,pad=5){
+ const len=Math.hypot(view.x,view.y)||1,nx=view.x/len,ny=view.y/len;let x0=Infinity,x1=-Infinity,z0=Infinity,z1=-Infinity;
+ for(const f of faces)for(const p of f.points||[]){const u=p.x*ny-p.y*nx;x0=Math.min(x0,u);x1=Math.max(x1,u);z0=Math.min(z0,p.z||0);z1=Math.max(z1,p.z||0);}
+ if(!Number.isFinite(x0))return rect.h;return Math.max(Math.min(rect.h,40),Math.min(rect.h,(z1-z0)*(rect.w-2*pad)/Math.max(x1-x0,.01)+2*pad+8));
+}
 function elevationPlan(model,settings,rect){
- const faces=houseFaces(model),width=Math.ceil(rect.w*DENSITY),height=Math.ceil(rect.h*DENSITY);
- const views=houseDirections(settings).map(view=>({view,scene:rasterScene(faces,view,width,height,false,5*DENSITY),ids:[],small:[]})),hidden=[];
+ const faces=houseFaces(model);
+ const views=elevationViews(settings).map(view=>{const r={...rect,h:fitHeight(faces,view,rect)};return {view,rect:r,scene:rasterScene(faces,view,Math.ceil(r.w*DENSITY),Math.ceil(r.h*DENSITY),false,5*DENSITY),ids:[],small:[]};}),hidden=[];
  for(const wall of model.walls){
   const n=wall.normal||{x:0,y:0},len=Math.hypot(n.x,n.y)||1,options=views.map(({view,scene},i)=>{const id=scene.surfaces.indexOf(wall),facing=(n.x*view.x+n.y*view.y)/len,count=id<0?0:scene.counts[id],expected=wall.net*.09290304*Math.max(facing,0)*scene.scale**2;return {i,facing,count,share:expected>0?count/expected:0};});
   const nearest=list=>list.sort((a,b)=>b.facing-a.facing||a.i-b.i)[0];
@@ -240,29 +319,41 @@ function elevationPlan(model,settings,rect){
  }
  return {views,hidden};
 }
+/* Wall dimension drawings show the rest of the house, dimmed, behind the measured face. The
+ organization turns this off with report_settings.general.exterior_dimension_context = false
+ (Company > Reports); a report can override it with exteriorSettings.dimensionContext. Default on. */
+function dimensionContext(settings){
+ if(typeof settings?.dimensionContext==='boolean')return settings.dimensionContext;
+ return root.projectOrganization?.report_settings?.general?.exterior_dimension_context!==false;
+}
+// The elevation key sits in the page header, just left of the right-aligned page title (pdf.js drawReportTemplate: 12pt bold, 20 mm from the right edge, baseline 18 mm).
+function headerKeyRect(doc,title){doc.setFont('Montserrat','bold');doc.setFontSize(12);const tw=Number(doc.getTextWidth(title))||0,kw=40;return {x:doc.internal.pageSize.getWidth()-20-tw-6-kw,y:5,w:kw,h:25};}
 function drawExteriorReportPages(doc,model,settings,begin,colors){
- const {x,w,bottom,text,note,table,paginate}=writer(doc,colors),material=a=>reportText(!a.material||a.material==='Unassigned'?'Not assigned':a.material);
+ const {x,w,bottom,text,note,table,paginate,columns}=writer(doc,colors),material=a=>reportText(!a.material||a.material==='Unassigned'?'Not assigned':a.material);
  const area=v=>measure(v,"sf",number(v),false),openings=v=>v>0?area(v):'-',sum=(list,key)=>list.reduce((s,a)=>s+a[key],0),byId=new Map(model.walls.map(a=>[a.id,a]));
- const headers=[reportText('Wall'),reportText('Material'),metric()?'Gross m²':'Gross ft²',metric()?'Openings m²':'Openings ft²',metric()?'Net m²':'Net ft²'];
+ // Each elevation lists its faces in two boxed columns (Wall, Material, Gross, Openings) with one totals box under both.
+ const sq=metric()?' m²':' ft²',headers=[reportText('Wall'),reportText('Material'),reportText('Gross')+sq,reportText('Openings')+sq],widths=[1,2.2,1.4,1.4];
+ const totalRow=list=>[reportText('Total')+'  ·  '+reportText('{value1} faces',{value1:list.length}),reportText('Gross ')+area(sum(list,'gross'))+sq,reportText('Openings ')+(sum(list,'openingArea')>0?area(sum(list,'openingArea'))+sq:'-'),reportText('Net ')+area(sum(list,'net'))+sq];
  drawExteriorSummaryPage(doc,model,settings,begin,colors);let y;
- const diagram={x,y:63,w,h:85},plan=elevationPlan(model,settings,diagram);
- for(const {view:direction,scene,ids,small}of plan.views){
-  const counted=new Set(ids),walls=ids.map(id=>byId.get(id)).sort((a,b)=>a.id.localeCompare(b.id)),pieces=small.map(id=>byId.get(id)),all=walls.concat(pieces);
-  begin(reportText(direction.name)+reportText(' Elevation'));drawOrientationKey(doc,model,settings,{x:x+w-58,y:31,w:56,h:27});
-  paintScene(scene,face=>!counted.has(face.id));drawDiagram(doc,houseFaces(model),diagram,direction,{scene,labelIds:counted});
-  const rows=walls.map(a=>[a.id,material(a),area(a.gross),openings(a.openingArea),area(a.net)]);
-  if(pieces.length)rows.push([reportText('Small pieces'),reportText('{value1} under {value2}',{value1:pieces.length,value2:measure(SMALL_PIECE_SF,'sf','1 sq ft')}),area(sum(pieces,'gross')),openings(sum(pieces,'openingArea')),area(sum(pieces,'net'))]);
-  if(rows.length)rows.push([reportText('Total'),reportText('{value1} faces',{value1:all.length}),area(sum(all,'gross')),openings(sum(all,'openingArea')),area(sum(all,'net'))]);
-  y=note(reportText('Labeled faces are counted on this elevation; pale faces are counted on another elevation. Each face is counted on one elevation only, so elevation totals never overlap. Areas are measured on each wall plane; the drawing is an orthographic projection.'),155)+3;let index=0;
-  do{if(index){begin(reportText(direction.name)+reportText(' Elevation - continued'));y=note(reportText('Wall data continued. See the first ')+reportText(direction.name)+reportText(' elevation page for the diagram.'),38)+5;}
-   const count=Math.max(1,Math.floor((bottom-y-9)/8));if(rows.length)table(headers,rows.slice(index,index+count),y,[1.1,2.1,1.5,1.5,1.5]);else note(reportText('No wall face is counted on this elevation. Its walls are counted on the neighboring elevations that face them more directly.'),y+10);index+=count;
-  }while(index<rows.length);
+ const diagram={x,y:33,w,h:110},plan=elevationPlan(model,settings,diagram),elevationOf=new Map(plan.hidden.map(id=>[id,'Hidden']));
+ for(const {view:direction,rect:drawing,scene,ids,small}of plan.views){
+  for(const id of [...ids,...small])elevationOf.set(id,direction.name);
+  const counted=new Set(ids),walls=ids.map(id=>byId.get(id)).sort((a,b)=>a.id.localeCompare(b.id)),pieces=small.map(id=>byId.get(id)),all=walls.concat(pieces),title=reportText(direction.name)+reportText(' Elevation');
+  begin(title);drawElevationKey(doc,model,settings,headerKeyRect(doc,title),direction,colors);
+  paintScene(scene,face=>!counted.has(face.id));drawDiagram(doc,houseFaces(model),drawing,direction,{scene,labelIds:counted});
+  const rows=walls.map(a=>[a.id,material(a),area(a.gross),openings(a.openingArea)]);
+  if(pieces.length)rows.push({span:true,cells:[reportText('Small pieces: {value1} under {value2}',{value1:pieces.length,value2:measure(SMALL_PIECE_SF,'sf','1 sq ft')}),'',area(sum(pieces,'gross')),openings(sum(pieces,'openingArea'))]});
+  y=drawing.y+drawing.h+4;
+  if(rows.length)columns(headers,rows,y,widths,totalRow(all),()=>{begin(title+reportText(' - continued'));return note(reportText('Wall data continued. See the first ')+reportText(direction.name)+reportText(' elevation page for the diagram.'),38)+4;});
+  else note(reportText('No wall face is counted on this elevation. Its walls are counted on the neighboring elevations that face them more directly.'),y+6);
  }
- if(plan.hidden.length){const hidden=plan.hidden.map(id=>byId.get(id));paginate(begin,reportText('Hidden Wall Faces'),headers,hidden.map(a=>[a.id,material(a),area(a.gross),openings(a.openingArea),area(a.net)]).concat([[reportText('Total'),reportText('{value1} faces',{value1:hidden.length}),area(sum(hidden,'gross')),openings(sum(hidden,'openingArea')),area(sum(hidden,'net'))]]),[1.1,2.1,1.5,1.5,1.5],reportText('These faces are not visible in any elevation drawing because other walls or the roof cover them. They are listed here so every face is counted once.'));}
+ if(plan.hidden.length){const hidden=plan.hidden.map(id=>byId.get(id)).sort((a,b)=>a.id.localeCompare(b.id)),heading=reportText('Hidden Wall Faces'),intro=reportText('These faces are not visible in any elevation drawing because other walls or the roof cover them. They are listed here so every face is counted once.');
+  begin(heading);columns(headers,hidden.map(a=>[a.id,material(a),area(a.gross),openings(a.openingArea)]),note(intro,38)+4,widths,totalRow(hidden),()=>{begin(heading+reportText(' - continued'));return 38;});}
+ const house=dimensionContext(settings)?houseFaces(model):null;
  for(const [heading,faces]of [['Wall Dimensions',model.walls.filter(a=>!isTrim(a))],['Trim Dimensions',model.walls.filter(isTrim)]]){
   dimensionPages(faces).forEach((page,i)=>{begin(reportText(heading)+(i?reportText(' - continued'):''));page.forEach(panel=>{
    const a=panel.face,xx=x+panel.x*w+1,yy=36+panel.y*(bottom-36),ww=panel.w*w-3,hh=panel.h*(bottom-36)-4;
-   text(a.id+' / '+reportText(relativeSide(a.normal,settings)),xx+1,yy+5,ww<60?8:10,true);text(measure(a.net,'sf',number(a.net)+' sq ft')+reportText(' net'),xx+1,yy+10,7.5);drawDiagram(doc,[a],{x:xx,y:yy+13,w:ww,h:hh-25},a.normal,{dimensions:true});
+   text(a.id+' / '+reportText(elevationOf.get(a.id)||relativeSide(a.normal,settings)),xx+1,yy+5,ww<60?8:10,true);text(measure(a.net,'sf',number(a.net)+' sq ft')+reportText(' net'),xx+1,yy+10,7.5);drawDiagram(doc,[a],{x:xx,y:yy+13,w:ww,h:hh-25},a.normal,{dimensions:true,context:house&&house.filter(f=>f!==a)});
    text(reportText('W ')+measure(a.width,"ft",number(a.width)+"'")+reportText("  x  H ")+measure(a.height,"ft",number(a.height)+"'"),xx+2,yy+hh-5,7);doc.setFontSize(6.5);text(doc.splitTextToSize(material(a)+(a.chimney?' / Chimney':''),ww-4)[0],xx+2,yy+hh,6.5);
   });});
  }
@@ -318,6 +409,6 @@ async function drawReportImagery(doc,state,begin,colors){
   doc.addImage(item.dataUrl||reportImageData(img),'JPEG',xx+(ww-iw)/2,yy+9+(boxH-ih)/2,iw,ih);doc.setFontSize(7);text(doc.splitTextToSize(item.label||reportText('Untitled frame'),ww).slice(0,2),xx,yy+hh-8,7);
  }}
 }
-const api={directions,photoSlots,houseDirections,relativeSide,initializePhotoSlots,selectedPhotos,photosComplete,planShapes,frontBearing,dimensionPages,rasterScene,paintScene,placeLabels,elevationPlan,coverView,drawDiagram,drawOrientationKey,drawRoofElevations,drawExteriorCover,drawExteriorSummaryPage,drawExteriorReportPages,drawExteriorNotes,drawReportImagery,prepareImagerySnapshot};
+const api={directions,photoSlots,houseDirections,relativeSide,initializePhotoSlots,selectedPhotos,photosComplete,planShapes,frontBearing,dimensionPages,rasterScene,paintScene,placeLabels,elevationPlan,elevationViews,houseFaces,roofDepthBias,ROOF_DEPTH_BIAS,dimensionContext,writer,coverView,drawDiagram,drawOrientationKey,drawElevationKey,drawRoofElevations,drawExteriorCover,drawExteriorSummaryPage,drawExteriorReportPages,drawExteriorNotes,drawReportImagery,prepareImagerySnapshot};
 if(typeof module==='object'&&module.exports)module.exports=api;else {root.ExteriorPDF=api;Object.assign(root,{drawExteriorReportPages,drawExteriorNotes,drawExteriorCover,drawReportImagery});}
 })(typeof window==='undefined'?globalThis:window);
