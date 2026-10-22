@@ -51,3 +51,17 @@ real GPU on large high-DPI views: measured at 2× density on a 2400×1350 window
 the camera takes the new aspect so proportions stay correct. The buffer is resized once on release. Measured at 2×,
 the 60-move drag dropped from 2.1 s to 1.1 s with p95 frames of 17 ms, and `setSize` no longer appears during the drag.
 `scene_3d.js` was overlaid on web, legacy and pool, and the served file matches.
+
+## Follow-up: GPU-side resizing during drags — `c570b2c77754743b2ba8ecac67d883bf02d178d2`
+
+The user still saw about a second of visible lag dragging the junction handle with Resources (around 20 photos and
+a video) in the bottom pane. Headless and headed test browsers stayed at p95 17 ms, so the remaining cost is
+GPU-side and does not show in main-thread timings.
+- On every stage size change the resources viewer reallocated its photo canvas at device resolution and redrew the
+  full photo (`project_resources.js` `resize`). During a drag its canvas now keeps its pixel size, so the stage shows
+  more or less of it, and it resizes once on release.
+- The 3D Tiles viewer (Cesium) kept rendering and resizing its canvas every frame, even behind another tab. A single
+  switch, `firstMeasureSetPaneResizing`, now pauses its render loop for the drag and resumes it on release.
+
+Checked headed at 2×: Cesium no longer appears in the drag profile, its loop resumes after release, and the canvas
+returns to automatic sizing. Resource tests pass. Not yet confirmed on the user's own machine.
