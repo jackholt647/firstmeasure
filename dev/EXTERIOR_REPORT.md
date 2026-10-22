@@ -7,8 +7,21 @@ wall section to paint it. Escape ends painting. Split a face before assigning
 different materials to its sections. Material colors toggles visualization only;
 it does not clear assignments. Unassigned clears an assignment explicitly.
 
-Open Config after editing. Exteriors shows the current model's material schedule,
-an include-pages toggle, and report notes. The full PDF appends exterior pages.
+Open Config after editing. The Exteriors tab is only the house orientation: a dial
+filling the tab with the north-up footprint, the front marked by a bar on that side and
+an arrow to a knob, and Front/Back/Left/Right labels around it. Drag anywhere on the
+dial (or the slider, the number field, or the arrow keys; Shift+arrow turns 15 degrees)
+to turn the front. While dragging only the arrow, bar and labels move, once per
+animation frame; nothing is saved and no PDF work runs. The bearing is saved and
+`house-orientation-change` fires on release (the textured cover re-renders from it,
+debounced). Near one of the eight strongest wall directions (within 3 degrees) the drag
+snaps to it; Shift turns the snap off and the number field takes any angle. The same
+control (compact) is on the Elevation photos page. There are no toggles, faces list,
+front-wall picker or notes box in the tab; these stay report parameters in data with
+unchanged keys and defaults: `exteriorSettings.include` (default on; a customer
+full-house PDF always includes the pages), `exteriorSettings.dimensionContext`
+(default: the organization's Company › Reports setting) and `exteriorSettings.notes`
+(the Wall Notes page). The full PDF appends exterior pages.
 Roof-only projects and roof summary PDFs retain their existing page flow.
 
 ## Coverage and sources
@@ -86,7 +99,15 @@ style (white box, accent bar on the left, bold headers over a rule); each has Wa
 Material, Gross and Openings columns. Rows fill the left box, then the right (split
 evenly on the last page), and one totals box under both gives the face count and the
 gross, openings and net area. Hidden Wall Faces uses the same tables. On the pilot
-house all four elevations fit on one page each. "Openings" is the area of modeled
+house all four elevations fit on one page each.
+
+Every other exterior table (the Exterior Summary measurements, Opening Schedule,
+Measured lengths, Net area by material and both Material Allowances tables) uses the
+same boxed style with unchanged columns and values; a column whose values are all
+numbers is right-aligned. A narrow table (three columns or fewer) with more than ten
+rows is split into two side-by-side boxes the same way (`autoTable`); wider tables stay
+one box. Long tables continue on "- continued" pages, and no row is drawn below the
+page footer. "Openings" is the area of modeled
 windows, doors and other openings cut from the face.
 
 ### What the drawings include
@@ -122,14 +143,14 @@ whole PDF is within run-to-run noise at about 8 s) and adds about 215 KB to a 2.
 It is on by default. An organization turns it off with **Company › Reports ›
 Exterior report › Show house context behind wall dimension drawings**, saved as
 `report_settings.general.exterior_dimension_context` on the branch (the same place as
-the other report defaults). A report overrides the organization default from its own
-Exteriors configuration page (`exteriorSettings.dimensionContext`, saved with the
-report's PDF configuration). Off draws each face alone, exactly as before. Rasterizing
+the other report defaults). A report can override the organization default with
+`exteriorSettings.dimensionContext`, saved with the report's PDF configuration; there
+is no control for it in the report configuration tray. Off draws each face alone, exactly as before. Rasterizing
 the whole house per face is a known shortcut, listed in
 [the optimization backlog](../docs/optimization-backlog.md).
 
 Report configuration warns while any face has no material (the editor's "Smooth"
-default with no default texture), with buttons to list those faces or open Wall
+default with no default texture), naming the faces, with a button to open Wall
 materials. The tray opens at 36% of the workspace, resizes from its left edge, and
 keeps each person's width in this browser.
 

@@ -183,40 +183,45 @@ function writer(doc,colors){
  const x=25,w=doc.internal.pageSize.getWidth()-40,bottom=doc.internal.pageSize.getHeight()-22,accent=colors?.primary||{r:200,g:40,b:40};
  const text=(value,px,py,size=9,bold=false,color=[44,51,60])=>{doc.setFont('Montserrat',bold?'bold':'normal');doc.setFontSize(size);doc.setTextColor(...color);doc.text(Array.isArray(value)?value:String(value),px,py);};
  const note=(value,y,width=w,px=x)=>{doc.setFont('Montserrat','normal');doc.setFontSize(8);const lines=doc.splitTextToSize(String(value),width);text(lines,px,y,8);return y+lines.length*4;};
- const table=(headers,rows,y,widths)=>{
-  const weights=widths||headers.map(()=>1),cols=weights.map(v=>v/weights.reduce((a,b)=>a+b,0)*w);doc.setFillColor(accent.r,accent.g,accent.b);doc.roundedRect(x,y,w,9,1.5,1.5,'F');let px=x;
-  headers.forEach((h,i)=>{text(reportText(h),px+2,y+5.8,7.5,true,[255,255,255]);px+=cols[i];});y+=9;
-  rows.forEach((row,r)=>{if(r%2===0){doc.setFillColor(245,247,250);doc.rect(x,y,w,8,'F');}let px=x;row.forEach((v,i)=>{let str=String(v);doc.setFontSize(8);while(doc.getTextWidth(str)>cols[i]-4&&str.length>1)str=str.slice(0,-2)+'~';text(str,px+2,y+5.3,8);px+=cols[i];});y+=8;});return y;
- };
- const paginate=(begin,heading,headers,rows,widths,description)=>{let index=0;do{begin(reportText(heading)+(index?reportText(' - continued'):''));let y=38;if(description)y=note(description,y)+5;const count=Math.max(1,Math.floor((bottom-y-9)/8));if(rows.length)table(headers,rows.slice(index,index+count),y,widths);else note(reportText('No modeled openings are present in this snapshot.'),y+12);index+=count;}while(index<rows.length);};
+ // Every exterior table is a full-width boxed table (boxTable below) with the same columns and values;
+ // columns whose values are all numbers are right-aligned. `rowsFit(y)` is how many rows fit from y down.
+ const table=(headers,rows,y,widths)=>boxTable(headers.map(h=>reportText(h)),rows,x,y,w,widths,numericColumns(headers,rows));
+ const paginate=(begin,heading,headers,rows,widths,description)=>{let index=0;do{begin(reportText(heading)+(index?reportText(' - continued'):''));let y=38;if(description)y=note(description,y)+5;const count=rowsFit(y);if(rows.length)table(headers,rows.slice(index,index+count),y,widths);else note(reportText('No modeled openings are present in this snapshot.'),y+12);index+=count;}while(index<rows.length);};
  /* Boxed tables in the roof pages' style (drawSummaryBox in pdf.js): a white rounded box with a
   shadow and the accent bar on its left, bold headers over a rule, plain rows. */
  const panel=(bx,by,bw,bh)=>{doc.setFillColor(230,230,230);doc.roundedRect(bx+1.5,by+1.5,bw,bh,3,3,'F');doc.setFillColor(255,255,255);doc.setDrawColor(220,220,220);doc.setLineWidth(.3);doc.roundedRect(bx,by,bw,bh,3,3,'FD');
   const r=3,bar=2,k=r*.55228;doc.setFillColor(accent.r,accent.g,accent.b);doc.lines([[r-bar,0],[-k,0,-r,r-k,-r,r],[0,bh-r*2],[0,k,r-k,r,r,r],[-(r-bar),0],[0,-bh]],bx+bar,by,[1,1],'F',false);};
  const fit=(value,width,size,bold=false)=>{let str=String(value);doc.setFont('Montserrat',bold?'bold':'normal');doc.setFontSize(size);while(doc.getTextWidth(str)>width&&str.length>1)str=str.slice(0,-2)+'~';return str;};
  const cell=(value,px,py,width,right,size=8,bold=false)=>{const str=fit(value,width,size,bold);doc.setFont('Montserrat',bold?'bold':'normal');doc.setFontSize(size);doc.setTextColor(...(bold?[44,51,60]:[60,66,74]));right?doc.text(str,px+width,py,{align:'right'}):doc.text(str,px,py);};
- const ROW=5.5,HEAD=12.5,FOOT=2.5,boxHeight=n=>HEAD+n*ROW+FOOT;
- // Columns 2+ are numbers and right-aligned. A row {span:true,cells} spans its first two columns.
- const boxTable=(headers,rows,bx,by,bw,widths)=>{
+ const ROW=5.5,HEAD=12.5,FOOT=2.5,boxHeight=n=>HEAD+n*ROW+FOOT,rowsFit=y=>Math.max(1,Math.floor((bottom-y-HEAD-FOOT)/ROW));
+ const numericColumns=(headers,rows)=>headers.map((h,i)=>i>0&&rows.length>0&&rows.every(r=>/^(-|<?[\d.,]+( x [\d.,]+)?( ?(sq ft|ft|m²|m))?)$/.test(String((r.cells||r)[i]).trim())));
+ // `right` says which columns are right-aligned (default: columns 2+). A row {span:true,cells} spans its first two columns.
+ const boxTable=(headers,rows,bx,by,bw,widths,right=headers.map((h,i)=>i>1))=>{
   const inner=bw-10,weights=widths||headers.map(()=>1),cols=weights.map(v=>v/weights.reduce((a,b)=>a+b,0)*inner),left=cols.map((c,i)=>bx+6+cols.slice(0,i).reduce((a,b)=>a+b,0)),bh=boxHeight(rows.length);panel(bx,by,bw,bh);
-  headers.forEach((h,i)=>{let size=7.5;doc.setFont('Montserrat','bold');while(size>5.5&&(doc.setFontSize(size),doc.getTextWidth(h)>cols[i]-1.5))size-=.5;cell(h,left[i]+(i>1?1.5:0),by+7,cols[i]-1.5,i>1,size,true);});
+  headers.forEach((h,i)=>{let size=7.5;doc.setFont('Montserrat','bold');while(size>5.5&&(doc.setFontSize(size),doc.getTextWidth(h)>cols[i]-1.5))size-=.5;cell(h,left[i]+(right[i]?1.5:0),by+7,cols[i]-1.5,right[i],size,true);});
   doc.setDrawColor(200,205,212);doc.setLineWidth(.25);doc.line(bx+6,by+9,bx+bw-4,by+9);
-  rows.forEach((row,r)=>{const cells=row.cells||row,py=by+HEAD+r*ROW+1.5;cells.forEach((v,i)=>{if(row.span&&i===1)return;const width=row.span&&i===0?cols[0]+cols[1]-1.5:cols[i]-1.5;cell(v,left[i]+(i>1?1.5:0),py,width,i>1);});});
+  rows.forEach((row,r)=>{const cells=row.cells||row,py=by+HEAD+r*ROW+1.5;cells.forEach((v,i)=>{if(row.span&&i===1)return;const width=row.span&&i===0?cols[0]+cols[1]-1.5:cols[i]-1.5;cell(v,left[i]+(right[i]?1.5:0),py,width,right[i]);});});
   return by+bh;
  };
  // Two side-by-side boxes: rows fill the left box, then the right (split evenly on the last page),
  // and the totals box spans both columns under them. `more()` starts a continuation page.
- const columns=(headers,rows,y,widths,total,more)=>{
-  const gap=5,cw=(w-gap)/2,totalH=10;let index=0;
+ // Without a `total` there is no totals box. `right` passes column alignment through to boxTable.
+ const columns=(headers,rows,y,widths,total,more,right)=>{
+  const gap=5,cw=(w-gap)/2,totalH=total?10:-4;let index=0;
   for(;;){const capacity=Math.max(1,Math.floor((bottom-y-totalH-4-HEAD-FOOT)/ROW)),rest=rows.length-index,last=rest<=2*capacity,leftCount=last?Math.ceil(rest/2):capacity,rightCount=last?rest-leftCount:capacity;
-   const a=rows.slice(index,index+leftCount),b=rows.slice(index+leftCount,index+leftCount+rightCount);let end=boxTable(headers,a,x,y,cw,widths);if(b.length)end=Math.max(end,boxTable(headers,b,x+cw+gap,y,cw,widths));index+=a.length+b.length;
+   const a=rows.slice(index,index+leftCount),b=rows.slice(index+leftCount,index+leftCount+rightCount);let end=boxTable(headers,a,x,y,cw,widths,right);if(b.length)end=Math.max(end,boxTable(headers,b,x+cw+gap,y,cw,widths,right));index+=a.length+b.length;
+   if(index>=rows.length&&!total)return end;
    if(index>=rows.length){const ty=end+4;panel(x,ty,w,totalH);cell(total[0],x+6,ty+6.5,40,false,8.5,true);const parts=total.slice(1);let px=x+w-4;for(let i=parts.length-1;i>=0;i--){const str=String(parts[i]);doc.setFont('Montserrat',i===parts.length-1?'bold':'normal');doc.setFontSize(8);const tw=doc.getTextWidth(str);cell(str,px-tw,ty+6.5,tw+.5,false,8,i===parts.length-1);px-=tw+6;}return ty+totalH;}
    y=more();
   }
  };
- return {x,w,bottom,accent,text,note,table,paginate,panel,boxTable,columns};
+ // A narrow table (at most three columns) longer than LONG_TABLE rows reads better as two columns.
+ // Otherwise one full-width box per page. Either way `more()` starts a continuation page and returns its top.
+ const autoTable=(headers,rows,y,widths,more)=>{headers=headers.map(h=>reportText(h));const right=numericColumns(headers,rows);if(headers.length<=3&&rows.length>LONG_TABLE)return columns(headers,rows,y,widths,null,more,right);
+  let end=y;for(let i=0;i<rows.length;){const count=rowsFit(y);end=boxTable(headers,rows.slice(i,i+count),x,y,w,widths,right);i+=count;if(i<rows.length)y=more();}return end;};
+ return {x,w,bottom,accent,text,note,table,paginate,panel,boxTable,columns,autoTable,rowsFit};
 }
-const DENSITY=8;
+const DENSITY=8,LONG_TABLE=10;
 // Label placement. With `ids`, every listed face gets a label: inside the face when it fits
 // (full size, then smaller), otherwise beside it with a leader line to a visible point of the
 // face. Labels never overlap each other. Without `ids` (overview diagrams), faces large
@@ -329,7 +334,7 @@ function dimensionContext(settings){
 // The elevation key sits in the page header, just left of the right-aligned page title (pdf.js drawReportTemplate: 12pt bold, 20 mm from the right edge, baseline 18 mm).
 function headerKeyRect(doc,title){doc.setFont('Montserrat','bold');doc.setFontSize(12);const tw=Number(doc.getTextWidth(title))||0,kw=40;return {x:doc.internal.pageSize.getWidth()-20-tw-6-kw,y:5,w:kw,h:25};}
 function drawExteriorReportPages(doc,model,settings,begin,colors){
- const {x,w,bottom,text,note,table,paginate,columns}=writer(doc,colors),material=a=>reportText(!a.material||a.material==='Unassigned'?'Not assigned':a.material);
+ const {x,w,bottom,text,note,table,paginate,columns,autoTable}=writer(doc,colors),material=a=>reportText(!a.material||a.material==='Unassigned'?'Not assigned':a.material);
  const area=v=>measure(v,"sf",number(v),false),openings=v=>v>0?area(v):'-',sum=(list,key)=>list.reduce((s,a)=>s+a[key],0),byId=new Map(model.walls.map(a=>[a.id,a]));
  // Each elevation lists its faces in two boxed columns (Wall, Material, Gross, Openings) with one totals box under both.
  const sq=metric()?' m²':' ft²',headers=[reportText('Wall'),reportText('Material'),reportText('Gross')+sq,reportText('Openings')+sq],widths=[1,2.2,1.4,1.4];
@@ -360,15 +365,15 @@ function drawExteriorReportPages(doc,model,settings,begin,colors){
  paginate(begin,reportText('Opening Schedule'),[reportText('Opening'),reportText('Type'),reportText('Wall'),(metric()?'W x H (m)':'W x H (ft)'),(metric()?'Area m²':'Area ft2'),(metric()?'Trim m':'Trim ft')],model.openings.map(o=>[o.id,reportText(o.label),o.wall,measure(o.width,"ft",number(o.width),false)+' x '+measure(o.height,"ft",number(o.height),false),measure(o.area,"sf",number(o.area),false),measure(o.perimeter,"ft",number(o.perimeter),false)]),[1.4,1.9,1,2,1.3,1.3],reportText('Dimensions are drawn extents, not manufacturer or rough-opening sizes. Trim {value1} is the opening perimeter.', {value1:unit('ft','ft')}));
  const byMaterial={};model.walls.forEach(a=>byMaterial[material(a)]=(byMaterial[material(a)]||0)+a.net);
  begin(reportText('Exterior Quantities'));text(reportText('Measured lengths'),x,38,12,true);y=table([reportText('Quantity'),unit('ft','Feet')],[[reportText('Top of walls'),measure(model.totals.top,"ft",number(model.totals.top),false)],[reportText('Bottom of walls'),measure(model.totals.bottom,"ft",number(model.totals.bottom),false)],[reportText('Inside corners'),measure(model.totals.inside,"ft",number(model.totals.inside),false)],[reportText('Outside corners'),measure(model.totals.outside,"ft",number(model.totals.outside),false)],[reportText('Opening perimeter'),measure(model.totals.openingPerimeter,"ft",number(model.totals.openingPerimeter),false)],[reportText('Material transitions'),measure(model.totals.transitions,"ft",number(model.totals.transitions),false)],[reportText('Exposed vertical terminations'),measure(model.totals.terminations,"ft",number(model.totals.terminations),false)]],44,[3,1]);
- const materialRows=Object.entries(byMaterial).map(([k,v])=>metric()?[k,measure(v,"sf",number(v),false)]:[k,number(v),number(v/100)]);text(reportText('Net area by material'),x,y+12,12,true);y+=18;
- for(let i=0;i<materialRows.length;){const count=Math.max(1,Math.floor((bottom-y-9)/8));table(metric()?[reportText('Material'),reportText('Area (m²)')]:[reportText('Material'),reportText('Area (sq ft)'),reportText('Squares')],materialRows.slice(i,i+count),y,[2,1,1]);i+=count;if(i<materialRows.length){begin(reportText('Exterior Quantities - continued'));y=38;}}
+ const materialRows=Object.entries(byMaterial).map(([k,v])=>metric()?[k,measure(v,"sf",number(v),false)]:[k,number(v),number(v/100)]);if(y+40>bottom){begin(reportText('Exterior Quantities - continued'));y=26;}text(reportText('Net area by material'),x,y+12,12,true);y+=18;
+ y=autoTable(metric()?[reportText('Material'),reportText('Area (m²)')]:[reportText('Material'),reportText('Area (sq ft)'),reportText('Squares')],materialRows,y,[2,1,1],()=>{begin(reportText('Exterior Quantities - continued'));return 38;});
  // Keep measured quantities above; material allowances require imperial estimates.
  if(metric())return;
  const waste=[0,5,10,15,20];
  for(const [label,divisor]of (metric()?[['Area including waste (m²)',1]]:[['Area including waste (sq ft)',1],['Squares including waste',100]])){
   const rows=Object.entries(byMaterial).map(([k,v])=>[k,...waste.map(p=>measure(v*(1+p/100)/divisor,"sf",number(v*(1+p/100)/divisor),false))]);
-  if(divisor===1){begin(reportText('Material Allowances'));y=38;}if(y+16+rows.length*8>bottom&&y>38){begin(reportText('Material Allowances - continued'));y=38;}
-  text(label,x,y,12,true);y+=7;let i=0;while(i<rows.length){const count=Math.max(1,Math.floor((bottom-y-9)/8));y=table([reportText('Material'),...waste.map(v=>v+'%')],rows.slice(i,i+count),y,[2,1,1,1,1,1]);i+=count;if(i<rows.length){begin(reportText('Material Allowances - continued'));y=38;}}y+=14;
+  if(divisor===1){begin(reportText('Material Allowances'));y=38;}if(y+22+rows.length*5.5>bottom&&y>38){begin(reportText('Material Allowances - continued'));y=38;}
+  text(label,x,y,12,true);y+=7;y=autoTable([reportText('Material'),...waste.map(v=>v+'%')],rows,y,[2,1,1,1,1,1],()=>{begin(reportText('Material Allowances - continued'));return 38;})+14;
  }
  if(y+12>bottom){begin(reportText('Material Allowances - continued'));y=38;}note(reportText('Waste percentages are comparison allowances applied to net wall area. Horizontal returns are measured separately.'),y);
 }

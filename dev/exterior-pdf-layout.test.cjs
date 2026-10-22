@@ -206,3 +206,28 @@ test('house context behind wall dimension drawings is on by default and the orga
  assert.ok(!orgOff.on&&orgOff.n===0,'organization off: faces alone, as before');
  assert.ok(reportOn.on&&reportOn.n===on.n,'a report can turn it back on');assert.ok(!reportOff.on&&reportOff.n===0,'a report can turn it off');
 });
+test('every exterior table uses the boxed roof-table style with unchanged values; long narrow tables use two columns and page breaks stay inside the page',()=>{
+ const render=model=>{const pages=[];let page,font='normal',size=9;const ctx=loadPDF();
+  const doc=new Proxy({internal:{pageSize:{getWidth:()=>210,getHeight:()=>297}},getTextWidth:s=>String(s).length,splitTextToSize:s=>[s],setFont:(f,style)=>{font=style;},setFontSize:s=>{size=s;},text:(value,x,y)=>page.text.push({value:String(value),bold:font==='bold',size,x,y}),lines:(...a)=>page.bars++,roundedRect:(...a)=>page.rounded.push(a)},{get:(o,k)=>k in o?o[k]:()=>{}});
+  ctx.drawExteriorReportPages(doc,model,{frontBearing:180,dimensionContext:false},title=>{page={title,text:[],bars:0,rounded:[]};pages.push(page);},{});return pages;};
+ const isMaterial=t=>/^Material ([A-G]|\d+)$/.test(t.value);
+ const model=boxHouse();model.openings=[{id:'W01-1',label:'Window',wall:'W01',width:3,height:4,area:12,perimeter:14}];
+ const pages=render(model),bottom=297-22;
+ for(const title of ['Hidden Wall Faces','Opening Schedule','Exterior Quantities','Material Allowances']){const p=pages.find(p=>p.title===title);assert.ok(p,title);
+  assert.ok(p.bars>0,title+' tables have the accent bar');assert.ok(!p.rounded.some(r=>r[3]===9&&r[2]>150),title+' has no old full-width header strip');}
+ const q=pages.find(p=>p.title==='Exterior Quantities').text.map(t=>t.value);for(const v of ['Top of walls','Exposed vertical terminations','Not assigned','Area (sq ft)','Squares'])assert.ok(q.includes(v),v);
+ const sched=pages.find(p=>p.title==='Opening Schedule').text.map(t=>t.value);for(const v of ['W01-1','Window','W01','3.0 x 4.0','12.0','14.0'])assert.ok(sched.includes(v),v);
+ const allow=pages.find(p=>p.title==='Material Allowances').text;assert.ok(['0%','20%','Area including waste (sq ft)','Squares including waste'].every(v=>allow.some(t=>t.value===v)));
+ // Many materials: the narrow "Net area by material" table goes to two columns, the wide allowance table stays one, and nothing runs off a page.
+ const many=boxHouse();many.walls.forEach((w,i)=>{w.material='Material '+String.fromCharCode(65+i);});for(let i=0;i<53;i++)many.walls.push({...many.walls[0],id:'X'+i,material:'Material '+i});
+ const long=render(many),quantities=long.filter(p=>/^Exterior Quantities/.test(p.title)),allowances=long.filter(p=>/^Material Allowances/.test(p.title));
+ const matX=new Set(quantities.flatMap(p=>p.text.filter(isMaterial).map(t=>t.x)));assert.equal(matX.size,2,'net area by material uses two columns');
+ const listed=quantities.flatMap(p=>p.text.filter(isMaterial).map(t=>t.value));assert.equal(listed.length,60);assert.equal(new Set(listed).size,60,'every material listed once');
+ const allowX=new Set(allowances.flatMap(p=>p.text.filter(isMaterial).map(t=>t.x)));assert.equal(allowX.size,1,'the wide allowance table keeps one column');assert.ok(allowances.length>1,'allowances continue on another page');
+ for(const p of long)assert.ok(p.text.every(t=>t.y<=bottom+.01),p.title+' stays above the footer');
+});
+test('the Exterior Summary measurement table is boxed in the roof-table style',()=>{
+ const pages=[];let page;const ctx=loadPDF(),doc=new Proxy({internal:{pageSize:{getWidth:()=>210,getHeight:()=>297}},getTextWidth:s=>String(s).length,splitTextToSize:s=>[s],text:value=>page.text.push(String(value)),lines:()=>page.bars++,roundedRect:(...a)=>page.rounded.push(a)},{get:(o,k)=>k in o?o[k]:()=>{}});
+ ctx.ExteriorPDF.drawExteriorSummaryPage(doc,boxHouse(),{},title=>{page={title,text:[],bars:0,rounded:[]};pages.push(page);},{});
+ assert.equal(pages[0].bars,1);assert.ok(!pages[0].rounded.some(r=>r[3]===9&&r[2]>150));for(const v of ['Measurement','Quantity','Wall regions','Opening area','Opening perimeter','Horizontal returns','7'])assert.ok(pages[0].text.includes(v),v);
+});
