@@ -6647,30 +6647,9 @@
     if (overlay) overlay.classList.toggle('show', !!on);
   }
 
+  // Quad views are retired (1M8-233); see firstMeasurePdfQuadViewsDisabled in editor_scripts/pdf.js.
   function areQaQuadViewsDisabled(){
-    const globalSettings = (window.PORTAL_CFG && window.PORTAL_CFG.report_settings && typeof window.PORTAL_CFG.report_settings === 'object')
-      ? window.PORTAL_CFG.report_settings
-      : {};
-    if (
-      globalSettings.disable_quad_views ||
-      globalSettings.disableQuadViews ||
-      globalSettings.no_quad_views ||
-      globalSettings.noQuadViews
-    ) {
-      return true;
-    }
-    const org = (qaImageBundle && qaImageBundle.organization && typeof qaImageBundle.organization === 'object')
-      ? qaImageBundle.organization
-      : (window.projectOrganization || {});
-    const general = org && org.report_settings && org.report_settings.general
-      ? org.report_settings.general
-      : {};
-    return !!(
-      general.disable_quad_views ||
-      general.disableQuadViews ||
-      general.no_quad_views ||
-      general.noQuadViews
-    );
+    return true;
   }
 
   async function ensureQaPdfJs(){

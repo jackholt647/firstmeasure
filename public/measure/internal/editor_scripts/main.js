@@ -3004,21 +3004,10 @@ async function saveProjectArtifactBlob(fileName, blob) {
     return true;
 }
 
-function firstMeasureReadQuadViewsDisabledFromOrg(org) {
-    const general = org && org.report_settings && org.report_settings.general
-        ? org.report_settings.general
-        : {};
-    return !!(
-        general.disable_quad_views ||
-        general.disableQuadViews ||
-        general.no_quad_views ||
-        general.noQuadViews
-    );
-}
-
+// Quad views are retired (1M8-233): the Quad button and step stay hidden, a saved quad_crop is
+// never loaded and none is uploaded. See firstMeasurePdfQuadViewsDisabled in pdf.js.
 function firstMeasureAreQuadViewsDisabled() {
-    if (window.FIRSTMEASURE_DISABLE_QUAD_VIEWS === true) return true;
-    return firstMeasureReadQuadViewsDisabledFromOrg(window.projectOrganization || null);
+    return true;
 }
 window.firstMeasureAreQuadViewsDisabled = firstMeasureAreQuadViewsDisabled;
 

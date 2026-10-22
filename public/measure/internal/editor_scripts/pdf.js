@@ -829,29 +829,12 @@ function serializePdfConfigForSave(sourceState) {
 }
 window.serializePdfConfigForSave = serializePdfConfigForSave;
 
+// Quad views are retired (1M8-233). The Elevations page drew whatever screenshot the technician
+// uploaded with the Quad tool: sometimes broken, sometimes one view four times, sometimes another
+// property. Roof reports no longer have that page, and nothing turns it back on: not an
+// organization's report settings, a global switch, or a saved pdf_state that still has a quadImage.
 function firstMeasurePdfQuadViewsDisabled() {
-    if (typeof window.areReportQuadViewsDisabled === 'function') {
-        return window.areReportQuadViewsDisabled();
-    }
-    if (typeof window.firstMeasureAreQuadViewsDisabled === 'function') {
-        return window.firstMeasureAreQuadViewsDisabled();
-    }
-    const globalSettings = window.FIRSTMEASURE_REPORT_SETTINGS || window.PORTAL_CFG?.report_settings || {};
-    if (
-        globalSettings.disable_quad_views ||
-        globalSettings.disableQuadViews ||
-        globalSettings.no_quad_views ||
-        globalSettings.noQuadViews
-    ) {
-        return true;
-    }
-    const general = window.projectOrganization?.report_settings?.general || {};
-    return !!(
-        general.disable_quad_views ||
-        general.disableQuadViews ||
-        general.no_quad_views ||
-        general.noQuadViews
-    );
+    return true;
 }
 window.firstMeasurePdfQuadViewsDisabled = firstMeasurePdfQuadViewsDisabled;
 
