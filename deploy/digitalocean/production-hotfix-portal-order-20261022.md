@@ -33,15 +33,33 @@ Public readiness returned `9398c0ad` 10 out of 10 times. Production serves
 - From 21:01, there were 0 HTTP 500s on the web nodes.
 - The ECONNREFUSED 500s just before 20:49 came from the compatibility restart.
 
-**Effect: not fixed.** Refused `PUT /v1/platform/organizations/:org/projects/:id`
-saves (403) continue at about the same rate:
+**Effect: fixed. The remaining refusals come from tabs opened before the release.**
 
-- before (20:15–20:45): 25 to 48 per web node per 30 minutes;
-- after (21:01–21:10): 5 to 12 per web node per 9 minutes.
+- At 21:10, a first reading matched refused saves to fixed-script loads by
+  client address. That was wrong: several tabs share an address.
+- The 1M8-231 session then matched each refused PUT to the page that sent it
+  (by user agent, referer, and that page's own `core.js?v=` load). Of 75 refused
+  saves between 21:02 and 21:16:
+  - 69 came from pages running `core.js` `f9a5162b` (`8c908166`) or `3c708924`
+    (`c9479381`);
+  - 6 were inferred from the browser's last list-page load (`3c708924`);
+  - none came from a page running the fixed `4577d38c` (`9398c0ad`).
+- The browser has no other automatic writer of platform projects. Commit
+  `3bd94495` adds a test that replays the list page and an order through the
+  real scripts. It fails on `8c908166` and `c9479381` and passes on `9398c0ad`.
 
-nginx shows the refusing browsers had already loaded the fixed script (`v=3d6d6827`),
-so the main source is a different write path. The 1M8-231 session is tracing it.
-The release stays: it is harmless, and rolling back gains nothing.
+Refused `PUT …/projects/:id` saves across all six web nodes, per 15 minutes:
+
+| Window (UTC) | Refused saves |
+| --- | --- |
+| 20:15 | 140 |
+| 20:30 | 96 |
+| 20:45 (rollout) | 334 |
+| 21:00 | 85 |
+| 21:15, first 4 minutes | 13 |
+
+An old tab keeps sending these, and showing the error, until the customer
+reloads it.
 
 ## Rollback
 
