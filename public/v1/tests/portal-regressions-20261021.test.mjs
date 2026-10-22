@@ -281,3 +281,68 @@ test('platform sync is skipped and the board lists FirstMeasure directly without
   const list = between(core, "    if (action === 'list_projects') {", "    if (action === 'queue') {");
   assert.match(list, /const platformProjects = platformExpandedAccess\(\) \? await listPlatformProjectCandidates\(\)/);
 });
+
+// 1M8-230: an org without expanded access keeps the platform mirror its portal wrote before the
+// release; production now refuses those writes, so that mirror stops at the release. The
+// project board must list the FirstMeasure orders placed since, not the stale mirror.
+function projectListRouting({ expanded, platform, firstMeasure }) {
+  const ctx = vm.createContext({
+    APP: { userOrgId: 'org_1', platformExpandedAssets: expanded }, cleanText: text,
+    window: { Portal: { capabilities: { current: () => null } } },
+    currentActor: () => ({ email: 'lori@example.com', organization_id: 'org_1' }),
+    truthyField: value => value === true || value === '1',
+    dedupeProjectsByIdentity: projects => projects,
+    withTimeout: promise => promise,
+    listPlatformProjectCandidates: async () => platform,
+    listFirstMeasureProjectCandidates: async () => firstMeasure,
+    warmFirstMeasureProjectImport: () => {},
+    projectPageFromCandidates: async projects => ({ projects: projects.map(p => p.id) })
+  });
+  vm.runInContext(fn(core, 'platformExpandedAccess')
+    + between(core, '  async function routeProjectAction(', '  async function postAction('), ctx);
+  return ctx;
+}
+
+test('1M8-230: orders placed after the platform mirror stopped are listed without expanded access', async () => {
+  const platform = [{ id: 'oct20-order' }];
+  const firstMeasure = [{ id: 'oct22-order' }, { id: 'oct20-order' }];
+  const listed = async expanded => (await projectListRouting({ expanded, platform, firstMeasure })
+    .routeProjectAction('list_projects', { page: 1, limit: 35, view: 'card' })).data;
+  const customer = await listed(false);
+  assert.deepEqual(customer.projects, ['oct22-order', 'oct20-order']);
+  assert.equal(customer.firstmeasure_only, true);
+  // Expanded orgs keep the platform list, whose import is allowed to write.
+  assert.deepEqual((await listed(true)).projects, ['oct20-order']);
+});
+
+// 1M8-197: the wait bar's marker and its end labels use the same configured turnaround window.
+function waitBar() {
+  const ctx = vm.createContext({ globalThis: {}, Number, Math });
+  vm.runInContext(fn(shell, 'reportExpediteEstimatedWaitMinutes') + fn(shell, 'reportExpediteWaitRange')
+    + fn(shell, 'reportExpediteWaitPosition') + fn(shell, 'reportExpediteWaitRangeLabel'), ctx);
+  return ctx;
+}
+
+test('1M8-197: a 5-hour wait in a 3-6 hour window sits near the right end, labelled 3 and 6 hrs', () => {
+  const ctx = waitBar();
+  const option = { key: 'standard_3_6', waitRangeStartMinutes: 180, waitRangeEndMinutes: 360, estimatedWaitMinutes: 300 };
+  assert.equal(ctx.reportExpediteWaitPosition(option), 67);
+  const range = ctx.reportExpediteWaitRange(option);
+  assert.deepEqual([ctx.reportExpediteWaitRangeLabel(range.start), ctx.reportExpediteWaitRangeLabel(range.end)], ['3 hrs', '6 hrs']);
+  assert.equal(ctx.reportExpediteWaitPosition({ ...option, estimatedWaitMinutes: 350 }), 94);
+  assert.equal(ctx.reportExpediteWaitPosition({ ...option, estimatedWaitMinutes: 180 }), 0);
+  assert.equal(ctx.reportExpediteWaitPosition({ ...option, estimatedWaitMinutes: 500 }), 100);
+});
+
+test('1M8-197: the default 4-7 hour window labels and positions from the same range', () => {
+  const ctx = waitBar();
+  const option = { key: 'standard_3_6', baseStartMinutes: 240, baseEndMinutes: 420, estimatedWaitMinutes: 300 };
+  assert.equal(ctx.reportExpediteWaitPosition(option), 33);
+  const range = ctx.reportExpediteWaitRange(option);
+  assert.deepEqual([ctx.reportExpediteWaitRangeLabel(range.start), ctx.reportExpediteWaitRangeLabel(range.end)], ['4 hrs', '7 hrs']);
+  const render = between(shell, '      const position = reportExpediteWaitPosition(defaultOption);', '    } else if (waitMount) {');
+  assert.match(render, /reportExpediteWaitRangeLabel\(waitRange\.start\)/);
+  assert.match(render, /reportExpediteWaitRangeLabel\(waitRange\.end\)/);
+  assert.doesNotMatch(render, /"4 hrs"|"7 hrs"|"3 hrs"|"6 hrs"/);
+  assert.match(shell, /waitRangeStartMinutes: option\.base_start_minutes \?\? option\.baseStartMinutes \?\? fallback\.startMinutes \?\? null,/);
+});
