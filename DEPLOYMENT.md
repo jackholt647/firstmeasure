@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+October 21 Add another account, ordering permission, password visibility on dev: [adding a second account works again, people without order_reports get no New Report or mobile +, and every password field has a show/hide button](deploy/digitalocean/development-account-access-20261021.md) records release `78a839d1` (1M8-223/227/221) and the verified four-role development rollout.
+
 October 21 Customer portal accounts on dev: [admins no longer show as viewers, a tab opened as another account stops instead of showing the active account's orders, per-organization browser caches, invitations open the inviting company (and tell the inviter when the person already has an account), activation codes, the invite level and photo button, and round avatars](deploy/digitalocean/development-account-fixes-20261021.md) records release `61402f23` (1M8-201/203/204/207/209/212/213) and the verified four-role development rollout.
 
 October 21 PRODUCTION HOTFIX: [`10d8d525` serves project artifacts byte for byte, so projects with saved undo history open again ("Load Error: Failed to fetch")](deploy/digitalocean/production-hotfix-artifact-encoding-20261020.md); compatibility and all six web nodes, verified.
