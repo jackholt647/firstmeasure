@@ -72,3 +72,26 @@ on release, and fires one change event, which re-renders the textured cover.
 
 **Tests and rollout.** Exterior suites pass. The full suite has 1,708 of 1,711 passing, with the known exterior-ai
 failure. `exterior_pdf.js` and `exterior_report.js` were overlaid on web, legacy and pool, and the served files match.
+
+## Follow-up: sticker colour defaults and proud trim — `1767838f06a5de756d3eb554fd2e06e842bda0d7`
+
+**Trim z-fighting.** Textured mode kept the editor's depth offset only for the base and the ground, so sticker trim
+and doors sat in the wall plane. Trim is now a thin slab 1.5 cm proud on both sides, with a stronger depth offset than
+doors.
+
+**Flat white trim.** Trim used a colour-cancelled wood scan stretched across one texture tile. It is now satin paint.
+
+**Defaults couldn't apply.** Placing a sticker or changing its trim size baked `#f5f3ef` into it, so no default could
+reach it. New trims store no colour, and old fixed-white trims follow the default.
+
+**Stickers block.** Wall materials › Default finishes › Stickers has collapsed Trim and Main swatches, shown as "mixed"
+when the pieces differ. "Each piece" expands to Door trim, Door colour, Window trim, Garage door trim, Garage door
+colour, Untyped trim and Untyped main. The pieces are data (`ExteriorFinishes.stickerPieces`), stored in
+`finishDefaults` with undo. A sticker's own colour still wins.
+
+**Known issue.** Untyped stickers cannot carry trim yet. A local arched-door fixture shows brick wedges at the arch both
+before and after this change; this has not been investigated.
+
+**Tests and rollout.** Related suites: 665 pass. Full suite: 1,711 passing, with the known exterior-ai and media-viewer
+failures. `exterior_finishes.js`, `exterior_rendered.js`, `wall_face_draft.js`, `wall_features.js` and `wall_mode.js` were
+overlaid on web, legacy and pool, and the served files match.
