@@ -2844,9 +2844,16 @@ $tutorialStudentEmail = strtolower(trim((string)($_GET['student_email'] ?? $_GET
         // A divider drag moves on every mouse event, but views re-lay out at most once per frame, and only cheaply
         // (window.firstMeasurePaneResizing) until the drag ends; the full redraw runs once on release.
         let paneResizeFrame = 0;
+        // One switch for a divider drag: views read window.firstMeasurePaneResizing; the 3D Tiles (Cesium) render
+        // loop, which resizes its canvas every frame even behind another tab, pauses until release.
+        window.firstMeasureSetPaneResizing = (on) => {
+            on = !!on; if (window.firstMeasurePaneResizing === on) return; window.firstMeasurePaneResizing = on;
+            const viewer = typeof cesiumViewer !== 'undefined' ? cesiumViewer : window.cesiumViewer;
+            try { if (viewer && !viewer.isDestroyed?.()) viewer.useDefaultRenderLoop = !on; } catch (e) {}
+        };
         const queuePaneResize = () => { if (!paneResizeFrame) paneResizeFrame = requestAnimationFrame(() => { paneResizeFrame = 0; window.dispatchEvent(new Event('resize')); }); };
-        const endPaneResize = () => { if (paneResizeFrame) { cancelAnimationFrame(paneResizeFrame); paneResizeFrame = 0; } window.firstMeasurePaneResizing = false; document.body.style.cursor = 'default'; window.dispatchEvent(new Event('resize')); };
-        resizer.addEventListener('mousedown', (e) => { isResizing=true; window.firstMeasurePaneResizing=true; document.body.style.cursor='col-resize'; e.preventDefault(); });
+        const endPaneResize = () => { if (paneResizeFrame) { cancelAnimationFrame(paneResizeFrame); paneResizeFrame = 0; } window.firstMeasureSetPaneResizing(false); document.body.style.cursor = 'default'; window.dispatchEvent(new Event('resize')); };
+        resizer.addEventListener('mousedown', (e) => { isResizing=true; window.firstMeasureSetPaneResizing(true); document.body.style.cursor='col-resize'; e.preventDefault(); });
         window.addEventListener('mousemove', (e) => {
             if(isResizing) {
                 const w = ((e.clientX-workspace.getBoundingClientRect().left) / workspace.clientWidth) * 100;
@@ -2918,7 +2925,7 @@ $tutorialStudentEmail = strtolower(trim((string)($_GET['student_email'] ?? $_GET
 
         vResizer.addEventListener('mousedown', (e) => { 
             isResizingV = true; 
-            window.firstMeasurePaneResizing = true;
+            window.firstMeasureSetPaneResizing(true);
             document.body.style.cursor = 'row-resize'; 
             e.preventDefault(); 
         });

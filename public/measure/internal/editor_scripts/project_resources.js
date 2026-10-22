@@ -480,7 +480,13 @@
    ox = (stage.clientWidth - w * scale) / 2; oy = (stage.clientHeight - h * scale) / 2;
    panel.dataset.aspect = h > w ? 'portrait' : 'landscape'; draw();
   }
+  // During a pane divider drag the canvas keeps its pixel size (the stage just shows more or less of it): reallocating it
+  // at device resolution and redrawing the full photo every frame stalls the GPU. It is resized once when the drag ends.
+  let resizeDeferred = false;
+  window.addEventListener('resize', () => { if (resizeDeferred && !window.firstMeasurePaneResizing) { resizeDeferred = false; resize(); } });
   function resize() {
+   if (window.firstMeasurePaneResizing) { if (!resizeDeferred && stageWidth && stageHeight) Object.assign(canvas.style, { width: stageWidth + 'px', height: stageHeight + 'px' }); resizeDeferred = true; return; }
+   canvas.style.width = ''; canvas.style.height = '';
    const w = stage.clientWidth, h = stage.clientHeight, dpr = window.devicePixelRatio || 1;
    canvas.width = Math.max(1, Math.round(w * dpr)); canvas.height = Math.max(1, Math.round(h * dpr));
    if (fitMode) fit(fitMode); else { ox += (w - stageWidth) / 2; oy += (h - stageHeight) / 2; draw(); }
