@@ -488,11 +488,18 @@ async function handleCopy() {
     const serializedPoints = pArray.map(p => ({
         x: p.x, y: p.y, z: p.z, layer: p.layer || 1, zLocked: !!p.zLocked
     }));
+    // Stacked copies of one line already in the project are copied once.
+    const copiedPairs = new Set();
     const serializedLines = Array.from(linesToCopy).map(l => ({
         startIndex: pArray.indexOf(l.start),
         endIndex: pArray.indexOf(l.end),
         type: l.type
-    }));
+    })).filter(l => {
+        const key = Math.min(l.startIndex, l.endIndex) + ':' + Math.max(l.startIndex, l.endIndex);
+        if (copiedPairs.has(key)) return false;
+        copiedPairs.add(key);
+        return true;
+    });
     const serializedVents = Array.from(ventsToCopy).map(v => ({
         x: v.x, y: v.y, layer: v.layer || 1
     }));
@@ -571,6 +578,8 @@ async function handlePaste() {
     if (geometryClipboard.lines.length > 0 && selectionMode !== 'LINE') {
         selectionMode = 'POINT';
     }
+    // A clipboard written before duplicate copies were skipped can still hold them.
+    removeDuplicateConnections();
     
     renderGeometry2D();
     renderGeometry3D();
