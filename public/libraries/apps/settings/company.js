@@ -478,6 +478,8 @@
       total_transactions: data.total_transactions || 0,
       total_orders: data.total_orders || 0,
       total_payments: data.total_payments || 0,
+      total_refunds: data.total_refunds,
+      refunds_in: data.refunds_in,
       total_in: data.total_in || 0,
       total_out: data.total_out || 0,
       net_change: data.net_change || 0,
@@ -13302,7 +13304,7 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
         #csPaneBilling.fm-credit-fit .ms-card{margin:0;padding:10px 12px;min-width:0}
         #csPaneBilling.fm-credit-fit .ms-sub{display:none}
         #csPaneBilling.fm-credit-fit .ms-top{gap:6px}
-        #csPaneBilling.fm-credit-fit .ms-summary{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:6px;margin-top:8px}
+        #csPaneBilling.fm-credit-fit .ms-summary{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:6px;margin-top:8px}
         #csPaneBilling.fm-credit-fit .ms-stat{min-width:0;padding:7px;border-radius:6px}
         #csPaneBilling.fm-credit-fit .ms-statLabel{font-size:9px;letter-spacing:0}
         #csPaneBilling.fm-credit-fit .ms-statVal{font-size:17px;margin-top:3px}
@@ -13718,6 +13720,17 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
     function msCsvCell(value){
       return `"${String(value ?? '').replace(/"/g, '""')}"`;
     }
+    // Mirrors creditLedgerEntryKind in v1/platform/credit_statement.ts: a
+    // refund adds credit back but is not a payment.
+    function msLedgerKind(row){
+      if (!(msMoney(row?.delta) > 0)) return 'charge';
+      const r = msReason(row);
+      if (['customer_cancelled_inside_grace_period','instant_no_coverage_refund','instant_partial_no_coverage','instant_no_coverage','missed_delivery_window','api_firstmeasure_order_funding_rollback'].includes(r)
+        || /refund|cancel|rollback|revers/.test(r)
+        || msLedgerMeta(row).source_charge) return 'refund';
+      if (['purchase','credit_purchase','credits_purchase','credits_loaded'].includes(r) || r.indexOf('stripe_') === 0) return 'payment';
+      return 'credit';
+    }
     function msTransactions(){
       const d = msState.data || {};
       return Array.isArray(d.transactions) ? d.transactions : (Array.isArray(d.ledger) ? d.ledger : []);
@@ -13766,11 +13779,15 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
         return;
       }
       const transactions = msTransactions();
-      const totalIn = msMoney(d.total_in);
+      const refundRows = transactions.filter(t => msLedgerKind(t) === 'refund');
+      const serverSplitsRefunds = d.total_refunds !== undefined && d.total_refunds !== null;
+      const refundsIn = serverSplitsRefunds ? msMoney(d.refunds_in) : refundRows.reduce((sum, t) => sum + msMoney(t?.delta), 0);
+      const refundCount = serverSplitsRefunds ? Number(d.total_refunds) || 0 : refundRows.length;
+      const totalIn = serverSplitsRefunds ? msMoney(d.total_in) : Math.max(0, msMoney(d.total_in) - refundsIn);
       const totalOut = msMoney(d.total_out ?? d.total_spent);
       const net = msMoney(d.net_change);
       const orderCount = d.total_orders || transactions.filter(t => msReason(t) === 'order_submitted').length;
-      const paymentCount = d.total_payments || transactions.filter(t => msMoney(t?.delta) > 0).length;
+      const paymentCount = serverSplitsRefunds ? Number(d.total_payments) || 0 : transactions.filter(t => msLedgerKind(t) === 'payment').length;
 
       if (summaryEl){
         summaryEl.innerHTML = `
@@ -13781,6 +13798,10 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
           <div class="ms-stat">
             <div class="ms-statLabel">${(globalThis.PlatformLanguage?.htmlText("settings","m_0e0f5712c06ace","Payments In") ?? "Payments In")}</div>
             <div class="ms-statVal">+${String(window.PlatformCommerce.credit(totalIn))}</div>
+          </div>
+          <div class="ms-stat">
+            <div class="ms-statLabel">${(globalThis.PlatformLanguage?.htmlText("settings","statement_refunds_in","Refunds") ?? "Refunds")}</div>
+            <div class="ms-statVal">+${String(window.PlatformCommerce.credit(refundsIn))}</div>
           </div>
           <div class="ms-stat">
             <div class="ms-statLabel">${(globalThis.PlatformLanguage?.htmlText("settings","m_84a960ac02e33a","Orders / Debits") ?? "Orders / Debits")}</div>
@@ -13795,8 +13816,8 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
             <div class="ms-statVal">${escapeHtml(settingsNumber(orderCount))}</div>
           </div>
           <div class="ms-stat">
-            <div class="ms-statLabel">${(globalThis.PlatformLanguage?.htmlText("settings","m_2eedb890028422","Payment Count") ?? "Payment Count")}</div>
-            <div class="ms-statVal">${escapeHtml(settingsNumber(paymentCount))}</div>
+            <div class="ms-statLabel">${(globalThis.PlatformLanguage?.htmlText("settings","statement_payment_refund_count","Payments / Refunds") ?? "Payments / Refunds")}</div>
+            <div class="ms-statVal">${escapeHtml(settingsNumber(paymentCount))} / ${escapeHtml(settingsNumber(refundCount))}</div>
           </div>
         `;
       }

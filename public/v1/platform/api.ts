@@ -38,6 +38,9 @@ import {
   firstMeasureReportCharge as sharedFirstMeasureReportCharge
 } from "../firstmeasure/pricing.js";
 import { stripeCreditReceiptDescription } from "../payments/stripe_receipt.js";
+import { checkStripeCheckoutAmount, type StripeCheckoutAmountCheck } from "../payments/stripe_checkout_amount.js";
+import { saveInternalDocument } from "../internal/storage.js";
+import { creditLedgerEntryKind, creditStatementTotals } from "./credit_statement.js";
 import { acquisitionBonusOfferForCampaignToken, acquisitionBonusOfferForOrganization, acquisitionBonusQuoteForOrganization, completeAcquisitionSignup, customerReferralEvent, customerReferralStatus, publicAcquisitionLookup, publicReferralLookup, trackAcquisitionEvent } from "../internal/crm/referrals_service.js";
 import { clearMaterialListScheduleEvent, syncMaterialListFromScheduleEvent } from "../materials/storage.js";
 import {
@@ -9690,8 +9693,7 @@ async function portalMonthlyStatement(orgId: string, body: JsonObject) {
     const d = new Date(String(asObject(entry).ts || ""));
     return d.getUTCFullYear() === year && d.getUTCMonth() + 1 === month;
   });
-  const totalIn = transactions.reduce((sum, entry) => sum + Math.max(0, numericValue(asObject(entry).delta)), 0);
-  const totalOut = transactions.reduce((sum, entry) => sum + Math.abs(Math.min(0, numericValue(asObject(entry).delta))), 0);
+  const totals = creditStatementTotals(transactions);
   return {
     success: true,
     month,
@@ -9702,11 +9704,8 @@ async function portalMonthlyStatement(orgId: string, body: JsonObject) {
     orders: transactions.filter((entry) => String(asObject(entry).reason || "") === "order_submitted"),
     total_transactions: transactions.length,
     total_orders: transactions.filter((entry) => String(asObject(entry).reason || "") === "order_submitted").length,
-    total_payments: transactions.filter((entry) => numericValue(asObject(entry).delta) > 0).length,
-    total_in: totalIn,
-    total_out: totalOut,
-    net_change: totalIn - totalOut,
-    total_spent: totalOut,
+    ...totals,
+    refunds: transactions.filter((entry) => creditLedgerEntryKind(entry) === "refund"),
     by_type: {}
   };
 }
@@ -10920,13 +10919,23 @@ async function stripeFulfillFromSession(session: JsonObject, source: string) {
   const global = await readGlobal(orgId);
   const data = asObject(global.data);
   const profile = profileFromGlobal(data);
-  const paidCurrency = cleanText(meta.credit_currency || "USD").toUpperCase();
-  const expectedMinor = meta.paid_minor === undefined ? Math.round(numericValue(meta.paid_dollars, dollars) * 100) : Number(meta.paid_minor);
-  if (paidCurrency !== profile.currency || cleanText(session.currency).toUpperCase() !== paidCurrency || Number(session.amount_total) !== expectedMinor) {
-    return { success: false, error: "Payment amount or currency mismatch", session_id: sessionId };
-  }
   const fulfilled = asObject(data.stripe_fulfilled_sessions);
   if (fulfilled[sessionId]) return { success: true, duplicate: true, session_id: sessionId };
+  const amountCheck = checkStripeCheckoutAmount(session, meta, profile.currency, dollars);
+  if (!amountCheck.accept) {
+    await recordStripePaymentReview(orgId, email, session, meta, amountCheck, source, asObject(asObject(data.stripe_payment_reviews)[sessionId]));
+    return {
+      success: false,
+      needs_review: true,
+      code: amountCheck.code,
+      error: "Payment amount or currency mismatch",
+      customer_message: "We received your payment but could not add the credit automatically. Our team has been alerted and will add it shortly. Your order is saved.",
+      session_id: sessionId
+    };
+  }
+  if (amountCheck.warning) {
+    console.warn(JSON.stringify({ event: "stripe_checkout_amount_warning", warning: amountCheck.warning, org_id: orgId, session_id: sessionId, expected_minor: amountCheck.expected_minor, configured_minor: amountCheck.configured_minor, amount_total: session.amount_total ?? null, currency: session.currency ?? null, source }));
+  }
   const credit = await applyCreditDelta(orgId, {
     amount: dollars,
     reason: "stripe_checkout_paid",
@@ -10939,6 +10948,9 @@ async function stripeFulfillFromSession(session: JsonObject, source: string) {
       offer_tier_id: meta.offer_tier_id || "",
       amount_total: session.amount_total ?? null,
       currency: session.currency ?? null,
+      amount_subtotal: session.amount_subtotal ?? null,
+      expected_minor: amountCheck.expected_minor,
+      ...(amountCheck.warning ? { amount_warning: amountCheck.warning } : {}),
       presentment_details: session.presentment_details ?? null,
       paid_dollars: numericValue(meta.paid_dollars, dollars),
       bonus_dollars: numericValue(meta.bonus_dollars),
@@ -10987,6 +10999,9 @@ async function stripeFulfillFromSession(session: JsonObject, source: string) {
         [sessionId]: { fulfilled: true, source, user_email: email, credit_dollars: dollars, paid_dollars: purchaseValue, meta_capi: metaCapi, ts: new Date().toISOString() }
       },
       ...(offerInstanceId ? { bonus_offer_instances: nextBonusOfferInstances } : {}),
+      ...(asObject(latestData.stripe_payment_reviews)[sessionId]
+        ? { stripe_payment_reviews: { ...asObject(latestData.stripe_payment_reviews), [sessionId]: { ...asObject(asObject(latestData.stripe_payment_reviews)[sessionId]), status: "resolved", resolved_at: new Date().toISOString(), resolved_by: source } } }
+        : {}),
       claimed_deals: meta.is_signup_match === "1"
         ? { ...asObject(latestData.claimed_deals), signup_match_50: true, bonus_upfront_match_v1: true }
         : asObject(latestData.claimed_deals)
@@ -10994,6 +11009,42 @@ async function stripeFulfillFromSession(session: JsonObject, source: string) {
   });
   await stripeSavePaymentMethodFromCheckout(orgId, session).catch(() => null);
   return { success: true, currency: profile.currency, credited: dollars, paid_dollars: purchaseValue, email, scope: "org", org_id: orgId, session_id: sessionId, balance: credit.balance, meta_capi: metaCapi };
+}
+
+// A paid checkout that cannot be credited automatically is held for an
+// operator: a structured log line, a record on the organization and an entry
+// in the internal stripe_payment_reviews document collection.
+async function recordStripePaymentReview(orgId: string, email: string, session: JsonObject, meta: JsonObject, check: Extract<StripeCheckoutAmountCheck, { accept: false }>, source: string, existing: JsonObject) {
+  const sessionId = cleanText(session.id);
+  const now = new Date().toISOString();
+  const review = {
+    session_id: sessionId,
+    org_id: orgId,
+    user_email: email,
+    status: "open",
+    code: check.code,
+    expected_minor: check.expected_minor,
+    configured_minor: check.configured_minor,
+    amount_total: session.amount_total ?? null,
+    amount_subtotal: session.amount_subtotal ?? null,
+    session_currency: cleanText(session.currency).toUpperCase() || null,
+    credit_currency: cleanText(meta.credit_currency || "USD").toUpperCase(),
+    credit_dollars: numericValue(meta.credit_dollars || meta.credits_qty),
+    payment_intent: cleanText(session.payment_intent) || null,
+    livemode: session.livemode === true,
+    source,
+    first_seen_at: cleanText(existing.first_seen_at) || now,
+    last_seen_at: now,
+    attempts: numericValue(existing.attempts) + 1
+  };
+  if (!cleanText(existing.first_seen_at)) {
+    console.warn(JSON.stringify({ event: "stripe_checkout_payment_review", alert: true, ...review }));
+  }
+  const reviews = asObject(asObject((await readGlobal(orgId)).data).stripe_payment_reviews);
+  await saveGlobal(orgId, { data: { stripe_payment_reviews: { ...reviews, [sessionId]: review } } })
+    .catch((error) => console.warn(JSON.stringify({ event: "stripe_checkout_payment_review_save_failed", session_id: sessionId, org_id: orgId, error: cleanText((error as Error)?.message || error) })));
+  await saveInternalDocument("stripe_payment_reviews", sessionId, { data: review })
+    .catch((error) => console.warn(JSON.stringify({ event: "stripe_checkout_payment_review_queue_failed", session_id: sessionId, org_id: orgId, error: cleanText((error as Error)?.message || error) })));
 }
 
 function metaAttributionFields(body: JsonObject) {
