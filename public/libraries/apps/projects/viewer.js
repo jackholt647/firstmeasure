@@ -6245,6 +6245,8 @@
       const raw = localStorage.getItem('fm_org_theme_v1');
       const parsed = raw ? JSON.parse(raw) : null;
       if (!parsed || typeof parsed !== 'object') return null;
+      // Another account signed in on this browser may have written the cache.
+      if (String(parsed.orgId || '') !== String(window.__APP?.userOrgId || window.__APP?.orgId || '').trim()) return null;
       return {
         logo_url: portalBrandingAssetUrl(parsed.logo || ''),
         primary_color: typeof parsed.primary === 'string' ? parsed.primary.trim() : '',

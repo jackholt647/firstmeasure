@@ -1,4 +1,9 @@
 import { mutatePlatformConfiguration } from "../platform/storage.js";
+import { countryCode } from "../commerce/regions.js";
+import { countryRecord, organizationCountry, orderPropertyCountry, saveOrganizationCountry } from "../platform/organization_country.js";
+import { profileFromGlobal } from "../commerce/profile.js";
+import { commercialProfileLock, reassignCommercialProfile } from "../commerce/reassign.js";
+import { readCapabilityCountryRules, saveCapabilityCountryRules } from "../platform/capabilities.js";
 import { assignedTutorialCourses, hasTutorialCourse, OPTIONAL_TUTORIAL_COURSES } from "./tutorial_courses.js";
 import { assertFullHouseEligible, fullHouseEligible, isCustomerFullHouse, FULL_HOUSE_QUALITY_CATEGORIES } from '../firstmeasure/full_house_workflow.js';
 import { managerReviewCsv } from "./manager_review_export.js";
@@ -707,6 +712,7 @@ export const registerInternalApi: FastifyPluginAsync = async (app) => {
     const body = objectSchema.parse(request.body ?? {});
     const manifestPatch = asObject(body.manifest ?? body.organization ?? body);
     const globalPatch = asObject(body.global);
+    if (globalPatch.commercial_profile !== undefined) throw forbidden("billing_profile_fixed", "Reassign the billing profile with the commercial profile action, which checks for credit history and Stripe charges.");
     const organization = Object.keys(manifestPatch).length ? await patchOrganization(orgId, manifestPatch) : await readOrganization(orgId);
     const global = Object.keys(globalPatch).length ? await saveGlobal(orgId, { data: globalPatch }) : await readGlobal(orgId);
     return { ok: true, success: true, organization, global };
@@ -745,6 +751,17 @@ export const registerInternalApi: FastifyPluginAsync = async (app) => {
   app.post("/bonus-offers/rollouts/:rolloutId/cancel", async (request) => {
     const body = objectSchema.parse(request.body ?? {});
     return await internalCancelBonusOfferRollout(param(request.params, "rolloutId"), body, actorFromRequest(request));
+  });
+
+  // 1M8-228: capability values for organizations by country of record (platform/capabilities.ts).
+  app.get("/admin/capability-country-rules", async (request) => {
+    await requireInternalFeatureFlagAdmin(request);
+    return { ok: true, success: true, rules: await readCapabilityCountryRules(true) };
+  });
+  app.put("/admin/capability-country-rules", async (request) => {
+    const actor = await requireInternalFeatureFlagAdmin(request);
+    const rules = await saveCapabilityCountryRules(objectSchema.parse(request.body ?? {}), cleanText(actor.email).toLowerCase());
+    return { ok: true, success: true, rules };
   });
 
   app.post("/admin/organizations/:orgId/app-flags", async (request) => {
@@ -3266,6 +3283,11 @@ export function customerDashboardRowMatches(row: JsonObject, filters: JsonObject
     else if (column === "avgOrdersDay") haystack = String(row.avgOrdersDay ?? 0);
     else if (column === "credits") haystack = String(row.credits_balance ?? 0);
     else if (column === "salesperson") haystack = String(row.assigned_sales_name ?? row.assigned_sales_email ?? "Unassigned");
+    else if (column === "country") {
+      // An exact two-letter code matches only that country; otherwise match the code or name.
+      if (/^[a-z]{2}$/.test(needle)) { if (String(row.country ?? "").toLowerCase() === needle) continue; return false; }
+      haystack = `${String(row.country ?? "")} ${String(row.country_name ?? "")}`;
+    }
     else if (column === "created") {
       const created = row.created_at ? new Date(String(row.created_at)) : null;
       haystack = created && Number.isFinite(created.getTime())
@@ -3320,7 +3342,7 @@ async function organizationIdsMatchingCustomerEmail(orgIds: string[], needle: st
   return new Set(orgIds.filter((_, index) => matches[index]));
 }
 
-function sortCustomerDashboardRows(rows: JsonObject[], sortColumn: string, sortDirection: string) {
+export function sortCustomerDashboardRows(rows: JsonObject[], sortColumn: string, sortDirection: string) {
   const direction = sortDirection === "desc" ? -1 : 1;
   const numericColumns = new Set(["users", "lifetimeOrders", "rolling7", "avgOrdersDay", "credits", "created"]);
   return [...rows].sort((a, b) => {
@@ -3347,6 +3369,9 @@ function sortCustomerDashboardRows(rows: JsonObject[], sortColumn: string, sortD
     } else if (sortColumn === "created") {
       left = Date.parse(String(a.created_at ?? "")) || 0;
       right = Date.parse(String(b.created_at ?? "")) || 0;
+    } else if (sortColumn === "country") {
+      left = `${String(a.country_name ?? "zzzz")} ${String(a.name ?? "")}`.toLowerCase();
+      right = `${String(b.country_name ?? "zzzz")} ${String(b.name ?? "")}`.toLowerCase();
     } else {
       left = String(a.name ?? a.id ?? "").toLowerCase();
       right = String(b.name ?? b.id ?? "").toLowerCase();
@@ -3682,7 +3707,8 @@ async function buildOrganizationSummaryRow(
       avgOrdersDay: Number((rolling7 / 7).toFixed(2)),
       last_active_rolling7: lastActiveRolling7,
       last_active_avg_orders_day: Number((lastActiveRolling7 / 7).toFixed(2)),
-      branding: organizationBrandingView(orgId, org, globalData)
+      branding: organizationBrandingView(orgId, org, globalData),
+      ...organizationCountry(globalData, projectRows)
     };
   } catch (error) {
     throw annotateError(error, {
@@ -4399,6 +4425,10 @@ function compactOrganizationSummary(row: JsonObject) {
     created_at: row.created_at ?? null,
     updated_at: row.updated_at ?? null,
     is_test: Boolean(row.is_test),
+    country: row.country ?? "",
+    country_name: row.country_name ?? "",
+    country_source: row.country_source ?? "",
+    currency: row.currency ?? "",
     sales_owner_email: row.sales_owner_email ?? null,
     assigned_sales_email: row.assigned_sales_email ?? null,
     assigned_sales_name: row.assigned_sales_name ?? "",
@@ -4467,9 +4497,13 @@ function compactOrder(order: unknown) {
     issuer: { email: data.issuer_email ?? issuer.email ?? "" },
     created_at: data.created_at ?? data.submitted_at ?? data.completed_at ?? data.updated_at ?? null,
     revenue: Number(data.revenue ?? data.amount_charged ?? 0) || 0,
+    property_country: orderPropertyCountry(data),
+    report_currency: String(data.report_currency ?? asObject(data.manifest).report_currency ?? ""),
     source: data.source ?? ""
   };
 }
+
+export { organizationCountry } from "../platform/organization_country.js";
 
 function compactLedgerEntry(entry: unknown) {
   const data = asObject(entry);
@@ -5112,6 +5146,30 @@ async function handleLegacyAction(app: FastifyInstance, body: JsonObject, reques
       const organization = await patchOrganization(orgId, { sales_owner_email: String(body.email ?? body.sales_owner_email ?? "").trim().toLowerCase() });
       clearOrganizationSummaryCache();
       return { ok: true, success: true, organization };
+    }
+    case "capability_country_rules_get": {
+      await requireInternalFeatureFlagAdmin(request);
+      return { ok: true, success: true, rules: await readCapabilityCountryRules(true) };
+    }
+    case "capability_country_rules_save": {
+      const admin = await requireInternalFeatureFlagAdmin(request);
+      const rules = await saveCapabilityCountryRules({ rules: parseJsonish(body.rules, []) }, cleanText(admin.email).toLowerCase());
+      return { ok: true, success: true, rules };
+    }
+    case "org_set_country": {
+      // 1M8-228: staff set an organization's country of record. Report pricing and currency follow while
+      // the organization has no credit history or Stripe charges; after that the billing profile is kept.
+      const orgId = String(body.org_id ?? "").trim();
+      const record = countryRecord(body.country, "staff", actor.email);
+      if (!orgId || !record) throw badRequest("invalid_country", "Choose a valid country.");
+      await readOrganization(orgId);
+      await saveOrganizationCountry(orgId, record);
+      const profile = profileFromGlobal(asObject((await readGlobal(orgId)).data));
+      const lock = await commercialProfileLock(orgId);
+      const billing = profile.country === record.code ? "unchanged" : lock ? "locked" : "reassigned";
+      if (billing === "reassigned") await reassignCommercialProfile(orgId, record.code, actor.email);
+      clearOrganizationSummaryCache();
+      return { ok: true, success: true, org_id: orgId, country: record, billing, billing_locked_reason: billing === "locked" ? lock : null };
     }
     case "org_set_test_flag": {
       const orgId = String(body.org_id ?? "").trim();
@@ -6902,6 +6960,8 @@ function firstMeasureManifestOrderRow(manifest: JsonObject) {
     revenue: manifest.amount_charged ?? 0,
     instant_enabled: manifest.instant_enabled ?? false,
     instant_only: manifest.instant_only ?? false,
+    property_country: manifest.report_property_country ?? "",
+    report_currency: manifest.report_currency ?? "",
     source: "firstmeasure_project_index",
     manifest
   };

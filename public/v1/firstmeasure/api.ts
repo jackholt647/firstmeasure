@@ -2362,6 +2362,9 @@ export const registerFirstMeasureApi: FastifyPluginAsync = async (app) => {
     const input = asRecord(request.body);
     if (input.refresh === true) {
       const auth = await requirePlatformAuth(request, { permission: 'view_reports' });
+      // A tab opened as another account (before a switch in another tab) must not list the active account's orders as its own.
+      const pageOrgId = String(asRecord(input.actor).organization_id || '').trim();
+      if (pageOrgId && pageOrgId !== auth.orgId) throw new FirstMeasureError('organization_forbidden', 403, 'This session cannot act on the requested organization.');
       input.actor = { email: String(auth.identity.email || ''), organization_id: auth.orgId,
         team_id: String(auth.user.team_id || auth.branchId || ''), roles: [] };
       input.filter = ['mine', 'org', 'team'].includes(String(input.filter)) ? input.filter : 'org';

@@ -85,7 +85,8 @@
     "doc-present",
     "image-viewer",
     "priority-fields",
-    "forms-staff"
+    "forms-staff",
+    "signup-region"
   ],
   "namespaces": {
     "billing": "billing.19b77e35a93e1525.json",
@@ -109,7 +110,7 @@
     "materials": "materials.8e6c64a62ed1192d.json",
     "measurements": "measurements.05c2c18e6b7494c5.json",
     "money": "money.be239c68114ddf3c.json",
-    "onboarding": "onboarding.640ae94ce8151d14.json",
+    "onboarding": "onboarding.f3909f3bed72af3f.json",
     "payroll": "payroll.d9bc1c5252231375.json",
     "photos": "photos.429feadf949e806e.json",
     "project-map": "project-map.e09f8fc7044a8da9.json",
@@ -122,7 +123,7 @@
     "referrals": "referrals.d093660bb005ba64.json",
     "sales": "sales.df3dec6ccc1a9c21.json",
     "scheduling": "scheduling.fc16805909f283b4.json",
-    "settings": "settings.129996712b168950.json",
+    "settings": "settings.514cbd297c150d38.json",
     "signatures": "signatures.e9c2f4babfcb4a69.json",
     "smoke": "smoke.31b98d86e919c068.json",
     "stats": "stats.af9577bf226264e0.json",
@@ -173,14 +174,14 @@
     "web-widgets": "web-widgets.e728515d924f58e1.json",
     "window-manager": "window-manager.6cb6eadd9e643d59.json",
     "reports": "reports.cd7f528b759dfc3e.json",
-    "errors": "errors.2f619692f2a3719b.json",
+    "errors": "errors.05b0eb6b20ae3452.json",
     "notifications": "notifications.47ceed6a7a52fb6d.json",
     "mobile": "mobile.35647c76c870d74d.json",
     "google-auth": "google-auth.fe5bfb1d435938b4.json",
     "payments-setup": "payments-setup.a66ca9eb746692fe.json",
     "brand-kit": "brand-kit.167b2c475c1f16a5.json",
     "platform-terminology": "platform-terminology.e6f2fb7288244dcc.json",
-    "platform-commerce": "platform-commerce.86c81d1f66731857.json",
+    "platform-commerce": "platform-commerce.dab338e1500b995f.json",
     "appointment-booking": "appointment-booking.02713fa90183f672.json",
     "partners": "partners.8375a3c9dca06a46.json",
     "color-picker": "color-picker.74b2dbe6b33ea9c4.json",
@@ -198,6 +199,7 @@
     "doc-present": "doc-present.2f612edf05abf718.json",
     "image-viewer": "image-viewer.878b66c76551224e.json",
     "priority-fields": "priority-fields.f9eb328e03831341.json",
-    "forms-staff": "forms-staff.bca0f8d25a941797.json"
+    "forms-staff": "forms-staff.bca0f8d25a941797.json",
+    "signup-region": "signup-region.1a44e02eb2431ed4.json"
   }
 }

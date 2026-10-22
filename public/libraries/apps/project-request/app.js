@@ -144,6 +144,7 @@ window.PlatformCommerce.onReady(async function(){
   let reportExpediteOptionsAuthoritative = false;
   let reportExpeditePropertyKey = "";
   let reportPropertyPrices = null;
+  let reportPropertyVatIncluded = null;
   function reportDisplayedBasePrice(type){ return reportExpeditePropertyKey === reportPropertyKey() && Number.isFinite(Number(reportPropertyPrices?.[type])) ? Number(reportPropertyPrices[type]) : (TYPE_META[type]?.price ?? PRICE_RESIDENTIAL); }
   function reportPropertyKey(){ return JSON.stringify([$("#rAddress")?.value || "", $("#rLat")?.value || "", $("#rLng")?.value || ""]); }
   let reportExpediteMinuteTimer = null;
@@ -5792,8 +5793,23 @@ window.PlatformCommerce.onReady(async function(){
     return `<span class="r-info-tip r-addon-info-trigger" data-addon-info-trigger="${String(escapeHtml(key))}" role="button" tabindex="0" aria-label="${((v1) => globalThis.PlatformLanguage?.htmlText("project-request","m_6e4ba38fa02b85",`${v1} information`,{v1}) ?? `${v1} information`)(escapeHtml(info.title))}"><i class="fas fa-info"></i></span>`;
   }
 
+  /** Price text as charged for this property: VAT included outside the US and Canada. */
+  function reportVatText(text){
+    const quoted = reportExpeditePropertyKey === reportPropertyKey() && reportPropertyVatIncluded !== null;
+    return window.PlatformCommerce.withVat(text, quoted ? { vat_included: reportPropertyVatIncluded } : undefined);
+  }
+
+  /** A type card's price: this property's quote once known, shown as VAT included outside the US and Canada. */
+  function typePriceLabel(type){
+    const price = fmtCredit(reportDisplayedBasePrice(type));
+    const text = type === 'residential'
+      ? (globalThis.PlatformLanguage?.text("project-request","price_flat_rate","{price} flat rate",{price}) ?? `${price} flat rate`)
+      : (globalThis.PlatformLanguage?.text("project-request","price_per_structure","{price} / structure",{price}) ?? `${price} / structure`);
+    return reportVatText(text);
+  }
+
   function buildTypeButtons(){
-    const pricingLabels = Object.fromEntries(['residential','commercial','multifamily'].map(type => [type, globalThis.PlatformLanguage?.text('project-request', type === 'residential' ? 'price_flat_rate' : 'price_per_structure', fmtCredit(reportDisplayedBasePrice(type)) + (type === 'residential' ? ' flat rate' : ' / structure'), {price:fmtCredit(reportDisplayedBasePrice(type))})]));
+    const pricingLabels = Object.fromEntries(['residential','commercial','multifamily'].map(type => [type, escapeHtml(typePriceLabel(type))]));
     return Object.entries(TYPE_META).map(([key, meta]) => `
       <button type="button" class="r-type-btn" data-type="${key}">
         <div class="r-type-icon"><i class="fas ${meta.icon}"></i></div>
@@ -6217,26 +6233,29 @@ window.PlatformCommerce.onReady(async function(){
   }
 
   function loadReportExpediteOptions(force = false){
-    if (!selectedType || !fmJson || !addressSelected) return;
+    if (!fmJson || !addressSelected) return;
     const currentSlot = Math.floor(Date.now() / 600000);
-    const structureCount = reportExpediteStructureCount(selectedType);
     const propertyKey = reportPropertyKey();
-    if (!force && reportExpeditePropertyKey === propertyKey && reportExpediteOptionsProjectType === selectedType && reportExpediteOptionsStructureCount === structureCount && reportExpediteOptionsSlot === currentSlot && reportExpediteOptions.length) return;
+    // Before a type is chosen, quote residential: the response carries this property's
+    // prices for every type, so the type cards show them instead of the account's base prices.
+    if (!selectedType && reportExpeditePropertyKey === propertyKey) return;
+    const requestType = selectedType || 'residential';
+    const structureCount = reportExpediteStructureCount(requestType);
+    if (!force && selectedType && reportExpeditePropertyKey === propertyKey && reportExpediteOptionsProjectType === selectedType && reportExpediteOptionsStructureCount === structureCount && reportExpediteOptionsSlot === currentSlot && reportExpediteOptions.length) return;
     if (reportExpediteOptionsLoading) return;
     reportExpediteOptionsLoading = true;
-    reportExpediteOptionsAuthoritative = false;
+    if (selectedType) reportExpediteOptionsAuthoritative = false;
     const quotedType = selectedType;
-    fmJson(`report-expedite-options?address=${encodeURIComponent($("#rAddress")?.value || "")}&lat=${encodeURIComponent($("#rLat")?.value || "")}&lng=${encodeURIComponent($("#rLng")?.value || "")}&project_type=${encodeURIComponent(selectedType)}&structure_count=${encodeURIComponent(String(structureCount))}`)
+    fmJson(`report-expedite-options?address=${encodeURIComponent($("#rAddress")?.value || "")}&lat=${encodeURIComponent($("#rLat")?.value || "")}&lng=${encodeURIComponent($("#rLng")?.value || "")}&project_type=${encodeURIComponent(requestType)}&structure_count=${encodeURIComponent(String(structureCount))}`)
       .then((data) => {
-        if (propertyKey !== reportPropertyKey() || quotedType !== selectedType) return;
+        if (propertyKey !== reportPropertyKey()) return;
         reportExpeditePropertyKey = propertyKey;
         reportPropertyPrices = data.report_prices || null;
+        reportPropertyVatIncluded = typeof data.vat_included === 'boolean' ? data.vat_included : null;
         document.querySelectorAll('.r-type-btn[data-type] .r-type-price').forEach(label => {
-          const type = label.closest('[data-type]').dataset.type;
-          label.textContent = type === 'residential'
-            ? (globalThis.PlatformLanguage?.text("project-request","price_flat_rate","{price} flat rate",{price:fmtCredit(reportDisplayedBasePrice(type))}) ?? `${fmtCredit(reportDisplayedBasePrice(type))} flat rate`)
-            : (globalThis.PlatformLanguage?.text("project-request","price_per_structure","{price} / structure",{price:fmtCredit(reportDisplayedBasePrice(type))}) ?? `${fmtCredit(reportDisplayedBasePrice(type))} / structure`);
+          label.textContent = typePriceLabel(label.closest('[data-type]').dataset.type);
         });
+        if (!quotedType || quotedType !== selectedType) return;
         const options = normalizeReportExpediteOptionsResponse(data, selectedType, structureCount);
         if (options.length) {
           reportExpediteOptions = options;
@@ -6249,8 +6268,11 @@ window.PlatformCommerce.onReady(async function(){
         }
       })
       .catch((error) => {
-        if (propertyKey !== reportPropertyKey() || quotedType !== selectedType) return;
+        if (propertyKey !== reportPropertyKey()) return;
+        // Remember the failed property so renders do not retry it in a loop; its cards keep base prices.
+        if (reportExpeditePropertyKey !== propertyKey) reportPropertyPrices = null;
         reportExpeditePropertyKey = propertyKey;
+        if (!quotedType || quotedType !== selectedType) return;
         console.warn('Report prices unavailable; ordering waits for a verified quote.', error);
         const options = buildLocalReportExpediteOptions(selectedType, new Date(), structureCount);
         if (options.length) {
@@ -6962,6 +6984,7 @@ window.PlatformCommerce.onReady(async function(){
             ? (globalThis.PlatformLanguage?.text("project-request","order_roof_report_discount","Order Roof Report - {price} (save {saving})",{price:fmtCredit(quote.final_amount),saving:fmtCredit(quote.discount_amount)}) ?? `Order Roof Report - ${fmtCredit(quote.final_amount)} (save ${fmtCredit(quote.discount_amount)})`)
             : (globalThis.PlatformLanguage?.text("project-request","order_roof_report_price","Order Roof Report - {price}",{price:fmtCredit(quote.final_amount)}) ?? `Order Roof Report - ${fmtCredit(quote.final_amount)}`))))
         : (globalThis.PlatformLanguage?.text("project-request","order_roof_report","Order Roof Report") ?? "Order Roof Report");
+      if (selectedType && !pricingPending) text = reportVatText(text);
     } else if (isProposalChoice() && proposalsEnabled()) {
       text = 'Proposals';
     } else if (isScheduleChoice()) {
@@ -9602,6 +9625,7 @@ window.PlatformCommerce.onReady(async function(){
   }
 
   function renderWorkflowStateBody(options = {}){
+    if (addressSelected && !selectedType) loadReportExpediteOptions();
     ensureOrderContactFields();
     syncOverviewWorkflow();
     syncDevelopmentReportControls();
@@ -10374,6 +10398,8 @@ window.PlatformCommerce.onReady(async function(){
     const obj = {
       v: 3,
       ts: Date.now(),
+      // The account that placed it: another account signed in on this browser must never submit it (1M8-204).
+      organization_id: String(window.__APP?.userOrgId || '').trim(),
       fields: {
         address: ($('#rAddress').value || '').trim(),
         residentName: primary.name || '',
@@ -10405,6 +10431,10 @@ window.PlatformCommerce.onReady(async function(){
         reorder_project_id: reorderSourceCanReopenInPlace && reorderMeasurementProjectId ? reorderMeasurementProjectId : '',
         source_project_id: reorderSourceCanReopenInPlace && reorderMeasurementProjectId ? reorderMeasurementProjectId : '',
         ...(window.Portal.ExteriorOrder?.payload() || {}),
+        // The quote shown here; the billing page tops up and resubmits
+        // against it instead of recomputing prices.
+        order_original_amount: window.Portal.ExteriorOrder?.active() ? '' : String(currentPriceQuote().original_amount ?? ''),
+        order_quoted_amount: String(currentPrice() ?? ''),
       }
     };
     try { localStorage.setItem(PENDING_ORDER_KEY, JSON.stringify(obj)); } catch (e) {}
@@ -11569,6 +11599,11 @@ window.PlatformCommerce.onReady(async function(){
     });
     window.addEventListener('fm:new-project-workflow', (event) => {
       const workflow = event?.detail?.workflow || 'project';
+      // Someone who may not order reports gets a reason instead of an order window that cannot load (1M8-227).
+      if (workflow === 'report' && Object.keys(window.Portal?.currentUser?.permissions || {}).length && !hasPerm('order_reports')) {
+        window.Portal?.ui?.showToast?.(globalThis.PlatformLanguage?.text('project-request', 'order_reports_denied_title', 'You cannot order reports') ?? 'You cannot order reports', globalThis.PlatformLanguage?.text('project-request', 'order_reports_denied_detail', 'Ask an admin on your account to give you permission to order reports.') ?? 'Ask an admin on your account to give you permission to order reports.', false);
+        return;
+      }
       if (workflow === 'contact' && window.Portal?.modules?.contacts?.open) {
         window.Portal.modules.contacts.open();
         return;

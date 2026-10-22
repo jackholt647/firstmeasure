@@ -502,6 +502,7 @@ export async function listRememberedPlatformAccounts(request: FastifyRequest, ct
     account_id: cleanText(entry.account_id),
     email: cleanText(entry.email),
     name: cleanText(entry.name),
+    organization_id: cleanText(entry.organization_id),
     organization_name: cleanText(entry.organization_name),
     active: cleanText(entry.account_id) === activeId,
     // Session liveness is verified only when the user actually switches. This

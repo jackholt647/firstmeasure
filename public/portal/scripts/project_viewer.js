@@ -131,11 +131,14 @@
 
   window.Portal.ProjectViewer = ProjectViewer;
 
+  /* One cache per organization: a browser signed in to several accounts must never offer one account's projects to another (1M8-204). */
   const STORE_KEY = 'fm_platform_project_store_v1';
+  const storeKey = () => `${STORE_KEY}:${String(window.__APP?.userOrgId || window.__APP?.orgId || '').trim() || 'none'}`;
+  try { localStorage.removeItem(STORE_KEY); } catch (e) {}
 
   const readStore = () => {
     try {
-      const parsed = JSON.parse(localStorage.getItem(STORE_KEY) || '{}');
+      const parsed = JSON.parse(localStorage.getItem(storeKey()) || '{}');
       return {
         projects: parsed && typeof parsed.projects === 'object' ? parsed.projects : {},
         measurementIndex: parsed && typeof parsed.measurementIndex === 'object' ? parsed.measurementIndex : {}
@@ -147,7 +150,7 @@
 
   const writeStore = (store) => {
     try {
-      localStorage.setItem(STORE_KEY, JSON.stringify({
+      localStorage.setItem(storeKey(), JSON.stringify({
         version: 1,
         projects: store.projects || {},
         measurementIndex: store.measurementIndex || {}

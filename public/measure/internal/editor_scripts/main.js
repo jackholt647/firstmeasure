@@ -925,6 +925,7 @@ window.KB_MAP = {
     TYPES:         { key: 'p' },
     FACES:         { key: '[' },
     SNAP:          { key: 'f' },
+    PITCHES:       { key: 'k' },
     
     // Geometry Operations
 CONNECT:       { key: 'c' }, // Distinguishes from COPY
@@ -1028,6 +1029,7 @@ function initDynamicHelpBar() {
     html += makeGroup(k.FACES, 'Faces', 'Toggle Generated Faces');
     html += makeGroup(k.TYPES, 'Types', 'Toggle Line Types');
     html += makeGroup(k.SNAP, 'Snap', 'Toggle Snapping');
+    html += makeGroup(k.PITCHES, 'Pitches', 'Toggle Pitch Labels');
 
     html += makeSeparator();
 

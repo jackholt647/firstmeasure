@@ -7,6 +7,8 @@
   const TRACKING_TIMEOUT_MS = 3500;
   const SIGNUP_EMAIL_VERIFICATION_ENABLED = false;
   let googleAuthLibraryPromise = null;
+  let passwordToggleLibraryPromise = null;
+  let signupRegionLibraryPromise = null;
 
   function signupPhoneDigits(value) {
     let digits = String(value || '').replace(/\D/g, '');
@@ -25,7 +27,7 @@
 
   function isValidSignupPhone(value) {
     const rawDigits = String(value || '').replace(/\D/g, '');
-    if(String(value || '').trim().startsWith('+'))return /^[1-9]\d{6,14}$/.test(rawDigits);
+    if(String(value || '').trim().startsWith('+'))return /^[1-9]\d{7,14}$/.test(rawDigits);
     return rawDigits.length === 10 || (rawDigits.length === 11 && rawDigits.startsWith('1'));
   }
 
@@ -180,6 +182,7 @@
       border-color: #d93025;
       box-shadow: none;
     }
+    select.fm-input { appearance: auto; }
     .fm-input[readonly] {
       background: #f7f8fa;
       color: #606a78;
@@ -281,6 +284,21 @@
     return new URL(path, base).toString();
   }
 
+  /* Show/hide buttons on the password fields (1M8-221), from the script beside this one. */
+  function loadPasswordToggleLibrary() {
+    if (window.FirstMatePasswordToggle) return Promise.resolve(window.FirstMatePasswordToggle);
+    if (passwordToggleLibraryPromise) return passwordToggleLibraryPromise;
+    passwordToggleLibraryPromise = new Promise((resolve, reject) => {
+      const script = document.createElement('script');
+      script.src = SCRIPT_SRC ? new URL('password-toggle.js', SCRIPT_SRC).toString() : '/portal/landing/shared/password-toggle.js';
+      script.async = true;
+      script.addEventListener('load', () => window.FirstMatePasswordToggle ? resolve(window.FirstMatePasswordToggle) : reject(new Error('Password toggle did not initialize.')), { once: true });
+      script.addEventListener('error', () => reject(new Error('Password toggle could not be loaded.')), { once: true });
+      document.head.appendChild(script);
+    });
+    return passwordToggleLibraryPromise;
+  }
+
   function loadGoogleAuthLibrary() {
     if (window.FirstMateGoogleAuth) return Promise.resolve(window.FirstMateGoogleAuth);
     if (googleAuthLibraryPromise) return googleAuthLibraryPromise;
@@ -301,6 +319,28 @@
       }
     });
     return googleAuthLibraryPromise;
+  }
+
+  function loadSignupRegionLibrary() {
+    if (window.FirstMateSignupRegion) return Promise.resolve(window.FirstMateSignupRegion);
+    if (signupRegionLibraryPromise) return signupRegionLibraryPromise;
+    signupRegionLibraryPromise = new Promise((resolve, reject) => {
+      const source = SCRIPT_SRC
+        ? new URL('../../../libraries/signup-region/signup-region.js', SCRIPT_SRC).toString()
+        : '/libraries/signup-region/signup-region.js';
+      const existing = document.querySelector(`script[src="${source}"]`);
+      const script = existing || document.createElement('script');
+      script.addEventListener('load', () => window.FirstMateSignupRegion
+        ? resolve(window.FirstMateSignupRegion)
+        : reject(new Error('Signup region library did not initialize.')), { once: true });
+      script.addEventListener('error', () => reject(new Error('Signup region library could not be loaded.')), { once: true });
+      if (!existing) {
+        script.src = source;
+        script.async = true;
+        document.head.appendChild(script);
+      }
+    });
+    return signupRegionLibraryPromise;
   }
 
   function normalizeBool(value, fallback) {
@@ -488,17 +528,25 @@
     const $ = (selector) => root.querySelector(selector);
     const $$ = (selector) => Array.from(root.querySelectorAll(selector));
     const registrationPhoneInput = $('[data-form="register"] input[name="phone"]');
+    // Country, calling code and language choices; the chosen country sets the account's currency.
+    let signupRegion = null;
+    if (registrationPhoneInput) {
+      loadSignupRegionLibrary().then((library) => {
+        signupRegion = library.mount({ form: $('[data-form="register"]'), phoneInput: registrationPhoneInput, apiBase: platformApiBaseUrl(), classes: { field: 'fm-field', label: 'fm-label', control: 'fm-input' } });
+      }).catch(() => {});
+    }
+    const formatsAsNorthAmerican = () => !signupRegion || signupRegion.formatsAsNorthAmerican();
 
     function validateRegistrationPhone() {
       if (!registrationPhoneInput) return false;
-      const valid = isValidSignupPhone(registrationPhoneInput.value);
+      const valid = signupRegion ? signupRegion.valid() : isValidSignupPhone(registrationPhoneInput.value);
       registrationPhoneInput.setCustomValidity(valid ? '' : 'Enter a valid mobile number, including the country code outside the US and Canada.');
-      if (valid) registrationPhoneInput.value = formatSignupPhone(registrationPhoneInput.value);
+      if (valid && formatsAsNorthAmerican()) registrationPhoneInput.value = formatSignupPhone(registrationPhoneInput.value);
       return valid;
     }
 
     registrationPhoneInput?.addEventListener('input', () => {
-      registrationPhoneInput.value = formatSignupPhone(registrationPhoneInput.value);
+      if (formatsAsNorthAmerican()) registrationPhoneInput.value = formatSignupPhone(registrationPhoneInput.value);
       registrationPhoneInput.setCustomValidity('');
     });
     registrationPhoneInput?.addEventListener('blur', validateRegistrationPhone);
@@ -1154,6 +1202,7 @@
         return;
       }
       const fd = new FormData(form);
+      if (signupRegion) fd.set('phone', signupRegion.phone());
       trackSignupInteraction('register_submit_attempt', {
         form: 'register',
         field_names: Array.from(fd.keys()).filter(key => !/password|token|code/i.test(key)),
@@ -1340,6 +1389,7 @@
     syncAttributionInputs();
     trackSignupInteraction('widget_ready', { initial_mode: initialMode, show_login: showLogin, has_referral_code: !!state.referralCode });
     showForm(initialMode === 'login' && showLogin ? 'login' : 'register');
+    loadPasswordToggleLibrary().then((toggle) => toggle.enhance(shadow)).catch(() => null);
     loadReferralInvite();
     trackAcquisitionLanding();
     initializeGoogleAuth();

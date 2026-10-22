@@ -275,6 +275,16 @@
             </table>
           </div>
         </section>
+
+        <section class="ff-panel" id="ffCountryRules">
+          <h2>Country rules</h2>
+          <div class="ff-muted">Set capability values for every organization whose country of record is in the list. A rule overrides the organization's own value; later rules override earlier ones. Countries come from signup, staff edits on Customers, or the backfill.</div>
+          <textarea id="ffCountryRulesJson" spellcheck="false" style="width:100%;min-height:140px;font-family:monospace;font-size:12px;margin-top:8px;" placeholder='[{"countries":["FR","DE"],"values":{"firstmeasure.example_flag":true},"note":"Europe pilot"}]'></textarea>
+          <div style="display:flex;gap:8px;align-items:center;margin-top:8px;">
+            <button class="btn-secondary" id="ffCountryRulesSave" type="button" disabled>Save country rules</button>
+            <span class="ff-status" id="ffCountryRulesStatus"></span>
+          </div>
+        </section>
       </div>
 
       <div class="ff-modal-backdrop" id="ffRolloutModal" role="dialog" aria-modal="true" aria-labelledby="ffRolloutModalTitle">
@@ -1255,10 +1265,43 @@
     syncRolloutModeControls();
   }
 
+  async function countryRulesAction(action, payload = {}){
+    const url = window.Portal.internalLegacyEndpoint(), body = { action, ...payload };
+    const data = typeof window.Portal.apiPost === 'function'
+      ? await window.Portal.apiPost(url, body)
+      : await fetch(url, { method:'POST', body: new URLSearchParams(body) }).then(res => res.json());
+    if (!data || !data.success) throw new Error((data && (data.message || data.error)) || 'Country rules request failed');
+    return data;
+  }
+
+  async function loadCountryRules(){
+    const text = document.getElementById('ffCountryRulesJson'), save = document.getElementById('ffCountryRulesSave'), status = document.getElementById('ffCountryRulesStatus');
+    if (!text || state.countryRulesLoaded) return;
+    try {
+      const data = await countryRulesAction('capability_country_rules_get');
+      text.value = JSON.stringify(data.rules || [], null, 2);
+      state.countryRulesLoaded = true;
+      save.disabled = false;
+      status.textContent = `${(data.rules || []).length} rule(s)`;
+    } catch (err) { status.textContent = err.message; }
+    save.onclick = async () => {
+      let rules;
+      try { rules = JSON.parse(text.value || '[]'); } catch (err) { status.textContent = 'Rules must be valid JSON.'; return; }
+      save.disabled = true;
+      try {
+        const data = await countryRulesAction('capability_country_rules_save', { rules: JSON.stringify(rules) });
+        text.value = JSON.stringify(data.rules || [], null, 2);
+        status.textContent = `Saved ${(data.rules || []).length} rule(s). Organizations pick them up within 15 seconds.`;
+      } catch (err) { status.textContent = err.message; }
+      finally { save.disabled = false; }
+    };
+  }
+
   const FeatureFlags = {
     async onShow(){
       ensureMarkup();
       if (!state.booted) await bootstrap();
+      void loadCountryRules();
     },
     init(){
       if (!canManage()) return;

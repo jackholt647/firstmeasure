@@ -13,6 +13,9 @@ import { baselinePlan, enqueueNotification, persistNotificationOccurrence, recip
 import { registerNotificationRulesApi } from "./notifications/api.js";
 import { TRANSLATION_CODES, normalizeTranslationLanguage } from "./localization/languages.js";
 import { messageTranslationPreferences } from "./localization/message-preferences.js";
+import { signupLanguage, signupOptions, signupPhoneInput } from "../commerce/signup-options.js";
+import { reportExpediteTimeZone, reportPricesIncludeVat } from "../commerce/profile.js";
+import { countryRecord, profileCountrySource } from "./organization_country.js";
 import { signupCommercialProfile, profileFromGlobal, organizationProfile, currentProfile, customerCommercialView, creditLabel, creditMinorAmount, reportPrice, assertCommercialRevision } from "../commerce/profile.js";
 import { exchangeEstimate } from "../commerce/exchange.js";
 import { isReceiptMedia, canReadReceiptMedia, canWriteReceiptMedia, publicMediaMetadata } from "./media_access.js";
@@ -38,6 +41,9 @@ import {
   firstMeasureReportCharge as sharedFirstMeasureReportCharge
 } from "../firstmeasure/pricing.js";
 import { stripeCreditReceiptDescription } from "../payments/stripe_receipt.js";
+import { checkStripeCheckoutAmount, type StripeCheckoutAmountCheck } from "../payments/stripe_checkout_amount.js";
+import { saveInternalDocument } from "../internal/storage.js";
+import { creditLedgerEntryKind, creditStatementTotals } from "./credit_statement.js";
 import { acquisitionBonusOfferForCampaignToken, acquisitionBonusOfferForOrganization, acquisitionBonusQuoteForOrganization, completeAcquisitionSignup, customerReferralEvent, customerReferralStatus, publicAcquisitionLookup, publicReferralLookup, trackAcquisitionEvent } from "../internal/crm/referrals_service.js";
 import { clearMaterialListScheduleEvent, syncMaterialListFromScheduleEvent } from "../materials/storage.js";
 import {
@@ -513,13 +519,11 @@ app.post("/auth/google", async (request, reply) => {
 
     const company = cleanText(body.company) || "Your Company";
     const requestedPhone = cleanText(body.phone);
-    const phone = requestedPhone ? formatSignupPhone(requestedPhone) : "";
+    const phone = requestedPhone ? formatSignupPhone(signupPhoneInput(body)) : "";
     if (requestedPhone && !phone) throw badRequest("invalid_phone_number", "Enter a valid mobile phone number, including the country code outside the US and Canada.");
     const workspaceWebsite = googleWorkspaceWebsite(google.hostedDomain);
 
-    const defaultAppFlags = await newOrganizationAppFlagDefaults();
-    const commercialProfile = await signupCommercialProfile(request?.headers || {}, body);
-    if (commercialProfile.country !== "US") defaultAppFlags.firstmeasure = { ...asObject(defaultAppFlags.firstmeasure), report_localization: true, metric_measurements: commercialProfile.measurement_system === "metric" };
+    const { defaultAppFlags, commercialProfile, signupCountry, branchLocalization } = await signupOrganizationDefaults(request, body);
     const requestedGlobal = asObject(body.global);
     delete requestedGlobal.app_flags;
     delete requestedGlobal.feature_flags;
@@ -544,10 +548,12 @@ app.post("/auth/google", async (request, reply) => {
           report_settings: {},
           ...requestedGlobal,
           commercial_profile: commercialProfile,
+          ...(signupCountry ? { country: signupCountry } : {}),
           app_flags: defaultAppFlags
         }
       });
       transaction.createdOrganization(organization);
+      await saveSignupBranchLocalization(String(organization.id), branchLocalization);
       const createdIdentity = await createIdentity({
         email: google.email,
         password_hash: "",
@@ -629,6 +635,8 @@ app.post("/auth/google", async (request, reply) => {
       ...publicAuthContext(ctx)
     };
   });
+
+app.get("/auth/signup-options", async (request) => signupOptions(request.headers as Record<string, unknown>, asObject(request.query)));
 
 app.get("/auth/google/config", async () => ({
     ok: true,
@@ -784,7 +792,7 @@ app.get("/auth/google/config", async () => ({
     const activeCtx = await requirePlatformAuth(request, { csrf: true });
     const body = loginSchema.parse(request.body ?? {});
     const ctx = await loginPlatformIdentity({
-      email: body.email,
+      identifier: body.identifier || body.email,
       password: body.password,
       organizationId: body.organization_id,
       metadata: {
@@ -992,13 +1000,11 @@ app.get("/auth/google/config", async () => ({
     const body = registerSchema.parse(request.body ?? {});
     const passwordHash = body.password_hash || (body.password ? await hashPassword(body.password) : "");
     if (!passwordHash) throw badRequest("password_required", "A password is required.");
-    const phone = formatSignupPhone(body.phone);
+    const phone = formatSignupPhone(signupPhoneInput(body));
     if (!phone) throw badRequest("invalid_phone_number", "Enter a valid mobile phone number, including the country code outside the US and Canada.");
     const orgInput = body.organization && typeof body.organization === "object" ? body.organization : {};
     const orgName = String(body.company ?? orgInput.name ?? "Your Company");
-    const defaultAppFlags = await newOrganizationAppFlagDefaults();
-    const commercialProfile = await signupCommercialProfile(request?.headers || {}, body);
-    if (commercialProfile.country !== "US") defaultAppFlags.firstmeasure = { ...asObject(defaultAppFlags.firstmeasure), report_localization: true, metric_measurements: commercialProfile.measurement_system === "metric" };
+    const { defaultAppFlags, commercialProfile, signupCountry, branchLocalization } = await signupOrganizationDefaults(request, body);
     const requestedGlobal = asObject(body.global);
     delete requestedGlobal.app_flags;
     delete requestedGlobal.feature_flags;
@@ -1021,10 +1027,12 @@ app.get("/auth/google/config", async () => ({
           report_settings: {},
           ...requestedGlobal,
           commercial_profile: commercialProfile,
+          ...(signupCountry ? { country: signupCountry } : {}),
           app_flags: defaultAppFlags
         }
       });
       transaction.createdOrganization(organization);
+      await saveSignupBranchLocalization(String(organization.id), branchLocalization);
       const identity = await createIdentity({
         email: body.email,
         password_hash: passwordHash,
@@ -2964,6 +2972,7 @@ app.get("/auth/google/config", async () => ({
         emailed: invite.ok,
         email_sent: invite.ok,
         activate_url: invite.activate_url || "",
+        existing_account: (invite as { existing_account?: boolean }).existing_account === true,
         invite
       } : {})
     };
@@ -5093,6 +5102,25 @@ function platformUserView(userDoc: unknown) {
 function numericValue(value: unknown, fallback = 0) {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+/**
+ * What a new organization starts with from its signup form: the billing profile (the
+ * chosen country, else detection), the company language and the app flags that follow.
+ */
+async function signupOrganizationDefaults(request: { headers?: Record<string, unknown> } | undefined, body: JsonObject) {
+  const defaultAppFlags = await newOrganizationAppFlagDefaults();
+  const commercialProfile = await signupCommercialProfile(request?.headers || {}, body);
+  const locale = signupLanguage(body, commercialProfile);
+  const localized = commercialProfile.country !== "US" || locale !== "en-US";
+  if (localized) defaultAppFlags.firstmeasure = { ...asObject(defaultAppFlags.firstmeasure), report_localization: true, metric_measurements: commercialProfile.measurement_system === "metric" };
+  // The organization's country of record starts as the billing profile's country (platform/organization_country.ts).
+  const signupCountry = countryRecord(commercialProfile.country, profileCountrySource(commercialProfile.source));
+  return { defaultAppFlags, commercialProfile, signupCountry, branchLocalization: localized ? { locale } : null };
+}
+
+async function saveSignupBranchLocalization(orgId: string, localization: { locale: string } | null) {
+  if (localization) await upsertDocument(orgId, "branch", { id: "default", data: { localization } });
 }
 
 async function protectCommercialProfile(orgId: string, body: JsonObject, replace: boolean) {
@@ -9025,21 +9053,20 @@ async function handleAuthLegacyAction(request: FastifyRequest, reply: FastifyRep
     requirePublicRegistration();
     const password = String(body.password || "");
     const company = cleanText(body.company || body.company_name || body.organization_name) || "Your Company";
-    const phone = formatSignupPhone(body.phone);
+    const phone = formatSignupPhone(signupPhoneInput(body));
     if (!password || !cleanText(body.email)) {
       return { success: false, ok: false, status_code: 400, error: "Missing required account fields." };
     }
     if (!phone) {
       return { success: false, ok: false, status_code: 400, error: "Enter a valid mobile phone number, including the country code outside the US and Canada." };
     }
-    const defaultAppFlags = await newOrganizationAppFlagDefaults();
-    const commercialProfile = await signupCommercialProfile(request?.headers || {}, body);
-    if (commercialProfile.country !== "US") defaultAppFlags.firstmeasure = { ...asObject(defaultAppFlags.firstmeasure), report_localization: true, metric_measurements: commercialProfile.measurement_system === "metric" };
+    const { defaultAppFlags, commercialProfile, signupCountry, branchLocalization } = await signupOrganizationDefaults(request, body);
     const registered = await withNewIdentityRegistration(cleanText(body.email), async (transaction) => {
       const organization = await createOrganization({
         name: company,
         global: {
           commercial_profile: commercialProfile,
+          ...(signupCountry ? { country: signupCountry } : {}),
           app_flags: defaultAppFlags,
           credits_balance: 0,
           credits_ledger: [],
@@ -9053,6 +9080,7 @@ async function handleAuthLegacyAction(request: FastifyRequest, reply: FastifyRep
         }
       });
       transaction.createdOrganization(organization);
+      await saveSignupBranchLocalization(String(organization.id), branchLocalization);
       const identity = await createIdentity({
         email: cleanText(body.email),
         password_hash: await hashPassword(password),
@@ -9225,7 +9253,8 @@ async function handleAuthLegacyAction(request: FastifyRequest, reply: FastifyRep
     await patchIdentity(String(identity.id || ""), {
       metadata: { ...asObject(identity.metadata), password_reset: reset }
     });
-    const postmark = await sendPasswordResetOtpEmail(email, code);
+    const activation = cleanText(body.purpose).toLowerCase() === "activation";
+    const postmark = await sendPasswordResetOtpEmail(email, code, activation ? "activation" : "reset");
     if (!postmark.ok) {
       return {
         success: false,
@@ -9242,7 +9271,7 @@ async function handleAuthLegacyAction(request: FastifyRequest, reply: FastifyRep
       recovery_token: createPasswordRecoveryToken(String(identity.id || ""), reset.request_id),
       delivery_channel: "email",
       masked_destination: maskEmailAddress(email),
-      message: "Password reset code sent.",
+      message: activation ? "Activation code sent." : "Password reset code sent.",
       email_sent: true,
       ...(env.isProduction ? {} : { dev_otp: code })
     };
@@ -9378,35 +9407,62 @@ async function sendPostmarkEmail(input: { to: string; subject: string; textBody:
   }
 }
 
-async function sendPasswordResetOtpEmail(email: string, code: string) {
-  const subject = `1m8 Verification Code: ${code}`;
-  const textBody = `Your verification code is: ${code}\n\nThis code expires in 10 minutes. If you did not request this, you can ignore this email.`;
-  const htmlBody = `<p>Your verification code is:</p>
+async function sendPasswordResetOtpEmail(email: string, code: string, purpose: "reset" | "activation" = "reset") {
+  const label = purpose === "activation" ? "activation" : "verification";
+  const subject = `1m8 ${purpose === "activation" ? "Activation" : "Verification"} Code: ${code}`;
+  const textBody = `Your ${label} code is: ${code}\n\nThis code expires in 10 minutes. If you did not request this, you can ignore this email.`;
+  const htmlBody = `<p>Your ${label} code is:</p>
     <div style="font-size:24px;font-weight:700;letter-spacing:4px;margin:12px 0;">${escapeHtml(code)}</div>
     <p>This code expires in 10 minutes.</p>
     <p>If you did not request this, you can ignore this email.</p>`;
   return sendPostmarkEmail({ to: email, subject, textBody, htmlBody });
 }
 
-function portalActivateUrl(request: { headers: Record<string, unknown> }, email: string) {
+function portalActivateUrl(request: { headers: Record<string, unknown> }, email: string, orgId = "") {
   const base = publicRequestBaseUrl(request).replace(/\/+$/, "");
   const params = new URLSearchParams({
     email,
     redirect: "./",
-    start: "start"
+    start: "start",
+    ...(orgId ? { org: orgId } : {})
   });
   return `${base}/portal/activate.php?${params.toString()}`;
+}
+
+/* Someone who already signs in to FirstMate (for another company) joins with that account: no new password. */
+function portalJoinUrl(request: { headers: Record<string, unknown> }, email: string, orgId: string) {
+  const base = publicRequestBaseUrl(request).replace(/\/+$/, "");
+  const params = new URLSearchParams({ email, org: orgId, redirect: "./" });
+  return `${base}/portal/login.php?${params.toString()}`;
+}
+
+async function inviteeHasAccount(email: string) {
+  const identity = await findIdentityByEmail(email).catch(() => null);
+  if (!identity) return false;
+  const passwordAlgo = cleanText(identity.password_algo).toLowerCase();
+  return Boolean(cleanText(identity.last_login_at)) || (Boolean(cleanText(identity.password_hash)) && passwordAlgo !== "pending");
 }
 
 async function sendPlatformOrgUserInvite(orgId: string, userDoc: JsonObject, request: { headers: Record<string, unknown> }, actorEmail = "") {
   const data = asObject(userDoc.data);
   const email = cleanEmail(data.email);
   const name = cleanText(data.name) || email;
-  const activateUrl = portalActivateUrl(request, email);
+  const existingAccount = await inviteeHasAccount(email);
+  const activateUrl = existingAccount ? portalJoinUrl(request, email, orgId) : portalActivateUrl(request, email, orgId);
   const organization = asObject(await readOrganization(orgId).catch(() => ({})));
   const orgName = cleanText(organization.name) || "your company";
-  const subject = `You're invited to FirstMate`;
-  const textBody = [
+  const subject = existingAccount ? `You've been added to ${orgName} in FirstMate` : `You're invited to FirstMate`;
+  const textBody = existingAccount ? [
+    `Hi ${name},`,
+    "",
+    `You've been added to ${orgName} in FirstMate.`,
+    "",
+    "Sign in with your existing FirstMate account (this email address and your current password) to open it:",
+    activateUrl,
+    "",
+    "Your other companies stay on your account; switch between them from the account menu.",
+    actorEmail ? `Invite sent by: ${actorEmail}` : ""
+  ].filter((line, index, lines) => line || index < lines.length - 1).join("\n") : [
     `Hi ${name},`,
     "",
     `You've been invited to join ${orgName} in FirstMate.`,
@@ -9416,7 +9472,15 @@ async function sendPlatformOrgUserInvite(orgId: string, userDoc: JsonObject, req
     "",
     actorEmail ? `Invite sent by: ${actorEmail}` : ""
   ].filter((line, index, lines) => line || index < lines.length - 1).join("\n");
-  const htmlBody = `
+  const htmlBody = existingAccount ? `
+    <p>Hi ${escapeHtml(name)},</p>
+    <p>You've been added to <strong>${escapeHtml(orgName)}</strong> in FirstMate.</p>
+    <p>
+      <a href="${escapeHtml(activateUrl)}" style="display:inline-block;background:#d93025;color:#fff;text-decoration:none;font-weight:700;padding:10px 14px;border-radius:6px;">Sign in to ${escapeHtml(orgName)}</a>
+    </p>
+    <p style="color:#555;">Use your existing FirstMate account: this email address and your current password. Your other companies stay on your account; switch between them from the account menu.</p>
+    ${actorEmail ? `<p style="color:#777;font-size:12px;">Invite sent by ${escapeHtml(actorEmail)}</p>` : ""}
+  ` : `
     <p>Hi ${escapeHtml(name)},</p>
     <p>You've been invited to join <strong>${escapeHtml(orgName)}</strong> in FirstMate.</p>
     <p>
@@ -9457,6 +9521,7 @@ async function sendPlatformOrgUserInvite(orgId: string, userDoc: JsonObject, req
     emailed: sent.ok,
     email_sent: sent.ok,
     activate_url: activateUrl,
+    existing_account: existingAccount,
     error: sent.ok ? "" : cleanText(sent.error),
     postmark: sent
   };
@@ -9690,8 +9755,7 @@ async function portalMonthlyStatement(orgId: string, body: JsonObject) {
     const d = new Date(String(asObject(entry).ts || ""));
     return d.getUTCFullYear() === year && d.getUTCMonth() + 1 === month;
   });
-  const totalIn = transactions.reduce((sum, entry) => sum + Math.max(0, numericValue(asObject(entry).delta)), 0);
-  const totalOut = transactions.reduce((sum, entry) => sum + Math.abs(Math.min(0, numericValue(asObject(entry).delta))), 0);
+  const totals = creditStatementTotals(transactions);
   return {
     success: true,
     month,
@@ -9702,11 +9766,8 @@ async function portalMonthlyStatement(orgId: string, body: JsonObject) {
     orders: transactions.filter((entry) => String(asObject(entry).reason || "") === "order_submitted"),
     total_transactions: transactions.length,
     total_orders: transactions.filter((entry) => String(asObject(entry).reason || "") === "order_submitted").length,
-    total_payments: transactions.filter((entry) => numericValue(asObject(entry).delta) > 0).length,
-    total_in: totalIn,
-    total_out: totalOut,
-    net_change: totalIn - totalOut,
-    total_spent: totalOut,
+    ...totals,
+    refunds: transactions.filter((entry) => creditLedgerEntryKind(entry) === "refund"),
     by_type: {}
   };
 }
@@ -10835,6 +10896,8 @@ async function portalStripeCreateCheckout(orgId: string, email: string, body: Js
     fields["line_items[0][price_data][product_data][description]"] = useBonus
       ? `${creditLabel(qty)} purchased + ${creditLabel(bonus)} limited-time bonus (${matchPercent}% bonus) = ${creditLabel(totalCredit)} added to your account`
       : `${creditLabel(totalCredit)} added to your FirstMate account`;
+    // Outside the US and Canada the charged amount includes VAT (commercial policy international_prices.vat_included).
+    if (reportPricesIncludeVat()) fields["line_items[0][price_data][product_data][description]"] += ". VAT included.";
     fields["line_items[0][quantity]"] = qty;
   }
   const created = await stripeApiRequest("POST", "/v1/checkout/sessions", fields);
@@ -10920,13 +10983,23 @@ async function stripeFulfillFromSession(session: JsonObject, source: string) {
   const global = await readGlobal(orgId);
   const data = asObject(global.data);
   const profile = profileFromGlobal(data);
-  const paidCurrency = cleanText(meta.credit_currency || "USD").toUpperCase();
-  const expectedMinor = meta.paid_minor === undefined ? Math.round(numericValue(meta.paid_dollars, dollars) * 100) : Number(meta.paid_minor);
-  if (paidCurrency !== profile.currency || cleanText(session.currency).toUpperCase() !== paidCurrency || Number(session.amount_total) !== expectedMinor) {
-    return { success: false, error: "Payment amount or currency mismatch", session_id: sessionId };
-  }
   const fulfilled = asObject(data.stripe_fulfilled_sessions);
   if (fulfilled[sessionId]) return { success: true, duplicate: true, session_id: sessionId };
+  const amountCheck = checkStripeCheckoutAmount(session, meta, profile.currency, dollars);
+  if (!amountCheck.accept) {
+    await recordStripePaymentReview(orgId, email, session, meta, amountCheck, source, asObject(asObject(data.stripe_payment_reviews)[sessionId]));
+    return {
+      success: false,
+      needs_review: true,
+      code: amountCheck.code,
+      error: "Payment amount or currency mismatch",
+      customer_message: "We received your payment but could not add the credit automatically. Our team has been alerted and will add it shortly. Your order is saved.",
+      session_id: sessionId
+    };
+  }
+  if (amountCheck.warning) {
+    console.warn(JSON.stringify({ event: "stripe_checkout_amount_warning", warning: amountCheck.warning, org_id: orgId, session_id: sessionId, expected_minor: amountCheck.expected_minor, configured_minor: amountCheck.configured_minor, amount_total: session.amount_total ?? null, currency: session.currency ?? null, source }));
+  }
   const credit = await applyCreditDelta(orgId, {
     amount: dollars,
     reason: "stripe_checkout_paid",
@@ -10939,6 +11012,9 @@ async function stripeFulfillFromSession(session: JsonObject, source: string) {
       offer_tier_id: meta.offer_tier_id || "",
       amount_total: session.amount_total ?? null,
       currency: session.currency ?? null,
+      amount_subtotal: session.amount_subtotal ?? null,
+      expected_minor: amountCheck.expected_minor,
+      ...(amountCheck.warning ? { amount_warning: amountCheck.warning } : {}),
       presentment_details: session.presentment_details ?? null,
       paid_dollars: numericValue(meta.paid_dollars, dollars),
       bonus_dollars: numericValue(meta.bonus_dollars),
@@ -10987,6 +11063,9 @@ async function stripeFulfillFromSession(session: JsonObject, source: string) {
         [sessionId]: { fulfilled: true, source, user_email: email, credit_dollars: dollars, paid_dollars: purchaseValue, meta_capi: metaCapi, ts: new Date().toISOString() }
       },
       ...(offerInstanceId ? { bonus_offer_instances: nextBonusOfferInstances } : {}),
+      ...(asObject(latestData.stripe_payment_reviews)[sessionId]
+        ? { stripe_payment_reviews: { ...asObject(latestData.stripe_payment_reviews), [sessionId]: { ...asObject(asObject(latestData.stripe_payment_reviews)[sessionId]), status: "resolved", resolved_at: new Date().toISOString(), resolved_by: source } } }
+        : {}),
       claimed_deals: meta.is_signup_match === "1"
         ? { ...asObject(latestData.claimed_deals), signup_match_50: true, bonus_upfront_match_v1: true }
         : asObject(latestData.claimed_deals)
@@ -10994,6 +11073,42 @@ async function stripeFulfillFromSession(session: JsonObject, source: string) {
   });
   await stripeSavePaymentMethodFromCheckout(orgId, session).catch(() => null);
   return { success: true, currency: profile.currency, credited: dollars, paid_dollars: purchaseValue, email, scope: "org", org_id: orgId, session_id: sessionId, balance: credit.balance, meta_capi: metaCapi };
+}
+
+// A paid checkout that cannot be credited automatically is held for an
+// operator: a structured log line, a record on the organization and an entry
+// in the internal stripe_payment_reviews document collection.
+async function recordStripePaymentReview(orgId: string, email: string, session: JsonObject, meta: JsonObject, check: Extract<StripeCheckoutAmountCheck, { accept: false }>, source: string, existing: JsonObject) {
+  const sessionId = cleanText(session.id);
+  const now = new Date().toISOString();
+  const review = {
+    session_id: sessionId,
+    org_id: orgId,
+    user_email: email,
+    status: "open",
+    code: check.code,
+    expected_minor: check.expected_minor,
+    configured_minor: check.configured_minor,
+    amount_total: session.amount_total ?? null,
+    amount_subtotal: session.amount_subtotal ?? null,
+    session_currency: cleanText(session.currency).toUpperCase() || null,
+    credit_currency: cleanText(meta.credit_currency || "USD").toUpperCase(),
+    credit_dollars: numericValue(meta.credit_dollars || meta.credits_qty),
+    payment_intent: cleanText(session.payment_intent) || null,
+    livemode: session.livemode === true,
+    source,
+    first_seen_at: cleanText(existing.first_seen_at) || now,
+    last_seen_at: now,
+    attempts: numericValue(existing.attempts) + 1
+  };
+  if (!cleanText(existing.first_seen_at)) {
+    console.warn(JSON.stringify({ event: "stripe_checkout_payment_review", alert: true, ...review }));
+  }
+  const reviews = asObject(asObject((await readGlobal(orgId)).data).stripe_payment_reviews);
+  await saveGlobal(orgId, { data: { stripe_payment_reviews: { ...reviews, [sessionId]: review } } })
+    .catch((error) => console.warn(JSON.stringify({ event: "stripe_checkout_payment_review_save_failed", session_id: sessionId, org_id: orgId, error: cleanText((error as Error)?.message || error) })));
+  await saveInternalDocument("stripe_payment_reviews", sessionId, { data: review })
+    .catch((error) => console.warn(JSON.stringify({ event: "stripe_checkout_payment_review_queue_failed", session_id: sessionId, org_id: orgId, error: cleanText((error as Error)?.message || error) })));
 }
 
 function metaAttributionFields(body: JsonObject) {
@@ -11427,7 +11542,7 @@ function reportExpediteWindowLabel(start: Date, end: Date) {
     hour: "numeric",
     minute: "2-digit",
     hour12: true,
-    timeZone: "America/Los_Angeles"
+    timeZone: reportExpediteTimeZone()
   });
   return `${format(start)} - ${format(end)}`;
 }

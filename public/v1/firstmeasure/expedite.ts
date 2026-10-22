@@ -1,5 +1,4 @@
-import { reportBasePrice, reportRushPrice, customerCommercialView, reportMarketRevision, reportExpeditingAllowed } from "../commerce/profile.js";
-import { FirstMeasureError } from "./errors.js";
+import { reportBasePrice, reportRushPrice, customerCommercialView, reportMarketRevision, reportExpeditingAllowed, reportExpediteTimeZone, reportPricesIncludeVat } from "../commerce/profile.js";
 import { currentExpeditePricing, pricingContext } from "./pricing_config.js";
 export type ReportExpediteProjectType = "residential" | "commercial" | "multifamily";
 
@@ -143,7 +142,6 @@ function reportExpeditePricingForWait(optionKey: unknown, waitMinutes: number): 
 }
 
 export function reportExpediteBaseUnitPrice(projectType: unknown, optionKey: unknown, waitMinutes = 180) {
-  if(isExpeditedReportExpediteKey(optionKey) && !reportExpeditingAllowed())throw new FirstMeasureError("international_expedite_disabled",403,"Expedited delivery is not currently available for properties outside the US and Canada.");
   const type = normalizeReportExpediteProjectType(projectType);
   const standardBase = type === "commercial" || type === "multifamily" ? 12 : 7;
   const pricing = reportExpeditePricingForWait(optionKey, waitMinutes);
@@ -171,13 +169,14 @@ function formatTurnaroundTime(date: Date) {
     hour: "numeric",
     minute: "2-digit",
     hour12: true,
-    timeZone: "America/Los_Angeles"
+    timeZone: reportExpediteTimeZone()
   });
 }
 
+/** Local date parts on the market's expedite clock (Pacific in the US and Canada, European elsewhere). */
 function pacificDateParts(date: Date) {
   const parts = new Intl.DateTimeFormat("en-US", {
-    timeZone: "America/Los_Angeles",
+    timeZone: reportExpediteTimeZone(),
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
@@ -311,7 +310,9 @@ export function buildReportExpediteOptions(input: {
     algorithm: "wait_linked_v1",
     report_market_revision: reportMarketRevision(),
     international_expedite_enabled: reportExpeditingAllowed(),
+    time_zone: reportExpediteTimeZone(),
     report_prices: customerCommercialView().report_prices,
+    vat_included: reportPricesIncludeVat(),
     pricing_revision: pricingContext.getStore()?.revision ?? 0,
     generated_at: generatedAt,
     project_type: projectType,

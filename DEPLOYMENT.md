@@ -19,6 +19,23 @@ October 21 Europe report pricing: [EUR 25 residential and EUR 40 per commercial/
 
 October 21 Europe signup: [signup chooses country (billing profile), phone calling code and language; wizard and project-type prices follow the account currency; operator-only commercial profile reassignment](deploy/digitalocean/development-europe-signup-20261021.md) records release `45143009` on branch `claude/lucid-yonath-777e5b` (not yet canonical) and the verified development rollout.
 
+October 22 RELEASE CANDIDATE on dev: [`codex/release-candidate-20261022` combines the five Linear fix branches (billing, portal, accounts, Europe and 1M8-228, editor paste and pitch shortcut) on production `8c908166`; tests match production's and it awaits the team click-through](deploy/digitalocean/development-release-candidate-20261022.md). Not on production.
+
+October 21 Customer billing fixes on dev: [an order placed while adding funds is submitted after payment (market revision sent, priced from the shown quote, paid sessions with tax credited, mismatches held for review), the top-up page uses the organization's currency, and the statement counts refunds apart from payments](deploy/digitalocean/development-billing-topup-20261021.md) records releases `14a6e3de` and `039723d8` (1M8-198, 1M8-200, 1M8-218) and the verified development rollout. Not on canonical yet.
+
+October 21 Portal regressions on dev: [1M8-202/205/206/208/210/211 and the platform sync gate (report tab highlight, cancelled-order layout and status, stale Processing summaries, drafts, contact placeholder, impersonation Settings row)](deploy/digitalocean/development-portal-regressions-20261021.md) records session-branch release `41b65307` on legacy, web and pool; not on canonical yet.
+
+October 21 Add another account, ordering permission, password visibility on dev: [adding a second account works again, people without order_reports get no New Report or mobile +, and every password field has a show/hide button](deploy/digitalocean/development-account-access-20261021.md) records release `78a839d1` (1M8-223/227/221) and the verified four-role development rollout.
+
+October 21 Customer portal accounts on dev: [admins no longer show as viewers, a tab opened as another account stops instead of showing the active account's orders, per-organization browser caches, invitations open the inviting company (and tell the inviter when the person already has an account), activation codes, the invite level and photo button, and round avatars](deploy/digitalocean/development-account-fixes-20261021.md) records release `61402f23` (1M8-201/203/204/207/209/212/213) and the verified four-role development rollout.
+October 22 Organization country of record (1M8-228): [every organization stores a country (signup, backfill, staff edit) usable by feature-flag country rules; production needs the backfill run at release](deploy/digitalocean/development-org-country-20261022.md) records release `a41a95c3` on branch `claude/lucid-yonath-777e5b` (not yet canonical) and the dev backfill.
+
+October 21 Customer country tracking (1M8-228): [the internal customer list, detail and queue cards show customer and order countries, with country filter and sort](deploy/digitalocean/development-customer-country-20261021.md) records release `39e25f28` on branch `claude/lucid-yonath-777e5b` (not yet canonical) and the verified development rollout.
+
+October 21 Europe report pricing: [EUR 25 residential and EUR 40 per commercial/multifamily structure, VAT included, EUR 5 gutters, US rush tiers in euros on a European clock, all in the operator pricing policy](deploy/digitalocean/development-europe-pricing-20261021.md) records release `cd556525` on branch `claude/lucid-yonath-777e5b` (not yet canonical) and the verified development rollout.
+
+October 21 Europe signup: [signup chooses country (billing profile), phone calling code and language; wizard and project-type prices follow the account currency; operator-only commercial profile reassignment](deploy/digitalocean/development-europe-signup-20261021.md) records release `45143009` on branch `claude/lucid-yonath-777e5b` (not yet canonical) and the verified development rollout.
+
 October 21 PRODUCTION HOTFIX: [`10d8d525` serves project artifacts byte for byte, so projects with saved undo history open again ("Load Error: Failed to fetch")](deploy/digitalocean/production-hotfix-artifact-encoding-20261020.md); compatibility and all six web nodes, verified.
 
 October 20 PRODUCTION RELEASE: [canonical `31f87be5` is live on compatibility, the worker and all six web nodes (platform, Full House and the roof 3D viewer off), with the 10-minute PDF sync changeover issue and rollback](deploy/digitalocean/production-release-20261020.md). Production now runs the canonical branch.
@@ -29,11 +46,21 @@ October 20 Original roof report layout on dev: [roof-only PDFs keep the producti
 
 October 20 Production release gates on dev: [the roof 3D viewer behind `firstmeasure.roof_model_viewer` (Full House always shows it) and the signup sandbox limited to development hosts](deploy/digitalocean/development-release-gates-20261020.md) records release `067deb12` and the verified four-role development rollout.
 
+October 21 Europe signup: [signup chooses country (billing profile), phone calling code and language; wizard and project-type prices follow the account currency; operator-only commercial profile reassignment](deploy/digitalocean/development-europe-signup-20261021.md) records release `45143009` on branch `claude/lucid-yonath-777e5b` (not yet canonical) and the verified development rollout.
+
 October 19 Full-house customer wall numbers: [the customer summary, CSV and Summary.pdf show the exterior summary for full-house orders, and a Full House order whose references fail to copy is cancelled with its refund](deploy/digitalocean/development-fh-customer-walls-20261019.md) records releases `41c43b98` and `42ca4abc` and the verified development rollout.
 
 October 19-20 Full-house production points: [a full house is scored at submission as roof points plus twice a wall-complexity proxy, and the drafter sees only a stopwatch until then](deploy/digitalocean/development-full-house-points-20261020.md) records releases `7c811330` and `03d57cc1` and the verified development rollouts.
 
 October 19-20 Full-house staff fixes: [the browser API base is the public origin, embedded QA and manager sign-off show and send the full-house checks, approval adopts the newest reviewed PDF revision, plus Full House badges and qualified-only reservation lists](deploy/digitalocean/development-full-house-staff-fixes-20261019.md) records release `c1240ed1` on all four development roles.
+
+October 21 Exterior report fixes: [front-facing cover, readable elevations, each face counted and labelled once, real opening areas, unassigned-material warning and a resizable configuration tray](deploy/digitalocean/development-report-fixes-20261021.md) records release `a6f649b3` and the verified development rollout.
+
+October 21 Editor paste and pitches: [pasting no longer leaves duplicate stacked lines on shared edges (1M8-226) and K toggles pitch labels (1M8-191)](deploy/digitalocean/development-paste-pitch-20261021.md) records release `a8154fde` and the verified development rollout.
+
+October 21 Pane divider drags at 60 fps: [views re-lay out once per frame and the 2D plan is not rebuilt until release](deploy/digitalocean/development-pane-resize-20261021.md) records release `0f066dc4` and the verified development rollout.
+
+October 21 Resoffit box select and exact snapping: [drag-select roof-contact lines in Resoffit, near-level grades place exactly level, and plane-mode corners land exactly on nearby edges](deploy/digitalocean/development-resoffit-box-snap-20261021.md) records release `0a3a740d` and the verified development rollout.
 
 October 20 Wall undo survives a reload: [a reload that resumes the browser's newer local model also resumes its own undo history, instead of jumping back to the last Save (and past a reset)](deploy/digitalocean/development-local-undo-history-20261020.md) records release `77bc9692` and the verified development rollout.
 
