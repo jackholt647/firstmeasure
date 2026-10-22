@@ -55,7 +55,7 @@ window.PlatformCommerce.onReady(function(){
   let activeMeasurementTab = 'model';
   let roofViewer = null;
   let roofViewerKey = '';
-  // The report view last taken from the route; a clicked tab is recorded here too.
+  // The route's report view as last applied or as it read after a chosen tab was pushed.
   let appliedRouteView = '';
   let activeInstantMountKey = '';
   let reportRequestModalState = null;
@@ -3548,8 +3548,8 @@ window.PlatformCommerce.onReady(function(){
     const available = measurementTabs();
     const next = available.find((entry) => entry.id === tab && !entry.disabled) || available.find((entry) => !entry.disabled) || available[0];
     activeMeasurementTab = next?.id || 'standard';
-    appliedRouteView = activeMeasurementTab;
     if (options.updateRoute !== false && !window.Portal?.navigation?.applying) window.Portal?.navigation?.push?.({ reportView:activeMeasurementTab }, { source:'project-report-view', ownedKeys:['reportView'] });
+    appliedRouteView = window.Portal?.navigation?.read?.().reportView || '';
     renderMeasurementsPanel();
   }
 
