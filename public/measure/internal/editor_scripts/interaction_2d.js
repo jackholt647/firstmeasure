@@ -3064,8 +3064,15 @@ function setup2DListeners() {
         }
         triggerLiveUpdate();
     });
+    // Fields keep their keys, except that undo/redo reach the editor from a field that holds no text: a focused
+    // color swatch (focus returns there after picking a color), checkbox or slider must not swallow Ctrl+Z.
+    window.editorKeyBlockedByField = (e, el = e.target) => {
+        if (!el?.closest?.('input,textarea,select,[contenteditable=true]')) return false;
+        const textEntry = !!el.closest('textarea,select,[contenteditable=true],input:not([type=color]):not([type=checkbox]):not([type=radio]):not([type=range]):not([type=button]):not([type=submit]):not([type=reset])');
+        return textEntry || !((e.ctrlKey || e.metaKey) && ['z', 'y'].includes(String(e.key).toLowerCase()));
+    };
     window.addEventListener('keydown', (e) => {
-        if (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA') return;
+        if (window.editorKeyBlockedByField(e, document.activeElement)) return;
         const K = window.KB_MAP;
         const key = e.key;
         const lowerKey = key.toLowerCase();

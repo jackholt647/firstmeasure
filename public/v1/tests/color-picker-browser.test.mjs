@@ -108,3 +108,25 @@ test('color conversions handle primary colors, shorthand, hue wrap and channel b
   for (const hex of ['#ff0000', '#00ff00', '#0000ff', '#ffffff', '#000000', '#123456', '#abcdef']) assert.equal(api.rgbToHex(api.hsvToRgb(api.rgbToHsv(api.hexToRgb(hex)))), hex);
   assert.equal(api.rgbToHex(api.hsvToRgb({ h: 360, s: 1, v: 1 })), '#ff0000');
 });
+
+test('palette shows remembered recent colors instead of stock primaries, merges page recents, and offers a screen eyedropper', async () => {
+  const browser = await chromium.launch({ executablePath: process.env.CHROME_PATH || 'C:/Program Files/Google/Chrome/Application/chrome.exe', headless: true });
+  try {
+    const page = await browser.newPage({ viewport: { width: 380, height: 650 } });
+    // A real origin, so localStorage works.
+    await page.route('https://picker.test/', route => route.fulfill({ contentType: 'text/html', body: '<main><input id="color" type="color" value="#123456"></main>' }));
+    await page.goto('https://picker.test/');
+    await page.evaluate(() => { window.firstMateRecentColors = () => ['#a1b2c3']; window.EyeDropper = class { async open() { return { sRGBHex: '#334455' }; } }; });
+    await page.addScriptTag({ content: await readFile(new URL('../../libraries/color-picker/firstmate-color-picker.js', import.meta.url), 'utf8') });
+    const swatches = () => page.locator('.fm-color-preset').evaluateAll(nodes => nodes.map(node => node.title));
+    await page.locator('#color').click();
+    assert.deepEqual(await swatches(), ['#a1b2c3'], 'no stock primaries; page recents appear');
+    await page.locator('[data-hex]').fill('#aabbcc'); await page.locator('.fm-color-done').click();
+    await page.locator('#color').click();
+    assert.deepEqual((await swatches()).slice(0, 2), ['#aabbcc', '#a1b2c3'], 'the chosen color is remembered first');
+    await page.getByRole('button', { name: 'Pick from screen' }).click();
+    await page.waitForFunction(() => document.querySelector('#color').value === '#334455');
+    await page.keyboard.press('Escape');
+    assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem('firstmate:recent-colors'))[0]), '#334455', 'a committed eyedropper pick is remembered');
+  } finally { await browser.close(); }
+});

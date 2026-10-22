@@ -23,6 +23,10 @@
     return rgb.map(n => Math.round((n + m) * 255));
   }
   let active = null, panel = null, hsv = null, initial = '', recent = [], observer = null, anchor = null, identity = null;
+  // Recently used colors persist per browser and fill the palette (people rarely want stock primaries).
+  const RECENT_KEY = 'firstmate:recent-colors', RECENT_LIMIT = 16;
+  function loadRecent() { try { const saved = JSON.parse(root.localStorage?.getItem(RECENT_KEY) || '[]'); return Array.isArray(saved) ? saved.map(normalize).filter(Boolean) : []; } catch (_) { return []; } }
+  function remember(value) { const hex = normalize(value); if (!hex) return; recent = [hex, ...loadRecent().filter(c => c !== hex)].slice(0, RECENT_LIMIT); try { root.localStorage?.setItem(RECENT_KEY, JSON.stringify(recent)); } catch (_) {} }
   const enhanced = new WeakSet();
   function enhance(input) {
     if (!input || enhanced.has(input)) return;
@@ -47,13 +51,14 @@
       .fm-color-plane{height:144px;position:relative;touch-action:none;border-radius:8px;background:linear-gradient(to top,#000,transparent),linear-gradient(to right,#fff,transparent),var(--hue);cursor:crosshair;outline-offset:3px}.fm-color-plane:focus-visible{outline:2px solid var(--primary,var(--fm-primary,#2563eb))}.fm-color-plane-dot{position:absolute;width:12px;height:12px;border:2px solid var(--on-primary,#fff);box-shadow:0 0 0 1px var(--primary,var(--fm-primary,#10182880));border-radius:50%;transform:translate(-50%,-50%);pointer-events:none}
       .fm-color-picker label{display:grid;gap:4px;font-size:11px}.fm-color-picker input:not([type=range]){width:100%;min-width:0;height:32px;padding:5px 7px;border:1px solid #d0d5dd;border-radius:7px;background:#fff;color:#101828}.fm-color-picker input:focus-visible,.fm-color-picker button:focus-visible{outline:2px solid var(--primary,var(--fm-primary,#2563eb));outline-offset:2px}
       .fm-color-hue{width:100%;margin:12px 0 8px;appearance:none;height:12px;background:linear-gradient(to right,red,#ff0,#0f0,#0ff,#00f,#f0f,red);border-radius:8px;cursor:pointer}.fm-color-hue::-webkit-slider-thumb{appearance:none;width:16px;height:16px;background:transparent;border:2px solid #fff;border-radius:50%;box-shadow:0 0 0 1px #10182880}.fm-color-hue::-moz-range-thumb{width:12px;height:12px;background:transparent;border:2px solid #fff;border-radius:50%;box-shadow:0 0 0 1px #10182880}
-      .fm-color-fields{display:grid;grid-template-columns:1.55fr repeat(3,1fr);gap:6px}.fm-color-presets{display:flex;gap:6px;flex-wrap:wrap;margin-top:12px}.fm-color-preset{width:23px;height:23px;border:1px solid #10182825;border-radius:6px;background:var(--color)}.fm-color-status{min-height:16px;margin:6px 0 0;font-size:11px;color:#b42318}.fm-color-actions{display:flex;justify-content:flex-end;gap:7px;margin-top:8px}.fm-color-actions button{padding:6px 10px;border:1px solid #d0d5dd;border-radius:7px;background:#fff;color:#344054}.fm-color-actions .fm-color-done{background:var(--primary,var(--fm-primary,#2563eb));border-color:transparent;color:var(--on-primary,#fff)}
+      .fm-color-fields{display:grid;grid-template-columns:1.55fr repeat(3,1fr);gap:6px}.fm-color-presets-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:12px;font-size:11px;color:#475467}.fm-color-presets-head button{height:26px;padding:0 9px;border:1px solid #d0d5dd;border-radius:7px;background:#fff;color:#101828;font-size:11px}.fm-color-presets-empty{font-size:11px;color:#667085}.fm-color-presets{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}.fm-color-preset{width:23px;height:23px;border:1px solid #10182825;border-radius:6px;background:var(--color)}.fm-color-status{min-height:16px;margin:6px 0 0;font-size:11px;color:#b42318}.fm-color-actions{display:flex;justify-content:flex-end;gap:7px;margin-top:8px}.fm-color-actions button{padding:6px 10px;border:1px solid #d0d5dd;border-radius:7px;background:#fff;color:#344054}.fm-color-actions .fm-color-done{background:var(--primary,var(--fm-primary,#2563eb));border-color:transparent;color:var(--on-primary,#fff)}
     `;
     document.head.appendChild(style);
   }
   function close(restoreFocus = true) {
     if (!active) return;
     const input = active; active = null;
+    if (normalize(input.value) && normalize(input.value) !== normalize(initial)) remember(input.value);
     input.setAttribute('aria-expanded', 'false');
     panel?.remove(); panel = null;
     if (restoreFocus && input.isConnected) input.focus({ preventScroll: true });
@@ -109,15 +114,23 @@
     hsv = rgbToHsv(hexToRgb(input.value)); input.setAttribute('aria-expanded', 'true');
     panel = document.createElement('section'); panel.className = 'fm-color-picker'; panel.setAttribute('role', 'dialog'); panel.setAttribute('aria-label', 'Choose color');
     panel.style.fontFamily = root.getComputedStyle(input).fontFamily;
-    panel.innerHTML = `<div class="fm-color-picker-head"><strong>Choose color</strong><button type="button" class="fm-color-close" aria-label="Close color picker">×</button></div><div class="fm-color-plane" role="slider" tabindex="0" aria-label="Saturation and brightness" aria-valuemin="0" aria-valuemax="100"><span class="fm-color-plane-dot"></span></div><input class="fm-color-hue" data-hue type="range" min="0" max="360" step="1" aria-label="Hue"><div class="fm-color-fields"><label>HEX<input data-hex spellcheck="false" maxlength="7" autocomplete="off"></label><label>R<input data-rgb type="number" min="0" max="255" aria-label="Red"></label><label>G<input data-rgb type="number" min="0" max="255" aria-label="Green"></label><label>B<input data-rgb type="number" min="0" max="255" aria-label="Blue"></label></div><div class="fm-color-presets" aria-label="Color palette"></div><p class="fm-color-status" role="status" aria-live="polite"></p><div class="fm-color-actions"><button type="button" data-reset>Reset</button><button type="button" class="fm-color-done">Done</button></div>`;
+    panel.innerHTML = `<div class="fm-color-picker-head"><strong>Choose color</strong><button type="button" class="fm-color-close" aria-label="Close color picker">×</button></div><div class="fm-color-plane" role="slider" tabindex="0" aria-label="Saturation and brightness" aria-valuemin="0" aria-valuemax="100"><span class="fm-color-plane-dot"></span></div><input class="fm-color-hue" data-hue type="range" min="0" max="360" step="1" aria-label="Hue"><div class="fm-color-fields"><label>HEX<input data-hex spellcheck="false" maxlength="7" autocomplete="off"></label><label>R<input data-rgb type="number" min="0" max="255" aria-label="Red"></label><label>G<input data-rgb type="number" min="0" max="255" aria-label="Green"></label><label>B<input data-rgb type="number" min="0" max="255" aria-label="Blue"></label></div><div class="fm-color-presets-head"><span>Recent colors</span>${'EyeDropper' in root ? '<button type="button" data-eyedropper title="Pick a color from anywhere on screen, such as a photo or texture">Pick from screen</button>' : ''}</div><div class="fm-color-presets" aria-label="Recent colors"></div><p class="fm-color-status" role="status" aria-live="polite"></p><div class="fm-color-actions"><button type="button" data-reset>Reset</button><button type="button" class="fm-color-done">Done</button></div>`;
     const brand = root.__APP?.branding || root.APP?.branding || {};
-    const presets = [...new Set([...(Array.isArray(brand.palette) ? brand.palette : []), brand.primaryColor, brand.secondaryColor, ...recent, '#111827', '#ffffff', '#ef4444', '#f59e0b', '#22c55e', '#3b82f6'].map(normalize).filter(Boolean))].slice(0, 16);
+    recent = loadRecent();
+    // A page may add its own recent colors (the exterior finishes palette keeps a per-project list).
+    let pageRecent = []; try { pageRecent = typeof root.firstMateRecentColors === 'function' ? root.firstMateRecentColors() || [] : []; } catch (_) {}
+    const presets = [...new Set([...recent, ...pageRecent, ...(Array.isArray(brand.palette) ? brand.palette : []), brand.primaryColor, brand.secondaryColor].map(normalize).filter(Boolean))].slice(0, RECENT_LIMIT);
     const grid = panel.querySelector('.fm-color-presets');
+    if (!presets.length) { const empty = document.createElement('span'); empty.className = 'fm-color-presets-empty'; empty.textContent = 'Colors you choose appear here.'; grid.appendChild(empty); }
     presets.forEach(hex => { const button = document.createElement('button'); button.type = 'button'; button.className = 'fm-color-preset'; button.style.setProperty('--color', hex); button.setAttribute('aria-label', 'Choose ' + hex); button.title = hex; button.addEventListener('click', () => choose(hex)); grid.appendChild(button); });
     panel.addEventListener('pointerdown', event => event.stopPropagation());
     panel.addEventListener('click', event => event.stopPropagation());
     panel.querySelector('.fm-color-close').addEventListener('click', () => close());
-    panel.querySelector('.fm-color-done').addEventListener('click', () => { recent = [active.value, ...recent.filter(hex => hex !== active.value)].slice(0, 8); close(); });
+    panel.querySelector('.fm-color-done').addEventListener('click', () => { if (active) remember(active.value); close(); });
+    panel.querySelector('[data-eyedropper]')?.addEventListener('click', async () => {
+      // Screen eyedropper: samples any pixel, including photos, textures and the 3D view.
+      try { const result = await new root.EyeDropper().open(); const raw = String(result?.sRGBHex || ''), rgb = raw.match(/\d+(\.\d+)?/g); choose(normalize(raw) || (rgb && rgb.length >= 3 ? rgbToHex(rgb.slice(0, 3).map(Number)) : null)); } catch (_) {}
+    });
     panel.querySelector('[data-reset]').addEventListener('click', () => choose(initial));
     panel.querySelector('[data-hex]').addEventListener('input', event => { const hex = normalize(event.target.value); if (/^#?[a-f\d]{6}$/i.test(event.target.value.trim()) && hex) choose(hex); });
     panel.querySelector('[data-hex]').addEventListener('change', event => { const hex = normalize(event.target.value); if (!hex) { panel.querySelector('[role=status]').textContent = 'Enter a 3 or 6 digit hex color.'; event.target.setAttribute('aria-invalid', 'true'); } else { event.target.removeAttribute('aria-invalid'); choose(hex); event.target.value = hex; } });
@@ -157,7 +170,7 @@
     observer = new MutationObserver(records => { for (const record of records) for (const node of record.addedNodes) refresh(node); });
     observer.observe(document.documentElement, { childList: true, subtree: true });
   }
-  root.FirstMateColorPicker = { open, close, refresh, normalize, rgbToHex, hexToRgb, rgbToHsv, hsvToRgb };
+  root.FirstMateColorPicker = { open, close, refresh, normalize, rgbToHex, hexToRgb, rgbToHsv, hsvToRgb, remember, recentColors: loadRecent };
   if (typeof document !== 'undefined') {
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', install, { once: true }); else install();
   }
