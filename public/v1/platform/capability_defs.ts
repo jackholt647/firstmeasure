@@ -84,6 +84,8 @@ const definitions: CapabilityDefinition[] = [
   { key: "platform.people_access", kind: "feature", label: "Platform People & Access", description: "Use the platform people, workforce and access management UI instead of the familiar FirstMeasure Users screen.", requires: ["platform.expanded_access"], default: false },
   // Branches and regions (docs/architecture/branches.md). Off: the organization has one implicit branch and nothing about branches shows.
   { key: "platform.multiple_branches", kind: "feature", category: "Platform & Appearance", label: "Multiple Branches", description: "Run more than one branch, group branches into regions, and limit what people see and manage to their own branches.", requires: ["platform.expanded_access"], default: false },
+  // Session replay (docs/architecture/session-replay.md). Records every member's pages; never part of a preset.
+  { key: "platform.session_replay", kind: "feature", category: "Platform & Appearance", label: "Session Replay", description: "Record every member's pages (page changes, pointer, clicks and typing, with passwords and card fields masked) so platform administrators can replay sessions.", default: false },
   // --- Apps: top-level product surfaces -----------------------------------
   {
     key: "apps.notifications",

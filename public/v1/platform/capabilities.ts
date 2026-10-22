@@ -149,7 +149,7 @@ export type CapabilityPreset = {
 const firstMeasureCapabilities = new Set([
   "mobile.app_download", "mobile.developer_downloads",
   "platform.expanded_access", "apps.projects", "apps.project_map", "apps.firstmeasure", "apps.billing", "apps.referrals",
-  "platform.left_column_settings",
+  "platform.left_column_settings", "platform.session_replay",
   "platform.separate_user_section", "platform.cobrand_sidebar_logo",
   "platform.new_button_mode", "platform.new_button_items",
   "platform.storage_limits", "platform.free_storage_gb", "platform.purchasable_storage",
@@ -661,10 +661,13 @@ function presetValues(overrides: Record<string, CapabilityValue>) {
   return { ...baselineOffValues(), ...overrides };
 }
 
+// Recording every member's screens is switched on by itself, never by a preset.
+const PRESET_EXCLUDED = new Set(["platform.session_replay"]);
+
 function everythingOnValues() {
   const values: Record<string, CapabilityValue> = {};
   for (const node of valueCapabilities()) {
-    values[node.key] = node.type === "boolean" ? true : (node.default as CapabilityValue);
+    values[node.key] = node.type === "boolean" ? !PRESET_EXCLUDED.has(node.key) : (node.default as CapabilityValue);
   }
   return values;
 }
@@ -965,7 +968,7 @@ export function firstMeasureSignupValues(values: Record<string, CapabilityValue>
     "platform.expanded_access", "platform.more_apps", "apps.notifications",
     "platform.money", "money.merchant_processing", "apps.assistant",
     "platform.connections", "platform.left_column_settings", "platform.project_boards",
-    "platform.project_stages_view", "platform.manual_project_stage_movement"
+    "platform.project_stages_view", "platform.manual_project_stage_movement", "platform.session_replay"
   ].map(key => [key, false])), "firstmeasure.report_localization": true };
 }
 

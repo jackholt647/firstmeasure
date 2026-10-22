@@ -364,6 +364,19 @@ connections per site across all tabs, and each extra stream silently starves
 ordinary requests. Run `tests/realtime-single-stream.test.ts` and
 `tests/view-presence-client.test.mjs` for changes here.
 
+## Session replay
+
+Read [session replay](docs/architecture/session-replay.md) before changing what
+pages record, the replay viewer, or anything `platform-api.js` loads on every
+page. Recording is the organization feature `platform.session_replay`, off by
+default and never part of a preset; only platform administrators switch it on
+or read replays. Apps never mark elements for tracking: add `data-fmr-mask` to
+a field that must not be recorded and `data-fmr-ignore` to UI that must not
+appear in replays. The recorder posts chunks; it never opens a stream. Bump the
+`?v=` values when a library file changes. Run
+`tests/session-replay-browser.test.mjs` and `tests/session-replay.test.ts` for
+changes here.
+
 ## Project window content ownership
 
 Read [project content layout](docs/architecture/project-content-layout.md) before changing project modal tabs or sidebars. Overview owns the project-details column inside its tab content. Other apps own their own content rails. There is no configurable shared modal left region or left-column override API; do not recreate one.

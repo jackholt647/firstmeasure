@@ -130,6 +130,7 @@ import {
 } from "./portal_writes.js";
 import { registerContactImportRoutes } from "./contact_import/api.js";
 import { registerAttentionRoutes } from "./attention.js";
+import { registerSessionReplayRoutes } from "../session-replay/api.js";
 import {
   addIdentityMembership,
   createOrganization,
@@ -669,6 +670,7 @@ app.get("/auth/google/config", async () => ({
   registerContactRoutes(app);
   await registerContactImportRoutes(app, { invalidateSearchCache: invalidatePlatformSearchCache });
   await registerAttentionRoutes(app);
+  await registerSessionReplayRoutes(app);
 
   app.get("/", async () => ({
     ok: true,

@@ -7,6 +7,42 @@ optimization here must return exactly the same results.
 Add an entry when you knowingly ship something that reads more than it needs, repeats work, or will not scale, and
 link the entry from the architecture doc's "Not built" section. Remove an entry when it is done.
 
+## Session replay chunk bodies live in the database
+
+**Today.** Every replay chunk body (gzip JSON, a few KB each, one every 5 seconds per active person) is a `BYTEA` row
+in `session_replay_chunks` (`session-replay/storage.ts`), and the viewer reads them back through the platform API as
+base64.
+
+**Where the change goes.** Write chunk bodies and blobs to object storage (Spaces) under
+`<org>/<session>/<page>/<seq>.json.gz`, keep only the metadata rows, and let the viewer fetch signed URLs. The bytes
+stored and replayed stay the same.
+
+**Why it can wait.** It only records organizations a platform administrator switched on, and dev volumes are small.
+Database storage costs about five times object storage, so it matters before replay is on for many organizations.
+(docs/architecture/session-replay.md, "Not built")
+
+## Session replay seeks back by rebuilding the page
+
+**Today.** Seeking backwards in the viewer rebuilds the page from its snapshot and re-applies every event up to the
+new time (`applyTo` in `public/libraries/session-replay/session-replay-player.js`).
+
+**Where the change goes.** Keep a cloned keyframe of the mirror (DOM plus id map) every minute of a page and start a
+backwards seek from the nearest one. The replayed DOM stays the same.
+
+**Why it can wait.** Rebuilding takes tens of milliseconds for the pages recorded so far; it matters for hour-long
+single-page sessions. (docs/architecture/session-replay.md, "Replay and the viewer")
+
+## Session replay asks for its configuration on every page load
+
+**Today.** Every signed-in page load sends one `GET /v1/platform/session-replay/config`
+(`session-replay-loader.js`), which resolves the organization's capabilities, even when replay is off.
+
+**Where the change goes.** Put the flag in the page bootstrap (`window.__APP` in `portal/index.php` and the other
+shells) and only fall back to the request where the bootstrap does not carry it. The decision stays the same.
+
+**Why it can wait.** One small authenticated request per page load next to the dozens a page already makes.
+(docs/architecture/session-replay.md, "How a page is recorded")
+
 ## Exterior PDF dimension drawings rasterize the whole house per face
 
 **Today.** With house context on, each Wall/Trim Dimensions drawing rasterizes every house face (walls, roof,

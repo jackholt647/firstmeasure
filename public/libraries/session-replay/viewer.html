@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en" data-fmr-no-record>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Session Replay</title>
+<link rel="stylesheet" href="session-replay-viewer.css?v=20261022-1">
+</head>
+<body>
+<div class="app" id="app">
+  <aside class="side">
+    <header class="brand">
+      <span class="logo" aria-hidden="true"></span>
+      <div><div class="title">Session replay</div><div class="sub" id="who">Checking access…</div></div>
+    </header>
+    <section class="org" id="org-panel" hidden>
+      <div class="org-row">
+        <div class="org-name" id="org-name"></div>
+        <label class="switch" title="Record every member of this organization">
+          <input type="checkbox" id="org-toggle"><span></span>
+        </label>
+      </div>
+      <div class="org-hint" id="org-hint"></div>
+      <button class="link" id="org-more" type="button">Other organizations…</button>
+      <div class="org-picker" id="org-picker" hidden>
+        <input type="search" id="org-search" placeholder="Search organizations by name or id" autocomplete="off">
+        <div class="org-list" id="org-list"></div>
+      </div>
+    </section>
+    <section class="sessions">
+      <div class="sessions-head">
+        <input type="search" id="session-search" placeholder="Filter by person" autocomplete="off">
+        <select id="session-scope" title="Which organizations">
+          <option value="current">This organization</option>
+          <option value="all">All organizations</option>
+        </select>
+      </div>
+      <div class="session-list" id="session-list"><div class="empty">Loading…</div></div>
+    </section>
+  </aside>
+
+  <main class="main">
+    <div class="topbar">
+      <div class="crumbs"><span id="session-title">No session open</span><span class="url" id="page-url"></span></div>
+      <div class="badges"><span class="badge live" id="live-badge" hidden>LIVE</span><span class="badge" id="skip-badge" hidden>Skipping idle</span></div>
+    </div>
+    <div class="stage" id="stage">
+      <div class="placeholder" id="placeholder">
+        <p><strong>Pick a session</strong> on the left, or run <code>FMReplay.viewer()</code> in a recorded tab's console to follow it live here.</p>
+      </div>
+    </div>
+    <div class="controls">
+      <button class="icon" id="play" type="button" title="Play / pause (space)" disabled>▶</button>
+      <div class="time"><span id="time-now">0:00</span><span class="muted"> / </span><span id="time-total">0:00</span></div>
+      <div class="timeline" id="timeline"><div class="track" id="track"></div><div class="head" id="playhead"></div><div class="hover-time" id="hover-time" hidden></div></div>
+      <select id="speed" title="Speed">
+        <option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option><option value="4">4×</option><option value="8">8×</option><option value="16">16×</option>
+      </select>
+      <label class="check" title="Jump over stretches with no activity"><input type="checkbox" id="skip-idle" checked> Skip idle</label>
+      <label class="check" title="Draw the pointer's recent path"><input type="checkbox" id="show-trail" checked> Trail</label>
+      <button class="pill" id="follow" type="button" title="Keep playing as new data arrives" hidden>Follow live</button>
+    </div>
+  </main>
+
+  <aside class="inspector">
+    <nav class="tabs" role="tablist">
+      <button type="button" class="tab active" data-tab="events">Events</button>
+      <button type="button" class="tab" data-tab="storage">Storage</button>
+      <button type="button" class="tab" data-tab="performance">Performance</button>
+      <button type="button" class="tab" data-tab="device">Device</button>
+    </nav>
+    <div class="panel" data-panel="events"><div class="event-list" id="event-list"><div class="empty">No session open.</div></div></div>
+    <div class="panel" data-panel="storage" hidden><div id="storage"></div></div>
+    <div class="panel" data-panel="performance" hidden><div id="performance"></div></div>
+    <div class="panel" data-panel="device" hidden><div id="device"></div></div>
+  </aside>
+</div>
+<div class="toast" id="toast" hidden></div>
+<script src="session-replay-codec.js?v=20261022-1"></script>
+<script src="session-replay-player.js?v=20261022-1"></script>
+<script src="session-replay-viewer.js?v=20261022-1"></script>
+</body>
+</html>
