@@ -17,6 +17,13 @@ both are measured. The line-split path could produce the same duplicate.
 - Pasted lines in line selection mode now merge onto existing points too (before, they stayed separate overlapping
   points and lines).
 - A held or repeated Ctrl+V, or a second one while the clipboard read is pending, no longer stacks an identical copy.
+- Follow-up `6d0dc51b`: copying a selection that already holds stacked duplicates copies each line once, and a paste
+  removes any duplicate connections in the geometry, including ones an older clipboard or project brought in.
+
+Ruled out: clipboard handling running twice. The 2D listeners are installed once (`are2DListenersAttached`), there is
+no `paste` event handler, and Ctrl+V reaches `handlePaste` from one keydown only. A point-mode paste snaps the whole
+group so one point lands exactly on an existing point, and every pasted point near an existing one then merges. That is
+why only some lines, of any type, were doubled: those whose two endpoints both landed on already-connected points.
 
 **Test.** A Node harness running the shipped `finalizeMoveLogic` on a square pasted against an existing square: the
 previous code leaves 8 lines with 1 duplicate; the new code leaves 7 lines, no duplicates, in point and line modes.
@@ -31,6 +38,7 @@ where the PITCH button is hidden.
 ## Rollout
 
 `interaction_2d.js`, `main.js` and `scene_3d.js` were 3-way merged onto live release `8c908166` on legacy, web and
-pool (`output/paste-pitch-20261021/ship.sh`). Every role staged, activated and verified. The served files contain the
+pool (`output/paste-pitch-20261021/ship.sh`). The follow-up `6d0dc51b` (`interaction_2d.js` only) was merged onto another session's newer live
+release `d706f831` the same way. Every role staged, activated and verified. The served files contain the
 change. Editor scripts are cache-busted by `fm_editor_asset_version`, so no key changed. Worker and production were not
 changed. Not checked in a signed-in browser.
