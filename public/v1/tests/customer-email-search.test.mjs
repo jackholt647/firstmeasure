@@ -5,7 +5,8 @@ const src=await readFile('./dist/internal/api.js','utf8');
 const a=src.indexOf('async function organizationIdsMatchingCustomerEmail('),b=src.indexOf('function sortCustomerDashboardRows(',a);
 let calls=0,sql,params;
 const ctx=vm.createContext({database:{isFirstMeasurePostgresEnabled:()=>true,queryPostgres:async(s,p)=>{calls++;sql=s;params=p;return {rows:[{organization_id:'a'}]}}}});
-vm.runInContext(src.slice(a,b).replace('await import("../src/database/postgres.js")','database'),ctx);
+// The slice can include neighbouring exported helpers; a vm script cannot declare exports.
+vm.runInContext(src.slice(a,b).replace('await import("../src/database/postgres.js")','database').replace(/^export /gm,''),ctx);
 assert.equal((await vm.runInContext("organizationIdsMatchingCustomerEmail([], 'x')",ctx)).size,0);
 const result=await vm.runInContext("organizationIdsMatchingCustomerEmail(['a','b'], 'USER_%@1M8.AI')",ctx);
 assert.equal(calls,1);assert.equal(result.has('a'),true);assert.equal(result.has('b'),false);
