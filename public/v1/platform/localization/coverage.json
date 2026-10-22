@@ -90,7 +90,7 @@
     {
       "file": "public/libraries/apps/billing/app.js",
       "namespace": "billing",
-      "references": 107,
+      "references": 111,
       "candidates": 0,
       "edits": 0
     },
@@ -349,7 +349,7 @@
     {
       "file": "public/libraries/apps/measurements/project.js",
       "namespace": "measurements",
-      "references": 294,
+      "references": 295,
       "candidates": 0,
       "edits": 0
     },
@@ -615,7 +615,7 @@
     {
       "file": "public/libraries/apps/project-request/app.js",
       "namespace": "project-request",
-      "references": 392,
+      "references": 393,
       "candidates": 1,
       "edits": 3
     },
@@ -629,7 +629,7 @@
     {
       "file": "public/libraries/apps/projects/viewer.js",
       "namespace": "projects",
-      "references": 344,
+      "references": 345,
       "candidates": 0,
       "edits": 0
     },
@@ -706,7 +706,7 @@
     {
       "file": "public/libraries/apps/settings/company.js",
       "namespace": "settings",
-      "references": 1328,
+      "references": 1330,
       "candidates": 131,
       "edits": 76
     },
