@@ -6,6 +6,8 @@ October 19-20 Full-house production points: [a full house is scored at submissio
 
 October 19-20 Full-house staff fixes: [the browser API base is the public origin, embedded QA and manager sign-off show and send the full-house checks, approval adopts the newest reviewed PDF revision, plus Full House badges and qualified-only reservation lists](deploy/digitalocean/development-full-house-staff-fixes-20261019.md) records release `c1240ed1` on all four development roles.
 
+October 22 Exterior PDF rework and roof materials: [four elevations on one page each, roof-style two-column tables, chimney caps, trim and no soffit z-fighting, dimension context with an org toggle, roof materials and a textured cover](deploy/digitalocean/development-report-roof-20261022.md) records release `60552c1d` and the verified development rollout.
+
 October 21 Exterior report fixes: [front-facing cover, readable elevations, each face counted and labelled once, real opening areas, unassigned-material warning and a resizable configuration tray](deploy/digitalocean/development-report-fixes-20261021.md) records release `a6f649b3` and the verified development rollout.
 
 October 21 Pane divider drags at 60 fps: [views re-lay out once per frame and the 2D plan is not rebuilt until release](deploy/digitalocean/development-pane-resize-20261021.md) records release `0f066dc4` and the verified development rollout.
