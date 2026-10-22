@@ -43,6 +43,37 @@ shells) and only fall back to the request where the bootstrap does not carry it.
 **Why it can wait.** One small authenticated request per page load next to the dozens a page already makes.
 (docs/architecture/session-replay.md, "How a page is recorded")
 
+## Session replay flows scan steps
+
+**Today.** `replay_flows` reads a screen's click steps (up to 200,000, ordered by session) and counts paths in memory
+(`flows` in `public/v1/session-replay/insights/query.ts`). At 5,000 sessions that is 250 ms.
+
+**Where the change goes.** Count paths of length 2 to 4 per screen and day at index time, next to the transitions,
+and read longer paths from a random sample of sessions. The paths and counts reported stay the same for the lengths
+kept.
+
+**Why it can wait.** It answers in a quarter of a second at today's volumes and is not on any page.
+(docs/architecture/session-replay-search.md, "Not built")
+
+## Session replay friction groups error messages per call
+
+**Today.** `replay_friction` reads up to 20,000 error steps of the period and groups messages in memory.
+
+**Where the change goes.** A per-day aggregate of error messages (normalised key, screen, count, sessions) kept with
+the other aggregates in `insights/store.ts`. The lists returned stay the same.
+
+**Why it can wait.** About 100 ms at 5,000 sessions. (docs/architecture/session-replay-search.md, "Not built")
+
+## Session replay indexing lists sessions newest first
+
+**Today.** Each minute the index job pages through recordings newest first, up to 2,000, to find sessions that are
+new or changed since they were indexed (`indexPendingReplaySessions` in `insights/jobs.ts`).
+
+**Where the change goes.** Keep a watermark of the newest fully indexed `last_at` and read only past it, plus a queue
+for re-indexing after an `INDEX_VERSION` change. The sessions indexed stay the same.
+
+**Why it can wait.** Two small queries a minute at today's volumes.
+
 ## Exterior PDF dimension drawings rasterize the whole house per face
 
 **Today.** With house context on, each Wall/Trim Dimensions drawing rasterizes every house face (walls, roof,

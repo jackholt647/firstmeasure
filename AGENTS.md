@@ -377,6 +377,17 @@ appear in replays. The recorder posts chunks; it never opens a stream. Bump the
 `tests/session-replay-browser.test.mjs` and `tests/session-replay.test.ts` for
 changes here.
 
+## Session replay search
+
+Read [session replay search](docs/architecture/session-replay-search.md) before
+changing how recordings are indexed or the tools a language model uses to
+question them. The index is derived from recordings alone and can always be
+rebuilt (bump `INDEX_VERSION`); recordings stay exact and are only opened to
+drill into a moment. Element and screen ids must stay stable across sessions
+and organizations. Field values never enter the index. Tools are for platform
+administrators only. Run `tests/session-replay-insights-browser.test.mjs` for
+changes here.
+
 ## Project window content ownership
 
 Read [project content layout](docs/architecture/project-content-layout.md) before changing project modal tabs or sidebars. Overview owns the project-details column inside its tab content. Other apps own their own content rails. There is no configurable shared modal left region or left-column override API; do not recreate one.

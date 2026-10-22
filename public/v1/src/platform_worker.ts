@@ -46,7 +46,8 @@ const jobs: Array<{ name: string; interval: number; run: () => Promise<unknown> 
   { name: "reporting", interval: 10000, run: () => stats.runStatsSchedulerTick() },
   { name: "agent-jobs", interval: 1000, run: () => agents.drainChannelAgentJobs() },
   { name: "agent-awaits", interval: 60000, run: () => agents.sweepAgentAwaits() },
-  { name: "agent-schedules", interval: 60000, run: () => agents.sweepAgentSchedules() }
+  { name: "agent-schedules", interval: 60000, run: () => agents.sweepAgentSchedules() },
+  { name: "session-replay-index", interval: 60000, run: async () => (await import("../session-replay/insights/jobs.js")).indexPendingReplaySessions({ log: (message, error) => app.log.warn({ error }, message) }) }
 ];
 let stopping = false;
 let lastTickAt = Date.now();
