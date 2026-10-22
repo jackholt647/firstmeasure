@@ -65,6 +65,10 @@ function chimneyCapColors(objects){
 }
 function materialFor(finish,base,context){
  const f=root.ExteriorFinishes.resolve(finish),type=f.material;
+ // Sticker trim is painted wood: the trim default (or its own colour) with a satin sheen, never the flat scanned-wood white.
+ if(type==='opening-trim'&&!base)return new THREE.MeshPhysicalMaterial({color:color(f.color),roughness:.42,metalness:0,clearcoat:.3,clearcoatRoughness:.4,side:THREE.DoubleSide,envMapIntensity:.9});
+ // An untyped sticker that was never painted takes the untyped main colour instead of the wall behind it.
+ if(finish.feature&&!finish.featureType&&!base&&(!finish.material||finish.material==='default'))return new THREE.MeshStandardMaterial({color:color(finish.color||root.ExteriorFinishes.stickerColor?.(undefined,'main')||'#deddd6'),roughness:.6,metalness:0,side:THREE.DoubleSide,envMapIntensity:.7});
  if(finish.chimneyCap&&!finish.color&&context?.capColors?.has(finish.chimney))return new THREE.MeshStandardMaterial({color:context.capColors.get(finish.chimney).clone(),roughness:.88,metalness:0,side:THREE.DoubleSide,envMapIntensity:.6});
  // Ridge and hip caps: the category's cap map, a shade off the roof color.
  if(type==='shingles'&&finish.roofCap&&!base){const F=root.ExteriorFinishes,spec=F.roofMaterials[f.category],cap=F.roofCapSpecs[f.category],m=new THREE.MeshStandardMaterial({color:color(f.color).multiplyScalar(cap?.shade||.92),roughness:spec.roughness,metalness:spec.metalness,side:THREE.DoubleSide,envMapIntensity:spec.metalness>.1?.5:.8,polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-2});m.map=F.roofCapTexture(f.category);const normal=F.roofCapNormalMap(f.category);if(normal){m.normalMap=normal;m.normalScale=new THREE.Vector2(.9,.9);}return m;}
@@ -114,11 +118,11 @@ function openingDetails(source,target,context){
  const F=root.ExteriorFinishes,doorSpec=F?.doorFinishes?.[type];
  if(doorSpec){
   const outline=data.points.map(p=>{const a=W.inFrame(frame,p);return {x:a.x-b.left,y:a.y-b.bottom};}),inset=F.doorNormalMap(outline,type,rect);
-  target.material.dispose();target.material=new THREE.MeshStandardMaterial({color:color(data.color||doorSpec.color),roughness:doorSpec.roughness,metalness:0,side:THREE.DoubleSide,envMapIntensity:.7});
+  target.material.dispose();target.material=new THREE.MeshStandardMaterial({color:color(data.color||F.stickerColor?.(type,'main')||doorSpec.color),roughness:doorSpec.roughness,metalness:0,side:THREE.DoubleSide,envMapIntensity:.7});
   if(inset){target.material.normalMap=inset;target.material.normalScale=new THREE.Vector2(1,1);}
  }
  if(!rect)return;
- const white=new THREE.MeshStandardMaterial({color:color(data.color||(type==='skylight'?'#41494e':'#ebe9e1')),roughness:.38,metalness:.08,envMapIntensity:.75});
+ const white=new THREE.MeshStandardMaterial({color:color(doorSpec?(F.stickerColor?.(type,'trim')||'#ebe9e1'):data.color||(type==='skylight'?'#41494e':'#ebe9e1')),roughness:.38,metalness:.08,envMapIntensity:.75});
  const rubber=glazed?new THREE.MeshStandardMaterial({color:color('#202829'),roughness:.8}):null;
  const box=(x,y,z,w,h,d,m=white)=>{const o=new THREE.Mesh(bevelBox(w,h,d,.006),m);o.position.set(x,y,z);o.castShadow=o.receiveShadow=true;group.add(o);return o;};
  const frameWidth=Math.min(.055,width*.08,height*.07);
@@ -144,6 +148,19 @@ function openingDetails(source,target,context){
   for(let y=.04;y<height-.03;y+=.07){const l=box(width/2,y,.025,width-.02,.045,.035);l.rotation.x=-.3;}
  }
 }
+const TRIM_PROUD=.015;
+const unitOf=context=>context.vector?context.vector({x:1,y:0,z:0}).distanceTo(context.vector({x:0,y:0,z:0})):1;
+// A flat trim polygon (world positions, any winding) becomes a closed slab offset by +-depth along its normal.
+function trimSlab(geometry,depth){
+ const pos=geometry.attributes.position,index=geometry.index,count=index?index.count:pos.count,at=i=>new THREE.Vector3().fromBufferAttribute(pos,index?index.getX(i):i),tris=[];
+ for(let i=0;i+2<count;i+=3)tris.push([at(i),at(i+1),at(i+2)]);
+ const n=new THREE.Vector3();for(const [a,b,c]of tris)n.add(new THREE.Vector3().subVectors(b,a).cross(new THREE.Vector3().subVectors(c,a)));if(n.lengthSq()<1e-20)return geometry.clone();n.normalize();
+ const up=n.clone().multiplyScalar(depth),down=up.clone().negate(),out=[],edges=new Map(),key=(a,b)=>[a,b].map(v=>v.toArray().map(x=>x.toFixed(6)).join(',')).join('|');
+ for(const [a,b,c]of tris){out.push(a.clone().add(up),b.clone().add(up),c.clone().add(up),a.clone().add(down),c.clone().add(down),b.clone().add(down));for(const [p,q]of [[a,b],[b,c],[c,a]]){const k=key(q,p);if(edges.has(k))edges.delete(k);else edges.set(key(p,q),[p,q]);}}
+ for(const [p,q]of edges.values())out.push(p.clone().add(down),q.clone().add(down),q.clone().add(up),p.clone().add(down),q.clone().add(up),p.clone().add(up));
+ const slab=new THREE.BufferGeometry().setFromPoints(out);slab.computeVertexNormals();
+ return slab;
+}
 const isBase=o=>o.userData.baseId!==undefined||o.userData.pickLayer==='base',isGrade=o=>o.userData.pickLayer==='grade';
 function presentationCopy(o,context,target){
   const g=o.geometry.clone();g.applyMatrix4(o.matrixWorld);g.computeVertexNormals();if(g.attributes.uv)g.setAttribute('uv2',g.attributes.uv.clone());
@@ -152,6 +169,10 @@ function presentationCopy(o,context,target){
   // Resolve only coplanar depth ties; retain measured heights and grade slopes.
   if(base||grade){m.polygonOffset=true;m.polygonOffsetFactor=base?-1:1;m.polygonOffsetUnits=base?-1:1;copy.renderOrder=base?1:0;}
   copy.castShadow=!grade;copy.receiveShadow=true;copy.name='rendered-'+(o.name||(base?'base':o.userData.pickLayer)||'surface');copy.userData.presentationLayer=base?'base':o.userData.pickLayer;
+  // Sticker trim is a thin slab straddling the wall plane, so its face stands TRIM_PROUD off the wall on whichever
+  // side is outside and never shares a depth with the wall or the door; stickers win remaining coplanar ties.
+  if(o.userData.openingTrim||o.userData.exteriorFinish?.material==='opening-trim'){copy.geometry=trimSlab(g,TRIM_PROUD*(context.unit||unitOf(context)));g.dispose();m.polygonOffset=true;m.polygonOffsetFactor=m.polygonOffsetUnits=-2;copy.renderOrder=2;}
+  else if(o.userData.exteriorFeature||o.userData.exteriorFinish?.feature){m.polygonOffset=true;m.polygonOffsetFactor=m.polygonOffsetUnits=-1;copy.renderOrder=1;}
   target.add(copy);openingDetails(o,copy,context);return copy;
 }
 function releaseScene(value){if(!value)return;value.groundImage?.material.map?.dispose();const geometries=new Set(),materials=new Set();value.scene.traverse(o=>{if(o.geometry)geometries.add(o.geometry);for(const m of o.material?(Array.isArray(o.material)?o.material:[o.material]):[])materials.add(m);});geometries.forEach(g=>g.dispose());materials.forEach(m=>m.dispose());if(value.sun!==active?.sun)value.sun?.shadow.map?.dispose();}
@@ -235,5 +256,5 @@ function mountHUD(){
  const advanced=document.getElementById('wall-advanced'),main=document.getElementById('exterior-main-toolbar')||document.getElementById('global-toolbar')||document.body;
  if(advanced?.parentElement===main)advanced.insertAdjacentElement('afterend',graphics);else main.appendChild(graphics);status();
 }
-root.ExteriorRendered={get captureStatus(){return {active:!!active,pending,errors:[...errors]};},get settings(){return {...settings};},presentationCopy,materialFor,assetsReady,loadEnvironment,lightRig,placeLights,chimneyCapColors,averageFinishColor,PACK_MEANS,update,render,exportImage,stop(){update(null,{enabled:false});},get active(){return !!active;}};
+root.ExteriorRendered={trimSlab,TRIM_PROUD,get captureStatus(){return {active:!!active,pending,errors:[...errors]};},get settings(){return {...settings};},presentationCopy,materialFor,assetsReady,loadEnvironment,lightRig,placeLights,chimneyCapColors,averageFinishColor,PACK_MEANS,update,render,exportImage,stop(){update(null,{enabled:false});},get active(){return !!active;}};
 })(window);

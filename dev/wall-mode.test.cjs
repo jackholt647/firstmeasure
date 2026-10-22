@@ -465,6 +465,20 @@ test('the roof material persists with the finish defaults, undoes, redoes and su
  f.elements.get('wall-rebuild').onclick();assert.equal(materials.roof().category,'slate');const saved=f.ctx.WallMode.serialize();f.ctx.WallMode.restore('fixture',{exteriorsWalls:saved});assert.deepEqual(plain(materials.roof()),{category:'slate',color:'#5e4f5d'});assert.deepEqual(plain(f.ctx.WallMode.finishDefaults.roof),{category:'slate',color:'#5e4f5d'});
 });
 
+test('sticker defaults persist with the finish defaults, undo, redo and survive From Roof',()=>{
+ const F=(()=>{const c={THREE:{},document:{}};c.window=c;vm.createContext(c);vm.runInContext(fs.readFileSync(require.resolve('../public/measure/internal/editor_scripts/exterior_finishes.js'),'utf8'),c);return c.ExteriorFinishes;})();
+ let materials;const f=fixture(true,{ExteriorFinishes:F,ExteriorMaterials:{siding:{},unassigned:{}},WallFeatures:{mountUI:(a,b,c,m)=>materials=m,closeUI(){}}});f.ctx.activeGeometry.connections[0].type='eave';f.ctx.WallMode.setEnabled(true);f.soffits[1].onclick();
+ const plain=v=>JSON.parse(JSON.stringify(v));assert.equal(materials.stickers().doorMain,F.doorFinishes.door.color,'seeded from the door finishes');
+ materials.defaults({material:'siding',color:'#123456',trimColor:'#abcdef'});assert.equal(materials.stickers().windowTrim,'#abcdef','trims follow the wall trim colour until set');
+ const trims={doorTrim:'#224466',windowTrim:'#224466',garageTrim:'#224466',untypedTrim:'#224466'};materials.stickers(trims);materials.stickers({garageMain:'#663322'});
+ assert.deepEqual(plain(f.ctx.WallMode.serialize().finishDefaults.stickers),{...trims,garageMain:'#663322'},'saved with the other defaults');
+ assert.equal(materials.stickers({doorMain:'red'}).doorMain,F.doorFinishes.door.color,'invalid colours are refused');assert.equal(materials.stickers({windowMain:'#000000'}).windowTrim,'#224466','unknown pieces are refused');
+ materials.roof({category:'slate',color:'#5e4f5d'});assert.equal(materials.stickers().garageMain,'#663322','other defaults keep the stickers');
+ const key=k=>f.listeners['window:keydown']({key:k,ctrlKey:true,target:{closest:()=>false},preventDefault(){},stopImmediatePropagation(){}});
+ key('z');key('z');assert.equal(materials.stickers().garageMain,F.doorFinishes.garage.color);assert.equal(materials.stickers().doorTrim,'#224466');key('z');assert.equal(materials.stickers().doorTrim,'#abcdef');key('y');key('y');assert.equal(materials.stickers().garageMain,'#663322');
+ f.elements.get('wall-rebuild').onclick();const saved=f.ctx.WallMode.serialize();f.ctx.WallMode.restore('fixture',{exteriorsWalls:saved});assert.deepEqual(plain(materials.stickers()),{...F.stickerDefaults({trimColor:'#abcdef'}),...trims,garageMain:'#663322'});
+});
+
 test('marquee releases cannot invoke the face double-click handler',()=>{
  let afterBox=true,draws=0;
  const wall={apply:w=>w,draw2D(){},draw3D(){},clear(){},consumeSelectionClick:()=>afterBox,doubleClick(){draws++;return true;}};

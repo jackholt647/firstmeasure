@@ -12,9 +12,24 @@ const roofMaterials={
 };
 const roofDefault={category:'shingles',color:roofMaterials.shingles.colors[0].color};
 function resolveRoof(value){const category=roofMaterials[value?.category]?value.category:roofDefault.category,color=typeof value?.color==='string'&&/^#[0-9a-f]{6}$/i.test(value.color)?value.color.toLowerCase():roofMaterials[category].colors[0].color;return {category,color};}
+// Sticker defaults are data: a trim and a main colour per kind of sticker. Windows have no main colour (glass is
+// drawn as glass); vents keep their own look. Trims seed from the wall trim colour and mains from doorFinishes until
+// set. A sticker's own colour (finishColor, or a trim colour chosen for it) always wins.
+const stickerPieces=[{id:'doorTrim',label:'Door trim',part:'trim',kind:'door'},{id:'doorMain',label:'Door colour',part:'main',kind:'door'},{id:'windowTrim',label:'Window trim',part:'trim',kind:'window'},{id:'garageTrim',label:'Garage door trim',part:'trim',kind:'garage'},{id:'garageMain',label:'Garage door colour',part:'main',kind:'garage'},{id:'untypedTrim',label:'Untyped trim',part:'trim',kind:'untyped'},{id:'untypedMain',label:'Untyped main',part:'main',kind:'untyped'}];
+const LEGACY_TRIM='#f5f3ef',UNTYPED_MAIN='#deddd6';
+const stickerKind=type=>type==='door'||type==='garage'||type==='window'?type:type==='skylight'?'window':type==='vent'?null:'untyped';
+function stickerDefaults(settings=root.WallMode?.finishDefaults||{}){
+ const hex=v=>typeof v==='string'&&/^#[0-9a-f]{6}$/i.test(v)?v.toLowerCase():null,trim=hex(settings.trimColor)||LEGACY_TRIM,seed={doorMain:doorFinishes.door.color,garageMain:doorFinishes.garage.color,untypedMain:UNTYPED_MAIN},out={};
+ for(const piece of stickerPieces)out[piece.id]=hex(settings.stickers?.[piece.id])||(piece.part==='trim'?trim:seed[piece.id]);
+ return out;
+}
+function stickerColor(type,part,settings){const kind=stickerKind(type);if(!kind)return null;return stickerDefaults(settings)[kind+(part==='trim'?'Trim':'Main')]||null;}
+// A trim's own colour; trims saved before sticker defaults carry the old fixed white, which means "use the default".
+const stickerTrimOwnColor=trim=>typeof trim?.color==='string'&&/^#[0-9a-f]{6}$/i.test(trim.color)&&trim.color.toLowerCase()!==LEGACY_TRIM?trim.color.toLowerCase():null;
 function resolve(face={},settings=root.WallMode?.finishDefaults||{}){
  const normal=face.normal||(face.points&&root.WallSolidGeometry?.faceFrame(face)?.n),d={...defaults,...settings},source=face.material||(face.chimney?.cap&&!face.chimney.derived&&!face.trim?'chimney-top':normal?.z<-.5?'soffit':'default'),type=source==='default'?d.material:source;
  if(source==='shingles'){const roof=resolveRoof(face.roofMaterial||d.roof);return {material:'shingles',category:roof.category,color:face.finishColor||face.color||roof.color};}
+ if(type==='opening-trim'&&face.stickerType!==undefined)return {material:type,color:face.finishColor||face.color||stickerColor(face.stickerType,'trim',settings)||d.trimColor};
  return {material:type==='default'?'unassigned':type,color:face.finishColor||face.color||((face.trim||type.startsWith('trim-')||type==='opening-trim')?d.trimColor:source==='chimney-top'?'#d4d0c8':d.color)};
 }
 // Neutral roof maps (gray, mean near 0.85) so the chosen color tints them. Seeded, so every render is identical.
@@ -213,7 +228,7 @@ function texture(type){
 // Opening maps cover one whole opening instead of repeating wall-sized tiles.
 const openingMaps=new Map();
 function openingTexture(finish){
- const type=finish.featureType,w=Math.max(.25,Math.round(finish.width*4)/4),h=Math.max(.25,Math.round(finish.height*4)/4),color=finish.color||({window:'#e8e7e1',skylight:'#41494e',door:'#c8c3b9',garage:'#deddd6',vent:'#d5d5ce'})[type]||'#deddd6',key=[type,w,h,color].join(':');
+ const type=finish.featureType,w=Math.max(.25,Math.round(finish.width*4)/4),h=Math.max(.25,Math.round(finish.height*4)/4),color=finish.color||(type==='door'||type==='garage'?stickerColor(type,'main'):null)||({window:'#e8e7e1',skylight:'#41494e',door:'#c8c3b9',garage:'#deddd6',vent:'#d5d5ce'})[type]||'#deddd6',key=[type,w,h,color].join(':');
  if(openingMaps.has(key)){const t=openingMaps.get(key);openingMaps.delete(key);openingMaps.set(key,t);return t;}
  const canvas=document.createElement('canvas');canvas.width=canvas.height=512;const c=canvas.getContext('2d'),N=512;
  const fill=(x,y,w,h,color)=>{c.fillStyle=color;c.fillRect(x,y,w,h);};
@@ -282,7 +297,7 @@ function prepare(mesh,face,points,parameters){
  }
  if(face.openingTrim){
   const fr=W.faceFrame(face),a=face.points[0],b=face.points[1],length=Math.hypot(b.x-a.x,b.y-a.y,b.z-a.z),u={x:(b.x-a.x)/length,y:(b.y-a.y)/length,z:(b.z-a.z)/length},v={x:fr.n.y*u.z-fr.n.z*u.y,y:fr.n.z*u.x-fr.n.x*u.z,z:fr.n.x*u.y-fr.n.y*u.x},dot=(p,axis)=>(p.x-a.x)*axis.x+(p.y-a.y)*axis.y+(p.z-a.z)*axis.z,ys=points.map(p=>dot(p,v)),lo=Math.min(...ys),span=Math.max(...ys)-lo;
-  mesh.geometry.setAttribute('uv',new THREE.Float32BufferAttribute(points.flatMap((p,i)=>[dot(p,u)/.6096,(ys[i]-lo)/Math.max(1e-8,span)]),2));mesh.userData.exteriorFinish={material:'opening-trim',trim:true,color:face.finishColor||null,normal:fr.n};mesh.userData.openingTrim=true;return;
+  mesh.geometry.setAttribute('uv',new THREE.Float32BufferAttribute(points.flatMap((p,i)=>[dot(p,u)/.6096,(ys[i]-lo)/Math.max(1e-8,span)]),2));mesh.userData.exteriorFinish={material:'opening-trim',trim:true,color:face.stickerType!==undefined?(face.trimOwnColor||null):(face.finishColor||null),normal:fr.n,...(face.stickerType!==undefined?{stickerType:face.stickerType}:{})};mesh.userData.openingTrim=true;return;
  }
  const frame=W.faceFrame({points:face.points||points});let u=frame?.u||{x:1,y:0,z:0};
  if(frame&&Math.abs(frame.n.z)<.999){const length=Math.hypot(frame.n.x,frame.n.y);u={x:-frame.n.y/length,y:frame.n.x/length,z:0};}
@@ -379,5 +394,5 @@ function apply(mesh,material){
  const n=finish.normal;if(n)material.color.multiplyScalar(.78+.22*Math.abs(n.x*.37+n.y*.53+n.z*.76));
  material.map=['unassigned','chimney-top'].includes(resolved.material)?null:resolved.material==='shingles'?(finish.roofCap?roofCapTexture(resolved.category):roofTexture(resolved.category)):texture(resolved.material);
 }
-root.ExteriorFinishes={prepare,apply,reset,resolve,defaults,roofMeshes,roofSkylights,roofPresentation,skylightMesh,roofMaterials,roofDefault,resolveRoof,roofCanvas,roofTexture,roofNormalMap,roofCapSpecs,roofCapCanvas,roofCapTexture,roofCapNormalMap,roofCapGeometry,roofCaps,doorFinishes,doorInset,doorNormalMap};
+root.ExteriorFinishes={prepare,apply,reset,resolve,defaults,roofMeshes,roofSkylights,roofPresentation,skylightMesh,roofMaterials,roofDefault,resolveRoof,roofCanvas,roofTexture,roofNormalMap,roofCapSpecs,roofCapCanvas,roofCapTexture,roofCapNormalMap,roofCapGeometry,roofCaps,doorFinishes,doorInset,doorNormalMap,stickerPieces,stickerKind,stickerDefaults,stickerColor,stickerTrimOwnColor};
 })(window);
