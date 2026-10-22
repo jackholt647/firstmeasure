@@ -7,6 +7,7 @@
   const TRACKING_TIMEOUT_MS = 3500;
   const SIGNUP_EMAIL_VERIFICATION_ENABLED = false;
   let googleAuthLibraryPromise = null;
+  let passwordToggleLibraryPromise = null;
 
   function signupPhoneDigits(value) {
     let digits = String(value || '').replace(/\D/g, '');
@@ -279,6 +280,21 @@
     } catch (e) {}
     const base = new URL(baseHref, location.href);
     return new URL(path, base).toString();
+  }
+
+  /* Show/hide buttons on the password fields (1M8-221), from the script beside this one. */
+  function loadPasswordToggleLibrary() {
+    if (window.FirstMatePasswordToggle) return Promise.resolve(window.FirstMatePasswordToggle);
+    if (passwordToggleLibraryPromise) return passwordToggleLibraryPromise;
+    passwordToggleLibraryPromise = new Promise((resolve, reject) => {
+      const script = document.createElement('script');
+      script.src = SCRIPT_SRC ? new URL('password-toggle.js', SCRIPT_SRC).toString() : '/portal/landing/shared/password-toggle.js';
+      script.async = true;
+      script.addEventListener('load', () => window.FirstMatePasswordToggle ? resolve(window.FirstMatePasswordToggle) : reject(new Error('Password toggle did not initialize.')), { once: true });
+      script.addEventListener('error', () => reject(new Error('Password toggle could not be loaded.')), { once: true });
+      document.head.appendChild(script);
+    });
+    return passwordToggleLibraryPromise;
   }
 
   function loadGoogleAuthLibrary() {
@@ -1340,6 +1356,7 @@
     syncAttributionInputs();
     trackSignupInteraction('widget_ready', { initial_mode: initialMode, show_login: showLogin, has_referral_code: !!state.referralCode });
     showForm(initialMode === 'login' && showLogin ? 'login' : 'register');
+    loadPasswordToggleLibrary().then((toggle) => toggle.enhance(shadow)).catch(() => null);
     loadReferralInvite();
     trackAcquisitionLanding();
     initializeGoogleAuth();

@@ -2533,7 +2533,13 @@ session_write_close();
         return modes[raw] ? raw : 'report';
       };
       const DEFAULT_MENU_ITEMS = ['project', 'contact', 'report', 'document', 'payment', 'appointment'];
+      /* Ordering a report needs order_reports (1M8-227). Until the session's permissions arrive nothing is hidden. */
+      const cannotOrderReports = () => {
+        const permissions = window.Portal?.currentUser?.permissions;
+        return !!permissions && Object.keys(permissions).length > 0 && window.Portal?.util?.hasPerm?.('order_reports') !== true;
+      };
       const itemAvailable = (id) => {
+        if (id === 'report' && cannotOrderReports()) return false;
         if (isDocMode(id)) return documentsEnabled();
         if (String(id).startsWith('form:')) return !!staffForm(id);
         return !!modes[id] && id !== 'selector';
@@ -2565,7 +2571,8 @@ session_write_close();
         && !['view_projects', 'manage_projects'].some((permission) => window.Portal?.util?.hasPerm?.(permission));
       const syncCreateAccess = (mode = '') => {
         const assignedOnly = isAssignedOnlyUser();
-        const unavailable = assignedOnly || mode === 'off';
+        const nothingToCreate = (mode === 'report' && cannotOrderReports()) || (mode === 'selector' && !configuredMenuItems().length);
+        const unavailable = assignedOnly || mode === 'off' || nothingToCreate;
         document.documentElement.dataset.fmAssignedOnly = assignedOnly ? 'true' : 'false';
         sidebar?.classList.toggle('new-button-unavailable', unavailable);
         wrap.hidden = unavailable;
@@ -2910,6 +2917,7 @@ session_write_close();
       });
       window.addEventListener('fm:app-flags:failed', setButtonMode);
       window.addEventListener('fm:platform-session:updated', setButtonMode);
+      window.addEventListener('fm:perms:updated', setButtonMode);
       window.addEventListener('fm:language:updated', setButtonMode);
       Promise.resolve(window.PlatformLanguage?.ensure?.(['platform'])).then(setButtonMode).catch(() => null);
       setButtonMode();

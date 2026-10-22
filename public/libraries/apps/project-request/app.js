@@ -11543,6 +11543,11 @@ window.PlatformCommerce.onReady(async function(){
     });
     window.addEventListener('fm:new-project-workflow', (event) => {
       const workflow = event?.detail?.workflow || 'project';
+      // Someone who may not order reports gets a reason instead of an order window that cannot load (1M8-227).
+      if (workflow === 'report' && Object.keys(window.Portal?.currentUser?.permissions || {}).length && !hasPerm('order_reports')) {
+        window.Portal?.ui?.showToast?.(globalThis.PlatformLanguage?.text('project-request', 'order_reports_denied_title', 'You cannot order reports') ?? 'You cannot order reports', globalThis.PlatformLanguage?.text('project-request', 'order_reports_denied_detail', 'Ask an admin on your account to give you permission to order reports.') ?? 'Ask an admin on your account to give you permission to order reports.', false);
+        return;
+      }
       if (workflow === 'contact' && window.Portal?.modules?.contacts?.open) {
         window.Portal.modules.contacts.open();
         return;

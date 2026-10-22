@@ -283,18 +283,19 @@
             try {
               const result = await this.request('/auth/accounts/add', {
                 method: 'POST',
+                // The login form names its field "identifier" (an email or a phone number); 1M8-223.
                 body: JSON.stringify({
-                  email: String(formData.get('email') || '').trim(),
+                  identifier: String(formData.get('identifier') || formData.get('email') || '').trim(),
                   password: String(formData.get('password') || '')
                 })
               });
               return { ...result, success: true, first_login: false };
             } catch (error) {
-              return { success: false, error: error.message || 'Unable to add that account.' };
+              return { success: false, error: error.code || '', message: error.message || 'Unable to add that account.' };
             }
           }
         });
-        const emailInput = host.shadowRoot?.querySelector('[data-form="login"] input[name="email"]');
+        const emailInput = host.shadowRoot?.querySelector('[data-form="login"] input[name="identifier"], [data-form="login"] input[name="email"]');
         if (emailInput && email) emailInput.value = email;
         (emailInput || host.shadowRoot?.querySelector('input'))?.focus();
       } else {

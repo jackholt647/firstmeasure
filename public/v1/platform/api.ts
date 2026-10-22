@@ -784,7 +784,7 @@ app.get("/auth/google/config", async () => ({
     const activeCtx = await requirePlatformAuth(request, { csrf: true });
     const body = loginSchema.parse(request.body ?? {});
     const ctx = await loginPlatformIdentity({
-      email: body.email,
+      identifier: body.identifier || body.email,
       password: body.password,
       organizationId: body.organization_id,
       metadata: {

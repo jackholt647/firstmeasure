@@ -185,7 +185,9 @@ function esc($s) { return htmlspecialchars($s ?? '', ENT_QUOTES, 'UTF-8'); }
     </div>
 </div>
 
+<script src="/portal/landing/shared/password-toggle.js?v=<?php echo esc(substr((string)@hash_file('sha256', __DIR__ . '/landing/shared/password-toggle.js'), 0, 16)); ?>"></script>
 <script>
+    window.FirstMatePasswordToggle?.enhance(document);
     const urlParams = new URLSearchParams(window.location.search);
     const redirectTarget = urlParams.get('redirect') || <?php echo json_encode($redirectParam ?: './'); ?>;
     const startParam = urlParams.get('start') || <?php echo json_encode($startParam); ?>;

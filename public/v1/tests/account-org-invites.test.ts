@@ -151,3 +151,14 @@ test("remembered accounts carry their organization, and a tab opened as another 
   const current = await client.request("POST", "/v1/firstmeasure/projects/list", { refresh: true, filter: "org", page: 1, limit: 20, actor: { email: "tab.two@example.test", organization_id: "stale_tab_two" } });
   assert.equal(current.response.statusCode, 200, current.response.body);
 });
+
+test("adding another account accepts the login form's identifier field (1M8-223)", async () => {
+  const client = browser();
+  await register(client, "add.first@example.test", "add_account_first");
+  await register(browser(), "add.second@example.test", "add_account_second");
+  const added = await client.request("POST", "/v1/platform/auth/accounts/add", { identifier: "add.second@example.test", password: PASSWORD });
+  assert.equal(added.response.statusCode, 200, added.response.body);
+  assert.equal(added.data.organization.id, "add_account_second");
+  const wrong = await client.request("POST", "/v1/platform/auth/accounts/add", { identifier: "add.first@example.test", password: "not the password" });
+  assert.equal(wrong.data.error, "invalid_credentials");
+});
