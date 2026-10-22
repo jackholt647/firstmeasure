@@ -3681,13 +3681,15 @@ async function preloadOrganizationSummaryData(orgIds: string[]) {
   const { isFirstMeasurePostgresEnabled, queryPostgres } = await import("../src/database/postgres.js");
   const ids = [...new Set(orgIds.filter(Boolean))];
   if (!isFirstMeasurePostgresEnabled() || !ids.length) return null;
-  // Same rows and order as readGlobal and listDocuments (updated_at DESC), without their per-call checks.
+  // Same rows and order as readGlobal and listDocuments, without their per-call checks. listDocuments reads
+  // platform_documents_list_idx (organization_id, collection, updated_at DESC), which returns equal
+  // timestamps in heap order; ctid breaks ties the same way, so users and projects keep their order.
   const [documents, manifests] = await Promise.all([
     queryPostgres<{ organization_id: string; collection: string; document: JsonObject }>(`
       SELECT organization_id, collection, document FROM platform_documents
       WHERE organization_id = ANY($1::text[])
         AND (collection IN ('users', 'projects') OR (collection = 'global' AND id = 'global'))
-      ORDER BY updated_at DESC
+      ORDER BY updated_at DESC, ctid
     `, [ids]),
     queryIndexedProjectManifestsByOrganization(ids, { limit: 20_000, includeInstantOnly: true })
   ]);
