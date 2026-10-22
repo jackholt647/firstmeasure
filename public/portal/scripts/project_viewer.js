@@ -441,6 +441,13 @@
 
   const APP = window.__APP || {};
 
+  // Platform projects exist only with expanded platform access. Without it the projects API
+  // refuses every write ("This session does not have permission…", 1M8-231), so the project
+  // stays in this page's cache and FirstMeasure orders are listed directly.
+  const platformProjectsWritable = () => (typeof window.Portal?.platformExpandedAccess === 'function'
+    ? window.Portal.platformExpandedAccess()
+    : APP.platformExpandedAssets === true);
+
   async function authenticatedOrgId(){
     const configured = firstText(APP.userOrgId, APP.orgId);
     if (configured) return configured.toLowerCase().replace(/[^a-z0-9_-]/g, '-');
@@ -901,6 +908,7 @@
     },
     async saveRemote(project){
       if (!isProjectLike(project)) return null;
+      if (!platformProjectsWritable()) return cacheProject(project);
       const orgId = await ensureRemoteOrganization();
       const measurementProject = project?.measurement_project || project?.measurement || {};
       const nextId = canonicalProjectId(project);
@@ -948,6 +956,7 @@
       const id = typeof projectOrId === 'string' ? projectOrId : canonicalProjectId(projectOrId || {});
       if (!id) return false;
       removeCachedProject(id);
+      if (!platformProjectsWritable()) return true;
       const orgId = await ensureRemoteOrganization();
       await window.PlatformAPI.projects.remove(orgId, id);
       return true;

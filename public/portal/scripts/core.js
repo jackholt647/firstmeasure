@@ -1687,6 +1687,7 @@
     if (capabilities?.current?.()) return capabilities.value?.('platform.expanded_access', false) === true;
     return APP.platformExpandedAssets === true;
   }
+  window.Portal.platformExpandedAccess = platformExpandedAccess;
 
   async function savePlatformProjectFromFirstMeasure(project = {}, existingProject = {}){
     if (!platformExpandedAccess()) return null;
