@@ -512,9 +512,11 @@
         for(const opening of wall.openings){const type=openingKind(opening.type);if(!openingKinds[type])continue;
           const proud=opening.points.map(p=>p.map((v,i)=>v+wallNormal[i]*outward*.03));
           const feature=safe(()=>editorMesh({points:ring(proud),feature:{type}},{offset:-1,order:1}),null);if(!feature)continue;feature.userData.exteriorFeature=true;
+          // Sticker trim (door and window casing): opening-trim finish in the sticker's trim colour, in front of the wall.
+          const trims=(opening.trimFaces||[]).map(face=>{const mesh=safe(()=>editorMesh({points:ring(face.points.map(p=>p.map((v,i)=>v+wallNormal[i]*outward*.03))),openingTrim:true,trim:true,stickerType:face.stickerType,trimOwnColor:face.ownColor||null},{offset:-2,order:2}),null);if(mesh){mesh.userData.openingTrim=true;Object.assign(mesh.userData.exteriorFinish||{},{stickerType:face.stickerType});}return mesh;}).filter(Boolean);
           const on=newell(opening.points)||[0,0,0],middle=opening.points.reduce((a,p)=>a.map((v,i)=>v+p[i]/opening.points.length),[0,0,0]);
           own({kind:'opening',labelAnchor:toScene(middle.map((v,i)=>v+on[i]*.2)),labelParts:()=>[{text:`${ftIn(opening.width)} × ${ftIn(opening.height)}`}],category:'opening:'+type,openingType:type,priority:3,area:opening.area,width:opening.width,height:opening.height,swatch:flatOpening[type],flat:flatOpening[type],title:`${openingKinds[type][1]} ${opening.id}`,
-            details:()=>[['Size',`${ftIn(opening.width)} × ${ftIn(opening.height)}`],['Area',`${decimal(opening.area,1)} sq ft`],['Perimeter',`${decimal(opening.perimeter,1)} ft`],['Wall',`${wall.id} · ${wall.elevation}`]]},[feature],'walls');}
+            details:()=>[['Size',`${ftIn(opening.width)} × ${ftIn(opening.height)}`],['Area',`${decimal(opening.area,1)} sq ft`],['Perimeter',`${decimal(opening.perimeter,1)} ft`],['Wall',`${wall.id} · ${wall.elevation}`]]},[feature,...trims],'walls');}
       }
       // A plain cap carries no material, as in the editor: prepare marks it chimney-top and links it to its chimney.
       for(const {face,id} of chimneyCaps){const mesh=safe(()=>editorMesh({...faceOf(face),...(face.materialKey&&face.materialKey!=='chimney-top'?{material:face.materialKey}:{}),finishColor:face.finishColor,chimney:{id,cap:true}}),null);if(mesh)own({kind:'cap',category:'chimney',categoryName:'Chimneys',area:0,swatch:'#d4d0c8',flat:'#d4d0c8',title:'Chimney top',details:()=>[]},[mesh],'walls');}

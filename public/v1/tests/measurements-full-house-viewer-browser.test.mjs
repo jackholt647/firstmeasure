@@ -143,7 +143,7 @@ test('the exterior model projection keeps geometry and finishes and drops editor
   assert.equal(model.walls[1].finishColor,null,'a color equal to the default it resolved from is not a choice');
   assert.deepEqual(model.finishDefaults,{color:'#80868b',roof:{category:'slate',color:'#626970'},stickers:{doorMain:'#564437'}});
   assert.equal(model.walls[0].materialKey,'brick');assert.equal(model.walls[0].finishColor,'#a65d4b');assert.deepEqual(model.walls[0].points[2],[1,0,1]);
-  assert.equal(model.walls[0].openings.length,1);assert.equal('trimFaces' in model.walls[0].openings[0],false);
+  assert.equal(model.walls[0].openings.length,1);assert.deepEqual(model.walls[0].openings[0].trimFaces,[],'a trim face without points is dropped');
   assert.deepEqual(model.edges.map(e=>e.type),['Bottom']);assert.equal(model.roofTrim[0].materialKey,'trim-horizontal');
   assert.deepEqual(model.roofFinish,{category:'slate',color:'#626970'});assert.equal(model.defaults.color,'#80868b');
   assert.equal(JSON.stringify(model).includes('coverRender'),false);assert.equal(JSON.stringify(model).includes('secret'),false);assert.equal(JSON.stringify(model).includes('reviewer'),false);

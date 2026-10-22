@@ -56,7 +56,11 @@ export function exteriorModelProjection(reportValue: unknown, metadataValue: unk
     const openings = list(wall.openings).slice(0, MAX_ITEMS).flatMap(item => {
       const opening = object(item), points = ring(opening.points), type = String(opening.type || '');
       if (!points || !OPENING_TYPES.has(type)) return [];
-      return [{ id: text(opening.id, 40) || '', type, label: text(opening.label) || type, points, area: feet(opening.area), perimeter: feet(opening.perimeter), width: feet(opening.width), height: feet(opening.height) }];
+      const trimFaces = list(opening.trimFaces).slice(0, 128).flatMap(value => {
+        const face = object(value), ring = list(face.points).map(point);
+        return ring.length >= 3 && ring.every(Boolean) ? [{ points: ring as Point[], stickerType: text(face.stickerType, 20) || type, ownColor: color(face.trimOwnColor) }] : [];
+      });
+      return [{ id: text(opening.id, 40) || '', type, label: text(opening.label) || type, points, area: feet(opening.area), perimeter: feet(opening.perimeter), width: feet(opening.width), height: feet(opening.height), trimFaces }];
     });
     return [{
       id: text(wall.id, 40) || '', ...shape, material: text(wall.material) || 'Unassigned', materialKey: materialKey(wall), finishColor: explicit(wall.finishColor, materialKey(wall)),
