@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+October 22 RELEASE CANDIDATE on dev: [`codex/release-candidate-20261022` combines the five Linear fix branches (billing, portal, accounts, Europe and 1M8-228, editor paste and pitch shortcut) on production `8c908166`; tests match production's and it awaits the team click-through](deploy/digitalocean/development-release-candidate-20261022.md). Not on production.
+
 October 21 Customer billing fixes on dev: [an order placed while adding funds is submitted after payment (market revision sent, priced from the shown quote, paid sessions with tax credited, mismatches held for review), the top-up page uses the organization's currency, and the statement counts refunds apart from payments](deploy/digitalocean/development-billing-topup-20261021.md) records releases `14a6e3de` and `039723d8` (1M8-198, 1M8-200, 1M8-218) and the verified development rollout. Not on canonical yet.
 
 October 21 Portal regressions on dev: [1M8-202/205/206/208/210/211 and the platform sync gate (report tab highlight, cancelled-order layout and status, stale Processing summaries, drafts, contact placeholder, impersonation Settings row)](deploy/digitalocean/development-portal-regressions-20261021.md) records session-branch release `41b65307` on legacy, web and pool; not on canonical yet.
