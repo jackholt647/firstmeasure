@@ -40,6 +40,25 @@ test('sticker trim stands proud of the wall as a slab, and takes a painted sheen
  assert.ok(Math.abs(Math.min(...z)+.02)<1e-6&&Math.abs(Math.max(...z)-.02)<1e-6);assert.equal(slab.attributes.position.count,6+3*6,'two faces and three side walls');
 });
 
+test('the Window trim default colours window frames and window trims that have no colour of their own',()=>{
+ const ctx=context(),F=ctx.ExteriorFinishes,R=ctx.ExteriorRendered,vector=p=>new THREE.Vector3(p.x,p.z,-p.y),brown='#6b4a2f',linear=c=>new THREE.Color(c).convertSRGBToLinear().getHexString();
+ ctx.WallMode={finishDefaults:{trimColor:'#ffffff',stickers:{windowTrim:brown}}};
+ const win=[{x:1,y:0,z:1},{x:2,y:0,z:1},{x:2,y:0,z:2.2},{x:1,y:0,z:2.2}],feature={type:'window',axis:{x:1,y:0,z:0}};
+ const frame=W.faceFrame({points:win}),g=new THREE.BufferGeometry().setFromPoints(win.map(vector));g.setIndex(K.triangles(win.map(p=>W.inFrame(frame,p)),[]).triangles.flat());
+ const mesh=new THREE.Mesh(g,new THREE.MeshBasicMaterial());mesh.userData.exteriorFeature=true;F.prepare(mesh,{points:win,feature},win);mesh.updateMatrixWorld(true);
+ // Textured: the window unit's frame and sill.
+ const scene=new THREE.Scene();R.presentationCopy(mesh,{vector,center:new THREE.Vector3(1.5,1.5,5)},scene);const colours=new Set();scene.traverse(o=>{if(o.isMesh&&o.geometry.type==='ExtrudeGeometry')colours.add(o.material.color.getHexString());});
+ assert.ok(colours.has(linear(brown)),'window frame takes Window trim: '+[...colours]);
+ // A window with its own colour keeps it.
+ const own=mesh.clone();own.userData={...mesh.userData,renderedOpening:{...mesh.userData.renderedOpening,color:'#225588'}};const s2=new THREE.Scene();R.presentationCopy(own,{vector,center:new THREE.Vector3(1.5,1.5,5)},s2);const c2=new Set();s2.traverse(o=>{if(o.isMesh&&o.geometry.type==='ExtrudeGeometry')c2.add(o.material.color.getHexString());});assert.ok(c2.has(linear('#225588'))&&!c2.has(linear(brown)));
+ // Match textured: the opening map is painted with the Window trim default.
+ const m1=new THREE.MeshBasicMaterial();F.apply(mesh,m1);ctx.WallMode.finishDefaults={...ctx.WallMode.finishDefaults,stickers:{windowTrim:'#123456'}};const m2=new THREE.MeshBasicMaterial();F.apply(mesh,m2);assert.notEqual(m1.map,m2.map,'the plain-texture window map follows Window trim');
+ // Trims placed while the wall trim colour was #ffffff carry it; they still follow Window trim.
+ ctx.WallMode.finishDefaults={trimColor:'#ffffff',stickers:{windowTrim:brown}};ctx.WallFeatures=WF;
+ globalThis.WallMode=ctx.WallMode;let baked;try{baked=WF.trimFaces(win,{...feature,trim:{width:.05,color:'#ffffff'}});}finally{delete globalThis.WallMode;}assert.equal(baked[0].trimOwnColor,null);assert.equal(F.resolve(F_finish(F,baked[0]),ctx.WallMode.finishDefaults).color,brown);
+ assert.equal(F.stickerTrimOwnColor({color:'#FFFFFF'}),null);assert.equal(F.stickerTrimOwnColor({color:'#abcdef'}),'#abcdef');
+});
+
 test('Stickers defaults: collapsed Trim and Main fan out, pieces expand, and mixed shows when pieces differ',async()=>{
  const {chromium}=require('../public/v1/node_modules/playwright-core');
  const browser=await chromium.launch({headless:true,executablePath:process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH||(process.platform==='win32'?'C:/Program Files/Google/Chrome/Application/chrome.exe':'/usr/bin/chromium'),args:['--no-sandbox']});

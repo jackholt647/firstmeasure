@@ -122,7 +122,8 @@ function openingDetails(source,target,context){
   if(inset){target.material.normalMap=inset;target.material.normalScale=new THREE.Vector2(1,1);}
  }
  if(!rect)return;
- const white=new THREE.MeshStandardMaterial({color:color(doorSpec?(F.stickerColor?.(type,'trim')||'#ebe9e1'):data.color||(type==='skylight'?'#41494e':'#ebe9e1')),roughness:.38,metalness:.08,envMapIntensity:.75});
+ // Frames take their sticker's trim default unless the sticker has its own colour (doors keep their own colour for the leaf).
+ const white=new THREE.MeshStandardMaterial({color:color(doorSpec?(F.stickerColor?.(type,'trim')||'#ebe9e1'):data.color||(type==='window'?F.stickerColor?.('window','trim'):null)||(type==='skylight'?'#41494e':'#ebe9e1')),roughness:.38,metalness:.08,envMapIntensity:.75});
  const rubber=glazed?new THREE.MeshStandardMaterial({color:color('#202829'),roughness:.8}):null;
  const box=(x,y,z,w,h,d,m=white)=>{const o=new THREE.Mesh(bevelBox(w,h,d,.006),m);o.position.set(x,y,z);o.castShadow=o.receiveShadow=true;group.add(o);return o;};
  const frameWidth=Math.min(.055,width*.08,height*.07);

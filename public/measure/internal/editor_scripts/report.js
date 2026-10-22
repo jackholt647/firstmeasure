@@ -825,6 +825,9 @@ function createReportPanel() {
         body.report-mode-active .right-column { width:30%; }
         body.report-mode-active .report-column { display:flex; }
         body.report-mode-active #main-pane-slot { flex-shrink:1; }
+        /* With the pane layout the right column takes what is left; a fixed 30% basis made the panes overflow beside the tray, so the
+           browser shrank the main pane away from where a divider was dragged. */
+        body.report-mode-active #workspace > #rightColumn { width:auto; flex:1 1 0; }
         body.report-mode-active.report-fullscreen .left-column,
         body.report-mode-active.report-fullscreen .right-column { display:none; }
 

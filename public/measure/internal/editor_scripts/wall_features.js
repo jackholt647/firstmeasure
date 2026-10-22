@@ -104,7 +104,8 @@ function trimFaces(points,feature){
  const fr=orientedFrame(points,feature.axis),ps=points.map(p=>W.inFrame(fr,p)),b=bounds(ps),area=ps.reduce((sum,p,i)=>{const q=ps[(i+1)%ps.length];return sum+p.x*q.y-q.x*p.y;},0),sign=area>=0?1:-1;
  const edges=ps.map((p,i)=>{const q=ps[(i+1)%ps.length],dx=q.x-p.x,dy=q.y-p.y,l=Math.hypot(dx,dy),bottom=defs.get(feature.type)?.floor&&Math.abs(p.y-b.bottom)<1e-5&&Math.abs(q.y-b.bottom)<1e-5;return {x:sign*dy/(l||1),y:-sign*dx/(l||1),width:bottom?0:width};});
  // Its own colour, unless it is the fixed white trims were saved with before sticker defaults existed.
- const own=typeof feature.trim.color==='string'&&/^#[0-9a-f]{6}$/i.test(feature.trim.color)&&feature.trim.color.toLowerCase()!=='#f5f3ef'?feature.trim.color.toLowerCase():null;
+ // Placement used to copy the wall trim colour in, so a trim equal to it is the default too.
+ const baked=['#f5f3ef',String(root.WallMode?.finishDefaults?.trimColor||'').toLowerCase()],own=typeof feature.trim.color==='string'&&/^#[0-9a-f]{6}$/i.test(feature.trim.color)&&!baked.includes(feature.trim.color.toLowerCase())?feature.trim.color.toLowerCase():null;
  const outer=ps.map((p,i)=>{const a=edges[(i+ps.length-1)%ps.length],b=edges[i],det=a.x*b.y-a.y*b.x;if(Math.abs(det)<1e-8)return {...p,x:p.x+b.x*b.width,y:p.y+b.y*b.width};return {...p,x:p.x+(a.width*b.y-a.y*b.width)/det,y:p.y+(a.x*b.width-a.width*b.x)/det};});
  return ps.flatMap((p,i)=>{if(!edges[i].width)return [];const j=(i+1)%ps.length;return [{points:[p,ps[j],outer[j],outer[i]].map(p=>W.fromFrame(fr,p)),trim:true,stickerType:feature.type,trimOwnColor:own,finishColor:own||root.ExteriorFinishes?.stickerColor?.(feature.type,'trim')||'#f5f3ef',material:Math.abs(ps[j].y-p.y)>Math.abs(ps[j].x-p.x)?'trim-vertical':'trim-horizontal'}];});
 }

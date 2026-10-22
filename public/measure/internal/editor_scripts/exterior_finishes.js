@@ -25,7 +25,7 @@ function stickerDefaults(settings=root.WallMode?.finishDefaults||{}){
 }
 function stickerColor(type,part,settings){const kind=stickerKind(type);if(!kind)return null;return stickerDefaults(settings)[kind+(part==='trim'?'Trim':'Main')]||null;}
 // A trim's own colour; trims saved before sticker defaults carry the old fixed white, which means "use the default".
-const stickerTrimOwnColor=trim=>typeof trim?.color==='string'&&/^#[0-9a-f]{6}$/i.test(trim.color)&&trim.color.toLowerCase()!==LEGACY_TRIM?trim.color.toLowerCase():null;
+const stickerTrimOwnColor=(trim,settings=root.WallMode?.finishDefaults||{})=>typeof trim?.color==='string'&&/^#[0-9a-f]{6}$/i.test(trim.color)&&![LEGACY_TRIM,String(settings.trimColor||'').toLowerCase()].includes(trim.color.toLowerCase())?trim.color.toLowerCase():null;
 function resolve(face={},settings=root.WallMode?.finishDefaults||{}){
  const normal=face.normal||(face.points&&root.WallSolidGeometry?.faceFrame(face)?.n),d={...defaults,...settings},source=face.material||(face.chimney?.cap&&!face.chimney.derived&&!face.trim?'chimney-top':normal?.z<-.5?'soffit':'default'),type=source==='default'?d.material:source;
  if(source==='shingles'){const roof=resolveRoof(face.roofMaterial||d.roof);return {material:'shingles',category:roof.category,color:face.finishColor||face.color||roof.color};}
@@ -228,7 +228,7 @@ function texture(type){
 // Opening maps cover one whole opening instead of repeating wall-sized tiles.
 const openingMaps=new Map();
 function openingTexture(finish){
- const type=finish.featureType,w=Math.max(.25,Math.round(finish.width*4)/4),h=Math.max(.25,Math.round(finish.height*4)/4),color=finish.color||(type==='door'||type==='garage'?stickerColor(type,'main'):null)||({window:'#e8e7e1',skylight:'#41494e',door:'#c8c3b9',garage:'#deddd6',vent:'#d5d5ce'})[type]||'#deddd6',key=[type,w,h,color].join(':');
+ const type=finish.featureType,w=Math.max(.25,Math.round(finish.width*4)/4),h=Math.max(.25,Math.round(finish.height*4)/4),color=finish.color||(type==='door'||type==='garage'?stickerColor(type,'main'):type==='window'?stickerColor(type,'trim'):null)||({window:'#e8e7e1',skylight:'#41494e',door:'#c8c3b9',garage:'#deddd6',vent:'#d5d5ce'})[type]||'#deddd6',key=[type,w,h,color].join(':');
  if(openingMaps.has(key)){const t=openingMaps.get(key);openingMaps.delete(key);openingMaps.set(key,t);return t;}
  const canvas=document.createElement('canvas');canvas.width=canvas.height=512;const c=canvas.getContext('2d'),N=512;
  const fill=(x,y,w,h,color)=>{c.fillStyle=color;c.fillRect(x,y,w,h);};
