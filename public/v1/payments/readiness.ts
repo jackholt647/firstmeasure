@@ -88,6 +88,18 @@ function notReady(reason: PaymentsNotReadyReason, partial: Partial<PaymentsReadi
 }
 
 export async function paymentsReadiness(orgId: string): Promise<PaymentsReadiness> {
+  const readiness = await readinessFromStoredState(orgId);
+  // Applied but not ready: the approval may have happened at the processor
+  // without a webhook reaching us. Read it (at most once a minute per org).
+  if (!readiness.ready && ["no_merchant_account", "not_approved", "processing_disabled"].includes(readiness.reason)
+    && readiness.provider === FORWARD_PROVIDER) {
+    const { refreshBoardingForReadiness } = await import("./boarding_sync.js");
+    if (await refreshBoardingForReadiness(orgId)) return readinessFromStoredState(orgId);
+  }
+  return readiness;
+}
+
+async function readinessFromStoredState(orgId: string): Promise<PaymentsReadiness> {
   if (!(await isAppFlagEnabled(orgId, "platform", "money"))) return notReady("money_off");
   if (!(await isAppFlagEnabled(orgId, "money", "take_payment"))) return notReady("take_payment_off");
   if (!(await isAppFlagEnabled(orgId, "money", "merchant_processing"))) return notReady("online_processing_off");

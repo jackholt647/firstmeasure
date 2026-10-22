@@ -22,6 +22,9 @@ const WEBHOOK_SECRET = `whsec_${WEBHOOK_SECRET_BYTES.toString("base64")}`;
 type Call = { method: string; path: string; key: string; account: string; body: any };
 const calls: Call[] = [];
 const fake = {
+  /** Boarding: applications and accounts Forward knows about. */
+  applications: new Map<string, any>(),
+  accounts: new Map<string, any>(),
   intents: new Map<string, any>(),
   payments: new Map<string, any>(),
   refunds: new Map<string, any>(),
@@ -121,6 +124,17 @@ async function fakeForward(url: string, init: RequestInit = {}) {
     const refund = { id, entity: "refund", status: "succeeded", amount: body.amount ?? payment.amount, payment_id: payment.id, settlement_status: "unsettled" };
     fake.refunds.set(id, refund);
     return remember(200, refund);
+  }
+  if (method === "GET" && (match = pathName.match(/^\/applications\/([^/]+)$/))) {
+    const application = fake.applications.get(match[1]!);
+    return application ? json(200, application) : json(404, { message: "no application" });
+  }
+  if (method === "GET" && pathName === "/accounts") {
+    return json(200, { data: [...fake.accounts.values()], meta: {} });
+  }
+  if (method === "GET" && (match = pathName.match(/^\/accounts\/([^/]+)$/))) {
+    const account = fake.accounts.get(match[1]!);
+    return account ? json(200, account) : json(404, { message: "no account" });
   }
   if (method === "GET" && (match = pathName.match(/^\/payment_methods\/([^/]+)$/))) {
     const id = match[1]!;
@@ -499,4 +513,37 @@ test("raw card numbers and bare tokens never reach Forward from our server; unap
   const config = await other.request("GET", `/v1/payments/organizations/${pending.orgId}/payment-intake-config`);
   assert.equal(config.ready, false);
   assert.equal(config.tokenization, null);
+});
+
+test("an organization approved at Forward is ready as soon as anyone asks, even before a webhook arrives", async () => {
+  const client = createSessionClient();
+  const { orgId } = await register(client, { approved: false });
+  const suffix = orgId.replace(/^org_fwdco_/, "");
+  const { upsertMerchantConfig } = await import("../payments/merchant_config.js");
+  await upsertMerchantConfig(orgId, {
+    provider: "forward",
+    forward: { business_id: `bus_${suffix}`, application_id: `aapp_${suffix}`, boarding_status: "SUBMITTED" }
+  }, { skipFlag: true });
+  const { paymentsReadiness } = await import("../payments/readiness.js");
+  fake.applications.set(`aapp_${suffix}`, { id: `aapp_${suffix}`, status: "SUBMITTED", business_id: `bus_${suffix}` });
+  const before = await paymentsReadiness(orgId);
+  assert.equal(before.ready, false, "still under review at Forward");
+
+  // Forward approves; no webhook is delivered. The next ask (a customer opening the portal) reads it.
+  fake.applications.set(`aapp_${suffix}`, { id: `aapp_${suffix}`, status: "APPROVED", business_id: `bus_${suffix}` });
+  fake.accounts.set(`acct_new_${suffix}`, { id: `acct_new_${suffix}`, business_id: `bus_${suffix}`, external_account_id: orgId, processing_enabled: true, payouts_enabled: true });
+  const soon = await paymentsReadiness(orgId);
+  assert.equal(soon.ready, false, "the processor is read at most once a minute per organization");
+  const { refreshBoardingForReadiness } = await import("../payments/boarding_sync.js");
+  const realNow = Date.now;
+  Date.now = () => realNow() + 61_000;
+  try {
+    const after = await paymentsReadiness(orgId);
+    assert.equal(after.ready, true, JSON.stringify(after));
+    assert.equal(after.account_id, `acct_new_${suffix}`);
+    assert.deepEqual(after.rails, { card: true, bank: true });
+    assert.equal(await refreshBoardingForReadiness(orgId), false, "a ready organization is not read again within the minute");
+  } finally {
+    Date.now = realNow;
+  }
 });

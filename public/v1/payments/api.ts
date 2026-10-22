@@ -1095,38 +1095,12 @@ export const registerPaymentsApi: FastifyPluginAsync = async (app) => {
   app.get("/organizations/:orgId/merchant-boarding/applications/:applicationId", async (request) => {
     const orgId = getParam(request.params, "orgId");
     await requirePlatformAuth(request, { orgId, permission: "manage_projects" });
-    const boarding = await requireBoardingProvider(orgId);
-    const application = await boardingCall(() => boarding.getApplication(getParam(request.params, "applicationId")));
-    // Sync the tracked boarding state from the provider read: submissions and
-    // approvals happen on Forward's side and the v2.application.* /
-    // v2.account.* webhooks only land on a publicly registered endpoint, so
-    // polling this shim is how a local/dev pane learns the merchant finished
-    // (DRAFT -> UNDER_REVIEW) or was approved (account id + rails backfill).
-    const config = await getMerchantConfig(orgId);
-    const tracked = cleanText(config.forward.boarding_status);
-    const live = cleanText(application.status);
-    const patch: JsonObject = {};
-    if (cleanText(config.forward.application_id) === application.id) {
-      if (live && live !== tracked) patch.boarding_status = live;
-      if (live === "APPROVED" && !cleanText(config.forward.account_id)) {
-        const accounts = await boardingCall(() => boarding.listAccounts({
-          business_id: cleanText(config.forward.business_id) || undefined
-        })).catch(() => []);
-        const account = accounts.find((entry) => cleanText(entry.external_account_id) === orgId
-          || (cleanText(config.forward.business_id) && cleanText(entry.business_id) === cleanText(config.forward.business_id)));
-        if (account) {
-          patch.account_id = account.id;
-          patch.processing_enabled = account.processing_enabled;
-          patch.payouts_enabled = account.payouts_enabled;
-        }
-      }
-    }
-    if (Object.keys(patch).length) {
-      const merchantConfig = await upsertMerchantConfig(orgId, { forward: patch });
-      if (live === "APPROVED") await maybeNotifyMerchantApproved(orgId).catch(() => null);
-      return { ok: true, application, merchant_config: await getMerchantConfig(orgId).catch(() => merchantConfig) };
-    }
-    return { ok: true, application };
+    await requireBoardingProvider(orgId);
+    // Submissions and approvals happen on Forward's side; reading the
+    // application here records them even when no webhook has arrived.
+    const { syncBoardingFromProvider } = await import("./boarding_sync.js");
+    const { application, changed } = await boardingCall(() => syncBoardingFromProvider(orgId, getParam(request.params, "applicationId")));
+    return changed ? { ok: true, application, merchant_config: await getMerchantConfig(orgId) } : { ok: true, application };
   });
 
   app.patch("/organizations/:orgId/merchant-boarding/applications/:applicationId", async (request) => {

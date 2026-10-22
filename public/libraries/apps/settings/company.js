@@ -8189,7 +8189,12 @@ By opting in, you agree to receive ${purposes}. Message frequency varies. Messag
         const status = boardingStatus();
         const forward = mp.config?.forward || {};
         if (status === 'APPROVED' || (forward.account_id && !status)) {
-          const rails = forward.enabled_rails || {};
+          // Card and bank are on until someone changes a rail (the server's
+          // readiness uses the same default), so show what will actually run.
+          const storedRails = forward.enabled_rails || {};
+          const rails = forward.enabled_rails_set === true
+            ? storedRails
+            : { ...storedRails, card: true, bank: true };
           const railRow = (key, label, icon) => `
             <label class="li-switch-row">
               <div><div class="cs-lbl"><i class="fas ${icon}" style="margin-right:7px;color:#667085"></i>${label}</div></div>
