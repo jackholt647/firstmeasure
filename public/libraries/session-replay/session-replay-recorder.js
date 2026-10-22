@@ -24,7 +24,7 @@
     return;
   }
   const { E, PTR } = Codec;
-  const VERSION = '2026.10.22.1';
+  const VERSION = '2026.10.22.2';
   const perf = root.performance;
   const timeOrigin = Math.round(perf.timeOrigin || (Date.now() - perf.now()));
   const clock = () => Math.round(perf.now());
@@ -965,6 +965,11 @@
       return true;
     }
 
+    function sendNow() {
+      try { cutChunk(); } catch (error) { diag.internal_errors++; }
+      return pump();
+    }
+
     async function pump() {
       if (pumping) return;
       pumping = true;
@@ -1004,6 +1009,10 @@
           retry();
           return;
         }
+      } catch (error) {
+        // Never let an upload problem reach the page's own error handlers.
+        diag.internal_errors++;
+        retry();
       } finally {
         pumping = false;
       }
@@ -1162,14 +1171,14 @@
       const start = perf.now();
       depth++;
       try { snapshot(); } finally { depth--; diag.cpu_ms += perf.now() - start; }
-      firstChunkTimer = setTimeout(() => { firstChunkTimer = 0; if (state.recording) { cutChunk(); pump(); } }, 1000);
+      firstChunkTimer = setTimeout(() => { firstChunkTimer = 0; if (state.recording) sendNow(); }, 1000);
     }
 
     function start() {
       if (state.recording) return api;
       listenTop();
       begin();
-      chunkTimer = setInterval(() => { if (state.recording && !topDoc.hidden) { cutChunk(); pump(); } }, chunkMs);
+      chunkTimer = setInterval(() => { if (state.recording && !topDoc.hidden) sendNow(); }, chunkMs);
       const timedSample = timed(sample);
       // The overlay draws outside timed(): its own cost is not the recorder's.
       diagTimer = setInterval(() => { timedSample(); if (overlay && overlay.visible) overlay.render(); }, 1000);

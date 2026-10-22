@@ -21,7 +21,7 @@
   if (!topLevel) return;
   if (document.documentElement && document.documentElement.hasAttribute('data-fmr-no-record')) return;
 
-  const VERSION = '20261022-1';
+  const VERSION = '20261022-2';
   const SESSION_KEY = 'fmr.session';
   const OVERLAY_KEY = 'fmr.overlay';
   const IDLE_MS = 30 * 60 * 1000;
