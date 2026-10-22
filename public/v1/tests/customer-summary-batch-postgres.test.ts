@@ -73,4 +73,7 @@ test("batched customer summary rows equal per-organization rows", { skip: !datab
   assert.deepEqual(batched.map(strip), perOrganization.map(strip));
   assert.equal(batched.find((row) => row.id === "org_batch_a")?.lifetimeOrders, 3);
   assert.equal(batched.find((row) => row.id === "org_batch_a")?.user_count, 2);
+  // Callers that keep only part of each row transform it per batch; null drops the row and order is kept.
+  const names = await api.buildOrganizationSummaryRows(organizations, true, (row) => row.id === "org_batch_b" ? null : `${row.id}:${row.lifetimeOrders}`);
+  assert.deepEqual(names, perOrganization.filter((row) => row.id !== "org_batch_b").map((row) => `${row.id}:${row.lifetimeOrders}`));
 });

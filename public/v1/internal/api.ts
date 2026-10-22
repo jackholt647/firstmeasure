@@ -684,7 +684,7 @@ export const registerInternalApi: FastifyPluginAsync = async (app) => {
       const result = await paginatedOrganizationDashboard(query);
       return { ok: true, success: true, ...result };
     }
-    const organizations = compactOrganizationSummaries(await buildOrganizationSummaries(query));
+    const organizations = await compactOrganizationSummariesFor(query);
     return { ok: true, success: true, organizations, count: organizations.length };
   });
 
@@ -694,7 +694,7 @@ export const registerInternalApi: FastifyPluginAsync = async (app) => {
       const result = await paginatedOrganizationDashboard(query);
       return { ok: true, success: true, ...result };
     }
-    const organizations = compactOrganizationSummaries(await buildOrganizationSummaries(query));
+    const organizations = await compactOrganizationSummariesFor(query);
     const totals = organizations.reduce((acc, org) => {
       acc.credits_balance += Number(org.credits_balance || 0);
       acc.users += Number(org.user_count || 0);
@@ -3122,7 +3122,7 @@ async function handleTutorialLegacyAction(action: string, body: JsonObject, acto
 }
 
 async function buildInternalStats() {
-  const [users, organizations] = await Promise.all([listInternalUsers(), buildOrganizationSummaries({})]);
+  const [users, organizations] = await Promise.all([listInternalUsers(), compactOrganizationSummariesFor({})]);
   return {
     internal_users: users.length,
     trained_users: users.filter((user) => user.training_complete).length,
@@ -3184,6 +3184,8 @@ type OrganizationSummaryCacheEntry = {
 
 const ORGANIZATION_SUMMARY_CACHE_TTL_MS = 60_000;
 const organizationSummaryCache = new Map<string, OrganizationSummaryCacheEntry>();
+// One build per key at a time: concurrent staff requests share it instead of each loading every organization.
+const organizationSummaryInflight = new Map<string, Promise<{ organizations: JsonObject[]; totals: JsonObject }>>();
 
 type StatsCreditRevenueCacheEntry = {
   expiresAt: number;
@@ -3195,6 +3197,7 @@ const statsCreditRevenueCache = new Map<string, StatsCreditRevenueCacheEntry>();
 
 function clearOrganizationSummaryCache() {
   organizationSummaryCache.clear();
+  organizationSummaryInflight.clear();
 }
 
 function clearStatsCreditRevenueCache() {
@@ -3215,13 +3218,21 @@ async function compactCachedOrganizationSummaries(query: JsonObject) {
   if (cached && cached.expiresAt > Date.now()) {
     return { organizations: cached.organizations, totals: cached.totals, cached: true };
   }
-  const organizations = compactOrganizationSummaries(await buildOrganizationSummaries(query));
-  const totals = summarizeOrganizations(organizations);
-  organizationSummaryCache.set(key, {
-    expiresAt: Date.now() + ORGANIZATION_SUMMARY_CACHE_TTL_MS,
-    organizations,
-    totals
-  });
+  let build = organizationSummaryInflight.get(key);
+  if (!build) {
+    build = (async () => {
+      const organizations = await compactOrganizationSummariesFor(query);
+      const totals = summarizeOrganizations(organizations);
+      if (organizationSummaryInflight.get(key) === build) {
+        organizationSummaryCache.set(key, { expiresAt: Date.now() + ORGANIZATION_SUMMARY_CACHE_TTL_MS, organizations, totals });
+      }
+      return { organizations, totals };
+    })().finally(() => {
+      if (organizationSummaryInflight.get(key) === build) organizationSummaryInflight.delete(key);
+    });
+    organizationSummaryInflight.set(key, build);
+  }
+  const { organizations, totals } = await build;
   return { organizations, totals, cached: false };
 }
 
@@ -3601,18 +3612,32 @@ async function customerUsersExportPage(body: JsonObject) {
   return { ok: true, success: true, organizations, next_cursor };
 }
 
+type OrganizationSummaryRow = Awaited<ReturnType<typeof buildOrganizationSummaryRow>>;
+
 async function buildOrganizationSummaries(query: JsonObject) {
+  return await buildOrganizationSummariesAs(query, (row) => row);
+}
+
+/**
+ * Every organization's summary row, each passed through `transform` as soon as its batch is built. Full
+ * rows carry every project, user and ledger entry; holding all 11,000+ at once exhausted the
+ * compatibility workers' heap (1M8-225), so callers that only need compact rows compact per batch.
+ */
+async function buildOrganizationSummariesAs<T>(query: JsonObject, transform: (row: OrganizationSummaryRow) => T) {
   const search = String(query.q ?? query.search ?? "").trim().toLowerCase();
   const includeCredits = query.include_credits !== false && query.include_credits !== "0";
   const includeInternal = query.include_internal === true || query.include_internal === "1" || query.include_internal === "true";
   const internalOrgId = internalPlatformOrgId();
   const orgs = await listOrganizations();
   const visibleOrgs = orgs.filter((org) => includeInternal || String(org.id ?? "").toLowerCase() !== internalOrgId);
-  const rows = await buildOrganizationSummaryRows(visibleOrgs, includeCredits);
-  return rows.filter((row) => {
-    if (!search) return true;
-    return `${row.id} ${row.name} ${row.sales_owner_email ?? ""}`.toLowerCase().includes(search);
+  return await buildOrganizationSummaryRows(visibleOrgs, includeCredits, (row) => {
+    if (search && !`${row.id} ${row.name} ${row.sales_owner_email ?? ""}`.toLowerCase().includes(search)) return null;
+    return transform(row);
   });
+}
+
+async function compactOrganizationSummariesFor(query: JsonObject) {
+  return await buildOrganizationSummariesAs(query, compactOrganizationSummary);
 }
 
 type OrganizationSummaryPreloadedData = {
@@ -3632,16 +3657,22 @@ const ORGANIZATION_SUMMARY_PRELOAD_BATCH = 250;
  * (a summary only needs its empty data). If a batch read fails, its organizations fall back to the
  * per-organization reads, which already treat a failed read as empty.
  */
-export async function buildOrganizationSummaryRows(orgs: JsonObject[], includeCredits: boolean) {
-  const rows: Awaited<ReturnType<typeof buildOrganizationSummaryRow>>[] = [];
+export async function buildOrganizationSummaryRows(orgs: JsonObject[], includeCredits: boolean): Promise<OrganizationSummaryRow[]>;
+export async function buildOrganizationSummaryRows<T>(orgs: JsonObject[], includeCredits: boolean, transform: (row: OrganizationSummaryRow) => T | null): Promise<T[]>;
+export async function buildOrganizationSummaryRows<T>(orgs: JsonObject[], includeCredits: boolean, transform?: (row: OrganizationSummaryRow) => T | null) {
+  const rows: Array<T | OrganizationSummaryRow> = [];
   for (let start = 0; start < orgs.length; start += ORGANIZATION_SUMMARY_PRELOAD_BATCH) {
     const batch = orgs.slice(start, start + ORGANIZATION_SUMMARY_PRELOAD_BATCH);
     const preloaded = await preloadOrganizationSummaryData(batch.map((org) => String(org.id ?? ""))).catch(() => null);
-    rows.push(...await mapCustomerOrganizationsWithConcurrency(
+    const built = await mapCustomerOrganizationsWithConcurrency(
       batch,
       16,
       (org) => buildOrganizationSummaryRow(org, includeCredits, preloaded?.get(String(org.id ?? "")))
-    ));
+    );
+    for (const row of built) {
+      const kept = transform ? transform(row) : row;
+      if (kept !== null) rows.push(kept);
+    }
   }
   return rows;
 }
