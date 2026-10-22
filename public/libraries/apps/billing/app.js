@@ -476,8 +476,13 @@ window.PlatformCommerce.onReady(function(){
     }
   `;
 
+  /* A pending order belongs to the account that placed it; another account signed in on this browser ignores it (1M8-204). */
   function readPending(){
-    try{ const raw = localStorage.getItem(PENDING_ORDER_KEY); return raw ? JSON.parse(raw) : null; }catch(e){ return null; }
+    try{
+      const pending = JSON.parse(localStorage.getItem(PENDING_ORDER_KEY) || 'null');
+      const owner = String(pending?.organization_id || '').trim();
+      return pending && (!owner || owner === String(window.__APP?.userOrgId || '').trim()) ? pending : null;
+    }catch(e){ return null; }
   }
   function clearPending(){ try{ localStorage.removeItem(PENDING_ORDER_KEY); }catch(e){} }
   function hasPendingOrder(){
