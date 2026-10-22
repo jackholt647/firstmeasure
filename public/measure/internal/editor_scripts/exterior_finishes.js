@@ -78,6 +78,123 @@ function roofNormalMap(category){
  for(let y=0;y<H;y++)for(let x=0;x<W;x++){const dx=(h(x+1,y)-h(x-1,y))*k,dy=(h(x,y+1)-h(x,y-1))*k,l=Math.hypot(dx,dy,1),i=(y*W+x)*4;out.data[i]=Math.round((-dx/l*.5+.5)*255);out.data[i+1]=Math.round((dy/l*.5+.5)*255);out.data[i+2]=Math.round((1/l*.5+.5)*255);out.data[i+3]=255;}
  c.putImageData(out,0,0);const t=new THREE.CanvasTexture(canvas);t.wrapS=t.wrapT=THREE.RepeatWrapping;t.anisotropy=8;roofNormals.set(category,t);return t;
 }
+// Normal map from a height canvas (brightness = height). wrap repeats across the edges; otherwise edges clamp.
+function normalFromCanvas(source,k,wrap=true){
+ const W=source.width,H=source.height,read=source.getContext?.('2d')?.getImageData?.(0,0,W,H);if(!read?.data)return null;
+ const canvas=document.createElement('canvas');canvas.width=W;canvas.height=H;const c=canvas.getContext('2d'),out=c.createImageData(W,H),at=(v,n)=>wrap?(v+n)%n:Math.max(0,Math.min(n-1,v)),h=(x,y)=>{const i=(at(y,H)*W+at(x,W))*4;return (read.data[i]+read.data[i+1]+read.data[i+2])/765;};
+ for(let y=0;y<H;y++)for(let x=0;x<W;x++){const dx=(h(x+1,y)-h(x-1,y))*k,dy=(h(x,y+1)-h(x,y-1))*k,l=Math.hypot(dx,dy,1),i=(y*W+x)*4;out.data[i]=Math.round((-dx/l*.5+.5)*255);out.data[i+1]=Math.round((dy/l*.5+.5)*255);out.data[i+2]=Math.round((1/l*.5+.5)*255);out.data[i+3]=255;}
+ c.putImageData(out,0,0);const t=new THREE.CanvasTexture(canvas);t.wrapS=t.wrapT=wrap?THREE.RepeatWrapping:THREE.ClampToEdgeWrapping;t.anisotropy=8;return t;
+}
+const srgb=t=>{if(THREE.SRGBColorSpace)t.colorSpace=THREE.SRGBColorSpace;else if(THREE.sRGBEncoding)t.encoding=THREE.sRGBEncoding;return t;};
+// Ridge and hip caps are data per roof category. exposure is one cap piece along the line, width is each side
+// of the line (metres). Metal has no textured cap. Valleys never get one: the faces just meet.
+const roofCapSpecs={shingles:{style:'lapped',exposure:.14,width:.15,shade:.92},shake:{style:'alternating',exposure:.2,width:.18,shade:.9},slate:{style:'saddle',exposure:.3,width:.15,shade:.94},metal:null};
+const CAP_LIFT=.015,CAP_RIDGE_LIFT=.004,CAP_PIECES=4;
+function roofCapCanvas(category){
+ const spec=roofCapSpecs[category];if(!spec)return null;
+ const W=512,H=128,pw=W/CAP_PIECES,canvas=document.createElement('canvas');canvas.width=W;canvas.height=H;const c=canvas.getContext('2d');
+ let seed=[...('cap'+category)].reduce((s,ch)=>s*31+ch.charCodeAt(0)|0,11);const rnd=()=>{seed=seed+0x6D2B79F5|0;let t=Math.imul(seed^seed>>>15,1|seed);t=t+Math.imul(t^t>>>7,61|t)^t;return ((t^t>>>14)>>>0)/4294967296;};
+ const gray=(v,a=1)=>{const n=Math.max(0,Math.min(255,Math.round(v*255)));return a<1?'rgba('+n+','+n+','+n+','+a+')':'rgb('+n+','+n+','+n+')';};
+ const rect=(x,y,w,h,fill)=>{c.fillStyle=fill;for(const dx of [0,-W,W])c.fillRect(x+dx,y,w,h);};
+ const butt=(x,y,h)=>{for(const dx of [0,-W,W]){const g=c.createLinearGradient(x+dx-18,0,x+dx,0);g.addColorStop(0,gray(0,0));g.addColorStop(1,gray(0,.5));c.fillStyle=g;c.fillRect(x+dx-18,y,18,h);}rect(x,y,2,h,gray(.97));};
+ // u runs along the line (uphill on hips), so each piece's exposed butt faces down the line and laps the one before it.
+ if(spec.style==='lapped'){for(let k=0;k<CAP_PIECES;k++)rect(k*pw,0,pw,H,gray(.74+rnd()*.16));for(let k=0;k<CAP_PIECES;k++)butt(k*pw,0,H);for(let i=0;i<W*H/3;i++){c.fillStyle=gray(rnd()<.5?1:0,.2*rnd());c.fillRect(Math.floor(rnd()*W),Math.floor(rnd()*H),1,1);}}
+ else if(spec.style==='alternating'){
+  // Wood caps alternate which side laps over the line, so each side's joints sit half a piece apart.
+  for(const [y0,offset]of [[0,0],[H/2,pw/2]])for(let k=0;k<CAP_PIECES;k++){const x=k*pw+offset,tone=.7+rnd()*.2;rect(x,y0,pw,H/2,gray(tone));for(let s=0;s<pw*.5;s++)rect(x+rnd()*pw,y0+rnd()*H/2*.3,rnd()*pw*.6,1,gray(rnd()<.5?tone+.12:tone-.14,.5));}
+  for(const [y0,offset]of [[0,0],[H/2,pw/2]])for(let k=0;k<CAP_PIECES;k++)butt(k*pw+offset,y0,H/2);
+  for(let k=0;k<CAP_PIECES;k++)rect(k*pw+(k%2?0:pw/2),H/2+(k%2?-2:0),pw/2,2,gray(.3));
+ }else{
+  // Saddle ridge: butt-jointed slates along the line, joints staggered between the two sides.
+  rect(0,0,W,H,gray(.25));
+  for(const [y0,offset]of [[0,0],[H/2,pw/2]])for(let k=0;k<CAP_PIECES;k++){const x=k*pw+offset+1,tone=.68+rnd()*.24;rect(x,y0+1,pw-2,H/2-2,gray(tone));for(let s=0;s<4;s++)rect(x+rnd()*pw*.5,y0+rnd()*H/2,pw*(.2+rnd()*.4),1,gray(tone-.08,.6));}
+  rect(0,H/2-1,W,2,gray(.35));
+ }
+ rect(0,0,W,2,gray(.4));rect(0,H-2,W,2,gray(.4));
+ return canvas;
+}
+const capMaps=new Map();
+function roofCapTexture(category){if(!roofCapSpecs[category])return null;if(!capMaps.has(category)){const t=srgb(new THREE.CanvasTexture(roofCapCanvas(category)));t.wrapS=THREE.RepeatWrapping;t.wrapT=THREE.ClampToEdgeWrapping;t.anisotropy=8;capMaps.set(category,t);}return capMaps.get(category);}
+const capNormals=new Map();
+function roofCapNormalMap(category){if(!roofCapSpecs[category])return null;if(!capNormals.has(category)){const t=normalFromCanvas(roofCapTexture(category).image,4);if(t)t.wrapT=THREE.ClampToEdgeWrapping;capNormals.set(category,t);}return capNormals.get(category);}
+// Cap strips straddle every ridge and hip line, folded onto each adjacent face, clipped to that face and lifted
+// slightly above it (ridges a little more, so they lap the hips where they meet). Metric points, one merged geometry.
+function roofCapGeometry(roof,category){
+ const spec=roofCapSpecs[category];if(!spec||!roof?.faces?.length)return null;
+ const K=root.ExteriorGeometry,Wg=root.WallSolidGeometry,positions=[],uv=[],index=[],sub=(a,b)=>({x:a.x-b.x,y:a.y-b.y,z:a.z-b.z}),dot=(a,b)=>a.x*b.x+a.y*b.y+a.z*b.z,cross=(a,b)=>({x:a.y*b.z-a.z*b.y,y:a.z*b.x-a.x*b.z,z:a.x*b.y-a.y*b.x}),unit=a=>{const l=Math.hypot(a.x,a.y,a.z)||1;return {x:a.x/l,y:a.y/l,z:a.z/l};};
+ const onEdge=(p,ring)=>ring.some((a,i)=>{const b=ring[(i+1)%ring.length],ab=sub(b,a),l2=dot(ab,ab),t=l2?Math.max(0,Math.min(1,dot(sub(p,a),ab)/l2)):0;return Math.hypot(p.x-a.x-ab.x*t,p.y-a.y-ab.y*t,p.z-a.z-ab.z*t)<.02;});
+ const lines=[],seen=new Set();
+ for(const c of roof.connections||[]){
+  const type=c.type?.id||c.type;if(type!=='ridge'&&type!=='hip')continue;
+  let a=roof.points[c.startIdx],b=roof.points[c.endIdx];if(!K.finite3(a)||!K.finite3(b))continue;
+  const key=[a,b].map(p=>[p.x,p.y,p.z].map(v=>Math.round(v*1000)).join(':')).sort().join('|');if(seen.has(key))continue;seen.add(key);
+  if(type==='hip'&&a.z>b.z)[a,b]=[b,a];
+  const length=Math.hypot(b.x-a.x,b.y-a.y,b.z-a.z);if(length<.05)continue;
+  const mid={x:(a.x+b.x)/2,y:(a.y+b.y)/2,z:(a.z+b.z)/2},dir=unit(sub(b,a)),faces=roof.faces.filter(f=>f.points?.length>2&&[a,b,mid].every(p=>onEdge(p,f.points))).slice(0,2);
+  if(!faces.length)continue;lines.push({type,a,b});
+  faces.forEach((face,sideIndex)=>{
+   const frame=Wg.faceFrame(face);if(!frame||Math.abs(frame.n.z)<.05)return;const n=frame.n.z<0?{x:-frame.n.x,y:-frame.n.y,z:-frame.n.z}:frame.n,side=sideIndex?-1:1;
+   let d=unit(cross(n,dir));const centroid=face.points.reduce((s,p)=>({x:s.x+p.x/face.points.length,y:s.y+p.y/face.points.length,z:s.z+p.z/face.points.length}),{x:0,y:0,z:0});if(dot(sub(centroid,a),d)<0)d={x:-d.x,y:-d.y,z:-d.z};
+   const w=spec.width,quad=[a,b,{x:b.x+d.x*w,y:b.y+d.y*w,z:b.z+d.z*w},{x:a.x+d.x*w,y:a.y+d.y*w,z:a.z+d.z*w}];
+   let parts=[];try{parts=K.intersection([{points:face.points,holes:face.holes||[]}],[{points:quad,holes:[]}]);}catch(_){parts=[];}
+   const planeZ=p=>frame.origin.z-(n.x*(p.x-frame.origin.x)+n.y*(p.y-frame.origin.y))/n.z,lift=CAP_LIFT+(type==='ridge'?CAP_RIDGE_LIFT:0);
+   for(const part of parts){
+    const rings=[part.points,...(part.holes||[])];if(rings[0].length<3)continue;
+    const flat=rings.flat(),base=positions.length/3,tri=THREE.ShapeUtils.triangulateShape(rings[0].map(p=>new THREE.Vector2(p.x,p.y)),rings.slice(1).map(r=>r.map(p=>new THREE.Vector2(p.x,p.y))));
+    for(const p of flat){const q={x:p.x,y:p.y,z:planeZ(p)},rel=sub(q,a),s=Math.max(0,Math.min(w,dot(rel,d)));positions.push(q.x,q.y,q.z+lift);uv.push(dot(rel,dir)/(spec.exposure*CAP_PIECES),.5+side*s/(2*w));}
+    for(const t of tri)index.push(base+t[0],base+t[1],base+t[2]);
+   }
+  });
+ }
+ return index.length?{positions,uv,index,lines}:null;
+}
+function roofCaps(roof,vector,category){
+ const current=resolve({material:'shingles'}).category;category=category||current;const data=roofCapGeometry(roof,category);if(!data)return null;
+ const g=new THREE.BufferGeometry(),pts=[];for(let i=0;i<data.positions.length;i+=3)pts.push(vector({x:data.positions[i],y:data.positions[i+1],z:data.positions[i+2]}));g.setFromPoints(pts);g.setAttribute('uv',new THREE.Float32BufferAttribute(data.uv,2));g.setIndex(data.index);
+ const mesh=new THREE.Mesh(g,new THREE.MeshBasicMaterial({color:'#54cf86',side:THREE.DoubleSide,transparent:true,opacity:.1,depthWrite:false}));mesh.name='roof-caps';mesh.userData.pickLayer='roof';mesh.userData.roofCaps=true;mesh.raycast=()=>{};
+ mesh.userData.exteriorFinish={material:'shingles',roofCap:true,color:null,normal:{x:0,y:0,z:1},...(category===current?{}:{roofMaterial:{category}})};return mesh;
+}
+// Doors: one default door material per kind, tinted by the door's own color when it has one. The inset detail
+// is grooves in the door's own outline: a standard panel layout for a recognised rectangle, otherwise the outline
+// traced inward by the margin (following curves). Too small or degenerate doors get no inset.
+const doorFinishes={door:{color:'#c8b9a2',roughness:.55,margin:.089,groove:.014,depth:6},garage:{color:'#d8d7d0',roughness:.5,margin:.07,groove:.014,depth:6}};
+function doorInset(outline,type,rectangle){
+ const spec=doorFinishes[type],empty={kind:'none',grooves:[]};if(!spec||!Array.isArray(outline)||outline.length<3||!outline.every(p=>Number.isFinite(p?.x)&&Number.isFinite(p?.y)))return empty;
+ const xs=outline.map(p=>p.x),ys=outline.map(p=>p.y),left=Math.min(...xs),bottom=Math.min(...ys),w=Math.max(...xs)-left,h=Math.max(...ys)-bottom,m=spec.margin;
+ if(!(w>=4*m&&h>=4*m))return empty;
+ const box=(x0,y0,x1,y1)=>[{x:x0,y:y0},{x:x1,y:y0},{x:x1,y:y1},{x:x0,y:y1}];
+ if(rectangle&&type==='door'){
+  // Two to six recessed panels per leaf: stiles and rails one margin wide.
+  const leaves=w>1.35?2:1,lw=w/leaves,rows=h>=1.9?3:2,cols=lw>=.75?2:1,grooves=[];
+  for(let leaf=0;leaf<leaves;leaf++){const x0=left+leaf*lw,cw=(lw-m*(cols+1))/cols,rh=(h-m*(rows+1))/rows;if(cw<m||rh<m)continue;for(let r=0;r<rows;r++)for(let k=0;k<cols;k++){const x=x0+m+k*(cw+m),y=bottom+m+r*(rh+m);grooves.push(box(x,y,x+cw,y+rh));}}
+  return grooves.length?{kind:'panels',grooves}:empty;
+ }
+ if(rectangle&&type==='garage'){
+  // Horizontal sections, each with a row of recessed panels.
+  const rows=Math.max(3,Math.min(6,Math.round(h/.53))),cols=Math.max(2,Math.min(8,Math.round(w/.75))),rh=h/rows,cw=w/cols,grooves=[];
+  for(let r=1;r<rows;r++)grooves.push([{x:left,y:bottom+r*rh},{x:left+w,y:bottom+r*rh}]);
+  for(let r=0;r<rows;r++)for(let k=0;k<cols;k++){const x=left+k*cw+m*.6,y=bottom+r*rh+m*.6;if(cw-1.2*m>m*.5&&rh-1.2*m>m*.5)grooves.push(box(x,y,x+cw-1.2*m,y+rh-1.2*m));}
+  return {kind:'sections',grooves};
+ }
+ // Unrecognised outline: trace the edge inward by the margin.
+ const C=root.ClipperLib;if(!C)return empty;const S=1e4,o=new C.ClipperOffset(2,S*.0025),solution=new C.Paths();
+ o.AddPath(outline.map(p=>({X:Math.round(p.x*S),Y:Math.round(p.y*S)})),C.JoinType.jtRound,C.EndType.etClosedPolygon);o.Execute(solution,-m*S);
+ const grooves=solution.filter(path=>path.length>2&&Math.abs(C.Clipper.Area(path))/S/S>m*m).map(path=>path.map(q=>({x:q.X/S,y:q.Y/S})));
+ return grooves.length?{kind:'traced',grooves}:empty;
+}
+// The inset as a normal map over the door's bounds (its UVs span the bounds), drawn as grooves in a height canvas.
+const doorMaps=new Map();
+function doorNormalMap(outline,type,rectangle){
+ const plan=doorInset(outline,type,rectangle);if(!plan.grooves.length)return null;
+ const key=type+':'+rectangle+':'+outline.map(p=>p.x.toFixed(3)+','+p.y.toFixed(3)).join(';');if(doorMaps.has(key)){const t=doorMaps.get(key);doorMaps.delete(key);doorMaps.set(key,t);return t;}
+ const xs=outline.map(p=>p.x),ys=outline.map(p=>p.y),left=Math.min(...xs),bottom=Math.min(...ys),w=Math.max(...xs)-left,h=Math.max(...ys)-bottom,ppm=Math.min(512/Math.max(w,h),200),W=Math.max(8,Math.round(w*ppm)),H=Math.max(8,Math.round(h*ppm));
+ const canvas=document.createElement('canvas');canvas.width=W;canvas.height=H;const c=canvas.getContext('2d');c.fillStyle='#fff';c.fillRect(0,0,W,H);
+ c.strokeStyle='#000';c.lineWidth=Math.max(2,doorFinishes[type].groove*ppm);c.lineJoin='round';if('filter' in c)c.filter='blur(1px)';
+ for(const g of plan.grooves){c.beginPath();g.forEach((p,i)=>{const x=(p.x-left)*ppm,y=H-(p.y-bottom)*ppm;i?c.lineTo(x,y):c.moveTo(x,y);});if(g.length>2)c.closePath();c.stroke();}
+ const t=normalFromCanvas(canvas,doorFinishes[type].depth,false);if(!t)return null;t.userData||={};t.userData.doorInset=plan.kind;doorMaps.set(key,t);
+ for(const [k,old]of doorMaps){if(doorMaps.size<=48)break;doorMaps.delete(k);old.dispose();}
+ return t;
+}
 function texture(type){
  if(cache.has(type))return cache.get(type);
  const canvas=document.createElement('canvas');canvas.width=canvas.height=256;const c=canvas.getContext('2d');
@@ -176,7 +293,7 @@ function prepare(mesh,face,points,parameters){
  // A roof covering repeats at its own metric size: one tile is whole courses up the slope.
  const tile=face.material==='shingles'?roofMaterials[resolve(face).category].tile:[.6096,.6096];
  const horizontal=Math.abs(frame?.n.z||0)>.999,uv=points.flatMap((p,i)=>[(axes?dot(p,axes.u):arcAt?arcAt(parameters[i].x):p.x*u.x+p.y*u.y+p.z*u.z)/tile[0],(axes?dot(p,axes.v):horizontal?p.x*(frame?.v.x||0)+p.y*(frame?.v.y||1):p.z)/tile[1]]);
- mesh.geometry.setAttribute('uv',new THREE.Float32BufferAttribute(uv,2));mesh.userData.exteriorFinish={material:face.material||(face.chimney?.cap&&!face.chimney.derived&&!face.trim?'chimney-top':frame?.n.z<-.5?'soffit':'default'),color:face.finishColor||null,feature:!!face.feature,trim:!!face.trim,normal:frame?.n};
+ mesh.geometry.setAttribute('uv',new THREE.Float32BufferAttribute(uv,2));mesh.userData.exteriorFinish={material:face.material||(face.chimney?.cap&&!face.chimney.derived&&!face.trim?'chimney-top':frame?.n.z<-.5?'soffit':'default'),color:face.finishColor||null,feature:!!face.feature,trim:!!face.trim,normal:frame?.n,chimney:face.chimney?.id??null,chimneyCap:!!(face.chimney?.cap&&!face.chimney.derived&&!face.trim)};
 }
 // Roof features stay in the roof model. These derived surfaces are presentation-only.
 function roofSkylights(roof){
@@ -260,7 +377,7 @@ function apply(mesh,material){
  colorManagedFinish(material);
  material.color.set(resolved.color);material.color.convertSRGBToLinear?.();
  const n=finish.normal;if(n)material.color.multiplyScalar(.78+.22*Math.abs(n.x*.37+n.y*.53+n.z*.76));
- material.map=['unassigned','chimney-top'].includes(resolved.material)?null:resolved.material==='shingles'?roofTexture(resolved.category):texture(resolved.material);
+ material.map=['unassigned','chimney-top'].includes(resolved.material)?null:resolved.material==='shingles'?(finish.roofCap?roofCapTexture(resolved.category):roofTexture(resolved.category)):texture(resolved.material);
 }
-root.ExteriorFinishes={prepare,apply,reset,resolve,defaults,roofMeshes,roofSkylights,roofPresentation,skylightMesh,roofMaterials,roofDefault,resolveRoof,roofCanvas,roofTexture,roofNormalMap};
+root.ExteriorFinishes={prepare,apply,reset,resolve,defaults,roofMeshes,roofSkylights,roofPresentation,skylightMesh,roofMaterials,roofDefault,resolveRoof,roofCanvas,roofTexture,roofNormalMap,roofCapSpecs,roofCapCanvas,roofCapTexture,roofCapNormalMap,roofCapGeometry,roofCaps,doorFinishes,doorInset,doorNormalMap};
 })(window);

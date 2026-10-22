@@ -1434,6 +1434,9 @@ async function captureStateForPDF(options = {}) {
             excludedSignatures
         };
 
+        // The cover's textured render waits for its materials, then travels with the snapshot.
+        if (window.ExteriorCover?.attach) await window.ExteriorCover.attach(state);
+
         if (captureWireframesForState && typeof ensurePdfWireframesForState === 'function') {
             await ensurePdfWireframesForState(state);
         }
@@ -4948,6 +4951,9 @@ async function updateStateImages(state, options = {}) {
     if (ventCvs) {
         state.ventImg = _downscaleCanvasToJpeg(ventCvs, IMG_TARGET_WIDTH, IMG_JPEG_QUALITY);
     }
+
+    // Re-capture the textured cover when the model, finishes or front changed since it was taken.
+    if (window.ExteriorCover?.attach) await window.ExteriorCover.attach(state);
 
     if (options.captureWireframes === true && typeof window.ensurePdfWireframesForState === 'function') {
         await window.ensurePdfWireframesForState(state);

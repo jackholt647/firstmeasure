@@ -668,6 +668,8 @@ function perf_render3DFrame() {
             const presentation=textured?window.ExteriorFinishes.roofPresentation(visibleRoof):{faces:visibleRoof.faces,skylights:[]};
             presentation.faces.forEach((f,index)=>renderChunk('roof:'+index,f,group3D,target=>{for(const mesh of window.ExteriorFinishes.roofMeshes(f,vector,textured))target.add(mesh);}));
             presentation.skylights.forEach((f,index)=>renderChunk('roof-skylight:'+index,f,group3D,target=>target.add(window.ExteriorFinishes.skylightMesh(f,vector))));
+            // Ridge and hip caps (textured modes only): one merged mesh per roof.
+            if(textured)renderChunk('roof-caps',[visibleRoof,window.ExteriorFinishes.resolve({material:'shingles'},state?.finishDefaults||{})],group3D,target=>{const caps=window.ExteriorFinishes.roofCaps?.(visibleRoof,vector);if(caps)target.add(caps);});
             drawRoofTrim(group3D,roof,vector);
         }
         if(wallsVisible&&state&&stage===1){const ps=[],cs=[];for(const s of state.sources){const i=ps.length;ps.push(s.a,s.b);cs.push({startIdx:i,endIdx:i+1});}addLines(ps,cs,YELLOW);}
@@ -1097,9 +1099,8 @@ function perf_render3DFrame() {
     }
     // The PDF cover's textured render travels with the report snapshot: server renders have no editor scene.
     function reportSnapshotWithCover(){
-        const model=reportSnapshot();
-        if(model&&window.ExteriorCover)try{const cover=window.ExteriorCover.render((window.reportConfigState||window.loadedPdfConfig||{}).exteriorSettings||{});if(cover)model.coverRender=cover;}catch(error){console.warn('Textured cover render failed; the cover keeps the line drawing.',error);}
-        return model;
+        // The textured cover is captured asynchronously before the PDF snapshot is built (ExteriorCover.attach).
+        return reportSnapshot();
     }
     // Live sources for the offscreen cover render. The roof is rebuilt from the model, so a hidden roof layer still appears.
     function coverParts(){

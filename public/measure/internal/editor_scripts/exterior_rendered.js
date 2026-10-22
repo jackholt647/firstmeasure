@@ -7,20 +7,30 @@ const presentationParts=root.ExteriorSceneCache?new root.ExteriorSceneCache():nu
 let active=null,hud=null,graphics=null,pending=0,loaded=0,hdrPromise=null,environment=null,environmentRenderer=null;
 const color=value=>new THREE.Color(value).convertSRGBToLinear();
 function status(){if(hud){hud.querySelector('[data-export]').disabled=pending>0;hud.querySelector('[role=status]').textContent=errors.size?'Some assets unavailable — basic materials shown':pending?'Loading high-resolution assets… '+loaded+'/'+(loaded+pending):'2K materials · HDR reflections · 4K shadows';}}
+const loads=[];
 function loadTexture(file,srgb){
- pending++;status();const texture=new THREE.TextureLoader().load(assetURL+file,()=>{pending--;loaded++;status();},undefined,()=>{pending--;errors.add(file);status();});
+ pending++;status();let done;loads.push(new Promise(resolve=>done=resolve));const texture=new THREE.TextureLoader().load(assetURL+file,()=>{pending--;loaded++;status();done(true);},undefined,()=>{pending--;errors.add(file);status();done(false);});
  texture.encoding=srgb?THREE.sRGBEncoding:THREE.LinearEncoding;texture.wrapS=texture.wrapT=THREE.RepeatWrapping;texture.anisotropy=8;return texture;
 }
 function pack(name){if(!packs.has(name))packs.set(name,{map:loadTexture(name+'-albedo.jpg',true),normalMap:loadTexture(name+'-normal.jpg',false),roughnessMap:loadTexture(name+'-arm.jpg',false)});return packs.get(name);}
-function environmentMap(renderer){
- if(environmentRenderer!==renderer){environment?.dispose();environment=null;environmentRenderer=renderer;}
- if(environment)return environment.texture;
+function loadEnvironment(){
  if(!hdrPromise){
   pending++;status();hdrPromise=new Promise((resolve,reject)=>{
    const load=()=>new THREE.RGBELoader().setDataType(THREE.HalfFloatType).load(assetURL+'daylight.hdr',resolve,undefined,reject);
    if(THREE.RGBELoader)load();else{const s=document.createElement('script');s.src=new URL('vendor/RGBELoader-r128.js',script).href;s.onload=load;s.onerror=reject;document.head.appendChild(s);}
   }).then(t=>{pending--;loaded++;status();return t;},()=>{pending--;errors.add('environment');status();return null;});
  }
+ return hdrPromise;
+}
+// Resolves true once every texture requested so far and the HDR have loaded, false on any failure or timeout.
+function assetsReady(timeout=20000){
+ const all=Promise.all([...loads,loadEnvironment()]).then(()=>!errors.size);
+ return Promise.race([all,new Promise(resolve=>setTimeout(()=>resolve(false),timeout))]);
+}
+function environmentMap(renderer){
+ if(environmentRenderer!==renderer){environment?.dispose();environment=null;environmentRenderer=renderer;}
+ if(environment)return environment.texture;
+ loadEnvironment();
  const target=renderer;
  if(!renderer.userData)renderer.userData={};
  if(!renderer.userData.exteriorEnvironmentPending){renderer.userData.exteriorEnvironmentPending=true;hdrPromise.then(texture=>{
@@ -29,11 +39,38 @@ function environmentMap(renderer){
  });}
  return null;
 }
-function materialFor(finish,base){
+const packName=type=>type.startsWith('siding')?'siding':type==='brick'||type==='masonry'?'brick':type==='shingles'?'roof':type==='stone'?'brick':type.startsWith('trim')||type==='opening-trim'||type==='soffit'?'wood':'plaster';
+// Mean albedo of each photo map in linear light, and the mean of the paint-grain factor the shader applies to
+// painted finishes (see materialFor). Computed once from the 2K albedo JPGs; dev/roof-materials.test.cjs checks them.
+const PACK_MEANS={brick:{linear:[.1402,.0776,.0516],grain:.8627},siding:{linear:[.0734,.0481,.0328],grain:.8451},plaster:{linear:[.2733,.2518,.1889],grain:.9406},wood:{linear:[.0519,.0114,.0036],grain:.8293},roof:{linear:[.0603,.0623,.0629],grain:.8497}};
+// The color a finish averages to as Textured mode draws it: map mean x tint. Falls back to the finish color
+// when its map is unavailable (the material is then drawn untextured in that color too).
+function averageFinishColor(finish){
+ const f=root.ExteriorFinishes.resolve(finish),type=f.material;if(['unassigned','chimney-top','shingles'].includes(type))return color(f.color);
+ const name=packName(type),mean=PACK_MEANS[name];if(!mean||errors.has(name+'-albedo.jpg'))return color(f.color);
+ if(['brick','masonry','stone'].includes(type)&&!finish.color)return new THREE.Color(...mean.linear);
+ return color(f.color).multiplyScalar(mean.grain*(type.startsWith('siding')?.97:1));
+}
+// A chimney's cap is plain, in the average color of its sides; the dominant side finish by area wins.
+function chimneyCapColors(objects){
+ const byChimney=new Map(),a=new THREE.Vector3(),b=new THREE.Vector3(),c=new THREE.Vector3();
+ for(const o of objects){
+  const finish=o.userData?.exteriorFinish;if(!finish?.chimney||finish.chimneyCap||finish.feature||finish.trim)continue;
+  const g=o.geometry,pos=g?.attributes?.position;if(!pos)continue;o.updateMatrixWorld?.(true);let area=0;const idx=g.index,count=idx?idx.count:pos.count,at=i=>idx?idx.getX(i):i;
+  for(let i=0;i+2<count;i+=3){a.fromBufferAttribute(pos,at(i)).applyMatrix4(o.matrixWorld);b.fromBufferAttribute(pos,at(i+1)).applyMatrix4(o.matrixWorld);c.fromBufferAttribute(pos,at(i+2)).applyMatrix4(o.matrixWorld);area+=b.sub(a).cross(c.sub(a)).length()/2;}
+  const key=JSON.stringify(root.ExteriorFinishes.resolve(finish))+(finish.color||''),entry=byChimney.get(finish.chimney)||new Map();byChimney.set(finish.chimney,entry);const prior=entry.get(key)||{area:0,finish};prior.area+=area;entry.set(key,prior);
+ }
+ const out=new Map();for(const [id,entry]of byChimney){const best=[...entry.values()].sort((x,y)=>y.area-x.area)[0];if(best)out.set(id,averageFinishColor(best.finish));}
+ return out;
+}
+function materialFor(finish,base,context){
  const f=root.ExteriorFinishes.resolve(finish),type=f.material;
+ if(finish.chimneyCap&&!finish.color&&context?.capColors?.has(finish.chimney))return new THREE.MeshStandardMaterial({color:context.capColors.get(finish.chimney).clone(),roughness:.88,metalness:0,side:THREE.DoubleSide,envMapIntensity:.6});
+ // Ridge and hip caps: the category's cap map, a shade off the roof color.
+ if(type==='shingles'&&finish.roofCap&&!base){const F=root.ExteriorFinishes,spec=F.roofMaterials[f.category],cap=F.roofCapSpecs[f.category],m=new THREE.MeshStandardMaterial({color:color(f.color).multiplyScalar(cap?.shade||.92),roughness:spec.roughness,metalness:spec.metalness,side:THREE.DoubleSide,envMapIntensity:spec.metalness>.1?.5:.8,polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-2});m.map=F.roofCapTexture(f.category);const normal=F.roofCapNormalMap(f.category);if(normal){m.normalMap=normal;m.normalScale=new THREE.Vector2(.9,.9);}return m;}
  // Roof coverings use the seeded procedural maps of their category, tinted by the roof color.
  if(type==='shingles'&&!base){const F=root.ExteriorFinishes,spec=F.roofMaterials[f.category],m=new THREE.MeshStandardMaterial({color:color(f.color),roughness:spec.roughness,metalness:spec.metalness,side:THREE.DoubleSide,envMapIntensity:spec.metalness>.1?.5:.8});m.map=F.roofTexture(f.category);const normal=F.roofNormalMap(f.category);if(normal){m.normalMap=normal;m.normalScale=new THREE.Vector2(.9,.9);}return m;}
- let name=type.startsWith('siding')?'siding':type==='brick'||type==='masonry'?'brick':type==='shingles'?'roof':type==='stone'?'brick':type.startsWith('trim')||type==='opening-trim'||type==='soffit'?'wood':'plaster';
+ let name=packName(type);
  const natural=['brick','masonry','stone'].includes(type)&&!finish.color;
  const c=base?(finish.color||'#b3afa7'):natural?'#ffffff':f.color;
  const m=new THREE.MeshStandardMaterial({color:color(c),roughness:.82,metalness:0,side:THREE.DoubleSide,envMapIntensity:.7});
@@ -73,6 +110,13 @@ function openingDetails(source,target,context){
  const rect=data.points.length===4&&data.points.every(p=>{const a=W.inFrame(frame,p);return [b.left,b.right].some(x=>Math.abs(a.x-x)<1e-4)&&[b.top,b.bottom].some(y=>Math.abs(a.y-y)<1e-4);});
  const glass=glazed?new THREE.MeshPhysicalMaterial({color:color('#88a5ad'),roughness:.045,metalness:0,transmission:.25,ior:1.5,clearcoat:1,clearcoatRoughness:.025,transparent:true,opacity:.83,envMapIntensity:2.0,side:THREE.DoubleSide}):null;
  if(glazed){target.material.dispose();target.material=glass;target.position.addScaledVector(n,.004*(su+sv)/2);target.castShadow=false;}
+ // Doors of any outline: the default door material in the door's color, with recessed grooves traced in its own shape.
+ const F=root.ExteriorFinishes,doorSpec=F?.doorFinishes?.[type];
+ if(doorSpec){
+  const outline=data.points.map(p=>{const a=W.inFrame(frame,p);return {x:a.x-b.left,y:a.y-b.bottom};}),inset=F.doorNormalMap(outline,type,rect);
+  target.material.dispose();target.material=new THREE.MeshStandardMaterial({color:color(data.color||doorSpec.color),roughness:doorSpec.roughness,metalness:0,side:THREE.DoubleSide,envMapIntensity:.7});
+  if(inset){target.material.normalMap=inset;target.material.normalScale=new THREE.Vector2(1,1);}
+ }
  if(!rect)return;
  const white=new THREE.MeshStandardMaterial({color:color(data.color||(type==='skylight'?'#41494e':'#ebe9e1')),roughness:.38,metalness:.08,envMapIntensity:.75});
  const rubber=glazed?new THREE.MeshStandardMaterial({color:color('#202829'),roughness:.8}):null;
@@ -89,12 +133,7 @@ function openingDetails(source,target,context){
   // Thin warm interior floor catches light behind the glass without affecting model geometry.
   if(type!=='skylight')box(width/2,.035,-.085,width-.08,.015,.17,new THREE.MeshStandardMaterial({color:color('#b2a493'),roughness:.9}));
  }else if(type==='door'||type==='garage'){
-  target.material.dispose();target.material=white.clone();target.material.side=THREE.DoubleSide;target.material.color.copy(color(data.color||(type==='garage'?'#d8d7d0':'#c8b9a2')));
-  const panelMat=target.material.clone();panelMat.roughness=.48;
-  const rows=type==='garage'?Math.max(3,Math.round(height/.5)):3,cols=type==='garage'?Math.max(2,Math.round(width/.65)):2;
-  for(let row=0;row<rows;row++)for(let col=0;col<cols;col++){
-   const cw=width/cols,rh=height/rows;box((col+.5)*cw,(row+.5)*rh,.012,Math.max(.04,cw-.07),Math.max(.04,rh-.08),.025,panelMat);
-  }
+  // Panels are the recessed grooves of the door's inset map; the frame is real geometry.
   for(const x of [0,width])box(x,height/2,.015,.055,height+.04,.1);
   box(width/2,height,.015,width+.07,.055,.1);
   if(type==='door'){
@@ -105,6 +144,16 @@ function openingDetails(source,target,context){
   for(let y=.04;y<height-.03;y+=.07){const l=box(width/2,y,.025,width-.02,.045,.035);l.rotation.x=-.3;}
  }
 }
+const isBase=o=>o.userData.baseId!==undefined||o.userData.pickLayer==='base',isGrade=o=>o.userData.pickLayer==='grade';
+function presentationCopy(o,context,target){
+  const g=o.geometry.clone();g.applyMatrix4(o.matrixWorld);g.computeVertexNormals();if(g.attributes.uv)g.setAttribute('uv2',g.attributes.uv.clone());
+  const base=isBase(o),grade=isGrade(o),m=grade?new THREE.MeshStandardMaterial({color:color('#999386'),roughness:.95,side:THREE.DoubleSide}):materialFor(o.userData.exteriorFinish||{material:'default'},base,context),copy=new THREE.Mesh(g,m);
+  m.side=o.material.side??THREE.DoubleSide;if(o.userData.exteriorSelected&&!context.plain){m.emissive.copy(m.color);m.emissiveIntensity=.15;}
+  // Resolve only coplanar depth ties; retain measured heights and grade slopes.
+  if(base||grade){m.polygonOffset=true;m.polygonOffsetFactor=base?-1:1;m.polygonOffsetUnits=base?-1:1;copy.renderOrder=base?1:0;}
+  copy.castShadow=!grade;copy.receiveShadow=true;copy.name='rendered-'+(o.name||(base?'base':o.userData.pickLayer)||'surface');copy.userData.presentationLayer=base?'base':o.userData.pickLayer;
+  target.add(copy);openingDetails(o,copy,context);return copy;
+}
 function releaseScene(value){if(!value)return;value.groundImage?.material.map?.dispose();const geometries=new Set(),materials=new Set();value.scene.traverse(o=>{if(o.geometry)geometries.add(o.geometry);for(const m of o.material?(Array.isArray(o.material)?o.material:[o.material]):[])materials.add(m);});geometries.forEach(g=>g.dispose());materials.forEach(m=>m.dispose());if(value.sun!==active?.sun)value.sun?.shadow.map?.dispose();}
 function update(...args){if(!window.ExteriorPerf?.enabled)return perf_update.apply(this,args);return window.ExteriorPerf.measure('PBR scene rebuild',()=>perf_update.apply(this,args));}
 function perf_update(group,options){
@@ -113,35 +162,28 @@ function perf_update(group,options){
  const scene=new THREE.Scene();scene.background=color('#dce5eb');scene.environment=environment?.texture||null;
  // Use the editor's visible surfaces, including its actual sloped grade and base.
  // An independent studio floor would ignore layer visibility and obscure foundations.
- const solids=[],isBase=o=>o.userData.baseId!==undefined||o.userData.pickLayer==='base',isGrade=o=>o.userData.pickLayer==='grade';
+ const solids=[];
  group.updateMatrixWorld(true);group.traverseVisible(o=>{if(o.isMesh&&!o.isSprite&&(o.userData.exteriorFinish||isBase(o)||isGrade(o)))solids.push(o);});
  const bounds=new THREE.Box3();for(const o of solids){o.geometry.computeBoundingBox();bounds.union(o.geometry.boundingBox.clone().applyMatrix4(o.matrixWorld));}
  if(bounds.isEmpty()){active=null;presentationParts?.clear();if(graphics){graphics.hidden=true;graphics.open=false;}document.body.classList.remove('exterior-rendered');releaseScene(previous);return;}
  const center=bounds.getCenter(new THREE.Vector3()),size=bounds.getSize(new THREE.Vector3()),radius=Math.max(size.x,size.y,size.z,1);
- const context={...options,center};
+ const context={...options,center,capColors:chimneyCapColors(solids)};
  presentationParts?.begin(root.WallMode?.finishDefaults||{});
  try{
  for(const o of solids){
-  const build=target=>{
-  const g=o.geometry.clone();g.applyMatrix4(o.matrixWorld);g.computeVertexNormals();if(g.attributes.uv)g.setAttribute('uv2',g.attributes.uv.clone());
-  const base=isBase(o),grade=isGrade(o),m=grade?new THREE.MeshStandardMaterial({color:color('#999386'),roughness:.95,side:THREE.DoubleSide}):materialFor(o.userData.exteriorFinish||{material:'default'},base),copy=new THREE.Mesh(g,m);
-  m.side=o.material.side??THREE.DoubleSide;if(o.userData.exteriorSelected){m.emissive.copy(m.color);m.emissiveIntensity=.15;}
-  // Resolve only coplanar depth ties; retain measured heights and grade slopes.
-  if(base||grade){m.polygonOffset=true;m.polygonOffsetFactor=base?-1:1;m.polygonOffsetUnits=base?-1:1;copy.renderOrder=base?1:0;}
-  copy.castShadow=!grade;copy.receiveShadow=true;copy.name='rendered-'+(o.name||(base?'base':o.userData.pickLayer)||'surface');copy.userData.presentationLayer=base?'base':o.userData.pickLayer;
-  target.add(copy);openingDetails(o,copy,context);
-
-  };
-  if(presentationParts)presentationParts.part('surface:'+o.uuid,[o.geometry.uuid,Object.values(o.geometry.attributes).map(a=>a.version),o.geometry.index?.version,o.matrixWorld.elements,o.material.side,o.userData,o.userData.renderedOpening?[center.x,center.y,center.z]:null],scene,build);else build(scene);
+  const build=target=>presentationCopy(o,context,target);
+  if(presentationParts)presentationParts.part('surface:'+o.uuid,[o.geometry.uuid,Object.values(o.geometry.attributes).map(a=>a.version),o.geometry.index?.version,o.matrixWorld.elements,o.material.side,o.userData,o.userData.renderedOpening?[center.x,center.y,center.z]:null,o.userData.exteriorFinish?.chimneyCap?context.capColors.get(o.userData.exteriorFinish.chimney)?.getHex():null],scene,build);else build(scene);
  }
  const unit=options.vector({x:1,y:0,z:0}).distanceTo(options.vector({x:0,y:0,z:0}));
- const makeLights=target=>{const sun=new THREE.DirectionalLight(0xfff1db,3),fill=new THREE.HemisphereLight(0xcbdfff,0x92765e,.45);sun.castShadow=true;sun.shadow.mapSize.set(4096,4096);target.add(sun,sun.target,fill);return {sun,fill};};
+ const makeLights=lightRig;
  const {sun,fill}=presentationParts?presentationParts.part('lighting',[],scene,makeLights):makeLights(scene);
  Object.assign(sun.shadow.camera,{left:-radius*.8,right:radius*.8,top:radius*.8,bottom:-radius*.8,near:radius*.02,far:radius*5});sun.shadow.camera.updateProjectionMatrix();sun.shadow.bias=-.001;sun.shadow.normalBias=.035*unit;sun.shadow.radius=3;sun.target.position.copy(center);
  active={scene,sun,fill,center,radius,groundY:bounds.min.y-unit*.005,group,sourceScene:options.scene,camera:null,renderer:null};lighting();mountHUD();graphics.hidden=false;if(!previous)graphics.open=false;presentationParts?.commit();releaseScene(previous);
  }catch(error){presentationParts?.rollback();active=previous;releaseScene({scene});if(previous)lighting();throw error;}
 }
-function lighting(){if(!active)return;const {sun,fill,center,radius}=active,a=settings.sun*Math.PI/180,golden=settings.lighting==='golden',overcast=settings.lighting==='overcast';sun.position.copy(center).add(new THREE.Vector3(Math.cos(a)*radius*1.6,radius*(golden?.65:1.9),Math.sin(a)*radius*1.6));sun.intensity=overcast?.7:golden?2.5:3;sun.color.set(golden?0xffc28a:0xfff1db);fill.intensity=overcast?1.1:.45;}
+function lightRig(target){const sun=new THREE.DirectionalLight(0xfff1db,3),fill=new THREE.HemisphereLight(0xcbdfff,0x92765e,.45);sun.castShadow=true;sun.shadow.mapSize.set(4096,4096);target.add(sun,sun.target,fill);return {sun,fill};}
+function lighting(){if(active)placeLights(active);}
+function placeLights(rig){const {sun,fill,center,radius}=rig,a=settings.sun*Math.PI/180,golden=settings.lighting==='golden',overcast=settings.lighting==='overcast';sun.position.copy(center).add(new THREE.Vector3(Math.cos(a)*radius*1.6,radius*(golden?.65:1.9),Math.sin(a)*radius*1.6));sun.intensity=overcast?.7:golden?2.5:3;sun.color.set(golden?0xffc28a:0xfff1db);fill.intensity=overcast?1.1:.45;}
 function syncGroundImage(){
  const source=root.exteriorGroundImageSource?.();
  if(!source){if(active.groundImage)active.groundImage.visible=false;return;}
@@ -193,5 +235,5 @@ function mountHUD(){
  const advanced=document.getElementById('wall-advanced'),main=document.getElementById('exterior-main-toolbar')||document.getElementById('global-toolbar')||document.body;
  if(advanced?.parentElement===main)advanced.insertAdjacentElement('afterend',graphics);else main.appendChild(graphics);status();
 }
-root.ExteriorRendered={get captureStatus(){return {active:!!active,pending,errors:[...errors]};},update,render,exportImage,stop(){update(null,{enabled:false});},get active(){return !!active;}};
+root.ExteriorRendered={get captureStatus(){return {active:!!active,pending,errors:[...errors]};},get settings(){return {...settings};},presentationCopy,materialFor,assetsReady,loadEnvironment,lightRig,placeLights,chimneyCapColors,averageFinishColor,PACK_MEANS,update,render,exportImage,stop(){update(null,{enabled:false});},get active(){return !!active;}};
 })(window);

@@ -1,6 +1,7 @@
 /* Textured render for the PDF's first cover page (Property Measurement Report) only; the Exterior Summary and the
- elevations keep their line drawings. Offscreen and synchronous: every map is procedural (ExteriorFinishes), so a
- capture never waits on a download. The image travels in the report snapshot as exteriorReport.coverRender. */
+ elevations keep their line drawings. capture() draws it exactly as Textured mode does (ExteriorRendered) once its
+ assets load; render() is the synchronous procedural fallback. The image travels in the report snapshot as
+ exteriorReport.coverRender, set by attach() before the snapshot is built. */
 (function(root){'use strict';
 const MAX=1400,QUALITY=.8,PAD=.035,ELEVATION=35*Math.PI/180;
 const bearingOf=settings=>((Number(settings?.frontBearing)||0)%360+360)%360;
@@ -70,14 +71,72 @@ function render(settings={}){
   environment?.dispose();sun.shadow.map?.dispose();owned.textures.forEach(t=>t.dispose());owned.materials.forEach(m=>m.dispose());owned.geometries.forEach(g=>g.dispose());renderer.dispose();renderer.forceContextLoss?.();
  }
 }
-// A front bearing changed in the report settings re-renders the cover in that state. Any pointer press or committed
-// change flushes a pending render first, so Generate never sees a cover for an older bearing.
-let pending=0;
-function refresh(){if(!pending)return;root.clearTimeout(pending);pending=0;const state=root.reportConfigState;if(!state?.exteriorReport)return;try{const cover=render(state.exteriorSettings||{});if(cover)state.exteriorReport.coverRender=cover;else delete state.exteriorReport.coverRender;}catch(error){delete state.exteriorReport.coverRender;console.warn('Textured cover render failed; the cover keeps the line drawing.',error);}}
-if(root.document?.addEventListener){
- root.document.addEventListener('house-orientation-change',()=>{if(pending)root.clearTimeout(pending);pending=root.setTimeout(refresh,350);});
- for(const name of ['change','pointerdown'])root.document.addEventListener(name,refresh,true);
- root.document.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' ')refresh();},true);
+// The cover as Textured mode draws it: the editor's surfaces through ExteriorRendered (photo maps, wall finishes,
+// opening details, chimney and ridge caps, HDR light), offscreen, after every map has loaded. null if the editor
+// scene is unavailable or an asset fails; attach() then falls back to render() above.
+async function capture(settings={},{timeout=20000,status}={}){
+ const parts=root.WallMode?.coverParts?.(),F=root.ExteriorFinishes,R=root.ExteriorRendered,T=root.THREE;if(!parts||!F||!R?.presentationCopy||!T?.WebGLRenderer)return null;
+ const {group,roof,vector}=parts,sources=[],temporary=[];let walls=0;
+ group.updateMatrixWorld(true);
+ group.traverse(o=>{
+  const data=o.userData||{};if(!o.isMesh||o.isSprite||!o.visible||data.constructionOnly||data.pickLayer==='grade')return;
+  if(data.pickLayer==='roof'&&!data.roofTrimId)return; // roof surfaces, skylights and caps are rebuilt below
+  const base=data.baseId!==undefined||data.pickLayer==='base';if(!data.exteriorFinish&&!base)return;
+  if(!base&&!data.exteriorFinish?.feature&&data.pickLayer!=='roof')walls++;sources.push(o);
+ });
+ if(!walls)return null;
+ if(roof?.faces?.length){const p=F.roofPresentation(roof);for(const face of p.faces)temporary.push(...F.roofMeshes(face,vector,true));for(const face of p.skylights)temporary.push(F.skylightMesh(face,vector));const caps=F.roofCaps?.(roof,vector);if(caps)temporary.push(caps);}
+ for(const o of temporary){o.updateMatrixWorld(true);sources.push(o);}
+ const box=new T.Box3();for(const o of sources){o.geometry.computeBoundingBox();box.union(o.geometry.boundingBox.clone().applyMatrix4(o.matrixWorld));}
+ const center=box.getCenter(new T.Vector3()),size=box.getSize(new T.Vector3()),radius=Math.max(size.x,size.y,size.z,1e-3);
+ const scene=new T.Scene(),context={vector,center,plain:true,capColors:R.chimneyCapColors(sources)};
+ const release=()=>{const g=new Set(),m=new Set();scene.traverse(o=>{if(o.geometry)g.add(o.geometry);for(const x of o.material?(Array.isArray(o.material)?o.material:[o.material]):[])m.add(x);});g.forEach(x=>x.dispose());m.forEach(x=>x.dispose());};
+ try{for(const o of sources)R.presentationCopy(o,context,scene);}finally{for(const o of temporary){o.geometry.dispose();o.material.dispose();}}
+ status?.('Loading textured materials…');
+ if(!await R.assetsReady(timeout)){release();return null;}
+ const hdr=await R.loadEnvironment();if(!hdr){release();return null;}
+ status?.('Rendering textured cover…');
+ // Shared maps are cloned so this context's uploads are released with it.
+ const clones=new Map(),own=t=>{if(!t)return t;if(!clones.has(t)){const c=t.clone();c.needsUpdate=true;clones.set(t,c);}return clones.get(t);};
+ scene.traverse(o=>{for(const m of o.material?(Array.isArray(o.material)?o.material:[o.material]):[])for(const key of ['map','normalMap','roughnessMap','aoMap','bumpMap'])if(m[key])m[key]=own(m[key]);});
+ const origin=vector({x:0,y:0,z:0}),up=vector({x:0,y:0,z:1}).sub(origin).normalize(),v=viewOf(settings),toward=vector({x:v.x*Math.cos(ELEVATION),y:v.y*Math.cos(ELEVATION),z:Math.sin(ELEVATION)}).sub(origin).normalize();
+ const camera=new T.OrthographicCamera(-1,1,1,-1,radius*.01,radius*8);camera.up.copy(up);camera.position.copy(center).addScaledVector(toward,radius*3);camera.lookAt(center);camera.updateMatrixWorld(true);
+ let minX=Infinity,maxX=-Infinity,minY=Infinity,maxY=-Infinity,minUp=Infinity;const p=new T.Vector3(),inverse=camera.matrixWorldInverse;
+ scene.traverse(o=>{const a=o.isMesh&&o.geometry?.attributes?.position;if(!a)return;o.updateMatrixWorld(true);for(let i=0;i<a.count;i++){p.fromBufferAttribute(a,i).applyMatrix4(o.matrixWorld);minUp=Math.min(minUp,p.dot(up));p.applyMatrix4(inverse);minX=Math.min(minX,p.x);maxX=Math.max(maxX,p.x);minY=Math.min(minY,p.y);maxY=Math.max(maxY,p.y);}});
+ const w=(maxX-minX)*(1+2*PAD),h=(maxY-minY)*(1+2*PAD),cx=(minX+maxX)/2,cy=(minY+maxY)/2,aspect=w/Math.max(h,1e-9);
+ Object.assign(camera,{left:cx-w/2,right:cx+w/2,top:cy+h/2,bottom:cy-h/2});camera.updateProjectionMatrix();
+ const width=Math.round(aspect>=1?MAX:MAX*aspect),height=Math.round(aspect>=1?MAX/aspect:MAX);
+ // Textured mode's own light rig and sun settings; a shadow-only ground keeps the page white around the house.
+ const rig=R.lightRig(scene),unit=vector({x:1,y:0,z:0}).distanceTo(origin);Object.assign(rig,{center,radius});R.placeLights(rig);
+ Object.assign(rig.sun.shadow.camera,{left:-radius*.8,right:radius*.8,top:radius*.8,bottom:-radius*.8,near:radius*.02,far:radius*5});rig.sun.shadow.camera.updateProjectionMatrix();rig.sun.shadow.bias=-.001;rig.sun.shadow.normalBias=.035*unit;rig.sun.shadow.radius=3;rig.sun.target.position.copy(center);
+ const ground=new T.Mesh(new T.PlaneGeometry(radius*6,radius*6),new T.ShadowMaterial({opacity:.2}));ground.quaternion.setFromUnitVectors(new T.Vector3(0,0,1),up);ground.position.copy(center).addScaledVector(up,minUp-center.dot(up)-unit*.005);ground.receiveShadow=true;scene.add(ground);
+ const canvas=root.document.createElement('canvas'),renderer=new T.WebGLRenderer({canvas,antialias:true,preserveDrawingBuffer:true,alpha:false});let environment=null;
+ try{
+  const look=R.settings;renderer.setPixelRatio(1);renderer.setSize(width,height,false);renderer.setClearColor(0xffffff,1);renderer.outputEncoding=T.sRGBEncoding;renderer.toneMapping=T.ACESFilmicToneMapping;renderer.toneMappingExposure=look.exposure;renderer.physicallyCorrectLights=true;renderer.shadowMap.enabled=true;renderer.shadowMap.type=T.PCFSoftShadowMap;
+  const pmrem=new T.PMREMGenerator(renderer);pmrem.compileEquirectangularShader();environment=pmrem.fromEquirectangular(hdr);pmrem.dispose();scene.environment=environment.texture;
+  renderer.render(scene,camera);
+  return {image:canvas.toDataURL('image/jpeg',QUALITY),width,height,bearing:bearingOf(settings),view:'front-35',pipeline:'textured',version:2};
+ }finally{environment?.dispose();rig.sun.shadow.map?.dispose();release();clones.forEach(t=>t.dispose());renderer.dispose();renderer.forceContextLoss?.();}
 }
-root.ExteriorCover={render,refresh,bearingOf};
+// What the cover depends on: the report geometry and finishes, the front, the roof and wall defaults and the light.
+function signature(report,settings){const {coverRender,...rest}=report,text=JSON.stringify([rest,bearingOf(settings),root.WallMode?.finishDefaults||{},root.ExteriorRendered?.settings||null]);let h=0x811c9dc5;for(let i=0;i<text.length;i++){h^=text.charCodeAt(i);h=Math.imul(h,0x01000193);}return (h>>>0).toString(16)+':'+text.length;}
+// Before a PDF snapshot is built: make state.exteriorReport.coverRender match the current model and front.
+// Textured capture first; if it cannot run or an asset fails, the procedural render; if that fails, none (line drawing).
+const inflight=new Map();
+async function attach(state,options={}){
+ const report=state?.exteriorReport;if(!report)return null;const settings=state.exteriorSettings||{},bearing=bearingOf(settings);
+ if(!root.WallMode?.coverParts?.()){if(report.coverRender&&Math.abs(bearingOf({frontBearing:report.coverRender.bearing})-bearing)>.01)delete report.coverRender;return report.coverRender||null;}
+ const key=signature(report,settings);if(report.coverRender?.key===key)return report.coverRender;
+ if(!inflight.has(key))inflight.set(key,(async()=>{
+  let cover=null;try{cover=await capture(settings,options);}catch(error){console.warn('Textured cover capture failed; using the basic cover.',error);}
+  if(!cover)try{cover=render(settings);if(cover)cover.fallback=true;}catch(error){console.warn('Basic cover render failed; the cover keeps the line drawing.',error);}
+  if(cover)cover.key=key;return cover;
+ })().finally(()=>inflight.delete(key)));
+ const cover=await inflight.get(key);if(cover)report.coverRender=cover;else delete report.coverRender;return cover;
+}
+// A front bearing changed in the report settings: re-capture for the open report (PDF generation also re-checks).
+let pending=0;
+function refresh(){if(pending){root.clearTimeout(pending);pending=0;}const state=root.reportConfigState;return state?.exteriorReport?attach(state):Promise.resolve(null);}
+if(root.document?.addEventListener)root.document.addEventListener('house-orientation-change',()=>{if(pending)root.clearTimeout(pending);pending=root.setTimeout(refresh,500);});
+root.ExteriorCover={render,capture,attach,refresh,bearingOf,signature};
 })(window);
