@@ -85,9 +85,13 @@ rebuilds the page from its snapshot.
 
 The viewer (`viewer.html`) lists sessions (live ones pulse), switches organizations on and off, plays with speed,
 idle skipping and a pointer trail, and has four panels: **Events** (clicks with their labels, pages, navigation,
-keys, typing, errors), **Storage** (bytes stored, raw size, per minute, per page load, the growth chart, the
-organization's totals and a monthly storage cost calculator), **Performance** (recorder CPU, page heap, recorder
-memory, DOM size and main-thread lag over time) and **Device**. A live session can be followed as it records.
+keys, typing, errors), **Storage** (bytes stored, cost per page load, cost per minute after loading, the growth
+chart, the organization's per-hour rate and a monthly cost calculator), **Performance** (recorder CPU, page heap,
+recorder memory, DOM size and main-thread lag over time) and **Device**. A live session can be followed as it records.
+
+Storage numbers separate a page's load (its first 15 seconds: the snapshot plus the app rendering into it) from the
+time after it, idle time included, because a short session is almost all load. The calculator models a month as
+average concurrent users × 730 hours × (page loads per user-hour × KB per load + 60 × KB per minute after loading).
 
 ## Diagnostics
 
@@ -117,6 +121,10 @@ blobs.
 - Customer-facing pages (customer portal, websites) and pages without `platform-api.js` (the FirstMeasure editor pages
   on the compatibility host) are not recorded.
 - Retention: nothing deletes old recordings yet except Delete in the viewer.
+- Archiving: a finished session could be re-packed into one zstd stream using a per-organization dictionary built
+  from its earlier sessions (Node's `zlib` has zstd with dictionaries on the hosts). Measured on dev on 2026-10-22:
+  1.3–1.6× smaller alone, 1.7× with one earlier session as the dictionary, 3–4× with three or four
+  ([record](../../deploy/digitalocean/development-session-replay-20261022.md)).
 - Per-person audiences: an organization is recorded entirely or not at all.
 - Performance shortcuts shipped on purpose are in [the optimization backlog](../optimization-backlog.md): chunk bodies
   in the database, rebuild-on-seek, and one config request per page load.

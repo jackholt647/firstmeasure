@@ -528,41 +528,60 @@
     } catch (error) { state.stats = null; }
   }
 
+  // A page's first 15 seconds are its load: the snapshot plus the app rendering into it. Everything later is
+  // the steady cost of having the page open, idle time included.
+  const LOAD_MS = 15000;
+  const HOURS_PER_MONTH = 730;
+
   function storageNumbers() {
     const detail = state.detail;
     const s = detail.session;
     const sizes = (detail.chunk_sizes || []).slice().sort((a, b) => a.t_end - b.t_end);
     const durationMs = Math.max(1000, s.last_at - s.started_at);
-    const firsts = sizes.filter((c) => c.seq === 0);
-    const snapshotBytes = firsts.reduce((sum, c) => sum + c.bytes_stored, 0);
-    const ongoingBytes = Math.max(0, s.bytes_stored - snapshotBytes);
-    return { s, sizes, durationMs, firsts, snapshotBytes, ongoingBytes };
+    const pageStart = new Map((detail.pages || []).map((page) => [page.page_id, page.started_at]));
+    const pageCount = Math.max(1, (detail.pages || []).length);
+    let loadBytes = 0, steadyBytes = 0;
+    for (const c of sizes) {
+      const start = pageStart.get(c.page_id) ?? s.started_at;
+      if (c.t_end - start <= LOAD_MS) loadBytes += c.bytes_stored; else steadyBytes += c.bytes_stored;
+    }
+    let steadyMs = 0;
+    for (const page of detail.pages || []) steadyMs += Math.max(0, page.last_at - page.started_at - LOAD_MS);
+    return { s, sizes, durationMs, pageCount, loadBytes, steadyBytes, steadyMs, loadPerPage: loadBytes / pageCount, steadyPerMin: steadyMs >= 60000 ? steadyBytes / (steadyMs / 60000) : null };
   }
 
   function renderStorage() {
     const root = $('storage');
     if (!state.detail) { root.innerHTML = '<div class="empty">No session open.</div>'; return; }
     const n = storageNumbers();
-    const minutes = n.durationMs / 60000;
     const org = (state.stats || []).find((o) => o.organization_id === n.s.organization_id);
     const orgRate = org && org.active_ms > 0 ? org.bytes_stored / (org.active_ms / 3600000) : 0;
     const sessionRate = n.s.bytes_stored / (n.durationMs / 3600000);
+    const provisional = !org || org.active_ms < 30 * 60000;
+    const defaultLoadKb = Math.round(n.loadPerPage / 1024);
+    const defaultSteadyKb = n.steadyPerMin === null ? 5 : Math.round((n.steadyPerMin / 1024) * 10) / 10;
     root.innerHTML = '<div class="cards">'
       + card('Stored (gzip)', fmtBytes(n.s.bytes_stored), 'raw JSON ' + fmtBytes(n.s.bytes_raw) + (n.s.bytes_stored ? ' · ' + (n.s.bytes_raw / n.s.bytes_stored).toFixed(1) + '× smaller' : ''))
-      + card('Per minute', fmtBytes(n.s.bytes_stored / minutes), 'over ' + fmtDuration(n.durationMs))
-      + card('Page loads', fmtBytes(n.firsts.length ? n.snapshotBytes / n.firsts.length : 0), n.firsts.length + ' snapshots, average each')
-      + card('Ongoing', fmtBytes(n.ongoingBytes / minutes) + '/min', 'everything after the snapshots')
+      + card('Per open hour', fmtBytes(sessionRate), 'this session: ' + fmtBytes(n.s.bytes_stored) + ' over ' + fmtDuration(n.durationMs))
+      + card('Per page load', fmtBytes(n.loadPerPage), 'snapshot plus the first 15 s while the app renders; ' + n.pageCount + (n.pageCount === 1 ? ' load' : ' loads'))
+      + card('After loading', n.steadyPerMin === null ? 'too short' : fmtBytes(n.steadyPerMin) + '/min', n.steadyPerMin === null ? 'needs a minute past the load' : 'open page, idle time included')
       + '</div><div class="section"><h3>Size as the session grows</h3><canvas class="chart" id="growth-chart"></canvas>'
       + '<div class="legend"><span><i style="background:#60a5fa"></i>stored total</span><span><i style="background:#f59e0b"></i>per chunk</span></div>'
-      + '<p>Each page load starts with a snapshot; after that only changes are sent, and repeated markup is written once and referred to by number.</p>'
+      + '<p>Most of a short session is its page loads: the snapshot and the app filling the page in. After that only changes are sent, '
+      + 'repeated markup is written once and referred to by number, and an idle tab sends almost nothing. A one-minute session '
+      + 'multiplied by sixty assumes a fresh page load every minute, so it overstates the hourly cost.</p>'
       + (org ? '<h3>This organization</h3><div class="kv"><div>Sessions</div><div>' + org.sessions + '</div><div>Stored</div><div>' + fmtBytes(org.bytes_stored)
-        + '</div><div>Shared stylesheets</div><div>' + fmtBytes(org.blob_bytes_stored) + ' (' + org.blobs + ', stored once for all sessions)</div><div>Per recorded hour</div><div>'
-        + fmtBytes(orgRate) + '</div></div>' : '')
+        + '</div><div>Shared stylesheets</div><div>' + fmtBytes(org.blob_bytes_stored) + ' (' + org.blobs + ', stored once for all sessions)</div><div>Per open hour</div><div>'
+        + fmtBytes(orgRate) + ' from ' + esc(fmtDuration(org.active_ms)) + ' of recordings' + (provisional ? ' (too little to rely on yet)' : '') + '</div></div>' : '')
       + '<h3>What it would cost</h3><div class="calc">'
-      + field('people', 'People recorded', 50) + field('hours', 'Hours a day each', 6) + field('days', 'Working days a month', 22)
-      + field('retention', 'Keep for (days)', 90) + field('price', '$ per GB-month', 0.02) + field('rate', 'MB per recorded hour', ((orgRate || sessionRate) / 1048576).toFixed(2))
+      + field('concurrent', 'Average concurrent users', 1000) + field('loads', 'Page loads per user-hour', 4)
+      + field('load', 'KB per page load', defaultLoadKb) + field('steady', 'KB per minute after loading', defaultSteadyKb)
+      + field('retention', 'Keep for (days)', 90) + field('price', '$ per GB-month', 0.02)
+      + field('archive', 'Archive compression (×)', 1) + field('archiveAfter', 'Archive after (days)', 7)
       + '</div><div class="result" id="projection"></div>'
-      + '<p>$0.02 is object storage (DigitalOcean Spaces); managed database storage costs about five times more.</p>'
+      + '<p>Average concurrent users is people with a recorded page open, averaged over every hour of the month (nights and other time zones included), so a month is '
+      + HOURS_PER_MONTH + ' hours of it. Page loads are full loads or reloads; moving between apps inside the portal is not a page load. '
+      + 'The defaults come from this session. $0.02 is object storage (DigitalOcean Spaces); managed database storage costs about five times more.</p>'
       + '<h3>Session</h3><button class="danger" id="delete-session" type="button">Delete this recording</button></div>';
     const growth = [];
     const chunks = [];
@@ -583,11 +602,19 @@
   }
   function project() {
     const v = (id) => Number(($('calc-' + id) || {}).value) || 0;
-    const hoursPerMonth = v('people') * v('hours') * v('days');
-    const gbPerMonth = (hoursPerMonth * v('rate')) / 1024;
-    const stored = gbPerMonth * (v('retention') / 30);
-    $('projection').innerHTML = esc(Math.round(hoursPerMonth).toLocaleString()) + ' recorded hours a month → <strong>' + gbPerMonth.toFixed(2) + ' GB</strong> new each month.<br>'
-      + 'Keeping ' + esc(v('retention')) + ' days holds about <strong>' + stored.toFixed(2) + ' GB</strong>, costing <strong>$' + (stored * v('price')).toFixed(2) + ' a month</strong>.';
+    const mbPerUserHour = (v('loads') * v('load') + 60 * v('steady')) / 1024;
+    const userHours = v('concurrent') * HOURS_PER_MONTH;
+    const gbPerMonth = (userHours * mbPerUserHour) / 1024;
+    const gbPerDay = gbPerMonth / (HOURS_PER_MONTH / 24);
+    const keep = v('retention');
+    const fresh = Math.min(keep, v('archiveAfter'));
+    const ratio = Math.max(1, v('archive'));
+    const stored = gbPerDay * fresh + (gbPerDay * Math.max(0, keep - fresh)) / ratio;
+    const gb = (value) => value >= 1024 ? (value / 1024).toFixed(2) + ' TB' : value.toFixed(1) + ' GB';
+    $('projection').innerHTML = esc(v('loads')) + ' loads × ' + esc(v('load')) + ' KB + 60 min × ' + esc(v('steady')) + ' KB = <strong>' + mbPerUserHour.toFixed(2) + ' MB per user-hour</strong>.<br>'
+      + esc(v('concurrent').toLocaleString()) + ' users × ' + HOURS_PER_MONTH + ' h = ' + esc(Math.round(userHours).toLocaleString()) + ' user-hours → <strong>' + gb(gbPerMonth) + '</strong> new each month.<br>'
+      + 'Keeping ' + esc(keep) + ' days' + (ratio > 1 ? ' (archived ' + ratio + '× smaller after ' + fresh + ' days)' : '') + ' holds about <strong>' + gb(stored) + '</strong>: '
+      + '<strong>$' + (stored * v('price')).toFixed(2) + ' a month</strong> in object storage, $' + (stored * v('price') * 5).toFixed(2) + ' in the database.';
   }
 
   async function deleteSession() {
