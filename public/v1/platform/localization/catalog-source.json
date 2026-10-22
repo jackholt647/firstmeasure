@@ -19592,7 +19592,8 @@
     "payroll_export_type_unknown": "This report is not available.",
     "membership_day_invalid": "Give the day as YYYY-MM-DD.",
     "membership_day_future": "A member joins or leaves today or on a past day.",
-    "invalid_country": "Choose a valid country."
+    "invalid_country": "Choose a valid country.",
+    "invalid_country_rules": "At most 100 country rules."
   },
   "notifications": {
     "document_greeting": {
