@@ -116,3 +116,29 @@ the plain-mode trim strips. A trim colour copied in from the wall trim at placem
 
 All files were overlaid on web, legacy and pool and the served files match. The served `interaction_2d.js` merges
 another session's live copy-and-paste change.
+
+## Follow-up: sticker nudges, Trim line selection, distinct masonry — `9d24a032944b5e0abb1077c5f834ed1228a71103`
+
+**Arched door nudges.**
+- Problem: `completePointGeometry` counted a face as complete only when every ring vertex was selected, including
+  curve tessellation points, which can never be selected. The selection then fell to per-point sliding, which
+  sheared the door and dropped points from the selection.
+- Fix: whole doors now move as one piece in the wall sketch, with one undo step per nudge.
+- Points no longer pile up on the wall foot: base slides apply only when a base corner itself moves.
+- Base points are gold only at real turns, at junctions of more than two edges, or at curve ends.
+- A selected arched door sticker no longer throws "Resolve the face boundary"; it nudges.
+
+**Trim mode.**
+- Resoffit and Trim are two configurations of one line-selection mode.
+- While the Trim menu is open, lines are selected by click or box, and points are hidden. Ridges, hips and valleys
+  are greyed and cannot be selected.
+- Closing the menu by any route restores normal selection.
+
+**Masonry.**
+- Stone and masonry have their own procedural textures; they no longer reuse the brick photo.
+- Opening Wall materials switches to Textured; closing it restores the previous mode.
+
+**Tests.** Related suites: 690 pass. Full suite (agents): 1,724 passing, with the known exterior-ai failure.
+
+**Rollout note.** Before this commit landed, another session's deploy (`45d01e14`) had already carried these
+uncommitted files from the shared checkout onto dev. This rollout re-anchored dev on the commit.
