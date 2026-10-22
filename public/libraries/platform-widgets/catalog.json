@@ -2,8 +2,8 @@
   {
     "id": "reports.roof",
     "version": "1",
-    "title": "3D roof",
-    "description": "Interactive read-only roof geometry, with textures, colored edges and roof openings.",
+    "title": "3D model",
+    "description": "Interactive read-only report model: the roof, and for full-house reports the walls, openings and base, with the editor's textures, selectable measurement categories, line lengths and a measuring tool.",
     "app": "measurements",
     "surfaces": [
       "project",

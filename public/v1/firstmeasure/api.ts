@@ -3449,6 +3449,24 @@ export const registerFirstMeasureApi: FastifyPluginAsync = async (app) => {
 
   });
 
+  // The completed full-house model for the customer 3D viewer: only the published exterior report geometry and the
+  // roof covering, never editor state or images. Same organization check as exterior-measurements.
+  app.get("/projects/:id/exterior-model", async (request) => {
+    const auth = await requirePlatformAuth(request, { permission: 'view_reports' });
+    const projectId = getProjectId(request.params);
+    const manifest = await readManifest(projectId);
+    const legacy = buildLegacyManifest(manifest);
+    const email = String(auth.identity.email || '').toLowerCase();
+    if (String(legacy.organization_id || '') !== auth.orgId &&
+        ![legacy.owner_email, legacy.issuer_email].some(value => email && String(value || '').toLowerCase() === email)) {
+      throw new FirstMeasureError('project_forbidden', 403, 'This project is not available to this account.');
+    }
+    if (!isCustomerFullHouse(manifest) || String(manifest.status ?? '').toLowerCase() !== 'completed') return { ok: true, model: null };
+    const { exteriorModelProjection } = await import("./exterior_model.js");
+    const metadata = await readAppMetadata(projectId).catch(() => ({}));
+    return { ok: true, model: exteriorModelProjection(asRecord(asRecord(await readPdfState(projectId)).exteriorReport), metadata) };
+  });
+
 
 
   app.put("/projects/:id/pdf-state", { bodyLimit: PDF_JSON_BODY_LIMIT_BYTES }, async (request) => {

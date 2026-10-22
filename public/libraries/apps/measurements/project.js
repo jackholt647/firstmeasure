@@ -322,7 +322,7 @@ window.PlatformCommerce.onReady(function(){
     const projectId = activeMeasurementProjectId();
     const cachedAssets = projectId ? primeMeasurementAssetCacheFromKnownUrls(projectId) : null;
     const hasXml = ready && !!cachedAssets?.xmlUrl;
-    if(ready) tabs.push({id:'model',get label(){ return (globalThis.PlatformLanguage?.text("measurements","m_c78580f5f4885e","Model & photos") ?? "Model & photos"); },icon:'fa-cube',active:activeMeasurementTab==='model',disabled:false,pending:false});
+    if(ready) tabs.push({id:'model',get label(){ return (globalThis.PlatformLanguage?.text("measurements","report_model_tab","Model") ?? "Model"); },icon:'fa-cube',active:activeMeasurementTab==='model',disabled:false,pending:false});
     const changes = reportFollowupEnabled() ? reportChangeRequests() : [];
     const supportView = !changes.length || reportRequestsAreSupportOnly(changes);
     if (inlineProjectMapWithReports()) {
@@ -2878,7 +2878,7 @@ window.PlatformCommerce.onReady(function(){
       button.innerHTML = `<i class="fas fa-headset"></i><span>${(globalThis.PlatformLanguage?.htmlText("measurements","m_dbb3d23d1471ce","Support") ?? "Support")}</span>`;
       body.appendChild(button);
     }
-    const visible = !!activeMeasurementProjectId();
+    const visible = !!activeMeasurementProjectId() && activeMeasurementTab !== 'model';
     button.classList.toggle('visible', visible);
     button.onclick = visible ? openReportRequestModal : null;
   }
@@ -3944,15 +3944,16 @@ window.PlatformCommerce.onReady(function(){
         ? { ...knownAssets, hasCheckedArtifacts: true }
         : null);
     const modelRoot = root.querySelector('#rMeasurementModel');
-    const modelKey = JSON.stringify([projectId,cachedAssets?.xmlUrl,cachedAssets?.media,terminalWithoutReport]);
+    const modelKey = JSON.stringify([projectId,cachedAssets?.xmlUrl,cachedAssets?.media,terminalWithoutReport,reportSummaryIsFullHouse()]);
     if(activeMeasurementTab !== 'model' || terminalWithoutReport){roofViewer?.destroy();roofViewer=null;roofViewerKey='';}
     else if(modelRoot && !window.FirstMateWidgets){
       modelRoot.innerHTML=`<div class="r-report-pending" role="status">${(globalThis.PlatformLanguage?.htmlText("measurements","m_8a27a13894e81a","The roof viewer could not load. Refresh to try again.") ?? "The roof viewer could not load. Refresh to try again.")}</div>`;
     }
     else if(modelRoot && window.FirstMateWidgets && (roofViewerKey!==modelKey || !roofViewer)){
       roofViewer?.destroy();roofViewerKey=modelKey;
-      const data={xmlUrl:cachedAssets?.xmlUrl,media:cachedAssets?.media||[]};
-      roofViewer=window.FirstMateWidgets.library(modelRoot,{items:window.FirstMateProjectWidgets.reportItems(data.media),layout:'auto',context:{surface:'project',data:{'reports.roof':data,'reports.photo':data}}});
+      // Full-house reports also draw the walls, openings and base from the published exterior model.
+      const data={xmlUrl:cachedAssets?.xmlUrl,exteriorUrl:reportSummaryIsFullHouse()&&projectId?fmUrl(`projects/${encodeURIComponent(projectId)}/exterior-model`):'',media:cachedAssets?.media||[]};
+      roofViewer=window.FirstMateWidgets.mount(modelRoot,{id:'reports.roof',version:'1',config:{}},{surface:'project',data:{'reports.roof':data}});
     }
     if (map && inlineProjectMapWithReports() && activeMeasurementTab === 'map') {
       mountInlineProjectMap(map);
