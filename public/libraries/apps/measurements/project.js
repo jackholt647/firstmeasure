@@ -55,6 +55,8 @@ window.PlatformCommerce.onReady(function(){
   let activeMeasurementTab = 'model';
   let roofViewer = null;
   let roofViewerKey = '';
+  // The report view last taken from the route; a clicked tab is recorded here too.
+  let appliedRouteView = '';
   let activeInstantMountKey = '';
   let reportRequestModalState = null;
   const measurementAssetCache = new Map();
@@ -3546,6 +3548,7 @@ window.PlatformCommerce.onReady(function(){
     const available = measurementTabs();
     const next = available.find((entry) => entry.id === tab && !entry.disabled) || available.find((entry) => !entry.disabled) || available[0];
     activeMeasurementTab = next?.id || 'standard';
+    appliedRouteView = activeMeasurementTab;
     if (options.updateRoute !== false && !window.Portal?.navigation?.applying) window.Portal?.navigation?.push?.({ reportView:activeMeasurementTab }, { source:'project-report-view', ownedKeys:['reportView'] });
     renderMeasurementsPanel();
   }
@@ -4071,7 +4074,10 @@ window.PlatformCommerce.onReady(function(){
     state.mounted = !!state.panelRoot;
     state.active = context.active !== false;
     const routedView = window.Portal?.navigation?.read?.().reportView;
-    if (routedView) activeMeasurementTab = routedView;
+    // Every host call re-runs mount(): apply the routed view only when the route moved, or a stale route value
+    // would override the tab the person just chose.
+    if (routedView && routedView !== appliedRouteView) activeMeasurementTab = routedView;
+    if (routedView) appliedRouteView = routedView;
     if (state.model && window.FirstMateAppContext?.installProjectContextAccessors) {
       window.FirstMateAppContext.installProjectContextAccessors(state.model, { overwrite: false });
     }
@@ -4097,6 +4103,7 @@ window.PlatformCommerce.onReady(function(){
     pendingExpediteSelection = '';
     roofViewer?.destroy();roofViewer=null;roofViewerKey='';
     activeMeasurementTab = 'model';
+    appliedRouteView = '';
     reportRequestModalState = null;
     weatherReportPollAttempt = 0;
   }
