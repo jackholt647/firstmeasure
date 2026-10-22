@@ -124,7 +124,7 @@ test('capture fills the screen, keeps three navigation buttons anchored and uses
  await page.click('[data-guide-forward]');
  await page.evaluate(()=>document.getAnimations().forEach(a=>a.finish()));
  const remove=await page.locator('.ext-summary-tiles .ext-thumb-remove').first().boundingBox();assert.equal(remove.width,24);assert.equal(remove.height,24);
- const extra=page.locator('[data-extra-upload]');const box=await extra.boundingBox();assert.ok(box.width>350&&box.height>=170);
+ const extra=page.locator('[data-extra-upload]');const box=await extra.boundingBox();assert.ok(box.width>350&&box.height>=60&&box.height<=72,'a compact docked upload bar '+JSON.stringify(box));
  assert.equal(await page.locator('[data-extra-camera]').count(),0);
  const chooserPromise=page.waitForEvent('filechooser');await extra.click();const chooser=await chooserPromise;
  assert.equal(await chooser.element().getAttribute('capture'),null);
@@ -186,7 +186,7 @@ test('summary uses four square columns, grouped primary selection, and missing-a
  assert.equal(await page.locator('.ext-photo-grid [data-view]').count(),8);
  assert.equal(await page.locator('.ext-photo-summary-head,.ext-count').count(),0);
  assert.equal(await page.locator('[data-summary-tiles=""]').count(),1);
- assert.equal(await page.locator('.ext-summary-guide').evaluate(el=>{const extra=el.querySelector('[data-summary-tiles=""]'),diagram=el.querySelector('.ext-photo-grid');return !!(extra.compareDocumentPosition(diagram)&Node.DOCUMENT_POSITION_FOLLOWING);}),true);
+ assert.equal(await page.locator('.ext-summary-guide').evaluate(el=>{const extra=el.querySelector('[data-summary-tiles=""]'),diagram=el.querySelector('.ext-photo-grid');return !!(extra.compareDocumentPosition(diagram)&Node.DOCUMENT_POSITION_PRECEDING);}),true,'extras follow the angle groups');
  const grid=page.locator('[data-summary-tiles="0:front"]');
  assert.equal(await grid.locator('.ext-photo-tile').count(),6);
  const boxes=await grid.locator('.ext-photo-tile').evaluateAll(els=>els.map(e=>{const r=e.getBoundingClientRect();return {x:r.x,y:r.y,w:r.width,h:r.height};}));
@@ -198,6 +198,28 @@ test('summary uses four square columns, grouped primary selection, and missing-a
  await page.screenshot({path:process.env.TEMP+'/firstmate-summary-grid.png'});
 });
 
+
+test('structure pills switch the diagram and the angle groups together; the upload bar docks at the bottom',async t=>{
+ const page=await setup(t);
+ await page.evaluate(()=>{context.count=2;Portal.ExteriorOrder.sync(context);Portal.ExteriorOrder.setMobilePage('photos');Portal.test.finishGuide();});
+ assert.equal(await page.locator('select[data-structure]').count(),0,'no dropdown');
+ assert.deepEqual(await page.locator('[data-structure-pill]').evaluateAll(els=>els.map(e=>[e.textContent,e.getAttribute('aria-pressed')])),[['Structure 1','true'],['Structure 2','false']]);
+ const keys=()=>page.locator('[data-summary-tiles]').evaluateAll(els=>els.map(e=>e.dataset.summaryTiles).filter(Boolean));
+ assert.ok((await keys()).length===8&&(await keys()).every(k=>k.startsWith('0:')));
+ await page.click('[data-structure-pill="1"]');
+ assert.equal(await page.locator('[data-structure-pill="1"]').getAttribute('aria-pressed'),'true');
+ assert.ok((await keys()).length===8&&(await keys()).every(k=>k.startsWith('1:')),'only the selected structure is listed');
+ assert.equal(await page.locator('[data-view="1:front"]').count()>0,true,'the diagram follows the selection');
+ const pills=await page.locator('.ext-structure-pills').boundingBox(),pill=await page.locator('[data-structure-pill="0"]').boundingBox();
+ assert.ok(pill.x>=pills.x,'the first pill is not clipped');
+ const dock=page.locator('.ext-extras-dock');
+ assert.equal(await dock.count(),1);
+ assert.equal(await dock.evaluate(e=>[getComputedStyle(e).position,e===e.parentElement.lastElementChild]).then(String),'sticky,true');
+ assert.ok((await page.locator('.ext-extras-dock .ext-extra-drop').boundingBox()).height<=72,'about two fifths of the old 170px drop');
+ const scroll=await page.locator('.r-scroll').boundingBox(),box=await dock.boundingBox();
+ assert.ok(Math.abs(box.y+box.height-(scroll.y+scroll.height))<2,'docked to the bottom of the scroller '+JSON.stringify({box,scroll}));
+ await page.screenshot({path:process.env.TEMP+'/firstmate-structure-pills.png'});
+});
 
 test('final review separates report details from eight primary photos and their counts',async t=>{
  const page=await setup(t);

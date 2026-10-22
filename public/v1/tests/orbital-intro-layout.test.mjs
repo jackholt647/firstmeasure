@@ -32,5 +32,21 @@ for(const [width,height,native]of [[390,844,false],[412,915,true],[390,1800,true
  assert.ok(Math.abs((geometry.steps[1].top-geometry.steps[0].bottom)-(geometry.steps[2].top-geometry.steps[1].bottom))<1);
 
  }
+ const videoAnchor=await page.evaluate(()=>[document.querySelector('[data-video-start]').getBoundingClientRect().bottom,document.querySelector('.ext-orbit-switch').getBoundingClientRect().bottom]);
+ await page.evaluate(()=>document.querySelector('[data-video-review]')?.remove());
+ await page.click('[data-mode="photos"]');
+ const photo=await page.evaluate(()=>{
+ const q=s=>document.querySelector(s),r=s=>q(s).getBoundingClientRect();const scroll=q('.r-scroll');
+ const items=[...q('.ext-photo-intro .ext-orbit-steps').children,q('.ext-photo-intro .ext-photo-warning')].map(e=>e.getBoundingClientRect());
+ const middle=r('.ext-intro-middle');
+ return {scrollHeight:scroll.scrollHeight,clientHeight:scroll.clientHeight,titleGap:r('.ext-photo-intro>p').top-r('.ext-photo-intro>h3').bottom,videoGap:r('.ext-orbit').top-r('.ext-photo-intro>p').bottom,footerGap:r('.ext-orbit-switch').top-r('.ext-orbit-actions').bottom,
+  gutters:[items[0].top-middle.top,items[1].top-items[0].bottom,items[2].top-items[1].bottom,middle.bottom-items[2].bottom],start:r('[data-photos-start]').bottom,bottom:r('.ext-orbit-switch').bottom,scrollBottom:scroll.getBoundingClientRect().bottom};
+ });
+ assert.ok(Math.abs(photo.titleGap-photo.videoGap)<1,JSON.stringify(photo));
+ assert.ok(photo.footerGap<=5);
+ assert.ok(Math.max(...photo.gutters.slice(1,3))-Math.min(...photo.gutters.slice(1,3))<1,'steps and warning evenly spaced '+JSON.stringify(photo.gutters));
+ if(height>=844){assert.ok(photo.scrollHeight<=photo.clientHeight+1,'unnecessary scroll '+JSON.stringify(photo));assert.ok(Math.abs(photo.bottom-photo.scrollBottom)<20,'bottom anchored '+JSON.stringify(photo));
+  assert.ok(Math.abs(photo.bottom-videoAnchor[1])<1,'the switch link stays where the video intro had it '+JSON.stringify({photo,videoAnchor}));}
+ await page.screenshot({path:process.env.TEMP+`/firstmate-photo-intro-${width}x${height}.png`});
  }finally{await browser.close();}
 });

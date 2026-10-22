@@ -2715,6 +2715,7 @@ window.PlatformCommerce.onReady(async function(){
     if (!shouldUseMobileOrderPagination() || mobileOrderPage === 'final') return;
     const exterior=window.Portal.ExteriorOrder;
     if (mobileOrderPage === 'photos') {
+      if (exterior?.mobileIntroStart?.()) return;
       if (exterior?.mobilePhotoSummary?.()) {
         if (exterior.mobilePhotosReady()) setMobileOrderPage('details');
         else exterior.explainMissingPhotos?.();
@@ -2785,7 +2786,7 @@ window.PlatformCommerce.onReady(async function(){
     if (back) {back.style.display = mobile && mobileOrderPage !== 'location' ? '' : 'none';back.disabled=orderSubmissionPending;}
     if (next) {
       const exterior = window.Portal.ExteriorOrder?.active();
-      const ready = mobileOrderPage === 'photos' ? (window.Portal.ExteriorOrder.mobilePhotoSummary() && window.Portal.ExteriorOrder.mobilePhotosReady())
+      const ready = mobileOrderPage === 'photos' ? (window.Portal.ExteriorOrder.mobileIntroShowing?.() || (window.Portal.ExteriorOrder.mobilePhotoSummary() && window.Portal.ExteriorOrder.mobilePhotosReady()))
         : mobileOrderPage === 'details' ? (exterior ? window.Portal.ExteriorOrder.mobileDetailsReady() : mobileOrderReadyForFinal())
         : mobileOrderReadyForDetails();
       next.style.display = mobile && (mobileOrderPage === 'photos' || (mobileOrderPage === 'details' && hasFinalPage)) ? '' : 'none';
