@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+October 22 Session replay: [pages record as DOM snapshots plus changes for organizations a platform administrator switches on, with a replay viewer, live diagnostics and storage cost](deploy/digitalocean/development-session-replay-20261022.md) records releases `21521b99` and `49241e4a` and the verified development rollouts.
+
 October 19 Full-house customer wall numbers: [the customer summary, CSV and Summary.pdf show the exterior summary for full-house orders, and a Full House order whose references fail to copy is cancelled with its refund](deploy/digitalocean/development-fh-customer-walls-20261019.md) records releases `41c43b98` and `42ca4abc` and the verified development rollout.
 
 October 19-20 Full-house production points: [a full house is scored at submission as roof points plus twice a wall-complexity proxy, and the drafter sees only a stopwatch until then](deploy/digitalocean/development-full-house-points-20261020.md) records releases `7c811330` and `03d57cc1` and the verified development rollouts.
