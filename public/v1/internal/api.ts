@@ -1,4 +1,6 @@
 import { mutatePlatformConfiguration } from "../platform/storage.js";
+import { profileFromGlobal } from "../commerce/profile.js";
+import { countryCode } from "../commerce/regions.js";
 import { assignedTutorialCourses, hasTutorialCourse, OPTIONAL_TUTORIAL_COURSES } from "./tutorial_courses.js";
 import { assertFullHouseEligible, fullHouseEligible, isCustomerFullHouse, FULL_HOUSE_QUALITY_CATEGORIES } from '../firstmeasure/full_house_workflow.js';
 import { managerReviewCsv } from "./manager_review_export.js";
@@ -3267,6 +3269,11 @@ export function customerDashboardRowMatches(row: JsonObject, filters: JsonObject
     else if (column === "avgOrdersDay") haystack = String(row.avgOrdersDay ?? 0);
     else if (column === "credits") haystack = String(row.credits_balance ?? 0);
     else if (column === "salesperson") haystack = String(row.assigned_sales_name ?? row.assigned_sales_email ?? "Unassigned");
+    else if (column === "country") {
+      // An exact two-letter code matches only that country; otherwise match the code or name.
+      if (/^[a-z]{2}$/.test(needle)) { if (String(row.country ?? "").toLowerCase() === needle) continue; }
+      haystack = `${String(row.country ?? "")} ${String(row.country_name ?? "")}`;
+    }
     else if (column === "created") {
       const created = row.created_at ? new Date(String(row.created_at)) : null;
       haystack = created && Number.isFinite(created.getTime())
@@ -3321,7 +3328,7 @@ async function organizationIdsMatchingCustomerEmail(orgIds: string[], needle: st
   return new Set(orgIds.filter((_, index) => matches[index]));
 }
 
-function sortCustomerDashboardRows(rows: JsonObject[], sortColumn: string, sortDirection: string) {
+export function sortCustomerDashboardRows(rows: JsonObject[], sortColumn: string, sortDirection: string) {
   const direction = sortDirection === "desc" ? -1 : 1;
   const numericColumns = new Set(["users", "lifetimeOrders", "rolling7", "avgOrdersDay", "credits", "created"]);
   return [...rows].sort((a, b) => {
@@ -3348,6 +3355,9 @@ function sortCustomerDashboardRows(rows: JsonObject[], sortColumn: string, sortD
     } else if (sortColumn === "created") {
       left = Date.parse(String(a.created_at ?? "")) || 0;
       right = Date.parse(String(b.created_at ?? "")) || 0;
+    } else if (sortColumn === "country") {
+      left = `${String(a.country_name ?? "zzzz")} ${String(a.name ?? "")}`.toLowerCase();
+      right = `${String(b.country_name ?? "zzzz")} ${String(b.name ?? "")}`.toLowerCase();
     } else {
       left = String(a.name ?? a.id ?? "").toLowerCase();
       right = String(b.name ?? b.id ?? "").toLowerCase();
@@ -3683,7 +3693,8 @@ async function buildOrganizationSummaryRow(
       avgOrdersDay: Number((rolling7 / 7).toFixed(2)),
       last_active_rolling7: lastActiveRolling7,
       last_active_avg_orders_day: Number((lastActiveRolling7 / 7).toFixed(2)),
-      branding: organizationBrandingView(orgId, org, globalData)
+      branding: organizationBrandingView(orgId, org, globalData),
+      ...organizationCountry(globalData, projectRows)
     };
   } catch (error) {
     throw annotateError(error, {
@@ -4400,6 +4411,10 @@ function compactOrganizationSummary(row: JsonObject) {
     created_at: row.created_at ?? null,
     updated_at: row.updated_at ?? null,
     is_test: Boolean(row.is_test),
+    country: row.country ?? "",
+    country_name: row.country_name ?? "",
+    country_source: row.country_source ?? "",
+    currency: row.currency ?? "",
     sales_owner_email: row.sales_owner_email ?? null,
     assigned_sales_email: row.assigned_sales_email ?? null,
     assigned_sales_name: row.assigned_sales_name ?? "",
@@ -4468,8 +4483,38 @@ function compactOrder(order: unknown) {
     issuer: { email: data.issuer_email ?? issuer.email ?? "" },
     created_at: data.created_at ?? data.submitted_at ?? data.completed_at ?? data.updated_at ?? null,
     revenue: Number(data.revenue ?? data.amount_charged ?? 0) || 0,
+    property_country: orderPropertyCountry(data),
+    report_currency: String(data.report_currency ?? asObject(data.manifest).report_currency ?? ""),
     source: data.source ?? ""
   };
+}
+
+/** The country the order's property was verified in (manifest report_property_country); "" for older orders. */
+function orderPropertyCountry(order: JsonObject) {
+  return countryCode(order.property_country ?? order.report_property_country ?? asObject(order.manifest).report_property_country);
+}
+
+/**
+ * A customer organization's country. The commercial profile (chosen or detected at signup, or reassigned by an
+ * operator) is the source of truth. Organizations from before profiles existed fall back to their orders'
+ * verified property countries, then the company contact's country, then the legacy US/USD default.
+ */
+export function organizationCountry(globalData: JsonObject, orders: JsonObject[] = []) {
+  const name = (code: string) => { try { return new Intl.DisplayNames(["en"], { type: "region" }).of(code) || code; } catch { return code; } };
+  const result = (country: string, source: string) => ({ country, country_name: country ? name(country) : "", country_source: source, currency: profileFromGlobal(globalData).currency });
+  if (globalData.commercial_profile !== undefined) {
+    const profile = profileFromGlobal(globalData);
+    const source = profile.source === "signup_choice" ? "signup_choice" : profile.source.startsWith("operator") ? "operator" : "signup_detected";
+    return result(countryCode(profile.country), source);
+  }
+  const counts = new Map<string, number>();
+  for (const order of orders) { const code = orderPropertyCountry(order); if (code) counts.set(code, (counts.get(code) || 0) + 1); }
+  const fromOrders = [...counts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0]?.[0];
+  if (fromOrders) return result(fromOrders, "orders");
+  const contact = asObject(globalData.contact), address = asObject(contact.address);
+  const fromContact = countryCode(contact.country ?? address.country ?? address.country_code);
+  if (fromContact) return result(fromContact, "contact");
+  return result("US", "legacy_default");
 }
 
 function compactLedgerEntry(entry: unknown) {
@@ -6903,6 +6948,8 @@ function firstMeasureManifestOrderRow(manifest: JsonObject) {
     revenue: manifest.amount_charged ?? 0,
     instant_enabled: manifest.instant_enabled ?? false,
     instant_only: manifest.instant_only ?? false,
+    property_country: manifest.report_property_country ?? "",
+    report_currency: manifest.report_currency ?? "",
     source: "firstmeasure_project_index",
     manifest
   };

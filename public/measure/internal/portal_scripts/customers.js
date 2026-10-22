@@ -625,6 +625,7 @@
               <th data-col="rolling7">Last 7d <span class="sort-arrow">\u25B2\u25BC</span></th>
               <th data-col="avgOrdersDay">Avg/Day <span class="sort-arrow">\u25B2\u25BC</span></th>
               <th data-col="credits">Credits <span class="sort-arrow">\u25B2\u25BC</span></th>
+              <th data-col="country">Country <span class="sort-arrow">\u25B2\u25BC</span></th>
               <th data-col="salesperson">Salesperson <span class="sort-arrow">\u25B2\u25BC</span></th>
               <th data-col="created">Created <span class="sort-arrow">\u25B2\u25BC</span></th>
               <th style="width:1%; white-space:nowrap; cursor:default;">&nbsp;</th>
@@ -637,6 +638,7 @@
               <th><div class="cust-filter-wrap"><input type="text" data-col="rolling7" placeholder="Filter\u2026"><div class="cust-filter-menu"></div></div></th>
               <th><div class="cust-filter-wrap"><input type="text" data-col="avgOrdersDay" placeholder="Filter\u2026"><div class="cust-filter-menu"></div></div></th>
               <th><div class="cust-filter-wrap"><input type="text" data-col="credits" placeholder="Filter\u2026"><div class="cust-filter-menu"></div></div></th>
+              <th><div class="cust-filter-wrap"><input type="text" data-col="country" placeholder="Country or code\u2026"><div class="cust-filter-menu"></div></div></th>
               <th><div class="cust-filter-wrap"><input type="text" data-col="salesperson" placeholder="Filter salesperson\u2026"><div class="cust-filter-menu"></div></div></th>
               <th><div class="cust-filter-wrap"><input type="text" data-col="created" placeholder="Filter\u2026"><div class="cust-filter-menu"></div></div></th>
               <th></th>
@@ -644,7 +646,7 @@
           </thead>
           <tbody id="orgTableBody">
             <tr>
-              <td colspan="10" style="text-align:center;padding:30px;">
+              <td colspan="11" style="text-align:center;padding:30px;">
                 <i class="fas fa-spinner fa-spin"></i> Loading organizations\u2026
               </td>
             </tr>
@@ -838,6 +840,11 @@
                 <div class="value" id="detailOrgAvgDay">0</div>
               </div>
               <div class="info-item">
+                <div class="label">Country</div>
+                <div class="value" id="detailOrgCountry">-</div>
+                <div style="font-size:11px;color:#667085;" id="detailOrgCountrySource"></div>
+              </div>
+              <div class="info-item">
                 <div class="label">Credit Balance</div>
                 <div class="value" id="detailOrgBalance">$0</div>
               </div>
@@ -878,13 +885,14 @@
               <thead>
                 <tr>
                   <th>Address</th>
+                  <th>Property country</th>
                   <th>Ordered By</th>
                   <th>Date</th>
                   <th>Status</th>
                 </tr>
               </thead>
                <tbody id="orgOrdersTableBody">
-                 <tr><td colspan="4" class="empty-state"><p>No orders yet</p></td></tr>
+                 <tr><td colspan="5" class="empty-state"><p>No orders yet</p></td></tr>
                </tbody>
              </table>
              <div id="orgOrdersPager" class="cust-modal-pager"></div>
@@ -1023,6 +1031,19 @@
     catch(e){ return d; }
   }
   function fmtCurrency(n){ return '$' + (parseFloat(n)||0).toFixed(0); }
+  /** Credit balances in the organization's billing currency (EUR for European accounts). */
+  function fmtBalance(n, currency){
+    if (!currency || currency === 'USD') return fmtCurrency(n);
+    try { return new Intl.NumberFormat('en-US', { style:'currency', currency, maximumFractionDigits:0 }).format(parseFloat(n) || 0); }
+    catch (_) { return fmtCurrency(n) + ' ' + currency; }
+  }
+  const COUNTRY_SOURCE_LABELS = { signup_choice:'Chosen at signup', signup_detected:'Detected at signup', operator:'Reassigned by staff', orders:'From order properties', contact:'From company address', legacy_default:'Pre-launch account (US default)' };
+  /** Country from the organization's commercial profile (internal/api.ts organizationCountry). */
+  function countryCell(o){
+    if (!o.country) return '<span style="color:#999;">-</span>';
+    const title = [o.country_name, COUNTRY_SOURCE_LABELS[o.country_source] || '', o.currency || ''].filter(Boolean).join(' \u00b7 ');
+    return `<span title="${esc(title)}"><strong>${esc(o.country)}</strong> ${esc(o.country_name || '')}</span>`;
+  }
   function tsvCell(v){
     return String(v == null ? '' : v).replace(/\t/g, ' ').replace(/\r?\n/g, ' ').trim();
   }
@@ -1519,7 +1540,7 @@
     });
 
     if (list.length === 0){
-      tbody.innerHTML = `<tr><td colspan="10" style="text-align:center;padding:40px;color:#999;">
+      tbody.innerHTML = `<tr><td colspan="11" style="text-align:center;padding:40px;color:#999;">
         <i class="fas fa-building" style="font-size:48px;opacity:0.3;display:block;margin-bottom:12px;"></i>
         No organizations found</td></tr>`;
       updateSelectionStats();
@@ -1545,7 +1566,8 @@
         <td><strong>${o.lifetimeOrders}</strong></td>
         <td>${o.rolling7}</td>
         <td>${o.avgOrdersDay}</td>
-        <td><strong style="color:#2e7d32;">${fmtCurrency(o.credits_balance)}</strong></td>
+        <td><strong style="color:#2e7d32;">${fmtBalance(o.credits_balance, o.currency)}</strong></td>
+        <td>${countryCell(o)}</td>
         <td>${salesLabel}</td>
         <td>${fmtDate(o.created_at)}</td>
         <td style="text-align:right;">
@@ -1729,6 +1751,7 @@
         case 'rolling7': raw = String(o.rolling7); break;
         case 'avgOrdersDay': raw = String(o.avgOrdersDay); break;
         case 'credits': raw = String(o.credits_balance || 0); break;
+        case 'country': raw = o.country_name || o.country || ''; break;
         case 'salesperson': raw = o.assigned_sales_name || o.assigned_sales_email || 'Unassigned'; break;
         case 'created': raw = fmtDate(o.created_at); break;
       }
@@ -2068,7 +2091,9 @@
     document.getElementById('detailOrgLifetime').textContent = org.lifetimeOrders || 0;
     document.getElementById('detailOrgRolling7').textContent = org.rolling7 || 0;
     document.getElementById('detailOrgAvgDay').textContent = org.avgOrdersDay || 0;
-    document.getElementById('detailOrgBalance').textContent = fmtCurrency(org.credits_balance);
+    document.getElementById('detailOrgBalance').textContent = fmtBalance(org.credits_balance, org.currency);
+    document.getElementById('detailOrgCountry').textContent = org.country ? `${org.country_name || org.country} (${org.country})${org.currency ? ' \u00b7 ' + org.currency : ''}` : '-';
+    document.getElementById('detailOrgCountrySource').textContent = COUNTRY_SOURCE_LABELS[org.country_source] || '';
 
     const pairedLeadEl = document.getElementById('detailOrgPairedLead');
     const pairedLeadActionsEl = document.getElementById('detailOrgPairedLeadActions');
@@ -2117,7 +2142,7 @@
     const ordersPager = document.getElementById('orgOrdersPager');
     const creditsPager = document.getElementById('orgCreditsPager');
     if (chart) chart.innerHTML = '<div class="empty-state"><p><i class="fas fa-spinner fa-spin"></i> Loading order history…</p></div>';
-    if (ordersBody) ordersBody.innerHTML = '<tr><td colspan="4" class="empty-state"><p><i class="fas fa-spinner fa-spin"></i> Loading orders…</p></td></tr>';
+    if (ordersBody) ordersBody.innerHTML = '<tr><td colspan="5" class="empty-state"><p><i class="fas fa-spinner fa-spin"></i> Loading orders…</p></td></tr>';
     if (creditsBody) creditsBody.innerHTML = '<tr><td colspan="4" class="empty-state"><p><i class="fas fa-spinner fa-spin"></i> Loading credit ledger…</p></td></tr>';
     if (ordersPager) ordersPager.innerHTML = '';
     if (creditsPager) creditsPager.innerHTML = '';
@@ -2191,7 +2216,7 @@
         const ordersBody = document.getElementById('orgOrdersTableBody');
         const creditsBody = document.getElementById('orgLedgerTableBody');
         if (chart) chart.innerHTML = '<div class="empty-state"><p>Could not load order history.</p></div>';
-        if (ordersBody) ordersBody.innerHTML = `<tr><td colspan="4" class="empty-state"><p>${esc(e.message || 'Could not load orders.')}</p></td></tr>`;
+        if (ordersBody) ordersBody.innerHTML = `<tr><td colspan="5" class="empty-state"><p>${esc(e.message || 'Could not load orders.')}</p></td></tr>`;
         if (creditsBody) creditsBody.innerHTML = `<tr><td colspan="4" class="empty-state"><p>${esc(e.message || 'Could not load credit ledger.')}</p></td></tr>`;
       }
     }
@@ -2388,13 +2413,13 @@
     const tbody = document.getElementById('orgOrdersTableBody');
     if (!tbody) return;
     if (org.detail_loading && !org.detail_loaded) {
-      tbody.innerHTML = `<tr><td colspan="4" class="empty-state"><p><i class="fas fa-spinner fa-spin"></i> Loading orders…</p></td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="5" class="empty-state"><p><i class="fas fa-spinner fa-spin"></i> Loading orders…</p></td></tr>`;
       renderOrdersPager({ orders_pagination: { total: 0 } });
       return;
     }
     if (org.orders_loading) {
       const page = parseInt(org.orders_pagination?.page || 1, 10) || 1;
-      tbody.innerHTML = `<tr><td colspan="4" class="empty-state"><p><i class="fas fa-spinner fa-spin"></i> Loading orders page ${page}...</p></td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="5" class="empty-state"><p><i class="fas fa-spinner fa-spin"></i> Loading orders page ${page}...</p></td></tr>`;
       renderOrdersPager(org);
       return;
     }
@@ -2402,7 +2427,7 @@
       new Date(b.created_at||0) - new Date(a.created_at||0)
     );
     if (!orders.length){
-      tbody.innerHTML = `<tr><td colspan="4" class="empty-state"><p>No orders yet</p></td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="5" class="empty-state"><p>No orders yet</p></td></tr>`;
       renderOrdersPager({ orders_pagination: { total: 0 } });
       return;
     }
@@ -2414,6 +2439,7 @@
       const orderedBy = (o.issuer && o.issuer.email) || o.owner_email || '-';
       return `<tr>
         <td><strong>${esc(o.address || (o.id ? ('Project ' + o.id) : '-'))}</strong></td>
+        <td title="${esc(o.report_currency || '')}">${esc(o.property_country || '-')}</td>
         <td>${esc(orderedBy)}</td>
         <td>${fmtDate(o.created_at)}</td>
         <td><span class="order-badge ${bc}">${o.status||'queued'}</span></td>
@@ -2719,7 +2745,7 @@
   async function loadCustomers(){
     const loadSeq = ++customerLoadSeq;
     const tbody = document.getElementById('orgTableBody');
-    if (tbody) tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;padding:30px;"><i class="fas fa-spinner fa-spin"></i> Loading organizations\u2026</td></tr>';
+    if (tbody) tbody.innerHTML = '<tr><td colspan="11" style="text-align:center;padding:30px;"><i class="fas fa-spinner fa-spin"></i> Loading organizations\u2026</td></tr>';
 
     const organizations = await fetchAllOrgData();
     if (loadSeq !== customerLoadSeq) return;
