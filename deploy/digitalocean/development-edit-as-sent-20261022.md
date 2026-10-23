@@ -1,10 +1,14 @@
 # Edit manually opens the document as sent — development, October 22, 2026
 
-Releases `4cf68f773517c69af6eb0f4db6ed610b58b1ef77` (commits `a74f5373`, `4cf68f77`; parent `c8ecbce6`) and
-`8e4532405ede5db199132228770b6952bfcdbb8f` (commits `6fe5577c`, `8e453240`; parent `a355f795`), on the canonical
-branch `codex/consolidated-firstmeasure-20260923`. The follow-up adds the editor's script to `portal/index.php`
-(the portal page loads the document libraries itself; without it Edit manually fell back to the template editor)
-and makes a line's `variant_summary` derived.
+Three releases on the canonical branch `codex/consolidated-firstmeasure-20260923`:
+- `4cf68f773517c69af6eb0f4db6ed610b58b1ef77` (commits `a74f5373`, `4cf68f77`; parent `c8ecbce6`): the feature.
+- `8e4532405ede5db199132228770b6952bfcdbb8f` (commits `6fe5577c`, `8e453240`; parent `a355f795`): the portal page
+  loads the editor (`portal/index.php` loads the document libraries itself; without the tag Edit manually fell back
+  to the template editor), and a line's `variant_summary` is derived.
+- `f1018f8a8ede46e467e94cb41dd07f686fa78e7d` (commits `ca960a23`, `f1018f8a`; parent `ac8bf3ce`): the editor opens
+  above the portal's project window (z-index 2147483540, as Preview; the window is 2147483200) and fills
+  `{placeholders}` in its hints (strings new to the catalog come back unformatted). Shipped as one payload from
+  `a355f795`, so web got the second release's files with it.
 [Architecture](../../docs/architecture/document-as-sent-editing.md).
 
 **Why.** "Edit manually" at the end of the Documents tab's estimate workflow opened the document template, with its
@@ -28,11 +32,14 @@ a document, with the values that come from data still live.
   `data-run-index`.
 - "Edit layout" in the editor's top bar still opens the template editor.
 
-**Roles.** Worker, legacy (compatibility) and web. The **pool** web node was unreachable through the jump host for
-the whole rollout window ("No route to host" from 20:50; a sibling rollout reached it at 20:38), so it was not
-updated. dev.1m8.ai kept serving. Ship pool when it is reachable:
-`ROLES=pool bash output/edit-as-sent-20261022/ship.sh` from the session worktree
-(`.claude/worktrees/edit-as-sent-b947df`).
+**Roles.** Worker, legacy (compatibility) and web, one role per run: other sessions activated their releases between
+this rollout's staging and activation five times ("Active release changed"), which deploy.py refuses, so each refused
+role was reshipped. Other sessions' later releases on web and worker were built on the live files and keep these
+changes (audited file by file against the release). The **pool** web node was unreachable through the jump host for
+the whole window ("No route to host" from 20:50 to at least 22:30; a sibling rollout reached it at 20:38), so it was
+not updated. While pool is down, every legacy activation briefly returns 503 for portal pages (seen once here). Ship
+pool when it is back: `ROLES=pool bash output/edit-as-sent-20261022/ship.sh` from the session worktree
+(`.claude/worktrees/edit-as-sent-b947df`; its `base.txt` is `a355f795`, so the one payload carries all three).
 
 **Tooling.** Scripts copied from `output/estimate-photos-20261022/`; `integrate.py` moved the shared checkout from
 `c8ecbce6` to the release (one file, `documents/project.js`, merged into another session's unstaged working copy).
@@ -53,4 +60,25 @@ updated. dev.1m8.ai kept serving. Ship pool when it is reachable:
   longer defines; signing and paying moved onto the document. Two other
   failures in an earlier run were the local disk filling up (ENOSPC) and passed on rerun.
 
-**Verified on dev.** See below.
+**Verified on dev** (sandbox organization "Cedar Heron Test Co", project 68 Northfield Rd, a new draft
+"As-sent check (browser)", `doc_4f146535eee44599b25c`; signed in as Sandbox Tester in the built-in browser):
+- Review & send > Edit manually opens the as-sent editor over the project window: two pages, no `{{` anywhere,
+  company, customer and address filled, each line's name, quantity and amount marked as data, subtotal and total
+  marked as calculated.
+- Typing $2,500.00 into the garage line ($1,990.00) saved, and the subtotal and total became $3,734.00. The stored
+  line is quantity 5 at unit price $500.
+- Typing 6 into that line's quantity (5 sq) made the line $3,000.00 and the total $4,234.00. Clicking the total
+  explains it is calculated and offers no input.
+- Changing the heading to "Your new roof · Itemized proposal" saved one `props.blocks` override with its template
+  fingerprint; reopening the editor from a fresh page load shows it, marked as edited.
+- The PDF the server generates for the document (the Download PDF / Send path, read with `pdftotext`) prints
+  "Your new roof · Itemized", the $1,234.00 and $2,500.00 lines and Subtotal and Total $3,734.00 (taken before the
+  quantity change).
+- A host-side run of the same path on another new draft (`output/edit-as-sent-20261022/verify-dev.mjs`): a typed
+  $1,234.00 into a $7,960.00 line moved the total by exactly -$6,726.00, and the PDF printed it.
+- Not checked in the browser: the template-change and typed-over conflict prompts (covered by the tests), and the
+  pool node.
+
+**Not done here.** Labelling these edits "Edited manually" in the document version history: the history session's
+`withDocumentChange` is not on canonical yet. Every as-sent edit is one `patchDocumentInstance` call inside
+`editDocumentAsSent`, the one place to wrap (hand-over note left for that session).
