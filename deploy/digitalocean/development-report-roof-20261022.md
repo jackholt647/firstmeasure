@@ -371,3 +371,21 @@ The standby answered 56 requests and logged no errors.
    firstmeasure-development-web-standby`.
 
 **Production.** Nothing changed there; production has its own multi-node pool.
+
+## Follow-up: Exterior Images justified rows; whole-number summary figures — `5e10e5e4`
+
+**Exterior Images.**
+- Photos sit in justified rows, with one height per row and 6 mm gutters.
+- Row heights stay within 1.3× of each other.
+- There is a 7 mm gap above the footer.
+- The layout with the most photo area wins, with rows of equal width breaking near-ties.
+
+**Exterior Summary.** The five area and length figures are now whole numbers.
+
+**Tests.** exterior-pdf-layout 28 of 28, pdf-landscape 9 of 9, plus the report suites, all pass.
+
+**Rollout.**
+- `exterior_pdf.js` was rolled out to legacy and web, and the served file matches.
+- This was the first release through the web standby: 157 of 157 public readiness probes taken during the rollout
+  returned 200.
+- The standby moved to the new release within the sync timer's minute.
