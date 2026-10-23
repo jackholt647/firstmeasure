@@ -205,7 +205,7 @@
         versionedBundle('../doc-widgets/firstmate-doc-widgets.js', '20261019-forward-cert'),
         versionedBundle('../doc-renderer/firstmate-doc-renderer.js', '20261022-as-sent-inputs'),
         versionedBundle('../doc-editor/firstmate-doc-editor.js', '20261022-document-history'),
-        versionedBundle('../doc-sent-editor/firstmate-doc-sent-editor.js', '20261022-as-sent-inputs'),
+        versionedBundle('../doc-sent-editor/firstmate-doc-sent-editor.js', '20261022-as-sent-inputs-2'),
         versionedBundle('photos/feed.js', '20261022-content-blocks-photos'),
         bundle('../agents-api/agents-api.js'),
         versionedBundle('../agent-chat/agent-chat.js', '20261002-widget-controls'),

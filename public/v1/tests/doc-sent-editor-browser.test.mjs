@@ -18,6 +18,8 @@ async function open(browser) {
   await page.setContent('<!doctype html><html><head></head><body></body></html>');
   for (const content of sources) await page.addScriptTag({ content });
   await page.evaluate(() => {
+    // Like the portal's catalog for a key it does not have yet: the fallback comes back unformatted.
+    window.PlatformLanguage = { text: (namespace, key, fallback) => fallback };
     const M = window.FMDocModel;
     const doc = M.createDocument();
     doc.computed = { total_cents: 'sum(params.items[].amount_cents)' };
@@ -58,6 +60,9 @@ test('a data value is typed into; a calculated one is not', async () => {
     await quantity.click();
     const input = page.locator('[data-fmse-input]');
     assert.equal(await input.inputValue(), '12');
+    assert.doesNotMatch(await page.textContent('.fmse-pop'), /\{label\}/, 'placeholders are filled');
+    // The editor sits above the portal's project window (z-index 2147483200).
+    assert.ok(Number(await page.$eval('.fmse-overlay', (el) => getComputedStyle(el).zIndex)) > 2147483200);
     await input.fill('14');
     await input.press('Enter');
     await page.waitForFunction(() => window.calls.length === 1);

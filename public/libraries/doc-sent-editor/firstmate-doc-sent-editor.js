@@ -39,11 +39,11 @@
   "use strict";
 
   const NS = "documents";
+  // Keys new to the catalog come back as the raw fallback, placeholders and all; fill them here.
   const t = (key, fallback, values) => {
     const lang = root.PlatformLanguage;
-    const text = lang && typeof lang.text === "function" ? lang.text(NS, key, fallback, values) : null;
-    if (text) return text;
-    return String(fallback).replace(/\{(\w+)\}/g, (match, name) => (values && values[name] !== undefined ? String(values[name]) : match));
+    const text = (lang && typeof lang.text === "function" ? lang.text(NS, key, fallback, values) : null) || fallback;
+    return String(text).replace(/\{(\w+)\}/g, (match, name) => (values && values[name] !== undefined ? String(values[name]) : match));
   };
   const model = () => root.FMDocModel;
   const isObject = (value) => value !== null && typeof value === "object" && !Array.isArray(value);
@@ -51,7 +51,7 @@
   const clone = (value) => (value === undefined ? undefined : JSON.parse(JSON.stringify(value)));
 
   const STYLE = `
-.fmse-overlay{position:fixed;inset:0;z-index:2147483000;display:flex;flex-direction:column;background:#2b3240;font-family:inherit}
+.fmse-overlay{position:fixed;inset:0;z-index:2147483540;display:flex;flex-direction:column;background:#2b3240;font-family:inherit}
 .fmse-top{display:flex;align-items:center;gap:10px;padding:10px 14px;background:#fff;border-bottom:1px solid #dfe3ea;box-shadow:0 1px 3px rgba(15,23,42,.08)}
 .fmse-top h2{margin:0;font-size:15px;font-weight:700;color:#1f2733;white-space:nowrap}
 .fmse-top .fmse-sub{font-size:12px;color:#647086;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
