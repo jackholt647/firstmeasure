@@ -92,9 +92,13 @@ Wall Dimensions headings name the elevation each face is counted on.
 
 An elevation page has no explanatory note. Its header carries a small key beside the
 page title: the north-up footprint with the viewed side marked by an accent bar (the
-viewing plane) and an arrow toward the house, and a small compass. The drawing starts
-just under the header and is only as tall as the house needs at full width (at most
-110 mm). The faces are listed in two boxed tables side by side, in the roof pages'
+viewing plane) and an arrow toward the house, and a small compass. When the faces fit
+on one portrait page, the table block (two boxes and the totals box) sits at the bottom,
+ending as far above the footer address as the address is above the page edge
+(`evenBottom`: 16 mm, the address, 16 mm), and the drawing is redrawn as large as fits
+in the space between the header and the tables, centred there. With more faces the
+drawing starts under the header, only as tall as the house needs at full width (at most
+110 mm), and the tables flow onto continuation pages. The faces are listed in two boxed tables side by side, in the roof pages'
 style (white box, accent bar on the left, bold headers over a rule); each has Wall,
 Material, Gross and Openings columns. Rows fill the left box, then the right (split
 evenly on the last page), and one totals box under both gives the face count and the
@@ -109,6 +113,35 @@ rows is split into two side-by-side boxes the same way (`autoTable`); wider tabl
 one box. Long tables continue on "- continued" pages, and no row is drawn below the
 page footer. "Openings" is the area of modeled
 windows, doors and other openings cut from the face.
+
+### Landscape PDFs
+
+Every page of the PDF (roof and exterior) can be laid out in landscape. The orientation
+is, in order: a render override `pageConfigOverride.report_orientation`, this report's
+`exteriorSettings.orientation` (saved with the report's PDF configuration and carried in
+the standalone snapshot), the organization default
+`report_settings.general.report_orientation` (Company › Reports › Layout › Landscape
+pages), else portrait (`resolvePdfOrientation` in pdf.js; `ExteriorPDF.reportOrientation`
+gives the same answer without the override). A portrait PDF is byte-identical whether
+portrait is the default or chosen. The Exteriors tab of the report configuration tray has
+a development-only Portrait/Landscape switch behind `SHOW_PDF_ORIENTATION_DEV_TOGGLE` in
+exterior_report.js; set it to false to hide the switch.
+
+Landscape layouts keep the header, footer, page numbers and left bar. Pages with a
+drawing give it the left part of the page (pdf.js `mainW`, 64%; exterior pages 62%,
+`LANDSCAPE_DRAWING`) at full height and put tables beside it: the cover's two summary
+boxes (or the customer cover's Prepared For and Roof Measurements) are stacked in the
+side panel; the pitch and area diagrams have their breakdown beside them; layer pages
+have the details box and the legend beside the drawing; the Roof Summary puts the pitch
+and waste tables side by side in one band with the outline and the totals card below;
+material tables use two columns per page; the 3D views grid and imagery are sized by
+the page height; flat-roof material rows continue on a new page with the headers
+repeated. Elevations draw the house on the left at full height and list the faces in
+one boxed table with its totals box (stacked figures) on the right; rows tighten to
+4.3 mm before the table continues on a page of two columns. The Exterior Summary puts
+the house under the three figures with the measurements table beside it. Wall dimension
+panels keep their page grid, so they become wider and shorter. Company › Reports' sample
+preview (report-preview.js) renders the same landscape layouts when Landscape pages is on.
 
 ### What the drawings include
 

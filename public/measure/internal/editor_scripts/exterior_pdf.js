@@ -179,6 +179,14 @@ function rasterScene(faces,view,width,height,iso=false,pad=30,{focus=null}={}){
  }
  return paintScene({width,height,pixels,depth,owners,surfaces,counts,sums,bounds,labels,at,scale,camera,dim:focus!=null?dim:null});
 }
+const isLandscape=doc=>doc.internal.pageSize.getWidth()>doc.internal.pageSize.getHeight();
+// Landscape exterior pages give drawings the left LANDSCAPE_DRAWING of the width and put tables beside them.
+const LANDSCAPE_DRAWING=.62;
+// pdf.js drawReportTemplate puts the footer address baseline 16 mm above the page bottom (8 pt, about
+// 2.2 mm tall). A single-page portrait elevation ends its tables as far above the address as the
+// address is above the page edge, so the page feels even.
+const FOOTER_BASELINE=16,FOOTER_TEXT=2.2;
+const evenBottom=doc=>doc.internal.pageSize.getHeight()-FOOTER_BASELINE-FOOTER_TEXT-FOOTER_BASELINE;
 function writer(doc,colors){
  const x=25,w=doc.internal.pageSize.getWidth()-40,bottom=doc.internal.pageSize.getHeight()-22,accent=colors?.primary||{r:200,g:40,b:40};
  const text=(value,px,py,size=9,bold=false,color=[44,51,60])=>{doc.setFont('Montserrat',bold?'bold':'normal');doc.setFontSize(size);doc.setTextColor(...color);doc.text(Array.isArray(value)?value:String(value),px,py);};
@@ -196,11 +204,12 @@ function writer(doc,colors){
  const ROW=5.5,HEAD=12.5,FOOT=2.5,boxHeight=n=>HEAD+n*ROW+FOOT,rowsFit=y=>Math.max(1,Math.floor((bottom-y-HEAD-FOOT)/ROW));
  const numericColumns=(headers,rows)=>headers.map((h,i)=>i>0&&rows.length>0&&rows.every(r=>/^(-|<?[\d.,]+( x [\d.,]+)?( ?(sq ft|ft|m²|m))?)$/.test(String((r.cells||r)[i]).trim())));
  // `right` says which columns are right-aligned (default: columns 2+). A row {span:true,cells} spans its first two columns.
- const boxTable=(headers,rows,bx,by,bw,widths,right=headers.map((h,i)=>i>1))=>{
-  const inner=bw-10,weights=widths||headers.map(()=>1),cols=weights.map(v=>v/weights.reduce((a,b)=>a+b,0)*inner),left=cols.map((c,i)=>bx+6+cols.slice(0,i).reduce((a,b)=>a+b,0)),bh=boxHeight(rows.length);panel(bx,by,bw,bh);
+ // `rowH` (default ROW) lets a side panel tighten its rows; below 5.2 mm the row text is 7.5 pt.
+ const boxTable=(headers,rows,bx,by,bw,widths,right=headers.map((h,i)=>i>1),rowH=ROW)=>{
+  const inner=bw-10,weights=widths||headers.map(()=>1),cols=weights.map(v=>v/weights.reduce((a,b)=>a+b,0)*inner),left=cols.map((c,i)=>bx+6+cols.slice(0,i).reduce((a,b)=>a+b,0)),bh=HEAD+rows.length*rowH+FOOT,size=rowH<5.2?7.5:8;panel(bx,by,bw,bh);
   headers.forEach((h,i)=>{let size=7.5;doc.setFont('Montserrat','bold');while(size>5.5&&(doc.setFontSize(size),doc.getTextWidth(h)>cols[i]-1.5))size-=.5;cell(h,left[i]+(right[i]?1.5:0),by+7,cols[i]-1.5,right[i],size,true);});
   doc.setDrawColor(200,205,212);doc.setLineWidth(.25);doc.line(bx+6,by+9,bx+bw-4,by+9);
-  rows.forEach((row,r)=>{const cells=row.cells||row,py=by+HEAD+r*ROW+1.5;cells.forEach((v,i)=>{if(row.span&&i===1)return;const width=row.span&&i===0?cols[0]+cols[1]-1.5:cols[i]-1.5;cell(v,left[i]+(right[i]?1.5:0),py,width,right[i]);});});
+  rows.forEach((row,r)=>{const cells=row.cells||row,py=by+HEAD+r*rowH+1.5;cells.forEach((v,i)=>{if(row.span&&i===1)return;const width=row.span&&i===0?cols[0]+cols[1]-1.5:cols[i]-1.5;cell(v,left[i]+(right[i]?1.5:0),py,width,right[i],size);});});
   return by+bh;
  };
  // Two side-by-side boxes: rows fill the left box, then the right (split evenly on the last page),
@@ -211,15 +220,32 @@ function writer(doc,colors){
   for(;;){const capacity=Math.max(1,Math.floor((bottom-y-totalH-4-HEAD-FOOT)/ROW)),rest=rows.length-index,last=rest<=2*capacity,leftCount=last?Math.ceil(rest/2):capacity,rightCount=last?rest-leftCount:capacity;
    const a=rows.slice(index,index+leftCount),b=rows.slice(index+leftCount,index+leftCount+rightCount);let end=boxTable(headers,a,x,y,cw,widths,right);if(b.length)end=Math.max(end,boxTable(headers,b,x+cw+gap,y,cw,widths,right));index+=a.length+b.length;
    if(index>=rows.length&&!total)return end;
-   if(index>=rows.length){const ty=end+4;panel(x,ty,w,totalH);cell(total[0],x+6,ty+6.5,40,false,8.5,true);const parts=total.slice(1);let px=x+w-4;for(let i=parts.length-1;i>=0;i--){const str=String(parts[i]);doc.setFont('Montserrat',i===parts.length-1?'bold':'normal');doc.setFontSize(8);const tw=doc.getTextWidth(str);cell(str,px-tw,ty+6.5,tw+.5,false,8,i===parts.length-1);px-=tw+6;}return ty+totalH;}
+   if(index>=rows.length)return totalBox(total,x,end+4,w);
    y=more();
   }
+ };
+ // The totals box: one line across a wide box; in a narrow box (a landscape side panel) the label
+ // and then each figure on its own line, right-aligned. Returns the box's bottom.
+ const totalLines=(total,tw)=>tw>=140?1:total.length,totalHeight=(total,tw)=>totalLines(total,tw)===1?10:4.5+total.length*5.2;
+ const totalBox=(total,tx,ty,tw)=>{const th=totalHeight(total,tw);panel(tx,ty,tw,th);
+  if(totalLines(total,tw)===1){cell(total[0],tx+6,ty+6.5,40,false,8.5,true);const parts=total.slice(1);let px=tx+tw-4;for(let i=parts.length-1;i>=0;i--){const str=String(parts[i]);doc.setFont('Montserrat',i===parts.length-1?'bold':'normal');doc.setFontSize(8);const sw=doc.getTextWidth(str);cell(str,px-sw,ty+6.5,sw+.5,false,8,i===parts.length-1);px-=sw+6;}}
+  else total.forEach((str,i)=>cell(str,tx+6,ty+6.5+i*5.2,tw-10,i>0,i===0?8.5:8,i===0||i===total.length-1));
+  return ty+th;};
+ // A single boxed table in a side panel (landscape elevations): as many rows as fit above its totals
+ // box; any rest continues on `more()` pages in two columns. Returns the bottom of what it drew last.
+ // Rows tighten to SIDE_MIN_ROW mm before the table continues on another page.
+ const SIDE_MIN_ROW=4.3;
+ const sideTable=(headers,rows,px,y,pw,widths,total,more)=>{
+  const room=bottom-y-totalHeight(total,pw)-4-HEAD-FOOT,rowH=Math.min(ROW,room/Math.max(1,rows.length));
+  if(rowH>=SIDE_MIN_ROW)return totalBox(total,px,boxTable(headers,rows,px,y,pw,widths,undefined,rowH)+4,pw);
+  const first=Math.min(rows.length-1,Math.max(1,Math.floor((bottom-y-HEAD-FOOT)/SIDE_MIN_ROW)));boxTable(headers,rows.slice(0,first),px,y,pw,widths,undefined,SIDE_MIN_ROW);
+  return columns(headers,rows.slice(first),more(),widths,total,more);
  };
  // A narrow table (at most three columns) longer than LONG_TABLE rows reads better as two columns.
  // Otherwise one full-width box per page. Either way `more()` starts a continuation page and returns its top.
  const autoTable=(headers,rows,y,widths,more)=>{headers=headers.map(h=>reportText(h));const right=numericColumns(headers,rows);if(headers.length<=3&&rows.length>LONG_TABLE)return columns(headers,rows,y,widths,null,more,right);
   let end=y;for(let i=0;i<rows.length;){const count=rowsFit(y);end=boxTable(headers,rows.slice(i,i+count),x,y,w,widths,right);i+=count;if(i<rows.length)y=more();}return end;};
- return {x,w,bottom,accent,text,note,table,paginate,panel,boxTable,columns,autoTable,rowsFit};
+ return {x,w,bottom,accent,text,note,table,paginate,panel,boxTable,columns,autoTable,rowsFit,boxHeight,totalHeight,totalBox,sideTable,numericColumns};
 }
 const DENSITY=8,LONG_TABLE=10;
 // Label placement. With `ids`, every listed face gets a label: inside the face when it fits
@@ -290,11 +316,14 @@ function drawRoofElevations(doc,model,settings,begin,colors){
 }
 /* The one-page Exterior Summary: the full report opens its exterior pages with it, and a full-house customer Summary.pdf carries only it. */
 function drawExteriorSummaryPage(doc,model,settings,begin,colors){
- const {x,w,text,note,table}=writer(doc,colors);
+ const {x,w,bottom,text,note,table,boxTable,numericColumns}=writer(doc,colors),landscape=isLandscape(doc);
  begin(reportText('Exterior Summary'));let y=38;
  [['Net wall area',measure(model.totals.net,"sf",number(model.totals.net)+' sq ft')],['Gross wall area',measure(model.totals.gross,"sf",number(model.totals.gross)+' sq ft')],['Openings',String(model.openings.length)]].forEach(([label,value],i)=>{const bx=x+i*(w+3)/3;doc.setFillColor(242,245,249);doc.roundedRect(bx,y,(w-6)/3,23,2,2,'F');text(label,bx+4,y+7,8);text(value,bx+4,y+17,12,true);});
+ const headers=[reportText('Measurement'),reportText('Quantity')],rows=[[reportText('Wall regions'),model.walls.length],[reportText('Opening area'),measure(model.totals.openingArea,"sf",number(model.totals.openingArea)+' sq ft')],[reportText('Opening perimeter'),measure(model.totals.openingPerimeter,"ft",number(model.totals.openingPerimeter),false)+' '+unit('ft','ft')],[reportText('Horizontal returns'),measure(model.totals.returns,"sf",number(model.totals.returns)+' sq ft')]],explain=reportText('Wall IDs connect the diagrams, dimensions, opening schedule and notes. Each wall face is counted once, on one of the four elevations (front, back, left, right) or as a hidden face, so those totals add up to the gross wall area.');
+ // Landscape: the house on the left under the three figures, the measurements table and the note beside it.
+ if(landscape){const dw=w*LANDSCAPE_DRAWING,px=x+dw+6,pw=w-dw-6;drawDiagram(doc,houseFaces(model),{x,y:66,w:dw,h:bottom-66},coverView(settings),{iso:true});note(explain,boxTable(headers,rows,px,66,pw,[2,1.2],numericColumns(headers,rows))+8,pw,px);return;}
  drawDiagram(doc,houseFaces(model),{x,y:68,w,h:111},coverView(settings),{iso:true});
- table([reportText('Measurement'),reportText('Quantity')],[[reportText('Wall regions'),model.walls.length],[reportText('Opening area'),measure(model.totals.openingArea,"sf",number(model.totals.openingArea)+' sq ft')],[reportText('Opening perimeter'),measure(model.totals.openingPerimeter,"ft",number(model.totals.openingPerimeter),false)+' '+unit('ft','ft')],[reportText('Horizontal returns'),measure(model.totals.returns,"sf",number(model.totals.returns)+' sq ft')]],188,[2,1]);note(reportText('Wall IDs connect the diagrams, dimensions, opening schedule and notes. Each wall face is counted once, on one of the four elevations (front, back, left, right) or as a hidden face, so those totals add up to the gross wall area.'),240);
+ table(headers,rows,188,[2,1]);note(explain,240);
 }
 /* There are four elevations: Front, Back, Left and Right, looking from the configured front bearing
  and from it turned by 180, 90 and -90 degrees. Which elevation counts each wall face: a face is
@@ -312,9 +341,9 @@ function fitHeight(faces,view,rect,pad=5){
  for(const f of faces)for(const p of f.points||[]){const u=p.x*ny-p.y*nx;x0=Math.min(x0,u);x1=Math.max(x1,u);z0=Math.min(z0,p.z||0);z1=Math.max(z1,p.z||0);}
  if(!Number.isFinite(x0))return rect.h;return Math.max(Math.min(rect.h,40),Math.min(rect.h,(z1-z0)*(rect.w-2*pad)/Math.max(x1-x0,.01)+2*pad+8));
 }
-function elevationPlan(model,settings,rect){
+function elevationPlan(model,settings,rect,{fit=true}={}){
  const faces=houseFaces(model);
- const views=elevationViews(settings).map(view=>{const r={...rect,h:fitHeight(faces,view,rect)};return {view,rect:r,scene:rasterScene(faces,view,Math.ceil(r.w*DENSITY),Math.ceil(r.h*DENSITY),false,5*DENSITY),ids:[],small:[]};}),hidden=[];
+ const views=elevationViews(settings).map(view=>{const r={...rect,h:fit?fitHeight(faces,view,rect):rect.h};return {view,rect:r,scene:rasterScene(faces,view,Math.ceil(r.w*DENSITY),Math.ceil(r.h*DENSITY),false,5*DENSITY),ids:[],small:[]};}),hidden=[];
  for(const wall of model.walls){
   const n=wall.normal||{x:0,y:0},len=Math.hypot(n.x,n.y)||1,options=views.map(({view,scene},i)=>{const id=scene.surfaces.indexOf(wall),facing=(n.x*view.x+n.y*view.y)/len,count=id<0?0:scene.counts[id],expected=wall.net*.09290304*Math.max(facing,0)*scene.scale**2;return {i,facing,count,share:expected>0?count/expected:0};});
   const nearest=list=>list.sort((a,b)=>b.facing-a.facing||a.i-b.i)[0];
@@ -331,31 +360,50 @@ function dimensionContext(settings){
  if(typeof settings?.dimensionContext==='boolean')return settings.dimensionContext;
  return root.projectOrganization?.report_settings?.general?.exterior_dimension_context!==false;
 }
+// The PDF's page orientation for these settings: this report's exteriorSettings.orientation, else the
+// organization default report_settings.general.report_orientation, else portrait (pdf.js
+// resolvePdfOrientation applies the same order after a render override).
+function reportOrientation(settings){const pick=v=>v==='landscape'||v==='portrait'?v:null;return pick(settings?.orientation)||pick(root.projectOrganization?.report_settings?.general?.report_orientation)||'portrait';}
 // The elevation key sits in the page header, just left of the right-aligned page title (pdf.js drawReportTemplate: 12pt bold, 20 mm from the right edge, baseline 18 mm).
 function headerKeyRect(doc,title){doc.setFont('Montserrat','bold');doc.setFontSize(12);const tw=Number(doc.getTextWidth(title))||0,kw=40;return {x:doc.internal.pageSize.getWidth()-20-tw-6-kw,y:5,w:kw,h:25};}
 function drawExteriorReportPages(doc,model,settings,begin,colors){
- const {x,w,bottom,text,note,table,paginate,columns,autoTable}=writer(doc,colors),material=a=>reportText(!a.material||a.material==='Unassigned'?'Not assigned':a.material);
+ const {x,w,bottom,text,note,table,paginate,columns,autoTable,boxHeight,sideTable}=writer(doc,colors),material=a=>reportText(!a.material||a.material==='Unassigned'?'Not assigned':a.material),landscape=isLandscape(doc);
  const area=v=>measure(v,"sf",number(v),false),openings=v=>v>0?area(v):'-',sum=(list,key)=>list.reduce((s,a)=>s+a[key],0),byId=new Map(model.walls.map(a=>[a.id,a]));
  // Each elevation lists its faces in two boxed columns (Wall, Material, Gross, Openings) with one totals box under both.
  const sq=metric()?' m²':' ft²',headers=[reportText('Wall'),reportText('Material'),reportText('Gross')+sq,reportText('Openings')+sq],widths=[1,2.2,1.4,1.4];
  const totalRow=list=>[reportText('Total')+'  ·  '+reportText('{value1} faces',{value1:list.length}),reportText('Gross ')+area(sum(list,'gross'))+sq,reportText('Openings ')+(sum(list,'openingArea')>0?area(sum(list,'openingArea'))+sq:'-'),reportText('Net ')+area(sum(list,'net'))+sq];
  drawExteriorSummaryPage(doc,model,settings,begin,colors);let y;
- const diagram={x,y:33,w,h:110},plan=elevationPlan(model,settings,diagram),elevationOf=new Map(plan.hidden.map(id=>[id,'Hidden']));
- for(const {view:direction,rect:drawing,scene,ids,small}of plan.views){
+ /* Elevation page layouts.
+  Landscape: the drawing fills the left LANDSCAPE_DRAWING of the page at full height, and the faces are
+  one boxed table with its totals box in the panel on the right.
+  Portrait, when everything fits on one page: the table block (two columns and the totals box) sits
+  at the bottom, ending as far above the footer address as the address is above the page edge
+  (evenBottom), and the drawing is as large as fits in the space above it, centred there.
+  Otherwise (portrait, many faces): the drawing at the top and the tables flowing onto
+  continuation pages. */
+ const MIN_DRAWING=70,sideGap=6,drawW=landscape?w*LANDSCAPE_DRAWING:w;
+ const diagram=landscape?{x,y:33,w:drawW,h:bottom-33}:{x,y:33,w,h:110},plan=elevationPlan(model,settings,diagram,{fit:!landscape}),elevationOf=new Map(plan.hidden.map(id=>[id,'Hidden']));
+ for(const {view:direction,rect:planned,scene:plannedScene,ids,small}of plan.views){
   for(const id of [...ids,...small])elevationOf.set(id,direction.name);
   const counted=new Set(ids),walls=ids.map(id=>byId.get(id)).sort((a,b)=>a.id.localeCompare(b.id)),pieces=small.map(id=>byId.get(id)),all=walls.concat(pieces),title=reportText(direction.name)+reportText(' Elevation');
-  begin(title);drawElevationKey(doc,model,settings,headerKeyRect(doc,title),direction,colors);
-  paintScene(scene,face=>!counted.has(face.id));drawDiagram(doc,houseFaces(model),drawing,direction,{scene,labelIds:counted});
   const rows=walls.map(a=>[a.id,material(a),area(a.gross),openings(a.openingArea)]);
   if(pieces.length)rows.push({span:true,cells:[reportText('Small pieces: {value1} under {value2}',{value1:pieces.length,value2:measure(SMALL_PIECE_SF,'sf','1 sq ft')}),'',area(sum(pieces,'gross')),openings(sum(pieces,'openingArea'))]});
-  y=drawing.y+drawing.h+4;
-  if(rows.length)columns(headers,rows,y,widths,totalRow(all),()=>{begin(title+reportText(' - continued'));return note(reportText('Wall data continued. See the first ')+reportText(direction.name)+reportText(' elevation page for the diagram.'),38)+4;});
-  else note(reportText('No wall face is counted on this elevation. Its walls are counted on the neighboring elevations that face them more directly.'),y+6);
+  const more=()=>{begin(title+reportText(' - continued'));return note(reportText('Wall data continued. See the first ')+reportText(direction.name)+reportText(' elevation page for the diagram.'),38)+4;};
+  const blockTop=evenBottom(doc)-(boxHeight(Math.ceil(rows.length/2))+4+10),even=!landscape&&rows.length>0&&blockTop-sideGap-33>=MIN_DRAWING;
+  let drawing=planned,scene=plannedScene;
+  if(even){drawing={x,y:33,w,h:blockTop-sideGap-33};scene=rasterScene(houseFaces(model),direction,Math.ceil(drawing.w*DENSITY),Math.ceil(drawing.h*DENSITY),false,5*DENSITY);}
+  begin(title);drawElevationKey(doc,model,settings,headerKeyRect(doc,title),direction,colors);
+  paintScene(scene,face=>!counted.has(face.id));drawDiagram(doc,houseFaces(model),drawing,direction,{scene,labelIds:counted});
+  if(!rows.length){note(reportText('No wall face is counted on this elevation. Its walls are counted on the neighboring elevations that face them more directly.'),landscape?33:drawing.y+drawing.h+10,landscape?w-drawW-sideGap:w,landscape?x+drawW+sideGap:x);continue;}
+  if(landscape)sideTable(headers,rows,x+drawW+sideGap,33,w-drawW-sideGap,widths,totalRow(all),more);
+  else columns(headers,rows,even?blockTop:drawing.y+drawing.h+4,widths,totalRow(all),more);
  }
  if(plan.hidden.length){const hidden=plan.hidden.map(id=>byId.get(id)).sort((a,b)=>a.id.localeCompare(b.id)),heading=reportText('Hidden Wall Faces'),intro=reportText('These faces are not visible in any elevation drawing because other walls or the roof cover them. They are listed here so every face is counted once.');
   begin(heading);columns(headers,hidden.map(a=>[a.id,material(a),area(a.gross),openings(a.openingArea)]),note(intro,38)+4,widths,totalRow(hidden),()=>{begin(heading+reportText(' - continued'));return 38;});}
  const house=dimensionContext(settings)?houseFaces(model):null;
  for(const [heading,faces]of [['Wall Dimensions',model.walls.filter(a=>!isTrim(a))],['Trim Dimensions',model.walls.filter(isTrim)]]){
+  // The panels are page fractions, so a landscape page gets the same grid with wider, shorter panels
+  // (wall faces are mostly wide, so they draw larger than they would in half a sheet).
   dimensionPages(faces).forEach((page,i)=>{begin(reportText(heading)+(i?reportText(' - continued'):''));page.forEach(panel=>{
    const a=panel.face,xx=x+panel.x*w+1,yy=36+panel.y*(bottom-36),ww=panel.w*w-3,hh=panel.h*(bottom-36)-4;
    text(a.id+' / '+reportText(elevationOf.get(a.id)||relativeSide(a.normal,settings)),xx+1,yy+5,ww<60?8:10,true);text(measure(a.net,'sf',number(a.net)+' sq ft')+reportText(' net'),xx+1,yy+10,7.5);drawDiagram(doc,[a],{x:xx,y:yy+13,w:ww,h:hh-25},a.normal,{dimensions:true,context:house&&house.filter(f=>f!==a)});
@@ -414,6 +462,6 @@ async function drawReportImagery(doc,state,begin,colors){
   doc.addImage(item.dataUrl||reportImageData(img),'JPEG',xx+(ww-iw)/2,yy+9+(boxH-ih)/2,iw,ih);doc.setFontSize(7);text(doc.splitTextToSize(item.label||reportText('Untitled frame'),ww).slice(0,2),xx,yy+hh-8,7);
  }}
 }
-const api={directions,photoSlots,houseDirections,relativeSide,initializePhotoSlots,selectedPhotos,photosComplete,planShapes,frontBearing,dimensionPages,rasterScene,paintScene,placeLabels,elevationPlan,elevationViews,houseFaces,roofDepthBias,ROOF_DEPTH_BIAS,dimensionContext,writer,coverView,drawDiagram,drawOrientationKey,drawElevationKey,drawRoofElevations,drawExteriorCover,drawExteriorSummaryPage,drawExteriorReportPages,drawExteriorNotes,drawReportImagery,prepareImagerySnapshot};
+const api={directions,photoSlots,houseDirections,relativeSide,initializePhotoSlots,selectedPhotos,photosComplete,planShapes,frontBearing,dimensionPages,rasterScene,paintScene,placeLabels,elevationPlan,elevationViews,houseFaces,roofDepthBias,ROOF_DEPTH_BIAS,dimensionContext,reportOrientation,evenBottom,writer,coverView,drawDiagram,drawOrientationKey,drawElevationKey,drawRoofElevations,drawExteriorCover,drawExteriorSummaryPage,drawExteriorReportPages,drawExteriorNotes,drawReportImagery,prepareImagerySnapshot};
 if(typeof module==='object'&&module.exports)module.exports=api;else {root.ExteriorPDF=api;Object.assign(root,{drawExteriorReportPages,drawExteriorNotes,drawExteriorCover,drawReportImagery});}
 })(typeof window==='undefined'?globalThis:window);

@@ -20,9 +20,22 @@
   const ASSETS = '/libraries/apps/settings/report-preview/';
   const ASSET_VERSION = '20261014-1';
   const MM = 4;                       // px per mm on an unscaled page
-  const PAGE_W = 215.9, PAGE_H = 279.4;
-  const MARGIN = 25, AVAIL_W = PAGE_W - 40, BOX_TOP = PAGE_H - 18 - 58;
-  const FOOTER_Y = PAGE_H - 16;
+  // Portrait letter unless render() is given orientation 'landscape' (Company > Reports > Layout), when
+  // every page is laid out as pdf.js lays out a landscape PDF: the drawing on the left (MAIN_W) and
+  // tables and boxes in the side panel (SIDE_X, SIDE_W).
+  let PAGE_W = 215.9, PAGE_H = 279.4, LANDSCAPE = false;
+  const MARGIN = 25;
+  let AVAIL_W = PAGE_W - 40, BOX_TOP = PAGE_H - 18 - 58, FOOTER_Y = PAGE_H - 16;
+  let SIDE_W = AVAIL_W, MAIN_W = AVAIL_W, SIDE_X = MARGIN;
+  function setOrientation(value){
+    LANDSCAPE = value === 'landscape';
+    PAGE_W = LANDSCAPE ? 279.4 : 215.9; PAGE_H = LANDSCAPE ? 215.9 : 279.4;
+    AVAIL_W = PAGE_W - 40; BOX_TOP = PAGE_H - 18 - 58; FOOTER_Y = PAGE_H - 16;
+    SIDE_W = LANDSCAPE ? Math.round(AVAIL_W * 0.36) : AVAIL_W; MAIN_W = LANDSCAPE ? AVAIL_W - SIDE_W - 8 : AVAIL_W; SIDE_X = LANDSCAPE ? MARGIN + MAIN_W + 8 : MARGIN;
+  }
+  // Portrait-designed positions stretched across the wider landscape page (pages whose PDF layout follows the width).
+  const wideX = (x) => LANDSCAPE ? MARGIN + (x - MARGIN) * (AVAIL_W / 175.9) : x;
+  const wideW = (w) => LANDSCAPE ? w * (AVAIL_W / 175.9) : w;
 
   const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (c) => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
   const n = (value) => (Math.round(value * 100) / 100).toString();
@@ -46,6 +59,8 @@
   const hline = (x1, y, x2, color, width = 0.2) => rect(x1, y - width / 2, x2 - x1, width, `background:${color}`);
   const vline = (x, y1, y2, color, width = 0.1) => rect(x - width / 2, y1, width, y2 - y1, `background:${color}`);
   const image = (name, x, y, w, h, style = '') => `<img class="rpv-i" alt="" src="${ASSETS}${name}.webp?v=${ASSET_VERSION}" style="left:${mm(x)};top:${mm(y)};width:${mm(w)};height:${mm(h)};${style}">`;
+  // An image fitted (not stretched) into a box, as placeImageCentered does on landscape pages.
+  const fitImage = (name, x, y, w, h, style = '') => image(name, x, y, w, h, `object-fit:contain;${style}`);
   // drawPdfCard / drawSummaryBox: shadow offset 1.5, white card with a 0.3 border, radius 3, optional
   // 2 mm primary strip and an uppercase grey title.
   function card(x, y, w, h, o = {}){
@@ -115,19 +130,25 @@
   }
 
   // ---- Pages ----
-  const outlineCard = () => card(MARGIN, 40, AVAIL_W, BOX_TOP - 10 - 40) + image('outline', 26.5, 41.5, 172.9, 150.4);
+  // Landscape: the outline fills the left at full height (cover map 40 mm to the bottom margin).
+  const COVER_H = () => PAGE_H - 18 - 40;
+  const outlineCard = () => LANDSCAPE
+    ? card(MARGIN, 40, MAIN_W, COVER_H()) + fitImage('outline', MARGIN + 1.5, 41.5, MAIN_W - 3, COVER_H() - 3)
+    : card(MARGIN, 40, AVAIL_W, BOX_TOP - 10 - 40) + image('outline', 26.5, 41.5, 172.9, 150.4);
 
   function coverInternal(){
-    const boxW = AVAIL_W / 2 - 3, box2X = MARGIN + boxW + 6;
+    // Portrait: two boxes side by side under the outline. Landscape: stacked in the side panel.
+    const boxW = LANDSCAPE ? SIDE_W : AVAIL_W / 2 - 3, boxH = LANDSCAPE ? (COVER_H() - 6) / 2 : 58;
+    const box1X = LANDSCAPE ? SIDE_X : MARGIN, box1Y = LANDSCAPE ? 40 : BOX_TOP, box2X = LANDSCAPE ? SIDE_X : MARGIN + boxW + 6, box2Y = LANDSCAPE ? 40 + boxH + 6 : BOX_TOP;
     let out = outlineCard();
-    out += card(MARGIN, BOX_TOP, boxW, 58, { strip:true, title:'Roof Summary' });
-    let y = BOX_TOP + 16;
-    out += text(MARGIN + 8, y, `Total Facets: ${SAMPLE.facets}`); y += 5;
-    out += text(MARGIN + 8, y, `Predominant Pitch: ${SAMPLE.pitch}`); y += 10;
-    out += text(MARGIN + 8, y, `Total Squares (Net): ${SAMPLE.netSquares}`); y += 5;
-    out += text(MARGIN + 8, y, `Total Squares (${SAMPLE.waste}% Waste): ${SAMPLE.wasteSquares}`);
-    out += card(box2X, BOX_TOP, boxW, 58, { strip:true, title:'Roof Measurements' });
-    y = BOX_TOP + 16;
+    out += card(box1X, box1Y, boxW, boxH, { strip:true, title:'Roof Summary' });
+    let y = box1Y + 16;
+    out += text(box1X + 8, y, `Total Facets: ${SAMPLE.facets}`); y += 5;
+    out += text(box1X + 8, y, `Predominant Pitch: ${SAMPLE.pitch}`); y += 10;
+    out += text(box1X + 8, y, `Total Squares (Net): ${SAMPLE.netSquares}`); y += 5;
+    out += text(box1X + 8, y, `Total Squares (${SAMPLE.waste}% Waste): ${SAMPLE.wasteSquares}`);
+    out += card(box2X, box2Y, boxW, boxH, { strip:true, title:'Roof Measurements' });
+    y = box2Y + 16;
     SAMPLE.linear.forEach(([label, value]) => {
       out += text(box2X + 8, y, `${label}:`) + text(box2X + boxW - 8, y, `${value}'`, { align:'right' });
       y += 5;
@@ -140,24 +161,29 @@
     const showCustomer = !!s.cover_show_customer;
     const showStats = !!(s.cover_show_squares || s.cover_show_waste || s.cover_show_pitch || s.cover_show_facets);
     const showLines = !!s.cover_show_breakdown;
-    const gap = 8, w = AVAIL_W, x = MARGIN, y = BOX_TOP, h = 58;
+    // Landscape (drawDynamicCoverPage stacked): Prepared For above Roof Measurements in the side
+    // panel, and the line lengths under the totals.
+    const gap = 8, w = LANDSCAPE ? SIDE_W : AVAIL_W, x = LANDSCAPE ? SIDE_X : MARGIN, y = LANDSCAPE ? 40 : BOX_TOP, h = LANDSCAPE ? COVER_H() : 58;
     let leftW = 0, rightW = w, rightX = x;
     if (showCustomer) {
       leftW = w * 0.4 - gap / 2; rightW = w * 0.6 - gap / 2; rightX = x + leftW + gap;
       if (!showStats && !showLines) leftW = w;
     }
+    let custH = h, rightY = y, rightH = h;
+    if (LANDSCAPE) { leftW = w; rightW = w; rightX = x; if (showCustomer && (showStats || showLines)) { custH = 50; rightY = y + 56; rightH = h - 56; } }
     let out = outlineCard();
     if (showCustomer) {
-      out += card(x, y, leftW, h, { strip:true, title:'Prepared For', titleY:7 });
+      out += card(x, y, leftW, custH, { strip:true, title:'Prepared For', titleY:7 });
       out += text(x + 8, y + 14, SAMPLE.customer, { size:11, bold:true, color:grey(50) });
       out += para(x + 8, y + 19, leftW - 16, SAMPLE.address, { size:10, lineH:4, color:grey(50) });
     }
     if (showStats || showLines) {
-      out += card(rightX, y, rightW, h, { strip:true, title:'Roof Measurements', titleY:7 });
+      out += card(rightX, rightY, rightW, rightH, { strip:true, title:'Roof Measurements', titleY:7 });
       const leftColX = rightX + 8;
-      const rightColX = showStats && showLines ? rightX + rightW * 0.62 : rightX + 8;
+      const rightColX = showStats && showLines && !LANDSCAPE ? rightX + rightW * 0.62 : rightX + 8;
+      let statsEnd = rightY + 14;
       if (showStats) {
-        let cy = y + 14;
+        let cy = rightY + 14;
         if (s.cover_show_squares) {
           out += text(leftColX, cy, s.cover_show_waste ? `Total Squares (+${SAMPLE.waste}% Waste)` : 'Total Squares', { size:10, bold:true, color:grey(50) });
           cy += 9;
@@ -166,10 +192,11 @@
         }
         if (s.cover_show_pitch) { out += text(leftColX, cy, `Pitch: ${SAMPLE.pitch}`, { color:grey(80) }); cy += 4.5; }
         if (s.cover_show_waste) { out += text(leftColX, cy, `Waste: ${SAMPLE.waste}%`, { color:grey(80) }); cy += 4.5; }
-        if (s.cover_show_facets) out += text(leftColX, cy, `Facets: ${SAMPLE.facets}`, { color:grey(80) });
+        if (s.cover_show_facets) { out += text(leftColX, cy, `Facets: ${SAMPLE.facets}`, { color:grey(80) }); cy += 4.5; }
+        statsEnd = cy + 4;
       }
       if (showLines) {
-        let cy = y + 14;
+        let cy = LANDSCAPE && showStats ? statsEnd + 2 : rightY + 14;
         SAMPLE.coverLines.forEach(([label, value]) => {
           out += text(rightColX + 2, cy, label, { color:grey(80) }) + text(rightX + rightW - 8, cy, `${value}'`, { bold:true, align:'right' });
           cy += 5;
@@ -179,15 +206,18 @@
     return out;
   }
 
-  const imageryPage = () => card(MARGIN, 35, AVAIL_W, AVAIL_W, { border:0.4 }) + image('imagery', 25.5, 35.5, 174.9, 174.9, `border-radius:${mm(2.6)}`);
+  // A square as large as fits (the page height limits it in landscape), centred.
+  const imageryPage = () => { const size = Math.min(AVAIL_W, PAGE_H - 35 - 30), x = MARGIN + (AVAIL_W - size) / 2; return card(x, 35, size, size, { border:0.4 }) + image('imagery', x + 0.5, 35.5, size - 1, size - 1, `border-radius:${mm(2.6)}`); };
 
   const VIEWS = [['north', 'North View'], ['south', 'South View'], ['east', 'East View'], ['west', 'West View']];
   // drawQuadGridPage: 2x2 cards with a grey header bar.
   function facetsPage(){
-    const cellW = (AVAIL_W - 10) / 2, cellH = cellW + 8;
+    // The cells are as tall as wide plus the header; in landscape the height limits the grid width.
+    const gridW = Math.min(AVAIL_W, 2 * ((PAGE_H - 55 - 10) / 2 - 8) + 10), gridX = MARGIN + (AVAIL_W - gridW) / 2;
+    const cellW = (gridW - 10) / 2, cellH = cellW + 8;
     let out = '';
     VIEWS.forEach(([name, label], i) => {
-      const px = MARGIN + (i % 2) * (cellW + 10), py = 35 + Math.floor(i / 2) * (cellH + 10);
+      const px = gridX + (i % 2) * (cellW + 10), py = 35 + Math.floor(i / 2) * (cellH + 10);
       out += card(px, py, cellW, cellH);
       out += rect(px, py, cellW, 8, `background:#676767;border-radius:${mm(3)} ${mm(3)} 0 0`);
       out += text(px + cellW / 2, py + 5, label, { size:10, bold:true, color:'#fff', align:'center' });
@@ -197,7 +227,46 @@
   }
 
   // drawSummaryPageLayout at y 30.
+  // drawSummaryPageLayout on a landscape page: the pitch and waste tables share the top band (row
+  // labels 22 mm wide), then the outline and the totals card, whose rows tighten to fit.
+  function summaryPageLandscape(){
+    let out = '';
+    const pitches = SAMPLE.pitches, total = pitches.reduce((sum, [, v]) => sum + v, 0), dom = SAMPLE.pitch, top = 38;
+    const tableW = Math.min(AVAIL_W * 0.42, (pitches.length + 1) * 25), tableX = MARGIN, labelW = 22, valW = (tableW - labelW) / pitches.length, valX = (i) => tableX + labelW + i * valW + valW / 2;
+    out += card(tableX, top - 2, tableW, 27);
+    out += text(tableX + 4, top + 5, 'Pitch', { bold:true }) + text(tableX + 4, top + 13, 'Area (sq ft)', { bold:true }) + text(tableX + 4, top + 21, 'Percent', { bold:true });
+    pitches.forEach(([p, v], i) => {
+      out += text(valX(i), top + 5, p, { bold:true, align:'center' });
+      out += text(valX(i), top + 13, Math.round(v * 100).toLocaleString('en-US'), { bold:p === dom, align:'center' });
+      out += text(valX(i), top + 21, `${Math.round(v / total * 100)}%`, { bold:p === dom, align:'center' });
+    });
+    const wastes = [0, SAMPLE.waste - 5, SAMPLE.waste - 2, SAMPLE.waste, SAMPLE.waste + 2, SAMPLE.waste + 5, SAMPLE.waste + 10];
+    const suggested = wastes.indexOf(SAMPLE.waste), wX = tableX + tableW + 6, wW = AVAIL_W - tableW - 6, innerW = wW - 12, contentX = wX + 6, wValW = (innerW - labelW) / wastes.length, wValX = (i) => contentX + labelW + i * wValW + wValW / 2;
+    out += card(wX, top - 2, wW, 28);
+    for (let i = 1; i <= wastes.length; i++) out += vline(contentX + labelW + (i - 1) * wValW, top, top + 24, grey(230));
+    out += hline(contentX, top + 8, contentX + innerW, grey(230), 0.1) + hline(contentX, top + 16, contentX + innerW, grey(230), 0.1);
+    out += rect(contentX + labelW + suggested * wValW, top - 1, wValW, 26, `border:${mm(0.7)} solid rgb(200,40,40);border-radius:${mm(1)};box-sizing:border-box`);
+    out += text(contentX + 2, top + 5, 'Waste', { bold:true }) + text(contentX + 2, top + 13, 'Area (sq ft)', { bold:true }) + text(contentX + 2, top + 21, 'Squares', { bold:true });
+    wastes.forEach((v, i) => {
+      out += text(wValX(i), top + 5, `${v}%`, { bold:true, align:'center' });
+      out += text(wValX(i), top + 13, Math.round(SAMPLE.roofSqFt * (1 + v / 100)).toLocaleString('en-US'), { bold:i === suggested, align:'center' });
+      out += text(wValX(i), top + 21, String(Math.ceil(total * (1 + v / 100))), { bold:i === suggested, align:'center' });
+    });
+    const imageTop = top + 40, statsW = Math.max(40, AVAIL_W * 0.3 - 15), imgAvail = AVAIL_W - statsW - 15;
+    out += fitImage('summary-outline', MARGIN, imageTop, imgAvail, Math.min(130, PAGE_H - 34 - imageTop));
+    const statsX = MARGIN + imgAvail + 10, rows = SAMPLE.stats.length;
+    let statsY = imageTop + 8;
+    const rowH = Math.max(5.5, Math.min(8, (PAGE_H - 34 - statsY) / Math.max(1, rows - 1))), size = rowH < 7 ? 8 : 9;
+    out += card(statsX - 2, statsY - 6, statsW + 4, 12 + (rows - 1) * rowH);
+    SAMPLE.stats.forEach(([label, value], i) => {
+      out += text(statsX, statsY, label, { bold:true, size }) + text(statsX + statsW, statsY, value, { align:'right', size });
+      if (i < rows - 1) out += hline(statsX, statsY + 2, statsX + statsW, grey(230), 0.2);
+      statsY += rowH;
+    });
+    return out + text(MARGIN, PAGE_H - 28, 'Measurements rounded. Waste guidance only. Installer to verify.', { size:6, color:grey(80) });
+  }
   function summaryPage(){
+    if (LANDSCAPE) return summaryPageLandscape();
     let out = '';
     const pitches = SAMPLE.pitches, total = pitches.reduce((sum, [, v]) => sum + v, 0);
     const dom = SAMPLE.pitch;
@@ -241,82 +310,104 @@
   }
 
   // drawMaterialTable: waste columns from 45% of the width, the suggested column boxed in red.
+  // The column the material table is drawn in: the page width in portrait; in landscape the left or
+  // right half, with 58% for the product names and 8 pt rows (pdf.js drawMaterialTable setColumn).
+  let COL = { x:MARGIN, w:AVAIL_W, share:0.45, size:9 };
+  const useColumn = (half) => { const w = LANDSCAPE ? (AVAIL_W - 8) / 2 : AVAIL_W; COL = { x:MARGIN + (half ? w + 8 : 0), w, share:LANDSCAPE ? 0.58 : 0.45, size:LANDSCAPE ? 8 : 9 }; };
   function steepColumns(){
-    const colStart = MARGIN + AVAIL_W * 0.45, colW = (AVAIL_W * 0.55 - 8) / SAMPLE.steepWastes.length;
+    const colStart = COL.x + COL.w * COL.share, colW = (COL.w * (1 - COL.share) - 8) / SAMPLE.steepWastes.length;
     return { colStart, colW, centre:(i) => colStart + colW / 2 + i * colW };
   }
   function steepHeader(){
     const { colStart, centre } = steepColumns();
     let out = text(colStart - 15, 40, 'Waste', { size:10, bold:true });
     SAMPLE.steepWastes.forEach((w, i) => { out += text(centre(i), 40, `${w}%`, { size:10, bold:true, align:'center' }); });
-    return out + hline(MARGIN + 8, 45, MARGIN + AVAIL_W - 8, grey(200), 0.2);
+    return out + hline(COL.x + 8, 45, COL.x + COL.w - 8, grey(200), 0.2);
   }
   function steepRow(label, unit, values, y){
     const { colStart, centre } = steepColumns(), suggested = SAMPLE.steepWastes.indexOf(SAMPLE.waste);
-    let out = text(MARGIN + 8, y, label) + text(colStart - 10, y, unit, { align:'right' });
-    values.forEach((v, i) => { out += text(centre(i), y, String(v), { bold:i === suggested, align:'center' }); });
+    let out = text(COL.x + 8, y, label, { size:COL.size }) + text(colStart - 10, y, unit, { align:'right', size:COL.size });
+    values.forEach((v, i) => { out += text(centre(i), y, String(v), { bold:i === suggested, align:'center', size:COL.size }); });
     return out;
   }
   function steepBox(bottom){
     const { colStart, colW } = steepColumns(), suggested = SAMPLE.steepWastes.indexOf(SAMPLE.waste);
     return rect(colStart + suggested * colW - 0.4, 35 - 0.4, colW + 0.8, bottom - 36 + 0.8, `border:${mm(0.8)} solid rgb(200,40,40);box-sizing:border-box`);
   }
+  // Landscape draws page 1 as shingles, starter and hip & ridge on the left, underlayment and ice &
+  // water on the right; page 2 as metals on the left and the rest on the right.
   function steepPage1(){
+    useColumn(false);
     let out = steepHeader(), y = 50;
-    SAMPLE.steep1.forEach(([section, unit, rows]) => {
-      out += text(MARGIN + 8, y, section, { bold:true }); y += 6;
+    SAMPLE.steep1.forEach(([section, unit, rows], s) => {
+      if (LANDSCAPE && s === 3) { out += steepBox(y - 4); useColumn(true); out += steepHeader(); y = 50; }
+      out += text(COL.x + 8, y, section, { bold:true }); y += 6;
       rows.forEach(([label, ...values]) => { out += steepRow(label, unit, values, y); y += 6; });
       y += 4;
     });
-    out += text(MARGIN + 8, y, 'Ice & Water Shield', { bold:true }); y += 6;
+    out += text(COL.x + 8, y, 'Ice & Water Shield', { bold:true }); y += 6;
     SAMPLE.iceWater.forEach(([note, rows], i) => {
       if (i) y += 2;
-      out += text(MARGIN + 10, y, note, { size:8, color:grey(100) }); y += 5;
+      out += text(COL.x + 10, y, note, { size:8, color:grey(100) }); y += 5;
       rows.forEach(([label, ...values]) => { out += steepRow(label, 'roll', values, y); y += 6; });
     });
-    return out + steepBox(y);
+    out += steepBox(y);
+    useColumn(false);
+    return out;
   }
   function steepPage2(){
+    useColumn(false);
     let out = steepHeader(), y = 50;
     SAMPLE.steep2.forEach(([section, , rows], i) => {
-      if (i) y += 4;
-      out += text(MARGIN + 8, y, section, { bold:true }); y += 6;
+      if (LANDSCAPE && i === 1) { out += steepBox(y); useColumn(true); out += steepHeader(); y = 50; }
+      else if (i) y += 4;
+      out += text(COL.x + 8, y, section, { bold:true }); y += 6;
       rows.forEach(([label, unit, ...values]) => { out += steepRow(label, unit, values, y); y += 6; });
     });
-    return out + steepBox(y);
+    out += steepBox(y);
+    useColumn(false);
+    return out;
   }
 
   // drawFlatMaterialTable.
-  function flatPage(){
-    const cols = [118.6, 134.6, 151.4, 168, 184.6];
-    let out = text(33, 40, `Flat Roof Area: 24.708 sq ft  (0.25 sq)  |  Waste: ${SAMPLE.waste}%`, { size:10, bold:true });
-    out += text(33, 47, 'Material', { size:8, bold:true, color:grey(80) }) + text(99, 47, 'Unit', { size:8, bold:true, color:grey(80) });
-    ['TPO (Adh)', 'TPO (MF)', 'EPDM', 'PVC', 'Mod Bit'].forEach((label, i) => { out += text(cols[i], 47, label, { size:8, bold:true, color:grey(80), align:'center' }); });
-    out += hline(33, 50.3, 192.9, grey(200), 0.2);
-    let y = 55;
+  // The flat table follows the page width; a row that would reach the footer starts a new page with
+  // the headers repeated (landscape), as drawFlatMaterialTable does. Returns one HTML string per page.
+  function flatPages(){
+    const fx = (x) => LANDSCAPE ? 33 + (x - 33) * ((AVAIL_W - 16) / 159.9) : x, right = fx(192.9), cols = [118.6, 134.6, 151.4, 168, 184.6].map(fx);
+    const headers = () => text(33, 47, 'Material', { size:8, bold:true, color:grey(80) }) + text(fx(99), 47, 'Unit', { size:8, bold:true, color:grey(80) })
+      + ['TPO (Adh)', 'TPO (MF)', 'EPDM', 'PVC', 'Mod Bit'].map((label, i) => text(cols[i], 47, label, { size:8, bold:true, color:grey(80), align:'center' })).join('') + hline(33, 50.3, right, grey(200), 0.2);
+    const pages = [];
+    let out = text(33, 40, `Flat Roof Area: 24.708 sq ft  (0.25 sq)  |  Waste: ${SAMPLE.waste}%`, { size:10, bold:true }) + headers(), y = 55;
+    const room = (needed) => { if (y + needed <= PAGE_H - 26) return; pages.push(out); out = headers(); y = 55; };
     SAMPLE.flat.forEach(([section, rows]) => {
-      out += text(33, y, section, { size:8.5, bold:true, color:'#222' }) + hline(33, y + 2.5, 192.9, grey(210), 0.2);
+      room(6.1 + 5.5);
+      out += text(33, y, section, { size:8.5, bold:true, color:'#222' }) + hline(33, y + 2.5, right, grey(210), 0.2);
       y += 6.1;
       rows.forEach(([label, unit, ...values], i) => {
-        if (i % 2) out += rect(33, y - 3.8, 159.9, 5.5, `background:${grey(248)}`);
-        out += text(33, y, label, { size:8.5, color:'#333' }) + text(99, y, unit, { size:8.5, color:grey(150) });
+        room(5.5);
+        if (i % 2) out += rect(33, y - 3.8, right - 33, 5.5, `background:${grey(248)}`);
+        out += text(33, y, label, { size:8.5, color:'#333' }) + text(fx(99), y, unit, { size:8.5, color:grey(150) });
         values.forEach((v, c) => { out += v == null ? text(cols[c], y, '\u2014', { size:8.5, color:grey(200), align:'center' }) : text(cols[c], y, String(v), { size:8.5, bold:true, align:'center' }); });
         y += 5.5;
       });
       y += 1.9;
     });
-    return out + text(33, y + 3.6, `Sections at 2/12 or below classified as low-slope. Quantities include ${SAMPLE.waste}% waste where applicable. Numbers are estimates only.`, { size:6, color:grey(130) });
+    pages.push(out + text(33, y + 3.6, `Sections at 2/12 or below classified as low-slope. Quantities include ${SAMPLE.waste}% waste where applicable. Numbers are estimates only.`, { size:6, color:grey(130) }));
+    return pages;
   }
 
   // drawVentilationPage.
   function ventilationPage(){
     const red = 'rgb(217,48,37)', blue = 'rgb(26,115,232)', green = 'rgb(52,168,83)';
+    // drawVentilationPage follows the page width, so landscape stretches the x positions (wideX/wideW);
+    // the map shrinks to stay above the footer note.
+    const X = wideX, W = wideW;
     let out = card(MARGIN, 35, AVAIL_W, 24, { strip:true, title:'Ventilation Summary' });
     out += text(33, 47.6, 'Estimated Attic Area', { size:8, color:grey(120) });
     out += text(33, 55, '4,435 sq ft', { size:15, bold:true, color:red });
-    out += text(83, 54.6, 'Footprint: 4,526 sq ft  |  Surface: 4,853 sq ft', { size:6, color:grey(130) });
-    out += text(193, 40, 'Recommended Exhaust', { size:7, color:grey(120), align:'right' }) + text(193, 45.5, '2129 sq in', { size:12, bold:true, color:red, align:'right' });
-    out += text(193, 50, 'Recommended Intake', { size:7, color:grey(120), align:'right' }) + text(193, 55.5, '2129 sq in', { size:12, bold:true, color:red, align:'right' });
+    out += text(X(83), 54.6, 'Footprint: 4,526 sq ft  |  Surface: 4,853 sq ft', { size:6, color:grey(130) });
+    out += text(X(193), 40, 'Recommended Exhaust', { size:7, color:grey(120), align:'right' }) + text(X(193), 45.5, '2129 sq in', { size:12, bold:true, color:red, align:'right' });
+    out += text(X(193), 50, 'Recommended Intake', { size:7, color:grey(120), align:'right' }) + text(X(193), 55.5, '2129 sq in', { size:12, bold:true, color:red, align:'right' });
     const table = (x, w, title, cells) => {
       let t = card(x, 64, w, 32) + rect(x + 0.3, 64.3, w - 0.6, 7, `background:${grey(245)};border-radius:${mm(2.7)} ${mm(2.7)} 0 0`) + hline(x, 71.2, x + w, grey(220), 0.2);
       t += text(x + 4, 69.1, title, { size:8, bold:true, color:grey(60) });
@@ -330,25 +421,28 @@
       });
       return t;
     };
-    out += table(MARGIN, 77, 'NFVA Requirement', [['1/300', ['NFVA: 2129 sq in', 'Exhaust: 1064 sq in', 'Intake: 1064 sq in']], ['1/150', ['NFVA: 4258 sq in', 'Exhaust: 2129 sq in', 'Intake: 2129 sq in'], ['rgb(235,245,255)', blue], 'Recommended']]);
-    out += table(107, 93.9, 'Exhaust Options', [['Ridge Vent', ["Needed: 118' (@ 18\"/lf)", "Available: 98'", 'Deficit: 360 sq in']], ['Box Vents', ['Needed: 43 vents', '50 sq in NFA each', 'Total: 2150 sq in'], ['rgb(240,252,243)', green], 'Recommended']]);
+    out += table(MARGIN, W(77), 'NFVA Requirement', [['1/300', ['NFVA: 2129 sq in', 'Exhaust: 1064 sq in', 'Intake: 1064 sq in']], ['1/150', ['NFVA: 4258 sq in', 'Exhaust: 2129 sq in', 'Intake: 2129 sq in'], ['rgb(235,245,255)', blue], 'Recommended']]);
+    out += table(X(107), W(93.9), 'Exhaust Options', [['Ridge Vent', ["Needed: 118' (@ 18\"/lf)", "Available: 98'", 'Deficit: 360 sq in']], ['Box Vents', ['Needed: 43 vents', '50 sq in NFA each', 'Total: 2150 sq in'], ['rgb(240,252,243)', green], 'Recommended']]);
     out += card(MARGIN, 101, AVAIL_W, 40, { strip:true, title:'Recommended Intake Products' });
-    out += rect(31, 112.8, 167.9, 6.1, `background:${grey(245)}`);
-    [['Product', 33], ['Rating', 98], ['Qty Needed', 143]].forEach(([label, x]) => { out += text(x, 116.9, label, { size:8.5, bold:true, color:grey(50) }); });
+    out += rect(31, 112.8, W(167.9), 6.1, `background:${grey(245)}`);
+    [['Product', 33], ['Rating', 98], ['Qty Needed', 143]].forEach(([label, x]) => { out += text(X(x), 116.9, label, { size:8.5, bold:true, color:grey(50) }); });
     [['Vented Drip Edge', '9 sq in/ft', '237 ft', 125.2], ['Soffit Vent', '9 sq in/ft', '237 ft', 130.6], ['Bird Blocks', '~3.5 sq in', '609 ea', 136.1]].forEach(([product, rating, qty, y]) => {
-      out += text(33, y, product, { color:grey(60) }) + text(98, y, rating, { color:grey(60) }) + text(143, y, qty, { bold:true });
+      out += text(33, y, product, { color:grey(60) }) + text(X(98), y, rating, { color:grey(60) }) + text(X(143), y, qty, { bold:true });
     });
-    out += text(37.3, 175.6, 'Key', { size:9, bold:true });
-    out += rect(37.3, 182, 9.9, 1.4, 'background:rgb(230,0,0)') + text(50.3, 183.8, 'Ridge Vent', { size:7, color:grey(60) });
-    out += rect(37.3, 188.2, 4.9, 4.9, 'background:rgb(255,152,0)') + text(50.3, 191.6, 'Box Vent', { size:7, color:grey(60) });
-    out += card(79.6, 153.4, 110, 69.4, { radius:2 }) + image('ventilation', 80.6, 154.4, 108, 67.4, `border-radius:${mm(1.4)}`);
-    out += `<div class="rpv-p" style="left:${mm(MARGIN)};bottom:${mm(PAGE_H - 255.3)};width:${mm(AVAIL_W)};font-size:${n(ptPx(6))}px;line-height:${n(3.24 * MM)}px;color:${grey(90)}">${esc('Note: The estimated quantity of attic ventilation products in this report is based on the estimated attic floor area and is meant for estimating purposes only. It is the responsibility of the installer to verify the correct quantity and type of attic ventilation products prior to commencement of work. Installer must always review job-specific attic ventilation needs such as local code requirements, attic floor square footage, roof design, and conditioned spaces under the roof. GAF recommends a minimum of 1 square foot of attic ventilation (evenly split between intake and exhaust) for every 150\u2013300 square feet of attic floor space depending on vapor barrier status. The amount of exhaust ventilation at or near the ridge must never exceed the amount of intake ventilation at or near the soffit. See gaf.com/ventcalculator for details.')}</div>`;
+    const mapY = LANDSCAPE ? 146 : 153.4, mapH = LANDSCAPE ? PAGE_H - 24.1 - 16 - mapY : 69.4, mapW = mapH * 110 / 69.4, keyY = LANDSCAPE ? mapY + 4 : 175.6;
+    out += text(37.3, keyY, 'Key', { size:9, bold:true });
+    out += rect(37.3, keyY + 6.4, 9.9, 1.4, 'background:rgb(230,0,0)') + text(50.3, keyY + 8.2, 'Ridge Vent', { size:7, color:grey(60) });
+    out += rect(37.3, keyY + 12.6, 4.9, 4.9, 'background:rgb(255,152,0)') + text(50.3, keyY + 16, 'Box Vent', { size:7, color:grey(60) });
+    out += card(X(79.6) + (W(110) - mapW) / 2, mapY, mapW, mapH, { radius:2 }) + image('ventilation', X(79.6) + (W(110) - mapW) / 2 + 1, mapY + 1, mapW - 2, mapH - 2, `border-radius:${mm(1.4)}`);
+    out += `<div class="rpv-p" style="left:${mm(MARGIN)};bottom:${mm(24.1)};width:${mm(AVAIL_W)};font-size:${n(ptPx(6))}px;line-height:${n(3.24 * MM)}px;color:${grey(90)}">${esc('Note: The estimated quantity of attic ventilation products in this report is based on the estimated attic floor area and is meant for estimating purposes only. It is the responsibility of the installer to verify the correct quantity and type of attic ventilation products prior to commencement of work. Installer must always review job-specific attic ventilation needs such as local code requirements, attic floor square footage, roof design, and conditioned spaces under the roof. GAF recommends a minimum of 1 square foot of attic ventilation (evenly split between intake and exhaust) for every 150\u2013300 square feet of attic floor space depending on vapor barrier status. The amount of exhaust ventilation at or near the ridge must never exceed the amount of intake ventilation at or near the soffit. See gaf.com/ventcalculator for details.')}</div>`;
     return out;
   }
 
   // Pitch and area diagram pages with drawPitchTable underneath.
+  // Landscape: the diagram fills the left and the breakdown sits centred in the side panel.
+  const DIAGRAM_BOTTOM = () => PAGE_H - 25;
   function breakdownTable(title, boldDominant){
-    const x = MARGIN, w = AVAIL_W, y = 200, total = SAMPLE.pitches.reduce((sum, [, v]) => sum + v, 0);
+    const x = LANDSCAPE ? SIDE_X : MARGIN, w = LANDSCAPE ? SIDE_W : AVAIL_W, y = LANDSCAPE ? 35 + (DIAGRAM_BOTTOM() - 35 - 55) / 2 : 200, total = SAMPLE.pitches.reduce((sum, [, v]) => sum + v, 0);
     let out = card(x, y, w, 55, { strip:true, title });
     out += text(x + 18, y + 15, 'Pitch', { bold:true, align:'center' }) + text(x + w / 2, y + 15, 'Area', { bold:true, align:'center' }) + text(x + w - 18, y + 15, 'Percent', { bold:true, align:'center' });
     out += hline(x + 8, y + 17, x + w - 8, grey(220), 0.2);
@@ -360,10 +454,25 @@
     });
     return out;
   }
-  const pitchPage = () => text(MARGIN, 30, `Total Facets: ${SAMPLE.facets}`, { bold:true }) + image('pitch', MARGIN, 35, AVAIL_W, 160) + breakdownTable('Pitch Breakdown', true);
-  const areaPage = () => image('area', MARGIN, 35, AVAIL_W, 160) + breakdownTable('Area Breakdown', false);
+  const diagram = (name) => LANDSCAPE ? fitImage(name, MARGIN, 35, MAIN_W, DIAGRAM_BOTTOM() - 35) : image(name, MARGIN, 35, AVAIL_W, 160);
+  const pitchPage = () => text(MARGIN, 30, `Total Facets: ${SAMPLE.facets}`, { bold:true }) + diagram('pitch') + breakdownTable('Pitch Breakdown', true);
+  const areaPage = () => diagram('area') + breakdownTable('Area Breakdown', false);
 
+  // Landscape: the layer drawing on the left; the details box (totals one per line, then the line
+  // lengths) and the legend below it in the side panel.
+  function layerPageLandscape(){
+    let out = fitImage('layer', MARGIN, 35, MAIN_W, DIAGRAM_BOTTOM() - 35);
+    out += card(SIDE_X, 35, SIDE_W, 80, { strip:true, title:'Layer 1 Details' });
+    out += text(SIDE_X + 8, 51, `Facets: ${SAMPLE.facets}`, { bold:true }) + text(SIDE_X + 8, 57, 'Squares Without Waste: 48.5', { bold:true }) + text(SIDE_X + 8, 63, 'Squares With Waste: 55.3', { bold:true });
+    out += hline(SIDE_X + 8, 67, SIDE_X + SIDE_W - 8, grey(220), 0.2);
+    let x = SIDE_X + 8, y = 71;
+    SAMPLE.layerItems.forEach(([label]) => { const w = label.length * 1.75; if (x + w > SIDE_X + SIDE_W - 8 && x > SIDE_X + 8) { x = SIDE_X + 8; y += 8; } out += text(x, y, label); x += w + 8; });
+    x = SIDE_X; y = 125;
+    SAMPLE.layerLegend.forEach(([label, colour]) => { const w = 4 + 2 + label.length * 1.75; if (x + w > SIDE_X + SIDE_W && x > SIDE_X) { x = SIDE_X; y += 10; } out += rect(x, y - 3.4, 4, 4, `background:${colour}`) + text(x + 6.5, y, label, { size:9, color:grey(50) }); x += w + 15; });
+    return out;
+  }
   function layerPage(){
+    if (LANDSCAPE) return layerPageLandscape();
     let out = image('layer', MARGIN, 45, AVAIL_W, 136);
     SAMPLE.layerLegend.forEach(([label, colour, x, y]) => { out += rect(x, y - 3.4, 4, 4, `background:${colour}`) + text(x + 6.5, y, label, { size:9, color:grey(50) }); });
     out += card(MARGIN, PAGE_H - 75, AVAIL_W, 50, { strip:true, title:'Layer 1 Details' });
@@ -378,32 +487,37 @@
     const primary = 'var(--rpv-primary)';
     const metric = (x, w, title, value) => card(x, 35, w, 28, { strip:true }) + text(x + w / 2 + 1, 43, title.toUpperCase(), { size:9, bold:true, color:grey(150), align:'center' })
       + `<span class="rpv-t" style="left:${mm(x + w / 2 + 1)};top:${n(55.6 * MM - ptPx(16) * 0.8585)}px;font-size:${n(ptPx(16))}px;font-weight:700;color:${primary};transform:translateX(-50%)">${esc(value)}</span>`;
-    let out = metric(25, 37.9, 'Active Gutter', '255 ft') + metric(68, 38, 'Downspouts', '10');
-    out += card(111.4, 35, 89.5, 28, { strip:true, title:'Miter Counts' });
-    [['Outside 90', '9', '#2e7d32', 119.2], ['Inside 90', '5', '#d93025', 149], ['Non-90', '3', '#f9ab00', 179]].forEach(([label, value, colour, x], i) => {
+    // drawGutterPage follows the page width and height: landscape stretches x (X/W) and moves the
+    // stories card up by dy, shortening the diagram card between them.
+    const X = wideX, W = wideW, dy = PAGE_H - 279.4;
+    let out = metric(25, W(37.9), 'Active Gutter', '255 ft') + metric(X(68), W(38), 'Downspouts', '10');
+    out += card(X(111.4), 35, W(89.5), 28, { strip:true, title:'Miter Counts' });
+    [['Outside 90', '9', '#2e7d32', 119.2], ['Inside 90', '5', '#d93025', 149], ['Non-90', '3', '#f9ab00', 179]].forEach(([label, value, colour, px], i) => {
+      const x = X(px);
       if (i) out += vline(x - 8, 44, 59.6, grey(225), 0.2);
       out += rect(x - 1.7, 47.2, 3.4, 3.4, `background:${colour};border-radius:50%`) + text(x + 4, 50, label, { size:7.5, color:grey(90) });
       out += `<span class="rpv-t" style="left:${mm(x - 1.7)};top:${n(58.4 * MM - ptPx(16) * 0.8585)}px;font-size:${n(ptPx(16))}px;font-weight:700;color:${colour}">${value}</span>`;
     });
-    out += card(25, 68, 175.6, 153.2, { strip:true, title:'Gutter Diagram' });
+    out += card(25, 68, W(175.6), 153.2 + dy, { strip:true, title:'Gutter Diagram' });
     out += rect(32.9, 78.5, 8, 0.8, 'background:#1e6fd9') + text(43.9, 80.1, 'Run', { size:7, color:grey(90) });
     [['Out 90', '#2e7d32', 59.1], ['In 90', '#d93025', 82], ['Non-90', '#f9ab00', 102.9]].forEach(([label, colour, x]) => {
       out += rect(x - 1.6, 77.3, 3.2, 3.2, `background:${colour};border-radius:50%`) + text(x + 4.5, 80.1, label, { size:7, color:grey(90) });
     });
-    out += image('gutters', 27, 81, 172, 134);
-    out += card(25, 226.3, 175.6, 27.7, { strip:true, title:'Stories By Direction' });
-    [['North', 46.8], ['South', 90.9], ['East', 134.8], ['West', 178.7]].forEach(([label, x], i) => {
-      if (i) out += vline(x - 21.9, 234.3, 249.2, grey(225), 0.2);
-      out += text(x, 241, label, { size:8.5, bold:true, color:grey(60), align:'center' });
-      out += `<span class="rpv-t" style="left:${mm(x)};top:${n(248.8 * MM - ptPx(16) * 0.8585)}px;font-size:${n(ptPx(16))}px;font-weight:700;color:${primary};transform:translateX(-50%)">2</span>`;
+    out += LANDSCAPE ? fitImage('gutters', 27, 81, W(172), 134 + dy) : image('gutters', 27, 81, 172, 134);
+    out += card(25, 226.3 + dy, W(175.6), 27.7, { strip:true, title:'Stories By Direction' });
+    [['North', 46.8], ['South', 90.9], ['East', 134.8], ['West', 178.7]].forEach(([label, px], i) => {
+      const x = X(px);
+      if (i) out += vline(x - W(21.9), 234.3 + dy, 249.2 + dy, grey(225), 0.2);
+      out += text(x, 241 + dy, label, { size:8.5, bold:true, color:grey(60), align:'center' });
+      out += `<span class="rpv-t" style="left:${mm(x)};top:${n((248.8 + dy) * MM - ptPx(16) * 0.8585)}px;font-size:${n(ptPx(16))}px;font-weight:700;color:${primary};transform:translateX(-50%)">2</span>`;
     });
     return out;
   }
 
-  // drawNotesPage: diagram card (60%), then the ruled notes card.
+  // drawNotesPage: diagram card (60%), then the ruled notes card (the page height sets availH).
   function notesPage(){
-    const x = MARGIN, w = AVAIL_W, availH = 231, diagH = Math.round(availH * 0.6), notesY = 35 + diagH + 5, notesH = availH - diagH - 5;
-    let out = card(x, 35, w, diagH) + image('notes', 26.5, 36.5, 172.9, 125);
+    const x = MARGIN, w = AVAIL_W, availH = LANDSCAPE ? PAGE_H - 50 : 231, diagH = Math.round(availH * 0.6), notesY = 35 + diagH + 5, notesH = availH - diagH - 5;
+    let out = card(x, 35, w, diagH) + (LANDSCAPE ? fitImage('notes', x + 1.5, 36.5, w - 3, diagH - 3) : image('notes', 26.5, 36.5, 172.9, 125));
     out += `<div class="rpv-pill" style="right:${mm(PAGE_W - (x + w - 3))};top:${mm(35 + diagH - 3 - 7)};height:${mm(7)};padding:0 ${mm(5)};border-radius:${mm(3)};font-size:${n(ptPx(7.5))}px">${esc(`${SAMPLE.wasteSquares} sq  \u00B7  ${SAMPLE.pitch}  \u00B7  ${SAMPLE.facets} facets`)}</div>`;
     out += card(x, notesY, w, notesH, { strip:true, title:'Notes' });
     out += hline(x + 8, notesY + 12, x + w - 8, grey(235), 0.2);
@@ -428,7 +542,7 @@
     add('page_summary', 'summary', 'Summary', 'Roof Summary', summaryPage);
     add('page_materials', 'steep-1', 'Materials', 'Steep-Slope Roof Materials', steepPage1);
     add('page_materials', 'steep-2', 'Materials', 'Steep-Slope Roof Materials', steepPage2);
-    add('page_materials', 'flat', 'Flat Roof', 'Flat Roof Materials', flatPage);
+    if (s.page_materials !== false) flatPages().forEach((html, i) => pages.push({ key:i ? `flat-${i + 1}` : 'flat', label:'Flat Roof', title:'Flat Roof Materials', draw:() => html }));
     add('page_ventilation', 'ventilation', 'Ventilation', 'Roof Ventilation', ventilationPage);
     add('page_pitch', 'pitch', 'Pitch', 'Roof Pitch Diagram', pitchPage);
     add('page_area', 'area', 'Area', 'Roof Area Diagram', areaPage);
@@ -445,7 +559,7 @@
   const CSS = `
     @font-face{font-family:'FM Report Montserrat';src:url('/fonts/Montserrat-Regular.ttf') format('truetype');font-weight:400;font-display:swap}
     @font-face{font-family:'FM Report Montserrat';src:url('/fonts/Montserrat-Bold.ttf') format('truetype');font-weight:700;font-display:swap}
-    .rpv{--rpv-primary:var(--primary,#c82828);--rpv-secondary:var(--secondary,#960000);display:flex;flex-direction:column;min-height:0;height:100%;border:1px solid rgba(15,23,42,.10);border-radius:12px;background:#eef1f5;overflow:hidden}
+    .rpv{--rpv-pw:${215.9 * MM}px;--rpv-ph:${279.4 * MM}px;--rpv-thumb-s:${(56 / (215.9 * MM)).toFixed(5)};--rpv-primary:var(--primary,#c82828);--rpv-secondary:var(--secondary,#960000);display:flex;flex-direction:column;min-height:0;height:100%;border:1px solid rgba(15,23,42,.10);border-radius:12px;background:#eef1f5;overflow:hidden}
     .rpv-bar{display:flex;align-items:center;gap:8px;padding:8px 10px;background:#fff;border-bottom:1px solid rgba(15,23,42,.08)}
     .rpv-tabs{display:inline-flex;gap:2px;padding:2px;border-radius:9px;background:#f2f4f7}
     .rpv-tab{appearance:none;border:0;border-radius:7px;background:transparent;padding:6px 11px;font:inherit;font-size:12px;font-weight:850;color:#667085;cursor:pointer}
@@ -455,11 +569,11 @@
     .rpv-nav button:disabled{opacity:.4;cursor:default}
     .rpv-body{flex:1 1 auto;min-height:0;display:flex}
     .rpv-viewer{position:relative;flex:1 1 auto;min-width:0;min-height:0;overflow:auto;padding:12px 16px var(--rpv-pad,16px);display:grid;gap:18px;justify-items:center;align-content:start;scroll-behavior:smooth}
-    .rpv-sheet{position:relative;width:calc(${PAGE_W * MM}px * var(--rpv-s,0.5));height:calc(${PAGE_H * MM}px * var(--rpv-s,0.5));box-shadow:0 6px 18px rgba(15,23,42,.14);background:#fff;flex:none}
-    .rpv-page{position:absolute;left:0;top:0;width:${PAGE_W * MM}px;height:${PAGE_H * MM}px;transform-origin:0 0;transform:scale(var(--rpv-s,0.5));overflow:hidden;background:#fff;font-family:'FM Report Montserrat',Montserrat,sans-serif;color:#000;-webkit-font-smoothing:antialiased}
+    .rpv-sheet{position:relative;width:calc(var(--rpv-pw) * var(--rpv-s,0.5));height:calc(var(--rpv-ph) * var(--rpv-s,0.5));box-shadow:0 6px 18px rgba(15,23,42,.14);background:#fff;flex:none}
+    .rpv-page{position:absolute;left:0;top:0;width:var(--rpv-pw);height:var(--rpv-ph);transform-origin:0 0;transform:scale(var(--rpv-s,0.5));overflow:hidden;background:#fff;font-family:'FM Report Montserrat',Montserrat,sans-serif;color:#000;-webkit-font-smoothing:antialiased}
     .rpv-strip-col{position:relative;flex:none;width:96px;overflow-y:auto;display:flex;flex-direction:column;align-items:center;gap:16px;padding:16px 0;background:#fff;border-left:1px solid rgba(15,23,42,.08);scrollbar-width:thin;scrollbar-color:#d0d5dd transparent;scroll-behavior:smooth}
     .rpv-thumb{appearance:none;flex:none;display:grid;gap:7px;justify-items:center;padding:0;border:0;background:none;cursor:pointer;font:inherit}
-    .rpv-thumb .rpv-sheet{--rpv-s:${(56 / (PAGE_W * MM)).toFixed(5)};outline:2px solid transparent;outline-offset:3px;border-radius:1px;box-shadow:0 1px 3px rgba(15,23,42,.16)}
+    .rpv-thumb .rpv-sheet{--rpv-s:var(--rpv-thumb-s);outline:2px solid transparent;outline-offset:3px;border-radius:1px;box-shadow:0 1px 3px rgba(15,23,42,.16)}
     .rpv-thumb:hover .rpv-sheet{outline-color:#d0d5dd}
     .rpv-thumb[aria-current=true] .rpv-sheet{outline-color:var(--rpv-primary)}
     .rpv-thumb>span{max-width:72px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px;font-weight:600;color:#98a2b3}
@@ -489,6 +603,7 @@
     const view = host.__fmReportPreview || (host.__fmReportPreview = { mode:'customer', index:0 });
     view.settings = options.settings || {};
     view.logo = String(options.logo || '').trim();
+    view.orientation = options.orientation === 'landscape' ? 'landscape' : 'portrait';
     if (!host.querySelector('.rpv')) mount(host, view);
     draw(host, view);
     return { setMode:(mode) => { view.mode = mode === 'internal' ? 'internal' : 'customer'; draw(host, view); } };
@@ -540,10 +655,19 @@
     view.resize?.disconnect?.();
     view.resize = new ResizeObserver(fit);
     view.resize.observe(viewer);
+    view.fit = fit;
     fit();
   }
 
   function draw(host, view){
+    // The page size follows the orientation; thumbnails keep the strip's width.
+    setOrientation(view.orientation);
+    const root = host.querySelector('.rpv');
+    root.dataset.orientation = view.orientation;
+    root.style.setProperty('--rpv-pw', `${n(PAGE_W * MM)}px`);
+    root.style.setProperty('--rpv-ph', `${n(PAGE_H * MM)}px`);
+    root.style.setProperty('--rpv-thumb-s', ((LANDSCAPE ? 72 : 56) / (PAGE_W * MM)).toFixed(5));
+    view.fit?.();
     const ctx = { logo:view.logo, unbranded:view.mode === 'internal' };
     const pages = documentPages(view.mode, view.settings);
     view.count = pages.length;

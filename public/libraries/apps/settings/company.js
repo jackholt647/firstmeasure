@@ -63,9 +63,14 @@
     nfva_ratio: 300,
     // Full-house PDF: draw the dimmed house behind each wall dimension drawing (exterior_pdf.js dimensionContext).
     exterior_dimension_context: true,
+    // Page orientation of every PDF page, 'portrait' or 'landscape' (pdf.js resolvePdfOrientation).
+    report_orientation: 'portrait',
   };
   // Report toggles stored in report_settings.general (the full report) rather than .customer.
-  const GENERAL_REPORT_TOGGLES = new Set(['exterior_dimension_context']);
+  const GENERAL_REPORT_TOGGLES = new Set(['exterior_dimension_context', 'report_orientation']);
+  // Toggles whose stored value is not a boolean: [value when on, value when off].
+  const REPORT_TOGGLE_VALUES = { report_orientation: ['landscape', 'portrait'] };
+  const reportToggleOn = (target, key) => REPORT_TOGGLE_VALUES[key] ? target[key] === REPORT_TOGGLE_VALUES[key][0] : !!target[key];
   const DEFAULT_CUSTOMER_REPORT_SETTINGS = {
     cover_show_customer: true,
     cover_show_squares: true,
@@ -418,6 +423,7 @@
     if (rs && typeof rs === 'object'){
       if ('nfva_ratio' in rs) out.nfva_ratio = rs.nfva_ratio;
       if ('exterior_dimension_context' in rs) out.exterior_dimension_context = rs.exterior_dimension_context !== false;
+      if ('report_orientation' in rs) out.report_orientation = rs.report_orientation === 'landscape' ? 'landscape' : 'portrait';
     }
     out.nfva_ratio = Math.max(1, Math.min(1000, parseInt(out.nfva_ratio, 10) || DEFAULT_GENERAL_REPORT_SETTINGS.nfva_ratio));
     return out;
@@ -13558,6 +13564,13 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
           ]
         },
         {
+          title: (globalThis.PlatformLanguage?.text("settings","rp_section_layout","Layout") ?? "Layout"),
+          subtitle: (globalThis.PlatformLanguage?.text("settings","rp_section_layout_sub","How every page of the PDF is laid out. Each report can still change it in its own configuration.") ?? "How every page of the PDF is laid out. Each report can still change it in its own configuration."),
+          items: [
+            { key:'report_orientation', label:(globalThis.PlatformLanguage?.text("settings","rp_report_orientation","Landscape pages") ?? "Landscape pages"), tip:(globalThis.PlatformLanguage?.text("settings","rp_tip_report_orientation","Lay out every page of the PDF in landscape. Off keeps portrait pages.") ?? "Lay out every page of the PDF in landscape. Off keeps portrait pages.") }
+          ]
+        },
+        {
           title: (globalThis.PlatformLanguage?.text("settings","rp_section_exterior","Exterior report") ?? "Exterior report"),
           subtitle: (globalThis.PlatformLanguage?.text("settings","rp_section_exterior_sub","Choices for the full-house exterior pages. Each report can still change them in its own configuration.") ?? "Choices for the full-house exterior pages. Each report can still change them in its own configuration."),
           items: [
@@ -13571,9 +13584,9 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
       const renderSample = () => {
         const host = $('#rpPreview', paneReports);
         if (!host) return;
-        const draw = () => window.FirstMateReportPreview?.render(host, { settings:state.report_customer, logo:logoKey(state.logo) });
+        const draw = () => window.FirstMateReportPreview?.render(host, { settings:state.report_customer, logo:logoKey(state.logo), orientation:(state.report_general || {}).report_orientation === 'landscape' ? 'landscape' : 'portrait' });
         if (window.FirstMateReportPreview) { draw(); return; }
-        if (!window.__fmReportPreviewLoading) window.__fmReportPreviewLoading = new Promise((resolve, reject) => { const script = document.createElement('script'); script.src = '/libraries/apps/settings/report-preview.js?v=20261014-report-preview-v6'; script.onload = resolve; script.onerror = reject; document.head.append(script); });
+        if (!window.__fmReportPreviewLoading) window.__fmReportPreviewLoading = new Promise((resolve, reject) => { const script = document.createElement('script'); script.src = '/libraries/apps/settings/report-preview.js?v=20261022-report-preview-v7'; script.onload = resolve; script.onerror = reject; document.head.append(script); });
         window.__fmReportPreviewLoading.then(draw).catch(() => { window.__fmReportPreviewLoading = null; host.textContent = settingsText("fm_report_preview_failed", "The report preview could not load."); });
       };
       renderSample();
@@ -13588,7 +13601,7 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
                 key: it.key,
                 label: it.label,
                 tip: it.tip,
-                value: !!reportToggleTarget(it.key)[it.key]
+                value: reportToggleOn(reportToggleTarget(it.key), it.key)
               })).join('')}
             </div>
           </section>
@@ -13597,8 +13610,8 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
           btn.addEventListener('click', ()=>{
             const k = btn.getAttribute('data-key');
             if (!k) return;
-            const target = reportToggleTarget(k), next = !target[k];
-            target[k] = next;
+            const target = reportToggleTarget(k), next = !reportToggleOn(target, k);
+            target[k] = REPORT_TOGGLE_VALUES[k] ? REPORT_TOGGLE_VALUES[k][next ? 0 : 1] : next;
             btn.classList.toggle('on', next);
             btn.classList.toggle('off', !next);
             btn.setAttribute('data-val', next ? '1' : '0');

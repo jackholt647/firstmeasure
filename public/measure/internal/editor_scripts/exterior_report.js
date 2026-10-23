@@ -70,7 +70,20 @@ function renderExteriorReportConfig(container,state){
   full-house PDF always includes the pages), exteriorSettings.dimensionContext (default: the
   organization's Company > Reports setting) and exteriorSettings.notes (wall notes page). */
  state.exteriorSettings||={};container.style.padding='16px';container.style.display='flex';container.style.flexDirection='column';container.style.minHeight='100%';container.style.boxSizing='border-box';
+ if(SHOW_PDF_ORIENTATION_DEV_TOGGLE)renderPdfOrientationDevToggle(container,state.exteriorSettings);
  renderHouseOrientation(container,state,{fill:true});
+}
+/* DEVELOPMENT ONLY: a portrait/landscape switch for this report's PDF (exteriorSettings.orientation).
+ The real control is the organization default in Company > Reports (report_settings.general.
+ report_orientation); set this constant to false to hide the switch. The setting keeps working
+ without it. */
+const SHOW_PDF_ORIENTATION_DEV_TOGGLE=true;
+function renderPdfOrientationDevToggle(container,settings){
+ const row=document.createElement('div');row.dataset.pdfOrientationDev='';row.style.cssText='display:flex;align-items:center;gap:8px;margin:0 0 10px;font-size:12px;color:#586779';
+ const label=document.createElement('span');label.textContent='PDF pages (dev):';row.appendChild(label);
+ const buttons=['portrait','landscape'].map(value=>{const button=document.createElement('button');button.type='button';button.dataset.orientation=value;button.textContent=value[0].toUpperCase()+value.slice(1);button.onclick=()=>{settings.orientation=value;touchElevationSettings(settings);paint();};row.appendChild(button);return button;});
+ const paint=()=>{const current=window.ExteriorPDF?.reportOrientation?.(settings)||'portrait';for(const b of buttons){const on=b.dataset.orientation===current;b.setAttribute('aria-pressed',String(on));b.style.cssText='padding:4px 10px;border:1px solid #cbd1d9;border-radius:5px;cursor:pointer;font-size:12px;'+(on?'background:#2c333c;color:#fff;border-color:#2c333c':'background:#fff;color:#2c333c');}};
+ paint();container.appendChild(row);return row;
 }
 async function renderReportImageryConfig(container,state){
  const settings=state.exteriorSettings||={};container.style.padding='24px';const heading=document.createElement('h2');heading.textContent='Elevation photos';container.appendChild(heading);

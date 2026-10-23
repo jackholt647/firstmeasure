@@ -62,3 +62,36 @@ test('the report preview shows every page of the customer and internal PDFs and 
     assert.equal(await page.locator('[data-rpv-count]').textContent(), 'Page 7 of 13');
   } finally { await browser.close(); }
 });
+
+test('the report preview lays every page out in landscape when the organization chooses landscape pages', async () => {
+  const browser = await chromium.launch({channel:'chrome', headless:true});
+  try {
+    const page = await browser.newPage({viewport:{width:1100, height:900}});
+    await page.setContent('<div id="host" style="width:900px;height:800px"></div>');
+    await page.addScriptTag({content:source});
+    const layout = (orientation, mode = 'customer') => page.evaluate(async ({orientation, mode}) => {
+      const host = document.querySelector('#host');
+      const view = window.FirstMateReportPreview.render(host, {settings:{}, orientation});
+      view.setMode(mode);
+      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      return [...host.querySelectorAll('[data-rpv-viewer] .rpv-sheet')].map((sheet) => {
+        const pageEl = sheet.querySelector('.rpv-page'), box = pageEl.getBoundingClientRect(), footer = box.top + (box.height * (1 - 16 / (box.height > box.width ? 279.4 : 215.9)));
+        // Everything drawn stays on the page and, except the footer line itself, above it.
+        const outside = [...pageEl.querySelectorAll('.rpv-t,.rpv-p,.rpv-b,.rpv-i')].filter((el) => {
+          const r = el.getBoundingClientRect();
+          if (!r.width || !r.height || r.height > box.height * 0.95) return false; // the sidebar runs the full height
+          const isFooter = el.classList.contains('rpv-t') && Math.abs(r.bottom - footer) < 2 * box.width / (box.width > box.height ? 279.4 : 215.9);
+          return r.left < box.left - 1 || r.right > box.right + 1 || r.top < box.top - 1 || (!isFooter && r.bottom > footer + 3 * box.width / (box.width > box.height ? 279.4 : 215.9));
+        }).map((el) => (el.textContent || el.className).slice(0, 40));
+        return {label:sheet.getAttribute('aria-label'), wide:box.width > box.height, outside};
+      });
+    }, {orientation, mode});
+    for (const mode of ['customer', 'internal']) {
+      const landscape = await layout('landscape', mode);
+      assert.ok(landscape.length >= 12, mode);
+      for (const sheet of landscape) { assert.ok(sheet.wide, sheet.label + ' is landscape'); assert.deepEqual(sheet.outside, [], sheet.label + ' stays on the page, above the footer'); }
+    }
+    const portrait = await layout('portrait');
+    assert.ok(portrait.every((sheet) => !sheet.wide), 'portrait by default');
+  } finally { await browser.close(); }
+});
