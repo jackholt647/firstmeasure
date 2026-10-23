@@ -25,6 +25,44 @@
     let resoffitMode=false,trimMode=false,drivenSoffits=true,autoParapets=true,closedSoffits=false;
     function closeResoffit(){resoffitMode=false;wallEditor?.setResoffitMode?.(false);const menu=document.getElementById('wall-resoffit-menu'),button=document.getElementById('wall-resoffit');if(menu)menu.hidden=true;if(button){button.setAttribute('aria-expanded','false');button.setAttribute('aria-pressed','false');}}
     // Trim mode lasts while the Trim menu is open: the views select lines for trim.
+    // Textured views draw finished surfaces only, without the drafting overlays (lines, points, guides, previews)
+    // these tools need. This one table decides what is unavailable there; buttons, keys and modes follow it.
+    const TEXTURED_UNAVAILABLE={plane:'Plane mode (P)',resoffit:'Resoffit',trim:'Trim',stickers:'Sticker placement',overlays:'Edit overlays',geometryKeys:'Editing shortcuts',selectionActions:'Selection actions'};
+    const TEXTURED_CONTROLS={resoffit:'#wall-resoffit',trim:'#roof-trim-tool',stickers:'.exterior-sticker-bar .ss-tile,.exterior-sticker-bar .exterior-face-toggle',overlays:'#wall-centers-toggle,#wall-line-centers-toggle,#wall-feature-dimensions,#wall-gap-toggle,#wall-lengths-all,#wall-lengths-moving,#wall-lengths-off'};
+    const TEXTURED_NOTE='Not available in Textured view — switch to Opaque (Tab)';
+    function texturedView(){return enabled&&['textured','match-textured'].includes(surfaceMode());}
+    function displaySupports(tool){return !(texturedView()&&Object.hasOwn(TEXTURED_UNAVAILABLE,tool));}
+    // Editing keys that need the overlays. Panels keep their own keys; undo, save, Escape, Tab and Delete still work.
+    function texturedBlockedKey(e){
+        if(displaySupports('geometryKeys')||e.target.closest?.('input,textarea,select,[contenteditable=true],#wall-material-picker,#exterior-graphics,[role=menu],[role=dialog]'))return false;
+        const k=e.key;if(['Shift','Control','Alt','Meta','Tab','Escape','Delete','Backspace','?'].includes(k)||/^F\d+$/.test(k))return false;
+        if(e.ctrlKey||e.metaKey)return ['a','c','v','x'].includes(k.toLowerCase());
+        return k.length===1||k.startsWith('Arrow')||k==='Enter';
+    }
+    let texturedNoticeTimer=null,syncingDisplay=false;
+    function texturedNotice(text=TEXTURED_NOTE){
+        const host=document.getElementById('three-view-wrapper')||document.body;let el=document.getElementById('textured-notice');
+        if(!el){el=document.createElement('div');el.id='textured-notice';el.setAttribute('role','status');el.setAttribute('aria-live','polite');el.style.cssText='position:absolute;left:50%;bottom:64px;transform:translateX(-50%);z-index:3100;background:#202124e6;color:#fff;font:12px system-ui;padding:6px 10px;border-radius:6px;pointer-events:none';host.appendChild(el);}
+        el.textContent=text;el.hidden=false;clearTimeout(texturedNoticeTimer);texturedNoticeTimer=setTimeout(()=>{el.hidden=true;},2600);
+    }
+    // Entering a textured view leaves every mode it cannot draw (painting finishes stays); buttons show it.
+    function syncDisplayCapabilities(){
+        if(syncingDisplay)return;syncingDisplay=true;
+        try{
+            const textured=texturedView();
+            if(textured){
+                if(wallEditor?.busy?.()&&wallEditor.interaction?.()!=='Paint material')wallEditor.clear();
+                for(let i=0;i<3&&wallEditor?.planeActive?.()&&typeof wallEditor.togglePlane==='function';i++)wallEditor.togglePlane();
+                if(resoffitMode)closeResoffit();
+                if(trimMode||roofTrimEditor?.hasSelection?.()){roofTrimEditor?.finish?.();roofTrimEditor?.clear?.();}
+                if(baseEditor?.busy?.())baseEditor.leave?.();
+            }
+            for(const selector of Object.values(TEXTURED_CONTROLS))for(const el of document.querySelectorAll(selector)){
+                if(textured){if(el.dataset.texturedTitle===undefined)el.dataset.texturedTitle=el.getAttribute('title')||'';el.setAttribute('aria-disabled','true');el.classList.add('textured-unavailable');el.title=TEXTURED_NOTE;}
+                else if(el.dataset.texturedTitle!==undefined){el.removeAttribute('aria-disabled');el.classList.remove('textured-unavailable');if(el.dataset.texturedTitle)el.title=el.dataset.texturedTitle;else el.removeAttribute('title');delete el.dataset.texturedTitle;}
+            }
+        }finally{syncingDisplay=false;}
+    }
     function setTrimMode(on){on=!!on;if(on===trimMode)return;trimMode=on;if(on&&resoffitMode)closeResoffit();wallEditor?.setLineSelectMode?.(on?'trim':resoffitMode?'resoffit':null);requestEditorRender(true);}
     let gapHighlights=true,gapCacheKey='',gapCache=[];
     let enabled=false, roofVisible=true, state=null, projectId='', stage=1, selected=null, group3D=null, lastScene=null;
@@ -55,7 +93,7 @@
             const busy=typeof interactState3D!=='undefined'&&interactState3D!=='IDLE'||typeof interactState!=='undefined'&&interactState!=='IDLE';
             return A.actions({mode:'roof',points,lines,busy,canPaste:typeof geometryClipboard!=='undefined'&&!!geometryClipboard});
         }
-        if(selectionBusy()||groundEditor?.sampling?.()||editingLayer==='grade')return [];
+        if(selectionBusy()||groundEditor?.sampling?.()||editingLayer==='grade'||!displaySupports('selectionActions'))return [];
         if(wallEditor?.planeActive?.()||editingLayer==='walls')return A.actions(wallEditor?.actionContext());
         const counts=selectionCounts(),geometry=baseEditor?.chamferSelection?.(),entity=baseEditor?.entitySelection?.();
         return A.actions({mode:'base',...counts,transform:(geometry?.points?.length||0)>=3,canExtrude:!!(entity?.point||entity?.pair||counts.faces===1),canPaste:!!window.exteriorGeometryClipboard});
@@ -763,7 +801,7 @@ function perf_render3DFrame() {
     }
     function inspect(id) {selected=id;const s=state?.sources.find(s=>s.id===id),setback=stage>=6?state?.rakeCleanupReport?.setbackCorrections?.find(c=>c.sourceIds.includes(id))?.after:undefined;details.textContent=s?`${s.id} · ${s.kind==='return'?'lower wall return':s.type.replaceAll('_',' ')} · ${s.direction==='up'?'up to next roof':'down to roof or ground'} · ${s.joins?`continues straight to ${s.joins}`:`${window.ReportUnits?.current().metric ? window.ReportUnits.current().quantity((setback??s.setback)/G.INCH, 'inch') : ((setback??s.setback)/G.INCH).toFixed(1)+' in'} setback`}`:'';render2D();}
     function render() {
-        if(!panel)return;settle2D();document.getElementById('wall-clear-model').disabled=!state;if(state?.displayMode==='rendered')state.displayMode='textured';document.body.classList.toggle('exterior-textured',enabled&&['textured','match-textured'].includes(surfaceMode()));
+        if(!panel)return;settle2D();document.getElementById('wall-clear-model').disabled=!state;if(state?.displayMode==='rendered')state.displayMode='textured';document.body.classList.toggle('exterior-textured',enabled&&['textured','match-textured'].includes(surfaceMode()));syncDisplayCapabilities();
         for(const mode of ['all','moving','off'])document.getElementById('wall-lengths-'+mode).setAttribute('aria-pressed',String(mode===(state?.lineLengthMode||(state?.wallLengths===false?'off':'moving'))));document.getElementById('wall-feature-dimensions')?.setAttribute('aria-pressed',String(displayPreference('featureDimensions')));
         document.getElementById('wall-roof-bounds').checked=state?.boundExtrusionToRoof!==false;
         document.getElementById('wall-static-trim').checked=state?.keepTrimStatic===true;
@@ -815,7 +853,7 @@ function perf_render3DFrame() {
         #wall-panel details{margin:5px 0;color:#b9c5cc}#wall-panel summary{cursor:pointer}
         #wall-panel .wall-fields{display:grid;grid-template-columns:minmax(0,1fr);gap:5px}
         #wall-panel .wall-fields label{gap:5px}#wall-panel .wall-fields select{min-width:0;max-width:100px}
-        #wall-status,#ground-status{color:#b9c5cc;font-size:11px}#base-status{overflow-wrap:anywhere}
+        #wall-status,#ground-status{color:#b9c5cc;font-size:11px}.textured-unavailable{opacity:.42!important;cursor:not-allowed!important}#base-status{overflow-wrap:anywhere}
         #wall-panel .wall-row{flex-direction:column;align-items:stretch}#wall-panel button{white-space:normal;overflow-wrap:anywhere}#wall-panel label{gap:5px}#wall-panel select{min-width:0;max-width:100%}#wall-panel .wall-heading{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:6px}
         `;
         document.head.appendChild(style);
@@ -1058,6 +1096,7 @@ function perf_render3DFrame() {
             if(groundEditor?.sampling?.()&&!e.target.closest?.('input,textarea,select,[contenteditable=true]'))return groundEditor.keyDown(e);
             if(resoffitMode&&!e.target.closest?.('input,textarea,select,[contenteditable=true]')&&!['Shift','Control','Alt','Meta','Tab'].includes(e.key)&&!((e.ctrlKey||e.metaKey)&&['s','c'].includes(e.key.toLowerCase())))setResoffit(false);
             if(e.key==='Tab'&&!e.ctrlKey&&!e.metaKey&&!e.altKey&&!e.target.closest?.('input,textarea,select,[contenteditable=true]')){if(!e.repeat)cycleSurfaceDisplay();e.preventDefault();e.stopImmediatePropagation();return true;}
+            if(texturedBlockedKey(e)){if(!e.repeat)texturedNotice();e.preventDefault();e.stopImmediatePropagation();return true;}
             if(!e.target.closest?.('input,textarea,select,[contenteditable=true]')&&!e.ctrlKey&&!e.metaKey&&(e.key.toLowerCase()==='p'||wallEditor?.planeActive?.())){if(e.key.toLowerCase()==='p'){if(!e.repeat){const entity=editingLayer==='base'?baseEditor?.chamferSelection?.():null,source=entity?.points?.length?{axisPoints:entity.points}:editingLayer==='base'?baseEditor?.selectedFaceGeometry?.():null;setLayer('walls',true);wallEditor?.togglePlane(source);}}else if(!window.ExteriorDistanceInput?.key(e,wallEditor?.distanceInput()))wallEditor?.keyDown(e);e.preventDefault();e.stopImmediatePropagation();return true;}
             if(wallEditor?.planeActive?.()&&(e.ctrlKey||e.metaKey)&&['a','c','v','x'].includes(e.key.toLowerCase())&&!e.target.closest?.('input,textarea,select,[contenteditable=true]')){wallEditor.keyDown(e);e.preventDefault();e.stopImmediatePropagation();return true;}
             if(window.editorKeyBlockedByField?window.editorKeyBlockedByField(e):e.target.closest?.('input,textarea,select,[contenteditable=true]'))return;if(roofTrimEditor?.key(e))return true;if(trimMode&&!e.ctrlKey&&!e.metaKey&&!['Shift','Control','Alt','Meta','Tab'].includes(e.key))roofTrimEditor?.clear();
@@ -1088,6 +1127,8 @@ function perf_render3DFrame() {
         // Document bubble runs after the focused control and before window handlers.
         const keysKeptFromRoof=new WeakSet();document.addEventListener('keydown',e=>{if(keysKeptFromRoof.has(e))e.stopImmediatePropagation();});
         window.addEventListener('keydown',handleEditorKey,true);
+        // Controls unavailable in a textured view are inert there (pointer or keyboard activation).
+        for(const type of ['pointerdown','click'])document.addEventListener(type,e=>{const el=e.target.closest?.('.textured-unavailable');if(!el||!texturedView())return;e.preventDefault();e.stopImmediatePropagation();if(type==='click')texturedNotice();},true);
         window.addEventListener('keyup',e=>{if(e.key.startsWith('Arrow')&&pendingNudge)flushNudgeInput();},true);
         document.getElementById('wall-step').onclick=()=>{if(editingLayer==='base')baseEditor?.stepCommand();else{if(editingLayer!=='walls')setLayer('walls');wallEditor?.stepCommand();}};
         window.WallFeatures?.mountUI((...args)=>{if(editingLayer!=='walls')setLayer('walls');window.SmartStickers?.exitPlacement();return wallEditor?.featureCommand(...args);},()=>wallEditor?.featureSelection(),()=>wallEditor?.busy(),{
@@ -1191,6 +1232,6 @@ function perf_render3DFrame() {
         }
         return {placed:added.length,ids:added.map(f=>f.id),skipped};
     }
-    window.WallMode={selectionActions,prepareHeightMask:()=>{settleNudges();closeResoffit();groundEditor?.leave();roofTrimEditor?.finish();wallEditor?.leave?.();baseEditor?.leave?.();},applyAIPlacements,aiStickerScene,selectAIFace,prepareAICapture,aiGeometry,renderChunk,get finishDefaults(){return state?.finishDefaults||{};},renderRoofTrim3D,serializeRoofTrim:()=>copy(state?.roofTrim||roofTrimOnly),reportSnapshot:reportSnapshotWithCover,coverParts,registerLayerVisibility,get enabled(){return enabled;},render2D,render3D,syncVisibility,serialize:exportState,serializeHistory,serializeView:()=>projectId===currentId()?viewSnapshot():null,restore,beforeProjectLoad,setEnabled};
+    window.WallMode={selectionActions,prepareHeightMask:()=>{settleNudges();closeResoffit();groundEditor?.leave();roofTrimEditor?.finish();wallEditor?.leave?.();baseEditor?.leave?.();},applyAIPlacements,aiStickerScene,selectAIFace,prepareAICapture,aiGeometry,renderChunk,get finishDefaults(){return state?.finishDefaults||{};},renderRoofTrim3D,serializeRoofTrim:()=>copy(state?.roofTrim||roofTrimOnly),reportSnapshot:reportSnapshotWithCover,displaySupports,coverParts,registerLayerVisibility,get enabled(){return enabled;},render2D,render3D,syncVisibility,serialize:exportState,serializeHistory,serializeView:()=>projectId===currentId()?viewSnapshot():null,restore,beforeProjectLoad,setEnabled};
     if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',initialize,{once:true});else initialize();
 })();

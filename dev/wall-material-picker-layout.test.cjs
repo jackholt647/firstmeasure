@@ -18,13 +18,17 @@ test('Wall materials: slim header, collapsible remembered sections, no disclaime
  // Header on one row with the close button.
  const head=await picker.locator('.exterior-picker-heading').boundingBox(),close=await picker.getByRole('button',{name:'Close wall materials'}).boundingBox();assert.ok(head.height<=30&&close.y>=head.y&&close.y+close.height<=head.y+head.height+1,'slim header: '+head.height);
  // Sections: Faces and Walls open, Roof and Stickers collapsed by default; toggles are keyboard buttons and remembered.
- const toggles=['Faces','Walls','Roof','Stickers'];for(const name of toggles)assert.ok(await page.getByRole('button',{name:new RegExp('^'+name)}).count(),name);
+ const toggles=['Faces','Wall defaults','Roof','Stickers'];for(const name of toggles)assert.ok(await page.getByRole('button',{name:new RegExp('^'+name)}).count(),name);
  const expanded=async()=>Promise.all(toggles.map(name=>page.getByRole('button',{name:new RegExp('^'+name)}).getAttribute('aria-expanded')));
- assert.deepEqual(await expanded(),['true','true','false','false']);assert.equal(await page.getByLabel('Sticker trim',{exact:true}).isVisible(),false);
- const fit=await picker.evaluate(p=>({scroll:p.scrollHeight,client:p.clientHeight}));assert.ok(fit.scroll<=fit.client+1,'fits without scrolling at 1366x768: '+JSON.stringify(fit));
- await page.getByRole('button',{name:/^Stickers/}).focus();await page.keyboard.press('Enter');assert.equal(await page.getByLabel('Sticker trim',{exact:true}).isVisible(),true);
+ assert.deepEqual(await expanded(),['true','true','true','true'],'every section starts open');assert.equal(await page.getByLabel('Sticker trim',{exact:true}).isVisible(),true);
+ // The plain-mode colour switch says what it does and lives with the wall defaults.
+ const check=page.getByLabel('Show material colours in Opaque and Translucent',{exact:true});assert.equal(await check.isVisible(),true);assert.ok(await page.locator('[data-section="walls"]').locator('input[type=checkbox]').count());assert.match(await check.locator('xpath=..').getAttribute('title'),/Opaque and Translucent/);
+ for(const name of ['Default texture','Default colour','Default trim'])assert.ok((await page.locator('[data-section="walls"]').innerText()).includes(name),name);
+ await page.getByRole('button',{name:/^Roof/}).click();await page.getByRole('button',{name:/^Stickers/}).click();
+ const fit=await picker.evaluate(p=>({scroll:p.scrollHeight,client:p.clientHeight}));assert.ok(fit.scroll<=fit.client+1,'fits without scrolling at 1366x768 with Roof and Stickers collapsed: '+JSON.stringify(fit));
+ assert.equal(await page.getByLabel('Sticker trim',{exact:true}).isVisible(),false);await page.getByRole('button',{name:/^Stickers/}).focus();await page.keyboard.press('Enter');assert.equal(await page.getByLabel('Sticker trim',{exact:true}).isVisible(),true);
  await page.getByRole('button',{name:/^Faces/}).click();assert.equal(await picker.getByRole('button',{name:'Brick',exact:true}).first().isVisible(),false);
- assert.match(await page.getByRole('button',{name:/^Walls/}).innerText(),/Brick/,'collapsed sections show a summary');
+ assert.match(await page.getByRole('button',{name:/^Wall defaults/}).innerText(),/Brick/,'sections show a summary');
  await mount();assert.deepEqual(await expanded(),['false','true','false','true'],'open state is remembered');
  assert.equal(await page.getByLabel('Default color',{exact:true}).isVisible(),true);
 });

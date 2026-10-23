@@ -95,7 +95,7 @@ test('the Wall materials picker sets the roof category, a preset color for it, o
  try{const page=await browser.newPage();await page.setContent('<body class="wall-mode-active"><button id="btnToggleTypes">Types</button><div id="three-view-wrapper" style="position:relative;height:900px"></div></body>');
   await page.addScriptTag({content:'window.THREE={}'});for(const name of ['wall_features','exterior_finishes'])await page.addScriptTag({path:SCRIPTS+name+'.js'});
   await page.evaluate(()=>{window.roof={...ExteriorFinishes.roofDefault};window.calls=0;WallFeatures.mountUI(()=>{},()=>null,()=>false,{defaults:v=>v||{material:'siding',color:'#123456',trimColor:'#abcdef'},roof:v=>{if(v){calls++;window.roof={...v};}return window.roof;}});});
-  await page.getByRole('button',{name:'Wall materials',exact:true}).click();await page.getByRole('button',{name:/^Roof/}).click();
+  await page.getByRole('button',{name:'Wall materials',exact:true}).click();
   const group=page.getByRole('group',{name:'Roof material type',exact:true}),colors=page.getByRole('group',{name:'Roof colors',exact:true});
   assert.deepEqual(await group.getByRole('button').allTextContents(),['Shingles','Shake','Slate','Standing seam metal']);
   assert.equal(await group.getByRole('button',{name:'Shingles'}).getAttribute('aria-pressed'),'true');assert.equal(await colors.getByRole('button',{name:'Charcoal'}).getAttribute('aria-pressed'),'true');
