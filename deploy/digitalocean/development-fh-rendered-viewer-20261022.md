@@ -65,3 +65,18 @@ Scripts: `output/fh-rendered-viewer-20261022/`, `output/fh-tab-route-20261022/`,
   775 sq ft, as the report does (previously 12.4/12).
 - Legacy host: on Jack's go-ahead a 4 GB `/swapfile` was added (swapon, `/etc/fstab`). Previously it had none, and
   concurrent staging TypeScript checks were OOM-killed.
+
+**Projected design `1cf37662` (all four roles, verified)**
+- Viewer: an As built / Projected toggle and a Design panel, top right. The panel holds:
+  - defaults: walls, trim and fascia, roof type and colour, doors, door trim, garage doors, window trim;
+  - per-face choices for the selected wall or opening;
+  - Generate from materials and Reset.
+- Faces are re-prepared and re-applied through `ExteriorFinishes` and `ExteriorRendered` with the projected finish
+  defaults, as in the editor.
+- `GET`/`PUT /v1/firstmeasure/projects/:id/exterior-design` saves `exterior-design.json` on the report. It uses the
+  same organization check and completed full-house scope as `exterior-model`, and only presentation is stored. The
+  endpoint answers 401 without a session.
+- Generate from materials reads `/v1/materials/organizations/:org/projects/:project/material-lists`:
+  - the roof covering line's type, plus its selected colour option's hex or a matching preset;
+  - siding, trim, door and garage door lines by name and colour.
+- Tests: the full-house viewer file passes 4/4, including the design flow and the sanitizer; the roof viewer passes 2/2.
