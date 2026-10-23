@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+October 23 Session replay, who is recorded: [a platform mode plus rules for people and organizations, set only by platform administrators, replacing the organization capability](deploy/digitalocean/development-session-replay-targeting-20261023.md) records release `5675967d` and the verified four-role development rollout.
+
 October 22 Materials ordering: [Email, Purchase order and Shopping list tabs, Mark as ordered, per-supplier sending, purchase order and shopping list documents, and the last list deletes](deploy/digitalocean/development-materials-ordering-20261022.md) records releases `3d45f7cc` and `29562fd1` on worker, legacy and web (the pool host was unreachable).
 
 October 23 Presentation Accept & sign, preview and send: [Accept & sign signs in person beside the contract on the presenter route, Open what they see opens a portal preview that cannot sign, accept or pay, and the presentation and workflow send one way](deploy/digitalocean/development-presentation-sign-send-20261023.md) records release `dd017b86` on worker, legacy and web (pool was unreachable).
