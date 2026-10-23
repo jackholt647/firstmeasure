@@ -1698,7 +1698,7 @@
     }
     if (bind.repeat && bind.repeat.for) {
       const forExpr = bind.repeat.for;
-      const list = evaluateListExpr(forExpr, scope);
+      const list = ctx.trace ? stampSourcePaths(evaluateListExpr(forExpr, scope), forExpr, scope) : evaluateListExpr(forExpr, scope);
       const as = bind.repeat.as || "item";
       const indexAs = bind.repeat.index_as || "index";
       const out = [];
@@ -1710,7 +1710,9 @@
         extra[as] = list[i];
         extra[indexAs] = i;
         const childScope = Object.assign({}, scope, extra);
-        out.push(...resolveNode(child, childScope, ctx));
+        const resolvedCopies = resolveNode(child, childScope, ctx);
+        if (ctx.trace) resolvedCopies.forEach(markGenerated);
+        out.push(...resolvedCopies);
       }
       return out;
     }
@@ -1737,6 +1739,7 @@
         inst.anchor = node.anchor || inst.anchor;
         inst.component = String(name); // editor badge + edit-component entry point
         inst.component_ref_id = node.id;
+        if (ctx.trace) markGenerated(inst);
         return inst;
       });
     }
@@ -1749,7 +1752,8 @@
       resolvedRep.bind = null;
       const name = node.props && node.props.component;
       const def = name ? ctx.components[name] : null;
-      const list = node.props && node.props.source ? evaluateListExpr(node.props.source, scope) : [];
+      const sourceList = node.props && node.props.source ? evaluateListExpr(node.props.source, scope) : [];
+      const list = ctx.trace && sourceList.length ? stampSourcePaths(sourceList, node.props.source, scope) : sourceList;
       const as = (node.props && node.props.as) || "row";
       const indexAs = (node.props && node.props.index_as) || "index";
       const children = [];
@@ -1779,6 +1783,7 @@
           for (const inst of roots) {
             inst.component = String(name);
             inst.repeater_index = i;
+            if (ctx.trace) markGenerated(inst);
             children.push(inst);
           }
         }
@@ -1800,7 +1805,11 @@
       }
     }
 
-    if (resolved.type === "text" && resolved.props && Array.isArray(resolved.props.blocks)) {
+    if (resolved.type === "text" && resolved.props && Array.isArray(resolved.props.blocks) && ctx.trace) {
+      for (const block of resolved.props.blocks) {
+        if (Array.isArray(block.runs)) block.runs = traceRuns(block.runs, scope);
+      }
+    } else if (resolved.type === "text" && resolved.props && Array.isArray(resolved.props.blocks)) {
       for (const block of resolved.props.blocks) {
         if (!Array.isArray(block.runs)) continue;
         for (const run of block.runs) {
@@ -1839,15 +1848,17 @@
    * bindings interpolated. Widget nodes still require registry data
    * resolution before/at render.
    */
-  function resolveBindings(document, data) {
+  function resolveBindings(document, data, options) {
     const doc = deepClone(document);
     const scope = buildScope(data);
     scope.computed = resolveComputed(doc.computed, scope);
     doc.computed_values = deepClone(scope.computed);
     // Component defs available during resolution: the document's own plus any
     // the caller merged in (server merges template + org library defs into
-    // data.components before resolving).
-    const ctx = { components: Object.assign({}, (data && data.components) || {}, doc.components || {}) };
+    // data.components before resolving). options.trace keeps where every
+    // bound value came from (see "Bound inputs" below); the rendered result
+    // is identical either way.
+    const ctx = { components: Object.assign({}, (data && data.components) || {}, doc.components || {}), trace: !!(options && options.trace) };
 
     if (doc.kind === "view") {
       if (doc.root) {
@@ -1871,7 +1882,7 @@
           const extra = {};
           extra[as] = list[i];
           extra.page_index = i;
-          instances.push({ page: clone, scope: Object.assign({}, scope, extra) });
+          instances.push({ page: clone, scope: Object.assign({}, scope, extra), generated: true });
         }
       } else {
         instances.push({ page: deepClone(page), scope });
@@ -1879,12 +1890,273 @@
       for (const instance of instances) {
         const children = [];
         for (const child of instance.page.children || []) children.push(...resolveNode(child, instance.scope, ctx));
+        if (ctx.trace && instance.generated) children.forEach(markGenerated);
         instance.page.children = children;
         pages.push(instance.page);
       }
     }
     doc.pages = pages;
     return doc;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Bound inputs (editing a document as sent; docs/architecture/document-as-sent-editing.md)
+  //
+  // resolveBindings(doc, data, { trace: true }) renders exactly what an
+  // untraced resolution renders, and also keeps provenance:
+  //   - every bound run carries run.binding = { expr, path, format,
+  //     format_args, value, kind }: the data path the run shows (null when
+  //     the expression is not a plain reference), the formatter applied and
+  //     the raw value. kind: "input" (document data, params.*), "derived"
+  //     (computed.*), "upstream" (project/customer/org/doc), "output"
+  //     (outputs.*) or "calculated" (no single source).
+  //   - a run mixing text and {{tokens}} is split into literal and bound runs.
+  //   - a run typed over a value (run.pinned = { expr, value }) carries
+  //     binding.kind "pinned" with the value the data has now and conflict:
+  //     true when it differs from what was typed over.
+  //   - nodes made from data (repeater rows, component instances, repeated
+  //     nodes and pages) carry generated: true; they have no template node
+  //     an override could address.
+  //   - rows of a list read through a plain path get source_path, and a row
+  //     that already names its source_path (a server projection such as
+  //     params.scope_rows) is followed back to it, so item.quantity in a
+  //     repeated row resolves to params.scope_items.0.quantity.
+  // ---------------------------------------------------------------------------
+
+  const BINDING_ROOT_KINDS = { params: "input", computed: "derived", outputs: "output", project: "upstream", customer: "upstream", org: "upstream", doc: "upstream" };
+
+  function markGenerated(node) {
+    if (!isObject(node)) return;
+    node.generated = true;
+    if (Array.isArray(node.children)) node.children.forEach(markGenerated);
+  }
+
+  function isEmptyValue(value) {
+    return value === null || value === undefined || value === "";
+  }
+
+  function astPathSegments(ast, scope) {
+    if (!ast) return null;
+    if (ast.type === "path_root") return UNSAFE_KEYS.has(ast.name) ? null : [ast.name];
+    if (ast.type === "member") {
+      const base = astPathSegments(ast.object, scope);
+      return base && !UNSAFE_KEYS.has(ast.property) ? base.concat([ast.property]) : null;
+    }
+    if (ast.type === "index") {
+      const base = astPathSegments(ast.object, scope);
+      if (!base) return null;
+      let key;
+      try { key = evaluateAst(ast.index, scope); } catch (error) { return null; }
+      if (typeof key === "number" && Number.isInteger(key) && key >= 0) return base.concat([key]);
+      if (typeof key === "string" && key && !UNSAFE_KEYS.has(key) && key.indexOf(".") === -1) return base.concat([key]);
+      return null;
+    }
+    return null;
+  }
+
+  function astValue(ast, scope) {
+    try { return evaluateAst(ast, scope); } catch (error) { return undefined; }
+  }
+
+  /** The reference an expression displays: { segments, format } or null. */
+  function displayedReference(ast, scope, format) {
+    if (!ast) return null;
+    switch (ast.type) {
+      case "format":
+        return displayedReference(ast.input, scope, { name: ast.name, args: ast.args.map((arg) => astValue(arg, scope)) });
+      case "ternary":
+        return displayedReference(truthy(astValue(ast.test, scope)) ? ast.consequent : ast.alternate, scope, format);
+      case "call": {
+        if (ast.name !== "coalesce") return null;
+        // The argument coalesce shows; when every one is empty, the first
+        // reference (where a typed value belongs).
+        for (const arg of ast.args) if (!isEmptyValue(astValue(arg, scope))) return displayedReference(arg, scope, format);
+        for (const arg of ast.args) if (arg.type !== "literal") return displayedReference(arg, scope, format);
+        return null;
+      }
+      case "binary":
+        if (ast.op === "||") return displayedReference(truthy(astValue(ast.left, scope)) ? ast.left : ast.right, scope, format);
+        return null;
+      case "path_root":
+      case "member":
+      case "index": {
+        const segments = astPathSegments(ast, scope);
+        return segments ? { segments, format: format || null } : null;
+      }
+      default:
+        return null;
+    }
+  }
+
+  /** Follow rows that name their source (row.source_path) back to it. */
+  function rebaseSegments(segments, scope) {
+    let base = null;
+    let restAt = 0;
+    let value = scope;
+    for (let i = 0; i < segments.length; i += 1) {
+      value = value === null || value === undefined ? undefined : value[segments[i]];
+      if (i < segments.length - 1 && isObject(value) && typeof value.source_path === "string" && value.source_path) {
+        base = splitPath(value.source_path);
+        restAt = i + 1;
+      }
+    }
+    if (base) return base.concat(segments.slice(restAt));
+    return BINDING_ROOT_KINDS[segments[0]] ? segments.slice() : null;
+  }
+
+  /**
+   * Where a bound expression's value comes from in this scope:
+   * { path, format, format_args, value, kind }. path is a dotted data path
+   * ("params.scope_items.0.quantity") or null when the expression computes
+   * its value from more than one place.
+   */
+  function bindingTarget(expr, scope) {
+    let source = String(expr || "").trim();
+    if (source.startsWith("{{") && source.endsWith("}}") && source.indexOf("{{", 2) === -1) source = source.slice(2, -2).trim();
+    let ast;
+    try { ast = compiledAst(source); } catch (error) { return { path: null, format: null, format_args: [], value: undefined, kind: "calculated" }; }
+    const ref = displayedReference(ast, scope || {}, null);
+    const segments = ref ? rebaseSegments(ref.segments, scope || {}) : null;
+    const value = ref ? ref.segments.reduce((current, key) => (current === null || current === undefined ? undefined : current[key]), scope || {}) : undefined;
+    return {
+      path: segments ? segments.join(".") : null,
+      format: ref && ref.format ? ref.format.name : null,
+      format_args: ref && ref.format ? ref.format.args.map((arg) => (isObject(arg) || Array.isArray(arg) ? null : arg)) : [],
+      value: isObject(value) || Array.isArray(value) ? undefined : value,
+      kind: segments ? BINDING_ROOT_KINDS[segments[0]] || "calculated" : "calculated"
+    };
+  }
+
+  /** Rows read through a plain path learn where they live (trace only). */
+  function stampSourcePaths(list, sourceExpr, scope) {
+    const target = bindingTarget(sourceExpr, scope);
+    if (!target.path) return list;
+    return list.map((row, index) => (isObject(row) && !(typeof row.source_path === "string" && row.source_path)
+      ? Object.assign({}, row, { source_path: target.path + "." + index })
+      : row));
+  }
+
+  function boundRun(run, expr, scope) {
+    const out = Object.assign({}, run);
+    delete out.bind;
+    const value = interpolate(hasInterpolation(expr) ? expr : "{{" + expr + "}}", scope);
+    out.text = value === null || value === undefined ? "" : String(value);
+    out.bound = true;
+    out.binding = Object.assign({ expr: String(expr).replace(/^\s*\{\{\s*|\s*\}\}\s*$/g, "") }, bindingTarget(expr, scope));
+    return out;
+  }
+
+  /** Resolve one block's runs, keeping where each value came from. */
+  function traceRuns(runs, scope) {
+    const out = [];
+    for (const run of runs) {
+      if (!isObject(run)) { out.push(run); continue; }
+      if (run.literal === true) {
+        const literal = Object.assign({}, run);
+        if (isObject(run.pinned) && run.pinned.expr) {
+          const now = interpolate("{{" + run.pinned.expr + "}}", scope);
+          const current = now === null || now === undefined ? "" : String(now);
+          literal.binding = { expr: String(run.pinned.expr), path: bindingTarget(run.pinned.expr, scope).path, kind: "pinned", value: run.pinned.value, current, conflict: current !== String(run.pinned.value === undefined || run.pinned.value === null ? "" : run.pinned.value) };
+        }
+        out.push(literal);
+        continue;
+      }
+      if (run.bind) {
+        if (typeof run.bind === "string") out.push(boundRun(run, run.bind, scope));
+        else { const empty = Object.assign({}, run, { text: "", bound: true }); delete empty.bind; out.push(empty); }
+        continue;
+      }
+      if (!hasInterpolation(run.text)) { out.push(run); continue; }
+      // "Prepared for {{customer.name}} on {{doc.date}}": literal and bound
+      // pieces become separate runs with the same style.
+      const text = String(run.text);
+      let last = 0;
+      INTERPOLATION_PATTERN.lastIndex = 0;
+      let match;
+      while ((match = INTERPOLATION_PATTERN.exec(text))) {
+        if (match.index > last) out.push(Object.assign({}, run, { text: text.slice(last, match.index) }));
+        out.push(boundRun(Object.assign({}, run, { text: "" }), match[1].trim(), scope));
+        last = match.index + match[0].length;
+      }
+      if (last < text.length) out.push(Object.assign({}, run, { text: text.slice(last) }));
+    }
+    return out;
+  }
+
+  /**
+   * Blocks edited on a traced (as-sent) render, turned back into template
+   * blocks: bound runs become bindings again (so the value stays live), runs
+   * typed over a value keep the value they replaced (pinned), and typed text
+   * is literal (a "{{" a person types is never an expression).
+   */
+  function boundBlocksToTemplate(blocks) {
+    return (Array.isArray(blocks) ? blocks : []).map((block) => {
+      const next = deepClone(block);
+      if (!Array.isArray(next.runs)) return next;
+      next.runs = next.runs.map((run) => {
+        const out = Object.assign({}, run);
+        const binding = out.binding;
+        delete out.binding;
+        delete out.bound;
+        if (isObject(binding) && binding.kind !== "pinned" && binding.expr) {
+          delete out.text;
+          delete out.literal;
+          out.bind = binding.expr;
+          return out;
+        }
+        if (isObject(binding) && binding.kind === "pinned") {
+          out.literal = true;
+          out.pinned = { expr: binding.expr, value: binding.value === undefined ? "" : binding.value };
+          return out;
+        }
+        if (typeof out.text === "string" && out.text.indexOf("{{") !== -1) out.literal = true;
+        return out;
+      });
+      return next;
+    });
+  }
+
+  /** Stable short fingerprint of a JSON value (template-change detection). */
+  function stableJson(value) {
+    if (Array.isArray(value)) return "[" + value.map(stableJson).join(",") + "]";
+    if (isObject(value)) return "{" + Object.keys(value).sort().map((key) => JSON.stringify(key) + ":" + stableJson(value[key])).join(",") + "}";
+    return JSON.stringify(value === undefined ? null : value);
+  }
+  function fingerprint(value) {
+    const text = stableJson(value);
+    let hash = 0x811c9dc5;
+    for (let i = 0; i < text.length; i += 1) {
+      hash ^= text.charCodeAt(i);
+      hash = Math.imul(hash, 0x01000193) >>> 0;
+    }
+    return hash.toString(36) + "." + text.length.toString(36);
+  }
+
+  /** The text a person edits for a bound value (no currency or unit). */
+  function boundInputText(binding) {
+    const b = binding || {};
+    const value = b.value;
+    if (value === null || value === undefined) return "";
+    if (b.format === "money") return ((Number(value) || 0) / 100).toFixed(2);
+    if (typeof value === "number") return String(Math.round(value * 10000) / 10000);
+    return String(value);
+  }
+
+  /**
+   * What a person typed into a bound value, as the value to store. Money is
+   * typed in currency units and stored in cents. Returns { ok, value } or
+   * { ok: false, reason }.
+   */
+  function parseBoundInput(text, binding) {
+    const b = binding || {};
+    const raw = String(text === null || text === undefined ? "" : text).trim();
+    const numeric = b.format === "money" || b.format === "qty" || b.format === "number" || b.format === "percent" || typeof b.value === "number";
+    if (!numeric) return { ok: true, value: raw };
+    // "$1,200.50", "12.5 sq", "7%": keep the number, drop symbols and units.
+    const cleaned = raw.replace(/[^0-9.\-]/g, "");
+    const number = Number(cleaned);
+    if (!/[0-9]/.test(cleaned) || !Number.isFinite(number)) return { ok: false, reason: "number_expected" };
+    return { ok: true, value: b.format === "money" ? Math.round(number * 100) : number };
   }
 
   // ---------------------------------------------------------------------------
@@ -2517,6 +2789,11 @@
 
     buildScope,
     resolveBindings,
+    bindingTarget,
+    boundBlocksToTemplate,
+    boundInputText,
+    parseBoundInput,
+    fingerprint,
     resolveStyleRef,
     availableStyleRefs,
     mergedComponents,

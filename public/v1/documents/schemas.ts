@@ -42,7 +42,15 @@ export type FMDocModelApi = {
   hasInterpolation: (value: unknown) => boolean;
   evaluateSafe: (expr: string, scope: JsonObject, fallback?: unknown) => unknown;
   buildScope: (data: JsonObject, extra?: JsonObject) => JsonObject;
-  resolveBindings: (document: JsonObject, data: JsonObject) => JsonObject;
+  resolveBindings: (document: JsonObject, data: JsonObject, options?: { trace?: boolean }) => JsonObject;
+  setPath: (target: unknown, path: string | Array<string | number>, value: unknown) => unknown;
+  // Bound inputs (editing a document as sent)
+  bindingTarget: (expr: string, scope: JsonObject) => { path: string | null; format: string | null; format_args: unknown[]; value: unknown; kind: string };
+  boundBlocksToTemplate: (blocks: unknown[]) => JsonObject[];
+  parseBoundInput: (text: unknown, binding: JsonObject) => { ok: true; value: unknown } | { ok: false; reason: string };
+  fingerprint: (value: unknown) => string;
+  findNode: (doc: JsonObject, nodeId: string) => { node: JsonObject } | null;
+  walkNodes: (doc: JsonObject, visit: (node: JsonObject) => unknown) => void;
   resolveThemeTokens: (theme: JsonObject, context: JsonObject) => Record<string, string>;
   themeCssText: (vars: Record<string, string>, selector?: string) => string;
   pageMasterForRole: (theme: JsonObject, role: string) => JsonObject | null;
@@ -357,7 +365,18 @@ export const resolveDocumentSchema = jsonObjectSchema.extend({
   theme_overrides: jsonObjectSchema.optional(),
   // Pricing-scope checkout variables (spec 10.4): { payment_method,
   // processing_fee_percent }. Drives conditional row evaluation.
-  checkout: jsonObjectSchema.optional()
+  checkout: jsonObjectSchema.optional(),
+  // Editing as sent: keep where each bound value came from.
+  trace: z.boolean().optional()
+}).passthrough();
+
+/** POST /documents/:id/inputs: type into values the rendered document shows. */
+export const writeDocumentInputsSchema = jsonObjectSchema.extend({
+  writes: z.array(z.object({
+    path: z.string().trim().min(1).max(400),
+    text: z.union([z.string().max(2000), z.number()])
+  })).min(1).max(50),
+  expected_revision: z.number().int().nonnegative().optional()
 }).passthrough();
 
 /** POST /public/:token/pricing — checkout-state pricing preview. */

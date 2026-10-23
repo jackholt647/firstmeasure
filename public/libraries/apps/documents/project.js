@@ -1987,7 +1987,7 @@
           // Sending is the step's own Send button; these sit to its left. The
           // presentation's own editor and its emailed link are under More.
           return [
-            { id: 'edit_manually', label: 'Edit manually', icon: 'fa-pen-ruler', quiet: true, title: 'Open the finished document in the editor to change it by hand', run: () => setDocView('editor') },
+            { id: 'edit_manually', label: 'Edit manually', icon: 'fa-pen-ruler', quiet: true, title: 'Open the finished document in the editor to change it by hand', run: () => openAsSentEditor() },
             canPresent(options) ? { id: 'present', label: 'Present', icon: 'fa-chalkboard-user', title: 'Present this estimate to the customer', run: () => openPresentation() } : null
           ].filter(Boolean);
         },
@@ -4550,6 +4550,65 @@
           theme: resolved.theme,
           themeContext: { branding: objectValue(window.__APP?.orgBranding || window.Portal?.cfg?.branding), overrides: objectValue(resolved?.theme_vars || state.resolved?.theme_vars) },
           widgetData: resolved.widget_data
+        }
+      });
+    }
+
+    /**
+     * "Edit manually": the document exactly as it will be sent (FMDocSentEditor,
+     * docs/architecture/document-as-sent-editing.md). Values from the data
+     * write the data (POST /inputs); other text is saved as a text override
+     * through the normal document PATCH, so both are document revisions.
+     */
+    async function openAsSentEditor(){
+      if (!state.doc?.id) return;
+      if (!window.FMDocSentEditor?.open) { setDocView('editor'); return; }
+      await flushAllWrites();
+      const traced = async () => objectValue(await api().documents.resolve(orgId(), state.doc.id, { trace: true }));
+      const textOps = (nodeId) => (op) => op?.op === 'node.set' && op.node_id === nodeId && (op.prop === 'props.blocks' || String(op.prop || '').startsWith('props.blocks.'));
+      const patchOverrides = async (next) => {
+        const res = await api().documents.patch(orgId(), state.doc.id, { overrides: next, expected_revision: Number(state.doc.revision || 0) || undefined });
+        const updated = objectValue(res.document || res.doc);
+        state.doc = updated.id ? { ...state.doc, ...updated } : { ...state.doc, overrides: next };
+        state.baseOverrides = next.map((op) => clone(op));
+      };
+      window.FMDocSentEditor.open({
+        title: firstText(state.doc.title, 'Document'),
+        themeContext: { branding: objectValue(window.__APP?.orgBranding || window.Portal?.cfg?.branding) },
+        load: traced,
+        writeInputs: async (writes) => {
+          // Each write names one value, so it applies to the latest data.
+          const res = objectValue(await api().documents.writeInputs(orgId(), state.doc.id, { writes }));
+          if (objectValue(res.document).id) state.doc = { ...state.doc, ...res.document };
+          return res;
+        },
+        // One text override per node, appended last so it applies after any
+        // node.insert that created the node; null puts the template's text back.
+        setTextOverride: async (nodeId, blocks, base) => {
+          await flushAutosave();
+          const kept = arrayValue(state.doc.overrides).filter((op) => !textOps(nodeId)(op));
+          const next = blocks ? [...kept, { op: 'node.set', node_id: nodeId, prop: 'props.blocks', value: blocks, ...(base ? { base } : {}), source: 'as_sent' }] : kept;
+          try { await patchOverrides(next); }
+          catch (error) {
+            if (cleanText(error?.code || error?.data?.error) !== 'document_revision_conflict') throw error;
+            const fresh = objectValue(objectValue(await api().documents.get(orgId(), state.doc.id)).document);
+            if (fresh.id) state.doc = { ...state.doc, ...fresh };
+            const retryKept = arrayValue(state.doc.overrides).filter((op) => !textOps(nodeId)(op));
+            await patchOverrides(blocks ? [...retryKept, next[next.length - 1]] : retryKept);
+          }
+          return traced();
+        },
+        actions: [
+          { id: 'layout', label: 'Edit layout', icon: 'fa-object-group', title: 'Open the template layout editor for this document', run: (editor) => { editor.close(); setDocView('editor'); } },
+          { id: 'pdf', label: 'Download PDF', icon: 'fa-download', run: () => downloadPdf(state.doc, null) },
+          { id: 'done', label: 'Done', icon: 'fa-check', primary: true, run: (editor) => editor.close() }
+        ],
+        onClose: (changed) => {
+          if (!changed) return;
+          state.workflowTouched = true; // the template editor re-resolves on its next open
+          try { state.workflowHandle?.refresh?.({ params: clone(objectValue(state.doc?.params)), outputs: clone(objectValue(state.doc?.outputs)) }); } catch (e) {}
+          try { state.workflowHandle?.refreshPreview?.(); } catch (e) {}
+          renderDocCard();
         }
       });
     }

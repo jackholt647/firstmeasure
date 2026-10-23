@@ -67,6 +67,7 @@ import { registerBuiltinDocumentSources } from "./sources/builtins.js";
 import { buildRenderHarnessHtml } from "./render.js";
 import { renderDocumentFallbackPdf, renderDocumentPdf } from "./pdf.js";
 import { applyInvoiceOnSend, deriveAccountParams, documentPaymentTarget, persistAccountParams } from "./account.js";
+import { applyDocumentInput, classifyTracedBindings, touchedParamKeys, tracedBindings } from "./inputs.js";
 import { ensureDefaultDocumentAssets, ensureScopeDocumentTemplate } from "./seeds.js";
 import { documentRequirementsStatus, documentSignatureRequirement, normalizeCustomerDocumentPresentation } from "./presentation.js";
 import {
@@ -871,6 +872,72 @@ async function patchDocumentInstanceLocked(orgId: string, documentId: string, pa
   return document;
 }
 
+/**
+ * Type into a value the rendered document shows (editing as sent). Each write
+ * names the data path a traced resolution gave the value and the text typed;
+ * only paths this document shows as inputs are accepted, the text is parsed
+ * the way the value is formatted, a data rule may store it (a line amount is
+ * stored as its unit price), and the params go through patchDocumentInstance
+ * like every other document edit (so they are a document revision). Returns
+ * the document and its fresh traced resolution, where everything derived
+ * from the values (line amounts, totals) is recomputed.
+ */
+export async function writeDocumentInputs(orgId: string, documentId: string, input: JsonObject, ctx: PlatformAuthContext) {
+  const current = await readDocumentInstance(orgId, documentId);
+  requireDocumentDepartmentAccess(ctx, current);
+  const expectedRevision = Number(input.expected_revision || 0);
+  if (expectedRevision && expectedRevision !== Number(current.revision || 0)) {
+    throw conflict("document_revision_conflict", "Document revision does not match.");
+  }
+  const writes = asArray(input.writes).map(asObject);
+  if (!writes.length) throw badRequest("document_input_missing", "Nothing to write.");
+  const traced = await resolveDocumentInstance(orgId, current, { trace: true });
+  const bindings = tracedBindings(traced.resolved_definition);
+  const params = cloneJson(asObject(current.params));
+  const paths: string[] = [];
+  for (const write of writes) {
+    const path = cleanText(write.path);
+    const binding = bindings.get(path);
+    if (!binding || binding.kind !== "input") {
+      throw conflict("document_input_not_writable", "That value is not an input of this document.", { path, kind: binding ? binding.kind : null });
+    }
+    const parsed = FMDocModel.parseBoundInput(write.text ?? write.value, binding);
+    if (!parsed.ok) throw badRequest("document_input_invalid", "Type a number.", { path });
+    applyDocumentInput(params, path, parsed.value);
+    paths.push(path);
+  }
+  const changed = Object.fromEntries(touchedParamKeys(paths).map(key => [key, params[key]]));
+  const document = await patchDocumentInstance(orgId, documentId, { params: changed, expected_revision: Number(current.revision || 0) || undefined }, ctx);
+  const resolved = await resolveDocumentInstance(orgId, document, { trace: true });
+  return { document, resolved };
+}
+
+/**
+ * Editing as sent: mark the text nodes an override can address with
+ * as_sent = { fingerprint, edited, conflict }. fingerprint is the template
+ * node's own text; an as-sent text override records it as base, and when the
+ * template's text changes later the override is kept and flagged (conflict)
+ * instead of silently winning or being dropped.
+ */
+function annotateAsSentNodes(resolvedDefinition: JsonObject, templateDefinition: JsonObject, overrides: unknown[]) {
+  const templateText = new Map<string, string>();
+  FMDocModel.walkNodes(templateDefinition, (node) => {
+    if (cleanText(node.type) === "text" && cleanText(node.id)) templateText.set(cleanText(node.id), FMDocModel.fingerprint(asArray(asObject(node.props).blocks)));
+  });
+  const textOps = new Map<string, JsonObject>();
+  for (const op of overrides.map(asObject)) {
+    if (cleanText(op.op) === "node.set" && cleanText(op.prop) === "props.blocks" && cleanText(op.node_id)) textOps.set(cleanText(op.node_id), op);
+  }
+  FMDocModel.walkNodes(resolvedDefinition, (node) => {
+    if (cleanText(node.type) !== "text" || node.generated === true || !cleanText(node.id)) return;
+    const id = cleanText(node.id);
+    const fingerprint = templateText.get(id) || null;
+    const op = textOps.get(id);
+    const base = cleanText(op?.base);
+    node.as_sent = { fingerprint, edited: Boolean(op), conflict: Boolean(op && base && fingerprint && base !== fingerprint) };
+  });
+}
+
 /** Revoke every live public token minted for this document's snapshots so
  *  old links stop resolving. The original token is kept for audit. */
 async function revokeDocumentSnapshotTokens(orgId: string, documentId: string) {
@@ -1237,6 +1304,8 @@ type PricedRowNode = {
   conditional: boolean;
   included: boolean;
   depth: number;
+  /** Where the row lives in the params ("params.scope_items.0.children.2"), when known. */
+  path: string;
   children: PricedRowNode[];
 };
 
@@ -1252,9 +1321,9 @@ function conditionTruthy(expr: string, scope: JsonObject) {
   return Array.isArray(value) ? value.length > 0 : Boolean(value);
 }
 
-function buildPricedRows(rows: unknown[], scope: JsonObject, depth = 0): PricedRowNode[] {
+function buildPricedRows(rows: unknown[], scope: JsonObject, depth = 0, basePath = ""): PricedRowNode[] {
   const out: PricedRowNode[] = [];
-  for (const rowValue of rows) {
+  for (const [rowIndex, rowValue] of rows.entries()) {
     if (!rowValue || typeof rowValue !== "object" || Array.isArray(rowValue)) continue;
     const raw = rowValue as JsonObject;
     const item = enrichScopeRow(raw);
@@ -1274,7 +1343,8 @@ function buildPricedRows(rows: unknown[], scope: JsonObject, depth = 0): PricedR
       conditional,
       included,
       depth,
-      children: buildPricedRows(asArray(raw.children), scope, depth + 1)
+      path: basePath ? `${basePath}.${rowIndex}` : "",
+      children: buildPricedRows(asArray(raw.children), scope, depth + 1, basePath ? `${basePath}.${rowIndex}.children` : "")
     });
   }
   return out;
@@ -1346,6 +1416,9 @@ function collectPricedProjection(nodes: PricedRowNode[]) {
     flat.push({
       ...node.item,
       children: undefined,
+      // The row this projection line shows, so a value typed into the
+      // rendered document is stored on the row (FMDocModel bindingTarget).
+      ...(node.path ? { source_path: node.path } : {}),
       depth: node.depth,
       show_amount: !includedChild,
       // Line-item components pick a layout by row role: a parent heads its
@@ -1371,8 +1444,8 @@ function collectPricedProjection(nodes: PricedRowNode[]) {
  * is 0), so their percent formulas evaluate against the scope/line item base
  * subtotal instead of themselves.
  */
-function enrichConditionalRows(rows: unknown[], pricingScope: JsonObject, options: { formulaBaseCents?: number } = {}) {
-  const nodes = buildPricedRows(asArray(rows), pricingScope);
+function enrichConditionalRows(rows: unknown[], pricingScope: JsonObject, options: { formulaBaseCents?: number; sourcePath?: string } = {}) {
+  const nodes = buildPricedRows(asArray(rows), pricingScope, 0, options.sourcePath || "");
   // rows_subtotal_cents = sum of top-level NON-conditional base amounts. All
   // condition-bearing rows sit outside this sum so formula rows never feed
   // each other and evaluation stays order-independent.
@@ -1502,7 +1575,7 @@ function enrichLineItemParams(params: JsonObject, pricingScope: JsonObject): Jso
   for (const key of ["scope_items", "line_items"]) {
     const rows = next[key];
     if (!Array.isArray(rows) || !rows.length) continue;
-    const priced = enrichConditionalRows(rows, scope);
+    const priced = enrichConditionalRows(rows, scope, { sourcePath: `params.${key}` });
     if (itemsBaseCents === null) itemsBaseCents = priced.base_subtotal_cents;
     // Flat projection for repeaters (resolution-time only, never persisted).
     next[key] = priced.tree;
@@ -1517,7 +1590,7 @@ function enrichLineItemParams(params: JsonObject, pricingScope: JsonObject): Jso
   // params.pricing_conditional_rows for the seeded adjustments repeater.
   const adjustments = next.pricing_adjustments;
   if (Array.isArray(adjustments) && adjustments.length) {
-    const priced = enrichConditionalRows(adjustments, scope, { formulaBaseCents: itemsBaseCents ?? 0 });
+    const priced = enrichConditionalRows(adjustments, scope, { formulaBaseCents: itemsBaseCents ?? 0, sourcePath: "params.pricing_adjustments" });
     next.pricing_adjustments = priced.tree;
     next.pricing_rows = priced.rows;
     next.pricing_conditional_rows = priced.conditional_rows;
@@ -1529,10 +1602,12 @@ function enrichLineItemParams(params: JsonObject, pricingScope: JsonObject): Jso
   // the list when it is absent (three-option workflow).
   const optionsValue = normalizedProposalOptions(next);
   if (Array.isArray(optionsValue) && optionsValue.length) {
-    next.proposal_options = optionsValue.map((value) => {
+    const explicitOptions = asArray(params.proposal_options).length > 0;
+    next.proposal_options = optionsValue.map((value, optionIndex) => {
       const option = asObject(value);
       if (!Array.isArray(option.items) || !option.items.length) return option;
-      const priced = enrichConditionalRows(option.items, scope);
+      const sourcePath = explicitOptions ? `params.proposal_options.${optionIndex}.items` : `params.${cleanText(option.id)}_items`;
+      const priced = enrichConditionalRows(option.items, scope, { sourcePath });
       return {
         ...option,
         items: priced.tree,
@@ -1683,6 +1758,8 @@ export async function resolveDocumentInstance(
     target?: "static" | "interactive";
     /** Pricing scope checkout variables ({ payment_method, processing_fee_percent }). */
     checkout?: JsonObject;
+    /** Keep where each bound value came from (editing as sent); renders the same. */
+    trace?: boolean;
   } = {}
 ) {
   if (cleanText(asObject(documentValue.module_ref).execution_id) && Object.keys(asObject(documentValue.module_resolved)).length) {
@@ -1789,7 +1866,11 @@ export async function resolveDocumentInstance(
     // collection can layer in here later without changing the call shape.
     components: FMDocModel.mergedComponents(workingDefinition, asObject(definition.components))
   };
-  const resolvedDefinition = FMDocModel.resolveBindings(workingDefinition, scopeData);
+  const resolvedDefinition = FMDocModel.resolveBindings(workingDefinition, scopeData, options.trace ? { trace: true } : undefined);
+  if (options.trace) {
+    classifyTracedBindings(resolvedDefinition, documentValue);
+    annotateAsSentNodes(resolvedDefinition, definition, overrides);
+  }
   // Media picker refs ({media_id, variant}) become loadable URLs; static/PDF
   // resolution inlines them as data URIs like widget static renders do.
   await attachImageMediaUrls(orgId, resolvedDefinition, staticTarget);

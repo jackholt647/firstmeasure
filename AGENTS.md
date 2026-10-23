@@ -79,6 +79,21 @@ appointments domain writer using an appointment type; do not compute slots or
 write events in `public/v1/forms`. Run `npm run test:forms` and
 `npm run test:forms:browser` in `public/v1` for changes to these contracts.
 
+## Editing documents as sent
+
+Read [editing a document as sent](docs/architecture/document-as-sent-editing.md)
+before changing "Edit manually", binding resolution (`resolveBindings` trace),
+document input rules or `/documents/:id/inputs`. The editor shows the same
+render the PDF is made from. A value from the document's data is an input:
+typing writes the data through `writeDocumentInputs` (which saves with
+`patchDocumentInstance`) and everything derived recomputes; totals and other
+calculated values are never typed. Other text is a `props.blocks` override
+whose bindings stay live, with `base` set so a later template change is
+flagged, not lost. Add behavior for a kind of data as an input rule in
+`documents/inputs.ts`, never per template. Run
+`tests/document-as-sent-editing.test.ts` and
+`tests/doc-sent-editor-browser.test.mjs` for changes here.
+
 ## App experience
 
 Read [app experience](docs/architecture/app-experience.md) before changing which

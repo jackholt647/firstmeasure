@@ -490,3 +490,16 @@ already did.
 **Why it can wait.** Both run once per refund or per unmatched processor event, on one organization's records.
 (docs/architecture/payments.md "Not built")
 
+
+## Typing into a document as sent resolves it twice
+
+**Today.** `writeDocumentInputs` (`public/v1/documents/service.ts`) runs a full traced resolution of the document to
+check that every written path is an input the document shows, then saves and resolves it again to return the
+recomputed page. Each resolution reads the template, the project entities, sources and widget data.
+
+**Where the change goes.** Validate the paths against the traced bindings the editor already has (cached per document
+revision on the server), so only the post-write resolution runs. The paths accepted and the page returned stay the
+same.
+
+**Why it can wait.** It runs once per typed value, by one person, on one draft; a resolution takes well under a second
+on dev. (docs/architecture/document-as-sent-editing.md, "Writing an input")

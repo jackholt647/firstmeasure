@@ -25,6 +25,7 @@ import {
   publicViewEventSchema,
   publicPricingPreviewSchema,
   resolveDocumentSchema,
+  writeDocumentInputsSchema,
   ingestDocumentSchema,
   voidDocumentInstanceSchema,
   templateFromExamplesSchema,
@@ -114,6 +115,7 @@ import {
   recordDocumentOutput,
   recordPublicDocumentView,
   resolveDocumentInstance,
+  writeDocumentInputs,
   sendDocument,
   updateDocumentWorkflowState,
   voidDocumentInstance,
@@ -765,7 +767,8 @@ export const registerDocumentsApi: FastifyPluginAsync = async (app) => {
       overrides: Object.prototype.hasOwnProperty.call(body, "overrides") ? (body.overrides as unknown[]) : undefined,
       themeRef: Object.prototype.hasOwnProperty.call(body, "theme_ref") ? asObject(body.theme_ref) : undefined,
       themeOverrides: asObject(body.theme_overrides),
-      checkout: Object.prototype.hasOwnProperty.call(body, "checkout") ? asObject(body.checkout) : undefined
+      checkout: Object.prototype.hasOwnProperty.call(body, "checkout") ? asObject(body.checkout) : undefined,
+      trace: body.trace === true
     });
     return {
       ok: true,
@@ -778,6 +781,22 @@ export const registerDocumentsApi: FastifyPluginAsync = async (app) => {
       // client-side live preview resolves the WORKING doc against this, so it
       // must match what the server resolved with.
       scope: resolved.scope
+    };
+  });
+
+  /** Editing as sent: type into values the rendered document shows (bound inputs). */
+  app.post("/organizations/:orgId/documents/:documentId/inputs", async (request) => {
+    const orgId = getParam(request.params, "orgId");
+    const ctx = await requirePlatformAuth(request, { orgId, csrf: true, permission: "view_projects", allowScopedPermission: true });
+    const body = writeDocumentInputsSchema.parse(request.body ?? {});
+    const { document, resolved } = await writeDocumentInputs(orgId, getParam(request.params, "documentId"), body, ctx);
+    return {
+      ok: true,
+      document,
+      resolved_definition: resolved.resolved_definition,
+      widget_data: resolved.widget_data,
+      theme: resolved.theme,
+      theme_vars: resolved.theme_vars
     };
   });
 

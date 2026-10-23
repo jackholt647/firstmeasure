@@ -1175,7 +1175,8 @@ a.fmdoc-run { color: var(--fmdoc-primary); text-decoration: underline; }
     // block (Docs behavior) unless the next run carries list_continue.
     let listCounters = [];
     let savedCounters = [];
-    for (const block of blocks) {
+    for (let blockIndex = 0; blockIndex < blocks.length; blockIndex += 1) {
+      const block = blocks[blockIndex];
       // collapse_empty: a block whose bindings resolved to nothing takes no
       // line (optional descriptions, badges). Unresolved templates still show
       // it, so the block stays editable in the designer.
@@ -1183,6 +1184,9 @@ a.fmdoc-run { color: var(--fmdoc-primary); text-decoration: underline; }
       const blockEl = h("div", "fmdoc-block fmdoc-block--" + (block.type || "paragraph"));
       if (block.markdown && block.markdown.kind === "code") { blockEl.style.whiteSpace = "pre-wrap"; blockEl.style.fontFamily = "monospace"; }
       if (block.id) blockEl.setAttribute("data-block-id", String(block.id));
+      // Model positions, so an editor working on the rendered document (as
+      // sent) can map edited text back to blocks and runs.
+      blockEl.setAttribute("data-block-index", String(blockIndex));
       if (block.type === "heading") blockEl.setAttribute("data-level", String(block.level || 1));
       // Style precedence: style_ref (doc.styles over theme.type_styles) — else
       // the theme type style — then node style, block-level fields, per-run
@@ -1254,7 +1258,14 @@ a.fmdoc-run { color: var(--fmdoc-primary); text-decoration: underline; }
         blockEl.style.paddingRight = "4pt";
         if (!isList && !block.indent) blockEl.style.paddingLeft = "4pt";
       }
-      for (const run of block.runs || []) blockEl.appendChild(renderRun(run, rctx));
+      (block.runs || []).forEach((run, runIndex) => {
+        const runEl = renderRun(run, rctx);
+        runEl.setAttribute("data-run-index", String(runIndex));
+        // A traced resolution (FMDocModel resolveBindings trace) says where a
+        // bound value comes from; only editors read this.
+        if (isObject(run.binding) && run.binding.kind) runEl.setAttribute("data-binding-kind", String(run.binding.kind));
+        blockEl.appendChild(runEl);
+      });
       elm.appendChild(blockEl);
     }
   }
