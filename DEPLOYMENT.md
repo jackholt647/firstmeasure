@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+October 23 Signup language on dev: [No Country or Language dropdowns, signups never refused, and the visitor's language handed from landing page (?lang + fm_lang cookie) through login, signup, onboarding and the organization in all 17 packs](deploy/digitalocean/development-signup-language-20261023.md) records `e7144481` and `52df0758` (1M8-240) on worker, legacy and web; the website droplets still need handoff.js.
+
 October 23 Signup lists on dev: [Country and Language are styled lists limited to Ben's 21 operating countries and their languages, the phone placeholder is the chosen calling code's own example, and signups choosing another country are refused](deploy/digitalocean/development-signup-lists-20261023.md) records release `eef3b3fa` (1M8-240), cut from `codex/hotfix-20261023o`.
 
 October 23 1M8-242 on dev: [imported accounts show their logo on reports (the editor context preferred the legacy relative key over the platform logo URL)](deploy/digitalocean/development-legacy-logos-20261023.md) records release `712de6b4` on worker, legacy and web. Not on canonical or production.
