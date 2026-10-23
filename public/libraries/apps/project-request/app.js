@@ -2358,6 +2358,8 @@ window.PlatformCommerce.onReady(async function(){
       .r-overlay.mobile-order.mobile-order-location #rExteriorOrder .ext-pages{margin-top:0}
       .r-overlay.mobile-order.mobile-order-location #rExteriorOrder .ext-choice{min-height:62px}
       .r-overlay.mobile-order.mobile-order-location #rExteriorOrder #rConfirm{margin:7px 0 0}
+      .r-overlay.mobile-order.mobile-order-location .r-tab-content>.r-tab-main{order:1}
+      .r-overlay.mobile-order.mobile-order-location .r-tab-content>.r-overview-details{order:2;border-top:1px solid #eaecf0}
       .pac-container{border:1px solid #d0d5dd!important;border-radius:14px!important;box-shadow:0 14px 36px rgba(15,23,42,.18)!important;overflow:hidden;font-family:inherit!important}
       .pac-item{min-height:48px;box-sizing:border-box;padding:9px 12px!important;border-top:1px solid #eef0f4!important;font-size:13px!important;line-height:1.5!important;color:#667085!important;white-space:normal}
       .pac-item:first-child{border-top:0!important}
@@ -2804,7 +2806,7 @@ window.PlatformCommerce.onReady(async function(){
       // re-enable it while an order is in flight (setSubmitBusyLabel shows a spinner).
       if (submit && !submit.querySelector('.r-submit-spinner')) submit.disabled = blocked;
       order.disabled = !orderVisible || blocked || submit.disabled;
-      const label = window.Portal.ExteriorOrder?.active() ? (globalThis.PlatformLanguage?.text("project-request","order_full_structure","Order Full Structure") ?? "Order Full Structure") : (submit?.textContent?.trim() || (globalThis.PlatformLanguage?.text("project-request","order_roof_report","Order Roof Report") ?? "Order Roof Report"));
+      const label = window.Portal.ExteriorOrder?.active() ? (globalThis.PlatformLanguage?.text("project-request","order_full_exterior","Order Full Exterior") ?? "Order Full Exterior") : (submit?.textContent?.trim() || (globalThis.PlatformLanguage?.text("project-request","order_roof_report","Order Roof Report") ?? "Order Roof Report"));
       order.textContent = label;
       if(orderSubmissionPending)setSubmitBusyLabel(order,'Ordering…');
     }
@@ -5699,10 +5701,10 @@ window.PlatformCommerce.onReady(async function(){
 
   function reportAddonInfo(key){
     if (key === 'full_house') return {
-      title: (globalThis.PlatformLanguage?.text("project-request","m_4a6c4929742fbe","Full Structure report") ?? "Full Structure report"),
+      title: (globalThis.PlatformLanguage?.text("project-request","full_exterior_report","Full Exterior report") ?? "Full Exterior report"),
       body: (globalThis.PlatformLanguage?.text("project-request","m_0d21d7d3136fc9","Exterior measurements for the whole house, including the roof.") ?? "Exterior measurements for the whole house, including the roof."),
       bullets: [(globalThis.PlatformLanguage?.text("project-request","m_97e57acb52769a","Walls, windows, doors, and siding areas.") ?? "Walls, windows, doors, and siding areas."), (globalThis.PlatformLanguage?.text("project-request","m_1274bb24b43206","Roof and gutter measurements included.") ?? "Roof and gutter measurements included."), (globalThis.PlatformLanguage?.text("project-request","m_b120ceb5e3ac9e","Eight reference photos per structure are required.") ?? "Eight reference photos per structure are required.")],
-      sample: {label: (globalThis.PlatformLanguage?.text("project-request","m_e1fd389d2c4cb3","Download sample Full Structure report") ?? "Download sample Full Structure report"), url: 'samples/full_house_sample.pdf'}
+      sample: {label: (globalThis.PlatformLanguage?.text("project-request","full_exterior_sample_download","Download sample Full Exterior report") ?? "Download sample Full Exterior report"), url: 'samples/full_house_sample.pdf'}
     };
     if (key === 'roof') return {
       title: (globalThis.PlatformLanguage?.text("project-request","m_874db260d86062","Roof Only report") ?? "Roof Only report"), body: (globalThis.PlatformLanguage?.text("project-request","m_f1775523edde74","Your roof measurement report.") ?? "Your roof measurement report."),
@@ -5793,13 +5795,20 @@ window.PlatformCommerce.onReady(async function(){
     return `<span class="r-info-tip r-addon-info-trigger" data-addon-info-trigger="${String(escapeHtml(key))}" role="button" tabindex="0" aria-label="${((v1) => globalThis.PlatformLanguage?.htmlText("project-request","m_6e4ba38fa02b85",`${v1} information`,{v1}) ?? `${v1} information`)(escapeHtml(info.title))}"><i class="fas fa-info"></i></span>`;
   }
 
+  // The first order page puts the address under the map on phones, so Google's suggestions open above the field
+  // rather than off-screen or under the keyboard.
+  if(!window.__fmAddressSuggestionsAbove&&typeof MutationObserver==='function'){window.__fmAddressSuggestionsAbove=true;
+    const place=pac=>{const input=document.activeElement;if(!input||input.id!=='rAddress'||!input.closest('.r-overlay.mobile-order.mobile-order-location'))return;if(getComputedStyle(pac).display==='none')return;
+      const top=Math.max(4,window.scrollY+input.getBoundingClientRect().top-pac.offsetHeight-6)+'px';if(pac.style.top!==top)pac.style.top=top;};
+    new MutationObserver(records=>{for(const record of records){const node=record.target;if(node.classList?.contains('pac-container'))place(node);for(const added of record.addedNodes||[])if(added.classList?.contains('pac-container'))place(added);}}).observe(document.body,{subtree:false,childList:true,attributes:true,attributeFilter:['style'],attributeOldValue:false});
+    document.addEventListener('input',event=>{if(event.target?.id==='rAddress')requestAnimationFrame(()=>document.querySelectorAll('.pac-container').forEach(place));},true);}
+
   function buildTypeButtons(){
     const pricingLabels = Object.fromEntries(['residential','commercial','multifamily'].map(type => [type, globalThis.PlatformLanguage?.text('project-request', type === 'residential' ? 'price_flat_rate' : 'price_per_structure', fmtCredit(reportDisplayedBasePrice(type)) + (type === 'residential' ? ' flat rate' : ' / structure'), {price:fmtCredit(reportDisplayedBasePrice(type))})]));
     return Object.entries(TYPE_META).map(([key, meta]) => `
       <button type="button" class="r-type-btn" data-type="${key}">
         <div class="r-type-icon"><i class="fas ${meta.icon}"></i></div>
         <div class="r-type-label">${meta.label}</div>
-        <div class="r-type-price">${pricingLabels[key]}</div>
       </button>`).join('');
   }
 
@@ -10390,7 +10399,7 @@ window.PlatformCommerce.onReady(async function(){
       capturePendingOrder();
       showToast((globalThis.PlatformLanguage?.text("project-request","m_a394c59c2a89db_currency","No credits") ?? "No credits"), ((v0) => globalThis.PlatformLanguage?.text("project-request","m_b97feb346e3fae_currency",`You need ${v0} to place this report order.`,{v0}) ?? `You need ${v0} to place this report order.`)(fmtCredit(price)), false);
       await openReportCreditGateTopup({
-        label: window.Portal.ExteriorOrder?.active() ? (globalThis.PlatformLanguage?.text("project-request","audit_60e9af1cbdcdac","this Full Structure report") ?? "this Full Structure report") : (globalThis.PlatformLanguage?.text("project-request","audit_3f50e8ab670539","this roof report") ?? "this roof report"),
+        label: window.Portal.ExteriorOrder?.active() ? (globalThis.PlatformLanguage?.text("project-request","this_full_exterior_report","this Full Exterior report") ?? "this Full Exterior report") : (globalThis.PlatformLanguage?.text("project-request","audit_3f50e8ab670539","this roof report") ?? "this roof report"),
         required: price,
         balance: cachedBalance,
         context: 'credit_gate'
@@ -10404,7 +10413,7 @@ window.PlatformCommerce.onReady(async function(){
     capturePendingOrder();
     showToast((globalThis.PlatformLanguage?.text("project-request","m_a394c59c2a89db_currency","No credits") ?? "No credits"), ((v0) => globalThis.PlatformLanguage?.text("project-request","m_b97feb346e3fae_currency",`You need ${v0} to place this report order.`,{v0}) ?? `You need ${v0} to place this report order.`)(fmtCredit(price)), false);
     await openReportCreditGateTopup({
-      label: window.Portal.ExteriorOrder?.active() ? (globalThis.PlatformLanguage?.text("project-request","audit_60e9af1cbdcdac","this Full Structure report") ?? "this Full Structure report") : (globalThis.PlatformLanguage?.text("project-request","audit_3f50e8ab670539","this roof report") ?? "this roof report"),
+      label: window.Portal.ExteriorOrder?.active() ? (globalThis.PlatformLanguage?.text("project-request","this_full_exterior_report","this Full Exterior report") ?? "this Full Exterior report") : (globalThis.PlatformLanguage?.text("project-request","audit_3f50e8ab670539","this roof report") ?? "this roof report"),
       required: price,
       balance: bal,
       context: 'credit_gate'
@@ -10787,7 +10796,7 @@ window.PlatformCommerce.onReady(async function(){
         if (String(msg).toLowerCase().includes('credit')) {
           capturePendingOrder();
           await openReportCreditGateTopup({
-            label: window.Portal.ExteriorOrder?.active() ? (globalThis.PlatformLanguage?.text("project-request","audit_60e9af1cbdcdac","this Full Structure report") ?? "this Full Structure report") : (globalThis.PlatformLanguage?.text("project-request","audit_3f50e8ab670539","this roof report") ?? "this roof report"),
+            label: window.Portal.ExteriorOrder?.active() ? (globalThis.PlatformLanguage?.text("project-request","this_full_exterior_report","this Full Exterior report") ?? "this Full Exterior report") : (globalThis.PlatformLanguage?.text("project-request","audit_3f50e8ab670539","this roof report") ?? "this roof report"),
             required: currentPrice(),
             balance: Number(window.Portal?.credits?.lastCredits),
             context: 'server_credit_reject'
@@ -10799,7 +10808,7 @@ window.PlatformCommerce.onReady(async function(){
         return;
       }
       try { localStorage.removeItem(PENDING_ORDER_KEY); } catch (ex) {}
-      showToast(data.development_report ? (globalThis.PlatformLanguage?.text("project-request","audit_88430f2c58bbce","Development report ready") ?? "Development report ready") : (payload.measurement_scope === 'full_house' ? (globalThis.PlatformLanguage?.text("project-request","full_report_ordered","Full Structure report ordered") ?? "Full Structure report ordered") : (globalThis.PlatformLanguage?.text("project-request","roof_report_ordered","Roof report ordered") ?? "Roof report ordered")), data.development_report ? (globalThis.PlatformLanguage?.text("project-request","audit_7cf4af8eebae35","Existing report files are ready to view.") ?? "Existing report files are ready to view.") : (getAfterHoursMessage() || (globalThis.PlatformLanguage?.text("project-request","report_processing","Report is now processing.") ?? "Report is now processing.")), true);
+      showToast(data.development_report ? (globalThis.PlatformLanguage?.text("project-request","audit_88430f2c58bbce","Development report ready") ?? "Development report ready") : (payload.measurement_scope === 'full_house' ? (globalThis.PlatformLanguage?.text("project-request","full_exterior_report_ordered","Full Exterior report ordered") ?? "Full Exterior report ordered") : (globalThis.PlatformLanguage?.text("project-request","roof_report_ordered","Roof report ordered") ?? "Roof report ordered")), data.development_report ? (globalThis.PlatformLanguage?.text("project-request","audit_7cf4af8eebae35","Existing report files are ready to view.") ?? "Existing report files are ready to view.") : (getAfterHoursMessage() || (globalThis.PlatformLanguage?.text("project-request","report_processing","Report is now processing.") ?? "Report is now processing.")), true);
       const shouldUpdateExistingProject = !!String(payload.platform_project_id || payload.base_project_id || '').trim();
       reorderMeasurementProjectId = '';
       reorderSourceCanReopenInPlace = false;
