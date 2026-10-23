@@ -18,7 +18,7 @@ kind of document asset.
 | **Subject** | What has a history: a document (`document`), a template (`document_template`), a theme (`document_theme`) or a workflow (`document_workflow`). |
 | **State** | What a version is: the subject's whole stored record, less `revision`, `updated_at` and `updated_by_user_id` (kept on the revision row instead). A template's state also holds the definition it published. |
 | **Revision** | One numbered version of a subject (1, 2, 3…). It stores either its whole state (a **checkpoint**) or a **patch** from the revision before it, and the sha256 of its state. |
-| **Cut** | Why a revision exists: `created`, `baseline`, `edit`, `named`, `restore`, `present`, `present_choices`, `snapshot`, `pdf`, `issue`, `send`, `view`, `response`, `payment`, `sign`, `complete`, `decline`, `void`, `expire`, `workflow`, `upload`, `manual_edit`, `publish`. |
+| **Cut** | Why a revision exists: `created`, `baseline`, `edit`, `named`, `restore`, `present`, `present_choices`, `snapshot`, `pdf`, `issue`, `send`, `view`, `response`, `payment`, `sign`, `seal`, `complete`, `decline`, `void`, `expire`, `workflow`, `upload`, `manual_edit`, `publish`. |
 | **Source** | Who or what made it: `person`, `agent`, `automation`, `module`, `generator` or `system`, from `history/source.ts`, plus an actor label for someone who is not a user (a signer's name, "customer"). |
 
 ## Where it lives
@@ -60,8 +60,9 @@ cut (a send that takes a snapshot is a send), and a change scoped to one
 document never reaches saves of another. Without a declared change, the cut is
 inferred: a first save is `created`; a status that moves to sent, viewed,
 signed, completed, declined, void or expired cuts that lifecycle revision even
-under a plain edit; a change of responses is `response`; anything else is
-`edit`.
+under a plain edit; a save that only replaces `signing.final_pdf_hash` is the
+e-sign seal (`seal`); a change of responses is `response`; anything else is
+`edit`. A signature is attributed to the signer by name.
 
 Lifecycle steps wrapped today: `patchDocumentInstance` (edit),
 `voidDocumentInstance`, `updateUploadedDocumentFields`,
@@ -94,7 +95,7 @@ revision counts its saves (`edits`).
 
 Revision 1 is a checkpoint. After that a revision is a patch unless:
 
-- its cut is `sign`, `complete`, `baseline` or `created`, or the status just
+- its cut is `sign`, `seal`, `complete`, `baseline` or `created`, or the status just
   became signed or completed: an executed state is stored whole, so it is
   rebuilt from one row;
 - 32 patches have followed the last checkpoint; or

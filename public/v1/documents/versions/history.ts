@@ -89,7 +89,7 @@ export type RecordRevisionInput = {
 /** Cuts that fold repeated saves by the same actor into one revision. */
 export const COALESCING_CUTS = new Set(["edit", "view", "response"]);
 /** Cuts whose state is stored whole so it is rebuilt from one row. */
-export const CHECKPOINT_CUTS = new Set(["sign", "complete", "baseline", "created"]);
+export const CHECKPOINT_CUTS = new Set(["sign", "seal", "complete", "baseline", "created"]);
 export const CHECKPOINT_EVERY = 32;
 export const IDLE_MS = 5 * 60 * 1000;
 export const SPAN_MS = 30 * 60 * 1000;
@@ -281,7 +281,8 @@ export async function recordRevision(input: RecordRevisionInput): Promise<Revisi
     const ops: PatchOp[] = head ? diffJson(tipState, state) : [];
     if (head && !ops.length && !input.marker) return null;
     const decided = input.decide?.(tipState, state) || null;
-    input = { ...input, cut: decided?.cut || input.cut, checkpoint: input.checkpoint || decided?.checkpoint, actorLabel: input.actorLabel || decided?.actorLabel };
+    // A signer's name says more than the generic "customer" the operation declared.
+    input = { ...input, cut: decided?.cut || input.cut, checkpoint: input.checkpoint || decided?.checkpoint, actorLabel: decided?.actorLabel || input.actorLabel };
 
     const key = actorKey(input.source, input.actorLabel);
     const encodedState = encodePayload(state);
@@ -300,7 +301,7 @@ export async function recordRevision(input: RecordRevisionInput): Promise<Revisi
       const foldedOps = parentState === null ? [] : diffJson(parentState, state);
       const payload = asCheckpoint ? encodedState : encodePayload(foldedOps);
       const attributes = { ...parse(tip.attributes_json, {} as Record<string, unknown>), ...(input.attributes || {}) };
-      const sections = parentState === null ? touchedSections(diffJson({}, state)) : touchedSections(foldedOps);
+      const sections = parentState === null ? [] : touchedSections(foldedOps);
       const previousChain = Number(tip.chain_bytes || 0) - Number(tip.stored_bytes || 0);
       await db.prepare(`UPDATE document_revisions SET kind=?, base_seq=?, payload=?, state_bytes=?, stored_bytes=?, chain_bytes=?, checksum=?,
         label=?, status=?, subject_revision=?, snapshot_id=?, sections_json=?, attributes_json=?, edits=edits+1, updated_at=?
@@ -324,7 +325,8 @@ export async function recordRevision(input: RecordRevisionInput): Promise<Revisi
       || chainBefore + (encodedOps?.length || 0) >= encodedState.length;
     const payload = asCheckpoint ? encodedState : encodedOps!;
     const baseSeq = asCheckpoint ? seq : (text(tip?.kind) === "checkpoint" ? Number(tip!.seq) : Number(tip!.base_seq));
-    const sections = head ? touchedSections(ops) : touchedSections(diffJson({}, state));
+    // The first revision touched everything; listing every field says nothing.
+    const sections = head ? touchedSections(ops) : [];
     await insertRevision(db, orgId, {
       subject_type: subjectType, subject_id: subjectId, seq, kind: asCheckpoint ? "checkpoint" : "patch", base_seq: baseSeq,
       encoding: CURRENT_ENCODING, format: REVISION_FORMAT, payload, state_bytes: stateBytes, stored_bytes: payload.length,

@@ -324,6 +324,9 @@ test("edit, present, send and sign each cut a revision; the signed version is st
   const signed = listed.revisions.find((revision: any) => revision.status === final.status && ["sign", "complete"].includes(revision.cut));
   assert.ok(signed, "a revision holds the executed state");
   assert.equal(signed.kind, "checkpoint");
+  assert.equal(signed.actor_label, "Alice", "a signature is attributed to the signer by name");
+  for (const seal of listed.revisions.filter((revision: any) => revision.cut === "seal")) assert.equal(seal.kind, "checkpoint", "the sealed state is stored whole");
+  assert.deepEqual(listed.revisions[listed.revisions.length - 1].sections, [], "the first revision lists no touched sections");
   const rebuilt = await history.reconstructRevision(orgId, "document", id, listed.revisions[0].seq);
   assert.equal(stableStringify(rebuilt!.state), stableStringify(versions.documentState(final)), "newest revision equals the stored record exactly");
   const signedState = (await history.reconstructRevision(orgId, "document", id, signed.seq))!.state as any;

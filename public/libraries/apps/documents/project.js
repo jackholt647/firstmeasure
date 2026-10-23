@@ -3531,6 +3531,7 @@
       response: ['fa-reply', (globalThis.PlatformLanguage?.text("documents","m_df6de9f6437847","Response recorded") ?? "Response recorded")],
       payment: ['fa-credit-card', (globalThis.PlatformLanguage?.text("documents","m_e14ce2b0e5f1e9","Payment recorded") ?? "Payment recorded")],
       sign: ['fa-signature', (globalThis.PlatformLanguage?.text("documents","m_ab7ec8db303996","Signed") ?? "Signed")],
+      seal: ['fa-lock', (globalThis.PlatformLanguage?.text("documents","m_3b8d377d02332b","Sealed") ?? "Sealed")],
       complete: ['fa-circle-check', (globalThis.PlatformLanguage?.text("documents","m_3c4d2141b2fa1c","Completed") ?? "Completed")],
       decline: ['fa-circle-xmark', (globalThis.PlatformLanguage?.text("documents","m_bf5390659e3677","Declined") ?? "Declined")],
       void: ['fa-ban', (globalThis.PlatformLanguage?.text("documents","m_9629786e01442d","Voided") ?? "Voided")],

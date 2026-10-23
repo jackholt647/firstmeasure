@@ -91,6 +91,10 @@ export function inferDocumentCut(previous: JsonObject | null, next: JsonObject, 
   const executed = before !== after && EXECUTED_STATUSES.has(after);
   let cut = declared;
   if (statusCut && (!declared || declared === "edit" || COALESCING_CUTS.has(declared))) cut = statusCut;
+  // The e-sign seal replaces the executed PDF's hash after signing: the final, sealed state.
+  const sealed = !cut && stableStringify(asObject(previous.signing).final_pdf_hash) !== stableStringify(asObject(next.signing).final_pdf_hash)
+    && stableStringify({ ...previous, signing: null }) === stableStringify({ ...next, signing: null });
+  if (sealed) return { cut: "seal", checkpoint: true, actorLabel: "" };
   if (!cut) cut = stableStringify(previous.outputs) !== stableStringify(next.outputs) ? "response" : "edit";
   const signers = cut === "sign" || cut === "complete" || executed ? newSigners(previous, next) : "";
   return { cut, checkpoint: executed, actorLabel: signers };
@@ -246,7 +250,7 @@ export async function readDocumentRevision(orgId: string, documentId: string, re
 export async function viewDocumentRevision(orgId: string, documentId: string, ref: string) {
   const document = await readDocumentInstance(orgId, documentId);
   const { record, state, at } = await revisionState(orgId, DOCUMENT_SUBJECT, documentId, ref);
-  const frozen = record && ["send", "sign", "complete", "snapshot", "pdf"].includes(record.cut) && record.snapshot_id
+  const frozen = record && ["send", "sign", "seal", "complete", "snapshot", "pdf"].includes(record.cut) && record.snapshot_id
     ? await readDocumentSnapshot(orgId, record.snapshot_id).catch(() => null)
     : null;
   if (frozen && Object.keys(asObject(frozen.resolved_definition)).length) {
