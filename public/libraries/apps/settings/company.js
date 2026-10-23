@@ -13629,7 +13629,7 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
         const general = state.report_general || {};
         const draw = () => window.FirstMateReportPreview?.render(host, { settings:state.report_customer, general, logo:logoKey(state.logo), primary:state.primary, secondary:state.secondary, exteriors:exteriorReportsEnabled(), orientation:general.report_orientation === 'landscape' ? 'landscape' : 'portrait', exteriorOrientation:general.exterior_report_orientation === 'portrait' ? 'portrait' : 'landscape' });
         if (window.FirstMateReportPreview) { draw(); return; }
-        if (!window.__fmReportPreviewLoading) window.__fmReportPreviewLoading = new Promise((resolve, reject) => { const script = document.createElement('script'); script.src = '/libraries/apps/settings/report-preview.js?v=20261023-full-exterior-sample'; script.onload = resolve; script.onerror = reject; document.head.append(script); });
+        if (!window.__fmReportPreviewLoading) window.__fmReportPreviewLoading = new Promise((resolve, reject) => { const script = document.createElement('script'); script.src = '/libraries/apps/settings/report-preview.js?v=20261023-full-exterior-sample-2'; script.onload = resolve; script.onerror = reject; document.head.append(script); });
         window.__fmReportPreviewLoading.then(draw).catch(() => { window.__fmReportPreviewLoading = null; host.textContent = settingsText("fm_report_preview_failed", "The report preview could not load."); });
       };
       renderSample();

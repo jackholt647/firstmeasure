@@ -726,6 +726,8 @@
     .rpv-full{position:absolute;left:0;top:0;width:100%;height:100%;display:block}
     .rpv-status{align-self:center;padding:48px 16px;color:#667085;font-size:13px;font-weight:600;text-align:center}
     .rpv-tabs[hidden]{display:none}
+    .rpv-bar{flex-wrap:wrap}
+    .rpv-tab{white-space:nowrap}
     .rpv-pill{position:absolute;display:flex;align-items:center;white-space:pre;background:var(--rpv-primary);color:#fff;font-weight:700}
   `;
   function injectCss(){
