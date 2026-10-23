@@ -135,5 +135,6 @@ Shipped one role at a time to worker, legacy, web and pool (`ship-each.sh`, file
 the archive test); legacy's first activation was refused by another session's activation and the retry went through.
 The final `verify` stopped at web because another session had activated web since. An audit of all four roles then
 found this change's files identical to the commit everywhere (`platform/storage.ts` with host-only differences around
-the change). The search session's later `viewer.html` addition (`session-replay-agent-access.js`, `177d54df`) was not
-live on legacy, web or pool at that audit; that is its rollout, not this one.
+the change). An earlier version of this record said the search session's `viewer.html` (`177d54df`) was not live:
+that compared a stale copy saved by the first rollout's audit. Dev serves it (`session-replay-viewer.css?v=20261022-2`
+and `session-replay-agent-access.js`, which answers 200), as the search session confirmed on each host.
