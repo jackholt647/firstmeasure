@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+October 22 People and Settings access on dev: [admins can suspend, archive and revoke other super admins while the owner and the last super admin stay protected (also on the server), and Settings is hidden from people it has no page for](deploy/digitalocean/development-users-settings-20261022.md) records release `e9bfef63` (1M8-235/236), cut from `codex/hotfix-20261023e`, and the verified four-role development rollout.
+
 October 22 1M8-225 Customers tab on dev: [customer pages read their organizations in batched queries and full summaries are compacted per batch, so a page no longer queues about 1,600 reads on the compatibility pool and a Country sort no longer exhausts a worker heap](deploy/digitalocean/development-customers-batch-20261022.md) records hotfix branch `claude/customers-batch-reads-20261022` (`e3db0de0`, on `codex/release-20261022b`) and the verified four-role development rollout. Not on production.
 
 October 22 RELEASE CANDIDATE on dev: [`codex/release-candidate-20261022` combines the five Linear fix branches (billing, portal, accounts, Europe and 1M8-228, editor paste and pitch shortcut) on production `8c908166`; tests match production's and it awaits the team click-through](deploy/digitalocean/development-release-candidate-20261022.md). Not on production.
