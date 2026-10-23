@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+October 22 Session replay search for coding agents: [access keys and an MCP endpoint so Claude Code or Codex can question the session replays remotely](deploy/digitalocean/development-session-replay-agent-20261022.md) records release `177d54df` and the verified four-role development rollout.
+
 October 22 Session replay archives: [finished sessions are re-packed on the server against vocabularies shared across sessions and organizations, losslessly, with a dry run and archived bytes in the viewer's Storage panel](deploy/digitalocean/development-session-replay-archive-20261022.md) records release `db5f246c`, the measured compression and the dry run over the dev sessions.
 
 October 22 Session replay search: [recordings indexed on the server into screens, elements, clicks with their outcomes, friction and on-screen text, with tools a language model uses to question them](deploy/digitalocean/development-session-replay-search-20261022.md) records release `59106e51` and the verified four-role development rollout.
