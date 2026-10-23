@@ -391,6 +391,19 @@ test("content diffs read block by block, and restoring a version puts its conten
   assert.equal(restored.revision.attributes.restored_from, 1);
   const after = await client.request("GET", `/v1/documents/${id}/revisions`);
   assert.deepEqual(after.revisions.map((revision: any) => revision.cut), ["restore", "edit", "created"], "restore is a new revision; nothing is rewritten");
+  // "Edit manually" on the as-sent page is its own revision, by the person who typed it.
+  const { FMDocModel } = await import("../documents/schemas.js");
+  const summary: any = FMDocModel.createDocument({ metadata: { document_type: "work_order" } });
+  summary.params = { hours: { type: "number", label: "Hours" } };
+  summary.pages[0].children.push(FMDocModel.createNode("text", { id: "summary", frame: { x: 72, y: 110, w: 468, h: 30 }, props: { blocks: [{ runs: [{ text: "Labor: {{params.hours}} hours" }] }] } }));
+  await client.request("POST", `/v1/documents/organizations/${orgId}/templates`, { id: "tpl_history_as_sent", name: "As sent fixture", document_type: "work_order", definition: summary });
+  const workOrder = (await client.request("POST", `/v1/documents/organizations/${orgId}/projects/history_restore/documents`, { document_type: "work_order", template_id: "tpl_history_as_sent", params: { hours: 3 } })).document.id as string;
+  await client.request("POST", `/v1/documents/organizations/${orgId}/documents/${workOrder}/as-sent`, { writes: [{ path: "params.hours", text: "5" }] });
+  const manual = (await client.request("GET", `/v1/documents/${workOrder}/revisions`)).revisions[0];
+  assert.equal(manual.cut, "manual_edit");
+  assert.equal(manual.actor_name, "Owner User");
+  assert.deepEqual(manual.sections, ["params"]);
+  assert.equal((await client.request("GET", `/v1/documents/organizations/${orgId}/documents/${workOrder}`)).document.params.hours, 5);
   assert.equal((await client.raw("GET", `/v1/documents/${id}/revisions/99`)).statusCode, 404);
   assert.equal((await client.raw("GET", `/v1/documents/${id}/revisions/zero`)).statusCode, 400);
 });

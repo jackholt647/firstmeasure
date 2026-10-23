@@ -62,3 +62,19 @@ The diff between revisions 6 and 7 read field by field (`signing › final_pdf_h
   `document-payment-checkout`, `roofing-sales-documents` and `portal-signing-access` pass.
 - Four tests fail identically on the canonical base without this change (`documents-api` workflow steps,
   `documents-collab` presence 403, `production-documents` payments not ready, `document-signing-ui` modal text).
+
+## Follow-ups, October 23
+
+- `faa85ca6` (legacy, web; browser only): Restore rebuilds the document screen, since the old screen kept its stale
+  title. Added line items read as their fields (`name: Gutter guard · quantity: 120 · …`), not raw JSON.
+  `audit.py` found every change on web and legacy (`faa85ca6`) and the worker (`5675967d`).
+- Edit as sent: every as-sent write is an "Edited manually" revision by the person. The wrap was in `390437ef`, and
+  all three roles now run `editDocumentAsSent` with it (checked in the compiled `service.js`). On dev a quantity
+  typed on the as-sent page of `doc_17c66a8904604a098636` landed as revision #9 `manual_edit` by Sandbox Tester.
+  `tests/documents-versions.test.ts` now covers it.
+- Checked in the real UI on dev (Sandbox Tester, 68 Northfield Rd): the History panel lists the seven revisions of
+  the signed estimate; a revision's diff reads title and inputs; View on "Signed" opens the frozen signed proposal;
+  Restore is hidden on a signed document; restoring a named version of a draft adds a "Restored an earlier version
+  (#3)" revision and puts the title and inputs back. The rebuild of the screen after a restore (`faa85ca6`) was not
+  re-checked in the UI: the browser pane was hidden, which stops the page from rendering the documents list.
+
