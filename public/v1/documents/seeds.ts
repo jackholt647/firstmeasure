@@ -54,7 +54,8 @@ import {
  * scope-template pattern (scopes/storage.ts ensureDefaultScopeTemplates).
  */
 // 36: content block bodies are rich text (Markdown) and may carry a GIF.
-export const DOCUMENT_PRESET_REVISION = 36;
+// 37: the work order template (tpl_work_order_default).
+export const DOCUMENT_PRESET_REVISION = 37;
 
 function defaultProposalPaymentSchedule(): JsonObject[] {
   return [
@@ -914,6 +915,51 @@ function paymentReceiptTemplateDefinition(): JsonObject {
   return doc;
 }
 
+// Written by the Project tab from a labor list or the whole work order column (labor/work-order-documents.ts): who does
+// the work, where, and each line with what it pays. The server fills every value; the table is params.columns/rows.
+function workOrderTemplateDefinition(): JsonObject {
+  const { doc, theme } = startFlowTemplate("thm_clean", "work_order");
+  const label = (text: string): RunSpec => ({ text: `${text}
+`, font: { size_pt: 8, weight: 800, color: "var(--fm-color-muted)" } });
+  addFlowPage(doc, theme, "body", "Work Order", [
+    flowLogo({ w: 150, h: 32 }),
+    flowRow([
+      flowText([{ text: "Work Order" }], { grow: 1, font: { family: "var(--fm-display-font)", size_pt: 22, weight: 800 } }),
+      flowText([label("For"), { text: "", bind: "coalesce(params.work_order_title, 'Work order')" }], {
+        w: 200, align: "right", font: { family: "var(--fm-body-font)", size_pt: 10, weight: 700 }
+      })
+    ]),
+    flowSpacer(12),
+    flowBlocks([
+      { runs: [label("Assigned to"), { text: "", bind: "coalesce(params.assignee_name, 'Unassigned')" }] },
+      { runs: [label("Job site"), { text: "", bind: "coalesce(project.address, params.project.address, project.title, '')" }] },
+      { runs: [label("Customer"), { text: "", bind: "coalesce(customer.name, params.customer.name, '')" }] },
+      { runs: [label("Scheduled"), { text: "", bind: "params.scheduled_date | date" }] }
+    ], { font: { family: "var(--fm-body-font)", size_pt: 11, weight: 700 } }),
+    flowSpacer(12),
+    flowWidget("doc.report_table@1", { columns: "params.columns", rows: "params.rows" }),
+    flowText([
+      { text: "Total pay   ", font: { size_pt: 9, weight: 800, color: "var(--fm-color-muted)" } },
+      { text: "", bind: "coalesce(params.total_label, '')", font: { size_pt: 16, weight: 900 } }
+    ], { font: { family: "var(--fm-display-font)" }, align: "right" }),
+    flowText([label("Notes"), { text: "", bind: "coalesce(params.crew_notes, '')" }], { font: mutedFont(9.5) })
+  ]);
+  doc.params = {
+    project: { type: "entity", entity: "project" },
+    customer: { type: "entity", entity: "contact" },
+    work_order_title: { type: "string" },
+    assignee_name: { type: "string" },
+    scheduled_date: { type: "date" },
+    columns: { type: "list", items: { type: "object" } },
+    rows: { type: "list", items: { type: "object" } },
+    total_label: { type: "string" },
+    total_cents: { type: "currency" },
+    crew_notes: { type: "text" }
+  };
+  doc.outputs = {};
+  return doc;
+}
+
 function sameDayServiceAgreementTemplateDefinition(): JsonObject {
   const { doc, theme } = startFlowTemplate("thm_clean", "contract");
   addFlowPage(doc, theme, "body", "Service authorization", [
@@ -1058,6 +1104,7 @@ export const TEMPLATE_SEEDS: TemplateSeed[] = [
   // metadata.system keeps them out of the New document picker.
   { id: "tpl_payroll_report_default", name: "Standard Payroll Report", document_type: "payroll_report", description: "Branded payroll report with configurable columns and rows.", definition: payrollReportTemplateDefinition, metadata: { system: true } },
   { id: "tpl_payment_receipt_default", name: "Standard Payment Receipt", document_type: "payment_receipt", description: "Branded receipt for a recorded customer payment.", definition: paymentReceiptTemplateDefinition, metadata: { system: true } },
+  { id: "tpl_work_order_default", name: "Standard Work Order", document_type: "work_order", description: "A labor list or a project's work order: who does the work, where, and what each line pays.", definition: workOrderTemplateDefinition, metadata: { system: true } },
   {
     id: "tpl_roofing_completion_certificate",
     name: "Project Completion Certificate",

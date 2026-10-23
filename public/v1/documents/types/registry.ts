@@ -140,7 +140,8 @@ registerDocumentType("work_order", {
   output_schema: {
     sig_crew: { type: "signature", required: false, signer: "internal" }
   },
-  default_theme_id: "thm_clean"
+  default_theme_id: "thm_clean",
+  seeded_templates: ["tpl_work_order_default"]
 });
 
 registerDocumentType("completion_certificate", {

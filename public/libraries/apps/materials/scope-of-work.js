@@ -96,10 +96,12 @@ async function renderer() {
 const VIEWS=[['roof','fa-ruler-combined','Measurements'],['documents','fa-file-signature','Documents'],['aerial','fa-images','Photos'],['schedule','fa-calendar-days','Schedule']];
 export function mountSidebar(root,documents,error,contextKey,options={}) {
   let state=sidebars.get(root);
-  if(!state || state.contextKey!==contextKey){
+  // An organization with scheduling off has no Schedule view here at all.
+  const scheduling=options.scheduling!==false;
+  if(!state || state.contextKey!==contextKey || state.scheduling!==scheduling){
     disposeSidebar(root);
-    state={contextKey,selected:null,handle:null,view:'roof',widgets:{},visible:true,generation:0};sidebars.set(root,state);
-    root.innerHTML=`<div class="sw-viewport"><div class="sw-panel" data-scope-panel="roof"></div><div class="sw-panel" data-scope-panel="documents" hidden></div><div class="sw-panel" data-scope-panel="aerial" hidden></div><div class="sw-panel sw-schedule" data-scope-panel="schedule" hidden></div></div><nav class="sw-tabs" role="tablist" aria-label="Project views">${VIEWS.map(([key,icon,title])=>`<button type="button" role="tab" aria-label="${title}" aria-selected="${state.view===key}" tabindex="${state.view===key?0:-1}" data-scope-view="${key}" title="${title}"><i class="fas ${icon}" aria-hidden="true"></i><span>${title}</span></button>`).join('')}</nav>`;
+    state={contextKey,scheduling,views:VIEWS.filter(([key])=>scheduling||key!=='schedule'),selected:null,handle:null,view:'roof',widgets:{},visible:true,generation:0};sidebars.set(root,state);
+    root.innerHTML=`<div class="sw-viewport"><div class="sw-panel" data-scope-panel="roof"></div><div class="sw-panel" data-scope-panel="documents" hidden></div><div class="sw-panel" data-scope-panel="aerial" hidden></div>${scheduling?'<div class="sw-panel sw-schedule" data-scope-panel="schedule" hidden></div>':''}</div><nav class="sw-tabs" role="tablist" aria-label="Project views">${state.views.map(([key,icon,title])=>`<button type="button" role="tab" aria-label="${title}" aria-selected="${state.view===key}" tabindex="${state.view===key?0:-1}" data-scope-view="${key}" title="${title}"><i class="fas ${icon}" aria-hidden="true"></i><span>${title}</span></button>`).join('')}</nav>`;
     const tabs=[...root.querySelectorAll('[data-scope-view]')];
     tabs.forEach((tab,index)=>{
       tab.onclick=()=>{state.view=tab.dataset.scopeView;showViews(root,state);tab.focus();};
@@ -122,7 +124,7 @@ export function mountSidebar(root,documents,error,contextKey,options={}) {
     // Schedule is the project's own schedule panel in its widget form. There is one panel, so it is borrowed while
     // this view is showing and handed back when the view, the tab or the window goes away.
     const scheduleStage=root.querySelector('[data-scope-panel="schedule"]');
-    state.widgets.schedule={setVisible(value){const app=window.Portal?.ProjectScheduleApp;if(!app?.mountWidget){if(value)scheduleStage.innerHTML='<div class="sw-doc-empty" role="status"><i class="fas fa-calendar-days" aria-hidden="true"></i><strong>Schedule unavailable</strong><span>The schedule could not load here.</span></div>';return;}if(value)app.mountWidget(scheduleStage,state.options?.scheduleContext||null);else app.releaseWidget(scheduleStage);},destroy(){window.Portal?.ProjectScheduleApp?.releaseWidget?.(scheduleStage);}};
+    if(scheduleStage)state.widgets.schedule={setVisible(value){const app=window.Portal?.ProjectScheduleApp;if(!app?.mountWidget){if(value)scheduleStage.innerHTML='<div class="sw-doc-empty" role="status"><i class="fas fa-calendar-days" aria-hidden="true"></i><strong>Schedule unavailable</strong><span>The schedule could not load here.</span></div>';return;}if(value)app.mountWidget(scheduleStage,state.options?.scheduleContext||null);else app.releaseWidget(scheduleStage);},destroy(){window.Portal?.ProjectScheduleApp?.releaseWidget?.(scheduleStage);}};
     showViews(root,state);
   }
   state.options=options;
@@ -163,7 +165,7 @@ function showViews(root,state){
 }
 export function disposeSidebar(root){const state=sidebars.get(root);state?.observer?.disconnect();state?.stageObserver?.disconnect();state?.handle?.destroy?.();if(state)for(const widget of Object.values(state.widgets))widget?.destroy?.();sidebars.delete(root);}
 /** Shows one of the rail's views, as if its tab had been chosen. */
-export function showSidebarView(root,view){const state=sidebars.get(root);if(!state||!VIEWS.some(([key])=>key===view))return false;if(state.view!==view){state.view=view;showViews(root,state);}return true;}
+export function showSidebarView(root,view){const state=sidebars.get(root);if(!state||!(state.views||VIEWS).some(([key])=>key===view))return false;if(state.view!==view){state.view=view;showViews(root,state);}return true;}
 export function setSidebarVisible(root,visible){const state=sidebars.get(root);if(state){state.visible=visible;showViews(root,state);}}
 
 export function installDivider(sidebar) {

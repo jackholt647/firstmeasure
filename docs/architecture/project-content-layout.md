@@ -15,7 +15,7 @@ An app-owned draggable, keyboard accessible divider remembers the proportion
 locally. Mobile stacks the rail and resource content. There is no shared rail API.
 
 The rail has four compact icon tabs along its bottom: Measurements, Documents,
-Photos and Schedule. Schedule is the scheduling widget: the project's own
+Photos and Schedule (three when the organization has scheduling off). Schedule is the scheduling widget: the project's own
 schedule panel (`project-schedule/panel.js`) borrowed through `mountWidget` and
 handed back with `releaseWidget`. There is one schedule panel and one set of
 schedule state per window, so the widget and the Schedule tab are the same code
@@ -69,6 +69,38 @@ Delete. A list named after its category shows as Default. Collapsing a list is
 local view state. Minimizing applies to a resource type column and leaves a
 header pill to restore it. The measured/order units switch is in the action
 header and applies to every list.
+A list header's icon actions are drawn most used first; when they do not fit
+beside the name, the assignee and the total, the least used move into a ⋮ menu
+(`fitListActions`), which shows only when it holds something. A labor list's
+work order document controls (Generate, or Open, Download and Update; see
+[closeout](closeout.md#work-order-documents)) are among them, after Pay out.
+
+**Scheduling off.** With the organization's `platform.scheduling` switch off
+(`schedulingOn()` in `materials/project.js`: the host's `schedulingEnabled`
+first, then the organization's flags), the Project tab has no Schedule view in
+its rail, no Schedule button on any list or in the header, no Reserve equipment
+action, no "Not scheduled" state, and starts no schedule placing. Ordering
+still works: the order dialog's delivery date and time go in the supplier's
+email and onto the order's `scheduled_window`, and neither the browser nor the
+server (`createMaterialOrder`) makes or locks a schedule event.
+
+**Starting minimized.** When the project's requirements include nothing but
+material (no work items or functions) and the Work order column has no lines or
+assignee, the column opens minimized to its header tab. This is decided once
+per project after both the lists and the requirements have loaded; restoring
+it keeps it open.
+
+**Assigning.** The assignment block (an unassigned, empty labor list, or a
+project with requirements and no work order yet) and the assignment popover
+list who does some of the job's work first, ranked by pay, then offer everyone
+else who can be assigned behind "Show N more". The choice is never a bare
+"nobody": while the directory loads it says so; a failed directory read or
+price comparison says what failed and offers a retry; an empty directory says
+where assignees are added and that only the caller's branches are listed; a
+job nobody is marked for lists everyone and says why. The directory and the
+prices redraw only the assignment blocks when they arrive (`syncAssignBlocks`),
+so a read that finishes while someone types is not lost.
+
 A labor list's header carries one assignment control, left of Schedule and
 Delete, showing the assignee or Unassigned. It opens an app-owned popover, not
 native selects: assignable work resources with their kind, member count and

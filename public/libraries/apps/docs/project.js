@@ -1344,4 +1344,11 @@
 
   syncRegistration();
   window.addEventListener('fm:app-flags:updated', syncRegistration);
+  // Another app wrote a document for this project (a work order from the Project tab): the embedded engine reads its
+  // list again, so the new document is in the gallery without reopening the window.
+  window.addEventListener('fm:documents:refresh', (event) => {
+    const pid = firstText(event?.detail?.project_id);
+    if (pid && pid !== projectId()) return;
+    try { state.engineApi?.refresh?.(); } catch (_) { /* engine optional */ }
+  });
 })();

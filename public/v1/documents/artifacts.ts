@@ -43,7 +43,8 @@ export type TemplatedArtifactInput = {
   fileName?: string;
 };
 
-async function prepareTemplatedArtifact(input: TemplatedArtifactInput) {
+/** Creates or updates the instance in place and issues it, with no snapshot or PDF (work orders open in the editor). */
+export async function prepareTemplatedArtifact(input: TemplatedArtifactInput) {
   const ctx = systemContext(input.orgId, input.actorUserId, input.branchId);
   const stableId = cleanText(input.documentId);
   let document = stableId ? await readDocumentInstance(input.orgId, stableId).catch(() => null) : null;

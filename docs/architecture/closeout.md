@@ -220,6 +220,45 @@ requires every line finalized (`closeout_work_orders_open`). The header has **Cl
 step-by-step modal over the checks above, ending with the completion widget for
 each remaining work order (`libraries/apps/materials/closeout.js`).
 
+## Work order documents
+
+A work order can be written out as a document: one labor list, or the project's
+whole Work order column (its labor and equipment lists), becomes a document of
+the built-in `work_order` type, filled from the seeded system template
+`tpl_work_order_default` (`labor/work-order-documents.ts`). It is an ordinary
+document in the documents system: it shows in the project's Documents tab,
+opens in the document editor and downloads as a PDF through the documents
+routes. There is no separate PDF path.
+
+- Each source has exactly one document, with a stable id:
+  `doc_work_order_<list id>` for a list and `doc_work_order_project_<project
+  id>` for the project. Generating again rewrites that same document in place
+  (`prepareTemplatedArtifact` in `documents/artifacts.ts`); it never makes a
+  second copy. Archiving it in Documents and generating again brings it back.
+- The document records the list revisions it was written from
+  (`metadata.source_list_revisions`). When a list changes, the document is out
+  of date: the Project tab marks it and offers **Update work order**, which
+  rewrites the same document.
+- What it says: who is assigned, the job site and customer (from the
+  project), each line with its quantity, unit, rate and amount, and the total
+  pay. Equipment lines and projection-only lines (cost of salaried time) are
+  listed without an amount. A scheduled date is shown only when the
+  organization has scheduling on and a list has one. An organization changes
+  what a work order looks like by editing the template in Doc Studio.
+- Routes: `GET` and `POST /organizations/:orgId/projects/:projectId/work-orders`
+  (`manage_projects`; the POST takes an optional `list_id`). Writing the
+  document never changes the lists, so a finalized list can still be written
+  out.
+- In the Project tab, a labor list's header has **Generate work order**;
+  once written it has **Open work order** (the document in the Documents tab)
+  and **Download work order PDF**, plus **Update work order** when out of date.
+  They are list actions, so they fold into ⋮ when the header is narrow, before
+  Pay out does. The workspace header has the same controls for the whole
+  column.
+
+Run `tests/labor-work-order-documents.test.ts` and
+`tests/project-tab-labor-scheduling-off-browser.test.mjs` for changes here.
+
 ## Not built
 
 - Change-order payment, signature requirements, signing packages, expense

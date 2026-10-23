@@ -6,6 +6,7 @@ import {paySheetKindsOfWork,paySheetOverview,tryPaySheet} from '../labor/pay-she
 import {assigneeSchema} from '../labor/assignees.js';
 import {assigneeCapabilities,saveCapabilities} from '../labor/capabilities.js';
 import {projectRequirements} from '../labor/requirements.js';
+import {listWorkOrderDocuments,generateWorkOrderDocument} from '../labor/work-order-documents.js';
 import {saveManualScope} from '../labor/scope-artifacts.js';
 import {userPublicationContext as scopePublicationContext} from '../platform/publication/context.js';
 import {generateLaborList,previewLaborList,compareAssigneesForList} from '../labor/generation.js';
@@ -132,6 +133,9 @@ export const registerMaterialsApi: FastifyPluginAsync = async (app) => {
   app.put('/organizations/:orgId/labor-delivery-settings',async request=>{const {orgId,ctx}=await laborAuth(request,'manage_company_settings',true);return {ok:true,setting:await saveDeliverySetting(orgId,request.body,ctx)};});
   // Who could do a project's work and for what, before it has a work order. Reads only.
   app.post('/organizations/:orgId/projects/:projectId/assignee-pay',async request=>{const {orgId}=await laborAuth(request,'manage_projects');const body=(request.body||{}) as Record<string,unknown>;return {ok:true,assignees:await compareAssigneesForList(orgId,{...(body.manual?{manual:body.manual}:{}),...(body.fields?{fields:body.fields}:{}),...(body.legacy_measurements?{legacy_measurements:body.legacy_measurements}:{}),project_id:getParam(request.params,'projectId')})};});
+  // Work order documents (docs/architecture/closeout.md#work-order-documents): one per labor list and one for the project, each updated in place when generated again.
+  app.get('/organizations/:orgId/projects/:projectId/work-orders',async request=>{const {orgId}=await laborAuth(request,'manage_projects');return {ok:true,work_orders:await listWorkOrderDocuments(orgId,getParam(request.params,'projectId'))};});
+  app.post('/organizations/:orgId/projects/:projectId/work-orders',async request=>{const {orgId,ctx}=await laborAuth(request,'manage_projects',true);const body=(request.body||{}) as {list_id?:unknown};return {ok:true,work_order:await generateWorkOrderDocument(orgId,getParam(request.params,'projectId'),{list_id:typeof body.list_id==='string'?body.list_id:undefined},ctx)};});
   // Everything the project requires and what on its lists accounts for each thing. Reads only.
   app.post('/organizations/:orgId/projects/:projectId/requirements',async request=>{const {orgId}=await laborAuth(request,'manage_projects');return {ok:true,...await projectRequirements(orgId,getParam(request.params,'projectId'),request.body||{})};});
   // The work a person has added to this project's scope by hand: one manual artifact, replaced as a whole.

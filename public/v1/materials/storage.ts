@@ -2061,7 +2061,9 @@ export async function createMaterialOrder(orgId: string, listId: string, input: 
     forceDeliveryStatus: requestedDeliveryStatus,
     lock: true
   });
-  const shouldEnsureSchedule = !!cleanText(input.schedule_event_id || current.schedule_event_id) || asObject(current.schedule).enabled === true;
+  // An organization with scheduling off keeps the delivery date on the order alone; no schedule event is made or locked.
+  const shouldEnsureSchedule = (!!cleanText(input.schedule_event_id || current.schedule_event_id) || asObject(current.schedule).enabled === true)
+    && await isCapabilityEnabled(orgId, "platform.scheduling").catch(() => true);
   const scheduleEvent = shouldEnsureSchedule
     ? await ensureMaterialListScheduleEvent(orgId, listId, {
         event: cleanText(input.schedule_event_id) ? { id: cleanText(input.schedule_event_id) } : {}

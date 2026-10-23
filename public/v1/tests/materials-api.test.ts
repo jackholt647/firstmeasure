@@ -94,7 +94,8 @@ async function register(client: ReturnType<typeof createSessionClient>) {
   await saveGlobal(orgId, {
     data: {
       app_flags: {
-        platform: { expanded_access: true, pricebook: true, materials: true, proposals: true, project_photos: true }
+        // These organizations schedule: an order's delivery date becomes a schedule event only with scheduling on.
+        platform: { expanded_access: true, pricebook: true, materials: true, proposals: true, project_photos: true, scheduling: true }
       }
     }
   }, { replace: false });

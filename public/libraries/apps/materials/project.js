@@ -5,7 +5,7 @@
   let materialsAPI;
   let scopeWorkspace;
   let refreshTimer;
-  const scopeWorkspaceUrl = new URL('./scope-of-work.js?v=20261016-widen', document.currentScript?.src || `${location.origin}/libraries/apps/materials/project.js`).href;
+  const scopeWorkspaceUrl = new URL('./scope-of-work.js?v=20261022-no-schedule', document.currentScript?.src || `${location.origin}/libraries/apps/materials/project.js`).href;
   const calculusAdapterUrl = new URL('./calculus-native.js?v=20261022-measurement-defaults', document.currentScript?.src || `${location.origin}/libraries/apps/materials/project.js`).href;
   const closeoutUrl = new URL('./closeout.js?v=20261019-closeout-partial', document.currentScript?.src || `${location.origin}/libraries/apps/materials/project.js`).href;
   const runtime = window.FirstMateEmbeddableApps;
@@ -102,6 +102,8 @@
     deliveriesByOrderId: {},
     crews: [],
     crewsLoading: false,
+    crewsLoaded: false,
+    crewsError: '',
     workforceTerms: {},
     resourceTypes: [],
     expenseSummary: null,
@@ -366,7 +368,18 @@
     const category=resourceCategories().find(row=>row.id===type);
     return {...{singular:'Resource item',plural:'Resources',list:'Scope list',icon:'fa-layer-group'},...defaults,...configured,...(category?{plural:category.name||'Untitled',icon:category.icon}:{} )};
   }
+  // Whether the organization uses scheduling (platform.scheduling). With it off this tab has no Schedule view, no
+  // Schedule buttons, no "Not scheduled" states and makes no schedule events; an order keeps its delivery date itself.
+  function schedulingOn(){
+    const hosted = callHost('schedulingEnabled');
+    if (hosted !== undefined) return !!hosted;
+    const flags = rootWindow.Portal?.appFlags || window.Portal?.appFlags || window.PlatformAPI?.appFlags;
+    if (!flags?.current?.()) return false;
+    if (flags.has?.('platform', 'scheduling')) return true;
+    return flags.value?.('platform', 'scheduling', false) === true;
+  }
   function resourceScheduleEnabled(list = state.activeList){
+    if (!schedulingOn()) return false;
     return list?.schedule?.enabled === true || (resourceType(list) === 'material' && list?.schedule?.enabled !== false);
   }
   function resourceSchedulePending(list = state.activeList){
@@ -1023,6 +1036,9 @@
       @media(prefers-reduced-motion:reduce){.mt-header-action.is-entering,.mt-header-action.is-leaving{animation:none}.mt-header-action.is-leaving{display:none}}
       .mt-assign-block{display:flex;flex-direction:column;gap:6px;margin:8px;padding:10px;border:1px dashed #d0d5dd;border-radius:8px;background:#f9fafb}.mt-assign-block>strong{margin-bottom:2px;font-size:13px;color:#101828}.mt-assign-block>strong i{margin-left:3px;font-size:10px;color:#98a2b3}.mt-assign-block>em{font-size:11px;font-style:normal;color:#667085}
       .mt-assign-block button{display:flex;flex-direction:column;align-items:stretch;gap:8px;width:100%;padding:9px 10px;border:1px solid #e4e7ec;border-radius:7px;background:#fff;text-align:left;color:#344054;cursor:pointer}.mt-assign-block button:hover{border-color:var(--primary,#d93025)}.mt-assign-block.is-busy button{opacity:.6;cursor:progress}.mt-assign-block.is-busy button:hover{border-color:#e4e7ec}
+      .mt-assign-note{display:flex;align-items:center;flex-wrap:wrap;gap:6px 8px;padding:6px 8px;border-radius:6px;background:#f2f4f7;color:#475467;font-size:11px;line-height:1.4}.mt-assign-note.is-error{background:#fef3f2;color:#b42318}.mt-assign-block .mt-assign-note button,.mt-assign-note button{display:inline-flex;flex-direction:row;width:auto;padding:2px 8px;border:1px solid currentColor;border-radius:999px;background:#fff;color:inherit;font-size:11px;font-weight:600;cursor:pointer}.mt-labor-portal .mt-assign-note{margin:6px 8px}
+      [data-mt-work-order-open][data-stale="true"]{position:relative}[data-mt-work-order-open][data-stale="true"]::after{content:"";position:absolute;top:3px;right:3px;width:6px;height:6px;border-radius:50%;background:#f79009;box-shadow:0 0 0 1.5px #fff}
+      .mt-assign-block .mt-assign-more,.mt-assign-more{display:block;width:100%;padding:5px 8px;border:0;border-radius:6px;background:transparent;color:var(--primary,#d93025);font-size:11px;font-weight:600;text-align:left;cursor:pointer}.mt-assign-block .mt-assign-more:hover{border-color:transparent;background:#f2f4f7}.mt-assign-divider{padding:6px 8px 2px;color:#667085;font-size:10px;font-weight:700;letter-spacing:.02em;text-transform:uppercase}
       .mt-assign-top{display:flex;align-items:baseline;justify-content:space-between;gap:8px}.mt-assign-top strong{min-width:0;font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.mt-assign-pills{display:flex;flex-wrap:nowrap;gap:4px;min-width:0;overflow:hidden}.mt-assign-pills .mt-pill{flex:none;padding:0 6px}.mt-assign-pills .mt-pill i{flex:none}.mt-assign-pills .mt-pill.fit{flex:0 1 auto;min-width:0;overflow:hidden}.mt-assign-pills .mt-pill.fit>span{min-width:0;overflow:hidden;text-overflow:ellipsis}
       .mt-pill{display:inline-flex;align-items:center;gap:4px;height:18px;padding:0 7px;border-radius:999px;background:#eef2f6;color:#344054;font-size:10px;font-weight:600;white-space:nowrap}.mt-pill i{font-size:9px;color:#667085}.mt-pill.plain{background:transparent;border:1px solid #e4e7ec;color:#667085;font-weight:500}
       .mt-assign-top b,.mt-labor-option b.mt-pay{flex:none;font-size:12px;font-weight:700;font-variant-numeric:tabular-nums;color:#101828}.mt-assign-top b.unknown,.mt-labor-option b.mt-pay.unknown{font-size:11px;font-weight:600;color:#475467}
@@ -2355,8 +2371,10 @@
       && requestBranchId === branchId()
       && loadContextIsCurrent(loadContext)
     );
-    if (!window.PlatformAPI?.workforce?.assignableResources || !requestOrgId || !requestIsCurrent()) return [];
+    if (!requestOrgId || !requestIsCurrent()) return [];
+    if (!window.PlatformAPI?.workforce?.assignableResources) { state.crewsError = 'The assignee directory is not available on this page.'; syncAssignBlocks(); return []; }
     state.crewsLoading = true;
+    state.crewsError = '';
     try {
       const [result, configurationResult] = await Promise.all([
         window.PlatformAPI.workforce.assignableResources(requestOrgId, requestBranchId),
@@ -2372,10 +2390,12 @@
         const name = cleanText(resource?.name || resource?.work_resource_ref?.name || id);
         return { ...resource, id, name, resource_kind:kind, work_resource_ref:id ? { kind, id, name } : null, capability_scope_ids:Array.isArray(resource?.capability_scope_ids) ? resource.capability_scope_ids.map(cleanText).filter(Boolean) : [] };
       }).filter((resource) => resource.id && cleanText(resource.status || 'active') !== 'archived');
-    } catch (_) {
-      if (requestIsCurrent()) state.crews = [];
+      state.crewsLoaded = true;
+    } catch (error) {
+      // A failed read is said as a failure with a retry, never shown as an empty directory.
+      if (requestIsCurrent()) { state.crews = []; state.crewsError = error?.message || 'The assignees could not be loaded.'; }
     } finally {
-      if (requestIsCurrent()) state.crewsLoading = false;
+      if (requestIsCurrent()) { state.crewsLoading = false; syncAssignBlocks(); syncLaborMenu(); }
     }
     return requestIsCurrent() ? state.crews : [];
   }
@@ -2602,7 +2622,7 @@
 
   async function scheduleMaterialList(listId = state.activeListId){
     const list = materialListById(listId);
-    if (!list || state.schedulingListId) return;
+    if (!list || state.schedulingListId || !schedulingOn()) return;
     state.schedulingListId = cleanText(list.id);
     syncTopBar();
     syncScopeListCard(list.id);
@@ -3796,7 +3816,11 @@
         const when = orderSchedule(list);
         const clock = orderTimeClock(when.time);
         if (cleanText(when.date)) {
-          const scheduled = await persistInlineDeliverySchedule(list, { date: cleanText(when.date), time: clock, all_day: !clock });
+          // Without scheduling the date stays on the order (and in the supplier's email); no schedule event is made.
+          const start = dateFromOrderSchedule({ date: cleanText(when.date), time: clock });
+          const scheduled = schedulingOn() || !start
+            ? await persistInlineDeliverySchedule(list, { date: cleanText(when.date), time: clock, all_day: !clock })
+            : { start, end: new Date(start.getTime() + (clock ? 60 : 24 * 60) * 60000), allDay: !clock, event: null };
           list = scheduled.list || list;
           scheduledEvent = scheduled.event;
           scheduledWindow = {
@@ -4181,7 +4205,7 @@
     return { waiting, pendingLists, done: (spans.length > 0 || lists.length > 0) && !waiting && !pendingLists.length };
   }
   function scheduleJobButton(){
-    if (!state.lists.some((list) => listItems(list).length)) return '';
+    if (!schedulingOn() || !state.lists.some((list) => listItems(list).length)) return '';
     const done = jobSchedule().done, busy = !!state.schedulingJob;
     return `<button type="button" class="mt-schedule-job${done ? ' is-done' : ''}${busy ? ' is-busy' : ''}" data-mt-schedule-job data-fm-tooltip="${done ? 'Scheduled. Open the schedule to see or move it.' : 'Schedule this job: place the work, its equipment and its deliveries on the calendar'}"><i class="fas ${busy ? 'fa-circle-notch mt-spin' : done ? 'fa-check' : 'fa-calendar-days'}" aria-hidden="true"></i><span>${done ? 'Scheduled' : 'Schedule'}</span></button>`;
   }
@@ -4212,7 +4236,7 @@
     tray?.querySelector?.('[data-mt-req-open]')?.setAttribute('aria-expanded', 'false');
   }
   async function scheduleJob(){
-    if (state.schedulingJob) return;
+    if (state.schedulingJob || !schedulingOn()) return;
     const job = jobSchedule(), operation = captureProjectOperation();
     scopeWorkspace?.showSidebarView?.(leftContentRoot(), 'schedule');
     makeRoomForSchedule();
@@ -4268,10 +4292,11 @@
     // An action with nothing left to do turns green and shows a check.
     const done=headerDone();
     const action=(key,attributes,icon)=>want[key]||shown[key]?`<button type="button" class="mt-header-action${key==='material'?' mt-order-all':''}${done[key]?' is-done':''}${want[key]?(shown[key]?'':' is-entering'):' is-leaving'}" ${attributes}><i class="fas ${done[key]?'fa-check':icon}"></i></button>`:'';
+    const headerButton=(key,label,icon,attrs='',extra='',title=label)=>`<button type="button" class="mt-header-action mt-work-order-action" ${attrs} ${extra} data-fm-tooltip="${escapeHtml(title)}" aria-label="${escapeHtml(label)}"><i class="fas ${icon}"></i></button>`;
     const leaving=Object.keys(want).some(key=>shown[key]&&!want[key]);
     state.headerActions=want;
     if(leaving)setTimeout(()=>syncResourceHeader(),300);
-    return `<header class="mt-workspace-header"><div class="mt-projected-total" title="Projected cost of every list on this project, including projected delivery"><span>Projected total</span><strong data-mt-projected-total>${money(projectProjected())}</strong></div><div class="mt-collapsed-pills">${resourceCategories().filter(category=>state.minimizedTypes?.has(category.id)&&!(category.id==='equipment'&&workOrderMerged())).map(category=>`<button type="button" data-mt-restore-type="${escapeHtml(category.id)}" style="--tab-color:${escapeHtml(category.color)}" data-fm-tooltip="Show ${escapeHtml(category.name||'Untitled')}" aria-label="Show ${escapeHtml(category.name||'Untitled')}"><i class="fas ${escapeHtml(category.icon)}"></i> ${escapeHtml(category.name||'Untitled')}</button>`).join('')}${state.lists.filter(list=>!state.visibleListIds.has(cleanText(list.id))).map(list=>`<button type="button" data-mt-restore-list="${escapeHtml(list.id)}" title="Expand ${escapeHtml(list.title)}"><i class="fas ${escapeHtml(resourceTerms(resourceType(list),list).icon)}"></i> ${escapeHtml(list.title)}</button>`).join('')}</div><div class="mt-workspace-actions"><button type="button" data-mt-new-category data-fm-tooltip="New category column" aria-label="New category"><i class="fas fa-plus"></i> Category</button><span class="mt-icon-toggles"><button type="button" data-mt-units-toggle aria-pressed="${order}" data-fm-tooltip="${order?'Units: order (bundles, boxes). Click for measured units.':'Units: measured. Click for order units (bundles, boxes).'}" aria-label="Units: ${order?'order':'measured'}. Switch."><i class="fas ${order?'fa-boxes-stacked':'fa-ruler-combined'}"></i></button><button type="button" data-mt-generate-materials data-fm-tooltip="Regenerate: build the lists again from the scope" aria-label="Regenerate lists from the scope" ${state.generatingMaterials||state.saving?'disabled':''}><i class="fas ${state.generatingMaterials?'fa-rotate mt-spin':'fa-wand-magic-sparkles'}"></i></button></span>${action('labor',`data-mt-work-order data-fm-tooltip="${done.labor?'Work Order: every work order has been committed and delivered as it stands':'Work Order: generate a work order for the labor on this project'}" aria-label="Work Order: generate a work order"`,'fa-clipboard-list')}${action('equipment','data-mt-reserve-equipment data-fm-tooltip="Reserve Equipment: reserve the equipment on this project" aria-label="Reserve Equipment"','fa-truck-pickup')}${action('material','data-mt-order-all data-fm-tooltip="Order Materials: order every material list, each from its own supplier" aria-label="Order Materials: order every material list"','fa-cart-shopping')}${scheduleJobButton()}${closeoutButton()}</div></header>`;
+    return `<header class="mt-workspace-header"><div class="mt-projected-total" title="Projected cost of every list on this project, including projected delivery"><span>Projected total</span><strong data-mt-projected-total>${money(projectProjected())}</strong></div><div class="mt-collapsed-pills">${resourceCategories().filter(category=>state.minimizedTypes?.has(category.id)&&!(category.id==='equipment'&&workOrderMerged())).map(category=>`<button type="button" data-mt-restore-type="${escapeHtml(category.id)}" style="--tab-color:${escapeHtml(category.color)}" data-fm-tooltip="Show ${escapeHtml(category.name||'Untitled')}" aria-label="Show ${escapeHtml(category.name||'Untitled')}"><i class="fas ${escapeHtml(category.icon)}"></i> ${escapeHtml(category.name||'Untitled')}</button>`).join('')}${state.lists.filter(list=>!state.visibleListIds.has(cleanText(list.id))).map(list=>`<button type="button" data-mt-restore-list="${escapeHtml(list.id)}" title="Expand ${escapeHtml(list.title)}"><i class="fas ${escapeHtml(resourceTerms(resourceType(list),list).icon)}"></i> ${escapeHtml(list.title)}</button>`).join('')}</div><div class="mt-workspace-actions"><button type="button" data-mt-new-category data-fm-tooltip="New category column" aria-label="New category"><i class="fas fa-plus"></i> Category</button><span class="mt-icon-toggles"><button type="button" data-mt-units-toggle aria-pressed="${order}" data-fm-tooltip="${order?'Units: order (bundles, boxes). Click for measured units.':'Units: measured. Click for order units (bundles, boxes).'}" aria-label="Units: ${order?'order':'measured'}. Switch."><i class="fas ${order?'fa-boxes-stacked':'fa-ruler-combined'}"></i></button><button type="button" data-mt-generate-materials data-fm-tooltip="Regenerate: build the lists again from the scope" aria-label="Regenerate lists from the scope" ${state.generatingMaterials||state.saving?'disabled':''}><i class="fas ${state.generatingMaterials?'fa-rotate mt-spin':'fa-wand-magic-sparkles'}"></i></button></span>${workOrderActions('project',headerButton).join('')}${!schedulingOn()?'':action('equipment','data-mt-reserve-equipment data-fm-tooltip="Reserve Equipment: reserve the equipment on this project" aria-label="Reserve Equipment"','fa-truck-pickup')}${action('material','data-mt-order-all data-fm-tooltip="Order Materials: order every material list, each from its own supplier" aria-label="Order Materials: order every material list"','fa-cart-shopping')}${scheduleJobButton()}${closeoutButton()}</div></header>`;
   }
   function syncResourceHeader(){
     const header=materialRoot()?.querySelector('.mt-workspace-header');
@@ -4319,7 +4344,22 @@
     ghost.addEventListener('animationend',finish,{once:true});setTimeout(finish,700);
   }
   function workOrderMerged(){ return resourceCategories().some(row=>row.id==='labor'); }
+  // A project whose documents require no work (nothing but material) opens with its work order column minimized. It is
+  // decided once per project, after the lists and the requirements have both loaded, and only while the column holds
+  // no work; restoring it from its tab keeps it open.
+  function minimizeIdleWorkOrder(entry = requirementSet()){
+    const key = requirementsKey();
+    if (state.loading || !entry?.data || entry.loading || entry.error || entry.key !== key || state.workOrderMinimizeDecided === key) return false;
+    state.workOrderMinimizeDecided = key;
+    if (!resourceCategories().some((row) => row.id === 'labor') || state.minimizedTypes.has('labor')) return false;
+    if ((entry.data.requirements || []).some((row) => row.kind !== 'material')) return false;
+    const members = workOrderMerged() ? ['labor', 'equipment'] : ['labor'];
+    if (state.lists.some((list) => members.includes(resourceType(list)) && (listItems(list).length || assignmentWorkResourceRef(list)?.id))) return false;
+    state.minimizedTypes.add('labor');
+    return true;
+  }
   function renderMaterialSections(){
+    minimizeIdleWorkOrder();
     const items = filteredItems();
     // Labor and the equipment it takes are one work order: who does the work, what they are paid and what they use.
     const types = resourceCategories().map(row=>row.id).filter(type=>!state.minimizedTypes?.has(type)&&!(type==='equipment'&&workOrderMerged()));
@@ -5584,7 +5624,7 @@
       label.hidden = true;
     }
     disposeScopeWidgets();
-    if(scopeWorkspace)scopeWorkspace.mountSidebar(target,state.scopeDocuments,state.scopeDocumentsError,`${orgId()}:${projectId()}`,{widgetContext:scopeWidgetContext(),scheduleContext:state.context,measurementOverrides:state.measurementOverrides,onMeasurementChange:(key,value)=>{state.measurementOverrides={...state.measurementOverrides,[key]:value};syncMaterialsGrid();}});
+    if(scopeWorkspace)scopeWorkspace.mountSidebar(target,state.scopeDocuments,state.scopeDocumentsError,`${orgId()}:${projectId()}`,{scheduling:schedulingOn(),widgetContext:scopeWidgetContext(),scheduleContext:state.context,measurementOverrides:state.measurementOverrides,onMeasurementChange:(key,value)=>{state.measurementOverrides={...state.measurementOverrides,[key]:value};syncMaterialsGrid();}});
     else target.textContent='Loading published scope data…';
     scopeWorkspace?.installDivider(state.sidebarRoot);
     timingMark('renderLeft:end', { active: state.active }, timingStart);
@@ -5743,8 +5783,113 @@
     </div>${controls}</div>`;
   }
 
+  // ---- Work order documents (labor/work-order-documents.ts). A labor list, or the whole work order column, is written
+  // out as a work_order document in the Documents tab. Each has one document: generating again updates it in place.
+  // Once written, Generate becomes Open and Download; a list that changed since shows Update as well.
+  function documentsOn(){
+    const flags = rootWindow.Portal?.appFlags || window.Portal?.appFlags || window.PlatformAPI?.appFlags;
+    if (!flags?.current?.()) return true;
+    if (flags.has?.('platform', 'documents')) return true;
+    return flags.value?.('platform', 'documents', false) === true;
+  }
+  function workOrdersAvailable(){ return !!(materialsAPI || window.MaterialsAPI)?.labor?.workOrders && apiReady() && !!projectId() && documentsOn(); }
+  function workOrderKey(){ return `${orgId()}:${projectId()}`; }
+  function loadWorkOrders(force = false){
+    const api = (materialsAPI || window.MaterialsAPI)?.labor, key = workOrderKey();
+    if (!workOrdersAvailable()) return Promise.resolve(null);
+    if (state.workOrders?.key === key && !force) return state.workOrders.promise || Promise.resolve(state.workOrders);
+    const entry = { key, loading: true, rows: state.workOrders?.key === key ? state.workOrders.rows : [], error: '' };
+    entry.promise = Promise.resolve(api.workOrders(orgId(), projectId())).then((result) => { entry.rows = Array.isArray(result?.work_orders) ? result.work_orders : []; })
+      .catch((error) => { entry.error = error?.message || 'Work orders could not be read.'; })
+      .then(() => { entry.loading = false; if (state.workOrders === entry) syncWorkOrderControls(); return entry; });
+    state.workOrders = entry;
+    return entry.promise;
+  }
+  function workOrderRows(){
+    if (!workOrdersAvailable()) return [];
+    if (state.workOrders?.key !== workOrderKey()) loadWorkOrders();
+    return state.workOrders?.key === workOrderKey() ? state.workOrders.rows : [];
+  }
+  // 'project' is the whole column; anything else is a labor list id.
+  function workOrderSourceLists(source){
+    return source === 'project' ? state.lists.filter((list) => ['labor', 'equipment'].includes(resourceType(list)) && !list.archived_at) : [materialListById(source)].filter(Boolean);
+  }
+  function workOrderFor(source){
+    const row = workOrderRows().find((entry) => source === 'project' ? entry.scope === 'project' : entry.scope === 'list' && cleanText(entry.list_id) === cleanText(source));
+    if (!row) return null;
+    // Out of date when a list it was written from has a different revision now, or the lists are not the same ones.
+    const recorded = row.document?.metadata?.source_list_revisions || {}, current = Object.fromEntries(workOrderSourceLists(source).map((list) => [cleanText(list.id), number(list.revision, 0)]));
+    const ids = new Set([...Object.keys(recorded), ...Object.keys(current)]);
+    return { ...row, stale: [...ids].some((id) => number(recorded[id], -1) !== number(current[id], -1)) };
+  }
+  // A work order list worth writing out has lines on it.
+  function workOrderWorthy(source){ return workOrderSourceLists(source).some((list) => resourceType(list) === 'labor' && listItems(list).length); }
+  function syncWorkOrderControls(){
+    syncResourceHeader();
+    if (!workspaceIsEditing()) syncMaterialsGrid();
+  }
+  async function generateWorkOrder(source){
+    const api = (materialsAPI || window.MaterialsAPI)?.labor;
+    if (!api?.generateWorkOrder || state.workOrderBusy) return;
+    const operation = captureProjectOperation(source === 'project' ? undefined : source), existed = !!workOrderFor(source);
+    state.workOrderBusy = source;
+    syncWorkOrderControls();
+    try {
+      // Line saves land first, so the document is written from the list as it is on screen.
+      for (let waited = 0; (state.saving || listWritesPending()) && waited < 15000; waited += 50) await new Promise((resolve) => setTimeout(resolve, 50));
+      const result = await api.generateWorkOrder(orgId(), projectId(), source === 'project' ? {} : { list_id: source });
+      if (!projectOperationIsCurrent(operation)) return;
+      const row = result?.work_order;
+      if (row && state.workOrders?.key === workOrderKey()) state.workOrders.rows = [...state.workOrders.rows.filter((entry) => cleanText(entry.document_id) !== cleanText(row.document_id)), row];
+      showToast(existed ? 'Work order updated' : 'Work order created', `${cleanText(row?.title) || 'The work order'} is in the Documents tab.`, true);
+      try { rootWindow.dispatchEvent(new CustomEvent('fm:documents:refresh', { detail: { project_id: projectId(), document_id: cleanText(row?.document_id) } })); } catch (_) {}
+      loadWorkOrders(true);
+    } catch (error) {
+      if (projectOperationIsCurrent(operation)) showToast('Could not write the work order', error?.message || 'Please try again.', false);
+    } finally {
+      state.workOrderBusy = '';
+      if (projectOperationIsCurrent(operation)) syncWorkOrderControls();
+    }
+  }
+  // Opens the document in the project's Documents tab, in its editor; without that tab, its PDF.
+  async function openWorkOrder(source){
+    const row = workOrderFor(source);
+    if (!row) return;
+    const docs = rootWindow.Portal?.modules?.projectDocsTab || window.Portal?.ProjectDocsTab;
+    if (docs?.openEngineDocument) {
+      callHost('setActivePreviewTab', 'docs');
+      try { rootWindow.Portal?.navigation?.push?.({ projectTab: 'docs' }, { source: 'work-order-open', ownedKeys: ['projectTab'] }); } catch (_) {}
+      if (await docs.openEngineDocument(row.document || { id: row.document_id }).catch(() => false)) return;
+    }
+    downloadWorkOrder(source);
+  }
+  function workOrderPdfUrl(documentId){
+    const docs = window.DocumentsAPI?.documents;
+    return docs?.pdfUrl ? docs.pdfUrl(orgId(), documentId) : `${location.origin}/v1/documents/organizations/${encodeURIComponent(orgId())}/documents/${encodeURIComponent(documentId)}/pdf`;
+  }
+  function downloadWorkOrder(source){
+    const row = workOrderFor(source);
+    if (row) rootWindow.open(workOrderPdfUrl(cleanText(row.document_id)), '_blank', 'noopener');
+  }
+  // The work order controls for a list header (as list actions, so they fold into ⋮) or the workspace header.
+  function workOrderActions(source, button){
+    if (!workOrdersAvailable() || !workOrderWorthy(source)) return [];
+    const row = workOrderFor(source), busy = state.workOrderBusy === source, key = escapeHtml(source);
+    if (!row) return [button('workorder', busy ? 'Writing the work order…' : 'Generate work order', busy ? 'fa-circle-notch fa-spin' : 'fa-file-circle-plus', `data-mt-work-order-generate="${key}"`, state.workOrderBusy ? 'disabled' : '', source === 'project' ? 'Generate one work order document for all of this project\'s work orders. It appears in the Documents tab.' : 'Generate a work order document for this list. It appears in the Documents tab.')];
+    return [
+      button('workorder', row.stale ? 'Open work order (out of date)' : 'Open work order', 'fa-file-lines', `data-mt-work-order-open="${key}"`, row.stale ? 'data-stale="true"' : '', row.stale ? 'Open the work order in Documents. The lists changed since it was written; Update rewrites it.' : 'Open the work order in Documents'),
+      button('workorder-download', 'Download work order PDF', 'fa-file-arrow-down', `data-mt-work-order-download="${key}"`),
+      row.stale ? button('workorder-update', busy ? 'Updating the work order…' : 'Update work order', busy ? 'fa-circle-notch fa-spin' : 'fa-rotate', `data-mt-work-order-generate="${key}"`, state.workOrderBusy ? 'disabled' : '', 'Rewrite the work order from the lists as they are now. The same document is updated; no copy is made.') : ''
+    ].filter(Boolean);
+  }
+  function bindWorkOrderControls(root){
+    root?.querySelectorAll?.('[data-mt-work-order-generate]')?.forEach((button) => button.addEventListener('click', (event) => { event.stopPropagation(); generateWorkOrder(button.dataset.mtWorkOrderGenerate); }));
+    root?.querySelectorAll?.('[data-mt-work-order-open]')?.forEach((button) => button.addEventListener('click', (event) => { event.stopPropagation(); openWorkOrder(button.dataset.mtWorkOrderOpen); }));
+    root?.querySelectorAll?.('[data-mt-work-order-download]')?.forEach((button) => button.addEventListener('click', (event) => { event.stopPropagation(); downloadWorkOrder(button.dataset.mtWorkOrderDownload); }));
+  }
   /*
-   * A list header's actions, most used first. A work order: schedule, generate from the pay sheet, pay out, delete.
+   * A list header's actions, most used first. A work order: schedule, generate from the pay sheet, pay out, its work
+   * order document (generate, or open, download and update), delete.
    * A material list: order, schedule, the price book, delete. An equipment list: schedule, delete. All are drawn;
    * fitListActions then keeps as many as fit beside the name, the assignee and the total, and puts the rest, lowest
    * first, into the ⋮ menu, which is shown only when it holds something.
@@ -5756,7 +5901,7 @@
     const schedule = !pending && resourceScheduleEnabled(list) ? button('schedule', 'Schedule', 'fa-calendar-day', `data-mt-list-schedule="${escapeHtml(id)}"`, state.schedulingListId ? 'disabled' : '') : '';
     const remove = button('delete', list.metadata?.calculus ? 'Accepted material artifacts are retained; collapse to hide this list' : done ? 'Finalized to be paid; a manager has to reopen it first' : 'Delete list', 'fa-trash', `data-mt-delete-list="${escapeHtml(id)}"`, list.metadata?.calculus || done ? 'disabled' : '');
     const items = type === 'labor'
-      ? [schedule, assigned && !done && !pending ? button('generate', 'Generate from pay sheet', 'fa-wand-magic-sparkles', `data-mt-labor-generate="${escapeHtml(id)}"`, '', `Generate this list from ${cleanText(assignmentWorkResourceRef(list)?.name) || 'their'}'s pay sheet. Lines added by hand are kept.`) : '', !pending ? button('payout', done ? 'Paid out · Reopen…' : 'Pay out', 'fa-money-check-dollar', `data-mt-labor-more="${escapeHtml(id)}" aria-haspopup="menu" aria-expanded="false"`) : '', remove]
+      ? [schedule, assigned && !done && !pending ? button('generate', 'Generate from pay sheet', 'fa-wand-magic-sparkles', `data-mt-labor-generate="${escapeHtml(id)}"`, '', `Generate this list from ${cleanText(assignmentWorkResourceRef(list)?.name) || 'their'}'s pay sheet. Lines added by hand are kept.`) : '', !pending ? button('payout', done ? 'Paid out · Reopen…' : 'Pay out', 'fa-money-check-dollar', `data-mt-labor-more="${escapeHtml(id)}" aria-haspopup="menu" aria-expanded="false"`) : '', ...(!pending ? workOrderActions(id, button) : []), remove]
       : type === 'material'
         ? [!pending ? button('order', ordered ? 'Ordered' : 'Order', ordered ? 'fa-circle-check' : 'fa-cart-shopping', `data-mt-list-order="${escapeHtml(id)}"`, ordered ? 'class="is-done"' : '') : '', schedule, button('pricebook', `Add to ${title || 'this list'} from the price book`, 'fa-book', `data-mt-open-pricebook data-mt-list-id="${escapeHtml(id)}" aria-pressed="${state.pricebookOpen && cleanText(state.pricebookListId) === id}"`), remove]
         : [schedule, remove];
@@ -5906,22 +6051,78 @@
     return `<span class="mt-pill plain" title="${escapeHtml(`${label}. ${outside ? 'An outside company.' : 'People inside your organization.'}`)}">${escapeHtml(short)}</span>`;
   }
   // Both assignment entry points offer the same work overlap and pay-sheet ranking.
+  // Who does some of this job's work comes first: by their pay sheet, or by what they are marked as able to do (a job
+  // that requires no work yet ranks whoever has a pay sheet). Everyone else who can be assigned is still offered, so
+  // the choice is never empty while the directory has someone in it.
   function laborAssignmentOptions(list){
     const id = cleanText(list.id), pay = assigneePay(id);
     const rank = (row) => (row?.complete ? 0 : row?.sheet ? 1 : 2);
-    // Only who does some of this job's work is offered: by their pay sheet, or by what they are marked as able to do.
-    // A job that requires no work yet offers whoever has a pay sheet.
     const needsWork = (requirementSet()?.data?.requirements || []).some((row) => row.kind !== 'material');
     const offered = (row) => !!row && (needsWork ? number(row.overlap, 0) > 0 : !!row.sheet);
-    const options = workResourcesForScopeList(list).map((resource) => ({ resource, row: assigneePayFor(id, resource.id) })).filter(({ row }) => offered(row))
-      .sort((a, b) => rank(a.row) - rank(b.row) || number(a.row?.total_cents, Infinity) - number(b.row?.total_cents, Infinity) || cleanText(a.resource.name).localeCompare(cleanText(b.resource.name)));
-    return { options, needsWork, pay };
+    const order = (a, b) => rank(a.row) - rank(b.row) || number(a.row?.total_cents, Infinity) - number(b.row?.total_cents, Infinity) || cleanText(a.resource.name).localeCompare(cleanText(b.resource.name));
+    // Equipment units share the directory but never do a work order's labor.
+    const everyone = workResourcesForScopeList(list).filter((resource) => cleanText(resource.resource_kind) !== 'equipment_unit').map((resource) => ({ resource, row: assigneePayFor(id, resource.id) }));
+    const options = everyone.filter(({ row }) => offered(row)).sort(order), others = everyone.filter(({ row }) => !offered(row)).sort(order);
+    return { options, others, needsWork, pay };
+  }
+  // What the assignment choice can honestly offer right now. Loading, a failed read and an empty directory each say so,
+  // with a retry where one can help; a slow or failed price comparison still lists everyone, just without prices.
+  function laborAssignmentView(list){
+    const id = cleanText(list.id), { options, others, needsWork, pay } = laborAssignmentOptions(list);
+    const priced = !!pay && !pay.loading && !pay.error;
+    const all = [...options, ...others];
+    if (state.crewsError) return { shown: [], note: `The assignees could not be loaded. ${state.crewsError}`, retry: true, error: true };
+    if (!state.crewsLoaded) return { shown: [], note: 'Loading assignees…' };
+    if (!all.length) return { shown: [], note: 'No one can be assigned here yet. Add a group of users or an outside company in People. With more than one branch, only the assignees in your branches are listed.', retry: true };
+    if (pay?.error) return { shown: all, note: `Pay could not be worked out, so no prices are shown. ${pay.error}`, retry: true };
+    if (!priced) return { shown: all, note: pay?.loading ? 'Working out what each would be paid…' : '' };
+    if (!options.length) return { shown: others, note: needsWork ? 'No one is marked as doing this job\'s work yet, so everyone is listed. Give an assignee a pay sheet, or mark the kinds of work they do, to rank them here.' : 'No one has a pay sheet yet, so everyone is listed without a price.' };
+    const more = state.assignShowAll?.has(id);
+    return { shown: more ? all : options, hidden: more ? 0 : others.length, divider: more && others.length ? options.length : -1 };
+  }
+  function renderAssignmentNote(view, id){
+    const note = view.note ? `<span>${escapeHtml(view.note)}</span>` : '';
+    const retry = view.retry ? `<button type="button" class="mt-assign-retry" data-mt-assign-retry="${escapeHtml(id)}">${view.error ? 'Try again' : 'Reload'}</button>` : '';
+    return note || retry ? `<div class="mt-assign-note${view.error ? ' is-error' : ''}" role="${view.error ? 'alert' : 'status'}">${note}${retry}</div>` : '';
+  }
+  function renderAssignmentMore(view, id){
+    return view.hidden ? `<button type="button" class="mt-assign-more" data-mt-assign-more="${escapeHtml(id)}">Show ${view.hidden} more who ${view.hidden === 1 ? 'is' : 'are'} not marked for this work</button>` : '';
   }
   // An unassigned, empty labor list asks who does the work, with what each choice would cost.
   function renderAssignBlock(list){
-    const id = cleanText(list.id), { options, needsWork, pay } = laborAssignmentOptions(list);
-    if (!pay) loadAssigneePay(id).then(() => { if (!workspaceIsEditing()) syncMaterialsGrid(); });
-    return `<div class="mt-assign-block${state.assigningListId === id ? ' is-busy' : ''}" data-mt-assign-block="${escapeHtml(id)}"><strong title="Choose who does this work. Their pay sheet builds the list, and you can add or change lines afterwards.">Assign this work <i class="fas fa-circle-info" aria-hidden="true"></i></strong>${options.length ? '' : `<em>${pay?.loading || !pay ? 'Finding who can do this work…' : needsWork ? 'No one is marked as doing this job\'s work. Give an assignee a pay sheet, or mark the kinds of work they do.' : 'No one has a pay sheet yet.'}</em>`}${options.map(({ resource, row }) => `<button type="button" data-mt-assign-pick="${escapeHtml(id)}" data-mt-assign-resource="${escapeHtml(cleanText(resource.id))}"><span class="mt-assign-top"><strong title="${escapeHtml(resource.name || resource.label || resource.id)}">${escapeHtml(resource.name || resource.label || resource.id)}</strong><b class="${row?.complete ? '' : 'unknown'}">${escapeHtml(pay?.loading && !row ? '…' : assigneePayLabel(row))}</b></span><span class="mt-assign-pills">${assigneeKindPill(resource)}${assigneePills(resource, row)}</span></button>`).join('')}</div>`;
+    const id = cleanText(list.id), pay = assigneePay(id);
+    if (!pay) loadAssigneePay(id).then((entry) => { if (entry) syncAssignBlocks(); });
+    const view = laborAssignmentView(list);
+    const pick = ({ resource, row }, index) => `${index === view.divider ? '<div class="mt-assign-divider">Not marked for this work</div>' : ''}<button type="button" data-mt-assign-pick="${escapeHtml(id)}" data-mt-assign-resource="${escapeHtml(cleanText(resource.id))}"><span class="mt-assign-top"><strong title="${escapeHtml(resource.name || resource.label || resource.id)}">${escapeHtml(resource.name || resource.label || resource.id)}</strong><b class="${row?.complete ? '' : 'unknown'}">${escapeHtml(!row && (!pay || pay.loading) ? '…' : assigneePayLabel(row))}</b></span><span class="mt-assign-pills">${assigneeKindPill(resource)}${assigneePills(resource, row)}</span></button>`;
+    return `<div class="mt-assign-block${state.assigningListId === id ? ' is-busy' : ''}" data-mt-assign-block="${escapeHtml(id)}"><strong title="Choose who does this work. Their pay sheet builds the list, and you can add or change lines afterwards.">Assign this work <i class="fas fa-circle-info" aria-hidden="true"></i></strong>${renderAssignmentNote(view, id)}${view.shown.map(pick).join('')}${renderAssignmentMore(view, id)}</div>`;
+  }
+  // The list an assignment block or menu belongs to; a project with no work order yet is asked about as a project.
+  function assignmentList(id){
+    return materialListById(id) || (cleanText(id).startsWith('project:') ? { id: cleanText(id), resource_type: 'labor' } : null);
+  }
+  // Redraws only the assignment blocks, so a directory or price read that finishes while someone types still shows.
+  function syncAssignBlocks(){
+    materialRoot()?.querySelectorAll?.('[data-mt-assign-block]')?.forEach((block) => {
+      const list = assignmentList(block.dataset.mtAssignBlock);
+      if (!list) return;
+      const holder = document.createElement('div');
+      holder.innerHTML = renderAssignBlock(list);
+      const next = holder.firstElementChild;
+      if (!next || next.outerHTML === block.outerHTML) return;
+      block.replaceWith(next);
+      bindAssignBlocks(next.parentElement || materialRoot());
+    });
+  }
+  function retryAssignment(listId){
+    const id = cleanText(listId);
+    state.crewsError = '';
+    syncAssignBlocks(); syncLaborMenu();
+    Promise.allSettled([loadWorkResources(), loadAssigneePay(id, true)]).then(() => { syncAssignBlocks(); syncLaborMenu(); });
+  }
+  function bindAssignBlocks(root){
+    root?.querySelectorAll?.('[data-mt-assign-pick]')?.forEach((button) => { if (button.__mtBound) return; button.__mtBound = true; button.addEventListener('click', () => assignAndGenerate(button.dataset.mtAssignPick, button.dataset.mtAssignResource)); });
+    root?.querySelectorAll?.('[data-mt-assign-retry]')?.forEach((button) => { if (button.__mtBound) return; button.__mtBound = true; button.addEventListener('click', (event) => { event.stopPropagation(); retryAssignment(button.dataset.mtAssignRetry); }); });
+    root?.querySelectorAll?.('[data-mt-assign-more]')?.forEach((button) => { if (button.__mtBound) return; button.__mtBound = true; button.addEventListener('click', (event) => { event.stopPropagation(); state.assignShowAll = new Set([...(state.assignShowAll || []), cleanText(button.dataset.mtAssignMore)]); syncAssignBlocks(); syncLaborMenu(); }); });
   }
   // Generating writes the list. Hours and the like are typed into their own lines afterwards; only a number that is not
   // a line's quantity is asked for first.
@@ -6117,7 +6318,7 @@
   }
   function renderRequirementsTray(){
     const open = requirementsOpen(), set = requirementSet();
-    if (!set) loadRequirements().then((entry) => { if (entry && state.requirements === entry) { if ((entry.data?.line_warnings || []).length && !workspaceIsEditing()) syncMaterialsGrid(); else syncRequirementsTray(); } });
+    if (!set) loadRequirements().then((entry) => { if (entry && state.requirements === entry) { if ((minimizeIdleWorkOrder(entry) || (entry.data?.line_warnings || []).length) && !workspaceIsEditing()) syncMaterialsGrid(); else syncRequirementsTray(); } });
     const data = set?.data, rows = data?.requirements || [], counts = data?.counts || { open: 0, warning: 0, covered: 0 };
     const status = !data ? 'loading' : data.status;
     // Collapsed, the bar alone says how the project stands: red for anything missing, yellow for anything to check, green when neither.
@@ -6411,7 +6612,7 @@
 
   function renderLaborMenu(list){
     const settings = laborSettings(list);
-    const { options, needsWork, pay } = laborAssignmentOptions(list);
+    const view = laborAssignmentView(list);
     const chip = (attribute, value, label, active, hint = '') => `<button type="button" class="${active ? 'active' : ''}" ${attribute}="${escapeHtml(value)}" aria-pressed="${active}" ${hint ? `title="${escapeHtml(hint)}"` : ''}>${escapeHtml(label)}</button>`;
     const option = (resource) => {
       const id = cleanText(resource?.id);
@@ -6423,8 +6624,8 @@
     };
     return `
       <div class="mt-labor-menu-title">Assigned to</div>
-      <div class="mt-labor-options" role="menu">${option(null)}${options.map(({ resource }) => option(resource)).join('')}</div>
-      ${options.length ? '' : `<div class="mt-assignment-empty" role="status">${!pay || pay.loading ? 'Finding who can do this work…' : needsWork ? 'No assignees overlap with this job’s work.' : 'No one has a pay sheet yet.'}</div>`}
+      ${renderAssignmentNote(view, settings.id)}
+      <div class="mt-labor-options" role="menu">${option(null)}${view.shown.map(({ resource }, index) => `${index === view.divider ? '<div class="mt-assign-divider">Not marked for this work</div>' : ''}${option(resource)}`).join('')}${renderAssignmentMore(view, settings.id)}</div>
       ${settings.canRegenerate ? `<button type="button" class="mt-labor-regenerate" data-mt-labor-regenerate><i class="fas fa-arrows-rotate" aria-hidden="true"></i> Regenerate labor from scope</button>` : ''}
     `;
   }
@@ -6471,6 +6672,7 @@
       button.addEventListener('click', () => { if (button.dataset.mtLaborAssign !== laborSettings(materialListById(listId)).resourceId) assignWorkResource(listId, button.dataset.mtLaborAssign); });
     });
     portal.querySelector('[data-mt-labor-regenerate]')?.addEventListener('click', () => { closeLaborMenu(); regenerateLaborListFromScope(listId); });
+    bindAssignBlocks(portal);
   }
 
   function toggleLaborMenu(listId){
@@ -6711,7 +6913,7 @@
     root.querySelectorAll('[data-mt-list-more]').forEach((button) => button.addEventListener('click', (event) => { event.stopPropagation(); openListMore(button); }));
     fitListActions(root);
     watchListActionFit();
-    root.querySelectorAll('[data-mt-work-order]').forEach((button) => button.addEventListener('click', () => showToast('Work orders are not built yet', 'Generating a work order from this project\'s labor is the next piece of this workflow.', false)));
+    bindWorkOrderControls(root);
     root.querySelectorAll('[data-mt-reserve-equipment]').forEach((button) => button.addEventListener('click', () => showToast('Equipment reservations are not built yet', 'Reserving this project\'s equipment is the next piece of this workflow.', false)));
     root.querySelectorAll('[data-mt-order-all]').forEach((button) => {
       button.addEventListener('click', async () => {
@@ -6736,7 +6938,7 @@
       });
     });
     root.querySelectorAll('[data-mt-labor-generate]').forEach((button) => button.addEventListener('click', (event) => { event.stopPropagation(); if (!state.saving) generateLaborList(button.dataset.mtLaborGenerate); }));
-    root.querySelectorAll('[data-mt-assign-pick]').forEach((button) => button.addEventListener('click', () => assignAndGenerate(button.dataset.mtAssignPick, button.dataset.mtAssignResource)));
+    bindAssignBlocks(root);
     root.querySelectorAll('[data-mt-labor-menu]').forEach((button) => {
       button.addEventListener('click', (event) => {
         event.stopPropagation();
@@ -6839,7 +7041,7 @@
       state.resourceTypes = [];
       state.activeListId = '';
       state.activeList = null;
-      state.visibleListIds = new Set(); state.collapsedListIds = new Set(); state.expandedItemIds = new Set(); state.minimizedTypes = new Set(); closeLaborMenu();
+      state.visibleListIds = new Set(); state.collapsedListIds = new Set(); state.expandedItemIds = new Set(); state.minimizedTypes = new Set(); state.workOrderMinimizeDecided = ""; closeLaborMenu();
       state.orders = [];
       state.versions = [];
       state.deliveriesByOrderId = {};
@@ -6861,6 +7063,8 @@
       state.expenseError = '';
       state.expenseLoading = false;
       state.crews = [];
+      state.crewsLoaded = false;
+      state.crewsError = '';
       state.workforceTerms = {};
       state.saving = false;
     }
@@ -6921,7 +7125,7 @@
     state.resourceTypes = [];
     state.activeListId = '';
     state.activeList = null;
-    state.visibleListIds = new Set(); state.collapsedListIds = new Set(); state.expandedItemIds = new Set(); state.minimizedTypes = new Set(); closeLaborMenu();
+    state.visibleListIds = new Set(); state.collapsedListIds = new Set(); state.expandedItemIds = new Set(); state.minimizedTypes = new Set(); state.workOrderMinimizeDecided = ""; closeLaborMenu();
     state.leftSections = { lists: true, measurements: true, custom_fields: true, notes: true };
     state.noteVisibility = ['office', 'crew', 'sales'];
     state.noteVisibilityOpen = false;
@@ -6931,6 +7135,8 @@
     state.deliveriesByOrderId = {};
     state.crews = [];
     state.crewsLoading = false;
+    state.crewsLoaded = false;
+    state.crewsError = '';
     state.workforceTerms = {};
     state.expenseSummary = null;
     state.expenseLoading = false;
