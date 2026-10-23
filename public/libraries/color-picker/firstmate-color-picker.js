@@ -57,6 +57,7 @@
   }
   function close(restoreFocus = true) {
     if (!active) return;
+    commit();
     const input = active; active = null;
     if (normalize(input.value) && normalize(input.value) !== normalize(initial)) remember(input.value);
     input.setAttribute('aria-expanded', 'false');
@@ -89,7 +90,14 @@
       if (replacement) { active = replacement; enhance(replacement); replacement.value = hex; replacement.setAttribute('aria-expanded', 'true'); }
     }
   }
-  function choose(hex, preserveHsv = false) {
+  // Like a native color input: dragging across the plane or hue slider fires only 'input' (live preview); 'change'
+  // fires once when the gesture ends, so in-between shades are never committed or remembered as recent colors.
+  let committed = '';
+  function commit() {
+    const input = active; if (!input || normalize(input.value) === normalize(committed)) return;
+    committed = input.value; input.dispatchEvent(new Event('change', { bubbles: true })); rebind(input.value);
+  }
+  function choose(hex, preserveHsv = false, final = true) {
     hex = normalize(hex); if (!hex || !active) return;
     const input = active; const changed = input.value.toLowerCase() !== hex;
     input.value = hex;
@@ -100,9 +108,8 @@
       // A consumer may rerender its field from an input event. Keep subsequent
       // changes attached to the replacement so delegated application listeners work.
       rebind(hex);
-      (active || input).dispatchEvent(new Event('change', { bubbles: true }));
-      rebind(hex);
     }
+    if (final) commit();
   }
   function open(input) {
     if (!input || input.disabled || input.closest('[inert]')) return;
@@ -111,7 +118,7 @@
     anchor = input.parentElement;
     identity = { id: input.id, attributes: [...input.attributes].filter(attribute => attribute.name.startsWith('data-') && attribute.name !== 'data-fm-color-picker').map(attribute => [attribute.name, attribute.value]) };
     if (!identity.id && !identity.attributes.length) identity = null;
-    hsv = rgbToHsv(hexToRgb(input.value)); input.setAttribute('aria-expanded', 'true');
+    hsv = rgbToHsv(hexToRgb(input.value)); committed = input.value; input.setAttribute('aria-expanded', 'true');
     panel = document.createElement('section'); panel.className = 'fm-color-picker'; panel.setAttribute('role', 'dialog'); panel.setAttribute('aria-label', 'Choose color');
     panel.style.fontFamily = root.getComputedStyle(input).fontFamily;
     panel.innerHTML = `<div class="fm-color-picker-head"><strong>Choose color</strong><button type="button" class="fm-color-close" aria-label="Close color picker">×</button></div><div class="fm-color-plane" role="slider" tabindex="0" aria-label="Saturation and brightness" aria-valuemin="0" aria-valuemax="100"><span class="fm-color-plane-dot"></span></div><input class="fm-color-hue" data-hue type="range" min="0" max="360" step="1" aria-label="Hue"><div class="fm-color-fields"><label>HEX<input data-hex spellcheck="false" maxlength="7" autocomplete="off"></label><label>R<input data-rgb type="number" min="0" max="255" aria-label="Red"></label><label>G<input data-rgb type="number" min="0" max="255" aria-label="Green"></label><label>B<input data-rgb type="number" min="0" max="255" aria-label="Blue"></label></div><div class="fm-color-presets-head"><span>Recent colors</span>${'EyeDropper' in root ? '<button type="button" data-eyedropper title="Pick a color from anywhere on screen, such as a photo or texture">Pick from screen</button>' : ''}</div><div class="fm-color-presets" aria-label="Recent colors"></div><p class="fm-color-status" role="status" aria-live="polite"></p><div class="fm-color-actions"><button type="button" data-reset>Reset</button><button type="button" class="fm-color-done">Done</button></div>`;
@@ -135,11 +142,13 @@
     panel.querySelector('[data-hex]').addEventListener('input', event => { const hex = normalize(event.target.value); if (/^#?[a-f\d]{6}$/i.test(event.target.value.trim()) && hex) choose(hex); });
     panel.querySelector('[data-hex]').addEventListener('change', event => { const hex = normalize(event.target.value); if (!hex) { panel.querySelector('[role=status]').textContent = 'Enter a 3 or 6 digit hex color.'; event.target.setAttribute('aria-invalid', 'true'); } else { event.target.removeAttribute('aria-invalid'); choose(hex); event.target.value = hex; } });
     panel.querySelectorAll('[data-rgb]').forEach(input => input.addEventListener('input', () => { const values = [...panel.querySelectorAll('[data-rgb]')].map(el => el.value); if (values.every(value => value !== '' && Number(value) >= 0 && Number(value) <= 255)) choose(rgbToHex(values)); }));
-    panel.querySelector('[data-hue]').addEventListener('input', event => { hsv.h = Number(event.target.value); choose(rgbToHex(hsvToRgb(hsv)), true); });
+    panel.querySelector('[data-hue]').addEventListener('input', event => { hsv.h = Number(event.target.value); choose(rgbToHex(hsvToRgb(hsv)), true, false); });
+    panel.querySelector('[data-hue]').addEventListener('change', () => commit());
     const plane = panel.querySelector('.fm-color-plane');
-    const move = event => { const box = plane.getBoundingClientRect(); hsv.s = clamp((event.clientX - box.left) / box.width); hsv.v = 1 - clamp((event.clientY - box.top) / box.height); choose(rgbToHex(hsvToRgb(hsv)), true); };
+    const move = event => { const box = plane.getBoundingClientRect(); hsv.s = clamp((event.clientX - box.left) / box.width); hsv.v = 1 - clamp((event.clientY - box.top) / box.height); choose(rgbToHex(hsvToRgb(hsv)), true, false); };
     plane.addEventListener('pointerdown', event => { event.preventDefault(); plane.focus({ preventScroll: true }); plane.setPointerCapture(event.pointerId); move(event); });
     plane.addEventListener('pointermove', event => { if (plane.hasPointerCapture(event.pointerId)) move(event); });
+    for (const type of ['pointerup', 'pointercancel', 'lostpointercapture']) plane.addEventListener(type, () => commit());
     plane.addEventListener('keydown', event => { const step = event.shiftKey ? .1 : .01; if (!['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(event.key)) return; event.preventDefault(); hsv.s = clamp(hsv.s + (event.key === 'ArrowRight' ? step : event.key === 'ArrowLeft' ? -step : 0)); hsv.v = clamp(hsv.v + (event.key === 'ArrowUp' ? step : event.key === 'ArrowDown' ? -step : 0)); choose(rgbToHex(hsvToRgb(hsv)), true); });
     document.body.appendChild(panel); sync(); position(); panel.querySelector('[data-hex]').focus({ preventScroll: true });
   }

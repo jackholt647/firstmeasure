@@ -130,3 +130,27 @@ test('palette shows remembered recent colors instead of stock primaries, merges 
     assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem('firstmate:recent-colors'))[0]), '#334455', 'a committed eyedropper pick is remembered');
   } finally { await browser.close(); }
 });
+
+test('dragging across the color plane commits once on release, so in-between shades are not remembered', async () => {
+  const browser = await chromium.launch({ executablePath: process.env.CHROME_PATH || 'C:/Program Files/Google/Chrome/Application/chrome.exe', headless: true });
+  try {
+    const page = await browser.newPage({ viewport: { width: 380, height: 650 } });
+    await page.route('https://picker.test/', route => route.fulfill({ contentType: 'text/html', body: '<main><input id="color" type="color" value="#123456"></main>' }));
+    await page.goto('https://picker.test/');
+    await page.addScriptTag({ content: await readFile(new URL('../../libraries/color-picker/firstmate-color-picker.js', import.meta.url), 'utf8') });
+    await page.evaluate(() => { window.counts = { input: 0, change: 0 }; for (const type of ['input', 'change']) document.querySelector('#color').addEventListener(type, () => window.counts[type]++); });
+    await page.locator('#color').click();
+    const box = await page.locator('.fm-color-plane').boundingBox();
+    await page.mouse.move(box.x + 10, box.y + 10); await page.mouse.down();
+    for (let i = 1; i <= 12; i++) await page.mouse.move(box.x + 10 + i * 15, box.y + 10 + i * 8);
+    const during = await page.evaluate(() => ({ ...window.counts }));
+    await page.mouse.up();
+    const after = await page.evaluate(() => ({ ...window.counts }));
+    assert.ok(during.input >= 10, 'live preview while dragging');
+    assert.equal(during.change, 0, 'no commit mid-drag');
+    assert.equal(after.change, 1, 'one commit on release');
+    await page.locator('.fm-color-done').click();
+    const recent = await page.evaluate(() => JSON.parse(localStorage.getItem('firstmate:recent-colors') || '[]'));
+    assert.equal(recent.length, 1, 'only the final shade becomes a recent color');
+  } finally { await browser.close(); }
+});
