@@ -6328,7 +6328,7 @@
   function workOrderActions(source, button){
     if (!workOrdersAvailable() || !workOrderWorthy(source)) return [];
     const row = workOrderFor(source), busy = state.workOrderBusy === source, key = escapeHtml(source);
-    if (!row) return [button('workorder', busy ? 'Writing the work order…' : 'Generate work order', busy ? 'fa-circle-notch fa-spin' : 'fa-file-circle-plus', `data-mt-work-order-generate="${key}"`, state.workOrderBusy ? 'disabled' : '', source === 'project' ? 'Generate one work order document for all of this project\'s work orders. It appears in the Documents tab.' : 'Generate a work order document for this list. It appears in the Documents tab.')];
+    if (!row) return [button('workorder', busy ? 'Writing the work order…' : 'Generate work order', busy ? 'fa-circle-notch fa-spin' : 'fa-clipboard-list', `data-mt-work-order-generate="${key}"`, state.workOrderBusy ? 'disabled' : '', source === 'project' ? 'Generate one work order document for all of this project\'s work orders. It appears in the Documents tab.' : 'Generate a work order document for this list. It appears in the Documents tab.')];
     return [
       button('workorder', row.stale ? 'Open work order (out of date)' : 'Open work order', 'fa-file-lines', `data-mt-work-order-open="${key}"`, row.stale ? 'data-stale="true"' : '', row.stale ? 'Open the work order in Documents. The lists changed since it was written; Update rewrites it.' : 'Open the work order in Documents'),
       button('workorder-download', 'Download work order PDF', 'fa-file-arrow-down', `data-mt-work-order-download="${key}"`),
