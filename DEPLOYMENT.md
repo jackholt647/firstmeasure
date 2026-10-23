@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+October 22-23 Phone country codes on dev: [the calling-code picker offers the 52 served countries (detected first), formats the number for the chosen country as it is typed and previews the international number](deploy/digitalocean/development-phone-countries-20261022.md) records release `01f5e5c2` (1M8-240), cut from `codex/hotfix-20261023g`, on worker, legacy and web (pool unreachable).
+
 October 23 1M8-238 customer users' order counts on dev: [the internal Customers tab counts each user's orders instead of the 0 stored at signup](deploy/digitalocean/development-user-order-count-20261023.md) records branch `claude/customer-user-order-count-20261023` (`51384eaa`, on `codex/hotfix-20261023f`) and the verified development rollout. Not on production.
 
 October 22 People and Settings access on dev: [admins can suspend, archive and revoke other super admins while the owner and the last super admin stay protected (also on the server), and Settings is hidden from people it has no page for](deploy/digitalocean/development-users-settings-20261022.md) records release `e9bfef63` (1M8-235/236), cut from `codex/hotfix-20261023e`, and the verified four-role development rollout.
