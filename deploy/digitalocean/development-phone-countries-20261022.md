@@ -40,3 +40,34 @@ while it was the only node behind the load balancer.
 first; no Japan). The served picker on the login page: GB +44 selected, 02079460958 shows "020 7946 0958" and "Saved as +44
 20 7946 0958" and submits +442079460958; US 5555550123 shows "(555) 555-0123" and submits +15555550123. On dev the minimal
 signup has no phone field, so the picker is not visible in the signup form there until 1M8-239 is decided.
+
+## Second rollout, October 23: production's signup form back on dev (1M8-239 removed)
+
+Ben deleted 1M8-239, so its minimal signup will not ship. Dev now shows production's signup form (country, language,
+mobile with the calling-code picker, confirm password) instead of the 1M8-239 review form, with 1M8-240 on it.
+
+**What was removed from dev.** Every change of the 1M8-239 commit `d8e2243f` except its new test file: the minimal
+login.php and signup-widget.js forms, signup-region.js's compact summary, the optional phone on the first onboarding step
+(wizard.js) and its bundle key, `/auth/register` and the legacy register action accepting a signup without a phone
+(platform/api.ts; a phone is required again), the billing currency in `/auth/signup-options` (signup-options.ts), and its
+onboarding and signup-region language catalogs (the manifest points at production's catalogs again).
+
+**How.** `output/phone-countries-2-20261023/revert239.py` rewrites each role's downloaded live copy before the build: a
+three-way merge from `d8e2243f` back to its parent `f3cfb2de` (production's form), so later sessions' edits stay.
+signup-region.js and signup-options.ts were exactly 1M8-239's versions (plus the first 1M8-240 replay) and were set to
+production's; in login.php and the widget only the signup-region.js cache-key lines conflicted and took production's side.
+1M8-240 (`01f5e5c2`) was then merged onto the result. The language manifest keeps every other live namespace.
+
+**Release.** `01f5e5c2` again, rebuilt. Pool is still unreachable. One build produced an empty compiled `api.js`
+(a stopped earlier build was still writing), and worker staging refused it on the hash check; the build now asserts every
+compiled file is non-empty. Other sessions' activations refused three attempts; worker and legacy then activated, web
+then refused because another release went live there; a web-only run staged, activated and verified it. Web and worker run
+`01f5e5c2`; legacy has since moved to `4cf68f77`, another session's release built on this one (no onboarding phone,
+`phone_countries` present).
+
+**Checked on dev.1m8.ai.** login.php, Create Account, from a London browser: Country, Language, Phone (GB +44 of 52
+calling codes), Email, Password, Confirm Password; typing 07700900123 shows "07700 900123" and "Saved as +44 7700 900123".
+From a New York browser: US +1, "(555) 555-0123", "Saved as +1 555 555 0123". No page errors. The served wizard.js has no
+onboarding phone. Not changed here: European visitors' login billboard (`https://eu.1m8.ai/billboards/login`, production's
+login.php) answers 404 from the marketing site.
+
