@@ -118,6 +118,8 @@
 
     // Products by name, grouped by item type. A product the price book no longer has stays selectable, marked as missing.
     function productSelect(rule){
+      // The price book could not be read: the item is typed in, as the pay sheet editor does.
+      if (!state.products.length) return `<input type="text" data-md-field="product_id" value="${esc(rule.product_id || '')}" placeholder="${esc(t('md_product_id', 'Price book item'))}" aria-label="${esc(t('md_product_id', 'Price book item'))}">`;
       const groups = new Map();
       state.products.forEach((item) => { const type = text(item.type) || t('md_other', 'Other'); if (!groups.has(type)) groups.set(type, []); groups.get(type).push(item); });
       const known = !rule.product_id || state.products.some((item) => item.id === rule.product_id);
