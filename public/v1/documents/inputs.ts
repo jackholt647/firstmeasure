@@ -140,7 +140,9 @@ export function touchedParamKeys(paths: string[]) {
 // ---------------------------------------------------------------------------
 
 const LINE_LIST_KEYS = new Set(["scope_items", "line_items", "pricing_adjustments", "option_a_items", "option_b_items", "option_c_items"]);
-const LINE_DERIVED_FIELDS = new Set(["selected", "show_amount", "variant", "depth", "indent_label", "condition_met", "included", "source_path", "id", "children", "rows", "conditional_rows", "total_cents", "price_cents", "selected_variation_id", "selected_variation_label"]);
+const LINE_DERIVED_FIELDS = new Set(["selected", "show_amount", "variant", "depth", "indent_label", "condition_met", "included", "source_path", "id", "children", "rows", "conditional_rows", "total_cents", "price_cents", "selected_variation_id", "selected_variation_label",
+  // Written from the variants chosen for the line (doc-workflow, presentation choices).
+  "variant_summary", "selected_variants"]);
 
 /** [listPrefix, rowPath, field] for a path into a line list, or null. */
 function lineRowPath(segments: Array<string | number>): { row: Array<string | number>; field: string } | null {
