@@ -21,7 +21,7 @@
   if (!topLevel) return;
   if (document.documentElement && document.documentElement.hasAttribute('data-fmr-no-record')) return;
 
-  const VERSION = '20261022-3';
+  const VERSION = '20261023-1';
   const SESSION_KEY = 'fmr.session';
   const OVERLAY_KEY = 'fmr.overlay';
   const IDLE_MS = 30 * 60 * 1000;
@@ -109,6 +109,7 @@
       encoding: item.bytes ? item.encoding : 'identity'
     };
     if (item.meta) header.meta = item.meta;
+    if (item.paths && item.paths.length) header.paths = item.paths.slice(0, 50);
     return frame(header, bytes);
   }
 
@@ -120,8 +121,24 @@
       return (result.data && result.data.missing) || keys;
     },
     sendBlob: (blob) => post('/session-replay/blobs', frame({ key: blob.key, raw_bytes: blob.raw_bytes, encoding: blob.encoding }, blob.bytes)),
-    beacon: (item) => { post('/session-replay/chunks', chunkFrame(item), true).catch(() => {}); }
+    beacon: (item) => { post('/session-replay/chunks', chunkFrame(item), true).catch(() => {}); },
+    beaconBlob: (blob) => {
+      post('/session-replay/blobs', frame({ key: blob.key, raw_bytes: blob.raw_bytes, encoding: blob.encoding }, blob.bytes), true).catch(() => {});
+    }
   };
+
+  // Pages an administrator set not to record: a pattern over the path and hash, compared in lower case. Without `*`
+  // it covers every path starting with it; with `*` the whole path must match. The server's pagePatternLike
+  // (session-replay/storage.ts) matches the same way when filtering sessions by page.
+  function pageAllowed(patterns) {
+    const tests = (patterns || []).map((pattern) => {
+      const lower = String(pattern).toLowerCase();
+      if (lower.indexOf('*') < 0) return (path) => path.indexOf(lower) === 0;
+      const re = new RegExp('^' + lower.split('*').map((part) => part.replace(/[.+?^${}()|[\]\\]/g, '\\$&')).join('.*') + '$');
+      return (path) => re.test(path);
+    });
+    return (path) => !tests.some((test) => test(String(path).toLowerCase()));
+  }
 
   // When a platform administrator starts following this session live, the server says so on the page's platform
   // event stream and the recorder sends at once instead of at its next interval. Only a stream the page already
@@ -185,6 +202,7 @@
       transport,
       sessionId: sessionId(false),
       chunkIntervalMs: config.chunk_interval_ms,
+      pageAllowed: pageAllowed(config.exclude_pages),
       maskAllInputs: config.mask_all_inputs === true,
       newSessionId: () => sessionId(true),
       onUploaded: (item) => { touchSession(item.session_id); listenForViewers(); },

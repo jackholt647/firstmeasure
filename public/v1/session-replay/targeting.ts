@@ -11,11 +11,13 @@ import { replayDatabase } from "./storage.js";
  *   listed    only people and organizations whose rule says record (the default, so nothing records at first)
  *   everyone  everybody, except people and organizations whose rule says don't
  * A person is a sign-in identity, so their rule follows them into every organization they belong to, and it wins
- * over their organization's rule. A rule may expire; an expired rule counts as absent. Every change is logged.
+ * over their organization's rule. A page rule names pages that are never recorded, whoever is on them: a pattern
+ * over the path and hash (no query string), matched as session-replay/storage.ts `pagePatternLike` describes.
+ * A rule may expire; an expired rule counts as absent. Every change is logged.
  * Only platform administrators read or change any of this (session-replay/api.ts).
  */
 export type ReplayMode = "off" | "listed" | "everyone";
-export type RuleKind = "person" | "organization";
+export type RuleKind = "person" | "organization" | "page";
 export type ReplayRule = {
   kind: RuleKind;
   target_id: string;
@@ -50,11 +52,13 @@ const num = (value: unknown) => Number(value ?? 0) || 0;
 const store = (): SqlStore => replayDatabase();
 
 let modeCache: { at: number; value: Awaited<ReturnType<typeof readModeRow>> } | null = null;
+let pagesCache: { at: number; value: string[] } | null = null;
 const decisionCache = new Map<string, { at: number; decision: ReplayDecision }>();
 
 /** Forget cached modes and decisions in this process (after a write, and in tests). */
 export function clearReplayTargetingCache() {
   modeCache = null;
+  pagesCache = null;
   decisionCache.clear();
 }
 
@@ -94,6 +98,16 @@ export async function readReplayMode(fresh = false) {
   return value;
 }
 
+/** Patterns of pages that are never recorded (live page rules), for the recorder to skip. */
+export async function excludedReplayPages(now = Date.now()) {
+  if (pagesCache && now - pagesCache.at < CACHE_MS) return pagesCache.value;
+  const rows = await store().prepare(`SELECT target_id FROM session_replay_rules WHERE kind='page' AND enabled=0
+    AND (expires_at=0 OR expires_at>?) ORDER BY target_id LIMIT 500`).all(now);
+  const value = rows.map((row) => text(row.target_id));
+  pagesCache = { at: now, value };
+  return value;
+}
+
 /** Whether this person, signed in to this organization, is recorded, and which setting decided it. */
 export async function decideReplay(input: { identityId: string; orgId: string }, now = Date.now()): Promise<ReplayDecision> {
   const key = input.identityId + "\u0000" + input.orgId;
@@ -110,7 +124,7 @@ export async function decideReplay(input: { identityId: string; orgId: string },
     const person = rules.find((rule) => rule.kind === "person");
     const organization = rules.find((rule) => rule.kind === "organization");
     const rule = person || organization || null;
-    if (rule) decision = { record: rule.enabled, because: rule.kind, mode, rule };
+    if (rule) decision = { record: rule.enabled, because: rule.kind === "person" ? "person" : "organization", mode, rule };
     else decision = { record: mode === "everyone", because: mode === "everyone" ? "everyone" : "not_listed", mode, rule: null };
   }
   if (decisionCache.size >= CACHE_LIMIT) decisionCache.clear();
@@ -217,10 +231,11 @@ export async function countReplayRules() {
   const now = Date.now();
   const rows = await store().prepare(`SELECT kind, enabled, COUNT(*) AS n FROM session_replay_rules
     WHERE expires_at=0 OR expires_at>? GROUP BY kind, enabled`).all(now);
-  const counts = { people_recording: 0, people_excluded: 0, organizations_recording: 0, organizations_excluded: 0 };
+  const counts = { people_recording: 0, people_excluded: 0, organizations_recording: 0, organizations_excluded: 0, pages_excluded: 0 };
+  const group: Record<string, string> = { person: "people", organization: "organizations", page: "pages" };
   for (const row of rows) {
-    const key = `${text(row.kind) === "person" ? "people" : "organizations"}_${num(row.enabled) === 1 ? "recording" : "excluded"}` as keyof typeof counts;
-    counts[key] = num(row.n);
+    const key = `${group[text(row.kind)] || "organizations"}_${num(row.enabled) === 1 ? "recording" : "excluded"}` as keyof typeof counts;
+    if (key in counts) counts[key] = num(row.n);
   }
   return counts;
 }

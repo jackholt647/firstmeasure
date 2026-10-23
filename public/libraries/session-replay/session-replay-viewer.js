@@ -16,7 +16,7 @@
 
   const state = {
     me: null, csrf: '', sessions: [], sessionId: '', detail: null, model: null, blobs: new Map(), player: null,
-    poll: 0, polling: false, scope: 'current', query: '', events: [], eventTimes: [], live: false, currentEvent: -1,
+    poll: 0, polling: false, scope: 'current', query: '', page: '', events: [], eventTimes: [], live: false, currentEvent: -1,
     stats: null, archive: null, openToken: 0
   };
 
@@ -90,6 +90,7 @@
     const params = new URLSearchParams({ limit: '80' });
     if (state.scope === 'current' && state.me) params.set('org_id', state.me.org_id);
     if (state.query) params.set('q', state.query);
+    if (state.page) params.set('page', state.page);
     try {
       const data = await api('/session-replay/admin/sessions?' + params.toString());
       state.sessions = data.sessions || [];
@@ -103,7 +104,8 @@
   function renderSessions() {
     const list = $('session-list');
     if (!state.sessions.length) {
-      list.innerHTML = '<div class="empty">No sessions yet. Choose who is recorded under Recording, then load a page as one of them.</div>';
+      list.innerHTML = state.page ? '<div class="empty">No sessions reached ' + esc(state.page) + '.</div>'
+        : '<div class="empty">No sessions yet. Choose who is recorded under Recording, then load a page as one of them.</div>';
       return;
     }
     list.innerHTML = state.sessions.map((s) => {
@@ -113,7 +115,8 @@
         + '<span class="when">' + esc(fmtAgo(s.last_at, state.serverNow)) + '</span></div>'
         + '<div class="line2">' + esc(fmtDuration(s.last_at - s.started_at)) + ' · ' + s.pages + (s.pages === 1 ? ' page' : ' pages') + ' · ' + esc(fmtBytes(s.bytes_stored))
         + (s.archived_at ? ' · archived ' + esc(fmtBytes(s.archive_bytes)) : '') + (state.scope === 'all' ? ' · ' + esc(s.organization_name) : '') + '</div>'
-        + '<div class="line3">' + esc(shortUrl(s.last_url)) + '</div></div>';
+        + '<div class="line3">' + (s.page_matched_at ? 'Reached ' + esc(state.page) + ' after ' + esc(fmtDuration(Math.max(0, s.page_matched_at - s.started_at)))
+          : esc(shortUrl(s.last_url))) + '</div></div>';
     }).join('');
   }
 
@@ -163,7 +166,22 @@
     return state.player;
   }
 
-  async function openSession(id, follow) {
+  // Pages seen in recordings, offered while typing a page filter.
+  let pageOptionsTimer = 0;
+  function loadPageOptions(query) {
+    clearTimeout(pageOptionsTimer);
+    pageOptionsTimer = setTimeout(async () => {
+      try {
+        const params = new URLSearchParams({ limit: '40' });
+        if (query) params.set('q', query);
+        if (state.scope === 'current' && state.me) params.set('org_id', state.me.org_id);
+        const data = await api('/session-replay/admin/pages?' + params.toString());
+        $('page-options').innerHTML = (data.pages || []).map((p) => '<option value="' + esc(p.path) + '">' + esc(p.sessions + (p.sessions === 1 ? ' session' : ' sessions')) + '</option>').join('');
+      } catch (error) { /* suggestions are optional */ }
+    }, 200);
+  }
+
+  async function openSession(id, follow, seekTo) {
     if (!id) return;
     const token = ++state.openToken;
     stopPolling();
@@ -189,13 +207,13 @@
     if (token !== state.openToken) return;
     const s = detail.session;
     $('session-title').textContent = (s.user_name || s.user_email || 'Session') + ' · ' + new Date(s.started_at).toLocaleString();
-    $('play').disabled = !isFinite(state.model.start);
+    $('play').disabled = $('next-event').disabled = $('prev-event').disabled = !isFinite(state.model.start);
     renderAll();
     refreshStats();
     const live = !s.archived_at && detail.now - s.last_at < LIVE_MS;
     setLive(live);
     if (live && follow) setFollow(true);
-    else player.seek(state.model.start);
+    else player.seek(seekTo && seekTo > state.model.start ? Math.min(state.model.end, seekTo - 1000) : state.model.start);
     if (!isFinite(state.model.start)) $('session-title').textContent += ' · nothing recorded yet';
     if (live) startPolling();
   }
@@ -253,7 +271,7 @@
       if (added || newBlobs) {
         renderAll();
         if (newBlobs) state.player.rebuild(); else state.player.refresh();
-        $('play').disabled = false;
+        $('play').disabled = $('next-event').disabled = $('prev-event').disabled = false;
       }
       const live = !detail.session.archived_at && detail.now - detail.session.last_at < LIVE_MS;
       if (live !== state.live) setLive(live);
@@ -692,7 +710,23 @@
   // ---------------------------------------------------------------------------
   // Controls
   // ---------------------------------------------------------------------------
+  // Jump to the next or previous entry in the events list (clicks, typing, keys, pages, errors), landing just
+  // before it so it can be seen happening.
+  function jumpEvent(direction) {
+    const player = state.player;
+    if (!player || !state.eventTimes.length) return;
+    const now = player.time;
+    let target = null;
+    if (direction > 0) target = state.eventTimes.find((t) => t > now + 600);
+    else for (let i = state.eventTimes.length - 1; i >= 0; i--) if (state.eventTimes[i] < now - 1200) { target = state.eventTimes[i]; break; }
+    if (target === null || target === undefined) { toast(direction > 0 ? 'No later events.' : 'No earlier events.'); return; }
+    if (player.follow) setFollow(false);
+    player.seek(Math.max(state.model.start, target - 500));
+  }
+
   function bindControls() {
+    $('next-event').addEventListener('click', () => jumpEvent(1));
+    $('prev-event').addEventListener('click', () => jumpEvent(-1));
     $('play').addEventListener('click', () => {
       const player = state.player;
       if (!player) return;
@@ -734,7 +768,10 @@
     }));
     $('session-list').addEventListener('click', (event) => {
       const row = event.target.closest('.session');
-      if (row) openSession(row.dataset.id, false);
+      if (row) {
+        const found = state.sessions.find((s) => s.id === row.dataset.id);
+        openSession(row.dataset.id, false, found && found.page_matched_at);
+      }
     });
     let searchTimer = 0;
     $('session-search').addEventListener('input', (event) => {
@@ -742,6 +779,13 @@
       searchTimer = setTimeout(() => { state.query = event.target.value.trim(); loadSessions(); }, 250);
     });
     $('session-scope').addEventListener('change', (event) => { state.scope = event.target.value; loadSessions(); });
+    let pageTimer = 0;
+    $('page-filter').addEventListener('focus', (event) => loadPageOptions(event.target.value.trim()));
+    $('page-filter').addEventListener('input', (event) => {
+      loadPageOptions(event.target.value.trim());
+      clearTimeout(pageTimer);
+      pageTimer = setTimeout(() => { state.page = event.target.value.trim(); loadSessions(); }, 300);
+    });
     document.addEventListener('keydown', (event) => {
       if (event.target.closest && event.target.closest('input, select, textarea')) return;
       const player = state.player;
@@ -749,6 +793,8 @@
       if (event.key === ' ') { event.preventDefault(); $('play').click(); }
       else if (event.key === 'ArrowRight') { player.seek(player.time + 5000); }
       else if (event.key === 'ArrowLeft') { if (player.follow) setFollow(false); player.seek(player.time - 5000); }
+      else if (event.key === '.') jumpEvent(1);
+      else if (event.key === ',') jumpEvent(-1);
     });
     window.addEventListener('hashchange', () => {
       const hash = parseHash();

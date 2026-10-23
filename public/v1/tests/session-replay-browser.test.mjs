@@ -182,12 +182,13 @@ test('a recorded session replays to the same DOM, styles and scroll at every che
       window.__chunks = [];
       window.__blobs = {};
       const transport = {
-        sendChunk: async (item) => { window.__chunks.push({ page_id: item.page_id, seq: item.seq, json: item.json, raw: item.raw_bytes, stored: item.stored_bytes }); return { ok: true, status: 200, next_ms: window.__nextMs }; },
+        sendChunk: async (item) => { window.__chunks.push({ page_id: item.page_id, seq: item.seq, json: item.json, raw: item.raw_bytes, stored: item.stored_bytes, paths: item.paths }); return { ok: true, status: 200, next_ms: window.__nextMs }; },
         missingBlobs: async (keys) => keys.filter((key) => !(key in window.__blobs)),
         sendBlob: async (blob) => { window.__blobs[blob.key] = { key: blob.key, encoding: blob.encoding, data: FMReplayRecorder.base64(blob.bytes) }; return { ok: true, status: 200 }; },
-        beacon: () => {}
+        beacon: () => {},
+        beaconBlob: (blob) => { (window.__beaconBlobs = window.__beaconBlobs || []).push(blob.encoding); }
       };
-      window.__rec = FMReplayRecorder.create({ transport, chunkIntervalMs: 1000 });
+      window.__rec = FMReplayRecorder.create({ transport, chunkIntervalMs: 1000, pageAllowed: (path) => !path.startsWith('/secret') });
       window.__rec.start();
     });
 
@@ -266,12 +267,47 @@ test('a recorded session replays to the same DOM, styles and scroll at every che
     await checkpoint('button focused');
     await page.evaluate(() => document.getElementById('list').remove());
     await checkpoint('list removed');
+    // The portal's injectCSS (portal/scripts/core.js): an empty <style> appended to <head>, then its text set,
+    // here longer than a blob (2,048 characters), and a dialog that uses it (the billing "More credit needed" window).
+    await page.evaluate(() => {
+      const style = document.createElement('style');
+      style.id = 'css_billing';
+      document.head.appendChild(style);
+      style.textContent = '.b-overlay{position:fixed;inset:0;background:rgb(1, 2, 3);color:rgb(250, 251, 252);display:flex}\n'
+        + '.b-win{background:rgb(255, 255, 255);letter-spacing:2px;font-size:19px}\n' + '.b-pad{padding:1px}\n'.repeat(160);
+      const overlay = document.createElement('div');
+      overlay.className = 'b-overlay';
+      overlay.setAttribute('data-test', 'billing-overlay');
+      overlay.innerHTML = '<div class="b-win" data-test="billing-win">More credit needed</div>';
+      document.body.appendChild(overlay);
+    });
+    await checkpoint('injected stylesheet and dialog');
     await page.evaluate(() => history.pushState({}, '', '/harness.html?step=2'));
     await checkpoint('pushState');
+
+    // A page set not to be recorded: the recording pauses as the person arrives (nothing of that page is kept) and
+    // resumes, as a new page, when they leave.
+    const before = await page.evaluate(() => window.__rec.pageId);
+    const encodeBefore = await page.evaluate(() => window.__rec.stats().encode);
+    await page.evaluate(() => { history.pushState({}, '', '/secret/area'); document.body.insertAdjacentHTML('beforeend', '<p id="secret">SECRET TEXT</p>'); });
+    await page.waitForTimeout(300);
+    const paused = await page.evaluate(() => window.__rec.stats());
+    assert.deepEqual([paused.paused, paused.recording], [true, false]);
+    await page.evaluate(() => { document.getElementById('secret').textContent = 'Left behind'; history.pushState({}, '', '/harness.html?step=3'); });
+    await page.waitForTimeout(300);
+    const resumed = await page.evaluate(() => ({ stats: window.__rec.stats(), page: window.__rec.pageId }));
+    assert.deepEqual([resumed.stats.paused, resumed.stats.recording], [false, true]);
+    assert.notEqual(resumed.page, before);
+    await page.evaluate(() => document.getElementById('secret').remove());
 
     await page.evaluate(() => window.__rec.flush());
     await page.waitForFunction(() => window.__rec.stats().chunks_queued === 0);
     const recorded = await page.evaluate(() => ({ chunks: window.__chunks, blobs: window.__blobs, stats: window.__rec.stats() }));
+    const allJson = recorded.chunks.map((chunk) => chunk.json).join('\n');
+    assert.ok(!allJson.includes('SECRET TEXT'), 'nothing of the page that is not recorded was kept');
+    assert.ok(allJson.includes('Recording paused'), 'the recording says where it paused');
+    const paths = recorded.chunks.flatMap((chunk) => (chunk.paths || []).map((entry) => entry[0]));
+    assert.ok(paths.includes('/harness.html') && !paths.some((path) => path.startsWith('/secret')), JSON.stringify(paths));
     // Pacing: a reply's next_ms sets the upload interval; hurry() sends at once and asks for short intervals.
     const pacing = await page.evaluate(async () => {
       const before = window.__rec.stats().upload_interval_ms;
@@ -286,10 +322,19 @@ test('a recorded session replays to the same DOM, styles and scroll at every che
       return { before, replied, hurried: window.__rec.stats().upload_interval_ms, sentNow: window.__rec.stats().chunks_sent - sent };
     });
     assert.deepEqual(pacing, { before: 1000, replied: 7000, hurried: 2000, sentNow: 1 });
+    // A stylesheet that appears just before the page is left (the credit dialog, then checkout) still goes up.
+    const exitBlobs = await page.evaluate(() => {
+      const style = document.createElement('style');
+      document.head.appendChild(style);
+      style.textContent = '.exit-only{color:rgb(9, 8, 7)}' + ' .exit-pad{margin:1px}'.repeat(150);
+      window.dispatchEvent(new Event('pagehide'));
+      return window.__beaconBlobs || [];
+    });
+    assert.deepEqual(exitBlobs, ['identity']);
     assert.deepEqual(pageErrors, []);
     assert.equal(recorded.stats.internal_errors, 0);
-    assert.ok(recorded.stats.encode.refs >= 1, 'the reopened dropdown is written as a reference to the first one');
-    assert.ok(recorded.stats.encode.patches >= 1, 'the re-rendered list reuses the earlier rows with patches');
+    assert.ok(encodeBefore.refs >= 1, 'the reopened dropdown is written as a reference to the first one');
+    assert.ok(encodeBefore.patches >= 1, 'the re-rendered list reuses the earlier rows with patches');
     assert.ok(Object.keys(recorded.blobs).length >= 1, 'the linked stylesheet is stored as a shared blob');
     const json = recorded.chunks.map((chunk) => chunk.json).join('\n');
     assert.ok(!json.includes('secret123'), 'the password never leaves the page');

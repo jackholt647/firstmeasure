@@ -87,7 +87,7 @@ function db() {
   if (database && databasePath === nextPath) return database;
   void closeSessionReplayDatabase();
   // Raise this whenever initialize gains a table or a column: Postgres runs it again only for a higher version.
-  database = openSqlStore({ id: "session_replay", schemaVersion: 4, filename: nextPath, initialize });
+  database = openSqlStore({ id: "session_replay", schemaVersion: 5, filename: nextPath, initialize });
   databasePath = nextPath;
   return database;
 }
@@ -255,6 +255,15 @@ async function initialize(store: SqlStore) {
       reason TEXT NOT NULL DEFAULT ''
     );
     CREATE INDEX IF NOT EXISTS idx_session_replay_rule_log_at ON session_replay_rule_log (at);
+    CREATE TABLE IF NOT EXISTS session_replay_page_paths (
+      session_id TEXT NOT NULL,
+      page_id TEXT NOT NULL,
+      path TEXT NOT NULL,
+      organization_id TEXT NOT NULL,
+      first_at BIGINT NOT NULL,
+      PRIMARY KEY (session_id, page_id, path)
+    );
+    CREATE INDEX IF NOT EXISTS idx_session_replay_page_paths_path ON session_replay_page_paths (path);
   `);
   await ensureSqlColumn(store, "session_replay_sessions", "archived_at", "BIGINT NOT NULL DEFAULT 0");
   await ensureSqlColumn(store, "session_replay_sessions", "archive_bytes", "BIGINT NOT NULL DEFAULT 0");
@@ -319,6 +328,8 @@ export type ChunkInput = {
   bytes_raw: number;
   data: Buffer;
   meta: Record<string, unknown> | null;
+  /** Pages (path and hash) the recorder was on during this chunk, with when it got there. */
+  paths?: Array<[string, number]>;
 };
 
 export const MAX_SESSION_BYTES = 256 * 1024 * 1024;
@@ -372,6 +383,12 @@ export async function storeReplayChunk(input: ChunkInput): Promise<{ status: Sto
       input.session_id, input.organization_id, input.user_id, input.user_email.slice(0, 320), input.user_name.slice(0, 200),
       Math.round(input.t_start), Math.round(input.t_end), input.events, input.data.length, input.bytes_raw,
       text(meta.user_agent).slice(0, 500), url, url, text(meta.recorder).slice(0, 40), JSON.stringify(device), newPage);
+    const paths = (input.paths || []).filter(([path]) => path).slice(0, 50);
+    if (paths.length) {
+      await tx.prepare(`INSERT INTO session_replay_page_paths (session_id, page_id, path, organization_id, first_at)
+        VALUES ${paths.map(() => "(?,?,?,?,?)").join(",")} ON CONFLICT (session_id, page_id, path) DO NOTHING`).run(
+        ...paths.flatMap(([path, at]) => [input.session_id, input.page_id, path.slice(0, 500), input.organization_id, Math.round(at) || Math.round(input.t_start)]));
+    }
     return done("stored");
   }, input.session_id);
 }
@@ -406,16 +423,49 @@ export async function readReplayBlobs(organizationId: string, keys: string[]) {
   return new Map(rows.map((row) => [text(row.blob_key), bytes(row.data)]));
 }
 
-export async function listReplaySessions(options: { organizationId?: string; before?: number; limit?: number; userQuery?: string }) {
+/**
+ * A page pattern as SQL LIKE: without `*` it matches paths starting with it; with `*` the whole path must match,
+ * `*` standing for anything. Paths and patterns compare in lower case. The loader matches the same way.
+ */
+export function pagePatternLike(pattern: string) {
+  const escaped = pattern.toLowerCase().replace(/[\\%_]/g, (c) => "\\" + c);
+  return escaped.includes("*") ? escaped.replace(/\*/g, "%") : escaped + "%";
+}
+
+export async function listReplaySessions(options: { organizationId?: string; before?: number; limit?: number; userQuery?: string; page?: string }) {
   const where: string[] = [];
   const values: (string | number)[] = [];
   if (options.organizationId) { where.push("organization_id=?"); values.push(options.organizationId); }
+  if (options.page) {
+    where.push("id IN (SELECT session_id FROM session_replay_page_paths WHERE LOWER(path) LIKE ? ESCAPE '\\')");
+    values.push(pagePatternLike(options.page));
+  }
   if (options.before) { where.push("last_at<?"); values.push(options.before); }
   if (options.userQuery) { where.push("(LOWER(user_email) LIKE ? OR LOWER(user_name) LIKE ?)"); const like = `%${options.userQuery.toLowerCase()}%`; values.push(like, like); }
   const limit = Math.max(1, Math.min(200, options.limit || 50));
   const rows = await db().prepare(`SELECT * FROM session_replay_sessions ${where.length ? "WHERE " + where.join(" AND ") : ""}
     ORDER BY last_at DESC LIMIT ${limit}`).all(...values);
-  return rows.map(sessionFromRow);
+  const sessions = rows.map(sessionFromRow);
+  if (!options.page || !sessions.length) return sessions;
+  // When each session first reached a matching page, so the viewer can open it there.
+  const ids = sessions.map((session) => session.id);
+  const matches = await db().prepare(`SELECT session_id, MIN(first_at) AS first_at FROM session_replay_page_paths
+    WHERE session_id IN (${ids.map(() => "?").join(",")}) AND LOWER(path) LIKE ? ESCAPE '\\' GROUP BY session_id`)
+    .all(...ids, pagePatternLike(options.page));
+  const firstAt = new Map(matches.map((row) => [text(row.session_id), num(row.first_at)]));
+  return sessions.map((session) => ({ ...session, page_matched_at: firstAt.get(session.id) || 0 }));
+}
+
+/** Pages seen in recordings (path and hash), most visited first: how many sessions reached each, and when last. */
+export async function listReplayPages(options: { query?: string; organizationId?: string; limit?: number }) {
+  const where: string[] = [];
+  const values: (string | number)[] = [];
+  if (options.query) { where.push("LOWER(path) LIKE ? ESCAPE '\\'"); values.push("%" + pagePatternLike(options.query.replace(/\*/g, "")).slice(0, -1) + "%"); }
+  if (options.organizationId) { where.push("organization_id=?"); values.push(options.organizationId); }
+  const limit = Math.max(1, Math.min(200, options.limit || 50));
+  const rows = await db().prepare(`SELECT path, COUNT(DISTINCT session_id) AS sessions, MAX(first_at) AS last_at FROM session_replay_page_paths
+    ${where.length ? "WHERE " + where.join(" AND ") : ""} GROUP BY path ORDER BY COUNT(DISTINCT session_id) DESC, path LIMIT ${limit}`).all(...values);
+  return rows.map((row) => ({ path: text(row.path), sessions: num(row.sessions), last_at: num(row.last_at) }));
 }
 
 export async function readReplaySession(sessionId: string) {
@@ -456,6 +506,7 @@ export async function deleteReplaySession(sessionId: string) {
     await tx.prepare("DELETE FROM session_replay_archives WHERE session_id=?").run(sessionId);
     await tx.prepare("DELETE FROM session_replay_chunks WHERE session_id=?").run(sessionId);
     await tx.prepare("DELETE FROM session_replay_pages WHERE session_id=?").run(sessionId);
+    await tx.prepare("DELETE FROM session_replay_page_paths WHERE session_id=?").run(sessionId);
     const result = await tx.prepare("DELETE FROM session_replay_sessions WHERE id=?").run(sessionId);
     return result.changes > 0;
   }, sessionId);
@@ -791,7 +842,7 @@ export async function releaseArchiveLock(owner: string) {
 export async function deleteReplayOrganization(organizationId: string) {
   return await db().transaction(async (tx) => {
     const sessions = (await tx.prepare("DELETE FROM session_replay_sessions WHERE organization_id=?").run(organizationId)).changes;
-    for (const table of ["session_replay_archives", "session_replay_chunks", "session_replay_pages", "session_replay_blobs", "session_replay_string_counts", "session_replay_org_settings"]) {
+    for (const table of ["session_replay_archives", "session_replay_chunks", "session_replay_pages", "session_replay_blobs", "session_replay_string_counts", "session_replay_org_settings", "session_replay_page_paths"]) {
       await tx.prepare(`DELETE FROM ${table} WHERE organization_id=?`).run(organizationId);
     }
     await tx.prepare("DELETE FROM session_replay_vocab_versions WHERE scope=?").run(organizationId);

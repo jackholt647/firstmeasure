@@ -67,6 +67,7 @@ input[type="search"]:focus, select:focus { border-color: var(--accent); }
 .controls { display: flex; align-items: center; gap: 12px; padding: 10px 16px; border-top: 1px solid var(--line); background: var(--panel); }
 .icon { width: 34px; height: 34px; border-radius: 50%; border: 0; background: var(--accent); color: #fff; cursor: pointer; font-size: 13px; flex: none; }
 .icon:disabled { opacity: .4; cursor: default; }
+.icon-quiet { width: 30px; height: 30px; background: var(--panel-2); border: 1px solid var(--line); color: var(--text); font-size: 12px; }
 .time { font-variant-numeric: tabular-nums; flex: none; min-width: 92px; }
 .muted { color: var(--muted); }
 .timeline { position: relative; flex: 1; height: 34px; cursor: pointer; min-width: 120px; }
