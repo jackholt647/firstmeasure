@@ -2,21 +2,8 @@
 $publicRegistrationEnabled = (getenv('PUBLIC_REGISTRATION_ENABLED') ?: ($_SERVER['PUBLIC_REGISTRATION_ENABLED'] ?? 'true')) !== 'false';
 $initialReferralCode = $publicRegistrationEnabled ? strtoupper(trim((string)($_GET['ref'] ?? ''))) : '';
 $hasReferralInvite = $initialReferralCode !== '';
-// Marketing geography only; this does not assign an account's commercial region.
-$loginRegionData = json_decode(file_get_contents(__DIR__ . '/../v1/commerce/region-data.json'), true, 512, JSON_THROW_ON_ERROR);
-$loginDomesticCountries = $loginRegionData['domestic_countries'];
-$loginRegionHeader = strtoupper(trim((string)($_SERVER['HTTP_X_FIRSTMATE_REGION'] ?? '')));
-$loginBillboardRegion = in_array($loginRegionHeader, ['EU', 'EUROPE'], true) ? 'eu' : 'detect';
-if ($loginBillboardRegion === 'detect') {
-    foreach (['HTTP_CF_IPCOUNTRY', 'HTTP_X_VERCEL_IP_COUNTRY', 'HTTP_X_APPENGINE_COUNTRY'] as $countryHeader) {
-        $country = strtoupper(trim((string)($_SERVER[$countryHeader] ?? '')));
-        if (preg_match('/^[A-Z]{2}$/', $country) && !in_array($country, ['XX', 'ZZ', 'T1'], true)) {
-            $loginBillboardRegion = in_array($country, $loginDomesticCountries, true) ? 'default' : 'eu';
-            break;
-        }
-    }
-}
-$loginBillboardSrc = $loginBillboardRegion === 'eu' ? 'https://eu.1m8.ai/billboards/login' : 'https://1m8.ai/billboards/login';
+require __DIR__ . '/marketing/billboard_source.php';
+$loginBillboardSrc = LOGIN_BILLBOARD_URL;
 $showLoginBillboard = $publicRegistrationEnabled && !$hasReferralInvite;
 ?>
 <!DOCTYPE html>
@@ -85,8 +72,46 @@ $showLoginBillboard = $publicRegistrationEnabled && !$hasReferralInvite;
         }
         .login-marketing-billboard {
             display: block;
+            position: relative;
             aspect-ratio: 16 / 10;
             border-radius: 18px;
+        }
+        .login-marketing-billboard iframe {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            border: 0;
+            opacity: 0;
+            transition: opacity .2s ease;
+        }
+        .login-marketing-billboard.is-ready iframe {
+            opacity: 1;
+        }
+        .login-billboard-fallback {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 14px;
+            padding: 16px;
+            text-align: center;
+            color: #fff;
+            font-size: clamp(13px, 1.8vw, 20px);
+            font-weight: 600;
+            background:
+                radial-gradient(circle at top right, rgba(255,255,255,0.32), transparent 40%),
+                linear-gradient(155deg, #8f1d18 0%, #c52a21 42%, #e45147 100%);
+            opacity: 0;
+            transition: opacity .2s ease;
+        }
+        .login-billboard-fallback img {
+            height: clamp(32px, 6vw, 64px);
+        }
+        .login-marketing-billboard.is-fallback .login-billboard-fallback {
+            opacity: 1;
         }
         .container.referral-mode {
             width: min(1120px, 96vw);
@@ -466,6 +491,13 @@ $showLoginBillboard = $publicRegistrationEnabled && !$hasReferralInvite;
                 aspect-ratio: 4 / 1;
                 border-radius: 16px;
             }
+            .login-billboard-fallback {
+                flex-direction: row;
+                font-size: 14px;
+            }
+            .login-billboard-fallback img {
+                height: 36px;
+            }
             .container.referral-mode {
                 width: min(94vw, 620px);
                 display: block;
@@ -585,24 +617,47 @@ src="https://www.facebook.com/tr?id=636685175264715&ev=PageView&noscript=1"
 
 <div class="login-shell <?= $showLoginBillboard ? 'has-login-billboard' : '' ?>">
 <?php if ($showLoginBillboard): ?>
-    <iframe class="login-marketing-billboard" src="<?= htmlspecialchars($loginBillboardSrc, ENT_QUOTES) ?>" title="FirstMate marketing billboard" loading="lazy" scrolling="no"></iframe>
-<?php if ($loginBillboardRegion === 'detect'): ?>
+    <div class="login-marketing-billboard" id="loginBillboard">
+        <div class="login-billboard-fallback" aria-hidden="true">
+            <img src="/images/logo_white.png" alt="">
+            <span>Roof and exterior measurement reports</span>
+        </div>
+        <iframe src="<?= htmlspecialchars($loginBillboardSrc, ENT_QUOTES) ?>" title="FirstMate marketing billboard" scrolling="no"></iframe>
+    </div>
     <script>
         (() => {
-            let european = false;
-            let timeZone = '';
-            try { timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || ''; } catch (_) {}
-            // Use the same IANA country map and US/Canada market boundary as signup pricing.
-            const zoneCountries = <?= json_encode($loginRegionData['time_zone_countries']) ?>;
-            let country = zoneCountries[timeZone] || '';
-            if (!country) {
-                try { country = new Intl.Locale(navigator.language).region || ''; } catch (_) {}
-            }
-            european = !!country && !<?= json_encode($loginDomesticCountries) ?>.includes(country);
-            if (european) document.querySelector('.login-marketing-billboard').src = 'https://eu.1m8.ai/billboards/login';
+            // The frame stays hidden until it has loaded and the same-origin check says the page exists:
+            // a missing website page would otherwise show the site's "Not Found" text in the panel.
+            const panel = document.getElementById('loginBillboard');
+            const frame = panel.querySelector('iframe');
+            let loaded = false;
+            let healthy = null;
+            let settled = false;
+            const fallback = () => {
+                if (settled) return;
+                settled = true;
+                panel.classList.add('is-fallback');
+                frame.remove();
+            };
+            const reveal = () => {
+                if (settled || !loaded || !healthy) return;
+                settled = true;
+                panel.classList.add('is-ready');
+            };
+            frame.addEventListener('load', () => { loaded = true; reveal(); });
+            frame.addEventListener('error', fallback);
+            fetch('/portal/marketing/billboard_status.php', { credentials: 'omit', cache: 'no-store' })
+                .then((response) => response.ok ? response.json() : { ok: null })
+                .catch(() => ({ ok: null }))
+                .then((status) => {
+                    if (status.ok === false) return fallback();
+                    // An unreachable status check is not evidence of a missing page; trust the frame.
+                    healthy = true;
+                    reveal();
+                });
+            setTimeout(() => { if (!panel.classList.contains('is-ready')) fallback(); }, 10000);
         })();
     </script>
-<?php endif; ?>
 <?php endif; ?>
 <div class="container <?= $hasReferralInvite ? 'referral-mode' : '' ?>">
     <div class="header">
