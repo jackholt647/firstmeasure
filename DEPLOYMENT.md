@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+October 23 Presentation Accept & sign, preview and send: [Accept & sign signs in person beside the contract on the presenter route, Open what they see opens a portal preview that cannot sign, accept or pay, and the presentation and workflow send one way](deploy/digitalocean/development-presentation-sign-send-20261023.md) records release `dd017b86` on worker, legacy and web (pool was unreachable).
+
 October 22 Document history: [every document save is a revision (checkpoints plus structural diffs) with who made it, lifecycle steps cut their own, and a History panel compares, views and restores versions](deploy/digitalocean/development-document-history-20261022.md) records releases `390437ef` and `97553a98` on worker, legacy and web (pool unreachable).
 
 October 22 Edit manually as sent: [the estimate opens exactly as it will be sent, with its data values typed into in place and totals recomputed, and text edits kept as live overrides](deploy/digitalocean/development-edit-as-sent-20261022.md) records releases `4cf68f77`, `8e453240` and `f1018f8a` and the development rollout (pool not updated: unreachable).
