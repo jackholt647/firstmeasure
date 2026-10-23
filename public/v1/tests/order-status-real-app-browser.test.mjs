@@ -24,7 +24,7 @@ const ORDERS = {
   cancelled: { status: 'cancelled', cancelled_at: '2026-10-22T19:00:00Z' }
 };
 
-async function openOrder(browser, kind) {
+async function openOrder(browser, kind, options = {}) {
   const page = await browser.newPage({ viewport: { width: 1280, height: 860 } });
   const errors = [];
   page.on('pageerror', error => errors.push(error.message));
@@ -38,8 +38,11 @@ async function openOrder(browser, kind) {
     return route.fulfill({ contentType: 'text/html', body: '<!doctype html><html><body></body></html>' });
   });
   await page.goto('https://portal.test/portal/?tab=projects');
-  await page.evaluate(({ id, order }) => {
-    window.__APP = { userEmail: 'owner@example.test', userOrgId: 'org_test', platformExpandedAssets: false };
+  await page.evaluate(({ id, order, options }) => {
+    // A support session impersonating the customer gets the same page, plus the PHP page's impersonation flags.
+    window.__APP = { userEmail: 'owner@example.test', userOrgId: 'org_test', platformExpandedAssets: false,
+      ...(options.impersonate ? { isImpersonating: true, realAdminEmail: 'support@1m8.ai' } : {}) };
+    if (options.impersonate) document.body.insertAdjacentHTML('afterbegin', '<div id="impersonationBanner">SUPPORT MODE</div>');
     window.PlatformCommerce = { onReady: fn => fn(), price: () => 7, credit: v => '$' + v, cash: v => '$' + v, estimate: v => v, withVat: t => t, current: () => ({}) };
     window.Portal = {
       cfg: window.__APP,
@@ -63,10 +66,25 @@ async function openOrder(browser, kind) {
       report_expedite_option: 'standard_3_6', ...order };
     const measurement = { id, project_id: id, folder: id, raw: listRow };
     window.__row = { ...listRow, id: 'project_1e0697y1uw90eq', platform_project_id: '', base_project_id: '', measurement, measurement_project: measurement };
-  }, { id: ID, order: ORDERS[kind] });
+    if (options.fullRow) {
+      // projects/list's full row (buildLegacyProjectRow): no folder, so core.js keeps the order id and adds no
+      // measurement object; the release hold arrives flattened.
+      const { folder, delivery, ...row } = listRow;
+      const hold = delivery?.release_hold || {};
+      window.__row = { ...row, delivery_hold_status: hold.status || null, delivery_hold_reason: hold.reason || null,
+        delivery_hold_scheduled_release_at: hold.scheduled_release_at || null, delivery_hold_promised_delivery_at: hold.promised_delivery_at || null,
+        delivery_release_hold: hold, platform_project_id: '', base_project_id: '' };
+    }
+    if (options.seedDrafts) {
+      // Drafts already in this browser's cache for the customer (the per-organization project store).
+      localStorage.setItem('fm_platform_project_store_v1:org_test', JSON.stringify({ version: 1, projects: Object.fromEntries(options.seedDrafts.map(d => [d.id, d])), measurementIndex: {} }));
+    }
+  }, { id: ID, order: ORDERS[kind], options });
   for (const src of SCRIPTS) await page.addScriptTag({ url: 'https://portal.test' + src });
   // Let the app's startup route restore finish before opening, as a board click does.
   await page.waitForTimeout(1200);
+  // The board's FirstMeasure-only listing (core.js list_projects) runs before any order is opened.
+  if (options.listPass) await page.evaluate(() => { window.__discarded = Portal.ProjectStore.discardDraftsShadowingOrders([window.__row]); });
   await page.evaluate(() => Portal.modules.request.openProject(window.__row, {}));
   await page.waitForTimeout(1200);
   return { page, errors };
@@ -108,6 +126,44 @@ test('1M8-234: an order still in work opens on its report with no new-order offe
       await page.close();
     }
   } finally { await browser.close(); }
+});
+
+const staleDraft = (id, extra = {}) => ({ id, title: '', address: '340 Leslie Ct, Bristol, TN 37620, USA', project_type: 'residential', lat: '36.59', lng: '-82.2',
+  pins: [{ lat: 36.59, lng: -82.2 }], contacts: [{ name: 'Jason Mullins', phone: '', email: '' }], workflow_state: 'draft', workflow_intent: 'report',
+  measurement: {}, measurement_project: {}, events: [], proposals: [], photos: [], updated_at: '2026-10-22T22:11:58Z', ...extra });
+
+test('1M8-234: impersonating a customer, active orders open as orders and stale cached drafts at their address are discarded', async () => {
+  const browser = await chromium.launch({ channel: 'chrome', headless: true });
+  try {
+    for (const kind of ['processing', 'queued', 'held']) {
+      const { page, errors } = await openOrder(browser, kind, {
+        impersonate: true, fullRow: true, listPass: true,
+        seedDrafts: [
+          staleDraft('project_mvk3j5kc_ffp4ewq6'),
+          // Kept: a draft with work of its own, a draft touched in the last ten minutes, and a draft elsewhere.
+          staleDraft('project_mvk3j5kc_withnote', { project_notes: 'Gate code 1234' }),
+          staleDraft('project_mvk3j5kc_justnow', { updated_at: new Date().toISOString() }),
+          staleDraft('project_mvk3j5kc_otheraddr', { address: '1 Other St, Bristol, TN 37620, USA' })
+        ]
+      });
+      assert.deepEqual(await page.evaluate(() => window.__discarded), ['project_mvk3j5kc_ffp4ewq6'], kind);
+      const cached = await page.evaluate(() => Portal.ProjectStore.cachedIds());
+      assert.ok(!cached.includes('project_mvk3j5kc_ffp4ewq6') && ['withnote', 'justnow', 'otheraddr'].every(s => cached.includes('project_mvk3j5kc_' + s)), JSON.stringify(cached));
+      const standard = (await visibleText(page, '.r-measure-pane.active')).join(' ');
+      assert.match(standard, /Standard Report Processing/, `${kind}: ${standard.slice(0, 200)}`);
+      const orderOffers = await page.evaluate(() => [...document.querySelectorAll('#rOverlay .r-overview-initial-actions button')].filter(b => b.offsetParent && /order report/i.test(b.textContent)).length);
+      assert.equal(orderOffers, 0, `${kind} offers to order again`);
+      assert.deepEqual(await summary(page), ['processing', 'processing'], kind);
+      assert.deepEqual(errors, [], kind);
+      await page.close();
+    }
+  } finally { await browser.close(); }
+});
+
+test('1M8-234: the FirstMeasure-only order listing discards cache-only drafts at its orders\' addresses', async () => {
+  const source = await readFile(new URL('portal/scripts/core.js', publicDir), 'utf8');
+  const listing = source.slice(source.indexOf("    if (action === 'list_projects') {"), source.indexOf("    if (action === 'queue') {"));
+  assert.match(listing, /discardDraftsShadowingOrders\?\.\(firstMeasureList\)[\s\S]*projectPageFromCandidates\(firstMeasureList, fields, \{ hydrateDetails: false \}\)/);
 });
 
 test('1M8-234: autosave never starts a draft inside an existing project', async () => {
