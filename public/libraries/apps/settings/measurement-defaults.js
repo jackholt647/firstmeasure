@@ -9,7 +9,8 @@
   'use strict';
   const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (c) => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
   const text = (value) => String(value ?? '').trim();
-  const t = (key, fallback, values) => globalThis.PlatformLanguage?.text?.('settings', key, fallback, values) ?? fallback;
+  const fill = (template, values) => String(template).replace(/\{(\w+)\}/g, (match, name) => (values && name in values ? String(values[name]) : match));
+  const t = (key, fallback, values) => { const text = fill(fallback, values); return globalThis.PlatformLanguage?.text?.('settings', key, text, values) ?? text; };
   const num = (value, fallback = 0) => { const n = Number(value); return Number.isFinite(n) ? n : fallback; };
   const round = (value, places = 4) => String(Math.round(num(value) * 10 ** places) / 10 ** places);
   const clone = (value) => JSON.parse(JSON.stringify(value));
@@ -93,7 +94,11 @@
   function mount(host, options = {}){
     injectStyles();
     const orgId = () => text(typeof options.orgId === 'function' ? options.orgId() : options.orgId);
-    const state = { loading:true, saving:false, settings:null, industry:null, catalog:{ measurements:[], work_items:[] }, revision:0, stored:false, products:[], status:'', statusKind:'' };
+    // Like every settings page this saves as it is changed; the page's own Save-button autosave is switched off here
+    // because adding or removing a rule is a click, not a field change.
+    host.dataset.settingsAutosave = 'off';
+    let saveTimer = null;
+    const state = { loading:true, saving:false, dirty:false, settings:null, industry:null, catalog:{ measurements:[], work_items:[] }, revision:0, stored:false, products:[], status:'', statusKind:'' };
     const measurement = (id) => state.catalog.measurements.find((entry) => entry.id === id);
     const unitOf = (rule) => measurement(rule.terms?.[0]?.measurement)?.unit || '';
     const setStatus = (message, kind = '') => { state.status = message; state.statusKind = kind; const el = host.querySelector('[data-md-status]'); if (el) { el.textContent = message; el.className = `md-status ${kind}`; } };
@@ -111,6 +116,17 @@
       return t('md_product_missing', 'Not in your price book; the line uses this rule’s name.');
     }
 
+    // Products by name, grouped by item type. A product the price book no longer has stays selectable, marked as missing.
+    function productSelect(rule){
+      const groups = new Map();
+      state.products.forEach((item) => { const type = text(item.type) || t('md_other', 'Other'); if (!groups.has(type)) groups.set(type, []); groups.get(type).push(item); });
+      const known = !rule.product_id || state.products.some((item) => item.id === rule.product_id);
+      return `<select data-md-field="product_id" aria-label="${esc(t('md_product_id', 'Price book item'))}" style="width:100%">
+        <option value="">${esc(t('md_product_by_type', 'Any item of the type below'))}</option>
+        ${known ? '' : `<option value="${esc(rule.product_id)}" selected>${esc(t('md_product_gone', 'Not in your price book'))}</option>`}
+        ${[...groups.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([type, items]) => `<optgroup label="${esc(type)}">${items.map((item) => `<option value="${esc(item.id)}" ${item.id === rule.product_id ? 'selected' : ''}>${esc(item.name)}</option>`).join('')}</optgroup>`).join('')}
+      </select>`;
+    }
     function rulesRows(){
       const measures = state.catalog.measurements;
       return state.settings.materials.rules.map((rule, index) => `
@@ -127,7 +143,7 @@
             <button type="button" class="md-add-term" data-md-add-term>${esc(t('md_add_measurement', '+ Add a measurement'))}</button></div></td>
           <td class="md-waste-cell"><select data-md-field="waste_kind" aria-label="${esc(t('md_waste', 'Waste'))}"><option value="roof" ${rule.waste === 'roof' ? 'selected' : ''}>${esc(t('md_roof_waste', 'Roof waste'))}</option><option value="fixed" ${rule.waste === 'roof' ? '' : 'selected'}>${esc(t('md_fixed_waste', 'Fixed %'))}</option></select>${rule.waste === 'roof' ? '' : `<input type="number" data-md-field="waste" min="0" max="100" step="0.5" value="${esc(round(rule.waste, 2))}" aria-label="${esc(t('md_waste_percent', 'Waste percent'))}">`}</td>
           <td><div class="md-pack"><div><span>${esc(t('md_one', 'One'))}</span><input type="text" class="md-pack-unit" data-md-field="package_unit" value="${esc(rule.package?.unit || '')}" placeholder="${esc(t('md_package', 'bundle'))}" aria-label="${esc(t('md_package_unit', 'Package'))}"></div><div><span>${esc(t('md_covers', 'covers'))}</span><input type="number" class="md-pack-cover" data-md-field="package_coverage" min="0" step="0.0001" value="${rule.package ? esc(round(rule.package.coverage, 4)) : ''}" aria-label="${esc(t('md_package_coverage', 'What one package covers'))}"><span>${esc(unitOf(rule))}</span></div></div></td>
-          <td class="md-product"><input type="text" data-md-field="product_id" list="md-products" value="${esc(rule.product_id || '')}" placeholder="${esc(t('md_product_id', 'Price book item'))}" aria-label="${esc(t('md_product_id', 'Price book item'))}"><input type="text" data-md-field="product_type" value="${esc(rule.product_type || '')}" placeholder="${esc(t('md_product_type', 'or item type'))}" style="margin-top:4px" aria-label="${esc(t('md_product_type_label', 'Item type'))}"><small>${esc(productNote(rule))}</small></td>
+          <td class="md-product">${productSelect(rule)}<input type="text" data-md-field="product_type" value="${esc(rule.product_type || '')}" placeholder="${esc(t('md_product_type', 'or item type'))}" style="margin-top:4px" aria-label="${esc(t('md_product_type_label', 'Item type'))}"><small>${esc(productNote(rule))}</small></td>
           <td><button type="button" class="md-x" data-md-remove-rule aria-label="${esc(t('md_remove_rule', 'Remove {name}', { name:rule.label }))}">×</button></td>
         </tr>`).join('');
     }
@@ -142,9 +158,9 @@
             <div class="md-head">
               <div><h3>${esc(t('md_title', 'Default materials and labor'))}</h3>
                 <p>${esc(t('md_intro', 'When a project has a measurement report but no signed document, Generate materials in the Project tab uses these to build its materials, and the work the job includes when default labor is on. A signed document’s scope always replaces them.'))}</p></div>
-              <div class="md-actions"><button type="button" class="md-btn" data-md-reset>${esc(t('md_reset', 'Reset to industry defaults'))}</button><button type="button" class="md-btn primary" data-md-save ${state.saving ? 'disabled' : ''}>${esc(state.saving ? t('md_saving', 'Saving…') : t('md_save', 'Save'))}</button></div>
+              <div class="md-actions"><button type="button" class="md-btn" data-md-reset>${esc(t('md_reset', 'Reset to industry defaults'))}</button></div>
             </div>
-            <div class="md-status ${state.statusKind}" data-md-status role="status">${esc(state.status || (state.stored ? '' : t('md_not_saved', 'These are the industry defaults. Save to keep your own.')))}</div>
+            <div class="md-status ${state.statusKind}" data-md-status role="status">${esc(state.status || (state.stored ? t('md_autosave', 'Changes save as you make them.') : t('md_not_saved', 'These are the industry defaults. Any change you make is saved as your own.')))}</div>
           </div>
           <div class="md-card ${s.materials.enabled ? '' : 'md-off'}">
             <div class="md-section-head"><h4>${esc(t('md_materials', 'Default materials'))}<small>${esc(t('md_materials_sub', 'Each line adds roof measurements together, adds waste, and is ordered in whole packages.'))}</small></h4>
@@ -161,7 +177,6 @@
               <thead><tr><th></th><th>${esc(t('md_col_material', 'Material'))}</th><th>${esc(t('md_col_from', 'Measured from'))}</th><th>${esc(t('md_col_waste', 'Waste'))}</th><th>${esc(t('md_col_package', 'Bought as'))}</th><th>${esc(t('md_col_product', 'Product'))}</th><th></th></tr></thead>
               <tbody>${rulesRows()}</tbody>
             </table></div>
-            <datalist id="md-products">${state.products.map((item) => `<option value="${esc(item.id)}">${esc(item.name)}${item.type ? ` · ${esc(item.type)}` : ''}</option>`).join('')}</datalist>
             <div style="margin-top:10px"><button type="button" class="md-btn small" data-md-add-rule>${esc(t('md_add_rule', '+ Add a material'))}</button></div>
             <p class="md-note">${esc(t('md_materials_note', 'Pipe boots, vents and other penetrations are not in a measurement report, so they are not generated. A line with nothing measured (a roof with no valleys) is left out.'))}</p>
           </div>
@@ -176,13 +191,16 @@
       bind();
     }
 
+    // Redrawn after the event has finished bubbling, so the page's autosave still sees the field inside this opted-out editor.
+    function changed(){ setTimeout(render, 0); clearTimeout(saveTimer); saveTimer = setTimeout(save, 600); }
     function ruleAt(element){ return state.settings.materials.rules[Number(element.closest('[data-md-rule]')?.dataset.mdRule)]; }
     function bind(){
-      host.querySelectorAll('[data-md-switch]').forEach((input) => input.addEventListener('change', () => { state.settings[input.dataset.mdSwitch].enabled = input.checked; render(); }));
-      host.querySelectorAll('[data-md-waste]').forEach((input) => input.addEventListener('change', () => { state.settings.materials.waste[input.dataset.mdWaste] = num(input.value); }));
+      host.querySelectorAll('[data-md-switch]').forEach((input) => input.addEventListener('change', () => { state.settings[input.dataset.mdSwitch].enabled = input.checked; changed(); }));
+      host.querySelectorAll('[data-md-waste]').forEach((input) => input.addEventListener('change', () => { state.settings.materials.waste[input.dataset.mdWaste] = num(input.value); changed(); }));
       host.querySelectorAll('[data-md-work]').forEach((input) => input.addEventListener('change', () => {
         const items = state.settings.labor.items, found = items.find((row) => row.item === input.dataset.mdWork);
         if (found) found.enabled = input.checked; else items.push({ item:input.dataset.mdWork, enabled:input.checked });
+        changed();
       }));
       host.querySelectorAll('[data-md-field]').forEach((input) => input.addEventListener('change', () => {
         const rule = ruleAt(input), field = input.dataset.mdField;
@@ -194,7 +212,7 @@
           const unit = text(field === 'package_unit' ? input.value : rule.package?.unit), coverage = field === 'package_coverage' ? num(input.value) : num(rule.package?.coverage);
           if (unit && coverage > 0) rule.package = { unit, coverage }; else if (!unit && !(coverage > 0)) delete rule.package; else rule.package = { unit:unit || 'each', coverage:coverage > 0 ? coverage : 1 };
         } else rule[field] = input.value;
-        render();
+        changed();
       }));
       host.querySelectorAll('[data-md-term-field]').forEach((input) => input.addEventListener('change', () => {
         const rule = ruleAt(input), term = rule?.terms[Number(input.closest('[data-md-term]').dataset.mdTerm)];
@@ -203,34 +221,35 @@
         if (field === 'measurement') term.measurement = input.value;
         else if (field === 'op') term.factor = Math.abs(term.factor) * (input.value === '-' ? -1 : 1);
         else term.factor = Math.abs(num(input.value, 1)) * (term.factor < 0 ? -1 : 1);
-        render();
+        changed();
       }));
       host.querySelectorAll('[data-md-add-term]').forEach((button) => button.addEventListener('click', () => {
         const rule = ruleAt(button), first = measurement(rule.terms[0]?.measurement);
         const next = state.catalog.measurements.find((entry) => entry.unit === first?.unit && !rule.terms.some((term) => term.measurement === entry.id)) || state.catalog.measurements[0];
-        rule.terms.push({ measurement:next.id, factor:1 }); render();
+        rule.terms.push({ measurement:next.id, factor:1 }); changed();
       }));
-      host.querySelectorAll('[data-md-remove-term]').forEach((button) => button.addEventListener('click', () => { const rule = ruleAt(button); rule.terms.splice(Number(button.dataset.mdRemoveTerm), 1); render(); }));
-      host.querySelectorAll('[data-md-remove-rule]').forEach((button) => button.addEventListener('click', () => { state.settings.materials.rules.splice(Number(button.closest('[data-md-rule]').dataset.mdRule), 1); render(); }));
+      host.querySelectorAll('[data-md-remove-term]').forEach((button) => button.addEventListener('click', () => { const rule = ruleAt(button); rule.terms.splice(Number(button.dataset.mdRemoveTerm), 1); changed(); }));
+      host.querySelectorAll('[data-md-remove-rule]').forEach((button) => button.addEventListener('click', () => { state.settings.materials.rules.splice(Number(button.closest('[data-md-rule]').dataset.mdRule), 1); changed(); }));
       host.querySelector('[data-md-add-rule]')?.addEventListener('click', () => {
         const keys = new Set(state.settings.materials.rules.map((rule) => rule.key));
         let n = state.settings.materials.rules.length + 1; while (keys.has(`material_${n}`)) n += 1;
         state.settings.materials.rules.push({ key:`material_${n}`, enabled:true, label:t('md_new_material', 'New material'), group:'Materials', terms:[{ measurement:'roof.squares', factor:1 }], waste:0, product_id:'', product_type:'' });
-        render();
+        changed();
       });
-      host.querySelector('[data-md-reset]')?.addEventListener('click', () => { state.settings = clone(state.industry); setStatus(t('md_reset_done', 'Industry defaults restored. Save to keep them.')); render(); });
-      host.querySelector('[data-md-save]')?.addEventListener('click', save);
+      host.querySelector('[data-md-reset]')?.addEventListener('click', () => { state.settings = clone(state.industry); changed(); });
     }
 
     async function save(){
-      state.saving = true; render();
+      if (state.saving) { state.dirty = true; return; }
+      state.saving = true; state.dirty = false; setStatus(t('md_saving', 'Saving…'));
       try {
         const result = await request(`/organizations/${encodeURIComponent(orgId())}/measurement-defaults`, { method:'PUT', body:{ settings:state.settings, expected_revision:state.revision } });
-        Object.assign(state, { settings:result.settings, revision:result.revision, stored:true, status:t('md_saved', 'Saved. New generations use these defaults.'), statusKind:'ok' });
-        options.toast?.(t('md_saved_title', 'Defaults saved'), t('md_saved', 'Saved. New generations use these defaults.'), true);
+        Object.assign(state, { revision:result.revision, stored:true });
+        if (!state.dirty) state.settings = result.settings;
+        setStatus(t('md_saved', 'Saved. Generating materials uses these defaults from now on.'), 'ok');
       } catch (error) {
-        Object.assign(state, { status:error?.message || t('md_save_failed', 'The defaults could not be saved.'), statusKind:'error' });
-      } finally { state.saving = false; render(); }
+        setStatus(error?.message || t('md_save_failed', 'The defaults could not be saved.'), 'error');
+      } finally { state.saving = false; if (state.dirty) save(); }
     }
 
     async function load(){
