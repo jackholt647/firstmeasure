@@ -12873,7 +12873,8 @@
     "referral_invited_you": {
       "message": "{partner} vous a invité",
       "format": "icu"
-    }
+    },
+    "start_ordering_reports": "Commencer à commander des rapports"
   },
   "signup-region": {
     "calling_code": "Indicatif téléphonique du pays"

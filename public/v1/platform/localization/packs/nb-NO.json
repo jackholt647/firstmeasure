@@ -13078,7 +13078,8 @@
     "referral_invited_you": {
       "message": "{partner} har invitert deg",
       "format": "icu"
-    }
+    },
+    "start_ordering_reports": "Begynn å bestille rapporter"
   },
   "signup-region": {
     "calling_code": "Landskode"

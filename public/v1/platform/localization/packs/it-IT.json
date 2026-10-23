@@ -12738,7 +12738,8 @@
     "referral_invited_you": {
       "message": "{partner} ti ha invitato",
       "format": "icu"
-    }
+    },
+    "start_ordering_reports": "Inizia a ordinare report"
   },
   "signup-region": {
     "calling_code": "Prefisso internazionale"

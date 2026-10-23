@@ -13062,7 +13062,8 @@
     "referral_invited_you": {
       "message": "{partner} hat Sie eingeladen",
       "format": "icu"
-    }
+    },
+    "start_ordering_reports": "Jetzt Berichte bestellen"
   },
   "signup-region": {
     "calling_code": "Ländervorwahl"

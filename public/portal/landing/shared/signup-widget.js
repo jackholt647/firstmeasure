@@ -433,8 +433,10 @@
     const offerVisibility = String(host.dataset.offerVisibility || 'auto').toLowerCase();
     const title = safeText(host.dataset.title, 'Create your FirstMate account');
     const submitLabel = safeText(host.dataset.submitLabel, referralCode ? 'Claim invitation' : 'Create account');
-    // A label the host page sets is its own text; the default label follows the signup language (1M8-240).
-    const submitLabelKey = host.dataset.submitLabel ? '' : (referralCode ? 'claim_invitation' : 'create_account_widget');
+    // The label follows the signup language (1M8-240): the default, and the labels landing pages set that the catalog
+    // knows; any other label a host page sets is its own text.
+    const HOST_LABEL_KEYS = { 'create account': 'create_account_widget', 'start ordering reports': 'start_ordering_reports' };
+    const submitLabelKey = host.dataset.submitLabel ? (HOST_LABEL_KEYS[submitLabel.trim().toLowerCase()] || '') : (referralCode ? 'claim_invitation' : 'create_account_widget');
 
     const root = document.createElement('div');
     root.className = 'fm-auth';

@@ -13070,7 +13070,8 @@
     "referral_invited_you": {
       "message": "{partner} har inviteret dig",
       "format": "icu"
-    }
+    },
+    "start_ordering_reports": "Begynd at bestille rapporter"
   },
   "signup-region": {
     "calling_code": "Landekode"

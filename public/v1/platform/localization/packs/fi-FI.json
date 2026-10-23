@@ -13070,7 +13070,8 @@
     "referral_invited_you": {
       "message": "{partner} kutsui sinut",
       "format": "icu"
-    }
+    },
+    "start_ordering_reports": "Aloita raporttien tilaaminen"
   },
   "signup-region": {
     "calling_code": "Maatunnus"

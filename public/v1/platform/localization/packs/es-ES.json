@@ -13031,7 +13031,8 @@
     "referral_invited_you": {
       "message": "{partner} te ha invitado",
       "format": "icu"
-    }
+    },
+    "start_ordering_reports": "Empezar a pedir informes"
   },
   "signup-region": {
     "calling_code": "Prefijo telefónico del país"

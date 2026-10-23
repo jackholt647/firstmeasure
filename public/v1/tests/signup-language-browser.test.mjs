@@ -105,6 +105,7 @@ async function widgetState(page) {
     return {
       tab: root.querySelector('[data-tab="register"]').textContent.trim(),
       phoneLabel: root.querySelector('[data-i18n="phone"]').textContent.trim(),
+      submit: root.querySelector('[data-form="register"] button[type="submit"]').textContent.trim(),
       selects: [...root.querySelectorAll('select')].map(s => s.name),
       callingCode: root.querySelector('select[name="phone_country"]').value,
       language: root.querySelector('input[name="signup_language"]').value,
@@ -193,7 +194,9 @@ test('the old app.1m8.ai landing pages take ?lang= for signup, onboarding and th
     const {context, registrations} = await visitor(language.edge);
     const page = await context.newPage();
     await page.goto(`${APP}/portal/landing/variants/meta-619a/?lang=${language.lang}&cid=meta`);
-    assertTranslated(await widgetState(page), language.locale, language.edge);
+    const state = await widgetState(page);
+    assertTranslated(state, language.locale, language.edge);
+    assert.equal(state.submit, signupText[language.locale].start_ordering_reports, "the Meta page's own button label is translated too");
     assert.equal((await context.cookies(APP)).find(c => c.name === 'fm_lang')?.value, language.lang, 'remembered for later pages');
     const created = await signUp(page, registrations, {email: `meta-${language.lang}@signup-language.example.test`, phone: language.phone + 8 + index});
     await assertOrganization(page, created, language);

@@ -12850,7 +12850,8 @@
     "referral_invited_you": {
       "message": "{partner} zaprasza Cię",
       "format": "icu"
-    }
+    },
+    "start_ordering_reports": "Zacznij zamawiać raporty"
   },
   "signup-region": {
     "calling_code": "Numer kierunkowy kraju"

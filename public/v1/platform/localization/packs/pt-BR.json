@@ -13086,7 +13086,8 @@
     "referral_invited_you": {
       "message": "{partner} convidou você",
       "format": "icu"
-    }
+    },
+    "start_ordering_reports": "Começar a pedir relatórios"
   },
   "signup-region": {
     "calling_code": "Código telefônico do país"

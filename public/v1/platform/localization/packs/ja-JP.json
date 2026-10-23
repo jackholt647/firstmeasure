@@ -13086,7 +13086,8 @@
     "referral_invited_you": {
       "message": "{partner} さんから招待されました",
       "format": "icu"
-    }
+    },
+    "start_ordering_reports": "レポートの注文を始める"
   },
   "signup-region": {
     "calling_code": "国番号"

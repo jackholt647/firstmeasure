@@ -13082,7 +13082,8 @@
     "referral_invited_you": {
       "message": "Ο/Η {partner} σας προσκάλεσε",
       "format": "icu"
-    }
+    },
+    "start_ordering_reports": "Ξεκινήστε να παραγγέλνετε αναφορές"
   },
   "signup-region": {
     "calling_code": "Κωδικός χώρας"
