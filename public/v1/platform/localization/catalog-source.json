@@ -19593,7 +19593,9 @@
     "membership_day_invalid": "Give the day as YYYY-MM-DD.",
     "membership_day_future": "A member joins or leaves today or on a past day.",
     "invalid_country": "Choose a valid country.",
-    "invalid_country_rules": "At most 100 country rules."
+    "invalid_country_rules": "At most 100 country rules.",
+    "owner_protected": "The account owner cannot be suspended, archived or given a lower level.",
+    "last_admin_protected": "Make someone else a super admin first: an account needs at least one."
   },
   "notifications": {
     "document_greeting": {
@@ -20535,5 +20537,16 @@
     "language": "Language (app and reports)",
     "calling_code": "Country calling code",
     "choose_country": "Choose your country"
+  },
+  "phone-input": {
+    "calling_code": "Country calling code",
+    "preview": {
+      "message": "Saved as {number}",
+      "format": "icu"
+    },
+    "incomplete": {
+      "message": "Enter the full number for {country} (+{code})",
+      "format": "icu"
+    }
   }
 }

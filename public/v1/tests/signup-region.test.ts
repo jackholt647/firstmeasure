@@ -155,3 +155,17 @@ test("the onboarding wizard formats account amounts in the organization's curren
   assert.equal(credits.creditAmountText(100),"100 credits");assert.equal(credits.creditCurrencyAffix(),"");
   assert.equal(run(null).creditCurrencyAffix(),"","nothing is guessed before billing settings load");
 });
+
+test("the calling-code picker offers the served countries, the detected one first (1M8-240)",async()=>{
+  const british=await client("GB").request("GET","/v1/platform/auth/signup-options?locale=en-GB");
+  const codes=british.phone_countries.map((c:any)=>c.code);
+  assert.deepEqual(codes.slice(0,3),["GB","US","CA"]);
+  for(const code of ["FR","DE","IE","CH","NO"])assert.ok(codes.includes(code),code);
+  for(const code of ["JP","BR","AU","CN"])assert.ok(!codes.includes(code),code);
+  assert.ok(codes.length<60,`${codes.length} calling codes`);
+  assert.ok(british.countries.length>200,"the account country still lists every country");
+  // A detected country outside them is still offered, first.
+  const japanese=await client("JP").request("GET","/v1/platform/auth/signup-options");
+  assert.equal(japanese.phone_countries[0].code,"JP");
+  assert.equal(japanese.phone_countries[0].calling_code,"81");
+});

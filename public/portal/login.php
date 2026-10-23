@@ -763,7 +763,7 @@ src="https://www.facebook.com/tr?id=636685175264715&ev=PageView&noscript=1"
 <script src="/libraries/phone-features/phone-features.js"></script>
 <script src="/portal/landing/shared/password-toggle.js?v=<?= htmlspecialchars(substr((string)@hash_file('sha256', __DIR__ . '/landing/shared/password-toggle.js'), 0, 16), ENT_QUOTES) ?>"></script>
 <script>window.FirstMatePasswordToggle?.enhance(document);</script>
-<script src="/libraries/signup-region/signup-region.js"></script>
+<script src="/libraries/signup-region/signup-region.js?v=20261022-phone-countries-v1"></script>
 <script src="/libraries/google-auth/firstmate-google-auth.js"></script>
 <script>
     // --- HELPER: Parse URL params ---

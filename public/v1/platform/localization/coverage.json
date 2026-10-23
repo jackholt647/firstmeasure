@@ -1,7 +1,7 @@
 {
-  "files": 253,
-  "namespaces": 112,
-  "messages": 16320,
+  "files": 254,
+  "namespaces": 113,
+  "messages": 16325,
   "migration": [
     {
       "file": "public/libraries/account-switcher/account-switcher.js",
@@ -615,7 +615,7 @@
     {
       "file": "public/libraries/apps/project-request/app.js",
       "namespace": "project-request",
-      "references": 393,
+      "references": 394,
       "candidates": 1,
       "edits": 3
     },
@@ -1350,6 +1350,13 @@
     {
       "file": "public/libraries/phone-features/phone-features.js",
       "namespace": "phone-features",
+      "references": 0,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/libraries/phone-input/phone-input.js",
+      "namespace": "phone-input",
       "references": 0,
       "candidates": 0,
       "edits": 0
