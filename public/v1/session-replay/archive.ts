@@ -582,6 +582,65 @@ export function clearArchiveCaches() {
 }
 
 // ---------------------------------------------------------------------------
+// Reading vocabularies and archives at the token level (search and other readers)
+// ---------------------------------------------------------------------------
+
+export type VocabularyPin = { generation: number; version: number };
+
+/**
+ * A scope's tokens as stored: `scope` is "platform" (`PLATFORM_SCOPE`) or an organization id; without a pin, its
+ * newest version. A token keeps its index in every later version of its generation, so (scope, generation, index)
+ * names one string for good; a new generation is a new list. Null when the scope has no vocabulary yet.
+ */
+export async function readVocabulary(scope: string, pin?: VocabularyPin) {
+  const row = pin ? await store.readVocabVersion(scope, pin.generation, pin.version) : await store.latestVocabVersion(scope);
+  if (!row) return null;
+  const tokens = await readTokens(scope, row.generation, row.version);
+  const index = new Map<string, number>();
+  tokens.forEach((text, at) => { if (!index.has(text)) index.set(text, at); });
+  return { scope, generation: row.generation, version: row.version, created_at: row.created_at, tokens, indexOf: (text: string) => index.get(text) };
+}
+
+/**
+ * The canonical id space an archive uses: 2p is platform token p, 2o + 1 is organization token o (strings in
+ * neither are -2 - k, the page's k-th, with their text in the page). Ids are stable for one pin pair.
+ */
+export type CanonicalVocabulary = {
+  organization_id: string;
+  platform: VocabularyPin;
+  organization: VocabularyPin;
+  idOf(text: string): number | undefined;
+  textOf(id: number): string | undefined;
+};
+
+/** The organization's newest vocabulary with the platform version it was built against. */
+export async function organizationVocabulary(organizationId: string): Promise<CanonicalVocabulary> {
+  const org = await store.latestVocabVersion(organizationId);
+  const platformRow = org ? null : await store.latestVocabVersion(store.PLATFORM_SCOPE);
+  const platform = org ? { generation: org.platform_generation, version: org.platform_version }
+    : { generation: platformRow?.generation || 0, version: platformRow?.version || 0 };
+  const organization = { generation: org?.generation || 0, version: org?.version || 0 };
+  const pinned = await pinnedVocabulary(organizationId, platform, organization);
+  return { organization_id: organizationId, platform, organization, idOf: pinned.vocabulary.idOf, textOf: pinned.vocabulary.textOf };
+}
+
+/**
+ * An archived session at the token level: its pages in canonical form (`archive-codec.ts`; string references are
+ * canonical ids, `pageTableIds` maps a page's own string ids to them) with the vocabulary it pinned.
+ * Null for a session that is not archived (read it with `readReplayChunks`).
+ */
+export async function readArchiveCanonical(sessionId: string) {
+  const archive = await store.readReplayArchive(sessionId);
+  if (!archive) return null;
+  const platform = { generation: archive.platform_generation, version: archive.platform_version };
+  const organization = { generation: archive.org_generation, version: archive.org_version };
+  const pinned = await pinnedVocabulary(archive.organization_id, platform, organization);
+  const decoded = codec.decompressArchive(archive.data, pinned.dictionary);
+  const vocabulary: CanonicalVocabulary = { organization_id: archive.organization_id, platform, organization, idOf: pinned.vocabulary.idOf, textOf: pinned.vocabulary.textOf };
+  return { session_id: sessionId, vocabulary, pages: decoded.p };
+}
+
+// ---------------------------------------------------------------------------
 // Administration
 // ---------------------------------------------------------------------------
 

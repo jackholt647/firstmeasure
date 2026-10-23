@@ -327,6 +327,25 @@ export function restorePage(page: ArchivedPage, vocabulary: ArchiveVocabulary): 
 }
 
 /**
+ * A canonical page's strings as canonical ids, in the page's own string order (the page's string id i is entry i):
+ * vocabulary ids for known strings, -2 - k for the page's k-th new string. Null for a verbatim page.
+ */
+export function pageTableIds(page: ArchivedPage) {
+  if (!page.c) return null;
+  const ids: number[] = [];
+  let fresh = 0;
+  for (const [, , , table] of page.c) {
+    let previous = 0;
+    for (const entry of table) {
+      if (typeof entry === "string") { ids.push(-2 - fresh++); continue; }
+      previous += entry;
+      ids.push(previous);
+    }
+  }
+  return ids;
+}
+
+/**
  * One page in archive form. Canonical when it restores to exactly the given JSON, else verbatim.
  * `reason` says why a page was kept verbatim.
  */

@@ -113,6 +113,13 @@ before. `SESSION_REPLAY_ARCHIVE=off` stops the task.
   refused if a chunk arrived meanwhile. An archived session takes no more chunks: the upload gets 409 and the recorder
   starts a new session. A stored archive format never changes meaning: a change to how archives are written gets a new
   `ARCHIVE_FORMAT` and keeps the old decoder.
+- **Reading at the token level.** `readVocabulary(scope, pin?)` returns a scope's tokens (platform or an
+  organization) with its generation and version; a token keeps its index for the life of its generation, so
+  (scope, generation, index) names one string for good. `organizationVocabulary(orgId)` gives the canonical id space
+  of the organization's newest vocabulary (`idOf`, `textOf`), and `readArchiveCanonical(sessionId)` an archived
+  session's pages in canonical form with the vocabulary it pinned (`pageTableIds` maps a page's own string ids to
+  canonical ids). Search (`session-replay/insights/`) reads every session, archived or not, through `readReplayChunks`,
+  which restores each chunk's original JSON.
 - **Dry run and administration.** `POST /v1/platform/session-replay/admin/archive` (platform administrators) with
   `dry_run: true` runs every step in memory, vocabulary versions included, and writes only its report
   (`session_replay_archive_runs`); with `dry_run: false` it archives now what the task would archive later.

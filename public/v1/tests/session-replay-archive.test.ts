@@ -297,6 +297,25 @@ test("a dry run reports ratios and writes nothing; a run archives, verifies and 
       for (const chunk of served) assert.equal(gunzipSync(Buffer.from(chunk.data, "base64")).toString("utf8"), originals.get(id)!.get(`${page.page_id}/${chunk.seq}`));
     }
   }
+  // Token-level reading: the archive's canonical pages name strings by stable vocabulary ids.
+  const canonical = await archive.readArchiveCanonical(ids[3]!);
+  assert.ok(canonical && canonical.pages.every((page) => page.c));
+  const tableIds = codec.pageTableIds(canonical!.pages[0]!)!;
+  const firstChunk = JSON.parse(originals.get(ids[3]!)!.get(`${canonical!.pages[0]!.i}/0`)!);
+  firstChunk.s.forEach((text: string, at: number) => {
+    const id = tableIds[at]!;
+    if (id >= 0) assert.equal(canonical!.vocabulary.textOf(id), text);
+  });
+  const known = tableIds.filter((id) => id >= 0).length;
+  assert.ok(known > tableIds.length / 2, `${known} of ${tableIds.length} strings are vocabulary ids`);
+  const current = await archive.organizationVocabulary(orgId);
+  const id = current.idOf("project-row");
+  assert.ok(id !== undefined && current.textOf(id) === "project-row");
+  const orgVocabulary = await archive.readVocabulary(orgId);
+  assert.equal(orgVocabulary!.generation, current.organization.generation);
+  assert.equal(orgVocabulary!.version, current.organization.version);
+  assert.equal(orgVocabulary!.tokens[orgVocabulary!.indexOf("Alice Mercer")!], "Alice Mercer");
+  assert.equal(await archive.readArchiveCanonical("notarchived0000"), null);
   // Chunk rows stay as an index with empty bodies; sizes for the growth chart are unchanged.
   assert.ok((await store.readReplayChunkSizes(ids[0]!)).every((row) => row.bytes_stored > 0));
   // An archived session takes no more chunks (the recorder starts a new session on 409).
@@ -348,6 +367,11 @@ test("vocabularies are append-only and versioned; every archive keeps decoding w
       previous = tokens;
     }
   }
+  // An older version's tokens are a prefix of the newest version's in the same generation: ids are stable.
+  const newest = versions.filter((v) => v.generation === versions[0]!.generation).at(-1)!;
+  const oldest = await archive.readVocabulary(orgId, { generation: versions[0]!.generation, version: versions[0]!.version });
+  const later = await archive.readVocabulary(orgId, { generation: newest.generation, version: newest.version });
+  assert.deepEqual(later!.tokens.slice(0, oldest!.tokens.length), oldest!.tokens);
   // Archives pin different versions and all still decode exactly, oldest first, from cold caches.
   const pins = new Set<string>();
   archive.clearArchiveCaches();
