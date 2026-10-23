@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+October 23 1M8-242 on dev: [imported accounts show their logo on reports (the editor context preferred the legacy relative key over the platform logo URL)](deploy/digitalocean/development-legacy-logos-20261023.md) records release `712de6b4` on worker, legacy and web. Not on canonical or production.
+
 October 23 Phone picker rework on dev: [Ben's 21 operating countries only, the number in each country's national format as it is typed (no "Saved as" line), and a styled calling-code list](deploy/digitalocean/development-phone-countries-rework-20261023.md) records releases `ab63b371` and `ffbdfc29` (1M8-240), cut from `codex/release-20261023m`.
 
 October 23 European login billboard on dev: [every visitor gets the main host's `https://1m8.ai/billboards/login/` (eu.1m8.ai never published it and showed "Not Found"), with a branded fallback panel when the billboard is missing](deploy/digitalocean/development-login-billboard-eu-20261023.md) records `f4c4600e` on `claude/kind-ishizaka-2fffa9`, cut from production `6e8093f7`, on legacy and web (pool unreachable). Not on production.
