@@ -384,6 +384,7 @@ const contactProjectSummaryCache = new Map<string, ContactProjectSummaryCacheEnt
 
 
 import { deleteIdentity, deleteOrganization, findIdentityByIdentifier, identityEmailExists, withIdentityRegistrationLock } from "./storage.js";
+import { mediaVariantEntry } from "./media_variants.js";
 
 import { formatSignupPhone } from "./identity_phone.js";
 
@@ -1787,7 +1788,15 @@ app.get("/auth/google/config", async () => ({
       throw forbidden("private_media", "Only organization logo media can be fetched publicly.");
     }
     const query = request.query && typeof request.query === "object" ? request.query as Record<string, unknown> : {};
-    const file = await readMediaFile(orgId, mediaId, String(query.variant || "original"));
+    const variant = String(query.variant || "original");
+    // Every page shows the logo, so browsers keep it: revalidated by ETag, or kept for a year when
+    // the URL names the current revision (a replaced logo gets a new revision and so a new URL).
+    const revision = mediaRevision(metadata);
+    const etag = `"${createHash("sha256").update(`${revision}|${variant}`).digest("base64url").slice(0, 22)}"`;
+    reply.header("ETag", etag);
+    reply.header("Cache-Control", cleanText(query.rev) === revision ? "public, max-age=31536000, immutable" : "public, no-cache");
+    if (Object.keys(mediaVariantEntry(metadata, variant)).length && requestHasEtag(request, etag)) return reply.code(304).send();
+    const file = await readMediaFile(orgId, mediaId, variant);
     reply.header("Content-Type", file.contentType);
     reply.header("Content-Disposition", `inline; filename="${String(file.fileName).replace(/"/g, "")}"`);
     return reply.send(file.bytes);
@@ -8488,6 +8497,20 @@ async function recordCustomerPortalEvent(uuid: string, body: JsonObject, request
   return event;
 }
 
+/** Changes whenever the stored media changes; a slot upload such as the logo keeps its media id. */
+function mediaRevision(metadata: JsonObject) {
+  const stamp = [metadata.id, metadata.updated_at || metadata.created_at, metadata.size_bytes, metadata.content_type].map((value) => String(value ?? "")).join("|");
+  return createHash("sha256").update(stamp).digest("base64url").slice(0, 12);
+}
+
+function requestHasEtag(request: FastifyRequest, etag: string) {
+  const header = cleanText((request.headers as Record<string, unknown>)?.["if-none-match"]);
+  if (!header) return false;
+  // nginx weakens the tag of a response it compresses, so compare weakly.
+  const opaque = (value: string) => value.trim().replace(/^W\//, "");
+  return header === "*" || header.split(",").some((value) => opaque(value) === opaque(etag));
+}
+
 /* Serves stored media inline with HTTP range support.
  *
  * Without ranges a browser reports an empty `seekable` range for <video>, so
@@ -10243,7 +10266,7 @@ async function portalUploadLogo(orgId: string, body: JsonObject) {
     bytes: Buffer.from(String(file.bytes_base64), "base64"),
     replaceSlot: true
   });
-  const logo = `/v1/platform/organizations/${encodeURIComponent(orgId)}/media/${encodeURIComponent(String(media.id))}/logo`;
+  const logo = `/v1/platform/organizations/${encodeURIComponent(orgId)}/media/${encodeURIComponent(String(media.id))}/logo?rev=${mediaRevision(media)}`;
   const global = await readGlobal(orgId);
   await saveGlobal(orgId, { data: { branding: { ...asObject(asObject(global.data).branding), logo, logo_node_url: logo } } });
   return { success: true, logo, media };
