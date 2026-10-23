@@ -3963,7 +3963,8 @@ window.PlatformCommerce.onReady(function(){
     else if(modelRoot && window.FirstMateWidgets && (roofViewerKey!==modelKey || !roofViewer)){
       roofViewer?.destroy();roofViewerKey=modelKey;
       // Full-house reports also draw the walls, openings and base from the published exterior model.
-      const data={xmlUrl:cachedAssets?.xmlUrl,exteriorUrl:reportSummaryIsFullHouse()&&projectId?fmUrl(`projects/${encodeURIComponent(projectId)}/exterior-model`):'',media:cachedAssets?.media||[]};
+      const fullHouseModel=reportSummaryIsFullHouse()&&projectId,platformProjectId=activeBaseProject?.id||'',orgId=projectOrgId();
+      const data={xmlUrl:cachedAssets?.xmlUrl,exteriorUrl:fullHouseModel?fmUrl(`projects/${encodeURIComponent(projectId)}/exterior-model`):'',designUrl:fullHouseModel?fmUrl(`projects/${encodeURIComponent(projectId)}/exterior-design`):'',materialsUrl:fullHouseModel&&orgId&&platformProjectId&&isPlatformProjectId(platformProjectId)?`/v1/materials/organizations/${encodeURIComponent(orgId)}/projects/${encodeURIComponent(platformProjectId)}/material-lists`:'',media:cachedAssets?.media||[]};
       roofViewer=window.FirstMateWidgets.mount(modelRoot,{id:'reports.roof',version:'1',config:{}},{surface:'project',data:{'reports.roof':data}});
     }
     if (map && inlineProjectMapWithReports() && activeMeasurementTab === 'map') {

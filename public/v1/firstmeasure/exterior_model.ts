@@ -64,7 +64,7 @@ export function exteriorModelProjection(reportValue: unknown, metadataValue: unk
     });
     return [{
       id: text(wall.id, 40) || '', ...shape, material: text(wall.material) || 'Unassigned', materialKey: materialKey(wall), finishColor: explicit(wall.finishColor, materialKey(wall)),
-      normal: point(wall.normal), elevation: text(wall.elevation, 12) || '', chimney: wall.chimney === true, curved: !!wall.curvedSurface,
+      key: text(wall.key, 400), normal: point(wall.normal), elevation: text(wall.elevation, 12) || '', chimney: wall.chimney === true, curved: !!wall.curvedSurface,
       gross: feet(wall.gross), net: feet(wall.net), openingArea: feet(wall.openingArea), width: feet(wall.width), height: feet(wall.height), openings
     }];
   });

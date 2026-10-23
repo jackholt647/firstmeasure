@@ -3467,6 +3467,39 @@ export const registerFirstMeasureApi: FastifyPluginAsync = async (app) => {
     return { ok: true, model: exteriorModelProjection(asRecord(asRecord(await readPdfState(projectId)).exteriorReport), metadata) };
   });
 
+  // The customer's projected exterior design (finish choices layered over the as-built report). Presentation only:
+  // it never changes the report. Same organization check and full-house scope as exterior-model.
+  async function exteriorDesignProject(request: FastifyRequest) {
+    const auth = await requirePlatformAuth(request, { permission: 'view_reports' });
+    const projectId = getProjectId(request.params);
+    const manifest = await readManifest(projectId);
+    const legacy = buildLegacyManifest(manifest);
+    const email = String(auth.identity.email || '').toLowerCase();
+    if (String(legacy.organization_id || '') !== auth.orgId &&
+        ![legacy.owner_email, legacy.issuer_email].some(value => email && String(value || '').toLowerCase() === email)) {
+      throw new FirstMeasureError('project_forbidden', 403, 'This project is not available to this account.');
+    }
+    if (!isCustomerFullHouse(manifest) || String(manifest.status ?? '').toLowerCase() !== 'completed') {
+      throw new FirstMeasureError('exterior_design_unavailable', 404, 'Exterior designs are available for completed full-house reports.');
+    }
+    return projectId;
+  }
+  app.get("/projects/:id/exterior-design", async (request) => {
+    const projectId = await exteriorDesignProject(request);
+    const { EXTERIOR_DESIGN_ARTIFACT, sanitizeExteriorDesign } = await import("./exterior_design.js");
+    try {
+      const saved = JSON.parse((await readArtifact(projectId, EXTERIOR_DESIGN_ARTIFACT)).content.toString('utf8'));
+      return { ok: true, design: { ...sanitizeExteriorDesign(saved), updatedAt: typeof saved?.updatedAt === 'string' ? saved.updatedAt : null } };
+    } catch { return { ok: true, design: null }; }
+  });
+  app.put("/projects/:id/exterior-design", { bodyLimit: 512 * 1024 }, async (request) => {
+    const projectId = await exteriorDesignProject(request);
+    const { EXTERIOR_DESIGN_ARTIFACT, sanitizeExteriorDesign } = await import("./exterior_design.js");
+    const design = sanitizeExteriorDesign(asRecord(request.body).design);
+    await saveArtifact(projectId, EXTERIOR_DESIGN_ARTIFACT, Buffer.from(JSON.stringify(design)));
+    return { ok: true, design };
+  });
+
 
 
   app.put("/projects/:id/pdf-state", { bodyLimit: PDF_JSON_BODY_LIMIT_BYTES }, async (request) => {

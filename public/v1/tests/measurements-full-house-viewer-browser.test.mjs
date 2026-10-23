@@ -96,7 +96,7 @@ test('full-house viewer draws walls, openings, base and fascia with editor finis
     const scenePoint=metres=>page.evaluate(({metres,text,model})=>{const roofs=FirstMeasureRoofViewer.parseModel(text),frame=FirstMeasureRoofViewer.exteriorFrame(model,roofs),all=[...roofs.flatMap(r=>[...r.points.values()]),...[...model.walls.flatMap(w=>w.points),...model.base.flatMap(f=>f.points)].map(frame.toFeet)],min=[0,1,2].map(i=>Math.min(...all.map(p=>p[i]))),max=[0,1,2].map(i=>Math.max(...all.map(p=>p[i]))),scale=100/Math.max(...max.map((v,i)=>v-min[i])),q=frame.toFeet(metres);return [(q[0]-(min[0]+max[0])/2)*scale,(q[2]-(min[2]+max[2])/2)*scale,-(q[1]-(min[1]+max[1])/2)*scale];},{metres,text:xml(),model});
     // The default camera looks from the south-east: the brick south wall faces it.
     const brick=await screen(await scenePoint([5,8,1.5]));await page.mouse.click(brick.x,brick.y);
-    assert.match(await page.locator('[data-card] strong').textContent(),/W02 · Brick/);assert.match(await page.locator('[data-card]').innerText(),/South/);
+    assert.match(await page.locator('[data-card] strong').textContent(),/W02/);assert.match(await page.locator('[data-card]').innerText(),/Material\s*Brick/);assert.match(await page.locator('[data-card]').innerText(),/South/);
     await page.keyboard.press('Escape');assert.equal(await page.locator('[data-card]').isHidden(),true);
     await page.mouse.move(brick.x,brick.y);await page.waitForTimeout(150);
     meshes=await scene();assert.ok(meshes.filter(m=>m.category==='material:brick').some(m=>m.lit),'hovering a face washes it faintly');
@@ -132,6 +132,61 @@ test('full-house viewer draws walls, openings, base and fascia with editor finis
   }finally{await browser.close();}
 });
 
+test('projected design: as built and projected, defaults, a face of its own, materials, auto-save',async()=>{
+  const browser=await chromium.launch({executablePath:process.env.CHROME_PATH||'C:/Program Files/Google/Chrome/Application/chrome.exe',headless:true,args:['--enable-webgl','--use-angle=swiftshader']});
+  try{
+    const page=await browser.newPage({viewport:{width:1280,height:800}}),errors=[],saves=[];page.on('pageerror',e=>errors.push(e.message));
+    const lists={material_lists:[{resource_type:'material',current_items:[
+      {name:'Cedar Shake Shingles',category:'shingle_roofs',quantity:30,unit:'sq',selected_options:{color:'honey'},pricebook_snapshot:{item:{variant_dimensions:[{id:'color',kind:'color',values:[{id:'honey',label:'Honey',hex:'#bb8f5e'}]}]}}},
+      {name:'Hip & Ridge Cap',category:'shingle_roofs',quantity:40,unit:'lf'},
+      {name:'Vinyl Lap Siding',quantity:20,unit:'sq',selected_options:{color:'sage'},pricebook_snapshot:{item:{variant_dimensions:[{id:'color',values:[{id:'sage',label:'Sage',hex:'#8a9a7b'}]}]}}},
+      {name:'Steel Garage Door',quantity:1,unit:'ea',selected_options:{color:'walnut'},pricebook_snapshot:{item:{variant_dimensions:[{id:'color',values:[{id:'walnut',label:'Walnut',hex:'#5b4636'}]}]}}}]}]};
+    await page.route('http://house.test/**',async route=>{const request=route.request(),url=request.url();
+      if(url.endsWith('/model.xml'))return route.fulfill({contentType:'application/xml',body:xml()});
+      if(url.endsWith('/exterior-model'))return route.fulfill({contentType:'application/json',body:JSON.stringify({ok:true,model:{...model,finishDefaults:{roof:{category:'metal',color:'#324b3c'}}}})});
+      if(url.endsWith('/exterior-design')){if(request.method()==='PUT'){saves.push({body:request.postDataJSON(),csrf:request.headers()['x-platform-csrf']});return route.fulfill({contentType:'application/json',body:'{"ok":true}'});}return route.fulfill({contentType:'application/json',body:'{"ok":true,"design":null}'});}
+      if(url.endsWith('/material-lists'))return route.fulfill({contentType:'application/json',body:JSON.stringify(lists)});
+      if(url.includes('/measure/internal/')){const path=new URL(url).pathname.split('/measure/internal/')[1];return readFile(new URL('../../measure/internal/'+path,import.meta.url)).then(body=>route.fulfill({contentType:path.endsWith('.js')?'text/javascript':'application/octet-stream',body}),()=>route.fulfill({status:404,body:''}));}
+      return route.fulfill({contentType:'text/html',body:'<style>body{margin:0;font-family:Arial}#viewer{height:780px}</style><div id="viewer"></div>'});});
+    await page.goto('http://house.test/');
+    await page.evaluate(()=>{document.cookie='fm_platform_session_csrf=token-1';});
+    await page.addScriptTag({url:'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js'});
+    await page.addScriptTag({content:await readFile(new URL('../../libraries/apps/measurements/roof-viewer.js',import.meta.url),'utf8')});
+    await page.evaluate(()=>{const Renderer=THREE.WebGLRenderer;THREE.WebGLRenderer=function(options){const renderer=new Renderer(options),render=renderer.render;renderer.render=function(scene,camera){window.drawnScene=scene;window.drawnCamera=camera;return render.call(renderer,scene,camera);};return renderer;};});
+    await page.evaluate(()=>{window.viewer=FirstMeasureRoofViewer.mount(document.querySelector('#viewer'),{xmlUrl:'/model.xml',exteriorUrl:'/exterior-model',designUrl:'/exterior-design',materialsUrl:'/material-lists',standalone:true});});
+    await page.waitForFunction(()=>document.querySelector('.fm-roof-message').hidden&&window.drawnScene&&!document.querySelector('[data-design-bar]').hidden,{},{timeout:45000});
+    const finishes=()=>page.evaluate(()=>{const out={roof:new Set(),walls:{}};drawnScene.traverse(o=>{const item=o.userData?.item,f=o.userData?.exteriorFinish;if(!item||!f)return;if(item.kind==='roofFace'&&f.material==='shingles')out.roof.add(ExteriorFinishes.resolve(f).category);if(item.kind==='wall')out.walls[o.userData.designSource.key]=ExteriorFinishes.resolve(f).material;});return {roof:[...out.roof],walls:out.walls};});
+    assert.deepEqual((await finishes()).roof,['metal'],'as built: the report roof covering');
+    await page.getByRole('button',{name:'Design',exact:true}).click();
+    assert.equal(await page.locator('[data-design-panel]').isVisible(),true);
+    assert.match(await page.locator('[data-design-panel]').innerText(),/Select a face to see more details\./);
+    await page.locator('[data-design-panel]').getByRole('button',{name:'Slate',exact:true}).click();
+    assert.deepEqual((await finishes()).roof,['slate']);assert.equal(await page.locator('[data-design-mode="projected"]').getAttribute('aria-pressed'),'true','an edit shows the projected design');
+    await page.waitForTimeout(1200);
+    assert.ok(saves.length>=1);const last=saves.at(-1);assert.equal(last.body.design.mode,'projected');assert.equal(last.body.design.defaults.roof.category,'slate');assert.equal(last.csrf,'token-1');
+    // A face of its own.
+    await page.evaluate(()=>{const item=[...(()=>{const out=[];drawnScene.traverse(o=>{if(o.userData?.item?.kind==='wall')out.push(o.userData.item);});return out;})()].find(i=>i.mesh.userData.designSource.key==='W02');window.__wall=item;});
+    const centre=await page.evaluate(()=>{const g=__wall.mesh.geometry;g.computeBoundingBox();const c=g.boundingBox.getCenter(new THREE.Vector3()).project(drawnCamera),box=document.querySelector('.fm-roof-canvas canvas').getBoundingClientRect();return {x:box.left+(c.x+1)/2*box.width,y:box.top+(1-c.y)/2*box.height};});
+    await page.mouse.click(centre.x,centre.y);
+    assert.match(await page.locator('[data-design-panel]').innerText(),/W02/);
+    await page.locator('[data-design-panel] section').nth(1).getByRole('button',{name:'Stucco',exact:true}).click();
+    const walls=(await finishes()).walls;assert.equal(walls.W02,'stucco');assert.equal(walls.W01,'siding','other faces keep their own');
+    // Generate from materials: shake in its color, siding and the garage door color.
+    await page.getByRole('button',{name:'Generate from materials',exact:true}).click();
+    await page.waitForFunction(()=>/From materials/.test(document.querySelector('[data-design-result]')?.textContent||''));
+    assert.match(await page.locator('[data-design-result]').innerText(),/Roof: Cedar Shake Shingles · Honey[\s\S]*Walls: Vinyl Lap Siding · Sage[\s\S]*Garage doors: Walnut/);
+    assert.deepEqual((await finishes()).roof,['shake']);
+    assert.equal(await page.evaluate(()=>WallMode.finishDefaults.roof.color),'#bb8f5e');assert.equal(await page.evaluate(()=>WallMode.finishDefaults.stickers.garageMain),'#5b4636');
+    // As built restores the report; the design is kept for Projected.
+    await page.locator('[data-design-mode="built"]').click();
+    assert.deepEqual((await finishes()).roof,['metal']);assert.equal((await finishes()).walls.W02,'brick');
+    await page.locator('[data-design-mode="projected"]').click();assert.equal((await finishes()).walls.W02,'stucco');
+    await page.screenshot({path:new URL('../../../output/measurements-viewer/full-house-design.png',import.meta.url).pathname.replace(/^\/(\w:)/,'$1')});
+    assert.deepEqual(errors,[]);
+    await page.evaluate(()=>viewer.destroy());
+  }finally{await browser.close();}
+});
+
 test('the exterior model projection keeps geometry and finishes and drops editor state',async()=>{
   const {exteriorModelProjection}=await import('../firstmeasure/exterior_model.ts');
   const report={walls:[{id:'W01',points:[{x:0,y:0,z:0},{x:1,y:0,z:0},{x:1,y:0,z:1},{x:0,y:0,z:1}],holes:[],material:'Brick',finishColor:'#A65D4B',elevation:'North',chimney:false,gross:10.76,net:10.76,openingArea:0,width:3.28,height:3.28,openings:[{id:'W01-1',type:'window',points:[{x:.2,y:0,z:.2},{x:.4,y:0,z:.2},{x:.4,y:0,z:.6},{x:.2,y:0,z:.6}],area:1,perimeter:2,width:1,height:1,trimFaces:[{points:[]}]}],key:'k'}],
@@ -148,4 +203,15 @@ test('the exterior model projection keeps geometry and finishes and drops editor
   assert.deepEqual(model.roofFinish,{category:'slate',color:'#626970'});assert.equal(model.defaults.color,'#80868b');
   assert.equal(JSON.stringify(model).includes('coverRender'),false);assert.equal(JSON.stringify(model).includes('secret'),false);assert.equal(JSON.stringify(model).includes('reviewer'),false);
   assert.equal(exteriorModelProjection({walls:[]}),null);
+});
+
+test('a saved exterior design keeps only known finishes, colors and face keys',async()=>{
+  const {sanitizeExteriorDesign}=await import('../firstmeasure/exterior_design.ts');
+  const design=sanitizeExteriorDesign({mode:'projected',defaults:{material:'brick',color:'#ABCDEF',trimColor:'red',roof:{category:'metal',color:'#324b3c'},stickers:{doorMain:'#564437',hack:'#000000'}},
+    walls:{'4840:2099:66810|1:2:3':{material:'stucco',color:'#112233'},'bad key with spaces':{material:'stucco'},W03:{material:'lava'}},openings:{'1:2:3|4:5:6':{color:'#010203',trimColor:'#040506',extra:true}},source:'materials'});
+  assert.equal(design.mode,'projected');
+  assert.deepEqual(design.defaults,{material:'brick',color:'#abcdef',roof:{category:'metal',color:'#324b3c'},stickers:{doorMain:'#564437'}});
+  assert.deepEqual(design.walls,{'4840:2099:66810|1:2:3':{material:'stucco',color:'#112233'}});
+  assert.deepEqual(design.openings,{'1:2:3|4:5:6':{color:'#010203',trimColor:'#040506'}});
+  assert.equal(sanitizeExteriorDesign({mode:'nope'}).mode,'built');
 });
