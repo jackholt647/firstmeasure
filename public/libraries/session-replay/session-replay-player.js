@@ -24,6 +24,10 @@
   const PSEUDO = /:(hover|focus-visible|focus-within|focus|active)(?![\w-])/g;
   const PRELOAD_REL = /(^|\s)(preload|prefetch|modulepreload|preconnect|dns-prefetch|prerender|manifest)(\s|$)/i;
   const IDLE_GAP_MS = 4000;
+  // Idle means the person did nothing: pointer moves under this many pixels (a resting hand, a jittery mouse) and
+  // changes the page makes by itself (polling, clocks, hover flicker) do not count as activity.
+  const IDLE_POINTER_PX = 12;
+  const ACTIVE_EVENTS = new Set([E.SNAPSHOT, E.PTR, E.SCROLL, E.VIEW, E.INPUT, E.FOCUS, E.KEY, E.NAV, E.VIS, E.END]);
 
   // ---------------------------------------------------------------------------
   // Decoded data
@@ -152,12 +156,17 @@
       out.sort((a, b) => a.t - b.t);
       return out;
     }
-    /** Gaps with no events and no pointer movement, for skipping idle time. */
+    /** Gaps in which the person did nothing (see IDLE_POINTER_PX), for skipping idle time. */
     idleGaps() {
       const times = [];
       for (const page of this.pages) {
-        for (const event of page.events) if (event.type !== E.DIAG) times.push(event.t);
-        for (let i = 0; i < page.cursor.length; i += 3) times.push(page.cursor[i]);
+        for (const event of page.events) if (ACTIVE_EVENTS.has(event.type)) times.push(event.t);
+        const cursor = page.cursor;
+        let ax = NaN, ay = NaN;
+        for (let i = 0; i < cursor.length; i += 3) {
+          const x = cursor[i + 1], y = cursor[i + 2];
+          if (!(Math.abs(x - ax) < IDLE_POINTER_PX && Math.abs(y - ay) < IDLE_POINTER_PX)) { times.push(cursor[i]); ax = x; ay = y; }
+        }
       }
       times.sort((a, b) => a - b);
       const gaps = [];

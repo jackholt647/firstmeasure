@@ -12,11 +12,11 @@ import { env } from "../src/config/env.js";
 import { archiveOverview, runReplayArchive } from "./archive.js";
 import { REPLAY_BLOB_KEY, replayBlobKey } from "./hash.js";
 import {
-  deleteReplaySession, listReplaySessions, markReplayWatched, missingReplayBlobs, readReplayBlobs, readReplayChunkSizes,
+  deleteReplaySession, listReplayPages, listReplaySessions, markReplayWatched, missingReplayBlobs, readReplayBlobs, readReplayChunkSizes,
   readReplayChunks, readReplaySession, replayStorageTotals, storeReplayBlob, storeReplayChunk
 } from "./storage.js";
 import {
-  countReplayRules, decideReplay, listReplayRuleLog, listReplayRules, readReplayMode, readReplayRules, removeReplayRule, REPLAY_MODES,
+  countReplayRules, decideReplay, excludedReplayPages, listReplayRuleLog, listReplayRules, readReplayMode, readReplayRules, removeReplayRule, REPLAY_MODES,
   setReplayMode, upsertReplayRules, type ReplayMode, type RuleInput, type RuleKind
 } from "./targeting.js";
 
@@ -56,7 +56,9 @@ const chunkSchema = z.object({
   encoding: z.enum(["gzip", "identity", "json"]),
   data: z.string().max(12_000_000).optional(),
   json: z.string().max(12_000_000).optional(),
-  meta: z.record(z.unknown()).nullable().optional()
+  meta: z.record(z.unknown()).nullable().optional(),
+  // Pages (path and hash) reached during the chunk, with the time each was reached.
+  paths: z.array(z.tuple([z.string().max(500), z.number().finite()])).max(50).optional()
 }).strict();
 
 const chunkHeaderSchema = chunkSchema.omit({ data: true, json: true }).extend({ encoding: z.enum(["gzip", "identity"]) });
@@ -91,7 +93,7 @@ async function requireRecorder(request: FastifyRequest) {
   return ctx;
 }
 
-const ruleKind = z.enum(["person", "organization"]);
+const ruleKind = z.enum(["person", "organization", "page"]);
 const ruleInputSchema = z.object({
   kind: ruleKind,
   // A person by identity id or email; an organization by id.
@@ -108,6 +110,15 @@ async function resolveRuleInput(input: z.infer<typeof ruleInputSchema>): Promise
   const now = Date.now();
   const expires = input.days ? now + Math.round(input.days * 86_400_000) : input.expires_at || 0;
   if (expires && expires <= now) throw badRequest("replay_rule_expired", "That end time has already passed.");
+  if (input.kind === "page") {
+    // A page is only ever excluded: a pattern over the path and hash, such as /portal/billing or /portal/#settings*.
+    const pattern = input.target.trim().toLowerCase();
+    if (!/^[/*#]/.test(pattern) || /[?\s]/.test(pattern)) {
+      throw badRequest("invalid_page_pattern", "A page is a path such as /portal/billing, optionally with * for anything; no query string.");
+    }
+    if (input.enabled) throw badRequest("page_rules_exclude_only", "A page rule can only stop recording on that page.");
+    return { kind: "page", target_id: pattern.slice(0, 300), enabled: false, expires_at: expires, reason: input.reason || "", label: pattern.slice(0, 300), detail: "" };
+  }
   if (input.kind === "person") {
     const identity = input.target.includes("@")
       ? await findIdentityByEmail(input.target).catch(() => null)
@@ -187,6 +198,7 @@ export async function registerSessionReplayRoutes(app: FastifyInstance) {
       org_id: ctx.orgId,
       user_id: ctx.userId,
       chunk_interval_ms: CHUNK_INTERVAL_MS,
+      exclude_pages: await excludedReplayPages(),
       mask_all_inputs: false,
       csrf_cookie: `${env.platformSessionCookieName}_csrf`
     };
@@ -210,7 +222,8 @@ export async function registerSessionReplayRoutes(app: FastifyInstance) {
       events: body.events,
       bytes_raw: decoded.raw >= 0 ? decoded.raw : body.raw_bytes,
       data: decoded.stored,
-      meta: body.meta ?? null
+      meta: body.meta ?? null,
+      paths: body.paths
     });
     if (result === "conflict") throw conflict("session_replay_conflict", "This replay session belongs to another person or organization.");
     // The recorder starts a new session on 409, as it does for a conflict.
@@ -293,7 +306,8 @@ export async function registerSessionReplayRoutes(app: FastifyInstance) {
     const params = asObject(request.params);
     const kind = ruleKind.parse(text(params.kind));
     const reason = text(asObject(request.query).reason).slice(0, 500);
-    const removed = await removeReplayRule(kind, text(params.targetId), email, reason);
+    // A page pattern holds slashes, so it may come as ?target= instead of in the path.
+    const removed = await removeReplayRule(kind, text(asObject(request.query).target) || text(params.targetId), email, reason);
     if (!removed) throw notFound("replay_rule_not_found", "There is no such rule.");
     return { ok: true, removed };
   });
@@ -368,10 +382,20 @@ export async function registerSessionReplayRoutes(app: FastifyInstance) {
       organizationId: text(query.org_id) || undefined,
       before: Number(query.before) || undefined,
       limit: Number(query.limit) || 50,
-      userQuery: text(query.q) || undefined
+      userQuery: text(query.q) || undefined,
+      page: text(query.page) || undefined
     });
     const names = await organizationNames(sessions.map((s) => s.organization_id));
     return { ok: true, now: Date.now(), sessions: sessions.map((s) => ({ ...s, organization_name: names[s.organization_id] || s.organization_id })) };
+  });
+
+  // Pages seen in recordings, most visited first, for filtering sessions and choosing pages not to record.
+  app.get("/session-replay/admin/pages", async (request, reply) => {
+    reply.header("Cache-Control", "private, no-store");
+    await requireReplayAdmin(request);
+    const query = asObject(request.query);
+    const pages = await listReplayPages({ query: text(query.q) || undefined, organizationId: text(query.org_id) || undefined, limit: Number(query.limit) || 50 });
+    return { ok: true, pages, excluded: await excludedReplayPages() };
   });
 
   app.get("/session-replay/admin/sessions/:sessionId", async (request, reply) => {

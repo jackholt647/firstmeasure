@@ -2,7 +2,8 @@
  * "Who is recorded" in the replay viewer: platform administrators set the platform-wide mode (off for everyone,
  * only those listed, everyone) and rules for people and organizations, each optionally for a limited time, with a
  * reason that goes into the change log. People and organizations are found by a server-side search; nothing loads
- * the whole list. See docs/architecture/session-replay.md, "Who is recorded".
+ * the whole list. Pages can be set never to be recorded, whoever is on them. See docs/architecture/session-replay.md,
+ * "Who is recorded".
  */
 (function () {
   'use strict';
@@ -50,11 +51,13 @@
     const listed = [c.people_recording && c.people_recording + (c.people_recording === 1 ? ' person' : ' people'),
       c.organizations_recording && c.organizations_recording + (c.organizations_recording === 1 ? ' organization' : ' organizations')].filter(Boolean).join(', ');
     const excluded = c.people_excluded + c.organizations_excluded;
+    const pages = c.pages_excluded ? ' ' + c.pages_excluded + (c.pages_excluded === 1 ? ' page is' : ' pages are') + ' never recorded.' : '';
     panel.querySelector('.rr-mode').textContent = MODES[mode].title;
     panel.querySelector('.rr-mode').className = 'rr-mode rr-mode-' + mode;
     panel.querySelector('.rr-summary').textContent = mode === 'off' ? 'Nothing is being recorded.'
       : mode === 'everyone' ? 'Recording everyone' + (excluded ? ', ' + excluded + ' excluded.' : '.')
-      : (listed ? 'Recording ' + listed + '.' : 'Nobody is listed, so nothing is being recorded.');
+      : (listed ? 'Recording ' + listed + '.' : 'Nobody is listed, so nothing is being recorded.')
+      + (mode === 'off' ? '' : pages);
   }
 
   // ---------------------------------------------------------------------------
@@ -119,6 +122,41 @@
     overlay.querySelector('.rr-more').hidden = !data.next;
   }
 
+  async function renderPages() {
+    const box = overlay.querySelector('.rr-pages');
+    let data;
+    try { data = await api(base + '?kind=page&state=excluded&limit=200'); } catch (error) { box.innerHTML = '<p class="aa-error">' + esc(error.message) + '</p>'; return; }
+    box.innerHTML = data.rules.length ? '<table class="aa-table"><tbody>' + data.rules.map((rule) => '<tr data-kind="page" data-target="' + esc(rule.target_id) + '"><td><code>'
+      + esc(rule.target_id) + '</code>' + (rule.expires_at ? '<div class="aa-muted">until ' + when(rule.expires_at) + '</div>' : '') + '</td><td>' + esc(rule.reason || '')
+      + '<div class="aa-muted">' + esc(rule.updated_by) + ' · ' + when(rule.updated_at) + '</div></td><td><button type="button" class="aa-revoke rr-remove">Record it again</button></td></tr>').join('')
+      + '</tbody></table>' : '<p class="aa-muted">Every page is recorded for those who are.</p>';
+  }
+
+  let pageOptionsTimer = 0;
+  function loadPageOptions(query) {
+    clearTimeout(pageOptionsTimer);
+    pageOptionsTimer = setTimeout(async () => {
+      try {
+        const data = await api('/session-replay/admin/pages?limit=40' + (query ? '&q=' + encodeURIComponent(query) : ''));
+        const list = overlay && overlay.querySelector('#rr-page-options');
+        if (list) list.innerHTML = (data.pages || []).map((p) => '<option value="' + esc(p.path) + '">' + esc(p.sessions + (p.sessions === 1 ? ' session' : ' sessions')) + '</option>').join('');
+      } catch (error) { /* suggestions are optional */ }
+    }, 200);
+  }
+
+  async function addPage(button) {
+    const input = overlay.querySelector('.rr-page');
+    const target = input.value.trim();
+    if (!target) { input.focus(); return; }
+    button.disabled = true;
+    try {
+      await api(base + '/rules', { method: 'PUT', body: { rules: [{ kind: 'page', target, enabled: false, reason: reason() || undefined }] } });
+      input.value = '';
+      await refreshAll();
+    } catch (error) { window.alert(error.message); }
+    button.disabled = false;
+  }
+
   async function renderLog() {
     const box = overlay.querySelector('.rr-log');
     try {
@@ -126,6 +164,7 @@
       const describe = (e) => {
         if (e.kind === 'mode') return 'Mode: ' + (MODES[e.before] ? MODES[e.before].title : e.before) + ' → ' + (MODES[e.after] ? MODES[e.after].title : e.after);
         if (!e.after) return 'Removed the rule for ' + e.label;
+        if (e.kind === 'page') return 'Don’t record ' + e.label + (e.after.expires_at ? ' until ' + when(e.after.expires_at) : '');
         return (e.after.enabled ? 'Record ' : 'Don’t record ') + e.label + (e.after.expires_at ? ' until ' + when(e.after.expires_at) : '');
       };
       box.innerHTML = entries.length ? '<table class="aa-table"><tbody>' + entries.map((e) => '<tr><td>' + when(e.at) + '</td><td>' + esc(describe(e))
@@ -144,7 +183,7 @@
   function reason() { return overlay.querySelector('.rr-reason').value.trim(); }
 
   async function refreshAll() {
-    await Promise.all([renderMode(), renderRules(false), renderSummary(), overlay.querySelector('.rr-search').value.trim().length >= 2 ? runSearch() : null]);
+    await Promise.all([renderMode(), renderRules(false), renderPages(), renderSummary(), overlay.querySelector('.rr-search').value.trim().length >= 2 ? runSearch() : null]);
     if (!overlay.querySelector('.rr-log').hidden) await renderLog();
   }
 
@@ -154,7 +193,7 @@
     button.disabled = true;
     try {
       if (button.classList.contains('rr-remove')) {
-        await api(base + '/rules/' + kind + '/' + encodeURIComponent(target) + (reason() ? '?reason=' + encodeURIComponent(reason()) : ''), { method: 'DELETE' });
+        await api(base + '/rules/' + kind + '/-?target=' + encodeURIComponent(target) + (reason() ? '&reason=' + encodeURIComponent(reason()) : ''), { method: 'DELETE' });
       } else {
         const select = row.querySelector('.rr-days');
         const days = select ? Number(select.value) : 0;
@@ -181,9 +220,14 @@
       + '<div class="aa-form"><input type="search" class="rr-search" placeholder="Email, name or organization id" autocomplete="off">'
       + '<input class="rr-reason" maxlength="500" placeholder="Reason, kept in the change log (optional)"></div>'
       + '<div class="rr-results"><p class="aa-muted">Type at least two letters of an email, a name or an id.</p></div>'
+      + '<h3>Pages never recorded</h3>'
+      + '<p class="aa-muted">Nobody is recorded on these pages, whatever the rules above say. A page is its path and hash: <code>/portal/billing</code> covers everything '
+      + 'under it; <code>*</code> stands for anything (<code>/portal/#settings*</code>). A recording pauses there and picks up again when the person leaves.</p>'
+      + '<div class="aa-form"><input class="rr-page" list="rr-page-options" placeholder="/portal/billing" autocomplete="off"><datalist id="rr-page-options"></datalist>'
+      + '<button type="button" class="aa-primary rr-page-add">Don’t record this page</button></div><div class="rr-pages"></div>'
       + '<h3>Rules</h3><div class="aa-form"><select class="rr-filter-state"><option value="recording">Recording</option><option value="excluded">Not recorded</option>'
       + '<option value="expired">Expired</option><option value="">All</option></select><select class="rr-filter-kind"><option value="">People and organizations</option>'
-      + '<option value="person">People</option><option value="organization">Organizations</option></select></div>'
+      + '<option value="person">People</option><option value="organization">Organizations</option><option value="page">Pages</option></select></div>'
       + '<div class="rr-rules"></div><button type="button" class="aa-copy rr-more" hidden>Load more</button>'
       + '<h3>Changes</h3><button type="button" class="aa-copy rr-show-log">Show the change log</button><div class="rr-log" hidden></div>'
       + '<p class="aa-muted">Scripts can do the same with <code>PUT /v1/platform/session-replay/admin/targeting/rules</code> (up to 500 rules at once, people by email) '
@@ -192,6 +236,7 @@
     document.body.appendChild(overlay);
     let timer = 0;
     overlay.addEventListener('input', (event) => {
+      if (event.target.classList.contains('rr-page')) { loadPageOptions(event.target.value.trim()); return; }
       if (!event.target.classList.contains('rr-search')) return;
       clearTimeout(timer);
       timer = setTimeout(runSearch, 250);
@@ -212,6 +257,7 @@
       if (target === overlay || target.classList.contains('aa-close')) { close(); return; }
       if (target.classList.contains('rr-record') || target.classList.contains('rr-exclude') || target.classList.contains('rr-remove')) { await act(target); return; }
       if (target.classList.contains('rr-more')) { await renderRules(true); return; }
+      if (target.classList.contains('rr-page-add')) { await addPage(target); return; }
       if (target.classList.contains('rr-show-log')) {
         const log = overlay.querySelector('.rr-log');
         log.hidden = !log.hidden;
@@ -223,6 +269,7 @@
     overlay.querySelector('.rr-filter-state').value = filter.state;
     overlay.querySelector('.rr-filter-kind').value = filter.kind;
     refreshAll().catch((error) => window.alert(error.message));
+    overlay.querySelector('.rr-page').addEventListener('focus', (event) => loadPageOptions(event.target.value.trim()));
     overlay.querySelector('.rr-search').focus();
   }
 

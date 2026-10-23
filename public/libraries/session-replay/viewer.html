@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex">
 <title>Session Replay</title>
-<link rel="stylesheet" href="session-replay-viewer.css?v=20261023-1">
+<link rel="stylesheet" href="session-replay-viewer.css?v=20261023-2">
 </head>
 <body>
 <div class="app" id="app">
@@ -27,6 +27,10 @@
           <option value="all">All organizations</option>
         </select>
       </div>
+      <div class="sessions-head">
+        <input type="search" id="page-filter" list="page-options" placeholder="Filter by page, e.g. /portal/ or /portal/#billing*" autocomplete="off">
+        <datalist id="page-options"></datalist>
+      </div>
       <div class="session-list" id="session-list"><div class="empty">Loading…</div></div>
     </section>
   </aside>
@@ -42,7 +46,9 @@
       </div>
     </div>
     <div class="controls">
+      <button class="icon icon-quiet" id="prev-event" type="button" title="Previous event (,)" disabled>⏮</button>
       <button class="icon" id="play" type="button" title="Play / pause (space)" disabled>▶</button>
+      <button class="icon icon-quiet" id="next-event" type="button" title="Next event (.)" disabled>⏭</button>
       <div class="time"><span id="time-now">0:00</span><span class="muted"> / </span><span id="time-total">0:00</span></div>
       <div class="timeline" id="timeline"><div class="track" id="track"></div><div class="head" id="playhead"></div><div class="hover-time" id="hover-time" hidden></div></div>
       <select id="speed" title="Speed">
@@ -69,9 +75,9 @@
 </div>
 <div class="toast" id="toast" hidden></div>
 <script src="session-replay-codec.js?v=20261022-1"></script>
-<script src="session-replay-player.js?v=20261022-1"></script>
-<script src="session-replay-viewer.js?v=20261023-1"></script>
+<script src="session-replay-player.js?v=20261023-1"></script>
+<script src="session-replay-viewer.js?v=20261023-2"></script>
 <script src="session-replay-agent-access.js?v=20261022-1"></script>
-<script src="session-replay-recording.js?v=20261023-1"></script>
+<script src="session-replay-recording.js?v=20261023-2"></script>
 </body>
 </html>

@@ -22,6 +22,11 @@ capability: no preset, signup or Developer Settings switch can turn it on (`sess
 - **Rules** name a person (their sign-in identity, so the rule follows them into every organization they belong to)
   or an organization, say record or don't, and may end at a time ("record this customer for 7 days"). A person's rule
   wins over their organization's; an expired rule counts as absent.
+- **Pages never recorded** are page rules: a pattern over the path and hash (never the query string), compared in
+  lower case. `/portal/billing` covers every path starting with it; `*` stands for anything (`/portal/#settings*`).
+  They apply to everyone. The config hands them to the page. On arriving at such a page, the recorder pauses: changes
+  not yet written are dropped, and a "Recording paused" marker says where. When the person leaves, it resumes as a
+  new page with a fresh snapshot. A page rule can only exclude.
 - **Every change** to the mode or a rule is kept in `session_replay_rule_log` with who made it, when, what it replaced
   and the reason given.
 - **Scale.** People and organizations are found by a server-side search that returns a page of results
@@ -42,6 +47,8 @@ capability: no preset, signup or Developer Settings switch can turn it on (`sess
 | `GET /targeting/search?q=&kind=people\|organizations&limit=` | People and organizations matching, with their rules |
 | `GET /targeting/explain?person=<email>&org_id=` | Whether and why a person is recorded, per organization |
 | `GET /targeting/log?before=&limit=` | The change log |
+| `GET /sessions?page=<pattern>` | Sessions that reached a page, each with `page_matched_at` (when it first did) |
+| `GET /pages?q=&org_id=` | Pages seen in recordings, most visited first, and the excluded patterns |
 | `PUT /organizations/:orgId` `{ enabled }` | Older form of an organization rule with no end, kept for scripts |
 
 Writes need the platform session's CSRF header. Access keys for coding agents open the search tools only, never
@@ -99,7 +106,7 @@ What is recorded, and how:
 
 ## Storage
 
-`session-replay/storage.ts` is an `openSqlStore` store (`session_replay`, schema version 4):
+`session-replay/storage.ts` is an `openSqlStore` store (`session_replay`, schema version 5):
 `session_replay_sessions` (one per tab session: person, organization, times, sizes, device),
 `session_replay_pages` (one per page load, with its META), `session_replay_chunks` (the gzip bodies),
 `session_replay_blobs` (per organization, by content address), and who is recorded: `session_replay_config` (the
@@ -179,11 +186,21 @@ stylesheets are rewritten to classes the player sets from the recorded hover, po
 that open on hover open in the replay. The browser's own focus ring is added with zero specificity. Seeking back
 rebuilds the page from its snapshot.
 
-The viewer (`viewer.html`) lists sessions (live ones pulse), sets who is recorded, plays with speed,
-idle skipping and a pointer trail, and has four panels: **Events** (clicks with their labels, pages, navigation,
+The viewer (`viewer.html`) lists sessions (live ones pulse), filters them by person and by page, sets who is recorded,
+plays with speed, idle skipping, previous and next event (buttons, `,` and `.`) and a pointer trail, and has four panels: **Events** (clicks with their labels, pages, navigation,
 keys, typing, errors), **Storage** (bytes stored, cost per page load, cost per minute after loading, the growth
 chart, the organization's per-hour rate and a monthly cost calculator), **Performance** (recorder CPU, page heap,
 recorder memory, DOM size and main-thread lag over time) and **Device**. A live session can be followed as it records.
+
+- **Page filter.** It lists the sessions that reached a page, from the paths each chunk carries
+  (`session_replay_page_paths`: path and hash, with when it was reached). Opening one starts a second before the person
+  got there.
+- **Idle.** Idle time is time in which the person did nothing. Pointer moves under 12 px do not count (a resting hand,
+  a jittery mouse), and neither do changes the page makes by itself (polling, clocks, hover flicker). Clicks, typing,
+  keys, scrolling, focus, navigation, page loads and tab switches do.
+- **Stylesheets** (blobs) go up as soon as they are first seen. Any still waiting when the page is left are sent
+  uncompressed with the last chunk. Before October 23, a stylesheet first seen just before leaving the page (the
+  credit dialog, then checkout) was lost, and its replay showed that part unstyled.
 
 Storage numbers separate a page's load (its first 15 seconds: the snapshot plus the app rendering into it) from the
 time after it, idle time included, because a short session is almost all load. The calculator models a month as

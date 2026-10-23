@@ -24,7 +24,7 @@
     return;
   }
   const { E, PTR } = Codec;
-  const VERSION = '2026.10.22.3';
+  const VERSION = '2026.10.23.1';
   const perf = root.performance;
   const timeOrigin = Math.round(perf.timeOrigin || (Date.now() - perf.now()));
   const clock = () => Math.round(perf.now());
@@ -199,6 +199,13 @@
     let lastView = '';
     let lastUrl = '';
     let errorCount = 0;
+    // Pages reached since the last chunk, as [path and hash, time]; the query string is left out (it can carry tokens).
+    let pathsPending = [];
+    let lastPath = '';
+    let pausing = false;
+    let blobPromise = null;
+    let blobTimer = 0;
+    const utf8 = new TextEncoder();
 
     // Uploads.
     const queue = [];
@@ -243,6 +250,25 @@
       moPending = []; moFirstT = 0;
       dirtyInputs.clear(); dirtyStyles.clear(); newShadows.length = 0; frameLoads.clear(); pendingScroll.clear();
       mouse = []; hoverId = 0; focusId = -1; lastView = ''; lastUrl = '';
+      pathsPending = []; lastPath = '';
+    }
+
+    function pagePath() {
+      const location = topWin.location;
+      return ((location.pathname || '/') + (location.hash || '')).slice(0, 500);
+    }
+
+    // Pages an administrator set not to record (options.pageAllowed, from the loader's config).
+    function allowedHere() {
+      if (!options.pageAllowed) return true;
+      try { return options.pageAllowed(pagePath()) !== false; } catch (error) { return true; }
+    }
+
+    function notePath() {
+      const path = pagePath();
+      if (path === lastPath) return;
+      lastPath = path;
+      pathsPending.push([path, timeOrigin + clock()]);
     }
 
     function push(event) {
@@ -267,7 +293,7 @@
           strings.set(marker, id);
           pendingStrings.push(marker);
           stringChars += marker.length;
-          if (!knownBlobs.has(key)) pendingBlobs.set(key, text);
+          if (!knownBlobs.has(key)) { pendingBlobs.set(key, text); scheduleBlobs(); }
         }
         return id;
       }
@@ -476,6 +502,7 @@
     }
 
     function flushMutations() {
+      if (!pausing && options.pageAllowed && !allowedHere()) { pause(); return; }
       if (mo) {
         const extra = mo.takeRecords();
         if (extra.length) {
@@ -822,13 +849,45 @@
       push([clock(), E.VIEW].concat(view));
     }
     const timedCheckView = timed(checkView);
+    const timedNoteUrl = timed(() => noteUrl());
 
     function noteUrl() {
       const href = topWin.location.href;
       if (href === lastUrl) return;
+      if (!allowedHere()) { pause(); return; }
       lastUrl = href;
       flushMutations();
       push([clock(), E.NAV, intern(href)]);
+      notePath();
+    }
+
+    // Leaving for a page that is not recorded: nothing more of this page is kept (changes not yet written are
+    // dropped, not flushed), a marker says why the recording stops here, and it resumes when the person leaves.
+    function pause() {
+      if (!state.recording || pausing) return;
+      pausing = true;
+      try {
+        if (mo) { mo.takeRecords(); mo.disconnect(); }
+        moPending = []; moFirstT = 0;
+        dirtyInputs.clear(); dirtyStyles.clear(); newShadows.length = 0; frameLoads.clear(); pendingScroll.clear();
+        mouse = [];
+        push([clock(), E.CUSTOM, intern('Recording paused'), intern('This page is not recorded.')]);
+        cutChunk();
+      } finally { pausing = false; }
+      [moTimer, scrollTimer, viewTimer, firstChunkTimer].forEach((timer) => timer && clearTimeout(timer));
+      moTimer = 0; scrollTimer = 0; viewTimer = 0; firstChunkTimer = 0;
+      state.recording = false;
+      state.paused = true;
+      pump();
+    }
+
+    function checkResume() {
+      if (!state.paused || !allowedHere()) return;
+      state.paused = false;
+      state.pageId = randomId(10);
+      state.pageStartedAt = Date.now();
+      begin();
+      scheduleChunk(intervalMs);
     }
 
     handlers = {
@@ -882,7 +941,7 @@
         if (el && el.localName === 'link' && isStylesheetLink(el) && ids.has(el)) { dirtyStyles.add(el); scheduleFlush(); }
       }),
       view: timed(() => { if (!viewTimer) viewTimer = setTimeout(timedCheckView, 150); }),
-      nav: timed(noteUrl),
+      nav: (event) => { if (state.paused) checkResume(); else timedNoteUrl(event); },
       visibility: timed(() => {
         flushMutations();
         push([clock(), E.VIS, topDoc.hidden ? 1 : 0]);
@@ -938,14 +997,27 @@
       const item = {
         session_id: state.sessionId, page_id: state.pageId, seq: seq++, page_started_at: state.pageStartedAt,
         t_start: timeOrigin + firstT, t_end: timeOrigin + lastT, events: out.length,
-        json: JSON.stringify(chunk), raw_bytes: 0, bytes: null, meta: null
+        json: JSON.stringify(chunk), raw_bytes: 0, bytes: null, meta: null, paths: pathsPending
       };
       if (item.seq === 0) item.meta = pageMeta();
       events = [];
       pendingStrings = [];
+      pathsPending = [];
       queue.push(item);
       if (queue.length > MAX_QUEUE) stop('upload_backlog');
       return item;
+    }
+
+    function flushBlobs() {
+      if (!blobPromise) blobPromise = sendBlobs().finally(() => { blobPromise = null; });
+      return blobPromise;
+    }
+
+    // A stylesheet seen for the first time goes up at once rather than with the next chunk: a page about to be left
+    // (a checkout, signing out) would otherwise take it along, and its replay would lose those styles.
+    function scheduleBlobs() {
+      if (blobTimer) return;
+      blobTimer = setTimeout(() => { blobTimer = 0; if (pendingBlobs.size) flushBlobs().catch(() => {}); }, 50);
     }
 
     async function sendBlobs() {
@@ -984,7 +1056,7 @@
       pumping = true;
       try {
         while (queue.length) {
-          if (pendingBlobs.size && !(await sendBlobs())) { retry(); return; }
+          if (pendingBlobs.size && !(await flushBlobs())) { retry(); return; }
           const item = queue[0];
           if (!item.bytes) {
             const started = perf.now();
@@ -1054,6 +1126,10 @@
     }
 
     function beaconAll() {
+      // Stylesheets still waiting go first, uncompressed: compressing is asynchronous and the page is closing.
+      for (const [key, text] of pendingBlobs) {
+        try { if (transport.beaconBlob) { const bytes = utf8.encode(text); transport.beaconBlob({ key, raw_bytes: bytes.length, encoding: 'identity', bytes }); } } catch (error) { /* page is leaving */ }
+      }
       while (queue.length) {
         const item = queue.shift();
         try { transport.beacon(item); } catch (error) { /* page is leaving */ }
@@ -1162,6 +1238,7 @@
       diag.snapshot_nodes = docNode.$n;
       diag.snapshot_ms = perf.now() - started;
       lastUrl = topWin.location.href;
+      notePath();
       checkView();
       const scrollX = Math.round(topWin.scrollX), scrollY = Math.round(topWin.scrollY);
       lastScroll.set(topDoc, [scrollX, scrollY]);
@@ -1204,13 +1281,14 @@
     }
 
     function start() {
-      if (state.recording) return api;
+      if (state.recording || state.paused) return api;
       listenTop();
-      begin();
-      scheduleChunk(intervalMs);
       const timedSample = timed(sample);
       // The overlay draws outside timed(): its own cost is not the recorder's.
       diagTimer = setInterval(() => { timedSample(); if (overlay && overlay.visible) overlay.render(); }, 1000);
+      if (!allowedHere()) { active = api; state.paused = true; return api; }
+      begin();
+      scheduleChunk(intervalMs);
       return api;
     }
 
@@ -1234,12 +1312,15 @@
     function stop(reason) {
       if (!state.recording && state.stopReason) return api;
       state.recording = false;
+      state.paused = false;
       state.stopReason = reason || 'stopped';
       if (active === api) active = null;
       if (mo) mo.disconnect();
       [moTimer, scrollTimer, viewTimer, firstChunkTimer].forEach((timer) => timer && clearTimeout(timer));
       clearTimeout(chunkTimer);
       chunkTimer = 0;
+      clearTimeout(blobTimer);
+      blobTimer = 0;
       clearInterval(diagTimer);
       if (longTaskObserver) longTaskObserver.disconnect();
       if (reason === 'not_allowed' || reason === 'upload_backlog') queue.length = 0;
@@ -1254,6 +1335,7 @@
       const minutes = elapsed / 60000;
       return {
         recording: state.recording,
+        paused: !!state.paused,
         stop_reason: state.stopReason,
         session_id: state.sessionId,
         page_id: state.pageId,
@@ -1426,7 +1508,7 @@
         const owner = sheet.ownerNode;
         if (owner && ids.has(owner)) { dirtyStyles.add(owner); scheduleFlush(); }
       },
-      noteUrl: () => { if (state.recording) timed(noteUrl)(); },
+      noteUrl: () => { if (state.recording) timedNoteUrl(); else if (state.paused) checkResume(); },
       noteError(event) {
         if (!state.recording || !event || event.message === undefined || errorCount >= 100) return;
         errorCount++;

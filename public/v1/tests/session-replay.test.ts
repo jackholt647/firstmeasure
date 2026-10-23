@@ -184,7 +184,7 @@ test("recorders upload binary frames, and upload often only while someone follow
     events: 2, raw_bytes: json.length, encoding: "gzip", meta: seq === 0 ? { url: "https://dev.1m8.ai/portal/", title: "Portal" } : null, ...extra
   });
 
-  const first = await upload(owner, "/session-replay/chunks", frame(header(0, "page0001"), gzipSync(json)));
+  const first = await upload(owner, "/session-replay/chunks", frame(header(0, "page0001", { paths: [["/portal/", now], ["/portal/#billing", now + 500]] }), gzipSync(json)));
   assert.equal(first.statusCode, 200, first.body);
   assert.deepEqual(first.json(), { ok: true, stored: true, next_ms: 20_000 });
   assert.equal((await upload(owner, "/session-replay/chunks", frame(header(0, "page0001"), gzipSync(json)))).json().stored, false);
@@ -208,6 +208,14 @@ test("recorders upload binary frames, and upload often only while someone follow
   assert.equal(detail.session.bytes_stored, gzipSync(json).length * 3);
   const chunks = (await call(admin, "GET", "/session-replay/admin/sessions/sessionframes001/chunks?page_id=page0001&after_seq=-1")).json().chunks;
   assert.deepEqual(chunks.map((c: any) => gunzipSync(Buffer.from(c.data, "base64")).toString()), [json.toString(), json.toString()]);
+
+  // Sessions by page: the ones that reached it, with when, and the pages seen.
+  const byPage = (await call(admin, "GET", "/session-replay/admin/sessions?page=" + encodeURIComponent("/portal/#BILL"))).json().sessions;
+  assert.deepEqual(byPage.map((s: any) => [s.id, s.page_matched_at]), [["sessionframes001", now + 500]]);
+  assert.deepEqual((await call(admin, "GET", "/session-replay/admin/sessions?page=" + encodeURIComponent("/portal/#*ing"))).json().sessions.map((s: any) => s.id), ["sessionframes001"]);
+  assert.deepEqual((await call(admin, "GET", "/session-replay/admin/sessions?page=%2Fnowhere")).json().sessions, []);
+  const seen = (await call(admin, "GET", "/session-replay/admin/pages?q=bill")).json().pages;
+  assert.deepEqual(seen.map((p: any) => [p.path, p.sessions]), [["/portal/#billing", 1]]);
 
   // Opening it live in the viewer: the page is told once, and its next reply asks for a chunk every 2 seconds.
   const { pollRealtimeEvents } = await import("../platform/realtime.js");
@@ -318,6 +326,17 @@ test("platform administrators decide who is recorded: a mode for everyone, rules
   assert.notEqual(page2.rules[0]?.target_id, page1.rules[0].target_id);
   assert.ok(page1.counts.organizations_recording >= 1 && page1.counts.organizations_excluded >= 1);
   assert.ok((await call(admin, "GET", "/session-replay/admin/targeting?state=expired")).json().rules.some((r: any) => r.target_id === aliceRule.target_id));
+
+  // Pages never recorded: a pattern over the path and hash that only ever excludes, sent to recording pages.
+  assert.equal((await rules({ rules: [{ kind: "page", target: "/portal/billing", enabled: true }] })).statusCode, 400);
+  assert.equal((await rules({ rules: [{ kind: "page", target: "portal/billing?card=1", enabled: false }] })).statusCode, 400);
+  assert.equal((await rules({ rules: [{ kind: "page", target: "/Portal/Billing", enabled: false, reason: "Card details" },
+    { kind: "page", target: "/portal/#settings*", enabled: false }] })).statusCode, 200);
+  assert.deepEqual((await call(bob, "GET", "/session-replay/config")).json().exclude_pages, ["/portal/#settings*", "/portal/billing"]);
+  assert.equal((await call(admin, "GET", "/session-replay/admin/targeting")).json().counts.pages_excluded, 2);
+  assert.equal((await call(admin, "DELETE", "/session-replay/admin/targeting/rules/page/-?target=" + encodeURIComponent("/portal/billing"))).statusCode, 200);
+  assert.deepEqual((await call(bob, "GET", "/session-replay/config")).json().exclude_pages, ["/portal/#settings*"]);
+  assert.equal(await recording(bob), true);
 
   // Every change is logged with who made it and why.
   const entries = (await call(admin, "GET", "/session-replay/admin/targeting/log?limit=200")).json().entries;
