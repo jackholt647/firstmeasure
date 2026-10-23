@@ -814,7 +814,7 @@
       title: (globalThis.PlatformLanguage?.text("firstmate-apps-manifest","m_831d8d28763333","Billing") ?? "Billing"),
       kind: 'modal_app',
       surfaces: ['modal', 'service'],
-      bundles: [versionedBundle('billing/app.js', '20261023-vat-checkout-total-v1')]
+      bundles: [versionedBundle('billing/app.js', '20261023-vat-total-two-line-v1')]
     },
     {
       id: 'help',

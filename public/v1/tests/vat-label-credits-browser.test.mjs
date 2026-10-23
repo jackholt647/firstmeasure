@@ -1,7 +1,7 @@
 // 1M8-241: "VAT included" belongs only to the workflows that add credit to the account. Chrome runs the real
 // platform-commerce runtime with a euro (VAT-included) account, the real project-request order flow, and the
 // add-credit surfaces: the real billing "More credit needed" modal, the signup "Load your account" step and Stripe
-// credit checkout. Only the checkout total carries it in billing ("€25.00 VAT included"), per Ben's follow-up.
+// credit checkout. In billing only the checkout total carries it, on a smaller line beneath the amount (Ben's follow-ups).
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
@@ -16,7 +16,7 @@ const SCRIPTS = ['/libraries/platform-commerce/platform-commerce.js', '/librarie
   '/libraries/window-manager/window-shell.js', '/libraries/apps/measurements/project.js', '/libraries/apps/project-map/app.js', '/libraries/apps/firstmeasure/order/exteriors.js',
   '/libraries/apps/firstmeasure/order/app.js', '/libraries/apps/project-request/app.js'];
 
-async function portal(browser, profile = EURO) {
+async function portal(browser, profile = EURO, options = {}) {
   const page = await browser.newPage({ viewport: { width: 1280, height: 860 } });
   const errors = [];
   page.on('pageerror', error => errors.push(error.message));
@@ -50,6 +50,7 @@ async function portal(browser, profile = EURO) {
     // Installed by the proposals bundle, which these tests do not load.
     window.handleProposalPreviewKeydown = () => {};
   });
+  if (options.language) await page.addScriptTag({ url: 'https://portal.test/libraries/platform-language/platform-language.js' });
   await page.addScriptTag({ url: 'https://portal.test' + SCRIPTS[0] });
   await page.evaluate(value => window.PlatformCommerce.set(value), profile);
   for (const src of SCRIPTS.slice(1)) await page.addScriptTag({ url: 'https://portal.test' + src });
@@ -76,31 +77,50 @@ test('1M8-241: the order flow shows euro report prices without "VAT included"', 
   } finally { await browser.close(); }
 });
 
-test('1M8-241: "More credit needed" keeps "Needed for order" plain and says VAT included at the checkout total', async () => {
+test('1M8-241: "More credit needed" keeps "Needed for order" plain; the checkout total says VAT included on a smaller line beneath', async () => {
   const browser = await chromium.launch({ channel: 'chrome', headless: true });
   try {
-    const { page, errors } = await portal(browser);
-    // A pending €25 report order the account cannot pay for (Ben's screenshot), opened as the order flow does.
+    // The real language runtime: a key the compiled catalog does not have yet returns its fallback as written,
+    // which is how "{amount} VAT included" reached production.
+    const { page, errors } = await portal(browser, EURO, { language: true });
+    // A pending €25 report order the account cannot pay for (Ben's screenshots), opened as the order flow does.
     await page.evaluate(() => {
-      localStorage.setItem('fm_pending_order_v1', JSON.stringify({ organization_id: 'org_eu', fields: { address: '4565 137th Ave SE, Bellevue, WA 98006, USA', project_type: 'residential', residentName: '' } }));
+      localStorage.setItem('fm_pending_order_v1', JSON.stringify({ organization_id: 'org_eu', fields: { address: '456 Bronson Way NE, Renton, WA 98056, USA', project_type: 'residential', residentName: '' } }));
     });
     await page.addScriptTag({ url: 'https://portal.test/libraries/apps/billing/app.js' });
     await page.evaluate(() => Portal.modules.billing.open({ purchase: { label: 'Roof report', required: 25, balance: 0, needed: 25 } }));
-    await page.waitForTimeout(500);
-    const view = await page.evaluate(() => ({
-      title: document.getElementById('bTitle')?.textContent.trim(),
-      needed: document.getElementById('bFirstReportTotal')?.textContent.trim(),
-      total: document.getElementById('bTotal')?.textContent.trim(),
-      expected: PlatformCommerce.cash(Number(document.getElementById('bQty')?.value || 0)) + ' VAT included'
-    }));
-    assert.equal(view.title, 'More credit needed', JSON.stringify(view));
-    assert.equal(view.needed, '€25.00', JSON.stringify(view));
-    assert.equal(view.total, view.expected, JSON.stringify(view));
-    assert.match(view.total, /^€\d+\.\d\d VAT included$/);
-    // Changing the credit to add keeps the label on the new total.
+    await page.waitForTimeout(800);
+    const view = () => page.evaluate(() => {
+      const total = document.getElementById('bTotal');
+      const vat = document.getElementById('bTotalVat');
+      const box = element => element.getBoundingClientRect();
+      return {
+        title: document.getElementById('bTitle')?.textContent.trim(),
+        needed: document.getElementById('bFirstReportTotal')?.textContent.trim(),
+        total: total?.textContent.trim(),
+        amount: PlatformCommerce.cash(Number(document.getElementById('bQty')?.value || 0)),
+        vat: vat?.textContent.trim(),
+        vatVisible: !!vat && !vat.hidden && vat.offsetParent !== null,
+        below: !!vat && box(vat).top >= box(total).bottom - 1,
+        smaller: !!vat && parseFloat(getComputedStyle(vat).fontSize) < parseFloat(getComputedStyle(total).fontSize),
+        secondary: !!vat && getComputedStyle(vat).color !== getComputedStyle(total).color,
+        placeholders: (document.getElementById('bOverlay')?.innerText.match(/\{[a-z_]+\}/g) || [])
+      };
+    });
+    let state = await view();
+    assert.equal(state.title, 'More credit needed', JSON.stringify(state));
+    assert.equal(state.needed, '€25.00', JSON.stringify(state));
+    assert.equal(state.total, state.amount, JSON.stringify(state));
+    assert.match(state.total, /^€\d+\.\d\d$/);
+    assert.equal(state.vat, 'VAT included', JSON.stringify(state));
+    assert.ok(state.vatVisible && state.below && state.smaller && state.secondary, JSON.stringify(state));
+    assert.deepEqual(state.placeholders, [], JSON.stringify(state));
+    // Changing the credit to add updates the amount; the VAT line stays beneath it.
     await page.locator('#bQty').fill('40');
     await page.locator('#bQty').dispatchEvent('input');
-    assert.equal(await page.evaluate(() => document.getElementById('bTotal').textContent.trim()), '€40.00 VAT included');
+    state = await view();
+    assert.equal(state.total, '€40.00', JSON.stringify(state));
+    assert.ok(state.vatVisible && state.below, JSON.stringify(state));
     assert.deepEqual(errors, []);
   } finally { await browser.close(); }
 });
@@ -113,6 +133,7 @@ test('1M8-241: a US account checkout total has no VAT label', async () => {
     await page.evaluate(() => Portal.modules.billing.open());
     await page.waitForTimeout(300);
     assert.doesNotMatch(await page.evaluate(() => document.getElementById('bTotal').textContent), /VAT/);
+    assert.equal(await page.evaluate(() => document.getElementById('bTotalVat').hidden), true);
   } finally { await browser.close(); }
 });
 
