@@ -731,7 +731,7 @@ src="https://www.facebook.com/tr?id=636685175264715&ev=PageView&noscript=1"
             </div>
             <div class="form-group">
                 <label data-i18n="phone">Phone</label>
-                <input type="tel" name="phone" inputmode="tel" autocomplete="tel" placeholder="(555) 555-0123" maxlength="24" required>
+                <input type="tel" name="phone" inputmode="tel" autocomplete="tel" placeholder="" maxlength="24" required>
             </div>
             <div class="form-group">
                 <label data-i18n="email">Email</label>

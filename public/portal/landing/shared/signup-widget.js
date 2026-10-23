@@ -333,8 +333,8 @@
     if (signupRegionLibraryPromise) return signupRegionLibraryPromise;
     signupRegionLibraryPromise = new Promise((resolve, reject) => {
       const source = SCRIPT_SRC
-        ? new URL('../../../libraries/signup-region/signup-region.js?v=20261023-signup-language-v1', SCRIPT_SRC).toString()
-        : '/libraries/signup-region/signup-region.js?v=20261023-signup-language-v1';
+        ? new URL('../../../libraries/signup-region/signup-region.js?v=20261023-phone-format-v1', SCRIPT_SRC).toString()
+        : '/libraries/signup-region/signup-region.js?v=20261023-phone-format-v1';
       const existing = document.querySelector(`script[src="${source}"]`);
       const script = existing || document.createElement('script');
       script.addEventListener('load', () => window.FirstMateSignupRegion
@@ -468,7 +468,7 @@
         </div>
         <div class="fm-field">
           <label class="fm-label" data-i18n="phone">Phone</label>
-          <input class="fm-input" type="tel" name="phone" autocomplete="tel" inputmode="tel" placeholder="+1 555 555 0123" maxlength="24" required>
+          <input class="fm-input" type="tel" name="phone" autocomplete="tel" inputmode="tel" placeholder="" maxlength="24" required>
         </div>
         <div class="fm-field">
           <label class="fm-label" data-i18n="email">Email</label>

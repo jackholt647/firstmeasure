@@ -212,3 +212,50 @@ test('the old app.1m8.ai landing pages take ?lang= for signup, onboarding and th
     await context.close();
   });
 });
+
+// Jack (1M8-240 follow-up): the calling code is detected like the language, and the number's example, typing format
+// and length always follow the selected code, on first load and after picking another code.
+test('the calling code follows the visitor\'s location and the number formats for whichever code is selected', {skip: !hasPhp && 'php not installed'}, async t => {
+  const {AsYouType, getExampleNumber} = await import('libphonenumber-js');
+  const examples = JSON.parse(fs.readFileSync(path.join(publicRoot, 'libraries/vendor/libphonenumber-js-1.12.31/examples.mobile.json'), 'utf8'));
+  const example = code => getExampleNumber(code, examples);
+  const NEXT = {GB: 'SE', SE: 'ES', DE: 'GB', ES: 'FR'};
+  const pages = {
+    'login.php': {url: `${APP}/portal/login.php?start=register`, scope: page => page.locator('#registerForm')},
+    'landing widget': {url: `${APP}/portal/landing/variants/meta-619a/?cid=meta`, scope: page => widget(page).locator('[data-form="register"]')},
+  };
+  for (const [name, source] of Object.entries(pages)) for (const edge of ['GB', 'SE', 'DE', 'ES']) await t.test(`${name} from ${edge}`, async () => {
+    const {context} = await visitor(edge);
+    const page = await context.newPage();
+    await page.goto(source.url);
+    const form = source.scope(page), input = form.locator('input[name="phone"]'), select = form.locator('select[name="phone_country"]');
+    await input.waitFor();
+    // Before detection finishes the field shows no example at all (never the US one).
+    for (let i = 0; i < 300 && !((await select.count()) && await select.inputValue() && await input.getAttribute('placeholder')); i++) await page.waitForTimeout(50);
+    assert.equal(await select.inputValue(), edge, 'the detected calling code is preselected');
+    assert.equal(await input.getAttribute('placeholder'), example(edge).formatNational(), `${edge} example, not the US one`);
+    const digits = example(edge).formatNational().replace(/\D/g, '');
+    await input.pressSequentially(digits);
+    assert.equal(await input.inputValue(), new AsYouType(edge).input(digits), 'typed in the national format');
+    // Extra digits are refused once the number is complete, unless the country has longer numbers (Germany), which
+    // still show in its format; the field never drops back to bare digits.
+    await input.pressSequentially('9999');
+    const longer = await input.inputValue();
+    assert.equal(longer, new AsYouType(edge).input(longer.replace(/\D/g, '')), 'still in the national format');
+    assert.match(longer, /[\s()-]/, 'still formatted');
+    await input.fill(''); await input.pressSequentially(digits);
+    // Pick another code: the example and the typed number follow it.
+    const other = NEXT[edge];
+    const trigger = form.locator('.fm-select-list.compact .fm-select-list-trigger');
+    if (await trigger.count()) { await trigger.click(); await form.locator(`.fm-select-list.compact [role="option"][data-value="${other}"]`).click(); }
+    else await select.selectOption(other);
+    assert.equal(await select.inputValue(), other);
+    assert.equal(await input.getAttribute('placeholder'), example(other).formatNational(), `${other} example after switching`);
+    assert.equal(await input.inputValue(), new AsYouType(other).input(digits), `the number is reformatted for ${other}`);
+    await input.fill('');
+    const otherDigits = example(other).formatNational().replace(/\D/g, '');
+    await input.pressSequentially(otherDigits);
+    assert.equal(await input.inputValue(), example(other).formatNational(), `typing follows ${other}`);
+    await context.close();
+  });
+});

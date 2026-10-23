@@ -123,6 +123,12 @@
       try {
         const length = international ? lib.validatePhoneNumberLength(value) : lib.validatePhoneNumberLength(value, current);
         if (length === 'TOO_LONG' && !String(event?.inputType || '').startsWith('delete')) { input.value = previous; return; }
+        // Countries with long possible lengths (Sweden, Germany): a digit that would turn a formatted number back into
+        // bare digits (no format of the country fits it) is not taken, so the national format holds.
+        if (!String(event?.inputType || '').startsWith('delete') && /[\s()-]/.test(previous) && value.replace(/\D/g, '').length > previous.replace(/\D/g, '').length) {
+          const formatted = international ? new lib.AsYouType().input(value) : new lib.AsYouType(current).input(value);
+          if (!/[\s()-]/.test(formatted)) { input.value = previous; return; }
+        }
       } catch (_) {}
       // Deleting is left alone, or a removed space or bracket would come straight back.
       if (String(event?.inputType || '').startsWith('delete')) { previous = value; return; }

@@ -6,7 +6,7 @@
   'use strict';
   const optionRequests = new Map();
   const SCRIPT_SRC = root.document?.currentScript?.src || '';
-  const KEY = '20261023-signup-language-v1';
+  const KEY = '20261023-phone-format-v1';
   const scripts = new Map();
 
   /* The styled lists (select-list) and the phone input (calling code, formatting, example) are shared libraries (1M8-240). */
