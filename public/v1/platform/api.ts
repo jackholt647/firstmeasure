@@ -13,8 +13,8 @@ import { baselinePlan, enqueueNotification, persistNotificationOccurrence, recip
 import { registerNotificationRulesApi } from "./notifications/api.js";
 import { TRANSLATION_CODES, normalizeTranslationLanguage } from "./localization/languages.js";
 import { messageTranslationPreferences } from "./localization/message-preferences.js";
-import { assertSignupCountry, signupLanguage, signupOptions, signupPhoneInput } from "../commerce/signup-options.js";
-import { reportExpediteTimeZone, reportPricesIncludeVat } from "../commerce/profile.js";
+import { signupLanguage, signupOptions, signupPhoneInput } from "../commerce/signup-options.js";
+import { commercialPolicy, LEGACY_PROFILE, reportExpediteTimeZone, reportPricesIncludeVat } from "../commerce/profile.js";
 import { countryRecord, profileCountrySource } from "./organization_country.js";
 import { signupCommercialProfile, profileFromGlobal, organizationProfile, currentProfile, customerCommercialView, creditLabel, creditMinorAmount, reportPrice, assertCommercialRevision } from "../commerce/profile.js";
 import { exchangeEstimate } from "../commerce/exchange.js";
@@ -638,7 +638,7 @@ app.post("/auth/google", async (request, reply) => {
     };
   });
 
-app.get("/auth/signup-options", async (request) => signupOptions(request.headers as Record<string, unknown>, asObject(request.query)));
+app.get("/auth/signup-options", async (request) => signupOptions(request.headers as Record<string, unknown>, asObject(request.query), (await commercialPolicy()).config));
 
 app.get("/auth/google/config", async () => ({
     ok: true,
@@ -5122,10 +5122,11 @@ function numericValue(value: unknown, fallback = 0) {
  * chosen country, else detection), the company language and the app flags that follow.
  */
 async function signupOrganizationDefaults(request: { headers?: Record<string, unknown> } | undefined, body: JsonObject) {
-  assertSignupCountry(body);
+  // 1M8-240: a signup is never refused for its location; country and language come from detection.
   const defaultAppFlags = await newOrganizationAppFlagDefaults();
-  const commercialProfile = await signupCommercialProfile(request?.headers || {}, body);
-  const locale = signupLanguage(body, commercialProfile);
+  const language = signupLanguage(body, LEGACY_PROFILE, request?.headers || {});
+  const commercialProfile = await signupCommercialProfile(request?.headers || {}, { ...body, signup_language: language });
+  const locale = signupLanguage({ ...body, signup_language: language }, commercialProfile, request?.headers || {});
   const localized = commercialProfile.country !== "US" || locale !== "en-US";
   if (localized) defaultAppFlags.firstmeasure = { ...asObject(defaultAppFlags.firstmeasure), report_localization: true, metric_measurements: commercialProfile.measurement_system === "metric" };
   // The organization's country of record starts as the billing profile's country (platform/organization_country.ts).

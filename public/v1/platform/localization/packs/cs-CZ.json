@@ -3119,7 +3119,28 @@
     "m_8342e19eddc030": "Před vstupem do portálu vám na tuto adresu zašleme ověřovací kód. Pokud jste ji zadali chybně, můžete ji zde opravit.",
     "m_2fbb4b11eb7b6f": "E-mailová adresa",
     "m_3a7c6bd31cf96e": "Ověřovací kód",
-    "m_a455a4668ee54d": "\\n            Ověřit &amp; vstoupit do portálu  "
+    "m_a455a4668ee54d": "\\n            Ověřit &amp; vstoupit do portálu  ",
+    "auto_topup_summary": {
+      "message": "Pokud zůstatek klesne pod {threshold}, automaticky vám na účet přidáme {amount}.",
+      "format": "icu"
+    },
+    "bonus_amount": {
+      "message": "+ {amount} bonus",
+      "format": "icu"
+    },
+    "invites_sent": {
+      "message": "{count, plural, one {Odeslána # pozvánka.} few {Odeslány # pozvánky.} many {Odesláno # pozvánky.} other {Odesláno # pozvánek.}}",
+      "format": "icu"
+    },
+    "m_56c6c9cbb10acb": " Částka automatického dobití",
+    "m_bc9847e2ca77cb": "Automatické dobití",
+    "m_cc2003d4e4237c": " Dobít, když zůstatek klesne pod",
+    "m_db0d748a115fcb": "Automaticky dobíjet můj účet.",
+    "prices_include_vat": "Ceny jsou včetně DPH.",
+    "total_credit": {
+      "message": "Celkový kredit {amount}",
+      "format": "icu"
+    }
   },
   "payroll": {
     "m_4a04382820d2e1": "Ostatní",
@@ -12374,6 +12395,147 @@
     },
     "exchange_estimate": {
       "message": "Přibližně {amount} · směnný kurz se při platbě může lišit.",
+      "format": "icu"
+    },
+    "vat_included": {
+      "message": "{price} vč. DPH",
+      "format": "icu"
+    }
+  },
+  "signup": {
+    "offer_title": "Prémiové reporty střech",
+    "offer_price": {
+      "message": "Jen {price}",
+      "format": "icu"
+    },
+    "offer_price_vat": {
+      "message": "Jen {price} vč. DPH",
+      "format": "icu"
+    },
+    "referral_loading": "Načítání...",
+    "referral_partner_invitation": "Pozvánka od partnera",
+    "referral_invited": "Vás zve k vyzkoušení FirstMeasure",
+    "referral_partner_default": "Partner FirstMate",
+    "referral_offer": {
+      "message": "Zaregistrujte se ještě dnes a získejte slevu {percent} % na všechny objednávky během prvních {days} dní.",
+      "format": "icu"
+    },
+    "referral_offer_default": "Zaregistrujte se ještě dnes a získejte slevu 50 % na všechny objednávky během prvních 7 dní.",
+    "referral_activate": "Zaregistrujte se ještě dnes a aktivujte nabídku z doporučení.",
+    "referral_offer_short": {
+      "message": "Sleva {percent} % na objednávky během prvních {days} dní.",
+      "format": "icu"
+    },
+    "referral_offer_percent": {
+      "message": "Sleva {percent} % na způsobilé objednávky.",
+      "format": "icu"
+    },
+    "referral_offer_applied": "Nabídka z doporučení bude uplatněna při registraci.",
+    "referral_attribution": "Doporučení bude přiřazeno při vytvoření účtu.",
+    "continue": "Pokračovat",
+    "claim_invitation": "Přijmout pozvánku",
+    "tab_login": "Přihlásit se",
+    "tab_register": "Vytvořit účet",
+    "tab_register_invite": "Vytvořte účet své firmy a aktivujte tuto pozvánku.",
+    "widget_title": "Vytvořte si účet FirstMate",
+    "google_sign_in": "Přihlásit se přes Google",
+    "google_sign_up": "Zaregistrovat se přes Google",
+    "divider_login": "nebo použijte svůj účet",
+    "divider_register": "nebo se zaregistrujte e-mailem",
+    "email_or_phone": "E-mail nebo telefon",
+    "password": "Heslo",
+    "login_button": "Přihlásit se",
+    "forgot_password": "Zapomněli jste heslo?",
+    "phone": "Telefon",
+    "phone_number": "Telefonní číslo",
+    "email": "E-mail",
+    "confirm_password": "Potvrzení hesla",
+    "create_account": "Vytvořit účet",
+    "create_account_widget": "Vytvořit účet",
+    "already_have_account": "Už máte účet?",
+    "login_here": "Přihlaste se zde",
+    "login_link": "Přihlásit se",
+    "terms": {
+      "message": "Vytvořením účtu souhlasíte s našimi {terms} a se zasíláním SMS na zadané číslo. Mohou být účtovány poplatky za zprávy a data.",
+      "format": "icu"
+    },
+    "terms_link": "Podmínkami použití",
+    "reset_how": "Jak chcete obnovit heslo?",
+    "reset_method": "Způsob obnovení hesla",
+    "send_code": "Odeslat kód",
+    "back_to_login": "Zpět na přihlášení",
+    "otp_enter": "Zadejte ověřovací kód:",
+    "otp_sent_to": "Zadejte kód odeslaný na",
+    "otp_reset_sent_to": "Zadejte kód pro obnovení hesla odeslaný na",
+    "otp_label": "6místný kód",
+    "verify_code": "Ověřit kód",
+    "start_over": "Začít znovu",
+    "reset_verified": "Kód ověřen. Nastavte nové heslo.",
+    "new_password": "Nové heslo",
+    "update_password": "Změnit heslo",
+    "password_updated": "Heslo změněno! Přihlašování...",
+    "password_updated_redirect": "Heslo změněno. Přesměrování...",
+    "creating": "Vytváření…",
+    "sending": "Odesílání…",
+    "working": "Zpracování...",
+    "verification_required": "Vyžaduje se ověření",
+    "account_created_verify": "Účet vytvořen! Ověřte svůj e-mail.",
+    "account_created_verify_widget": "Účet vytvořen. Pro pokračování ověřte svůj e-mail.",
+    "reset_code_sent": "Kód pro obnovení hesla byl odeslán.",
+    "err_generic": "Váš požadavek se nepodařilo dokončit. Zkuste to znovu. Pokud problém přetrvává, napište na support@1m8.ai.",
+    "err_google": "Přihlášení přes Google se nepodařilo dokončit. Zkuste to znovu.",
+    "err_identity_phone_exists": "Toto telefonní číslo je už propojeno s účtem. Přihlaste se k tomuto účtu nebo použijte jiné číslo.",
+    "err_identity_email_exists": "Tento e-mail je už propojen s účtem. Přihlaste se nebo obnovte přístup přes „Zapomněli jste heslo?“.",
+    "err_identity_exists": "Účet s těmito údaji už existuje. Přihlaste se nebo obnovte přístup přes „Zapomněli jste heslo?“.",
+    "err_invalid_credentials": "Zadaný e-mail, telefonní číslo nebo heslo je nesprávné.",
+    "err_wrong_password": "Zadané heslo je nesprávné.",
+    "err_identity_phone_ambiguous": "Toto telefonní číslo je propojeno s více účty. Přihlaste se e-mailem nebo kontaktujte podporu.",
+    "err_not_found": "Účet s tímto e-mailem nebo telefonním číslem jsme nenašli.",
+    "err_identity_phone_not_found": "Účet s tímto telefonním číslem jsme nenašli.",
+    "err_invalid_email": "Zadejte platnou e-mailovou adresu.",
+    "err_invalid_phone_number": "Zadejte platné číslo mobilu, mimo USA a Kanadu s předvolbou země.",
+    "err_missing_login_identifier": "Zadejte svůj e-mail nebo telefonní číslo.",
+    "err_registration_in_progress": "Váš účet se již vytváří. Chvíli počkejte a pak se zkuste přihlásit.",
+    "err_account_disabled": "Tento účet je deaktivován. Kontaktujte správce své firmy nebo podporu.",
+    "err_membership_required": "Váš účet zatím není přiřazen k žádné firmě. Kontaktujte správce své firmy nebo podporu.",
+    "err_google_account_mismatch": "Tento e-mail je propojen s jiným účtem Google. Zkuste ten účet Google nebo kontaktujte podporu.",
+    "err_google_credential_required": "Přihlášení přes Google nebylo dokončeno. Zkuste to znovu.",
+    "err_invalid_google_credential": "Google nemohl toto přihlášení ověřit. Zkuste to znovu.",
+    "err_unverified_google_email": "Před přihlášením ověřte svůj e-mail u Googlu.",
+    "err_invalid_recovery_token": "Relace pro obnovení hesla vypršela. Nový kód si vyžádejte přes „Zapomněli jste heslo?“.",
+    "err_sms_phone_unavailable": "Tento účet nemá platné číslo mobilu. Použijte obnovení e-mailem nebo kontaktujte podporu.",
+    "err_sms_send_failed": "Ověřovací kód se nepodařilo odeslat SMS. Zkuste to později nebo použijte obnovení e-mailem.",
+    "err_email_send_failed": "Ověřovací e-mail se nepodařilo odeslat. Zkuste to později nebo kontaktujte podporu.",
+    "err_session_expired": "Vaše relace vypršela. Přihlaste se znovu.",
+    "err_refresh": "Obnovte stránku a zkuste to znovu.",
+    "err_connection": "Nepodařilo se připojit k serveru. Zkontrolujte připojení a zkuste to znovu.",
+    "err_connection_short": "Chyba připojení. Zkuste to znovu.",
+    "err_missing_fields": "Vyplňte všechna povinná pole účtu.",
+    "err_invalid_code": "Ověřovací kód je nesprávný nebo vypršel. Vyžádejte si nový kód a zkuste to znovu.",
+    "err_password_short": "Použijte heslo o délce alespoň 6 znaků.",
+    "err_reset_not_authorized": "Před nastavením nového hesla ověřte kód pro obnovení. Začněte znovu přes „Zapomněli jste heslo?“.",
+    "err_too_many": "Příliš mnoho pokusů. Počkejte několik minut a zkuste to znovu.",
+    "err_passwords_mismatch": "Hesla se neshodují.",
+    "err_login_failed": "Přihlášení se nezdařilo. Zkuste to znovu.",
+    "err_create_failed": "Účet se nepodařilo vytvořit. Zkuste to znovu nebo napište na support@1m8.ai.",
+    "err_recovery_send_failed": "Kód pro obnovení se nepodařilo odeslat. Zkuste to znovu nebo napište na support@1m8.ai.",
+    "err_verify_failed": "Kód se nepodařilo ověřit. Vyžádejte si nový kód a zkuste to znovu.",
+    "err_update_password_failed": "Heslo se nepodařilo změnit. Zkuste to znovu nebo napište na support@1m8.ai.",
+    "err_google_linked_elsewhere": "Tento e-mail je už propojen s jiným účtem Google. Pokud potřebujete pomoc, kontaktujte podporu.",
+    "err_google_no_company": "Váš e-mail Google jsme rozpoznali, ale zatím není přiřazen k žádné firmě.",
+    "err_account_disabled_admin": "Tento účet je deaktivován. Kontaktujte správce své firmy.",
+    "referral_invited_you": {
+      "message": "{partner} vás zve",
+      "format": "icu"
+    }
+  },
+  "signup-region": {
+    "calling_code": "Předvolba země"
+  },
+  "phone-input": {
+    "calling_code": "Předvolba země",
+    "calling_code_value": {
+      "message": "Předvolba země: {country} +{code}",
       "format": "icu"
     }
   }

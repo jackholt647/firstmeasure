@@ -38,7 +38,7 @@ test("a chosen country decides the billing profile even from a US connection",as
   assert.ok(options.languages.some((l:any)=>l.code==="de-DE"));assert.deepEqual(options.domestic_countries,["US","CA"]);
   // Germany is detected but is not one of the operating countries (1M8-240), so nothing is preselected.
   const berlin=await client("").request("GET","/v1/platform/auth/signup-options?time_zone=Europe%2FBerlin");
-  assert.equal(berlin.detected_country,"DE");assert.equal(berlin.country,"");
+  assert.equal(berlin.detected_country,"DE");assert.equal(berlin.country,"DE","nobody is refused: the detected country is the calling-code default");
 
   const ben=client("US");
   const registration=await ben.request("POST","/v1/platform/auth/register",{email:"ben-eu@signup.example.test",password:"signup-region-password-1",company:"Europe fixture",signup_country:"FR",signup_time_zone:"America/New_York",phone:"06 12 34 56 78",phone_country:"FR"});
@@ -175,19 +175,60 @@ test("the calling code, the account country and the language offer only the coun
   const expected=[...new Set(BEN.map(c=>regions.regionLanguage(c)))].sort();
   assert.deepEqual(british.languages.map((l:any)=>l.code).sort(),expected);
   assert.ok(british.languages.some((l:any)=>l.code==="sv-SE"));
-  // A detected country outside the list is neither preselected nor added.
+  // Nobody is refused, so a detected country outside the list leads the calling codes and is preselected.
   const australian=await client("AU").request("GET","/v1/platform/auth/signup-options");
-  assert.equal(australian.country,"");assert.equal(australian.detected_country,"AU");
-  assert.deepEqual(australian.phone_countries.map((c:any)=>c.code).sort(),[...BEN].sort());
-  assert.deepEqual(australian.phone_countries.slice(0,2).map((c:any)=>c.code),["US","CA"]);
+  assert.equal(australian.country,"AU");assert.equal(australian.detected_country,"AU");
+  assert.deepEqual(australian.phone_countries.map((c:any)=>c.code).sort(),[...BEN,"AU"].sort());
+  assert.deepEqual(australian.phone_countries.slice(0,3).map((c:any)=>c.code),["AU","US","CA"]);
 });
 
-test("a signup that chooses a country outside the list is refused; one that chooses none keeps detection (1M8-240)",async()=>{
-  const refused=await client("US").raw("POST","/v1/platform/auth/register",{email:"au-choice@signup.example.test",password:"signup-region-password-9",signup_country:"AU",phone:"+61 412 345 678"});
-  assert.equal(refused.statusCode,400,refused.body);
-  assert.equal(refused.json().error,"signup_country_unavailable");
-  const legacy=await client("US").raw("POST","/v1/platform/auth/legacy-action",{action:"register",email:"au-legacy@signup.example.test",password:"signup-region-password-9",company:"AU",signup_country:"AU",phone:"+61 412 345 678"});
-  assert.equal(legacy.json().error,"signup_country_unavailable",legacy.body);
-  const detected=await client("AU").raw("POST","/v1/platform/auth/register",{email:"au-detected@signup.example.test",password:"signup-region-password-9",phone:"+61 412 345 678"});
+test("a signup is never refused for its country, chosen, detected or missing (1M8-240)",async()=>{
+  const chosen=await client("US").raw("POST","/v1/platform/auth/register",{email:"au-choice@signup.example.test",password:"signup-region-password-9",signup_country:"AU",phone:"+61 412 345 678"});
+  assert.ok(chosen.statusCode<400,chosen.body);
+  const legacy=await client("US").raw("POST","/v1/platform/auth/legacy-action",{action:"register",email:"au-legacy@signup.example.test",password:"signup-region-password-9",company:"AU",signup_country:"AU",phone:"+61 412 345 671"});
+  assert.equal(legacy.json().success,true,legacy.body);
+  const detected=await client("AU").raw("POST","/v1/platform/auth/register",{email:"au-detected@signup.example.test",password:"signup-region-password-9",phone:"+61 412 345 672"});
   assert.ok(detected.statusCode<400,detected.body);
+  assert.equal((await profile.organizationProfile(detected.json().organization.id)).currency,"EUR");
+  const nothing=await client("").raw("POST","/v1/platform/auth/register",{email:"no-signal@signup.example.test",password:"signup-region-password-9",phone:"+81 90 1234 5678"});
+  assert.ok(nothing.statusCode<400,nothing.body);
+  const unknown=await client("ZZ").raw("POST","/v1/platform/auth/register",{email:"zz-signal@signup.example.test",password:"signup-region-password-9",phone:"+81 90 1234 5679"});
+  assert.ok(unknown.statusCode<400,unknown.body);
+});
+
+test("the signup language resolves from the hand-off, then the edge country, the browser and the time zone (1M8-240)",async()=>{
+  const regions=await import("../commerce/regions.js");
+  const resolve=(headers:any,input:any)=>regions.resolveSignupLanguage(headers,input);
+  assert.deepEqual(resolve({"cf-ipcountry":"DE","accept-language":"fr-FR"},{lang:"es"}),{language:"es-ES",source:"handoff"});
+  assert.deepEqual(resolve({"cf-ipcountry":"DE","accept-language":"fr-FR"},{}),{language:"de-DE",source:"cf-ipcountry"});
+  assert.deepEqual(resolve({"accept-language":"fr-CA,fr;q=0.9"},{signup_time_zone:"Europe/Berlin"}),{language:"fr-FR",source:"browser_language"});
+  assert.deepEqual(resolve({},{signup_time_zone:"Europe/Rome"}),{language:"it-IT",source:"browser_time_zone"});
+  assert.deepEqual(resolve({},{}),{language:"en-US",source:"default"});
+  assert.equal(resolve({},{lang:"zh-CN"}).source,"default","a language without a pack is not a hand-off");
+  for(const [tag,pack] of <[string,string][]>[["es-MX","es-ES"],["pt-PT","pt-BR"],["de-AT","de-DE"],["nn","nb-NO"],["no","nb-NO"],["en-AU","en-GB"],["en-CA","en-US"],["ja","ja-JP"],["el","el-GR"],["lt","lt-LT"]])
+    assert.equal(regions.supportedLanguage(tag),pack,tag);
+  // Every shipped language pack is accepted as a hand-off.
+  const {SUPPORTED_LOCALES}=await import("../platform/localization/languages.js");
+  for(const locale of SUPPORTED_LOCALES)assert.equal(resolve({},{lang:locale}).language,locale);
+  const options=await client("US").request("GET","/v1/platform/auth/signup-options?lang=fr");
+  assert.equal(options.language,"fr-FR");assert.equal(options.language_source,"handoff");
+  assert.equal(options.country,"US","the hand-off sets the language, not the country");
+  assert.equal(options.report_price.currency,"USD");
+});
+
+test("the hand-off language reaches the organization with the location's currency (1M8-240)",async()=>{
+  for(const [index,[edge,lang,locale,currency]] of (<[string,string,string,string][]>[["ES","es","es-ES","EUR"],["FR","fr","fr-FR","EUR"],["DE","de","de-DE","EUR"],["US","es","es-ES","USD"],["","de","de-DE","EUR"]]).entries()){
+    const c=client(edge);
+    const email=`handoff-${lang}-${edge||"none"}@signup.example.test`;
+    const body:any={email,password:"signup-region-password-10",lang,phone:`+34 612 345 67${index}`};
+    const registration=await c.request("POST","/v1/platform/auth/register",body);
+    const language=await c.request("GET","/v1/platform/me/localization");
+    assert.equal(language.context.locale,locale,email);
+    assert.equal((await profile.organizationProfile(registration.organization.id)).currency,currency,email);
+  }
+  // The legacy signup path (old app landing pages) carries the same hand-off.
+  const legacy=client("IT");
+  const created=await legacy.request("POST","/v1/platform/auth/legacy-action",{action:"register",email:"handoff-legacy@signup.example.test",password:"signup-region-password-10",company:"Legacy",signup_language:"it-IT",phone:"+39 312 345 6789"});
+  assert.equal(created.success,true);
+  assert.equal((await legacy.request("GET","/v1/platform/me/localization")).context.locale,"it-IT");
 });

@@ -3234,10 +3234,6 @@
     "m_163c9e8ccdb047": " Įmonės nustatymų skiltyje „Naudotojai“ galite bet kada tvarkyti paskyras.",
     "m_206d31a7c795c4": " Atgal",
     "m_b982de697abe2d": "Kvietimai išsiųsti",
-    "m_507489a99d1632": {
-      "message": "Išsiųsta kvietimų: {v0}{v1}.",
-      "format": "icu"
-    },
     "m_2b39214759d91a": " Pasirinktinė\n      ",
     "m_0ded144729a113": "Leidimai",
     "m_8cf345002184e5": "Vardas",
@@ -3263,7 +3259,28 @@
     "m_8342e19eddc030": "Prieš atidarydami portalą, atsiųsime kodą šiuo el. pašto adresu. Jei adresą įvedėte neteisingai, čia galite jį pataisyti.",
     "m_2fbb4b11eb7b6f": "El. pašto adresas",
     "m_3a7c6bd31cf96e": "Patvirtinimo kodas",
-    "m_a455a4668ee54d": "\\n            Patvirtinti &amp; atidaryti portalą "
+    "m_a455a4668ee54d": "\\n            Patvirtinti &amp; atidaryti portalą ",
+    "auto_topup_summary": {
+      "message": "Jei jūsų likutis nukris žemiau {threshold}, automatiškai pridėsime {amount} į jūsų sąskaitą.",
+      "format": "icu"
+    },
+    "bonus_amount": {
+      "message": "+ {amount} premija",
+      "format": "icu"
+    },
+    "invites_sent": {
+      "message": "{count, plural, one {Išsiųstas # kvietimas.} few {Išsiųsti # kvietimai.} many {Išsiųsta # kvietimo.} other {Išsiųsta # kvietimų.}}",
+      "format": "icu"
+    },
+    "m_56c6c9cbb10acb": " Automatinio papildymo suma",
+    "m_bc9847e2ca77cb": "Automatinis papildymas",
+    "m_cc2003d4e4237c": " Papildyti, kai likutis žemesnis nei",
+    "m_db0d748a115fcb": "Automatiškai papildyti mano sąskaitą.",
+    "prices_include_vat": "Kainos nurodytos su PVM.",
+    "total_credit": {
+      "message": "Iš viso kredito: {amount}",
+      "format": "icu"
+    }
   },
   "payroll": {
     "m_4a04382820d2e1": "Kita",
@@ -12921,6 +12938,147 @@
     },
     "exchange_estimate": {
       "message": "Apytiksliai {amount} · mokėjimo metu taikomas valiutos kursas gali skirtis.",
+      "format": "icu"
+    },
+    "vat_included": {
+      "message": "{price} su PVM",
+      "format": "icu"
+    }
+  },
+  "signup": {
+    "offer_title": "Aukščiausios kokybės stogų ataskaitos",
+    "offer_price": {
+      "message": "Tik {price}",
+      "format": "icu"
+    },
+    "offer_price_vat": {
+      "message": "Tik {price} su PVM",
+      "format": "icu"
+    },
+    "referral_loading": "Įkeliama...",
+    "referral_partner_invitation": "Partnerio kvietimas",
+    "referral_invited": "Kviečia jus išbandyti FirstMeasure",
+    "referral_partner_default": "FirstMate partneris",
+    "referral_offer": {
+      "message": "Užsiregistruokite šiandien ir gaukite {percent} % nuolaidą visiems užsakymams per pirmąsias {days} d.",
+      "format": "icu"
+    },
+    "referral_offer_default": "Užsiregistruokite šiandien ir gaukite 50 % nuolaidą visiems užsakymams per pirmąsias 7 dienas.",
+    "referral_activate": "Užsiregistruokite šiandien, kad aktyvuotumėte rekomendacijos pasiūlymą.",
+    "referral_offer_short": {
+      "message": "{percent} % nuolaida užsakymams per pirmąsias {days} d.",
+      "format": "icu"
+    },
+    "referral_offer_percent": {
+      "message": "{percent} % nuolaida tinkamiems užsakymams.",
+      "format": "icu"
+    },
+    "referral_offer_applied": "Rekomendacijos pasiūlymas bus pritaikytas registruojantis.",
+    "referral_attribution": "Rekomendacija bus priskirta, kai sukursite paskyrą.",
+    "continue": "Tęsti",
+    "claim_invitation": "Priimti kvietimą",
+    "tab_login": "Prisijungti",
+    "tab_register": "Sukurti paskyrą",
+    "tab_register_invite": "Sukurkite savo įmonės paskyrą, kad aktyvuotumėte šį kvietimą.",
+    "widget_title": "Sukurkite FirstMate paskyrą",
+    "google_sign_in": "Prisijungti su Google",
+    "google_sign_up": "Registruotis su Google",
+    "divider_login": "arba naudokite savo paskyrą",
+    "divider_register": "arba registruokitės el. paštu",
+    "email_or_phone": "El. paštas arba telefonas",
+    "password": "Slaptažodis",
+    "login_button": "Prisijungti",
+    "forgot_password": "Pamiršote slaptažodį?",
+    "phone": "Telefonas",
+    "phone_number": "Telefono numeris",
+    "email": "El. paštas",
+    "confirm_password": "Patvirtinkite slaptažodį",
+    "create_account": "Sukurti paskyrą",
+    "create_account_widget": "Sukurti paskyrą",
+    "already_have_account": "Jau turite paskyrą?",
+    "login_here": "Prisijunkite čia",
+    "login_link": "Prisijungti",
+    "terms": {
+      "message": "Kurdami paskyrą sutinkate su mūsų {terms} ir kad siųstume SMS žinutes nurodytu numeriu. Gali būti taikomi žinučių ir duomenų mokesčiai.",
+      "format": "icu"
+    },
+    "terms_link": "Naudojimo sąlygomis",
+    "reset_how": "Kaip norite atkurti slaptažodį?",
+    "reset_method": "Slaptažodžio atkūrimo būdas",
+    "send_code": "Siųsti kodą",
+    "back_to_login": "Grįžti į prisijungimą",
+    "otp_enter": "Įveskite patvirtinimo kodą:",
+    "otp_sent_to": "Įveskite kodą, išsiųstą adresu",
+    "otp_reset_sent_to": "Įveskite slaptažodžio atkūrimo kodą, išsiųstą adresu",
+    "otp_label": "6 skaitmenų kodas",
+    "verify_code": "Patvirtinti kodą",
+    "start_over": "Pradėti iš naujo",
+    "reset_verified": "Kodas patvirtintas. Nustatykite naują slaptažodį.",
+    "new_password": "Naujas slaptažodis",
+    "update_password": "Atnaujinti slaptažodį",
+    "password_updated": "Slaptažodis atnaujintas! Jungiamasi...",
+    "password_updated_redirect": "Slaptažodis atnaujintas. Nukreipiama...",
+    "creating": "Kuriama…",
+    "sending": "Siunčiama…",
+    "working": "Apdorojama...",
+    "verification_required": "Reikia patvirtinimo",
+    "account_created_verify": "Paskyra sukurta! Patvirtinkite el. paštą.",
+    "account_created_verify_widget": "Paskyra sukurta. Patvirtinkite el. paštą, kad galėtumėte tęsti.",
+    "reset_code_sent": "Slaptažodžio atkūrimo kodas išsiųstas.",
+    "err_generic": "Nepavyko įvykdyti jūsų užklausos. Bandykite dar kartą. Jei problema kartojasi, rašykite support@1m8.ai.",
+    "err_google": "Nepavyko prisijungti su Google. Bandykite dar kartą.",
+    "err_identity_phone_exists": "Šis telefono numeris jau susietas su paskyra. Prisijunkite prie tos paskyros arba naudokite kitą numerį.",
+    "err_identity_email_exists": "Šis el. paštas jau susietas su paskyra. Prisijunkite arba atkurkite prieigą per „Pamiršote slaptažodį?“.",
+    "err_identity_exists": "Paskyra su šiais duomenimis jau yra. Prisijunkite arba atkurkite prieigą per „Pamiršote slaptažodį?“.",
+    "err_invalid_credentials": "Įvestas el. paštas, telefono numeris arba slaptažodis neteisingas.",
+    "err_wrong_password": "Įvestas slaptažodis neteisingas.",
+    "err_identity_phone_ambiguous": "Šis telefono numeris susietas su keliomis paskyromis. Prisijunkite el. paštu arba susisiekite su pagalbos tarnyba.",
+    "err_not_found": "Neradome paskyros su šiuo el. paštu ar telefono numeriu.",
+    "err_identity_phone_not_found": "Neradome paskyros su šiuo telefono numeriu.",
+    "err_invalid_email": "Įveskite galiojantį el. pašto adresą.",
+    "err_invalid_phone_number": "Įveskite galiojantį mobiliojo telefono numerį, už JAV ir Kanados ribų – su šalies kodu.",
+    "err_missing_login_identifier": "Įveskite el. paštą arba telefono numerį.",
+    "err_registration_in_progress": "Jūsų paskyra jau kuriama. Šiek tiek palaukite ir pabandykite prisijungti.",
+    "err_account_disabled": "Ši paskyra išjungta. Susisiekite su įmonės administratoriumi arba pagalbos tarnyba.",
+    "err_membership_required": "Jūsų paskyra dar nepriskirta jokiai įmonei. Susisiekite su įmonės administratoriumi arba pagalbos tarnyba.",
+    "err_google_account_mismatch": "Šis el. paštas susietas su kita Google paskyra. Bandykite tą Google paskyrą arba susisiekite su pagalbos tarnyba.",
+    "err_google_credential_required": "Prisijungimas su Google nebuvo baigtas. Bandykite dar kartą.",
+    "err_invalid_google_credential": "Google nepavyko patvirtinti šio prisijungimo. Bandykite dar kartą.",
+    "err_unverified_google_email": "Prieš prisijungdami patvirtinkite el. paštą Google paskyroje.",
+    "err_invalid_recovery_token": "Slaptažodžio atkūrimo sesija baigėsi. Naujo kodo paprašykite per „Pamiršote slaptažodį?“.",
+    "err_sms_phone_unavailable": "Ši paskyra neturi galiojančio mobiliojo telefono numerio. Naudokite atkūrimą el. paštu arba susisiekite su pagalbos tarnyba.",
+    "err_sms_send_failed": "Nepavyko išsiųsti patvirtinimo kodo SMS žinute. Bandykite vėliau arba naudokite atkūrimą el. paštu.",
+    "err_email_send_failed": "Nepavyko išsiųsti patvirtinimo laiško. Bandykite vėliau arba susisiekite su pagalbos tarnyba.",
+    "err_session_expired": "Sesija baigėsi. Prisijunkite iš naujo.",
+    "err_refresh": "Atnaujinkite puslapį ir bandykite dar kartą.",
+    "err_connection": "Nepavyko prisijungti prie serverio. Patikrinkite ryšį ir bandykite dar kartą.",
+    "err_connection_short": "Ryšio klaida. Bandykite dar kartą.",
+    "err_missing_fields": "Užpildykite visus privalomus paskyros laukus.",
+    "err_invalid_code": "Patvirtinimo kodas neteisingas arba nebegalioja. Paprašykite naujo kodo ir bandykite dar kartą.",
+    "err_password_short": "Naudokite bent 6 simbolių slaptažodį.",
+    "err_reset_not_authorized": "Prieš nustatydami naują slaptažodį patvirtinkite atkūrimo kodą. Pradėkite iš naujo per „Pamiršote slaptažodį?“.",
+    "err_too_many": "Per daug bandymų. Palaukite kelias minutes ir bandykite dar kartą.",
+    "err_passwords_mismatch": "Slaptažodžiai nesutampa.",
+    "err_login_failed": "Nepavyko prisijungti. Bandykite dar kartą.",
+    "err_create_failed": "Nepavyko sukurti paskyros. Bandykite dar kartą arba rašykite support@1m8.ai.",
+    "err_recovery_send_failed": "Nepavyko išsiųsti atkūrimo kodo. Bandykite dar kartą arba rašykite support@1m8.ai.",
+    "err_verify_failed": "Nepavyko patvirtinti kodo. Paprašykite naujo kodo ir bandykite dar kartą.",
+    "err_update_password_failed": "Nepavyko atnaujinti slaptažodžio. Bandykite dar kartą arba rašykite support@1m8.ai.",
+    "err_google_linked_elsewhere": "Šis el. paštas jau susietas su kita Google paskyra. Jei reikia pagalbos, susisiekite su pagalbos tarnyba.",
+    "err_google_no_company": "Jūsų Google el. paštas atpažintas, bet dar nepriskirtas jokiai įmonei.",
+    "err_account_disabled_admin": "Ši paskyra išjungta. Susisiekite su įmonės administratoriumi.",
+    "referral_invited_you": {
+      "message": "{partner} jus pakvietė",
+      "format": "icu"
+    }
+  },
+  "signup-region": {
+    "calling_code": "Šalies kodas"
+  },
+  "phone-input": {
+    "calling_code": "Šalies kodas",
+    "calling_code_value": {
+      "message": "Šalies kodas: {country} +{code}",
       "format": "icu"
     }
   }

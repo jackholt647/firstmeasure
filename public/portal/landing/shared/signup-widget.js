@@ -9,6 +9,13 @@
   let googleAuthLibraryPromise = null;
   let passwordToggleLibraryPromise = null;
   let signupRegionLibraryPromise = null;
+  let signupLanguageLibraryPromise = null;
+
+  /** A signup string in the page language (1M8-240); English until the language library has loaded. */
+  function T(key, fallback, values) {
+    if (window.FirstMateSignupLanguage) return window.FirstMateSignupLanguage.t(key, fallback, values);
+    return String(fallback).replace(/\{(\w+)\}/g, (_, name) => String(values && values[name] != null ? values[name] : ''));
+  }
 
   function signupPhoneDigits(value) {
     let digits = String(value || '').replace(/\D/g, '');
@@ -326,8 +333,8 @@
     if (signupRegionLibraryPromise) return signupRegionLibraryPromise;
     signupRegionLibraryPromise = new Promise((resolve, reject) => {
       const source = SCRIPT_SRC
-        ? new URL('../../../libraries/signup-region/signup-region.js?v=20261023-signup-lists-v4', SCRIPT_SRC).toString()
-        : '/libraries/signup-region/signup-region.js?v=20261023-signup-lists-v4';
+        ? new URL('../../../libraries/signup-region/signup-region.js?v=20261023-signup-language-v1', SCRIPT_SRC).toString()
+        : '/libraries/signup-region/signup-region.js?v=20261023-signup-language-v1';
       const existing = document.querySelector(`script[src="${source}"]`);
       const script = existing || document.createElement('script');
       script.addEventListener('load', () => window.FirstMateSignupRegion
@@ -341,6 +348,24 @@
       }
     });
     return signupRegionLibraryPromise;
+  }
+
+  /* The signup language hand-off and catalogs (1M8-240), from the libraries beside this widget. */
+  function loadSignupLanguageLibrary() {
+    if (window.FirstMateSignupLanguage) return Promise.resolve(window.FirstMateSignupLanguage);
+    if (signupLanguageLibraryPromise) return signupLanguageLibraryPromise;
+    signupLanguageLibraryPromise = new Promise((resolve, reject) => {
+      const source = SCRIPT_SRC
+        ? new URL('../../../libraries/signup-language/signup-language.js?v=20261023-signup-language-v1', SCRIPT_SRC).toString()
+        : '/libraries/signup-language/signup-language.js?v=20261023-signup-language-v1';
+      const script = document.createElement('script');
+      script.src = source;
+      script.async = true;
+      script.addEventListener('load', () => window.FirstMateSignupLanguage ? resolve(window.FirstMateSignupLanguage) : reject(new Error('Signup language library did not initialize.')), { once: true });
+      script.addEventListener('error', () => reject(new Error('Signup language library could not be loaded.')), { once: true });
+      document.head.appendChild(script);
+    }).catch((error) => { signupLanguageLibraryPromise = null; throw error; });
+    return signupLanguageLibraryPromise;
   }
 
   function normalizeBool(value, fallback) {
@@ -367,8 +392,8 @@
     if (title) return title;
     const percent = offer.discount_percent || offer.percent_off || offer.discountPercent;
     const days = offer.window_days || offer.days || offer.windowDays;
-    if (percent && days) return `Get ${percent}% off orders for your first ${days} days.`;
-    if (percent) return `Get ${percent}% off eligible orders.`;
+    if (percent && days) return T('referral_offer_short', 'Get {percent}% off orders for your first {days} days.', { percent, days });
+    if (percent) return T('referral_offer_percent', 'Get {percent}% off eligible orders.', { percent });
     return fallback || '';
   }
 
@@ -408,20 +433,22 @@
     const offerVisibility = String(host.dataset.offerVisibility || 'auto').toLowerCase();
     const title = safeText(host.dataset.title, 'Create your FirstMate account');
     const submitLabel = safeText(host.dataset.submitLabel, referralCode ? 'Claim invitation' : 'Create account');
+    // A label the host page sets is its own text; the default label follows the signup language (1M8-240).
+    const submitLabelKey = host.dataset.submitLabel ? '' : (referralCode ? 'claim_invitation' : 'create_account_widget');
 
     const root = document.createElement('div');
     root.className = 'fm-auth';
     root.innerHTML = `
       <div class="fm-tabs" part="tabs" ${showLogin ? '' : 'hidden'}>
-        <button class="fm-tab" type="button" data-tab="register" aria-selected="true">Create Account</button>
-        <button class="fm-tab" type="button" data-tab="login" aria-selected="false">Login</button>
+        <button class="fm-tab" type="button" data-tab="register" aria-selected="true" data-i18n="tab_register">Create Account</button>
+        <button class="fm-tab" type="button" data-tab="login" aria-selected="false" data-i18n="tab_login">Login</button>
       </div>
       <div class="fm-notice" data-notice></div>
       <div class="fm-referral" data-referral-card>
         <div class="fm-referral-logo" data-referral-logo></div>
         <div class="fm-referral-copy">
-          <strong data-referral-title>Partner invitation</strong>
-          <span data-referral-copy>Sign up today to activate your referral offer.</span>
+          <strong data-referral-title data-i18n="referral_partner_invitation">Partner invitation</strong>
+          <span data-referral-copy data-i18n="referral_activate">Sign up today to activate your referral offer.</span>
         </div>
       </div>
       <form class="fm-form" data-form="register" novalidate>
@@ -434,77 +461,77 @@
         <input type="hidden" name="acquisition_bonus_token" value="">
         <input type="hidden" name="landing_variant" value="">
         <div class="fm-google-block">
-          <div class="fm-google-button" data-google-register aria-label="Sign up with Google"></div>
-          <div class="fm-google-divider"><span>or create with email</span></div>
+          <div class="fm-google-button" data-google-register aria-label="Sign up with Google" data-i18n-aria-label="google_sign_up"></div>
+          <div class="fm-google-divider"><span data-i18n="divider_register">or create with email</span></div>
         </div>
         <div class="fm-field">
-          <label class="fm-label">Phone</label>
+          <label class="fm-label" data-i18n="phone">Phone</label>
           <input class="fm-input" type="tel" name="phone" autocomplete="tel" inputmode="tel" placeholder="+1 555 555 0123" maxlength="24" required>
         </div>
         <div class="fm-field">
-          <label class="fm-label">Email</label>
+          <label class="fm-label" data-i18n="email">Email</label>
           <input class="fm-input" type="email" name="email" autocomplete="email" required>
         </div>
         <div class="fm-field fm-password-field">
-          <label class="fm-label">Password</label>
+          <label class="fm-label" data-i18n="password">Password</label>
           <input class="fm-input" type="password" name="password" autocomplete="new-password" minlength="6" required>
         </div>
         <div class="fm-field fm-password-field">
-          <label class="fm-label">Confirm Password</label>
+          <label class="fm-label" data-i18n="confirm_password">Confirm Password</label>
           <input class="fm-input" type="password" name="confirm_password" autocomplete="new-password" minlength="6" required>
         </div>
         <div class="fm-notice" data-register-notice role="alert" aria-live="polite"></div>
-        <button class="fm-button" type="submit">${submitLabel}</button>
-        ${showLogin ? '<div class="fm-link-row">Already have an account? <button class="fm-link" type="button" data-action="login">Login</button></div>' : ''}
-        ${showTerms ? '<div class="fm-terms">By creating an account, you agree to our <a href="' + routeToPortal('terms/') + '" target="_blank" rel="noopener">Terms of Use</a> and that we may text you at the number above. Msg and data rates may apply.</div>' : ''}
+        <button class="fm-button" type="submit"${submitLabelKey ? ` data-i18n="${submitLabelKey}"` : ''}>${submitLabel}</button>
+        ${showLogin ? '<div class="fm-link-row"><span data-i18n="already_have_account">Already have an account?</span> <button class="fm-link" type="button" data-action="login" data-i18n="login_link">Login</button></div>' : ''}
+        ${showTerms ? '<div class="fm-terms" data-i18n="terms" data-i18n-slots="terms">By creating an account, you agree to our <a href="' + routeToPortal('terms/') + '" target="_blank" rel="noopener" data-i18n-slot="terms"><span data-i18n="terms_link">Terms of Use</span></a> and that we may text you at the number above. Msg and data rates may apply.</div>' : ''}
       </form>
       <form class="fm-form" data-form="login" novalidate>
         <div class="fm-google-block">
-          <div class="fm-google-button" data-google-login aria-label="Sign in with Google"></div>
-          <div class="fm-google-divider"><span>or use your account</span></div>
+          <div class="fm-google-button" data-google-login aria-label="Sign in with Google" data-i18n-aria-label="google_sign_in"></div>
+          <div class="fm-google-divider"><span data-i18n="divider_login">or use your account</span></div>
         </div>
         <div class="fm-field">
-          <label class="fm-label">Email or phone</label>
+          <label class="fm-label" data-i18n="email_or_phone">Email or phone</label>
           <input class="fm-input" type="text" name="identifier" autocomplete="username" required>
         </div>
         <div class="fm-field">
-          <label class="fm-label">Password</label>
+          <label class="fm-label" data-i18n="password">Password</label>
           <input class="fm-input" type="password" name="password" autocomplete="current-password" required>
         </div>
-        <button class="fm-button" type="submit">Login</button>
-        <div class="fm-link-row"><button class="fm-link" type="button" data-action="forgot">Forgot password?</button></div>
+        <button class="fm-button" type="submit" data-i18n="login_button">Login</button>
+        <div class="fm-link-row"><button class="fm-link" type="button" data-action="forgot" data-i18n="forgot_password">Forgot password?</button></div>
       </form>
       <form class="fm-form" data-form="forgot" novalidate>
-        <div class="fm-link-row">${title ? 'How would you like to reset your password?' : ''}</div>
+        <div class="fm-link-row"${title ? ' data-i18n="reset_how"' : ''}>${title ? 'How would you like to reset your password?' : ''}</div>
         <input type="hidden" name="delivery_channel" value="">
-        <div class="fm-recovery-methods" role="group" aria-label="Password reset method">
-          <button class="fm-recovery-method" type="button" data-recovery-method="email" aria-pressed="false">Email</button>
-          <button class="fm-recovery-method" type="button" data-recovery-method="phone" aria-pressed="false">Phone</button>
+        <div class="fm-recovery-methods" role="group" aria-label="Password reset method" data-i18n-aria-label="reset_method">
+          <button class="fm-recovery-method" type="button" data-recovery-method="email" aria-pressed="false" data-i18n="email">Email</button>
+          <button class="fm-recovery-method" type="button" data-recovery-method="phone" aria-pressed="false" data-i18n="phone">Phone</button>
         </div>
         <div data-recovery-details hidden>
           <div class="fm-field">
-            <label class="fm-label" data-recovery-label>Email</label>
+            <label class="fm-label" data-recovery-label data-i18n="email">Email</label>
             <input class="fm-input" type="email" name="identifier" autocomplete="email" required>
           </div>
-          <button class="fm-button" type="submit">Send Code</button>
+          <button class="fm-button" type="submit" data-i18n="send_code">Send Code</button>
         </div>
-        <div class="fm-link-row"><button class="fm-link" type="button" data-action="login">Back to login</button></div>
+        <div class="fm-link-row"><button class="fm-link" type="button" data-action="login" data-i18n="back_to_login">Back to login</button></div>
       </form>
       <form class="fm-form" data-form="otp" novalidate>
-        <div class="fm-link-row"><span data-otp-message>Enter the code sent to</span> <strong data-otp-email></strong>.</div>
+        <div class="fm-link-row"><span data-otp-message data-i18n="otp_sent_to">Enter the code sent to</span> <strong data-otp-email></strong>.</div>
         <div class="fm-field">
-          <label class="fm-label">6-Digit Code</label>
+          <label class="fm-label" data-i18n="otp_label">6-Digit Code</label>
           <input class="fm-input" type="text" name="otp" inputmode="numeric" pattern="[0-9]*" maxlength="6" required>
         </div>
-        <button class="fm-button" type="submit">Verify Code</button>
+        <button class="fm-button" type="submit" data-i18n="verify_code">Verify Code</button>
       </form>
       <form class="fm-form" data-form="reset" novalidate>
-        <div class="fm-link-row">Code verified. Set a new password.</div>
+        <div class="fm-link-row" data-i18n="reset_verified">Code verified. Set a new password.</div>
         <div class="fm-field">
-          <label class="fm-label">New Password</label>
+          <label class="fm-label" data-i18n="new_password">New Password</label>
           <input class="fm-input" type="password" name="new_password" autocomplete="new-password" minlength="6" required>
         </div>
-        <button class="fm-button" type="submit">Update Password</button>
+        <button class="fm-button" type="submit" data-i18n="update_password">Update Password</button>
       </form>
     `;
 
@@ -528,19 +555,32 @@
     const $ = (selector) => root.querySelector(selector);
     const $$ = (selector) => Array.from(root.querySelectorAll(selector));
     const registrationPhoneInput = $('[data-form="register"] input[name="phone"]');
-    // Country, calling code and language choices; the chosen country sets the account's currency.
+    // 1M8-240: no Country or Language dropdowns. The widget resolves its language (hand-off ?lang / fm_lang cookie,
+    // then detection), translates itself and sends that language with the signup; the calling code defaults to the
+    // detected country.
+    const languageReady = loadSignupLanguageLibrary()
+      .then((library) => library.start({ apiBase: platformApiBaseUrl(), namespaces: ['phone-input'] }))
+      .catch(() => ({ language: '', options: null }));
     let signupRegion = null;
     if (registrationPhoneInput) {
       loadSignupRegionLibrary().then((library) => {
-        signupRegion = library.mount({ form: $('[data-form="register"]'), phoneInput: registrationPhoneInput, apiBase: platformApiBaseUrl(), classes: { field: 'fm-field', label: 'fm-label', control: 'fm-input' } });
+        signupRegion = library.mount({ form: $('[data-form="register"]'), phoneInput: registrationPhoneInput, apiBase: platformApiBaseUrl(), classes: { field: 'fm-field', label: 'fm-label', control: 'fm-input' }, options: languageReady.then((ready) => ready.options) });
+        languageReady.then(({ language }) => { if (language) signupRegion.setLanguage(language); });
       }).catch(() => {});
     }
+    languageReady.then(({ language }) => {
+      const library = window.FirstMateSignupLanguage;
+      if (!library) return;
+      library.translate(root);
+      library.decorateLinks(root, language);
+      $$('button[data-default-text]').forEach((button) => { delete button.dataset.defaultText; });
+    });
     const formatsAsNorthAmerican = () => !signupRegion || signupRegion.formatsAsNorthAmerican();
 
     function validateRegistrationPhone() {
       if (!registrationPhoneInput) return false;
       const valid = signupRegion ? signupRegion.valid() : isValidSignupPhone(registrationPhoneInput.value);
-      registrationPhoneInput.setCustomValidity(valid ? '' : 'Enter a valid mobile number, including the country code outside the US and Canada.');
+      registrationPhoneInput.setCustomValidity(valid ? '' : T('err_invalid_phone_number', 'Enter a valid mobile number, including the country code outside the US and Canada.'));
       if (valid && formatsAsNorthAmerican()) registrationPhoneInput.value = formatSignupPhone(registrationPhoneInput.value);
       return valid;
     }
@@ -702,7 +742,7 @@
       if (!button) return;
       if (!button.dataset.defaultText) button.dataset.defaultText = button.textContent;
       button.disabled = !!busy;
-      button.textContent = busy ? 'Working...' : button.dataset.defaultText;
+      button.textContent = busy ? T('working', 'Working...') : button.dataset.defaultText;
     }
 
     function showForm(name) {
@@ -744,40 +784,39 @@
     function authErrorMessage(data, fallback) {
       const code = String(data && (data.error || data.code) || '').trim();
       const messages = {
-        identity_phone_exists: 'That phone number is already connected to an existing account. Log in to that account or use a different phone number.',
-        identity_email_exists: 'That email address is already connected to an existing account. Log in or use Forgot Password to recover access.',
-        identity_exists: 'An account with these details already exists. Log in or use Forgot Password to recover access.',
-        invalid_credentials: 'The email, phone number, or password you entered is incorrect.',
-        identity_phone_ambiguous: 'This phone number is connected to multiple accounts. Sign in with email or contact support.',
-        not_found: "We couldn't find an account with that email or phone number.",
-        identity_phone_not_found: "We couldn't find an account with that phone number.",
-        invalid_email: 'Enter a valid email address.',
-        invalid_phone_number: 'Enter a valid mobile number, including the country code outside the US and Canada.',
-        signup_country_unavailable: 'FirstMate is not available in that country yet. Choose one of the countries listed.',
-        missing_login_identifier: 'Enter your email address or phone number.',
-        registration_in_progress: 'Your account is already being created. Wait a moment, then try logging in.',
-        invalid_recovery_token: 'Your password reset session has expired. Use Forgot Password to request a new code.',
-        sms_phone_unavailable: 'This account does not have a valid mobile phone number. Use email recovery or contact support.',
-        telnyx_verify_send_failed: 'We could not send a text verification code. Please try again later or use email recovery.',
-        postmark_send_failed: 'We could not send the verification email. Please try again later or contact support.',
-        csrf_required: 'Please refresh this page and try again.',
-        'Missing required account fields.': 'Complete all required account fields.',
-        'Invalid or expired code.': 'That verification code is incorrect or has expired. Request a new code and try again.',
-        'Password too short': 'Use a password with at least 6 characters.',
-        'Password reset is not authorized.': 'Verify your recovery code before setting a new password. Start again with Forgot Password.'
+        identity_phone_exists: T('err_identity_phone_exists', 'That phone number is already connected to an existing account. Log in to that account or use a different phone number.'),
+        identity_email_exists: T('err_identity_email_exists', 'That email address is already connected to an existing account. Log in or use Forgot Password to recover access.'),
+        identity_exists: T('err_identity_exists', 'An account with these details already exists. Log in or use Forgot Password to recover access.'),
+        invalid_credentials: T('err_invalid_credentials', 'The email, phone number, or password you entered is incorrect.'),
+        identity_phone_ambiguous: T('err_identity_phone_ambiguous', 'This phone number is connected to multiple accounts. Sign in with email or contact support.'),
+        not_found: T('err_not_found', "We couldn't find an account with that email or phone number."),
+        identity_phone_not_found: T('err_identity_phone_not_found', "We couldn't find an account with that phone number."),
+        invalid_email: T('err_invalid_email', 'Enter a valid email address.'),
+        invalid_phone_number: T('err_invalid_phone_number', 'Enter a valid mobile number, including the country code outside the US and Canada.'),
+        missing_login_identifier: T('err_missing_login_identifier', 'Enter your email address or phone number.'),
+        registration_in_progress: T('err_registration_in_progress', 'Your account is already being created. Wait a moment, then try logging in.'),
+        invalid_recovery_token: T('err_invalid_recovery_token', 'Your password reset session has expired. Use Forgot Password to request a new code.'),
+        sms_phone_unavailable: T('err_sms_phone_unavailable', 'This account does not have a valid mobile phone number. Use email recovery or contact support.'),
+        telnyx_verify_send_failed: T('err_sms_send_failed', 'We could not send a text verification code. Please try again later or use email recovery.'),
+        postmark_send_failed: T('err_email_send_failed', 'We could not send the verification email. Please try again later or contact support.'),
+        csrf_required: T('err_refresh', 'Please refresh this page and try again.'),
+        'Missing required account fields.': T('err_missing_fields', 'Complete all required account fields.'),
+        'Invalid or expired code.': T('err_invalid_code', 'That verification code is incorrect or has expired. Request a new code and try again.'),
+        'Password too short': T('err_password_short', 'Use a password with at least 6 characters.'),
+        'Password reset is not authorized.': T('err_reset_not_authorized', 'Verify your recovery code before setting a new password. Start again with Forgot Password.')
       };
-      if (Number(data && data.status_code) === 429) return 'Too many attempts. Please wait a few minutes and try again.';
+      if (Number(data && data.status_code) === 429) return T('err_too_many', 'Too many attempts. Please wait a few minutes and try again.');
       return Object.prototype.hasOwnProperty.call(messages, code)
         ? messages[code]
-        : (fallback || 'We could not complete your request. Please try again. If this continues, contact support@1m8.ai.');
+        : (fallback || T('err_generic', 'We could not complete your request. Please try again. If this continues, contact support@1m8.ai.'));
     }
 
     function loginErrorMessage(data) {
       const code = String(data && data.error || '').trim();
-      if (code === 'invalid_credentials') return 'The password you entered is incorrect.';
+      if (code === 'invalid_credentials') return T('err_wrong_password', 'The password you entered is incorrect.');
       if (code === 'identity_phone_ambiguous') return 'This phone number is connected to multiple accounts. Sign in with email or contact support.';
       if (code === 'not_found' || code === 'identity_phone_not_found') return "We couldn't find an account with that email or phone number.";
-      return String(data && data.message || 'Unable to log in. Please try again.');
+      return String(data && data.message || T('err_login_failed', 'Unable to log in. Please try again.'));
     }
 
     async function syncPlatformBrowserSession(formData) {
@@ -932,10 +971,10 @@
 
     function googleErrorMessage(error) {
       const code = String(error && error.code || '');
-      if (code === 'google_account_mismatch') return 'This email is already linked to a different Google account. Contact support if you need help.';
-      if (code === 'membership_required') return 'Your Google email is recognized, but it is not assigned to a company yet.';
-      if (code === 'identity_inactive' || code === 'user_disabled') return 'This account is disabled. Contact your company administrator.';
-      return String(error && error.message || 'Google sign-in could not be completed. Please try again.');
+      if (code === 'google_account_mismatch') return T('err_google_linked_elsewhere', 'This email is already linked to a different Google account. Contact support if you need help.');
+      if (code === 'membership_required') return T('err_google_no_company', 'Your Google email is recognized, but it is not assigned to a company yet.');
+      if (code === 'identity_inactive' || code === 'user_disabled') return T('err_account_disabled_admin', 'This account is disabled. Contact your company administrator.');
+      return String(error && error.message || T('err_google', 'Google sign-in could not be completed. Please try again.'));
     }
 
     function googleSuccess(data) {
@@ -1048,12 +1087,12 @@
       const logo = $('[data-referral-logo]');
       const titleEl = $('[data-referral-title]');
       const copyEl = $('[data-referral-copy]');
-      const partnerName = safeText(partner.display_name, 'A FirstMate partner');
-      titleEl.textContent = `${partnerName} invited you`;
+      const partnerName = safeText(partner.display_name, T('referral_partner_default', 'A FirstMate partner'));
+      titleEl.textContent = T('referral_invited_you', '{partner} invited you', { partner: partnerName });
       const shouldShowOffer = offerVisibility !== 'never' && (!!offer || offerVisibility === 'always');
       copyEl.textContent = shouldShowOffer
-        ? formatOffer(offer, 'Your referral offer will be applied at sign up.')
-        : 'Referral attribution will be applied when you create your account.';
+        ? formatOffer(offer, T('referral_offer_applied', 'Your referral offer will be applied at sign up.'))
+        : T('referral_attribution', 'Referral attribution will be applied when you create your account.');
       const logoUrl = safeText(partner.logo_url, '');
       if (logoUrl) {
         logo.innerHTML = `<img src="${logoUrl.replace(/"/g, '&quot;')}" alt="">`;
@@ -1185,7 +1224,7 @@
         option.classList.toggle('is-selected', selected);
         option.setAttribute('aria-pressed', String(selected));
       });
-      form.querySelector('[data-recovery-label]').textContent = phone ? 'Phone number' : 'Email';
+      form.querySelector('[data-recovery-label]').textContent = phone ? T('phone_number', 'Phone number') : T('email', 'Email');
       input.type = phone ? 'tel' : 'email';
       input.autocomplete = phone ? 'tel' : 'email';
       input.placeholder = phone ? '(555) 555-0123' : 'you@example.com';
@@ -1198,7 +1237,7 @@
       event.preventDefault();
       const form = event.currentTarget;
       if (!validateRegistrationPhone()) {
-        showRegisterNotice('Enter a valid mobile number, including the country code outside the US and Canada.', 'error');
+        showRegisterNotice(T('err_invalid_phone_number', 'Enter a valid mobile number, including the country code outside the US and Canada.'), 'error');
         registrationPhoneInput?.reportValidity();
         return;
       }
@@ -1215,7 +1254,7 @@
       showRegisterNotice('', 'error');
       if (fd.get('password') !== fd.get('confirm_password')) {
         trackSignupInteraction('register_validation_error', { reason: 'password_mismatch' });
-        showRegisterNotice('Passwords do not match.', 'error');
+        showRegisterNotice(T('err_passwords_mismatch', 'Passwords do not match.'), 'error');
         return;
       }
       fd.append('action', 'register');
@@ -1233,9 +1272,9 @@
           if (SIGNUP_EMAIL_VERIFICATION_ENABLED) {
             trackSignupInteraction('register_requires_otp', { email_domain: String(data.email || '').split('@').pop() || '' });
             state.otpEmail = data.email || String(fd.get('email') || '');
-            $('[data-otp-message]').textContent = 'Enter the code sent to';
+            $('[data-otp-message]').textContent = T('otp_sent_to', 'Enter the code sent to');
             $('[data-otp-email]').textContent = state.otpEmail;
-            showNotice(data.message || 'Account created. Verify your email to continue.', 'success');
+            showNotice(data.message || T('account_created_verify_widget', 'Account created. Verify your email to continue.'), 'success');
             showForm('otp');
           } else {
             trackSignupInteraction('register_otp_frontend_bypassed', { email_domain: String(data.email || '').split('@').pop() || '' });
@@ -1245,12 +1284,12 @@
           }
         } else {
           trackSignupInteraction('register_error', { error: data.error || 'registration_failed' });
-          showRegisterNotice(authErrorMessage(data, 'We could not create your account. Please try again or contact support@1m8.ai.'), 'error');
+          showRegisterNotice(authErrorMessage(data, T('err_create_failed', 'We could not create your account. Please try again or contact support@1m8.ai.')), 'error');
           emit(host, 'signup-error', data);
         }
       } catch (e) {
         trackSignupInteraction('register_error', { error: 'connection_error' });
-        showRegisterNotice('Connection error. Please try again.', 'error');
+        showRegisterNotice(T('err_connection_short', 'Connection error. Please try again.'), 'error');
         emit(host, 'signup-error', { error: 'Connection error.' });
       } finally {
         setBusy(form, false);
@@ -1274,7 +1313,7 @@
         } else if (data.require_otp) {
           trackSignupInteraction('login_requires_otp', { email_domain: String(data.email || '').split('@').pop() || '' });
           state.otpEmail = data.email || String(fd.get('email') || '');
-          $('[data-otp-message]').textContent = 'Enter the code sent to';
+          $('[data-otp-message]').textContent = T('otp_sent_to', 'Enter the code sent to');
           $('[data-otp-email]').textContent = state.otpEmail;
           showForm('otp');
         } else {
@@ -1283,7 +1322,7 @@
         }
       } catch (e) {
         trackSignupInteraction('login_error', { error: 'connection_error' });
-        showNotice('Connection error. Please try again.', 'error');
+        showNotice(T('err_connection_short', 'Connection error. Please try again.'), 'error');
       } finally {
         setBusy(form, false);
       }
@@ -1305,16 +1344,16 @@
           trackSignupInteraction('forgot_requires_otp', { delivery_channel: String(fd.get('delivery_channel') || '') });
           state.recoveryToken = String(data.recovery_token || '');
           state.recoveryIdentifier = String(fd.get('identifier') || '');
-          $('[data-otp-message]').textContent = data.message || 'Enter the password reset code sent to';
+          $('[data-otp-message]').textContent = data.message || T('otp_reset_sent_to', 'Enter the password reset code sent to');
           $('[data-otp-email]').textContent = data.masked_destination || '';
           showForm('otp');
         } else {
           trackSignupInteraction('forgot_error', { error: data.error || 'unable_to_send_code' });
-          showNotice(authErrorMessage(data, 'We could not send a recovery code. Please try again or contact support@1m8.ai.'), 'error');
+          showNotice(authErrorMessage(data, T('err_recovery_send_failed', 'We could not send a recovery code. Please try again or contact support@1m8.ai.')), 'error');
         }
       } catch (e) {
         trackSignupInteraction('forgot_error', { error: 'connection_error' });
-        showNotice('Connection error. Please try again.', 'error');
+        showNotice(T('err_connection_short', 'Connection error. Please try again.'), 'error');
       } finally {
         form.dataset.submitting = 'false';
         setBusy(form, false);
@@ -1343,11 +1382,11 @@
           redirectAfterAuth(data);
         } else {
           trackSignupInteraction('otp_error', { error: data.error || 'verification_failed' });
-          showNotice(authErrorMessage(data, 'We could not verify that code. Request a new code and try again.'), 'error');
+          showNotice(authErrorMessage(data, T('err_verify_failed', 'We could not verify that code. Request a new code and try again.')), 'error');
         }
       } catch (e) {
         trackSignupInteraction('otp_error', { error: 'connection_error' });
-        showNotice('Connection error. Please try again.', 'error');
+        showNotice(T('err_connection_short', 'Connection error. Please try again.'), 'error');
       } finally {
         setBusy(form, false);
       }
@@ -1367,7 +1406,7 @@
         const data = await authLegacyRequest(fd);
         if (data.success) {
           trackSignupInteraction('reset_success');
-          showNotice('Password updated. Redirecting...', 'success');
+          showNotice(T('password_updated_redirect', 'Password updated. Redirecting...'), 'success');
           const loginFd = new FormData();
           loginFd.append('action', 'login');
           loginFd.append('identifier', state.recoveryIdentifier || state.otpEmail);
@@ -1376,11 +1415,11 @@
           setTimeout(() => redirectAfterAuth(loginData && loginData.success ? loginData : data), 700);
         } else {
           trackSignupInteraction('reset_error', { error: data.error || 'password_update_failed' });
-          showNotice(authErrorMessage(data, 'We could not update your password. Please try again or contact support@1m8.ai.'), 'error');
+          showNotice(authErrorMessage(data, T('err_update_password_failed', 'We could not update your password. Please try again or contact support@1m8.ai.')), 'error');
         }
       } catch (e) {
         trackSignupInteraction('reset_error', { error: 'connection_error' });
-        showNotice('Connection error. Please try again.', 'error');
+        showNotice(T('err_connection_short', 'Connection error. Please try again.'), 'error');
       } finally {
         setBusy(form, false);
       }

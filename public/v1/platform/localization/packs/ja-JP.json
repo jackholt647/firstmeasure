@@ -3242,10 +3242,6 @@
     "m_163c9e8ccdb047": "会社設定のユーザーセクションから、いつでもユーザーを管理できます。",
     "m_206d31a7c795c4": " 戻る",
     "m_b982de697abe2d": "招待を送信しました",
-    "m_507489a99d1632": {
-      "message": "{v0}件の招待を送信しました。{v1}",
-      "format": "icu"
-    },
     "m_2b39214759d91a": " カスタム\n      ",
     "m_0ded144729a113": "権限",
     "m_8cf345002184e5": "名前",
@@ -3271,7 +3267,28 @@
     "m_8342e19eddc030": "ポータルを開く前に、このメールアドレスにコードを送信します。入力を間違えた場合は、ここで修正できます。",
     "m_2fbb4b11eb7b6f": "メールアドレス",
     "m_3a7c6bd31cf96e": "確認コード",
-    "m_a455a4668ee54d": "\n            確認してポータルに進む &amp; "
+    "m_a455a4668ee54d": "\n            確認してポータルに進む &amp; ",
+    "auto_topup_summary": {
+      "message": "残高が {threshold} を下回ると、自動的に {amount} をアカウントに追加します。",
+      "format": "icu"
+    },
+    "bonus_amount": {
+      "message": "+ {amount} のボーナス",
+      "format": "icu"
+    },
+    "invites_sent": {
+      "message": "{count, plural, other {# 件の招待を送信しました。}}",
+      "format": "icu"
+    },
+    "m_56c6c9cbb10acb": " 自動チャージ額",
+    "m_bc9847e2ca77cb": "自動チャージ",
+    "m_cc2003d4e4237c": " 残高がこの額を下回ったらチャージ",
+    "m_db0d748a115fcb": "アカウントに自動でチャージする。",
+    "prices_include_vat": "価格は税込みです。",
+    "total_credit": {
+      "message": "合計クレジット {amount}",
+      "format": "icu"
+    }
   },
   "payroll": {
     "m_4a04382820d2e1": "その他",
@@ -12937,6 +12954,147 @@
     },
     "exchange_estimate": {
       "message": "約{amount} · お支払い時の為替レートにより異なる場合があります。",
+      "format": "icu"
+    },
+    "vat_included": {
+      "message": "{price}（税込）",
+      "format": "icu"
+    }
+  },
+  "signup": {
+    "offer_title": "プレミアム屋根レポート",
+    "offer_price": {
+      "message": "わずか {price}",
+      "format": "icu"
+    },
+    "offer_price_vat": {
+      "message": "わずか {price}（税込）",
+      "format": "icu"
+    },
+    "referral_loading": "読み込み中...",
+    "referral_partner_invitation": "パートナーからの招待",
+    "referral_invited": "FirstMeasure のお試しに招待されています",
+    "referral_partner_default": "FirstMate パートナー",
+    "referral_offer": {
+      "message": "今すぐ登録すると、最初の {days} 日間すべての注文が {percent}% オフになります。",
+      "format": "icu"
+    },
+    "referral_offer_default": "今すぐ登録すると、最初の 7 日間すべての注文が 50% オフになります。",
+    "referral_activate": "今すぐ登録して紹介特典を有効にしましょう。",
+    "referral_offer_short": {
+      "message": "最初の {days} 日間の注文が {percent}% オフ。",
+      "format": "icu"
+    },
+    "referral_offer_percent": {
+      "message": "対象の注文が {percent}% オフ。",
+      "format": "icu"
+    },
+    "referral_offer_applied": "紹介特典は登録時に適用されます。",
+    "referral_attribution": "紹介はアカウント作成時に記録されます。",
+    "continue": "続ける",
+    "claim_invitation": "招待を受ける",
+    "tab_login": "ログイン",
+    "tab_register": "アカウント作成",
+    "tab_register_invite": "この招待を有効にするには、会社のアカウントを作成してください。",
+    "widget_title": "FirstMate アカウントを作成",
+    "google_sign_in": "Google でログイン",
+    "google_sign_up": "Google で登録",
+    "divider_login": "またはアカウントを使用",
+    "divider_register": "またはメールで登録",
+    "email_or_phone": "メールアドレスまたは電話番号",
+    "password": "パスワード",
+    "login_button": "ログイン",
+    "forgot_password": "パスワードをお忘れですか？",
+    "phone": "電話番号",
+    "phone_number": "電話番号",
+    "email": "メールアドレス",
+    "confirm_password": "パスワード（確認）",
+    "create_account": "アカウントを作成",
+    "create_account_widget": "アカウントを作成",
+    "already_have_account": "すでにアカウントをお持ちですか？",
+    "login_here": "こちらからログイン",
+    "login_link": "ログイン",
+    "terms": {
+      "message": "アカウントを作成すると、{terms}に同意し、入力した番号への SMS 送信に同意したものとみなされます。メッセージおよびデータ通信料がかかる場合があります。",
+      "format": "icu"
+    },
+    "terms_link": "利用規約",
+    "reset_how": "パスワードのリセット方法を選んでください",
+    "reset_method": "パスワードのリセット方法",
+    "send_code": "コードを送信",
+    "back_to_login": "ログインに戻る",
+    "otp_enter": "確認コードを入力してください：",
+    "otp_sent_to": "次の宛先に送信されたコードを入力してください：",
+    "otp_reset_sent_to": "次の宛先に送信されたパスワードリセットコードを入力してください：",
+    "otp_label": "6 桁のコード",
+    "verify_code": "コードを確認",
+    "start_over": "最初からやり直す",
+    "reset_verified": "コードを確認しました。新しいパスワードを設定してください。",
+    "new_password": "新しいパスワード",
+    "update_password": "パスワードを更新",
+    "password_updated": "パスワードを更新しました。ログインしています...",
+    "password_updated_redirect": "パスワードを更新しました。移動しています...",
+    "creating": "作成中…",
+    "sending": "送信中…",
+    "working": "処理中...",
+    "verification_required": "確認が必要です",
+    "account_created_verify": "アカウントを作成しました。メールアドレスを確認してください。",
+    "account_created_verify_widget": "アカウントを作成しました。続行するにはメールアドレスを確認してください。",
+    "reset_code_sent": "パスワードリセットコードを送信しました。",
+    "err_generic": "リクエストを完了できませんでした。もう一度お試しください。問題が続く場合は support@1m8.ai までご連絡ください。",
+    "err_google": "Google でのログインを完了できませんでした。もう一度お試しください。",
+    "err_identity_phone_exists": "この電話番号はすでにアカウントに登録されています。そのアカウントにログインするか、別の番号を使用してください。",
+    "err_identity_email_exists": "このメールアドレスはすでにアカウントに登録されています。ログインするか、「パスワードをお忘れですか？」からアクセスを回復してください。",
+    "err_identity_exists": "この情報のアカウントはすでに存在します。ログインするか、「パスワードをお忘れですか？」からアクセスを回復してください。",
+    "err_invalid_credentials": "入力したメールアドレス、電話番号、またはパスワードが正しくありません。",
+    "err_wrong_password": "入力したパスワードが正しくありません。",
+    "err_identity_phone_ambiguous": "この電話番号は複数のアカウントに登録されています。メールアドレスでログインするか、サポートにお問い合わせください。",
+    "err_not_found": "このメールアドレスまたは電話番号のアカウントが見つかりませんでした。",
+    "err_identity_phone_not_found": "この電話番号のアカウントが見つかりませんでした。",
+    "err_invalid_email": "有効なメールアドレスを入力してください。",
+    "err_invalid_phone_number": "有効な携帯電話番号を入力してください。米国・カナダ以外は国番号を付けてください。",
+    "err_missing_login_identifier": "メールアドレスまたは電話番号を入力してください。",
+    "err_registration_in_progress": "アカウントはすでに作成中です。しばらく待ってからログインしてください。",
+    "err_account_disabled": "このアカウントは無効になっています。会社の管理者またはサポートにお問い合わせください。",
+    "err_membership_required": "アカウントはまだどの会社にも割り当てられていません。会社の管理者またはサポートにお問い合わせください。",
+    "err_google_account_mismatch": "このメールアドレスは別の Google アカウントに関連付けられています。その Google アカウントを使用するか、サポートにお問い合わせください。",
+    "err_google_credential_required": "Google でのログインが完了しませんでした。もう一度お試しください。",
+    "err_invalid_google_credential": "Google がこのログインを確認できませんでした。もう一度お試しください。",
+    "err_unverified_google_email": "ログインする前に Google でメールアドレスを確認してください。",
+    "err_invalid_recovery_token": "パスワードリセットのセッションが期限切れです。「パスワードをお忘れですか？」から新しいコードを請求してください。",
+    "err_sms_phone_unavailable": "このアカウントには有効な携帯電話番号がありません。メールで回復するか、サポートにお問い合わせください。",
+    "err_sms_send_failed": "SMS で確認コードを送信できませんでした。後でもう一度お試しいただくか、メールで回復してください。",
+    "err_email_send_failed": "確認メールを送信できませんでした。後でもう一度お試しいただくか、サポートにお問い合わせください。",
+    "err_session_expired": "セッションの有効期限が切れました。もう一度ログインしてください。",
+    "err_refresh": "ページを再読み込みして、もう一度お試しください。",
+    "err_connection": "サーバーに接続できませんでした。接続を確認して、もう一度お試しください。",
+    "err_connection_short": "接続エラーです。もう一度お試しください。",
+    "err_missing_fields": "アカウントの必須項目をすべて入力してください。",
+    "err_invalid_code": "確認コードが正しくないか、有効期限が切れています。新しいコードを請求して、もう一度お試しください。",
+    "err_password_short": "6 文字以上のパスワードを使用してください。",
+    "err_reset_not_authorized": "新しいパスワードを設定する前に回復コードを確認してください。「パスワードをお忘れですか？」からやり直してください。",
+    "err_too_many": "試行回数が多すぎます。数分待ってから、もう一度お試しください。",
+    "err_passwords_mismatch": "パスワードが一致しません。",
+    "err_login_failed": "ログインできませんでした。もう一度お試しください。",
+    "err_create_failed": "アカウントを作成できませんでした。もう一度お試しいただくか、support@1m8.ai までご連絡ください。",
+    "err_recovery_send_failed": "回復コードを送信できませんでした。もう一度お試しいただくか、support@1m8.ai までご連絡ください。",
+    "err_verify_failed": "コードを確認できませんでした。新しいコードを請求して、もう一度お試しください。",
+    "err_update_password_failed": "パスワードを更新できませんでした。もう一度お試しいただくか、support@1m8.ai までご連絡ください。",
+    "err_google_linked_elsewhere": "このメールアドレスはすでに別の Google アカウントに関連付けられています。お困りの場合はサポートにお問い合わせください。",
+    "err_google_no_company": "Google のメールアドレスは確認できましたが、まだどの会社にも割り当てられていません。",
+    "err_account_disabled_admin": "このアカウントは無効になっています。会社の管理者にお問い合わせください。",
+    "referral_invited_you": {
+      "message": "{partner} さんから招待されました",
+      "format": "icu"
+    }
+  },
+  "signup-region": {
+    "calling_code": "国番号"
+  },
+  "phone-input": {
+    "calling_code": "国番号",
+    "calling_code_value": {
+      "message": "国番号：{country} +{code}",
       "format": "icu"
     }
   }

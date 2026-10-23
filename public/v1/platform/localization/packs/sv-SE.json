@@ -3183,7 +3183,28 @@
     "m_8342e19eddc030": "Vi skickar en kod till den här e-postadressen innan portalen öppnas. Du kan rätta adressen här om den angavs fel.",
     "m_2fbb4b11eb7b6f": "E-postadress",
     "m_3a7c6bd31cf96e": "Verifieringskod",
-    "m_a455a4668ee54d": "\n            Verifiera &amp; öppna portalen "
+    "m_a455a4668ee54d": "\n            Verifiera &amp; öppna portalen ",
+    "auto_topup_summary": {
+      "message": "Om ditt saldo understiger {threshold} lägger vi automatiskt till {amount} på ditt konto.",
+      "format": "icu"
+    },
+    "bonus_amount": {
+      "message": "+ {amount} i bonus",
+      "format": "icu"
+    },
+    "invites_sent": {
+      "message": "{count, plural, one {# inbjudan skickad.} other {# inbjudningar skickade.}}",
+      "format": "icu"
+    },
+    "m_56c6c9cbb10acb": " Belopp för automatisk påfyllning",
+    "m_bc9847e2ca77cb": "Automatisk påfyllning",
+    "m_cc2003d4e4237c": " Fyll på när saldot understiger",
+    "m_db0d748a115fcb": "Fyll på mitt konto automatiskt.",
+    "prices_include_vat": "Priserna inkluderar moms.",
+    "total_credit": {
+      "message": "{amount} i kredit totalt",
+      "format": "icu"
+    }
   },
   "payroll": {
     "m_4a04382820d2e1": "Övrigt",
@@ -12480,6 +12501,147 @@
     },
     "exchange_estimate": {
       "message": "Cirka {amount} · växelkursen vid betalningen kan skilja sig.",
+      "format": "icu"
+    },
+    "vat_included": {
+      "message": "{price} inkl. moms",
+      "format": "icu"
+    }
+  },
+  "signup": {
+    "offer_title": "Premiumrapporter för tak",
+    "offer_price": {
+      "message": "Endast {price}",
+      "format": "icu"
+    },
+    "offer_price_vat": {
+      "message": "Endast {price} inkl. moms",
+      "format": "icu"
+    },
+    "referral_loading": "Laddar...",
+    "referral_partner_invitation": "Inbjudan från en partner",
+    "referral_invited": "Har bjudit in dig att prova FirstMeasure",
+    "referral_partner_default": "En FirstMate-partner",
+    "referral_offer": {
+      "message": "Registrera dig i dag och få {percent} % rabatt på alla beställningar under dina första {days} dagar.",
+      "format": "icu"
+    },
+    "referral_offer_default": "Registrera dig i dag och få 50 % rabatt på alla beställningar under dina första 7 dagar.",
+    "referral_activate": "Registrera dig i dag för att aktivera ditt värvningserbjudande.",
+    "referral_offer_short": {
+      "message": "{percent} % rabatt på beställningar under dina första {days} dagar.",
+      "format": "icu"
+    },
+    "referral_offer_percent": {
+      "message": "{percent} % rabatt på berättigade beställningar.",
+      "format": "icu"
+    },
+    "referral_offer_applied": "Ditt värvningserbjudande tillämpas när du registrerar dig.",
+    "referral_attribution": "Värvningen registreras när du skapar ditt konto.",
+    "continue": "Fortsätt",
+    "claim_invitation": "Ta emot inbjudan",
+    "tab_login": "Logga in",
+    "tab_register": "Skapa konto",
+    "tab_register_invite": "Skapa ditt företags konto för att aktivera den här inbjudan.",
+    "widget_title": "Skapa ditt FirstMate-konto",
+    "google_sign_in": "Logga in med Google",
+    "google_sign_up": "Registrera dig med Google",
+    "divider_login": "eller använd ditt konto",
+    "divider_register": "eller registrera dig med e-post",
+    "email_or_phone": "E-post eller telefon",
+    "password": "Lösenord",
+    "login_button": "Logga in",
+    "forgot_password": "Glömt lösenordet?",
+    "phone": "Telefon",
+    "phone_number": "Telefonnummer",
+    "email": "E-post",
+    "confirm_password": "Bekräfta lösenord",
+    "create_account": "Skapa konto",
+    "create_account_widget": "Skapa konto",
+    "already_have_account": "Har du redan ett konto?",
+    "login_here": "Klicka här för att logga in",
+    "login_link": "Logga in",
+    "terms": {
+      "message": "Genom att skapa ett konto godkänner du våra {terms} och att vi skickar sms till det angivna numret. Avgifter för meddelanden och data kan tillkomma.",
+      "format": "icu"
+    },
+    "terms_link": "Användarvillkor",
+    "reset_how": "Hur vill du återställa ditt lösenord?",
+    "reset_method": "Metod för att återställa lösenordet",
+    "send_code": "Skicka kod",
+    "back_to_login": "Tillbaka till inloggningen",
+    "otp_enter": "Ange verifieringskoden:",
+    "otp_sent_to": "Ange koden som skickades till",
+    "otp_reset_sent_to": "Ange återställningskoden som skickades till",
+    "otp_label": "6-siffrig kod",
+    "verify_code": "Verifiera kod",
+    "start_over": "Börja om",
+    "reset_verified": "Koden är verifierad. Ange ett nytt lösenord.",
+    "new_password": "Nytt lösenord",
+    "update_password": "Uppdatera lösenord",
+    "password_updated": "Lösenordet är uppdaterat! Loggar in...",
+    "password_updated_redirect": "Lösenordet är uppdaterat. Omdirigerar...",
+    "creating": "Skapar…",
+    "sending": "Skickar…",
+    "working": "Arbetar...",
+    "verification_required": "Verifiering krävs",
+    "account_created_verify": "Kontot är skapat! Verifiera din e-postadress.",
+    "account_created_verify_widget": "Kontot är skapat. Verifiera din e-postadress för att fortsätta.",
+    "reset_code_sent": "Koden för lösenordsåterställning har skickats.",
+    "err_generic": "Vi kunde inte slutföra din begäran. Försök igen. Om problemet kvarstår, skriv till support@1m8.ai.",
+    "err_google": "Inloggningen med Google kunde inte slutföras. Försök igen.",
+    "err_identity_phone_exists": "Telefonnumret är redan kopplat till ett konto. Logga in på det kontot eller använd ett annat nummer.",
+    "err_identity_email_exists": "E-postadressen är redan kopplad till ett konto. Logga in eller använd ”Glömt lösenordet?” för att få tillgång igen.",
+    "err_identity_exists": "Det finns redan ett konto med de här uppgifterna. Logga in eller använd ”Glömt lösenordet?” för att få tillgång igen.",
+    "err_invalid_credentials": "E-postadressen, telefonnumret eller lösenordet är fel.",
+    "err_wrong_password": "Lösenordet är fel.",
+    "err_identity_phone_ambiguous": "Telefonnumret är kopplat till flera konton. Logga in med din e-postadress eller kontakta supporten.",
+    "err_not_found": "Vi hittade inget konto med den e-postadressen eller det telefonnumret.",
+    "err_identity_phone_not_found": "Vi hittade inget konto med det telefonnumret.",
+    "err_invalid_email": "Ange en giltig e-postadress.",
+    "err_invalid_phone_number": "Ange ett giltigt mobilnummer, med landsnummer utanför USA och Kanada.",
+    "err_missing_login_identifier": "Ange din e-postadress eller ditt telefonnummer.",
+    "err_registration_in_progress": "Ditt konto håller redan på att skapas. Vänta en stund och försök sedan logga in.",
+    "err_account_disabled": "Kontot är inaktiverat. Kontakta ditt företags administratör eller supporten.",
+    "err_membership_required": "Ditt konto är ännu inte kopplat till något företag. Kontakta ditt företags administratör eller supporten.",
+    "err_google_account_mismatch": "E-postadressen är kopplad till ett annat Google-konto. Försök med det Google-kontot eller kontakta supporten.",
+    "err_google_credential_required": "Inloggningen med Google slutfördes inte. Försök igen.",
+    "err_invalid_google_credential": "Google kunde inte verifiera inloggningen. Försök igen.",
+    "err_unverified_google_email": "Verifiera din e-postadress hos Google innan du loggar in.",
+    "err_invalid_recovery_token": "Din session för lösenordsåterställning har gått ut. Använd ”Glömt lösenordet?” för att begära en ny kod.",
+    "err_sms_phone_unavailable": "Kontot har inget giltigt mobilnummer. Använd återställning via e-post eller kontakta supporten.",
+    "err_sms_send_failed": "Vi kunde inte skicka en verifieringskod via sms. Försök igen senare eller använd återställning via e-post.",
+    "err_email_send_failed": "Vi kunde inte skicka verifieringsmejlet. Försök igen senare eller kontakta supporten.",
+    "err_session_expired": "Din session har gått ut. Logga in igen.",
+    "err_refresh": "Uppdatera sidan och försök igen.",
+    "err_connection": "Vi kunde inte ansluta till servern. Kontrollera din anslutning och försök igen.",
+    "err_connection_short": "Anslutningsfel. Försök igen.",
+    "err_missing_fields": "Fyll i alla obligatoriska kontofält.",
+    "err_invalid_code": "Verifieringskoden är fel eller har gått ut. Begär en ny kod och försök igen.",
+    "err_password_short": "Använd ett lösenord med minst 6 tecken.",
+    "err_reset_not_authorized": "Verifiera din återställningskod innan du anger ett nytt lösenord. Börja om med ”Glömt lösenordet?”.",
+    "err_too_many": "För många försök. Vänta några minuter och försök igen.",
+    "err_passwords_mismatch": "Lösenorden matchar inte.",
+    "err_login_failed": "Det gick inte att logga in. Försök igen.",
+    "err_create_failed": "Vi kunde inte skapa ditt konto. Försök igen eller skriv till support@1m8.ai.",
+    "err_recovery_send_failed": "Vi kunde inte skicka en återställningskod. Försök igen eller skriv till support@1m8.ai.",
+    "err_verify_failed": "Vi kunde inte verifiera koden. Begär en ny kod och försök igen.",
+    "err_update_password_failed": "Vi kunde inte uppdatera ditt lösenord. Försök igen eller skriv till support@1m8.ai.",
+    "err_google_linked_elsewhere": "E-postadressen är redan kopplad till ett annat Google-konto. Kontakta supporten om du behöver hjälp.",
+    "err_google_no_company": "Din Google-e-postadress känns igen, men den är ännu inte kopplad till något företag.",
+    "err_account_disabled_admin": "Kontot är inaktiverat. Kontakta ditt företags administratör.",
+    "referral_invited_you": {
+      "message": "{partner} har bjudit in dig",
+      "format": "icu"
+    }
+  },
+  "signup-region": {
+    "calling_code": "Landsnummer"
+  },
+  "phone-input": {
+    "calling_code": "Landsnummer",
+    "calling_code_value": {
+      "message": "Landsnummer: {country} +{code}",
       "format": "icu"
     }
   }

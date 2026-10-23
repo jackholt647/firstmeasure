@@ -3238,10 +3238,6 @@
     "m_163c9e8ccdb047": " Du kan når som helst administrere brukere under Brukere i Bedriftsinnstillinger.",
     "m_206d31a7c795c4": " Tilbake",
     "m_b982de697abe2d": "Invitasjoner sendt",
-    "m_507489a99d1632": {
-      "message": "{v0} invitasjon{v1} sendt.",
-      "format": "icu"
-    },
     "m_2b39214759d91a": " Egendefinert\n      ",
     "m_0ded144729a113": "Tillatelser",
     "m_8cf345002184e5": "Navn",
@@ -3267,7 +3263,28 @@
     "m_8342e19eddc030": "Vi sender en kode til denne e-postadressen før portalen åpnes. Du kan rette adressen her hvis den ble skrevet inn feil.",
     "m_2fbb4b11eb7b6f": "E-postadresse",
     "m_3a7c6bd31cf96e": "Bekreftelseskode",
-    "m_a455a4668ee54d": "\n            Bekreft &amp; åpne portalen "
+    "m_a455a4668ee54d": "\n            Bekreft &amp; åpne portalen ",
+    "auto_topup_summary": {
+      "message": "Hvis saldoen din faller under {threshold}, legger vi automatisk til {amount} på kontoen din.",
+      "format": "icu"
+    },
+    "bonus_amount": {
+      "message": "+ {amount} i bonus",
+      "format": "icu"
+    },
+    "invites_sent": {
+      "message": "{count, plural, one {# invitasjon sendt.} other {# invitasjoner sendt.}}",
+      "format": "icu"
+    },
+    "m_56c6c9cbb10acb": " Beløp for automatisk påfylling",
+    "m_bc9847e2ca77cb": "Automatisk påfylling",
+    "m_cc2003d4e4237c": " Fyll på når saldoen er under",
+    "m_db0d748a115fcb": "Fyll på kontoen min automatisk.",
+    "prices_include_vat": "Prisene inkluderer mva.",
+    "total_credit": {
+      "message": "{amount} i kreditt totalt",
+      "format": "icu"
+    }
   },
   "payroll": {
     "m_4a04382820d2e1": "Annet",
@@ -12929,6 +12946,147 @@
     },
     "exchange_estimate": {
       "message": "Omtrent {amount} · valutakursen ved betaling kan være annerledes.",
+      "format": "icu"
+    },
+    "vat_included": {
+      "message": "{price} inkl. mva.",
+      "format": "icu"
+    }
+  },
+  "signup": {
+    "offer_title": "Premium takrapporter",
+    "offer_price": {
+      "message": "Kun {price}",
+      "format": "icu"
+    },
+    "offer_price_vat": {
+      "message": "Kun {price} inkl. mva.",
+      "format": "icu"
+    },
+    "referral_loading": "Laster inn...",
+    "referral_partner_invitation": "Invitasjon fra en partner",
+    "referral_invited": "Har invitert deg til å prøve FirstMeasure",
+    "referral_partner_default": "En FirstMate-partner",
+    "referral_offer": {
+      "message": "Registrer deg i dag og få {percent} % rabatt på alle bestillinger de første {days} dagene.",
+      "format": "icu"
+    },
+    "referral_offer_default": "Registrer deg i dag og få 50 % rabatt på alle bestillinger de første 7 dagene.",
+    "referral_activate": "Registrer deg i dag for å aktivere vervetilbudet ditt.",
+    "referral_offer_short": {
+      "message": "{percent} % rabatt på bestillinger de første {days} dagene.",
+      "format": "icu"
+    },
+    "referral_offer_percent": {
+      "message": "{percent} % rabatt på kvalifiserte bestillinger.",
+      "format": "icu"
+    },
+    "referral_offer_applied": "Vervetilbudet ditt brukes når du registrerer deg.",
+    "referral_attribution": "Vervingen registreres når du oppretter kontoen.",
+    "continue": "Fortsett",
+    "claim_invitation": "Godta invitasjonen",
+    "tab_login": "Logg inn",
+    "tab_register": "Opprett konto",
+    "tab_register_invite": "Opprett bedriftens konto for å aktivere denne invitasjonen.",
+    "widget_title": "Opprett FirstMate-kontoen din",
+    "google_sign_in": "Logg inn med Google",
+    "google_sign_up": "Registrer deg med Google",
+    "divider_login": "eller bruk kontoen din",
+    "divider_register": "eller registrer deg med e-post",
+    "email_or_phone": "E-post eller telefon",
+    "password": "Passord",
+    "login_button": "Logg inn",
+    "forgot_password": "Glemt passordet?",
+    "phone": "Telefon",
+    "phone_number": "Telefonnummer",
+    "email": "E-post",
+    "confirm_password": "Bekreft passord",
+    "create_account": "Opprett konto",
+    "create_account_widget": "Opprett konto",
+    "already_have_account": "Har du allerede en konto?",
+    "login_here": "Klikk her for å logge inn",
+    "login_link": "Logg inn",
+    "terms": {
+      "message": "Ved å opprette en konto godtar du våre {terms} og at vi kan sende deg SMS til nummeret du har oppgitt. Det kan påløpe kostnader for meldinger og data.",
+      "format": "icu"
+    },
+    "terms_link": "Bruksvilkår",
+    "reset_how": "Hvordan vil du tilbakestille passordet?",
+    "reset_method": "Metode for tilbakestilling av passord",
+    "send_code": "Send kode",
+    "back_to_login": "Tilbake til innlogging",
+    "otp_enter": "Skriv inn bekreftelseskoden:",
+    "otp_sent_to": "Skriv inn koden som ble sendt til",
+    "otp_reset_sent_to": "Skriv inn tilbakestillingskoden som ble sendt til",
+    "otp_label": "6-sifret kode",
+    "verify_code": "Bekreft kode",
+    "start_over": "Start på nytt",
+    "reset_verified": "Koden er bekreftet. Velg et nytt passord.",
+    "new_password": "Nytt passord",
+    "update_password": "Oppdater passord",
+    "password_updated": "Passordet er oppdatert! Logger inn...",
+    "password_updated_redirect": "Passordet er oppdatert. Videresender...",
+    "creating": "Oppretter…",
+    "sending": "Sender…",
+    "working": "Jobber...",
+    "verification_required": "Bekreftelse kreves",
+    "account_created_verify": "Kontoen er opprettet! Bekreft e-postadressen din.",
+    "account_created_verify_widget": "Kontoen er opprettet. Bekreft e-postadressen din for å fortsette.",
+    "reset_code_sent": "Koden for tilbakestilling av passord er sendt.",
+    "err_generic": "Vi kunne ikke fullføre forespørselen din. Prøv igjen. Hvis problemet vedvarer, skriv til support@1m8.ai.",
+    "err_google": "Innlogging med Google kunne ikke fullføres. Prøv igjen.",
+    "err_identity_phone_exists": "Telefonnummeret er allerede knyttet til en konto. Logg inn på den kontoen eller bruk et annet nummer.",
+    "err_identity_email_exists": "E-postadressen er allerede knyttet til en konto. Logg inn eller bruk «Glemt passordet?» for å få tilgang igjen.",
+    "err_identity_exists": "Det finnes allerede en konto med disse opplysningene. Logg inn eller bruk «Glemt passordet?» for å få tilgang igjen.",
+    "err_invalid_credentials": "E-postadressen, telefonnummeret eller passordet er feil.",
+    "err_wrong_password": "Passordet er feil.",
+    "err_identity_phone_ambiguous": "Telefonnummeret er knyttet til flere kontoer. Logg inn med e-post eller kontakt kundestøtte.",
+    "err_not_found": "Vi fant ingen konto med den e-postadressen eller det telefonnummeret.",
+    "err_identity_phone_not_found": "Vi fant ingen konto med det telefonnummeret.",
+    "err_invalid_email": "Skriv inn en gyldig e-postadresse.",
+    "err_invalid_phone_number": "Skriv inn et gyldig mobilnummer, med landskode utenfor USA og Canada.",
+    "err_missing_login_identifier": "Skriv inn e-postadressen eller telefonnummeret ditt.",
+    "err_registration_in_progress": "Kontoen din er allerede under oppretting. Vent et øyeblikk, og prøv deretter å logge inn.",
+    "err_account_disabled": "Kontoen er deaktivert. Kontakt administratoren i bedriften eller kundestøtte.",
+    "err_membership_required": "Kontoen din er ennå ikke knyttet til en bedrift. Kontakt administratoren i bedriften eller kundestøtte.",
+    "err_google_account_mismatch": "E-postadressen er knyttet til en annen Google-konto. Prøv den Google-kontoen eller kontakt kundestøtte.",
+    "err_google_credential_required": "Innloggingen med Google ble ikke fullført. Prøv igjen.",
+    "err_invalid_google_credential": "Google kunne ikke bekrefte denne innloggingen. Prøv igjen.",
+    "err_unverified_google_email": "Bekreft e-postadressen din hos Google før du logger inn.",
+    "err_invalid_recovery_token": "Økten for tilbakestilling av passord er utløpt. Bruk «Glemt passordet?» for å be om en ny kode.",
+    "err_sms_phone_unavailable": "Kontoen har ikke et gyldig mobilnummer. Bruk gjenoppretting via e-post eller kontakt kundestøtte.",
+    "err_sms_send_failed": "Vi kunne ikke sende en bekreftelseskode på SMS. Prøv igjen senere eller bruk gjenoppretting via e-post.",
+    "err_email_send_failed": "Vi kunne ikke sende bekreftelses-e-posten. Prøv igjen senere eller kontakt kundestøtte.",
+    "err_session_expired": "Økten din er utløpt. Logg inn på nytt.",
+    "err_refresh": "Last inn siden på nytt og prøv igjen.",
+    "err_connection": "Vi kunne ikke koble til serveren. Sjekk tilkoblingen og prøv igjen.",
+    "err_connection_short": "Tilkoblingsfeil. Prøv igjen.",
+    "err_missing_fields": "Fyll ut alle obligatoriske kontofelt.",
+    "err_invalid_code": "Bekreftelseskoden er feil eller utløpt. Be om en ny kode og prøv igjen.",
+    "err_password_short": "Bruk et passord med minst 6 tegn.",
+    "err_reset_not_authorized": "Bekreft gjenopprettingskoden før du velger et nytt passord. Start på nytt med «Glemt passordet?».",
+    "err_too_many": "For mange forsøk. Vent noen minutter og prøv igjen.",
+    "err_passwords_mismatch": "Passordene er ikke like.",
+    "err_login_failed": "Kunne ikke logge inn. Prøv igjen.",
+    "err_create_failed": "Vi kunne ikke opprette kontoen din. Prøv igjen eller skriv til support@1m8.ai.",
+    "err_recovery_send_failed": "Vi kunne ikke sende en gjenopprettingskode. Prøv igjen eller skriv til support@1m8.ai.",
+    "err_verify_failed": "Vi kunne ikke bekrefte koden. Be om en ny kode og prøv igjen.",
+    "err_update_password_failed": "Vi kunne ikke oppdatere passordet ditt. Prøv igjen eller skriv til support@1m8.ai.",
+    "err_google_linked_elsewhere": "E-postadressen er allerede knyttet til en annen Google-konto. Kontakt kundestøtte hvis du trenger hjelp.",
+    "err_google_no_company": "Google-e-postadressen din er gjenkjent, men den er ennå ikke knyttet til en bedrift.",
+    "err_account_disabled_admin": "Kontoen er deaktivert. Kontakt administratoren i bedriften.",
+    "referral_invited_you": {
+      "message": "{partner} har invitert deg",
+      "format": "icu"
+    }
+  },
+  "signup-region": {
+    "calling_code": "Landskode"
+  },
+  "phone-input": {
+    "calling_code": "Landskode",
+    "calling_code_value": {
+      "message": "Landskode: {country} +{code}",
       "format": "icu"
     }
   }

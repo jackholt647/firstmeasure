@@ -3713,7 +3713,7 @@
           } catch(e){ /* continue */ }
         }
         btn.disabled = false;
-        showToast((globalThis.PlatformLanguage?.text("onboarding","m_b982de697abe2d","Invites sent") ?? "Invites sent"), ((v0,v1) => globalThis.PlatformLanguage?.text("onboarding","m_507489a99d1632",`${v0} invite${v1} sent.`,{v0,v1}) ?? `${v0} invite${v1} sent.`)(toSend.length,toSend.length>1?'s':''), true);
+        showToast((globalThis.PlatformLanguage?.text("onboarding","m_b982de697abe2d","Invites sent") ?? "Invites sent"), (globalThis.PlatformLanguage?.text("onboarding","invites_sent","{count, plural, one {# invite sent.} other {# invites sent.}}",{count:toSend.length}) ?? (toSend.length === 1 ? '1 invite sent.' : `${toSend.length} invites sent.`)), true);
       }
       goToPage(nextVisiblePage(1));
     });

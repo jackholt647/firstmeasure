@@ -3,8 +3,7 @@ import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 import {chromium} from 'playwright-core';
 
-/* 1M8-240: the signup's calling code, country and language are styled lists of the operating countries and their
-   languages; the phone shows the chosen country's national format as it is typed (Ben: United Kingdom 020 7946 0123,
+/* 1M8-240: the signup's calling code is a styled list of the operating countries (no country or language lists); the phone shows the chosen country's national format as it is typed (Ben: United Kingdom 020 7946 0123,
    Sweden 070-123 45 67), its placeholder is that country's example number, and it is saved as E.164. */
 const libraries = new URL('../../libraries/', import.meta.url);
 const COUNTRIES = [
@@ -116,48 +115,36 @@ test('saved numbers still display and save: a stored +1 number, a bare US number
   });
 });
 
-test('signup: country, language and calling code are styled lists of the operating countries and their languages', async () => {
+test('signup: only the calling code is offered, defaulting to the detected country; the language goes as a hidden field', async () => {
   await withPage(async (page) => {
     await page.addScriptTag({ url: 'http://phone.test/libraries/signup-region/signup-region.js' });
     await page.evaluate(() => { window.region = FirstMateSignupRegion.mount({ form: document.getElementById('f'), phoneInput: document.getElementById('phone'), apiBase: 'http://phone.test/v1/platform' }); return window.region.ready; });
-    await page.waitForFunction(() => document.querySelectorAll('.fm-select-list').length === 3 && document.getElementById('phone').placeholder);
-    const [countryList, languageList] = ['select[name="signup_country"]', 'select[name="signup_language"]'].map((s) => page.locator(s).locator('xpath=following-sibling::div[contains(@class,"fm-select-list")]'));
-    // Country: the operating countries only, by name; Australia is not offered.
-    await countryList.locator('.fm-select-list-trigger').click();
-    assert.deepEqual(await countryList.locator('[role="option"]:not([aria-disabled="true"])').evaluateAll((o) => o.map((x) => x.dataset.value)), ['CA', 'FR', 'SE', 'GB', 'US']);
-    await page.keyboard.press('Escape');
-    assert.equal((await countryList.locator('.fm-select-list-trigger').innerText()).trim(), 'United Kingdom');
-    assert.equal((await languageList.locator('.fm-select-list-trigger').innerText()).trim(), 'English (UK)');
+    await page.waitForFunction(() => document.querySelectorAll('.fm-select-list').length === 1 && document.getElementById('phone').placeholder);
+    // 1M8-240: no Country or Language dropdowns.
+    assert.equal(await page.locator('select[name="signup_country"], select[name="signup_language"]').count(), 0);
+    assert.equal(await page.locator('input[type="hidden"][name="signup_language"]').inputValue(), 'en-GB');
+    assert.equal((await trigger(page).innerText()).replace(/\s+/g, ' '), 'GB +44');
     assert.equal(await page.locator('#phone').getAttribute('placeholder'), '07400 123456');
-    // Choosing Sweden as the country moves the language, the calling code and the example with it.
-    await countryList.locator('.fm-select-list-trigger').click();
-    await countryList.locator('[role="option"][data-value="SE"]').click();
-    assert.equal(await page.locator('select[name="signup_country"]').inputValue(), 'SE');
-    assert.equal((await languageList.locator('.fm-select-list-trigger').innerText()).trim(), 'Svenska');
-    assert.equal((await trigger(page).innerText()).replace(/\s+/g, ' '), 'SE +46');
+    // Choosing another calling code moves the example and the saved number with it.
+    await pick(page, '.fm-select-list.compact', 'SE');
     assert.equal(await page.locator('#phone').getAttribute('placeholder'), '070-123 45 67');
     await page.locator('#phone').pressSequentially('0701234567');
     assert.equal(await page.locator('#phone').inputValue(), '070-123 45 67');
     assert.equal(await page.evaluate(() => window.region.phone()), '+46701234567');
     assert.equal(await page.evaluate(() => window.region.valid()), true);
     assert.equal(await page.evaluate(() => window.region.formatsAsNorthAmerican()), false, 'the host forms leave formatting to the picker');
-    // The calling code chosen on its own keeps its own example (Ben's report: a US example with GB selected).
-    await pick(page, '.fm-select-list.compact', 'GB');
-    assert.equal(await page.locator('#phone').getAttribute('placeholder'), '07400 123456');
-    // Language list.
-    await languageList.locator('.fm-select-list-trigger').click();
-    assert.deepEqual(await languageList.locator('[role="option"]').evaluateAll((o) => o.map((x) => x.innerText.trim())), ['English (US)', 'English (UK)', 'Français', 'Svenska']);
-    await page.keyboard.press('Escape');
+    // The page's language can be set after detection; it is what the signup sends.
+    await page.evaluate(() => window.region.setLanguage('fr-FR'));
+    assert.equal(await page.locator('input[name="signup_language"]').inputValue(), 'fr-FR');
   });
 });
 
-test('a detected country outside the list is not preselected: the country list asks for a choice', async () => {
+test('without a detected country the calling code starts on the first offered country and nothing asks for a country', async () => {
   await withPage(async (page) => {
     await page.addScriptTag({ url: 'http://phone.test/libraries/signup-region/signup-region.js' });
     await page.evaluate(() => { window.region = FirstMateSignupRegion.mount({ form: document.getElementById('f'), phoneInput: document.getElementById('phone'), apiBase: 'http://phone.test/v1/platform' }); return window.region.ready; });
-    await page.waitForFunction(() => document.querySelectorAll('.fm-select-list').length === 3);
-    const countryList = page.locator('select[name="signup_country"]').locator('xpath=following-sibling::div[contains(@class,"fm-select-list")]');
-    assert.equal((await countryList.locator('.fm-select-list-trigger').innerText()).trim(), 'Choose your country');
-    assert.equal(await page.locator('select[name="signup_country"]').inputValue(), '');
+    await page.waitForFunction(() => document.querySelectorAll('.fm-select-list').length === 1);
+    assert.equal(await page.locator('select[name="phone_country"]').inputValue(), 'GB');
+    assert.doesNotMatch(await page.locator('body').innerText(), /Choose your country|Country\b(?! calling)/);
   }, { country: '' });
 });

@@ -8,7 +8,8 @@ const start = source.indexOf('    function authErrorMessage(');
 const end = source.indexOf('    function attributionPayload(', start);
 assert.ok(start > 0 && end > start);
 let resized = false;
-const context = vm.createContext({ requestAnimationFrame: fn => fn(), setFormAreaHeightTo: () => { resized = true; } });
+// T(key, fallback) reads the signup catalog (1M8-240); without one the English fallback shows.
+const context = vm.createContext({ T: (_key, fallback) => fallback, requestAnimationFrame: fn => fn(), setFormAreaHeightTo: () => { resized = true; } });
 vm.runInContext(source.slice(start, end), context);
 const message = context.authErrorMessage;
 

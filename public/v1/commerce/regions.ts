@@ -40,6 +40,47 @@ export function regionLanguage(country:string, available:readonly string[]=SUPPO
 }
 export function localCurrency(country:string) { return CURRENCIES[country] || TERRITORY_DEFAULTS[country]?.currency || (EU_COUNTRIES.has(country)?"EUR":"USD"); }
 
+/**
+ * The shipped language pack for a language tag (1M8-240): the exact pack, else the pack for the same language, so
+ * regional variants land on the language we have (es-MX -> es-ES, pt-PT -> pt-BR, de-AT -> de-DE, nn -> nb-NO).
+ * English outside the Americas is en-GB. "" when we have no pack for the language.
+ */
+export function supportedLanguage(value:unknown, available:readonly string[]=SUPPORTED_LOCALES) {
+  const raw=String(value ?? "").trim().replace(/_/g,"-");
+  if(!raw || raw==="*")return "";
+  let tag="";
+  try { tag=Intl.getCanonicalLocales(raw)[0] || ""; } catch { return ""; }
+  const exact=available.find(l=>l.toLowerCase()===tag.toLowerCase());
+  if(exact)return exact;
+  const [language="",...rest]=tag.toLowerCase().split("-");
+  const region=(rest.find(part=>/^[a-z]{2}$/.test(part)) || "").toUpperCase();
+  if(language==="en"){
+    const british=region && region!=="US" && !AMERICAS.has(region);
+    return (british?available.find(l=>l==="en-GB"):undefined) || available.find(l=>l==="en-US") || "";
+  }
+  const base=({no:"nb",nn:"nb"} as Record<string,string>)[language] || language;
+  return available.find(l=>(l.split("-")[0] || "").toLowerCase()===base) || "";
+}
+
+/**
+ * The language a signup is shown and created in (1M8-240): the language the visitor already saw (the hand-off,
+ * `lang`), then the edge country's regional language, then the browser's languages, then the time zone's country,
+ * else English (US). Never asked: the visitor does not choose it.
+ */
+export function resolveSignupLanguage(headers:Record<string,unknown>, input:Record<string,unknown>={}) {
+  const handoff=supportedLanguage(input.lang) || supportedLanguage(input.signup_language);
+  if(handoff)return {language:handoff,source:"handoff"};
+  for(const name of ["cf-ipcountry","x-vercel-ip-country","x-appengine-country"]) {
+    const country=countryCode(headers[name]); if(country)return {language:regionLanguage(country),source:name};
+  }
+  const browser=[input.signup_locale,...String(input.signup_locales || "").split(","),...String(headers["accept-language"] || "").split(",")]
+    .map(value=>String(value || "").split(";")[0]!.trim()).filter(Boolean);
+  for(const value of browser){ const language=supportedLanguage(value); if(language)return {language,source:"browser_language"}; }
+  const zone=String(input.signup_time_zone || "");
+  if(TIME_ZONE_COUNTRIES[zone])return {language:regionLanguage(TIME_ZONE_COUNTRIES[zone]!),source:"browser_time_zone"};
+  return {language:"en-US",source:"default"};
+}
+
 /** Used once during registration. Never called on login or when changing a branch. */
 export function detectSignupCountry(headers:Record<string,unknown>, input:Record<string,unknown>={}) {
   // The country the person chose at signup wins. Choosing a non-domestic country only
@@ -59,5 +100,9 @@ export function detectSignupCountry(headers:Record<string,unknown>, input:Record
   // A local ten-digit phone is the existing US/Canada signup convention.
   const raw=String(input.phone || ""),digits=raw.replace(/\D/g,"");
   if((!raw.startsWith("+")&&digits.length===10)||/^1\d{10}$/.test(digits))return {country:"US",source:"north_american_phone"};
-  return {country:"",source:"unknown"};
+  // 1M8-240: a signup is never refused for its location. Without any location signal, the region of the language the
+  // visitor saw (es-ES -> Spain), else the domestic default.
+  const fromLanguage=countryCode(String(input.signup_language || input.lang || "").split(/[-_]/)[1]);
+  if(fromLanguage)return {country:fromLanguage,source:"signup_language"};
+  return {country:"US",source:"default"};
 }

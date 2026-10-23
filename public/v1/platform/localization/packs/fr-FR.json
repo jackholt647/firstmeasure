@@ -3102,10 +3102,6 @@
     "m_163c9e8ccdb047": " Vous pourrez gérer les utilisateurs à tout moment dans la section Utilisateurs des paramètres de l’entreprise.",
     "m_206d31a7c795c4": " Retour",
     "m_b982de697abe2d": "Invitations envoyées",
-    "m_507489a99d1632": {
-      "message": "Envoi effectué : {v0} invitation{v1}.",
-      "format": "icu"
-    },
     "m_2b39214759d91a": " Personnalisé\n      ",
     "m_0ded144729a113": "Autorisations",
     "m_8cf345002184e5": "Nom",
@@ -3131,7 +3127,28 @@
     "m_8342e19eddc030": "Nous enverrons un code à cette adresse e-mail avant d’ouvrir le portail. Vous pouvez corriger l’adresse ici si elle est erronée.",
     "m_2fbb4b11eb7b6f": "Adresse e-mail",
     "m_3a7c6bd31cf96e": "Code de vérification",
-    "m_a455a4668ee54d": "\n            Vérifier &amp; accéder au portail "
+    "m_a455a4668ee54d": "\n            Vérifier &amp; accéder au portail ",
+    "auto_topup_summary": {
+      "message": "Si votre solde passe sous {threshold}, nous ajouterons automatiquement {amount} à votre compte.",
+      "format": "icu"
+    },
+    "bonus_amount": {
+      "message": "+ {amount} de bonus",
+      "format": "icu"
+    },
+    "m_56c6c9cbb10acb": " Montant de la recharge automatique",
+    "m_bc9847e2ca77cb": "Recharge automatique",
+    "m_cc2003d4e4237c": " Recharger en dessous de",
+    "m_db0d748a115fcb": "Alimenter mon compte automatiquement.",
+    "prices_include_vat": "Les prix incluent la TVA.",
+    "total_credit": {
+      "message": "{amount} de crédit au total",
+      "format": "icu"
+    },
+    "invites_sent": {
+      "message": "{count, plural, one {# invitation envoyée.} other {# invitations envoyées.}}",
+      "format": "icu"
+    }
   },
   "payroll": {
     "m_4a04382820d2e1": "Autre",
@@ -12724,6 +12741,147 @@
     },
     "exchange_estimate": {
       "message": "Environ {amount} · le taux de change appliqué au paiement peut différer.",
+      "format": "icu"
+    },
+    "vat_included": {
+      "message": "{price}, TVA incluse",
+      "format": "icu"
+    }
+  },
+  "signup": {
+    "offer_title": "Rapports de toiture premium",
+    "offer_price": {
+      "message": "Seulement {price}",
+      "format": "icu"
+    },
+    "offer_price_vat": {
+      "message": "Seulement {price}, TVA incluse",
+      "format": "icu"
+    },
+    "referral_loading": "Chargement...",
+    "referral_partner_invitation": "Invitation d’un partenaire",
+    "referral_invited": "Vous invite à essayer FirstMeasure",
+    "referral_partner_default": "Un partenaire FirstMate",
+    "referral_offer": {
+      "message": "Inscrivez-vous dès aujourd’hui pour bénéficier de {percent} % de réduction sur toutes vos commandes pendant vos {days} premiers jours.",
+      "format": "icu"
+    },
+    "referral_offer_default": "Inscrivez-vous dès aujourd’hui pour bénéficier de 50 % de réduction sur toutes vos commandes pendant vos 7 premiers jours.",
+    "referral_activate": "Inscrivez-vous dès aujourd’hui pour activer votre offre de parrainage.",
+    "referral_offer_short": {
+      "message": "Bénéficiez de {percent} % de réduction sur vos commandes pendant vos {days} premiers jours.",
+      "format": "icu"
+    },
+    "referral_offer_percent": {
+      "message": "Bénéficiez de {percent} % de réduction sur les commandes éligibles.",
+      "format": "icu"
+    },
+    "referral_offer_applied": "Votre offre de parrainage sera appliquée lors de l’inscription.",
+    "referral_attribution": "Le parrainage sera pris en compte lors de la création de votre compte.",
+    "continue": "Continuer",
+    "claim_invitation": "Accepter l’invitation",
+    "tab_login": "Connexion",
+    "tab_register": "Créer un compte",
+    "tab_register_invite": "Créez le compte de votre entreprise pour activer cette invitation.",
+    "widget_title": "Créez votre compte FirstMate",
+    "google_sign_in": "Se connecter avec Google",
+    "google_sign_up": "S’inscrire avec Google",
+    "divider_login": "ou utilisez votre compte",
+    "divider_register": "ou inscrivez-vous avec votre e-mail",
+    "email_or_phone": "E-mail ou téléphone",
+    "password": "Mot de passe",
+    "login_button": "Se connecter",
+    "forgot_password": "Mot de passe oublié ?",
+    "phone": "Téléphone",
+    "phone_number": "Numéro de téléphone",
+    "email": "E-mail",
+    "confirm_password": "Confirmer le mot de passe",
+    "create_account": "Créer un compte",
+    "create_account_widget": "Créer un compte",
+    "already_have_account": "Vous avez déjà un compte ?",
+    "login_here": "Cliquez ici pour vous connecter",
+    "login_link": "Se connecter",
+    "terms": {
+      "message": "En créant un compte, vous acceptez nos {terms} et que nous vous envoyions des SMS au numéro indiqué. Des frais de messagerie et de données peuvent s’appliquer.",
+      "format": "icu"
+    },
+    "terms_link": "Conditions d’utilisation",
+    "reset_how": "Comment souhaitez-vous réinitialiser votre mot de passe ?",
+    "reset_method": "Méthode de réinitialisation du mot de passe",
+    "send_code": "Envoyer le code",
+    "back_to_login": "Retour à la connexion",
+    "otp_enter": "Saisissez le code de vérification :",
+    "otp_sent_to": "Saisissez le code envoyé à",
+    "otp_reset_sent_to": "Saisissez le code de réinitialisation envoyé à",
+    "otp_label": "Code à 6 chiffres",
+    "verify_code": "Vérifier le code",
+    "start_over": "Recommencer",
+    "reset_verified": "Code vérifié. Choisissez un nouveau mot de passe.",
+    "new_password": "Nouveau mot de passe",
+    "update_password": "Mettre à jour le mot de passe",
+    "password_updated": "Mot de passe mis à jour ! Connexion en cours...",
+    "password_updated_redirect": "Mot de passe mis à jour. Redirection...",
+    "creating": "Création…",
+    "sending": "Envoi…",
+    "working": "Traitement...",
+    "verification_required": "Vérification requise",
+    "account_created_verify": "Compte créé ! Vérifiez votre adresse e-mail.",
+    "account_created_verify_widget": "Compte créé. Vérifiez votre adresse e-mail pour continuer.",
+    "reset_code_sent": "Le code de réinitialisation a été envoyé.",
+    "err_generic": "Nous n’avons pas pu traiter votre demande. Veuillez réessayer. Si le problème persiste, écrivez à support@1m8.ai.",
+    "err_google": "La connexion avec Google n’a pas pu aboutir. Veuillez réessayer.",
+    "err_identity_phone_exists": "Ce numéro de téléphone est déjà associé à un compte. Connectez-vous à ce compte ou utilisez un autre numéro.",
+    "err_identity_email_exists": "Cette adresse e-mail est déjà associée à un compte. Connectez-vous ou utilisez « Mot de passe oublié ? » pour récupérer l’accès.",
+    "err_identity_exists": "Un compte avec ces informations existe déjà. Connectez-vous ou utilisez « Mot de passe oublié ? » pour récupérer l’accès.",
+    "err_invalid_credentials": "L’e-mail, le numéro de téléphone ou le mot de passe saisi est incorrect.",
+    "err_wrong_password": "Le mot de passe saisi est incorrect.",
+    "err_identity_phone_ambiguous": "Ce numéro de téléphone est associé à plusieurs comptes. Connectez-vous avec votre e-mail ou contactez le support.",
+    "err_not_found": "Nous n’avons trouvé aucun compte avec cet e-mail ou ce numéro de téléphone.",
+    "err_identity_phone_not_found": "Nous n’avons trouvé aucun compte avec ce numéro de téléphone.",
+    "err_invalid_email": "Saisissez une adresse e-mail valide.",
+    "err_invalid_phone_number": "Saisissez un numéro de mobile valide, avec l’indicatif du pays en dehors des États-Unis et du Canada.",
+    "err_missing_login_identifier": "Saisissez votre adresse e-mail ou votre numéro de téléphone.",
+    "err_registration_in_progress": "Votre compte est déjà en cours de création. Patientez un instant, puis essayez de vous connecter.",
+    "err_account_disabled": "Ce compte est désactivé. Contactez l’administrateur de votre entreprise ou le support.",
+    "err_membership_required": "Votre compte n’est encore rattaché à aucune entreprise. Contactez l’administrateur de votre entreprise ou le support.",
+    "err_google_account_mismatch": "Cet e-mail est associé à un autre compte Google. Essayez avec ce compte Google ou contactez le support.",
+    "err_google_credential_required": "La connexion avec Google n’a pas abouti. Veuillez réessayer.",
+    "err_invalid_google_credential": "Google n’a pas pu vérifier cette connexion. Veuillez réessayer.",
+    "err_unverified_google_email": "Vérifiez votre adresse e-mail auprès de Google avant de vous connecter.",
+    "err_invalid_recovery_token": "Votre session de réinitialisation a expiré. Utilisez « Mot de passe oublié ? » pour demander un nouveau code.",
+    "err_sms_phone_unavailable": "Ce compte n’a pas de numéro de mobile valide. Utilisez la récupération par e-mail ou contactez le support.",
+    "err_sms_send_failed": "Nous n’avons pas pu envoyer le code par SMS. Réessayez plus tard ou utilisez la récupération par e-mail.",
+    "err_email_send_failed": "Nous n’avons pas pu envoyer l’e-mail de vérification. Réessayez plus tard ou contactez le support.",
+    "err_session_expired": "Votre session a expiré. Veuillez vous reconnecter.",
+    "err_refresh": "Actualisez cette page et réessayez.",
+    "err_connection": "Impossible de joindre le serveur. Vérifiez votre connexion et réessayez.",
+    "err_connection_short": "Erreur de connexion. Veuillez réessayer.",
+    "err_missing_fields": "Remplissez tous les champs obligatoires du compte.",
+    "err_invalid_code": "Ce code de vérification est incorrect ou a expiré. Demandez un nouveau code et réessayez.",
+    "err_password_short": "Utilisez un mot de passe d’au moins 6 caractères.",
+    "err_reset_not_authorized": "Vérifiez votre code de récupération avant de choisir un nouveau mot de passe. Recommencez avec « Mot de passe oublié ? ».",
+    "err_too_many": "Trop de tentatives. Patientez quelques minutes et réessayez.",
+    "err_passwords_mismatch": "Les mots de passe ne correspondent pas.",
+    "err_login_failed": "Connexion impossible. Veuillez réessayer.",
+    "err_create_failed": "Nous n’avons pas pu créer votre compte. Réessayez ou écrivez à support@1m8.ai.",
+    "err_recovery_send_failed": "Nous n’avons pas pu envoyer de code de récupération. Réessayez ou écrivez à support@1m8.ai.",
+    "err_verify_failed": "Nous n’avons pas pu vérifier ce code. Demandez un nouveau code et réessayez.",
+    "err_update_password_failed": "Nous n’avons pas pu mettre à jour votre mot de passe. Réessayez ou écrivez à support@1m8.ai.",
+    "err_google_linked_elsewhere": "Cet e-mail est déjà associé à un autre compte Google. Contactez le support si vous avez besoin d’aide.",
+    "err_google_no_company": "Votre e-mail Google est reconnu, mais il n’est encore rattaché à aucune entreprise.",
+    "err_account_disabled_admin": "Ce compte est désactivé. Contactez l’administrateur de votre entreprise.",
+    "referral_invited_you": {
+      "message": "{partner} vous a invité",
+      "format": "icu"
+    }
+  },
+  "signup-region": {
+    "calling_code": "Indicatif téléphonique du pays"
+  },
+  "phone-input": {
+    "calling_code": "Indicatif téléphonique du pays",
+    "calling_code_value": {
+      "message": "Indicatif téléphonique du pays : {country} +{code}",
       "format": "icu"
     }
   }

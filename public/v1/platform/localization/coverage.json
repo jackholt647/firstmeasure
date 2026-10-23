@@ -1,7 +1,7 @@
 {
-  "files": 254,
-  "namespaces": 113,
-  "messages": 16325,
+  "files": 265,
+  "namespaces": 115,
+  "messages": 16542,
   "migration": [
     {
       "file": "public/libraries/account-switcher/account-switcher.js",
@@ -90,7 +90,7 @@
     {
       "file": "public/libraries/apps/billing/app.js",
       "namespace": "billing",
-      "references": 111,
+      "references": 112,
       "candidates": 0,
       "edits": 0
     },
@@ -1642,6 +1642,69 @@
       "edits": 0
     },
     {
+      "file": "public/libraries/select-list/select-list.js",
+      "namespace": "select-list",
+      "references": 0,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/libraries/session-replay/session-replay-agent-access.js",
+      "namespace": "session-replay",
+      "references": 0,
+      "candidates": 28,
+      "edits": 19
+    },
+    {
+      "file": "public/libraries/session-replay/session-replay-codec.js",
+      "namespace": "session-replay",
+      "references": 0,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/libraries/session-replay/session-replay-loader.js",
+      "namespace": "session-replay",
+      "references": 0,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/libraries/session-replay/session-replay-model.js",
+      "namespace": "session-replay",
+      "references": 0,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/libraries/session-replay/session-replay-player.js",
+      "namespace": "session-replay",
+      "references": 0,
+      "candidates": 2,
+      "edits": 2
+    },
+    {
+      "file": "public/libraries/session-replay/session-replay-recorder.js",
+      "namespace": "session-replay",
+      "references": 0,
+      "candidates": 5,
+      "edits": 3
+    },
+    {
+      "file": "public/libraries/session-replay/session-replay-recording.js",
+      "namespace": "session-replay",
+      "references": 0,
+      "candidates": 47,
+      "edits": 31
+    },
+    {
+      "file": "public/libraries/session-replay/session-replay-viewer.js",
+      "namespace": "session-replay",
+      "references": 0,
+      "candidates": 34,
+      "edits": 29
+    },
+    {
       "file": "public/libraries/settings-pages/firstmate-settings-pages.js",
       "namespace": "settings-pages",
       "references": 1,
@@ -1652,6 +1715,20 @@
       "file": "public/libraries/setup-wizard/setup-wizard.js",
       "namespace": "setup-wizard",
       "references": 5,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/libraries/signup-language/handoff.js",
+      "namespace": "signup-language",
+      "references": 0,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/libraries/signup-language/signup-language.js",
+      "namespace": "signup-language",
+      "references": 1,
       "candidates": 0,
       "edits": 0
     },

@@ -662,7 +662,7 @@ src="https://www.facebook.com/tr?id=636685175264715&ev=PageView&noscript=1"
 <div class="container <?= $hasReferralInvite ? 'referral-mode' : '' ?>">
     <div class="header">
         <img src="/images/logo_white.png" alt="Logo" height="70" style="padding:0; margin:0;">
-        <div class="header-offer-note"><span>Premium Roof Reports</span><span class="offer-price">Only $7</span></div>
+        <div class="header-offer-note"><span data-i18n="offer_title">Premium Roof Reports</span><span class="offer-price" id="headerOfferPrice">Only $7</span></div>
     </div>
 
     <div class="referral-hero <?= $hasReferralInvite ? 'active loading' : '' ?>" id="referralHero">
@@ -676,12 +676,12 @@ src="https://www.facebook.com/tr?id=636685175264715&ev=PageView&noscript=1"
                     <h2 id="referralHeadline">
                         <span class="<?= $hasReferralInvite ? 'referral-headline-loading' : '' ?>" id="referralHeadlinePartner"><?= $hasReferralInvite ? 'Loading...' : 'Partner Name' ?></span>
                     </h2>
-                    <p id="referralSubheadline"><?= $hasReferralInvite ? '' : 'Has invited you to try FirstMeasure' ?></p>
+                    <p id="referralSubheadline"<?= $hasReferralInvite ? '' : ' data-i18n="referral_invited"' ?>><?= $hasReferralInvite ? '' : 'Has invited you to try FirstMeasure' ?></p>
                     <div class="referral-offer" id="referralOffer">
                         <strong id="referralOfferTitle"></strong>
                         <span id="referralOfferDescription"></span>
                     </div>
-                    <button type="button" class="referral-mobile-continue" id="referralMobileContinue">Continue</button>
+                    <button type="button" class="referral-mobile-continue" id="referralMobileContinue" data-i18n="continue">Continue</button>
                 </div>
             </div>
         </div>
@@ -689,28 +689,28 @@ src="https://www.facebook.com/tr?id=636685175264715&ev=PageView&noscript=1"
 
     <div class="auth-pane">
     <div class="tabs" id="authTabs">
-        <div class="tab <?= $hasReferralInvite ? '' : 'active' ?>" id="tabLogin" onclick="switchTab('login')"<?= $hasReferralInvite ? ' style="display:none;"' : '' ?>>Login</div>
-        <div class="tab <?= $hasReferralInvite ? 'active' : '' ?>" id="tabRegister" <?= $publicRegistrationEnabled ? '' : 'hidden style="display:none"' ?> onclick="switchTab('register')"><?= $hasReferralInvite ? 'Create your company account to activate this invitation.' : 'Create Account' ?></div>
+        <div class="tab <?= $hasReferralInvite ? '' : 'active' ?>" id="tabLogin" onclick="switchTab('login')" data-i18n="tab_login"<?= $hasReferralInvite ? ' style="display:none;"' : '' ?>>Login</div>
+        <div class="tab <?= $hasReferralInvite ? 'active' : '' ?>" id="tabRegister" <?= $publicRegistrationEnabled ? '' : 'hidden style="display:none"' ?> onclick="switchTab('register')" data-i18n="<?= $hasReferralInvite ? 'tab_register_invite' : 'tab_register' ?>"><?= $hasReferralInvite ? 'Create your company account to activate this invitation.' : 'Create Account' ?></div>
     </div>
 
     <div class="form-area">
         <!-- LOGIN FORM -->
         <form class="auth-form <?= $hasReferralInvite ? '' : 'active' ?>" id="loginForm">
             <div class="google-auth-block">
-                <div class="google-auth-button" id="googleLoginButton" aria-label="Sign in with Google"></div>
-                <div class="google-auth-divider"><span>or use your account</span></div>
+                <div class="google-auth-button" id="googleLoginButton" aria-label="Sign in with Google" data-i18n-aria-label="google_sign_in"></div>
+                <div class="google-auth-divider"><span data-i18n="divider_login">or use your account</span></div>
             </div>
             <div class="form-group">
-                <label>Email or phone</label>
+                <label data-i18n="email_or_phone">Email or phone</label>
                 <input type="text" name="identifier" autocomplete="username" required>
             </div>
             <div class="form-group">
-                <label>Password</label>
+                <label data-i18n="password">Password</label>
                 <input type="password" name="password" required>
             </div>
-            <button type="submit" class="btn">Login</button>
+            <button type="submit" class="btn" data-i18n="login_button">Login</button>
             <div class="center-links">
-                <button type="button" class="link-btn" onclick="showForgot()">Forgot Password?</button>
+                <button type="button" class="link-btn" onclick="showForgot()" data-i18n="forgot_password">Forgot Password?</button>
             </div>
             <div id="loginError" class="error"></div>
         </form>
@@ -726,56 +726,56 @@ src="https://www.facebook.com/tr?id=636685175264715&ev=PageView&noscript=1"
             <input type="hidden" name="acquisition_bonus_token" id="registerAcquisitionBonusToken" value="">
             <input type="hidden" name="landing_variant" id="registerLandingVariant" value="">
             <div class="google-auth-block">
-                <div class="google-auth-button" id="googleRegisterButton" aria-label="Sign up with Google"></div>
-                <div class="google-auth-divider"><span>or create with email</span></div>
+                <div class="google-auth-button" id="googleRegisterButton" aria-label="Sign up with Google" data-i18n-aria-label="google_sign_up"></div>
+                <div class="google-auth-divider"><span data-i18n="divider_register">or create with email</span></div>
             </div>
             <div class="form-group">
-                <label>Phone</label>
+                <label data-i18n="phone">Phone</label>
                 <input type="tel" name="phone" inputmode="tel" autocomplete="tel" placeholder="(555) 555-0123" maxlength="24" required>
             </div>
             <div class="form-group">
-                <label>Email</label>
+                <label data-i18n="email">Email</label>
                 <input type="email" name="email" required>
             </div>
             <div class="form-group password-form-group">
-                <label>Password</label>
+                <label data-i18n="password">Password</label>
                 <input type="password" name="password" required>
             </div>
             <!-- Added Confirm Password -->
             <div class="form-group password-form-group">
-                <label>Confirm Password</label>
+                <label data-i18n="confirm_password">Confirm Password</label>
                 <input type="password" name="confirm_password" required>
             </div>
             <div id="regError" class="error" role="alert" aria-live="polite"></div>
-            <button type="submit" class="btn">Create Account</button>
+            <button type="submit" class="btn" data-i18n="create_account">Create Account</button>
             <?php if ($hasReferralInvite): ?>
             <div class="center-links">
-                Already have an account?
-                <button type="button" class="link-btn" onclick="switchToExistingAccountLogin()">Click here to Login</button>
+                <span data-i18n="already_have_account">Already have an account?</span>
+                <button type="button" class="link-btn" onclick="switchToExistingAccountLogin()" data-i18n="login_here">Click here to Login</button>
             </div>
             <?php endif; ?>
-            <div class="fm-terms">By creating an account, you agree to our <a href="https://app.1m8.ai/portal/terms/" target="_blank" rel="noopener">Terms of Use</a> and that we may text you at the number above. Msg and data rates may apply.</div>
+            <div class="fm-terms" data-i18n="terms" data-i18n-slots="terms">By creating an account, you agree to our <a href="https://app.1m8.ai/portal/terms/" target="_blank" rel="noopener" data-i18n-slot="terms"><span data-i18n="terms_link">Terms of Use</span></a> and that we may text you at the number above. Msg and data rates may apply.</div>
         </form>
 
         <!-- FORGOT PASSWORD FORM -->
         <form class="auth-form" id="forgotPassForm">
-            <div style="margin-bottom:15px; text-align:center; font-size:13px; color:#666;">
+            <div style="margin-bottom:15px; text-align:center; font-size:13px; color:#666;" data-i18n="reset_how">
                 How would you like to reset your password?
             </div>
             <input type="hidden" name="delivery_channel" id="recoveryChannel" value="">
-            <div class="recovery-methods" role="group" aria-label="Password reset method">
-                <button type="button" class="recovery-method" data-recovery-method="email" aria-pressed="false">Email</button>
-                <button type="button" class="recovery-method" data-recovery-method="phone" aria-pressed="false">Phone</button>
+            <div class="recovery-methods" role="group" aria-label="Password reset method" data-i18n-aria-label="reset_method">
+                <button type="button" class="recovery-method" data-recovery-method="email" aria-pressed="false" data-i18n="email">Email</button>
+                <button type="button" class="recovery-method" data-recovery-method="phone" aria-pressed="false" data-i18n="phone">Phone</button>
             </div>
             <div id="recoveryDetails" hidden>
                 <div class="form-group">
-                    <label id="recoveryIdentifierLabel">Email</label>
+                    <label id="recoveryIdentifierLabel" data-i18n="email">Email</label>
                     <input type="email" name="identifier" id="recoveryIdentifier" autocomplete="email" required>
                 </div>
-                <button type="submit" class="btn">Send Code</button>
+                <button type="submit" class="btn" data-i18n="send_code">Send Code</button>
             </div>
             <div class="center-links">
-                <button type="button" class="link-btn" onclick="switchTab('login')">Back to Login</button>
+                <button type="button" class="link-btn" onclick="switchTab('login')" data-i18n="back_to_login">Back to Login</button>
             </div>
             <div id="forgotError" class="error"></div>
         </form>
@@ -783,32 +783,32 @@ src="https://www.facebook.com/tr?id=636685175264715&ev=PageView&noscript=1"
         <!-- OTP FORM -->
         <form class="auth-form" id="otpForm">
             <div class="otp-info">
-                <span id="otpMsg">Enter the verification code:</span><br>
+                <span id="otpMsg" data-i18n="otp_enter">Enter the verification code:</span><br>
                 <strong id="otpDestinationDisp"></strong>
             </div>
             <div class="form-group">
-                <label>6-Digit Code</label>
+                <label data-i18n="otp_label">6-Digit Code</label>
                 <input type="text" name="otp" placeholder="123456" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]*" maxlength="6" style="text-align:center; letter-spacing: 5px; font-size: 18px;" required>
             </div>
-            <button type="submit" class="btn">Verify Code</button>
+            <button type="submit" class="btn" data-i18n="verify_code">Verify Code</button>
             <div id="otpError" class="error"></div>
             <div class="center-links">
-                <button type="button" class="link-btn" onclick="location.reload()">Start Over</button>
+                <button type="button" class="link-btn" onclick="location.reload()" data-i18n="start_over">Start Over</button>
             </div>
         </form>
 
         <!-- RESET PASSWORD FORM -->
         <form class="auth-form" id="resetPassForm">
-            <div style="margin-bottom:15px; text-align:center; font-size:13px; color:#666;">
+            <div style="margin-bottom:15px; text-align:center; font-size:13px; color:#666;" data-i18n="reset_verified">
                 Code verified. Please set a new password.
             </div>
             <div class="form-group">
-                <label>New Password</label>
+                <label data-i18n="new_password">New Password</label>
                 <input type="password" name="new_password" required minlength="6">
             </div>
-            <button type="submit" class="btn">Update Password</button>
+            <button type="submit" class="btn" data-i18n="update_password">Update Password</button>
             <div id="resetError" class="error"></div>
-            <div id="resetSuccess" class="success">Password updated! Logging in...</div>
+            <div id="resetSuccess" class="success" data-i18n="password_updated">Password updated! Logging in...</div>
         </form>
     </div>
     </div>
@@ -818,9 +818,17 @@ src="https://www.facebook.com/tr?id=636685175264715&ev=PageView&noscript=1"
 <script src="/libraries/phone-features/phone-features.js"></script>
 <script src="/portal/landing/shared/password-toggle.js?v=<?= htmlspecialchars(substr((string)@hash_file('sha256', __DIR__ . '/landing/shared/password-toggle.js'), 0, 16), ENT_QUOTES) ?>"></script>
 <script>window.FirstMatePasswordToggle?.enhance(document);</script>
-<script src="/libraries/signup-region/signup-region.js?v=20261023-signup-lists-v4"></script>
+<script src="/libraries/platform-language/platform-language.js?v=<?= htmlspecialchars(substr((string)@hash_file('sha256', __DIR__ . '/../libraries/platform-language/platform-language.js'), 0, 16), ENT_QUOTES) ?>"></script>
+<script src="/libraries/signup-language/signup-language.js?v=<?= htmlspecialchars(substr((string)@hash_file('sha256', __DIR__ . '/../libraries/signup-language/signup-language.js'), 0, 16), ENT_QUOTES) ?>"></script>
+<script src="/libraries/signup-region/signup-region.js?v=<?= htmlspecialchars(substr((string)@hash_file('sha256', __DIR__ . '/../libraries/signup-region/signup-region.js'), 0, 16), ENT_QUOTES) ?>"></script>
 <script src="/libraries/google-auth/firstmate-google-auth.js"></script>
 <script>
+    // 1M8-240: the page's language (hand-off ?lang / fm_lang cookie, then detection); strings come from the signup catalog.
+    const signupLanguage = window.FirstMateSignupLanguage || null;
+    function T(key, fallback, values) {
+        return signupLanguage ? signupLanguage.t(key, fallback, values) : String(fallback).replace(/\{(\w+)\}/g, (_, name) => String(values && values[name] != null ? values[name] : ''));
+    }
+
     // --- HELPER: Parse URL params ---
     const urlParams = new URLSearchParams(window.location.search);
     const redirectTarget = urlParams.get('redirect') || './'; // Default to browser
@@ -873,15 +881,35 @@ src="https://www.facebook.com/tr?id=636685175264715&ev=PageView&noscript=1"
     }
 
     const registrationPhoneInput = document.querySelector('#registerForm input[name="phone"]');
-    // Country, calling code and language choices; the chosen country sets the account's currency.
+    // 1M8-240: no Country or Language dropdowns. The page resolves its language once (hand-off, then detection),
+    // translates itself, and sends that language with the signup; the calling code defaults to the detected country.
+    const languageReady = signupLanguage
+        ? signupLanguage.start({ apiBase: platformApiBaseUrl(), namespaces: ['phone-input'] })
+        : Promise.resolve({ language: '', options: null });
     const signupRegion = window.FirstMateSignupRegion && registrationPhoneInput
-        ? window.FirstMateSignupRegion.mount({ form: document.getElementById('registerForm'), phoneInput: registrationPhoneInput, apiBase: platformApiBaseUrl(), classes: { field: 'form-group' } })
+        ? window.FirstMateSignupRegion.mount({ form: document.getElementById('registerForm'), phoneInput: registrationPhoneInput, apiBase: platformApiBaseUrl(), classes: { field: 'form-group' }, options: languageReady.then((ready) => ready.options) })
         : null;
+    languageReady.then(({ language, options }) => {
+        if (signupLanguage) { signupLanguage.translate(document); signupLanguage.decorateLinks(document); }
+        if (signupRegion && language) signupRegion.setLanguage(language);
+        renderOfferPrice(language, options);
+        requestAnimationFrame(() => setFormAreaHeightTo(document.querySelector('form.auth-form.active')));
+    });
+    /** The header's offer in the detected market's price and currency (Only $7, Only €25, VAT included). */
+    function renderOfferPrice(language, options) {
+        const target = document.getElementById('headerOfferPrice');
+        const price = options && options.report_price;
+        if (!target || !price || !Number.isFinite(Number(price.amount))) return;
+        let amount = '';
+        try { amount = new Intl.NumberFormat(language || 'en-US', { style: 'currency', currency: price.currency, maximumFractionDigits: Number(price.amount) % 1 ? 2 : 0 }).format(Number(price.amount)); }
+        catch (_) { amount = String(price.amount) + ' ' + price.currency; }
+        target.textContent = price.vat_included ? T('offer_price_vat', 'Only {price}, VAT included', { price: amount }) : T('offer_price', 'Only {price}', { price: amount });
+    }
     const formatsAsNorthAmerican = () => !signupRegion || signupRegion.formatsAsNorthAmerican();
 
     function validateRegistrationPhone() {
         const valid = !!registrationPhoneInput && (signupRegion ? signupRegion.valid() : isValidSignupPhone(registrationPhoneInput.value));
-        registrationPhoneInput?.setCustomValidity(valid ? '' : 'Enter a valid mobile phone number, including the country code outside the US and Canada.');
+        registrationPhoneInput?.setCustomValidity(valid ? '' : T('err_invalid_phone_number', 'Enter a valid mobile phone number, including the country code outside the US and Canada.'));
         if (valid && formatsAsNorthAmerican()) registrationPhoneInput.value = formatSignupPhone(registrationPhoneInput.value);
         return valid;
     }
@@ -904,7 +932,7 @@ src="https://www.facebook.com/tr?id=636685175264715&ev=PageView&noscript=1"
     let passwordRecoveryIdentifier = '';
 
     function googleErrorMessage(error) {
-        return authErrorMessage(error, 'Google sign-in could not be completed. Please try again.');
+        return authErrorMessage(error, T('err_google', 'Google sign-in could not be completed. Please try again.'));
     }
 
     function showGoogleError(error, targetId) {
@@ -1020,44 +1048,43 @@ src="https://www.facebook.com/tr?id=636685175264715&ev=PageView&noscript=1"
         return { ...data, status_code: res.status };
     }
 
-    function authErrorMessage(data, fallback = 'We could not complete your request. Please try again. If this continues, contact support@1m8.ai.') {
+    function authErrorMessage(data, fallback = T('err_generic', 'We could not complete your request. Please try again. If this continues, contact support@1m8.ai.')) {
         const code = String(data && (data.error || data.code) || '').trim();
         const messages = {
-            identity_phone_exists: 'That phone number is already connected to an existing account. Log in to that account or use a different phone number.',
-            identity_email_exists: 'That email address is already connected to an existing account. Log in or use Forgot Password to recover access.',
-            identity_exists: 'An account with these details already exists. Log in or use Forgot Password to recover access.',
-            invalid_credentials: 'The email, phone number, or password you entered is incorrect.',
-            identity_phone_ambiguous: 'This phone number is connected to multiple accounts. Sign in with email or contact support.',
-            not_found: "We couldn't find an account with that email or phone number.",
-            identity_phone_not_found: "We couldn't find an account with that phone number.",
-            invalid_email: 'Enter a valid email address.',
-            invalid_phone_number: 'Enter a valid mobile phone number, including the country code outside the US and Canada.',
-            signup_country_unavailable: 'FirstMate is not available in that country yet. Choose one of the countries listed.',
-            missing_login_identifier: 'Enter your email address or phone number.',
-            registration_in_progress: 'Your account is already being created. Wait a moment, then try logging in.',
-            identity_inactive: 'This account is disabled. Contact your company administrator or support.',
-            user_disabled: 'This account is disabled. Contact your company administrator or support.',
-            membership_required: 'Your account is not assigned to a company yet. Contact your company administrator or support.',
-            google_account_mismatch: 'This email is linked to a different Google account. Try that Google account or contact support.',
-            google_credential_required: 'Google sign-in did not finish. Please try again.',
-            invalid_google_credential: 'Google could not verify this sign-in. Please try again.',
-            unverified_google_email: 'Verify your email with Google before signing in.',
-            invalid_recovery_token: 'Your password reset session has expired. Use Forgot Password to request a new code.',
-            sms_phone_unavailable: 'This account does not have a valid mobile phone number. Use email recovery or contact support.',
-            telnyx_verify_send_failed: 'We could not send a text verification code. Please try again later or use email recovery.',
-            postmark_send_failed: 'We could not send the verification email. Please try again later or contact support.',
-            authentication_required: 'Your session expired. Please log in again.',
-            session_expired: 'Your session expired. Please log in again.',
-            session_revoked: 'Your session expired. Please log in again.',
-            csrf_required: 'Please refresh this page and try again.',
-            connection_error: 'We could not connect to the server. Check your connection and try again.',
-            'Missing required account fields.': 'Complete all required account fields.',
-            'Enter a valid mobile phone number, including the country code outside the US and Canada.': 'Enter a valid mobile phone number, including the country code outside the US and Canada.',
-            'Invalid or expired code.': 'That verification code is incorrect or has expired. Request a new code and try again.',
-            'Password too short': 'Use a password with at least 6 characters.',
-            'Password reset is not authorized.': 'Verify your recovery code before setting a new password. Start again with Forgot Password.'
+            identity_phone_exists: T('err_identity_phone_exists', 'That phone number is already connected to an existing account. Log in to that account or use a different phone number.'),
+            identity_email_exists: T('err_identity_email_exists', 'That email address is already connected to an existing account. Log in or use Forgot Password to recover access.'),
+            identity_exists: T('err_identity_exists', 'An account with these details already exists. Log in or use Forgot Password to recover access.'),
+            invalid_credentials: T('err_invalid_credentials', 'The email, phone number, or password you entered is incorrect.'),
+            identity_phone_ambiguous: T('err_identity_phone_ambiguous', 'This phone number is connected to multiple accounts. Sign in with email or contact support.'),
+            not_found: T('err_not_found', "We couldn't find an account with that email or phone number."),
+            identity_phone_not_found: T('err_identity_phone_not_found', "We couldn't find an account with that phone number."),
+            invalid_email: T('err_invalid_email', 'Enter a valid email address.'),
+            invalid_phone_number: T('err_invalid_phone_number', 'Enter a valid mobile phone number, including the country code outside the US and Canada.'),
+            missing_login_identifier: T('err_missing_login_identifier', 'Enter your email address or phone number.'),
+            registration_in_progress: T('err_registration_in_progress', 'Your account is already being created. Wait a moment, then try logging in.'),
+            identity_inactive: T('err_account_disabled', 'This account is disabled. Contact your company administrator or support.'),
+            user_disabled: T('err_account_disabled', 'This account is disabled. Contact your company administrator or support.'),
+            membership_required: T('err_membership_required', 'Your account is not assigned to a company yet. Contact your company administrator or support.'),
+            google_account_mismatch: T('err_google_account_mismatch', 'This email is linked to a different Google account. Try that Google account or contact support.'),
+            google_credential_required: T('err_google_credential_required', 'Google sign-in did not finish. Please try again.'),
+            invalid_google_credential: T('err_invalid_google_credential', 'Google could not verify this sign-in. Please try again.'),
+            unverified_google_email: T('err_unverified_google_email', 'Verify your email with Google before signing in.'),
+            invalid_recovery_token: T('err_invalid_recovery_token', 'Your password reset session has expired. Use Forgot Password to request a new code.'),
+            sms_phone_unavailable: T('err_sms_phone_unavailable', 'This account does not have a valid mobile phone number. Use email recovery or contact support.'),
+            telnyx_verify_send_failed: T('err_sms_send_failed', 'We could not send a text verification code. Please try again later or use email recovery.'),
+            postmark_send_failed: T('err_email_send_failed', 'We could not send the verification email. Please try again later or contact support.'),
+            authentication_required: T('err_session_expired', 'Your session expired. Please log in again.'),
+            session_expired: T('err_session_expired', 'Your session expired. Please log in again.'),
+            session_revoked: T('err_session_expired', 'Your session expired. Please log in again.'),
+            csrf_required: T('err_refresh', 'Please refresh this page and try again.'),
+            connection_error: T('err_connection', 'We could not connect to the server. Check your connection and try again.'),
+            'Missing required account fields.': T('err_missing_fields', 'Complete all required account fields.'),
+            'Enter a valid mobile phone number, including the country code outside the US and Canada.': T('err_invalid_phone_number', 'Enter a valid mobile phone number, including the country code outside the US and Canada.'),
+            'Invalid or expired code.': T('err_invalid_code', 'That verification code is incorrect or has expired. Request a new code and try again.'),
+            'Password too short': T('err_password_short', 'Use a password with at least 6 characters.'),
+            'Password reset is not authorized.': T('err_reset_not_authorized', 'Verify your recovery code before setting a new password. Start again with Forgot Password.')
         };
-        if (Number(data && data.status_code) === 429) return 'Too many attempts. Please wait a few minutes and try again.';
+        if (Number(data && data.status_code) === 429) return T('err_too_many', 'Too many attempts. Please wait a few minutes and try again.');
         // Do not expose raw provider messages, database details or unknown codes.
         return Object.prototype.hasOwnProperty.call(messages, code) ? messages[code] : fallback;
     }
@@ -1246,7 +1273,7 @@ src="https://www.facebook.com/tr?id=636685175264715&ev=PageView&noscript=1"
             option.classList.toggle('active', selected);
             option.setAttribute('aria-pressed', String(selected));
         });
-        document.getElementById('recoveryIdentifierLabel').innerText = phone ? 'Phone number' : 'Email';
+        document.getElementById('recoveryIdentifierLabel').innerText = phone ? T('phone_number', 'Phone number') : T('email', 'Email');
         input.type = phone ? 'tel' : 'email';
         input.autocomplete = phone ? 'tel' : 'email';
         input.placeholder = phone ? '(555) 555-0123' : 'you@example.com';
@@ -1266,7 +1293,7 @@ src="https://www.facebook.com/tr?id=636685175264715&ev=PageView&noscript=1"
         const loginTab = document.getElementById('tabLogin');
         const registerTab = document.getElementById('tabRegister');
         loginTab.style.display = '';
-        registerTab.textContent = 'Create Account';
+        registerTab.textContent = T('tab_register', 'Create Account');
         switchTab('login');
     }
 
@@ -1279,10 +1306,10 @@ src="https://www.facebook.com/tr?id=636685175264715&ev=PageView&noscript=1"
         heroEl.classList.toggle('loading', !!isPending);
         document.getElementById('referralHeadlinePartner').classList.toggle('referral-headline-loading', !!isPending);
         if (isPending) {
-            document.getElementById('referralHeadlinePartner').textContent = 'Loading...';
+            document.getElementById('referralHeadlinePartner').textContent = T('referral_loading', 'Loading...');
             document.getElementById('referralSubheadline').textContent = '';
         }
-        document.getElementById('tabRegister').textContent = 'Claim Invitation';
+        document.getElementById('tabRegister').textContent = T('claim_invitation', 'Claim Invitation');
         document.getElementById('tabLogin').style.display = 'none';
         document.getElementById('registerReferralCode').value = referralCode;
         document.getElementById('registerAcquisitionCode').value = referralCode;
@@ -1296,9 +1323,9 @@ src="https://www.facebook.com/tr?id=636685175264715&ev=PageView&noscript=1"
     function showReferralFallback(message) {
         const logoImg = document.getElementById('referralLogoImg');
         const logoFallback = document.getElementById('referralLogoFallback');
-        document.getElementById('referralHeadlinePartner').textContent = 'Partner invitation';
+        document.getElementById('referralHeadlinePartner').textContent = T('referral_partner_invitation', 'Partner invitation');
         document.getElementById('referralHeadlinePartner').classList.remove('referral-headline-loading');
-        document.getElementById('referralSubheadline').textContent = 'Has invited you to try FirstMeasure';
+        document.getElementById('referralSubheadline').textContent = T('referral_invited', 'Has invited you to try FirstMeasure');
         document.getElementById('referralOffer').classList.remove('active');
         logoImg.style.display = 'none';
         logoFallback.textContent = 'R';
@@ -1323,10 +1350,10 @@ src="https://www.facebook.com/tr?id=636685175264715&ev=PageView&noscript=1"
         document.getElementById('registerAcquisitionAttributionId').value = data.acquisition_attribution_id || data.attribution_id || '';
         document.getElementById('registerCampaign').value = (data.code && data.code.code) ? data.code.code : referralCode;
         document.getElementById('registerLandingVariant').value = landingVariant;
-        const partnerName = String((partner && partner.display_name) || 'A FirstMate partner').trim() || 'A FirstMate partner';
+        const partnerName = String((partner && partner.display_name) || T('referral_partner_default', 'A FirstMate partner')).trim() || T('referral_partner_default', 'A FirstMate partner');
         headlinePartner.textContent = partnerName;
         headlinePartner.classList.remove('referral-headline-loading');
-        subheadline.textContent = 'Has invited you to try FirstMeasure';
+        subheadline.textContent = T('referral_invited', 'Has invited you to try FirstMeasure');
         const logoUrl = (partner && partner.logo_url) ? String(partner.logo_url).trim() : '';
         if (logoUrl) {
             logoImg.src = logoUrl;
@@ -1339,17 +1366,17 @@ src="https://www.facebook.com/tr?id=636685175264715&ev=PageView&noscript=1"
             logoImg.style.display = 'none';
         }
         if (offer) {
-            offerTitle.textContent = `Sign up today to get ${offer.discount_percent || 50}% off all orders for your first ${offer.window_days || 7} days.`;
+            offerTitle.textContent = T('referral_offer', 'Sign up today to get {percent}% off all orders for your first {days} days.', { percent: offer.discount_percent || 50, days: offer.window_days || 7 });
             offerDescription.textContent = '';
             offerBox.classList.add('active');
         } else {
-            offerTitle.textContent = 'Sign up today to get 50% off all orders for your first 7 days.';
+            offerTitle.textContent = T('referral_offer_default', 'Sign up today to get 50% off all orders for your first 7 days.');
             offerDescription.textContent = '';
             offerBox.classList.add('active');
         }
         containerEl.classList.add('referral-mode');
         document.body.classList.add('referral-active');
-        document.getElementById('tabRegister').textContent = 'Claim Invitation';
+        document.getElementById('tabRegister').textContent = T('claim_invitation', 'Claim Invitation');
         setReferralPending(false);
         return true;
     }
@@ -1409,7 +1436,7 @@ src="https://www.facebook.com/tr?id=636685175264715&ev=PageView&noscript=1"
                 }
             }
             else if(data.require_otp) {
-                showOtp(data.email, data.message || "Verification Required");
+                showOtp(data.email, data.message || T('verification_required', "Verification Required"));
             }
             else {
                 showAuthError(err, data);
@@ -1426,15 +1453,15 @@ src="https://www.facebook.com/tr?id=636685175264715&ev=PageView&noscript=1"
         if (form.dataset.submitting === 'true') return;
         form.dataset.submitting = 'true';
         const submitButton = form.querySelector('button[type="submit"]');
-        const submitButtonText = submitButton?.innerText || 'Create Account';
-        if (submitButton) { submitButton.disabled = true; submitButton.innerText = 'Creating…'; }
+        const submitButtonText = submitButton?.innerText || T('create_account', 'Create Account');
+        if (submitButton) { submitButton.disabled = true; submitButton.innerText = T('creating', 'Creating…'); }
         const resetSubmitting = () => {
             form.dataset.submitting = 'false';
             if (submitButton) { submitButton.disabled = false; submitButton.innerText = submitButtonText; }
         };
         const err = document.getElementById('regError'); err.style.display='none';
         if (!validateRegistrationPhone()) {
-            err.innerText = 'Enter a valid mobile phone number, including the country code outside the US and Canada.';
+            err.innerText = T('err_invalid_phone_number', 'Enter a valid mobile phone number, including the country code outside the US and Canada.');
             err.style.display = 'block';
             registrationPhoneInput?.reportValidity();
             resetSubmitting();
@@ -1445,7 +1472,7 @@ src="https://www.facebook.com/tr?id=636685175264715&ev=PageView&noscript=1"
 
         // Passwords Check
         if(fd.get('password') !== fd.get('confirm_password')) {
-            err.innerText = "Passwords do not match."; err.style.display='block'; resetSubmitting(); return;
+            err.innerText = T('err_passwords_mismatch', "Passwords do not match."); err.style.display='block'; resetSubmitting(); return;
         }
 
         fd.append('action', 'register');
@@ -1473,7 +1500,7 @@ src="https://www.facebook.com/tr?id=636685175264715&ev=PageView&noscript=1"
             }
             else if(data.require_otp) {
                 if (SIGNUP_EMAIL_VERIFICATION_ENABLED) {
-                    showOtp(data.email, "Account created! Verify your email.");
+                    showOtp(data.email, T('account_created_verify', "Account created! Verify your email."));
                 } else {
                     if (window.fbq) window.fbq('track', 'CompleteRegistration');
                     window.location.href = onboardingDestination();
@@ -1491,7 +1518,7 @@ src="https://www.facebook.com/tr?id=636685175264715&ev=PageView&noscript=1"
         if (form.dataset.submitting === 'true') return;
         form.dataset.submitting = 'true';
         const submitButton = form.querySelector('button[type="submit"]');
-        if (submitButton) { submitButton.disabled = true; submitButton.innerText = 'Sending…'; }
+        if (submitButton) { submitButton.disabled = true; submitButton.innerText = T('sending', 'Sending…'); }
         const fd = new FormData(form); fd.append('action', 'forgot_password');
         const err = document.getElementById('forgotError'); err.style.display='none';
         try {
@@ -1499,13 +1526,13 @@ src="https://www.facebook.com/tr?id=636685175264715&ev=PageView&noscript=1"
             if(data.require_otp) {
                 passwordRecoveryToken = String(data.recovery_token || '');
                 passwordRecoveryIdentifier = String(fd.get('identifier') || '');
-                showOtp(data.masked_destination || '', data.message || "Password reset code sent.");
+                showOtp(data.masked_destination || '', data.message || T('reset_code_sent', "Password reset code sent."));
             }
             else { showAuthError(err, data); }
         } catch(e) { showAuthError(err, { error: 'connection_error' }); }
         finally {
             form.dataset.submitting = 'false';
-            if (submitButton) { submitButton.disabled = false; submitButton.innerText = 'Send Code'; }
+            if (submitButton) { submitButton.disabled = false; submitButton.innerText = T('send_code', 'Send Code'); }
         }
     });
 
@@ -1577,7 +1604,7 @@ src="https://www.facebook.com/tr?id=636685175264715&ev=PageView&noscript=1"
         switchToExistingAccountLogin();
         const err = document.getElementById('loginError');
         if (err) {
-            err.innerText = storedLoginNotice || 'Your session expired. Please log in again.';
+            err.innerText = storedLoginNotice || T('err_session_expired', 'Your session expired. Please log in again.');
             err.style.display = 'block';
         }
     }

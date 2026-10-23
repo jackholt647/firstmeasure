@@ -3163,7 +3163,28 @@
     "m_8342e19eddc030": "Prima di aprire il portale, invieremo un codice a questo indirizzo e-mail. Se è errato, puoi correggerlo qui.",
     "m_2fbb4b11eb7b6f": "Indirizzo e-mail",
     "m_3a7c6bd31cf96e": "Codice di verifica",
-    "m_a455a4668ee54d": "\n            Verifica &amp; accedi al portale "
+    "m_a455a4668ee54d": "\n            Verifica &amp; accedi al portale ",
+    "auto_topup_summary": {
+      "message": "Se il tuo saldo scende sotto {threshold}, aggiungeremo automaticamente {amount} al tuo account.",
+      "format": "icu"
+    },
+    "bonus_amount": {
+      "message": "+ {amount} di bonus",
+      "format": "icu"
+    },
+    "m_56c6c9cbb10acb": " Importo della ricarica automatica",
+    "m_bc9847e2ca77cb": "Ricarica automatica",
+    "m_cc2003d4e4237c": " Ricarica quando scende sotto",
+    "m_db0d748a115fcb": "Ricarica automaticamente il mio account.",
+    "prices_include_vat": "I prezzi includono l’IVA.",
+    "total_credit": {
+      "message": "{amount} di credito totale",
+      "format": "icu"
+    },
+    "invites_sent": {
+      "message": "{count, plural, one {# invito inviato.} other {# inviti inviati.}}",
+      "format": "icu"
+    }
   },
   "payroll": {
     "m_4a04382820d2e1": "Altro",
@@ -12585,6 +12606,147 @@
     },
     "exchange_estimate": {
       "message": "Circa {amount} · il tasso di cambio al momento del pagamento potrebbe essere diverso.",
+      "format": "icu"
+    },
+    "vat_included": {
+      "message": "{price}, IVA inclusa",
+      "format": "icu"
+    }
+  },
+  "signup": {
+    "offer_title": "Report del tetto premium",
+    "offer_price": {
+      "message": "Solo {price}",
+      "format": "icu"
+    },
+    "offer_price_vat": {
+      "message": "Solo {price}, IVA inclusa",
+      "format": "icu"
+    },
+    "referral_loading": "Caricamento...",
+    "referral_partner_invitation": "Invito di un partner",
+    "referral_invited": "Ti ha invitato a provare FirstMeasure",
+    "referral_partner_default": "Un partner FirstMate",
+    "referral_offer": {
+      "message": "Registrati oggi per ottenere il {percent}% di sconto su tutti gli ordini nei primi {days} giorni.",
+      "format": "icu"
+    },
+    "referral_offer_default": "Registrati oggi per ottenere il 50% di sconto su tutti gli ordini nei primi 7 giorni.",
+    "referral_activate": "Registrati oggi per attivare la tua offerta di presentazione.",
+    "referral_offer_short": {
+      "message": "{percent}% di sconto sugli ordini nei primi {days} giorni.",
+      "format": "icu"
+    },
+    "referral_offer_percent": {
+      "message": "{percent}% di sconto sugli ordini idonei.",
+      "format": "icu"
+    },
+    "referral_offer_applied": "La tua offerta di presentazione verrà applicata al momento della registrazione.",
+    "referral_attribution": "La presentazione verrà registrata quando crei il tuo account.",
+    "continue": "Continua",
+    "claim_invitation": "Accetta l’invito",
+    "tab_login": "Accedi",
+    "tab_register": "Crea account",
+    "tab_register_invite": "Crea l’account della tua azienda per attivare questo invito.",
+    "widget_title": "Crea il tuo account FirstMate",
+    "google_sign_in": "Accedi con Google",
+    "google_sign_up": "Registrati con Google",
+    "divider_login": "oppure usa il tuo account",
+    "divider_register": "oppure registrati con l’email",
+    "email_or_phone": "Email o telefono",
+    "password": "Password",
+    "login_button": "Accedi",
+    "forgot_password": "Password dimenticata?",
+    "phone": "Telefono",
+    "phone_number": "Numero di telefono",
+    "email": "Email",
+    "confirm_password": "Conferma password",
+    "create_account": "Crea account",
+    "create_account_widget": "Crea account",
+    "already_have_account": "Hai già un account?",
+    "login_here": "Accedi qui",
+    "login_link": "Accedi",
+    "terms": {
+      "message": "Creando un account accetti i nostri {terms} e accetti di ricevere SMS al numero indicato. Potrebbero essere applicati costi per messaggi e dati.",
+      "format": "icu"
+    },
+    "terms_link": "Termini di utilizzo",
+    "reset_how": "Come vuoi reimpostare la password?",
+    "reset_method": "Metodo di reimpostazione della password",
+    "send_code": "Invia codice",
+    "back_to_login": "Torna all’accesso",
+    "otp_enter": "Inserisci il codice di verifica:",
+    "otp_sent_to": "Inserisci il codice inviato a",
+    "otp_reset_sent_to": "Inserisci il codice di reimpostazione inviato a",
+    "otp_label": "Codice a 6 cifre",
+    "verify_code": "Verifica codice",
+    "start_over": "Ricomincia",
+    "reset_verified": "Codice verificato. Imposta una nuova password.",
+    "new_password": "Nuova password",
+    "update_password": "Aggiorna password",
+    "password_updated": "Password aggiornata! Accesso in corso...",
+    "password_updated_redirect": "Password aggiornata. Reindirizzamento...",
+    "creating": "Creazione…",
+    "sending": "Invio…",
+    "working": "Elaborazione...",
+    "verification_required": "Verifica necessaria",
+    "account_created_verify": "Account creato! Verifica il tuo indirizzo email.",
+    "account_created_verify_widget": "Account creato. Verifica il tuo indirizzo email per continuare.",
+    "reset_code_sent": "Codice di reimpostazione della password inviato.",
+    "err_generic": "Non siamo riusciti a completare la tua richiesta. Riprova. Se il problema persiste, scrivi a support@1m8.ai.",
+    "err_google": "Impossibile completare l’accesso con Google. Riprova.",
+    "err_identity_phone_exists": "Questo numero di telefono è già collegato a un account. Accedi a quell’account o usa un altro numero.",
+    "err_identity_email_exists": "Questo indirizzo email è già collegato a un account. Accedi oppure usa «Password dimenticata?» per recuperare l’accesso.",
+    "err_identity_exists": "Esiste già un account con questi dati. Accedi oppure usa «Password dimenticata?» per recuperare l’accesso.",
+    "err_invalid_credentials": "L’email, il numero di telefono o la password non sono corretti.",
+    "err_wrong_password": "La password non è corretta.",
+    "err_identity_phone_ambiguous": "Questo numero di telefono è collegato a più account. Accedi con l’email o contatta l’assistenza.",
+    "err_not_found": "Non abbiamo trovato alcun account con questa email o questo numero di telefono.",
+    "err_identity_phone_not_found": "Non abbiamo trovato alcun account con questo numero di telefono.",
+    "err_invalid_email": "Inserisci un indirizzo email valido.",
+    "err_invalid_phone_number": "Inserisci un numero di cellulare valido, con il prefisso internazionale al di fuori di Stati Uniti e Canada.",
+    "err_missing_login_identifier": "Inserisci il tuo indirizzo email o numero di telefono.",
+    "err_registration_in_progress": "Stiamo già creando il tuo account. Attendi un momento, poi prova ad accedere.",
+    "err_account_disabled": "Questo account è disattivato. Contatta l’amministratore della tua azienda o l’assistenza.",
+    "err_membership_required": "Il tuo account non è ancora associato a un’azienda. Contatta l’amministratore della tua azienda o l’assistenza.",
+    "err_google_account_mismatch": "Questa email è collegata a un altro account Google. Prova con quell’account Google o contatta l’assistenza.",
+    "err_google_credential_required": "L’accesso con Google non è stato completato. Riprova.",
+    "err_invalid_google_credential": "Google non è riuscito a verificare questo accesso. Riprova.",
+    "err_unverified_google_email": "Verifica la tua email con Google prima di accedere.",
+    "err_invalid_recovery_token": "La sessione di reimpostazione della password è scaduta. Usa «Password dimenticata?» per richiedere un nuovo codice.",
+    "err_sms_phone_unavailable": "Questo account non ha un numero di cellulare valido. Usa il recupero via email o contatta l’assistenza.",
+    "err_sms_send_failed": "Non siamo riusciti a inviare il codice via SMS. Riprova più tardi o usa il recupero via email.",
+    "err_email_send_failed": "Non siamo riusciti a inviare l’email di verifica. Riprova più tardi o contatta l’assistenza.",
+    "err_session_expired": "La sessione è scaduta. Accedi di nuovo.",
+    "err_refresh": "Aggiorna la pagina e riprova.",
+    "err_connection": "Impossibile connettersi al server. Controlla la connessione e riprova.",
+    "err_connection_short": "Errore di connessione. Riprova.",
+    "err_missing_fields": "Compila tutti i campi obbligatori dell’account.",
+    "err_invalid_code": "Il codice di verifica non è corretto o è scaduto. Richiedi un nuovo codice e riprova.",
+    "err_password_short": "Usa una password di almeno 6 caratteri.",
+    "err_reset_not_authorized": "Verifica il codice di recupero prima di impostare una nuova password. Ricomincia da «Password dimenticata?».",
+    "err_too_many": "Troppi tentativi. Attendi qualche minuto e riprova.",
+    "err_passwords_mismatch": "Le password non coincidono.",
+    "err_login_failed": "Impossibile accedere. Riprova.",
+    "err_create_failed": "Non siamo riusciti a creare il tuo account. Riprova o scrivi a support@1m8.ai.",
+    "err_recovery_send_failed": "Non siamo riusciti a inviare un codice di recupero. Riprova o scrivi a support@1m8.ai.",
+    "err_verify_failed": "Non siamo riusciti a verificare questo codice. Richiedi un nuovo codice e riprova.",
+    "err_update_password_failed": "Non siamo riusciti ad aggiornare la password. Riprova o scrivi a support@1m8.ai.",
+    "err_google_linked_elsewhere": "Questa email è già collegata a un altro account Google. Contatta l’assistenza se hai bisogno di aiuto.",
+    "err_google_no_company": "La tua email Google è riconosciuta, ma non è ancora associata a un’azienda.",
+    "err_account_disabled_admin": "Questo account è disattivato. Contatta l’amministratore della tua azienda.",
+    "referral_invited_you": {
+      "message": "{partner} ti ha invitato",
+      "format": "icu"
+    }
+  },
+  "signup-region": {
+    "calling_code": "Prefisso internazionale"
+  },
+  "phone-input": {
+    "calling_code": "Prefisso internazionale",
+    "calling_code_value": {
+      "message": "Prefisso internazionale: {country} +{code}",
       "format": "icu"
     }
   }

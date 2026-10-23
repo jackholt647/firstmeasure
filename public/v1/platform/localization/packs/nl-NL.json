@@ -3238,10 +3238,6 @@
     "m_163c9e8ccdb047": " U kunt gebruikers op elk moment beheren via het onderdeel Gebruikers onder Bedrijfsinstellingen.",
     "m_206d31a7c795c4": " Terug",
     "m_b982de697abe2d": "Uitnodigingen verzonden",
-    "m_507489a99d1632": {
-      "message": "{v0} uitnodiging{v1} verzonden.",
-      "format": "icu"
-    },
     "m_2b39214759d91a": " Aangepast\n      ",
     "m_0ded144729a113": "Machtigingen",
     "m_8cf345002184e5": "Naam",
@@ -3267,7 +3263,28 @@
     "m_8342e19eddc030": "Voordat u het portaal opent, sturen we een code naar dit e-mailadres. U kunt het adres hier corrigeren als het onjuist is ingevoerd.",
     "m_2fbb4b11eb7b6f": "E-mailadres",
     "m_3a7c6bd31cf96e": "Verificatiecode",
-    "m_a455a4668ee54d": "\n            Verifiëren &amp; portaal openen "
+    "m_a455a4668ee54d": "\n            Verifiëren &amp; portaal openen ",
+    "auto_topup_summary": {
+      "message": "Als je saldo onder {threshold} komt, voegen we automatisch {amount} toe aan je account.",
+      "format": "icu"
+    },
+    "bonus_amount": {
+      "message": "+ {amount} bonus",
+      "format": "icu"
+    },
+    "invites_sent": {
+      "message": "{count, plural, one {# uitnodiging verstuurd.} other {# uitnodigingen verstuurd.}}",
+      "format": "icu"
+    },
+    "m_56c6c9cbb10acb": " Bedrag automatisch opwaarderen",
+    "m_bc9847e2ca77cb": "Automatisch opwaarderen",
+    "m_cc2003d4e4237c": " Opwaarderen als het saldo lager is dan",
+    "m_db0d748a115fcb": "Mijn account automatisch aanvullen.",
+    "prices_include_vat": "Prijzen zijn inclusief btw.",
+    "total_credit": {
+      "message": "{amount} tegoed in totaal",
+      "format": "icu"
+    }
   },
   "payroll": {
     "m_4a04382820d2e1": "Overig",
@@ -12933,6 +12950,147 @@
     },
     "exchange_estimate": {
       "message": "Ongeveer {amount} · de wisselkoers bij betaling kan afwijken.",
+      "format": "icu"
+    },
+    "vat_included": {
+      "message": "{price}, inclusief btw",
+      "format": "icu"
+    }
+  },
+  "signup": {
+    "offer_title": "Premium dakrapporten",
+    "offer_price": {
+      "message": "Slechts {price}",
+      "format": "icu"
+    },
+    "offer_price_vat": {
+      "message": "Slechts {price}, inclusief btw",
+      "format": "icu"
+    },
+    "referral_loading": "Laden...",
+    "referral_partner_invitation": "Uitnodiging van een partner",
+    "referral_invited": "Heeft je uitgenodigd om FirstMeasure te proberen",
+    "referral_partner_default": "Een FirstMate-partner",
+    "referral_offer": {
+      "message": "Meld je vandaag aan en krijg {percent}% korting op alle bestellingen in je eerste {days} dagen.",
+      "format": "icu"
+    },
+    "referral_offer_default": "Meld je vandaag aan en krijg 50% korting op alle bestellingen in je eerste 7 dagen.",
+    "referral_activate": "Meld je vandaag aan om je doorverwijsaanbod te activeren.",
+    "referral_offer_short": {
+      "message": "{percent}% korting op bestellingen in je eerste {days} dagen.",
+      "format": "icu"
+    },
+    "referral_offer_percent": {
+      "message": "{percent}% korting op geschikte bestellingen.",
+      "format": "icu"
+    },
+    "referral_offer_applied": "Je doorverwijsaanbod wordt toegepast bij het aanmelden.",
+    "referral_attribution": "De doorverwijzing wordt vastgelegd wanneer je je account aanmaakt.",
+    "continue": "Doorgaan",
+    "claim_invitation": "Uitnodiging accepteren",
+    "tab_login": "Inloggen",
+    "tab_register": "Account aanmaken",
+    "tab_register_invite": "Maak het account van je bedrijf aan om deze uitnodiging te activeren.",
+    "widget_title": "Maak je FirstMate-account aan",
+    "google_sign_in": "Inloggen met Google",
+    "google_sign_up": "Aanmelden met Google",
+    "divider_login": "of gebruik je account",
+    "divider_register": "of meld je aan met e-mail",
+    "email_or_phone": "E-mail of telefoon",
+    "password": "Wachtwoord",
+    "login_button": "Inloggen",
+    "forgot_password": "Wachtwoord vergeten?",
+    "phone": "Telefoon",
+    "phone_number": "Telefoonnummer",
+    "email": "E-mail",
+    "confirm_password": "Wachtwoord bevestigen",
+    "create_account": "Account aanmaken",
+    "create_account_widget": "Account aanmaken",
+    "already_have_account": "Heb je al een account?",
+    "login_here": "Klik hier om in te loggen",
+    "login_link": "Inloggen",
+    "terms": {
+      "message": "Door een account aan te maken ga je akkoord met onze {terms} en met sms-berichten op het opgegeven nummer. Er kunnen kosten voor berichten en data gelden.",
+      "format": "icu"
+    },
+    "terms_link": "Gebruiksvoorwaarden",
+    "reset_how": "Hoe wil je je wachtwoord opnieuw instellen?",
+    "reset_method": "Methode om het wachtwoord opnieuw in te stellen",
+    "send_code": "Code versturen",
+    "back_to_login": "Terug naar inloggen",
+    "otp_enter": "Voer de verificatiecode in:",
+    "otp_sent_to": "Voer de code in die is verstuurd naar",
+    "otp_reset_sent_to": "Voer de herstelcode in die is verstuurd naar",
+    "otp_label": "Code van 6 cijfers",
+    "verify_code": "Code verifiëren",
+    "start_over": "Opnieuw beginnen",
+    "reset_verified": "Code geverifieerd. Stel een nieuw wachtwoord in.",
+    "new_password": "Nieuw wachtwoord",
+    "update_password": "Wachtwoord bijwerken",
+    "password_updated": "Wachtwoord bijgewerkt! Je wordt ingelogd...",
+    "password_updated_redirect": "Wachtwoord bijgewerkt. Je wordt doorgestuurd...",
+    "creating": "Bezig met aanmaken…",
+    "sending": "Bezig met versturen…",
+    "working": "Bezig...",
+    "verification_required": "Verificatie vereist",
+    "account_created_verify": "Account aangemaakt! Verifieer je e-mailadres.",
+    "account_created_verify_widget": "Account aangemaakt. Verifieer je e-mailadres om door te gaan.",
+    "reset_code_sent": "Herstelcode voor het wachtwoord verstuurd.",
+    "err_generic": "We konden je verzoek niet afronden. Probeer het opnieuw. Blijft het probleem bestaan, mail dan naar support@1m8.ai.",
+    "err_google": "Inloggen met Google is niet gelukt. Probeer het opnieuw.",
+    "err_identity_phone_exists": "Dit telefoonnummer is al gekoppeld aan een account. Log in op dat account of gebruik een ander nummer.",
+    "err_identity_email_exists": "Dit e-mailadres is al gekoppeld aan een account. Log in of gebruik ‘Wachtwoord vergeten?’ om weer toegang te krijgen.",
+    "err_identity_exists": "Er bestaat al een account met deze gegevens. Log in of gebruik ‘Wachtwoord vergeten?’ om weer toegang te krijgen.",
+    "err_invalid_credentials": "Het e-mailadres, telefoonnummer of wachtwoord is onjuist.",
+    "err_wrong_password": "Het wachtwoord is onjuist.",
+    "err_identity_phone_ambiguous": "Dit telefoonnummer is gekoppeld aan meerdere accounts. Log in met je e-mailadres of neem contact op met support.",
+    "err_not_found": "We hebben geen account gevonden met dat e-mailadres of telefoonnummer.",
+    "err_identity_phone_not_found": "We hebben geen account gevonden met dat telefoonnummer.",
+    "err_invalid_email": "Voer een geldig e-mailadres in.",
+    "err_invalid_phone_number": "Voer een geldig mobiel nummer in, met landcode buiten de VS en Canada.",
+    "err_missing_login_identifier": "Voer je e-mailadres of telefoonnummer in.",
+    "err_registration_in_progress": "Je account wordt al aangemaakt. Wacht even en probeer dan in te loggen.",
+    "err_account_disabled": "Dit account is uitgeschakeld. Neem contact op met de beheerder van je bedrijf of met support.",
+    "err_membership_required": "Je account is nog niet aan een bedrijf gekoppeld. Neem contact op met de beheerder van je bedrijf of met support.",
+    "err_google_account_mismatch": "Dit e-mailadres is gekoppeld aan een ander Google-account. Probeer dat Google-account of neem contact op met support.",
+    "err_google_credential_required": "Inloggen met Google is niet afgerond. Probeer het opnieuw.",
+    "err_invalid_google_credential": "Google kon deze aanmelding niet verifiëren. Probeer het opnieuw.",
+    "err_unverified_google_email": "Verifieer je e-mailadres bij Google voordat je inlogt.",
+    "err_invalid_recovery_token": "Je sessie om het wachtwoord opnieuw in te stellen is verlopen. Gebruik ‘Wachtwoord vergeten?’ om een nieuwe code aan te vragen.",
+    "err_sms_phone_unavailable": "Dit account heeft geen geldig mobiel nummer. Gebruik herstel via e-mail of neem contact op met support.",
+    "err_sms_send_failed": "We konden geen verificatiecode per sms versturen. Probeer het later opnieuw of gebruik herstel via e-mail.",
+    "err_email_send_failed": "We konden de verificatie-e-mail niet versturen. Probeer het later opnieuw of neem contact op met support.",
+    "err_session_expired": "Je sessie is verlopen. Log opnieuw in.",
+    "err_refresh": "Vernieuw deze pagina en probeer het opnieuw.",
+    "err_connection": "We konden geen verbinding maken met de server. Controleer je verbinding en probeer het opnieuw.",
+    "err_connection_short": "Verbindingsfout. Probeer het opnieuw.",
+    "err_missing_fields": "Vul alle verplichte accountvelden in.",
+    "err_invalid_code": "Deze verificatiecode is onjuist of verlopen. Vraag een nieuwe code aan en probeer het opnieuw.",
+    "err_password_short": "Gebruik een wachtwoord van minstens 6 tekens.",
+    "err_reset_not_authorized": "Verifieer je herstelcode voordat je een nieuw wachtwoord instelt. Begin opnieuw met ‘Wachtwoord vergeten?’.",
+    "err_too_many": "Te veel pogingen. Wacht een paar minuten en probeer het opnieuw.",
+    "err_passwords_mismatch": "De wachtwoorden komen niet overeen.",
+    "err_login_failed": "Inloggen is niet gelukt. Probeer het opnieuw.",
+    "err_create_failed": "We konden je account niet aanmaken. Probeer het opnieuw of mail naar support@1m8.ai.",
+    "err_recovery_send_failed": "We konden geen herstelcode versturen. Probeer het opnieuw of mail naar support@1m8.ai.",
+    "err_verify_failed": "We konden die code niet verifiëren. Vraag een nieuwe code aan en probeer het opnieuw.",
+    "err_update_password_failed": "We konden je wachtwoord niet bijwerken. Probeer het opnieuw of mail naar support@1m8.ai.",
+    "err_google_linked_elsewhere": "Dit e-mailadres is al gekoppeld aan een ander Google-account. Neem contact op met support als je hulp nodig hebt.",
+    "err_google_no_company": "Je Google-e-mailadres is bekend, maar nog niet aan een bedrijf gekoppeld.",
+    "err_account_disabled_admin": "Dit account is uitgeschakeld. Neem contact op met de beheerder van je bedrijf.",
+    "referral_invited_you": {
+      "message": "{partner} heeft je uitgenodigd",
+      "format": "icu"
+    }
+  },
+  "signup-region": {
+    "calling_code": "Landnummer"
+  },
+  "phone-input": {
+    "calling_code": "Landnummer",
+    "calling_code_value": {
+      "message": "Landnummer: {country} +{code}",
       "format": "icu"
     }
   }

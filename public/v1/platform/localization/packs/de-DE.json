@@ -3234,10 +3234,6 @@
     "m_163c9e8ccdb047": " Sie können Benutzer jederzeit im Bereich „Benutzer“ der Unternehmenseinstellungen verwalten.",
     "m_206d31a7c795c4": " Zurück",
     "m_b982de697abe2d": "Einladungen gesendet",
-    "m_507489a99d1632": {
-      "message": "{v0} Einladung{v1} gesendet.",
-      "format": "icu"
-    },
     "m_2b39214759d91a": " Benutzerdefiniert\n      ",
     "m_0ded144729a113": "Berechtigungen",
     "m_8cf345002184e5": "Name",
@@ -3263,7 +3259,28 @@
     "m_8342e19eddc030": "Wir senden einen Code an diese E-Mail-Adresse, bevor wir das Portal öffnen. Falls Sie die Adresse falsch eingegeben haben, können Sie sie hier korrigieren.",
     "m_2fbb4b11eb7b6f": "E-Mail-Adresse",
     "m_3a7c6bd31cf96e": "Bestätigungscode",
-    "m_a455a4668ee54d": "\n            Bestätigen &amp; Portal öffnen "
+    "m_a455a4668ee54d": "\n            Bestätigen &amp; Portal öffnen ",
+    "auto_topup_summary": {
+      "message": "Wenn Ihr Guthaben unter {threshold} fällt, laden wir automatisch {amount} auf Ihr Konto.",
+      "format": "icu"
+    },
+    "bonus_amount": {
+      "message": "+ {amount} Bonus",
+      "format": "icu"
+    },
+    "m_56c6c9cbb10acb": " Betrag der automatischen Aufladung",
+    "m_bc9847e2ca77cb": "Automatische Aufladung",
+    "m_cc2003d4e4237c": " Aufladen, wenn unter",
+    "m_db0d748a115fcb": "Mein Konto automatisch aufladen.",
+    "prices_include_vat": "Die Preise enthalten die MwSt.",
+    "total_credit": {
+      "message": "{amount} Guthaben insgesamt",
+      "format": "icu"
+    },
+    "invites_sent": {
+      "message": "{count, plural, one {# Einladung gesendet.} other {# Einladungen gesendet.}}",
+      "format": "icu"
+    }
   },
   "payroll": {
     "m_4a04382820d2e1": "Sonstiges",
@@ -12913,6 +12930,147 @@
     },
     "exchange_estimate": {
       "message": "Ungefähr {amount} · der Wechselkurs zum Zahlungszeitpunkt kann abweichen.",
+      "format": "icu"
+    },
+    "vat_included": {
+      "message": "{price}, inkl. MwSt.",
+      "format": "icu"
+    }
+  },
+  "signup": {
+    "offer_title": "Premium-Dachberichte",
+    "offer_price": {
+      "message": "Nur {price}",
+      "format": "icu"
+    },
+    "offer_price_vat": {
+      "message": "Nur {price}, inkl. MwSt.",
+      "format": "icu"
+    },
+    "referral_loading": "Wird geladen...",
+    "referral_partner_invitation": "Einladung eines Partners",
+    "referral_invited": "Hat Sie eingeladen, FirstMeasure auszuprobieren",
+    "referral_partner_default": "Ein FirstMate-Partner",
+    "referral_offer": {
+      "message": "Registrieren Sie sich noch heute und erhalten Sie in den ersten {days} Tagen {percent} % Rabatt auf alle Bestellungen.",
+      "format": "icu"
+    },
+    "referral_offer_default": "Registrieren Sie sich noch heute und erhalten Sie in den ersten 7 Tagen 50 % Rabatt auf alle Bestellungen.",
+    "referral_activate": "Registrieren Sie sich noch heute, um Ihr Empfehlungsangebot zu aktivieren.",
+    "referral_offer_short": {
+      "message": "{percent} % Rabatt auf Bestellungen in den ersten {days} Tagen.",
+      "format": "icu"
+    },
+    "referral_offer_percent": {
+      "message": "{percent} % Rabatt auf berechtigte Bestellungen.",
+      "format": "icu"
+    },
+    "referral_offer_applied": "Ihr Empfehlungsangebot wird bei der Registrierung angewendet.",
+    "referral_attribution": "Die Empfehlung wird beim Erstellen Ihres Kontos zugeordnet.",
+    "continue": "Weiter",
+    "claim_invitation": "Einladung annehmen",
+    "tab_login": "Anmelden",
+    "tab_register": "Konto erstellen",
+    "tab_register_invite": "Erstellen Sie das Konto Ihres Unternehmens, um diese Einladung zu aktivieren.",
+    "widget_title": "Erstellen Sie Ihr FirstMate-Konto",
+    "google_sign_in": "Mit Google anmelden",
+    "google_sign_up": "Mit Google registrieren",
+    "divider_login": "oder mit Ihrem Konto",
+    "divider_register": "oder mit E-Mail registrieren",
+    "email_or_phone": "E-Mail oder Telefon",
+    "password": "Passwort",
+    "login_button": "Anmelden",
+    "forgot_password": "Passwort vergessen?",
+    "phone": "Telefon",
+    "phone_number": "Telefonnummer",
+    "email": "E-Mail",
+    "confirm_password": "Passwort bestätigen",
+    "create_account": "Konto erstellen",
+    "create_account_widget": "Konto erstellen",
+    "already_have_account": "Sie haben bereits ein Konto?",
+    "login_here": "Hier anmelden",
+    "login_link": "Anmelden",
+    "terms": {
+      "message": "Mit dem Erstellen eines Kontos stimmen Sie unseren {terms} zu und erklären sich einverstanden, dass wir Ihnen SMS an die angegebene Nummer senden. Es können Gebühren für Nachrichten und Daten anfallen.",
+      "format": "icu"
+    },
+    "terms_link": "Nutzungsbedingungen",
+    "reset_how": "Wie möchten Sie Ihr Passwort zurücksetzen?",
+    "reset_method": "Methode zum Zurücksetzen des Passworts",
+    "send_code": "Code senden",
+    "back_to_login": "Zurück zur Anmeldung",
+    "otp_enter": "Geben Sie den Bestätigungscode ein:",
+    "otp_sent_to": "Geben Sie den Code ein, der gesendet wurde an",
+    "otp_reset_sent_to": "Geben Sie den Code zum Zurücksetzen ein, der gesendet wurde an",
+    "otp_label": "6-stelliger Code",
+    "verify_code": "Code bestätigen",
+    "start_over": "Neu beginnen",
+    "reset_verified": "Code bestätigt. Legen Sie ein neues Passwort fest.",
+    "new_password": "Neues Passwort",
+    "update_password": "Passwort aktualisieren",
+    "password_updated": "Passwort aktualisiert! Sie werden angemeldet...",
+    "password_updated_redirect": "Passwort aktualisiert. Sie werden weitergeleitet...",
+    "creating": "Wird erstellt…",
+    "sending": "Wird gesendet…",
+    "working": "Wird bearbeitet...",
+    "verification_required": "Bestätigung erforderlich",
+    "account_created_verify": "Konto erstellt! Bestätigen Sie Ihre E-Mail-Adresse.",
+    "account_created_verify_widget": "Konto erstellt. Bestätigen Sie Ihre E-Mail-Adresse, um fortzufahren.",
+    "reset_code_sent": "Der Code zum Zurücksetzen des Passworts wurde gesendet.",
+    "err_generic": "Ihre Anfrage konnte nicht abgeschlossen werden. Bitte versuchen Sie es erneut. Wenn das Problem weiterhin besteht, schreiben Sie an support@1m8.ai.",
+    "err_google": "Die Anmeldung mit Google konnte nicht abgeschlossen werden. Bitte versuchen Sie es erneut.",
+    "err_identity_phone_exists": "Diese Telefonnummer ist bereits mit einem Konto verknüpft. Melden Sie sich bei diesem Konto an oder verwenden Sie eine andere Nummer.",
+    "err_identity_email_exists": "Diese E-Mail-Adresse ist bereits mit einem Konto verknüpft. Melden Sie sich an oder nutzen Sie „Passwort vergessen?“, um wieder Zugriff zu erhalten.",
+    "err_identity_exists": "Ein Konto mit diesen Angaben existiert bereits. Melden Sie sich an oder nutzen Sie „Passwort vergessen?“, um wieder Zugriff zu erhalten.",
+    "err_invalid_credentials": "Die eingegebene E-Mail-Adresse, Telefonnummer oder das Passwort ist falsch.",
+    "err_wrong_password": "Das eingegebene Passwort ist falsch.",
+    "err_identity_phone_ambiguous": "Diese Telefonnummer ist mit mehreren Konten verknüpft. Melden Sie sich mit Ihrer E-Mail-Adresse an oder wenden Sie sich an den Support.",
+    "err_not_found": "Wir konnten kein Konto mit dieser E-Mail-Adresse oder Telefonnummer finden.",
+    "err_identity_phone_not_found": "Wir konnten kein Konto mit dieser Telefonnummer finden.",
+    "err_invalid_email": "Geben Sie eine gültige E-Mail-Adresse ein.",
+    "err_invalid_phone_number": "Geben Sie eine gültige Mobilnummer ein, außerhalb der USA und Kanadas mit Ländervorwahl.",
+    "err_missing_login_identifier": "Geben Sie Ihre E-Mail-Adresse oder Telefonnummer ein.",
+    "err_registration_in_progress": "Ihr Konto wird bereits erstellt. Warten Sie einen Moment und versuchen Sie dann, sich anzumelden.",
+    "err_account_disabled": "Dieses Konto ist deaktiviert. Wenden Sie sich an den Administrator Ihres Unternehmens oder an den Support.",
+    "err_membership_required": "Ihr Konto ist noch keinem Unternehmen zugeordnet. Wenden Sie sich an den Administrator Ihres Unternehmens oder an den Support.",
+    "err_google_account_mismatch": "Diese E-Mail-Adresse ist mit einem anderen Google-Konto verknüpft. Versuchen Sie es mit diesem Google-Konto oder wenden Sie sich an den Support.",
+    "err_google_credential_required": "Die Anmeldung mit Google wurde nicht abgeschlossen. Bitte versuchen Sie es erneut.",
+    "err_invalid_google_credential": "Google konnte diese Anmeldung nicht bestätigen. Bitte versuchen Sie es erneut.",
+    "err_unverified_google_email": "Bestätigen Sie Ihre E-Mail-Adresse bei Google, bevor Sie sich anmelden.",
+    "err_invalid_recovery_token": "Ihre Sitzung zum Zurücksetzen des Passworts ist abgelaufen. Fordern Sie über „Passwort vergessen?“ einen neuen Code an.",
+    "err_sms_phone_unavailable": "Für dieses Konto ist keine gültige Mobilnummer hinterlegt. Nutzen Sie die Wiederherstellung per E-Mail oder wenden Sie sich an den Support.",
+    "err_sms_send_failed": "Der Bestätigungscode konnte nicht per SMS gesendet werden. Versuchen Sie es später erneut oder nutzen Sie die Wiederherstellung per E-Mail.",
+    "err_email_send_failed": "Die Bestätigungs-E-Mail konnte nicht gesendet werden. Versuchen Sie es später erneut oder wenden Sie sich an den Support.",
+    "err_session_expired": "Ihre Sitzung ist abgelaufen. Bitte melden Sie sich erneut an.",
+    "err_refresh": "Laden Sie diese Seite neu und versuchen Sie es erneut.",
+    "err_connection": "Keine Verbindung zum Server. Überprüfen Sie Ihre Verbindung und versuchen Sie es erneut.",
+    "err_connection_short": "Verbindungsfehler. Bitte versuchen Sie es erneut.",
+    "err_missing_fields": "Füllen Sie alle Pflichtfelder des Kontos aus.",
+    "err_invalid_code": "Dieser Bestätigungscode ist falsch oder abgelaufen. Fordern Sie einen neuen Code an und versuchen Sie es erneut.",
+    "err_password_short": "Verwenden Sie ein Passwort mit mindestens 6 Zeichen.",
+    "err_reset_not_authorized": "Bestätigen Sie Ihren Wiederherstellungscode, bevor Sie ein neues Passwort festlegen. Beginnen Sie erneut mit „Passwort vergessen?“.",
+    "err_too_many": "Zu viele Versuche. Warten Sie ein paar Minuten und versuchen Sie es erneut.",
+    "err_passwords_mismatch": "Die Passwörter stimmen nicht überein.",
+    "err_login_failed": "Anmeldung nicht möglich. Bitte versuchen Sie es erneut.",
+    "err_create_failed": "Ihr Konto konnte nicht erstellt werden. Versuchen Sie es erneut oder schreiben Sie an support@1m8.ai.",
+    "err_recovery_send_failed": "Der Wiederherstellungscode konnte nicht gesendet werden. Versuchen Sie es erneut oder schreiben Sie an support@1m8.ai.",
+    "err_verify_failed": "Dieser Code konnte nicht bestätigt werden. Fordern Sie einen neuen Code an und versuchen Sie es erneut.",
+    "err_update_password_failed": "Ihr Passwort konnte nicht aktualisiert werden. Versuchen Sie es erneut oder schreiben Sie an support@1m8.ai.",
+    "err_google_linked_elsewhere": "Diese E-Mail-Adresse ist bereits mit einem anderen Google-Konto verknüpft. Wenden Sie sich an den Support, wenn Sie Hilfe benötigen.",
+    "err_google_no_company": "Ihre Google-E-Mail-Adresse ist bekannt, aber noch keinem Unternehmen zugeordnet.",
+    "err_account_disabled_admin": "Dieses Konto ist deaktiviert. Wenden Sie sich an den Administrator Ihres Unternehmens.",
+    "referral_invited_you": {
+      "message": "{partner} hat Sie eingeladen",
+      "format": "icu"
+    }
+  },
+  "signup-region": {
+    "calling_code": "Ländervorwahl"
+  },
+  "phone-input": {
+    "calling_code": "Ländervorwahl",
+    "calling_code_value": {
+      "message": "Ländervorwahl: {country} +{code}",
       "format": "icu"
     }
   }

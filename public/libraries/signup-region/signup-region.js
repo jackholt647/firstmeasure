@@ -1,11 +1,12 @@
-/* Signup country, phone calling code and company language (1M8-214, 1M8-220).
- * The server prefills from the same detection registration uses (commerce/signup-options.ts);
- * the chosen country is sent as signup_country and decides the account's billing profile. */
+/* Signup phone calling code (1M8-214) and the signup language (1M8-240).
+ * Visitors never choose a country or language: the server detects both (commerce/regions.ts). The calling-code
+ * picker defaults to the detected country; the language the form is shown in is sent as signup_language and becomes
+ * the new organization's company language (libraries/signup-language). */
 (function (root) {
   'use strict';
   const optionRequests = new Map();
   const SCRIPT_SRC = root.document?.currentScript?.src || '';
-  const KEY = '20261023-signup-lists-v4';
+  const KEY = '20261023-signup-language-v1';
   const scripts = new Map();
 
   /* The styled lists (select-list) and the phone input (calling code, formatting, example) are shared libraries (1M8-240). */
@@ -47,7 +48,8 @@
   function fetchOptions(apiBase) {
     let timeZone = '';
     try { timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || ''; } catch (_) {}
-    const params = new URLSearchParams({ time_zone: timeZone, locale: navigator.language || '' });
+    const lang = root.FirstMateSignupLanguage?.handoff?.() || '';
+    const params = new URLSearchParams({ time_zone: timeZone, locale: navigator.language || '', locales: (navigator.languages || []).join(','), ...(lang ? { lang } : {}) });
     const url = String(apiBase).replace(/\/$/, '') + '/auth/signup-options?' + params;
     if (!optionRequests.has(url)) {
       optionRequests.set(url, fetch(url, { credentials: 'include', cache: 'no-store' })
@@ -64,74 +66,44 @@
   }
 
   /**
-   * Adds Country and Language selects above the phone field and a calling-code select
-   * beside the phone input. `classes` match the host form: field, label, control.
+   * Adds the calling-code picker beside the phone input and a hidden signup_language field (1M8-240: no Country or
+   * Language dropdowns; both are detected). `options` may be the signup options already fetched by the page's
+   * language start-up; `classes` match the host form: field, label, control.
    */
-  function mount({ form, phoneInput, apiBase, classes = {} }) {
+  function mount({ form, phoneInput, apiBase, classes = {}, options: knownOptions = null }) {
     const doc = form.ownerDocument;
-    const phoneField = phoneInput.closest('.' + (classes.field || 'form-group')) || phoneInput.parentElement;
-    function field(name, labelText) {
-      const wrapper = doc.createElement('div'); wrapper.className = classes.field || 'form-group';
-      const label = doc.createElement('label'); label.className = classes.label || ''; label.textContent = labelText;
-      const select = doc.createElement('select'); select.name = name; select.className = classes.control || ''; select.required = true;
-      select.id = 'signup-region-' + name + '-' + Math.random().toString(36).slice(2, 8); label.htmlFor = select.id;
-      wrapper.append(label, select);
-      return { wrapper, select };
-    }
-    const country = field('signup_country', text('country', 'Country'));
-    const language = field('signup_language', text('language', 'Language (app and reports)'));
+    const language = doc.createElement('input');
+    language.type = 'hidden'; language.name = 'signup_language';
+    form.appendChild(language);
     const dial = doc.createElement('select');
     dial.name = 'phone_country'; dial.className = classes.control || ''; dial.setAttribute('aria-label', text('calling_code', 'Country calling code'));
     dial.style.cssText = 'width:auto;flex:0 0 auto;max-width:8.5em';
     const row = doc.createElement('div'); row.style.cssText = 'display:flex;gap:6px;align-items:stretch';
     phoneInput.replaceWith(row); row.append(dial, phoneInput); phoneInput.style.flex = '1 1 auto'; phoneInput.style.minWidth = '0';
-    country.wrapper.hidden = language.wrapper.hidden = true; dial.hidden = true;
-    phoneField.before(country.wrapper, language.wrapper);
+    dial.hidden = true; dial.style.display = 'none';
 
-    const state = { options: null, dialTouched: false, languageTouched: false, phone: null, lists: [] };
+    const state = { options: null, phone: null };
     const callingCodes = () => new Map((state.options?.countries || []).map(c => [c.code, c.calling_code]));
-    function applyCountry(code) {
-      const entry = (state.options?.countries || []).find(c => c.code === code);
-      if (!entry) return;
-      if (!state.dialTouched) { if (state.phone) state.phone.setCountry(entry.code); else dial.value = entry.code; }
-      if (!state.languageTouched && [...language.select.options].some(o => o.value === entry.language)) language.select.value = entry.language;
-      state.lists.forEach(list => list.sync());
-      // With the shared phone input the placeholder is the chosen calling code's own example number.
-      if (!state.phone) phoneInput.placeholder = entry.calling_code === '1' ? '(555) 555-0123' : '';
-    }
-    const ready = fetchOptions(apiBase).then(options => {
+    const ready = Promise.resolve(knownOptions || fetchOptions(apiBase)).then(options => {
+      if (!options) throw new Error('Signup options unavailable');
       state.options = options;
-      country.select.append(option(doc, '', text('choose_country', 'Choose your country')));
-      country.select.options[0].disabled = true;
-      // Only the countries the platform operates in (1M8-240), as for the calling code.
-      (options.operating_countries || options.countries).forEach(c => country.select.append(option(doc, c.code, c.name)));
-      // Only the countries the platform serves, the detected one first (1M8-240).
+      language.value = root.FirstMateSignupLanguage?.language?.() || options.language || '';
+      // The countries the platform serves, the detected one first (1M8-240). The list only offers calling codes; it
+      // never limits who can sign up.
       (options.phone_countries || [...options.countries].sort((a, b) => a.code.localeCompare(b.code)))
         .forEach(c => dial.append(option(doc, c.code, c.code + ' +' + c.calling_code)));
-      options.languages.forEach(l => language.select.append(option(doc, l.code, l.label)));
-      country.select.value = options.country || '';
-      dial.value = options.country || 'US';
-      language.select.value = options.language || 'en-US';
-      applyCountry(options.country);
-      country.wrapper.hidden = language.wrapper.hidden = dial.hidden = false;
+      dial.value = options.country || (options.phone_countries?.[0]?.code) || 'US';
+      dial.hidden = false; dial.style.display = '';
+      if (dial.value === 'US' || dial.value === 'CA') phoneInput.placeholder = '(555) 555-0123';
       return loadPhoneInput(doc).then((phoneInputLibrary) => {
-        const lists = root.FirstMateSelectList;
-        if (lists) {
-          state.lists.push(lists.attach(country.select, { label: text('country', 'Country'), placeholder: text('choose_country', 'Choose your country'),
-            items: [...country.select.options].map(o => ({ value: o.value, label: o.textContent, disabled: o.disabled })) }));
-          state.lists.push(lists.attach(language.select, { label: text('language', 'Language (app and reports)') }));
-        }
         state.phone = phoneInputLibrary.attach({ input: phoneInput, select: dial, countries: options.phone_countries || options.countries, country: dial.value });
         return options;
       }, () => options);
     }).catch(() => {
       // Without options the form behaves as before: the server detects the country.
-      country.wrapper.remove(); language.wrapper.remove(); dial.remove();
+      dial.remove();
       return null;
     });
-    country.select.addEventListener('change', () => applyCountry(country.select.value));
-    dial.addEventListener('change', () => { state.dialTouched = true; });
-    language.select.addEventListener('change', () => { state.languageTouched = true; });
 
     const callingCode = () => state.phone ? state.phone.callingCode() : state.options ? callingCodes().get(dial.value) || '' : '';
     return {
@@ -148,7 +120,9 @@
         return digits.length === 10 || (digits.length === 11 && digits.startsWith('1'));
       },
       /** North American numbers keep their familiar (555) 555-0123 formatting while typing. */
-      formatsAsNorthAmerican: () => !state.phone && (!state.options || callingCode() === '1')
+      formatsAsNorthAmerican: () => !state.phone && (!state.options || callingCode() === '1'),
+      /** The language the form is shown in (sent as signup_language). */
+      setLanguage: (code) => { language.value = code || ''; }
     };
   }
 
