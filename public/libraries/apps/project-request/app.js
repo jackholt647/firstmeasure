@@ -5795,13 +5795,24 @@ window.PlatformCommerce.onReady(async function(){
     return `<span class="r-info-tip r-addon-info-trigger" data-addon-info-trigger="${String(escapeHtml(key))}" role="button" tabindex="0" aria-label="${((v1) => globalThis.PlatformLanguage?.htmlText("project-request","m_6e4ba38fa02b85",`${v1} information`,{v1}) ?? `${v1} information`)(escapeHtml(info.title))}"><i class="fas fa-info"></i></span>`;
   }
 
-  // The first order page puts the address under the map on phones, so Google's suggestions open above the field
-  // rather than off-screen or under the keyboard.
+  // The first order page puts the address under the map on phones, so Google's suggestions open above the field,
+  // never over it or under the keyboard. Google moves and resizes the list whenever results change, so each list is
+  // watched itself (style, rows and size) and put back; its height is capped to the room above the field.
   if(!window.__fmAddressSuggestionsAbove&&typeof MutationObserver==='function'){window.__fmAddressSuggestionsAbove=true;
-    const place=pac=>{const input=document.activeElement;if(!input||input.id!=='rAddress'||!input.closest('.r-overlay.mobile-order.mobile-order-location'))return;if(getComputedStyle(pac).display==='none')return;
-      const top=Math.max(4,window.scrollY+input.getBoundingClientRect().top-pac.offsetHeight-6)+'px';if(pac.style.top!==top)pac.style.top=top;};
-    new MutationObserver(records=>{for(const record of records){const node=record.target;if(node.classList?.contains('pac-container'))place(node);for(const added of record.addedNodes||[])if(added.classList?.contains('pac-container'))place(added);}}).observe(document.body,{subtree:false,childList:true,attributes:true,attributeFilter:['style'],attributeOldValue:false});
-    document.addEventListener('input',event=>{if(event.target?.id==='rAddress')requestAnimationFrame(()=>document.querySelectorAll('.pac-container').forEach(place));},true);}
+    let addressFocused=false;document.addEventListener('focusin',event=>{addressFocused=event.target?.id==='rAddress';},true);
+    const field=()=>{const input=document.getElementById('rAddress');return addressFocused&&input?.closest('.r-overlay.mobile-order.mobile-order-location')?input:null;};
+    const place=pac=>{const input=field();
+      if(!input){if(pac.dataset.fmAbove){delete pac.dataset.fmAbove;pac.style.maxHeight='';pac.style.overflowY='';}return;}
+      if(getComputedStyle(pac).display==='none')return;const box=input.getBoundingClientRect(),room=Math.max(96,Math.floor(box.top-10))+'px';
+      if(pac.style.maxHeight!==room){pac.dataset.fmAbove='1';pac.style.maxHeight=room;pac.style.overflowY='auto';}
+      const top=Math.round(window.scrollY+box.top-pac.offsetHeight-6)+'px';if(pac.style.top!==top)pac.style.top=top;};
+    const placeAll=()=>document.querySelectorAll('.pac-container').forEach(place);
+    const watched=new WeakSet(),sized=typeof ResizeObserver==='function'?new ResizeObserver(entries=>entries.forEach(entry=>place(entry.target))):null;
+    const watch=pac=>{if(watched.has(pac))return;watched.add(pac);new MutationObserver(()=>place(pac)).observe(pac,{attributes:true,attributeFilter:['style'],childList:true,subtree:true});sized?.observe(pac);place(pac);};
+    new MutationObserver(records=>{for(const record of records)for(const added of record.addedNodes||[])if(added.classList?.contains('pac-container'))watch(added);}).observe(document.body,{childList:true});
+    document.querySelectorAll('.pac-container').forEach(watch);
+    document.addEventListener('input',event=>{if(event.target?.id==='rAddress')requestAnimationFrame(placeAll);},true);
+    window.visualViewport?.addEventListener('resize',placeAll);window.addEventListener('resize',placeAll);}
 
   function buildTypeButtons(){
     const pricingLabels = Object.fromEntries(['residential','commercial','multifamily'].map(type => [type, globalThis.PlatformLanguage?.text('project-request', type === 'residential' ? 'price_flat_rate' : 'price_per_structure', fmtCredit(reportDisplayedBasePrice(type)) + (type === 'residential' ? ' flat rate' : ' / structure'), {price:fmtCredit(reportDisplayedBasePrice(type))})]));

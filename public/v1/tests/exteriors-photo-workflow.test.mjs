@@ -111,3 +111,32 @@ test('guided retakes preserve each photo and its angle through draft restore',as
  t.files.clear();order.restore(fields);
  assert.deepEqual(JSON.parse(order.payload().exterior_references),references);
 });
+
+test('prices wait for a placed address, send pins as JSON, retry passing failures and report under Delivery only',async()=>{
+ const calls=[],answers=[];let timers=[];
+ const portal={cfg:{serverEndpoint:'/local-test'},capabilities:{value:key=>key==='firstmeasure.exteriors'},util:{escapeHtml:s=>String(s),injectCSS(){},postAction:async(action,fields)=>{calls.push(fields);const next=answers.shift();if(next instanceof Error)throw next;return next;}}};
+ const instrumented=source.replace('  P.ExteriorOrder={','  P.test={orderBlocker,getError:()=>error,getQuoteError:()=>quoteError,hasQuote:()=>!!quote};\n  P.ExteriorOrder={');
+ vm.runInNewContext(instrumented,{window:{Portal:portal},document:{getElementById:()=>null,cookie:''},URL,FormData,crypto:{randomUUID},fetch:async()=>({}),setTimeout:(fn,ms)=>{timers.push(fn);return timers.length;},clearTimeout(){}});
+ const flush=()=>new Promise(setImmediate);
+ const context={type:'residential',count:1,pins:[],getAddress:()=>'4725 W',ordered:false,orderWorkflow:true,refresh:()=>portal.ExteriorOrder.sync(context)};
+ const order=portal.ExteriorOrder,t=portal.test;
+ order.sync(context);await flush();
+ assert.equal(calls.length,0,'a typed address without a pin is not priced');
+ // A dropped connection, then a gateway error, then success: retried without any message.
+ answers.push(new TypeError('Failed to fetch'),{res:{status:502},data:null},{res:{status:200},data:{success:true,options:[{key:'exteriors_standard',amount:25}]}});
+ context.pins=[{lat:47.56,lng:-122.24}];context.getAddress=()=>'4725 W Mercer Way, Mercer Island, WA 98040';order.sync(context);await flush();
+ assert.equal(calls[0].pins,JSON.stringify(context.pins),'pins survive FormData');
+ for(let i=0;i<2;i++){assert.equal(timers.length,1);const retry=timers.pop();retry();await flush();}
+ assert.equal(calls.length,3);assert.equal(t.hasQuote(),true);assert.equal(t.getQuoteError(),'');
+ // A server refusal is not retried; it blocks ordering with its own message but is not the page-wide error.
+ answers.push({res:{status:400},data:{ok:false,error:'property_country_unavailable',message:'We could not verify the property’s country.'}});
+ context.pins=[{lat:47.57,lng:-122.24}];order.sync(context);await flush();
+ assert.equal(timers.length,0);assert.equal(t.getQuoteError(),'We could not verify the property’s country.');assert.equal(t.getError(),'');
+ order.restore({measurement_scope:'full_house',report_expedite_option:'exteriors_standard'});
+ assert.equal(t.orderBlocker(),'We could not verify the property’s country.');
+ // Running out of retries gives the connection message.
+ answers.push(new TypeError('Failed to fetch'),new TypeError('Failed to fetch'),new TypeError('Failed to fetch'));
+ context.pins=[{lat:47.58,lng:-122.24}];order.sync(context);await flush();
+ for(let i=0;i<2;i++){timers.pop()();await flush();}
+ assert.match(t.getQuoteError(),/couldn’t load Full Exterior prices/);
+});

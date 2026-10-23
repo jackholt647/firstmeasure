@@ -296,7 +296,7 @@
       kind: 'modal_app',
       surfaces: ['modal', 'project_modal'],
       dependencies: ['firstmeasure.order', 'project.map', 'project.photos', 'project.proposal', 'project.materials', 'project.money', 'project.customer_portal', 'project.schedule', 'project.measurements', 'project.checklists'],
-      bundles: [...channelsLibBundles, versionedBundle('../window-manager/project-windows.js', '20261010-priority-owners-v2'), versionedBundle('project-request/app.js', '20261023-full-exterior-order')]
+      bundles: [...channelsLibBundles, versionedBundle('../window-manager/project-windows.js', '20261010-priority-owners-v2'), versionedBundle('project-request/app.js', '20261023-order-fixes')]
     },
     {
       id: 'firstmeasure.order',
