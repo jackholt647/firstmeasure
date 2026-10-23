@@ -199,7 +199,7 @@ GET/PATCH/DELETE /organizations/:orgId/documents/:documentId          (PATCH: { 
                  new workflow's first step and prunes completed_steps to surviving step ids. Used by the rail doc card's
                  "Add variant" convert flow (standard proposal -> tpl_three_option_proposal + wfl_three_option_proposal).
 POST            /organizations/:orgId/documents/:documentId/resolve   -> { resolved_definition, widget_data, theme, theme_vars } (editor/preview live resolution; { trace: true } adds binding provenance, see docs/architecture/document-as-sent-editing.md)
-POST            /organizations/:orgId/documents/:documentId/inputs    { writes: [{ path, text }] } -> type into values the rendered document shows (bound inputs)
+POST            /organizations/:orgId/documents/:documentId/as-sent   { writes?: [{ path, text }], text?: { node_id, blocks|null, base } } -> values typed into the rendered document and text overrides (editing as sent)
 POST            /organizations/:orgId/documents/:documentId/issue|send|snapshots
 POST/GET        /organizations/:orgId/documents/:documentId/pdf
 POST            /organizations/:orgId/documents/:documentId/outputs/:key   (internal fill)

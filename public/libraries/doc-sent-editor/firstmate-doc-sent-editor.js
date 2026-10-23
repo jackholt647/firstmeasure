@@ -8,7 +8,7 @@
  *
  *   - Values that come from the document's data (a line's name, quantity or
  *     amount, a measurement, a param) are inputs: click one, type, and the
- *     host writes the data (POST /documents/:id/inputs); everything derived
+ *     host writes the data (POST /documents/:id/as-sent); everything derived
  *     from it recomputes and the page re-renders.
  *   - Calculated values (totals, anything computed) are read only; they
  *     follow their inputs.

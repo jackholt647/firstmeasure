@@ -493,7 +493,7 @@ already did.
 
 ## Typing into a document as sent resolves it twice
 
-**Today.** `writeDocumentInputs` (`public/v1/documents/service.ts`) runs a full traced resolution of the document to
+**Today.** `editDocumentAsSent` (`public/v1/documents/service.ts`) runs a full traced resolution of the document to
 check that every written path is an input the document shows, then saves and resolves it again to return the
 recomputed page. Each resolution reads the template, the project entities, sources and widget data.
 

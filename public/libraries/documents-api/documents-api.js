@@ -151,9 +151,11 @@
     patch(orgId, documentId, patch = {}){ return request(documentPath(orgId, documentId), { method: 'PATCH', body: patch }); },
     archive(orgId, documentId){ return request(documentPath(orgId, documentId), { method: 'DELETE' }); },
     resolve(orgId, documentId, body = {}){ return request(documentPath(orgId, documentId, '/resolve'), { method: 'POST', body }); },
-    // Editing as sent: type into values the rendered document shows
-    // ({ writes: [{ path, text }] }); returns the document and a traced resolution.
-    writeInputs(orgId, documentId, body = {}){ return request(documentPath(orgId, documentId, '/inputs'), { method: 'POST', body }); },
+    // Editing as sent: values typed into the rendered document
+    // ({ writes: [{ path, text }] }) and/or one text override
+    // ({ text: { node_id, blocks|null, base } }); returns the document and a
+    // traced resolution.
+    editAsSent(orgId, documentId, body = {}){ return request(documentPath(orgId, documentId, '/as-sent'), { method: 'POST', body }); },
     issue(orgId, documentId, body = {}){ return request(documentPath(orgId, documentId, '/issue'), { method: 'POST', body }); },
     send(orgId, documentId, body = {}){ return request(documentPath(orgId, documentId, '/send'), { method: 'POST', body }); },
     snapshots(orgId, documentId){ return request(documentPath(orgId, documentId, '/snapshots')); },

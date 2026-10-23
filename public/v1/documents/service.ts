@@ -873,16 +873,22 @@ async function patchDocumentInstanceLocked(orgId: string, documentId: string, pa
 }
 
 /**
- * Type into a value the rendered document shows (editing as sent). Each write
- * names the data path a traced resolution gave the value and the text typed;
- * only paths this document shows as inputs are accepted, the text is parsed
- * the way the value is formatted, a data rule may store it (a line amount is
- * stored as its unit price), and the params go through patchDocumentInstance
- * like every other document edit (so they are a document revision). Returns
- * the document and its fresh traced resolution, where everything derived
- * from the values (line amounts, totals) is recomputed.
+ * One edit made on the document as sent (docs/architecture/document-as-sent-editing.md):
+ *  - writes: values typed into the rendered document. Each names the data path
+ *    a traced resolution gave the value and the text typed; only paths this
+ *    document shows as inputs are accepted, the text is parsed the way the
+ *    value is formatted, and a data rule may store it (a line amount is
+ *    stored as its unit price).
+ *  - text: { node_id, blocks | null, base } replaces the document's text
+ *    override of one template text node (blocks from
+ *    FMDocModel.boundBlocksToTemplate, base the template text's fingerprint);
+ *    null removes it so the template's text shows again.
+ * Both are saved together through patchDocumentInstance, like every other
+ * document edit, as one document revision. Returns the document and its fresh
+ * traced resolution, where everything derived from the values (line amounts,
+ * totals) is recomputed.
  */
-export async function writeDocumentInputs(orgId: string, documentId: string, input: JsonObject, ctx: PlatformAuthContext) {
+export async function editDocumentAsSent(orgId: string, documentId: string, input: JsonObject, ctx: PlatformAuthContext) {
   const current = await readDocumentInstance(orgId, documentId);
   requireDocumentDepartmentAccess(ctx, current);
   const expectedRevision = Number(input.expected_revision || 0);
@@ -890,7 +896,9 @@ export async function writeDocumentInputs(orgId: string, documentId: string, inp
     throw conflict("document_revision_conflict", "Document revision does not match.");
   }
   const writes = asArray(input.writes).map(asObject);
-  if (!writes.length) throw badRequest("document_input_missing", "Nothing to write.");
+  const text = asObject(input.text);
+  const textNodeId = cleanText(text.node_id);
+  if (!writes.length && !textNodeId) throw badRequest("document_edit_missing", "Nothing to save.");
   const traced = await resolveDocumentInstance(orgId, current, { trace: true });
   const bindings = tracedBindings(traced.resolved_definition);
   const params = cloneJson(asObject(current.params));
@@ -906,8 +914,20 @@ export async function writeDocumentInputs(orgId: string, documentId: string, inp
     applyDocumentInput(params, path, parsed.value);
     paths.push(path);
   }
-  const changed = Object.fromEntries(touchedParamKeys(paths).map(key => [key, params[key]]));
-  const document = await patchDocumentInstance(orgId, documentId, { params: changed, expected_revision: Number(current.revision || 0) || undefined }, ctx);
+  const patch: JsonObject = { expected_revision: Number(current.revision || 0) || undefined };
+  if (paths.length) patch.params = Object.fromEntries(touchedParamKeys(paths).map(key => [key, params[key]]));
+  if (textNodeId) {
+    let editable = false;
+    FMDocModel.walkNodes(traced.resolved_definition, (node) => { if (cleanText(node.id) === textNodeId && node.as_sent) editable = true; });
+    if (!editable) throw conflict("document_text_not_editable", "That text is made from the document's data; change the data instead.", { node_id: textNodeId });
+    const isTextOp = (op: JsonObject) => cleanText(op.op) === "node.set" && cleanText(op.node_id) === textNodeId && (cleanText(op.prop) === "props.blocks" || cleanText(op.prop).startsWith("props.blocks."));
+    const kept = asArray(current.overrides).map(asObject).filter(op => !isTextOp(op));
+    // Appended last, so it applies after any node.insert that created the node.
+    patch.overrides = Array.isArray(text.blocks)
+      ? [...kept, { op: "node.set", node_id: textNodeId, prop: "props.blocks", value: text.blocks, ...(cleanText(text.base) ? { base: cleanText(text.base) } : {}), source: "as_sent" }]
+      : kept;
+  }
+  const document = await patchDocumentInstance(orgId, documentId, patch, ctx);
   const resolved = await resolveDocumentInstance(orgId, document, { trace: true });
   return { document, resolved };
 }

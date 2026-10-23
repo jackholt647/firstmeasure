@@ -83,9 +83,9 @@ write events in `public/v1/forms`. Run `npm run test:forms` and
 
 Read [editing a document as sent](docs/architecture/document-as-sent-editing.md)
 before changing "Edit manually", binding resolution (`resolveBindings` trace),
-document input rules or `/documents/:id/inputs`. The editor shows the same
+document input rules or `/documents/:id/as-sent`. The editor shows the same
 render the PDF is made from. A value from the document's data is an input:
-typing writes the data through `writeDocumentInputs` (which saves with
+typing writes the data through `editDocumentAsSent` (which saves with
 `patchDocumentInstance`) and everything derived recomputes; totals and other
 calculated values are never typed. Other text is a `props.blocks` override
 whose bindings stay live, with `base` set so a later template change is

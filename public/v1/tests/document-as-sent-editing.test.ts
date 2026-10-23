@@ -53,7 +53,7 @@ function runs(definition: Line) {
   return found;
 }
 const textOf = (definition: Line) => runs(definition).map((entry) => String(entry.run.text || "")).join(" ");
-const money = (cents: number) => FMDocModel.formatters.money(cents) as string;
+const money = (cents: number) => FMDocModel.formatters.money!(cents) as string;
 const total = (resolved: Line) => Number(resolved.resolved_definition.computed_values.total_cents);
 
 test("a quantity typed into the rendered estimate updates the line, every total and the PDF", async () => {
@@ -81,7 +81,7 @@ test("a quantity typed into the rendered estimate updates the line, every total 
   const before = total(traced);
   const oldOwn = scopeItemPriceResult(line).own_amount_cents;
   const nextQuantity = Number(line.quantity) + 4;
-  const written = await service.writeDocumentInputs(ctx.orgId, id, { writes: [{ path, text: `${nextQuantity} sq` }] }, ctx) as Line;
+  const written = await service.editDocumentAsSent(ctx.orgId, id, { writes: [{ path, text: `${nextQuantity} sq` }] }, ctx) as Line;
 
   const saved = await store.readDocumentInstance(ctx.orgId, id) as Line;
   const savedLine = saved.params.scope_items[0].children[lineIndex];
@@ -104,16 +104,16 @@ test("a quantity typed into the rendered estimate updates the line, every total 
   {
     assert.equal(amounts[0]!.run.binding.kind, "input");
     const typed = 123457;
-    const repriced = await service.writeDocumentInputs(ctx.orgId, id, { writes: [{ path: amountPath, text: "$1,234.57" }] }, ctx) as Line;
+    const repriced = await service.editDocumentAsSent(ctx.orgId, id, { writes: [{ path: amountPath, text: "$1,234.57" }] }, ctx) as Line;
     const repricedLine = (await store.readDocumentInstance(ctx.orgId, id) as Line).params.scope_items[0].children[lineIndex];
     assert.equal(scopeItemPriceResult(repricedLine).own_amount_cents, typed, "the line now costs what was typed");
     assert.equal(total(repriced.resolved), total(written.resolved) + typed - newOwn);
   }
 
   // Calculated values and projections are not inputs.
-  await assert.rejects(service.writeDocumentInputs(ctx.orgId, id, { writes: [{ path: "computed.total_cents", text: "1" }] }, ctx), /not an input/);
-  await assert.rejects(service.writeDocumentInputs(ctx.orgId, id, { writes: [{ path: "params.scope_rows.1.quantity", text: "1" }] }, ctx), /not an input/);
-  await assert.rejects(service.writeDocumentInputs(ctx.orgId, id, { writes: [{ path, text: "lots" }] }, ctx), /number/);
+  await assert.rejects(service.editDocumentAsSent(ctx.orgId, id, { writes: [{ path: "computed.total_cents", text: "1" }] }, ctx), /not an input/);
+  await assert.rejects(service.editDocumentAsSent(ctx.orgId, id, { writes: [{ path: "params.scope_rows.1.quantity", text: "1" }] }, ctx), /not an input/);
+  await assert.rejects(service.editDocumentAsSent(ctx.orgId, id, { writes: [{ path, text: "lots" }] }, ctx), /number/);
 });
 
 test("text edited as sent is an override that keeps its values live and is flagged when the template changes", async () => {
@@ -137,11 +137,14 @@ test("text edited as sent is an override that keeps its values live and is flagg
   edited[0]!.runs[0].text = "Time on site: ";
   edited[0]!.runs[4].text = " total ";
   const blocks = FMDocModel.boundBlocksToTemplate(edited);
-  assert.equal(blocks[0]!.runs[1].bind, "params.hours", "the value stays a binding");
-  await service.patchDocumentInstance(ctx.orgId, id, { overrides: [{ op: "node.set", node_id: "summary", prop: "props.blocks", value: blocks, base: node.as_sent.fingerprint }] }, ctx);
+  assert.equal((blocks[0] as Line).runs[1].bind, "params.hours", "the value stays a binding");
+  const saved = await service.editDocumentAsSent(ctx.orgId, id, { text: { node_id: "summary", blocks, base: node.as_sent.fingerprint } }, ctx) as Line;
+  assert.deepEqual(saved.document.overrides.map((op: Line) => [op.op, op.node_id, op.prop, op.source]), [["node.set", "summary", "props.blocks", "as_sent"]]);
+  // Text made from data (a repeated row) is not text the document can override.
+  await assert.rejects(service.editDocumentAsSent(ctx.orgId, id, { text: { node_id: "no_such_node", blocks: [] } }, ctx), /made from the document's data/);
 
   // Data changes later: the edited text shows the new values.
-  await service.writeDocumentInputs(ctx.orgId, id, { writes: [{ path: "params.hours", text: "5" }] }, ctx);
+  await service.editDocumentAsSent(ctx.orgId, id, { writes: [{ path: "params.hours", text: "5" }] }, ctx);
   const later = await service.resolveDocumentInstance(ctx.orgId, await store.readDocumentInstance(ctx.orgId, id), { trace: true }) as Line;
   const laterNode = FMDocModel.findNode(later.resolved_definition, "summary")!.node as Line;
   assert.equal(laterNode.props.blocks[0].runs.map((run: Line) => run.text).join(""), `Time on site: 5 hours at ${money(9500)} total ${money(47500)}`);
@@ -154,7 +157,11 @@ test("text edited as sent is an override that keeps its values live and is flagg
   const changedNode = FMDocModel.findNode(changed.resolved_definition, "summary")!.node as Line;
   assert.match(changedNode.props.blocks[0].runs[0].text, /^Time on site/, "an edit is never silently dropped");
   assert.equal(changedNode.as_sent.conflict, true);
-  assert.equal(FMDocModel.findNode(changed.resolved_definition, "heading")!.node.props.blocks[0].runs[0].text, "Labor today", "untouched text follows the template");
+  assert.equal((FMDocModel.findNode(changed.resolved_definition, "heading")!.node as Line).props.blocks[0].runs[0].text, "Labor today", "untouched text follows the template");
+  // "Use the template's": the override goes and the template's text shows.
+  const restored = await service.editDocumentAsSent(ctx.orgId, id, { text: { node_id: "summary", blocks: null } }, ctx) as Line;
+  assert.deepEqual(restored.document.overrides, []);
+  assert.match((FMDocModel.findNode(restored.resolved.resolved_definition, "summary")!.node as Line).props.blocks[0].runs[0].text, /^Work: /);
 });
 
 test("a value typed over another record's data is kept and flagged when the record changes", async () => {
@@ -166,13 +173,13 @@ test("a value typed over another record's data is kept and flagged when the reco
   const site = FMDocModel.findNode(traced.resolved_definition, "site")!.node as Line;
   const bound = site.props.blocks[0].runs.find((run: Line) => run.binding);
   assert.equal(bound.binding.kind, "upstream", "the project title belongs to the project");
-  await assert.rejects(service.writeDocumentInputs(ctx.orgId, id, { writes: [{ path: String(bound.binding.path), text: "x" }] }, ctx), /not an input/);
+  await assert.rejects(service.editDocumentAsSent(ctx.orgId, id, { writes: [{ path: String(bound.binding.path), text: "x" }] }, ctx), /not an input/);
   // Typed over in this document only (as the editor's "Type over it here" saves it).
   const typed = FMDocModel.deepClone(site.props.blocks) as Line[];
   const runIndex = typed[0]!.runs.findIndex((run: Line) => run.binding);
   typed[0]!.runs[runIndex] = { text: "The Whitfields' house", binding: { kind: "pinned", expr: bound.binding.expr, value: bound.text } };
-  await service.patchDocumentInstance(ctx.orgId, id, { overrides: [{ op: "node.set", node_id: "site", prop: "props.blocks", value: FMDocModel.boundBlocksToTemplate(typed), base: site.as_sent.fingerprint }] }, ctx);
-  const pinned = async () => service.resolveDocumentInstance(ctx.orgId, await store.readDocumentInstance(ctx.orgId, id), { trace: true }).then((resolved: Line) => FMDocModel.findNode(resolved.resolved_definition, "site")!.node.props.blocks[0].runs[runIndex]);
+  await service.editDocumentAsSent(ctx.orgId, id, { text: { node_id: "site", blocks: FMDocModel.boundBlocksToTemplate(typed), base: site.as_sent.fingerprint } }, ctx);
+  const pinned = async () => service.resolveDocumentInstance(ctx.orgId, await store.readDocumentInstance(ctx.orgId, id), { trace: true }).then((resolved: Line) => (FMDocModel.findNode(resolved.resolved_definition, "site")!.node as Line).props.blocks[0].runs[runIndex]);
   assert.deepEqual([(await pinned()).text, (await pinned()).binding.conflict], ["The Whitfields' house", false]);
   const { upsertProjectWithContacts } = await import("./helpers/project-contacts.js");
   await upsertProjectWithContacts(ctx.orgId, { id: projectId, data: { title: "Whitfield residence (rear)", branch_id: "default", address: "68 Northfield Rd", contacts: [{ name: "Dana Whitfield", email: "dana@example.test", primary: true }] } });

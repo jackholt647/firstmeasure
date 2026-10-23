@@ -370,12 +370,17 @@ export const resolveDocumentSchema = jsonObjectSchema.extend({
   trace: z.boolean().optional()
 }).passthrough();
 
-/** POST /documents/:id/inputs: type into values the rendered document shows. */
-export const writeDocumentInputsSchema = jsonObjectSchema.extend({
+/** POST /documents/:id/as-sent: values typed into the rendered document and/or one text override. */
+export const editDocumentAsSentSchema = jsonObjectSchema.extend({
   writes: z.array(z.object({
     path: z.string().trim().min(1).max(400),
     text: z.union([z.string().max(2000), z.number()])
-  })).min(1).max(50),
+  })).max(50).optional(),
+  text: z.object({
+    node_id: z.string().trim().min(1).max(200),
+    blocks: z.array(jsonObjectSchema).max(500).nullable(),
+    base: z.string().trim().max(120).nullable().optional()
+  }).optional(),
   expected_revision: z.number().int().nonnegative().optional()
 }).passthrough();
 

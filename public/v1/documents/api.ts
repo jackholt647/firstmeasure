@@ -25,7 +25,7 @@ import {
   publicViewEventSchema,
   publicPricingPreviewSchema,
   resolveDocumentSchema,
-  writeDocumentInputsSchema,
+  editDocumentAsSentSchema,
   ingestDocumentSchema,
   voidDocumentInstanceSchema,
   templateFromExamplesSchema,
@@ -115,7 +115,7 @@ import {
   recordDocumentOutput,
   recordPublicDocumentView,
   resolveDocumentInstance,
-  writeDocumentInputs,
+  editDocumentAsSent,
   sendDocument,
   updateDocumentWorkflowState,
   voidDocumentInstance,
@@ -784,12 +784,12 @@ export const registerDocumentsApi: FastifyPluginAsync = async (app) => {
     };
   });
 
-  /** Editing as sent: type into values the rendered document shows (bound inputs). */
-  app.post("/organizations/:orgId/documents/:documentId/inputs", async (request) => {
+  /** Editing as sent: values typed into the rendered document (bound inputs) and text overrides. */
+  app.post("/organizations/:orgId/documents/:documentId/as-sent", async (request) => {
     const orgId = getParam(request.params, "orgId");
     const ctx = await requirePlatformAuth(request, { orgId, csrf: true, permission: "view_projects", allowScopedPermission: true });
-    const body = writeDocumentInputsSchema.parse(request.body ?? {});
-    const { document, resolved } = await writeDocumentInputs(orgId, getParam(request.params, "documentId"), body, ctx);
+    const body = editDocumentAsSentSchema.parse(request.body ?? {});
+    const { document, resolved } = await editDocumentAsSent(orgId, getParam(request.params, "documentId"), body, ctx);
     return {
       ok: true,
       document,

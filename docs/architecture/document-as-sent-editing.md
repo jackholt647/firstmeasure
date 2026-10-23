@@ -12,8 +12,8 @@ any template whose text binds data gets it. Entry points:
 | Piece | Where |
 |---|---|
 | Provenance (`trace`) and the helpers below | `public/libraries/doc-model/firstmate-doc-model.js`, section "Bound inputs" |
-| Traced resolution, input kinds, the write route | `public/v1/documents/service.ts` (`resolveDocumentInstance({ trace })`, `writeDocumentInputs`), `public/v1/documents/inputs.ts` |
-| Routes | `POST /organizations/:orgId/documents/:id/resolve { trace: true }`, `POST /organizations/:orgId/documents/:id/inputs` |
+| Traced resolution, input kinds, the write route | `public/v1/documents/service.ts` (`resolveDocumentInstance({ trace })`, `editDocumentAsSent`), `public/v1/documents/inputs.ts` |
+| Routes | `POST /organizations/:orgId/documents/:id/resolve { trace: true }`, `POST /organizations/:orgId/documents/:id/as-sent` |
 | The editor | `public/libraries/doc-sent-editor/firstmate-doc-sent-editor.js` (`FMDocSentEditor.open`) |
 | Host | `openAsSentEditor()` in `public/libraries/apps/documents/project.js` |
 | Tests | `public/v1/tests/document-as-sent-editing.test.ts` |
@@ -85,8 +85,8 @@ regenerates them on request.
 
 ### Writing an input
 
-`POST /documents/:id/inputs { writes: [{ path, text }] }`
-(`writeDocumentInputs`):
+`POST /documents/:id/as-sent { writes: [{ path, text }] }`
+(`editDocumentAsSent`):
 
 1. Resolves the document traced and accepts only paths it shows as `input`
    (409 `document_input_not_writable` otherwise). The client cannot write a
@@ -126,12 +126,15 @@ elements carry `data-block-index` / `data-run-index` from the renderer) and
 - a run typed over an upstream value becomes `{ text, literal: true,
   pinned: { expr, value } }`.
 
-The host stores one override per node,
+`POST /documents/:id/as-sent { text: { node_id, blocks, base } }` keeps one
+override per node,
 `{ op: "node.set", node_id, prop: "props.blocks", value, base, source: "as_sent" }`,
-appended to the document's override log through the normal document PATCH
-(with `expected_revision`), so it is a document revision like every other
-edit. `base` is `FMDocModel.fingerprint` of the template node's own blocks
-when the edit was made. Paragraph style (`style_ref`), bold, italic and
+replacing that node's earlier text overrides and appended last (so it applies
+after a `node.insert` that created the node). The server accepts only nodes
+the traced document marks editable, and saves through `patchDocumentInstance`
+with the revision it read, so the edit is a document revision like every
+other; `blocks: null` removes the override. `base` is `FMDocModel.fingerprint`
+of the template node's own blocks when the edit was made. Paragraph style (`style_ref`), bold, italic and
 underline are run and block properties of the same override.
 
 ### When things change later
