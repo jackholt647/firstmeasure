@@ -111,7 +111,7 @@ test('every face in an elevation table is labeled in its drawing, and every labe
   assert.deepEqual(labels,rows,p.title);
  }
  const front=elevations.find(p=>p.title==='Front Elevation');assert.ok(front.text.some(t=>t.value==='W07'&&t.bold));assert.ok(front.circles>0&&front.text.some(t=>t.value==='W07'&&t.size===5.5),'the narrow face gets a leader line');
- assert.ok(front.text.some(t=>/^Small pieces: 1 under/.test(t.value)));assert.ok(front.text.some(t=>/^Total/.test(t.value)&&t.bold));
+ assert.ok(front.text.some(t=>t.value==='1 piece < 1 ft²'),'small pieces are one short row');assert.ok(!pages.some(p=>p.text.some(t=>/^Small pieces/.test(t.value))));assert.ok(front.text.some(t=>/^Total/.test(t.value)&&t.bold));
  assert.ok(!pages.some(p=>p.text.some(t=>/irreducible|Unassigned/.test(t.value))));assert.ok(pages.some(p=>p.title==='Hidden Wall Faces'&&p.text.some(t=>t.value==='W05')));
  assert.ok(front.text.some(t=>t.value==='Openings ft²'));assert.ok(front.text.some(t=>t.value==='Gross ft²'));assert.ok(!front.text.some(t=>t.value==='Net ft²'),'net is in the totals box only');
  // No elevation page carries the old disclaimer.
@@ -120,6 +120,18 @@ test('every face in an elevation table is labeled in its drawing, and every labe
  const xs=elevations.flatMap(p=>p.text.filter(t=>!t.bold&&t.size===8&&/^W\d+$/.test(t.value)).map(t=>t.x));
  assert.ok(xs.length&&xs.every(x=>Math.abs(x-31)<1e-9||Math.abs(x-(25+(170-5)/2+5+6))<1e-9),'wall ids sit in the left or right column: '+xs);
  for(const p of elevations)assert.equal(p.text.filter(t=>/^Total/.test(t.value)).length,1,p.title+' has one totals box');
+});
+test('a landscape elevation side panel is only as wide as its table, its rows are never cut, and the drawing gets the rest',()=>{
+ const ctx=loadPDF(),pages=[];let page,font='normal',size=9;
+ const doc=new Proxy({internal:{pageSize:{getWidth:()=>279.4,getHeight:()=>215.9}},getTextWidth:s=>String(s).length*size*.16,splitTextToSize:s=>[s],setFont:(f,style)=>{font=style;},setFontSize:s=>{size=s;},text:(value,x,y)=>page.text.push({value:String(value),bold:font==='bold',size,x,y}),roundedRect:(...a)=>page.rounded.push(a)},{get:(o,k)=>k in o?o[k]:()=>{}});
+ ctx.drawExteriorReportPages(doc,boxHouse(),{frontBearing:180},title=>{page={title,text:[],rounded:[]};pages.push(page);},{});
+ const elevations=pages.filter(p=>/ Elevation$/.test(p.title)),w=279.4-40,panels=new Set();
+ for(const p of elevations){const header=p.text.find(t=>t.value==='Wall');if(!header)continue;
+  const box=p.rounded.find(r=>Math.abs(r[0]-(header.x-6))<1e-9);assert.ok(box,p.title+' table box');panels.add(box[2].toFixed(3));
+  assert.ok(box[2]<=w*.34+1e-9&&box[2]>=w*.24-1e-9,p.title+' panel width '+box[2]);assert.ok(Math.abs(box[0]+box[2]-(25+w))<1e-9,'the panel ends at the content edge');
+  assert.ok(!p.text.some(t=>/~$/.test(t.value)),p.title+': no row or total is cut: '+p.text.filter(t=>/~$/.test(t.value)).map(t=>t.value));}
+ assert.equal(panels.size,1,'every elevation page has the same panel width');
+ const front=elevations.find(p=>p.title==='Front Elevation');assert.ok(front.text.some(t=>t.value==='1 piece < 1 ft²'));
 });
 test('rows fill the left column first, then the right, and the totals box sits under both',()=>{
  const fs=require('fs'),vm=require('vm'),K=require('../public/measure/internal/editor_scripts/exterior_geometry.js'),context={ExteriorGeometry:K};context.window=context;vm.createContext(context);
@@ -226,13 +238,16 @@ test('every exterior table uses the boxed roof-table style with unchanged values
  const allowX=new Set(allowances.flatMap(p=>p.text.filter(isMaterial).map(t=>t.x)));assert.equal(allowX.size,1,'the wide allowance table keeps one column');assert.ok(allowances.length>1,'allowances continue on another page');
  for(const p of long)assert.ok(p.text.every(t=>t.y<=bottom+.01),p.title+' stays above the footer');
 });
-test('the Exterior Summary shows its seven figures as header-stat cards in two rows (three, then four) and the wall ID note at the foot',()=>{
- for(const [W,H]of [[210,297],[279.4,215.9]]){
+test('the Exterior Summary shows its seven figures as equal compact header-stat cells (one row in landscape, four then three in portrait) and the wall ID note at the foot',()=>{
+ for(const [W,H,layout]of [[210,297,[4,3]],[279.4,215.9,[7]]]){
   const pages=[];let page;const ctx=loadPDF(),doc=new Proxy({internal:{pageSize:{getWidth:()=>W,getHeight:()=>H}},getTextWidth:s=>String(s).length*.9,splitTextToSize:s=>[s],text:(value,x,y)=>page.text.push({value:String(value),x,y}),lines:(l,x,y)=>page.bars.push({x,y}),roundedRect:(...a)=>page.rounded.push(a),addImage:(...a)=>page.images.push(a)},{get:(o,k)=>k in o?o[k]:()=>{}});
   ctx.ExteriorPDF.drawExteriorSummaryPage(doc,boxHouse(),{},title=>{page={title,text:[],bars:[],rounded:[],images:[]};pages.push(page);},{});
   const p=pages[0],at=v=>p.text.find(t=>t.value===v);
   assert.equal(p.bars.length,7,'seven accent-bar cards');
-  const rows=[...new Set(p.bars.map(b=>b.y))].sort((a,b)=>a-b);assert.equal(rows.length,2);assert.deepEqual(rows.map(y=>p.bars.filter(b=>b.y===y).length),[3,4]);
+  const rows=[...new Set(p.bars.map(b=>b.y))].sort((a,b)=>a-b);assert.deepEqual(rows.map(y=>p.bars.filter(b=>b.y===y).length),layout);
+  const cards=p.rounded.slice(0,14).filter((r,i)=>i%2===1);assert.equal(cards.length,7);assert.equal(new Set(cards.map(r=>r[2].toFixed(6))).size,1,'every cell the same width');assert.equal(new Set(cards.map(r=>r[3].toFixed(6))).size,1,'every cell the same height');
+  assert.ok(cards[0][3]<=14,'compact cells');assert.ok(Math.max(...cards.map(r=>r[1]+r[3]))<=36+layout.length*17,'the stats header is short');
+  const columns=[...new Set(cards.map(r=>r[0].toFixed(6)))];assert.equal(columns.length,layout[0],'a short last row stays on the grid');
   for(const [label,value]of [['NET WALL AREA',null],['GROSS WALL AREA',null],['OPENINGS','0'],['WALL REGIONS','7'],['OPENING AREA',null],['OPENING PERIMETER',null],['HORIZONTAL RETURNS',null]]){const t=at(label);assert.ok(t,label);if(value)assert.ok(p.text.some(v=>v.value===value&&Math.abs(v.x-t.x)<1e-9&&v.y>t.y),label+' has its value under it');}
   assert.ok(!p.text.some(t=>t.value==='Measurement'||t.value==='Quantity'),'no measurement table');
   const note=p.text.find(t=>/^Wall IDs connect/.test(t.value)),footer=H-16;assert.ok(note.y>footer-10&&note.y<footer-5,'the note sits just above the footer address: '+note.y);
