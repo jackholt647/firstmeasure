@@ -766,7 +766,7 @@
     const totals = measureNumbers(result.values);
     const saved = new Map(structureList(prev).map((structure) => [structure.id, structure]));
     let measured = arr(result.structures).map(obj).filter((structure) => cleanText(structure.id) && Object.keys(measureNumbers(structure.values)).length);
-    if (!measured.length && Object.keys(totals).length) measured = [{ id: 'report', values: totals, units: obj(result.units) }];
+    if (!measured.length && Object.keys(totals).length) measured = [{ id: 'report', name: cleanText(options.singleName), values: totals, units: obj(result.units) }];
     const fromReport = measured.map((structure, index) => {
       const id = structureIdText(structure.id);
       const before = obj(saved.get(id));
@@ -835,6 +835,10 @@
       ...(cleanText(source.datasetId) ? { dataset_id: cleanText(source.datasetId) } : {}),
       ...(source.revision != null ? { revision: source.revision } : {})
     };
+  }
+  /** What the document calls the structures it covers: the included ones' names. */
+  function structuresLabel(state){
+    return includedStructures(state).map((structure) => cleanText(structure.name)).filter(Boolean).join(' + ');
   }
   /** Each structure is priced on its own once the document says so and more than one is on. */
   function pricesPerStructure(state){
@@ -1007,10 +1011,20 @@
     }
     /** Save a new structure state and move the estimate's measurements with it,
      *  keeping any value someone changed by hand. */
+    // item.structure_label_writes names a param that says which structures the document covers ("House + Shed"),
+    // kept in step with the structures. Reading the report only names them when there are several, so a single
+    // structure never overwrites what someone wrote there; anything a person changes here always does.
+    function writeStructuresLabel(state, automatic){
+      const path = cleanText(ctx.item.structure_label_writes);
+      if (!path || ctx.readonly || !structureList(state).length || (automatic && structureList(state).length < 2)) return;
+      const label = structuresLabel(state);
+      if (label && label !== cleanText(getPath(ctx.scope(), path))) ctx.writePath(path, label);
+    }
     function writeStructures(nextState){
       const before = combineStructures(structureState()).values;
       const after = combineStructures(nextState).values;
       ctx.writePath(structuresPath, nextState);
+      writeStructuresLabel(nextState);
       const next = rebaseMeasurements(ctx.value(), before, after);
       if (JSON.stringify(next) !== JSON.stringify(obj(ctx.value()))) ctx.write(Object.keys(next).length ? next : null);
       ctx.requestPreview();
@@ -1019,8 +1033,9 @@
     function syncReportStructures(){
       if (ctx.readonly || report.status !== 'ready') return;
       const saved = structureState();
-      const merged = mergeReportStructures(saved, report, { pricing: cleanText(ctx.item.structure_pricing), sharedKeys: sharedKeys() });
+      const merged = mergeReportStructures(saved, report, { pricing: cleanText(ctx.item.structure_pricing), sharedKeys: sharedKeys(), singleName: cleanText(ctx.item.structure_default_name) });
       if (JSON.stringify(merged) !== JSON.stringify(saved)) ctx.writePath(structuresPath, merged);
+      writeStructuresLabel(merged, true);
     }
     /** Start from the project's values; fields the report does not measure
      *  take their declared default. Hand-entered values survive unless the
@@ -4566,6 +4581,6 @@
     // exposed for hosts/tests
     helpers: { evalExpr, whenPasses, resolveOptions, formatValue, stepVisibleFor, itemVisibleFor, normalizeScopeItem, scopeItemsTotal, normalizeContentBlock },
     /** Measurement structures: pure helpers the documents host and tests share. */
-    structures: { fromDataset: structuresFromDataset, combine: combineStructures, mergeReport: mergeReportStructures, rebase: rebaseMeasurements, pricesPerStructure, pricingMeasurements: structurePricingMeasurements, fieldsFromSchemas: structureFieldsFromSchemas, manualStructure, manualStructureError, tagScope: tagStructureScope }
+    structures: { fromDataset: structuresFromDataset, combine: combineStructures, label: structuresLabel, mergeReport: mergeReportStructures, rebase: rebaseMeasurements, pricesPerStructure, pricingMeasurements: structurePricingMeasurements, fieldsFromSchemas: structureFieldsFromSchemas, manualStructure, manualStructureError, tagScope: tagStructureScope }
   };
 })();

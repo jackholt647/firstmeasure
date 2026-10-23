@@ -193,6 +193,11 @@ test("after signing, materials follow the document's structures and work is size
   const sections = [S.tagScope({ id: "r1", name: "Roof", children: [{ id: "gaf_hd", quantity: 29 }] }, off.structures[0]), S.tagScope({ id: "r2", name: "Roof", children: [{ id: "gaf_hd", quantity: 5 }] }, shed)];
   const each = await calculate({ measurement_structures: { ...off, pricing: "per_structure" }, measurements, scope_items: sections });
   assert.deepEqual(each.lines.map((line: any) => [line.structure, line.quantity]), [["House", 29], ["Shed", 5]]);
+  // What the document calls them follows the same rule, and one structure keeps what the document calls it.
+  assert.equal(S.label(off), "House + Shed");
+  const single = S.mergeReport(null, { values: { roofSquares: 20 } }, { singleName: "Main house" });
+  assert.equal(single.structures[0].name, "Main house");
+  assert.equal((await calculate({ measurement_structures: { ...single, structures: [{ ...single.structures[0], name: "Report roof" }] }, measurements: { roofSquares: 20 }, structure: "Main house and porch", scope_items: [{ id: "gaf_hd", quantity: 20 }] })).lines[0].structure, "Main house and porch");
   // A document with no structures keeps today's behaviour: the project's measurements and its single structure.
   const plain = await calculate({ structure: "Main house", scope_items: [{ id: "gaf_hd", quantity: 20 }] });
   assert.equal(plain.lines[0].structure, "Main house");

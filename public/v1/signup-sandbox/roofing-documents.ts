@@ -48,9 +48,9 @@ if (structures.length) for (const [key, value] of Object.entries(p.measurements 
 const fromDocument = Object.keys(documented).length > 0;
 const measured = fromDocument ? documented : (dataset?.measurements || {});
 // Each line says which structure it is for: its own section's when the estimate priced each structure on its own,
-// otherwise every structure the estimate includes.
+// otherwise every structure the estimate includes (one structure is what the document calls it).
 const included = structures.filter(s => s.included !== false).map(s => String(s.name || '').trim()).filter(Boolean);
-const structureLabel = (included.length ? included.join(' + ') : '') || p.structure || 'Main house';
+const structureLabel = (structures.length > 1 ? included.join(' + ') : '') || p.structure || 'Main house';
 const warnings = [], lines = [];
 const scoped = ${JSON.stringify(scoped)};
 function amount(value, label) { if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) throw new Error(label + ' must be a nonnegative number'); return value; }
@@ -398,8 +398,9 @@ export function scopedWorkflowSteps(spec: EstimateSpec, templateId: string) {
       ? { id: 'measure', title: 'Gutters', description: 'Enter the gutter run and the downspouts to replace. Every quantity on the estimate follows from these.', audience: ['internal'], items: [
           { kind: 'measurements', writes: 'params.measurements', label: 'Gutter measurements', required: true, fields: GUTTER_MEASUREMENT_FIELDS, prefill: 'project.measurements' }] }
       : { id: 'measure', title: 'Roof', description: 'Measurements come from the report on this project. Correct anything that looks off; every quantity on the proposal follows from these. Gutters are offered as optional lines: enter their lengths if you measured them, otherwise the gutter run is priced along the eaves.', audience: ['internal'], items: [
-          { kind: 'measurements', writes: 'params.measurements', label: 'Roof measurements', required: true, fields: ROOF_MEASUREMENT_FIELDS, prefill: 'project.measurements' },
-          ...(spec.key === 'detailed' ? [{ kind: 'text', writes: 'params.structure', label: 'Structure', required: true }] : [])] },
+          // The structures the estimate covers name themselves on the proposal ("Structure: House + Garage").
+          { kind: 'measurements', writes: 'params.measurements', label: 'Roof measurements', required: true, fields: ROOF_MEASUREMENT_FIELDS, prefill: 'project.measurements',
+            structure_label_writes: 'params.structure', structure_default_name: 'Main house' }] },
     // Optional: pages of photos and description ahead of the pricing.
     ...(spec.key === 'detailed' ? [{ id: 'details', title: 'Photos & description', description: 'Optional. Show the customer their roof and describe the work before they reach the pricing. Leave this empty and the proposal goes straight to the line items.', audience: ['internal'], items: [
       { kind: 'content_blocks', writes: 'params.content_blocks', label: 'Photos & description' }], preview: { template_ref: templateId, live: true } }] : []),

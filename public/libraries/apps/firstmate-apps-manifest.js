@@ -56,7 +56,7 @@
     versionedBundle('../payments-api/payments-api.js', '20261019-forward-cert'),
     versionedBundle('../doc-widgets/firstmate-doc-widgets.js', '20261019-forward-cert'),
     versionedBundle('../doc-renderer/firstmate-doc-renderer.js', '20261022-as-sent-inputs'),
-    versionedBundle('../doc-workflow/firstmate-doc-workflow.js', '20261022-estimate-structures'),
+    versionedBundle('../doc-workflow/firstmate-doc-workflow.js', '20261023-estimate-structures-after-signing'),
     versionedBundle('signatures/project.js', '20261019-forward-cert')
   ];
   const crewBundles = [
@@ -210,7 +210,7 @@
         bundle('../agents-api/agents-api.js'),
         versionedBundle('../agent-chat/agent-chat.js', '20261002-widget-controls'),
         versionedBundle('../doc-agent/doc-agent.js', '20260812-agent-command-actions'),
-        versionedBundle('documents/project.js', '20261023-document-history-restore')
+        versionedBundle('documents/project.js', '20261023-estimate-structures-after-signing')
       ]
     },
     {
