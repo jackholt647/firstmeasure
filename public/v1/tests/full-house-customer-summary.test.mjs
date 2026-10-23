@@ -49,6 +49,8 @@ test('a roof-only summary renders exactly as before, even when its dataset holds
 test('the customer Summary.pdf of a full-house order carries one Exterior Summary page; the full report keeps every exterior page',()=>{
  const pdf=read('public/measure/internal/editor_scripts/pdf.js');
  assert.match(pdf,/mode === 'summary' && isCustomerFullHousePdf\(state\) && state\.exteriorReport\?\.walls\?\.length \? customerExteriorPages\(s\) : null/);
+ assert.match(pdf,/const exteriorCover = hasExterior \|\| \(mode === 'summary' && isCustomerFullHousePdf\(state\) && !!state\.exteriorReport\?\.walls\?\.length\);\s+if \(exteriorCover\) \{/,'the customer PDF of a full house opens with the house on its cover');
+ assert.match(pdf,/if \(exteriorCover\) \{\s+window\.drawExteriorCover\(/);
  assert.match(pdf,/window\.drawExteriorReportPages\(doc, state\.exteriorReport, state\.exteriorSettings \|\| \{\}, beginReportPage, brandingColors, summaryExteriorPages\)/);
  assert.match(pdf,/CUSTOMER_EXTERIOR_PAGE_DEFAULTS = \{ ext_page_summary: true, ext_page_elevations: false, ext_page_dimensions: false, ext_page_openings: false, ext_page_quantities: false, ext_page_allowances: false, ext_page_notes: false \}/,'by default a customer PDF carries only the Exterior Summary');
  const X=require('../../measure/internal/editor_scripts/exterior_pdf.js'),{jsPDF}=require('jspdf');

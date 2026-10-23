@@ -2288,6 +2288,15 @@
       .rp-toggle.on .rp-dot{ background:var(--primary,#d93025); }
       .rp-toggle.on .rp-state{ color:var(--primary-readable, var(--primary,#d93025)); }
       .rp-toggle.off .rp-label{ color:#667085; }
+      .rp-choice{ grid-column:1 / -1; min-height:32px; border-radius:8px; border:1px solid rgba(0,0,0,0.11); background:#fff; padding:3px 3px 3px 9px; display:flex; align-items:center; gap:8px; }
+      .rp-choice .rp-label{ font-size:12px; font-weight:850; color:#344054; flex:1 1 auto; min-width:0; line-height:1.25; }
+      .rp-seg{ display:inline-flex; gap:2px; padding:2px; border-radius:7px; background:#f2f4f7; flex:0 0 auto; }
+      .rp-seg-btn{ appearance:none; border:0; border-radius:5px; background:transparent; padding:4px 10px; font:inherit; font-size:11px; font-weight:850; color:#667085; cursor:pointer; }
+      .rp-seg-btn.on{ background:#fff; color:var(--primary-readable,var(--primary,#d93025)); box-shadow:0 1px 2px rgba(15,23,42,.14); }
+      .rp-group{ border-top:1px solid rgba(0,0,0,0.07); padding:14px 0 4px; }
+      .rp-group + .rp-section{ border-top:0; }
+      .rp-groupTitle{ font-size:13px; font-weight:900; color:#101828; }
+      .rp-groupNote{ margin:3px 0 0; font-size:12px; color:#667085; line-height:1.4; }
       .rp-preview{ position:sticky; top:0; height:calc(100vh - 150px); min-height:560px; min-width:0; }
       .rp-toggle[data-key="page_gutters"]{ grid-column:1 / -1; max-width:360px; }
       .rp-head .cs-actions{ flex-direction:row; flex-wrap:nowrap; }
@@ -13171,14 +13180,14 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
     if (canReports && paneReports) {
       paneReports.innerHTML = `
         <div class="rp-subtabs" role="tablist" aria-label="${escapeHtml(settingsText("rp_subtabs", "Report settings"))}" style="display:flex;gap:6px;margin:0 0 12px">
-          <button type="button" class="cs-btn" role="tab" data-rp-subtab="report" aria-selected="true">${escapeHtml(settingsText("rp_subtab_report", "Customer report"))}</button>
+          <button type="button" class="cs-btn" role="tab" data-rp-subtab="report" aria-selected="true">${escapeHtml(settingsText("rp_subtab_report_settings", "Report settings"))}</button>
           <button type="button" class="cs-btn ghost" role="tab" data-rp-subtab="defaults" aria-selected="false">${escapeHtml(settingsText("rp_subtab_defaults", "Default materials and labor"))}</button>
         </div>
         <div data-rp-subpane="defaults" hidden></div>
         <div class="rp-wrap rp-layout" data-rp-subpane="report">
           <div class="rp-card">
             <header class="rp-head">
-              <h3 class="rp-h">${(globalThis.PlatformLanguage?.htmlText("settings","m_76942f70f2c0d6","Customer Report Settings") ?? "Customer Report Settings")} <span class="fm-ui-help" tabindex="0" role="img" aria-label="${escapeHtml(settingsText("fm_report_settings_future_only", "Changing report settings only applies to future measurement reports. It does not change reports that have already been ordered."))}" data-fm-tooltip="${escapeHtml(settingsText("fm_report_settings_future_only", "Changing report settings only applies to future measurement reports. It does not change reports that have already been ordered."))}">?</span></h3>
+              <h3 class="rp-h">${(globalThis.PlatformLanguage?.htmlText("settings","rp_title_report_settings","Report Settings") ?? "Report Settings")} <span class="fm-ui-help" tabindex="0" role="img" aria-label="${escapeHtml(settingsText("fm_report_settings_future_only", "Changing report settings only applies to future measurement reports. It does not change reports that have already been ordered."))}" data-fm-tooltip="${escapeHtml(settingsText("fm_report_settings_future_only", "Changing report settings only applies to future measurement reports. It does not change reports that have already been ordered."))}">?</span></h3>
               <div class="cs-actions">
                 <button class="cs-btn ghost" id="rpReset"><i class="fas fa-rotate-left"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_f915937425dda7"," Reset") ?? " Reset")}</button>
                 <button class="cs-btn primary" id="rpSave"><i class="fas fa-save"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_13fcb6ceae139c"," Save") ?? " Save")}</button>
@@ -13548,8 +13557,27 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
     }
     function renderReports(){
       if (!canReports) return;
+      // General report settings first, then what the customer PDF includes as well.
+      const REPORT_ORIENTATIONS = [['portrait', settingsText('rp_portrait', 'Portrait')], ['landscape', settingsText('rp_landscape', 'Landscape')]];
       const sections = [
         {
+          title: (globalThis.PlatformLanguage?.text("settings","rp_section_layout","Layout") ?? "Layout"),
+          subtitle: (globalThis.PlatformLanguage?.text("settings","rp_section_layout_sub_choice","Portrait or landscape pages for each kind of report, in both the customer and the internal PDF.") ?? "Portrait or landscape pages for each kind of report, in both the customer and the internal PDF."),
+          items: [
+            { key:'report_orientation', choices:REPORT_ORIENTATIONS, label:(globalThis.PlatformLanguage?.text("settings","rp_layout_roof","Roof reports") ?? "Roof reports"), tip:(globalThis.PlatformLanguage?.text("settings","rp_tip_layout_roof","Page orientation of roof-only reports.") ?? "Page orientation of roof-only reports.") },
+            { key:'exterior_report_orientation', exteriors:true, choices:REPORT_ORIENTATIONS, label:(globalThis.PlatformLanguage?.text("settings","rp_layout_exterior","Full Exterior reports") ?? "Full Exterior reports"), tip:(globalThis.PlatformLanguage?.text("settings","rp_tip_layout_exterior","Page orientation of Full Exterior reports. Landscape unless you choose portrait.") ?? "Page orientation of Full Exterior reports. Landscape unless you choose portrait.") }
+          ]
+        },
+        {
+          exteriors: true,
+          title: (globalThis.PlatformLanguage?.text("settings","rp_section_exterior","Exterior report") ?? "Exterior report"),
+          subtitle: (globalThis.PlatformLanguage?.text("settings","rp_section_exterior_sub_drawings","Choices for the drawings in Full Exterior reports.") ?? "Choices for the drawings in Full Exterior reports."),
+          items: [
+            { key:'exterior_dimension_context', label:(globalThis.PlatformLanguage?.text("settings","rp_house_context","House context") ?? "House context"), tip:(globalThis.PlatformLanguage?.text("settings","rp_tip_exterior_dimension_context","Each wall dimension drawing shows the rest of the house, dimmed, behind the measured face. Off draws the face alone.") ?? "Each wall dimension drawing shows the rest of the house, dimmed, behind the measured face. Off draws the face alone.") }
+          ]
+        },
+        {
+          customerStart: true,
           title: (globalThis.PlatformLanguage?.text("settings","m_03779727637975","Cover") ?? "Cover"),
           subtitle: (globalThis.PlatformLanguage?.text("settings","m_9f3adb9d3cb55b","Choose which measurement variables and customer details appear on the cover page.") ?? "Choose which measurement variables and customer details appear on the cover page."),
           items: [
@@ -13584,22 +13612,6 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
           ]
         },
         {
-          title: (globalThis.PlatformLanguage?.text("settings","rp_section_layout","Layout") ?? "Layout"),
-          subtitle: (globalThis.PlatformLanguage?.text("settings","rp_section_layout_sub_kinds","How the pages of each kind of report are laid out.") ?? "How the pages of each kind of report are laid out."),
-          items: [
-            { key:'report_orientation', label:(globalThis.PlatformLanguage?.text("settings","rp_roof_report_orientation","Roof reports in landscape") ?? "Roof reports in landscape"), tip:(globalThis.PlatformLanguage?.text("settings","rp_tip_roof_report_orientation","Lay out roof-only report PDFs in landscape. Off keeps portrait pages.") ?? "Lay out roof-only report PDFs in landscape. Off keeps portrait pages.") },
-            { key:'exterior_report_orientation', exteriors:true, label:(globalThis.PlatformLanguage?.text("settings","rp_exterior_report_orientation","Full Exterior reports in landscape") ?? "Full Exterior reports in landscape"), tip:(globalThis.PlatformLanguage?.text("settings","rp_tip_exterior_report_orientation","Lay out Full Exterior report PDFs in landscape, the default. Off uses portrait pages.") ?? "Lay out Full Exterior report PDFs in landscape, the default. Off uses portrait pages.") }
-          ]
-        },
-        {
-          exteriors: true,
-          title: (globalThis.PlatformLanguage?.text("settings","rp_section_exterior","Exterior report") ?? "Exterior report"),
-          subtitle: (globalThis.PlatformLanguage?.text("settings","rp_section_exterior_sub","Choices for the full-house exterior pages. Each report can still change them in its own configuration.") ?? "Choices for the full-house exterior pages. Each report can still change them in its own configuration."),
-          items: [
-            { key:'exterior_dimension_context', label:(globalThis.PlatformLanguage?.text("settings","rp_exterior_dimension_context","Show house context behind wall dimension drawings") ?? "Show house context behind wall dimension drawings"), tip:(globalThis.PlatformLanguage?.text("settings","rp_tip_exterior_dimension_context","Each wall dimension drawing shows the rest of the house, dimmed, behind the measured face. Off draws the face alone.") ?? "Each wall dimension drawing shows the rest of the house, dimmed, behind the measured face. Off draws the face alone.") }
-          ]
-        },
-        {
           exteriors: true,
           title: (globalThis.PlatformLanguage?.text("settings","rp_section_exterior_pages","Full Exterior pages") ?? "Full Exterior pages"),
           subtitle: (globalThis.PlatformLanguage?.text("settings","rp_section_exterior_pages_sub","Choose the Full Exterior pages included in every future customer PDF of a Full Exterior report. The internal PDF keeps every page.") ?? "Choose the Full Exterior pages included in every future customer PDF of a Full Exterior report. The internal PDF keeps every page."),
@@ -13629,18 +13641,27 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
         const general = state.report_general || {};
         const draw = () => window.FirstMateReportPreview?.render(host, { settings:state.report_customer, general, logo:logoKey(state.logo), primary:state.primary, secondary:state.secondary, exteriors:exteriorReportsEnabled(), orientation:general.report_orientation === 'landscape' ? 'landscape' : 'portrait', exteriorOrientation:general.exterior_report_orientation === 'portrait' ? 'portrait' : 'landscape' });
         if (window.FirstMateReportPreview) { draw(); return; }
-        if (!window.__fmReportPreviewLoading) window.__fmReportPreviewLoading = new Promise((resolve, reject) => { const script = document.createElement('script'); script.src = '/libraries/apps/settings/report-preview.js?v=20261023-full-exterior-sample-2'; script.onload = resolve; script.onerror = reject; document.head.append(script); });
+        if (!window.__fmReportPreviewLoading) window.__fmReportPreviewLoading = new Promise((resolve, reject) => { const script = document.createElement('script'); script.src = '/libraries/apps/settings/report-preview.js?v=20261023-report-settings-3'; script.onload = resolve; script.onerror = reject; document.head.append(script); });
         window.__fmReportPreviewLoading.then(draw).catch(() => { window.__fmReportPreviewLoading = null; host.textContent = settingsText("fm_report_preview_failed", "The report preview could not load."); });
       };
       renderSample();
       if (wrap) {
-        wrap.innerHTML = sections.map(section => `
+        // A setting with `choices` is one of its values (Portrait / Landscape); the rest are on/off toggles.
+        const makeChoice = (it) => {
+          const value = reportToggleTarget(it.key)[it.key];
+          return `<div class="rp-choice"${it.tip ? ` data-fm-tooltip="${escapeHtml(it.tip)}"` : ''}><span class="rp-label">${escapeHtml(it.label)}</span><span class="rp-seg" role="group" aria-label="${escapeHtml(it.label)}">${it.choices.map(([v, l]) => `<button type="button" class="rp-seg-btn${value === v ? ' on' : ''}" data-choice="${escapeHtml(it.key)}" data-value="${escapeHtml(v)}" aria-pressed="${value === v}">${escapeHtml(l)}</button>`).join('')}</span></div>`;
+        };
+        wrap.innerHTML = sections.map(section => `${section.customerStart ? `
+          <div class="rp-group">
+            <div class="rp-groupTitle">${escapeHtml(settingsText('rp_group_customer', 'Customer PDF'))}</div>
+            <p class="rp-groupNote">${escapeHtml(settingsText('rp_group_customer_note', 'Choose what the customer PDF includes as well. The internal PDF always has every page.'))}</p>
+          </div>` : ''}
           <section class="rp-section">
             <div class="rp-sectionHead">
               <div class="rp-sectionTitle">${escapeHtml(section.title)} <span class="fm-ui-help" tabindex="0" role="img" aria-label="${escapeHtml(section.subtitle)}" data-fm-tooltip="${escapeHtml(section.subtitle)}">?</span></div>
             </div>
             <div class="rp-tgrid">
-              ${section.items.map(it => makeToggleBtn({
+              ${section.items.map(it => it.choices ? makeChoice(it) : makeToggleBtn({
                 key: it.key,
                 label: it.label,
                 tip: it.tip,
@@ -13649,6 +13670,14 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
             </div>
           </section>
         `).join('');
+        wrap.querySelectorAll('[data-choice]').forEach(btn => {
+          btn.addEventListener('click', () => {
+            const key = btn.getAttribute('data-choice'), value = btn.getAttribute('data-value');
+            reportToggleTarget(key)[key] = value;
+            btn.parentElement.querySelectorAll('[data-choice]').forEach(other => { const on = other === btn; other.classList.toggle('on', on); other.setAttribute('aria-pressed', String(on)); });
+            renderSample();
+          });
+        });
         wrap.querySelectorAll('.rp-toggle').forEach(btn=>{
           btn.addEventListener('click', ()=>{
             const k = btn.getAttribute('data-key');

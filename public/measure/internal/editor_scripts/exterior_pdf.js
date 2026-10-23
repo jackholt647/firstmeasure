@@ -43,7 +43,7 @@ function drawOrientationKey(doc,model,settings,rect){
  const minX=Math.min(...all.map(p=>p.x)),maxX=Math.max(...all.map(p=>p.x)),minY=Math.min(...all.map(p=>p.y)),maxY=Math.max(...all.map(p=>p.y)),scale=r*1.6/Math.max(maxX-minX,maxY-minY,.01);
  doc.setFillColor(215,223,230);doc.setDrawColor(125,140,153);doc.setLineWidth(.2);
  for(const shape of ps){const q=shape.map(p=>({x:cx+(p.x-(minX+maxX)/2)*scale,y:cy+(p.y-(minY+maxY)/2)*scale}));doc.lines(q.slice(1).concat(q[0]).map((p,i)=>[p.x-q[i].x,p.y-q[i].y]),q[0].x,q[0].y,[1,1],'FD',true);}
- const a=frontBearing(settings)*Math.PI/180,ux=Math.sin(a),uy=-Math.cos(a);doc.setDrawColor(196,40,45);doc.setLineWidth(.7);doc.line(cx+ux*r*.65,cy+uy*r*.65,cx+ux*r*1.3,cy+uy*r*1.3);text(reportText('Front'),cx+ux*r*1.8-3,cy+uy*r*1.8+1,5.5,true,[196,40,45]);text(reportText('Back'),cx-ux*r*1.8-3,cy-uy*r*1.8+1,5.5,true);
+ const a=frontBearing(settings)*Math.PI/180,ux=Math.sin(a),uy=-Math.cos(a);doc.setDrawColor(196,40,45);doc.setLineWidth(.7);doc.line(cx+ux*r*.65,cy+uy*r*.65,cx+ux*r*1.3,cy+uy*r*1.3);/* Labels stay inside the key, above its caption, whichever way the front points. */const labelY=y=>Math.max(rect.y+3,Math.min(rect.y+rect.h-5.5,y));text(reportText('Front'),cx+ux*r*1.8-3,labelY(cy+uy*r*1.8+1),5.5,true,[196,40,45]);text(reportText('Back'),cx-ux*r*1.8-3,labelY(cy-uy*r*1.8+1),5.5,true);
  drawCompass(doc,rect.x+rect.w*.72,cy,r*.75);
  text(Number.isFinite(settings?.frontBearing)?reportText('Front ')+Math.round(frontBearing(settings))+reportText(' deg / North up'):reportText('Front direction not set'),rect.x+1,rect.y+rect.h,6);
 }

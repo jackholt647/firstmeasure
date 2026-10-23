@@ -23,7 +23,7 @@
 (function(){
   if (window.FirstMateReportPreview) return;
   const ASSETS = '/libraries/apps/settings/report-preview/';
-  const ASSET_VERSION = '20261023-1';
+  const ASSET_VERSION = '20261023-2';
   const MM = 4;                       // px per mm on an unscaled page
   // Portrait letter unless render() is given orientation 'landscape' (Company > Reports > Layout), when
   // every page is laid out as pdf.js lays out a landscape PDF: the drawing on the left (MAIN_W) and
@@ -680,7 +680,7 @@
     view.exteriorTimer = setTimeout(async () => {
       try {
         const pages = await pdfPages(await exteriorPdf(view));
-        if (run !== view.exteriorRun) return;
+        if (run !== view.exteriorRun || view.sample !== 'exterior') return;
         view.exteriorCache = { key, pages };
         showPages(host, view, pages, { logo:'', unbranded:false });
       } catch (error) {
@@ -833,6 +833,10 @@
     host.querySelectorAll('[data-rpv-mode]').forEach((tab) => tab.setAttribute('aria-selected', String(tab.dataset.rpvMode === view.mode)));
     host.querySelector('[data-rpv-viewer]').setAttribute('aria-label', `${view.mode === 'internal' ? 'Internal' : 'Customer'} PDF pages`);
     if (exterior) return drawExterior(host, view);
+    // A Full Exterior build still running must not land on the roof sample's sheets (landscape images on portrait
+    // pages): drawing the roof sample cancels it.
+    clearTimeout(view.exteriorTimer);
+    view.exteriorRun = (view.exteriorRun || 0) + 1;
     showPages(host, view, documentPages(view.mode, view.settings), { logo:view.logo, unbranded:view.mode === 'internal' });
   }
 

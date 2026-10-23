@@ -2271,7 +2271,10 @@ async function generatePDFFromState(state, mode = 'full', updateStatusCallback, 
 
     const coverTitle = runtimeOptions.coverTitle || (mode === 'summary' ? "Roof Summary" : "Project Overview");
     beginReportPage(coverTitle, true);
-    if (hasExterior) {
+    // A Full Exterior report opens with the house on its cover in the customer PDF too; the customer cover's
+    // boxes stay the customer ones (drawDynamicCoverPage, Company > Reports > Cover).
+    const exteriorCover = hasExterior || (mode === 'summary' && isCustomerFullHousePdf(state) && !!state.exteriorReport?.walls?.length);
+    if (exteriorCover) {
         doc.setFont('Montserrat', 'bold');
         doc.setFontSize(14);
         doc.setTextColor(44, 51, 60);
@@ -2296,7 +2299,7 @@ async function generatePDFFromState(state, mode = 'full', updateStatusCallback, 
     outlineImg = outlineCanvas.toDataURL('image/jpeg', 0.40);
 
     const inset = 2;
-    if (hasExterior) {
+    if (exteriorCover) {
         window.drawExteriorCover(doc, state.exteriorReport, { x: mapX + inset, y: mapTopY + inset, w: mapW - inset * 2, h: mapH - inset * 2 }, state.exteriorSettings || {});
     } else placeImageCentered(
         doc,
@@ -2308,7 +2311,7 @@ async function generatePDFFromState(state, mode = 'full', updateStatusCallback, 
         mapW - inset * 2
     );
 
-    if (!hasExterior) drawPDFCompass(doc, mapX + 10, mapTopY + 12, 3);
+    if (!exteriorCover) drawPDFCompass(doc, mapX + 10, mapTopY + 12, 3);
 
     if (mode === 'full') {
         const boxWidth = coverBoxW;
