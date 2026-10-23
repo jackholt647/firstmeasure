@@ -5703,7 +5703,7 @@ window.PlatformCommerce.onReady(async function(){
     if (key === 'full_house') return {
       title: (globalThis.PlatformLanguage?.text("project-request","full_exterior_report","Full Exterior report") ?? "Full Exterior report"),
       body: (globalThis.PlatformLanguage?.text("project-request","m_0d21d7d3136fc9","Exterior measurements for the whole house, including the roof.") ?? "Exterior measurements for the whole house, including the roof."),
-      bullets: [(globalThis.PlatformLanguage?.text("project-request","m_97e57acb52769a","Walls, windows, doors, and siding areas.") ?? "Walls, windows, doors, and siding areas."), (globalThis.PlatformLanguage?.text("project-request","m_1274bb24b43206","Roof and gutter measurements included.") ?? "Roof and gutter measurements included."), (globalThis.PlatformLanguage?.text("project-request","m_b120ceb5e3ac9e","Eight reference photos per structure are required.") ?? "Eight reference photos per structure are required.")],
+      bullets: [(globalThis.PlatformLanguage?.text("project-request","m_97e57acb52769a","Walls, windows, doors, and siding areas.") ?? "Walls, windows, doors, and siding areas."), (globalThis.PlatformLanguage?.text("project-request","full_exterior_roof_included","Roof measurements included.") ?? "Roof measurements included."), (globalThis.PlatformLanguage?.text("project-request","full_exterior_gutters_included","Gutters are always included.") ?? "Gutters are always included."), (globalThis.PlatformLanguage?.text("project-request","m_b120ceb5e3ac9e","Eight reference photos per structure are required.") ?? "Eight reference photos per structure are required.")],
       sample: {label: (globalThis.PlatformLanguage?.text("project-request","full_exterior_sample_download","Download sample Full Exterior report") ?? "Download sample Full Exterior report"), url: 'samples/full_house_sample.pdf'}
     };
     if (key === 'roof') return {
@@ -5813,6 +5813,28 @@ window.PlatformCommerce.onReady(async function(){
     document.querySelectorAll('.pac-container').forEach(watch);
     document.addEventListener('input',event=>{if(event.target?.id==='rAddress')requestAnimationFrame(placeAll);},true);
     window.visualViewport?.addEventListener('resize',placeAll);window.addEventListener('resize',placeAll);}
+  // Order pills (property type, report scope) open this list rather than the browser's, which always opened
+  // downward past the bottom of the order panel. It flips above the pill when there is less room below.
+  if(!window.__fmOrderSelectMenus){window.__fmOrderSelectMenus=true;
+    const style=document.createElement('style');style.textContent='.r-order-select select{pointer-events:none}.r-order-select{cursor:pointer}.r-order-select-menu{position:fixed;z-index:2147483647;box-sizing:border-box;overflow-y:auto;padding:4px;background:#fff;border:1px solid #dfe3e8;border-radius:12px;box-shadow:0 12px 32px rgba(16,24,40,.18)}.r-order-select-menu button{display:flex;align-items:center;gap:8px;width:100%;min-height:40px;padding:8px 12px;border:0;border-radius:8px;background:none;color:#344054;font:inherit;font-size:14px;text-align:left;cursor:pointer}.r-order-select-menu button:hover,.r-order-select-menu button:focus-visible{background:#f2f4f7;outline:none}.r-order-select-menu button[aria-selected="true"]{color:var(--primary-readable,var(--primary,#d93025));font-weight:700}.r-order-select-menu button:disabled{opacity:.45;cursor:default}';document.head.append(style);
+    let menu=null,owner=null;
+    const close=(refocus=false)=>{menu?.remove();menu=null;if(refocus)owner?.focus({preventScroll:true});owner=null;};
+    const open=select=>{close();owner=select;const box=select.closest('.r-order-select').getBoundingClientRect();
+      menu=document.createElement('div');menu.className='r-order-select-menu';menu.setAttribute('role','listbox');menu.setAttribute('aria-label',select.getAttribute('aria-label')||'');
+      for(const option of select.options){if(option.hidden)continue;const item=document.createElement('button');item.type='button';item.setAttribute('role','option');item.setAttribute('aria-selected',String(option.selected));item.disabled=option.disabled;item.textContent=option.textContent;
+        item.onclick=()=>{close(true);if(select.value!==option.value){select.value=option.value;select.dispatchEvent(new Event('input',{bubbles:true}));select.dispatchEvent(new Event('change',{bubbles:true}));}};menu.append(item);}
+      document.body.append(menu);const width=Math.min(Math.max(box.width,180),innerWidth-16),below=innerHeight-box.bottom-12,above=box.top-12,up=menu.offsetHeight>below&&above>below,room=Math.max(96,up?above:below);
+      menu.style.width=width+'px';menu.style.maxHeight=room+'px';menu.style.left=Math.max(8,Math.min(box.left,innerWidth-width-8))+'px';
+      menu.style.top=(up?Math.max(8,box.top-6-Math.min(menu.offsetHeight,room)):box.bottom+6)+'px';
+      (menu.querySelector('[aria-selected="true"]')||menu.querySelector('button:not(:disabled)'))?.focus({preventScroll:true});};
+    document.addEventListener('click',event=>{const pill=event.target.closest?.('.r-order-select'),select=pill?.querySelector('select');
+      if(select){event.preventDefault();if(!select.disabled){if(owner===select)close(true);else open(select);}return;}if(menu&&!menu.contains(event.target))close();},true);
+    window.addEventListener('keydown',event=>{const select=event.target.closest?.('.r-order-select')&&event.target.tagName==='SELECT'?event.target:null;
+      if(select&&!menu&&(event.key==='Enter'||event.key===' '||(event.altKey&&event.key==='ArrowDown'))){event.preventDefault();if(!select.disabled)open(select);return;}
+      if(!menu)return;const items=[...menu.querySelectorAll('button:not(:disabled)')],at=items.indexOf(document.activeElement);
+      if(event.key==='Escape'){event.preventDefault();event.stopImmediatePropagation();close(true);}else if(event.key==='Tab')close();
+      else if(event.key==='ArrowDown'||event.key==='ArrowUp'){event.preventDefault();items[(at+(event.key==='ArrowDown'?1:items.length-1))%items.length]?.focus();}},true);
+    window.addEventListener('resize',()=>close());document.addEventListener('scroll',event=>{if(menu&&!menu.contains(event.target))close();},true);}
 
   function buildTypeButtons(){
     const pricingLabels = Object.fromEntries(['residential','commercial','multifamily'].map(type => [type, globalThis.PlatformLanguage?.text('project-request', type === 'residential' ? 'price_flat_rate' : 'price_per_structure', fmtCredit(reportDisplayedBasePrice(type)) + (type === 'residential' ? ' flat rate' : ' / structure'), {price:fmtCredit(reportDisplayedBasePrice(type))})]));
