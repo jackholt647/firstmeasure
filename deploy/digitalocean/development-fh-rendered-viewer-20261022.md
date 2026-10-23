@@ -49,3 +49,12 @@ Scripts: `output/fh-rendered-viewer-20261022/`, `output/fh-tab-route-20261022/`,
   and only a trim colour chosen for that sticker). The viewer builds them as opening trim with `prepare`/`apply`, so the
   rendered scene draws the painted casing in the sticker trim colour. The Mercer Way front door's 32 casing faces now
   show.
+
+**Follow-up `d35e275f` (all four roles, verified)**
+- Openings stand out along the editor's saved outward wall normal, which `exterior-model` now carries. The house-centre
+  guess pointed inward on a wing of the L-shaped plan (W23), which put both garage doors inside the brick.
+- Rollout notes:
+  - Legacy's TypeScript staging check was killed twice by the kernel for lack of memory (4 GB, no swap; the dmesg log
+    shows node OOM kills while other sessions staged at the same time).
+  - This release's own unactivated staging dirs were renamed to `*-failed-<time>` so it could restage.
+  - It staged once about 3 GB was free.
