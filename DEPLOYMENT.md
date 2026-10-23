@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+October 22 Edit manually as sent: [the estimate opens exactly as it will be sent, with its data values typed into in place and totals recomputed, and text edits kept as live overrides](deploy/digitalocean/development-edit-as-sent-20261022.md) records releases `4cf68f77`, `8e453240` and `ca960a23` and the development rollout (pool not updated: unreachable).
+
 October 22 Work order documents, scheduling off, assignment states: [labor lists written out as work_order documents, the Project tab with scheduling switched off, and honest assignment states](deploy/digitalocean/development-labor-workorders-20261022.md) records release `c52ecca5` on worker, compatibility and web (pool unreachable) and the browser verification.
 
 October 22 Default materials and labor from a measurement report: [Settings › Reports defaults published as a fallback scope artifact when no document is signed](deploy/digitalocean/development-measurement-defaults-20261022.md) records releases `96b87085` (four roles) and `2b6d6db1` (legacy and web; the dev pool node was unreachable).
