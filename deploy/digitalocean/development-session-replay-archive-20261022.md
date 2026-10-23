@@ -122,3 +122,18 @@ The archived sessions are in the viewer under "All organizations" (pilot organiz
   vocabularies (architecture doc, "Not built"). Shortcuts are in `docs/optimization-backlog.md`.
 - The commit message of `db5f246c` says sessions with three or more earlier ones archive at "4-10x"; measured, they are
   2.2–10× each and 4.45× together.
+
+## Follow-up: token-level reads (`cb33d4c3`)
+
+For the session replay search index (`session-replay/insights/`, another session): `readVocabulary(scope, pin?)`,
+`organizationVocabulary(orgId)` and `readArchiveCanonical(sessionId)` in `session-replay/archive.ts`, and
+`pageTableIds(page)` in `archive-codec.ts`. A token keeps its index for the life of its generation, so
+(scope, generation, index) is a stable key. Search reads every session through `readReplayChunks`, which returns the
+original chunk JSON for live and archived sessions alike (verified above on all 473 dev chunks).
+
+Shipped one role at a time to worker, legacy, web and pool (`ship-each.sh`, files `archive.ts`, `archive-codec.ts` and
+the archive test); legacy's first activation was refused by another session's activation and the retry went through.
+The final `verify` stopped at web because another session had activated web since. An audit of all four roles then
+found this change's files identical to the commit everywhere (`platform/storage.ts` with host-only differences around
+the change). The search session's later `viewer.html` addition (`session-replay-agent-access.js`, `177d54df`) was not
+live on legacy, web or pool at that audit; that is its rollout, not this one.
