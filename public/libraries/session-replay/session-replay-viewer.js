@@ -17,7 +17,7 @@
   const state = {
     me: null, csrf: '', sessions: [], sessionId: '', detail: null, model: null, blobs: new Map(), player: null,
     poll: 0, polling: false, scope: 'current', query: '', events: [], eventTimes: [], live: false, currentEvent: -1,
-    stats: null, orgs: [], openToken: 0
+    stats: null, archive: null, orgs: [], openToken: 0
   };
 
   // ---------------------------------------------------------------------------
@@ -172,12 +172,12 @@
       return;
     }
     list.innerHTML = state.sessions.map((s) => {
-      const live = state.serverNow - s.last_at < LIVE_MS;
+      const live = !s.archived_at && state.serverNow - s.last_at < LIVE_MS;
       return '<div class="session' + (s.id === state.sessionId ? ' active' : '') + '" data-id="' + esc(s.id) + '">'
         + '<div class="line1"><span class="who">' + (live ? '<span class="dot-live"></span>' : '') + esc(s.user_name || s.user_email || 'Unknown') + '</span>'
         + '<span class="when">' + esc(fmtAgo(s.last_at, state.serverNow)) + '</span></div>'
         + '<div class="line2">' + esc(fmtDuration(s.last_at - s.started_at)) + ' · ' + s.pages + (s.pages === 1 ? ' page' : ' pages') + ' · ' + esc(fmtBytes(s.bytes_stored))
-        + (state.scope === 'all' ? ' · ' + esc(s.organization_name) : '') + '</div>'
+        + (s.archived_at ? ' · archived ' + esc(fmtBytes(s.archive_bytes)) : '') + (state.scope === 'all' ? ' · ' + esc(s.organization_name) : '') + '</div>'
         + '<div class="line3">' + esc(shortUrl(s.last_url)) + '</div></div>';
     }).join('');
   }
@@ -257,7 +257,7 @@
     $('play').disabled = !isFinite(state.model.start);
     renderAll();
     refreshStats();
-    const live = detail.now - s.last_at < LIVE_MS;
+    const live = !s.archived_at && detail.now - s.last_at < LIVE_MS;
     setLive(live);
     if (live && follow) setFollow(true);
     else player.seek(state.model.start);
@@ -319,7 +319,7 @@
         if (newBlobs) state.player.rebuild(); else state.player.refresh();
         $('play').disabled = false;
       }
-      const live = detail.now - detail.session.last_at < LIVE_MS;
+      const live = !detail.session.archived_at && detail.now - detail.session.last_at < LIVE_MS;
       if (live !== state.live) setLive(live);
       if (!live) stopPolling();
     } catch (error) {
@@ -524,6 +524,7 @@
     try {
       const data = await api('/session-replay/admin/stats');
       state.stats = data.organizations || [];
+      state.archive = data.archive || null;
       renderStorage();
     } catch (error) { state.stats = null; }
   }
@@ -550,18 +551,59 @@
     return { s, sizes, durationMs, pageCount, loadBytes, steadyBytes, steadyMs, loadPerPage: loadBytes / pageCount, steadyPerMin: steadyMs >= 60000 ? steadyBytes / (steadyMs / 60000) : null };
   }
 
+  // The archive ratio the calculator starts from: what archiving measured, vocabulary included. This organization's
+  // archives when it has some, else every organization's, else the last dry run.
+  function measuredArchive(org) {
+    const archive = state.archive;
+    if (org && org.archived_sessions > 0 && org.archived_bytes > 0) {
+      return { ratio: org.archived_bytes_live / (org.archived_bytes + org.vocabulary_bytes), from: 'this organization\'s ' + org.archived_sessions + ' archived sessions, its vocabulary included' };
+    }
+    if (archive && archive.archived && archive.archived.bytes_archive > 0) return { ratio: archive.archived.ratio_with_vocabulary, from: 'every organization\'s archives, vocabularies included' };
+    const dry = archive && archive.last_dry_run && archive.last_dry_run.totals;
+    if (dry && dry.ratio_with_vocabulary > 0) return { ratio: dry.ratio_with_vocabulary, from: 'the last dry run (' + dry.sessions + ' sessions), vocabularies included' };
+    return null;
+  }
+
+  function archiveRows(org) {
+    const archive = state.archive;
+    const rows = [];
+    if (org && org.archived_sessions > 0) {
+      rows.push(['Archived', org.archived_sessions + ' of ' + org.sessions + ' sessions: ' + fmtBytes(org.archived_bytes_live) + ' as recorded, '
+        + fmtBytes(org.archived_bytes) + ' archived (' + (org.archived_bytes_live / Math.max(1, org.archived_bytes)).toFixed(1) + '× smaller)']);
+      rows.push(['Vocabulary', fmtBytes(org.vocabulary_bytes) + ' in ' + org.vocabulary_versions + ' versions (strings seen in two or more of its sessions, and its page-load dictionary)']);
+      rows.push(['Live', fmtBytes(Math.max(0, org.bytes_stored - org.archived_bytes_live)) + ' in ' + (org.sessions - org.archived_sessions) + ' sessions not archived yet']);
+    }
+    if (archive && archive.platform_vocabulary) {
+      rows.push(['Platform vocabulary', archive.platform_vocabulary.tokens + ' strings seen in ' + archive.settings.platformMinOrgs + ' or more organizations, ' + fmtBytes(archive.platform_vocabulary.bytes)]);
+    }
+    if (archive && archive.archived && archive.archived.bytes_archive > 0) {
+      rows.push(['All organizations', fmtBytes(archive.archived.bytes_live) + ' → ' + fmtBytes(archive.archived.bytes_archive) + ' + ' + fmtBytes(archive.archived.bytes_vocabulary)
+        + ' vocabulary: ' + archive.archived.ratio_with_vocabulary + '× (' + archive.archived.ratio_archives + '× for the archives alone)']);
+    }
+    const dry = archive && archive.last_dry_run;
+    if (dry && dry.totals) {
+      rows.push(['Last dry run', new Date(dry.started_at).toLocaleString() + ': ' + dry.totals.sessions + ' sessions, ' + fmtBytes(dry.totals.bytes_live) + ' → '
+        + fmtBytes(dry.totals.bytes_archive) + ' + ' + fmtBytes(dry.totals.bytes_vocabulary) + ' vocabulary, ' + dry.totals.ratio_with_vocabulary + '×']);
+    }
+    return rows.length ? '<h3>Archives</h3><div class="kv">' + rows.map((row) => '<div>' + esc(row[0]) + '</div><div>' + esc(row[1]) + '</div>').join('') + '</div>'
+      + '<p>After ' + esc(archive ? Math.round(archive.settings.afterMs / 86400000) : 7) + ' days without a chunk a session is re-packed on the server: its strings are renumbered onto vocabularies '
+      + 'shared with the organization\'s other sessions and compressed with a dictionary of its recent page loads. Playback is unchanged; the chunks are restored exactly.</p>' : '';
+  }
+
   function renderStorage() {
     const root = $('storage');
     if (!state.detail) { root.innerHTML = '<div class="empty">No session open.</div>'; return; }
     const n = storageNumbers();
     const org = (state.stats || []).find((o) => o.organization_id === n.s.organization_id);
+    const measured = measuredArchive(org);
     const orgRate = org && org.active_ms > 0 ? org.bytes_stored / (org.active_ms / 3600000) : 0;
     const sessionRate = n.s.bytes_stored / (n.durationMs / 3600000);
     const provisional = !org || org.active_ms < 30 * 60000;
     const defaultLoadKb = Math.round(n.loadPerPage / 1024);
     const defaultSteadyKb = n.steadyPerMin === null ? 5 : Math.round((n.steadyPerMin / 1024) * 10) / 10;
     root.innerHTML = '<div class="cards">'
-      + card('Stored (gzip)', fmtBytes(n.s.bytes_stored), 'raw JSON ' + fmtBytes(n.s.bytes_raw) + (n.s.bytes_stored ? ' · ' + (n.s.bytes_raw / n.s.bytes_stored).toFixed(1) + '× smaller' : ''))
+      + (n.s.archived_at ? card('Archived', fmtBytes(n.s.archive_bytes), (n.s.bytes_stored / Math.max(1, n.s.archive_bytes)).toFixed(1) + '× smaller than the ' + fmtBytes(n.s.bytes_stored) + ' recorded · ' + new Date(n.s.archived_at).toLocaleDateString()) : '')
+      + card(n.s.archived_at ? 'Recorded (gzip)' : 'Stored (gzip)', fmtBytes(n.s.bytes_stored), 'raw JSON ' + fmtBytes(n.s.bytes_raw) + (n.s.bytes_stored ? ' · ' + (n.s.bytes_raw / n.s.bytes_stored).toFixed(1) + '× smaller' : ''))
       + card('Per open hour', fmtBytes(sessionRate), 'this session: ' + fmtBytes(n.s.bytes_stored) + ' over ' + fmtDuration(n.durationMs))
       + card('Per page load', fmtBytes(n.loadPerPage), 'snapshot plus the first 15 s while the app renders; ' + n.pageCount + (n.pageCount === 1 ? ' load' : ' loads'))
       + card('After loading', n.steadyPerMin === null ? 'too short' : fmtBytes(n.steadyPerMin) + '/min', n.steadyPerMin === null ? 'needs a minute past the load' : 'open page, idle time included')
@@ -573,12 +615,15 @@
       + (org ? '<h3>This organization</h3><div class="kv"><div>Sessions</div><div>' + org.sessions + '</div><div>Stored</div><div>' + fmtBytes(org.bytes_stored)
         + '</div><div>Shared stylesheets</div><div>' + fmtBytes(org.blob_bytes_stored) + ' (' + org.blobs + ', stored once for all sessions)</div><div>Per open hour</div><div>'
         + fmtBytes(orgRate) + ' from ' + esc(fmtDuration(org.active_ms)) + ' of recordings' + (provisional ? ' (too little to rely on yet)' : '') + '</div></div>' : '')
+      + archiveRows(org)
       + '<h3>What it would cost</h3><div class="calc">'
       + field('concurrent', 'Average concurrent users', 1000) + field('loads', 'Page loads per user-hour', 4)
       + field('load', 'KB per page load', defaultLoadKb) + field('steady', 'KB per minute after loading', defaultSteadyKb)
       + field('retention', 'Keep for (days)', 90) + field('price', '$ per GB-month', 0.02)
-      + field('archive', 'Archive compression (×)', 1) + field('archiveAfter', 'Archive after (days)', 7)
+      + field('archive', 'Archive compression (×)', measured ? Math.max(1, Math.round(measured.ratio * 10) / 10) : 1)
+      + field('archiveAfter', 'Archive after (days)', state.archive ? Math.round(state.archive.settings.afterMs / 86400000) : 7)
       + '</div><div class="result" id="projection"></div>'
+      + (measured ? '<p>Archive compression is measured: ' + esc(measured.from) + '.</p>' : '<p>Nothing has been archived or dry-run yet, so archive compression starts at 1×.</p>')
       + '<p>Average concurrent users is people with a recorded page open, averaged over every hour of the month (nights and other time zones included), so a month is '
       + HOURS_PER_MONTH + ' hours of it. Page loads are full loads or reloads; moving between apps inside the portal is not a page load. '
       + 'The defaults come from this session. $0.02 is object storage (DigitalOcean Spaces); managed database storage costs about five times more.</p>'

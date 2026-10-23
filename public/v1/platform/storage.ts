@@ -1076,6 +1076,8 @@ export async function createOrganization(input: JsonObject = {}) {
 }
 
 export async function deleteOrganization(orgId: string) {
+  // Session replay keeps its own store; its organization data goes with the organization.
+  await (await import("../session-replay/storage.js")).deleteReplayOrganization(orgId);
   if (isFirstMeasurePostgresEnabled()) return (await postgresStorage()).deleteOrganization(orgId);
   await ensurePlatformStorage();
   await rm(orgDir(orgId), { recursive: true, force: true });

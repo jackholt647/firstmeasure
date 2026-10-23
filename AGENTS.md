@@ -373,8 +373,11 @@ default and never part of a preset; only platform administrators switch it on
 or read replays. Apps never mark elements for tracking: add `data-fmr-mask` to
 a field that must not be recorded and `data-fmr-ignore` to UI that must not
 appear in replays. The recorder posts chunks; it never opens a stream. Bump the
-`?v=` values when a library file changes. Run
-`tests/session-replay-browser.test.mjs` and `tests/session-replay.test.ts` for
+`?v=` values when a library file changes. Archives are lossless and pinned to
+their vocabulary versions: never change how a stored archive decodes (a new
+writer gets a new `ARCHIVE_FORMAT`), and keep customer text out of the platform
+vocabulary. Run `tests/session-replay-browser.test.mjs`,
+`tests/session-replay.test.ts` and `tests/session-replay-archive.test.ts` for
 changes here.
 
 ## Session replay search

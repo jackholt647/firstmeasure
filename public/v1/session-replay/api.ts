@@ -9,6 +9,7 @@ import { effectiveCapabilities, isCapabilityEnabled, saveCapabilityValues } from
 import { badRequest, conflict, forbidden, notFound, PlatformError } from "../platform/errors.js";
 import { listIdentityMemberships, listOrganizations, readOrganization } from "../platform/storage.js";
 import { env } from "../src/config/env.js";
+import { archiveOverview, runReplayArchive } from "./archive.js";
 import { REPLAY_BLOB_KEY, replayBlobKey } from "./hash.js";
 import {
   deleteReplaySession, listReplaySessions, listReplaySettings, missingReplayBlobs, readReplayBlobs, readReplayChunkSizes, readReplayChunks,
@@ -139,6 +140,8 @@ export async function registerSessionReplayRoutes(app: FastifyInstance) {
       meta: body.meta ?? null
     });
     if (result === "conflict") throw conflict("session_replay_conflict", "This replay session belongs to another person or organization.");
+    // The recorder starts a new session on 409, as it does for a conflict.
+    if (result === "archived") throw conflict("session_replay_archived", "This replay session has been archived.");
     if (result === "full") throw new PlatformError("session_replay_full", 413, "This replay session has reached its size limit.");
     return { ok: true, stored: result === "stored" };
   });
@@ -266,8 +269,35 @@ export async function registerSessionReplayRoutes(app: FastifyInstance) {
 
   app.get("/session-replay/admin/stats", async (request) => {
     await requireReplayAdmin(request);
-    const totals = await replayStorageTotals();
+    const [totals, archive] = await Promise.all([replayStorageTotals(), archiveOverview()]);
     const names = await organizationNames(totals.map((t) => t.organization_id));
-    return { ok: true, organizations: totals.map((t) => ({ ...t, name: names[t.organization_id] || t.organization_id })) };
+    return { ok: true, organizations: totals.map((t) => ({ ...t, name: names[t.organization_id] || t.organization_id })), archive };
+  });
+
+  // Archives (session-replay/archive.ts). A dry run writes only its report; a real run archives now what the
+  // platform worker would archive later (sessions with no chunk for `older_than_hours`, default the job's setting).
+  app.get("/session-replay/admin/archive", async (request, reply) => {
+    reply.header("Cache-Control", "private, no-store");
+    await requireReplayAdmin(request);
+    return { ok: true, ...(await archiveOverview()) };
+  });
+
+  app.post("/session-replay/admin/archive", async (request) => {
+    await requireReplayAdmin(request, true);
+    const body = z.object({
+      dry_run: z.boolean().default(true),
+      older_than_hours: z.number().min(0).max(24 * 3650).optional(),
+      organization_id: z.string().max(120).optional(),
+      session_ids: z.array(z.string().regex(/^[a-z0-9]{8,40}$/)).max(500).optional(),
+      limit: z.number().int().min(1).max(5000).optional()
+    }).strict().parse(request.body ?? {});
+    const report = await runReplayArchive({
+      dryRun: body.dry_run,
+      olderThanMs: body.older_than_hours === undefined ? undefined : body.older_than_hours * 3600_000,
+      organizationId: body.organization_id || undefined,
+      sessionIds: body.session_ids,
+      limit: body.limit
+    });
+    return { ok: true, report };
   });
 }

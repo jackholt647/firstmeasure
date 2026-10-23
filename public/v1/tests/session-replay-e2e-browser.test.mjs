@@ -8,7 +8,8 @@ import { chromium } from 'playwright-core';
 
 // Session replay end to end (docs/architecture/session-replay.md): a signed-in page that
 // loads platform-api.js records through the real routes once a platform administrator
-// switches the organization on, and the viewer lists the session and plays it.
+// switches the organization on, and the viewer lists the session and plays it; archived on
+// the server (session-replay/archive.ts), the same session plays the same way.
 // REPLAY_SCREENSHOTS=<dir> keeps screenshots of the viewer.
 // node --experimental-sqlite --import tsx --test tests/session-replay-e2e-browser.test.mjs
 
@@ -108,7 +109,9 @@ test('a signed-in page records through the platform and the viewer plays it back
     await viewer.click('#org-more');
     await viewer.fill('#org-search', owner.orgId);
     await viewer.waitForSelector(`#org-list input[data-org="${owner.orgId}"]`, { state: 'attached' });
+    const switched = viewer.waitForResponse((response) => response.request().method() === 'PUT' && response.url().includes('/session-replay/admin/organizations/'));
     await viewer.click(`#org-list input[data-org="${owner.orgId}"] + span`);
+    assert.equal((await switched).status(), 200);
     await viewer.waitForFunction((orgId) => document.querySelector(`#org-list input[data-org="${orgId}"]`).checked, owner.orgId);
 
     // The next page load records.
@@ -139,18 +142,43 @@ test('a signed-in page records through the platform and the viewer plays it back
     const events = await viewer.$$eval('#event-list .event .d', (nodes) => nodes.map((node) => node.textContent));
     assert.ok(events.some((text) => text.includes('Clicked') && text.includes('New project')), events.join(' | '));
     assert.ok(events.some((text) => text.includes('Typed in a field')), events.join(' | '));
-    await viewer.click('#play');
-    await viewer.waitForTimeout(2500);
-    const replayed = await viewer.evaluate(() => {
-      const doc = document.querySelector('.fmr-frame iframe').contentDocument;
-      return { menuOpen: doc.getElementById('menu')?.classList.contains('open'), search: doc.getElementById('search')?.value, pin: doc.getElementById('pw')?.value };
-    });
-    assert.deepEqual(replayed, { menuOpen: true, search: 'roof', pin: '****' });
+    const playToEnd = async () => {
+      await viewer.click('#play');
+      await viewer.waitForTimeout(2500);
+      return await viewer.evaluate(() => {
+        const doc = document.querySelector('.fmr-frame iframe').contentDocument;
+        return { menuOpen: doc.getElementById('menu')?.classList.contains('open'), search: doc.getElementById('search')?.value, pin: doc.getElementById('pw')?.value,
+          html: doc.body.innerHTML.length };
+      });
+    };
+    const replayed = await playToEnd();
+    assert.deepEqual({ ...replayed, html: 0 }, { menuOpen: true, search: 'roof', pin: '****', html: 0 });
+
+    // Archive the finished session on the server, then play it again: the viewer is unchanged and the replay is the same.
+    await page.close();
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    const archived = await app.inject({ method: 'POST', url: '/v1/platform/session-replay/admin/archive', payload: { dry_run: false, older_than_hours: 0, session_ids: [sessionId] },
+      headers: { cookie: `fm_platform_session=${admin.session}; fm_platform_session_csrf=${admin.csrf}`, 'x-platform-csrf': admin.csrf, host: 'replay-e2e.test' } });
+    assert.equal(archived.statusCode, 200, archived.body);
+    assert.deepEqual(archived.json().report.sessions.map((row) => row.status), ['archived'], archived.body);
+    const restored = [];
+    viewer.on('response', (response) => { if (response.url().includes(`/sessions/${sessionId}/chunks`)) restored.push(response.status()); });
+    await viewer.goto('about:blank');
+    await viewer.goto(ORIGIN + '/libraries/session-replay/viewer.html#session=' + sessionId);
+    await viewer.waitForFunction(() => document.querySelector('.fmr-frame iframe') && document.querySelectorAll('#event-list .event').length > 3);
+    assert.ok(restored.length >= 1 && restored.every((status) => status === 200), 'the chunks were read back from the archive');
+    assert.equal(await viewer.$eval('#live-badge', (node) => node.hidden), true, 'an archived session is never live');
+    assert.match(await viewer.textContent('#session-list'), /archived/);
+    const archivedEvents = await viewer.$$eval('#event-list .event .d', (nodes) => nodes.map((node) => node.textContent));
+    assert.deepEqual(archivedEvents.slice(0, events.length), events);
+    assert.deepEqual(await playToEnd(), replayed);
+    await viewer.click('.tab[data-tab="storage"]');
+    await viewer.waitForFunction(() => /Archived/.test(document.getElementById('storage').textContent));
     if (SHOTS) {
-      await viewer.screenshot({ path: path.join(SHOTS, 'viewer-events.png') });
-      await viewer.click('.tab[data-tab="storage"]');
+      await viewer.screenshot({ path: path.join(SHOTS, 'viewer-storage.png'), fullPage: true });
+      await viewer.click('.tab[data-tab="events"]');
       await viewer.waitForTimeout(300);
-      await viewer.screenshot({ path: path.join(SHOTS, 'viewer-storage.png') });
+      await viewer.screenshot({ path: path.join(SHOTS, 'viewer-events.png') });
       await viewer.click('.tab[data-tab="performance"]');
       await viewer.waitForTimeout(300);
       await viewer.screenshot({ path: path.join(SHOTS, 'viewer-performance.png') });

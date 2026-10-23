@@ -11,6 +11,9 @@ Records a web page as a DOM snapshot plus changes, and replays it without video.
 | `session-replay-player.js` | Rebuilds and plays a recording in a sandboxed iframe. |
 | `viewer.html`, `session-replay-viewer.js`, `session-replay-viewer.css` | The replay viewer for platform administrators. |
 
+Finished sessions are archived on the server (`public/v1/session-replay/archive.ts`); the chunks endpoint restores them
+exactly, so nothing here changes for archived sessions.
+
 Recording anywhere else (an extension, another site):
 
 ```js

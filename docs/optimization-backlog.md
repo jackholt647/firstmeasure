@@ -74,6 +74,42 @@ for re-indexing after an `INDEX_VERSION` change. The sessions indexed stay the s
 
 **Why it can wait.** Two small queries a minute at today's volumes.
 
+||||||| parent of fe90d4bb (Session replay archives: re-tokenize finished sessions across sessions, losslessly)
+## Session replay archives decode a whole session to serve one page
+
+**Today.** The chunks endpoint restores every page of an archived session to serve one page's chunks
+(`readArchivedPageChunks` in `session-replay/archive.ts`) and keeps the last six decoded sessions in memory for ten
+minutes.
+
+**Where the change goes.** Compress each page as its own zstd frame in the archive, with a small index of frame
+offsets, so one page is decompressed on its own. The restored chunks stay the same.
+
+**Why it can wait.** Archived sessions are opened rarely, and a session of a few hundred KB decodes in milliseconds.
+(docs/architecture/session-replay.md, "Archives")
+
+## Session replay vocabulary versions are read whole
+
+**Today.** Loading a pinned vocabulary reads every token blob of its generation up to that version
+(`readTokens` in `session-replay/archive.ts`), even when the version before it is already in memory, and an archive run
+reloads the newest organization version from its rows.
+
+**Where the change goes.** Extend a cached earlier version with only the newer blobs, and keep each generation's
+token list once per process. The vocabulary read stays the same.
+
+**Why it can wait.** A generation is capped at 500 versions and 60,000 tokens, and the result is cached per pinned
+version. (docs/architecture/session-replay.md, "Archives")
+
+## Session replay archive runs hold a whole session in memory
+
+**Today.** The archive task reads one session's chunks, its canonical form and its archive into memory at once, and
+skips sessions over 48 MB as recorded (`maxSessionBytes`), which then stay live.
+
+**Where the change goes.** Archive page by page into separate frames (as above) so memory follows the largest page,
+and lift the limit. The archive bytes per page stay the same.
+
+**Why it can wait.** Recorded sessions are tens to hundreds of KB; a session stops accepting chunks at 256 MB.
+(docs/architecture/session-replay.md, "Archives")
+
 ## Exterior PDF dimension drawings rasterize the whole house per face
 
 **Today.** With house context on, each Wall/Trim Dimensions drawing rasterizes every house face (walls, roof,

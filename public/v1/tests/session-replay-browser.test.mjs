@@ -10,6 +10,8 @@ import { chromium } from 'playwright-core';
 // an iframe, stylesheet edits, scrolling and SVG; a second page replays the chunks and,
 // at every checkpoint, its rebuilt DOM, computed styles and scroll positions must match
 // what the live page had. No server: the recorder's transport keeps chunks in memory.
+// The chunks are first archived the way the server archives a finished session
+// (session-replay/archive-codec.ts) and the replay plays what the archive restores.
 // node --test tests/session-replay-browser.test.mjs
 
 const PUBLIC = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
@@ -280,6 +282,25 @@ test('a recorded session replays to the same DOM, styles and scroll at every che
     console.log('session replay sizes:', JSON.stringify({ chunks: recorded.chunks.length, raw_bytes: recorded.stats.raw_bytes, gzip_bytes: recorded.stats.gzip_bytes,
       blob_gzip_bytes: recorded.stats.blob_gzip_bytes, cpu_ms: recorded.stats.cpu_ms, snapshot_ms: recorded.stats.snapshot_ms, encode: recorded.stats.encode }));
 
+    // Archive the session: strings renumbered onto a vocabulary, packed with a dictionary, unpacked and restored.
+    // Every chunk must come back byte for byte; the replay below plays the restored chunks.
+    const archiveCodec = await import('../session-replay/archive-codec.ts');
+    const byPage = new Map();
+    for (const chunk of recorded.chunks) {
+      if (!byPage.has(chunk.page_id)) byPage.set(chunk.page_id, []);
+      byPage.get(chunk.page_id).push({ seq: chunk.seq, json: chunk.json });
+    }
+    const strings = [...byPage.values()].flatMap((chunks) => archiveCodec.pageStrings(chunks));
+    const vocabulary = archiveCodec.combineVocabularies(strings.filter((_, i) => i % 3 === 0), strings.filter((_, i) => i % 3 === 1));
+    const archivedPages = [...byPage].map(([pageId, chunks]) => archiveCodec.archivePage(pageId, chunks, vocabulary));
+    assert.ok(archivedPages.every((result) => result.canonical), archivedPages.map((result) => result.reason).join(' '));
+    const dictionary = Buffer.from(archivedPages.map((result) => archiveCodec.dictionaryPiece(result.page)).join(''));
+    const packed = archiveCodec.compressArchive(archiveCodec.serializeArchive({ f: archiveCodec.ARCHIVE_FORMAT, p: archivedPages.map((result) => result.page) }), dictionary);
+    const restored = archiveCodec.decompressArchive(packed, dictionary).p
+      .flatMap((page) => archiveCodec.restorePage(page, vocabulary).map((chunk) => ({ page_id: page.i, seq: chunk.seq, json: chunk.json })));
+    const order = (list) => list.map(({ page_id, seq, json }) => ({ page_id, seq, json })).sort((a, b) => a.page_id.localeCompare(b.page_id) || a.seq - b.seq);
+    assert.deepEqual(order(restored), order(recorded.chunks), 'the archive restores every chunk exactly');
+
     // Replay in a separate page.
     const viewer = await context.newPage();
     const viewerErrors = [];
@@ -297,7 +318,7 @@ test('a recorded session replays to the same DOM, styles and scroll at every che
       const model = new FMReplayPlayer.SessionModel();
       for (const chunk of chunks) model.addChunk(chunk.page_id, chunk.seq, JSON.parse(chunk.json));
       window.__player = FMReplayPlayer.create({ stage: document.getElementById('stage'), model, blobs: blobMap });
-    }, { chunks: recorded.chunks, blobs: recorded.blobs });
+    }, { chunks: restored, blobs: recorded.blobs });
 
     const replayAt = (t) => viewer.evaluate((time) => {
       window.__player.seek(time);

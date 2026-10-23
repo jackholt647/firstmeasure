@@ -75,6 +75,62 @@ What is recorded, and how:
 browser tab until 30 idle minutes pass or the person or organization changes; another person writing into it gets
 409 and the recorder starts a new one. A session stops accepting chunks at 256 MB.
 
+## Archives
+
+A session with no chunk for 7 days (`SESSION_REPLAY_ARCHIVE_AFTER_DAYS`) is re-packed on the server by the platform
+worker's hourly `session-replay-archive` task (`session-replay/archive.ts`; the format is `archive-codec.ts`). Nothing in
+the browser changes: the chunks endpoint restores each original chunk's JSON from the archive and the viewer plays it as
+before. `SESSION_REPLAY_ARCHIVE=off` stops the task.
+
+- **Canonical form.** Each page is decoded with the wire format's own rules and its per-page string ids are renumbered
+  onto vocabularies shared across sessions: `2p` for platform token `p`, `2o + 1` for organization token `o`, `-2 - k`
+  for the page's k-th string that neither has (its text stays in the page), and `-1` where the wire already uses it.
+  A page's string table becomes vocabulary ids (delta coded) plus the new texts, and DOM node ids are delta coded per
+  register (tree positions, interaction targets). The same markup in two sessions is then the same bytes even when
+  other strings shifted a page's own numbering, which is what zstd needs to find it.
+- **Vocabularies.** Append-only token lists: the platform's (strings seen in 3 or more organizations, at most 512
+  characters; `SESSION_REPLAY_VOCAB_PLATFORM_ORGS`) and each organization's (strings seen in 2 or more of its sessions;
+  `SESSION_REPLAY_VOCAB_ORG_SESSIONS`). Strings are counted per organization by hash only
+  (`session_replay_string_counts`, never text), the session being archived included, and the counts are bounded
+  (strings seen once and not for 30 days are forgotten; at most 250,000 rows per organization). A version adds tokens
+  to the one before it and is never changed; versions are written as tokens qualify while an organization is young,
+  then in batches of 32 or hourly. A generation that reaches 60,000 tokens (40,000 for the platform), 4 MB or 500
+  versions gives way to a fresh one; strings still in use come straight back because their counts persist. Every
+  archive pins the platform and organization versions it was written with (`session_replay_archives`).
+- **Dictionary.** An organization version can carry a zstd dictionary: the newest load (first 15 seconds) of each page
+  address it recorded, in canonical form with every literal string blanked, at most 256 KB. It is rebuilt only once the
+  live bytes archived since the last one reach 32 times its stored size (at least 128 KB), so its cost is spread over
+  many sessions; versions in between inherit it.
+- **Where text lives.** In the session's own archive (strings seen once), the organization's vocabulary (seen in two or
+  more of its sessions) or, when several organizations have it, the platform's. Dictionaries carry structure and ids,
+  no text. Deleting an organization (`deleteOrganization` calls `deleteReplayOrganization`) removes its sessions,
+  archives, blobs, vocabulary and statistics; the platform vocabulary is never rewritten. Deleting one session removes
+  its archive; strings it shared with other sessions stay in the organization's vocabulary.
+- **Lossless.** A page is written canonically only if it restores to exactly its original chunk JSON; otherwise it is
+  kept verbatim (an event type this version does not know, a chunk of another shape). Before anything is deleted the
+  whole archive is decoded with the vocabulary and dictionary as stored and every chunk compared. The commit writes the
+  archive and empties the chunk bodies in one transaction (chunk rows stay as the index the growth chart reads) and is
+  refused if a chunk arrived meanwhile. An archived session takes no more chunks: the upload gets 409 and the recorder
+  starts a new session. A stored archive format never changes meaning: a change to how archives are written gets a new
+  `ARCHIVE_FORMAT` and keeps the old decoder.
+- **Dry run and administration.** `POST /v1/platform/session-replay/admin/archive` (platform administrators) with
+  `dry_run: true` runs every step in memory, vocabulary versions included, and writes only its report
+  (`session_replay_archive_runs`); with `dry_run: false` it archives now what the task would archive later.
+  `older_than_hours`, `organization_id` and `session_ids` narrow it. `GET .../admin/archive` lists runs, vocabularies and
+  totals.
+- **Storage panel.** Shows a session's archived size, the organization's archived and live bytes and its vocabulary,
+  every organization's archives and the last dry run. The calculator's archive ratio starts from what was measured,
+  vocabulary included: this organization's archives, else every organization's, else the last dry run.
+
+**Measured on dev, 2026-10-22** (23 sessions in five organizations, 1.19 MB as recorded;
+[record](../../deploy/digitalocean/development-session-replay-archive-20261022.md)). Compared on the same sessions
+in recording order: zstd-19 alone is 1.7×; zstd with the organization's earlier sessions as a raw dictionary 3.0×
+(3.8× once an organization has history); the canonical form with vocabularies and a canonical history dictionary
+4.4× (6.7–7.0× with history). Those two leave out what their dictionaries would cost to keep. With every stored byte
+counted (archives, every token version, every dictionary), the archive job as built is 3.5× for the archives and
+2.8× in all over this short history: an organization's first sessions pay for its vocabulary, and sessions with three
+or more earlier ones in their organization archive at 4–10×.
+
 ## Replay and the viewer
 
 `session-replay-player.js` rebuilds a page in an `<iframe sandbox="allow-same-origin">` (no scripts) and applies
@@ -120,18 +176,23 @@ blobs.
   popovers) and closed shadow roots attached before the recorder loaded.
 - Customer-facing pages (customer portal, websites) and pages without `platform-api.js` (the FirstMeasure editor pages
   on the compatibility host) are not recorded.
-- Retention: nothing deletes old recordings yet except Delete in the viewer.
-- Archiving: a finished session could be re-packed into one zstd stream using a per-organization dictionary built
-  from its earlier sessions (Node's `zlib` has zstd with dictionaries on the hosts). Measured on dev on 2026-10-22:
-  1.3–1.6× smaller alone, 1.7× with one earlier session as the dictionary, 3–4× with three or four
-  ([record](../../deploy/digitalocean/development-session-replay-20261022.md)).
+- Retention: nothing deletes old recordings yet except Delete in the viewer. Vocabulary versions and dictionaries are
+  kept while any archive pins them, and nothing collects the unpinned ones yet.
+- Archives: node ids relative to the recorder's node counter instead of the last id (measured: at most 1.4× more),
+  subtree tokens in a platform dictionary for an organization's first sessions (measured: under 10%), and re-packing
+  old archives onto newer vocabularies.
 - Per-person audiences: an organization is recorded entirely or not at all.
 - Performance shortcuts shipped on purpose are in [the optimization backlog](../optimization-backlog.md): chunk bodies
-  in the database, rebuild-on-seek, and one config request per page load.
+  in the database, rebuild-on-seek, one config request per page load, and in archives whole-session decoding, full
+  vocabulary reads and the 48 MB session limit.
 
 ## Tests
 
 `tests/session-replay-browser.test.mjs` records a scripted session in Chrome and checks that the replay's DOM,
 computed styles and scroll positions match the live page at every checkpoint, playing forward and seeking back.
 `tests/session-replay.test.ts` covers the switch, who may read and write, chunk storage and retries, conflicts and
-blob addresses.
+blob addresses. `tests/session-replay-archive.test.ts` covers archives: every event type round-trips canonically, pages
+it cannot read stay verbatim, a dry run writes nothing and predicts the real run, versions are append-only and every
+pinned version keeps decoding across generations, a late chunk keeps a session live, and deleting an organization
+leaves the platform vocabulary unchanged. The browser test replays chunks restored from an archive, and
+`tests/session-replay-e2e-browser.test.mjs` archives the session it recorded and plays it again in the viewer.
