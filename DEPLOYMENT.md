@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+October 23 tutorial artifact uploads on dev: [the API takes over tutorial projects PHP created, so artifact uploads and editor saves into them stop failing with EACCES](deploy/digitalocean/development-tutorial-storage-20261023.md) records branch `claude/gracious-goldberg-157f74` commit `865ee7bf` on production `6e8093f7`; not on production.
+
 October 22-23 Phone country codes on dev: [the calling-code picker offers the 52 served countries (detected first), formats the number for the chosen country as it is typed and previews the international number](deploy/digitalocean/development-phone-countries-20261022.md) records release `01f5e5c2` (1M8-240), cut from `codex/hotfix-20261023g`, on worker, legacy and web (pool unreachable); on October 23 the deleted 1M8-239 minimal signup was removed from dev so it shows production's signup form with the picker.
 
 October 23 1M8-238 customer users' order counts on dev: [the internal Customers tab counts each user's orders instead of the 0 stored at signup](deploy/digitalocean/development-user-order-count-20261023.md) records branch `claude/customer-user-order-count-20261023` (`51384eaa`, on `codex/hotfix-20261023f`) and the verified development rollout. Not on production.
