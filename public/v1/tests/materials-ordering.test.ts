@@ -172,7 +172,8 @@ test("a shopping list is a checklist by supplier that its link shows and, when a
   assert.equal(created.items[0].metadata.supplier, "ABC Supply");
 
   const viewOnly = await client.request("POST", `${base}/shopping-lists/${created.id}/share`, { permission: "view" });
-  const viewToken = decodeURIComponent(viewOnly.url.split("/l/")[1]);
+  assert.match(viewOnly.url, /^https:\/\/firstmate\.example\.test\/v1\/materials\/public\/shopping-lists\/[^/]+\/app$/, "the link is the page itself, under /v1");
+  const viewToken = decodeURIComponent(viewOnly.url.split("/shopping-lists/")[1].replace(/\/app$/, ""));
   const anonymous = createSessionClient();
   const view = (await anonymous.request("GET", `/v1/materials/public/shopping-lists/${encodeURIComponent(viewToken)}`)).shopping_list;
   assert.equal(view.can_check, false);
@@ -183,7 +184,7 @@ test("a shopping list is a checklist by supplier that its link shows and, when a
 
   const shared = await client.request("POST", `${base}/shopping-lists/${created.id}/share`, { permission: "check", recipient: { name: "Sam", email: "sam@example.test" } });
   assert.equal(shared.sent.email.ok, true);
-  const token = decodeURIComponent(shared.url.split("/l/")[1]);
+  const token = decodeURIComponent(shared.url.split("/shopping-lists/")[1].replace(/\/app$/, ""));
   const page = await anonymous.raw("GET", `/v1/materials/public/shopping-lists/${encodeURIComponent(token)}/app`);
   assert.equal(page.statusCode, 200);
   assert.match(page.body, /Shopping list/);

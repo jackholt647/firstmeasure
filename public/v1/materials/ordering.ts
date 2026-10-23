@@ -9,7 +9,8 @@ import { renderTemplatedArtifact } from "../documents/artifacts.js";
 import { PURCHASE_ORDER_DEFAULT_TERMS, SHOPPING_LIST_DEFAULT_NOTES } from "../documents/supplier-templates.js";
 import { sendProjectEmail, sendProjectSms } from "../comms/service.js";
 import { createProjectChecklist, patchProjectChecklistItem, readProjectChecklistDetail } from "../workforce/crew_storage.js";
-import { createPublicLink, resolvePublicLink } from "../public-links/service.js";
+import { createPublicLink, publicLinkUrl, resolvePublicLink } from "../public-links/service.js";
+import { feedbackBranding } from "../feedback/service.js";
 
 /**
  * How a project's materials are ordered from the Materials order window, beyond the order record itself
@@ -29,6 +30,10 @@ const PO_SEQUENCE_COLLECTION = "material_purchase_order_sequences";
 export const SHOPPING_LIST_SOURCE = "materials_shopping_list";
 export const SHOPPING_LINK_KIND = "materials_shopping_list";
 const SHOPPING_LINK_PATH = "/v1/materials/public/shopping-lists/{token}/app";
+/** The page itself, under /v1 like every route the hosts send to the API (a bare /l/ link is not routed there on every host). */
+export function shoppingListUrl(token: string) {
+  return publicLinkUrl(token).replace(/\/l\/[^/]*$/, "") + SHOPPING_LINK_PATH.replace("{token}", encodeURIComponent(token));
+}
 
 const text = (value: unknown) => String(value ?? "").trim();
 const asObject = (value: unknown): JsonObject => value && typeof value === "object" && !Array.isArray(value) ? { ...(value as JsonObject) } : {};
@@ -171,6 +176,7 @@ const shoppingItemSchema = z.object({
 export const shoppingListInputSchema = z.object({
   title: z.string().trim().min(1).max(200),
   notes: z.string().trim().max(4000).optional(),
+  list_date: z.string().trim().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   list_ids: z.array(z.string().trim().min(1).max(200)).max(50).default([]),
   groups: z.array(z.object({ supplier: short(300), address: short(1000), items: z.array(shoppingItemSchema).min(1).max(1000) }).strict()).min(1).max(40),
   assignees: z.array(z.object({ kind: z.enum(["organization_user", "resource_group"]), id: z.string().trim().min(1).max(200), name: short(300) }).strict()).max(40).default([])
@@ -193,7 +199,7 @@ export async function createShoppingList(orgId: string, projectId: string, raw: 
     description: input.notes ?? SHOPPING_LIST_DEFAULT_NOTES,
     kind: "todo", audience: "crew", icon: "fa-basket-shopping",
     items,
-    metadata: { source: SHOPPING_LIST_SOURCE, material_list_ids: input.list_ids, assignee_names: input.assignees.map((entry) => entry.name).filter(Boolean), suppliers: input.groups.map((group) => group.supplier) },
+    metadata: { source: SHOPPING_LIST_SOURCE, list_date: input.list_date || new Date().toISOString().slice(0, 10), material_list_ids: input.list_ids, assignee_names: input.assignees.map((entry) => entry.name).filter(Boolean), suppliers: input.groups.map((group) => group.supplier) },
     assigned_user_ids: users, assigned_resource_group_ids: groups
   }, ctx.userId);
   return await readShoppingList(orgId, projectId, String(checklist.id));
@@ -236,19 +242,20 @@ export async function shareShoppingList(orgId: string, projectId: string, checkl
     metadata: { project_id: projectId, recipient: asObject(input.recipient), permission: input.permission },
     created_by: ctx.userId
   });
+  const url = shoppingListUrl(link.token);
   const recipient = input.recipient;
   const greeting = recipient?.name ? `Hi ${recipient.name},` : "Hi,";
-  const body = `${greeting}\n\n${input.message || `Here is the shopping list "${checklist.title}".`} ${input.permission === "check" ? "Check off each item as you pick it up." : ""}\n\n${link.url}`.replace(/ +\n/g, "\n");
+  const body = `${greeting}\n\n${input.message || `Here is the shopping list "${checklist.title}".`} ${input.permission === "check" ? "Check off each item as you pick it up." : ""}\n\n${url}`.replace(/ +\n/g, "\n");
   const sent: JsonObject = {};
   if (recipient?.email) {
     sent.email = await sendProjectEmail(orgId, ctx.branchId || "default", projectId, { to: recipient.email, subject: `Shopping list: ${checklist.title}`, text: body, source: { type: "user", user_id: ctx.userId, id: "materials_shopping_list" }, idempotency_key: `shopping_list_email:${link.document.id}` }, ctx)
       .then(() => ({ ok: true })).catch((error: unknown) => ({ ok: false, error: error instanceof Error ? error.message : "email_failed" }));
   }
   if (recipient?.phone) {
-    sent.sms = await sendProjectSms(orgId, ctx.branchId || "default", projectId, { to: recipient.phone, text: `${input.message || `Shopping list: ${checklist.title}`} ${link.url}`, source: { type: "user", user_id: ctx.userId, id: "materials_shopping_list" }, idempotency_key: `shopping_list_sms:${link.document.id}` }, ctx)
+    sent.sms = await sendProjectSms(orgId, ctx.branchId || "default", projectId, { to: recipient.phone, text: `${input.message || `Shopping list: ${checklist.title}`} ${url}`, source: { type: "user", user_id: ctx.userId, id: "materials_shopping_list" }, idempotency_key: `shopping_list_sms:${link.document.id}` }, ctx)
       .then(() => ({ ok: true })).catch((error: unknown) => ({ ok: false, error: error instanceof Error ? error.message : "sms_failed" }));
   }
-  return { url: link.url, link_id: link.document.id, permission: input.permission, expires_at: text(asObject(link.document.data).expires_at), sent };
+  return { url, link_id: link.document.id, permission: input.permission, expires_at: text(asObject(link.document.data).expires_at), sent };
 }
 
 async function publicChecklist(token: string, action: string) {
@@ -262,12 +269,12 @@ async function publicChecklist(token: string, action: string) {
 export async function publicShoppingList(token: string) {
   const { resolved, projectId, checklist } = await publicChecklist(token, "view");
   const project = asObject((await readDocument(resolved.orgId, "projects", projectId).catch(() => null))?.data);
-  const organization = asObject((await readDocument(resolved.orgId, "organizations", resolved.orgId).catch(() => null))?.data);
+  const branding = await feedbackBranding(resolved.orgId, text(project.branch_id) || "default").catch(() => null);
   const allowed = Array.isArray(resolved.data.allowed_actions) ? resolved.data.allowed_actions.map(text) : [];
   return {
     title: checklist.title, notes: checklist.description, can_check: !allowed.length || allowed.includes("check"),
     project: { title: text(project.title || project.address), address: text(project.address) },
-    organization: { name: text(organization.name || organization.display_name), logo_url: text(asObject(organization.branding).logo_url || organization.logo_url) },
+    organization: { name: text(branding?.company_name), logo_url: text(branding?.logo), color: text(branding?.colors?.primary) },
     total_items: checklist.total_items, completed_items: checklist.completed_items,
     groups: shoppingListGroups(checklist)
   };
@@ -294,7 +301,7 @@ export async function renderShoppingListPdf(orgId: string, projectId: string, ch
   const rendered = await renderTemplatedArtifact({
     orgId, documentId: `doc_shopping_${hash([orgId, projectId, checklist.id])}`, documentType: "shopping_list", templateId: SHOPPING_TEMPLATE, projectId,
     branchId: ctx.branchId || "default", actorUserId: ctx.userId, title: checklist.title,
-    params: { title: checklist.title, list_date: text(checklist.created_at).slice(0, 10), assignee: names.join(", "), notes: checklist.description, rows },
+    params: { title: checklist.title, list_date: text(meta.list_date) || text(checklist.created_at).slice(0, 10), assignee: names.join(", "), notes: checklist.description, rows },
     metadata: { source_system: "materials", shopping_list_id: checklist.id },
     fileName: `${checklist.title.replace(/[^A-Za-z0-9_-]+/g, "-").toLowerCase().replace(/^-+|-+$/g, "") || "shopping-list"}.pdf`
   });

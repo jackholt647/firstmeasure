@@ -1107,7 +1107,7 @@
       .mt-order-right>.mt-email-panel,.mt-order-right>.mt-po-panel,.mt-order-right>.mt-shop-panel{flex:1 1 0;min-height:0}.mt-order-send .mt-btn[data-mt-order-mark]{margin-left:auto;order:2}.mt-order-send{flex-wrap:wrap}.mt-order-empty{margin:24px 0;text-align:center;color:#667085;font-size:12px}
       .mt-order-check{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:#344054;cursor:pointer}.mt-order-check input{margin:0;width:15px;height:15px;accent-color:var(--primary,#d93025)}
       .mt-email-panel{display:flex;flex-direction:column;gap:10px;min-height:0}.mt-email-options{flex:none;display:flex;flex-wrap:wrap;align-items:center;gap:8px 16px;padding:8px 12px;border:1px solid #e4e7ec;border-radius:9px;background:#f9fafb}.mt-email-options>span{font-size:11px;font-weight:700;color:#667085;text-transform:uppercase;letter-spacing:.03em}
-      .mt-supplier-cards{flex:1 1 0;min-height:0;overflow:auto;display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,380px),1fr));gap:12px;align-items:start;padding:1px}
+      .mt-supplier-cards{flex:1 1 0;min-height:0;overflow:auto;display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,380px),1fr));grid-auto-rows:max-content;gap:12px;align-items:start;align-content:start;padding:1px}
       .mt-supplier-card{min-width:0;border:1px solid #d0d5dd;border-radius:11px;background:#fff;overflow:hidden}.mt-supplier-card.is-sent{border-color:#a6f4c5}
       .mt-supplier-card>summary{list-style:none;display:flex;align-items:center;gap:8px;padding:9px 10px;cursor:pointer;background:#f9fafb;border-bottom:1px solid transparent}.mt-supplier-card>summary::-webkit-details-marker{display:none}.mt-supplier-card[open]>summary{border-bottom-color:#e4e7ec}
       .mt-supplier-card-caret{flex:none;width:12px;color:#98a2b3;font-size:10px;transition:transform .15s ease}.mt-supplier-card[open] .mt-supplier-card-caret{transform:rotate(90deg)}
@@ -1116,11 +1116,11 @@
       .mt-card-btn{display:inline-flex;align-items:center;gap:5px;height:28px;padding:0 10px;border:1px solid #d0d5dd;border-radius:7px;background:#fff;color:#344054;font:inherit;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap}.mt-card-btn:hover:not(:disabled){border-color:#98a2b3}.mt-card-btn.primary{border-color:var(--primary,#d93025);background:var(--primary,#d93025);color:var(--on-primary,#fff)}.mt-card-btn:disabled{opacity:.5;cursor:not-allowed}.mt-card-btn.copied{border-color:#12b76a;color:#067647}.mt-card-btn.failed{border-color:#f04438;color:#b42318}
       .mt-supplier-card-body{padding:10px 12px;font-size:11px;line-height:1.5;color:#344054}.mt-email-facts{display:flex;flex-wrap:wrap;gap:4px 14px}
       .mt-po-panel{display:flex;flex-direction:column;gap:10px;min-height:0}.mt-po-suppliers{flex:none;display:flex;flex-wrap:wrap;gap:6px}.mt-po-suppliers button{display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 10px;border:1px solid #d0d5dd;border-radius:999px;background:#fff;color:#475467;font:inherit;font-size:12px;font-weight:600;cursor:pointer}.mt-po-suppliers button.active{border-color:var(--primary,#d93025);color:var(--primary-readable,var(--primary,#d93025));background:rgba(var(--primary-rgb,217,48,37),.06)}.mt-po-suppliers em{font-style:normal;color:#667085;font-weight:500}
-      .mt-po-layout{flex:1 1 0;min-height:0;display:grid;grid-template-columns:minmax(220px,300px) minmax(0,1fr);gap:12px}.mt-po-fields{min-height:0;overflow:auto;display:flex;flex-direction:column;gap:10px;padding-right:2px}
+      .mt-po-layout{flex:1 1 0;min-height:0;overflow:auto;display:flex;flex-wrap:wrap;align-content:flex-start;gap:12px}.mt-po-fields{flex:1 1 240px;max-width:340px;display:flex;flex-direction:column;gap:10px;padding-right:2px}.mt-po-layout>.mt-po-preview{flex:999 1 420px;min-height:520px}
       .mt-po-field{display:flex;flex-direction:column;gap:4px}.mt-po-field>span{font-size:11px;font-weight:700;color:#475467}.mt-po-field input,.mt-po-field textarea,.mt-po-field select{width:100%;box-sizing:border-box;padding:7px 9px;border:1px solid #d0d5dd;border-radius:8px;background:#fff;color:#101828;font:inherit;font-size:12px}.mt-po-field textarea{resize:vertical;min-height:58px;line-height:1.45}
       .mt-po-preview{min-width:0;min-height:0;overflow:auto;border:1px solid #d0d5dd;border-radius:11px;background:#eaecf0;padding:12px}.mt-po-page{margin:0 auto;background:#fff;box-shadow:0 2px 10px rgba(16,24,40,.12);width:max-content;max-width:100%}.mt-po-loading,.mt-po-error{margin:24px;text-align:center;color:#667085;font-size:12px}.mt-po-error{color:#b42318}
       .mt-shop-panel{display:grid;grid-template-columns:minmax(0,1fr) minmax(220px,280px);gap:12px;min-height:0}.mt-shop-list{min-height:0;overflow:auto;display:flex;flex-direction:column;gap:10px;padding:1px}
-      .mt-shop-group{border:1px solid #d0d5dd;border-radius:11px;background:#fff;overflow:hidden}.mt-shop-group>header{display:flex;align-items:center;gap:8px;padding:9px 12px;background:#f9fafb;border-bottom:1px solid #e4e7ec}.mt-shop-group>header>span{flex:1;min-width:0;display:flex;flex-direction:column}.mt-shop-group>header strong{font-size:13px}.mt-shop-group>header small{font-size:11px;color:#667085}.mt-shop-group>header em{font-style:normal;font-size:11px;color:#667085}
+      .mt-shop-group{flex:none;border:1px solid #d0d5dd;border-radius:11px;background:#fff;overflow:hidden}.mt-shop-group>header{display:flex;align-items:center;gap:8px;padding:9px 12px;background:#f9fafb;border-bottom:1px solid #e4e7ec}.mt-shop-group>header>span{flex:1;min-width:0;display:flex;flex-direction:column}.mt-shop-group>header strong{font-size:13px}.mt-shop-group>header small{font-size:11px;color:#667085}.mt-shop-group>header em{font-style:normal;font-size:11px;color:#667085}
       .mt-shop-group ul{list-style:none;margin:0;padding:0}.mt-shop-group li{display:grid;grid-template-columns:18px 40px minmax(0,1fr) auto;align-items:center;gap:10px;padding:8px 12px;border-top:1px solid #f2f4f7;font-size:12px}.mt-shop-group li:first-child{border-top:0}
       .mt-shop-box{width:16px;height:16px;border:1.5px solid #98a2b3;border-radius:4px;display:flex;align-items:center;justify-content:center;color:transparent;font-size:9px}.mt-shop-group li.done .mt-shop-box{background:#12b76a;border-color:#12b76a;color:#fff}.mt-shop-group li.done .mt-shop-name{text-decoration:line-through;color:#98a2b3}
       .mt-shop-thumb{width:40px;height:40px;border-radius:7px;background:#f2f4f7 center/cover no-repeat;display:flex;align-items:center;justify-content:center;color:#98a2b3}.mt-shop-name{min-width:0;display:flex;flex-direction:column}.mt-shop-name small{color:#667085;font-size:11px;overflow-wrap:anywhere}.mt-shop-group li b{white-space:nowrap}
@@ -3875,6 +3875,9 @@
         state.orders = [order, ...state.orders];
         updateMaterialListState({ ...list, status: 'ordered', delivery_status: payload.delivery_status, locked_at: todayIso(), schedule: { ...(list.schedule || {}), locked: list.schedule?.lock_on_order !== false } });
       } else {
+        // Saving the delivery event can write the list again on the server; order against the revision it has now.
+        const fresh = await (materialsAPI || window.MaterialsAPI).lists.get(orgId(), list.id).catch(() => null);
+        list = updateMaterialListState(fresh?.material_list || fresh?.list || list) || list;
         const result = await (materialsAPI || window.MaterialsAPI).lists.createOrder(orgId(), list.id, { expected_revision: list.revision, ...payload });
         updateMaterialListState(result.material_list || result.list || list);
       }
@@ -5303,7 +5306,7 @@
         return {
           name: cleanText(row.name).slice(0, 500),
           details: (row.details || []).filter((entry) => entry.label !== 'SKU').map((entry) => `${entry.label}: ${entry.value}`).join('; ').slice(0, 2000),
-          sku: cleanText(item.code).slice(0, 120),
+          sku: (cleanText(quote ? supplierOffer(group.choice.target, linePricebookItemId(item))?.sku : '') || cleanText(item.code)).slice(0, 120),
           quantity: orderQuantity,
           unit: cleanText(row.unit).slice(0, 60),
           unit_price_cents: total != null && orderQuantity > 0 ? Math.round(total / orderQuantity) : null,
@@ -5375,6 +5378,12 @@
     const definition = preview.resolved_definition;
     const dims = window.FMDocModel?.paperDimensions?.(definition) || { w_pt: 612 };
     const width = Math.max(240, (stage.clientWidth || 620) - 24);
+    stage._mtPreviewWidth = stage.clientWidth;
+    if (!stage._mtPreviewObserver && typeof ResizeObserver === 'function') {
+      stage._mtPreviewObserver = new ResizeObserver(() => { if (!stage.isConnected) { stage._mtPreviewObserver.disconnect(); return; } if (Math.abs(stage.clientWidth - (stage._mtPreviewWidth || 0)) > 24 && stage._mtPreview) paintPurchaseOrderPreview(stage, stage._mtPreview).catch(() => {}); });
+      stage._mtPreviewObserver.observe(stage);
+    }
+    stage._mtPreview = preview;
     stage._mtPreviewHandle = window.FMDocRenderer.render(page, { document: definition, mode: 'static', readonly: true, widgetData: preview.widget_data || {}, widgetContext: { params: preview.params || {}, outputs: {} }, theme: preview.theme, themeContext: { overrides: preview.theme_vars || {} }, scale: Math.min(1, Math.max(0.2, width / (dims.w_pt * 96 / 72))) });
   }
   let purchaseOrderTimer = 0;
@@ -5453,11 +5462,12 @@
     const place = cleanText(state.project?.address || state.project?.title) || 'project';
     return {
       title: `Pickup for ${place} · ${orderDateLabel()}`.slice(0, 200),
+      list_date: orderDateIso(),
       list_ids: lists.map((list) => cleanText(list.id)),
       groups: groups.map((group) => ({
         supplier: shoppingGroupName(group).slice(0, 300),
         address: supplierAddress(group.choice.target).slice(0, 1000),
-        items: group.lists.flatMap((list) => { const rows = orderRequestRows(list); return orderableItems(list).map((item, index) => ({ name: cleanText(rows[index]?.name || materialPrimaryName(item)).slice(0, 500), details: (rows[index]?.details || []).filter((entry) => entry.label !== 'SKU').map((entry) => `${entry.label}: ${entry.value}`).join('; ').slice(0, 2000), quantity: Math.max(0, Number(rows[index]?.quantity) || 0), unit: cleanText(rows[index]?.unit).slice(0, 60), sku: cleanText(item.code).slice(0, 120), image_url: materialImage(item), material_list_id: cleanText(list.id), material_item_id: cleanText(item.id) })).filter((entry) => entry.name); })
+        items: group.lists.flatMap((list) => { const rows = orderRequestRows(list); return orderableItems(list).map((item, index) => ({ name: cleanText(rows[index]?.name || materialPrimaryName(item)).slice(0, 500), details: (rows[index]?.details || []).filter((entry) => entry.label !== 'SKU').map((entry) => `${entry.label}: ${entry.value}`).join('; ').slice(0, 2000), quantity: Math.max(0, Number(rows[index]?.quantity) || 0), unit: cleanText(rows[index]?.unit).slice(0, 60), sku: (cleanText(group.choice.target ? supplierOffer(group.choice.target, linePricebookItemId(item))?.sku : '') || cleanText(item.code)).slice(0, 120), image_url: materialImage(item), material_list_id: cleanText(list.id), material_item_id: cleanText(item.id) })).filter((entry) => entry.name); })
       })).filter((group) => group.items.length),
       assignees: assignees.map(({ kind, id, name }) => ({ kind, id, name: name.slice(0, 300) }))
     };
@@ -5919,8 +5929,8 @@
         try {
           const result = await shareShoppingList();
           const who = result.permission === 'view' ? 'Anyone with the link can view the list.' : 'Anyone with the link can view the list and check items off.';
-          if (navigator.clipboard?.writeText) { await navigator.clipboard.writeText(result.url); showToast('Link copied', who, true); }
-          else showToast('Link ready', `${who} ${result.url}`, true);
+          const copied = await Promise.resolve(navigator.clipboard?.writeText?.(result.url)).then(() => !!navigator.clipboard?.writeText, () => false);
+          showToast(copied ? 'Link copied' : 'Link ready', copied ? who : `${who} Copy it from Open the shared list.`, true);
         } catch (error) { showToast('Could not make a link', error?.message || 'Please try again.', false); }
       });
       rerenderOrderDialog(button);

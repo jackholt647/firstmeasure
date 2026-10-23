@@ -69,6 +69,7 @@ export function shoppingListAppHtml(token: string) {
   function render(){
     var s = state;
     var org = s.organization || {};
+    if (/^#[0-9a-f]{6}$/i.test(org.color || '')) document.documentElement.style.setProperty('--brand', org.color);
     var html = '<header class="top">' + (org.logo_url ? '<img src="' + esc(org.logo_url) + '" alt="">' : '') + (org.name ? '<span class="org">' + esc(org.name) + '</span>' : '') + '</header>';
     html += '<h1>' + esc(s.title) + '</h1>';
     if (s.project && (s.project.title || s.project.address)) html += '<p class="sub">' + esc([s.project.title, s.project.address].filter(function(v, i, a){ return v && a.indexOf(v) === i; }).join(' · ')) + '</p>';

@@ -1,6 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import { requirePlatformAuth } from "../platform/auth.js";
-import { checkPublicShoppingListItem, createShoppingList, preparePurchaseOrder, publicShoppingList, readShoppingList, renderPurchaseOrderPdf, renderShoppingListPdf, sendSupplierOrderEmail, shareShoppingList } from "./ordering.js";
+import { recordPublicLinkAccess } from "../public-links/service.js";
+import { SHOPPING_LINK_KIND, checkPublicShoppingListItem, createShoppingList, preparePurchaseOrder, publicShoppingList, readShoppingList, renderPurchaseOrderPdf, renderShoppingListPdf, sendSupplierOrderEmail, shareShoppingList } from "./ordering.js";
 import { shoppingListAppHtml } from "./shopping-list-page.js";
 
 function getParam(params: unknown, key: string) {
@@ -68,7 +69,10 @@ export function registerMaterialOrderingApi(app: FastifyInstance) {
     reply.header("Content-Type", "text/html; charset=utf-8");
     reply.header("Cache-Control", "no-store");
     reply.header("Referrer-Policy", "no-referrer");
-    return reply.send(shoppingListAppHtml(getParam(request.params, "token")));
+    const token = getParam(request.params, "token");
+    // Opening the page is the link being used (what /l/ would record); a bad link still gets the page, which says so.
+    await recordPublicLinkAccess(token, "view").then((resolved) => { if (String(resolved.data.kind) !== SHOPPING_LINK_KIND) throw new Error("kind"); }).catch(() => null);
+    return reply.send(shoppingListAppHtml(token));
   });
 
   app.get("/public/shopping-lists/:token", async (request, reply) => {

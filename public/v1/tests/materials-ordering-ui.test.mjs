@@ -83,14 +83,18 @@ test('an order keeps its delivery date when it cannot be put on the schedule', a
     orderSchedule: () => ({ date: '2026-10-27', time: 'Morning (8am - 12pm)' }), orderTimeClock: () => '',
     schedulingOn: () => true, persistInlineDeliverySchedule: async () => { throw new Error('The schedule could not be saved'); },
     orderEmailOptions: () => ({ attach: true, table: false }), defaultOrderSourceId: () => 'manual', materialListColor: () => '#123456',
-    listItems: () => [], apiReady: () => true, updateMaterialListState() {}, todayIso: () => '2026-10-22', uid: () => 'id',
-    materialsAPI: { lists: { createOrder: async (org, id, payload) => { created.push(payload); return { material_list: { ...list, status: 'ordered' } }; } } },
+    listItems: () => [], apiReady: () => true, updateMaterialListState: (next) => next, todayIso: () => '2026-10-22', uid: () => 'id',
+    materialsAPI: { lists: {
+      // The delivery event can write the list again on the server; the order goes against the revision it has then.
+      get: async () => ({ material_list: { ...list, revision: list.revision + 1 } }),
+      createOrder: async (org, id, payload) => { created.push(payload); return { material_list: { ...list, status: 'ordered' } }; } } },
     orgId: () => 'org'
   };
   vm.createContext(ctx);
   vm.runInContext(fn('recordSupplierOrder'), ctx);
   await ctx.recordSupplierOrder({ key: 'abc' }, [list], { method: 'email', purchaseOrder: { po_number: 'PO-1001', document_id: 'doc_po_1' } });
   assert.equal(created.length, 1);
+  assert.equal(created[0].expected_revision, 4, 'ordered against the list as the server has it now');
   assert.equal(created[0].scheduled_window.date, '2026-10-27');
   assert.equal(created[0].scheduled_window.time_label, 'Morning (8am - 12pm)');
   assert.equal(created[0].delivery_status, 'scheduled');
@@ -140,6 +144,7 @@ test('purchase order lines are priced per order unit from the chosen supplier', 
     cleanText, Number, Math,
     number: (value, fallback = 0) => Number.isFinite(Number(value)) ? Number(value) : fallback,
     supplierQuote: () => ({ prices: new Map([['i1', 1200]]) }),
+    supplierOffer: () => ({ carried: true, sku: 'ABC-HDZ' }), linePricebookItemId: () => 'gaf_hd',
     orderableItems: () => [item],
     orderRequestRows: () => [{ name: 'Shingles', details: [{ label: 'SKU', value: 'SH-30' }, { label: 'Color', value: 'Charcoal' }], quantity: 10, unit: 'bundle' }]
   };
@@ -149,10 +154,11 @@ test('purchase order lines are priced per order unit from the chosen supplier', 
   assert.equal(line.total_cents, 36000, '30 squares at $12');
   assert.equal(line.quantity, 10);
   assert.equal(line.unit_price_cents, 3600, 'per bundle');
-  assert.equal(line.sku, 'SH-30');
+  assert.equal(line.sku, 'ABC-HDZ', 'the chosen supplier\'s SKU');
   assert.equal(line.details, 'Color: Charcoal', 'the SKU has its own column');
   const [estimated] = ctx.purchaseOrderLines({ choice: { target: null }, lists: [{ id: 'list_a' }] });
   assert.equal(estimated.total_cents, 90000, 'with no supplier the list\'s own price is used');
+  assert.equal(estimated.sku, 'SH-30', 'with no supplier, the item\'s own code');
 });
 
 test('every material list can be deleted, including a generated one and the last one', () => {
