@@ -155,3 +155,24 @@ uncommitted files from the shared checkout onto dev. This rollout re-anchored de
 - **Height:** 431 px with the default sections open (was 1,223 px), so the panel fits 1366×768.
 - **Tests:** picker suites pass 132.
 - **Rollout:** `wall_features.js` overlaid on web, legacy and pool; the served file matches.
+
+## Follow-up: Textured views gate unsupported tools — `1566abbe46755f345c689133beb7cda22b87af60`
+
+**Cause.** Textured views draw a separate scene of finished surfaces and turn picking off. Plane guides, previews,
+lines, points and labels therefore never render, and plane mode could stay "on" with nothing shown.
+
+**Fix.** One table, `WallMode.displaySupports`, now governs which tools work in textured views. Plane mode, nudges,
+line tools, the geometry clipboard keys, Resoffit, Trim, sticker placement and measurement overlays are disabled
+there:
+- their buttons are greyed with a tooltip;
+- their shortcuts are ignored;
+- entering Textured exits any of these modes that is active;
+- leaving Textured re-enables everything.
+
+Painting, face selection, Delete, undo, redo, save and the view controls keep working.
+
+**Wall materials panel.** Roof and Stickers open by default. The "Wall defaults" section has rows Default texture,
+Default colour and Default trim, and holds the renamed "Show material colours in Opaque and Translucent" checkbox.
+
+**Tests and rollout.** Related suites pass 655. `wall_mode.js` and `wall_features.js` were overlaid on web, legacy and
+pool, and the served files match.
