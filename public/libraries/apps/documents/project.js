@@ -3571,6 +3571,15 @@
       if (typeof value === 'number' && /_cents$/.test(cleanText(key))) return esc((value / 100).toLocaleString(globalThis.PlatformLanguage?.formatLocale?.(), { style: 'currency', currency: 'USD' }));
       if (typeof value === 'boolean') return esc(value ? (globalThis.PlatformLanguage?.text("documents","m_549ccd0e27a3d4","Yes") ?? "Yes") : (globalThis.PlatformLanguage?.text("documents","m_2f0222913078f4","No") ?? "No"));
       if (typeof value !== 'object') return esc(String(value));
+      // A line item or other record reads as its plain fields; nested data stays compact JSON.
+      if (Array.isArray(value) && value.every((item) => item === null || typeof item !== 'object')) return esc(value.join(', '));
+      if (!Array.isArray(value)) {
+        const parts = Object.entries(value)
+          .filter(([field, item]) => field !== 'id' && item !== null && item !== '' && typeof item !== 'object')
+          .slice(0, 8)
+          .map(([field, item]) => `${field.replace(/_/g, ' ')}: ${typeof item === 'number' && /_cents$/.test(field) ? (item / 100).toLocaleString(globalThis.PlatformLanguage?.formatLocale?.(), { style: 'currency', currency: 'USD' }) : String(item)}`);
+        if (parts.length) return esc(parts.join(' · '));
+      }
       const text = JSON.stringify(value);
       return `<code>${esc(text.length > 160 ? `${text.slice(0, 160)}…` : text)}</code>`;
     }
@@ -3668,6 +3677,8 @@
             const restored = objectValue(await api().revisions.restore(orgId(), doc.id, revision.seq));
             modal.close();
             showToast((globalThis.PlatformLanguage?.text("documents","m_3fe33cd11f8a29","History") ?? "History"), (globalThis.PlatformLanguage?.text("documents","m_2e72e049730ed5","The earlier version was restored.") ?? "The earlier version was restored."), true);
+            // The screen keeps its header while the lock state is unchanged; rebuild it from the restored document.
+            root.querySelector('[data-fmdx-editor-screen]')?.remove();
             if (objectValue(restored.document).id) await openDocScreen(restored.document, { manual: state.docView === 'editor' });
           } catch (error) {
             event.currentTarget.disabled = false;
