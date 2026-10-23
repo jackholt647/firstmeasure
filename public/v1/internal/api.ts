@@ -15,6 +15,7 @@ import { readArtifact } from '../firstmeasure/storage.js';
 import { customerExportBatch } from "./customer_export.js";
 import { creditExportPage } from "./credit_export.js";
 import { trackTutorialResult } from "../staff_tracking/api.js";
+import { ensureTutorialProjectNodeWritable, isTutorialStoragePermissionError, makeTutorialProjectPhpWritable } from "./tutorial_project_storage.js";
 import type { FastifyInstance, FastifyPluginAsync, FastifyReply, FastifyRequest } from "fastify";
 import { createHash, randomBytes } from "node:crypto";
 import { chmod, copyFile, cp, mkdir, mkdtemp, readdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
@@ -259,10 +260,18 @@ export const registerInternalApi: FastifyPluginAsync = async (app) => {
     const requestedName = String(query.file_name ?? upload.filename ?? "artifact.bin");
     const fileName = path.basename(requestedName).replace(/[^a-zA-Z0-9._-]+/g, "_").slice(0, 180) || "artifact.bin";
     const artifactsDir = path.join(dir, "artifacts");
-    await mkdir(artifactsDir, { recursive: true });
-    await writeFile(path.join(artifactsDir, fileName), await upload.toBuffer());
-    manifest.updated_at = new Date().toISOString();
-    await writeJsonFile(path.join(dir, "manifest.json"), manifest);
+    const content = await upload.toBuffer();
+    try {
+      await ensureTutorialProjectNodeWritable(dir);
+      await mkdir(artifactsDir, { recursive: true });
+      await writeFile(path.join(artifactsDir, fileName), content);
+      manifest.updated_at = new Date().toISOString();
+      await writeJsonFile(path.join(dir, "manifest.json"), manifest);
+    } catch (error) {
+      if (!isTutorialStoragePermissionError(error)) throw error;
+      request.log.error({ err: error, tutorialId }, "tutorial project storage is not writable by the API service");
+      return reply.code(500).send({ ok: false, success: false, code: "tutorial_storage_not_writable", error: "This tutorial project's files cannot be saved by the server. Please contact support." });
+    }
     await makeTutorialProjectPhpWritable(dir);
     return { ok: true, success: true, artifact: { name: fileName } };
   });
@@ -2388,18 +2397,6 @@ function tutorialProjectDir(courseId: string, email: string, tutorialId: string)
   return path.join(tutorialProjectsDir(courseId, email), tutorialId);
 }
 
-async function makeTutorialProjectPhpWritable(dir: string) {
-  // Tutorial grading/completion still runs in PHP. These files are created by
-  // Node, so explicitly permit the PHP worker to update this isolated instance.
-  await Promise.all([
-    chmod(dir, 0o777).catch(() => undefined),
-    chmod(path.join(dir, "artifacts"), 0o777).catch(() => undefined),
-    ...(await Promise.all(["manifest.json", "answer_key.json", "metadata.json", "pdf_state.json"].map((name) =>
-      chmod(path.join(dir, name), 0o666).catch(() => undefined)
-    )))
-  ]);
-}
-
 async function newTutorialProjectId(courseId: string, email: string) {
   for (let attempt = 0; attempt < 5; attempt += 1) {
     const id = `tutorial_${randomBytes(12).toString("hex")}`;
@@ -2726,6 +2723,7 @@ async function tutorialExamGrades(courseId: string) {
           tutorial_grading_version: 5
         };
         const projectDir = tutorialProjectDir(courseId, email, tutorialId);
+        await ensureTutorialProjectNodeWritable(projectDir);
         await writeJsonFile(path.join(projectDir, "manifest.json"), repairedProject);
         await makeTutorialProjectPhpWritable(projectDir);
         projectsById.set(tutorialId, repairedProject);
@@ -2833,6 +2831,12 @@ async function saveTutorialProjectEditor(body: JsonObject, actor: JsonObject) {
   }
   if (manifest.locked_for_student && studentEmail === actorEmail) {
     return { ok: false, success: false, status_code: 409, error: "This test project is locked." };
+  }
+  try {
+    await ensureTutorialProjectNodeWritable(dir);
+  } catch (error) {
+    if (!isTutorialStoragePermissionError(error)) throw error;
+    return { ok: false, success: false, status_code: 500, code: "tutorial_storage_not_writable", error: "This tutorial project's files cannot be saved by the server. Please contact support." };
   }
 
   let savedMetadata: JsonObject | null = null;
