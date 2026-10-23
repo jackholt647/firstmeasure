@@ -423,6 +423,12 @@ const PRESENTATION_NAMES: Record<string, string> = { itemized: 'Roof replacement
  * earlier pack revision created. With create:false only existing packs are
  * upgraded, so organizations that never had the pack stay without it.
  */
+/** A roofing deck preset at the current deck revision (an organization's own edits are kept). */
+async function ensureRoofingDeck(orgId:string, deck:string) {
+  const { ensurePresentationPreset } = await import('../documents/modules/presentation-service.js');
+  const { roofingPresentationLayout, ROOFING_PRESENTATION_REVISION } = await import('../documents/modules/presentation-presets.js');
+  return ensurePresentationPreset(orgId,{id:`roofing_${deck}`,name:PRESENTATION_NAMES[deck]!,layout:roofingPresentationLayout(deck),preset_revision:ROOFING_PRESENTATION_REVISION});
+}
 export async function seedInstantRoofingDocuments(orgId:string, ctx:PlatformAuthContext|null, options:{create?:boolean}={}) {
   const create = options.create !== false;
   const catalog = await getOrganizationPricebook(orgId);
@@ -438,7 +444,11 @@ export async function seedInstantRoofingDocuments(orgId:string, ctx:PlatformAuth
   for (const spec of ROOFING_ESTIMATES) {
     const id=`tpl_instant_roofing_${spec.key}`, workflow=`wfl_instant_roofing_${spec.key}`;
     const existing=await readDocumentTemplate(orgId,id).catch(missing);
-    if (existing ? Number(obj(existing.metadata).instant_roofing_pack || 0) >= INSTANT_ROOFING_PACK : !(create || had)) continue;
+    if (existing ? Number(obj(existing.metadata).instant_roofing_pack || 0) >= INSTANT_ROOFING_PACK : !(create || had)) {
+      // A current template keeps its deck current too: the deck follows its own revision.
+      if (existing && spec.presentation) await ensureRoofingDeck(orgId, spec.presentation);
+      continue;
+    }
     const definition=roofingEstimateDefinition(spec.key,{roof:price('gaf_hd'),gutter:price('gutter_replace')});
     const fields=['structure','roof_squares','waste_percent','color','ridge_vent',...(spec.key==='package'?['package_cents']:['rate_cents'])];
     const paramItem=(key:string)=>({kind:obj(obj(definition.params)[key]).type==='string'?'text':obj(obj(definition.params)[key]).type,writes:`params.${key}`,label:obj(obj(definition.params)[key]).label,required:true});
@@ -452,9 +462,7 @@ export async function seedInstantRoofingDocuments(orgId:string, ctx:PlatformAuth
     // slideshow, sending the estimate as it is, or sending the slideshow.
     let completion:Record<string,unknown>|null=null;
     if (spec.presentation) {
-      const { ensurePresentationPreset } = await import('../documents/modules/presentation-service.js');
-      const { roofingPresentationLayout, ROOFING_PRESENTATION_REVISION } = await import('../documents/modules/presentation-presets.js');
-      const preset = await ensurePresentationPreset(orgId,{id:`roofing_${spec.presentation}`,name:PRESENTATION_NAMES[spec.presentation]!,layout:roofingPresentationLayout(spec.presentation),preset_revision:ROOFING_PRESENTATION_REVISION});
+      const preset = await ensureRoofingDeck(orgId, spec.presentation);
       completion={offers:['present','send_estimate','send_presentation'],default:'present',presentation:{module_id:preset.moduleId}};
     }
     const workflowDefinition={schema_version:1,name:spec.title,contract:{params:definition.params,outputs:definition.outputs},steps,...(completion?{completion}:{})};
