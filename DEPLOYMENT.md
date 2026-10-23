@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+October 22 Session replay search: [recordings indexed on the server into screens, elements, clicks with their outcomes, friction and on-screen text, with tools a language model uses to question them](deploy/digitalocean/development-session-replay-search-20261022.md) records release `59106e51` and the verified four-role development rollout.
+
 October 22 Session replay: [pages record as DOM snapshots plus changes for organizations a platform administrator switches on, with a replay viewer, live diagnostics and storage cost](deploy/digitalocean/development-session-replay-20261022.md) records releases `21521b99` and `49241e4a` and the verified development rollouts.
 
 October 19 Full-house customer wall numbers: [the customer summary, CSV and Summary.pdf show the exterior summary for full-house orders, and a Full House order whose references fail to copy is cancelled with its refund](deploy/digitalocean/development-fh-customer-walls-20261019.md) records releases `41c43b98` and `42ca4abc` and the verified development rollout.
