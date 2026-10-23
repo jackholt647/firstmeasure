@@ -28,5 +28,7 @@ function panels(roof,settings={}){return perimeter(roof).map(edge=>{
  return {...edge,height,deleted:height<=K.CONTACT,material:'trim-horizontal',finishColor:saved?.finishColor||null,textureAxes:{u,v},points:[a,b,{...b,z:b.z-height},{...a,z:a.z-height}],holes:[]};
 });}
 function setHeight(settings,ids,inches){if(!Number.isFinite(inches)||inches<0)throw Error('Enter a roof trim height of zero inches or more.');const next={...JSON.parse(JSON.stringify(settings||{}))};next.edges={...(next.edges||{})};for(const id of ids)next.edges[id]={...(next.edges[id]||{}),height:inches*INCH};return next;}
-const api={INCH,DEFAULT,perimeter,panels,setHeight};if(common)module.exports=api;else root.RoofTrim=api;
+// A side's colour; null returns it to the default trim colour.
+function setColor(settings,ids,color){if(color!=null&&!/^#[0-9a-f]{6}$/i.test(color))throw Error('Enter a colour such as #f5f3ef.');const next={...JSON.parse(JSON.stringify(settings||{}))};next.edges={...(next.edges||{})};for(const id of ids){const edge={...(next.edges[id]||{})};if(color)edge.finishColor=color.toLowerCase();else delete edge.finishColor;next.edges[id]=edge;}return next;}
+const api={INCH,DEFAULT,perimeter,panels,setHeight,setColor};if(common)module.exports=api;else root.RoofTrim=api;
 })(typeof window!=='undefined'?window:globalThis);

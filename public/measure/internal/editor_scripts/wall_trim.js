@@ -72,6 +72,9 @@ function groundCandidates(faces,options={}){const {base,ground}=options;
 }
 function partition(faces,pairs,variant=0,width=.1524,segments=boundaries(faces),finishColor,options={}){
  if(!Number.isFinite(width)||width<=K.CONTACT)throw Error('Enter a positive trim width.');
+ // Inside (face) trim: only the named faces take a strip, on their own side of
+ // each edge, so it never spills onto a neighbour. A line trim has no inside list.
+ const inside=options.inside?new Set(options.inside):null;
  const cutters=new Map(),cornerPairs=[];
  const blockers=[...faces.filter(f=>f.trim&&!f.deleted&&!f.snapOnly),...(F?.groupedStickers(faces.filter(f=>f.feature&&!f.deleted&&!f.snapOnly))||[]).flatMap(f=>F.trimFaces(f.points,f.feature))];
  const onPlane=frame=>blockers.filter(f=>f.points.every(p=>Math.abs(dot(sub(p,frame.origin),frame.n))<=K.CONTACT)).map(f=>({points:f.points.map(p=>W.inFrame(frame,p)),holes:(f.holes||[]).map(r=>r.map(p=>W.inFrame(frame,p)))}));
@@ -80,7 +83,7 @@ function partition(faces,pairs,variant=0,width=.1524,segments=boundaries(faces),
   const dir=sub(pair[1],pair[0]),length=Math.hypot(dir.x,dir.y,dir.z);if(length<K.CONTACT)continue;
   const owners=[];
   for(const face of faces){
-   if(face.deleted||face.snapOnly||face.feature||face.curvedSurface)continue;
+   if(face.deleted||face.snapOnly||face.feature||face.curvedSurface||inside&&!inside.has(hostOf(face)))continue;
    const frame=W.faceFrame(face);if(!frame)continue;
    if(pair.some(p=>Math.abs(dot(sub(p,frame.origin),frame.n))>K.CONTACT))continue;
    const local={points:face.points.map(p=>W.inFrame(frame,p)),holes:(face.holes||[]).map(r=>r.map(p=>W.inFrame(frame,p)))};
@@ -106,7 +109,7 @@ function partition(faces,pairs,variant=0,width=.1524,segments=boundaries(faces),
    const sheet=owners.filter(o=>Math.abs(dot(owner.frame.n,o.frame.n))>=.99999);
    // Test material alongside the finite run, including holes and notches.
    // Distant vertices across an opening do not make its jamb an interior divider.
-   const present=(lo,hi)=>sheet.some(o=>K.intersection([o.local],[o.box(lo,hi,0,o.length)]).some(f=>K.area(f)>1e-10));
+   const present=(lo,hi)=>(inside?[owner]:sheet).some(o=>K.intersection([o.local],[o.box(lo,hi,0,o.length)]).some(f=>K.area(f)>1e-10));
    const positive=present(0,.0001),negative=present(-.0001,0);
    owner.perimeter=!positive||!negative;owner.positive=positive;
   }
@@ -116,16 +119,18 @@ function partition(faces,pairs,variant=0,width=.1524,segments=boundaries(faces),
    if(face.trim||!eligibleMaterial(face,options))continue;
    let lo=variant===1?-width:variant===2?-width/2:0,hi=variant===1?0:variant===2?width/2:width;
    // Perimeter edges have only an inward side; corners get a full strip on each wall.
-   if(owner.perimeter){
+   if(owner.perimeter||inside){
     const positive=owner.positive;lo=positive?0:-width;hi=positive?width:0;
    }
-   const cut=box(lo,hi,0,runLength),obstacles=onPlane(frame),contacts=K.intersection([cut],obstacles).filter(f=>K.area(f)>1e-10);
+   // An inside strip runs a width past each end, clipped to its face, which fills
+   // the wedge at a concave corner (an L, a hole corner, a curve's facets).
+   const cut=inside?box(lo,hi,-width,runLength+width):box(lo,hi,0,runLength),obstacles=onPlane(frame),contacts=K.intersection([cut],obstacles).filter(f=>K.area(f)>1e-10);
    // Stop the entire strip at an existing trim boundary, including opening
    // trim generated from sticker metadata rather than stored wall surfaces.
    const stops=contacts.map(f=>{const ts=f.points.map(owner.along);return box(lo,hi,Math.min(...ts),Math.max(...ts));});
    const parts=K.intersection([local],K.difference(cut,stops));if(!parts.length)continue;
    let entry=cutters.get(face);if(!entry){entry={face,frame,local,strips:[]};cutters.set(face,entry);}
-   entry.strips.push({cut,parts,id:'trim:'+K.edgeKey(...pair),pair:pair.map(p=>({...p})),width,variant,material:Math.abs(dir.z)/length>.707?'trim-vertical':'trim-horizontal'});
+   entry.strips.push({cut,parts,id:(inside?'trim-in:'+hostOf(face)+':':'trim:')+K.edgeKey(...pair),...(inside?{side:'inside',host:hostOf(face)}:{}),pair:pair.map(p=>({...p})),width,variant,material:Math.abs(dir.z)/length>.707?'trim-vertical':'trim-horizontal'});
   }
  }
  // Join meeting runs on their supporting plane. Their finite rectangles leave
@@ -133,7 +138,7 @@ function partition(faces,pairs,variant=0,width=.1524,segments=boundaries(faces),
  for(const {frame,local,strips}of cutters.values()){
   const joins=[];
   for(let i=0;i<strips.length;i++)for(let j=i+1;j<strips.length;j++){
-   const a=strips[i],b=strips[j];
+   const a=strips[i],b=strips[j];if(a.side||b.side)continue;
    for(let ai=0;ai<2;ai++)for(let bi=0;bi<2;bi++){
     if(K.pointKey(a.pair[ai])!==K.pointKey(b.pair[bi]))continue;
     const p=W.inFrame(frame,a.pair[ai]),qa=W.inFrame(frame,a.pair[1-ai]),qb=W.inFrame(frame,b.pair[1-bi]);
@@ -157,7 +162,7 @@ function partition(faces,pairs,variant=0,width=.1524,segments=boundaries(faces),
   let cells=[{...local,layers:previous?.layers||[]}];
   for(const strip of strips){const next=[];for(const cell of cells){
    next.push(...K.difference(cell,strip.parts).map(p=>({...p,layers:cell.layers})));
-   const layer={id:strip.id,...(strip.joinIds?{joinIds:strip.joinIds}:{}),pair:strip.pair,width:strip.width,variant:strip.variant,material:strip.material,finishColor:finishColor|| (face.trim?face.finishColor:undefined)};
+   const layer={id:strip.id,...(strip.joinIds?{joinIds:strip.joinIds}:{}),...(strip.side?{side:strip.side,host:strip.host}:{}),pair:strip.pair,width:strip.width,variant:strip.variant,material:strip.material,finishColor:finishColor|| (face.trim?face.finishColor:undefined)};
    next.push(...K.intersection([cell],strip.parts).map(p=>({...p,layers:[...cell.layers.filter(l=>l.id!==layer.id),layer]})));
   }cells=next;}
   const pieces=cells.map(({layers,...p})=>{const top=layers.at(-1);return {...p,material:top?.material||face.material,finishColor:top?top.finishColor:face.finishColor,trim:top?true:face.trim,trimData:{host:previous?.host||face.id,base,layers}};});
@@ -199,7 +204,7 @@ function remove(faces,selected){
 }
 function selectionPairs(faces,kind,options={}){
  const ground=kind.startsWith('ground'),untrimmed=kind.endsWith('-untrimmed'),saved=new Map();
- for(const f of faces)for(const l of f.trimData?.layers||[])if(!l.joinIds)saved.set(l.id,l.pair);
+ for(const f of faces)for(const l of f.trimData?.layers||[])if(!l.joinIds&&!l.side)saved.set(l.id,l.pair);
  const supports=[...(options.base?.faces||[]),...(options.ground?.faces||[])].filter(f=>f.points);
  const existing=[...saved.values()].filter(pair=>!!W.sharedIntervals(...pair,supports).length===ground);
  const raw=ground?groundCandidates(faces,options):candidates(faces,options);
@@ -208,7 +213,11 @@ function selectionPairs(faces,kind,options={}){
  return pairs.flatMap(([a,b])=>{let lo=0;const u=sub(b,a),out=[];for(const [start,end]of [...W.sharedIntervals(a,b,[...saved.values()].map(points=>({points}))),[1,1]]){if(start-lo>1e-7)out.push([at(a,u,lo),at(a,u,start)]);lo=Math.max(lo,end);}return out;});
 }
 function removeEdges(faces,pairs){
- const ids=new Set();for(const f of faces)for(const l of f.trimData?.layers||[])if(W.sharedIntervals(...l.pair,pairs.map(points=>({points}))).length)ids.add(l.id);
+ const ids=new Set();for(const f of faces)for(const l of f.trimData?.layers||[])if(!l.side&&W.sharedIntervals(...l.pair,pairs.map(points=>({points}))).length)ids.add(l.id);
+ return removeLayers(faces,ids,pairs);
+}
+// Remove trim layers by id (each with its join cells), merging the pieces back.
+function removeLayers(faces,ids,pairs=[]){
  const replacements=new Map(faces.map(f=>[f,[f]]));let scene=faces.slice();
  for(const id of ids){const chosen=scene.find(f=>f.trimData?.layers?.some(l=>l.id===id));if(!chosen)continue;
   const layer=chosen.trimData.layers.find(l=>l.id===id),result=remove(scene,{trimData:{layers:[layer]}});if(!result)continue;
@@ -216,5 +225,19 @@ function removeEdges(faces,pairs){
  }
  return {replacements:[...replacements].filter(([face,pieces])=>pieces.length!==1||pieces[0]!==face).map(([face,pieces])=>({face,pieces})),pairs};
 }
-const api={selectionPairs,removeEdges,materialKey,defaultMaterial,runs,candidates,groundCandidates,partition,adoptLegacy,remove,defaultWidth:.1524};if(common)module.exports=api;else root.WallTrim=api;
+const hostOf=f=>f.trimData?.host||f.id;
+// A face's inside trim, one entry per layer: its width, colour and edge.
+function insideLayers(faces,hosts){
+ const wanted=new Set(hosts),out=new Map();
+ for(const f of faces)if(!f.deleted&&wanted.has(hostOf(f)))for(const l of f.trimData?.layers||[])if(l.side==='inside'&&!out.has(l.id))out.set(l.id,{...l,host:hostOf(f)});
+ return [...out.values()];
+}
+// The edges (outline and holes) of a face as it was before any trim divided it.
+function faceEdges(faces,host){
+ const pieces=faces.filter(f=>!f.deleted&&!f.snapOnly&&hostOf(f)===host);if(!pieces.length)return [];
+ const frame=W.faceFrame(pieces[0]);if(!frame)return [];const local=f=>({points:f.points.map(p=>W.inFrame(frame,p)),holes:(f.holes||[]).map(r=>r.map(p=>W.inFrame(frame,p)))});
+ const united=pieces.length===1?[local(pieces[0])]:K.union(pieces.map(local));
+ return united.flatMap(f=>[f.points,...(f.holes||[])].flatMap(r=>r.map((p,i)=>[p,r[(i+1)%r.length]]))).map(pair=>pair.map(p=>W.fromFrame(frame,p))).filter(([a,b])=>Math.hypot(a.x-b.x,a.y-b.y,a.z-b.z)>K.CONTACT);
+}
+const api={selectionPairs,removeEdges,removeLayers,insideLayers,faceEdges,hostOf,materialKey,defaultMaterial,runs,candidates,groundCandidates,partition,adoptLegacy,remove,defaultWidth:.1524};if(common)module.exports=api;else root.WallTrim=api;
 })(typeof window!=='undefined'?window:globalThis);

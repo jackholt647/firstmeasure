@@ -63,6 +63,8 @@
             }
         }finally{syncingDisplay=false;}
     }
+    // While a Selection trim change runs, its writers' own history entries fold into one step.
+    let trimBatch=0,lineLayerCache={surfaces:null,layers:[]};
     function setTrimMode(on){on=!!on;if(on===trimMode)return;trimMode=on;if(on&&resoffitMode)closeResoffit();wallEditor?.setLineSelectMode?.(on?'trim':resoffitMode?'resoffit':null);requestEditorRender(true);}
     let gapHighlights=true,gapCacheKey='',gapCache=[];
     let enabled=false, roofVisible=true, state=null, projectId='', stage=1, selected=null, group3D=null, lastScene=null;
@@ -121,10 +123,10 @@
         if(!enabled||!state)return;flushSelectionHistory();selectionInputType=event?.type||'';
         selectionTimer=setTimeout(()=>{selectionTimer=null;flushSelectionHistory();},0);
     }
-    function recordEdit(before){if(!state||pendingEdit&&nudgeSettleTimer!==null)return;pendingEdit={...editSnapshot(),...JSON.parse(JSON.stringify(before))};}
+    function recordEdit(before){if(!state||trimBatch||pendingEdit&&nudgeSettleTimer!==null)return;pendingEdit={...editSnapshot(),...JSON.parse(JSON.stringify(before))};}
     function finishEdit(...args){if(!window.ExteriorPerf?.enabled)return perf_finishEdit.apply(this,args);return window.ExteriorPerf.measure('Undo commit',()=>perf_finishEdit.apply(this,args));}
 function perf_finishEdit(){
-        if(!pendingEdit||nudgeSettleTimer!==null)return;const before=pendingEdit;pendingEdit=null;const after=editSnapshot();if(JSON.stringify(before)===JSON.stringify(after))return;
+        if(!pendingEdit||trimBatch||nudgeSettleTimer!==null)return;const before=pendingEdit;pendingEdit=null;const after=editSnapshot();if(JSON.stringify(before)===JSON.stringify(after))return;
         const beforeSelection=copy(gestureSelection||stableSelection||selectionSnapshot()),afterSelection=selectionSnapshot(),last=editHistory.at(-1);
         if(nudgeKey&&last?.nudgeKey===nudgeKey&&!last.selectionOnly&&last.selectionRevision===selectionRevision&&JSON.stringify(last.after)===JSON.stringify(before)){
             last.after=after;last.afterSelection=afterSelection;pendingSelection=last;
@@ -637,7 +639,7 @@ function perf_render2DContent() {
     function roofTrimVisible(){return enabled&&roofVisible;}
     function persistRoofTrim(){const value=state?.roofTrim||roofTrimOnly;value.savedAt=Date.now();if(projectId)try{localStorage.setItem(key(projectId)+':roof-trim',JSON.stringify(value));}catch(e){} }
     function roofTrimPickGroup(){return {traverse(fn){roofTrimGroup?.traverse(fn);if(typeof facesGroup!=='undefined')facesGroup?.traverse(o=>{if(o.isMesh){o.userData.pickLayer='roof';}fn(o);});}};}
-    function drawRoofTrim(group,roof,vector){if(!window.RoofTrim)return;const panels=roofTrimEditor?.refresh(roof)||RoofTrim.panels(roof,state?.roofTrim||roofTrimOnly);for(const f of panels){if(f.deleted)continue;const geometry=new THREE.BufferGeometry().setFromPoints(f.points.map(vector));geometry.setIndex([0,1,2,0,2,3]);const mesh=new THREE.Mesh(geometry,new THREE.MeshBasicMaterial({color:roofTrimEditor?.selected(f.id)?'#ffd84d':'#b9b6ae',side:THREE.DoubleSide,transparent:false,opacity:1,depthWrite:true,polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-2}));mesh.renderOrder=2;mesh.userData.pickLayer='roof';mesh.userData.roofTrimId=f.id;window.ExteriorFinishes?.prepare(mesh,f,f.points);group.add(mesh);}}
+    function drawRoofTrim(group,roof,vector){if(!window.RoofTrim)return;const panels=roofTrimEditor?.refresh(roof)||RoofTrim.panels(roof,state?.roofTrim||roofTrimOnly);for(const f of panels){if(f.deleted)continue;const geometry=new THREE.BufferGeometry().setFromPoints(f.points.map(vector));geometry.setIndex([0,1,2,0,2,3]);const mesh=new THREE.Mesh(geometry,new THREE.MeshBasicMaterial({color:roofTrimEditor?.selected(f.id)?'#ffd84d':f.finishColor||'#b9b6ae',side:THREE.DoubleSide,transparent:false,opacity:1,depthWrite:true,polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-2}));mesh.renderOrder=2;mesh.userData.pickLayer='roof';mesh.userData.roofTrimId=f.id;window.ExteriorFinishes?.prepare(mesh,f,f.points);group.add(mesh);}}
     // Compatibility hook for the roof renderer: exterior trim only renders in wall mode.
     function renderRoofTrim3D(){if(roofTrimGroup){roofTrimGroup.parent?.remove(roofTrimGroup);disposeObject3D(roofTrimGroup);roofTrimGroup=null;}roofTrimEditor?.update();}
     let editorRenderFrame=null,editorRenderFull=false,nudgeSettleTimer=null,nudgeBackupPending=false,nudgePreviewGroup=null,pendingNudge=null,nudgeInputFrame=null;
@@ -957,7 +959,55 @@ function perf_render3DFrame() {
             if(!Number.isFinite(value)||(prop==='tolerance'&&(value<0||value>36*G.INCH))){render();return;}
             state.options[prop]=value;invalidateWalls();ensureStage(stage);
         };
-        roofTrimEditor=window.createRoofTrimEditor?.({openChanged:setTrimMode,openingTrimItems:type=>wallEditor?.openingTrimItems(type)||[],selectOpeningTrim:(...args)=>{setLayer('walls',true);wallEditor?.selectOpeningTrim(...args);},applyOpeningTrim:(...args)=>wallEditor?.applyOpeningTrim(...args),wallMaterials:()=>wallEditor?.trimMaterials()||[],removeWallTrim:()=>wallEditor?.removeTrim(),selectWallTrim:(kind,materials)=>{setLayer('walls',true);wallEditor?.selectTrimEdges(kind,materials);},applyWallTrim:(width,color,materials)=>{const edges=editingLayer==='base'?baseEditor?.chamferSelection?.()?.edges||[]:[];setLayer('walls',true);wallEditor?.applyTrim(width*G.INCH,color,edges,materials);},wallWidth:()=>state?.wallTrimWidthInches===8?8:6,setWallWidth:value=>{if(state&&[6,8].includes(value)){state.wallTrimWidthInches=value;persist();}},settings:()=>state?.roofTrim||roofTrimOnly,set:value=>{if(state)state.roofTrim=value;else roofTrimOnly=value;},enabled:()=>enabled,prepare:()=>{if(!roofVisible){roofVisible=true;render3D();}},visible:roofTrimVisible,redraw:()=>enabled?render3D():renderRoofTrim3D(),screen:p=>{const r=renderer.domElement.getBoundingClientRect(),q=getVector3(toPixel(p)).project(camera);if(q.z<-1||q.z>1)return null;return {x:r.left+(q.x+1)*r.width/2,y:r.top+(1-q.y)*r.height/2};},clearSelection:()=>{baseEditor?.clearSelection();wallEditor?.clear();if(!enabled){selectedPoints.clear();selectedLines.clear();}},commit:before=>{if(state){recordEdit({roofTrim:before});finishEdit();persist();baseEditor?.render();}else{roofTrimHistory.push(before);roofTrimFuture=[];}persistRoofTrim();},undo:redo=>{if(state)undoEdit(redo);else{const from=redo?roofTrimFuture:roofTrimHistory,to=redo?roofTrimHistory:roofTrimFuture;if(from.length){to.push(copy(roofTrimOnly));roofTrimOnly=copy(from.pop());persistRoofTrim();renderRoofTrim3D();}}}});
+        // One undo step around a Selection change; a failed writer rolls everything back.
+        function trimTransaction(fn){
+            if(!state)return fn()!==false;settleNudges();if(pendingEdit)finishEdit();recordEdit({});const pending=pendingEdit,selection=selectionSnapshot();let ok=false;trimBatch++;
+            try{ok=fn()!==false;}catch(error){console.error(error);ok=false;}finally{trimBatch--;}
+            if(!ok){if(pending)for(const k of historyKeys)state[k]=pending[k]===undefined?undefined:copy(pending[k]);pendingEdit=null;restoreSelection(selection);persist();persistRoofTrim();render();return false;}
+            pendingEdit=pending;finishEdit();persist();persistRoofTrim();render();return true;
+        }
+        const trimDefault=()=>state?.finishDefaults?.trimColor||'#f5f3ef';
+        // Line trim already on the selected lines, read from the saved trim layers (face trim excluded).
+        function lineTrimLayers(){const surfaces=state?.wallEdits?.$surfaces||[];if(lineLayerCache.surfaces===surfaces)return lineLayerCache.layers;const out=new Map();for(const f of surfaces)if(!f.deleted)for(const l of f.trimData?.layers||[])if(l.pair&&!l.joinIds&&!l.side&&!out.has(l.id))out.set(l.id,l);lineLayerCache={surfaces,layers:[...out.values()]};return lineLayerCache.layers;}
+        function lineTrimItems(lines){const layers=lineTrimLayers(),W=window.WallSolidGeometry;return lines.map(line=>{const pairs=line.pairs||[line.pair];return {line,pairs,layers:layers.filter(l=>pairs.some(pair=>W.sharedIntervals(...pair,[{points:l.pair}]).some(([a,b])=>b-a>1e-3)))};});}
+        const faceRefs=d=>{const primary=d?.selectedSolid?{solid:d.selectedSolid}:d?.selectedRegion||null,list=d?.faceSelection||[],key=r=>JSON.stringify(r);return primary?(list.some(r=>key(r)===key(primary))?list:[primary]):[];};
+        function selectionTrimItems(){
+            if(!wallEditor||!state)return [];const draft=wallEditor.selectionSnapshot?.()?.draft||{};
+            const lines=lineTrimItems(draft.lineSelection||[]).map(i=>{const l=i.layers[0];return {kind:'line',width:l?l.width/G.INCH:0,raw:l?.finishColor,color:l?(l.finishColor||trimDefault()):null};});
+            const faces=(wallEditor.faceTrimItems?.()||[]).map(i=>({kind:'face',ref:i.ref,width:i.width,raw:i.color||undefined,color:i.width>0?i.color:null}));
+            const openings=['window','door','garage'].flatMap(type=>(wallEditor.openingTrimItems(type)||[]).filter(i=>i.selected).map(i=>({kind:type,ref:i.ref,width:i.width,raw:i.f.feature.trim?.color,color:i.width>0?(i.f.feature.trim?.color||trimDefault()):null})));
+            return [...lines,...faces,...openings];
+        }
+        // Each type through its own writer: face trim, line trim, opening trim. decide(kind,width,raw,effective) gives null or {width (in), color}.
+        function applySelectionTrim(decide){
+            if(!wallEditor||!state)return true;const snap=wallEditor.selectionSnapshot(),draft=snap.draft||{},W=window.WallSolidGeometry,hostOf=f=>f.trimData?.host||f.id;
+            const select=over=>wallEditor.restoreSelection({...snap,draft:{...draft,picked:[],pickedLines:[],solidPoints:[],solidEdges:[],...over}}),faces=refs=>({faceSelection:refs,selectedSolid:refs[0]?.solid||null,selectedRegion:refs[0]&&!refs[0].solid?refs[0]:null}),lineRefs=pairs=>pairs.map(pair=>({id:W.edgeKey(...pair),pair}));
+            const group=(map,t,value)=>{const k=t.width+'|'+(t.color||'');if(!map.has(k))map.set(k,{width:t.width,color:t.color,items:[]});map.get(k).items.push(value);};
+            const items=selectionTrimItems(),openingItems=items.filter(i=>['window','door','garage'].includes(i.kind)),selectedFaces=items.filter(i=>i.kind==='face');let hosts=new Set();
+            let changed=false;
+            if(selectedFaces.length){const groups=new Map(),addHosts=refs=>{const surfaces=state.wallEdits.$surfaces||[];for(const r of refs){const f=r.solid&&surfaces.find(x=>x.id===r.solid);if(f)hosts.add(hostOf(f));}};addHosts(selectedFaces.map(i=>i.ref));
+                for(const i of selectedFaces){const t=decide('face',i.width,i.raw,i.color);if(t)group(groups,t,i.ref);}
+                for(const g of groups.values()){select({lineSelection:[],...faces(g.items)});if(!wallEditor.applyFaceTrim(g.width*G.INCH,g.color??null,{color:g.color}))return false;changed=true;addHosts(faceRefs(wallEditor.selectionSnapshot().draft));}
+            }
+            const lines=lineTrimItems(draft.lineSelection||[]),seen=new Set(),removing=[],add=new Map();
+            for(const item of lines){if(item.layers.length){for(const l of item.layers){if(seen.has(l.id))continue;seen.add(l.id);const t=decide('line',l.width/G.INCH,l.finishColor,l.finishColor||trimDefault());if(!t)continue;removing.push(l.pair);if(t.width>0)group(add,t,l.pair);}}else{const t=decide('line',0);if(t?.width>0)for(const pair of item.pairs)group(add,t,pair);}}
+            if(removing.length){select({lineSelection:lineRefs(removing),...faces([])});wallEditor.removeTrim();changed=true;}
+            // Lines that cannot hold trim (no wall face along them) are skipped, not fatal.
+            let skipped=0;for(const g of add.values()){select({lineSelection:lineRefs(g.items),...faces([])});if(wallEditor.applyTrim(g.width*G.INCH,g.color||undefined))changed=true;else skipped+=g.items.length;}
+            if(skipped&&!changed&&!removing.length&&!selectedFaces.length&&!openingItems.length)return false;
+            for(const type of ['window','door','garage']){const groups=new Map();for(const i of openingItems.filter(i=>i.kind===type)){const t=decide(type,i.width,i.raw,i.color);if(t)group(groups,t,i.ref);}
+                for(const g of groups.values()){select({lineSelection:[],...faces(g.items)});if(wallEditor.applyOpeningTrim(type,g.width,g.color||undefined)===false)return false;}}
+            // The selection comes back as it was; faces divided by trim are selected by what is left of them.
+            const surfaces=state.wallEdits.$surfaces||[],refs=[...openingItems.map(i=>i.ref),...surfaces.filter(s=>!s.deleted&&!s.trim&&!s.feature&&hosts.has(hostOf(s))).map(s=>({solid:s.id}))];
+            select({lineSelection:draft.lineSelection||[],...faces(changed&&hosts.size?refs:faceRefs(draft))});return true;
+        }
+        // Bulk opening selection adds to (or removes from) the selection while Trim is open.
+        function selectOpeningTrim(type,key,checked=true){
+            const before=wallEditor?.selectionSnapshot?.();wallEditor?.selectOpeningTrim(type,key,checked);if(!trimMode||!before)return;
+            const after=wallEditor.selectionSnapshot(),mine=new Set((wallEditor.openingTrimItems(type)||[]).map(i=>JSON.stringify(i.ref))),keep=faceRefs(before.draft).filter(r=>!mine.has(JSON.stringify(r))),refs=[...keep,...faceRefs(after.draft).filter(r=>mine.has(JSON.stringify(r)))];
+            wallEditor.restoreSelection({...after,draft:{...after.draft,lineSelection:before.draft?.lineSelection||[],faceSelection:refs,selectedSolid:refs[0]?.solid||null,selectedRegion:refs[0]&&!refs[0].solid?refs[0]:null}});requestEditorRender(true);
+        }
+        roofTrimEditor=window.createRoofTrimEditor?.({openChanged:setTrimMode,trimTransaction,selectionTrimItems,applySelectionTrim,openingTrimItems:type=>wallEditor?.openingTrimItems(type)||[],selectOpeningTrim:(...args)=>{setLayer('walls',true);selectOpeningTrim(...args);},applyOpeningTrim:(...args)=>wallEditor?.applyOpeningTrim(...args),wallMaterials:()=>wallEditor?.trimMaterials()||[],removeWallTrim:()=>wallEditor?.removeTrim(),selectWallTrim:(kind,materials)=>{setLayer('walls',true);wallEditor?.selectTrimEdges(kind,materials);},applyWallTrim:(width,color,materials)=>{const edges=editingLayer==='base'?baseEditor?.chamferSelection?.()?.edges||[]:[];setLayer('walls',true);wallEditor?.applyTrim(width*G.INCH,color,edges,materials);},wallWidth:()=>state?.wallTrimWidthInches===8?8:6,setWallWidth:value=>{if(state&&[6,8].includes(value)){state.wallTrimWidthInches=value;persist();}},settings:()=>state?.roofTrim||roofTrimOnly,set:value=>{if(state)state.roofTrim=value;else roofTrimOnly=value;},enabled:()=>enabled,prepare:()=>{if(!roofVisible){roofVisible=true;render3D();}},visible:roofTrimVisible,redraw:()=>enabled?render3D():renderRoofTrim3D(),screen:p=>{const r=renderer.domElement.getBoundingClientRect(),q=getVector3(toPixel(p)).project(camera);if(q.z<-1||q.z>1)return null;return {x:r.left+(q.x+1)*r.width/2,y:r.top+(1-q.y)*r.height/2};},clearSelection:()=>{baseEditor?.clearSelection();wallEditor?.clear();if(!enabled){selectedPoints.clear();selectedLines.clear();}},commit:before=>{if(state){recordEdit({roofTrim:before});finishEdit();persist();baseEditor?.render();}else{roofTrimHistory.push(before);roofTrimFuture=[];}persistRoofTrim();},undo:redo=>{if(state)undoEdit(redo);else{const from=redo?roofTrimFuture:roofTrimHistory,to=redo?roofTrimHistory:roofTrimFuture;if(from.length){to.push(copy(roofTrimOnly));roofTrimOnly=copy(from.pop());persistRoofTrim();renderRoofTrim3D();}}}});
         function pickPointer(e){return withWallScene(()=>pickPointerInScene(e));}
         function pickPointerInScene(e){
                     if(resoffitMode){wallEditor?.pickLine?.(e);return true;}
