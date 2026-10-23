@@ -71,6 +71,19 @@ const number=v=>v>0&&v<.05?'<0.1':Number(v||0).toLocaleString(root.ReportUnits?.
 // A whole number of square feet or feet (or of the metric unit), with thousands separators.
 const whole=(value,kind)=>metric()?root.ReportUnits.current().quantity(value,kind,0):Math.round(Number(value)||0).toLocaleString(root.ReportUnits?.current().language||'en-US')+' '+(kind==='sf'?'sq ft':reportText('ft'));
 const isTrim=a=>a.trim||/^trim-/.test(a.materialKey||'')||/\btrim\b/i.test(a.material||'');
+// Trim lengths (ft) from the trim the model draws, so saved snapshots report it too. An opening's trim is measured
+// along each board's outside edge (WallFeatures.trimFaces: inner p0-p1, outer p2-p3; a door or garage door has no
+// bottom board); a wall trim strip along its run; roof trim (fascia) along the roof edge it hangs from (p0-p1).
+const FEET=1/.3048,span=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y,(a.z||0)-(b.z||0))*FEET;
+const openingTrimLength=o=>(o?.trimFaces||[]).reduce((sum,f)=>sum+(f.points?.length===4?span(f.points[2],f.points[3]):0),0);
+const openingTrimKind={Window:'window',Door:'door','Garage door':'garage','Gable vent':'vent'};
+function trimTotals(model){
+ const out={window:0,door:0,garage:0,vent:0,other:0,wallHorizontal:0,wallVertical:0,roof:0,total:0};
+ for(const o of model?.openings||[])out[openingTrimKind[o.label]||'other']+=openingTrimLength(o);
+ for(const w of model?.walls||[]){if(w.material==='Horizontal trim')out.wallHorizontal+=w.width||0;else if(w.material==='Vertical trim')out.wallVertical+=w.height||0;}
+ for(const f of model?.roofTrim||[])if(f.points?.length>=2)out.roof+=span(f.points[0],f.points[1]);
+ out.total=Object.keys(out).reduce((sum,k)=>k==='total'?sum:sum+out[k],0);return out;
+}
 const centroid=ps=>ps.reduce((a,p)=>({x:a.x+p.x/ps.length,y:a.y+p.y/ps.length,z:a.z+(p.z||0)/ps.length}),{x:0,y:0,z:0});
 
 // Rows occupy sixths of a page. Optimize across pages to avoid stranded faces.
@@ -235,11 +248,11 @@ function writer(doc,colors){
   }
  };
  // The totals box: one line across a wide box; in a narrow box (a landscape side panel) the label
- // and then each figure on its own line, right-aligned. Returns the box's bottom.
+ // and then each figure on its own line under it, left-aligned. Returns the box's bottom.
  const TOTAL_LINE=4.5,totalLines=(total,tw)=>tw>=140?1:total.length,totalHeight=(total,tw)=>totalLines(total,tw)===1?10:3.8+total.length*TOTAL_LINE;
  const totalBox=(total,tx,ty,tw)=>{const th=totalHeight(total,tw);panel(tx,ty,tw,th);
   if(totalLines(total,tw)===1){cell(total[0],tx+6,ty+6.5,40,false,8.5,true);const parts=total.slice(1);let px=tx+tw-4;for(let i=parts.length-1;i>=0;i--){const str=String(parts[i]);doc.setFont('Montserrat',i===parts.length-1?'bold':'normal');doc.setFontSize(8);const sw=doc.getTextWidth(str);cell(str,px-sw,ty+6.5,sw+.5,false,8,i===parts.length-1);px-=sw+6;}}
-  else total.forEach((str,i)=>cell(str,tx+6,ty+5.8+i*TOTAL_LINE,tw-10,i>0,i===0?8.5:8,i===0||i===total.length-1));
+  else total.forEach((str,i)=>cell(str,tx+6,ty+5.8+i*TOTAL_LINE,tw-10,false,i===0?8.5:8,i===0||i===total.length-1));
   return ty+th;};
  // A single boxed table in a side panel (landscape elevations): as many rows as fit above its totals
  // box; any rest continues on `more()` pages in two columns. Returns the bottom of what it drew last.
@@ -414,7 +427,7 @@ function reportOrientation(settings){const pick=v=>v==='landscape'||v==='portrai
 // The elevation key sits in the page header, just left of the right-aligned page title (pdf.js drawReportTemplate: 12pt bold, 20 mm from the right edge, baseline 18 mm).
 function headerKeyRect(doc,title){doc.setFont('Montserrat','bold');doc.setFontSize(12);const tw=Number(doc.getTextWidth(title))||0,kw=40;return {x:doc.internal.pageSize.getWidth()-20-tw-6-kw,y:5,w:kw,h:25};}
 function drawExteriorReportPages(doc,model,settings,begin,colors){
- const {x,w,bottom,text,note,table,paginate,columns,autoTable,boxHeight,sideTable,sideWidth}=writer(doc,colors),material=a=>reportText(!a.material||a.material==='Unassigned'?'Not assigned':a.material),landscape=isLandscape(doc);
+ const {x,w,bottom,text,note,table,paginate,columns,autoTable,boxHeight,sideTable,sideWidth,boxTable,numericColumns}=writer(doc,colors),material=a=>reportText(!a.material||a.material==='Unassigned'?'Not assigned':a.material),landscape=isLandscape(doc);
  const area=v=>measure(v,"sf",number(v),false),openings=v=>v>0?area(v):'-',sum=(list,key)=>list.reduce((s,a)=>s+a[key],0),byId=new Map(model.walls.map(a=>[a.id,a]));
  // Each elevation lists its faces in two boxed columns (Wall, Material, Gross, Openings) with one totals box under both.
  const sq=metric()?' m²':' ft²',headers=[reportText('Wall'),reportText('Material'),reportText('Gross')+sq,reportText('Openings')+sq],widths=[1,2.2,1.4,1.4];
@@ -463,9 +476,14 @@ function drawExteriorReportPages(doc,model,settings,begin,colors){
    const ty=frame.y+frame.h+2;text(reportText('W ')+measure(a.width,"ft",number(a.width)+"'")+reportText("  x  H ")+measure(a.height,"ft",number(a.height)+"'"),xx+2,ty,7);doc.setFontSize(6.5);text(doc.splitTextToSize(material(a)+(a.chimney?' / Chimney':''),ww-4)[0],xx+2,ty+4.5,6.5);
   });});
  }
- paginate(begin,reportText('Opening Schedule'),[reportText('Opening'),reportText('Type'),reportText('Wall'),(metric()?'W x H (m)':'W x H (ft)'),(metric()?'Area m²':'Area ft2'),(metric()?'Trim m':'Trim ft')],model.openings.map(o=>[o.id,reportText(o.label),o.wall,measure(o.width,"ft",number(o.width),false)+' x '+measure(o.height,"ft",number(o.height),false),measure(o.area,"sf",number(o.area),false),measure(o.perimeter,"ft",number(o.perimeter),false)]),[1.4,1.9,1,2,1.3,1.3],reportText('Dimensions are drawn extents, not manufacturer or rough-opening sizes. Trim {value1} is the opening perimeter.', {value1:unit('ft','ft')}));
+ paginate(begin,reportText('Opening Schedule'),[reportText('Opening'),reportText('Type'),reportText('Wall'),(metric()?'W x H (m)':'W x H (ft)'),(metric()?'Area m²':'Area ft2'),(metric()?'Trim m':'Trim ft')],model.openings.map(o=>[o.id,reportText(o.label),o.wall,measure(o.width,"ft",number(o.width),false)+' x '+measure(o.height,"ft",number(o.height),false),measure(o.area,"sf",number(o.area),false),(t=>t>0?measure(t,"ft",number(t),false):'-')(openingTrimLength(o))]),[1.4,1.9,1,2,1.3,1.3],reportText('Dimensions are drawn extents, not manufacturer or rough-opening sizes. Trim {value1} is measured along the outside edge of the trim; - means the opening has no trim.', {value1:unit('ft','ft')}));
  const byMaterial={};model.walls.forEach(a=>byMaterial[material(a)]=(byMaterial[material(a)]||0)+a.net);
- begin(reportText('Exterior Quantities'));text(reportText('Measured lengths'),x,38,12,true);y=table([reportText('Quantity'),unit('ft','Feet')],[[reportText('Top of walls'),measure(model.totals.top,"ft",number(model.totals.top),false)],[reportText('Bottom of walls'),measure(model.totals.bottom,"ft",number(model.totals.bottom),false)],[reportText('Inside corners'),measure(model.totals.inside,"ft",number(model.totals.inside),false)],[reportText('Outside corners'),measure(model.totals.outside,"ft",number(model.totals.outside),false)],[reportText('Opening perimeter'),measure(model.totals.openingPerimeter,"ft",number(model.totals.openingPerimeter),false)],[reportText('Material transitions'),measure(model.totals.transitions,"ft",number(model.totals.transitions),false)],[reportText('Exposed vertical terminations'),measure(model.totals.terminations,"ft",number(model.totals.terminations),false)]],44,[3,1]);
+ begin(reportText('Exterior Quantities'));
+ // Measured lengths on the left, trim by kind on the right.
+ {const gap=5,cw=(w-gap)/2,ft=v=>v>0?measure(v,"ft",number(v),false):'-',trim=trimTotals(model),lengthRows=[[reportText('Top of walls'),measure(model.totals.top,"ft",number(model.totals.top),false)],[reportText('Bottom of walls'),measure(model.totals.bottom,"ft",number(model.totals.bottom),false)],[reportText('Inside corners'),measure(model.totals.inside,"ft",number(model.totals.inside),false)],[reportText('Outside corners'),measure(model.totals.outside,"ft",number(model.totals.outside),false)],[reportText('Opening perimeter'),measure(model.totals.openingPerimeter,"ft",number(model.totals.openingPerimeter),false)],[reportText('Material transitions'),measure(model.totals.transitions,"ft",number(model.totals.transitions),false)],[reportText('Exposed vertical terminations'),measure(model.totals.terminations,"ft",number(model.totals.terminations),false)]];
+  const trimRows=[[reportText('Window trim'),ft(trim.window)],[reportText('Door trim'),ft(trim.door)],[reportText('Garage door trim'),ft(trim.garage)],...(trim.vent>0?[[reportText('Gable vent trim'),ft(trim.vent)]]:[]),...(trim.other>0?[[reportText('Other opening trim'),ft(trim.other)]]:[]),[reportText('Horizontal wall trim'),ft(trim.wallHorizontal)],[reportText('Vertical wall trim'),ft(trim.wallVertical)],[reportText('Roof trim (fascia)'),ft(trim.roof)],{cells:[reportText('Total trim'),ft(trim.total)]}];
+  const lengthHeaders=[reportText('Quantity'),unit('ft','Feet')],trimHeaders=[reportText('Trim'),unit('ft','Feet')];text(reportText('Measured lengths'),x,38,12,true);text(reportText('Trim'),x+cw+gap,38,12,true);
+  y=Math.max(boxTable(lengthHeaders,lengthRows,x,44,cw,[3,1.2],numericColumns(lengthHeaders,lengthRows)),boxTable(trimHeaders,trimRows,x+cw+gap,44,cw,[3,1.2],numericColumns(trimHeaders,trimRows)));}
  const materialRows=Object.entries(byMaterial).map(([k,v])=>metric()?[k,measure(v,"sf",number(v),false)]:[k,number(v),number(v/100)]);if(y+40>bottom){begin(reportText('Exterior Quantities - continued'));y=26;}text(reportText('Net area by material'),x,y+12,12,true);y+=18;
  y=autoTable(metric()?[reportText('Material'),reportText('Area (m²)')]:[reportText('Material'),reportText('Area (sq ft)'),reportText('Squares')],materialRows,y,[2,1,1],()=>{begin(reportText('Exterior Quantities - continued'));return 38;});
  // Keep measured quantities above; material allowances require imperial estimates.
@@ -596,6 +614,6 @@ async function drawReportImagery(doc,state,begin,colors){
   doc.addImage(r.aspect>aspects[index]+1e-6?reportImageData(img,r.aspect):item.dataUrl||reportImageData(img),'JPEG',r.x,r.y,r.w,r.h);
  });}
 }
-const api={directions,photoSlots,houseDirections,relativeSide,initializePhotoSlots,selectedPhotos,photosComplete,planShapes,frontBearing,dimensionPages,mosaicPlace,mosaicRows,mosaicLayout,mosaicPages,fitHeight,rasterScene,paintScene,placeLabels,elevationPlan,elevationViews,houseFaces,roofDepthBias,ROOF_DEPTH_BIAS,dimensionContext,reportOrientation,evenBottom,writer,coverView,drawDiagram,drawOrientationKey,drawElevationKey,drawRoofElevations,drawExteriorCover,drawExteriorSummaryPage,drawExteriorReportPages,drawExteriorNotes,drawReportImagery,prepareImagerySnapshot};
+const api={trimTotals,openingTrimLength,directions,photoSlots,houseDirections,relativeSide,initializePhotoSlots,selectedPhotos,photosComplete,planShapes,frontBearing,dimensionPages,mosaicPlace,mosaicRows,mosaicLayout,mosaicPages,fitHeight,rasterScene,paintScene,placeLabels,elevationPlan,elevationViews,houseFaces,roofDepthBias,ROOF_DEPTH_BIAS,dimensionContext,reportOrientation,evenBottom,writer,coverView,drawDiagram,drawOrientationKey,drawElevationKey,drawRoofElevations,drawExteriorCover,drawExteriorSummaryPage,drawExteriorReportPages,drawExteriorNotes,drawReportImagery,prepareImagerySnapshot};
 if(typeof module==='object'&&module.exports)module.exports=api;else {root.ExteriorPDF=api;Object.assign(root,{drawExteriorReportPages,drawExteriorNotes,drawExteriorCover,drawReportImagery});}
 })(typeof window==='undefined'?globalThis:window);

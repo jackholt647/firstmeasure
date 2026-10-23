@@ -228,7 +228,9 @@ test('every exterior table uses the boxed roof-table style with unchanged values
  for(const title of ['Hidden Wall Faces','Opening Schedule','Exterior Quantities','Material Allowances']){const p=pages.find(p=>p.title===title);assert.ok(p,title);
   assert.ok(p.bars>0,title+' tables have the accent bar');assert.ok(!p.rounded.some(r=>r[3]===9&&r[2]>150),title+' has no old full-width header strip');}
  const q=pages.find(p=>p.title==='Exterior Quantities').text.map(t=>t.value);for(const v of ['Top of walls','Exposed vertical terminations','Not assigned','Area (sq ft)','Squares'])assert.ok(q.includes(v),v);
- const sched=pages.find(p=>p.title==='Opening Schedule').text.map(t=>t.value);for(const v of ['W01-1','Window','W01','3.0 x 4.0','12.0','14.0'])assert.ok(sched.includes(v),v);
+ const sched=pages.find(p=>p.title==='Opening Schedule').text.map(t=>t.value);for(const v of ['W01-1','Window','W01','3.0 x 4.0','12.0'])assert.ok(sched.includes(v),v);
+ assert.ok(!sched.includes('14.0'),'an opening without trim does not report its perimeter as trim');
+ for(const v of ['Measured lengths','Trim','Window trim','Door trim','Garage door trim','Roof trim (fascia)','Total trim'])assert.ok(q.includes(v),v);
  const allow=pages.find(p=>p.title==='Material Allowances').text;assert.ok(['0%','20%','Area including waste (sq ft)','Squares including waste'].every(v=>allow.some(t=>t.value===v)));
  // Many materials: the narrow "Net area by material" table goes to two columns, the wide allowance table stays one, and nothing runs off a page.
  const many=boxHouse();many.walls.forEach((w,i)=>{w.material='Material '+String.fromCharCode(65+i);});for(let i=0;i<53;i++)many.walls.push({...many.walls[0],id:'X'+i,material:'Material '+i});
@@ -324,4 +326,19 @@ test('the Exterior Images pages leave the fine print gap above the footer addres
   const p=pages.at(-1);assert.equal(p.images.length,3);assert.ok(p.images.every(i=>i.y+i.h<=H-16-2.2-7+1e-9),'7 mm clear of the footer address');
   assert.ok(p.images.every(i=>i.x>=25-1e-9&&i.x+i.w<=W-15+1e-9),'inside the content width');assert.ok(p.images.reduce((t,i)=>t+i.w*i.h,0)>=.45*(W-40)*(H-16-2.2-7-36),'three photos fill about half the page');
  }
+});
+
+test('trim is measured: opening boards along their outside edge by kind, wall trim strips along their run, roof trim along its edge',()=>{
+ const X=require('../public/measure/internal/editor_scripts/exterior_pdf.js'),ft=.3048;
+ // A 3 x 7 ft door with 4 in trim on its sides and head (no bottom board): 7 + 3 + 7 ft inside, plus the miters outside.
+ const t=4/12,board=(a,b,c,d)=>({points:[a,b,c,d].map(([x,z])=>({x:x*ft,y:0,z:z*ft}))});
+ const door={label:'Door',trimFaces:[board([3,0],[3,7],[3+t,7+t],[3+t,0]),board([3,7],[0,7],[-t,7+t],[3+t,7+t]),board([0,7],[0,0],[-t,0],[-t,7+t])]};
+ assert.ok(Math.abs(X.openingTrimLength(door)-(7+t+3+2*t+7+t))<1e-9);
+ assert.equal(X.openingTrimLength({label:'Window',trimFaces:[]}),0);
+ const fascia={points:[{x:0,y:0,z:3},{x:10*ft,y:0,z:3},{x:10*ft,y:0,z:2.9},{x:0,y:0,z:2.9}]};
+ const totals=X.trimTotals({openings:[door,{label:'Garage door',trimFaces:door.trimFaces},{label:'Window'}],walls:[{material:'Horizontal trim',width:12,height:.5},{material:'Vertical trim',width:.4,height:9},{material:'Brick',width:30,height:9}],roofTrim:[fascia]});
+ const near=(a,b)=>Math.abs(a-b)<1e-9,doorLength=7+t+3+2*t+7+t;
+ assert.ok(near(totals.door,doorLength)&&near(totals.garage,doorLength)&&totals.window===0);
+ assert.ok(near(totals.wallHorizontal,12)&&near(totals.wallVertical,9)&&near(totals.roof,10));
+ assert.ok(near(totals.total,2*doorLength+12+9+10));
 });
