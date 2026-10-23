@@ -52,8 +52,8 @@ test("batched customer summary rows equal per-organization rows", { skip: !datab
   await storage.createOrganization({ id: "org_batch_b", name: "Bristol", global: { sales_owner_email: "rep@example.test" } });
   await storage.createOrganization({ id: "org_batch_c", name: "Cascade" });
   await storage.createOrganization({ id: "org_batch_empty", name: "Empty" });
-  await storage.upsertDocument("org_batch_a", "users", { id: "user-a-1", data: { email: "org_batch_a@example.test", name: "Ada" } });
-  await storage.upsertDocument("org_batch_a", "users", { id: "user-a-2", data: { email: "second@example.test", name: "Bea" } });
+  await storage.upsertDocument("org_batch_a", "users", { id: "user-a-1", data: { email: "org_batch_a@example.test", name: "Ada", stats: { projects_ordered: 0, commissions_earned: 0 } } });
+  await storage.upsertDocument("org_batch_a", "users", { id: "user-a-2", data: { email: "second@example.test", name: "Bea", stats: { projects_ordered: 4 } } });
   await storage.upsertDocument("org_batch_b", "users", { id: "user-b-1", data: { email: "org_batch_b@example.test" } });
   await storage.upsertDocument("org_batch_c", "projects", { id: "platform-c-1", data: { title: "Platform project", owner_email: "org_batch_c@example.test" } });
 
@@ -73,6 +73,11 @@ test("batched customer summary rows equal per-organization rows", { skip: !datab
   assert.deepEqual(batched.map(strip), perOrganization.map(strip));
   assert.equal(batched.find((row) => row.id === "org_batch_a")?.lifetimeOrders, 3);
   assert.equal(batched.find((row) => row.id === "org_batch_a")?.user_count, 2);
+  // 1M8-238: signup stores stats.projects_ordered = 0 and never updates it; the user's orders are counted, and a
+  // larger stored count (a legacy migration snapshot) is kept.
+  const orgAUsers = (batched.find((row) => row.id === "org_batch_a")?.users ?? []) as Array<Record<string, unknown>>;
+  assert.equal(orgAUsers.find((user) => user.email === "org_batch_a@example.test")?.orderCount, 3);
+  assert.equal(orgAUsers.find((user) => user.email === "second@example.test")?.orderCount, 4);
   // Callers that keep only part of each row transform it per batch; null drops the row and order is kept.
   const names = await api.buildOrganizationSummaryRows(organizations, true, (row) => row.id === "org_batch_b" ? null : `${row.id}:${row.lifetimeOrders}`);
   assert.deepEqual(names, perOrganization.filter((row) => row.id !== "org_batch_b").map((row) => `${row.id}:${row.lifetimeOrders}`));

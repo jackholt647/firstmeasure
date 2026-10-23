@@ -7176,7 +7176,10 @@ function organizationUserView(document: JsonObject, projects: JsonObject[] = [])
   const items = asObject(orgPermissions.items ?? data.permissions);
   const stats = asObject(data.stats);
   const storedOrderCount = numberValue(data.orderCount ?? data.order_count ?? data.orders_count ?? stats.projects_ordered ?? stats.order_count, Number.NaN);
-  const orderCount = Number.isFinite(storedOrderCount) ? storedOrderCount : organizationUserOrderCount(data, projects);
+  // Signup stores stats.projects_ordered = 0 and nothing keeps it current, so a stored count is only a floor
+  // (legacy migration snapshots); the user's orders in this organization are counted (1M8-238).
+  const countedOrders = organizationUserOrderCount(data, projects);
+  const orderCount = Number.isFinite(storedOrderCount) ? Math.max(storedOrderCount, countedOrders) : countedOrders;
   return {
     ...data,
     org_permissions: { level, items },
