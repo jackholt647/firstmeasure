@@ -176,3 +176,32 @@ Default colour and Default trim, and holds the renamed "Show material colours in
 
 **Tests and rollout.** Related suites pass 655. `wall_mode.js` and `wall_features.js` were overlaid on web, legacy and
 pool, and the served files match.
+
+## Follow-up: arched doors nudge as one piece; curves cannot be flattened — `8be13d84b5e52af27c49ebbd8c814bc569e61079`
+
+The pilot's arched garage doors are stored surfaces whose draft was already consumed, a representation the first
+nudge fix missed. Three root causes, all in `wall_face_draft.js` unless noted:
+
+**Shear and dropped selection.** A partial point selection slid each point along its own line in `nudgePoints`.
+**Fix:** a nudge of any curved-sticker point now selects all of the sticker's defining points and moves them together.
+
+**Arch flattened into a point polyline.** `applyLineResult` moved the consumed draft's nodes, which rebuilt the faces
+as new surfaces with tessellated rings. **Fix:** a commit guard (see below) refuses such edits.
+
+**Ghost arch.** In `wall_solid_geometry.js`, `transformSelection` left a neighbour's plain copy of the arch in place.
+**Fix:** a moving curved face now carries those vertices with it.
+
+**Commit guard.** Every editor commit goes through `W.flattenedCurveSamples`. An edit is refused, rolled back and
+reported if it would turn curve samples into corners, loose wire, sketch nodes or retained points, or if a nudge
+changes the curve count.
+
+**Testing.**
+- The full test matrix (agent): 33 tests across 4 storage representations and 8 selections, with plain, Shift and Alt
+  nudges, M moves, undo, and save/restore. On the previous code, 21 of the 30 nudge cases fail.
+- Before release, the nudge hunks were split out of a working tree that also held unfinished inside-trim work, and
+  tested in a clean worktree: 636 pass. The 2 failures also occur at HEAD and come from a missing three.js link in that
+  worktree.
+- The test file ships with the trim commit, because the two share it.
+
+**Rollout.** `wall_face_draft.js` (nudge hunks only) and `wall_solid_geometry.js` were overlaid on web, legacy and pool.
+The served files match.
