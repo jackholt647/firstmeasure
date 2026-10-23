@@ -326,8 +326,8 @@
     if (signupRegionLibraryPromise) return signupRegionLibraryPromise;
     signupRegionLibraryPromise = new Promise((resolve, reject) => {
       const source = SCRIPT_SRC
-        ? new URL('../../../libraries/signup-region/signup-region.js?v=20261023-phone-countries-v3', SCRIPT_SRC).toString()
-        : '/libraries/signup-region/signup-region.js?v=20261023-phone-countries-v3';
+        ? new URL('../../../libraries/signup-region/signup-region.js?v=20261023-signup-lists-v4', SCRIPT_SRC).toString()
+        : '/libraries/signup-region/signup-region.js?v=20261023-signup-lists-v4';
       const existing = document.querySelector(`script[src="${source}"]`);
       const script = existing || document.createElement('script');
       script.addEventListener('load', () => window.FirstMateSignupRegion
@@ -753,6 +753,7 @@
         identity_phone_not_found: "We couldn't find an account with that phone number.",
         invalid_email: 'Enter a valid email address.',
         invalid_phone_number: 'Enter a valid mobile number, including the country code outside the US and Canada.',
+        signup_country_unavailable: 'FirstMate is not available in that country yet. Choose one of the countries listed.',
         missing_login_identifier: 'Enter your email address or phone number.',
         registration_in_progress: 'Your account is already being created. Wait a moment, then try logging in.',
         invalid_recovery_token: 'Your password reset session has expired. Use Forgot Password to request a new code.',

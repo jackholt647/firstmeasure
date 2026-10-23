@@ -5,20 +5,23 @@
   'use strict';
   const optionRequests = new Map();
   const SCRIPT_SRC = root.document?.currentScript?.src || '';
-  let phoneInputPromise = null;
+  const KEY = '20261023-signup-lists-v4';
+  const scripts = new Map();
 
-  /* The calling-code picker, number formatting and preview are the shared phone input (1M8-240). */
-  function loadPhoneInput(doc) {
-    if (root.FirstMatePhoneInput) return Promise.resolve(root.FirstMatePhoneInput);
-    if (!phoneInputPromise) phoneInputPromise = new Promise((resolve, reject) => {
+  /* The styled lists (select-list) and the phone input (calling code, formatting, example) are shared libraries (1M8-240). */
+  function loadScript(doc, path, global) {
+    if (root[global]) return Promise.resolve(root[global]);
+    if (!scripts.has(path)) scripts.set(path, new Promise((resolve, reject) => {
       const script = doc.createElement('script');
-      script.src = SCRIPT_SRC ? new URL('../phone-input/phone-input.js?v=20261023-phone-countries-v3', SCRIPT_SRC).toString() : '/libraries/phone-input/phone-input.js?v=20261023-phone-countries-v3';
-      script.addEventListener('load', () => root.FirstMatePhoneInput ? resolve(root.FirstMatePhoneInput) : reject(new Error('Phone input did not initialize.')), { once: true });
-      script.addEventListener('error', () => reject(new Error('Phone input could not be loaded.')), { once: true });
+      script.src = SCRIPT_SRC ? new URL('../' + path + '?v=' + KEY, SCRIPT_SRC).toString() : '/libraries/' + path + '?v=' + KEY;
+      script.addEventListener('load', () => root[global] ? resolve(root[global]) : reject(new Error(path + ' did not initialize.')), { once: true });
+      script.addEventListener('error', () => reject(new Error(path + ' could not be loaded.')), { once: true });
       doc.head.appendChild(script);
-    }).catch((error) => { phoneInputPromise = null; throw error; });
-    return phoneInputPromise;
+    }).catch((error) => { scripts.delete(path); throw error; }));
+    return scripts.get(path);
   }
+  const loadSelectList = (doc) => loadScript(doc, 'select-list/select-list.js', 'FirstMateSelectList');
+  const loadPhoneInput = (doc) => loadSelectList(doc).catch(() => null).then(() => loadScript(doc, 'phone-input/phone-input.js', 'FirstMatePhoneInput'));
 
   function text(key, fallback) {
     return root.PlatformLanguage?.text('signup-region', key, fallback) ?? fallback;
@@ -85,20 +88,23 @@
     country.wrapper.hidden = language.wrapper.hidden = true; dial.hidden = true;
     phoneField.before(country.wrapper, language.wrapper);
 
-    const state = { options: null, dialTouched: false, languageTouched: false, phone: null };
+    const state = { options: null, dialTouched: false, languageTouched: false, phone: null, lists: [] };
     const callingCodes = () => new Map((state.options?.countries || []).map(c => [c.code, c.calling_code]));
     function applyCountry(code) {
       const entry = (state.options?.countries || []).find(c => c.code === code);
       if (!entry) return;
       if (!state.dialTouched) { if (state.phone) state.phone.setCountry(entry.code); else dial.value = entry.code; }
       if (!state.languageTouched && [...language.select.options].some(o => o.value === entry.language)) language.select.value = entry.language;
-      phoneInput.placeholder = entry.calling_code === '1' ? '(555) 555-0123' : '';
+      state.lists.forEach(list => list.sync());
+      // With the shared phone input the placeholder is the chosen calling code's own example number.
+      if (!state.phone) phoneInput.placeholder = entry.calling_code === '1' ? '(555) 555-0123' : '';
     }
     const ready = fetchOptions(apiBase).then(options => {
       state.options = options;
       country.select.append(option(doc, '', text('choose_country', 'Choose your country')));
       country.select.options[0].disabled = true;
-      options.countries.forEach(c => country.select.append(option(doc, c.code, c.name)));
+      // Only the countries the platform operates in (1M8-240), as for the calling code.
+      (options.operating_countries || options.countries).forEach(c => country.select.append(option(doc, c.code, c.name)));
       // Only the countries the platform serves, the detected one first (1M8-240).
       (options.phone_countries || [...options.countries].sort((a, b) => a.code.localeCompare(b.code)))
         .forEach(c => dial.append(option(doc, c.code, c.code + ' +' + c.calling_code)));
@@ -109,6 +115,12 @@
       applyCountry(options.country);
       country.wrapper.hidden = language.wrapper.hidden = dial.hidden = false;
       return loadPhoneInput(doc).then((phoneInputLibrary) => {
+        const lists = root.FirstMateSelectList;
+        if (lists) {
+          state.lists.push(lists.attach(country.select, { label: text('country', 'Country'), placeholder: text('choose_country', 'Choose your country'),
+            items: [...country.select.options].map(o => ({ value: o.value, label: o.textContent, disabled: o.disabled })) }));
+          state.lists.push(lists.attach(language.select, { label: text('language', 'Language (app and reports)') }));
+        }
         state.phone = phoneInputLibrary.attach({ input: phoneInput, select: dial, countries: options.phone_countries || options.countries, country: dial.value });
         return options;
       }, () => options);

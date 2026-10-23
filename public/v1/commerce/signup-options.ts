@@ -3,6 +3,7 @@ import CALLING_CODES from "./calling-codes.json" with { type: "json" };
 import { LANGUAGE_PACKS, SUPPORTED_LOCALES } from "../platform/localization/languages.js";
 import { countryCode, detectSignupCountry, DOMESTIC_COUNTRIES, OPERATING_COUNTRIES, regionLanguage } from "./regions.js";
 import type { CommercialProfile } from "./profile.js";
+import { badRequest } from "../platform/errors.js";
 
 /** International calling code for a country, without the plus sign; "" when unknown. */
 export function callingCode(country: unknown) {
@@ -41,6 +42,24 @@ function regionNames(locale: string) {
 }
 
 /**
+ * The signup languages: the language packs the operating countries use (each country's regional language, the same
+ * choice the country makes in signup and the billing profile). Today that is every pack; a pack no operating country
+ * uses would not be offered.
+ */
+export function signupLanguages() {
+  const used = new Set([...OPERATING_COUNTRIES].map(country => regionLanguage(country)));
+  return LANGUAGE_PACKS.filter(pack => used.has(pack.code)).map(pack => ({ code: pack.code, label: pack.label }));
+}
+
+/** A signup's chosen country must be one the platform operates in (1M8-240); signups that choose none keep detection. */
+export function assertSignupCountry(body: Record<string, unknown>) {
+  const chosen = countryCode(body.signup_country);
+  if (chosen && !OPERATING_COUNTRIES.has(chosen)) {
+    throw badRequest("signup_country_unavailable", "FirstMate is not available in that country yet. Choose one of the countries listed.");
+  }
+}
+
+/**
  * Everything a signup form needs to offer country, phone calling code and language choices,
  * prefilled from the same detection registration uses when nothing is chosen.
  */
@@ -57,18 +76,23 @@ export function signupOptions(headers: Record<string, unknown>, query: Record<st
   // The calling-code picker offers only the countries the platform operates in (1M8-240): the detected one first, then
   // the domestic market, then the rest by name.
   const rank = (code: string) => code === detected.country ? 0 : DOMESTIC_COUNTRIES.has(code) ? 1 : 2;
+  // The account country offers the same countries, by name (1M8-240).
+  const operatingCountries = countries.filter(country => OPERATING_COUNTRIES.has(country.code));
   const phoneCountries = countries
     .filter(country => OPERATING_COUNTRIES.has(country.code))
     .map(({ code, name, calling_code }) => ({ code, name, calling_code }))
     .sort((a, b) => rank(a.code) - rank(b.code) || (rank(a.code) === 1 ? [...DOMESTIC_COUNTRIES].indexOf(a.code) - [...DOMESTIC_COUNTRIES].indexOf(b.code) : a.name.localeCompare(b.name, display)));
   return {
     ok: true,
-    country: detected.country,
+    // A detected country outside the list is not preselected; the person chooses one.
+    country: OPERATING_COUNTRIES.has(detected.country) ? detected.country : "",
+    detected_country: detected.country,
     source: detected.source,
     language: detected.country ? regionLanguage(detected.country) : "en-US",
     domestic_countries: [...DOMESTIC_COUNTRIES],
     countries,
+    operating_countries: operatingCountries,
     phone_countries: phoneCountries,
-    languages: LANGUAGE_PACKS.map(pack => ({ code: pack.code, label: pack.label }))
+    languages: signupLanguages()
   };
 }

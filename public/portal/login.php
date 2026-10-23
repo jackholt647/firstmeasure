@@ -818,7 +818,7 @@ src="https://www.facebook.com/tr?id=636685175264715&ev=PageView&noscript=1"
 <script src="/libraries/phone-features/phone-features.js"></script>
 <script src="/portal/landing/shared/password-toggle.js?v=<?= htmlspecialchars(substr((string)@hash_file('sha256', __DIR__ . '/landing/shared/password-toggle.js'), 0, 16), ENT_QUOTES) ?>"></script>
 <script>window.FirstMatePasswordToggle?.enhance(document);</script>
-<script src="/libraries/signup-region/signup-region.js?v=20261023-phone-countries-v3"></script>
+<script src="/libraries/signup-region/signup-region.js?v=20261023-signup-lists-v4"></script>
 <script src="/libraries/google-auth/firstmate-google-auth.js"></script>
 <script>
     // --- HELPER: Parse URL params ---
@@ -1032,6 +1032,7 @@ src="https://www.facebook.com/tr?id=636685175264715&ev=PageView&noscript=1"
             identity_phone_not_found: "We couldn't find an account with that phone number.",
             invalid_email: 'Enter a valid email address.',
             invalid_phone_number: 'Enter a valid mobile phone number, including the country code outside the US and Canada.',
+            signup_country_unavailable: 'FirstMate is not available in that country yet. Choose one of the countries listed.',
             missing_login_identifier: 'Enter your email address or phone number.',
             registration_in_progress: 'Your account is already being created. Wait a moment, then try logging in.',
             identity_inactive: 'This account is disabled. Contact your company administrator or support.',

@@ -36,7 +36,9 @@ test("a chosen country decides the billing profile even from a US connection",as
   assert.equal(options.country,"US");assert.equal(options.language,"en-US");
   const fr=options.countries.find((c:any)=>c.code==="FR");assert.equal(fr.calling_code,"33");assert.equal(fr.language,"fr-FR");assert.equal(fr.name,"France");
   assert.ok(options.languages.some((l:any)=>l.code==="de-DE"));assert.deepEqual(options.domestic_countries,["US","CA"]);
-  assert.equal((await client("").request("GET","/v1/platform/auth/signup-options?time_zone=Europe%2FBerlin")).country,"DE");
+  // Germany is detected but is not one of the operating countries (1M8-240), so nothing is preselected.
+  const berlin=await client("").request("GET","/v1/platform/auth/signup-options?time_zone=Europe%2FBerlin");
+  assert.equal(berlin.detected_country,"DE");assert.equal(berlin.country,"");
 
   const ben=client("US");
   const registration=await ben.request("POST","/v1/platform/auth/register",{email:"ben-eu@signup.example.test",password:"signup-region-password-1",company:"Europe fixture",signup_country:"FR",signup_time_zone:"America/New_York",phone:"06 12 34 56 78",phone_country:"FR"});
@@ -156,7 +158,7 @@ test("the onboarding wizard formats account amounts in the organization's curren
   assert.equal(run(null).creditCurrencyAffix(),"","nothing is guessed before billing settings load");
 });
 
-test("the calling-code picker offers only the countries the platform operates in, the detected one first (1M8-240)",async()=>{
+test("the calling code, the account country and the language offer only the countries the platform operates in (1M8-240)",async()=>{
   // Ben's list in the 1M8-240 description, kept in commerce/region-data.json operating_countries.
   const BEN=["PT","ES","FR","IE","GB","IT","GR","AT","DK","PL","CZ","CH","BE","NL","NO","SE","LT","FI","JP","US","CA"];
   const british=await client("GB").request("GET","/v1/platform/auth/signup-options?locale=en-GB");
@@ -164,9 +166,28 @@ test("the calling-code picker offers only the countries the platform operates in
   assert.deepEqual([...codes].sort(),[...BEN].sort());
   assert.deepEqual(codes.slice(0,3),["GB","US","CA"]);
   assert.equal(british.phone_countries.find((c:any)=>c.code==="SE").calling_code,"46");
-  assert.ok(british.countries.length>200,"the account country still lists every country");
-  // A detected country outside the list is not added.
+  // The account country: the same countries, by name.
+  const names=british.operating_countries.map((c:any)=>c.name);
+  assert.deepEqual(british.operating_countries.map((c:any)=>c.code).sort(),[...BEN].sort());
+  assert.deepEqual(names,[...names].sort((a:string,b:string)=>a.localeCompare(b,"en-GB")));
+  // Languages: the packs the operating countries use (each its regional language).
+  const regions=await import("../commerce/regions.js");
+  const expected=[...new Set(BEN.map(c=>regions.regionLanguage(c)))].sort();
+  assert.deepEqual(british.languages.map((l:any)=>l.code).sort(),expected);
+  assert.ok(british.languages.some((l:any)=>l.code==="sv-SE"));
+  // A detected country outside the list is neither preselected nor added.
   const australian=await client("AU").request("GET","/v1/platform/auth/signup-options");
+  assert.equal(australian.country,"");assert.equal(australian.detected_country,"AU");
   assert.deepEqual(australian.phone_countries.map((c:any)=>c.code).sort(),[...BEN].sort());
   assert.deepEqual(australian.phone_countries.slice(0,2).map((c:any)=>c.code),["US","CA"]);
+});
+
+test("a signup that chooses a country outside the list is refused; one that chooses none keeps detection (1M8-240)",async()=>{
+  const refused=await client("US").raw("POST","/v1/platform/auth/register",{email:"au-choice@signup.example.test",password:"signup-region-password-9",signup_country:"AU",phone:"+61 412 345 678"});
+  assert.equal(refused.statusCode,400,refused.body);
+  assert.equal(refused.json().error,"signup_country_unavailable");
+  const legacy=await client("US").raw("POST","/v1/platform/auth/legacy-action",{action:"register",email:"au-legacy@signup.example.test",password:"signup-region-password-9",company:"AU",signup_country:"AU",phone:"+61 412 345 678"});
+  assert.equal(legacy.json().error,"signup_country_unavailable",legacy.body);
+  const detected=await client("AU").raw("POST","/v1/platform/auth/register",{email:"au-detected@signup.example.test",password:"signup-region-password-9",phone:"+61 412 345 678"});
+  assert.ok(detected.statusCode<400,detected.body);
 });

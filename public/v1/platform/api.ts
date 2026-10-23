@@ -13,7 +13,7 @@ import { baselinePlan, enqueueNotification, persistNotificationOccurrence, recip
 import { registerNotificationRulesApi } from "./notifications/api.js";
 import { TRANSLATION_CODES, normalizeTranslationLanguage } from "./localization/languages.js";
 import { messageTranslationPreferences } from "./localization/message-preferences.js";
-import { signupLanguage, signupOptions, signupPhoneInput } from "../commerce/signup-options.js";
+import { assertSignupCountry, signupLanguage, signupOptions, signupPhoneInput } from "../commerce/signup-options.js";
 import { reportExpediteTimeZone, reportPricesIncludeVat } from "../commerce/profile.js";
 import { countryRecord, profileCountrySource } from "./organization_country.js";
 import { signupCommercialProfile, profileFromGlobal, organizationProfile, currentProfile, customerCommercialView, creditLabel, creditMinorAmount, reportPrice, assertCommercialRevision } from "../commerce/profile.js";
@@ -5122,6 +5122,7 @@ function numericValue(value: unknown, fallback = 0) {
  * chosen country, else detection), the company language and the app flags that follow.
  */
 async function signupOrganizationDefaults(request: { headers?: Record<string, unknown> } | undefined, body: JsonObject) {
+  assertSignupCountry(body);
   const defaultAppFlags = await newOrganizationAppFlagDefaults();
   const commercialProfile = await signupCommercialProfile(request?.headers || {}, body);
   const locale = signupLanguage(body, commercialProfile);
