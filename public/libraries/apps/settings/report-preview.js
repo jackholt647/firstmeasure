@@ -23,7 +23,7 @@
 (function(){
   if (window.FirstMateReportPreview) return;
   const ASSETS = '/libraries/apps/settings/report-preview/';
-  const ASSET_VERSION = '20261023-2';
+  const ASSET_VERSION = '20261023-3';
   const MM = 4;                       // px per mm on an unscaled page
   // Portrait letter unless render() is given orientation 'landscape' (Company > Reports > Layout), when
   // every page is laid out as pdf.js lays out a landscape PDF: the drawing on the left (MAIN_W) and
