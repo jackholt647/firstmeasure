@@ -516,3 +516,27 @@ the pilot house.
 
 **Why it can wait.** It runs once per switch back to wall mode after a roof edit, not per edit or per frame.
 (docs/architecture/exterior-roof-rebuild.md, "When it still falls back")
+## Document history payloads are plain gzip JSON
+
+**Today.** Each document revision's payload (a whole state at a checkpoint, a structural patch otherwise) is JSON
+gzipped on its own (`json-gzip-1` in `documents/versions/codec.ts`). Small patches repeat the same keys and paths
+(`params`, `scope_items`, `props.blocks`) and gzip has too little input to find them.
+
+**Where the change goes.** Add an encoding in `codec.ts` (a token dictionary over document vocabulary and paths, or
+a compressor with a shared dictionary) and make it `CURRENT_ENCODING`. Rows name their encoding, so older rows keep
+decoding and nothing else changes; reconstruction and checksums are unaffected.
+
+**Why it can wait.** Measured histories already store about a tenth of gzip whole copies (docs/architecture/document-history.md);
+it matters once histories reach many thousands of revisions per organization.
+
+## Document history keeps a head copy per document and lists recompute actor names
+
+**Today.** `document_revision_heads` keeps the newest state and the one before it, gzipped, for every document,
+template, theme and workflow, so a save diffs without replaying patches. Listing a document's revisions reads each
+distinct user's record to show a name.
+
+**Where the change goes.** Drop `parent_state` and rebuild it from the chain when a fold needs it; cache user names
+per request or join them. Results stay the same.
+
+**Why it can wait.** A head is two compressed copies per document, constant however long its history; a history list
+names a handful of people. (docs/architecture/document-history.md, "Not built")

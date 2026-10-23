@@ -3511,48 +3511,215 @@
       });
     }
 
-    function openHistoryMenu(anchor){
+    // Document history (docs/architecture/document-history.md): every revision
+    // with who or what made it, what changed between any two, a view of any
+    // version, and restore as a new revision. Sent and signed versions view as
+    // their frozen snapshot.
+    const HISTORY_CUTS = {
+      created: ['fa-file-circle-plus', (globalThis.PlatformLanguage?.text("documents","m_dc002b01a36e6f","Created") ?? "Created")],
+      baseline: ['fa-flag', (globalThis.PlatformLanguage?.text("documents","m_e6b6d3d1964041","History starts here") ?? "History starts here")],
+      edit: ['fa-pen', (globalThis.PlatformLanguage?.text("documents","m_0137fa44ab2c7b","Edited") ?? "Edited")],
+      named: ['fa-bookmark', (globalThis.PlatformLanguage?.text("documents","m_c8ea6794e4d453","Named version") ?? "Named version")],
+      restore: ['fa-rotate-left', (globalThis.PlatformLanguage?.text("documents","m_7a6d09ae711ddb","Restored an earlier version") ?? "Restored an earlier version")],
+      present: ['fa-display', (globalThis.PlatformLanguage?.text("documents","m_903fdc2cf28a25","Presented") ?? "Presented")],
+      present_choices: ['fa-list-check', (globalThis.PlatformLanguage?.text("documents","m_690eceaadb30dd","Presentation choices applied") ?? "Presentation choices applied")],
+      snapshot: ['fa-camera', (globalThis.PlatformLanguage?.text("documents","m_71455a79e35b80","Snapshot taken") ?? "Snapshot taken")],
+      pdf: ['fa-file-pdf', (globalThis.PlatformLanguage?.text("documents","m_c7b3d1f3ea66cb","PDF prepared") ?? "PDF prepared")],
+      issue: ['fa-stamp', (globalThis.PlatformLanguage?.text("documents","m_103d1f897eea51","Issued") ?? "Issued")],
+      send: ['fa-paper-plane', (globalThis.PlatformLanguage?.text("documents","m_3468b446cb1456","Sent") ?? "Sent")],
+      view: ['fa-eye', (globalThis.PlatformLanguage?.text("documents","m_2239713bcd2f00","Viewed by the customer") ?? "Viewed by the customer")],
+      response: ['fa-reply', (globalThis.PlatformLanguage?.text("documents","m_df6de9f6437847","Response recorded") ?? "Response recorded")],
+      payment: ['fa-credit-card', (globalThis.PlatformLanguage?.text("documents","m_e14ce2b0e5f1e9","Payment recorded") ?? "Payment recorded")],
+      sign: ['fa-signature', (globalThis.PlatformLanguage?.text("documents","m_ab7ec8db303996","Signed") ?? "Signed")],
+      complete: ['fa-circle-check', (globalThis.PlatformLanguage?.text("documents","m_3c4d2141b2fa1c","Completed") ?? "Completed")],
+      decline: ['fa-circle-xmark', (globalThis.PlatformLanguage?.text("documents","m_bf5390659e3677","Declined") ?? "Declined")],
+      void: ['fa-ban', (globalThis.PlatformLanguage?.text("documents","m_9629786e01442d","Voided") ?? "Voided")],
+      expire: ['fa-hourglass-end', (globalThis.PlatformLanguage?.text("documents","m_e685fe954b1758","Expired") ?? "Expired")],
+      workflow: ['fa-diagram-next', (globalThis.PlatformLanguage?.text("documents","m_7b27447fdce391","Workflow step") ?? "Workflow step")],
+      upload: ['fa-upload', (globalThis.PlatformLanguage?.text("documents","m_cd35b3ca1cde41","Upload confirmed") ?? "Upload confirmed")],
+      manual_edit: ['fa-hand', (globalThis.PlatformLanguage?.text("documents","m_781df8b1112a51","Edited manually") ?? "Edited manually")],
+      publish: ['fa-upload', (globalThis.PlatformLanguage?.text("documents","m_fcef580bdd8824","Published") ?? "Published")]
+    };
+    const HISTORY_SECTIONS = {
+      title: (globalThis.PlatformLanguage?.text("documents","m_29dbd3d8b69f55","Title") ?? "Title"), status: (globalThis.PlatformLanguage?.text("documents","m_1352cafa75b8da","Status") ?? "Status"), params: (globalThis.PlatformLanguage?.text("documents","m_d90dd04a0cd959","Inputs") ?? "Inputs"), outputs: (globalThis.PlatformLanguage?.text("documents","m_4ea0d63d1e0b6f","Responses") ?? "Responses"), workflow_state: (globalThis.PlatformLanguage?.text("documents","m_7dbbeae35a4717","Workflow") ?? "Workflow"),
+      delivery: (globalThis.PlatformLanguage?.text("documents","m_b73185deef6d79","Delivery") ?? "Delivery"), contact_ids: (globalThis.PlatformLanguage?.text("documents","m_c1791596944182","Recipients") ?? "Recipients"), tags: (globalThis.PlatformLanguage?.text("documents","m_562d2cd3a48b8f","Tags") ?? "Tags"), theme_ref: (globalThis.PlatformLanguage?.text("documents","m_e352b4d5acce2e","Theme") ?? "Theme"), theme_overrides: (globalThis.PlatformLanguage?.text("documents","m_e352b4d5acce2e","Theme") ?? "Theme"),
+      template_ref: (globalThis.PlatformLanguage?.text("documents","m_587d96db750df7","Template") ?? "Template"), metadata: (globalThis.PlatformLanguage?.text("documents","m_b3ecc234f63212","Details") ?? "Details"), overrides: (globalThis.PlatformLanguage?.text("documents","m_89f6b80ae9b0fe","Content") ?? "Content"), signing: (globalThis.PlatformLanguage?.text("documents","m_d3dec34e595431","Signing") ?? "Signing"), pdf: (globalThis.PlatformLanguage?.text("documents","m_2440c46d7ac5f3","PDF") ?? "PDF")
+    };
+    const historyCut = (cut) => HISTORY_CUTS[cut] || ['fa-circle', cleanText(cut).replace(/_/g, ' ')];
+    const historySection = (key) => HISTORY_SECTIONS[key] || cleanText(key).replace(/_/g, ' ');
+    function historyActor(revision){
+      const source = objectValue(revision.source);
+      const label = cleanText(revision.actor_label);
+      if (source.kind === 'person' && cleanText(revision.actor_name)) return cleanText(revision.actor_name);
+      if (label === 'customer') return (globalThis.PlatformLanguage?.text("documents","m_ae8e4953e07d70","Customer") ?? "Customer");
+      if (label) return label;
+      return ({ person: (globalThis.PlatformLanguage?.text("documents","m_96895caa53f69d","Someone") ?? "Someone"), agent: (globalThis.PlatformLanguage?.text("documents","m_b8071e017821d8","Agent") ?? "Agent"), automation: (globalThis.PlatformLanguage?.text("documents","m_a888fe79af378e","Automation") ?? "Automation"), module: (globalThis.PlatformLanguage?.text("documents","m_7e535c1105c21b","Custom code") ?? "Custom code"), generator: (globalThis.PlatformLanguage?.text("documents","m_866a03fce1595b","Generated") ?? "Generated") })[source.kind] || (globalThis.PlatformLanguage?.text("documents","m_9df9882cf648fb","System") ?? "System");
+    }
+    function historyTitle(revision){
+      const [, label] = historyCut(revision.cut);
+      if (revision.cut === 'named' && cleanText(revision.label)) return cleanText(revision.label);
+      if (revision.cut === 'restore' && objectValue(revision.attributes).restored_from) return `${label} (#${Number(objectValue(revision.attributes).restored_from)})`;
+      return label;
+    }
+    function historyWhen(value){
+      const date = new Date(value);
+      return Number.isNaN(date.getTime()) ? cleanText(value) : date.toLocaleString(globalThis.PlatformLanguage?.formatLocale?.(), { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+    }
+    function historyValue(value, key){
+      if (value === undefined || value === null || value === '') return `<em>${esc((globalThis.PlatformLanguage?.text("documents","m_4e4914655c7461","empty") ?? "empty"))}</em>`;
+      if (typeof value === 'number' && /_cents$/.test(cleanText(key))) return esc((value / 100).toLocaleString(globalThis.PlatformLanguage?.formatLocale?.(), { style: 'currency', currency: 'USD' }));
+      if (typeof value === 'boolean') return esc(value ? (globalThis.PlatformLanguage?.text("documents","m_549ccd0e27a3d4","Yes") ?? "Yes") : (globalThis.PlatformLanguage?.text("documents","m_2f0222913078f4","No") ?? "No"));
+      if (typeof value !== 'object') return esc(String(value));
+      const text = JSON.stringify(value);
+      return `<code>${esc(text.length > 160 ? `${text.slice(0, 160)}…` : text)}</code>`;
+    }
+    function historyDiffHtml(diff){
+      const parts = [];
+      const content = objectValue(diff.content);
+      const blocks = [];
+      for (const changed of arrayValue(content.changed_blocks)) {
+        blocks.push(`<div class="fmdx-hist-block">${arrayValue(changed.word_diff).map((part) => part.type === 'add' ? `<ins>${esc(part.text)}</ins>` : part.type === 'del' ? `<del>${esc(part.text)}</del>` : esc(part.text)).join(' ')}</div>`);
+      }
+      for (const added of arrayValue(content.added_blocks)) blocks.push(`<div class="fmdx-hist-block"><ins>${esc(added.text)}</ins></div>`);
+      for (const removed of arrayValue(content.removed_blocks)) blocks.push(`<div class="fmdx-hist-block"><del>${esc(removed.text)}</del></div>`);
+      if (Number(content.other_changes || 0)) blocks.push(`<div class="fmdx-hist-note"><i class="fas fa-shapes"></i> ${esc(String(Number(content.other_changes)))} ${esc((globalThis.PlatformLanguage?.text("documents","m_882efc6285bf29","layout or design changes") ?? "layout or design changes"))}</div>`);
+      if (blocks.length) parts.push(`<section><h4>${esc((globalThis.PlatformLanguage?.text("documents","m_89f6b80ae9b0fe","Content") ?? "Content"))}</h4>${blocks.join('')}</section>`);
+      const groups = new Map();
+      for (const field of arrayValue(diff.fields)) {
+        const key = cleanText(field.section);
+        if (!groups.has(key)) groups.set(key, []);
+        groups.get(key).push(field);
+      }
+      for (const [section, fields] of groups) {
+        const rows = fields.map((field) => {
+          const path = arrayValue(field.path).map((part) => cleanText(part).replace(/_/g, ' ')).join(' › ');
+          const key = arrayValue(field.path).slice(-1)[0] || section;
+          const change = field.change === 'added'
+            ? `<ins>${historyValue(field.after, key)}</ins>`
+            : field.change === 'removed'
+              ? `<del>${historyValue(field.before, key)}</del>`
+              : `<del>${historyValue(field.before, key)}</del> <i class="fas fa-arrow-right"></i> <ins>${historyValue(field.after, key)}</ins>`;
+          return `<div class="fmdx-hist-field">${path ? `<span class="fmdx-hist-path">${esc(path)}</span>` : ''}<span class="fmdx-hist-change">${change}</span></div>`;
+        }).join('');
+        parts.push(`<section><h4>${esc(historySection(section))}</h4>${rows}</section>`);
+      }
+      if (diff.truncated) parts.push(`<div class="fmdx-hist-note">${esc((globalThis.PlatformLanguage?.text("documents","m_060bcc38b4ed51","Only the first changes are shown.") ?? "Only the first changes are shown."))}</div>`);
+      return parts.join('') || `<div class="fmdx-hist-note">${esc((globalThis.PlatformLanguage?.text("documents","m_35920add51d770","Nothing in the document changed in this version.") ?? "Nothing in the document changed in this version."))}</div>`;
+    }
+
+    async function openHistoryMenu(){
       const doc = state.doc || {};
-      const menu = openMenu(anchor, '<div class="fmdx-menu-note"><div class="fmdx-spinner" style="width:16px;height:16px;border-width:2px;margin:4px auto"></div></div>');
-      api().documents.snapshots(orgId(), doc.id).then((res) => {
-        if (!menu.el.isConnected) return;
-        const snapshots = arrayValue(res.snapshots || res.items || (Array.isArray(res) ? res : []))
-          .map(objectValue)
-          .sort((a, b) => Number(b.snapshot_number || 0) - Number(a.snapshot_number || 0));
-        if (!snapshots.length) {
-          menu.el.innerHTML = `<div class="fmdx-menu-note">${(globalThis.PlatformLanguage?.htmlText("documents","m_bb8fd5a06bd600","No snapshots yet. A snapshot freezes the document each time you send it or print a PDF.") ?? "No snapshots yet. A snapshot freezes the document each time you send it or print a PDF.")}</div>`;
-          return;
-        }
-        menu.el.innerHTML = `
-          <div class="fmdx-menu-note">${(globalThis.PlatformLanguage?.htmlText("documents","m_3f1e9a05720693","Frozen versions of this document") ?? "Frozen versions of this document")}</div>
-          ${String(snapshots.map((snapshot, index) => `
-            <button type="button" class="fmdx-menu-item" data-menu-snapshot="${index}">
-              <i class="fas fa-camera"></i>
-              <span style="min-width:0">
-                <span style="display:block">#${Number(snapshot.snapshot_number || snapshots.length - index)} · ${esc(firstText(snapshot.reason, 'manual'))}</span>
-                <small>${esc(firstText(timeAgo(firstText(snapshot.created_at, snapshot.captured_at, snapshot.updated_at)), ''))}</small>
-              </span>
-            </button>`).join(''))}`;
-        menu.el.querySelectorAll('[data-menu-snapshot]').forEach((button) => button.addEventListener('click', () => {
-          const snapshot = snapshots[Number(button.dataset.menuSnapshot || 0)];
-          menu.close();
-          if (!snapshot) return;
-          if (!objectValue(snapshot.resolved_definition).pages && !objectValue(snapshot.resolved_definition).root) {
-            showToast((globalThis.PlatformLanguage?.text("documents","m_5d7c7ad6033624","Documents") ?? "Documents"), (globalThis.PlatformLanguage?.text("documents","m_01f4be0d7fbc03","This snapshot does not carry a renderable definition.") ?? "This snapshot does not carry a renderable definition."), false);
-            return;
+      if (!doc.id || !api()?.revisions) return;
+      await flushAllWrites().catch(() => null);
+      const modal = openModal(`
+        <h2><i class="fas fa-clock-rotate-left"></i> ${esc((globalThis.PlatformLanguage?.text("documents","m_3fe33cd11f8a29","History") ?? "History"))}</h2>
+        <p class="fmdx-modal-sub">${esc((globalThis.PlatformLanguage?.text("documents","m_fdb6907ae482e8","Every change to this document, newest first. Pick a version to see what changed.") ?? "Every change to this document, newest first. Pick a version to see what changed."))}</p>
+        <div class="fmdx-hist">
+          <div class="fmdx-hist-list" data-hist-list><div class="fmdx-hist-note"><div class="fmdx-spinner" style="width:16px;height:16px;border-width:2px"></div></div></div>
+          <div class="fmdx-hist-detail" data-hist-detail></div>
+        </div>
+        <div class="fmdx-modal-foot">
+          <input class="fmdx-hist-name" data-hist-name maxlength="200" placeholder="${esc((globalThis.PlatformLanguage?.text("documents","m_3036003f9a87e7","Name this version (optional)") ?? "Name this version (optional)"))}">
+          <button type="button" class="fmdx-btn" data-hist-mark><i class="fas fa-bookmark"></i> ${esc((globalThis.PlatformLanguage?.text("documents","m_9752fa609808f4","Save version") ?? "Save version"))}</button>
+          <span class="spacer"></span>
+          <button type="button" class="fmdx-btn primary" data-hist-done>${esc((globalThis.PlatformLanguage?.text("documents","m_8cb6b086a0e69c","Done") ?? "Done"))}</button>
+        </div>`, { className: 'fmdx-history-modal' });
+      const listEl = modal.body.querySelector('[data-hist-list]');
+      const detailEl = modal.body.querySelector('[data-hist-detail]');
+      modal.body.querySelector('[data-hist-done]').addEventListener('click', () => modal.close());
+      const editable = !isReadOnlyStatus(doc.status);
+      let revisions = [];
+      let selected = 0;
+      let compareWith = '';
+      const showError = (target, error) => { target.innerHTML = `<div class="fmdx-hist-note">${esc(errorMessage(error, (globalThis.PlatformLanguage?.text("documents","m_2dfab372d45ea4","History is unavailable right now.") ?? "History is unavailable right now.")))}</div>`; };
+
+      async function showDetail(){
+        const revision = revisions.find((entry) => entry.seq === selected);
+        if (!revision) { detailEl.innerHTML = ''; return; }
+        const older = revisions.filter((entry) => entry.seq < revision.seq);
+        const base = compareWith || (older[0] ? String(older[0].seq) : '');
+        const newest = revisions[0]?.seq === revision.seq;
+        const options = [
+          ...older.map((entry) => `<option value="${entry.seq}" ${String(entry.seq) === base ? 'selected' : ''}>#${entry.seq} · ${esc(historyTitle(entry))} · ${esc(historyWhen(entry.updated_at))}</option>`),
+          ...(newest ? [] : [`<option value="current" ${base === 'current' ? 'selected' : ''}>${esc((globalThis.PlatformLanguage?.text("documents","m_b76c509b48201b","The current document") ?? "The current document"))}</option>`])
+        ].join('');
+        detailEl.innerHTML = `
+          <div class="fmdx-hist-head">
+            <div><strong>#${revision.seq} · ${esc(historyTitle(revision))}</strong><span>${esc(historyActor(revision))} · ${esc(historyWhen(revision.updated_at))}${revision.edits > 1 ? ` · ${esc(String(revision.edits))} ${esc((globalThis.PlatformLanguage?.text("documents","m_e7d6a2abb9c654","saves") ?? "saves"))}` : ''}</span></div>
+            <div class="fmdx-hist-actions">
+              <button type="button" class="fmdx-btn" data-hist-view><i class="fas fa-eye"></i> ${esc((globalThis.PlatformLanguage?.text("documents","m_2b8e4c9b866e80","View") ?? "View"))}</button>
+              ${editable && !newest ? `<button type="button" class="fmdx-btn" data-hist-restore><i class="fas fa-rotate-left"></i> ${esc((globalThis.PlatformLanguage?.text("documents","m_954a04d61ae9d6","Restore") ?? "Restore"))}</button>` : ''}
+            </div>
+          </div>
+          ${options ? `<label class="fmdx-hist-compare">${esc((globalThis.PlatformLanguage?.text("documents","m_94754f592bcf0a","Changes since") ?? "Changes since"))} <select data-hist-compare>${options}</select></label>` : `<div class="fmdx-hist-note">${esc((globalThis.PlatformLanguage?.text("documents","m_44e85409fb9fb7","This is the first version in the history.") ?? "This is the first version in the history."))}</div>`}
+          <div class="fmdx-hist-diff" data-hist-diff>${options ? '<div class="fmdx-hist-note"><div class="fmdx-spinner" style="width:16px;height:16px;border-width:2px"></div></div>' : ''}</div>`;
+        detailEl.querySelector('[data-hist-compare]')?.addEventListener('change', (event) => { compareWith = event.currentTarget.value; showDetail(); });
+        detailEl.querySelector('[data-hist-view]').addEventListener('click', async () => {
+          try {
+            const view = objectValue(await api().revisions.view(orgId(), doc.id, revision.seq));
+            openPreview(state.doc, { title: `${firstText(doc.title, 'Document')} — #${revision.seq} ${historyTitle(revision)}`, resolved: objectValue(view.resolved) });
+          } catch (error) { showToast((globalThis.PlatformLanguage?.text("documents","m_3fe33cd11f8a29","History") ?? "History"), errorMessage(error, (globalThis.PlatformLanguage?.text("documents","m_7b12830102712d","That version could not be shown.") ?? "That version could not be shown.")), false); }
+        });
+        detailEl.querySelector('[data-hist-restore]')?.addEventListener('click', async (event) => {
+          if (!window.confirm((globalThis.PlatformLanguage?.text("documents","m_8684300865e50c","Put this version's content back? It becomes a new version; nothing in the history is lost.") ?? "Put this version's content back? It becomes a new version; nothing in the history is lost."))) return;
+          event.currentTarget.disabled = true;
+          try {
+            const restored = objectValue(await api().revisions.restore(orgId(), doc.id, revision.seq));
+            modal.close();
+            showToast((globalThis.PlatformLanguage?.text("documents","m_3fe33cd11f8a29","History") ?? "History"), (globalThis.PlatformLanguage?.text("documents","m_2e72e049730ed5","The earlier version was restored.") ?? "The earlier version was restored."), true);
+            if (objectValue(restored.document).id) await openDocScreen(restored.document, { manual: state.docView === 'editor' });
+          } catch (error) {
+            event.currentTarget.disabled = false;
+            showToast((globalThis.PlatformLanguage?.text("documents","m_3fe33cd11f8a29","History") ?? "History"), errorMessage(error, (globalThis.PlatformLanguage?.text("documents","m_67d2f3e074f783","That version could not be restored.") ?? "That version could not be restored.")), false);
           }
-          openPreview(state.doc, {
-            title: ((v0,v1) => globalThis.PlatformLanguage?.text("documents","m_7adfd2a97b5bed",`${v0} — snapshot #${v1}`,{v0,v1}) ?? `${v0} — snapshot #${v1}`)(firstText(state.doc?.title, 'Document'),Number(snapshot.snapshot_number || 0) || ''),
-            resolved: {
-              resolved_definition: snapshot.resolved_definition,
-              theme: objectValue(snapshot.theme),
-              widget_data: objectValue(snapshot.widget_data)
-            }
-          });
+        });
+        if (!base) return;
+        const diffEl = detailEl.querySelector('[data-hist-diff]');
+        try {
+          const result = objectValue(await api().revisions.diff(orgId(), doc.id, base, revision.seq));
+          if (selected === revision.seq) diffEl.innerHTML = historyDiffHtml(objectValue(result.diff));
+        } catch (error) { showError(diffEl, error); }
+      }
+
+      function renderList(){
+        listEl.innerHTML = revisions.map((revision) => {
+          const [icon] = historyCut(revision.cut);
+          const sections = arrayValue(revision.sections).filter((key) => key !== '*').map(historySection);
+          const summary = [...new Set(sections)].slice(0, 4).join(' · ');
+          return `<button type="button" class="fmdx-hist-row ${revision.seq === selected ? 'active' : ''}" data-hist-seq="${revision.seq}">
+            <i class="fas ${icon}"></i>
+            <span><strong>${esc(historyTitle(revision))}</strong><small>${esc(historyActor(revision))} · ${esc(historyWhen(revision.updated_at))}</small>${summary ? `<small class="fmdx-hist-sections">${esc(summary)}</small>` : ''}</span>
+            <em>#${revision.seq}</em>
+          </button>`;
+        }).join('') || `<div class="fmdx-hist-note">${esc((globalThis.PlatformLanguage?.text("documents","m_e417a816d3eaee","No history yet.") ?? "No history yet."))}</div>`;
+        listEl.querySelectorAll('[data-hist-seq]').forEach((button) => button.addEventListener('click', () => {
+          selected = Number(button.dataset.histSeq);
+          compareWith = '';
+          renderList();
+          showDetail();
         }));
-      }).catch((error) => {
-        if (menu.el.isConnected) menu.el.innerHTML = `<div class="fmdx-menu-note">${((v0) => globalThis.PlatformLanguage?.htmlText("documents","m_70b4daaf4f6666",`Snapshots unavailable: ${v0}`,{v0}) ?? `Snapshots unavailable: ${v0}`)(esc(errorMessage(error, '')))}</div>`;
+      }
+
+      async function load(){
+        try {
+          revisions = arrayValue(objectValue(await api().revisions.list(orgId(), doc.id)).revisions).map(objectValue);
+          if (!revisions.some((entry) => entry.seq === selected)) selected = revisions[0]?.seq || 0;
+          renderList();
+          showDetail();
+        } catch (error) { showError(listEl, error); }
+      }
+      modal.body.querySelector('[data-hist-mark]').addEventListener('click', async (event) => {
+        const input = modal.body.querySelector('[data-hist-name]');
+        event.currentTarget.disabled = true;
+        try {
+          await api().revisions.mark(orgId(), doc.id, { label: cleanText(input.value) });
+          input.value = '';
+          selected = 0;
+          await load();
+        } catch (error) { showToast((globalThis.PlatformLanguage?.text("documents","m_3fe33cd11f8a29","History") ?? "History"), errorMessage(error, (globalThis.PlatformLanguage?.text("documents","m_fe67033c3dac77","The version could not be saved.") ?? "The version could not be saved.")), false); }
+        event.currentTarget.disabled = false;
       });
+      load();
     }
 
     function updateSaveState(){
@@ -3853,12 +4020,13 @@
           dataPreview: true,
           catalog: state.catalog,
           collaboration: { actor: objectValue(window.Portal?.util?.currentActor?.()) },
-          // Version-history checkpoints (File ▸ Version history, Tools ▸ Compare).
-          versionsApi: state.doc?.id && window.DocumentsAPI?.checkpoints ? {
-            list: () => window.DocumentsAPI.checkpoints.list(state.doc.id),
-            get: (checkpointId) => window.DocumentsAPI.checkpoints.get(state.doc.id, checkpointId),
-            create: (body) => window.DocumentsAPI.checkpoints.create(state.doc.id, body),
-            diff: (a, b) => window.DocumentsAPI.checkpoints.diff(state.doc.id, a, b)
+          // Document history for Tools ▸ Compare; the History button opens the
+          // documents History panel (documentActions.versions).
+          versionsApi: state.doc?.id && window.DocumentsAPI?.revisions ? {
+            list: async () => ({ checkpoints: arrayValue(objectValue(await window.DocumentsAPI.revisions.list(orgId(), state.doc.id)).revisions).map((row) => ({ id: String(row.seq), name: cleanText(row.label) || `#${row.seq}`, reason: row.cut, created_at: row.updated_at })) }),
+            get: async (seq) => ({ definition: objectValue(await window.DocumentsAPI.revisions.get(orgId(), state.doc.id, seq)).definition }),
+            create: (body) => window.DocumentsAPI.revisions.mark(orgId(), state.doc.id, { label: cleanText(objectValue(body).name) }),
+            diff: async (a, b) => ({ diff: objectValue(objectValue(objectValue(await window.DocumentsAPI.revisions.diff(orgId(), state.doc.id, a, b)).diff).content) })
           } : null,
           // Phase-1 realtime collaboration (presence + serialized command log).
           collab: state.doc?.id && window.DocumentsAPI?.collab ? {

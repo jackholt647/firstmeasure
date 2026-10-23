@@ -11577,7 +11577,8 @@
 
     function showVersionHistoryDialog() {
       const api = opts.versionsApi;
-      if (!api) { invokeDocumentAction("versions"); return; }
+      // A host with its own history panel (the documents app) shows that instead.
+      if (!api || hasDocumentAction("versions")) { invokeDocumentAction("versions"); return; }
       showEditorDialog("Version history", `<div class="fmde-version-tools"><input data-version-name placeholder="${(globalThis.PlatformLanguage?.htmlText("doc-editor","m_3036003f9a87e7","Name this version (optional)") ?? "Name this version (optional)")}"><button type="button" class="fmde-btn fmde-btn-labeled" data-version-save>${(globalThis.PlatformLanguage?.htmlText("doc-editor","m_9c1f4d04461822","Save version now") ?? "Save version now")}</button></div><div class="fmde-version-list" data-version-list><div class="fmde-outline-empty">${(globalThis.PlatformLanguage?.htmlText("doc-editor","m_d2da77452877dd","Loading…") ?? "Loading…")}</div></div><div class="fmde-dialog-actions"><button type="button" class="primary" data-dialog-close>${(globalThis.PlatformLanguage?.htmlText("doc-editor","m_8cb6b086a0e69c","Done") ?? "Done")}</button></div>`, function (dialog) {
         const list = dialog.querySelector("[data-version-list]");
         const reload = function () {

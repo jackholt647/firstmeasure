@@ -1,78 +1,54 @@
-import { createHash, randomUUID } from "node:crypto";
-import path from "node:path";
-import { openSqlStore, type SqlStore } from "../../platform/sql_store.js";
-import { gunzipSync, gzipSync } from "node:zlib";
-
-import { env } from "../../src/config/env.js";
 import { badRequest, notFound } from "../../platform/errors.js";
-import type { JsonObject } from "../../platform/storage.js";
+import { readDocument, type JsonObject } from "../../platform/storage.js";
 import type { PlatformAuthContext } from "../../platform/auth.js";
+import { currentChangeSource } from "../../history/source.js";
 import { FMDocModel } from "../schemas.js";
 import {
+  listDocumentTemplateVersions,
   readDocumentInstance,
-  readDocumentTemplateVersion,
-  recordDocumentEvent
+  readDocumentSnapshot,
+  readDocumentTemplateVersion
 } from "../storage.js";
+import { currentDocumentChange, withDocumentChange } from "./context.js";
+import {
+  COALESCING_CUTS,
+  hasRevisions,
+  listRevisions,
+  readRevisionRecord,
+  reconstructRevision,
+  recordRevision,
+  type RevisionRecord
+} from "./history.js";
+import { cloneJson, stableStringify } from "./patch.js";
 
 /**
- * Document version history (roadmap Tranche D "Version history browser").
- *
- * Storage policy (agreed with the owner in docs/doc-editor-parity-roadmap.md):
- * CHECKPOINT-based, never per-keystroke. A checkpoint freezes the document's
- * WORKING definition — the pinned/current template definition with the
- * instance's override ops applied, BEFORE binding/widget resolution — which is
- * exactly what the editor edits and what carries the stable node/block ids.
- * Definitions are small JSON; media rides by reference ({media_id, variant})
- * and is never duplicated, so a checkpoint costs a few KB gzipped.
- *
- * This deliberately does NOT reuse document_snapshots: snapshots are frozen
- * customer-facing renders (post-binding resolved_definition + widget_data +
- * theme + public_token + pdf refs) and are expensive to produce. It also does
- * not reuse document_template_versions, which version ASSETS on publish, not
- * per-document edit history. The platform JSON store's collection list is a
- * closed union, so checkpoints use the shared PostgreSQL pool in clustered environments, with
- * a local SQLite backend for development. Compressed definitions use BYTEA.
+ * Document history: what every document system records through, and what the
+ * History panel reads. The revision log itself is history.ts; this file says
+ * what a document's state is, which cut a save is, and how two versions read
+ * side by side. See docs/architecture/document-history.md.
  */
 
-export type CheckpointReason = "manual" | "send" | "publish" | "auto";
+export const DOCUMENT_SUBJECT = "document";
+/** Template, theme and workflow assets record under their own kind. */
+export const ASSET_SUBJECTS = ["document_template", "document_theme", "document_workflow"];
 
-export const CHECKPOINT_REASONS: CheckpointReason[] = ["manual", "send", "publish", "auto"];
+/** Fields that change on every save and say nothing about the document; kept on the revision row instead. */
+const VOLATILE_FIELDS = ["revision", "updated_at", "updated_by_user_id"];
 
-/** Auto-checkpoint retention: keep the newest N autos unconditionally... */
-export const AUTO_KEEP_RECENT = 10;
-/** ...then one auto per day for this many days; older autos are deleted. */
-export const AUTO_KEEP_DAILY_DAYS = 30;
-
-export type CheckpointSummary = {
-  id: string;
-  doc_id: string;
-  organization_id: string;
-  name: string;
-  reason: CheckpointReason;
-  actor_id: string;
-  size_bytes: number;
-  checksum: string;
-  created_at: string;
+const STATUS_CUTS: Record<string, string> = {
+  issued: "issue",
+  sent: "send",
+  viewed: "view",
+  partially_signed: "sign",
+  signed: "sign",
+  completed: "complete",
+  declined: "decline",
+  void: "void",
+  expired: "expire"
 };
+const EXECUTED_STATUSES = new Set(["signed", "completed"]);
 
-export type CheckpointDetail = CheckpointSummary & { definition: JsonObject };
-
-export type WordDiffSegment = { type: "same" | "add" | "del"; text: string };
-
-export type CheckpointDiff = {
-  added_blocks: Array<{ node_id: string; block_id: string; text: string }>;
-  removed_blocks: Array<{ node_id: string; block_id: string; text: string }>;
-  changed_blocks: Array<{
-    node_id: string;
-    block_id: string;
-    before_text: string;
-    after_text: string;
-    word_diff: WordDiffSegment[];
-  }>;
-  other_changes: number;
-};
-
-function cleanText(value: unknown) {
+function text(value: unknown) {
   return String(value ?? "").trim();
 }
 
@@ -84,261 +60,357 @@ function asArray(value: unknown) {
   return Array.isArray(value) ? value : [];
 }
 
-function nowIso() {
-  return new Date().toISOString();
+/** The versioned state of a document record. */
+export function documentState(record: JsonObject): JsonObject {
+  const state = cloneJson(asObject(record));
+  for (const key of VOLATILE_FIELDS) delete state[key];
+  return state;
 }
 
-export function newCheckpointId() {
-  return `docchk_${randomUUID().replace(/-/g, "").slice(0, 20)}`;
+/** Who signed in this save, for a revision recorded without a signed-in user. */
+function newSigners(previous: JsonObject | null, next: JsonObject) {
+  const before = asObject(previous?.outputs);
+  const names: string[] = [];
+  for (const [key, value] of Object.entries(asObject(next.outputs))) {
+    const output = asObject(value);
+    if (!text(output.signed_at) || stableStringify(before[key]) === stableStringify(value)) continue;
+    const name = text(output.name || output.signer_name || output.typed_name || output.full_name);
+    if (name && !names.includes(name)) names.push(name);
+  }
+  return names.join(", ");
+}
+
+/**
+ * Which cut a save is: the operation it runs in, unless the status moved to a
+ * lifecycle state under a plain edit; otherwise a change of responses or an edit.
+ */
+export function inferDocumentCut(previous: JsonObject | null, next: JsonObject, declared = "", existed = false) {
+  if (!previous) return { cut: existed ? "baseline" : "created" };
+  const before = text(previous.status), after = text(next.status);
+  const statusCut = before !== after ? STATUS_CUTS[after] : "";
+  const executed = before !== after && EXECUTED_STATUSES.has(after);
+  let cut = declared;
+  if (statusCut && (!declared || declared === "edit" || COALESCING_CUTS.has(declared))) cut = statusCut;
+  if (!cut) cut = stableStringify(previous.outputs) !== stableStringify(next.outputs) ? "response" : "edit";
+  const signers = cut === "sign" || cut === "complete" || executed ? newSigners(previous, next) : "";
+  return { cut, checkpoint: executed, actorLabel: signers };
+}
+
+/**
+ * Run a document save and record it. Called by saveDocumentInstance, the one
+ * writer of document records, so nothing that changes a document is missed.
+ * Recording never blocks the save: a failure is logged and the next save
+ * diffs against the last recorded state.
+ */
+export async function recordDocumentSave(orgId: string, documentId: string, save: () => Promise<JsonObject>, readExisting: () => Promise<JsonObject | null>) {
+  let recorded = true;
+  try { recorded = await hasRevisions(orgId, DOCUMENT_SUBJECT, documentId); } catch (error) { console.error("Document history unavailable", error); return await save(); }
+  const existing = recorded ? null : await readExisting();
+  const saved = await save();
+  const change = currentDocumentChange(documentId);
+  const userId = text(change?.userId) || (!existing && !recorded ? text(saved.created_by_user_id) : "");
+  try {
+    await recordRevision({
+      orgId,
+      subjectType: DOCUMENT_SUBJECT,
+      subjectId: documentId,
+      state: documentState(saved),
+      cut: change?.cut || "edit",
+      label: change?.label,
+      operationId: change?.operationId,
+      source: currentChangeSource(userId),
+      actorLabel: change?.actorLabel,
+      status: text(saved.status),
+      subjectRevision: Number(saved.revision || 0),
+      snapshotId: text(asObject(saved.delivery).current_snapshot_id),
+      attributes: change?.attributes,
+      checkpoint: change?.checkpoint,
+      baseline: existing ? documentState(existing) : null,
+      decide: (previous, next) => inferDocumentCut(previous, next, change?.cut || "", !!existing)
+    });
+  } catch (error) {
+    console.error(`Document history could not record ${documentId}`, error);
+  }
+  return saved;
+}
+
+/** Record a template, theme or workflow save. A save without a definition keeps the last recorded one. */
+export async function recordAssetSave(orgId: string, kind: string, record: JsonObject, cut: string, userId: string, definition?: JsonObject) {
+  try {
+    const state = documentState(record);
+    if (definition) state.definition = cloneJson(definition);
+    await recordRevision({
+      orgId,
+      subjectType: kind,
+      subjectId: text(record.id),
+      state,
+      cut,
+      source: currentChangeSource(userId),
+      status: text(record.status),
+      subjectRevision: Number(record.revision || 0),
+      label: cut === "publish" ? `v${Number(record.current_version || 0)}` : "",
+      inherit: ["definition"],
+      standalone: cut === "publish"
+    });
+  } catch (error) {
+    console.error(`Document history could not record ${kind} ${text(record.id)}`, error);
+  }
 }
 
 // ---------------------------------------------------------------------------
-// SQLite (module-owned, same conventions as equipment/agents storage)
+// Reading history
 // ---------------------------------------------------------------------------
 
-let database: SqlStore | null = null;
-let databasePath = "";
+export type RevisionView = RevisionRecord & { actor_name: string };
 
-function resolvedDatabasePath() {
-  return path.resolve(process.cwd(), env.platformStorageRoot, "document_versions.sqlite");
-}
-
-export async function closeDocumentCheckpointsDatabase() {
-  await database?.close(); database = null; databasePath = "";
-}
-export function getDocumentCheckpointsDatabase(): SqlStore {
-  const nextPath = resolvedDatabasePath();
-  if (database && databasePath === nextPath) return database;
-  if (database) throw new Error("Close document checkpoints before changing their directory.");
-  database = openSqlStore({ id: "document-checkpoints", filename: nextPath, initialize: initializeSchema });
-  databasePath = nextPath;
-  return database;
-}
-async function initializeSchema(db: SqlStore) {
-  (await db.exec(`
-    CREATE TABLE IF NOT EXISTS document_checkpoints (
-      id TEXT PRIMARY KEY,
-      organization_id TEXT NOT NULL,
-      doc_id TEXT NOT NULL,
-      name TEXT NOT NULL DEFAULT '',
-      reason TEXT NOT NULL DEFAULT 'manual',
-      actor_id TEXT NOT NULL DEFAULT '',
-      definition_json ${db.isPostgres ? "BYTEA" : "BLOB"} NOT NULL,
-      size_bytes INTEGER NOT NULL DEFAULT 0,
-      checksum TEXT NOT NULL DEFAULT '',
-      created_at TEXT NOT NULL
-    );
-    CREATE INDEX IF NOT EXISTS idx_document_checkpoints_doc
-      ON document_checkpoints (organization_id, doc_id, created_at);
-    CREATE INDEX IF NOT EXISTS idx_document_checkpoints_reason
-      ON document_checkpoints (organization_id, doc_id, reason, created_at);
-  `));
+async function actorNames(orgId: string, revisions: RevisionRecord[]): Promise<RevisionView[]> {
+  const ids = [...new Set(revisions.map((revision) => text(revision.source.user_id)).filter(Boolean))];
+  const names = new Map<string, string>();
+  await Promise.all(ids.map(async (id) => {
+    const user = asObject(asObject(await readDocument(orgId, "users", id).catch(() => null)).data);
+    names.set(id, text(user.name || user.display_name || [user.first_name, user.last_name].filter(Boolean).join(" ") || user.email));
+  }));
+  return revisions.map((revision) => ({ ...revision, actor_name: names.get(text(revision.source.user_id)) || "" }));
 }
 
-function rowToSummary(row: JsonObject): CheckpointSummary {
+/** A document's revisions, newest first. A document saved before history existed starts with its current state. */
+export async function listDocumentRevisions(orgId: string, documentId: string) {
+  const document = await readDocumentInstance(orgId, documentId);
+  if (!(await hasRevisions(orgId, DOCUMENT_SUBJECT, documentId))) {
+    await recordRevision({
+      orgId, subjectType: DOCUMENT_SUBJECT, subjectId: documentId, state: documentState(document), cut: "baseline",
+      source: { kind: "system" }, status: text(document.status), subjectRevision: Number(document.revision || 0),
+      snapshotId: text(asObject(document.delivery).current_snapshot_id)
+    });
+  }
+  return { document, revisions: await actorNames(orgId, await listRevisions(orgId, DOCUMENT_SUBJECT, documentId)) };
+}
+
+function parseSeq(value: unknown) {
+  const seq = Number(text(value));
+  if (!Number.isInteger(seq) || seq < 1) throw badRequest("document_revision_invalid", "Name a revision by its number.");
+  return seq;
+}
+
+async function revisionState(orgId: string, subjectType: string, subjectId: string, ref: string) {
+  if (text(ref) === "current" && subjectType === DOCUMENT_SUBJECT) {
+    const document = await readDocumentInstance(orgId, subjectId);
+    return { record: null as RevisionRecord | null, state: documentState(document), at: text(document.updated_at) || new Date().toISOString() };
+  }
+  const found = await reconstructRevision(orgId, subjectType, subjectId, parseSeq(ref));
+  if (!found) throw notFound("document_revision_not_found", "That revision was not found.");
+  return { record: found.record, state: found.state as JsonObject, at: found.record.updated_at };
+}
+
+/** The template version a document rendered on at a time: its pin once sent, else the version current then. */
+async function templateVersionAt(orgId: string, state: JsonObject, at: string) {
+  const ref = asObject(state.template_ref);
+  const templateId = text(ref.template_id);
+  if (!templateId) return 0;
+  const isDraft = !text(state.status) || text(state.status) === "draft";
+  if (!isDraft && Number(ref.version || 0)) return Number(ref.version);
+  const versions = await listDocumentTemplateVersions(orgId, templateId).catch(() => []);
+  const when = Date.parse(at);
+  const match = versions.find((version) => Number.isFinite(when) && Date.parse(text(version.published_at)) <= when);
+  return Number(asObject(match || versions[0]).version || 0);
+}
+
+/** The editable definition of a version: its template version with its overrides applied. */
+async function workingDefinitionAt(orgId: string, state: JsonObject, at: string): Promise<JsonObject> {
+  if (text(asObject(state.module_ref).execution_id) && Object.keys(asObject(state.module_render)).length) {
+    return asObject(FMDocModel.applyOverrides(asObject(state.module_render), asArray(state.overrides)).document);
+  }
+  const templateId = text(asObject(state.template_ref).template_id);
+  const version = await templateVersionAt(orgId, state, at);
+  let definition: JsonObject = {};
+  if (templateId) definition = asObject(asObject(await readDocumentTemplateVersion(orgId, templateId, version || undefined).catch(() => null)).definition);
+  if (!Object.keys(definition).length) {
+    definition = asObject((FMDocModel.createBlankDocument || FMDocModel.createDocument)({ metadata: { document_type: text(state.document_type) } }));
+  }
+  return asObject(FMDocModel.applyOverrides(definition, asArray(state.overrides)).document);
+}
+
+/** One revision: its record, exact state and editable definition. */
+export async function readDocumentRevision(orgId: string, documentId: string, ref: string) {
+  await readDocumentInstance(orgId, documentId);
+  const { record, state, at } = await revisionState(orgId, DOCUMENT_SUBJECT, documentId, ref);
+  const [view] = record ? await actorNames(orgId, [record]) : [null];
+  return { revision: view, state, definition: await workingDefinitionAt(orgId, state, at), template_version: await templateVersionAt(orgId, state, at) };
+}
+
+/**
+ * What a revision looked like. A sent or signed version shows its frozen
+ * snapshot, which for a signed document is the sealed content; any other
+ * version renders its state on the template version it was written against.
+ */
+export async function viewDocumentRevision(orgId: string, documentId: string, ref: string) {
+  const document = await readDocumentInstance(orgId, documentId);
+  const { record, state, at } = await revisionState(orgId, DOCUMENT_SUBJECT, documentId, ref);
+  const frozen = record && ["send", "sign", "complete", "snapshot", "pdf"].includes(record.cut) && record.snapshot_id
+    ? await readDocumentSnapshot(orgId, record.snapshot_id).catch(() => null)
+    : null;
+  if (frozen && Object.keys(asObject(frozen.resolved_definition)).length) {
+    return {
+      frozen: true,
+      snapshot_id: record!.snapshot_id,
+      resolved: { resolved_definition: frozen.resolved_definition, theme: asObject(frozen.theme), theme_vars: asObject(frozen.theme_vars), widget_data: asObject(frozen.widget_data) }
+    };
+  }
+  const { resolveDocumentInstance } = await import("../service.js");
+  const resolved = await resolveDocumentInstance(orgId, { ...state, id: documentId, revision: document.revision }, {
+    target: "interactive",
+    templateVersion: (await templateVersionAt(orgId, state, at)) || undefined
+  });
   return {
-    id: cleanText(row.id),
-    doc_id: cleanText(row.doc_id),
-    organization_id: cleanText(row.organization_id),
-    name: cleanText(row.name),
-    reason: (cleanText(row.reason) || "manual") as CheckpointReason,
-    actor_id: cleanText(row.actor_id),
-    size_bytes: Number(row.size_bytes || 0),
-    checksum: cleanText(row.checksum),
-    created_at: cleanText(row.created_at)
+    frozen: false,
+    snapshot_id: "",
+    resolved: { resolved_definition: resolved.resolved_definition, theme: resolved.theme, theme_vars: resolved.theme_vars, widget_data: resolved.widget_data }
   };
 }
 
-function decodeDefinition(value: unknown): JsonObject {
-  if (value === null || value === undefined) return {};
-  const buffer = Buffer.isBuffer(value) ? value : Buffer.from(value as Uint8Array);
-  // Definitions are stored gzip-compressed; tolerate plain JSON for safety.
-  let text: string;
-  try {
-    text = gunzipSync(buffer).toString("utf8");
-  } catch {
-    text = buffer.toString("utf8");
-  }
-  try {
-    return asObject(JSON.parse(text));
-  } catch {
-    return {};
-  }
-}
-
 // ---------------------------------------------------------------------------
-// Working definition (mirrors service.ts templateDefinitionFor + applyOverrides
-// — that helper is private to service.ts, and this module cannot edit existing
-// files, so the small draft-follows-current / sent-keeps-pin rule is mirrored
-// here with a pointer back to the original).
+// Readable differences between two versions
 // ---------------------------------------------------------------------------
 
-async function templateDefinitionFor(orgId: string, documentValue: JsonObject): Promise<JsonObject> {
-  const templateRef = asObject(documentValue.template_ref);
-  const templateId = cleanText(templateRef.template_id);
-  if (templateId) {
-    const pinned = Number(templateRef.version || 0) || undefined;
-    const isDraft = cleanText(documentValue.status) === "draft" || !cleanText(documentValue.status);
-    const version = isDraft ? undefined : pinned;
-    const templateVersion = await readDocumentTemplateVersion(orgId, templateId, version).catch(() => null);
-    const definition = asObject(asObject(templateVersion).definition);
-    if (Object.keys(definition).length) return definition;
-  }
-  const fallback = (FMDocModel.createBlankDocument || FMDocModel.createDocument)({
-    metadata: { document_type: cleanText(documentValue.document_type) }
-  });
-  return asObject(fallback);
+export type FieldChange = {
+  section: string;
+  path: string[];
+  change: "added" | "removed" | "changed";
+  before?: unknown;
+  after?: unknown;
+};
+
+/** Sections the History panel shows, in order. Content (the editable definition) is diffed by text block instead. */
+const SECTION_ORDER = ["title", "status", "params", "outputs", "workflow_state", "delivery", "contact_ids", "tags", "theme_ref", "theme_overrides", "template_ref", "metadata"];
+const HIDDEN_FIELDS = new Set(["overrides", "param_defs", "output_defs", "module_render", "module_resolved", "materials_deliverables"]);
+const SECRET_KEY = /token|secret|password|credential/i;
+const MAX_FIELD_CHANGES = 400;
+
+function elementName(value: unknown, index: number) {
+  const item = asObject(value);
+  return text(item.name || item.title || item.label || item.description || item.id) || `#${index + 1}`;
 }
 
-/** The live editable definition: template definition + instance override ops. */
-export async function currentWorkingDefinition(orgId: string, documentValue: JsonObject): Promise<JsonObject> {
-  const definition = await templateDefinitionFor(orgId, documentValue);
-  const applied = FMDocModel.applyOverrides(definition, asArray(documentValue.overrides));
-  return asObject(applied.document);
+function shown(value: unknown, key: string): unknown {
+  if (SECRET_KEY.test(key)) return value === undefined ? undefined : "••••";
+  if (typeof value === "string") return value.length > 400 ? `${value.slice(0, 400)}…` : value;
+  return value;
 }
 
-// ---------------------------------------------------------------------------
-// Checkpoints
-// ---------------------------------------------------------------------------
-
-export async function createCheckpoint(
-  orgId: string,
-  docId: string,
-  input: { name?: string; reason?: string } = {},
-  actor: PlatformAuthContext | null
-): Promise<CheckpointSummary> {
-  const reason = (cleanText(input.reason) || "manual") as CheckpointReason;
-  if (!CHECKPOINT_REASONS.includes(reason)) {
-    throw badRequest("document_checkpoint_reason_invalid", `reason must be one of: ${CHECKPOINT_REASONS.join(", ")}.`);
-  }
-  const document = await readDocumentInstance(orgId, docId); // 404s across orgs
-  const definition = await currentWorkingDefinition(orgId, document);
-  const json = JSON.stringify(definition);
-  const checksum = createHash("sha256").update(json).digest("hex");
-  const id = newCheckpointId();
-  const createdAt = nowIso();
-  const db = getDocumentCheckpointsDatabase();
-  (await db.prepare(`
-    INSERT INTO document_checkpoints (id, organization_id, doc_id, name, reason, actor_id, definition_json, size_bytes, checksum, created_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(
-    id,
-    orgId,
-    docId,
-    cleanText(input.name).slice(0, 200),
-    reason,
-    actor?.userId || "",
-    gzipSync(Buffer.from(json, "utf8")),
-    Buffer.byteLength(json, "utf8"),
-    checksum,
-    createdAt
-  ));
-  if (reason === "auto") {
-    (await pruneAutoCheckpoints(orgId, docId));
-  } else {
-    // Named/send/publish checkpoints join the document's audit trail (no work
-    // engine emission — checkpoints are an editor concern, not a workflow one).
-    await recordDocumentEvent(orgId, document, "document.checkpoint_created", {
-      checkpoint_id: id,
-      reason,
-      name: cleanText(input.name)
-    }, actor, { emit: false }).catch(() => null);
-  }
-  return rowToSummary({
-    id,
-    organization_id: orgId,
-    doc_id: docId,
-    name: cleanText(input.name).slice(0, 200),
-    reason,
-    actor_id: actor?.userId || "",
-    size_bytes: Buffer.byteLength(json, "utf8"),
-    checksum,
-    created_at: createdAt
-  });
-}
-
-/**
- * Retention for reason:"auto" (manual/send/publish rows are kept forever):
- *   1. the AUTO_KEEP_RECENT newest autos always survive;
- *   2. older autos collapse to one per UTC day (the newest of each day) for
- *      AUTO_KEEP_DAILY_DAYS days;
- *   3. autos older than that are deleted.
- * Runs as a prune step inside createCheckpoint for auto checkpoints.
- */
-export async function pruneAutoCheckpoints(orgId: string, docId: string, now = Date.now()) {
-  const db = getDocumentCheckpointsDatabase();
-  const rows = (await db.prepare(`
-    SELECT id, created_at FROM document_checkpoints
-    WHERE organization_id = ? AND doc_id = ? AND reason = 'auto'
-    ORDER BY created_at DESC, id DESC
-  `).all(orgId, docId)) as Array<{ id: string; created_at: string }>;
-  const cutoff = now - AUTO_KEEP_DAILY_DAYS * 24 * 60 * 60 * 1000;
-  const doomed: string[] = [];
-  const seenDays = new Set<string>();
-  rows.forEach((row, index) => {
-    if (index < AUTO_KEEP_RECENT) return;
-    const createdMs = Date.parse(row.created_at);
-    if (!Number.isFinite(createdMs) || createdMs < cutoff) {
-      doomed.push(row.id);
+function compareInto(section: string, path: string[], a: unknown, b: unknown, out: FieldChange[]) {
+  if (out.length >= MAX_FIELD_CHANGES) return;
+  const key = path[path.length - 1] || section;
+  if (a === undefined && b === undefined) return;
+  if (a === undefined) { out.push({ section, path, change: "added", after: shown(b, key) }); return; }
+  if (b === undefined) { out.push({ section, path, change: "removed", before: shown(a, key) }); return; }
+  if (stableStringify(a) === stableStringify(b)) return;
+  if (Array.isArray(a) && Array.isArray(b)) {
+    const byId = (list: unknown[]) => list.every((item) => text(asObject(item).id));
+    if (byId(a) && byId(b)) {
+      const before = new Map(a.map((item, index) => [text(asObject(item).id), { item, index }]));
+      const after = new Map(b.map((item, index) => [text(asObject(item).id), { item, index }]));
+      for (const [id, entry] of before) if (!after.has(id)) compareInto(section, [...path, elementName(entry.item, entry.index)], entry.item, undefined, out);
+      for (const [id, entry] of after) compareInto(section, [...path, elementName(entry.item, entry.index)], before.get(id)?.item, entry.item, out);
       return;
     }
-    const day = row.created_at.slice(0, 10);
-    if (seenDays.has(day)) doomed.push(row.id);
-    else seenDays.add(day);
+    if (a.every((item) => item === null || typeof item !== "object") && b.every((item) => item === null || typeof item !== "object")) {
+      out.push({ section, path, change: "changed", before: shown(a, key), after: shown(b, key) });
+      return;
+    }
+    for (let index = 0; index < Math.max(a.length, b.length); index += 1) {
+      compareInto(section, [...path, elementName(b[index] ?? a[index], index)], a[index], b[index], out);
+    }
+    return;
+  }
+  const objectA = a && typeof a === "object" && !Array.isArray(a), objectB = b && typeof b === "object" && !Array.isArray(b);
+  if (objectA && objectB) {
+    const keys = [...new Set([...Object.keys(a as JsonObject), ...Object.keys(b as JsonObject)])];
+    for (const child of keys) compareInto(section, [...path, child], (a as JsonObject)[child], (b as JsonObject)[child], out);
+    return;
+  }
+  out.push({ section, path, change: "changed", before: shown(a, key), after: shown(b, key) });
+}
+
+/** Field-by-field changes between two document states, grouped by section. */
+export function describeStateChanges(before: JsonObject, after: JsonObject): FieldChange[] {
+  const out: FieldChange[] = [];
+  const keys = [...new Set([...SECTION_ORDER, ...Object.keys(before), ...Object.keys(after)])].filter((key) => !HIDDEN_FIELDS.has(key));
+  for (const key of keys) compareInto(key, [], before[key], after[key], out);
+  return out;
+}
+
+/** Differences between two revisions of a document (a → b); either may be "current". */
+export async function diffDocumentRevisions(orgId: string, documentId: string, aRef: string, bRef: string) {
+  await readDocumentInstance(orgId, documentId);
+  const a = await revisionState(orgId, DOCUMENT_SUBJECT, documentId, aRef);
+  const b = await revisionState(orgId, DOCUMENT_SUBJECT, documentId, bRef);
+  const fields = describeStateChanges(a.state, b.state);
+  const content = diffDefinitions(await workingDefinitionAt(orgId, a.state, a.at), await workingDefinitionAt(orgId, b.state, b.at));
+  return { a: aRef, b: bRef, fields, truncated: fields.length >= MAX_FIELD_CHANGES, content };
+}
+
+/** Revisions of a template, theme or workflow, and the difference between two of them. */
+export async function listAssetRevisions(orgId: string, kind: string, assetId: string) {
+  if (!ASSET_SUBJECTS.includes(kind)) throw badRequest("document_revision_subject_invalid", "That kind of document has no history.");
+  return await actorNames(orgId, await listRevisions(orgId, kind, assetId));
+}
+
+export async function diffAssetRevisions(orgId: string, kind: string, assetId: string, aRef: string, bRef: string) {
+  if (!ASSET_SUBJECTS.includes(kind)) throw badRequest("document_revision_subject_invalid", "That kind of document has no history.");
+  const a = await revisionState(orgId, kind, assetId, aRef);
+  const b = await revisionState(orgId, kind, assetId, bRef);
+  const strip = (state: JsonObject) => { const copy = { ...state }; delete copy.definition; return copy; };
+  return {
+    a: aRef, b: bRef,
+    fields: describeStateChanges(strip(a.state), strip(b.state)),
+    content: diffDefinitions(asObject(a.state.definition), asObject(b.state.definition))
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Named versions and restore
+// ---------------------------------------------------------------------------
+
+/** A revision that marks a moment without changing the document: a named version, a presentation. */
+export async function markDocumentRevision(orgId: string, documentId: string, input: { cut: string; label?: string; userId?: string; attributes?: JsonObject }) {
+  const document = await readDocumentInstance(orgId, documentId);
+  const record = await recordRevision({
+    orgId, subjectType: DOCUMENT_SUBJECT, subjectId: documentId, state: documentState(document), cut: input.cut,
+    label: text(input.label).slice(0, 200), source: currentChangeSource(text(input.userId)), status: text(document.status),
+    subjectRevision: Number(document.revision || 0), snapshotId: text(asObject(document.delivery).current_snapshot_id),
+    attributes: input.attributes, marker: true
   });
-  if (doomed.length) {
-    const remove = db.prepare("DELETE FROM document_checkpoints WHERE id = ?");
-    for (const id of doomed) (await remove.run(id));
-  }
-  return doomed.length;
+  return record ? (await actorNames(orgId, [record]))[0] : null;
 }
 
-/** Checkpoint rows without their definitions, newest first. */
-export async function listCheckpoints(orgId: string, docId: string): Promise<CheckpointSummary[]> {
-  await readDocumentInstance(orgId, docId); // 404s across orgs
-  const db = getDocumentCheckpointsDatabase();
-  const rows = (await db.prepare(`
-    SELECT id, organization_id, doc_id, name, reason, actor_id, size_bytes, checksum, created_at
-    FROM document_checkpoints
-    WHERE organization_id = ? AND doc_id = ?
-    ORDER BY created_at DESC, id DESC
-  `).all(orgId, docId)) as JsonObject[];
-  return rows.map(rowToSummary);
+/** Put an earlier version's content back as a new revision. Delivery, responses and status are never rolled back. */
+export async function restoreDocumentRevision(orgId: string, documentId: string, ref: string, ctx: PlatformAuthContext) {
+  const seq = parseSeq(ref);
+  const found = await reconstructRevision(orgId, DOCUMENT_SUBJECT, documentId, seq);
+  if (!found) throw notFound("document_revision_not_found", "That revision was not found.");
+  const service = await import("../service.js");
+  const content = Object.fromEntries(service.RESTORABLE_DOCUMENT_FIELDS.map((key) => [key, (found.state as JsonObject)[key]]));
+  const document = await withDocumentChange({ cut: "restore", documentId, userId: ctx.userId, label: `${seq}`, attributes: { restored_from: seq } },
+    () => service.restoreDocumentInstanceContent(orgId, documentId, content, ctx));
+  return { document, revision: (await listRevisions(orgId, DOCUMENT_SUBJECT, documentId))[0] || null };
 }
 
-/**
- * One checkpoint with its definition. "current" resolves to the live working
- * definition (same shape, synthetic row).
- */
-export async function getCheckpoint(orgId: string, docId: string, checkpointId: string): Promise<CheckpointDetail> {
-  const document = await readDocumentInstance(orgId, docId); // 404s across orgs
-  if (cleanText(checkpointId) === "current") {
-    const definition = await currentWorkingDefinition(orgId, document);
-    return {
-      id: "current",
-      doc_id: docId,
-      organization_id: orgId,
-      name: "Current document",
-      reason: "manual",
-      actor_id: "",
-      size_bytes: Buffer.byteLength(JSON.stringify(definition), "utf8"),
-      checksum: "",
-      created_at: cleanText(document.updated_at) || nowIso(),
-      definition
-    };
-  }
-  const db = getDocumentCheckpointsDatabase();
-  const row = (await db.prepare(`
-    SELECT * FROM document_checkpoints
-    WHERE organization_id = ? AND doc_id = ? AND id = ?
-  `).get(orgId, docId, cleanText(checkpointId))) as JsonObject | undefined;
-  if (!row) throw notFound("document_checkpoint_not_found", "The requested checkpoint was not found.");
-  return { ...rowToSummary(row), definition: decodeDefinition(row.definition_json) };
+export async function readRevisionSummary(orgId: string, documentId: string, seq: number) {
+  return await readRevisionRecord(orgId, DOCUMENT_SUBJECT, documentId, seq);
 }
 
 // ---------------------------------------------------------------------------
-// Block-level structural diff over stable DocModel node/block ids
+// Block-level text diff over stable DocModel node/block ids
 // ---------------------------------------------------------------------------
+
+export type WordDiffSegment = { type: "same" | "add" | "del"; text: string };
+
+export type DefinitionDiff = {
+  added_blocks: Array<{ node_id: string; block_id: string; text: string }>;
+  removed_blocks: Array<{ node_id: string; block_id: string; text: string }>;
+  changed_blocks: Array<{ node_id: string; block_id: string; before_text: string; after_text: string; word_diff: WordDiffSegment[] }>;
+  other_changes: number;
+};
 
 type TextBlock = { node_id: string; block_id: string; text: string };
 
@@ -346,20 +418,17 @@ function blockText(block: JsonObject) {
   return asArray(block.runs).map((run) => String(asObject(run).text ?? "")).join("");
 }
 
-/**
- * Every text block in the definition keyed by "nodeId::blockId", in document
- * walk order (pages -> children, depth-first; view docs walk root.children).
- */
+/** Every text block keyed by "nodeId::blockId", in document order (pages, then a view document's root). */
 function collectTextBlocks(definition: JsonObject) {
   const order: string[] = [];
   const map = new Map<string, TextBlock>();
   const visitNode = (node: unknown) => {
     const value = asObject(node);
-    if (cleanText(value.type) === "text") {
-      const nodeId = cleanText(value.id);
+    if (text(value.type) === "text") {
+      const nodeId = text(value.id);
       for (const blockValue of asArray(asObject(value.props).blocks)) {
         const block = asObject(blockValue);
-        const blockId = cleanText(block.id);
+        const blockId = text(block.id);
         if (!nodeId || !blockId) continue;
         const key = `${nodeId}::${blockId}`;
         if (map.has(key)) continue;
@@ -369,44 +438,22 @@ function collectTextBlocks(definition: JsonObject) {
     }
     for (const child of asArray(value.children)) visitNode(child);
   };
-  for (const page of asArray(definition.pages)) {
-    for (const child of asArray(asObject(page).children)) visitNode(child);
-  }
-  // kind:"view" documents keep their tree under root.children.
+  for (const page of asArray(definition.pages)) for (const child of asArray(asObject(page).children)) visitNode(child);
   for (const child of asArray(asObject(definition.root).children)) visitNode(child);
   return { order, map };
 }
 
-function stableStringify(value: unknown): string {
-  if (Array.isArray(value)) return `[${value.map(stableStringify).join(",")}]`;
-  if (value && typeof value === "object") {
-    const entries = Object.entries(value as JsonObject)
-      .filter(([, v]) => v !== undefined)
-      .sort(([a], [b]) => a.localeCompare(b));
-    return `{${entries.map(([k, v]) => `${JSON.stringify(k)}:${stableStringify(v)}`).join(",")}}`;
-  }
-  return JSON.stringify(value ?? null);
-}
-
 type EntitySignature = { sig: string; isText: boolean };
 
-/**
- * Structural signatures for the "other changes" count: the doc root (minus
- * pages), each page (children collapsed to ids), and each node (children
- * collapsed to ids; text nodes drop their blocks — text edits are reported
- * block-by-block, not here).
- */
+/** Structural signatures for the "other changes" count; text nodes drop their blocks (reported block by block). */
 function collectEntitySignatures(definition: JsonObject) {
   const map = new Map<string, EntitySignature>();
   const visitNode = (node: unknown) => {
     const value = asObject(node);
-    const id = cleanText(value.id);
-    const isText = cleanText(value.type) === "text";
+    const id = text(value.id);
+    const isText = text(value.type) === "text";
     if (id) {
-      const stripped: JsonObject = {
-        ...value,
-        children: asArray(value.children).map((child) => cleanText(asObject(child).id))
-      };
+      const stripped: JsonObject = { ...value, children: asArray(value.children).map((child) => text(asObject(child).id)) };
       if (isText) stripped.props = { ...asObject(value.props), blocks: undefined };
       map.set(`node:${id}`, { sig: stableStringify(stripped), isText });
     }
@@ -414,13 +461,8 @@ function collectEntitySignatures(definition: JsonObject) {
   };
   for (const page of asArray(definition.pages)) {
     const value = asObject(page);
-    const id = cleanText(value.id);
-    if (id) {
-      map.set(`page:${id}`, {
-        sig: stableStringify({ ...value, children: asArray(value.children).map((child) => cleanText(asObject(child).id)) }),
-        isText: false
-      });
-    }
+    const id = text(value.id);
+    if (id) map.set(`page:${id}`, { sig: stableStringify({ ...value, children: asArray(value.children).map((child) => text(asObject(child).id)) }), isText: false });
     for (const child of asArray(value.children)) visitNode(child);
   }
   for (const child of asArray(asObject(definition.root).children)) visitNode(child);
@@ -428,112 +470,65 @@ function collectEntitySignatures(definition: JsonObject) {
   return map;
 }
 
-/** Simple LCS word diff over whitespace tokens (no dependencies). */
+/** LCS word diff over whitespace tokens. */
 export function wordDiff(before: string, after: string): WordDiffSegment[] {
-  const a = cleanText(before) ? cleanText(before).split(/\s+/) : [];
-  const b = cleanText(after) ? cleanText(after).split(/\s+/) : [];
+  const a = text(before) ? text(before).split(/\s+/) : [];
+  const b = text(after) ? text(after).split(/\s+/) : [];
   const segments: WordDiffSegment[] = [];
   const push = (type: WordDiffSegment["type"], token: string) => {
     const last = segments[segments.length - 1];
     if (last && last.type === type) last.text += ` ${token}`;
     else segments.push({ type, text: token });
   };
-  // Guard pathological inputs: fall back to a coarse replace instead of an
-  // O(n*m) table over huge documents.
   if (a.length * b.length > 1_000_000) {
     if (a.length) segments.push({ type: "del", text: a.join(" ") });
     if (b.length) segments.push({ type: "add", text: b.join(" ") });
     return segments;
   }
-  // LCS length table (a.length+1 x b.length+1); table[i*cols+j] is the LCS of
-  // the suffixes a[i..] / b[j..].
   const cols = b.length + 1;
   const table = new Uint32Array((a.length + 1) * cols);
   const at = (i: number, j: number) => table[i * cols + j] ?? 0;
   for (let i = a.length - 1; i >= 0; i -= 1) {
     for (let j = b.length - 1; j >= 0; j -= 1) {
-      table[i * cols + j] = a[i] === b[j]
-        ? at(i + 1, j + 1) + 1
-        : Math.max(at(i + 1, j), at(i, j + 1));
+      table[i * cols + j] = a[i] === b[j] ? at(i + 1, j + 1) + 1 : Math.max(at(i + 1, j), at(i, j + 1));
     }
   }
   let i = 0;
   let j = 0;
   while (i < a.length && j < b.length) {
-    const tokenA = a[i] ?? "";
-    const tokenB = b[j] ?? "";
-    if (tokenA === tokenB) {
-      push("same", tokenA);
-      i += 1;
-      j += 1;
-    } else if (at(i + 1, j) >= at(i, j + 1)) {
-      push("del", tokenA);
-      i += 1;
-    } else {
-      push("add", tokenB);
-      j += 1;
-    }
+    if (a[i] === b[j]) { push("same", a[i]!); i += 1; j += 1; }
+    else if (at(i + 1, j) >= at(i, j + 1)) { push("del", a[i]!); i += 1; }
+    else { push("add", b[j]!); j += 1; }
   }
   while (i < a.length) push("del", a[i++] ?? "");
   while (j < b.length) push("add", b[j++] ?? "");
   return segments;
 }
 
-export function diffDefinitions(before: JsonObject, after: JsonObject): CheckpointDiff {
+export function diffDefinitions(before: JsonObject, after: JsonObject): DefinitionDiff {
   const a = collectTextBlocks(before);
   const b = collectTextBlocks(after);
-  const added: CheckpointDiff["added_blocks"] = [];
-  const removed: CheckpointDiff["removed_blocks"] = [];
-  const changed: CheckpointDiff["changed_blocks"] = [];
+  const added: DefinitionDiff["added_blocks"] = [];
+  const removed: DefinitionDiff["removed_blocks"] = [];
+  const changed: DefinitionDiff["changed_blocks"] = [];
   for (const key of b.order) {
-    if (!a.map.has(key)) {
-      const block = b.map.get(key)!;
-      added.push({ node_id: block.node_id, block_id: block.block_id, text: block.text });
-    }
+    if (!a.map.has(key)) { const block = b.map.get(key)!; added.push({ node_id: block.node_id, block_id: block.block_id, text: block.text }); }
   }
   for (const key of a.order) {
     const beforeBlock = a.map.get(key)!;
     const afterBlock = b.map.get(key);
-    if (!afterBlock) {
-      removed.push({ node_id: beforeBlock.node_id, block_id: beforeBlock.block_id, text: beforeBlock.text });
-      continue;
-    }
+    if (!afterBlock) { removed.push({ node_id: beforeBlock.node_id, block_id: beforeBlock.block_id, text: beforeBlock.text }); continue; }
     if (beforeBlock.text !== afterBlock.text) {
-      changed.push({
-        node_id: beforeBlock.node_id,
-        block_id: beforeBlock.block_id,
-        before_text: beforeBlock.text,
-        after_text: afterBlock.text,
-        word_diff: wordDiff(beforeBlock.text, afterBlock.text)
-      });
+      changed.push({ node_id: beforeBlock.node_id, block_id: beforeBlock.block_id, before_text: beforeBlock.text, after_text: afterBlock.text, word_diff: wordDiff(beforeBlock.text, afterBlock.text) });
     }
   }
-  // Non-text structural changes: added/removed/changed pages + nodes and
-  // doc-level fields. Text-node adds/removes are excluded — their content is
-  // already reported through added_blocks/removed_blocks.
   const entitiesA = collectEntitySignatures(before);
   const entitiesB = collectEntitySignatures(after);
   let otherChanges = 0;
   for (const [key, entity] of entitiesA) {
     const other = entitiesB.get(key);
-    if (!other) {
-      if (!entity.isText) otherChanges += 1;
-    } else if (other.sig !== entity.sig) {
-      otherChanges += 1;
-    }
+    if (!other) { if (!entity.isText) otherChanges += 1; } else if (other.sig !== entity.sig) otherChanges += 1;
   }
-  for (const [key, entity] of entitiesB) {
-    if (!entitiesA.has(key) && !entity.isText) otherChanges += 1;
-  }
+  for (const [key, entity] of entitiesB) if (!entitiesA.has(key) && !entity.isText) otherChanges += 1;
   return { added_blocks: added, removed_blocks: removed, changed_blocks: changed, other_changes: otherChanges };
-}
-
-/**
- * Diff two checkpoints of a document (a -> b). Either id may be "current",
- * meaning the live working definition.
- */
-export async function diffCheckpoints(orgId: string, docId: string, aId: string, bId: string): Promise<CheckpointDiff> {
-  const a = await getCheckpoint(orgId, docId, aId);
-  const b = await getCheckpoint(orgId, docId, bId);
-  return diffDefinitions(a.definition, b.definition);
 }

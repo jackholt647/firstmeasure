@@ -382,6 +382,8 @@ export async function createPresentation(ctx: PublicationContext, input: { proje
   const receipt = await record(ctx.organizationId, instance, { kind: "user", ctx }, "created", { resultRevision: instance.revision, totalAfterCents: total(computed.outputs) });
   const saved = await save(ctx.organizationId, instance, { lastExecutionId: receipt.id, lastAttemptId: receipt.id });
   await documentEvent(ctx.organizationId, saved, "created", { module_id: named.moduleId, version }, ctx.auth);
+  // Presenting is a moment in the document's history even before anything is chosen.
+  if (document) await (await import("../versions/service.js")).markDocumentRevision(ctx.organizationId, text(document.id), { cut: "present", userId: ctx.auth?.userId, attributes: { presentation_id: saved.id } }).catch(() => null);
   return state(saved, definition, "internal", "choose");
 }
 export async function readPresentation(ctx: PublicationContext, instanceId: string) {
@@ -505,7 +507,8 @@ async function produce(organizationId: string, instance: ModuleInstance, definit
   // In params so the sent snapshot, and so the signed record, carries what was presented and chosen.
   if (choices.length) params.presented_choices = jsonClone(choices);
   const reference = { instance_id: instance.id, module_id: instance.moduleId, version: instance.version, revision: instance.revision, state_hash: stateHash, total_cents: total(computed.outputs), produced_at: now, choices };
-  const updated = await service.patchDocumentInstance(organizationId, text(document.id), { params, metadata: { presentation_ref: reference }, expected_revision: Number(document.revision) }, auth);
+  const updated = await (await import("../versions/context.js")).withDocumentChange({ cut: "present_choices", documentId: text(document.id), userId: auth.userId, attributes: { presentation_id: instance.id } },
+    () => service.patchDocumentInstance(organizationId, text(document.id), { params, metadata: { presentation_ref: reference }, expected_revision: Number(document.revision) }, auth));
   const receipt = await record(organizationId, instance, actor, "contract_produced", { documentId: updated.id, documentRevision: updated.revision, stateHash, totalAfterCents: reference.total_cents });
   const saved = await save(organizationId, instance, { lastAttemptId: receipt.id, presentation: { contract: { documentId: updated.id, documentRevision: updated.revision, instanceRevision: instance.revision, stateHash, totalCents: reference.total_cents, producedAt: now, producedBy: auth.userId } } }, computed);
   await documentEvent(organizationId, saved, "contract_produced", { document_id: updated.id, state_hash: stateHash, total_cents: reference.total_cents }, auth);

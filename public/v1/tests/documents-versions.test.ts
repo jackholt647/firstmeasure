@@ -1,10 +1,18 @@
 import { putProjectContacts } from "./helpers/project-contacts.js";
 import { nextTestPhone, enableExpandedPlatformFixture, closePlatformFixtureStores } from "./helpers/platform-fixture.js";
 import assert from "node:assert/strict";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdtemp, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { gzipSync } from "node:zlib";
 import test, { after, before } from "node:test";
+
+/**
+ * Document history (docs/architecture/document-history.md): structural
+ * patches rebuild every version exactly, lifecycle steps cut their own
+ * revisions, signed versions are stored whole and match what was sealed, and
+ * the History routes read, compare and restore.
+ */
 
 let app: any = null;
 let storageRoot = "";
@@ -48,7 +56,7 @@ function createSessionClient() {
 }
 
 before(async () => {
-  storageRoot = await mkdtemp(path.join(os.tmpdir(), "firstmate-doc-versions-test-"));
+  storageRoot = await mkdtemp(path.join(os.tmpdir(), "firstmate-doc-history-test-"));
   process.env.NODE_ENV = "test";
   process.env.PLATFORM_HEARTBEAT_DISABLED = "1";
   process.env.PLATFORM_STORAGE_ROOT = path.join(storageRoot, "platform");
@@ -58,23 +66,15 @@ before(async () => {
   process.env.PRICEBOOK_STORAGE_ROOT = path.join(storageRoot, "pricebook");
   process.env.EMAIL_OUTBOUND_DISABLED = "1";
   process.env.V1_LOG_LEVEL = "error";
-
   const { buildApp } = await import("../src/app.js");
   app = await buildApp();
-  // Version routes are a standalone plugin; register here unless the
-  // integrator has already mounted them in src/app.ts.
-  const appSource = await readFile(new URL("../src/app.ts", import.meta.url), "utf8").catch(() => "");
-  if (!appSource.includes("registerVersionRoutes")) {
-    const { registerVersionRoutes } = await import("../documents/versions/routes.js");
-    registerVersionRoutes(app);
-  }
   await app.ready();
 });
 
 after(async () => {
   const { closeSqlStoresForTests } = await import("../platform/sql_store.js");
-  const { closeDocumentCheckpointsDatabase } = await import("../documents/versions/service.js");
-  (await closeDocumentCheckpointsDatabase());
+  const { closeDocumentHistoryDatabase } = await import("../documents/versions/history.js");
+  await closeDocumentHistoryDatabase();
   if (app) await app.close();
   await closePlatformFixtureStores();
   await closeSqlStoresForTests();
@@ -89,38 +89,32 @@ after(async () => {
 
 async function registerOrg(client: ReturnType<typeof createSessionClient>) {
   const suffix = `${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
-  const data = await client.request("POST", "/v1/platform/auth/register", {phone: nextTestPhone(), 
+  const data = await client.request("POST", "/v1/platform/auth/register", {
+    phone: nextTestPhone(),
     email: `owner-${suffix}@example.test`,
     password: "correct horse battery staple",
     name: "Owner User",
-    company: "Doc Versions Test Org",
-    organization_id: `org_doc_versions_${suffix}`
+    company: "Doc History Test Org",
+    organization_id: `org_doc_history_${suffix}`
   });
-  await enableExpandedPlatformFixture(String(data.organization.id));
   const orgId = data.organization.id as string;
   await enableExpandedPlatformFixture(orgId, {
-      "platform.documents": true,
-      "documents.templates_studio": true,
-      "documents.advanced_definition_editing": true,
-      "documents.esign": true,
-      "documents.payments": true,
-      "platform.customer_portal": true,
-      "customer_portal.payments": true,
-      "platform.money": true,
-      "money.take_payment": true
-    });
-  return { orgId };
+    "platform.documents": true,
+    "documents.templates_studio": true,
+    "documents.advanced_definition_editing": true,
+    "documents.esign": true,
+    "documents.payments": true,
+    "platform.customer_portal": true,
+    "customer_portal.payments": true,
+    "platform.money": true,
+    "money.take_payment": true
+  });
+  return { orgId, userId: String(data.user.id) };
 }
 
 async function createProject(client: ReturnType<typeof createSessionClient>, orgId: string, projectId: string) {
   await client.request("PUT", `/v1/platform/organizations/${orgId}/projects/${projectId}`, {
-    data: {
-      id: projectId,
-      address: "100 Version Lane",
-      title: "Jane Homeowner",
-      project_type: "residential",
-      photos: []
-    },
+    data: { id: projectId, address: "100 Version Lane", title: "Jane Homeowner", project_type: "residential", photos: [] },
     metadata: { kind: "platform_project" }
   });
   await putProjectContacts(client, orgId, projectId, [{ name: "Jane Homeowner", email: "jane@example.test", phone: "555-111-2222" }]);
@@ -131,8 +125,8 @@ const AFTER_TEXT = "The quick red fox jumps over the lazy dog";
 const SECOND_TEXT = "This block gets removed by the edit";
 const EXTRA_TEXT = "Brand new closing paragraph";
 
-/** Template with FIXED node/block ids so checkpoints diff over stable ids. */
-async function publishVersionsTemplate(client: ReturnType<typeof createSessionClient>, orgId: string, templateId: string) {
+/** Template with fixed node/block ids so versions diff over stable ids. */
+async function publishTemplate(client: ReturnType<typeof createSessionClient>, orgId: string, templateId: string) {
   const { FMDocModel } = await import("../documents/schemas.js");
   const definition: any = FMDocModel.createDocument({ first_page_role: "body" });
   const textNode: any = FMDocModel.createNode("text");
@@ -144,263 +138,286 @@ async function publishVersionsTemplate(client: ReturnType<typeof createSessionCl
   const shapeNode: any = FMDocModel.createNode("shape");
   shapeNode.id = "nd_box";
   definition.pages[0].children.push(textNode, shapeNode);
-  const validation = FMDocModel.validateDocument(definition);
-  assert.ok(validation.ok, `fixture definition validates: ${JSON.stringify(validation.errors?.slice(0, 3))}`);
-  await client.request("POST", `/v1/documents/organizations/${orgId}/templates`, {
-    id: templateId,
-    name: "Versions fixture",
-    document_type: "generic",
-    definition
-  });
+  await client.request("POST", `/v1/documents/organizations/${orgId}/templates`, { id: templateId, name: "History fixture", document_type: "generic", definition });
   return definition;
 }
 
-async function createDocFromTemplate(client: ReturnType<typeof createSessionClient>, orgId: string, projectId: string, templateId: string, title: string) {
-  const created = await client.request("POST", `/v1/documents/organizations/${orgId}/projects/${projectId}/documents`, {
-    document_type: "generic",
-    template_id: templateId,
-    title
+// ---------------------------------------------------------------------------
+// Patch engine and storage, without the HTTP layer
+// ---------------------------------------------------------------------------
+
+/** Deterministic PRNG so a failure reproduces. */
+function rng(seed: number) {
+  let state = seed >>> 0;
+  return () => { state = (state * 1664525 + 1013904223) >>> 0; return state / 2 ** 32; };
+}
+
+function randomValue(random: () => number, depth: number): any {
+  const roll = random();
+  if (depth > 3 || roll < 0.35) {
+    const kind = Math.floor(random() * 5);
+    return kind === 0 ? null : kind === 1 ? random() < 0.5 : kind === 2 ? Math.round(random() * 10000) / 100 : kind === 3 ? `t${Math.floor(random() * 50)}` : "";
+  }
+  if (roll < 0.65) return Array.from({ length: Math.floor(random() * 5) }, (_, i) => random() < 0.5 ? { id: `n${Math.floor(random() * 1e6)}`, v: randomValue(random, depth + 1) } : randomValue(random, depth + 1));
+  const object: any = {};
+  for (let i = 0; i < Math.floor(random() * 5); i += 1) object[`k${Math.floor(random() * 8)}`] = randomValue(random, depth + 1);
+  return object;
+}
+
+/** One random edit somewhere in the tree: set, delete, insert, remove, move or reorder. */
+function mutate(value: any, random: () => number): any {
+  const copy = JSON.parse(JSON.stringify(value));
+  const containers: any[] = [];
+  const walk = (node: any) => { if (node && typeof node === "object") { containers.push(node); for (const child of Object.values(node)) walk(child); } };
+  walk(copy);
+  const target = containers[Math.floor(random() * containers.length)];
+  if (Array.isArray(target)) {
+    const op = Math.floor(random() * 5);
+    if (op === 0 || !target.length) target.splice(Math.floor(random() * (target.length + 1)), 0, random() < 0.5 ? { id: `n${Math.floor(random() * 1e6)}`, v: randomValue(random, 2) } : randomValue(random, 2));
+    else if (op === 1) target.splice(Math.floor(random() * target.length), 1);
+    else if (op === 2) target[Math.floor(random() * target.length)] = randomValue(random, 2);
+    else if (op === 3) { const [moved] = target.splice(Math.floor(random() * target.length), 1); target.splice(Math.floor(random() * (target.length + 1)), 0, moved); }
+    else target.reverse();
+  } else {
+    const keys = Object.keys(target);
+    const op = Math.floor(random() * 3);
+    if (op === 0 && keys.length) delete target[keys[Math.floor(random() * keys.length)]!];
+    else target[keys.length && op === 1 ? keys[Math.floor(random() * keys.length)]! : `k${Math.floor(random() * 12)}`] = randomValue(random, 2);
+  }
+  return copy;
+}
+
+test("structural patches rebuild every state of randomized edit sequences exactly", async () => {
+  const { diffJson, applyPatch, stableStringify } = await import("../documents/versions/patch.js");
+  let checked = 0;
+  for (let seed = 1; seed <= 300; seed += 1) {
+    const random = rng(seed);
+    let state: any = { root: randomValue(random, 0), list: [randomValue(random, 1), { id: "a", v: 1 }, { id: "b", v: 2 }] };
+    for (let step = 0; step < 25; step += 1) {
+      const next = mutate(state, random);
+      const ops = diffJson(state, next);
+      const rebuilt = applyPatch(state, ops);
+      assert.equal(stableStringify(rebuilt), stableStringify(next), `seed ${seed} step ${step}`);
+      assert.deepEqual(applyPatch(next, diffJson(next, state)), JSON.parse(JSON.stringify(state)), `reverse seed ${seed} step ${step}`);
+      if (stableStringify(state) === stableStringify(next)) assert.equal(ops.length, 0, "equal states have an empty patch");
+      state = next;
+      checked += 1;
+    }
+  }
+  assert.equal(checked, 7500);
+  // A change in one block of a long id-keyed list costs that block, not the list.
+  const blocks = Array.from({ length: 200 }, (_, i) => ({ id: `blk_${i}`, runs: [{ text: `Paragraph ${i} with some words in it` }] }));
+  const edited = blocks.map((block) => ({ ...block, runs: [...block.runs] }));
+  edited[120] = { id: "blk_120", runs: [{ text: "Paragraph 120, reworded" }] };
+  edited.splice(40, 0, { id: "blk_new", runs: [{ text: "Inserted" }] });
+  const ops = diffJson({ blocks }, { blocks: edited });
+  assert.ok(JSON.stringify(ops).length < 300, `small edit, small patch: ${JSON.stringify(ops)}`);
+});
+
+test("history stores long edit sequences as checkpoints plus patches, rebuilds each revision exactly, and is far smaller than full copies", async () => {
+  const history = await import("../documents/versions/history.js");
+  const { stableStringify } = await import("../documents/versions/patch.js");
+  const random = rng(42);
+  const orgId = "org_history_storage";
+  const subjectId = "doc_storage";
+  // A realistic estimate: 60 line items, terms text, a 40-block content override set.
+  let state: any = {
+    id: subjectId, title: "Roof replacement estimate", status: "draft", document_type: "estimate",
+    params: {
+      scope_items: Array.from({ length: 60 }, (_, i) => ({ id: `item_${i}`, name: `Line item ${i}`, quantity: i + 1, unit: "sq", unit_price_cents: 1000 + i * 37, selected: i % 3 !== 0, notes: `Install per manufacturer spec ${i}` })),
+      terms: "Payment is due on completion. ".repeat(20)
+    },
+    overrides: Array.from({ length: 40 }, (_, i) => ({ op: "node.set", node_id: `nd_${i}`, prop: "props.blocks", value: [{ id: `blk_${i}`, type: "paragraph", runs: [{ text: `Section ${i}: the work includes tear-off, underlayment and cleanup.` }] }] })),
+    outputs: {}, delivery: {}, metadata: {}
+  };
+  const states: string[] = [];
+  const edits = 400;
+  for (let step = 0; step < edits; step += 1) {
+    const next = JSON.parse(JSON.stringify(state));
+    const roll = random();
+    if (roll < 0.5) {
+      const item = next.params.scope_items[Math.floor(random() * next.params.scope_items.length)];
+      item.quantity = Math.round(random() * 40); item.unit_price_cents += 5;
+    } else if (roll < 0.75) {
+      const override = next.overrides[Math.floor(random() * next.overrides.length)];
+      override.value[0].runs[0].text += ` edit ${step}`;
+    } else if (roll < 0.85) {
+      next.params.scope_items.splice(Math.floor(random() * next.params.scope_items.length), 0, { id: `item_new_${step}`, name: `Added ${step}`, quantity: 1, unit: "ea", unit_price_cents: 4500, selected: true, notes: "" });
+    } else if (roll < 0.9) {
+      next.params.scope_items.splice(Math.floor(random() * next.params.scope_items.length), 1);
+    } else {
+      next.title = `Roof replacement estimate rev ${step}`;
+    }
+    state = next;
+    // standalone: every save is its own revision, the worst case for storage.
+    await history.recordRevision({ orgId, subjectType: "document", subjectId, state, cut: "edit", source: { kind: "person", user_id: "u1" }, standalone: true });
+    states.push(stableStringify(state));
+  }
+  const list = await history.listRevisions(orgId, "document", subjectId);
+  assert.equal(list.length, edits);
+  for (let seq = 1; seq <= edits; seq += 1) {
+    const rebuilt = await history.reconstructRevision(orgId, "document", subjectId, seq);
+    assert.equal(stableStringify(rebuilt!.state), states[seq - 1], `revision ${seq} rebuilds exactly`);
+  }
+  const storage = await history.revisionStorage(orgId, "document", subjectId);
+  const fullGzip = states.reduce((total, json) => total + gzipSync(Buffer.from(json)).length, 0);
+  const ratio = storage.stored_bytes / fullGzip;
+  const report = { revisions: storage.revisions, checkpoints: storage.checkpoints, stored_bytes: storage.stored_bytes, head_bytes: storage.head_bytes, full_json_bytes: storage.full_json_bytes, full_gzip_bytes: fullGzip, ratio_vs_gzip_copies: Number(ratio.toFixed(4)), ratio_vs_json_copies: Number((storage.stored_bytes / storage.full_json_bytes).toFixed(4)) };
+  console.log(`document history storage: ${JSON.stringify(report)}`);
+  assert.ok(storage.checkpoints >= 2 && storage.checkpoints < edits / 5, `checkpoints at intervals: ${storage.checkpoints}`);
+  assert.ok(ratio < 0.25, `history is far smaller than gzip full copies (${ratio})`);
+  // A tampered patch is caught by the checksum rather than returned as a version.
+  const db = history.documentHistoryDatabase();
+  const victim = list.find((revision) => revision.kind === "patch")!;
+  const { encodePayload } = await import("../documents/versions/codec.js");
+  await db.prepare("UPDATE document_revisions SET payload=? WHERE organization_id=? AND subject_id=? AND seq=?").run(encodePayload([["s", ["title"], "Tampered"]]), orgId, subjectId, victim.seq);
+  await assert.rejects(history.reconstructRevision(orgId, "document", subjectId, victim.seq), history.RevisionIntegrityError);
+});
+
+// ---------------------------------------------------------------------------
+// Through the documents engine
+// ---------------------------------------------------------------------------
+
+test("edit, present, send and sign each cut a revision; the signed version is stored whole and matches what was sealed", async () => {
+  const client = createSessionClient();
+  const { orgId, userId } = await registerOrg(client);
+  await createProject(client, orgId, "history_project");
+  const storage = await import("../documents/storage.js");
+  const versions = await import("../documents/versions/service.js");
+  const history = await import("../documents/versions/history.js");
+  const { stableStringify } = await import("../documents/versions/patch.js");
+
+  const created = await client.request("POST", `/v1/documents/organizations/${orgId}/projects/history_project/documents`, { document_type: "contract", params: { body: "Original agreement", effective_date: "2026-10-22" } });
+  const id = created.document.id as string;
+  await storage.saveDocumentInstance(orgId, id, { ...(await storage.readDocumentInstance(orgId, id)), output_defs: { sig_customer: { type: "signature", signer_id: "customer", required: true } } });
+  // Two quick edits by one person are one revision.
+  await client.request("PATCH", `/v1/documents/organizations/${orgId}/documents/${id}`, { params: { body: "Revised agreement" } });
+  await client.request("PATCH", `/v1/documents/organizations/${orgId}/documents/${id}`, { params: { body: "Revised agreement, final", deposit_percent: 30 } });
+  await versions.markDocumentRevision(orgId, id, { cut: "present", userId });
+  await client.request("POST", `/v1/documents/${id}/revisions`, { label: "Ready to send" });
+  const sent = await client.request("POST", `/v1/documents/organizations/${orgId}/documents/${id}/send`, { recipients: [{ name: "Alice", email: "alice@example.test", role: "customer" }], consent_contact: "support@example.test" });
+  const token = sent.signing.invitations.find((invitation: any) => invitation.signer_id === "customer").token;
+  const prepared = await client.request("POST", `/v1/documents/public/${token}/signing/prepare`, {});
+  await client.request("POST", `/v1/documents/public/${token}/outputs/sig_customer`, {
+    value: { type: "typed", signer_name: "Alice", signed_at: "1900-01-01" }, challenge: prepared.challenge, content_hash: prepared.content_hash,
+    consent: { intent: true, electronic_records: true, can_access_and_retain: true, disclosure_hash: prepared.disclosure.hash }
   });
-  return created.document.id as string;
-}
+  await (await import("../documents/signing/service.js")).drainSigningOutbox();
 
-function joined(segments: Array<{ type: string; text: string }>, skip: string) {
-  return segments.filter((segment) => segment.type !== skip).map((segment) => segment.text).join(" ");
-}
+  const listed = await client.request("GET", `/v1/documents/${id}/revisions`);
+  const cuts = [...listed.revisions].reverse().map((revision: any) => revision.cut);
+  assert.deepEqual(cuts.slice(0, 5), ["created", "edit", "edit", "present", "named"], `lifecycle cuts in order: ${cuts.join(", ")}`);
+  assert.ok(cuts.includes("send"), `send cut: ${cuts.join(", ")}`);
+  assert.ok(cuts.includes("sign") || cuts.includes("complete"), `sign cut: ${cuts.join(", ")}`);
+  const personEdit = listed.revisions.find((revision: any) => revision.cut === "edit" && revision.source.user_id === userId);
+  assert.ok(personEdit, "the person's edits are attributed to them");
+  assert.equal(personEdit.edits, 2, "the two quick edits folded into one revision");
+  assert.equal(personEdit.actor_name, "Owner User");
+  assert.ok(personEdit.sections.includes("params"));
+  const sendRevision = listed.revisions.find((revision: any) => revision.cut === "send");
+  assert.equal(listed.revisions.filter((revision: any) => revision.cut === "send").length, 1, "one send is one revision, however many saves it made");
+  assert.ok(sendRevision.snapshot_id, "the send revision names the snapshot it sent");
 
-test("checkpoint captures the working definition and diff(current, checkpoint) reports block + word changes", async () => {
+  // The signed (executed) revision is a checkpoint that rebuilds byte for byte to the stored record.
+  const final = await storage.readDocumentInstance(orgId, id);
+  assert.ok(["signed", "completed"].includes(String(final.status)));
+  const signed = listed.revisions.find((revision: any) => revision.status === final.status && ["sign", "complete"].includes(revision.cut));
+  assert.ok(signed, "a revision holds the executed state");
+  assert.equal(signed.kind, "checkpoint");
+  const rebuilt = await history.reconstructRevision(orgId, "document", id, listed.revisions[0].seq);
+  assert.equal(stableStringify(rebuilt!.state), stableStringify(versions.documentState(final)), "newest revision equals the stored record exactly");
+  const signedState = (await history.reconstructRevision(orgId, "document", id, signed.seq))!.state as any;
+  const pkg = (await (await import("../documents/signing/store.js")).packagesForDocument(orgId, id))[0]!;
+  assert.equal(signedState.signing.package_id, pkg.id);
+  assert.equal(signedState.signing.content_hash, pkg.content_hash, "the signed version carries the sealed content's hash");
+  assert.equal(signedState.outputs.sig_customer.signer_name, "Alice");
+  // Viewing the signed version shows the frozen snapshot, which is the sealed content.
+  const view = await client.request("GET", `/v1/documents/${id}/revisions/${signed.seq}/view`);
+  assert.equal(view.frozen, true);
+  assert.equal(stableStringify(view.resolved.resolved_definition), stableStringify(pkg.content.resolved_definition));
+  // Signed documents cannot be restored over.
+  const blocked = await client.raw("POST", `/v1/documents/${id}/revisions/${personEdit.seq}/restore`, {});
+  assert.equal(blocked.statusCode, 409);
+
+  // The diff between the created and the sent version reads field by field.
+  const diff = await client.request("GET", `/v1/documents/organizations/${orgId}/documents/${id}/revisions/1/diff/${sendRevision.seq}`);
+  const body = diff.diff.fields.find((field: any) => field.section === "params" && field.path.join(".") === "body");
+  assert.deepEqual([body.before, body.after], ["Original agreement", "Revised agreement, final"]);
+  assert.ok(diff.diff.fields.some((field: any) => field.section === "status" && field.after === "sent"));
+  assert.ok(!JSON.stringify(diff.diff.fields).includes(String(sent.snapshot.public_token)), "tokens never appear in a diff");
+});
+
+test("content diffs read block by block, and restoring a version puts its content back as a new revision", async () => {
   const client = createSessionClient();
   const { orgId } = await registerOrg(client);
-  const projectId = "project_versions_diff";
-  await createProject(client, orgId, projectId);
-  const definition = await publishVersionsTemplate(client, orgId, "tpl_versions_diff");
-  const documentId = await createDocFromTemplate(client, orgId, projectId, "tpl_versions_diff", "Versioned doc");
-
-  // --- checkpoint the pristine document (compact route shape) ---------------
-  const created = await client.request("POST", `/v1/documents/${documentId}/checkpoints`, {
-    name: "Before edits",
-    reason: "manual"
-  });
-  const checkpointId = created.checkpoint.id as string;
-  assert.equal(created.checkpoint.reason, "manual");
-  assert.equal(created.checkpoint.doc_id, documentId);
-  assert.ok(created.checkpoint.size_bytes > 0, "summary carries the uncompressed definition size");
-  assert.equal(created.checkpoint.definition, undefined, "create response omits the definition");
-
-  // --- edit: reword blk_hero, drop blk_second, insert a new text node, move the shape
+  await createProject(client, orgId, "history_restore");
+  const definition = await publishTemplate(client, orgId, "tpl_history");
+  const created = await client.request("POST", `/v1/documents/organizations/${orgId}/projects/history_restore/documents`, { document_type: "generic", template_id: "tpl_history", title: "Versioned doc", params: { note: "first" } });
+  const id = created.document.id as string;
   const pageId = definition.pages[0].id;
-  await client.request("PATCH", `/v1/documents/organizations/${orgId}/documents/${documentId}`, {
+  await client.request("PATCH", `/v1/documents/organizations/${orgId}/documents/${id}`, {
+    title: "Versioned doc, edited",
+    params: { note: "second" },
     overrides: [
-      {
-        op: "node.set",
-        node_id: "nd_hero",
-        prop: "props.blocks",
-        value: [{ id: "blk_hero", type: "paragraph", runs: [{ text: AFTER_TEXT }] }]
-      },
-      {
-        op: "node.insert",
-        page_id: pageId,
-        node: {
-          id: "nd_extra",
-          type: "text",
-          frame: { x: 72, y: 300, w: 468, h: 40 },
-          props: { blocks: [{ id: "blk_extra", type: "paragraph", runs: [{ text: EXTRA_TEXT }] }] }
-        }
-      },
+      { op: "node.set", node_id: "nd_hero", prop: "props.blocks", value: [{ id: "blk_hero", type: "paragraph", runs: [{ text: AFTER_TEXT }] }] },
+      { op: "node.insert", page_id: pageId, node: { id: "nd_extra", type: "text", frame: { x: 72, y: 300, w: 468, h: 40 }, props: { blocks: [{ id: "blk_extra", type: "paragraph", runs: [{ text: EXTRA_TEXT }] }] } } },
       { op: "node.set", node_id: "nd_box", prop: "frame.x", value: 250 }
     ]
   });
+  const listed = await client.request("GET", `/v1/documents/${id}/revisions`);
+  assert.deepEqual(listed.revisions.map((revision: any) => revision.cut), ["edit", "created"]);
+  const diff = (await client.request("GET", `/v1/documents/${id}/revisions/1/diff/current`)).diff;
+  assert.deepEqual(diff.content.added_blocks, [{ node_id: "nd_extra", block_id: "blk_extra", text: EXTRA_TEXT }]);
+  assert.deepEqual(diff.content.removed_blocks, [{ node_id: "nd_hero", block_id: "blk_second", text: SECOND_TEXT }]);
+  assert.equal(diff.content.changed_blocks[0].before_text, BEFORE_TEXT);
+  assert.equal(diff.content.changed_blocks[0].after_text, AFTER_TEXT);
+  assert.ok(diff.content.changed_blocks[0].word_diff.some((part: any) => part.type === "add" && part.text.includes("red")));
+  assert.ok(diff.content.other_changes >= 1, "the shape move counts as a layout change");
+  assert.ok(diff.fields.some((field: any) => field.section === "title" && field.after === "Versioned doc, edited"));
+  const read = await client.request("GET", `/v1/documents/${id}/revisions/1`);
+  assert.ok(JSON.stringify(read.definition).includes(BEFORE_TEXT), "an earlier version's editable definition");
+  const view = await client.request("GET", `/v1/documents/${id}/revisions/1/view`);
+  assert.equal(view.frozen, false);
+  assert.ok(JSON.stringify(view.resolved.resolved_definition).includes(BEFORE_TEXT), "an earlier version renders as it was");
 
-  // --- diff checkpoint -> current (sibling org route shape) -----------------
-  const forward = await client.request(
-    "GET",
-    `/v1/documents/organizations/${orgId}/documents/${documentId}/checkpoints/${checkpointId}/diff/current`
-  );
-  const diff = forward.diff;
-  assert.deepEqual(
-    diff.added_blocks,
-    [{ node_id: "nd_extra", block_id: "blk_extra", text: EXTRA_TEXT }],
-    "inserted node's block reports as added"
-  );
-  assert.deepEqual(
-    diff.removed_blocks,
-    [{ node_id: "nd_hero", block_id: "blk_second", text: SECOND_TEXT }],
-    "dropped block reports as removed"
-  );
-  assert.equal(diff.changed_blocks.length, 1, "one block changed");
-  const changed = diff.changed_blocks[0];
-  assert.equal(changed.node_id, "nd_hero");
-  assert.equal(changed.block_id, "blk_hero");
-  assert.equal(changed.before_text, BEFORE_TEXT);
-  assert.equal(changed.after_text, AFTER_TEXT);
-  // word_diff is a lossless whitespace-token diff: same+del reconstructs the
-  // before text, same+add reconstructs the after text.
-  assert.equal(joined(changed.word_diff, "add"), BEFORE_TEXT.split(/\s+/).join(" "));
-  assert.equal(joined(changed.word_diff, "del"), AFTER_TEXT.split(/\s+/).join(" "));
-  assert.ok(changed.word_diff.some((segment: any) => segment.type === "del" && segment.text.includes("brown")));
-  assert.ok(changed.word_diff.some((segment: any) => segment.type === "add" && segment.text.includes("red")));
-  assert.ok(diff.other_changes >= 1, "the shape frame move counts as a non-text change");
-
-  // --- reverse orientation swaps added/removed ------------------------------
-  const reverse = await client.request(
-    "GET",
-    `/v1/documents/${documentId}/checkpoints/current/diff/${checkpointId}`
-  );
-  assert.deepEqual(reverse.diff.added_blocks.map((block: any) => block.block_id), ["blk_second"]);
-  assert.deepEqual(reverse.diff.removed_blocks.map((block: any) => block.block_id), ["blk_extra"]);
-  assert.equal(reverse.diff.changed_blocks[0].before_text, AFTER_TEXT);
-  assert.equal(reverse.diff.changed_blocks[0].after_text, BEFORE_TEXT);
-
-  // --- current vs current is empty ------------------------------------------
-  const identity = await client.request("GET", `/v1/documents/${documentId}/checkpoints/current/diff/current`);
-  assert.deepEqual(identity.diff, { added_blocks: [], removed_blocks: [], changed_blocks: [], other_changes: 0 });
-
-  // --- reads: list omits definitions, detail includes the frozen one --------
-  const listed = await client.request("GET", `/v1/documents/${documentId}/checkpoints`);
-  assert.equal(listed.count, 1);
-  assert.equal(listed.checkpoints[0].id, checkpointId);
-  assert.equal(listed.checkpoints[0].definition, undefined, "list rows never carry definitions");
-  const detail = await client.request("GET", `/v1/documents/${documentId}/checkpoints/${checkpointId}`);
-  assert.ok(JSON.stringify(detail.checkpoint.definition).includes(BEFORE_TEXT), "checkpoint froze the pre-edit text");
-  const live = await client.request("GET", `/v1/documents/${documentId}/checkpoints/current`);
-  assert.ok(JSON.stringify(live.checkpoint.definition).includes(AFTER_TEXT), "'current' resolves the live working definition");
-
-  // --- validation -----------------------------------------------------------
-  const badReason = await client.raw("POST", `/v1/documents/${documentId}/checkpoints`, { reason: "hourly" });
-  assert.equal(badReason.statusCode, 400);
-  const missingCheckpoint = await client.raw("GET", `/v1/documents/${documentId}/checkpoints/docchk_nope`);
-  assert.equal(missingCheckpoint.statusCode, 404);
+  const restored = await client.request("POST", `/v1/documents/organizations/${orgId}/documents/${id}/revisions/1/restore`, {});
+  assert.equal(restored.document.title, "Versioned doc");
+  assert.equal(restored.document.params.note, "first");
+  assert.deepEqual(restored.document.overrides, []);
+  assert.equal(restored.revision.cut, "restore");
+  assert.equal(restored.revision.attributes.restored_from, 1);
+  const after = await client.request("GET", `/v1/documents/${id}/revisions`);
+  assert.deepEqual(after.revisions.map((revision: any) => revision.cut), ["restore", "edit", "created"], "restore is a new revision; nothing is rewritten");
+  assert.equal((await client.raw("GET", `/v1/documents/${id}/revisions/99`)).statusCode, 404);
+  assert.equal((await client.raw("GET", `/v1/documents/${id}/revisions/zero`)).statusCode, 400);
 });
 
-test("auto checkpoints prune to newest 10 + one per day for 30 days; named reasons are kept forever", async () => {
+test("a document saved before history existed starts with its stored state; templates record each publish", async () => {
   const client = createSessionClient();
   const { orgId } = await registerOrg(client);
-  const projectId = "project_versions_retention";
-  await createProject(client, orgId, projectId);
-  await publishVersionsTemplate(client, orgId, "tpl_versions_retention");
-  const documentId = await createDocFromTemplate(client, orgId, projectId, "tpl_versions_retention", "Retention doc");
+  await createProject(client, orgId, "history_baseline");
+  const storage = await import("../documents/storage.js");
+  const history = await import("../documents/versions/history.js");
+  const created = await client.request("POST", `/v1/documents/organizations/${orgId}/projects/history_baseline/documents`, { document_type: "contract", params: { body: "Old document" } });
+  const id = created.document.id as string;
+  // Forget its history, as for a document written before this module.
+  const db = history.documentHistoryDatabase();
+  await db.prepare("DELETE FROM document_revisions WHERE organization_id=? AND subject_id=?").run(orgId, id);
+  await db.prepare("DELETE FROM document_revision_heads WHERE organization_id=? AND subject_id=?").run(orgId, id);
+  await storage.saveDocumentInstance(orgId, id, { ...(await storage.readDocumentInstance(orgId, id)), title: "Renamed" });
+  const listed = await client.request("GET", `/v1/documents/${id}/revisions`);
+  assert.deepEqual(listed.revisions.map((revision: any) => revision.cut), ["edit", "baseline"]);
+  assert.equal(listed.revisions[1].kind, "checkpoint");
 
-  // Backdate rows directly (retention is time-based; tests cannot wait 40
-  // days). Each auto is backdated IMMEDIATELY after creation, since the prune
-  // step inside createCheckpoint would otherwise collapse a burst of same-day
-  // autos before the test can spread them across the calendar.
-  const { getDocumentCheckpointsDatabase } = await import("../documents/versions/service.js");
-  const db = getDocumentCheckpointsDatabase();
-  const backdate = async (id: string, iso: string) =>
-    (await db.prepare("UPDATE document_checkpoints SET created_at = ? WHERE id = ?").run(iso, id));
-  const daysAgoAt = (days: number, hour: number) => {
-    const day = new Date(Date.now() - days * 86_400_000).toISOString().slice(0, 10);
-    return `${day}T${String(hour).padStart(2, "0")}:00:00.000Z`;
-  };
-  const schedule = [
-    daysAgoAt(41, 12), // beyond 30d -> delete
-    daysAgoAt(40, 12), // beyond 30d -> delete
-    daysAgoAt(5, 1), // same day, oldest -> delete
-    daysAgoAt(5, 2), // same day, middle -> delete
-    daysAgoAt(5, 3), // same day, newest -> daily keeper
-    daysAgoAt(15, 9), // lone daily keeper
-    ...Array.from({ length: 10 }, (_, offset) => new Date(Date.now() - (10 - offset) * 60_000).toISOString())
-  ];
-  const autoIds: string[] = [];
-  for (const createdAt of schedule) {
-    const created = await client.request("POST", `/v1/documents/${documentId}/checkpoints`, { reason: "auto" });
-    autoIds.push(created.checkpoint.id);
-    (await backdate(created.checkpoint.id, createdAt));
-  }
-  const manual = await client.request("POST", `/v1/documents/${documentId}/checkpoints`, {
-    reason: "manual",
-    name: "Ancient named version"
-  });
-  (await backdate(manual.checkpoint.id, daysAgoAt(60, 8))); // manual survives any age
-
-  // A fresh auto checkpoint triggers the prune step.
-  const latest = await client.request("POST", `/v1/documents/${documentId}/checkpoints`, { reason: "auto" });
-
-  const listed = await client.request("GET", `/v1/documents/${documentId}/checkpoints`);
-  const autos = listed.checkpoints.filter((row: any) => row.reason === "auto").map((row: any) => row.id);
-  const expectedSurvivors = new Set([
-    latest.checkpoint.id,
-    ...autoIds.slice(6, 16), // ten most recent from the backdated batch; autoIds[6] survives as today's daily keeper
-    autoIds[5],
-    autoIds[4]
-  ]);
-  assert.deepEqual(new Set(autos), expectedSurvivors, "prune kept newest 10 + one per day within 30 days");
-  for (const doomed of [autoIds[0], autoIds[1], autoIds[2], autoIds[3]]) {
-    assert.ok(!autos.includes(doomed), `${doomed} was pruned`);
-  }
-  assert.ok(
-    listed.checkpoints.some((row: any) => row.id === manual.checkpoint.id),
-    "60-day-old manual checkpoint is kept forever"
-  );
-});
-
-test("checkpoints 404 across orgs on every route", async () => {
-  const clientA = createSessionClient();
-  const { orgId: orgA } = await registerOrg(clientA);
-  const projectId = "project_versions_xorg";
-  await createProject(clientA, orgA, projectId);
-  await publishVersionsTemplate(clientA, orgA, "tpl_versions_xorg");
-  const documentId = await createDocFromTemplate(clientA, orgA, projectId, "tpl_versions_xorg", "Org A doc");
-  const created = await clientA.request("POST", `/v1/documents/${documentId}/checkpoints`, { reason: "manual" });
-
-  const clientB = createSessionClient();
-  const { orgId: orgB } = await registerOrg(clientB);
-  assert.notEqual(orgA, orgB);
-
-  // Compact routes resolve the org from the session -> org B never sees A's doc.
-  for (const [method, url, payload] of [
-    ["GET", `/v1/documents/${documentId}/checkpoints`, undefined],
-    ["POST", `/v1/documents/${documentId}/checkpoints`, { reason: "manual" }],
-    ["GET", `/v1/documents/${documentId}/checkpoints/${created.checkpoint.id}`, undefined],
-    ["GET", `/v1/documents/${documentId}/checkpoints/${created.checkpoint.id}/diff/current`, undefined]
-  ] as const) {
-    const response = await clientB.raw(method, url, payload);
-    assert.equal(response.statusCode, 404, `${method} ${url} is a 404 for the other org`);
-    assert.equal(JSON.parse(response.body).error, "document_not_found");
-  }
-
-  // Explicit org segment mismatching the session is forbidden outright.
-  const forbidden = await clientB.raw("GET", `/v1/documents/organizations/${orgA}/documents/${documentId}/checkpoints`);
-  assert.equal(forbidden.statusCode, 403);
-
-  // Checkpoint ids are scoped to their document too.
-  const otherDoc = await createDocFromTemplate(clientA, orgA, projectId, "tpl_versions_xorg", "Second doc");
-  const crossDoc = await clientA.raw("GET", `/v1/documents/${otherDoc}/checkpoints/${created.checkpoint.id}`);
-  assert.equal(crossDoc.statusCode, 404);
-});
-
-test("a checkpoint of a seeded proposal stays small (storage estimate)", async () => {
-  const client = createSessionClient();
-  const { orgId } = await registerOrg(client);
-  const projectId = "project_versions_size";
-  await createProject(client, orgId, projectId);
-  const created = await client.request("POST", `/v1/documents/organizations/${orgId}/projects/${projectId}/documents`, {
-    document_type: "proposal",
-    title: "Roof Replacement Proposal",
-    params: {
-      customer: { name: "Jane Homeowner", email: "jane@example.test" },
-      scope_items: [
-        { id: "item_roof", name: "Roof replacement", description: "Tear-off and re-shingle", quantity: 1, unit: "job", unit_price: 12500 },
-        { id: "item_gutter", name: "Gutter guards", description: "Leaf protection", quantity: 2, unit: "run", unit_price: 500 }
-      ],
-      deposit_cents: 250000,
-      tax_percent: 7
-    }
-  });
-  const documentId = created.document.id as string;
-  assert.equal(created.document.template_ref.template_id, "tpl_instant_roofing_detailed");
-
-  const checkpoint = await client.request("POST", `/v1/documents/${documentId}/checkpoints`, {
-    reason: "send",
-    name: "Sent to customer"
-  });
-  const { getDocumentCheckpointsDatabase } = await import("../documents/versions/service.js");
-  const row = (await getDocumentCheckpointsDatabase()
-    .prepare("SELECT size_bytes, LENGTH(definition_json) AS stored_bytes FROM document_checkpoints WHERE id = ?")
-    .get(checkpoint.checkpoint.id)) as any;
-  assert.ok(row.size_bytes > 1000, "seeded proposal definition is non-trivial");
-  assert.ok(row.stored_bytes < row.size_bytes, "definitions are stored compressed");
-  console.log(
-    `[documents-versions] seeded proposal checkpoint: raw=${row.size_bytes} bytes, stored (gzip)=${row.stored_bytes} bytes`
-  );
+  await publishTemplate(client, orgId, "tpl_history_assets");
+  const template = await storage.readDocumentTemplate(orgId, "tpl_history_assets");
+  const version = await storage.readDocumentTemplateVersion(orgId, "tpl_history_assets");
+  const definition: any = JSON.parse(JSON.stringify((version as any).definition));
+  definition.pages[0].children[0].props.blocks[0].runs[0].text = AFTER_TEXT;
+  await client.request("POST", `/v1/documents/organizations/${orgId}/templates/tpl_history_assets/publish`, { definition, expected_version: Number(template.current_version) });
+  const assets = await client.request("GET", `/v1/documents/history/document_template/tpl_history_assets/revisions`);
+  assert.ok(assets.revisions.filter((revision: any) => revision.cut === "publish").length >= 2, JSON.stringify(assets.revisions.map((r: any) => r.cut)));
+  const [newest, previous] = assets.revisions.filter((revision: any) => revision.cut === "publish");
+  const assetDiff = await client.request("GET", `/v1/documents/history/document_template/tpl_history_assets/revisions/${previous.seq}/diff/${newest.seq}`);
+  assert.equal(assetDiff.diff.content.changed_blocks[0].after_text, AFTER_TEXT);
 });

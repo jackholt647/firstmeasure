@@ -207,13 +207,16 @@
     get(orgId){ return request(`/organizations/${enc(orgId)}/catalog`); }
   };
 
-  // Version-history checkpoints (compact routes — org comes from the session).
-  // "current" is a valid checkpoint id meaning the live working definition.
-  const checkpoints = {
-    list(documentId){ return request(`/${enc(documentId)}/checkpoints`); },
-    create(documentId, body = {}){ return request(`/${enc(documentId)}/checkpoints`, { method: 'POST', body }); },
-    get(documentId, checkpointId){ return request(`/${enc(documentId)}/checkpoints/${enc(checkpointId)}`); },
-    diff(documentId, a, b){ return request(`/${enc(documentId)}/checkpoints/${enc(a)}/diff/${enc(b)}`); }
+  // Document history (docs/architecture/document-history.md). Revisions are
+  // numbered; "current" stands for the live document in reads and diffs.
+  const revisionsBase = (orgId, documentId) => `/organizations/${enc(orgId)}/documents/${enc(documentId)}/revisions`;
+  const revisions = {
+    list(orgId, documentId){ return request(revisionsBase(orgId, documentId)); },
+    mark(orgId, documentId, body = {}){ return request(revisionsBase(orgId, documentId), { method: 'POST', body }); },
+    get(orgId, documentId, seq){ return request(`${revisionsBase(orgId, documentId)}/${enc(seq)}`); },
+    view(orgId, documentId, seq){ return request(`${revisionsBase(orgId, documentId)}/${enc(seq)}/view`); },
+    diff(orgId, documentId, a, b){ return request(`${revisionsBase(orgId, documentId)}/${enc(a)}/diff/${enc(b)}`); },
+    restore(orgId, documentId, seq){ return request(`${revisionsBase(orgId, documentId)}/${enc(seq)}/restore`, { method: 'POST', body: {} }); }
   };
 
   // Realtime collaboration: the serialized command log, with the live side
@@ -300,7 +303,7 @@
     workflows,
     folders,
     catalog,
-    checkpoints,
+    revisions,
     collab,
     ingestion,
     public: pub

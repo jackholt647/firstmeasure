@@ -327,6 +327,21 @@ stamps `generation_id` on its lines, so what people do to generated work is
 told apart from it. Read history through the `project-history` provider, never
 the tables. Run `tests/project-history.test.ts` for changes here.
 
+## Document history
+
+Read [document history](docs/architecture/document-history.md) before adding a
+writer that changes a document, a lifecycle step (send, present, sign, an
+"Edit manually" override) or a new kind of document asset. Every document save
+goes through `saveDocumentInstance`, which records a revision; never write the
+`documents` collection another way. A lifecycle step wraps its saves in
+`withDocumentChange({ cut, documentId, userId })` so they are one revision.
+Revisions are checkpoints plus structural patches, rebuilt and checked by
+sha256; never edit or delete a revision, and change storage only by adding an
+encoding in `documents/versions/codec.ts`. Signed versions are stored whole and
+the e-sign package stays the authority for what was sealed. Run
+`tests/documents-versions.test.ts` and `tests/document-signing.test.ts` for
+changes here.
+
 ## Schedule events
 
 Read [schedule events](docs/architecture/schedule-events.md) before changing

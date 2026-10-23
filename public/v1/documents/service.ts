@@ -23,6 +23,7 @@ import type { PlatformAuthContext } from "../platform/auth.js";
 import { hasPermission } from "../platform/auth.js";
 import { inferSignatureDefinitions, signatureDefinitions, publicSignatureOutputs } from "./signing/model.js";
 import { withSigningLock, packageForSnapshot, packagesForDocument } from "./signing/store.js";
+import { withDocumentChange } from "./versions/context.js";
 import { assertSigningEditable, validateSigningIssue, issueSigningPackage, revokeSigningPackages, publicSigningAccess, internalSigningAccess, presentedSigningAccess, acceptSigning, signingPdf, signingStatus } from "./signing/service.js";
 import { listProjectObligations, listProjectPayments } from "../payments/storage.js";
 import { normalizeScheduleRows, resolveScheduleItems } from "../payments/schedule_terms.js";
@@ -805,7 +806,7 @@ async function resolveRetemplatePatch(orgId: string, current: JsonObject, patch:
 }
 
 export async function patchDocumentInstance(orgId: string, documentId: string, patch: JsonObject, ctx: PlatformAuthContext) {
-  return withSigningLock(orgId, documentId, () => patchDocumentInstanceLocked(orgId, documentId, patch, ctx));
+  return withDocumentChange({ cut: "edit", documentId, userId: ctx.userId }, () => withSigningLock(orgId, documentId, () => patchDocumentInstanceLocked(orgId, documentId, patch, ctx)));
 }
 async function patchDocumentInstanceLocked(orgId: string, documentId: string, patch: JsonObject, ctx: PlatformAuthContext) {
   const current = await readDocumentInstance(orgId, documentId);
@@ -960,6 +961,28 @@ function annotateAsSentNodes(resolvedDefinition: JsonObject, templateDefinition:
 
 /** Revoke every live public token minted for this document's snapshots so
  *  old links stop resolving. The original token is kept for audit. */
+/** The fields a restore writes back: what the document says, never its delivery, responses or status. */
+export const RESTORABLE_DOCUMENT_FIELDS = ["title", "params", "overrides", "theme_ref", "theme_overrides", "contact_ids", "tags"];
+
+/** Put an earlier version's content back, replacing (not merging) each restorable field, under the same locks as an edit. */
+export async function restoreDocumentInstanceContent(orgId: string, documentId: string, content: JsonObject, ctx: PlatformAuthContext) {
+  return withSigningLock(orgId, documentId, async () => {
+    const current = await readDocumentInstance(orgId, documentId);
+    requireDocumentDepartmentAccess(ctx, current);
+    await assertSigningEditable(orgId, documentId);
+    if (isLockedSigned(current)) throw conflict("document_locked_signed", "Signed documents cannot be edited. Amend with a change order instead.");
+    if (cleanText(asObject(current.module_ref).execution_id)) throw conflict("document_module_owned", "Update the module inputs, evaluate, and explicitly attach the new result to this draft.");
+    const data: JsonObject = { ...current, updated_by_user_id: ctx.userId, updated_at: nowIso() };
+    for (const key of RESTORABLE_DOCUMENT_FIELDS) {
+      if (content[key] === undefined) delete data[key];
+      else data[key] = cloneJson(content[key]);
+    }
+    const working = FMDocModel.applyOverrides(await templateDefinitionFor(orgId, data), asArray(data.overrides));
+    data.output_defs = inferSignatureDefinitions(asObject(working.document), asObject(data.output_defs));
+    return await saveDocumentInstance(orgId, documentId, data, { expectedRevision: Number(current.revision || 0) || undefined });
+  });
+}
+
 async function revokeDocumentSnapshotTokens(orgId: string, documentId: string) {
   const snapshots = await listDocumentSnapshots(orgId, documentId).catch(() => []);
   for (const snapshot of snapshots) {
@@ -980,7 +1003,7 @@ export async function voidDocumentInstance(
   ctx: PlatformAuthContext,
   input: JsonObject = {}
 ) {
-  return withSigningLock(orgId, documentId, () => voidDocumentInstanceLocked(orgId, documentId, ctx, input));
+  return withDocumentChange({ cut: "void", documentId, userId: ctx.userId }, () => withSigningLock(orgId, documentId, () => voidDocumentInstanceLocked(orgId, documentId, ctx, input)));
 }
 async function voidDocumentInstanceLocked(orgId: string, documentId: string, ctx: PlatformAuthContext, input: JsonObject) {
   await revokeSigningPackages(orgId, documentId, "void");
@@ -1018,7 +1041,7 @@ async function voidDocumentInstanceLocked(orgId: string, documentId: string, ctx
  * output DEFINITIONS are editable here — generated documents never allow that.
  */
 export async function updateUploadedDocumentFields(orgId: string, documentId: string, input: JsonObject, ctx: PlatformAuthContext) {
-  return withSigningLock(orgId, documentId, () => updateUploadedDocumentFieldsLocked(orgId, documentId, input, ctx));
+  return withDocumentChange({ cut: "edit", documentId, userId: ctx.userId }, () => withSigningLock(orgId, documentId, () => updateUploadedDocumentFieldsLocked(orgId, documentId, input, ctx)));
 }
 async function updateUploadedDocumentFieldsLocked(orgId: string, documentId: string, input: JsonObject, ctx: PlatformAuthContext) {
   await assertSigningEditable(orgId, documentId);
@@ -1049,7 +1072,7 @@ async function updateUploadedDocumentFieldsLocked(orgId: string, documentId: str
  * sent for signature later).
  */
 export async function confirmUploadedDocument(orgId: string, documentId: string, input: JsonObject, ctx: PlatformAuthContext) {
-  const document = await withSigningLock(orgId, documentId, () => confirmUploadedDocumentLocked(orgId, documentId, input, ctx));
+  const document = await withDocumentChange({ cut: "upload", documentId, userId: ctx.userId }, () => withSigningLock(orgId, documentId, () => confirmUploadedDocumentLocked(orgId, documentId, input, ctx)));
   await (await import("./signing/service.js")).drainSigningOutbox();
   return document;
 }
@@ -1122,7 +1145,7 @@ async function confirmUploadedDocumentLocked(orgId: string, documentId: string, 
 }
 
 export async function issueDocument(orgId: string, documentId: string, input: JsonObject, ctx: PlatformAuthContext) {
-  return withSigningLock(orgId, documentId, () => issueDocumentLocked(orgId, documentId, input, ctx));
+  return withDocumentChange({ cut: "issue", documentId, userId: ctx.userId }, () => withSigningLock(orgId, documentId, () => issueDocumentLocked(orgId, documentId, input, ctx)));
 }
 async function issueDocumentLocked(orgId: string, documentId: string, input: JsonObject, ctx: PlatformAuthContext) {
   await assertSigningEditable(orgId, documentId);
@@ -1739,7 +1762,7 @@ function replaceSourceParamValues(params: JsonObject, sources: Record<string, un
   return next;
 }
 
-async function templateDefinitionFor(orgId: string, documentValue: JsonObject): Promise<JsonObject> {
+async function templateDefinitionFor(orgId: string, documentValue: JsonObject, atVersion?: number): Promise<JsonObject> {
   // Opt-in module materialization stores a validated render result. Reading,
   // signing and PDF generation never execute tenant code or refresh bindings.
   if (cleanText(asObject(documentValue.module_ref).execution_id) && Object.keys(asObject(documentValue.module_render)).length) {
@@ -1753,7 +1776,7 @@ async function templateDefinitionFor(orgId: string, documentValue: JsonObject): 
     // (snapshots freeze content anyway).
     const pinned = Number(templateRef.version || 0) || undefined;
     const isDraft = cleanText(documentValue.status) === "draft" || !cleanText(documentValue.status);
-    const version = isDraft ? undefined : pinned;
+    const version = atVersion || (isDraft ? undefined : pinned);
     const templateVersion = await readDocumentTemplateVersion(orgId, templateId, version).catch(() => null);
     const definition = asObject(asObject(templateVersion).definition);
     if (Object.keys(definition).length) return definition;
@@ -1778,6 +1801,8 @@ export async function resolveDocumentInstance(
     target?: "static" | "interactive";
     /** Pricing scope checkout variables ({ payment_method, processing_fee_percent }). */
     checkout?: JsonObject;
+    /** Render on this template version (an earlier version of the document, from its history). */
+    templateVersion?: number;
     /** Keep where each bound value came from (editing as sent); renders the same. */
     trace?: boolean;
   } = {}
@@ -1813,7 +1838,7 @@ export async function resolveDocumentInstance(
     return captured;
   }
   const capabilityState = await documentCapabilityState(orgId);
-  const definition = filterDocumentDefinitionByCapabilities(await templateDefinitionFor(orgId, documentValue), capabilityState);
+  const definition = filterDocumentDefinitionByCapabilities(await templateDefinitionFor(orgId, documentValue, options.templateVersion), capabilityState);
   const rawWorkflowDefinition = await workflowDefinitionForDocument(orgId, documentValue).catch(() => null);
   const workflowDefinition = rawWorkflowDefinition ? filterWorkflowByCapabilities(rawWorkflowDefinition, capabilityState) : null;
   const overrides = options.overrides !== undefined ? asArray(options.overrides) : asArray(documentValue.overrides);
@@ -1932,7 +1957,7 @@ export async function resolveDocumentInstance(
 // ---------------------------------------------------------------------------
 
 export async function createSnapshot(orgId: string, documentId: string, input: JsonObject, ctx: PlatformAuthContext | null) {
-  return withSigningLock(orgId, documentId, () => createSnapshotLocked(orgId, documentId, input, ctx));
+  return withDocumentChange({ cut: "snapshot", documentId, userId: ctx?.userId, label: cleanText(input.reason) }, () => withSigningLock(orgId, documentId, () => createSnapshotLocked(orgId, documentId, input, ctx)));
 }
 async function createSnapshotLocked(orgId: string, documentId: string, input: JsonObject, ctx: PlatformAuthContext | null) {
   await assertSigningEditable(orgId, documentId);
@@ -2009,7 +2034,7 @@ async function createSnapshotLocked(orgId: string, documentId: string, input: Js
 }
 
 export async function sendDocument(orgId: string, documentId: string, input: JsonObject, ctx: PlatformAuthContext) {
-  return withSigningLock(orgId, documentId, () => sendDocumentLocked(orgId, documentId, input, ctx));
+  return withDocumentChange({ cut: "send", documentId, userId: ctx.userId }, () => withSigningLock(orgId, documentId, () => sendDocumentLocked(orgId, documentId, input, ctx)));
 }
 async function sendDocumentLocked(orgId: string, documentId: string, input: JsonObject, ctx: PlatformAuthContext) {
   if (ctx.userId !== "system_automation" && !hasPermission(ctx, "issue_documents")) throw forbidden("signature_issue_permission", "Document issuing permission is required to assign signers and send contracts.");
@@ -2174,7 +2199,7 @@ function fallbackPagesFromDefinition(definition: JsonObject) {
 }
 
 export async function generateDocumentPdf(orgId: string, documentId: string, input: JsonObject, ctx: PlatformAuthContext | null) {
-  return withSigningLock(orgId, documentId, () => generateDocumentPdfLocked(orgId, documentId, input, ctx));
+  return withDocumentChange({ cut: "pdf", documentId, userId: ctx?.userId }, () => withSigningLock(orgId, documentId, () => generateDocumentPdfLocked(orgId, documentId, input, ctx)));
 }
 async function generateDocumentPdfLocked(orgId: string, documentId: string, input: JsonObject, ctx: PlatformAuthContext | null) {
   const document = await readDocumentInstance(orgId, documentId);
@@ -2634,6 +2659,11 @@ export async function recordDocumentOutput(
   ctx?: PlatformAuthContext | null,
   options: { snapshotId?: string; surface?: "public" | "internal" | "field"; publicToken?: string; imported?: boolean } = {}
 ) {
+  const outputType = cleanText(asObject(asObject((await readDocumentInstance(orgId, documentId)).output_defs)[key]).type);
+  return withDocumentChange({ cut: outputType === "signature" ? "sign" : outputType === "payment" ? "payment" : "response", documentId, userId: ctx?.userId, actorLabel: ctx ? "" : "customer" },
+    () => recordDocumentOutputInChange(orgId, documentId, key, input, audit, ctx, options));
+}
+async function recordDocumentOutputInChange(orgId: string, documentId: string, key: string, input: JsonObject, audit: JsonObject, ctx: PlatformAuthContext | null | undefined, options: { snapshotId?: string; surface?: "public" | "internal" | "field"; publicToken?: string; imported?: boolean }) {
   const current = await readDocumentInstance(orgId, documentId);
   if (ctx) requireDocumentDepartmentAccess(ctx, current);
   if (asObject(input.value).__signing) input = { ...input, ...asObject(asObject(input.value).__signing) };
@@ -2877,7 +2907,7 @@ async function recordDocumentOutputLocked(orgId: string, documentId: string, key
 
 export async function recordPublicDocumentView(publicToken: string, input: JsonObject, audit: JsonObject = {}) {
   const found = await findPublicDocumentSnapshot(publicToken);
-  return withSigningLock(found.orgId, cleanText(found.snapshot.document_id), () => recordPublicDocumentViewLocked(publicToken, input, audit));
+  return withDocumentChange({ cut: "view", documentId: cleanText(found.snapshot.document_id), actorLabel: "customer" }, () => withSigningLock(found.orgId, cleanText(found.snapshot.document_id), () => recordPublicDocumentViewLocked(publicToken, input, audit)));
 }
 async function recordPublicDocumentViewLocked(publicToken: string, input: JsonObject, audit: JsonObject) {
   const found = await findPublicDocumentSnapshot(publicToken);
@@ -3109,7 +3139,7 @@ export async function documentWorkflowDetail(orgId: string, documentId: string) 
 
 /** Update workflow navigation state (current step / completions). */
 export async function updateDocumentWorkflowState(orgId: string, documentId: string, input: JsonObject, ctx: PlatformAuthContext) {
-  return withSigningLock(orgId, documentId, () => updateDocumentWorkflowStateLocked(orgId, documentId, input, ctx));
+  return withDocumentChange({ cut: "workflow", documentId, userId: ctx.userId }, () => withSigningLock(orgId, documentId, () => updateDocumentWorkflowStateLocked(orgId, documentId, input, ctx)));
 }
 async function updateDocumentWorkflowStateLocked(orgId: string, documentId: string, input: JsonObject, ctx: PlatformAuthContext) {
   const document = await readDocumentInstance(orgId, documentId);

@@ -196,7 +196,14 @@ async function createAsset(orgId: string, asset: VersionedAssetOptions, input: J
   if (hasDefinition) {
     return await publishAsset(orgId, asset, id, { definition, expected_version: 0 }, ctx, options);
   }
-  return await readAsset(orgId, asset, id);
+  return await recordAssetHistory(orgId, asset, id, "created", ctx);
+}
+
+/** Record an asset's saved state in its history (docs/architecture/document-history.md). */
+async function recordAssetHistory(orgId: string, asset: VersionedAssetOptions, assetId: string, cut: string, ctx: PlatformAuthContext | null, definition?: JsonObject) {
+  const record = await readAsset(orgId, asset, assetId);
+  await (await import("./versions/service.js")).recordAssetSave(orgId, asset.kind, record, cut, ctx?.userId || "", definition);
+  return record;
 }
 
 async function patchAsset(orgId: string, asset: VersionedAssetOptions, assetId: string, patch: JsonObject, ctx: PlatformAuthContext | null) {
@@ -226,7 +233,7 @@ async function patchAsset(orgId: string, asset: VersionedAssetOptions, assetId: 
     data,
     metadata: { kind: asset.kind, document_type: cleanText(data.document_type), status: cleanText(data.status) }
   }, { replace: true });
-  return await readAsset(orgId, asset, assetId);
+  return await recordAssetHistory(orgId, asset, assetId, "edit", ctx);
 }
 
 async function archiveAsset(orgId: string, asset: VersionedAssetOptions, assetId: string, ctx: PlatformAuthContext | null) {
@@ -294,7 +301,7 @@ async function publishAsset(orgId: string, asset: VersionedAssetOptions, assetId
     },
     metadata: { kind: asset.kind, document_type: cleanText(current.document_type), status: cleanText(current.status) === "draft" ? "active" : cleanText(current.status) }
   }, { replace: true });
-  return await readAsset(orgId, asset, assetId);
+  return await recordAssetHistory(orgId, asset, assetId, "publish", ctx, definition);
 }
 
 // --- template façade ---------------------------------------------------------
@@ -679,18 +686,24 @@ export async function saveDocumentInstance(orgId: string, documentId: string, da
   await (await import("./signing/service.js")).assertSigningWrite(orgId, documentId, data);
   const next = { ...data };
   delete next.revision;
-  const saved = await upsertDocument(orgId, DOCUMENT_COLLECTION, {
-    id: documentId,
-    expected_revision: options.expectedRevision || undefined,
-    data: next,
-    metadata: {
-      kind: "document",
-      document_type: cleanText(data.document_type),
-      project_id: cleanText(data.project_id),
-      status: cleanText(data.status)
-    }
-  }, { replace: true, ...(options.createOnly ? { createOnly: true } : {}) });
-  return documentView(saved);
+  // Every document write is a revision in its history (docs/architecture/document-history.md).
+  return await (await import("./versions/service.js")).recordDocumentSave(orgId, documentId, async () => {
+    const saved = await upsertDocument(orgId, DOCUMENT_COLLECTION, {
+      id: documentId,
+      expected_revision: options.expectedRevision || undefined,
+      data: next,
+      metadata: {
+        kind: "document",
+        document_type: cleanText(data.document_type),
+        project_id: cleanText(data.project_id),
+        status: cleanText(data.status)
+      }
+    }, { replace: true, ...(options.createOnly ? { createOnly: true } : {}) });
+    return documentView(saved);
+  }, async () => {
+    const existing = await readDocument(orgId, DOCUMENT_COLLECTION, documentId).catch(() => null);
+    return existing ? documentView(existing) : null;
+  });
   });
 }
 

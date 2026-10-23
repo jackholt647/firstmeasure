@@ -11,6 +11,10 @@ agent can find what automatic generation keeps getting wrong and propose a fix
 Read this page before adding a writer that changes a project's lists, scope or
 schedule, or a generator that writes them.
 
+Documents keep their own version history, which is not part of this log:
+see [document history](document-history.md). Both take their source from
+`history/source.ts`.
+
 ## Words
 
 | Word | Meaning |

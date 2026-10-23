@@ -200,17 +200,17 @@
       // generator moves into the workflow runtime at legacy teardown.
       dependencies: ['pricebook.bridge', 'project.proposal'],
       bundles: [
-        versionedBundle('../documents-api/documents-api.js', '20261022-as-sent-inputs'),
+        versionedBundle('../documents-api/documents-api.js', '20261022-document-history'),
         versionedBundle('../doc-model/firstmate-doc-model.js', '20261022-as-sent-inputs'),
         versionedBundle('../doc-widgets/firstmate-doc-widgets.js', '20261019-forward-cert'),
         versionedBundle('../doc-renderer/firstmate-doc-renderer.js', '20261022-as-sent-inputs'),
-        versionedBundle('../doc-editor/firstmate-doc-editor.js', '20260925-brand-chrome'),
+        versionedBundle('../doc-editor/firstmate-doc-editor.js', '20261022-document-history'),
         versionedBundle('../doc-sent-editor/firstmate-doc-sent-editor.js', '20261022-as-sent-inputs'),
         versionedBundle('photos/feed.js', '20261022-content-blocks-photos'),
         bundle('../agents-api/agents-api.js'),
         versionedBundle('../agent-chat/agent-chat.js', '20261002-widget-controls'),
         versionedBundle('../doc-agent/doc-agent.js', '20260812-agent-command-actions'),
-        versionedBundle('documents/project.js', '20261022-as-sent-inputs')
+        versionedBundle('documents/project.js', '20261022-document-history')
       ]
     },
     {
@@ -229,11 +229,11 @@
         studioDocument: { history:'push' }
       },
       bundles: [
-        versionedBundle('../documents-api/documents-api.js', '20261022-as-sent-inputs'),
+        versionedBundle('../documents-api/documents-api.js', '20261022-document-history'),
         versionedBundle('../doc-model/firstmate-doc-model.js', '20261022-as-sent-inputs'),
         versionedBundle('../doc-widgets/firstmate-doc-widgets.js', '20261019-forward-cert'),
         versionedBundle('../doc-renderer/firstmate-doc-renderer.js', '20261022-as-sent-inputs'),
-        versionedBundle('../doc-editor/firstmate-doc-editor.js', '20260925-brand-chrome'),
+        versionedBundle('../doc-editor/firstmate-doc-editor.js', '20261022-document-history'),
         versionedBundle('photos/feed.js', '20261022-content-blocks-photos'),
         bundle('../agents-api/agents-api.js'),
         versionedBundle('../agent-chat/agent-chat.js', '20261002-widget-controls'),
@@ -259,7 +259,7 @@
         versionedBundle('../doc-renderer/firstmate-doc-renderer.js', '20261022-as-sent-inputs'),
         versionedBundle('../web-widgets/firstmate-web-widgets.js', '20260728-web-editor-v1'),
         versionedBundle('../portal-widgets/firstmate-portal-widgets.js', '20260801-portal-builder-v1'),
-        versionedBundle('../doc-editor/firstmate-doc-editor.js', '20260925-brand-chrome'),
+        versionedBundle('../doc-editor/firstmate-doc-editor.js', '20261022-document-history'),
         versionedBundle('../visual-editor/firstmate-visual-editor.js', '20260813-modes-in-toolbar'),
         versionedBundle('settings/domains.js', '20260731-domains-v11'),
         versionedBundle('web-editor/app.js', '20260930-app-groups-v1')
@@ -287,7 +287,7 @@
       surfaces: ['project_modal'],
       requiresContext: ['project'],
       dependencies: ['project.proposal', 'project.materials'],
-      bundles: [gifDisplayBundle,versionedBundle('../payments-api/payments-api.js', '20261019-forward-cert'), versionedBundle('../payroll-api/payroll-api.js', '20261019-payroll-closeout-v1'), versionedBundle('../documents-api/documents-api.js', '20261022-as-sent-inputs'), versionedBundle('payroll/project.js', '20260714-money-commissions'), versionedBundle('photos/feed.js', '20261022-content-blocks-photos'), versionedBundle('receipts/app.js', '20260714-receipt-pdf-preview'), versionedBundle('money/project.js', '20261019-forward-cert')]
+      bundles: [gifDisplayBundle,versionedBundle('../payments-api/payments-api.js', '20261019-forward-cert'), versionedBundle('../payroll-api/payroll-api.js', '20261019-payroll-closeout-v1'), versionedBundle('../documents-api/documents-api.js', '20261022-document-history'), versionedBundle('payroll/project.js', '20260714-money-commissions'), versionedBundle('photos/feed.js', '20261022-content-blocks-photos'), versionedBundle('receipts/app.js', '20260714-receipt-pdf-preview'), versionedBundle('money/project.js', '20261019-forward-cert')]
     },
     {
       id: 'project.request',
