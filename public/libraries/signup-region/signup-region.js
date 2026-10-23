@@ -12,7 +12,7 @@
     if (root.FirstMatePhoneInput) return Promise.resolve(root.FirstMatePhoneInput);
     if (!phoneInputPromise) phoneInputPromise = new Promise((resolve, reject) => {
       const script = doc.createElement('script');
-      script.src = SCRIPT_SRC ? new URL('../phone-input/phone-input.js?v=20261023-phone-countries-v2', SCRIPT_SRC).toString() : '/libraries/phone-input/phone-input.js?v=20261023-phone-countries-v2';
+      script.src = SCRIPT_SRC ? new URL('../phone-input/phone-input.js?v=20261023-phone-countries-v3', SCRIPT_SRC).toString() : '/libraries/phone-input/phone-input.js?v=20261023-phone-countries-v3';
       script.addEventListener('load', () => root.FirstMatePhoneInput ? resolve(root.FirstMatePhoneInput) : reject(new Error('Phone input did not initialize.')), { once: true });
       script.addEventListener('error', () => reject(new Error('Phone input could not be loaded.')), { once: true });
       doc.head.appendChild(script);

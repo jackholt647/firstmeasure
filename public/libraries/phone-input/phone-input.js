@@ -86,7 +86,7 @@
     style.textContent = CSS;
     host.appendChild(style);
   }
-  const CHEVRON = '<svg class="fm-phone-cc-chevron" viewBox="0 0 10 10" aria-hidden="true" focusable="false"><path fill="currentColor" d="M1.2 3.2 5 7l3.8-3.8.9.9L5 8.8.3 4.1z"/></svg>';
+  const CHEVRON = '<svg class="fm-phone-cc-chevron" viewBox="0 0 10 10" aria-hidden="true" focusable="false"><path d="M1.5 3.5 5 7l3.5-3.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
   const escapeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
   function attach({ input, select = null, countries = [], country = '' } = {}) {

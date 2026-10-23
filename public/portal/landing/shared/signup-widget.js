@@ -326,8 +326,8 @@
     if (signupRegionLibraryPromise) return signupRegionLibraryPromise;
     signupRegionLibraryPromise = new Promise((resolve, reject) => {
       const source = SCRIPT_SRC
-        ? new URL('../../../libraries/signup-region/signup-region.js?v=20261023-phone-countries-v2', SCRIPT_SRC).toString()
-        : '/libraries/signup-region/signup-region.js?v=20261023-phone-countries-v2';
+        ? new URL('../../../libraries/signup-region/signup-region.js?v=20261023-phone-countries-v3', SCRIPT_SRC).toString()
+        : '/libraries/signup-region/signup-region.js?v=20261023-phone-countries-v3';
       const existing = document.querySelector(`script[src="${source}"]`);
       const script = existing || document.createElement('script');
       script.addEventListener('load', () => window.FirstMateSignupRegion
