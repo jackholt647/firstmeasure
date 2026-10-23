@@ -6,6 +6,8 @@ import { takeClusterWorkerSlot } from "./cluster_worker_slots.js";
 import { env } from "./config/env.js";
 import { beginRuntimeDrain, validateRuntimeTopology } from "./runtime_health.js";
 
+const SHUTDOWN_GRACE_MS = 10_000;
+
 type WorkerHealthMessage = {
   type: "v1-worker-health";
   state: "ready" | "heartbeat";
@@ -63,6 +65,18 @@ async function start() {
   validateRuntimeTopology();
   const app = await buildApp();
 
+  // Event streams (realtime, presence, collaboration) hijack their response and
+  // never finish on their own, so app.close() waited on every open tab until
+  // systemd killed the worker 55 s later; every release was a 30-55 s outage.
+  // A stop now ends them at once (EventSource reconnects to the new process)
+  // and gives ordinary requests SHUTDOWN_GRACE_MS before cutting them off.
+  const openResponses = new Set<import("node:http").ServerResponse>();
+  app.server.on("request", (request, response) => {
+    if (!String(request.headers.accept ?? "").includes("text/event-stream")) return;
+    openResponses.add(response);
+    response.on("close", () => openResponses.delete(response));
+  });
+
   let stopping = false;
   const stop = (signal: NodeJS.Signals) => {
     if (stopping) return;
@@ -72,6 +86,10 @@ async function start() {
     const drainMs = env.deploymentTopology === "cluster" ? env.rollingDrainMs : 0;
     const close = async () => {
       if (drainMs > 0) await new Promise<void>((resolve) => setTimeout(resolve, drainMs));
+      for (const response of openResponses) {
+        try { response.end(); } catch { /* already closed */ }
+      }
+      setTimeout(() => app.server.closeAllConnections(), SHUTDOWN_GRACE_MS).unref();
       await app.close();
     };
     void close()
