@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+October 22 Materials ordering: [Email, Purchase order and Shopping list tabs, Mark as ordered, per-supplier sending, purchase order and shopping list documents, and the last list deletes](deploy/digitalocean/development-materials-ordering-20261022.md) records releases `3d45f7cc` and `29562fd1` on worker, legacy and web (the pool host was unreachable).
+
 October 23 Presentation Accept & sign, preview and send: [Accept & sign signs in person beside the contract on the presenter route, Open what they see opens a portal preview that cannot sign, accept or pay, and the presentation and workflow send one way](deploy/digitalocean/development-presentation-sign-send-20261023.md) records release `dd017b86` on worker, legacy and web (pool was unreachable).
 
 October 22 Document history: [every document save is a revision (checkpoints plus structural diffs) with who made it, lifecycle steps cut their own, and a History panel compares, views and restores versions](deploy/digitalocean/development-document-history-20261022.md) records releases `390437ef` and `97553a98` on worker, legacy and web (pool unreachable).

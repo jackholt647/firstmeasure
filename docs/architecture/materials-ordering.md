@@ -59,8 +59,10 @@ project and check items off there.
 
 Anyone else gets a [public link](../public-links-api.md) of kind
 `materials_shopping_list`: `view` only, or `view` and `check`, for 30 days by
-default. The link opens `/v1/materials/public/shopping-lists/:token/app`, a page
-that needs no account; checking an item there completes the checklist item as
+default. The address given out is the page itself,
+`/v1/materials/public/shopping-lists/:token/app` (a bare `/l/` link is not routed
+to the API on every host), a page that needs no account; opening it records the
+link's use, and checking an item there completes the checklist item as
 `public_link:<link id>`. The link can be sent by email or text through the
 project's conversations, or copied.
 
