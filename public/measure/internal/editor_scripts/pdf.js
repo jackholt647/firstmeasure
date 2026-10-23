@@ -40,6 +40,10 @@ const PDF_FALLBACK_LINE_TYPES = {
   UNKNOWN:      { id: 'unknown',        color: '#000000', label: 'Unknown' }
 };
 
+// The Exterior Images pages (elevation photos) are off in every report: assigned photos were
+// unreliable (a video-only job has none). Set to true to bring them back; their layout code and
+// tests stay in exterior_pdf.js.
+const SHOW_EXTERIOR_IMAGE_PAGES = false;
 const PDF_GUTTER_DIRECTIONS = ['north', 'south', 'east', 'west'];
 const PDF_GUTTER_DIRECTION_LABELS = {
     north: 'North',
@@ -2451,7 +2455,7 @@ async function generatePDFFromState(state, mode = 'full', updateStatusCallback, 
         doc.roundedRect(tvX, tvTopY, tvSize, tvSize, tvR, tvR, 'S');
     }
 
-    if (mode === 'full' && fullHouseLayout && typeof window.drawReportImagery === 'function') {
+    if (SHOW_EXTERIOR_IMAGE_PAGES && mode === 'full' && fullHouseLayout && typeof window.drawReportImagery === 'function') {
         await window.drawReportImagery(doc, state, beginReportPage, brandingColors);
     }
 

@@ -125,27 +125,12 @@ async function photoSettings(){
  ['front','back','left','right','front-left'].forEach((id,i)=>photoSlots[id]={enabled:true,image:{key:'p'+i,label:'PXL_20260919_19321'+i+'.jpg',dataUrl:urls[i]},assignment:'manual'});
  return {include:true,frontBearing:180,photoSlots,notes:'Chimney flashing is loose on the back side.'};
 }
-test('exterior images: no file names, every label sits on its own photo, and five photos share one page in either orientation',async()=>{
+test('the Exterior Images pages are off in every report, in either orientation',async()=>{
  const exteriorSettings=await photoSettings();
  for(const orientation of ['portrait','landscape']){
   const r=await render({exteriorSettings,override:{report_orientation:orientation}});
-  assert.ok(!r.calls.some(c=>c.kind==='text'&&/\.jpe?g|PXL_/i.test(c.value)),'no file names');
-  const pages=Object.entries(r.titles).filter(([,t])=>/^Exterior Images/.test(t)).map(([p])=>Number(p));assert.equal(pages.length,1,orientation+': one page');
-  const images=r.calls.filter(c=>c.page===pages[0]&&c.kind==='image'&&c.y>30);assert.equal(images.length,5,'the five photos (the logo is in the header)');
-  for(const label of ['Front','Back','Left','Right','Front Left']){
-   const t=r.calls.find(c=>c.page===pages[0]&&c.kind==='text'&&c.value===label);assert.ok(t,label);
-   assert.ok(images.some(i=>Math.abs(i.x-t.x)<.01&&i.y-(t.y+t.h)>=-.5&&i.y-(t.y+t.h)<3),orientation+': '+label+' is just above the top-left corner of its photo');
-  }
-  const portraitShots=images.filter(i=>i.h>i.w),wideShots=images.filter(i=>i.w>i.h);assert.equal(portraitShots.length,2);assert.equal(wideShots.length,3);
-  assert.ok(images.every(i=>i.h>=45),orientation+': every photo at least 45 mm tall');
-  assert.deepEqual(overflow(r).filter(c=>c.page===pages[0]),[]);
-  // Justified rows: one height per row, the gutter between neighbours, rows centred in the content
-  // width (x 25 to W-15) and filling at least half the page's photo area, and the photos end as far
-  // above the footer address as the fine print does.
-  const rows=[...new Set(images.map(i=>i.y.toFixed(3)))].map(y=>images.filter(i=>i.y.toFixed(3)===y).sort((a,b)=>a.x-b.x));
-  for(const row of rows){assert.equal(new Set(row.map(i=>i.h.toFixed(3))).size,1,'one height per row');row.slice(1).forEach((i,k)=>assert.ok(Math.abs(i.x-(row[k].x+row[k].w)-6)<.01,'a 6 mm gutter'));assert.ok(Math.abs(row[0].x-25-(r.W-15-row.at(-1).x-row.at(-1).w))<.01,'a row is centred');}
-  assert.ok(images.reduce((t,i)=>t+i.w*i.h,0)>=.5*(r.W-40)*(r.H-16-2.2-7-36),orientation+': the photos fill the page');
-  assert.ok(images.every(i=>i.y+i.h<=r.H-16-2.2-7+1e-6),orientation+': a clear gap above the footer address');
+  assert.equal(Object.values(r.titles).filter(t=>/^Exterior Images/.test(t)).length,0,orientation+': no Exterior Images page');
+  assert.ok(!r.calls.some(c=>c.kind==='text'&&/\.jpe?g|PXL_/i.test(c.value)),'no photo file names anywhere');
  }
 });
 test('roof notes and wall notes share one layout: reference images in a square on the left, a slim notes card on the right (landscape), stacked in portrait',async()=>{
