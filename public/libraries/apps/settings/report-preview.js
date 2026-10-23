@@ -141,13 +141,13 @@
     const boxW = LANDSCAPE ? SIDE_W : AVAIL_W / 2 - 3, boxH = LANDSCAPE ? (COVER_H() - 6) / 2 : 58;
     const box1X = LANDSCAPE ? SIDE_X : MARGIN, box1Y = LANDSCAPE ? 40 : BOX_TOP, box2X = LANDSCAPE ? SIDE_X : MARGIN + boxW + 6, box2Y = LANDSCAPE ? 40 + boxH + 6 : BOX_TOP;
     let out = outlineCard();
-    out += card(box1X, box1Y, boxW, boxH, { strip:true, title:'Roof Summary' });
+    out += card(box1X, box1Y, boxW, boxH, { strip:true, title:'Project Summary' });
     let y = box1Y + 16;
     out += text(box1X + 8, y, `Total Facets: ${SAMPLE.facets}`); y += 5;
     out += text(box1X + 8, y, `Predominant Pitch: ${SAMPLE.pitch}`); y += 10;
     out += text(box1X + 8, y, `Total Squares (Net): ${SAMPLE.netSquares}`); y += 5;
     out += text(box1X + 8, y, `Total Squares (${SAMPLE.waste}% Waste): ${SAMPLE.wasteSquares}`);
-    out += card(box2X, box2Y, boxW, boxH, { strip:true, title:'Roof Measurements' });
+    out += card(box2X, box2Y, boxW, boxH, { strip:true, title:'Measurement Breakdown' });
     y = box2Y + 16;
     SAMPLE.linear.forEach(([label, value]) => {
       out += text(box2X + 8, y, `${label}:`) + text(box2X + boxW - 8, y, `${value}'`, { align:'right' });
@@ -530,25 +530,26 @@
     cover_show_customer:true, cover_show_squares:true, cover_show_waste:true, cover_show_breakdown:true, cover_show_pitch:true, cover_show_facets:true,
     page_top_view:true, page_3d:true, page_pitch:true, page_area:true, page_layers:true, page_summary:true, page_materials:true, page_ventilation:true, page_gutters:true, page_notes:true
   };
-  // The page sequence of generatePDFFromState. The sample has a flat section and gutters ordered, so every
-  // setting shows its page. It has no elevation imagery, so the 3D views page takes the "Roof Elevations"
-  // title the PDF gives it then.
+  // The page sequence and titles generatePDFFromState gives a roof-only report (Full House reports use the
+  // roof-prefixed layout). The sample has a flat section and gutters ordered, so every setting shows its page.
+  // It has no elevation imagery, so the 3D views page is the "3D Facets" page.
   function documentPages(mode, settings){
     const s = mode === 'internal' ? ALL_PAGES : { ...ALL_PAGES, ...settings };
     const pages = [{ key:'cover', label:'Cover', cover:true, draw:() => mode === 'internal' ? coverInternal() : coverCustomer(s) }];
     const add = (flag, key, label, title, draw) => { if (s[flag] !== false) pages.push({ key, label, title, draw }); };
-    add('page_top_view', 'imagery', 'Imagery', 'Roof Imagery', imageryPage);
-    add('page_3d', 'facets', 'Facets', 'Roof Elevations', facetsPage);
-    add('page_summary', 'summary', 'Summary', 'Roof Summary', summaryPage);
-    add('page_materials', 'steep-1', 'Materials', 'Steep-Slope Roof Materials', steepPage1);
-    add('page_materials', 'steep-2', 'Materials', 'Steep-Slope Roof Materials', steepPage2);
+    add('page_top_view', 'imagery', 'Imagery', 'Top View', imageryPage);
+    add('page_3d', 'facets', 'Facets', '3D Facets', facetsPage);
+    add('page_pitch', 'pitch', 'Pitch', 'Pitch Diagram', pitchPage);
+    add('page_area', 'area', 'Area', 'Area Diagram', areaPage);
+    add('page_layers', 'layer', 'Layer 1', 'Layer 1 Measurements', layerPage);
+    add('page_summary', 'summary', 'Summary', 'Project Summary', summaryPage);
+    add('page_materials', 'steep-1', 'Materials', 'Steep-Slope Materials', steepPage1);
+    add('page_materials', 'steep-2', 'Materials', 'Steep-Slope Materials', steepPage2);
+    // A landscape flat table that reaches the footer continues on another page, as the PDF does.
     if (s.page_materials !== false) flatPages().forEach((html, i) => pages.push({ key:i ? `flat-${i + 1}` : 'flat', label:'Flat Roof', title:'Flat Roof Materials', draw:() => html }));
-    add('page_ventilation', 'ventilation', 'Ventilation', 'Roof Ventilation', ventilationPage);
-    add('page_pitch', 'pitch', 'Pitch', 'Roof Pitch Diagram', pitchPage);
-    add('page_area', 'area', 'Area', 'Roof Area Diagram', areaPage);
-    add('page_layers', 'layer', 'Layer 1', 'Roof Layer 1 Measurements', layerPage);
+    add('page_ventilation', 'ventilation', 'Ventilation', 'Ventilation', ventilationPage);
     if (mode === 'internal' || s.page_gutters) pages.push({ key:'gutters', label:'Gutters', title:'Gutters', draw:guttersPage });
-    add('page_notes', 'notes', 'Notes', 'Roof Notes', notesPage);
+    add('page_notes', 'notes', 'Notes', 'Notes', notesPage);
     return pages;
   }
   function pageHtml(ctx, page, number){

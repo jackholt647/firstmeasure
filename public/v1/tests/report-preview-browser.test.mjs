@@ -35,12 +35,13 @@ test('the report preview shows every page of the customer and internal PDFs and 
     assert.deepEqual(await branding(), {unbranded:false, sidebar:'rgb(30, 136, 229)', logo:'/org-logo.png'});
     const full = await state(ALL);
     assert.equal(full.mode, 'customer');
-    assert.deepEqual(full.thumbs, ['Cover', 'Imagery', 'Facets', 'Summary', 'Materials', 'Materials', 'Flat Roof', 'Ventilation', 'Pitch', 'Area', 'Layer 1', 'Notes']);
+    // A roof-only report keeps the original page order: the diagrams come before the summary and materials.
+    assert.deepEqual(full.thumbs, ['Cover', 'Imagery', 'Facets', 'Pitch', 'Area', 'Layer 1', 'Summary', 'Materials', 'Materials', 'Flat Roof', 'Ventilation', 'Notes']);
     assert.equal(full.sheets, full.thumbs.length);
     assert.match(full.cover, /PREPARED FOR[\s\S]*Homeowner[\s\S]*Total Squares \(\+14% Waste\)[\s\S]*55\.32/);
     // Turning settings off takes their pages and cover details out; gutters come in when chosen.
     const trimmed = await state({...ALL, cover_show_customer:false, cover_show_waste:false, page_materials:false, page_ventilation:false, page_gutters:true});
-    assert.deepEqual(trimmed.thumbs, ['Cover', 'Imagery', 'Facets', 'Summary', 'Pitch', 'Area', 'Layer 1', 'Gutters', 'Notes']);
+    assert.deepEqual(trimmed.thumbs, ['Cover', 'Imagery', 'Facets', 'Pitch', 'Area', 'Layer 1', 'Summary', 'Gutters', 'Notes']);
     assert.doesNotMatch(trimmed.cover, /PREPARED FOR|Waste/);
     assert.match(trimmed.cover, /Total Squares[\s\S]*48\.53/);
     // The internal PDF has every page and the fixed two-box cover, whatever the customer settings say.
@@ -50,10 +51,10 @@ test('the report preview shows every page of the customer and internal PDFs and 
     // Internal PDFs are not branded: FirstMate's red and logo whatever the organization's branding.
     await page.evaluate((settings) => window.FirstMateReportPreview.render(document.querySelector('#host'), {settings, logo:'/org-logo.png'}), ALL);
     assert.deepEqual(await branding(), {unbranded:true, sidebar:'rgb(200, 40, 40)', logo:'/images/logo_red.png'});
-    // There is no elevations page; the 3D views page carries the title the PDF gives it without one.
-    assert.match(await page.evaluate(() => document.querySelector('[data-rpv-sheet="2"]').textContent), /Roof Elevations[\s\S]*North View/);
-    assert.match(internal.cover, /ROOF SUMMARY[\s\S]*Total Squares \(14% Waste\): 55\.32[\s\S]*ROOF MEASUREMENTS/);
-    assert.match(internal.title, /Roof Imagery[\s\S]*Page 2/);
+    // There is no elevations page; the 3D views page carries the roof-only title, 3D Facets.
+    assert.match(await page.evaluate(() => document.querySelector('[data-rpv-sheet="2"]').textContent), /3D Facets[\s\S]*North View/);
+    assert.match(internal.cover, /PROJECT SUMMARY[\s\S]*Total Squares \(14% Waste\): 55\.32[\s\S]*MEASUREMENT BREAKDOWN/);
+    assert.match(internal.title, /Top View[\s\S]*Page 2/);
     // Paging: a thumbnail opens its page and the counter follows.
     await page.locator('[data-rpv-thumb="5"]').click();
     assert.equal(await page.locator('[data-rpv-count]').textContent(), 'Page 6 of 13');

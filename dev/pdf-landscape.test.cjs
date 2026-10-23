@@ -36,8 +36,8 @@ test.before(async()=>{
 });
 test.after(async()=>{await browser?.close();});
 // A box house with a hip roof, its exterior model and every roof page turned on.
-async function render({mode='full',override={},exteriorSettings={include:true,frontBearing:180},organization=null}={}){
- return page.evaluate(async({mode,override,exteriorSettings,organization})=>{
+async function render({mode='full',override={},exteriorSettings={include:true,frontBearing:180},organization=null,exterior=true}={}){
+ return page.evaluate(async({mode,override,exteriorSettings,organization,exterior})=>{
   window.__calls=[];window.projectOrganization=organization;
   const points=[{x:20,y:20,z:0},{x:120,y:20,z:0},{x:120,y:120,z:3},{x:20,y:120,z:3}];
   const lines=points.map((p,i)=>({points:[p,points[(i+1)%4]],layer:1,start:p,end:points[(i+1)%4],type:i%2?'rake':'eave',length:Math.hypot((p.x-points[(i+1)%4].x)*.1,(p.y-points[(i+1)%4].y)*.1,p.z-points[(i+1)%4].z)/.3048}));
@@ -47,15 +47,15 @@ async function render({mode='full',override={},exteriorSettings={include:true,fr
   // Many small faces on the front so the elevation table is long.
   for(let i=0;i<14;i++)walls.push({...box(i*.8,-.6,i*.8+.6,-.6,2),material:i%2?'siding':'stucco'});
   const roof={faces:[{points:[{x:-.3,y:-.3,z:3},{x:12.3,y:-.3,z:3},{x:6,y:4,z:6}]},{points:[{x:12.3,y:-.3,z:3},{x:12.3,y:8.3,z:3},{x:6,y:4,z:6}]},{points:[{x:12.3,y:8.3,z:3},{x:-.3,y:8.3,z:3},{x:6,y:4,z:6}]},{points:[{x:-.3,y:8.3,z:3},{x:-.3,y:-.3,z:3},{x:6,y:4,z:6}]}]};
-  snapshot.exteriorReport=ExteriorReportModel.build({faces:walls,roof,base:{faces:[{points:[{x:0,y:0,z:0},{x:12,y:0,z:0},{x:12,y:8,z:0},{x:0,y:8,z:0}]}]}});
-  snapshot.exteriorReport.openings.push({id:'W01-1',label:'Window',wall:'W01',width:3,height:4,area:12,perimeter:14});
+  if(exterior)snapshot.exteriorReport=ExteriorReportModel.build({faces:walls,roof,base:{faces:[{points:[{x:0,y:0,z:0},{x:12,y:0,z:0},{x:12,y:8,z:0},{x:0,y:8,z:0}]}]}});
+  if(exterior)snapshot.exteriorReport.openings.push({id:'W01-1',label:'Window',wall:'W01',width:3,height:4,area:12,perimeter:14});
   snapshot.exteriorSettings=exteriorSettings;
   const manifest={id:'landscape-fixture',project_type:'residential'};
   await FirstMatePDFStandalone.generateProjectPdfFromSnapshot(snapshot,{folderId:'landscape-fixture',manifest,organization},{mode,updateStatus:false,pageConfigOverride:{page_materials:true,page_ventilation:true,page_pitch:true,page_area:true,page_layers:true,page_summary:true,...override}});
   const doc=window.__doc,W=doc.internal.pageSize.getWidth(),H=doc.internal.pageSize.getHeight(),pages=doc.getNumberOfPages(),titles={};
   for(const c of window.__calls)if(c.kind==='text'&&c.y<22&&c.x>W/2&&!titles[c.page])titles[c.page]=c.value;
   return {W,H,pages,titles,calls:window.__calls};
- },{mode,override,exteriorSettings,organization});
+ },{mode,override,exteriorSettings,organization,exterior});
 }
 // Content stays inside the page and above the footer (address and page number at H - 16).
 function overflow(r){
@@ -109,4 +109,12 @@ test('a single-page portrait elevation ends its tables as far above the footer a
  const p=Number(Object.entries(r.titles).find(([,t])=>t==='Back Elevation')[0]),boxes=r.calls.filter(c=>c.page===p&&c.kind==='roundedRect'&&c.style==='FD'&&c.x>20);// the boxes, not their shadows
  const lowest=Math.max(...boxes.map(b=>b.y+b.h)),address=r.H-16-2.2;
  assert.ok(Math.abs((address-lowest)-16)<.6,'gap above the address equals the gap below it: '+(address-lowest));
+});
+test('a roof-only landscape PDF keeps the original roof titles and order and stays inside its pages',async()=>{
+ for(const mode of ['full','summary']){
+  const r=await render({mode,exterior:false,exteriorSettings:{},override:{report_orientation:'landscape'}});
+  assert.ok(r.W>r.H);assert.deepEqual(overflow(r),[],mode+' roof-only content past the page or the footer');
+  const titles=Object.values(r.titles);
+  if(mode==='full'){assert.ok(titles.includes('Pitch Diagram')&&titles.includes('Project Summary'),titles.join(' | '));assert.ok(titles.indexOf('Pitch Diagram')<titles.indexOf('Project Summary'),'diagrams before the summary');assert.ok(!titles.some(t=>/^Roof (Elevations|Pitch|Summary)/.test(t)),'no roof-prefixed titles');}
+ }
 });
