@@ -503,3 +503,16 @@ same.
 
 **Why it can wait.** It runs once per typed value, by one person, on one draft; a resolution takes well under a second
 on dev. (docs/architecture/document-as-sent-editing.md, "Writing an input")
+
+## A roof change after wall work runs the wall generator twice
+
+**Today.** `smartRebuild` (`public/measure/internal/editor_scripts/wall_mode.js`) runs the full wall generator on the
+roof the walls were built from and again on the changed roof, then applies only the difference
+(`wall_roof_rebuild.js`). The first run repeats work that was done when the walls were built; about 0.25 s each on
+the pilot house.
+
+**Where the change goes.** Keep the edit-free generator output of the last build or rebuild with the wall state
+(keyed by the roof signature and base) and reuse it as the "before" run. The walls and edits produced stay the same.
+
+**Why it can wait.** It runs once per switch back to wall mode after a roof edit, not per edit or per frame.
+(docs/architecture/exterior-roof-rebuild.md, "When it still falls back")

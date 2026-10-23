@@ -40,10 +40,10 @@
         return k.length===1||k.startsWith('Arrow')||k==='Enter';
     }
     let texturedNoticeTimer=null,syncingDisplay=false;
-    function texturedNotice(text=TEXTURED_NOTE){
+    function texturedNotice(text=TEXTURED_NOTE,ms=2600){
         const host=document.getElementById('three-view-wrapper')||document.body;let el=document.getElementById('textured-notice');
         if(!el){el=document.createElement('div');el.id='textured-notice';el.setAttribute('role','status');el.setAttribute('aria-live','polite');el.style.cssText='position:absolute;left:50%;bottom:64px;transform:translateX(-50%);z-index:3100;background:#202124e6;color:#fff;font:12px system-ui;padding:6px 10px;border-radius:6px;pointer-events:none';host.appendChild(el);}
-        el.textContent=text;el.hidden=false;clearTimeout(texturedNoticeTimer);texturedNoticeTimer=setTimeout(()=>{el.hidden=true;},2600);
+        el.textContent=text;el.hidden=false;clearTimeout(texturedNoticeTimer);texturedNoticeTimer=setTimeout(()=>{el.hidden=true;},ms);
     }
     // Entering a textured view leaves every mode it cannot draw (painting finishes stays); buttons show it.
     function syncDisplayCapabilities(){
@@ -433,6 +433,9 @@ function perf_persist(touch=true) {
         const signature=roofSignature();if(state.roofSignature===signature){delete state.keptRoofSignature;return 'same';}
         if(state.keptRoofSignature===signature)return 'kept';
         const lost=wallEditsAtRisk();
+        // With wall work to keep, follow the roof change (wall_roof_rebuild.js). Only when that
+        // cannot be done does the full rebuild below ask before discarding anything.
+        if(lost.length){try{if(smartRebuild(signature))return 'rebuilt';}catch(error){console.warn('[Walls] The roof change could not be followed; asking before a full rebuild.',error);}}
         if(lost.length&&window.confirm?.(`The roof changed after these walls were built. Rebuilding them from the roof discards ${lost.join(', ')}. Undo restores them.\n\nRebuild the walls now? Cancel keeps the current walls; Rebuild from roof updates them later.`)!==true){
             state.keptRoofSignature=signature;persist();render();
             const text='The roof changed after these walls were built. The walls and their edits were kept; Rebuild from roof updates them and discards the edits.';
@@ -440,6 +443,66 @@ function perf_persist(touch=true) {
             return 'kept';
         }
         return generate(state.options.soffit)?'rebuilt':'failed';
+    }
+    // Smart rebuild (docs/architecture/exterior-roof-rebuild.md). Leaving wall mode remembers
+    // which roof point and line objects the walls were built from; on return the change is
+    // diffed against state.roof (the roof the walls reflect) and only affected walls change.
+    let roofIdentity=null,lastRoofRebuild=null;
+    function rememberRoofIdentity(){
+        roofIdentity=null;
+        try{
+            if(!state?.roof||state.phase==='grade'||!activeGeometry?.points?.length||state.roofSignature!==roofSignature())return;
+            const ctx=currentContext(),pointKey=p=>[p.x,p.y,p.z].map(v=>Math.round(v*1e6)).join(','),index=new Map(),lines=new Map(),points=new WeakMap(),connections=new WeakMap();
+            state.roof.points.forEach((p,i)=>{if(!index.has(pointKey(p)))index.set(pointKey(p),i);});
+            for(const p of activeGeometry.points){const i=index.get(pointKey(inWallFrame(toMetric(p,ctx),ctx)));if(i!==undefined)points.set(p,i);}
+            // Two lines can join the same points (a ridge over a head wall); their types tell them apart.
+            const lineKey=(a,b,type)=>Math.min(a,b)+':'+Math.max(a,b)+':'+type;state.roof.connections.forEach((c,i)=>{const k=lineKey(c.startIdx,c.endIdx,c.type);if(!lines.has(k))lines.set(k,[]);lines.get(k).push(i);});
+            for(const c of activeGeometry.connections){const a=points.get(c.start),b=points.get(c.end);if(a===undefined||b===undefined)continue;const i=lines.get(lineKey(a,b,c.type))?.shift();if(i!==undefined)connections.set(c,i);}
+            roofIdentity={points,connections};
+        }catch(error){roofIdentity=null;}
+    }
+    function roofIdentityHints(){
+        if(!roofIdentity||!activeGeometry?.points)return {};
+        const ps=activeGeometry.points,points=[],connections=[];let n=0;
+        ps.forEach((p,i)=>{const o=roofIdentity.points.get(p);if(o!==undefined)points.push([i,o]);});
+        for(const c of activeGeometry.connections){if(ps.indexOf(c.start)<0||ps.indexOf(c.end)<0)continue;const o=roofIdentity.connections.get(c);if(o!==undefined)connections.push([n,o]);n++;}
+        return {points,connections};
+    }
+    // Roof metres are measured from the image centre: the current one for the roof being edited,
+    // the one the walls were built in (state.context) for the walls. Same place, different origin.
+    function inWallFrame(p,ctx=currentContext()){const ref=state?.context;if(!ref)return p;const dx=(ref.lng-ctx.lng)*111132*Math.cos(ctx.lat*Math.PI/180),dy=(ctx.lat-ref.lat)*111132;return dx||dy?{...p,x:p.x-dx,y:p.y-dy}:p;}
+    // The generator as From Roof runs it: no wall edits, the current base and grade.
+    function freshStages(roof,chimneys){
+        const saved=state,key=baseTerrainKey,cache=baseTerrainCache,skip=new Set(['wallEdits','chimneys','roof','sources','warnings','removed',...historyKeys.filter(k=>!['finishDefaults','roofTrim','base','closedSoffits'].includes(k))]);
+        try{
+            state=copy({...Object.fromEntries(Object.entries(saved).filter(([k])=>!skip.has(k))),roof,chimneys:chimneys||undefined,wallEdits:{}});
+            const r=G.buildSources(roof,state.options);state.sources=r.sources;state.warnings=r.warnings;
+            baseTerrainKey='';calculateStage(7);return state;
+        }finally{state=saved;baseTerrainKey=key;baseTerrainCache=cache;}
+    }
+    function smartRebuild(signature=roofSignature()){
+        const R=window.WallRoofRebuild;if(!R||!state?.roof||state.phase==='grade')return null;
+        // A new scale is a new calibration, not a roof edit: every point would move.
+        const ctx=currentContext(),old=state.context;if(!old||!(ctx.mpp>0)||!(old.mpp>0)||Math.abs(ctx.mpp/old.mpp-1)>.01)return null;
+        const captured=captureRoof(true),autoParapets=(state.autoParapets??state.options?.autoParapets)!==false;
+        const at=p=>inWallFrame(p,ctx),roof={...captured.roof,points:captured.roof.points.map(at),faces:captured.roof.faces.map(f=>({...f,points:f.points.map(at),holes:(f.holes||[]).map(r=>r.map(at))}))};
+        const result=R.rebuild({state:copy(state),roof,hints:roofIdentityHints(),run:freshStages,
+            detect:window.WallChimneys?roof=>WallChimneys.detect(roof,{sampleHeight:WallChimneys.heightSampler?.(layerData.dsm?.[0],ctx,state.context)||null,resolution:ctx.mpp}):null,
+            reflow:(before,changed,edits)=>wallEditor?.reflowDrafts?.(before,changed,edits),
+            parapets:autoParapets&&window.WallParapets?(roof,sources,walls)=>WallParapets.build(roof,sources,walls):null,
+            closedSoffits:state.closedSoffits&&window.WallClosedSoffits?(s,walls)=>WallClosedSoffits.build(s,walls):null});
+        closeResoffit();groundEditor?.leave();roofTrimEditor?.finish();wallEditor?.leave?.();baseEditor?.leave?.();pendingEdit=null;nudgeKey=null;nudgeEpoch++;
+        const before={state:copy(state),stage},beforeSelection=selectionSnapshot(),generated=!!state.generatedEditsKey&&state.generatedEditsKey===editsKey(state.wallEdits);
+        state={...result.state,roofSignature:signature};delete state.keptRoofSignature;if(generated)state.generatedEditsKey=editsKey(state.wallEdits);
+        baseTerrainKey='';baseTerrainCache=null;sourceContext=state.context;roofIdentity=null;
+        window.WallChimneys?.normalizeDrafts(state.wallEdits);window.normalizeWallDraftOwnership?.(state.wallEdits);retainGradeDraftOwnership();calculateStage(stage);selected=null;
+        // One undo step returns the walls, their edits and the roof they were built from.
+        // Undo keeps the earlier walls until the roof changes again; it does not re-run on the next stage or mode switch.
+        if(result.changed){before.state.keptRoofSignature=signature;const entry={full:true,before,after:{state:copy(state),stage},beforeSelection,afterSelection:selectionSnapshot()};editHistory.push(entry);editFuture=[];pendingSelection=entry;}
+        lastRoofRebuild=result.report;persist();render();
+        const text=R.summary(result.report);
+        if(text){if(status)status.textContent=text;const note=document.getElementById('base-status');if(note)note.textContent=text;texturedNotice(text,9000);}
+        return result;
     }
     function ensureStage(next) {
         if(!state||state.phase==='grade')return;
@@ -501,6 +564,7 @@ function perf_persist(touch=true) {
         settleNudges();
         if(on&&!currentId()){alert('Load a project before entering wall mode.');return;}
         roofTrimEditor?.finish();roofTrimEditor?.reset();if(!on){closeResoffit();window.WallFeatures?.closeUI?.();groundEditor?.leave();baseEditor?.leave();wallEditor?.leave();}
+        if(!on&&enabled)rememberRoofIdentity();
         const entering=!!on&&!enabled;
         enabled=!!on;
         if(entering)window.ProjectResources?.open?.();
@@ -1282,6 +1346,6 @@ function perf_render3DFrame() {
         }
         return {placed:added.length,ids:added.map(f=>f.id),skipped};
     }
-    window.WallMode={selectionActions,prepareHeightMask:()=>{settleNudges();closeResoffit();groundEditor?.leave();roofTrimEditor?.finish();wallEditor?.leave?.();baseEditor?.leave?.();},applyAIPlacements,aiStickerScene,selectAIFace,prepareAICapture,aiGeometry,renderChunk,get finishDefaults(){return state?.finishDefaults||{};},renderRoofTrim3D,serializeRoofTrim:()=>copy(state?.roofTrim||roofTrimOnly),reportSnapshot:reportSnapshotWithCover,displaySupports,coverParts,registerLayerVisibility,get enabled(){return enabled;},render2D,render3D,syncVisibility,serialize:exportState,serializeHistory,serializeView:()=>projectId===currentId()?viewSnapshot():null,restore,beforeProjectLoad,setEnabled};
+    window.WallMode={selectionActions,prepareHeightMask:()=>{settleNudges();closeResoffit();groundEditor?.leave();roofTrimEditor?.finish();wallEditor?.leave?.();baseEditor?.leave?.();},applyAIPlacements,aiStickerScene,selectAIFace,prepareAICapture,aiGeometry,renderChunk,get finishDefaults(){return state?.finishDefaults||{};},renderRoofTrim3D,serializeRoofTrim:()=>copy(state?.roofTrim||roofTrimOnly),reportSnapshot:reportSnapshotWithCover,displaySupports,coverParts,registerLayerVisibility,get enabled(){return enabled;},render2D,render3D,syncVisibility,serialize:exportState,serializeHistory,serializeView:()=>projectId===currentId()?viewSnapshot():null,restore,beforeProjectLoad,setEnabled,get roofRebuild(){return lastRoofRebuild;}};
     if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',initialize,{once:true});else initialize();
 })();

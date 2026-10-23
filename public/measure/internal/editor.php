@@ -1457,6 +1457,7 @@ $tutorialStudentEmail = strtolower(trim((string)($_GET['student_email'] ?? $_GET
     <script src="editor_scripts/wall_closed_soffits.js?v=<?=fm_editor_asset_version('editor_scripts/wall_closed_soffits.js')?>"></script>
     <script src="editor_scripts/wall_chimneys.js?v=<?=fm_editor_asset_version('editor_scripts/wall_chimneys.js')?>"></script>
     <script src="editor_scripts/wall_base_binding.js?v=<?=fm_editor_asset_version('editor_scripts/wall_base_binding.js')?>"></script>
+    <script src="editor_scripts/wall_roof_rebuild.js?v=<?=fm_editor_asset_version('editor_scripts/wall_roof_rebuild.js')?>"></script>
     <script src="editor_scripts/wall_axis_cuts.js?v=<?=fm_editor_asset_version('editor_scripts/wall_axis_cuts.js')?>"></script>
     <script src="editor_scripts/wall_steps.js?v=<?=fm_editor_asset_version('editor_scripts/wall_steps.js')?>"></script>
     <script src="editor_scripts/exterior_model.js?v=<?=fm_editor_asset_version('editor_scripts/exterior_model.js')?>"></script>
