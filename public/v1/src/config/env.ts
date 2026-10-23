@@ -97,7 +97,9 @@ export const env = {
   releaseId: String(process.env.RELEASE_ID ?? process.env.GIT_COMMIT ?? "development").trim(),
   readinessCacheMs: readNumber("READINESS_CACHE_MS", 2_000),
   readinessDependencyTimeoutMs: readNumber("READINESS_DEPENDENCY_TIMEOUT_MS", 2_000),
-  rollingDrainMs: readNumber("ROLLING_DRAIN_MS", 25_000),
+  // 0 turns the drain off (a single web node has no other node to drain to);
+  // readNumber would treat it as unset and wait the default 25 s.
+  rollingDrainMs: readOptionalNonNegativeInteger("ROLLING_DRAIN_MS") ?? 25_000,
   legacyServiceUrl: String(process.env.LEGACY_SERVICE_URL ?? "").trim().replace(/\/$/, ""),
   legacyProxySecret: String(process.env.LEGACY_PROXY_SECRET ?? "").trim(),
   firstmeasureArtifactStorage: readArtifactStorageMode(),
