@@ -126,10 +126,10 @@ before. `SESSION_REPLAY_ARCHIVE=off` stops the task.
 [record](../../deploy/digitalocean/development-session-replay-archive-20261022.md)). Compared on the same sessions
 in recording order: zstd-19 alone is 1.7×; zstd with the organization's earlier sessions as a raw dictionary 3.0×
 (3.8× once an organization has history); the canonical form with vocabularies and a canonical history dictionary
-4.4× (6.7–7.0× with history). Those two leave out what their dictionaries would cost to keep. With every stored byte
-counted (archives, every token version, every dictionary), the archive job as built is 3.5× for the archives and
-2.8× in all over this short history: an organization's first sessions pay for its vocabulary, and sessions with three
-or more earlier ones in their organization archive at 4–10×.
+4.1× (6.1× with history). Those two leave out what their dictionaries would cost to keep. With every stored byte
+counted (archives, every token version, every dictionary), the dry run of the job as built was 3.5× for the archives
+and 2.8× in all over this short history: an organization's first session archives at 1.8× and pays for its
+vocabulary, later sessions at 4.4× (2.2–10× each).
 
 ## Replay and the viewer
 

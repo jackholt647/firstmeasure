@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+October 22 Session replay archives: [finished sessions are re-packed on the server against vocabularies shared across sessions and organizations, losslessly, with a dry run and archived bytes in the viewer's Storage panel](deploy/digitalocean/development-session-replay-archive-20261022.md) records release `db5f246c`, the measured compression and the dry run over the dev sessions.
+
 October 22 Session replay search: [recordings indexed on the server into screens, elements, clicks with their outcomes, friction and on-screen text, with tools a language model uses to question them](deploy/digitalocean/development-session-replay-search-20261022.md) records release `59106e51` and the verified four-role development rollout.
 
 October 22 Session replay: [pages record as DOM snapshots plus changes for organizations a platform administrator switches on, with a replay viewer, live diagnostics and storage cost](deploy/digitalocean/development-session-replay-20261022.md) records releases `21521b99` and `49241e4a` and the verified development rollouts.
