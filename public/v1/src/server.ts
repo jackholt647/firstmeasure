@@ -86,11 +86,24 @@ async function start() {
     const drainMs = env.deploymentTopology === "cluster" ? env.rollingDrainMs : 0;
     const close = async () => {
       if (drainMs > 0) await new Promise<void>((resolve) => setTimeout(resolve, drainMs));
+      const startedAt = Date.now();
+      const streams = openResponses.size;
       for (const response of openResponses) {
         try { response.end(); } catch { /* already closed */ }
       }
-      setTimeout(() => app.server.closeAllConnections(), SHUTDOWN_GRACE_MS).unref();
+      app.server.once("close", () => app.log.info({ ms: Date.now() - startedAt, streams }, "v1 HTTP listener closed."));
+      setTimeout(() => {
+        app.log.warn({ ms: Date.now() - startedAt }, "Closing connections still open after the shutdown grace period.");
+        app.server.closeAllConnections();
+      }, SHUTDOWN_GRACE_MS).unref();
+      // Close hooks (outboxes, schedulers, database pools) get a few seconds more; a
+      // stop never waits for systemd's kill.
+      setTimeout(() => {
+        app.log.error({ ms: Date.now() - startedAt }, "v1 HTTP worker shutdown did not finish; exiting.");
+        process.exit(0);
+      }, SHUTDOWN_GRACE_MS + 5_000).unref();
       await app.close();
+      app.log.info({ ms: Date.now() - startedAt }, "v1 HTTP worker stopped.");
     };
     void close()
       .then(() => process.exit(0))
