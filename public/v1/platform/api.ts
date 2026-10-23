@@ -3081,6 +3081,14 @@ app.get("/auth/google/config", async () => ({
     if (collection === "users" && documentId === ctx.userId && platformOrgUserPermissionMutation(body)) {
       throw forbidden("self_permission_change_forbidden", "You cannot change your own organization permissions.");
     }
+    if (collection === "users" && !ownPreferencePatch) {
+      const patchData = asObject(body.data && typeof body.data === "object" ? body.data : body);
+      await assertOrganizationKeepsAdmin(orgId, documentId, {
+        disabled: String(patchData.status || "") === "disabled" || patchData.disabled === true,
+        archived: patchData.deleted === true,
+        ...(["role", "org_permissions", "org_permission_level", "permission_level", "perm_level"].some((key) => Object.prototype.hasOwnProperty.call(patchData, key)) ? { level: platformOrgUserPermissionState(patchData).level } : {})
+      });
+    }
     if (collection === "users" && !ownPreferencePatch) await (await import("../workforce/branch-guards.js")).guardUserCollection(ctx, "write", documentId, body);
     await (await import("../custom_fields/records.js")).authorizeRecordFieldMutation(
       (await import("./publication/context.js")).userPublicationContext(ctx), collection, cleanText(getParam(request.params, "documentId") || body.id || asObject(body.data).id), body
@@ -3134,6 +3142,7 @@ app.get("/auth/google/config", async () => ({
       throw forbidden("self_user_delete_forbidden", "You cannot delete your own organization user record.");
     }
     if (collection === "users") await (await import("../workforce/branch-guards.js")).guardUserCollection(ctx, "write", documentId);
+    if (collection === "users") await assertOrganizationKeepsAdmin(orgId, documentId, { archived: true });
     // A person is archived, never deleted: kept for the record, unable to sign in, restorable (workforce/user-archive.ts).
     if (collection === "users") return { ok: true, deleted: await (await import("../workforce/user-archive.js")).archiveOrganizationUser(ctx, documentId, cleanText(asObject(request.query).reason)), archived: true };
     const deleted = await deleteDocument(
@@ -5513,6 +5522,31 @@ async function ownOrgUserPreferencesBody(orgId: string, documentId: string, body
   const stored = asObject(asObject(current?.data).preferences);
   const incoming = asObject(asObject(body.data).preferences);
   return { data: { preferences: { ...stored, ...incoming } }, metadata: {} };
+}
+
+/* An organization keeps its owner (the person who created it) and at least one active super admin: neither can be
+   suspended, archived or given a lower level (1M8-235). Other super admins can be. */
+const SUPER_ADMIN_LEVELS = new Set(["super_admin", "owner"]);
+function orgUserIsSuperAdmin(data: JsonObject) {
+  const state = platformOrgUserPermissionState(data);
+  return SUPER_ADMIN_LEVELS.has(state.level) || asObject(state.permissions)["*"] === true;
+}
+function orgUserIsOwner(data: JsonObject) {
+  return cleanText(data.role).toLowerCase() === "owner"
+    && ["", "owner"].includes(cleanText(asObject(data.org_permissions).level || data.org_permission_level).toLowerCase());
+}
+const orgUserIsActive = (data: JsonObject) => String(data.status || "active") !== "disabled" && data.deleted !== true;
+export async function assertOrganizationKeepsAdmin(orgId: string, userId: string, change: { disabled?: boolean; archived?: boolean; level?: string }) {
+  const users = await listDocuments(orgId, "users").catch(() => [] as JsonObject[]);
+  const target = (users as JsonObject[]).find((doc) => String(doc.id) === userId);
+  if (!target) return;
+  const data = asObject(target.data);
+  const demoted = change.level !== undefined && !SUPER_ADMIN_LEVELS.has(cleanText(change.level).toLowerCase());
+  if (!change.disabled && !change.archived && !demoted) return;
+  if (orgUserIsOwner(data)) throw forbidden("owner_protected", "The account owner cannot be suspended, archived or given a lower level.");
+  if (!orgUserIsActive(data) || !orgUserIsSuperAdmin(data)) return;
+  const others = (users as JsonObject[]).filter((doc) => String(doc.id) !== userId && orgUserIsActive(asObject(doc.data)) && orgUserIsSuperAdmin(asObject(doc.data)));
+  if (!others.length) throw forbidden("last_admin_protected", "Make someone else a super admin first: an account needs at least one.");
 }
 
 function platformOrgUserPermissionMutation(body: JsonObject) {
@@ -9836,6 +9870,7 @@ async function portalUpdateOrgUser(orgId: string, body: JsonObject) {
 
 async function portalSetOrgUserDisabled(orgId: string, body: JsonObject) {
   const userId = cleanText(body.user_id);
+  await assertOrganizationKeepsAdmin(orgId, userId, { disabled: parseBooleanField(body.disabled, true), archived: parseBooleanField(body.delete_user, false) });
   const current = await readDocument(orgId, "users", userId);
   const data = asObject(current.data);
   const disabled = parseBooleanField(body.disabled, true);
@@ -9858,6 +9893,7 @@ async function portalSetOrgUserPermissions(orgId: string, body: JsonObject, acto
   const data = asObject(current.data);
   const level = cleanText(body.perm_level) || "viewer";
   const items = asObject(tryParseJsonField(body.perm_items_json, {}));
+  await assertOrganizationKeepsAdmin(orgId, userId, { level });
   const next = await upsertDocument(orgId, "users", {
     id: userId,
     data: { ...data, role: level, org_permissions: { level, items }, permissions: effectivePortalPermissions(level, items) }

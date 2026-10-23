@@ -3424,6 +3424,21 @@
     requestAnimationFrame(() => panel.__updateAppScrollControls?.());
   }
 
+  /* Settings is offered only when it has a page for this person (1M8-236): one of their own pages that the organization has
+     switched on, or a page their permissions open. These are the gates of the sections in settings/company.js, which the
+     server enforces per section; until the session's permissions arrive Settings stays. */
+  const SETTINGS_PERMISSIONS = ['manage_company_settings', 'manage_company_users', 'manage_company_user_permissions', 'manage_report_settings', 'manage_billing', 'manage_payroll', 'manage_feed', 'manage_channels', 'view_platform_billing', 'manage_platform_billing'];
+  function settingsAvailable(){
+    const permissions = window.Portal?.currentUser?.permissions || {};
+    if (!Object.keys(permissions).length) return true;
+    if (SETTINGS_PERMISSIONS.some((key) => hasPerm(key))) return true;
+    const flags = window.Portal?.appFlags || window.PlatformAPI?.appFlags;
+    const on = (group, key) => flags?.has?.(group, key) === true || flags?.value?.(group, key, false) === true;
+    return on('platform', 'my_settings') || on('platform', 'left_column_settings') || on('apps', 'channels') || on('apps', 'notifications')
+      || on('apps', 'comms') || on('mobile', 'app_download')
+      || (on('apps', 'assistant') && ['use_assistant', 'view_projects', 'manage_projects'].some((key) => hasPerm(key)));
+  }
+
   function renderSidebarLaunchers(container, list = []){
     if (!container) return;
     container.__launcherAbort?.abort?.();
@@ -3444,7 +3459,7 @@
     const advancedMenu = advancedAppMenuEnabled();
     if (!advancedMenu && advancedAppMenuOpen) closeAdvancedAppMenu({ restoreFocus:false });
     const settingsTabId = ['company', 'settings'].join('_');
-    const settingsTab = list.find((tab) => tab.id === settingsTabId && tab.placement === 'settings');
+    const settingsTab = settingsAvailable() ? list.find((tab) => tab.id === settingsTabId && tab.placement === 'settings') : null;
     const capabilities = window.Portal?.capabilities || window.PlatformAPI?.capabilities;
     const flags = window.Portal?.appFlags || window.PlatformAPI?.appFlags;
     const separateUserSection = capabilities?.current?.()

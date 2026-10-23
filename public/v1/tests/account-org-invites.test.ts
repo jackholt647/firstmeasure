@@ -162,3 +162,46 @@ test("adding another account accepts the login form's identifier field (1M8-223)
   const wrong = await client.request("POST", "/v1/platform/auth/accounts/add", { identifier: "add.first@example.test", password: "not the password" });
   assert.equal(wrong.data.error, "invalid_credentials");
 });
+
+test("the owner and the last active super admin cannot be suspended, archived or demoted; other super admins can (1M8-235)", async () => {
+  const owner = browser();
+  const registered = await register(owner, "guard.owner@example.test", "admin_guard_org");
+  const ownerId = registered.user?.id || registered.membership?.user_id;
+  const create = async (email: string, level: string) => {
+    const result = await owner.request("POST", "/v1/platform/organizations/admin_guard_org/users", { data: { email, name: email, send_invite: false, role: "viewer", status: "invited" } });
+    assert.equal(result.response.statusCode, 201, result.response.body);
+    const id = result.data.document.id;
+    if (level !== "viewer") {
+      const set = await owner.request("PATCH", `/v1/platform/organizations/admin_guard_org/users/${id}`, { data: { role: level, org_permissions: { level, items: {} } } });
+      assert.equal(set.response.statusCode, 200, set.response.body);
+    }
+    return id;
+  };
+  const invitedAdmin = await create("guard.invited@example.test", "super_admin");
+  const viewer = await create("guard.viewer@example.test", "viewer");
+
+  // An invited super admin can be suspended and archived (revoked) by the owner.
+  const suspend = await owner.request("PATCH", `/v1/platform/organizations/admin_guard_org/users/${invitedAdmin}`, { data: { status: "disabled" } });
+  assert.equal(suspend.response.statusCode, 200, suspend.response.body);
+  const revoke = await owner.request("DELETE", `/v1/platform/organizations/admin_guard_org/users/${invitedAdmin}`);
+  assert.equal(revoke.response.statusCode, 200, revoke.response.body);
+
+  // Nobody can suspend, archive or demote the owner.
+  const promoted = await create("guard.admin@example.test", "super_admin");
+  assert.ok(ownerId);
+  const suspendOwner = await owner.request("PATCH", `/v1/platform/organizations/admin_guard_org/users/${ownerId}`, { data: { status: "disabled" } });
+  assert.equal(suspendOwner.data.error, "owner_protected");
+  const { assertOrganizationKeepsAdmin } = await import("../platform/api.js");
+  await assert.rejects(assertOrganizationKeepsAdmin("admin_guard_org", ownerId, { archived: true }), /account owner/);
+  await assert.rejects(assertOrganizationKeepsAdmin("admin_guard_org", ownerId, { level: "viewer" }), /account owner/);
+  await assert.doesNotReject(assertOrganizationKeepsAdmin("admin_guard_org", viewer, { archived: true }));
+
+  // A migrated organization has no signup owner: its super admins carry the level. The last active one is kept.
+  const { upsertDocument } = await import("../platform/storage.js");
+  await upsertDocument("admin_guard_org", "users", { id: ownerId, data: { org_permissions: { level: "super_admin", items: {} } } }, { replace: false });
+  await assert.doesNotReject(assertOrganizationKeepsAdmin("admin_guard_org", promoted, { disabled: true }), "another super admin remains");
+  const suspendPromoted = await owner.request("PATCH", `/v1/platform/organizations/admin_guard_org/users/${promoted}`, { data: { status: "disabled" } });
+  assert.equal(suspendPromoted.response.statusCode, 200, suspendPromoted.response.body);
+  await assert.rejects(assertOrganizationKeepsAdmin("admin_guard_org", ownerId, { disabled: true }), /at least one/);
+  await assert.rejects(assertOrganizationKeepsAdmin("admin_guard_org", ownerId, { level: "admin" }), /at least one/);
+});

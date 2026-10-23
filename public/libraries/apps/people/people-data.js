@@ -391,8 +391,13 @@
     const myEmail = text(window.__APP?.userEmail).toLowerCase();
     return (!!myId && entry.id === myId) || (!!myEmail && text(entry.email).toLowerCase() === myEmail);
   };
-  /* Signup writes the account's first user as role "owner" with no level; that user is a super admin. */
-  const isOwner = (entry = {}) => ['super_admin', 'owner'].includes(text(entry.org_permissions?.level, entry.org_permission_level, entry.role).toLowerCase());
+  /* The owner is the person who created the account: signup writes role "owner" with no other level. Other super admins are
+     not owners (1M8-235); they are only protected while they are the last active one. */
+  const isOwner = (entry = {}) => text(entry.role).toLowerCase() === 'owner' && ['', 'owner'].includes(text(entry.org_permissions?.level, entry.org_permission_level).toLowerCase());
+  const isLastAdmin = (entry = {}) => !entry.deleted && !isSuspended(entry) && userLegacy(entry).level === 'super_admin'
+    && !state.users.some((other) => other.id !== entry.id && !other.deleted && !isSuspended(other) && userLegacy(other).level === 'super_admin');
+  /* Why this person cannot be suspended, archived or demoted here, or '' when they can. */
+  const protection = (entry = {}) => isMe(entry) ? 'self' : isOwner(entry) ? 'owner' : isLastAdmin(entry) ? 'last_admin' : '';
   const roleMembers = (roleId) => state.users.filter((entry) => userRoleIds(entry).includes(String(roleId)));
 
   const sentence = (value) => { const words = String(value || '').replace(/[_-]+/g, ' ').trim(); return words ? words.charAt(0).toUpperCase() + words.slice(1) : ''; };
@@ -655,6 +660,7 @@
     /* Organizations that have not moved to roles keep an admin level and the seven original flags on the user. */
     if (can.permissions && patch.legacy !== undefined) {
       if (isMe(current) || isOwner(current)) throw new Error(t('legacy_locked', 'This level cannot be changed here.'));
+      if (isLastAdmin(current) && patch.legacy.level !== 'super_admin') throw new Error(t('last_admin_locked', 'Make someone else a super admin first: an account needs at least one.'));
       await platform.users.setPermissions(orgId(), id, patch.legacy.level || 'viewer', obj(patch.legacy.items));
     }
     if (can.access && (patch.tagIds !== undefined || patch.scopedAssignments !== undefined) && patch.roleIds === undefined && patch.permissionOverrides === undefined && patch.appOverrides === undefined) {
@@ -784,7 +790,7 @@
     structure, multipleBranches, branches, regions, branch, region, branchName, branchIdsOf, branchWords, bt,
     state, load, subscribe(listener){ listeners.add(listener); return () => listeners.delete(listener); }, can, orgId, branchId, assetUrl,
     user, role, activeRoles, userRoleIds, userRoles, userPermissionOverrides, userAppOverrides, userDepartments, userDirectDepartmentIds, userGroups,
-    neverSignedIn, isSuspended, isMe, isOwner, roleMembers, permissionGroups, inheritedPermission, inheritedApp, roleAppValue, appSettings, catalogDefaultApp, userSummary,
+    neverSignedIn, isSuspended, isMe, isOwner, isLastAdmin, protection, roleMembers, permissionGroups, inheritedPermission, inheritedApp, roleAppValue, appSettings, catalogDefaultApp, userSummary,
     invite, resendInvite, setSuspended, removeUser, restoreUser, saveUser, uploadPhoto, saveUserDepartments, saveRole, createRole, archiveRole, setRoleMembership
   };
 })();

@@ -88,6 +88,14 @@
     const LEVEL_LABELS = { viewer:'Viewer', manager:'Manager', admin:'Admin', super_admin:'Super admin', custom:'Custom' };
     const FLAG_LABELS = { order_reports:'Order reports', view_reports:'View reports', manage_billing:'Manage billing', manage_company_settings:'Manage company settings', manage_report_settings:'Manage report settings', manage_company_users:'Manage users', manage_company_user_permissions:'Manage user permissions' };
 
+    /* Disabled actions say why (1M8-235); an invitation nobody accepted is revoked rather than archived. */
+    const protectedLabel = (user) => ({
+      self:t('protected_self', 'You cannot suspend or archive yourself'),
+      owner:t('protected_owner', 'The account owner cannot be suspended or archived'),
+      last_admin:t('protected_last_admin', 'Make someone else a super admin first: an account needs at least one')
+    })[data.protection(user)] || '';
+    const archiveLabel = (user) => data.neverSignedIn(user) ? t('revoke_invite', 'Revoke invitation') : t('archive', 'Archive');
+
     /* ---------- the list ---------- */
     /* In a department's section the row leaves that department out of its chips: the heading already says it. */
     function rowModel(user, context = {}){
@@ -95,7 +103,7 @@
       const roles = data.userRoles(user);
       const departments = data.userDepartments(user);
       const me = data.isMe(user);
-      const protectedUser = me || data.isOwner(user);
+      const protectedUser = !!data.protection(user);
       const suspended = data.isSuspended(user);
       const never = data.neverSignedIn(user);
       const pills = [];
@@ -118,8 +126,8 @@
         actions:[
           { id:'edit', needs:'users.open', icon:kit.ICONS.edit, label:t('edit', 'Edit') },
           can.users && never ? { id:'invite', needs:'users.resend_invite', icon:kit.ICONS.invite, label:t('resend_invite', 'Resend invitation') } : null,
-          can.users ? { id:'suspend', needs:'users.suspend', icon:suspended ? kit.ICONS.resume : kit.ICONS.suspend, label:suspended ? t('resume', 'Reinstate') : t('suspend', 'Suspend'), disabled:protectedUser } : null,
-          can.users ? { id:'archive', needs:'users.archive', icon:'fa-box-archive', label:t('archive', 'Archive'), tone:'danger', disabled:protectedUser } : null
+          can.users ? { id:'suspend', needs:'users.suspend', icon:suspended ? kit.ICONS.resume : kit.ICONS.suspend, label:protectedUser ? protectedLabel(user) : suspended ? t('resume', 'Reinstate') : t('suspend', 'Suspend'), disabled:protectedUser } : null,
+          can.users ? { id:'archive', needs:'users.archive', icon:'fa-box-archive', label:protectedUser ? protectedLabel(user) : archiveLabel(user), tone:'danger', disabled:protectedUser } : null
         ],
         hover:`organization_user:${user.id}`,
         dimmed:suspended
@@ -259,13 +267,14 @@
     /* Archive: kept for the record, cannot sign in, restorable from Archived with everything they had. */
     async function remove(user, anchor){
       const name = user.name || user.email;
+      const invite = data.neverSignedIn(user);
       const done = await kit.form(anchor, {
-        title:t('archive_user_confirm', 'Archive {name}?', { name }), submitLabel:t('archive', 'Archive'), submitIcon:'fa-box-archive',
-        note:t('archive_user_note', 'They are kept for the record and can no longer sign in. Their roles, groups and departments stay, so they can be restored from Archived.'),
+        title:invite ? t('revoke_invite_confirm', 'Revoke the invitation for {name}?', { name }) : t('archive_user_confirm', 'Archive {name}?', { name }), submitLabel:archiveLabel(user), submitIcon:'fa-box-archive',
+        note:invite ? t('revoke_invite_note', 'The invitation link stops working and they cannot sign in. They are kept under Archived and can be restored and invited again.') : t('archive_user_note', 'They are kept for the record and can no longer sign in. Their roles, groups and departments stay, so they can be restored from Archived.'),
         fields:[{ id:'reason', label:t('archive_reason', 'Why (optional)') }],
         submit:async (values) => { await data.removeUser(user.id, values.reason); return true; }
       });
-      if (done) kit.toast(t('archived', 'Archived'), name || '', true);
+      if (done) kit.toast(invite ? t('invite_revoked', 'Invitation revoked') : t('archived', 'Archived'), name || '', true);
       return !!done;
     }
     async function restore(user){
@@ -550,12 +559,12 @@
         summary:drawSummary,
         actions(){
           const now = current();
-          const protectedUser = data.isMe(now) || data.isOwner(now);
+          const protectedUser = !!data.protection(now);
           if (!can.users) return [];
           return [
             data.neverSignedIn(now) ? { id:'invite', needs:'users.resend_invite', icon:kit.ICONS.invite, label:t('resend_invite', 'Resend invitation'), onClick:() => resend(now) } : null,
-            { id:'suspend', needs:'users.suspend', icon:data.isSuspended(now) ? kit.ICONS.resume : kit.ICONS.suspend, label:data.isSuspended(now) ? t('resume', 'Reinstate') : t('suspend', 'Suspend'), disabled:protectedUser, onClick:() => suspend(now) },
-            { id:'archive', needs:'users.archive', icon:'fa-box-archive', label:t('archive', 'Archive'), tone:'danger', disabled:protectedUser, onClick:async (button) => { if (await remove(now, button)) modal.close(true); } }
+            { id:'suspend', needs:'users.suspend', icon:data.isSuspended(now) ? kit.ICONS.resume : kit.ICONS.suspend, label:protectedUser ? protectedLabel(now) : data.isSuspended(now) ? t('resume', 'Reinstate') : t('suspend', 'Suspend'), disabled:protectedUser, onClick:() => suspend(now) },
+            { id:'archive', needs:'users.archive', icon:'fa-box-archive', label:protectedUser ? protectedLabel(now) : archiveLabel(now), tone:'danger', disabled:protectedUser, onClick:async (button) => { if (await remove(now, button)) modal.close(true); } }
           ];
         },
         tabs:[
