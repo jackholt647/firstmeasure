@@ -639,7 +639,28 @@ function perf_snap(d,e,raw=null){
  function add(d,p){const n=S.add(d,p,.0001),node=d.sketch.nodes.find(v=>v.id===n);node.userDraftPoint=true;delete node.generatedBoundary;if(d.sketch.edges.some(e=>e.fixed&&(()=>{const a=d.sketch.nodes.find(v=>v.id===e.a),b=d.sketch.nodes.find(v=>v.id===e.b),dx=b.x-a.x,dy=b.y-a.y,len=Math.hypot(dx,dy),t=((node.x-a.x)*dx+(node.y-a.y)*dy)/(len*len);return t>=0&&t<=1&&Math.abs((node.x-a.x)*dy-(node.y-a.y)*dx)/len<.002;})()))node.fixed=true;S.resolve(d);return n;}
  function containsRegion(f,h){const outer={points:f.points};if(!h.points.every(p=>G.contains(outer,p)))return false;const K=window.ExteriorGeometry;return K.difference({points:h.points},[outer]).reduce((area,part)=>area+K.area(part),0)<=1e-8;}
  function classify(d){const holes=d.faces.filter(f=>f.boundaryHole||f.points.every(p=>!d.sketch.nodes.find(n=>n.id===p.nodeId)?.fixed));for(const f of d.faces){f.opening=holes.includes(f);f.holes=f.opening?[]:holes.filter(h=>containsRegion(f,h)).map(h=>h.points);}}
- function transaction(fn,original){const rollback=copy(host.state().wallEdits||{}),before=copy(original??rollback);try{supportSnapshot=structuralFaces();fn();for(const d of Object.values(all()))classify(d);host.commit(before);host.redraw();return true;}catch(e){host.state().wallEdits=rollback;host.message(e.message);return false;}finally{supportSnapshot=null;}}
+ // A curve stays a curve. Every edit commits through host.commit; one that
+ // would turn a curve's tessellation into ring vertices, loose wire, sketch
+ // nodes or retained points is refused and rolled back, and the editor says
+ // so, as the area guard does for deletes. Nothing is silently corrupted.
+ function curveCensus(edits){
+  const faces=[],points=[];
+  for(const s of edits?.$surfaces||[])if(!s.deleted&&!s.drafted){faces.push(s);points.push(...(s.retainedPoints||[]));}
+  for(const d of Object.values(edits?.$drafts||{})){if(d.mergedInto)continue;for(const f of d.faces)if(!f.solidId&&!f.boundaryHole&&!deleted(d,f))faces.push({points:f.points.map(p=>world(d,p)),holes:(f.holes||[]).map(r=>r.map(p=>world(d,p))),curves:(f.curves||[]).map(c=>window.ExteriorGeometry.mapCurve(c,p=>world(d,p)))});for(const n of d.sketch?.nodes||[])points.push(world(d,n));}
+  for(const p of edits?.$loose?.points||[])points.push(p);for(const pair of edits?.$loose?.edges||[])points.push(...pair);
+  return {faces,points};
+ }
+ // A nudge only moves geometry: it never adds or removes a curve.
+ let nudging=false;
+ const commitEdit=host.commit;
+ host.commit=before=>{
+  const was=curveCensus(before),now=curveCensus(host.state().wallEdits),flattened=W.flattenedCurveSamples(was,now),curves=c=>new Set(c.faces.flatMap(f=>(f.curves||[]).map(curve=>{const K=window.ExteriorGeometry,key=t=>W.vertexKey(K.curvePoint(curve,t));return [key(0),key(1)].sort().join('|')+'|'+key(.5);}))).size;
+  const reason=flattened.length>=3?'it would break a curve into separate points':nudging&&curves(was)!==curves(now)?'a nudge would add or remove a curve':null;
+  if(!reason)return commitEdit(before);
+  host.state().wallEdits=copy(before);console.error('Refused an edit: '+reason,flattened.slice(0,4),was.faces.length,now.faces.length,curves(was),curves(now));
+  host.message('Edit refused: '+reason+'. Nothing was changed.');host.redraw();return false;
+ };
+ function transaction(fn,original){const rollback=copy(host.state().wallEdits||{}),before=copy(original??rollback);try{supportSnapshot=structuralFaces();fn();for(const d of Object.values(all()))classify(d);if(host.commit(before)===false){host.state().wallEdits=rollback;return false;}host.redraw();return true;}catch(e){host.state().wallEdits=rollback;host.message(e.message);return false;}finally{supportSnapshot=null;}}
  // A plain click only holds an existing drawing face. Converting a surface to
  // a draft or adding the shared point belongs to the edit that follows (edit).
  function holdBoundary(e,edit=false){if(['textured','rendered','match-textured'].includes(host.state()?.displayMode)&&viewOf(e)==='3d')return false;
@@ -993,7 +1014,7 @@ function perf_previewGeometry(e,keepAxis=false,translation=null){
   catch(error){host.state().wallEdits=previous;t.invalid=true;t.valid=false;host.message(error.message+' Adjust the preview or press Escape.');}
   host.redraw();
  }
- function placeGeometry(){const t=tool;if(t?.kind!=='geometryTransform'||t.invalid)return true;try{if(t.changed)host.commit(t.before);else host.state().wallEdits=copy(t.before);tool=null;const placed=t.preview.points.filter(p=>!p.curveSample);if(workingPlane){workingPlane.selection=copy(placed);workingPlane.selectedLines=[];workingPlane.selectedFaces=[];refreshPlane();}draftSelection={};picked=[];pickedLines=[];lineSelection=[];selectedBasePoints=[];selectedRegion=null;selectedSolid=null;solidPoints=placed.map(W.vertexKey);solidEdges=[];if(t.curveOwner){if(t.curveOwner.base){selectedBasePoints=solidPoints;solidPoints=[];}else{activeDraftKey=t.curveOwner.key;picked=t.curveOwner.ids.slice();draftSelection={[activeDraftKey]:picked.slice()};solidPoints=[];}}clearGuides();host.message('Geometry placed.');host.redraw();}catch(error){host.message(error.message);}return true;}
+ function placeGeometry(){const t=tool;if(t?.kind!=='geometryTransform'||t.invalid)return true;try{if(t.changed&&host.commit(t.before)===false){tool=null;clearGuides();return true;}if(!t.changed)host.state().wallEdits=copy(t.before);tool=null;const placed=t.preview.points.filter(p=>!p.curveSample);if(workingPlane){workingPlane.selection=copy(placed);workingPlane.selectedLines=[];workingPlane.selectedFaces=[];refreshPlane();}draftSelection={};picked=[];pickedLines=[];lineSelection=[];selectedBasePoints=[];selectedRegion=null;selectedSolid=null;solidPoints=placed.map(W.vertexKey);solidEdges=[];if(t.curveOwner){if(t.curveOwner.base){selectedBasePoints=solidPoints;solidPoints=[];}else{activeDraftKey=t.curveOwner.key;picked=t.curveOwner.ids.slice();draftSelection={[activeDraftKey]:picked.slice()};solidPoints=[];}}clearGuides();host.message('Geometry placed.');host.redraw();}catch(error){host.message(error.message);}return true;}
  function resizeAxis(axis){const t=tool;if(!t||t.editMode!=='y'||t.invalid)return;if(t.kind==='geometryTransform')t.clip=copy(t.preview||t.clip);t.stage=copy(t.clip);t.resizeAxis=axis;t.startEvent=mouse;t.startPoint=mouse&&t.inputFrame?rayPoint({frame:t.inputFrame},mouse):null;t.scaleFactor=1;geometryStatus();showResizeAxes();}
  function showResizeAxes(){const t=tool;if(t?.editMode!=='y'||typeof document==='undefined'||!document.body?.appendChild)return;
   if(t.resizeHud){for(const button of t.resizeHud.querySelectorAll('button')){const selected=button.dataset.axis===t.resizeAxis;button.setAttribute('aria-pressed',String(selected));button.style.background=selected?'#347b99':'#26343d';}return;}
@@ -2085,7 +2106,7 @@ function perf_previewFaceSlide(e){const t=tool;if(t.face.feature)t.snapGeometry=
   });
   if(ok){selectPlacedEntity({source,preview:[point]},false);host.redraw();}return true;
  }
- function nudge(...args){if(!window.ExteriorPerf?.enabled)return perf_nudge.apply(this,args);return window.ExteriorPerf.measure('Nudge',()=>perf_nudge.apply(this,args));}
+ function nudge(...args){nudging=true;try{if(!window.ExteriorPerf?.enabled)return perf_nudge.apply(this,args);return window.ExteriorPerf.measure('Nudge',()=>perf_nudge.apply(this,args));}finally{nudging=false;}}
  function completePointGeometry(points){
   if(points.length<3)return false;
   if(curveGeometrySelection(points))return true;
@@ -2094,6 +2115,24 @@ function perf_previewFaceSlide(e){const t=tool;if(t.face.feature)t.snapGeometry=
   // its defining points are (corners, curve ends and spline controls).
   const defining=f=>{const sample=window.ExteriorGeometry.curveSamplePoint(f);return f.points.filter(p=>!sample(p));};
   return solids().some(f=>!f.deleted&&!f.drafted&&defining(f).every(selected))||Object.values(all()).some(d=>d.faces.some(f=>!f.solidId&&!f.boundaryHole&&!deleted(d,f)&&defining(f).every(p=>selected(world(d,p)))));
+ }
+ // A curved sticker (an arched door, a round window) moves as one piece: a
+ // nudge of any of its points selects and moves all its defining points,
+ // curve controls included. Sliding single points along their own lines would
+ // shear it and rebuild the arch from moved tessellation samples.
+ function selectWholeCurvedStickers(){
+  const points=selectedWorldPoints();if(!points.length||selectedFaceRefs().length)return;
+  const K=window.ExteriorGeometry,selected=p=>points.some(q=>distance3(p,q)<=K.CONTACT),defining=(f,toWorld)=>{const sample=K.curveSamplePoint(f);return f.points.filter(p=>!sample(p)).map(toWorld);};
+  const extra=[];
+  for(const f of solids())if(!f.deleted&&!f.drafted&&f.feature&&f.curves?.length){const ps=defining(f,p=>p);if(ps.some(selected))extra.push(...ps.filter(p=>!selected(p)));}
+  for(const d of Object.values(all()))if(!d.mergedInto)for(const f of d.faces)if(f.feature&&f.curves?.length&&!f.solidId&&!deleted(d,f)){const ps=defining(f,p=>world(d,p));if(ps.some(selected))extra.push(...ps.filter(p=>!selected(p)));}
+  if(!extra.length)return;
+  const graph=solidPoints.length?wire():null;
+  for(const p of extra){
+   const owner=Object.entries(all()).find(([key,d])=>(draftSelection[key]||(key===activeDraftKey?picked:[])).length&&d.sketch.nodes.some(n=>distance3(world(d,n),p)<=K.CONTACT));
+   if(owner){const [key,d]=owner,id=d.sketch.nodes.find(n=>distance3(world(d,n),p)<=K.CONTACT).id;draftSelection[key]=[...new Set([...(draftSelection[key]||(key===activeDraftKey?picked:[])),id])];if(key===activeDraftKey)picked=draftSelection[key].slice();continue;}
+   const node=(graph||wire()).nodes.find(n=>!n.curveSample&&distance3(n,p)<=K.CONTACT);if(node&&!solidPoints.includes(node.id))solidPoints.push(node.id);
+  }
  }
  // A nudge of complete draft geometry (every defining point of a face, or
  // selected stickers with curved edges) translates it in its own sketch: nodes
@@ -2118,8 +2157,10 @@ function perf_previewFaceSlide(e){const t=tool;if(t.face.feature)t.snapGeometry=
   if(d.sketch.edges.some(e=>e.curveId&&ids.includes(e.a)!==ids.includes(e.b)))return null;
   const nodes=d.sketch.nodes.filter(n=>ids.includes(n.id)),world0=nodes.map(n=>world(d,n)),frame=F.viewFrame(world0,p=>host.screen(p,'3d')),a=world0[0],b=toLocal(d,{x:a.x+frame.u.x*dx+frame.v.x*dy,y:a.y+frame.u.y*dx+frame.v.y*dy,z:a.z+frame.u.z*dx+frame.v.z*dy}),o=toLocal(d,a),delta={x:b.x-o.x,y:b.y-o.y,z:0};
   // Boundary nodes may slide along the outline; leaving it is another edit.
-  const onOutline=q=>d.sketch.outlines.some(r=>r.some((a,i)=>{const b=r[(i+1)%r.length],u={x:b.x-a.x,y:b.y-a.y},l2=u.x*u.x+u.y*u.y,t=l2?((q.x-a.x)*u.x+(q.y-a.y)*u.y)/l2:0;return t>=-1e-6&&t<=1+1e-6&&Math.hypot(q.x-a.x-t*u.x,q.y-a.y-t*u.y)<1e-5;}));
-  if(nodes.some(n=>n.fixed&&!onOutline({x:n.x+delta.x,y:n.y+delta.y})))return null;
+  // An outline made only of moving nodes (a mid-wall opening's own ring) moves with them.
+  const staying=d.sketch.nodes.filter(n=>!ids.includes(n.id)),anchored=r=>r.some(a=>staying.some(n=>Math.hypot(n.x-a.x,n.y-a.y)<1e-7));
+  const onOutline=q=>d.sketch.outlines.filter(anchored).some(r=>r.some((a,i)=>{const b=r[(i+1)%r.length],u={x:b.x-a.x,y:b.y-a.y},l2=u.x*u.x+u.y*u.y,t=l2?((q.x-a.x)*u.x+(q.y-a.y)*u.y)/l2:0;return t>=-1e-6&&t<=1+1e-6&&Math.hypot(q.x-a.x-t*u.x,q.y-a.y-t*u.y)<1e-5;}));
+  if(nodes.some(n=>n.fixed&&onOutline(n)&&!onOutline({x:n.x+delta.x,y:n.y+delta.y})))return null;
   return {key:draftKey(d),ids,faces:faces.map(f=>f.id),delta,sticker};
  }
  function nudgeDraft(plan){
@@ -2133,7 +2174,7 @@ function perf_previewFaceSlide(e){const t=tool;if(t.face.feature)t.snapGeometry=
   });
   return true;
  }
-function perf_nudge(e){const step=(e.altKey ? .25 : e.shiftKey ? 6 : 1)*F.FT/12*(e.nudgeCount||1),dx=e.key==='ArrowRight'?step:e.key==='ArrowLeft'?-step:0,dy=e.key==='ArrowUp'?step:e.key==='ArrowDown'?-step:0;const points=selectedWorldPoints(),draftMove=draftNudgePlan(points,dx,dy);if(draftMove)return nudgeDraft(draftMove);if(points.length&&!selectedFaceRefs().length&&!completePointGeometry(points))return points.length===1?nudgePoint(e,step):nudgePoints(e,step,points);if(geometrySelectionPoints().length>=3)return nudgeGeometry(dx,dy);if(points.length)return points.length===1?nudgePoint(e,step):nudgePoints(e,step,points);const selection=featureSelection();
+function perf_nudge(e){const step=(e.altKey ? .25 : e.shiftKey ? 6 : 1)*F.FT/12*(e.nudgeCount||1),dx=e.key==='ArrowRight'?step:e.key==='ArrowLeft'?-step:0,dy=e.key==='ArrowUp'?step:e.key==='ArrowDown'?-step:0;selectWholeCurvedStickers();const points=selectedWorldPoints(),draftMove=draftNudgePlan(points,dx,dy);if(draftMove)return nudgeDraft(draftMove);if(points.length&&!selectedFaceRefs().length&&!completePointGeometry(points))return points.length===1?nudgePoint(e,step):nudgePoints(e,step,points);if(geometrySelectionPoints().length>=3)return nudgeGeometry(dx,dy);if(points.length)return points.length===1?nudgePoint(e,step):nudgePoints(e,step,points);const selection=featureSelection();
   if(lineSelection.length){const pairs=copy(lineSelection);return transaction(()=>{
     for(const w of walls())ensure(w);
     const live=(d,f)=>!f.solidId&&!f.boundaryHole&&!deleted(d,f),supports=(face,pair)=>{if(W.sharedIntervals(...pair,[face]).length)return true;const frame=W.faceFrame(face);if(!frame)return false;const local={points:face.points.map(p=>W.inFrame(frame,p)),holes:(face.holes||[]).map(r=>r.map(p=>W.inFrame(frame,p)))};return pair.every(p=>{const q=W.inFrame(frame,p);return Math.abs(q.z)<1e-5&&G.contains(local,q);});},shape=(d,f)=>({points:f.points.map(p=>world(d,p)),holes:(f.holes||[]).map(r=>r.map(p=>world(d,p)))}),matches=d=>d&&!d.mergedInto&&pairs.every(l=>d.faces.some(f=>live(d,f)&&supports(shape(d,f),l.pair)));

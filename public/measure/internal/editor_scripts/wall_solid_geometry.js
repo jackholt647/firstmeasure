@@ -379,6 +379,10 @@ function transformSelection(scene,original,preview,options={}){
  // A move applies within CONTACT of its start; points outside the bounds of the
  // current starts (rebuilt when stickers add moves) cannot match one.
  let box=null,boxed=-1;const find=p=>{if(boxed!==moves.length){box=contactBox(moves.map(m=>m.from),2*K.CONTACT);boxed=moves.length;}return inContactBox(p,box)?moves.find(m=>Math.hypot(p.x-m.from.x,p.y-m.from.y,p.z-m.from.z)<=K.CONTACT):undefined;};
+ // A curved face carries its tessellation vertices along. A neighbour that
+ // shares the curve as plain vertices (a wall around an arched door, saved
+ // without its own curve) moves them too, rather than keeping the old arch.
+ for(const face of scene){if(face.deleted||!face.curves?.length||![...rings(face).flat()].some(find))continue;const next=reshapeSplineFace(face,p=>({...p,...(find(p)?.to||{})}));if(!next)continue;const sample=K.curveSamplePoint(face),after=rings(next);rings(face).forEach((r,j)=>r.forEach((p,i)=>{const q=after[j]?.[i];if(q&&sample(p)&&!find(p))moves.push({from:p,to:q});}));}
  // Carry interior stickers for whole-face translations as well as normal moves.
  for(const source of scene.filter(f=>!f.feature&&!f.deleted)){
   const corners=source.points.map(find);if(corners.some(m=>!m))continue;
@@ -1482,5 +1486,22 @@ function inwardSign(face,bases){
  for(const distance of [.005,.02,.1]){const a=inside({x:c.x+n.x*distance,y:c.y+n.y*distance}),b=inside({x:c.x-n.x*distance,y:c.y-n.y*distance});if(a!==b)return a?1:-1;}
  return null;
 }
-const api={exactPoints,PLANE_CONFORM,conformPlanePoints,horizontalSweep,ownsPoint,followTrim,pointRangeIndex,stickerAlignmentTargets,faceCenterTarget,planeAlignment,planeAlignmentGuides,adoptMergedFaceSources,faceFromPoints,mergeAtPoints,fillet,validTranslation,boundedTranslation,geometryScale,snapGeometryScale,snapGeometryOnPlane,transformGeometry,transformSelection,clipboardFrame,copyGeometry,pasteGeometry,mergeConnectedFaces,pointChamferSnap,chamferSnap,chamfer,roofExtrusion,inwardSign,cleanupSweepRemnants,sweepRemnant,motionSnapCandidates,structuralIndex,joinFragments,motionSnap,slideLines,attachedLengths,unionPlanar,trimExtrusion,moveFabric,radialDraftSnap,quadDraftSnap,normal,extrusionDirections,extrusionReference,extrude,snapDirection,bridges,dragAmount,subtract,snapBase,baseScope,belowBase,draftSnap,vertexKey,edgeKey,jsonEqual,contactBox,inContactBox,surfaceWire,restoreCreatedSurfaceWire,structuralPoint,structuralEdge,deleteSurfaceElements,removeFaceEdges,restoreSurface,sharedIntervals,freeEdges,moveSurface,faceFrame,inFrame,fromFrame,containedBy,coplanarContact,containedSnap,importDraft};if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.WallSolidGeometry=api;
+// A curve is never flattened by an edit. Each argument is {faces, points}:
+// every live face in world coordinates and every free point (loose wire,
+// sketch nodes, retained points). A tessellation vertex of a curved face
+// before the edit may not come back afterwards as a free point, or as a ring
+// vertex that no curved face still carries as part of its curve (a wall that
+// shares the arch as a hole or notch carries it through the curved face).
+// Vertices that were already like that before are not new damage.
+// Returns the vertex keys that were flattened.
+function flattenedCurveSamples(before,after){
+ const samples=new Set();
+ for(const f of before.faces)if(f.curves?.length){const sample=K.curveSamplePoint(f);for(const r of rings(f))for(const p of r)if(sample(p))samples.add(vertexKey(p));}
+ if(!samples.size)return [];
+ const flat=state=>{const carried=new Set(),ordinary=new Set();
+  for(const f of state.faces){const sample=f.curves?.length?K.curveSamplePoint(f):()=>false;for(const r of rings(f))for(const p of r){const key=vertexKey(p);if(!samples.has(key))continue;if(sample(p))carried.add(key);else ordinary.add(key);}}
+  const keys=new Set([...ordinary].filter(key=>!carried.has(key)));for(const p of state.points){const key=vertexKey(p);if(samples.has(key))keys.add(key);}return keys;};
+ const already=flat(before);return [...flat(after)].filter(key=>!already.has(key));
+}
+const api={flattenedCurveSamples,exactPoints,PLANE_CONFORM,conformPlanePoints,horizontalSweep,ownsPoint,followTrim,pointRangeIndex,stickerAlignmentTargets,faceCenterTarget,planeAlignment,planeAlignmentGuides,adoptMergedFaceSources,faceFromPoints,mergeAtPoints,fillet,validTranslation,boundedTranslation,geometryScale,snapGeometryScale,snapGeometryOnPlane,transformGeometry,transformSelection,clipboardFrame,copyGeometry,pasteGeometry,mergeConnectedFaces,pointChamferSnap,chamferSnap,chamfer,roofExtrusion,inwardSign,cleanupSweepRemnants,sweepRemnant,motionSnapCandidates,structuralIndex,joinFragments,motionSnap,slideLines,attachedLengths,unionPlanar,trimExtrusion,moveFabric,radialDraftSnap,quadDraftSnap,normal,extrusionDirections,extrusionReference,extrude,snapDirection,bridges,dragAmount,subtract,snapBase,baseScope,belowBase,draftSnap,vertexKey,edgeKey,jsonEqual,contactBox,inContactBox,surfaceWire,restoreCreatedSurfaceWire,structuralPoint,structuralEdge,deleteSurfaceElements,removeFaceEdges,restoreSurface,sharedIntervals,freeEdges,moveSurface,faceFrame,inFrame,fromFrame,containedBy,coplanarContact,containedSnap,importDraft};if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.WallSolidGeometry=api;
 })(typeof window!=='undefined'?window:globalThis);
