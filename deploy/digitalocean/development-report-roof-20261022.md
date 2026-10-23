@@ -142,3 +142,16 @@ another session's live copy-and-paste change.
 
 **Rollout note.** Before this commit landed, another session's deploy (`45d01e14`) had already carried these
 uncommitted files from the shared checkout onto dev. This rollout re-anchored dev on the commit.
+
+## Follow-up: compact Wall materials panel — `450c3003877220e3bb7d56c8f97a3ff6d7777f93`
+
+- **Header:** slimmed to a single 28 px row.
+- **Sections:** Faces, Walls, Roof and Stickers are collapsible, keyboard-operable, remember their state and show a
+  summary when collapsed.
+- **Disclaimers:** removed; useful hints are now tooltips.
+- **Bottom palettes:** these applied a colour to the selected face or armed a paint colour, so they are kept as one
+  Colour row (reset plus the project's colours). The Common and Recent rows duplicated the shared Choose color pop-up
+  and are removed.
+- **Height:** 431 px with the default sections open (was 1,223 px), so the panel fits 1366×768.
+- **Tests:** picker suites pass 132.
+- **Rollout:** `wall_features.js` overlaid on web, legacy and pool; the served file matches.
