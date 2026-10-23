@@ -96,6 +96,32 @@ come from the model geometry, while totals prefer the saved report's
 classifications, so the structures need not sum exactly to the total. Exterior
 wall measurements are not yet broken down by structure.
 
+### Structures in an estimate
+
+The Documents estimate workflow's measurements step lists the structures and
+keeps the document's choices in `params.measurement_structures`
+(`FMDocWorkflow.structures` in `doc-workflow/firstmate-doc-workflow.js`):
+which report structures are on, their names, and structures **entered by
+hand** (`origin: "manual"`, with who and when). The report's dataset is never
+written: these are the document's own choices. `params.measurements` stays the
+combined values every formula reads: the report's totals, less what a turned-off
+structure measured, plus what a hand-entered structure measured. Everything on
+and nothing added is exactly the report.
+
+A structure entered by hand asks for the structure-level dictionary
+measurements of the schemas its scope templates name (`measurement_schema_ids`),
+narrowed to the ones the estimate reads; a part of a partition the estimate
+holds brings its siblings (squares by pitch band), and a whole whose complete
+partition is asked for adds up from its parts. A template that names no schema
+falls back to the step's own fields. The document can price the structures
+together (default, the step's `structure_pricing`) or as one section of line
+items per structure, each generated from that structure's own measurements: a
+value the report did not split (pipe boots) goes to the first structure, and a
+shared percentage (waste) applies to each. Lines nobody edited since they were
+generated follow a change of structures on their own; edited lines show the
+regenerate warning instead. Run `tests/estimate-structures.test.ts` for changes
+here.
+
 ## Published views
 
 The `measurement-schemas` provider (permission `view_project_data`) exports:

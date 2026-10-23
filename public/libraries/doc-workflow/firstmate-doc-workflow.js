@@ -700,6 +700,270 @@
      };
   }
 
+  // ------------------------------------------------- measurement structures
+  // A report can measure several structures (house, garage, shed). The
+  // measurements item keeps them on the document, at
+  // params.measurement_structures (item.structures_writes names another path):
+  //   { version, report_totals:{key:n}, source:{label, dataset_id, revision},
+  //     pricing:'combined'|'per_structure', shared_keys:[key],
+  //     structures:[{ id, name, origin:'report'|'manual', included,
+  //                   values:{key:n}, units:{key:unit}, entered_by?, entered_at? }] }
+  // The estimate's measurements (params.measurements) stay the combined values
+  // every formula reads: the report's totals, less what a structure that is
+  // turned off measured, plus what a structure entered by hand measured. With
+  // everything on and nothing added they are exactly the report's totals,
+  // which stay authoritative (a report's structures need not sum to them).
+  const STRUCTURES_VERSION = 1;
+  const DEFAULT_STRUCTURES_PATH = 'params.measurement_structures';
+  const STRUCTURE_UNIT_LABELS = { roofing_square: 'sq', ft2: 'sq ft', ft: 'ft', count: 'ea', m: 'm', m2: 'm²' };
+  /** Copy for the structure controls: the catalog's text when it has the key, with {name} filled in. */
+  function L(key, fallback, vars){
+    let text = fallback;
+    try { text = firstText(globalThis.PlatformLanguage?.text?.('doc-workflow', key, fallback), fallback); } catch (e) { text = fallback; }
+    return vars ? text.replace(/\{(\w+)\}/g, (match, name) => (name in vars ? String(vars[name]) : match)) : text;
+  }
+  function roundMeasure(value){ return Math.round((Number(value) || 0) * 100) / 100; }
+  function measureNumbers(values){
+    const out = {};
+    Object.entries(obj(values)).forEach(([key, value]) => {
+      const number = typeof value === 'number' ? value : (typeof value === 'string' && value.trim() !== '' ? Number(value) : NaN);
+      if (Number.isFinite(number)) out[key] = number;
+    });
+    return out;
+  }
+  /** Structure ids end up inside choice-group ids (`piece@structure:group`). */
+  function structureIdText(value){ return cleanText(value).replace(/[:@\s]+/g, '-'); }
+  function structureList(state){ return arr(obj(state).structures).map(obj).filter((structure) => cleanText(structure.id)); }
+  function structureIncluded(structure){ return obj(structure).included !== false; }
+  function isManualStructure(structure){ return cleanText(obj(structure).origin) === 'manual'; }
+  function includedStructures(state){ return structureList(state).filter(structureIncluded); }
+  /** The estimate's measurements from its structures, and which keys carry a value entered by hand. */
+  function combineStructures(state){
+    const values = measureNumbers(obj(state).report_totals);
+    const manualKeys = [];
+    structureList(state).forEach((structure) => {
+      const own = measureNumbers(structure.values);
+      if (isManualStructure(structure)) {
+        Object.keys(own).forEach((key) => { if (!(key in values)) values[key] = 0; });
+        if (!structureIncluded(structure)) return;
+        Object.entries(own).forEach(([key, value]) => {
+          values[key] += value;
+          if (value && !manualKeys.includes(key)) manualKeys.push(key);
+        });
+      } else if (!structureIncluded(structure)) {
+        Object.entries(own).forEach(([key, value]) => { if (key in values) values[key] -= value; });
+      }
+    });
+    Object.keys(values).forEach((key) => { values[key] = Math.max(0, roundMeasure(values[key])); });
+    return { values, manualKeys };
+  }
+  /** Fold the project's report into what the document saved: report structures
+   *  keep their saved name and on/off by id, structures entered by hand stay as
+   *  they are. A report that measured one structure is one structure. */
+  function mergeReportStructures(previous, report, options = {}){
+    const prev = obj(previous);
+    const result = obj(report);
+    const totals = measureNumbers(result.values);
+    const saved = new Map(structureList(prev).map((structure) => [structure.id, structure]));
+    let measured = arr(result.structures).map(obj).filter((structure) => cleanText(structure.id) && Object.keys(measureNumbers(structure.values)).length);
+    if (!measured.length && Object.keys(totals).length) measured = [{ id: 'report', values: totals, units: obj(result.units) }];
+    const fromReport = measured.map((structure, index) => {
+      const id = structureIdText(structure.id);
+      const before = obj(saved.get(id));
+      return {
+        id,
+        name: firstText(before.name, structure.name, L('structure_n', 'Structure {n}', { n: index + 1 })),
+        origin: 'report',
+        included: before.included !== false,
+        values: measureNumbers(structure.values),
+        units: obj(structure.units)
+      };
+    });
+    const source = {
+      label: firstText(result.source),
+      ...(cleanText(result.dataset_id) ? { dataset_id: cleanText(result.dataset_id) } : {}),
+      ...(result.revision != null && result.revision !== '' ? { revision: result.revision } : {})
+    };
+    return {
+      version: STRUCTURES_VERSION,
+      report_totals: totals,
+      source,
+      pricing: firstText(prev.pricing, options.pricing, 'combined'),
+      shared_keys: arr(options.sharedKeys || prev.shared_keys).map(cleanText).filter(Boolean),
+      structures: [...fromReport, ...structureList(prev).filter(isManualStructure)]
+    };
+  }
+  /** Move the estimate's measurements from one combination to the next. A value
+   *  someone changed by hand (it no longer matches the old combination) stays. */
+  function rebaseMeasurements(current, before, after){
+    const next = { ...obj(current) };
+    const prev = obj(before);
+    const upcoming = obj(after);
+    new Set([...Object.keys(prev), ...Object.keys(upcoming)]).forEach((key) => {
+      const value = next[key];
+      const untouched = value === undefined || value === null || value === ''
+        || (key in prev && Math.abs((Number(value) || 0) - Number(prev[key])) < 0.005);
+      if (untouched && key in upcoming) next[key] = upcoming[key];
+    });
+    return next;
+  }
+  /** The structures a project's measurement dataset (a publication read:
+   *  { datasetId, revision, value:{ structures:[{ id, name, measurements:{ key:{ value, unit } } }] } })
+   *  measured separately, as { id, name, values, units }. Only the units the
+   *  shared loader accepts for totals are kept (squares, feet, counts), so a
+   *  structure and the totals always speak the same units. */
+  function structuresFromDataset(dataset){
+    const source = obj(dataset);
+    const structures = arr(obj(source.value).structures).map(obj).map((structure) => {
+      const values = {};
+      const units = {};
+      Object.entries(obj(structure.measurements)).forEach(([key, raw]) => {
+        const entry = obj(raw);
+        let value = Number(entry.value);
+        if (entry.value == null || !Number.isFinite(value)) return;
+        const expected = /Squares$/.test(key) ? 'roofing_square' : /Lf$/.test(key) ? 'ft' : /Ea$/.test(key) ? 'count' : '';
+        if (!expected) return;
+        if (entry.unit === 'm' && expected === 'ft') value *= 3.280839895;
+        else if (cleanText(entry.unit) !== expected) return;
+        values[key] = value;
+        units[key] = expected;
+      });
+      return { id: cleanText(structure.id), name: cleanText(structure.name), values, units };
+    }).filter((structure) => structure.id && Object.keys(structure.values).length);
+    return {
+      structures,
+      ...(cleanText(source.datasetId) ? { dataset_id: cleanText(source.datasetId) } : {}),
+      ...(source.revision != null ? { revision: source.revision } : {})
+    };
+  }
+  /** Each structure is priced on its own once the document says so and more than one is on. */
+  function pricesPerStructure(state){
+    return cleanText(obj(state).pricing) === 'per_structure' && includedStructures(state).length > 1;
+  }
+  /** What each included structure is priced from when it gets its own lines.
+   *  A key measured per structure comes from the structure (a change made to
+   *  the combined value goes to the first one); a shared value (waste, in
+   *  percent) applies to every structure; anything else the document holds
+   *  belongs to the first structure, so nothing is counted twice. */
+  function structurePricingMeasurements(state, current){
+    const included = includedStructures(state);
+    const computed = combineStructures(state).values;
+    const values = measureNumbers(current);
+    const perStructure = new Set(structureList(state).flatMap((structure) => Object.keys(measureNumbers(structure.values))));
+    const shared = new Set(arr(obj(state).shared_keys).map(cleanText));
+    return included.map((structure, index) => {
+      const own = measureNumbers(structure.values);
+      const out = {};
+      new Set([...perStructure, ...Object.keys(values)]).forEach((key) => {
+        if (perStructure.has(key)) {
+          let value = Number(own[key]) || 0;
+          if (index === 0 && key in values && key in computed) value += values[key] - computed[key];
+          out[key] = Math.max(0, roundMeasure(value));
+        } else {
+          out[key] = shared.has(key) || /percent$/i.test(key) || index === 0 ? values[key] : 0;
+        }
+      });
+      return { structure, values: out };
+    });
+  }
+  /** The measurements a structure entered by hand asks for: the structure-level
+   *  measurements of the schemas the selected scope templates name, narrowed to
+   *  the ones this estimate reads. A part of a partition the estimate holds
+   *  (squares by pitch band) brings its siblings, and a whole whose complete
+   *  partition is asked for adds up from its parts. With nothing in use, a
+   *  schema's required measurements are asked for. */
+  function structureFieldsFromSchemas(vocabulary, schemaIds, keysInUse, measurements){
+    const v = obj(vocabulary);
+    const ids = arr(schemaIds).map(cleanText).filter(Boolean);
+    const dictionary = new Map(arr(v.dictionary).map(obj).map((definition) => [cleanText(definition.id), definition]));
+    const using = new Set(arr(keysInUse).map(cleanText).filter(Boolean));
+    const present = new Set(Object.keys(obj(measurements)));
+    const partitionOf = (definition) => cleanText(obj(obj(definition).slice).partition);
+    const fields = [];
+    arr(v.catalog).map(obj).filter((schema) => ids.includes(cleanText(schema.id))).forEach((schema) => {
+      const entries = arr(schema.measurements).map(obj)
+        .map((entry) => ({ entry, definition: obj(dictionary.get(cleanText(entry.definition))) }))
+        .filter(({ definition }) => cleanText(definition.key) && arr(definition.levels).includes('structure'));
+      const partitionsInUse = new Set(entries
+        .filter(({ definition }) => partitionOf(definition) && (using.has(definition.key) || present.has(definition.key)))
+        .map(({ definition }) => partitionOf(definition)));
+      let chosen = entries.filter(({ definition }) => using.has(definition.key) || partitionsInUse.has(partitionOf(definition)));
+      if (!chosen.length) chosen = entries.filter(({ entry }) => entry.required === true);
+      chosen.forEach(({ entry, definition }) => {
+        const existing = fields.find((field) => field.key === definition.key);
+        if (existing) { existing.required = existing.required || entry.required === true; return; }
+        fields.push({
+          key: definition.key,
+          definition: cleanText(definition.id),
+          label: firstText(definition.label, prettyKey(definition.key)),
+          unit: cleanText(definition.unit),
+          unit_label: STRUCTURE_UNIT_LABELS[cleanText(definition.unit)] || cleanText(definition.unit),
+          required: entry.required === true,
+          ...(partitionOf(definition) ? { partition: partitionOf(definition) } : {})
+        });
+      });
+    });
+    arr(v.partitions).map(obj).filter((partition) => partition.complete === true).forEach((partition) => {
+      const whole = fields.find((field) => field.definition === cleanText(partition.of));
+      if (!whole) return;
+      const parts = [...dictionary.values()].filter((definition) => partitionOf(definition) === cleanText(partition.id) && cleanText(definition.key));
+      if (parts.length && parts.every((definition) => fields.some((field) => field.key === definition.key))) whole.derive_from = parts.map((definition) => definition.key);
+    });
+    return fields;
+  }
+  /** A structure entered by hand, from the form's values. Derived wholes add up from their parts. */
+  function manualStructure(input, fields, who){
+    const source = obj(input);
+    const values = {};
+    const units = {};
+    arr(fields).map(obj).forEach((field) => {
+      const raw = obj(source.values)[field.key];
+      if (raw === undefined || raw === null || cleanText(raw) === '' || !Number.isFinite(Number(raw))) return;
+      values[field.key] = roundMeasure(Math.max(0, Number(raw)));
+      if (cleanText(field.unit)) units[field.key] = cleanText(field.unit);
+    });
+    arr(fields).map(obj).filter((field) => arr(field.derive_from).length).forEach((field) => {
+      const parts = arr(field.derive_from).filter((key) => key in values);
+      if (!parts.length) return;
+      values[field.key] = roundMeasure(parts.reduce((sum, key) => sum + values[key], 0));
+      if (cleanText(field.unit)) units[field.key] = cleanText(field.unit);
+    });
+    const person = obj(who);
+    return {
+      id: structureIdText(firstText(source.id, uid('manual'))),
+      name: firstText(source.name, L('structure_manual_default', 'Added structure')),
+      origin: 'manual',
+      included: source.included !== false,
+      values,
+      units,
+      ...(firstText(person.name, person.id) ? { entered_by: { ...(cleanText(person.id) ? { id: cleanText(person.id) } : {}), ...(cleanText(person.name) ? { name: cleanText(person.name) } : {}) } } : {}),
+      entered_at: firstText(source.entered_at, new Date().toISOString())
+    };
+  }
+  /** What is still missing from a structure entered by hand, or null. */
+  function manualStructureError(structure, fields){
+    const values = obj(obj(structure).values);
+    const missing = arr(fields).map(obj).filter((field) => field.required && !(Number(values[field.key]) > 0));
+    if (missing.length) return L('structure_manual_missing', 'Enter {fields} to add this structure.', { fields: missing.map((field) => firstText(field.label, field.key)).join(', ') });
+    if (!Object.values(values).some((value) => Number(value) > 0)) return L('structure_manual_empty', 'Enter at least one measurement for this structure.');
+    return null;
+  }
+  /** Give a structure's own lines its name and a reference back to it. */
+  function tagStructureScope(rootItem, structure){
+    const name = cleanText(obj(structure).name);
+    const ref = { id: cleanText(structure.id), name, origin: isManualStructure(structure) ? 'manual' : 'report' };
+    rootItem.display_name = `${firstText(rootItem.display_name, rootItem.name)} — ${name}`;
+    rootItem.name = rootItem.display_name;
+    const walk = (item) => {
+      item.structure_ref = ref;
+      const selection = obj(item.selection);
+      if (cleanText(selection.group_title)) item.selection = { ...selection, group_title: `${cleanText(selection.group_title)} — ${name}` };
+      arr(item.children).forEach((child) => walk(obj(child)));
+    };
+    walk(rootItem);
+    return rootItem;
+  }
+
   // ------------------------------------------------------------ measurements
   registerKind('measurements', (el, ctx) => {
     const services = obj(ctx.services);
@@ -725,18 +989,44 @@
       if (!expr) return {};
       return obj(expr.includes('{{') || /[()]/.test(expr) ? evalExpr(expr, ctx.scope()) : getPath(ctx.scope(), expr));
     }
+    // The document's structures (see "measurement structures" above): which the
+    // report measured, which are off, which were entered by hand.
+    const structuresPath = cleanText(ctx.item.structures_writes) || DEFAULT_STRUCTURES_PATH;
+    const structureState = () => obj(getPath(ctx.scope(), structuresPath));
+    const hasStructures = () => structureList(structureState()).length > 0;
+    const sharedKeys = () => fields().filter((field) => cleanText(field.unit) === '%').map((field) => field.key);
+    let structureForm = null; // { id?, name, values, fields, loading, error } while adding or editing one by hand
     function projectValues(){
       const out = {};
       Object.entries({ ...expressionPrefill(), ...obj(report.values) }).forEach(([key, value]) => {
         if (typeof value === 'number' && Number.isFinite(value)) out[key] = round(value);
         else if (typeof value === 'string' && value.trim() !== '' && Number.isFinite(Number(value))) out[key] = round(value);
       });
-      return out;
+      // With structures, the project's values are their combination.
+      return hasStructures() ? { ...out, ...combineStructures(structureState()).values } : out;
+    }
+    /** Save a new structure state and move the estimate's measurements with it,
+     *  keeping any value someone changed by hand. */
+    function writeStructures(nextState){
+      const before = combineStructures(structureState()).values;
+      const after = combineStructures(nextState).values;
+      ctx.writePath(structuresPath, nextState);
+      const next = rebaseMeasurements(ctx.value(), before, after);
+      if (JSON.stringify(next) !== JSON.stringify(obj(ctx.value()))) ctx.write(Object.keys(next).length ? next : null);
+      ctx.requestPreview();
+    }
+    /** Fold a freshly read report into the saved structures. */
+    function syncReportStructures(){
+      if (ctx.readonly || report.status !== 'ready') return;
+      const saved = structureState();
+      const merged = mergeReportStructures(saved, report, { pricing: cleanText(ctx.item.structure_pricing), sharedKeys: sharedKeys() });
+      if (JSON.stringify(merged) !== JSON.stringify(saved)) ctx.writePath(structuresPath, merged);
     }
     /** Start from the project's values; fields the report does not measure
      *  take their declared default. Hand-entered values survive unless the
      *  user asks to reload. */
     function applyProject(overwrite){
+      syncReportStructures();
       const next = overwrite ? {} : obj(clone(ctx.value()));
       const fromProject = projectValues();
       Object.entries(fromProject).forEach(([key, value]) => { if (overwrite || !hasValue(next[key])) next[key] = value; });
@@ -755,6 +1045,219 @@
       ctx.write(Object.keys(next).length ? next : null);
     }
 
+    // ---- structures: the report's, turned on or off, and ones entered by hand
+    const DISPLAY_UNITS = { sq: 'roofing_square', 'sq ft': 'ft2', ft: 'ft', ea: 'count' };
+    function unitLabel(key, unit){
+      const field = fields().find((entry) => entry.key === key);
+      return firstText(field?.unit, STRUCTURE_UNIT_LABELS[cleanText(unit)], unit);
+    }
+    function formatMeasure(value){ return String(roundMeasure(value)); }
+    function structureFigures(structure){
+      const values = measureNumbers(structure.values);
+      // A report structure shows the step's own measurements; one entered by hand shows everything entered.
+      const order = [...new Set([...fields().map((field) => field.key), ...(isManualStructure(structure) ? Object.keys(values) : [])])].filter((key) => Number(values[key]) > 0);
+      return order.slice(0, isManualStructure(structure) ? order.length : 4).map((key) => {
+        const field = fields().find((entry) => entry.key === key);
+        const unit = unitLabel(key, obj(structure.units)[key]);
+        return `${firstText(field?.label, measurementLabelFor(key))} ${formatMeasure(values[key])}${unit ? ` ${unit}` : ''}`;
+      });
+    }
+    function originHtml(structure){
+      if (!isManualStructure(structure)) return `<span class="fmdw-struct-origin"><i class="fas fa-ruler-combined"></i> ${esc(L('structure_origin_report', 'From the report'))}</span>`;
+      const who = firstText(obj(structure.entered_by).name);
+      const when = cleanText(structure.entered_at).slice(0, 10);
+      const detail = [who, when].filter(Boolean).join(', ');
+      return `<span class="fmdw-struct-origin manual"><i class="fas fa-hand"></i> ${esc(L('structure_origin_manual', 'Entered by hand'))}${detail ? ` <small>(${esc(detail)})</small>` : ''}</span>`;
+    }
+    function structureFormHtml(){
+      const form = obj(structureForm);
+      const list = arr(form.fields).map(obj);
+      const values = obj(form.values);
+      const editing = !!cleanText(form.id);
+      return `
+        <div class="fmdw-struct-form" data-fmdw-sform>
+          <label class="fmdw-struct-form-name"><span>${esc(L('structure_form_name', 'Structure name'))}</span>
+            <input type="text" data-fmdw-sform-name value="${esc(firstText(form.name))}" placeholder="${esc(L('structure_form_name_placeholder', 'Garage, shed, porch…'))}"></label>
+          ${form.loading ? `<p class="fmdw-hint"><i class="fas fa-circle-notch fa-spin"></i> ${esc(L('structure_form_loading', 'Finding the measurements this work needs…'))}</p>` : `
+            <p class="fmdw-hint">${esc(L('structure_form_intro', 'The measurements this kind of work needs for a structure. They are marked as entered by hand, not report data.'))}</p>
+            <div class="fmdw-meas-grid">
+              ${list.map((field) => {
+                const derived = arr(field.derive_from).length > 0;
+                const value = derived
+                  ? arr(field.derive_from).reduce((sum, key) => sum + (Number(values[key]) || 0), 0)
+                  : values[field.key];
+                return `
+                  <label class="fmdw-meas-field ${derived ? 'derived' : ''}">
+                    <span>${esc(firstText(field.label, field.key))}${field.required ? '<i class="fmdw-req">*</i>' : ''}${derived ? ` <em>${esc(L('structure_form_sum', 'sum'))}</em>` : ''}</span>
+                    <span class="fmdw-meas-input">
+                      <input type="number" step="any" min="0" ${derived ? `data-fmdw-sform-derived="${esc(field.key)}" disabled` : `data-fmdw-sform-value="${esc(field.key)}"`} value="${value === undefined || value === null || value === '' || (derived && !value) ? '' : esc(roundMeasure(value))}" placeholder="—">
+                      ${firstText(field.unit_label, field.unit) ? `<i>${esc(firstText(field.unit_label, field.unit))}</i>` : ''}
+                    </span>
+                  </label>`;
+              }).join('')}
+            </div>`}
+          ${form.error ? `<p class="fmdw-meas-note"><i class="fas fa-triangle-exclamation"></i> ${esc(form.error)}</p>` : ''}
+          <div class="fmdw-row-actions">
+            <button type="button" class="fmdw-btn primary" data-fmdw-sform-save ${form.loading ? 'disabled' : ''}><i class="fas fa-check"></i> ${esc(editing ? L('structure_form_save', 'Save structure') : L('structure_form_add', 'Add structure'))}</button>
+            <button type="button" class="fmdw-btn ghost" data-fmdw-sform-cancel>${esc(L('structure_form_cancel', 'Cancel'))}</button>
+          </div>
+        </div>`;
+    }
+    function structuresHtml(){
+      const state = structureState();
+      const list = structureList(state);
+      if (!list.length && (ctx.readonly || report.status === 'loading')) return '';
+      const on = includedStructures(state).length;
+      const perStructure = cleanText(state.pricing) === 'per_structure';
+      return `
+        <div class="fmdw-structs" data-fmdw-structs>
+          <div class="fmdw-structs-head">
+            <strong>${esc(L('structures_title', 'Structures'))}</strong>
+            ${list.length ? `<span>${esc(L('structures_count', '{on} of {total} in this estimate', { on, total: list.length }))}</span>` : ''}
+          </div>
+          ${list.map((structure) => {
+            const included = structureIncluded(structure);
+            const manual = isManualStructure(structure);
+            const figures = structureFigures(structure);
+            return `
+              <div class="fmdw-struct ${included ? '' : 'off'} ${manual ? 'manual' : ''}">
+                <label class="fmdw-struct-toggle" title="${esc(included ? L('structure_turn_off', 'Leave this structure out of the estimate') : L('structure_turn_on', 'Put this structure back in the estimate'))}">
+                  <input type="checkbox" data-fmdw-struct-toggle="${esc(structure.id)}" ${included ? 'checked' : ''} ${ctx.readonly ? 'disabled' : ''}>
+                  <span class="fmdw-struct-switch"></span>
+                </label>
+                <div class="fmdw-struct-main">
+                  <div class="fmdw-struct-title">
+                    ${ctx.readonly ? `<strong>${esc(structure.name)}</strong>` : `<input type="text" class="fmdw-struct-name" data-fmdw-struct-name="${esc(structure.id)}" value="${esc(structure.name)}" aria-label="${esc(L('structure_form_name', 'Structure name'))}">`}
+                    ${originHtml(structure)}
+                  </div>
+                  <span class="fmdw-struct-figures">${included ? esc(figures.join(' · ') || L('structure_no_values', 'No measurements')) : esc(L('structure_left_out', 'Left out of this estimate'))}</span>
+                </div>
+                ${manual && !ctx.readonly ? `
+                  <div class="fmdw-struct-actions">
+                    <button type="button" class="fmdw-btn ghost" data-fmdw-struct-edit="${esc(structure.id)}" title="${esc(L('structure_edit', 'Edit the measurements'))}"><i class="fas fa-pen"></i></button>
+                    <button type="button" class="fmdw-btn ghost" data-fmdw-struct-remove="${esc(structure.id)}" title="${esc(L('structure_remove', 'Remove this structure'))}"><i class="fas fa-trash-can"></i></button>
+                  </div>` : ''}
+              </div>`;
+          }).join('')}
+          ${structureForm ? structureFormHtml() : (ctx.readonly ? '' : `
+            <div class="fmdw-row-actions">
+              <button type="button" class="fmdw-btn ghost" data-fmdw-struct-add><i class="fas fa-plus"></i> ${esc(L('structure_add', 'Add a structure'))}</button>
+            </div>`)}
+          ${on > 1 ? `
+            <div class="fmdw-struct-pricing" role="radiogroup" aria-label="${esc(L('structures_pricing_label', 'How the structures are priced'))}">
+              <label><input type="radio" name="fmdw-struct-pricing" value="combined" data-fmdw-struct-pricing ${perStructure ? '' : 'checked'} ${ctx.readonly ? 'disabled' : ''}> ${esc(L('structures_pricing_combined', 'Price them together'))}</label>
+              <label><input type="radio" name="fmdw-struct-pricing" value="per_structure" data-fmdw-struct-pricing ${perStructure ? 'checked' : ''} ${ctx.readonly ? 'disabled' : ''}> ${esc(L('structures_pricing_each', 'One section of line items per structure'))}</label>
+            </div>` : ''}
+        </div>`;
+    }
+    /** The structure list to change, starting one when the document has none yet. */
+    function editableStructureState(){
+      const state = structureState();
+      if (Object.keys(state).length) return clone(state);
+      return { version: STRUCTURES_VERSION, report_totals: {}, source: {}, pricing: firstText(ctx.item.structure_pricing, 'combined'), shared_keys: sharedKeys(), structures: [] };
+    }
+    async function manualFields(){
+      const itemFields = fields();
+      const keysInUse = [...itemFields.map((field) => field.key), ...requiredMeasurementKeys(ctx.scope()), ...scopeMeasurementKeys(arr(getPath(ctx.scope(), 'params.scope_items')))];
+      if (typeof services.structureMeasurementFields === 'function') {
+        try {
+          const list = arr(await services.structureMeasurementFields({
+            selection: clone(arr(getPath(ctx.scope(), cleanText(ctx.item.selection_from) || 'params.scope_pieces'))),
+            keys: keysInUse,
+            measurements: clone(obj(ctx.value()))
+          })).map(obj).filter((field) => cleanText(field.key));
+          if (list.length) return list;
+        } catch (error) { console.warn('FMDocWorkflow: structure measurements unavailable — asking for this step\'s fields', error); }
+      }
+      // No schema to ask from: the step's own fields, less shared values such as waste.
+      return itemFields.filter((field) => cleanText(field.unit) !== '%').map((field, index) => ({
+        key: field.key, label: field.label, unit: DISPLAY_UNITS[cleanText(field.unit)] || cleanText(field.unit), unit_label: cleanText(field.unit), required: index === 0
+      }));
+    }
+    function openStructureForm(existing){
+      const structure = obj(existing);
+      structureForm = { id: cleanText(structure.id), name: cleanText(structure.name), entered_at: '', values: { ...measureNumbers(structure.values) }, fields: [], loading: true, error: '' };
+      render();
+      el.querySelector('[data-fmdw-sform-name]')?.focus();
+      manualFields().then((list) => {
+        if (!structureForm) return;
+        structureForm.fields = list;
+        structureForm.loading = false;
+        const name = el.querySelector('[data-fmdw-sform-name]')?.value;
+        if (name !== undefined) structureForm.name = name;
+        render();
+      });
+    }
+    function currentPerson(){
+      try {
+        const fromHost = obj(typeof services.currentUser === 'function' ? services.currentUser() : null);
+        if (firstText(fromHost.name, fromHost.id)) return fromHost;
+      } catch (e) { /* fall through */ }
+      const app = obj(root.__APP);
+      return { id: firstText(app.userId, app.user_id), name: firstText(app.userName, app.userEmail) };
+    }
+    function saveStructureForm(){
+      const form = obj(structureForm);
+      const structure = manualStructure({ id: form.id, name: form.name, values: form.values }, form.fields, currentPerson());
+      const error = manualStructureError(structure, form.fields);
+      if (error) { structureForm.error = error; render(); return; }
+      const state = editableStructureState();
+      const list = structureList(state);
+      const index = list.findIndex((entry) => entry.id === structure.id);
+      if (index >= 0) list[index] = { ...structure, included: list[index].included !== false };
+      else list.push(structure);
+      structureForm = null;
+      writeStructures({ ...state, structures: list });
+      render();
+    }
+    function bindStructures(){
+      const changeStructure = (id, patch) => {
+        const state = editableStructureState();
+        writeStructures({ ...state, structures: structureList(state).map((structure) => (structure.id === id ? { ...structure, ...patch } : structure)) });
+      };
+      el.querySelectorAll('[data-fmdw-struct-toggle]').forEach((input) => input.addEventListener('change', () => {
+        changeStructure(input.dataset.fmdwStructToggle, { included: input.checked });
+        render();
+      }));
+      // Renaming changes no value: save it without rebuilding the step under the cursor.
+      el.querySelectorAll('[data-fmdw-struct-name]').forEach((input) => input.addEventListener('change', () => {
+        const name = cleanText(input.value);
+        if (name) changeStructure(input.dataset.fmdwStructName, { name });
+      }));
+      el.querySelectorAll('[data-fmdw-struct-edit]').forEach((button) => button.addEventListener('click', () => {
+        openStructureForm(structureList(structureState()).find((structure) => structure.id === button.dataset.fmdwStructEdit));
+      }));
+      el.querySelectorAll('[data-fmdw-struct-remove]').forEach((button) => button.addEventListener('click', () => {
+        const structure = structureList(structureState()).find((entry) => entry.id === button.dataset.fmdwStructRemove);
+        if (!structure || !root.confirm(L('structure_remove_confirm', 'Remove "{name}" and the measurements entered for it?', { name: structure.name }))) return;
+        const state = editableStructureState();
+        writeStructures({ ...state, structures: structureList(state).filter((entry) => entry.id !== structure.id) });
+        render();
+      }));
+      el.querySelector('[data-fmdw-struct-add]')?.addEventListener('click', () => openStructureForm(null));
+      el.querySelectorAll('[data-fmdw-struct-pricing]').forEach((input) => input.addEventListener('change', () => {
+        if (!input.checked) return;
+        writeStructures({ ...editableStructureState(), pricing: input.value === 'per_structure' ? 'per_structure' : 'combined' });
+        render();
+      }));
+      const form = el.querySelector('[data-fmdw-sform]');
+      if (!form || !structureForm) return;
+      form.querySelector('[data-fmdw-sform-name]')?.addEventListener('input', (event) => { structureForm.name = event.target.value; });
+      form.querySelectorAll('[data-fmdw-sform-value]').forEach((input) => input.addEventListener('input', () => {
+        const key = input.dataset.fmdwSformValue;
+        if (cleanText(input.value) === '') delete structureForm.values[key];
+        else structureForm.values[key] = Number(input.value) || 0;
+        // Wholes that add up from their parts follow as they are typed.
+        arr(structureForm.fields).map(obj).filter((field) => arr(field.derive_from).includes(key)).forEach((field) => {
+          const total = arr(field.derive_from).reduce((sum, part) => sum + (Number(structureForm.values[part]) || 0), 0);
+          const target = form.querySelector(`[data-fmdw-sform-derived="${field.key}"]`);
+          if (target) target.value = total ? String(roundMeasure(total)) : '';
+        });
+      }));
+      form.querySelector('[data-fmdw-sform-save]')?.addEventListener('click', () => saveStructureForm());
+      form.querySelector('[data-fmdw-sform-cancel]')?.addEventListener('click', () => { structureForm = null; render(); });
+    }
+
     const render = () => {
       const current = obj(ctx.value());
       const list = fields();
@@ -763,6 +1266,7 @@
       const keys = list.map((field) => field.key);
       const extra = Object.entries(current).filter(([key, value]) => !keys.includes(key) && hasValue(value) && typeof value !== 'object');
       const missing = list.filter((field) => !hasValue(current[field.key]));
+      const manualKeys = hasStructures() ? combineStructures(structureState()).manualKeys : [];
       const sourceLine = report.status === 'loading'
         ? `<p class="fmdw-hint fmdw-meas-source"><i class="fas fa-circle-notch fa-spin"></i> Reading this project's measurements…</p>`
         : hasProject
@@ -774,14 +1278,17 @@
           ${ctx.item.description ? `<span class="fmdw-field-desc">${esc(ctx.item.description)}</span>` : ''}
           <div class="fmdw-card">
             ${sourceLine}
+            ${structuresHtml()}
             ${list.length ? `
+              ${hasStructures() ? `<p class="fmdw-structs-combined">${esc(pricesPerStructure(structureState()) ? L('structures_combined_each', 'All structures together. Each structure is priced from its own measurements; a value changed here applies to the first one.') : L('structures_combined', 'All structures together: what this estimate prices from.'))}</p>` : ''}
               <div class="fmdw-meas-grid">
                 ${list.map((field) => {
                   const filled = hasValue(current[field.key]);
                   const edited = filled && hasValue(fromProject[field.key]) && Number(current[field.key]) !== Number(fromProject[field.key]);
+                  const manual = !edited && filled && manualKeys.includes(field.key);
                   return `
-                    <label class="fmdw-meas-field ${filled ? '' : 'needed'} ${edited ? 'edited' : ''}" ${edited ? `title="Report value: ${esc(fromProject[field.key])}"` : ''}>
-                      <span>${esc(field.label)}${edited ? ' <em>edited</em>' : ''}</span>
+                    <label class="fmdw-meas-field ${filled ? '' : 'needed'} ${edited ? 'edited' : ''} ${manual ? 'manual' : ''}" ${edited ? `title="Report value: ${esc(fromProject[field.key])}"` : (manual ? `title="${esc(L('structures_manual_value_title', 'Includes measurements entered by hand'))}"` : '')}>
+                      <span>${esc(field.label)}${edited ? ' <em>edited</em>' : (manual ? ` <em class="manual">${esc(L('structures_manual_tag', 'incl. by hand'))}</em>` : '')}</span>
                       <span class="fmdw-meas-input">
                         <input type="number" step="any" min="0" data-fmdw-meas="${esc(field.key)}" ${ctx.readonly ? 'disabled' : ''} value="${filled ? esc(Number(current[field.key])) : ''}" placeholder="—">
                         ${cleanText(field.unit) ? `<i>${esc(field.unit)}</i>` : ''}
@@ -819,6 +1326,7 @@
       }));
       el.querySelector('[data-fmdw-meas-reload]')?.addEventListener('click', () => { applyProject(true); render(); });
       el.querySelector('[data-fmdw-meas-clear]')?.addEventListener('click', () => { ctx.write(null); render(); });
+      bindStructures();
     };
 
     // Start from the project automatically. Values already entered are kept;
@@ -828,7 +1336,8 @@
     if (report.status === 'loading') {
       Promise.resolve().then(() => services.projectMeasurements()).then((result) => {
         const values = obj(obj(result).values);
-        report = { status: Object.keys(values).length ? 'ready' : 'missing', values, source: cleanText(obj(result).source) };
+        // Structures the report measured separately, with the dataset they came from.
+        report = { status: Object.keys(values).length ? 'ready' : 'missing', values, source: cleanText(obj(result).source), structures: arr(obj(result).structures), units: obj(obj(result).units), dataset_id: cleanText(obj(result).dataset_id), revision: obj(result).revision };
       }).catch(() => { report = { status: 'error', values: {}, source: '' }; }).then(() => {
         if (!el.isConnected) return;
         if (!ctx.readonly && Object.keys(projectValues()).length) applyProject(false);
@@ -1602,11 +2111,29 @@
     const selection = () => arr(getPath(ctx.scope(), cleanText(ctx.item.selection_from) || 'params.scope_pieces'));
     const measurements = () => obj(getPath(ctx.scope(), 'params.measurements'));
     const stampOf = (value) => JSON.stringify(Object.keys(obj(value)).sort().map((key) => [key, obj(value)[key]]));
+    // The document's structures (written by the measurements item). Priced
+    // one section per structure, what each structure measured is part of
+    // what the lines were generated from.
+    const structureState = () => obj(getPath(ctx.scope(), cleanText(ctx.item.structures_from) || DEFAULT_STRUCTURES_PATH));
+    const basisOf = (values) => {
+      const state = structureState();
+      if (!pricesPerStructure(state)) return values;
+      return { ...obj(values), __structures: includedStructures(state).map((structure) => [structure.id, structure.name, measureNumbers(structure.values)]) };
+    };
+    // What the lines looked like when they were generated: lines nobody has
+    // changed since follow the measurements without asking.
+    const linesStamp = (list) => {
+      const text = JSON.stringify(arr(list));
+      let hash = 5381;
+      for (let index = 0; index < text.length; index += 1) hash = ((hash * 33) ^ text.charCodeAt(index)) >>> 0;
+      return `${text.length}:${hash.toString(36)}`;
+    };
+    const untouchedSinceGenerated = () => cleanText(getPath(ctx.scope(), 'params.scope_generated_lines')) === linesStamp(items);
     // Lines were generated from one set of measurements; a later change to
     // them leaves the quantities behind until the user regenerates.
     const stale = () => {
       const stamp = cleanText(getPath(ctx.scope(), 'params.scope_generated_from'));
-      return !!stamp && countScopeItems(items) > 0 && stamp !== stampOf(measurements());
+      return !!stamp && countScopeItems(items) > 0 && stamp !== stampOf(basisOf(measurements()));
     };
     /** What the line costs when it is priced, whether or not it is selected. */
     const lineAmount = (item) => (item.price_driving === false ? 0 : Math.max(0, Number(item.quantity || 0) || 0) * (Number(item.unit_price || 0) || 0));
@@ -1663,6 +2190,7 @@
      *  quantities are left alone. */
     function setModifierValue(modifierId, value){
       let variable = '';
+      const untouched = untouchedSinceGenerated();
       items.forEach((root) => arr(root.quantity_modifiers).forEach((modifier) => {
         if (obj(modifier).id === modifierId) { modifier.value = value; variable = firstText(modifier.variable, variable); }
       }));
@@ -1680,7 +2208,9 @@
         // so the Roof step and a later regenerate agree with this screen.
         const next = { ...measurements(), [variable]: value };
         ctx.writePath('params.measurements', next);
-        ctx.writePath('params.scope_generated_from', stampOf(next));
+        ctx.writePath('params.scope_generated_from', stampOf(basisOf(next)));
+        // A regenerate would give these same lines, so they still count as generated.
+        if (untouched) ctx.writePath('params.scope_generated_lines', linesStamp(items));
       }
       ctx.requestPreview();
     }
@@ -1921,12 +2451,30 @@
       render();
       try {
         const used = clone(measurements());
-        const roots = arr(await services.generateScopeItems(clone(selection()), clone(used))).map(normalizeScopeItem);
+        const state = structureState();
+        let roots = [];
+        if (pricesPerStructure(state)) {
+          // One section per structure, each from its own measurements. Piece ids
+          // carry the structure so each keeps its own choices.
+          for (const { structure, values } of structurePricingMeasurements(state, used)) {
+            const pieces = selection().map((piece, index) => {
+              const entry = obj(clone(piece));
+              return { ...entry, id: `${firstText(entry.id, `piece_${firstText(entry.template_id, 'scope')}_${index}`)}@${structureIdText(structure.id)}` };
+            });
+            const generated = arr(await services.generateScopeItems(pieces, clone(values))).map(normalizeScopeItem);
+            generated.forEach((rootItem) => roots.push(tagStructureScope(rootItem, structure)));
+          }
+          const seen = new Set();
+          walkItems(roots, (item) => { if (seen.has(item.id)) item.id = uid('scope'); seen.add(item.id); });
+        } else {
+          roots = arr(await services.generateScopeItems(clone(selection()), clone(used))).map(normalizeScopeItem);
+        }
         if (roots.length) {
           items = roots;
           walkItems(items, applyVariants);
           commit();
-          ctx.writePath('params.scope_generated_from', stampOf(used));
+          ctx.writePath('params.scope_generated_from', stampOf(basisOf(used)));
+          ctx.writePath('params.scope_generated_lines', linesStamp(items));
           ctx.requestPreview();
         } else {
           generateNote = 'Generation produced no lines — add them by hand or from the price book.';
@@ -2313,8 +2861,15 @@
     };
 
     render();
-    // Auto-generate on entry when nothing has been generated yet.
+    // Auto-generate on entry when nothing has been generated yet, and again
+    // when the measurements (or the structures in the estimate) changed under
+    // lines nobody has edited since they were generated.
     if (generates && !countScopeItems(items)) generate();
+    else if (generates && !ctx.readonly && stale() && untouchedSinceGenerated()) {
+      generate().then(() => {
+        if (!stale() && el.isConnected) { generateNote = L('lines_followed_measurements', 'Updated for the changed measurements.'); render(); }
+      });
+    }
     return {
       validate: () => (ctx.item.required && !countScopeItems(arr(ctx.value())) ? (generates ? 'Generate or add at least one line item.' : 'Add at least one line item.') : null),
       destroy: () => {
@@ -3564,6 +4119,44 @@
 .fmdw-meas-field.edited input{border-color:#e8b93c}
 .fmdw-meas-extra summary{cursor:pointer;font-size:11px;font-weight:900;color:var(--fmdw-muted)}
 .fmdw-meas-extra .fmdw-stat-grid{margin-top:8px}
+.fmdw-meas-field em.manual{color:#6941c6}
+.fmdw-meas-field.manual input{border-color:#d6bbfb;background:#faf8ff}
+.fmdw-structs{display:flex;flex-direction:column;gap:8px;border:1px solid var(--fmdw-line);border-radius:12px;padding:10px 12px;background:#fcfcfd}
+.fmdw-structs-head{display:flex;align-items:baseline;justify-content:space-between;gap:10px}
+.fmdw-structs-head strong{font-size:12px;font-weight:1000}
+.fmdw-structs-head span{font-size:11px;font-weight:800;color:var(--fmdw-muted)}
+.fmdw-structs-combined{margin:4px 0 0;font-size:10.5px;font-weight:1000;text-transform:uppercase;letter-spacing:.04em;color:var(--fmdw-muted)}
+.fmdw-struct{display:flex;align-items:center;gap:10px;border:1px solid rgba(15,23,42,.08);border-radius:10px;background:#fff;padding:8px 10px}
+.fmdw-struct.off{background:#f8fafc}
+.fmdw-struct.off .fmdw-struct-main{opacity:.6}
+.fmdw-struct.manual{border-color:#e9d7fe}
+.fmdw-struct-toggle{position:relative;display:inline-flex;flex:none;cursor:pointer}
+.fmdw-struct-toggle input{position:absolute;opacity:0;width:1px;height:1px}
+.fmdw-struct-switch{width:32px;height:18px;border-radius:999px;background:#d0d5dd;position:relative;transition:background .15s}
+.fmdw-struct-switch::after{content:'';position:absolute;top:2px;left:2px;width:14px;height:14px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.2);transition:transform .15s}
+.fmdw-struct-toggle input:checked + .fmdw-struct-switch{background:var(--fmdw-primary)}
+.fmdw-struct-toggle input:checked + .fmdw-struct-switch::after{transform:translateX(14px)}
+.fmdw-struct-toggle input:focus-visible + .fmdw-struct-switch{outline:2px solid var(--fmdw-primary);outline-offset:2px}
+.fmdw-struct-main{display:flex;flex-direction:column;gap:3px;min-width:0;flex:1}
+.fmdw-struct-title{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.fmdw-struct-title strong{font-size:12.5px}
+.fmdw-struct-name{font:inherit;font-size:12.5px;font-weight:900;border:1px solid transparent;border-radius:6px;padding:2px 5px;margin-left:-5px;background:transparent;min-width:0;max-width:220px}
+.fmdw-struct-name:hover,.fmdw-struct-name:focus{border-color:rgba(15,23,42,.18);background:#fff}
+.fmdw-struct-origin{display:inline-flex;align-items:center;gap:4px;font-size:10.5px;font-weight:900;color:#067647;background:#ecfdf3;border-radius:999px;padding:2px 8px}
+.fmdw-struct-origin.manual{color:#6941c6;background:#f4ebff}
+.fmdw-struct-origin small{font-weight:700;font-size:10px}
+.fmdw-struct-figures{font-size:11px;font-weight:700;color:var(--fmdw-muted);overflow-wrap:anywhere}
+.fmdw-struct-actions{display:flex;gap:4px;flex:none}
+.fmdw-struct-form{display:flex;flex-direction:column;gap:8px;border:1px dashed #d6bbfb;border-radius:10px;padding:10px;background:#fcfaff}
+.fmdw-struct-form-name{display:flex;flex-direction:column;gap:4px;max-width:280px}
+.fmdw-struct-form-name span{font-size:10px;font-weight:1000;text-transform:uppercase;letter-spacing:.04em;color:var(--fmdw-muted)}
+.fmdw-meas-field.derived input{background:#f2f4f7}
+.fmdw-struct-pricing{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:12px;font-weight:800}
+.fmdw-struct-pricing label{display:inline-flex;align-items:center;gap:6px;cursor:pointer}
+.fmdw-field .fmdw-struct-pricing input{width:auto;max-width:none;padding:0;margin:0;flex:none;accent-color:var(--fmdw-primary)}
+.fmdw-field .fmdw-struct-name{width:auto;flex:0 1 240px;padding:4px 8px;font-size:12.5px;font-weight:900;border-color:transparent;background:transparent}
+.fmdw-field .fmdw-struct-name:hover,.fmdw-field .fmdw-struct-name:focus{border-color:#d4d9e6;background:#fff}
+.fmdw-field .fmdw-struct-form-name input{max-width:280px}
 /* line items review */
 /* the lines are the content: no card around the whole list */
 .fmdw-section:has(>.fmdw-section-items>.fmdw-item>.fmdw-lir-field){border:0;background:transparent;padding:0;box-shadow:none}
@@ -3971,6 +4564,8 @@
      *  video:{url,caption?}|null, display:"inline"|"popup" }. */
     openMediaAttach,
     // exposed for hosts/tests
-    helpers: { evalExpr, whenPasses, resolveOptions, formatValue, stepVisibleFor, itemVisibleFor, normalizeScopeItem, scopeItemsTotal, normalizeContentBlock }
+    helpers: { evalExpr, whenPasses, resolveOptions, formatValue, stepVisibleFor, itemVisibleFor, normalizeScopeItem, scopeItemsTotal, normalizeContentBlock },
+    /** Measurement structures: pure helpers the documents host and tests share. */
+    structures: { fromDataset: structuresFromDataset, combine: combineStructures, mergeReport: mergeReportStructures, rebase: rebaseMeasurements, pricesPerStructure, pricingMeasurements: structurePricingMeasurements, fieldsFromSchemas: structureFieldsFromSchemas, manualStructure, manualStructureError, tagScope: tagStructureScope }
   };
 })();

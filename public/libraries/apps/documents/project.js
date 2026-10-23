@@ -455,6 +455,11 @@
   /** Stamp a generated root with the piece it came from (display name,
    *  template refs) and namespace its choice groups per piece so two pieces
    *  never share a group — the rule proposalBuilderApplyPieceMetadata applies. */
+  /** The structures the selected measurement dataset measured separately (see FMDocWorkflow.structures.fromDataset). */
+  function datasetStructureFields(dataset){
+    try { return objectValue(window.FMDocWorkflow?.structures?.fromDataset?.(dataset)); } catch (error) { return {}; }
+  }
+
   function applyScopePieceMetadata(root, piece, index){
     if (!root || typeof root !== 'object' || !firstText(root.id)) return null;
     const templateId = firstText(piece.template_id, piece.id);
@@ -1881,6 +1886,8 @@
               description: firstText(rec.description, definition.description),
               icon: firstText(rec.icon, definition.icon, 'fa-diagram-project'),
               color: firstText(rec.color, definition.color),
+              // The kinds of work it is measured as (a structure added by hand asks for these).
+              measurement_schema_ids: arrayValue(definition.measurement_schema_ids || rec.measurement_schema_ids).map(cleanText).filter(Boolean),
               enabled: rec.enabled !== false
             };
           }).filter((template) => template.id && template.enabled);
@@ -1920,7 +1927,7 @@
               const value = Number(objectValue(entry).value);
               if (Number.isFinite(value)) values[key] = value;
             });
-            return { values, source: 'the measurements on this project' };
+            return { values, source: 'the measurements on this project', ...datasetStructureFields(result) };
           }
           // The shared loader reads the project's measurement dataset and, for
           // a report that was never published as one, the report itself.
@@ -1945,7 +1952,28 @@
           const values = numbers(loaded.measurements);
           // A report read directly has no waste figure; leave the field to its default.
           if (!(values.wastePercent > 0)) delete values.wastePercent;
-          return { values, source: 'the measurement report on this project' };
+          return { values, source: 'the measurement report on this project', ...(loaded.origin === 'project_measurement_dataset' ? datasetStructureFields(loaded.source) : {}) };
+        },
+        // What a structure entered by hand asks for: the measurement schemas
+        // the selected scope templates name, read from the shared dictionary.
+        // None named: the runtime falls back to the step's own fields.
+        structureMeasurementFields: async ({ selection, keys, measurements } = {}) => {
+          const helpers = window.FMDocWorkflow?.structures;
+          if (!helpers?.fieldsFromSchemas || !window.PlatformAPI?.publication?.read) return [];
+          const templateIds = arrayValue(selection).map(objectValue).map((piece) => firstText(piece.template_id, piece.id)).filter(Boolean);
+          const catalog = arrayValue(await loadPieceCatalog());
+          const schemaIds = [...new Set(catalog.filter((template) => templateIds.includes(template.id)).flatMap((template) => arrayValue(template.measurement_schema_ids)))];
+          if (!schemaIds.length) return [];
+          if (!state.measurementVocabulary) {
+            const target = { scope: 'organization', organizationId: orgId() };
+            const read = async (name) => {
+              const result = await window.PlatformAPI.publication.read(orgId(), { provider: 'measurement-schemas', export: name, target });
+              return arrayValue(objectValue(objectValue(result).result || result).value);
+            };
+            const [dictionary, catalogValue, partitions] = await Promise.all([read('dictionary'), read('catalog'), read('partitions')]);
+            state.measurementVocabulary = { dictionary, catalog: catalogValue, partitions };
+          }
+          return helpers.fieldsFromSchemas(state.measurementVocabulary, schemaIds, keys, measurements);
         },
         // Native line-items generation (line_items_review + measurement-key
         // derivation): the legacy module's exported generation, pricebook
