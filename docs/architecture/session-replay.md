@@ -62,18 +62,27 @@ What is recorded, and how:
 - **Blobs.** A string of 2,048 characters or more (stylesheets, data URLs) is replaced by its content address and
   uploaded once per organization. The server recomputes the address (`session-replay/hash.ts`) before storing it,
   so stylesheets that do not change between releases are stored once for every session.
-- **Chunks.** Every 5 seconds (the first after 1 second, and when the tab is hidden or closed) the recorder sends
+- **Chunks.** Every 20 seconds (the first after 1 second, and when the tab is hidden or closed) the recorder sends
   the new strings, the events with millisecond deltas and the pointer track as gzip JSON. Chunks of a page are
-  numbered from 0 and sent in order; a retry of a stored chunk changes nothing.
+  numbered from 0 and sent in order; a retry of a stored chunk changes nothing. Nothing is sent while nothing
+  happens. A chunk goes up as one binary frame (`application/vnd.firstmate.replay-frame`: a 4-byte big-endian
+  header length, the header JSON, then the gzip bytes), with no base64; blobs use the same frame. The JSON form
+  (`data` in base64, or `json` text) is still accepted for other transports.
+- **Pacing.** Each chunk's reply names the next interval (`next_ms`): 20 seconds, or 2 seconds while a platform
+  administrator has the session open live in the viewer (the viewer asks with `watch=1`, which holds for 15 seconds
+  after its last poll, in `watched_until`). Starting to watch also publishes `session_replay.watch` to the recorded
+  person on the platform event stream; a page that already holds that stream sends at once (`recorder.hurry()`)
+  instead of at its next interval. The recorder never opens a connection for this.
 
 ## Storage
 
-`session-replay/storage.ts` is an `openSqlStore` store (`session_replay`, schema version 1):
+`session-replay/storage.ts` is an `openSqlStore` store (`session_replay`, schema version 3):
 `session_replay_sessions` (one per tab session: person, organization, times, sizes, device),
 `session_replay_pages` (one per page load, with its META), `session_replay_chunks` (the gzip bodies),
 `session_replay_blobs` (per organization, by content address) and `session_replay_org_settings`. A session is one
 browser tab until 30 idle minutes pass or the person or organization changes; another person writing into it gets
-409 and the recorder starts a new one. A session stops accepting chunks at 256 MB.
+409 and the recorder starts a new one. A session stops accepting chunks at 256 MB. Storing a chunk is four
+statements in one transaction: read the session, insert the chunk, and upsert its page and session totals.
 
 ## Archives
 
@@ -172,7 +181,9 @@ events, which the viewer charts. Heap figures are Chrome's `performance.memory` 
 ## Using the library elsewhere
 
 The recorder needs only `FMReplayRecorder.create({ transport, sessionId, pageId })`, where `transport` has
-`sendChunk(item)`, `missingBlobs(keys)`, `sendBlob(blob)` and `beacon(item)`. A browser extension or another site
+`sendChunk(item)`, `missingBlobs(keys)`, `sendBlob(blob)` and `beacon(item)`. `item.bytes` and `blob.bytes` are the
+gzip bytes (`FMReplayRecorder.base64` turns them into text for a transport that needs it); a `sendChunk` result may
+carry `next_ms` to change the interval. A browser extension or another site
 can load the codec and recorder and point a transport at any endpoint; the player and viewer only need the chunks and
 blobs.
 

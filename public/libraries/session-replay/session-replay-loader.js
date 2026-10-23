@@ -21,7 +21,7 @@
   if (!topLevel) return;
   if (document.documentElement && document.documentElement.hasAttribute('data-fmr-no-record')) return;
 
-  const VERSION = '20261022-2';
+  const VERSION = '20261022-3';
   const SESSION_KEY = 'fmr.session';
   const OVERLAY_KEY = 'fmr.overlay';
   const IDLE_MS = 30 * 60 * 1000;
@@ -72,14 +72,27 @@
     try { return decodeURIComponent(cookie(name)); } catch (error) { return ''; }
   }
 
+  // Chunks and blobs go up as one binary frame: a 4-byte big-endian length, that many bytes of JSON describing the
+  // payload, then the gzip bytes as they are (no base64, no JSON escaping). Small requests stay JSON.
+  const FRAME_TYPE = 'application/vnd.firstmate.replay-frame';
+  const utf8 = new TextEncoder();
+  function frame(header, bytes) {
+    const head = utf8.encode(JSON.stringify(header));
+    const out = new Uint8Array(4 + head.length + bytes.length);
+    new DataView(out.buffer).setUint32(0, head.length);
+    out.set(head, 4);
+    out.set(bytes, 4 + head.length);
+    return out;
+  }
+
   async function post(path, body, keepalive) {
-    const payload = JSON.stringify(body);
+    const binary = body instanceof Uint8Array;
+    const payload = binary ? body : JSON.stringify(body);
     const response = await fetch(apiBase + path, {
       method: 'POST',
       credentials: 'include',
-      cache: 'no-store',
       keepalive: !!keepalive && payload.length < 60000,
-      headers: { 'Content-Type': 'application/json', Accept: 'application/json', 'X-Platform-CSRF': csrf() },
+      headers: { 'Content-Type': binary ? FRAME_TYPE : 'application/json', Accept: 'application/json', 'X-Platform-CSRF': csrf() },
       body: payload
     });
     let data = null;
@@ -87,27 +100,47 @@
     return { ok: response.ok && !(data && data.ok === false), status: response.status, data };
   }
 
-  function chunkBody(item) {
-    const body = {
+  function chunkFrame(item) {
+    // A chunk the page is leaving before it was compressed goes up as its JSON text.
+    const bytes = item.bytes || utf8.encode(item.json);
+    const header = {
       session_id: item.session_id, page_id: item.page_id, seq: item.seq, page_started_at: item.page_started_at,
-      t_start: item.t_start, t_end: item.t_end, events: item.events, raw_bytes: item.raw_bytes || item.json.length,
-      encoding: item.data ? item.encoding : 'json'
+      t_start: item.t_start, t_end: item.t_end, events: item.events, raw_bytes: item.raw_bytes || bytes.length,
+      encoding: item.bytes ? item.encoding : 'identity'
     };
-    if (item.data) body.data = item.data; else body.json = item.json;
-    if (item.meta) body.meta = item.meta;
-    return body;
+    if (item.meta) header.meta = item.meta;
+    return frame(header, bytes);
   }
 
   const transport = {
-    sendChunk: (item) => post('/session-replay/chunks', chunkBody(item)),
+    sendChunk: (item) => post('/session-replay/chunks', chunkFrame(item)),
     missingBlobs: async (keys) => {
       const result = await post('/session-replay/blobs/missing', { keys });
       if (!result.ok) throw new Error('Session replay blob check failed (' + result.status + ').');
       return (result.data && result.data.missing) || keys;
     },
-    sendBlob: (blob) => post('/session-replay/blobs', blob),
-    beacon: (item) => { post('/session-replay/chunks', chunkBody(item), true).catch(() => {}); }
+    sendBlob: (blob) => post('/session-replay/blobs', frame({ key: blob.key, raw_bytes: blob.raw_bytes, encoding: blob.encoding }, blob.bytes)),
+    beacon: (item) => { post('/session-replay/chunks', chunkFrame(item), true).catch(() => {}); }
   };
+
+  // When a platform administrator starts following this session live, the server says so on the page's platform
+  // event stream and the recorder sends at once instead of at its next interval. Only a stream the page already
+  // holds is used: the recorder never opens a connection of its own (docs/architecture/realtime.md).
+  let listening = false;
+  function listenForViewers() {
+    const realtime = root.PlatformRealtime;
+    const orgId = state.config && state.config.org_id;
+    if (listening || !orgId || !realtime || typeof realtime.subscribe !== 'function' || typeof realtime.diagnostics !== 'function') return;
+    let open = false;
+    try { open = realtime.diagnostics().some((entry) => entry.orgId === orgId && entry.connections > 0); } catch (error) { open = false; }
+    if (!open) return;
+    listening = true;
+    realtime.subscribe(orgId, 'session_replay.watch', (event) => {
+      const recorder = state.recorder;
+      const payload = (event && event.payload) || {};
+      if (recorder && payload.session_id === recorder.sessionId) recorder.hurry(payload.interval_ms).catch(() => {});
+    });
+  }
 
   function viewerUrl(id, live) {
     return new URL('viewer.html', base).href + '#session=' + encodeURIComponent(id || '') + (live ? '&live=1' : '');
@@ -154,7 +187,7 @@
       chunkIntervalMs: config.chunk_interval_ms,
       maskAllInputs: config.mask_all_inputs === true,
       newSessionId: () => sessionId(true),
-      onUploaded: (item) => touchSession(item.session_id),
+      onUploaded: (item) => { touchSession(item.session_id); listenForViewers(); },
       onStop: (reason) => { state.status = 'stopped'; state.reason = reason; },
       onOverlay: (on) => write(OVERLAY_KEY, on),
       openViewer: (id) => root.open(viewerUrl(id, true), 'fm-session-replay-viewer')
@@ -162,6 +195,7 @@
     state.recorder = recorder;
     state.status = 'recording';
     recorder.start();
+    listenForViewers();
     if (read(OVERLAY_KEY) === true) recorder.overlay(true);
   }
 

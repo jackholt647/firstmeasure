@@ -182,9 +182,9 @@ test('a recorded session replays to the same DOM, styles and scroll at every che
       window.__chunks = [];
       window.__blobs = {};
       const transport = {
-        sendChunk: async (item) => { window.__chunks.push({ page_id: item.page_id, seq: item.seq, json: item.json, raw: item.raw_bytes, stored: item.stored_bytes }); return { ok: true, status: 200 }; },
+        sendChunk: async (item) => { window.__chunks.push({ page_id: item.page_id, seq: item.seq, json: item.json, raw: item.raw_bytes, stored: item.stored_bytes }); return { ok: true, status: 200, next_ms: window.__nextMs }; },
         missingBlobs: async (keys) => keys.filter((key) => !(key in window.__blobs)),
-        sendBlob: async (blob) => { window.__blobs[blob.key] = blob; return { ok: true, status: 200 }; },
+        sendBlob: async (blob) => { window.__blobs[blob.key] = { key: blob.key, encoding: blob.encoding, data: FMReplayRecorder.base64(blob.bytes) }; return { ok: true, status: 200 }; },
         beacon: () => {}
       };
       window.__rec = FMReplayRecorder.create({ transport, chunkIntervalMs: 1000 });
@@ -272,6 +272,20 @@ test('a recorded session replays to the same DOM, styles and scroll at every che
     await page.evaluate(() => window.__rec.flush());
     await page.waitForFunction(() => window.__rec.stats().chunks_queued === 0);
     const recorded = await page.evaluate(() => ({ chunks: window.__chunks, blobs: window.__blobs, stats: window.__rec.stats() }));
+    // Pacing: a reply's next_ms sets the upload interval; hurry() sends at once and asks for short intervals.
+    const pacing = await page.evaluate(async () => {
+      const before = window.__rec.stats().upload_interval_ms;
+      window.__nextMs = 7000;
+      window.__rec.track('pace', 1);
+      await window.__rec.flush();
+      const replied = window.__rec.stats().upload_interval_ms;
+      window.__nextMs = undefined;
+      const sent = window.__rec.stats().chunks_sent;
+      window.__rec.track('hurry', 1);
+      await window.__rec.hurry(2000);
+      return { before, replied, hurried: window.__rec.stats().upload_interval_ms, sentNow: window.__rec.stats().chunks_sent - sent };
+    });
+    assert.deepEqual(pacing, { before: 1000, replied: 7000, hurried: 2000, sentNow: 1 });
     assert.deepEqual(pageErrors, []);
     assert.equal(recorded.stats.internal_errors, 0);
     assert.ok(recorded.stats.encode.refs >= 1, 'the reopened dropdown is written as a reference to the first one');

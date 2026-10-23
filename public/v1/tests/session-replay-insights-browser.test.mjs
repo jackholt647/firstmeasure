@@ -83,7 +83,7 @@ async function contextFor(browser, who) {
     if (url.origin !== ORIGIN) return route.abort();
     if (url.pathname === '/app/acme') return route.fulfill({ status: 200, contentType: 'text/html', body: PAGE });
     if (url.pathname.startsWith('/v1/')) {
-      const response = await app.inject({ method: request.method(), url: url.pathname + url.search, payload: request.postData() || undefined, headers: { ...request.headers(), host: 'replay-insights.test' } });
+      const response = await app.inject({ method: request.method(), url: url.pathname + url.search, payload: request.postDataBuffer() || undefined, headers: { ...request.headers(), host: 'replay-insights.test' } });
       return route.fulfill({ status: response.statusCode, headers: { 'content-type': String(response.headers['content-type'] || 'application/json') }, body: response.body });
     }
     try { return route.fulfill({ status: 200, contentType: TYPES[path.extname(url.pathname)] || 'application/octet-stream', body: await readFile(path.join(PUBLIC, decodeURIComponent(url.pathname))) }); }

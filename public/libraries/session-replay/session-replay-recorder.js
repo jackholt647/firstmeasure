@@ -24,7 +24,7 @@
     return;
   }
   const { E, PTR } = Codec;
-  const VERSION = '2026.10.22.2';
+  const VERSION = '2026.10.22.3';
   const perf = root.performance;
   const timeOrigin = Math.round(perf.timeOrigin || (Date.now() - perf.now()));
   const clock = () => Math.round(perf.now());
@@ -106,6 +106,12 @@
     return { bytes: out, raw: bytes.length, compressed: true };
   }
 
+  function clampInterval(value, fallback) {
+    const ms = Number(value);
+    return Math.min(60000, Math.max(1000, ms > 0 ? ms : fallback));
+  }
+
+  // For transports that must send text; the FirstMate transport sends the gzip bytes as they are.
   function base64(bytes) {
     let binary = '';
     for (let i = 0; i < bytes.length; i += 0x8000) binary += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
@@ -152,7 +158,10 @@
     if (!transport) throw new Error('FMReplayRecorder.create needs a transport.');
     const topWin = options.window || root;
     const topDoc = topWin.document;
-    const chunkMs = Math.max(1000, Number(options.chunkIntervalMs) || 5000);
+    // Chunks go out every chunkIntervalMs (the first after a second). A transport's reply may name another
+    // interval (`next_ms`): shorter while someone follows this session live, back to normal when they stop.
+    const steadyMs = clampInterval(options.chunkIntervalMs, 20000);
+    let intervalMs = steadyMs;
     const maskAll = options.maskAllInputs === true;
     const state = {
       sessionId: options.sessionId || randomId(20),
@@ -929,7 +938,7 @@
       const item = {
         session_id: state.sessionId, page_id: state.pageId, seq: seq++, page_started_at: state.pageStartedAt,
         t_start: timeOrigin + firstT, t_end: timeOrigin + lastT, events: out.length,
-        json: JSON.stringify(chunk), raw_bytes: 0, data: '', meta: null
+        json: JSON.stringify(chunk), raw_bytes: 0, bytes: null, meta: null
       };
       if (item.seq === 0) item.meta = pageMeta();
       events = [];
@@ -952,7 +961,7 @@
         const packed = await gzip(text);
         let result;
         try {
-          result = await transport.sendBlob({ key, raw_bytes: packed.raw, encoding: packed.compressed ? 'gzip' : 'identity', data: base64(packed.bytes) });
+          result = await transport.sendBlob({ key, raw_bytes: packed.raw, encoding: packed.compressed ? 'gzip' : 'identity', bytes: packed.bytes });
         } catch (error) { return false; }
         if (!result || !result.ok) return false;
         knownBlobs.add(key);
@@ -977,13 +986,13 @@
         while (queue.length) {
           if (pendingBlobs.size && !(await sendBlobs())) { retry(); return; }
           const item = queue[0];
-          if (!item.data) {
+          if (!item.bytes) {
             const started = perf.now();
             const packed = await gzip(item.json);
             diag.cpu_ms += perf.now() - started;
             item.raw_bytes = packed.raw;
             item.encoding = packed.compressed ? 'gzip' : 'identity';
-            item.data = base64(packed.bytes);
+            item.bytes = packed.bytes;
             item.stored_bytes = packed.bytes.length;
           }
           const started = perf.now();
@@ -997,6 +1006,7 @@
             diag.raw_bytes += item.raw_bytes;
             diag.gzip_bytes += item.stored_bytes;
             backoff = 0;
+            pace(result.next_ms || (result.data && result.data.next_ms));
             if (options.onUploaded) { try { options.onUploaded(item); } catch (error) { /* ignore */ } }
             continue;
           }
@@ -1016,6 +1026,25 @@
       } finally {
         pumping = false;
       }
+    }
+
+    function scheduleChunk(ms) {
+      if (chunkTimer) clearTimeout(chunkTimer);
+      chunkTimer = setTimeout(() => {
+        chunkTimer = 0;
+        if (!state.recording) return;
+        if (!topDoc.hidden) sendNow();
+        scheduleChunk(intervalMs);
+      }, ms);
+    }
+
+    // Upload more or less often from now on (a reply's next_ms, or hurry()).
+    function pace(ms) {
+      if (!ms) return;
+      const next = clampInterval(ms, steadyMs);
+      if (next === intervalMs) return;
+      intervalMs = next;
+      if (state.recording) scheduleChunk(next);
     }
 
     function retry() {
@@ -1068,7 +1097,7 @@
     // -------------------------------------------------------------------------
     function recorderBytes() {
       return stringChars * 2 + stringCount * 48 + templates.list.length * 64 + nextId * 24 + mouse.length * 8
-        + queue.reduce((sum, item) => sum + item.json.length * 2 + item.data.length, 0);
+        + queue.reduce((sum, item) => sum + item.json.length * 2 + (item.bytes ? item.bytes.length : 0), 0);
     }
 
     function heap() {
@@ -1178,7 +1207,7 @@
       if (state.recording) return api;
       listenTop();
       begin();
-      chunkTimer = setInterval(() => { if (state.recording && !topDoc.hidden) sendNow(); }, chunkMs);
+      scheduleChunk(intervalMs);
       const timedSample = timed(sample);
       // The overlay draws outside timed(): its own cost is not the recorder's.
       diagTimer = setInterval(() => { timedSample(); if (overlay && overlay.visible) overlay.render(); }, 1000);
@@ -1209,7 +1238,8 @@
       if (active === api) active = null;
       if (mo) mo.disconnect();
       [moTimer, scrollTimer, viewTimer, firstChunkTimer].forEach((timer) => timer && clearTimeout(timer));
-      clearInterval(chunkTimer);
+      clearTimeout(chunkTimer);
+      chunkTimer = 0;
       clearInterval(diagTimer);
       if (longTaskObserver) longTaskObserver.disconnect();
       if (reason === 'not_allowed' || reason === 'upload_backlog') queue.length = 0;
@@ -1243,6 +1273,7 @@
         templates: templates.list.length,
         encode: Object.assign({}, encodeStats),
         chunks_sent: diag.chunks,
+        upload_interval_ms: intervalMs,
         chunks_queued: queue.length,
         upload_failures: diag.failures,
         last_upload_ms: Math.round(diag.last_upload_ms),
@@ -1320,7 +1351,7 @@
           + row('Shared CSS blobs', s.blobs + ' · ' + kb(s.blob_gzip_bytes))
           + row('Strings · templates', s.strings + ' · ' + s.templates)
           + row('Template hits', s.encode.refs + ' exact · ' + s.encode.patches + ' patched')
-          + row('Chunks', s.chunks_sent + ' sent · ' + s.chunks_queued + ' queued · ' + s.upload_failures + ' failed');
+          + row('Chunks', s.chunks_sent + ' sent · ' + s.chunks_queued + ' queued · ' + s.upload_failures + ' failed · every ' + Math.round(s.upload_interval_ms / 1000) + ' s');
         const ctx = canvas.getContext('2d');
         const w = canvas.width, h = canvas.height;
         ctx.clearRect(0, 0, w, h);
@@ -1354,6 +1385,12 @@
       start,
       stop: (reason) => stop(reason || 'stopped'),
       flush() { cutChunk(); return pump(); },
+      // Someone started following this session live: send now and keep sending often until a reply says otherwise.
+      hurry(ms) {
+        if (!state.recording) return Promise.resolve();
+        pace(ms || 2000);
+        return sendNow();
+      },
       stats,
       samples: () => samples.slice(),
       overlay(on) {
@@ -1406,5 +1443,5 @@
     return api;
   }
 
-  root.FMReplayRecorder = { create, version: VERSION };
+  root.FMReplayRecorder = { create, version: VERSION, base64 };
 })();

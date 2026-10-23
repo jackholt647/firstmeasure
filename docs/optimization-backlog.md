@@ -9,7 +9,7 @@ link the entry from the architecture doc's "Not built" section. Remove an entry 
 
 ## Session replay chunk bodies live in the database
 
-**Today.** Every replay chunk body (gzip JSON, a few KB each, one every 5 seconds per active person) is a `BYTEA` row
+**Today.** Every replay chunk body (gzip JSON, a few KB each, one every 20 seconds per active person) is a `BYTEA` row
 in `session_replay_chunks` (`session-replay/storage.ts`), and the viewer reads them back through the platform API as
 base64.
 

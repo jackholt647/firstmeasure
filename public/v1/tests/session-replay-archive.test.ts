@@ -141,7 +141,7 @@ async function storeSession(orgId: string, sessionId: string, pages: string[][],
         t_end: at + pageIndex * 60_000 + seq * 5000 + 4000, events: 3, bytes_raw: json.length, data: gzipSync(Buffer.from(json)),
         meta: seq === 0 ? { url: "https://dev.1m8.ai/portal/" + (pageIndex ? "project" : ""), title: "Portal" } : null
       });
-      assert.equal(result, "stored");
+      assert.equal(result.status, "stored");
     }
   }
 }
@@ -322,8 +322,8 @@ test("a dry run reports ratios and writes nothing; a run archives, verifies and 
   await call(admin, "PUT", `/session-replay/admin/organizations/${orgId}`, { enabled: true });
   const late = await call(owner, "POST", "/session-replay/chunks", { session_id: ids[0], page_id: "page9999", seq: 0, page_started_at: 1, t_start: 1, t_end: 2, events: 0, raw_bytes: 2, encoding: "json", json: "{}" });
   assert.equal(late.statusCode, 409);
-  assert.equal(await store.storeReplayChunk({ organization_id: orgId, user_id: "user_" + orgId, user_email: "", user_name: "", session_id: ids[0]!, page_id: "page9999", seq: 0,
-    page_started_at: 1, t_start: 1, t_end: 2, events: 0, bytes_raw: 2, data: gzipSync(Buffer.from("{}")), meta: null }), "archived");
+  assert.equal((await store.storeReplayChunk({ organization_id: orgId, user_id: "user_" + orgId, user_email: "", user_name: "", session_id: ids[0]!, page_id: "page9999", seq: 0,
+    page_started_at: 1, t_start: 1, t_end: 2, events: 0, bytes_raw: 2, data: gzipSync(Buffer.from("{}")), meta: null })).status, "archived");
   // Stats and the Storage panel's numbers.
   const stats = (await call(admin, "GET", "/session-replay/admin/stats")).json();
   const row = stats.organizations.find((o: any) => o.organization_id === orgId);

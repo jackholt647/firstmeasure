@@ -160,6 +160,75 @@ test("session replay is off by default, switched on by a platform administrator,
   assert.equal((await call(admin, "GET", "/session-replay/admin/sessions/sessionowner0001")).statusCode, 404);
 });
 
+function frame(header: object, payload: Buffer) {
+  const head = Buffer.from(JSON.stringify(header));
+  const length = Buffer.alloc(4);
+  length.writeUInt32BE(head.length);
+  return Buffer.concat([length, head, payload]);
+}
+
+async function upload(who: Caller, url: string, body: Buffer) {
+  return app.inject({ method: "POST", url: `/v1/platform${url}`, payload: body,
+    headers: { cookie: who.cookie, "x-platform-csrf": who.csrf, "content-type": "application/vnd.firstmate.replay-frame" } });
+}
+
+test("recorders upload binary frames, and upload often only while someone follows live", async () => {
+  const owner = await caller("replay-frames");
+  const admin = await caller("replay-frames-admin", { role: "admin" });
+  await call(admin, "PUT", `/session-replay/admin/organizations/${owner.orgId}`, { enabled: true });
+  const userId = (await call(owner, "GET", "/session-replay/config")).json().user_id;
+  const now = Date.now();
+  const json = Buffer.from(JSON.stringify({ v: 1, t: now, s: [], e: [[0, 17]], m: [] }));
+  const header = (seq: number, pageId: string, extra: Record<string, unknown> = {}) => ({
+    session_id: "sessionframes001", page_id: pageId, seq, page_started_at: now, t_start: now + seq * 1000, t_end: now + seq * 1000 + 500,
+    events: 2, raw_bytes: json.length, encoding: "gzip", meta: seq === 0 ? { url: "https://dev.1m8.ai/portal/", title: "Portal" } : null, ...extra
+  });
+
+  const first = await upload(owner, "/session-replay/chunks", frame(header(0, "page0001"), gzipSync(json)));
+  assert.equal(first.statusCode, 200, first.body);
+  assert.deepEqual(first.json(), { ok: true, stored: true, next_ms: 20_000 });
+  assert.equal((await upload(owner, "/session-replay/chunks", frame(header(0, "page0001"), gzipSync(json)))).json().stored, false);
+  // A page leaving before it compressed sends its JSON text.
+  assert.equal((await upload(owner, "/session-replay/chunks", frame(header(1, "page0001", { encoding: "identity" }), json))).json().stored, true);
+  assert.equal((await upload(owner, "/session-replay/chunks", frame(header(0, "page0002"), gzipSync(json)))).json().stored, true);
+  assert.equal((await upload(owner, "/session-replay/chunks", Buffer.from([0, 0, 0, 200, 1, 2]))).statusCode, 400);
+  assert.equal((await upload(owner, "/session-replay/chunks", frame(header(3, "page0001", { data: "x" }), gzipSync(json)))).statusCode, 400);
+  assert.equal((await upload(owner, "/session-replay/chunks", frame(header(3, "page0001"), Buffer.from("not gzip at all")))).statusCode, 400);
+  await call(admin, "PUT", `/session-replay/admin/organizations/${admin.orgId}`, { enabled: true });
+  assert.equal((await upload(admin, "/session-replay/chunks", frame(header(4, "page0001"), gzipSync(json)))).statusCode, 409);
+
+  // The page and session totals are kept by upserts.
+  const detail = (await call(admin, "GET", "/session-replay/admin/sessions/sessionframes001")).json();
+  assert.deepEqual({ pages: detail.session.pages, chunks: detail.session.chunks, events: detail.session.events, started_at: detail.session.started_at,
+    last_at: detail.session.last_at, first_url: detail.session.first_url, last_url: detail.session.last_url },
+    { pages: 2, chunks: 3, events: 6, started_at: now, last_at: now + 1500, first_url: "https://dev.1m8.ai/portal/", last_url: "https://dev.1m8.ai/portal/" });
+  const page = detail.pages.find((p: any) => p.page_id === "page0001");
+  assert.deepEqual({ chunks: page.chunks, max_seq: page.max_seq, events: page.events, url: page.url, title: page.title },
+    { chunks: 2, max_seq: 1, events: 4, url: "https://dev.1m8.ai/portal/", title: "Portal" });
+  assert.equal(detail.session.bytes_stored, gzipSync(json).length * 3);
+  const chunks = (await call(admin, "GET", "/session-replay/admin/sessions/sessionframes001/chunks?page_id=page0001&after_seq=-1")).json().chunks;
+  assert.deepEqual(chunks.map((c: any) => gunzipSync(Buffer.from(c.data, "base64")).toString()), [json.toString(), json.toString()]);
+
+  // Opening it live in the viewer: the page is told once, and its next reply asks for a chunk every 2 seconds.
+  const { pollRealtimeEvents } = await import("../platform/realtime.js");
+  const watchEvents = async () => (await pollRealtimeEvents(owner.orgId, userId, 0)).events.filter((event) => event.topic === "session_replay.watch");
+  assert.equal((await watchEvents()).length, 0);
+  assert.equal((await call(admin, "GET", "/session-replay/admin/sessions/sessionframes001?watch=1")).statusCode, 200);
+  assert.equal((await call(admin, "GET", "/session-replay/admin/sessions/sessionframes001?watch=1")).statusCode, 200);
+  const events = await watchEvents();
+  assert.equal(events.length, 1);
+  assert.deepEqual(events[0]!.payload, { session_id: "sessionframes001", interval_ms: 2000 });
+  assert.equal((await upload(owner, "/session-replay/chunks", frame(header(2, "page0001"), gzipSync(json)))).json().next_ms, 2000);
+
+  // Blobs as frames, checked against their content address.
+  const codec = createRequire(import.meta.url)("../../libraries/session-replay/session-replay-codec.js");
+  const css = ".frames { color: blue }\n".repeat(400);
+  const key = codec.blobKey(css);
+  assert.equal((await upload(owner, "/session-replay/blobs", frame({ key, raw_bytes: 5, encoding: "gzip" }, gzipSync(Buffer.from("other"))))).statusCode, 400);
+  assert.equal((await upload(owner, "/session-replay/blobs", frame({ key, raw_bytes: css.length, encoding: "gzip" }, gzipSync(Buffer.from(css))))).json().stored, true);
+  assert.deepEqual((await call(owner, "POST", "/session-replay/blobs/missing", { keys: [key] })).json().missing, []);
+});
+
 test("no capability preset ever turns session replay on", async () => {
   const { builtinCapabilityPresets, firstMeasureSignupValues, capabilityDefinition } = await import("../platform/capabilities.js");
   assert.equal(capabilityDefinition("platform.session_replay")?.default, false);

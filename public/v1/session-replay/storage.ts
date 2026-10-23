@@ -82,7 +82,7 @@ function db() {
   if (database && databasePath === nextPath) return database;
   void closeSessionReplayDatabase();
   // Raise this whenever initialize gains a table or a column: Postgres runs it again only for a higher version.
-  database = openSqlStore({ id: "session_replay", schemaVersion: 2, filename: nextPath, initialize });
+  database = openSqlStore({ id: "session_replay", schemaVersion: 3, filename: nextPath, initialize });
   databasePath = nextPath;
   return database;
 }
@@ -221,6 +221,8 @@ async function initialize(store: SqlStore) {
   await ensureSqlColumn(store, "session_replay_sessions", "archived_at", "BIGINT NOT NULL DEFAULT 0");
   await ensureSqlColumn(store, "session_replay_sessions", "archive_bytes", "BIGINT NOT NULL DEFAULT 0");
   await ensureSqlColumn(store, "session_replay_chunks", "archived", "INTEGER NOT NULL DEFAULT 0");
+  // Until when an administrator is following the session live (its recorder then uploads more often).
+  await ensureSqlColumn(store, "session_replay_sessions", "watched_until", "BIGINT NOT NULL DEFAULT 0");
 }
 
 function sessionFromRow(row: Row): ReplaySession {
@@ -283,57 +285,66 @@ export type ChunkInput = {
 
 export const MAX_SESSION_BYTES = 256 * 1024 * 1024;
 
-/** Stores one chunk. Retries of a chunk already stored change nothing; an archived session takes no more. */
-export async function storeReplayChunk(input: ChunkInput): Promise<"stored" | "duplicate" | "conflict" | "full" | "archived"> {
+export type StoreChunkStatus = "stored" | "duplicate" | "conflict" | "full" | "archived";
+
+/**
+ * Stores one chunk. Retries of a chunk already stored change nothing; an archived session takes no more.
+ * Four statements: read the session, insert the chunk, then add it to its page and its session (each an upsert, so
+ * a first chunk and a later one cost the same). `watched_until` tells the recorder how soon to send the next.
+ */
+export async function storeReplayChunk(input: ChunkInput): Promise<{ status: StoreChunkStatus; watched_until: number }> {
   const store = db();
   return await store.transaction(async (tx) => {
-    const existing = await tx.prepare("SELECT * FROM session_replay_sessions WHERE id=?").get(input.session_id);
-    if (existing && (text(existing.organization_id) !== input.organization_id || text(existing.user_id) !== input.user_id)) return "conflict";
-    if (existing && num(existing.archived_at) > 0) return "archived";
-    if (existing && num(existing.bytes_stored) + input.data.length > MAX_SESSION_BYTES) return "full";
+    const existing = await tx.prepare(`SELECT organization_id, user_id, archived_at, bytes_stored, watched_until
+      FROM session_replay_sessions WHERE id=?`).get(input.session_id);
+    const done = (status: StoreChunkStatus) => ({ status, watched_until: num(existing?.watched_until) });
+    if (existing && (text(existing.organization_id) !== input.organization_id || text(existing.user_id) !== input.user_id)) return done("conflict");
+    if (existing && num(existing.archived_at) > 0) return done("archived");
+    if (existing && num(existing.bytes_stored) + input.data.length > MAX_SESSION_BYTES) return done("full");
     const inserted = await tx.prepare(`INSERT INTO session_replay_chunks
       (session_id, page_id, seq, organization_id, received_at, t_start, t_end, events, bytes_raw, bytes_stored, data)
       VALUES (?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT (session_id, page_id, seq) DO NOTHING`).run(
       input.session_id, input.page_id, input.seq, input.organization_id, Date.now(), Math.round(input.t_start), Math.round(input.t_end),
       input.events, input.bytes_raw, input.data.length, input.data);
-    if (!inserted.changes) return "duplicate";
+    if (!inserted.changes) return done("duplicate");
     const meta = input.meta || {};
-    const page = await tx.prepare("SELECT * FROM session_replay_pages WHERE session_id=? AND page_id=?").get(input.session_id, input.page_id);
-    if (page) {
-      await tx.prepare(`UPDATE session_replay_pages SET last_at=?, chunks=?, max_seq=?, events=?, bytes_stored=?, bytes_raw=?
-        ${input.meta ? ", url=?, title=?, meta_json=?" : ""} WHERE session_id=? AND page_id=?`).run(
-        Math.max(num(page.last_at), Math.round(input.t_end)), num(page.chunks) + 1, Math.max(num(page.max_seq), input.seq),
-        num(page.events) + input.events, num(page.bytes_stored) + input.data.length, num(page.bytes_raw) + input.bytes_raw,
-        ...(input.meta ? [text(meta.url).slice(0, 2000), text(meta.title).slice(0, 500), JSON.stringify(meta)] : []),
-        input.session_id, input.page_id);
-    } else {
-      await tx.prepare(`INSERT INTO session_replay_pages
-        (session_id, page_id, organization_id, started_at, last_at, url, title, chunks, max_seq, events, bytes_stored, bytes_raw, meta_json)
-        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(
-        input.session_id, input.page_id, input.organization_id, Math.round(input.page_started_at || input.t_start), Math.round(input.t_end),
-        text(meta.url).slice(0, 2000), text(meta.title).slice(0, 500), 1, input.seq, input.events, input.data.length, input.bytes_raw, JSON.stringify(meta));
-    }
-    const pageCount = num((await tx.prepare("SELECT COUNT(*) AS n FROM session_replay_pages WHERE session_id=?").get(input.session_id))?.n);
     const url = text(meta.url).slice(0, 2000);
-    if (existing) {
-      await tx.prepare(`UPDATE session_replay_sessions SET started_at=?, last_at=?, pages=?, chunks=?, events=?, bytes_stored=?, bytes_raw=?, last_url=?
-        WHERE id=?`).run(
-        Math.min(num(existing.started_at), Math.round(input.t_start)), Math.max(num(existing.last_at), Math.round(input.t_end)), pageCount,
-        num(existing.chunks) + 1, num(existing.events) + input.events, num(existing.bytes_stored) + input.data.length,
-        num(existing.bytes_raw) + input.bytes_raw, url || text(existing.last_url), input.session_id);
-    } else {
-      const device = input.meta ? { ...meta } : {};
-      delete (device as Record<string, unknown>).title;
-      await tx.prepare(`INSERT INTO session_replay_sessions
-        (id, organization_id, user_id, user_email, user_name, started_at, last_at, pages, chunks, events, bytes_stored, bytes_raw,
-         user_agent, first_url, last_url, recorder_version, device_json)
-        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(
-        input.session_id, input.organization_id, input.user_id, input.user_email.slice(0, 320), input.user_name.slice(0, 200),
-        Math.round(input.t_start), Math.round(input.t_end), pageCount, 1, input.events, input.data.length, input.bytes_raw,
-        text(meta.user_agent).slice(0, 500), url, url, text(meta.recorder).slice(0, 40), JSON.stringify(device));
-    }
-    return "stored";
+    const greatest = tx.isPostgres ? "GREATEST" : "MAX";
+    const least = tx.isPostgres ? "LEAST" : "MIN";
+    const page = await tx.prepare(`INSERT INTO session_replay_pages AS p
+      (session_id, page_id, organization_id, started_at, last_at, url, title, chunks, max_seq, events, bytes_stored, bytes_raw, meta_json)
+      VALUES (?,?,?,?,?,?,?,1,?,?,?,?,?)
+      ON CONFLICT (session_id, page_id) DO UPDATE SET last_at=${greatest}(p.last_at, excluded.last_at), chunks=p.chunks + 1,
+        max_seq=${greatest}(p.max_seq, excluded.max_seq), events=p.events + excluded.events, bytes_stored=p.bytes_stored + excluded.bytes_stored,
+        bytes_raw=p.bytes_raw + excluded.bytes_raw${input.meta ? ", url=excluded.url, title=excluded.title, meta_json=excluded.meta_json" : ""}
+      RETURNING chunks`).get(
+      input.session_id, input.page_id, input.organization_id, Math.round(input.page_started_at || input.t_start), Math.round(input.t_end),
+      url, text(meta.title).slice(0, 500), input.seq, input.events, input.data.length, input.bytes_raw, JSON.stringify(meta));
+    const newPage = num(page?.chunks) === 1 ? 1 : 0;
+    const device: Record<string, unknown> = input.meta ? { ...meta } : {};
+    delete device.title;
+    await tx.prepare(`INSERT INTO session_replay_sessions AS s
+      (id, organization_id, user_id, user_email, user_name, started_at, last_at, pages, chunks, events, bytes_stored, bytes_raw,
+       user_agent, first_url, last_url, recorder_version, device_json)
+      VALUES (?,?,?,?,?,?,?,1,1,?,?,?,?,?,?,?,?)
+      ON CONFLICT (id) DO UPDATE SET started_at=${least}(s.started_at, excluded.started_at), last_at=${greatest}(s.last_at, excluded.last_at),
+        pages=s.pages + CAST(? AS INTEGER), chunks=s.chunks + 1, events=s.events + excluded.events,
+        bytes_stored=s.bytes_stored + excluded.bytes_stored, bytes_raw=s.bytes_raw + excluded.bytes_raw,
+        last_url=CASE WHEN excluded.last_url <> '' THEN excluded.last_url ELSE s.last_url END`).run(
+      input.session_id, input.organization_id, input.user_id, input.user_email.slice(0, 320), input.user_name.slice(0, 200),
+      Math.round(input.t_start), Math.round(input.t_end), input.events, input.data.length, input.bytes_raw,
+      text(meta.user_agent).slice(0, 500), url, url, text(meta.recorder).slice(0, 40), JSON.stringify(device), newPage);
+    return done("stored");
   }, input.session_id);
+}
+
+/** An administrator is following this session live until `until`. True when nobody was a moment ago. */
+export async function markReplayWatched(sessionId: string, now: number, until: number) {
+  const started = await db().prepare("UPDATE session_replay_sessions SET watched_until=? WHERE id=? AND archived_at=0 AND watched_until<?")
+    .run(until, sessionId, now);
+  if (started.changes) return true;
+  await db().prepare("UPDATE session_replay_sessions SET watched_until=? WHERE id=? AND archived_at=0").run(until, sessionId);
+  return false;
 }
 
 export async function missingReplayBlobs(organizationId: string, keys: string[]) {

@@ -238,7 +238,7 @@
     if (location.hash !== wanted) history.replaceState(null, '', wanted);
     $('session-title').textContent = 'Loading…';
     let detail;
-    try { detail = await api('/session-replay/admin/sessions/' + encodeURIComponent(id)); }
+    try { detail = await api('/session-replay/admin/sessions/' + encodeURIComponent(id) + '?watch=1'); }
     catch (error) { $('session-title').textContent = error.message; return; }
     if (token !== state.openToken) return;
     state.detail = detail;
@@ -309,7 +309,8 @@
     state.polling = true;
     const id = state.detail.session.id;
     try {
-      const detail = await api('/session-replay/admin/sessions/' + encodeURIComponent(id));
+      // watch=1: while someone looks at a live session its recorder uploads every 2 seconds instead of every 20.
+      const detail = await api('/session-replay/admin/sessions/' + encodeURIComponent(id) + '?watch=1');
       if (!state.detail || state.detail.session.id !== id) return;
       state.detail = detail;
       const added = await syncChunks(detail);

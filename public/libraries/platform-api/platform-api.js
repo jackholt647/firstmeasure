@@ -18,7 +18,7 @@
   if (typeof document !== 'undefined' && document.head && document.createElement && !root.FMReplay && !document.querySelector('script[data-fm-session-replay]')) {
     const replay = document.createElement('script');
     const source = document.currentScript?.src || new URL('/libraries/platform-api/platform-api.js', location.href).href;
-    replay.src = new URL('../session-replay/session-replay-loader.js?v=20261022-2', source).href;
+    replay.src = new URL('../session-replay/session-replay-loader.js?v=20261022-3', source).href;
     replay.async = true;
     replay.dataset.fmSessionReplay = 'true';
     document.head.appendChild(replay);

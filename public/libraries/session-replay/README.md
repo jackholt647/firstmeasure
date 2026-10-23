@@ -20,9 +20,9 @@ Recording anywhere else (an extension, another site):
 const recorder = FMReplayRecorder.create({
   sessionId, pageId,
   transport: {
-    sendChunk: async (item) => ({ ok: true }),   // item.json, or item.data (gzip, base64) once compressed
+    sendChunk: async (item) => ({ ok: true }),   // item.json, or item.bytes (gzip) once compressed; may return next_ms
     missingBlobs: async (keys) => keys,          // which content addresses the store lacks
-    sendBlob: async ({ key, data }) => ({ ok: true }),
+    sendBlob: async ({ key, bytes }) => ({ ok: true }),   // FMReplayRecorder.base64(bytes) if the endpoint wants text
     beacon: (item) => {}                          // last chance while the page unloads
   }
 });

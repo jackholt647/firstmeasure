@@ -7,13 +7,14 @@ import { readInternalUser } from "../internal/storage.js";
 import { authContextFromRequest, requirePlatformAuth, type PlatformAuthContext } from "../platform/auth.js";
 import { effectiveCapabilities, isCapabilityEnabled, saveCapabilityValues } from "../platform/capabilities.js";
 import { badRequest, conflict, forbidden, notFound, PlatformError } from "../platform/errors.js";
+import { publishRealtimeEvent } from "../platform/realtime.js";
 import { listIdentityMemberships, listOrganizations, readOrganization } from "../platform/storage.js";
 import { env } from "../src/config/env.js";
 import { archiveOverview, runReplayArchive } from "./archive.js";
 import { REPLAY_BLOB_KEY, replayBlobKey } from "./hash.js";
 import {
-  deleteReplaySession, listReplaySessions, listReplaySettings, missingReplayBlobs, readReplayBlobs, readReplayChunkSizes, readReplayChunks,
-  readReplaySession, recordReplaySetting, replayStorageTotals, storeReplayBlob, storeReplayChunk
+  deleteReplaySession, listReplaySessions, listReplaySettings, markReplayWatched, missingReplayBlobs, readReplayBlobs, readReplayChunkSizes,
+  readReplayChunks, readReplaySession, recordReplaySetting, replayStorageTotals, storeReplayBlob, storeReplayChunk
 } from "./storage.js";
 
 /**
@@ -25,7 +26,15 @@ import {
  * the same people who may change FirstMeasure prices).
  */
 export const SESSION_REPLAY_CAPABILITY = "platform.session_replay";
-const CHUNK_INTERVAL_MS = 5000;
+// A recorder uploads every 20 seconds; while an administrator has the session open live, every 2. Each chunk's reply
+// carries the interval, and starting to watch also nudges the page over its platform event stream.
+const CHUNK_INTERVAL_MS = 20_000;
+const WATCHED_INTERVAL_MS = 2_000;
+const WATCH_MS = 15_000;
+const LIVE_MS = 60_000;
+// Chunks and blobs arrive as a binary frame: 4-byte big-endian header length, header JSON, then the payload bytes.
+const FRAME_TYPE = "application/vnd.firstmate.replay-frame";
+const MAX_FRAME_HEADER = 256 * 1024;
 const MAX_CHUNK_BYTES = 8 * 1024 * 1024;
 const MAX_BLOB_BYTES = 20 * 1024 * 1024;
 
@@ -48,12 +57,27 @@ const chunkSchema = z.object({
   meta: z.record(z.unknown()).nullable().optional()
 }).strict();
 
+const chunkHeaderSchema = chunkSchema.omit({ data: true, json: true }).extend({ encoding: z.enum(["gzip", "identity"]) });
+
 const blobSchema = z.object({
   key: z.string().regex(REPLAY_BLOB_KEY),
   raw_bytes: z.number().int().min(0).max(MAX_BLOB_BYTES * 4),
   encoding: z.enum(["gzip", "identity"]),
   data: z.string().max(30_000_000)
 }).strict();
+
+const blobHeaderSchema = blobSchema.omit({ data: true });
+
+function readFrame(body: Buffer) {
+  const headerLength = body.length >= 4 ? body.readUInt32BE(0) : -1;
+  if (headerLength < 2 || headerLength > MAX_FRAME_HEADER || 4 + headerLength > body.length) {
+    throw badRequest("invalid_replay_frame", "This replay upload is not a valid frame.");
+  }
+  let header: unknown;
+  try { header = JSON.parse(body.subarray(4, 4 + headerLength).toString("utf8")); }
+  catch { throw badRequest("invalid_replay_frame", "This replay upload is not a valid frame."); }
+  return { header, payload: body.subarray(4 + headerLength) };
+}
 
 async function replayEnabled(ctx: PlatformAuthContext) {
   const resolution = ctx.capabilities || await effectiveCapabilities(ctx.orgId, ctx.userId);
@@ -79,12 +103,19 @@ async function requireReplayAdmin(request: FastifyRequest, csrf = false) {
   return { ctx, email };
 }
 
-function decodeBody(encoding: string, data: string | undefined, json: string | undefined) {
-  if (encoding === "json") {
-    const source = Buffer.from(json ?? "", "utf8");
-    return { stored: gzipSync(source), raw: source.length };
+/** A chunk as uploaded: a frame (the recorder), or JSON with base64 or text (older recorders, other transports). */
+function readChunk(body: unknown) {
+  if (Buffer.isBuffer(body)) {
+    const frame = readFrame(body);
+    const header = chunkHeaderSchema.parse(frame.header);
+    return { header, ...decodeChunk(header.encoding, frame.payload) };
   }
-  const bytes = Buffer.from(data ?? "", "base64");
+  const header = chunkSchema.parse(body ?? {});
+  const bytes = header.encoding === "json" ? Buffer.from(header.json ?? "", "utf8") : Buffer.from(header.data ?? "", "base64");
+  return { header, ...decodeChunk(header.encoding === "json" ? "identity" : header.encoding, bytes) };
+}
+
+function decodeChunk(encoding: string, bytes: Buffer) {
   if (encoding === "identity") return { stored: gzipSync(bytes), raw: bytes.length };
   if (bytes.length < 18 || bytes[0] !== 0x1f || bytes[1] !== 0x8b) throw badRequest("invalid_replay_chunk", "Replay chunks must be gzip data.");
   return { stored: bytes, raw: -1 };
@@ -99,6 +130,8 @@ async function organizationNames(ids: string[]) {
 }
 
 export async function registerSessionReplayRoutes(app: FastifyInstance) {
+  app.addContentTypeParser(FRAME_TYPE, { parseAs: "buffer", bodyLimit: 32 * 1024 * 1024 }, (_request, body, done) => done(null, body));
+
   // ---------------------------------------------------------------------------
   // Recording
   // ---------------------------------------------------------------------------
@@ -120,10 +153,9 @@ export async function registerSessionReplayRoutes(app: FastifyInstance) {
 
   app.post("/session-replay/chunks", { bodyLimit: 16 * 1024 * 1024 }, async (request) => {
     const ctx = await requireRecorder(request);
-    const body = chunkSchema.parse(request.body ?? {});
-    const decoded = decodeBody(body.encoding, body.data, body.json);
+    const { header: body, ...decoded } = readChunk(request.body);
     if (!decoded.stored.length || decoded.stored.length > MAX_CHUNK_BYTES) throw badRequest("invalid_replay_chunk", "This replay chunk is empty or too large.");
-    const result = await storeReplayChunk({
+    const { status: result, watched_until } = await storeReplayChunk({
       organization_id: ctx.orgId,
       user_id: ctx.userId,
       user_email: text(ctx.identity.email || ctx.user.email).toLowerCase(),
@@ -143,7 +175,7 @@ export async function registerSessionReplayRoutes(app: FastifyInstance) {
     // The recorder starts a new session on 409, as it does for a conflict.
     if (result === "archived") throw conflict("session_replay_archived", "This replay session has been archived.");
     if (result === "full") throw new PlatformError("session_replay_full", 413, "This replay session has reached its size limit.");
-    return { ok: true, stored: result === "stored" };
+    return { ok: true, stored: result === "stored", next_ms: watched_until > Date.now() ? WATCHED_INTERVAL_MS : CHUNK_INTERVAL_MS };
   });
 
   app.post("/session-replay/blobs/missing", async (request) => {
@@ -154,8 +186,17 @@ export async function registerSessionReplayRoutes(app: FastifyInstance) {
 
   app.post("/session-replay/blobs", { bodyLimit: 32 * 1024 * 1024 }, async (request) => {
     const ctx = await requireRecorder(request);
-    const body = blobSchema.parse(request.body ?? {});
-    const bytes = Buffer.from(body.data, "base64");
+    let body: z.infer<typeof blobHeaderSchema>;
+    let bytes: Buffer;
+    if (Buffer.isBuffer(request.body)) {
+      const frame = readFrame(request.body);
+      body = blobHeaderSchema.parse(frame.header);
+      bytes = frame.payload;
+    } else {
+      const parsed = blobSchema.parse(request.body ?? {});
+      body = parsed;
+      bytes = Buffer.from(parsed.data, "base64");
+    }
     let raw: Buffer;
     try { raw = body.encoding === "gzip" ? gunzipSync(bytes, { maxOutputLength: MAX_BLOB_BYTES * 4 }) : bytes; }
     catch { throw badRequest("invalid_replay_blob", "This replay blob is not valid gzip data."); }
@@ -237,8 +278,17 @@ export async function registerSessionReplayRoutes(app: FastifyInstance) {
     const sessionId = text(asObject(request.params).sessionId);
     const found = await readReplaySession(sessionId);
     if (!found) throw notFound("session_replay_not_found", "That replay session does not exist.");
+    // The viewer asks with watch=1: its recorder then uploads every 2 seconds until nobody has looked for WATCH_MS.
+    const now = Date.now();
+    if (text(asObject(request.query).watch) === "1" && !found.session.archived_at && now - found.session.last_at < LIVE_MS
+      && await markReplayWatched(sessionId, now, now + WATCH_MS)) {
+      await publishRealtimeEvent({
+        organization_id: found.session.organization_id, topic: "session_replay.watch", user_ids: [found.session.user_id],
+        payload: { session_id: sessionId, interval_ms: WATCHED_INTERVAL_MS }
+      }).catch(() => null);
+    }
     const names = await organizationNames([found.session.organization_id]);
-    return { ok: true, now: Date.now(), ...found, organization_name: names[found.session.organization_id], chunk_sizes: await readReplayChunkSizes(sessionId) };
+    return { ok: true, now, ...found, organization_name: names[found.session.organization_id], chunk_sizes: await readReplayChunkSizes(sessionId) };
   });
 
   app.get("/session-replay/admin/sessions/:sessionId/chunks", async (request, reply) => {
