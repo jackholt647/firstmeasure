@@ -38,7 +38,7 @@ suites pass, except two failures that predate this change:
 - pin confirmation, where the test checks synchronously after a pin move reloads the quote.
 
 **Rollout.**
-- Hosts: legacy, web and pool.
+- Hosts: legacy and web (the pool node was unreachable; see the note below).
 - Each file was three-way merged onto the host's live copy, with the edit scripts in
   `output/fh-order-fixes-20261023/` replayed on conflict.
 - The manifest got only the project-request key `20261023-order-fixes`.
