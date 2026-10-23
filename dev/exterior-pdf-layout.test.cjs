@@ -226,8 +226,44 @@ test('every exterior table uses the boxed roof-table style with unchanged values
  const allowX=new Set(allowances.flatMap(p=>p.text.filter(isMaterial).map(t=>t.x)));assert.equal(allowX.size,1,'the wide allowance table keeps one column');assert.ok(allowances.length>1,'allowances continue on another page');
  for(const p of long)assert.ok(p.text.every(t=>t.y<=bottom+.01),p.title+' stays above the footer');
 });
-test('the Exterior Summary measurement table is boxed in the roof-table style',()=>{
- const pages=[];let page;const ctx=loadPDF(),doc=new Proxy({internal:{pageSize:{getWidth:()=>210,getHeight:()=>297}},getTextWidth:s=>String(s).length,splitTextToSize:s=>[s],text:value=>page.text.push(String(value)),lines:()=>page.bars++,roundedRect:(...a)=>page.rounded.push(a)},{get:(o,k)=>k in o?o[k]:()=>{}});
- ctx.ExteriorPDF.drawExteriorSummaryPage(doc,boxHouse(),{},title=>{page={title,text:[],bars:0,rounded:[]};pages.push(page);},{});
- assert.equal(pages[0].bars,1);assert.ok(!pages[0].rounded.some(r=>r[3]===9&&r[2]>150));for(const v of ['Measurement','Quantity','Wall regions','Opening area','Opening perimeter','Horizontal returns','7'])assert.ok(pages[0].text.includes(v),v);
+test('the Exterior Summary shows its seven figures as header-stat cards in two rows (three, then four) and the wall ID note at the foot',()=>{
+ for(const [W,H]of [[210,297],[279.4,215.9]]){
+  const pages=[];let page;const ctx=loadPDF(),doc=new Proxy({internal:{pageSize:{getWidth:()=>W,getHeight:()=>H}},getTextWidth:s=>String(s).length*.9,splitTextToSize:s=>[s],text:(value,x,y)=>page.text.push({value:String(value),x,y}),lines:(l,x,y)=>page.bars.push({x,y}),roundedRect:(...a)=>page.rounded.push(a),addImage:(...a)=>page.images.push(a)},{get:(o,k)=>k in o?o[k]:()=>{}});
+  ctx.ExteriorPDF.drawExteriorSummaryPage(doc,boxHouse(),{},title=>{page={title,text:[],bars:[],rounded:[],images:[]};pages.push(page);},{});
+  const p=pages[0],at=v=>p.text.find(t=>t.value===v);
+  assert.equal(p.bars.length,7,'seven accent-bar cards');
+  const rows=[...new Set(p.bars.map(b=>b.y))].sort((a,b)=>a-b);assert.equal(rows.length,2);assert.deepEqual(rows.map(y=>p.bars.filter(b=>b.y===y).length),[3,4]);
+  for(const [label,value]of [['NET WALL AREA',null],['GROSS WALL AREA',null],['OPENINGS','0'],['WALL REGIONS','7'],['OPENING AREA',null],['OPENING PERIMETER',null],['HORIZONTAL RETURNS',null]]){const t=at(label);assert.ok(t,label);if(value)assert.ok(p.text.some(v=>v.value===value&&Math.abs(v.x-t.x)<1e-9&&v.y>t.y),label+' has its value under it');}
+  assert.ok(!p.text.some(t=>t.value==='Measurement'||t.value==='Quantity'),'no measurement table');
+  const note=p.text.find(t=>/^Wall IDs connect/.test(t.value)),footer=H-16;assert.ok(note.y>footer-10&&note.y<footer-5,'the note sits just above the footer address: '+note.y);
+ }
+});
+
+test('landscape wall dimension pages have at most two rows of up to three faces; portrait keeps three rows of small faces',()=>{
+ const rowsOf=page=>new Set(page.map(p=>p.y.toFixed(6))).size;
+ const [portrait]=PDF.dimensionPages(Array(9).fill(10).map((a,i)=>face('W'+i,a)));assert.equal(portrait.length,9);assert.equal(rowsOf(portrait),3);
+ const small=PDF.dimensionPages(Array(9).fill(10).map((a,i)=>face('W'+i,a)),{landscape:true});assert.deepEqual(small.map(p=>p.length).sort(),[3,6]);
+ for(const p of small.find(p=>p.length===6)){assert.ok(Math.abs(p.w-1/3)<1e-9);assert.ok(Math.abs(p.h-.5)<1e-9);}
+ for(let count=1;count<=30;count++){
+  const faces=Array.from({length:count},(_,i)=>face('W'+i,10+(i*77)%400)),pages=PDF.dimensionPages(faces,{landscape:true});
+  assert.equal(new Set(pages.flat().map(p=>p.face.id)).size,count);
+  for(const page of pages){assert.ok(rowsOf(page)<=2,'two rows at most');assert.ok(Math.abs(page.reduce((s,p)=>s+p.w*p.h,0)-1)<1e-9);}
+ }
+});
+test('a wall dimension drawing is only as tall as its face needs, so its size and material sit right under it',()=>{
+ const wide={id:'W',points:[P(0,0,0),P(20,0,0),P(20,0,3),P(0,0,3)],normal:{x:0,y:-1,z:0}},rect={x:0,y:0,w:80,h:120};
+ const h=PDF.fitHeight([wide],wide.normal,rect,9,0,24);assert.ok(Math.abs(h-((3*(80-18))/20+18))<1e-9,'height follows the face at full width');
+ const tall={...wide,points:[P(0,0,0),P(2,0,0),P(2,0,9),P(0,0,9)]};assert.equal(PDF.fitHeight([tall],tall.normal,rect,9,0,24),120,'a tall face uses the panel height');
+});
+test('exterior images: a justified mosaic of mixed aspect ratios inside the page, labels above each photo, six to a page',()=>{
+ const box={x:25,y:36,w:239.4,h:157.9},aspects=[4/3,3/4,4/3,3/4,4/3,4/3];
+ const {rects,minHeight}=PDF.mosaicLayout(aspects,box);assert.equal(rects.length,6);assert.ok(minHeight>=45);
+ for(const [i,r]of rects.entries()){
+  assert.ok(Math.abs(r.w/r.h-aspects[i])<1e-9,'aspect kept');assert.ok(r.x>=box.x-1e-9&&r.x+r.w<=box.x+box.w+1e-9&&r.y-6>=box.y-1e-9&&r.y+r.h<=box.y+box.h+1e-9,'inside the page with room for its label');
+  for(const q of rects.slice(i+1))assert.ok(r.x+r.w<=q.x+1e-9||q.x+q.w<=r.x+1e-9||r.y+r.h+6<=q.y+1e-9||q.y+q.h+6<=r.y+1e-9,'no overlap, labels included');
+ }
+ const rowsY=[...new Set(rects.map(r=>r.y.toFixed(6)))];for(const y of rowsY){const row=rects.filter(r=>r.y.toFixed(6)===y);assert.ok(new Set(row.map(r=>r.h.toFixed(6))).size===1,'one height per row');}
+ assert.deepEqual(PDF.mosaicPages(aspects,box).map(p=>p.indexes.length),[6]);
+ assert.deepEqual(PDF.mosaicPages(Array(8).fill(4/3),box).map(p=>p.indexes.length),[4,4],'eight photos: two even pages');
+ const portrait=PDF.mosaicPages(aspects,{x:25,y:36,w:175.9,h:221.4});assert.ok(portrait.every(p=>p.minHeight>=45));assert.equal(portrait.flatMap(p=>p.indexes).length,6);
 });

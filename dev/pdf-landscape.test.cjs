@@ -118,3 +118,56 @@ test('a roof-only landscape PDF keeps the original roof titles and order and sta
   if(mode==='full'){assert.ok(titles.includes('Pitch Diagram')&&titles.includes('Project Summary'),titles.join(' | '));assert.ok(titles.indexOf('Pitch Diagram')<titles.indexOf('Project Summary'),'diagrams before the summary');assert.ok(!titles.some(t=>/^Roof (Elevations|Pitch|Summary)/.test(t)),'no roof-prefixed titles');}
  }
 });
+// Photos with mixed aspect ratios (landscape and portrait phone shots), drawn in the page.
+async function photoSettings(){
+ const urls=await page.evaluate(()=>[[160,120,'#5b7aa0'],[90,160,'#987aa0'],[160,120,'#7a7aa0'],[90,160,'#b87aa0'],[160,120,'#c07aa0']].map(([w,h,c])=>{const k=document.createElement('canvas');k.width=w;k.height=h;const g=k.getContext('2d');g.fillStyle=c;g.fillRect(0,0,w,h);return k.toDataURL('image/jpeg',.8);}));
+ const photoSlots={};['front','back','left','right','front-right','front-left','back-right','back-left'].forEach(id=>photoSlots[id]={enabled:false,image:null});
+ ['front','back','left','right','front-left'].forEach((id,i)=>photoSlots[id]={enabled:true,image:{key:'p'+i,label:'PXL_20260919_19321'+i+'.jpg',dataUrl:urls[i]},assignment:'manual'});
+ return {include:true,frontBearing:180,photoSlots,notes:'Chimney flashing is loose on the back side.'};
+}
+test('exterior images: no file names, every label sits on its own photo, and five photos share one page in either orientation',async()=>{
+ const exteriorSettings=await photoSettings();
+ for(const orientation of ['portrait','landscape']){
+  const r=await render({exteriorSettings,override:{report_orientation:orientation}});
+  assert.ok(!r.calls.some(c=>c.kind==='text'&&/\.jpe?g|PXL_/i.test(c.value)),'no file names');
+  const pages=Object.entries(r.titles).filter(([,t])=>/^Exterior Images/.test(t)).map(([p])=>Number(p));assert.equal(pages.length,1,orientation+': one page');
+  const images=r.calls.filter(c=>c.page===pages[0]&&c.kind==='image'&&c.y>30);assert.equal(images.length,5,'the five photos (the logo is in the header)');
+  for(const label of ['Front','Back','Left','Right','Front Left']){
+   const t=r.calls.find(c=>c.page===pages[0]&&c.kind==='text'&&c.value===label);assert.ok(t,label);
+   assert.ok(images.some(i=>Math.abs(i.x-t.x)<.01&&i.y-(t.y+t.h)>=-.5&&i.y-(t.y+t.h)<3),orientation+': '+label+' is just above the top-left corner of its photo');
+  }
+  const portraitShots=images.filter(i=>i.h>i.w),wideShots=images.filter(i=>i.w>i.h);assert.equal(portraitShots.length,2);assert.equal(wideShots.length,3);
+  assert.ok(images.every(i=>i.h>=45),orientation+': every photo at least 45 mm tall');
+  assert.deepEqual(overflow(r).filter(c=>c.page===pages[0]),[]);
+ }
+});
+test('roof notes and wall notes share one layout: reference images in a square on the left, a slim notes card on the right (landscape), stacked in portrait',async()=>{
+ const exteriorSettings=await photoSettings();
+ for(const orientation of ['landscape','portrait']){
+  const r=await render({exteriorSettings,override:{report_orientation:orientation,page_notes:true}});
+  const pageOf=title=>Number(Object.entries(r.titles).find(([,t])=>t===title)[0]),roof=pageOf('Roof Notes'),wall=pageOf('Wall Notes');
+  const card=p=>{const t=r.calls.find(c=>c.page===p&&c.kind==='text'&&c.value==='NOTES');return {t,box:r.calls.find(c=>c.page===p&&c.kind==='roundedRect'&&c.style==='FD'&&Math.abs(c.x+8-t.x)<.01&&c.y<t.y&&t.y-c.y<9)};};
+  const a=card(roof),b=card(wall);assert.ok(a.t&&b.t&&a.box&&b.box,orientation+': both pages have the notes card');
+  for(const k of ['x','y','w','h'])assert.ok(Math.abs(a.box[k]-b.box[k])<.01,orientation+': same notes card '+k);
+  assert.ok(Math.abs(a.t.y-b.t.y)<.01,'same title position');
+  const frames=p=>r.calls.filter(c=>c.page===p&&c.kind==='roundedRect'&&c.style==='FD'&&c!==card(p).box);
+  assert.equal(frames(roof).length,1,'one reference image on the roof page');assert.equal(frames(wall).length,4,'four reference images on the wall page');
+  const span=list=>({x0:Math.min(...list.map(f=>f.x)),y0:Math.min(...list.map(f=>f.y)),x1:Math.max(...list.map(f=>f.x+f.w)),y1:Math.max(...list.map(f=>f.y+f.h))});
+  const ra=span(frames(roof)),wa=span(frames(wall));for(const k of ['x0','y0','x1','y1'])assert.ok(Math.abs(ra[k]-wa[k])<.01,orientation+': same image area '+k);
+  if(orientation==='landscape'){assert.ok(Math.abs((ra.x1-ra.x0)-(ra.y1-ra.y0))<.01,'the image area is square');assert.ok(a.box.x>ra.x1&&a.box.h>a.box.w*1.5,'a tall notes column on the right');for(const f of frames(wall))assert.ok(Math.abs(f.w-f.h)<.01,'square cells');}
+  else assert.ok(a.box.y>ra.y1&&Math.abs(a.box.w-(ra.x1-ra.x0))<.01,'portrait stacks the notes under the images');
+  assert.ok(r.calls.some(c=>c.page===wall&&c.kind==='text'&&/^Chimney flashing is loose/.test(c.value)&&c.x>b.box.x&&c.y>b.box.y),'typed notes are written in the notes card');
+  assert.deepEqual(overflow(r).filter(c=>c.page===roof||c.page===wall),[],orientation+': notes pages stay above the footer');
+ }
+});
+test('landscape layer page: the details box and a two-column key of its width are centred beside the drawing; ventilation puts its diagram card beside the tables',async()=>{
+ const r=await render({override:{report_orientation:'landscape'}});
+ const layer=Number(Object.entries(r.titles).find(([,t])=>t==='Roof Layer 1 Measurements')[0]),box=r.calls.find(c=>c.page===layer&&c.kind==='roundedRect'&&c.style==='FD');
+ const swatches=r.calls.filter(c=>c.page===layer&&c.kind==='rect'&&c.w===4&&c.h===4&&c.y>box.y+box.h);assert.ok(swatches.length>=2);
+ const xs=[...new Set(swatches.map(s=>s.x.toFixed(3)))].map(Number).sort((a,b)=>a-b);assert.equal(xs.length,2,'two aligned columns');assert.ok(Math.abs(xs[0]-box.x)<.01&&Math.abs(xs[1]-(box.x+box.w/2))<.01,'columns split the box width');
+ const top=box.y,bottom=Math.max(...swatches.map(s=>s.y+s.h));assert.ok(Math.abs((top-35)-(r.H-25-bottom))<6,'the block is centred in the drawing height');
+ const vent=Number(Object.entries(r.titles).find(([,t])=>t==='Roof Ventilation')[0]),cards=r.calls.filter(c=>c.page===vent&&c.kind==='roundedRect'&&c.style==='FD'),diagram=cards.find(c=>c.x>r.W/2&&c.h>80);
+ assert.ok(diagram,'a tall diagram card in the right half');const image=r.calls.filter(c=>c.page===vent&&c.kind==='image').sort((a,b)=>b.w*b.h-a.w*a.h)[0];
+ assert.ok(image.x>=diagram.x&&image.x+image.w<=diagram.x+diagram.w&&image.y>=diagram.y&&image.y+image.h<=diagram.y+diagram.h,'the diagram is inside its card');assert.ok(image.h>60,'the diagram is a meaningful size: '+image.h);
+ const key=r.calls.find(c=>c.page===vent&&c.kind==='text'&&c.value==='Key');assert.ok(key.x>=diagram.x&&key.y>diagram.y&&key.y<image.y,'the key is in the card, above the diagram');
+});

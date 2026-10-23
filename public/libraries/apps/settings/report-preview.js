@@ -396,45 +396,71 @@
     return pages;
   }
 
-  // drawVentilationPage.
+  // drawVentilationPage. Portrait: the summary, the two tables side by side, the intake products and the
+  // diagram card (its key beside the diagram) at full width. Landscape: the summary across the top, the
+  // tables and the intake products stacked in the left half and the diagram card (its key above the
+  // diagram) in the right half. The note sits at the foot of the page.
   function ventilationPage(){
     const red = 'rgb(217,48,37)', blue = 'rgb(26,115,232)', green = 'rgb(52,168,83)';
-    // drawVentilationPage follows the page width, so landscape stretches the x positions (wideX/wideW);
-    // the map shrinks to stay above the footer note.
-    const X = wideX, W = wideW;
+    const X = wideX;
     let out = card(MARGIN, 35, AVAIL_W, 24, { strip:true, title:'Ventilation Summary' });
     out += text(33, 47.6, 'Estimated Attic Area', { size:8, color:grey(120) });
     out += text(33, 55, '4,435 sq ft', { size:15, bold:true, color:red });
     out += text(X(83), 54.6, 'Footprint: 4,526 sq ft  |  Surface: 4,853 sq ft', { size:6, color:grey(130) });
     out += text(X(193), 40, 'Recommended Exhaust', { size:7, color:grey(120), align:'right' }) + text(X(193), 45.5, '2129 sq in', { size:12, bold:true, color:red, align:'right' });
     out += text(X(193), 50, 'Recommended Intake', { size:7, color:grey(120), align:'right' }) + text(X(193), 55.5, '2129 sq in', { size:12, bold:true, color:red, align:'right' });
-    const table = (x, w, title, cells) => {
-      let t = card(x, 64, w, 32) + rect(x + 0.3, 64.3, w - 0.6, 7, `background:${grey(245)};border-radius:${mm(2.7)} ${mm(2.7)} 0 0`) + hline(x, 71.2, x + w, grey(220), 0.2);
-      t += text(x + 4, 69.1, title, { size:8, bold:true, color:grey(60) });
+    // The note's lines (5 in portrait, 4 on the wider landscape page) set where the content ends.
+    const noteY = PAGE_H - 20 - ((LANDSCAPE ? 4 : 5) - 1) * 3.5, contentBottom = noteY - 7.2;
+    const columnW = LANDSCAPE ? (AVAIL_W - 6) / 2 : AVAIL_W;
+    const nfva = LANDSCAPE ? { x:MARGIN, y:64, w:columnW } : { x:MARGIN, y:64, w:(AVAIL_W - 5) * 0.45 };
+    const exhaust = LANDSCAPE ? { x:MARGIN, y:101, w:columnW } : { x:MARGIN + nfva.w + 5, y:64, w:(AVAIL_W - 5) * 0.55 };
+    const intakeY = exhaust.y + 37;
+    const table = ({ x, y, w }, title, cells) => {
+      const dy = y - 64;
+      let t = card(x, y, w, 32) + rect(x + 0.3, y + 0.3, w - 0.6, 7, `background:${grey(245)};border-radius:${mm(2.7)} ${mm(2.7)} 0 0`) + hline(x, 71.2 + dy, x + w, grey(220), 0.2);
+      t += text(x + 4, 69.1 + dy, title, { size:8, bold:true, color:grey(60) });
       cells.forEach(([head, lines, tone, flag], i) => {
         const cx = x + i * w / 2;
-        if (tone) t += rect(cx, 71.3, w / 2 - 0.3, 24.4, `background:${tone[0]};border-radius:0 0 ${mm(2.7)} 0`);
-        if (i) t += vline(cx, 71.3, 95.7, grey(220), 0.2);
-        t += text(cx + 3, 76.6, head, { size:10, bold:true, color:tone ? tone[1] : grey(50) });
-        lines.forEach((line, l) => { t += text(cx + 3, 81.6 + l * 3.6, line, { size:8, color:grey(60) }); });
-        if (flag) t += text(cx + 3, 93.2, flag, { size:6.5, bold:true, color:tone[1] });
+        if (tone) t += rect(cx, 71.3 + dy, w / 2 - 0.3, 24.4, `background:${tone[0]};border-radius:0 0 ${mm(2.7)} 0`);
+        if (i) t += vline(cx, 71.3 + dy, 95.7 + dy, grey(220), 0.2);
+        t += text(cx + 3, 76.6 + dy, head, { size:10, bold:true, color:tone ? tone[1] : grey(50) });
+        lines.forEach((line, l) => { t += text(cx + 3, 81.6 + dy + l * 3.6, line, { size:8, color:grey(60) }); });
+        if (flag) t += text(cx + 3, 93.2 + dy, flag, { size:6.5, bold:true, color:tone[1] });
       });
       return t;
     };
-    out += table(MARGIN, W(77), 'NFVA Requirement', [['1/300', ['NFVA: 2129 sq in', 'Exhaust: 1064 sq in', 'Intake: 1064 sq in']], ['1/150', ['NFVA: 4258 sq in', 'Exhaust: 2129 sq in', 'Intake: 2129 sq in'], ['rgb(235,245,255)', blue], 'Recommended']]);
-    out += table(X(107), W(93.9), 'Exhaust Options', [['Ridge Vent', ["Needed: 118' (@ 18\"/lf)", "Available: 98'", 'Deficit: 360 sq in']], ['Box Vents', ['Needed: 43 vents', '50 sq in NFA each', 'Total: 2150 sq in'], ['rgb(240,252,243)', green], 'Recommended']]);
-    out += card(MARGIN, 101, AVAIL_W, 40, { strip:true, title:'Recommended Intake Products' });
-    out += rect(31, 112.8, W(167.9), 6.1, `background:${grey(245)}`);
-    [['Product', 33], ['Rating', 98], ['Qty Needed', 143]].forEach(([label, x]) => { out += text(X(x), 116.9, label, { size:8.5, bold:true, color:grey(50) }); });
-    [['Vented Drip Edge', '9 sq in/ft', '237 ft', 125.2], ['Soffit Vent', '9 sq in/ft', '237 ft', 130.6], ['Bird Blocks', '~3.5 sq in', '609 ea', 136.1]].forEach(([product, rating, qty, y]) => {
-      out += text(33, y, product, { color:grey(60) }) + text(X(98), y, rating, { color:grey(60) }) + text(X(143), y, qty, { bold:true });
+    out += table(nfva, 'NFVA Requirement', [['1/300', ['NFVA: 2129 sq in', 'Exhaust: 1064 sq in', 'Intake: 1064 sq in']], ['1/150', ['NFVA: 4258 sq in', 'Exhaust: 2129 sq in', 'Intake: 2129 sq in'], ['rgb(235,245,255)', blue], 'Recommended']]);
+    out += table(exhaust, 'Exhaust Options', [['Ridge Vent', ["Needed: 118' (@ 18\"/lf)", "Available: 98'", 'Deficit: 360 sq in']], ['Box Vents', ['Needed: 43 vents', '50 sq in NFA each', 'Total: 2150 sq in'], ['rgb(240,252,243)', green], 'Recommended']]);
+    out += card(MARGIN, intakeY, columnW, 40, { strip:true, title:'Recommended Intake Products' });
+    out += rect(31, intakeY + 11.8, columnW - 8, 6.1, `background:${grey(245)}`);
+    const inner = columnW - 16, cols = [33, MARGIN + 8 + Math.min(65, inner * 0.42), MARGIN + 8 + Math.min(110, inner * 0.72)];
+    ['Product', 'Rating', 'Qty Needed'].forEach((label, i) => { out += text(cols[i], intakeY + 15.9, label, { size:8.5, bold:true, color:grey(50) }); });
+    [['Vented Drip Edge', '9 sq in/ft', '237 ft', 24.2], ['Soffit Vent', '9 sq in/ft', '237 ft', 29.6], ['Bird Blocks', '~3.5 sq in', '609 ea', 35.1]].forEach(([product, rating, qty, dy]) => {
+      out += text(cols[0], intakeY + dy, product, { color:grey(60) }) + text(cols[1], intakeY + dy, rating, { color:grey(60) }) + text(cols[2], intakeY + dy, qty, { bold:true });
     });
-    const mapY = LANDSCAPE ? 146 : 153.4, mapH = LANDSCAPE ? PAGE_H - 24.1 - 16 - mapY : 69.4, mapW = mapH * 110 / 69.4, keyY = LANDSCAPE ? mapY + 4 : 175.6;
-    out += text(37.3, keyY, 'Key', { size:9, bold:true });
-    out += rect(37.3, keyY + 6.4, 9.9, 1.4, 'background:rgb(230,0,0)') + text(50.3, keyY + 8.2, 'Ridge Vent', { size:7, color:grey(60) });
-    out += rect(37.3, keyY + 12.6, 4.9, 4.9, 'background:rgb(255,152,0)') + text(50.3, keyY + 16, 'Box Vent', { size:7, color:grey(60) });
-    out += card(X(79.6) + (W(110) - mapW) / 2, mapY, mapW, mapH, { radius:2 }) + image('ventilation', X(79.6) + (W(110) - mapW) / 2 + 1, mapY + 1, mapW - 2, mapH - 2, `border-radius:${mm(1.4)}`);
-    out += `<div class="rpv-p" style="left:${mm(MARGIN)};bottom:${mm(24.1)};width:${mm(AVAIL_W)};font-size:${n(ptPx(6))}px;line-height:${n(3.24 * MM)}px;color:${grey(90)}">${esc('Note: The estimated quantity of attic ventilation products in this report is based on the estimated attic floor area and is meant for estimating purposes only. It is the responsibility of the installer to verify the correct quantity and type of attic ventilation products prior to commencement of work. Installer must always review job-specific attic ventilation needs such as local code requirements, attic floor square footage, roof design, and conditioned spaces under the roof. GAF recommends a minimum of 1 square foot of attic ventilation (evenly split between intake and exhaust) for every 150\u2013300 square feet of attic floor space depending on vapor barrier status. The amount of exhaust ventilation at or near the ridge must never exceed the amount of intake ventilation at or near the soffit. See gaf.com/ventcalculator for details.')}</div>`;
+    // The diagram card: the map fitted inside with its key beside it (a wide card) or above it (a narrow one).
+    const d = LANDSCAPE ? { x:MARGIN + columnW + 6, y:64, w:AVAIL_W - columnW - 6, h:intakeY + 40 - 64 } : { x:MARGIN, y:intakeY + 45, w:AVAIL_W, h:contentBottom - (intakeY + 45) };
+    const ratio = 110 / 69.4, beside = d.w / d.h > 1.3, keyW = 30;
+    const areaW = d.w - 10 - (beside ? keyW + 8 : 0), areaH = d.h - 10 - (beside ? 0 : 9);
+    let mapW = areaW, mapH = mapW / ratio;
+    if (mapH > areaH) { mapH = areaH; mapW = mapH * ratio; }
+    const keyX = beside ? d.x + (d.w - (keyW + 8 + mapW)) / 2 : d.x + (d.w - mapW) / 2;
+    const mapX = beside ? keyX + keyW + 8 : keyX, mapY = beside ? d.y + (d.h - mapH) / 2 : d.y + 14 + (areaH - mapH) / 2;
+    out += card(d.x, d.y, d.w, d.h);
+    out += image('ventilation', mapX, mapY, mapW, mapH, `border-radius:${mm(2)};border:${mm(0.35)} solid ${grey(200)};box-sizing:border-box`);
+    if (beside) {
+      const top = mapY + (mapH - 20) / 2 + 3;
+      out += text(keyX, top, 'Key', { size:8, bold:true });
+      out += rect(keyX, top + 6.25, 10, 1.5, 'background:rgb(255,0,0)') + text(keyX + 13, top + 8, 'Ridge Vent', { size:7, color:grey(60) });
+      out += rect(keyX, top + 12.5, 5, 5, 'background:rgb(255,152,0)') + text(keyX + 13, top + 16, 'Box Vent', { size:7, color:grey(60) });
+    } else {
+      const ky = mapY - 4;
+      out += text(keyX, ky, 'Key', { size:8, bold:true });
+      out += rect(keyX + 12, ky - 1.75, 10, 1.5, 'background:rgb(255,0,0)') + text(keyX + 25, ky, 'Ridge Vent', { size:7, color:grey(60) });
+      out += rect(keyX + 47, ky - 3.5, 5, 5, 'background:rgb(255,152,0)') + text(keyX + 55, ky, 'Box Vent', { size:7, color:grey(60) });
+    }
+    // The note's first line on noteY with jsPDF's line spacing (1.15 x 6 pt), as the PDF draws it.
+    out += `<div class="rpv-p" style="left:${mm(MARGIN)};top:${n(noteY * MM - (2.434 * MM / 2 + 0.3585 * ptPx(6)))}px;width:${mm(AVAIL_W)};font-size:${n(ptPx(6))}px;line-height:${n(2.434 * MM)}px;color:${grey(90)}">${esc('Note: The estimated quantity of attic ventilation products in this report is based on the estimated attic floor area and is meant for estimating purposes only. It is the responsibility of the installer to verify the correct quantity and type of attic ventilation products prior to commencement of work. Installer must always review job-specific attic ventilation needs such as local code requirements, attic floor square footage, roof design, and conditioned spaces under the roof. GAF recommends a minimum of 1 square foot of attic ventilation (evenly split between intake and exhaust) for every 150\u2013300 square feet of attic floor space depending on vapor barrier status. The amount of exhaust ventilation at or near the ridge must never exceed the amount of intake ventilation at or near the soffit. See gaf.com/ventcalculator for details.')}</div>`;
     return out;
   }
 
@@ -458,17 +484,20 @@
   const pitchPage = () => text(MARGIN, 30, `Total Facets: ${SAMPLE.facets}`, { bold:true }) + diagram('pitch') + breakdownTable('Pitch Breakdown', true);
   const areaPage = () => diagram('area') + breakdownTable('Area Breakdown', false);
 
-  // Landscape: the layer drawing on the left; the details box (totals one per line, then the line
-  // lengths) and the legend below it in the side panel.
+  // Landscape: the layer drawing on the left; in the side panel the details box (as tall as its
+  // contents: the totals one per line, then the line lengths) and under it the key in two aligned
+  // columns of the box's width, the two centred beside the drawing (drawLegendGrid).
   function layerPageLandscape(){
     let out = fitImage('layer', MARGIN, 35, MAIN_W, DIAGRAM_BOTTOM() - 35);
-    out += card(SIDE_X, 35, SIDE_W, 80, { strip:true, title:'Layer 1 Details' });
-    out += text(SIDE_X + 8, 51, `Facets: ${SAMPLE.facets}`, { bold:true }) + text(SIDE_X + 8, 57, 'Squares Without Waste: 48.5', { bold:true }) + text(SIDE_X + 8, 63, 'Squares With Waste: 55.3', { bold:true });
-    out += hline(SIDE_X + 8, 67, SIDE_X + SIDE_W - 8, grey(220), 0.2);
-    let x = SIDE_X + 8, y = 71;
-    SAMPLE.layerItems.forEach(([label]) => { const w = label.length * 1.75; if (x + w > SIDE_X + SIDE_W - 8 && x > SIDE_X + 8) { x = SIDE_X + 8; y += 8; } out += text(x, y, label); x += w + 8; });
-    x = SIDE_X; y = 125;
-    SAMPLE.layerLegend.forEach(([label, colour]) => { const w = 4 + 2 + label.length * 1.75; if (x + w > SIDE_X + SIDE_W && x > SIDE_X) { x = SIDE_X; y += 10; } out += rect(x, y - 3.4, 4, 4, `background:${colour}`) + text(x + 6.5, y, label, { size:9, color:grey(50) }); x += w + 15; });
+    let x = SIDE_X + 8, rows = 1;
+    const flow = SAMPLE.layerItems.map(([label]) => { const w = label.length * 1.75; if (x + w > SIDE_X + SIDE_W - 8 && x > SIDE_X + 8) { x = SIDE_X + 8; rows++; } const at = { label, x, row:rows - 1 }; x += w + 8; return at; });
+    const detailsH = 36 + (rows - 1) * 8 + 7, keyH = Math.ceil(SAMPLE.layerLegend.length / 2) * 7, top = Math.max(35, 35 + (DIAGRAM_BOTTOM() - 35 - (detailsH + 8 + keyH)) / 2);
+    out += card(SIDE_X, top, SIDE_W, detailsH, { strip:true, title:'Layer 1 Details' });
+    out += text(SIDE_X + 8, top + 16, `Facets: ${SAMPLE.facets}`, { bold:true }) + text(SIDE_X + 8, top + 22, 'Squares Without Waste: 48.5', { bold:true }) + text(SIDE_X + 8, top + 28, 'Squares With Waste: 55.3', { bold:true });
+    out += hline(SIDE_X + 8, top + 32, SIDE_X + SIDE_W - 8, grey(220), 0.2);
+    flow.forEach(({ label, x, row }) => { out += text(x, top + 36 + row * 8, label); });
+    const legendY = top + detailsH + 8;
+    SAMPLE.layerLegend.forEach(([label, colour], i) => { const cx = SIDE_X + (i % 2) * SIDE_W / 2, cy = legendY + Math.floor(i / 2) * 7; out += rect(cx, cy, 4, 4, `background:${colour}`) + text(cx + 6, cy + 2.8, label, { size:9, color:grey(50) }); });
     return out;
   }
   function layerPage(){
@@ -514,14 +543,18 @@
     return out;
   }
 
-  // drawNotesPage: diagram card (60%), then the ruled notes card (the page height sets availH).
+  // drawNotesPage (pdfNotesLayout and drawPdfNotesCard): landscape puts the diagram in a square card on
+  // the left and a tall ruled notes card on the right; portrait stacks them (the diagram 60% of the
+  // height). Both end 22 mm above the page bottom, clear of the footer. The Wall Notes page uses the same layout.
   function notesPage(){
-    const x = MARGIN, w = AVAIL_W, availH = LANDSCAPE ? PAGE_H - 50 : 231, diagH = Math.round(availH * 0.6), notesY = 35 + diagH + 5, notesH = availH - diagH - 5;
-    let out = card(x, 35, w, diagH) + (LANDSCAPE ? fitImage('notes', x + 1.5, 36.5, w - 3, diagH - 3) : image('notes', 26.5, 36.5, 172.9, 125));
-    out += `<div class="rpv-pill" style="right:${mm(PAGE_W - (x + w - 3))};top:${mm(35 + diagH - 3 - 7)};height:${mm(7)};padding:0 ${mm(5)};border-radius:${mm(3)};font-size:${n(ptPx(7.5))}px">${esc(`${SAMPLE.wasteSquares} sq  \u00B7  ${SAMPLE.pitch}  \u00B7  ${SAMPLE.facets} facets`)}</div>`;
-    out += card(x, notesY, w, notesH, { strip:true, title:'Notes' });
-    out += hline(x + 8, notesY + 12, x + w - 8, grey(235), 0.2);
-    for (let ry = notesY + 22; ry <= notesY + notesH - 5; ry += 8) out += hline(x + 8, ry, x + w - 8, 'rgb(220,228,240)', 0.2);
+    const top = 35, h = PAGE_H - 22 - top, x = MARGIN, w = AVAIL_W;
+    const side = Math.min(h, w * 0.68), img = LANDSCAPE ? { x, y:top, w:side, h:side } : { x, y:top, w, h:Math.round(h * 0.6) };
+    const notes = LANDSCAPE ? { x:x + side + 5, y:top, w:w - side - 5, h } : { x, y:top + img.h + 5, w, h:h - img.h - 5 };
+    let out = card(img.x, img.y, img.w, img.h) + fitImage('notes', img.x + 3, img.y + 3, img.w - 6, img.h - 6);
+    out += `<div class="rpv-pill" style="right:${mm(PAGE_W - (img.x + img.w - 3))};top:${mm(img.y + img.h - 3 - 7)};height:${mm(7)};padding:0 ${mm(5)};border-radius:${mm(3)};font-size:${n(ptPx(7.5))}px">${esc(`${SAMPLE.wasteSquares} sq  \u00B7  ${SAMPLE.pitch}  \u00B7  ${SAMPLE.facets} facets`)}</div>`;
+    out += card(notes.x, notes.y, notes.w, notes.h, { strip:true, title:'Notes' });
+    out += hline(notes.x + 8, notes.y + 12, notes.x + notes.w - 8, grey(235), 0.2);
+    for (let ry = notes.y + 22; ry <= notes.y + notes.h - 5; ry += 8) out += hline(notes.x + 8, ry, notes.x + notes.w - 8, 'rgb(220,228,240)', 0.2);
     return out;
   }
 

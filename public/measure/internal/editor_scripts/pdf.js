@@ -2661,16 +2661,38 @@ async function generatePDFFromState(state, mode = 'full', updateStatusCallback, 
             const layerImg = layerCanvas.toDataURL('image/jpeg', 0.40);
             
             const topY = 45; 
-            // Landscape: the layer drawing fills the left; the details box and the legend sit in the side panel.
-            const detailsH = landscape ? 80 : 50;
-            const bottomBoxY = landscape ? topY - 10 : pageHeight - 25 - 50;
-            const legendY = landscape ? bottomBoxY + detailsH + 6 : bottomBoxY - 20;
+            const pad = 8;
+            const layerLines = state.report.lines.filter(l => (l.points[0].layer || 1) === layerNum);
+            const layerTotals = {};
+            layerLines.forEach(item => {
+                if (!layerTotals[item.type]) layerTotals[item.type] = 0;
+                layerTotals[item.type] += item.length;
+            });
+            const layerFlowTypes = Object.keys(layerTotals).filter(type => !['unknown', 'skylight', 'chimney_edge', 'chimney_back', 'chimney_front'].includes(type));
+            const layerFlowLabel = (type) => `${formatLineType(type)}: ${pdfMeasure(layerTotals[type], 'ft', `${Math.round(layerTotals[type])}'`)}`;
             const detailsX = landscape ? sideX : marginLeft, detailsW = landscape ? sideW : availableW;
+            // Landscape: the layer drawing fills the left. The details box is as tall as its contents
+            // (the totals one per line, then the line lengths in as many rows as they wrap to) and the
+            // key sits under it in two aligned columns of the box's width; the two together are centred
+            // beside the drawing. Portrait: the drawing, the legend, then the details box at the bottom.
+            let detailsH = 50, bottomBoxY = pageHeight - 25 - 50, legendY = bottomBoxY - 20;
+            if (landscape) {
+                doc.setFont("Montserrat", "normal"); doc.setFontSize(9);
+                let flowRows = layerFlowTypes.length ? 1 : 0, flowX = detailsX + pad;
+                layerFlowTypes.forEach(type => {
+                    const textW = doc.getTextWidth(layerFlowLabel(type));
+                    if (flowX + textW > detailsX + detailsW - pad && flowX > detailsX + pad) { flowX = detailsX + pad; flowRows++; }
+                    flowX += textW + 8;
+                });
+                detailsH = 36 + Math.max(0, flowRows - 1) * 8 + 7;
+                const blockH = detailsH + 8 + pdfLegendGridHeight(state.report, 2);
+                bottomBoxY = Math.max(topY - 10, topY - 10 + (pageHeight - 25 - (topY - 10) - blockH) / 2);
+                legendY = bottomBoxY + detailsH + 8;
+            }
 
             placeImageCentered(doc, layerImg, imgRatio, marginLeft, landscape ? topY - 10 : topY, landscape ? pageHeight - 25 : legendY - 5, mainW);
-            drawLegend(doc, state.report, detailsX, legendY);
-
-            const pad = 8;
+            if (landscape) drawLegendGrid(doc, state.report, detailsX, legendY, detailsW, 2);
+            else drawLegend(doc, state.report, detailsX, legendY);
 
             drawSummaryBox(doc, detailsX, bottomBoxY, detailsW, detailsH, `Layer ${layerNum} Details`, {
                 forceDefault: forceDefaultBoxes,
@@ -2678,7 +2700,6 @@ async function generatePDFFromState(state, mode = 'full', updateStatusCallback, 
                 pad
             });
             
-            const layerLines = state.report.lines.filter(l => (l.points[0].layer || 1) === layerNum);
             let layerAreaSq = 0;
             let layerFacetCount = 0;
             const autoExcludedLayerFaces = getReportAutoExcludedFaceIndexSet(state);
@@ -2726,12 +2747,6 @@ async function generatePDFFromState(state, mode = 'full', updateStatusCallback, 
                 layerAreaSq += areaSq;
             });
 
-            const layerTotals = {};
-            layerLines.forEach(item => {
-                if (!layerTotals[item.type]) layerTotals[item.type] = 0;
-                layerTotals[item.type] += item.length;
-            });
-
             doc.setFontSize(9);
             const innerLeft  = detailsX + pad;
             const innerRight = detailsX + detailsW - pad;
@@ -2760,10 +2775,8 @@ async function generatePDFFromState(state, mode = 'full', updateStatusCallback, 
             const itemGap = 8;
             let flowX = innerLeft;
 
-            Object.keys(layerTotals).forEach((type) => {
-                if (type === 'unknown' || type === 'skylight' || type === 'chimney_edge' || type === 'chimney_back' || type === 'chimney_front') return;
-                const val = Math.round(layerTotals[type]);
-                const label = `${formatLineType(type)}: ${pdfMeasure(layerTotals[type], 'ft', `${val}'`)}`;
+            layerFlowTypes.forEach((type) => {
+                const label = layerFlowLabel(type);
                 const textW = doc.getTextWidth(label);
 
                 if (flowX + textW > innerRight && flowX > innerLeft) {
@@ -6277,17 +6290,33 @@ async function drawVentilationPage(doc, report, est, x, y, w, state) {
         doc.setTextColor(0);
 
         // ════════════════════════════════════════════════════
-        // ROW 2: LEFT = ratio table, RIGHT = vent options
+        // LAYOUT
+        // Portrait: the NFVA and Exhaust tables side by side, the intake products, then the diagram
+        // card (its key beside the diagram) down to the disclaimer, all at full width.
+        // Landscape: under the summary, the two tables and the intake products stacked in the left
+        // half and the diagram card (its key above the diagram) beside them in the right half.
+        // The disclaimer always sits at the foot of the page, above the footer address.
         // ════════════════════════════════════════════════════
-        let ry = y + atticBoxH + 5;
+        const landscape = isPdfLandscape(doc);
+        const pageH = doc.internal.pageSize.getHeight();
+        const note = pdfLabel(`Note: The estimated quantity of attic ventilation products in this report is based on the estimated attic floor area and is meant for estimating purposes only. It is the responsibility of the installer to verify the correct quantity and type of attic ventilation products prior to commencement of work. Installer must always review job-specific attic ventilation needs such as local code requirements, attic floor square footage, roof design, and conditioned spaces under the roof. GAF recommends a minimum of 1 square foot of attic ventilation (evenly split between intake and exhaust) for every 150–300 square feet of attic floor space depending on vapor barrier status. The amount of exhaust ventilation at or near the ridge must never exceed the amount of intake ventilation at or near the soffit. See gaf.com/ventcalculator for details.`);
+        doc.setFont("Montserrat", "normal"); doc.setFontSize(6);
+        const noteLines = doc.splitTextToSize(window.ReportUnits?.current().metric ? note.replace("1 square foot", "1 square metre").replace("square feet", "square metres").replace("square footage", "area") : note, w);
+        const noteY = Math.max(pageH - 20 - (noteLines.length - 1) * 3.5, pageH - 40);
+        const contentBottom = noteY - 2.2 - 5;
+
         const rowH = 32;
         const colGap = 5;
-        const leftW = (w - colGap) * 0.45;
-        const rightW = (w - colGap) * 0.55;
-        const rightX = x + leftW + colGap;
         const titleBarH = 7;
-        const contentTop = ry + titleBarH;
-        const contentH = rowH - titleBarH;
+        const tablesTop = y + atticBoxH + 5;
+        const columnW = landscape ? (w - 6) / 2 : w;
+        const nfvaBox = landscape ? { x, y: tablesTop, w: columnW } : { x, y: tablesTop, w: (w - colGap) * 0.45 };
+        const exhaustBox = landscape ? { x, y: tablesTop + rowH + 5, w: columnW } : { x: x + nfvaBox.w + colGap, y: tablesTop, w: (w - colGap) * 0.55 };
+        const intakeY = exhaustBox.y + rowH + 5;
+        const intakeH = landscape ? Math.max(36, Math.min(40, contentBottom - intakeY)) : 40;
+        const diagramBox = landscape
+            ? { x: x + columnW + 6, y: tablesTop, w: w - columnW - 6, h: intakeY + intakeH - tablesTop }
+            : { x, y: intakeY + intakeH + 5, w, h: contentBottom - (intakeY + intakeH + 5) };
 
         // ── Shared inset for fills so they don't overlap rounded borders ──
         const r = 2;       // corner radius
@@ -6295,6 +6324,7 @@ async function drawVentilationPage(doc, report, est, x, y, w, state) {
 
         // ── Helper: draw a table box (shadow + fills first, then borders on top) ──
         const drawTableBox = (bx, by, bw, title, halfW, highlightColX, highlightFill) => {
+            const contentTop = by + titleBarH, contentH = rowH - titleBarH;
             // 0) Shadow — offset slightly down-right, light gray
             doc.setFillColor(220, 220, 220);
             doc.roundedRect(bx + 1.5, by + 1.5, bw, rowH, r, r, 'F');
@@ -6334,16 +6364,16 @@ async function drawVentilationPage(doc, report, est, x, y, w, state) {
             doc.text(pdfLabel(title), bx + 4, by + 4.8);
         };
 
-        // ── LEFT TABLE: NFVA ──
-        const ratioColW = leftW / 2;
-        const rCol1X = x;
-        const rCol2X = x + ratioColW;
+        // ── NFVA TABLE ──
+        const ratioColW = nfvaBox.w / 2;
+        const rCol1X = nfvaBox.x;
+        const rCol2X = nfvaBox.x + ratioColW;
         const selRColX = (selectedRatio === 300) ? rCol1X : rCol2X;
 
-        drawTableBox(x, ry, leftW, "NFVA Requirement", ratioColW, selRColX, [235, 245, 255]);
+        drawTableBox(nfvaBox.x, nfvaBox.y, nfvaBox.w, "NFVA Requirement", ratioColW, selRColX, [235, 245, 255]);
 
         const drawRatioCol = (d, cx, isRec) => {
-            let dy = contentTop + 6;
+            let dy = nfvaBox.y + titleBarH + 6;
 
             // Left-aligned title
             doc.setFontSize(9); doc.setFont("Montserrat", "bold");
@@ -6359,7 +6389,7 @@ async function drawVentilationPage(doc, report, est, x, y, w, state) {
 
             // "Recommended" at bottom, left-aligned
             if (isRec) {
-                const recY = ry + rowH - 2.5;
+                const recY = nfvaBox.y + rowH - 2.5;
                 doc.setFontSize(7); doc.setFont("Montserrat", "bold"); doc.setTextColor(26, 115, 232);
                 doc.text(pdfLabel("Recommended"), cx + 3, recY);
             }
@@ -6368,16 +6398,16 @@ async function drawVentilationPage(doc, report, est, x, y, w, state) {
         drawRatioCol(data300, rCol1X, selectedRatio === 300);
         drawRatioCol(data150, rCol2X, selectedRatio === 150);
 
-        // ── RIGHT TABLE: Exhaust Options ──
-        const ventColW = rightW / 2;
-        const vCol1X = rightX;
-        const vCol2X = rightX + ventColW;
+        // ── EXHAUST OPTIONS TABLE ──
+        const ventColW = exhaustBox.w / 2;
+        const vCol1X = exhaustBox.x;
+        const vCol2X = exhaustBox.x + ventColW;
         const recVColX = selected.recommendRidge ? vCol1X : vCol2X;
 
-        drawTableBox(rightX, ry, rightW, "Exhaust Options", ventColW, recVColX, [240, 252, 243]);
+        drawTableBox(exhaustBox.x, exhaustBox.y, exhaustBox.w, "Exhaust Options", ventColW, recVColX, [240, 252, 243]);
 
         const drawVentCol = (title, isRec, cx, lines) => {
-            let dy = contentTop + 6;
+            let dy = exhaustBox.y + titleBarH + 6;
 
             // Left-aligned title
             doc.setFontSize(9); doc.setFont("Montserrat", "bold");
@@ -6391,7 +6421,7 @@ async function drawVentilationPage(doc, report, est, x, y, w, state) {
 
             // "Recommended" at bottom, left-aligned
             if (isRec) {
-                const recY = ry + rowH - 2.5;
+                const recY = exhaustBox.y + rowH - 2.5;
                 doc.setFontSize(7); doc.setFont("Montserrat", "bold"); doc.setTextColor(52, 168, 83);
                 doc.text(pdfLabel("Recommended"), cx + 3, recY);
             }
@@ -6417,28 +6447,30 @@ async function drawVentilationPage(doc, report, est, x, y, w, state) {
         drawVentCol("Box Vents", !selected.recommendRidge, vCol2X, boxLines);
 
         // ════════════════════════════════════════════════════
-        // ROW 3: Intake Products Table
+        // Intake Products Table
         // ════════════════════════════════════════════════════
-        ry += rowH + 5;
-        const intakeH = 40;
-        drawSummaryBox(doc, x, ry, w, intakeH, "Recommended Intake Products");
+        drawSummaryBox(doc, x, intakeY, columnW, intakeH, "Recommended Intake Products");
 
-        let iy = ry + 14;
+        let iy = intakeY + 14;
+        // Column positions: 65 and 110 mm in at full width, proportionally closer in a narrower box.
+        const intakeInner = columnW - pad * 2;
+        const ratingX = x + pad + Math.min(65, intakeInner * 0.42);
+        const qtyX = x + pad + Math.min(110, intakeInner * 0.72);
 
         // Header row
-        doc.setFillColor(245, 245, 245); doc.rect(x + 2, iy - 2, w - 4, 6, 'F');
+        doc.setFillColor(245, 245, 245); doc.rect(x + 2, iy - 2, columnW - 4, 6, 'F');
         doc.setFontSize(8); doc.setFont("Montserrat", "bold"); doc.setTextColor(80);
         doc.text(pdfLabel("Product"), x + pad, iy + 2);
-        doc.text(pdfLabel("Rating"), x + pad + 65, iy + 2);
-        doc.text(pdfLabel("Qty Needed"), x + pad + 110, iy + 2);
+        doc.text(pdfLabel("Rating"), ratingX, iy + 2);
+        doc.text(pdfLabel("Qty Needed"), qtyX, iy + 2);
         iy += 10;
 
         const drawIRow = (n, r, q) => {
             doc.setFont("Montserrat", "normal"); doc.setFontSize(8); doc.setTextColor(60);
             doc.text(n, x + pad, iy);
-            doc.text(r, x + pad + 65, iy);
+            doc.text(r, ratingX, iy);
             doc.setFont("Montserrat", "bold");
-            doc.text(q, x + pad + 110, iy);
+            doc.text(q, qtyX, iy);
             iy += 5.5;
         };
         const halfIn = Math.round(selected.reqIntake);
@@ -6447,10 +6479,8 @@ async function drawVentilationPage(doc, report, est, x, y, w, state) {
         drawIRow(pdfLabel("Bird Blocks"), ("~" + pdfMeasure(3.5,"si","3.5 sq in")), `${Math.ceil(halfIn / 3.5)} ea`);
 
         // ════════════════════════════════════════════════════
-        // ROW 4: Vent Canvas Image + Legend
+        // Diagram card: the vent diagram and its key
         // ════════════════════════════════════════════════════
-        ry += intakeH + 5;
-
         const ventMode = state.ventSettings && state.ventSettings.mode ? state.ventSettings.mode : (selected.recommendRidge ? 'ridge' : 'box');
         const drawRidge = ventMode !== 'box' && selected.recommendRidge;
 
@@ -6468,41 +6498,33 @@ async function drawVentilationPage(doc, report, est, x, y, w, state) {
         const vImg = vCvs.toDataURL('image/jpeg', 0.40);
         const vRat = vCvs.width / vCvs.height;
 
-        // Calculate available space between intake box and disclaimer
-        const pageH = doc.internal.pageSize.getHeight();
-        const disclaimerReserve = 30; // space for disclaimer at bottom
-        const availH = pageH - 20 - disclaimerReserve - ry;
-        const imgMaxH = Math.min(availH, 75);
+        drawPdfCard(doc, diagramBox.x, diagramBox.y, diagramBox.w, diagramBox.h, 3);
 
-        // Compute actual image dimensions to fit
-        const imgR = 2; // corner radius
-        const imgShadow = 1.5;
-        let imgW, imgH;
-        const keyContentW = 30; // fixed width for key block (swatch + text)
-        const imgMaxW = w * 0.62;
-        if (vRat >= (imgMaxW / imgMaxH)) {
-            imgW = imgMaxW;
-            imgH = imgW / vRat;
+        // The key: "Key", a ridge vent line and a box vent square. A wide card (portrait) puts it in a
+        // column beside the diagram and centres the pair in the card; a narrow one (landscape) puts it
+        // in a row above the diagram, starting at the diagram's left edge.
+        doc.setFont("Montserrat", "normal"); doc.setFontSize(7);
+        const ridgeLabel = pdfLabel("Ridge Vent"), boxLabel = pdfLabel("Box Vent"), keyLabel = pdfLabel("Key");
+        const keyColumnW = Math.max(30, 13 + Math.max(doc.getTextWidth(ridgeLabel), doc.getTextWidth(boxLabel)));
+        const keyBeside = diagramBox.w / diagramBox.h > 1.3;
+        const cardPad = 5, keyRowH = 9;
+        const imgAreaW = diagramBox.w - cardPad * 2 - (keyBeside ? keyColumnW + 8 : 0);
+        const imgAreaH = diagramBox.h - cardPad * 2 - (keyBeside ? 0 : keyRowH);
+        let imgW = imgAreaW, imgH = imgW / vRat;
+        if (imgH > imgAreaH) { imgH = imgAreaH; imgW = imgH * vRat; }
+        let imgX, imgY, keyX;
+        if (keyBeside) {
+            keyX = diagramBox.x + (diagramBox.w - (keyColumnW + 8 + imgW)) / 2;
+            imgX = keyX + keyColumnW + 8;
+            imgY = diagramBox.y + (diagramBox.h - imgH) / 2;
         } else {
-            imgH = imgMaxH;
-            imgW = imgH * vRat;
+            imgX = diagramBox.x + (diagramBox.w - imgW) / 2;
+            imgY = diagramBox.y + cardPad + keyRowH + (imgAreaH - imgH) / 2;
+            keyX = imgX;
         }
 
-        // Three equal gaps: [gap] KEY [gap] IMAGE [gap]
-        const gap = (w - keyContentW - imgW) / 3;
-        const keyLeftX = x + gap;
-        const imgX = x + gap + keyContentW + gap;
-        const imgY = ry + (availH - imgH) / 2;
-
-        // Shadow
-        doc.setFillColor(210, 210, 210);
-        doc.roundedRect(imgX + imgShadow, imgY + imgShadow, imgW, imgH, imgR, imgR, 'F');
-
-        // White background
-        doc.setFillColor(255, 255, 255);
-        doc.roundedRect(imgX, imgY, imgW, imgH, imgR, imgR, 'F');
-
-        // Clip image to rounded rect using raw PDF path operators
+        // The diagram, clipped to a rounded rect using raw PDF path operators
+        const imgR = 2;
         const k = doc.internal.scaleFactor;
         const pH = doc.internal.pageSize.getHeight();
         const px = imgX * k;
@@ -6527,47 +6549,35 @@ async function drawVentilationPage(doc, report, est, x, y, w, state) {
             `${f2(px)} ${f2(py + pr - kr)} ${f2(px + pr - kr)} ${f2(py)} ${f2(px + pr)} ${f2(py)} c ` +
             'W n'
         );
-
-        // Draw image full-bleed inside the clip
         doc.addImage(vImg, 'JPEG', imgX, imgY, imgW, imgH);
-
         doc.internal.write('Q'); // restore graphics state
 
         // Rounded border on top
         doc.setDrawColor(...bClr); doc.setLineWidth(bW);
         doc.roundedRect(imgX, imgY, imgW, imgH, imgR, imgR, 'S');
 
-        // ── Key: always show both items ──
-        const keyItemH = 8;
-        const keyTotalH = 8 + keyItemH * 2;
-        const keyTop = imgY + (imgH - keyTotalH) / 2;
-
+        const ridgeSwatch = (sx, sy) => { doc.setDrawColor(255, 0, 0); doc.setLineWidth(1.5); doc.line(sx, sy, sx + 10, sy); };
+        const boxSwatch = (sx, sy) => { doc.setFillColor(255, 152, 0); doc.rect(sx, sy - 2.5, 5, 5, 'F'); };
+        const keyText = (label, tx, ty) => { doc.setTextColor(60); doc.setFont("Montserrat", "normal"); doc.setFontSize(7); doc.text(label, tx, ty); };
         doc.setFontSize(8); doc.setFont("Montserrat", "bold"); doc.setTextColor(0);
-        doc.text(pdfLabel("Key"), keyLeftX, keyTop);
-
-        // Ridge Vent
-        let keyY = keyTop + 7;
-        doc.setDrawColor(255, 0, 0); doc.setLineWidth(1.5);
-        doc.line(keyLeftX, keyY, keyLeftX + 10, keyY);
-        doc.setTextColor(60); doc.setFont("Montserrat", "normal"); doc.setFontSize(7);
-        doc.text(pdfLabel("Ridge Vent"), keyLeftX + 13, keyY + 1);
-
-        // Box Vent
-        keyY += keyItemH;
-        doc.setFillColor(255, 152, 0);
-        doc.rect(keyLeftX, keyY - 2.5, 5, 5, 'F');
-        doc.setTextColor(60); doc.setFont("Montserrat", "normal"); doc.setFontSize(7);
-        doc.text(pdfLabel("Box Vent"), keyLeftX + 13, keyY + 1);
+        if (keyBeside) {
+            const keyTop = imgY + (imgH - 20) / 2 + 3;
+            doc.text(keyLabel, keyX, keyTop);
+            ridgeSwatch(keyX, keyTop + 7); keyText(ridgeLabel, keyX + 13, keyTop + 8);
+            boxSwatch(keyX, keyTop + 15); keyText(boxLabel, keyX + 13, keyTop + 16);
+        } else {
+            const keyY = imgY - 4;
+            doc.text(keyLabel, keyX, keyY);
+            let kx = keyX + doc.getTextWidth(keyLabel) + 6;
+            ridgeSwatch(kx, keyY - 1); keyText(ridgeLabel, kx + 13, keyY);
+            kx += 13 + doc.getTextWidth(ridgeLabel) + 8;
+            boxSwatch(kx, keyY - 1); keyText(boxLabel, kx + 8, keyY);
+        }
 
         // ════════════════════════════════════════════════════
-        // ROW 5: Disclaimer
+        // Disclaimer
         // ════════════════════════════════════════════════════
-        const note = pdfLabel(`Note: The estimated quantity of attic ventilation products in this report is based on the estimated attic floor area and is meant for estimating purposes only. It is the responsibility of the installer to verify the correct quantity and type of attic ventilation products prior to commencement of work. Installer must always review job-specific attic ventilation needs such as local code requirements, attic floor square footage, roof design, and conditioned spaces under the roof. GAF recommends a minimum of 1 square foot of attic ventilation (evenly split between intake and exhaust) for every 150\u2013300 square feet of attic floor space depending on vapor barrier status. The amount of exhaust ventilation at or near the ridge must never exceed the amount of intake ventilation at or near the soffit. See gaf.com/ventcalculator for details.`);
-
         doc.setFont("Montserrat", "normal"); doc.setFontSize(6); doc.setTextColor(90);
-        const noteLines = doc.splitTextToSize(window.ReportUnits?.current().metric ? note.replace("1 square foot", "1 square metre").replace("square feet", "square metres").replace("square footage", "area") : note, w);
-        let noteY = pageH - 20 - (noteLines.length - 1) * 3.5;
-        noteY = Math.max(noteY, pageH - 40);
         doc.text(noteLines, x, noteY);
         doc.setTextColor(0);
 
@@ -6576,63 +6586,106 @@ async function drawVentilationPage(doc, report, est, x, y, w, state) {
 }
 
 // =============================================================================
-// DROP-IN REPLACEMENT: drawNotesPage  (pdf.js)
-// Changes from previous version:
-//   1. Diagram card is now ~60% of height, notes card ~38% (was 38/58)
-//   2. Removed the red left-margin accent line inside the notes card
+// Notes pages: Roof Notes (drawNotesPage) and Wall Notes (exterior_pdf.js drawExteriorNotes) share
+// one layout and one notes card, so the two pages always look the same.
+//   Landscape: the reference images in a square on the left (one image fills it; four make a 2 x 2
+//   grid of square cells) and a tall, slim notes card on the right.
+//   Portrait: the images above (60% of the height) and the notes card below.
+// Everything ends PDF_NOTES_BOTTOM mm above the page bottom, clear of the footer address.
 // =============================================================================
+const PDF_NOTES_GAP = 5, PDF_NOTES_TOP = 35, PDF_NOTES_BOTTOM = 22;
+function pdfNotesLayout(doc, count = 1) {
+    const W = doc.internal.pageSize.getWidth(), H = doc.internal.pageSize.getHeight();
+    const x = 25, w = W - 40, top = PDF_NOTES_TOP, h = H - PDF_NOTES_BOTTOM - top, gap = PDF_NOTES_GAP;
+    let images, notes;
+    if (W > H) {
+        const side = Math.min(h, w * 0.68);
+        images = { x, y: top, w: side, h: side };
+        notes = { x: x + side + gap, y: top, w: w - side - gap, h };
+    } else {
+        const imagesH = Math.round(h * 0.6);
+        images = { x, y: top, w, h: imagesH };
+        notes = { x, y: top + imagesH + gap, w, h: h - imagesH - gap };
+    }
+    const n = Math.max(0, Math.min(4, count)), cols = n > 1 ? 2 : 1, rows = n > 2 ? 2 : 1;
+    const cw = (images.w - gap * (cols - 1)) / cols, ch = (images.h - gap * (rows - 1)) / rows;
+    const cells = Array.from({ length: n }, (_, i) => ({ x: images.x + (i % cols) * (cw + gap), y: images.y + Math.floor(i / cols) * (ch + gap), w: cw, h: ch }));
+    return { images, notes, cells, page: { x, y: top, w, h } };
+}
+window.pdfNotesLayout = pdfNotesLayout;
 
-async function drawNotesPage(doc, state, outlineImg, imgRatio, x, startY, availW, availH, brandingColors) {
-    const GAP          = 5;   // gap between diagram card and notes card
-    const CARD_RADIUS  = 3;
-    const LINE_SPACING = 8;   // mm between ruled lines
-    const SIDE_PAD     = 8;   // horizontal padding inside notes card
-    const TOP_PAD      = 14;  // space for the "Notes" header inside card
+// The ruled notes card: the primary strip on its left, a "NOTES" title, then ruled lines. `paragraphs`
+// (typed notes) are written on the rules, one line of text per rule; returns the lines that did not fit.
+function drawPdfNotesCard(doc, rect, paragraphs = [], brandingColors) {
+    const { x, y, w, h } = rect;
+    const CARD_RADIUS = 3, LINE_SPACING = 8, SIDE_PAD = 8, TOP_PAD = 14;
+    const pColor = (brandingColors && brandingColors.primary) ? brandingColors.primary : { r: 200, g: 40, b: 40 };
 
-    // ── Sizing: diagram gets ~60% of height, notes get the rest ──
-    const diagCardH  = Math.round(availH * 0.60);
-    const notesCardH = availH - diagCardH - GAP;
-
-    // ── Primary color for accents ──
-    const pColor = (brandingColors && brandingColors.primary)
-        ? brandingColors.primary
-        : { r: 200, g: 40, b: 40 };
-
-    // ─────────────────────────────────────────────────────────────
-    // SECTION A: Diagram Card
-    // ─────────────────────────────────────────────────────────────
-    const diagCardY = startY;
-
-    // Shadow
     doc.setFillColor(230, 230, 230);
-    doc.roundedRect(x + 1.5, diagCardY + 1.5, availW, diagCardH, CARD_RADIUS, CARD_RADIUS, 'F');
-
-    // Card background
+    doc.roundedRect(x + 1.5, y + 1.5, w, h, CARD_RADIUS, CARD_RADIUS, 'F');
     doc.setFillColor(255, 255, 255);
     doc.setDrawColor(220, 220, 220);
     doc.setLineWidth(0.3);
-    doc.roundedRect(x, diagCardY, availW, diagCardH, CARD_RADIUS, CARD_RADIUS, 'FD');
+    doc.roundedRect(x, y, w, h, CARD_RADIUS, CARD_RADIUS, 'FD');
 
-    // Place the outline image centered within the card (with 3mm inset)
-    const diagInset = 3;
-    placeImageCentered(
-        doc,
-        outlineImg,
-        imgRatio,
-        x + diagInset,
-        diagCardY + diagInset,
-        diagCardY + diagCardH - diagInset,
-        availW - diagInset * 2
-    );
+    // Left color strip (same style as drawSummaryBox)
+    doc.setFillColor(pColor.r, pColor.g, pColor.b);
+    const stripW = 2.0, r = CARD_RADIUS, kappa = r * 0.55228;
+    doc.lines([[(r - stripW), 0], [-kappa, 0, -r, (r - kappa), -r, r], [0, h - (r * 2)], [0, kappa, (r - kappa), r, r, r], [-(r - stripW), 0], [0, -h]], x + stripW, y, [1, 1], 'F', false);
 
-    // Small compass
-    drawPDFCompass(doc, x + 10, diagCardY + 10, 3);
+    doc.setFontSize(9);
+    doc.setTextColor(150);
+    doc.setFont("Montserrat", "bold");
+    doc.text(pdfLabel("NOTES"), x + SIDE_PAD, y + 8);
 
-    // Key measurements pill — bottom-right of diagram card
+    doc.setDrawColor(235, 235, 235);
+    doc.setLineWidth(0.25);
+    doc.line(x + SIDE_PAD, y + TOP_PAD - 2, x + w - SIDE_PAD, y + TOP_PAD - 2);
+
+    doc.setFont("Montserrat", "normal");
+    doc.setFontSize(8);
+    const lines = paragraphs.flatMap(p => doc.splitTextToSize(String(p), w - SIDE_PAD * 2));
+    let written = 0;
+    doc.setLineWidth(0.25);
+    for (let ry = y + TOP_PAD + LINE_SPACING; ry <= y + h - 5; ry += LINE_SPACING) {
+        doc.setDrawColor(220, 228, 240);
+        doc.line(x + SIDE_PAD, ry, x + w - SIDE_PAD, ry);
+        if (written < lines.length) {
+            doc.setTextColor(44, 51, 60);
+            doc.text(lines[written++], x + SIDE_PAD, ry - 1.6);
+        }
+    }
+
+    doc.setDrawColor(0);
+    doc.setLineWidth(0.3);
+    doc.setTextColor(0);
+    return lines.slice(written);
+}
+window.drawPdfNotesCard = drawPdfNotesCard;
+window.drawPdfCard = drawPdfCard;
+
+// Roof Notes: the facet reference diagram (with its compass and the key measurements pill) as the one
+// reference image, and the notes card. `x`, `startY`, `availW` and `availH` are kept for callers; the
+// layout comes from pdfNotesLayout.
+async function drawNotesPage(doc, state, outlineImg, imgRatio, x, startY, availW, availH, brandingColors) {
+    const CARD_RADIUS = 3, diagInset = 3;
+    const pColor = (brandingColors && brandingColors.primary) ? brandingColors.primary : { r: 200, g: 40, b: 40 };
+    const { cells, notes } = pdfNotesLayout(doc, 1), card = cells[0];
+
+    doc.setFillColor(230, 230, 230);
+    doc.roundedRect(card.x + 1.5, card.y + 1.5, card.w, card.h, CARD_RADIUS, CARD_RADIUS, 'F');
+    doc.setFillColor(255, 255, 255);
+    doc.setDrawColor(220, 220, 220);
+    doc.setLineWidth(0.3);
+    doc.roundedRect(card.x, card.y, card.w, card.h, CARD_RADIUS, CARD_RADIUS, 'FD');
+
+    placeImageCentered(doc, outlineImg, imgRatio, card.x + diagInset, card.y + diagInset, card.y + card.h - diagInset, card.w - diagInset * 2);
+    drawPDFCompass(doc, card.x + 10, card.y + 10, 3);
+
+    // Key measurements pill — bottom-right of the diagram card
     const netSquares = state.report.materials.totalSquares || 0;
     const wastePct   = (typeof state.manualWastePct === 'number') ? state.manualWastePct : 10;
     const withWaste  = Math.round(netSquares * (1 + wastePct / 100) * 100) / 100;
-
     let domPitch = "N/A";
     let maxArea = -1;
     const squaresData = state.report.materials.squares || {};
@@ -6640,91 +6693,19 @@ async function drawNotesPage(doc, state, outlineImg, imgRatio, x, startY, availW
         const val = squaresData[p];
         if (typeof val === 'number' && val > maxArea) { maxArea = val; domPitch = p; }
     });
-
     const pillText = pdfLabel("{value1}  ·  {value2}  ·  {value3} facets", {value1: pdfMeasure(withWaste, 'sq', `${withWaste} sq`), value2: domPitch, value3: state.manualTotalFacets});
     doc.setFont("Montserrat", "bold");
     doc.setFontSize(7.5);
-
-    const pillW  = doc.getTextWidth(pillText) + 10;
-    const pillH  = 7;
-    const pillR  = 3;
-    const pillX  = x + availW - pillW - diagInset;
-    const pillY  = diagCardY + diagCardH - pillH - diagInset;
-
+    const pillW = doc.getTextWidth(pillText) + 10, pillH = 7, pillR = 3;
+    const pillX = card.x + card.w - pillW - diagInset, pillY = card.y + card.h - pillH - diagInset;
     doc.setFillColor(pColor.r, pColor.g, pColor.b);
     doc.roundedRect(pillX, pillY, pillW, pillH, pillR, pillR, 'F');
     doc.setTextColor(255, 255, 255);
     doc.text(pdfLabel(pillText), pillX + pillW / 2, pillY + pillH / 2 + 1, { align: 'center' });
     doc.setTextColor(0);
 
-    // ─────────────────────────────────────────────────────────────
-    // SECTION B: Notes Card
-    // ─────────────────────────────────────────────────────────────
-    const notesCardY = diagCardY + diagCardH + GAP;
-
-    // Shadow
-    doc.setFillColor(230, 230, 230);
-    doc.roundedRect(x + 1.5, notesCardY + 1.5, availW, notesCardH, CARD_RADIUS, CARD_RADIUS, 'F');
-
-    // Card background
-    doc.setFillColor(255, 255, 255);
-    doc.setDrawColor(220, 220, 220);
-    doc.setLineWidth(0.3);
-    doc.roundedRect(x, notesCardY, availW, notesCardH, CARD_RADIUS, CARD_RADIUS, 'FD');
-
-    // Left color strip (same style as drawSummaryBox)
-    doc.setFillColor(pColor.r, pColor.g, pColor.b);
-    const stripW = 2.0;
-    const r      = CARD_RADIUS;
-    const kappa  = r * 0.55228;
-
-    doc.lines(
-        [
-            [(r - stripW), 0],
-            [-kappa, 0, -r, (r - kappa), -r, r],
-            [0, notesCardH - (r * 2)],
-            [0, kappa, (r - kappa), r, r, r],
-            [-(r - stripW), 0],
-            [0, -notesCardH]
-        ],
-        x + stripW, notesCardY,
-        [1, 1],
-        'F',
-        false
-    );
-
-    // "NOTES" header label
-    doc.setFontSize(9);
-    doc.setTextColor(150);
-    doc.setFont("Montserrat", "bold");
-    doc.text(pdfLabel("NOTES"), x + SIDE_PAD, notesCardY + 8);
-    doc.setTextColor(0);
-
-    // Thin separator under header
-    doc.setDrawColor(235, 235, 235);
-    doc.setLineWidth(0.25);
-    doc.line(x + SIDE_PAD, notesCardY + TOP_PAD - 2, x + availW - SIDE_PAD, notesCardY + TOP_PAD - 2);
-
-    // ── Ruled lines ──
-    const ruledStartY = notesCardY + TOP_PAD + LINE_SPACING;
-    const ruledEndY   = notesCardY + notesCardH - 5;
-    const ruledLineX1 = x + SIDE_PAD;
-    const ruledLineX2 = x + availW - SIDE_PAD;
-
-    doc.setDrawColor(220, 228, 240);
-    doc.setLineWidth(0.25);
-
-    let ry = ruledStartY;
-    while (ry <= ruledEndY) {
-        doc.line(ruledLineX1, ry, ruledLineX2, ry);
-        ry += LINE_SPACING;
-    }
-
-    // Reset draw state
-    doc.setDrawColor(0);
-    doc.setLineWidth(0.3);
+    drawPdfNotesCard(doc, notes, [], brandingColors);
     doc.setFont("Montserrat", "normal");
-    doc.setTextColor(0);
 }
 window.drawNotesPage = drawNotesPage;
 
@@ -8037,6 +8018,35 @@ function drawSummaryBox(doc, bx, by, bw, bh, title, opts = {}) {
 }
 
 
+
+// The line types the layer legend lists: those with a length, without chimney and skylight parts.
+function pdfLegendItems(report) {
+    const linear = (report && report.materials && report.materials.linear) || {};
+    return Object.values(getPdfLineTypes()).filter(t => {
+        if (['skylight', 'chimney_back', 'chimney_edge', 'chimney_front', 'unknown'].includes(t.id.toLowerCase())) return false;
+        return Math.round(linear[t.id] || 0) > 0;
+    });
+}
+const PDF_LEGEND_GRID_ROW = 7;
+function pdfLegendGridHeight(report, cols = 2) {
+    return Math.ceil(pdfLegendItems(report).length / cols) * PDF_LEGEND_GRID_ROW;
+}
+// The legend as an aligned grid `cols` wide across `w` (the landscape layer page, under the details box).
+// Same swatches and labels as drawLegend; items run across each row in the legend's order.
+function drawLegendGrid(doc, report, x, y, w, cols = 2) {
+    const items = pdfLegendItems(report), colW = w / cols, boxSize = 4;
+    doc.setFontSize(9);
+    doc.setTextColor(0);
+    doc.setFont("Montserrat", "normal");
+    items.forEach((t, i) => {
+        const cx = x + (i % cols) * colW, cy = y + Math.floor(i / cols) * PDF_LEGEND_GRID_ROW;
+        const color = hexToRgbReport(t.color);
+        doc.setFillColor(color.r, color.g, color.b);
+        doc.rect(cx, cy, boxSize, boxSize, 'F');
+        doc.text(pdfLabel(t.label), cx + boxSize + 2, cy + 2.8);
+    });
+    return y + Math.ceil(items.length / cols) * PDF_LEGEND_GRID_ROW;
+}
 
 function drawLegend(doc, report, x, y) {
     doc.setFontSize(9); 

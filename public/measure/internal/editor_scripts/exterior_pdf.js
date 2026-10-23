@@ -72,7 +72,9 @@ const isTrim=a=>a.trim||/^trim-/.test(a.materialKey||'')||/\btrim\b/i.test(a.mat
 const centroid=ps=>ps.reduce((a,p)=>({x:a.x+p.x/ps.length,y:a.y+p.y/ps.length,z:a.z+(p.z||0)/ps.length}),{x:0,y:0,z:0});
 
 // Rows occupy sixths of a page. Optimize across pages to avoid stranded faces.
-function dimensionPages(faces){
+// Portrait: a row of three small faces takes a third of the page (three such rows per page). Landscape
+// pages are wide and short, so every row takes half the page: at most two rows, the same columns.
+function dimensionPages(faces,{landscape=false}={}){
  const ordered=faces.slice().sort((a,b)=>b.gross-a.gross||a.id.localeCompare(b.id)),max=Math.max(0,...ordered.map(a=>a.gross));
  const columns=a=>a.gross>=Math.max(80,max*.55)?1:a.gross>=Math.max(30,max*.18)?2:3,memo=new Map();
  function solve(start){
@@ -80,7 +82,7 @@ function dimensionPages(faces){
   let best={score:Infinity,pages:[]};
   function extend(at,rows,used,penalty){
    if(rows.length){const tail=solve(at),score=100+(6-used)*.2+penalty+tail.score;if(score<best.score)best={score,pages:[rows,...tail.pages]};}
-   if(at>=ordered.length)return;const cols=columns(ordered[at]),units=cols===3?2:3;if(used+units>6)return;
+   if(at>=ordered.length)return;const cols=columns(ordered[at]),units=cols===3&&!landscape?2:3;if(used+units>6)return;
    for(let count=1;count<=Math.min(cols,ordered.length-at);count++)extend(at+count,[...rows,{faces:ordered.slice(at,at+count),units}],used+units,penalty+(cols-count)*.5);
   }
   extend(start,[],0,0);memo.set(start,best);return best;
@@ -181,7 +183,7 @@ function rasterScene(faces,view,width,height,iso=false,pad=30,{focus=null}={}){
 }
 const isLandscape=doc=>doc.internal.pageSize.getWidth()>doc.internal.pageSize.getHeight();
 // Landscape exterior pages give drawings the left LANDSCAPE_DRAWING of the width and put tables beside them.
-const LANDSCAPE_DRAWING=.62;
+const LANDSCAPE_DRAWING=.58;
 // pdf.js drawReportTemplate puts the footer address baseline 16 mm above the page bottom (8 pt, about
 // 2.2 mm tall). A single-page portrait elevation ends its tables as far above the address as the
 // address is above the page edge, so the page feels even.
@@ -191,6 +193,10 @@ function writer(doc,colors){
  const x=25,w=doc.internal.pageSize.getWidth()-40,bottom=doc.internal.pageSize.getHeight()-22,accent=colors?.primary||{r:200,g:40,b:40};
  const text=(value,px,py,size=9,bold=false,color=[44,51,60])=>{doc.setFont('Montserrat',bold?'bold':'normal');doc.setFontSize(size);doc.setTextColor(...color);doc.text(Array.isArray(value)?value:String(value),px,py);};
  const note=(value,y,width=w,px=x)=>{doc.setFont('Montserrat','normal');doc.setFontSize(8);const lines=doc.splitTextToSize(String(value),width);text(lines,px,y,8);return y+lines.length*4;};
+ // A page's fine print at the bottom, just above the footer address, styled like the note under the
+ // roof ventilation page (pdf.js drawVentilationPage): 6 pt grey, full width, its last line 7 mm
+ // above the footer address as that note's is. Returns the top of the note.
+ const footnote=value=>{const H=doc.internal.pageSize.getHeight(),lineH=6*1.15*.352778;doc.setFont('Montserrat','normal');doc.setFontSize(6);const lines=doc.splitTextToSize(String(value),w),y=H-FOOTER_BASELINE-7-(lines.length-1)*lineH;text(lines,x,y,6,false,[90,90,90]);return y-2.2;};
  // Every exterior table is a full-width boxed table (boxTable below) with the same columns and values;
  // columns whose values are all numbers are right-aligned. `rowsFit(y)` is how many rows fit from y down.
  const table=(headers,rows,y,widths)=>boxTable(headers.map(h=>reportText(h)),rows,x,y,w,widths,numericColumns(headers,rows));
@@ -233,11 +239,13 @@ function writer(doc,colors){
   return ty+th;};
  // A single boxed table in a side panel (landscape elevations): as many rows as fit above its totals
  // box; any rest continues on `more()` pages in two columns. Returns the bottom of what it drew last.
- // Rows tighten to SIDE_MIN_ROW mm before the table continues on another page.
- const SIDE_MIN_ROW=4.3;
+ // Rows tighten to SIDE_MIN_ROW mm before the table continues on another page, and open up to
+ // SIDE_MAX_ROW when there is room. A table that fits is centred in the height from y to the bottom,
+ // beside the drawing (which is centred in the same height), rather than hanging from the top.
+ const SIDE_MIN_ROW=4.3,SIDE_MAX_ROW=6.2;
  const sideTable=(headers,rows,px,y,pw,widths,total,more)=>{
-  const room=bottom-y-totalHeight(total,pw)-4-HEAD-FOOT,rowH=Math.min(ROW,room/Math.max(1,rows.length));
-  if(rowH>=SIDE_MIN_ROW)return totalBox(total,px,boxTable(headers,rows,px,y,pw,widths,undefined,rowH)+4,pw);
+  const room=bottom-y-totalHeight(total,pw)-4-HEAD-FOOT,rowH=Math.min(SIDE_MAX_ROW,room/Math.max(1,rows.length));
+  if(rowH>=SIDE_MIN_ROW){const block=HEAD+rows.length*rowH+FOOT+4+totalHeight(total,pw),top=y+Math.max(0,(bottom-y-block)/2);return totalBox(total,px,boxTable(headers,rows,px,top,pw,widths,undefined,rowH)+4,pw);}
   const first=Math.min(rows.length-1,Math.max(1,Math.floor((bottom-y-HEAD-FOOT)/SIDE_MIN_ROW)));boxTable(headers,rows.slice(0,first),px,y,pw,widths,undefined,SIDE_MIN_ROW);
   return columns(headers,rows.slice(first),more(),widths,total,more);
  };
@@ -245,9 +253,11 @@ function writer(doc,colors){
  // Otherwise one full-width box per page. Either way `more()` starts a continuation page and returns its top.
  const autoTable=(headers,rows,y,widths,more)=>{headers=headers.map(h=>reportText(h));const right=numericColumns(headers,rows);if(headers.length<=3&&rows.length>LONG_TABLE)return columns(headers,rows,y,widths,null,more,right);
   let end=y;for(let i=0;i<rows.length;){const count=rowsFit(y);end=boxTable(headers,rows.slice(i,i+count),x,y,w,widths,right);i+=count;if(i<rows.length)y=more();}return end;};
- return {x,w,bottom,accent,text,note,table,paginate,panel,boxTable,columns,autoTable,rowsFit,boxHeight,totalHeight,totalBox,sideTable,numericColumns};
+ return {x,w,bottom,accent,text,note,footnote,table,paginate,panel,fit,boxTable,columns,autoTable,rowsFit,boxHeight,totalHeight,totalBox,sideTable,numericColumns};
 }
 const DENSITY=8,LONG_TABLE=10;
+// Room under a wall dimension drawing for its size and material lines.
+const DIMENSION_TEXT=8;
 // Label placement. With `ids`, every listed face gets a label: inside the face when it fits
 // (full size, then smaller), otherwise beside it with a leader line to a visible point of the
 // face. Labels never overlap each other. Without `ids` (overview diagrams), faces large
@@ -315,15 +325,27 @@ function drawRoofElevations(doc,model,settings,begin,colors){
  houseDirections(settings).slice(4).forEach((view,i)=>{const xx=x+i%2*(ww+gap),yy=37+Math.floor(i/2)*(hh+gap);text(reportText(view.name),xx+2,yy+5,10,true);drawDiagram(doc,[...roofTrimFaces(model),...(model.roof||[]).map(f=>({...f,surface:'roof',id:''}))],{x:xx,y:yy+10,w:ww,h:hh-12},view,{iso:true,labels:false});});
 }
 /* The one-page Exterior Summary: the full report opens its exterior pages with it, and a full-house customer Summary.pdf carries only it. */
+/* Header stats: one card per figure in the report's header-stat style (the left accent bar card of the
+ roof Ventilation Summary and the Layer Details boxes), the label as a card title and the figure under it. */
+const STAT_H=19,STAT_GAP=4;
+function drawStatRow(doc,stats,x,y,w,colors){
+ const {panel,fit,accent}=writer(doc,colors),cw=(w-STAT_GAP*(stats.length-1))/stats.length;
+ stats.forEach(([label,value],i)=>{const bx=x+i*(cw+STAT_GAP);panel(bx,y,cw,STAT_H);
+  const upper=String(label).toUpperCase();let titleSize=7.5;doc.setFont('Montserrat','bold');while(titleSize>6&&(doc.setFontSize(titleSize),doc.getTextWidth(upper)>cw-11))titleSize-=.5;
+  const title=fit(upper,cw-11,titleSize,true);doc.setTextColor(150,150,150);doc.text(title,bx+7,y+7.5);
+  let size=12;doc.setFont('Montserrat','bold');while(size>8&&(doc.setFontSize(size),doc.getTextWidth(String(value))>cw-11))size-=.5;doc.setFontSize(size);doc.setTextColor(accent.r,accent.g,accent.b);doc.text(String(value),bx+7,y+15);});
+ doc.setTextColor(0,0,0);return y+STAT_H;
+}
 function drawExteriorSummaryPage(doc,model,settings,begin,colors){
- const {x,w,bottom,text,note,table,boxTable,numericColumns}=writer(doc,colors),landscape=isLandscape(doc);
- begin(reportText('Exterior Summary'));let y=38;
- [['Net wall area',measure(model.totals.net,"sf",number(model.totals.net)+' sq ft')],['Gross wall area',measure(model.totals.gross,"sf",number(model.totals.gross)+' sq ft')],['Openings',String(model.openings.length)]].forEach(([label,value],i)=>{const bx=x+i*(w+3)/3;doc.setFillColor(242,245,249);doc.roundedRect(bx,y,(w-6)/3,23,2,2,'F');text(label,bx+4,y+7,8);text(value,bx+4,y+17,12,true);});
- const headers=[reportText('Measurement'),reportText('Quantity')],rows=[[reportText('Wall regions'),model.walls.length],[reportText('Opening area'),measure(model.totals.openingArea,"sf",number(model.totals.openingArea)+' sq ft')],[reportText('Opening perimeter'),measure(model.totals.openingPerimeter,"ft",number(model.totals.openingPerimeter),false)+' '+unit('ft','ft')],[reportText('Horizontal returns'),measure(model.totals.returns,"sf",number(model.totals.returns)+' sq ft')]],explain=reportText('Wall IDs connect the diagrams, dimensions, opening schedule and notes. Each wall face is counted once, on one of the four elevations (front, back, left, right) or as a hidden face, so those totals add up to the gross wall area.');
- // Landscape: the house on the left under the three figures, the measurements table and the note beside it.
- if(landscape){const dw=w*LANDSCAPE_DRAWING,px=x+dw+6,pw=w-dw-6;drawDiagram(doc,houseFaces(model),{x,y:66,w:dw,h:bottom-66},coverView(settings),{iso:true});note(explain,boxTable(headers,rows,px,66,pw,[2,1.2],numericColumns(headers,rows))+8,pw,px);return;}
- drawDiagram(doc,houseFaces(model),{x,y:68,w,h:111},coverView(settings),{iso:true});
- table(headers,rows,188,[2,1]);note(explain,240);
+ const {x,w,footnote}=writer(doc,colors);
+ begin(reportText('Exterior Summary'));
+ // Seven figures in two rows across the top (three, then four), the house under them at full width and
+ // the note about wall IDs at the foot of the page.
+ const first=[[reportText('Net wall area'),measure(model.totals.net,"sf",number(model.totals.net)+' sq ft')],[reportText('Gross wall area'),measure(model.totals.gross,"sf",number(model.totals.gross)+' sq ft')],[reportText('Openings'),String(model.openings.length)]];
+ const second=[[reportText('Wall regions'),String(model.walls.length)],[reportText('Opening area'),measure(model.totals.openingArea,"sf",number(model.totals.openingArea)+' sq ft')],[reportText('Opening perimeter'),measure(model.totals.openingPerimeter,"ft",number(model.totals.openingPerimeter),false)+' '+unit('ft','ft')],[reportText('Horizontal returns'),measure(model.totals.returns,"sf",number(model.totals.returns)+' sq ft')]];
+ const top=drawStatRow(doc,second,x,drawStatRow(doc,first,x,36,w,colors)+STAT_GAP,w,colors)+6;
+ const noteTop=footnote(reportText('Wall IDs connect the diagrams, dimensions, opening schedule and notes. Each wall face is counted once, on one of the four elevations (front, back, left, right) or as a hidden face, so those totals add up to the gross wall area.'));
+ drawDiagram(doc,houseFaces(model),{x,y:top,w,h:noteTop-4-top},coverView(settings),{iso:true});
 }
 /* There are four elevations: Front, Back, Left and Right, looking from the configured front bearing
  and from it turned by 180, 90 and -90 degrees. Which elevation counts each wall face: a face is
@@ -336,10 +358,11 @@ const SMALL_PIECE_SF=1,FACING_MIN=.5,VISIBLE_SHARE=.25,MIN_PIXELS=24;
 const elevationViews=settings=>houseDirections(settings).filter(v=>['front','back','left','right'].includes(v.id));
 // An elevation drawing is only as tall as the house needs at full width (plus room for leader
 // labels), so a wide, low house leaves more of the page to its tables. `rect.h` is the maximum.
-function fitHeight(faces,view,rect,pad=5){
+// Wall dimension drawings use it with their 9 mm label margin, no leader room and a lower floor.
+function fitHeight(faces,view,rect,pad=5,extra=8,floor=40){
  const len=Math.hypot(view.x,view.y)||1,nx=view.x/len,ny=view.y/len;let x0=Infinity,x1=-Infinity,z0=Infinity,z1=-Infinity;
  for(const f of faces)for(const p of f.points||[]){const u=p.x*ny-p.y*nx;x0=Math.min(x0,u);x1=Math.max(x1,u);z0=Math.min(z0,p.z||0);z1=Math.max(z1,p.z||0);}
- if(!Number.isFinite(x0))return rect.h;return Math.max(Math.min(rect.h,40),Math.min(rect.h,(z1-z0)*(rect.w-2*pad)/Math.max(x1-x0,.01)+2*pad+8));
+ if(!Number.isFinite(x0))return rect.h;return Math.max(Math.min(rect.h,floor),Math.min(rect.h,(z1-z0)*(rect.w-2*pad)/Math.max(x1-x0,.01)+2*pad+extra));
 }
 function elevationPlan(model,settings,rect,{fit=true}={}){
  const faces=houseFaces(model);
@@ -402,12 +425,14 @@ function drawExteriorReportPages(doc,model,settings,begin,colors){
   begin(heading);columns(headers,hidden.map(a=>[a.id,material(a),area(a.gross),openings(a.openingArea)]),note(intro,38)+4,widths,totalRow(hidden),()=>{begin(heading+reportText(' - continued'));return 38;});}
  const house=dimensionContext(settings)?houseFaces(model):null;
  for(const [heading,faces]of [['Wall Dimensions',model.walls.filter(a=>!isTrim(a))],['Trim Dimensions',model.walls.filter(isTrim)]]){
-  // The panels are page fractions, so a landscape page gets the same grid with wider, shorter panels
-  // (wall faces are mostly wide, so they draw larger than they would in half a sheet).
-  dimensionPages(faces).forEach((page,i)=>{begin(reportText(heading)+(i?reportText(' - continued'):''));page.forEach(panel=>{
-   const a=panel.face,xx=x+panel.x*w+1,yy=36+panel.y*(bottom-36),ww=panel.w*w-3,hh=panel.h*(bottom-36)-4;
-   text(a.id+' / '+reportText(elevationOf.get(a.id)||relativeSide(a.normal,settings)),xx+1,yy+5,ww<60?8:10,true);text(measure(a.net,'sf',number(a.net)+' sq ft')+reportText(' net'),xx+1,yy+10,7.5);drawDiagram(doc,[a],{x:xx,y:yy+13,w:ww,h:hh-25},a.normal,{dimensions:true,context:house&&house.filter(f=>f!==a)});
-   text(reportText('W ')+measure(a.width,"ft",number(a.width)+"'")+reportText("  x  H ")+measure(a.height,"ft",number(a.height)+"'"),xx+2,yy+hh-5,7);doc.setFontSize(6.5);text(doc.splitTextToSize(material(a)+(a.chimney?' / Chimney':''),ww-4)[0],xx+2,yy+hh,6.5);
+  // The panels are page fractions; a landscape page has at most two rows (dimensionPages), so its
+  // panels are as tall as they are wide and the faces draw large. Each drawing is only as tall as its
+  // face needs at the panel's width (fitHeight), and the size and material sit right under it.
+  dimensionPages(faces,{landscape}).forEach((page,i)=>{begin(reportText(heading)+(i?reportText(' - continued'):''));page.forEach(panel=>{
+   const a=panel.face,xx=x+panel.x*w+1,yy=36+panel.y*(bottom-36),ww=panel.w*w-3,hh=panel.h*(bottom-36)-4,frame={x:xx,y:yy+13,w:ww,h:hh-13-DIMENSION_TEXT};
+   frame.h=fitHeight([a],a.normal,frame,9,0,Math.min(frame.h,24));
+   text(a.id+' / '+reportText(elevationOf.get(a.id)||relativeSide(a.normal,settings)),xx+1,yy+5,ww<60?8:10,true);text(measure(a.net,'sf',number(a.net)+' sq ft')+reportText(' net'),xx+1,yy+10,7.5);drawDiagram(doc,[a],frame,a.normal,{dimensions:true,context:house&&house.filter(f=>f!==a)});
+   const ty=frame.y+frame.h+2;text(reportText('W ')+measure(a.width,"ft",number(a.width)+"'")+reportText("  x  H ")+measure(a.height,"ft",number(a.height)+"'"),xx+2,ty,7);doc.setFontSize(6.5);text(doc.splitTextToSize(material(a)+(a.chimney?' / Chimney':''),ww-4)[0],xx+2,ty+4.5,6.5);
   });});
  }
  paginate(begin,reportText('Opening Schedule'),[reportText('Opening'),reportText('Type'),reportText('Wall'),(metric()?'W x H (m)':'W x H (ft)'),(metric()?'Area m²':'Area ft2'),(metric()?'Trim m':'Trim ft')],model.openings.map(o=>[o.id,reportText(o.label),o.wall,measure(o.width,"ft",number(o.width),false)+' x '+measure(o.height,"ft",number(o.height),false),measure(o.area,"sf",number(o.area),false),measure(o.perimeter,"ft",number(o.perimeter),false)]),[1.4,1.9,1,2,1.3,1.3],reportText('Dimensions are drawn extents, not manufacturer or rough-opening sizes. Trim {value1} is the opening perimeter.', {value1:unit('ft','ft')}));
@@ -425,12 +450,17 @@ function drawExteriorReportPages(doc,model,settings,begin,colors){
  }
  if(y+12>bottom){begin(reportText('Material Allowances - continued'));y=38;}note(reportText('Waste percentages are comparison allowances applied to net wall area. Horizontal returns are measured separately.'),y);
 }
+/* The Wall Notes page has the Roof Notes page's layout and notes card (pdf.js pdfNotesLayout and
+ drawPdfNotesCard): the four elevations as reference images (2 x 2) on the left, the ruled notes card
+ on the right in landscape; stacked in portrait. The report's notes and model warnings are written on
+ the card's rules; whatever does not fit continues on a page with a full notes card. */
 function drawExteriorNotes(doc,model,settings,begin,colors){
- const {x,w,bottom,text}=writer(doc,colors);begin(reportText('Wall Notes'));const gridHeight=(bottom-37)*.65,gap=4,ww=(w-gap)/2,hh=(gridHeight-gap)/2;
- houseDirections(settings).slice(0,4).forEach((view,i)=>{const xx=x+i%2*(ww+gap),yy=37+Math.floor(i/2)*(hh+gap);text(reportText(view.name),xx+2,yy+4,9,true);drawDiagram(doc,houseFaces(model),{x:xx,y:yy+7,w:ww,h:hh-8},view);});
- let y=37+gridHeight+6;text(reportText('STRUCTURE NOTES / WALL REFERENCES'),x+3,y,9,true);y+=7;const notes=String(settings.notes||'').trim(),paragraphs=[...(notes?[notes]:[]),...(model.warnings||[]).map(n=>reportText('Review: ')+reportText(n))];
- for(const paragraph of paragraphs){doc.setFontSize(8);const lines=doc.splitTextToSize(paragraph,w-6);for(const line of lines){if(y>bottom-8){begin(reportText('Wall Notes - continued'));y=38;}text(line,x+3,y,8);y+=4;}y+=3;}
- doc.setDrawColor(220,228,240);doc.setLineWidth(.25);for(let lineY=y+6;lineY<bottom;lineY+=8)doc.line(x+3,lineY,x+w-3,lineY);
+ const {text}=writer(doc,colors),heading=reportText('Wall Notes');begin(heading);
+ const {cells,notes}=root.pdfNotesLayout(doc,4);
+ houseDirections(settings).slice(0,4).forEach((view,i)=>{const c=cells[i];root.drawPdfCard(doc,c.x,c.y,c.w,c.h);text(reportText(view.name),c.x+4,c.y+6,9,true);drawDiagram(doc,houseFaces(model),{x:c.x+2,y:c.y+8,w:c.w-4,h:c.h-10},view);});
+ const written=String(settings.notes||'').trim(),paragraphs=[...(written?[written]:[]),...(model.warnings||[]).map(n=>reportText('Review: ')+reportText(n))];
+ let rest=root.drawPdfNotesCard(doc,notes,paragraphs,colors);
+ while(rest.length){begin(heading+reportText(' - continued'));rest=root.drawPdfNotesCard(doc,root.pdfNotesLayout(doc,0).page,rest,colors);}
 }
 async function loadReportImage(item,state){
  const img=new Image();img.crossOrigin='anonymous';
@@ -451,17 +481,47 @@ async function prepareImagerySnapshot(snapshot){
  for(const item of images){if(item.include===false||item.dataUrl)continue;item.dataUrl=reportImageData(await loadReportImage(item,result));}
  return result;
 }
+/* Exterior Images pages: a justified mosaic. Photos keep their own aspect ratios (phone shots are
+ often portrait beside landscape ones) and are laid out in rows, in slot order, every image in a row
+ the same height and each row filling the width; if the rows are too tall for the page they all
+ shrink together and are centred. Each photo's label sits on it, just above its top-left corner.
+ mosaicLayout tries every split of the images into rows and keeps the one whose images are largest
+ overall (sum of the square roots of their areas, so no photo is left tiny to make another huge). */
+const MOSAIC_GAP=5,MOSAIC_LABEL=6,MOSAIC_PER_PAGE=6,MOSAIC_MIN_HEIGHT=45;
+function mosaicLayout(aspects,box,{gap=MOSAIC_GAP,label=MOSAIC_LABEL}={}){
+ const n=aspects.length;let best=null;if(!n)return {rects:[],score:0,minHeight:0};
+ for(let mask=0;mask<1<<(n-1);mask++){
+  const rows=[];let row=[0];for(let i=1;i<n;i++){if(mask&1<<(i-1)){rows.push(row);row=[i];}else row.push(i);}rows.push(row);
+  const heights=rows.map(r=>(box.w-gap*(r.length-1))/r.reduce((s,i)=>s+aspects[i],0)),room=box.h-rows.length*label-gap*(rows.length-1),s=Math.min(1,room/heights.reduce((a,b)=>a+b,0));
+  if(!(s>0))continue;const score=rows.reduce((t,r,k)=>t+r.reduce((u,i)=>u+heights[k]*s*Math.sqrt(aspects[i]),0),0);
+  if(!best||score>best.score+1e-9)best={score,rows,heights:heights.map(h=>h*s)};
+ }
+ const total=best.heights.reduce((a,b)=>a+b,0)+best.rows.length*label+gap*(best.rows.length-1);let y=box.y+Math.max(0,(box.h-total)/2);const rects=[];
+ best.rows.forEach((r,k)=>{const h=best.heights[k],rowW=r.reduce((s,i)=>s+aspects[i]*h,0)+gap*(r.length-1);let x=box.x+(box.w-rowW)/2;y+=label;for(const i of r){rects[i]={x,y,w:aspects[i]*h,h};x+=aspects[i]*h+gap;}y+=h+gap;});
+ return {rects,score:best.score,minHeight:Math.min(...best.heights)};
+}
+// Images per page: as few pages as keep every photo at least MOSAIC_MIN_HEIGHT tall, at most
+// MOSAIC_PER_PAGE a page, spread evenly over the pages.
+function mosaicPages(aspects,box){
+ for(let pages=Math.ceil(aspects.length/MOSAIC_PER_PAGE);;pages++){
+  const groups=[];let at=0;for(let p=0;p<pages;p++){const count=Math.ceil((aspects.length-at)/(pages-p));groups.push(aspects.slice(at,at+count).map((a,k)=>at+k));at+=count;}
+  const layouts=groups.map(g=>({indexes:g,...mosaicLayout(g.map(i=>aspects[i]),box)}));
+  if(pages>=aspects.length||layouts.every(l=>l.minHeight>=MOSAIC_MIN_HEIGHT))return layouts;
+ }
+}
 async function drawReportImagery(doc,state,begin,colors){
  const selected=selectedPhotos(state.exteriorSettings),order=photoSlots.map(s=>s.name);
- const images=selected.slice().sort((a,b)=>{const rank=i=>order.includes(i.direction)?order.indexOf(i.direction):8;return rank(a)-rank(b);}),{x,w,bottom,text}=writer(doc,colors),gap=6,ww=(w-gap)/2,hh=(bottom-38-gap)/2;
- for(let i=0;i<images.length;i+=4){begin(reportText('Exterior Images')+(images.length>4?' - '+(i/4+1):''));for(const [j,item]of images.slice(i,i+4).entries()){
-  const xx=x+j%2*(ww+gap),yy=38+Math.floor(j/2)*(hh+gap);
-  if(item.missing){text(reportText(item.direction),xx,yy+4,10,true);doc.setFillColor(246,248,250);doc.roundedRect(xx,yy+9,ww,hh-22,2,2,'F');text(reportText('Photo not assigned'),xx+5,yy+hh/2,9);continue;}
-  const img=await loadReportImage(item,state);
-  text(reportText(item.direction)||reportText('Reference image'),xx,yy+4,10,true);const boxH=hh-22,scale=Math.min(ww/img.naturalWidth,boxH/img.naturalHeight),iw=img.naturalWidth*scale,ih=img.naturalHeight*scale;
-  doc.addImage(item.dataUrl||reportImageData(img),'JPEG',xx+(ww-iw)/2,yy+9+(boxH-ih)/2,iw,ih);doc.setFontSize(7);text(doc.splitTextToSize(item.label||reportText('Untitled frame'),ww).slice(0,2),xx,yy+hh-8,7);
- }}
+ const images=selected.slice().sort((a,b)=>{const rank=i=>order.includes(i.direction)?order.indexOf(i.direction):8;return rank(a)-rank(b);}),{x,w,bottom,text}=writer(doc,colors);
+ if(!images.length)return;
+ const loaded=[];for(const item of images)loaded.push(item.missing?null:await loadReportImage(item,state));
+ const aspects=loaded.map(img=>img&&img.naturalWidth>0&&img.naturalHeight>0?img.naturalWidth/img.naturalHeight:4/3),pages=mosaicPages(aspects,{x,y:36,w,h:bottom-36});
+ for(const [p,layout]of pages.entries()){begin(reportText('Exterior Images')+(pages.length>1?' - '+(p+1):''));layout.indexes.forEach((index,k)=>{
+  const item=images[index],img=loaded[index],r=layout.rects[k];
+  text(reportText(item.direction)||reportText('Reference image'),r.x,r.y-1.8,9,true);
+  if(!img){doc.setFillColor(246,248,250);doc.roundedRect(r.x,r.y,r.w,r.h,2,2,'F');doc.setFont('Montserrat','normal');doc.setFontSize(9);const label=reportText('Photo not assigned');text(label,r.x+(r.w-doc.getTextWidth(label))/2,r.y+r.h/2,9);return;}
+  doc.addImage(item.dataUrl||reportImageData(img),'JPEG',r.x,r.y,r.w,r.h);
+ });}
 }
-const api={directions,photoSlots,houseDirections,relativeSide,initializePhotoSlots,selectedPhotos,photosComplete,planShapes,frontBearing,dimensionPages,rasterScene,paintScene,placeLabels,elevationPlan,elevationViews,houseFaces,roofDepthBias,ROOF_DEPTH_BIAS,dimensionContext,reportOrientation,evenBottom,writer,coverView,drawDiagram,drawOrientationKey,drawElevationKey,drawRoofElevations,drawExteriorCover,drawExteriorSummaryPage,drawExteriorReportPages,drawExteriorNotes,drawReportImagery,prepareImagerySnapshot};
+const api={directions,photoSlots,houseDirections,relativeSide,initializePhotoSlots,selectedPhotos,photosComplete,planShapes,frontBearing,dimensionPages,mosaicLayout,mosaicPages,fitHeight,rasterScene,paintScene,placeLabels,elevationPlan,elevationViews,houseFaces,roofDepthBias,ROOF_DEPTH_BIAS,dimensionContext,reportOrientation,evenBottom,writer,coverView,drawDiagram,drawOrientationKey,drawElevationKey,drawRoofElevations,drawExteriorCover,drawExteriorSummaryPage,drawExteriorReportPages,drawExteriorNotes,drawReportImagery,prepareImagerySnapshot};
 if(typeof module==='object'&&module.exports)module.exports=api;else {root.ExteriorPDF=api;Object.assign(root,{drawExteriorReportPages,drawExteriorNotes,drawExteriorCover,drawReportImagery});}
 })(typeof window==='undefined'?globalThis:window);
