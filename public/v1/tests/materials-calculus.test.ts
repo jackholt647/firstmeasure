@@ -202,3 +202,22 @@ test("manual amendments cannot forge accepted-document provenance and package no
   assert.deepEqual(changed.ledger.sets[0]!.history.at(-1)!.source,{type:"manual"});
   assert.deepEqual(changed.ledger.sets[0]!.lines.map(l=>l.order_quantity),[3,1]);
 });
+test("a generated list can be deleted: its requirements go, its orders stay, and it is never published again",async()=>{
+  const p=await project(),set=await materialSet(p,10),kept=await materialSet(p,4);
+  await command(p,"order",{supplier:"Test supplier",lines:[{set_id:set.id,line_id:set.lines[0]!.id,quantity:4}]});
+  const current=(await service.readMaterialsLedger(ctx,p)).sets.find(s=>s.id===set.id)!;
+  await assert.rejects(command(p,"retire",{set_id:set.id,set_revision:current.revision+1}),/changed/);
+  const retired=await command(p,"retire",{set_id:set.id,set_revision:current.revision,reason:"Generated twice"});
+  assert.deepEqual(retired.ledger.sets.map(s=>s.id),[kept.id]);
+  assert.equal((retired.ledger as any).retired_sets[0].retired.reason,"Generated twice");
+  assert.equal(retired.ledger.orders.length,1,"orders are kept");
+  assert.equal((retired.ledger as any).unallocated[0].excess,4,"what was ordered for it shows as unallocated");
+  assert.deepEqual((await service.projectScopeSets("calculus",p)).map(s=>s.id),[kept.id],"it no longer counts toward requirements");
+  const owner=`plan_${randomUUID()}`;
+  const scopeDefinition={...definition(),key:"scope_roof"};
+  const published=await service.publishScopeMaterialArtifact("calculus",p,owner,scopeDefinition,{});
+  await command(p,"retire",{set_id:String(published.id),set_revision:Number(published.revision)});
+  const again=await service.publishScopeMaterialArtifact("calculus",p,owner,scopeDefinition,{});
+  assert.equal((again as any).retired,true);
+  assert.equal((await service.readMaterialsLedger(ctx,p)).sets.some(s=>s.id===published.id),false,"a deleted scope list is not published again");
+});

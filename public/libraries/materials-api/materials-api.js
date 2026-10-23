@@ -156,7 +156,35 @@
   // Labor lists come from their assignee's pay sheet: compare assignees, preview or generate the list, then commit it.
   const laborPath=(orgId,listId,rest)=>`/organizations/${enc(orgId)}/lists/${enc(listId)}/${rest}`;
   const labor={workOrders:(orgId,projectId)=>request(`/organizations/${enc(orgId)}/projects/${enc(projectId)}/work-orders`),generateWorkOrder:(orgId,projectId,input={})=>request(`/organizations/${enc(orgId)}/projects/${enc(projectId)}/work-orders`,{method:'POST',body:input}),compare:(orgId,listId,input={})=>request(laborPath(orgId,listId,'assignee-pay'),{method:'POST',body:input}),compareProject:(orgId,projectId,input={})=>request(`/organizations/${enc(orgId)}/projects/${enc(projectId)}/assignee-pay`,{method:'POST',body:input}),preview:(orgId,listId,input={})=>request(laborPath(orgId,listId,'generate/preview'),{method:'POST',body:input}),generate:(orgId,listId,input={})=>request(laborPath(orgId,listId,'generate'),{method:'POST',body:input}),commit:(orgId,listId,input={})=>request(laborPath(orgId,listId,'commit'),{method:'POST',body:input}),commitments:(orgId,projectId)=>request(`/organizations/${enc(orgId)}/projects/${enc(projectId)}/labor-commitments`),requirements:(orgId,projectId,input={})=>request(`/organizations/${enc(orgId)}/projects/${enc(projectId)}/requirements`,{method:'POST',body:input}),saveManualScope:(orgId,projectId,work)=>request(`/organizations/${enc(orgId)}/projects/${enc(projectId)}/scope/manual`,{method:'PUT',body:{work}})};
-  const api = { configure, baseUrl, url, request, projects, resourceTypes, suppliers, labor, lists, orders, deliveries };
+  // A file the server makes (a purchase order or shopping list PDF), as a blob with the name it gave it.
+  async function download(path, options = {}){
+    const body = jsonBody(options.body);
+    const res = await fetch(url(path), { ...options, body, cache: 'no-store', credentials: 'include', headers: { ...requestHeaders(options, body), Accept: 'application/pdf,application/json' } });
+    if (!res.ok) {
+      const text = await res.text();
+      let data = null;
+      try { data = text ? JSON.parse(text) : null; } catch(e) {}
+      const error = new Error(cleanText(data?.message || data?.error) || `Materials API request failed (${res.status})`);
+      error.status = res.status;
+      error.data = data;
+      throw error;
+    }
+    const disposition = res.headers.get('Content-Disposition') || '';
+    const fileName = (disposition.match(/filename="([^"]+)"/) || [])[1] || 'document.pdf';
+    return { blob: await res.blob(), fileName, headers: res.headers };
+  }
+  // The order window's purchase orders, supplier emails and shopping lists (v1/materials/ordering.ts).
+  const projectOrderPath=(orgId,projectId,rest)=>`/organizations/${enc(orgId)}/projects/${enc(projectId)}/${rest}`;
+  const ordering={
+    previewPurchaseOrder:(orgId,projectId,input)=>request(projectOrderPath(orgId,projectId,'purchase-orders/preview'),{method:'POST',body:input}),
+    purchaseOrderPdf:(orgId,projectId,input)=>download(projectOrderPath(orgId,projectId,'purchase-orders/pdf'),{method:'POST',body:input}),
+    sendSupplierEmail:(orgId,projectId,input)=>request(projectOrderPath(orgId,projectId,'supplier-emails'),{method:'POST',body:input}),
+    createShoppingList:(orgId,projectId,input)=>request(projectOrderPath(orgId,projectId,'shopping-lists'),{method:'POST',body:input}),
+    shoppingList:(orgId,projectId,id)=>request(projectOrderPath(orgId,projectId,`shopping-lists/${enc(id)}`)),
+    shareShoppingList:(orgId,projectId,id,input)=>request(projectOrderPath(orgId,projectId,`shopping-lists/${enc(id)}/share`),{method:'POST',body:input}),
+    shoppingListPdf:(orgId,projectId,id)=>download(projectOrderPath(orgId,projectId,`shopping-lists/${enc(id)}/pdf`))
+  };
+  const api = { configure, baseUrl, url, request, download, projects, resourceTypes, suppliers, labor, lists, orders, deliveries, ordering };
   configure({ baseUrl: APP.materialsApiBase || '' });
   root.MaterialsAPI = api;
 })();

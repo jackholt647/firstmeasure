@@ -31,7 +31,8 @@ test('with scheduling off the Project tab offers no Schedule control and makes n
   assert.equal(ctx.schedulingOn(),true);assert.match(ctx.renderListHeaderActions(list,'material',''),/data-mt-list-schedule/);assert.match(ctx.scheduleJobButton(),/data-mt-schedule-job/);
   ctx.callHost=()=>undefined;ctx.rootWindow.Portal.appFlags=flags(true);assert.equal(ctx.schedulingOn(),true);
   // Ordering with a date and scheduling off keeps the date on the order and never saves a schedule event.
-  assert.match(source,/schedulingOn\(\) \|\| !start\s*\n?\s*\? await persistInlineDeliverySchedule/);
+  // recordSupplierOrder puts the delivery on the schedule only with scheduling on; the order keeps its date either way.
+  assert.match(source,/if \(schedulingOn\(\)\) try \{\s*\n\s*const scheduled = await persistInlineDeliverySchedule/);
   const storage=await readFile(new URL('../materials/storage.ts',import.meta.url),'utf8');
   assert.match(storage,/shouldEnsureSchedule = [\s\S]{0,200}isCapabilityEnabled\(orgId, "platform\.scheduling"\)/,'the server makes no delivery event for an order either');
 });

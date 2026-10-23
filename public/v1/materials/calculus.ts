@@ -36,7 +36,9 @@ type SetRecord = { id: string; title: string; presentation?: JsonObject; definit
 type Allocation = { id: string; set_id: string; line_id: string; line: Line; quantity: number; cancelled: number; received: number; returned: number; unit_cost?: number; currency: string };
 type Order = { presentation?: JsonObject; id: string; supplier: string; reference: string; at: string; lines: Allocation[] };
 type Delivery = { id: string; title: string; date: string; allocations: string[] };
-export type MaterialsLedger = { revision: number; project_id: string; sets: SetRecord[]; orders: Order[]; deliveries: Delivery[]; events: JsonObject[]; receipts: Record<string, { hash: string; result: JsonObject }> };
+type RetiredSet = SetRecord & { retired: { at: string; actor?: string; reason: string } };
+/** A set someone deleted leaves `sets` for `retired_sets`: it no longer counts toward requirements and is never published again under the same identity. Its orders stay. */
+export type MaterialsLedger = { revision: number; project_id: string; sets: SetRecord[]; retired_sets?: RetiredSet[]; orders: Order[]; deliveries: Delivery[]; events: JsonObject[]; receipts: Record<string, { hash: string; result: JsonObject }> };
 const empty = (project: string): MaterialsLedger => ({ revision: 0, project_id: project, sets: [], orders: [], deliveries: [], events: [], receipts: {} });
 
 export function validateCalculus(value: unknown): CalculusDefinition {
@@ -164,6 +166,8 @@ export async function publishScopeMaterialArtifact(org: string, project: string,
   const id = identity("set", ["scope", owner, definition.key]);
   for (let attempt = 0; attempt < 8; attempt++) {
     const ledger = await rawLedger(org, project), revision = ledger.revision;
+    const retired = (ledger.retired_sets || []).find(set => set.id === id);
+    if (retired) return { ...retired.presentation,...retired, project_id:project, resource_type:"material", current_items:[], created:false, retired:true };
     const existing = ledger.sets.find(set => set.id === id);
     if (existing) return { ...existing.presentation,...existing, project_id:project, resource_type:"material", current_items:existing.lines.map(line=>({...line.presentation,...line})),created:false };
     const set = setFromDefinition(project,definition,id,{}, scopeJson({ ...origin,type:"scope",owner,key:definition.key }),org,String(origin.branch_id || "default"));
@@ -227,7 +231,7 @@ export async function publishAcceptedMaterials(org: string, project: string, doc
     let changed = false;
     for (const definition of definitions) {
       const id = identity("set", [documentId, snapshotId, definition.key]);
-      if (ledger.sets.some(s => s.id === id)) continue;
+      if (ledger.sets.some(s => s.id === id) || (ledger.retired_sets || []).some(s => s.id === id)) continue;
       changed = true;
       ledger.sets.push(setFromDefinition(project, definition, id, { params: object(pkg.content.params), outputs: object(pkg.content.outputs) }, { type: "document", document_id: documentId, snapshot_id: snapshotId, content_hash: pkg.content_hash, title: pkg.content.title, at: pkg.completed_at }, org, String(doc.data.branch_id || "default")));
     }
@@ -278,6 +282,11 @@ async function recordCalculusHistory(ctx: PublicationContext, ledger: MaterialsL
       source = { ...source, kind: "generator", generator: "materials.calculus", generator_version: evaluation.definition_hash, generation_id: generationId };
     }
   }
+  for (const set of ledger.retired_sets || []) {
+    const was = before.get(set.id);
+    if (!was || ledger.sets.some(entry => entry.id === set.id)) continue;
+    await recordProjectChange(ctx.organizationId, { project_id: ledger.project_id, domain: "materials", subject_type: "materials_set", subject_id: set.id, op: "archived", summary: `Deleted ${set.title}`, diff: { removed: was.lines.map(lineFacts) }, before: { title: set.title, lines: was.lines.map(lineFacts) }, after: { retired: set.retired }, source });
+  }
   for (const set of ledger.sets) {
     const was = before.get(set.id) || { lines: [], work: [] };
     const lines = lineDiff(was.lines, set.lines), workChanged = JSON.stringify(was.work) !== JSON.stringify(set.work || []);
@@ -322,6 +331,15 @@ async function execute(ctx: PublicationContext, ledger: MaterialsLedger, command
     if(parsed.presentation)set.presentation={...set.presentation,...parsed.presentation};
     set.revision++;
     return {set_id:set.id,previous,set_revision:set.revision};
+  }
+  if (command.operation === "retire") {
+    // Deleting a list: its lines stop being requirements. Orders placed against it are kept and show as unallocated.
+    const parsed = z.object({ set_id: z.string(), set_revision: z.number().int().nonnegative(), reason: z.string().max(2000).default("") }).strict().parse(input);
+    const set = findSet(ledger, parsed.set_id);
+    if (set.revision !== parsed.set_revision) throw conflict("material_set_revision", "The material set changed. Refresh and try again.");
+    ledger.sets = ledger.sets.filter(entry => entry !== set);
+    (ledger.retired_sets ||= []).push({ ...set, retired: { at, ...(ctx.auth?.userId ? { actor: String(ctx.auth.userId) } : {}), reason: parsed.reason || "Removed in Project" } });
+    return { set_id: set.id, retired: true };
   }
   if (command.operation === "create") {
     const definition = validateCalculus(input.definition);

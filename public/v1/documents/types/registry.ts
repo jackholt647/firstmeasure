@@ -220,6 +220,44 @@ registerDocumentType("payment_receipt", {
   seeded_templates: ["tpl_payment_receipt_default"]
 });
 
+// Written by the Materials order window (materials/ordering.ts), never started by
+// hand: one purchase order per supplier on an order, and the shopping list
+// someone takes to pick materials up. Neither is signed.
+registerDocumentType("purchase_order", {
+  label: "Purchase Order",
+  icon: "fa-file-invoice",
+  param_schema: {
+    project: { type: "entity", entity: "project" },
+    po_number: { type: "string", label: "PO number" },
+    order_date: { type: "date", label: "Order date" },
+    delivery_label: { type: "string", label: "Requested delivery" },
+    supplier: { type: "object", label: "Supplier" },
+    ship_to: { type: "object", label: "Ship to" },
+    lines: { type: "list", items: { type: "object" } },
+    total_cents: { type: "currency" },
+    notes: { type: "text", label: "Notes" },
+    terms: { type: "text", label: "Terms" }
+  },
+  output_schema: {},
+  default_theme_id: "thm_clean",
+  seeded_templates: ["tpl_purchase_order_default"]
+});
+
+registerDocumentType("shopping_list", {
+  label: "Shopping List",
+  icon: "fa-basket-shopping",
+  param_schema: {
+    project: { type: "entity", entity: "project" },
+    title: { type: "string", label: "Title" },
+    list_date: { type: "date", label: "Date" },
+    assignee: { type: "string", label: "Picked up by" },
+    rows: { type: "list", items: { type: "object" } }
+  },
+  output_schema: {},
+  default_theme_id: "thm_clean",
+  seeded_templates: ["tpl_shopping_list_default"]
+});
+
 registerDocumentType("generic", {
   label: "Document",
   icon: "fa-file-lines",

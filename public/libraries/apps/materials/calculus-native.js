@@ -108,7 +108,7 @@ export function nativeCalculusAPI(base, currentProject) {
         return {...result(id),event:response.event};
       },
       async events(o,id){return set(id)?{events:[]}:base.lists.events(o,id);},
-      async archive(o,id,payload){if(!set(id))return base.lists.archive(o,id,payload);throw Error('Document material sets retain their accepted source. Remove their lines to amend the requirements.');}
+      async archive(o,id,payload){if(!set(id))return base.lists.archive(o,id,payload);await command('retire',{set_id:id,set_revision:payload?.expected_revision ?? set(id).revision,reason:payload?.reason || 'Removed in Project'});return {material_list:null};}
     },
     orders:{...base.orders,
       async deliveries(o,id){return ledger.orders.some(x=>x.id===id)?{deliveries:ledger.deliveries.filter(d=>d.allocations.some(a=>ledger.orders.find(x=>x.id===id).lines.some(l=>l.id===a)))}:base.orders.deliveries(o,id);},

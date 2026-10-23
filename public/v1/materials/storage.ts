@@ -1788,6 +1788,8 @@ async function buildProjectListsFromScope(
           defaults:{lines},inputSchema:{type:"object",properties:{lines:{type:"array"}},required:["lines"],additionalProperties:false}
         },{work_plan_id:input.work_plan_id,template_id:templateId,template_version:templateVersion,scope_piece_id:pieceId,proposal_snapshot_id:snapshotId,branch_id:branchId},lines,
           {...definition,measurements,color:definition.color,scope_template_id:templateId,scope_piece_id:pieceId,metadata:{generated_from_scope:true,source_key:sourceKey}});
+        // Someone deleted this list; it stays deleted.
+        if((artifact as {retired?:boolean}).retired)continue;
         if(asObject(definition.schedule).enabled===true){
           const event=await ensureMaterialListScheduleEvent(orgId,String(artifact.id),{work_plan_id:input.work_plan_id,source_node_id:cleanText(sourceNodes[cleanText(asObject(definition.schedule).source_node_template_id)] || sourceNodes[definitionId]),schedule:definition.schedule},artifact);
           scheduleEvents.push(event);

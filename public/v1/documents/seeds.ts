@@ -26,6 +26,7 @@ import {
   invoiceTemplateDefinition,
   invoiceWorkflowDefinition
 } from "./production-templates.js";
+import { purchaseOrderTemplateDefinition, shoppingListTemplateDefinition } from "./supplier-templates.js";
 import {
   addFlowPage,
   componentColumn,
@@ -55,7 +56,8 @@ import {
  */
 // 36: content block bodies are rich text (Markdown) and may carry a GIF.
 // 37: the work order template (tpl_work_order_default).
-export const DOCUMENT_PRESET_REVISION = 37;
+// 38: purchase order and shopping list templates (supplier-templates.ts).
+export const DOCUMENT_PRESET_REVISION = 38;
 
 function defaultProposalPaymentSchedule(): JsonObject[] {
   return [
@@ -1103,6 +1105,9 @@ export const TEMPLATE_SEEDS: TemplateSeed[] = [
   // Produced by the Payroll and Money apps, never started by hand:
   // metadata.system keeps them out of the New document picker.
   { id: "tpl_payroll_report_default", name: "Standard Payroll Report", document_type: "payroll_report", description: "Branded payroll report with configurable columns and rows.", definition: payrollReportTemplateDefinition, metadata: { system: true } },
+  // Written by the Materials order window (supplier-templates.ts).
+  { id: "tpl_purchase_order_default", name: "Purchase Order", document_type: "purchase_order", description: "A numbered purchase order to one supplier: dates, ship-to address, lines with SKU and price, totals and terms.", definition: purchaseOrderTemplateDefinition, metadata: { system: true } },
+  { id: "tpl_shopping_list_default", name: "Shopping List", document_type: "shopping_list", description: "A pickup checklist by supplier, with quantities and images.", definition: shoppingListTemplateDefinition, metadata: { system: true } },
   { id: "tpl_payment_receipt_default", name: "Standard Payment Receipt", document_type: "payment_receipt", description: "Branded receipt for a recorded customer payment.", definition: paymentReceiptTemplateDefinition, metadata: { system: true } },
   { id: "tpl_work_order_default", name: "Standard Work Order", document_type: "work_order", description: "A labor list or a project's work order: who does the work, where, and what each line pays.", definition: workOrderTemplateDefinition, metadata: { system: true } },
   {

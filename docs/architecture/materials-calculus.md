@@ -74,6 +74,12 @@ Product substitutions expose the old commitment as excess instead of counting it
 toward a different product. Partial cancellations and receipts are explicit ledger
 events. Received quantities cannot be cancelled; returns have their own event.
 
+A set can be deleted from the Materials column: `retire` moves it to
+`retired_sets`, where it no longer counts as a requirement and is never
+published again under the same identity; its orders stay and show as
+unallocated. How lists are ordered (supplier email, purchase orders, shopping
+lists) is in [ordering materials](materials-ordering.md).
+
 Delivery groups reference order lines from any number of sets without merging
 requirements or losing duplicates. Dates do not imply fulfillment. Supplier
 submission is a distinct external capability: internal manual commitments and

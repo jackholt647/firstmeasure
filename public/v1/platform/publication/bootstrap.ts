@@ -9,6 +9,7 @@ import { registerTodoPublication } from "../../work/publication.js";
 import { registerDepartmentPublication } from '../../workforce/department-publication.js';
 import { registerWidgetProviders } from '../widgets/catalog.js';
 import { registerMaterialsCalculusPublication } from '../../materials/calculus-publication.js';
+import { registerMaterialOrderingPublication } from '../../materials/ordering-publication.js';
 import { registerMaterialsInputs } from '../../materials/calculus-inputs.js';
 import { registerNotificationProvider } from "../notifications/provider.js";
 import { registerBuiltinDataProviders } from "./provider-adapters.js";
@@ -61,6 +62,7 @@ export function initializePublication() {
   registerDatasetActions();
   registerModuleDataProvider();
   registerMaterialsCalculusPublication();
+  registerMaterialOrderingPublication();
   registerResourceTypePublication();
   registerMaterialsInputs();
   registerCloseoutPublication();

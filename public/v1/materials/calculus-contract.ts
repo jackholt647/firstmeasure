@@ -35,7 +35,7 @@ export type CalculusDefinition = z.infer<typeof calculusDefinitionSchema>;
 export const deliverablesSchema = z.array(calculusDefinitionSchema).max(40).default([]);
 export const commandSchema = z.object({
   key: z.string().min(8).max(120), expected_revision: z.number().int().nonnegative(),
-  operation: z.enum(["create", "import_legacy", "evaluate", "apply", "amend", "order", "cancel", "return", "delivery", "receive", "price", "reschedule", "configure"]),
+  operation: z.enum(["create", "import_legacy", "evaluate", "apply", "amend", "order", "cancel", "return", "delivery", "receive", "price", "reschedule", "configure", "retire"]),
   input: z.record(z.unknown())
 }).strict();
 export type CalculusCommand = z.infer<typeof commandSchema>;

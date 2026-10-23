@@ -1,11 +1,11 @@
 {
   "summary": {
     "routes": {
-      "total": 1879,
+      "total": 1889,
       "by_kind": {
         "any:login_only": 157,
         "any:login_only+handler_checks": 345,
-        "any:permission": 702,
+        "any:permission": 709,
         "app(contact.media|portal.crew_receipts|portal.photos_feed|portal.receipts|portal.viewer|project.crew_materials|project.photos):login_only": 1,
         "app(contact.media|portal.photos_feed|portal.viewer|project.photos):login_only": 6,
         "app(contact.media|portal.photos_feed|portal.viewer|project.photos):login_only+handler_checks": 1,
@@ -29,7 +29,7 @@
         "mixed(any:login_only,any:permission)": 7,
         "mixed(any:permission,app(contact.media|portal.photos_feed|portal.viewer|project.photos):login_only)": 2,
         "mixed(app(documents.studio|portal.proposals|project.docs|project.documents|project.proposal):login_only,app(documents.studio|portal.proposals|project.docs|project.documents|project.proposal):permission)": 5,
-        "no_platform_session": 362,
+        "no_platform_session": 365,
         "publication_policy": 5
       }
     },
@@ -41,10 +41,10 @@
       }
     },
     "actions": {
-      "total": 317,
+      "total": 319,
       "by_kind": {
         "any:membership_only": 24,
-        "any:permission": 293
+        "any:permission": 295
       }
     },
     "tabs": {
@@ -577,10 +577,14 @@
     "GET /v1/materials/organizations/:orgId/projects/:projectId/calculus": {"file":"materials/calculus-api.ts","gates":[{"app":"any","permission":"view_materials"}],"checks":["requireCapability(platform.connections)","hasPermission(manage_company_settings)"],"publication":true,"kind":"any:permission"},
     "GET /v1/materials/organizations/:orgId/projects/:projectId/labor-commitments": {"file":"materials/api.ts","gates":[{"app":"any","permission":"manage_projects"}],"kind":"any:permission"},
     "GET /v1/materials/organizations/:orgId/projects/:projectId/material-lists": {"file":"materials/api.ts","gates":[{"app":"any","permission":"view_projects"}],"kind":"any:permission"},
+    "GET /v1/materials/organizations/:orgId/projects/:projectId/shopping-lists/:checklistId": {"file":"materials/ordering-api.ts","gates":[{"app":"any","permission":"view_projects|manage_projects"}],"kind":"any:permission"},
+    "GET /v1/materials/organizations/:orgId/projects/:projectId/shopping-lists/:checklistId/pdf": {"file":"materials/ordering-api.ts","gates":[{"app":"any","permission":"view_projects|manage_projects"}],"checks":["hasPermission(manage_company_settings)","hasPermission(manage_company_user_permissions)","hasPermission(dynamic)","hasPermission(manage_projects|manage_company_settings)"],"publication":true,"kind":"any:permission"},
     "GET /v1/materials/organizations/:orgId/projects/:projectId/work-orders": {"file":"materials/api.ts","gates":[{"app":"any","permission":"manage_projects"}],"kind":"any:permission"},
     "GET /v1/materials/organizations/:orgId/resource-types": {"file":"materials/api.ts","gates":[{"app":"any","permission":"view_projects"}],"kind":"any:permission"},
     "GET /v1/materials/organizations/:orgId/suppliers": {"file":"materials/api.ts","gates":[{"app":"any","permission":"view_projects|manage_company_settings"}],"kind":"any:permission"},
     "GET /v1/materials/ping": {"file":"materials/api.ts","kind":"no_platform_session"},
+    "GET /v1/materials/public/shopping-lists/:token": {"file":"materials/ordering-api.ts","kind":"no_platform_session"},
+    "GET /v1/materials/public/shopping-lists/:token/app": {"file":"materials/ordering-api.ts","kind":"no_platform_session"},
     "GET /v1/messaging": {"file":"messaging/api.ts","kind":"no_platform_session"},
     "GET /v1/messaging/": {"file":"messaging/api.ts","kind":"no_platform_session"},
     "GET /v1/messaging/developer/organizations/:orgId/messages": {"file":"messaging/api.ts","gates":[{"app":"any","permission":"manage_company_settings"}],"kind":"any:permission"},
@@ -1532,11 +1536,17 @@
     "POST /v1/materials/organizations/:orgId/projects/:projectId/material-lists/initialize-from-scope": {"file":"materials/api.ts","gates":[{"app":"any","permission":"manage_projects","csrf":true}],"kind":"any:permission"},
     "POST /v1/materials/organizations/:orgId/projects/:projectId/pay-sheets/evaluate": {"file":"materials/api.ts","gates":[{"app":"any","permission":"manage_projects"}],"kind":"any:permission"},
     "POST /v1/materials/organizations/:orgId/projects/:projectId/pay-sheets/try": {"file":"materials/api.ts","gates":[{"app":"any","permission":"manage_projects"}],"kind":"any:permission"},
+    "POST /v1/materials/organizations/:orgId/projects/:projectId/purchase-orders/pdf": {"file":"materials/ordering-api.ts","gates":[{"app":"any","permission":"manage_projects","csrf":true}],"checks":["hasPermission(manage_company_settings)","hasPermission(manage_company_user_permissions)","hasPermission(dynamic)","hasPermission(manage_projects|manage_company_settings)"],"publication":true,"kind":"any:permission"},
+    "POST /v1/materials/organizations/:orgId/projects/:projectId/purchase-orders/preview": {"file":"materials/ordering-api.ts","gates":[{"app":"any","permission":"manage_projects","csrf":true}],"checks":["hasPermission(manage_company_settings)","hasPermission(manage_company_user_permissions)","hasPermission(dynamic)","hasPermission(manage_projects|manage_company_settings)"],"publication":true,"kind":"any:permission"},
     "POST /v1/materials/organizations/:orgId/projects/:projectId/requirements": {"file":"materials/api.ts","gates":[{"app":"any","permission":"manage_projects"}],"kind":"any:permission"},
+    "POST /v1/materials/organizations/:orgId/projects/:projectId/shopping-lists": {"file":"materials/ordering-api.ts","gates":[{"app":"any","permission":"manage_projects","csrf":true}],"kind":"any:permission"},
+    "POST /v1/materials/organizations/:orgId/projects/:projectId/shopping-lists/:checklistId/share": {"file":"materials/ordering-api.ts","gates":[{"app":"any","permission":"manage_projects","csrf":true}],"checks":["hasPermission(dynamic)","hasPermission(send_communications|send_comms|manage_company_settings)","requireCapability(apps.comms)","requireCapability(comms.sms)","hasPermission(manage_communications|manage_company_settings)"],"kind":"any:permission"},
+    "POST /v1/materials/organizations/:orgId/projects/:projectId/supplier-emails": {"file":"materials/ordering-api.ts","gates":[{"app":"any","permission":"send_comms|send_communications|manage_projects|manage_company_settings","capability":"comms.email","csrf":true}],"checks":["hasPermission(manage_company_settings)","hasPermission(manage_company_user_permissions)","hasPermission(dynamic)","hasPermission(manage_projects|manage_company_settings)","hasPermission(send_communications|send_comms|manage_company_settings)","requireCapability(apps.comms)","requireCapability(comms.sms)","hasPermission(manage_communications|manage_company_settings)"],"publication":true,"kind":"any:permission"},
     "POST /v1/materials/organizations/:orgId/projects/:projectId/work-orders": {"file":"materials/api.ts","gates":[{"app":"any","permission":"manage_projects","csrf":true}],"checks":["hasPermission(manage_company_settings)","hasPermission(manage_company_user_permissions)","hasPermission(dynamic)","hasPermission(manage_projects|manage_company_settings)"],"publication":true,"kind":"any:permission"},
     "POST /v1/materials/organizations/:orgId/resource-types": {"file":"materials/api.ts","gates":[{"app":"any","permission":"manage_projects","csrf":true}],"checks":["hasPermission(manage_projects)"],"kind":"any:permission"},
     "POST /v1/materials/organizations/:orgId/suppliers": {"file":"materials/api.ts","gates":[{"app":"any","permission":"manage_company_settings","csrf":true}],"checks":["hasPermission(manage_company_settings)"],"kind":"any:permission"},
     "POST /v1/materials/organizations/:orgId/suppliers/:supplierId/locations": {"file":"materials/api.ts","gates":[{"app":"any","permission":"manage_company_settings","csrf":true}],"checks":["hasPermission(manage_company_settings)"],"kind":"any:permission"},
+    "POST /v1/materials/public/shopping-lists/:token/items/:itemId": {"file":"materials/ordering-api.ts","kind":"no_platform_session"},
     "POST /v1/messaging/developer/organizations/:orgId/inbound": {"file":"messaging/api.ts","gates":[{"app":"any","permission":"manage_company_settings","csrf":true}],"kind":"any:permission"},
     "POST /v1/messaging/developer/organizations/:orgId/messages/:messageId/status": {"file":"messaging/api.ts","gates":[{"app":"any","permission":"manage_company_settings","csrf":true}],"kind":"any:permission"},
     "POST /v1/messaging/organizations/:orgId/conversations": {"file":"messaging/api.ts","gates":[{"app":"any","permission":"manage_projects|manage_sales|send_communications|manage_company_settings","csrf":true}],"checks":["hasPermission(send_communications|send_comms|manage_company_settings)","requireCapability(apps.comms)","requireCapability(comms.sms)","hasPermission(manage_communications|manage_company_settings)"],"kind":"any:permission"},
@@ -2301,9 +2311,11 @@
     "materials.list.read@1": {"app":"any","permissions":["view_materials"],"scopes":["organization"],"kind":"any:permission","effect":"read","execution_kinds":["api","module","agent","work"]},
     "materials.order.read@1": {"app":"any","permissions":["view_materials"],"scopes":["organization"],"kind":"any:permission","effect":"read","execution_kinds":["api","module","agent","work"]},
     "materials.project.lists@1": {"app":"any","permissions":["view_materials"],"scopes":["project"],"kind":"any:permission","effect":"read","execution_kinds":["api","module","agent","work"]},
+    "materials.purchase_order.write@1": {"app":"any","permissions":["manage_projects"],"capabilities":["platform.materials"],"scopes":["project"],"kind":"any:permission","effect":"write","execution_kinds":["api","agent","module"]},
     "materials.resource-type.archive@1": {"app":"any","permissions":["manage_projects"],"capabilities":["platform.materials"],"scopes":["organization"],"kind":"any:permission","effect":"write","execution_kinds":["api","module","agent","work"]},
     "materials.resource-type.create@1": {"app":"any","permissions":["manage_projects"],"capabilities":["platform.materials"],"scopes":["organization"],"kind":"any:permission","effect":"write","execution_kinds":["api","module","agent","work"]},
     "materials.resource-type.update@1": {"app":"any","permissions":["manage_projects"],"capabilities":["platform.materials"],"scopes":["organization"],"kind":"any:permission","effect":"write","execution_kinds":["api","module","agent","work"]},
+    "materials.shopping_list.create@1": {"app":"any","permissions":["manage_projects"],"capabilities":["platform.materials"],"scopes":["project"],"kind":"any:permission","effect":"write","execution_kinds":["api","agent","module"]},
     "media.item.read@1": {"app":"any","permissions":["view_media"],"scopes":["organization"],"kind":"any:permission","effect":"read","execution_kinds":["api","module","agent","work"]},
     "media.item.rename@1": {"app":"any","permissions":["manage_media"],"scopes":["organization"],"kind":"any:permission","effect":"write","execution_kinds":["api","module","agent","work"]},
     "notification.create.v1@1": {"app":"any","permissions":["manage_company_settings"],"scopes":["organization","project"],"system_kinds":["work"],"kind":"any:permission","effect":"external","execution_kinds":["work"]},
