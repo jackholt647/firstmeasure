@@ -205,3 +205,26 @@ changes the curve count.
 
 **Rollout.** `wall_face_draft.js` (nudge hunks only) and `wall_solid_geometry.js` were overlaid on web, legacy and pool.
 The served files match.
+
+## Follow-up: Trim Selection section and inside face trim — `c68faf481986d361718796ab3652159fc21e3046`
+
+**Selection section.** The Trim menu now has a pinned Selection section covering wall lines, faces, eaves and rakes,
+and openings in any mix.
+- It shows a count by type and sets width (2, 3, 4, 6 or 8 in, or custom; roof sides take it as height) and colour
+  immediately. Each change is one undo step, written through each type's own writer.
+- It shows "Mixed" when the selection differs, and has Remove and Clear.
+- The bulk sections fold and remember their state. Bulk Select buttons add to the selection.
+
+**Inside face trim.** With a plain wall face selected, T toggles a one-sided strip inside every edge of the face,
+including holes. The strip follows the face and never reaches a neighbour. Line trim remains two-sided, and sticker
+trim remains outside the opening.
+
+**Behaviour changes.**
+- T inside Trim mode now adds trim and keeps the menu open.
+- T on a face toggles inside trim; Flip applies to point selections only.
+
+**Tests.** Related suites pass 729, including the arched-door nudge matrix. Full suite (agent): 1,769 of 1,772, with
+the known exterior-ai failure.
+
+**Rollout.** `roof_trim.js`, `roof_trim_editor.js`, `wall_trim.js`, `wall_face_draft.js`, `wall_mode.js` and
+`wall_editor.js` were overlaid on web, legacy and pool. The served files match.
