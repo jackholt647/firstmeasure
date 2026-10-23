@@ -1,9 +1,12 @@
 # FirstMeasure: local development and production deployment
 
+October 22 Default materials and labor from a measurement report: [Settings › Reports defaults published as a fallback scope artifact when no document is signed](deploy/digitalocean/development-measurement-defaults-20261022.md) records releases `96b87085` (four roles) and `2b6d6db1` (legacy and web; the dev pool node was unreachable).
+
 October 22 Estimate structures: [a report's structures can be turned off, one can be added by hand from the measurements its kind of work needs, and an estimate can price them together or one section each](deploy/digitalocean/development-estimate-structures-20261022.md) records release `c8ecbce6` on legacy and web (pool was unreachable).
 
 October 22 Estimate workflow photos and rich text: [the photo picker shows and assigns library photos and uploads, thumbnails fall back to the original image, and block descriptions use the shared rich text editor and render formatted](deploy/digitalocean/development-estimate-photos-richtext-20261022.md) records release `77d8a040` on worker, legacy and web (pool was unreachable).
 
+||||||| parent of c016c773 (Record the development rollout of default materials and labor from a measurement report)
 October 22 Session replay upload pacing: [binary chunk uploads every 20 seconds, every 2 while someone follows live, with measured client, network, server and disk costs](deploy/digitalocean/development-session-replay-pacing-20261022.md) records release `01f2acc5` and the verified four-role development rollout.
 
 October 22 Session replay search for coding agents: [access keys and an MCP endpoint so Claude Code or Codex can question the session replays remotely](deploy/digitalocean/development-session-replay-agent-20261022.md) records release `177d54df` and the verified four-role development rollout.
