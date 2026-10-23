@@ -347,7 +347,8 @@ export function roofingEstimateDefinition(mode: string, rates: { roof: number; g
 }
 
 /** Bump when the estimate layouts or their workflows change; existing packs republish. */
-export const INSTANT_ROOFING_PACK = 15;
+// 16: content block bodies are rich text (Markdown) and may carry a GIF.
+export const INSTANT_ROOFING_PACK = 16;
 
 /** Roof measurements the proposals price from, in the order a roofer reads a report. */
 export const ROOF_MEASUREMENT_FIELDS = [

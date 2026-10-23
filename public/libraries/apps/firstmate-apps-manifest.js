@@ -39,7 +39,7 @@
     versionedBundle('../agent-chat/agent-chat.js', '20261002-widget-controls'),
     versionedBundle('../assistant-api/assistant-api.js', '20261002-agent-persistence-v1'),
     versionedBundle('../platform-assistant/platform-assistant.js', '20261008-tray-shell-v1'),
-    versionedBundle('photos/feed.js', '20261012-shared-polish-v1'),
+    versionedBundle('photos/feed.js', '20261022-content-blocks-photos'),
     versionedBundle('../markup/firstmate-markup.js', '20261012-photo-comments-v1'),
     versionedBundle('../channels-ui/channels-ui.js', '20261012-shared-polish-v1'),
     versionedBundle('../project-notes/project-notes.js', '20261012-shared-polish-v1'),
@@ -49,7 +49,7 @@
   const fieldApprovalBundles = [
     versionedBundle('../crew-api/crew-api.js', '20261019-forward-cert'),
     versionedBundle('../field-visit/field-visit.js', '20260803-compact-arrival-v13'),
-    versionedBundle('../doc-model/firstmate-doc-model.js', '20261014-document-progress'),
+    versionedBundle('../doc-model/firstmate-doc-model.js', '20261022-content-blocks-photos'),
     versionedBundle('../payment-intake/payment-intake.js', '20261019-forward-cert-3'),
     // Same version string as crewBundles so the runtime's URL dedupe keeps a
     // single load; the field checkout resolves provider tokenization here.
@@ -123,7 +123,7 @@
       kind: 'portal_tab',
       surfaces: ['portal_tab'],
       portalTabId: 'photos_feed',
-      bundles: [gifDisplayBundle,versionedBundle('../payments-api/payments-api.js', '20261019-forward-cert'), versionedBundle('../channels-ui/channels-ui.js', '20261012-shared-polish-v1'), versionedBundle('photos/feed.js', '20261012-shared-polish-v1')]
+      bundles: [gifDisplayBundle,versionedBundle('../payments-api/payments-api.js', '20261019-forward-cert'), versionedBundle('../channels-ui/channels-ui.js', '20261012-shared-polish-v1'), versionedBundle('photos/feed.js', '20261022-content-blocks-photos')]
     },
     {
       id: 'portal.receipts',
@@ -134,7 +134,7 @@
       kind: 'portal_tab',
       surfaces: ['portal_tab'],
       portalTabId: 'receipts',
-      bundles: [gifDisplayBundle,versionedBundle('../payments-api/payments-api.js', '20261019-forward-cert'), versionedBundle('photos/feed.js', '20261012-shared-polish-v1'), versionedBundle('receipts/app.js', '20260714-receipt-pdf-preview')]
+      bundles: [gifDisplayBundle,versionedBundle('../payments-api/payments-api.js', '20261019-forward-cert'), versionedBundle('photos/feed.js', '20261022-content-blocks-photos'), versionedBundle('receipts/app.js', '20260714-receipt-pdf-preview')]
     },
     {
       // DEPRECATED (2026-08): legacy proposals surface — hidden by its bundle
@@ -201,15 +201,15 @@
       dependencies: ['pricebook.bridge', 'project.proposal'],
       bundles: [
         versionedBundle('../documents-api/documents-api.js', '20261019-forward-cert'),
-        versionedBundle('../doc-model/firstmate-doc-model.js', '20261014-document-progress'),
+        versionedBundle('../doc-model/firstmate-doc-model.js', '20261022-content-blocks-photos'),
         versionedBundle('../doc-widgets/firstmate-doc-widgets.js', '20261019-forward-cert'),
         versionedBundle('../doc-renderer/firstmate-doc-renderer.js', '20260811-word-doc-v4'),
         versionedBundle('../doc-editor/firstmate-doc-editor.js', '20260925-brand-chrome'),
-        versionedBundle('photos/feed.js', '20261012-shared-polish-v1'),
+        versionedBundle('photos/feed.js', '20261022-content-blocks-photos'),
         bundle('../agents-api/agents-api.js'),
         versionedBundle('../agent-chat/agent-chat.js', '20261002-widget-controls'),
         versionedBundle('../doc-agent/doc-agent.js', '20260812-agent-command-actions'),
-        versionedBundle('documents/project.js', '20260812-agent-command-actions')
+        versionedBundle('documents/project.js', '20261022-content-blocks-photos')
       ]
     },
     {
@@ -229,11 +229,11 @@
       },
       bundles: [
         versionedBundle('../documents-api/documents-api.js', '20261019-forward-cert'),
-        versionedBundle('../doc-model/firstmate-doc-model.js', '20261014-document-progress'),
+        versionedBundle('../doc-model/firstmate-doc-model.js', '20261022-content-blocks-photos'),
         versionedBundle('../doc-widgets/firstmate-doc-widgets.js', '20261019-forward-cert'),
         versionedBundle('../doc-renderer/firstmate-doc-renderer.js', '20260811-word-doc-v4'),
         versionedBundle('../doc-editor/firstmate-doc-editor.js', '20260925-brand-chrome'),
-        versionedBundle('photos/feed.js', '20261012-shared-polish-v1'),
+        versionedBundle('photos/feed.js', '20261022-content-blocks-photos'),
         bundle('../agents-api/agents-api.js'),
         versionedBundle('../agent-chat/agent-chat.js', '20261002-widget-controls'),
         versionedBundle('../doc-agent/doc-agent.js', '20260812-agent-command-actions'),
@@ -253,7 +253,7 @@
       bundles: [
         versionedBundle('../websites-api/websites-api.js', '20260731-domains-v10'),
         versionedBundle('../domains-api/domains-api.js', '20260731-domains-v10'),
-        versionedBundle('../doc-model/firstmate-doc-model.js', '20261014-document-progress'),
+        versionedBundle('../doc-model/firstmate-doc-model.js', '20261022-content-blocks-photos'),
         versionedBundle('../doc-widgets/firstmate-doc-widgets.js', '20261019-forward-cert'),
         versionedBundle('../doc-renderer/firstmate-doc-renderer.js', '20260811-word-doc-v4'),
         versionedBundle('../web-widgets/firstmate-web-widgets.js', '20260728-web-editor-v1'),
@@ -286,7 +286,7 @@
       surfaces: ['project_modal'],
       requiresContext: ['project'],
       dependencies: ['project.proposal', 'project.materials'],
-      bundles: [gifDisplayBundle,versionedBundle('../payments-api/payments-api.js', '20261019-forward-cert'), versionedBundle('../payroll-api/payroll-api.js', '20261019-payroll-closeout-v1'), versionedBundle('../documents-api/documents-api.js', '20261019-forward-cert'), versionedBundle('payroll/project.js', '20260714-money-commissions'), versionedBundle('photos/feed.js', '20261012-shared-polish-v1'), versionedBundle('receipts/app.js', '20260714-receipt-pdf-preview'), versionedBundle('money/project.js', '20261019-forward-cert')]
+      bundles: [gifDisplayBundle,versionedBundle('../payments-api/payments-api.js', '20261019-forward-cert'), versionedBundle('../payroll-api/payroll-api.js', '20261019-payroll-closeout-v1'), versionedBundle('../documents-api/documents-api.js', '20261019-forward-cert'), versionedBundle('payroll/project.js', '20260714-money-commissions'), versionedBundle('photos/feed.js', '20261022-content-blocks-photos'), versionedBundle('receipts/app.js', '20260714-receipt-pdf-preview'), versionedBundle('money/project.js', '20261019-forward-cert')]
     },
     {
       id: 'project.request',
@@ -535,7 +535,7 @@
         versionedBundle('../window-manager/window-shell.js', '20261008-tray-shell-v1'),
         versionedBundle('../assistant-api/assistant-api.js', '20261002-agent-persistence-v1'),
         ...widgetBundles, bookingBundle, priorityFieldsBundle, versionedBundle('../platform-assistant/platform-assistant.js', '20261008-tray-shell-v1'),
-        versionedBundle('photos/feed.js', '20261012-shared-polish-v1'),
+        versionedBundle('photos/feed.js', '20261022-content-blocks-photos'),
     versionedBundle('../markup/firstmate-markup.js', '20261012-photo-comments-v1'),
     versionedBundle('../channels-ui/channels-ui.js', '20261012-shared-polish-v1'),
     versionedBundle('../project-notes/project-notes.js', '20261012-shared-polish-v1'),

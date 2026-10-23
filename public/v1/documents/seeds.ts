@@ -53,7 +53,8 @@ import {
  * "Roofing proposal intake". Presets upgrade by preset_revision, copying the
  * scope-template pattern (scopes/storage.ts ensureDefaultScopeTemplates).
  */
-export const DOCUMENT_PRESET_REVISION = 35;
+// 36: content block bodies are rich text (Markdown) and may carry a GIF.
+export const DOCUMENT_PRESET_REVISION = 36;
 
 function defaultProposalPaymentSchedule(): JsonObject[] {
   return [
@@ -426,11 +427,18 @@ function mediaTextRowChildren(mirror: boolean): JsonObject[] {
   return mirror ? [text, inlineImage, popup] : [inlineImage, popup, text];
 }
 
+// The body is Markdown from the shared rich text editor (bold, italic, lists,
+// tables, links); a GIF picked from its toolbar shows under the text with
+// GIPHY's attribution.
 function mediaTextRowText(): JsonObject {
-  return flowBlocks([
+  const text = flowBlocks([
     { runs: [{ bind: "coalesce(block.title, '')" }], style_ref: "cb_title" },
-    { runs: [{ bind: "coalesce(block.body, '')" }], style_ref: "cb_body" }
-  ], { grow: 1 });
+    { runs: [{ bind: "coalesce(block.body, '')", format: "markdown" }], style_ref: "cb_body" }
+  ]);
+  const gif = flowImage("block.gif", { w: 160, h: 120 }, { fit: "contain", alt: "GIF" });
+  const attribution = flowBlocks([{ runs: [{ text: "Powered by GIPHY" }], style_ref: "cb_attribution" }]);
+  attribution.bind = { if: "not_empty(coalesce(block.gif.url, ''))" };
+  return flowColumn([text, gif, attribution], { gap: 4, grow: 1 });
 }
 
 export function mediaTextRowComponent(): JsonObject {
@@ -454,6 +462,7 @@ export function contentBlockStyles(): JsonObject {
   return {
     cb_title: { family: "var(--fm-display-font)", size_pt: 12.5, weight: 800, color: "var(--fm-text)", space_after_pt: 5 },
     cb_body: { family: "var(--fm-body-font)", size_pt: 10, weight: 400, color: "var(--fm-color-muted)", line_height: 1.5 },
+    cb_attribution: { family: "var(--fm-body-font)", size_pt: 6.5, weight: 600, color: "var(--fm-color-muted)" },
     li_badge: { family: "var(--fm-body-font)", size_pt: 7.5, weight: 800, color: "#047857", transform: "uppercase" }
   };
 }

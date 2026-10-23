@@ -3556,11 +3556,30 @@
 
     function mediaBridge(){
       const oid = orgId();
+      /** The organization's photos and videos as picker items, this project's first. */
+      function libraryMedia(response){
+        const pid = projectId();
+        const items = arrayValue(objectValue(response).media || objectValue(response).items).map(objectValue).map(libraryItem)
+          .filter((item) => /^(image|video)\//i.test(firstText(item.content_type, item.mime_type)));
+        const ofProject = (item) => cleanText(objectValue(item.metadata).project_id || (cleanText(objectValue(item.owner).type) === 'project' ? objectValue(item.owner).id : '')) === pid;
+        return [...items.filter(ofProject), ...items.filter((item) => !ofProject(item))];
+      }
+      function libraryItem(item){
+        return { ...item, media_id: firstText(item.media_id, item.id), label: firstText(item.label, objectValue(item.metadata).label, item.file_name, item.name) };
+      }
+      async function uploadAll(files){
+        const uploaded = [];
+        for (const file of Array.from(files || [])) {
+          const result = await window.PlatformAPI.media.upload(oid, file, { ownerType: 'document', ownerId: firstText(state.doc?.id, projectId()), collection: 'documents' });
+          const item = objectValue(objectValue(result).media || result);
+          if (Object.keys(item).length) uploaded.push(libraryItem(item));
+        }
+        return uploaded;
+      }
       return {
         async pick(){
           if (!window.PlatformAPI?.media?.list || !window.Portal?.PhotoFeed?.openProjectMediaPicker) throw new Error('The media tray is unavailable.');
-          const response = await window.PlatformAPI.media.list(oid);
-          const media = arrayValue(objectValue(response).media || objectValue(response).items).map(objectValue);
+          const media = libraryMedia(await window.PlatformAPI.media.list(oid));
           return new Promise((resolve) => {
             let complete = false;
             const finish = (value) => { if (!complete) { complete = true; resolve(value || null); } };
@@ -3575,13 +3594,9 @@
                 return true;
               },
               onUpload: async (files) => {
-                const uploaded = [];
-                for (const file of Array.from(files || [])) {
-                  const result = await window.PlatformAPI.media.upload(oid, file, { ownerType: 'document', ownerId: firstText(state.doc?.id, projectId()), collection: 'documents' });
-                  const item = objectValue(objectValue(result).media || result);
-                  if (Object.keys(item).length) { media.unshift(item); uploaded.push(item); }
-                }
-                return { photos: uploaded, selectedIds: uploaded.map((item) => firstText(item.id, item.media_id)).filter(Boolean) };
+                const uploaded = await uploadAll(files);
+                media.unshift(...uploaded);
+                return { photos: uploaded, selectedIds: uploaded.map((item) => item.media_id).filter(Boolean) };
               },
               onClose: () => finish(null)
             });
@@ -3590,8 +3605,7 @@
         /** The same library as pick(), mounted inside the caller's element as the media.picker widget. */
         async mount(host, options){
           const opts = objectValue(options);
-          const response = await window.PlatformAPI.media.list(oid);
-          const media = arrayValue(objectValue(response).media || objectValue(response).items).map(objectValue);
+          const media = libraryMedia(await window.PlatformAPI.media.list(oid));
           const idOf = (item) => firstText(objectValue(item).media_id, objectValue(item).id);
           return window.FirstMateWidgets.mount(host, {
             id: 'media.picker', version: '1',
@@ -3603,12 +3617,8 @@
             data: { 'media.picker': { items: media } },
             onSize: () => opts.onResize?.(),
             onUpload: async (files) => {
-              const uploaded = [];
-              for (const file of Array.from(files || [])) {
-                const result = await window.PlatformAPI.media.upload(oid, file, { ownerType: 'document', ownerId: firstText(state.doc?.id, projectId()), collection: 'documents' });
-                const item = objectValue(objectValue(result).media || result);
-                if (Object.keys(item).length) { media.unshift(item); uploaded.push(item); }
-              }
+              const uploaded = await uploadAll(files);
+              media.unshift(...uploaded);
               return { photos: uploaded, selectedIds: uploaded.map(idOf).filter(Boolean) };
             },
             onSelect: (value, detail) => {

@@ -50,6 +50,13 @@ Markdown implementation for the next migration. Its mentions, message identity,
 table-preview expansion, custom width encoding and draft serialization require
 an explicit compatibility adapter. Do not copy that parser into new apps.
 
+Document fields written with the Channels rich text editor (the estimate
+workflow's content-block bodies, `doc-workflow` `mountRichText`) store that
+editor's Markdown and render through `FMMarkdown` in DocModel: a bound text run
+with `format: "markdown"` resolves into document paragraphs, lists and tables
+(`FMDocModel.resolveBindings`). The editor's `<!--fm-table-widths:...-->` line is
+dropped there; Markdown cannot carry column widths into a document.
+
 ## Verification
 
 Run from `public/v1`:

@@ -6,7 +6,7 @@ const libraries=new URL('../../libraries/',import.meta.url);
 const png=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==','base64');
 const launch=()=>chromium.launch({executablePath:process.env.CHROME_PATH||'C:/Program Files/Google/Chrome/Application/chrome.exe',headless:true});
 
-test('the line item attach popover shows the media library inside itself and saves the pick',async()=>{
+test('the line item attach popover shows the media library inside itself and assigns the pick',async()=>{
  const browser=await launch();try{
   const page=await browser.newPage({viewport:{width:1100,height:800}}),errors=[];page.on('pageerror',e=>errors.push(e.message));
   await page.route('http://attach.test/**',async route=>{const pathname=new URL(route.request().url()).pathname;
@@ -44,8 +44,8 @@ test('the line item attach popover shows the media library inside itself and sav
   await page.click('.fmdw-attach-thumb');
   await page.locator('.fmdw-attach-pop.library .fm-widget img').first().click();
   await page.locator('.fmdw-attach-pop.library .fm-widget button:not([disabled])',{hasText:/select/i}).last().click();
-  await page.waitForSelector('.fmdw-attach-pop:not(.library) .fmdw-attach-thumb img');
-  await page.click('[data-fmdw-attach-save]');
+  // Choosing a photo assigns it at once; there is no second Save.
+  await page.waitForFunction(()=>!document.querySelector('.fmdw-attach-pop'));
   assert.deepEqual(await page.evaluate(()=>saved),[{media:[{media_id:'m1'}],video:null,display:'inline'}]);
   assert.equal(await page.locator('.fmdw-attach-pop').count(),0);
   assert.deepEqual(errors,[]);

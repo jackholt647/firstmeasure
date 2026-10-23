@@ -9,7 +9,7 @@ import { FMDocModel } from "./schemas.js";
  * it, and long content paginates through the region.
  */
 
-export type RunSpec = { text?: string; bind?: string; font?: JsonObject; color?: string; weight?: number };
+export type RunSpec = { text?: string; bind?: string; font?: JsonObject; color?: string; weight?: number; format?: "markdown" };
 export type BlockSpec = { runs: RunSpec[]; style_ref?: string; align?: string; collapse_empty?: boolean };
 type FlowSize = { w?: number; h?: number | "auto"; grow?: number };
 
@@ -41,7 +41,8 @@ function runList(runs: RunSpec[]) {
     ...(run.bind ? { bind: run.bind } : {}),
     ...(run.font ? { font: run.font } : {}),
     ...(run.color ? { color: run.color } : {}),
-    ...(run.weight ? { weight: run.weight } : {})
+    ...(run.weight ? { weight: run.weight } : {}),
+    ...(run.format ? { format: run.format } : {})
   }));
 }
 

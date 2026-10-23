@@ -53,6 +53,7 @@ import { env } from "../src/config/env.js";
 import { isFirstMeasurePostgresEnabled } from "../src/database/postgres.js";
 import { isSpacesArtifactStorageEnabled } from "../src/storage/project_artifacts.js";
 import { badRequest, conflict, notFound } from "./errors.js";
+import { mediaVariantEntry } from "./media_variants.js";
 
 export type JsonObject = Record<string, unknown>;
 export type PlatformCollection = "forms" | "form_submissions" | "form_activity" | "organization_feed_settings" | "organization_departments" | "communication_payloads" | "materials_calculus_ledgers" | "document_tags" | "resource_custom_fields" | "organization_custom_fields" | "notification_devices" | "publication_executions" | "project_datasets" | "project_dataset_revisions" | "document_modules" | "document_module_versions" | "document_module_instances" | "document_module_executions" | "publication_bindings" | "publication_snapshots" | "users" | "projects" | "customers" | "branch" | "notifications" | "attention_banners" | "action_items" | "activity" | "customer_portals" | "public_links" | "calendar_events" | "onboarding_events" | "proposals" | "proposal_snapshots" | "proposal_events" | "material_resource_types" | "material_suppliers" | "labor_pay_sheets" | "labor_commitments" | "labor_completions" | "project_closeouts" | "labor_delivery_settings" | "assignee_units" | "assignee_scheduling_settings" | "assignee_capabilities" | "material_supplier_locations" | "material_lists" | "material_list_versions" | "material_orders" | "material_deliveries" | "material_events" | "appointment_bookings" | "recurrence_series" | "recurrence_occurrences" | "payment_schedules" | "payment_obligations" | "payment_transactions" | "payment_allocations" | "payment_intents" | "payment_payables" | "payment_disbursements" | "payment_ledger_events" | "payment_events" | "payment_expense_items" | "payment_expense_overrides" | "payment_receipts" | "payment_invoices" | "payment_merchant_config" | "payment_provider_events" | "payment_provider_mock" | "payment_payouts" | "payment_disputes" | "payment_saved_methods" | "payment_autopay" | "payment_checkouts" | "feedback_requests" | "document_templates" | "document_template_versions" | "documents" | "document_snapshots" | "document_events" | "document_themes" | "document_theme_versions" | "document_workflows" | "document_workflow_versions" | "document_folders" | "document_folder_items" | "document_folder_item_versions" | "contact_imports" | "websites" | "website_pages" | "website_page_versions" | "website_events" | "domain_quotes" | "domain_registrations" | "domain_events";
@@ -1985,14 +1986,7 @@ export async function readMediaFile(orgId: string, mediaId: string, variantValue
   if (isFirstMeasurePostgresEnabled() && isSpacesArtifactStorageEnabled()) return (await postgresStorage()).readMediaFile(orgId, mediaId, variantValue);
   const metadata = await readMediaMetadata(orgId, mediaId);
   const variant = sanitizeId(variantValue || "original", "variant");
-  const variants = asObject(metadata.variants);
-  const markupThumbnailSize = variant.match(/^thumb_(\d+)_markup$/)?.[1] || "";
-  const requestedEntry = asObject(variants[variant]);
-  // "display" asks for a screen-sized copy; media that never got one serves the original.
-  const fallbackEntry = markupThumbnailSize
-    ? asObject(variants[`thumb_${markupThumbnailSize}`] || variants.original)
-    : (variant === "display" ? asObject(variants.original) : {});
-  const entry = Object.keys(requestedEntry).length ? requestedEntry : fallbackEntry;
+  const entry = mediaVariantEntry(metadata, variant);
   const relativePath = String(entry.path || "");
   if (!relativePath || relativePath.includes("..") || path.isAbsolute(relativePath)) {
     throw notFound("media_variant_not_found", "The requested media variant was not found.");

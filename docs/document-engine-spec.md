@@ -235,6 +235,8 @@ Colors may be literals or **theme tokens** (`var(--fm-primary)` style references
 
 Rich text as `runs[]` (Quill/ProseMirror-style flat runs, not HTML strings): `{ text, font?, color?, weight?, italic?, underline?, strike?, link?, bind? }` grouped in `blocks[]` (`paragraph | heading | list_item`, with `align`, `indent`, `list` info). Inline data tokens are runs with `bind` — this is what renders "Dear {{customer.first_name}}" and re-flows correctly. Text sits anywhere in z-order, including over images — it's just a node.
 
+A bound run with `format: "markdown"` holds rich text written by the shared editor (Notes and Channels use it): after binding, the run's block is replaced by the paragraphs, headings, list items and tables `FMMarkdown` parses from the value, each taking the source block's style. When the value holds a table or a quote, the text node becomes a column frame of those pieces in its place. Plain text is valid Markdown, so older values render as before. The estimate workflow's content-block bodies use it.
+
 ### 4.5 Pagination & overflow
 
 - `kind:"document"`: pages are fixed-size; a flow container may declare `"overflow": "paginate"` — the renderer splits its content across cloned continuation pages (this is how a 40-row line-item table breaks across pages; widgets can also declare their own pagination behavior).

@@ -904,8 +904,11 @@
   // ----------------------------------------------------------- content blocks
   // Tiers spec §10.1 — edits params.content_blocks rows:
   //   { id, title, body, media: {media_id|url} | null, video: {url} | null,
+  //     gif: {id, url, title, width, height} | null,
   //     layout: "auto"|"media_left"|"media_right"|"text_only",
   //     display: "inline"|"popup" }
+  // body is Markdown written by the platform's shared rich text editor (the
+  // one Notes and Channels use); plain text from before is valid Markdown.
   // Document-side the rows render through a repeater over a media_text_row
   // component; layout "auto" alternates left/right via the repeater's
   // variant_by_index (doc-model), and display "popup" rows emit the
@@ -917,6 +920,48 @@
     ['text_only', 'Text only']
   ];
   const CONTENT_BLOCK_DISPLAYS = [['inline', 'Inline'], ['popup', 'Popup']];
+  const GIPHY_URL = /^https:\/\/media\d*\.giphy\.com\/media\//i;
+
+  /** The platform's shared rich text editor (Notes, Channels) with its
+   *  standard toolbar, reading and writing Markdown. Falls back to a plain
+   *  text box where the editor is not loaded or the field is read-only. */
+  function mountRichText(host, options){
+    const opts = obj(options);
+    const channels = globalThis.FirstMateChannels;
+    const widgets = obj(channels?.composerWidgets);
+    const placeholder = cleanText(opts.placeholder);
+    let editor;
+    if (!opts.readonly && typeof widgets.createEditor === 'function') {
+      editor = widgets.createEditor(placeholder);
+      editor.classList.add('fmdw-rich-editor');
+      const bar = typeof widgets.formatBar === 'function' ? widgets.formatBar(editor) : null;
+      if (bar && typeof opts.onGif === 'function' && typeof channels.createGifPickerButton === 'function') {
+        bar.append(channels.createGifPickerButton({ orgId: cleanText(opts.orgId), onSelect: (gif) => opts.onGif(gif), onError: () => {} }));
+      }
+      if (bar) host.append(bar);
+      host.append(editor);
+      editor.value = String(opts.value ?? '');
+    } else {
+      editor = document.createElement('textarea');
+      editor.placeholder = placeholder;
+      editor.disabled = !!opts.readonly;
+      editor.value = String(opts.value ?? '');
+      host.append(editor);
+    }
+    let last = editor.value;
+    let timer = 0;
+    const flush = () => {
+      clearTimeout(timer);
+      const next = editor.value;
+      if (next === last) return;
+      last = next;
+      opts.onChange?.(next);
+    };
+    editor.addEventListener('input', () => { clearTimeout(timer); timer = setTimeout(flush, 400); });
+    editor.addEventListener('blur', flush);
+    editor.addEventListener('change', flush);
+    return { editor, flush };
+  }
   function normalizeContentBlock(raw){
     const source = obj(raw);
     const media = obj(source.media);
@@ -927,6 +972,7 @@
       body: String(source.body ?? ''),
       media: firstText(media.media_id, media.url) ? { ...media } : null,
       video: firstText(video.url) ? { ...video } : null,
+      gif: GIPHY_URL.test(firstText(obj(source.gif).url)) ? { ...obj(source.gif) } : null,
       layout: CONTENT_BLOCK_LAYOUTS.some(([value]) => value === cleanText(source.layout)) ? cleanText(source.layout) : 'auto',
       display: cleanText(source.display) === 'popup' ? 'popup' : 'inline'
     };
@@ -935,6 +981,7 @@
   registerKind('content_blocks', (el, ctx) => {
     let blocks = arr(ctx.value()).map(normalizeContentBlock);
     const media = obj(ctx.services).media;
+    const orgId = firstText(obj(obj(obj(ctx.services).api).signing).organizationId, globalThis.Portal?.cfg?.userOrgId);
     const commit = () => { ctx.write(clone(blocks)); ctx.requestPreview(); };
     const blockThumb = (block) => {
       const source = obj(block.media);
@@ -963,7 +1010,7 @@
                 ${String(thumb ? `<img src="${esc(thumb)}" alt="">` : `<i class="fas ${hasVideo ? 'fa-circle-play' : 'fa-image'}"></i>`)}
                 <span>${thumb || hasVideo ? 'Change' : 'Add media'}</span>
               </button>
-              <textarea class="fmdw-cb-body" data-fmdw-cb-body placeholder="${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_8b606c39e02eaa","Body text \u2014 what should the customer read here?") ?? "Body text \u2014 what should the customer read here?")}" ${String(ctx.readonly ? 'disabled' : '')}>${String(esc(block.body))}</textarea>
+              <div class="fmdw-cb-body fmdw-cb-rich" data-fmdw-cb-body><div class="fmdw-cb-gif" data-fmdw-cb-gif></div></div>
             </div>
             <div class="fmdw-cb-settings">
               <label>${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_414b43a606b221","Layout\n                ") ?? "Layout\n                ")}<select data-fmdw-cb-layout ${String(ctx.readonly ? 'disabled' : '')}>
@@ -995,10 +1042,43 @@
           const block = blockAt(id);
           if (block) { block.title = cleanText(event.target.value); commit(); }
         });
-        card.querySelector('[data-fmdw-cb-body]')?.addEventListener('change', (event) => {
+        const bodyHost = card.querySelector('[data-fmdw-cb-body]');
+        const gifHost = card.querySelector('[data-fmdw-cb-gif]');
+        const paintGif = () => {
           const block = blockAt(id);
-          if (block) { block.body = String(event.target.value ?? ''); commit(); }
-        });
+          const gif = obj(block?.gif);
+          if (!gifHost) return;
+          if (!GIPHY_URL.test(firstText(gif.url)) || !globalThis.FirstMateGifWidgets) { gifHost.replaceChildren(); return; }
+          globalThis.FirstMateGifWidgets.renderDraft(gifHost, gif, ctx.readonly ? null : () => {
+            const current = blockAt(id);
+            if (current) { current.gif = null; commit(); paintGif(); }
+          });
+          if (ctx.readonly) gifHost.querySelector('[data-gif-remove]')?.remove();
+        };
+        if (bodyHost) {
+          const initial = blockAt(id);
+          const rich = mountRichText(bodyHost, {
+            value: initial?.body || '',
+            readonly: ctx.readonly,
+            orgId,
+            placeholder: (globalThis.PlatformLanguage?.text("doc-workflow","m_8b606c39e02eaa","Body text \u2014 what should the customer read here?") ?? "Body text \u2014 what should the customer read here?"),
+            onChange: (value) => {
+              const block = blockAt(id);
+              if (block) { block.body = String(value ?? ''); commit(); }
+            },
+            onGif: (gif) => {
+              const block = blockAt(id);
+              if (!block || !GIPHY_URL.test(firstText(obj(gif).url))) return;
+              block.gif = { id: firstText(gif.id), url: firstText(gif.url), title: firstText(gif.title, 'GIF'), width: Number(gif.width) || 0, height: Number(gif.height) || 0 };
+              commit();
+              paintGif();
+            }
+          });
+          // Keep the GIF under the text, as Notes shows it.
+          if (gifHost) bodyHost.append(gifHost);
+          rich.editor.setAttribute('aria-label', firstText(initial?.title) ? `${initial.title} body` : 'Block body');
+        }
+        paintGif();
         // The same attach popover the line items use: the shared media library
         // (with upload) inside it, or one link that may be an image or a video.
         card.querySelector('[data-fmdw-cb-media]')?.addEventListener('click', (event) => {
@@ -1114,6 +1194,17 @@
       state.link = id ? '' : firstText(picked.url);
       return true;
     };
+    /** A photo picked from the library is the attachment: save it now. */
+    const savePicked = () => {
+      state.caption = cleanText(pop.querySelector('[data-fmdw-attach-caption]')?.value ?? state.caption);
+      const display = cleanText(pop.querySelector('[data-fmdw-attach-display]')?.value);
+      if (display) state.display = display === 'popup' ? 'popup' : 'inline';
+      const mediaEntry = state.media_id ? { media_id: state.media_id } : { url: state.link };
+      if (state.caption) mediaEntry.caption = state.caption;
+      close();
+      opts.onSave({ media: [mediaEntry], video: null, display: state.display });
+    };
+    let attachError = '';
     const closeLibrary = () => {
       const open = library;
       library = null;
@@ -1142,11 +1233,11 @@
       try {
         library = media.mount(host, {
           selected: state.media_id,
-          onPick: (picked) => { if (usePicked(picked)) showForm(); },
+          onPick: (picked) => { if (usePicked(picked)) savePicked(); },
           onResize: place
         });
-        Promise.resolve(library).then(place).catch(() => showForm());
-      } catch (e) { showForm(); }
+        Promise.resolve(library).then(place).catch((error) => { attachError = cleanText(error?.message) || 'Your photos could not be opened.'; showForm(); });
+      } catch (error) { attachError = cleanText(error?.message) || 'Your photos could not be opened.'; showForm(); }
       place();
     };
     const renderPop = () => {
@@ -1171,6 +1262,7 @@
             <input type="text" data-fmdw-attach-caption value="${esc(state.caption)}" placeholder="Caption (optional)">
           </div>
         </div>
+        ${attachError ? `<p class="fmdw-attach-error" role="alert"><i class="fas fa-triangle-exclamation"></i> ${esc(attachError)}</p>` : ''}
         ${opts.hideDisplay ? '' : `<details class="fmdw-attach-more" ${state.display === 'popup' ? 'open' : ''}>
           <summary>Display options</summary>
           <select data-fmdw-attach-display>
@@ -1186,16 +1278,18 @@
       pop.querySelector('.fmdw-attach-thumb img')?.addEventListener('error', (event) => { event.target.remove(); });
       pop.querySelectorAll('[data-fmdw-attach-pick]').forEach((button) => button.addEventListener('click', async () => {
         if (!canPick) return;
+        attachError = '';
         if (canMount) { showLibrary(); return; }
         picking = true;
         // The library is its own window; this popover steps aside for it.
         pop.style.visibility = 'hidden';
         try {
-          if (usePicked(await media.pick())) {
-            renderPop();
-            placePopover(pop, anchor, 420);
-          }
-        } catch (e) { /* picker closed */ }
+          if (usePicked(await media.pick())) { savePicked(); return; }
+        } catch (error) {
+          attachError = cleanText(error?.message) || 'Your photos could not be opened.';
+          renderPop();
+          placePopover(pop, anchor, 420);
+        }
         pop.style.visibility = '';
         // The library closes with a click outside this popover; keep it open.
         setTimeout(() => { picking = false; }, 0);
@@ -3717,6 +3811,7 @@
 .fmdw-attach-pop{--fmdw-primary:var(--cp-primary,var(--fm-primary,var(--primary,#2563EB)));--fmdw-on-primary:var(--cp-on-primary,var(--fmdx-on-primary,#fff));--fmdw-line:#e4e7ec;--fmdw-muted:#667085;--fmdw-ink:#111827;
   position:fixed;z-index:2147483400;box-sizing:border-box;border:1px solid var(--fmdw-line);border-radius:14px;background:#fff;box-shadow:0 18px 48px rgba(16,24,40,.22);padding:12px;display:flex;flex-direction:column;gap:10px;max-height:min(520px,calc(100vh - 16px));overflow:auto;font-size:12px;color:#111827}
 .fmdw-attach-pop *{box-sizing:border-box}
+.fmdw-attach-error{margin:0;border:1px solid #fecdca;border-radius:9px;background:#fef3f2;color:#b42318;padding:7px 9px;font-size:11.5px;font-weight:800;line-height:1.4}
 .fmdw-attach-head{display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:10px;font-weight:1000;text-transform:uppercase;letter-spacing:.05em;color:#667085}
 .fmdw-attach-head i{margin-right:5px}
 .fmdw-attach-x{border:0;background:transparent;color:#98a2b3;width:24px;height:24px;border-radius:7px;cursor:pointer;display:grid;place-items:center;font-size:12px}
@@ -3749,6 +3844,15 @@
 .fmdw-cb-body{min-height:64px;max-width:none !important}
 .fmdw-cb-main{display:flex;align-items:stretch;gap:10px;min-width:0}
 .fmdw-cb-main .fmdw-cb-body{flex:1;min-width:0;min-height:84px}
+.fmdw-cb-rich{display:flex;flex-direction:column;min-width:0;border:1px solid #d4d9e6;border-radius:10px;background:#fff;padding:6px 10px}
+.fmdw-cb-rich:focus-within{border-color:var(--fmdw-primary);box-shadow:0 0 0 3px color-mix(in srgb,var(--fmdw-primary) 12%,transparent)}
+.fmdw-cb-rich>.fm-ch-formatbar{display:flex;align-items:center;gap:2px;flex-wrap:wrap;margin:0 0 4px;padding:0 0 4px;border-bottom:1px solid #eaecf0}
+.fmdw-cb-rich>.fm-ch-formatbar button{border:0;background:transparent;min-width:28px;height:28px;padding:4px;border-radius:6px;color:#667085;cursor:pointer;font:inherit;font-size:13px}
+.fmdw-cb-rich>.fm-ch-formatbar button:hover,.fmdw-cb-rich>.fm-ch-formatbar button[aria-pressed="true"]{background:#f2f4f7;color:#344054}
+.fmdw-cb-rich .fmdw-rich-editor{min-height:72px;max-height:320px;overflow:auto;outline:none;font-size:13px;line-height:1.5;color:var(--fmdw-ink);padding:2px 0;white-space:pre-wrap;overflow-wrap:anywhere}
+.fmdw-cb-rich .fmdw-rich-editor:empty::before{content:attr(data-placeholder);color:#98a2b3;pointer-events:none}
+.fmdw-cb-rich>textarea{border:0 !important;box-shadow:none !important;padding:2px 0 !important;min-height:72px;max-width:none !important}
+.fmdw-cb-gif:empty{display:none}
 .fmdw-cb-thumb{position:relative;flex:none;width:118px;min-height:84px;border-radius:11px;overflow:hidden;background:#f6f7fb;border:1px dashed #cfd5e2;color:#98a2b3;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;font:inherit;font-size:10px;font-weight:900;cursor:pointer;padding:0;transition:border-color .12s ease,color .12s ease}
 .fmdw-cb-thumb:not(.empty){border-style:solid;border-color:var(--fmdw-line)}
 .fmdw-cb-thumb:hover:not(:disabled){border-color:var(--fmdw-primary);color:var(--fmdw-primary)}

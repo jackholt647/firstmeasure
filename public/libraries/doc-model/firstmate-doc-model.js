@@ -1599,6 +1599,96 @@
     return clone;
   }
 
+  // -------------------------------------------------------------------------
+  // Markdown runs. A run with format "markdown" (a rich text field written by
+  // the shared editor, e.g. a content block's body) resolves through the
+  // shared FMMarkdown library into paragraphs, headings, list items and
+  // tables that take the source block's style. Plain text is valid Markdown,
+  // so older values keep rendering. Without the library the text stays plain.
+  // -------------------------------------------------------------------------
+  let markdownLibrary = null;
+  function markdownLib() {
+    if (markdownLibrary) return markdownLibrary;
+    const g = typeof globalThis !== "undefined" ? globalThis : {};
+    if (g.FMMarkdown && typeof g.FMMarkdown.toDocNodes === "function") markdownLibrary = g.FMMarkdown;
+    else if (typeof require === "function") {
+      try { markdownLibrary = require("../doc-markdown/firstmate-markdown.js"); } catch (error) { markdownLibrary = null; }
+    }
+    return markdownLibrary;
+  }
+
+  function isMarkdownBlock(block) {
+    return isObject(block) && Array.isArray(block.runs) && block.runs.some((run) => isObject(run) && run.format === "markdown");
+  }
+
+  /** A generated block (and a table cell's blocks) takes the source block's look. */
+  function styleMarkdownBlock(block, source) {
+    const styled = Object.assign({}, block);
+    if (source.style_ref && !styled.style_ref) styled.style_ref = source.style_ref;
+    if (source.align && !styled.align) styled.align = source.align;
+    if (styled.type === "heading") styled.runs = (styled.runs || []).map((run) => Object.assign({ weight: 700 }, run));
+    return styled;
+  }
+
+  function styleMarkdownNode(node, source) {
+    if (node.type === "text" && node.props && Array.isArray(node.props.blocks)) node.props.blocks = node.props.blocks.map((block) => styleMarkdownBlock(block, source));
+    if (node.type === "table" && node.props && Array.isArray(node.props.rows)) {
+      for (const row of node.props.rows) for (const cell of (row && row.cells) || []) {
+        if (cell && Array.isArray(cell.blocks)) cell.blocks = cell.blocks.map((block) => styleMarkdownBlock(block, source));
+      }
+    }
+    if (Array.isArray(node.children)) node.children.forEach((child) => styleMarkdownNode(child, source));
+    return node;
+  }
+
+  function expandMarkdownText(node) {
+    const md = markdownLib();
+    const parts = [];
+    const pushBlocks = (list) => {
+      const last = parts[parts.length - 1];
+      if (last && last.blocks) last.blocks.push(...list);
+      else parts.push({ blocks: list.slice() });
+    };
+    let seq = 0;
+    for (const block of node.props.blocks) {
+      if (!isMarkdownBlock(block)) { pushBlocks([block]); continue; }
+      // Table column widths from the Channels editor are a comment line.
+      const text = block.runs.map((run) => String((run && run.text) ?? "")).join("")
+        .replace(/^[ \t]*<!--fm-table-widths:[\d.,]+-->[ \t]*$/gm, "");
+      if (!text.trim()) continue;
+      if (!md) {
+        pushBlocks([Object.assign({}, block, { runs: block.runs.map((run) => { const plain = Object.assign({}, run); delete plain.format; return plain; }) })]);
+        continue;
+      }
+      const prefix = String(block.id || node.id || "md") + "_md";
+      for (const generated of md.toDocNodes(text, { generateId: (kind) => prefix + "_" + kind + "_" + (++seq) })) {
+        if (generated.type === "text") pushBlocks(generated.props.blocks.map((item) => styleMarkdownBlock(item, block)));
+        else parts.push({ node: styleMarkdownNode(generated, block) });
+      }
+    }
+    if (parts.every((part) => part.blocks)) {
+      node.props.blocks = parts.length ? parts[0].blocks : [];
+      return [node];
+    }
+    // Tables and quotes are their own nodes: stack the pieces in a column
+    // frame that takes the text node's place and size.
+    const children = parts.map((part, index) => part.node || Object.assign({}, node, {
+      id: String(node.id) + "_part" + index,
+      anchor: "flow",
+      frame: { x: 0, y: 0, w: 0, h: "auto", z: 0, layout: "flow" },
+      props: Object.assign({}, node.props, { blocks: part.blocks })
+    }));
+    return [{
+      id: node.id,
+      type: "frame",
+      ...(node.anchor ? { anchor: node.anchor } : {}),
+      frame: node.frame,
+      style: {},
+      props: { flow: { direction: "column", gap: 4, padding: [0, 0, 0, 0], align: "stretch", wrap: false } },
+      children
+    }];
+  }
+
   function resolveNode(node, scope, ctx) {
     ctx = ctx || { components: {} };
     const bind = node.bind || {};
@@ -1726,6 +1816,7 @@
           }
         }
       }
+      if (resolved.props.blocks.some(isMarkdownBlock)) return expandMarkdownText(resolved);
     }
 
     if (resolved.type === "widget" && resolved.props) {
