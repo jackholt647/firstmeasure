@@ -508,7 +508,7 @@
         const chimneyId=chimneyOf(wall),mesh=safe(()=>editorMesh({...faceOf(wall),material:wall.materialKey,finishColor:wall.finishColor,...(wall.chimney?{chimney:{id:chimneyId}}:{})}),null);if(!mesh)continue;own(item,[mesh],'walls');
         // Wall area pills sit just off the face, outside its holes.
         const anchor=wallAnchor(wall);if(anchor){const sprite=labelSprite(toScene(anchor),{item,size:2.1});paintLabel(sprite,[{icon:'area',text:decimal(wall.net,0)+' sf'}]);groups.wallLabels.add(sprite);}
-        const wallCenter=wall.points.reduce((a,p)=>a.map((v,i)=>v+p[i]/wall.points.length),[0,0,0]),wallNormal=newell(wall.points)||[0,0,0],outward=dot3(wallNormal,wallCenter.map((v,i)=>v-houseCenter[i]))<0?-1:1;
+        const wallCenter=wall.points.reduce((a,p)=>a.map((v,i)=>v+p[i]/wall.points.length),[0,0,0]),savedNormal=Array.isArray(wall.normal)&&Math.hypot(...wall.normal)>.5?wall.normal:null,wallNormal=savedNormal||newell(wall.points)||[0,0,0],outward=savedNormal?1:dot3(wallNormal,wallCenter.map((v,i)=>v-houseCenter[i]))<0?-1:1;
         for(const opening of wall.openings){const type=openingKind(opening.type);if(!openingKinds[type])continue;
           const proud=opening.points.map(p=>p.map((v,i)=>v+wallNormal[i]*outward*.03));
           const feature=safe(()=>editorMesh({points:ring(proud),feature:{type}},{offset:-1,order:1}),null);if(!feature)continue;feature.userData.exteriorFeature=true;
