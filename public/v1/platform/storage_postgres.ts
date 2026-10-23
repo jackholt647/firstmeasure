@@ -449,6 +449,25 @@ export async function deleteOrganization(orgId: string) {
     await client.query("DELETE FROM platform_organizations WHERE id = $1", [id]);
   });
 }
+/** Up to `limit` organizations whose name or id contains `query` (case-insensitive), by name. */
+function likePattern(query: string) {
+  return "%" + query.replace(/[\\%_]/g, (c) => "\\" + c) + "%";
+}
+export async function searchOrganizations(query: string, limit: number) {
+  await ensurePostgresPlatformStorage();
+  const pattern = likePattern(query);
+  const result = await queryPostgres<DocumentRow>(`SELECT document FROM platform_organizations
+    WHERE id ILIKE $1 OR document->>'name' ILIKE $1 ORDER BY lower(COALESCE(document->>'name', id)) LIMIT $2`, [pattern, limit]);
+  return result.rows.map((row) => asObject(row.document));
+}
+/** Up to `limit` identities whose email, name or id contains `query` (case-insensitive), by email. */
+export async function searchIdentities(query: string, limit: number) {
+  await ensurePostgresPlatformStorage();
+  const pattern = likePattern(query);
+  const result = await queryPostgres<DocumentRow>(`SELECT document FROM platform_identities
+    WHERE email ILIKE $1 OR document->>'name' ILIKE $1 OR id ILIKE $1 ORDER BY email LIMIT $2`, [pattern, limit]);
+  return result.rows.map((row) => asObject(row.document));
+}
 export async function listOrganizations() {
   await ensurePostgresPlatformStorage();
   const result = await queryPostgres<DocumentRow>("SELECT document FROM platform_organizations ORDER BY lower(COALESCE(document->>'name', document->>'id'))", []);

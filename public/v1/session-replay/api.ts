@@ -5,27 +5,29 @@ import { z } from "zod";
 
 import { readInternalUser } from "../internal/storage.js";
 import { authContextFromRequest, requirePlatformAuth, type PlatformAuthContext } from "../platform/auth.js";
-import { effectiveCapabilities, isCapabilityEnabled, saveCapabilityValues } from "../platform/capabilities.js";
 import { badRequest, conflict, forbidden, notFound, PlatformError } from "../platform/errors.js";
 import { publishRealtimeEvent } from "../platform/realtime.js";
-import { listIdentityMemberships, listOrganizations, readOrganization } from "../platform/storage.js";
+import { findIdentityByEmail, readIdentity, readOrganization, searchIdentities, searchOrganizations } from "../platform/storage.js";
 import { env } from "../src/config/env.js";
 import { archiveOverview, runReplayArchive } from "./archive.js";
 import { REPLAY_BLOB_KEY, replayBlobKey } from "./hash.js";
 import {
-  deleteReplaySession, listReplaySessions, listReplaySettings, markReplayWatched, missingReplayBlobs, readReplayBlobs, readReplayChunkSizes,
-  readReplayChunks, readReplaySession, recordReplaySetting, replayStorageTotals, storeReplayBlob, storeReplayChunk
+  deleteReplaySession, listReplaySessions, markReplayWatched, missingReplayBlobs, readReplayBlobs, readReplayChunkSizes,
+  readReplayChunks, readReplaySession, replayStorageTotals, storeReplayBlob, storeReplayChunk
 } from "./storage.js";
+import {
+  countReplayRules, decideReplay, listReplayRuleLog, listReplayRules, readReplayMode, readReplayRules, removeReplayRule, REPLAY_MODES,
+  setReplayMode, upsertReplayRules, type ReplayMode, type RuleInput, type RuleKind
+} from "./targeting.js";
 
 /**
  * Session replay routes (docs/architecture/session-replay.md), under /v1/platform.
  *
- * Recording: any signed-in person whose organization has `platform.session_replay`
- * on. The organization is always the session's own; the page never names one.
- * Viewing and switching it on: platform administrators only (full internal admins,
- * the same people who may change FirstMeasure prices).
+ * Recording: a signed-in person the targeting rules say to record (session-replay/targeting.ts: the platform mode,
+ * then their own rule, then their organization's). The organization is always the session's own; the page never
+ * names one. Viewing replays and deciding who is recorded: platform administrators only (full internal admins, the
+ * same people who may change FirstMeasure prices). Customer organization owners and admins can do neither.
  */
-export const SESSION_REPLAY_CAPABILITY = "platform.session_replay";
 // A recorder uploads every 20 seconds; while an administrator has the session open live, every 2. Each chunk's reply
 // carries the interval, and starting to watch also nudges the page over its platform event stream.
 const CHUNK_INTERVAL_MS = 20_000;
@@ -80,14 +82,53 @@ function readFrame(body: Buffer) {
 }
 
 async function replayEnabled(ctx: PlatformAuthContext) {
-  const resolution = ctx.capabilities || await effectiveCapabilities(ctx.orgId, ctx.userId);
-  return resolution.effectiveByKey[SESSION_REPLAY_CAPABILITY] === true;
+  return (await decideReplay({ identityId: ctx.identityId, orgId: ctx.orgId })).record;
 }
 
 async function requireRecorder(request: FastifyRequest) {
   const ctx = await requirePlatformAuth(request, { csrf: true });
-  if (!(await replayEnabled(ctx))) throw forbidden("session_replay_off", "Session replay is off for this organization.");
+  if (!(await replayEnabled(ctx))) throw forbidden("session_replay_off", "Session replay is off for this person.");
   return ctx;
+}
+
+const ruleKind = z.enum(["person", "organization"]);
+const ruleInputSchema = z.object({
+  kind: ruleKind,
+  // A person by identity id or email; an organization by id.
+  target: z.string().trim().min(1).max(320),
+  enabled: z.boolean(),
+  // Either an end time, a number of days from now, or neither (until removed).
+  expires_at: z.number().int().min(0).nullable().optional(),
+  days: z.number().positive().max(3650).nullable().optional(),
+  reason: z.string().trim().max(500).optional()
+}).strict();
+
+/** A rule as an administrator or a script names it, resolved to the identity or organization it is about. */
+async function resolveRuleInput(input: z.infer<typeof ruleInputSchema>): Promise<RuleInput> {
+  const now = Date.now();
+  const expires = input.days ? now + Math.round(input.days * 86_400_000) : input.expires_at || 0;
+  if (expires && expires <= now) throw badRequest("replay_rule_expired", "That end time has already passed.");
+  if (input.kind === "person") {
+    const identity = input.target.includes("@")
+      ? await findIdentityByEmail(input.target).catch(() => null)
+      : await readIdentity(input.target).catch(() => null);
+    if (!identity?.id) throw notFound("person_not_found", `No one signs in as ${input.target}.`);
+    return { kind: "person", target_id: text(identity.id), enabled: input.enabled, expires_at: expires, reason: input.reason || "",
+      label: text(identity.email), detail: text(identity.name) };
+  }
+  let organization: JsonObject;
+  try { organization = await readOrganization(input.target); } catch { throw notFound("organization_not_found", `There is no organization ${input.target}.`); }
+  return { kind: "organization", target_id: text(organization.id) || input.target, enabled: input.enabled, expires_at: expires,
+    reason: input.reason || "", label: text(organization.name) || input.target, detail: text(organization.id) || input.target };
+}
+
+/** The organizations a person belongs to (ids and names, at most `limit`). */
+async function personOrganizations(identity: JsonObject, limit = 5) {
+  const memberships = (Array.isArray(identity.memberships) ? identity.memberships : []).map(asObject)
+    .map((m) => text(m.organization_id)).filter(Boolean);
+  const ids = [...new Set(memberships)];
+  const names = await organizationNames(ids.slice(0, limit));
+  return { total: ids.length, organizations: ids.slice(0, limit).map((id) => ({ organization_id: id, name: names[id] || id })) };
 }
 
 async function requireReplayAdmin(request: FastifyRequest, csrf = false) {
@@ -216,47 +257,108 @@ export async function registerSessionReplayRoutes(app: FastifyInstance) {
     return { ok: true, admin: true, email, org_id: ctx.orgId, org_name: text(ctx.organization.name), csrf: ctx.csrfToken };
   });
 
-  app.get("/session-replay/admin/organizations", async (request) => {
-    const { ctx } = await requireReplayAdmin(request);
-    const query = text(asObject(request.query).q).toLowerCase();
-    const [settings, totals, memberships] = await Promise.all([
-      listReplaySettings(), replayStorageTotals(), listIdentityMemberships(ctx.identityId).catch(() => [])
+  // ---------------------------------------------------------------------------
+  // Who is recorded (session-replay/targeting.ts)
+  // ---------------------------------------------------------------------------
+  app.get("/session-replay/admin/targeting", async (request, reply) => {
+    reply.header("Cache-Control", "private, no-store");
+    await requireReplayAdmin(request);
+    const query = asObject(request.query);
+    const kind = ruleKind.safeParse(text(query.kind)).success ? text(query.kind) as RuleKind : undefined;
+    const state = ["recording", "excluded", "expired"].includes(text(query.state)) ? text(query.state) as "recording" | "excluded" | "expired" : undefined;
+    const [mode, counts, page] = await Promise.all([
+      readReplayMode(true), countReplayRules(), listReplayRules({ kind, state, cursor: text(query.cursor) || undefined, limit: Number(query.limit) || 50 })
     ]);
-    const ids = new Set<string>([ctx.orgId, ...settings.map((s) => s.organization_id), ...totals.map((t) => t.organization_id)]);
-    for (const membership of memberships as JsonObject[]) ids.add(text(asObject(membership.organization).id));
-    if (query) {
-      const all = await listOrganizations();
-      for (const org of all) {
-        if (ids.size > 400) break;
-        const name = text(org.name).toLowerCase(), id = text(org.id).toLowerCase();
-        if (name.includes(query) || id.includes(query)) ids.add(text(org.id));
-      }
-    }
-    ids.delete("");
-    const names = await organizationNames([...ids]);
-    const settingByOrg = new Map(settings.map((s) => [s.organization_id, s]));
-    const totalByOrg = new Map(totals.map((t) => [t.organization_id, t]));
-    const rows = await Promise.all([...ids].map(async (id) => ({
-      organization_id: id,
-      name: names[id] || id,
-      enabled: await isCapabilityEnabled(id, SESSION_REPLAY_CAPABILITY).catch(() => false),
-      current: id === ctx.orgId,
-      setting: settingByOrg.get(id) || null,
-      totals: totalByOrg.get(id) || null
-    })));
-    const filtered = query ? rows.filter((row) => row.name.toLowerCase().includes(query) || row.organization_id.toLowerCase().includes(query)) : rows;
-    filtered.sort((a, b) => Number(b.enabled) - Number(a.enabled) || Number(b.current) - Number(a.current) || a.name.localeCompare(b.name));
-    return { ok: true, organizations: filtered.slice(0, 100) };
+    return { ok: true, now: Date.now(), mode, counts, rules: page.rules, next: page.next };
   });
 
+  app.put("/session-replay/admin/targeting/mode", async (request) => {
+    const { email } = await requireReplayAdmin(request, true);
+    const body = z.object({ mode: z.enum(REPLAY_MODES as [ReplayMode, ...ReplayMode[]]), reason: z.string().trim().max(500).optional() }).strict()
+      .parse(request.body ?? {});
+    return { ok: true, mode: await setReplayMode(body.mode, email, body.reason || "") };
+  });
+
+  // Sets up to 500 rules at once: { rules: [{ kind, target, enabled, days | expires_at, reason }] }. All or nothing.
+  app.put("/session-replay/admin/targeting/rules", async (request) => {
+    const { email } = await requireReplayAdmin(request, true);
+    const body = z.object({ rules: z.array(ruleInputSchema).min(1).max(500) }).strict().parse(request.body ?? {});
+    const resolved: RuleInput[] = [];
+    for (const input of body.rules) resolved.push(await resolveRuleInput(input));
+    return { ok: true, rules: await upsertReplayRules(resolved, email) };
+  });
+
+  app.delete("/session-replay/admin/targeting/rules/:kind/:targetId", async (request) => {
+    const { email } = await requireReplayAdmin(request, true);
+    const params = asObject(request.params);
+    const kind = ruleKind.parse(text(params.kind));
+    const reason = text(asObject(request.query).reason).slice(0, 500);
+    const removed = await removeReplayRule(kind, text(params.targetId), email, reason);
+    if (!removed) throw notFound("replay_rule_not_found", "There is no such rule.");
+    return { ok: true, removed };
+  });
+
+  // People and organizations matching a search, a page at a time, each with its rule and what would happen now.
+  app.get("/session-replay/admin/targeting/search", async (request, reply) => {
+    reply.header("Cache-Control", "private, no-store");
+    await requireReplayAdmin(request);
+    const query = asObject(request.query);
+    const q = text(query.q);
+    const limit = Math.max(1, Math.min(50, Number(query.limit) || 20));
+    const want = text(query.kind) || "all";
+    if (q.length < 2) return { ok: true, people: [], organizations: [] };
+    const [identities, organizations] = await Promise.all([
+      want === "organizations" ? [] : searchIdentities(q, limit),
+      want === "people" ? [] : searchOrganizations(q, limit)
+    ]);
+    const [personRules, orgRules, mode] = await Promise.all([
+      readReplayRules("person", identities.map((i) => text(i.id))), readReplayRules("organization", organizations.map((o) => text(o.id))), readReplayMode()
+    ]);
+    const now = Date.now();
+    const people = await Promise.all(identities.map(async (identity) => {
+      const id = text(identity.id);
+      const memberships = await personOrganizations(identity, 3);
+      return { identity_id: id, email: text(identity.email), name: text(identity.name), ...memberships, rule: personRules.get(id) || null };
+    }));
+    const orgs = organizations.map((org) => {
+      const id = text(org.id);
+      return { organization_id: id, name: text(org.name) || id, rule: orgRules.get(id) || null };
+    });
+    return { ok: true, now, mode: mode.mode, people, organizations: orgs };
+  });
+
+  // Why a person is or is not recorded, in each organization they belong to (or the one named).
+  app.get("/session-replay/admin/targeting/explain", async (request, reply) => {
+    reply.header("Cache-Control", "private, no-store");
+    await requireReplayAdmin(request);
+    const query = asObject(request.query);
+    const person = text(query.person);
+    if (!person) throw badRequest("missing_person", "Name a person by email or identity id.");
+    const identity = person.includes("@") ? await findIdentityByEmail(person).catch(() => null) : await readIdentity(person).catch(() => null);
+    if (!identity?.id) throw notFound("person_not_found", `No one signs in as ${person}.`);
+    const orgIds = text(query.org_id) ? [text(query.org_id)]
+      : [...new Set((Array.isArray(identity.memberships) ? identity.memberships : []).map(asObject).map((m) => text(m.organization_id)).filter(Boolean))].slice(0, 50);
+    const names = await organizationNames(orgIds);
+    const decisions = await Promise.all(orgIds.map(async (orgId) => ({
+      organization_id: orgId, name: names[orgId] || orgId, ...(await decideReplay({ identityId: text(identity.id), orgId }, Date.now()))
+    })));
+    return { ok: true, identity_id: text(identity.id), email: text(identity.email), name: text(identity.name), decisions };
+  });
+
+  app.get("/session-replay/admin/targeting/log", async (request, reply) => {
+    reply.header("Cache-Control", "private, no-store");
+    await requireReplayAdmin(request);
+    const query = asObject(request.query);
+    return { ok: true, entries: await listReplayRuleLog({ before: Number(query.before) || undefined, limit: Number(query.limit) || 50 }) };
+  });
+
+  // Earlier form of an organization rule (record everyone in it, until removed); kept for scripts and tests.
   app.put("/session-replay/admin/organizations/:orgId", async (request) => {
     const { email } = await requireReplayAdmin(request, true);
     const orgId = text(asObject(request.params).orgId);
     const { enabled } = z.object({ enabled: z.boolean() }).strict().parse(request.body ?? {});
-    try { await readOrganization(orgId); } catch { throw notFound("organization_not_found", "That organization does not exist."); }
-    await saveCapabilityValues(orgId, { [SESSION_REPLAY_CAPABILITY]: enabled });
-    await recordReplaySetting(orgId, enabled, email);
-    return { ok: true, organization_id: orgId, enabled: await isCapabilityEnabled(orgId, SESSION_REPLAY_CAPABILITY) };
+    const [rule] = await upsertReplayRules([await resolveRuleInput({ kind: "organization", target: orgId, enabled })], email);
+    return { ok: true, organization_id: orgId, enabled: rule!.enabled };
   });
 
   app.get("/session-replay/admin/sessions", async (request) => {

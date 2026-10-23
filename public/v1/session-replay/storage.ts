@@ -77,12 +77,17 @@ export async function closeSessionReplayDatabase() {
   return await current?.close();
 }
 
+/** The session replay store, for modules that keep their own tables in it (session-replay/targeting.ts). */
+export function replayDatabase() {
+  return db();
+}
+
 function db() {
   const nextPath = path.resolve(process.cwd(), env.platformStorageRoot, "session-replay.sqlite");
   if (database && databasePath === nextPath) return database;
   void closeSessionReplayDatabase();
   // Raise this whenever initialize gains a table or a column: Postgres runs it again only for a higher version.
-  database = openSqlStore({ id: "session_replay", schemaVersion: 3, filename: nextPath, initialize });
+  database = openSqlStore({ id: "session_replay", schemaVersion: 4, filename: nextPath, initialize });
   databasePath = nextPath;
   return database;
 }
@@ -217,6 +222,39 @@ async function initialize(store: SqlStore) {
       owner TEXT NOT NULL DEFAULT '',
       until_at BIGINT NOT NULL DEFAULT 0
     );
+    CREATE TABLE IF NOT EXISTS session_replay_rules (
+      kind TEXT NOT NULL,
+      target_id TEXT NOT NULL,
+      enabled INTEGER NOT NULL,
+      expires_at BIGINT NOT NULL DEFAULT 0,
+      reason TEXT NOT NULL DEFAULT '',
+      label TEXT NOT NULL DEFAULT '',
+      detail TEXT NOT NULL DEFAULT '',
+      updated_by TEXT NOT NULL DEFAULT '',
+      updated_at BIGINT NOT NULL,
+      created_at BIGINT NOT NULL,
+      PRIMARY KEY (kind, target_id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_session_replay_rules_updated ON session_replay_rules (updated_at);
+    CREATE TABLE IF NOT EXISTS session_replay_config (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL,
+      reason TEXT NOT NULL DEFAULT '',
+      updated_by TEXT NOT NULL DEFAULT '',
+      updated_at BIGINT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS session_replay_rule_log (
+      id TEXT PRIMARY KEY,
+      at BIGINT NOT NULL,
+      actor TEXT NOT NULL DEFAULT '',
+      kind TEXT NOT NULL,
+      target_id TEXT NOT NULL,
+      label TEXT NOT NULL DEFAULT '',
+      before_json TEXT NOT NULL DEFAULT 'null',
+      after_json TEXT NOT NULL DEFAULT 'null',
+      reason TEXT NOT NULL DEFAULT ''
+    );
+    CREATE INDEX IF NOT EXISTS idx_session_replay_rule_log_at ON session_replay_rule_log (at);
   `);
   await ensureSqlColumn(store, "session_replay_sessions", "archived_at", "BIGINT NOT NULL DEFAULT 0");
   await ensureSqlColumn(store, "session_replay_sessions", "archive_bytes", "BIGINT NOT NULL DEFAULT 0");
@@ -757,6 +795,7 @@ export async function deleteReplayOrganization(organizationId: string) {
       await tx.prepare(`DELETE FROM ${table} WHERE organization_id=?`).run(organizationId);
     }
     await tx.prepare("DELETE FROM session_replay_vocab_versions WHERE scope=?").run(organizationId);
+    await tx.prepare("DELETE FROM session_replay_rules WHERE kind='organization' AND target_id=?").run(organizationId);
     return { sessions };
   }, organizationId);
 }

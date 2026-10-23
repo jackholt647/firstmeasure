@@ -397,13 +397,15 @@ ordinary requests. Run `tests/realtime-single-stream.test.ts` and
 ## Session replay
 
 Read [session replay](docs/architecture/session-replay.md) before changing what
-pages record, the replay viewer, or anything `platform-api.js` loads on every
-page. Recording is the organization feature `platform.session_replay`, off by
-default and never part of a preset; only platform administrators switch it on
-or read replays. Apps never mark elements for tracking: add `data-fmr-mask` to
-a field that must not be recorded and `data-fmr-ignore` to UI that must not
-appear in replays. The recorder posts chunks; it never opens a stream. Bump the
-`?v=` values when a library file changes. Archives are lossless and pinned to
+pages record, who is recorded, the replay viewer, or anything `platform-api.js`
+loads on every page. Who is recorded is a platform mode (off, only those listed,
+everyone) plus rules for people and organizations in `session-replay/targeting.ts`;
+nothing records until someone is listed. It is not an organization capability:
+only platform administrators set it or read replays, and every change is logged.
+Apps never mark elements for tracking: add `data-fmr-mask` to a field that must
+not be recorded and `data-fmr-ignore` to UI that must not appear in replays.
+The recorder posts chunks; it never opens a stream. Bump the `?v=` values when
+a library file changes. Archives are lossless and pinned to
 their vocabulary versions: never change how a stored archive decodes (a new
 writer gets a new `ARCHIVE_FORMAT`), and keep customer text out of the platform
 vocabulary. Run `tests/session-replay-browser.test.mjs`,

@@ -9,20 +9,43 @@ app that produced it has been changed or deleted.
 It is a standalone library, `public/libraries/session-replay/`, that knows nothing about FirstMate except through
 its loader. Apps never mark anything to be tracked.
 
-## Switching it on
+## Who is recorded
 
-- `platform.session_replay` is an organization feature, **off by default**, in `platform/capability_defs.ts`. It
-  does not need expanded platform access (it is in `firstMeasureCapabilities`), no preset turns it on
-  (`PRESET_EXCLUDED` in `platform/capabilities.ts`) and FirstMeasure signups start with it off.
-- A platform administrator switches it per organization in the viewer (`/libraries/session-replay/viewer.html`),
-  which calls `PUT /v1/platform/session-replay/admin/organizations/:orgId`. That writes the one capability through
-  `saveCapabilityValues` (other switches are untouched) and keeps who changed it in `session_replay_org_settings`.
-  Operators can also flip it in Company settings › Developer Settings like any other feature.
-- When it is on, every signed-in member of the organization is recorded on every page that loads
-  `platform-api.js`; a page already open starts on its next load.
+Only platform administrators decide, in the viewer under **Recording › Manage who is recorded**, or with the same
+routes from a script. Customer organization owners and admins cannot see or change any of it. It is not an organization
+capability: no preset, signup or Developer Settings switch can turn it on (`session-replay/targeting.ts`).
+
+- **The mode** applies to the whole platform:
+  - **Off for everyone** stops everything, whatever the rules say.
+  - **Only those listed** is the default, so nothing is recorded until someone is listed.
+  - **Everyone** records everybody except people and organizations set not to be recorded.
+- **Rules** name a person (their sign-in identity, so the rule follows them into every organization they belong to)
+  or an organization, say record or don't, and may end at a time ("record this customer for 7 days"). A person's rule
+  wins over their organization's; an expired rule counts as absent.
+- **Every change** to the mode or a rule is kept in `session_replay_rule_log` with who made it, when, what it replaced
+  and the reason given.
+- **Scale.** People and organizations are found by a server-side search that returns a page of results
+  (`searchIdentities`, `searchOrganizations` in `platform/storage.ts`), and rules are listed a page at a time, so
+  nothing loads every organization.
+- **When it takes effect.** A page asks whether to record when it loads (`GET /session-replay/config`), and every
+  upload is checked again, so a page switched off stops at its next upload. Decisions are cached in each server
+  process for 10 seconds.
 - "Platform administrator" is a full internal admin (the same test as FirstMeasure price changes:
   `readInternalUser(identity email)` is active and an admin, system admin, legacy admin or `platform_admin`).
-  Customer owners and admins cannot read replays: a replay shows every member's screen.
+
+| Route (under `/v1/platform/session-replay/admin`) | |
+|---|---|
+| `GET /targeting?state=recording\|excluded\|expired&kind=person\|organization&cursor=&limit=` | Mode, counts and a page of rules |
+| `PUT /targeting/mode` `{ mode, reason }` | Set the mode |
+| `PUT /targeting/rules` `{ rules: [{ kind, target, enabled, days \| expires_at, reason }] }` | Up to 500 rules at once, all or nothing; a person by email or identity id |
+| `DELETE /targeting/rules/:kind/:targetId?reason=` | Remove a rule |
+| `GET /targeting/search?q=&kind=people\|organizations&limit=` | People and organizations matching, with their rules |
+| `GET /targeting/explain?person=<email>&org_id=` | Whether and why a person is recorded, per organization |
+| `GET /targeting/log?before=&limit=` | The change log |
+| `PUT /organizations/:orgId` `{ enabled }` | Older form of an organization rule with no end, kept for scripts |
+
+Writes need the platform session's CSRF header. Access keys for coding agents open the search tools only, never
+these routes.
 
 ## How a page is recorded
 
@@ -76,10 +99,11 @@ What is recorded, and how:
 
 ## Storage
 
-`session-replay/storage.ts` is an `openSqlStore` store (`session_replay`, schema version 3):
+`session-replay/storage.ts` is an `openSqlStore` store (`session_replay`, schema version 4):
 `session_replay_sessions` (one per tab session: person, organization, times, sizes, device),
 `session_replay_pages` (one per page load, with its META), `session_replay_chunks` (the gzip bodies),
-`session_replay_blobs` (per organization, by content address) and `session_replay_org_settings`. A session is one
+`session_replay_blobs` (per organization, by content address), and who is recorded: `session_replay_config` (the
+mode), `session_replay_rules` and `session_replay_rule_log`. A session is one
 browser tab until 30 idle minutes pass or the person or organization changes; another person writing into it gets
 409 and the recorder starts a new one. A session stops accepting chunks at 256 MB. Storing a chunk is four
 statements in one transaction: read the session, insert the chunk, and upsert its page and session totals.
@@ -155,7 +179,7 @@ stylesheets are rewritten to classes the player sets from the recorded hover, po
 that open on hover open in the replay. The browser's own focus ring is added with zero specificity. Seeking back
 rebuilds the page from its snapshot.
 
-The viewer (`viewer.html`) lists sessions (live ones pulse), switches organizations on and off, plays with speed,
+The viewer (`viewer.html`) lists sessions (live ones pulse), sets who is recorded, plays with speed,
 idle skipping and a pointer trail, and has four panels: **Events** (clicks with their labels, pages, navigation,
 keys, typing, errors), **Storage** (bytes stored, cost per page load, cost per minute after loading, the growth
 chart, the organization's per-hour rate and a monthly cost calculator), **Performance** (recorder CPU, page heap,
@@ -216,7 +240,7 @@ blobs.
 - Archives: node ids relative to the recorder's node counter instead of the last id (measured: at most 1.4× more),
   subtree tokens in a platform dictionary for an organization's first sessions (measured: under 10%), and re-packing
   old archives onto newer vocabularies.
-- Per-person audiences: an organization is recorded entirely or not at all.
+- A person's rule stays when their sign-in is deleted (as do its log entries) until an administrator removes it.
 - Performance shortcuts shipped on purpose are in [the optimization backlog](../optimization-backlog.md): chunk bodies
   in the database, rebuild-on-seek, one config request per page load, and in archives whole-session decoding, full
   vocabulary reads and the 48 MB session limit.
@@ -225,8 +249,9 @@ blobs.
 
 `tests/session-replay-browser.test.mjs` records a scripted session in Chrome and checks that the replay's DOM,
 computed styles and scroll positions match the live page at every checkpoint, playing forward and seeking back.
-`tests/session-replay.test.ts` covers the switch, who may read and write, chunk storage and retries, conflicts and
-blob addresses. `tests/session-replay-archive.test.ts` covers archives: every event type round-trips canonically, pages
+`tests/session-replay.test.ts` covers who is recorded (modes, person and organization rules, precedence, expiry,
+batches, search, explain, the log, and customer admins refused), who may read and write, chunk storage and retries,
+conflicts and blob addresses. `tests/session-replay-archive.test.ts` covers archives: every event type round-trips canonically, pages
 it cannot read stay verbatim, a dry run writes nothing and predicts the real run, versions are append-only and every
 pinned version keeps decoding across generations, a late chunk keeps a session live, and deleting an organization
 leaves the platform vocabulary unchanged. The browser test replays chunks restored from an archive, and

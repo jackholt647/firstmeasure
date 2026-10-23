@@ -30,26 +30,8 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; ba
 .title { font-weight: 650; font-size: 14px; }
 .sub { color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 230px; }
 
-.org { padding: 12px 16px; border-bottom: 1px solid var(--line); }
-.org-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
-.org-name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.org-hint { color: var(--muted); font-size: 12px; margin-top: 4px; }
 .link { background: none; border: 0; padding: 0; margin-top: 8px; color: var(--accent-2); cursor: pointer; font-size: 12px; }
-.org-picker { margin-top: 10px; }
-.org-picker input { width: 100%; }
-.org-list { max-height: 240px; overflow: auto; margin-top: 6px; border: 1px solid var(--line); border-radius: 8px; }
-.org-item { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 7px 10px; border-bottom: 1px solid var(--line); }
-.org-item:last-child { border-bottom: 0; }
-.org-item .meta { color: var(--muted); font-size: 11px; }
-.org-item .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-.switch { position: relative; width: 38px; height: 22px; flex: none; cursor: pointer; }
-.switch input { opacity: 0; width: 0; height: 0; position: absolute; }
-.switch span { position: absolute; inset: 0; background: #3a404c; border-radius: 22px; transition: background .15s; }
-.switch span::after { content: ""; position: absolute; left: 3px; top: 3px; width: 16px; height: 16px; border-radius: 50%; background: #fff; transition: transform .15s; }
-.switch input:checked + span { background: var(--red); }
-.switch input:checked + span::after { transform: translateX(16px); }
-.switch input:disabled + span { opacity: .5; }
 
 input[type="search"], select { background: var(--panel-2); border: 1px solid var(--line); border-radius: 7px; padding: 6px 8px; outline: none; }
 input[type="search"]:focus, select:focus { border-color: var(--accent); }
@@ -184,3 +166,28 @@ input[type="search"]:focus, select:focus { border-color: var(--accent); }
 .aa-table th, .aa-table td { text-align: left; padding: 7px 6px; border-bottom: 1px solid var(--line); vertical-align: top; }
 .aa-table th { color: var(--muted); font-weight: 600; }
 .aa-inactive td { opacity: .5; }
+
+/* Who is recorded (session-replay-recording.js) */
+.recording { padding: 10px 14px; border-bottom: 1px solid var(--line); }
+.rr-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.rr-title { font-weight: 600; }
+.rr-mode { font-size: 11px; border-radius: 999px; padding: 2px 8px; border: 1px solid var(--line); color: var(--muted); white-space: nowrap; }
+.rr-mode-everyone { border-color: rgba(34,197,94,.5); color: #86efac; }
+.rr-mode-off { border-color: rgba(239,68,68,.5); color: #fca5a5; }
+.rr-summary { color: var(--muted); font-size: 12px; margin: 6px 0; line-height: 1.45; }
+.rr-modes { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 8px; margin-bottom: 6px; }
+.rr-mode-option { display: flex; gap: 8px; align-items: flex-start; border: 1px solid var(--line); border-radius: 9px; padding: 9px 10px; cursor: pointer; }
+.rr-mode-option > span { display: flex; flex-direction: column; gap: 3px; }
+.rr-mode-option:has(input:checked) { border-color: var(--accent); background: var(--panel-2); }
+.rr-mode-meta { min-height: 16px; margin-bottom: 4px; }
+.rr-results h4 { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; margin: 12px 0 4px; }
+.rr-result { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 8px 0; border-bottom: 1px solid var(--line); }
+.rr-who { flex: 1 1 220px; min-width: 0; overflow-wrap: anywhere; }
+.rr-actions { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.rr-days { background: var(--panel-2); border: 1px solid var(--line); border-radius: 6px; padding: 4px 6px; font-size: 12px; }
+.rr-state { font-size: 11px; border-radius: 999px; padding: 2px 8px; border: 1px solid var(--line); color: var(--muted); white-space: nowrap; }
+.rr-on { border-color: rgba(34,197,94,.5); color: #86efac; }
+.rr-off { border-color: rgba(239,68,68,.5); color: #fca5a5; }
+.rr-expired { opacity: .7; }
+.rr-more, .rr-show-log { margin-top: 8px; }
+.rr-dialog code { font-size: 11px; }

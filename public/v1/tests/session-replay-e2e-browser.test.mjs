@@ -103,16 +103,22 @@ test('a signed-in page records through the platform and the viewer plays it back
     viewer.on('pageerror', (error) => viewerErrors.push(String(error)));
     viewer.on('response', async (response) => { if (response.status() >= 400) viewerErrors.push(response.status() + ' ' + response.url() + ' ' + (await response.text().catch(() => '')).slice(0, 300)); });
     await viewer.goto(ORIGIN + '/libraries/session-replay/viewer.html');
-    await viewer.waitForSelector('#org-panel:not([hidden])', { timeout: 15000 }).catch(async (error) => {
+    await viewer.waitForSelector('#recording-panel:not([hidden])', { timeout: 15000 }).catch(async (error) => {
       throw new Error(error.message + '\nviewer: ' + (await viewer.textContent('body')).replace(/\s+/g, ' ').slice(0, 400) + '\nerrors: ' + viewerErrors.join('\n'));
     });
-    await viewer.click('#org-more');
-    await viewer.fill('#org-search', owner.orgId);
-    await viewer.waitForSelector(`#org-list input[data-org="${owner.orgId}"]`, { state: 'attached' });
-    const switched = viewer.waitForResponse((response) => response.request().method() === 'PUT' && response.url().includes('/session-replay/admin/organizations/'));
-    await viewer.click(`#org-list input[data-org="${owner.orgId}"] + span`);
+    // Who is recorded: find the organization by id and record everyone in it until removed.
+    await viewer.click('#recording-panel .rr-manage');
+    await viewer.fill('.rr-search', owner.orgId);
+    const row = `.rr-result[data-kind="organization"][data-target="${owner.orgId}"]`;
+    await viewer.waitForSelector(row);
+    await viewer.selectOption(row + ' .rr-days', '0');
+    const switched = viewer.waitForResponse((response) => response.request().method() === 'PUT' && response.url().includes('/session-replay/admin/targeting/rules'));
+    await viewer.click(row + ' .rr-record');
     assert.equal((await switched).status(), 200);
-    await viewer.waitForFunction((orgId) => document.querySelector(`#org-list input[data-org="${orgId}"]`).checked, owner.orgId);
+    await viewer.waitForFunction((selector) => /^Recording$/.test((document.querySelector(selector + ' .rr-state') || {}).textContent || ''), row);
+    if (SHOTS) { await mkdir(SHOTS, { recursive: true }); await viewer.screenshot({ path: path.join(SHOTS, 'viewer-who-is-recorded.png') }); }
+    await viewer.click('.aa-close');
+    await viewer.waitForFunction(() => /1 organization/.test(document.querySelector('#recording-panel .rr-summary').textContent));
 
     // The next page load records.
     await page.reload();

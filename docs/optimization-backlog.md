@@ -7,6 +7,18 @@ optimization here must return exactly the same results.
 Add an entry when you knowingly ship something that reads more than it needs, repeats work, or will not scale, and
 link the entry from the architecture doc's "Not built" section. Remove an entry when it is done.
 
+## Session replay search for people and organizations scans their tables
+
+**Today.** "Who is recorded" finds people and organizations with `ILIKE '%text%'` over `platform_identities` and
+`platform_organizations` (`searchIdentities`, `searchOrganizations` in `platform/storage_postgres.ts`), which reads
+every row and returns the first page.
+
+**Where the change goes.** A `pg_trgm` GIN index on the email, name and id expressions makes the same query use the
+index; the results stay the same.
+
+**Why it can wait.** Only platform administrators search, a few times a session, and tens of thousands of rows scan in
+milliseconds. (docs/architecture/session-replay.md, "Who is recorded")
+
 ## Session replay chunk bodies live in the database
 
 **Today.** Every replay chunk body (gzip JSON, a few KB each, one every 20 seconds per active person) is a `BYTEA` row

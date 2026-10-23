@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex">
 <title>Session Replay</title>
-<link rel="stylesheet" href="session-replay-viewer.css?v=20261022-2">
+<link rel="stylesheet" href="session-replay-viewer.css?v=20261023-1">
 </head>
 <body>
 <div class="app" id="app">
@@ -14,19 +14,10 @@
       <span class="logo" aria-hidden="true"></span>
       <div><div class="title">Session replay</div><div class="sub" id="who">Checking access…</div></div>
     </header>
-    <section class="org" id="org-panel" hidden>
-      <div class="org-row">
-        <div class="org-name" id="org-name"></div>
-        <label class="switch" title="Record every member of this organization">
-          <input type="checkbox" id="org-toggle"><span></span>
-        </label>
-      </div>
-      <div class="org-hint" id="org-hint"></div>
-      <button class="link" id="org-more" type="button">Other organizations…</button>
-      <div class="org-picker" id="org-picker" hidden>
-        <input type="search" id="org-search" placeholder="Search organizations by name or id" autocomplete="off">
-        <div class="org-list" id="org-list"></div>
-      </div>
+    <section class="recording" id="recording-panel" hidden>
+      <div class="rr-head"><span class="rr-title">Recording</span><span class="rr-mode"></span></div>
+      <div class="rr-summary">Loading…</div>
+      <button class="link rr-manage" type="button">Manage who is recorded…</button>
     </section>
     <section class="sessions">
       <div class="sessions-head">
@@ -79,7 +70,8 @@
 <div class="toast" id="toast" hidden></div>
 <script src="session-replay-codec.js?v=20261022-1"></script>
 <script src="session-replay-player.js?v=20261022-1"></script>
-<script src="session-replay-viewer.js?v=20261022-4"></script>
+<script src="session-replay-viewer.js?v=20261023-1"></script>
 <script src="session-replay-agent-access.js?v=20261022-1"></script>
+<script src="session-replay-recording.js?v=20261023-1"></script>
 </body>
 </html>

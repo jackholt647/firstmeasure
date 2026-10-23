@@ -1,6 +1,6 @@
 /* libraries/session-replay/session-replay-viewer.js
- * The replay viewer page (viewer.html): sessions, the organization switch, the
- * player, and what each session costs. Platform administrators only; the server
+ * The replay viewer page (viewer.html): sessions, the player, and what each session
+ * costs (who is recorded is session-replay-recording.js). Platform administrators only; the server
  * enforces it. See docs/architecture/session-replay.md.
  */
 (function () {
@@ -17,7 +17,7 @@
   const state = {
     me: null, csrf: '', sessions: [], sessionId: '', detail: null, model: null, blobs: new Map(), player: null,
     poll: 0, polling: false, scope: 'current', query: '', events: [], eventTimes: [], live: false, currentEvent: -1,
-    stats: null, archive: null, orgs: [], openToken: 0
+    stats: null, archive: null, openToken: 0
   };
 
   // ---------------------------------------------------------------------------
@@ -84,71 +84,6 @@
   }
 
   // ---------------------------------------------------------------------------
-  // Organization switch
-  // ---------------------------------------------------------------------------
-  async function loadOrganizations(query) {
-    const data = await api('/session-replay/admin/organizations' + (query ? '?q=' + encodeURIComponent(query) : ''));
-    return data.organizations || [];
-  }
-
-  async function refreshCurrentOrg() {
-    const orgs = await loadOrganizations('');
-    state.orgs = orgs;
-    const current = orgs.find((org) => org.current);
-    $('org-panel').hidden = !current;
-    if (!current) return;
-    $('org-name').textContent = current.name;
-    $('org-name').title = current.organization_id;
-    $('org-toggle').checked = current.enabled;
-    $('org-toggle').dataset.org = current.organization_id;
-    $('org-hint').textContent = current.enabled
-      ? 'Recording everyone in this organization. Pages start recording when they load.'
-      : 'Off. Turn it on, then refresh any page in this organization to start recording.';
-  }
-
-  async function setOrgReplay(orgId, enabled) {
-    const result = await api('/session-replay/admin/organizations/' + encodeURIComponent(orgId), { method: 'PUT', body: { enabled } });
-    toast('Session replay is ' + (result.enabled ? 'on' : 'off') + ' for ' + (state.orgs.find((o) => o.organization_id === orgId)?.name || orgId) + '.');
-    return result.enabled;
-  }
-
-  function renderOrgList(orgs) {
-    const list = $('org-list');
-    if (!orgs.length) { list.innerHTML = '<div class="empty">No organizations match.</div>'; return; }
-    list.innerHTML = orgs.map((org) => '<div class="org-item"><div style="min-width:0"><div class="name">' + esc(org.name) + (org.current ? ' <span class="meta">(yours)</span>' : '') + '</div>'
-      + '<div class="meta">' + esc(org.organization_id) + (org.totals ? ' · ' + org.totals.sessions + ' sessions · ' + fmtBytes(org.totals.bytes_stored) : '') + '</div></div>'
-      + '<label class="switch"><input type="checkbox" data-org="' + esc(org.organization_id) + '"' + (org.enabled ? ' checked' : '') + '><span></span></label></div>').join('');
-  }
-
-  function bindOrgPanel() {
-    $('org-toggle').addEventListener('change', async (event) => {
-      const input = event.target;
-      input.disabled = true;
-      try { input.checked = await setOrgReplay(input.dataset.org, input.checked); await refreshCurrentOrg(); }
-      catch (error) { input.checked = !input.checked; toast(error.message); }
-      finally { input.disabled = false; }
-    });
-    $('org-more').addEventListener('click', async () => {
-      const picker = $('org-picker');
-      picker.hidden = !picker.hidden;
-      if (!picker.hidden) { renderOrgList(await loadOrganizations('')); $('org-search').focus(); }
-    });
-    let timer = 0;
-    $('org-search').addEventListener('input', (event) => {
-      clearTimeout(timer);
-      timer = setTimeout(async () => { try { renderOrgList(await loadOrganizations(event.target.value.trim())); } catch (error) { toast(error.message); } }, 250);
-    });
-    $('org-list').addEventListener('change', async (event) => {
-      const input = event.target;
-      if (!input.dataset.org) return;
-      input.disabled = true;
-      try { input.checked = await setOrgReplay(input.dataset.org, input.checked); if (input.dataset.org === $('org-toggle').dataset.org) await refreshCurrentOrg(); }
-      catch (error) { input.checked = !input.checked; toast(error.message); }
-      finally { input.disabled = false; }
-    });
-  }
-
-  // ---------------------------------------------------------------------------
   // Session list
   // ---------------------------------------------------------------------------
   async function loadSessions() {
@@ -168,7 +103,7 @@
   function renderSessions() {
     const list = $('session-list');
     if (!state.sessions.length) {
-      list.innerHTML = '<div class="empty">No sessions yet. Turn session replay on for the organization, then load a page while signed in.</div>';
+      list.innerHTML = '<div class="empty">No sessions yet. Choose who is recorded under Recording, then load a page as one of them.</div>';
       return;
     }
     list.innerHTML = state.sessions.map((s) => {
@@ -841,9 +776,7 @@
     catch (error) { denied(error); return; }
     state.csrf = state.me.csrf || '';
     $('who').textContent = state.me.email;
-    bindOrgPanel();
     bindControls();
-    refreshCurrentOrg().catch((error) => toast(error.message));
     const hash = parseHash();
     if (hash.session) state.scope = 'all';
     $('session-scope').value = state.scope;

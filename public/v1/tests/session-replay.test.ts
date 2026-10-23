@@ -9,7 +9,7 @@ import { gunzipSync, gzipSync } from "node:zlib";
 import { closePlatformFixtureStores, nextTestPhone } from "./helpers/platform-fixture.js";
 
 // Session replay routes (docs/architecture/session-replay.md): off by default, switched
-// on per organization by a platform administrator, chunks stored once per sequence
+// on for people and organizations by a platform administrator, chunks stored once per sequence
 // number, blobs checked against their content address, and replays readable only by
 // platform administrators.
 
@@ -96,8 +96,8 @@ test("session replay is off by default, switched on by a platform administrator,
   const me = await call(admin, "GET", "/session-replay/admin/me");
   assert.equal(me.statusCode, 200, me.body);
   assert.equal((await call(admin, "PUT", `/session-replay/admin/organizations/${owner.orgId}`, { enabled: true })).json().enabled, true);
-  const listed = (await call(admin, "GET", "/session-replay/admin/organizations")).json().organizations;
-  assert.equal(listed.find((org: any) => org.organization_id === owner.orgId)?.enabled, true);
+  const listed = (await call(admin, "GET", "/session-replay/admin/targeting?kind=organization&state=recording")).json().rules;
+  assert.ok(listed.some((rule: any) => rule.target_id === owner.orgId && rule.enabled));
 
   const config = (await call(owner, "GET", "/session-replay/config")).json();
   assert.equal(config.enabled, true);
@@ -229,9 +229,100 @@ test("recorders upload binary frames, and upload often only while someone follow
   assert.deepEqual((await call(owner, "POST", "/session-replay/blobs/missing", { keys: [key] })).json().missing, []);
 });
 
-test("no capability preset ever turns session replay on", async () => {
-  const { builtinCapabilityPresets, firstMeasureSignupValues, capabilityDefinition } = await import("../platform/capabilities.js");
-  assert.equal(capabilityDefinition("platform.session_replay")?.default, false);
-  for (const preset of builtinCapabilityPresets()) assert.notEqual(preset.values["platform.session_replay"], true, preset.id);
-  assert.equal(firstMeasureSignupValues({ "platform.session_replay": true })["platform.session_replay"], false);
+test("session replay is not an organization capability: no preset, signup or capability screen can switch it on", async () => {
+  const { builtinCapabilityPresets, capabilityDefinition } = await import("../platform/capabilities.js");
+  assert.equal(capabilityDefinition("platform.session_replay") ?? null, null);
+  for (const preset of builtinCapabilityPresets()) assert.equal(preset.values["platform.session_replay"], undefined, preset.id);
+});
+
+test("platform administrators decide who is recorded: a mode for everyone, rules for people and organizations", async () => {
+  const admin = await caller("target-admin", { role: "admin" });
+  const alice = await caller("target-alice");
+  const bob = await caller("target-bob");
+  const customerAdmin = await caller("target-owner");
+  const recording = async (who: Caller) => (await call(who, "GET", "/session-replay/config")).json().enabled === true;
+  const rules = (body: unknown) => call(admin, "PUT", "/session-replay/admin/targeting/rules", body);
+
+  // Off by default: the mode is "listed" and nobody is listed.
+  const start = (await call(admin, "GET", "/session-replay/admin/targeting")).json();
+  assert.equal(start.mode.mode, "listed");
+  assert.equal(await recording(alice), false);
+
+  // Customer organization owners and admins see and change none of it.
+  for (const [method, url, body] of [
+    ["GET", "/session-replay/admin/targeting", undefined], ["GET", "/session-replay/admin/targeting/search?q=target", undefined],
+    ["GET", `/session-replay/admin/targeting/explain?person=${alice.email}`, undefined], ["GET", "/session-replay/admin/targeting/log", undefined],
+    ["PUT", "/session-replay/admin/targeting/mode", { mode: "everyone" }],
+    ["PUT", "/session-replay/admin/targeting/rules", { rules: [{ kind: "person", target: customerAdmin.email, enabled: true }] }],
+    ["DELETE", `/session-replay/admin/targeting/rules/organization/${customerAdmin.orgId}`, undefined]
+  ] as const) {
+    assert.equal((await call(customerAdmin, method, url, body)).statusCode, 403, `${method} ${url}`);
+  }
+
+  // A person, by email, for a week: recorded in their organization; others are not.
+  const set = await rules({ rules: [{ kind: "person", target: alice.email, enabled: true, days: 7, reason: "Chasing a bug in the order form" }] });
+  assert.equal(set.statusCode, 200, set.body);
+  const aliceRule = set.json().rules[0];
+  assert.equal(aliceRule.label, alice.email);
+  assert.ok(aliceRule.expires_at > Date.now() + 6.9 * 86_400_000);
+  assert.equal(await recording(alice), true);
+  assert.equal(await recording(bob), false);
+
+  // An organization: everyone in it, unless a person's own rule says otherwise.
+  assert.equal((await rules({ rules: [{ kind: "organization", target: bob.orgId, enabled: true },
+    { kind: "person", target: bob.email, enabled: false, reason: "Asked not to be recorded" }] })).statusCode, 200);
+  assert.equal(await recording(bob), false);
+  const explained = (await call(admin, "GET", `/session-replay/admin/targeting/explain?person=${encodeURIComponent(bob.email)}`)).json();
+  assert.deepEqual(explained.decisions.map((d: any) => [d.organization_id, d.record, d.because]), [[bob.orgId, false, "person"]]);
+  assert.equal((await call(admin, "DELETE", `/session-replay/admin/targeting/rules/person/${explained.identity_id}?reason=cleared`)).statusCode, 200);
+  assert.equal(await recording(bob), true);
+
+  // Everyone, except people or organizations set not to be recorded; off stops everything.
+  assert.equal((await call(admin, "PUT", "/session-replay/admin/targeting/mode", { mode: "everyone", reason: "Load test" })).statusCode, 200);
+  assert.equal(await recording(customerAdmin), true);
+  await rules({ rules: [{ kind: "organization", target: customerAdmin.orgId, enabled: false }] });
+  assert.equal(await recording(customerAdmin), false);
+  await call(admin, "PUT", "/session-replay/admin/targeting/mode", { mode: "off" });
+  assert.equal(await recording(alice), false);
+  assert.equal((await call(alice, "POST", "/session-replay/chunks", chunk("sessiontarget001", 0, { s: [], e: [] }))).statusCode, 403);
+  await call(admin, "PUT", "/session-replay/admin/targeting/mode", { mode: "listed" });
+  assert.equal(await recording(alice), true);
+
+  // An expired rule counts as absent.
+  const { upsertReplayRules, clearReplayTargetingCache } = await import("../session-replay/targeting.js");
+  await upsertReplayRules([{ kind: "person", target_id: aliceRule.target_id, enabled: true, expires_at: Date.now() - 1000, reason: "", label: alice.email, detail: "" }], "test");
+  clearReplayTargetingCache();
+  assert.equal(await recording(alice), false);
+  assert.equal((await rules({ rules: [{ kind: "person", target: alice.email, enabled: true, expires_at: Date.now() - 1000 }] })).statusCode, 400);
+
+  // Bad input changes nothing: one unknown person fails the whole batch.
+  assert.equal((await rules({ rules: [{ kind: "person", target: alice.email, enabled: true }, { kind: "person", target: "nobody@example.test", enabled: true }] })).statusCode, 404);
+  assert.equal(await recording(alice), false);
+  assert.equal((await rules({ rules: [{ kind: "organization", target: "org_does_not_exist", enabled: true }] })).statusCode, 404);
+  assert.equal((await call(admin, "PUT", "/session-replay/admin/targeting/mode", { mode: "some" })).statusCode, 400);
+
+  // Search returns a page of people and organizations with their rules, never the whole list.
+  const search = (await call(admin, "GET", `/session-replay/admin/targeting/search?q=target-bob&limit=5`)).json();
+  const person = search.people.find((p: any) => p.email === bob.email);
+  assert.ok(person, JSON.stringify(search));
+  assert.equal(person.organizations[0].organization_id, bob.orgId);
+  const org = (await call(admin, "GET", `/session-replay/admin/targeting/search?q=${bob.orgId}&kind=organizations`)).json().organizations;
+  assert.deepEqual(org.map((o: any) => [o.organization_id, o.rule?.enabled]), [[bob.orgId, true]]);
+  assert.deepEqual((await call(admin, "GET", "/session-replay/admin/targeting/search?q=x")).json().people, []);
+
+  // Rules list by state, a page at a time, and counts.
+  const page1 = (await call(admin, "GET", "/session-replay/admin/targeting?state=recording&limit=1")).json();
+  assert.equal(page1.rules.length, 1);
+  assert.ok(page1.next);
+  const page2 = (await call(admin, "GET", `/session-replay/admin/targeting?state=recording&limit=1&cursor=${encodeURIComponent(page1.next)}`)).json();
+  assert.notEqual(page2.rules[0]?.target_id, page1.rules[0].target_id);
+  assert.ok(page1.counts.organizations_recording >= 1 && page1.counts.organizations_excluded >= 1);
+  assert.ok((await call(admin, "GET", "/session-replay/admin/targeting?state=expired")).json().rules.some((r: any) => r.target_id === aliceRule.target_id));
+
+  // Every change is logged with who made it and why.
+  const entries = (await call(admin, "GET", "/session-replay/admin/targeting/log?limit=200")).json().entries;
+  const modeChange = entries.find((e: any) => e.kind === "mode" && e.after === "everyone");
+  assert.equal(modeChange.actor, admin.email);
+  assert.equal(modeChange.reason, "Load test");
+  assert.ok(entries.some((e: any) => e.kind === "person" && e.after === null && e.reason === "cleared"));
 });

@@ -1084,6 +1084,31 @@ export async function deleteOrganization(orgId: string) {
   await rm(orgDir(orgId), { recursive: true, force: true });
 }
 
+/** Up to `limit` organizations whose name or id contains `query` (case-insensitive), by name. */
+export async function searchOrganizations(query: string, limit: number) {
+  if (isFirstMeasurePostgresEnabled()) return (await postgresStorage()).searchOrganizations(query, limit);
+  const needle = query.toLowerCase();
+  return (await listOrganizations())
+    .filter((org) => String(org.id ?? "").toLowerCase().includes(needle) || String(org.name ?? "").toLowerCase().includes(needle))
+    .slice(0, limit);
+}
+
+/** Up to `limit` identities whose email, name or id contains `query` (case-insensitive), by email. */
+export async function searchIdentities(query: string, limit: number) {
+  if (isFirstMeasurePostgresEnabled()) return (await postgresStorage()).searchIdentities(query, limit);
+  await ensurePlatformStorage();
+  const needle = query.toLowerCase();
+  const found: JsonObject[] = [];
+  const entries = await readdir(identitiesRoot(), { withFileTypes: true }).catch(() => []);
+  for (const entry of entries) {
+    if (!entry.isFile() || !entry.name.endsWith(".json")) continue;
+    const identity = await readJsonFile<JsonObject>(path.join(identitiesRoot(), entry.name)).catch(() => null);
+    if (!identity) continue;
+    if ([identity.email, identity.name, identity.id].some((value) => String(value ?? "").toLowerCase().includes(needle))) found.push(identity);
+  }
+  return found.sort((a, b) => String(a.email ?? "").localeCompare(String(b.email ?? ""))).slice(0, limit);
+}
+
 export async function listOrganizations() {
   if (isFirstMeasurePostgresEnabled()) return (await postgresStorage()).listOrganizations();
   await ensurePlatformStorage();
