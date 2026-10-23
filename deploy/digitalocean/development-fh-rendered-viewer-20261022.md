@@ -58,3 +58,10 @@ Scripts: `output/fh-rendered-viewer-20261022/`, `output/fh-tab-route-20261022/`,
     shows node OOM kills while other sessions staged at the same time).
   - This release's own unactivated staging dirs were renamed to `*-failed-<time>` so it could restage.
   - It staged once about 3 GB was free.
+
+**Follow-up `036660a7` (legacy/web/pool, verified)**
+- Full-house roof faces show the matching `model_data.xml` face's pitch and area (the published report values), matched
+  by face center. They measure the plane only when no report face matches. Mercer Way's main face now reads 12/12,
+  775 sq ft, as the report does (previously 12.4/12).
+- Legacy host: on Jack's go-ahead a 4 GB `/swapfile` was added (swapon, `/etc/fstab`). Previously it had none, and
+  concurrent staging TypeScript checks were OOM-killed.
