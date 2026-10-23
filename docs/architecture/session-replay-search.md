@@ -89,6 +89,26 @@ only (CSRF on the call). The tools are meant for a frontier model working top-do
 Outputs are sized for a context window: labels people recognise, ids to follow up with, and example
 `(session_id, t)` moments to verify on.
 
+## Access for coding agents
+
+The tools are meant to be driven remotely by a coding agent (Claude Code, Codex, any MCP client), not by a model
+built into the product. A platform administrator creates an **access key** in the viewer (Agent access, top left)
+and gives it to the agent.
+
+- **MCP:** `POST /v1/platform/session-replay/mcp` with `Authorization: Bearer <key>`. This is Streamable HTTP with
+  JSON responses only: no event stream (GET and DELETE answer 405) and no MCP sessions. It handles `initialize` (the
+  guide comes back as `instructions`), `ping`, `tools/list` and `tools/call`; notifications get 202.
+  - Claude Code: `claude mcp add --transport http firstmate-replay https://dev.1m8.ai/v1/platform/session-replay/mcp --header "Authorization: Bearer <key>"`.
+  - Codex: `[mcp_servers.firstmate_replay]` with `url` and `bearer_token_env_var = "FIRSTMATE_REPLAY_KEY"`.
+- **Plain HTTP:** the same key on `GET …/insights/tools` and `POST …/insights/call` (no CSRF token, since it is not
+  a cookie).
+- **What a key opens:** the search tools only. It cannot manage keys, switch recording on, list or play recordings
+  through the admin routes, or sign in anywhere. MCP takes keys only, never browser sessions.
+- **How keys are kept:** `insights/keys.ts`, table `replay_ix_access_keys`. Keys are `fmrk_` followed by 32 random
+  bytes. Only their SHA-256 is stored, the key is shown once, and it expires after 7 days to 1 year. Revoking it in
+  the viewer stops it at once. Use is recorded at most once a minute, and every tool call is logged with the key's
+  id and name.
+
 ## Measured
 
 - **Real sessions (dev, 2026-10-22).** Jack's 60-second portal session (624 events, 866-node snapshot) indexed in

@@ -388,8 +388,10 @@ question them. The index is derived from recordings alone and can always be
 rebuilt (bump `INDEX_VERSION`); recordings stay exact and are only opened to
 drill into a moment. Element and screen ids must stay stable across sessions
 and organizations. Field values never enter the index. Tools are for platform
-administrators only. Run `tests/session-replay-insights-browser.test.mjs` for
-changes here.
+administrators, or a coding agent holding an access key one of them created
+(MCP at `/v1/platform/session-replay/mcp`); a key opens the search tools and
+nothing else. Run `tests/session-replay-insights-browser.test.mjs` and
+`tests/session-replay-agent-access.test.ts` for changes here.
 
 ## Project window content ownership
 

@@ -28,7 +28,7 @@ export function insightsDb() {
   if (database && databasePath === nextPath) return database;
   void closeReplayInsightsDatabase();
   // Raise this whenever initialize gains a table or a column: Postgres runs it again only for a higher version.
-  database = openSqlStore({ id: "session_replay_insights", schemaVersion: 1, filename: nextPath, initialize });
+  database = openSqlStore({ id: "session_replay_insights", schemaVersion: 2, filename: nextPath, initialize });
   databasePath = nextPath;
   return database;
 }
@@ -126,6 +126,19 @@ async function initialize(store: SqlStore) {
       count INTEGER NOT NULL DEFAULT 0,
       total_ms BIGINT NOT NULL DEFAULT 0,
       PRIMARY KEY (organization_id, screen_id, from_target, to_target, day)
+    );
+    CREATE TABLE IF NOT EXISTS replay_ix_access_keys (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL DEFAULT '',
+      key_hash TEXT NOT NULL UNIQUE,
+      prefix TEXT NOT NULL DEFAULT '',
+      created_by TEXT NOT NULL DEFAULT '',
+      created_at BIGINT NOT NULL,
+      expires_at BIGINT NOT NULL,
+      last_used_at BIGINT NOT NULL DEFAULT 0,
+      uses INTEGER NOT NULL DEFAULT 0,
+      revoked_at BIGINT NOT NULL DEFAULT 0,
+      revoked_by TEXT NOT NULL DEFAULT ''
     );
   `);
   if (store.isPostgres) {
