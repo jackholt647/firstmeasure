@@ -1,0 +1,289 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Canvassing — FirstMate</title>
+<meta name="description" content="Door-to-door maps with pins and statuses, rep activity, and leads that go straight into the CRM.">
+<meta name="robots" content="noindex, nofollow">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,400..900;1,400..900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/site.css">
+<style>
+  .cv-hero-inner { display: grid; grid-template-columns: 1fr 1.15fr; gap: 56px; align-items: center }
+  @media (max-width: 1000px) { .cv-hero-inner { grid-template-columns: 1fr } }
+  .cv-scene { position: relative; padding: 0 20px 30px 0 }
+  .cv-map { position: relative; background: #eef1ec }
+  .cv-map svg { width: 100%; height: auto }
+  .cv-road { stroke: #fff; stroke-width: 12; stroke-linecap: round; fill: none }
+  .cv-road-edge { stroke: #dfe3dc; stroke-width: 15; stroke-linecap: round; fill: none }
+  .cv-house { fill: #dde2da; stroke: #cdd3c9; stroke-width: 1 }
+  .cv-park { fill: #d7ead0 }
+  .cv-label { font: 700 8px Montserrat, sans-serif; fill: #8a9286; letter-spacing: .06em }
+  .cv-route { fill: none; stroke: var(--brand); stroke-width: 3; stroke-dasharray: 6 5; stroke-linecap: round; opacity: .8 }
+  .cv-route-draw { fill: none; stroke: #eef1ec; stroke-width: 5; stroke-dasharray: 900; stroke-dashoffset: 0 }
+  .mock.in .cv-route-draw { animation: cv-reveal 3s var(--ease) forwards; animation-delay: .4s }
+  @keyframes cv-reveal { to { stroke-dashoffset: 900 } }
+  .cv-pin .in { transform-box: fill-box; transform-origin: 50% 100%; opacity: 0; transform: translateY(-14px) scale(.4) }
+  .mock.in .cv-pin .in { animation: cv-drop .6s var(--ease) forwards; animation-delay: calc(var(--d, 0) * 160ms + 600ms) }
+  @keyframes cv-drop { 70% { opacity: 1; transform: translateY(1px) scale(1.08) } 100% { opacity: 1; transform: none } }
+  .cv-pin path { transition: fill .5s; stroke: #fff; stroke-width: 1.5 }
+  .cv-me { fill: var(--info); stroke: #fff; stroke-width: 2 }
+  .cv-me-ring { fill: var(--info); opacity: .25; transform-box: fill-box; transform-origin: center; animation: cv-ring 2s ease-out infinite }
+  @keyframes cv-ring { from { transform: scale(.6); opacity: .45 } to { transform: scale(2.2); opacity: 0 } }
+  .cv-legend { display: flex; flex-wrap: wrap; gap: 6px; padding: 10px 12px; border-top: 1px solid var(--line) }
+  .cv-dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; box-shadow: 0 0 0 2px #fff, 0 0 0 3px rgba(0, 0, 0, .14) }
+  .cv-chipbar { display: flex; gap: 5px; flex-wrap: wrap; padding: 8px 10px; background: #fff; border-bottom: 1px solid var(--line) }
+  .cv-chipbar .mock-chip { background: var(--bg-soft) }
+  .cv-chipbar .mock-chip.on { background: var(--heading); color: #fff }
+  .cv-f1 { right: -8px; bottom: -6px; width: 220px; opacity: 0; transform: translateY(10px); transition: opacity .4s, transform .5s var(--ease) }
+  .cv-f1.show { opacity: 1; transform: none }
+  .cv-f2 { left: -24px; top: 70px; width: 170px; opacity: 0 }
+  .mock.in ~ .cv-f2 { animation: fm-pop .6s var(--ease) 2.6s forwards, fm-float 7s ease-in-out 3.2s infinite }
+  @media (max-width: 560px) { .cv-f2 { display: none } .cv-f1 { right: 0; width: 190px } .cv-scene { padding-right: 0 } }
+
+  /* phone */
+  .cv-phone-wrap { display: flex; justify-content: center }
+  .cv-sheet { padding: 40px 14px 14px; display: flex; flex-direction: column; gap: 8px; font-size: 12px }
+  .cv-field label { display: block; font-size: 10px; font-weight: 800; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; margin-bottom: 3px }
+  .cv-field div { border: 1.5px solid var(--line); border-radius: 10px; padding: 8px 10px; font-weight: 700; display: flex; align-items: center; gap: 6px; min-height: 34px }
+  .cv-statuses { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 5px; width: 100% }
+  .cv-statuses span { min-width: 0; line-height: 1.2; border: 1.5px solid var(--line); border-radius: 10px; padding: 6px 6px; font-size: 9px; font-weight: 700; display: flex; align-items: center; gap: 6px; transition: all .3s }
+  .cv-statuses span.on { border-color: var(--ok); background: #f0fdf4 }
+  .cv-mini-map { height: 110px; border-radius: 14px; overflow: hidden; background: #eef1ec; position: relative }
+
+  /* activity */
+  .cv-rep { display: grid; grid-template-columns: 30px 1fr 2fr 40px; gap: 10px; align-items: center; font-size: 12px; font-weight: 700 }
+  .cv-stack { display: flex; height: 10px; border-radius: 5px; overflow: hidden; background: #eceef1 }
+  .cv-stack i { display: block; height: 100%; width: var(--w); transform-origin: left; transform: scaleX(0) }
+  .mock.in .cv-stack i { animation: fm-grow-x 1.2s var(--ease) forwards; animation-delay: calc(var(--d, 0) * 150ms + 300ms) }
+  @media (max-width: 520px) { .cv-rep { grid-template-columns: 26px 1fr 1.4fr 32px } }
+
+  /* lead handoff */
+  .cv-flow { display: grid; grid-template-columns: 1fr 40px 1fr; gap: 8px; align-items: center }
+  .cv-flow .arrow { color: var(--brand); text-align: center; font-size: 18px }
+  .mock.in .cv-flow .arrow { animation: cv-nudge 1.4s ease-in-out infinite }
+  @keyframes cv-nudge { 50% { transform: translateX(5px) } }
+  @media (max-width: 520px) { .cv-flow { grid-template-columns: 1fr } .cv-flow .arrow { transform: rotate(90deg) } }
+</style>
+</head>
+<body data-header="over-dark">
+<div id="site-header"></div>
+<main>
+
+<section class="hero">
+  <div class="hero-grid"></div><div class="hero-glow"></div>
+  <div class="container hero-inner cv-hero-inner">
+    <div>
+      <div class="breadcrumb reveal"><a href="~/solutions/" style="color:#8b909c">Solutions</a><span style="color:#8b909c">Canvassing</span></div>
+      <div class="eyebrow reveal">Canvassing</div>
+      <h1 class="reveal" style="--d:1">Every door, <span class="text-gradient">on the map.</span></h1>
+      <p class="lead reveal" style="--d:2">Drop a pin at every house you knock, mark what happened, and turn the good ones into leads in the CRM before you reach the next driveway.</p>
+      <div class="btn-row reveal" style="--d:3;margin-top:32px"><a class="btn btn-primary btn-lg" href="https://app.1m8.ai/portal/signup">Sign up free</a><a class="btn btn-glass btn-lg" href="~/demo/">Book a demo</a></div>
+    </div>
+    <div class="cv-scene" aria-hidden="true">
+      <div class="mock" id="cv-hero">
+        <div class="mock-bar"><i></i><i></i><i></i><div class="url">Canvassing · Today</div></div>
+        <div class="cv-map">
+          <div class="cv-chipbar"><span class="mock-chip on">All</span><span class="mock-chip"><span class="cv-dot" style="background:#2563eb"></span>New</span><span class="mock-chip"><span class="cv-dot" style="background:#16a34a"></span>Appointment Set</span></div>
+          <svg viewBox="0 0 400 250" id="cv-svg">
+            <rect width="400" height="250" fill="#eef1ec"/>
+            <rect class="cv-park" x="300" y="150" width="90" height="90" rx="10"/>
+            <g>
+              <path class="cv-road-edge" d="M-10 70 H410 M-10 175 H290 M110 -10 V260 M240 -10 V260 M290 175 Q330 175 340 140 L360 -10"/>
+              <path class="cv-road" d="M-10 70 H410 M-10 175 H290 M110 -10 V260 M240 -10 V260 M290 175 Q330 175 340 140 L360 -10"/>
+            </g>
+            <g id="cv-houses"></g>
+            <text class="cv-label" x="10" y="64">MAPLE AVE</text><text class="cv-label" x="10" y="169">BIRCH RD</text>
+            <text class="cv-label" x="118" y="246" transform="rotate(-90 118 246)">OAK ST</text>
+            <path class="cv-route" d="M60 82 H100 V163 H170 V82 H228 V163 H280"/>
+            <path class="cv-route-draw" d="M280 163 H228 V82 H170 V163 H100 V82 H60"/>
+            <g id="cv-pins"></g>
+            <circle class="cv-me-ring" cx="228" cy="128" r="9"/><circle class="cv-me" cx="228" cy="128" r="6"/>
+          </svg>
+        </div>
+        <div class="cv-legend">
+          <span class="mock-chip"><span class="cv-dot" style="background:#2563eb"></span>New</span>
+          <span class="mock-chip"><span class="cv-dot" style="background:#f59e0b"></span>No Answer</span>
+          <span class="mock-chip"><span class="cv-dot" style="background:#64748b"></span>Not Interested</span>
+          <span class="mock-chip"><span class="cv-dot" style="background:#8b5cf6"></span>Follow Up</span>
+          <span class="mock-chip"><span class="cv-dot" style="background:#16a34a"></span>Appointment Set</span>
+          <span class="mock-chip"><span class="cv-dot" style="background:#0f766e"></span>Lead Created</span>
+        </div>
+      </div>
+      <div class="mock-float cv-f2"><div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">Today</div><div style="display:flex;justify-content:space-between;margin-top:4px"><span>Doors</span><b id="cv-doors">0</b></div><div style="display:flex;justify-content:space-between"><span>Leads</span><b id="cv-leads">0</b></div></div>
+      <div class="mock-float cv-f1" id="cv-toast"><div class="mock-toast"><div>Lead created<div style="font-weight:600;color:var(--muted);font-size:11px" id="cv-toast-sub">88 Maple Ave · added to New leads</div></div></div></div>
+    </div>
+  </div>
+</section>
+
+<!-- Pin it -->
+<section class="section">
+  <div class="container split">
+    <div class="reveal">
+      <div class="eyebrow">Pins and statuses</div>
+      <h2>Tap the house. Pick what happened.</h2>
+      <p class="lead">A pin takes seconds: the nearest address is filled in for you, choose a status, add a name, phone and note if you got one. The map shows the whole street at a glance.</p>
+      <ul class="feature-list"><li>Your own statuses and colors</li><li>Filter the map by status</li><li>Works from any phone</li></ul>
+    </div>
+    <div class="cv-phone-wrap reveal">
+      <div class="mock mock-phone" aria-hidden="true" style="border:0;overflow:visible">
+        <div class="screen">
+          <div class="cv-sheet">
+            <div class="cv-mini-map fade"><svg viewBox="0 0 220 110" style="width:100%;height:100%"><rect width="220" height="110" fill="#eef1ec"/><path class="cv-road" d="M-5 60 H225 M80 -5 V115"/><rect class="cv-house" x="20" y="22" width="26" height="22" rx="3"/><rect class="cv-house" x="110" y="20" width="26" height="24" rx="3"/><rect class="cv-house" x="160" y="74" width="26" height="22" rx="3"/><g transform="translate(123 34)"><path d="M0 0 c-6 -8 -9 -11 -9 -15 a9 9 0 1 1 18 0 c0 4 -3 7 -9 15z" fill="#16a34a" stroke="#fff" stroke-width="1.5"/><circle cx="0" cy="-15" r="3.5" fill="#fff"/></g></svg></div>
+            <div class="mock-title slide-up" style="--d:1">New pin</div>
+            <div class="cv-field slide-up" style="--d:2"><label>Address</label><div><i class="fa-solid fa-location-dot" style="color:var(--brand)"></i>88 Maple Ave</div></div>
+            <div class="cv-field slide-up" style="--d:3"><label>Status</label><div class="cv-statuses" style="border:0;padding:0" id="cv-statuses"><span><span class="cv-dot" style="background:#f59e0b"></span>No Answer</span><span><span class="cv-dot" style="background:#64748b"></span>Not Interested</span><span><span class="cv-dot" style="background:#8b5cf6"></span>Follow Up</span><span class="on"><span class="cv-dot" style="background:#16a34a"></span>Appointment Set</span></div></div>
+            <div class="cv-field slide-up" style="--d:4"><label>Name</label><div><span class="mock-type" style="--steps:12;--d:6">Dana Brooks</span></div></div>
+            <div class="cv-field slide-up" style="--d:5"><label>Phone</label><div>(555) 010-0142</div></div>
+            <div style="display:flex;gap:6px;margin-top:4px;--d:6" class="slide-up"><span class="mock-btn" style="flex:1;justify-content:center;padding:9px">Save</span><span class="mock-btn" style="flex:1;justify-content:center;padding:9px;background:var(--heading)">Create lead</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Leads into CRM -->
+<section class="section section--soft">
+  <div class="container split split--flip">
+    <div class="reveal">
+      <div class="eyebrow">Straight into the CRM</div>
+      <h2>A good door becomes a lead in one tap.</h2>
+      <p class="lead">Create lead turns the pin into a contact and a project with the source set to Canvass and the canvasser credited. The office sees it in New leads right away.</p>
+      <ul class="feature-list"><li>No re-typing at the office</li><li>Source and canvasser tracked for the funnel</li><li>New lead alerts go to whoever you choose</li></ul>
+    </div>
+    <div class="mock reveal" aria-hidden="true">
+      <div class="mock-bar"><i></i><i></i><i></i><div class="url">Pin → New lead</div></div>
+      <div class="mock-main">
+        <div class="cv-flow">
+          <div class="mock-row slide-up" style="--d:1;flex-direction:column;align-items:flex-start;gap:4px"><span class="mock-chip green"><span class="cv-dot" style="background:#16a34a"></span>Appointment Set</span><b>88 Maple Ave</b><span style="font-size:11px;color:var(--muted);font-weight:600">Dana Brooks · Thu 4 PM</span></div>
+          <div class="arrow"><i class="fa-solid fa-arrow-right"></i></div>
+          <div class="mock-row slide-up" style="--d:4;flex-direction:column;align-items:flex-start;gap:4px;border-color:var(--brand);box-shadow:0 0 0 3px rgba(219,0,0,.08)"><span class="mock-chip blue">New lead</span><b>Dana Brooks</b><span style="font-size:11px;color:var(--muted);font-weight:600">Source: Canvass › Storm area</span></div>
+        </div>
+        <div class="mock-row pop" style="--d:7"><div class="mock-avatar">JR</div><b style="flex:1">Canvasser credited · J. Rivera</b><span class="mock-chip">Funnel: Lead</span></div>
+        <div class="mock-row pop" style="--d:8"><div class="mock-toast" style="flex:1">Office notified · first call assigned</div></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Activity -->
+<section class="section">
+  <div class="container split">
+    <div class="reveal">
+      <div class="eyebrow">Rep activity</div>
+      <h2>See who is out there and how it is going.</h2>
+      <p class="lead">Doors knocked, conversations and appointments set for every canvasser, by day or by area. Plan the next street from what the last one told you.</p>
+      <ul class="feature-list"><li>Pins by canvasser and by status</li><li>Routes through the doors not yet knocked</li><li>Pair with storm and service areas</li></ul>
+    </div>
+    <div class="mock reveal" aria-hidden="true">
+      <div class="mock-bar"><i></i><i></i><i></i><div class="url">Canvassing · Activity · This week</div></div>
+      <div class="mock-main">
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">
+          <div class="mock-kpi slide-up" style="--d:1"><small>Doors</small><b data-count="412">0</b></div>
+          <div class="mock-kpi slide-up" style="--d:2"><small>Appointments</small><b data-count="23">0</b></div>
+          <div class="mock-kpi slide-up" style="--d:3"><small>Leads</small><b data-count="31">0</b></div>
+        </div>
+        <div class="cv-rep slide-up" style="--d:2"><div class="mock-avatar">JR</div><span>J. Rivera</span><div class="cv-stack"><i style="--w:40%;background:#f59e0b;--d:1"></i><i style="--w:25%;background:#8b5cf6;--d:2"></i><i style="--w:20%;background:#16a34a;--d:3"></i></div><span style="text-align:right">132</span></div>
+        <div class="cv-rep slide-up" style="--d:3"><div class="mock-avatar" style="background:linear-gradient(135deg,#93c5fd,#2563eb)">AM</div><span>A. Mendes</span><div class="cv-stack"><i style="--w:45%;background:#f59e0b;--d:2"></i><i style="--w:18%;background:#8b5cf6;--d:3"></i><i style="--w:12%;background:#16a34a;--d:4"></i></div><span style="text-align:right">118</span></div>
+        <div class="cv-rep slide-up" style="--d:4"><div class="mock-avatar" style="background:linear-gradient(135deg,#86efac,#16a34a)">TL</div><span>T. Lee</span><div class="cv-stack"><i style="--w:35%;background:#f59e0b;--d:3"></i><i style="--w:15%;background:#8b5cf6;--d:4"></i><i style="--w:10%;background:#16a34a;--d:5"></i></div><span style="text-align:right">96</span></div>
+        <div style="display:flex;gap:10px;font-size:10px;font-weight:700;color:var(--muted);--d:6" class="fade"><span><span class="cv-dot" style="background:#f59e0b"></span> No Answer</span><span><span class="cv-dot" style="background:#8b5cf6"></span> Follow Up</span><span><span class="cv-dot" style="background:#16a34a"></span> Appointment Set</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section section--dark">
+  <div class="container">
+    <div class="section-head center reveal"><div class="eyebrow">More</div><h2>Made for the street.</h2></div>
+    <div class="grid grid-3">
+      <div class="card reveal"><div class="icon"><i class="fa-solid fa-location-crosshairs"></i></div><h3>Nearest address</h3><p>Pins start from where you are standing.</p></div>
+      <div class="card reveal" style="--d:1"><div class="icon"><i class="fa-solid fa-palette"></i></div><h3>Your statuses</h3><p>Name and color them the way your team talks.</p></div>
+      <div class="card reveal" style="--d:2"><div class="icon"><i class="fa-solid fa-user-shield"></i></div><h3>Canvasser role</h3><p>Give door knockers the map and nothing they do not need.</p></div>
+      <div class="card reveal"><div class="icon"><i class="fa-solid fa-code-branch"></i></div><h3>By branch</h3><p>Each branch keeps its own pins and settings.</p></div>
+      <div class="card reveal" style="--d:1"><div class="icon"><i class="fa-solid fa-calendar-check"></i></div><h3>Set the appointment</h3><p>Book on the spot from the same screen.</p></div>
+      <div class="card reveal" style="--d:2"><div class="icon"><i class="fa-solid fa-chart-column"></i></div><h3>In the funnel</h3><p>Canvass leads tracked from door to signed contract.</p></div>
+    </div>
+  </div>
+</section>
+
+<section class="section section--soft">
+  <div class="container">
+    <div class="section-head reveal"><div class="eyebrow">Connected</div><h2>From the door to the deal.</h2></div>
+    <div class="grid grid-4">
+      <a class="card reveal" href="~/solutions/crm/"><div class="icon"><i class="fa-solid fa-filter"></i></div><h3>CRM</h3><p>Every canvass lead in New leads.</p></a>
+      <a class="card reveal" style="--d:1" href="~/solutions/roof-measurements/"><div class="icon"><i class="fa-solid fa-house-chimney"></i></div><h3>Measurements</h3><p>Order the report before the appointment.</p></a>
+      <a class="card reveal" style="--d:2" href="~/solutions/proposals/"><div class="icon"><i class="fa-solid fa-file-signature"></i></div><h3>Proposals</h3><p>Show up with options ready to sign.</p></a>
+      <a class="card reveal" style="--d:3" href="~/solutions/payroll/"><div class="icon"><i class="fa-solid fa-money-check-dollar"></i></div><h3>Commissions</h3><p>Pay canvassers for what they set.</p></a>
+    </div>
+  </div>
+</section>
+
+<section class="section">
+  <div class="container container--narrow">
+    <div class="section-head reveal"><h2>Questions</h2></div>
+    <details class="faq"><summary>Is every pin a lead?</summary><div>No. Pins are lightweight so you can mark every door. Only the ones you choose become a contact and a project.</div></details>
+    <details class="faq"><summary>Can I change the statuses?</summary><div>Yes. Each branch sets its own statuses, colors and which ones can become a lead.</div></details>
+    <details class="faq"><summary>Do canvassers need a full account?</summary><div>Placeholder answer about the canvasser role and pricing.</div></details>
+  </div>
+</section>
+
+<section class="section" style="padding-top:0"><div class="container"><div class="cta-band reveal">
+  <h2>Put your next neighborhood on the map.</h2>
+  <p class="lead" style="color:#c9ccd4;max-width:600px;margin:0 auto">Sign up free and drop your first pins today.</p>
+  <div class="btn-row"><a class="btn btn-primary btn-lg" href="https://app.1m8.ai/portal/signup">Sign up free</a><a class="btn btn-glass btn-lg" href="~/demo/">Book a demo</a></div>
+</div></div></section>
+
+</main>
+<div id="site-footer"></div>
+<script src="../../assets/site.js"></script>
+<script>
+(function () {
+  var NS = 'http://www.w3.org/2000/svg';
+  var C = { new: '#2563eb', no_answer: '#f59e0b', not_interested: '#64748b', follow_up: '#8b5cf6', appointment_set: '#16a34a', lead_created: '#0f766e' };
+  // Houses along the streets; pins on some of them.
+  var houses = [], hx = [20, 50, 80, 135, 165, 195, 260, 290, 320], hg = document.getElementById('cv-houses');
+  hx.forEach(function (x) { houses.push([x, 30], [x, 88]); if (x < 300) houses.push([x, 135]); if (x < 230) houses.push([x, 192]); });
+  houses.forEach(function (h) { var r = document.createElementNS(NS, 'rect'); r.setAttribute('class', 'cv-house'); r.setAttribute('x', h[0]); r.setAttribute('y', h[1]); r.setAttribute('width', 22); r.setAttribute('height', 20); r.setAttribute('rx', 3); hg.appendChild(r); });
+  var start = ['no_answer', 'new', 'not_interested', 'follow_up', 'no_answer', 'appointment_set', 'new', 'no_answer', 'follow_up', 'new', 'lead_created', 'no_answer', 'new', 'appointment_set'];
+  var pg = document.getElementById('cv-pins'), pins = [];
+  var spots = [[1, 0], [4, 0], [5, 0], [8, 0], [9, 0], [12, 0], [13, 0], [16, 0], [17, 0], [20, 0], [21, 0], [24, 0], [25, 0], [28, 0]];
+  spots.forEach(function (s, i) {
+    var h = houses[s[0]]; if (!h) return;
+    var g = document.createElementNS(NS, 'g'); g.setAttribute('class', 'cv-pin'); g.setAttribute('transform', 'translate(' + (h[0] + 11) + ' ' + (h[1] + 6) + ')');
+    var inner = document.createElementNS(NS, 'g'); inner.setAttribute('class', 'in'); inner.style.setProperty('--d', i);
+    var p = document.createElementNS(NS, 'path'); p.setAttribute('d', 'M0 0 c-6 -8 -9 -11 -9 -15 a9 9 0 1 1 18 0 c0 4 -3 7 -9 15z'); p.style.fill = C[start[i]];
+    var c = document.createElementNS(NS, 'circle'); c.setAttribute('cx', 0); c.setAttribute('cy', -15); c.setAttribute('r', 3.5); c.setAttribute('fill', '#fff');
+    inner.appendChild(p); inner.appendChild(c); g.appendChild(inner); pg.appendChild(g); pins.push({ g: g, inner: inner, p: p, s: start[i] });
+  });
+  var doors = document.getElementById('cv-doors'), leads = document.getElementById('cv-leads'), d = 0, l = 1;
+  var reduce = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var streets = ['Maple Ave', 'Birch Rd', 'Oak St'], toast = document.getElementById('cv-toast'), sub = document.getElementById('cv-toast-sub');
+  function countUp() { var t = setInterval(function () { d++; doors.textContent = d; if (d >= pins.length) clearInterval(t); }, 160); leads.textContent = l; }
+  if (reduce) { doors.textContent = pins.length; leads.textContent = l; return; }
+  var started = false;
+  new IntersectionObserver(function (e) {
+    if (!e[0].isIntersecting || started) return; started = true;
+    setTimeout(countUp, 600);
+    setTimeout(function () {
+      setInterval(function () {
+        var cand = pins.filter(function (x) { return x.s === 'new' || x.s === 'no_answer' || x.s === 'follow_up' || x.s === 'appointment_set'; });
+        if (!cand.length) { pins.forEach(function (x, i) { x.s = start[i]; x.p.style.fill = C[x.s]; }); return; }
+        var pin = cand[Math.floor(Math.random() * cand.length)];
+        var next = { new: Math.random() < .5 ? 'follow_up' : 'no_answer', no_answer: Math.random() < .5 ? 'not_interested' : 'appointment_set', follow_up: 'appointment_set', appointment_set: 'lead_created' }[pin.s];
+        pin.s = next; pin.p.style.fill = C[next];
+        if (pin.inner.animate) pin.inner.animate([{ transform: 'none' }, { transform: 'translateY(-6px) scale(1.25)' }, { transform: 'none' }], { duration: 500, easing: 'ease-out' });
+        d++; doors.textContent = d;
+        if (next === 'lead_created') {
+          l++; leads.textContent = l;
+          sub.textContent = (100 + Math.floor(Math.random() * 300)) + ' ' + streets[Math.floor(Math.random() * 3)] + ' · added to New leads';
+          toast.classList.add('show'); setTimeout(function () { toast.classList.remove('show'); }, 2200);
+        }
+      }, 1500);
+    }, 3200);
+  }).observe(document.getElementById('cv-hero'));
+})();
+</script>
+</body>
+</html>

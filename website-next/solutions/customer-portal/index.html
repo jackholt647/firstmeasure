@@ -1,0 +1,236 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Customer Portal — FirstMate</title>
+<meta name="description" content="Give every homeowner a live view of their project: status, schedule, documents, photos and payments, signed and paid from their phone.">
+<meta name="robots" content="noindex, nofollow">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,400..900;1,400..900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/site.css">
+<style>
+  .cp-stage { display: flex; justify-content: center; min-height: 560px }
+  .cp-phone .screen { background: #f7f7f9 }
+  .cp-top { background: var(--bg-dark); color: #fff; padding: 40px 16px 18px }
+  .cp-top small { display: block; color: #9ca3af; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em }
+  .cp-top b { display: block; color: #fff; font-size: 16px; font-weight: 800; letter-spacing: -.01em; margin-top: 2px }
+  .cp-top .cp-co { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; font-size: 11px; font-weight: 700; color: #c9ccd4 }
+  .cp-top .cp-co i { width: 22px; height: 22px; border-radius: 6px; background: var(--brand); display: grid; place-items: center; font-size: 10px; color: #fff; font-style: normal }
+  .cp-pad { padding: 12px; display: flex; flex-direction: column; gap: 10px }
+  .cp-card { background: #fff; border: 1px solid var(--line); border-radius: 14px; padding: 12px }
+  .cp-card h5 { margin: 0 0 8px; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .06em; color: var(--muted) }
+  .cp-steps { list-style: none; margin: 0; padding: 0; position: relative }
+  .cp-steps li { display: flex; gap: 10px; align-items: center; padding: 5px 0; font-size: 12px; font-weight: 700; color: #9ca3af; position: relative; transition: color .4s }
+  .cp-steps li::before { content: ""; width: 16px; height: 16px; border-radius: 50%; border: 2px solid #d1d5db; background: #fff; flex: none; transition: all .4s; z-index: 1 }
+  .cp-steps li:not(:last-child)::after { content: ""; position: absolute; left: 7px; top: 21px; width: 2px; height: 14px; background: #e5e7eb; transition: background .4s }
+  .cp-steps li.done { color: var(--heading) }
+  .cp-steps li.done::before { background: var(--ok); border-color: var(--ok); box-shadow: inset 0 0 0 3px #fff }
+  .cp-steps li.done::after { background: var(--ok) }
+  .cp-steps li.now { color: var(--brand) }
+  .cp-steps li.now::before { border-color: var(--brand); background: var(--brand); box-shadow: 0 0 0 4px rgba(219, 0, 0, .15); animation: cp-ring 1.6s infinite }
+  .cp-steps li span { margin-left: auto; font-size: 10px; color: var(--muted); font-weight: 600 }
+  @keyframes cp-ring { 50% { box-shadow: 0 0 0 7px rgba(219, 0, 0, .05) } }
+  .cp-thumbs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px }
+  .cp-thumbs i { aspect-ratio: 1; border-radius: 8px; background: linear-gradient(135deg, #d6d9df, #eef0f3); display: grid; place-items: center; color: #9ca3af; font-size: 14px }
+  .cp-tabs { display: flex; justify-content: space-around; border-top: 1px solid var(--line); background: #fff; padding: 8px 4px 12px; margin-top: auto; font-size: 9px; font-weight: 700; color: var(--muted) }
+  .cp-tabs div { display: flex; flex-direction: column; align-items: center; gap: 3px }
+  .cp-tabs div.on { color: var(--brand) }
+  .cp-tabs i { font-size: 14px }
+  .cp-f1 { right: max(0px, calc(50% - 300px)); top: 60px; width: 190px }
+  .cp-f2 { left: max(0px, calc(50% - 310px)); bottom: 60px; width: 190px }
+  .cp-f1, .cp-f2 { opacity: 0 }
+  .mock.in ~ .cp-f1 { animation: fm-pop .6s var(--ease) 1.6s forwards, fm-float 6s ease-in-out 2.4s infinite }
+  .mock.in ~ .cp-f2 { animation: fm-pop .6s var(--ease) 2.4s forwards, fm-float 7s ease-in-out 3s infinite }
+  @media (max-width: 560px) { .cp-f1, .cp-f2 { display: none } }
+  .cp-photo-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px }
+  .cp-photo-grid div { aspect-ratio: 1; border-radius: 10px; background: repeating-linear-gradient(135deg, #f3f4f6 0 10px, #eceef1 10px 20px) }
+  .cp-sig { font-family: "Brush Script MT", cursive; font-size: 24px; color: #1d4ed8 }
+  .cp-link-ok { display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-radius: 10px; background: var(--bg-soft); font-family: ui-monospace, Menlo, monospace; font-size: 11px; color: var(--muted); overflow: hidden; white-space: nowrap }
+</style>
+</head>
+<body>
+<div id="site-header"></div>
+<main>
+  <section class="page-hero">
+    <div class="container split">
+      <div>
+        <div class="breadcrumb"><a href="~/solutions/">Solutions</a><span>Customer Portal</span></div>
+        <div class="eyebrow">Customer Portal</div>
+        <h1>Your homeowners always know where the job stands.</h1>
+        <p class="lead">One private link shows the project live: what's next, when your team arrives, every document to review and sign, the jobsite photos and what's left to pay.</p>
+        <div class="btn-row"><a class="btn btn-primary btn-lg" href="https://app.1m8.ai/portal/signup">Sign up free</a><a class="btn btn-ghost btn-lg" href="~/demo/">Book a demo</a></div>
+      </div>
+      <div class="mock-stage cp-stage" aria-hidden="true">
+        <div class="mock mock-phone cp-phone" style="border:0;background:#0d0e12;overflow:visible">
+          <div class="screen">
+            <div class="cp-top">
+              <div class="cp-co"><i>R</i> Your Roofing Co.</div>
+              <small>Your project</small>
+              <b>1482 Ridgeview Dr</b>
+            </div>
+            <div class="cp-pad">
+              <div class="cp-card slide-up" style="--d:1">
+                <h5>Project updates</h5>
+                <ul class="cp-steps" id="cp-steps">
+                  <li class="done">Proposal signed<span>Oct 2</span></li>
+                  <li class="done">Materials ordered<span>Oct 6</span></li>
+                  <li class="now">Install scheduled<span>Tue</span></li>
+                  <li>Work in progress<span></span></li>
+                  <li>It's all done<span></span></li>
+                </ul>
+              </div>
+              <div class="cp-card slide-up" style="--d:3">
+                <h5>Next Steps</h5>
+                <div style="display:flex;justify-content:space-between;align-items:center;font-size:12px;font-weight:700"><span><i class="fa-solid fa-calendar-day" style="color:var(--brand)"></i> Tue, Oct 27 · 7:30 AM</span><span class="mock-chip green">Confirmed</span></div>
+                <div style="font-size:11px;color:var(--muted);margin-top:4px;font-weight:600">Estimated completion: Thu, Oct 29</div>
+              </div>
+              <div class="cp-card slide-up" style="--d:5">
+                <h5>Photos</h5>
+                <div class="cp-thumbs"><i class="fa-solid fa-image"></i><i class="fa-solid fa-image"></i><i class="fa-solid fa-image"></i></div>
+              </div>
+            </div>
+            <div class="cp-tabs"><div class="on"><i class="fa-solid fa-house"></i>Project</div><div><i class="fa-solid fa-file-lines"></i>Documents</div><div><i class="fa-solid fa-camera"></i>Photos</div><div><i class="fa-solid fa-credit-card"></i>Payments</div></div>
+          </div>
+        </div>
+        <div class="mock-float cp-f1"><div class="mock-toast"><div>Document signed<div style="font-weight:600;color:var(--muted);font-size:11px">Change order #2 · just now</div></div></div></div>
+        <div class="mock-float cp-f2"><div style="display:flex;justify-content:space-between;margin-bottom:6px"><span class="mock-chip blue">Payment</span><span style="color:var(--muted);font-size:11px">Due on start</span></div><div>Second draw</div><div style="font-size:20px;font-weight:900">$6,215.00</div></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container">
+      <div class="split" style="margin-bottom:clamp(64px,9vw,120px)">
+        <div class="reveal">
+          <div class="eyebrow">Status and schedule</div>
+          <h2>Fewer "just checking in" calls.</h2>
+          <p class="lead">The portal reads the same project your team works from, so updates appear the moment they happen. Homeowners see shared schedule items, estimated dates and a note from your project team.</p>
+          <ul class="feature-list"><li>Shared schedule items and estimated completion</li><li>Reschedule from available appointment days</li><li>Notifications by email and text</li></ul>
+        </div>
+        <div class="mock" aria-hidden="true">
+          <div class="mock-bar"><i></i><i></i><i></i><div class="url">Your project · Schedule</div></div>
+          <div class="mock-main">
+            <div class="mock-title">Schedule</div>
+            <div class="mock-row slide-up" style="--d:1"><span class="mock-chip violet">Delivery</span><b style="flex:1">Materials drop-off</b><span class="muted" style="font-size:11px">Mon · 8–10 AM</span></div>
+            <div class="mock-row slide-up" style="--d:2"><span class="mock-chip red">Install</span><b style="flex:1">Roof replacement</b><span class="muted" style="font-size:11px">Tue–Thu</span></div>
+            <div class="mock-row slide-up" style="--d:3"><span class="mock-chip blue">Appointment</span><b style="flex:1">Final walkthrough</b><span class="mock-chip amber">Estimated</span></div>
+            <div class="mock-row pop" style="--d:6;background:var(--bg-soft)"><i class="fa-solid fa-comment-dots" style="color:var(--brand)"></i><div style="flex:1"><b style="font-size:12px">Note from your project team</b><div class="muted" style="font-size:11px;font-weight:600">Please move vehicles out of the driveway Tuesday morning.</div></div></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="split split--flip" style="margin-bottom:clamp(64px,9vw,120px)">
+        <div class="reveal">
+          <div class="eyebrow">Documents and signatures</div>
+          <h2>Review, choose options and sign from the couch.</h2>
+          <p class="lead">Proposals, contracts, change orders and reports live in the Documents tab. Homeowners review and choose options, sign, and download the PDF any time.</p>
+          <ul class="feature-list"><li>Review &amp; choose options on proposals</li><li>E-signature with a sealed record</li><li>Every version kept on file</li></ul>
+        </div>
+        <div class="mock" aria-hidden="true">
+          <div class="mock-bar"><i></i><i></i><i></i><div class="url">Your project · Documents</div></div>
+          <div class="mock-main">
+            <div class="mock-title">Documents</div>
+            <div class="mock-row slide-up" style="--d:1"><i class="fa-solid fa-file-signature" style="color:var(--ok)"></i><b style="flex:1">Roofing agreement</b><span class="mock-chip green">Signed</span></div>
+            <div class="mock-row slide-up" style="--d:2"><i class="fa-solid fa-file-lines" style="color:var(--muted)"></i><b style="flex:1">Full Exterior report</b><span class="mock-chip">Download PDF</span></div>
+            <div class="mock-row slide-up" style="--d:3;border-color:var(--brand)"><i class="fa-solid fa-file-pen" style="color:var(--brand)"></i><b style="flex:1">Change order #2</b><span class="mock-chip red">Review and sign</span></div>
+            <div class="mock-row fade" style="--d:5"><span class="cp-sig" style="flex:1"><span class="mock-type" style="--steps:12;--d:6;border:0">Dana Whitley</span></span><span class="mock-btn">Sign</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="split" style="margin-bottom:clamp(64px,9vw,120px)">
+        <div class="reveal">
+          <div class="eyebrow">Photos</div>
+          <h2>Show the work, even when they're at the office.</h2>
+          <p class="lead">Choose which jobsite photos to share. Homeowners can add their own photos, comments and voice notes, and your team sees them on the project.</p>
+        </div>
+        <div class="mock" aria-hidden="true">
+          <div class="mock-bar"><i></i><i></i><i></i><div class="url">Your project · Photos</div></div>
+          <div class="mock-main">
+            <div style="display:flex;justify-content:space-between;align-items:center"><div class="mock-title">Photos</div><span class="mock-chip green"><span class="pulse-dot"></span> 3 new today</span></div>
+            <div class="cp-photo-grid"><div class="pop" style="--d:1"></div><div class="pop" style="--d:2"></div><div class="pop" style="--d:3"></div><div class="pop" style="--d:4"></div><div class="pop" style="--d:5"></div><div class="pop" style="--d:6"></div><div class="pop" style="--d:7"></div><div class="pop" style="--d:8"></div></div>
+            <div class="mock-row slide-up" style="--d:9"><div class="mock-avatar">DW</div><div class="mock-line"></div><span class="mock-chip"><i class="fa-solid fa-microphone"></i> 0:14</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="split split--flip">
+        <div class="reveal">
+          <div class="eyebrow">Payments</div>
+          <h2>Get paid on every milestone.</h2>
+          <p class="lead">Homeowners see what's due, pay by card or bank from the Payments tab, and keep receipts in Past Payments. Payments post straight to the project.</p>
+          <a class="link-arrow" href="~/solutions/payments/">Explore payments</a>
+        </div>
+        <div class="mock" aria-hidden="true">
+          <div class="mock-bar"><i></i><i></i><i></i><div class="url">Your project · Payments</div></div>
+          <div class="mock-main">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+              <div class="mock-kpi slide-up" style="--d:1"><small>Paid</small><b>$8,287</b></div>
+              <div class="mock-kpi slide-up" style="--d:2"><small>Remaining</small><b>$16,573</b></div>
+            </div>
+            <div class="mock-progress"><i style="--w:33%;--d:2"></i></div>
+            <div class="mock-row slide-up" style="--d:3"><b style="flex:1">Deposit</b><span class="mock-chip green">Paid</span></div>
+            <div class="mock-row slide-up" style="--d:4;border-color:var(--brand)"><b style="flex:1">Second draw · $6,215.00</b><span class="mock-btn">Pay now</span></div>
+            <div class="mock-row slide-up" style="--d:5"><b style="flex:1">Final payment</b><span class="mock-chip">On completion</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section section--soft">
+    <div class="container">
+      <div class="section-head center reveal"><div class="eyebrow">Built in</div><h2>Share exactly what you want.</h2></div>
+      <div class="grid grid-3">
+        <div class="card reveal"><div class="icon"><i class="fa-solid fa-sliders"></i></div><h3>Portal sections</h3><p>Turn sections on or off for your company or a single project.</p></div>
+        <div class="card reveal" style="--d:1"><div class="icon"><i class="fa-solid fa-link"></i></div><h3>Private links</h3><p>Send a new link, set when it expires, or revoke it any time.</p></div>
+        <div class="card reveal" style="--d:2"><div class="icon"><i class="fa-solid fa-list-check"></i></div><h3>Checklists</h3><p>Share selections and to-dos the homeowner can check off.</p></div>
+        <div class="card reveal"><div class="icon"><i class="fa-solid fa-calendar-check"></i></div><h3>Appointments</h3><p>Let homeowners book or reschedule from live availability.</p></div>
+        <div class="card reveal" style="--d:1"><div class="icon"><i class="fa-solid fa-bell"></i></div><h3>Notifications</h3><p>Updates go out when something changes on the project.</p></div>
+        <div class="card reveal" style="--d:2"><div class="icon"><i class="fa-solid fa-mobile-screen"></i></div><h3>No app to install</h3><p>It opens in any phone browser with your company's branding.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container">
+      <div class="section-head reveal"><div class="eyebrow">Connected</div><h2>Fed by the rest of FirstMate.</h2></div>
+      <div class="grid grid-4">
+        <a class="card reveal" href="~/solutions/proposals/"><div class="icon"><i class="fa-solid fa-file-signature"></i></div><h3>Proposals</h3><p>Signed in the portal.</p></a>
+        <a class="card reveal" style="--d:1" href="~/solutions/scheduling/"><div class="icon"><i class="fa-solid fa-calendar-days"></i></div><h3>Scheduling</h3><p>Shared dates, live.</p></a>
+        <a class="card reveal" style="--d:2" href="~/solutions/photos/"><div class="icon"><i class="fa-solid fa-camera"></i></div><h3>Photos</h3><p>Pick what to share.</p></a>
+        <a class="card reveal" style="--d:3" href="~/solutions/payments/"><div class="icon"><i class="fa-solid fa-credit-card"></i></div><h3>Payments</h3><p>Pay each milestone.</p></a>
+      </div>
+    </div>
+  </section>
+
+  <section class="section section--soft">
+    <div class="container container--narrow">
+      <div class="section-head center reveal"><h2>Questions</h2></div>
+      <details class="faq"><summary>Do homeowners need an account?</summary><div>No. They open a private link you send. You can set when links expire and revoke them.</div></details>
+      <details class="faq"><summary>Can I control what a homeowner sees?</summary><div>Yes. Choose which portal sections appear, which schedule items and photos are shared, and which documents are visible.</div></details>
+      <details class="faq"><summary>Is the portal branded to my company?</summary><div>Yes, the portal shows your company name and colors.</div></details>
+    </div>
+  </section>
+
+  <section class="section"><div class="container"><div class="cta-band">
+    <h2>Give every homeowner a front-row seat.</h2>
+    <p class="lead" style="color:#c9ccd4">Turn on the Customer Portal and send the first link today.</p>
+    <div class="btn-row"><a class="btn btn-primary btn-lg" href="https://app.1m8.ai/portal/signup">Sign up free</a><a class="btn btn-glass btn-lg" href="~/demo/">Book a demo</a></div>
+  </div></div></section>
+</main>
+<div id="site-footer"></div>
+<script src="../../assets/site.js"></script>
+<script>
+(function () {
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  var items = document.querySelectorAll('#cp-steps li'); var cur = 2;
+  setInterval(function () {
+    cur = cur >= items.length - 1 ? 1 : cur + 1;
+    items.forEach(function (li, i) { li.className = i < cur ? 'done' : i === cur ? 'now' : ''; });
+  }, 2600);
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,227 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Download the App — FirstMate</title>
+<meta name="description" content="The FirstMate app for iPhone and Android: your day, your jobs and your photos in your pocket.">
+<meta name="robots" content="noindex, nofollow">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,400..900;1,400..900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../assets/site.css">
+<style>
+  .dl-hero-inner { display: grid; grid-template-columns: 1fr 1fr; gap: 48px; align-items: center }
+  .dl-stores { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 32px; align-items: center }
+  .dl-store { white-space: nowrap; display: inline-flex; align-items: center; gap: 12px; padding: 10px 20px 10px 16px; border-radius: 14px; background: #000; color: #fff; border: 1.5px solid rgba(255, 255, 255, .25); transition: transform .25s var(--ease), border-color .25s, box-shadow .25s; min-width: 190px }
+  .dl-store:hover { color: #fff; transform: translateY(-2px); border-color: #fff; box-shadow: 0 12px 30px rgba(0, 0, 0, .4) }
+  .dl-store i { font-size: 28px }
+  .dl-store small { display: block; font-size: 11px; font-weight: 600; opacity: .8; line-height: 1.1 }
+  .dl-store b { display: block; color: #fff; font-size: 18px; font-weight: 800; line-height: 1.15; letter-spacing: -.01em }
+  .dl-qr-row { display: flex; gap: 16px; align-items: center; margin-top: 28px }
+  .dl-qr { width: 104px; height: 104px; flex: none; border-radius: 14px; background: #fff; padding: 10px; position: relative }
+  .dl-qr > div { width: 100%; height: 100%; display: grid; grid-template-columns: repeat(11, 1fr); gap: 1px }
+  .dl-qr > div i { background: #111; border-radius: 1px }
+  .dl-qr > div i.o { background: transparent }
+  .dl-qr span { position: absolute; inset: auto 6px 6px 6px; text-align: center; background: rgba(255, 255, 255, .92); border-radius: 6px; font-size: 9px; font-weight: 800; color: #92400e; letter-spacing: .04em; text-transform: uppercase }
+  .dl-qr-row p { margin: 0; font-size: 14px; color: #8b909c; max-width: 220px }
+  .dl-qr-row b { color: #fff }
+
+  .dl-phones { position: relative; min-height: 600px; display: flex; justify-content: center; align-items: center }
+  .dl-phones .mock-phone { position: absolute }
+  .dl-p1 { left: 8%; top: 20px; z-index: 2 }
+  .dl-p2 { right: 6%; top: 80px; z-index: 1 }
+  .mock.dl-phones { background: transparent; border: 0; box-shadow: none; overflow: visible; border-radius: 0 }
+  .dl-screen { padding: 40px 14px 14px; gap: 10px }
+  .dl-top { display: flex; justify-content: space-between; align-items: center }
+  .dl-top b { font-size: 17px; font-weight: 900; letter-spacing: -.02em }
+  .dl-top small { display: block; color: var(--muted); font-size: 11px; font-weight: 600 }
+  .dl-clock { border-radius: 16px; padding: 14px; background: var(--bg-dark); color: #fff; display: flex; align-items: center; gap: 12px }
+  .dl-clock .t { font-size: 22px; font-weight: 900; letter-spacing: -.02em; font-variant-numeric: tabular-nums }
+  .dl-clock small { display: block; color: #8b909c; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em }
+  .dl-stop { margin-left: auto; width: 34px; height: 34px; border-radius: 50%; background: var(--brand); display: grid; place-items: center; font-size: 12px }
+  .dl-job { display: flex; gap: 10px; align-items: center; padding: 10px; border-radius: 12px; border: 1px solid var(--line); font-size: 12px }
+  .dl-job .time { font-weight: 800; font-size: 11px; color: var(--muted); width: 38px; flex: none }
+  .dl-job b { display: block; font-size: 12px }
+  .dl-job small { color: var(--muted); font-size: 11px }
+  .dl-job .mock-chip { margin-left: auto }
+  .dl-tabs { margin-top: auto; display: flex; justify-content: space-around; border-top: 1px solid var(--line); padding-top: 10px; color: #9ca3af; font-size: 15px }
+  .dl-tabs .on { color: var(--brand) }
+  .dl-cam { flex: 1; border-radius: 18px; background: linear-gradient(160deg, #3b4252, #1f2430 60%, #12151c); position: relative; overflow: hidden; min-height: 300px }
+  .dl-cam svg { position: absolute; inset: 20% 8% auto 8%; width: 84%; opacity: .55 }
+  .dl-cam .grid-l { position: absolute; inset: 0; background-image: linear-gradient(rgba(255,255,255,.12) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.12) 1px, transparent 1px); background-size: 33.3% 33.3% }
+  .dl-flash { position: absolute; inset: 0; background: #fff; opacity: 0; pointer-events: none }
+  .dl-flash.go { animation: dl-flash .35s ease }
+  @keyframes dl-flash { 0% { opacity: .9 } 100% { opacity: 0 } }
+  .dl-cam .tag { position: absolute; top: 12px; left: 12px; background: rgba(0,0,0,.5); color: #fff; font-size: 10px; font-weight: 700; padding: 4px 9px; border-radius: 999px }
+  .dl-shutter-row { display: flex; align-items: center; justify-content: space-between; padding: 4px 6px }
+  .dl-thumbs { display: flex; gap: 4px }
+  .dl-thumbs i { width: 30px; height: 30px; border-radius: 8px; background: linear-gradient(135deg, #cbd5e1, #94a3b8); animation: fm-pop .5s var(--ease) both }
+  .dl-shutter { width: 54px; height: 54px; border-radius: 50%; border: 4px solid var(--brand); display: grid; place-items: center }
+  .dl-shutter::after { content: ""; width: 40px; height: 40px; border-radius: 50%; background: var(--brand); transition: transform .15s }
+  .dl-shutter.press::after { transform: scale(.85) }
+  .dl-count { font-size: 11px; font-weight: 800; color: var(--muted); min-width: 60px; text-align: right }
+  .dl-f1 { left: -4px; bottom: 120px; width: 200px }
+  .dl-f2 { right: 0; top: 10px; width: 190px }
+  .dl-f1, .dl-f2 { opacity: 0 }
+  .mock.in .dl-f1 { animation: fm-pop .6s var(--ease) 1.6s forwards, fm-float 6s ease-in-out 2.2s infinite }
+  .mock.in .dl-f2 { animation: fm-pop .6s var(--ease) 2.2s forwards, fm-float 7s ease-in-out 2.8s infinite }
+  @media (max-width: 1000px) { .dl-hero-inner { grid-template-columns: 1fr } }
+  @media (max-width: 640px) {
+    .dl-phones { min-height: 540px } .dl-p2 { display: none } .dl-p1 { left: 0; right: 0; margin: 0 auto }
+    .dl-f1 { left: 0; bottom: 40px; width: 170px } .dl-f2 { display: none }
+    .dl-store { min-width: 0; flex: 1 1 220px }
+  }
+
+  .dl-device { display: flex; gap: 20px; align-items: flex-start }
+  .dl-device .icon { flex: none; margin: 0; width: 56px; height: 56px; font-size: 26px }
+  .dl-device ul { margin-top: 14px }
+  .dl-device > div { min-width: 0 }
+  .dl-device .btn { white-space: normal }
+</style>
+</head>
+<body data-header="over-dark">
+<div id="site-header"></div>
+<main>
+  <section class="hero">
+    <div class="hero-glow"></div><div class="hero-grid"></div>
+    <div class="container hero-inner dl-hero-inner">
+      <div>
+        <div class="breadcrumb"><a href="~/" style="color:#8b909c">Home</a><span style="color:#8b909c">Download the app</span></div>
+        <div class="hero-badge"><span>iPhone + Android</span>One app for your whole team</div>
+        <h1>FirstMate in your pocket.</h1>
+        <p class="lead">Your day, your jobs, your photos and your measurements, on the same account you use at the office.</p>
+        <div class="dl-stores">
+          <!-- Placeholder: replace href="#" with the App Store listing URL. -->
+          <a class="dl-store" href="#" aria-label="Download on the App Store (link coming soon)"><i class="fa-brands fa-apple"></i><span><small>Download on the</small><b>App Store</b></span></a>
+          <!-- Placeholder: replace href="#" with the Google Play listing URL. -->
+          <a class="dl-store" href="#" aria-label="Get it on Google Play (link coming soon)"><i class="fa-brands fa-google-play"></i><span><small>Get it on</small><b>Google Play</b></span></a>
+        </div>
+        <div class="dl-qr-row">
+          <div class="dl-qr" aria-label="QR code placeholder"><div id="dl-qr"></div><span>Placeholder</span></div>
+          <p><b>Scan to download.</b> Point your phone camera here to get the app.</p>
+        </div>
+      </div>
+
+      <div class="mock dl-phones" aria-hidden="true">
+        <div class="mock-phone dl-p1 slide-up" style="--d:0">
+          <div class="screen dl-screen">
+            <div class="dl-top"><div><small id="dl-date">Today</small><b>Good morning</b></div><span class="mock-avatar">JR</span></div>
+            <div class="dl-clock pop" style="--d:2"><div><small>Clocked in</small><span class="t" id="dl-timer">2:14:08</span></div><span class="dl-stop"><i class="fa-solid fa-stop"></i></span></div>
+            <div style="font-weight:800;font-size:13px">Your day</div>
+            <div class="dl-job slide-up" style="--d:3"><span class="time">7:30</span><div><b>Tear-off</b><small>1482 Orchard Ln</small></div><span class="mock-chip green">Checked in</span></div>
+            <div class="dl-job slide-up" style="--d:4"><span class="time">12:00</span><div><b>Gutter install</b><small>77 Birch Ct</small></div><span class="mock-chip blue">Next</span></div>
+            <div class="dl-job slide-up" style="--d:5"><span class="time">3:30</span><div><b>Inspection</b><small>9 Lakeview Dr</small></div><span class="mock-chip">Scheduled</span></div>
+            <div class="mock-progress" style="margin-top:4px"><i style="--w:45%;--d:6"></i></div>
+            <div class="dl-tabs"><i class="fa-solid fa-house on"></i><i class="fa-solid fa-calendar-days"></i><i class="fa-solid fa-camera"></i><i class="fa-solid fa-comments"></i><i class="fa-solid fa-bars"></i></div>
+          </div>
+        </div>
+        <div class="mock-phone dl-p2 slide-up" style="--d:2">
+          <div class="screen dl-screen">
+            <div class="dl-top"><div><small>1482 Orchard Ln</small><b>Photos</b></div><span class="mock-chip red">Tear-off</span></div>
+            <div class="dl-cam">
+              <div class="grid-l"></div>
+              <svg viewBox="0 0 200 120" fill="none" stroke="#fff" stroke-width="2"><path d="M10 110 L100 30 L190 110 Z"/><path d="M40 84 H160"/><path d="M70 58 H130"/><rect x="88" y="78" width="24" height="32"/></svg>
+              <span class="tag"><i class="fa-solid fa-location-dot"></i> On site</span>
+              <div class="dl-flash" id="dl-flash"></div>
+            </div>
+            <div class="dl-shutter-row"><div class="dl-thumbs" id="dl-thumbs"></div><span class="dl-shutter" id="dl-shutter"></span><span class="dl-count" id="dl-count">0 photos</span></div>
+          </div>
+        </div>
+        <div class="mock-float mock-toast dl-f1">Photos added to the project feed</div>
+        <div class="mock-float dl-f2"><div style="color:var(--muted);font-size:11px">Measurement report</div><div style="display:flex;justify-content:space-between;align-items:center;margin-top:4px">Roof · 1482 Orchard Ln <span class="mock-chip green">Ready</span></div></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container">
+      <div class="section-head center">
+        <div class="eyebrow">In the app</div>
+        <h2>Everything your people need on site.</h2>
+        <p class="lead">The app opens the same apps you use on desktop, so what each person sees follows your company's setup.</p>
+      </div>
+      <div class="grid grid-3">
+        <div class="card reveal" style="--d:0"><span class="icon"><i class="fa-solid fa-calendar-day"></i></span><h3>Today</h3><p>Each person's schedule, jobs and to-dos for the day.</p></div>
+        <div class="card reveal" style="--d:1"><span class="icon"><i class="fa-solid fa-clock"></i></span><h3>Time clock</h3><p>Clock in and out from the job.</p></div>
+        <div class="card reveal" style="--d:2"><span class="icon"><i class="fa-solid fa-camera"></i></span><h3>Photos</h3><p>Take photos and upload them straight to the project.</p></div>
+        <div class="card reveal" style="--d:3"><span class="icon"><i class="fa-solid fa-ruler-combined"></i></span><h3>Measurements</h3><p>Order reports and open finished ones on the roof.</p></div>
+        <div class="card reveal" style="--d:4"><span class="icon"><i class="fa-solid fa-file-signature"></i></span><h3>Proposals</h3><p>Present options and collect a signature at the kitchen table.</p></div>
+        <div class="card reveal" style="--d:5"><span class="icon"><i class="fa-solid fa-bell"></i></span><h3>Notifications</h3><p>Push alerts for new jobs, messages and changes.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section section--soft">
+    <div class="container">
+      <div class="grid grid-2">
+        <div class="card dl-device reveal" style="--d:0">
+          <span class="icon"><i class="fa-brands fa-apple"></i></span>
+          <div><h3>iPhone and iPad</h3><p>Placeholder: supported iOS versions.</p>
+            <ul class="feature-list"><li>Native camera and photo picker</li><li>Sign in with your FirstMate account</li><li>Share and save files</li></ul>
+            <a class="btn btn-ghost btn-sm" href="#">App Store (link coming soon)</a></div>
+        </div>
+        <div class="card dl-device reveal" style="--d:1">
+          <span class="icon"><i class="fa-brands fa-android"></i></span>
+          <div><h3>Android</h3><p>Placeholder: supported Android versions.</p>
+            <ul class="feature-list"><li>Native camera with lens switching</li><li>Sign in with your FirstMate account</li><li>Share and save files</li></ul>
+            <a class="btn btn-ghost btn-sm" href="#">Google Play (link coming soon)</a></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container container--narrow">
+      <div class="section-head center"><div class="eyebrow">FAQ</div><h2>App questions</h2></div>
+      <details class="faq"><summary>Is the app free?</summary><div>Placeholder answer: the app is included with your FirstMate account.</div></details>
+      <details class="faq"><summary>Do I need a separate login?</summary><div>No. You sign in with the same account you use on desktop.</div></details>
+      <details class="faq"><summary>Does it work without a signal?</summary><div>The app needs an internet connection. Placeholder: wording on what happens with a weak signal.</div></details>
+      <details class="faq"><summary>Is there a separate app for measurements?</summary><div>No. FirstMeasure measurements are part of the one FirstMate app.</div></details>
+    </div>
+  </section>
+
+  <section class="section section--tight">
+    <div class="container"><div class="cta-band">
+      <h2>New to FirstMate?</h2>
+      <p class="lead" style="color:#c9ccd4;max-width:600px;margin:0 auto">Create your company account, then invite your team to the app.</p>
+      <div class="btn-row"><a class="btn btn-primary btn-lg" href="https://app.1m8.ai/portal/signup">Sign up free</a><a class="btn btn-glass btn-lg" href="~/demo/">Book a demo</a></div>
+    </div></div>
+  </section>
+</main>
+<div id="site-footer"></div>
+<script src="../assets/site.js"></script>
+<script>
+(function () {
+  // QR placeholder pattern (decorative, not a real code)
+  var q = document.getElementById('dl-qr'), cells = '';
+  function finder(r, c) { return (r < 3 || r > 7) && (c < 3 || c > 7) && !(r > 7 && c > 7); }
+  for (var r = 0; r < 11; r++) for (var c = 0; c < 11; c++) {
+    var on = finder(r, c) || ((r * 7 + c * 13 + r * c) % 3 === 0);
+    cells += '<i class="' + (on ? '' : 'o') + '"></i>';
+  }
+  q.innerHTML = cells;
+
+  document.getElementById('dl-date').textContent = new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' });
+  var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  // Running time clock
+  var secs = 2 * 3600 + 14 * 60 + 8, t = document.getElementById('dl-timer');
+  function pad(n) { return (n < 10 ? '0' : '') + n; }
+  if (!reduce) setInterval(function () { secs++; t.textContent = Math.floor(secs / 3600) + ':' + pad(Math.floor(secs / 60) % 60) + ':' + pad(secs % 60); }, 1000);
+
+  // Camera: take a photo every few seconds
+  var flash = document.getElementById('dl-flash'), shutter = document.getElementById('dl-shutter'), thumbs = document.getElementById('dl-thumbs'), count = document.getElementById('dl-count'), n = 0;
+  function shoot() {
+    shutter.classList.add('press'); flash.classList.remove('go'); void flash.offsetWidth; flash.classList.add('go');
+    setTimeout(function () { shutter.classList.remove('press'); }, 150);
+    n++; count.textContent = n + ' photo' + (n === 1 ? '' : 's');
+    var i = document.createElement('i'); thumbs.insertBefore(i, thumbs.firstChild);
+    while (thumbs.children.length > 3) thumbs.removeChild(thumbs.lastChild);
+  }
+  var phones = document.querySelector('.dl-phones');
+  function start() { setTimeout(shoot, 1400); if (!reduce) setInterval(shoot, 2600); }
+  phones.addEventListener('fm:in', start, { once: true });
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,301 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Enterprise Contractors — FirstMate</title>
+<meta name="description" content="FirstMate for contractors with 50+ people: branches and regions, departments, roles and permissions, apps per role, reporting and payroll.">
+<meta name="robots" content="noindex, nofollow">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,400..900;1,400..900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/site.css">
+<style>
+  /* Shared who-we-serve styles (wws-) */
+  .wws-bare { background: transparent; box-shadow: none; border: 0; overflow: visible }
+  .wws-fix { margin-top: 16px; padding-top: 14px; border-top: 1px dashed var(--line); font-size: 14px; font-weight: 700; color: var(--heading); display: flex; gap: 8px; align-items: flex-start }
+  .wws-fix i { color: var(--brand); margin-top: 3px }
+  .wws-sol { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px }
+  .wws-sol a { display: flex; gap: 14px; align-items: flex-start; padding: 20px; border: 1px solid var(--line); border-radius: var(--radius); background: #fff; color: var(--heading); transition: transform .25s var(--ease), box-shadow .25s, border-color .25s }
+  .wws-sol a:hover { border-color: var(--brand); transform: translateY(-3px); box-shadow: var(--shadow); color: var(--heading) }
+  .wws-sol a > i { width: 42px; height: 42px; border-radius: 12px; background: var(--brand-soft); color: var(--brand); display: grid; place-items: center; flex: none; font-size: 17px }
+  .wws-sol b { display: block; font-weight: 800; line-height: 1.3 }
+  .wws-sol small { display: block; color: var(--muted); font-size: 14px; font-weight: 500; margin-top: 2px }
+  .wws-sol a.top { border-color: #ffd5d5; background: linear-gradient(180deg, #fff, #fff8f8) }
+  .wws-sol .tag { display: inline-block; margin-top: 8px; font-size: 11px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--brand) }
+  @media (max-width: 960px) { .wws-sol { grid-template-columns: 1fr 1fr } }
+  @media (max-width: 640px) { .wws-sol { grid-template-columns: 1fr } }
+  .wws-story { display: grid; grid-template-columns: 1fr 1.15fr; gap: clamp(28px, 5vw, 64px); align-items: center }
+  .wws-story .placeholder-photo { min-height: 340px; background: repeating-linear-gradient(135deg, #1b1d23 0 14px, #20232a 14px 28px); border-color: rgba(255,255,255,.15); color: #8b909c }
+  .wws-quote { font-size: clamp(20px, 2.2vw, 27px); font-weight: 700; color: #fff; line-height: 1.4; letter-spacing: -.01em; margin: 0 }
+  .wws-by { display: flex; gap: 12px; align-items: center; margin-top: 22px; font-size: 14px; color: #8b909c; font-weight: 600 }
+  .wws-by b { display: block; color: #fff }
+  .wws-results { display: flex; gap: 36px; margin-top: 32px; flex-wrap: wrap; padding-top: 28px; border-top: 1px solid rgba(255,255,255,.1) }
+  @media (max-width: 860px) { .wws-story { grid-template-columns: 1fr } }
+  .wws-sizes { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px }
+  .wws-sizes a { padding: 18px; border-radius: 14px; border: 1px solid var(--line); background: #fff; color: var(--heading); font-weight: 800; display: flex; gap: 12px; align-items: center; transition: border-color .2s, transform .2s }
+  .wws-sizes a:hover { border-color: var(--brand); transform: translateY(-2px); color: var(--heading) }
+  .wws-sizes a > i { color: var(--brand); width: 22px; text-align: center }
+  .wws-sizes a.on { border-color: var(--brand); background: var(--brand-soft) }
+  .wws-sizes small { display: block; color: var(--muted); font-weight: 600; font-size: 13px }
+  @media (max-width: 860px) { .wws-sizes { grid-template-columns: 1fr 1fr } }
+  @media (max-width: 420px) { .wws-sizes { grid-template-columns: 1fr } }
+
+  /* Enterprise: org chart */
+  .en-scene { position: relative; padding-bottom: 36px }
+  .en-chart { padding: 14px 10px 6px; background: #fafafb }
+  .en-chart svg { width: 100%; height: auto; overflow: visible }
+  .en-chart text { font-family: Montserrat, sans-serif; font-weight: 700; font-size: 12px; fill: #111827; text-anchor: middle; dominant-baseline: middle }
+  .en-chart text.k { font-size: 8.5px; font-weight: 800; letter-spacing: .1em; fill: #6b7280 }
+  .en-chart .ln { fill: none; stroke: #c4c8cf; stroke-width: 1.5 }
+  .en-chart .box { fill: #fff; stroke: #e5e7eb; stroke-width: 1.2 }
+  .en-chart .box.org { fill: #0f0f12; stroke: #0f0f12 } .en-chart text.w { fill: #fff }
+  .en-chart .box.hi { stroke: var(--brand); stroke-width: 1.8 }
+  .en-chart .dept { fill: #f3f4f6; stroke: none } .en-chart text.d { font-size: 10px; font-weight: 600; fill: #374151 }
+  .en-chart .scope { fill: rgba(219, 0, 0, .04); stroke: var(--brand); stroke-width: 1.5; stroke-dasharray: 6 5; opacity: 0 }
+  .mock.in .en-chart .scope { animation: fm-fade .6s ease 2.6s forwards, en-march 1.2s linear 2.6s infinite }
+  @keyframes en-march { to { stroke-dashoffset: -22 } }
+  .en-n { opacity: 0; transform-box: fill-box; transform-origin: center }
+  .mock.in .en-n { animation: fm-pop .55s var(--ease) forwards; animation-delay: calc(var(--d, 0) * 130ms + 200ms) }
+  .en-f { opacity: 0 }
+  .mock.in ~ .en-f1 { animation: fm-pop .6s var(--ease) 3s forwards, fm-float 6s ease-in-out 3.6s infinite }
+  .mock.in ~ .en-f2 { animation: fm-pop .6s var(--ease) 3.6s forwards, fm-float 7s ease-in-out 4.2s infinite }
+  .en-f1 { right: -18px; bottom: -6px; width: 228px } .en-f2 { left: -26px; top: 56px; width: 190px }
+  .en-f2 .mock-bars { height: 44px; gap: 4px }
+  .mock.in ~ .en-f2 .mock-bars > i { animation: fm-grow-y 1s var(--ease) forwards; animation-delay: calc(var(--d, 0) * 120ms + 3.8s) }
+  @media (max-width: 560px) { .en-f2 { display: none } .en-f1 { right: 0 } }
+
+  /* App experience grid */
+  .en-ax { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 12px }
+  .en-ax th { font-size: 10px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); font-weight: 800; text-align: center; padding: 6px 4px; border-bottom: 1px solid var(--line) }
+  .en-ax th:first-child, .en-ax td:first-child { text-align: left; padding-left: 4px }
+  .en-ax td { padding: 8px 4px; border-bottom: 1px solid var(--line-soft); text-align: center; font-weight: 700; white-space: nowrap }
+  .en-ax td span { display: inline-flex; gap: 4px }
+  .en-ax td span i { width: 22px; height: 22px; border-radius: 6px; display: inline-grid; place-items: center; font-size: 10px; background: #f3f4f6; color: #b6bbc4 }
+  .en-ax td span i.on { background: var(--brand-soft); color: var(--brand) }
+  .en-ax td span i.na { background: transparent; color: #d1d5db }
+  .en-ax tbody tr { opacity: 0 }
+  .mock.in .en-ax tbody tr { animation: fm-slide-up .6s var(--ease) forwards; animation-delay: calc(var(--d, 0) * 120ms + 200ms) }
+  .en-ax-wrap { overflow-x: auto }
+  .en-flip { animation: none }
+  .mock.in .en-flip { animation: en-flip .5s var(--ease) 2.4s both }
+  @keyframes en-flip { 0% { background: #f3f4f6; color: #b6bbc4; transform: scale(1) } 50% { transform: scale(1.25) } 100% { background: var(--brand-soft); color: var(--brand); transform: none } }
+  .en-legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 11px; font-weight: 700; color: var(--muted) }
+  .en-legend i { color: var(--brand); margin-right: 4px }
+
+  /* Toggles */
+  .en-tog { display: flex; align-items: center; gap: 10px; padding: 9px 12px; border: 1px solid var(--line); border-radius: 10px; font-weight: 700; font-size: 12px; background: #fff }
+  .en-tog small { display: block; color: var(--muted); font-weight: 600; font-size: 10.5px }
+  .en-tog .sw { margin-left: auto; width: 32px; height: 18px; border-radius: 9px; background: #d9dce1; position: relative; flex: none; transition: background .3s }
+  .en-tog .sw::after { content: ""; position: absolute; top: 2px; left: 2px; width: 14px; height: 14px; border-radius: 50%; background: #fff; transition: transform .3s var(--ease); box-shadow: 0 1px 2px rgba(0,0,0,.2) }
+  .en-tog .sw.on { background: var(--brand) } .en-tog .sw.on::after { transform: translateX(14px) }
+  .mock.in .en-tog .sw.late { animation: en-sw .01s linear 2.2s forwards }
+  .mock.in .en-tog .sw.late::after { animation: en-knob .3s var(--ease) 2.2s forwards }
+  @keyframes en-sw { to { background: var(--brand) } } @keyframes en-knob { to { transform: translateX(14px) } }
+  .en-roles { display: flex; gap: 6px; flex-wrap: wrap }
+  .en-bars { display: grid; grid-template-columns: 1fr 1fr; gap: 10px }
+  .en-bars .mock-kpi .mock-bars { height: 60px; margin-top: 8px }
+</style>
+</head>
+<body>
+<div id="site-header"></div>
+<main>
+  <section class="page-hero">
+    <div class="container split">
+      <div>
+        <div class="breadcrumb"><a href="~/who-we-serve/">Who We Serve</a><span>Enterprise</span></div>
+        <div class="eyebrow">50+ employees</div>
+        <h1>Every branch. One platform.</h1>
+        <p class="lead">Regions, branches and departments, each set up the way it works, with the right people seeing the right things. Reporting and payroll roll up without a spreadsheet in sight.</p>
+        <div class="btn-row"><a class="btn btn-primary btn-lg" href="~/demo/">Book a demo</a><a class="btn btn-ghost btn-lg" href="~/pricing/">See pricing</a></div>
+      </div>
+      <div class="mock-stage en-scene" aria-hidden="true">
+        <div class="mock">
+          <div class="mock-bar"><i></i><i></i><i></i><div class="url">app.1m8.ai/portal · People › Branches</div></div>
+          <div class="en-chart">
+            <svg viewBox="0 0 560 300">
+              <rect class="scope" x="270" y="92" width="280" height="200" rx="16"/>
+              <g class="draw">
+                <path class="ln" style="--len:330;--d:2" d="M280 54V76H150V98M280 76H410V98"/>
+                <path class="ln" style="--len:200;--d:5" d="M150 132V154H80V176M150 154H220V176"/>
+                <path class="ln" style="--len:200;--d:6" d="M410 132V154H340V176M410 154H480V176"/>
+                <path class="ln" style="--len:40;--d:9" d="M80 210V228"/><path class="ln" style="--len:40;--d:9" d="M220 210V228"/><path class="ln" style="--len:40;--d:10" d="M340 210V228"/><path class="ln" style="--len:40;--d:10" d="M480 210V228"/>
+              </g>
+              <g class="en-n" style="--d:0"><rect class="box org" x="195" y="14" width="170" height="40" rx="10"/><text class="w" x="280" y="35">Your Company</text></g>
+              <g class="en-n" style="--d:3"><rect class="box" x="80" y="98" width="140" height="34" rx="9"/><text class="k" x="150" y="108">REGION</text><text x="150" y="122">Mountain</text></g>
+              <g class="en-n" style="--d:4"><rect class="box hi" x="340" y="98" width="140" height="34" rx="9"/><text class="k" x="410" y="108">REGION</text><text x="410" y="122">Texas</text></g>
+              <g class="en-n" style="--d:6"><rect class="box" x="25" y="176" width="110" height="34" rx="9"/><text class="k" x="80" y="186">BRANCH</text><text x="80" y="200">Denver</text></g>
+              <g class="en-n" style="--d:7"><rect class="box" x="165" y="176" width="110" height="34" rx="9"/><text class="k" x="220" y="186">BRANCH</text><text x="220" y="200">Boulder</text></g>
+              <g class="en-n" style="--d:8"><rect class="box hi" x="285" y="176" width="110" height="34" rx="9"/><text class="k" x="340" y="186">BRANCH</text><text x="340" y="200">Dallas</text></g>
+              <g class="en-n" style="--d:9"><rect class="box hi" x="425" y="176" width="110" height="34" rx="9"/><text class="k" x="480" y="186">BRANCH</text><text x="480" y="200">Austin</text></g>
+              <g class="en-n" style="--d:11"><rect class="dept" x="35" y="228" width="90" height="22" rx="11"/><text class="d" x="80" y="240">Sales</text><rect class="dept" x="35" y="256" width="90" height="22" rx="11"/><text class="d" x="80" y="268">Production</text></g>
+              <g class="en-n" style="--d:12"><rect class="dept" x="175" y="228" width="90" height="22" rx="11"/><text class="d" x="220" y="240">Sales</text><rect class="dept" x="175" y="256" width="90" height="22" rx="11"/><text class="d" x="220" y="268">Service</text></g>
+              <g class="en-n" style="--d:13"><rect class="dept" x="295" y="228" width="90" height="22" rx="11"/><text class="d" x="340" y="240">Sales</text><rect class="dept" x="295" y="256" width="90" height="22" rx="11"/><text class="d" x="340" y="268">Production</text></g>
+              <g class="en-n" style="--d:14"><rect class="dept" x="435" y="228" width="90" height="22" rx="11"/><text class="d" x="480" y="240">Production</text><rect class="dept" x="435" y="256" width="90" height="22" rx="11"/><text class="d" x="480" y="268">Service</text></g>
+            </svg>
+          </div>
+        </div>
+        <div class="mock-float en-f en-f1"><div style="display:flex;gap:10px;align-items:center;margin-bottom:6px"><span class="mock-avatar">RM</span><div>Regional manager<div style="font-weight:600;color:var(--muted);font-size:11px">Texas region</div></div></div><div style="font-weight:600;font-size:11px;color:var(--body)"><i class="fa-solid fa-eye" style="color:var(--brand)"></i> Sees Dallas and Austin only</div></div>
+        <div class="mock-float en-f en-f2"><div style="font-size:11px;color:var(--muted)">All branches · signed</div><div class="mock-bars" style="margin-top:6px"><i style="--h:55%;--d:1"></i><i style="--h:70%;--d:2"></i><i style="--h:62%;--d:3"></i><i style="--h:88%;--d:4"></i></div></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container">
+      <div class="section-head reveal">
+        <div class="eyebrow">Problems we solve</div>
+        <h2>Big companies outgrow simple tools.</h2>
+        <p class="lead">More locations, more roles and more pay types. FirstMate is built for the structure you already have.</p>
+      </div>
+      <div class="grid grid-3">
+        <div class="card reveal" style="--d:0"><div class="icon"><i class="fa-solid fa-code-branch"></i></div><h3>Every branch runs its own way</h3><p>Different spreadsheets, templates and price books in every location.</p><div class="wws-fix"><i class="fa-solid fa-check"></i>Each branch configures its own departments and settings on one platform.</div></div>
+        <div class="card reveal" style="--d:1"><div class="icon"><i class="fa-solid fa-user-lock"></i></div><h3>People see too much, or too little</h3><p>All-or-nothing access means sharing logins or opening everything.</p><div class="wws-fix"><i class="fa-solid fa-check"></i>Roles grant permissions; branch scope limits what each person sees.</div></div>
+        <div class="card reveal" style="--d:2"><div class="icon"><i class="fa-solid fa-mobile-screen-button"></i></div><h3>Field apps cluttered with office tools</h3><p>Installers scroll past menus they will never use.</p><div class="wws-fix"><i class="fa-solid fa-check"></i>Choose which apps each role, group or person gets on desktop and phone.</div></div>
+        <div class="card reveal" style="--d:3"><div class="icon"><i class="fa-solid fa-table"></i></div><h3>Reporting means emailing spreadsheets</h3><p>Every Monday someone stitches together numbers from each location.</p><div class="wws-fix"><i class="fa-solid fa-check"></i>Sales and production numbers by branch, region or company.</div></div>
+        <div class="card reveal" style="--d:4"><div class="icon"><i class="fa-solid fa-money-bill-transfer"></i></div><h3>Payroll across pay types</h3><p>Piece rate, hourly, salary and commission, all calculated by hand.</p><div class="wws-fix"><i class="fa-solid fa-check"></i>Pay rules calculate earnings from the work; anything unclear is flagged, never zeroed.</div></div>
+        <div class="card reveal" style="--d:5"><div class="icon"><i class="fa-solid fa-user-plus"></i></div><h3>Onboarding at scale</h3><p>New hires each week, each needing logins, apps and training.</p><div class="wws-fix"><i class="fa-solid fa-check"></i>Join a group and get its roles; assign training courses by role.</div></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section section--soft">
+    <div class="container">
+      <div class="split">
+        <div class="reveal">
+          <div class="eyebrow">App experience</div>
+          <h2>The right apps for every role, on every device.</h2>
+          <p class="lead">Set which apps people get by role, group, department or person, separately for desktop and phone. An installer's phone shows their day; the office sees the full portal.</p>
+          <ul class="feature-list"><li>One grid in People › App experience</li><li>Apps your organization has off are never offered</li><li>Desktop-only tools stay off phones</li></ul>
+        </div>
+        <div class="mock" aria-hidden="true">
+          <div class="mock-bar"><i></i><i></i><i></i><div class="url">People › App experience</div></div>
+          <div class="mock-main">
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap" class="fade"><div class="mock-title">Roles</div><div class="en-legend"><span><i class="fa-solid fa-desktop"></i>Desktop</span><span><i class="fa-solid fa-mobile-screen"></i>Phone</span></div></div>
+            <div class="en-ax-wrap">
+              <table class="en-ax">
+                <thead><tr><th>App</th><th>Sales rep</th><th>Project mgr</th><th>Installer</th><th>Office</th></tr></thead>
+                <tbody>
+                  <tr style="--d:1"><td>Today</td><td><span><i class="fa-solid fa-desktop on"></i><i class="fa-solid fa-mobile-screen on"></i></span></td><td><span><i class="fa-solid fa-desktop on"></i><i class="fa-solid fa-mobile-screen on"></i></span></td><td><span><i class="fa-solid fa-desktop"></i><i class="fa-solid fa-mobile-screen on"></i></span></td><td><span><i class="fa-solid fa-desktop on"></i><i class="fa-solid fa-mobile-screen"></i></span></td></tr>
+                  <tr style="--d:2"><td>CRM</td><td><span><i class="fa-solid fa-desktop on"></i><i class="fa-solid fa-mobile-screen on"></i></span></td><td><span><i class="fa-solid fa-desktop on"></i><i class="fa-solid fa-mobile-screen"></i></span></td><td><span><i class="fa-solid fa-desktop"></i><i class="fa-solid fa-mobile-screen"></i></span></td><td><span><i class="fa-solid fa-desktop on"></i><i class="fa-solid fa-mobile-screen"></i></span></td></tr>
+                  <tr style="--d:3"><td>Scheduling</td><td><span><i class="fa-solid fa-desktop"></i><i class="fa-solid fa-mobile-screen"></i></span></td><td><span><i class="fa-solid fa-desktop on"></i><i class="fa-solid fa-mobile-screen on"></i></span></td><td><span><i class="fa-solid fa-desktop"></i><i class="fa-solid fa-mobile-screen en-flip"></i></span></td><td><span><i class="fa-solid fa-desktop on"></i><i class="fa-solid fa-mobile-screen"></i></span></td></tr>
+                  <tr style="--d:4"><td>Doc Studio</td><td><span><i class="fa-solid fa-desktop"></i><i class="fa-solid fa-minus na"></i></span></td><td><span><i class="fa-solid fa-desktop on"></i><i class="fa-solid fa-minus na"></i></span></td><td><span><i class="fa-solid fa-desktop"></i><i class="fa-solid fa-minus na"></i></span></td><td><span><i class="fa-solid fa-desktop on"></i><i class="fa-solid fa-minus na"></i></span></td></tr>
+                  <tr style="--d:5"><td>Payroll</td><td><span><i class="fa-solid fa-desktop"></i><i class="fa-solid fa-mobile-screen"></i></span></td><td><span><i class="fa-solid fa-desktop"></i><i class="fa-solid fa-mobile-screen"></i></span></td><td><span><i class="fa-solid fa-desktop"></i><i class="fa-solid fa-mobile-screen"></i></span></td><td><span><i class="fa-solid fa-desktop on"></i><i class="fa-solid fa-mobile-screen"></i></span></td></tr>
+                  <tr style="--d:6"><td>Training</td><td><span><i class="fa-solid fa-desktop on"></i><i class="fa-solid fa-mobile-screen on"></i></span></td><td><span><i class="fa-solid fa-desktop on"></i><i class="fa-solid fa-mobile-screen on"></i></span></td><td><span><i class="fa-solid fa-desktop"></i><i class="fa-solid fa-mobile-screen on"></i></span></td><td><span><i class="fa-solid fa-desktop on"></i><i class="fa-solid fa-mobile-screen on"></i></span></td></tr>
+                </tbody>
+              </table>
+            </div>
+            <div class="mock-row pop" style="--d:20"><span class="mock-toast" style="flex:1;font-weight:700">Scheduling added to Installer phones</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="split split--flip" style="margin-top:88px">
+        <div class="reveal">
+          <div class="eyebrow">Roles &amp; permissions</div>
+          <h2>Access that matches your org chart.</h2>
+          <p class="lead">Roles grant what people may do. With more than one branch, people only see and manage their own branches unless a role says region or company-wide.</p>
+          <a class="link-arrow" href="~/demo/">See it in a demo</a>
+        </div>
+        <div class="mock" aria-hidden="true">
+          <div class="mock-bar"><i></i><i></i><i></i><div class="url">Settings › Roles &amp; access</div></div>
+          <div class="mock-main">
+            <div class="en-roles fade"><span class="mock-chip">Owner</span><span class="mock-chip red">Regional manager</span><span class="mock-chip">Branch manager</span><span class="mock-chip">Sales rep</span><span class="mock-chip">Installer</span></div>
+            <div class="en-tog slide-up" style="--d:1"><span>View region branches<small>See every branch in their region</small></span><i class="sw on"></i></div>
+            <div class="en-tog slide-up" style="--d:2"><span>View all branches<small>See every branch in the company</small></span><i class="sw"></i></div>
+            <div class="en-tog slide-up" style="--d:3"><span>Order reports<small>Order measurement reports</small></span><i class="sw on"></i></div>
+            <div class="en-tog slide-up" style="--d:4"><span>Manage company users<small>Add and edit people</small></span><i class="sw late"></i></div>
+            <div class="en-tog slide-up" style="--d:5"><span>Manage user permissions<small>Change roles and overrides</small></span><i class="sw"></i></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="split" style="margin-top:88px">
+        <div class="reveal">
+          <div class="eyebrow">Reporting &amp; payroll</div>
+          <h2>Roll up every branch. Pay everyone right.</h2>
+          <p class="lead">Compare branches side by side, then run payroll from earnings calculated by your own pay rules: piece rate, hourly and commission.</p>
+          <div class="btn-row"><a class="link-arrow" href="~/solutions/reporting/">Reports &amp; Stats</a><a class="link-arrow" href="~/solutions/payroll/">Payroll &amp; Commissions</a></div>
+        </div>
+        <div class="mock" aria-hidden="true">
+          <div class="mock-bar"><i></i><i></i><i></i><div class="url">Stats · By branch</div></div>
+          <div class="mock-main">
+            <div class="en-bars">
+              <div class="mock-kpi slide-up" style="--d:1"><small>Signed · by branch</small><b>$3.9M</b><div class="mock-bars"><i style="--h:60%;--d:1"></i><i style="--h:45%;--d:2"></i><i style="--h:80%;--d:3"></i><i style="--h:70%;--d:4"></i></div></div>
+              <div class="mock-kpi slide-up" style="--d:2"><small>Installed · by branch</small><b>1,284 sq</b><div class="mock-bars"><i style="--h:72%;--d:5"></i><i style="--h:40%;--d:6"></i><i style="--h:66%;--d:7"></i><i style="--h:90%;--d:8"></i></div></div>
+            </div>
+            <div style="display:flex;justify-content:space-between;font-size:10px;font-weight:700;color:var(--muted);padding:0 4px;--d:3" class="fade"><span>Denver</span><span>Boulder</span><span>Dallas</span><span>Austin</span></div>
+            <div class="mock-row pop" style="--d:8"><i class="fa-solid fa-money-check-dollar" style="color:var(--brand)"></i><span style="flex:1;font-weight:700">Pay run · Week 43<span style="display:block;font-weight:600;color:var(--muted);font-size:11px">4 branches · 212 payees</span></span><span class="mock-chip amber">3 unresolved</span></div>
+            <div class="mock-row pop" style="--d:9"><span class="mock-avatar">JR</span><span style="flex:1;font-weight:700">Piece rate · Ridgeview Dr<span style="display:block;font-weight:600;color:var(--muted);font-size:11px">Earned when the work order was finalized</span></span><span class="mock-chip green">Posted</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container">
+      <div class="section-head reveal">
+        <div class="eyebrow">Recommended for enterprise</div>
+        <h2>Built for scale.</h2>
+      </div>
+      <div class="wws-sol">
+        <a class="top reveal" style="--d:0" href="~/solutions/reporting/"><i class="fa-solid fa-chart-column"></i><span><b>Reports &amp; Stats</b><small>Sales and production numbers</small><span class="tag">Core</span></span></a>
+        <a class="top reveal" style="--d:1" href="~/solutions/payroll/"><i class="fa-solid fa-money-check-dollar"></i><span><b>Payroll &amp; Commissions</b><small>Piece rate, hourly and commission</small><span class="tag">Core</span></span></a>
+        <a class="top reveal" style="--d:2" href="~/solutions/scheduling/"><i class="fa-solid fa-calendar-days"></i><span><b>Scheduling</b><small>Dispatch people and equipment</small><span class="tag">Core</span></span></a>
+        <a class="reveal" style="--d:3" href="~/solutions/crm/"><i class="fa-solid fa-filter"></i><span><b>CRM &amp; Lead Tracking</b><small>Every lead, follow-up and source</small></span></a>
+        <a class="reveal" style="--d:4" href="~/solutions/financials/"><i class="fa-solid fa-chart-line"></i><span><b>Job Costing &amp; Financials</b><small>Profit on every job</small></span></a>
+        <a class="reveal" style="--d:5" href="~/solutions/training/"><i class="fa-solid fa-graduation-cap"></i><span><b>Training</b><small>Build and assign courses</small></span></a>
+        <a class="reveal" style="--d:6" href="~/solutions/documents/"><i class="fa-solid fa-pen-ruler"></i><span><b>Document Studio</b><small>Contracts and reports from your data</small></span></a>
+        <a class="reveal" style="--d:7" href="~/solutions/automations/"><i class="fa-solid fa-bolt"></i><span><b>Automations</b><small>Follow-ups that run themselves</small></span></a>
+        <a class="reveal" style="--d:8" href="~/solutions/integrations/"><i class="fa-solid fa-plug"></i><span><b>Integrations</b><small>QuickBooks, suppliers and more</small></span></a>
+      </div>
+    </div>
+  </section>
+
+  <section class="section section--dark">
+    <div class="container wws-story">
+      <div class="placeholder-photo reveal">Photo: leadership team reviewing branch numbers</div>
+      <div class="reveal" style="--d:1">
+        <div class="eyebrow">Customer story</div>
+        <p class="wws-quote">“Placeholder quote from a multi-branch contractor about running every location on one platform.”</p>
+        <div class="wws-by"><span class="mock-avatar">CN</span><span><b>Customer name</b>Title · Company name · City, ST</span></div>
+        <div class="wws-results">
+          <div class="stat"><b>—</b><span>Branches on FirstMate</span></div>
+          <div class="stat"><b>—</b><span>Placeholder result</span></div>
+          <div class="stat"><b>—</b><span>Placeholder result</span></div>
+        </div>
+        <p style="margin-top:28px"><a class="link-arrow" href="~/resources/case-studies/" style="color:#fff">Read customer stories</a></p>
+      </div>
+    </div>
+  </section>
+
+  <section class="section section--tight">
+    <div class="container">
+      <h4 class="reveal" style="margin-bottom:16px">Other company sizes</h4>
+      <div class="wws-sizes">
+        <a href="~/who-we-serve/small/"><i class="fa-solid fa-user"></i><span>Small<small>1–10 employees</small></span></a>
+        <a href="~/who-we-serve/medium/"><i class="fa-solid fa-user-group"></i><span>Medium<small>11–49 employees</small></span></a>
+        <a class="on" href="~/who-we-serve/enterprise/"><i class="fa-solid fa-building"></i><span>Enterprise<small>50+ employees</small></span></a>
+        <a href="~/who-we-serve/franchise/"><i class="fa-solid fa-network-wired"></i><span>Franchise<small>Part of a larger network</small></span></a>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" style="padding-top:0">
+    <div class="container container--narrow">
+      <details class="faq"><summary>What can each branch set up on its own?</summary><div>Each branch configures its own departments and branch settings. What your branches, regions and departments are called comes from your own terminology, whether that's locations, offices or yards.</div></details>
+      <details class="faq"><summary>We only have one location today. Does that matter?</summary><div>No. With one branch nothing about branches shows at all. Turn on multiple branches when you open a second location.</div></details>
+      <details class="faq"><summary>Do you help with rollout?</summary><div>Placeholder: onboarding, data migration and training for larger teams.</div></details>
+    </div>
+  </section>
+
+  <section class="section" style="padding-top:0"><div class="container"><div class="cta-band">
+    <h2>See FirstMate with your org chart.</h2>
+    <p class="lead" style="color:#c9ccd4">We'll walk through branches, roles and reporting with your structure.</p>
+    <div class="btn-row"><a class="btn btn-primary btn-lg" href="~/demo/">Book a demo</a><a class="btn btn-glass btn-lg" href="~/support/contact/">Talk to sales</a></div>
+  </div></div></section>
+</main>
+<div id="site-footer"></div>
+<script src="../../assets/site.js"></script>
+</body>
+</html>

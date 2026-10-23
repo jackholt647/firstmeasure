@@ -1,0 +1,328 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Resource Hub — FirstMate</title>
+<meta name="description" content="Classes, webinars, articles, guides, customer stories and the podcast, all in one place.">
+<meta name="robots" content="noindex, nofollow">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,400..900;1,400..900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../assets/site.css">
+<style>
+  /* Resource hub (rh-) */
+  .rh-hero-grid { display: grid; grid-template-columns: 1.1fr .9fr; gap: clamp(32px, 6vw, 72px); align-items: end }
+  .rh-search { display: flex; align-items: center; gap: 10px; max-width: 520px; margin-top: 28px; padding: 6px 6px 6px 18px; border: 1.5px solid var(--line); border-radius: 999px; background: #fff; box-shadow: var(--shadow-sm) }
+  .rh-search i { color: var(--muted) }
+  .rh-search input { flex: 1; min-width: 0; border: 0; outline: none; font: inherit; font-size: 15px; background: none; color: var(--ink) }
+  .rh-quick { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px }
+  .rh-quick a { display: flex; align-items: center; gap: 12px; padding: 14px 16px; border-radius: 14px; background: #fff; border: 1px solid var(--line); color: var(--heading); font-weight: 700; font-size: 15px; transition: transform .25s var(--ease), box-shadow .25s, border-color .25s }
+  .rh-quick a:hover { transform: translateY(-3px); box-shadow: var(--shadow); border-color: transparent; color: var(--heading) }
+  .rh-quick .ic { width: 36px; height: 36px; border-radius: 10px; display: grid; place-items: center; background: var(--brand-soft); color: var(--brand); flex: none }
+  .rh-quick small { display: block; font-size: 12px; color: var(--muted); font-weight: 600 }
+
+  /* Featured banner */
+  .rh-feature { position: relative; overflow: hidden; border-radius: var(--radius-lg); background: var(--bg-dark); color: #c9ccd4; display: grid; grid-template-columns: 1fr 1.05fr; gap: clamp(28px, 5vw, 56px); align-items: center; padding: clamp(28px, 5vw, 56px) }
+  .rh-feature::before { content: ""; position: absolute; inset: 0; background: radial-gradient(50% 70% at 85% 20%, rgba(219, 0, 0, .45), transparent 70%), radial-gradient(40% 50% at 0% 100%, rgba(255, 90, 60, .15), transparent 70%); pointer-events: none }
+  .rh-feature > * { position: relative }
+  .rh-feature h2 { color: #fff; font-size: clamp(28px, 3.4vw, 42px) }
+  .rh-meta { display: flex; flex-wrap: wrap; gap: 16px; font-size: 14px; font-weight: 600; color: #a6abb6; margin: 4px 0 24px }
+  .rh-meta i { color: var(--brand-2); margin-right: 6px }
+  .rh-live { display: inline-flex; align-items: center; gap: 8px; padding: 5px 12px; border-radius: 999px; background: rgba(219, 0, 0, .18); color: #ffb4b4; font-size: 12px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; margin-bottom: 18px }
+  .rh-live .pulse-dot { background: var(--brand-2) }
+  .rh-player { display: grid; grid-template-columns: 1fr 150px; min-height: 280px }
+  .rh-stage { padding: 16px; display: flex; flex-direction: column; gap: 12px; background: #101217 }
+  .rh-slide { flex: 1; border-radius: 10px; background: #fff; color: var(--heading); padding: 14px; display: flex; flex-direction: column; gap: 10px }
+  .rh-slide b { font-size: 14px }
+  .rh-slide .mock-bars { height: 80px }
+  .rh-presenter { display: flex; align-items: center; gap: 10px; font-size: 12px; font-weight: 700; color: #e5e7eb }
+  .rh-chat { border-left: 1px solid rgba(255, 255, 255, .06); padding: 12px 10px; display: flex; flex-direction: column; gap: 8px; font-size: 11px; background: #15171c }
+  .rh-chat small { color: #8b909c; font-weight: 800; text-transform: uppercase; letter-spacing: .08em; font-size: 10px }
+  .rh-msg { background: #1f232b; border-radius: 10px; padding: 7px 9px; color: #d1d5db; line-height: 1.35 }
+  .rh-msg b { color: #fff; display: block; font-size: 10px }
+
+  /* Filter chips and card grid (shared look with the other resource pages) */
+  .rs-bar { display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap; margin-bottom: 28px }
+  .rs-chips { display: flex; flex-wrap: wrap; gap: 8px }
+  .rs-chip { appearance: none; border: 1.5px solid var(--line); background: #fff; border-radius: 999px; padding: 8px 16px; font-weight: 700; font-size: 14px; color: var(--heading); cursor: pointer; transition: background .2s, color .2s, border-color .2s, transform .2s }
+  .rs-chip:hover { border-color: var(--heading); transform: translateY(-1px) }
+  .rs-chip.on { background: var(--heading); border-color: var(--heading); color: #fff }
+  .rs-chip .n { opacity: .55; margin-left: 4px; font-weight: 600 }
+  .rs-count { font-size: 14px; font-weight: 600; color: var(--muted) }
+  .rs-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px }
+  .rs-card { display: flex; flex-direction: column; border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; background: #fff; color: inherit; transition: transform .3s var(--ease), box-shadow .3s var(--ease), border-color .3s, opacity .3s }
+  .rs-card:hover { transform: translateY(-4px); box-shadow: var(--shadow); border-color: transparent; color: inherit }
+  .rs-card.is-hidden { display: none }
+  .rs-card.is-entering { animation: rs-in .45s var(--ease) both }
+  @keyframes rs-in { from { opacity: 0; transform: translateY(12px) } }
+  .rs-cover { position: relative; aspect-ratio: 16 / 9; overflow: hidden; display: grid; place-items: center; color: #fff; background: linear-gradient(135deg, var(--a, #db0000), var(--b, #ff6a3d)) }
+  .rs-cover::before { content: ""; position: absolute; inset: 0; background: repeating-linear-gradient(135deg, rgba(255, 255, 255, .09) 0 2px, transparent 2px 22px) }
+  .rs-cover::after { content: ""; position: absolute; width: 70%; aspect-ratio: 1; right: -18%; bottom: -40%; border-radius: 50%; background: radial-gradient(circle, rgba(255, 255, 255, .28), transparent 70%); transition: transform .6s var(--ease) }
+  .rs-card:hover .rs-cover::after { transform: translate(-14%, -10%) scale(1.15) }
+  .rs-cover > i { font-size: 38px; position: relative; z-index: 1; filter: drop-shadow(0 6px 16px rgba(0, 0, 0, .25)); transition: transform .4s var(--ease) }
+  .rs-card:hover .rs-cover > i { transform: scale(1.12) rotate(-4deg) }
+  .rs-cover svg { position: absolute; left: 0; right: 0; bottom: 0; width: 100%; height: 55%; opacity: .35 }
+  .rs-cover .play { position: absolute; z-index: 2; width: 54px; height: 54px; border-radius: 50%; background: rgba(255, 255, 255, .95); color: var(--brand); display: grid; place-items: center; font-size: 18px; box-shadow: 0 10px 30px rgba(0, 0, 0, .25) }
+  .rs-cover .dur { position: absolute; z-index: 2; right: 10px; bottom: 10px; background: rgba(0, 0, 0, .55); color: #fff; font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 6px }
+  .rs-body { padding: 20px 22px 22px; display: flex; flex-direction: column; gap: 8px; flex: 1 }
+  .rs-type { align-self: flex-start; font-size: 11px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; padding: 3px 10px; border-radius: 999px; background: var(--bg-soft); color: var(--heading) }
+  .rs-type.class { background: #dbeafe; color: #1d4ed8 } .rs-type.webinar { background: #ede9fe; color: #6d28d9 } .rs-type.blog { background: var(--brand-soft); color: var(--brand) }
+  .rs-type.case { background: #dcfce7; color: #15803d } .rs-type.guide { background: #fef3c7; color: #92400e } .rs-type.podcast { background: #111827; color: #fff }
+  .rs-body h3 { font-size: 19px; margin: 2px 0 0; line-height: 1.25 }
+  .rs-body p { font-size: 14px; color: var(--muted); margin: 0 }
+  .rs-foot { margin-top: auto; padding-top: 10px; display: flex; justify-content: space-between; align-items: center; font-size: 13px; font-weight: 600; color: var(--muted) }
+  .rs-foot .go { color: var(--brand); font-weight: 700 }
+  .rs-more { text-align: center; margin-top: 40px }
+  @media (max-width: 960px) { .rs-grid { grid-template-columns: repeat(2, minmax(0, 1fr)) } .rh-hero-grid, .rh-feature { grid-template-columns: 1fr } }
+  @media (max-width: 640px) { .rs-grid { grid-template-columns: 1fr } .rh-quick { grid-template-columns: 1fr } .rh-player { grid-template-columns: 1fr } .rh-chat { display: none } }
+
+  /* Forum promo */
+  .rh-forum-mock .mock-main { gap: 10px }
+  .rh-thread { display: flex; gap: 12px; align-items: center; padding: 12px; border: 1px solid var(--line); border-radius: 12px; background: #fff }
+  .rh-thread .t { flex: 1; min-width: 0 }
+  .rh-thread .t b { display: block; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
+  .rh-thread .t small { color: var(--muted); font-weight: 600; font-size: 11px }
+  .rh-thread .r { text-align: center; font-size: 11px; color: var(--muted); font-weight: 700; flex: none }
+  .rh-thread .r b { display: block; font-size: 15px; color: var(--heading) }
+  .rh-compose { display: flex; gap: 8px; align-items: center; padding: 10px 12px; border: 1.5px dashed #d6d9de; border-radius: 12px; color: var(--muted); font-weight: 600 }
+
+  /* Newsletter */
+  .rh-news { display: grid; grid-template-columns: 1fr 1fr; gap: clamp(24px, 5vw, 64px); align-items: center; background: #fff; border: 1px solid var(--line); border-radius: var(--radius-lg); padding: clamp(28px, 5vw, 56px); position: relative; overflow: hidden }
+  .rh-news::after { content: ""; position: absolute; width: 320px; height: 320px; right: -120px; top: -140px; border-radius: 50%; background: radial-gradient(circle, rgba(219, 0, 0, .12), transparent 70%) }
+  .rh-news form { display: flex; gap: 10px; flex-wrap: wrap; position: relative; z-index: 1 }
+  .rh-news .input { flex: 1 1 240px }
+  .rh-news .fine { font-size: 13px; color: var(--muted); margin: 12px 0 0; position: relative; z-index: 1 }
+  .rh-thanks { display: none; align-items: center; gap: 12px; padding: 16px 18px; border-radius: 14px; background: #f0fdf4; border: 1px solid #bbf7d0; color: #166534; font-weight: 700; position: relative; z-index: 1; animation: rs-in .5s var(--ease) both }
+  .rh-thanks i { font-size: 22px }
+  .rh-news.done form { display: none } .rh-news.done .rh-thanks { display: flex }
+  @media (max-width: 860px) { .rh-news { grid-template-columns: 1fr } }
+</style>
+</head>
+<body>
+<div id="site-header"></div>
+<main>
+
+<section class="page-hero">
+  <div class="container rh-hero-grid">
+    <div>
+      <div class="breadcrumb"><a href="~/">Home</a><span>Resources</span></div>
+      <div class="eyebrow">Resource Hub</div>
+      <h1>Learn the trade. Master the platform.</h1>
+      <p class="lead">Placeholder copy: classes, webinars, articles, guides and customer stories for contractors who want to run a tighter business.</p>
+      <label class="rh-search"><i class="fa-solid fa-magnifying-glass"></i><input type="search" id="rh-q" placeholder="Search resources" aria-label="Search resources"><span class="btn btn-primary btn-sm">Search</span></label>
+    </div>
+    <div class="rh-quick">
+      <a class="reveal" href="~/resources/classes/"><span class="ic"><i class="fa-solid fa-chalkboard-user"></i></span><span>Classes<small>Become an expert</small></span></a>
+      <a class="reveal" style="--d:1" href="~/resources/webinars/"><span class="ic"><i class="fa-solid fa-video"></i></span><span>Webinars<small>Live and on demand</small></span></a>
+      <a class="reveal" style="--d:2" href="~/resources/blog/"><span class="ic"><i class="fa-solid fa-newspaper"></i></span><span>Blog<small>Tips and news</small></span></a>
+      <a class="reveal" style="--d:3" href="~/resources/case-studies/"><span class="ic"><i class="fa-solid fa-chart-simple"></i></span><span>Case studies<small>Customer stories</small></span></a>
+      <a class="reveal" style="--d:4" href="~/resources/user-guides/"><span class="ic"><i class="fa-solid fa-book-open"></i></span><span>Guides<small>A workflow for your role</small></span></a>
+      <a class="reveal" style="--d:5" href="~/resources/podcast/"><span class="ic"><i class="fa-solid fa-microphone"></i></span><span>Podcast<small>Stories from the trades</small></span></a>
+    </div>
+  </div>
+</section>
+
+<!-- FEATURED -->
+<section class="section--tight section">
+  <div class="container">
+    <div class="rh-feature reveal">
+      <div>
+        <div class="rh-live"><span class="pulse-dot"></span>Featured webinar</div>
+        <h2>Featured resource title goes here.</h2>
+        <p style="max-width:520px">Placeholder summary of the featured webinar, class or story. One or two sentences on what someone will walk away with.</p>
+        <div class="rh-meta"><span><i class="fa-regular fa-calendar"></i>Date TBD</span><span><i class="fa-regular fa-clock"></i>45 min</span><span><i class="fa-solid fa-user"></i>Host name</span></div>
+        <div class="btn-row"><a class="btn btn-primary" href="~/resources/webinars/">Save my seat</a><a class="btn btn-glass" href="~/resources/webinars/">All webinars</a></div>
+      </div>
+      <div class="mock mock--dark" aria-hidden="true">
+        <div class="mock-bar"><i></i><i></i><i></i><div class="url" style="background:#15171c;border-color:#2a2e37">Live webinar</div></div>
+        <div class="rh-player">
+          <div class="rh-stage">
+            <div class="rh-slide slide-up" style="--d:1">
+              <b>Close rate by lead source</b>
+              <div class="mock-bars"><i style="--h:35%;--d:2"></i><i style="--h:55%;--d:3"></i><i style="--h:42%;--d:4"></i><i style="--h:70%;--d:5"></i><i style="--h:62%;--d:6"></i><i style="--h:88%;--d:7"></i></div>
+              <div style="display:flex;gap:6px;flex-wrap:wrap"><span class="mock-chip red">Door knock</span><span class="mock-chip blue">Web form</span><span class="mock-chip green">Referral</span></div>
+            </div>
+            <div class="rh-presenter fade" style="--d:4"><div class="mock-avatar">HN</div>Host name · Presenting<span style="margin-left:auto" class="mock-chip red"><span class="pulse-dot" style="background:var(--brand-2)"></span>LIVE</span></div>
+          </div>
+          <div class="rh-chat">
+            <small>Q&amp;A</small>
+            <div class="rh-msg slide-left" style="--d:6"><b>Attendee</b>How do you track canvassing leads?</div>
+            <div class="rh-msg slide-left" style="--d:10"><b>Attendee</b>Can this export to QuickBooks?</div>
+            <div class="rh-msg slide-left" style="--d:14"><b>Host</b>Great question, covering that next.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- LIBRARY -->
+<section class="section" style="padding-top:24px">
+  <div class="container">
+    <div class="section-head reveal"><div class="eyebrow">The library</div><h2>Everything we publish, in one place.</h2></div>
+    <div class="rs-bar">
+      <div class="rs-chips" role="tablist" aria-label="Filter resources">
+        <button class="rs-chip on" data-filter="all">All</button>
+        <button class="rs-chip" data-filter="class">Classes</button>
+        <button class="rs-chip" data-filter="webinar">Webinars</button>
+        <button class="rs-chip" data-filter="blog">Blog</button>
+        <button class="rs-chip" data-filter="case">Case studies</button>
+        <button class="rs-chip" data-filter="guide">Guides</button>
+        <button class="rs-chip" data-filter="podcast">Podcast</button>
+      </div>
+      <span class="rs-count" id="rs-count" aria-live="polite"></span>
+    </div>
+    <div class="rs-grid" id="rs-grid">
+      <a class="rs-card reveal" data-type="class" href="~/resources/classes/">
+        <div class="rs-cover" style="--a:#1d4ed8;--b:#60a5fa"><i class="fa-solid fa-chalkboard-user"></i></div>
+        <div class="rs-body"><span class="rs-type class">Class</span><h3>Class title placeholder: getting started</h3><p>Short description of what this class covers.</p><div class="rs-foot"><span>Live · 60 min</span><span class="go">Enroll →</span></div></div>
+      </a>
+      <a class="rs-card reveal" style="--d:1" data-type="blog" href="~/resources/blog/sample-post/">
+        <div class="rs-cover"><svg viewBox="0 0 200 60" preserveAspectRatio="none"><path d="M0 60 L50 18 L100 60 M70 60 L130 8 L200 60" fill="none" stroke="#fff" stroke-width="2"/></svg><i class="fa-solid fa-newspaper"></i></div>
+        <div class="rs-body"><span class="rs-type blog">Blog</span><h3>Article title placeholder about sales follow-up</h3><p>Short excerpt from the article goes here.</p><div class="rs-foot"><span>6 min read</span><span class="go">Read →</span></div></div>
+      </a>
+      <a class="rs-card reveal" style="--d:2" data-type="webinar" href="~/resources/webinars/">
+        <div class="rs-cover" style="--a:#6d28d9;--b:#c084fc"><span class="play"><i class="fa-solid fa-play"></i></span><span class="dur">48:12</span></div>
+        <div class="rs-body"><span class="rs-type webinar">Webinar</span><h3>On-demand webinar title placeholder</h3><p>Who presented and what they covered.</p><div class="rs-foot"><span>On demand</span><span class="go">Watch →</span></div></div>
+      </a>
+      <a class="rs-card reveal" data-type="case" href="~/resources/case-studies/">
+        <div class="rs-cover" style="--a:#15803d;--b:#4ade80"><i class="fa-solid fa-chart-line"></i></div>
+        <div class="rs-body"><span class="rs-type case">Case study</span><h3>Company name: how they cut report turnaround</h3><p>—% faster from inspection to signed proposal.</p><div class="rs-foot"><span>Roofing · Company size</span><span class="go">Read →</span></div></div>
+      </a>
+      <a class="rs-card reveal" style="--d:1" data-type="guide" href="~/resources/user-guides/">
+        <div class="rs-cover" style="--a:#b45309;--b:#fbbf24"><i class="fa-solid fa-book-open"></i></div>
+        <div class="rs-body"><span class="rs-type guide">Guide</span><h3>Guide title placeholder: the sales rep workflow</h3><p>A step-by-step workflow for one role.</p><div class="rs-foot"><span>12 steps</span><span class="go">Open →</span></div></div>
+      </a>
+      <a class="rs-card reveal" style="--d:2" data-type="podcast" href="~/resources/podcast/">
+        <div class="rs-cover" style="--a:#111827;--b:#4b5563"><svg viewBox="0 0 200 60" preserveAspectRatio="none"><polyline points="0,30 10,22 20,38 30,14 40,44 50,26 60,34 70,10 80,50 90,24 100,36 110,18 120,42 130,28 140,32 150,16 160,44 170,24 180,34 190,28 200,30" fill="none" stroke="#fff" stroke-width="2"/></svg><i class="fa-solid fa-microphone"></i></div>
+        <div class="rs-body"><span class="rs-type podcast">Podcast</span><h3>Episode —: guest name on episode topic</h3><p>One-line episode summary placeholder.</p><div class="rs-foot"><span>38 min</span><span class="go">Listen →</span></div></div>
+      </a>
+      <a class="rs-card reveal" data-type="blog" href="~/resources/blog/sample-post/">
+        <div class="rs-cover" style="--a:#0f172a;--b:#db0000"><svg viewBox="0 0 200 60" preserveAspectRatio="none"><path d="M0 50 H200 M0 38 H200 M0 26 H200" stroke="#fff" stroke-width="1.5"/></svg><i class="fa-solid fa-ruler-combined"></i></div>
+        <div class="rs-body"><span class="rs-type blog">Blog</span><h3>Article title placeholder about measurements</h3><p>Short excerpt from the article goes here.</p><div class="rs-foot"><span>4 min read</span><span class="go">Read →</span></div></div>
+      </a>
+      <a class="rs-card reveal" style="--d:1" data-type="class" href="~/resources/classes/">
+        <div class="rs-cover" style="--a:#0369a1;--b:#22d3ee"><i class="fa-solid fa-calendar-days"></i></div>
+        <div class="rs-body"><span class="rs-type class">Class</span><h3>Class title placeholder: scheduling basics</h3><p>Short description of what this class covers.</p><div class="rs-foot"><span>On demand · 30 min</span><span class="go">Start →</span></div></div>
+      </a>
+      <a class="rs-card reveal" style="--d:2" data-type="webinar" href="~/resources/webinars/">
+        <div class="rs-cover" style="--a:#7c3aed;--b:#db0000"><span class="play"><i class="fa-solid fa-play"></i></span><span class="dur">52:40</span></div>
+        <div class="rs-body"><span class="rs-type webinar">Webinar</span><h3>Panel webinar title placeholder</h3><p>Who presented and what they covered.</p><div class="rs-foot"><span>On demand</span><span class="go">Watch →</span></div></div>
+      </a>
+      <a class="rs-card reveal" data-type="guide" href="~/resources/user-guides/">
+        <div class="rs-cover" style="--a:#92400e;--b:#f97316"><i class="fa-solid fa-helmet-safety"></i></div>
+        <div class="rs-body"><span class="rs-type guide">Guide</span><h3>Guide title placeholder: the field app for assignees</h3><p>A step-by-step workflow for one role.</p><div class="rs-foot"><span>8 steps</span><span class="go">Open →</span></div></div>
+      </a>
+      <a class="rs-card reveal" style="--d:1" data-type="case" href="~/resources/case-studies/">
+        <div class="rs-cover" style="--a:#166534;--b:#0ea5e9"><i class="fa-solid fa-people-group"></i></div>
+        <div class="rs-body"><span class="rs-type case">Case study</span><h3>Company name: one platform for every branch</h3><p>— hours saved per week, placeholder metric.</p><div class="rs-foot"><span>Exteriors · Company size</span><span class="go">Read →</span></div></div>
+      </a>
+      <a class="rs-card reveal" style="--d:2" data-type="podcast" href="~/resources/podcast/">
+        <div class="rs-cover" style="--a:#1f2937;--b:#db0000"><i class="fa-solid fa-headphones"></i></div>
+        <div class="rs-body"><span class="rs-type podcast">Podcast</span><h3>Episode —: guest name on episode topic</h3><p>One-line episode summary placeholder.</p><div class="rs-foot"><span>44 min</span><span class="go">Listen →</span></div></div>
+      </a>
+    </div>
+    <div class="rs-more"><button class="btn btn-outline" type="button">Load more</button></div>
+  </div>
+</section>
+
+<!-- FORUM PROMO -->
+<section class="section section--soft">
+  <div class="container split">
+    <div class="reveal">
+      <div class="eyebrow">Community forum</div>
+      <h2>Ask the people who do the work.</h2>
+      <p class="lead">Placeholder copy: questions, workflows and wins from other contractors, with our team in the conversation.</p>
+      <ul class="feature-list"><li>Ask how other teams set things up</li><li>Request features and vote on ideas</li><li>Answers from FirstMate staff</li></ul>
+      <div class="btn-row" style="margin-top:28px"><a class="btn btn-primary" href="~/forum/">Visit the forum</a><a class="link-arrow" href="~/forum/">Browse recent threads</a></div>
+    </div>
+    <div class="mock-stage">
+      <div class="mock rh-forum-mock" aria-hidden="true">
+        <div class="mock-bar"><i></i><i></i><i></i><div class="url">FirstMate Forum</div></div>
+        <div class="mock-main">
+          <div style="display:flex;justify-content:space-between;align-items:center"><span class="mock-title">Recent threads</span><span class="mock-btn">New thread</span></div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap"><span class="mock-chip red">All</span><span class="mock-chip">Sales</span><span class="mock-chip">Production</span><span class="mock-chip">Ideas</span></div>
+          <div class="rh-thread slide-up" style="--d:1"><div class="mock-avatar">JM</div><div class="t"><b>How do you split commissions on a shared lead?</b><small>Sales · 2h ago</small></div><span class="mock-chip green">Answered</span><div class="r"><b>14</b>replies</div></div>
+          <div class="rh-thread slide-up" style="--d:2"><div class="mock-avatar" style="background:linear-gradient(135deg,#93c5fd,#1d4ed8)">AR</div><div class="t"><b>Checklist template for final walkthroughs</b><small>Production · 5h ago</small></div><div class="r"><b>9</b>replies</div></div>
+          <div class="rh-thread slide-up" style="--d:3"><div class="mock-avatar" style="background:linear-gradient(135deg,#86efac,#15803d)">TK</div><div class="t"><b>Idea: delivery photo required before close</b><small>Ideas · 1d ago</small></div><span class="mock-chip violet">Planned</span><div class="r"><b>31</b>votes</div></div>
+          <div class="rh-compose fade" style="--d:5"><i class="fa-regular fa-pen-to-square"></i><span class="mock-type" style="--steps:30">Ask the community a question…</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- NEWSLETTER -->
+<section class="section">
+  <div class="container">
+    <div class="rh-news reveal" id="rh-news">
+      <div>
+        <div class="eyebrow">Newsletter</div>
+        <h2 style="font-size:clamp(28px,3.2vw,40px)">New resources in your inbox.</h2>
+        <p class="muted" style="margin:0">Placeholder copy: one email when new classes, webinars and articles go up. No spam.</p>
+      </div>
+      <div>
+        <form id="rh-news-form" novalidate>
+          <input class="input" type="email" required placeholder="you@company.com" aria-label="Email address">
+          <button class="btn btn-primary" type="submit">Subscribe</button>
+        </form>
+        <div class="rh-thanks" role="status"><i class="fa-solid fa-circle-check"></i><span>Thanks! You're on the list. (Draft: nothing was sent.)</span></div>
+        <p class="fine">Unsubscribe any time.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section" style="padding-top:0">
+  <div class="container">
+    <div class="cta-band reveal">
+      <h2>Put what you learn to work.</h2>
+      <p class="lead" style="color:#c9ccd4;max-width:600px;margin:0 auto">Sign up free and try it on your next job, or book a walkthrough with our team.</p>
+      <div class="btn-row"><a class="btn btn-primary btn-lg" href="https://app.1m8.ai/portal/signup">Sign up free</a><a class="btn btn-glass btn-lg" href="~/demo/">Book a demo</a></div>
+    </div>
+  </div>
+</section>
+
+</main>
+<div id="site-footer"></div>
+<script src="../assets/site.js"></script>
+<script>
+(function () {
+  var grid = document.getElementById('rs-grid');
+  var cards = Array.prototype.slice.call(grid.querySelectorAll('.rs-card'));
+  var chips = document.querySelectorAll('.rs-chip');
+  var count = document.getElementById('rs-count');
+  var q = document.getElementById('rh-q');
+  var current = 'all';
+  chips.forEach(function (c) {
+    var f = c.getAttribute('data-filter');
+    var n = f === 'all' ? cards.length : cards.filter(function (k) { return k.getAttribute('data-type') === f; }).length;
+    c.insertAdjacentHTML('beforeend', '<span class="n">' + n + '</span>');
+    c.addEventListener('click', function () {
+      chips.forEach(function (x) { x.classList.toggle('on', x === c); });
+      current = f; apply();
+    });
+  });
+  function apply() {
+    var term = (q.value || '').trim().toLowerCase(); var shown = 0;
+    cards.forEach(function (k) {
+      var ok = (current === 'all' || k.getAttribute('data-type') === current) && (!term || k.textContent.toLowerCase().indexOf(term) > -1);
+      k.classList.toggle('is-hidden', !ok);
+      if (ok) { shown++; k.classList.add('in'); k.classList.remove('is-entering'); void k.offsetWidth; k.classList.add('is-entering'); }
+    });
+    count.textContent = shown + (shown === 1 ? ' resource' : ' resources');
+  }
+  q.addEventListener('input', apply);
+  count.textContent = cards.length + ' resources';
+
+  var news = document.getElementById('rh-news');
+  document.getElementById('rh-news-form').addEventListener('submit', function (e) {
+    e.preventDefault();
+    var input = this.querySelector('input');
+    if (!input.value || input.value.indexOf('@') < 1) { input.focus(); input.style.borderColor = 'var(--brand)'; return; }
+    news.classList.add('done');
+  });
+})();
+</script>
+</body>
+</html>

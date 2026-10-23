@@ -1,0 +1,242 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Payments — FirstMate</title>
+<meta name="description" content="Take card and bank payments in person or online, collect deposits at signing, send payment requests, run autopay and issue refunds from every job in FirstMate.">
+<meta name="robots" content="noindex, nofollow">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,400..900;1,400..900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/site.css">
+<style>
+  .pay-scene { position: relative; min-height: 470px }
+  .pay-scene > .mock { margin-right: 40px }
+  .pay-checkout { display: grid; grid-template-columns: 1fr 1fr; gap: 14px }
+  .pay-summary { background: #fafafb; border: 1px solid var(--line); border-radius: 12px; padding: 14px; display: flex; flex-direction: column; gap: 8px }
+  .pay-summary .ln { display: flex; justify-content: space-between; font-size: 12px; font-weight: 600; color: var(--body) }
+  .pay-summary .tot { border-top: 1px dashed var(--line); padding-top: 8px; font-weight: 800; font-size: 14px; color: var(--heading) }
+  .pay-amt { font-size: 28px; font-weight: 900; letter-spacing: -.03em }
+  .pay-field { border: 1.5px solid var(--line); border-radius: 10px; padding: 9px 10px; font-size: 12px; font-weight: 700; color: var(--heading); display: flex; align-items: center; gap: 8px; background: #fff }
+  .pay-field small { display: block; font-size: 9px; color: var(--muted); text-transform: uppercase; letter-spacing: .08em }
+  .pay-field.focus { border-color: var(--brand); box-shadow: 0 0 0 3px rgba(219, 0, 0, .1) }
+  .pay-rails { display: flex; gap: 6px }
+  .pay-rails span { flex: 1; text-align: center; border: 1.5px solid var(--line); border-radius: 10px; padding: 7px; font-size: 11px; font-weight: 800 }
+  .pay-rails span.on { border-color: var(--brand); color: var(--brand); background: var(--brand-soft) }
+  .pay-btn { position: relative; border-radius: 999px; background: var(--brand); color: #fff; text-align: center; padding: 11px; font-weight: 800; font-size: 13px; overflow: hidden }
+  .pay-btn .ok { position: absolute; inset: 0; background: var(--ok); display: grid; place-items: center; opacity: 0 }
+  .mock.in .pay-btn .ok { animation: fm-fade .4s ease forwards 3.4s }
+  .mock.in .pay-btn { animation: pay-press .3s ease 3.1s }
+  @keyframes pay-press { 50% { transform: scale(.96) } }
+  .pay-secure { font-size: 10px; color: var(--muted); font-weight: 600; text-align: center }
+  .pay-ledger { right: -6px; bottom: -6px; width: 280px; opacity: 0 }
+  .mock.in ~ .pay-ledger { animation: fm-pop .6s var(--ease) 3.9s forwards }
+  .pay-ledger .row { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 7px 0; border-bottom: 1px solid var(--line-soft); font-size: 11px }
+  .pay-ledger .row:last-child { border: 0 }
+  .pay-ledger .new { background: #f0fdf4; margin: 0 -8px; padding: 7px 8px; border-radius: 8px }
+  .pay-toast { left: -20px; top: 30px; opacity: 0 }
+  .mock.in ~ .pay-toast { animation: fm-pop .6s var(--ease) 3.6s forwards, fm-float 6s ease-in-out 4.4s infinite }
+  @media (max-width: 640px) { .pay-checkout { grid-template-columns: 1fr } .pay-scene > .mock { margin-right: 0 } .pay-ledger { position: relative; right: auto; bottom: auto; width: auto; margin-top: 16px } .pay-toast { display: none } }
+
+  .pay-steps { display: flex; flex-direction: column; gap: 8px }
+  .pay-doc { border: 1px solid var(--line); border-radius: 12px; padding: 14px; background: #fff }
+  .pay-sig { font-family: "Brush Script MT", cursive; font-size: 26px; color: #1d4ed8; line-height: 1 }
+  .pay-sms { max-width: 85%; padding: 10px 12px; border-radius: 14px; background: #eef0f3; font-size: 12px; font-weight: 600; border-bottom-left-radius: 4px }
+  .pay-sms a { font-weight: 800 }
+  .pay-cal { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px }
+  .pay-cal i { aspect-ratio: 1; border-radius: 6px; background: #f3f4f6; font-style: normal; font-size: 10px; font-weight: 700; display: grid; place-items: center; color: var(--muted) }
+  .pay-cal i.hit { background: var(--brand); color: #fff }
+  .pay-rule { display: flex; gap: 10px; align-items: flex-start; padding: 12px; border-radius: 12px; border: 1px dashed #cfd3da; font-size: 12px; font-weight: 600 }
+  .pay-rule i { color: var(--brand); margin-top: 2px }
+</style>
+</head>
+<body>
+<div id="site-header"></div>
+<main>
+  <section class="page-hero">
+    <div class="container split">
+      <div>
+        <div class="breadcrumb"><a href="~/solutions/">Solutions</a><span>Payments</span></div>
+        <div class="eyebrow">Payments</div>
+        <h1>Get paid at the kitchen table.</h1>
+        <p class="lead">Take card and bank (ACH) payments in person or online, collect the deposit the moment a homeowner signs, and see every dollar land on the job it belongs to.</p>
+        <div class="btn-row"><a class="btn btn-primary btn-lg" href="https://app.1m8.ai/portal/signup">Sign up free</a><a class="btn btn-ghost btn-lg" href="~/demo/">Book a demo</a></div>
+      </div>
+      <div class="mock-stage pay-scene" aria-hidden="true">
+        <div class="mock">
+          <div class="mock-bar"><i></i><i></i><i></i><div class="url">Pay deposit · 1482 Ridgeview Dr</div></div>
+          <div class="mock-main">
+            <div class="pay-checkout">
+              <div class="pay-summary slide-up" style="--d:1">
+                <small style="font-size:10px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.08em">Deposit due at signing</small>
+                <div class="pay-amt">$8,287.00</div>
+                <div class="ln"><span>Better package · roof</span><span>$24,860</span></div>
+                <div class="ln"><span>Deposit (one third)</span><span>$8,287</span></div>
+                <div class="ln tot"><span>Due today</span><span>$8,287.00</span></div>
+                <span class="mock-chip violet" style="align-self:flex-start"><i class="fa-solid fa-signature"></i> Signed 9:41 AM</span>
+              </div>
+              <div class="pay-steps">
+                <div class="pay-rails slide-up" style="--d:2"><span class="on"><i class="fa-solid fa-credit-card"></i> Card</span><span><i class="fa-solid fa-building-columns"></i> Bank</span></div>
+                <div class="pay-field focus slide-up" style="--d:3"><i class="fa-solid fa-credit-card" style="color:var(--muted)"></i><div><small>Card number</small><span class="mock-type" style="--steps:19;--d:4">4111 1111 1111 4421</span></div></div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;--d:4" class="slide-up">
+                  <div class="pay-field"><div><small>Expires</small>08 / 29</div></div>
+                  <div class="pay-field"><div><small>ZIP</small>80134</div></div>
+                </div>
+                <div class="pay-btn slide-up" style="--d:5">Pay $8,287.00<span class="ok"><span><i class="fa-solid fa-check"></i> Payment captured</span></span></div>
+                <div class="pay-secure fade" style="--d:6"><i class="fa-solid fa-lock"></i> Card details go straight to the processor</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="mock-float pay-toast"><div class="mock-toast"><div>Deposit received<div style="font-weight:600;color:var(--muted);font-size:11px">Card ending 4421</div></div></div></div>
+        <div class="mock-float pay-ledger">
+          <div style="display:flex;justify-content:space-between;margin-bottom:4px"><b>Money · Payments</b><span class="mock-chip green">Balanced</span></div>
+          <div class="row new"><span><b>Deposit</b><br><span class="muted">Card ·· 4421 · today</span></span><span class="mock-chip green">Settled</span><b>$8,287.00</b></div>
+          <div class="row"><span><b>Material draw</b><br><span class="muted">Bank (ACH) · scheduled</span></span><span class="mock-chip amber">Due</span><b>$8,287.00</b></div>
+          <div class="row"><span><b>Final payment</b><br><span class="muted">On completion</span></span><span class="mock-chip">Later</span><b>$8,286.00</b></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Capability 1: deposit at signing -->
+  <section class="section">
+    <div class="container split">
+      <div class="reveal">
+        <div class="eyebrow">Deposits at signing</div>
+        <h2>Signed and paid in the same minute.</h2>
+        <p class="lead">The proposal knows the price, so the deposit is already worked out. The homeowner signs, picks card or bank, and the payment is recorded against the job before you pack up.</p>
+        <ul class="feature-list"><li>Deposit amount comes from the document, never retyped</li><li>Card or bank, chosen by the homeowner</li><li>Receipt emailed automatically</li></ul>
+      </div>
+      <div class="mock reveal" aria-hidden="true">
+        <div class="mock-bar"><i></i><i></i><i></i><div class="url">Proposal · Better package</div></div>
+        <div class="mock-main">
+          <div class="pay-doc slide-up" style="--d:1">
+            <div style="display:flex;justify-content:space-between"><b>Homeowner signature</b><span class="mock-chip green slide-left" style="--d:5">Signed</span></div>
+            <div class="pay-sig fade" style="--d:3">Dana Whitfield</div>
+            <div class="mock-line w60" style="margin-top:6px"></div>
+          </div>
+          <div class="mock-row slide-up" style="--d:6"><i class="fa-solid fa-hand-holding-dollar" style="color:var(--brand)"></i><b style="flex:1">Deposit · one third of total</b><b>$8,287.00</b></div>
+          <div class="mock-row pop" style="--d:9"><div class="mock-toast" style="flex:1">Paid by card · receipt sent to homeowner</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Capability 2: payment requests -->
+  <section class="section section--soft">
+    <div class="container split split--flip">
+      <div class="reveal">
+        <div class="eyebrow">Payment requests</div>
+        <h2>Send a link. Get paid from the couch.</h2>
+        <p class="lead">Request any amount by text or email. The homeowner opens a secure page, pays by card or bank, and you see it on the job immediately.</p>
+        <ul class="feature-list"><li>Requests for deposits, draws or the final balance</li><li>Pay from the customer portal or the invoice email</li><li>Online payment only offered when your account can take it</li></ul>
+      </div>
+      <div class="mock reveal" aria-hidden="true">
+        <div class="mock-bar"><i></i><i></i><i></i><div class="url">Create payment request</div></div>
+        <div class="mock-main">
+          <div class="mock-row slide-up" style="--d:1"><span class="muted" style="width:70px;font-size:11px;font-weight:700">Amount</span><b style="flex:1">$8,287.00</b><span class="mock-chip">Material draw</span></div>
+          <div class="mock-row slide-up" style="--d:2"><span class="muted" style="width:70px;font-size:11px;font-weight:700">Send to</span><b style="flex:1">Dana Whitfield</b><span class="mock-chip blue"><i class="fa-solid fa-comment-sms"></i> Text</span></div>
+          <div class="pay-sms pop" style="--d:5">Hi Dana, your material draw for 1482 Ridgeview Dr is ready. Pay securely here: <a>pay.link/…</a></div>
+          <div class="mock-row pop" style="--d:9"><span class="pulse-dot"></span><b style="flex:1">Opened · paying by bank</b><span class="mock-chip amber">Pending</span></div>
+          <div class="mock-row pop" style="--d:12"><b style="flex:1">ACH settled</b><span class="mock-chip green">Received</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Capability 3: autopay -->
+  <section class="section">
+    <div class="container split">
+      <div class="reveal">
+        <div class="eyebrow">Autopay</div>
+        <h2>Recurring work pays itself.</h2>
+        <p class="lead">For service plans and payment schedules, save a payment method with the customer's consent and let autopay charge on each due date, up to a maximum you set.</p>
+        <ul class="feature-list"><li>Saved card or bank account per customer</li><li>Optional maximum charge</li><li>Pause, resume or turn off any time</li></ul>
+      </div>
+      <div class="mock reveal" aria-hidden="true">
+        <div class="mock-bar"><i></i><i></i><i></i><div class="url">Money · Autopay</div></div>
+        <div class="mock-main">
+          <div style="display:flex;justify-content:space-between;align-items:center" class="fade"><div class="mock-title">Autopay</div><span class="mock-chip green"><span class="pulse-dot"></span> On</span></div>
+          <div class="mock-row slide-up" style="--d:1"><i class="fa-solid fa-building-columns" style="color:var(--brand)"></i><b style="flex:1">Saved payment method</b><span class="muted" style="font-weight:700">Checking ·· 0912</span></div>
+          <div class="mock-row slide-up" style="--d:2"><b style="flex:1">Maximum charge</b><span style="font-weight:800">$450.00</span></div>
+          <div class="pay-cal slide-up" style="--d:3">
+            <i>1</i><i>2</i><i>3</i><i>4</i><i>5</i><i>6</i><i>7</i><i>8</i><i>9</i><i>10</i><i>11</i><i>12</i><i>13</i><i>14</i><i class="hit pop" style="--d:6">15</i><i>16</i><i>17</i><i>18</i><i>19</i><i>20</i><i>21</i>
+          </div>
+          <div class="mock-row pop" style="--d:8"><span style="flex:1;font-weight:700">Next: Gutter cleaning visit · 15th</span><b>$185.00</b></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Capability 4: refunds & honest ledger -->
+  <section class="section section--dark">
+    <div class="container split split--flip">
+      <div class="reveal">
+        <div class="eyebrow">A ledger you can trust</div>
+        <h2>Nothing is marked paid without a real charge.</h2>
+        <p class="lead">Card and bank payments are only recorded when the processor actually takes them. Cash and checks are recorded as cash and checks. Refunds, reallocations and returns all show up on the job's Money tab, in order.</p>
+        <ul class="feature-list"><li>Bank payments stay pending until they settle</li><li>Declines are never recorded</li><li>Refund to the original card or bank account</li></ul>
+      </div>
+      <div class="mock mock--dark reveal" aria-hidden="true">
+        <div class="mock-bar"><i></i><i></i><i></i><div class="url">Money · History</div></div>
+        <div class="mock-main">
+          <div class="mock-row slide-up" style="--d:1"><span class="mock-chip green">Card</span><b style="flex:1">Deposit</b><span class="mock-chip green">Settled</span><b>$8,287.00</b></div>
+          <div class="mock-row slide-up" style="--d:2"><span class="mock-chip blue">ACH</span><b style="flex:1">Material draw</b><span class="mock-chip green">Cleared</span><b>$8,287.00</b></div>
+          <div class="mock-row slide-up" style="--d:3"><span class="mock-chip">Check</span><b style="flex:1">Check #1043</b><span class="mock-chip">Recorded</span><b>$2,000.00</b></div>
+          <div class="mock-row slide-up" style="--d:4"><span class="mock-chip red">Refund</span><b style="flex:1">Change order removed</b><span class="mock-chip amber">Refunded</span><b>−$640.00</b></div>
+          <div class="pay-rule fade" style="--d:7;border-color:rgba(255,255,255,.15);color:#c9ccd4"><i class="fa-solid fa-shield-halved"></i><span>Declined card at 2:14 PM was not recorded. The checkout stayed open for another card.</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Feature grid -->
+  <section class="section">
+    <div class="container">
+      <div class="section-head center reveal"><div class="eyebrow">Everything included</div><h2>Every way your customers pay.</h2></div>
+      <div class="grid grid-3">
+        <div class="card reveal"><div class="icon"><i class="fa-solid fa-credit-card"></i></div><h3>Card</h3><p>Major cards, typed into a secure processor field on any device.</p></div>
+        <div class="card reveal" style="--d:1"><div class="icon"><i class="fa-solid fa-building-columns"></i></div><h3>Bank (ACH)</h3><p>Lower-cost bank payments for big balances, tracked until they settle.</p></div>
+        <div class="card reveal" style="--d:2"><div class="icon"><i class="fa-solid fa-money-bill-wave"></i></div><h3>Cash and check</h3><p>Record them as exactly what they are, with the check number.</p></div>
+        <div class="card reveal"><div class="icon"><i class="fa-solid fa-mobile-screen"></i></div><h3>In the field</h3><p>Your people can take a payment from the FirstMate app on site.</p></div>
+        <div class="card reveal" style="--d:1"><div class="icon"><i class="fa-solid fa-user-lock"></i></div><h3>Customer portal</h3><p>Homeowners see what they owe and pay online.</p></div>
+        <div class="card reveal" style="--d:2"><div class="icon"><i class="fa-solid fa-arrow-rotate-left"></i></div><h3>Refunds</h3><p>Full or partial, with a reason, back to the original method.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Connected -->
+  <section class="section section--soft">
+    <div class="container">
+      <div class="section-head reveal"><div class="eyebrow">Connected</div><h2>Payments flow into the rest of FirstMate.</h2></div>
+      <div class="grid grid-4">
+        <a class="card reveal" href="~/solutions/invoicing/"><div class="icon"><i class="fa-solid fa-file-invoice-dollar"></i></div><h3>Invoicing</h3><p>Payments apply to the invoice and update aging.</p></a>
+        <a class="card reveal" style="--d:1" href="~/solutions/proposals/"><div class="icon"><i class="fa-solid fa-file-signature"></i></div><h3>Proposals</h3><p>Deposits collected right after signing.</p></a>
+        <a class="card reveal" style="--d:2" href="~/solutions/financials/"><div class="icon"><i class="fa-solid fa-chart-line"></i></div><h3>Financials</h3><p>Payouts, fees and cash flow in one view.</p></a>
+        <a class="card reveal" style="--d:3" href="~/solutions/customer-portal/"><div class="icon"><i class="fa-solid fa-user-lock"></i></div><h3>Customer Portal</h3><p>Balances and pay buttons for homeowners.</p></a>
+      </div>
+    </div>
+  </section>
+
+  <!-- FAQ -->
+  <section class="section">
+    <div class="container container--narrow">
+      <div class="section-head center reveal"><div class="eyebrow">FAQ</div><h2>Questions about payments</h2></div>
+      <details class="faq"><summary>Who processes the payments?</summary><div>FirstMate takes card and bank payments through an integrated payment processor. You apply once and, when approved, can take payments from every job. Placeholder: rates and approval details.</div></details>
+      <details class="faq"><summary>Can I still take cash and checks?</summary><div>Yes. Record them from the job as cash or check with a reference, and they count toward the balance like any other payment.</div></details>
+      <details class="faq"><summary>When does an ACH payment count as paid?</summary><div>A bank payment shows as pending until it settles. If it is returned, the payment is reversed on the job automatically.</div></details>
+      <details class="faq"><summary>Do my people need to handle card numbers?</summary><div>No. Card and bank details are typed into the processor's secure field and never touch your FirstMate account.</div></details>
+    </div>
+  </section>
+
+  <section class="section"><div class="container"><div class="cta-band">
+    <h2>Start getting paid on the spot.</h2>
+    <p class="lead" style="color:#c9ccd4">Set up payments with your account and take your first deposit at the next signing.</p>
+    <div class="btn-row"><a class="btn btn-primary btn-lg" href="https://app.1m8.ai/portal/signup">Sign up free</a><a class="btn btn-glass btn-lg" href="~/demo/">Book a demo</a></div>
+  </div></div></section>
+</main>
+<div id="site-footer"></div>
+<script src="../../assets/site.js"></script>
+</body>
+</html>

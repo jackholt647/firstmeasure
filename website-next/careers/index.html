@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Careers — FirstMate</title>
+<meta name="description" content="Join the team building FirstMate, the platform contractors use to measure, sell, build and get paid.">
+<meta name="robots" content="noindex, nofollow">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,400..900;1,400..900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../assets/site.css">
+<style>
+  .cr-board .mock-main { background: #fafafb }
+  .cr-board .mock-row b { font-size: 13px }
+  .cr-board .mock-row small { display: block; color: var(--muted); font-size: 11px; font-weight: 600 }
+  .cr-board .grow { flex: 1; min-width: 0 }
+  .cr-ship { display: flex; gap: 8px; align-items: center; font-weight: 700; font-size: 12px }
+  .cr-ship .mock-progress { flex: 1 }
+  .cr-culture .split + .split { margin-top: clamp(48px, 7vw, 96px) }
+  .cr-quote { font-size: clamp(22px, 2.4vw, 30px); font-weight: 800; letter-spacing: -.02em; line-height: 1.25; color: var(--heading); border-left: 4px solid var(--brand); padding-left: 24px; margin: 0 }
+  .cr-cal { display: grid; grid-template-columns: 44px repeat(5, minmax(0, 1fr)); gap: 4px; font-size: 10px; font-weight: 700; color: var(--muted) }
+  .cr-cal > div { height: 22px; border-radius: 6px; display: flex; align-items: center; padding: 0 6px }
+  .cr-cal .deep { background: var(--brand-soft); color: var(--brand) }
+  .cr-cal .meet { background: #f3f4f6; color: #6b7280 }
+  .cr-benefit { display: flex; gap: 16px; align-items: flex-start; padding: 22px }
+  .cr-benefit .icon { flex: none; margin: 0 }
+  .cr-benefit h4 { margin: 0 0 4px }
+  .cr-roles { border: 1px solid var(--line); border-radius: var(--radius-lg); background: #fff; overflow: hidden }
+  .cr-roles-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 18px 24px; border-bottom: 1px solid var(--line); background: var(--bg-soft); flex-wrap: wrap }
+  .cr-roles-head b { font-size: 15px }
+  .cr-empty { text-align: center; padding: clamp(40px, 7vw, 72px) 24px }
+  .cr-empty .ring { width: 88px; height: 88px; border-radius: 50%; margin: 0 auto 20px; display: grid; place-items: center; background: var(--brand-soft); color: var(--brand); font-size: 32px; position: relative }
+  .cr-empty .ring::after { content: ""; position: absolute; inset: -10px; border-radius: 50%; border: 2px dashed #ffc9c9; animation: cr-spin 18s linear infinite }
+  @keyframes cr-spin { to { transform: rotate(360deg) } }
+  .cr-empty p { max-width: 520px; margin: 0 auto 24px; color: var(--muted) }
+</style>
+</head>
+<body>
+<div id="site-header"></div>
+<main>
+
+<section class="page-hero">
+  <div class="container split">
+    <div class="reveal">
+      <div class="breadcrumb"><a href="~/about/">Company</a><span>Careers</span></div>
+      <div class="eyebrow">Careers</div>
+      <h1>Build the tools contractors rely on.</h1>
+      <p class="lead">A high-performance team focused on customer value. We ship fast, learn fast and protect time for deep work.</p>
+      <div class="btn-row"><a class="btn btn-primary btn-lg" href="#roles">See open roles</a><a class="btn btn-ghost btn-lg" href="~/about/">About us</a></div>
+    </div>
+    <div class="mock-stage">
+      <div class="mock cr-board">
+        <div class="mock-bar"><i></i><i></i><i></i><div class="url">This week</div></div>
+        <div class="mock-main">
+          <div class="mock-title slide-up">Shipped this week</div>
+          <div class="mock-row slide-up" style="--d:1"><div class="mock-avatar">AB</div><div class="grow"><b>Faster report delivery</b><small>Measurements</small></div><span class="mock-chip green">Live</span></div>
+          <div class="mock-row slide-up" style="--d:2"><div class="mock-avatar">CD</div><div class="grow"><b>Assistant drafts the proposal</b><small>Documents</small></div><span class="mock-chip green">Live</span></div>
+          <div class="mock-row slide-up" style="--d:3"><div class="mock-avatar">EF</div><div class="grow"><b>New lead routing rules</b><small>CRM</small></div><span class="mock-chip blue">Beta</span></div>
+          <div class="mock-row slide-up" style="--d:4"><div class="mock-avatar">GH</div><div class="grow"><b>Autopay on invoices</b><small>Payments</small></div><span class="mock-chip amber">In review</span></div>
+          <div class="cr-ship fade" style="--d:5">Sprint <div class="mock-progress"><i style="--w:82%;--d:5"></i></div> 82%</div>
+        </div>
+        <div class="mock-float mock-toast pop float-y" style="--d:6;right:16px;bottom:-14px">Customer feedback → shipped</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section cr-culture">
+  <div class="container">
+    <div class="split">
+      <div class="reveal">
+        <div class="eyebrow">Culture</div>
+        <h2>The best idea wins.</h2>
+        <p class="lead">Constructive conflict is encouraged. Anyone can challenge a plan, and once we decide, we commit together.</p>
+      </div>
+      <p class="cr-quote reveal" style="--d:1">Placeholder quote from a team member about how decisions get made here.</p>
+    </div>
+    <div class="split split--flip">
+      <div class="reveal">
+        <div class="eyebrow">Bias for action</div>
+        <h2>Ship, learn, repeat.</h2>
+        <p class="lead">We put work in front of contractors quickly, watch how it is used and improve it. Small steps, shipped often.</p>
+      </div>
+      <div class="mock">
+        <div class="mock-main">
+          <div class="mock-title slide-up">Idea to live</div>
+          <div class="cr-ship slide-up" style="--d:1"><span style="width:64px">Idea</span><div class="mock-progress"><i style="--w:100%;--d:1"></i></div></div>
+          <div class="cr-ship slide-up" style="--d:2"><span style="width:64px">Build</span><div class="mock-progress"><i style="--w:100%;--d:3"></i></div></div>
+          <div class="cr-ship slide-up" style="--d:3"><span style="width:64px">Ship</span><div class="mock-progress"><i style="--w:100%;--d:5"></i></div></div>
+          <div class="cr-ship slide-up" style="--d:4"><span style="width:64px">Learn</span><div class="mock-progress"><i style="--w:60%;--d:7"></i></div></div>
+        </div>
+      </div>
+    </div>
+    <div class="split">
+      <div class="reveal">
+        <div class="eyebrow">Deep work</div>
+        <h2>Time to think.</h2>
+        <p class="lead">Protected blocks for focused work, and fewer pointless meetings.</p>
+      </div>
+      <div class="mock">
+        <div class="mock-main">
+          <div class="mock-title slide-up">Your week</div>
+          <div class="cr-cal">
+            <div></div><div>Mon</div><div>Tue</div><div>Wed</div><div>Thu</div><div>Fri</div>
+            <div>9am</div><div class="deep pop" style="--d:1">Focus</div><div class="deep pop" style="--d:2">Focus</div><div class="deep pop" style="--d:3">Focus</div><div class="deep pop" style="--d:4">Focus</div><div class="deep pop" style="--d:5">Focus</div>
+            <div>11am</div><div class="deep pop" style="--d:2">Focus</div><div class="meet pop" style="--d:3">Standup</div><div class="deep pop" style="--d:4">Focus</div><div class="deep pop" style="--d:5">Focus</div><div class="meet pop" style="--d:6">Demo</div>
+            <div>2pm</div><div class="deep pop" style="--d:3">Focus</div><div class="deep pop" style="--d:4">Focus</div><div class="deep pop" style="--d:5">Focus</div><div class="meet pop" style="--d:6">Review</div><div class="deep pop" style="--d:7">Focus</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section section--soft">
+  <div class="container">
+    <div class="section-head reveal">
+      <div class="eyebrow">Benefits</div>
+      <h2>Benefits.</h2>
+      <p class="lead">Placeholder. Benefits to be confirmed before publishing.</p>
+    </div>
+    <div class="grid grid-3">
+      <div class="card cr-benefit reveal"><div class="icon"><i class="fa-solid fa-heart-pulse"></i></div><div><h4>Health</h4><p>Placeholder benefit detail.</p></div></div>
+      <div class="card cr-benefit reveal" style="--d:1"><div class="icon"><i class="fa-solid fa-umbrella-beach"></i></div><div><h4>Time off</h4><p>Placeholder benefit detail.</p></div></div>
+      <div class="card cr-benefit reveal" style="--d:2"><div class="icon"><i class="fa-solid fa-laptop-house"></i></div><div><h4>Where you work</h4><p>Placeholder benefit detail.</p></div></div>
+      <div class="card cr-benefit reveal"><div class="icon"><i class="fa-solid fa-chart-line"></i></div><div><h4>Compensation</h4><p>Placeholder benefit detail.</p></div></div>
+      <div class="card cr-benefit reveal" style="--d:1"><div class="icon"><i class="fa-solid fa-graduation-cap"></i></div><div><h4>Learning</h4><p>Placeholder benefit detail.</p></div></div>
+      <div class="card cr-benefit reveal" style="--d:2"><div class="icon"><i class="fa-solid fa-screwdriver-wrench"></i></div><div><h4>Equipment</h4><p>Placeholder benefit detail.</p></div></div>
+    </div>
+  </div>
+</section>
+
+<section class="section" id="roles">
+  <div class="container container--narrow">
+    <div class="section-head center reveal">
+      <div class="eyebrow">Open positions</div>
+      <h2>Open roles.</h2>
+    </div>
+    <div class="cr-roles reveal">
+      <div class="cr-roles-head"><b>0 open roles</b><span class="pill">All teams</span></div>
+      <div class="cr-empty">
+        <div class="ring"><i class="fa-solid fa-briefcase"></i></div>
+        <h3>No open roles right now.</h3>
+        <p>We are always glad to hear from people who want to build for the trades. Send us a note and tell us what you would work on.</p>
+        <div class="btn-row" style="justify-content:center"><a class="btn btn-outline" href="mailto:info@1m8.ai?subject=Careers">Email info@1m8.ai</a></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section" style="padding-top:0">
+  <div class="container">
+    <div class="cta-band reveal">
+      <h2>Get to know FirstMate.</h2>
+      <p class="lead" style="color:#c9ccd4;max-width:600px;margin:0 auto">See what we are building and who we build it for.</p>
+      <div class="btn-row"><a class="btn btn-primary btn-lg" href="~/about/">About us</a><a class="btn btn-glass btn-lg" href="~/demo/">See a demo</a></div>
+    </div>
+  </div>
+</section>
+
+</main>
+<div id="site-footer"></div>
+<script src="../assets/site.js"></script>
+</body>
+</html>

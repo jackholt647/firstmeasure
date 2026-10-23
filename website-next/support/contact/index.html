@@ -1,0 +1,214 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Contact Us — FirstMate</title>
+<meta name="description" content="Reach FirstMate support, sales or the team. Real people who know the software and the trade.">
+<meta name="robots" content="noindex, nofollow">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,400..900;1,400..900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/site.css">
+<style>
+  .ct-hero-split > * { min-width: 0 }
+  .ct-inbox .mock-main { gap: 10px }
+  .ct-msg { display: flex; gap: 10px; align-items: center; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: #fff }
+  .ct-msg.on { border-color: var(--brand); box-shadow: 0 0 0 3px rgba(219, 0, 0, .08) }
+  .ct-msg b { display: block; font-size: 12px }
+  .ct-msg small { display: block; color: var(--muted); font-size: 11px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
+  .ct-msg > div { flex: 1; min-width: 0 }
+  .ct-float-1 { right: -4px; bottom: 6px; opacity: 0 }
+  .ct-float-2 { left: -10px; top: 40px; opacity: 0; display: flex; gap: 8px; align-items: center }
+  .mock.in ~ .ct-float-1 { animation: fm-pop .6s var(--ease) 2.2s forwards, fm-float 6s ease-in-out 3s infinite }
+  .mock.in ~ .ct-float-2 { animation: fm-pop .6s var(--ease) 1.4s forwards, fm-float 7s ease-in-out 2.2s infinite }
+  @media (max-width: 560px) { .ct-float-2 { display: none } }
+
+  .ct-card { display: flex; flex-direction: column; gap: 6px }
+  .ct-card .ct-line { display: flex; gap: 10px; align-items: center; font-weight: 700; color: var(--heading); margin-top: 6px; word-break: break-word }
+  .ct-card .ct-line i { color: var(--brand); width: 16px; text-align: center }
+  .ct-card .btn { margin-top: 16px; align-self: flex-start }
+  .ct-card.feature { background: var(--bg-dark); border-color: transparent; color: #c9ccd4 }
+  .ct-card.feature h3, .ct-card.feature .ct-line { color: #fff }
+  .ct-card.feature p { color: #a6abb6 }
+  .ct-card.feature .icon { background: rgba(219, 0, 0, .2) }
+
+  .ct-form-wrap { display: grid; grid-template-columns: 1fr 1.25fr; gap: clamp(32px, 6vw, 72px); align-items: start }
+  @media (max-width: 900px) { .ct-form-wrap { grid-template-columns: 1fr } }
+  .ct-form { background: #fff; border: 1px solid var(--line); border-radius: var(--radius-lg); padding: clamp(22px, 4vw, 36px); box-shadow: var(--shadow); position: relative; overflow: hidden }
+  .ct-row { display: grid; grid-template-columns: 1fr 1fr; gap: 0 16px }
+  @media (max-width: 560px) { .ct-row { grid-template-columns: 1fr } }
+  .ct-topics { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 18px }
+  .ct-topics input { position: absolute; opacity: 0; pointer-events: none }
+  .ct-topics label { border: 1.5px solid var(--line); border-radius: 999px; padding: 8px 16px; font-weight: 700; font-size: 14px; cursor: pointer; color: var(--heading); transition: all .2s }
+  .ct-topics input:checked + label { border-color: var(--brand); background: var(--brand-soft); color: var(--brand) }
+  .ct-topics input:focus-visible + label { box-shadow: 0 0 0 4px rgba(219, 0, 0, .15) }
+  .ct-form textarea { min-height: 130px; resize: vertical }
+  .ct-fine { font-size: 13px; color: var(--muted); margin: 8px 0 0 }
+  .ct-thanks { display: none; text-align: center; padding: 40px 10px }
+  .ct-form.sent .ct-fields { display: none }
+  .ct-form.sent .ct-thanks { display: block; animation: fm-pop .6s var(--ease) both }
+  .ct-check { width: 72px; height: 72px; border-radius: 50%; background: #dcfce7; color: #15803d; display: grid; place-items: center; font-size: 30px; margin: 0 auto 18px }
+  .ct-office { display: flex; gap: 14px; align-items: flex-start; margin-top: 24px }
+  .ct-office .icon { width: 44px; height: 44px; border-radius: 12px; background: var(--brand-soft); color: var(--brand); display: grid; place-items: center; flex: none }
+  .ct-ph { display: inline-block; font-size: 11px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; padding: 1px 7px; border-radius: 999px; background: #fef3c7; color: #92400e; vertical-align: middle }
+</style>
+</head>
+<body>
+<div id="site-header"></div>
+<main>
+  <section class="page-hero">
+    <div class="container split ct-hero-split">
+      <div>
+        <div class="breadcrumb"><a href="~/support/help-center/">Support</a><span>Contact us</span></div>
+        <div class="eyebrow">Contact us</div>
+        <h1>We would love to hear from you.</h1>
+        <p class="lead">Questions about your account, a report or whether FirstMate fits your business: reach real people who know the software and the trade.</p>
+        <div class="btn-row"><a class="btn btn-primary btn-lg" href="#ct-form">Send a message</a><a class="btn btn-ghost btn-lg" href="~/demo/">Book a demo</a></div>
+      </div>
+      <div class="mock-stage">
+        <div class="mock ct-inbox" aria-hidden="true">
+          <div class="mock-bar"><i></i><i></i><i></i><div class="url">FirstMate support</div></div>
+          <div class="mock-body">
+            <div class="mock-side">
+              <div class="mock-nav on">Inbox</div><div class="mock-nav">Support</div><div class="mock-nav">Sales</div><div class="mock-nav">General</div>
+            </div>
+            <div class="mock-main">
+              <div class="mock-title fade">Inbox</div>
+              <div class="ct-msg on slide-up" style="--d:1"><span class="mock-avatar">MB</span><div><b>Question about a Full House order</b><small>Can I add the shed after ordering?</small></div><span class="mock-chip green">Replied</span></div>
+              <div class="ct-msg slide-up" style="--d:2"><span class="mock-avatar" style="background:linear-gradient(135deg,#93c5fd,#2563eb)">TK</span><div><b>Demo for our office team</b><small>We have four sales reps and one office…</small></div><span class="mock-chip blue">Sales</span></div>
+              <div class="ct-msg slide-up" style="--d:3"><span class="mock-avatar" style="background:linear-gradient(135deg,#86efac,#16a34a)">RS</span><div><b>Payment link not received</b><small>Customer says the email didn't arrive</small></div><span class="mock-chip amber">Open</span></div>
+              <div class="ct-msg slide-up" style="--d:4"><span class="mock-avatar" style="background:linear-gradient(135deg,#c4b5fd,#7c3aed)">LP</span><div><b>Importing our contacts</b><small>Spreadsheet attached</small></div><span class="mock-chip">New</span></div>
+            </div>
+          </div>
+        </div>
+        <div class="mock-float ct-float-2"><span class="pulse-dot"></span> Support team online</div>
+        <div class="mock-float mock-toast ct-float-1">Reply sent to Marcus</div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container">
+      <div class="section-head center"><div class="eyebrow">Who to contact</div><h2>Pick the right team</h2></div>
+      <div class="grid grid-3">
+        <div class="card ct-card feature reveal">
+          <div class="icon"><i class="fa-solid fa-headset"></i></div>
+          <h3>Support</h3>
+          <p>Help with your account, reports, documents, payments or the app.</p>
+          <div class="ct-line"><i class="fa-solid fa-envelope"></i><a href="mailto:help@1m8.ai" style="color:#fff">help@1m8.ai</a></div>
+          <div class="ct-line"><i class="fa-solid fa-phone"></i>(000) 000-0000 <span class="ct-ph">Placeholder</span></div>
+          <a class="btn btn-primary btn-sm" href="~/support/help-center/">Visit the Help Center</a>
+        </div>
+        <div class="card ct-card reveal" style="--d:1">
+          <div class="icon"><i class="fa-solid fa-handshake"></i></div>
+          <h3>Sales</h3>
+          <p>See whether FirstMate fits your company, your trades and your team.</p>
+          <div class="ct-line"><i class="fa-solid fa-envelope"></i><a href="mailto:info@1m8.ai">info@1m8.ai</a></div>
+          <div class="ct-line"><i class="fa-solid fa-phone"></i>(000) 000-0000 <span class="ct-ph">Placeholder</span></div>
+          <a class="btn btn-outline btn-sm" href="~/demo/">Book a demo</a>
+        </div>
+        <div class="card ct-card reveal" style="--d:2">
+          <div class="icon"><i class="fa-solid fa-envelope-open-text"></i></div>
+          <h3>General &amp; press</h3>
+          <p>Partnerships, press and everything else.</p>
+          <div class="ct-line"><i class="fa-solid fa-newspaper"></i><a href="mailto:press@1m8.ai">press@1m8.ai</a></div>
+          <div class="ct-line"><i class="fa-solid fa-envelope"></i><a href="mailto:info@1m8.ai">info@1m8.ai</a></div>
+          <a class="btn btn-ghost btn-sm" href="~/about/">About FirstMate</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section section--soft" id="ct-form">
+    <div class="container ct-form-wrap">
+      <div class="reveal">
+        <div class="eyebrow">Send a message</div>
+        <h2>Tell us what you need.</h2>
+        <p class="lead">We will get back to you by email. Response time: <span class="ct-ph">Placeholder</span></p>
+        <ul class="feature-list">
+          <li>Answered by people, not a bot</li>
+          <li>Support from people who know the trade</li>
+          <li>One conversation from question to fix</li>
+        </ul>
+        <div class="ct-office">
+          <div class="icon"><i class="fa-solid fa-location-dot"></i></div>
+          <div><b>Seattle office</b><div class="muted">707 S Grady Way<br>Renton, WA 98057</div></div>
+        </div>
+      </div>
+
+      <!-- TODO: this form is not wired to anything yet. Submitting only shows the
+           thank-you state (preventDefault). Connect it to a FirstMate form or a
+           lead intake endpoint before launch. -->
+      <form class="ct-form reveal" style="--d:1" id="ct-contact" novalidate>
+        <div class="ct-fields">
+          <div class="field"><label>What is this about?</label></div>
+          <div class="ct-topics" role="radiogroup" aria-label="Topic">
+            <input type="radio" name="topic" id="ct-t1" value="support" checked><label for="ct-t1">Support</label>
+            <input type="radio" name="topic" id="ct-t2" value="sales"><label for="ct-t2">Sales</label>
+            <input type="radio" name="topic" id="ct-t3" value="billing"><label for="ct-t3">Billing</label>
+            <input type="radio" name="topic" id="ct-t4" value="general"><label for="ct-t4">General</label>
+          </div>
+          <div class="ct-row">
+            <div class="field"><label for="ct-name">Your name</label><input id="ct-name" name="name" required autocomplete="name"></div>
+            <div class="field"><label for="ct-company">Company</label><input id="ct-company" name="company" autocomplete="organization"></div>
+          </div>
+          <div class="ct-row">
+            <div class="field"><label for="ct-email">Email</label><input id="ct-email" name="email" type="email" required autocomplete="email"></div>
+            <div class="field"><label for="ct-phone">Phone <span class="muted">(optional)</span></label><input id="ct-phone" name="phone" type="tel" autocomplete="tel"></div>
+          </div>
+          <div class="field"><label for="ct-size">Company size</label>
+            <select id="ct-size" name="size"><option value="">Choose one</option><option>1–10 employees</option><option>11–49 employees</option><option>50+ employees</option><option>Part of a franchise</option></select>
+          </div>
+          <div class="field"><label for="ct-msg">How can we help?</label><textarea id="ct-msg" name="message" required></textarea></div>
+          <button class="btn btn-primary btn-lg" type="submit" style="width:100%">Send message</button>
+          <p class="ct-fine">By sending this you agree to be contacted about your request. <span class="ct-ph">Placeholder</span> Link the privacy policy.</p>
+        </div>
+        <div class="ct-thanks" role="status">
+          <div class="ct-check"><i class="fa-solid fa-check"></i></div>
+          <h3>Thanks, <span id="ct-thanks-name">we got it</span>.</h3>
+          <p class="muted">Your message is on its way to our <span id="ct-thanks-team">support</span> team. We will reply by email.</p>
+          <button class="btn btn-ghost btn-sm" type="button" id="ct-again">Send another message</button>
+        </div>
+      </form>
+    </div>
+  </section>
+
+  <section class="section section--tight">
+    <div class="container">
+      <div class="grid grid-2">
+        <a class="card reveal" href="~/support/faq/"><div class="icon"><i class="fa-solid fa-circle-question"></i></div><h3>Check the FAQ</h3><p>Quick answers to the most common questions.</p></a>
+        <a class="card reveal" style="--d:1" href="~/forum/"><div class="icon"><i class="fa-solid fa-people-group"></i></div><h3>Ask the community</h3><p>Talk shop with other contractors in the forum.</p></a>
+      </div>
+    </div>
+  </section>
+
+  <section class="section section--tight"><div class="container"><div class="cta-band">
+    <h2>Want the full tour?</h2>
+    <p class="lead" style="color:#c9ccd4">Book a demo and we will walk your team through FirstMate.</p>
+    <div class="btn-row"><a class="btn btn-primary btn-lg" href="~/demo/">Book a demo</a><a class="btn btn-glass btn-lg" href="https://app.1m8.ai/portal/signup">Sign up free</a></div>
+  </div></div></section>
+</main>
+<div id="site-footer"></div>
+<script src="../../assets/site.js"></script>
+<script>
+(function () {
+  var form = document.getElementById('ct-contact');
+  form.addEventListener('submit', function (e) {
+    e.preventDefault(); // Not wired yet: see the comment above the form.
+    var bad = null;
+    form.querySelectorAll('[required]').forEach(function (el) {
+      var ok = el.value.trim() && (el.type !== 'email' || /\S+@\S+\.\S+/.test(el.value));
+      el.style.borderColor = ok ? '' : 'var(--brand)';
+      if (!ok && !bad) bad = el;
+    });
+    if (bad) { bad.focus(); return; }
+    var first = document.getElementById('ct-name').value.trim().split(/\s+/)[0];
+    document.getElementById('ct-thanks-name').textContent = first || 'we got it';
+    document.getElementById('ct-thanks-team').textContent = form.querySelector('input[name="topic"]:checked').value;
+    form.classList.add('sent');
+  });
+  document.getElementById('ct-again').addEventListener('click', function () { form.reset(); form.classList.remove('sent'); });
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,242 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Payroll &amp; Commissions — FirstMate</title>
+<meta name="description" content="Pay sheets and pay rules work out piece-rate, hourly and commission pay from finished work, and pay runs hand it off ready to pay.">
+<meta name="robots" content="noindex, nofollow">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,400..900;1,400..900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/site.css">
+<style>
+  .prl-stmt { display: flex; flex-direction: column; gap: 6px }
+  .prl-head { display: flex; justify-content: space-between; align-items: center; gap: 10px }
+  .prl-line { display: grid; grid-template-columns: 22px 1fr auto; gap: 10px; align-items: center; padding: 9px 12px; border: 1px solid var(--line); border-radius: 10px; background: #fff; opacity: 0; transform: translateY(10px); transition: opacity .5s var(--ease), transform .5s var(--ease), border-color .4s, box-shadow .4s }
+  .prl-line.on { opacity: 1; transform: none }
+  .prl-line.calc { border-color: var(--brand); box-shadow: 0 0 0 3px rgba(219, 0, 0, .08) }
+  .prl-line i.ic { color: var(--brand); text-align: center }
+  .prl-line b { font-weight: 800 }
+  .prl-line small { display: block; font-size: 10px; color: var(--muted); font-weight: 600; font-family: ui-monospace, Menlo, Consolas, monospace }
+  .prl-total { display: flex; justify-content: space-between; align-items: baseline; padding: 12px 14px; border-radius: 12px; background: var(--bg-dark); color: #fff }
+  .prl-total small { font-size: 10px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: #8b909c }
+  .prl-total b { color: #fff; font-size: 24px; font-weight: 900; letter-spacing: -.02em }
+  .prl-float { right: -4px; top: -6px; opacity: 0 }
+  .mock.in ~ .prl-float { animation: fm-pop .6s var(--ease) 4.6s forwards, fm-float 6s ease-in-out 5.4s infinite }
+
+  .prl-sheet { display: grid; grid-template-columns: 1.3fr .8fr .7fr .8fr; gap: 6px; font-size: 11px; font-weight: 600 }
+  .prl-sheet > span { padding: 7px 8px; border-radius: 8px; background: #f7f7f9 }
+  .prl-sheet > .th { background: none; font-size: 9px; font-weight: 800; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; padding: 0 8px }
+  .prl-sheet code { font-size: 10px; color: var(--violet); font-weight: 700 }
+  .prl-formula { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 12px; background: #0f1115; color: #e5e7eb; border-radius: 12px; padding: 14px; line-height: 1.7 }
+  .prl-formula .k { color: #ff7a7a } .prl-formula .s { color: #86efac } .prl-formula .n { color: #93c5fd }
+  .prl-flow { display: grid; grid-template-columns: 1fr 28px 1fr 28px 1fr; align-items: center; gap: 6px }
+  .prl-flow .arrow { text-align: center; color: var(--brand); opacity: 0 }
+  .mock.in .prl-flow .arrow { animation: fm-fade .4s ease forwards; animation-delay: calc(var(--d, 0) * 120ms) }
+  .prl-node { border: 1px solid var(--line); border-radius: 12px; padding: 10px; text-align: center; font-size: 11px; font-weight: 700; background: #fff }
+  .prl-node i { display: block; font-size: 18px; color: var(--brand); margin-bottom: 4px }
+  @media (max-width: 640px) {
+    .prl-sheet { grid-template-columns: 1.3fr .8fr .8fr } .prl-sheet > :nth-child(4n+3) { display: none }
+    .prl-flow { grid-template-columns: 1fr } .prl-flow .arrow { transform: rotate(90deg) }
+    .prl-float { display: none }
+  }
+</style>
+</head>
+<body>
+<div id="site-header"></div>
+<main>
+  <section class="page-hero">
+    <div class="container split">
+      <div>
+        <div class="breadcrumb"><a href="~/solutions/">Solutions</a><span>Payroll &amp; Commissions</span></div>
+        <div class="eyebrow">Payroll &amp; Commissions</div>
+        <h1>Pay your people right, without the spreadsheet.</h1>
+        <p class="lead">Piece rate, hourly and commission pay worked out from the work that was actually finished. Every line says why it was earned, and pay runs are ready to hand to your payroll provider.</p>
+        <div class="btn-row"><a class="btn btn-primary btn-lg" href="https://app.1m8.ai/portal/signup">Sign up free</a><a class="btn btn-ghost btn-lg" href="~/demo/">Book a demo</a></div>
+      </div>
+      <div class="mock-stage" aria-hidden="true">
+        <div class="mock" id="prl-hero">
+          <div class="mock-bar"><i></i><i></i><i></i><div class="url">Payroll · Pay run Oct 31</div></div>
+          <div class="mock-main prl-stmt">
+            <div class="prl-head fade"><div style="display:flex;gap:10px;align-items:center"><div class="mock-avatar">JR</div><div><div class="mock-title">Jordan Reyes</div><div class="muted" style="font-size:11px;font-weight:600">Employee · Weekly · Oct 25 – Oct 31</div></div></div><span class="mock-chip blue">Accrued</span></div>
+            <div class="prl-line" data-amt="2106"><i class="ic fa-solid fa-house-chimney"></i><div><b>Piece rate · Martin roof</b><small>roof.squares 32.4 × $65.00</small></div><b>$2,106.00</b></div>
+            <div class="prl-line" data-amt="243"><i class="ic fa-solid fa-layer-group"></i><div><b>Extra layer tear-off</b><small>layers 1 × squares 32.4 × $7.50</small></div><b>$243.00</b></div>
+            <div class="prl-line" data-amt="182"><i class="ic fa-solid fa-clock"></i><div><b>Hourly · warranty visit</b><small>clocked 6.5 h × $28.00</small></div><b>$182.00</b></div>
+            <div class="prl-line" data-amt="497.2"><i class="ic fa-solid fa-percent"></i><div><b>Commission · Whitfield</b><small>2% × signed total $24,860</small></div><b>$497.20</b></div>
+            <div class="prl-total fade" style="--d:2"><small>Gross earnings</small><b id="prl-gross">$0.00</b></div>
+          </div>
+        </div>
+        <div class="mock-float prl-float"><div class="mock-toast"><div>Labor list finalized<div style="font-weight:600;color:var(--muted);font-size:11px">Earnings refreshed</div></div></div></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container split">
+      <div class="reveal">
+        <div class="eyebrow">Pay sheets</div>
+        <h2>Every assignee's rates, in their own sheet.</h2>
+        <p class="lead">One subcontractor charges by the square, another by the bundle, your in-house team by the hour. Each has a pay sheet that reads the job's measurements and materials and prices their work the same way every time.</p>
+        <ul class="feature-list"><li>Piece rate, hourly, flat and minimums</li><li>Reads measurements like roof squares directly</li><li>A missing input leaves the line unresolved, never $0</li></ul>
+      </div>
+      <div class="mock reveal" aria-hidden="true">
+        <div class="mock-bar"><i></i><i></i><i></i><div class="url">Pay sheet · Ridgeline Roofing LLC</div></div>
+        <div class="mock-main">
+          <div class="prl-sheet">
+            <span class="th">Entry</span><span class="th">Input</span><span class="th">Type</span><span class="th">Rate</span>
+            <span class="slide-up" style="--d:1">Shingle install</span><span class="slide-up" style="--d:1"><code>roof.squares</code></span><span class="slide-up" style="--d:1">Piece rate</span><span class="slide-up" style="--d:1">$65 / sq</span>
+            <span class="slide-up" style="--d:2">Steep charge</span><span class="slide-up" style="--d:2"><code>roof.steep_sq</code></span><span class="slide-up" style="--d:2">Piece rate</span><span class="slide-up" style="--d:2">$12 / sq</span>
+            <span class="slide-up" style="--d:3">Ridge cap</span><span class="slide-up" style="--d:3"><code>Hip &amp; Ridge</code></span><span class="slide-up" style="--d:3">Piece rate</span><span class="slide-up" style="--d:3">$4 / bdl</span>
+            <span class="slide-up" style="--d:4">Pack-out</span><span class="slide-up" style="--d:4"><code>field</code></span><span class="slide-up" style="--d:4">Flat</span><span class="slide-up" style="--d:4">$150</span>
+          </div>
+          <div class="mock-row pop" style="--d:7"><span class="mock-chip amber">Unresolved</span><span style="flex:1;font-weight:600;font-size:12px">Pack-out distance not entered yet</span></div>
+          <div class="mock-row pop" style="--d:9"><b style="flex:1">Martin roof · priced</b><span class="mock-chip">4.5 days</span><b>$2,910.00</b></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section section--soft">
+    <div class="container split split--flip">
+      <div class="reveal">
+        <div class="eyebrow">Pay rules &amp; commissions</div>
+        <h2>Commissions are just another pay rule.</h2>
+        <p class="lead">Write a rule once, put it in a pay plan, and assign the plan to everyone in a role. Change it for one person, effective from a date. The estimator on the project is who gets paid.</p>
+        <ul class="feature-list"><li>Percent of signed total, per job, bonuses and more</li><li>Pay plans assigned by role or per payee</li><li>Effective-dated, so history never changes</li></ul>
+      </div>
+      <div class="mock reveal" aria-hidden="true">
+        <div class="mock-bar"><i></i><i></i><i></i><div class="url">Pay plan · Estimators</div></div>
+        <div class="mock-main">
+          <div style="display:flex;justify-content:space-between;align-items:center" class="fade"><div class="mock-title">Proposal payment commission</div><span class="mock-chip violet">Pay rule</span></div>
+          <div class="prl-formula slide-up" style="--d:2">
+            <div><span class="k">for each</span> project <span class="k">where</span> estimator <span class="k">=</span> <span class="s">payee</span></div>
+            <div><span class="k">when</span> <span class="s">proposal signed</span></div>
+            <div><span class="k">earn</span> <span class="n">2%</span> × signed total</div>
+            <div><span class="k">recognize when</span> <span class="s">deposit paid</span></div>
+          </div>
+          <div class="mock-row slide-up" style="--d:5"><div class="mock-avatar">AL</div><b style="flex:1">Avery Lin</b><span class="mock-chip">Plan default</span></div>
+          <div class="mock-row slide-up" style="--d:6"><div class="mock-avatar">SK</div><b style="flex:1">Sam Kowalski</b><span class="mock-chip amber">Override 3% · from Nov 1</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container split">
+      <div class="reveal">
+        <div class="eyebrow">Earned from finished work</div>
+        <h2>When the work is finalized, the pay is earned.</h2>
+        <p class="lead">Earnings are derived from what really happened on the job. Finish a labor list and the piece-rate pay is earned that day. If a job changes, a refresh posts only the difference and never edits a posted line.</p>
+        <ul class="feature-list"><li>Piece rate earned on finalize</li><li>Time clock hours flow into hourly pay</li><li>Every adjustment is its own ledger line</li></ul>
+      </div>
+      <div class="mock reveal" aria-hidden="true">
+        <div class="mock-bar"><i></i><i></i><i></i><div class="url">Earnings</div></div>
+        <div class="mock-main">
+          <div class="prl-flow">
+            <div class="prl-node pop" style="--d:1"><i class="fa-solid fa-clipboard-check"></i>Labor list finalized</div>
+            <div class="arrow" style="--d:3"><i class="fa-solid fa-arrow-right"></i></div>
+            <div class="prl-node pop" style="--d:4"><i class="fa-solid fa-calculator"></i>Pay sheet evaluated</div>
+            <div class="arrow" style="--d:6"><i class="fa-solid fa-arrow-right"></i></div>
+            <div class="prl-node pop" style="--d:7"><i class="fa-solid fa-book"></i>Earning posted</div>
+          </div>
+          <div class="mock-row slide-up" style="--d:9"><b style="flex:1">Martin roof · piece rate</b><span class="mock-chip green">Posted</span><b>$2,106.00</b></div>
+          <div class="mock-row slide-up" style="--d:10"><b style="flex:1">Martin roof · added 2 sq</b><span class="mock-chip blue">Difference</span><b>+$130.00</b></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section section--dark">
+    <div class="container split split--flip">
+      <div class="reveal">
+        <div class="eyebrow">Pay runs</div>
+        <h2>Approve, finalize, hand off.</h2>
+        <p class="lead">Each pay schedule turns earnings into a pay run per payee. Employees and subcontractors are shown separately. Approve it, finalize it and download the CSV or PDF for your payroll or payables software.</p>
+        <ul class="feature-list"><li>Weekly, twice a month and other schedules</li><li>Off-cycle runs with a reason</li><li>A paid run is never edited</li></ul>
+      </div>
+      <div class="mock mock--dark reveal" aria-hidden="true">
+        <div class="mock-bar"><i></i><i></i><i></i><div class="url">Payroll · Batch 42</div></div>
+        <div class="mock-main">
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">
+            <div class="mock-kpi slide-up" style="--d:1;background:#1c1f26;border-color:rgba(255,255,255,.06)"><small>Payees</small><b style="color:#fff">14</b></div>
+            <div class="mock-kpi slide-up" style="--d:2;background:#1c1f26;border-color:rgba(255,255,255,.06)"><small>Gross</small><b style="color:#fff">$31,480</b></div>
+            <div class="mock-kpi slide-up" style="--d:3;background:#1c1f26;border-color:rgba(255,255,255,.06)"><small>Pay date</small><b style="color:#fff">Oct 31</b></div>
+          </div>
+          <div class="mock-row slide-up" style="--d:4"><b style="flex:1">Employees · 9</b><span class="mock-chip green">Approved</span></div>
+          <div class="mock-row slide-up" style="--d:5"><b style="flex:1">Subcontractors · 5</b><span class="mock-chip amber">Pending review</span></div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;--d:7" class="fade"><span class="mock-btn">Finalize</span><span class="mock-chip">Download CSV</span><span class="mock-chip">Download PDF</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container">
+      <div class="section-head center reveal"><div class="eyebrow">Everything included</div><h2>Every way you pay people.</h2></div>
+      <div class="grid grid-3">
+        <div class="card reveal"><div class="icon"><i class="fa-solid fa-ruler-combined"></i></div><h3>Piece rate</h3><p>By the square, bundle, foot or opening, from real measurements.</p></div>
+        <div class="card reveal" style="--d:1"><div class="icon"><i class="fa-solid fa-clock"></i></div><h3>Hourly</h3><p>Time clock shifts reviewed, approved and paid.</p></div>
+        <div class="card reveal" style="--d:2"><div class="icon"><i class="fa-solid fa-percent"></i></div><h3>Commission</h3><p>For estimators, salespeople and anyone with a role on the job.</p></div>
+        <div class="card reveal"><div class="icon"><i class="fa-solid fa-handshake"></i></div><h3>Subcontractors</h3><p>Outside companies on the same rules, paid through payables.</p></div>
+        <div class="card reveal" style="--d:1"><div class="icon"><i class="fa-solid fa-users"></i></div><h3>Groups</h3><p>Pay a team as one and split it the way you agree.</p></div>
+        <div class="card reveal" style="--d:2"><div class="icon"><i class="fa-solid fa-mobile-screen"></i></div><h3>My Pay</h3><p>Everyone sees what they earned and why, on their phone.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section section--soft">
+    <div class="container">
+      <div class="section-head reveal"><div class="eyebrow">Connected</div><h2>Pay that follows the work.</h2></div>
+      <div class="grid grid-4">
+        <a class="card reveal" href="~/solutions/work-orders/"><div class="icon"><i class="fa-solid fa-clipboard-list"></i></div><h3>Work Orders</h3><p>Finalized labor lists earn the pay.</p></a>
+        <a class="card reveal" style="--d:1" href="~/solutions/crew-management/"><div class="icon"><i class="fa-solid fa-helmet-safety"></i></div><h3>Crew Management</h3><p>Time clock and assignments in the field app.</p></a>
+        <a class="card reveal" style="--d:2" href="~/solutions/financials/"><div class="icon"><i class="fa-solid fa-chart-line"></i></div><h3>Job Costing</h3><p>Labor cost lands on every job.</p></a>
+        <a class="card reveal" style="--d:3" href="~/solutions/roof-measurements/"><div class="icon"><i class="fa-solid fa-house-chimney"></i></div><h3>Measurements</h3><p>The numbers piece rate is built on.</p></a>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container container--narrow">
+      <div class="section-head center reveal"><div class="eyebrow">FAQ</div><h2>Questions about payroll</h2></div>
+      <details class="faq"><summary>Does FirstMate run payroll taxes?</summary><div>No. FirstMate works out who earned what and when, and hands each pay run to the payroll or accounting software you already use.</div></details>
+      <details class="faq"><summary>What if a job changes after it was paid?</summary><div>A refresh posts only the difference as a new line. Posted earnings and paid runs are never edited.</div></details>
+      <details class="faq"><summary>Can different subcontractors have different rates?</summary><div>Yes. Every assignee has their own pay sheet, so two companies on the same roof can be paid entirely differently.</div></details>
+    </div>
+  </section>
+
+  <section class="section"><div class="container"><div class="cta-band">
+    <h2>Pay day without the arguments.</h2>
+    <p class="lead" style="color:#c9ccd4">Every line traced back to the work that earned it.</p>
+    <div class="btn-row"><a class="btn btn-primary btn-lg" href="https://app.1m8.ai/portal/signup">Sign up free</a><a class="btn btn-glass btn-lg" href="~/demo/">Book a demo</a></div>
+  </div></div></section>
+</main>
+<div id="site-footer"></div>
+<script src="../../assets/site.js"></script>
+<script>
+(function () {
+  var mock = document.getElementById('prl-hero'); if (!mock) return;
+  var lines = mock.querySelectorAll('.prl-line'), out = document.getElementById('prl-gross');
+  var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  function fmt(v) { return '$' + v.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+  var total = 0; lines.forEach(function (l) { total += parseFloat(l.getAttribute('data-amt')); });
+  function run() {
+    if (reduce) { lines.forEach(function (l) { l.classList.add('on'); }); out.textContent = fmt(total); return; }
+    var shown = 0;
+    lines.forEach(function (l, i) {
+      setTimeout(function () {
+        lines.forEach(function (x) { x.classList.remove('calc'); });
+        l.classList.add('on', 'calc');
+        var from = shown, to = shown + parseFloat(l.getAttribute('data-amt')); shown = to;
+        var t0 = performance.now();
+        (function step(t) { var p = Math.min(1, (t - t0) / 700); out.textContent = fmt(from + (to - from) * (1 - Math.pow(1 - p, 3))); if (p < 1) requestAnimationFrame(step); })(t0);
+        setTimeout(function () { out.textContent = fmt(to); }, 760);
+        if (i === lines.length - 1) setTimeout(function () { l.classList.remove('calc'); }, 900);
+      }, 600 + i * 900);
+    });
+  }
+  if (mock.classList.contains('in')) run(); else mock.addEventListener('fm:in', run, { once: true });
+})();
+</script>
+</body>
+</html>

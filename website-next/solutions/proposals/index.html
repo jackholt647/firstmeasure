@@ -1,0 +1,273 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Proposals &amp; E-Signature — FirstMate</title>
+<meta name="description" content="Good, better, best proposals priced from your measurements, presented at the table, signed with a sealed record and paid with a deposit.">
+<meta name="robots" content="noindex, nofollow">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,400..900;1,400..900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/site.css">
+<style>
+  .pr-hero-inner { display: grid; grid-template-columns: 1fr 1.1fr; gap: 56px; align-items: center }
+  @media (max-width: 1000px) { .pr-hero-inner { grid-template-columns: 1fr } }
+  .pr-scene { position: relative; padding: 10px 24px 40px 0 }
+  .pr-opts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px }
+  .pr-opt { border: 2px solid var(--line); border-radius: 12px; padding: 10px; background: #fff; transition: border-color .35s, box-shadow .35s, transform .35s var(--ease); position: relative; min-width: 0 }
+  .pr-opt small { display: block; font-size: 10px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--muted) }
+  .pr-opt b { display: block; font-size: 17px; font-weight: 900; letter-spacing: -.02em; margin: 2px 0 6px }
+  .pr-opt ul { list-style: none; margin: 0; padding: 0; font-size: 10px; font-weight: 600; color: var(--muted) }
+  .pr-opt li::before { content: "✓ "; color: var(--ok); font-weight: 800 }
+  .pr-opt .sw { height: 34px; border-radius: 6px; margin-bottom: 8px }
+  .pr-opt.on { border-color: var(--brand); box-shadow: 0 10px 24px rgba(219, 0, 0, .15); transform: translateY(-3px) }
+  .pr-opt.on small { color: var(--brand) }
+  .pr-opt.on::after { content: "✓"; position: absolute; top: -9px; right: -9px; width: 22px; height: 22px; border-radius: 50%; background: var(--brand); color: #fff; font-size: 12px; display: grid; place-items: center; font-weight: 800 }
+  .pr-total { display: flex; justify-content: space-between; align-items: center; padding: 10px 12px; border-radius: 10px; background: var(--bg-soft); font-weight: 800 }
+  .pr-total b { font-size: 20px; font-weight: 900; letter-spacing: -.02em; transition: color .3s }
+  .pr-sigbox { border: 1.5px dashed #cfd3da; border-radius: 12px; padding: 6px 10px 2px; position: relative; background: #fff }
+  .pr-sigbox svg { width: 100%; height: 60px }
+  .pr-sigbox path { fill: none; stroke: #1d4ed8; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 900; stroke-dashoffset: 900 }
+  .pr-sigbox.go path { animation: fm-draw 2.2s ease-in-out forwards }
+  .pr-sigbox .lbl { position: absolute; left: 10px; bottom: 6px; font-size: 10px; font-weight: 700; color: var(--muted); border-top: 1px solid var(--line); right: 10px; padding-top: 3px }
+  .pr-f1 { right: -10px; top: 40px; width: 210px; opacity: 0; transition: opacity .4s, transform .5s var(--ease); transform: translateY(10px) }
+  .pr-f2 { left: -26px; bottom: 0; width: 230px; opacity: 0; transition: opacity .4s, transform .5s var(--ease); transform: translateY(10px) }
+  .pr-f1.show, .pr-f2.show { opacity: 1; transform: none }
+  @media (max-width: 560px) { .pr-f2 { left: 0 } .pr-f1 { right: 0; width: 180px } .pr-opt b { font-size: 14px } .pr-scene { padding-right: 0 } }
+
+  /* line items */
+  .pr-li { display: grid; grid-template-columns: 1.7fr .9fr .9fr; gap: 8px; align-items: center; padding: 8px 10px; border-bottom: 1px solid var(--line-soft); font-size: 11px; font-weight: 700 }
+  .pr-li small { display: block; color: var(--muted); font-weight: 600; font-size: 10px }
+  .pr-li .q { color: var(--brand); font-variant-numeric: tabular-nums }
+  .pr-li-head { font-size: 10px; font-weight: 800; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; border-bottom: 1px solid var(--line) }
+  .pr-link { display: inline-flex; align-items: center; gap: 4px; font-size: 9px; font-weight: 800; color: var(--info); background: #dbeafe; padding: 1px 6px; border-radius: 999px }
+
+  /* presentation */
+  .pr-deck { background: #0d0e12; border-radius: 12px; aspect-ratio: 16/9; position: relative; overflow: hidden; color: #fff }
+  .pr-slide { position: absolute; inset: 0; padding: 18px; display: flex; flex-direction: column; justify-content: center; opacity: 0; transition: opacity .6s, transform .6s var(--ease); transform: translateX(20px) }
+  .pr-slide.on { opacity: 1; transform: none }
+  .pr-slide h4 { color: #fff; font-size: 18px; margin: 0 0 6px }
+  .pr-slide p { font-size: 11px; color: #a6abb6; margin: 0 }
+  .pr-dots { display: flex; gap: 6px; justify-content: center }
+  .pr-dots i { width: 7px; height: 7px; border-radius: 50%; background: #d1d5db; transition: all .3s }
+  .pr-dots i.on { background: var(--brand); width: 20px; border-radius: 4px }
+
+  /* seal */
+  .pr-step { display: flex; gap: 10px; align-items: center; padding: 9px 12px; border: 1px solid var(--line); border-radius: 10px; font-size: 12px; font-weight: 700; background: #fff }
+  .pr-step .n { width: 22px; height: 22px; border-radius: 50%; background: #dcfce7; color: #15803d; display: grid; place-items: center; font-size: 10px; flex: none }
+  .pr-seal { width: 74px; height: 74px; border-radius: 50%; border: 3px solid var(--brand); color: var(--brand); display: grid; place-items: center; text-align: center; font-size: 9px; font-weight: 900; letter-spacing: .08em; text-transform: uppercase; line-height: 1.2; opacity: 0 }
+  .mock.in .pr-seal { animation: pr-stamp .6s var(--ease) forwards; animation-delay: 1.6s }
+  @keyframes pr-stamp { 0% { opacity: 0; transform: scale(1.8) rotate(-20deg) } 100% { opacity: 1; transform: rotate(-12deg) } }
+
+  /* card */
+  .pr-card { border-radius: 14px; padding: 16px; color: #fff; background: linear-gradient(135deg, #1f232b, #0d0e12); position: relative; overflow: hidden; font-weight: 700 }
+  .pr-card::after { content: ""; position: absolute; width: 160px; height: 160px; right: -50px; top: -60px; border-radius: 50%; background: radial-gradient(circle, rgba(219, 0, 0, .6), transparent 70%) }
+  .pr-card .num { letter-spacing: .14em; font-size: 14px; margin: 18px 0 8px }
+</style>
+</head>
+<body data-header="over-dark">
+<div id="site-header"></div>
+<main>
+
+<section class="hero">
+  <div class="hero-grid"></div><div class="hero-glow"></div>
+  <div class="container hero-inner pr-hero-inner">
+    <div>
+      <div class="breadcrumb reveal"><a href="~/solutions/" style="color:#8b909c">Solutions</a><span style="color:#8b909c">Proposals &amp; E-Signature</span></div>
+      <div class="eyebrow reveal">Proposals &amp; E-Signature</div>
+      <h1 class="reveal" style="--d:1">Close it at the <span class="text-gradient">kitchen table.</span></h1>
+      <p class="lead reveal" style="--d:2">Good, better and best options priced from your measurements. Present them, let the homeowner choose, collect the signature and the deposit before you leave the driveway.</p>
+      <div class="btn-row reveal" style="--d:3;margin-top:32px"><a class="btn btn-primary btn-lg" href="https://app.1m8.ai/portal/signup">Sign up free</a><a class="btn btn-glass btn-lg" href="~/demo/">Book a demo</a></div>
+    </div>
+    <div class="pr-scene" aria-hidden="true">
+      <div class="mock" id="pr-hero">
+        <div class="mock-bar"><i></i><i></i><i></i><div class="url">Proposal · The Martins · Presenting</div></div>
+        <div class="mock-main">
+          <div style="display:flex;justify-content:space-between;align-items:center" class="fade"><div class="mock-title">Choose your roof</div><span class="mock-chip">1482 Ridgeview Dr · 32.4 sq</span></div>
+          <div class="pr-opts" id="pr-opts">
+            <div class="pr-opt slide-up" style="--d:1" data-total="$18,420"><div class="sw" style="background:linear-gradient(135deg,#9ca3af,#6b7280)"></div><small>Good</small><b>$18,420</b><ul><li>Architectural</li><li>10-yr workmanship</li></ul></div>
+            <div class="pr-opt slide-up" style="--d:2" data-total="$24,860"><div class="sw" style="background:linear-gradient(135deg,#475569,#1e293b)"></div><small>Better</small><b>$24,860</b><ul><li>Designer shingle</li><li>Ice &amp; water</li></ul></div>
+            <div class="pr-opt slide-up" style="--d:3" data-total="$31,200"><div class="sw" style="background:linear-gradient(135deg,#7f1d1d,#1f2937)"></div><small>Best</small><b>$31,200</b><ul><li>Premium line</li><li>Lifetime warranty</li></ul></div>
+          </div>
+          <div class="pr-total fade" style="--d:4"><span>Total <span style="font-weight:600;color:var(--muted);font-size:11px">· Charcoal</span></span><b id="pr-total">$24,860</b></div>
+          <div class="pr-sigbox fade" style="--d:5" id="pr-sig">
+            <svg viewBox="0 0 320 60"><path d="M14 42 C 22 14, 34 12, 30 34 S 40 50, 52 30 C 58 20, 64 22, 62 36 C 61 44, 70 44, 76 32 C 80 24, 86 26, 86 36 C 86 42, 92 42, 98 34 L 104 26 C 108 40, 116 42, 122 30 C 128 18, 140 18, 136 36 C 134 46, 150 40, 156 28 M 170 40 C 176 16, 186 14, 190 30 C 192 40, 198 40, 204 30 C 208 22, 214 22, 214 34 C 214 42, 222 40, 228 30 C 232 22, 240 24, 238 36 L 246 26 C 252 40, 262 40, 270 26 C 276 18, 290 22, 304 30"/></svg>
+            <div class="lbl">Sarah Martin · Homeowner</div>
+          </div>
+        </div>
+      </div>
+      <div class="mock-float pr-f1" id="pr-f1"><div style="display:flex;justify-content:space-between;margin-bottom:6px"><span class="mock-chip green"><i class="fa-solid fa-lock"></i> Sealed</span><span style="color:var(--muted);font-size:11px">just now</span></div>Signed agreement<div style="font-weight:600;color:var(--muted);font-size:11px">Executed PDF and evidence saved</div></div>
+      <div class="mock-float pr-f2" id="pr-f2"><div class="mock-toast"><div>Deposit received<div style="font-weight:600;color:var(--muted);font-size:11px">Card ending 4421 · <span id="pr-dep">$8,287.00</span></div></div></div></div>
+    </div>
+  </div>
+</section>
+
+<!-- Priced from measurements -->
+<section class="section">
+  <div class="container split">
+    <div class="reveal">
+      <div class="eyebrow">Priced from measurements</div>
+      <h2>The report fills the estimate.</h2>
+      <p class="lead">Squares, ridge, valleys, siding and gutter footage come straight from the FirstMeasure report into each option's lines. Change the measurement and every option reprices.</p>
+      <ul class="feature-list"><li>Your price book, your margins</li><li>Waste factors applied for you</li><li>Discounts and add-ons per option</li></ul>
+    </div>
+    <div class="mock reveal" aria-hidden="true">
+      <div class="mock-bar"><i></i><i></i><i></i><div class="url">Estimate · Better</div></div>
+      <div class="mock-main" style="gap:0">
+        <div class="pr-li pr-li-head"><span>Line</span><span>Quantity</span><span>Total</span></div>
+        <div class="pr-li slide-up" style="--d:1"><span>Designer shingle<small>Charcoal · 10% waste</small></span><span class="q">35.6 sq <span class="pr-link">Roof</span></span><span>$—</span></div>
+        <div class="pr-li slide-up" style="--d:2"><span>Ridge cap<small>Hip and ridge</small></span><span class="q">148 ft <span class="pr-link">Ridge</span></span><span>$—</span></div>
+        <div class="pr-li slide-up" style="--d:3"><span>Ice &amp; water shield<small>Valleys and eaves</small></span><span class="q">212 ft <span class="pr-link">Valleys</span></span><span>$—</span></div>
+        <div class="pr-li slide-up" style="--d:4"><span>Drip edge<small>Rakes and eaves</small></span><span class="q">286 ft <span class="pr-link">Eaves</span></span><span>$—</span></div>
+        <div class="pr-li slide-up" style="--d:5"><span>Tear-off and disposal<small>1 layer</small></span><span class="q">32.4 sq <span class="pr-link">Roof</span></span><span>$—</span></div>
+        <div class="pr-total pop" style="--d:7;margin-top:10px"><span>Better total</span><b>$24,860</b></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Presentation -->
+<section class="section section--soft">
+  <div class="container split split--flip">
+    <div class="reveal">
+      <div class="eyebrow">Presentation mode</div>
+      <h2>A presentation, not a PDF.</h2>
+      <p class="lead">Walk the homeowner through your company, their roof and their choices on a tablet, or send it to them to review at home. Either side picks the options and the price follows.</p>
+      <ul class="feature-list"><li>Cover, inspection, options and authorization pages</li><li>Customer choice groups for color and upgrades</li><li>The contract is produced from what they chose</li></ul>
+    </div>
+    <div class="mock reveal" aria-hidden="true">
+      <div class="mock-bar"><i></i><i></i><i></i><div class="url">Present · The Martins</div></div>
+      <div class="mock-main">
+        <div class="pr-deck" id="pr-deck">
+          <div class="pr-slide on"><span class="mock-chip red" style="align-self:flex-start;margin-bottom:10px">Cover</span><h4>Roof replacement proposal</h4><p>Prepared for Sarah Martin · 1482 Ridgeview Dr</p></div>
+          <div class="pr-slide"><span class="mock-chip red" style="align-self:flex-start;margin-bottom:10px">Inspection</span><h4>What we found</h4><p>Granule loss on south slopes · lifted shingles at ridge · 2 soft spots</p><div class="placeholder-photo" style="min-height:60px;margin-top:10px;background:#1f232b;border-color:#2a2e37;color:#8b909c">Photo: inspection</div></div>
+          <div class="pr-slide"><span class="mock-chip red" style="align-self:flex-start;margin-bottom:10px">Options</span><h4>Good · Better · Best</h4><div style="display:flex;gap:6px;margin-top:8px"><span class="mock-chip">$18,420</span><span class="mock-chip red">$24,860 ★</span><span class="mock-chip">$31,200</span></div></div>
+          <div class="pr-slide"><span class="mock-chip red" style="align-self:flex-start;margin-bottom:10px">Authorization</span><h4>Terms and signature</h4><p>Review the agreement and sign to get on the schedule.</p></div>
+        </div>
+        <div class="pr-dots" id="pr-dots"><i class="on"></i><i></i><i></i><i></i></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- E-sign -->
+<section class="section">
+  <div class="container split">
+    <div class="reveal">
+      <div class="eyebrow">E-signature</div>
+      <h2>Signed, sealed and on the record.</h2>
+      <p class="lead">Every signer reviews the exact document, agrees with one checkbox and signs. The signed agreement is sealed and kept with its evidence, and every version of the document is in its history.</p>
+      <ul class="feature-list"><li>Multiple signers, in order</li><li>Executed PDF with a signing record</li><li>Signing starts the job: deposits, scheduling, next steps</li></ul>
+    </div>
+    <div class="mock reveal" aria-hidden="true">
+      <div class="mock-bar"><i></i><i></i><i></i><div class="url">Signing · Roof agreement</div></div>
+      <div class="mock-main">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px">
+          <div style="flex:1;display:flex;flex-direction:column;gap:8px">
+            <div class="pr-step slide-up" style="--d:1"><span class="n">✓</span><span style="flex:1">Sent to Sarah Martin</span><span style="color:var(--muted);font-size:11px">2:04 PM</span></div>
+            <div class="pr-step slide-up" style="--d:3"><span class="n">✓</span><span style="flex:1">Reviewed and consented</span><span style="color:var(--muted);font-size:11px">2:06 PM</span></div>
+            <div class="pr-step slide-up" style="--d:5"><span class="n">✓</span><span style="flex:1">Signed by homeowner</span><span style="color:var(--muted);font-size:11px">2:07 PM</span></div>
+            <div class="pr-step slide-up" style="--d:7"><span class="n">✓</span><span style="flex:1">Countersigned by company</span><span style="color:var(--muted);font-size:11px">2:09 PM</span></div>
+          </div>
+          <div class="pr-seal">Signed<br>&amp;<br>sealed</div>
+        </div>
+        <div class="mock-row pop" style="--d:10"><i class="fa-solid fa-file-pdf" style="color:var(--brand)"></i><b style="flex:1">Executed agreement.pdf</b><span class="mock-chip">History</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Deposit -->
+<section class="section section--dark">
+  <div class="container split split--flip">
+    <div class="reveal">
+      <div class="eyebrow">Deposit at signing</div>
+      <h2>Get the deposit before the ink dries.</h2>
+      <p class="lead" style="color:#c9ccd4">The deposit is due the moment the agreement is signed. The homeowner pays by card or bank right there, and the payment schedule for the rest of the job is set up from the contract.</p>
+      <ul class="feature-list"><li>Card or bank, in person or online</li><li>Deposit amount set by your terms</li><li>Recorded on the project automatically</li></ul>
+      <a class="btn btn-glass" style="margin-top:20px" href="~/solutions/payments/">Explore payments</a>
+    </div>
+    <div class="mock reveal" aria-hidden="true">
+      <div class="mock-bar"><i></i><i></i><i></i><div class="url">Pay deposit · The Martins</div></div>
+      <div class="mock-main">
+        <div class="pr-card slide-up" style="--d:1"><div style="position:relative;z-index:1"><span style="font-size:11px;opacity:.7">Card</span><div class="num">•••• •••• •••• 4421</div><div style="display:flex;justify-content:space-between;font-size:11px;opacity:.8"><span>SARAH MARTIN</span><span>••/••</span></div></div></div>
+        <div class="pr-total slide-up" style="--d:2"><span>Deposit · 1/3 of $24,860</span><b>$8,287.00</b></div>
+        <div class="mock-row slide-up" style="--d:3"><span style="flex:1;font-weight:700">Balance on completion</span><span class="mock-chip">$16,573.00</span></div>
+        <div class="mock-row pop" style="--d:6"><div class="mock-toast" style="flex:1">Deposit paid · Install can be scheduled</div></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Grid -->
+<section class="section">
+  <div class="container">
+    <div class="section-head center reveal"><div class="eyebrow">More</div><h2>Everything a proposal needs.</h2></div>
+    <div class="grid grid-3">
+      <div class="card reveal"><div class="icon"><i class="fa-solid fa-swatchbook"></i></div><h3>Templates</h3><p>Save your proposal layout once and start every job from it.</p></div>
+      <div class="card reveal" style="--d:1"><div class="icon"><i class="fa-solid fa-palette"></i></div><h3>Your brand</h3><p>Your logo, colors, photos and warranty pages on every proposal.</p></div>
+      <div class="card reveal" style="--d:2"><div class="icon"><i class="fa-solid fa-tags"></i></div><h3>Discounts</h3><p>Promotions and financing options shown right on the option.</p></div>
+      <div class="card reveal"><div class="icon"><i class="fa-solid fa-paper-plane"></i></div><h3>Send and follow up</h3><p>Email a link and follow up automatically until they decide.</p></div>
+      <div class="card reveal" style="--d:1"><div class="icon"><i class="fa-solid fa-clock-rotate-left"></i></div><h3>Document history</h3><p>Every change and every sent version is kept and can be compared.</p></div>
+      <div class="card reveal" style="--d:2"><div class="icon"><i class="fa-solid fa-wand-magic-sparkles"></i></div><h3>Assistant help</h3><p>Ask the assistant to draft a scope, add an option or write the cover letter.</p></div>
+    </div>
+  </div>
+</section>
+
+<section class="section section--soft">
+  <div class="container">
+    <div class="section-head reveal"><div class="eyebrow">Connected</div><h2>From measurement to signed to scheduled.</h2></div>
+    <div class="grid grid-4">
+      <a class="card reveal" href="~/solutions/roof-measurements/"><div class="icon"><i class="fa-solid fa-house-chimney"></i></div><h3>Measurements</h3><p>The numbers every option is priced from.</p></a>
+      <a class="card reveal" style="--d:1" href="~/solutions/documents/"><div class="icon"><i class="fa-solid fa-pen-ruler"></i></div><h3>Document Studio</h3><p>Design the proposal and contract templates.</p></a>
+      <a class="card reveal" style="--d:2" href="~/solutions/crm/"><div class="icon"><i class="fa-solid fa-filter"></i></div><h3>CRM</h3><p>See every proposal waiting on a decision.</p></a>
+      <a class="card reveal" style="--d:3" href="~/solutions/payments/"><div class="icon"><i class="fa-solid fa-credit-card"></i></div><h3>Payments</h3><p>Deposits and final payments by card or bank.</p></a>
+    </div>
+  </div>
+</section>
+
+<section class="section">
+  <div class="container container--narrow">
+    <div class="section-head reveal"><h2>Questions</h2></div>
+    <details class="faq"><summary>Can the homeowner sign on my tablet?</summary><div>Yes. Present in person and hand over the tablet, or send a link to sign from anywhere.</div></details>
+    <details class="faq"><summary>What happens if the price changes after it is sent?</summary><div>Edit the document and send it again; every sent version stays in the document's history. Signed terms are changed with a new agreement or amendment.</div></details>
+    <details class="faq"><summary>Do I need FirstMeasure reports to use proposals?</summary><div>Placeholder answer about entering measurements by hand or from another report.</div></details>
+  </div>
+</section>
+
+<section class="section" style="padding-top:0"><div class="container"><div class="cta-band reveal">
+  <h2>Send your next proposal from FirstMate.</h2>
+  <p class="lead" style="color:#c9ccd4;max-width:600px;margin:0 auto">Sign up free, order a report and turn it into a proposal the same day.</p>
+  <div class="btn-row"><a class="btn btn-primary btn-lg" href="https://app.1m8.ai/portal/signup">Sign up free</a><a class="btn btn-glass btn-lg" href="~/demo/">Book a demo</a></div>
+</div></div></section>
+
+</main>
+<div id="site-footer"></div>
+<script src="../../assets/site.js"></script>
+<script>
+(function () {
+  var reduce = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var opts = document.querySelectorAll('#pr-opts .pr-opt'), total = document.getElementById('pr-total'), sig = document.getElementById('pr-sig');
+  var f1 = document.getElementById('pr-f1'), f2 = document.getElementById('pr-f2'), dep = document.getElementById('pr-dep');
+  function pick(k) { opts.forEach(function (o, j) { o.classList.toggle('on', j === k); }); total.textContent = opts[k].getAttribute('data-total'); }
+  if (reduce) { pick(1); sig.classList.add('go'); f1.classList.add('show'); f2.classList.add('show'); }
+  else {
+    var seq = function () {
+      f1.classList.remove('show'); f2.classList.remove('show'); sig.classList.remove('go');
+      setTimeout(function () { pick(0); }, 600);
+      setTimeout(function () { pick(2); }, 1800);
+      setTimeout(function () { pick(1); }, 3000);
+      setTimeout(function () { void sig.offsetWidth; sig.classList.add('go'); }, 4000);
+      setTimeout(function () { f1.classList.add('show'); }, 6400);
+      setTimeout(function () { f2.classList.add('show'); }, 7200);
+    };
+    var started = false;
+    new IntersectionObserver(function (e) { if (e[0].isIntersecting && !started) { started = true; setTimeout(seq, 900); setInterval(seq, 12000); } }).observe(document.getElementById('pr-hero'));
+  }
+  // Presentation deck
+  var slides = document.querySelectorAll('#pr-deck .pr-slide'), dots = document.querySelectorAll('#pr-dots i'), s = 0;
+  if (!reduce) setInterval(function () { s = (s + 1) % slides.length; slides.forEach(function (el, j) { el.classList.toggle('on', j === s); }); dots.forEach(function (d, j) { d.classList.toggle('on', j === s); }); }, 2600);
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,186 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Landscaping — FirstMate</title>
+<meta name="description" content="FirstMate for landscaping and lawn care: recurring visits, routes for your teams, field photos and billing that keeps up.">
+<meta name="robots" content="noindex, nofollow">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,400..900;1,400..900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/site.css">
+<style>
+  .ls-wk { display: grid; grid-template-columns: 58px repeat(5, minmax(0, 1fr)); gap: 5px; font-size: 10px; align-items: start }
+  .ls-wk > .h { font-weight: 800; color: var(--muted); text-align: center; letter-spacing: .04em }
+  .ls-wk > b { font-size: 11px; padding-top: 5px }
+  .ls-day { display: flex; flex-direction: column; gap: 4px; min-height: 52px; padding: 4px; border-radius: 8px; background: #fafafb; border: 1px solid var(--line-soft) }
+  .ls-v { display: flex; align-items: center; gap: 4px; padding: 3px 5px; border-radius: 6px; font-weight: 700; font-size: 9.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; background: #dcfce7; color: #15803d }
+  .ls-v.b { background: #dbeafe; color: #1d4ed8 } .ls-v.a { background: #fef3c7; color: #92400e }
+  .ls-v i { font-size: 8px; flex: none }
+  .ls-wk.anim .ls-v { animation: fm-pop .45s var(--ease) both; animation-delay: calc(var(--d, 0) * 60ms) }
+  .ls-head { display: flex; justify-content: space-between; align-items: center }
+  .ls-wkl { display: inline-flex; gap: 6px; align-items: center; font-weight: 800; font-size: 12px }
+  .ls-wkl span { white-space: nowrap; padding: 3px 10px; border-radius: 999px; background: var(--bg-soft); border: 1px solid var(--line) }
+  .ls-float { right: -8px; bottom: -12px; width: 220px; opacity: 0 }
+  .mock.in ~ .ls-float { animation: fm-pop .6s var(--ease) 2s forwards, fm-float 6s ease-in-out 2.6s infinite }
+  @media (max-width: 560px) { .ls-float { display: none } .ls-wk { grid-template-columns: 44px repeat(5, minmax(0, 1fr)) } .ls-v span { display: none } .ls-v { justify-content: center; padding: 5px } .ls-wkl .fa-solid { display: none } .ls-wkl span { font-size: 10px } }
+  .ls-cap + .ls-cap { margin-top: clamp(64px, 8vw, 104px) }
+  .ls-route { display: flex; flex-direction: column; gap: 6px; position: relative }
+  .ls-route .mock-row { position: relative }
+  .ls-n { width: 22px; height: 22px; border-radius: 50%; background: var(--brand); color: #fff; font-size: 10px; font-weight: 800; display: grid; place-items: center; flex: none }
+  .ls-ba { display: grid; grid-template-columns: 1fr 1fr; gap: 8px }
+  .ls-ph { aspect-ratio: 4/3; border-radius: 10px; position: relative; overflow: hidden }
+  .ls-ph.b { background: linear-gradient(160deg, #d9d3b8, #a99f76) } .ls-ph.a { background: linear-gradient(160deg, #a7e3a1, #3f9b4b) }
+  .ls-ph span { position: absolute; left: 6px; top: 6px; font-size: 9px; font-weight: 800; background: rgba(255, 255, 255, .92); padding: 2px 7px; border-radius: 5px; color: var(--heading) }
+  .ls-sol { display: flex; gap: 14px; align-items: flex-start } .ls-sol .icon { margin: 0 !important; flex: none }
+</style>
+</head>
+<body>
+<div id="site-header"></div>
+<main>
+  <section class="page-hero">
+    <div class="container split">
+      <div>
+        <div class="breadcrumb"><a href="~/trades/">Trades</a><span>Landscaping</span></div>
+        <div class="eyebrow">Landscaping</div>
+        <h1>The same yards, every week, without the scramble.</h1>
+        <p class="lead">Set a property's visits once and they fill the schedule week after week. Your teams get their route, check off the work with photos, and billing keeps up on its own.</p>
+        <div class="btn-row"><a class="btn btn-primary btn-lg" href="https://app.1m8.ai/portal/signup">Sign up free</a><a class="btn btn-ghost btn-lg" href="~/demo/">Book a demo</a></div>
+      </div>
+      <div class="mock-stage" aria-hidden="true">
+        <div class="mock">
+          <div class="mock-bar"><i></i><i></i><i></i><div class="url">Scheduling · Recurring visits</div></div>
+          <div class="mock-main">
+            <div class="ls-head fade"><div class="mock-title">Weekly visits</div><div class="ls-wkl"><i class="fa-solid fa-chevron-left" style="color:var(--muted)"></i><span id="ls-week">Week of Oct 19</span><i class="fa-solid fa-chevron-right" style="color:var(--muted)"></i></div></div>
+            <div class="ls-wk" id="ls-wk">
+              <span></span><span class="h">MON</span><span class="h">TUE</span><span class="h">WED</span><span class="h">THU</span><span class="h">FRI</span>
+              <b>Team 1</b>
+              <div class="ls-day"><div class="ls-v" style="--d:1"><i class="fa-solid fa-repeat"></i><span>Mow · Hale</span></div><div class="ls-v" style="--d:2"><i class="fa-solid fa-repeat"></i><span>Mow · Ito</span></div></div>
+              <div class="ls-day"><div class="ls-v" style="--d:3"><i class="fa-solid fa-repeat"></i><span>Mow · Cruz</span></div></div>
+              <div class="ls-day"><div class="ls-v" style="--d:4"><i class="fa-solid fa-repeat"></i><span>Mow · Park</span></div><div class="ls-v a" data-alt="1" style="--d:5"><i class="fa-solid fa-leaf"></i><span>Leaf cleanup</span></div></div>
+              <div class="ls-day"><div class="ls-v" style="--d:6"><i class="fa-solid fa-repeat"></i><span>Mow · Reed</span></div></div>
+              <div class="ls-day"><div class="ls-v" style="--d:7"><i class="fa-solid fa-repeat"></i><span>Mow · Shaw</span></div></div>
+              <b>Team 2</b>
+              <div class="ls-day"><div class="ls-v b" style="--d:3"><i class="fa-solid fa-repeat"></i><span>Beds · Ito</span></div></div>
+              <div class="ls-day"><div class="ls-v b" style="--d:4"><i class="fa-solid fa-repeat"></i><span>Trim · Lowe</span></div><div class="ls-v b" style="--d:5"><i class="fa-solid fa-repeat"></i><span>Trim · Hale</span></div></div>
+              <div class="ls-day"></div>
+              <div class="ls-day"><div class="ls-v a" data-alt="1" style="--d:6"><i class="fa-solid fa-seedling"></i><span>Aeration</span></div></div>
+              <div class="ls-day"><div class="ls-v b" style="--d:8"><i class="fa-solid fa-repeat"></i><span>Beds · Cruz</span></div></div>
+            </div>
+            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">
+              <div class="mock-kpi slide-up" style="--d:6"><small>Visits</small><b>64</b></div>
+              <div class="mock-kpi slide-up" style="--d:7"><small>Recurring</small><b>58</b></div>
+              <div class="mock-kpi slide-up" style="--d:8"><small>One-time</small><b>6</b></div>
+            </div>
+          </div>
+        </div>
+        <div class="mock-float ls-float"><div class="mock-toast"><div>Every week until Nov 30<div style="font-weight:600;color:var(--muted);font-size:11px">Mow · The Hales · Mon</div></div></div></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section section--soft">
+    <div class="container">
+      <div class="split ls-cap">
+        <div class="reveal">
+          <div class="eyebrow">Recurring visits</div>
+          <h2>Set it once. It shows up every week.</h2>
+          <p class="lead">Weekly mowing, monthly bed care and seasonal cleanups repeat on their own. Skip a rain day or move a week and the rest of the season stays put.</p>
+          <a class="link-arrow" href="~/solutions/scheduling/">Explore scheduling</a>
+        </div>
+        <div class="mock reveal" aria-hidden="true">
+          <div class="mock-bar"><i></i><i></i><i></i><div class="url">Visit · The Hales</div></div>
+          <div class="mock-main">
+            <div class="mock-title">Repeats</div>
+            <div class="mock-row slide-up" style="--d:1"><i class="fa-solid fa-repeat" style="color:var(--ok)"></i><b style="flex:1">Mow &amp; edge</b><span class="mock-chip green">Weekly · Mon</span></div>
+            <div class="mock-row slide-up" style="--d:2"><i class="fa-solid fa-repeat" style="color:#1d4ed8"></i><b style="flex:1">Shrub trim</b><span class="mock-chip blue">Every 4 weeks</span></div>
+            <div class="mock-row slide-up" style="--d:3"><i class="fa-solid fa-leaf" style="color:#b45309"></i><b style="flex:1">Fall cleanup</b><span class="mock-chip amber">Once · Nov</span></div>
+            <div class="mock-row pop" style="--d:6"><i class="fa-solid fa-cloud-rain" style="color:var(--info)"></i><b style="flex:1">Mon skipped · rain</b><span class="mock-chip">Moved to Tue</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="split split--flip ls-cap">
+        <div class="reveal">
+          <div class="eyebrow">In the field</div>
+          <h2>Routes, checklists and before-and-after photos.</h2>
+          <p class="lead">Each team opens the app to today's stops in order. They check in, finish the property's checklist and leave a photo the customer can see.</p>
+          <a class="link-arrow" href="~/solutions/crew-management/">Explore crew management</a>
+        </div>
+        <div class="mock reveal" aria-hidden="true">
+          <div class="mock-bar"><i></i><i></i><i></i><div class="url">Today · Team 1</div></div>
+          <div class="mock-main">
+            <div class="ls-route">
+              <div class="mock-row slide-up" style="--d:1"><span class="ls-n">1</span><b style="flex:1">The Hales · 12 Elm Row</b><span class="mock-chip green">Done</span></div>
+              <div class="mock-row slide-up" style="--d:2;border-color:var(--brand)"><span class="ls-n">2</span><b style="flex:1">The Itos · 40 Elm Row</b><span class="mock-chip red">Checked in</span></div>
+              <div class="mock-row slide-up" style="--d:3"><span class="ls-n" style="background:#9ca3af">3</span><b style="flex:1">The Cruzes · 7 Fern Ct</b><span class="mock-chip">Next</span></div>
+            </div>
+            <div class="ls-ba">
+              <div class="ls-ph b pop" style="--d:5"><span>Before</span></div>
+              <div class="ls-ph a pop" style="--d:6"><span>After</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="split ls-cap">
+        <div class="reveal">
+          <div class="eyebrow">Billing</div>
+          <h2>Billing that keeps up with the season.</h2>
+          <p class="lead">Invoice finished visits in a batch, or put customers on autopay with a saved card or bank account. See who is paid and who is behind at a glance.</p>
+          <a class="link-arrow" href="~/solutions/payments/">Explore payments</a>
+        </div>
+        <div class="mock reveal" aria-hidden="true">
+          <div class="mock-bar"><i></i><i></i><i></i><div class="url">Invoicing · October</div></div>
+          <div class="mock-main">
+            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">
+              <div class="mock-kpi slide-up" style="--d:1"><small>Visits billed</small><b>212</b></div>
+              <div class="mock-kpi slide-up" style="--d:2"><small>On autopay</small><b>71%</b></div>
+              <div class="mock-kpi slide-up" style="--d:3"><small>Past due</small><b>4</b></div>
+            </div>
+            <div class="mock-row slide-up" style="--d:4"><span class="mock-chip green">Autopay</span><b style="flex:1">The Hales · 4 visits</b><span>$—</span></div>
+            <div class="mock-row slide-up" style="--d:5"><span class="mock-chip blue">Sent</span><b style="flex:1">The Cruzes · 4 visits + cleanup</b><span>$—</span></div>
+            <div class="mock-row pop" style="--d:8"><div class="mock-toast" style="flex:1">38 invoices sent in one batch</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container">
+      <div class="section-head center reveal"><div class="eyebrow">Solutions for landscaping</div><h2>What landscaping teams use most.</h2></div>
+      <div class="grid grid-4">
+        <a class="card reveal ls-sol" href="~/solutions/scheduling/"><div class="icon"><i class="fa-solid fa-calendar-days"></i></div><div><h3>Scheduling</h3><p>Recurring visits and routes.</p></div></a>
+        <a class="card reveal ls-sol" style="--d:1" href="~/solutions/crew-management/"><div class="icon"><i class="fa-solid fa-helmet-safety"></i></div><div><h3>Crew Management</h3><p>A field app for every team.</p></div></a>
+        <a class="card reveal ls-sol" style="--d:2" href="~/solutions/invoicing/"><div class="icon"><i class="fa-solid fa-file-invoice-dollar"></i></div><div><h3>Invoicing</h3><p>Batch bill finished visits.</p></div></a>
+        <a class="card reveal ls-sol" style="--d:3" href="~/solutions/equipment/"><div class="icon"><i class="fa-solid fa-truck-pickup"></i></div><div><h3>Equipment</h3><p>Trucks, trailers and mowers.</p></div></a>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" style="padding-top:0"><div class="container"><div class="cta-band reveal">
+    <h2>Fill next season's schedule today.</h2>
+    <p class="lead" style="color:#c9ccd4;max-width:600px;margin:0 auto">Sign up free and set up your first recurring visit, or book a walkthrough.</p>
+    <div class="btn-row"><a class="btn btn-primary btn-lg" href="https://app.1m8.ai/portal/signup">Sign up free</a><a class="btn btn-glass btn-lg" href="~/demo/">Book a demo</a></div>
+  </div></div></section>
+</main>
+<div id="site-footer"></div>
+<script src="../../assets/site.js"></script>
+<script>
+(function () {
+  // Flip through weeks: recurring visits reappear, one-time visits come and go.
+  var wk = document.getElementById('ls-wk'), lbl = document.getElementById('ls-week');
+  var weeks = ['Week of Oct 19', 'Week of Oct 26', 'Week of Nov 2', 'Week of Nov 9'], i = 0;
+  var alts = wk.querySelectorAll('[data-alt]');
+  wk.classList.add('anim');
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  setInterval(function () {
+    i = (i + 1) % weeks.length; lbl.textContent = weeks[i];
+    alts.forEach(function (a, k) { a.style.display = (i + k) % 2 === 0 ? '' : 'none'; });
+    wk.classList.remove('anim'); void wk.offsetWidth; wk.classList.add('anim');
+  }, 3200);
+})();
+</script>
+</body>
+</html>

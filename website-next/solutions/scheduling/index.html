@@ -1,0 +1,252 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Scheduling — FirstMate</title>
+<meta name="description" content="One calendar for your whole organization: dispatch people, groups, outside companies and equipment with drag and drop and double-booking warnings.">
+<meta name="robots" content="noindex, nofollow">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,400..900;1,400..900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/site.css">
+<style>
+  .sch-scene { position: relative; min-height: 440px }
+  .sch-board { display: grid; grid-template-columns: 84px repeat(5, minmax(0, 1fr)); gap: 5px; font-size: 10px }
+  .sch-board .hd { font-weight: 800; color: var(--muted); letter-spacing: .06em; text-align: center; padding: 2px 0 }
+  .sch-board .hd.today { color: var(--brand) }
+  .sch-board .who { font-weight: 700; font-size: 11px; display: flex; align-items: center; gap: 6px; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
+  .sch-board .who i { color: var(--muted); font-size: 10px }
+  .sch-board .cell { height: 34px; border-radius: 7px; background: var(--bg-soft); border: 1px dashed transparent; position: relative }
+  .sch-ev { position: absolute; inset: 3px; border-radius: 6px; padding: 3px 6px; font-size: 10px; font-weight: 700; line-height: 1.25; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; border-left: 3px solid currentColor; z-index: 1 }
+  .sch-ev small { display: block; font-weight: 600; opacity: .75; font-size: 9px }
+  .sch-ev.span2 { right: calc(-100% - 2px) } .sch-ev.span3 { right: calc(-200% - 7px) }
+  .sch-ev.red { background: #fff1f1; color: var(--brand) } .sch-ev.blue { background: #dbeafe; color: #1d4ed8 } .sch-ev.green { background: #dcfce7; color: #15803d } .sch-ev.amber { background: #fef3c7; color: #92400e } .sch-ev.violet { background: #ede9fe; color: #6d28d9 }
+  .mock.in .sch-clash { animation: fm-slide-left .7s var(--ease) .6s both, sch-clash 1.2s ease 4.4s 3 }
+  @keyframes sch-clash { 50% { box-shadow: 0 0 0 2px var(--warn) inset, 0 0 0 4px rgba(245,158,11,.25) } }
+  .mock .sch-drop { opacity: 0 }
+  .mock.in .sch-drop { animation: sch-drop 3.2s var(--ease) 1.6s both }
+  @keyframes sch-drop { 0% { opacity: 0; transform: translate(-60px, 70px) scale(.9) } 15% { opacity: 1 } 70% { transform: translate(0, 0) scale(1.04); box-shadow: var(--shadow) } 100% { opacity: 1; transform: none } }
+  .mock.in .sch-target { animation: sch-target 1.6s ease 2.4s both }
+  @keyframes sch-target { 0% { border-color: transparent } 30%, 80% { border-color: var(--brand); background: var(--brand-soft) } 100% { border-color: transparent } }
+  .sch-unassigned { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; padding: 8px 10px; border: 1px dashed var(--line); border-radius: 10px; font-size: 11px }
+  .sch-unassigned b { font-size: 10px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted) }
+  .sch-warn { right: -8px; bottom: 6px; width: 240px; opacity: 0; border-left: 4px solid var(--warn) }
+  .mock.in ~ .sch-warn { animation: fm-pop .6s var(--ease) 4.6s forwards, fm-float 6s ease-in-out 5.4s infinite }
+  .sch-warn .t { display: flex; gap: 8px; align-items: center; color: #92400e }
+  .sch-warn p { margin: 4px 0 0; font-weight: 600; color: var(--muted); font-size: 11px }
+  .sch-saved { left: -10px; top: 6px; opacity: 0 }
+  .mock.in ~ .sch-saved { animation: fm-pop .6s var(--ease) 3.6s forwards }
+  .sch-scene .mock { margin: 34px 20px 50px 0 }
+  .sch-dots { display: flex; gap: 4px } .sch-dots i { width: 6px; height: 6px; border-radius: 50%; background: var(--line) }
+
+  /* Small mockups */
+  .sch-month { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px }
+  .sch-month span { aspect-ratio: 1.2; border-radius: 6px; background: var(--bg-soft); font-size: 9px; font-weight: 700; color: var(--muted); padding: 3px; display: flex; flex-direction: column; gap: 2px }
+  .sch-month span em { display: block; height: 4px; border-radius: 2px; background: var(--brand); opacity: .8 }
+  .sch-month span em.b { background: var(--info) } .sch-month span em.g { background: var(--ok) }
+  .sch-gantt { display: grid; grid-template-columns: 110px 1fr; gap: 8px 10px; align-items: center; font-size: 11px; font-weight: 700 }
+  .sch-gantt .bar { height: 18px; border-radius: 6px; position: relative; background: var(--bg-soft) }
+  .sch-gantt .bar i { position: absolute; top: 0; bottom: 0; left: var(--l); width: var(--w); border-radius: 6px; background: var(--c, var(--brand)); transform-origin: left; transform: scaleX(0) }
+  .mock.in .sch-gantt .bar i { animation: fm-grow-x 1s var(--ease) forwards; animation-delay: calc(var(--d, 0) * 200ms + 300ms) }
+  .sch-gantt .bar i.child { top: 4px; bottom: 4px; opacity: .55 }
+  .sch-res { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px }
+  .sch-res .mock-kpi { display: flex; flex-direction: column; gap: 6px }
+  .sch-res .mock-kpi i.fa-solid { color: var(--brand); font-size: 16px }
+  @media (max-width: 560px) {
+    .sch-board { grid-template-columns: 62px repeat(5, minmax(0, 1fr)) }
+    .sch-ev small { display: none }
+    .sch-warn { width: 200px; right: 0 } .sch-scene .mock { margin-right: 0 }
+    .sch-res { grid-template-columns: 1fr }
+    .sch-gantt { grid-template-columns: 80px 1fr }
+  }
+</style>
+</head>
+<body>
+<div id="site-header"></div>
+<main>
+  <section class="page-hero">
+    <div class="container split">
+      <div>
+        <div class="breadcrumb"><a href="~/solutions/">Solutions</a><span>Scheduling</span></div>
+        <div class="eyebrow">Scheduling</div>
+        <h1>Every job, person and truck on one calendar.</h1>
+        <p class="lead">Drag work onto the people, groups, outside companies and equipment that will do it. FirstMate warns you before anyone is double-booked and keeps every project's schedule in step.</p>
+        <div class="btn-row"><a class="btn btn-primary btn-lg" href="https://app.1m8.ai/portal/signup">Sign up free</a><a class="btn btn-ghost btn-lg" href="~/demo/">Book a demo</a></div>
+      </div>
+      <div class="sch-scene" aria-hidden="true">
+        <div class="mock" id="sch-hero">
+          <div class="mock-bar"><i></i><i></i><i></i><div class="url">Scheduling · Week of Oct 26</div></div>
+          <div class="mock-main">
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+              <div class="mock-title" style="flex:1">Schedule</div>
+              <span class="mock-chip">Day</span><span class="mock-chip red">Week</span><span class="mock-chip">Month</span>
+            </div>
+            <div class="sch-board">
+              <span></span><span class="hd">MON</span><span class="hd today">TUE</span><span class="hd">WED</span><span class="hd">THU</span><span class="hd">FRI</span>
+
+              <span class="who"><i class="fa-solid fa-users"></i>North team</span>
+              <div class="cell"><div class="sch-ev red span2 slide-left" style="--d:1">Martin · Roof<small>1482 Ridgeview</small></div></div><div class="cell"></div>
+              <div class="cell sch-target"><div class="sch-ev blue sch-drop">Ortiz · Gutters<small>Drag to assign</small></div></div><div class="cell"></div><div class="cell"></div>
+
+              <span class="who"><i class="fa-solid fa-users"></i>South team</span>
+              <div class="cell"></div><div class="cell"><div class="sch-ev green span3 slide-left" style="--d:2">Lee · Full exterior<small>3 days</small></div></div><div class="cell"></div><div class="cell"></div><div class="cell"></div>
+
+              <span class="who"><i class="fa-solid fa-handshake"></i>Ridgeline Siding</span>
+              <div class="cell"><div class="sch-ev violet slide-left" style="--d:3">Park · Siding</div></div><div class="cell"></div><div class="cell"></div><div class="cell"><div class="sch-ev amber span2 slide-left" style="--d:4">Nguyen · Siding</div></div><div class="cell"></div>
+
+              <span class="who"><i class="fa-solid fa-truck-pickup"></i>Boom lift</span>
+              <div class="cell"></div><div class="cell"><div class="sch-ev amber span2 sch-clash slide-left" style="--d:5">Lee · Boom lift × 1<small>Tue – Wed</small></div></div><div class="cell"></div><div class="cell"></div><div class="cell"></div>
+            </div>
+            <div class="sch-unassigned fade" style="--d:7"><b>Unassigned</b><span class="mock-chip">Reyes · Repair</span><span class="mock-chip">Hall · Inspection</span></div>
+          </div>
+        </div>
+        <div class="mock-float sch-saved"><div class="mock-toast">Event saved · North team</div></div>
+        <div class="mock-float sch-warn">
+          <div class="t"><i class="fa-solid fa-triangle-exclamation"></i>Overlap</div>
+          <p>Ortiz · Gutters needs the boom lift Wednesday. It is already on Lee · Full exterior. Save anyway or pick another lift.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container stack-24" style="display:flex;flex-direction:column;gap:clamp(64px,8vw,110px)">
+      <div class="split">
+        <div class="reveal">
+          <div class="eyebrow">Dispatch</div>
+          <h2>Assign anyone who does the work.</h2>
+          <p class="lead">An event is a time and the resources it uses: a person, a group of your people, an outside company or a piece of equipment. Put them all on the same event and everyone sees the same plan.</p>
+          <ul class="feature-list"><li>Your users, groups and outside companies side by side</li><li>Equipment by unit or by type and quantity</li><li>Rows by assignee, columns by day or week</li></ul>
+        </div>
+        <div class="mock reveal" aria-hidden="true">
+          <div class="mock-bar"><i></i><i></i><i></i><div class="url">Event · Martin · Roof replacement</div></div>
+          <div class="mock-main">
+            <div class="mock-title">Who and what</div>
+            <div class="mock-row slide-up" style="--d:1"><div class="mock-avatar"><i class="fa-solid fa-users"></i></div><b style="flex:1">North team</b><span class="mock-chip red">Primary</span></div>
+            <div class="mock-row slide-up" style="--d:2"><div class="mock-avatar" style="background:linear-gradient(135deg,#c4b5fd,#7c3aed)"><i class="fa-solid fa-handshake"></i></div><b style="flex:1">Ridgeline Siding</b><span class="mock-chip violet">Outside company</span></div>
+            <div class="mock-row slide-up" style="--d:3"><div class="mock-avatar" style="background:linear-gradient(135deg,#fcd34d,#f59e0b)"><i class="fa-solid fa-truck-pickup"></i></div><b style="flex:1">Dump trailer</b><span class="mock-chip amber">Equipment × 1</span></div>
+            <div class="mock-row slide-up" style="--d:4"><div class="mock-avatar">JR</div><b style="flex:1">J. Ramos</b><span class="mock-chip">Operator</span></div>
+            <div class="mock-row pop" style="--d:7"><div class="mock-toast" style="flex:1">Everyone notified · Tue 7:00 AM</div></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="split split--flip">
+        <div class="reveal">
+          <div class="eyebrow">No surprises</div>
+          <h2>Double-booking caught before it happens.</h2>
+          <p class="lead">When someone or something is already busy, FirstMate tells you as you drop the event, counting each assignee's units and capacity. Your organization chooses whether an overlap warns, blocks, or is allowed, and each assignee can differ.</p>
+          <ul class="feature-list"><li>Warn, block or allow, per organization and assignee</li><li>A person in two groups is only counted once</li><li>Time off and availability shown on the board</li></ul>
+        </div>
+        <div class="mock reveal" aria-hidden="true">
+          <div class="mock-bar"><i></i><i></i><i></i><div class="url">Settings · Scheduling</div></div>
+          <div class="mock-main">
+            <div class="mock-title">When an assignee is double-booked</div>
+            <div class="mock-row slide-up" style="--d:1"><i class="fa-regular fa-circle"></i><b style="flex:1">Allow</b><span class="muted" style="font-size:11px">Say nothing</span></div>
+            <div class="mock-row slide-up" style="--d:2;border-color:var(--brand);box-shadow:0 0 0 3px rgba(219,0,0,.08)"><i class="fa-solid fa-circle-dot" style="color:var(--brand)"></i><b style="flex:1">Warn</b><span class="mock-chip red">Default</span></div>
+            <div class="mock-row slide-up" style="--d:3"><i class="fa-regular fa-circle"></i><b style="flex:1">Block</b><span class="muted" style="font-size:11px">Refuse the save</span></div>
+            <div class="mock-row pop" style="--d:6;border-left:4px solid var(--warn)"><i class="fa-solid fa-triangle-exclamation" style="color:var(--warn)"></i><span style="flex:1;font-weight:700">South team has 1 unit free Thursday</span><span class="mock-chip amber">1 of 2</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="split">
+        <div class="reveal">
+          <div class="eyebrow">Project schedules</div>
+          <h2>A project's schedule that moves as one.</h2>
+          <p class="lead">Tear-off, install and cleanup can be child events of the job. Move the job and its parts follow; each part can still have its own people and equipment.</p>
+          <ul class="feature-list"><li>Parent and child events with their own resources</li><li>Every project's events in the project window</li><li>Repeating events: this one, this and following, or all</li></ul>
+        </div>
+        <div class="mock reveal" aria-hidden="true">
+          <div class="mock-bar"><i></i><i></i><i></i><div class="url">Project · Lee · Schedule</div></div>
+          <div class="mock-main">
+            <div class="mock-title">Full exterior · Oct 27 – Oct 30</div>
+            <div class="sch-gantt">
+              <span>Full exterior</span><div class="bar"><i style="--l:0%;--w:100%;--d:0"></i></div>
+              <span class="muted">Tear-off</span><div class="bar"><i class="child" style="--l:0%;--w:25%;--d:1;--c:#1d4ed8"></i></div>
+              <span class="muted">Siding install</span><div class="bar"><i class="child" style="--l:20%;--w:60%;--d:2;--c:#15803d"></i></div>
+              <span class="muted">Gutters</span><div class="bar"><i class="child" style="--l:72%;--w:18%;--d:3;--c:#7c3aed"></i></div>
+              <span class="muted">Cleanup</span><div class="bar"><i class="child" style="--l:88%;--w:12%;--d:4;--c:#f59e0b"></i></div>
+            </div>
+            <div class="mock-row pop" style="--d:8"><i class="fa-solid fa-arrows-left-right" style="color:var(--brand)"></i><b style="flex:1">Moved one day later · 4 parts followed</b></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section section--soft">
+    <div class="container">
+      <div class="section-head center reveal"><div class="eyebrow">Also in Scheduling</div><h2>Built for how the week really goes.</h2></div>
+      <div class="grid grid-3">
+        <div class="card reveal" style="--d:0"><div class="icon"><i class="fa-solid fa-calendar-days"></i></div><h3>Day, week and month</h3><p>Switch views without losing your place. Filter by branch, department or assignee.</p></div>
+        <div class="card reveal" style="--d:1"><div class="icon"><i class="fa-solid fa-hand-pointer"></i></div><h3>Drag and drop</h3><p>Move, stretch and reassign events right on the board.</p></div>
+        <div class="card reveal" style="--d:2"><div class="icon"><i class="fa-solid fa-inbox"></i></div><h3>Unassigned work</h3><p>Work waiting for someone sits in its own row until you place it.</p></div>
+        <div class="card reveal" style="--d:3"><div class="icon"><i class="fa-solid fa-truck-pickup"></i></div><h3>Equipment</h3><p>Lifts, trailers and trucks are booked like people, by unit or by count.</p></div>
+        <div class="card reveal" style="--d:4"><div class="icon"><i class="fa-solid fa-mobile-screen"></i></div><h3>On every phone</h3><p>Assignees see their schedule in the FirstMate app the moment it changes.</p></div>
+        <div class="card reveal" style="--d:5"><div class="icon"><i class="fa-solid fa-repeat"></i></div><h3>Repeating events</h3><p>Weekly meetings and recurring service visits, edited one or all at a time.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section section--dark">
+    <div class="container split">
+      <div class="reveal">
+        <div class="eyebrow">Connected</div>
+        <h2>The schedule knows what the job needs.</h2>
+        <p class="lead" style="color:#c9ccd4">Work orders, materials and checklists all point at the same events, so the people in the field see the right job with the right list.</p>
+        <div class="btn-row" style="margin-top:24px">
+          <a class="btn btn-glass btn-sm" href="~/solutions/work-orders/">Work orders</a>
+          <a class="btn btn-glass btn-sm" href="~/solutions/crew-management/">Crew management</a>
+          <a class="btn btn-glass btn-sm" href="~/solutions/material-management/">Material management</a>
+          <a class="btn btn-glass btn-sm" href="~/solutions/equipment/">Equipment</a>
+        </div>
+      </div>
+      <div class="mock mock--dark reveal" aria-hidden="true">
+        <div class="mock-bar"><i></i><i></i><i></i><div class="url">October</div></div>
+        <div class="mock-main">
+          <div class="sch-month" id="sch-month"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container container--narrow">
+      <div class="section-head center reveal"><div class="eyebrow">FAQ</div><h2>Scheduling questions</h2></div>
+      <details class="faq"><summary>Can I schedule outside companies as well as my own people?</summary><div>Yes. Users, groups of users and outside companies are all assignees, and any of them can be put on an event alongside equipment.</div></details>
+      <details class="faq"><summary>What happens when I book someone twice?</summary><div>By default FirstMate warns you and shows the overlap. Your organization, or a single assignee, can be set to block or to allow overlaps instead.</div></details>
+      <details class="faq"><summary>Do my people see changes on their phones?</summary><div>Yes. The schedule in the FirstMate app updates as soon as an event is saved.</div></details>
+      <details class="faq"><summary>Can one job have several stages on the calendar?</summary><div>Yes. Stages are child events of the job; they keep their own people and equipment and move with the job.</div></details>
+    </div>
+  </section>
+
+  <section class="section" style="padding-top:0"><div class="container"><div class="cta-band reveal">
+    <h2>Put your whole week on one board.</h2>
+    <p class="lead" style="color:#c9ccd4;max-width:600px;margin:0 auto">Sign up free and schedule your first job today, or book a walkthrough with our team.</p>
+    <div class="btn-row"><a class="btn btn-primary btn-lg" href="https://app.1m8.ai/portal/signup">Sign up free</a><a class="btn btn-glass btn-lg" href="~/demo/">Book a demo</a></div>
+  </div></div></section>
+</main>
+<div id="site-footer"></div>
+<script src="../../assets/site.js"></script>
+<script>
+(function () {
+  // Month grid for the dark section
+  var m = document.getElementById('sch-month'), html = '', c = ['', 'b', 'g'];
+  for (var d = 1; d <= 28; d++) {
+    var bars = '';
+    for (var k = 0; k < (d * 7 % 3); k++) bars += '<em class="' + c[(d + k) % 3] + '"></em>';
+    html += '<span class="fade" style="--d:' + (d % 7 + Math.floor(d / 7)) + '">' + d + bars + '</span>';
+  }
+  m.innerHTML = html;
+  // Replay the hero board every 12 s
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  var hero = document.getElementById('sch-hero');
+  setInterval(function () {
+    if (!hero.classList.contains('in')) return;
+    hero.classList.remove('in'); void hero.offsetWidth; hero.classList.add('in');
+  }, 12000);
+})();
+</script>
+</body>
+</html>

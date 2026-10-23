@@ -1,0 +1,318 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Photos &amp; Project Feed — FirstMate</title>
+<meta name="description" content="Every jobsite photo organized by project, a feed across your organization, annotations and sharing with homeowners.">
+<meta name="robots" content="noindex, nofollow">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,400..900;1,400..900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/site.css">
+<style>
+  .ph-g1 { background: linear-gradient(160deg, #9cc3e6 0%, #c9dcea 45%, #5b4a42 46%, #3a302b 100%) }
+  .ph-g2 { background: linear-gradient(135deg, #6b5a50, #a08371 50%, #4a3e37) }
+  .ph-g3 { background: linear-gradient(170deg, #b5d3ef 0%, #e8eef3 38%, #9a9fa6 39%, #6f747b 100%) }
+  .ph-g4 { background: linear-gradient(140deg, #3c4a3a, #71866b 55%, #a9b99c) }
+  .ph-g5 { background: linear-gradient(160deg, #f3c58b, #db7a4a 50%, #6d3a2a) }
+  .ph-g6 { background: linear-gradient(200deg, #87a9c9 0%, #d7e3ee 40%, #8c3b2e 41%, #5a2620 100%) }
+  .ph-g7 { background: linear-gradient(120deg, #2e3138, #575c66 60%, #8d929b) }
+  .ph-g8 { background: linear-gradient(160deg, #cfe0ef 0%, #f1f5f8 50%, #c7b39a 51%, #8f7b63 100%) }
+
+  .ph-stage { position: relative; min-height: 540px }
+  .ph-stage .mock-phone { position: absolute; left: 0; top: 10px; z-index: 3 }
+  .ph-feedwin { position: absolute; right: 0; top: 60px; width: 64%; z-index: 2 }
+  .ph-cam { flex: 1; position: relative; overflow: hidden }
+  .ph-cam .view { position: absolute; inset: 0; transition: opacity .4s }
+  .ph-cam .grid3 { position: absolute; inset: 0; background-image: linear-gradient(90deg, transparent 33.1%, rgba(255,255,255,.35) 33.3%, transparent 33.6%, transparent 66.4%, rgba(255,255,255,.35) 66.6%, transparent 66.9%), linear-gradient(0deg, transparent 33.1%, rgba(255,255,255,.35) 33.3%, transparent 33.6%, transparent 66.4%, rgba(255,255,255,.35) 66.6%, transparent 66.9%) }
+  .ph-cam .flash { position: absolute; inset: 0; background: #fff; opacity: 0; pointer-events: none }
+  .ph-cam .flash.go { animation: ph-flash .45s ease-out }
+  @keyframes ph-flash { 0% { opacity: .9 } 100% { opacity: 0 } }
+  .ph-cam .top { position: absolute; left: 0; right: 0; top: 38px; display: flex; justify-content: space-between; padding: 0 14px; color: #fff; font-size: 10px; font-weight: 800; z-index: 2 }
+  .ph-cam .top span { background: rgba(0,0,0,.35); padding: 3px 8px; border-radius: 999px }
+  .ph-ctl { background: #0d0e12; padding: 10px 12px 14px; display: flex; flex-direction: column; gap: 10px }
+  .ph-strip { display: flex; gap: 5px; height: 34px; overflow: hidden }
+  .ph-strip i { width: 34px; height: 34px; border-radius: 7px; flex: none; animation: ph-in .4s var(--ease) }
+  @keyframes ph-in { from { transform: scale(.4); opacity: 0 } to { transform: none; opacity: 1 } }
+  .ph-shutter-row { display: flex; align-items: center; justify-content: space-between; color: #9ca3af; font-size: 10px; font-weight: 800 }
+  .ph-shutter { width: 52px; height: 52px; border-radius: 50%; border: 4px solid #fff; display: grid; place-items: center }
+  .ph-shutter::after { content: ""; width: 38px; height: 38px; border-radius: 50%; background: #fff; transition: transform .15s }
+  .ph-shutter.press::after { transform: scale(.82) }
+  .ph-tiles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px }
+  .ph-tiles > div { aspect-ratio: 1; border-radius: 8px; background: #eceef1; position: relative; overflow: hidden }
+  .ph-tiles > div.fill { animation: ph-in .5s var(--ease) }
+  .ph-tiles > div small { position: absolute; left: 4px; bottom: 4px; font-size: 8.5px; font-weight: 800; color: #fff; background: rgba(0,0,0,.4); padding: 1px 5px; border-radius: 999px }
+  .ph-f1 { opacity: 0; right: 4px; bottom: 0; width: 220px }
+  .mock.in ~ .ph-f1 { animation: fm-pop .6s var(--ease) 2.4s forwards, fm-float 6s ease-in-out 3s infinite }
+  @media (max-width: 1000px) { .ph-stage { min-height: 560px } }
+  @media (max-width: 640px) {
+    .ph-stage { min-height: 600px }
+    .ph-stage .mock-phone { left: 50%; margin-left: -115px }
+    .ph-feedwin { display: none }
+    .ph-f1 { right: 0; bottom: 0; opacity: 1 }
+  }
+
+  .ph-chips { display: flex; gap: 5px; flex-wrap: wrap }
+  .ph-chips .mock-chip.on { background: var(--heading); color: #fff }
+  .ph-mosaic { display: grid; grid-template-columns: repeat(4, 1fr); grid-auto-rows: 54px; gap: 6px }
+  .ph-mosaic > div { border-radius: 8px; position: relative; overflow: hidden }
+  .ph-mosaic > div:nth-child(1) { grid-column: span 2; grid-row: span 2 }
+  .ph-mosaic > div:nth-child(5) { grid-column: span 2 }
+  .ph-mosaic small { position: absolute; left: 5px; top: 5px; font-size: 9px; font-weight: 800; color: #fff; background: rgba(0,0,0,.4); padding: 1px 6px; border-radius: 999px }
+  .ph-cover { position: absolute; right: 6px; bottom: 6px; font-size: 9px; font-weight: 800; background: var(--brand); color: #fff; padding: 2px 7px; border-radius: 999px }
+
+  .ph-anno { position: relative; border-radius: 12px; overflow: hidden; aspect-ratio: 16 / 10 }
+  .ph-anno svg { position: absolute; inset: 0; width: 100%; height: 100% }
+  .ph-anno .mk { fill: none; stroke: #ffde3b; stroke-width: 4; stroke-linecap: round; stroke-linejoin: round }
+  .ph-anno .note { position: absolute; left: 56%; top: 12%; background: #fff; color: var(--heading); border-radius: 10px; padding: 7px 10px; font-size: 11px; font-weight: 800; box-shadow: var(--shadow) }
+  .ph-tools { display: flex; gap: 6px; align-items: center }
+  .ph-tools span { width: 22px; height: 22px; border-radius: 50%; border: 2px solid #fff; box-shadow: 0 0 0 1px var(--line) }
+  .ph-tools span.on { box-shadow: 0 0 0 2px var(--heading) }
+  .ph-tools i { width: 28px; height: 28px; border-radius: 8px; display: grid; place-items: center; background: #f3f4f6; color: var(--heading); font-size: 12px }
+
+  .ph-post { border: 1px solid var(--line); border-radius: 12px; padding: 10px; display: flex; flex-direction: column; gap: 8px; background: #fff }
+  .ph-post .who { display: flex; gap: 8px; align-items: center; font-size: 12px; font-weight: 800 }
+  .ph-post .who small { display: block; color: var(--muted); font-weight: 600; font-size: 10.5px }
+  .ph-post .pics { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px }
+  .ph-post .pics div { aspect-ratio: 4 / 3; border-radius: 6px }
+  .ph-post .acts { display: flex; gap: 12px; font-size: 11px; font-weight: 700; color: var(--muted) }
+
+  .ph-related { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 18px }
+  @media (max-width: 960px) { .ph-related { grid-template-columns: repeat(2, minmax(0, 1fr)) } }
+  @media (max-width: 520px) { .ph-related { grid-template-columns: 1fr } }
+</style>
+</head>
+<body>
+<div id="site-header"></div>
+<main>
+
+<section class="page-hero">
+  <div class="container split">
+    <div>
+      <div class="breadcrumb"><a href="~/solutions/">Solutions</a><span>Photos &amp; Project Feed</span></div>
+      <div class="eyebrow">Photos &amp; Project Feed</div>
+      <h1>Every jobsite photo, <span class="text-gradient">right where it belongs.</span></h1>
+      <p class="lead">Your people take photos from the FirstMate app and they land on the project automatically. Mark them up, share them with the homeowner and follow every job from one feed.</p>
+      <div class="btn-row"><a class="btn btn-primary btn-lg" href="https://app.1m8.ai/portal/signup">Sign up free</a><a class="btn btn-ghost btn-lg" href="~/demo/">Book a demo</a></div>
+    </div>
+    <div class="ph-stage" aria-hidden="true">
+      <div class="mock-phone">
+        <div class="screen">
+          <div class="ph-cam">
+            <div class="view ph-g1" id="ph-view"></div>
+            <div class="grid3"></div>
+            <div class="top"><span>Martin · 1482 Ridgeview</span><span><i class="fa-solid fa-location-dot"></i> On site</span></div>
+            <div class="flash" id="ph-flash"></div>
+          </div>
+          <div class="ph-ctl">
+            <div class="ph-strip" id="ph-strip"></div>
+            <div class="ph-shutter-row"><span>VIDEO</span><div class="ph-shutter" id="ph-shutter"></div><span>PHOTO</span></div>
+          </div>
+        </div>
+      </div>
+      <div class="mock ph-feedwin">
+        <div class="mock-bar"><i></i><i></i><i></i><div class="url">Photos · Martin</div></div>
+        <div class="mock-main">
+          <div class="fade" style="display:flex;justify-content:space-between;align-items:center"><div class="mock-title">Photos</div><span class="mock-chip green"><span class="pulse-dot"></span> <span id="ph-n">0</span> today</span></div>
+          <div class="ph-chips fade" style="--d:1"><span class="mock-chip on">Photos</span><span class="mock-chip">Videos</span><span class="mock-chip">Posts</span><span class="mock-chip">Documents &amp; files</span></div>
+          <div class="ph-tiles" id="ph-tiles"><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div></div>
+        </div>
+      </div>
+      <div class="mock-float ph-f1"><div style="display:flex;gap:10px;align-items:center"><div class="mock-avatar">JR</div><div>New photos on Martin<div style="font-weight:600;color:var(--muted);font-size:11px">Tear-off · just now</div></div></div></div>
+    </div>
+  </div>
+</section>
+
+<!-- By project -->
+<section class="section">
+  <div class="container split">
+    <div class="reveal">
+      <div class="eyebrow">Organized by project</div>
+      <h2>No more digging through camera rolls.</h2>
+      <p class="lead">Photos, videos and files are saved to the project they were taken for, in order, with who took them and when. Switch between mosaic, tiles and list, and pick a photo as the project cover.</p>
+      <ul class="feature-list"><li>Photos, videos, audio notes and files together</li><li>Mosaic, large tiles, small tiles or list</li><li>Set any photo as the project cover</li></ul>
+    </div>
+    <div class="mock reveal" style="--d:1" aria-hidden="true">
+      <div class="mock-bar"><i></i><i></i><i></i><div class="url">Project · 1482 Ridgeview Dr · Photos</div></div>
+      <div class="mock-main">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap"><div class="ph-chips"><span class="mock-chip on">Photos</span><span class="mock-chip">Videos</span><span class="mock-chip">Audio</span></div><div class="ph-chips"><span class="mock-chip on">Mosaic</span><span class="mock-chip">Large tiles</span><span class="mock-chip">List</span></div></div>
+        <div class="ph-mosaic">
+          <div class="ph-g6 pop" style="--d:1"><small>Before</small><span class="ph-cover">Cover</span></div>
+          <div class="ph-g2 pop" style="--d:2"><small>Decking</small></div>
+          <div class="ph-g7 pop" style="--d:3"></div>
+          <div class="ph-g5 pop" style="--d:4"></div>
+          <div class="ph-g3 pop" style="--d:5"><small>Install</small></div>
+          <div class="ph-g4 pop" style="--d:6"></div>
+          <div class="ph-g8 pop" style="--d:7"><small>Final</small></div>
+          <div class="ph-g1 pop" style="--d:8"></div>
+        </div>
+        <div class="mock-row slide-up" style="--d:10"><div class="mock-avatar">JR</div><b style="flex:1">Jordan R. added 14 photos</b><span class="mock-chip">Tue 7:42 AM</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Annotate -->
+<section class="section section--soft">
+  <div class="container split split--flip">
+    <div class="reveal">
+      <div class="eyebrow">Annotations</div>
+      <h2>Circle it, point at it, explain it.</h2>
+      <p class="lead">Draw on a photo to show the soft decking, the cracked boot or the color the homeowner picked. Add a note, and everyone on the job sees the same thing.</p>
+      <ul class="feature-list"><li>Arrows, circles and freehand marks</li><li>Notes and comments on each photo</li><li>Tag the people who need to see it</li></ul>
+    </div>
+    <div class="mock reveal" aria-hidden="true">
+      <div class="mock-bar"><i></i><i></i><i></i><div class="url">Photo · Decking · Martin</div></div>
+      <div class="mock-main">
+        <div class="ph-anno ph-g2">
+          <svg class="draw" viewBox="0 0 320 200" preserveAspectRatio="none">
+            <path class="mk" style="--len:300;--d:2" d="M56 120 a54 34 0 1 0 108 0 a54 34 0 1 0 -108 0"/>
+            <path class="mk" style="--len:200;--d:6" d="M210 56 C 190 70, 175 85, 160 98 M160 98 L 176 96 M160 98 L 164 83"/>
+          </svg>
+          <div class="note pop" style="--d:12"><i class="fa-solid fa-comment" style="color:var(--brand)"></i> Soft decking, about 3 sheets</div>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+          <div class="ph-tools fade" style="--d:1"><i class="fa-solid fa-pen"></i><i class="fa-solid fa-arrow-right-long"></i><i class="fa-regular fa-circle"></i><i class="fa-solid fa-font"></i></div>
+          <div class="ph-tools fade" style="--d:1"><span class="on" style="background:#ffde3b"></span><span style="background:#db0000"></span><span style="background:#2563eb"></span></div>
+        </div>
+        <div class="mock-row slide-up" style="--d:14"><div class="mock-avatar" style="background:linear-gradient(135deg,#93c5fd,#2563eb)">AK</div><span style="flex:1;font-weight:600">Added to the change order. <b>@Jordan</b> grab 3 sheets.</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Feed -->
+<section class="section">
+  <div class="container split">
+    <div class="reveal">
+      <div class="eyebrow">Project feed</div>
+      <h2>See every job, from anywhere.</h2>
+      <p class="lead">The feed shows what is happening across your organization as it happens: photos, posts and updates from every project, with comments and reactions. Choose who a post is for, from the whole company to one department.</p>
+      <ul class="feature-list"><li>Posts with photos, video, audio and files</li><li>Comments, reactions and tagged people</li><li>Audience by department</li></ul>
+    </div>
+    <div class="mock reveal" style="--d:1" aria-hidden="true">
+      <div class="mock-bar"><i></i><i></i><i></i><div class="url">Feed</div></div>
+      <div class="mock-main">
+        <div style="display:flex;justify-content:space-between;align-items:center"><div class="mock-title">Feed</div><span class="mock-chip">Sort: Newest</span></div>
+        <div class="ph-post slide-up" style="--d:1">
+          <div class="who"><div class="mock-avatar">JR</div><div>Jordan R. · Martin<small>Tear-off done, decking replaced</small></div></div>
+          <div class="pics"><div class="ph-g2"></div><div class="ph-g7"></div><div class="ph-g6"></div></div>
+          <div class="acts"><span><i class="fa-solid fa-thumbs-up" style="color:var(--brand)"></i> 6</span><span><i class="fa-solid fa-comment"></i> 2</span><span>Production</span></div>
+        </div>
+        <div class="ph-post slide-up" style="--d:3">
+          <div class="who"><div class="mock-avatar" style="background:linear-gradient(135deg,#86efac,#16a34a)">ML</div><div>Maria L. · Ortiz<small>Siding color confirmed with homeowner</small></div></div>
+          <div class="pics"><div class="ph-g8"></div><div class="ph-g3"></div><div class="ph-g4"></div></div>
+          <div class="acts"><span><i class="fa-solid fa-heart" style="color:var(--brand)"></i> 4</span><span><i class="fa-solid fa-comment"></i> 1</span><span>Everyone</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Share -->
+<section class="section section--soft">
+  <div class="container split split--flip">
+    <div class="reveal">
+      <div class="eyebrow">Sharing</div>
+      <h2>Show the homeowner the work.</h2>
+      <p class="lead">Share selected photos to the customer portal so homeowners can follow along, or attach them to a proposal, an invoice or a report.</p>
+      <ul class="feature-list"><li>Pick exactly which photos are shared</li><li>Homeowners see them in their portal</li><li>Attach photos to documents</li></ul>
+    </div>
+    <div class="mock reveal" aria-hidden="true">
+      <div class="mock-bar"><i></i><i></i><i></i><div class="url">Share photos</div></div>
+      <div class="mock-main">
+        <div class="mock-title">Share with the Martins</div>
+        <div class="ph-tiles">
+          <div class="ph-g6 pop" style="--d:1"><small>✓</small></div><div class="ph-g3 pop" style="--d:2"><small>✓</small></div><div class="ph-g8 pop" style="--d:3"><small>✓</small></div><div class="ph-g2 pop" style="--d:4;opacity:.4"></div>
+        </div>
+        <div class="mock-row slide-up" style="--d:6"><i class="fa-solid fa-user-lock" style="color:var(--brand)"></i><b style="flex:1">Customer portal</b><span class="mock-chip green">3 photos</span></div>
+        <div class="mock-row slide-up" style="--d:7"><i class="fa-solid fa-file-signature" style="color:var(--brand)"></i><b style="flex:1">Attach to proposal</b><span class="mock-chip">Optional</span></div>
+        <div class="mock-row pop" style="--d:10"><div class="mock-toast" style="flex:1">Shared to the Martins' portal</div></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section">
+  <div class="container">
+    <div class="section-head reveal"><div class="eyebrow">Also included</div><h2>Built for photos from the field.</h2></div>
+    <div class="grid grid-4">
+      <div class="card reveal"><div class="icon"><i class="fa-solid fa-video"></i></div><h3>Video</h3><p>Walkthroughs saved next to the photos.</p></div>
+      <div class="card reveal" style="--d:1"><div class="icon"><i class="fa-solid fa-microphone"></i></div><h3>Audio notes</h3><p>Talk instead of typing on the roof.</p></div>
+      <div class="card reveal" style="--d:2"><div class="icon"><i class="fa-solid fa-user-tag"></i></div><h3>Tag people</h3><p>Bring the right person into the post.</p></div>
+      <div class="card reveal" style="--d:3"><div class="icon"><i class="fa-solid fa-folder-open"></i></div><h3>Documents and files</h3><p>Receipts, invoices and files on the project too.</p></div>
+    </div>
+  </div>
+</section>
+
+<section class="section section--dark">
+  <div class="container">
+    <div class="section-head reveal">
+      <div class="eyebrow">Connected to the job</div>
+      <h2>Photos that work with everything else.</h2>
+    </div>
+    <div class="ph-related">
+      <a class="card reveal" href="~/solutions/customer-portal/"><div class="icon"><i class="fa-solid fa-user-lock"></i></div><h3>Customer Portal</h3><p>Homeowners follow along live.</p></a>
+      <a class="card reveal" style="--d:1" href="~/solutions/checklists/"><div class="icon"><i class="fa-solid fa-list-check"></i></div><h3>Checklists</h3><p>Require photos on each visit.</p></a>
+      <a class="card reveal" style="--d:2" href="~/solutions/crew-management/"><div class="icon"><i class="fa-solid fa-helmet-safety"></i></div><h3>Crew Management</h3><p>The field app your people use.</p></a>
+      <a class="card reveal" style="--d:3" href="~/solutions/channels/"><div class="icon"><i class="fa-solid fa-comments"></i></div><h3>Team Channels</h3><p>Chat by job, team or topic.</p></a>
+    </div>
+  </div>
+</section>
+
+<section class="section">
+  <div class="container container--narrow">
+    <div class="section-head center reveal"><div class="eyebrow">FAQ</div><h2>Questions about photos</h2></div>
+    <details class="faq"><summary>Who can see a project's photos?</summary><div>People with access to the project. Homeowners only see the photos you share to their portal.</div></details>
+    <details class="faq"><summary>Do my people need a separate camera app?</summary><div>No. Photos are taken from the FirstMate app on iPhone or Android and saved to the project.</div></details>
+    <details class="faq"><summary>Can I choose who sees a feed post?</summary><div>Yes. Each post has an audience, from everyone to a single department.</div></details>
+  </div>
+</section>
+
+<section class="section" style="padding-top:0">
+  <div class="container">
+    <div class="cta-band reveal">
+      <h2>Put every photo on the right job.</h2>
+      <p class="lead" style="color:#c9ccd4;max-width:600px;margin:0 auto">Sign up free and have your team posting from the field today.</p>
+      <div class="btn-row"><a class="btn btn-primary btn-lg" href="https://app.1m8.ai/portal/signup">Sign up free</a><a class="btn btn-glass btn-lg" href="~/demo/">Book a demo</a></div>
+    </div>
+  </div>
+</section>
+
+</main>
+<div id="site-footer"></div>
+<script src="../../assets/site.js"></script>
+<script>
+(function () {
+  var G = ['ph-g1', 'ph-g2', 'ph-g3', 'ph-g4', 'ph-g5', 'ph-g6', 'ph-g7', 'ph-g8'];
+  var TAGS = ['Before', '', 'Decking', '', 'Install', '', '', 'Final'];
+  var view = document.getElementById('ph-view'), flash = document.getElementById('ph-flash'), shutter = document.getElementById('ph-shutter');
+  var strip = document.getElementById('ph-strip'), tiles = document.querySelectorAll('#ph-tiles > div'), num = document.getElementById('ph-n');
+  var k = 0;
+  function fill(i, g) {
+    var t = tiles[i % tiles.length];
+    t.className = g + ' fill';
+    var tag = TAGS[i % TAGS.length]; t.innerHTML = tag ? '<small>' + tag + '</small>' : '';
+  }
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    for (var j = 0; j < tiles.length; j++) fill(j, G[j % G.length]); num.textContent = tiles.length; return;
+  }
+  function shot() {
+    var g = G[k % G.length];
+    shutter.classList.add('press'); setTimeout(function () { shutter.classList.remove('press'); }, 160);
+    flash.classList.remove('go'); void flash.offsetWidth; flash.classList.add('go');
+    var th = document.createElement('i'); th.className = g; strip.insertBefore(th, strip.firstChild);
+    while (strip.children.length > 6) strip.removeChild(strip.lastChild);
+    if (k > 0 && k % tiles.length === 0) tiles.forEach(function (t) { t.className = ''; t.innerHTML = ''; });
+    setTimeout(function () { fill(k - 1, g); }, 350);
+    k++; num.textContent = k;
+    setTimeout(function () { view.className = 'view ' + G[k % G.length]; }, 500);
+  }
+  var started = false;
+  document.querySelector('.ph-feedwin').addEventListener('fm:in', function () { if (started) return; started = true; shot(); setInterval(shot, 1700); });
+  // On phones the feed window is hidden and never intersects: start from the phone instead
+  setTimeout(function () { if (!started) { started = true; shot(); setInterval(shot, 1700); } }, 1500);
+})();
+</script>
+</body>
+</html>

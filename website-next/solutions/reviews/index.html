@@ -1,0 +1,226 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Reviews &amp; Feedback — FirstMate</title>
+<meta name="description" content="Ask every customer for feedback when the job is done, send happy customers to your review sites and catch problems early.">
+<meta name="robots" content="noindex, nofollow">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,400..900;1,400..900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/site.css">
+<style>
+  .rv-scene { position: relative; min-height: 470px }
+  .rv-stars { position: relative; display: inline-block; font-size: var(--sz, 18px); letter-spacing: 2px; line-height: 1; white-space: nowrap }
+  .rv-stars .base { color: #e5e7eb }
+  .rv-stars .fill { position: absolute; left: 0; top: 0; overflow: hidden; color: #f59e0b; width: 0 }
+  .mock.in .rv-stars .fill { animation: rv-fill 1.6s var(--ease) forwards; animation-delay: calc(var(--d, 0) * 120ms + 200ms) }
+  @keyframes rv-fill { to { width: var(--w, 100%) } }
+  .rv-top { display: grid; grid-template-columns: 150px minmax(0, 1fr); gap: 16px; align-items: center }
+  .rv-score { text-align: center; padding: 14px 8px; border: 1px solid var(--line); border-radius: 12px }
+  .rv-score b { font-size: 40px; font-weight: 900; letter-spacing: -.03em; display: block; line-height: 1 }
+  .rv-score small { color: var(--muted); font-size: 10px; font-weight: 700; display: block; margin-top: 6px }
+  .rv-break { display: flex; flex-direction: column; gap: 6px }
+  .rv-brow { display: grid; grid-template-columns: 30px minmax(0, 1fr) 28px; gap: 8px; align-items: center; font-size: 11px; font-weight: 700 }
+  .rv-brow .mock-progress { height: 8px; border-radius: 4px }
+  .rv-brow .mock-progress > i { background: #f59e0b }
+  .rv-brow span:last-child { color: var(--muted); text-align: right }
+  .rv-kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px }
+  .rv-kpis .mock-kpi b { font-size: 17px }
+  .rv-tabs { display: flex; gap: 4px }
+  .rv-tabs span { font-size: 11px; font-weight: 700; padding: 4px 10px; border-radius: 999px; color: var(--muted) }
+  .rv-tabs span.on { background: var(--heading); color: #fff }
+  .rv-new { right: -14px; top: -8px; width: 230px; opacity: 0 }
+  .rv-alert { left: -20px; bottom: -14px; width: 230px; opacity: 0 }
+  .mock.in ~ .rv-new { animation: fm-pop .6s var(--ease) 2s forwards, fm-float 6s ease-in-out 2.6s infinite }
+  .mock.in ~ .rv-alert { animation: fm-pop .6s var(--ease) 3.2s forwards, fm-float 7s ease-in-out 3.8s infinite }
+  .rv-flow { display: flex; flex-direction: column; gap: 0 }
+  .rv-node { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: #fff; font-size: 12px; font-weight: 700 }
+  .rv-node i.ic { width: 26px; height: 26px; border-radius: 8px; display: grid; place-items: center; background: var(--brand-soft); color: var(--brand); flex: none }
+  .rv-link { width: 2px; height: 14px; background: var(--line); margin-left: 24px }
+  .rv-fork { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px }
+  .rv-tap { display: flex; justify-content: center; gap: 6px; font-size: 26px }
+  .rv-tap i { color: #e5e7eb; transition: color .25s, transform .25s }
+  .rv-tap i.on { color: #f59e0b; transform: scale(1.12) }
+  .rv-dest { display: flex; gap: 6px; flex-wrap: wrap }
+  @media (max-width: 1180px) { .rv-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)) } .rv-top { grid-template-columns: 120px minmax(0, 1fr) } }
+  @media (max-width: 640px) {
+    .rv-top { grid-template-columns: 1fr } .rv-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)) }
+    .rv-new { right: 0; width: 200px } .rv-alert { display: none }
+    .rv-fork { grid-template-columns: 1fr }
+  }
+</style>
+</head>
+<body>
+<div id="site-header"></div>
+<main>
+  <section class="page-hero">
+    <div class="container split">
+      <div>
+        <div class="breadcrumb"><a href="~/solutions/">Solutions</a><span>Reviews &amp; Feedback</span></div>
+        <div class="eyebrow">Reviews &amp; Feedback</div>
+        <h1>Hear from every customer, after every job.</h1>
+        <p class="lead">FirstMate asks for feedback automatically when work is finished. Happy customers are invited to leave a public review, and unhappy ones reach you first.</p>
+        <div class="btn-row"><a class="btn btn-primary btn-lg" href="https://app.1m8.ai/portal/signup">Sign up free</a><a class="btn btn-ghost btn-lg" href="~/demo/">Book a demo</a></div>
+      </div>
+      <div class="mock-stage">
+        <div class="rv-scene">
+          <div class="mock" aria-hidden="true">
+            <div class="mock-bar"><i></i><i></i><i></i><div class="url">app.1m8.ai/portal · Feedback</div></div>
+            <div class="mock-main">
+              <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap"><div class="mock-title">Feedback</div><div class="rv-tabs" style="margin-left:auto"><span class="on">Responses</span><span>Delivery</span><span>Workflow</span></div></div>
+              <div class="rv-kpis">
+                <div class="mock-kpi slide-up" style="--d:1"><small>Avg rating</small><b>4.8</b></div>
+                <div class="mock-kpi slide-up" style="--d:2"><small>Requests sent</small><b>126</b></div>
+                <div class="mock-kpi slide-up" style="--d:3"><small>Review clicks</small><b>71</b></div>
+                <div class="mock-kpi slide-up" style="--d:4"><small>Needs attention</small><b style="color:var(--brand)">2</b></div>
+              </div>
+              <div class="rv-top">
+                <div class="rv-score pop" style="--d:3"><b>4.8</b><span class="rv-stars" style="--w:96%;--d:4"><span class="base">★★★★★</span><span class="fill">★★★★★</span></span><small>From 94 ratings</small></div>
+                <div class="rv-break">
+                  <div class="rv-brow"><span>5 ★</span><div class="mock-progress"><i style="--w:84%;--d:5"></i></div><span>79</span></div>
+                  <div class="rv-brow"><span>4 ★</span><div class="mock-progress"><i style="--w:11%;--d:6"></i></div><span>10</span></div>
+                  <div class="rv-brow"><span>3 ★</span><div class="mock-progress"><i style="--w:3%;--d:7"></i></div><span>3</span></div>
+                  <div class="rv-brow"><span>2 ★</span><div class="mock-progress"><i style="--w:1%;--d:8"></i></div><span>1</span></div>
+                  <div class="rv-brow"><span>1 ★</span><div class="mock-progress"><i style="--w:1%;--d:9"></i></div><span>1</span></div>
+                </div>
+              </div>
+              <div class="mock-row slide-up" style="--d:10"><div class="mock-avatar">SM</div><div style="flex:1;min-width:0"><b style="font-size:12px">Sarah Martin · Roof replacement</b><div style="color:var(--muted);font-size:11px;font-weight:600">"Placeholder comment from a homeowner."</div></div><span class="rv-stars" style="--sz:12px;--w:100%;--d:11"><span class="base">★★★★★</span><span class="fill">★★★★★</span></span></div>
+            </div>
+          </div>
+          <div class="mock-float rv-new"><div style="display:flex;justify-content:space-between;margin-bottom:6px"><span class="mock-chip green">New rating</span><span style="color:var(--muted);font-size:11px">just now</span></div><div>Kim Lee · Siding</div><div style="color:#f59e0b;font-size:14px;letter-spacing:2px">★★★★★</div><div style="font-size:11px;color:var(--ok);margin-top:2px"><i class="fa-solid fa-arrow-up-right-from-square"></i> Clicked through to review</div></div>
+          <div class="mock-float rv-alert"><div style="display:flex;gap:10px;align-items:center"><span class="mock-chip red" style="padding:6px"><i class="fa-solid fa-triangle-exclamation"></i></span><div>Needs attention<div style="font-weight:600;color:var(--muted);font-size:11px">2 ★ · kept private · Diego Ortiz</div></div></div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container">
+      <div class="section-head reveal"><div class="eyebrow">How it works</div><h2>Feedback on autopilot.</h2><p class="lead">Placeholder intro: most happy customers never think to leave a review unless you ask at the right moment.</p></div>
+
+      <div class="split" style="margin-bottom:96px">
+        <div class="reveal">
+          <h3>Asked at the right moment.</h3>
+          <p>Design the feedback journey once in the Workflow view. When a job finishes, FirstMate sends the request by email, text or the customer portal, on the schedule you set.</p>
+          <ul class="feature-list"><li>Sent automatically when work is done</li><li>Email, text and customer portal</li><li>Your headline, question and thank-you message</li></ul>
+        </div>
+        <div class="mock reveal" aria-hidden="true">
+          <div class="mock-bar"><i></i><i></i><i></i><div class="url">Feedback · Workflow</div></div>
+          <div class="mock-main">
+            <div class="rv-flow">
+              <div class="rv-node slide-up" style="--d:1"><i class="fa-solid fa-flag-checkered ic"></i><span style="flex:1">Job finished</span><span class="mock-chip">Trigger</span></div>
+              <div class="rv-link fade" style="--d:2"></div>
+              <div class="rv-node slide-up" style="--d:3"><i class="fa-solid fa-clock ic"></i><span style="flex:1">Wait 1 day</span><span class="mock-chip">Schedule</span></div>
+              <div class="rv-link fade" style="--d:4"></div>
+              <div class="rv-node slide-up" style="--d:5"><i class="fa-solid fa-paper-plane ic"></i><span style="flex:1">Send feedback link</span><span class="mock-chip blue">Email</span><span class="mock-chip blue">Text</span></div>
+              <div class="rv-link fade" style="--d:6"></div>
+              <div class="rv-fork">
+                <div class="rv-node pop" style="--d:8;border-color:#86efac"><i class="fa-solid fa-star ic" style="background:#dcfce7;color:var(--ok)"></i><span>4–5 ★ · invite to review</span></div>
+                <div class="rv-node pop" style="--d:9;border-color:#fca5a5"><i class="fa-solid fa-lock ic"></i><span>1–3 ★ · kept private</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="split split--flip" style="margin-bottom:96px">
+        <div class="reveal">
+          <h3>Happy customers go to your review sites.</h3>
+          <p>Customers rate the job in a tap. Those who rate at or above your threshold are invited to leave a public review on the destinations you choose. Lower ratings stay private and come to you.</p>
+          <ul class="feature-list"><li>Choose the rating that triggers an invite</li><li>Google, Facebook, BBB or a custom link</li><li>Track who clicks through</li></ul>
+        </div>
+        <div style="display:flex;justify-content:center" class="reveal">
+          <div class="mock mock-phone" aria-hidden="true" style="background:#0d0e12;border:0">
+            <div class="screen" style="padding:46px 18px 18px;gap:14px;min-height:440px">
+              <div style="display:flex;align-items:center;gap:8px;font-weight:800;font-size:13px"><i style="width:22px;height:22px;border-radius:7px;background:var(--brand)"></i>Your Company</div>
+              <div style="font-weight:800;font-size:16px;line-height:1.25">How did we do on your roof replacement?</div>
+              <div class="rv-tap" id="rv-tap"><i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i></div>
+              <div class="mock-row fade" style="--d:4;font-size:12px;font-weight:600;color:var(--muted);min-height:60px;align-items:flex-start">Tell us more (optional)</div>
+              <div class="fade" style="--d:8;font-size:12px;font-weight:700">Thank you! Would you share it publicly?</div>
+              <div class="rv-dest">
+                <span class="mock-chip pop" style="--d:9"><i class="fa-brands fa-google"></i> Google</span>
+                <span class="mock-chip pop" style="--d:10"><i class="fa-brands fa-facebook"></i> Facebook</span>
+                <span class="mock-chip pop" style="--d:11">BBB</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="split">
+        <div class="reveal">
+          <h3>Every response in one place.</h3>
+          <p>See ratings by job, person and kind of work. Low ratings are flagged as needing attention so someone calls the customer before it turns into a bad review.</p>
+          <ul class="feature-list"><li>Responses, delivery and awaiting reply</li><li>Feedback on each project</li><li>Needs attention list for low ratings</li></ul>
+        </div>
+        <div class="mock reveal" aria-hidden="true">
+          <div class="mock-bar"><i></i><i></i><i></i><div class="url">Feedback · Ratings by month</div></div>
+          <div class="mock-main">
+            <div style="display:flex;justify-content:space-between;align-items:center"><b style="font-size:12px">Avg rating</b><span class="mock-chip green">4.8 this month</span></div>
+            <div class="mock-bars" style="height:110px"><i style="--h:72%;--d:1"></i><i style="--h:78%;--d:2"></i><i style="--h:74%;--d:3"></i><i style="--h:84%;--d:4"></i><i style="--h:88%;--d:5"></i><i style="--h:86%;--d:6"></i><i style="--h:92%;--d:7"></i><i style="--h:96%;--d:8"></i></div>
+            <div class="mock-row slide-up" style="--d:9"><span class="mock-chip red">Needs attention</span><b style="flex:1;font-size:12px">Diego Ortiz · Gutters · 2 ★</b><span class="mock-btn">Call</span></div>
+            <div class="mock-row slide-up" style="--d:10"><span class="mock-chip amber">Awaiting reply</span><b style="flex:1;font-size:12px">Jordan Park · Invitation sent</b></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section section--soft">
+    <div class="container">
+      <div class="section-head center reveal"><div class="eyebrow">Everything included</div><h2>Small touches that build a reputation.</h2></div>
+      <div class="grid grid-3">
+        <div class="card reveal"><div class="icon"><i class="fa-solid fa-pen-to-square"></i></div><h3>Your own words</h3><p>Write the headline, question, comment prompt and thank-you message.</p></div>
+        <div class="card reveal" style="--d:1"><div class="icon"><i class="fa-solid fa-eye"></i></div><h3>Preview any rating</h3><p>See exactly what a customer sees for a 5-star or a 2-star answer.</p></div>
+        <div class="card reveal" style="--d:2"><div class="icon"><i class="fa-solid fa-user-lock"></i></div><h3>In the customer portal</h3><p>Customers can rate the job from their portal as well as from a link.</p></div>
+        <div class="card reveal"><div class="icon"><i class="fa-solid fa-diagram-project"></i></div><h3>On every project</h3><p>A Feedback tab in the project shows what that customer said.</p></div>
+        <div class="card reveal" style="--d:1"><div class="icon"><i class="fa-solid fa-code-branch"></i></div><h3>Per branch</h3><p>Each branch can send to its own review pages.</p></div>
+        <div class="card reveal" style="--d:2"><div class="icon"><i class="fa-solid fa-chart-line"></i></div><h3>Trends over time</h3><p>Watch your average rating and review clicks month by month.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container">
+      <div class="section-head reveal"><div class="eyebrow">Connected</div><h2>Part of the whole job.</h2></div>
+      <div class="grid grid-4">
+        <a class="card reveal" href="~/solutions/communications/"><div class="icon"><i class="fa-solid fa-inbox"></i></div><h3>Calls, Texts &amp; Inbox</h3><p>Follow up on a low rating with a call or text.</p></a>
+        <a class="card reveal" style="--d:1" href="~/solutions/crm/"><div class="icon"><i class="fa-solid fa-address-book"></i></div><h3>CRM</h3><p>Ratings live on the contact and the project.</p></a>
+        <a class="card reveal" style="--d:2" href="~/solutions/website-builder/"><div class="icon"><i class="fa-solid fa-globe"></i></div><h3>Website Builder</h3><p>Show customer ratings on your site.</p></a>
+        <a class="card reveal" style="--d:3" href="~/solutions/payments/"><div class="icon"><i class="fa-solid fa-credit-card"></i></div><h3>Payments</h3><p>Ask for feedback once the final payment is in.</p></a>
+      </div>
+    </div>
+  </section>
+
+  <section class="section section--soft">
+    <div class="container container--narrow">
+      <div class="section-head center reveal"><div class="eyebrow">FAQ</div><h2>Questions</h2></div>
+      <details class="faq"><summary>Which review sites can I send customers to?</summary><div>Google, Facebook and BBB, or any custom link you add.</div></details>
+      <details class="faq"><summary>What happens with a low rating?</summary><div>It is kept private, shown to your team as needing attention, and the customer sees your low-rating message instead of a review invite.</div></details>
+      <details class="faq"><summary>When is the request sent?</summary><div>You set it in the Workflow view, for example a day after the job is finished.</div></details>
+      <details class="faq"><summary>How much does it cost?</summary><div>Placeholder answer. See <a href="~/pricing/">pricing</a>.</div></details>
+    </div>
+  </section>
+
+  <section class="section"><div class="container"><div class="cta-band reveal">
+    <h2>Turn finished jobs into five-star reviews.</h2>
+    <p>Placeholder line about setting up feedback requests.</p>
+    <div class="btn-row"><a class="btn btn-primary btn-lg" href="https://app.1m8.ai/portal/signup">Sign up free</a><a class="btn btn-glass btn-lg" href="~/demo/">Book a demo</a></div>
+  </div></div></section>
+</main>
+<div id="site-footer"></div>
+<script src="../../assets/site.js"></script>
+<script>
+(function () {
+  var tap = document.getElementById('rv-tap'); if (!tap) return;
+  var stars = tap.querySelectorAll('i');
+  function set(n) { stars.forEach(function (s, k) { s.classList.toggle('on', k < n); }); }
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) { set(5); return; }
+  var n = 0, started = false;
+  function tick() { n = n >= 5 ? 0 : n + 1; set(n); setTimeout(tick, n === 5 ? 2600 : n === 0 ? 700 : 260); }
+  new IntersectionObserver(function (e) { if (e[0].isIntersecting && !started) { started = true; setTimeout(tick, 600); } }).observe(tap);
+})();
+</script>
+</body>
+</html>

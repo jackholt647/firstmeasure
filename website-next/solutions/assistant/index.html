@@ -1,0 +1,352 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FirstMate Assistant — FirstMate</title>
+<meta name="description" content="One AI assistant across FirstMate that works inside your data and your permissions: answers questions about jobs, drafts messages and documents, edits forms and runs scheduled tasks.">
+<meta name="robots" content="noindex, nofollow">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,400..900;1,400..900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/site.css">
+<style>
+  .as-hero-inner { display: grid; grid-template-columns: 1fr 1.05fr; gap: 56px; align-items: center }
+  @media (max-width: 1000px) { .as-hero-inner { grid-template-columns: 1fr } }
+  .as-sub { font-size: 14px; color: #8b909c; font-weight: 600; margin-top: 18px }
+
+  /* Assistant window */
+  .as-win { max-width: 520px; margin-left: auto }
+  @media (max-width: 1000px) { .as-win { margin: 0 auto } }
+  .as-head { display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-bottom: 1px solid rgba(255,255,255,.06); background: #1c1f26 }
+  .as-head .ic { width: 28px; height: 28px; border-radius: 9px; background: linear-gradient(135deg, var(--brand-2), var(--brand)); color: #fff; display: grid; place-items: center; font-size: 12px }
+  .as-head b { color: #fff; font-size: 13px; font-weight: 800 }
+  .as-head small { display: block; color: #8b909c; font-size: 11px; font-weight: 600 }
+  .as-ctl { margin-left: auto; display: flex; gap: 6px; color: #6b7280; font-size: 11px }
+  .as-ctl span { width: 24px; height: 24px; border-radius: 7px; display: grid; place-items: center; background: rgba(255,255,255,.04) }
+  .as-chat { height: 400px; overflow: hidden; display: flex; flex-direction: column; justify-content: flex-end; gap: 10px; padding: 16px; background: #15171c }
+  .as-msg { max-width: 86%; padding: 10px 13px; border-radius: 15px; font-size: 13px; font-weight: 600; line-height: 1.45; animation: fm-slide-up .45s var(--ease) both }
+  .as-msg.me { align-self: flex-end; background: var(--brand); color: #fff; border-bottom-right-radius: 4px }
+  .as-msg.ai { align-self: flex-start; background: #1f232b; color: #e5e7eb; border-bottom-left-radius: 4px }
+  .as-msg.ai b { color: #fff }
+  .as-dots { display: inline-flex; gap: 4px; padding: 3px 0 } .as-dots i { width: 6px; height: 6px; border-radius: 50%; background: #9ca3af; animation: as-blink 1.2s infinite } .as-dots i:nth-child(2) { animation-delay: .2s } .as-dots i:nth-child(3) { animation-delay: .4s }
+  @keyframes as-blink { 0%, 80%, 100% { opacity: .3 } 40% { opacity: 1 } }
+  .as-tool { align-self: flex-start; display: flex; align-items: center; gap: 10px; min-width: 240px; max-width: 86%; padding: 9px 12px; border-radius: 12px; border: 1px solid rgba(255,255,255,.08); background: #1a1d24; font-size: 12px; color: #c9ccd4; animation: fm-pop .5s var(--ease) both }
+  .as-tool .t-ic { width: 26px; height: 26px; border-radius: 8px; display: grid; place-items: center; background: rgba(219,0,0,.16); color: #ff6b6b; flex: none; font-size: 12px }
+  .as-tool b { display: block; color: #fff; font-size: 12px }
+  .as-tool small { color: #8b909c; font-weight: 600; font-size: 11px }
+  .as-tool .st { margin-left: auto; font-size: 11px; font-weight: 800; color: #8b909c; white-space: nowrap }
+  .as-tool.done .st { color: #4ade80 }
+  .as-tool .spin { width: 12px; height: 12px; border-radius: 50%; border: 2px solid #4b5563; border-top-color: #ff6b6b; animation: as-spin .8s linear infinite; display: inline-block; vertical-align: -2px }
+  @keyframes as-spin { to { transform: rotate(360deg) } }
+  .as-compose { display: flex; align-items: center; gap: 8px; padding: 12px 14px; border-top: 1px solid rgba(255,255,255,.06); background: #1c1f26 }
+  .as-compose .box { flex: 1; height: 34px; border-radius: 999px; background: #15171c; border: 1px solid rgba(255,255,255,.08); color: #6b7280; font-size: 12px; font-weight: 600; display: flex; align-items: center; padding: 0 14px }
+  .as-compose .snd { width: 34px; height: 34px; border-radius: 50%; background: var(--brand); color: #fff; display: grid; place-items: center; font-size: 13px }
+  .as-compose .mic { color: #6b7280; font-size: 14px; padding: 0 4px }
+
+  /* Permissions mock */
+  .as-perm .mock-row { justify-content: space-between }
+  .as-perm .who { display: flex; align-items: center; gap: 10px; font-weight: 700 }
+  .as-perm code { font: 700 11px ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--muted) }
+  .as-layer { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line); background: #fff; font-weight: 700; font-size: 12px }
+  .as-layer span { margin-left: auto; color: var(--muted); font-size: 11px; font-weight: 600 }
+  .as-layer em { font-style: normal; width: 22px; height: 22px; border-radius: 6px; background: var(--brand-soft); color: var(--brand); display: grid; place-items: center; font-size: 11px; font-weight: 800; flex: none }
+
+  /* Form editor mock */
+  .as-form { display: grid; grid-template-columns: 1fr 210px; min-height: 330px }
+  .as-form .canvas { padding: 16px; background: #fafafb; display: flex; flex-direction: column; gap: 8px }
+  .as-block { border: 1px solid var(--line); background: #fff; border-radius: 10px; padding: 10px 12px; font-size: 12px; font-weight: 700 }
+  .as-block small { display: block; color: var(--muted); font-weight: 600; font-size: 10px; text-transform: uppercase; letter-spacing: .06em; margin-bottom: 4px }
+  .as-block .fld { height: 26px; border-radius: 7px; border: 1px solid var(--line); background: #fbfbfc }
+  .as-block.new { border-color: var(--brand); box-shadow: 0 0 0 3px rgba(219,0,0,.1) }
+  .as-form .ai { border-left: 1px solid var(--line); padding: 12px; display: flex; flex-direction: column; gap: 8px; background: #fff }
+  .as-tabs { display: flex; gap: 4px; font-size: 11px; font-weight: 700; color: var(--muted); margin-bottom: 4px }
+  .as-tabs span { padding: 4px 8px; border-radius: 6px } .as-tabs span.on { background: var(--brand-soft); color: var(--brand) }
+  .as-mini { padding: 8px 10px; border-radius: 10px; font-size: 11px; font-weight: 600; line-height: 1.4 }
+  .as-mini.me { background: var(--brand); color: #fff; align-self: flex-end; max-width: 92% }
+  .as-mini.ai { background: var(--bg-soft); color: var(--heading); max-width: 92% }
+  @media (max-width: 640px) { .as-form { grid-template-columns: 1fr } .as-form .ai { border-left: 0; border-top: 1px solid var(--line) } }
+
+  /* Draft mock */
+  .as-draft { padding: 16px; display: flex; flex-direction: column; gap: 10px }
+  .as-draft .meta { display: flex; gap: 8px; flex-wrap: wrap; font-size: 11px; font-weight: 700; color: var(--muted) }
+  .as-draft .body { border: 1px solid var(--line); border-radius: 12px; padding: 14px; font-size: 13px; font-weight: 500; color: var(--body); line-height: 1.6; min-height: 120px }
+  .as-draft .acts { display: flex; gap: 8px; justify-content: flex-end }
+  .as-draft .ghost { display: inline-flex; padding: 6px 12px; border-radius: 999px; border: 1px solid var(--line); font-weight: 700; font-size: 11px }
+
+  /* Agents mock */
+  .as-agent { display: flex; gap: 12px; align-items: center; padding: 12px; border: 1px solid rgba(255,255,255,.06); border-radius: 12px; background: #1c1f26 }
+  .as-agent .a-ic { width: 34px; height: 34px; border-radius: 10px; background: rgba(219,0,0,.16); color: #ff6b6b; display: grid; place-items: center; flex: none }
+  .as-agent b { display: block; color: #fff; font-size: 13px }
+  .as-agent small { color: #8b909c; font-size: 11px; font-weight: 600 }
+  .as-agent .mock-chip { margin-left: auto }
+
+  .as-rel { display: flex; align-items: center; gap: 14px; padding: 18px 20px }
+  .as-rel i { width: 40px; height: 40px; border-radius: 12px; background: var(--brand-soft); color: var(--brand); display: grid; place-items: center; flex: none }
+  .as-rel b { display: block; color: var(--heading) } .as-rel small { color: var(--muted); font-weight: 600 }
+  @media (prefers-reduced-motion: reduce) { .as-dots i, .as-tool .spin { animation: none } }
+</style>
+</head>
+<body data-header="over-dark">
+<div id="site-header"></div>
+<main>
+
+<section class="hero">
+  <div class="hero-grid"></div><div class="hero-glow"></div>
+  <div class="container hero-inner as-hero-inner">
+    <div>
+      <div class="breadcrumb reveal"><a href="~/solutions/" style="color:#8b909c">Solutions</a><span>FirstMate Assistant</span></div>
+      <div class="eyebrow reveal" style="color:#ff6b6b">FirstMate Assistant</div>
+      <h1 class="reveal" style="--d:1">One assistant that <span class="text-gradient">knows every job.</span></h1>
+      <p class="lead reveal" style="--d:2">Ask about any project, schedule, payment or lead. The assistant works inside your FirstMate data, with your permissions, and can update the schedule, draft the follow-up or build the form for you.</p>
+      <div class="btn-row reveal" style="--d:3; margin-top: 32px">
+        <a class="btn btn-primary btn-lg" href="https://app.1m8.ai/portal/signup">Sign up free</a>
+        <a class="btn btn-glass btn-lg" href="~/demo/">Book a demo</a>
+      </div>
+      <p class="as-sub reveal" style="--d:4"><i class="fa-solid fa-check" style="color:var(--brand)"></i> Checks your access on every step &nbsp; <i class="fa-solid fa-check" style="color:var(--brand)"></i> Asks before it sends &nbsp; <i class="fa-solid fa-check" style="color:var(--brand)"></i> On web and phone</p>
+    </div>
+
+    <div class="mock-stage" aria-hidden="true">
+      <div class="mock mock--dark as-win" id="as-hero">
+        <div class="as-head">
+          <span style="color:#6b7280;font-size:13px"><i class="fa-solid fa-bars"></i></span>
+          <div class="ic"><i class="fa-solid fa-wand-magic-sparkles"></i></div>
+          <div><b>Assistant</b><small>Main thread</small></div>
+          <div class="as-ctl"><span><i class="fa-regular fa-window-restore"></i></span><span><i class="fa-solid fa-expand"></i></span><span><i class="fa-solid fa-xmark"></i></span></div>
+        </div>
+        <div class="as-chat" id="as-chat"></div>
+        <div class="as-compose"><span class="mic"><i class="fa-solid fa-paperclip"></i></span><div class="box">Ask anything about your business…</div><span class="mic"><i class="fa-solid fa-microphone"></i></span><span class="snd"><i class="fa-solid fa-arrow-up"></i></span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Inside your data and permissions -->
+<section class="section">
+  <div class="container split">
+    <div class="reveal">
+      <div class="eyebrow">Your data, your permissions</div>
+      <h2>It can only do what you can do.</h2>
+      <p class="lead">The assistant reads and acts through the same published data and actions every FirstMate app uses. Each step re-checks the signed-in person's current permissions, so a salesperson's assistant sees a salesperson's world.</p>
+      <ul class="feature-list">
+        <li>Finds projects, contacts, schedules, documents and stats you have access to</li>
+        <li>Never sees stored passwords or connection credentials</li>
+        <li>Confirms before it messages a customer or changes work</li>
+      </ul>
+    </div>
+    <div class="mock-stage reveal" style="--d:1" aria-hidden="true">
+      <div class="mock as-perm">
+        <div class="mock-bar"><i></i><i></i><i></i><div class="url">Assistant · activity</div></div>
+        <div class="mock-main">
+          <div class="mock-title fade">What happened on this turn</div>
+          <div class="mock-row slide-up" style="--d:1"><span class="who"><i class="fa-solid fa-magnifying-glass" style="color:var(--brand)"></i> Searched the platform</span><span class="mock-chip green"><i class="fa-solid fa-lock-open"></i> Allowed</span></div>
+          <div class="mock-row slide-up" style="--d:2"><span class="who"><i class="fa-solid fa-folder-open" style="color:var(--brand)"></i> Read project · 418 Maple Ct</span><span class="mock-chip green"><i class="fa-solid fa-lock-open"></i> Allowed</span></div>
+          <div class="mock-row slide-up" style="--d:3"><span class="who"><i class="fa-solid fa-chart-column" style="color:var(--brand)"></i> Ran stats query · branch payroll</span><span class="mock-chip red"><i class="fa-solid fa-lock"></i> No access</span></div>
+          <div class="mock-row slide-up" style="--d:4"><span class="who"><i class="fa-solid fa-paper-plane" style="color:var(--brand)"></i> Send customer message</span><span class="mock-chip amber"><i class="fa-solid fa-hand"></i> Waiting for you</span></div>
+          <div style="font-size:11px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.06em;margin-top:6px;--d:5" class="fade">Instructions it follows, in order</div>
+          <div class="as-layer slide-up" style="--d:6"><em>1</em> Platform rules <span>always first</span></div>
+          <div class="as-layer slide-up" style="--d:7"><em>2</em> Organization instructions <span>set by admins</span></div>
+          <div class="as-layer slide-up" style="--d:8"><em>3</em> Your personal style and memories <span>yours to edit</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Forms -->
+<section class="section section--soft">
+  <div class="container split split--flip">
+    <div class="reveal">
+      <div class="eyebrow">Builds with you</div>
+      <h2>Describe the form. Watch it appear.</h2>
+      <p class="lead">Open a form's AI tab and it's the same assistant, working on that form. Ask for a step, a question, an appointment picker or a price calculation and it adds the blocks for you to review.</p>
+      <a class="link-arrow" href="~/solutions/forms-booking/">Forms &amp; online booking</a>
+    </div>
+    <div class="mock-stage reveal" style="--d:1" aria-hidden="true">
+      <div class="mock">
+        <div class="mock-bar"><i></i><i></i><i></i><div class="url">Forms · Free roof inspection</div></div>
+        <div class="as-form">
+          <div class="canvas">
+            <div class="mock-title fade">Step 1 · About your home</div>
+            <div class="as-block slide-up" style="--d:1"><small>Text</small><div class="fld"></div></div>
+            <div class="as-block slide-up" style="--d:2"><small>Address</small><div class="fld"></div></div>
+            <div class="as-block new pop" style="--d:9"><small>Choice · added by Assistant</small>Roof age: Under 10 · 10–20 · 20+ years</div>
+            <div class="as-block new pop" style="--d:11"><small>Appointment · added by Assistant</small><div style="display:flex;gap:6px;margin-top:4px"><span class="mock-chip">Tue 9:00</span><span class="mock-chip red">Tue 1:00</span><span class="mock-chip">Wed 10:00</span></div></div>
+          </div>
+          <div class="ai">
+            <div class="as-tabs"><span>Blocks</span><span>Style</span><span class="on">AI</span></div>
+            <div class="as-mini me slide-up" style="--d:3">Ask how old the roof is, then let them book an inspection.</div>
+            <div class="as-mini ai slide-up" style="--d:7">Added a roof-age question and an appointment block using your <b>Inspection</b> type.</div>
+            <div class="as-mini ai slide-up" style="--d:12"><i class="fa-solid fa-circle-check" style="color:var(--ok)"></i> 2 blocks added</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Drafting -->
+<section class="section">
+  <div class="container split">
+    <div class="reveal">
+      <div class="eyebrow">Drafts, you send</div>
+      <h2>Follow-ups and documents, already written.</h2>
+      <p class="lead">Ask for a follow-up text, an email to the adjuster or a note on the project. The assistant writes it from the job's real details and leaves it for you to edit and send.</p>
+      <ul class="feature-list">
+        <li>Texts and emails to customers, with your approval</li>
+        <li>Project notes and to-dos for your team</li>
+        <li>Reads documents, photos and files you attach</li>
+      </ul>
+    </div>
+    <div class="mock-stage reveal" style="--d:1" aria-hidden="true">
+      <div class="mock">
+        <div class="mock-bar"><i></i><i></i><i></i><div class="url">Draft · text message</div></div>
+        <div class="as-draft">
+          <div class="meta fade"><span class="mock-chip">To: Dana Whitfield</span><span class="mock-chip">418 Maple Ct</span><span class="mock-chip violet"><i class="fa-solid fa-wand-magic-sparkles"></i> Drafted by Assistant</span></div>
+          <div class="body"><span class="mock-type" style="--steps:46;--d:3">Hi Dana, your install is set for Tue 7:30 AM.</span><br><span class="fade" style="--d:22">We'll text when the team is on the way. Reply here with any questions!</span></div>
+          <div class="acts slide-up" style="--d:24"><span class="ghost">Edit</span><span class="mock-btn">Send</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Agents -->
+<section class="section section--dark">
+  <div class="container split split--flip">
+    <div class="reveal">
+      <div class="eyebrow" style="color:#ff6b6b">Agents</div>
+      <h2>Ask once. It keeps working.</h2>
+      <p class="lead" style="color:#c9ccd4">Turn a request into a personal agent that runs on a schedule, like a Monday pipeline summary or a daily check for jobs missing materials. Each agent has its own conversation, so you can see every run.</p>
+    </div>
+    <div class="mock-stage reveal" style="--d:1" aria-hidden="true">
+      <div class="mock mock--dark">
+        <div class="mock-bar"><i></i><i></i><i></i><div class="url">Assistant · Agents</div></div>
+        <div class="mock-main">
+          <div class="mock-title fade" style="color:#fff">Agents</div>
+          <div class="as-agent slide-up" style="--d:1"><div class="a-ic"><i class="fa-solid fa-chart-line"></i></div><div><b>Weekly pipeline summary</b><small>Mondays · 7:00 AM</small></div><span class="mock-chip green"><span class="pulse-dot"></span> On</span></div>
+          <div class="as-agent slide-up" style="--d:2"><div class="a-ic"><i class="fa-solid fa-boxes-stacked"></i></div><div><b>Jobs missing material orders</b><small>Every weekday · 6:30 AM</small></div><span class="mock-chip green"><span class="pulse-dot"></span> On</span></div>
+          <div class="as-agent slide-up" style="--d:3"><div class="a-ic"><i class="fa-solid fa-phone"></i></div><div><b>Leads with no first call</b><small>Every day · 4:00 PM</small></div><span class="mock-chip">Paused</span></div>
+          <div class="as-agent slide-up" style="--d:4;border-style:dashed"><div class="a-ic" style="background:rgba(255,255,255,.06);color:#8b909c"><i class="fa-solid fa-plus"></i></div><div><b>New agent</b><small>"Every Friday, list unpaid invoices"</small></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Feature grid -->
+<section class="section">
+  <div class="container">
+    <div class="section-head center reveal"><div class="eyebrow">Everything else</div><h2>Built into every screen.</h2></div>
+    <div class="grid grid-3">
+      <div class="card reveal"><div class="icon"><i class="fa-solid fa-brain"></i></div><h3>Memory you control</h3><p>Ask it to remember how you like things done. See, edit or clear every memory in settings.</p></div>
+      <div class="card reveal" style="--d:1"><div class="icon"><i class="fa-solid fa-building"></i></div><h3>Company instructions</h3><p>Admins set how the assistant talks and works for the whole organization.</p></div>
+      <div class="card reveal" style="--d:2"><div class="icon"><i class="fa-solid fa-paperclip"></i></div><h3>Files and photos</h3><p>Attach documents and images and ask about them. Audio is transcribed first.</p></div>
+      <div class="card reveal"><div class="icon"><i class="fa-solid fa-microphone"></i></div><h3>Dictation</h3><p>Speak instead of typing; review the text before you send it.</p></div>
+      <div class="card reveal" style="--d:1"><div class="icon"><i class="fa-solid fa-clock-rotate-left"></i></div><h3>Searchable history</h3><p>A main thread plus side chats, and it can look back through your own past conversations.</p></div>
+      <div class="card reveal" style="--d:2"><div class="icon"><i class="fa-regular fa-window-restore"></i></div><h3>Dock, float or full screen</h3><p>Keep it docked beside your work or open the full workspace. Your draft stays put.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- Related -->
+<section class="section section--soft">
+  <div class="container">
+    <div class="section-head reveal"><div class="eyebrow">Connected</div><h2>Works across all of FirstMate.</h2></div>
+    <div class="grid grid-4">
+      <a class="card as-rel reveal" href="~/solutions/automations/"><i class="fa-solid fa-bolt"></i><div><b>Automations</b><small>Follow-ups that run themselves</small></div></a>
+      <a class="card as-rel reveal" style="--d:1" href="~/solutions/crm/"><i class="fa-solid fa-filter"></i><div><b>CRM</b><small>Every lead and follow-up</small></div></a>
+      <a class="card as-rel reveal" style="--d:2" href="~/solutions/scheduling/"><i class="fa-solid fa-calendar-days"></i><div><b>Scheduling</b><small>Book and move work</small></div></a>
+      <a class="card as-rel reveal" style="--d:3" href="~/solutions/integrations/"><i class="fa-solid fa-plug"></i><div><b>Integrations</b><small>Set up connections by chat</small></div></a>
+    </div>
+  </div>
+</section>
+
+<!-- FAQ -->
+<section class="section">
+  <div class="container container--narrow">
+    <div class="section-head center reveal"><div class="eyebrow">FAQ</div><h2>Questions</h2></div>
+    <details class="faq"><summary>Can the assistant see things I'm not allowed to see?</summary><div>No. Every tool call re-checks the signed-in person's current permissions, the same way the apps do.</div></details>
+    <details class="faq"><summary>Will it message customers on its own?</summary><div>It drafts, and asks before it sends or changes work. Company instructions can't override those confirmation rules.</div></details>
+    <details class="faq"><summary>Where does it remember things?</summary><div>In a short list of memories you own. You can add, edit or clear them, or turn memory off, in settings.</div></details>
+    <details class="faq"><summary>Does it cost extra?</summary><div>Placeholder: pricing details to be confirmed. See <a href="~/pricing/">pricing</a>.</div></details>
+  </div>
+</section>
+
+<section class="section"><div class="container"><div class="cta-band">
+  <h2>Put an assistant on every job.</h2>
+  <p class="lead" style="color:#c9ccd4">Start free and ask it your first question today.</p>
+  <div class="btn-row"><a class="btn btn-primary btn-lg" href="https://app.1m8.ai/portal/signup">Sign up free</a><a class="btn btn-glass btn-lg" href="~/demo/">Book a demo</a></div>
+</div></div></section>
+
+</main>
+<div id="site-footer"></div>
+<script src="../../assets/site.js"></script>
+<script>
+(function () {
+  var chat = document.getElementById('as-chat'), win = document.getElementById('as-hero');
+  if (!chat || !win) return;
+  var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var convos = [
+    [
+      ['me', 'Move the Ortiz install to Thursday, it\'s going to rain Wednesday.'],
+      ['tool', 'fa-calendar-days', 'Updated schedule', 'Ortiz · Install → Thu 7:30 AM'],
+      ['ai', 'Done. The <b>Ortiz install</b> is now Thursday at 7:30 AM and the assigned team was notified.'],
+      ['me', 'Let the homeowner know too.'],
+      ['tool', 'fa-message', 'Drafted follow-up', 'Text to Maria Ortiz · ready to review'],
+      ['ai', 'Here\'s a draft text for Maria. <b>Send it</b> or tell me what to change.']
+    ],
+    [
+      ['me', 'Which leads from this week haven\'t had a first call?'],
+      ['tool', 'fa-magnifying-glass', 'Searched projects', 'New leads · this week'],
+      ['ai', '<b>4 new leads</b> have no call logged: Chen, Patel, Brooks and Nguyen.'],
+      ['me', 'Make a to-do for Sam to call them today.'],
+      ['tool', 'fa-list-check', 'Created 4 to-dos', 'Assigned to Sam R. · due today'],
+      ['ai', 'Created. Sam will see them in Today.']
+    ],
+    [
+      ['me', 'What\'s left to collect on 1482 Ridgeview?'],
+      ['tool', 'fa-file-invoice-dollar', 'Read payments', '1482 Ridgeview Dr'],
+      ['ai', 'The deposit is paid. <b>The final payment</b> is due when the job is finished.'],
+      ['me', 'Draft a reminder email for when we close it out.'],
+      ['tool', 'fa-envelope', 'Drafted email', 'Final payment reminder'],
+      ['ai', 'Saved as a draft on the project. Nothing has been sent.']
+    ]
+  ];
+  function el(cls, html) { var d = document.createElement('div'); d.className = cls; d.innerHTML = html; return d; }
+  function add(node) { chat.appendChild(node); while (chat.children.length > 7) chat.removeChild(chat.firstChild); }
+  function render(step, done) {
+    if (step[0] === 'me') return add(el('as-msg me', step[1]));
+    if (step[0] === 'ai') return add(el('as-msg ai', step[1]));
+    return add(el('as-tool' + (done ? ' done' : ''), '<span class="t-ic"><i class="fa-solid ' + step[1] + '"></i></span><div><b>' + step[2] + '</b><small>' + step[3] + '</small></div><span class="st">' + (done ? '<i class="fa-solid fa-check"></i> Done' : '<span class="spin"></span>') + '</span>'));
+  }
+  if (reduce) { convos[0].forEach(function (s) { render(s, true); }); return; }
+  var c = 0, i = 0, started = false;
+  function next() {
+    var convo = convos[c];
+    if (i >= convo.length) {
+      c = (c + 1) % convos.length; i = 0;
+      setTimeout(function () { chat.innerHTML = ''; next(); }, 2600);
+      return;
+    }
+    var step = convo[i++];
+    if (step[0] === 'me') { render(step); setTimeout(next, 900); }
+    else if (step[0] === 'tool') {
+      var typing = el('as-msg ai', '<span class="as-dots"><i></i><i></i><i></i></span>'); add(typing);
+      setTimeout(function () {
+        typing.remove(); var card = render(step, false);
+        var t = chat.lastChild;
+        setTimeout(function () { t.classList.add('done'); t.querySelector('.st').innerHTML = '<i class="fa-solid fa-check"></i> Done'; setTimeout(next, 500); }, 1200);
+      }, 1100);
+    } else {
+      var typing2 = el('as-msg ai', '<span class="as-dots"><i></i><i></i><i></i></span>'); add(typing2);
+      setTimeout(function () { typing2.remove(); render(step); setTimeout(next, 1800); }, 900);
+    }
+  }
+  function start() { if (started) return; started = true; next(); }
+  win.addEventListener('fm:in', start);
+  if (win.classList.contains('in')) start();
+  setTimeout(start, 1500);
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,218 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FAQ — FirstMate</title>
+<meta name="description" content="Answers to common questions about FirstMate: getting started, measurements, billing, payments, the mobile app and account security.">
+<meta name="robots" content="noindex, nofollow">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,400..900;1,400..900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/site.css">
+<style>
+  .faq-hero { text-align: center }
+  .faq-hero .lead { margin: 0 auto }
+  .faq-hero .breadcrumb, .faq-hero .eyebrow { justify-content: center }
+  .faq-search { position: relative; max-width: 640px; margin: 32px auto 0 }
+  .faq-search i { position: absolute; left: 22px; top: 50%; transform: translateY(-50%); color: var(--muted); font-size: 18px }
+  .faq-search input { width: 100%; font: inherit; font-size: 17px; font-weight: 600; padding: 18px 24px 18px 56px; border-radius: 999px; border: 1.5px solid var(--line); background: #fff; box-shadow: var(--shadow); color: var(--ink) }
+  .faq-search input:focus { outline: none; border-color: var(--brand); box-shadow: 0 0 0 5px rgba(219, 0, 0, .1), var(--shadow) }
+  .faq-search small { display: block; margin-top: 12px; color: var(--muted); font-weight: 600; font-size: 13px }
+  .faq-tabs { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; margin-bottom: 36px }
+  .faq-tab { border: 1.5px solid var(--line); background: #fff; border-radius: 999px; padding: 10px 18px; font-weight: 800; font-size: 14px; color: var(--heading); cursor: pointer; display: inline-flex; gap: 8px; align-items: center; transition: border-color .2s, color .2s }
+  .faq-tab:hover { border-color: var(--heading) }
+  .faq-tab.on { border-color: var(--brand); color: var(--brand); background: var(--brand-soft) }
+  .faq-tab .n { font-size: 11px; background: var(--bg-soft); border-radius: 999px; padding: 1px 7px; color: var(--muted) }
+  .faq-tab.on .n { background: var(--brand); color: #fff }
+  .faq-list { max-width: 820px; margin: 0 auto }
+  .faq-cat { font-size: 12px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); margin: 28px 0 4px }
+  .faq-cat:first-child { margin-top: 0 }
+  .faq-list .faq { animation: fm-slide-up .45s var(--ease) both; animation-delay: calc(var(--d, 0) * 50ms) }
+  .faq-list mark { background: #fff1a8; color: inherit; border-radius: 3px; padding: 0 2px }
+  .faq-ph { display: inline-block; font-size: 11px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; padding: 1px 7px; border-radius: 999px; background: #fef3c7; color: #92400e; vertical-align: middle }
+  .faq-empty { display: none; text-align: center; padding: 48px 16px; color: var(--muted) }
+  .faq-empty.on { display: block }
+  .faq-empty i { font-size: 32px; color: var(--brand); margin-bottom: 12px }
+
+  .faq-chat { display: flex; flex-direction: column; gap: 10px; padding: 18px; min-height: 300px }
+  .faq-bubble { max-width: 84%; padding: 11px 14px; border-radius: 16px; font-size: 13px; font-weight: 600; line-height: 1.45 }
+  .faq-bubble.me { align-self: flex-end; background: var(--brand); color: #fff; border-bottom-right-radius: 4px }
+  .faq-bubble.ai { align-self: flex-start; background: #1f232b; color: #e5e7eb; border-bottom-left-radius: 4px }
+  .faq-bubble.ai b { color: #fff }
+  .faq-help-card { display: flex; gap: 16px; align-items: flex-start }
+  .faq-help-card .icon { flex: none; margin: 0 }
+</style>
+</head>
+<body>
+<div id="site-header"></div>
+<main>
+  <section class="page-hero faq-hero">
+    <div class="container container--narrow">
+      <div class="breadcrumb"><a href="~/support/help-center/">Support</a><span>FAQ</span></div>
+      <div class="eyebrow">Frequently asked questions</div>
+      <h1>Questions? <span class="text-gradient">Answered.</span></h1>
+      <p class="lead">Quick answers about getting set up, ordering measurements, billing, taking payments and using FirstMate in the field.</p>
+      <div class="faq-search">
+        <i class="fa-solid fa-magnifying-glass"></i>
+        <input id="faq-q" type="search" placeholder="Search questions, e.g. “pitch” or “refund”" autocomplete="off" aria-label="Search frequently asked questions">
+        <small id="faq-count">&nbsp;</small>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container">
+      <div class="faq-tabs" id="faq-tabs" role="tablist" aria-label="FAQ categories"></div>
+      <div class="faq-list" id="faq-list" aria-live="polite"></div>
+      <div class="faq-empty" id="faq-empty">
+        <div><i class="fa-solid fa-circle-question"></i></div>
+        <h3>No matching questions</h3>
+        <p>Try another word, or <a href="~/support/contact/">ask our support team</a>.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="section section--soft">
+    <div class="container split">
+      <div class="reveal">
+        <div class="eyebrow">Ask in the app</div>
+        <h2>The FirstMate Assistant knows your account.</h2>
+        <p class="lead">Inside FirstMate, ask the assistant how to do something, or ask it to do it for you. It answers from your own projects, settings and reports.</p>
+        <ul class="feature-list">
+          <li>How-to answers in plain language</li>
+          <li>Links straight to the right screen</li>
+          <li>Hands off to a real person when it should</li>
+        </ul>
+        <a class="link-arrow" href="~/solutions/assistant/">Meet the assistant</a>
+      </div>
+      <div class="mock-stage">
+        <div class="mock mock--dark" aria-hidden="true">
+          <div class="mock-bar"><i></i><i></i><i></i><div class="url">FirstMate Assistant</div></div>
+          <div class="faq-chat">
+            <div class="faq-bubble me slide-left" style="--d:1">How do I add a second structure to the Ridgeview order?</div>
+            <div class="faq-bubble ai slide-up" style="--d:4">Open the project, choose <b>Measurements</b>, then <b>Add structure</b>. I can do it now: detached garage at <b>1482 Ridgeview Dr</b>?</div>
+            <div class="faq-bubble me slide-left" style="--d:7">Yes, do it</div>
+            <div class="faq-bubble ai slide-up" style="--d:10"><span class="mock-chip green">Structure added</span> The report will update when the garage is measured.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container">
+      <div class="section-head center"><div class="eyebrow">Still stuck?</div><h2>More ways to get help</h2></div>
+      <div class="grid grid-3">
+        <a class="card faq-help-card reveal" href="~/support/help-center/"><div class="icon"><i class="fa-solid fa-life-ring"></i></div><div><h3>Help Center</h3><p>Step-by-step articles for every part of FirstMate.</p></div></a>
+        <a class="card faq-help-card reveal" style="--d:1" href="~/resources/classes/"><div class="icon"><i class="fa-solid fa-chalkboard-user"></i></div><div><h3>Classes</h3><p>Live and on-demand training for your whole team.</p></div></a>
+        <a class="card faq-help-card reveal" style="--d:2" href="~/support/contact/"><div class="icon"><i class="fa-solid fa-headset"></i></div><div><h3>Contact support</h3><p>Talk to real people who know the software and the trade.</p></div></a>
+      </div>
+    </div>
+  </section>
+
+  <section class="section section--tight"><div class="container"><div class="cta-band">
+    <h2>Ready to see it for yourself?</h2>
+    <p class="lead" style="color:#c9ccd4">Start free, or let us walk your team through it.</p>
+    <div class="btn-row"><a class="btn btn-primary btn-lg" href="https://app.1m8.ai/portal/signup">Sign up free</a><a class="btn btn-glass btn-lg" href="~/demo/">Book a demo</a></div>
+  </div></div></section>
+</main>
+<div id="site-footer"></div>
+<script src="../../assets/site.js"></script>
+<script>
+(function () {
+  var PH = '<span class="faq-ph">Placeholder</span>';
+  var DATA = [
+    { id: 'start', label: 'Getting started', icon: 'fa-rocket', items: [
+      ['How do I create a FirstMate account?', 'Choose “Sign up free”, enter your company details and you are in. You can invite your people from Settings once your company is set up.'],
+      ['Is there a free plan?', 'You can start for free and add paid apps as you need them. ' + PH + ' Confirm current plan details on the pricing page.'],
+      ['Can you help us move our data over?', 'Yes. Contacts and projects can be imported, and our team can help with larger moves. ' + PH + ' Describe the onboarding package here.'],
+      ['What trades does FirstMate work for?', 'FirstMate started with roofing and exteriors and is built so other trades can set up their own kinds of work, terms and documents.'],
+      ['How long does setup take?', 'Most companies can order a first measurement the day they sign up. Setting up documents, pricing and automations takes longer and can be done a piece at a time.'],
+      ['Do you offer training?', 'Yes. There are live and on-demand <a href="~/resources/classes/">classes</a> and <a href="~/resources/user-guides/">user guides</a> for each role.']
+    ]},
+    { id: 'measure', label: 'Measurements', icon: 'fa-ruler-combined', items: [
+      ['What measurement reports can I order?', 'Roof measurements, Full Exterior reports (roof, siding, gutters and openings) and Full House reports that cover every structure on the property.'],
+      ['How fast are reports delivered?', 'Most reports are delivered within hours. ' + PH + ' Add the turnaround commitment once it is confirmed.'],
+      ['What if a measurement looks wrong?', 'Request a review from the report and our team will check it. ' + PH + ' Describe the review and correction policy here.'],
+      ['Can I measure more than one structure?', 'Yes. Add a structure to the order, such as a detached garage or shed, and it is measured and reported with the rest of the property.'],
+      ['Do measurements flow into materials and proposals?', 'Yes. Measurements fill your material lists, labor and proposal pricing automatically, so nobody retypes numbers.']
+    ]},
+    { id: 'billing', label: 'Billing', icon: 'fa-file-invoice', items: [
+      ['How am I billed for FirstMate?', 'Your subscription and any reports you order are billed to the card on file for your company. ' + PH + ' Confirm billing cadence.'],
+      ['How much does a report cost?', PH + ' Report prices are listed on the <a href="~/pricing/">pricing page</a>.'],
+      ['Can I get a refund on a report?', PH + ' Describe the report refund and credit policy here.'],
+      ['Where do I find my invoices?', 'Billing history and receipts are under Settings › Billing, where account owners can download each one.'],
+      ['Can I change or cancel my plan?', 'Account owners can change apps and plans from Settings › Billing. ' + PH + ' Confirm cancellation terms.']
+    ]},
+    { id: 'payments', label: 'Payments', icon: 'fa-credit-card', items: [
+      ['Can my customers pay by card and bank?', 'Yes. Customers can pay by card or bank account, in person or online through a payment link, and cash and checks can be recorded too.'],
+      ['When do I receive the money?', PH + ' Add payout timing once confirmed with the payment processor.'],
+      ['What are the processing fees?', PH + ' Add current card and bank processing rates.'],
+      ['Can I set up deposits and milestone payments?', 'Yes. Invoices can be billed on milestones, such as a deposit at signing and the balance when the work is finished.'],
+      ['How do refunds work?', 'Refunds are issued from the payment in FirstMate back to the original card or bank account.']
+    ]},
+    { id: 'mobile', label: 'Mobile app', icon: 'fa-mobile-screen', items: [
+      ['Is there an app for iPhone and Android?', 'Yes. The FirstMate app runs on iPhone and Android, and everything is also available on the web.'],
+      ['Does the app work without signal?', PH + ' Describe what works offline and how it syncs.'],
+      ['Can my field team see only their own work?', 'Yes. Each person sees the apps and work that their role gives them, so the field team is not buried in office screens.'],
+      ['Can I take photos in the app?', 'Yes. Photos taken in the app go straight to the right project feed, organized and time stamped.'],
+      ['Can customers sign on my phone or tablet?', 'Yes. Present a proposal on any device and the customer can sign right there.']
+    ]},
+    { id: 'security', label: 'Account & security', icon: 'fa-shield-halved', items: [
+      ['Who can see my company data?', 'Only people you invite. What each person can see and do is set by their role and permissions in Settings.'],
+      ['How do I reset my password?', 'Choose “Forgot password” on the log in page and follow the link sent to your email.'],
+      ['Can I remove someone who has left the company?', 'Yes. Deactivate the person under People and they lose access right away. Their work history stays with your projects.'],
+      ['Is my data backed up?', PH + ' Describe backup frequency and data retention.'],
+      ['Do you support two-step sign in?', PH + ' Confirm multi-factor options before publishing.'],
+      ['Who owns my data?', 'Your company does. ' + PH + ' Link to the terms of service and privacy policy.']
+    ]}
+  ];
+
+  var tabs = document.getElementById('faq-tabs'), list = document.getElementById('faq-list');
+  var input = document.getElementById('faq-q'), empty = document.getElementById('faq-empty'), count = document.getElementById('faq-count');
+  var active = DATA[0].id;
+
+  tabs.innerHTML = DATA.map(function (c) {
+    return '<button class="faq-tab" role="tab" data-id="' + c.id + '"><i class="fa-solid ' + c.icon + '"></i>' + c.label + '<span class="n">' + c.items.length + '</span></button>';
+  }).join('');
+
+  function esc(s) { return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
+  function plain(html) { var d = document.createElement('div'); d.innerHTML = html; return d.textContent; }
+  function mark(html, q) {
+    if (!q) return html;
+    var re = new RegExp('(' + esc(q) + ')', 'gi');
+    return html.split(/(<[^>]+>)/).map(function (p) { return p.charAt(0) === '<' ? p : p.replace(re, '<mark>$1</mark>'); }).join('');
+  }
+
+  function render() {
+    var q = input.value.trim(), ql = q.toLowerCase(), html = '', n = 0, d = 0;
+    tabs.querySelectorAll('.faq-tab').forEach(function (t) {
+      t.classList.toggle('on', !q && t.dataset.id === active);
+      t.setAttribute('aria-selected', String(!q && t.dataset.id === active));
+    });
+    DATA.forEach(function (c) {
+      if (!q && c.id !== active) return;
+      var hits = c.items.filter(function (it) { return !q || (it[0] + ' ' + plain(it[1])).toLowerCase().indexOf(ql) !== -1; });
+      if (!hits.length) return;
+      if (q) html += '<div class="faq-cat">' + c.label + '</div>';
+      hits.forEach(function (it) {
+        n++;
+        html += '<details class="faq" style="--d:' + (d++) + '"' + (q && n === 1 ? ' open' : '') + '><summary>' + mark(it[0], q) + '</summary><div>' + mark(it[1], q) + '</div></details>';
+      });
+    });
+    list.innerHTML = html;
+    window.FirstMateSite && window.FirstMateSite.rewriteLinks(list);
+    empty.classList.toggle('on', n === 0);
+    count.textContent = q ? n + (n === 1 ? ' question matches' : ' questions match') + ' “' + q + '”' : ' ';
+  }
+
+  tabs.addEventListener('click', function (e) {
+    var b = e.target.closest('.faq-tab'); if (!b) return;
+    active = b.dataset.id; input.value = ''; render();
+  });
+  input.addEventListener('input', render);
+  render();
+})();
+</script>
+</body>
+</html>

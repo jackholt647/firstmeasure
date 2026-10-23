@@ -1,0 +1,188 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Siding &amp; Exteriors — FirstMate</title>
+<meta name="description" content="FirstMate for siding and exterior contractors: full exterior reports and one scope for siding, trim, gutters, windows and doors.">
+<meta name="robots" content="noindex, nofollow">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,400..900;1,400..900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/site.css">
+<style>
+  .ex-elev { background: #fafafb; border: 1px solid var(--line); border-radius: 12px; padding: 10px; position: relative }
+  .ex-elev svg { width: 100%; height: auto }
+  .ex-elev .wall { fill: rgba(37, 99, 235, 0); stroke: #2563eb; stroke-width: 1.6; stroke-dasharray: var(--len); stroke-dashoffset: var(--len) }
+  .ex-elev .open { transform-box: fill-box; transform-origin: center }
+  .mock.in .ex-elev .wall { animation: fm-draw 1.8s var(--ease) forwards, ex-fill .8s ease forwards; animation-delay: calc(var(--d, 0) * 150ms), calc(1.4s + var(--d, 0) * 150ms) }
+  @keyframes ex-fill { to { fill: rgba(37, 99, 235, .07) } }
+  .ex-elev .roof { fill: none; stroke: var(--brand); stroke-width: 1.6 }
+  .ex-elev .open { fill: #fff; stroke: #f59e0b; stroke-width: 1.6 }
+  .ex-elev .gut { fill: none; stroke: #16a34a; stroke-width: 3; stroke-linecap: round }
+  .ex-elev .trim { fill: none; stroke: #7c3aed; stroke-width: 2.4 }
+  .ex-elev text { font: 700 9px Montserrat, sans-serif; fill: #111827; opacity: 0 }
+  .mock.in .ex-elev text { animation: fm-fade .5s ease forwards; animation-delay: calc(2.2s + var(--d, 0) * 150ms) }
+  .ex-kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px }
+  .ex-kpis .mock-kpi b { font-size: 15px }
+  .ex-kpis .mock-kpi small i { margin-right: 4px }
+  @media (max-width: 480px) { .ex-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)) } }
+  .ex-float { right: -6px; top: -4px; width: 200px; opacity: 0 }
+  .mock.in ~ .ex-float { animation: fm-pop .6s var(--ease) 2.8s forwards, fm-float 6s ease-in-out 3.4s infinite }
+  @media (max-width: 560px) { .ex-float { display: none } }
+  .ex-cap + .ex-cap { margin-top: clamp(64px, 8vw, 104px) }
+  .ex-tbl { width: 100%; border-collapse: collapse; font-size: 12px }
+  .ex-tbl th { text-align: right; font-size: 10px; color: var(--muted); font-weight: 800; letter-spacing: .04em; padding: 4px; text-transform: uppercase }
+  .ex-tbl th:first-child, .ex-tbl td:first-child { text-align: left }
+  .ex-tbl td { padding: 7px 4px; border-bottom: 1px solid var(--line-soft); text-align: right; font-weight: 600 }
+  .ex-tbl td:last-child { font-weight: 800; color: var(--heading) }
+  .ex-tbl tbody tr { opacity: 0 }
+  .mock.in .ex-tbl tbody tr { animation: fm-slide-up .6s var(--ease) forwards; animation-delay: calc(var(--d, 0) * 110ms + 200ms) }
+  .ex-trade { width: 8px; align-self: stretch; border-radius: 4px; flex: none }
+  .ex-cal { display: grid; grid-template-columns: 62px repeat(5, minmax(0, 1fr)); gap: 6px; align-items: center; font-size: 10px }
+  .ex-cal > .h { font-weight: 800; color: var(--muted) }
+  .ex-cal > b { font-size: 11px }
+  .ex-cal .mock-chip { overflow: hidden; text-overflow: ellipsis; justify-content: flex-start }
+  .ex-sol { display: flex; gap: 14px; align-items: flex-start }
+  .ex-sol .icon { margin: 0 !important; flex: none }
+</style>
+</head>
+<body>
+<div id="site-header"></div>
+<main>
+  <section class="page-hero">
+    <div class="container split">
+      <div>
+        <div class="breadcrumb"><a href="~/trades/">Trades</a><span>Siding &amp; Exteriors</span></div>
+        <div class="eyebrow">Siding &amp; Exteriors</div>
+        <h1>The whole house exterior, in one job.</h1>
+        <p class="lead">Full exterior reports measure every wall, opening, corner and gutter run. Sell siding, trim, gutters, windows and doors in one proposal and build them in the right order.</p>
+        <div class="btn-row"><a class="btn btn-primary btn-lg" href="https://app.1m8.ai/portal/signup">Sign up free</a><a class="btn btn-ghost btn-lg" href="~/demo/">Book a demo</a></div>
+      </div>
+      <div class="mock-stage" aria-hidden="true">
+        <div class="mock">
+          <div class="mock-bar"><i></i><i></i><i></i><div class="url">Full Exterior · 87 Larkspur Ln</div></div>
+          <div class="mock-main">
+            <div style="display:flex;justify-content:space-between;align-items:center" class="fade"><div><div class="mock-title">Front elevation</div><div style="color:var(--muted);font-size:11px;font-weight:600">1 of 4 elevations · Vinyl lap</div></div><span class="mock-chip green"><span class="pulse-dot"></span> Ready</span></div>
+            <div class="ex-elev">
+              <svg viewBox="0 0 360 190">
+                <polyline class="roof draw" style="--len:400" points="40,70 180,14 320,70"/>
+                <polygon class="wall" style="--len:300;--d:0" points="60,70 180,22 300,70"/>
+                <rect class="wall" style="--len:560;--d:1" x="60" y="70" width="240" height="105"/>
+                <line class="gut draw" style="--len:260;--d:4" x1="54" y1="72" x2="306" y2="72"/>
+                <line class="gut draw" style="--len:110;--d:5" x1="304" y1="72" x2="304" y2="175"/>
+                <g class="draw"><line class="trim" style="--len:110;--d:6" x1="60" y1="70" x2="60" y2="175"/><line class="trim" style="--len:110;--d:6" x1="300" y1="70" x2="300" y2="175"/></g>
+                <rect class="open pop" style="--d:8" x="84" y="92" width="38" height="44" rx="2"/>
+                <rect class="open pop" style="--d:9" x="238" y="92" width="38" height="44" rx="2"/>
+                <rect class="open pop" style="--d:10" x="160" y="110" width="40" height="65" rx="2"/>
+                <rect class="open pop" style="--d:11" x="166" y="40" width="28" height="22" rx="2"/>
+                <text x="74" y="160" style="--d:1">Wall · 612 ft²</text>
+                <text x="210" y="160" style="--d:2">4 openings</text>
+                <text x="232" y="66" style="--d:3">Gutter 24 ft</text>
+              </svg>
+            </div>
+            <div class="ex-kpis">
+              <div class="mock-kpi slide-up" style="--d:14"><small><i class="fa-solid fa-square" style="color:#2563eb"></i>Siding</small><b>2,846 ft²</b></div>
+              <div class="mock-kpi slide-up" style="--d:15"><small><i class="fa-solid fa-square" style="color:#7c3aed"></i>Corners</small><b>128 ft</b></div>
+              <div class="mock-kpi slide-up" style="--d:16"><small><i class="fa-solid fa-square" style="color:#16a34a"></i>Gutters</small><b>214 ft</b></div>
+              <div class="mock-kpi slide-up" style="--d:17"><small><i class="fa-solid fa-square" style="color:#f59e0b"></i>Openings</small><b>23</b></div>
+            </div>
+          </div>
+        </div>
+        <div class="mock-float ex-float"><div class="mock-toast"><div>Scope built<div style="font-weight:600;color:var(--muted);font-size:11px">Siding · trim · gutters · windows</div></div></div></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section section--soft">
+    <div class="container">
+      <div class="split ex-cap">
+        <div class="reveal">
+          <div class="eyebrow">Full exterior reports</div>
+          <h2>Every wall, net of every opening.</h2>
+          <p class="lead">Gross and net wall area per elevation, openings, inside and outside corners, top and bottom runs, plus the roof and gutters. Order it from the address.</p>
+          <a class="link-arrow" href="~/solutions/full-exterior/">Explore full exterior reports</a>
+        </div>
+        <div class="mock reveal" aria-hidden="true">
+          <div class="mock-bar"><i></i><i></i><i></i><div class="url">Report · Walls</div></div>
+          <div class="mock-main">
+            <div class="mock-title">Exterior walls</div>
+            <table class="ex-tbl">
+              <thead><tr><th>Elevation</th><th>Gross</th><th>Openings</th><th>Net</th></tr></thead>
+              <tbody>
+                <tr style="--d:1"><td>Front</td><td>798</td><td>186</td><td>612 ft²</td></tr>
+                <tr style="--d:2"><td>Right</td><td>742</td><td>64</td><td>678 ft²</td></tr>
+                <tr style="--d:3"><td>Back</td><td>910</td><td>142</td><td>768 ft²</td></tr>
+                <tr style="--d:4"><td>Left</td><td>836</td><td>48</td><td>788 ft²</td></tr>
+                <tr style="--d:5"><td><b>Total</b></td><td>3,286</td><td>440</td><td>2,846 ft²</td></tr>
+              </tbody>
+            </table>
+            <div style="display:flex;gap:6px;flex-wrap:wrap;--d:7" class="fade"><span class="mock-chip violet">Outside corners 96 ft</span><span class="mock-chip violet">Inside corners 32 ft</span><span class="mock-chip blue">Starter 284 ft</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="split split--flip ex-cap">
+        <div class="reveal">
+          <div class="eyebrow">One scope, every trade</div>
+          <h2>Siding, trim, gutters, windows and doors on one proposal.</h2>
+          <p class="lead">Each part of the exterior is priced from its own measurements. Homeowners choose packages; you get one signed scope that knows which work belongs to which trade.</p>
+          <a class="link-arrow" href="~/solutions/proposals/">Explore proposals</a>
+        </div>
+        <div class="mock reveal" aria-hidden="true">
+          <div class="mock-bar"><i></i><i></i><i></i><div class="url">Proposal · The Okafors</div></div>
+          <div class="mock-main">
+            <div class="mock-title">Exterior scope</div>
+            <div class="mock-row slide-up" style="--d:1"><span class="ex-trade" style="background:#2563eb"></span><b style="flex:1">Vinyl lap siding</b><span class="mock-chip">28.5 sq</span><span>$—</span></div>
+            <div class="mock-row slide-up" style="--d:2"><span class="ex-trade" style="background:#7c3aed"></span><b style="flex:1">Corners &amp; trim</b><span class="mock-chip">128 ft</span><span>$—</span></div>
+            <div class="mock-row slide-up" style="--d:3"><span class="ex-trade" style="background:#16a34a"></span><b style="flex:1">6" seamless gutters</b><span class="mock-chip">214 ft</span><span>$—</span></div>
+            <div class="mock-row slide-up" style="--d:4"><span class="ex-trade" style="background:#f59e0b"></span><b style="flex:1">Replacement windows</b><span class="mock-chip">19 units</span><span>$—</span></div>
+            <div class="mock-row slide-up" style="--d:5"><span class="ex-trade" style="background:#f59e0b"></span><b style="flex:1">Entry door</b><span class="mock-chip">1 unit</span><span>$—</span></div>
+            <div class="mock-row pop" style="--d:8"><div class="mock-toast" style="flex:1">Signed · deposit paid</div></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="split ex-cap">
+        <div class="reveal">
+          <div class="eyebrow">Production by trade</div>
+          <h2>Build it in the right order.</h2>
+          <p class="lead">Windows go in before siding, gutters go on last. Schedule each trade's team or subcontractor on the same job and see what is ready.</p>
+          <a class="link-arrow" href="~/solutions/scheduling/">Explore scheduling</a>
+        </div>
+        <div class="mock reveal" aria-hidden="true">
+          <div class="mock-bar"><i></i><i></i><i></i><div class="url">Scheduling · Okafor exterior</div></div>
+          <div class="mock-main">
+            <div class="ex-cal"><span></span><span class="h">MON</span><span class="h">TUE</span><span class="h">WED</span><span class="h">THU</span><span class="h">FRI</span></div>
+            <div class="ex-cal"><b>Windows</b><div class="mock-chip amber slide-left" style="--d:1;grid-column:span 2">19 units</div><span></span><span></span><span></span></div>
+            <div class="ex-cal"><b>Siding</b><span></span><span></span><div class="mock-chip blue slide-left" style="--d:3;grid-column:span 3">Lap + trim</div></div>
+            <div class="ex-cal"><b>Gutters</b><span></span><span></span><span></span><span></span><div class="mock-chip green slide-left" style="--d:5">214 ft</div></div>
+            <div class="mock-row slide-up" style="--d:7"><div class="mock-avatar">PS</div><b style="flex:1">Gutter sub · Partner company</b><span class="mock-chip green">Accepted</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container">
+      <div class="section-head center reveal"><div class="eyebrow">Solutions for exteriors</div><h2>Pieces exterior contractors use most.</h2></div>
+      <div class="grid grid-4">
+        <a class="card reveal ex-sol" href="~/solutions/full-exterior/"><div class="icon"><i class="fa-solid fa-ruler-combined"></i></div><div><h3>Full Exterior</h3><p>Walls, openings and gutters.</p></div></a>
+        <a class="card reveal ex-sol" style="--d:1" href="~/solutions/full-house/"><div class="icon"><i class="fa-solid fa-city"></i></div><div><h3>Full House</h3><p>Every structure on the lot.</p></div></a>
+        <a class="card reveal ex-sol" style="--d:2" href="~/solutions/material-management/"><div class="icon"><i class="fa-solid fa-boxes-stacked"></i></div><div><h3>Materials</h3><p>Orders from the report.</p></div></a>
+        <a class="card reveal ex-sol" style="--d:3" href="~/solutions/partners/"><div class="icon"><i class="fa-solid fa-handshake"></i></div><div><h3>Partners</h3><p>Share work with subs.</p></div></a>
+      </div>
+      <p style="text-align:center;margin-top:32px"><a class="link-arrow" href="~/trades/roofing/">Also roofing? See FirstMate for roofers</a></p>
+    </div>
+  </section>
+
+  <section class="section" style="padding-top:0"><div class="container"><div class="cta-band reveal">
+    <h2>Measure the whole exterior today.</h2>
+    <p class="lead" style="color:#c9ccd4;max-width:600px;margin:0 auto">Sign up free and order a full exterior report, or book a walkthrough with our team.</p>
+    <div class="btn-row"><a class="btn btn-primary btn-lg" href="https://app.1m8.ai/portal/signup">Sign up free</a><a class="btn btn-glass btn-lg" href="~/demo/">Book a demo</a></div>
+  </div></div></section>
+</main>
+<div id="site-footer"></div>
+<script src="../../assets/site.js"></script>
+</body>
+</html>

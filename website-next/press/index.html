@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Press — FirstMate</title>
+<meta name="description" content="FirstMate press kit, logos, boilerplate, news and press contact.">
+<meta name="robots" content="noindex, nofollow">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,400..900;1,400..900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../assets/site.css">
+<style>
+  .pr-kit { padding: 22px }
+  .pr-file { display: flex; align-items: center; gap: 14px; padding: 14px; border: 1px solid var(--line); border-radius: 12px; background: #fff }
+  .pr-file .ic { width: 40px; height: 40px; border-radius: 10px; display: grid; place-items: center; background: var(--brand-soft); color: var(--brand); flex: none; font-size: 16px }
+  .pr-file .grow { flex: 1; min-width: 0 }
+  .pr-file b { display: block; font-size: 13px } .pr-file small { color: var(--muted); font-size: 11px; font-weight: 600 }
+  .pr-dl { position: relative; overflow: hidden }
+  .pr-dl .mock-progress { margin-top: 6px }
+
+  .pr-logos { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px }
+  .pr-logo { border-radius: var(--radius); border: 1px solid var(--line); overflow: hidden; background: #fff; transition: transform .3s var(--ease), box-shadow .3s }
+  .pr-logo:hover { transform: translateY(-4px); box-shadow: var(--shadow) }
+  .pr-logo .tile { height: 180px; display: grid; place-items: center; padding: 32px }
+  .pr-logo .tile img { max-height: 48px; width: auto }
+  .pr-logo .tile.light { background: #fff; background-image: radial-gradient(#eceef1 1px, transparent 1px); background-size: 16px 16px }
+  .pr-logo .tile.dark { background: var(--bg-dark) }
+  .pr-logo .tile.soft { background: var(--bg-soft) }
+  .pr-logo .meta { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 14px 18px; border-top: 1px solid var(--line); font-size: 14px }
+  .pr-logo .meta b { font-size: 14px }
+  .pr-logo .meta span { color: var(--muted); font-size: 12px; font-weight: 600 }
+  .pr-rules { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; margin-top: 32px }
+  .pr-rule { display: flex; gap: 14px; align-items: flex-start; padding: 20px; border-radius: var(--radius); border: 1px solid var(--line); background: #fff }
+  .pr-rule .badge { flex: none; width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; font-size: 14px }
+  .pr-rule.do .badge { background: #dcfce7; color: #15803d } .pr-rule.dont .badge { background: var(--brand-soft); color: var(--brand) }
+  .pr-rule ul { margin: 6px 0 0; padding-left: 18px; color: var(--muted); font-size: 15px }
+  @media (max-width: 960px) { .pr-logos { grid-template-columns: 1fr 1fr } }
+  @media (max-width: 640px) { .pr-logos, .pr-rules { grid-template-columns: 1fr } }
+
+  .pr-boiler { background: #fff; border: 1px solid var(--line); border-radius: var(--radius); padding: 28px; position: relative }
+  .pr-boiler p { color: var(--body) }
+  .pr-copy { position: absolute; top: 18px; right: 18px }
+  .pr-news { border-top: 1px solid var(--line) }
+  .pr-news a { display: grid; grid-template-columns: 140px 1fr auto; gap: 20px; align-items: center; padding: 22px 4px; border-bottom: 1px solid var(--line); color: var(--heading); transition: padding .25s var(--ease), background .25s }
+  .pr-news a:hover { padding-left: 14px; background: var(--bg-soft); color: var(--heading) }
+  .pr-news .date { font-size: 13px; font-weight: 700; color: var(--muted) }
+  .pr-news h4 { margin: 0 }
+  .pr-news .arrow { color: var(--brand); font-weight: 800 }
+  @media (max-width: 640px) { .pr-news a { grid-template-columns: 1fr; gap: 6px } .pr-news .arrow { display: none } }
+  .pr-contact { display: flex; gap: 20px; align-items: center }
+  .pr-contact .placeholder-photo { min-height: 0; width: 88px; height: 88px; border-radius: 50%; flex: none; font-size: 10px; padding: 8px }
+</style>
+</head>
+<body>
+<div id="site-header"></div>
+<main>
+
+<section class="page-hero">
+  <div class="container split">
+    <div class="reveal">
+      <div class="breadcrumb"><a href="~/about/">Company</a><span>Press</span></div>
+      <div class="eyebrow">Press</div>
+      <h1>Press and media.</h1>
+      <p class="lead">Logos, product images, company boilerplate and the latest news about FirstMate. For interviews and questions, contact our press team.</p>
+      <div class="btn-row"><a class="btn btn-primary btn-lg" href="#kit"><i class="fa-solid fa-download"></i> Download press kit</a><a class="btn btn-ghost btn-lg" href="#contact">Press contact</a></div>
+    </div>
+    <div class="mock-stage">
+      <div class="mock pr-kit">
+        <div class="mock-title slide-up" style="margin-bottom:14px">FirstMate press kit</div>
+        <div class="stack-8">
+          <div class="pr-file slide-up" style="--d:1"><div class="ic"><i class="fa-solid fa-image"></i></div><div class="grow"><b>Logos (PNG, SVG)</b><small>Black, white, red</small></div><span class="mock-chip green">Ready</span></div>
+          <div class="pr-file slide-up" style="--d:2"><div class="ic"><i class="fa-solid fa-display"></i></div><div class="grow"><b>Product screenshots</b><small>Placeholder</small></div><span class="mock-chip">Soon</span></div>
+          <div class="pr-file slide-up" style="--d:3"><div class="ic"><i class="fa-solid fa-file-lines"></i></div><div class="grow"><b>Company fact sheet</b><small>Placeholder</small></div><span class="mock-chip">Soon</span></div>
+          <div class="pr-file pr-dl slide-up" style="--d:4"><div class="ic"><i class="fa-solid fa-file-zipper"></i></div><div class="grow"><b>firstmate-press-kit.zip</b><small>Preparing download…</small><div class="mock-progress"><i style="--w:100%;--d:6"></i></div></div></div>
+        </div>
+        <div class="mock-float mock-toast pop float-y" style="--d:12;right:-6px;top:-16px">Press kit ready</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section" id="kit">
+  <div class="container">
+    <div class="section-head reveal">
+      <div class="eyebrow">Logo usage</div>
+      <h2>Our logo.</h2>
+      <p class="lead">Use the version with the most contrast for the background. Leave clear space around it and do not alter it.</p>
+    </div>
+    <div class="pr-logos">
+      <div class="pr-logo reveal"><div class="tile light"><img src="../assets/img/logo_black.png" alt="FirstMate logo, black"></div><div class="meta"><div><b>Black</b><br><span>Light backgrounds</span></div><a class="btn btn-ghost btn-sm" href="../assets/img/logo_black.png" download>PNG</a></div></div>
+      <div class="pr-logo reveal" style="--d:1"><div class="tile dark"><img src="../assets/img/logo_white.png" alt="FirstMate logo, white"></div><div class="meta"><div><b>White</b><br><span>Dark backgrounds and photos</span></div><a class="btn btn-ghost btn-sm" href="../assets/img/logo_white.png" download>PNG</a></div></div>
+      <div class="pr-logo reveal" style="--d:2"><div class="tile soft"><img src="../assets/img/logo_red.png" alt="FirstMate logo, red"></div><div class="meta"><div><b>Red</b><br><span>Brand moments, light backgrounds</span></div><a class="btn btn-ghost btn-sm" href="../assets/img/logo_red.png" download>PNG</a></div></div>
+    </div>
+    <div class="pr-rules">
+      <div class="pr-rule do reveal"><div class="badge"><i class="fa-solid fa-check"></i></div><div><b>Do</b><ul><li>Use the files provided here</li><li>Keep clear space equal to the height of the mark</li><li>Write the name as "FirstMate"</li></ul></div></div>
+      <div class="pr-rule dont reveal" style="--d:1"><div class="badge"><i class="fa-solid fa-xmark"></i></div><div><b>Don't</b><ul><li>Stretch, rotate or recolor the logo</li><li>Place it on busy, low-contrast backgrounds</li><li>Add effects such as shadows or outlines</li></ul></div></div>
+    </div>
+    <div class="reveal" style="margin-top:20px"><span class="pill"><span style="width:14px;height:14px;border-radius:4px;background:#db0000;display:inline-block"></span>Brand red #db0000</span> <span class="pill">Montserrat</span></div>
+  </div>
+</section>
+
+<section class="section section--soft">
+  <div class="container split">
+    <div class="reveal">
+      <div class="eyebrow">Boilerplate</div>
+      <h2>About FirstMate.</h2>
+      <p class="lead">Approved company description for articles and releases.</p>
+    </div>
+    <div class="pr-boiler reveal" style="--d:1">
+      <button class="btn btn-ghost btn-sm pr-copy" type="button" id="pr-copy"><i class="fa-solid fa-copy"></i> Copy</button>
+      <h4 style="margin-right:90px">Boilerplate (placeholder)</h4>
+      <p id="pr-boiler-text">FirstMate is a platform for contractors to measure, sell, build and get paid in one place. Placeholder: final boilerplate, founding facts and headquarters to be written. Learn more at 1m8.ai.</p>
+      <p class="muted" style="margin:0;font-size:14px">Media contact: placeholder</p>
+    </div>
+  </div>
+</section>
+
+<section class="section">
+  <div class="container container--narrow">
+    <div class="section-head reveal">
+      <div class="eyebrow">News</div>
+      <h2>Latest news.</h2>
+    </div>
+    <div class="pr-news">
+      <a class="reveal" href="#"><span class="date">Date —</span><h4>Placeholder news headline</h4><span class="arrow">→</span></a>
+      <a class="reveal" style="--d:1" href="#"><span class="date">Date —</span><h4>Placeholder news headline</h4><span class="arrow">→</span></a>
+      <a class="reveal" style="--d:2" href="#"><span class="date">Date —</span><h4>Placeholder news headline</h4><span class="arrow">→</span></a>
+      <a class="reveal" style="--d:3" href="#"><span class="date">Date —</span><h4>Placeholder news headline</h4><span class="arrow">→</span></a>
+    </div>
+  </div>
+</section>
+
+<section class="section section--dark" id="contact">
+  <div class="container split">
+    <div class="reveal">
+      <div class="eyebrow">Press contact</div>
+      <h2>Talk to our press team.</h2>
+      <p class="lead" style="color:#c9ccd4">Interviews, product briefings and image requests.</p>
+    </div>
+    <div class="card reveal pr-contact" style="--d:1">
+      <div class="placeholder-photo">Photo</div>
+      <div><h3 style="margin-bottom:4px">Press contact name</h3><p style="margin:0 0 10px">Role (placeholder)</p><a class="link-arrow" href="mailto:info@1m8.ai?subject=Press">info@1m8.ai</a></div>
+    </div>
+  </div>
+</section>
+
+<section class="section">
+  <div class="container">
+    <div class="cta-band reveal">
+      <h2>Want to see FirstMate for a story?</h2>
+      <p class="lead" style="color:#c9ccd4;max-width:600px;margin:0 auto">We can give you a guided walkthrough of the platform.</p>
+      <div class="btn-row"><a class="btn btn-primary btn-lg" href="~/demo/">Book a walkthrough</a><a class="btn btn-glass btn-lg" href="~/about/">About us</a></div>
+    </div>
+  </div>
+</section>
+
+</main>
+<div id="site-footer"></div>
+<script src="../assets/site.js"></script>
+<script>
+(function () {
+  var b = document.getElementById('pr-copy');
+  b.addEventListener('click', function () {
+    var t = document.getElementById('pr-boiler-text').textContent;
+    try { navigator.clipboard.writeText(t).then(function () { b.innerHTML = '<i class="fa-solid fa-check"></i> Copied'; setTimeout(function () { b.innerHTML = '<i class="fa-solid fa-copy"></i> Copy'; }, 1800); }); } catch (e) {}
+  });
+})();
+</script>
+</body>
+</html>

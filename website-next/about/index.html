@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>About FirstMate — FirstMate</title>
+<meta name="description" content="FirstMate's mission is to remove the friction between people and the tools they rely on.">
+<meta name="robots" content="noindex, nofollow">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,400..900;1,400..900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../assets/site.css">
+<style>
+  .ab-hero-inner { text-align: center; max-width: 900px; margin: 0 auto }
+  .ab-hero-inner .lead { margin: 0 auto; max-width: 680px }
+  .ab-hero-inner .btn-row { justify-content: center; margin-top: 32px }
+  .ab-mission { font-size: clamp(30px, 4.6vw, 56px); font-weight: 900; letter-spacing: -.035em; line-height: 1.08; color: #fff; margin: 0 0 24px }
+  .ab-mission em { font-style: normal }
+  .ab-orbit { position: relative; height: 120px; margin: 48px auto 0; max-width: 520px }
+  .ab-orbit .node { position: absolute; top: 50%; width: 56px; height: 56px; margin-top: -28px; border-radius: 16px; display: grid; place-items: center; background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.14); color: #fff; font-size: 20px }
+  .ab-orbit .node.core { left: 50%; margin-left: -36px; width: 72px; height: 72px; margin-top: -36px; border-radius: 22px; background: var(--brand); border-color: transparent; box-shadow: 0 0 0 0 rgba(219,0,0,.5); animation: ab-ring 2.4s infinite }
+  .ab-orbit svg { position: absolute; inset: 0; width: 100%; height: 100% }
+  .ab-orbit svg line { stroke: rgba(255,255,255,.25); stroke-width: 1.5; stroke-dasharray: 4 6; animation: ab-dash 1.2s linear infinite }
+  @keyframes ab-ring { 0% { box-shadow: 0 0 0 0 rgba(219,0,0,.5) } 70% { box-shadow: 0 0 0 22px rgba(219,0,0,0) } 100% { box-shadow: 0 0 0 0 rgba(219,0,0,0) } }
+  @keyframes ab-dash { to { stroke-dashoffset: -20 } }
+  @media (max-width: 480px) { .ab-orbit .node:not(.core) { width: 40px; height: 40px; margin-top: -20px; font-size: 15px; border-radius: 12px } .ab-orbit .node.core { width: 60px; height: 60px; margin: -30px 0 0 -30px } }
+
+  /* Story timeline */
+  .ab-tl { position: relative; max-width: 860px; margin: 0 auto; padding: 8px 0 }
+  .ab-tl::before { content: ""; position: absolute; left: 50%; top: 0; bottom: 0; width: 2px; margin-left: -1px; background: var(--line) }
+  .ab-tl::after { content: ""; position: absolute; left: 50%; top: 0; bottom: 0; width: 2px; margin-left: -1px; background: linear-gradient(180deg, var(--brand), var(--brand-2)); transform-origin: top; transform: scaleY(0); transition: transform 2.4s var(--ease) }
+  .ab-tl.in::after { transform: scaleY(1) }
+  .ab-step { position: relative; width: 50%; padding: 0 44px 44px 0; text-align: right }
+  .ab-step:nth-child(even) { margin-left: 50%; padding: 0 0 44px 44px; text-align: left }
+  .ab-step::before { content: ""; position: absolute; top: 6px; right: -9px; width: 18px; height: 18px; border-radius: 50%; background: #fff; border: 3px solid var(--brand); z-index: 1 }
+  .ab-step:nth-child(even)::before { right: auto; left: -9px }
+  .ab-step .yr { font-size: 13px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: var(--brand) }
+  .ab-step h3 { margin: 6px 0 6px }
+  .ab-step p { color: var(--muted); margin: 0 }
+  .ab-step.now::before { background: var(--brand); box-shadow: 0 0 0 6px rgba(219,0,0,.15) }
+  @media (max-width: 760px) {
+    .ab-tl::before, .ab-tl::after { left: 9px }
+    .ab-step, .ab-step:nth-child(even) { width: auto; margin-left: 0; padding: 0 0 36px 44px; text-align: left }
+    .ab-step::before, .ab-step:nth-child(even)::before { left: 0; right: auto }
+  }
+
+  /* Values */
+  .ab-value { position: relative; overflow: hidden }
+  .ab-value .num { position: absolute; right: 20px; top: 12px; font-size: 64px; font-weight: 900; letter-spacing: -.05em; color: var(--line-soft); line-height: 1; transition: color .3s }
+  .ab-value:hover .num { color: var(--brand-soft) }
+  .ab-value > * { position: relative }
+
+  /* Team */
+  .ab-team { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 24px }
+  .ab-person .placeholder-photo { min-height: 0; aspect-ratio: 1 / 1.1; margin-bottom: 14px; transition: transform .3s var(--ease) }
+  .ab-person:hover .placeholder-photo { transform: translateY(-4px) }
+  .ab-person b { display: block; color: var(--heading); font-size: 17px }
+  .ab-person span { color: var(--muted); font-size: 14px; font-weight: 600 }
+  @media (max-width: 960px) { .ab-team { grid-template-columns: repeat(2, minmax(0, 1fr)) } }
+
+  .ab-fact { display: flex; gap: 16px; align-items: flex-start }
+  .ab-fact .icon { flex: none; margin: 0 }
+</style>
+</head>
+<body data-header="over-dark">
+<div id="site-header"></div>
+<main>
+
+<section class="hero">
+  <div class="hero-glow"></div><div class="hero-grid"></div>
+  <div class="container"><div class="hero-inner">
+    <div class="ab-hero-inner reveal">
+      <div class="breadcrumb" style="justify-content:center"><a href="~/" style="color:#8b909c">Home</a><span>About</span></div>
+      <div class="eyebrow">About FirstMate</div>
+      <p class="ab-mission">Our mission is to remove the friction between people and <em class="text-gradient">the tools they rely on.</em></p>
+      <p class="lead">We help you be superhuman. FirstMate brings together decades of combined experience in home services software and AI development, built for roofing, siding, windows and the trades that follow.</p>
+      <div class="btn-row"><a class="btn btn-primary btn-lg" href="~/demo/">Book a demo</a><a class="btn btn-glass btn-lg" href="~/careers/">We're hiring</a></div>
+      <div class="ab-orbit" aria-hidden="true">
+        <svg viewBox="0 0 520 120" preserveAspectRatio="none"><line x1="40" y1="60" x2="224" y2="60"/><line x1="140" y1="60" x2="224" y2="60"/><line x1="296" y1="60" x2="380" y2="60"/><line x1="296" y1="60" x2="480" y2="60"/></svg>
+        <div class="node" style="left:2%"><i class="fa-solid fa-ruler-combined"></i></div>
+        <div class="node" style="left:21%"><i class="fa-solid fa-file-signature"></i></div>
+        <div class="node core"><img src="../assets/img/logo_square_white.png" alt="" style="width:40px"></div>
+        <div class="node" style="right:21%"><i class="fa-solid fa-calendar-check"></i></div>
+        <div class="node" style="right:2%"><i class="fa-solid fa-credit-card"></i></div>
+      </div>
+    </div>
+  </div></div>
+</section>
+
+<section class="section">
+  <div class="container">
+    <div class="section-head center reveal">
+      <div class="eyebrow">Our story</div>
+      <h2>From one measurement to one platform.</h2>
+      <p class="lead">Placeholder story. The owner will write the milestones; dates below are placeholders.</p>
+    </div>
+    <div class="ab-tl" data-animate>
+      <div class="ab-step reveal"><div class="yr">Year —</div><h3>It started with a measurement</h3><p>Placeholder: FirstMeasure began as a faster way to get accurate roof and exterior measurements.</p></div>
+      <div class="ab-step reveal" style="--d:1"><div class="yr">Year —</div><h3>Proposals from the report</h3><p>Placeholder: measurements flowed straight into materials, labor and the customer's proposal.</p></div>
+      <div class="ab-step reveal" style="--d:2"><div class="yr">Year —</div><h3>The rest of the job</h3><p>Placeholder: CRM, scheduling, your people and payments joined, all on one record per project.</p></div>
+      <div class="ab-step reveal" style="--d:3"><div class="yr">Year —</div><h3>AI that works the platform</h3><p>Placeholder: an assistant that can take actions across every app, not just answer questions.</p></div>
+      <div class="ab-step now reveal" style="--d:4"><div class="yr">Today</div><h3>FirstMate</h3><p>One platform for contractors to measure, sell, build and get paid, with FirstMeasure as one module.</p></div>
+    </div>
+  </div>
+</section>
+
+<section class="section section--soft">
+  <div class="container">
+    <div class="section-head reveal">
+      <div class="eyebrow">How we work</div>
+      <h2>What we value.</h2>
+    </div>
+    <div class="grid grid-3">
+      <div class="card ab-value reveal"><div class="num">01</div><div class="icon"><i class="fa-solid fa-hand-holding-heart"></i></div><h3>Customer value first</h3><p>Every decision starts with what makes a contractor's day easier and their business grow.</p></div>
+      <div class="card ab-value reveal" style="--d:1"><div class="num">02</div><div class="icon"><i class="fa-solid fa-comments"></i></div><h3>The best idea wins</h3><p>Constructive conflict is encouraged. We argue about ideas, not people, and then commit.</p></div>
+      <div class="card ab-value reveal" style="--d:2"><div class="num">03</div><div class="icon"><i class="fa-solid fa-bolt"></i></div><h3>Bias for action</h3><p>We ship fast, learn from real use and improve. Momentum beats a perfect plan.</p></div>
+      <div class="card ab-value reveal"><div class="num">04</div><div class="icon"><i class="fa-solid fa-headphones"></i></div><h3>Deep work</h3><p>Protected time to build, not a calendar full of pointless meetings.</p></div>
+      <div class="card ab-value reveal" style="--d:1"><div class="num">05</div><div class="icon"><i class="fa-solid fa-link"></i></div><h3>Less friction</h3><p>Tools should get out of the way. One record, one login, one place to look.</p></div>
+      <div class="card ab-value reveal" style="--d:2"><div class="num">06</div><div class="icon"><i class="fa-solid fa-person-running"></i></div><h3>Superhuman teams</h3><p>Software and AI that let a small team do the work of a big one.</p></div>
+    </div>
+  </div>
+</section>
+
+<section class="section">
+  <div class="container">
+    <div class="section-head center reveal">
+      <div class="eyebrow">Team</div>
+      <h2>The people behind FirstMate.</h2>
+      <p class="lead">Names, roles and photos to come.</p>
+    </div>
+    <div class="ab-team">
+      <div class="ab-person reveal"><div class="placeholder-photo">Photo: team member</div><b>Team member name</b><span>Role</span></div>
+      <div class="ab-person reveal" style="--d:1"><div class="placeholder-photo">Photo: team member</div><b>Team member name</b><span>Role</span></div>
+      <div class="ab-person reveal" style="--d:2"><div class="placeholder-photo">Photo: team member</div><b>Team member name</b><span>Role</span></div>
+      <div class="ab-person reveal" style="--d:3"><div class="placeholder-photo">Photo: team member</div><b>Team member name</b><span>Role</span></div>
+      <div class="ab-person reveal"><div class="placeholder-photo">Photo: team member</div><b>Team member name</b><span>Role</span></div>
+      <div class="ab-person reveal" style="--d:1"><div class="placeholder-photo">Photo: team member</div><b>Team member name</b><span>Role</span></div>
+      <div class="ab-person reveal" style="--d:2"><div class="placeholder-photo">Photo: team member</div><b>Team member name</b><span>Role</span></div>
+      <div class="ab-person reveal" style="--d:3"><div class="placeholder-photo">Photo: team member</div><b>Team member name</b><span>Role</span></div>
+    </div>
+  </div>
+</section>
+
+<section class="section section--dark">
+  <div class="container split">
+    <div class="reveal">
+      <div class="eyebrow">A technology partner</div>
+      <h2>Built to help your business grow.</h2>
+      <p class="lead" style="color:#c9ccd4">We work alongside roofing, siding and window contractors today, and we are bringing FirstMate to every trade next.</p>
+    </div>
+    <div class="stack-24">
+      <div class="ab-fact reveal"><div class="icon"><i class="fa-solid fa-house-chimney"></i></div><div><h4>Roofing, siding and windows</h4><p class="muted" style="margin:0">The trades we serve today.</p></div></div>
+      <div class="ab-fact reveal" style="--d:1"><div class="icon"><i class="fa-solid fa-microchip"></i></div><div><h4>Home services software and AI</h4><p class="muted" style="margin:0">Decades of combined experience on the team.</p></div></div>
+      <div class="ab-fact reveal" style="--d:2"><div class="icon"><i class="fa-solid fa-envelope"></i></div><div><h4>Get in touch</h4><p class="muted" style="margin:0"><a href="mailto:info@1m8.ai">info@1m8.ai</a></p></div></div>
+    </div>
+  </div>
+</section>
+
+<section class="section">
+  <div class="container">
+    <div class="cta-band reveal">
+      <h2>Work with us, or work for us.</h2>
+      <p class="lead" style="color:#c9ccd4;max-width:600px;margin:0 auto">See FirstMate with your own jobs, or join the team building it.</p>
+      <div class="btn-row"><a class="btn btn-primary btn-lg" href="~/demo/">Book a demo</a><a class="btn btn-glass btn-lg" href="~/careers/">See careers</a></div>
+    </div>
+  </div>
+</section>
+
+</main>
+<div id="site-footer"></div>
+<script src="../assets/site.js"></script>
+</body>
+</html>

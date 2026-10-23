@@ -1,0 +1,289 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Full House Reports — FirstMate</title>
+<meta name="description" content="Full House reports measure every structure on the property in one order: the house, detached garage, shed and more, with totals per structure and for the whole lot.">
+<meta name="robots" content="noindex, nofollow">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,400..900;1,400..900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/site.css">
+<style>
+  .fh-body { display: grid; grid-template-columns: 1.35fr 1fr; gap: 12px }
+  .fh-plan { border-radius: 12px; overflow: hidden; position: relative; background: linear-gradient(140deg, #dfe9d8, #cfdec7 50%, #c3d4bb) }
+  .fh-plan svg { width: 100%; height: auto; display: block }
+  .fh-plan .lot { fill: none; stroke: #fff; stroke-width: 2; stroke-dasharray: 6 5 }
+  .fh-plan .drive { fill: #eef0ea }
+  .fh-plan .road { fill: #9ea3a8 }
+  .fh-plan .tree { fill: #8fb383 }
+  .fh-s .roof { fill: #8b9098; stroke: #6b7078; stroke-width: 1; transition: fill .5s, stroke .5s }
+  .fh-s .rl { stroke: #6b7078; stroke-width: 1; fill: none; transition: stroke .5s }
+  .fh-s .ring { fill: none; stroke: var(--brand); stroke-width: 2; stroke-dasharray: 4 4; opacity: 0; transition: opacity .3s }
+  .fh-s.scan .ring { opacity: 1; animation: fh-spin 1s linear infinite }
+  .fh-s.got .roof { fill: rgba(219, 0, 0, .18); stroke: var(--brand); stroke-width: 1.6 }
+  .fh-s.got .rl { stroke: var(--brand) }
+  .fh-s text { font: 900 9px Montserrat, sans-serif; fill: #fff; opacity: 0; transition: opacity .4s }
+  .fh-s.got text { opacity: 1; fill: #a30000 }
+  @keyframes fh-spin { to { stroke-dashoffset: -16 } }
+  .fh-list { display: flex; flex-direction: column; gap: 6px }
+  .fh-item { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; background: #fff; font-size: 12px; font-weight: 700; transition: border-color .3s, box-shadow .3s, opacity .3s; opacity: .45 }
+  .fh-item .ck { width: 18px; height: 18px; border-radius: 50%; border: 2px solid #d1d5db; display: grid; place-items: center; font-size: 9px; color: transparent; flex: none; transition: all .3s }
+  .fh-item b { flex: 1 } .fh-item small { color: var(--muted); font-weight: 700; font-size: 10.5px }
+  .fh-item.scan { opacity: 1; border-color: var(--brand); box-shadow: 0 0 0 3px rgba(219, 0, 0, .08) }
+  .fh-item.got { opacity: 1 }
+  .fh-item.got .ck { background: var(--ok); border-color: var(--ok); color: #fff }
+  .fh-total { display: flex; justify-content: space-between; align-items: center; padding: 10px; border-radius: 10px; background: var(--bg-dark); color: #fff; font-size: 12px; font-weight: 800 }
+  .fh-total b { color: #fff; font-size: 16px }
+  @media (max-width: 640px) { .fh-body { grid-template-columns: 1fr } }
+
+  .fh-table { width: 100%; border-collapse: collapse; font-size: 12px; font-variant-numeric: tabular-nums }
+  .fh-table th { text-align: right; font-size: 10px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); font-weight: 800; padding: 6px 8px; border-bottom: 1px solid var(--line) }
+  .fh-table td { padding: 9px 8px; border-bottom: 1px solid var(--line-soft); font-weight: 700; text-align: right }
+  .fh-table th:first-child, .fh-table td:first-child { text-align: left }
+  .fh-table td:first-child { display: flex; align-items: center; gap: 8px }
+  .fh-table td:first-child i { color: var(--brand); width: 16px; text-align: center }
+  .fh-table tfoot td { font-weight: 900; color: var(--brand); border-bottom: 0 }
+  .fh-wrap-x { overflow-x: auto }
+
+  .fh-toggle { width: 32px; height: 18px; border-radius: 999px; background: #d1d5db; position: relative; flex: none }
+  .fh-toggle::after { content: ""; position: absolute; top: 2px; left: 2px; width: 14px; height: 14px; border-radius: 50%; background: #fff; transition: transform .3s var(--ease) }
+  .fh-toggle.on { background: var(--brand) }
+  .fh-toggle.on::after { transform: translateX(14px) }
+  .mock.in .fh-toggle.late { animation: fh-on .3s forwards 1.6s }
+  .mock.in .fh-toggle.late::after { animation: fh-knob .3s var(--ease) forwards 1.6s }
+  @keyframes fh-on { to { background: var(--brand) } }
+  @keyframes fh-knob { to { transform: translateX(14px) } }
+
+  .fh-cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px }
+  .fh-card { border: 1px solid var(--line); border-radius: 12px; padding: 12px; background: #fff; display: flex; flex-direction: column; gap: 8px }
+  .fh-card .art { height: 70px; border-radius: 8px; background: linear-gradient(180deg, #1a1c22, #0d0e12); display: grid; place-items: center }
+  .fh-card .art svg { width: 70%; height: auto }
+  .fh-card .art .draw * { stroke: #ff4d4d; fill: none; stroke-width: 2 }
+  .fh-card .chips { display: flex; flex-wrap: wrap; gap: 4px }
+  @media (max-width: 520px) { .fh-cards { grid-template-columns: 1fr 1fr } .fh-cards .fh-card:nth-child(3) { display: none } }
+
+  .fh-related { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 18px }
+  @media (max-width: 960px) { .fh-related { grid-template-columns: repeat(2, minmax(0, 1fr)) } }
+  @media (max-width: 520px) { .fh-related { grid-template-columns: 1fr } }
+</style>
+</head>
+<body>
+<div id="site-header"></div>
+<main>
+
+<section class="page-hero">
+  <div class="container split">
+    <div>
+      <div class="breadcrumb"><a href="~/solutions/">Solutions</a><span>Full House Reports</span></div>
+      <div class="eyebrow">Full House</div>
+      <h1>Every structure on the lot. <span class="text-gradient">One order.</span></h1>
+      <p class="lead">The house, the detached garage, the shed and every other building on the property, measured inside one report. Each structure gets its own numbers, and the whole property gets a total.</p>
+      <div class="btn-row"><a class="btn btn-primary btn-lg" href="https://app.1m8.ai/portal/signup">Sign up free</a><a class="btn btn-ghost btn-lg" href="~/demo/">Book a demo</a></div>
+    </div>
+    <div class="mock-stage" aria-hidden="true">
+      <div class="mock" id="fh-hero">
+        <div class="mock-bar"><i></i><i></i><i></i><div class="url">Full House · 77 Orchard Ln</div></div>
+        <div class="mock-main">
+          <div class="fade" style="display:flex;justify-content:space-between;align-items:center">
+            <div><div class="mock-title">Site plan</div><div style="color:var(--muted);font-size:11px;font-weight:600">Finding structures on the property</div></div>
+            <span class="mock-chip red" id="fh-count">0 of 4</span>
+          </div>
+          <div class="fh-body">
+            <div class="fh-plan fade" style="--d:1">
+              <svg viewBox="0 0 300 240">
+                <rect class="road" x="0" y="214" width="300" height="26"/>
+                <path class="drive" d="M196 214 L196 150 L236 150 L236 214 Z"/>
+                <circle class="tree" cx="34" cy="36" r="16"/><circle class="tree" cx="58" cy="24" r="11"/><circle class="tree" cx="270" cy="40" r="14"/><circle class="tree" cx="30" cy="190" r="12"/>
+                <polygon class="lot" points="12,10 290,10 290,206 12,206"/>
+                <g class="fh-s" data-i="0">
+                  <path class="roof" d="M60 96 L170 96 L170 120 L196 120 L196 186 L60 186 Z"/>
+                  <path class="rl" d="M60 96 L90 141 L60 186 M170 96 L140 141 L90 141 M140 141 L170 158 L196 120 M170 158 L196 186"/>
+                  <rect class="ring" x="52" y="88" width="152" height="106" rx="8"/>
+                  <text x="100" y="168">HOUSE</text>
+                </g>
+                <g class="fh-s" data-i="1">
+                  <rect class="roof" x="200" y="96" width="44" height="50"/>
+                  <path class="rl" d="M200 121 L244 121"/>
+                  <rect class="ring" x="192" y="88" width="60" height="66" rx="8"/>
+                  <text x="203" y="140">GARAGE</text>
+                </g>
+                <g class="fh-s" data-i="2">
+                  <rect class="roof" x="214" y="28" width="30" height="24"/>
+                  <path class="rl" d="M214 40 L244 40"/>
+                  <rect class="ring" x="206" y="20" width="46" height="40" rx="8"/>
+                  <text x="215" y="68" style="font-size:8px">SHED</text>
+                </g>
+                <g class="fh-s" data-i="3">
+                  <rect class="roof" x="88" y="26" width="64" height="40"/>
+                  <path class="rl" d="M88 26 L106 46 L88 66 M152 26 L134 46 L152 66 M106 46 L134 46"/>
+                  <rect class="ring" x="80" y="18" width="80" height="56" rx="8"/>
+                  <text x="98" y="82" style="font-size:8px">POOL HOUSE</text>
+                </g>
+              </svg>
+            </div>
+            <div class="fh-list">
+              <div class="fh-item" data-i="0"><span class="ck">✓</span><b>House</b><small>34.8 sq</small></div>
+              <div class="fh-item" data-i="1"><span class="ck">✓</span><b>Detached garage</b><small>6.2 sq</small></div>
+              <div class="fh-item" data-i="2"><span class="ck">✓</span><b>Shed</b><small>1.1 sq</small></div>
+              <div class="fh-item" data-i="3"><span class="ck">✓</span><b>Pool house</b><small>3.4 sq</small></div>
+              <div class="fh-total pop" style="--d:4;margin-top:auto"><span>Property total</span><b id="fh-total">45.5 sq</b></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Per structure -->
+<section class="section">
+  <div class="container split">
+    <div class="reveal">
+      <div class="eyebrow">Per structure</div>
+      <h2>Each building on its own line.</h2>
+      <p class="lead">Price the house and the garage separately, or together. Every structure carries its own roof, walls, openings and gutters, and the property total adds them up without counting anything twice.</p>
+      <ul class="feature-list"><li>Numbers for each structure and for the property</li><li>Price, order and schedule by structure</li><li>Measurements land on the project, ready to use</li></ul>
+    </div>
+    <div class="mock reveal" style="--d:1" aria-hidden="true">
+      <div class="mock-bar"><i></i><i></i><i></i><div class="url">Report · Structures</div></div>
+      <div class="mock-main">
+        <div class="mock-title">Structures</div>
+        <div class="fh-wrap-x"><table class="fh-table">
+          <thead><tr><th>Structure</th><th>Roof sq</th><th>Walls ft²</th><th>Openings</th><th>Gutters ft</th></tr></thead>
+          <tbody>
+            <tr class="slide-up" style="--d:1"><td><i class="fa-solid fa-house"></i>House</td><td>34.8</td><td>3,012</td><td>22</td><td>228</td></tr>
+            <tr class="slide-up" style="--d:2"><td><i class="fa-solid fa-warehouse"></i>Detached garage</td><td>6.2</td><td>688</td><td>3</td><td>48</td></tr>
+            <tr class="slide-up" style="--d:3"><td><i class="fa-solid fa-house-chimney-window"></i>Shed</td><td>1.1</td><td>214</td><td>1</td><td>—</td></tr>
+            <tr class="slide-up" style="--d:4"><td><i class="fa-solid fa-water-ladder"></i>Pool house</td><td>3.4</td><td>402</td><td>4</td><td>36</td></tr>
+          </tbody>
+          <tfoot><tr class="fade" style="--d:6"><td>Property</td><td>45.5</td><td>4,316</td><td>30</td><td>312</td></tr></tfoot>
+        </table></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Choose what's measured -->
+<section class="section section--soft">
+  <div class="container split split--flip">
+    <div class="reveal">
+      <div class="eyebrow">You choose</div>
+      <h2>Pick the structures. Pick what is measured.</h2>
+      <p class="lead">Confirm the buildings on the map when you order. Include or skip any of them, and choose the full structure or just the roof for each.</p>
+      <ul class="feature-list"><li>Structures found from the address</li><li>Full structure or roof only, per building</li><li>Add one later without a new project</li></ul>
+    </div>
+    <div class="mock reveal" aria-hidden="true">
+      <div class="mock-bar"><i></i><i></i><i></i><div class="url">Measurements · New order · Full House</div></div>
+      <div class="mock-main">
+        <div class="mock-title">Structures to measure</div>
+        <div class="mock-row slide-up" style="--d:1"><i class="fa-solid fa-house" style="color:var(--brand)"></i><b style="flex:1">House</b><span class="mock-chip red">Full structure</span><span class="fh-toggle on"></span></div>
+        <div class="mock-row slide-up" style="--d:2"><i class="fa-solid fa-warehouse" style="color:var(--brand)"></i><b style="flex:1">Detached garage</b><span class="mock-chip red">Full structure</span><span class="fh-toggle on"></span></div>
+        <div class="mock-row slide-up" style="--d:3"><i class="fa-solid fa-house-chimney-window" style="color:var(--brand)"></i><b style="flex:1">Shed</b><span class="mock-chip">Roof only</span><span class="fh-toggle late"></span></div>
+        <div class="mock-row slide-up" style="--d:4;opacity:.6"><i class="fa-solid fa-water-ladder" style="color:var(--muted)"></i><b style="flex:1">Pool house</b><span class="mock-chip">Skipped</span><span class="fh-toggle"></span></div>
+        <div class="mock-row pop" style="--d:12"><div class="mock-toast" style="flex:1">3 structures in this order</div><span class="mock-btn">Order</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Full structure -->
+<section class="section">
+  <div class="container">
+    <div class="section-head center reveal">
+      <div class="eyebrow">Full structure</div>
+      <h2>Inside and out, every building.</h2>
+      <p class="lead">Each structure in a Full House report is measured the way a Full Exterior report measures the house: roof, walls, windows, doors and gutters, with its own diagrams.</p>
+    </div>
+    <div class="mock reveal" aria-hidden="true" style="max-width:900px;margin:0 auto">
+      <div class="mock-bar"><i></i><i></i><i></i><div class="url">Report · 77 Orchard Ln</div></div>
+      <div class="mock-main">
+        <div class="fh-cards">
+          <div class="fh-card slide-up" style="--d:1"><div class="art"><svg class="draw" viewBox="0 0 200 110"><polygon style="--len:300;--d:2" points="20,50 100,10 180,50"/><rect style="--len:400;--d:3" x="30" y="50" width="140" height="55"/><rect style="--len:80;--d:5" x="50" y="64" width="22" height="18"/><rect style="--len:80;--d:6" x="128" y="64" width="22" height="18"/><rect style="--len:90;--d:7" x="90" y="72" width="20" height="33"/></svg></div><b>House</b><div class="chips"><span class="mock-chip red">Roof</span><span class="mock-chip blue">Walls</span><span class="mock-chip violet">Openings</span><span class="mock-chip green">Gutters</span></div></div>
+          <div class="fh-card slide-up" style="--d:2"><div class="art"><svg class="draw" viewBox="0 0 200 110"><polygon style="--len:260;--d:3" points="40,50 100,18 160,50"/><rect style="--len:340;--d:4" x="46" y="50" width="108" height="55"/><rect style="--len:200;--d:6" x="66" y="62" width="68" height="43"/></svg></div><b>Detached garage</b><div class="chips"><span class="mock-chip red">Roof</span><span class="mock-chip blue">Walls</span><span class="mock-chip violet">Openings</span><span class="mock-chip green">Gutters</span></div></div>
+          <div class="fh-card slide-up" style="--d:3"><div class="art"><svg class="draw" viewBox="0 0 200 110"><polygon style="--len:200;--d:4" points="60,55 100,30 140,55"/><rect style="--len:240;--d:5" x="66" y="55" width="68" height="50"/><rect style="--len:90;--d:7" x="90" y="70" width="20" height="35"/></svg></div><b>Shed</b><div class="chips"><span class="mock-chip red">Roof</span></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Features -->
+<section class="section section--soft">
+  <div class="container">
+    <div class="section-head reveal"><div class="eyebrow">Built for big lots</div><h2>Made for jobs that are more than one roof.</h2></div>
+    <div class="grid grid-3">
+      <div class="card reveal"><div class="icon"><i class="fa-solid fa-city"></i></div><h3>Every structure</h3><p>Houses, garages, sheds, barns and pool houses in one order.</p></div>
+      <div class="card reveal" style="--d:1"><div class="icon"><i class="fa-solid fa-layer-group"></i></div><h3>Totals that add up</h3><p>Per-structure numbers and one property total.</p></div>
+      <div class="card reveal" style="--d:2"><div class="icon"><i class="fa-solid fa-cloud-showers-heavy"></i></div><h3>Storm and insurance work</h3><p>Every damaged building documented together.</p></div>
+      <div class="card reveal"><div class="icon"><i class="fa-solid fa-boxes-stacked"></i></div><h3>Orders by structure</h3><p>Material orders split by building or combined.</p></div>
+      <div class="card reveal" style="--d:1"><div class="icon"><i class="fa-solid fa-file-pdf"></i></div><h3>One report</h3><p>One branded PDF for the whole property.</p></div>
+      <div class="card reveal" style="--d:2"><div class="icon"><i class="fa-solid fa-file-csv"></i></div><h3>XML and CSV</h3><p>Every structure's numbers for other systems.</p></div>
+    </div>
+  </div>
+</section>
+
+<section class="section section--dark">
+  <div class="container">
+    <div class="section-head reveal">
+      <div class="eyebrow">Connected to the job</div>
+      <h2>One property, one project.</h2>
+      <p class="lead" style="color:#c9ccd4">Every structure lives on the same project, so the proposal, materials, schedule and photos all stay together.</p>
+    </div>
+    <div class="fh-related">
+      <a class="card reveal" href="~/solutions/full-exterior/"><div class="icon"><i class="fa-solid fa-ruler-combined"></i></div><h3>Full Exterior</h3><p>The house alone, roof to gutters.</p></a>
+      <a class="card reveal" style="--d:1" href="~/solutions/roof-measurements/"><div class="icon"><i class="fa-solid fa-house-chimney"></i></div><h3>Roof Measurements</h3><p>Just the roof.</p></a>
+      <a class="card reveal" style="--d:2" href="~/solutions/proposals/"><div class="icon"><i class="fa-solid fa-file-signature"></i></div><h3>Proposals</h3><p>Options per structure, signed together.</p></a>
+      <a class="card reveal" style="--d:3" href="~/solutions/photos/"><div class="icon"><i class="fa-solid fa-camera"></i></div><h3>Photos</h3><p>Photos of every building on the project.</p></a>
+    </div>
+  </div>
+</section>
+
+<section class="section">
+  <div class="container container--narrow">
+    <div class="section-head center reveal"><div class="eyebrow">FAQ</div><h2>Questions about Full House</h2></div>
+    <details class="faq"><summary>Which structures are included?</summary><div>Any building on the property you confirm when you order: the house, detached garages, sheds, barns, pool houses and so on. You can skip any of them.</div></details>
+    <details class="faq"><summary>How is it different from Full Exterior?</summary><div>Full Exterior measures the house. Full House measures every structure on the property in the same order, with numbers for each.</div></details>
+    <details class="faq"><summary>What does it cost?</summary><div>See <a href="~/pricing/">pricing</a> for current report prices.</div></details>
+  </div>
+</section>
+
+<section class="section" style="padding-top:0">
+  <div class="container">
+    <div class="cta-band reveal">
+      <h2>Measure the whole property at once.</h2>
+      <p class="lead" style="color:#c9ccd4;max-width:600px;margin:0 auto">Sign up free and order a Full House report today.</p>
+      <div class="btn-row"><a class="btn btn-primary btn-lg" href="https://app.1m8.ai/portal/signup">Sign up free</a><a class="btn btn-glass btn-lg" href="~/demo/">Book a demo</a></div>
+    </div>
+  </div>
+</section>
+
+</main>
+<div id="site-footer"></div>
+<script src="../../assets/site.js"></script>
+<script>
+(function () {
+  var hero = document.getElementById('fh-hero');
+  var shapes = hero.querySelectorAll('.fh-s'), items = hero.querySelectorAll('.fh-item');
+  var count = document.getElementById('fh-count'), n = shapes.length;
+  function set(i, cls, on) { shapes[i].classList.toggle(cls, on); items[i].classList.toggle(cls, on); }
+  function done(k) { count.textContent = k + ' of ' + n; count.className = 'mock-chip ' + (k === n ? 'green' : 'red'); }
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    for (var j = 0; j < n; j++) set(j, 'got', true); done(n); return;
+  }
+  var i = 0, started = false;
+  function step() {
+    if (i < n) {
+      set(i, 'scan', true);
+      var k = i;
+      setTimeout(function () { set(k, 'scan', false); set(k, 'got', true); done(k + 1); }, 1100);
+      i++; setTimeout(step, 1500);
+    } else {
+      setTimeout(function () { for (var j = 0; j < n; j++) set(j, 'got', false); done(0); i = 0; setTimeout(step, 800); }, 4000);
+    }
+  }
+  hero.addEventListener('fm:in', function () { if (started) return; started = true; setTimeout(step, 900); });
+})();
+</script>
+</body>
+</html>

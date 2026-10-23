@@ -1,0 +1,223 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sample Article — FirstMate</title>
+<meta name="description" content="A sample article layout for the FirstMate blog.">
+<meta name="robots" content="noindex, nofollow">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,400..900;1,400..900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../../assets/site.css">
+<style>
+  /* Blog article (ba-) */
+  .ba-progress { position: fixed; left: 0; top: var(--header-h); height: 3px; width: 100%; z-index: 999; background: linear-gradient(90deg, var(--brand), var(--brand-2)); transform-origin: left; transform: scaleX(0) }
+  .ba-head { padding: clamp(48px, 7vw, 88px) 0 32px; background: radial-gradient(70% 80% at 85% 0%, #fff0ee 0%, transparent 60%) }
+  .ba-head h1 { font-size: clamp(34px, 5vw, 56px); max-width: 900px }
+  .ba-cat { display: inline-block; font-size: 12px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; padding: 4px 12px; border-radius: 999px; background: var(--brand-soft); color: var(--brand); margin-bottom: 18px }
+  .ba-byline { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-top: 24px; font-size: 14px; font-weight: 600; color: var(--muted) }
+  .ba-byline .mock-avatar { width: 44px; height: 44px; font-size: 14px }
+  .ba-byline b { display: block; color: var(--heading); font-size: 15px }
+  .ba-byline .dot { width: 4px; height: 4px; border-radius: 50%; background: #cbd0d8 }
+  .ba-share { margin-left: auto; display: flex; gap: 8px }
+  .ba-share a { width: 38px; height: 38px; border-radius: 50%; display: grid; place-items: center; border: 1.5px solid var(--line); color: var(--heading); font-size: 14px; transition: border-color .2s, color .2s, transform .2s }
+  .ba-share a:hover { border-color: var(--brand); color: var(--brand); transform: translateY(-2px) }
+
+  .ba-cover { border-radius: var(--radius-lg); overflow: hidden; aspect-ratio: 21 / 9; background: linear-gradient(135deg, #7f1d1d, #db0000 55%, #ff6a3d); position: relative }
+  .ba-cover::before { content: ""; position: absolute; inset: 0; background: radial-gradient(50% 70% at 80% 20%, rgba(255, 255, 255, .25), transparent 65%), repeating-linear-gradient(135deg, rgba(255, 255, 255, .06) 0 2px, transparent 2px 26px) }
+  .ba-cover svg { position: absolute; inset: 0; width: 100%; height: 100% }
+  .ba-cover .s { fill: none; stroke: #fff; stroke-width: 3; stroke-linecap: round; stroke-linejoin: round }
+  .ba-cover .f { fill: rgba(255, 255, 255, .15) }
+
+  .ba-layout { display: grid; grid-template-columns: 240px minmax(0, 720px); gap: clamp(32px, 6vw, 80px); justify-content: center; padding: clamp(40px, 6vw, 72px) 0 }
+  .ba-toc { position: sticky; top: calc(var(--header-h) + 32px); align-self: start; font-size: 14px }
+  .ba-toc h6 { margin: 0 0 12px; font-size: 12px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: var(--muted) }
+  .ba-toc ol { list-style: none; margin: 0; padding: 0; border-left: 2px solid var(--line) }
+  .ba-toc a { display: block; padding: 7px 0 7px 16px; margin-left: -2px; border-left: 2px solid transparent; color: var(--muted); font-weight: 600; line-height: 1.35; transition: color .2s, border-color .2s }
+  .ba-toc a:hover { color: var(--heading) }
+  .ba-toc a.on { color: var(--brand); border-left-color: var(--brand) }
+  .ba-toc .ba-toc-cta { margin-top: 28px; padding: 18px; border-radius: 14px; background: var(--bg-dark); color: #c9ccd4; font-size: 13px }
+  .ba-toc .ba-toc-cta b { color: #fff; display: block; font-size: 15px; margin-bottom: 6px }
+
+  .ba-body { font-size: 18px; line-height: 1.75; color: var(--body) }
+  .ba-body > p:first-child { font-size: 21px; line-height: 1.6; color: var(--heading); font-weight: 500 }
+  .ba-body h2 { font-size: clamp(26px, 3vw, 34px); margin: 56px 0 16px; scroll-margin-top: calc(var(--header-h) + 24px) }
+  .ba-body h3 { margin: 32px 0 10px }
+  .ba-body ul, .ba-body ol { padding-left: 22px } .ba-body li { margin: 6px 0 }
+  .ba-body blockquote { margin: 36px 0; padding: 8px 0 8px 28px; border-left: 4px solid var(--brand); font-size: 24px; line-height: 1.45; font-weight: 700; color: var(--heading); font-style: italic }
+  .ba-body blockquote cite { display: block; margin-top: 12px; font-size: 14px; font-style: normal; font-weight: 600; color: var(--muted) }
+  .ba-callout { display: flex; gap: 16px; padding: 20px 22px; border-radius: 16px; margin: 28px 0; font-size: 16px; line-height: 1.6 }
+  .ba-callout i { font-size: 20px; margin-top: 3px }
+  .ba-callout b { display: block; margin-bottom: 2px }
+  .ba-callout p { margin: 0 }
+  .ba-callout.tip { background: #eff6ff; border: 1px solid #bfdbfe } .ba-callout.tip i { color: #1d4ed8 }
+  .ba-callout.warn { background: #fffbeb; border: 1px solid #fde68a } .ba-callout.warn i { color: #b45309 }
+  .ba-callout.key { background: var(--bg-dark); color: #c9ccd4 } .ba-callout.key b { color: #fff } .ba-callout.key i { color: var(--brand-2) }
+  .ba-figure { margin: 32px 0 }
+  .ba-figure figcaption { font-size: 13px; color: var(--muted); font-weight: 600; margin-top: 10px; text-align: center }
+  .ba-check { display: flex; align-items: center; gap: 10px }
+  .ba-check .bx { width: 18px; height: 18px; border-radius: 5px; border: 2px solid #cfd3da; flex: none; display: grid; place-items: center; font-size: 10px; color: #fff }
+  .mock.in .ba-check .bx.done { animation: ba-check .4s var(--ease) forwards; animation-delay: calc(var(--d, 0) * 120ms + 300ms) }
+  @keyframes ba-check { to { background: var(--ok); border-color: var(--ok) } }
+  .ba-tags { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 48px }
+  .ba-author { display: flex; gap: 18px; padding: 24px; border-radius: var(--radius); background: var(--bg-soft); margin-top: 32px; align-items: flex-start }
+  .ba-author .mock-avatar { width: 64px; height: 64px; font-size: 20px }
+  .ba-author p { margin: 4px 0 0; font-size: 15px; color: var(--muted) }
+
+  .ba-related { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 28px }
+  .ba-rel { color: inherit } .ba-rel:hover { color: inherit }
+  .ba-rel .art { aspect-ratio: 16 / 10; border-radius: var(--radius); background: linear-gradient(135deg, var(--a), var(--b)); position: relative; overflow: hidden; display: grid; place-items: center; color: #fff; font-size: 34px; transition: box-shadow .3s }
+  .ba-rel .art::before { content: ""; position: absolute; inset: 0; background: repeating-linear-gradient(135deg, rgba(255, 255, 255, .08) 0 2px, transparent 2px 22px) }
+  .ba-rel:hover .art { box-shadow: var(--shadow) }
+  .ba-rel .art i { position: relative; transition: transform .4s var(--ease) } .ba-rel:hover .art i { transform: scale(1.15) }
+  .ba-rel h3 { font-size: 18px; margin: 14px 0 4px; transition: color .2s } .ba-rel:hover h3 { color: var(--brand) }
+  .ba-rel small { color: var(--muted); font-weight: 600 }
+
+  @media (max-width: 960px) { .ba-layout { grid-template-columns: minmax(0, 1fr) } .ba-toc { position: static; order: -1 } .ba-toc .ba-toc-cta { display: none } .ba-related { grid-template-columns: 1fr 1fr } }
+  @media (max-width: 640px) { .ba-related { grid-template-columns: 1fr } .ba-share { margin-left: 0 } .ba-body { font-size: 17px } .ba-body blockquote { font-size: 20px } .ba-cover { aspect-ratio: 16 / 10 } }
+</style>
+</head>
+<body>
+<div id="site-header"></div>
+<div class="ba-progress" id="ba-progress" aria-hidden="true"></div>
+<main>
+
+<header class="ba-head">
+  <div class="container">
+    <div class="breadcrumb"><a href="~/resources/">Resources</a><span><a href="~/resources/blog/">Blog</a></span><span>Sales</span></div>
+    <span class="ba-cat">Sales</span>
+    <h1>Sample article title placeholder that runs about two lines long</h1>
+    <p class="lead" style="max-width:760px">Placeholder dek: one sentence that tells the reader what they'll get from this article.</p>
+    <div class="ba-byline">
+      <div class="mock-avatar">AN</div>
+      <div><b>Author name</b>Role, FirstMate</div>
+      <span class="dot"></span><span>Published date</span>
+      <span class="dot"></span><span><i class="fa-regular fa-clock"></i> <span id="ba-read">— min read</span></span>
+      <div class="ba-share"><a href="#" aria-label="Copy link" id="ba-copy"><i class="fa-solid fa-link"></i></a><a href="#" aria-label="Share by email"><i class="fa-solid fa-envelope"></i></a><a href="#" aria-label="Share"><i class="fa-solid fa-share-nodes"></i></a></div>
+    </div>
+  </div>
+</header>
+
+<div class="container">
+  <div class="ba-cover reveal" aria-hidden="true">
+    <svg viewBox="0 0 1000 430" preserveAspectRatio="xMidYMid slice">
+      <circle cx="820" cy="110" r="56" class="f"/>
+      <path class="f" d="M180 400 V230 L390 90 L600 230 V400 Z"/>
+      <path class="s" d="M140 250 L390 80 L640 250"/>
+      <path class="s" d="M210 400 V235 M570 400 V235"/>
+      <path class="s" d="M230 270 H550 M240 300 H540 M250 330 H530" opacity=".45"/>
+      <rect class="s" x="350" y="320" width="80" height="80" rx="4"/>
+      <path class="s" d="M480 150 V100 H520 V180"/>
+      <path class="s" d="M640 400 L760 250 L880 400" opacity=".55"/>
+      <path class="s" d="M40 400 H960"/>
+    </svg>
+  </div>
+</div>
+
+<div class="container">
+  <div class="ba-layout">
+    <aside class="ba-toc" aria-label="On this page">
+      <h6>On this page</h6>
+      <ol id="ba-toc"></ol>
+      <div class="ba-toc-cta"><b>Try it on your next lead</b>Placeholder: a short nudge toward the product.<div style="margin-top:12px"><a class="btn btn-primary btn-sm" href="https://app.1m8.ai/portal/signup">Sign up free</a></div></div>
+    </aside>
+
+    <article class="ba-body" id="ba-body">
+      <p>Placeholder introduction. This paragraph sets up the problem the article solves. The owner will replace this copy; the layout shows how a lead paragraph, headings, quotes and callouts read together.</p>
+      <p>A second paragraph continues the setup with a little more context, so the page has a realistic rhythm of text before the first heading.</p>
+
+      <h2 id="s1">First section heading placeholder</h2>
+      <p>Body copy placeholder. Short paragraphs read better on a phone, so most of this article is two to four sentences at a time. Use bold for <b>the one idea</b> a skimmer should catch.</p>
+      <ul><li>A list item that makes one point</li><li>A second list item with a related point</li><li>A third list item to round it out</li></ul>
+      <div class="ba-callout tip"><i class="fa-solid fa-lightbulb"></i><div><b>Tip</b><p>Placeholder tip: a practical shortcut the reader can use today.</p></div></div>
+
+      <h2 id="s2">Second section heading placeholder</h2>
+      <p>Body copy placeholder. This section shows an inline product figure built from the mockup kit instead of a screenshot.</p>
+      <figure class="ba-figure">
+        <div class="mock" aria-hidden="true">
+          <div class="mock-bar"><i></i><i></i><i></i><div class="url">Checklists</div></div>
+          <div class="mock-main">
+            <div style="display:flex;justify-content:space-between;align-items:center"><span class="mock-title">Follow-up checklist</span><span class="mock-chip green">3 of 4</span></div>
+            <div class="mock-row slide-up ba-check" style="--d:1"><span class="bx done" style="--d:2"><i class="fa-solid fa-check"></i></span>Call within the first hour</div>
+            <div class="mock-row slide-up ba-check" style="--d:2"><span class="bx done" style="--d:4"><i class="fa-solid fa-check"></i></span>Send the inspection photos</div>
+            <div class="mock-row slide-up ba-check" style="--d:3"><span class="bx done" style="--d:6"><i class="fa-solid fa-check"></i></span>Present the proposal</div>
+            <div class="mock-row slide-up ba-check" style="--d:4"><span class="bx"></span>Book the second visit</div>
+            <div class="mock-progress"><i style="--w:75%;--d:4"></i></div>
+          </div>
+        </div>
+        <figcaption>Figure placeholder: caption describing the mockup.</figcaption>
+      </figure>
+      <blockquote>“Placeholder pull quote. A line from a contractor or the author that sums up the section.”<cite>— Name placeholder, Role, Company</cite></blockquote>
+      <h3>A subheading inside the section</h3>
+      <p>Body copy placeholder that continues under an h3, to show the secondary heading size.</p>
+
+      <h2 id="s3">Third section heading placeholder</h2>
+      <p>Body copy placeholder. Numbered steps work well for how-to articles:</p>
+      <ol><li>Step one placeholder</li><li>Step two placeholder</li><li>Step three placeholder</li></ol>
+      <div class="ba-callout warn"><i class="fa-solid fa-triangle-exclamation"></i><div><b>Watch out</b><p>Placeholder warning: a common mistake and how to avoid it.</p></div></div>
+
+      <h2 id="s4">Key takeaways</h2>
+      <div class="ba-callout key"><i class="fa-solid fa-flag-checkered"></i><div><b>In short</b><p>Placeholder summary sentence one. Placeholder summary sentence two. Placeholder summary sentence three.</p></div></div>
+      <p>Closing paragraph placeholder with a link to <a href="~/solutions/crm/">a related solution</a>.</p>
+
+      <div class="ba-tags"><span class="pill">Sales</span><span class="pill">Follow-up</span><span class="pill">Tag placeholder</span></div>
+      <div class="ba-author">
+        <div class="mock-avatar">AN</div>
+        <div><b>Author name</b><p>Placeholder bio: one or two sentences about the author and their time in the trades.</p></div>
+      </div>
+    </article>
+  </div>
+</div>
+
+<section class="section section--soft">
+  <div class="container">
+    <div style="display:flex;justify-content:space-between;align-items:end;gap:16px;flex-wrap:wrap;margin-bottom:28px" class="reveal"><h2 style="margin:0">Related articles</h2><a class="link-arrow" href="~/resources/blog/">All articles</a></div>
+    <div class="ba-related">
+      <a class="ba-rel reveal" href="~/resources/blog/sample-post/"><div class="art" style="--a:#db0000;--b:#fb923c"><i class="fa-solid fa-phone"></i></div><h3>Related article title placeholder</h3><small>Sales · 5 min read</small></a>
+      <a class="ba-rel reveal" style="--d:1" href="~/resources/blog/sample-post/"><div class="art" style="--a:#1d4ed8;--b:#38bdf8"><i class="fa-solid fa-calendar-days"></i></div><h3>Related article title placeholder</h3><small>Production · 7 min read</small></a>
+      <a class="ba-rel reveal" style="--d:2" href="~/resources/blog/sample-post/"><div class="art" style="--a:#15803d;--b:#a3e635"><i class="fa-solid fa-chart-column"></i></div><h3>Related article title placeholder</h3><small>Business · 6 min read</small></a>
+    </div>
+  </div>
+</section>
+
+<section class="section">
+  <div class="container">
+    <div class="cta-band reveal">
+      <h2>Put this to work on your next job.</h2>
+      <div class="btn-row"><a class="btn btn-primary btn-lg" href="https://app.1m8.ai/portal/signup">Sign up free</a><a class="btn btn-glass btn-lg" href="~/demo/">Book a demo</a></div>
+    </div>
+  </div>
+</section>
+
+</main>
+<div id="site-footer"></div>
+<script src="../../../assets/site.js"></script>
+<script>
+(function () {
+  var body = document.getElementById('ba-body');
+  // Reading time from the word count.
+  var words = body.textContent.trim().split(/\s+/).length;
+  document.getElementById('ba-read').textContent = Math.max(1, Math.round(words / 230)) + ' min read';
+  // Table of contents from the h2s.
+  var toc = document.getElementById('ba-toc');
+  var heads = Array.prototype.slice.call(body.querySelectorAll('h2[id]'));
+  heads.forEach(function (h) { var li = document.createElement('li'); li.innerHTML = '<a href="#' + h.id + '"></a>'; li.firstChild.textContent = h.textContent; toc.appendChild(li); });
+  var links = toc.querySelectorAll('a');
+  var bar = document.getElementById('ba-progress');
+  function onScroll() {
+    var r = body.getBoundingClientRect();
+    var p = Math.min(1, Math.max(0, (window.innerHeight * .4 - r.top) / r.height));
+    bar.style.transform = 'scaleX(' + p + ')';
+    var cur = 0; heads.forEach(function (h, i) { if (h.getBoundingClientRect().top < window.innerHeight * .3) cur = i; });
+    links.forEach(function (a, i) { a.classList.toggle('on', i === cur); });
+  }
+  window.addEventListener('scroll', onScroll, { passive: true }); onScroll();
+  document.getElementById('ba-copy').addEventListener('click', function (e) {
+    e.preventDefault(); var a = this;
+    if (navigator.clipboard) navigator.clipboard.writeText(location.href).catch(function () {});
+    a.innerHTML = '<i class="fa-solid fa-check"></i>'; setTimeout(function () { a.innerHTML = '<i class="fa-solid fa-link"></i>'; }, 1500);
+  });
+})();
+</script>
+</body>
+</html>

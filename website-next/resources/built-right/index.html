@@ -1,0 +1,221 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Built Right — FirstMate</title>
+<meta name="description" content="Built Right celebrates the people who build: craftsmanship, mentorship and community in the trades.">
+<meta name="robots" content="noindex, nofollow">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,400..900;1,400..900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/site.css">
+<style>
+  /* Built Right (br-) */
+  .br-hero { position: relative; overflow: hidden }
+  .br-hero h1 .hl { position: relative; white-space: nowrap }
+  .br-hero h1 .hl svg { position: absolute; left: -2%; bottom: -.12em; width: 104%; height: .32em; overflow: visible }
+  .br-hero h1 .hl path { fill: none; stroke: var(--brand); stroke-width: 6; stroke-linecap: round; stroke-dasharray: 420; stroke-dashoffset: 420; animation: fm-draw 1.4s .5s var(--ease) forwards }
+  .br-mosaic { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); grid-auto-rows: 120px; gap: 12px }
+  .br-mosaic .placeholder-photo { min-height: 0; height: 100%; font-size: 11px; padding: 10px; position: relative }
+  .br-mosaic .t1 { grid-row: span 2 } .br-mosaic .t4 { grid-column: span 2 } .br-mosaic .t5 { grid-row: span 2 }
+  .br-badge { position: absolute; left: 10px; bottom: 10px; display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px 5px 5px; border-radius: 999px; background: #fff; box-shadow: var(--shadow-sm); font-size: 11px; font-weight: 800; color: var(--heading) }
+  .br-badge .mock-avatar { width: 20px; height: 20px; font-size: 8px }
+  .br-medal { position: absolute; right: -6px; top: -14px; z-index: 3; width: 92px; height: 92px; border-radius: 50%; background: var(--bg-dark); color: #fff; display: grid; place-items: center; text-align: center; font-size: 10px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; line-height: 1.2; box-shadow: var(--shadow-lg); animation: br-spin 18s linear infinite }
+  .br-medal i { display: block; font-size: 22px; color: var(--brand-2); margin-bottom: 2px }
+  .br-medal::before { content: ""; position: absolute; inset: 5px; border-radius: 50%; border: 1.5px dashed rgba(255, 255, 255, .35) }
+  @keyframes br-spin { 0%, 100% { transform: rotate(-8deg) } 50% { transform: rotate(8deg) } }
+  .br-stage { position: relative }
+
+  .br-values { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 20px }
+  .br-values .card { padding: 24px }
+
+  .br-spot { display: grid; grid-template-columns: 1.1fr 1fr; gap: 0; border-radius: var(--radius-lg); overflow: hidden; background: var(--bg-dark-2); border: 1px solid rgba(255, 255, 255, .08) }
+  .br-spot .placeholder-photo { border-radius: 0; border: 0; min-height: 420px; background: repeating-linear-gradient(135deg, #1c1f26 0 14px, #20242c 14px 28px); color: #6b7280 }
+  .br-spot .txt { padding: clamp(28px, 4vw, 52px); display: flex; flex-direction: column; justify-content: center; gap: 14px }
+  .br-spot .who { display: flex; align-items: center; gap: 12px }
+  .br-spot .who .mock-avatar { width: 48px; height: 48px; font-size: 14px }
+  .br-spot blockquote { margin: 0; font-size: clamp(20px, 2.2vw, 26px); font-weight: 700; color: #fff; line-height: 1.4 }
+
+  .br-bar { display: flex; justify-content: space-between; align-items: end; gap: 16px; flex-wrap: wrap; margin-bottom: 28px }
+  .br-chips { display: flex; flex-wrap: wrap; gap: 8px }
+  .br-chip { appearance: none; border: 1.5px solid var(--line); background: #fff; border-radius: 999px; padding: 8px 16px; font-weight: 700; font-size: 14px; color: var(--heading); cursor: pointer }
+  .br-chip:hover { border-color: var(--heading) }
+  .br-chip.on { background: var(--brand); border-color: var(--brand); color: #fff }
+  .br-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px }
+  .br-card { border-radius: var(--radius); overflow: hidden; background: #fff; border: 1px solid var(--line); color: inherit; display: flex; flex-direction: column; transition: transform .3s var(--ease), box-shadow .3s, border-color .3s }
+  .br-card:hover { transform: translateY(-4px); box-shadow: var(--shadow); border-color: transparent; color: inherit }
+  .br-card.is-hidden { display: none }
+  .br-card .ph { position: relative }
+  .br-card .placeholder-photo { border-radius: 0; border: 0; min-height: 230px; transition: filter .3s }
+  .br-card:hover .placeholder-photo { filter: brightness(.96) }
+  .br-card .cat { position: absolute; left: 12px; top: 12px; font-size: 11px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; padding: 4px 10px; border-radius: 999px; background: #fff; color: var(--brand); box-shadow: var(--shadow-sm) }
+  .br-card .body { padding: 20px 22px 22px; display: flex; flex-direction: column; gap: 8px; flex: 1 }
+  .br-card h3 { font-size: 19px; margin: 0; line-height: 1.3 }
+  .br-card p { font-size: 14px; color: var(--muted); margin: 0 }
+  .br-card .meta { margin-top: auto; padding-top: 10px; display: flex; align-items: center; gap: 10px; font-size: 13px; font-weight: 600; color: var(--muted) }
+  .br-card .meta b { color: var(--heading) }
+
+  .br-nom { display: grid; grid-template-columns: 1fr 1.1fr; gap: clamp(32px, 6vw, 72px); align-items: start }
+  .br-steps { list-style: none; padding: 0; margin: 28px 0 0; counter-reset: s }
+  .br-steps li { counter-increment: s; position: relative; padding-left: 52px; margin-bottom: 20px }
+  .br-steps li::before { content: counter(s); position: absolute; left: 0; top: 0; width: 36px; height: 36px; border-radius: 50%; background: var(--brand); color: #fff; display: grid; place-items: center; font-weight: 800 }
+  .br-steps b { display: block }
+  .br-steps span { color: var(--muted); font-size: 15px }
+  .br-form { background: #fff; border: 1px solid var(--line); border-radius: var(--radius-lg); padding: clamp(22px, 4vw, 36px); box-shadow: var(--shadow) }
+  .br-form .row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px }
+  .br-form textarea { min-height: 120px; resize: vertical }
+  .br-thanks { display: none; text-align: center; padding: 32px 8px }
+  .br-thanks .ic { width: 72px; height: 72px; border-radius: 50%; background: #dcfce7; color: #15803d; display: grid; place-items: center; font-size: 30px; margin: 0 auto 18px; animation: fm-pop .6s var(--ease) both }
+  .br-form.done form { display: none } .br-form.done .br-thanks { display: block }
+
+  @media (max-width: 960px) { .br-values { grid-template-columns: repeat(2, minmax(0, 1fr)) } .br-grid { grid-template-columns: repeat(2, minmax(0, 1fr)) } .br-spot, .br-nom { grid-template-columns: 1fr } .br-spot .placeholder-photo { min-height: 260px } }
+  @media (max-width: 640px) { .br-values, .br-grid { grid-template-columns: 1fr } .br-form .row { grid-template-columns: 1fr } .br-mosaic { grid-auto-rows: 90px; gap: 8px } .br-medal { width: 76px; height: 76px; right: 0 } .br-hero h1 .hl { white-space: normal } }
+  @media (prefers-reduced-motion: reduce) { .br-medal { animation: none } .br-hero h1 .hl path { stroke-dashoffset: 0 } }
+</style>
+</head>
+<body>
+<div id="site-header"></div>
+<main>
+
+<section class="page-hero br-hero">
+  <div class="container split">
+    <div>
+      <div class="breadcrumb"><a href="~/resources/">Resources</a><span>Built Right</span></div>
+      <div class="eyebrow">Built Right</div>
+      <h1>Celebrating the people who <span class="hl">build.<svg viewBox="0 0 200 20" preserveAspectRatio="none" aria-hidden="true"><path d="M4 14 C 50 4, 120 4, 196 12"/></svg></span></h1>
+      <p class="lead">Placeholder copy: the roofers, installers, estimators and owners who do the work right, take care of their people and give back to their towns.</p>
+      <div class="btn-row"><a class="btn btn-primary btn-lg" href="#nominate">Nominate someone</a><a class="btn btn-ghost btn-lg" href="#stories">Read the stories</a></div>
+    </div>
+    <div class="br-stage">
+      <div class="br-medal"><span><i class="fa-solid fa-trophy"></i>Built<br>Right</span></div>
+      <div class="br-mosaic" aria-hidden="true">
+        <div class="placeholder-photo t1 reveal">Photo: installer on a roof<span class="br-badge"><span class="mock-avatar">AB</span>Name</span></div>
+        <div class="placeholder-photo reveal" style="--d:1">Photo: team at shop</div>
+        <div class="placeholder-photo reveal" style="--d:2">Photo: apprentice</div>
+        <div class="placeholder-photo t5 reveal" style="--d:3">Photo: owner with family<span class="br-badge"><span class="mock-avatar">CD</span>Name</span></div>
+        <div class="placeholder-photo t4 reveal" style="--d:4">Photo: community build day<span class="br-badge"><span class="mock-avatar">EF</span>Team name</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section">
+  <div class="container">
+    <div class="section-head center reveal"><div class="eyebrow">What we celebrate</div><h2>Good work, done the right way.</h2></div>
+    <div class="br-values">
+      <div class="card reveal"><div class="icon"><i class="fa-solid fa-hammer"></i></div><h4>Craft</h4><p>Placeholder: work you'd put your name on.</p></div>
+      <div class="card reveal" style="--d:1"><div class="icon"><i class="fa-solid fa-user-graduate"></i></div><h4>Mentorship</h4><p>Placeholder: teaching the next generation.</p></div>
+      <div class="card reveal" style="--d:2"><div class="icon"><i class="fa-solid fa-hand-holding-heart"></i></div><h4>Community</h4><p>Placeholder: showing up for your town.</p></div>
+      <div class="card reveal" style="--d:3"><div class="icon"><i class="fa-solid fa-helmet-safety"></i></div><h4>Safety</h4><p>Placeholder: everyone goes home at night.</p></div>
+    </div>
+  </div>
+</section>
+
+<section class="section section--dark">
+  <div class="container">
+    <div class="section-head reveal"><div class="eyebrow">Spotlight</div><h2>This month's story.</h2></div>
+    <article class="br-spot reveal">
+      <div class="placeholder-photo">Photo: spotlight subject on the job</div>
+      <div class="txt">
+        <span class="pill pill--brand" style="align-self:flex-start">Mentorship</span>
+        <h3 style="font-size:clamp(24px,2.6vw,32px)">Spotlight story headline placeholder.</h3>
+        <blockquote>“Placeholder quote from the person being celebrated.”</blockquote>
+        <div class="who"><div class="mock-avatar">GH</div><div><b>Person name</b><div class="muted" style="font-size:14px">Role · Company name · Town</div></div></div>
+        <div class="btn-row" style="margin-top:8px"><a class="btn btn-primary" href="#stories">Read the story</a><a class="btn btn-glass" href="#stories"><i class="fa-solid fa-play"></i> Watch the video</a></div>
+      </div>
+    </article>
+  </div>
+</section>
+
+<section class="section" id="stories">
+  <div class="container">
+    <div class="br-bar">
+      <div class="reveal"><div class="eyebrow">Stories</div><h2 style="margin:0">The people behind the work.</h2></div>
+      <div class="br-chips">
+        <button class="br-chip on" data-cat="all">All</button>
+        <button class="br-chip" data-cat="craft">Craft</button>
+        <button class="br-chip" data-cat="mentorship">Mentorship</button>
+        <button class="br-chip" data-cat="community">Community</button>
+        <button class="br-chip" data-cat="safety">Safety</button>
+      </div>
+    </div>
+    <div class="br-grid" id="br-grid">
+      <a class="br-card reveal" data-cat="craft" href="#stories"><div class="ph"><div class="placeholder-photo">Photo: detail of finished flashing</div><span class="cat">Craft</span></div><div class="body"><h3>Story title placeholder</h3><p>One-line summary of the story.</p><div class="meta"><span class="mock-avatar">IJ</span><span><b>Person name</b> · Company</span></div></div></a>
+      <a class="br-card reveal" style="--d:1" data-cat="community" href="#stories"><div class="ph"><div class="placeholder-photo">Photo: free roof for a neighbor</div><span class="cat">Community</span></div><div class="body"><h3>Story title placeholder</h3><p>One-line summary of the story.</p><div class="meta"><span class="mock-avatar">KL</span><span><b>Team name</b> · Company</span></div></div></a>
+      <a class="br-card reveal" style="--d:2" data-cat="mentorship" href="#stories"><div class="ph"><div class="placeholder-photo">Photo: foreman with apprentice</div><span class="cat">Mentorship</span></div><div class="body"><h3>Story title placeholder</h3><p>One-line summary of the story.</p><div class="meta"><span class="mock-avatar">MN</span><span><b>Person name</b> · Company</span></div></div></a>
+      <a class="br-card reveal" data-cat="safety" href="#stories"><div class="ph"><div class="placeholder-photo">Photo: harness check at morning meeting</div><span class="cat">Safety</span></div><div class="body"><h3>Story title placeholder</h3><p>One-line summary of the story.</p><div class="meta"><span class="mock-avatar">OP</span><span><b>Person name</b> · Company</span></div></div></a>
+      <a class="br-card reveal" style="--d:1" data-cat="craft" href="#stories"><div class="ph"><div class="placeholder-photo">Photo: historic restoration</div><span class="cat">Craft</span></div><div class="body"><h3>Story title placeholder</h3><p>One-line summary of the story.</p><div class="meta"><span class="mock-avatar">QR</span><span><b>Person name</b> · Company</span></div></div></a>
+      <a class="br-card reveal" style="--d:2" data-cat="community" href="#stories"><div class="ph"><div class="placeholder-photo">Photo: storm cleanup volunteers</div><span class="cat">Community</span></div><div class="body"><h3>Story title placeholder</h3><p>One-line summary of the story.</p><div class="meta"><span class="mock-avatar">ST</span><span><b>Team name</b> · Company</span></div></div></a>
+    </div>
+  </div>
+</section>
+
+<section class="section section--soft" id="nominate">
+  <div class="container br-nom">
+    <div class="reveal">
+      <div class="eyebrow">Nominate someone</div>
+      <h2>Know someone who builds it right?</h2>
+      <p class="lead">Placeholder copy: tell us about a teammate, a sub, a mentor or a competitor who deserves the spotlight. Anyone in the trades can be nominated.</p>
+      <ol class="br-steps">
+        <li><b>Tell us who</b><span>Placeholder: a name, a company and a few lines about why.</span></li>
+        <li><b>We reach out</b><span>Placeholder: our team gets in touch to hear the story.</span></li>
+        <li><b>We tell it</b><span>Placeholder: a written story, photos and maybe a video.</span></li>
+      </ol>
+    </div>
+    <div class="br-form reveal" style="--d:1" id="br-form">
+      <form id="br-nom-form" novalidate>
+        <div class="row">
+          <div class="field"><label for="br-n">Their name</label><input id="br-n" type="text" placeholder="Full name" required></div>
+          <div class="field"><label for="br-c">Company</label><input id="br-c" type="text" placeholder="Company name"></div>
+        </div>
+        <div class="row">
+          <div class="field"><label for="br-t">Trade</label><select id="br-t"><option>Roofing</option><option>Siding &amp; exteriors</option><option>General contracting</option><option>Restoration</option><option>Other</option></select></div>
+          <div class="field"><label for="br-k">Category</label><select id="br-k"><option>Craft</option><option>Mentorship</option><option>Community</option><option>Safety</option></select></div>
+        </div>
+        <div class="field"><label for="br-w">Why they build it right</label><textarea id="br-w" placeholder="A few lines about them" required></textarea></div>
+        <div class="field"><label for="br-e">Your email</label><input id="br-e" type="email" placeholder="you@company.com" required></div>
+        <button class="btn btn-primary btn-lg" type="submit" style="width:100%">Send nomination</button>
+        <p class="muted" style="font-size:13px;margin:12px 0 0;text-align:center">Draft form: nothing is sent yet.</p>
+      </form>
+      <div class="br-thanks" role="status"><div class="ic"><i class="fa-solid fa-trophy"></i></div><h3>Thanks for the nomination!</h3><p class="muted">Placeholder: we'll be in touch if we feature their story. (Draft: nothing was sent.)</p><button class="btn btn-ghost" type="button" id="br-again">Nominate someone else</button></div>
+    </div>
+  </div>
+</section>
+
+<section class="section">
+  <div class="container">
+    <div class="cta-band reveal">
+      <h2>Built for the people who build.</h2>
+      <p class="lead" style="color:#c9ccd4;max-width:600px;margin:0 auto">FirstMate gives your people one place to measure, sell, build and get paid.</p>
+      <div class="btn-row"><a class="btn btn-primary btn-lg" href="https://app.1m8.ai/portal/signup">Sign up free</a><a class="btn btn-glass btn-lg" href="~/demo/">Book a demo</a></div>
+    </div>
+  </div>
+</section>
+
+</main>
+<div id="site-footer"></div>
+<script src="../../assets/site.js"></script>
+<script>
+(function () {
+  var cards = document.querySelectorAll('#br-grid .br-card');
+  var chips = document.querySelectorAll('.br-chip');
+  chips.forEach(function (c) {
+    c.addEventListener('click', function () {
+      var k = c.getAttribute('data-cat');
+      chips.forEach(function (x) { x.classList.toggle('on', x === c); });
+      cards.forEach(function (card) { card.classList.add('in'); card.classList.toggle('is-hidden', k !== 'all' && card.getAttribute('data-cat') !== k); });
+    });
+  });
+  var box = document.getElementById('br-form'), form = document.getElementById('br-nom-form');
+  form.addEventListener('submit', function (e) {
+    e.preventDefault();
+    var bad = Array.prototype.filter.call(form.querySelectorAll('[required]'), function (f) { return !f.value.trim() || (f.type === 'email' && f.value.indexOf('@') < 1); });
+    form.querySelectorAll('[required]').forEach(function (f) { f.style.borderColor = bad.indexOf(f) > -1 ? 'var(--brand)' : ''; });
+    if (bad.length) { bad[0].focus(); return; }
+    box.classList.add('done');
+  });
+  document.getElementById('br-again').addEventListener('click', function () { form.reset(); box.classList.remove('done'); });
+})();
+</script>
+</body>
+</html>

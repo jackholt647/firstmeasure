@@ -1,0 +1,212 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Blog — FirstMate</title>
+<meta name="description" content="Tips, playbooks and product news for roofing and exterior contractors.">
+<meta name="robots" content="noindex, nofollow">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,400..900;1,400..900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/site.css">
+<style>
+  /* Blog index (bl-) */
+  .bl-art { position: relative; overflow: hidden; background: linear-gradient(135deg, var(--a, #db0000), var(--b, #ff6a3d)); color: #fff }
+  .bl-art::before { content: ""; position: absolute; inset: 0; background: radial-gradient(60% 70% at 85% 10%, rgba(255, 255, 255, .28), transparent 65%), repeating-linear-gradient(135deg, rgba(255, 255, 255, .07) 0 2px, transparent 2px 24px) }
+  .bl-art svg { position: relative; width: 100%; height: 100%; transition: transform .6s var(--ease) }
+  .bl-art svg .s { fill: none; stroke: #fff; stroke-width: 3; stroke-linecap: round; stroke-linejoin: round }
+  .bl-art svg .f { fill: rgba(255, 255, 255, .16) }
+  .bl-art svg .f2 { fill: rgba(255, 255, 255, .32) }
+  a:hover .bl-art svg { transform: scale(1.05) translateY(-4px) }
+
+  .bl-featured { display: grid; grid-template-columns: 1.2fr 1fr; border-radius: var(--radius-lg); overflow: hidden; border: 1px solid var(--line); background: #fff; color: inherit; transition: box-shadow .3s, transform .3s var(--ease) }
+  .bl-featured:hover { box-shadow: var(--shadow-lg); transform: translateY(-4px); color: inherit }
+  .bl-featured .bl-art { min-height: 340px }
+  .bl-featured .bl-art svg { position: absolute; inset: 0 }
+  .bl-featured .txt { padding: clamp(28px, 4vw, 48px); display: flex; flex-direction: column; justify-content: center; gap: 12px }
+  .bl-featured h2 { font-size: clamp(26px, 3vw, 38px); margin: 0 }
+  .bl-featured p { color: var(--muted); margin: 0 }
+  .bl-by { display: flex; align-items: center; gap: 10px; font-size: 13px; font-weight: 600; color: var(--muted) }
+  .bl-by b { color: var(--heading) }
+  .bl-cat { align-self: flex-start; font-size: 11px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; padding: 3px 10px; border-radius: 999px; background: var(--brand-soft); color: var(--brand) }
+
+  .bl-bar { display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap; margin: 56px 0 28px }
+  .bl-chips { display: flex; flex-wrap: wrap; gap: 8px }
+  .bl-chip { appearance: none; border: 1.5px solid var(--line); background: #fff; border-radius: 999px; padding: 8px 16px; font-weight: 700; font-size: 14px; color: var(--heading); cursor: pointer; transition: background .2s, color .2s, border-color .2s }
+  .bl-chip:hover { border-color: var(--heading) }
+  .bl-chip.on { background: var(--heading); border-color: var(--heading); color: #fff }
+  .bl-search { display: flex; align-items: center; gap: 8px; padding: 8px 16px; border: 1.5px solid var(--line); border-radius: 999px; min-width: 220px }
+  .bl-search input { border: 0; outline: none; font: inherit; font-size: 14px; flex: 1; min-width: 0; background: none }
+
+  .bl-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 28px }
+  .bl-post { display: flex; flex-direction: column; color: inherit; border-radius: var(--radius); }
+  .bl-post:hover { color: inherit }
+  .bl-post .bl-art { aspect-ratio: 16 / 10; border-radius: var(--radius); box-shadow: var(--shadow-sm); transition: box-shadow .3s }
+  .bl-post:hover .bl-art { box-shadow: var(--shadow) }
+  .bl-post .txt { padding: 16px 4px 0; display: flex; flex-direction: column; gap: 8px }
+  .bl-post h3 { font-size: 19px; line-height: 1.25; margin: 0; transition: color .2s }
+  .bl-post:hover h3 { color: var(--brand) }
+  .bl-post p { font-size: 14px; color: var(--muted); margin: 0 }
+  .bl-post.is-hidden { display: none }
+  .bl-empty { display: none; text-align: center; padding: 48px; color: var(--muted); font-weight: 600 }
+
+  .bl-pages { display: flex; justify-content: center; align-items: center; gap: 6px; margin-top: 56px; flex-wrap: wrap }
+  .bl-pages a, .bl-pages span { min-width: 42px; height: 42px; padding: 0 12px; border-radius: 999px; display: inline-grid; place-items: center; font-weight: 700; font-size: 14px; color: var(--heading); border: 1.5px solid var(--line) }
+  .bl-pages a:hover { border-color: var(--heading); color: var(--heading) }
+  .bl-pages .on { background: var(--brand); border-color: var(--brand); color: #fff }
+  .bl-pages span { border-color: transparent; color: var(--muted) }
+
+  .bl-sub { display: flex; justify-content: space-between; align-items: center; gap: 24px; flex-wrap: wrap }
+  .bl-sub form { display: flex; gap: 10px; flex: 1 1 360px; max-width: 520px }
+  .bl-sub .input { flex: 1; min-width: 0; background: rgba(255, 255, 255, .06); border-color: rgba(255, 255, 255, .15); color: #fff }
+  .bl-sub .ok { display: none; color: #86efac; font-weight: 700 }
+  .bl-sub.done form { display: none } .bl-sub.done .ok { display: block }
+
+  @media (max-width: 960px) { .bl-grid { grid-template-columns: repeat(2, minmax(0, 1fr)) } .bl-featured { grid-template-columns: 1fr } .bl-featured .bl-art { min-height: 240px } }
+  @media (max-width: 640px) { .bl-grid { grid-template-columns: 1fr } .bl-search { min-width: 0; width: 100% } .bl-sub form { flex-wrap: wrap } }
+</style>
+</head>
+<body>
+<div id="site-header"></div>
+<main>
+
+<section class="page-hero" style="padding-bottom:32px">
+  <div class="container">
+    <div class="breadcrumb"><a href="~/resources/">Resources</a><span>Blog</span></div>
+    <div class="eyebrow">The FirstMate Blog</div>
+    <h1 style="max-width:820px">Field notes for contractors who run a tight ship.</h1>
+    <p class="lead">Placeholder copy: sales playbooks, production tips, measurement know-how and product news.</p>
+  </div>
+</section>
+
+<section class="section" style="padding-top:48px">
+  <div class="container">
+
+    <a class="bl-featured reveal" href="~/resources/blog/sample-post/">
+      <div class="bl-art" style="--a:#7f1d1d;--b:#db0000">
+        <svg viewBox="0 0 480 340" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+          <circle cx="380" cy="80" r="38" class="f2"/>
+          <path class="f" d="M70 300 V180 L190 90 L310 180 V300 Z"/>
+          <path class="s" d="M50 195 L190 85 L330 195"/>
+          <path class="s" d="M90 300 V182 M290 300 V182"/>
+          <path class="s" d="M100 210 H280 M110 230 H270 M120 250 H260" opacity=".5"/>
+          <rect class="s" x="165" y="235" width="50" height="65" rx="4"/>
+          <path class="s" d="M250 120 V80 H275 V140"/>
+          <path class="s" d="M20 300 H460"/>
+          <path class="s" d="M340 300 L400 210 L460 300" opacity=".6"/>
+        </svg>
+      </div>
+      <div class="txt">
+        <span class="bl-cat">Featured · Sales</span>
+        <h2>Featured article title placeholder that runs two lines</h2>
+        <p>Placeholder excerpt. A sentence or two about what the article covers and why it matters to a contractor.</p>
+        <div class="bl-by"><div class="mock-avatar">AN</div><span><b>Author name</b> · Date · 8 min read</span></div>
+        <span class="link-arrow">Read the article</span>
+      </div>
+    </a>
+
+    <div class="bl-bar">
+      <div class="bl-chips">
+        <button class="bl-chip on" data-cat="all">All</button>
+        <button class="bl-chip" data-cat="sales">Sales</button>
+        <button class="bl-chip" data-cat="production">Production</button>
+        <button class="bl-chip" data-cat="measure">Measurements</button>
+        <button class="bl-chip" data-cat="business">Running the business</button>
+        <button class="bl-chip" data-cat="product">Product updates</button>
+      </div>
+      <label class="bl-search"><i class="fa-solid fa-magnifying-glass" style="color:var(--muted)"></i><input type="search" id="bl-q" placeholder="Search articles" aria-label="Search articles"></label>
+    </div>
+
+    <div class="bl-grid" id="bl-grid">
+      <a class="bl-post reveal" data-cat="sales" href="~/resources/blog/sample-post/">
+        <div class="bl-art" style="--a:#db0000;--b:#fb923c"><svg viewBox="0 0 320 200" aria-hidden="true"><path class="f" d="M40 160 L110 110 L170 130 L280 50 V160 Z"/><path class="s" d="M40 160 L110 110 L170 130 L280 50"/><circle cx="280" cy="50" r="8" class="f2"/><path class="s" d="M30 170 H290" opacity=".5"/></svg></div>
+        <div class="txt"><span class="bl-cat">Sales</span><h3>Article title placeholder about follow-up cadence</h3><p>Short excerpt placeholder.</p><div class="bl-by"><span><b>Author name</b> · 6 min read</span></div></div>
+      </a>
+      <a class="bl-post reveal" style="--d:1" data-cat="measure" href="~/resources/blog/sample-post/">
+        <div class="bl-art" style="--a:#0f172a;--b:#475569"><svg viewBox="0 0 320 200" aria-hidden="true"><path class="f" d="M60 160 L160 60 L260 160 Z"/><path class="s" d="M60 160 L160 60 L260 160 Z"/><path class="s" d="M160 60 V160" stroke-dasharray="6 8"/><path class="s" d="M210 160 A50 50 0 0 0 225 125" opacity=".7"/><text x="232" y="140" fill="#fff" font-size="16" font-weight="800" font-family="Montserrat">6/12</text></svg></div>
+        <div class="txt"><span class="bl-cat">Measurements</span><h3>Article title placeholder about pitch and waste</h3><p>Short excerpt placeholder.</p><div class="bl-by"><span><b>Author name</b> · 5 min read</span></div></div>
+      </a>
+      <a class="bl-post reveal" style="--d:2" data-cat="production" href="~/resources/blog/sample-post/">
+        <div class="bl-art" style="--a:#1d4ed8;--b:#38bdf8"><svg viewBox="0 0 320 200" aria-hidden="true"><rect class="f" x="60" y="40" width="200" height="130" rx="12"/><path class="s" d="M60 75 H260 M110 40 V75 M160 40 V75 M210 40 V75"/><rect class="f2" x="72" y="90" width="80" height="18" rx="6"/><rect class="f2" x="140" y="118" width="100" height="18" rx="6"/><rect class="f2" x="90" y="146" width="60" height="14" rx="6"/></svg></div>
+        <div class="txt"><span class="bl-cat">Production</span><h3>Article title placeholder about scheduling the week</h3><p>Short excerpt placeholder.</p><div class="bl-by"><span><b>Author name</b> · 7 min read</span></div></div>
+      </a>
+      <a class="bl-post reveal" data-cat="business" href="~/resources/blog/sample-post/">
+        <div class="bl-art" style="--a:#15803d;--b:#a3e635"><svg viewBox="0 0 320 200" aria-hidden="true"><rect class="f2" x="70" y="110" width="34" height="60" rx="6"/><rect class="f2" x="124" y="85" width="34" height="85" rx="6"/><rect class="f2" x="178" y="60" width="34" height="110" rx="6"/><rect class="f2" x="232" y="35" width="34" height="135" rx="6"/><path class="s" d="M50 170 H290"/></svg></div>
+        <div class="txt"><span class="bl-cat">Running the business</span><h3>Article title placeholder about job costing</h3><p>Short excerpt placeholder.</p><div class="bl-by"><span><b>Author name</b> · 9 min read</span></div></div>
+      </a>
+      <a class="bl-post reveal" style="--d:1" data-cat="product" href="~/resources/blog/sample-post/">
+        <div class="bl-art" style="--a:#6d28d9;--b:#ec4899"><svg viewBox="0 0 320 200" aria-hidden="true"><path class="f" d="M160 30 L176 84 L232 84 L187 116 L204 170 L160 137 L116 170 L133 116 L88 84 L144 84 Z"/><path class="s" d="M160 30 L176 84 L232 84 L187 116 L204 170 L160 137 L116 170 L133 116 L88 84 L144 84 Z"/><circle cx="60" cy="50" r="6" class="f2"/><circle cx="270" cy="150" r="9" class="f2"/></svg></div>
+        <div class="txt"><span class="bl-cat">Product updates</span><h3>Product update title placeholder</h3><p>Short excerpt placeholder.</p><div class="bl-by"><span><b>Author name</b> · 3 min read</span></div></div>
+      </a>
+      <a class="bl-post reveal" style="--d:2" data-cat="sales" href="~/resources/blog/sample-post/">
+        <div class="bl-art" style="--a:#b45309;--b:#facc15"><svg viewBox="0 0 320 200" aria-hidden="true"><rect class="f" x="50" y="40" width="150" height="70" rx="18"/><path class="s" d="M80 110 L70 135 L105 110"/><rect class="f2" x="130" y="95" width="140" height="64" rx="18"/><path class="s" d="M75 68 H170 M75 84 H140" opacity=".7"/></svg></div>
+        <div class="txt"><span class="bl-cat">Sales</span><h3>Article title placeholder about the first call</h3><p>Short excerpt placeholder.</p><div class="bl-by"><span><b>Author name</b> · 4 min read</span></div></div>
+      </a>
+      <a class="bl-post reveal" data-cat="production" href="~/resources/blog/sample-post/">
+        <div class="bl-art" style="--a:#0f766e;--b:#2dd4bf"><svg viewBox="0 0 320 200" aria-hidden="true"><rect class="f" x="95" y="30" width="130" height="150" rx="12"/><path class="s" d="M120 70 l10 10 l18 -20 M120 110 l10 10 l18 -20 M120 150 l10 10 l18 -20"/><path class="s" d="M165 72 H200 M165 112 H200 M165 152 H190" opacity=".7"/></svg></div>
+        <div class="txt"><span class="bl-cat">Production</span><h3>Article title placeholder about checklists</h3><p>Short excerpt placeholder.</p><div class="bl-by"><span><b>Author name</b> · 5 min read</span></div></div>
+      </a>
+      <a class="bl-post reveal" style="--d:1" data-cat="business" href="~/resources/blog/sample-post/">
+        <div class="bl-art" style="--a:#111827;--b:#db0000"><svg viewBox="0 0 320 200" aria-hidden="true"><circle cx="160" cy="100" r="62" class="f"/><path class="s" d="M160 100 L160 38 A62 62 0 0 1 216 126 Z" fill="rgba(255,255,255,.32)"/><circle class="s" cx="160" cy="100" r="62"/></svg></div>
+        <div class="txt"><span class="bl-cat">Running the business</span><h3>Article title placeholder about margins</h3><p>Short excerpt placeholder.</p><div class="bl-by"><span><b>Author name</b> · 8 min read</span></div></div>
+      </a>
+      <a class="bl-post reveal" style="--d:2" data-cat="measure" href="~/resources/blog/sample-post/">
+        <div class="bl-art" style="--a:#9a3412;--b:#f97316"><svg viewBox="0 0 320 200" aria-hidden="true"><rect class="f" x="40" y="80" width="240" height="44" rx="6" transform="rotate(-12 160 102)"/><path class="s" d="M70 120 v-14 M100 114 v-22 M130 108 v-14 M160 102 v-22 M190 96 v-14 M220 90 v-22 M250 84 v-14" transform="rotate(-12 160 102) translate(0 6)"/></svg></div>
+        <div class="txt"><span class="bl-cat">Measurements</span><h3>Article title placeholder about siding takeoffs</h3><p>Short excerpt placeholder.</p><div class="bl-by"><span><b>Author name</b> · 6 min read</span></div></div>
+      </a>
+    </div>
+    <div class="bl-empty" id="bl-empty">No articles match yet.</div>
+
+    <nav class="bl-pages" aria-label="Pagination (placeholder)">
+      <a href="#bl-grid" aria-label="Previous"><i class="fa-solid fa-chevron-left"></i></a>
+      <a class="on" href="#bl-grid">1</a><a href="#bl-grid">2</a><a href="#bl-grid">3</a><span>…</span><a href="#bl-grid">8</a>
+      <a href="#bl-grid" aria-label="Next"><i class="fa-solid fa-chevron-right"></i></a>
+    </nav>
+  </div>
+</section>
+
+<section class="section--tight section section--dark">
+  <div class="container bl-sub reveal" id="bl-sub">
+    <div><h2 style="margin:0 0 6px;font-size:clamp(26px,3vw,36px)">Get new articles first.</h2><p class="muted" style="margin:0">Placeholder: one short email when something new is published.</p></div>
+    <form id="bl-form" novalidate><input class="input" type="email" placeholder="you@company.com" aria-label="Email address"><button class="btn btn-primary" type="submit">Subscribe</button></form>
+    <p class="ok" role="status"><i class="fa-solid fa-circle-check"></i> Thanks! You're subscribed. (Draft: nothing was sent.)</p>
+  </div>
+</section>
+
+<section class="section">
+  <div class="container">
+    <div class="cta-band reveal">
+      <h2>Ready to run the job in one place?</h2>
+      <div class="btn-row"><a class="btn btn-primary btn-lg" href="https://app.1m8.ai/portal/signup">Sign up free</a><a class="btn btn-glass btn-lg" href="~/demo/">Book a demo</a></div>
+    </div>
+  </div>
+</section>
+
+</main>
+<div id="site-footer"></div>
+<script src="../../assets/site.js"></script>
+<script>
+(function () {
+  var posts = document.querySelectorAll('#bl-grid .bl-post');
+  var chips = document.querySelectorAll('.bl-chip');
+  var q = document.getElementById('bl-q');
+  var cat = 'all';
+  function apply() {
+    var t = q.value.trim().toLowerCase(), n = 0;
+    posts.forEach(function (p) {
+      var ok = (cat === 'all' || p.getAttribute('data-cat') === cat) && (!t || p.textContent.toLowerCase().indexOf(t) > -1);
+      p.classList.toggle('is-hidden', !ok); p.classList.add('in'); if (ok) n++;
+    });
+    document.getElementById('bl-empty').style.display = n ? 'none' : 'block';
+  }
+  chips.forEach(function (c) { c.addEventListener('click', function () { cat = c.getAttribute('data-cat'); chips.forEach(function (x) { x.classList.toggle('on', x === c); }); apply(); }); });
+  q.addEventListener('input', apply);
+  document.getElementById('bl-form').addEventListener('submit', function (e) {
+    e.preventDefault(); var i = this.querySelector('input');
+    if (i.value.indexOf('@') < 1) { i.focus(); return; }
+    document.getElementById('bl-sub').classList.add('done');
+  });
+})();
+</script>
+</body>
+</html>

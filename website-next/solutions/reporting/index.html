@@ -1,0 +1,229 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Reports &amp; Stats — FirstMate</title>
+<meta name="description" content="Sales and production statistics, leaderboards and custom stats views built from the work your company already does in FirstMate.">
+<meta name="robots" content="noindex, nofollow">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,400..900;1,400..900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/site.css">
+<style>
+  .rep-hero .mock-main { background: #fafafb }
+  .rep-kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px }
+  .rep-kpis .mock-kpi b { font-size: 18px; display: block }
+  .rep-kpis .d { font-size: 10px; font-weight: 800; color: var(--ok) }
+  .rep-grid { display: grid; grid-template-columns: 1.2fr 1fr; gap: 10px }
+  .rep-card { background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 12px }
+  .rep-card h5 { margin: 0 0 10px; font-size: 11px; font-weight: 800; letter-spacing: 0; color: var(--heading); display: flex; justify-content: space-between }
+  .rep-card h5 span { color: var(--muted); font-weight: 700 }
+  .rep-lb { display: flex; flex-direction: column; gap: 7px }
+  .rep-lb .r { display: grid; grid-template-columns: 16px 22px 1fr; gap: 6px; align-items: center; font-size: 11px; font-weight: 700 }
+  .rep-lb .r .mock-avatar { width: 22px; height: 22px; font-size: 9px }
+  .rep-lb .r .n { display: flex; justify-content: space-between; margin-bottom: 3px }
+  .rep-lb .rank { color: var(--muted); font-weight: 800; text-align: center }
+  .rep-lb .r:first-child .rank { color: var(--warn) }
+  .rep-donut { width: 100%; max-width: 120px; margin: 0 auto; display: block }
+  .rep-donut circle { fill: none; stroke-width: 14; transform: rotate(-90deg); transform-origin: 50% 50% }
+  .rep-src { display: flex; flex-direction: column; gap: 4px; font-size: 10px; font-weight: 700; margin-top: 8px }
+  .rep-src span::before { content: ""; display: inline-block; width: 8px; height: 8px; border-radius: 2px; background: var(--c); margin-right: 6px }
+  .rep-big { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; text-align: center }
+  .rep-podium { display: grid; grid-template-columns: 1fr 1.1fr 1fr; gap: 10px; align-items: end }
+  .rep-podium .p { text-align: center; font-size: 11px; font-weight: 800 }
+  .rep-podium .p .mock-avatar { margin: 0 auto 6px; width: 34px; height: 34px; font-size: 12px }
+  .rep-podium .blk { border-radius: 10px 10px 0 0; background: linear-gradient(180deg, var(--brand-2), var(--brand)); color: #fff; display: grid; place-items: center; font-size: 20px; font-weight: 900; height: var(--h); transform: scaleY(0); transform-origin: bottom }
+  .mock.in .rep-podium .blk { animation: fm-grow-y .9s var(--ease) forwards; animation-delay: calc(var(--d, 0) * 200ms + 300ms) }
+  .chat { display: flex; flex-direction: column; gap: 10px }
+  .bubble { max-width: 85%; padding: 10px 13px; border-radius: 16px; font-size: 12px; font-weight: 600; line-height: 1.45 }
+  .bubble.me { align-self: flex-end; background: var(--brand); color: #fff; border-bottom-right-radius: 4px }
+  .bubble.ai { align-self: flex-start; background: #f1f2f4; color: var(--heading); border-bottom-left-radius: 4px }
+  @media (max-width: 640px) { .rep-kpis { grid-template-columns: 1fr 1fr } .rep-grid { grid-template-columns: 1fr } .rep-big { grid-template-columns: 1fr } }
+</style>
+</head>
+<body>
+<div id="site-header"></div>
+<main>
+  <section class="page-hero">
+    <div class="container split">
+      <div>
+        <div class="breadcrumb"><a href="~/solutions/">Solutions</a><span>Reports &amp; Stats</span></div>
+        <div class="eyebrow">Reports &amp; Stats</div>
+        <h1>Your numbers, without the spreadsheet.</h1>
+        <p class="lead">Sales and production statistics and leaderboards built from the work your team already does in FirstMate. Ask for a new view in plain words and it is built for you.</p>
+        <div class="btn-row"><a class="btn btn-primary btn-lg" href="https://app.1m8.ai/portal/signup">Sign up free</a><a class="btn btn-ghost btn-lg" href="~/demo/">Book a demo</a></div>
+      </div>
+      <div class="mock-stage rep-hero" aria-hidden="true">
+        <div class="mock">
+          <div class="mock-bar"><i></i><i></i><i></i><div class="url">Stats · Sales Overview</div></div>
+          <div class="mock-main">
+            <div style="display:flex;justify-content:space-between;align-items:center" class="fade"><div class="mock-title">Sales Overview</div><span class="mock-chip">This month</span></div>
+            <div class="rep-kpis">
+              <div class="mock-kpi slide-up" style="--d:1"><small>Leads</small><b data-count="148">0</b><span class="d">▲ vs last</span></div>
+              <div class="mock-kpi slide-up" style="--d:2"><small>Appointments</small><b data-count="96">0</b><span class="d">▲ vs last</span></div>
+              <div class="mock-kpi slide-up" style="--d:3"><small>Close rate</small><b data-count="41.5" data-suffix="%">0</b><span class="d">▲ vs last</span></div>
+              <div class="mock-kpi slide-up" style="--d:4"><small>Sold</small><b data-count="612" data-prefix="$" data-suffix="k">0</b><span class="d">▲ vs last</span></div>
+            </div>
+            <div class="rep-grid">
+              <div class="rep-card slide-up" style="--d:5">
+                <h5>Leaderboard <span>Sold</span></h5>
+                <div class="rep-lb">
+                  <div class="r"><span class="rank">1</span><span class="mock-avatar">AL</span><div><div class="n"><span>Avery Lin</span><span>$184k</span></div><div class="mock-progress"><i style="--w:100%;--d:6"></i></div></div></div>
+                  <div class="r"><span class="rank">2</span><span class="mock-avatar">SK</span><div><div class="n"><span>Sam Kowalski</span><span>$151k</span></div><div class="mock-progress"><i style="--w:82%;--d:7"></i></div></div></div>
+                  <div class="r"><span class="rank">3</span><span class="mock-avatar">MR</span><div><div class="n"><span>Maya Ruiz</span><span>$132k</span></div><div class="mock-progress"><i style="--w:72%;--d:8"></i></div></div></div>
+                  <div class="r"><span class="rank">4</span><span class="mock-avatar">TB</span><div><div class="n"><span>Theo Brooks</span><span>$97k</span></div><div class="mock-progress"><i style="--w:53%;--d:9"></i></div></div></div>
+                </div>
+              </div>
+              <div class="rep-card slide-up" style="--d:6">
+                <h5>Leads by source</h5>
+                <svg class="rep-donut pop" style="--d:7" viewBox="0 0 100 100">
+                  <circle cx="50" cy="50" r="36" stroke="#eceef1" style="stroke-dasharray:none"/>
+                  <circle cx="50" cy="50" r="36" stroke="#db0000" style="stroke-dasharray:95 226"/>
+                  <circle cx="50" cy="50" r="36" stroke="#ff7a59" style="stroke-dasharray:0 95 61 226"/>
+                  <circle cx="50" cy="50" r="36" stroke="#111827" style="stroke-dasharray:0 156 70 226"/>
+                </svg>
+                <div class="rep-src"><span style="--c:#db0000">Website forms</span><span style="--c:#ff7a59">Referrals</span><span style="--c:#111827">Canvassing</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container split">
+      <div class="reveal">
+        <div class="eyebrow">Sales statistics</div>
+        <h2>From first call to signed, every step counted.</h2>
+        <p class="lead">Leads, appointments, proposals sent, close rate and sold revenue by person, source and period, read straight from the work in the CRM.</p>
+        <ul class="feature-list"><li>By salesperson, source, branch or period</li><li>Compare to last period</li><li>Click a number to see the jobs behind it</li></ul>
+      </div>
+      <div class="mock reveal" aria-hidden="true">
+        <div class="mock-bar"><i></i><i></i><i></i><div class="url">Stats · Funnel</div></div>
+        <div class="mock-main">
+          <div class="mock-title fade">This month</div>
+          <div class="mock-row slide-up" style="--d:1"><b style="width:110px">Leads</b><div class="mock-progress" style="flex:1"><i style="--w:100%;--d:1"></i></div><b>148</b></div>
+          <div class="mock-row slide-up" style="--d:2"><b style="width:110px">Appointments</b><div class="mock-progress" style="flex:1"><i style="--w:65%;--d:2"></i></div><b>96</b></div>
+          <div class="mock-row slide-up" style="--d:3"><b style="width:110px">Proposals</b><div class="mock-progress" style="flex:1"><i style="--w:48%;--d:3"></i></div><b>71</b></div>
+          <div class="mock-row slide-up" style="--d:4"><b style="width:110px">Signed</b><div class="mock-progress" style="flex:1"><i style="--w:27%;--d:4;background:var(--ok)"></i></div><b>40</b></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section section--soft">
+    <div class="container split split--flip">
+      <div class="reveal">
+        <div class="eyebrow">Production statistics</div>
+        <h2>How much got built, and how fast.</h2>
+        <p class="lead">Jobs finished, squares and feet installed, days from signed to finished and work in progress, by team, trade or week.</p>
+        <ul class="feature-list"><li>Installed quantities from real measurements</li><li>Cycle time from signed to finished</li><li>Backlog and work in progress</li></ul>
+      </div>
+      <div class="mock reveal" aria-hidden="true">
+        <div class="mock-bar"><i></i><i></i><i></i><div class="url">Stats · Production</div></div>
+        <div class="mock-main">
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">
+            <div class="mock-kpi slide-up" style="--d:1"><small>Jobs finished</small><b data-count="37">0</b></div>
+            <div class="mock-kpi slide-up" style="--d:2"><small>Squares</small><b data-count="1184">0</b></div>
+            <div class="mock-kpi slide-up" style="--d:3"><small>Signed → done</small><b data-count="18" data-suffix=" d">0</b></div>
+          </div>
+          <div style="font-size:11px;font-weight:800">Squares installed by week</div>
+          <div class="mock-bars"><i style="--h:42%;--d:1"></i><i style="--h:58%;--d:2"></i><i style="--h:51%;--d:3"></i><i style="--h:70%;--d:4"></i><i style="--h:64%;--d:5"></i><i style="--h:80%;--d:6"></i><i style="--h:76%;--d:7"></i><i style="--h:94%;--d:8"></i><i style="--h:88%;--d:9"></i><i style="--h:100%;--d:10"></i></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section section--dark">
+    <div class="container split">
+      <div class="reveal">
+        <div class="eyebrow">Leaderboards</div>
+        <h2>A little competition, on every screen.</h2>
+        <p class="lead">Rank salespeople, estimators or production teams by whatever matters this month. Put it on the office TV or in everyone's Today screen.</p>
+        <ul class="feature-list"><li>Any measure, any period</li><li>By person, team or branch</li><li>Updates as work is recorded</li></ul>
+      </div>
+      <div class="mock mock--dark reveal" aria-hidden="true">
+        <div class="mock-bar"><i></i><i></i><i></i><div class="url">Stats · Leaderboard</div></div>
+        <div class="mock-main">
+          <div style="display:flex;justify-content:space-between;align-items:center" class="fade"><div class="mock-title" style="color:#fff">Top closers · October</div><span class="mock-chip red"><i class="fa-solid fa-trophy"></i> Live</span></div>
+          <div class="rep-podium" style="height:190px">
+            <div class="p"><span class="mock-avatar">SK</span><span style="color:#e5e7eb">Sam</span><div class="blk" style="--h:110px;--d:1;margin-top:6px">2</div></div>
+            <div class="p"><span class="mock-avatar">AL</span><span style="color:#e5e7eb">Avery</span><div class="blk" style="--h:140px;--d:2;margin-top:6px">1</div></div>
+            <div class="p"><span class="mock-avatar">MR</span><span style="color:#e5e7eb">Maya</span><div class="blk" style="--h:86px;--d:0;margin-top:6px">3</div></div>
+          </div>
+          <div class="mock-row slide-up" style="--d:8"><span class="mock-chip green">+1</span><b style="flex:1">Theo just signed Okafor</b><span style="font-weight:800">$18,900</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container split split--flip">
+      <div class="reveal">
+        <div class="eyebrow">Build with the assistant</div>
+        <h2>Ask for the view you want.</h2>
+        <p class="lead">Describe a report in plain words and the stats assistant builds the view: the widgets, the datasets behind them and the time range. Change it the same way.</p>
+        <ul class="feature-list"><li>Saved views for each team</li><li>Datasets with freshness you control</li><li>Every change can be rolled back</li></ul>
+      </div>
+      <div class="mock reveal" aria-hidden="true">
+        <div class="mock-bar"><i></i><i></i><i></i><div class="url">Stats assistant</div></div>
+        <div class="mock-main chat">
+          <div class="bubble me slide-up" style="--d:1">Show close rate by lead source for the last 90 days.</div>
+          <div class="bubble ai slide-up" style="--d:4">Added a <b>Close rate by source</b> widget to Sales Overview.</div>
+          <div class="rep-card pop" style="--d:7">
+            <h5>Close rate by source <span>90 days</span></h5>
+            <div class="mock-row" style="padding:6px 8px"><b style="width:90px;font-size:11px">Referrals</b><div class="mock-progress" style="flex:1"><i style="--w:62%;--d:8"></i></div></div>
+            <div class="mock-row" style="padding:6px 8px;margin-top:6px"><b style="width:90px;font-size:11px">Website</b><div class="mock-progress" style="flex:1"><i style="--w:41%;--d:9"></i></div></div>
+            <div class="mock-row" style="padding:6px 8px;margin-top:6px"><b style="width:90px;font-size:11px">Canvassing</b><div class="mock-progress" style="flex:1"><i style="--w:29%;--d:10"></i></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section section--soft">
+    <div class="container">
+      <div class="section-head center reveal"><div class="eyebrow">Everything included</div><h2>Reports for every seat.</h2></div>
+      <div class="grid grid-3">
+        <div class="card reveal"><div class="icon"><i class="fa-solid fa-table-columns"></i></div><h3>Custom views</h3><p>Arrange widgets the way each team works.</p></div>
+        <div class="card reveal" style="--d:1"><div class="icon"><i class="fa-solid fa-database"></i></div><h3>Datasets</h3><p>Reusable calculations behind every chart.</p></div>
+        <div class="card reveal" style="--d:2"><div class="icon"><i class="fa-solid fa-rotate"></i></div><h3>Freshness</h3><p>Know how current a number is.</p></div>
+        <div class="card reveal"><div class="icon"><i class="fa-solid fa-code-branch"></i></div><h3>By branch</h3><p>Each location sees its own numbers.</p></div>
+        <div class="card reveal" style="--d:1"><div class="icon"><i class="fa-solid fa-file-pdf"></i></div><h3>Job reports</h3><p>Job cost and payroll reports as PDF or CSV.</p></div>
+        <div class="card reveal" style="--d:2"><div class="icon"><i class="fa-solid fa-lock"></i></div><h3>Access by role</h3><p>People only see the numbers they should.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container">
+      <div class="section-head reveal"><div class="eyebrow">Connected</div><h2>Numbers from everywhere in FirstMate.</h2></div>
+      <div class="grid grid-4">
+        <a class="card reveal" href="~/solutions/crm/"><div class="icon"><i class="fa-solid fa-filter"></i></div><h3>CRM</h3><p>Leads, sources and the funnel.</p></a>
+        <a class="card reveal" style="--d:1" href="~/solutions/financials/"><div class="icon"><i class="fa-solid fa-chart-line"></i></div><h3>Financials</h3><p>Revenue and profit by job.</p></a>
+        <a class="card reveal" style="--d:2" href="~/solutions/work-orders/"><div class="icon"><i class="fa-solid fa-clipboard-list"></i></div><h3>Work Orders</h3><p>What got built and when.</p></a>
+        <a class="card reveal" style="--d:3" href="~/solutions/assistant/"><div class="icon"><i class="fa-solid fa-wand-magic-sparkles"></i></div><h3>Assistant</h3><p>Ask a question, get a view.</p></a>
+      </div>
+    </div>
+  </section>
+
+  <section class="section section--soft">
+    <div class="container container--narrow">
+      <div class="section-head center reveal"><div class="eyebrow">FAQ</div><h2>Questions about reports</h2></div>
+      <details class="faq"><summary>Do I have to set up reports myself?</summary><div>Placeholder: which views come ready-made. You can also ask the stats assistant for any view you need.</div></details>
+      <details class="faq"><summary>Where does the data come from?</summary><div>From the leads, projects, documents, payments and work your team records in FirstMate. There is nothing to import.</div></details>
+      <details class="faq"><summary>Can I export the numbers?</summary><div>Placeholder: export formats.</div></details>
+    </div>
+  </section>
+
+  <section class="section"><div class="container"><div class="cta-band">
+    <h2>See how the business is really doing.</h2>
+    <p class="lead" style="color:#c9ccd4">Sales, production and leaderboards from the first job you run.</p>
+    <div class="btn-row"><a class="btn btn-primary btn-lg" href="https://app.1m8.ai/portal/signup">Sign up free</a><a class="btn btn-glass btn-lg" href="~/demo/">Book a demo</a></div>
+  </div></div></section>
+</main>
+<div id="site-footer"></div>
+<script src="../../assets/site.js"></script>
+</body>
+</html>

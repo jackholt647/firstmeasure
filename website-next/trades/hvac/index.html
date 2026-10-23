@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>HVAC — FirstMate</title>
+<meta name="description" content="FirstMate for HVAC contractors: equipment on every property, service visit checklists, maintenance visits and payments.">
+<meta name="robots" content="noindex, nofollow">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,400..900;1,400..900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/site.css">
+<style>
+  .hv-cols { display: grid; grid-template-columns: .9fr 1.1fr; gap: 12px }
+  @media (max-width: 520px) { .hv-cols { grid-template-columns: 1fr } }
+  .hv-eq { display: flex; flex-direction: column; gap: 8px }
+  .hv-unit { border: 1px solid var(--line); border-radius: 12px; padding: 10px; background: #fff }
+  .hv-unit .top { display: flex; gap: 8px; align-items: center; margin-bottom: 6px }
+  .hv-unit .ic { width: 28px; height: 28px; border-radius: 8px; background: #dbeafe; color: #1d4ed8; display: grid; place-items: center; font-size: 12px; flex: none }
+  .hv-unit dl { display: grid; grid-template-columns: auto 1fr; gap: 2px 8px; margin: 0; font-size: 10px }
+  .hv-unit dt { color: var(--muted); font-weight: 700 } .hv-unit dd { margin: 0; font-weight: 700; text-align: right }
+  .hv-list { display: flex; flex-direction: column; gap: 6px }
+  .hv-check { display: flex; align-items: center; gap: 9px; padding: 8px 10px; border-radius: 10px; border: 1px solid var(--line); font-weight: 700; font-size: 12px; background: #fff; transition: background .3s }
+  .hv-check .box { width: 18px; height: 18px; border-radius: 6px; border: 2px solid #d1d5db; flex: none; display: grid; place-items: center; color: #fff; font-size: 10px; transition: all .3s }
+  .hv-check.done .box { background: var(--ok); border-color: var(--ok) }
+  .hv-check.done span { color: var(--muted) }
+  .hv-check em { margin-left: auto; font-style: normal; font-size: 10px; color: var(--muted); font-weight: 700; opacity: 0; transition: opacity .3s }
+  .hv-check.done em { opacity: 1 }
+  .hv-bar { height: 6px; border-radius: 3px; background: #eceef1; overflow: hidden }
+  .hv-bar i { display: block; height: 100%; width: 0; background: var(--ok); border-radius: 3px; transition: width .5s var(--ease) }
+  .hv-float { right: -8px; bottom: -10px; width: 210px; opacity: 0 }
+  .mock.in ~ .hv-float { animation: fm-pop .6s var(--ease) 2.4s forwards, fm-float 6s ease-in-out 3s infinite }
+  @media (max-width: 560px) { .hv-float { display: none } }
+  .hv-cap + .hv-cap { margin-top: clamp(64px, 8vw, 104px) }
+  .hv-hist { position: relative; padding-left: 18px; display: flex; flex-direction: column; gap: 8px }
+  .hv-hist::before { content: ""; position: absolute; left: 5px; top: 6px; bottom: 6px; width: 2px; background: var(--line) }
+  .hv-hist .mock-row { position: relative }
+  .hv-hist .mock-row::before { content: ""; position: absolute; left: -17px; top: 50%; width: 10px; height: 10px; margin-top: -5px; border-radius: 50%; background: var(--brand); border: 2px solid #fff }
+  .hv-read { display: grid; grid-template-columns: 1fr 1fr; gap: 6px }
+  .hv-read div { padding: 7px 9px; border-radius: 9px; background: var(--bg-soft); font-size: 10px; font-weight: 700; color: var(--muted) }
+  .hv-read b { display: block; font-size: 14px; color: var(--heading) }
+  .hv-sol { display: flex; gap: 14px; align-items: flex-start } .hv-sol .icon { margin: 0 !important; flex: none }
+</style>
+</head>
+<body>
+<div id="site-header"></div>
+<main>
+  <section class="page-hero">
+    <div class="container split">
+      <div>
+        <div class="breadcrumb"><a href="~/trades/">Trades</a><span>HVAC</span></div>
+        <div class="eyebrow">HVAC</div>
+        <h1>Every unit, every visit, on record.</h1>
+        <p class="lead">Keep the equipment on each property, send techs out with the right checklist, record readings and photos, and bill before the van leaves the driveway.</p>
+        <div class="btn-row"><a class="btn btn-primary btn-lg" href="https://app.1m8.ai/portal/signup">Sign up free</a><a class="btn btn-ghost btn-lg" href="~/demo/">Book a demo</a></div>
+      </div>
+      <div class="mock-stage" aria-hidden="true">
+        <div class="mock" id="hv-mock">
+          <div class="mock-bar"><i></i><i></i><i></i><div class="url">Visit · 19 Maple Ct · Fall tune-up</div></div>
+          <div class="mock-main">
+            <div style="display:flex;justify-content:space-between;align-items:center" class="fade"><div><div class="mock-title">Fall tune-up</div><div style="color:var(--muted);font-size:11px;font-weight:600">The Brennans · 19 Maple Ct</div></div><span class="mock-chip blue"><span class="pulse-dot"></span> On site</span></div>
+            <div class="hv-cols">
+              <div class="hv-eq">
+                <div class="hv-unit slide-up" style="--d:1"><div class="top"><span class="ic"><i class="fa-solid fa-fan"></i></span><b>Condenser</b></div><dl><dt>Size</dt><dd>3 ton</dd><dt>Installed</dt><dd>2016</dd><dt>Refrigerant</dt><dd>R-410A</dd></dl></div>
+                <div class="hv-unit slide-up" style="--d:2"><div class="top"><span class="ic" style="background:#fee2e2;color:var(--brand)"><i class="fa-solid fa-fire-flame-simple"></i></span><b>Furnace</b></div><dl><dt>Input</dt><dd>80k BTU</dd><dt>Filter</dt><dd>16×25×1</dd></dl></div>
+              </div>
+              <div class="hv-list fade" style="--d:3">
+                <div style="display:flex;justify-content:space-between;font-size:10px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.05em"><span>Checklist</span><span id="hv-count">0 / 6</span></div>
+                <div class="hv-bar"><i id="hv-bar"></i></div>
+                <div class="hv-check"><span class="box"><i class="fa-solid fa-check"></i></span><span>Replace filter</span><em>photo</em></div>
+                <div class="hv-check"><span class="box"><i class="fa-solid fa-check"></i></span><span>Clean condenser coil</span><em>photo</em></div>
+                <div class="hv-check"><span class="box"><i class="fa-solid fa-check"></i></span><span>Refrigerant pressures</span><em>reading</em></div>
+                <div class="hv-check"><span class="box"><i class="fa-solid fa-check"></i></span><span>Test capacitor</span><em>reading</em></div>
+                <div class="hv-check"><span class="box"><i class="fa-solid fa-check"></i></span><span>Flush drain line</span><em>done</em></div>
+                <div class="hv-check"><span class="box"><i class="fa-solid fa-check"></i></span><span>Thermostat check</span><em>done</em></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="mock-float hv-float"><div class="mock-toast"><div>Spring visit booked<div style="font-weight:600;color:var(--muted);font-size:11px">Added to the schedule</div></div></div></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section section--soft">
+    <div class="container">
+      <div class="split hv-cap">
+        <div class="reveal">
+          <div class="eyebrow">Equipment</div>
+          <h2>The property remembers what is installed.</h2>
+          <p class="lead">Record each unit with its size, age, filter and notes. Every visit, reading and photo stays with the equipment, so the next tech starts informed.</p>
+          <a class="link-arrow" href="~/solutions/work-orders/">Explore job tracking</a>
+        </div>
+        <div class="mock reveal" aria-hidden="true">
+          <div class="mock-bar"><i></i><i></i><i></i><div class="url">19 Maple Ct · Equipment</div></div>
+          <div class="mock-main">
+            <div style="display:flex;justify-content:space-between;align-items:center"><div class="mock-title">Condenser · 3 ton</div><span class="mock-chip">Installed 2016</span></div>
+            <div class="hv-hist">
+              <div class="mock-row slide-up" style="--d:1"><b style="flex:1">Fall tune-up</b><span class="mock-chip green">Today</span></div>
+              <div class="mock-row slide-up" style="--d:2"><b style="flex:1">Capacitor replaced</b><span class="mock-chip">Jul</span></div>
+              <div class="mock-row slide-up" style="--d:3"><b style="flex:1">Spring tune-up</b><span class="mock-chip">Apr</span></div>
+              <div class="mock-row slide-up" style="--d:4"><b style="flex:1">Installed</b><span class="mock-chip">2016</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="split split--flip hv-cap">
+        <div class="reveal">
+          <div class="eyebrow">Service visits</div>
+          <h2>The same visit, done right, every time.</h2>
+          <p class="lead">Build a checklist for each kind of visit with required photos and readings. Techs complete it on their phone, and the office sees it as it happens.</p>
+          <a class="link-arrow" href="~/solutions/checklists/">Explore checklists</a>
+        </div>
+        <div class="mock reveal" aria-hidden="true">
+          <div class="mock-bar"><i></i><i></i><i></i><div class="url">Checklist · Readings</div></div>
+          <div class="mock-main">
+            <div class="mock-title">Readings</div>
+            <div class="hv-read">
+              <div class="pop" style="--d:1">Suction pressure<b>118 psi</b></div>
+              <div class="pop" style="--d:2">Head pressure<b>342 psi</b></div>
+              <div class="pop" style="--d:3">Supply temp<b>56 °F</b></div>
+              <div class="pop" style="--d:4">Return temp<b>75 °F</b></div>
+            </div>
+            <div class="mock-row slide-up" style="--d:6"><i class="fa-solid fa-camera" style="color:var(--brand)"></i><b style="flex:1">Coil after cleaning</b><span class="mock-chip green">Photo added</span></div>
+            <div class="mock-row slide-up" style="--d:7"><i class="fa-solid fa-triangle-exclamation" style="color:var(--warn)"></i><b style="flex:1">Note: drain pan rusting</b><span class="mock-chip amber">Quote it</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="split hv-cap">
+        <div class="reveal">
+          <div class="eyebrow">Maintenance &amp; billing</div>
+          <h2>Book the next visit. Get paid for this one.</h2>
+          <p class="lead">Schedule seasonal tune-ups ahead, turn a tech's note into a quote, and take payment on site or online with card or bank.</p>
+          <a class="link-arrow" href="~/solutions/invoicing/">Explore invoicing</a>
+        </div>
+        <div class="mock reveal" aria-hidden="true">
+          <div class="mock-bar"><i></i><i></i><i></i><div class="url">Scheduling · Tune-ups</div></div>
+          <div class="mock-main">
+            <div class="mock-title">Upcoming maintenance</div>
+            <div class="mock-row slide-up" style="--d:1"><span class="mock-chip blue">Mar</span><b style="flex:1">Spring tune-ups</b><span class="mock-chip">48 homes</span></div>
+            <div class="mock-row slide-up" style="--d:2"><span class="mock-chip amber">Sep</span><b style="flex:1">Fall tune-ups</b><span class="mock-chip">52 homes</span></div>
+            <div class="mock-row pop" style="--d:5"><div class="mock-toast" style="flex:1">Paid on site · The Brennans</div><span>$—</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container">
+      <div class="section-head center reveal"><div class="eyebrow">Solutions for HVAC</div><h2>What HVAC teams use most.</h2></div>
+      <div class="grid grid-4">
+        <a class="card reveal hv-sol" href="~/solutions/checklists/"><div class="icon"><i class="fa-solid fa-list-check"></i></div><div><h3>Checklists</h3><p>Readings and photos.</p></div></a>
+        <a class="card reveal hv-sol" style="--d:1" href="~/solutions/scheduling/"><div class="icon"><i class="fa-solid fa-calendar-days"></i></div><div><h3>Scheduling</h3><p>Dispatch every tech.</p></div></a>
+        <a class="card reveal hv-sol" style="--d:2" href="~/solutions/invoicing/"><div class="icon"><i class="fa-solid fa-file-invoice-dollar"></i></div><div><h3>Invoicing</h3><p>Bill before you leave.</p></div></a>
+        <a class="card reveal hv-sol" style="--d:3" href="~/solutions/communications/"><div class="icon"><i class="fa-solid fa-inbox"></i></div><div><h3>Calls &amp; Texts</h3><p>On-my-way and reminders.</p></div></a>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" style="padding-top:0"><div class="container"><div class="cta-band reveal">
+    <h2>Put your service visits on FirstMate.</h2>
+    <p class="lead" style="color:#c9ccd4;max-width:600px;margin:0 auto">Sign up free and build your first visit checklist, or book a walkthrough.</p>
+    <div class="btn-row"><a class="btn btn-primary btn-lg" href="https://app.1m8.ai/portal/signup">Sign up free</a><a class="btn btn-glass btn-lg" href="~/demo/">Book a demo</a></div>
+  </div></div></section>
+</main>
+<div id="site-footer"></div>
+<script src="../../assets/site.js"></script>
+<script>
+(function () {
+  var checks = document.querySelectorAll('#hv-mock .hv-check'), bar = document.getElementById('hv-bar'), cnt = document.getElementById('hv-count'), n = 0;
+  function paint() { checks.forEach(function (c, i) { c.classList.toggle('done', i < n); }); bar.style.width = (n / checks.length * 100) + '%'; cnt.textContent = n + ' / ' + checks.length; }
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) { n = checks.length; paint(); return; }
+  paint();
+  setTimeout(function () { setInterval(function () { n = n >= checks.length ? 0 : n + 1; paint(); }, 1000); }, 1200);
+})();
+</script>
+</body>
+</html>

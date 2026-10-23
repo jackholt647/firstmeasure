@@ -1,0 +1,201 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Partners &amp; Subcontractors — FirstMate</title>
+<meta name="description" content="Connect with partner companies, offer them work, share documents, schedules and channels, and pay their invoices in FirstMate.">
+<meta name="robots" content="noindex, nofollow">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,400..900;1,400..900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/site.css">
+<style>
+  .pt-hand { display: grid; grid-template-columns: 1fr 90px 1fr; align-items: center; padding: 20px; background: #fafafb; gap: 0 }
+  .pt-co { background: #fff; border: 1px solid var(--line); border-radius: 14px; padding: 12px; display: flex; flex-direction: column; gap: 8px; min-width: 0 }
+  .pt-co-head { display: flex; align-items: center; gap: 8px; font-weight: 800; font-size: 12px }
+  .pt-co-head i.lg { width: 28px; height: 28px; border-radius: 8px; display: grid; place-items: center; color: #fff; font-size: 12px; flex: none }
+  .pt-co-head small { display: block; font-size: 10px; color: var(--muted); font-weight: 600 }
+  .pt-wire { position: relative; height: 70px }
+  .pt-wire::before { content: ""; position: absolute; left: 0; right: 0; top: 50%; border-top: 2px dashed #d1d5db }
+  .pt-packet { position: absolute; top: 50%; left: 0; width: 30px; height: 30px; margin-top: -15px; border-radius: 9px; background: var(--brand); color: #fff; display: grid; place-items: center; font-size: 12px; box-shadow: 0 6px 16px rgba(219, 0, 0, .35); opacity: 0 }
+  .pt-packet.back { background: var(--ok); box-shadow: 0 6px 16px rgba(22, 163, 74, .35) }
+  .mock.in .pt-packet { animation: pt-go 4s var(--ease) infinite }
+  .mock.in .pt-packet.back { animation: pt-back 4s var(--ease) 2s infinite }
+  @keyframes pt-go { 0% { left: 0; opacity: 0 } 10% { opacity: 1 } 45% { left: calc(100% - 30px); opacity: 1 } 50%, 100% { left: calc(100% - 30px); opacity: 0 } }
+  @keyframes pt-back { 0% { left: calc(100% - 30px); opacity: 0 } 10% { opacity: 1 } 45% { left: 0; opacity: 1 } 50%, 100% { left: 0; opacity: 0 } }
+  .pt-state { font-size: 11px; font-weight: 700; display: flex; justify-content: space-between; gap: 6px; align-items: center }
+  .pt-state .mock-chip { transition: all .3s }
+  @media (max-width: 640px) {
+    .pt-hand { grid-template-columns: 1fr; padding: 14px }
+    .pt-wire { height: 64px; width: 30px; margin: 0 auto }
+    .pt-wire::before { left: 50%; right: auto; top: 0; bottom: 0; border-top: 0; border-left: 2px dashed #d1d5db }
+    .pt-packet { left: 0 !important; top: 0 }
+    .mock.in .pt-packet { animation-name: pt-go-v } .mock.in .pt-packet.back { animation-name: pt-back-v }
+    @keyframes pt-go-v { 0% { top: 0; opacity: 0 } 10% { opacity: 1 } 45% { top: calc(100% - 15px); opacity: 1 } 50%, 100% { opacity: 0 } }
+    @keyframes pt-back-v { 0% { top: calc(100% - 15px); opacity: 0 } 10% { opacity: 1 } 45% { top: 15px; opacity: 1 } 50%, 100% { opacity: 0 } }
+  }
+  .pt-tabs { display: flex; gap: 6px; flex-wrap: wrap }
+  .pt-tabs span { padding: 5px 11px; border-radius: 999px; font-size: 11px; font-weight: 700; background: #f3f4f6; color: #4b5563 }
+  .pt-tabs span.on { background: var(--heading); color: #fff }
+  .pt-qr { width: 92px; height: 92px; border-radius: 10px; flex: none; background:
+    conic-gradient(from 90deg at 30% 30%, #111 25%, transparent 0) 0 0/18px 18px, #fff; border: 6px solid #fff; outline: 1px solid var(--line) }
+</style>
+</head>
+<body>
+<div id="site-header"></div>
+<main>
+  <section class="page-hero">
+    <div class="container split">
+      <div>
+        <div class="breadcrumb"><a href="~/solutions/">Solutions</a><span>Partners &amp; Subcontractors</span></div>
+        <div class="eyebrow">Partners &amp; Subcontractors</div>
+        <h1>Hand off work to another company without losing the thread.</h1>
+        <p class="lead">Connect with the companies you work alongside. Offer them work, share the documents, schedule and photos they need, talk in a shared channel and pay their invoices, each company in its own FirstMate.</p>
+        <div class="btn-row"><a class="btn btn-primary btn-lg" href="https://app.1m8.ai/portal/signup">Sign up free</a><a class="btn btn-ghost btn-lg" href="~/demo/">Book a demo</a></div>
+      </div>
+      <div class="mock-stage" aria-hidden="true">
+        <div class="mock">
+          <div class="mock-bar"><i></i><i></i><i></i><div class="url">Partners · Shared work</div></div>
+          <div class="pt-hand">
+            <div class="pt-co slide-up" style="--d:1">
+              <div class="pt-co-head"><i class="lg" style="background:var(--brand)"><i class="fa-solid fa-house-chimney"></i></i><div>Your company<small>Shared by us</small></div></div>
+              <div class="mock-row" style="padding:8px"><b style="flex:1;font-size:11px">1482 Ridgeview Dr · Gutters</b></div>
+              <div class="pt-state"><span>Offer work</span><span class="mock-chip blue" id="pt-a">Sent</span></div>
+            </div>
+            <div class="pt-wire"><div class="pt-packet"><i class="fa-solid fa-briefcase"></i></div><div class="pt-packet back"><i class="fa-solid fa-check"></i></div></div>
+            <div class="pt-co slide-up" style="--d:3">
+              <div class="pt-co-head"><i class="lg" style="background:var(--info)"><i class="fa-solid fa-handshake"></i></i><div>Partner company<small>Shared with us</small></div></div>
+              <div class="mock-row" style="padding:8px"><b style="flex:1;font-size:11px">Gutter install · 214 ft</b></div>
+              <div class="pt-state"><span>Response</span><span class="mock-chip amber" id="pt-b">Awaiting</span></div>
+            </div>
+          </div>
+          <div class="mock-main" style="padding-top:4px">
+            <div class="mock-row slide-up" style="--d:5"><i class="fa-solid fa-file-lines" style="color:var(--muted)"></i><b style="flex:1;font-size:12px">Documents · Full Exterior report</b><span class="mock-chip">Can view</span></div>
+            <div class="mock-row slide-up" style="--d:6"><i class="fa-solid fa-calendar-days" style="color:var(--muted)"></i><b style="flex:1;font-size:12px">Shared schedule · Wed, Oct 28</b><span class="mock-chip">Can view and edit</span></div>
+            <div class="mock-row slide-up" style="--d:7"><i class="fa-solid fa-comments" style="color:var(--muted)"></i><b style="flex:1;font-size:12px">Shared channel</b><span class="mock-chip green"><span class="pulse-dot"></span> 2 new</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container">
+      <div class="split" style="margin-bottom:clamp(64px,9vw,120px)">
+        <div class="reveal">
+          <div class="eyebrow">Connect</div>
+          <h2>Invite a partner in a minute.</h2>
+          <p class="lead">Send an invitation link, email or QR code. Once they accept, they appear in Your connected organizations, and you choose what each one can see.</p>
+          <ul class="feature-list"><li>Invitation link, email or QR code</li><li>Accept or decline connections</li><li>Privacy settings for names and emails</li></ul>
+        </div>
+        <div class="mock" aria-hidden="true">
+          <div class="mock-bar"><i></i><i></i><i></i><div class="url">Partners · Invitations</div></div>
+          <div class="mock-main">
+            <div class="mock-title">Create invitation</div>
+            <div style="display:flex;gap:14px;align-items:center;--d:1" class="fade">
+              <div class="pt-qr pop" style="--d:2"></div>
+              <div style="flex:1;display:flex;flex-direction:column;gap:8px;min-width:0">
+                <div class="mock-row" style="padding:8px;font-size:11px;color:var(--muted);font-weight:600;overflow:hidden;white-space:nowrap">app.1m8.ai/partners/invite/…</div>
+                <div style="display:flex;gap:6px;flex-wrap:wrap"><span class="mock-btn">Copy link</span><span class="mock-chip">Send invitation email</span></div>
+              </div>
+            </div>
+            <div class="mock-row slide-up" style="--d:4"><div class="mock-avatar" style="background:linear-gradient(135deg,#93c5fd,#2563eb)">PC</div><b style="flex:1">Partner company</b><span class="mock-chip green">Connected</span></div>
+            <div class="mock-row slide-up" style="--d:5"><div class="mock-avatar" style="background:linear-gradient(135deg,#c4b5fd,#7c3aed)">SC</div><b style="flex:1">Siding company</b><span class="mock-chip amber">Link opened</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="split split--flip" style="margin-bottom:clamp(64px,9vw,120px)">
+        <div class="reveal">
+          <div class="eyebrow">Outside companies as assignees</div>
+          <h2>Schedule a partner like anyone on your team.</h2>
+          <p class="lead">An outside company is an assignee. Put it on a work order, a scope step or the schedule, and the same staffing warnings and double-booking checks apply.</p>
+          <a class="link-arrow" href="~/solutions/scheduling/">Explore scheduling</a>
+        </div>
+        <div class="mock" aria-hidden="true">
+          <div class="mock-bar"><i></i><i></i><i></i><div class="url">Scheduling · Week</div></div>
+          <div class="mock-main">
+            <div class="mock-title">This week</div>
+            <div class="mock-row slide-left" style="--d:1"><div class="mock-avatar">JR</div><b style="flex:1">Install team A</b><span class="mock-chip red">Roof · Tue–Thu</span></div>
+            <div class="mock-row slide-left" style="--d:2;border-color:var(--info)"><div class="mock-avatar" style="background:linear-gradient(135deg,#93c5fd,#2563eb)">PC</div><b style="flex:1">Partner company <span class="mock-chip blue" style="margin-left:4px">Outside company</span></b><span class="mock-chip blue">Gutters · Wed</span></div>
+            <div class="mock-row slide-left" style="--d:3"><div class="mock-avatar">MK</div><b style="flex:1">Service tech</b><span class="mock-chip">Repair · Fri</span></div>
+            <div class="mock-row pop" style="--d:6;background:#fffbeb;border-color:#fde68a"><i class="fa-solid fa-triangle-exclamation" style="color:var(--warn)"></i><span style="font-size:12px;font-weight:700">Partner company is booked on another job Wed afternoon</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="split">
+        <div class="reveal">
+          <div class="eyebrow">Sign and pay</div>
+          <h2>Paperwork and payment, across the line.</h2>
+          <p class="lead">Partners review and sign documents you share. Their invoices arrive on the shared work, and you pay through FirstMate payments or record an external payment.</p>
+        </div>
+        <div class="mock" aria-hidden="true">
+          <div class="mock-bar"><i></i><i></i><i></i><div class="url">Partners · Partner company</div></div>
+          <div class="mock-main">
+            <div class="pt-tabs fade"><span>Work</span><span>Documents</span><span>Messages</span><span class="on">Payments</span></div>
+            <div class="mock-row slide-up" style="--d:2"><i class="fa-solid fa-file-invoice-dollar" style="color:var(--brand)"></i><b style="flex:1">Invoice · Gutter install</b><span class="mock-btn">Pay partner invoice</span></div>
+            <div class="mock-row slide-up" style="--d:3"><i class="fa-solid fa-file-signature" style="color:var(--ok)"></i><b style="flex:1">Subcontract agreement</b><span class="mock-chip green">Signed</span></div>
+            <div class="mock-row slide-up" style="--d:4"><i class="fa-solid fa-receipt" style="color:var(--muted)"></i><b style="flex:1">Recorded payments</b><span class="mock-chip">Paid on Oct 14</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section section--dark">
+    <div class="container">
+      <div class="section-head center reveal"><div class="eyebrow">What you can share</div><h2>Only what the job needs.</h2></div>
+      <div class="grid grid-3">
+        <div class="card reveal"><div class="icon"><i class="fa-solid fa-briefcase"></i></div><h3>Work</h3><p>Offer work and see who accepted it.</p></div>
+        <div class="card reveal" style="--d:1"><div class="icon"><i class="fa-solid fa-file-lines"></i></div><h3>Documents</h3><p>Reports, contracts and plans, with view or edit access.</p></div>
+        <div class="card reveal" style="--d:2"><div class="icon"><i class="fa-solid fa-calendar-days"></i></div><h3>Shared schedule</h3><p>Both companies see the same dates.</p></div>
+        <div class="card reveal"><div class="icon"><i class="fa-solid fa-camera"></i></div><h3>Photos</h3><p>Jobsite photos from both sides in one place.</p></div>
+        <div class="card reveal" style="--d:1"><div class="icon"><i class="fa-solid fa-comments"></i></div><h3>Shared channel</h3><p>Message the partner's people directly.</p></div>
+        <div class="card reveal" style="--d:2"><div class="icon"><i class="fa-solid fa-user-shield"></i></div><h3>Privacy settings</h3><p>Choose whether participant names and emails are disclosed.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container">
+      <div class="section-head reveal"><div class="eyebrow">Connected</div><h2>Works with the rest of FirstMate.</h2></div>
+      <div class="grid grid-4">
+        <a class="card reveal" href="~/solutions/work-orders/"><div class="icon"><i class="fa-solid fa-clipboard-list"></i></div><h3>Work Orders</h3><p>Assign lines to a partner.</p></a>
+        <a class="card reveal" style="--d:1" href="~/solutions/scheduling/"><div class="icon"><i class="fa-solid fa-calendar-days"></i></div><h3>Scheduling</h3><p>Partners on the calendar.</p></a>
+        <a class="card reveal" style="--d:2" href="~/solutions/channels/"><div class="icon"><i class="fa-solid fa-comments"></i></div><h3>Team Channels</h3><p>Shared channels.</p></a>
+        <a class="card reveal" style="--d:3" href="~/solutions/payroll/"><div class="icon"><i class="fa-solid fa-money-check-dollar"></i></div><h3>Payroll &amp; Pay</h3><p>Pay sheets for partners.</p></a>
+      </div>
+    </div>
+  </section>
+
+  <section class="section section--soft">
+    <div class="container container--narrow">
+      <div class="section-head center reveal"><h2>Questions</h2></div>
+      <details class="faq"><summary>Does my partner need FirstMate?</summary><div>Connected partners each work in their own FirstMate organization. Placeholder: confirm how partners without an account join.</div></details>
+      <details class="faq"><summary>Can a partner see my whole project?</summary><div>No. They see only the items you share with them, with the access you choose, and you can revoke it any time.</div></details>
+      <details class="faq"><summary>Can I schedule a subcontractor that isn't connected?</summary><div>Yes. Add them as an outside company and assign work to them like any other assignee.</div></details>
+    </div>
+  </section>
+
+  <section class="section"><div class="container"><div class="cta-band">
+    <h2>Bring your partners into the job.</h2>
+    <p class="lead" style="color:#c9ccd4">Send your first invitation today.</p>
+    <div class="btn-row"><a class="btn btn-primary btn-lg" href="https://app.1m8.ai/portal/signup">Sign up free</a><a class="btn btn-glass btn-lg" href="~/demo/">Book a demo</a></div>
+  </div></div></section>
+</main>
+<div id="site-footer"></div>
+<script src="../../assets/site.js"></script>
+<script>
+(function () {
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  var a = document.getElementById('pt-a'), b = document.getElementById('pt-b'), on = false;
+  setInterval(function () {
+    on = !on;
+    a.textContent = on ? 'Accepted' : 'Sent'; a.className = 'mock-chip ' + (on ? 'green' : 'blue');
+    b.textContent = on ? 'Accepted' : 'Awaiting'; b.className = 'mock-chip ' + (on ? 'green' : 'amber');
+  }, 2000);
+})();
+</script>
+</body>
+</html>

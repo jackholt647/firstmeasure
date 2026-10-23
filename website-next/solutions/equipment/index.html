@@ -1,0 +1,177 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Equipment — FirstMate</title>
+<meta name="description" content="Track trucks, trailers and tools in FirstMate: who has what, where it's scheduled, and when it's due for service.">
+<meta name="robots" content="noindex, nofollow">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,400..900;1,400..900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/site.css">
+<style>
+  .eq-unit { width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; color: #fff; font-size: 14px; flex: none }
+  .eq-name { flex: 1; min-width: 0 }
+  .eq-name b { display: block; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
+  .eq-name small { display: block; color: var(--muted); font-size: 10px; font-weight: 600 }
+  .eq-alert { opacity: 0 }
+  .mock.in .eq-alert { animation: fm-pop .6s var(--ease) forwards, eq-glow 2s ease-in-out infinite; animation-delay: calc(var(--d, 0) * 120ms), calc(var(--d, 0) * 120ms + .6s) }
+  @keyframes eq-glow { 50% { box-shadow: 0 0 0 4px rgba(219, 0, 0, .12) } }
+  .eq-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap }
+  .eq-filters { display: flex; gap: 6px; flex-wrap: wrap }
+  .eq-f1 { right: -4px; bottom: -6px; width: 220px; opacity: 0 }
+  .mock.in ~ .eq-f1 { animation: fm-pop .6s var(--ease) 2.2s forwards, fm-float 6s ease-in-out 3s infinite }
+  @media (max-width: 560px) { .eq-f1 { display: none } }
+  .eq-cal { display: grid; grid-template-columns: 90px repeat(5, 1fr); gap: 4px; font-size: 10px; font-weight: 700 }
+  .eq-cal > div { min-height: 26px; border-radius: 6px; display: flex; align-items: center; padding: 0 6px }
+  .eq-cal .h { color: var(--muted); justify-content: center }
+  .eq-cal .n { color: var(--heading); padding: 0 }
+  .eq-cal .b { color: #fff; transform-origin: left }
+  .mock .eq-cal .b { transform: scaleX(0) } .mock.in .eq-cal .b { animation: fm-grow-x .8s var(--ease) forwards; animation-delay: calc(var(--d, 0) * 120ms) }
+  @media (max-width: 520px) { .eq-cal { grid-template-columns: 70px repeat(5, 1fr) } .eq-cal .b { font-size: 0 } }
+</style>
+</head>
+<body>
+<div id="site-header"></div>
+<main>
+  <section class="page-hero">
+    <div class="container split">
+      <div>
+        <div class="breadcrumb"><a href="~/solutions/">Solutions</a><span>Equipment</span></div>
+        <div class="eyebrow">Equipment</div>
+        <h1>Every truck, trailer and tool, accounted for.</h1>
+        <p class="lead">Know what you own, where it is, who's using it and when it's due for service. Equipment books on the schedule like your people do, so nothing gets double-booked.</p>
+        <div class="btn-row"><a class="btn btn-primary btn-lg" href="https://app.1m8.ai/portal/signup">Sign up free</a><a class="btn btn-ghost btn-lg" href="~/demo/">Book a demo</a></div>
+      </div>
+      <div class="mock-stage" aria-hidden="true">
+        <div class="mock">
+          <div class="mock-bar"><i></i><i></i><i></i><div class="url">app.1m8.ai/portal · Equipment</div></div>
+          <div class="mock-body">
+            <div class="mock-side">
+              <img class="logo" src="../../assets/img/logo_black.png" alt="" style="height:22px;width:auto">
+              <div class="mock-nav on">Fleet</div><div class="mock-nav">Equipment Types</div><div class="mock-nav">Facilities</div><div class="mock-nav">Maintenance</div>
+            </div>
+            <div class="mock-main">
+              <div class="eq-head fade"><div class="mock-title">Fleet</div><div class="eq-filters"><span class="mock-chip">All types</span><span class="mock-chip">Any status</span></div></div>
+              <div class="mock-row slide-up" style="--d:1"><span class="eq-unit" style="background:#db0000"><i class="fa-solid fa-truck-pickup"></i></span><div class="eq-name"><b>Truck 04 · F-250</b><small>Home facility · Main yard</small></div><span class="mock-chip blue">In Use</span></div>
+              <div class="mock-row slide-up" style="--d:2"><span class="eq-unit" style="background:#2563eb"><i class="fa-solid fa-trailer"></i></span><div class="eq-name"><b>Dump trailer 2</b><small>Reserved for 1482 Ridgeview Dr</small></div><span class="mock-chip violet">Reserved</span></div>
+              <div class="mock-row eq-alert" style="--d:4;border-color:var(--brand)"><span class="eq-unit" style="background:#111827"><i class="fa-solid fa-truck"></i></span><div class="eq-name"><b>Box truck 01</b><small style="color:var(--brand)">Oil change · Due soon</small></div><span class="mock-chip red"><i class="fa-solid fa-wrench"></i> Due soon</span></div>
+              <div class="mock-row slide-up" style="--d:5"><span class="eq-unit" style="background:#16a34a"><i class="fa-solid fa-ladder-water"></i></span><div class="eq-name"><b>Ladder lift</b><small>Nothing due</small></div><span class="mock-chip green">Available</span></div>
+              <div class="mock-row slide-up" style="--d:6"><span class="eq-unit" style="background:#6b7280"><i class="fa-solid fa-plug"></i></span><div class="eq-name"><b>Generator 3</b><small>Condition notes · cord frayed</small></div><span class="mock-chip amber">Down</span></div>
+            </div>
+          </div>
+        </div>
+        <div class="mock-float eq-f1"><div style="display:flex;gap:10px;align-items:center"><i class="fa-solid fa-triangle-exclamation" style="color:var(--brand);font-size:18px"></i><div>Equipment conflict<div style="font-weight:600;color:var(--muted);font-size:11px">Dump trailer 2 is booked Tue</div></div></div></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container">
+      <div class="split" style="margin-bottom:clamp(64px,9vw,120px)">
+        <div class="reveal">
+          <div class="eyebrow">Scheduling</div>
+          <h2>Book equipment with the job.</h2>
+          <p class="lead">Add a trailer or lift to a schedule event alongside the people on it. If it's already booked or down for service, you see the conflict before you save.</p>
+          <a class="link-arrow" href="~/solutions/scheduling/">Explore scheduling</a>
+        </div>
+        <div class="mock" aria-hidden="true">
+          <div class="mock-bar"><i></i><i></i><i></i><div class="url">Scheduling · Equipment</div></div>
+          <div class="mock-main">
+            <div class="mock-title">This week</div>
+            <div class="eq-cal">
+              <div></div><div class="h">Mon</div><div class="h">Tue</div><div class="h">Wed</div><div class="h">Thu</div><div class="h">Fri</div>
+              <div class="n">Truck 04</div><div class="b" style="grid-column:span 3;background:var(--brand);--d:1">Ridgeview Dr</div><div></div><div class="b" style="background:var(--info);--d:2">Repair</div>
+              <div class="n">Trailer 2</div><div></div><div class="b" style="grid-column:span 2;background:var(--violet);--d:3">Ridgeview Dr</div><div class="b" style="grid-column:span 2;background:#9ca3af;--d:4">Maint.</div>
+              <div class="n">Ladder lift</div><div class="b" style="background:var(--ok);--d:5">Oak St</div><div></div><div></div><div class="b" style="grid-column:span 2;background:var(--ok);--d:6">Pine Ave</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="split split--flip" style="margin-bottom:clamp(64px,9vw,120px)">
+        <div class="reveal">
+          <div class="eyebrow">Upkeep</div>
+          <h2>Service before it breaks down.</h2>
+          <p class="lead">Set a service program for each type of equipment. FirstMate tells you what's due soon, opens a work order, and keeps the unit off the schedule while it's in the shop.</p>
+          <ul class="feature-list"><li>Service programs per equipment type</li><li>Maintenance work orders and downtime</li><li>Condition notes and photos</li></ul>
+        </div>
+        <div class="mock" aria-hidden="true">
+          <div class="mock-bar"><i></i><i></i><i></i><div class="url">Equipment · Box truck 01 · Maintenance</div></div>
+          <div class="mock-main">
+            <div class="mock-title">Service Program</div>
+            <div class="mock-row slide-up" style="--d:1"><i class="fa-solid fa-oil-can" style="color:var(--brand)"></i><b style="flex:1">Oil change</b><div class="mock-progress" style="width:80px"><i style="--w:92%;--d:1;background:var(--brand)"></i></div><span class="mock-chip red">Due soon</span></div>
+            <div class="mock-row slide-up" style="--d:2"><i class="fa-solid fa-circle-dot" style="color:var(--muted)"></i><b style="flex:1">Tire rotation</b><div class="mock-progress" style="width:80px"><i style="--w:55%;--d:2;background:var(--warn)"></i></div><span class="mock-chip">In 2 months</span></div>
+            <div class="mock-row slide-up" style="--d:3"><i class="fa-solid fa-clipboard-check" style="color:var(--muted)"></i><b style="flex:1">Annual inspection</b><div class="mock-progress" style="width:80px"><i style="--w:20%;--d:3;background:var(--ok)"></i></div><span class="mock-chip green">Nothing due</span></div>
+            <div class="mock-row pop" style="--d:7"><div class="mock-toast" style="flex:1">Work order opened · Oil change</div></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="split">
+        <div class="reveal">
+          <div class="eyebrow">Utilization</div>
+          <h2>See what earns its keep.</h2>
+          <p class="lead">Utilization shows how often each unit is booked, so you know when to buy, rent or retire.</p>
+        </div>
+        <div class="mock" aria-hidden="true">
+          <div class="mock-bar"><i></i><i></i><i></i><div class="url">Equipment · Utilization</div></div>
+          <div class="mock-main">
+            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">
+              <div class="mock-kpi slide-up" style="--d:1"><small>Units</small><b>24</b></div>
+              <div class="mock-kpi slide-up" style="--d:2"><small>In Use</small><b>15</b></div>
+              <div class="mock-kpi slide-up" style="--d:3"><small>Down</small><b>2</b></div>
+            </div>
+            <div class="mock-bars"><i style="--h:70%;--d:1"></i><i style="--h:85%;--d:2"></i><i style="--h:40%;--d:3"></i><i style="--h:92%;--d:4"></i><i style="--h:60%;--d:5"></i><i style="--h:30%;--d:6"></i><i style="--h:78%;--d:7"></i><i style="--h:66%;--d:8"></i></div>
+            <div class="muted" style="font-size:11px;font-weight:600">Sample data</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section section--soft">
+    <div class="container">
+      <div class="section-head center reveal"><div class="eyebrow">Built in</div><h2>The details that keep a fleet running.</h2></div>
+      <div class="grid grid-3">
+        <div class="card reveal"><div class="icon"><i class="fa-solid fa-tags"></i></div><h3>Equipment types</h3><p>Your own types, icons and colors, from trucks to measuring tools.</p></div>
+        <div class="card reveal" style="--d:1"><div class="icon"><i class="fa-solid fa-warehouse"></i></div><h3>Facilities</h3><p>Home facilities with addresses and access instructions.</p></div>
+        <div class="card reveal" style="--d:2"><div class="icon"><i class="fa-solid fa-id-card"></i></div><h3>Driver requirements</h3><p>Require a valid driver's license or CDL class per unit.</p></div>
+        <div class="card reveal"><div class="icon"><i class="fa-solid fa-file-contract"></i></div><h3>Owned, leased or rented</h3><p>Purchase, lease and rental details on every unit.</p></div>
+        <div class="card reveal" style="--d:1"><div class="icon"><i class="fa-solid fa-car"></i></div><h3>Vehicle details</h3><p>Make, model and license plate in one place.</p></div>
+        <div class="card reveal" style="--d:2"><div class="icon"><i class="fa-solid fa-camera"></i></div><h3>Pickup condition</h3><p>Photos and notes when a unit goes out and comes back.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container">
+      <div class="section-head reveal"><div class="eyebrow">Connected</div><h2>Part of how the job runs.</h2></div>
+      <div class="grid grid-4">
+        <a class="card reveal" href="~/solutions/scheduling/"><div class="icon"><i class="fa-solid fa-calendar-days"></i></div><h3>Scheduling</h3><p>Book units with people.</p></a>
+        <a class="card reveal" style="--d:1" href="~/solutions/work-orders/"><div class="icon"><i class="fa-solid fa-clipboard-list"></i></div><h3>Work Orders</h3><p>What each job needs.</p></a>
+        <a class="card reveal" style="--d:2" href="~/solutions/crew-management/"><div class="icon"><i class="fa-solid fa-helmet-safety"></i></div><h3>Crew Management</h3><p>Who's driving what.</p></a>
+        <a class="card reveal" style="--d:3" href="~/solutions/financials/"><div class="icon"><i class="fa-solid fa-chart-line"></i></div><h3>Job Costing</h3><p>Equipment on the job.</p></a>
+      </div>
+    </div>
+  </section>
+
+  <section class="section section--soft">
+    <div class="container container--narrow">
+      <div class="section-head center reveal"><h2>Questions</h2></div>
+      <details class="faq"><summary>What counts as equipment?</summary><div>Anything you schedule or maintain: vehicles, trailers, lifts, generators, measuring tools. You define the types.</div></details>
+      <details class="faq"><summary>Does equipment show on the schedule?</summary><div>Yes. Equipment is a resource on schedule events, and conflicts are flagged before you save.</div></details>
+      <details class="faq"><summary>Can I track rented equipment?</summary><div>Yes. Each unit can carry purchase, lease or rental details.</div></details>
+    </div>
+  </section>
+
+  <section class="section"><div class="container"><div class="cta-band">
+    <h2>Put your fleet on the schedule.</h2>
+    <p class="lead" style="color:#c9ccd4">Add your first unit in a minute.</p>
+    <div class="btn-row"><a class="btn btn-primary btn-lg" href="https://app.1m8.ai/portal/signup">Sign up free</a><a class="btn btn-glass btn-lg" href="~/demo/">Book a demo</a></div>
+  </div></div></section>
+</main>
+<div id="site-footer"></div>
+<script src="../../assets/site.js"></script>
+</body>
+</html>

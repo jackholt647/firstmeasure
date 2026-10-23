@@ -1,0 +1,280 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Franchises &amp; Networks — FirstMate</title>
+<meta name="description" content="FirstMate for franchises and contractor networks: shared templates, partner work, one brand across locations and roll-up reporting.">
+<meta name="robots" content="noindex, nofollow">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,400..900;1,400..900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/site.css">
+<style>
+  /* Shared who-we-serve styles (wws-) */
+  .wws-bare { background: transparent; box-shadow: none; border: 0; overflow: visible }
+  .wws-fix { margin-top: 16px; padding-top: 14px; border-top: 1px dashed var(--line); font-size: 14px; font-weight: 700; color: var(--heading); display: flex; gap: 8px; align-items: flex-start }
+  .wws-fix i { color: var(--brand); margin-top: 3px }
+  .wws-sol { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px }
+  .wws-sol a { display: flex; gap: 14px; align-items: flex-start; padding: 20px; border: 1px solid var(--line); border-radius: var(--radius); background: #fff; color: var(--heading); transition: transform .25s var(--ease), box-shadow .25s, border-color .25s }
+  .wws-sol a:hover { border-color: var(--brand); transform: translateY(-3px); box-shadow: var(--shadow); color: var(--heading) }
+  .wws-sol a > i { width: 42px; height: 42px; border-radius: 12px; background: var(--brand-soft); color: var(--brand); display: grid; place-items: center; flex: none; font-size: 17px }
+  .wws-sol b { display: block; font-weight: 800; line-height: 1.3 }
+  .wws-sol small { display: block; color: var(--muted); font-size: 14px; font-weight: 500; margin-top: 2px }
+  .wws-sol a.top { border-color: #ffd5d5; background: linear-gradient(180deg, #fff, #fff8f8) }
+  .wws-sol .tag { display: inline-block; margin-top: 8px; font-size: 11px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--brand) }
+  @media (max-width: 960px) { .wws-sol { grid-template-columns: 1fr 1fr } }
+  @media (max-width: 640px) { .wws-sol { grid-template-columns: 1fr } }
+  .wws-story { display: grid; grid-template-columns: 1fr 1.15fr; gap: clamp(28px, 5vw, 64px); align-items: center }
+  .wws-story .placeholder-photo { min-height: 340px; background: repeating-linear-gradient(135deg, #1b1d23 0 14px, #20232a 14px 28px); border-color: rgba(255,255,255,.15); color: #8b909c }
+  .wws-quote { font-size: clamp(20px, 2.2vw, 27px); font-weight: 700; color: #fff; line-height: 1.4; letter-spacing: -.01em; margin: 0 }
+  .wws-by { display: flex; gap: 12px; align-items: center; margin-top: 22px; font-size: 14px; color: #8b909c; font-weight: 600 }
+  .wws-by b { display: block; color: #fff }
+  .wws-results { display: flex; gap: 36px; margin-top: 32px; flex-wrap: wrap; padding-top: 28px; border-top: 1px solid rgba(255,255,255,.1) }
+  @media (max-width: 860px) { .wws-story { grid-template-columns: 1fr } }
+  .wws-sizes { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px }
+  .wws-sizes a { padding: 18px; border-radius: 14px; border: 1px solid var(--line); background: #fff; color: var(--heading); font-weight: 800; display: flex; gap: 12px; align-items: center; transition: border-color .2s, transform .2s }
+  .wws-sizes a:hover { border-color: var(--brand); transform: translateY(-2px); color: var(--heading) }
+  .wws-sizes a > i { color: var(--brand); width: 22px; text-align: center }
+  .wws-sizes a.on { border-color: var(--brand); background: var(--brand-soft) }
+  .wws-sizes small { display: block; color: var(--muted); font-weight: 600; font-size: 13px }
+  @media (max-width: 860px) { .wws-sizes { grid-template-columns: 1fr 1fr } }
+  @media (max-width: 420px) { .wws-sizes { grid-template-columns: 1fr } }
+
+  /* Franchise: network hub */
+  .fr-scene { position: relative; padding: 10px 0 30px }
+  .fr-net svg { width: 100%; height: auto; overflow: visible }
+  .fr-net text { font-family: Montserrat, sans-serif; font-weight: 700; font-size: 12.5px; fill: #111827; text-anchor: middle; dominant-baseline: middle }
+  .fr-net text.k { font-size: 8.5px; font-weight: 800; letter-spacing: .1em; fill: #6b7280 }
+  .fr-net text.w { fill: #fff; font-size: 13px; font-weight: 800 }
+  .fr-net .ln { stroke: #d6d9de; stroke-width: 1.6; fill: none }
+  .fr-net .pulse { stroke: var(--brand); stroke-width: 3; stroke-linecap: round; fill: none; stroke-dasharray: 10 300; stroke-dashoffset: 10; opacity: 0 }
+  .mock.in .fr-net .pulse { animation: fr-pulse 2.6s ease-in infinite; animation-delay: calc(var(--d, 0) * 300ms + 2.2s) }
+  @keyframes fr-pulse { 0% { stroke-dashoffset: 10; opacity: 1 } 85% { opacity: 1 } 100% { stroke-dashoffset: -150; opacity: 0 } }
+  .fr-net .node { fill: #fff; stroke: #e5e7eb; stroke-width: 1.2; filter: drop-shadow(0 6px 14px rgba(16,24,40,.08)) }
+  .fr-net .hq { fill: #0f0f12 }
+  .fr-net .ring { fill: none; stroke: rgba(219,0,0,.35); stroke-width: 1.5; stroke-dasharray: 4 8; transform-origin: 260px 190px; animation: fr-spin 30s linear infinite }
+  @keyframes fr-spin { to { transform: rotate(360deg) } }
+  .fr-n { opacity: 0; transform-box: fill-box; transform-origin: center }
+  .mock.in .fr-n { animation: fm-pop .55s var(--ease) forwards; animation-delay: calc(var(--d, 0) * 140ms + 200ms) }
+  .fr-net .dot { fill: #16a34a }
+  .fr-f { opacity: 0 }
+  .mock.in ~ .fr-f1 { animation: fm-pop .6s var(--ease) 2.6s forwards, fm-float 6s ease-in-out 3.2s infinite }
+  .mock.in ~ .fr-f2 { animation: fm-pop .6s var(--ease) 3.4s forwards, fm-float 7s ease-in-out 4s infinite }
+  .fr-f1 { right: -10px; top: 0; width: 220px } .fr-f2 { left: -16px; bottom: 6px; width: 230px }
+  @media (max-width: 560px) { .fr-f1 { right: 0; width: 190px; top: -20px } .fr-f2 { left: 0 } }
+
+  .fr-tpl { display: grid; grid-template-columns: 34px 1fr auto; gap: 10px; align-items: center }
+  .fr-tpl .ic { width: 34px; height: 40px; border-radius: 6px; background: #fff; border: 1px solid var(--line); display: grid; place-items: center; color: var(--brand) }
+  .fr-push { display: flex; gap: 6px; flex-wrap: wrap }
+  .fr-push .mock-chip { opacity: 0 }
+  .mock.in .fr-push .mock-chip { animation: fm-pop .4s var(--ease) forwards; animation-delay: calc(var(--d, 0) * 150ms + 1.2s) }
+  .fr-table { width: 100%; border-collapse: collapse; font-size: 12px }
+  .fr-table th { text-align: left; font-size: 10px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); font-weight: 800; padding: 6px; border-bottom: 1px solid var(--line) }
+  .fr-table td { padding: 8px 6px; border-bottom: 1px solid var(--line-soft); font-weight: 700; white-space: nowrap }
+  .fr-table td .mock-progress { width: 70px; display: inline-block; vertical-align: middle }
+  .fr-table tbody tr { opacity: 0 }
+  .mock.in .fr-table tbody tr { animation: fm-slide-up .6s var(--ease) forwards; animation-delay: calc(var(--d, 0) * 120ms + 200ms) }
+  .fr-table tfoot td { font-weight: 900; border-bottom: 0 }
+  .fr-tw { overflow-x: auto }
+  .fr-star { color: #f59e0b }
+</style>
+</head>
+<body>
+<div id="site-header"></div>
+<main>
+  <section class="page-hero">
+    <div class="container split">
+      <div>
+        <div class="breadcrumb"><a href="~/who-we-serve/">Who We Serve</a><span>Franchise</span></div>
+        <div class="eyebrow">Franchises &amp; networks</div>
+        <h1>One brand. Every location.</h1>
+        <p class="lead">For franchises, dealer networks and groups of contractors. Share proven templates, pass work between locations and partners, and see the whole network's numbers in one place, while each owner runs their own business.</p>
+        <div class="btn-row"><a class="btn btn-primary btn-lg" href="~/demo/">Book a demo</a><a class="btn btn-ghost btn-lg" href="~/support/contact/">Talk to us</a></div>
+      </div>
+      <div class="mock-stage fr-scene" aria-hidden="true">
+        <div class="mock wws-bare fr-net">
+          <svg viewBox="0 0 520 380">
+            <circle class="ring" cx="260" cy="190" r="78"/>
+            <g class="draw">
+              <line class="ln" style="--len:140;--d:3" x1="260" y1="190" x2="260" y2="60"/>
+              <line class="ln" style="--len:150;--d:4" x1="260" y1="190" x2="392" y2="122"/>
+              <line class="ln" style="--len:150;--d:5" x1="260" y1="190" x2="392" y2="258"/>
+              <line class="ln" style="--len:140;--d:6" x1="260" y1="190" x2="260" y2="320"/>
+              <line class="ln" style="--len:150;--d:7" x1="260" y1="190" x2="128" y2="258"/>
+              <line class="ln" style="--len:150;--d:8" x1="260" y1="190" x2="128" y2="122"/>
+            </g>
+            <line class="pulse" style="--d:0" x1="260" y1="190" x2="260" y2="60"/>
+            <line class="pulse" style="--d:1" x1="260" y1="190" x2="392" y2="122"/>
+            <line class="pulse" style="--d:2" x1="260" y1="190" x2="392" y2="258"/>
+            <line class="pulse" style="--d:3" x1="260" y1="190" x2="260" y2="320"/>
+            <line class="pulse" style="--d:4" x1="260" y1="190" x2="128" y2="258"/>
+            <line class="pulse" style="--d:5" x1="260" y1="190" x2="128" y2="122"/>
+            <g class="fr-n" style="--d:0"><circle class="hq" cx="260" cy="190" r="50"/><text class="k" x="260" y="176" style="fill:#ff6b6b">NETWORK</text><text class="w" x="260" y="194">Brand HQ</text><text class="k" x="260" y="210" style="fill:#8b909c">TEMPLATES</text></g>
+            <g class="fr-n" style="--d:4"><rect class="node" x="203" y="38" width="114" height="44" rx="11"/><text class="k" x="260" y="51">LOCATION</text><text x="260" y="67">North Metro</text><circle class="dot" cx="306" cy="48" r="3.5"/></g>
+            <g class="fr-n" style="--d:5"><rect class="node" x="340" y="100" width="114" height="44" rx="11"/><text class="k" x="397" y="113">LOCATION</text><text x="397" y="129">Lakeshore</text><circle class="dot" cx="443" cy="110" r="3.5"/></g>
+            <g class="fr-n" style="--d:6"><rect class="node" x="340" y="236" width="114" height="44" rx="11"/><text class="k" x="397" y="249">LOCATION</text><text x="397" y="265">Valley</text><circle class="dot" cx="443" cy="246" r="3.5"/></g>
+            <g class="fr-n" style="--d:7"><rect class="node" x="203" y="298" width="114" height="44" rx="11"/><text class="k" x="260" y="311">LOCATION</text><text x="260" y="327">Riverside</text><circle class="dot" cx="306" cy="308" r="3.5"/></g>
+            <g class="fr-n" style="--d:8"><rect class="node" x="66" y="236" width="114" height="44" rx="11"/><text class="k" x="123" y="249">PARTNER</text><text x="123" y="265">Westside</text><circle class="dot" cx="169" cy="246" r="3.5" style="fill:#2563eb"/></g>
+            <g class="fr-n" style="--d:9"><rect class="node" x="66" y="100" width="114" height="44" rx="11"/><text class="k" x="123" y="113">LOCATION</text><text x="123" y="129">Hill Country</text><circle class="dot" cx="169" cy="110" r="3.5"/></g>
+          </svg>
+        </div>
+        <div class="mock-float fr-f fr-f1"><div class="mock-toast"><div>Proposal template v4<div style="font-weight:600;color:var(--muted);font-size:11px">Shared with every location</div></div></div></div>
+        <div class="mock-float fr-f fr-f2"><div style="display:flex;justify-content:space-between;margin-bottom:6px"><span class="mock-chip blue"><i class="fa-solid fa-handshake"></i> Partner work</span></div><div>Ridgeview Dr · gutters</div><div style="font-weight:600;color:var(--muted);font-size:11px;margin-top:3px">Shared with Westside · accepted</div></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container">
+      <div class="section-head reveal">
+        <div class="eyebrow">Problems we solve</div>
+        <h2>Consistency without control-freakery.</h2>
+        <p class="lead">A network wins on a shared brand and shared know-how. Owners win when they can still run their own shop.</p>
+      </div>
+      <div class="grid grid-3">
+        <div class="card reveal" style="--d:0"><div class="icon"><i class="fa-solid fa-palette"></i></div><h3>The brand drifts</h3><p>Every location's proposals and contracts look a little different.</p><div class="wws-fix"><i class="fa-solid fa-check"></i>Documents built from shared templates, with each location's details filled in.</div></div>
+        <div class="card reveal" style="--d:1"><div class="icon"><i class="fa-solid fa-rotate"></i></div><h3>Everyone rebuilds the same thing</h3><p>Each owner recreates checklists, scopes and follow-ups from scratch.</p><div class="wws-fix"><i class="fa-solid fa-check"></i>Start every location from the network's proven setup.</div></div>
+        <div class="card reveal" style="--d:2"><div class="icon"><i class="fa-solid fa-handshake-angle"></i></div><h3>Passing work is a phone call</h3><p>Overflow jobs and specialty trades get handed off with no record.</p><div class="wws-fix"><i class="fa-solid fa-check"></i>Share work with partner organizations and keep the job history together.</div></div>
+        <div class="card reveal" style="--d:3"><div class="icon"><i class="fa-solid fa-eye-slash"></i></div><h3>No view of the whole network</h3><p>Monthly numbers arrive late, in different formats.</p><div class="wws-fix"><i class="fa-solid fa-check"></i>Roll-up reporting across locations, side by side.</div></div>
+        <div class="card reveal" style="--d:4"><div class="icon"><i class="fa-solid fa-rocket"></i></div><h3>New locations launch slowly</h3><p>Months of setup and training before the first job.</p><div class="wws-fix"><i class="fa-solid fa-check"></i>Templates, training courses and a website ready on day one.</div></div>
+        <div class="card reveal" style="--d:5"><div class="icon"><i class="fa-solid fa-star-half-stroke"></i></div><h3>Reputation is uneven</h3><p>One location's reviews affect everyone's.</p><div class="wws-fix"><i class="fa-solid fa-check"></i>Ask for feedback after every job and watch ratings by location.</div></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section section--soft">
+    <div class="container">
+      <div class="split">
+        <div class="reveal">
+          <div class="eyebrow">Shared templates</div>
+          <h2>Build it once. Every location uses it.</h2>
+          <p class="lead">Proposals, contracts, checklists and scopes made by the network, filled with each location's own data and pricing.</p>
+          <a class="link-arrow" href="~/solutions/documents/">Explore Document Studio</a>
+        </div>
+        <div class="mock" aria-hidden="true">
+          <div class="mock-bar"><i></i><i></i><i></i><div class="url">Documents · Templates</div></div>
+          <div class="mock-main">
+            <div class="mock-title fade">Network templates</div>
+            <div class="mock-row fr-tpl slide-up" style="--d:1"><span class="ic"><i class="fa-solid fa-file-signature"></i></span><span style="font-weight:700">Roof proposal<span style="display:block;font-weight:600;color:var(--muted);font-size:11px">Good · better · best</span></span><span class="mock-chip red">v4</span></div>
+            <div class="mock-row fr-tpl slide-up" style="--d:2"><span class="ic"><i class="fa-solid fa-file-contract"></i></span><span style="font-weight:700">Installation contract<span style="display:block;font-weight:600;color:var(--muted);font-size:11px">E-signature</span></span><span class="mock-chip">v2</span></div>
+            <div class="mock-row fr-tpl slide-up" style="--d:3"><span class="ic"><i class="fa-solid fa-list-check"></i></span><span style="font-weight:700">Final walkthrough<span style="display:block;font-weight:600;color:var(--muted);font-size:11px">Checklist</span></span><span class="mock-chip">v7</span></div>
+            <div style="font-size:11px;font-weight:700;color:var(--muted);--d:5" class="fade">Sharing v4 with</div>
+            <div class="fr-push"><span class="mock-chip green" style="--d:0">✓ North Metro</span><span class="mock-chip green" style="--d:1">✓ Lakeshore</span><span class="mock-chip green" style="--d:2">✓ Valley</span><span class="mock-chip green" style="--d:3">✓ Riverside</span><span class="mock-chip green" style="--d:4">✓ Hill Country</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="split split--flip" style="margin-top:88px">
+        <div class="reveal">
+          <div class="eyebrow">Partner work</div>
+          <h2>Hand off a job, keep the record.</h2>
+          <p class="lead">Connect with other locations and outside companies. Share a job or a channel, and everyone works from the same details and photos.</p>
+          <a class="link-arrow" href="~/solutions/partners/">Explore Partners &amp; Subcontractors</a>
+        </div>
+        <div class="mock" aria-hidden="true">
+          <div class="mock-bar"><i></i><i></i><i></i><div class="url">Partners · Connected organizations</div></div>
+          <div class="mock-main">
+            <div class="mock-row slide-up" style="--d:1"><span class="mock-avatar" style="background:linear-gradient(135deg,#93c5fd,#2563eb)">WS</span><span style="flex:1;font-weight:700">Westside Exteriors<span style="display:block;font-weight:600;color:var(--muted);font-size:11px">Partner organization · gutters, siding</span></span><span class="mock-chip green">Connected</span></div>
+            <div class="mock-row slide-up" style="--d:2"><span class="mock-avatar">NM</span><span style="flex:1;font-weight:700">North Metro<span style="display:block;font-weight:600;color:var(--muted);font-size:11px">Network location</span></span><span class="mock-chip green">Connected</span></div>
+            <div class="mock-row slide-up" style="--d:3"><span class="mock-avatar" style="background:linear-gradient(135deg,#d1d5db,#6b7280)">SR</span><span style="flex:1;font-weight:700">Summit Restoration<span style="display:block;font-weight:600;color:var(--muted);font-size:11px">Invitation link sent</span></span><span class="mock-chip amber">Pending</span></div>
+            <div class="mock-row pop" style="--d:7;border-color:var(--brand);box-shadow:0 0 0 3px rgba(219,0,0,.08)"><i class="fa-solid fa-share-nodes" style="color:var(--brand)"></i><span style="flex:1;font-weight:700">Ridgeview Dr · gutters<span style="display:block;font-weight:600;color:var(--muted);font-size:11px">Shared with Westside · photos and measurements included</span></span><span class="mock-chip blue">Shared</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="split" style="margin-top:88px">
+        <div class="reveal">
+          <div class="eyebrow">Roll-up reporting</div>
+          <h2>The whole network, one screen.</h2>
+          <p class="lead">Compare locations on sales, production and reviews, and spot who needs help before the month ends.</p>
+          <a class="link-arrow" href="~/solutions/reporting/">Explore Reports &amp; Stats</a>
+        </div>
+        <div class="mock" aria-hidden="true">
+          <div class="mock-bar"><i></i><i></i><i></i><div class="url">Stats · Network</div></div>
+          <div class="mock-main">
+            <div class="mock-title fade">This month</div>
+            <div class="fr-tw">
+              <table class="fr-table">
+                <thead><tr><th>Location</th><th>Signed</th><th>Close rate</th><th>Rating</th></tr></thead>
+                <tbody>
+                  <tr style="--d:1"><td>North Metro</td><td>$612k</td><td><div class="mock-progress"><i style="--w:42%;--d:2"></i></div></td><td><i class="fa-solid fa-star fr-star"></i> 4.9</td></tr>
+                  <tr style="--d:2"><td>Lakeshore</td><td>$488k</td><td><div class="mock-progress"><i style="--w:36%;--d:3"></i></div></td><td><i class="fa-solid fa-star fr-star"></i> 4.8</td></tr>
+                  <tr style="--d:3"><td>Valley</td><td>$391k</td><td><div class="mock-progress"><i style="--w:31%;--d:4"></i></div></td><td><i class="fa-solid fa-star fr-star"></i> 4.7</td></tr>
+                  <tr style="--d:4"><td>Riverside</td><td>$254k</td><td><div class="mock-progress"><i style="--w:22%;--d:5"></i></div></td><td><i class="fa-solid fa-star fr-star"></i> 4.4</td></tr>
+                  <tr style="--d:5"><td>Hill Country</td><td>$530k</td><td><div class="mock-progress"><i style="--w:39%;--d:6"></i></div></td><td><i class="fa-solid fa-star fr-star"></i> 4.9</td></tr>
+                </tbody>
+                <tfoot><tr><td>Network</td><td>$2.28M</td><td>34%</td><td>4.7</td></tr></tfoot>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container">
+      <div class="section-head reveal">
+        <div class="eyebrow">Recommended for networks</div>
+        <h2>What keeps a network consistent.</h2>
+      </div>
+      <div class="wws-sol">
+        <a class="top reveal" style="--d:0" href="~/solutions/documents/"><i class="fa-solid fa-pen-ruler"></i><span><b>Document Studio</b><small>Contracts and reports from your data</small><span class="tag">Core</span></span></a>
+        <a class="top reveal" style="--d:1" href="~/solutions/partners/"><i class="fa-solid fa-handshake"></i><span><b>Partners &amp; Subcontractors</b><small>Share work across companies</small><span class="tag">Core</span></span></a>
+        <a class="top reveal" style="--d:2" href="~/solutions/reporting/"><i class="fa-solid fa-chart-column"></i><span><b>Reports &amp; Stats</b><small>Sales and production numbers</small><span class="tag">Core</span></span></a>
+        <a class="reveal" style="--d:3" href="~/solutions/proposals/"><i class="fa-solid fa-file-signature"></i><span><b>Proposals &amp; E-Signature</b><small>Good-better-best, signed on the spot</small></span></a>
+        <a class="reveal" style="--d:4" href="~/solutions/training/"><i class="fa-solid fa-graduation-cap"></i><span><b>Training</b><small>Build and assign courses</small></span></a>
+        <a class="reveal" style="--d:5" href="~/solutions/website-builder/"><i class="fa-solid fa-globe"></i><span><b>Website Builder</b><small>Edit your company site yourself</small></span></a>
+        <a class="reveal" style="--d:6" href="~/solutions/checklists/"><i class="fa-solid fa-list-check"></i><span><b>Checklists</b><small>Standardize every visit</small></span></a>
+        <a class="reveal" style="--d:7" href="~/solutions/reviews/"><i class="fa-solid fa-star"></i><span><b>Reviews &amp; Feedback</b><small>Ratings from every finished job</small></span></a>
+        <a class="reveal" style="--d:8" href="~/solutions/automations/"><i class="fa-solid fa-bolt"></i><span><b>Automations</b><small>Follow-ups that run themselves</small></span></a>
+      </div>
+    </div>
+  </section>
+
+  <section class="section section--dark">
+    <div class="container wws-story">
+      <div class="placeholder-photo reveal">Photo: franchise owners at a network meeting</div>
+      <div class="reveal" style="--d:1">
+        <div class="eyebrow">Customer story</div>
+        <p class="wws-quote">“Placeholder quote from a franchise or network leader about keeping every location consistent.”</p>
+        <div class="wws-by"><span class="mock-avatar">CN</span><span><b>Customer name</b>Title · Network name</span></div>
+        <div class="wws-results">
+          <div class="stat"><b>—</b><span>Locations on FirstMate</span></div>
+          <div class="stat"><b>—</b><span>Placeholder result</span></div>
+        </div>
+        <p style="margin-top:28px"><a class="link-arrow" href="~/resources/case-studies/" style="color:#fff">Read customer stories</a></p>
+      </div>
+    </div>
+  </section>
+
+  <section class="section section--tight">
+    <div class="container">
+      <h4 class="reveal" style="margin-bottom:16px">Other company sizes</h4>
+      <div class="wws-sizes">
+        <a href="~/who-we-serve/small/"><i class="fa-solid fa-user"></i><span>Small<small>1–10 employees</small></span></a>
+        <a href="~/who-we-serve/medium/"><i class="fa-solid fa-user-group"></i><span>Medium<small>11–49 employees</small></span></a>
+        <a href="~/who-we-serve/enterprise/"><i class="fa-solid fa-building"></i><span>Enterprise<small>50+ employees</small></span></a>
+        <a class="on" href="~/who-we-serve/franchise/"><i class="fa-solid fa-network-wired"></i><span>Franchise<small>Part of a larger network</small></span></a>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" style="padding-top:0">
+    <div class="container container--narrow">
+      <details class="faq"><summary>Does each location keep its own customers and data?</summary><div>Placeholder: how data is separated between locations and what the network can see.</div></details>
+      <details class="faq"><summary>Can we work with companies outside the network?</summary><div>Yes. Invite outside companies as partner organizations and share jobs or channels with them.</div></details>
+      <details class="faq"><summary>One company with many branches, or many companies?</summary><div>If every location belongs to one company, see <a href="~/who-we-serve/enterprise/">Enterprise</a> for branches and regions. Placeholder: network setup for independently owned locations.</div></details>
+    </div>
+  </section>
+
+  <section class="section" style="padding-top:0"><div class="container"><div class="cta-band">
+    <h2>Bring your whole network onto FirstMate.</h2>
+    <p class="lead" style="color:#c9ccd4">We'll show you shared templates, partner work and roll-up reporting.</p>
+    <div class="btn-row"><a class="btn btn-primary btn-lg" href="~/demo/">Book a demo</a><a class="btn btn-glass btn-lg" href="~/support/contact/">Talk to us</a></div>
+  </div></div></section>
+</main>
+<div id="site-footer"></div>
+<script src="../../assets/site.js"></script>
+</body>
+</html>

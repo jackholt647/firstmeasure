@@ -1,0 +1,238 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Classes — FirstMate</title>
+<meta name="description" content="Live and on-demand FirstMate training for owners, office staff, sales reps and field teams.">
+<meta name="robots" content="noindex, nofollow">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,400..900;1,400..900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/site.css">
+<style>
+  /* Featured class banner + video player mockup */
+  .cl-feature { border-radius: var(--radius-lg); background: var(--bg-dark); color: #c9ccd4; padding: clamp(24px, 4vw, 48px); display: grid; grid-template-columns: 1fr 1.3fr; gap: clamp(24px, 4vw, 56px); align-items: center; position: relative; overflow: hidden }
+  .cl-feature::before { content: ""; position: absolute; width: 520px; height: 520px; left: -200px; bottom: -260px; border-radius: 50%; background: radial-gradient(circle, rgba(219, 0, 0, .45), transparent 70%) }
+  .cl-feature > * { position: relative }
+  .cl-feature h2 { color: #fff }
+  @media (max-width: 900px) { .cl-feature { grid-template-columns: 1fr } }
+  .cl-meta { display: flex; flex-wrap: wrap; gap: 8px 18px; font-size: 14px; font-weight: 700; color: #a6abb6; margin: 14px 0 24px }
+  .cl-meta i { color: var(--brand-2); margin-right: 6px }
+  .cl-live { display: inline-flex; align-items: center; gap: 8px; background: var(--brand); color: #fff; font-size: 12px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; padding: 5px 12px; border-radius: 999px; margin-bottom: 18px }
+  .cl-live::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: #fff; animation: cl-blink 1.2s infinite }
+  @keyframes cl-blink { 50% { opacity: .2 } }
+
+  .cl-player { background: #0a0b0e; border-color: rgba(255, 255, 255, .1) }
+  .cl-screen { position: relative; aspect-ratio: 16 / 9; background: linear-gradient(180deg, #f6f7f9, #eceef1); overflow: hidden }
+  .cl-app { position: absolute; inset: 8% 6% 16%; background: #fff; border-radius: 10px; box-shadow: var(--shadow); display: flex; overflow: hidden }
+  .cl-app-side { width: 22%; background: #fbfbfc; border-right: 1px solid var(--line); padding: 8px 6px; display: flex; flex-direction: column; gap: 4px }
+  .cl-app-side span { height: 8px; border-radius: 3px; background: #e5e7eb } .cl-app-side span.on { background: var(--brand) }
+  .cl-app-main { flex: 1; padding: 10px; display: flex; flex-direction: column; gap: 6px }
+  .cl-app-main svg { width: 100%; height: auto; flex: 1 }
+  .cl-app-main .facet { fill: rgba(219, 0, 0, .07); stroke: var(--brand); stroke-width: 1.6 }
+  .cl-cursor { left: 30%; top: 40%; animation: cl-cursor 7s var(--ease) infinite }
+  @keyframes cl-cursor { 0%, 100% { left: 30%; top: 40% } 30% { left: 62%; top: 34% } 55% { left: 70%; top: 62% } 80% { left: 40%; top: 66% } }
+  .cl-presenter { position: absolute; right: 3%; bottom: 20%; width: 18%; aspect-ratio: 1; border-radius: 12px; background: linear-gradient(135deg, #374151, #111827); border: 2px solid #fff; display: grid; place-items: center; color: #fff; font-weight: 800; font-size: 12px; box-shadow: var(--shadow) }
+  .cl-play { position: absolute; left: 50%; top: 42%; width: 64px; height: 64px; margin: -32px 0 0 -32px; border-radius: 50%; background: rgba(219, 0, 0, .92); color: #fff; display: grid; place-items: center; font-size: 22px; box-shadow: 0 0 0 0 rgba(219, 0, 0, .5); animation: cl-ring 2.4s infinite; padding-left: 4px }
+  @keyframes cl-ring { 0% { box-shadow: 0 0 0 0 rgba(219, 0, 0, .55) } 70% { box-shadow: 0 0 0 22px rgba(219, 0, 0, 0) } 100% { box-shadow: 0 0 0 0 rgba(219, 0, 0, 0) } }
+  .mock.in .cl-play { animation: cl-ring 2.4s infinite, cl-hide .5s ease 2.2s forwards }
+  @keyframes cl-hide { to { opacity: 0; transform: scale(.6) } }
+  .cl-controls { position: absolute; left: 0; right: 0; bottom: 0; padding: 10px 14px; background: linear-gradient(0deg, rgba(0, 0, 0, .75), transparent); display: flex; align-items: center; gap: 10px; color: #fff; font-size: 11px; font-weight: 700 }
+  .cl-track { flex: 1; height: 4px; border-radius: 2px; background: rgba(255, 255, 255, .3); position: relative }
+  .cl-track i { position: absolute; left: 0; top: 0; bottom: 0; width: 0; background: var(--brand); border-radius: 2px }
+  .cl-track i::after { content: ""; position: absolute; right: -5px; top: -3px; width: 10px; height: 10px; border-radius: 50%; background: #fff }
+  .mock.in .cl-track i { animation: cl-progress 24s linear 2.2s infinite }
+  @keyframes cl-progress { to { width: 100% } }
+  .cl-track b { position: absolute; top: -2px; width: 2px; height: 8px; background: rgba(255, 255, 255, .7) }
+  .cl-chapters { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px; background: rgba(255, 255, 255, .06) }
+  .cl-chapters div { background: #121419; padding: 10px 12px; font-size: 11px; font-weight: 700; color: #8b909c }
+  .cl-chapters div b { display: block; color: #e5e7eb; font-size: 12px }
+  .cl-chapters div.on { box-shadow: inset 0 2px 0 var(--brand) }
+  @media (max-width: 520px) { .cl-chapters { grid-template-columns: 1fr 1fr } .cl-presenter { display: none } }
+  .cl-chat { right: -10px; top: 18%; width: 210px; opacity: 0 }
+  .mock.in ~ .cl-chat { animation: fm-pop .6s var(--ease) 3s forwards, fm-float 6s ease-in-out 3.6s infinite }
+  .cl-chat small { display: block; color: var(--muted); font-weight: 600; font-size: 11px; margin-top: 2px }
+  @media (max-width: 640px) { .cl-chat { display: none } }
+
+  /* Filters and grid */
+  .cl-bar { display: flex; flex-wrap: wrap; gap: 12px 24px; align-items: center; justify-content: space-between; margin-bottom: 28px }
+  .cl-chips { display: flex; flex-wrap: wrap; gap: 8px }
+  .cl-chip { border: 1.5px solid var(--line); background: #fff; border-radius: 999px; padding: 9px 16px; font-weight: 800; font-size: 14px; color: var(--heading); cursor: pointer; display: inline-flex; gap: 8px; align-items: center }
+  .cl-chip:hover { border-color: var(--heading) }
+  .cl-chip.on { background: var(--heading); border-color: var(--heading); color: #fff }
+  .cl-format { display: inline-flex; border: 1.5px solid var(--line); border-radius: 999px; padding: 3px; background: #fff }
+  .cl-format button { border: 0; background: none; padding: 7px 14px; border-radius: 999px; font-weight: 800; font-size: 13px; cursor: pointer; color: var(--heading) }
+  .cl-format button.on { background: var(--brand); color: #fff }
+  .cl-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 22px }
+  @media (max-width: 980px) { .cl-grid { grid-template-columns: repeat(2, minmax(0, 1fr)) } }
+  @media (max-width: 600px) { .cl-grid { grid-template-columns: 1fr } }
+  .cl-card { border: 1px solid var(--line); border-radius: var(--radius); background: #fff; overflow: hidden; display: flex; flex-direction: column; transition: transform .3s var(--ease), box-shadow .3s; animation: fm-slide-up .45s var(--ease) both }
+  .cl-card:hover { transform: translateY(-4px); box-shadow: var(--shadow) }
+  .cl-card.hide { display: none }
+  .cl-thumb { aspect-ratio: 16 / 8; position: relative; display: grid; place-items: center; color: #fff; font-size: 34px; background: linear-gradient(135deg, #1a1c22, #0d0e12); overflow: hidden }
+  .cl-thumb::after { content: ""; position: absolute; width: 180px; height: 180px; right: -60px; top: -70px; border-radius: 50%; background: radial-gradient(circle, rgba(219, 0, 0, .55), transparent 70%) }
+  .cl-thumb .cl-badge { position: absolute; left: 12px; top: 12px; z-index: 1 }
+  .cl-thumb .cl-len { position: absolute; right: 12px; bottom: 10px; font-size: 11px; font-weight: 800; background: rgba(0, 0, 0, .55); padding: 3px 8px; border-radius: 6px; z-index: 1 }
+  .cl-card-body { padding: 20px; display: flex; flex-direction: column; gap: 8px; flex: 1 }
+  .cl-card-body h4 { margin: 0 }
+  .cl-card-body p { color: var(--muted); font-size: 14px; margin: 0 }
+  .cl-roles { display: flex; flex-wrap: wrap; gap: 6px; margin-top: auto; padding-top: 10px }
+  .cl-card-foot { display: flex; justify-content: space-between; align-items: center; border-top: 1px solid var(--line-soft); padding: 14px 20px; font-size: 13px; font-weight: 700; color: var(--muted) }
+  .cl-empty { display: none; text-align: center; color: var(--muted); padding: 40px 0 }
+  .cl-empty.on { display: block }
+</style>
+</head>
+<body>
+<div id="site-header"></div>
+<main>
+  <section class="page-hero">
+    <div class="container">
+      <div class="breadcrumb"><a href="~/resources/">Resources</a><span>Classes</span></div>
+      <div class="eyebrow">FirstMate Classes</div>
+      <h1>Become a FirstMate expert.</h1>
+      <p class="lead">Live classes you can ask questions in, and on-demand sessions you can watch whenever. Pick the ones for your role.</p>
+      <div class="btn-row"><a class="btn btn-primary btn-lg" href="#cl-all">Browse classes</a><a class="btn btn-ghost btn-lg" href="~/resources/user-guides/">User guides</a></div>
+    </div>
+  </section>
+
+  <section class="section section--tight">
+    <div class="container">
+      <div class="cl-feature">
+        <div class="reveal">
+          <div class="cl-live">Featured · Live class</div>
+          <h2>From measurement to signed proposal</h2>
+          <p class="lead" style="color:#c9ccd4">Order a Full Exterior report, turn it into materials and labor, and present a good-better-best proposal the homeowner signs on the spot.</p>
+          <div class="cl-meta"><span><i class="fa-solid fa-calendar"></i>Date: Placeholder</span><span><i class="fa-solid fa-clock"></i>— min</span><span><i class="fa-solid fa-user-group"></i>Owner · Sales · Office</span></div>
+          <div class="btn-row"><a class="btn btn-primary" href="#">Save my seat</a><a class="btn btn-glass" href="#">Watch the recording</a></div>
+          <!-- Registration and recording links are placeholders. -->
+        </div>
+        <div class="mock-stage" style="padding:12px">
+          <div class="mock mock--dark cl-player" aria-hidden="true">
+            <div class="cl-screen">
+              <div class="cl-app">
+                <div class="cl-app-side"><span></span><span class="on"></span><span></span><span></span><span></span></div>
+                <div class="cl-app-main">
+                  <div style="display:flex;justify-content:space-between;align-items:center;color:var(--heading)"><b style="font-size:10px">1482 Ridgeview Dr</b><span class="mock-chip green" style="font-size:9px;padding:2px 7px">Report ready</span></div>
+                  <svg viewBox="0 0 360 140" class="draw">
+                    <polygon class="facet" style="--len:420;--d:2" points="20,130 110,50 200,130"/>
+                    <polygon class="facet" style="--len:440;--d:4" points="110,50 250,50 340,130 200,130"/>
+                    <polygon class="facet" style="--len:300;--d:6" points="110,50 180,12 250,50"/>
+                  </svg>
+                  <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:5px">
+                    <div class="mock-progress"><i style="--w:80%;--d:6"></i></div><div class="mock-progress"><i style="--w:55%;--d:8"></i></div><div class="mock-progress"><i style="--w:68%;--d:10"></i></div>
+                  </div>
+                </div>
+              </div>
+              <div class="mock-cursor cl-cursor"></div>
+              <div class="cl-presenter">Trainer</div>
+              <div class="cl-play"><i class="fa-solid fa-play"></i></div>
+              <div class="cl-controls"><i class="fa-solid fa-pause"></i><span>Live</span><div class="cl-track"><i></i><b style="left:25%"></b><b style="left:50%"></b><b style="left:75%"></b></div><i class="fa-solid fa-closed-captioning"></i><i class="fa-solid fa-expand"></i></div>
+            </div>
+            <div class="cl-chapters" id="cl-chapters">
+              <div class="on"><b>1. Order</b>Full Exterior</div><div><b>2. Review</b>Report</div><div><b>3. Build</b>Materials</div><div><b>4. Present</b>Proposal</div>
+            </div>
+          </div>
+          <div class="mock-float cl-chat"><div style="display:flex;gap:8px;align-items:center"><span class="mock-avatar">KD</span>Can I add gutters later?</div><small>Question for the trainer</small></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="cl-all">
+    <div class="container">
+      <div class="section-head"><div class="eyebrow">All classes</div><h2>Training for every seat</h2><p class="lead">Titles and schedules are placeholders for the first draft.</p></div>
+      <div class="cl-bar">
+        <div class="cl-chips" id="cl-chips" role="group" aria-label="Filter by role">
+          <button class="cl-chip on" data-role="all">All roles</button>
+          <button class="cl-chip" data-role="owner"><i class="fa-solid fa-crown"></i>Owner</button>
+          <button class="cl-chip" data-role="office"><i class="fa-solid fa-desktop"></i>Office</button>
+          <button class="cl-chip" data-role="sales"><i class="fa-solid fa-handshake"></i>Sales</button>
+          <button class="cl-chip" data-role="field"><i class="fa-solid fa-helmet-safety"></i>Field</button>
+        </div>
+        <div class="cl-format" id="cl-format" role="group" aria-label="Filter by format"><button class="on" data-f="all">All</button><button data-f="live">Live</button><button data-f="ondemand">On demand</button></div>
+      </div>
+      <div class="cl-grid" id="cl-grid"></div>
+      <p class="cl-empty" id="cl-empty">No classes match those filters yet.</p>
+    </div>
+  </section>
+
+  <section class="section section--soft">
+    <div class="container">
+      <div class="section-head center"><div class="eyebrow">How classes work</div><h2>Learn the way that suits you</h2></div>
+      <div class="grid grid-3">
+        <div class="card reveal"><div class="icon"><i class="fa-solid fa-tower-broadcast"></i></div><h3>Live classes</h3><p>Join a trainer on a live walkthrough and ask questions as you go.</p></div>
+        <div class="card reveal" style="--d:1"><div class="icon"><i class="fa-solid fa-circle-play"></i></div><h3>On demand</h3><p>Short recorded sessions, split into chapters, ready whenever you are.</p></div>
+        <div class="card reveal" style="--d:2"><div class="icon"><i class="fa-solid fa-graduation-cap"></i></div><h3>Train your own team</h3><p>Build your own courses and assign them to your people with <a href="~/solutions/training/">Training</a>.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section"><div class="container"><div class="cta-band">
+    <h2>Want a class just for your team?</h2>
+    <p class="lead" style="color:#c9ccd4">We can walk your office and field through FirstMate together.</p>
+    <div class="btn-row"><a class="btn btn-primary btn-lg" href="~/demo/">Book a session</a><a class="btn btn-glass btn-lg" href="~/support/contact/">Contact us</a></div>
+  </div></div></section>
+</main>
+<div id="site-footer"></div>
+<script src="../../assets/site.js"></script>
+<script>
+(function () {
+  // [title, blurb, roles, format, icon, length]
+  var CLASSES = [
+    ['FirstMate in 30 minutes', 'A tour of the platform: projects, measurements, proposals, scheduling and payments.', ['owner', 'office', 'sales', 'field'], 'live', 'fa-compass', '— min'],
+    ['Set up your company', 'Branches, departments, people, roles and which apps each role sees.', ['owner', 'office'], 'ondemand', 'fa-sitemap', '— min'],
+    ['Ordering and reading measurement reports', 'Roof, Full Exterior and Full House reports, structures and what every number means.', ['office', 'sales'], 'ondemand', 'fa-ruler-combined', '— min'],
+    ['Good-better-best proposals', 'Build proposal templates from your pricing and get them signed on the spot.', ['sales', 'owner'], 'live', 'fa-file-signature', '— min'],
+    ['Working leads in the CRM', 'New leads, opportunities, follow-ups and sources so nothing slips.', ['sales', 'office'], 'ondemand', 'fa-filter', '— min'],
+    ['Scheduling and dispatch', 'Schedule events, assign people and equipment and handle double-booking.', ['office'], 'live', 'fa-calendar-days', '— min'],
+    ['Materials and work orders', 'Turn measurements into material lists, orders and labor for the job.', ['office', 'field'], 'ondemand', 'fa-boxes-stacked', '— min'],
+    ['The field app day to day', 'Today, photos, checklists and finishing work from your phone.', ['field'], 'ondemand', 'fa-mobile-screen', '— min'],
+    ['Taking payments and invoicing', 'Deposits, milestone invoices, payment links and card payments in person.', ['office', 'owner'], 'live', 'fa-credit-card', '— min'],
+    ['Pay sheets, payroll and commissions', 'Pay assignees by piece rate, hourly or commission and run payroll.', ['owner', 'office'], 'ondemand', 'fa-money-check-dollar', '— min'],
+    ['Automations that follow up for you', 'Set up rules for new leads, reminders and status changes.', ['owner', 'office'], 'live', 'fa-bolt', '— min'],
+    ['Reports and stats for owners', 'Sales and production numbers and job costing at a glance.', ['owner'], 'ondemand', 'fa-chart-column', '— min'],
+    ['Canvassing and door knocking', 'Maps, territories and logging activity at the door.', ['sales', 'field'], 'ondemand', 'fa-map-location-dot', '— min'],
+    ['Using the FirstMate Assistant', 'Ask questions and get work done in plain language.', ['owner', 'office', 'sales', 'field'], 'live', 'fa-wand-magic-sparkles', '— min']
+  ];
+  var LABEL = { owner: 'Owner', office: 'Office', sales: 'Sales', field: 'Field' };
+  var grid = document.getElementById('cl-grid'), empty = document.getElementById('cl-empty');
+  grid.innerHTML = CLASSES.map(function (c) {
+    var live = c[3] === 'live';
+    return '<article class="cl-card" data-roles="' + c[2].join(' ') + '" data-f="' + c[3] + '">' +
+      '<div class="cl-thumb"><span class="mock-chip ' + (live ? 'red' : 'blue') + ' cl-badge">' + (live ? '<span class="pulse-dot" style="background:var(--brand)"></span> Live' : '<i class="fa-solid fa-play"></i> On demand') + '</span><i class="fa-solid ' + c[4] + '" style="position:relative;z-index:1"></i><span class="cl-len">' + c[5] + '</span></div>' +
+      '<div class="cl-card-body"><h4>' + c[0] + '</h4><p>' + c[1] + '</p><div class="cl-roles">' + c[2].map(function (r) { return '<span class="mock-chip">' + LABEL[r] + '</span>'; }).join('') + '</div></div>' +
+      '<div class="cl-card-foot"><span>' + (live ? 'Next: date placeholder' : 'Watch any time') + '</span><a class="link-arrow" href="#">' + (live ? 'Register' : 'Watch') + '</a></div></article>';
+  }).join('');
+
+  var role = 'all', fmt = 'all';
+  function apply() {
+    var n = 0, d = 0;
+    grid.querySelectorAll('.cl-card').forEach(function (el) {
+      var ok = (role === 'all' || el.dataset.roles.split(' ').indexOf(role) !== -1) && (fmt === 'all' || el.dataset.f === fmt);
+      el.classList.toggle('hide', !ok);
+      if (ok) { n++; el.style.animation = 'none'; void el.offsetWidth; el.style.animation = ''; el.style.animationDelay = (d++ * 40) + 'ms'; }
+    });
+    empty.classList.toggle('on', n === 0);
+  }
+  document.getElementById('cl-chips').addEventListener('click', function (e) {
+    var b = e.target.closest('.cl-chip'); if (!b) return; role = b.dataset.role;
+    this.querySelectorAll('.cl-chip').forEach(function (x) { x.classList.toggle('on', x === b); }); apply();
+  });
+  document.getElementById('cl-format').addEventListener('click', function (e) {
+    var b = e.target.closest('button'); if (!b) return; fmt = b.dataset.f;
+    this.querySelectorAll('button').forEach(function (x) { x.classList.toggle('on', x === b); }); apply();
+  });
+  apply();
+
+  // Advance the chapter highlight in step with the player's progress bar (24s loop, 4 chapters).
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  var ch = document.querySelectorAll('#cl-chapters div'), player = document.querySelector('.cl-player'), i = 0;
+  player.addEventListener('fm:in', function () {
+    setTimeout(function () {
+      setInterval(function () { i = (i + 1) % ch.length; ch.forEach(function (x, k) { x.classList.toggle('on', k === i); }); }, 6000);
+    }, 2200);
+  });
+})();
+</script>
+</body>
+</html>

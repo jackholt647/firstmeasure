@@ -1,0 +1,428 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FirstMate — Measure, sell, build and get paid</title>
+<meta name="description" content="FirstMate is the operating system for roofing and exterior contractors: measurements, CRM, proposals, scheduling, crews and payments in one place.">
+<meta name="robots" content="noindex, nofollow">
+<link rel="icon" href="favicon.ico">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,400..900;1,400..900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/site.css">
+<style>
+  .hero-inner { display: grid; grid-template-columns: 1fr 1.15fr; gap: 56px; align-items: center }
+  .hero h1 .line { display: block }
+  .hero-sub { font-size: 14px; color: #8b909c; font-weight: 600; margin-top: 18px }
+  .hero-scene { position: relative; min-height: 470px }
+  .hero-scene .mock { position: absolute; left: 0; right: 30px; top: 20px }
+  .hero-scene .mock-main { background: #fafafb }
+  .roof-plan { background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 10px; position: relative }
+  .roof-plan svg { width: 100%; height: auto }
+  .roof-plan .facet { fill: rgba(219, 0, 0, 0); stroke: var(--brand); stroke-width: 1.6; stroke-dasharray: var(--len); stroke-dashoffset: var(--len) }
+  .roof-plan .ridge { stroke: #0f0f12; stroke-width: 1.6 }
+  .roof-plan text { font: 700 9px Montserrat, sans-serif; fill: #111827 }
+  .mock.in .roof-plan .facet { animation: fm-draw 2s var(--ease) forwards, facet-fill 1s ease forwards 1.6s }
+  @keyframes facet-fill { from { fill: rgba(219, 0, 0, 0) } to { fill: rgba(219, 0, 0, .08) } }
+  .roof-plan text { opacity: 0 } .mock.in .roof-plan text { animation: fm-fade .5s ease forwards; animation-delay: calc(1.8s + var(--d, 0) * 150ms) }
+  .scan { position: absolute; left: 10px; right: 10px; height: 2px; top: 10px; background: linear-gradient(90deg, transparent, var(--brand), transparent); box-shadow: 0 0 18px var(--brand); opacity: 0 }
+  .mock.in .scan { animation: scan 2.2s ease-in-out .2s 1 forwards }
+  @keyframes scan { 0% { top: 10px; opacity: 1 } 90% { opacity: 1 } 100% { top: calc(100% - 12px); opacity: 0 } }
+  .hero-float-1 { right: -6px; top: 0; width: 220px }
+  .hero-float-2 { left: -28px; bottom: 26px; width: 230px }
+  .hero-float-3 { right: 0; bottom: -10px; width: 200px }
+  .hero-float-1, .hero-float-2, .hero-float-3 { opacity: 0 }
+  .mock.in ~ .hero-float-1 { animation: fm-pop .6s var(--ease) 2.4s forwards, fm-float 6s ease-in-out 3s infinite }
+  .mock.in ~ .hero-float-2 { animation: fm-pop .6s var(--ease) 3.0s forwards, fm-float 7s ease-in-out 3.6s infinite }
+  .mock.in ~ .hero-float-3 { animation: fm-pop .6s var(--ease) 3.6s forwards, fm-float 6.5s ease-in-out 4.2s infinite }
+  .money { font-size: 22px; font-weight: 900; letter-spacing: -.02em; color: var(--heading) }
+  @media (max-width: 1000px) { .hero-inner { grid-template-columns: 1fr } .hero-scene { min-height: 440px } }
+  @media (max-width: 560px) { .hero-float-2 { display: none } .hero-scene .mock { right: 0 } .hero-float-1 { width: 180px } }
+
+  /* Flow: Measure → Sell → Build → Get paid */
+  .flow-tabs { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; margin-bottom: 40px }
+  .flow-tab { position: relative; overflow: hidden; border: 1.5px solid var(--line); background: #fff; border-radius: 999px; padding: 12px 22px; font-weight: 800; font-size: 15px; color: var(--heading); cursor: pointer; display: inline-flex; gap: 10px; align-items: center }
+  .flow-tab span { width: 24px; height: 24px; border-radius: 50%; background: var(--bg-soft); display: grid; place-items: center; font-size: 12px }
+  .flow-tab.on { border-color: var(--brand); color: var(--brand) }
+  .flow-tab.on span { background: var(--brand); color: #fff }
+  .flow-tab i.timer { position: absolute; left: 0; bottom: 0; height: 3px; background: var(--brand); width: 0 }
+  .flow-tab.on i.timer { animation: timer 7s linear forwards }
+  @keyframes timer { to { width: 100% } }
+  .flow-panel { display: none } .flow-panel.on { display: grid }
+  .flow-panel .mock { min-height: 340px }
+
+  .measure-card { border-radius: var(--radius-lg); overflow: hidden; background: #fff; border: 1px solid var(--line); transition: transform .3s var(--ease), box-shadow .3s }
+  .measure-card:hover { transform: translateY(-6px); box-shadow: var(--shadow) }
+  .measure-card .art { height: 220px; background: linear-gradient(180deg, #1a1c22, #0d0e12); display: grid; place-items: center; position: relative; overflow: hidden }
+  .measure-card .art svg { width: 78%; height: auto }
+  .measure-card .art .draw * { stroke: #ff4d4d; fill: none; stroke-width: 2 }
+  .measure-card .body { padding: 26px }
+  .measure-card .body p { color: var(--muted) }
+
+  .chat { display: flex; flex-direction: column; gap: 10px; padding: 18px }
+  .bubble { max-width: 82%; padding: 11px 14px; border-radius: 16px; font-size: 13px; font-weight: 600; line-height: 1.45 }
+  .bubble.me { align-self: flex-end; background: var(--brand); color: #fff; border-bottom-right-radius: 4px }
+  .bubble.ai { align-self: flex-start; background: #1f232b; color: #e5e7eb; border-bottom-left-radius: 4px }
+  .bubble.ai b { color: #fff }
+  .dots { display: inline-flex; gap: 4px } .dots i { width: 6px; height: 6px; border-radius: 50%; background: #9ca3af; animation: blink 1.2s infinite } .dots i:nth-child(2) { animation-delay: .2s } .dots i:nth-child(3) { animation-delay: .4s }
+  @keyframes blink { 0%, 80%, 100% { opacity: .3 } 40% { opacity: 1 } }
+
+  .sol-group h4 { font-size: 13px; text-transform: uppercase; letter-spacing: .1em; color: var(--muted); margin: 0 0 12px }
+  .sol-link { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 12px; color: var(--heading); font-weight: 700; font-size: 15px; transition: background .15s }
+  .sol-link:hover { background: #fff; color: var(--heading); box-shadow: var(--shadow-sm) }
+  .sol-link i { width: 34px; height: 34px; border-radius: 10px; background: var(--brand-soft); color: var(--brand); display: grid; place-items: center; font-size: 14px; flex: none }
+  .sol-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 28px }
+  @media (max-width: 1100px) { .sol-grid { grid-template-columns: repeat(3, 1fr) } }
+  @media (max-width: 700px) { .sol-grid { grid-template-columns: 1fr 1fr } }
+  @media (max-width: 460px) { .sol-grid { grid-template-columns: 1fr } }
+
+  .trade-chip { display: flex; align-items: center; gap: 12px; padding: 18px 20px; border-radius: 14px; border: 1px solid var(--line); background: #fff; font-weight: 800; color: var(--heading); transition: all .2s }
+  .trade-chip:hover { border-color: var(--brand); color: var(--brand); transform: translateY(-2px) }
+  .trade-chip i { color: var(--brand); font-size: 18px; width: 22px; text-align: center }
+  .size-card { padding: 28px; border-radius: var(--radius); background: var(--bg-dark-2); border: 1px solid rgba(255,255,255,.08); color: #a6abb6; display: block; transition: transform .3s var(--ease), border-color .3s }
+  .size-card:hover { transform: translateY(-4px); border-color: rgba(219, 0, 0, .6); color: #a6abb6 }
+  .size-card b { display: block; font-size: 22px; color: #fff; font-weight: 800; margin-bottom: 4px }
+
+  .marquee { overflow: hidden; mask-image: linear-gradient(90deg, transparent, #000 10%, #000 90%, transparent); -webkit-mask-image: linear-gradient(90deg, transparent, #000 10%, #000 90%, transparent) }
+  .marquee-track { display: flex; gap: 16px; width: max-content; animation: fm-marquee 40s linear infinite }
+  .marquee .pill { padding: 12px 20px; font-size: 15px; background: #fff }
+  .quote { font-size: 19px; font-weight: 600; color: var(--heading); line-height: 1.5 }
+  .quote-by { display: flex; gap: 12px; align-items: center; margin-top: 20px; font-size: 14px; color: var(--muted); font-weight: 600 }
+  .quote-by b { display: block; color: var(--heading) }
+</style>
+</head>
+<body data-header="over-dark">
+<div id="site-header"></div>
+<main>
+
+<!-- HERO. Drop a video in later: <div class="hero-media"><video autoplay muted loop playsinline poster="..."><source src="assets/video/hero.mp4" type="video/mp4"></video></div> -->
+<section class="hero">
+  <div class="hero-grid"></div><div class="hero-glow"></div>
+  <div class="container hero-inner">
+    <div>
+      <a class="hero-badge reveal" href="~/solutions/full-house/"><span>New</span> Full House reports: every structure, one order →</a>
+      <h1 class="reveal" style="--d:1"><span class="line">Measure it.</span><span class="line">Sell it. Build it.</span><span class="line text-gradient">Get paid.</span></h1>
+      <p class="lead reveal" style="--d:2">FirstMate runs the whole job for roofing and exterior contractors: measurements, proposals, crews, materials and payments in one platform your office and field actually use.</p>
+      <div class="btn-row reveal" style="--d:3; margin-top: 32px">
+        <a class="btn btn-primary btn-lg" href="https://app.1m8.ai/portal/signup">Sign up free</a>
+        <a class="btn btn-glass btn-lg" href="~/demo/">Book a demo</a>
+      </div>
+      <p class="hero-sub reveal" style="--d:4"><i class="fa-solid fa-check" style="color:var(--brand)"></i> Free to start &nbsp; <i class="fa-solid fa-check" style="color:var(--brand)"></i> Reports in hours &nbsp; <i class="fa-solid fa-check" style="color:var(--brand)"></i> iPhone, Android and web</p>
+    </div>
+
+    <div class="hero-scene" aria-hidden="true">
+      <div class="mock">
+        <div class="mock-bar"><i></i><i></i><i></i><div class="url">app.1m8.ai/portal</div></div>
+        <div class="mock-body">
+          <div class="mock-side">
+            <img class="logo" src="assets/img/logo_black.png" alt="" style="height:22px;width:auto">
+            <div class="mock-nav">Today</div><div class="mock-nav on">Projects</div><div class="mock-nav">CRM</div><div class="mock-nav">Proposals</div><div class="mock-nav">Scheduling</div><div class="mock-nav">Payments</div>
+          </div>
+          <div class="mock-main">
+            <div style="display:flex;justify-content:space-between;align-items:center" class="fade">
+              <div><div class="mock-title">1482 Ridgeview Dr</div><div style="color:var(--muted);font-size:11px;font-weight:600">Full Exterior · Ordered 9:12 AM</div></div>
+              <span class="mock-chip green"><span class="pulse-dot"></span> Report ready</span>
+            </div>
+            <div class="roof-plan">
+              <div class="scan"></div>
+              <svg viewBox="0 0 360 170">
+                <polygon class="facet" style="--len:420" points="20,150 110,60 200,150"/>
+                <polygon class="facet" style="--len:420" points="110,60 250,60 340,150 200,150"/>
+                <polygon class="facet" style="--len:300" points="110,60 180,20 250,60"/>
+                <line class="ridge draw" style="--len:200" x1="110" y1="60" x2="250" y2="60"/>
+                <text x="98" y="128" style="--d:1">8/12 · 412 ft²</text>
+                <text x="232" y="118" style="--d:2">8/12 · 986 ft²</text>
+                <text x="160" y="48" style="--d:3">6/12 · 214 ft²</text>
+              </svg>
+            </div>
+            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">
+              <div class="mock-kpi slide-up" style="--d:14"><small>Roof</small><b>32.4 sq</b></div>
+              <div class="mock-kpi slide-up" style="--d:15"><small>Siding</small><b>2,846 ft²</b></div>
+              <div class="mock-kpi slide-up" style="--d:16"><small>Gutters</small><b>214 ft</b></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="mock-float hero-float-1"><div style="display:flex;justify-content:space-between;margin-bottom:6px"><span class="mock-chip violet">Proposal</span><span style="color:var(--muted);font-size:11px">just now</span></div><div>Better package selected</div><div class="money">$24,860</div><div style="font-size:11px;color:var(--ok);margin-top:4px"><i class="fa-solid fa-signature"></i> Signed by homeowner</div></div>
+      <div class="mock-float hero-float-2"><div class="mock-toast"><div>Deposit received<div style="font-weight:600;color:var(--muted);font-size:11px">Card ending 4421 · $8,287.00</div></div></div></div>
+      <div class="mock-float hero-float-3"><div style="display:flex;gap:10px;align-items:center"><div class="mock-avatar">JR</div><div>Install scheduled<div style="font-weight:600;color:var(--muted);font-size:11px">Tue · Materials ordered</div></div></div></div>
+    </div>
+  </div>
+</section>
+
+<section class="section--tight" style="border-bottom:1px solid var(--line-soft)">
+  <div class="container">
+    <p class="muted" style="text-align:center;font-weight:700;font-size:14px;margin-bottom:24px">Trusted by roofing and exterior contractors across the country</p>
+    <div class="logo-strip"><span>Logo</span><span>Logo</span><span>Logo</span><span>Logo</span><span>Logo</span><span>Logo</span></div>
+  </div>
+</section>
+
+<!-- HOW THE JOB MOVES -->
+<section class="section">
+  <div class="container">
+    <div class="section-head center reveal">
+      <div class="eyebrow">One platform, start to finish</div>
+      <h2>How the job moves forward.</h2>
+      <p class="lead">Every step hands off to the next automatically. No re-typing, no lost paperwork, no wondering where a job stands.</p>
+    </div>
+    <div class="flow-tabs" role="tablist">
+      <button class="flow-tab on" data-flow="0"><span>1</span>Measure<i class="timer"></i></button>
+      <button class="flow-tab" data-flow="1"><span>2</span>Sell<i class="timer"></i></button>
+      <button class="flow-tab" data-flow="2"><span>3</span>Build<i class="timer"></i></button>
+      <button class="flow-tab" data-flow="3"><span>4</span>Get paid<i class="timer"></i></button>
+    </div>
+
+    <div class="flow-panel split on" data-panel="0">
+      <div>
+        <h3>Accurate measurements without the ladder.</h3>
+        <p class="lead">Order a roof, full exterior or full house report from the address. Measurements flow straight into materials, labor and the proposal.</p>
+        <ul class="feature-list"><li>Roof, siding, gutters, windows and doors</li><li>Every structure on the property</li><li>Waste factors and material lists built in</li></ul>
+        <a class="link-arrow" href="~/solutions/roof-measurements/">Explore measurements</a>
+      </div>
+      <div class="mock" aria-hidden="true">
+        <div class="mock-bar"><i></i><i></i><i></i><div class="url">Reports · 1482 Ridgeview Dr</div></div>
+        <div class="mock-main">
+          <div class="mock-title">Order a report</div>
+          <div class="mock-row slide-up" style="--d:1"><i class="fa-solid fa-house-chimney" style="color:var(--brand)"></i><b style="flex:1">Roof</b><span class="mock-chip">Pitch · facets · waste</span></div>
+          <div class="mock-row slide-up" style="--d:2;border-color:var(--brand);box-shadow:0 0 0 3px rgba(219,0,0,.08)"><i class="fa-solid fa-ruler-combined" style="color:var(--brand)"></i><b style="flex:1">Full Exterior</b><span class="mock-chip red">Selected</span></div>
+          <div class="mock-row slide-up" style="--d:3"><i class="fa-solid fa-city" style="color:var(--brand)"></i><b style="flex:1">Full House</b><span class="mock-chip">All structures</span></div>
+          <div style="display:flex;gap:8px;align-items:center;margin-top:6px;--d:5" class="fade"><span style="font-weight:700;font-size:12px">Processing</span><div class="mock-progress" style="flex:1"><i style="--w:100%;--d:4"></i></div></div>
+          <div class="mock-row pop" style="--d:14"><span class="mock-chip green">Ready</span><b style="flex:1">Full Exterior report · 14 pages</b><span class="mock-btn">Open</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="flow-panel split" data-panel="1">
+      <div>
+        <h3>Proposals that close at the kitchen table.</h3>
+        <p class="lead">Good, better, best options priced from your measurements and your price book. Homeowners sign and pay a deposit on the spot.</p>
+        <ul class="feature-list"><li>Priced from real measurements</li><li>E-signature with a sealed record</li><li>Follow-ups that send themselves</li></ul>
+        <a class="link-arrow" href="~/solutions/proposals/">Explore proposals</a>
+      </div>
+      <div class="mock" aria-hidden="true">
+        <div class="mock-bar"><i></i><i></i><i></i><div class="url">Proposal · The Martins</div></div>
+        <div class="mock-main">
+          <div class="mock-title">Choose your roof</div>
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">
+            <div class="mock-kpi slide-up" style="--d:1"><small>Good</small><b>$18,420</b><div class="mock-line" style="margin-top:8px"></div></div>
+            <div class="mock-kpi slide-up" style="--d:2;border:2px solid var(--brand)"><small style="color:var(--brand)">Better ★</small><b>$24,860</b><div class="mock-line" style="margin-top:8px"></div></div>
+            <div class="mock-kpi slide-up" style="--d:3"><small>Best</small><b>$31,200</b><div class="mock-line" style="margin-top:8px"></div></div>
+          </div>
+          <div class="mock-row fade" style="--d:6"><span style="font-family:cursive;font-size:20px;color:#1d4ed8;flex:1"><span class="mock-type" style="--steps:13;--d:7;border:0">Sarah Martin</span></span><span class="mock-chip blue">Sign here</span></div>
+          <div class="mock-row pop" style="--d:20"><div class="mock-toast" style="flex:1">Signed · Deposit $8,287 paid</div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="flow-panel split" data-panel="2">
+      <div>
+        <h3>Crews, materials and schedules in sync.</h3>
+        <p class="lead">The signed scope becomes the material order and the work order. Crews see their day, check in and photograph the job from their phone.</p>
+        <ul class="feature-list"><li>Drag-and-drop scheduling</li><li>Material orders from the measurements</li><li>Checklists and photos from the field</li></ul>
+        <a class="link-arrow" href="~/solutions/scheduling/">Explore scheduling</a>
+      </div>
+      <div class="mock" aria-hidden="true">
+        <div class="mock-bar"><i></i><i></i><i></i><div class="url">Scheduling · This week</div></div>
+        <div class="mock-main">
+          <div style="display:grid;grid-template-columns:70px repeat(5,1fr);gap:6px;font-size:10px;font-weight:800;color:var(--muted)"><span></span><span>MON</span><span>TUE</span><span>WED</span><span>THU</span><span>FRI</span></div>
+          <div style="display:grid;grid-template-columns:70px repeat(5,1fr);gap:6px;align-items:center"><b style="font-size:11px">Team A</b><div class="mock-chip red slide-left" style="--d:1;grid-column:span 2">Martin · Roof</div><span></span><div class="mock-chip blue slide-left" style="--d:3;grid-column:span 2">Ortiz · Siding</div></div>
+          <div style="display:grid;grid-template-columns:70px repeat(5,1fr);gap:6px;align-items:center"><b style="font-size:11px">Team B</b><span></span><div class="mock-chip green slide-left" style="--d:2;grid-column:span 3">Lee · Full exterior</div><span></span></div>
+          <div style="display:grid;grid-template-columns:70px repeat(5,1fr);gap:6px;align-items:center"><b style="font-size:11px">Gutters</b><div class="mock-chip amber slide-left" style="--d:4">Park</div><span></span><span></span><div class="mock-chip violet slide-left" style="--d:5">Martin</div></div>
+          <div class="mock-row slide-up" style="--d:7"><i class="fa-solid fa-truck" style="color:var(--brand)"></i><b style="flex:1">Materials delivered · Martin</b><span class="mock-chip green">On site</span></div>
+          <div class="mock-row slide-up" style="--d:8"><div class="mock-avatar">JR</div><b style="flex:1">Checked in · 7:02 AM</b><span class="mock-chip">12 photos</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="flow-panel split" data-panel="3">
+      <div>
+        <h3>Get paid faster, pay your people right.</h3>
+        <p class="lead">Invoices go out on milestones, homeowners pay by card or bank, and piece-rate and commission pay is worked out from the finished job.</p>
+        <ul class="feature-list"><li>Card and ACH, online or in person</li><li>Job costing on every project</li><li>Payroll and commissions built in</li></ul>
+        <a class="link-arrow" href="~/solutions/payments/">Explore payments</a>
+      </div>
+      <div class="mock" aria-hidden="true">
+        <div class="mock-bar"><i></i><i></i><i></i><div class="url">Financials · October</div></div>
+        <div class="mock-main">
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">
+            <div class="mock-kpi"><small>Collected</small><b>$412k</b></div>
+            <div class="mock-kpi"><small>Outstanding</small><b>$86k</b></div>
+            <div class="mock-kpi"><small>Avg margin</small><b>38%</b></div>
+          </div>
+          <div class="mock-bars"><i style="--h:40%;--d:1"></i><i style="--h:55%;--d:2"></i><i style="--h:48%;--d:3"></i><i style="--h:70%;--d:4"></i><i style="--h:62%;--d:5"></i><i style="--h:85%;--d:6"></i><i style="--h:78%;--d:7"></i><i style="--h:95%;--d:8"></i></div>
+          <div class="mock-row pop" style="--d:10"><div class="mock-toast" style="flex:1">Final payment · Martin · $16,573</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- MEASUREMENTS -->
+<section class="section section--soft">
+  <div class="container">
+    <div class="section-head reveal">
+      <div class="eyebrow">Measurements</div>
+      <h2>Start every job with the right numbers.</h2>
+      <p class="lead">From a single roof to every structure on the lot, FirstMate measurements turn straight into materials, labor and a proposal.</p>
+    </div>
+    <div class="grid grid-3">
+      <a class="measure-card reveal" href="~/solutions/roof-measurements/">
+        <div class="art mock" style="border-radius:0;box-shadow:none;border:0;background:linear-gradient(180deg,#1a1c22,#0d0e12)"><svg class="draw" viewBox="0 0 200 120"><polygon style="--len:300" points="20,100 70,40 120,100"/><polygon style="--len:400" points="70,40 140,40 180,100 120,100"/><line style="--len:80" x1="70" y1="40" x2="140" y2="40"/></svg></div>
+        <div class="body"><h3>Roof Measurements</h3><p>Pitch, facets, ridges, valleys and waste, delivered fast.</p></div>
+      </a>
+      <a class="measure-card reveal" style="--d:1" href="~/solutions/full-exterior/">
+        <div class="art mock" style="border-radius:0;box-shadow:none;border:0;background:linear-gradient(180deg,#1a1c22,#0d0e12)"><svg class="draw" viewBox="0 0 200 120"><polygon style="--len:300" points="30,50 100,10 170,50"/><rect style="--len:400" x="40" y="50" width="120" height="60"/><rect style="--len:80" x="60" y="65" width="22" height="18"/><rect style="--len:80" x="118" y="65" width="22" height="18"/><rect style="--len:90" x="90" y="78" width="20" height="32"/></svg></div>
+        <div class="body"><h3>Full Exterior Reports</h3><p>Roof plus siding, trim, gutters, windows and doors.</p></div>
+      </a>
+      <a class="measure-card reveal" style="--d:2" href="~/solutions/full-house/">
+        <div class="art mock" style="border-radius:0;box-shadow:none;border:0;background:linear-gradient(180deg,#1a1c22,#0d0e12)"><svg class="draw" viewBox="0 0 200 120"><polygon style="--len:240" points="10,60 55,25 100,60"/><rect style="--len:300" x="18" y="60" width="74" height="50"/><polygon style="--len:200" points="115,70 150,45 185,70"/><rect style="--len:240" x="122" y="70" width="56" height="40"/><rect style="--len:60" x="140" y="84" width="20" height="26"/></svg></div>
+        <div class="body"><h3>Full House Reports</h3><p>The home, garage, shed and every structure in one order.</p></div>
+      </a>
+    </div>
+  </div>
+</section>
+
+<!-- AI -->
+<section class="section section--dark" style="position:relative;overflow:hidden">
+  <div class="hero-glow" style="opacity:.6"></div>
+  <div class="container split" style="position:relative">
+    <div class="reveal">
+      <div class="eyebrow">FirstMate Assistant</div>
+      <h2>Skip the busywork with AI that knows your jobs.</h2>
+      <p class="lead" style="color:#c9ccd4">Ask about any project, draft a follow-up, build a checklist or update a schedule in plain English. The assistant works inside your data and your permissions.</p>
+      <ul class="feature-list"><li>Answers from your projects, not the internet</li><li>Drafts proposals, messages and reports</li><li>Sets up automations for you</li></ul>
+      <div class="btn-row" style="margin-top:28px"><a class="btn btn-glass" href="~/solutions/assistant/">Meet the assistant</a></div>
+    </div>
+    <div class="mock mock--dark" aria-hidden="true" id="ai-mock">
+      <div class="mock-bar"><i></i><i></i><i></i><div class="url" style="background:#15171c;border-color:#2a2e37">FirstMate Assistant</div></div>
+      <div class="chat">
+        <div class="bubble me slide-up" style="--d:1">Which jobs this week still need materials ordered?</div>
+        <div class="bubble ai slide-up" style="--d:5"><b>3 jobs</b> are scheduled without a material order: Martin (Tue), Ortiz (Wed) and Lee (Thu). Want me to build the orders from their measurements?</div>
+        <div class="bubble me slide-up" style="--d:10">Yes, send them to our supplier.</div>
+        <div class="bubble ai slide-up" style="--d:14"><i class="fa-solid fa-circle-check" style="color:#4ade80"></i> Done. 3 orders drafted for review. Delivery requested the morning before each install.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- STATS -->
+<section class="section--tight">
+  <div class="container grid grid-4" style="text-align:center">
+    <div class="stat reveal"><b data-count="4" data-suffix=" hrs">0</b><span>most residential reports, or less</span></div>
+    <div class="stat reveal" style="--d:1"><b data-count="30" data-suffix="+">0</b><span>apps in one platform</span></div>
+    <div class="stat reveal" style="--d:2"><b data-count="1">0</b><span>place for office and field</span></div>
+    <div class="stat reveal" style="--d:3"><b data-count="0" data-prefix="$">0</b><span>to get started</span></div>
+  </div>
+</section>
+
+<!-- SOLUTIONS -->
+<section class="section section--soft">
+  <div class="container">
+    <div class="section-head center reveal">
+      <div class="eyebrow">Solutions</div>
+      <h2>Built for the job, from start to finish.</h2>
+      <p class="lead">Turn on the apps you need today. Add the rest as you grow.</p>
+    </div>
+    <div class="sol-grid" id="sol-grid"></div>
+    <div style="text-align:center;margin-top:40px"><a class="btn btn-outline" href="~/solutions/">See all solutions</a></div>
+  </div>
+</section>
+
+<!-- WHO WE SERVE -->
+<section class="section section--dark">
+  <div class="container">
+    <div class="section-head reveal">
+      <div class="eyebrow">Who we serve</div>
+      <h2>Field solutions for every team.</h2>
+      <p class="lead" style="color:#c9ccd4">From an owner-operator with one truck to a multi-branch enterprise, FirstMate grows with you.</p>
+    </div>
+    <div class="grid grid-4">
+      <a class="size-card reveal" href="~/who-we-serve/small/"><b>Small</b>1–10 employees</a>
+      <a class="size-card reveal" style="--d:1" href="~/who-we-serve/medium/"><b>Medium</b>11–49 employees</a>
+      <a class="size-card reveal" style="--d:2" href="~/who-we-serve/enterprise/"><b>Enterprise</b>50+ employees</a>
+      <a class="size-card reveal" style="--d:3" href="~/who-we-serve/franchise/"><b>Franchise</b>Part of a larger network</a>
+    </div>
+  </div>
+</section>
+<section class="section--tight section">
+  <div class="container">
+    <div style="display:flex;justify-content:space-between;align-items:end;gap:16px;flex-wrap:wrap;margin-bottom:28px" class="reveal"><h2 style="margin:0">Popular trades</h2><a class="link-arrow" href="~/trades/">Explore all trades</a></div>
+    <div class="grid grid-4">
+      <a class="trade-chip reveal" href="~/trades/roofing/"><i class="fa-solid fa-house-chimney"></i>Roofing</a>
+      <a class="trade-chip reveal" style="--d:1" href="~/trades/exteriors/"><i class="fa-solid fa-house"></i>Siding &amp; Exteriors</a>
+      <a class="trade-chip reveal" style="--d:2" href="~/trades/general-contractors/"><i class="fa-solid fa-hammer"></i>General Contractors</a>
+      <a class="trade-chip reveal" style="--d:3" href="~/trades/restoration/"><i class="fa-solid fa-house-flood-water"></i>Restoration</a>
+      <a class="trade-chip reveal" href="~/trades/solar/"><i class="fa-solid fa-solar-panel"></i>Solar</a>
+      <a class="trade-chip reveal" style="--d:1" href="~/trades/hvac/"><i class="fa-solid fa-fan"></i>HVAC</a>
+      <a class="trade-chip reveal" style="--d:2" href="~/trades/landscaping/"><i class="fa-solid fa-tree"></i>Landscaping</a>
+      <a class="trade-chip reveal" style="--d:3" href="~/trades/"><i class="fa-solid fa-plus"></i>All trades</a>
+    </div>
+  </div>
+</section>
+
+<!-- INTEGRATIONS -->
+<section class="section--tight" style="background:var(--bg-soft)">
+  <div class="container" style="padding-top:56px;padding-bottom:56px">
+    <h3 style="text-align:center;margin-bottom:28px" class="reveal">Connected to the tools you already use.</h3>
+    <div class="marquee"><div class="marquee-track">
+      <span class="pill">Forward payments</span><span class="pill">Telnyx calls &amp; texts</span><span class="pill">Gmail</span><span class="pill">Google Ads lead forms</span><span class="pill">QuickBooks export</span><span class="pill">Gusto export</span><span class="pill">NOAA storm data</span><span class="pill">Webhooks &amp; API</span><span class="pill">Your lead inbox</span>
+      <span class="pill">Forward payments</span><span class="pill">Telnyx calls &amp; texts</span><span class="pill">Gmail</span><span class="pill">Google Ads lead forms</span><span class="pill">QuickBooks export</span><span class="pill">Gusto export</span><span class="pill">NOAA storm data</span><span class="pill">Webhooks &amp; API</span><span class="pill">Your lead inbox</span>
+    </div></div>
+    <p style="text-align:center;margin-top:24px"><a class="link-arrow" href="~/solutions/integrations/">See integrations</a></p>
+  </div>
+</section>
+
+<!-- TESTIMONIALS -->
+<section class="section">
+  <div class="container">
+    <div class="section-head center reveal"><div class="eyebrow">Customer stories</div><h2>Trusted by pros on every job site.</h2></div>
+    <div class="grid grid-3">
+      <div class="card reveal"><p class="quote">“Placeholder quote. We went from three systems to one and our office stopped chasing paperwork.”</p><div class="quote-by"><div class="mock-avatar">AB</div><div><b>Customer name</b>Owner, Company</div></div></div>
+      <div class="card reveal" style="--d:1"><p class="quote">“Placeholder quote. Reports come back fast and the proposal is built before I leave the driveway.”</p><div class="quote-by"><div class="mock-avatar">CD</div><div><b>Customer name</b>Sales Manager, Company</div></div></div>
+      <div class="card reveal" style="--d:2"><p class="quote">“Placeholder quote. Our crews know exactly where to be and what to bring every morning.”</p><div class="quote-by"><div class="mock-avatar">EF</div><div><b>Customer name</b>Operations, Company</div></div></div>
+    </div>
+  </div>
+</section>
+
+<section class="section" style="padding-top:0">
+  <div class="container">
+    <div class="cta-band reveal">
+      <h2>Try FirstMate with your team.</h2>
+      <p class="lead" style="color:#c9ccd4;max-width:600px;margin:0 auto">Sign up free and order your first report today, or book a walkthrough and we will set it up with you.</p>
+      <div class="btn-row"><a class="btn btn-primary btn-lg" href="https://app.1m8.ai/portal/signup">Sign up free</a><a class="btn btn-glass btn-lg" href="~/demo/">Book a demo</a></div>
+    </div>
+  </div>
+</section>
+
+</main>
+<div id="site-footer"></div>
+<script src="assets/site.js"></script>
+<script>
+(function () {
+  // Solutions grid from the shared list
+  var grid = document.getElementById('sol-grid');
+  grid.innerHTML = FirstMateSite.solutions.map(function (g, gi) {
+    return '<div class="sol-group reveal" style="--d:' + gi + '"><h4>' + g.group + '</h4>' + g.items.map(function (i) {
+      return '<a class="sol-link" href="' + FirstMateSite.url('/solutions/' + i[0] + '/') + '"><i class="fa-solid ' + i[3] + '"></i>' + i[1] + '</a>';
+    }).join('') + '</div>';
+  }).join('');
+  grid.querySelectorAll('.reveal').forEach(function (el) { setTimeout(function () { el.classList.add('in'); }, 50); });
+
+  // Flow tabs: auto-advance every 7 s, restart panel animations on switch
+  var tabs = document.querySelectorAll('.flow-tab'), panels = document.querySelectorAll('.flow-panel'), cur = 0, timer;
+  function show(i) {
+    cur = i;
+    tabs.forEach(function (t, k) { t.classList.toggle('on', k === i); var tm = t.querySelector('.timer'); tm.style.animation = 'none'; tm.offsetWidth; tm.style.animation = ''; });
+    panels.forEach(function (p, k) {
+      p.classList.toggle('on', k === i);
+      var m = p.querySelector('.mock'); if (k === i && m) { m.classList.remove('in'); m.offsetWidth; m.classList.add('in'); }
+    });
+    clearTimeout(timer); timer = setTimeout(function () { show((cur + 1) % tabs.length); }, 7000);
+  }
+  tabs.forEach(function (t, k) { t.addEventListener('click', function () { show(k); }); });
+  var started = false;
+  new IntersectionObserver(function (e) { if (e[0].isIntersecting && !started) { started = true; show(0); } }, { threshold: .3 }).observe(document.querySelector('.flow-tabs'));
+})();
+</script>
+</body>
+</html>

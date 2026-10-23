@@ -7,6 +7,17 @@ optimization here must return exactly the same results.
 Add an entry when you knowingly ship something that reads more than it needs, repeats work, or will not scale, and
 link the entry from the architecture doc's "Not built" section. Remove an entry when it is done.
 
+## Website forum search reads every thread file
+
+**Today.** Forum search (`website-next/forum/index.php`, `?q=`) opens every thread's JSON file and scans each post body
+for the query, newest first, stopping at 50 matches.
+
+**Where the change goes.** Keep a small lowercase word index (word to thread ids) in the forum data directory, updated
+by the same locked writers, and open only the candidate threads; the matches and their order stay the same.
+
+**Why it can wait.** The forum is new and holds a handful of threads; a full scan of a few hundred small files takes
+milliseconds.
+
 ## Session replay search for people and organizations scans their tables
 
 **Today.** "Who is recorded" finds people and organizations with `ILIKE '%text%'` over `platform_identities` and

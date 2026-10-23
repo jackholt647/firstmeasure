@@ -1,0 +1,297 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Full Exterior Reports — FirstMate</title>
+<meta name="description" content="Full Exterior reports: the roof plus walls, siding, trim, soffit and fascia, gutters, windows and doors, with every elevation drawn and labeled.">
+<meta name="robots" content="noindex, nofollow">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,400..900;1,400..900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/site.css">
+<style>
+  .fe-tabs { display: flex; gap: 4px; background: #f3f4f6; border-radius: 999px; padding: 3px; width: max-content; max-width: 100% }
+  .fe-tabs span { padding: 5px 11px; border-radius: 999px; font-size: 11px; font-weight: 800; color: var(--muted); transition: all .25s }
+  .fe-tabs span.on { background: #fff; color: var(--heading); box-shadow: var(--shadow-sm) }
+  .fe-elev { border: 1px solid var(--line); border-radius: 12px; padding: 8px; background: linear-gradient(180deg, #f7f9fc, #fff) }
+  .fe-elev svg { width: 100%; height: auto }
+  .fe-elev .wall, .fe-elev .roofl { fill: none; stroke: #111827; stroke-width: 1.8 }
+  .fe-elev .roofl { stroke: var(--brand) }
+  .fe-elev .open { fill: rgba(37, 99, 235, 0); stroke: #2563eb; stroke-width: 1.6 }
+  .fe-elev .open.door { stroke: #7c3aed }
+  .mock.in .fe-elev .open { animation: fm-draw 1.4s var(--ease) forwards, fe-glass .6s ease forwards; animation-delay: calc(var(--d, 0) * 150ms), calc(1.2s + var(--d, 0) * 150ms) }
+  @keyframes fe-glass { to { fill: rgba(37, 99, 235, .08) } }
+  .fe-elev .sid line { stroke: #d6d9df; stroke-width: 1 }
+  .fe-elev .dim { stroke: #9ca3af; stroke-width: 1; fill: none }
+  .fe-elev text { font: 800 8.5px Montserrat, sans-serif; fill: #111827; opacity: 0 }
+  .fe-elev text.o { fill: #1d4ed8 } .fe-elev text.p { fill: #6d28d9 } .fe-elev text.m { fill: #6b7280; font-weight: 700 }
+  .fe-elev .tag { opacity: 0 }
+  .mock.in .fe-elev text, .mock.in .fe-elev .tag { animation: fm-fade .5s ease forwards; animation-delay: calc(2.6s + var(--d, 0) * 120ms) }
+  .fe-f1, .fe-f2 { opacity: 0 }
+  .fe-f1 { right: -14px; top: 40px; width: 200px }
+  .fe-f2 { left: -18px; bottom: -10px; width: 210px }
+  .mock.in ~ .fe-f1 { animation: fm-pop .6s var(--ease) 3.6s forwards, fm-float 6s ease-in-out 4.2s infinite }
+  .mock.in ~ .fe-f2 { animation: fm-pop .6s var(--ease) 4.2s forwards, fm-float 7s ease-in-out 4.8s infinite }
+  @media (max-width: 560px) { .fe-f1 { display: none } .fe-f2 { left: 0 } }
+
+  .fe-table { width: 100%; border-collapse: collapse; font-size: 12px; font-variant-numeric: tabular-nums }
+  .fe-table th { text-align: left; font-size: 10px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); font-weight: 800; padding: 6px 8px; border-bottom: 1px solid var(--line) }
+  .fe-table td { padding: 8px; border-bottom: 1px solid var(--line-soft); font-weight: 700 }
+  .fe-table td:not(:first-child), .fe-table th:not(:first-child) { text-align: right }
+  .fe-table tfoot td { font-weight: 900; border-bottom: 0; color: var(--brand) }
+  .fe-wrap-x { overflow-x: auto }
+  .fe-mini { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px }
+
+  .fe-eave svg { width: 100%; height: auto }
+  .fe-eave .part { fill: none; stroke-width: 2.4; stroke-linejoin: round; stroke-linecap: round }
+  .fe-eave text { font: 800 11px Montserrat, sans-serif; fill: #111827; opacity: 0 }
+  .mock.in .fe-eave text { animation: fm-fade .5s ease forwards; animation-delay: calc(1.6s + var(--d, 0) * 200ms) }
+  .fe-eave .lead-l { stroke: #9ca3af; stroke-width: 1; stroke-dasharray: 3 3; opacity: 0 }
+  .mock.in .fe-eave .lead-l { animation: fm-fade .5s ease forwards; animation-delay: calc(1.6s + var(--d, 0) * 200ms) }
+
+  .fe-hl { transition: background .3s }
+  .fe-hl.on { background: var(--brand-soft) }
+  .fe-related { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 18px }
+  @media (max-width: 960px) { .fe-related { grid-template-columns: repeat(2, minmax(0, 1fr)) } }
+  @media (max-width: 520px) { .fe-related { grid-template-columns: 1fr } .fe-mini { grid-template-columns: 1fr 1fr } }
+</style>
+</head>
+<body>
+<div id="site-header"></div>
+<main>
+
+<section class="page-hero">
+  <div class="container split">
+    <div>
+      <div class="breadcrumb"><a href="~/solutions/">Solutions</a><span>Full Exterior Reports</span></div>
+      <div class="eyebrow">Full Exterior</div>
+      <h1>The whole outside of the house. <span class="text-gradient">One report.</span></h1>
+      <p class="lead">Roof, walls, windows, doors and gutters in a single order. Every elevation is drawn and labeled, so siding, trim, soffit, fascia and gutters are counted from the same numbers as the roof.</p>
+      <div class="btn-row"><a class="btn btn-primary btn-lg" href="https://app.1m8.ai/portal/signup">Sign up free</a><a class="btn btn-ghost btn-lg" href="~/demo/">Book a demo</a></div>
+    </div>
+    <div class="mock-stage" aria-hidden="true">
+      <div class="mock" id="fe-hero">
+        <div class="mock-bar"><i></i><i></i><i></i><div class="url">Full Exterior · 1482 Ridgeview Dr</div></div>
+        <div class="mock-main">
+          <div class="fade" style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
+            <div class="mock-title">Elevations</div>
+            <div class="fe-tabs" id="fe-tabs"><span class="on">Front</span><span>Right</span><span>Back</span><span>Left</span></div>
+          </div>
+          <div class="fe-elev">
+            <svg viewBox="0 0 420 250">
+              <g class="sid draw">
+                <line style="--len:260;--d:3" x1="40" y1="122" x2="300" y2="122"/><line style="--len:260;--d:4" x1="40" y1="134" x2="300" y2="134"/><line style="--len:260;--d:5" x1="40" y1="146" x2="300" y2="146"/><line style="--len:260;--d:6" x1="40" y1="158" x2="300" y2="158"/><line style="--len:260;--d:7" x1="40" y1="170" x2="300" y2="170"/><line style="--len:260;--d:8" x1="40" y1="182" x2="300" y2="182"/><line style="--len:260;--d:9" x1="40" y1="194" x2="300" y2="194"/><line style="--len:260;--d:10" x1="40" y1="206" x2="300" y2="206"/>
+                <line style="--len:100;--d:6" x1="300" y1="152" x2="400" y2="152"/><line style="--len:100;--d:7" x1="300" y1="164" x2="400" y2="164"/><line style="--len:100;--d:8" x1="300" y1="176" x2="400" y2="176"/><line style="--len:100;--d:9" x1="300" y1="188" x2="400" y2="188"/><line style="--len:100;--d:10" x1="300" y1="200" x2="400" y2="200"/>
+              </g>
+              <g class="draw">
+                <rect class="wall" style="--len:740;--d:0" x="40" y="110" width="260" height="110"/>
+                <rect class="wall" style="--len:420;--d:1" x="300" y="140" width="100" height="80"/>
+                <polyline class="roofl" style="--len:340;--d:1" points="28,112 170,40 312,112"/>
+                <polyline class="roofl" style="--len:140;--d:2" points="296,142 320,120 380,120 404,142"/>
+                <line class="dim" style="--len:260;--d:6" x1="40" y1="236" x2="300" y2="236"/>
+                <line class="dim" style="--len:100;--d:7" x1="300" y1="236" x2="400" y2="236"/>
+              </g>
+              <g class="draw">
+                <rect class="open" style="--len:180;--d:3" x="66" y="134" width="38" height="52"/>
+                <rect class="open" style="--len:180;--d:4" x="124" y="134" width="38" height="52"/>
+                <rect class="open door" style="--len:200;--d:5" x="186" y="152" width="32" height="68"/>
+                <rect class="open" style="--len:180;--d:6" x="238" y="134" width="38" height="52"/>
+                <rect class="open" style="--len:110;--d:7" x="156" y="70" width="28" height="24"/>
+                <rect class="open door" style="--len:260;--d:8" x="318" y="160" width="66" height="60"/>
+              </g>
+              <text id="fe-wlabel" x="48" y="104" style="--d:0">Wall A · 1,084 ft²</text>
+              <text class="o" x="72" y="130" style="--d:1">W1</text><text class="o" x="130" y="130" style="--d:2">W2</text><text class="o" x="244" y="130" style="--d:3">W3</text><text class="o" x="160" y="66" style="--d:4">W4</text>
+              <text class="p" x="190" y="148" style="--d:5">D1</text><text class="p" x="322" y="156" style="--d:6">G1</text>
+              <text class="m" x="152" y="247" style="--d:7">52 ft</text><text class="m" x="340" y="247" style="--d:8">20 ft</text>
+              <text class="m" x="312" y="132" style="--d:9">Wall B</text>
+            </svg>
+          </div>
+          <div class="fe-mini">
+            <div class="mock-kpi slide-up" style="--d:24"><small>Net wall</small><b id="fe-net">1,084 ft²</b></div>
+            <div class="mock-kpi slide-up" style="--d:25"><small>Openings</small><b id="fe-open">6</b></div>
+            <div class="mock-kpi slide-up" style="--d:26"><small>Outside corners</small><b id="fe-corner">36 ft</b></div>
+          </div>
+        </div>
+      </div>
+      <div class="mock-float fe-f1"><div style="font-size:11px;color:var(--muted);margin-bottom:4px">Whole house</div><div style="display:flex;justify-content:space-between"><span>Roof</span><b>32.4 sq</b></div><div style="display:flex;justify-content:space-between"><span>Siding</span><b>2,846 ft²</b></div><div style="display:flex;justify-content:space-between"><span>Gutters</span><b>214 ft</b></div><div style="display:flex;justify-content:space-between"><span>Openings</span><b>21</b></div></div>
+      <div class="mock-float fe-f2"><div class="mock-toast"><div>Siding order built<div style="font-weight:600;color:var(--muted);font-size:11px">Panels, corners, J-channel, trim</div></div></div></div>
+    </div>
+  </div>
+</section>
+
+<!-- Walls and siding -->
+<section class="section">
+  <div class="container split">
+    <div class="reveal">
+      <div class="eyebrow">Walls and siding</div>
+      <h2>Net wall area, with the openings already out.</h2>
+      <p class="lead">Each wall comes back with its gross area, the area of its openings and the net area left to cover, plus the lengths that drive accessories: corners, the bottom and top of each wall, transitions and terminations.</p>
+      <ul class="feature-list"><li>Gross, opening and net area per wall</li><li>Inside and outside corners</li><li>Starter and top-of-wall lengths</li></ul>
+    </div>
+    <div class="mock reveal" style="--d:1" aria-hidden="true">
+      <div class="mock-bar"><i></i><i></i><i></i><div class="url">Report · Walls</div></div>
+      <div class="mock-main">
+        <div class="mock-title">Walls</div>
+        <div class="fe-wrap-x"><table class="fe-table">
+          <thead><tr><th>Wall</th><th>Gross</th><th>Openings</th><th>Net</th></tr></thead>
+          <tbody>
+            <tr class="slide-up" style="--d:1"><td>A · Front</td><td>1,342</td><td>258</td><td>1,084</td></tr>
+            <tr class="slide-up" style="--d:2"><td>B · Garage</td><td>412</td><td>112</td><td>300</td></tr>
+            <tr class="slide-up" style="--d:3"><td>C · Right</td><td>486</td><td>48</td><td>438</td></tr>
+            <tr class="slide-up" style="--d:4"><td>D · Back</td><td>1,106</td><td>284</td><td>822</td></tr>
+            <tr class="slide-up" style="--d:5"><td>E · Left</td><td>246</td><td>44</td><td>202</td></tr>
+          </tbody>
+          <tfoot><tr class="fade" style="--d:7"><td>Total ft²</td><td>3,592</td><td>746</td><td>2,846</td></tr></tfoot>
+        </table></div>
+        <div class="fe-mini">
+          <div class="mock-kpi pop" style="--d:8"><small>Inside corners</small><b>18 ft</b></div>
+          <div class="mock-kpi pop" style="--d:9"><small>Starter</small><b>196 ft</b></div>
+          <div class="mock-kpi pop" style="--d:10"><small>Top of wall</small><b>188 ft</b></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Openings -->
+<section class="section section--soft">
+  <div class="container split split--flip">
+    <div class="reveal">
+      <div class="eyebrow">Windows and doors</div>
+      <h2>Every opening, sized and counted.</h2>
+      <p class="lead">Windows, doors and garage doors are listed by elevation with their size and perimeter, so wraps, trim and casing come straight from the report.</p>
+      <ul class="feature-list"><li>Opening schedule by elevation</li><li>Perimeters for trim and wrap</li><li>Opening area taken out of the wall</li></ul>
+    </div>
+    <div class="mock reveal" aria-hidden="true" id="fe-open-mock">
+      <div class="mock-bar"><i></i><i></i><i></i><div class="url">Report · Openings</div></div>
+      <div class="mock-main">
+        <div style="display:flex;justify-content:space-between;align-items:center"><div class="mock-title">Openings · Front</div><span class="mock-chip blue">6 openings</span></div>
+        <div class="fe-wrap-x"><table class="fe-table">
+          <thead><tr><th>ID</th><th>Type</th><th>Size</th><th>Perimeter</th></tr></thead>
+          <tbody>
+            <tr class="fe-hl slide-up" style="--d:1"><td>W1</td><td>Window</td><td>36 × 60 in</td><td>16 ft</td></tr>
+            <tr class="fe-hl slide-up" style="--d:2"><td>W2</td><td>Window</td><td>36 × 60 in</td><td>16 ft</td></tr>
+            <tr class="fe-hl slide-up" style="--d:3"><td>W3</td><td>Window</td><td>36 × 60 in</td><td>16 ft</td></tr>
+            <tr class="fe-hl slide-up" style="--d:4"><td>W4</td><td>Gable window</td><td>24 × 20 in</td><td>7 ft</td></tr>
+            <tr class="fe-hl slide-up" style="--d:5"><td>D1</td><td>Entry door</td><td>36 × 80 in</td><td>19 ft</td></tr>
+            <tr class="fe-hl slide-up" style="--d:6"><td>G1</td><td>Garage door</td><td>16 × 7 ft</td><td>46 ft</td></tr>
+          </tbody>
+        </table></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Soffit, fascia, gutters -->
+<section class="section">
+  <div class="container split">
+    <div class="reveal">
+      <div class="eyebrow">Soffit, fascia and gutters</div>
+      <h2>The edge of the roof, all the way around.</h2>
+      <p class="lead">Eaves and rakes give you fascia and soffit runs, and the gutter section adds gutter and downspout lengths, mitered corners and an install diagram.</p>
+      <ul class="feature-list"><li>Fascia and soffit from eave and rake lengths</li><li>Gutter and downspout lengths</li><li>Mitered corner counts</li></ul>
+    </div>
+    <div class="mock reveal" style="--d:1" aria-hidden="true">
+      <div class="mock-bar"><i></i><i></i><i></i><div class="url">Report · Eave detail</div></div>
+      <div class="mock-main">
+        <div class="fe-eave">
+          <svg viewBox="0 0 380 200">
+            <g class="draw">
+              <polyline class="part" style="--len:340;stroke:#111827;--d:0" points="20,40 250,120 250,140"/>
+              <line class="part" style="--len:120;stroke:#111827;--d:1" x1="150" y1="180" x2="150" y2="85"/>
+              <line class="part" style="--len:110;stroke:#16a34a;--d:2" x1="150" y1="140" x2="250" y2="140"/>
+              <rect class="part" style="--len:60;stroke:var(--brand);--d:3" x="250" y="114" width="8" height="30"/>
+              <path class="part" style="--len:120;stroke:#2563eb;--d:4" d="M262 118 L262 146 Q262 156 274 156 L290 156 Q300 156 300 144 L300 118"/>
+            </g>
+            <line class="lead-l" style="--d:0" x1="80" y1="58" x2="80" y2="24"/><text x="56" y="18" style="--d:0">Roof deck</text>
+            <line class="lead-l" style="--d:1" x1="200" y1="140" x2="200" y2="176"/><text x="176" y="190" style="--d:1">Soffit</text>
+            <line class="lead-l" style="--d:2" x1="254" y1="114" x2="254" y2="80"/><text x="232" y="74" style="--d:2">Fascia</text>
+            <line class="lead-l" style="--d:3" x1="300" y1="130" x2="330" y2="110"/><text x="318" y="104" style="--d:3">Gutter</text>
+          </svg>
+        </div>
+        <div class="fe-mini">
+          <div class="mock-kpi slide-up" style="--d:10"><small>Eaves</small><b><span data-count="214">0</span> ft</b></div>
+          <div class="mock-kpi slide-up" style="--d:11"><small>Downspouts</small><b><span data-count="96">0</span> ft</b></div>
+          <div class="mock-kpi slide-up" style="--d:12"><small>Miters</small><b><span data-count="8">0</span></b></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- What's included -->
+<section class="section section--soft">
+  <div class="container">
+    <div class="section-head reveal"><div class="eyebrow">What's included</div><h2>Everything in a roof report, and the rest of the house.</h2></div>
+    <div class="grid grid-3">
+      <div class="card reveal"><div class="icon"><i class="fa-solid fa-house-chimney"></i></div><h3>The full roof report</h3><p>Pitch, facets, lengths, flashing, ventilation and waste.</p></div>
+      <div class="card reveal" style="--d:1"><div class="icon"><i class="fa-solid fa-border-all"></i></div><h3>Walls and siding</h3><p>Gross and net area, corners, starter and top of wall.</p></div>
+      <div class="card reveal" style="--d:2"><div class="icon"><i class="fa-solid fa-door-open"></i></div><h3>Windows and doors</h3><p>Every opening with size and perimeter.</p></div>
+      <div class="card reveal"><div class="icon"><i class="fa-solid fa-water"></i></div><h3>Gutters</h3><p>Gutter and downspout lengths, miters and an install diagram.</p></div>
+      <div class="card reveal" style="--d:1"><div class="icon"><i class="fa-solid fa-vector-square"></i></div><h3>Labeled elevations</h3><p>Front, back and sides drawn with walls and openings named.</p></div>
+      <div class="card reveal" style="--d:2"><div class="icon"><i class="fa-solid fa-palette"></i></div><h3>Your branding</h3><p>Your logo and colors on a report the homeowner can read.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- Connects -->
+<section class="section section--dark">
+  <div class="container">
+    <div class="section-head reveal">
+      <div class="eyebrow">Connected to the job</div>
+      <h2>One set of numbers for every trade on the house.</h2>
+      <p class="lead" style="color:#c9ccd4">Roofing, siding and gutters each read the same measurements, so a multi-trade job prices, orders and pays from one report.</p>
+    </div>
+    <div class="fe-related">
+      <a class="card reveal" href="~/solutions/roof-measurements/"><div class="icon"><i class="fa-solid fa-house-chimney"></i></div><h3>Roof Measurements</h3><p>Just the roof, when that is all you need.</p></a>
+      <a class="card reveal" style="--d:1" href="~/solutions/full-house/"><div class="icon"><i class="fa-solid fa-city"></i></div><h3>Full House</h3><p>Every structure on the property.</p></a>
+      <a class="card reveal" style="--d:2" href="~/solutions/material-management/"><div class="icon"><i class="fa-solid fa-boxes-stacked"></i></div><h3>Materials</h3><p>Siding, trim and gutter orders from the report.</p></a>
+      <a class="card reveal" style="--d:3" href="~/solutions/proposals/"><div class="icon"><i class="fa-solid fa-file-signature"></i></div><h3>Proposals</h3><p>Price every trade in one proposal.</p></a>
+    </div>
+  </div>
+</section>
+
+<section class="section">
+  <div class="container container--narrow">
+    <div class="section-head center reveal"><div class="eyebrow">FAQ</div><h2>Questions about Full Exterior</h2></div>
+    <details class="faq"><summary>What is the difference from a roof report?</summary><div>A Full Exterior report includes everything in a roof report plus walls, windows, doors and gutters, with every elevation drawn.</div></details>
+    <details class="faq"><summary>Does it cover the garage?</summary><div>An attached garage is part of the house. For a detached garage, shed or other buildings, order a <a href="~/solutions/full-house/">Full House</a> report.</div></details>
+    <details class="faq"><summary>What does it cost?</summary><div>See <a href="~/pricing/">pricing</a> for current report prices.</div></details>
+  </div>
+</section>
+
+<section class="section" style="padding-top:0">
+  <div class="container">
+    <div class="cta-band reveal">
+      <h2>Measure the whole outside in one order.</h2>
+      <p class="lead" style="color:#c9ccd4;max-width:600px;margin:0 auto">Sign up free and order a Full Exterior report today.</p>
+      <div class="btn-row"><a class="btn btn-primary btn-lg" href="https://app.1m8.ai/portal/signup">Sign up free</a><a class="btn btn-glass btn-lg" href="~/demo/">Book a demo</a></div>
+    </div>
+  </div>
+</section>
+
+</main>
+<div id="site-footer"></div>
+<script src="../../assets/site.js"></script>
+<script>
+(function () {
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  // Hero: step through the elevations, replaying the drawing for each
+  var hero = document.getElementById('fe-hero'), tabs = document.querySelectorAll('#fe-tabs span');
+  var labels = ["Wall A · 1,084 ft²", "Wall C · 438 ft²", "Wall D · 822 ft²", "Wall E · 202 ft²"], wl = document.getElementById("fe-wlabel");
+  var data = [['1,084 ft²', '6', '36 ft'], ['438 ft²', '2', '18 ft'], ['822 ft²', '9', '36 ft'], ['202 ft²', '2', '18 ft']];
+  var net = document.getElementById('fe-net'), open = document.getElementById('fe-open'), corner = document.getElementById('fe-corner'), i = 0, started = false;
+  function next() {
+    i = (i + 1) % tabs.length;
+    tabs.forEach(function (t, k) { t.classList.toggle('on', k === i); });
+    net.textContent = data[i][0]; open.textContent = data[i][1]; corner.textContent = data[i][2]; wl.textContent = labels[i];
+    hero.classList.remove('in'); void hero.offsetWidth; hero.classList.add('in');
+  }
+  hero.addEventListener('fm:in', function () { if (started) return; started = true; setInterval(next, 7000); });
+  // Openings: highlight each row in turn
+  var rows = document.querySelectorAll('#fe-open-mock .fe-hl'), r = 0;
+  setInterval(function () { rows.forEach(function (row, k) { row.classList.toggle('on', k === r); }); r = (r + 1) % rows.length; }, 1400);
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,323 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CRM &amp; Lead Tracking — FirstMate</title>
+<meta name="description" content="Every lead, follow-up, appointment and source in one CRM built on your real projects and contacts.">
+<meta name="robots" content="noindex, nofollow">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,400..900;1,400..900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/site.css">
+<style>
+  .crm-scene { position: relative }
+  .crm-rail-count { margin-left: auto; font-size: 10px; font-weight: 800; color: var(--muted) }
+  .mock-nav.on .crm-rail-count { color: var(--brand) }
+  .crm-toolbar { display: flex; gap: 6px; flex-wrap: wrap; align-items: center }
+  .crm-board { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; min-height: 230px }
+  .crm-col { background: #f6f7f9; border-radius: 10px; padding: 8px; display: flex; flex-direction: column; gap: 6px; min-width: 0 }
+  .crm-col h6 { margin: 0 0 2px; font-size: 10px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); display: flex; justify-content: space-between }
+  .crm-card { background: #fff; border: 1px solid var(--line); border-radius: 8px; padding: 7px 8px; font-size: 11px; font-weight: 700; box-shadow: var(--shadow-sm); min-width: 0 }
+  .crm-card small { display: block; color: var(--muted); font-weight: 600; font-size: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
+  .crm-card .v { color: var(--heading); font-weight: 800; font-size: 11px; margin-top: 3px; display: flex; justify-content: space-between; align-items: center; gap: 4px }
+  .crm-card.crm-new { animation: crm-arrive .7s var(--ease) both; border-color: var(--brand); box-shadow: 0 0 0 3px rgba(219, 0, 0, .1) }
+  @keyframes crm-arrive { from { opacity: 0; transform: translateY(-10px) scale(.95) } to { opacity: 1; transform: none } }
+  .crm-drawer { right: -14px; bottom: -26px; width: 230px; opacity: 0 }
+  .mock.in ~ .crm-drawer { animation: fm-pop .6s var(--ease) 1.8s forwards, fm-float 7s ease-in-out 2.6s infinite }
+  .crm-drawer .acts { display: flex; gap: 5px; margin-top: 8px }
+  .crm-drawer .acts span { flex: 1; text-align: center; padding: 5px 0; border-radius: 8px; background: var(--bg-soft); font-size: 10px; color: var(--heading) }
+  .crm-drawer .acts span:first-child { background: var(--brand); color: #fff }
+  @media (max-width: 640px) { .crm-board { grid-template-columns: repeat(2, minmax(0, 1fr)) } .crm-board .crm-col:nth-child(n+3) { display: none } .crm-drawer { right: 0; width: 200px } }
+
+  /* list view */
+  .crm-list-head, .crm-list-row { display: grid; grid-template-columns: 1.6fr 1fr .9fr .8fr; gap: 8px; align-items: center; padding: 8px 10px; font-size: 11px }
+  .crm-list-head { font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: .06em; color: var(--muted) }
+  .crm-list-row { border: 1px solid var(--line); border-radius: 10px; font-weight: 700; background: #fff }
+  .crm-list-row small { display: block; color: var(--muted); font-weight: 600; font-size: 10px }
+  .crm-filter { display: inline-flex; align-items: center; gap: 4px; padding: 4px 9px; border-radius: 999px; border: 1px dashed #cfd3da; font-size: 11px; font-weight: 700; color: var(--muted) }
+  .crm-filter.set { border: 1px solid #ffd5d5; background: var(--brand-soft); color: var(--brand) }
+  @media (max-width: 520px) { .crm-list-head, .crm-list-row { grid-template-columns: 1.6fr 1fr } .crm-list-head > :nth-child(n+3), .crm-list-row > :nth-child(n+3) { display: none } }
+
+  /* worklist */
+  .crm-wl-person { display: flex; gap: 12px; align-items: center }
+  .crm-wl-person .mock-avatar { width: 40px; height: 40px; font-size: 13px }
+  .crm-results { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px }
+  .crm-results span { text-align: center; padding: 8px 4px; border-radius: 10px; border: 1px solid var(--line); font-weight: 700; font-size: 11px; transition: all .3s }
+  .crm-results span.on { border-color: var(--brand); background: var(--brand-soft); color: var(--brand) }
+  .crm-wl-progress { font-size: 11px; font-weight: 700; color: var(--muted); display: flex; gap: 8px; align-items: center }
+  .crm-wl-card { transition: opacity .35s, transform .35s var(--ease) }
+  .crm-wl-card.out { opacity: 0; transform: translateX(-20px) }
+
+  /* sources */
+  .crm-src-row { display: grid; grid-template-columns: 1.3fr 2fr .7fr; gap: 10px; align-items: center; font-size: 11px; font-weight: 700 }
+  .crm-src-row small { color: var(--muted); font-weight: 600 }
+
+  /* funnel */
+  .crm-funnel { display: flex; flex-direction: column; gap: 10px }
+  .crm-step { display: grid; grid-template-columns: 120px 1fr 54px; gap: 10px; align-items: center; font-size: 12px; font-weight: 700 }
+  .crm-step .bar { height: 30px; border-radius: 8px; background: #f3f4f6; overflow: hidden; position: relative }
+  .crm-step .bar i { position: absolute; inset: 0 auto 0 0; width: var(--w); border-radius: 8px; background: linear-gradient(90deg, var(--brand), var(--brand-2)); transform-origin: left; transform: scaleX(0) }
+  .mock.in .crm-step .bar i { animation: fm-grow-x 1.3s var(--ease) forwards; animation-delay: calc(var(--d, 0) * 260ms + 300ms) }
+  .crm-step .rate { color: var(--muted); font-size: 11px; text-align: right }
+  .crm-step .bar span { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: #fff; font-size: 11px; font-weight: 800; z-index: 1; opacity: 0 }
+  .mock.in .crm-step .bar span { animation: fm-fade .4s ease forwards; animation-delay: calc(var(--d, 0) * 260ms + 1100ms) }
+  @media (max-width: 520px) { .crm-step { grid-template-columns: 90px 1fr 40px; font-size: 11px } }
+</style>
+</head>
+<body>
+<div id="site-header"></div>
+<main>
+
+<section class="page-hero">
+  <div class="container split">
+    <div>
+      <div class="breadcrumb"><a href="~/solutions/">Solutions</a><span>CRM &amp; Lead Tracking</span></div>
+      <div class="eyebrow">CRM &amp; Lead Tracking</div>
+      <h1>Every lead, worked to the finish.</h1>
+      <p class="lead">New leads, follow-ups, appointments and the pipeline are views over your real contacts and projects. Nothing to copy over, nothing out of date.</p>
+      <div class="btn-row"><a class="btn btn-primary btn-lg" href="https://app.1m8.ai/portal/signup">Sign up free</a><a class="btn btn-ghost btn-lg" href="~/demo/">Book a demo</a></div>
+    </div>
+    <div class="mock-stage crm-scene" aria-hidden="true">
+      <div class="mock">
+        <div class="mock-bar"><i></i><i></i><i></i><div class="url">app.1m8.ai/portal · CRM</div></div>
+        <div class="mock-body">
+          <div class="mock-side">
+            <img class="logo" src="../../assets/img/logo_black.png" alt="" style="height:20px;width:auto">
+            <div class="mock-nav">New leads<span class="crm-rail-count" id="crm-newcount">6</span></div>
+            <div class="mock-nav on">Pipeline<span class="crm-rail-count">24</span></div>
+            <div class="mock-nav">Follow-ups due<span class="crm-rail-count">9</span></div>
+            <div class="mock-nav">Upcoming appointments<span class="crm-rail-count">5</span></div>
+            <div class="mock-nav">Gone quiet<span class="crm-rail-count">3</span></div>
+            <div style="height:10px"></div>
+            <div class="mock-nav">Funnel</div>
+            <div class="mock-nav">Sources</div>
+          </div>
+          <div class="mock-main">
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:8px" class="fade">
+              <div class="mock-title">Pipeline <span style="color:var(--muted);font-weight:700;font-size:12px">· 24</span></div>
+              <div class="crm-toolbar"><span class="mock-chip">Board</span><span class="mock-chip red">Worklist</span></div>
+            </div>
+            <div class="crm-toolbar fade" style="--d:1"><span class="crm-filter set">Assigned to: me</span><span class="crm-filter set">State: open</span><span class="crm-filter">+ Add filter</span></div>
+            <div class="crm-board" id="crm-board">
+              <div class="crm-col slide-up" style="--d:2"><h6>New leads <span>3</span></h6>
+                <div class="crm-card">Dana Brooks<small>88 Willow Ct · Website</small><div class="v">$— <span class="mock-chip blue" style="padding:1px 6px;font-size:9px">New</span></div></div>
+                <div class="crm-card">Luis Ortega<small>301 Elm St · Canvass</small><div class="v">$—</div></div>
+              </div>
+              <div class="crm-col slide-up" style="--d:3"><h6>Appt. set <span>2</span></h6>
+                <div class="crm-card">The Martins<small>1482 Ridgeview Dr</small><div class="v">$24,860 <span style="font-size:9px;color:var(--muted)">Thu 4pm</span></div></div>
+              </div>
+              <div class="crm-col slide-up" style="--d:4"><h6>Proposal <span>2</span></h6>
+                <div class="crm-card">K. Nguyen<small>12 Harbor Ln · Referral</small><div class="v">$18,420</div></div>
+                <div class="crm-card">P. Shah<small>77 Oak Park</small><div class="v">$31,200</div></div>
+              </div>
+              <div class="crm-col slide-up" style="--d:5"><h6>Won <span>1</span></h6>
+                <div class="crm-card">R. Patel<small>9 Summit Ave</small><div class="v">$22,100 <i class="fa-solid fa-circle-check" style="color:var(--ok)"></i></div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="mock-float crm-drawer">
+        <div style="display:flex;gap:10px;align-items:center"><div class="mock-avatar">DB</div><div>Dana Brooks<div style="font-weight:600;color:var(--muted);font-size:11px">New lead · Website › Google Ads</div></div></div>
+        <div style="font-size:11px;font-weight:600;color:var(--muted);margin-top:8px"><i class="fa-regular fa-clock"></i> Arrived 4 min ago · no scope yet</div>
+        <div class="acts"><span>Call</span><span>Text</span><span>Set appt.</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Views -->
+<section class="section">
+  <div class="container split">
+    <div class="reveal">
+      <div class="eyebrow">Views</div>
+      <h2>Your lists, the way you work them.</h2>
+      <p class="lead">A view is a saved filter over contacts, opportunities, follow-ups or appointments, shown as a list, a board or an agenda. Share one "My leads" view and every rep sees their own.</p>
+      <ul class="feature-list"><li>New leads, Pipeline, Follow-ups due and Upcoming appointments out of the box</li><li>Filter on any field, including your custom fields</li><li>Group with counts and value; bulk assign, tag or mark lost</li></ul>
+    </div>
+    <div class="mock reveal" aria-hidden="true">
+      <div class="mock-bar"><i></i><i></i><i></i><div class="url">CRM · Follow-ups due</div></div>
+      <div class="mock-main">
+        <div style="display:flex;justify-content:space-between;align-items:center"><div class="mock-title">Follow-ups due · 9</div><span class="mock-chip">List</span></div>
+        <div class="crm-toolbar"><span class="crm-filter set pop" style="--d:1">Due: before now+1d</span><span class="crm-filter set pop" style="--d:2">Branch: my branches</span><span class="crm-filter pop" style="--d:3">+ Add filter</span></div>
+        <div class="crm-list-head"><span>Contact</span><span>Due</span><span>Attempts</span><span>Channel</span></div>
+        <div class="crm-list-row slide-up" style="--d:3"><span>Sarah Martin<small>1482 Ridgeview Dr</small></span><span><span class="mock-chip red">Overdue</span></span><span>2</span><span>Call</span></div>
+        <div class="crm-list-row slide-up" style="--d:4"><span>Kim Nguyen<small>12 Harbor Ln</small></span><span><span class="mock-chip amber">Today</span></span><span>1</span><span>Text</span></div>
+        <div class="crm-list-row slide-up" style="--d:5"><span>Priya Shah<small>77 Oak Park</small></span><span><span class="mock-chip amber">Today</span></span><span>0</span><span>Call</span></div>
+        <div class="crm-list-row slide-up" style="--d:6"><span>Tom Becker<small>4 Lakeview Rd</small></span><span><span class="mock-chip">Tomorrow</span></span><span>3</span><span>Email</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Worklist -->
+<section class="section section--soft">
+  <div class="container split split--flip">
+    <div class="reveal">
+      <div class="eyebrow">Worklists</div>
+      <h2>Call, record, next.</h2>
+      <p class="lead">Work any view one person at a time. Call or text in one click, record what happened, pick when to try again and move on. The follow-up is created for you.</p>
+      <ul class="feature-list"><li>Talked, voicemail, no answer, texted or met</li><li>Your own outcomes and retry schedule</li><li>Every result kept in the project history</li></ul>
+    </div>
+    <div class="mock reveal" aria-hidden="true" id="crm-wl">
+      <div class="mock-bar"><i></i><i></i><i></i><div class="url">CRM · Worklist</div></div>
+      <div class="mock-main">
+        <div class="crm-wl-progress"><span id="crm-wl-pos">1 of 9</span><div class="mock-progress" style="flex:1"><i style="--w:12%" id="crm-wl-bar"></i></div></div>
+        <div class="crm-wl-card" id="crm-wl-card">
+          <div class="crm-wl-person"><div class="mock-avatar" id="crm-wl-av">SM</div><div><div class="mock-title" id="crm-wl-name">Sarah Martin</div><div style="color:var(--muted);font-size:11px;font-weight:600" id="crm-wl-sub">Roof replacement · Proposal sent · $24,860</div></div></div>
+        </div>
+        <div style="display:flex;gap:6px"><span class="mock-btn"><i class="fa-solid fa-phone"></i>&nbsp; Call</span><span class="mock-chip" style="padding:6px 12px">Text</span><span class="mock-chip" style="padding:6px 12px">Email</span></div>
+        <div style="font-size:10px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)">Result</div>
+        <div class="crm-results" id="crm-results"><span>Talked</span><span>Voicemail</span><span>No answer</span><span>Texted</span><span>Met</span><span>Not interested</span></div>
+        <div class="mock-row"><i class="fa-regular fa-calendar" style="color:var(--brand)"></i><b style="flex:1">Try again</b><span class="mock-chip">In 2 days</span></div>
+        <div style="display:flex;justify-content:flex-end;gap:8px"><span class="mock-chip" style="padding:6px 12px">Skip</span><span class="mock-btn">Save and next</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Sources -->
+<section class="section">
+  <div class="container split">
+    <div class="reveal">
+      <div class="eyebrow">Sources and spend</div>
+      <h2>Know which marketing pays.</h2>
+      <p class="lead">Every lead is stamped with where it came from, down to the campaign, from the page and ad tags it arrived with. Enter what you spent and see the cost of every lead and every sale.</p>
+      <ul class="feature-list"><li>Source, sub-source and campaign as a tree</li><li>Web, phone, referral, canvass, events and more</li><li>Referral partners credited with what they send</li></ul>
+    </div>
+    <div class="mock reveal" aria-hidden="true">
+      <div class="mock-bar"><i></i><i></i><i></i><div class="url">CRM · Sources</div></div>
+      <div class="mock-main">
+        <div class="mock-title">Leads by source · this month</div>
+        <div class="crm-src-row slide-up" style="--d:1"><span>Website<br><small>› Google Ads</small></span><div class="mock-progress"><i style="--w:82%;--d:1"></i></div><span>41</span></div>
+        <div class="crm-src-row slide-up" style="--d:2"><span>Canvass<br><small>› Storm area</small></span><div class="mock-progress"><i style="--w:64%;--d:2"></i></div><span>32</span></div>
+        <div class="crm-src-row slide-up" style="--d:3"><span>Referral<br><small>› Past customers</small></span><div class="mock-progress"><i style="--w:38%;--d:3"></i></div><span>19</span></div>
+        <div class="crm-src-row slide-up" style="--d:4"><span>Phone<br><small>› Yard signs</small></span><div class="mock-progress"><i style="--w:22%;--d:4"></i></div><span>11</span></div>
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:4px">
+          <div class="mock-kpi pop" style="--d:6"><small>Spend</small><b>$—</b></div>
+          <div class="mock-kpi pop" style="--d:7"><small>Cost / lead</small><b>$—</b></div>
+          <div class="mock-kpi pop" style="--d:8"><small>Cost / sale</small><b>$—</b></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Funnel -->
+<section class="section section--dark">
+  <div class="container split split--flip">
+    <div class="reveal">
+      <div class="eyebrow">The funnel</div>
+      <h2>See where leads stop.</h2>
+      <p class="lead" style="color:#c9ccd4">Funnel steps are read from what actually happened on each job: the appointment booked, the appointment held, the contract signed. Group by source, rep, setter or branch, and click any number to open those leads.</p>
+      <ul class="feature-list"><li>Your own steps, colors and credit rules</li><li>Step-to-step rates and cost per step</li><li>Nothing to update by hand</li></ul>
+    </div>
+    <div class="mock reveal" aria-hidden="true">
+      <div class="mock-bar"><i></i><i></i><i></i><div class="url">CRM · Funnel</div></div>
+      <div class="mock-main">
+        <div style="display:flex;justify-content:space-between;align-items:center"><div class="mock-title">Funnel · last 90 days</div><span class="mock-chip">Group: source</span></div>
+        <div class="crm-funnel">
+          <div class="crm-step"><span>Lead</span><div class="bar"><i style="--w:100%;--d:0"></i><span style="--d:0">103</span></div><span class="rate">—</span></div>
+          <div class="crm-step"><span>Appointment set</span><div class="bar"><i style="--w:68%;--d:1"></i><span style="--d:1">70</span></div><span class="rate">68%</span></div>
+          <div class="crm-step"><span>Appointment held</span><div class="bar"><i style="--w:52%;--d:2"></i><span style="--d:2">54</span></div><span class="rate">77%</span></div>
+          <div class="crm-step"><span>Won</span><div class="bar"><i style="--w:29%;--d:3"></i><span style="--d:3">30</span></div><span class="rate">56%</span></div>
+        </div>
+        <div style="font-size:11px;color:var(--muted);font-weight:600;--d:12" class="fade">Sample figures for illustration.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Feature grid -->
+<section class="section">
+  <div class="container">
+    <div class="section-head center reveal"><div class="eyebrow">More in the CRM</div><h2>The details that keep deals moving.</h2></div>
+    <div class="grid grid-3">
+      <div class="card reveal"><div class="icon"><i class="fa-solid fa-bolt"></i></div><h3>New lead alerts</h3><p>Decide who is told and who makes the first call the moment a lead arrives.</p></div>
+      <div class="card reveal" style="--d:1"><div class="icon"><i class="fa-solid fa-calendar-check"></i></div><h3>Appointment setting</h3><p>Book on real availability and see what is unconfirmed in the next two days.</p></div>
+      <div class="card reveal" style="--d:2"><div class="icon"><i class="fa-solid fa-clone"></i></div><h3>Duplicates</h3><p>Suggested matching contacts and projects side by side. Keep one, merge the rest.</p></div>
+      <div class="card reveal"><div class="icon"><i class="fa-solid fa-hourglass-half"></i></div><h3>Cancellation windows</h3><p>Track the cancellation period after a sale; production starts when it ends.</p></div>
+      <div class="card reveal" style="--d:1"><div class="icon"><i class="fa-solid fa-code-branch"></i></div><h3>Branches</h3><p>Each branch sees its own leads; managers see across the region.</p></div>
+      <div class="card reveal" style="--d:2"><div class="icon"><i class="fa-solid fa-keyboard"></i></div><h3>Built for speed</h3><p>Keyboard shortcuts, a command menu and phone-friendly cards for reps in the field.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- Connects -->
+<section class="section section--soft">
+  <div class="container">
+    <div class="section-head reveal"><div class="eyebrow">Connected</div><h2>One record from first knock to final payment.</h2><p class="lead">The CRM reads the same contacts and projects the rest of FirstMate uses.</p></div>
+    <div class="grid grid-4">
+      <a class="card reveal" href="~/solutions/canvassing/"><div class="icon"><i class="fa-solid fa-map-location-dot"></i></div><h3>Canvassing</h3><p>Door knocks become leads with the source already set.</p></a>
+      <a class="card reveal" style="--d:1" href="~/solutions/proposals/"><div class="icon"><i class="fa-solid fa-file-signature"></i></div><h3>Proposals</h3><p>Send good-better-best and get it signed.</p></a>
+      <a class="card reveal" style="--d:2" href="~/solutions/communications/"><div class="icon"><i class="fa-solid fa-inbox"></i></div><h3>Calls &amp; texts</h3><p>Every conversation on the lead's record.</p></a>
+      <a class="card reveal" style="--d:3" href="~/solutions/automations/"><div class="icon"><i class="fa-solid fa-bolt"></i></div><h3>Automations</h3><p>Follow-ups that send themselves.</p></a>
+    </div>
+  </div>
+</section>
+
+<!-- FAQ -->
+<section class="section">
+  <div class="container container--narrow">
+    <div class="section-head reveal"><h2>Questions</h2></div>
+    <details class="faq"><summary>Is the CRM a separate database from my projects?</summary><div>No. Leads are contacts with an open opportunity on a project, so the CRM is always looking at the live record.</div></details>
+    <details class="faq"><summary>Can I rename stages and labels?</summary><div>Yes. Stages come from your own sales steps, and words like "lead" and "customer" can be changed to match how your company talks.</div></details>
+    <details class="faq"><summary>Does it work on a phone?</summary><div>Yes. Lists become cards at phone width and the rail slides over the page.</div></details>
+    <details class="faq"><summary>Can I bring my existing leads?</summary><div>Placeholder answer about importing contacts and leads.</div></details>
+  </div>
+</section>
+
+<section class="section" style="padding-top:0"><div class="container"><div class="cta-band reveal">
+  <h2>Stop losing leads between the cracks.</h2>
+  <p class="lead" style="color:#c9ccd4;max-width:600px;margin:0 auto">Sign up free and set up your first views in minutes.</p>
+  <div class="btn-row"><a class="btn btn-primary btn-lg" href="https://app.1m8.ai/portal/signup">Sign up free</a><a class="btn btn-glass btn-lg" href="~/demo/">Book a demo</a></div>
+</div></div></section>
+
+</main>
+<div id="site-footer"></div>
+<script src="../../assets/site.js"></script>
+<script>
+(function () {
+  if (window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  // Board: new leads arrive and cards move one stage to the right.
+  var board = document.getElementById('crm-board'), cols = board.querySelectorAll('.crm-col'), newCount = document.getElementById('crm-newcount');
+  var arrivals = [['Mia Torres', '25 Birch Rd · Website'], ['Ben Carter', '140 Pine St · Canvass'], ['Ava Kim', '3 Cedar Ct · Referral'], ['Noah Reed', '61 Maple Ave · Phone']], ai = 0, n = 6;
+  function count() { cols.forEach(function (c) { c.querySelector('h6 span').textContent = c.querySelectorAll('.crm-card').length; }); }
+  function tick() {
+    var step = ai % 2;
+    if (step === 0) {
+      var a = arrivals[(ai / 2) % arrivals.length | 0], el = document.createElement('div');
+      el.className = 'crm-card crm-new'; el.innerHTML = a[0] + '<small>' + a[1] + '</small><div class="v">$— <span class="mock-chip blue" style="padding:1px 6px;font-size:9px">New</span></div>';
+      cols[0].insertBefore(el, cols[0].children[1]); newCount.textContent = ++n;
+      var cards0 = cols[0].querySelectorAll('.crm-card'); if (cards0.length > 3) cards0[cards0.length - 1].remove();
+    } else {
+      var from = 1 + (ai % 3 === 0 ? 1 : 0), src = cols[from].querySelector('.crm-card');
+      if (src) { src.remove(); src.classList.remove('crm-new'); void src.offsetWidth; src.classList.add('crm-new'); cols[from + 1].insertBefore(src, cols[from + 1].children[1]); }
+      var lastCards = cols[3].querySelectorAll('.crm-card'); if (lastCards.length > 2) lastCards[lastCards.length - 1].remove();
+      var c0 = cols[0].querySelectorAll('.crm-card'); if (c0.length > 1 && cols[1].querySelectorAll('.crm-card').length < 2) { var mv = c0[c0.length - 1]; mv.remove(); cols[1].appendChild(mv); }
+    }
+    ai++; count();
+  }
+  setTimeout(function () { setInterval(tick, 3200); }, 2500);
+
+  // Worklist: cycle people and results.
+  var people = [['SM', 'Sarah Martin', 'Roof replacement · Proposal sent · $24,860'], ['KN', 'Kim Nguyen', 'Siding · Appointment held · $18,420'], ['PS', 'Priya Shah', 'Full exterior · New lead'], ['TB', 'Tom Becker', 'Gutters · Gone quiet']];
+  var res = document.querySelectorAll('#crm-results span'), card = document.getElementById('crm-wl-card'), i = 0;
+  function work() {
+    var r = res[[0, 1, 2, 3][i % 4]]; res.forEach(function (s) { s.classList.remove('on'); }); r.classList.add('on');
+    setTimeout(function () {
+      card.classList.add('out');
+      setTimeout(function () {
+        i++; var p = people[i % people.length];
+        document.getElementById('crm-wl-av').textContent = p[0]; document.getElementById('crm-wl-name').textContent = p[1]; document.getElementById('crm-wl-sub').textContent = p[2];
+        document.getElementById('crm-wl-pos').textContent = (i % 9 + 1) + ' of 9';
+        var bar = document.getElementById('crm-wl-bar'); bar.style.setProperty('--w', ((i % 9 + 1) / 9 * 100) + '%');
+        res.forEach(function (s) { s.classList.remove('on'); }); card.classList.remove('out');
+      }, 380);
+    }, 1300);
+  }
+  setTimeout(function () { setInterval(work, 3000); }, 2000);
+})();
+</script>
+</body>
+</html>

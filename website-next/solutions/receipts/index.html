@@ -1,0 +1,248 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Receipts &amp; Expenses — FirstMate</title>
+<meta name="description" content="Snap a receipt from the field and FirstMate reads it, codes it to the job and counts it against the job's profit, with reimbursements handled in payroll.">
+<meta name="robots" content="noindex, nofollow">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,400..900;1,400..900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/site.css">
+<style>
+  .rcp-scene { position: relative; min-height: 560px }
+  .rcp-scene .mock-phone { position: relative; z-index: 2; margin-left: 10px }
+  .rcp-scene .mock.rcp-desk { position: absolute; right: 0; top: 210px; width: 60%; z-index: 3 }
+  .rcp-screen { position: relative; flex: 1; display: flex; flex-direction: column }
+  .rcp-cam, .rcp-read { position: absolute; inset: 0; display: flex; flex-direction: column }
+  .rcp-cam { background: #1a1c22; align-items: center; justify-content: center }
+  .rcp-paper { width: 150px; background: #fbfaf7; border-radius: 4px; padding: 14px 12px; box-shadow: 0 10px 30px rgba(0,0,0,.4); transform: rotate(-4deg); font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 8px; color: #333; line-height: 1.6 }
+  .rcp-paper b { font-size: 10px; display: block; text-align: center; color: #111 }
+  .rcp-paper .ln { display: flex; justify-content: space-between }
+  .rcp-paper .tot { border-top: 1px dashed #999; margin-top: 4px; padding-top: 4px; font-weight: 800; color: #111 }
+  .rcp-frame { position: absolute; inset: 70px 30px 110px; border: 2px solid rgba(255,255,255,.0); border-radius: 12px }
+  .rcp-frame::before, .rcp-frame::after { content: ""; position: absolute; width: 26px; height: 26px; border: 3px solid #fff }
+  .rcp-frame::before { left: -2px; top: -2px; border-right: 0; border-bottom: 0; border-radius: 10px 0 0 0 }
+  .rcp-frame::after { right: -2px; bottom: -2px; border-left: 0; border-top: 0; border-radius: 0 0 10px 0 }
+  .rcp-scan { position: absolute; left: 34px; right: 34px; height: 2px; top: 80px; background: linear-gradient(90deg, transparent, var(--brand), transparent); box-shadow: 0 0 16px var(--brand); opacity: 0 }
+  .mock.in .rcp-scan { animation: rcp-scan 1.6s ease-in-out .4s forwards }
+  @keyframes rcp-scan { 0% { top: 80px; opacity: 1 } 90% { opacity: 1 } 100% { top: calc(100% - 120px); opacity: 0 } }
+  .rcp-shutter { position: absolute; bottom: 28px; left: 50%; width: 56px; height: 56px; margin-left: -28px; border-radius: 50%; border: 4px solid #fff; background: rgba(255,255,255,.25) }
+  .mock.in .rcp-shutter { animation: rcp-press .3s ease 2s }
+  @keyframes rcp-press { 50% { transform: scale(.85) } }
+  .rcp-flash { position: absolute; inset: 0; background: #fff; opacity: 0; pointer-events: none; z-index: 2 }
+  .mock.in .rcp-flash { animation: rcp-flash .5s ease 2.1s }
+  @keyframes rcp-flash { 30% { opacity: .9 } 100% { opacity: 0 } }
+  .rcp-read { background: #fff; padding: 44px 14px 14px; gap: 8px; opacity: 0; z-index: 1 }
+  .mock.in .rcp-read { animation: fm-fade .4s ease 2.4s forwards }
+  .rcp-read .f { border: 1px solid var(--line); border-radius: 10px; padding: 7px 10px; font-size: 11px; font-weight: 700; display: flex; justify-content: space-between; gap: 8px; opacity: 0 }
+  .rcp-read .f small { color: var(--muted); font-weight: 700 }
+  .mock.in .rcp-read .f { animation: fm-slide-up .5s var(--ease) forwards; animation-delay: calc(2.6s + var(--d, 0) * 160ms) }
+  .rcp-read .go { margin-top: auto; border-radius: 999px; background: var(--brand); color: #fff; text-align: center; padding: 10px; font-weight: 800; font-size: 12px; opacity: 0 }
+  .mock.in .rcp-read .go { animation: fm-fade .4s ease 3.7s forwards, rcp-press .3s ease 4.1s }
+  .rcp-new { opacity: 0; background: #f0fdf4 !important; border-color: #bbf7d0 !important }
+  .mock.in .rcp-new { animation: fm-pop .6s var(--ease) 4.5s forwards }
+  .rcp-tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); font-size: 11px; font-weight: 800; color: var(--muted) }
+  .rcp-tabs span { padding: 6px 8px; border-bottom: 2px solid transparent; margin-bottom: -1px }
+  .rcp-tabs span.on { color: var(--brand); border-color: var(--brand) }
+  .rcp-thumb { width: 26px; height: 32px; border-radius: 4px; background: repeating-linear-gradient(180deg, #fff 0 4px, #e5e7eb 4px 5px); border: 1px solid var(--line); flex: none }
+  .rcp-items { display: flex; flex-direction: column; gap: 4px; font-size: 11px; font-weight: 600 }
+  .rcp-items .it { display: grid; grid-template-columns: 1fr 40px 60px; gap: 8px; padding: 6px 10px; border-radius: 8px; background: #f7f7f9 }
+  .rcp-items .it span:last-child { text-align: right; font-weight: 800 }
+  @media (max-width: 960px) { .rcp-scene .mock.rcp-desk { width: 58% } }
+  @media (max-width: 640px) {
+    .rcp-scene { min-height: 0 }
+    .rcp-scene .mock-phone { margin: 0 auto }
+    .rcp-scene .mock.rcp-desk { position: relative; width: auto; top: auto; margin-top: -40px }
+  }
+</style>
+</head>
+<body>
+<div id="site-header"></div>
+<main>
+  <section class="page-hero">
+    <div class="container split">
+      <div>
+        <div class="breadcrumb"><a href="~/solutions/">Solutions</a><span>Receipts &amp; Expenses</span></div>
+        <div class="eyebrow">Receipts &amp; Expenses</div>
+        <h1>Snap it. Code it. Done.</h1>
+        <p class="lead">Your people photograph a receipt at the supply yard. FirstMate reads it, puts it on the right job and counts it against that job's profit. No shoebox, no end-of-month chase.</p>
+        <div class="btn-row"><a class="btn btn-primary btn-lg" href="https://app.1m8.ai/portal/signup">Sign up free</a><a class="btn btn-ghost btn-lg" href="~/demo/">Book a demo</a></div>
+      </div>
+      <div class="mock-stage rcp-scene" aria-hidden="true">
+        <div class="mock mock-phone" style="overflow:visible;background:#0d0e12;border:0">
+          <div class="screen">
+            <div class="rcp-screen">
+              <div class="rcp-cam">
+                <div class="rcp-paper">
+                  <b>SUMMIT SUPPLY</b>
+                  <div style="text-align:center;margin-bottom:6px">Store 14 · 10/23 7:48</div>
+                  <div class="ln"><span>STEP FLASH 4X4</span><span>38.40</span></div>
+                  <div class="ln"><span>COIL NAILS 1-1/4</span><span>64.99</span></div>
+                  <div class="ln"><span>PIPE BOOT 3IN</span><span>27.80</span></div>
+                  <div class="ln"><span>SEALANT TUBE</span><span>17.94</span></div>
+                  <div class="ln"><span>TAX</span><span>10.48</span></div>
+                  <div class="ln tot"><span>TOTAL</span><span>159.61</span></div>
+                </div>
+                <div class="rcp-frame"></div>
+                <div class="rcp-scan"></div>
+                <div class="rcp-shutter"></div>
+              </div>
+              <div class="rcp-read">
+                <div style="font-weight:800;font-size:14px">Review Receipt</div>
+                <div class="f" style="--d:0"><small>Vendor</small><span>Summit Supply</span></div>
+                <div class="f" style="--d:1"><small>Total</small><span>$159.61</span></div>
+                <div class="f" style="--d:2"><small>Purchase Date</small><span>Oct 23</span></div>
+                <div class="f" style="--d:3"><small>Project</small><span>Martin · 1482 Ridgeview</span></div>
+                <div class="f" style="--d:4"><small>Category</small><span class="mock-chip blue">Materials</span></div>
+                <div class="f" style="--d:5"><small>Reimburse to</small><span>No reimbursement</span></div>
+                <div class="go">Apply to expense lists</div>
+              </div>
+              <div class="rcp-flash"></div>
+            </div>
+          </div>
+        </div>
+        <div class="mock rcp-desk">
+          <div class="mock-bar"><i></i><i></i><i></i><div class="url">Project · Money</div></div>
+          <div class="mock-main">
+            <div class="rcp-tabs fade"><span>Payments</span><span class="on">Expenses</span><span>Invoices</span></div>
+            <div class="mock-title fade" style="font-size:13px">Expense list</div>
+            <div class="mock-row rcp-new"><div class="rcp-thumb"></div><div style="flex:1"><b style="font-size:12px">Summit Supply</b><div class="muted" style="font-size:10px;font-weight:600">Materials · just now</div></div><b>$159.61</b></div>
+            <div class="mock-row slide-up" style="--d:2"><div class="rcp-thumb"></div><div style="flex:1"><b style="font-size:12px">Dumpster rental</b><div class="muted" style="font-size:10px;font-weight:600">Equipment · Oct 20</div></div><b>$425.00</b></div>
+            <div class="mock-row slide-up" style="--d:3"><div class="rcp-thumb"></div><div style="flex:1"><b style="font-size:12px">Permit fee</b><div class="muted" style="font-size:10px;font-weight:600">Other · Oct 18</div></div><b>$185.00</b></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container split">
+      <div class="reveal">
+        <div class="eyebrow">Read for you</div>
+        <h2>Every line on the receipt, already typed in.</h2>
+        <p class="lead">Upload a photo, a PDF or a forwarded email receipt. FirstMate reads the vendor, date, total and each line item so you only review and apply.</p>
+        <ul class="feature-list"><li>Photos, PDFs and documents</li><li>Extracted line items, not just a total</li><li>Original kept with the expense</li></ul>
+      </div>
+      <div class="mock reveal" aria-hidden="true">
+        <div class="mock-bar"><i></i><i></i><i></i><div class="url">Receipt details</div></div>
+        <div class="mock-main">
+          <div style="display:flex;justify-content:space-between;align-items:center" class="fade"><div class="mock-title">Extracted line items</div><span class="mock-chip green"><i class="fa-solid fa-check"></i> Read</span></div>
+          <div class="rcp-items">
+            <div class="it slide-up" style="--d:1"><span>Step flashing 4×4</span><span>1</span><span>$38.40</span></div>
+            <div class="it slide-up" style="--d:2"><span>Coil nails 1-1/4"</span><span>1</span><span>$64.99</span></div>
+            <div class="it slide-up" style="--d:3"><span>Pipe boot 3"</span><span>2</span><span>$27.80</span></div>
+            <div class="it slide-up" style="--d:4"><span>Sealant tube</span><span>6</span><span>$17.94</span></div>
+          </div>
+          <div class="mock-row pop" style="--d:7"><b style="flex:1">Receipt total</b><b>$159.61</b><span class="mock-btn">Review &amp; apply</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section section--soft">
+    <div class="container split split--flip">
+      <div class="reveal">
+        <div class="eyebrow">Coded to the job</div>
+        <h2>On the right job, in the right bucket.</h2>
+        <p class="lead">Each expense lands on a project's expense list as materials, labor, equipment or other. Upload a batch from the office and match each receipt to its job in one pass.</p>
+        <ul class="feature-list"><li>Materials, labor, equipment and other</li><li>Batch upload and match</li><li>Unassigned receipts never get lost</li></ul>
+      </div>
+      <div class="mock reveal" aria-hidden="true">
+        <div class="mock-bar"><i></i><i></i><i></i><div class="url">Match uploaded receipts</div></div>
+        <div class="mock-main">
+          <div class="mock-title fade">6 ready · 1 processing</div>
+          <div class="mock-row slide-up" style="--d:1"><div class="rcp-thumb"></div><b style="flex:1">Summit Supply · $159.61</b><span class="mock-chip blue">Martin</span><span class="mock-btn">Match</span></div>
+          <div class="mock-row slide-up" style="--d:2"><div class="rcp-thumb"></div><b style="flex:1">Fuel · $86.12</b><span class="mock-chip blue">Park</span><span class="mock-btn">Match</span></div>
+          <div class="mock-row slide-up" style="--d:3"><div class="rcp-thumb"></div><b style="flex:1">Hardware store · $42.07</b><span class="mock-chip amber">Unassigned</span></div>
+          <div class="mock-row slide-up" style="--d:4"><div class="rcp-thumb shimmer"></div><span class="mock-line w40"></span><span class="mock-chip">Reading…</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container split">
+      <div class="reveal">
+        <div class="eyebrow">Reimbursements</div>
+        <h2>Paid out of pocket? Paid back on payday.</h2>
+        <p class="lead">Mark who paid for it and the receipt becomes a reimbursement. Approve it for payroll, ask for more info, or reject it, all from one list.</p>
+        <ul class="feature-list"><li>Approve for payroll or off-cycle</li><li>Needs info and reject with a note</li><li>Everyone sees the status of their own</li></ul>
+      </div>
+      <div class="mock reveal" aria-hidden="true">
+        <div class="mock-bar"><i></i><i></i><i></i><div class="url">Receipts · Employee reimbursements</div></div>
+        <div class="mock-main">
+          <div style="display:flex;justify-content:space-between;align-items:center" class="fade"><div class="mock-title">Employee reimbursements</div><span class="mock-chip red">3 open</span></div>
+          <div class="mock-row slide-up" style="--d:1"><div class="mock-avatar">JR</div><div style="flex:1"><b>Jordan Reyes</b><div class="muted" style="font-size:10px;font-weight:600">Summit Supply · Martin</div></div><b>$42.07</b><span class="mock-chip green slide-left" style="--d:6">Approve for payroll</span></div>
+          <div class="mock-row slide-up" style="--d:2"><div class="mock-avatar">MR</div><div style="flex:1"><b>Maya Ruiz</b><div class="muted" style="font-size:10px;font-weight:600">Fuel · Park</div></div><b>$86.12</b><span class="mock-chip amber">Needs info</span></div>
+          <div class="mock-row slide-up" style="--d:3"><div class="mock-avatar">TB</div><div style="flex:1"><b>Theo Brooks</b><div class="muted" style="font-size:10px;font-weight:600">Lunch · no project</div></div><b>$31.50</b><span class="mock-chip">Pending</span></div>
+          <div class="mock-row pop" style="--d:8"><div class="mock-toast" style="flex:1">Reimbursement updated · added to Oct 31 pay run</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section section--dark">
+    <div class="container split split--flip">
+      <div class="reveal">
+        <div class="eyebrow">Real job cost</div>
+        <h2>Small receipts add up. Now they count.</h2>
+        <p class="lead">Every expense on a project counts against its profit in job costing, so the nails, fuel and dump fees are part of the real number instead of a surprise at tax time.</p>
+      </div>
+      <div class="mock mock--dark reveal" aria-hidden="true">
+        <div class="mock-bar"><i></i><i></i><i></i><div class="url">Project profitability</div></div>
+        <div class="mock-main">
+          <div class="mock-row slide-up" style="--d:1"><b style="flex:1">Materials</b><div class="mock-progress" style="width:40%"><i style="--w:100%;--d:1"></i></div><b>$7,940</b></div>
+          <div class="mock-row slide-up" style="--d:2"><b style="flex:1">Labor</b><div class="mock-progress" style="width:40%"><i style="--w:65%;--d:2"></i></div><b>$5,200</b></div>
+          <div class="mock-row slide-up" style="--d:3"><b style="flex:1">Expenses</b><div class="mock-progress" style="width:40%"><i style="--w:10%;--d:3;background:var(--warn)"></i></div><b>$770</b></div>
+          <div class="mock-row pop" style="--d:6"><b style="flex:1">Profit to date</b><b style="color:#4ade80">$10,950</b></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container">
+      <div class="section-head center reveal"><div class="eyebrow">Everything included</div><h2>Expenses without the paperwork.</h2></div>
+      <div class="grid grid-3">
+        <div class="card reveal"><div class="icon"><i class="fa-solid fa-camera"></i></div><h3>Field capture</h3><p>Snap from the FirstMate app on iPhone or Android.</p></div>
+        <div class="card reveal" style="--d:1"><div class="icon"><i class="fa-solid fa-file-pdf"></i></div><h3>Any format</h3><p>Images, PDFs, spreadsheets and documents.</p></div>
+        <div class="card reveal" style="--d:2"><div class="icon"><i class="fa-solid fa-tags"></i></div><h3>Categories</h3><p>Materials, labor, equipment or other on every expense.</p></div>
+        <div class="card reveal"><div class="icon"><i class="fa-solid fa-user-check"></i></div><h3>Reimbursements</h3><p>Approve, question or reject, then pay with payroll.</p></div>
+        <div class="card reveal" style="--d:1"><div class="icon"><i class="fa-solid fa-images"></i></div><h3>Receipt viewer</h3><p>Flip through every receipt on a job.</p></div>
+        <div class="card reveal" style="--d:2"><div class="icon"><i class="fa-solid fa-plug"></i></div><h3>Accounting</h3><p>Placeholder: send expenses to your books.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section section--soft">
+    <div class="container">
+      <div class="section-head reveal"><div class="eyebrow">Connected</div><h2>Where your receipts end up.</h2></div>
+      <div class="grid grid-4">
+        <a class="card reveal" href="~/solutions/financials/"><div class="icon"><i class="fa-solid fa-chart-line"></i></div><h3>Job Costing</h3><p>Expenses count against profit.</p></a>
+        <a class="card reveal" style="--d:1" href="~/solutions/payroll/"><div class="icon"><i class="fa-solid fa-money-check-dollar"></i></div><h3>Payroll</h3><p>Reimbursements paid on payday.</p></a>
+        <a class="card reveal" style="--d:2" href="~/solutions/material-management/"><div class="icon"><i class="fa-solid fa-boxes-stacked"></i></div><h3>Materials</h3><p>Extra material bought on site.</p></a>
+        <a class="card reveal" style="--d:3" href="~/solutions/crew-management/"><div class="icon"><i class="fa-solid fa-helmet-safety"></i></div><h3>Field App</h3><p>Capture from the job site.</p></a>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container container--narrow">
+      <div class="section-head center reveal"><div class="eyebrow">FAQ</div><h2>Questions about receipts</h2></div>
+      <details class="faq"><summary>Who can upload receipts?</summary><div>Anyone you allow, from the office or the field app. Placeholder: role details.</div></details>
+      <details class="faq"><summary>What if a receipt is not for a job?</summary><div>It stays in Unassigned receipts until someone matches it, or is recorded without a project.</div></details>
+      <details class="faq"><summary>Can I fix what was read from the receipt?</summary><div>Yes. You review every field before applying it, and the original file is always kept.</div></details>
+    </div>
+  </section>
+
+  <section class="section"><div class="container"><div class="cta-band">
+    <h2>Retire the shoebox.</h2>
+    <p class="lead" style="color:#c9ccd4">Every receipt on the right job, the day it was spent.</p>
+    <div class="btn-row"><a class="btn btn-primary btn-lg" href="https://app.1m8.ai/portal/signup">Sign up free</a><a class="btn btn-glass btn-lg" href="~/demo/">Book a demo</a></div>
+  </div></div></section>
+</main>
+<div id="site-footer"></div>
+<script src="../../assets/site.js"></script>
+</body>
+</html>

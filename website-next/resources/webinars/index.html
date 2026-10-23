@@ -1,0 +1,213 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Webinars — FirstMate</title>
+<meta name="description" content="Live and on-demand webinars for contractors: sales, production, measurements and getting paid.">
+<meta name="robots" content="noindex, nofollow">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,400..900;1,400..900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/site.css">
+<style>
+  /* Webinars (wb-) */
+  .wb-next { position: relative; overflow: hidden; border-radius: var(--radius-lg); background: var(--bg-dark); color: #c9ccd4; padding: 28px; box-shadow: var(--shadow-lg) }
+  .wb-next::before { content: ""; position: absolute; inset: 0; background: radial-gradient(60% 60% at 90% 0%, rgba(219, 0, 0, .5), transparent 70%); pointer-events: none }
+  .wb-next > * { position: relative }
+  .wb-next h3 { color: #fff; font-size: 22px; margin: 10px 0 6px }
+  .wb-tag { display: inline-flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: #ffb4b4 }
+  .wb-tag .pulse-dot { background: var(--brand-2) }
+  .wb-hosts { display: flex; align-items: center; gap: 10px; font-size: 13px; font-weight: 700; color: #e5e7eb; margin: 14px 0 20px }
+  .wb-hosts .mock-avatar { width: 32px; height: 32px; border: 2px solid var(--bg-dark); margin-right: -16px }
+  .wb-hosts span { margin-left: 18px }
+  .wb-count { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-bottom: 20px }
+  .wb-unit { background: rgba(255, 255, 255, .06); border: 1px solid rgba(255, 255, 255, .1); border-radius: 14px; padding: 14px 6px 10px; text-align: center; overflow: hidden }
+  .wb-unit b { display: block; font-size: clamp(26px, 3.4vw, 38px); font-weight: 900; color: #fff; letter-spacing: -.03em; line-height: 1; font-variant-numeric: tabular-nums }
+  .wb-unit b.tick { animation: wb-tick .45s var(--ease) }
+  @keyframes wb-tick { from { transform: translateY(-40%); opacity: 0 } }
+  .wb-unit small { font-size: 10px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: #8b909c }
+  .wb-note { font-size: 12px; color: #8b909c; margin: 12px 0 0 }
+  .wb-registered { display: none; align-items: center; gap: 10px; padding: 12px 14px; border-radius: 12px; background: rgba(22, 163, 74, .15); color: #86efac; font-weight: 700; font-size: 14px }
+  .wb-next.done .wb-registered { display: flex } .wb-next.done .wb-reg-row { display: none }
+
+  .wb-list { display: flex; flex-direction: column; gap: 14px }
+  .wb-row { display: grid; grid-template-columns: 92px 1fr auto; gap: 22px; align-items: center; padding: 18px 22px; border: 1px solid var(--line); border-radius: var(--radius); background: #fff; transition: transform .3s var(--ease), box-shadow .3s, border-color .3s }
+  .wb-row:hover { transform: translateX(4px); box-shadow: var(--shadow); border-color: transparent }
+  .wb-date { text-align: center; border-radius: 14px; background: var(--brand-soft); color: var(--brand); padding: 10px 6px }
+  .wb-date small { display: block; font-size: 11px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase }
+  .wb-date b { display: block; font-size: 30px; font-weight: 900; color: var(--brand); line-height: 1 }
+  .wb-row h3 { font-size: 19px; margin: 0 0 4px }
+  .wb-row p { margin: 0; font-size: 14px; color: var(--muted) }
+  .wb-row .meta { display: flex; gap: 14px; flex-wrap: wrap; font-size: 13px; font-weight: 600; color: var(--muted); margin-top: 6px }
+  @media (max-width: 720px) { .wb-row { grid-template-columns: 70px 1fr } .wb-row .btn { grid-column: 1 / -1 } }
+
+  /* Card grid (shared look across resource pages) */
+  .rs-bar { display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap; margin-bottom: 28px }
+  .rs-chips { display: flex; flex-wrap: wrap; gap: 8px }
+  .rs-chip { appearance: none; border: 1.5px solid var(--line); background: #fff; border-radius: 999px; padding: 8px 16px; font-weight: 700; font-size: 14px; color: var(--heading); cursor: pointer; transition: background .2s, color .2s, border-color .2s }
+  .rs-chip:hover { border-color: var(--heading) }
+  .rs-chip.on { background: var(--heading); border-color: var(--heading); color: #fff }
+  .rs-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px }
+  .rs-card { display: flex; flex-direction: column; border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; background: #fff; color: inherit; transition: transform .3s var(--ease), box-shadow .3s var(--ease), border-color .3s }
+  .rs-card:hover { transform: translateY(-4px); box-shadow: var(--shadow); border-color: transparent; color: inherit }
+  .rs-card.is-hidden { display: none }
+  .rs-cover { position: relative; aspect-ratio: 16 / 9; overflow: hidden; display: grid; place-items: center; color: #fff; background: linear-gradient(135deg, var(--a, #6d28d9), var(--b, #c084fc)) }
+  .rs-cover::before { content: ""; position: absolute; inset: 0; background: repeating-linear-gradient(135deg, rgba(255, 255, 255, .09) 0 2px, transparent 2px 22px) }
+  .rs-cover .play { position: relative; z-index: 2; width: 58px; height: 58px; border-radius: 50%; background: rgba(255, 255, 255, .95); color: var(--brand); display: grid; place-items: center; font-size: 18px; box-shadow: 0 10px 30px rgba(0, 0, 0, .25); transition: transform .3s var(--ease) }
+  .rs-card:hover .play { transform: scale(1.12) }
+  .rs-cover .dur { position: absolute; z-index: 2; right: 10px; bottom: 10px; background: rgba(0, 0, 0, .55); color: #fff; font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 6px }
+  .rs-cover .speaker { position: absolute; z-index: 2; left: 12px; bottom: 10px; display: flex; align-items: center; gap: 8px; font-size: 11px; font-weight: 700 }
+  .rs-body { padding: 20px 22px 22px; display: flex; flex-direction: column; gap: 8px; flex: 1 }
+  .rs-type { align-self: flex-start; font-size: 11px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; padding: 3px 10px; border-radius: 999px; background: #ede9fe; color: #6d28d9 }
+  .rs-body h3 { font-size: 19px; margin: 2px 0 0; line-height: 1.25 }
+  .rs-body p { font-size: 14px; color: var(--muted); margin: 0 }
+  .rs-foot { margin-top: auto; padding-top: 10px; display: flex; justify-content: space-between; font-size: 13px; font-weight: 600; color: var(--muted) }
+  .rs-foot .go { color: var(--brand); font-weight: 700 }
+  @media (max-width: 960px) { .rs-grid { grid-template-columns: repeat(2, minmax(0, 1fr)) } }
+  @media (max-width: 640px) { .rs-grid { grid-template-columns: 1fr } .wb-count { gap: 6px } }
+
+  .wb-cal { display: flex; flex-direction: column; gap: 8px }
+  .wb-cal .mock-row { justify-content: space-between }
+</style>
+</head>
+<body>
+<div id="site-header"></div>
+<main>
+
+<section class="page-hero">
+  <div class="container split">
+    <div>
+      <div class="breadcrumb"><a href="~/resources/">Resources</a><span>Webinars</span></div>
+      <div class="eyebrow">Webinars</div>
+      <h1>Learn live from people who run the work.</h1>
+      <p class="lead">Placeholder copy: monthly live sessions on selling, producing and getting paid, plus a library you can watch any time.</p>
+      <div class="btn-row"><a class="btn btn-primary btn-lg" href="#upcoming">See upcoming</a><a class="btn btn-ghost btn-lg" href="#on-demand">Watch on demand</a></div>
+    </div>
+    <div class="mock-stage">
+      <div class="wb-next reveal" id="wb-next">
+        <span class="wb-tag"><span class="pulse-dot"></span>Next live webinar</span>
+        <h3>Upcoming webinar title placeholder</h3>
+        <p style="margin:0;font-size:14px">One-line description of the session and who it is for.</p>
+        <div class="wb-hosts"><div class="mock-avatar">HN</div><div class="mock-avatar" style="background:linear-gradient(135deg,#93c5fd,#1d4ed8)">GN</div><span>Host name &amp; Guest name</span></div>
+        <div class="wb-count" aria-label="Countdown (placeholder)">
+          <div class="wb-unit"><b data-u="d">00</b><small>Days</small></div>
+          <div class="wb-unit"><b data-u="h">00</b><small>Hours</small></div>
+          <div class="wb-unit"><b data-u="m">00</b><small>Min</small></div>
+          <div class="wb-unit"><b data-u="s">00</b><small>Sec</small></div>
+        </div>
+        <div class="btn-row wb-reg-row"><button class="btn btn-primary" type="button" id="wb-reg">Save my seat</button><a class="btn btn-glass" href="#upcoming">Details</a></div>
+        <div class="wb-registered" role="status"><i class="fa-solid fa-circle-check"></i>Registration opens soon. (Draft: nothing was sent.)</div>
+        <p class="wb-note">Date TBD · countdown is a placeholder</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section" id="upcoming">
+  <div class="container">
+    <div class="section-head reveal"><div class="eyebrow">Upcoming</div><h2>Live sessions on the calendar.</h2><p class="lead">Bring your questions. Every live session ends with open Q&amp;A.</p></div>
+    <div class="wb-list">
+      <div class="wb-row reveal"><div class="wb-date"><small>Month</small><b>—</b></div><div><h3>Live webinar title placeholder: sales</h3><p>What the session covers in one sentence.</p><div class="meta"><span><i class="fa-regular fa-clock"></i> 45 min</span><span><i class="fa-solid fa-user"></i> Host name</span><span class="mock-chip red">Sales</span></div></div><a class="btn btn-outline btn-sm" href="#upcoming">Register</a></div>
+      <div class="wb-row reveal" style="--d:1"><div class="wb-date"><small>Month</small><b>—</b></div><div><h3>Live webinar title placeholder: production</h3><p>What the session covers in one sentence.</p><div class="meta"><span><i class="fa-regular fa-clock"></i> 60 min</span><span><i class="fa-solid fa-user"></i> Host name</span><span class="mock-chip blue">Production</span></div></div><a class="btn btn-outline btn-sm" href="#upcoming">Register</a></div>
+      <div class="wb-row reveal" style="--d:2"><div class="wb-date"><small>Month</small><b>—</b></div><div><h3>Live webinar title placeholder: getting paid</h3><p>What the session covers in one sentence.</p><div class="meta"><span><i class="fa-regular fa-clock"></i> 30 min</span><span><i class="fa-solid fa-user"></i> Host name</span><span class="mock-chip green">Getting paid</span></div></div><a class="btn btn-outline btn-sm" href="#upcoming">Register</a></div>
+    </div>
+  </div>
+</section>
+
+<section class="section section--soft" id="on-demand">
+  <div class="container">
+    <div class="section-head reveal"><div class="eyebrow">On demand</div><h2>Watch any time.</h2></div>
+    <div class="rs-bar">
+      <div class="rs-chips">
+        <button class="rs-chip on" data-filter="all">All</button>
+        <button class="rs-chip" data-filter="sales">Sales</button>
+        <button class="rs-chip" data-filter="production">Production</button>
+        <button class="rs-chip" data-filter="measure">Measurements</button>
+        <button class="rs-chip" data-filter="paid">Getting paid</button>
+        <button class="rs-chip" data-filter="tour">Product tours</button>
+      </div>
+    </div>
+    <div class="rs-grid" id="wb-grid">
+      <a class="rs-card reveal" data-type="sales" href="#on-demand"><div class="rs-cover" style="--a:#db0000;--b:#ff6a3d"><span class="play"><i class="fa-solid fa-play"></i></span><span class="speaker"><span class="mock-avatar">HN</span>Host name</span><span class="dur">47:20</span></div><div class="rs-body"><span class="rs-type">Sales</span><h3>On-demand title placeholder one</h3><p>Short summary of the recording.</p><div class="rs-foot"><span>Recorded · Date</span><span class="go">Watch →</span></div></div></a>
+      <a class="rs-card reveal" style="--d:1" data-type="production" href="#on-demand"><div class="rs-cover" style="--a:#1d4ed8;--b:#60a5fa"><span class="play"><i class="fa-solid fa-play"></i></span><span class="speaker"><span class="mock-avatar">HN</span>Host name</span><span class="dur">52:05</span></div><div class="rs-body"><span class="rs-type">Production</span><h3>On-demand title placeholder two</h3><p>Short summary of the recording.</p><div class="rs-foot"><span>Recorded · Date</span><span class="go">Watch →</span></div></div></a>
+      <a class="rs-card reveal" style="--d:2" data-type="measure" href="#on-demand"><div class="rs-cover" style="--a:#0f172a;--b:#db0000"><span class="play"><i class="fa-solid fa-play"></i></span><span class="speaker"><span class="mock-avatar">HN</span>Host name</span><span class="dur">33:48</span></div><div class="rs-body"><span class="rs-type">Measurements</span><h3>On-demand title placeholder three</h3><p>Short summary of the recording.</p><div class="rs-foot"><span>Recorded · Date</span><span class="go">Watch →</span></div></div></a>
+      <a class="rs-card reveal" data-type="paid" href="#on-demand"><div class="rs-cover" style="--a:#15803d;--b:#4ade80"><span class="play"><i class="fa-solid fa-play"></i></span><span class="speaker"><span class="mock-avatar">HN</span>Host name</span><span class="dur">41:10</span></div><div class="rs-body"><span class="rs-type">Getting paid</span><h3>On-demand title placeholder four</h3><p>Short summary of the recording.</p><div class="rs-foot"><span>Recorded · Date</span><span class="go">Watch →</span></div></div></a>
+      <a class="rs-card reveal" style="--d:1" data-type="tour" href="#on-demand"><div class="rs-cover" style="--a:#6d28d9;--b:#c084fc"><span class="play"><i class="fa-solid fa-play"></i></span><span class="speaker"><span class="mock-avatar">HN</span>Host name</span><span class="dur">24:30</span></div><div class="rs-body"><span class="rs-type">Product tour</span><h3>On-demand title placeholder five</h3><p>Short summary of the recording.</p><div class="rs-foot"><span>Recorded · Date</span><span class="go">Watch →</span></div></div></a>
+      <a class="rs-card reveal" style="--d:2" data-type="sales" href="#on-demand"><div class="rs-cover" style="--a:#b45309;--b:#fbbf24"><span class="play"><i class="fa-solid fa-play"></i></span><span class="speaker"><span class="mock-avatar">HN</span>Host name</span><span class="dur">58:12</span></div><div class="rs-body"><span class="rs-type">Sales</span><h3>On-demand title placeholder six</h3><p>Short summary of the recording.</p><div class="rs-foot"><span>Recorded · Date</span><span class="go">Watch →</span></div></div></a>
+    </div>
+  </div>
+</section>
+
+<section class="section">
+  <div class="container split">
+    <div class="reveal">
+      <div class="eyebrow">Never miss one</div>
+      <h2>Get every session on your calendar.</h2>
+      <p class="lead">Placeholder copy: subscribe once and new webinars show up on your calendar with the join link.</p>
+      <div class="btn-row" style="margin-top:24px"><a class="btn btn-primary" href="~/resources/#rh-news">Get webinar emails</a><a class="link-arrow" href="~/resources/classes/">Prefer a class? See classes</a></div>
+    </div>
+    <div class="mock-stage">
+      <div class="mock" aria-hidden="true">
+        <div class="mock-bar"><i></i><i></i><i></i><div class="url">Calendar</div></div>
+        <div class="mock-main wb-cal">
+          <span class="mock-title">This month</span>
+          <div class="mock-row slide-up" style="--d:1"><span><b>Webinar</b> · Sales session</span><span class="mock-chip red">Live</span></div>
+          <div class="mock-row slide-up" style="--d:2"><span><b>Class</b> · Getting started</span><span class="mock-chip blue">Class</span></div>
+          <div class="mock-row slide-up" style="--d:3"><span><b>Webinar</b> · Production session</span><span class="mock-chip red">Live</span></div>
+          <div class="mock-float mock-toast pop" style="--d:6;right:16px;bottom:-6px">Added to your calendar</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section section--soft">
+  <div class="container container--narrow">
+    <div class="section-head center reveal"><h2>Webinar FAQ</h2></div>
+    <details class="faq"><summary>Do webinars cost anything?</summary><div>Placeholder answer.</div></details>
+    <details class="faq"><summary>Can I watch if I'm not a FirstMate customer?</summary><div>Placeholder answer.</div></details>
+    <details class="faq"><summary>Will I get the recording?</summary><div>Placeholder answer.</div></details>
+  </div>
+</section>
+
+<section class="section">
+  <div class="container">
+    <div class="cta-band reveal">
+      <h2>Want to present?</h2>
+      <p class="lead" style="color:#c9ccd4;max-width:600px;margin:0 auto">Placeholder copy: we are always looking for contractors to share how they run their business.</p>
+      <div class="btn-row"><a class="btn btn-primary btn-lg" href="~/support/contact/">Pitch a session</a><a class="btn btn-glass btn-lg" href="https://app.1m8.ai/portal/signup">Sign up free</a></div>
+    </div>
+  </div>
+</section>
+
+</main>
+<div id="site-footer"></div>
+<script src="../../assets/site.js"></script>
+<script>
+(function () {
+  // Placeholder countdown: a fixed offset from page load until a real date exists.
+  var target = Date.now() + ((9 * 24 + 6) * 60 + 32) * 60000 + 18000;
+  var els = {}; document.querySelectorAll('.wb-unit b').forEach(function (b) { els[b.getAttribute('data-u')] = b; });
+  var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  function pad(n) { return (n < 10 ? '0' : '') + n; }
+  function set(k, v) { var el = els[k]; if (el.textContent === v) return; el.textContent = v; if (!reduce) { el.classList.remove('tick'); void el.offsetWidth; el.classList.add('tick'); } }
+  function tick() {
+    var s = Math.max(0, Math.floor((target - Date.now()) / 1000));
+    set('d', pad(Math.floor(s / 86400))); set('h', pad(Math.floor(s / 3600) % 24)); set('m', pad(Math.floor(s / 60) % 60)); set('s', pad(s % 60));
+  }
+  tick(); setInterval(tick, 1000);
+  document.getElementById('wb-reg').addEventListener('click', function () { document.getElementById('wb-next').classList.add('done'); });
+
+  var cards = document.querySelectorAll('#wb-grid .rs-card');
+  var chips = document.querySelectorAll('.rs-chip');
+  chips.forEach(function (c) {
+    c.addEventListener('click', function () {
+      var f = c.getAttribute('data-filter');
+      chips.forEach(function (x) { x.classList.toggle('on', x === c); });
+      cards.forEach(function (k) { k.classList.add('in'); k.classList.toggle('is-hidden', f !== 'all' && k.getAttribute('data-type') !== f); });
+    });
+  });
+})();
+</script>
+</body>
+</html>

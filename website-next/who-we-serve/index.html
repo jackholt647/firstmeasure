@@ -1,0 +1,238 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Who We Serve — FirstMate</title>
+<meta name="description" content="FirstMate fits contractors of every size and trade, from owner-operators to multi-branch companies and franchise networks.">
+<meta name="robots" content="noindex, nofollow">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,400..900;1,400..900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../assets/site.css">
+<style>
+  .wo-hero .hero-inner { display: grid; grid-template-columns: 1fr 1.05fr; gap: 56px; align-items: center }
+  .wo-hero .breadcrumb a, .wo-hero .breadcrumb { color: #8b909c }
+  @media (max-width: 1000px) { .wo-hero .hero-inner { grid-template-columns: 1fr } }
+
+  /* Size switcher mock */
+  .wo-mock .mock-main { gap: 14px }
+  .wo-seg { display: grid; grid-template-columns: repeat(4, 1fr); background: #eef0f3; border-radius: 999px; padding: 4px; gap: 2px }
+  .wo-seg button { border: 0; background: transparent; border-radius: 999px; padding: 7px 4px; font-weight: 800; font-size: 11.5px; color: #4b5563; cursor: pointer; transition: background .3s, color .3s, box-shadow .3s }
+  .wo-seg button.on { background: #fff; color: var(--brand); box-shadow: var(--shadow-sm) }
+  .wo-who { display: flex; justify-content: space-between; align-items: center; gap: 10px }
+  .wo-who b { font-size: 16px; font-weight: 800 }
+  .wo-who small { display: block; color: var(--muted); font-weight: 600; font-size: 11px }
+  .wo-people { display: flex }
+  .wo-people .mock-avatar { margin-left: -6px; border: 2px solid #fff; width: 24px; height: 24px; transition: opacity .4s, transform .4s var(--ease) }
+  .wo-people .mock-avatar.off { opacity: 0; transform: scale(.5) }
+  .wo-tiles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px }
+  .wo-tile { border: 1px solid var(--line); border-radius: 12px; padding: 10px 8px; display: flex; flex-direction: column; align-items: flex-start; gap: 6px; font-weight: 700; font-size: 11px; color: #9ca3af; background: #fafafb; transition: all .45s var(--ease) }
+  .wo-tile i { width: 26px; height: 26px; border-radius: 8px; display: grid; place-items: center; background: #eef0f3; font-size: 12px; transition: all .45s var(--ease) }
+  .wo-tile.on { color: var(--heading); background: #fff; border-color: #ffd5d5; box-shadow: 0 6px 16px rgba(219, 0, 0, .08) }
+  .wo-tile.on i { background: var(--brand); color: #fff }
+  .wo-tile.new i { animation: wo-bump .5s var(--ease) }
+  @keyframes wo-bump { 50% { transform: scale(1.08) } }
+  .wo-cap { font-size: 12px; font-weight: 700; color: var(--body); min-height: 18px; transition: opacity .3s }
+  @media (max-width: 480px) { .wo-tiles { grid-template-columns: repeat(3, minmax(0, 1fr)) } .wo-tile:nth-child(n+13) { display: none } }
+
+  /* Size cards */
+  .wo-size { display: flex; flex-direction: column; padding: 28px; border-radius: var(--radius-lg); border: 1px solid var(--line); background: #fff; color: var(--body); transition: transform .3s var(--ease), box-shadow .3s, border-color .3s; position: relative; overflow: hidden }
+  .wo-size:hover { transform: translateY(-6px); box-shadow: var(--shadow); border-color: transparent; color: var(--body) }
+  .wo-size::after { content: ""; position: absolute; right: -60px; top: -60px; width: 160px; height: 160px; border-radius: 50%; background: radial-gradient(circle, rgba(219,0,0,.12), transparent 70%); transition: transform .4s var(--ease) }
+  .wo-size:hover::after { transform: scale(1.4) }
+  .wo-size .icon { width: 52px; height: 52px; border-radius: 16px; background: var(--brand-soft); color: var(--brand); display: grid; place-items: center; font-size: 21px; margin-bottom: 18px }
+  .wo-size h3 { margin-bottom: 2px }
+  .wo-size .range { font-size: 13px; font-weight: 800; color: var(--brand); text-transform: uppercase; letter-spacing: .08em; margin-bottom: 12px }
+  .wo-size ul { list-style: none; padding: 0; margin: 16px 0 22px; font-size: 14px; font-weight: 600; color: var(--heading) }
+  .wo-size li { padding: 5px 0 5px 22px; position: relative }
+  .wo-size li::before { content: ""; position: absolute; left: 0; top: 12px; width: 8px; height: 8px; border-radius: 50%; background: var(--brand) }
+  .wo-size .link-arrow { margin-top: auto; color: var(--brand) }
+
+  /* Comparison */
+  .wo-cmp-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: var(--radius); background: #fff }
+  .wo-cmp { width: 100%; min-width: 620px; border-collapse: collapse; font-size: 15px }
+  .wo-cmp th, .wo-cmp td { padding: 14px 18px; border-bottom: 1px solid var(--line-soft); text-align: center }
+  .wo-cmp th:first-child, .wo-cmp td:first-child { text-align: left; font-weight: 700; color: var(--heading) }
+  .wo-cmp thead th { font-size: 13px; font-weight: 800; color: var(--heading); background: var(--bg-soft) }
+  .wo-cmp thead th small { display: block; color: var(--muted); font-weight: 600; font-size: 12px }
+  .wo-cmp tbody tr:last-child td { border-bottom: 0 }
+  .wo-dot { display: inline-block; width: 14px; height: 14px; border-radius: 50%; background: var(--brand) }
+  .wo-dot.o { background: transparent; border: 2px solid #d1d5db }
+  .wo-key { display: flex; gap: 20px; font-size: 13px; font-weight: 700; color: var(--muted); margin-top: 14px; flex-wrap: wrap }
+  .wo-key span { display: inline-flex; gap: 8px; align-items: center }
+
+  /* Trades */
+  .wo-trades { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px }
+  .wo-trade { display: flex; align-items: center; gap: 12px; padding: 18px 20px; border-radius: 14px; border: 1px solid var(--line); background: #fff; font-weight: 800; color: var(--heading); transition: all .2s }
+  .wo-trade:hover { border-color: var(--brand); color: var(--brand); transform: translateY(-2px) }
+  .wo-trade i { color: var(--brand); font-size: 18px; width: 22px; text-align: center }
+  .wo-trade.all { background: var(--heading); color: #fff; border-color: var(--heading) } .wo-trade.all i { color: #fff } .wo-trade.all:hover { color: #fff; background: var(--brand); border-color: var(--brand) }
+  @media (max-width: 860px) { .wo-trades { grid-template-columns: 1fr 1fr } }
+  @media (max-width: 420px) { .wo-trades { grid-template-columns: 1fr } }
+</style>
+</head>
+<body data-header="over-dark">
+<div id="site-header"></div>
+<main>
+  <section class="hero wo-hero">
+    <div class="hero-grid"></div><div class="hero-glow"></div>
+    <div class="container hero-inner">
+      <div>
+        <div class="breadcrumb reveal"><a href="~/">Home</a><span>Who We Serve</span></div>
+        <div class="eyebrow reveal">Who we serve</div>
+        <h1 class="reveal" style="--d:1">Built for your company, <span class="text-gradient">at any size.</span></h1>
+        <p class="lead reveal" style="--d:2">Start with measurements and proposals on one phone. Add scheduling, CRM, branches and payroll as you grow. It's the same platform the whole way, so nothing gets rebuilt.</p>
+        <div class="btn-row reveal" style="--d:3;margin-top:32px"><a class="btn btn-primary btn-lg" href="https://app.1m8.ai/portal/signup">Sign up free</a><a class="btn btn-glass btn-lg" href="~/demo/">Book a demo</a></div>
+      </div>
+      <div class="mock-stage" aria-hidden="true">
+        <div class="mock wo-mock" id="wo-mock">
+          <div class="mock-bar"><i></i><i></i><i></i><div class="url">app.1m8.ai/portal · Apps</div></div>
+          <div class="mock-main">
+            <div class="wo-seg fade"><button class="on" data-size="0" tabindex="-1">Small</button><button data-size="1" tabindex="-1">Medium</button><button data-size="2" tabindex="-1">Enterprise</button><button data-size="3" tabindex="-1">Franchise</button></div>
+            <div class="wo-who fade" style="--d:1"><div><b id="wo-title">Owner-operator</b><small id="wo-range">1–10 people</small></div>
+              <div class="wo-people"><span class="mock-avatar">JD</span><span class="mock-avatar off" style="background:linear-gradient(135deg,#93c5fd,#2563eb)">AM</span><span class="mock-avatar off" style="background:linear-gradient(135deg,#86efac,#16a34a)">ML</span><span class="mock-avatar off" style="background:linear-gradient(135deg,#c4b5fd,#7c3aed)">DK</span><span class="mock-avatar off" style="background:linear-gradient(135deg,#fcd34d,#f59e0b)">+</span></div></div>
+            <div class="wo-tiles">
+              <div class="wo-tile slide-up" style="--d:2"><i class="fa-solid fa-ruler-combined"></i>Reports</div>
+              <div class="wo-tile slide-up" style="--d:2"><i class="fa-solid fa-file-signature"></i>Proposals</div>
+              <div class="wo-tile slide-up" style="--d:2"><i class="fa-solid fa-credit-card"></i>Payments</div>
+              <div class="wo-tile slide-up" style="--d:2"><i class="fa-solid fa-camera"></i>Photos</div>
+              <div class="wo-tile slide-up" style="--d:3"><i class="fa-solid fa-filter"></i>CRM</div>
+              <div class="wo-tile slide-up" style="--d:3"><i class="fa-solid fa-calendar-days"></i>Scheduling</div>
+              <div class="wo-tile slide-up" style="--d:3"><i class="fa-solid fa-chart-line"></i>Job costing</div>
+              <div class="wo-tile slide-up" style="--d:3"><i class="fa-solid fa-clipboard-list"></i>Work orders</div>
+              <div class="wo-tile slide-up" style="--d:4"><i class="fa-solid fa-sitemap"></i>Branches</div>
+              <div class="wo-tile slide-up" style="--d:4"><i class="fa-solid fa-user-shield"></i>Roles</div>
+              <div class="wo-tile slide-up" style="--d:4"><i class="fa-solid fa-money-check-dollar"></i>Payroll</div>
+              <div class="wo-tile slide-up" style="--d:4"><i class="fa-solid fa-chart-column"></i>Stats</div>
+              <div class="wo-tile slide-up" style="--d:5"><i class="fa-solid fa-pen-ruler"></i>Templates</div>
+              <div class="wo-tile slide-up" style="--d:5"><i class="fa-solid fa-handshake"></i>Partners</div>
+              <div class="wo-tile slide-up" style="--d:5"><i class="fa-solid fa-graduation-cap"></i>Training</div>
+              <div class="wo-tile slide-up" style="--d:5"><i class="fa-solid fa-star"></i>Reviews</div>
+            </div>
+            <div class="wo-cap fade" style="--d:6" id="wo-cap">Measure, propose and get paid from your phone.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container">
+      <div class="section-head center reveal">
+        <div class="eyebrow">Company size</div>
+        <h2>Find your fit.</h2>
+        <p class="lead">Every plan runs on the same platform. Pick where you are today.</p>
+      </div>
+      <div class="grid grid-4">
+        <a class="wo-size reveal" style="--d:0" href="~/who-we-serve/small/"><div class="icon"><i class="fa-solid fa-user"></i></div><h3>Small</h3><div class="range">1–10 employees</div><p>Owner-operators who sell and build the job themselves.</p><ul><li>Measurements</li><li>Proposals on the phone</li><li>Payments on the spot</li></ul><span class="link-arrow">For small teams</span></a>
+        <a class="wo-size reveal" style="--d:1" href="~/who-we-serve/medium/"><div class="icon"><i class="fa-solid fa-user-group"></i></div><h3>Medium</h3><div class="range">11–49 employees</div><p>An office, sales reps and more than one install team.</p><ul><li>Scheduling</li><li>CRM and lead tracking</li><li>Job costing</li></ul><span class="link-arrow">For growing teams</span></a>
+        <a class="wo-size reveal" style="--d:2" href="~/who-we-serve/enterprise/"><div class="icon"><i class="fa-solid fa-building"></i></div><h3>Enterprise</h3><div class="range">50+ employees</div><p>Multiple branches, regions and departments.</p><ul><li>Branches and regions</li><li>Roles and app experience</li><li>Reporting and payroll</li></ul><span class="link-arrow">For enterprise</span></a>
+        <a class="wo-size reveal" style="--d:3" href="~/who-we-serve/franchise/"><div class="icon"><i class="fa-solid fa-network-wired"></i></div><h3>Franchise</h3><div class="range">Part of a network</div><p>Independent locations under one brand.</p><ul><li>Shared templates</li><li>Partner work</li><li>Roll-up reporting</li></ul><span class="link-arrow">For networks</span></a>
+      </div>
+    </div>
+  </section>
+
+  <section class="section section--soft">
+    <div class="container">
+      <div class="section-head reveal">
+        <div class="eyebrow">Grows with you</div>
+        <h2>Turn things on when you need them.</h2>
+        <p class="lead">Nothing is locked to a size. These are where most companies start.</p>
+      </div>
+      <div class="wo-cmp-wrap reveal">
+        <table class="wo-cmp">
+          <thead><tr><th>Solution</th><th>Small<small>1–10</small></th><th>Medium<small>11–49</small></th><th>Enterprise<small>50+</small></th><th>Franchise<small>Network</small></th></tr></thead>
+          <tbody>
+            <tr><td><a href="~/solutions/roof-measurements/">Measurements</a></td><td><span class="wo-dot"></span></td><td><span class="wo-dot"></span></td><td><span class="wo-dot"></span></td><td><span class="wo-dot"></span></td></tr>
+            <tr><td><a href="~/solutions/proposals/">Proposals &amp; E-Signature</a></td><td><span class="wo-dot"></span></td><td><span class="wo-dot"></span></td><td><span class="wo-dot"></span></td><td><span class="wo-dot"></span></td></tr>
+            <tr><td><a href="~/solutions/payments/">Payments</a></td><td><span class="wo-dot"></span></td><td><span class="wo-dot"></span></td><td><span class="wo-dot"></span></td><td><span class="wo-dot"></span></td></tr>
+            <tr><td><a href="~/solutions/crm/">CRM &amp; Lead Tracking</a></td><td><span class="wo-dot o"></span></td><td><span class="wo-dot"></span></td><td><span class="wo-dot"></span></td><td><span class="wo-dot"></span></td></tr>
+            <tr><td><a href="~/solutions/scheduling/">Scheduling</a></td><td><span class="wo-dot o"></span></td><td><span class="wo-dot"></span></td><td><span class="wo-dot"></span></td><td><span class="wo-dot"></span></td></tr>
+            <tr><td><a href="~/solutions/financials/">Job Costing &amp; Financials</a></td><td><span class="wo-dot o"></span></td><td><span class="wo-dot"></span></td><td><span class="wo-dot"></span></td><td><span class="wo-dot"></span></td></tr>
+            <tr><td><a href="~/solutions/payroll/">Payroll &amp; Commissions</a></td><td><span class="wo-dot o"></span></td><td><span class="wo-dot o"></span></td><td><span class="wo-dot"></span></td><td><span class="wo-dot o"></span></td></tr>
+            <tr><td><a href="~/solutions/reporting/">Reports &amp; Stats</a></td><td><span class="wo-dot o"></span></td><td><span class="wo-dot o"></span></td><td><span class="wo-dot"></span></td><td><span class="wo-dot"></span></td></tr>
+            <tr><td><a href="~/solutions/documents/">Document Studio</a></td><td><span class="wo-dot o"></span></td><td><span class="wo-dot o"></span></td><td><span class="wo-dot"></span></td><td><span class="wo-dot"></span></td></tr>
+            <tr><td><a href="~/solutions/partners/">Partners &amp; Subcontractors</a></td><td><span class="wo-dot o"></span></td><td><span class="wo-dot o"></span></td><td><span class="wo-dot o"></span></td><td><span class="wo-dot"></span></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="wo-key"><span><span class="wo-dot"></span> Where most start</span><span><span class="wo-dot o"></span> Available when you need it</span></div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container">
+      <div class="section-head reveal">
+        <div class="eyebrow">Popular trades</div>
+        <h2>Made for the trades.</h2>
+        <p class="lead">Roofing and exteriors first, with the same platform working for general contractors and other trades.</p>
+      </div>
+      <div class="wo-trades">
+        <a class="wo-trade reveal" style="--d:0" href="~/trades/roofing/"><i class="fa-solid fa-house-chimney"></i>Roofing</a>
+        <a class="wo-trade reveal" style="--d:1" href="~/trades/exteriors/"><i class="fa-solid fa-house"></i>Siding &amp; Exteriors</a>
+        <a class="wo-trade reveal" style="--d:2" href="~/trades/general-contractors/"><i class="fa-solid fa-hammer"></i>General Contractors</a>
+        <a class="wo-trade reveal" style="--d:3" href="~/trades/restoration/"><i class="fa-solid fa-house-flood-water"></i>Restoration</a>
+        <a class="wo-trade reveal" style="--d:4" href="~/trades/solar/"><i class="fa-solid fa-solar-panel"></i>Solar</a>
+        <a class="wo-trade reveal" style="--d:5" href="~/trades/hvac/"><i class="fa-solid fa-fan"></i>HVAC</a>
+        <a class="wo-trade reveal" style="--d:6" href="~/trades/landscaping/"><i class="fa-solid fa-tree"></i>Landscaping</a>
+        <a class="wo-trade all reveal" style="--d:7" href="~/trades/"><i class="fa-solid fa-arrow-right"></i>All trades</a>
+      </div>
+    </div>
+  </section>
+
+  <section class="section section--dark">
+    <div class="container">
+      <div class="split">
+        <div class="reveal">
+          <div class="eyebrow">Not sure where you fit?</div>
+          <h2>Tell us how your company works.</h2>
+          <p class="lead" style="color:#c9ccd4">We'll show you the parts of FirstMate that matter for your size and trade, using jobs like yours.</p>
+          <div class="btn-row" style="margin-top:28px"><a class="btn btn-primary btn-lg" href="~/demo/">Book a demo</a><a class="btn btn-glass btn-lg" href="~/pricing/">See pricing</a></div>
+        </div>
+        <div class="placeholder-photo reveal" style="--d:1;background:repeating-linear-gradient(135deg,#1b1d23 0 14px,#20232a 14px 28px);border-color:rgba(255,255,255,.15);color:#8b909c;min-height:300px">Photo: contractor team on a jobsite</div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section"><div class="container"><div class="cta-band">
+    <h2>Start small. Grow without switching.</h2>
+    <p class="lead" style="color:#c9ccd4">Free to start on iPhone, Android and web.</p>
+    <div class="btn-row"><a class="btn btn-primary btn-lg" href="https://app.1m8.ai/portal/signup">Sign up free</a><a class="btn btn-glass btn-lg" href="~/demo/">Book a demo</a></div>
+  </div></div></section>
+</main>
+<div id="site-footer"></div>
+<script src="../assets/site.js"></script>
+<script>
+(function () {
+  var root = document.getElementById('wo-mock'); if (!root) return;
+  var SIZES = [
+    { t: 'Owner-operator', r: '1–10 people', n: 4, p: 1, c: 'Measure, propose and get paid from your phone.' },
+    { t: 'Growing company', r: '11–49 people', n: 8, p: 3, c: 'Office and field on one schedule, with every lead tracked.' },
+    { t: 'Multi-branch company', r: '50+ people', n: 12, p: 5, c: 'Branches, roles and payroll that roll up.' },
+    { t: 'Franchise network', r: 'Many locations', n: 16, p: 5, c: 'Shared templates and partner work across locations.' }
+  ];
+  var btns = root.querySelectorAll('[data-size]'), tiles = root.querySelectorAll('.wo-tile'), ppl = root.querySelectorAll('.wo-people .mock-avatar');
+  var title = document.getElementById('wo-title'), range = document.getElementById('wo-range'), cap = document.getElementById('wo-cap');
+  var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var cur = 0, timer = null;
+  function show(i) {
+    var s = SIZES[i]; cur = i;
+    btns.forEach(function (b, k) { b.classList.toggle('on', k === i); });
+    tiles.forEach(function (t, k) {
+      var on = k < s.n, was = t.classList.contains('on');
+      t.classList.toggle('on', on); t.classList.remove('new');
+      if (on && !was) { void t.offsetWidth; t.classList.add('new'); }
+    });
+    ppl.forEach(function (a, k) { a.classList.toggle('off', k >= s.p); });
+    title.textContent = s.t; range.textContent = s.r; cap.textContent = s.c;
+  }
+  function loop() { clearInterval(timer); if (!reduce) timer = setInterval(function () { show((cur + 1) % SIZES.length); }, 3200); }
+  btns.forEach(function (b) { b.addEventListener('click', function () { show(+b.getAttribute('data-size')); loop(); }); });
+  show(0);
+  if (!('IntersectionObserver' in window)) return loop();
+  var io = new IntersectionObserver(function (en) { if (en[0].isIntersecting) { io.disconnect(); setTimeout(loop, 1200); } }, { threshold: .2 });
+  io.observe(root);
+})();
+</script>
+</body>
+</html>

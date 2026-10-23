@@ -1,0 +1,270 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Small Contractors — FirstMate</title>
+<meta name="description" content="FirstMate for owner-operators and small teams: measure, propose and get paid from your phone.">
+<meta name="robots" content="noindex, nofollow">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,400..900;1,400..900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/site.css">
+<style>
+  /* Shared who-we-serve styles (wws-) */
+  .wws-bare { background: transparent; box-shadow: none; border: 0; overflow: visible }
+  .wws-fix { margin-top: 16px; padding-top: 14px; border-top: 1px dashed var(--line); font-size: 14px; font-weight: 700; color: var(--heading); display: flex; gap: 8px; align-items: flex-start }
+  .wws-fix i { color: var(--brand); margin-top: 3px }
+  .wws-sol { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px }
+  .wws-sol a { display: flex; gap: 14px; align-items: flex-start; padding: 20px; border: 1px solid var(--line); border-radius: var(--radius); background: #fff; color: var(--heading); transition: transform .25s var(--ease), box-shadow .25s, border-color .25s }
+  .wws-sol a:hover { border-color: var(--brand); transform: translateY(-3px); box-shadow: var(--shadow); color: var(--heading) }
+  .wws-sol a > i { width: 42px; height: 42px; border-radius: 12px; background: var(--brand-soft); color: var(--brand); display: grid; place-items: center; flex: none; font-size: 17px }
+  .wws-sol b { display: block; font-weight: 800; line-height: 1.3 }
+  .wws-sol small { display: block; color: var(--muted); font-size: 14px; font-weight: 500; margin-top: 2px }
+  .wws-sol a.top { border-color: #ffd5d5; background: linear-gradient(180deg, #fff, #fff8f8) }
+  .wws-sol .tag { display: inline-block; margin-top: 8px; font-size: 11px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--brand) }
+  @media (max-width: 960px) { .wws-sol { grid-template-columns: 1fr 1fr } }
+  @media (max-width: 640px) { .wws-sol { grid-template-columns: 1fr } }
+  .wws-story { display: grid; grid-template-columns: 1fr 1.15fr; gap: clamp(28px, 5vw, 64px); align-items: center }
+  .wws-story .placeholder-photo { min-height: 340px; background: repeating-linear-gradient(135deg, #1b1d23 0 14px, #20232a 14px 28px); border-color: rgba(255,255,255,.15); color: #8b909c }
+  .wws-quote { font-size: clamp(20px, 2.2vw, 27px); font-weight: 700; color: #fff; line-height: 1.4; letter-spacing: -.01em; margin: 0 }
+  .wws-by { display: flex; gap: 12px; align-items: center; margin-top: 22px; font-size: 14px; color: #8b909c; font-weight: 600 }
+  .wws-by b { display: block; color: #fff }
+  .wws-results { display: flex; gap: 36px; margin-top: 32px; flex-wrap: wrap; padding-top: 28px; border-top: 1px solid rgba(255,255,255,.1) }
+  @media (max-width: 860px) { .wws-story { grid-template-columns: 1fr } }
+  .wws-sizes { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px }
+  .wws-sizes a { padding: 18px; border-radius: 14px; border: 1px solid var(--line); background: #fff; color: var(--heading); font-weight: 800; display: flex; gap: 12px; align-items: center; transition: border-color .2s, transform .2s }
+  .wws-sizes a:hover { border-color: var(--brand); transform: translateY(-2px); color: var(--heading) }
+  .wws-sizes a > i { color: var(--brand); width: 22px; text-align: center }
+  .wws-sizes a.on { border-color: var(--brand); background: var(--brand-soft) }
+  .wws-sizes small { display: block; color: var(--muted); font-weight: 600; font-size: 13px }
+  @media (max-width: 860px) { .wws-sizes { grid-template-columns: 1fr 1fr } }
+  @media (max-width: 420px) { .wws-sizes { grid-template-columns: 1fr } }
+
+  /* Small: one phone, three screens */
+  .sm-stage { display: flex; justify-content: center; align-items: center; min-height: 580px }
+  .sm-wrap { position: relative; display: inline-block }
+  .sm-phone > .screen { padding: 40px 14px 0 }
+  .sm-top { display: flex; justify-content: space-between; align-items: center; font-weight: 800; font-size: 13px; padding: 0 2px 10px }
+  .sm-top img { height: 16px; width: auto }
+  .sm-panes { position: relative; flex: 1; min-height: 380px }
+  .sm-pane { position: absolute; inset: 0; opacity: 0; transform: translateX(22px); transition: opacity .45s, transform .6s var(--ease); display: flex; flex-direction: column; gap: 9px; pointer-events: none }
+  .sm-pane.on { opacity: 1; transform: none }
+  .sm-i { opacity: 0 }
+  .sm-pane.on .sm-i { animation: fm-slide-up .6s var(--ease) both; animation-delay: calc(var(--d, 0) * 110ms + 120ms) }
+  .sm-h { font-weight: 800; font-size: 15px; letter-spacing: -.01em }
+  .sm-sub { color: var(--muted); font-size: 11px; font-weight: 600 }
+  .sm-roof { border: 1px solid var(--line); border-radius: 12px; padding: 8px; background: #fafafb }
+  .sm-roof polygon { fill: rgba(219, 0, 0, .07); stroke: var(--brand); stroke-width: 1.6; stroke-dasharray: 420; stroke-dashoffset: 420 }
+  .sm-pane.on .sm-roof polygon { animation: fm-draw 1.6s var(--ease) forwards .2s }
+  .sm-kpis { display: grid; grid-template-columns: 1fr 1fr; gap: 6px }
+  .sm-kpis .mock-kpi { padding: 8px 10px } .sm-kpis .mock-kpi b { font-size: 16px }
+  .sm-cta { margin-top: auto; margin-bottom: 8px; text-align: center; background: var(--brand); color: #fff; border-radius: 12px; padding: 11px; font-weight: 800; font-size: 13px }
+  .sm-opt { display: flex; justify-content: space-between; align-items: center; padding: 10px 12px; border: 1.5px solid var(--line); border-radius: 12px; font-weight: 700 }
+  .sm-opt small { display: block; color: var(--muted); font-weight: 600; font-size: 10px }
+  .sm-opt.sel { border-color: var(--brand); background: var(--brand-soft) }
+  .sm-opt b { font-weight: 900 }
+  .sm-sig { border: 1px dashed #cfd3da; border-radius: 12px; height: 74px; position: relative; background: #fff }
+  .sm-sig small { position: absolute; left: 10px; bottom: 6px; font-size: 10px; color: var(--muted); font-weight: 700 }
+  .sm-sig path { fill: none; stroke: #111827; stroke-width: 2.2; stroke-linecap: round; stroke-dasharray: 400; stroke-dashoffset: 400 }
+  .sm-pane.on .sm-sig path { animation: fm-draw 1.4s ease forwards .9s }
+  .sm-paid { text-align: center; padding: 18px 10px; border-radius: 16px; background: linear-gradient(180deg, #f0fdf4, #fff); border: 1px solid #bbf7d0 }
+  .sm-paid .ok { width: 48px; height: 48px; border-radius: 50%; background: #16a34a; color: #fff; display: grid; place-items: center; margin: 0 auto 10px; font-size: 20px }
+  .sm-paid b { display: block; font-size: 26px; font-weight: 900; letter-spacing: -.02em }
+  .sm-tabs { display: flex; justify-content: space-around; border-top: 1px solid var(--line); padding: 9px 0 14px; margin: 0 -14px; font-size: 9.5px; font-weight: 700; color: var(--muted) }
+  .sm-tabs span { display: flex; flex-direction: column; align-items: center; gap: 3px; transition: color .3s }
+  .sm-tabs span i { font-size: 15px }
+  .sm-tabs span.on { color: var(--brand) }
+  .sm-dots { display: flex; gap: 6px; justify-content: center; margin-top: 18px }
+  .sm-dots button { width: 8px; height: 8px; border-radius: 4px; border: 0; padding: 0; background: #d9dce1; cursor: pointer; transition: width .3s, background .3s }
+  .sm-dots button.on { width: 24px; background: var(--brand) }
+  .sm-float { opacity: 0; width: 200px }
+  .mock.in .sm-f1 { animation: fm-pop .6s var(--ease) 1s forwards, fm-float 6s ease-in-out 1.6s infinite }
+  .mock.in .sm-f2 { animation: fm-pop .6s var(--ease) 1.6s forwards, fm-float 7s ease-in-out 2.2s infinite }
+  .sm-f1 { left: -170px; top: 70px } .sm-f2 { right: -170px; bottom: 120px }
+  @media (max-width: 1180px) { .sm-f1 { left: -120px } .sm-f2 { right: -120px } }
+  @media (max-width: 640px) { .sm-float { display: none } .sm-stage { min-height: 0 } }
+
+  /* Step strip */
+  .sm-steps { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; counter-reset: s }
+  .sm-step { padding: 24px; border-radius: var(--radius); background: #fff; border: 1px solid var(--line); position: relative }
+  .sm-step::before { counter-increment: s; content: counter(s); width: 30px; height: 30px; border-radius: 50%; background: var(--brand); color: #fff; font-weight: 800; font-size: 14px; display: grid; place-items: center; margin-bottom: 14px }
+  .sm-step h4 { margin-bottom: 6px } .sm-step p { margin: 0; color: var(--muted); font-size: 15px }
+  .sm-step .time { display: inline-block; margin-top: 12px; font-size: 12px; font-weight: 800; color: var(--brand) }
+  @media (max-width: 960px) { .sm-steps { grid-template-columns: 1fr 1fr } }
+  @media (max-width: 560px) { .sm-steps { grid-template-columns: 1fr } }
+</style>
+</head>
+<body>
+<div id="site-header"></div>
+<main>
+  <section class="page-hero">
+    <div class="container split">
+      <div>
+        <div class="breadcrumb"><a href="~/who-we-serve/">Who We Serve</a><span>Small</span></div>
+        <div class="eyebrow">1–10 employees</div>
+        <h1>Your whole business, in your pocket.</h1>
+        <p class="lead">For owner-operators and small teams. Measure a roof, send the proposal and collect the deposit from your phone, before you leave the driveway. Set up in an afternoon, not a month.</p>
+        <div class="btn-row"><a class="btn btn-primary btn-lg" href="https://app.1m8.ai/portal/signup">Sign up free</a><a class="btn btn-ghost btn-lg" href="~/demo/">Book a demo</a></div>
+      </div>
+      <div class="mock-stage sm-stage">
+        <div class="mock wws-bare sm-wrap" id="sm-mock" aria-hidden="true">
+          <div class="mock-phone sm-phone">
+            <div class="screen">
+              <div class="sm-top"><img src="../../assets/img/logo_black.png" alt=""><span class="mock-avatar">JD</span></div>
+              <div class="sm-panes">
+                <div class="sm-pane" data-pane="0">
+                  <div class="sm-i" style="--d:0"><div class="sm-h">1482 Ridgeview Dr</div><div class="sm-sub">Roof report · ordered 9:12 AM</div></div>
+                  <div class="sm-i" style="--d:1"><span class="mock-chip green"><span class="pulse-dot"></span> Report ready</span></div>
+                  <div class="sm-roof sm-i" style="--d:2"><svg viewBox="0 0 220 110"><polygon points="12,98 70,38 128,98"/><polygon points="70,38 150,38 208,98 128,98"/><polygon points="70,38 110,12 150,38"/></svg></div>
+                  <div class="sm-kpis sm-i" style="--d:3">
+                    <div class="mock-kpi"><small>Squares</small><b>32.4</b></div>
+                    <div class="mock-kpi"><small>Pitch</small><b>8/12</b></div>
+                    <div class="mock-kpi"><small>Waste</small><b>12%</b></div>
+                    <div class="mock-kpi"><small>Ridges</small><b>84 ft</b></div>
+                  </div>
+                  <div class="sm-cta sm-i" style="--d:5">Build proposal →</div>
+                </div>
+                <div class="sm-pane" data-pane="1">
+                  <div class="sm-i" style="--d:0"><div class="sm-h">Proposal</div><div class="sm-sub">Priced from your report and price book</div></div>
+                  <div class="sm-opt sm-i" style="--d:1"><span>Good<small>3-tab · 25 yr</small></span><b>$18,420</b></div>
+                  <div class="sm-opt sel sm-i" style="--d:2"><span>Better<small>Architectural · 50 yr</small></span><b>$24,860</b></div>
+                  <div class="sm-opt sm-i" style="--d:3"><span>Best<small>Designer · lifetime</small></span><b>$31,200</b></div>
+                  <div class="sm-sig sm-i" style="--d:4"><svg viewBox="0 0 200 70" style="width:100%;height:100%"><path d="M14 46c10-20 18-26 22-14s-6 18 2 10 14-26 20-16-4 18 4 12 10-16 18-10 6 10 14 4 12-8 20-6 20 4 30 0"/></svg><small>Homeowner signature</small></div>
+                  <div class="sm-i" style="--d:6"><span class="mock-chip green"><i class="fa-solid fa-signature"></i> Signed 10:41 AM</span></div>
+                </div>
+                <div class="sm-pane" data-pane="2">
+                  <div class="sm-i" style="--d:0"><div class="sm-h">Collect deposit</div><div class="sm-sub">1482 Ridgeview Dr · Better package</div></div>
+                  <div class="sm-paid sm-i" style="--d:1"><div class="ok"><i class="fa-solid fa-check"></i></div><b>$8,287.00</b><span class="sm-sub">Card ending 4421 · paid</span></div>
+                  <div class="mock-row sm-i" style="--d:3"><i class="fa-solid fa-message" style="color:var(--brand)"></i><span style="flex:1;font-weight:700;font-size:12px">Receipt texted</span><span class="mock-chip">Just now</span></div>
+                  <div class="mock-row sm-i" style="--d:4"><i class="fa-solid fa-calendar-days" style="color:var(--brand)"></i><span style="flex:1;font-weight:700;font-size:12px">Install Tuesday</span><span class="mock-chip blue">Scheduled</span></div>
+                  <div class="mock-row sm-i" style="--d:5"><i class="fa-solid fa-boxes-stacked" style="color:var(--brand)"></i><span style="flex:1;font-weight:700;font-size:12px">Materials list</span><span class="mock-chip amber">Ready to order</span></div>
+                </div>
+              </div>
+              <div class="sm-tabs"><span data-tab="0"><i class="fa-solid fa-ruler-combined"></i>Reports</span><span data-tab="1"><i class="fa-solid fa-file-signature"></i>Proposals</span><span data-tab="2"><i class="fa-solid fa-credit-card"></i>Payments</span><span><i class="fa-solid fa-ellipsis"></i>More</span></div>
+            </div>
+          </div>
+          <div class="mock-float sm-float sm-f1"><div class="mock-toast"><div>Report ready<div style="font-weight:600;color:var(--muted);font-size:11px">No ladder, no tape</div></div></div></div>
+          <div class="mock-float sm-float sm-f2"><div style="display:flex;gap:10px;align-items:center"><i class="fa-solid fa-mobile-screen" style="color:var(--brand);font-size:18px"></i><div>All from the truck<div style="font-weight:600;color:var(--muted);font-size:11px">iPhone, Android and web</div></div></div></div>
+          <div class="sm-dots" role="tablist" aria-label="Screens"><button class="on" data-go="0" aria-label="Report"></button><button data-go="1" aria-label="Proposal"></button><button data-go="2" aria-label="Payment"></button></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container">
+      <div class="section-head reveal">
+        <div class="eyebrow">Problems we solve</div>
+        <h2>You are the salesperson, the estimator and the bookkeeper.</h2>
+        <p class="lead">Small companies don't need more software. They need fewer evenings spent on paperwork.</p>
+      </div>
+      <div class="grid grid-3">
+        <div class="card reveal" style="--d:0"><div class="icon"><i class="fa-solid fa-person-falling"></i></div><h3>Climbing every roof to measure</h3><p>Hours on a ladder before you can even quote the job.</p><div class="wws-fix"><i class="fa-solid fa-check"></i>Order a report from the address and get measurements back in hours.</div></div>
+        <div class="card reveal" style="--d:1"><div class="icon"><i class="fa-solid fa-moon"></i></div><h3>Quotes written at night</h3><p>Back home, retyping numbers into a spreadsheet or template.</p><div class="wws-fix"><i class="fa-solid fa-check"></i>Proposals price themselves from the report and your price book.</div></div>
+        <div class="card reveal" style="--d:2"><div class="icon"><i class="fa-solid fa-hourglass-half"></i></div><h3>Waiting on checks</h3><p>Deposits that take a week, invoices you chase by phone.</p><div class="wws-fix"><i class="fa-solid fa-check"></i>Take card or bank payment on the spot, or send a link.</div></div>
+        <div class="card reveal" style="--d:3"><div class="icon"><i class="fa-solid fa-layer-group"></i></div><h3>Five apps that don't talk</h3><p>One for measuring, one for signing, one for payments, one for photos.</p><div class="wws-fix"><i class="fa-solid fa-check"></i>One app, one login, one record per job.</div></div>
+        <div class="card reveal" style="--d:4"><div class="icon"><i class="fa-solid fa-gears"></i></div><h3>Setup that takes forever</h3><p>Big systems built for big offices, with weeks of onboarding.</p><div class="wws-fix"><i class="fa-solid fa-check"></i>Sign up, add your price book and send your first proposal today.</div></div>
+        <div class="card reveal" style="--d:5"><div class="icon"><i class="fa-solid fa-phone-slash"></i></div><h3>Leads you forget to call back</h3><p>Sticky notes and voicemails while you're on a job.</p><div class="wws-fix"><i class="fa-solid fa-check"></i>Every lead in one list, with follow-ups that send themselves.</div></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section section--soft">
+    <div class="container">
+      <div class="section-head center reveal">
+        <div class="eyebrow">A job, start to finish</div>
+        <h2>From driveway to deposit.</h2>
+      </div>
+      <div class="sm-steps">
+        <div class="sm-step reveal" style="--d:0"><h4>Measure</h4><p>Order a roof or full exterior report from the address.</p><span class="time">On the drive over</span></div>
+        <div class="sm-step reveal" style="--d:1"><h4>Propose</h4><p>Good, better, best options built from the measurements.</p><span class="time">At the kitchen table</span></div>
+        <div class="sm-step reveal" style="--d:2"><h4>Sign</h4><p>The homeowner signs on your phone or from a texted link.</p><span class="time">Before you leave</span></div>
+        <div class="sm-step reveal" style="--d:3"><h4>Get paid</h4><p>Collect the deposit by card or bank, then the balance when done.</p><span class="time">Same day</span></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container">
+      <div class="section-head reveal">
+        <div class="eyebrow">Recommended for small teams</div>
+        <h2>Start with these.</h2>
+        <p class="lead">Turn on more when you grow. Everything shares the same job record.</p>
+      </div>
+      <div class="wws-sol">
+        <a class="top reveal" style="--d:0" href="~/solutions/roof-measurements/"><i class="fa-solid fa-house-chimney"></i><span><b>Roof Measurements</b><small>Pitch, facets and waste in hours</small><span class="tag">Start here</span></span></a>
+        <a class="top reveal" style="--d:1" href="~/solutions/proposals/"><i class="fa-solid fa-file-signature"></i><span><b>Proposals &amp; E-Signature</b><small>Good-better-best, signed on the spot</small><span class="tag">Start here</span></span></a>
+        <a class="top reveal" style="--d:2" href="~/solutions/payments/"><i class="fa-solid fa-credit-card"></i><span><b>Payments</b><small>Card and bank, in person or online</small><span class="tag">Start here</span></span></a>
+        <a class="reveal" style="--d:3" href="~/solutions/photos/"><i class="fa-solid fa-camera"></i><span><b>Photos &amp; Project Feed</b><small>Every jobsite photo, organized</small></span></a>
+        <a class="reveal" style="--d:4" href="~/solutions/invoicing/"><i class="fa-solid fa-file-invoice-dollar"></i><span><b>Invoicing</b><small>Bill on milestones, track aging</small></span></a>
+        <a class="reveal" style="--d:5" href="~/solutions/website-builder/"><i class="fa-solid fa-globe"></i><span><b>Website Builder</b><small>Edit your company site yourself</small></span></a>
+      </div>
+    </div>
+  </section>
+
+  <section class="section section--dark">
+    <div class="container wws-story">
+      <div class="placeholder-photo reveal">Photo: owner-operator on a roof with a phone</div>
+      <div class="reveal" style="--d:1">
+        <div class="eyebrow">Customer story</div>
+        <p class="wws-quote">“Placeholder quote from a small contractor about measuring, quoting and getting paid from the truck.”</p>
+        <div class="wws-by"><span class="mock-avatar">CN</span><span><b>Customer name</b>Company name · City, ST</span></div>
+        <div class="wws-results">
+          <div class="stat"><b>—</b><span>Placeholder result</span></div>
+          <div class="stat"><b>—</b><span>Placeholder result</span></div>
+        </div>
+        <p style="margin-top:28px"><a class="link-arrow" href="~/resources/case-studies/" style="color:#fff">Read customer stories</a></p>
+      </div>
+    </div>
+  </section>
+
+  <section class="section section--tight">
+    <div class="container">
+      <h4 class="reveal" style="margin-bottom:16px">Other company sizes</h4>
+      <div class="wws-sizes">
+        <a class="on" href="~/who-we-serve/small/"><i class="fa-solid fa-user"></i><span>Small<small>1–10 employees</small></span></a>
+        <a href="~/who-we-serve/medium/"><i class="fa-solid fa-user-group"></i><span>Medium<small>11–49 employees</small></span></a>
+        <a href="~/who-we-serve/enterprise/"><i class="fa-solid fa-building"></i><span>Enterprise<small>50+ employees</small></span></a>
+        <a href="~/who-we-serve/franchise/"><i class="fa-solid fa-network-wired"></i><span>Franchise<small>Part of a larger network</small></span></a>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" style="padding-top:0">
+    <div class="container container--narrow">
+      <details class="faq"><summary>Do I need a computer?</summary><div>No. Everything here works from the FirstMate app on iPhone or Android. The web portal is there when you want a bigger screen.</div></details>
+      <details class="faq"><summary>Can I start with just measurements?</summary><div>Yes. Order reports first and add proposals, payments and the rest whenever you're ready. Placeholder: pricing details.</div></details>
+      <details class="faq"><summary>What happens when I hire?</summary><div>Add people and choose which apps they see. Your jobs, templates and price book carry over as you grow.</div></details>
+    </div>
+  </section>
+
+  <section class="section" style="padding-top:0"><div class="container"><div class="cta-band">
+    <h2>Send your first proposal today.</h2>
+    <p class="lead" style="color:#c9ccd4">Free to start. Works on the phone you already have.</p>
+    <div class="btn-row"><a class="btn btn-primary btn-lg" href="https://app.1m8.ai/portal/signup">Sign up free</a><a class="btn btn-glass btn-lg" href="~/demo/">Book a demo</a></div>
+  </div></div></section>
+</main>
+<div id="site-footer"></div>
+<script src="../../assets/site.js"></script>
+<script>
+(function () {
+  var root = document.getElementById('sm-mock'); if (!root) return;
+  var panes = root.querySelectorAll('.sm-pane'), tabs = root.querySelectorAll('[data-tab]'), dots = root.querySelectorAll('[data-go]');
+  var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var i = 0, timer = null;
+  function show(n) {
+    i = n;
+    panes.forEach(function (p, k) { p.classList.toggle('on', k === n); });
+    tabs.forEach(function (t) { t.classList.toggle('on', +t.getAttribute('data-tab') === n); });
+    dots.forEach(function (d, k) { d.classList.toggle('on', k === n); });
+  }
+  function loop() { clearInterval(timer); if (!reduce) timer = setInterval(function () { show((i + 1) % panes.length); }, 4200); }
+  dots.forEach(function (d) { d.addEventListener('click', function () { show(+d.getAttribute('data-go')); loop(); }); });
+  show(0);
+  if (!('IntersectionObserver' in window)) return loop();
+  var io = new IntersectionObserver(function (en) { if (en[0].isIntersecting) { io.disconnect(); loop(); } }, { threshold: .2 });
+  io.observe(root);
+})();
+</script>
+</body>
+</html>

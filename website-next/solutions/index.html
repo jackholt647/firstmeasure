@@ -1,0 +1,218 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Solutions — FirstMate</title>
+<meta name="description" content="Every FirstMate app in one place: measure, win the work, run the job, get paid, and automate the rest.">
+<meta name="robots" content="noindex, nofollow">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,400..900;1,400..900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../assets/site.css">
+<style>
+  .sol-hero-inner { display: grid; grid-template-columns: 1fr 1.2fr; gap: 56px; align-items: center }
+  .sol-scene { position: relative; min-height: 610px }
+  .sol-scene > .mock { position: absolute; left: 0; right: 24px; top: 16px }
+  .sol-scene .mock-main { background: #fafafb }
+  .sol-launch { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px }
+  .sol-app { border: 1px solid var(--line); background: #fff; border-radius: 12px; padding: 12px 10px; display: flex; flex-direction: column; gap: 8px; transition: border-color .3s, box-shadow .3s, transform .3s var(--ease) }
+  .sol-app i { width: 30px; height: 30px; border-radius: 9px; background: var(--brand-soft); color: var(--brand); display: grid; place-items: center; font-size: 13px }
+  .sol-app b { font-size: 11px; font-weight: 800; line-height: 1.2 }
+  .sol-app small { font-size: 9.5px; color: var(--muted); font-weight: 600 }
+  .sol-app.on { border-color: var(--brand); box-shadow: 0 0 0 3px rgba(219, 0, 0, .1); transform: translateY(-2px) }
+  .sol-app.on i { background: var(--brand); color: #fff }
+  .sol-f1, .sol-f2, .sol-f3 { opacity: 0 }
+  .sol-f1 { right: -8px; top: -6px; width: 210px }
+  .sol-f2 { left: -26px; bottom: 34px; width: 220px }
+  .sol-f3 { right: 0; bottom: -12px; width: 200px }
+  .mock.in ~ .sol-f1 { animation: fm-pop .6s var(--ease) 1.8s forwards, fm-float 6s ease-in-out 2.4s infinite }
+  .mock.in ~ .sol-f2 { animation: fm-pop .6s var(--ease) 2.4s forwards, fm-float 7s ease-in-out 3s infinite }
+  .mock.in ~ .sol-f3 { animation: fm-pop .6s var(--ease) 3.0s forwards, fm-float 6.5s ease-in-out 3.6s infinite }
+  .sol-flow { display: flex; align-items: center; gap: 6px; font-size: 10px; font-weight: 800; color: var(--muted); text-transform: uppercase; letter-spacing: .06em }
+  .sol-flow span { padding: 4px 8px; border-radius: 999px; background: #f3f4f6 }
+  .sol-flow span.on { background: var(--brand); color: #fff }
+  .sol-app b { overflow-wrap: anywhere }
+  @media (max-width: 1240px) { .sol-scene .mock-side { display: none } }
+  @media (max-width: 1000px) { .sol-hero-inner { grid-template-columns: 1fr } .sol-scene .mock-side { display: flex } }
+  @media (max-width: 640px) { .sol-scene .mock-side { display: none } }
+  @media (max-width: 560px) { .sol-f2 { display: none } .sol-scene > .mock { right: 0 } .sol-f1 { width: 170px } .sol-launch { grid-template-columns: repeat(3, minmax(0, 1fr)) } .sol-launch .sol-app:nth-child(n+10) { display: none } }
+
+  .sol-tabs-wrap { position: sticky; top: var(--header-h); z-index: 50; background: rgba(255, 255, 255, .92); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border-bottom: 1px solid var(--line) }
+  .sol-tabs { display: flex; gap: 6px; overflow-x: auto; padding: 12px 0; scrollbar-width: none }
+  .sol-tabs::-webkit-scrollbar { display: none }
+  .sol-tab { flex: none; padding: 9px 16px; border-radius: 999px; font-weight: 800; font-size: 14px; color: var(--heading); border: 1.5px solid var(--line); background: #fff; display: inline-flex; gap: 8px; align-items: center; transition: all .2s }
+  .sol-tab small { font-size: 11px; color: var(--muted); font-weight: 800 }
+  .sol-tab:hover { border-color: var(--heading); color: var(--heading) }
+  .sol-tab.on { border-color: var(--brand); background: var(--brand); color: #fff }
+  .sol-tab.on small { color: rgba(255, 255, 255, .8) }
+
+  .sol-group { scroll-margin-top: calc(var(--header-h) + 72px) }
+  .sol-group-head { display: grid; grid-template-columns: 1fr 1.4fr; gap: 32px; align-items: end; margin-bottom: 32px }
+  .sol-group-head h2 { margin: 0 }
+  .sol-group-head p { margin: 0; color: var(--muted) }
+  .sol-num { font-size: 13px; font-weight: 900; color: var(--brand); letter-spacing: .1em; margin-bottom: 10px; display: block }
+  .sol-cards { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 18px }
+  .sol-card { position: relative; display: flex; flex-direction: column; gap: 6px; padding: 24px; border-radius: var(--radius); border: 1px solid var(--line); background: #fff; color: var(--heading); transition: transform .3s var(--ease), box-shadow .3s, border-color .3s; overflow: hidden }
+  .sol-card::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 3px; background: linear-gradient(90deg, var(--brand), #ff6a3d); transform: scaleX(0); transform-origin: left; transition: transform .35s var(--ease) }
+  .sol-card:hover { transform: translateY(-4px); box-shadow: var(--shadow); border-color: transparent; color: var(--heading) }
+  .sol-card:hover::after { transform: scaleX(1) }
+  .sol-card .icon { width: 46px; height: 46px; border-radius: 14px; background: var(--brand-soft); color: var(--brand); display: grid; place-items: center; font-size: 19px; margin-bottom: 10px; transition: background .25s, color .25s }
+  .sol-card:hover .icon { background: var(--brand); color: #fff }
+  .sol-card b { font-size: 17px; font-weight: 800; letter-spacing: -.01em }
+  .sol-card span { font-size: 14px; color: var(--muted); font-weight: 500 }
+  .sol-card em { font-style: normal; margin-top: auto; padding-top: 12px; font-size: 13px; font-weight: 800; color: var(--brand) }
+  .section--soft .sol-card { background: #fff }
+  @media (max-width: 1100px) { .sol-cards { grid-template-columns: repeat(3, minmax(0, 1fr)) } }
+  @media (max-width: 800px) { .sol-cards { grid-template-columns: repeat(2, minmax(0, 1fr)) } .sol-group-head { grid-template-columns: 1fr; gap: 12px } }
+  @media (max-width: 480px) { .sol-cards { grid-template-columns: 1fr } }
+</style>
+</head>
+<body data-header="over-dark">
+<div id="site-header"></div>
+<main>
+
+<section class="hero">
+  <div class="hero-grid"></div><div class="hero-glow"></div>
+  <div class="container hero-inner sol-hero-inner">
+    <div>
+      <div class="eyebrow reveal" style="color:#ff6b6b">Solutions</div>
+      <h1 class="reveal" style="--d:1">One platform. <span class="text-gradient">Every part of the job.</span></h1>
+      <p class="lead reveal" style="--d:2">Measurements, sales, production, payments and AI share one set of projects, contacts and people. Turn on the apps you need today and add the rest as you grow.</p>
+      <div class="btn-row reveal" style="--d:3; margin-top: 32px">
+        <a class="btn btn-primary btn-lg" href="https://app.1m8.ai/portal/signup">Sign up free</a>
+        <a class="btn btn-glass btn-lg" href="~/demo/">Book a demo</a>
+      </div>
+    </div>
+
+    <div class="sol-scene" aria-hidden="true">
+      <div class="mock">
+        <div class="mock-bar"><i></i><i></i><i></i><div class="url">app.1m8.ai/portal</div></div>
+        <div class="mock-body">
+          <div class="mock-side">
+            <img class="logo" src="../assets/img/logo_black.png" alt="" style="height:22px;width:auto">
+            <div class="mock-nav">Today</div><div class="mock-nav on">Apps</div><div class="mock-nav">Projects</div><div class="mock-nav">Contacts</div><div class="mock-nav">CRM</div><div class="mock-nav">Scheduling</div><div class="mock-nav">People</div><div class="mock-nav">Settings</div>
+          </div>
+          <div class="mock-main">
+            <div class="fade" style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+              <div class="mock-title">Your apps</div>
+              <div class="sol-flow" id="sol-flow"><span class="on">Measure</span><span>Sell</span><span>Build</span><span>Paid</span></div>
+            </div>
+            <div class="sol-launch" id="sol-launch">
+              <div class="sol-app pop" style="--d:1"><i class="fa-solid fa-house-chimney"></i><b>Measurements</b><small>3 reports ready</small></div>
+              <div class="sol-app pop" style="--d:2"><i class="fa-solid fa-camera"></i><b>Photos</b><small>48 today</small></div>
+              <div class="sol-app pop" style="--d:3"><i class="fa-solid fa-filter"></i><b>CRM</b><small>12 new leads</small></div>
+              <div class="sol-app pop" style="--d:4"><i class="fa-solid fa-file-signature"></i><b>Proposals</b><small>2 signed</small></div>
+              <div class="sol-app pop" style="--d:5"><i class="fa-solid fa-calendar-days"></i><b>Scheduling</b><small>9 jobs this week</small></div>
+              <div class="sol-app pop" style="--d:6"><i class="fa-solid fa-boxes-stacked"></i><b>Materials</b><small>4 orders out</small></div>
+              <div class="sol-app pop" style="--d:7"><i class="fa-solid fa-clipboard-list"></i><b>Work orders</b><small>6 in progress</small></div>
+              <div class="sol-app pop" style="--d:8"><i class="fa-solid fa-list-check"></i><b>Checklists</b><small>All complete</small></div>
+              <div class="sol-app pop" style="--d:9"><i class="fa-solid fa-credit-card"></i><b>Payments</b><small>3 deposits</small></div>
+              <div class="sol-app pop" style="--d:10"><i class="fa-solid fa-file-invoice-dollar"></i><b>Invoicing</b><small>5 open</small></div>
+              <div class="sol-app pop" style="--d:11"><i class="fa-solid fa-money-check-dollar"></i><b>Payroll</b><small>Run Friday</small></div>
+              <div class="sol-app pop" style="--d:12"><i class="fa-solid fa-wand-magic-sparkles"></i><b>Assistant</b><small>Ask anything</small></div>
+            </div>
+            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">
+              <div class="mock-kpi slide-up" style="--d:13"><small>Open projects</small><b>42</b></div>
+              <div class="mock-kpi slide-up" style="--d:14"><small>Pipeline</small><b>$—</b></div>
+              <div class="mock-kpi slide-up" style="--d:15"><small>Collected</small><b>$—</b></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="mock-float sol-f1"><div style="display:flex;justify-content:space-between;margin-bottom:6px"><span class="mock-chip green">Report ready</span><span style="color:var(--muted);font-size:11px">now</span></div><div>Full Exterior · 1482 Ridgeview Dr</div><div style="font-size:11px;color:var(--muted);margin-top:4px">Materials and labor built</div></div>
+      <div class="mock-float sol-f2"><div class="mock-toast"><div>Proposal signed<div style="font-weight:600;color:var(--muted);font-size:11px">The Martins · Better package</div></div></div></div>
+      <div class="mock-float sol-f3"><div style="display:flex;gap:10px;align-items:center"><div class="mock-avatar">JR</div><div>Install scheduled<div style="font-weight:600;color:var(--muted);font-size:11px">Tue · 2 assignees</div></div></div></div>
+    </div>
+  </div>
+</section>
+
+<div class="sol-tabs-wrap">
+  <div class="container"><nav class="sol-tabs" id="sol-tabs" aria-label="Solution groups"></nav></div>
+</div>
+
+<div id="sol-groups"></div>
+
+<section class="section section--dark">
+  <div class="container split">
+    <div class="reveal">
+      <div class="eyebrow">Why one platform</div>
+      <h2>Every app reads the same job.</h2>
+      <p class="lead" style="color:#c9ccd4">A measurement becomes a material order, a proposal, a work order and a pay line without anyone typing it twice. Permissions, branches and roles are set once, for everything.</p>
+      <ul class="feature-list"><li>One project, one contact, one record of what changed</li><li>Apps per role and per device, not per seat type</li><li>An assistant that can work across all of it</li></ul>
+    </div>
+    <div class="grid grid-2 reveal" style="--d:1">
+      <div class="card"><div class="icon"><i class="fa-solid fa-diagram-project"></i></div><h3>Shared data</h3><p>Projects, contacts, measurements and people, used by every app.</p></div>
+      <div class="card"><div class="icon"><i class="fa-solid fa-toggle-on"></i></div><h3>Turn apps on</h3><p>Start with what you need. Switch on more when you are ready.</p></div>
+      <div class="card"><div class="icon"><i class="fa-solid fa-mobile-screen"></i></div><h3>Office and field</h3><p>The same apps on web, iPhone and Android.</p></div>
+      <div class="card"><div class="icon"><i class="fa-solid fa-bolt"></i></div><h3>Automations</h3><p>Follow-ups and hand-offs that run on their own.</p></div>
+    </div>
+  </div>
+</section>
+
+<section class="section">
+  <div class="container">
+    <div class="cta-band reveal">
+      <h2>Start with one app. Grow into the rest.</h2>
+      <p class="lead" style="color:#c9ccd4;max-width:600px;margin:0 auto">Sign up free and order a report today, or book a walkthrough and we will help you choose.</p>
+      <div class="btn-row"><a class="btn btn-primary btn-lg" href="https://app.1m8.ai/portal/signup">Sign up free</a><a class="btn btn-glass btn-lg" href="~/demo/">Book a demo</a></div>
+    </div>
+  </div>
+</section>
+
+</main>
+<div id="site-footer"></div>
+<script src="../assets/site.js"></script>
+<script>
+(function () {
+  var INTROS = {
+    'Measure & document': ['measure', 'Start every job with accurate numbers and a full photo record, from one roof to every structure on the lot.'],
+    'Win the work': ['win', 'Capture every lead, follow up on time and close with proposals priced from real measurements.'],
+    'Run the job': ['run', 'Schedule people and equipment, order materials and keep everyone on the same page from signed to finished.'],
+    'Get paid': ['paid', 'Collect by card or bank, invoice on milestones, pay your people correctly and see profit on every job.'],
+    'AI & automation': ['ai', 'Let the assistant and automations handle the busywork, and connect the tools you already use.']
+  };
+  var groups = FirstMateSite.solutions;
+  var tabs = document.getElementById('sol-tabs'), host = document.getElementById('sol-groups');
+  tabs.innerHTML = groups.map(function (g) {
+    var id = (INTROS[g.group] || [g.group.toLowerCase().replace(/\W+/g, '-')])[0];
+    return '<a class="sol-tab" href="#' + id + '" data-id="' + id + '">' + g.group + ' <small>' + g.items.length + '</small></a>';
+  }).join('');
+  host.innerHTML = groups.map(function (g, gi) {
+    var meta = INTROS[g.group] || [g.group.toLowerCase().replace(/\W+/g, '-'), ''];
+    return '<section class="section sol-group' + (gi % 2 ? ' section--soft' : '') + '" id="' + meta[0] + '"><div class="container">' +
+      '<div class="sol-group-head reveal"><div><span class="sol-num">0' + (gi + 1) + '</span><h2>' + g.group + '</h2></div><p class="lead">' + meta[1] + '</p></div>' +
+      '<div class="sol-cards">' + g.items.map(function (i, k) {
+        return '<a class="sol-card reveal" style="--d:' + (k % 4) + '" href="~/solutions/' + i[0] + '/"><div class="icon"><i class="fa-solid ' + i[3] + '"></i></div><b>' + i[1] + '</b><span>' + i[2] + '</span><em>Learn more →</em></a>';
+      }).join('') + '</div></div></section>';
+  }).join('');
+
+  // Highlight the tab for the group in view
+  var links = tabs.querySelectorAll('.sol-tab');
+  if ('IntersectionObserver' in window) {
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (e) {
+        if (!e.isIntersecting) return;
+        links.forEach(function (l) {
+          var on = l.getAttribute('data-id') === e.target.id;
+          l.classList.toggle('on', on);
+          if (on && l.scrollIntoView && tabs.scrollWidth > tabs.clientWidth) tabs.scrollTo({ left: l.offsetLeft - 24, behavior: 'smooth' });
+        });
+      });
+    }, { rootMargin: '-45% 0px -50% 0px' });
+    host.querySelectorAll('.sol-group').forEach(function (s) { io.observe(s); });
+  }
+
+  // Hero: cycle a highlight through the apps and the flow steps
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  var apps = document.querySelectorAll('#sol-launch .sol-app'), flow = document.querySelectorAll('#sol-flow span');
+  var stepOf = [0, 0, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3], n = 0;
+  setTimeout(function tick() {
+    apps.forEach(function (a, k) { a.classList.toggle('on', k === n); });
+    flow.forEach(function (f, k) { f.classList.toggle('on', k === stepOf[n]); });
+    n = (n + 1) % apps.length;
+    setTimeout(tick, 1300);
+  }, 2600);
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Restoration — FirstMate</title>
+<meta name="description" content="FirstMate for restoration contractors: document the loss, track the claim and move from mitigation to rebuild.">
+<meta name="robots" content="noindex, nofollow">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,400..900;1,400..900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/site.css">
+<style>
+  .rs-steps { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 4px; position: relative }
+  .rs-steps > div { text-align: center; font-size: 10px; font-weight: 800; color: var(--muted); position: relative }
+  .rs-steps > div b { width: 26px; height: 26px; margin: 0 auto 5px; border-radius: 50%; display: grid; place-items: center; background: #f3f4f6; color: #9ca3af; font-size: 11px; transition: all .4s var(--ease) }
+  .rs-steps > div.done b { background: var(--ok); color: #fff }
+  .rs-steps > div.now b { background: var(--brand); color: #fff; box-shadow: 0 0 0 5px rgba(219, 0, 0, .15) }
+  .rs-steps > div.now { color: var(--brand) }
+  .rs-photos { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px }
+  .rs-ph { aspect-ratio: 4/3; border-radius: 8px; background: linear-gradient(135deg, #dbe3ea, #aebccb); position: relative; overflow: hidden }
+  .rs-ph:nth-child(2n) { background: linear-gradient(135deg, #e4e0d8, #bfb6a5) }
+  .rs-ph span { position: absolute; left: 4px; bottom: 4px; font-size: 8px; font-weight: 800; background: rgba(255, 255, 255, .92); color: var(--heading); padding: 1px 5px; border-radius: 4px }
+  .rs-float { right: -6px; top: -8px; width: 210px; opacity: 0 }
+  .mock.in ~ .rs-float { animation: fm-pop .6s var(--ease) 2.2s forwards, fm-float 6s ease-in-out 2.8s infinite }
+  @media (max-width: 560px) { .rs-float { display: none } }
+  .rs-cap + .rs-cap { margin-top: clamp(64px, 8vw, 104px) }
+  .rs-claim { display: grid; grid-template-columns: 1fr 1fr; gap: 8px }
+  .rs-claim div { padding: 8px 10px; border-radius: 10px; background: var(--bg-soft); font-size: 11px; font-weight: 600; color: var(--muted) }
+  .rs-claim b { display: block; color: var(--heading); font-size: 13px }
+  .rs-sol { display: flex; gap: 14px; align-items: flex-start } .rs-sol .icon { margin: 0 !important; flex: none }
+</style>
+</head>
+<body>
+<div id="site-header"></div>
+<main>
+  <section class="page-hero">
+    <div class="container split">
+      <div>
+        <div class="breadcrumb"><a href="~/trades/">Trades</a><span>Restoration</span></div>
+        <div class="eyebrow">Restoration</div>
+        <h1>From the emergency call to the final rebuild.</h1>
+        <p class="lead">Document every room, keep the claim and its paperwork on the job, and hand mitigation off to the rebuild without losing a photo or a note.</p>
+        <div class="btn-row"><a class="btn btn-primary btn-lg" href="https://app.1m8.ai/portal/signup">Sign up free</a><a class="btn btn-ghost btn-lg" href="~/demo/">Book a demo</a></div>
+      </div>
+      <div class="mock-stage" aria-hidden="true">
+        <div class="mock" id="rs-mock">
+          <div class="mock-bar"><i></i><i></i><i></i><div class="url">Projects · 412 Birch St</div></div>
+          <div class="mock-main">
+            <div style="display:flex;justify-content:space-between;align-items:center" class="fade"><div><div class="mock-title">Water loss · 412 Birch St</div><div style="color:var(--muted);font-size:11px;font-weight:600">Kitchen, hall, basement</div></div><span class="mock-chip red"><i class="fa-solid fa-droplet"></i> Water</span></div>
+            <div class="rs-steps fade" style="--d:1" id="rs-steps">
+              <div><b>1</b>Call</div><div><b>2</b>Mitigation</div><div><b>3</b>Document</div><div><b>4</b>Claim</div><div><b>5</b>Rebuild</div>
+            </div>
+            <div class="rs-photos">
+              <div class="rs-ph pop" style="--d:3"><span>Kitchen</span></div><div class="rs-ph pop" style="--d:4"><span>Kitchen</span></div><div class="rs-ph pop" style="--d:5"><span>Hall</span></div><div class="rs-ph pop" style="--d:6"><span>Basement</span></div>
+              <div class="rs-ph pop" style="--d:7"><span>Basement</span></div><div class="rs-ph pop" style="--d:8"><span>Hall</span></div><div class="rs-ph pop" style="--d:9"><span>Source</span></div><div class="rs-ph pop" style="--d:10"><span>Basement</span></div>
+            </div>
+            <div class="mock-row slide-up" style="--d:11"><i class="fa-solid fa-fan" style="color:var(--brand)"></i><b style="flex:1">Drying equipment on site</b><span class="mock-chip">3 units</span></div>
+          </div>
+        </div>
+        <div class="mock-float rs-float"><div class="mock-toast"><div>24 photos added<div style="font-weight:600;color:var(--muted);font-size:11px">Tagged by room</div></div></div></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section section--soft">
+    <div class="container">
+      <div class="split rs-cap">
+        <div class="reveal">
+          <div class="eyebrow">Documentation</div>
+          <h2>Every room, every photo, every day.</h2>
+          <p class="lead">Your team photographs from the phone and the pictures land on the project, tagged and timestamped. Daily notes and checklists build the record as you go.</p>
+          <a class="link-arrow" href="~/solutions/photos/">Explore photos</a>
+        </div>
+        <div class="mock reveal" aria-hidden="true">
+          <div class="mock-bar"><i></i><i></i><i></i><div class="url">Photos · 412 Birch St</div></div>
+          <div class="mock-main">
+            <div style="display:flex;gap:6px;flex-wrap:wrap" class="fade"><span class="mock-chip red">All · 46</span><span class="mock-chip">Kitchen · 14</span><span class="mock-chip">Basement · 21</span><span class="mock-chip">Hall · 11</span></div>
+            <div class="mock-row slide-up" style="--d:1"><span class="mock-chip blue">Day 1</span><b style="flex:1">Source found and stopped</b><span class="mock-chip">8 photos</span></div>
+            <div class="mock-row slide-up" style="--d:2"><span class="mock-chip blue">Day 2</span><b style="flex:1">Flooring and baseboard removed</b><span class="mock-chip">12 photos</span></div>
+            <div class="mock-row slide-up" style="--d:3"><span class="mock-chip blue">Day 3</span><b style="flex:1">Drying check · checklist done</b><span class="mock-chip green">Complete</span></div>
+            <div class="mock-row slide-up" style="--d:4"><span class="mock-chip blue">Day 4</span><b style="flex:1">Equipment pulled</b><span class="mock-chip">6 photos</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="split split--flip rs-cap">
+        <div class="reveal">
+          <div class="eyebrow">The claim</div>
+          <h2>The claim lives on the job.</h2>
+          <p class="lead">Carrier, claim number, adjuster and deductible sit on the project. Documents built from the job's own data go out for signature and every version is kept.</p>
+          <a class="link-arrow" href="~/solutions/documents/">Explore documents</a>
+        </div>
+        <div class="mock reveal" aria-hidden="true">
+          <div class="mock-bar"><i></i><i></i><i></i><div class="url">Claim · 412 Birch St</div></div>
+          <div class="mock-main">
+            <div class="rs-claim slide-up" style="--d:1">
+              <div>Carrier<b>Insurance carrier</b></div><div>Claim #<b>CLM-0000-000</b></div>
+              <div>Adjuster<b>Adjuster name</b></div><div>Deductible<b>$—</b></div>
+            </div>
+            <div class="mock-row slide-up" style="--d:3"><i class="fa-solid fa-file-signature" style="color:var(--brand)"></i><b style="flex:1">Work authorization</b><span class="mock-chip green">Signed</span></div>
+            <div class="mock-row slide-up" style="--d:4"><i class="fa-solid fa-file-lines" style="color:var(--brand)"></i><b style="flex:1">Mitigation report</b><span class="mock-chip blue">Sent</span></div>
+            <div class="mock-row slide-up" style="--d:5"><i class="fa-solid fa-file-invoice-dollar" style="color:var(--brand)"></i><b style="flex:1">Rebuild estimate</b><span class="mock-chip amber">Draft</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="split rs-cap">
+        <div class="reveal">
+          <div class="eyebrow">Mitigation to rebuild</div>
+          <h2>One project from wet to finished.</h2>
+          <p class="lead">When drying ends, the rebuild starts on the same project: the scope, the schedule and the homeowner's updates all carry over.</p>
+          <a class="link-arrow" href="~/solutions/scheduling/">Explore scheduling</a>
+        </div>
+        <div class="mock reveal" aria-hidden="true">
+          <div class="mock-bar"><i></i><i></i><i></i><div class="url">Scheduling · 412 Birch St</div></div>
+          <div class="mock-main">
+            <div class="mock-row slide-up" style="--d:1"><span class="mock-chip green">Done</span><b style="flex:1">Mitigation · 4 days</b><div class="mock-progress" style="width:70px"><i style="--w:100%;--d:2;background:var(--ok)"></i></div></div>
+            <div class="mock-row slide-up" style="--d:2"><span class="mock-chip blue">Next</span><b style="flex:1">Drywall &amp; paint</b><span class="mock-chip">Mon–Wed</span></div>
+            <div class="mock-row slide-up" style="--d:3"><span class="mock-chip">Later</span><b style="flex:1">Flooring install</b><span class="mock-chip">Thu–Fri</span></div>
+            <div class="mock-row pop" style="--d:6"><i class="fa-solid fa-message" style="color:var(--brand)"></i><b style="flex:1">Homeowner notified of rebuild dates</b><span class="mock-chip green">Sent</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container">
+      <div class="section-head center reveal"><div class="eyebrow">Solutions for restoration</div><h2>What restoration teams use most.</h2></div>
+      <div class="grid grid-4">
+        <a class="card reveal rs-sol" href="~/solutions/photos/"><div class="icon"><i class="fa-solid fa-camera"></i></div><div><h3>Photos</h3><p>Every room, organized.</p></div></a>
+        <a class="card reveal rs-sol" style="--d:1" href="~/solutions/checklists/"><div class="icon"><i class="fa-solid fa-list-check"></i></div><div><h3>Checklists</h3><p>Standard steps each visit.</p></div></a>
+        <a class="card reveal rs-sol" style="--d:2" href="~/solutions/documents/"><div class="icon"><i class="fa-solid fa-pen-ruler"></i></div><div><h3>Documents</h3><p>Authorizations and reports.</p></div></a>
+        <a class="card reveal rs-sol" style="--d:3" href="~/solutions/customer-portal/"><div class="icon"><i class="fa-solid fa-user-lock"></i></div><div><h3>Customer Portal</h3><p>Homeowners stay informed.</p></div></a>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" style="padding-top:0"><div class="container"><div class="cta-band reveal">
+    <h2>Be ready for the next call.</h2>
+    <p class="lead" style="color:#c9ccd4;max-width:600px;margin:0 auto">Sign up free and set up your first restoration project, or book a walkthrough.</p>
+    <div class="btn-row"><a class="btn btn-primary btn-lg" href="https://app.1m8.ai/portal/signup">Sign up free</a><a class="btn btn-glass btn-lg" href="~/demo/">Book a demo</a></div>
+  </div></div></section>
+</main>
+<div id="site-footer"></div>
+<script src="../../assets/site.js"></script>
+<script>
+(function () {
+  var steps = document.querySelectorAll('#rs-steps > div'), k = 0;
+  function set(n) { steps.forEach(function (s, i) { s.className = i < n ? 'done' : (i === n ? 'now' : ''); }); }
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) { set(2); return; }
+  set(0); setInterval(function () { k = (k + 1) % steps.length; set(k); }, 1800);
+})();
+</script>
+</body>
+</html>

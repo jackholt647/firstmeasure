@@ -1,0 +1,243 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Schedule a Demo — FirstMate</title>
+<meta name="description" content="Book a live walkthrough of FirstMate for your team.">
+<meta name="robots" content="noindex, nofollow">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,400..900;1,400..900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../assets/site.css">
+<style>
+  .dm-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 520px); gap: clamp(32px, 6vw, 72px); align-items: start }
+  .dm-see { list-style: none; padding: 0; margin: 28px 0 36px; display: grid; gap: 14px }
+  .dm-see li { display: flex; gap: 14px; align-items: flex-start }
+  .dm-see .ic { flex: none; width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; background: var(--brand-soft); color: var(--brand); font-size: 16px }
+  .dm-see b { display: block; font-size: 16px }
+  .dm-see span { font-size: 14px; color: var(--muted) }
+
+  /* Calendar mockup */
+  .dm-cal .mock-main { gap: 14px }
+  .dm-cal-head { display: flex; align-items: center; justify-content: space-between }
+  .dm-cal-head .nav { display: flex; gap: 6px }
+  .dm-cal-head .nav i { width: 24px; height: 24px; border-radius: 8px; border: 1px solid var(--line); display: grid; place-items: center; font-size: 10px; color: var(--muted) }
+  .dm-cal-body { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 14px }
+  .dm-days { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; text-align: center; font-size: 11px; font-weight: 700 }
+  .dm-days .dow { color: var(--muted); font-size: 10px; text-transform: uppercase; padding-bottom: 4px }
+  .dm-days .d { aspect-ratio: 1; border-radius: 8px; display: grid; place-items: center; color: #c4c8cf; transition: background .3s, color .3s, transform .3s }
+  .dm-days .d.open { color: var(--heading); background: var(--bg-soft) }
+  .dm-days .d.sel { background: var(--brand); color: #fff; transform: scale(1.08); box-shadow: 0 6px 14px rgba(219, 0, 0, .3) }
+  .dm-slots { display: flex; flex-direction: column; gap: 6px }
+  .dm-slots small { color: var(--muted); font-weight: 700; font-size: 11px }
+  .dm-slot { border: 1.5px solid var(--line); border-radius: 10px; padding: 8px 10px; font-weight: 700; font-size: 12px; text-align: center; transition: border-color .3s, background .3s, color .3s }
+  .dm-slot.sel { border-color: var(--brand); background: var(--brand-soft); color: var(--brand) }
+  .dm-confirm { opacity: 0; transform: translateY(8px); transition: opacity .4s, transform .4s var(--ease) }
+  .dm-confirm.show { opacity: 1; transform: none }
+  .dm-cal-wrap { position: relative }
+  .dm-cal-wrap .mock-float { right: -10px; bottom: -22px }
+  .dm-cal-wrap .mock-cursor { transition: left .7s var(--ease), top .7s var(--ease); left: 50%; top: 50% }
+
+  /* Form card */
+  .dm-card { background: #fff; border: 1px solid var(--line); border-radius: var(--radius-lg); padding: clamp(24px, 4vw, 40px); box-shadow: var(--shadow); position: sticky; top: calc(var(--header-h) + 24px) }
+  .dm-card h2 { font-size: clamp(26px, 3vw, 32px) }
+  .dm-two { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 0 14px }
+  .dm-chips { display: flex; flex-wrap: wrap; gap: 8px }
+  .dm-chips label { cursor: pointer; position: relative }
+  .dm-chips input { position: absolute; left: 0; top: 0; width: 1px !important; height: 1px; padding: 0; opacity: 0; pointer-events: none }
+  .dm-chips span { display: inline-flex; align-items: center; gap: 6px; padding: 7px 13px; border-radius: 999px; border: 1.5px solid var(--line); font-size: 13px; font-weight: 700; color: var(--heading); transition: all .2s }
+  .dm-chips input:checked + span { border-color: var(--brand); background: var(--brand-soft); color: var(--brand) }
+  .dm-chips input:focus-visible + span { box-shadow: 0 0 0 4px rgba(219, 0, 0, .15) }
+  .dm-card .btn { width: 100% }
+  .dm-fine { font-size: 12px; color: var(--muted); margin: 12px 0 0; text-align: center }
+  .dm-thanks { display: none; text-align: center; padding: 32px 0 }
+  .dm-thanks .dm-check { width: 72px; height: 72px; border-radius: 50%; background: #dcfce7; color: var(--ok); display: grid; place-items: center; font-size: 30px; margin: 0 auto 20px; animation: fm-pop .6s var(--ease) both }
+  .dm-card.done form { display: none }
+  .dm-card.done .dm-thanks { display: block; animation: fm-fade .5s ease both }
+  .dm-req { color: var(--brand) }
+  @media (max-width: 960px) { .dm-grid { grid-template-columns: minmax(0, 1fr) } .dm-card { position: static } }
+  @media (max-width: 520px) { .dm-two { grid-template-columns: minmax(0, 1fr) } .dm-cal-body { grid-template-columns: minmax(0, 1fr) } .dm-cal-wrap .mock-float { display: none } }
+</style>
+</head>
+<body>
+<div id="site-header"></div>
+<main>
+  <section class="page-hero">
+    <div class="container dm-grid">
+      <div>
+        <div class="eyebrow">Schedule a demo</div>
+        <h1>See FirstMate on your own jobs.</h1>
+        <p class="lead">A live walkthrough with someone who knows the trade. Bring your questions and your team.</p>
+
+        <ul class="dm-see">
+          <li class="reveal" style="--d:0"><span class="ic"><i class="fa-solid fa-house-chimney"></i></span><div><b>Measurements to materials</b><span>How a report becomes the material order and the work order.</span></div></li>
+          <li class="reveal" style="--d:1"><span class="ic"><i class="fa-solid fa-file-signature"></i></span><div><b>Proposals signed on the spot</b><span>Good-better-best options and e-signature from the kitchen table.</span></div></li>
+          <li class="reveal" style="--d:2"><span class="ic"><i class="fa-solid fa-calendar-days"></i></span><div><b>Scheduling and the field app</b><span>What your people see on their phone each day.</span></div></li>
+          <li class="reveal" style="--d:3"><span class="ic"><i class="fa-solid fa-credit-card"></i></span><div><b>Getting paid</b><span>Invoices, payments and pay for your team.</span></div></li>
+        </ul>
+
+        <div class="dm-cal-wrap">
+          <div class="mock dm-cal" id="dm-cal" aria-hidden="true">
+            <div class="mock-bar"><i></i><i></i><i></i><span class="url">Book a time</span></div>
+            <div class="mock-main">
+              <div class="dm-cal-head slide-up" style="--d:0"><span class="mock-title" id="dm-month">Month</span><span class="nav"><i class="fa-solid fa-chevron-left"></i><i class="fa-solid fa-chevron-right"></i></span></div>
+              <div class="dm-cal-body">
+                <div class="dm-days fade" style="--d:1" id="dm-days"></div>
+                <div class="dm-slots slide-left" style="--d:2">
+                  <small id="dm-daylabel">Choose a day</small>
+                  <div class="dm-slot">9:00 AM</div>
+                  <div class="dm-slot">10:30 AM</div>
+                  <div class="dm-slot">1:00 PM</div>
+                  <div class="dm-slot">2:30 PM</div>
+                  <div class="dm-slot">4:00 PM</div>
+                </div>
+              </div>
+              <div class="mock-row dm-confirm" id="dm-confirm"><span class="mock-avatar">FM</span><span style="flex:1;font-weight:700">FirstMate demo · 30 min</span><span class="mock-btn">Confirm</span></div>
+            </div>
+            <span class="mock-cursor" id="dm-cursor"></span>
+          </div>
+          <div class="mock-float mock-toast float-y" id="dm-toast" style="opacity:0;transition:opacity .4s">Demo booked</div>
+        </div>
+      </div>
+
+      <div class="dm-card" id="dm-card">
+        <!-- TODO: this form is not wired to anything yet. It needs a real endpoint (e.g. lead intake via receiveLead / a website form) before launch. Today the script only shows the thank-you state. -->
+        <form id="dm-form" novalidate>
+          <h2>Book your demo</h2>
+          <p class="muted" style="font-size:15px">Tell us a little about your company and we will reach out to pick a time.</p>
+          <div class="dm-two">
+            <div class="field"><label for="dm-name">Name <span class="dm-req">*</span></label><input id="dm-name" name="name" autocomplete="name" required></div>
+            <div class="field"><label for="dm-company">Company <span class="dm-req">*</span></label><input id="dm-company" name="company" autocomplete="organization" required></div>
+            <div class="field"><label for="dm-email">Work email <span class="dm-req">*</span></label><input id="dm-email" name="email" type="email" autocomplete="email" required></div>
+            <div class="field"><label for="dm-phone">Phone</label><input id="dm-phone" name="phone" type="tel" autocomplete="tel"></div>
+            <div class="field"><label for="dm-size">Company size</label>
+              <select id="dm-size" name="size"><option value="">Select…</option><option>Just me</option><option>2–10</option><option>11–49</option><option>50–199</option><option>200+</option></select></div>
+            <div class="field"><label for="dm-trade">Trade</label>
+              <select id="dm-trade" name="trade"><option value="">Select…</option><option>Roofing</option><option>Siding and exteriors</option><option>General contracting</option><option>Restoration</option><option>Solar</option><option>HVAC</option><option>Landscaping</option><option>Other</option></select></div>
+          </div>
+          <div class="field">
+            <label>What do you want to see?</label>
+            <div class="dm-chips">
+              <label><input type="checkbox" name="interest" value="measurements"><span>Measurements</span></label>
+              <label><input type="checkbox" name="interest" value="crm"><span>CRM</span></label>
+              <label><input type="checkbox" name="interest" value="proposals"><span>Proposals</span></label>
+              <label><input type="checkbox" name="interest" value="scheduling"><span>Scheduling</span></label>
+              <label><input type="checkbox" name="interest" value="materials"><span>Materials</span></label>
+              <label><input type="checkbox" name="interest" value="payments"><span>Payments</span></label>
+              <label><input type="checkbox" name="interest" value="payroll"><span>Payroll</span></label>
+              <label><input type="checkbox" name="interest" value="assistant"><span>AI Assistant</span></label>
+            </div>
+          </div>
+          <div class="field"><label for="dm-notes">Anything else?</label><textarea id="dm-notes" name="notes" rows="3" placeholder="What tools you use today, what you want to fix…"></textarea></div>
+          <button class="btn btn-primary btn-lg" type="submit">Request a demo</button>
+          <p class="dm-fine">Placeholder: privacy and contact consent wording.</p>
+        </form>
+        <div class="dm-thanks" role="status" aria-live="polite">
+          <div class="dm-check"><i class="fa-solid fa-check"></i></div>
+          <h2>Thanks — we'll be in touch.</h2>
+          <p class="muted">Someone from our team will reach out to pick a time that works.</p>
+          <div class="btn-row" style="justify-content:center"><a class="btn btn-ghost" href="~/pricing/">See pricing</a><a class="btn btn-primary" href="https://app.1m8.ai/portal/signup">Sign up free</a></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section section--soft">
+    <div class="container">
+      <div class="section-head center">
+        <div class="eyebrow">How it works</div>
+        <h2>Thirty minutes, built around you.</h2>
+      </div>
+      <div class="grid grid-3">
+        <div class="card reveal" style="--d:0"><span class="icon"><i class="fa-solid fa-calendar-check"></i></span><h3>1. Pick a time</h3><p>We reach out and find a slot that works for your team.</p></div>
+        <div class="card reveal" style="--d:1"><span class="icon"><i class="fa-solid fa-display"></i></span><h3>2. See your workflow</h3><p>We walk through the parts you care about, using jobs like yours.</p></div>
+        <div class="card reveal" style="--d:2"><span class="icon"><i class="fa-solid fa-rocket"></i></span><h3>3. Get set up</h3><p>Start free, and we help bring your templates and team across.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container container--narrow">
+      <div class="section-head center"><div class="eyebrow">FAQ</div><h2>Before you book</h2></div>
+      <details class="faq"><summary>How long is a demo?</summary><div>Placeholder answer.</div></details>
+      <details class="faq"><summary>Can my whole team join?</summary><div>Placeholder answer.</div></details>
+      <details class="faq"><summary>Can I try it without a demo?</summary><div>Yes. You can <a href="https://app.1m8.ai/portal/signup">sign up free</a> and explore on your own.</div></details>
+    </div>
+  </section>
+
+  <section class="section section--tight">
+    <div class="container"><div class="cta-band">
+      <h2>Rather explore on your own?</h2>
+      <p class="lead" style="color:#c9ccd4;max-width:600px;margin:0 auto">Sign up free and order your first measurement report today.</p>
+      <div class="btn-row"><a class="btn btn-primary btn-lg" href="https://app.1m8.ai/portal/signup">Sign up free</a><a class="btn btn-glass btn-lg" href="~/pricing/">See pricing</a></div>
+    </div></div>
+  </section>
+</main>
+<div id="site-footer"></div>
+<script src="../assets/site.js"></script>
+<script>
+(function () {
+  // Form: not wired yet. Validate, then show the thank-you state.
+  var form = document.getElementById('dm-form');
+  var card = document.getElementById('dm-card');
+  form.addEventListener('submit', function (e) {
+    e.preventDefault();
+    if (!form.checkValidity()) { form.reportValidity(); return; }
+    card.classList.add('done');
+    card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  });
+
+  // Calendar mockup: build the current month and loop a booking.
+  var now = new Date();
+  var first = new Date(now.getFullYear(), now.getMonth(), 1);
+  var daysIn = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+  document.getElementById('dm-month').textContent = first.toLocaleString(undefined, { month: 'long', year: 'numeric' });
+  var grid = document.getElementById('dm-days');
+  var html = ['S', 'M', 'T', 'W', 'T', 'F', 'S'].map(function (d) { return '<span class="dow">' + d + '</span>'; }).join('');
+  for (var i = 0; i < first.getDay(); i++) html += '<span></span>';
+  for (var d = 1; d <= daysIn; d++) {
+    var wd = new Date(now.getFullYear(), now.getMonth(), d).getDay();
+    var open = wd > 0 && wd < 6 && d >= now.getDate();
+    html += '<span class="d' + (open ? ' open' : '') + '" data-day="' + d + '">' + d + '</span>';
+  }
+  grid.innerHTML = html;
+
+  var cal = document.getElementById('dm-cal');
+  var cursor = document.getElementById('dm-cursor');
+  var confirm = document.getElementById('dm-confirm');
+  var toast = document.getElementById('dm-toast');
+  var label = document.getElementById('dm-daylabel');
+  var slots = cal.querySelectorAll('.dm-slot');
+  var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  function moveTo(el) {
+    var a = cal.getBoundingClientRect(), b = el.getBoundingClientRect();
+    cursor.style.left = (b.left - a.left + b.width / 2) + 'px';
+    cursor.style.top = (b.top - a.top + b.height / 2) + 'px';
+  }
+  function clear() {
+    cal.querySelectorAll('.sel').forEach(function (x) { x.classList.remove('sel'); });
+    confirm.classList.remove('show'); toast.style.opacity = 0; label.textContent = 'Choose a day';
+  }
+  function run() {
+    var open = cal.querySelectorAll('.d.open');
+    if (!open.length) open = cal.querySelectorAll('.d');
+    var day = open[Math.floor(Math.random() * Math.min(open.length, 8))];
+    var slot = slots[Math.floor(Math.random() * slots.length)];
+    clear();
+    setTimeout(function () { moveTo(day); }, 300);
+    setTimeout(function () {
+      day.classList.add('sel');
+      label.textContent = new Date(now.getFullYear(), now.getMonth(), +day.getAttribute('data-day')).toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' });
+    }, 1100);
+    setTimeout(function () { moveTo(slot); }, 1700);
+    setTimeout(function () { slot.classList.add('sel'); confirm.classList.add('show'); }, 2500);
+    setTimeout(function () { moveTo(confirm.querySelector('.mock-btn')); }, 3100);
+    setTimeout(function () { toast.style.opacity = 1; }, 3900);
+    if (!reduce) setTimeout(run, 7000);
+  }
+  if (reduce) { cal.classList.add('in'); run(); }
+  else cal.addEventListener('fm:in', function () { setTimeout(run, 900); }, { once: true });
+})();
+</script>
+</body>
+</html>

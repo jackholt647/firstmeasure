@@ -1,0 +1,270 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Document Studio — FirstMate</title>
+<meta name="description" content="Design contracts, reports and templates that fill themselves from project data, and edit any document exactly as it will be sent.">
+<meta name="robots" content="noindex, nofollow">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,400..900;1,400..900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/site.css">
+<style>
+  .ds-editor { display: grid; grid-template-columns: 120px 1fr; min-height: 340px }
+  .ds-editor > * { min-width: 0 }
+  .ds-palette { background: #fbfbfc; border-right: 1px solid var(--line); padding: 12px 8px; display: flex; flex-direction: column; gap: 5px }
+  .ds-palette h6 { margin: 0 0 4px 4px; font-size: 9px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--muted) }
+  .ds-blk { display: flex; align-items: center; gap: 7px; padding: 6px 8px; border-radius: 8px; border: 1px solid var(--line); background: #fff; font-size: 11px; font-weight: 700 }
+  .ds-blk i { color: var(--brand); width: 12px; text-align: center; font-size: 11px }
+  .ds-canvas { background: #eef0f3; padding: 14px; display: flex; justify-content: center }
+  .ds-page { background: #fff; width: 100%; max-width: 330px; border-radius: 6px; box-shadow: var(--shadow); padding: 16px; display: flex; flex-direction: column; gap: 8px; font-size: 11px }
+  .ds-drop { border-radius: 6px; padding: 4px; outline: 1.5px dashed transparent; transition: outline-color .3s }
+  .ds-drop.hl { outline-color: var(--brand) }
+  .mock.in .ds-drop { animation: ds-drop .6s var(--ease) both; animation-delay: calc(var(--d, 0) * 380ms + 300ms) }
+  @keyframes ds-drop { 0% { opacity: 0; transform: translate(-60px, -6px) scale(.92); outline-color: var(--brand) } 70% { opacity: 1; transform: none; outline-color: var(--brand) } 100% { opacity: 1; outline-color: transparent } }
+  .ds-drop { opacity: 0 }
+  .ds-f { display: inline-block; border-radius: 4px; padding: 0 4px; font-weight: 700; transition: background .4s, color .4s; white-space: nowrap }
+  .ds-f .t { color: #6d28d9; background: #ede9fe; border-radius: 4px; padding: 0 4px; font-family: ui-monospace, Consolas, monospace; font-size: 10px }
+  .ds-f .v { display: none; color: var(--heading) }
+  .ds-filled .ds-f .t { display: none }
+  .ds-filled .ds-f .v { display: inline; animation: ds-flash 1s ease }
+  @keyframes ds-flash { 0% { background: #fef3c7 } 100% { background: transparent } }
+  .ds-tbl { width: 100%; border-collapse: collapse; font-size: 10px }
+  .ds-tbl td, .ds-tbl th { border-bottom: 1px solid var(--line-soft); padding: 4px 2px; text-align: left }
+  .ds-tbl th { font-size: 9px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted) }
+  .ds-tbl td:last-child, .ds-tbl th:last-child { text-align: right }
+  .ds-mode { display: inline-flex; background: var(--bg-soft); border-radius: 999px; padding: 3px; gap: 2px }
+  .ds-mode span { padding: 3px 10px; border-radius: 999px; font-size: 10px; font-weight: 800; color: var(--muted); transition: all .3s }
+  .ds-mode span.on { background: #fff; color: var(--brand); box-shadow: var(--shadow-sm) }
+  @media (max-width: 520px) { .ds-editor { grid-template-columns: 1fr } .ds-palette { flex-direction: row; flex-wrap: wrap; border-right: 0; border-bottom: 1px solid var(--line) } .ds-palette h6 { width: 100% } }
+
+  /* bindings */
+  .ds-bind { display: grid; grid-template-columns: 1fr 24px 1fr; gap: 8px; align-items: center; font-size: 11px; font-weight: 700 }
+  .ds-bind code { font-family: ui-monospace, Consolas, monospace; font-size: 10px; color: #6d28d9; background: #ede9fe; padding: 4px 7px; border-radius: 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: block }
+  .ds-bind .arrow { color: var(--brand); text-align: center }
+  .ds-bind .val { padding: 4px 8px; border: 1px solid var(--line); border-radius: 6px; background: #fff; overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
+
+  /* project docs */
+  .ds-doc { display: flex; gap: 10px; align-items: center; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: #fff; font-weight: 700; font-size: 12px }
+  .ds-doc .ic { width: 30px; height: 36px; border-radius: 4px; background: var(--brand-soft); color: var(--brand); display: grid; place-items: center; flex: none }
+
+  /* as sent */
+  .ds-sent { background: #eef0f3; padding: 14px; border-radius: 10px; position: relative }
+  .ds-sent .ds-page { max-width: none; margin: 0 }
+  .ds-edit { outline: 2px solid var(--info); outline-offset: 1px; border-radius: 3px; background: #eff6ff }
+  .ds-lock { font-size: 9px; color: var(--muted); font-weight: 700 }
+  .ds-num { display: inline-block; min-width: 3ch; text-align: right; font-variant-numeric: tabular-nums }
+  .ds-num.flash { animation: ds-flash 1s ease }
+  .ds-tip { position: absolute; right: 10px; top: -14px; z-index: 3; font-size: 10px; padding: 6px 10px; border-radius: 999px; background: #111827; color: #fff; font-weight: 700; box-shadow: var(--shadow) }
+</style>
+</head>
+<body>
+<div id="site-header"></div>
+<main>
+
+<section class="page-hero">
+  <div class="container split">
+    <div>
+      <div class="breadcrumb"><a href="~/solutions/">Solutions</a><span>Document Studio</span></div>
+      <div class="eyebrow">Document Studio</div>
+      <h1>Documents that write themselves.</h1>
+      <p class="lead">Design your contracts, inspection reports, warranties and change orders once. Every project fills them in from its own data, and you can still edit any page exactly as it will be sent.</p>
+      <div class="btn-row"><a class="btn btn-primary btn-lg" href="https://app.1m8.ai/portal/signup">Sign up free</a><a class="btn btn-ghost btn-lg" href="~/demo/">Book a demo</a></div>
+    </div>
+    <div class="mock-stage" aria-hidden="true">
+      <div class="mock" id="ds-hero">
+        <div class="mock-bar"><i></i><i></i><i></i><div class="url">Document Studio · Roof agreement</div></div>
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;border-bottom:1px solid var(--line)"><b style="font-size:12px">Roof agreement <span style="color:var(--muted);font-weight:600">· Visual document</span></b><div class="ds-mode" id="ds-mode"><span class="on">Template</span><span>Preview</span></div></div>
+        <div class="ds-editor">
+          <div class="ds-palette">
+            <h6>Blocks</h6>
+            <div class="ds-blk"><i class="fa-solid fa-heading"></i>Heading</div>
+            <div class="ds-blk"><i class="fa-solid fa-align-left"></i>Text</div>
+            <div class="ds-blk"><i class="fa-solid fa-table"></i>Line items</div>
+            <div class="ds-blk"><i class="fa-solid fa-ruler-combined"></i>Measurements</div>
+            <div class="ds-blk"><i class="fa-regular fa-image"></i>Image</div>
+            <div class="ds-blk"><i class="fa-solid fa-signature"></i>Signature</div>
+          </div>
+          <div class="ds-canvas">
+            <div class="ds-page" id="ds-page">
+              <div class="ds-drop" style="--d:0"><div style="display:flex;justify-content:space-between;align-items:center"><img src="../../assets/img/logo_black.png" alt="" style="height:16px;width:auto"><span style="font-size:9px;color:var(--muted);font-weight:700">Agreement</span></div></div>
+              <div class="ds-drop" style="--d:1"><div style="font-weight:900;font-size:15px;letter-spacing:-.02em">Roof replacement agreement</div><div style="color:var(--muted);font-weight:600">For <span class="ds-f"><span class="t">contact.name</span><span class="v">Sarah Martin</span></span> at <span class="ds-f"><span class="t">project.address</span><span class="v">1482 Ridgeview Dr</span></span></div></div>
+              <div class="ds-drop" style="--d:2"><div style="display:flex;gap:6px"><span class="mock-chip">Roof <span class="ds-f"><span class="t">roof.squares</span><span class="v">32.4 sq</span></span></span><span class="mock-chip">Pitch <span class="ds-f"><span class="t">roof.pitch</span><span class="v">8/12</span></span></span></div></div>
+              <div class="ds-drop" style="--d:3"><table class="ds-tbl"><tr><th>Item</th><th>Qty</th><th>Total</th></tr><tr><td>Designer shingle</td><td><span class="ds-f"><span class="t">qty</span><span class="v">35.6 sq</span></span></td><td>$—</td></tr><tr><td>Ridge cap</td><td><span class="ds-f"><span class="t">qty</span><span class="v">148 ft</span></span></td><td>$—</td></tr><tr><td><b>Total</b></td><td></td><td><b><span class="ds-f"><span class="t">total | money</span><span class="v">$24,860</span></span></b></td></tr></table></div>
+              <div class="ds-drop" style="--d:4"><div style="border-top:1px solid var(--heading);padding-top:3px;font-size:9px;color:var(--muted);font-weight:700;display:flex;justify-content:space-between"><span>Homeowner signature</span><span>Date</span></div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Design -->
+<section class="section">
+  <div class="container split">
+    <div class="reveal">
+      <div class="eyebrow">Design</div>
+      <h2>Build any document from blocks.</h2>
+      <p class="lead">Headings, text, line item tables, measurements, photos, signatures and payment terms. Set your theme once and every document matches your brand.</p>
+      <ul class="feature-list"><li>Contracts, reports, warranties, change orders, invoices</li><li>Start from a preset or a blank page</li><li>Folders and tags to keep the library tidy</li></ul>
+    </div>
+    <div class="mock reveal" aria-hidden="true">
+      <div class="mock-bar"><i></i><i></i><i></i><div class="url">Document Studio · Library</div></div>
+      <div class="mock-main">
+        <div style="display:flex;justify-content:space-between;align-items:center"><div class="mock-title">Templates</div><span class="mock-btn">+ New</span></div>
+        <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px">
+          <div class="pop" style="--d:1"><div style="aspect-ratio:3/4;border:1px solid var(--line);border-radius:8px;padding:8px;display:flex;flex-direction:column;gap:4px"><div class="mock-line" style="flex:none;height:6px;width:50%;background:var(--brand)"></div><div class="mock-line" style="flex:none"></div><div class="mock-line" style="flex:none;width:70%"></div><div style="flex:1;border-radius:4px;background:var(--bg-soft);margin-top:4px"></div></div><b style="font-size:11px">Roof agreement</b></div>
+          <div class="pop" style="--d:2"><div style="aspect-ratio:3/4;border:1px solid var(--line);border-radius:8px;padding:8px;display:flex;flex-direction:column;gap:4px"><div style="height:40%;border-radius:4px;background:repeating-linear-gradient(135deg,#f3f4f6 0 6px,#eceef1 6px 12px)"></div><div class="mock-line" style="flex:none"></div><div class="mock-line" style="flex:none;width:60%"></div></div><b style="font-size:11px">Inspection report</b></div>
+          <div class="pop" style="--d:3"><div style="aspect-ratio:3/4;border:1px solid var(--line);border-radius:8px;padding:8px;display:flex;flex-direction:column;gap:4px;align-items:center;justify-content:center"><i class="fa-solid fa-award" style="color:var(--brand);font-size:22px"></i><div class="mock-line" style="flex:none;width:70%"></div></div><b style="font-size:11px">Warranty</b></div>
+          <div class="pop" style="--d:4"><div style="aspect-ratio:3/4;border:1px solid var(--line);border-radius:8px;padding:8px;display:flex;flex-direction:column;gap:4px"><div class="mock-line" style="flex:none;width:40%"></div><div class="mock-line" style="flex:none"></div><div class="mock-line" style="flex:none"></div><div class="mock-line" style="flex:none;width:80%"></div></div><b style="font-size:11px">Change order</b></div>
+          <div class="pop" style="--d:5"><div style="aspect-ratio:3/4;border:1px solid var(--line);border-radius:8px;padding:8px;display:flex;flex-direction:column;gap:4px"><div class="mock-line" style="flex:none;height:6px;width:40%;background:var(--brand)"></div><div style="flex:1;border-radius:4px;background:var(--bg-soft)"></div><div class="mock-line" style="flex:none;width:50%;margin-left:auto"></div></div><b style="font-size:11px">Invoice</b></div>
+          <div class="pop" style="--d:6"><div style="aspect-ratio:3/4;border:1.5px dashed #cfd3da;border-radius:8px;display:grid;place-items:center;color:var(--muted)"><i class="fa-solid fa-plus"></i></div><b style="font-size:11px;color:var(--muted)">Blank</b></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Data -->
+<section class="section section--soft">
+  <div class="container split split--flip">
+    <div class="reveal">
+      <div class="eyebrow">Fills from your data</div>
+      <h2>Type it once. It shows up everywhere.</h2>
+      <p class="lead">Fields in a template point at project data: the homeowner, the address, the measurements, the chosen option, the price. Totals and other calculated values are always worked out, never typed.</p>
+      <ul class="feature-list"><li>Contacts, projects, measurements and pricing</li><li>Your own custom fields too</li><li>Repeat a table for every line item or structure</li></ul>
+    </div>
+    <div class="mock reveal" aria-hidden="true">
+      <div class="mock-bar"><i></i><i></i><i></i><div class="url">Fields · Roof agreement</div></div>
+      <div class="mock-main">
+        <div class="mock-title">Bound fields</div>
+        <div class="ds-bind slide-up" style="--d:1"><code>contact.name</code><span class="arrow"><i class="fa-solid fa-arrow-right"></i></span><span class="val">Sarah Martin</span></div>
+        <div class="ds-bind slide-up" style="--d:2"><code>project.address</code><span class="arrow"><i class="fa-solid fa-arrow-right"></i></span><span class="val">1482 Ridgeview Dr</span></div>
+        <div class="ds-bind slide-up" style="--d:3"><code>roof.squares</code><span class="arrow"><i class="fa-solid fa-arrow-right"></i></span><span class="val">32.4 sq</span></div>
+        <div class="ds-bind slide-up" style="--d:4"><code>option.name</code><span class="arrow"><i class="fa-solid fa-arrow-right"></i></span><span class="val">Better · Charcoal</span></div>
+        <div class="ds-bind slide-up" style="--d:5"><code>total | money</code><span class="arrow"><i class="fa-solid fa-calculator"></i></span><span class="val">$24,860 <span class="ds-lock">· calculated</span></span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Per project -->
+<section class="section">
+  <div class="container split">
+    <div class="reveal">
+      <div class="eyebrow">Built per project</div>
+      <h2>Every job's paperwork, in one tab.</h2>
+      <p class="lead">Each project's Documents tab holds what was made for it: drafted from your templates, sent to recipients, signed and kept with its full history.</p>
+      <ul class="feature-list"><li>Created automatically at the right step of the job</li><li>Send to the homeowner, insurer or partner</li><li>Every revision recorded</li></ul>
+    </div>
+    <div class="mock reveal" aria-hidden="true">
+      <div class="mock-bar"><i></i><i></i><i></i><div class="url">1482 Ridgeview Dr · Documents</div></div>
+      <div class="mock-main">
+        <div class="ds-doc slide-up" style="--d:1"><span class="ic"><i class="fa-solid fa-file-signature"></i></span><span style="flex:1">Roof agreement<div style="color:var(--muted);font-weight:600;font-size:10px">Signed Oct 14</div></span><span class="mock-chip green">Signed</span></div>
+        <div class="ds-doc slide-up" style="--d:2"><span class="ic"><i class="fa-solid fa-magnifying-glass"></i></span><span style="flex:1">Inspection report<div style="color:var(--muted);font-weight:600;font-size:10px">Sent to homeowner</div></span><span class="mock-chip blue">Sent</span></div>
+        <div class="ds-doc slide-up" style="--d:3"><span class="ic"><i class="fa-solid fa-file-pen"></i></span><span style="flex:1">Change order #1<div style="color:var(--muted);font-weight:600;font-size:10px">Two extra sheets of decking</div></span><span class="mock-chip amber">Draft</span></div>
+        <div class="ds-doc pop" style="--d:6;border-color:var(--brand);box-shadow:0 0 0 3px rgba(219,0,0,.08)"><span class="ic"><i class="fa-solid fa-award"></i></span><span style="flex:1">Workmanship warranty<div style="color:var(--muted);font-weight:600;font-size:10px">Created when the job was finalized</div></span><span class="mock-chip red">New</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Edit as sent -->
+<section class="section section--dark">
+  <div class="container split split--flip">
+    <div class="reveal">
+      <div class="eyebrow">Edit manually</div>
+      <h2>Edit it like the PDF you are about to send.</h2>
+      <p class="lead" style="color:#c9ccd4">"Edit manually" opens the document exactly as the customer will get it. Change a quantity and the totals recompute; change a sentence and the rest of the template stays live.</p>
+      <ul class="feature-list"><li>What you see is what they get</li><li>Values you type update the project data</li><li>Template changes later are flagged, not lost</li></ul>
+    </div>
+    <div class="mock reveal" aria-hidden="true" id="ds-sent-mock">
+      <div class="mock-bar"><i></i><i></i><i></i><div class="url">Edit manually · Change order #1</div></div>
+      <div class="mock-main">
+        <div class="ds-sent">
+          <span class="ds-tip">Typing a quantity updates the data</span>
+          <div class="ds-page">
+            <div style="font-weight:900;font-size:14px">Change order #1</div>
+            <div style="color:var(--muted);font-weight:600">Sarah Martin · 1482 Ridgeview Dr</div>
+            <table class="ds-tbl">
+              <tr><th>Item</th><th>Qty</th><th>Total</th></tr>
+              <tr><td>Decking replacement</td><td><span class="ds-edit"><span class="ds-num" id="ds-qty">2</span> sheets</span></td><td>$<span class="ds-num" id="ds-line">180</span></td></tr>
+              <tr><td>Labor</td><td>1</td><td>$120</td></tr>
+              <tr><td><b>Total</b> <span class="ds-lock"><i class="fa-solid fa-lock"></i> calculated</span></td><td></td><td><b>$<span class="ds-num" id="ds-tot">300</span></b></td></tr>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section">
+  <div class="container">
+    <div class="section-head center reveal"><div class="eyebrow">More</div><h2>Paperwork, handled.</h2></div>
+    <div class="grid grid-3">
+      <div class="card reveal"><div class="icon"><i class="fa-solid fa-signature"></i></div><h3>E-signature</h3><p>Any document can carry signature fields for one signer or several.</p></div>
+      <div class="card reveal" style="--d:1"><div class="icon"><i class="fa-solid fa-clock-rotate-left"></i></div><h3>History</h3><p>Every save is a revision you can open, compare and trust.</p></div>
+      <div class="card reveal" style="--d:2"><div class="icon"><i class="fa-solid fa-wand-magic-sparkles"></i></div><h3>Document copilot</h3><p>Ask the assistant to draft a section or restyle a template.</p></div>
+      <div class="card reveal"><div class="icon"><i class="fa-solid fa-diagram-project"></i></div><h3>Workflows</h3><p>Step-by-step flows that gather inputs and produce the document.</p></div>
+      <div class="card reveal" style="--d:1"><div class="icon"><i class="fa-solid fa-display"></i></div><h3>Presentations</h3><p>Slideshows the customer picks options in, which produce the contract.</p></div>
+      <div class="card reveal" style="--d:2"><div class="icon"><i class="fa-solid fa-upload"></i></div><h3>Uploads</h3><p>Keep outside documents on the project next to the ones you made.</p></div>
+    </div>
+  </div>
+</section>
+
+<section class="section section--soft">
+  <div class="container">
+    <div class="section-head reveal"><div class="eyebrow">Connected</div><h2>Documents that know the job.</h2></div>
+    <div class="grid grid-4">
+      <a class="card reveal" href="~/solutions/proposals/"><div class="icon"><i class="fa-solid fa-file-signature"></i></div><h3>Proposals</h3><p>Good-better-best, presented and signed.</p></a>
+      <a class="card reveal" style="--d:1" href="~/solutions/full-exterior/"><div class="icon"><i class="fa-solid fa-ruler-combined"></i></div><h3>Measurements</h3><p>Report numbers right in your documents.</p></a>
+      <a class="card reveal" style="--d:2" href="~/solutions/invoicing/"><div class="icon"><i class="fa-solid fa-file-invoice-dollar"></i></div><h3>Invoicing</h3><p>Invoices from the same templates.</p></a>
+      <a class="card reveal" style="--d:3" href="~/solutions/automations/"><div class="icon"><i class="fa-solid fa-bolt"></i></div><h3>Automations</h3><p>Create and send at the right step.</p></a>
+    </div>
+  </div>
+</section>
+
+<section class="section">
+  <div class="container container--narrow">
+    <div class="section-head reveal"><h2>Questions</h2></div>
+    <details class="faq"><summary>Can I use my existing contract?</summary><div>Placeholder answer about rebuilding an existing contract as a template.</div></details>
+    <details class="faq"><summary>What if I need to change one document but not the template?</summary><div>Use Edit manually. Your change applies to that document only, and the rest stays connected to the project data.</div></details>
+    <details class="faq"><summary>Can a total be typed over?</summary><div>No. Totals and other calculated values are always worked out from the lines, so the document never disagrees with itself.</div></details>
+  </div>
+</section>
+
+<section class="section" style="padding-top:0"><div class="container"><div class="cta-band reveal">
+  <h2>Design your first template today.</h2>
+  <p class="lead" style="color:#c9ccd4;max-width:600px;margin:0 auto">Start from a preset and have it filling from your jobs in minutes.</p>
+  <div class="btn-row"><a class="btn btn-primary btn-lg" href="https://app.1m8.ai/portal/signup">Sign up free</a><a class="btn btn-glass btn-lg" href="~/demo/">Book a demo</a></div>
+</div></div></section>
+
+</main>
+<div id="site-footer"></div>
+<script src="../../assets/site.js"></script>
+<script>
+(function () {
+  var reduce = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var page = document.getElementById('ds-page'), mode = document.querySelectorAll('#ds-mode span');
+  function fill(on) { page.classList.toggle('ds-filled', on); mode[0].classList.toggle('on', !on); mode[1].classList.toggle('on', on); }
+  if (reduce) fill(true);
+  else {
+    var started = false;
+    new IntersectionObserver(function (e) {
+      if (e[0].isIntersecting && !started) { started = true; var on = false; setTimeout(function () { fill(on = true); setInterval(function () { fill(on = !on); }, 3500); }, 2800); }
+    }).observe(document.getElementById('ds-hero'));
+  }
+  // Edit as sent: quantity changes, totals recompute
+  var q = document.getElementById('ds-qty'), l = document.getElementById('ds-line'), t = document.getElementById('ds-tot'), vals = [2, 3, 4, 3], k = 0;
+  function flash(el) { el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash'); }
+  if (!reduce) setInterval(function () {
+    k = (k + 1) % vals.length; var n = vals[k];
+    q.textContent = n; flash(q);
+    setTimeout(function () { l.textContent = n * 90; t.textContent = n * 90 + 120; flash(l); flash(t); }, 500);
+  }, 2800);
+})();
+</script>
+</body>
+</html>

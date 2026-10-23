@@ -1,0 +1,318 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Automations — FirstMate</title>
+<meta name="description" content="Follow-ups and job steps that run themselves when a lead arrives, a proposal is signed or a payment comes in, with waits, conditions and organization rules.">
+<meta name="robots" content="noindex, nofollow">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,400..900;1,400..900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/site.css">
+<style>
+  /* Node flow */
+  .au-flow { position: relative; padding: 18px 18px 18px 18px; background: #fafafb; display: flex; flex-direction: column; gap: 22px }
+  .au-flow::before { content: ""; position: absolute; left: 46px; top: 40px; bottom: 40px; width: 2px; background: repeating-linear-gradient(180deg, #d6d9de 0 6px, transparent 6px 12px) }
+  .au-node { position: relative; display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 12px; border: 1.5px solid var(--line); background: #fff; transition: border-color .35s, box-shadow .35s, transform .35s var(--ease) }
+  .au-node .n-ic { width: 32px; height: 32px; border-radius: 10px; flex: none; display: grid; place-items: center; font-size: 13px; background: var(--bg-soft); color: var(--muted); transition: background .35s, color .35s; position: relative; z-index: 1 }
+  .au-node b { display: block; font-size: 13px; font-weight: 800 }
+  .au-node small { display: block; color: var(--muted); font-size: 11px; font-weight: 600 }
+  .au-node .kind { margin-left: auto; font-size: 10px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--muted) }
+  .au-node .ran { margin-left: 8px; font-size: 11px; font-weight: 800; color: var(--ok); opacity: 0; transition: opacity .3s; white-space: nowrap }
+  .au-node.on { border-color: var(--brand); box-shadow: 0 8px 24px rgba(219,0,0,.14); transform: translateX(4px) }
+  .au-node.on .n-ic { background: var(--brand); color: #fff }
+  .au-node.done .n-ic { background: #dcfce7; color: #15803d }
+  .au-node.done .ran { opacity: 1 }
+  .au-node.trigger .n-ic { background: #fef3c7; color: #92400e }
+  .au-node.wait .n-ic { background: #ede9fe; color: #6d28d9 }
+  .au-node.cond .n-ic { background: #dbeafe; color: #1d4ed8 }
+  .au-node.on.trigger .n-ic, .au-node.on.wait .n-ic, .au-node.on.cond .n-ic { background: var(--brand); color: #fff }
+  .au-token { position: absolute; left: 38px; top: 0; width: 18px; height: 18px; border-radius: 50%; background: var(--brand); box-shadow: 0 0 0 6px rgba(219,0,0,.18), 0 0 22px rgba(219,0,0,.6); z-index: 3; transition: top .9s var(--ease), opacity .3s; opacity: 0; pointer-events: none }
+  .au-hero-stage { position: relative }
+  .au-float-1 { right: -10px; top: 30px; width: 210px; opacity: 0 }
+  .au-float-2 { left: -18px; bottom: -14px; width: 220px; opacity: 0 }
+  .mock.in ~ .au-float-1 { animation: fm-pop .6s var(--ease) 1.4s forwards, fm-float 6s ease-in-out 2s infinite }
+  .mock.in ~ .au-float-2 { animation: fm-pop .6s var(--ease) 2.2s forwards, fm-float 7s ease-in-out 2.8s infinite }
+  @media (max-width: 640px) { .au-float-1, .au-float-2 { display: none } .au-node .kind { display: none } }
+
+  /* Trigger ticker */
+  .au-events { display: flex; flex-wrap: wrap; gap: 8px; padding: 16px }
+  .au-ev { display: inline-flex; align-items: center; gap: 8px; padding: 8px 12px; border-radius: 999px; border: 1px solid var(--line); background: #fff; font-size: 12px; font-weight: 700; transition: all .3s }
+  .au-ev i { color: var(--muted) }
+  .au-ev.hot { border-color: var(--brand); background: var(--brand-soft); color: var(--brand) }
+  .au-ev.hot i { color: var(--brand) }
+  .au-rule { margin: 0 16px 16px; border: 1px solid var(--line); border-radius: 12px; padding: 12px; background: #fff }
+  .au-rule .r-h { display: flex; align-items: center; gap: 8px; font-weight: 800; font-size: 13px; margin-bottom: 8px }
+  .au-rule .r-a { display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 600; padding: 6px 0; border-top: 1px dashed var(--line) }
+  .au-rule .r-a i { color: var(--brand); width: 16px; text-align: center }
+
+  /* Condition builder */
+  .au-cond { padding: 16px; display: flex; flex-direction: column; gap: 8px }
+  .au-crow { display: grid; grid-template-columns: 1.2fr 1fr .9fr; gap: 6px }
+  .au-crow span { padding: 7px 10px; border-radius: 8px; border: 1px solid var(--line); background: #fff; font-size: 12px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
+  .au-crow span:nth-child(2) { color: var(--brand) }
+  .au-group { border-left: 3px solid var(--info); padding-left: 10px; display: flex; flex-direction: column; gap: 6px }
+  .au-match { font-size: 11px; font-weight: 800; color: var(--muted); text-transform: uppercase; letter-spacing: .06em }
+  @media (max-width: 520px) { .au-crow { grid-template-columns: 1fr 1fr } .au-crow span:nth-child(3) { grid-column: 1 / -1 } }
+
+  /* Sequence timeline */
+  .au-seq { padding: 18px 16px; position: relative }
+  .au-track { position: relative; height: 4px; border-radius: 2px; background: #eceef1; margin: 28px 8px 0 }
+  .au-track > i { position: absolute; left: 0; top: 0; height: 100%; width: 100%; background: var(--brand); border-radius: 2px; transform-origin: left; transform: scaleX(0) }
+  .mock.in .au-track > i { animation: fm-grow-x 3.6s linear .4s forwards }
+  .au-stops { display: grid; grid-template-columns: repeat(4, 1fr); margin-top: -14px; position: relative }
+  .au-stop { text-align: center; font-size: 11px; font-weight: 700 }
+  .au-stop .dot { width: 24px; height: 24px; margin: 0 auto 8px; border-radius: 50%; background: #fff; border: 2px solid var(--brand); display: grid; place-items: center; font-size: 10px; color: var(--brand) }
+  .au-stop b { display: block; font-size: 12px }
+  .au-stop small { color: var(--muted); font-weight: 600 }
+  .au-stop.stop .dot { border-color: var(--ok); color: var(--ok) }
+
+  /* Push to running */
+  .au-push .mock-row { justify-content: space-between; font-weight: 700 }
+
+  .au-act { display: flex; align-items: center; gap: 12px; padding: 16px 18px }
+  .au-act i { width: 36px; height: 36px; border-radius: 10px; background: var(--brand-soft); color: var(--brand); display: grid; place-items: center; flex: none }
+  .au-act b { font-size: 15px; color: var(--heading) }
+  .au-rel { display: flex; align-items: center; gap: 14px; padding: 18px 20px }
+  .au-rel i { width: 40px; height: 40px; border-radius: 12px; background: var(--brand-soft); color: var(--brand); display: grid; place-items: center; flex: none }
+  .au-rel b { display: block; color: var(--heading) } .au-rel small { color: var(--muted); font-weight: 600 }
+</style>
+</head>
+<body>
+<div id="site-header"></div>
+<main>
+
+<section class="page-hero">
+  <div class="container split">
+    <div>
+      <div class="breadcrumb"><a href="~/solutions/">Solutions</a><span>Automations</span></div>
+      <div class="eyebrow">Automations</div>
+      <h1>Follow-ups that run themselves.</h1>
+      <p class="lead">When a lead comes in, a proposal is signed or a payment lands, FirstMate texts the customer, waits, checks and takes the next step, so nothing depends on someone remembering.</p>
+      <div class="btn-row"><a class="btn btn-primary btn-lg" href="https://app.1m8.ai/portal/signup">Sign up free</a><a class="btn btn-ghost btn-lg" href="~/demo/">Book a demo</a></div>
+    </div>
+    <div class="mock-stage au-hero-stage" aria-hidden="true">
+      <div class="mock" id="au-hero">
+        <div class="mock-bar"><i></i><i></i><i></i><div class="url">Scopes · Sales pipeline · New lead follow-up</div></div>
+        <div class="au-flow" id="au-flow">
+          <div class="au-token" id="au-token"></div>
+          <div class="au-node trigger"><span class="n-ic"><i class="fa-solid fa-bolt"></i></span><div><b>Lead received</b><small>Any intake source</small></div><span class="kind">Trigger</span><span class="ran">✓ 9:02</span></div>
+          <div class="au-node"><span class="n-ic"><i class="fa-solid fa-message"></i></span><div><b>Send a text message</b><small>"Thanks for reaching out, {{contact.first_name}}!"</small></div><span class="kind">Action</span><span class="ran">✓ 9:02</span></div>
+          <div class="au-node wait"><span class="n-ic"><i class="fa-solid fa-hourglass-half"></i></span><div><b>Wait 2 days</b><small>From when the step is ready</small></div><span class="kind">Wait</span><span class="ran">✓ Thu</span></div>
+          <div class="au-node cond"><span class="n-ic"><i class="fa-solid fa-code-branch"></i></span><div><b>Customer hasn't replied</b><small>Stops if a reply comes in</small></div><span class="kind">Condition</span><span class="ran">✓ Thu</span></div>
+          <div class="au-node"><span class="n-ic"><i class="fa-solid fa-envelope"></i></span><div><b>Send an email</b><small>"Still interested in a free inspection?"</small></div><span class="kind">Action</span><span class="ran">✓ Thu</span></div>
+          <div class="au-node"><span class="n-ic"><i class="fa-solid fa-list-check"></i></span><div><b>Create a to-do</b><small>Call the lead · assigned to sales</small></div><span class="kind">Action</span><span class="ran">✓ Thu</span></div>
+        </div>
+      </div>
+      <div class="mock-float mock-toast au-float-1">Text sent to Jordan Lee</div>
+      <div class="mock-float au-float-2"><div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">Sequence</div>Ends when the customer replies</div>
+    </div>
+  </div>
+</section>
+
+<!-- Triggers and organization rules -->
+<section class="section">
+  <div class="container split">
+    <div class="reveal">
+      <div class="eyebrow">Triggers</div>
+      <h2>Start from anything that happens.</h2>
+      <p class="lead">A new lead, a signed proposal, a payment, an incoming text, a step finishing on a job, a contact's birthday, or a time of day. Organization rules run the same steps for every job in the company.</p>
+      <ul class="feature-list">
+        <li>One rule can run several actions, in order</li>
+        <li>Each action can have its own conditions</li>
+        <li>Runs once per event, even if it's delivered twice</li>
+      </ul>
+    </div>
+    <div class="mock-stage reveal" style="--d:1" aria-hidden="true">
+      <div class="mock" id="au-trig">
+        <div class="mock-bar"><i></i><i></i><i></i><div class="url">Settings · Automations · Organization rules</div></div>
+        <div class="au-events" id="au-events">
+          <span class="au-ev"><i class="fa-solid fa-user-plus"></i> Lead received</span>
+          <span class="au-ev"><i class="fa-solid fa-file-signature"></i> Proposal signed</span>
+          <span class="au-ev hot"><i class="fa-solid fa-credit-card"></i> Payment received</span>
+          <span class="au-ev"><i class="fa-solid fa-comment-dots"></i> Message received</span>
+          <span class="au-ev"><i class="fa-solid fa-circle-check"></i> Step completed</span>
+          <span class="au-ev"><i class="fa-solid fa-tag"></i> Contact tagged</span>
+          <span class="au-ev"><i class="fa-solid fa-cake-candles"></i> Contact's birthday</span>
+          <span class="au-ev"><i class="fa-solid fa-clock"></i> Every weekday 8 AM</span>
+        </div>
+        <div class="au-rule slide-up" style="--d:2">
+          <div class="r-h"><i class="fa-solid fa-bolt" style="color:var(--warn)"></i> Deposit thank-you <span class="mock-chip green" style="margin-left:auto"><span class="pulse-dot"></span> Active</span></div>
+          <div style="font-size:12px;color:var(--muted);font-weight:600;margin-bottom:6px">When <b>Payment received</b> and payment kind is <b>deposit</b></div>
+          <div class="r-a slide-up" style="--d:4"><i class="fa-solid fa-message"></i> Send a text message <span class="mock-chip" style="margin-left:auto">"We received your deposit."</span></div>
+          <div class="r-a slide-up" style="--d:5"><i class="fa-solid fa-list-check"></i> Create a to-do <span class="mock-chip" style="margin-left:auto">Order materials</span></div>
+          <div class="r-a slide-up" style="--d:6"><i class="fa-solid fa-calendar-plus"></i> Create the payment schedule</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Conditions -->
+<section class="section section--soft">
+  <div class="container split split--flip">
+    <div class="reveal">
+      <div class="eyebrow">Conditions</div>
+      <h2>Only when it should.</h2>
+      <p class="lead">Check anything on the job, the contact or the event: totals, tags, dates, fields. Group them with "all" and "any". The same conditions work everywhere, from lead routing to job steps.</p>
+    </div>
+    <div class="mock-stage reveal" style="--d:1" aria-hidden="true">
+      <div class="mock">
+        <div class="mock-bar"><i></i><i></i><i></i><div class="url">Conditions</div></div>
+        <div class="au-cond">
+          <div class="au-match fade">Match all of</div>
+          <div class="au-crow slide-up" style="--d:1"><span>Project total</span><span>is greater than</span><span>$10,000</span></div>
+          <div class="au-crow slide-up" style="--d:2"><span>Received at</span><span>is after</span><span>3 days ago</span></div>
+          <div class="au-group slide-up" style="--d:3">
+            <div class="au-match">Match any of</div>
+            <div class="au-crow"><span>Project tags</span><span>contains</span><span>insurance</span></div>
+            <div class="au-crow"><span>Contact source</span><span>equals</span><span>Website form</span></div>
+          </div>
+          <div class="mock-row pop" style="--d:6;margin-top:6px"><i class="fa-solid fa-circle-check" style="color:var(--ok)"></i><b style="font-size:12px">Matches 418 Maple Ct</b><span class="mock-chip green" style="margin-left:auto">Will run</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Waits and sequences -->
+<section class="section">
+  <div class="container split">
+    <div class="reveal">
+      <div class="eyebrow">Waits &amp; sequences</div>
+      <h2>Do this, wait, then do that.</h2>
+      <p class="lead">Build a cadence of texts, emails and calls with a wait between each. When the step is finished or the customer replies, the rest of the cadence stops on its own.</p>
+    </div>
+    <div class="mock-stage reveal" style="--d:1" aria-hidden="true">
+      <div class="mock">
+        <div class="mock-bar"><i></i><i></i><i></i><div class="url">Work item · Follow up on proposal</div></div>
+        <div class="au-seq">
+          <div class="mock-title fade">Sequence</div>
+          <div class="au-track"><i></i></div>
+          <div class="au-stops">
+            <div class="au-stop pop" style="--d:1"><div class="dot"><i class="fa-solid fa-message"></i></div><b>Day 0</b><small>Text</small></div>
+            <div class="au-stop pop" style="--d:8"><div class="dot"><i class="fa-solid fa-envelope"></i></div><b>Day 2</b><small>Email</small></div>
+            <div class="au-stop pop" style="--d:16"><div class="dot"><i class="fa-solid fa-phone"></i></div><b>Day 5</b><small>Call list</small></div>
+            <div class="au-stop stop pop" style="--d:24"><div class="dot"><i class="fa-solid fa-check"></i></div><b>Replied</b><small>Stops</small></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Push changes -->
+<section class="section section--dark">
+  <div class="container split split--flip">
+    <div class="reveal">
+      <div class="eyebrow" style="color:#ff6b6b">Change safely</div>
+      <h2>Edit the playbook without breaking jobs in progress.</h2>
+      <p class="lead" style="color:#c9ccd4">Saving a change applies to new jobs. When you want open jobs to follow it too, preview exactly what changes on each one and push it.</p>
+    </div>
+    <div class="mock-stage reveal" style="--d:1" aria-hidden="true">
+      <div class="mock mock--dark au-push">
+        <div class="mock-bar"><i></i><i></i><i></i><div class="url">Sales pipeline · Update open jobs</div></div>
+        <div class="mock-main">
+          <div class="mock-title fade" style="color:#fff">Preview</div>
+          <div class="mock-row slide-up" style="--d:1"><span>1482 Ridgeview Dr</span><span class="mock-chip blue">1 updated · 1 added</span></div>
+          <div class="mock-row slide-up" style="--d:2"><span>418 Maple Ct</span><span class="mock-chip blue">1 updated</span></div>
+          <div class="mock-row slide-up" style="--d:3"><span>77 Harbor Ln</span><span class="mock-chip">No change</span></div>
+          <div style="display:flex;justify-content:flex-end;margin-top:4px;--d:5" class="pop"><span class="mock-btn">Update open jobs</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Actions grid -->
+<section class="section">
+  <div class="container">
+    <div class="section-head center reveal"><div class="eyebrow">Actions</div><h2>What an automation can do.</h2><p class="lead">A sample of the built-in actions. Anything else can run as custom code in a safe sandbox.</p></div>
+    <div class="grid grid-4">
+      <div class="card au-act reveal"><i class="fa-solid fa-message"></i><b>Send a text message</b></div>
+      <div class="card au-act reveal" style="--d:1"><i class="fa-solid fa-envelope"></i><b>Send an email</b></div>
+      <div class="card au-act reveal" style="--d:2"><i class="fa-solid fa-bell"></i><b>Notify the team</b></div>
+      <div class="card au-act reveal" style="--d:3"><i class="fa-solid fa-list-check"></i><b>Create a to-do</b></div>
+      <div class="card au-act reveal"><i class="fa-solid fa-phone"></i><b>Add to a call list</b></div>
+      <div class="card au-act reveal" style="--d:1"><i class="fa-solid fa-calendar-plus"></i><b>Add an appointment</b></div>
+      <div class="card au-act reveal" style="--d:2"><i class="fa-solid fa-file-lines"></i><b>Issue a document</b></div>
+      <div class="card au-act reveal" style="--d:3"><i class="fa-solid fa-diagram-project"></i><b>Start another scope</b></div>
+      <div class="card au-act reveal"><i class="fa-solid fa-trophy"></i><b>Mark the sale won</b></div>
+      <div class="card au-act reveal" style="--d:1"><i class="fa-solid fa-money-bill-wave"></i><b>Create the payment schedule</b></div>
+      <div class="card au-act reveal" style="--d:2"><i class="fa-solid fa-star"></i><b>Ask for feedback</b></div>
+      <div class="card au-act reveal" style="--d:3"><i class="fa-solid fa-code"></i><b>Run custom code</b></div>
+    </div>
+  </div>
+</section>
+
+<!-- Related -->
+<section class="section section--soft">
+  <div class="container">
+    <div class="section-head reveal"><div class="eyebrow">Connected</div><h2>Automations reach every app.</h2></div>
+    <div class="grid grid-4">
+      <a class="card au-rel reveal" href="~/solutions/assistant/"><i class="fa-solid fa-wand-magic-sparkles"></i><div><b>Assistant</b><small>Describe it, it builds it</small></div></a>
+      <a class="card au-rel reveal" style="--d:1" href="~/solutions/crm/"><i class="fa-solid fa-filter"></i><div><b>CRM</b><small>Lead routing and follow-up</small></div></a>
+      <a class="card au-rel reveal" style="--d:2" href="~/solutions/communications/"><i class="fa-solid fa-inbox"></i><div><b>Calls &amp; texts</b><small>Messages that send on time</small></div></a>
+      <a class="card au-rel reveal" style="--d:3" href="~/solutions/payments/"><i class="fa-solid fa-credit-card"></i><div><b>Payments</b><small>Schedules and reminders</small></div></a>
+    </div>
+  </div>
+</section>
+
+<!-- FAQ -->
+<section class="section">
+  <div class="container container--narrow">
+    <div class="section-head center reveal"><div class="eyebrow">FAQ</div><h2>Questions</h2></div>
+    <details class="faq"><summary>Do I have to build automations from scratch?</summary><div>No. FirstMate comes with industry defaults you can change, and the assistant can write or adjust automations from a plain description.</div></details>
+    <details class="faq"><summary>What happens to jobs already running when I change an automation?</summary><div>They keep the version they started with until you preview and push the change to them.</div></details>
+    <details class="faq"><summary>Will a customer get the same text twice?</summary><div>Each action runs once per event, even if the event is delivered more than once.</div></details>
+    <details class="faq"><summary>Can a follow-up stop when the customer replies?</summary><div>Yes. A sequence ends when its step is completed, and a reply can complete it.</div></details>
+  </div>
+</section>
+
+<section class="section"><div class="container"><div class="cta-band">
+  <h2>Let the follow-ups handle themselves.</h2>
+  <p class="lead" style="color:#c9ccd4">Start free with ready-made automations for every stage of a job.</p>
+  <div class="btn-row"><a class="btn btn-primary btn-lg" href="https://app.1m8.ai/portal/signup">Sign up free</a><a class="btn btn-glass btn-lg" href="~/demo/">Book a demo</a></div>
+</div></div></section>
+
+</main>
+<div id="site-footer"></div>
+<script src="../../assets/site.js"></script>
+<script>
+(function () {
+  var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  // Hero: a token travels the flow, lighting each node
+  var mock = document.getElementById('au-hero'), flow = document.getElementById('au-flow'), token = document.getElementById('au-token');
+  if (mock && flow && token) {
+    var nodes = Array.prototype.slice.call(flow.querySelectorAll('.au-node'));
+    if (reduce) { nodes.forEach(function (n) { n.classList.add('done'); }); }
+    else {
+      var i = 0, started = false;
+      var place = function (n) { token.style.top = (n.offsetTop + n.offsetHeight / 2 - 9) + 'px'; };
+      var step = function () {
+        if (i >= nodes.length) {
+          setTimeout(function () { token.style.opacity = 0; nodes.forEach(function (n) { n.classList.remove('done', 'on'); }); i = 0; setTimeout(step, 900); }, 2200);
+          return;
+        }
+        var n = nodes[i];
+        if (i > 0) { nodes[i - 1].classList.remove('on'); nodes[i - 1].classList.add('done'); }
+        place(n); token.style.opacity = 1; n.classList.add('on');
+        var hold = n.classList.contains('wait') ? 1900 : 1300;
+        i++;
+        setTimeout(function () { if (i === nodes.length) { n.classList.remove('on'); n.classList.add('done'); } step(); }, hold);
+      };
+      var start = function () { if (started) return; started = true; token.style.transition = 'none'; place(nodes[0]); token.offsetTop; token.style.transition = ''; setTimeout(step, 400); };
+      mock.addEventListener('fm:in', start); if (mock.classList.contains('in')) start(); setTimeout(start, 1500);
+      window.addEventListener('resize', function () { if (i > 0) place(nodes[Math.min(i, nodes.length) - 1]); });
+    }
+  }
+  // Triggers: cycle the highlighted event
+  var evs = Array.prototype.slice.call(document.querySelectorAll('#au-events .au-ev'));
+  if (evs.length && !reduce) {
+    var k = 2;
+    setInterval(function () { evs[k].classList.remove('hot'); k = (k + 1) % evs.length; evs[k].classList.add('hot'); }, 1600);
+  }
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Case Studies — FirstMate</title>
+<meta name="description" content="How contractors run their business on FirstMate.">
+<meta name="robots" content="noindex, nofollow">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,400..900;1,400..900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/site.css">
+<style>
+  /* Case studies (cs-) */
+  .cs-compare { display: grid; grid-template-columns: 1fr 1fr; gap: 12px }
+  .cs-compare .mock-kpi b { display: block }
+  .cs-lane { display: flex; flex-direction: column; gap: 6px }
+  .cs-lane small { font-size: 10px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--muted) }
+  .cs-track { display: flex; gap: 4px; height: 26px }
+  .cs-track i { height: 100%; border-radius: 6px; width: 0; background: #d1d5db; display: block }
+  .cs-track.after i { background: var(--brand) }
+  .mock.in .cs-track i { animation: cs-grow 1s var(--ease) forwards; animation-delay: calc(var(--d, 0) * 140ms + 200ms) }
+  @keyframes cs-grow { to { width: var(--w) } }
+  .cs-legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 11px; font-weight: 700; color: var(--muted) }
+
+  .cs-feature { border-radius: var(--radius-lg); overflow: hidden; background: #fff; border: 1px solid var(--line); box-shadow: var(--shadow-sm) }
+  .cs-feature-top { display: grid; grid-template-columns: 1fr 1fr; }
+  .cs-feature-top .placeholder-photo { border-radius: 0; border: 0; min-height: 380px }
+  .cs-feature-txt { padding: clamp(28px, 4vw, 52px); display: flex; flex-direction: column; gap: 16px; justify-content: center }
+  .cs-logo { display: inline-flex; align-items: center; gap: 10px; font-weight: 900; font-size: 20px; color: var(--heading); letter-spacing: -.02em }
+  .cs-logo .mark { width: 44px; height: 44px; border-radius: 12px; background: linear-gradient(135deg, var(--heading), #4b5563); color: #fff; display: grid; place-items: center; font-size: 18px }
+  .cs-quote { font-size: clamp(20px, 2.2vw, 26px); font-weight: 700; color: var(--heading); line-height: 1.4; margin: 0 }
+  .cs-by { font-size: 14px; color: var(--muted); font-weight: 600 }
+  .cs-metrics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border-top: 1px solid var(--line) }
+  .cs-metric { padding: 28px; border-right: 1px solid var(--line) }
+  .cs-metric:last-child { border-right: 0 }
+  .cs-metric b { display: block; font-size: clamp(34px, 4vw, 48px); font-weight: 900; letter-spacing: -.03em; color: var(--brand); line-height: 1 }
+  .cs-metric span { font-size: 14px; font-weight: 600; color: var(--muted) }
+  .cs-story { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0; border-top: 1px solid var(--line); background: var(--bg-soft) }
+  .cs-story > div { padding: 28px; border-right: 1px solid var(--line) }
+  .cs-story > div:last-child { border-right: 0 }
+  .cs-story h4 { display: flex; align-items: center; gap: 10px; margin-bottom: 8px }
+  .cs-story h4 i { width: 30px; height: 30px; border-radius: 9px; display: grid; place-items: center; background: var(--brand-soft); color: var(--brand); font-size: 13px }
+  .cs-story p { font-size: 15px; color: var(--muted); margin: 0 }
+  .cs-apps { display: flex; gap: 8px; flex-wrap: wrap; padding: 20px 28px; border-top: 1px solid var(--line); align-items: center; font-size: 13px; font-weight: 700; color: var(--muted) }
+
+  .cs-bar { display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap; margin-bottom: 28px }
+  .cs-chips { display: flex; flex-wrap: wrap; gap: 8px }
+  .cs-chip { appearance: none; border: 1.5px solid var(--line); background: #fff; border-radius: 999px; padding: 8px 16px; font-weight: 700; font-size: 14px; color: var(--heading); cursor: pointer; transition: background .2s, color .2s, border-color .2s }
+  .cs-chip:hover { border-color: var(--heading) }
+  .cs-chip.on { background: var(--heading); border-color: var(--heading); color: #fff }
+  .cs-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px }
+  .cs-card { display: flex; flex-direction: column; border-radius: var(--radius); background: #fff; border: 1px solid var(--line); overflow: hidden; color: inherit; transition: transform .3s var(--ease), box-shadow .3s, border-color .3s }
+  .cs-card:hover { transform: translateY(-4px); box-shadow: var(--shadow); border-color: transparent; color: inherit }
+  .cs-card.is-hidden { display: none }
+  .cs-card .placeholder-photo { border-radius: 0; border: 0; border-bottom: 1px dashed #cfd3da; min-height: 180px }
+  .cs-card .body { padding: 22px; display: flex; flex-direction: column; gap: 10px; flex: 1 }
+  .cs-card .co { display: flex; align-items: center; gap: 10px; font-weight: 800; color: var(--heading) }
+  .cs-card .co .mark { width: 32px; height: 32px; border-radius: 9px; background: var(--heading); color: #fff; display: grid; place-items: center; font-size: 13px }
+  .cs-card h3 { font-size: 19px; margin: 0; line-height: 1.3 }
+  .cs-card .kpi { display: flex; gap: 18px; padding-top: 12px; margin-top: auto; border-top: 1px solid var(--line-soft) }
+  .cs-card .kpi b { display: block; font-size: 22px; font-weight: 900; color: var(--brand); letter-spacing: -.02em }
+  .cs-card .kpi small { font-size: 12px; font-weight: 600; color: var(--muted) }
+  .cs-tags { display: flex; gap: 6px; flex-wrap: wrap }
+
+  @media (max-width: 960px) { .cs-grid { grid-template-columns: repeat(2, minmax(0, 1fr)) } .cs-feature-top { grid-template-columns: 1fr } .cs-feature-top .placeholder-photo { min-height: 240px } .cs-story { grid-template-columns: 1fr } .cs-story > div { border-right: 0; border-bottom: 1px solid var(--line) } }
+  @media (max-width: 640px) { .cs-grid { grid-template-columns: 1fr } .cs-metrics { grid-template-columns: 1fr } .cs-metric { border-right: 0; border-bottom: 1px solid var(--line) } .cs-compare { grid-template-columns: 1fr } }
+</style>
+</head>
+<body>
+<div id="site-header"></div>
+<main>
+
+<section class="page-hero">
+  <div class="container split">
+    <div>
+      <div class="breadcrumb"><a href="~/resources/">Resources</a><span>Case studies</span></div>
+      <div class="eyebrow">Case studies</div>
+      <h1>Real teams. Real results.</h1>
+      <p class="lead">Placeholder copy: how roofing and exterior contractors run sales, production and payments on FirstMate.</p>
+      <div class="btn-row"><a class="btn btn-primary btn-lg" href="#stories">Read the stories</a><a class="btn btn-ghost btn-lg" href="~/demo/">Book a demo</a></div>
+    </div>
+    <div class="mock-stage">
+      <div class="mock" aria-hidden="true">
+        <div class="mock-bar"><i></i><i></i><i></i><div class="url">Stats · Lead to signed</div></div>
+        <div class="mock-main">
+          <div style="display:flex;justify-content:space-between;align-items:center"><span class="mock-title">Days from lead to signed</span><span class="mock-chip green slide-left" style="--d:8">—% faster</span></div>
+          <div class="cs-compare">
+            <div class="mock-kpi pop" style="--d:1"><small>Before</small><b>— days</b></div>
+            <div class="mock-kpi pop" style="--d:2;border-color:#ffd5d5"><small>With FirstMate</small><b style="color:var(--brand)">— days</b></div>
+          </div>
+          <div class="cs-lane"><small>Before</small><div class="cs-track"><i style="--w:22%;--d:2"></i><i style="--w:30%;--d:3"></i><i style="--w:28%;--d:4"></i><i style="--w:18%;--d:5"></i></div></div>
+          <div class="cs-lane"><small>After</small><div class="cs-track after"><i style="--w:12%;--d:6"></i><i style="--w:14%;--d:7"></i><i style="--w:16%;--d:8"></i><i style="--w:8%;--d:9"></i></div></div>
+          <div class="cs-legend"><span>Inspection</span><span>Measurement</span><span>Proposal</span><span>Signature</span></div>
+          <div class="mock-float mock-toast pop" style="--d:11;right:14px;top:-10px">Proposal signed</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section">
+  <div class="container">
+    <div class="section-head reveal"><div class="eyebrow">Featured story</div><h2>Featured story headline placeholder.</h2></div>
+    <article class="cs-feature reveal">
+      <div class="cs-feature-top">
+        <div class="placeholder-photo">Photo: owner and team on a finished roof</div>
+        <div class="cs-feature-txt">
+          <div class="cs-logo"><span class="mark"><i class="fa-solid fa-building"></i></span>Company name</div>
+          <div class="cs-tags"><span class="pill">Roofing</span><span class="pill">Company size</span><span class="pill">Location</span></div>
+          <p class="cs-quote">“Placeholder quote. A line from the customer about what changed after they moved to FirstMate.”</p>
+          <div class="cs-by"><b>Customer name</b> · Role, Company</div>
+          <div><a class="btn btn-primary" href="#stories">Read the full story</a></div>
+        </div>
+      </div>
+      <div class="cs-metrics">
+        <div class="cs-metric"><b>—%</b><span>faster from lead to signed</span></div>
+        <div class="cs-metric"><b>— hrs</b><span>saved each week in the office</span></div>
+        <div class="cs-metric"><b>$—</b><span>placeholder revenue metric</span></div>
+      </div>
+      <div class="cs-story">
+        <div><h4><i class="fa-solid fa-triangle-exclamation"></i>The challenge</h4><p>Placeholder: what wasn't working before, in two sentences.</p></div>
+        <div><h4><i class="fa-solid fa-screwdriver-wrench"></i>The solution</h4><p>Placeholder: which apps they turned on and how they set them up.</p></div>
+        <div><h4><i class="fa-solid fa-trophy"></i>The results</h4><p>Placeholder: what changed for the office, the field and the customer.</p></div>
+      </div>
+      <div class="cs-apps">Apps used:<span class="mock-chip red">Roof Measurements</span><span class="mock-chip blue">CRM</span><span class="mock-chip violet">Proposals</span><span class="mock-chip green">Payments</span></div>
+    </article>
+  </div>
+</section>
+
+<section class="section section--soft" id="stories">
+  <div class="container">
+    <div class="cs-bar">
+      <h2 style="margin:0">More customer stories</h2>
+      <div class="cs-chips">
+        <button class="cs-chip on" data-trade="all">All</button>
+        <button class="cs-chip" data-trade="roofing">Roofing</button>
+        <button class="cs-chip" data-trade="exteriors">Exteriors</button>
+        <button class="cs-chip" data-trade="restoration">Restoration</button>
+        <button class="cs-chip" data-trade="gc">General contractors</button>
+      </div>
+    </div>
+    <div class="cs-grid" id="cs-grid">
+      <a class="cs-card reveal" data-trade="roofing" href="#stories"><div class="placeholder-photo">Photo: crew on a roof</div><div class="body"><div class="co"><span class="mark">A</span>Company name</div><h3>Story headline placeholder about faster reports</h3><div class="cs-tags"><span class="mock-chip">Roofing</span><span class="mock-chip">1–10 employees</span></div><div class="kpi"><div><b>—%</b><small>faster</small></div><div><b>— hrs</b><small>saved / week</small></div></div></div></a>
+      <a class="cs-card reveal" style="--d:1" data-trade="exteriors" href="#stories"><div class="placeholder-photo">Photo: siding install</div><div class="body"><div class="co"><span class="mark">B</span>Company name</div><h3>Story headline placeholder about one platform</h3><div class="cs-tags"><span class="mock-chip">Exteriors</span><span class="mock-chip">11–49 employees</span></div><div class="kpi"><div><b>—×</b><small>more proposals</small></div><div><b>—%</b><small>close rate</small></div></div></div></a>
+      <a class="cs-card reveal" style="--d:2" data-trade="restoration" href="#stories"><div class="placeholder-photo">Photo: storm damage inspection</div><div class="body"><div class="co"><span class="mark">C</span>Company name</div><h3>Story headline placeholder about storm season</h3><div class="cs-tags"><span class="mock-chip">Restoration</span><span class="mock-chip">50+ employees</span></div><div class="kpi"><div><b>—</b><small>jobs / month</small></div><div><b>— days</b><small>to payment</small></div></div></div></a>
+      <a class="cs-card reveal" data-trade="gc" href="#stories"><div class="placeholder-photo">Photo: project walkthrough</div><div class="body"><div class="co"><span class="mark">D</span>Company name</div><h3>Story headline placeholder about subcontractors</h3><div class="cs-tags"><span class="mock-chip">General contractor</span><span class="mock-chip">11–49 employees</span></div><div class="kpi"><div><b>—%</b><small>fewer callbacks</small></div><div><b>— hrs</b><small>saved / week</small></div></div></div></a>
+      <a class="cs-card reveal" style="--d:1" data-trade="roofing" href="#stories"><div class="placeholder-photo">Photo: sales rep with homeowner</div><div class="body"><div class="co"><span class="mark">E</span>Company name</div><h3>Story headline placeholder about door knocking</h3><div class="cs-tags"><span class="mock-chip">Roofing</span><span class="mock-chip">Franchise</span></div><div class="kpi"><div><b>—</b><small>doors / day</small></div><div><b>—%</b><small>more leads</small></div></div></div></a>
+      <a class="cs-card reveal" style="--d:2" data-trade="exteriors" href="#stories"><div class="placeholder-photo">Photo: finished exterior</div><div class="body"><div class="co"><span class="mark">F</span>Company name</div><h3>Story headline placeholder about getting paid</h3><div class="cs-tags"><span class="mock-chip">Exteriors</span><span class="mock-chip">1–10 employees</span></div><div class="kpi"><div><b>— days</b><small>faster pay</small></div><div><b>$—</b><small>collected online</small></div></div></div></a>
+    </div>
+  </div>
+</section>
+
+<section class="section">
+  <div class="container">
+    <div class="cta-band reveal">
+      <h2>Have a story to share?</h2>
+      <p class="lead" style="color:#c9ccd4;max-width:600px;margin:0 auto">Placeholder copy: tell us how your team uses FirstMate and we may feature you.</p>
+      <div class="btn-row"><a class="btn btn-primary btn-lg" href="~/support/contact/">Share your story</a><a class="btn btn-glass btn-lg" href="https://app.1m8.ai/portal/signup">Sign up free</a></div>
+    </div>
+  </div>
+</section>
+
+</main>
+<div id="site-footer"></div>
+<script src="../../assets/site.js"></script>
+<script>
+(function () {
+  var cards = document.querySelectorAll('#cs-grid .cs-card');
+  var chips = document.querySelectorAll('.cs-chip');
+  chips.forEach(function (c) {
+    c.addEventListener('click', function () {
+      var t = c.getAttribute('data-trade');
+      chips.forEach(function (x) { x.classList.toggle('on', x === c); });
+      cards.forEach(function (k) { k.classList.add('in'); k.classList.toggle('is-hidden', t !== 'all' && k.getAttribute('data-trade') !== t); });
+    });
+  });
+})();
+</script>
+</body>
+</html>

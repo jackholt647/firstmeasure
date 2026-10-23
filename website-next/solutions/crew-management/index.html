@@ -1,0 +1,238 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Crew Management — FirstMate</title>
+<meta name="description" content="A field app for every assignee: today's work, schedule, visit check-in, photos, receipts and earnings, for your own people, groups and outside companies.">
+<meta name="robots" content="noindex, nofollow">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,400..900;1,400..900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/site.css">
+<style>
+  .crw-scene { position: relative; display: flex; justify-content: center; padding: 20px 0 }
+  .crw-phone .screen { min-height: 520px }
+  .crw-top { padding: 40px 16px 10px; display: flex; align-items: center; gap: 8px; border-bottom: 1px solid var(--line-soft) }
+  .crw-top b { flex: 1; font-size: 16px; font-weight: 800 }
+  .crw-views { position: relative; flex: 1 }
+  .crw-view { position: absolute; inset: 0; padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; opacity: 0; transform: translateX(24px); transition: opacity .45s var(--ease), transform .45s var(--ease); pointer-events: none }
+  .crw-view.on { opacity: 1; transform: none }
+  .crw-view .mock-row { padding: 9px 10px; font-size: 11.5px }
+  .crw-view .mock-row b { flex: 1 }
+  .crw-clock { border-radius: 14px; padding: 12px; background: var(--bg-dark); color: #fff; display: flex; align-items: center; gap: 10px }
+  .crw-clock b { flex: 1; font-size: 12px } .crw-clock big { font-size: 20px; font-weight: 900; letter-spacing: -.02em; font-variant-numeric: tabular-nums }
+  .crw-sm { font-size: 10px; text-transform: uppercase; letter-spacing: .08em; font-weight: 800; color: var(--muted); margin-top: 4px }
+  .crw-visit { border-radius: 12px; border: 1px solid var(--line); padding: 10px; font-size: 11.5px }
+  .crw-visit b { display: block; font-size: 13px } .crw-visit span { color: var(--muted); font-weight: 600 }
+  .crw-photos { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px }
+  .crw-photos i { aspect-ratio: 1; border-radius: 8px; background: linear-gradient(135deg, #e5e7eb, #cbd0d8); display: block; position: relative }
+  .crw-photos i.add { background: var(--brand-soft); display: grid; place-items: center; color: var(--brand); font-style: normal; font-weight: 900; font-size: 18px }
+  .crw-view.on .crw-photos i:not(.add) { animation: fm-pop .5s var(--ease) both; animation-delay: calc(var(--d, 0) * 150ms + 200ms) }
+  .crw-big { font-size: 30px; font-weight: 900; letter-spacing: -.03em }
+  .crw-tabs { display: grid; grid-template-columns: repeat(4, 1fr); border-top: 1px solid var(--line); padding: 8px 4px 14px; background: #fff }
+  .crw-tabs span { display: flex; flex-direction: column; align-items: center; gap: 3px; font-size: 9px; font-weight: 700; color: var(--muted); transition: color .3s }
+  .crw-tabs span i { font-size: 14px }
+  .crw-tabs span.on { color: var(--brand) }
+  .crw-cta { display: block; text-align: center; padding: 10px; border-radius: 999px; background: var(--brand); color: #fff; font-weight: 800; font-size: 12px }
+  .crw-f1 { left: 0; top: 70px; width: 190px; opacity: 0 } .crw-f2 { right: 0; bottom: 70px; width: 190px; opacity: 0 }
+  .mock.in ~ .crw-f1 { animation: fm-pop .6s var(--ease) 1s forwards, fm-float 6s ease-in-out 1.8s infinite }
+  .mock.in ~ .crw-f2 { animation: fm-pop .6s var(--ease) 1.6s forwards, fm-float 7s ease-in-out 2.4s infinite }
+  /* Kinds of assignee */
+  .crw-kinds { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px }
+  .crw-kinds .mock-kpi { display: flex; flex-direction: column; gap: 6px; align-items: flex-start }
+  .crw-kinds .mock-kpi > i { font-size: 18px; color: var(--brand) }
+  .crw-kinds .mock-kpi b { font-size: 13px }
+  .crw-members { display: flex } .crw-members .mock-avatar { margin-left: -6px; border: 2px solid #fff } .crw-members .mock-avatar:first-child { margin-left: 0 }
+  @media (max-width: 1080px) { .crw-f1 { left: -10px } .crw-f2 { right: -10px } }
+  @media (max-width: 560px) { .crw-f1, .crw-f2 { display: none } .crw-kinds { grid-template-columns: 1fr } }
+</style>
+</head>
+<body>
+<div id="site-header"></div>
+<main>
+  <section class="page-hero">
+    <div class="container split">
+      <div>
+        <div class="breadcrumb"><a href="~/solutions/">Solutions</a><span>Crew Management</span></div>
+        <div class="eyebrow">Crew Management</div>
+        <h1>Your whole team, one app in their pocket.</h1>
+        <p class="lead">Everyone who does the work sees their day, checks in on site, takes the photos, snaps the receipts and knows what they've earned. Your own people, groups and outside companies, all in FirstMate.</p>
+        <div class="btn-row"><a class="btn btn-primary btn-lg" href="https://app.1m8.ai/portal/signup">Sign up free</a><a class="btn btn-ghost btn-lg" href="~/demo/">Book a demo</a></div>
+      </div>
+      <div class="crw-scene" aria-hidden="true">
+        <div class="mock mock-phone crw-phone" id="crw-hero" style="border-radius:36px;border:0;overflow:visible">
+          <div class="screen">
+            <div class="crw-top"><b id="crw-title">Today</b><div class="mock-avatar">JR</div></div>
+            <div class="crw-views">
+              <div class="crw-view on" data-title="Today">
+                <div class="crw-clock"><b>Clocked in<br><span style="color:#8b909c;font-weight:600">North team</span></b><big id="crw-time">7:02</big></div>
+                <div class="crw-sm">Assigned today</div>
+                <div class="crw-visit"><b>Martin · Roof replacement</b><span>1482 Ridgeview Dr · 7:30 AM</span><div style="margin-top:6px;display:flex;gap:6px"><span class="mock-chip red">Now</span><span class="mock-chip">2 checklists</span></div></div>
+                <div class="crw-visit"><b>Ortiz · Gutter repair</b><span>77 Elm St · 2:00 PM</span></div>
+                <div class="mock-row"><i class="fa-solid fa-truck" style="color:var(--brand)"></i><b>Material delivery</b><span class="mock-chip green">On site</span></div>
+              </div>
+              <div class="crw-view" data-title="Visit">
+                <div class="crw-visit"><b>Martin · Roof replacement</b><span>1482 Ridgeview Dr</span></div>
+                <div class="mock-row"><i class="fa-solid fa-location-dot" style="color:var(--ok)"></i><b>Checked in · 7:31 AM</b></div>
+                <div class="crw-sm">Before photos</div>
+                <div class="crw-photos"><i style="--d:0"></i><i style="--d:1"></i><i style="--d:2"></i><i style="--d:3"></i><i style="--d:4"></i><i class="add">+</i></div>
+                <div class="mock-row"><i class="fa-solid fa-list-check" style="color:var(--brand)"></i><b>Safety checklist</b><span class="mock-chip green">4 / 4</span></div>
+                <div class="mock-row"><i class="fa-solid fa-list-check" style="color:var(--brand)"></i><b>Install checklist</b><span class="mock-chip amber">2 / 6</span></div>
+              </div>
+              <div class="crw-view" data-title="Receipts">
+                <div class="placeholder-photo" style="min-height:150px;font-size:11px">Receipt photo</div>
+                <div class="mock-row"><b>Total</b><span style="font-weight:800">$—</span></div>
+                <div class="mock-row"><b>Project</b><span class="mock-chip">Martin</span></div>
+                <div class="mock-row"><b>Paid with</b><span class="mock-chip">Company card</span></div>
+                <span class="crw-cta">Upload receipt</span>
+              </div>
+              <div class="crw-view" data-title="Earnings">
+                <div class="crw-sm">This pay period</div>
+                <div class="crw-big">$—</div>
+                <div class="mock-bars" style="height:70px"><i style="--h:40%"></i><i style="--h:65%"></i><i style="--h:30%"></i><i style="--h:80%"></i><i style="--h:55%"></i></div>
+                <div class="mock-row"><b>Martin · Roof</b><span class="mock-chip green">To be paid</span></div>
+                <div class="mock-row"><b>Lee · Siding</b><span class="mock-chip">Open</span></div>
+              </div>
+            </div>
+            <div class="crw-tabs" id="crw-tabs">
+              <span class="on"><i class="fa-solid fa-sun"></i>Today</span>
+              <span><i class="fa-solid fa-calendar-days"></i>Schedule</span>
+              <span><i class="fa-solid fa-receipt"></i>Receipts</span>
+              <span><i class="fa-solid fa-sack-dollar"></i>Earnings</span>
+            </div>
+          </div>
+        </div>
+        <div class="mock-float crw-f1"><div class="mock-toast">5 photos uploaded</div></div>
+        <div class="mock-float crw-f2"><div style="display:flex;gap:8px;align-items:center"><span class="pulse-dot"></span>J. Ramos checked in · Martin</div></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container" style="display:flex;flex-direction:column;gap:clamp(64px,8vw,110px)">
+      <div class="split">
+        <div class="reveal">
+          <div class="eyebrow">Who does the work</div>
+          <h2>People, groups and outside companies.</h2>
+          <p class="lead">Anyone work can be assigned to is an assignee: one of your users, a group of users, or an outside company. Call your groups whatever your business calls them, and give each one the right roles and pay.</p>
+          <ul class="feature-list"><li>Groups with members, units and their own type</li><li>Outside companies with their own people</li><li>Branches, time off and availability on each</li></ul>
+        </div>
+        <div class="mock reveal" aria-hidden="true">
+          <div class="mock-bar"><i></i><i></i><i></i><div class="url">People · Assignees</div></div>
+          <div class="mock-main">
+            <div class="mock-title">Assignees</div>
+            <div class="crw-kinds">
+              <div class="mock-kpi slide-up" style="--d:1"><i class="fa-solid fa-user"></i><small>User</small><b>J. Ramos</b><span class="mock-chip">Installer</span></div>
+              <div class="mock-kpi slide-up" style="--d:2"><i class="fa-solid fa-users"></i><small>Group</small><b>North team</b><div class="crw-members"><span class="mock-avatar">JR</span><span class="mock-avatar">AL</span><span class="mock-avatar">MK</span></div></div>
+              <div class="mock-kpi slide-up" style="--d:3"><i class="fa-solid fa-handshake"></i><small>Outside company</small><b>Ridgeline Siding</b><span class="mock-chip violet">Subcontractor</span></div>
+            </div>
+            <div class="mock-row pop" style="--d:7"><i class="fa-solid fa-calendar-xmark" style="color:var(--warn)"></i><b style="flex:1">A. Lopez · Time off Fri</b><span class="mock-chip amber">Approved</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="split split--flip">
+        <div class="reveal">
+          <div class="eyebrow">On site</div>
+          <h2>The visit, step by step.</h2>
+          <p class="lead">Check in at the address, work through the checklists, take the required photos and add materials the job needs. The office sees it as it happens.</p>
+          <ul class="feature-list"><li>Check-in and time clock with breaks</li><li>Required photos and checklist evidence</li><li>Change orders started from the field</li></ul>
+        </div>
+        <div class="mock reveal" aria-hidden="true">
+          <div class="mock-bar"><i></i><i></i><i></i><div class="url">Project · Martin · Feed</div></div>
+          <div class="mock-main">
+            <div class="mock-row slide-up" style="--d:1"><div class="mock-avatar">JR</div><b style="flex:1">Checked in · 7:31 AM</b><span class="mock-chip green">On site</span></div>
+            <div class="mock-row slide-up" style="--d:2"><div class="mock-avatar">JR</div><b style="flex:1">Added 5 before photos</b><span class="mock-chip">Photos</span></div>
+            <div class="mock-row slide-up" style="--d:3"><div class="mock-avatar">AL</div><b style="flex:1">Completed Safety checklist</b><span class="mock-chip blue">Checklist</span></div>
+            <div class="mock-row slide-up" style="--d:4"><div class="mock-avatar">MK</div><b style="flex:1">Material added · 2 sheets OSB</b><span class="mock-chip amber">Materials</span></div>
+            <div class="mock-row slide-up" style="--d:5"><div class="mock-avatar">JR</div><b style="flex:1">Change order sent</b><span class="mock-chip red">Change order</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="split">
+        <div class="reveal">
+          <div class="eyebrow">Pay</div>
+          <h2>Everyone knows what they earned.</h2>
+          <p class="lead">Piece-rate work is earned when the work order is finalized; hourly time comes from the time clock. Each person sees their earnings, and the receipts they're owed back, in the app.</p>
+          <ul class="feature-list"><li>Earnings by job and pay period</li><li>Receipts for reimbursement</li><li>Supervisor overview of the whole team</li></ul>
+          <a class="link-arrow" href="~/solutions/payroll/">Explore payroll</a>
+        </div>
+        <div class="mock reveal" aria-hidden="true">
+          <div class="mock-bar"><i></i><i></i><i></i><div class="url">Supervisor overview</div></div>
+          <div class="mock-main">
+            <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px">
+              <div class="mock-kpi"><small>Clocked in</small><b data-count="9">0</b></div>
+              <div class="mock-kpi"><small>Visits today</small><b data-count="14">0</b></div>
+              <div class="mock-kpi"><small>Needs review</small><b data-count="3">0</b></div>
+            </div>
+            <div class="mock-row slide-up" style="--d:2"><div class="mock-avatar">JR</div><b style="flex:1">J. Ramos</b><div class="mock-progress" style="flex:1"><i style="--w:80%;--d:2"></i></div></div>
+            <div class="mock-row slide-up" style="--d:3"><div class="mock-avatar">AL</div><b style="flex:1">A. Lopez</b><div class="mock-progress" style="flex:1"><i style="--w:55%;--d:3"></i></div></div>
+            <div class="mock-row slide-up" style="--d:4"><div class="mock-avatar">MK</div><b style="flex:1">M. Kim</b><div class="mock-progress" style="flex:1"><i style="--w:95%;--d:4"></i></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section section--soft">
+    <div class="container">
+      <div class="section-head center reveal"><div class="eyebrow">In the app</div><h2>Built for the field.</h2></div>
+      <div class="grid grid-3">
+        <div class="card reveal" style="--d:0"><div class="icon"><i class="fa-solid fa-sun"></i></div><h3>Today</h3><p>Assigned work, deliveries and the time clock on one screen.</p></div>
+        <div class="card reveal" style="--d:1"><div class="icon"><i class="fa-solid fa-calendar-days"></i></div><h3>Schedule</h3><p>The days ahead, updated the moment the office moves something.</p></div>
+        <div class="card reveal" style="--d:2"><div class="icon"><i class="fa-solid fa-camera"></i></div><h3>Photos</h3><p>Before, during and after, filed on the project automatically.</p></div>
+        <div class="card reveal" style="--d:3"><div class="icon"><i class="fa-solid fa-receipt"></i></div><h3>Receipts</h3><p>Snap a receipt and attach it to the job and the list it paid for.</p></div>
+        <div class="card reveal" style="--d:4"><div class="icon"><i class="fa-solid fa-truck-pickup"></i></div><h3>My equipment today</h3><p>Which truck, trailer or lift each person has for the day.</p></div>
+        <div class="card reveal" style="--d:5"><div class="icon"><i class="fa-solid fa-sack-dollar"></i></div><h3>Earnings</h3><p>What each person has earned and what is still to be paid.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container">
+      <div class="section-head center reveal"><div class="eyebrow">Connected</div><h2>Works with the rest of FirstMate.</h2></div>
+      <div class="grid grid-4">
+        <a class="card reveal" style="--d:0" href="~/solutions/scheduling/"><div class="icon"><i class="fa-solid fa-calendar-days"></i></div><h3>Scheduling</h3><p>Dispatch the work they see.</p></a>
+        <a class="card reveal" style="--d:1" href="~/solutions/checklists/"><div class="icon"><i class="fa-solid fa-list-check"></i></div><h3>Checklists</h3><p>Standard steps on every visit.</p></a>
+        <a class="card reveal" style="--d:2" href="~/solutions/partners/"><div class="icon"><i class="fa-solid fa-handshake"></i></div><h3>Partners</h3><p>Share work with outside companies.</p></a>
+        <a class="card reveal" style="--d:3" href="~/solutions/payroll/"><div class="icon"><i class="fa-solid fa-money-check-dollar"></i></div><h3>Payroll</h3><p>Pay from finished work and time.</p></a>
+      </div>
+    </div>
+  </section>
+
+  <section class="section section--soft">
+    <div class="container container--narrow">
+      <div class="section-head center reveal"><div class="eyebrow">FAQ</div><h2>Team questions</h2></div>
+      <details class="faq"><summary>Can subcontractors use the app?</summary><div>Yes. An outside company is an assignee like any other, and its people can see the work shared with them.</div></details>
+      <details class="faq"><summary>Is it the same app for everyone?</summary><div>Yes. There is one FirstMate app; what each person sees depends on their roles and what your organization turns on.</div></details>
+      <details class="faq"><summary>Does it work on iPhone and Android?</summary><div>Yes, on both. <a href="~/download/">Download the app</a>.</div></details>
+    </div>
+  </section>
+
+  <section class="section"><div class="container"><div class="cta-band reveal">
+    <h2>Give your team the app they'll actually use.</h2>
+    <p class="lead" style="color:#c9ccd4;max-width:600px;margin:0 auto">Sign up free and invite your first people today, or book a walkthrough with our team.</p>
+    <div class="btn-row"><a class="btn btn-primary btn-lg" href="https://app.1m8.ai/portal/signup">Sign up free</a><a class="btn btn-glass btn-lg" href="~/demo/">Book a demo</a></div>
+  </div></div></section>
+</main>
+<div id="site-footer"></div>
+<script src="../../assets/site.js"></script>
+<script>
+(function () {
+  var hero = document.getElementById('crw-hero');
+  var views = hero.querySelectorAll('.crw-view'), tabs = document.querySelectorAll('#crw-tabs span'), title = document.getElementById('crw-title');
+  var tabFor = [0, 0, 2, 3], i = 0;
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  function show(n) {
+    views.forEach(function (v, k) { v.classList.toggle('on', k === n); });
+    tabs.forEach(function (t, k) { t.classList.toggle('on', k === tabFor[n]); });
+    title.textContent = views[n].getAttribute('data-title');
+    var bars = views[n].querySelector('.mock-bars');
+    if (bars) { bars.parentNode.replaceChild(bars.cloneNode(true), bars); }
+  }
+  setInterval(function () { i = (i + 1) % views.length; show(i); }, 3200);
+})();
+</script>
+</body>
+</html>

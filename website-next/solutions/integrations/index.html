@@ -1,0 +1,295 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Integrations — FirstMate</title>
+<meta name="description" content="Payments, calls and texts, email, lead sources, payroll exports and your own APIs, connected to FirstMate.">
+<meta name="robots" content="noindex, nofollow">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,400..900;1,400..900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/site.css">
+<style>
+  /* Hub and spoke */
+  .in-hub { padding: 10px; background: radial-gradient(60% 60% at 50% 50%, #fff 0%, #fafafb 100%) }
+  .in-hub svg { width: 100%; height: auto; overflow: visible }
+  .in-spoke { stroke: #d6d9de; stroke-width: 1.5; fill: none; stroke-dasharray: 4 5 }
+  .in-node rect { fill: #fff; stroke: var(--line); stroke-width: 1.2; filter: drop-shadow(0 4px 10px rgba(16,24,40,.08)) }
+  .in-node text { font: 800 11px Montserrat, sans-serif; fill: #111827; text-anchor: middle }
+  .in-node text.sub { font: 600 9px Montserrat, sans-serif; fill: #6b7280 }
+  .in-node .mono { fill: var(--brand-soft); stroke: none; filter: none }
+  .in-node .mono-t { font: 900 10px Montserrat, sans-serif; fill: var(--brand) }
+  .in-node { opacity: 0; transform-box: fill-box; transform-origin: center }
+  .mock.in .in-node { animation: fm-pop .6s var(--ease) forwards; animation-delay: calc(var(--d, 0) * 110ms + 200ms) }
+  .in-core-ring { fill: none; stroke: var(--brand); stroke-width: 1.5; opacity: .35; transform-box: fill-box; transform-origin: center; animation: in-ring 2.6s ease-out infinite }
+  @keyframes in-ring { from { transform: scale(1); opacity: .45 } to { transform: scale(1.7); opacity: 0 } }
+  .in-pulse { fill: var(--brand) }
+  .in-pulse.out { fill: #2563eb }
+  @media (prefers-reduced-motion: reduce) { .in-pulse, .in-core-ring { display: none } }
+
+  /* Tiles */
+  .in-filters { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-bottom: 32px }
+  .in-filter { border: 1.5px solid var(--line); background: #fff; border-radius: 999px; padding: 8px 16px; font-weight: 700; font-size: 14px; color: var(--heading); cursor: pointer }
+  .in-filter.on { border-color: var(--brand); color: var(--brand); background: var(--brand-soft) }
+  .in-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 18px }
+  @media (max-width: 1000px) { .in-grid { grid-template-columns: repeat(3, minmax(0, 1fr)) } }
+  @media (max-width: 760px) { .in-grid { grid-template-columns: repeat(2, minmax(0, 1fr)) } }
+  @media (max-width: 460px) { .in-grid { grid-template-columns: 1fr } }
+  .in-tile { background: #fff; border: 1px solid var(--line); border-radius: var(--radius); padding: 20px; display: flex; flex-direction: column; gap: 10px; transition: transform .3s var(--ease), box-shadow .3s, opacity .3s }
+  .in-tile:hover { transform: translateY(-4px); box-shadow: var(--shadow) }
+  .in-tile.hide { display: none }
+  .in-tile .top { display: flex; align-items: center; gap: 12px }
+  .in-mono { width: 44px; height: 44px; border-radius: 12px; display: grid; place-items: center; font-weight: 900; font-size: 15px; background: var(--brand-soft); color: var(--brand); flex: none }
+  .in-tile h4 { margin: 0; font-size: 16px }
+  .in-tile small { color: var(--muted); font-weight: 700; font-size: 12px }
+  .in-tile p { color: var(--muted); font-size: 14px; margin: 0; line-height: 1.5 }
+  .in-badge { align-self: flex-start; font-size: 11px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; padding: 3px 9px; border-radius: 999px; background: #dcfce7; color: #15803d; margin-top: auto }
+  .in-badge.exp { background: #dbeafe; color: #1d4ed8 }
+  .in-badge.guide { background: #ede9fe; color: #6d28d9 }
+  .in-tile.soon { border-style: dashed; background: #fbfbfc }
+  .in-tile.soon .in-mono { background: #f3f4f6; color: #9ca3af }
+
+  /* Connection builder */
+  .in-steps { padding: 16px; display: flex; flex-direction: column; gap: 8px }
+  .in-step { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line); background: #fff; font-size: 12px; font-weight: 700 }
+  .in-step .s-ic { width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; background: #dcfce7; color: #15803d; font-size: 11px; flex: none }
+  .in-step small { display: block; color: var(--muted); font-weight: 600; font-size: 11px }
+  .in-step .mock-chip { margin-left: auto }
+  .in-secure { display: flex; align-items: center; gap: 10px; padding: 12px; border-radius: 12px; background: #0d0e12; color: #c9ccd4; font-size: 12px; font-weight: 700 }
+  .in-secure .dots { letter-spacing: 3px; color: #fff; margin-left: auto }
+
+  /* Lead intake */
+  .in-intake { padding: 18px; display: grid; grid-template-columns: 1fr 40px 1fr; gap: 10px; align-items: center }
+  .in-src { display: flex; flex-direction: column; gap: 8px }
+  .in-src .mock-row { font-weight: 700; font-size: 12px }
+  .in-arrow { height: 2px; background: linear-gradient(90deg, var(--line), var(--brand)); position: relative; overflow: visible }
+  .in-arrow::after { content: ""; position: absolute; width: 8px; height: 8px; border-radius: 50%; background: var(--brand); top: -3px; left: 0; animation: in-slide 1.6s linear infinite }
+  @keyframes in-slide { to { left: calc(100% - 8px) } }
+  .in-lead { border: 1.5px solid var(--brand); border-radius: 12px; padding: 12px; background: #fff; box-shadow: 0 10px 24px rgba(219,0,0,.12) }
+  .in-lead b { display: block; font-size: 13px }
+  .in-lead small { color: var(--muted); font-weight: 600; font-size: 11px }
+  @media (max-width: 560px) { .in-intake { grid-template-columns: 1fr } .in-arrow { height: 24px; width: 2px; margin: 0 auto; background: linear-gradient(180deg, var(--line), var(--brand)) } .in-arrow::after { display: none } }
+
+  .in-uses { display: flex; flex-direction: column; gap: 8px }
+  .in-use { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 10px; background: #1c1f26; border: 1px solid rgba(255,255,255,.06); font-size: 12px; font-weight: 700; color: #e5e7eb }
+  .in-use i { width: 26px; height: 26px; border-radius: 8px; background: rgba(219,0,0,.16); color: #ff6b6b; display: grid; place-items: center; flex: none }
+  .in-use span { margin-left: auto; color: #8b909c; font-weight: 600; font-size: 11px }
+
+  .in-rel { display: flex; align-items: center; gap: 14px; padding: 18px 20px }
+  .in-rel i { width: 40px; height: 40px; border-radius: 12px; background: var(--brand-soft); color: var(--brand); display: grid; place-items: center; flex: none }
+  .in-rel b { display: block; color: var(--heading) } .in-rel small { color: var(--muted); font-weight: 600 }
+</style>
+</head>
+<body>
+<div id="site-header"></div>
+<main>
+
+<section class="page-hero">
+  <div class="container split">
+    <div>
+      <div class="breadcrumb"><a href="~/solutions/">Solutions</a><span>Integrations</span></div>
+      <div class="eyebrow">Integrations</div>
+      <h1>Plug FirstMate into the rest of your business.</h1>
+      <p class="lead">Payments, phone and text, email, lead sources and payroll files are built in. For anything else, connect your own APIs and webhooks, with the assistant setting them up alongside you.</p>
+      <div class="btn-row"><a class="btn btn-primary btn-lg" href="https://app.1m8.ai/portal/signup">Sign up free</a><a class="btn btn-ghost btn-lg" href="~/demo/">Book a demo</a></div>
+    </div>
+    <div class="mock-stage" aria-hidden="true">
+      <div class="mock in-hub">
+        <svg viewBox="0 0 520 420" id="in-hub-svg">
+          <g id="in-spokes">
+            <path id="sp0" class="in-spoke" d="M260 210 L90 60"/>
+            <path id="sp1" class="in-spoke" d="M260 210 L260 40"/>
+            <path id="sp2" class="in-spoke" d="M260 210 L430 60"/>
+            <path id="sp3" class="in-spoke" d="M260 210 L470 210"/>
+            <path id="sp4" class="in-spoke" d="M260 210 L430 360"/>
+            <path id="sp5" class="in-spoke" d="M260 210 L260 380"/>
+            <path id="sp6" class="in-spoke" d="M260 210 L90 360"/>
+            <path id="sp7" class="in-spoke" d="M260 210 L50 210"/>
+          </g>
+          <g>
+            <circle class="in-pulse" r="4"><animateMotion dur="2.4s" repeatCount="indefinite" keyPoints="1;0" keyTimes="0;1" calcMode="linear"><mpath href="#sp0"/></animateMotion></circle>
+            <circle class="in-pulse out" r="4"><animateMotion dur="2.8s" begin=".4s" repeatCount="indefinite"><mpath href="#sp1"/></animateMotion></circle>
+            <circle class="in-pulse" r="4"><animateMotion dur="2.2s" begin=".8s" repeatCount="indefinite" keyPoints="1;0" keyTimes="0;1" calcMode="linear"><mpath href="#sp2"/></animateMotion></circle>
+            <circle class="in-pulse out" r="4"><animateMotion dur="2.6s" begin="1.2s" repeatCount="indefinite"><mpath href="#sp3"/></animateMotion></circle>
+            <circle class="in-pulse" r="4"><animateMotion dur="2.5s" begin=".2s" repeatCount="indefinite" keyPoints="1;0" keyTimes="0;1" calcMode="linear"><mpath href="#sp4"/></animateMotion></circle>
+            <circle class="in-pulse out" r="4"><animateMotion dur="2.3s" begin="1s" repeatCount="indefinite"><mpath href="#sp5"/></animateMotion></circle>
+            <circle class="in-pulse" r="4"><animateMotion dur="2.7s" begin=".6s" repeatCount="indefinite" keyPoints="1;0" keyTimes="0;1" calcMode="linear"><mpath href="#sp6"/></animateMotion></circle>
+            <circle class="in-pulse out" r="4"><animateMotion dur="2.4s" begin="1.4s" repeatCount="indefinite"><mpath href="#sp7"/></animateMotion></circle>
+          </g>
+          <!-- core -->
+          <circle class="in-core-ring" cx="260" cy="210" r="46"/>
+          <circle cx="260" cy="210" r="46" fill="#fff" stroke="var(--brand)" stroke-width="2" style="filter:drop-shadow(0 10px 24px rgba(219,0,0,.25))"/>
+          <image href="../../assets/img/logo_square.png" x="232" y="182" width="56" height="56"/>
+          <!-- nodes: x,y centers -->
+          <g class="in-node" style="--d:1"><rect x="30" y="38" width="120" height="44" rx="12"/><rect class="mono" x="38" y="46" width="28" height="28" rx="8"/><text class="mono-t" x="52" y="64">F</text><text x="106" y="58">Forward</text><text class="sub" x="106" y="71">Payments</text></g>
+          <g class="in-node" style="--d:2"><rect x="200" y="18" width="120" height="44" rx="12"/><rect class="mono" x="208" y="26" width="28" height="28" rx="8"/><text class="mono-t" x="222" y="44">T</text><text x="276" y="38">Telnyx</text><text class="sub" x="276" y="51">Calls &amp; texts</text></g>
+          <g class="in-node" style="--d:3"><rect x="370" y="38" width="120" height="44" rx="12"/><rect class="mono" x="378" y="46" width="28" height="28" rx="8"/><text class="mono-t" x="392" y="64">G</text><text x="446" y="58">Gmail</text><text class="sub" x="446" y="71">Mailbox</text></g>
+          <g class="in-node" style="--d:4"><rect x="400" y="188" width="116" height="44" rx="12"/><rect class="mono" x="408" y="196" width="28" height="28" rx="8"/><text class="mono-t" x="422" y="214">Q</text><text x="472" y="208">QuickBooks</text><text class="sub" x="472" y="221">Export files</text></g>
+          <g class="in-node" style="--d:5"><rect x="370" y="338" width="120" height="44" rx="12"/><rect class="mono" x="378" y="346" width="28" height="28" rx="8"/><text class="mono-t" x="392" y="364">G</text><text x="446" y="358">Gusto</text><text class="sub" x="446" y="371">Payroll file</text></g>
+          <g class="in-node" style="--d:6"><rect x="200" y="358" width="120" height="44" rx="12"/><rect class="mono" x="208" y="366" width="28" height="28" rx="8"/><text class="mono-t" x="222" y="384">G</text><text x="276" y="378">Google Ads</text><text class="sub" x="276" y="391">Lead forms</text></g>
+          <g class="in-node" style="--d:7"><rect x="30" y="338" width="120" height="44" rx="12"/><rect class="mono" x="38" y="346" width="28" height="28" rx="8"/><text class="mono-t" x="52" y="364">S</text><text x="106" y="358">Suppliers</text><text class="sub" x="106" y="371">Purchase orders</text></g>
+          <g class="in-node" style="--d:8"><rect x="4" y="188" width="112" height="44" rx="12"/><rect class="mono" x="12" y="196" width="28" height="28" rx="8"/><text class="mono-t" x="26" y="214">{ }</text><text x="78" y="208">Your API</text><text class="sub" x="78" y="221">Webhooks</text></g>
+        </svg>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Tiles -->
+<section class="section section--soft">
+  <div class="container">
+    <div class="section-head center reveal"><div class="eyebrow">Directory</div><h2>What connects today.</h2><p class="lead">Built-in services, export files and guided setups, plus anything with an API.</p></div>
+    <div class="in-filters reveal" id="in-filters">
+      <button class="in-filter on" data-f="all">All</button>
+      <button class="in-filter" data-f="pay">Payments</button>
+      <button class="in-filter" data-f="comm">Calls, texts &amp; email</button>
+      <button class="in-filter" data-f="leads">Leads</button>
+      <button class="in-filter" data-f="acct">Accounting &amp; payroll</button>
+      <button class="in-filter" data-f="field">Field &amp; data</button>
+      <button class="in-filter" data-f="custom">Custom</button>
+    </div>
+    <div class="in-grid" id="in-grid">
+      <div class="in-tile reveal" data-c="pay"><div class="top"><span class="in-mono">F</span><div><h4>Forward</h4><small>Payments</small></div></div><p>Card and bank payments, saved cards, autopay and payouts, in person or online.</p><span class="in-badge">Built in</span></div>
+      <div class="in-tile reveal" data-c="comm" style="--d:1"><div class="top"><span class="in-mono">T</span><div><h4>Telnyx</h4><small>Calls &amp; texts</small></div></div><p>Business phone numbers, calling and texting from inside every job.</p><span class="in-badge">Built in</span></div>
+      <div class="in-tile reveal" data-c="comm" style="--d:2"><div class="top"><span class="in-mono">G</span><div><h4>Gmail</h4><small>Email</small></div></div><p>Connect a mailbox to send and receive customer email from FirstMate.</p><span class="in-badge">Connect</span></div>
+      <div class="in-tile reveal" data-c="leads" style="--d:3"><div class="top"><span class="in-mono">G</span><div><h4>Google Ads lead forms</h4><small>Leads</small></div></div><p>Lead-form submissions arrive as new leads through a verified webhook.</p><span class="in-badge guide">Guided setup</span></div>
+      <div class="in-tile reveal" data-c="acct"><div class="top"><span class="in-mono">Q</span><div><h4>QuickBooks</h4><small>Accounting &amp; payroll</small></div></div><p>Payroll and contractor-bill export files in the columns QuickBooks imports.</p><span class="in-badge exp">Export file</span></div>
+      <div class="in-tile reveal" data-c="acct" style="--d:1"><div class="top"><span class="in-mono">G</span><div><h4>Gusto</h4><small>Payroll</small></div></div><p>Employee earnings and contractor payment files ready for Gusto's import.</p><span class="in-badge exp">Export file</span></div>
+      <div class="in-tile reveal" data-c="field" style="--d:2"><div class="top"><span class="in-mono">C</span><div><h4>CompanyCam</h4><small>Photos</small></div></div><p>Step-by-step setup through Connections, using your CompanyCam account's API access.</p><span class="in-badge guide">Guided setup</span></div>
+      <div class="in-tile reveal" data-c="field" style="--d:3"><div class="top"><span class="in-mono">N</span><div><h4>NOAA storm data</h4><small>Weather</small></div></div><p>Public weather and hail data behind FirstMeasure weather reports.</p><span class="in-badge">Built in</span></div>
+      <div class="in-tile reveal" data-c="leads"><div class="top"><span class="in-mono"><i class="fa-solid fa-inbox"></i></span><div><h4>Lead inbox</h4><small>Leads</small></div></div><p>A unique email address that turns lead emails from any service into new leads.</p><span class="in-badge">Built in</span></div>
+      <div class="in-tile reveal" data-c="field" style="--d:1"><div class="top"><span class="in-mono"><i class="fa-solid fa-truck"></i></span><div><h4>Your suppliers</h4><small>Materials</small></div></div><p>Send each supplier its purchase order, with its own catalogue and prices.</p><span class="in-badge">Built in</span></div>
+      <div class="in-tile reveal" data-c="custom" style="--d:2"><div class="top"><span class="in-mono"><i class="fa-solid fa-code"></i></span><div><h4>Custom API</h4><small>Custom</small></div></div><p>Connect any HTTPS API: sync its records and use its actions in automations.</p><span class="in-badge guide">Connections</span></div>
+      <div class="in-tile reveal" data-c="custom leads" style="--d:3"><div class="top"><span class="in-mono"><i class="fa-solid fa-link"></i></span><div><h4>Webhooks</h4><small>Custom</small></div></div><p>Receive signed webhooks from other tools and turn them into leads or events.</p><span class="in-badge guide">Connections</span></div>
+      <div class="in-tile soon reveal" data-c="acct"><div class="top"><span class="in-mono"><i class="fa-solid fa-calculator"></i></span><div><h4>Accounting sync</h4><small>Accounting</small></div></div><p>Placeholder: two-way accounting integration.</p><span class="tag-soon">Coming soon</span></div>
+      <div class="in-tile soon reveal" data-c="comm" style="--d:1"><div class="top"><span class="in-mono"><i class="fa-solid fa-calendar"></i></span><div><h4>Calendar sync</h4><small>Scheduling</small></div></div><p>Placeholder: sync appointments with outside calendars.</p><span class="tag-soon">Coming soon</span></div>
+      <div class="in-tile soon reveal" data-c="field" style="--d:2"><div class="top"><span class="in-mono"><i class="fa-solid fa-boxes-stacked"></i></span><div><h4>Supplier ordering</h4><small>Materials</small></div></div><p>Placeholder: live pricing and ordering with distributors.</p><span class="tag-soon">Coming soon</span></div>
+      <div class="in-tile soon reveal" data-c="custom" style="--d:3"><div class="top"><span class="in-mono"><i class="fa-solid fa-plus"></i></span><div><h4>More connectors</h4><small>Placeholder</small></div></div><p>Placeholder: tell us what you use.</p><span class="tag-soon">Coming soon</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- Assistant-built connections -->
+<section class="section">
+  <div class="container split">
+    <div class="reveal">
+      <div class="eyebrow">Connections</div>
+      <h2>Connect anything with an API, by chat.</h2>
+      <p class="lead">In Settings › Connections, tell the assistant what you want to connect. It drafts the connector, you enter credentials in a secure form, preview a sample, and turn on only the operations you choose.</p>
+      <ul class="feature-list">
+        <li>Credentials are encrypted and never shown in chat</li>
+        <li>Every version is saved; roll back any time</li>
+        <li>Pause or disconnect in one click</li>
+      </ul>
+    </div>
+    <div class="mock-stage reveal" style="--d:1" aria-hidden="true">
+      <div class="mock">
+        <div class="mock-bar"><i></i><i></i><i></i><div class="url">Settings · Connections · New connection</div></div>
+        <div class="in-steps">
+          <div class="mock-title fade">Inspection app <span class="mock-chip amber" style="margin-left:6px">Draft v2</span></div>
+          <div class="in-step slide-up" style="--d:1"><span class="s-ic"><i class="fa-solid fa-check"></i></span><div>Connector drafted<small>3 resources · 2 actions</small></div><span class="mock-chip violet"><i class="fa-solid fa-wand-magic-sparkles"></i> Assistant</span></div>
+          <div class="in-secure slide-up" style="--d:3"><i class="fa-solid fa-lock" style="color:#4ade80"></i> API key · secure form <span class="dots">••••••••••</span></div>
+          <div class="in-step slide-up" style="--d:5"><span class="s-ic"><i class="fa-solid fa-check"></i></span><div>Previewed a redacted sample<small>12 records · fields mapped</small></div></div>
+          <div class="in-step slide-up" style="--d:7"><span class="s-ic"><i class="fa-solid fa-check"></i></span><div>Operations selected<small>Read inspections · Create inspection</small></div></div>
+          <div style="display:flex;justify-content:flex-end;--d:9" class="pop"><span class="mock-btn">Activate</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Leads from anywhere -->
+<section class="section section--soft">
+  <div class="container split split--flip">
+    <div class="reveal">
+      <div class="eyebrow">Lead sources</div>
+      <h2>Every lead source, one front door.</h2>
+      <p class="lead">Email inboxes, webhooks and synced APIs all deliver into the same intake. A retried delivery never makes a second lead, and every lead starts your follow-up automations.</p>
+      <a class="link-arrow" href="~/solutions/crm/">CRM &amp; lead tracking</a>
+    </div>
+    <div class="mock-stage reveal" style="--d:1" aria-hidden="true">
+      <div class="mock">
+        <div class="mock-bar"><i></i><i></i><i></i><div class="url">Lead intake</div></div>
+        <div class="in-intake">
+          <div class="in-src">
+            <div class="mock-row slide-up" style="--d:1"><i class="fa-solid fa-envelope" style="color:var(--brand)"></i> Lead inbox</div>
+            <div class="mock-row slide-up" style="--d:2"><i class="fa-solid fa-link" style="color:var(--brand)"></i> Webhook</div>
+            <div class="mock-row slide-up" style="--d:3"><i class="fa-solid fa-rotate" style="color:var(--brand)"></i> API sync</div>
+          </div>
+          <div class="in-arrow fade" style="--d:4"></div>
+          <div class="in-lead pop" style="--d:6"><span class="mock-chip red" style="margin-bottom:8px">New lead</span><b>Jordan Lee</b><small>22 Birch Rd · via Webhook</small><div class="mock-row" style="margin-top:10px;padding:6px 8px;font-size:11px;font-weight:700"><i class="fa-solid fa-shield-halved" style="color:var(--ok)"></i> Retry ignored · same lead</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Data everywhere -->
+<section class="section section--dark">
+  <div class="container split">
+    <div class="reveal">
+      <div class="eyebrow" style="color:#ff6b6b">One platform</div>
+      <h2>Connected data works everywhere.</h2>
+      <p class="lead" style="color:#c9ccd4">Once connected, outside records and actions are published like any FirstMate app's. Automations, documents, calculations and the assistant use them, with the same permissions, and none of them ever see your credentials.</p>
+    </div>
+    <div class="mock-stage reveal" style="--d:1" aria-hidden="true">
+      <div class="mock mock--dark">
+        <div class="mock-bar"><i></i><i></i><i></i><div class="url">Inspection app · used by</div></div>
+        <div class="mock-main in-uses">
+          <div class="in-use slide-up" style="--d:1"><i class="fa-solid fa-bolt"></i> Automation · "Inspection finished"<span>runs an action</span></div>
+          <div class="in-use slide-up" style="--d:2"><i class="fa-solid fa-file-lines"></i> Document · Inspection summary<span>reads records</span></div>
+          <div class="in-use slide-up" style="--d:3"><i class="fa-solid fa-wand-magic-sparkles"></i> Assistant<span>answers questions</span></div>
+          <div class="in-use slide-up" style="--d:4"><i class="fa-solid fa-calculator"></i> Form calculation<span>reads values</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Related -->
+<section class="section">
+  <div class="container">
+    <div class="section-head reveal"><div class="eyebrow">Connected</div><h2>Where integrations show up.</h2></div>
+    <div class="grid grid-4">
+      <a class="card in-rel reveal" href="~/solutions/automations/"><i class="fa-solid fa-bolt"></i><div><b>Automations</b><small>Act on outside events</small></div></a>
+      <a class="card in-rel reveal" style="--d:1" href="~/solutions/assistant/"><i class="fa-solid fa-wand-magic-sparkles"></i><div><b>Assistant</b><small>Sets up connections</small></div></a>
+      <a class="card in-rel reveal" style="--d:2" href="~/solutions/payments/"><i class="fa-solid fa-credit-card"></i><div><b>Payments</b><small>Card and bank</small></div></a>
+      <a class="card in-rel reveal" style="--d:3" href="~/solutions/payroll/"><i class="fa-solid fa-money-check-dollar"></i><div><b>Payroll</b><small>Export to your provider</small></div></a>
+    </div>
+  </div>
+</section>
+
+<!-- FAQ -->
+<section class="section section--soft">
+  <div class="container container--narrow">
+    <div class="section-head center reveal"><div class="eyebrow">FAQ</div><h2>Questions</h2></div>
+    <details class="faq"><summary>Do you sync with QuickBooks?</summary><div>Today FirstMate exports payroll and contractor-bill files in the format QuickBooks imports. Placeholder: confirm roadmap wording for a live sync.</div></details>
+    <details class="faq"><summary>Can I connect a tool that isn't listed?</summary><div>If it has an HTTPS API or sends webhooks, you can set it up in Settings › Connections with the assistant's help.</div></details>
+    <details class="faq"><summary>Where are my passwords and API keys kept?</summary><div>Encrypted and separate from connector definitions, conversations and activity. You enter them only in a secure form.</div></details>
+    <details class="faq"><summary>Does connecting cost extra?</summary><div>Placeholder: pricing details to be confirmed. See <a href="~/pricing/">pricing</a>.</div></details>
+  </div>
+</section>
+
+<section class="section"><div class="container"><div class="cta-band">
+  <h2>Bring your tools. Keep one platform.</h2>
+  <p class="lead" style="color:#c9ccd4">Start free and connect your first service today.</p>
+  <div class="btn-row"><a class="btn btn-primary btn-lg" href="https://app.1m8.ai/portal/signup">Sign up free</a><a class="btn btn-glass btn-lg" href="~/demo/">Book a demo</a></div>
+</div></div></section>
+
+</main>
+<div id="site-footer"></div>
+<script src="../../assets/site.js"></script>
+<script>
+(function () {
+  var bar = document.getElementById('in-filters'), tiles = document.querySelectorAll('#in-grid .in-tile');
+  if (!bar) return;
+  bar.addEventListener('click', function (e) {
+    var b = e.target.closest('.in-filter'); if (!b) return;
+    bar.querySelectorAll('.in-filter').forEach(function (x) { x.classList.toggle('on', x === b); });
+    var f = b.getAttribute('data-f');
+    tiles.forEach(function (t) { var c = (t.getAttribute('data-c') || '').split(' '); t.classList.toggle('hide', f !== 'all' && c.indexOf(f) < 0); t.classList.add('in'); });
+  });
+})();
+</script>
+</body>
+</html>

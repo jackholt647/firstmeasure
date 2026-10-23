@@ -1,0 +1,215 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Training — FirstMate</title>
+<meta name="description" content="Build training courses in Training Studio, assign them by role, department or person, and let your people finish them on their phone.">
+<meta name="robots" content="noindex, nofollow">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,400..900;1,400..900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/site.css">
+<style>
+  .tr-lesson { display: flex; align-items: center; gap: 10px; padding: 9px 10px; border: 1px solid var(--line); border-radius: 10px; background: #fff; font-size: 12px; font-weight: 700 }
+  .tr-lesson .num { width: 22px; height: 22px; border-radius: 7px; background: var(--bg-soft); display: grid; place-items: center; font-size: 10px; font-weight: 800; color: var(--muted); flex: none }
+  .tr-lesson .grip { color: #cbd5e1; font-size: 11px }
+  .tr-lesson.new { border-style: dashed; border-color: var(--brand); color: var(--brand); background: var(--brand-soft) }
+  .tr-grid { display: grid; grid-template-columns: 1.2fr 1fr; gap: 12px }
+  .tr-panel { border: 1px solid var(--line); border-radius: 12px; padding: 12px; background: #fff; display: flex; flex-direction: column; gap: 8px }
+  .tr-panel h5 { margin: 0; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: .08em; color: var(--muted) }
+  .tr-opt { display: flex; gap: 8px; align-items: center; padding: 7px 9px; border: 1.5px solid var(--line); border-radius: 8px; font-size: 11px; font-weight: 700 }
+  .tr-opt::before { content: ""; width: 12px; height: 12px; border-radius: 50%; border: 2px solid #cbd5e1; flex: none }
+  .tr-opt.ok { border-color: var(--ok); background: #f0fdf4 }
+  .tr-opt.ok::before { border-color: var(--ok); background: var(--ok); box-shadow: inset 0 0 0 2px #fff }
+  @media (max-width: 560px) { .tr-grid { grid-template-columns: 1fr } }
+  .tr-ring { position: relative; width: 64px; height: 64px; flex: none }
+  .tr-ring svg { width: 64px; height: 64px; transform: rotate(-90deg) }
+  .tr-ring circle { fill: none; stroke-width: 7 }
+  .tr-ring .bg { stroke: #eceef1 }
+  .tr-ring .fg { stroke: var(--c, var(--brand)); stroke-linecap: round; stroke-dasharray: 100; stroke-dashoffset: 100 }
+  .mock.in .tr-ring .fg { animation: tr-fill 1.6s var(--ease) forwards; animation-delay: calc(var(--d, 0) * 150ms + 300ms) }
+  @keyframes tr-fill { to { stroke-dashoffset: calc(100 - var(--p)) } }
+  .tr-ring b { position: absolute; inset: 0; display: grid; place-items: center; font-size: 13px; font-weight: 800 }
+  .tr-people { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px }
+  .tr-person { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 12px 6px; border: 1px solid var(--line); border-radius: 12px; text-align: center; font-size: 11px; font-weight: 700 }
+  .tr-person small { color: var(--muted); font-weight: 600; font-size: 10px }
+  @media (max-width: 420px) { .tr-people { grid-template-columns: repeat(2, 1fr) } }
+  .tr-f1 { right: -6px; bottom: -14px; width: 210px; opacity: 0 }
+  .mock.in ~ .tr-f1 { animation: fm-pop .6s var(--ease) 2s forwards, fm-float 6s ease-in-out 2.8s infinite }
+  @media (max-width: 560px) { .tr-f1 { display: none } }
+  .tr-phone-wrap { display: flex; justify-content: center }
+  .tr-ph-top { padding: 40px 16px 12px; background: linear-gradient(160deg, var(--brand), #ff6a3d); color: #fff }
+  .tr-ph-top small { font-size: 10px; font-weight: 700; opacity: .85; text-transform: uppercase; letter-spacing: .08em }
+  .tr-ph-top b { display: block; color: #fff; font-size: 16px; font-weight: 800 }
+  .tr-ph-body { padding: 12px; display: flex; flex-direction: column; gap: 8px }
+  .tr-ph-l { display: flex; gap: 8px; align-items: center; padding: 10px; border-radius: 12px; background: var(--bg-soft); font-size: 12px; font-weight: 700 }
+  .tr-ph-l i { width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; font-size: 11px; flex: none }
+  .tr-flip { perspective: 600px; height: 120px }
+  .tr-flip > div { position: relative; width: 100%; height: 100%; transform-style: preserve-3d; animation: tr-flipping 5s ease-in-out infinite }
+  .tr-flip span { position: absolute; inset: 0; backface-visibility: hidden; border-radius: 12px; display: grid; place-items: center; padding: 12px; text-align: center; font-weight: 800; font-size: 13px; border: 1px solid var(--line); background: #fff }
+  .tr-flip span.back { transform: rotateY(180deg); background: var(--heading); color: #fff }
+  @keyframes tr-flipping { 0%, 40% { transform: none } 50%, 90% { transform: rotateY(180deg) } 100% { transform: rotateY(360deg) } }
+</style>
+</head>
+<body>
+<div id="site-header"></div>
+<main>
+  <section class="page-hero">
+    <div class="container split">
+      <div>
+        <div class="breadcrumb"><a href="~/solutions/">Solutions</a><span>Training</span></div>
+        <div class="eyebrow">Training</div>
+        <h1>Train your people the way you do the work.</h1>
+        <p class="lead">Build courses in Training Studio with lessons, knowledge checks and flashcards. Assign them to everyone, a role, a department or one person, and watch progress as they finish on their phone.</p>
+        <div class="btn-row"><a class="btn btn-primary btn-lg" href="https://app.1m8.ai/portal/signup">Sign up free</a><a class="btn btn-ghost btn-lg" href="~/demo/">Book a demo</a></div>
+      </div>
+      <div class="mock-stage" aria-hidden="true">
+        <div class="mock">
+          <div class="mock-bar"><i></i><i></i><i></i><div class="url">Training Studio · Courses</div></div>
+          <div class="mock-main">
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap" class="fade"><div><div class="mock-title">Shingle install basics</div><div style="color:var(--muted);font-size:11px;font-weight:600">Course · 25 estimated minutes</div></div><span class="mock-chip amber" id="tr-status">Draft</span></div>
+            <div class="tr-grid">
+              <div class="tr-panel">
+                <h5>Lessons in order</h5>
+                <div class="tr-lesson slide-up" style="--d:1"><span class="num">1</span>Safety on the roof<span class="grip" style="margin-left:auto"><i class="fa-solid fa-grip-vertical"></i></span></div>
+                <div class="tr-lesson slide-up" style="--d:2"><span class="num">2</span>Underlayment<span class="grip" style="margin-left:auto"><i class="fa-solid fa-grip-vertical"></i></span></div>
+                <div class="tr-lesson slide-up" style="--d:3"><span class="num">3</span>Nailing pattern<span class="grip" style="margin-left:auto"><i class="fa-solid fa-grip-vertical"></i></span></div>
+                <div class="tr-lesson new pop" style="--d:5"><i class="fa-solid fa-plus"></i> <span class="mock-type" style="--steps:14;--d:6;border-color:var(--brand)">Ridge and hips</span></div>
+              </div>
+              <div class="tr-panel slide-left" style="--d:4">
+                <h5>Knowledge check</h5>
+                <div style="font-size:12px;font-weight:700">How many nails per shingle in high-wind areas?</div>
+                <div class="tr-opt">4</div>
+                <div class="tr-opt ok">6</div>
+                <div class="tr-opt">8</div>
+                <div style="font-size:10px;color:var(--muted);font-weight:700"><i class="fa-solid fa-lock"></i> Must pass to finish lesson</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="mock-float tr-f1"><div style="display:flex;gap:10px;align-items:center"><i class="fa-solid fa-user-group" style="color:var(--brand);font-size:16px"></i><div>Assigned to Installers<div style="font-weight:600;color:var(--muted);font-size:11px">Available immediately</div></div></div></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container">
+      <div class="split" style="margin-bottom:clamp(64px,9vw,120px)">
+        <div class="reveal">
+          <div class="eyebrow">Training Studio</div>
+          <h2>Build a course in an afternoon.</h2>
+          <p class="lead">Each lesson is a set of content pages with headings, text, images, files and callouts. Add a knowledge check with multiple choice or typed answers, and decide whether people must pass to move on.</p>
+          <ul class="feature-list"><li>Content pages, quizzes and flashcard decks</li><li>Unlock lessons in order, on a set date, or by hand</li><li>Course color, icon and estimated minutes</li></ul>
+        </div>
+        <div class="mock" aria-hidden="true">
+          <div class="mock-bar"><i></i><i></i><i></i><div class="url">Training Studio · Course settings</div></div>
+          <div class="mock-main">
+            <div class="mock-title">Progression</div>
+            <div class="mock-row slide-up" style="--d:1"><i class="fa-solid fa-unlock" style="color:var(--ok)"></i><b style="flex:1">Safety on the roof</b><span class="mock-chip green">Available immediately</span></div>
+            <div class="mock-row slide-up" style="--d:2"><i class="fa-solid fa-lock" style="color:var(--muted)"></i><b style="flex:1">Underlayment</b><span class="mock-chip">When previous lesson is done</span></div>
+            <div class="mock-row slide-up" style="--d:3"><i class="fa-solid fa-calendar" style="color:var(--muted)"></i><b style="flex:1">Nailing pattern</b><span class="mock-chip blue">On a set date</span></div>
+            <div class="mock-row slide-up" style="--d:4"><i class="fa-solid fa-hand" style="color:var(--muted)"></i><b style="flex:1">Ridge and hips</b><span class="mock-chip violet">When I unlock it manually</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="split split--flip" style="margin-bottom:clamp(64px,9vw,120px)">
+        <div class="reveal">
+          <div class="eyebrow">Assign and track</div>
+          <h2>See who's done and who's stuck.</h2>
+          <p class="lead">Assign a course to everyone, a role, a department or a specific person. Progress shows per person, so you know who's ready for the job.</p>
+        </div>
+        <div class="mock" aria-hidden="true">
+          <div class="mock-bar"><i></i><i></i><i></i><div class="url">Training Studio · Assignments</div></div>
+          <div class="mock-main">
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap"><div class="mock-title">Shingle install basics</div><span class="mock-chip">Target · Installers</span></div>
+            <div class="tr-people">
+              <div class="tr-person slide-up" style="--d:1"><div class="tr-ring" style="--p:100;--c:var(--ok);--d:1"><svg viewBox="0 0 64 64"><circle class="bg" cx="32" cy="32" r="26" pathLength="100"/><circle class="fg" cx="32" cy="32" r="26" pathLength="100"/></svg><b>100%</b></div>Jordan R.<small>Completed</small></div>
+              <div class="tr-person slide-up" style="--d:2"><div class="tr-ring" style="--p:75;--d:2"><svg viewBox="0 0 64 64"><circle class="bg" cx="32" cy="32" r="26" pathLength="100"/><circle class="fg" cx="32" cy="32" r="26" pathLength="100"/></svg><b>75%</b></div>Maria K.<small>Lesson 4 of 4</small></div>
+              <div class="tr-person slide-up" style="--d:3"><div class="tr-ring" style="--p:50;--d:3"><svg viewBox="0 0 64 64"><circle class="bg" cx="32" cy="32" r="26" pathLength="100"/><circle class="fg" cx="32" cy="32" r="26" pathLength="100"/></svg><b>50%</b></div>Sam T.<small>Lesson 3 of 4</small></div>
+              <div class="tr-person slide-up" style="--d:4"><div class="tr-ring" style="--p:100;--c:var(--ok);--d:4"><svg viewBox="0 0 64 64"><circle class="bg" cx="32" cy="32" r="26" pathLength="100"/><circle class="fg" cx="32" cy="32" r="26" pathLength="100"/></svg><b>100%</b></div>Luis P.<small>Completed</small></div>
+              <div class="tr-person slide-up" style="--d:5"><div class="tr-ring" style="--p:25;--c:var(--warn);--d:5"><svg viewBox="0 0 64 64"><circle class="bg" cx="32" cy="32" r="26" pathLength="100"/><circle class="fg" cx="32" cy="32" r="26" pathLength="100"/></svg><b>25%</b></div>Ava M.<small>Lesson 1 of 4</small></div>
+              <div class="tr-person slide-up" style="--d:6"><div class="tr-ring" style="--p:0;--d:6"><svg viewBox="0 0 64 64"><circle class="bg" cx="32" cy="32" r="26" pathLength="100"/><circle class="fg" cx="32" cy="32" r="26" pathLength="100"/></svg><b>0%</b></div>Chris D.<small>Not completed</small></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="split">
+        <div class="reveal">
+          <div class="eyebrow">On their phone</div>
+          <h2>Five minutes between jobs is enough.</h2>
+          <p class="lead">Your people open Training in the FirstMate app, pick up where they left off, and practice with flashcards and quizzes any time.</p>
+          <a class="link-arrow" href="~/solutions/crew-management/">Explore the field app</a>
+        </div>
+        <div class="tr-phone-wrap" aria-hidden="true">
+          <div class="mock mock-phone" style="border:0;background:#0d0e12">
+            <div class="screen">
+              <div class="tr-ph-top"><small>Your courses</small><b>Shingle install basics</b><div class="mock-progress" style="margin-top:10px;background:rgba(255,255,255,.3)"><i style="--w:75%;background:#fff"></i></div></div>
+              <div class="tr-ph-body">
+                <div class="tr-ph-l slide-up" style="--d:1"><i style="background:#dcfce7;color:#15803d" class="fa-solid fa-check"></i>Safety on the roof</div>
+                <div class="tr-ph-l slide-up" style="--d:2"><i style="background:#dcfce7;color:#15803d" class="fa-solid fa-check"></i>Underlayment</div>
+                <div class="tr-ph-l slide-up" style="--d:3;background:var(--brand-soft);color:var(--brand)"><i style="background:var(--brand);color:#fff" class="fa-solid fa-play"></i>Nailing pattern<span style="margin-left:auto" class="mock-btn">Continue</span></div>
+                <div class="tr-ph-l slide-up" style="--d:4;color:var(--muted)"><i style="background:#e5e7eb;color:#6b7280" class="fa-solid fa-lock"></i>Ridge and hips</div>
+                <div style="font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-top:4px">Your decks</div>
+                <div class="tr-flip fade" style="--d:5"><div><span>Starter strip goes where?</span><span class="back">Along the eaves and rakes</span></div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section section--dark">
+    <div class="container">
+      <div class="section-head center reveal"><div class="eyebrow">Built in</div><h2>More than a slideshow.</h2></div>
+      <div class="grid grid-3">
+        <div class="card reveal"><div class="icon"><i class="fa-solid fa-layer-group"></i></div><h3>Flashcard decks</h3><p>Build decks from a course or on their own, and bulk import cards.</p></div>
+        <div class="card reveal" style="--d:1"><div class="icon"><i class="fa-solid fa-circle-question"></i></div><h3>Practice quizzes</h3><p>Shuffle question order each run so practice stays honest.</p></div>
+        <div class="card reveal" style="--d:2"><div class="icon"><i class="fa-solid fa-eye"></i></div><h3>Preview</h3><p>See exactly what a learner sees before you publish.</p></div>
+        <div class="card reveal"><div class="icon"><i class="fa-solid fa-sitemap"></i></div><h3>Assign by role or department</h3><p>Target everyone, a role, a department or one person.</p></div>
+        <div class="card reveal" style="--d:1"><div class="icon"><i class="fa-solid fa-file-arrow-up"></i></div><h3>Files and images</h3><p>Upload your own spec sheets, photos and manuals.</p></div>
+        <div class="card reveal" style="--d:2"><div class="icon"><i class="fa-solid fa-box-archive"></i></div><h3>Draft, published, archived</h3><p>Work on a course without anyone seeing it until it's ready.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container">
+      <div class="section-head reveal"><div class="eyebrow">Connected</div><h2>Training that fits the rest of the team.</h2></div>
+      <div class="grid grid-4">
+        <a class="card reveal" href="~/solutions/crew-management/"><div class="icon"><i class="fa-solid fa-helmet-safety"></i></div><h3>Crew Management</h3><p>The field app.</p></a>
+        <a class="card reveal" style="--d:1" href="~/solutions/checklists/"><div class="icon"><i class="fa-solid fa-list-check"></i></div><h3>Checklists</h3><p>Standards on every visit.</p></a>
+        <a class="card reveal" style="--d:2" href="~/solutions/channels/"><div class="icon"><i class="fa-solid fa-comments"></i></div><h3>Team Channels</h3><p>Questions answered fast.</p></a>
+        <a class="card reveal" style="--d:3" href="~/solutions/assistant/"><div class="icon"><i class="fa-solid fa-wand-magic-sparkles"></i></div><h3>Assistant</h3><p>Help drafting content.</p></a>
+      </div>
+    </div>
+  </section>
+
+  <section class="section section--soft">
+    <div class="container container--narrow">
+      <div class="section-head center reveal"><h2>Questions</h2></div>
+      <details class="faq"><summary>Who can build courses?</summary><div>Anyone you give access to Training Studio. Placeholder: confirm the permission name.</div></details>
+      <details class="faq"><summary>Can people train on their phone?</summary><div>Yes. Courses, decks and quizzes open in the FirstMate app on iPhone and Android, and on the web.</div></details>
+      <details class="faq"><summary>Can a course unlock over time?</summary><div>Yes. Each lesson can be available immediately, unlock when the previous lesson is done, on a set date, or when you unlock it.</div></details>
+    </div>
+  </section>
+
+  <section class="section"><div class="container"><div class="cta-band">
+    <h2>Put your best practices in everyone's pocket.</h2>
+    <p class="lead" style="color:#c9ccd4">Build your first course today.</p>
+    <div class="btn-row"><a class="btn btn-primary btn-lg" href="https://app.1m8.ai/portal/signup">Sign up free</a><a class="btn btn-glass btn-lg" href="~/demo/">Book a demo</a></div>
+  </div></div></section>
+</main>
+<div id="site-footer"></div>
+<script src="../../assets/site.js"></script>
+<script>
+(function () {
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  var s = document.getElementById('tr-status'), on = false;
+  setTimeout(function () { setInterval(function () { on = !on; s.textContent = on ? 'Published' : 'Draft'; s.className = 'mock-chip ' + (on ? 'green' : 'amber'); }, 3000); }, 2500);
+})();
+</script>
+</body>
+</html>

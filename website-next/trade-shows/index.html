@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Trade Shows — FirstMate</title>
+<meta name="description" content="Meet the FirstMate team at trade shows across the country and book time at our booth.">
+<meta name="robots" content="noindex, nofollow">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,400..900;1,400..900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../assets/site.css">
+<style>
+  .ts-hero-inner { display: grid; grid-template-columns: 1fr 1.25fr; gap: 48px; align-items: center }
+  @media (max-width: 960px) { .ts-hero-inner { grid-template-columns: 1fr } }
+  .ts-map { background: #15171c; border-color: rgba(255,255,255,.08); padding: 18px }
+  .ts-map svg { width: 100%; height: auto; overflow: visible }
+  .ts-land { fill: url(#ts-dots); stroke: rgba(255,255,255,.22); stroke-width: 2 }
+  .ts-route { fill: none; stroke: var(--brand); stroke-width: 2.5; stroke-linecap: round; stroke-dasharray: var(--len, 1000) }
+  .ts-pin { opacity: 0; transform-box: fill-box; transform-origin: 50% 100% }
+  .mock.in .ts-pin { animation: ts-drop .7s var(--ease) forwards; animation-delay: calc(1.2s + var(--d, 0) * 380ms) }
+  @keyframes ts-drop { 0% { opacity: 0; transform: translateY(-30px) scale(.6) } 70% { opacity: 1; transform: translateY(3px) scale(1.05) } 100% { opacity: 1; transform: none } }
+  .ts-pin .head { fill: var(--brand); stroke: #fff; stroke-width: 2 }
+  .ts-pin text { font: 800 13px Montserrat, sans-serif; fill: #fff; text-anchor: middle }
+  .ts-ring { fill: none; stroke: var(--brand); stroke-width: 2; opacity: 0; transform-box: fill-box; transform-origin: center }
+  .mock.in .ts-ring { animation: ts-ring 2.4s ease-out infinite; animation-delay: calc(1.6s + var(--d, 0) * 380ms) }
+  @keyframes ts-ring { 0% { opacity: .9; transform: scale(.4) } 100% { opacity: 0; transform: scale(2.6) } }
+  .ts-truck { position: absolute; left: 18px; bottom: 18px; display: flex; gap: 10px; align-items: center; color: #e5e7eb; font-weight: 700; font-size: 12px; background: #1c1f26; border: 1px solid rgba(255,255,255,.08); border-radius: 12px; padding: 10px 12px }
+  .ts-truck i { color: var(--brand) }
+
+  .ts-list { display: grid; gap: 16px }
+  .ts-show { display: grid; grid-template-columns: 84px 1fr auto; gap: 20px; align-items: center; padding: 20px 24px }
+  .ts-date { text-align: center; border-radius: 14px; background: var(--brand-soft); color: var(--brand); padding: 10px 0; line-height: 1.1 }
+  .ts-date small { display: block; font-size: 12px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase }
+  .ts-date b { display: block; font-size: 26px; font-weight: 900; color: var(--brand) }
+  .ts-show h3 { margin: 0 0 4px }
+  .ts-show .where { color: var(--muted); font-size: 15px; display: flex; gap: 14px; flex-wrap: wrap }
+  .ts-show .num { width: 22px; height: 22px; border-radius: 50%; background: var(--brand); color: #fff; font-size: 11px; font-weight: 800; display: inline-grid; place-items: center; margin-right: 6px; vertical-align: 2px }
+  @media (max-width: 640px) { .ts-show { grid-template-columns: 64px 1fr; padding: 18px } .ts-show .btn { grid-column: 1 / -1 } }
+
+  .ts-form { background: #fff; border-radius: var(--radius-lg); padding: clamp(24px, 4vw, 40px); box-shadow: var(--shadow-lg); color: var(--body) }
+  .ts-form .row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px }
+  @media (max-width: 640px) { .ts-form .row { grid-template-columns: 1fr } }
+  .ts-slots { display: flex; flex-wrap: wrap; gap: 8px }
+  .ts-slots button { appearance: none; border: 1.5px solid var(--line); background: #fff; border-radius: 999px; padding: 8px 14px; font-weight: 700; font-size: 14px; cursor: pointer; color: var(--heading); transition: border-color .2s, background .2s, color .2s }
+  .ts-slots button.on { border-color: var(--brand); background: var(--brand-soft); color: var(--brand) }
+  .ts-note { display: none; margin-top: 14px; padding: 12px 14px; border-radius: 12px; background: #fef3c7; color: #92400e; font-size: 14px; font-weight: 700 }
+  .ts-note.show { display: block }
+</style>
+</head>
+<body data-header="over-dark">
+<div id="site-header"></div>
+<main>
+
+<section class="hero">
+  <div class="hero-glow"></div><div class="hero-grid"></div>
+  <div class="container"><div class="hero-inner ts-hero-inner">
+    <div class="reveal">
+      <div class="breadcrumb"><a href="~/about/" style="color:#8b909c">Company</a><span>Trade Shows</span></div>
+      <div class="eyebrow">Trade shows</div>
+      <h1>Meet us on the road.</h1>
+      <p class="lead">See FirstMate in person, bring your questions and a real job, and get a walkthrough from the team.</p>
+      <div class="btn-row"><a class="btn btn-primary btn-lg" href="#meet">Book a booth meeting</a><a class="btn btn-glass btn-lg" href="#shows">Upcoming shows</a></div>
+    </div>
+    <div class="mock-stage">
+      <div class="mock mock--dark ts-map">
+        <svg viewBox="0 0 960 600" role="img" aria-label="Map of upcoming show locations">
+          <defs><pattern id="ts-dots" width="14" height="14" patternUnits="userSpaceOnUse"><circle cx="7" cy="7" r="2.2" fill="rgba(255,255,255,.16)"/></pattern></defs>
+          <path class="ts-land" d="M120 60 L560 70 L620 110 L700 95 L860 40 L900 70 L850 130 L820 170 L800 230 L780 300 L740 360 L760 420 L790 520 L760 540 L720 450 L660 430 L560 440 L500 480 L460 560 L420 500 L360 450 L300 440 L230 420 L150 390 L110 320 L70 220 L90 130 Z"/>
+          <g class="draw"><path class="ts-route" style="--len:1400" d="M150 300 C 260 220, 330 260, 420 330 S 560 240, 600 210 S 700 320, 740 400 S 800 200, 820 160"/></g>
+          <g class="ts-pin" style="--d:0"><circle class="ts-ring" style="--d:0" cx="150" cy="300" r="14"/><path class="head" d="M150 300 c-14 -18 -20 -26 -20 -36 a20 20 0 0 1 40 0 c0 10 -6 18 -20 36z"/><text x="150" y="269">1</text></g>
+          <g class="ts-pin" style="--d:1"><circle class="ts-ring" style="--d:1" cx="420" cy="330" r="14"/><path class="head" d="M420 330 c-14 -18 -20 -26 -20 -36 a20 20 0 0 1 40 0 c0 10 -6 18 -20 36z"/><text x="420" y="299">2</text></g>
+          <g class="ts-pin" style="--d:2"><circle class="ts-ring" style="--d:2" cx="600" cy="210" r="14"/><path class="head" d="M600 210 c-14 -18 -20 -26 -20 -36 a20 20 0 0 1 40 0 c0 10 -6 18 -20 36z"/><text x="600" y="179">3</text></g>
+          <g class="ts-pin" style="--d:3"><circle class="ts-ring" style="--d:3" cx="740" cy="400" r="14"/><path class="head" d="M740 400 c-14 -18 -20 -26 -20 -36 a20 20 0 0 1 40 0 c0 10 -6 18 -20 36z"/><text x="740" y="369">4</text></g>
+          <g class="ts-pin" style="--d:4"><circle class="ts-ring" style="--d:4" cx="820" cy="160" r="14"/><path class="head" d="M820 160 c-14 -18 -20 -26 -20 -36 a20 20 0 0 1 40 0 c0 10 -6 18 -20 36z"/><text x="820" y="129">5</text></g>
+        </svg>
+        <div class="ts-truck fade" style="--d:4"><i class="fa-solid fa-truck-fast"></i><span id="ts-next">Next stop: Show name 1</span></div>
+      </div>
+    </div>
+  </div></div>
+</section>
+
+<section class="section" id="shows">
+  <div class="container container--narrow">
+    <div class="section-head reveal">
+      <div class="eyebrow">Upcoming shows</div>
+      <h2>Where we'll be.</h2>
+      <p class="lead">Placeholder list. Show names, dates and booth numbers to be confirmed.</p>
+    </div>
+    <div class="ts-list">
+      <div class="card ts-show reveal"><div class="ts-date"><small>Mon</small><b>—</b></div><div><h3><span class="num">1</span>Show name placeholder</h3><div class="where"><span><i class="fa-solid fa-location-dot"></i> City, State</span><span><i class="fa-solid fa-store"></i> Booth —</span></div></div><a class="btn btn-outline btn-sm" href="#meet" data-show="Show name 1">Meet us</a></div>
+      <div class="card ts-show reveal" style="--d:1"><div class="ts-date"><small>Mon</small><b>—</b></div><div><h3><span class="num">2</span>Show name placeholder</h3><div class="where"><span><i class="fa-solid fa-location-dot"></i> City, State</span><span><i class="fa-solid fa-store"></i> Booth —</span></div></div><a class="btn btn-outline btn-sm" href="#meet" data-show="Show name 2">Meet us</a></div>
+      <div class="card ts-show reveal" style="--d:2"><div class="ts-date"><small>Mon</small><b>—</b></div><div><h3><span class="num">3</span>Show name placeholder</h3><div class="where"><span><i class="fa-solid fa-location-dot"></i> City, State</span><span><i class="fa-solid fa-store"></i> Booth —</span></div></div><a class="btn btn-outline btn-sm" href="#meet" data-show="Show name 3">Meet us</a></div>
+      <div class="card ts-show reveal" style="--d:3"><div class="ts-date"><small>Mon</small><b>—</b></div><div><h3><span class="num">4</span>Show name placeholder</h3><div class="where"><span><i class="fa-solid fa-location-dot"></i> City, State</span><span><i class="fa-solid fa-store"></i> Booth —</span></div></div><a class="btn btn-outline btn-sm" href="#meet" data-show="Show name 4">Meet us</a></div>
+      <div class="card ts-show reveal" style="--d:4"><div class="ts-date"><small>Mon</small><b>—</b></div><div><h3><span class="num">5</span>Show name placeholder</h3><div class="where"><span><i class="fa-solid fa-location-dot"></i> City, State</span><span><i class="fa-solid fa-store"></i> Booth —</span></div></div><a class="btn btn-outline btn-sm" href="#meet" data-show="Show name 5">Meet us</a></div>
+    </div>
+  </div>
+</section>
+
+<section class="section section--soft">
+  <div class="container">
+    <div class="section-head center reveal">
+      <div class="eyebrow">At the booth</div>
+      <h2>What you'll see.</h2>
+    </div>
+    <div class="grid grid-3">
+      <div class="card reveal"><div class="icon"><i class="fa-solid fa-ruler-combined"></i></div><h3>A live measurement</h3><p>Order a FirstMeasure report for a real address and watch it become a proposal.</p></div>
+      <div class="card reveal" style="--d:1"><div class="icon"><i class="fa-solid fa-robot"></i></div><h3>The assistant at work</h3><p>Ask the FirstMate assistant to schedule, follow up or draft a document.</p></div>
+      <div class="card reveal" style="--d:2"><div class="icon"><i class="fa-solid fa-mobile-screen"></i></div><h3>The mobile app</h3><p>See what your people see in the field, from the day's jobs to completion photos.</p></div>
+    </div>
+  </div>
+</section>
+
+<section class="section section--dark" id="meet">
+  <div class="container split">
+    <div class="reveal">
+      <div class="eyebrow">Booth meeting</div>
+      <h2>Save a time with the team.</h2>
+      <p class="lead" style="color:#c9ccd4">Pick a show and a time of day, and we'll have someone ready to walk you through FirstMate with your own jobs.</p>
+      <ul class="feature-list"><li>Dedicated time, no waiting</li><li>Bring a job, leave with a proposal</li><li>Ask about pricing and setup</li></ul>
+    </div>
+    <form class="ts-form reveal" style="--d:1" onsubmit="return false">
+      <div class="row">
+        <div class="field"><label for="ts-name">Name</label><input id="ts-name" placeholder="Your name"></div>
+        <div class="field"><label for="ts-company">Company</label><input id="ts-company" placeholder="Company name"></div>
+      </div>
+      <div class="field"><label for="ts-show">Show</label>
+        <select id="ts-show"><option>Show name 1</option><option>Show name 2</option><option>Show name 3</option><option>Show name 4</option><option>Show name 5</option></select>
+      </div>
+      <div class="field"><label>Time of day</label>
+        <div class="ts-slots" id="ts-slots"><button type="button" class="on">Morning</button><button type="button">Midday</button><button type="button">Afternoon</button></div>
+      </div>
+      <button type="button" class="btn btn-primary btn-lg" id="ts-submit" style="width:100%">Request a meeting</button>
+      <div class="ts-note" id="ts-note">Draft page: meeting requests are not sent yet.</div>
+    </form>
+  </div>
+</section>
+
+<section class="section">
+  <div class="container">
+    <div class="cta-band reveal">
+      <h2>Can't make a show?</h2>
+      <p class="lead" style="color:#c9ccd4;max-width:600px;margin:0 auto">Book an online demo, or sign up free and order your first report today.</p>
+      <div class="btn-row"><a class="btn btn-primary btn-lg" href="~/demo/">Book a demo</a><a class="btn btn-glass btn-lg" href="https://app.1m8.ai/portal/signup">Sign up free</a></div>
+    </div>
+  </div>
+</section>
+
+</main>
+<div id="site-footer"></div>
+<script src="../assets/site.js"></script>
+<script>
+(function () {
+  var slots = document.querySelectorAll('#ts-slots button');
+  slots.forEach(function (b) { b.addEventListener('click', function () { slots.forEach(function (x) { x.classList.toggle('on', x === b); }); }); });
+  document.getElementById('ts-submit').addEventListener('click', function () { document.getElementById('ts-note').classList.add('show'); });
+  document.querySelectorAll('[data-show]').forEach(function (a) {
+    a.addEventListener('click', function () { document.getElementById('ts-show').value = a.getAttribute('data-show'); });
+  });
+  // Cycle the "next stop" label unless reduced motion is requested
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  var el = document.getElementById('ts-next'), i = 0;
+  setInterval(function () { i = (i + 1) % 5; el.textContent = 'Next stop: Show name ' + (i + 1); }, 2600);
+})();
+</script>
+</body>
+</html>

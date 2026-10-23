@@ -1,0 +1,405 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pricing — FirstMate</title>
+<meta name="description" content="Plans for every size of contractor, plus pay-per-report measurements.">
+<meta name="robots" content="noindex, nofollow">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,400..900;1,400..900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../assets/site.css">
+<style>
+  /* DRAFT: every platform price, plan name and plan/feature split on this page is a placeholder. */
+  .pr-hero { text-align: center }
+  .pr-hero .lead { margin: 0 auto }
+  .pr-hero .eyebrow { justify-content: center }
+  .pr-toggle { display: inline-flex; align-items: center; gap: 4px; padding: 5px; border-radius: 999px; background: var(--bg-soft); border: 1px solid var(--line); margin-top: 28px; position: relative }
+  .pr-toggle button { appearance: none; border: 0; background: none; cursor: pointer; font-weight: 700; font-size: 15px; padding: 10px 22px; border-radius: 999px; color: var(--muted); position: relative; z-index: 1; transition: color .25s; display: inline-flex; gap: 8px; align-items: center }
+  .pr-toggle button[aria-pressed="true"] { color: #fff }
+  .pr-toggle .pr-knob { position: absolute; top: 5px; bottom: 5px; left: 5px; border-radius: 999px; background: var(--brand); box-shadow: 0 8px 20px rgba(219, 0, 0, .3); transition: transform .35s var(--ease), width .35s var(--ease) }
+  .pr-save { font-size: 11px; font-weight: 800; padding: 2px 8px; border-radius: 999px; background: #dcfce7; color: #15803d }
+  .pr-ph { display: inline-block; font-size: 10px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; padding: 2px 7px; border-radius: 999px; background: #fef3c7; color: #92400e; vertical-align: middle }
+
+  .pr-plans { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 20px; align-items: stretch; margin-top: 56px; text-align: left }
+  .pr-plan { position: relative; background: #fff; border: 1px solid var(--line); border-radius: var(--radius-lg); padding: 28px 24px; display: flex; flex-direction: column; transition: transform .3s var(--ease), box-shadow .3s var(--ease) }
+  .pr-plan:hover { transform: translateY(-4px); box-shadow: var(--shadow) }
+  .pr-plan h3 { margin-bottom: 4px }
+  .pr-plan .pr-for { font-size: 14px; color: var(--muted); min-height: 44px; margin-bottom: 18px }
+  .pr-price { display: flex; align-items: baseline; gap: 6px; margin-bottom: 4px }
+  .pr-price b { font-size: 44px; font-weight: 900; letter-spacing: -.04em; color: var(--heading); line-height: 1 }
+  .pr-price span { font-size: 14px; color: var(--muted); font-weight: 600 }
+  .pr-billed { font-size: 13px; color: var(--muted); min-height: 20px; margin-bottom: 20px }
+  .pr-plan .btn { width: 100%; margin-bottom: 22px }
+  .pr-plan .feature-list li { font-size: 14px; margin: 9px 0; font-weight: 600 }
+  .pr-plan .pr-inc { font-size: 12px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 0 0 4px }
+  .pr-plan--hot { background: var(--bg-dark); border-color: var(--bg-dark); color: #c9ccd4; box-shadow: var(--shadow-lg); transform: translateY(-12px) }
+  .pr-plan--hot:hover { transform: translateY(-16px) }
+  .pr-plan--hot h3, .pr-plan--hot .pr-price b, .pr-plan--hot .feature-list li { color: #fff }
+  .pr-plan--hot .pr-for, .pr-plan--hot .pr-billed, .pr-plan--hot .pr-price span, .pr-plan--hot .pr-inc { color: #8b909c }
+  .pr-plan--hot .feature-list li::before { background-color: rgba(219, 0, 0, .25) }
+  .pr-plan--hot::before { content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; background: radial-gradient(70% 50% at 100% 0%, rgba(219, 0, 0, .35), transparent 70%) }
+  .pr-plan--hot > * { position: relative }
+  .pr-badge { position: absolute; top: -13px; left: 24px; background: var(--brand); color: #fff; font-size: 12px; font-weight: 800; letter-spacing: .04em; padding: 5px 12px; border-radius: 999px; z-index: 2 }
+  .pr-amt { display: inline-block; transition: transform .3s var(--ease), opacity .3s }
+  .pr-amt.flip { transform: translateY(-8px); opacity: 0 }
+  .pr-note { margin-top: 28px; font-size: 13px; color: var(--muted); text-align: center }
+  @media (max-width: 1080px) { .pr-plans { grid-template-columns: repeat(2, minmax(0, 1fr)) } .pr-plan--hot { transform: none } .pr-plan--hot:hover { transform: translateY(-4px) } }
+  @media (max-width: 640px) { .pr-plans { grid-template-columns: 1fr } .pr-toggle button { padding: 10px 16px } }
+
+  /* Measurement reports */
+  .pr-reports { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 20px }
+  .pr-report { border-radius: var(--radius); padding: 24px; background: var(--bg-dark-2); border: 1px solid rgba(255, 255, 255, .08); display: flex; flex-direction: column; gap: 10px }
+  .pr-report .icon { width: 44px; height: 44px; border-radius: 12px; display: grid; place-items: center; background: rgba(219, 0, 0, .18); color: #ff6b6b; font-size: 18px }
+  .pr-report h4 { color: #fff; margin: 4px 0 0 }
+  .pr-report p { font-size: 14px; margin: 0; color: #8b909c }
+  .pr-report .pr-from { font-size: 13px; color: #8b909c; font-weight: 600; margin-top: auto }
+  .pr-report .pr-from b { font-size: 30px; font-weight: 900; color: #fff; letter-spacing: -.03em; margin-right: 4px }
+  .pr-report-mock { margin-top: 48px }
+  .pr-rush { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px }
+  .pr-rush .mock-kpi { background: #1c1f26; border-color: rgba(255, 255, 255, .06) }
+  .pr-rush .mock-kpi b { color: #fff }
+  @media (max-width: 960px) { .pr-reports { grid-template-columns: repeat(2, minmax(0, 1fr)) } }
+  @media (max-width: 640px) { .pr-reports, .pr-rush { grid-template-columns: 1fr } }
+
+  /* Comparison table */
+  .pr-table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; border: 1px solid var(--line); border-radius: var(--radius-lg); background: #fff }
+  .pr-table { width: 100%; min-width: 720px; border-collapse: collapse; font-size: 15px }
+  .pr-table thead th { position: sticky; top: 0; background: #fff; z-index: 2; padding: 20px 16px; text-align: center; font-weight: 800; color: var(--heading); border-bottom: 1px solid var(--line); font-size: 16px }
+  .pr-table thead th:first-child { text-align: left; width: 34% }
+  .pr-table thead th.hot { color: var(--brand) }
+  .pr-table thead small { display: block; font-size: 12px; color: var(--muted); font-weight: 600 }
+  .pr-table td { padding: 13px 16px; border-bottom: 1px solid var(--line-soft); text-align: center; color: var(--body) }
+  .pr-table td:first-child { text-align: left; font-weight: 600; color: var(--heading) }
+  .pr-table td.hot, .pr-table th.hot { background: #fff8f8 }
+  .pr-group th { padding: 0; text-align: left; background: var(--bg-soft); border-bottom: 1px solid var(--line) }
+  .pr-group button { appearance: none; border: 0; background: none; width: 100%; text-align: left; cursor: pointer; padding: 16px; font-weight: 800; font-size: 15px; color: var(--heading); display: flex; align-items: center; gap: 10px }
+  .pr-group button i { color: var(--brand); width: 18px; text-align: center }
+  .pr-group button::after { content: ""; margin-left: auto; width: 8px; height: 8px; border-right: 2px solid var(--muted); border-bottom: 2px solid var(--muted); transform: rotate(45deg); transition: transform .25s }
+  .pr-group button[aria-expanded="false"]::after { transform: rotate(-45deg) }
+  tbody.pr-collapsed tr:not(.pr-group) { display: none }
+  .pr-yes { color: var(--ok); font-size: 16px } .pr-no { color: #c4c8cf } .pr-txt { font-size: 13px; font-weight: 700; color: var(--heading) }
+  .pr-table-actions { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 16px }
+
+  /* Add-ons */
+  .pr-addon { display: flex; gap: 16px; align-items: flex-start }
+  .pr-addon .icon { flex: none; margin: 0 }
+  .pr-addon .pr-addon-price { margin-top: 10px; font-size: 14px; font-weight: 800; color: var(--heading) }
+  .pr-addon .pr-addon-price span { color: var(--muted); font-weight: 600 }
+</style>
+</head>
+<body>
+<div id="site-header"></div>
+<main>
+  <!-- DRAFT: platform plan names, prices, discounts and which features sit in which plan are all placeholders to be decided. -->
+  <section class="page-hero pr-hero">
+    <div class="container">
+      <div class="eyebrow">Pricing</div>
+      <h1>Simple plans.<br><span class="text-gradient">Every tool included.</span></h1>
+      <p class="lead">Pick the plan that fits your team today. Measurement reports are pay-per-report on any plan, so you only pay for what you order.</p>
+      <div class="pr-toggle" role="group" aria-label="Billing period">
+        <span class="pr-knob" aria-hidden="true"></span>
+        <button type="button" data-period="monthly" aria-pressed="false">Monthly</button>
+        <button type="button" data-period="annual" aria-pressed="true">Annual <span class="pr-save">Save —%</span></button>
+      </div>
+
+      <div class="pr-plans">
+        <article class="pr-plan reveal" style="--d:0">
+          <h3>Starter <span class="pr-ph">Placeholder</span></h3>
+          <p class="pr-for">For one person measuring and quoting jobs.</p>
+          <div class="pr-price"><b class="pr-amt" data-monthly="$—" data-annual="$—">$—</b><span>/ user / mo</span></div>
+          <div class="pr-billed" data-monthly="Billed monthly" data-annual="Billed annually">Billed annually</div>
+          <a class="btn btn-ghost" href="https://app.1m8.ai/portal/signup">Sign up free</a>
+          <p class="pr-inc">Includes</p>
+          <ul class="feature-list">
+            <li>Measurement reports, pay per report</li>
+            <li>Photos and project feed</li>
+            <li>CRM and lead tracking</li>
+            <li>The FirstMate app for iPhone and Android</li>
+          </ul>
+        </article>
+        <article class="pr-plan reveal" style="--d:1">
+          <h3>Pro <span class="pr-ph">Placeholder</span></h3>
+          <p class="pr-for">For small teams selling and building every week.</p>
+          <div class="pr-price"><b class="pr-amt" data-monthly="$—" data-annual="$—">$—</b><span>/ user / mo</span></div>
+          <div class="pr-billed" data-monthly="Billed monthly" data-annual="Billed annually">Billed annually</div>
+          <a class="btn btn-outline" href="https://app.1m8.ai/portal/signup">Sign up free</a>
+          <p class="pr-inc">Everything in Starter, plus</p>
+          <ul class="feature-list">
+            <li>Proposals and e-signature</li>
+            <li>Document Studio</li>
+            <li>Scheduling</li>
+            <li>Calls, texts and inbox</li>
+          </ul>
+        </article>
+        <article class="pr-plan pr-plan--hot reveal" style="--d:2">
+          <span class="pr-badge">Most popular</span>
+          <h3>Business <span class="pr-ph">Placeholder</span></h3>
+          <p class="pr-for">For growing companies running sales and production together.</p>
+          <div class="pr-price"><b class="pr-amt" data-monthly="$—" data-annual="$—">$—</b><span>/ user / mo</span></div>
+          <div class="pr-billed" data-monthly="Billed monthly" data-annual="Billed annually">Billed annually</div>
+          <a class="btn btn-primary" href="https://app.1m8.ai/portal/signup">Sign up free</a>
+          <p class="pr-inc">Everything in Pro, plus</p>
+          <ul class="feature-list">
+            <li>Material management and work orders</li>
+            <li>Payments and invoicing</li>
+            <li>Payroll and commissions</li>
+            <li>Automations and the FirstMate Assistant</li>
+          </ul>
+        </article>
+        <article class="pr-plan reveal" style="--d:3">
+          <h3>Enterprise</h3>
+          <p class="pr-for">For multi-branch companies and franchise networks.</p>
+          <div class="pr-price"><b>Custom</b></div>
+          <div class="pr-billed">Talk to us about your setup</div>
+          <a class="btn btn-ghost" href="~/demo/">Book a demo</a>
+          <p class="pr-inc">Everything in Business, plus</p>
+          <ul class="feature-list">
+            <li>Multiple branches and regions</li>
+            <li>Partners and subcontractors</li>
+            <li>Custom roles and permissions</li>
+            <li>Dedicated onboarding</li>
+          </ul>
+        </article>
+      </div>
+      <p class="pr-note">Draft: plan names, prices and the features in each plan are placeholders until pricing is set.</p>
+    </div>
+  </section>
+
+  <section class="section section--dark">
+    <div class="container">
+      <div class="split">
+        <div>
+          <div class="eyebrow">FirstMeasure reports</div>
+          <h2>Measurement reports, priced per report.</h2>
+          <p class="lead" style="color:#c9ccd4">Order from the portal or the app on any plan. Reports land on the project, ready to turn into materials, labor and a proposal.</p>
+          <ul class="feature-list">
+            <li>No subscription needed to order reports</li>
+            <li>Standard and rush delivery windows</li>
+            <li>Every report feeds the material order and work order</li>
+          </ul>
+        </div>
+        <div class="mock mock--dark pr-report-mock" aria-hidden="true">
+          <div class="mock-bar"><i></i><i></i><i></i><span class="url" style="background:#15171c;border-color:rgba(255,255,255,.08)">app.1m8.ai/portal/measure</span></div>
+          <div class="mock-main">
+            <div class="mock-title slide-up" style="--d:0">Order a report</div>
+            <div class="mock-row slide-up" style="--d:1"><span class="mock-chip red">Roof</span><span style="flex:1;font-weight:700">1482 Orchard Ln</span><span class="mock-chip">Residential</span></div>
+            <div class="mock-row slide-up" style="--d:2"><span class="mock-chip violet">Full Exterior</span><span style="flex:1;font-weight:700">77 Birch Ct</span><span class="mock-chip">Residential</span></div>
+            <div class="pr-rush">
+              <div class="mock-kpi pop" style="--d:3"><small>Standard</small><b>$—</b></div>
+              <div class="mock-kpi pop" style="--d:4"><small>Rush</small><b>$—</b></div>
+              <div class="mock-kpi pop" style="--d:5"><small>Under 1 hour</small><b>$—</b></div>
+            </div>
+            <div class="mock-progress"><i style="--w:72%;--d:6"></i></div>
+            <div style="display:flex;justify-content:space-between;align-items:center;--d:7" class="fade"><span style="color:#8b909c;font-weight:600">Estimated delivery</span><span class="mock-btn">Place order</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="pr-reports" style="margin-top:64px">
+        <div class="pr-report reveal" style="--d:0">
+          <span class="icon"><i class="fa-solid fa-house-chimney"></i></span>
+          <h4>Residential roof</h4>
+          <p>Pitch, facets, waste and roof diagrams.</p>
+          <!-- "From $7": quoted from the current sales email template (public/measure/internal/portal_scripts/lead_viewer.js). Confirm before launch; report fees are configurable in Prices. -->
+          <div class="pr-from"><b>$7</b>starting price <span class="pr-ph">Confirm</span></div>
+        </div>
+        <div class="pr-report reveal" style="--d:1">
+          <span class="icon"><i class="fa-solid fa-building"></i></span>
+          <h4>Commercial roof</h4>
+          <p>Large and complex roofs, per structure.</p>
+          <!-- "From $12": same source as above. Confirm before launch. -->
+          <div class="pr-from"><b>$12</b>starting price <span class="pr-ph">Confirm</span></div>
+        </div>
+        <div class="pr-report reveal" style="--d:2">
+          <span class="icon"><i class="fa-solid fa-ruler-combined"></i></span>
+          <h4>Full Exterior</h4>
+          <p>Roof, siding, gutters and openings.</p>
+          <div class="pr-from"><b>$—</b>per report <span class="pr-ph">Placeholder</span></div>
+        </div>
+        <div class="pr-report reveal" style="--d:3">
+          <span class="icon"><i class="fa-solid fa-city"></i></span>
+          <h4>Full House</h4>
+          <p>Every structure on the property in one order.</p>
+          <div class="pr-from"><b>$—</b>per report <span class="pr-ph">Placeholder</span></div>
+        </div>
+      </div>
+      <p class="pr-note" style="color:#8b909c">Rush fees and volume pricing: $— (placeholder).</p>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container">
+      <div class="section-head center">
+        <div class="eyebrow">Compare plans</div>
+        <h2>Every feature, side by side.</h2>
+        <p class="lead">Draft: the split of features across plans is a placeholder.</p>
+      </div>
+      <div class="pr-table-actions">
+        <span class="muted" style="font-size:14px;font-weight:600">Click a group to collapse it.</span>
+        <button type="button" class="btn btn-ghost btn-sm" id="pr-toggle-all">Collapse all</button>
+      </div>
+      <div class="pr-table-wrap">
+        <table class="pr-table" id="pr-table">
+          <thead>
+            <tr>
+              <th scope="col">Features</th>
+              <th scope="col">Starter<small>$— / user / mo</small></th>
+              <th scope="col">Pro<small>$— / user / mo</small></th>
+              <th scope="col" class="hot">Business<small>$— / user / mo</small></th>
+              <th scope="col">Enterprise<small>Custom</small></th>
+            </tr>
+          </thead>
+          <!-- Groups are rendered from the data below by the page script. -->
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <section class="section section--soft">
+    <div class="container">
+      <div class="section-head center">
+        <div class="eyebrow">Add-ons</div>
+        <h2>Add what your business needs.</h2>
+      </div>
+      <div class="grid grid-3">
+        <div class="card pr-addon reveal" style="--d:0"><span class="icon"><i class="fa-solid fa-credit-card"></i></span><div><h4>Payments</h4><p>Card and bank payments in person or online.</p><div class="pr-addon-price">$— <span>processing per transaction</span></div></div></div>
+        <div class="card pr-addon reveal" style="--d:1"><span class="icon"><i class="fa-solid fa-phone"></i></span><div><h4>Phone numbers</h4><p>Calls and texts from business numbers, logged on the project.</p><div class="pr-addon-price">$— <span>/ number / mo</span></div></div></div>
+        <div class="card pr-addon reveal" style="--d:2"><span class="icon"><i class="fa-solid fa-globe"></i></span><div><h4>Website builder</h4><p>Your company site with forms and online booking.</p><div class="pr-addon-price">$— <span>/ mo</span></div></div></div>
+        <div class="card pr-addon reveal" style="--d:3"><span class="icon"><i class="fa-solid fa-user-plus"></i></span><div><h4>Field users</h4><p>App access for assignees who only need their day and their jobs.</p><div class="pr-addon-price">$— <span>/ user / mo</span></div></div></div>
+        <div class="card pr-addon reveal" style="--d:4"><span class="icon"><i class="fa-solid fa-wand-magic-sparkles"></i></span><div><h4>Assistant usage</h4><p>More FirstMate Assistant capacity for heavy users.</p><div class="pr-addon-price">$— <span>/ mo</span></div></div></div>
+        <div class="card pr-addon reveal" style="--d:5"><span class="icon"><i class="fa-solid fa-chalkboard-user"></i></span><div><h4>Onboarding</h4><p>Setup of your templates, price book and team with our staff.</p><div class="pr-addon-price">$— <span>one time</span></div></div></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container container--narrow">
+      <div class="section-head center">
+        <div class="eyebrow">FAQ</div>
+        <h2>Pricing questions</h2>
+      </div>
+      <details class="faq"><summary>Do I need a plan to order measurement reports?</summary><div>Placeholder answer: reports are priced per report and can be ordered on any plan.</div></details>
+      <details class="faq"><summary>Can I switch plans later?</summary><div>Placeholder answer about upgrading, downgrading and proration.</div></details>
+      <details class="faq"><summary>How does annual billing work?</summary><div>Placeholder answer about the annual discount and renewal.</div></details>
+      <details class="faq"><summary>Who counts as a user?</summary><div>Placeholder answer about office users, field users and outside companies you share work with.</div></details>
+      <details class="faq"><summary>Is there a free trial?</summary><div>Placeholder answer about signing up free and what is included.</div></details>
+    </div>
+  </section>
+
+  <section class="section section--tight">
+    <div class="container">
+      <div class="cta-band">
+        <h2>Not sure which plan fits?</h2>
+        <p class="lead" style="color:#c9ccd4;max-width:620px;margin:0 auto">We will walk your team through FirstMate and help you pick.</p>
+        <div class="btn-row"><a class="btn btn-primary btn-lg" href="https://app.1m8.ai/portal/signup">Sign up free</a><a class="btn btn-glass btn-lg" href="~/demo/">Book a demo</a></div>
+      </div>
+    </div>
+  </section>
+</main>
+<div id="site-footer"></div>
+<script src="../assets/site.js"></script>
+<script>
+(function () {
+  // Billing toggle
+  var toggle = document.querySelector('.pr-toggle');
+  var knob = toggle.querySelector('.pr-knob');
+  var buttons = toggle.querySelectorAll('button');
+  function setPeriod(period) {
+    buttons.forEach(function (b) {
+      var on = b.getAttribute('data-period') === period;
+      b.setAttribute('aria-pressed', String(on));
+      if (on) { knob.style.width = b.offsetWidth + 'px'; knob.style.transform = 'translateX(' + (b.offsetLeft - 5) + 'px)'; }
+    });
+    document.querySelectorAll('[data-' + period + ']').forEach(function (el) {
+      var next = el.getAttribute('data-' + period);
+      if (el.classList.contains('pr-amt')) {
+        el.classList.add('flip');
+        setTimeout(function () { el.textContent = next; el.classList.remove('flip'); }, 180);
+      } else el.textContent = next;
+    });
+    try { localStorage.setItem('fm-pricing-period', period); } catch (e) {}
+  }
+  buttons.forEach(function (b) { b.addEventListener('click', function () { setPeriod(b.getAttribute('data-period')); }); });
+  var saved = 'annual';
+  try { saved = localStorage.getItem('fm-pricing-period') || 'annual'; } catch (e) {}
+  setPeriod(saved);
+  window.addEventListener('resize', function () { var on = toggle.querySelector('[aria-pressed="true"]'); if (on) setPeriod(on.getAttribute('data-period')); });
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(function () { var on = toggle.querySelector('[aria-pressed="true"]'); if (on) setPeriod(on.getAttribute('data-period')); });
+
+  // Comparison table. Values: 1 = included, 0 = not included, string = note. DRAFT placement.
+  var GROUPS = [
+    ['Measure & document', 'fa-ruler-combined', [
+      ['Roof measurement reports', 'Per report', 'Per report', 'Per report', 'Per report'],
+      ['Full Exterior and Full House reports', 'Per report', 'Per report', 'Per report', 'Per report'],
+      ['Photos and project feed', 1, 1, 1, 1],
+      ['Checklists', 0, 1, 1, 1]
+    ]],
+    ['Win the work', 'fa-filter', [
+      ['CRM and lead tracking', 1, 1, 1, 1],
+      ['Proposals and e-signature', 0, 1, 1, 1],
+      ['Document Studio', 0, 1, 1, 1],
+      ['Calls, texts and inbox', 0, 1, 1, 1],
+      ['Forms and online booking', 0, 0, 1, 1],
+      ['Canvassing', 0, 0, 1, 1],
+      ['Reviews and feedback', 0, 0, 1, 1]
+    ]],
+    ['Run the job', 'fa-clipboard-list', [
+      ['Scheduling', 0, 1, 1, 1],
+      ['Material management', 0, 0, 1, 1],
+      ['Work orders and job tracking', 0, 0, 1, 1],
+      ['Customer portal', 0, 0, 1, 1],
+      ['Team channels', 1, 1, 1, 1],
+      ['Equipment', 0, 0, 1, 1],
+      ['Partners and subcontractors', 0, 0, 0, 1],
+      ['Training', 0, 0, 0, 1]
+    ]],
+    ['Get paid', 'fa-credit-card', [
+      ['Payments', 'Add-on', 'Add-on', 'Add-on', 'Add-on'],
+      ['Invoicing', 0, 1, 1, 1],
+      ['Payroll and commissions', 0, 0, 1, 1],
+      ['Job costing and financials', 0, 0, 1, 1],
+      ['Reports and stats', 0, 1, 1, 1]
+    ]],
+    ['AI & automation', 'fa-wand-magic-sparkles', [
+      ['FirstMate Assistant', 0, 0, 1, 1],
+      ['Automations', 0, 0, 1, 1],
+      ['Integrations', 0, 1, 1, 1]
+    ]],
+    ['Company & support', 'fa-building', [
+      ['Users', '—', '—', '—', 'Custom'],
+      ['Multiple branches and regions', 0, 0, 0, 1],
+      ['Roles and permissions', 1, 1, 1, 'Custom'],
+      ['Support', 'Email', 'Email and chat', 'Priority', 'Dedicated']
+    ]]
+  ];
+  var table = document.getElementById('pr-table');
+  function cell(v, i) {
+    var cls = i === 3 ? ' class="hot"' : '';
+    if (v === 1) return '<td' + cls + '><i class="fa-solid fa-circle-check pr-yes" aria-label="Included"></i></td>';
+    if (v === 0) return '<td' + cls + '><i class="fa-solid fa-minus pr-no" aria-label="Not included"></i></td>';
+    return '<td' + cls + '><span class="pr-txt">' + v + '</span></td>';
+  }
+  GROUPS.forEach(function (g, gi) {
+    var tb = document.createElement('tbody');
+    tb.innerHTML = '<tr class="pr-group"><th colspan="5" scope="rowgroup"><button type="button" aria-expanded="true"><i class="fa-solid ' + g[1] + '"></i>' + g[0] + '</button></th></tr>' +
+      g[2].map(function (r) { return '<tr><td>' + r[0] + '</td>' + r.slice(1).map(function (v, i) { return cell(v, i + 1); }).join('') + '</tr>'; }).join('');
+    table.appendChild(tb);
+    var btn = tb.querySelector('button');
+    btn.addEventListener('click', function () {
+      var collapsed = tb.classList.toggle('pr-collapsed');
+      btn.setAttribute('aria-expanded', String(!collapsed));
+      syncAll();
+    });
+  });
+  var all = document.getElementById('pr-toggle-all');
+  function syncAll() { var anyOpen = table.querySelector('tbody:not(.pr-collapsed)'); all.textContent = anyOpen ? 'Collapse all' : 'Expand all'; }
+  all.addEventListener('click', function () {
+    var collapse = !!table.querySelector('tbody:not(.pr-collapsed)');
+    table.querySelectorAll('tbody').forEach(function (tb) { tb.classList.toggle('pr-collapsed', collapse); tb.querySelector('button').setAttribute('aria-expanded', String(!collapse)); });
+    syncAll();
+  });
+})();
+</script>
+</body>
+</html>

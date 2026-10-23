@@ -1,0 +1,234 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Work Orders &amp; Job Tracking — FirstMate</title>
+<meta name="description" content="The signed scope becomes the work order. Track labor lists, progress, completion and closeout, with a full change history on every project.">
+<meta name="robots" content="noindex, nofollow">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,400..900;1,400..900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/site.css">
+<style>
+  .wo-scene { position: relative }
+  .wo-scene > .mock { margin: 10px 16px 30px 0 }
+  .wo-steps { position: relative; display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 4px; padding: 6px 0 4px }
+  .wo-steps::before { content: ""; position: absolute; left: 8%; right: 8%; top: 20px; height: 3px; background: var(--line); border-radius: 2px }
+  .wo-fill { position: absolute; left: 8%; top: 20px; height: 3px; width: 0; max-width: 84%; background: var(--brand); border-radius: 2px; transition: width .8s var(--ease) }
+  .wo-step { position: relative; display: flex; flex-direction: column; align-items: center; gap: 6px; text-align: center; font-size: 9.5px; font-weight: 700; color: var(--muted); min-width: 0 }
+  .wo-step .dot { width: 30px; height: 30px; border-radius: 50%; background: #fff; border: 2px solid var(--line); display: grid; place-items: center; font-size: 11px; color: var(--muted); transition: all .4s var(--ease); z-index: 1 }
+  .wo-step.done .dot { background: var(--brand); border-color: var(--brand); color: #fff }
+  .wo-step.now .dot { border-color: var(--brand); color: var(--brand); box-shadow: 0 0 0 5px rgba(219, 0, 0, .12); transform: scale(1.1) }
+  .wo-step.done, .wo-step.now { color: var(--heading) }
+  .wo-status { display: flex; align-items: center; gap: 10px; padding: 12px; border-radius: 12px; background: var(--bg-soft) }
+  .wo-status b { font-size: 15px; font-weight: 800; flex: 1 }
+  .wo-status .mock-chip { transition: all .3s }
+  .wo-feed { display: flex; flex-direction: column; gap: 6px; min-height: 148px }
+  .wo-feed .mock-row { padding: 8px 10px; font-size: 11px; animation: fm-slide-up .5s var(--ease) both }
+  .wo-feed .mock-row b { flex: 1; font-weight: 700 }
+  .wo-feed .src { font-size: 9.5px; font-weight: 800; text-transform: uppercase; letter-spacing: .06em; color: var(--muted) }
+  .wo-pay { right: -8px; top: -6px; width: 200px; opacity: 0 }
+  .mock.in ~ .wo-pay { animation: fm-pop .6s var(--ease) 1.4s forwards, fm-float 6s ease-in-out 2.2s infinite }
+  /* Labor list mock */
+  .wo-lines .mock-row { font-size: 11.5px }
+  .wo-lines .mock-row b { flex: 1 }
+  .wo-lines .amt { font-weight: 800; font-variant-numeric: tabular-nums; width: 52px; text-align: right }
+  .wo-check { width: 18px; height: 18px; border-radius: 5px; border: 2px solid var(--line); display: grid; place-items: center; font-size: 10px; color: transparent; flex: none }
+  .mock.in .wo-check.tick { animation: wo-tick .4s var(--ease) forwards; animation-delay: calc(var(--d, 0) * 300ms + 600ms) }
+  @keyframes wo-tick { to { background: var(--ok); border-color: var(--ok); color: #fff } }
+  .wo-locked { opacity: .55 }
+  /* Closeout steps */
+  .wo-close { display: flex; flex-direction: column; gap: 6px }
+  .wo-close .mock-row { font-size: 11.5px; padding: 8px 10px }
+  .wo-close .mock-row span.l { font-weight: 800; color: var(--muted); width: 14px }
+  .wo-close .mock-row b { flex: 1 }
+  @media (max-width: 560px) {
+    .wo-steps { grid-template-columns: repeat(3, minmax(0, 1fr)); row-gap: 12px } .wo-steps::before, .wo-fill { display: none }
+    .wo-scene > .mock { margin-right: 0 } .wo-pay { display: none }
+  }
+</style>
+</head>
+<body>
+<div id="site-header"></div>
+<main>
+  <section class="page-hero">
+    <div class="container split">
+      <div>
+        <div class="breadcrumb"><a href="~/solutions/">Solutions</a><span>Work Orders &amp; Job Tracking</span></div>
+        <div class="eyebrow">Work Orders &amp; Job Tracking</div>
+        <h1>From signed to finished, without the guesswork.</h1>
+        <p class="lead">The scope the homeowner signs becomes the work order. Track every labor list as it is scheduled, done and paid out, then close the project with nothing left hanging.</p>
+        <div class="btn-row"><a class="btn btn-primary btn-lg" href="https://app.1m8.ai/portal/signup">Sign up free</a><a class="btn btn-ghost btn-lg" href="~/demo/">Book a demo</a></div>
+      </div>
+      <div class="wo-scene" aria-hidden="true">
+        <div class="mock" id="wo-hero">
+          <div class="mock-bar"><i></i><i></i><i></i><div class="url">Project · Martin · 1482 Ridgeview Dr</div></div>
+          <div class="mock-main">
+            <div class="wo-steps" id="wo-steps">
+              <div class="wo-fill" id="wo-fill"></div>
+              <div class="wo-step"><span class="dot"><i class="fa-solid fa-file-signature"></i></span>Signed</div>
+              <div class="wo-step"><span class="dot"><i class="fa-solid fa-clipboard-list"></i></span>Work order</div>
+              <div class="wo-step"><span class="dot"><i class="fa-solid fa-calendar-days"></i></span>Scheduled</div>
+              <div class="wo-step"><span class="dot"><i class="fa-solid fa-person-digging"></i></span>In progress</div>
+              <div class="wo-step"><span class="dot"><i class="fa-solid fa-lock"></i></span>To be paid</div>
+              <div class="wo-step"><span class="dot"><i class="fa-solid fa-flag-checkered"></i></span>Closed out</div>
+            </div>
+            <div class="wo-status"><b id="wo-label">Proposal signed</b><span class="mock-chip" id="wo-chip">Today</span></div>
+            <div class="wo-feed" id="wo-feed"></div>
+          </div>
+        </div>
+        <div class="mock-float wo-pay"><div class="mock-toast">Work order finalized · North team</div></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container" style="display:flex;flex-direction:column;gap:clamp(64px,8vw,110px)">
+      <div class="split">
+        <div class="reveal">
+          <div class="eyebrow">The work order</div>
+          <h2>The signed scope is the work order.</h2>
+          <p class="lead">No re-typing. When a proposal is signed, its scope becomes the project's material list and a labor list for each assignee doing the work, priced from their own pay sheet.</p>
+          <ul class="feature-list"><li>A labor list per assignee, side by side with equipment</li><li>Lines priced from each party's pay sheet</li><li>Requirements tray shows anything not yet covered</li></ul>
+        </div>
+        <div class="mock reveal" aria-hidden="true">
+          <div class="mock-bar"><i></i><i></i><i></i><div class="url">Project · Work order</div></div>
+          <div class="mock-main wo-lines">
+            <div style="display:flex;align-items:center;gap:8px"><div class="mock-title" style="flex:1">North team</div><span class="mock-chip blue">Scheduled</span></div>
+            <div class="mock-row slide-up" style="--d:1"><span class="wo-check"></span><b>Tear-off · 1 layer</b><span class="muted">32.4 sq</span><span class="amt">$—</span></div>
+            <div class="mock-row slide-up" style="--d:2"><span class="wo-check"></span><b>Install shingles</b><span class="muted">32.4 sq</span><span class="amt">$—</span></div>
+            <div class="mock-row slide-up" style="--d:3"><span class="wo-check"></span><b>Ridge vent</b><span class="muted">64 ft</span><span class="amt">$—</span></div>
+            <div class="mock-row slide-up" style="--d:4"><span class="wo-check"></span><b>Skylight reflash</b><span class="muted">1</span><span class="amt">$—</span></div>
+            <div class="mock-row pop" style="--d:7;border-left:4px solid var(--ok)"><i class="fa-solid fa-circle-check" style="color:var(--ok)"></i><span style="flex:1;font-weight:700">Every requirement accounted for</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="split split--flip">
+        <div class="reveal">
+          <div class="eyebrow">Completion</div>
+          <h2>Confirm the work, pay it out, lock it.</h2>
+          <p class="lead">When the job is done, confirm the lines and finalize the list. Finalized work is locked and becomes "to be paid" for piece-rate pay. Pay out in parts if the job is finished in stages; only a manager can reopen it, always with a reason.</p>
+          <ul class="feature-list"><li>One approval, select all, or line by line</li><li>Pay out part of a work order now, the rest later</li><li>Reopen with a recorded reason</li></ul>
+        </div>
+        <div class="mock reveal" aria-hidden="true">
+          <div class="mock-bar"><i></i><i></i><i></i><div class="url">Pay out · North team</div></div>
+          <div class="mock-main wo-lines">
+            <div class="mock-title">Confirm the work</div>
+            <div class="mock-row"><span class="wo-check tick" style="--d:0"><i class="fa-solid fa-check"></i></span><b>Tear-off · 1 layer</b><span class="amt">$—</span></div>
+            <div class="mock-row"><span class="wo-check tick" style="--d:1"><i class="fa-solid fa-check"></i></span><b>Install shingles</b><span class="amt">$—</span></div>
+            <div class="mock-row"><span class="wo-check tick" style="--d:2"><i class="fa-solid fa-check"></i></span><b>Ridge vent</b><span class="amt">$—</span></div>
+            <div class="mock-row"><span class="wo-check tick" style="--d:3"><i class="fa-solid fa-check"></i></span><b>Skylight reflash</b><span class="amt">$—</span></div>
+            <div style="display:flex;justify-content:flex-end"><span class="mock-btn pop" style="--d:12">Finalize · To be paid</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="split">
+        <div class="reveal">
+          <div class="eyebrow">Closeout</div>
+          <h2>Close the job with a checklist, not a hunch.</h2>
+          <p class="lead">Closeout walks through what is still open across the project: change orders, signatures, payments, receipts and requirements. It warns rather than blocks; the only thing that stops a close is a work order not yet finalized.</p>
+          <ul class="feature-list"><li>Checks read from every app on the project</li><li>Finalize open work orders right in the dialog</li><li>Final expenses, planned against actual</li></ul>
+        </div>
+        <div class="mock reveal" aria-hidden="true">
+          <div class="mock-bar"><i></i><i></i><i></i><div class="url">Closeout · Martin</div></div>
+          <div class="mock-main wo-close">
+            <div class="mock-title">Closeout</div>
+            <div class="mock-row slide-up" style="--d:1"><span class="l">a</span><b>Change orders signed and paid</b><span class="mock-chip green">Done</span></div>
+            <div class="mock-row slide-up" style="--d:2"><span class="l">b</span><b>Documents signed</b><span class="mock-chip green">Done</span></div>
+            <div class="mock-row slide-up" style="--d:3"><span class="l">c</span><b>Payments received</b><span class="mock-chip amber">Balance open</span></div>
+            <div class="mock-row slide-up" style="--d:4"><span class="l">d</span><b>Every requirement accounted for</b><span class="mock-chip green">Done</span></div>
+            <div class="mock-row slide-up" style="--d:5"><span class="l">e</span><b>Receipts for paid expenses</b><span class="mock-chip green">Done</span></div>
+            <div class="mock-row slide-up" style="--d:6"><span class="l">f</span><b>Finalize work orders</b><span class="mock-chip red">1 open</span></div>
+            <div class="mock-row slide-up" style="--d:7"><span class="l">g</span><b>Final expenses</b><span class="mock-chip">Next</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section section--dark">
+    <div class="container split">
+      <div class="reveal">
+        <div class="eyebrow">Project change history</div>
+        <h2>Every change, and who made it.</h2>
+        <p class="lead" style="color:#c9ccd4">Each change to a project's lists, scope or schedule is recorded with its source: a person, the assistant, an automation or a generator. You can always tell generated work from what your people changed.</p>
+      </div>
+      <div class="mock mock--dark reveal" aria-hidden="true">
+        <div class="mock-bar"><i></i><i></i><i></i><div class="url">Project · History</div></div>
+        <div class="mock-main">
+          <div class="mock-row slide-up" style="--d:1"><div class="mock-avatar">SK</div><b style="flex:1">Added 2 lines to Material list</b><span class="mock-chip">Person</span></div>
+          <div class="mock-row slide-up" style="--d:2"><div class="mock-avatar" style="background:linear-gradient(135deg,#93c5fd,#2563eb)"><i class="fa-solid fa-gears"></i></div><b style="flex:1">Generated labor lists from scope</b><span class="mock-chip blue">Generator</span></div>
+          <div class="mock-row slide-up" style="--d:3"><div class="mock-avatar" style="background:linear-gradient(135deg,#c4b5fd,#7c3aed)"><i class="fa-solid fa-wand-magic-sparkles"></i></div><b style="flex:1">Moved install to Wednesday</b><span class="mock-chip violet">Assistant</span></div>
+          <div class="mock-row slide-up" style="--d:4"><div class="mock-avatar" style="background:linear-gradient(135deg,#fcd34d,#f59e0b)"><i class="fa-solid fa-bolt"></i></div><b style="flex:1">Scheduled material delivery</b><span class="mock-chip amber">Automation</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section section--soft">
+    <div class="container">
+      <div class="section-head center reveal"><div class="eyebrow">Connected</div><h2>Work orders tie the job together.</h2></div>
+      <div class="grid grid-4">
+        <a class="card reveal" style="--d:0" href="~/solutions/proposals/"><div class="icon"><i class="fa-solid fa-file-signature"></i></div><h3>Proposals</h3><p>The signed scope that starts it all.</p></a>
+        <a class="card reveal" style="--d:1" href="~/solutions/scheduling/"><div class="icon"><i class="fa-solid fa-calendar-days"></i></div><h3>Scheduling</h3><p>Put each labor list on the calendar.</p></a>
+        <a class="card reveal" style="--d:2" href="~/solutions/payroll/"><div class="icon"><i class="fa-solid fa-money-check-dollar"></i></div><h3>Payroll</h3><p>Piece-rate pay earned when work is finalized.</p></a>
+        <a class="card reveal" style="--d:3" href="~/solutions/material-management/"><div class="icon"><i class="fa-solid fa-boxes-stacked"></i></div><h3>Materials</h3><p>The material list beside the work order.</p></a>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container container--narrow">
+      <div class="section-head center reveal"><div class="eyebrow">FAQ</div><h2>Work order questions</h2></div>
+      <details class="faq"><summary>Can a work order be paid out in parts?</summary><div>Yes. Confirm some lines and pay those now; the rest stay open until they are done or cancelled.</div></details>
+      <details class="faq"><summary>Can finished work be changed later?</summary><div>A finalized list is locked. Someone with permission can reopen it, and the reason is recorded.</div></details>
+      <details class="faq"><summary>Does closeout stop me from closing a job?</summary><div>Closeout warns about anything open, but only an unfinalized work order stops the close.</div></details>
+    </div>
+  </section>
+
+  <section class="section" style="padding-top:0"><div class="container"><div class="cta-band reveal">
+    <h2>Know where every job stands.</h2>
+    <p class="lead" style="color:#c9ccd4;max-width:600px;margin:0 auto">Sign up free and turn your next signed proposal into a work order, or book a walkthrough with our team.</p>
+    <div class="btn-row"><a class="btn btn-primary btn-lg" href="https://app.1m8.ai/portal/signup">Sign up free</a><a class="btn btn-glass btn-lg" href="~/demo/">Book a demo</a></div>
+  </div></div></section>
+</main>
+<div id="site-footer"></div>
+<script src="../../assets/site.js"></script>
+<script>
+(function () {
+  var hero = document.getElementById('wo-hero');
+  var steps = hero.querySelectorAll('.wo-step'), fill = document.getElementById('wo-fill');
+  var label = document.getElementById('wo-label'), chip = document.getElementById('wo-chip'), feed = document.getElementById('wo-feed');
+  var data = [
+    ['Proposal signed', 'Mon', 'green', 'fa-file-signature', 'Sarah Martin signed the proposal', 'Person'],
+    ['Work order created', 'Mon', 'blue', 'fa-clipboard-list', 'Labor and material lists generated', 'Generator'],
+    ['Scheduled · Tue Oct 27', 'Tue', 'blue', 'fa-calendar-days', 'North team scheduled · 2 days', 'Person'],
+    ['In progress', 'Tue', 'amber', 'fa-camera', 'Checked in · 14 photos added', 'Field app'],
+    ['To be paid', 'Wed', 'green', 'fa-lock', 'Work order finalized and locked', 'Person'],
+    ['Closed out', 'Fri', 'green', 'fa-flag-checkered', 'Project closed · final expenses recorded', 'Person']
+  ];
+  var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches, i = 0;
+  function show(n) {
+    steps.forEach(function (s, k) { s.classList.toggle('done', k < n); s.classList.toggle('now', k === n); });
+    fill.style.width = (84 * n / (steps.length - 1)) + '%';
+    var d = data[n]; label.textContent = d[0]; chip.textContent = d[1]; chip.className = 'mock-chip ' + d[2];
+    var row = document.createElement('div'); row.className = 'mock-row';
+    row.innerHTML = '<i class="fa-solid ' + d[3] + '" style="color:var(--brand)"></i><b>' + d[4] + '</b><span class="src">' + d[5] + '</span>';
+    feed.insertBefore(row, feed.firstChild);
+    while (feed.children.length > 4) feed.removeChild(feed.lastChild);
+  }
+  if (reduce) { for (var k = 0; k < data.length; k++) show(k); return; }
+  function tick() {
+    if (i === 0) feed.innerHTML = '';
+    show(i); i++;
+    if (i < data.length) setTimeout(tick, 1700); else { i = 0; setTimeout(tick, 4500); }
+  }
+  var started = false;
+  function start() { if (!started) { started = true; tick(); } }
+  if (hero.classList.contains('in')) start(); else hero.addEventListener('fm:in', start);
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Trades — FirstMate</title>
+<meta name="description" content="FirstMate is built for roofing and exterior contractors and works for every trade that measures, sells, builds and gets paid.">
+<meta name="robots" content="noindex, nofollow">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,400..900;1,400..900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../assets/site.css">
+<style>
+  .tri-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 20px }
+  .tri-card { position: relative; display: flex; flex-direction: column; gap: 10px; padding: 26px; border-radius: var(--radius); border: 1px solid var(--line); background: #fff; color: var(--body); transition: transform .3s var(--ease), box-shadow .3s var(--ease), border-color .3s; overflow: hidden }
+  a.tri-card:hover { transform: translateY(-4px); box-shadow: var(--shadow); border-color: transparent; color: var(--body) }
+  a.tri-card::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 3px; background: linear-gradient(90deg, var(--brand), var(--brand-2)); transform: scaleX(0); transform-origin: left; transition: transform .35s var(--ease) }
+  a.tri-card:hover::after { transform: scaleX(1) }
+  .tri-card .ic { width: 52px; height: 52px; border-radius: 14px; background: var(--brand-soft); color: var(--brand); display: grid; place-items: center; font-size: 22px }
+  .tri-card h3 { margin: 6px 0 0; font-size: 20px }
+  .tri-card p { margin: 0; color: var(--muted); font-size: 15px; flex: 1 }
+  .tri-card .link-arrow { font-size: 14px }
+  .tri-card.soon { background: var(--bg-soft); border-style: dashed }
+  .tri-card.soon .ic { background: #eceef1; color: #6b7280 }
+  .tri-card.flag { grid-column: span 2; background: var(--bg-dark); color: #c9ccd4; border-color: transparent }
+  .tri-card.flag h3 { color: #fff; font-size: 26px }
+  .tri-card.flag p { color: #a6abb6 }
+  .tri-card.flag .ic { background: rgba(219, 0, 0, .2); color: #ff6b6b }
+  .tri-card.flag::before { content: ""; position: absolute; width: 280px; height: 280px; right: -100px; top: -120px; border-radius: 50%; background: radial-gradient(circle, rgba(219, 0, 0, .45), transparent 70%) }
+  .tri-card.flag > * { position: relative }
+  .tri-card.flag .link-arrow { color: #fff }
+  @media (max-width: 640px) { .tri-card.flag { grid-column: auto } }
+  .tri-kinds .mock-row { transition: border-color .3s, box-shadow .3s }
+  .tri-kinds .mock-row.on { border-color: var(--brand); box-shadow: 0 0 0 3px rgba(219, 0, 0, .08) }
+  .tri-keys { display: flex; flex-wrap: wrap; gap: 6px; min-height: 52px; align-content: flex-start }
+  .tri-keys .mock-chip { animation: fm-pop .45s var(--ease) both }
+  .tri-ic { width: 28px; height: 28px; border-radius: 8px; background: var(--brand-soft); color: var(--brand); display: grid; place-items: center; font-size: 12px; flex: none }
+  .tri-same { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px }
+  @media (max-width: 960px) { .tri-same { grid-template-columns: repeat(2, minmax(0, 1fr)) } }
+  @media (max-width: 520px) { .tri-same { grid-template-columns: 1fr } }
+</style>
+</head>
+<body>
+<div id="site-header"></div>
+<main>
+  <section class="page-hero">
+    <div class="container split">
+      <div>
+        <div class="breadcrumb"><a href="~/">Home</a><span>Trades</span></div>
+        <div class="eyebrow">Trades</div>
+        <h1>Built on the roof. Ready for every trade.</h1>
+        <p class="lead">FirstMate started with roofers and exterior contractors. The same platform measures, sells, schedules and pays for any kind of work, with the measurements and checklists your trade uses.</p>
+        <div class="btn-row"><a class="btn btn-primary btn-lg" href="https://app.1m8.ai/portal/signup">Sign up free</a><a class="btn btn-ghost btn-lg" href="~/demo/">Book a demo</a></div>
+      </div>
+      <div class="mock-stage" aria-hidden="true">
+        <div class="mock tri-kinds">
+          <div class="mock-bar"><i></i><i></i><i></i><div class="url">Settings · Kinds of work</div></div>
+          <div class="mock-main">
+            <div style="display:flex;justify-content:space-between;align-items:center" class="fade"><div class="mock-title">Scope templates</div><span class="mock-btn">+ New</span></div>
+            <div class="mock-row slide-up" data-k="0" style="--d:1"><span class="tri-ic"><i class="fa-solid fa-house-chimney"></i></span><b style="flex:1">Roof replacement</b><span class="mock-chip red">Roofing</span></div>
+            <div class="mock-row slide-up" data-k="1" style="--d:2"><span class="tri-ic"><i class="fa-solid fa-house"></i></span><b style="flex:1">Siding &amp; trim</b><span class="mock-chip blue">Siding</span></div>
+            <div class="mock-row slide-up" data-k="2" style="--d:3"><span class="tri-ic"><i class="fa-solid fa-solar-panel"></i></span><b style="flex:1">Solar install</b><span class="mock-chip amber">Solar</span></div>
+            <div class="mock-row slide-up" data-k="3" style="--d:4"><span class="tri-ic"><i class="fa-solid fa-fan"></i></span><b style="flex:1">Maintenance visit</b><span class="mock-chip green">HVAC</span></div>
+            <div class="fade" style="--d:6">
+              <div style="font-size:10px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin-bottom:6px">Data this scope uses</div>
+              <div class="tri-keys" id="tri-keys"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container">
+      <div class="section-head reveal">
+        <div class="eyebrow">Find your trade</div>
+        <h2>Pick your trade. Keep one platform.</h2>
+        <p class="lead">Every trade gets the same core: leads, proposals, scheduling, field app and payments. What changes is the data on the job.</p>
+      </div>
+      <div class="tri-grid">
+        <a class="tri-card flag reveal" href="~/trades/roofing/">
+          <span class="ic"><i class="fa-solid fa-house-chimney"></i></span>
+          <span class="pill pill--brand" style="align-self:flex-start;background:rgba(219,0,0,.2);border-color:transparent;color:#ff8a8a">Where FirstMate started</span>
+          <h3>Roofing</h3>
+          <p>Roof measurements, insurance and retail proposals, material orders, production and payments, built around how a roofing company actually runs.</p>
+          <span class="link-arrow">Explore roofing</span>
+        </a>
+        <a class="tri-card reveal" style="--d:1" href="~/trades/exteriors/"><span class="ic"><i class="fa-solid fa-house"></i></span><h3>Siding &amp; Exteriors</h3><p>Full exterior reports and one scope for siding, trim, gutters, windows and doors.</p><span class="link-arrow">Explore exteriors</span></a>
+        <a class="tri-card reveal" style="--d:2" href="~/trades/general-contractors/"><span class="ic"><i class="fa-solid fa-hammer"></i></span><h3>General Contractors</h3><p>Coordinate subcontractors, phases and budgets across every job.</p><span class="link-arrow">Explore general contracting</span></a>
+        <a class="tri-card reveal" href="~/trades/restoration/"><span class="ic"><i class="fa-solid fa-house-flood-water"></i></span><h3>Restoration</h3><p>Document the loss, track the claim and get from emergency to rebuild.</p><span class="link-arrow">Explore restoration</span></a>
+        <a class="tri-card reveal" style="--d:1" href="~/trades/solar/"><span class="ic"><i class="fa-solid fa-solar-panel"></i></span><h3>Solar</h3><p>Roof facets, pitch and orientation for panel layout, plus roof-and-solar packages.</p><span class="link-arrow">Explore solar</span></a>
+        <a class="tri-card reveal" style="--d:2" href="~/trades/hvac/"><span class="ic"><i class="fa-solid fa-fan"></i></span><h3>HVAC</h3><p>Equipment on every property, service checklists and maintenance visits.</p><span class="link-arrow">Explore HVAC</span></a>
+        <a class="tri-card reveal" href="~/trades/landscaping/"><span class="ic"><i class="fa-solid fa-tree"></i></span><h3>Landscaping</h3><p>Recurring visits, routes for your teams and billing that keeps up.</p><span class="link-arrow">Explore landscaping</span></a>
+        <div class="tri-card soon reveal" style="--d:1"><span class="ic"><i class="fa-solid fa-water"></i></span><h3>Gutters</h3><p>Runs, downspouts and guards measured and priced.</p><span class="tag-soon" style="align-self:flex-start">Coming soon</span></div>
+        <div class="tri-card soon reveal" style="--d:2"><span class="ic"><i class="fa-solid fa-door-open"></i></span><h3>Windows &amp; Doors</h3><p>Openings counted and sized from the exterior report.</p><span class="tag-soon" style="align-self:flex-start">Coming soon</span></div>
+        <div class="tri-card soon reveal"><span class="ic"><i class="fa-solid fa-paint-roller"></i></span><h3>Painting</h3><p>Wall and trim areas for exterior paint estimates.</p><span class="tag-soon" style="align-self:flex-start">Coming soon</span></div>
+        <div class="tri-card soon reveal" style="--d:1"><span class="ic"><i class="fa-solid fa-temperature-half"></i></span><h3>Insulation</h3><p>Attic and wall areas, materials and install days.</p><span class="tag-soon" style="align-self:flex-start">Coming soon</span></div>
+        <div class="tri-card soon reveal" style="--d:2"><span class="ic"><i class="fa-solid fa-border-all"></i></span><h3>Fencing</h3><p>Linear feet, gates and posts from the property line.</p><span class="tag-soon" style="align-self:flex-start">Coming soon</span></div>
+        <div class="tri-card soon reveal"><span class="ic"><i class="fa-solid fa-stairs"></i></span><h3>Decks</h3><p>Deck area, rails and stairs scoped and scheduled.</p><span class="tag-soon" style="align-self:flex-start">Coming soon</span></div>
+        <div class="tri-card soon reveal" style="--d:1"><span class="ic"><i class="fa-solid fa-building"></i></span><h3>Multi-family &amp; Commercial</h3><p>Many buildings, many phases, one project.</p><span class="tag-soon" style="align-self:flex-start">Coming soon</span></div>
+        <div class="tri-card soon reveal" style="--d:2"><span class="ic"><i class="fa-solid fa-file-shield"></i></span><h3>Insurance Restoration</h3><p>Claim-driven work from inspection to final payment.</p><span class="tag-soon" style="align-self:flex-start">Coming soon</span></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section section--soft">
+    <div class="container">
+      <div class="section-head center reveal">
+        <div class="eyebrow">Same platform</div>
+        <h2>What every trade gets.</h2>
+        <p class="lead">Turn on the apps you need. Your trade's measurements and steps sit on top.</p>
+      </div>
+      <div class="tri-same">
+        <a class="card reveal" href="~/solutions/crm/"><div class="icon"><i class="fa-solid fa-filter"></i></div><h3>Leads &amp; CRM</h3><p>Every lead, source and follow-up.</p></a>
+        <a class="card reveal" style="--d:1" href="~/solutions/proposals/"><div class="icon"><i class="fa-solid fa-file-signature"></i></div><h3>Proposals</h3><p>Priced options, signed on the spot.</p></a>
+        <a class="card reveal" style="--d:2" href="~/solutions/scheduling/"><div class="icon"><i class="fa-solid fa-calendar-days"></i></div><h3>Scheduling</h3><p>Your people and equipment, dispatched.</p></a>
+        <a class="card reveal" style="--d:3" href="~/solutions/payments/"><div class="icon"><i class="fa-solid fa-credit-card"></i></div><h3>Payments</h3><p>Card and bank, in person or online.</p></a>
+      </div>
+      <p style="text-align:center;margin-top:36px"><a class="link-arrow" href="~/solutions/">See all solutions</a></p>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container">
+      <div class="cta-band reveal">
+        <h2>Don't see your trade?</h2>
+        <p class="lead" style="color:#c9ccd4;max-width:600px;margin:0 auto">If you measure it, sell it and build it, FirstMate can run it. Tell us about your work and we'll set it up with you.</p>
+        <div class="btn-row"><a class="btn btn-primary btn-lg" href="https://app.1m8.ai/portal/signup">Sign up free</a><a class="btn btn-glass btn-lg" href="~/demo/">Book a demo</a></div>
+      </div>
+    </div>
+  </section>
+</main>
+<div id="site-footer"></div>
+<script src="../assets/site.js"></script>
+<script>
+(function () {
+  var sets = [
+    ['roof.squares', 'roof.pitch', 'roof.ridge_length', 'roof.valley_length', 'roof.eave_length'],
+    ['exterior_wall.net_area', 'exterior_wall.opening_area', 'exterior_wall.outside_corner_length', 'exterior_wall.inside_corner_length'],
+    ['roof.area', 'roof.pitch', 'roof.squares_at_pitch', 'roof.protrusion_length'],
+    ['Equipment on site', 'Filter size', 'Visit checklist']
+  ];
+  var rows = document.querySelectorAll('.tri-kinds .mock-row'), box = document.getElementById('tri-keys'), i = 0;
+  var still = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  function show(k) {
+    rows.forEach(function (r, n) { r.classList.toggle('on', n === k); });
+    box.innerHTML = sets[k].map(function (s, n) { return '<span class="mock-chip" style="animation-delay:' + (n * 90) + 'ms">' + s + '</span>'; }).join('');
+  }
+  show(0);
+  if (!still) setInterval(function () { i = (i + 1) % sets.length; show(i); }, 2600);
+})();
+</script>
+</body>
+</html>

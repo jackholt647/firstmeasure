@@ -1,0 +1,223 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>User Guides — FirstMate</title>
+<meta name="description" content="Find a FirstMate workflow for your role: owners, office managers, sales reps, field teams and accounting.">
+<meta name="robots" content="noindex, nofollow">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,400..900;1,400..900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/site.css">
+<style>
+  /* Hero step-by-step mockup */
+  .ug-mock .mock-body { min-height: 320px }
+  .ug-steps { width: 200px; flex: none; border-right: 1px solid var(--line); background: #fbfbfc; padding: 14px 12px; display: flex; flex-direction: column; gap: 6px }
+  .ug-steps .ug-h { font-size: 10px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 0 4px 6px }
+  .ug-step { display: flex; gap: 9px; align-items: center; padding: 8px; border-radius: 9px; font-size: 12px; font-weight: 700; color: #6b7280; transition: background .3s, color .3s }
+  .ug-step .n { width: 20px; height: 20px; border-radius: 50%; border: 1.5px solid #d1d5db; display: grid; place-items: center; font-size: 10px; flex: none; transition: all .3s }
+  .ug-step.on { background: var(--brand-soft); color: var(--brand) }
+  .ug-step.on .n { border-color: var(--brand); background: var(--brand); color: #fff }
+  .ug-step.done { color: var(--heading) }
+  .ug-step.done .n { border-color: #16a34a; background: #16a34a; color: #fff; font-size: 0 }
+  .ug-step.done .n::before { content: "✓"; font-size: 11px }
+  .ug-stage { flex: 1; min-width: 0; position: relative; padding: 16px }
+  .ug-screen { position: absolute; inset: 16px; display: flex; flex-direction: column; gap: 10px; opacity: 0; transform: translateY(12px); transition: opacity .45s, transform .5s var(--ease); pointer-events: none }
+  .ug-screen.on { opacity: 1; transform: none }
+  .ug-screen .mock-title { display: flex; justify-content: space-between; align-items: center }
+  .ug-cap { font-size: 11px; color: var(--muted); font-weight: 700 }
+  .ug-sig { height: 60px; border: 1.5px dashed var(--line); border-radius: 10px; display: grid; place-items: center; background: #fff }
+  .ug-sig path { stroke: var(--heading); stroke-width: 2.2; fill: none; stroke-dasharray: 260; stroke-dashoffset: 260 }
+  .ug-screen.on .ug-sig path { animation: fm-draw 1.6s var(--ease) .4s forwards }
+  .ug-screen.on .ug-in { animation: fm-slide-up .5s var(--ease) both; animation-delay: calc(var(--d, 0) * 110ms + 150ms) }
+  .ug-pbar { height: 4px; background: #eceef1 }
+  .ug-pbar i { display: block; height: 100%; width: 25%; background: var(--brand); transition: width .6s var(--ease) }
+  @media (max-width: 640px) { .ug-steps { width: 140px } .ug-step { font-size: 11px; padding: 6px } }
+  @media (max-width: 420px) { .ug-steps { display: none } }
+  .ug-float { right: -6px; bottom: -8px; opacity: 0 }
+  .mock.in ~ .ug-float { animation: fm-pop .6s var(--ease) 1.4s forwards, fm-float 6s ease-in-out 2s infinite }
+
+  /* Role tabs */
+  .ug-tabs { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; margin-bottom: 36px }
+  .ug-tab { border: 1.5px solid var(--line); background: #fff; border-radius: 999px; padding: 11px 20px; font-weight: 800; font-size: 15px; color: var(--heading); cursor: pointer; display: inline-flex; gap: 9px; align-items: center }
+  .ug-tab:hover { border-color: var(--heading) }
+  .ug-tab.on { border-color: var(--brand); color: #fff; background: var(--brand) }
+  .ug-panel { display: none; grid-template-columns: .9fr 1.4fr; gap: clamp(28px, 5vw, 64px); align-items: start }
+  .ug-panel.on { display: grid; animation: fm-fade .4s ease both }
+  @media (max-width: 860px) { .ug-panel.on { grid-template-columns: 1fr } }
+  .ug-role-card { border-radius: var(--radius-lg); background: var(--bg-dark); color: #c9ccd4; padding: 30px; position: relative; overflow: hidden }
+  .ug-role-card::before { content: ""; position: absolute; width: 260px; height: 260px; right: -100px; top: -100px; border-radius: 50%; background: radial-gradient(circle, rgba(219, 0, 0, .5), transparent 70%) }
+  .ug-role-card > * { position: relative }
+  .ug-role-card h3 { color: #fff; font-size: 26px }
+  .ug-role-card .ic { width: 52px; height: 52px; border-radius: 14px; background: rgba(219, 0, 0, .22); color: #ff6a6a; display: grid; place-items: center; font-size: 22px; margin-bottom: 18px }
+  .ug-role-card .apps { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 18px }
+  .ug-role-card .apps span { font-size: 12px; font-weight: 700; padding: 4px 10px; border-radius: 999px; background: rgba(255, 255, 255, .08); color: #e5e7eb }
+  .ug-list { list-style: none; margin: 0; padding: 0; counter-reset: ug; position: relative }
+  .ug-list::before { content: ""; position: absolute; left: 19px; top: 24px; bottom: 24px; width: 2px; background: var(--line) }
+  .ug-list li { counter-increment: ug; position: relative; padding-left: 60px; margin-bottom: 14px; animation: fm-slide-up .5s var(--ease) both; animation-delay: calc(var(--d, 0) * 80ms) }
+  .ug-list li::before { content: counter(ug); position: absolute; left: 0; top: 14px; width: 40px; height: 40px; border-radius: 50%; background: #fff; border: 2px solid var(--brand); color: var(--brand); font-weight: 900; display: grid; place-items: center }
+  .ug-list a { display: block; padding: 16px 20px; border-radius: 14px; border: 1px solid var(--line); background: #fff; color: var(--heading); transition: transform .25s var(--ease), box-shadow .25s, border-color .25s }
+  .ug-list a:hover { transform: translateX(4px); box-shadow: var(--shadow); border-color: transparent; color: var(--heading) }
+  .ug-list b { display: flex; justify-content: space-between; gap: 12px; font-size: 16px }
+  .ug-list b::after { content: "→"; color: var(--brand); transition: transform .2s }
+  .ug-list a:hover b::after { transform: translateX(4px) }
+  .ug-list small { display: block; color: var(--muted); font-size: 14px; font-weight: 500; margin-top: 3px }
+</style>
+</head>
+<body>
+<div id="site-header"></div>
+<main>
+  <section class="page-hero">
+    <div class="container split">
+      <div>
+        <div class="breadcrumb"><a href="~/resources/">Resources</a><span>User guides</span></div>
+        <div class="eyebrow">User guides</div>
+        <h1>Find a workflow for your role.</h1>
+        <p class="lead">Step-by-step paths through FirstMate for owners, office managers, sales reps, field teams and accounting. Follow yours from start to finish.</p>
+        <div class="btn-row"><a class="btn btn-primary btn-lg" href="#ug-roles">Pick your role</a><a class="btn btn-ghost btn-lg" href="~/resources/classes/">Watch a class</a></div>
+      </div>
+      <div class="mock-stage">
+        <div class="mock ug-mock" id="ug-mock" aria-hidden="true">
+          <div class="mock-bar"><i></i><i></i><i></i><div class="url">Guide · Sales rep</div></div>
+          <div class="ug-pbar"><i id="ug-pbar"></i></div>
+          <div class="mock-body">
+            <div class="ug-steps">
+              <div class="ug-h">Lead to signed job</div>
+              <div class="ug-step on"><span class="n">1</span>Open the lead</div>
+              <div class="ug-step"><span class="n">2</span>Order a report</div>
+              <div class="ug-step"><span class="n">3</span>Build the proposal</div>
+              <div class="ug-step"><span class="n">4</span>Get it signed</div>
+            </div>
+            <div class="ug-stage">
+              <div class="ug-screen on">
+                <div class="mock-title">New leads <span class="mock-chip red">3 new</span></div>
+                <div class="mock-row ug-in" style="--d:1;border-color:var(--brand)"><span class="mock-avatar">DH</span><div style="flex:1"><b>Dana Hughes</b><div class="ug-cap">22 Elm St · Website form</div></div><span class="mock-chip red">New lead</span></div>
+                <div class="mock-row ug-in" style="--d:2"><span class="mock-avatar" style="background:linear-gradient(135deg,#93c5fd,#2563eb)">RM</span><div class="mock-line w40"></div><span class="mock-chip">Called</span></div>
+                <div class="mock-row ug-in" style="--d:3"><span class="mock-avatar" style="background:linear-gradient(135deg,#86efac,#16a34a)">LS</span><div class="mock-line w30"></div><span class="mock-chip amber">Follow-up</span></div>
+              </div>
+              <div class="ug-screen">
+                <div class="mock-title">Order measurements</div>
+                <div class="mock-row ug-in" style="--d:1"><i class="fa-solid fa-house-chimney" style="color:var(--muted)"></i><b style="flex:1">Roof measurements</b><span class="mock-chip">Roof only</span></div>
+                <div class="mock-row ug-in" style="--d:2;border-color:var(--brand)"><i class="fa-solid fa-ruler-combined" style="color:var(--brand)"></i><b style="flex:1">Full Exterior</b><span class="mock-chip red">Selected</span></div>
+                <div class="mock-row ug-in" style="--d:3"><i class="fa-solid fa-city" style="color:var(--muted)"></i><b style="flex:1">Full House</b><span class="mock-chip">Every structure</span></div>
+                <div class="ug-in" style="--d:4"><span class="mock-btn">Place order</span></div>
+              </div>
+              <div class="ug-screen">
+                <div class="mock-title">Proposal <span class="mock-chip blue">Draft</span></div>
+                <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">
+                  <div class="mock-kpi ug-in" style="--d:1"><small>Good</small><b>$—</b></div>
+                  <div class="mock-kpi ug-in" style="--d:2;border-color:var(--brand)"><small>Better</small><b>$—</b></div>
+                  <div class="mock-kpi ug-in" style="--d:3"><small>Best</small><b>$—</b></div>
+                </div>
+                <div class="mock-row ug-in" style="--d:4"><span class="ug-cap" style="flex:1">Roof 32.4 sq · Siding 2,846 ft² from report</span><span class="mock-chip green">Filled</span></div>
+              </div>
+              <div class="ug-screen">
+                <div class="mock-title">Sign proposal <span class="mock-chip amber">Awaiting signature</span></div>
+                <div class="ug-cap ug-in" style="--d:1">Dana Hughes · Better option</div>
+                <div class="ug-sig ug-in" style="--d:2"><svg viewBox="0 0 200 50" width="180"><path d="M10 35 C 30 5, 40 45, 60 25 S 90 10, 100 30 S 130 40, 150 18 L 190 22"/></svg></div>
+                <div class="mock-row ug-in" style="--d:6"><span class="mock-toast" style="flex:1;font-weight:700">Signed · Project moved to Sold</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="mock-float mock-toast ug-float">Step done</div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="ug-roles">
+    <div class="container">
+      <div class="section-head center"><div class="eyebrow">Guides by role</div><h2>What does your day look like?</h2><p class="lead">Each step links to the part of FirstMate that does it. Detailed guide pages are coming.</p></div>
+      <div class="ug-tabs" id="ug-tabs" role="tablist" aria-label="Roles"></div>
+      <div id="ug-panels"></div>
+    </div>
+  </section>
+
+  <section class="section section--soft">
+    <div class="container">
+      <div class="section-head center"><div class="eyebrow">Keep learning</div><h2>More help for your team</h2></div>
+      <div class="grid grid-3">
+        <a class="card reveal" href="~/resources/classes/"><div class="icon"><i class="fa-solid fa-chalkboard-user"></i></div><h3>Classes</h3><p>Live and on-demand sessions for every role.</p></a>
+        <a class="card reveal" style="--d:1" href="~/support/help-center/"><div class="icon"><i class="fa-solid fa-life-ring"></i></div><h3>Help Center</h3><p>Articles for every screen and setting.</p></a>
+        <a class="card reveal" style="--d:2" href="~/solutions/training/"><div class="icon"><i class="fa-solid fa-graduation-cap"></i></div><h3>Train your people</h3><p>Turn your own process into courses inside FirstMate.</p></a>
+      </div>
+    </div>
+  </section>
+
+  <section class="section"><div class="container"><div class="cta-band">
+    <h2>Set up FirstMate around your roles.</h2>
+    <p class="lead" style="color:#c9ccd4">Each person sees the apps their role needs, on the devices they use.</p>
+    <div class="btn-row"><a class="btn btn-primary btn-lg" href="https://app.1m8.ai/portal/signup">Sign up free</a><a class="btn btn-glass btn-lg" href="~/demo/">Book a demo</a></div>
+  </div></div></section>
+</main>
+<div id="site-footer"></div>
+<script src="../../assets/site.js"></script>
+<script>
+(function () {
+  // [id, label, icon, summary, apps, steps: [title, detail, solution slug]]
+  var ROLES = [
+    ['owner', 'Owner', 'fa-crown', 'Set the company up once, then watch sales, production and profit without chasing anyone.', ['Settings', 'People', 'Stats', 'Financials', 'Automations'], [
+      ['Set up your company and branches', 'Departments, people, roles and the apps each role sees.', 'crew-management'],
+      ['Load your pricing and documents', 'Proposal and contract templates built from your data.', 'documents'],
+      ['Automate the follow-ups', 'Rules for new leads, reminders and status changes.', 'automations'],
+      ['Decide how people are paid', 'Pay sheets and pay rules for every assignee.', 'payroll'],
+      ['Watch the numbers', 'Sales, production and job costing in one place.', 'reporting']
+    ]],
+    ['office', 'Office manager', 'fa-desktop', 'Keep every job moving from signed to finished: orders, schedules, materials and customers.', ['Projects', 'Scheduling', 'Materials', 'Calls & texts'], [
+      ['Take in new leads', 'Every source lands in one list of new leads.', 'crm'],
+      ['Order measurements', 'Roof, Full Exterior or Full House for every structure.', 'roof-measurements'],
+      ['Order materials', 'Material lists from the report, ordered and tracked to delivery.', 'material-management'],
+      ['Schedule the work', 'Assign people and equipment and avoid double-booking.', 'scheduling'],
+      ['Keep the homeowner updated', 'Texts, calls and the customer portal in one place.', 'communications']
+    ]],
+    ['sales', 'Sales rep', 'fa-handshake', 'Go from a new lead to a signed proposal in one visit.', ['CRM', 'Measurements', 'Proposals', 'Canvassing'], [
+      ['Work your leads', 'See new leads and your follow-ups for today.', 'crm'],
+      ['Knock doors with a map', 'Log every conversation by address.', 'canvassing'],
+      ['Order a report before the visit', 'Measurements ready before you arrive.', 'full-exterior'],
+      ['Present good-better-best', 'Pricing filled straight from the measurements.', 'proposals'],
+      ['Get signed and collect a deposit', 'E-signature and a card payment on the spot.', 'payments']
+    ]],
+    ['field', 'Field team', 'fa-helmet-safety', 'Everything for the day on your phone, and nothing you do not need.', ['Today', 'Photos', 'Checklists', 'Channels'], [
+      ['Check today’s work', 'Where to be, what to bring and who is on the job.', 'crew-management'],
+      ['Follow the work order', 'The scope and materials for the job.', 'work-orders'],
+      ['Run the checklist', 'The same standard on every visit.', 'checklists'],
+      ['Take photos', 'Straight to the project feed, organized.', 'photos'],
+      ['Finish the work', 'Mark the work finished so the office can close it out.', 'work-orders']
+    ]],
+    ['accounting', 'Accounting', 'fa-calculator', 'Bill on time, get paid faster and pay people correctly.', ['Invoices', 'Payments', 'Payroll', 'Receipts'], [
+      ['Invoice on milestones', 'Deposits, progress and final invoices.', 'invoicing'],
+      ['Collect payments', 'Card and bank, online or in person.', 'payments'],
+      ['Code receipts and expenses', 'Snap a photo and assign it to a job.', 'receipts'],
+      ['Run payroll and commissions', 'Earnings from pay rules, ready to review.', 'payroll'],
+      ['Sync with your books', 'Send what you need to your accounting software.', 'integrations']
+    ]]
+  ];
+  var tabs = document.getElementById('ug-tabs'), panels = document.getElementById('ug-panels');
+  tabs.innerHTML = ROLES.map(function (r, i) { return '<button class="ug-tab' + (i ? '' : ' on') + '" role="tab" aria-selected="' + !i + '" data-id="' + r[0] + '"><i class="fa-solid ' + r[2] + '"></i>' + r[1] + '</button>'; }).join('');
+  panels.innerHTML = ROLES.map(function (r, i) {
+    return '<div class="ug-panel' + (i ? '' : ' on') + '" role="tabpanel" data-id="' + r[0] + '">' +
+      '<div class="ug-role-card"><div class="ic"><i class="fa-solid ' + r[2] + '"></i></div><h3>' + r[1] + '</h3><p>' + r[3] + '</p><div class="apps">' + r[4].map(function (a) { return '<span>' + a + '</span>'; }).join('') + '</div></div>' +
+      '<ol class="ug-list">' + r[5].map(function (s, k) { return '<li style="--d:' + k + '"><a href="~/solutions/' + s[2] + '/"><b>' + s[0] + '</b><small>' + s[1] + '</small></a></li>'; }).join('') + '</ol></div>';
+  }).join('');
+  window.FirstMateSite && window.FirstMateSite.rewriteLinks(panels);
+  tabs.addEventListener('click', function (e) {
+    var b = e.target.closest('.ug-tab'); if (!b) return;
+    tabs.querySelectorAll('.ug-tab').forEach(function (t) { t.classList.toggle('on', t === b); t.setAttribute('aria-selected', String(t === b)); });
+    panels.querySelectorAll('.ug-panel').forEach(function (p) { p.classList.toggle('on', p.dataset.id === b.dataset.id); });
+  });
+
+  // Hero mockup: walk through the four steps on a loop.
+  var mock = document.getElementById('ug-mock'), steps = mock.querySelectorAll('.ug-step'), screens = mock.querySelectorAll('.ug-screen'), bar = document.getElementById('ug-pbar'), i = 0;
+  function show(n) {
+    steps.forEach(function (s, k) { s.classList.toggle('on', k === n); s.classList.toggle('done', k < n); });
+    screens.forEach(function (s, k) { s.classList.toggle('on', k === n); });
+    bar.style.width = ((n + 1) / steps.length * 100) + '%';
+  }
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  mock.addEventListener('fm:in', function () {
+    setInterval(function () { i = (i + 1) % steps.length; show(i); }, 3200);
+  });
+})();
+</script>
+</body>
+</html>

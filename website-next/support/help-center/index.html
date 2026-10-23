@@ -1,0 +1,192 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Help Center — FirstMate</title>
+<meta name="description" content="Step-by-step help for every part of FirstMate, from your first measurement to getting paid.">
+<meta name="robots" content="noindex, nofollow">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,400..900;1,400..900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/site.css">
+<style>
+  .hc-hero .hero-inner { text-align: center; max-width: 860px; margin: 0 auto }
+  .hc-hero .eyebrow { justify-content: center; color: #ff6a6a }
+  .hc-hero .lead { margin: 0 auto }
+  .hc-search { position: relative; margin: 36px auto 0; max-width: 720px }
+  .hc-search > i { position: absolute; left: 26px; top: 50%; transform: translateY(-50%); color: var(--muted); font-size: 20px; z-index: 1 }
+  .hc-search input { width: 100%; font: inherit; font-size: 18px; font-weight: 600; padding: 22px 140px 22px 62px; border-radius: 999px; border: 0; background: #fff; color: var(--ink); box-shadow: 0 20px 60px rgba(0, 0, 0, .35) }
+  .hc-search input:focus { outline: none; box-shadow: 0 0 0 5px rgba(219, 0, 0, .35), 0 20px 60px rgba(0, 0, 0, .35) }
+  .hc-search .btn { position: absolute; right: 8px; top: 50%; transform: translateY(-50%) }
+  .hc-search .btn:hover { transform: translateY(-50%) }
+  .hc-popular-q { margin-top: 18px; display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; font-size: 13px; font-weight: 700; color: #8b909c }
+  .hc-popular-q button { border: 1px solid rgba(255, 255, 255, .16); background: rgba(255, 255, 255, .06); color: #fff; border-radius: 999px; padding: 5px 12px; font-size: 13px; font-weight: 700; cursor: pointer }
+  .hc-popular-q button:hover { border-color: var(--brand); background: rgba(219, 0, 0, .25) }
+  @media (max-width: 560px) { .hc-search input { padding-right: 24px; font-size: 16px } .hc-search .btn { display: none } }
+
+  .hc-tiles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 18px }
+  @media (max-width: 980px) { .hc-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)) } }
+  @media (max-width: 520px) { .hc-tiles { grid-template-columns: 1fr } }
+  .hc-tile { display: block; padding: 24px; border-radius: var(--radius); background: #fff; border: 1px solid var(--line); color: var(--heading); transition: transform .3s var(--ease), box-shadow .3s, border-color .3s }
+  .hc-tile:hover { transform: translateY(-4px); box-shadow: var(--shadow); border-color: transparent; color: var(--heading) }
+  .hc-tile .icon { width: 46px; height: 46px; border-radius: 14px; background: var(--brand-soft); color: var(--brand); display: grid; place-items: center; font-size: 19px; margin-bottom: 16px; transition: background .25s, color .25s }
+  .hc-tile:hover .icon { background: var(--brand); color: #fff }
+  .hc-tile b { display: block; font-size: 17px; font-weight: 800 }
+  .hc-tile small { display: block; color: var(--muted); font-size: 14px; font-weight: 500; margin-top: 4px }
+  .hc-tile em { display: block; margin-top: 14px; font-style: normal; font-size: 12px; font-weight: 800; color: var(--brand) }
+
+  .hc-articles { display: grid; grid-template-columns: 1fr 1fr; gap: 0 40px; counter-reset: hc }
+  @media (max-width: 760px) { .hc-articles { grid-template-columns: 1fr } }
+  .hc-article { display: flex; align-items: center; gap: 14px; padding: 16px 4px; border-bottom: 1px solid var(--line); color: var(--heading); font-weight: 700 }
+  .hc-article:hover { color: var(--brand) }
+  .hc-article .num { counter-increment: hc; width: 30px; height: 30px; flex: none; border-radius: 50%; background: var(--bg-soft); display: grid; place-items: center; font-size: 12px; font-weight: 800; color: var(--muted) }
+  .hc-article .num::before { content: counter(hc) }
+  .hc-article .cat { margin-left: auto; font-size: 12px; font-weight: 700; color: var(--muted); white-space: nowrap }
+  .hc-article.hide { display: none }
+  .hc-none { display: none; color: var(--muted); padding: 20px 0 }
+  .hc-none.on { display: block }
+
+  .hc-lang { display: flex; align-items: center; gap: 18px; padding: 22px 26px; border-radius: var(--radius); background: #fff; border: 1px solid var(--line); flex-wrap: wrap }
+  .hc-lang .icon { width: 44px; height: 44px; border-radius: 12px; background: var(--brand-soft); color: var(--brand); display: grid; place-items: center; font-size: 18px; flex: none }
+  .hc-lang-toggle { margin-left: auto; display: inline-flex; border: 1.5px solid var(--line); border-radius: 999px; padding: 3px }
+  .hc-lang-toggle button { border: 0; background: none; padding: 7px 16px; border-radius: 999px; font-weight: 800; font-size: 13px; cursor: pointer; color: var(--heading) }
+  .hc-lang-toggle button.on { background: var(--heading); color: #fff }
+
+  .hc-people { display: grid; grid-template-columns: repeat(3, auto); gap: 10px; justify-content: start; margin: 22px 0 }
+  .hc-ticket .mock-row { justify-content: space-between }
+  .hc-typing { display: inline-flex; gap: 4px } .hc-typing i { width: 6px; height: 6px; border-radius: 50%; background: #9ca3af; animation: hc-blink 1.2s infinite } .hc-typing i:nth-child(2) { animation-delay: .2s } .hc-typing i:nth-child(3) { animation-delay: .4s }
+  @keyframes hc-blink { 0%, 80%, 100% { opacity: .3 } 40% { opacity: 1 } }
+  .hc-float-a { right: -8px; top: -14px; opacity: 0 }
+  .mock.in ~ .hc-float-a { animation: fm-pop .6s var(--ease) 2.2s forwards, fm-float 6s ease-in-out 3s infinite }
+  @media (max-width: 560px) { .hc-float-a { display: none } }
+</style>
+</head>
+<body data-header="over-dark">
+<div id="site-header"></div>
+<main>
+  <section class="hero hc-hero">
+    <div class="hero-grid"></div><div class="hero-glow"></div>
+    <div class="container hero-inner">
+      <div class="eyebrow reveal">FirstMate Help Center</div>
+      <h1 class="reveal" style="--d:1">How can we help?</h1>
+      <p class="lead reveal" style="--d:2">Step-by-step help for every part of FirstMate, from your first measurement to getting paid.</p>
+      <form class="hc-search reveal" style="--d:3" id="hc-form" role="search">
+        <i class="fa-solid fa-magnifying-glass"></i>
+        <input id="hc-q" type="search" autocomplete="off" aria-label="Search help articles" placeholder="Search help articles">
+        <button class="btn btn-primary" type="submit">Search</button>
+      </form>
+      <div class="hc-popular-q reveal" style="--d:4">Popular:
+        <button type="button" data-q="Order">Order a report</button>
+        <button type="button" data-q="proposal">Proposals</button>
+        <button type="button" data-q="payment">Payments</button>
+        <button type="button" data-q="invite">Invite people</button>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container">
+      <div class="section-head"><div class="eyebrow">Browse by topic</div><h2>Find your way around</h2></div>
+      <div class="hc-tiles">
+        <a class="hc-tile reveal" href="#hc-popular"><div class="icon"><i class="fa-solid fa-rocket"></i></div><b>Getting started</b><small>Set up your company, people and apps</small><em>Placeholder · — articles</em></a>
+        <a class="hc-tile reveal" style="--d:1" href="#hc-popular"><div class="icon"><i class="fa-solid fa-ruler-combined"></i></div><b>Measurements</b><small>Order, read and share reports</small><em>Placeholder · — articles</em></a>
+        <a class="hc-tile reveal" style="--d:2" href="#hc-popular"><div class="icon"><i class="fa-solid fa-filter"></i></div><b>CRM &amp; leads</b><small>Contacts, opportunities and follow-ups</small><em>Placeholder · — articles</em></a>
+        <a class="hc-tile reveal" style="--d:3" href="#hc-popular"><div class="icon"><i class="fa-solid fa-file-signature"></i></div><b>Proposals &amp; documents</b><small>Templates, sending and e-signature</small><em>Placeholder · — articles</em></a>
+        <a class="hc-tile reveal" href="#hc-popular"><div class="icon"><i class="fa-solid fa-calendar-days"></i></div><b>Scheduling</b><small>Events, assignees and dispatch</small><em>Placeholder · — articles</em></a>
+        <a class="hc-tile reveal" style="--d:1" href="#hc-popular"><div class="icon"><i class="fa-solid fa-boxes-stacked"></i></div><b>Materials &amp; work orders</b><small>Material lists, orders and labor</small><em>Placeholder · — articles</em></a>
+        <a class="hc-tile reveal" style="--d:2" href="#hc-popular"><div class="icon"><i class="fa-solid fa-credit-card"></i></div><b>Payments &amp; invoicing</b><small>Take payments and bill on milestones</small><em>Placeholder · — articles</em></a>
+        <a class="hc-tile reveal" style="--d:3" href="#hc-popular"><div class="icon"><i class="fa-solid fa-gear"></i></div><b>Account &amp; settings</b><small>Roles, permissions and billing</small><em>Placeholder · — articles</em></a>
+      </div>
+    </div>
+  </section>
+
+  <section class="section section--soft" id="hc-popular">
+    <div class="container">
+      <div class="section-head"><div class="eyebrow">Popular articles</div><h2 id="hc-popular-title">What people are reading</h2></div>
+      <div class="hc-articles" id="hc-articles">
+        <a class="hc-article" href="#"><span class="num"></span>Order your first measurement report<span class="cat">Measurements</span></a>
+        <a class="hc-article" href="#"><span class="num"></span>Invite your people and set their roles<span class="cat">Getting started</span></a>
+        <a class="hc-article" href="#"><span class="num"></span>Build a good-better-best proposal<span class="cat">Proposals</span></a>
+        <a class="hc-article" href="#"><span class="num"></span>Take a card payment in person<span class="cat">Payments</span></a>
+        <a class="hc-article" href="#"><span class="num"></span>Add a structure to an existing order<span class="cat">Measurements</span></a>
+        <a class="hc-article" href="#"><span class="num"></span>Turn a measurement into a material list<span class="cat">Materials</span></a>
+        <a class="hc-article" href="#"><span class="num"></span>Schedule an event and assign it<span class="cat">Scheduling</span></a>
+        <a class="hc-article" href="#"><span class="num"></span>Import contacts from a spreadsheet<span class="cat">CRM</span></a>
+        <a class="hc-article" href="#"><span class="num"></span>Send a payment link with an invoice<span class="cat">Payments</span></a>
+        <a class="hc-article" href="#"><span class="num"></span>Choose which apps each role sees<span class="cat">Settings</span></a>
+      </div>
+      <p class="hc-none" id="hc-none">No articles match yet. Try the <a href="~/support/faq/">FAQ</a> or <a href="~/support/contact/">contact support</a>.</p>
+      <!-- Article links are placeholders until the help articles exist. -->
+      <div class="hc-lang reveal" style="margin-top:40px">
+        <div class="icon"><i class="fa-solid fa-language"></i></div>
+        <div><b>Help in English and Español</b><div class="muted" style="font-size:14px">Placeholder: confirm which articles and support hours are available in Spanish.</div></div>
+        <div class="hc-lang-toggle" role="group" aria-label="Help language"><button type="button" class="on">English</button><button type="button">Español</button></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section section--dark">
+    <div class="container split">
+      <div class="reveal">
+        <div class="eyebrow" style="color:#ff6a6a">Talk to real people</div>
+        <h2>Our support team knows the trade.</h2>
+        <p class="lead" style="color:#c9ccd4">When an article is not enough, reach someone who knows the software and the work. No phone trees.</p>
+        <div class="hc-people" aria-hidden="true"><span class="mock-avatar" style="width:40px;height:40px">AM</span><span class="mock-avatar" style="width:40px;height:40px;background:linear-gradient(135deg,#93c5fd,#2563eb)">JR</span><span class="mock-avatar" style="width:40px;height:40px;background:linear-gradient(135deg,#86efac,#16a34a)">SK</span></div>
+        <div class="btn-row"><a class="btn btn-primary" href="~/support/contact/">Contact support</a><a class="btn btn-glass" href="mailto:help@1m8.ai">help@1m8.ai</a></div>
+        <p class="muted" style="margin-top:16px;font-size:14px">Support hours: Placeholder</p>
+      </div>
+      <div class="mock-stage">
+        <div class="mock mock--dark hc-ticket" aria-hidden="true">
+          <div class="mock-bar"><i></i><i></i><i></i><div class="url">Support conversation</div></div>
+          <div class="mock-main">
+            <div class="mock-row slide-up" style="--d:1"><span style="display:flex;gap:10px;align-items:center"><span class="mock-avatar">DL</span><b>Report shows one structure</b></span><span class="mock-chip amber">Open</span></div>
+            <div class="mock-row slide-up" style="--d:3;align-items:flex-start"><span class="mock-avatar" style="background:linear-gradient(135deg,#93c5fd,#2563eb)">JR</span><span style="flex:1;font-weight:600;color:#c9ccd4">Thanks, I can see the detached garage on 22 Elm St. I have added it to the order.</span></div>
+            <div class="mock-row slide-up" style="--d:6"><span style="display:flex;gap:10px;align-items:center"><span class="mock-avatar">DL</span><span class="hc-typing"><i></i><i></i><i></i></span></span><span class="mock-chip blue">Replying</span></div>
+            <div class="mock-row slide-up" style="--d:8"><span style="font-weight:700">Garage measurement</span><span class="mock-chip green">Added to order</span></div>
+          </div>
+        </div>
+        <div class="mock-float mock-toast hc-float-a">Answered by a person</div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section"><div class="container"><div class="cta-band">
+    <h2>Learn it with your team.</h2>
+    <p class="lead" style="color:#c9ccd4">Join a live class or work through a guide for your role.</p>
+    <div class="btn-row"><a class="btn btn-primary btn-lg" href="~/resources/classes/">Browse classes</a><a class="btn btn-glass btn-lg" href="~/resources/user-guides/">User guides</a></div>
+  </div></div></section>
+</main>
+<div id="site-footer"></div>
+<script src="../../assets/site.js"></script>
+<script>
+(function () {
+  var q = document.getElementById('hc-q'), form = document.getElementById('hc-form');
+  var rows = document.querySelectorAll('#hc-articles .hc-article'), none = document.getElementById('hc-none');
+  var title = document.getElementById('hc-popular-title');
+  function filter() {
+    var v = q.value.trim().toLowerCase(), n = 0;
+    rows.forEach(function (r) { var hit = !v || r.textContent.toLowerCase().indexOf(v) !== -1; r.classList.toggle('hide', !hit); if (hit) n++; });
+    none.classList.toggle('on', n === 0);
+    title.textContent = v ? n + ' result' + (n === 1 ? '' : 's') + ' for “' + q.value.trim() + '”' : 'What people are reading';
+  }
+  q.addEventListener('input', filter);
+  form.addEventListener('submit', function (e) { e.preventDefault(); filter(); document.getElementById('hc-popular').scrollIntoView({ behavior: 'smooth' }); });
+  document.querySelectorAll('.hc-popular-q button').forEach(function (b) { b.addEventListener('click', function () { q.value = b.dataset.q; form.requestSubmit ? form.requestSubmit() : filter(); }); });
+  document.querySelectorAll('.hc-lang-toggle button').forEach(function (b, i, all) { b.addEventListener('click', function () { all.forEach(function (x) { x.classList.toggle('on', x === b); }); }); });
+
+  // Typing placeholder that cycles through example searches.
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  var ex = ['How do I order a Full Exterior report?', 'Add a second structure', 'Send a proposal for signature', 'Take a deposit by card'], i = 0, c = 0, del = false;
+  (function tick() {
+    if (document.activeElement === q || q.value) { setTimeout(tick, 800); return; }
+    var s = ex[i];
+    c += del ? -1 : 1;
+    q.setAttribute('placeholder', s.slice(0, c) + (c ? '' : ''));
+    if (!del && c === s.length) { del = true; return setTimeout(tick, 1800); }
+    if (del && c === 0) { del = false; i = (i + 1) % ex.length; q.setAttribute('placeholder', 'Search help articles'); return setTimeout(tick, 600); }
+    setTimeout(tick, del ? 25 : 55);
+  })();
+})();
+</script>
+</body>
+</html>

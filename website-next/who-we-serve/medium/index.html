@@ -1,0 +1,265 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Growing Contractors — FirstMate</title>
+<meta name="description" content="FirstMate for growing contractors: office and field on the same page, with scheduling, CRM and job costing in one platform.">
+<meta name="robots" content="noindex, nofollow">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,400..900;1,400..900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/site.css">
+<style>
+  /* Shared who-we-serve styles (wws-) */
+  .wws-bare { background: transparent; box-shadow: none; border: 0; overflow: visible }
+  .wws-fix { margin-top: 16px; padding-top: 14px; border-top: 1px dashed var(--line); font-size: 14px; font-weight: 700; color: var(--heading); display: flex; gap: 8px; align-items: flex-start }
+  .wws-fix i { color: var(--brand); margin-top: 3px }
+  .wws-sol { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px }
+  .wws-sol a { display: flex; gap: 14px; align-items: flex-start; padding: 20px; border: 1px solid var(--line); border-radius: var(--radius); background: #fff; color: var(--heading); transition: transform .25s var(--ease), box-shadow .25s, border-color .25s }
+  .wws-sol a:hover { border-color: var(--brand); transform: translateY(-3px); box-shadow: var(--shadow); color: var(--heading) }
+  .wws-sol a > i { width: 42px; height: 42px; border-radius: 12px; background: var(--brand-soft); color: var(--brand); display: grid; place-items: center; flex: none; font-size: 17px }
+  .wws-sol b { display: block; font-weight: 800; line-height: 1.3 }
+  .wws-sol small { display: block; color: var(--muted); font-size: 14px; font-weight: 500; margin-top: 2px }
+  .wws-sol a.top { border-color: #ffd5d5; background: linear-gradient(180deg, #fff, #fff8f8) }
+  .wws-sol .tag { display: inline-block; margin-top: 8px; font-size: 11px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--brand) }
+  @media (max-width: 960px) { .wws-sol { grid-template-columns: 1fr 1fr } }
+  @media (max-width: 640px) { .wws-sol { grid-template-columns: 1fr } }
+  .wws-story { display: grid; grid-template-columns: 1fr 1.15fr; gap: clamp(28px, 5vw, 64px); align-items: center }
+  .wws-story .placeholder-photo { min-height: 340px; background: repeating-linear-gradient(135deg, #1b1d23 0 14px, #20232a 14px 28px); border-color: rgba(255,255,255,.15); color: #8b909c }
+  .wws-quote { font-size: clamp(20px, 2.2vw, 27px); font-weight: 700; color: #fff; line-height: 1.4; letter-spacing: -.01em; margin: 0 }
+  .wws-by { display: flex; gap: 12px; align-items: center; margin-top: 22px; font-size: 14px; color: #8b909c; font-weight: 600 }
+  .wws-by b { display: block; color: #fff }
+  .wws-results { display: flex; gap: 36px; margin-top: 32px; flex-wrap: wrap; padding-top: 28px; border-top: 1px solid rgba(255,255,255,.1) }
+  @media (max-width: 860px) { .wws-story { grid-template-columns: 1fr } }
+  .wws-sizes { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px }
+  .wws-sizes a { padding: 18px; border-radius: 14px; border: 1px solid var(--line); background: #fff; color: var(--heading); font-weight: 800; display: flex; gap: 12px; align-items: center; transition: border-color .2s, transform .2s }
+  .wws-sizes a:hover { border-color: var(--brand); transform: translateY(-2px); color: var(--heading) }
+  .wws-sizes a > i { color: var(--brand); width: 22px; text-align: center }
+  .wws-sizes a.on { border-color: var(--brand); background: var(--brand-soft) }
+  .wws-sizes small { display: block; color: var(--muted); font-weight: 600; font-size: 13px }
+  @media (max-width: 860px) { .wws-sizes { grid-template-columns: 1fr 1fr } }
+  @media (max-width: 420px) { .wws-sizes { grid-template-columns: 1fr } }
+
+  /* Medium: scheduling board */
+  .md-scene { position: relative; padding-bottom: 40px }
+  .md-scene > .mock .mock-main { background: #fafafb }
+  .md-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap }
+  .md-seg { display: inline-flex; background: #eef0f3; border-radius: 999px; padding: 3px; font-size: 10.5px; font-weight: 700 }
+  .md-seg span { padding: 4px 9px; border-radius: 999px; color: #4b5563 } .md-seg span.on { background: #fff; color: var(--heading); box-shadow: var(--shadow-sm) }
+  .md-board { display: grid; grid-template-columns: 86px repeat(5, minmax(0, 1fr)); grid-auto-rows: 40px; gap: 5px 4px; font-size: 10.5px }
+  .md-board .dh { grid-row: 1; height: auto; align-self: end; font-weight: 800; color: var(--muted); font-size: 10px; text-transform: uppercase; letter-spacing: .06em; padding-left: 4px }
+  .md-board .who { grid-column: 1; display: flex; align-items: center; gap: 6px; font-weight: 700; font-size: 10.5px; white-space: nowrap; overflow: hidden }
+  .md-board .who .mock-avatar { width: 20px; height: 20px; font-size: 8px }
+  .md-lane { grid-column: 2 / -1; border-radius: 8px; background: repeating-linear-gradient(90deg, #fff 0 calc(20% - 4px), transparent calc(20% - 4px) 20%); border: 1px solid var(--line-soft) }
+  .md-ev { border-radius: 7px; padding: 4px 7px; font-weight: 700; line-height: 1.25; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; border-left: 3px solid; margin: 3px 0 }
+  .md-ev small { display: block; font-weight: 600; opacity: .75; font-size: 9.5px; overflow: hidden; text-overflow: ellipsis }
+  .md-ev.r { background: var(--brand-soft); border-color: var(--brand); color: var(--brand-ink) }
+  .md-ev.b { background: #dbeafe; border-color: #2563eb; color: #1e3a8a }
+  .md-ev.g { background: #dcfce7; border-color: #16a34a; color: #14532d }
+  .md-ev.a { background: #fef3c7; border-color: #f59e0b; color: #78350f }
+  .md-ev.v { background: #ede9fe; border-color: #7c3aed; color: #4c1d95 }
+  .md-drop { opacity: 0 }
+  .mock.in .md-drop { animation: md-drop 1.1s var(--ease) 2.2s forwards }
+  @keyframes md-drop { 0% { opacity: 0; transform: translate(40px, -60px) rotate(4deg) scale(1.05); box-shadow: var(--shadow-lg) } 60% { opacity: 1 } 100% { opacity: 1; transform: none; box-shadow: none } }
+  .md-tray { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; font-size: 11px; font-weight: 700; color: var(--muted) }
+  .md-f { opacity: 0 }
+  .mock.in ~ .md-f1 { animation: fm-pop .6s var(--ease) 1.4s forwards, fm-float 6s ease-in-out 2s infinite }
+  .mock.in ~ .md-f2 { animation: fm-pop .6s var(--ease) 3.2s forwards, fm-float 7s ease-in-out 3.8s infinite }
+  .md-f1 { right: -14px; top: -26px; width: 220px } .md-f2 { left: -22px; bottom: 0; width: 230px }
+  @media (max-width: 560px) { .md-f1 { right: 0; width: 190px } .md-f2 { left: 0 } .md-board { grid-template-columns: 62px repeat(5, minmax(0, 1fr)) } .md-board .who span:last-child { overflow: hidden; text-overflow: ellipsis } .md-ev small { display: none } }
+
+  /* Feature rows */
+  .md-funnel .row { display: grid; grid-template-columns: 110px 1fr 44px; gap: 10px; align-items: center; font-weight: 700; font-size: 12px }
+  .md-funnel .row b { text-align: right }
+  .md-cost { display: flex; height: 18px; border-radius: 9px; overflow: hidden; background: #eceef1 }
+  .md-cost i { display: block; height: 100%; width: var(--w); transform: scaleX(0); transform-origin: left }
+  .mock.in .md-cost i { animation: fm-grow-x 1s var(--ease) forwards; animation-delay: calc(var(--d) * 250ms + 300ms) }
+  .md-legend { display: grid; grid-template-columns: 1fr 1fr; gap: 8px }
+  .md-legend div { display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 700 }
+  .md-legend div::before { content: ""; width: 10px; height: 10px; border-radius: 3px; background: var(--c) }
+  .md-legend div b { margin-left: auto }
+</style>
+</head>
+<body>
+<div id="site-header"></div>
+<main>
+  <section class="page-hero">
+    <div class="container split">
+      <div>
+        <div class="breadcrumb"><a href="~/who-we-serve/">Who We Serve</a><span>Medium</span></div>
+        <div class="eyebrow">11–49 employees</div>
+        <h1>Office and field, finally on the same page.</h1>
+        <p class="lead">You've hired an office, a few sales reps and more than one install team. FirstMate keeps the schedule, the leads and every job's numbers in one place, so nobody works from a different version of the truth.</p>
+        <div class="btn-row"><a class="btn btn-primary btn-lg" href="https://app.1m8.ai/portal/signup">Sign up free</a><a class="btn btn-ghost btn-lg" href="~/demo/">Book a demo</a></div>
+      </div>
+      <div class="mock-stage md-scene" aria-hidden="true">
+        <div class="mock">
+          <div class="mock-bar"><i></i><i></i><i></i><div class="url">app.1m8.ai/portal · Scheduling</div></div>
+          <div class="mock-body">
+            <div class="mock-side">
+              <img class="logo" src="../../assets/img/logo_black.png" alt="" style="height:22px;width:auto">
+              <div class="mock-nav">Today</div><div class="mock-nav">CRM</div><div class="mock-nav on">Scheduling</div><div class="mock-nav">Projects</div><div class="mock-nav">Financials</div><div class="mock-nav">Payments</div>
+            </div>
+            <div class="mock-main">
+              <div class="md-head fade"><div class="mock-title">Week of Oct 26</div><div class="md-seg"><span>Day</span><span class="on">Week</span><span>Month</span><span>Timeline</span></div></div>
+              <div class="md-board">
+                <div class="dh" style="grid-column:2">Mon</div><div class="dh" style="grid-column:3">Tue</div><div class="dh" style="grid-column:4">Wed</div><div class="dh" style="grid-column:5">Thu</div><div class="dh" style="grid-column:6">Fri</div>
+
+                <div class="who slide-up" style="grid-row:2;--d:1"><span class="mock-avatar">TA</span><span>Team Alvarez</span></div><div class="md-lane" style="grid-row:2"></div>
+                <div class="md-ev r pop" style="grid-row:2;grid-column:2 / 4;--d:3">Ridgeview Dr<small>Roof replacement</small></div>
+                <div class="md-ev b pop" style="grid-row:2;grid-column:5;--d:4">Oak St<small>Gutters</small></div>
+
+                <div class="who slide-up" style="grid-row:3;--d:2"><span class="mock-avatar" style="background:linear-gradient(135deg,#93c5fd,#2563eb)">TB</span><span>Team Brooks</span></div><div class="md-lane" style="grid-row:3"></div>
+                <div class="md-ev a pop" style="grid-row:3;grid-column:2;--d:5">Inspection<small>Pine Ave</small></div>
+                <div class="md-ev v md-drop" style="grid-row:3;grid-column:4 / 7">Maple Ct<small>Siding · moved by office</small></div>
+
+                <div class="who slide-up" style="grid-row:4;--d:3"><span class="mock-avatar" style="background:linear-gradient(135deg,#86efac,#16a34a)">ML</span><span>Maria L.</span></div><div class="md-lane" style="grid-row:4"></div>
+                <div class="md-ev g pop" style="grid-row:4;grid-column:2;--d:6">10:00 Appt<small>Birch Ln</small></div>
+                <div class="md-ev g pop" style="grid-row:4;grid-column:3;--d:7">2:30 Appt<small>Cedar Rd</small></div>
+                <div class="md-ev g pop" style="grid-row:4;grid-column:5;--d:8">9:00 Appt<small>Elm St</small></div>
+
+                <div class="who slide-up" style="grid-row:5;--d:4"><span class="mock-avatar" style="background:linear-gradient(135deg,#c4b5fd,#7c3aed)">DK</span><span>Dev K.</span></div><div class="md-lane" style="grid-row:5"></div>
+                <div class="md-ev b pop" style="grid-row:5;grid-column:3;--d:9">Repair<small>Willow Way</small></div>
+                <div class="md-ev a pop" style="grid-row:5;grid-column:6;--d:10">Warranty<small>Aspen Ct</small></div>
+              </div>
+              <div class="md-tray fade" style="--d:11">Unscheduled <span class="mock-chip amber">2 jobs</span><span class="mock-chip">1 delivery</span></div>
+            </div>
+          </div>
+        </div>
+        <div class="mock-float md-f md-f1"><div style="display:flex;justify-content:space-between;margin-bottom:6px"><span class="mock-chip red">New lead</span><span style="color:var(--muted);font-size:11px">Website form</span></div><div>Sarah Nguyen · roof leak</div><div style="font-weight:600;color:var(--muted);font-size:11px;margin-top:3px"><i class="fa-solid fa-user-check" style="color:var(--ok)"></i> Assigned to Maria L.</div></div>
+        <div class="mock-float md-f md-f2"><div class="mock-toast"><div>Team Brooks notified<div style="font-weight:600;color:var(--muted);font-size:11px">Maple Ct moved to Wed–Fri</div></div></div></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container">
+      <div class="section-head reveal">
+        <div class="eyebrow">Problems we solve</div>
+        <h2>Growing pains, solved in one place.</h2>
+        <p class="lead">The tools that worked for five people start to crack at twenty-five.</p>
+      </div>
+      <div class="grid grid-3">
+        <div class="card reveal" style="--d:0"><div class="icon"><i class="fa-solid fa-tower-broadcast"></i></div><h3>The office and the field don't agree</h3><p>Schedule changes live in someone's head or a group text.</p><div class="wws-fix"><i class="fa-solid fa-check"></i>One schedule. Changes reach the right people on their phones.</div></div>
+        <div class="card reveal" style="--d:1"><div class="icon"><i class="fa-solid fa-filter-circle-xmark"></i></div><h3>Leads slip through the cracks</h3><p>Web forms, calls and referrals land in different inboxes.</p><div class="wws-fix"><i class="fa-solid fa-check"></i>Every lead lands in the CRM, assigned and followed up.</div></div>
+        <div class="card reveal" style="--d:2"><div class="icon"><i class="fa-solid fa-calendar-xmark"></i></div><h3>Double-booked installs</h3><p>Two jobs, one team, and an unhappy homeowner.</p><div class="wws-fix"><i class="fa-solid fa-check"></i>Overlaps are flagged before anyone is sent out.</div></div>
+        <div class="card reveal" style="--d:3"><div class="icon"><i class="fa-solid fa-scale-unbalanced"></i></div><h3>No idea which jobs make money</h3><p>Margin shows up months later, if the bookkeeper finds it.</p><div class="wws-fix"><i class="fa-solid fa-check"></i>Job costing on every project, as costs come in.</div></div>
+        <div class="card reveal" style="--d:4"><div class="icon"><i class="fa-solid fa-right-left"></i></div><h3>Messy hand-offs from sales to production</h3><p>Signed jobs arrive missing measurements, photos or materials.</p><div class="wws-fix"><i class="fa-solid fa-check"></i>The signed proposal carries everything into the work order.</div></div>
+        <div class="card reveal" style="--d:5"><div class="icon"><i class="fa-solid fa-user-clock"></i></div><h3>Paying people takes a day</h3><p>Piece rate, hourly and commission tracked in spreadsheets.</p><div class="wws-fix"><i class="fa-solid fa-check"></i>Earnings come from the work itself, ready for payroll.</div></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section section--soft">
+    <div class="container stack-24">
+      <div class="split">
+        <div class="reveal">
+          <div class="eyebrow">CRM</div>
+          <h2>Know where every lead stands.</h2>
+          <p class="lead">Worklists tell each rep who to call next. The funnel shows where deals stall, by source and by rep.</p>
+          <a class="link-arrow" href="~/solutions/crm/">Explore the CRM</a>
+        </div>
+        <div class="mock" aria-hidden="true">
+          <div class="mock-bar"><i></i><i></i><i></i><div class="url">CRM · Funnel</div></div>
+          <div class="mock-main md-funnel">
+            <div class="mock-title">This month · all sources</div>
+            <div class="row slide-up" style="--d:1"><span>New leads</span><div class="mock-progress"><i style="--w:100%;--d:1"></i></div><b>142</b></div>
+            <div class="row slide-up" style="--d:2"><span>Appointments</span><div class="mock-progress"><i style="--w:66%;--d:2"></i></div><b>94</b></div>
+            <div class="row slide-up" style="--d:3"><span>Proposals sent</span><div class="mock-progress"><i style="--w:48%;--d:3"></i></div><b>68</b></div>
+            <div class="row slide-up" style="--d:4"><span>Signed</span><div class="mock-progress"><i style="--w:30%;--d:4"></i></div><b>43</b></div>
+            <div class="mock-row pop" style="--d:8"><span class="mock-avatar">SN</span><span style="flex:1;font-weight:700">Sarah Nguyen<span style="display:block;font-weight:600;color:var(--muted);font-size:11px">New lead · 12 min ago</span></span><span class="mock-btn"><i class="fa-solid fa-phone"></i>&nbsp;Call</span></div>
+          </div>
+        </div>
+      </div>
+      <div class="split split--flip" style="margin-top:72px">
+        <div class="reveal">
+          <div class="eyebrow">Job costing</div>
+          <h2>Profit on every job, while it's still running.</h2>
+          <p class="lead">Materials, labor and other costs land on the project as they happen, against what the customer signed for.</p>
+          <a class="link-arrow" href="~/solutions/financials/">Explore job costing</a>
+        </div>
+        <div class="mock" aria-hidden="true">
+          <div class="mock-bar"><i></i><i></i><i></i><div class="url">Projects · 1482 Ridgeview Dr · Financials</div></div>
+          <div class="mock-main">
+            <div style="display:flex;justify-content:space-between;align-items:center" class="fade"><div class="mock-title">Contract $24,860</div><span class="mock-chip green">Gross margin 38%</span></div>
+            <div class="md-cost fade"><i style="--w:34%;--d:0;background:#2563eb"></i><i style="--w:22%;--d:1;background:#7c3aed"></i><i style="--w:6%;--d:2;background:#f59e0b"></i><i style="--w:38%;--d:3;background:#16a34a"></i></div>
+            <div class="md-legend">
+              <div class="slide-up" style="--c:#2563eb;--d:3">Materials<b>$8,452</b></div>
+              <div class="slide-up" style="--c:#7c3aed;--d:4">Labor<b>$5,469</b></div>
+              <div class="slide-up" style="--c:#f59e0b;--d:5">Other<b>$1,492</b></div>
+              <div class="slide-up" style="--c:#16a34a;--d:6">Gross profit<b>$9,447</b></div>
+            </div>
+            <div class="mock-row pop" style="--d:9"><i class="fa-solid fa-receipt" style="color:var(--brand)"></i><span style="flex:1;font-weight:700">Dumpster receipt added<span style="display:block;font-weight:600;color:var(--muted);font-size:11px">Coded to Other · from the field app</span></span><span class="mock-chip">$385</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container">
+      <div class="section-head reveal">
+        <div class="eyebrow">Recommended for growing teams</div>
+        <h2>The core of a coordinated company.</h2>
+      </div>
+      <div class="wws-sol">
+        <a class="top reveal" style="--d:0" href="~/solutions/scheduling/"><i class="fa-solid fa-calendar-days"></i><span><b>Scheduling</b><small>Dispatch people and equipment</small><span class="tag">Core</span></span></a>
+        <a class="top reveal" style="--d:1" href="~/solutions/crm/"><i class="fa-solid fa-filter"></i><span><b>CRM &amp; Lead Tracking</b><small>Every lead, follow-up and source</small><span class="tag">Core</span></span></a>
+        <a class="top reveal" style="--d:2" href="~/solutions/financials/"><i class="fa-solid fa-chart-line"></i><span><b>Job Costing &amp; Financials</b><small>Profit on every job</small><span class="tag">Core</span></span></a>
+        <a class="reveal" style="--d:3" href="~/solutions/work-orders/"><i class="fa-solid fa-clipboard-list"></i><span><b>Work Orders &amp; Job Tracking</b><small>From signed to finished</small></span></a>
+        <a class="reveal" style="--d:4" href="~/solutions/crew-management/"><i class="fa-solid fa-helmet-safety"></i><span><b>Crew Management</b><small>A field app for every assignee</small></span></a>
+        <a class="reveal" style="--d:5" href="~/solutions/communications/"><i class="fa-solid fa-inbox"></i><span><b>Calls, Texts &amp; Inbox</b><small>Every conversation in one place</small></span></a>
+        <a class="reveal" style="--d:6" href="~/solutions/material-management/"><i class="fa-solid fa-boxes-stacked"></i><span><b>Material Management</b><small>Scope, orders and deliveries</small></span></a>
+        <a class="reveal" style="--d:7" href="~/solutions/automations/"><i class="fa-solid fa-bolt"></i><span><b>Automations</b><small>Follow-ups that run themselves</small></span></a>
+        <a class="reveal" style="--d:8" href="~/solutions/payroll/"><i class="fa-solid fa-money-check-dollar"></i><span><b>Payroll &amp; Commissions</b><small>Piece rate, hourly and commission</small></span></a>
+      </div>
+    </div>
+  </section>
+
+  <section class="section section--dark">
+    <div class="container wws-story">
+      <div class="placeholder-photo reveal">Photo: office manager and project manager at the schedule board</div>
+      <div class="reveal" style="--d:1">
+        <div class="eyebrow">Customer story</div>
+        <p class="wws-quote">“Placeholder quote from a growing contractor about getting the office and the field working from one schedule.”</p>
+        <div class="wws-by"><span class="mock-avatar">CN</span><span><b>Customer name</b>Title · Company name · City, ST</span></div>
+        <div class="wws-results">
+          <div class="stat"><b>—</b><span>Placeholder result</span></div>
+          <div class="stat"><b>—</b><span>Placeholder result</span></div>
+          <div class="stat"><b>—</b><span>Placeholder result</span></div>
+        </div>
+        <p style="margin-top:28px"><a class="link-arrow" href="~/resources/case-studies/" style="color:#fff">Read customer stories</a></p>
+      </div>
+    </div>
+  </section>
+
+  <section class="section section--tight">
+    <div class="container">
+      <h4 class="reveal" style="margin-bottom:16px">Other company sizes</h4>
+      <div class="wws-sizes">
+        <a href="~/who-we-serve/small/"><i class="fa-solid fa-user"></i><span>Small<small>1–10 employees</small></span></a>
+        <a class="on" href="~/who-we-serve/medium/"><i class="fa-solid fa-user-group"></i><span>Medium<small>11–49 employees</small></span></a>
+        <a href="~/who-we-serve/enterprise/"><i class="fa-solid fa-building"></i><span>Enterprise<small>50+ employees</small></span></a>
+        <a href="~/who-we-serve/franchise/"><i class="fa-solid fa-network-wired"></i><span>Franchise<small>Part of a larger network</small></span></a>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" style="padding-top:0">
+    <div class="container container--narrow">
+      <details class="faq"><summary>Can we move over from the tools we use now?</summary><div>Placeholder: what we import (contacts, open projects, price book) and how onboarding works.</div></details>
+      <details class="faq"><summary>Do installers need the whole app?</summary><div>No. You choose which apps each role sees on desktop and on the phone, so the field app shows only what they use.</div></details>
+      <details class="faq"><summary>Does it work with our accounting software?</summary><div>See <a href="~/solutions/integrations/">Integrations</a> for QuickBooks and other connections.</div></details>
+    </div>
+  </section>
+
+  <section class="section" style="padding-top:0"><div class="container"><div class="cta-band">
+    <h2>Run a bigger company without a bigger office.</h2>
+    <p class="lead" style="color:#c9ccd4">See scheduling, CRM and job costing with your own jobs.</p>
+    <div class="btn-row"><a class="btn btn-primary btn-lg" href="~/demo/">Book a demo</a><a class="btn btn-glass btn-lg" href="https://app.1m8.ai/portal/signup">Sign up free</a></div>
+  </div></div></section>
+</main>
+<div id="site-footer"></div>
+<script src="../../assets/site.js"></script>
+</body>
+</html>

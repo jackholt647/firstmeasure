@@ -1,0 +1,229 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Calls, Texts &amp; Inbox — FirstMate</title>
+<meta name="description" content="Calls, texts, email and portal chat with every customer in one inbox, filed on the project they belong to.">
+<meta name="robots" content="noindex, nofollow">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,400..900;1,400..900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/site.css">
+<style>
+  .cm-scene { position: relative; min-height: 470px }
+  .cm-inbox { display: grid; grid-template-columns: 190px minmax(0, 1fr); min-height: 380px }
+  .cm-threads { border-right: 1px solid var(--line); padding: 10px; display: flex; flex-direction: column; gap: 6px; background: #fbfbfc }
+  .cm-thread { display: flex; gap: 8px; align-items: center; padding: 8px; border-radius: 10px; font-size: 11px }
+  .cm-thread b { display: block; font-size: 12px }
+  .cm-thread small { color: var(--muted); font-weight: 600; display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 110px }
+  .cm-thread.on { background: #fff; box-shadow: var(--shadow-sm) }
+  .cm-thread .cm-ch { margin-left: auto; color: var(--muted); font-size: 11px }
+  .cm-conv { display: flex; flex-direction: column; min-width: 0 }
+  .cm-conv-head { display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-bottom: 1px solid var(--line) }
+  .cm-tabs { display: flex; gap: 4px; padding: 8px 14px; border-bottom: 1px solid var(--line-soft); flex-wrap: wrap }
+  .cm-tab { font-size: 11px; font-weight: 700; padding: 4px 10px; border-radius: 999px; color: var(--muted) }
+  .cm-tab.on { background: var(--heading); color: #fff }
+  .cm-msgs { flex: 1; padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; justify-content: flex-end; overflow: hidden; min-height: 220px }
+  .cm-msg { max-width: 82%; padding: 8px 12px; border-radius: 14px; font-size: 12px; font-weight: 600; line-height: 1.4; animation: fm-slide-up .5s var(--ease) both }
+  .cm-msg small { display: block; font-size: 10px; font-weight: 700; opacity: .65; margin-bottom: 2px }
+  .cm-msg.in-msg { background: #f3f4f6; align-self: flex-start; border-bottom-left-radius: 4px }
+  .cm-msg.out-msg { background: var(--brand); color: #fff; align-self: flex-end; border-bottom-right-radius: 4px }
+  .cm-msg.sys { align-self: center; background: none; color: var(--muted); font-size: 10px; font-weight: 700; padding: 2px }
+  .cm-compose { margin: 0 14px 12px; border: 1px solid var(--line); border-radius: 12px; padding: 8px 10px; display: flex; gap: 8px; align-items: center; color: var(--muted); font-size: 12px; font-weight: 600 }
+  .cm-call { right: -14px; top: -6px; width: 230px; opacity: 0 }
+  .mock.in ~ .cm-call { animation: fm-pop .6s var(--ease) 1.6s forwards, fm-float 6s ease-in-out 2.2s infinite }
+  .cm-call .cm-ring { width: 34px; height: 34px; border-radius: 50%; background: #dcfce7; color: var(--ok); display: grid; place-items: center; animation: fm-pulse 1.6s infinite }
+  .cm-call .cm-actions { display: flex; gap: 8px; margin-top: 10px }
+  .cm-call .cm-actions span { flex: 1; text-align: center; padding: 6px; border-radius: 999px; font-size: 11px; color: #fff }
+  .cm-ai { left: -20px; bottom: -14px; width: 240px; opacity: 0 }
+  .mock.in ~ .cm-ai { animation: fm-pop .6s var(--ease) 3.2s forwards, fm-float 7s ease-in-out 3.8s infinite }
+  .cm-wave { display: flex; align-items: center; gap: 3px; height: 28px }
+  .cm-wave i { width: 3px; border-radius: 2px; background: var(--brand); height: 30%; animation: cm-wave 1s ease-in-out infinite; animation-delay: calc(var(--d, 0) * 90ms) }
+  @keyframes cm-wave { 50% { height: 100% } }
+  .cm-callrow { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 10px; align-items: center }
+  @media (min-width: 961px) and (max-width: 1180px) { .cm-inbox { grid-template-columns: 1fr } .cm-threads { display: none } }
+  @media (max-width: 640px) {
+    .cm-inbox { grid-template-columns: 1fr } .cm-threads { display: none }
+    .cm-call { right: 0; width: 200px } .cm-ai { display: none }
+  }
+</style>
+</head>
+<body>
+<div id="site-header"></div>
+<main>
+  <section class="page-hero">
+    <div class="container split">
+      <div>
+        <div class="breadcrumb"><a href="~/solutions/">Solutions</a><span>Calls, Texts &amp; Inbox</span></div>
+        <div class="eyebrow">Calls, Texts &amp; Inbox</div>
+        <h1>Every conversation, on the right job.</h1>
+        <p class="lead">Calls, texts, email and portal chat with your customers in one inbox. Each message is filed on its project, so anyone on your team can pick it up.</p>
+        <div class="btn-row"><a class="btn btn-primary btn-lg" href="https://app.1m8.ai/portal/signup">Sign up free</a><a class="btn btn-ghost btn-lg" href="~/demo/">Book a demo</a></div>
+      </div>
+      <div class="mock-stage">
+        <div class="cm-scene">
+          <div class="mock" aria-hidden="true">
+            <div class="mock-bar"><i></i><i></i><i></i><div class="url">app.1m8.ai/portal · Comms</div></div>
+            <div class="cm-inbox">
+              <div class="cm-threads">
+                <div class="mock-title" style="font-size:13px;padding:2px 4px 6px">Inbox</div>
+                <div class="cm-thread on slide-up" style="--d:1"><div class="mock-avatar">SM</div><div><b>Sarah Martin</b><small>Can the crew start Tuesday?</small></div><i class="fa-solid fa-comment-sms cm-ch"></i></div>
+                <div class="cm-thread slide-up" style="--d:2"><div class="mock-avatar" style="background:linear-gradient(135deg,#93c5fd,#2563eb)">DO</div><div><b>Diego Ortiz</b><small>Missed call · 2:14 PM</small></div><i class="fa-solid fa-phone cm-ch"></i></div>
+                <div class="cm-thread slide-up" style="--d:3"><div class="mock-avatar" style="background:linear-gradient(135deg,#86efac,#16a34a)">KL</div><div><b>Kim Lee</b><small>Re: Proposal for 22 Elm</small></div><i class="fa-solid fa-envelope cm-ch"></i></div>
+                <div class="cm-thread slide-up" style="--d:4"><div class="mock-avatar" style="background:linear-gradient(135deg,#c4b5fd,#7c3aed)">JP</div><div><b>Jordan Park</b><small>Portal chat · photos</small></div><i class="fa-solid fa-comments cm-ch"></i></div>
+              </div>
+              <div class="cm-conv">
+                <div class="cm-conv-head"><div class="mock-avatar">SM</div><div style="flex:1;min-width:0"><b style="font-size:12px">Sarah Martin</b><div style="color:var(--muted);font-size:10px;font-weight:600">1482 Ridgeview Dr · Full Exterior</div></div><span class="mock-chip blue">Open project</span></div>
+                <div class="cm-tabs"><span class="cm-tab">Overview</span><span class="cm-tab on">Texts</span><span class="cm-tab">Email</span><span class="cm-tab">Calls</span><span class="cm-tab">Portal Chat</span></div>
+                <div class="cm-msgs" id="cm-msgs"></div>
+                <div class="cm-compose"><i class="fa-solid fa-microphone"></i><span style="flex:1">Write a text message…</span><span class="mock-btn">Send</span></div>
+              </div>
+            </div>
+          </div>
+          <div class="mock-float cm-call">
+            <div style="display:flex;gap:10px;align-items:center"><div class="cm-ring"><i class="fa-solid fa-phone"></i></div><div>Incoming call<div style="font-weight:600;color:var(--muted);font-size:11px">Diego Ortiz · 418 Birch Ln</div></div></div>
+            <div class="cm-actions"><span style="background:var(--ok)">Answer</span><span style="background:#9ca3af">Decline</span></div>
+          </div>
+          <div class="mock-float cm-ai">
+            <div style="display:flex;justify-content:space-between;margin-bottom:6px"><span class="mock-chip violet"><i class="fa-solid fa-wand-magic-sparkles"></i> AI draft</span><span style="color:var(--muted);font-size:11px">for review</span></div>
+            <div style="font-weight:600;font-size:12px">"Tuesday works. Your materials arrive Monday afternoon."</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container">
+      <div class="section-head reveal"><div class="eyebrow">How it works</div><h2>One inbox for the whole office.</h2><p class="lead">Placeholder intro: stop losing messages across personal phones, shared inboxes and sticky notes.</p></div>
+
+      <div class="split" style="margin-bottom:96px">
+        <div class="reveal">
+          <h3>Calls with the job already open.</h3>
+          <p>Calls ring the right people from your business numbers. FirstMate shows who is calling and which project they belong to, records the call and asks for a quick wrap-up when you hang up.</p>
+          <ul class="feature-list"><li>Business numbers with routing and business hours</li><li>Incoming call team and availability</li><li>Recording and notes on every call</li><li>Outcome and next step after each call</li></ul>
+        </div>
+        <div class="mock reveal" aria-hidden="true">
+          <div class="mock-bar"><i></i><i></i><i></i><div class="url">Calls · Needs wrap-up</div></div>
+          <div class="mock-main">
+            <div class="mock-row slide-up cm-callrow" style="--d:1"><div class="mock-avatar">DO</div><div><b>Diego Ortiz</b><div style="color:var(--muted);font-size:11px;font-weight:600">Inbound · 6:42 · 418 Birch Ln</div></div><span class="mock-chip amber">Needs wrap-up</span></div>
+            <div class="mock-row slide-up" style="--d:2;flex-direction:column;align-items:stretch">
+              <div style="display:flex;justify-content:space-between;font-size:11px;font-weight:700;color:var(--muted)"><span><i class="fa-solid fa-circle" style="color:var(--brand);font-size:8px"></i> Recording</span><span>06:42</span></div>
+              <div class="cm-wave"><i style="--d:0"></i><i style="--d:1"></i><i style="--d:2"></i><i style="--d:3"></i><i style="--d:4"></i><i style="--d:5"></i><i style="--d:6"></i><i style="--d:7"></i><i style="--d:8"></i><i style="--d:9"></i><i style="--d:2"></i><i style="--d:4"></i><i style="--d:6"></i><i style="--d:1"></i><i style="--d:3"></i><i style="--d:5"></i><i style="--d:7"></i><i style="--d:0"></i><i style="--d:8"></i><i style="--d:2"></i></div>
+            </div>
+            <div class="mock-row slide-up" style="--d:4"><b style="flex:0 0 80px;font-size:11px">Outcome</b><span class="mock-chip green">Appointment set</span></div>
+            <div class="mock-row slide-up" style="--d:5"><b style="flex:0 0 80px;font-size:11px">Next step</b><span style="font-size:12px;font-weight:600"><span class="mock-type" style="--steps:26;--d:6">Inspection Thu 10:00 AM</span></span></div>
+            <div class="mock-row pop" style="--d:16"><div class="mock-toast" style="flex:1">Call saved to the project</div></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="split split--flip" style="margin-bottom:96px">
+        <div class="reveal">
+          <h3>A Comms tab on every project.</h3>
+          <p>Open any project and see every text, email, call and portal chat with that customer in one timeline. New hires and covering teammates get the full story without asking.</p>
+          <ul class="feature-list"><li>Texts, email with CC and BCC, calls and portal chat</li><li>Search all communications</li><li>Who gets notified, set per project</li></ul>
+        </div>
+        <div class="mock reveal" aria-hidden="true">
+          <div class="mock-bar"><i></i><i></i><i></i><div class="url">Project · 1482 Ridgeview Dr · Comms</div></div>
+          <div class="mock-main">
+            <div class="cm-tabs" style="padding:0;border:0"><span class="cm-tab on">Overview</span><span class="cm-tab">Texts</span><span class="cm-tab">Email</span><span class="cm-tab">Calls</span><span class="cm-tab">Portal Chat</span></div>
+            <div class="mock-title" style="font-size:13px">Recent activity</div>
+            <div class="mock-row slide-up" style="--d:1"><i class="fa-solid fa-envelope" style="color:var(--info)"></i><b style="flex:1;font-size:12px">Proposal sent · Better package</b><span style="color:var(--muted);font-size:11px">Mon</span></div>
+            <div class="mock-row slide-up" style="--d:2"><i class="fa-solid fa-phone" style="color:var(--ok)"></i><b style="flex:1;font-size:12px">Call · 4:12 · Questions on colors</b><span style="color:var(--muted);font-size:11px">Tue</span></div>
+            <div class="mock-row slide-up" style="--d:3"><i class="fa-solid fa-comment-sms" style="color:var(--brand)"></i><b style="flex:1;font-size:12px">Text in · "We'd like the Better option"</b><span style="color:var(--muted);font-size:11px">Wed</span></div>
+            <div class="mock-row slide-up" style="--d:4"><i class="fa-solid fa-comments" style="color:var(--violet)"></i><b style="flex:1;font-size:12px">Portal chat · 3 photos shared</b><span style="color:var(--muted);font-size:11px">Today</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="split">
+        <div class="reveal">
+          <h3>AI drafts replies. You approve them.</h3>
+          <p>The assistant knows the job: schedule, materials and what was promised. It drafts a reply for review, or answers on its own when you turn that on for a project.</p>
+          <ul class="feature-list"><li>Auto-reply off, draft for review, or send automatically</li><li>Ask AI about a project's conversations</li><li>Dictate replies from the field</li></ul>
+        </div>
+        <div class="mock mock--dark reveal" aria-hidden="true">
+          <div class="mock-bar"><i></i><i></i><i></i><div class="url" style="background:#15171c;border-color:#2a2e37">Comms AI</div></div>
+          <div class="mock-main">
+            <div class="mock-row slide-up" style="--d:1"><span class="mock-chip violet">Auto-reply: draft for review</span><span style="margin-left:auto;color:#8b909c;font-size:11px">2 waiting</span></div>
+            <div class="mock-row slide-up" style="--d:3;flex-direction:column;align-items:stretch;gap:6px"><small style="color:#8b909c;font-weight:700;font-size:10px">TEXT IN · KIM LEE</small><span style="font-size:12px;font-weight:600">When will the dumpster be picked up?</span></div>
+            <div class="mock-row slide-up" style="--d:6;flex-direction:column;align-items:stretch;gap:6px;border-color:rgba(124,58,237,.5)"><small style="color:#c4b5fd;font-weight:700;font-size:10px">AI DRAFT</small><span style="font-size:12px;font-weight:600"><span class="mock-type" style="--steps:34;--d:8;border-color:#c4b5fd">Pickup is booked for Friday morning.</span></span></div>
+            <div class="fade" style="--d:20;display:flex;gap:8px;justify-content:flex-end"><span class="mock-chip" style="background:#2a2e37;color:#e5e7eb">Dismiss</span><span class="mock-btn">Send</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section section--soft">
+    <div class="container">
+      <div class="section-head center reveal"><div class="eyebrow">Everything included</div><h2>Built for teams on the phone all day.</h2></div>
+      <div class="grid grid-3">
+        <div class="card reveal"><div class="icon"><i class="fa-solid fa-list-check"></i></div><h3>Call lists</h3><p>Build a call list from your CRM and work through it one call at a time.</p></div>
+        <div class="card reveal" style="--d:1"><div class="icon"><i class="fa-solid fa-scroll"></i></div><h3>Call scripts</h3><p>Write scripts your team follows on every call, right beside the customer.</p></div>
+        <div class="card reveal" style="--d:2"><div class="icon"><i class="fa-solid fa-clock"></i></div><h3>Routing and hours</h3><p>Send calls to the right team, with business hours and availability.</p></div>
+        <div class="card reveal"><div class="icon"><i class="fa-solid fa-user-shield"></i></div><h3>Role access</h3><p>Choose who sees which conversations: assigned to me, assigned teammates or everyone.</p></div>
+        <div class="card reveal" style="--d:1"><div class="icon"><i class="fa-solid fa-mobile-screen"></i></div><h3>In the mobile app</h3><p>Call and text customers from the FirstMate app without giving out a personal number.</p></div>
+        <div class="card reveal" style="--d:2"><div class="icon"><i class="fa-solid fa-comments"></i></div><h3>Portal chat</h3><p>Customers message you from their portal and see what you were looking at together.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container">
+      <div class="section-head reveal"><div class="eyebrow">Connected</div><h2>Part of the whole job.</h2></div>
+      <div class="grid grid-4">
+        <a class="card reveal" href="~/solutions/crm/"><div class="icon"><i class="fa-solid fa-address-book"></i></div><h3>CRM</h3><p>Every call and text lands on the contact and the lead.</p></a>
+        <a class="card reveal" style="--d:1" href="~/solutions/forms-booking/"><div class="icon"><i class="fa-solid fa-calendar-check"></i></div><h3>Forms &amp; Booking</h3><p>New web leads start a conversation right away.</p></a>
+        <a class="card reveal" style="--d:2" href="~/solutions/scheduling/"><div class="icon"><i class="fa-solid fa-calendar-days"></i></div><h3>Scheduling</h3><p>Confirmations and reminders go out for every appointment.</p></a>
+        <a class="card reveal" style="--d:3" href="~/solutions/reviews/"><div class="icon"><i class="fa-solid fa-star"></i></div><h3>Reviews</h3><p>Ask for feedback by text or email when the job is done.</p></a>
+      </div>
+    </div>
+  </section>
+
+  <section class="section section--soft">
+    <div class="container container--narrow">
+      <div class="section-head center reveal"><div class="eyebrow">FAQ</div><h2>Questions</h2></div>
+      <details class="faq"><summary>Can I keep my existing business number?</summary><div>Placeholder answer about number porting and adding new business numbers.</div></details>
+      <details class="faq"><summary>Do my people need a desk phone?</summary><div>No. Calls work in the browser and in the FirstMate mobile app. Check this device runs a quick microphone and network check.</div></details>
+      <details class="faq"><summary>Does the AI send messages on its own?</summary><div>Only if you choose. Auto-reply can be off, draft for review, or send automatically, set for the company and per project.</div></details>
+      <details class="faq"><summary>What does calling cost?</summary><div>Placeholder answer. See <a href="~/pricing/">pricing</a>.</div></details>
+    </div>
+  </section>
+
+  <section class="section"><div class="container"><div class="cta-band reveal">
+    <h2>Never lose a customer message again.</h2>
+    <p>Placeholder line about getting started with calls and texts in FirstMate.</p>
+    <div class="btn-row"><a class="btn btn-primary btn-lg" href="https://app.1m8.ai/portal/signup">Sign up free</a><a class="btn btn-glass btn-lg" href="~/demo/">Book a demo</a></div>
+  </div></div></section>
+</main>
+<div id="site-footer"></div>
+<script src="../../assets/site.js"></script>
+<script>
+(function () {
+  var box = document.getElementById('cm-msgs'); if (!box) return;
+  var script = [
+    ['in-msg', 'Sarah', 'Hi! Can the crew start Tuesday instead of Wednesday?'],
+    ['out-msg', 'You', 'Let me check the schedule for you.'],
+    ['sys', '', 'Install moved to Tue · Scheduling'],
+    ['out-msg', 'You', 'Done. Tuesday 7:30 AM. Materials arrive Monday.'],
+    ['in-msg', 'Sarah', 'Perfect, thank you!'],
+    ['in-msg', 'Sarah', 'Should we move the cars out of the driveway?']
+  ];
+  function render(msg) {
+    var el = document.createElement('div');
+    el.className = 'cm-msg ' + msg[0];
+    el.innerHTML = (msg[1] && msg[0] !== 'sys' ? '<small>' + msg[1] + '</small>' : '') + msg[2];
+    box.appendChild(el);
+    while (box.children.length > 4) box.removeChild(box.firstChild);
+  }
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) { script.slice(0, 4).forEach(render); return; }
+  var i = 0;
+  function tick() { render(script[i % script.length]); i++; setTimeout(tick, i % script.length === 0 ? 3600 : 1900); }
+  var started = false;
+  new IntersectionObserver(function (e) { if (e[0].isIntersecting && !started) { started = true; setTimeout(tick, 500); } }).observe(box);
+})();
+</script>
+</body>
+</html>

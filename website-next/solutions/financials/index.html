@@ -1,0 +1,227 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Job Costing &amp; Financials — FirstMate</title>
+<meta name="description" content="See profit on every job, revenue by period, what you owe and a cash flow forecast, built from the payments, materials and labor already in FirstMate.">
+<meta name="robots" content="noindex, nofollow">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,400..900;1,400..900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/site.css">
+<style>
+  .fin-wf { position: relative; display: grid; grid-template-columns: repeat(6, 1fr); gap: 10px; height: 180px; padding: 18px 4px 0; border-bottom: 1px solid var(--line) }
+  .fin-wf::before { content: ""; position: absolute; left: 0; right: 0; top: 18px; border-top: 1px dashed var(--line) }
+  .fin-wf .c { position: relative; height: 100% }
+  .fin-wf .b { position: absolute; left: 0; right: 0; bottom: var(--b, 0%); height: var(--h); border-radius: 5px; background: var(--c, #9ca3af); transform: scaleY(0); transform-origin: var(--o, bottom) }
+  .mock.in .fin-wf .b { animation: fm-grow-y .8s var(--ease) forwards; animation-delay: calc(var(--d, 0) * 280ms + 300ms) }
+  .fin-wf .v { position: absolute; left: -6px; right: -6px; bottom: calc(var(--b, 0%) + var(--h) + 4px); text-align: center; font-size: 10px; font-weight: 800; opacity: 0; white-space: nowrap }
+  .mock.in .fin-wf .v { animation: fm-fade .4s ease forwards; animation-delay: calc(var(--d, 0) * 280ms + 900ms) }
+  .fin-wf-l { display: grid; grid-template-columns: repeat(6, 1fr); gap: 10px; padding: 6px 4px 0; font-size: 10px; font-weight: 800; color: var(--muted); text-align: center }
+  .fin-margin { right: -4px; top: 20px; opacity: 0 }
+  .mock.in ~ .fin-margin { animation: fm-pop .6s var(--ease) 2.4s forwards, fm-float 6s ease-in-out 3s infinite }
+  .fin-margin b { font-size: 26px; font-weight: 900; color: var(--ok); letter-spacing: -.02em }
+
+  .fin-tr { display: grid; grid-template-columns: 1.4fr .9fr .9fr 1fr; gap: 8px; align-items: center; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; font-size: 11px; font-weight: 600; background: #fff }
+  .fin-tr.th { border: 0; background: none; padding: 0 10px; font-size: 9px; font-weight: 800; color: var(--muted); text-transform: uppercase; letter-spacing: .06em }
+  .fin-tr .m { display: flex; align-items: center; gap: 6px } .fin-tr .m .mock-progress { flex: 1 }
+  .fin-chart { position: relative; height: 150px }
+  .fin-chart .mock-bars { height: 150px; position: absolute; inset: 0 }
+  .fin-chart .mock-bars > i { background: #e5e7eb }
+  .fin-chart svg { position: absolute; inset: 0; width: 100%; height: 100% }
+  .fin-chart polyline { fill: none; stroke: var(--brand); stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; vector-effect: non-scaling-stroke }
+  .fin-legend { display: flex; gap: 14px; font-size: 10px; font-weight: 700; color: var(--muted) }
+  .fin-legend span::before { content: ""; display: inline-block; width: 10px; height: 10px; border-radius: 3px; background: var(--c); margin-right: 5px; vertical-align: -1px }
+  .fin-cash svg { width: 100%; height: 150px }
+  .fin-cash .area { fill: url(#fin-grad); opacity: 0 }
+  .mock.in .fin-cash .area { animation: fm-fade 1s ease forwards 1.6s }
+  .fin-cash .ln { fill: none; stroke: var(--brand); stroke-width: 2.5; stroke-linecap: round }
+  .fin-cash .floor { stroke: var(--warn); stroke-width: 1.5; stroke-dasharray: 4 4 }
+  @media (max-width: 640px) {
+    .fin-tr { grid-template-columns: 1.3fr .9fr 1fr } .fin-tr > :nth-child(2) { display: none }
+    .fin-margin { display: none } .fin-wf, .fin-wf-l { gap: 5px }
+    main .mock-kpi { padding: 9px; min-width: 0 } main .mock-kpi b { font-size: 15px }
+  }
+</style>
+</head>
+<body>
+<div id="site-header"></div>
+<main>
+  <section class="page-hero">
+    <div class="container split">
+      <div>
+        <div class="breadcrumb"><a href="~/solutions/">Solutions</a><span>Job Costing &amp; Financials</span></div>
+        <div class="eyebrow">Job Costing &amp; Financials</div>
+        <h1>Know what every job really made.</h1>
+        <p class="lead">Profit on every project, revenue over time, what you owe and where your cash is heading. Built from the payments, materials and labor you already track in FirstMate.</p>
+        <div class="btn-row"><a class="btn btn-primary btn-lg" href="https://app.1m8.ai/portal/signup">Sign up free</a><a class="btn btn-ghost btn-lg" href="~/demo/">Book a demo</a></div>
+      </div>
+      <div class="mock-stage" aria-hidden="true">
+        <div class="mock">
+          <div class="mock-bar"><i></i><i></i><i></i><div class="url">Project · Job Cost Report</div></div>
+          <div class="mock-main">
+            <div style="display:flex;justify-content:space-between;align-items:center" class="fade"><div><div class="mock-title">Martin · 1482 Ridgeview Dr</div><div class="muted" style="font-size:11px;font-weight:600">Roof replacement · Project profitability</div></div><span class="mock-chip green">Closed</span></div>
+            <div>
+              <div class="fin-wf">
+                <div class="c"><div class="b" style="--b:0%;--h:100%;--c:var(--heading);--d:0"></div><span class="v" style="--b:0%;--h:100%;--d:0">$24,860</span></div>
+                <div class="c"><div class="b" style="--b:68.1%;--h:31.9%;--c:var(--brand);--o:top;--d:1"></div><span class="v" style="--b:68.1%;--h:31.9%;--d:1">−$7,940</span></div>
+                <div class="c"><div class="b" style="--b:47.1%;--h:20.9%;--c:var(--brand-2);--o:top;--d:2"></div><span class="v" style="--b:47.1%;--h:20.9%;--d:2">−$5,200</span></div>
+                <div class="c"><div class="b" style="--b:44.7%;--h:2.5%;--c:#fb923c;--o:top;--d:3"></div><span class="v" style="--b:44.7%;--h:2.5%;--d:3">−$610</span></div>
+                <div class="c"><div class="b" style="--b:42.8%;--h:1.9%;--c:#fbbf24;--o:top;--d:4"></div><span class="v" style="--b:42.8%;--h:1.9%;--d:4">−$480</span></div>
+                <div class="c"><div class="b" style="--b:0%;--h:42.8%;--c:var(--ok);--d:5"></div><span class="v" style="--b:0%;--h:42.8%;--d:5">$10,630</span></div>
+              </div>
+              <div class="fin-wf-l"><span>Revenue</span><span>Materials</span><span>Labor</span><span>Other</span><span>Fees</span><span>Profit</span></div>
+            </div>
+            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">
+              <div class="mock-kpi slide-up" style="--d:12"><small>Collected</small><b>$24,860</b></div>
+              <div class="mock-kpi slide-up" style="--d:13"><small>Costs</small><b>$14,230</b></div>
+              <div class="mock-kpi slide-up" style="--d:14"><small>Margin</small><b style="color:var(--ok)">42.8%</b></div>
+            </div>
+          </div>
+        </div>
+        <div class="mock-float fin-margin"><div class="muted" style="font-size:11px">Profit to date</div><b>$10,630</b><div style="font-size:11px;color:var(--muted);font-weight:600">from real costs, not estimates</div></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container split">
+      <div class="reveal">
+        <div class="eyebrow">Profitability</div>
+        <h2>Profit on every active job, while it is still active.</h2>
+        <p class="lead">Projected revenue and profit for each open project, updated as materials are ordered, labor is committed and payments come in. Spot the thin jobs before they close.</p>
+        <ul class="feature-list"><li>Projected and to-date profit per project</li><li>Margin at a glance</li><li>Job cost report as a PDF</li></ul>
+      </div>
+      <div class="mock reveal" aria-hidden="true">
+        <div class="mock-bar"><i></i><i></i><i></i><div class="url">Financials · Profitability</div></div>
+        <div class="mock-main">
+          <div class="fin-tr th"><span>Project</span><span>Projected revenue</span><span>Projected profit</span><span>Margin</span></div>
+          <div class="fin-tr slide-up" style="--d:1"><b>Martin</b><span>$24,860</span><span>$10,630</span><span class="m"><span class="mock-progress"><i style="--w:86%;--d:1;background:var(--ok)"></i></span>43%</span></div>
+          <div class="fin-tr slide-up" style="--d:2"><b>Park</b><span>$31,200</span><span>$11,540</span><span class="m"><span class="mock-progress"><i style="--w:74%;--d:2;background:var(--ok)"></i></span>37%</span></div>
+          <div class="fin-tr slide-up" style="--d:3"><b>Nguyen</b><span>$6,480</span><span>$1,620</span><span class="m"><span class="mock-progress"><i style="--w:50%;--d:3;background:var(--warn)"></i></span>25%</span></div>
+          <div class="fin-tr slide-up" style="--d:4"><b>Okafor</b><span>$18,900</span><span>$2,080</span><span class="m"><span class="mock-progress"><i style="--w:22%;--d:4"></i></span>11%</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section section--soft">
+    <div class="container split split--flip">
+      <div class="reveal">
+        <div class="eyebrow">Revenue history</div>
+        <h2>Revenue and profit, period by period.</h2>
+        <p class="lead">See how each month or pay cycle went: revenue in the period, expenses and the profit left over, with every number traceable to a payment or cost.</p>
+        <ul class="feature-list"><li>Revenue and profitability by cycle</li><li>Compare any period to the last</li><li>Drill into the payments behind a bar</li></ul>
+      </div>
+      <div class="mock reveal" aria-hidden="true">
+        <div class="mock-bar"><i></i><i></i><i></i><div class="url">Financials · Revenue</div></div>
+        <div class="mock-main">
+          <div style="display:flex;justify-content:space-between;align-items:center" class="fade"><div class="mock-title">Revenue in period</div><div class="fin-legend"><span style="--c:#e5e7eb">Revenue</span><span style="--c:var(--brand)">Profit</span></div></div>
+          <div class="fin-chart">
+            <div class="mock-bars"><i style="--h:44%;--d:1"></i><i style="--h:52%;--d:2"></i><i style="--h:48%;--d:3"></i><i style="--h:66%;--d:4"></i><i style="--h:72%;--d:5"></i><i style="--h:63%;--d:6"></i><i style="--h:84%;--d:7"></i><i style="--h:92%;--d:8"></i></div>
+            <svg class="draw" viewBox="0 0 400 150" preserveAspectRatio="none"><polyline style="--len:600;--d:4" points="25,124 75,118 125,121 175,108 225,100 275,110 325,92 375,84"/></svg>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">
+            <div class="mock-kpi slide-up" style="--d:8"><small>Revenue</small><b>$412k</b></div>
+            <div class="mock-kpi slide-up" style="--d:9"><small>Expenses</small><b>$259k</b></div>
+            <div class="mock-kpi slide-up" style="--d:10"><small>Margin</small><b>37%</b></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container split">
+      <div class="reveal">
+        <div class="eyebrow">Obligations</div>
+        <h2>What you owe, and when it is due.</h2>
+        <p class="lead">Material commitments, payroll and other money going out are listed with their dates next to what customers owe you, so the period's end has no surprises.</p>
+        <ul class="feature-list"><li>Owed by period end</li><li>Material commitments and payments</li><li>Customer balances expected in</li></ul>
+      </div>
+      <div class="mock reveal" aria-hidden="true">
+        <div class="mock-bar"><i></i><i></i><i></i><div class="url">Financials · Schedule</div></div>
+        <div class="mock-main">
+          <div class="mock-row slide-up" style="--d:1"><span class="mock-chip red">Out</span><b style="flex:1">Materials commitment · Park</b><span class="muted" style="font-weight:700">Oct 27</span><b>−$9,860</b></div>
+          <div class="mock-row slide-up" style="--d:2"><span class="mock-chip red">Out</span><b style="flex:1">Payroll · Batch 42</b><span class="muted" style="font-weight:700">Oct 31</span><b>−$31,480</b></div>
+          <div class="mock-row slide-up" style="--d:3"><span class="mock-chip green">In</span><b style="flex:1">Customer payment · Martin</b><span class="muted" style="font-weight:700">Oct 29</span><b>+$8,286</b></div>
+          <div class="mock-row slide-up" style="--d:4"><span class="mock-chip green">In</span><b style="flex:1">Customer payment · Okafor</b><span class="muted" style="font-weight:700">Nov 2</span><b>+$3,410</b></div>
+          <div class="mock-row pop" style="--d:7;background:var(--bg-soft)"><b style="flex:1">Profit by period end</b><b style="color:var(--ok)">$46,120</b></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section section--dark">
+    <div class="container split split--flip">
+      <div class="reveal">
+        <div class="eyebrow">Cash flow forecast</div>
+        <h2>See your cash position before you get there.</h2>
+        <p class="lead">A day-by-day forecast from what is collected, what is clearing and what is due, with a safe-to-spend number that accounts for everything you have committed to.</p>
+        <ul class="feature-list"><li>Available, expected and safe to spend</li><li>Pending incoming and undated exposure</li><li>Payouts, fees and reconciliation</li></ul>
+      </div>
+      <div class="mock mock--dark reveal fin-cash" aria-hidden="true">
+        <div class="mock-bar"><i></i><i></i><i></i><div class="url">Financials · Cash flow</div></div>
+        <div class="mock-main">
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">
+            <div class="mock-kpi slide-up" style="--d:1;background:#1c1f26;border-color:rgba(255,255,255,.06)"><small>Available cash</small><b style="color:#fff">$84.2k</b></div>
+            <div class="mock-kpi slide-up" style="--d:2;background:#1c1f26;border-color:rgba(255,255,255,.06)"><small>Pending incoming</small><b style="color:#fff">$21.7k</b></div>
+            <div class="mock-kpi slide-up" style="--d:3;background:#1c1f26;border-color:rgba(255,255,255,.06)"><small>Safe to spend</small><b style="color:#4ade80">$38.9k</b></div>
+          </div>
+          <svg viewBox="0 0 400 150" preserveAspectRatio="none" class="draw">
+            <defs><linearGradient id="fin-grad" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#db0000" stop-opacity=".35"/><stop offset="1" stop-color="#db0000" stop-opacity="0"/></linearGradient></defs>
+            <path class="area" d="M0,70 L50,62 L100,78 L150,58 L200,96 L250,88 L300,60 L350,52 L400,40 L400,150 L0,150 Z" style="stroke:none"/>
+            <line class="floor" x1="0" y1="110" x2="400" y2="110" style="--len:400"/>
+            <path class="ln" style="--len:520" d="M0,70 L50,62 L100,78 L150,58 L200,96 L250,88 L300,60 L350,52 L400,40"/>
+          </svg>
+          <div class="fin-legend"><span style="--c:var(--brand)">Forecast cash position</span><span style="--c:var(--warn)">Reserved</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container">
+      <div class="section-head center reveal"><div class="eyebrow">Everything included</div><h2>The money side, in one place.</h2></div>
+      <div class="grid grid-3">
+        <div class="card reveal"><div class="icon"><i class="fa-solid fa-file-invoice"></i></div><h3>Job cost report</h3><p>Revenue, materials, labor and expenses for one job, as a PDF.</p></div>
+        <div class="card reveal" style="--d:1"><div class="icon"><i class="fa-solid fa-money-bill-transfer"></i></div><h3>Payouts</h3><p>What reaches your bank, fees and expected arrival.</p></div>
+        <div class="card reveal" style="--d:2"><div class="icon"><i class="fa-solid fa-scale-balanced"></i></div><h3>Reconcile</h3><p>Mark what has cleared and see what has not arrived.</p></div>
+        <div class="card reveal"><div class="icon"><i class="fa-solid fa-triangle-exclamation"></i></div><h3>Disputes</h3><p>Open disputes listed with their reason and date.</p></div>
+        <div class="card reveal" style="--d:1"><div class="icon"><i class="fa-solid fa-receipt"></i></div><h3>Expenses</h3><p>Receipts coded to the job count against its profit.</p></div>
+        <div class="card reveal" style="--d:2"><div class="icon"><i class="fa-solid fa-code-branch"></i></div><h3>By branch</h3><p>Placeholder: numbers for each location you run.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section section--soft">
+    <div class="container">
+      <div class="section-head reveal"><div class="eyebrow">Connected</div><h2>Every number comes from the work.</h2></div>
+      <div class="grid grid-4">
+        <a class="card reveal" href="~/solutions/payments/"><div class="icon"><i class="fa-solid fa-credit-card"></i></div><h3>Payments</h3><p>Revenue from real charges.</p></a>
+        <a class="card reveal" style="--d:1" href="~/solutions/material-management/"><div class="icon"><i class="fa-solid fa-boxes-stacked"></i></div><h3>Materials</h3><p>Orders and commitments as costs.</p></a>
+        <a class="card reveal" style="--d:2" href="~/solutions/payroll/"><div class="icon"><i class="fa-solid fa-money-check-dollar"></i></div><h3>Payroll</h3><p>Labor cost from earned pay.</p></a>
+        <a class="card reveal" style="--d:3" href="~/solutions/receipts/"><div class="icon"><i class="fa-solid fa-receipt"></i></div><h3>Receipts</h3><p>Field expenses on the job.</p></a>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container container--narrow">
+      <div class="section-head center reveal"><div class="eyebrow">FAQ</div><h2>Questions about financials</h2></div>
+      <details class="faq"><summary>Where do the costs come from?</summary><div>From the material orders, labor lists, pay and expenses recorded on each project. Nothing has to be re-entered for the report.</div></details>
+      <details class="faq"><summary>Does this replace my accountant?</summary><div>No. It shows how your jobs and cash are doing day to day; your books and taxes stay with your accounting software and accountant.</div></details>
+      <details class="faq"><summary>Who can see the financials?</summary><div>Only people whose role allows it. Placeholder: permission details.</div></details>
+    </div>
+  </section>
+
+  <section class="section"><div class="container"><div class="cta-band">
+    <h2>Stop guessing which jobs make money.</h2>
+    <p class="lead" style="color:#c9ccd4">Profit on every project, from day one.</p>
+    <div class="btn-row"><a class="btn btn-primary btn-lg" href="https://app.1m8.ai/portal/signup">Sign up free</a><a class="btn btn-glass btn-lg" href="~/demo/">Book a demo</a></div>
+  </div></div></section>
+</main>
+<div id="site-footer"></div>
+<script src="../../assets/site.js"></script>
+</body>
+</html>
