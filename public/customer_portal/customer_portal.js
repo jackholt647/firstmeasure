@@ -137,7 +137,7 @@
   }
   function blockPreviewAction(kind = 'signing'){
     if (!isPreviewMode()) return false;
-    showPortalToast(kind === 'payment' ? 'Payment is disabled during preview mode.' : 'Signing is disabled during preview mode.');
+    showPortalToast(kind === 'payment' ? 'This is a preview. Nothing can be paid here.' : 'This is a preview. Nothing can be signed or accepted here.');
     return true;
   }
   function applyBranding(payload){
@@ -453,6 +453,8 @@
     return `${location.origin}/v1/documents`;
   }
   async function documentSigningAccess(token){
+    // A preview never signs, even holding a signing link (the server refuses it too).
+    if (isPreviewMode()) throw new Error('This is a preview of what your customer sees. Nothing can be signed here.');
     const doc = documentList(activeProjectPayload()).find((entry) => cleanText(entry.public_token) === cleanText(token)) || {};
     const documentId = cleanText(doc.id);
     if (!documentId) throw new Error('This agreement is not available to sign here.');
@@ -3393,7 +3395,7 @@
       `;
     })();
     mount.innerHTML = `${!guestAccess && (state.payload?.notifications||[]).length ? `<section class="cp-card" aria-label="Notifications">${state.payload.notifications.map(n=>`<article><strong>${escapeHtml(n.title)}</strong><p>${escapeHtml(n.body)}</p></article>`).join('')}</section>` : ''}
-      ${isPreviewMode() ? `<div class="cp-preview-banner">${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_15b3e5ee9b709c","Preview Mode") ?? "Preview Mode")}</div>` : ''}
+      ${isPreviewMode() ? `<div class="cp-preview-banner" role="status">${(globalThis.PlatformLanguage?.htmlText("customer-portal","preview_banner_read_only","Preview: what your customer sees. Nothing can be signed, accepted or paid here.") ?? "Preview: what your customer sees. Nothing can be signed, accepted or paid here.")}</div>` : ''}
       ${guestAccess ? `<div class="cp-guest-banner"><i class="fa-solid fa-eye" aria-hidden="true"></i><span><strong>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_7090eed673e7f9","Shared read-only view") ?? "Shared read-only view")}</strong>${state.payload?.access?.label ? ` for ${escapeHtml(state.payload.access.label)}` : ''}</span></div>` : ''}
       <header class="cp-header">
         <div class="cp-header-inner">

@@ -93,11 +93,15 @@ export async function internalSigningAccess(orgId: string, documentId: string, s
   if (!pkg) throw forbidden("signature_assignment", "This signature is not assigned to your account.");
   return { pkg, signer: pkg.signers.find(s => s.id === signerId)!, authentication: "organization_session", userId: ctx.userId };
 }
-/** Trusted field adapter only: its route checks crew.signatures.present and project assignment. */
+/**
+ * Trusted presenter adapters only: the field route checks crew.signatures.present
+ * and project assignment, the Documents presentation route issue_documents and
+ * department access. With no field, the customer signer who still has one to sign.
+ */
 export async function presentedSigningAccess(orgId: string, documentId: string, field: string, ctx: PlatformAuthContext): Promise<SigningAccess> {
   if (ctx.orgId !== orgId || !ctx.userId || ctx.userId === "system_automation") throw forbidden("signature_presenter_required", "An authenticated, assigned presenter is required.");
   const pkg = (await packagesForDocument(orgId, documentId)).find(p => ["open", "completed"].includes(p.status));
-  const signer = pkg?.signers.find(s => s.fields.includes(field) && s.party === "customer" && !s.user_id);
+  const signer = pkg?.signers.find(s => (field ? s.fields.includes(field) : s.fields.some(f => !pkg.receipts[f])) && s.party === "customer" && !s.user_id);
   if (!pkg || !signer) throw forbidden("signature_assignment", "Issue this agreement with named customer signers before presenting it in person.");
   return { pkg, signer, authentication: "presenter_witnessed_in_person", userId: ctx.userId };
 }
@@ -332,7 +336,8 @@ export async function signingStatus(orgId: string, snapshotId: string, rawToken 
   const pkg = await packageForSnapshot(orgId, snapshotId); if (!pkg) return null;
   const invitation = rawToken ? await resolveSigningInvitation(rawToken) : null;
   return { package_id: pkg.id, status: pkg.status === "open" && Date.parse(pkg.expires_at) <= Date.now() ? "expired" : pkg.status, content_hash: pkg.content_hash, expires_at: pkg.expires_at, signer_id: invitation?.signerId || null,
-    signers: pkg.signers.map(s => ({ id: s.id, name: s.name, party: s.party, order: s.order, fields: s.fields, required: s.required, signed_fields: s.fields.filter(f => pkg.receipts[f]) })), receipts: publicReceipts(pkg) };
+    signers: pkg.signers.map(s => ({ id: s.id, name: s.name, party: s.party, order: s.order, fields: s.fields, required: s.required, signed_fields: s.fields.filter(f => pkg.receipts[f]) })), receipts: publicReceipts(pkg),
+    seal_status: pkg.seal?.status || null };
 }
 export async function signingEvidence(orgId: string, documentId: string, ctx: PlatformAuthContext, includeFiles = false) {
   if (ctx.orgId !== orgId || !hasPermission(ctx, "manage_documents")) throw forbidden("signature_evidence_permission", "Document management permission is required to export private signing evidence.");

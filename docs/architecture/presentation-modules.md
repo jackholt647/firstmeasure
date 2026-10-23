@@ -132,7 +132,11 @@ validates the shape and that the module exists. A template can name one in
 - SMS delivery of a share, and resending a share (create a new one).
 - A UI, and the portal page a shared link lands on
   (`PRESENTATION_PORTAL_PATH`).
-- In-person signing without issuing: the signature widget signs the sent
-  document through its invitation, as everywhere else.
+- In-person signing without issuing. Accept & sign issues the contract to the
+  signer the presenter names (`contract/send` with `includePortal: false`, so no
+  invitation email), then the customer signs on the presenter's screen through
+  the documents presenter route (see document-signing.md). A send names its
+  signers before the choices are written, so a refused send leaves the
+  presentation's revision unchanged.
 
 Tests: `tests/publication-presentations.test.ts` (runs in `npm run test:publication`).

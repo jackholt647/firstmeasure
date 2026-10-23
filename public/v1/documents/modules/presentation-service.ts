@@ -532,19 +532,26 @@ async function freeze(organizationId: string, instance: ModuleInstance) {
   return save(organizationId, instance, { frozen: true, frozenAt: new Date().toISOString() });
 }
 /** Send estimate after presenting: produce if stale, issue for signature, then freeze what was chosen. */
-export async function sendPresentationContract(ctx: PublicationContext, instanceId: string, input: { expectedRevision: number; documentId?: string; recipients?: JsonObject[]; consentContact?: string; message?: string; includePdf?: boolean; sharePresentation?: boolean }) {
+export async function sendPresentationContract(ctx: PublicationContext, instanceId: string, input: { expectedRevision: number; documentId?: string; recipients?: JsonObject[]; consentContact?: string; message?: string; includePdf?: boolean; includePortal?: boolean; sharePresentation?: boolean }) {
   const loaded = await load(ctx.organizationId, instanceId), auth = userAuth(ctx);
   await allowed(ctx, loaded.instance.projectId, "issue");
   let instance = await editable(ctx.organizationId, loaded.instance, input.expectedRevision);
   const contract = meta(instance).contract;
+  // Who signs is checked before the choices are written, so a refused send
+  // leaves the presentation (and its revision) as it was.
+  const target = text(input.documentId || contract?.documentId || object(meta(instance).source).documentId);
+  if (input.recipients && target) {
+    const draft = await (await documents()).readDocumentInstance(ctx.organizationId, target).catch(() => null);
+    if (draft) await (await import("../signing/service.js")).validateSigningIssue(ctx.organizationId, draft, input.recipients, { consent_contact: input.consentContact, consent_contact_fallback: text(object(auth.identity).email) || text(object(auth.user).email) });
+  }
   if (!contract || contract.stateHash !== contentHash(instance.inputs) || (input.documentId && input.documentId !== contract.documentId)) instance = (await produce(ctx.organizationId, instance, loaded.definition, auth, { kind: "user", ctx }, input.documentId)).instance;
   const sent = await (await documents()).sendDocument(ctx.organizationId, text(meta(instance).contract!.documentId), {
-    ...(input.recipients ? { recipients: input.recipients } : {}), ...(input.consentContact ? { consent_contact: input.consentContact } : {}), ...(input.message ? { message: input.message } : {}), ...(input.includePdf !== undefined ? { include_pdf: input.includePdf } : {})
+    ...(input.recipients ? { recipients: input.recipients } : {}), ...(input.consentContact ? { consent_contact: input.consentContact } : {}), ...(input.message ? { message: input.message } : {}), ...(input.includePdf !== undefined ? { include_pdf: input.includePdf } : {}), ...(input.includePortal !== undefined ? { include_portal: input.includePortal } : {})
   }, auth);
   instance = await freeze(ctx.organizationId, instance);
   await record(ctx.organizationId, instance, { kind: "user", ctx }, "contract_sent", { documentId: sent.document.id, snapshotId: sent.snapshot.id });
   const share = input.sharePresentation ? await share_(ctx, instance, loaded.definition, { access: "view", recipients: input.recipients || list(object(sent.document.delivery).recipients).map(object), deliver: true }) : null;
-  return { presentation: await state(share?.instance || instance, loaded.definition, "internal", "choose"), document: documentSummary(sent.document), portalUrl: sent.portal_url, signing: sent.signing, signTarget: await signTarget(sent), emailed: sent.emailed, texted: sent.texted, presentationShare: share ? share.result : null };
+  return { presentation: await state(share?.instance || instance, loaded.definition, "internal", "choose"), document: documentSummary(sent.document), portalUrl: sent.portal_url, previewUrl: sent.preview_url, signing: sent.signing, signTarget: await signTarget(sent), emailed: sent.emailed, texted: sent.texted, presentationShare: share ? share.result : null };
 }
 
 // ---------------------------------------------------------------------------

@@ -4845,8 +4845,11 @@
         const open = arrayValue((await presentationOptions(documentId)).presentations).map(objectValue).find((entry) => entry.frozen !== true);
         let current = open ? read(await request(`/presentations/${encodeURIComponent(open.id)}`)) : read(await request('/presentations', 'POST', { documentId }));
         if (open) current = read(await request(`/presentations/${encodeURIComponent(open.id)}/evaluate`, 'POST', { expectedRevision: current.revision, refresh: true }));
-        const shared = objectValue(await request(`/presentations/${encodeURIComponent(current.id)}/shares`, 'POST', { expectedRevision: current.revision, access: 'choose', deliver: true }));
-        showToast('Presentation', shared.emailed ? 'The customer has been emailed a link.' : 'The link was created but no email went out \u2014 check the customer\u2019s email address.', !!shared.emailed);
+        const contact = objectValue(projectContacts().find((entry) => entry.primary && entry.email) || projectContacts().find((entry) => entry.email));
+        if (!cleanText(contact.email)) { showToast('Presentation', 'Add the customer\u2019s email to the project first.', false); return; }
+        const shared = objectValue(await request(`/presentations/${encodeURIComponent(current.id)}/shares`, 'POST', { expectedRevision: current.revision, access: 'choose', deliver: true, recipients: [{ name: firstText(contact.name, contact.email), email: cleanText(contact.email) }] }));
+        const missed = undeliveredEmails(shared);
+        showToast('Presentation', missed.length ? undeliveredText(missed) : `${firstText(contact.name, contact.email)} has been emailed a link.`, !missed.length);
       } catch (error) { showToast('Presentation', errorMessage(error, 'The presentation could not be sent.'), false); }
     }
     /** The company's colors as the variables slides use, for a deck opened before the document's theme has resolved. */
@@ -4958,43 +4961,105 @@
           error.textContent = '';
           go.disabled = true;
           go.textContent = 'Sending\u2026';
+          let result;
           try {
             await writes.catch(() => {});
-            await request(`/presentations/${encodeURIComponent(current.id)}/contract/send`, 'POST', { expectedRevision: current.revision, documentId, recipients: [{ signer_id: 'customer', role: 'customer', name: name || email, email }] });
+            result = await deliverDocument({ id: documentId }, { recipients: [{ signer_id: customerSignerRole(), role: 'customer', name: name || email, email }] }, { request, presentation: current });
+            current = objectValue(result.presentation).id ? objectValue(result.presentation) : current;
           } catch (failure) {
             go.disabled = false;
             go.textContent = 'Send my estimate';
-            error.textContent = 'That didn\u2019t go through. Please try again, or ask us to send it for you.';
-            console.warn('Presentation send failed', failure);
+            error.textContent = sendFailure(failure).message;
+            current = await rereadPresentation(current);
             return;
           }
+          const missed = undeliveredEmails(result);
+          if (missed.length) { rest('Your estimate is ready.', `${undeliveredText(missed)} ${company} will get it to you.`); return; }
           rest(name ? `Thank you, ${name.split(/\s+/)[0]}.` : 'Thank you.', `Your estimate is on its way to ${email}.`);
         });
         setTimeout(() => { try { sheet.querySelector(firstText(contact.email) ? '[data-present-go]' : '[data-present-email]').focus(); } catch (e) {} }, 50);
       };
       /**
-       * Accept & sign: issue the agreement from what was chosen and open its
-       * signing page over the presentation, so the customer signs on this
-       * screen. Closing it returns to the Docs screen with the sent document.
+       * Accept & sign. Whoever is presenting says who signs and attests they
+       * will witness it; the agreement is issued to that person from what was
+       * chosen (no invitation email: they sign here), then the customer signs on
+       * this screen with the contract beside the signature. Signing runs on the
+       * documents engine's presenter route; the sealed executed copy is emailed
+       * to them by the engine.
        */
-      let signing = false;
-      const sign = async () => {
-        if (signing) return;
-        signing = true;
-        let sent;
-        try {
-          await writes.catch(() => {});
-          sent = objectValue(await request(`/presentations/${encodeURIComponent(current.id)}/contract/send`, 'POST', { expectedRevision: current.revision, documentId }));
-        } catch (error) { signing = false; showToast('Present', errorMessage(error, 'The agreement could not be prepared for signing.'), false); return; }
-        const signer = objectValue(arrayValue(objectValue(sent.signTarget).signers).map(objectValue)[0]);
-        const url = firstText(signer.portalUrl, objectValue(sent.signing).portalUrl, sent.portalUrl);
-        if (!url) { rest('Thank you.', 'Your agreement is on its way to you to sign.'); return; }
-        const sheet = document.createElement('div');
-        sheet.style.cssText = 'position:absolute;inset:0;z-index:2147483600;background:#0b0d12;display:flex;flex-direction:column';
-        sheet.innerHTML = `<div style="flex:none;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 16px;color:#e7eaf0;font:600 13px/1.2 inherit"><span><i class="fas fa-signature" style="margin-right:8px"></i>Sign the agreement</span><button type="button" data-sign-done style="border:0;border-radius:10px;background:rgba(255,255,255,.14);color:#fff;font:700 12px/1 inherit;padding:10px 16px;cursor:pointer">Done</button></div><iframe title="Sign the agreement" style="flex:1;border:0;background:#fff;width:100%"></iframe>`;
-        sheet.querySelector('iframe').src = url;
-        sheet.querySelector('[data-sign-done]').addEventListener('click', () => { sheet.remove(); rest('Thank you.', 'A copy of your agreement is on its way to your email.'); });
-        stage().appendChild(sheet);
+      let issued = null;
+      const openSigning = () => {
+        const signing = window.FMPresentSigning;
+        if (!signing) { rest('Thank you.', `Your agreement is ready. ${company} will send it to you to sign.`); return; }
+        const platform = window.PlatformAPI;
+        const base = new URL(platform.baseUrl().replace(/\/platform\/?$/, '/documents'), location.href).href.replace(/\/$/, '')
+          + `/organizations/${encodeURIComponent(orgId())}/documents/${encodeURIComponent(issued.documentId)}/signing/present`;
+        const totals = objectValue(objectValue(current.pricing).totals);
+        signing.open(stage(), {
+          base,
+          request: (url, options) => platform.request(url, options),
+          signer: issued.signer,
+          title: firstText(issued.title, state.doc?.title, 'Your agreement'),
+          total: totals.total_cents !== undefined && Number.isFinite(Number(totals.total_cents)) ? moneyFromCents(Number(totals.total_cents)) : '',
+          company,
+          presenterAttested: true,
+          onBack: () => {},
+          onDone: () => rest('Thank you.', `Your signed agreement is on its way to ${issued.signer.email}.`)
+        });
+      };
+      const sign = () => {
+        if (issued) { openSigning(); return; }
+        const contact = objectValue(projectContacts().find((entry) => entry.primary) || projectContacts()[0]);
+        const field = 'width:100%;box-sizing:border-box;border:1px solid #2c3342;border-radius:12px;background:#141821;color:#fff;font:600 16px/1.2 inherit;padding:14px 16px;margin-top:6px';
+        const presenter = firstText(window.__APP?.userName, window.Portal?.cfg?.userName, 'I');
+        const sheet = sheetOf(`
+          <form data-present-signer style="width:min(480px,100%)">
+            <h1 style="margin:0 0 8px;font-size:28px;font-weight:800">Who is signing?</h1>
+            <p style="margin:0 0 22px;font-size:15px;line-height:1.5;color:#c9ced8">The agreement is made out to this person. They review and sign it on this screen, and a sealed copy is emailed to them.</p>
+            <label style="display:block;font-size:12px;font-weight:700;color:#8b93a3;margin-bottom:14px">Full name<input data-present-name autocomplete="name" value="${esc(firstText(contact.name))}" style="${field}"></label>
+            <label style="display:block;font-size:12px;font-weight:700;color:#8b93a3">Email<input data-present-email type="email" inputmode="email" autocomplete="email" value="${esc(firstText(contact.email))}" style="${field}"></label>
+            <label style="display:flex;gap:10px;align-items:flex-start;margin-top:18px;font-size:13px;line-height:1.45;color:#c9ced8;cursor:pointer"><input type="checkbox" data-present-witness style="flex:none;width:18px;height:18px;margin:1px 0 0;accent-color:var(--fm-primary,#d93025)"><span>${esc(presenter === 'I' ? 'I' : `I, ${presenter},`)} am presenting this agreement in person and will witness this person review and sign it on this screen.</span></label>
+            <p data-present-error role="alert" style="min-height:18px;margin:10px 0 0;font-size:13px;font-weight:700;color:#ff8a80"></p>
+            <div style="display:flex;gap:10px;margin-top:10px">
+              <button type="button" data-present-back style="flex:none;border:1px solid #2c3342;border-radius:12px;background:none;color:#c9ced8;font:700 15px/1 inherit;padding:15px 20px;cursor:pointer">Back</button>
+              <button type="submit" data-present-go style="flex:1;border:0;border-radius:12px;background:var(--fm-primary,#d93025);color:#fff;font:800 15px/1 inherit;padding:15px 20px;cursor:pointer">Continue to sign</button>
+            </div>
+          </form>`);
+        Object.entries(presentationColors(current)).forEach(([name, value]) => sheet.style.setProperty(name, value));
+        const error = sheet.querySelector('[data-present-error]');
+        const go = sheet.querySelector('[data-present-go]');
+        sheet.querySelector('[data-present-back]').addEventListener('click', () => sheet.remove());
+        sheet.querySelector('[data-present-signer]').addEventListener('submit', async (event) => {
+          event.preventDefault();
+          const name = cleanText(sheet.querySelector('[data-present-name]').value);
+          const email = cleanText(sheet.querySelector('[data-present-email]').value);
+          if (!name) { error.textContent = 'Enter the full name of the person signing.'; sheet.querySelector('[data-present-name]').focus(); return; }
+          if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { error.textContent = 'Enter their email address: the signed copy goes there.'; sheet.querySelector('[data-present-email]').focus(); return; }
+          if (!sheet.querySelector('[data-present-witness]').checked) { error.textContent = 'Confirm that you are presenting this in person.'; sheet.querySelector('[data-present-witness]').focus(); return; }
+          error.textContent = '';
+          go.disabled = true;
+          go.textContent = 'Preparing the agreement\u2026';
+          try {
+            await writes.catch(() => {});
+            // In person: no invitation email, they sign here; the engine emails the sealed copy.
+            const result = await deliverDocument({ id: documentId }, { recipients: [{ signer_id: customerSignerRole(), role: 'customer', name, email }], include_portal: false, include_pdf: false }, { request, presentation: current });
+            current = objectValue(result.presentation).id ? objectValue(result.presentation) : current;
+            issued = { documentId: firstText(objectValue(result.document).id, documentId), title: firstText(objectValue(result.document).title), signer: { name, email } };
+          } catch (failure) {
+            go.disabled = false;
+            go.textContent = 'Continue to sign';
+            error.textContent = sendFailure(failure).message;
+            current = await rereadPresentation(current);
+            return;
+          }
+          sheet.remove();
+          openSigning();
+        });
+        setTimeout(() => { try { sheet.querySelector(firstText(contact.name) && firstText(contact.email) ? '[data-present-witness]' : (firstText(contact.name) ? '[data-present-email]' : '[data-present-name]')).focus(); } catch (e) {} }, 50);
+      };
+      /** After a refused send the presentation may have moved on (its contract was written): carry on from where it is. */
+      const rereadPresentation = async (known) => {
+        try { return read(await request(`/presentations/${encodeURIComponent(known.id)}`)); } catch (e) { return known; }
       };
       player = window.FMDocPresent.mount(overlay, {
         document: current.layout,
@@ -5113,14 +5178,13 @@
         button.disabled = true;
         button.innerHTML = '<i class="fas fa-circle-notch fa-spin"></i> Sending…';
         try {
-          const res = objectValue(await api().documents.send(orgId(), doc.id, {
+          const res = await deliverDocument(doc, {
             recipients,
             consent_contact: cleanText(modal.el.querySelector('[data-consent-contact]')?.value),
             include_portal: modal.el.querySelector('[data-send-portal]')?.checked !== false,
-            include_portal_link: modal.el.querySelector('[data-send-portal]')?.checked !== false,
             include_pdf: modal.el.querySelector('[data-send-pdf]')?.checked !== false,
             message: cleanText(modal.el.querySelector('[data-send-message]')?.value)
-          }));
+          });
           if (state.doc?.id === doc.id) {
             const updated = objectValue(res.document);
             if (updated.id) state.doc = { ...state.doc, ...updated };
@@ -5132,10 +5196,63 @@
         } catch (error) {
           button.disabled = false;
           button.innerHTML = '<i class="fas fa-paper-plane"></i> Send';
-          const code = cleanText(error?.data?.code || error?.data?.error || error?.code);
-          problem(code === 'signature_contact_required' ? 'Add your company contact for paper copies under the signer\u2019s extra options.' : errorMessage(error, 'Could not send the document.'), code === 'signature_contact_required' ? modal.el.querySelector('[data-consent-contact]') : null);
+          const failure = sendFailure(error);
+          problem(failure.code === 'signature_contact_required' ? 'Add your company contact for paper copies under the signer\u2019s extra options.' : failure.message, failure.code === 'signature_contact_required' ? modal.el.querySelector('[data-consent-contact]') : null);
         }
       });
+    }
+
+    /**
+     * The one way a document goes to the customer, from the workflow's Send and
+     * from a presentation alike: the documents send on the server, with the
+     * same fields, read back the same way. From a presentation its choices are
+     * first written onto the draft (contract/send), which then sends it.
+     * Returns { document, emailed, signing, portal_url, preview_url, presentation }.
+     */
+    async function deliverDocument(docRecord, fields, via){
+      const input = objectValue(fields);
+      if (via?.presentation) {
+        const sent = objectValue(await via.request(`/presentations/${encodeURIComponent(via.presentation.id)}/contract/send`, 'POST', {
+          expectedRevision: via.presentation.revision, documentId: docRecord.id, recipients: arrayValue(input.recipients),
+          ...(cleanText(input.consent_contact) ? { consentContact: cleanText(input.consent_contact) } : {}),
+          ...(cleanText(input.message) ? { message: cleanText(input.message) } : {}),
+          ...(input.include_pdf !== undefined ? { includePdf: input.include_pdf !== false } : {}),
+          ...(input.include_portal !== undefined ? { includePortal: input.include_portal !== false } : {})
+        }));
+        return { document: objectValue(sent.document), emailed: arrayValue(sent.emailed), signing: sent.signing, portal_url: cleanText(sent.portalUrl), preview_url: cleanText(sent.previewUrl), presentation: objectValue(sent.presentation) };
+      }
+      return objectValue(await api().documents.send(orgId(), docRecord.id, { ...input, ...(input.include_portal !== undefined ? { include_portal_link: input.include_portal !== false } : {}) }));
+    }
+    /** Emails the send recorded as not delivered: [{ email, reason }]. */
+    function undeliveredEmails(result){
+      return arrayValue(objectValue(result).emailed).map(objectValue)
+        .filter((entry) => entry.ok === false || entry.success === false)
+        .map((entry) => ({ email: cleanText(entry.email), reason: cleanText(entry.error || entry.message) }));
+    }
+    /** The same words wherever a send could not email someone. */
+    function undeliveredText(missed){
+      const list = arrayValue(missed);
+      const who = list.map((entry) => entry.email).filter(Boolean).join(', ');
+      return `The email to ${who || 'the customer'} did not go out${list[0]?.reason ? ` (${list[0].reason.replace(/\.$/, '')})` : ''}.`;
+    }
+    /** What a refused send says, from either place. */
+    function sendFailure(error){
+      const code = cleanText(error?.data?.code || error?.data?.error || error?.code);
+      const known = {
+        signature_recipient_required: 'This agreement needs every signer named. Send it from the Docs screen to add the other signers.',
+        signature_contact_required: 'Your company needs a contact for paper copies before agreements can be sent. Add one in Documents settings.',
+        presentation_frozen: 'This presentation was already sent. Open the sent document from the Docs screen.',
+        presentation_contract_not_draft: 'This document was already sent. Void it on the Docs screen to send a new one.',
+        presentation_incomplete: 'A choice is still missing. Go back and finish the presentation first.',
+        module_revision: 'Something changed while this was open. Please try again.'
+      };
+      return { code, message: known[code] || errorMessage(error, 'The document could not be sent. Please try again.') };
+    }
+    /** The customer signer's role on this document (the send dialog's rule): its first outside signer. */
+    function customerSignerRole(){
+      const roles = Object.values(objectValue(state.doc?.output_defs)).filter((def) => def?.type === 'signature')
+        .map((def) => cleanText(def.signer_id) || (['internal', 'company'].includes(def.party || def.signer) ? 'company' : 'customer'));
+      return roles.find((role) => role !== 'company') || 'customer';
     }
 
     /**
@@ -5171,7 +5288,7 @@
             <span class="fmdx-sent-avatar">${esc((person.name || '?').trim().charAt(0).toUpperCase())}</span>
             <span class="fmdx-sent-who"><strong>${esc(person.name)}</strong><small>${esc([person.email !== person.name ? person.email : '', person.role].filter(Boolean).join(' \u00b7 '))}</small></span>
             ${person.email ? `<span class="fmdx-sent-state ${failed(person.email) ? 'bad' : ''}"><i class="fas ${failed(person.email) ? 'fa-circle-xmark' : 'fa-circle-check'}"></i>${failed(person.email) ? ' Not emailed' : ' Emailed'}</span>` : ''}
-            ${person.link ? `<button type="button" class="fmdx-btn fmdx-btn-icon" data-sent-copy="${index}" title="Copy their link"><i class="fas fa-link"></i></button><a class="fmdx-btn fmdx-btn-icon" href="${esc(person.link)}" target="_blank" rel="noopener" title="Open what they see"><i class="fas fa-arrow-up-right-from-square"></i></a>` : ''}
+            ${person.link ? `<button type="button" class="fmdx-btn fmdx-btn-icon" data-sent-copy="${index}" title="Copy their link"><i class="fas fa-link"></i></button>` : ''}${person.link && cleanText(result.preview_url) ? `<a class="fmdx-btn fmdx-btn-icon" href="${esc(cleanText(result.preview_url))}" target="_blank" rel="noopener" title="Preview what they see (nothing can be signed or paid)"><i class="fas fa-eye"></i></a>` : ''}
           </div>`).join('')}</div>
         <div class="fmdx-modal-foot"><button type="button" class="fmdx-btn primary" data-send-done>${(globalThis.PlatformLanguage?.htmlText("documents","m_8cb6b086a0e69c","Done") ?? "Done")}</button></div>`;
       body.appendChild(wrap);

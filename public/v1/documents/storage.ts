@@ -744,7 +744,10 @@ export async function saveDocumentSnapshot(orgId: string, snapshotId: string, da
 export async function findPublicDocumentSnapshot(publicToken: string) {
   const token = cleanText(publicToken);
   if (!token) throw notFound("document_snapshot_not_found", "Document snapshot was not found.");
-  const invitation = await (await import("./signing/store.js")).resolveSigningInvitation(token);
+  // A portal preview's read-only link is a keyed hash of the snapshot's own link.
+  const links = await import("./preview-links.js");
+  const preview = links.isPreviewDocumentToken(token);
+  const invitation = preview ? null : await (await import("./signing/store.js")).resolveSigningInvitation(token);
   if (invitation) return { orgId: invitation.pkg.organization_id, snapshot: await readDocumentSnapshot(invitation.pkg.organization_id, invitation.pkg.snapshot_id) };
   const orgs = await listOrganizations();
   for (const org of orgs) {
@@ -753,7 +756,8 @@ export async function findPublicDocumentSnapshot(publicToken: string) {
     const snapshots = await listDocuments(orgId, DOCUMENT_SNAPSHOT_COLLECTION).catch(() => []);
     for (const doc of snapshots) {
       const snapshot = documentView(doc);
-      if (cleanText(snapshot.public_token) === token
+      const own = cleanText(snapshot.public_token) || cleanText(asObject(doc.metadata).public_token);
+      if (preview ? !!own && links.previewDocumentToken(own) === token : cleanText(snapshot.public_token) === token
         || cleanText(asObject(doc.metadata).public_token) === token) {
         return { orgId, snapshot };
       }

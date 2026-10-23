@@ -51,6 +51,10 @@ Roles may use the same email address without being merged. Duplicate recipients 
 7. **Finalize.** Stamp accepted signatures onto the retained review PDF and append the signature/disclosure record. The original contract page content streams remain intact. Do not rerun dynamic document code to create the executed record. Retain its SHA-256 hash, record it in the signing ledger and queue the seal.
 8. **Seal.** The outbox seals the executed copy (below) and records the sealed hash in the ledger. Executed-copy emails wait for the seal, so signers receive the sealed file.
 
+**In person from a presentation.** Accept & sign in a presentation asks the presenter who signs and for their attestation, issues the agreement to that person without an invitation email (`include_portal: false`), and shows the retained review PDF beside the one consent checkbox and Adopt & sign (`doc-present/firstmate-present-signing.js`). Staff never hold the customer's invitation token for this: signing goes through the presenter route above. The executed copy is sealed and emailed to the signer by the outbox, as for every package.
+
+**Portal preview.** Staff open what the customer sees through the portal's preview (`preview_url` on a send result, with `?document=`). The preview payload carries read-only document links (`documents/preview-links.ts`, a keyed hash of the snapshot's link) instead of the customer's own; every public write route (outputs, signing prepare/decline, view, payment checkout and method intent) refuses them with `portal_preview_read_only`, and the preview cannot obtain signing access.
+
 Default invitation validity is 30 days. Expired, declined, void and superseded packages cannot accept signatures. Rotating a role's invitation revokes its previous token and challenge while retaining the same agreement and receipts. Rotation returns a new token to the authorized issuer; it does not itself email it. A partially signed agreement cannot be edited or reassigned; void and create a replacement, retaining the earlier record.
 
 ## Public protocol and programmable actions
@@ -66,6 +70,7 @@ All routes below are under `/v1/documents`:
 | Public signing status | `GET /public/:token/signing` |
 | Decline/request paper | `POST /public/:token/signing/decline` |
 | Authenticated signer preparation | `POST /organizations/:orgId/documents/:documentId/signing/prepare` |
+| In person from a presentation: prepare, review/executed PDF, status, accept | `POST .../documents/:documentId/signing/present/prepare`, `GET .../present/pdf`, `GET .../present/status`, `POST .../present/outputs/:field` |
 | Rotate invitation | `POST /organizations/:orgId/documents/:documentId/signing/reissue` |
 | Private evidence/export | `GET /organizations/:orgId/documents/:documentId/signing/evidence?include_files=true` |
 
@@ -82,6 +87,7 @@ Events include `document.signature.accepted` per field, `document.output.recorde
 | Individual invitation | Possession of the role's invitation plus explicit consent and accepted content version; no government-ID claim |
 | Assigned organization account | Authenticated assigned user, consent and accepted content version |
 | Crew-presented signing | Authenticated presenter with project assignment and `crew.signatures.present`, customer consent, and separate presenter attestation; does not falsely identify the customer as logged in |
+| Presented from a Documents presentation | The same evidence class (`presenter_witnessed_in_person`): an authenticated presenter with `issue_documents` and the document's department, who names the signer and attests before handing over the screen, then the customer's consent and signature |
 | Reviewed paper upload | Authorized reviewer's attestation, original uploaded bytes/hash and any claimed historical signing date; not a manufactured online signing session |
 
 Imported paper requires `import_document_signatures`, explicit original-file attestation and confirmation of every required signature. The original is retained; extracted/AI-detected marks alone cannot execute the document. Partial or unsigned originals remain in review. Mixed partial-paper/online execution is not supported by this implementation. The generic output endpoint cannot use the old import flag to bypass this process.

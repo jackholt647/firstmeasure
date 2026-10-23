@@ -456,3 +456,17 @@ test("published actions and HTTP routes share the service's contract", async () 
   assert.deepEqual(reread.definition.renderer.pages[0].transition, { type: "fade", duration_ms: 400 }); assert.deepEqual(reread.definition.renderer.pages[0].steps[0].actions, [{ node: animated, effect: "rise" }]);
   assert.deepEqual((await client.request("GET", `${base}/modules/${moduleId}?version=${current.version}`)).module.definition.renderer.pages[0].steps, first.steps, "the earlier version is kept as it was");
 });
+
+test("a presentation send that names no usable signer changes nothing, and in person nothing is emailed to sign", async () => {
+  const document = await draft();
+  let state = any(await presentations.createPresentation(ctx, { documentId: document.id, moduleId }));
+  // Who signs is checked before the choices are written: a refused send leaves the revision, so the next send is not stale.
+  await assert.rejects(presentations.sendPresentationContract(ctx, state.id, { expectedRevision: state.revision, documentId: document.id, recipients: [{ signer_id: "customer", name: "No Email" }] }), code("signature_recipient_required"));
+  const after = any(await presentations.readPresentation(ctx, state.id));
+  assert.equal(after.revision, state.revision);
+  state = after;
+  const sent = any(await presentations.sendPresentationContract(ctx, state.id, { expectedRevision: state.revision, documentId: document.id, recipients: [{ signer_id: "customer", name: "Pat Homeowner", email: "pat@example.test" }], includePortal: false, includePdf: false }));
+  assert.deepEqual(sent.emailed, [], "in person the agreement is issued without an invitation email");
+  assert.match(String(sent.previewUrl), /\/customer_portal\/preview\.php\?.*document=/);
+  assert.equal(sent.presentation.frozen, true);
+});

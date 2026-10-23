@@ -6764,7 +6764,10 @@ async function publicProjectEngineDocuments(orgId: string, projectId: string, pr
     }
     if (!preview && !PUBLIC_DOCUMENT_STATUSES.has(status)) continue;
     if (preview && !PUBLIC_DOCUMENT_STATUSES.has(status) && status !== "issued") continue;
-    const publicToken = cleanText(delivery.public_token);
+    // A preview reads the document through a read-only link, never the customer's own.
+    const publicToken = cleanText(delivery.public_token) && preview
+      ? (await import("../documents/preview-links.js")).previewDocumentToken(cleanText(delivery.public_token))
+      : cleanText(delivery.public_token);
     if (!publicToken) continue;
     const outputDefs = asObject(data.output_defs);
     const outputs = asObject(data.outputs);

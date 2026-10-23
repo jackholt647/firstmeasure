@@ -53,7 +53,7 @@ export function registerPresentationRoutes(app: FastifyInstance) {
     return presentations.producePresentationContract(await context(request), params(request).presentationId!, body);
   });
   app.post("/organizations/:orgId/presentations/:presentationId/contract/send", async request => {
-    const body = z.object({ expectedRevision: revision, documentId: z.string().optional(), recipients: z.array(recipient).max(50).optional(), consentContact: z.string().max(320).optional(), message: z.string().max(4000).optional(), includePdf: z.boolean().optional(), sharePresentation: z.boolean().optional() }).strict().parse(request.body);
+    const body = z.object({ expectedRevision: revision, documentId: z.string().optional(), recipients: z.array(recipient).max(50).optional(), consentContact: z.string().max(320).optional(), message: z.string().max(4000).optional(), includePdf: z.boolean().optional(), includePortal: z.boolean().optional(), sharePresentation: z.boolean().optional() }).strict().parse(request.body);
     return presentations.sendPresentationContract(await context(request), params(request).presentationId!, body);
   });
   app.post("/organizations/:orgId/presentations/:presentationId/shares", async (request, reply) => {

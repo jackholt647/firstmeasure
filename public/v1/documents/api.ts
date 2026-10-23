@@ -110,6 +110,7 @@ import {
   publicDocumentPricingPreview,
   publicSnapshotView,
   readDocumentInstance,
+  requireDocumentDepartmentAccess,
   readDocumentPdfFile,
   readPublicDocumentPdfFile,
   recordDocumentOutput,
@@ -124,6 +125,7 @@ import {
   generateFolderItemPdf
 } from "./service.js";
 import { listDocumentTypes } from "./types/registry.js";
+import { refusePreviewDocumentToken } from "./preview-links.js";
 import { listDocumentWidgetResolvers } from "./widgets/registry.js";
 import { registerBuiltinDocumentWidgetResolvers } from "./widgets/builtins.js";
 import { ensureDefaultDocumentAssets } from "./seeds.js";
@@ -840,7 +842,7 @@ export const registerDocumentsApi: FastifyPluginAsync = async (app) => {
     const ctx = await requirePlatformAuth(request, { orgId, csrf: true, permission: "view_projects", allowScopedPermission: true });
     const body = sendDocumentSchema.parse(request.body ?? {});
     const result = await sendDocument(orgId, getParam(request.params, "documentId"), body, ctx);
-    return { ok: true, document: result.document, snapshot: result.snapshot, portal_url: result.portal_url, emailed: result.emailed, texted: result.texted, signing: result.signing };
+    return { ok: true, document: result.document, snapshot: result.snapshot, portal_url: result.portal_url, preview_url: result.preview_url, emailed: result.emailed, texted: result.texted, signing: result.signing };
   });
 
   app.get("/organizations/:orgId/documents/:documentId/snapshots", async (request) => {
@@ -1025,6 +1027,8 @@ export const registerDocumentsApi: FastifyPluginAsync = async (app) => {
 
   app.post("/public/:token/view", async (request) => {
     const token = getParam(request.params, "token");
+    // Staff looking at a preview are not the customer opening it.
+    refusePreviewDocumentToken(token);
     const body = publicViewEventSchema.parse(request.body ?? {});
     const result = await recordPublicDocumentView(token, body, publicRequestAudit(request));
     return {
@@ -1040,6 +1044,7 @@ export const registerDocumentsApi: FastifyPluginAsync = async (app) => {
 
   app.post("/public/:token/outputs/:key", async (request) => {
     const token = getParam(request.params, "token");
+    refusePreviewDocumentToken(token);
     const body = recordOutputSchema.parse(request.body ?? {});
     const found = await publicDocumentWorkflow(token);
     await requireDocumentCapabilityEnabled(found.orgId, DOCUMENT_CAPABILITIES.app);
@@ -1066,6 +1071,7 @@ export const registerDocumentsApi: FastifyPluginAsync = async (app) => {
   });
 
   app.post("/public/:token/signing/prepare", async request => {
+    refusePreviewDocumentToken(getParam(request.params, "token"));
     const access = await signing.publicSigningAccess(getParam(request.params, "token"));
     return { ok: true, ...(await signing.prepareSigning(access)) };
   });
@@ -1075,6 +1081,7 @@ export const registerDocumentsApi: FastifyPluginAsync = async (app) => {
     return { ok: true, signing: found.signing };
   });
   app.post("/public/:token/signing/decline", async request => {
+    refusePreviewDocumentToken(getParam(request.params, "token"));
     const access = await signing.publicSigningAccess(getParam(request.params, "token"));
     return { ok: true, ...(await signing.declineSigning(access, cleanText(asObject(request.body).reason))) };
   });
@@ -1088,6 +1095,40 @@ export const registerDocumentsApi: FastifyPluginAsync = async (app) => {
     const ctx = await requirePlatformAuth(request, { orgId, csrf: true, permission: "sign_documents" });
     const access = await signing.internalSigningAccess(orgId, getParam(request.params, "documentId"), cleanText(asObject(request.body).signer_id), ctx);
     return { ok: true, ...(await signing.prepareSigning(access)) };
+  });
+  // In person from a presentation: the person who issued the agreement hands
+  // their screen to the customer and witnesses the signature. Same evidence as
+  // the field adapter (presenter_witnessed_in_person with an attestation); the
+  // presenter needs issue_documents and the document's department.
+  const presenter = async (request: Parameters<typeof requirePlatformAuth>[0], csrf: boolean) => {
+    const orgId = getParam(request.params, "orgId"), documentId = getParam(request.params, "documentId");
+    const ctx = await requirePlatformAuth(request, { orgId, csrf, permission: "issue_documents", capability: DOCUMENT_CAPABILITIES.esign });
+    const document = await readDocumentInstance(orgId, documentId);
+    requireDocumentDepartmentAccess(ctx, document);
+    return { orgId, documentId, ctx, document };
+  };
+  app.post("/organizations/:orgId/documents/:documentId/signing/present/prepare", async request => {
+    const { orgId, documentId, ctx } = await presenter(request, true);
+    const access = await signing.presentedSigningAccess(orgId, documentId, cleanText(asObject(request.body).field), ctx);
+    return { ok: true, ...(await signing.prepareSigning(access)), presenter_attestation_required: true };
+  });
+  app.get("/organizations/:orgId/documents/:documentId/signing/present/pdf", async (request, reply) => {
+    const { orgId, document } = await presenter(request, false);
+    const file = await signing.signingPdf(orgId, cleanText(asObject(document.delivery).current_snapshot_id));
+    if (!file) throw badRequest("signature_pdf_not_ready", "Prepare the agreement for signing first.");
+    return sendPdf(reply, file);
+  });
+  app.get("/organizations/:orgId/documents/:documentId/signing/present/status", async request => {
+    const { orgId, document } = await presenter(request, false);
+    return { ok: true, status: cleanText(document.status), signing: await signing.signingStatus(orgId, cleanText(asObject(document.delivery).current_snapshot_id)) };
+  });
+  app.post("/organizations/:orgId/documents/:documentId/signing/present/outputs/:key", async request => {
+    const { orgId, documentId, ctx, document } = await presenter(request, true);
+    const key = getParam(request.params, "key");
+    if (cleanText(asObject(asObject(document.output_defs)[key]).type) !== "signature") throw forbidden("presented_signature_output_only", "Only a signature is taken in person here.");
+    const body = recordOutputSchema.parse(request.body ?? {});
+    const result = await recordDocumentOutput(orgId, documentId, key, { ...body, evidence: { ...asObject(body.evidence), capture_mode: "in_person", witnessed_by_user_id: ctx.userId } }, publicRequestAudit(request), ctx, { surface: "field" });
+    return { ok: true, document: result.document, status: result.status };
   });
   (await import("./signing/routes.js")).registerSealRoutes(app as any);
   app.get("/organizations/:orgId/documents/:documentId/signing/evidence", async request => {
@@ -1163,12 +1204,14 @@ export const registerDocumentsApi: FastifyPluginAsync = async (app) => {
   // Opens a processor checkout for a payment output; the client secret it
   // returns is what the portal's secure card or bank element pays.
   app.post("/public/:token/payments/checkout", async (request, reply) => {
+    refusePreviewDocumentToken(getParam(request.params, "token"));
     const result = await publicDocumentPaymentCheckout(getParam(request.params, "token"), asObject(request.body));
     reply.code(201);
     return { ok: true, ...result };
   });
 
   app.post("/public/:token/payments/payment-method-intent", async (request, reply) => {
+    refusePreviewDocumentToken(getParam(request.params, "token"));
     const body = asObject(request.body);
     const result = await publicDocumentPaymentMethodIntent(getParam(request.params, "token"), body);
     reply.code(201);

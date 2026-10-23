@@ -2073,10 +2073,15 @@ async function sendDocumentLocked(orgId: string, documentId: string, input: Json
   // opened on this document. A signer's link carries their own signing
   // credential in its fragment, which browsers never send to a server. A
   // document with no project has no portal and keeps the direct link.
-  const portalHome = cleanText(document.project_id)
+  const portalRecord = cleanText(document.project_id)
     ? await (await import("../platform/api.js")).ensureCustomerPortalRecord(orgId, cleanText(document.project_id), {}, cleanText((await import("../src/config/env.js")).env.publicBaseUrl))
-      .then(result => cleanText(asObject(result.portal).live_url)).catch(() => "")
-    : "";
+      .then(result => asObject(result.portal)).catch(() => ({} as JsonObject))
+    : {};
+  const portalHome = cleanText(portalRecord.live_url);
+  // What staff open to see the customer's view: the portal's preview, which
+  // signs, accepts and pays nothing (enforced on the server).
+  const previewHome = cleanText(portalRecord.preview_url);
+  const previewUrl = previewHome ? `${previewHome}${previewHome.includes("?") ? "&" : "?"}document=${encodeURIComponent(documentId)}` : "";
   const customerLink = (invitationToken = "") => portalHome
     ? `${portalHome}${portalHome.includes("?") ? "&" : "?"}document=${encodeURIComponent(documentId)}${invitationToken ? `#sign=${encodeURIComponent(invitationToken)}` : ""}`
     : publicDocumentPortalUrl(invitationToken || cleanText(snapshot.public_token));
@@ -2170,7 +2175,7 @@ async function sendDocumentLocked(orgId: string, documentId: string, input: Json
     }
   }
   await syncProjectSignatureRequirements(orgId, cleanText(updated.project_id)).catch(() => null);
-  return { document: updated, snapshot, portal_url: portalUrl, emailed, texted, signing: signing.pkg ? { package_id: signing.pkg.id, invitations: signing.invitations.map(i => ({ ...i, portal_url: customerLink(cleanText(i.token)) })) } : null };
+  return { document: updated, snapshot, portal_url: portalUrl, preview_url: previewUrl, emailed, texted, signing: signing.pkg ? { package_id: signing.pkg.id, invitations: signing.invitations.map(i => ({ ...i, portal_url: customerLink(cleanText(i.token)) })) } : null };
 }
 
 // ---------------------------------------------------------------------------
@@ -2659,6 +2664,7 @@ export async function recordDocumentOutput(
   ctx?: PlatformAuthContext | null,
   options: { snapshotId?: string; surface?: "public" | "internal" | "field"; publicToken?: string; imported?: boolean } = {}
 ) {
+  if (options.publicToken) (await import("./preview-links.js")).refusePreviewDocumentToken(options.publicToken);
   const outputType = cleanText(asObject(asObject((await readDocumentInstance(orgId, documentId)).output_defs)[key]).type);
   return withDocumentChange({ cut: outputType === "signature" ? "sign" : outputType === "payment" ? "payment" : "response", documentId, userId: ctx?.userId, actorLabel: ctx ? "" : "customer" },
     () => recordDocumentOutputInChange(orgId, documentId, key, input, audit, ctx, options));
