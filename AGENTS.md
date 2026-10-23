@@ -364,6 +364,37 @@ connections per site across all tabs, and each extra stream silently starves
 ordinary requests. Run `tests/realtime-single-stream.test.ts` and
 `tests/view-presence-client.test.mjs` for changes here.
 
+## Session replay
+
+Read [session replay](docs/architecture/session-replay.md) before changing what
+pages record, who is recorded, the replay viewer, or anything `platform-api.js`
+loads on every page. Who is recorded is a platform mode (off, only those listed,
+everyone) plus rules for people and organizations in `session-replay/targeting.ts`;
+nothing records until someone is listed. It is not an organization capability:
+only platform administrators set it or read replays, and every change is logged.
+Apps never mark elements for tracking: add `data-fmr-mask` to a field that must
+not be recorded and `data-fmr-ignore` to UI that must not appear in replays.
+The recorder posts chunks; it never opens a stream. Bump the `?v=` values when
+a library file changes. Archives are lossless and pinned to
+their vocabulary versions: never change how a stored archive decodes (a new
+writer gets a new `ARCHIVE_FORMAT`), and keep customer text out of the platform
+vocabulary. Run `tests/session-replay-browser.test.mjs`,
+`tests/session-replay.test.ts` and `tests/session-replay-archive.test.ts` for
+changes here.
+
+## Session replay search
+
+Read [session replay search](docs/architecture/session-replay-search.md) before
+changing how recordings are indexed or the tools a language model uses to
+question them. The index is derived from recordings alone and can always be
+rebuilt (bump `INDEX_VERSION`); recordings stay exact and are only opened to
+drill into a moment. Element and screen ids must stay stable across sessions
+and organizations. Field values never enter the index. Tools are for platform
+administrators, or a coding agent holding an access key one of them created
+(MCP at `/v1/platform/session-replay/mcp`); a key opens the search tools and
+nothing else. Run `tests/session-replay-insights-browser.test.mjs` and
+`tests/session-replay-agent-access.test.ts` for changes here.
+
 ## Project window content ownership
 
 Read [project content layout](docs/architecture/project-content-layout.md) before changing project modal tabs or sidebars. Overview owns the project-details column inside its tab content. Other apps own their own content rails. There is no configurable shared modal left region or left-column override API; do not recreate one.

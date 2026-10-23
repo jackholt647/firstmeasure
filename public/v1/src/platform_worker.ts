@@ -39,6 +39,7 @@ const jobs: Array<{ name: string; interval: number; run: () => Promise<unknown> 
   { name: "collaboration-contacts", interval: 15000, run: async () => (await import("../collaboration/service.js")).repairCollaborationContacts() },
   { name: "notification-delivery", interval: 2000, run: async () => (await import("../platform/notifications/delivery.js")).drainNotifications() },
   { name: "platform-billing", interval: 3600000, run: async () => (await import("../platform-billing/metering.js")).sweepBilling() },
+  { name: "session-replay-archive", interval: 3600000, run: async () => (await import("../session-replay/archive.js")).runScheduledReplayArchive() },
   { name: "payroll-outbox", interval: 2000, run: () => payroll.drainPayrollWorkEvents() },
   { name: "work-scheduler", interval: 5000, run: () => work.runWorkSchedulerTick() },
   { name: "scheduled-messages", interval: 15000, run: () => channels.deliverAllDueScheduledMessages() },
@@ -46,7 +47,8 @@ const jobs: Array<{ name: string; interval: number; run: () => Promise<unknown> 
   { name: "reporting", interval: 10000, run: () => stats.runStatsSchedulerTick() },
   { name: "agent-jobs", interval: 1000, run: () => agents.drainChannelAgentJobs() },
   { name: "agent-awaits", interval: 60000, run: () => agents.sweepAgentAwaits() },
-  { name: "agent-schedules", interval: 60000, run: () => agents.sweepAgentSchedules() }
+  { name: "agent-schedules", interval: 60000, run: () => agents.sweepAgentSchedules() },
+  { name: "session-replay-index", interval: 60000, run: async () => (await import("../session-replay/insights/jobs.js")).indexPendingReplaySessions({ log: (message, error) => app.log.warn({ error }, message) }) }
 ];
 let stopping = false;
 let lastTickAt = Date.now();
