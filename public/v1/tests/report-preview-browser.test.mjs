@@ -96,3 +96,25 @@ test('the report preview lays every page out in landscape when the organization 
     assert.ok(portrait.every((sheet) => !sheet.wide), 'portrait by default');
   } finally { await browser.close(); }
 });
+
+test('only an organization with Full Exterior reports can switch the sample to a Full Exterior report', async () => {
+  const browser = await chromium.launch({channel:'chrome', headless:true});
+  try {
+    const page = await browser.newPage({viewport:{width:900, height:1000}});
+    await page.setContent('<div id="host" style="width:640px;height:900px"></div>');
+    await page.addScriptTag({content:source});
+    const switchShown = (exteriors) => page.evaluate((exteriors) => {
+      const host = document.querySelector('#host');
+      window.FirstMateReportPreview.render(host, {settings:{}, exteriors});
+      const samples = host.querySelector('[data-rpv-samples]');
+      return {hidden:samples.hidden, selected:samples.querySelector('[aria-selected=true]')?.dataset.rpvSample, sheets:host.querySelectorAll('[data-rpv-viewer] .rpv-sheet').length};
+    }, exteriors);
+    const off = await switchShown(false);
+    assert.equal(off.hidden, true, 'no switch without Full Exterior reports');
+    assert.ok(off.sheets > 1, 'the roof sample still shows');
+    const on = await switchShown(true);
+    assert.deepEqual([on.hidden, on.selected], [false, 'roof'], 'the switch shows, starting on the roof sample');
+    assert.ok(source.includes("full-exterior-sample.json"), 'the Full Exterior sample is a saved full-house report');
+    await access(new URL('report-preview/full-exterior-sample.json', lib));
+  } finally { await browser.close(); }
+});

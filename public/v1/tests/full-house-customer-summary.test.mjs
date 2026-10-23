@@ -48,7 +48,9 @@ test('a roof-only summary renders exactly as before, even when its dataset holds
 
 test('the customer Summary.pdf of a full-house order carries one Exterior Summary page; the full report keeps every exterior page',()=>{
  const pdf=read('public/measure/internal/editor_scripts/pdf.js');
- assert.match(pdf,/mode === 'summary' && isCustomerFullHousePdf\(state\) && state\.exteriorReport\?\.walls\?\.length\) \{[^}]*drawExteriorSummaryPage/);
+ assert.match(pdf,/mode === 'summary' && isCustomerFullHousePdf\(state\) && state\.exteriorReport\?\.walls\?\.length \? customerExteriorPages\(s\) : null/);
+ assert.match(pdf,/window\.drawExteriorReportPages\(doc, state\.exteriorReport, state\.exteriorSettings \|\| \{\}, beginReportPage, brandingColors, summaryExteriorPages\)/);
+ assert.match(pdf,/CUSTOMER_EXTERIOR_PAGE_DEFAULTS = \{ ext_page_summary: true, ext_page_elevations: false, ext_page_dimensions: false, ext_page_openings: false, ext_page_quantities: false, ext_page_allowances: false, ext_page_notes: false \}/,'by default a customer PDF carries only the Exterior Summary');
  const X=require('../../measure/internal/editor_scripts/exterior_pdf.js'),{jsPDF}=require('jspdf');
  const wall={id:'W01',material:'Vinyl',normal:{x:0,y:-1,z:0},points:[{x:0,y:0,z:0},{x:5,y:0,z:0},{x:5,y:0,z:3},{x:0,y:0,z:3}],holes:[],gross:161,net:161,openingArea:0,width:16.4,height:9.8,openings:[]};
  const model={walls:[wall],openings:[],returns:[],roof:[],base:[],totals:{gross:161,net:161,openingArea:0,openingPerimeter:0,top:16,bottom:16,transitions:0,terminations:0,inside:0,outside:0,returns:0}};
@@ -58,5 +60,13 @@ test('the customer Summary.pdf of a full-house order carries one Exterior Summar
   assert.deepEqual(render((doc,begin)=>X.drawExteriorSummaryPage(doc,model,{},begin,{})),['Exterior Summary']);
   const full=render((doc,begin)=>X.drawExteriorReportPages(doc,model,{},begin,{}));
   assert.deepEqual(full.slice(0,2),['Exterior Summary','Front Elevation']);assert.ok(full.includes('Exterior Quantities'));
+  // A customer PDF draws only the exterior pages the organization chose.
+  const none={summary:false,elevations:false,dimensions:false,openings:false,quantities:false,allowances:false};
+  assert.deepEqual(render((doc,begin)=>X.drawExteriorReportPages(doc,model,{},begin,{},{...none,summary:true})),['Exterior Summary']);
+  assert.deepEqual(render((doc,begin)=>X.drawExteriorReportPages(doc,model,{},begin,{},{...none,quantities:true})),['Exterior Quantities']);
+  const picked=render((doc,begin)=>X.drawExteriorReportPages(doc,model,{},begin,{},{...none,elevations:true,openings:true,allowances:true}));
+  assert.ok(picked.includes('Front Elevation')&&picked.includes('Opening Schedule')&&picked.includes('Material Allowances'));
+  assert.ok(!picked.includes('Exterior Summary')&&!picked.includes('Exterior Quantities')&&!picked.some(t=>/Dimensions/.test(t)));
+  assert.deepEqual(render((doc,begin)=>X.drawExteriorReportPages(doc,model,{},begin,{},none)),[]);
  }finally{console.warn=warn;}
 });

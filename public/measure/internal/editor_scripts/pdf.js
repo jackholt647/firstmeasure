@@ -1962,17 +1962,31 @@ function getPdfProjectType(state) {
 
 /* editor_scripts/pdf.js */
 
-// Page orientation of the whole PDF, 'portrait' (default) or 'landscape': a render override
-// (pageConfigOverride.report_orientation), then this report's exteriorSettings.orientation,
-// then the organization default report_settings.general.report_orientation (Company > Reports).
+// A report with Full Exterior pages: a customer full-house order, or a report whose exterior pages are on.
+function isFullExteriorPdf(state) {
+    return isCustomerFullHousePdf(state) || !!(state?.exteriorReport?.walls?.length && state?.exteriorSettings?.include !== false);
+}
+// Page orientation of the whole PDF is an organization setting (Company > Reports > Layout), one for
+// roof reports (report_settings.general.report_orientation, default portrait) and one for Full Exterior
+// reports (general.exterior_report_orientation, default landscape). A render override
+// (pageConfigOverride.report_orientation) still wins; a report no longer carries its own orientation.
 function resolvePdfOrientation(state, orgSettings, pageConfigOverride) {
     const pick = (value) => (value === 'landscape' || value === 'portrait') ? value : null;
+    const general = (orgSettings && orgSettings.general) || {};
     return pick(pageConfigOverride && pageConfigOverride.report_orientation)
-        || pick(state && state.exteriorSettings && state.exteriorSettings.orientation)
-        || pick(orgSettings && orgSettings.general && orgSettings.general.report_orientation)
-        || 'portrait';
+        || (isFullExteriorPdf(state)
+            ? pick(general.exterior_report_orientation) || 'landscape'
+            : pick(general.report_orientation) || 'portrait');
 }
 window.resolvePdfOrientation = resolvePdfOrientation;
+// The Full Exterior pages a customer PDF carries (Company > Reports > Full Exterior pages, report_settings.customer
+// ext_page_*). By default only the Exterior Summary, as before these settings existed.
+const CUSTOMER_EXTERIOR_PAGE_DEFAULTS = { ext_page_summary: true, ext_page_elevations: false, ext_page_dimensions: false, ext_page_openings: false, ext_page_quantities: false, ext_page_allowances: false, ext_page_notes: false };
+function customerExteriorPages(settings) {
+    const s = { ...CUSTOMER_EXTERIOR_PAGE_DEFAULTS, ...(settings || {}) };
+    return { summary: !!s.ext_page_summary, elevations: !!s.ext_page_elevations, dimensions: !!s.ext_page_dimensions, openings: !!s.ext_page_openings, quantities: !!s.ext_page_quantities, allowances: !!s.ext_page_allowances, notes: !!s.ext_page_notes };
+}
+window.customerExteriorPages = customerExteriorPages;
 function isPdfLandscape(doc) { return doc.internal.pageSize.getWidth() > doc.internal.pageSize.getHeight(); }
 
 async function generatePDFFromState(state, mode = 'full', updateStatusCallback, runtimeOptions = {}) {
@@ -2830,10 +2844,12 @@ async function generatePDFFromState(state, mode = 'full', updateStatusCallback, 
         }
     }
 
-    // A full-house customer summary carries the Exterior Summary page; elevations and dimensions stay in the full report.
-    if (mode === 'summary' && isCustomerFullHousePdf(state) && state.exteriorReport?.walls?.length) {
-        if (updateStatusCallback) updateStatusCallback('Generating exterior summary page...');
-        window.ExteriorPDF.drawExteriorSummaryPage(doc, state.exteriorReport, state.exteriorSettings || {}, beginReportPage, brandingColors);
+    // A full-house customer summary carries the Full Exterior pages the organization chose (customerExteriorPages;
+    // by default only the Exterior Summary). The full report keeps every exterior page.
+    const summaryExteriorPages = mode === 'summary' && isCustomerFullHousePdf(state) && state.exteriorReport?.walls?.length ? customerExteriorPages(s) : null;
+    if (summaryExteriorPages && Object.entries(summaryExteriorPages).some(([key, on]) => on && key !== 'notes')) {
+        if (updateStatusCallback) updateStatusCallback('Generating exterior pages...');
+        window.drawExteriorReportPages(doc, state.exteriorReport, state.exteriorSettings || {}, beginReportPage, brandingColors, summaryExteriorPages);
     }
 
     if (hasExterior) {
@@ -2864,7 +2880,7 @@ async function generatePDFFromState(state, mode = 'full', updateStatusCallback, 
     }
 
 
-    if (hasExterior && s.page_notes) {
+    if ((hasExterior && s.page_notes) || summaryExteriorPages?.notes) {
         window.drawExteriorNotes(doc, state.exteriorReport, state.exteriorSettings || {}, beginReportPage, brandingColors);
     }
 

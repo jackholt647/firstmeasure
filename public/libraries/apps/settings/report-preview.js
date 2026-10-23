@@ -11,14 +11,19 @@
  * internal PDF ("full" mode, every page). The customer PDF carries the organization's colours and logo; the
  * internal PDF is not branded: pdf.js's default red (200,40,40 and 150,0,0) and the FirstMate logo.
  *
- * API: FirstMateReportPreview.render(host, { settings, logo })
- *   settings  the customer report settings (cover_show_*, page_*)
+ * API: FirstMateReportPreview.render(host, { settings, logo, orientation, general, primary, secondary, exteriors, exteriorOrientation })
+ *   settings  the customer report settings (cover_show_*, page_*, ext_page_*)
  *   logo      the organization's logo URL, or empty for the default FirstMate logo in the primary colour
+ *   exteriors true for an organization with Full Exterior reports: the bar then switches the sample between
+ *             "Roof only" (this replica) and "Full Exterior". The Full Exterior sample is not a replica: it is the
+ *             real PDF, made in the browser by the shared PDF runtime (the one /v1/firstmeasure/pdf-runtime serves
+ *             to the editor and the PDF worker) from a saved full-house report (report-preview/full-exterior-sample.json)
+ *             with the organization's settings (general, settings), colours and logo, and shown page by page.
  */
 (function(){
   if (window.FirstMateReportPreview) return;
   const ASSETS = '/libraries/apps/settings/report-preview/';
-  const ASSET_VERSION = '20261014-1';
+  const ASSET_VERSION = '20261023-1';
   const MM = 4;                       // px per mm on an unscaled page
   // Portrait letter unless render() is given orientation 'landscape' (Company > Reports > Layout), when
   // every page is laid out as pdf.js lays out a landscape PDF: the drawing on the left (MAIN_W) and
@@ -586,7 +591,104 @@
     return pages;
   }
   function pageHtml(ctx, page, number){
+    // A page of a real PDF (the Full Exterior sample) is an image of the whole page, header and footer included.
+    if (page.image) return `<div class="rpv-page" data-page="${number - 1}"><img class="rpv-full" src="${page.image}" alt=""></div>`;
     return `<div class="rpv-page${ctx.unbranded ? ' rpv-unbranded' : ''}" data-page="${number - 1}">${frame(ctx, page, number)}${page.draw()}</div>`;
+  }
+
+  // ---- Full Exterior sample: the real PDF ----
+  // The shared PDF runtime runs in a hidden same-origin frame, as the editor's isolated runtime does
+  // (pdf_standalone.js getIsolatedPdfRuntime); its pages are drawn with Mozilla's pdf.js, as Proposals does.
+  const RUNTIME_BASE = '/v1/firstmeasure/pdf-runtime';
+  const EDITOR_SCRIPTS = '/measure/internal/editor_scripts/';
+  const RUNTIME_SCRIPTS = () => [
+    `${RUNTIME_BASE}/assets/jspdf`, `${RUNTIME_BASE}/assets/report-units`, `${RUNTIME_BASE}/assets/pdf`,
+    `${EDITOR_SCRIPTS}vendor/clipper-lib-6.4.2-clipper.js`, `${EDITOR_SCRIPTS}vendor/earcut-3.2.3-earcut.dev.js`,
+    `${EDITOR_SCRIPTS}exterior_geometry.js?v=${ASSET_VERSION}`, `${EDITOR_SCRIPTS}exterior_pdf.js?v=${ASSET_VERSION}`,
+    `${RUNTIME_BASE}/assets/pdf-standalone`
+  ];
+  const PDFJS = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+  const PDFJS_WORKER = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+  let runtimePromise = null, samplePromise = null, pdfjsPromise = null;
+  function loadScript(doc, src){
+    return new Promise((resolve, reject) => { const s = doc.createElement('script'); s.src = src; s.onload = resolve; s.onerror = () => reject(new Error(`Could not load ${src}`)); doc.head.appendChild(s); });
+  }
+  function exteriorRuntime(){
+    if (runtimePromise) return runtimePromise;
+    runtimePromise = new Promise((resolve, reject) => {
+      const frame = document.createElement('iframe');
+      frame.hidden = true; frame.setAttribute('aria-hidden', 'true'); frame.dataset.rpvRuntime = '';
+      frame.src = `${RUNTIME_BASE}/blank`;
+      frame.onload = async () => {
+        try {
+          const win = frame.contentWindow;
+          win.__pdfAssetBaseUrl = RUNTIME_BASE;
+          for (const src of RUNTIME_SCRIPTS()) await loadScript(frame.contentDocument, src);
+          if (!win.FirstMatePDFStandalone) throw new Error('The PDF runtime did not start.');
+          resolve(win);
+        } catch (error) { reject(error); }
+      };
+      document.body.appendChild(frame);
+    }).catch((error) => { runtimePromise = null; throw error; });
+    return runtimePromise;
+  }
+  function exteriorSample(){
+    samplePromise ||= fetch(`${ASSETS}full-exterior-sample.json?v=${ASSET_VERSION}`).then((r) => { if (!r.ok) throw new Error('The sample report could not load.'); return r.json(); }).catch((error) => { samplePromise = null; throw error; });
+    return samplePromise;
+  }
+  function pdfjs(){
+    pdfjsPromise ||= (window.pdfjsLib ? Promise.resolve() : loadScript(document, PDFJS)).then(() => { window.pdfjsLib.GlobalWorkerOptions.workerSrc = PDFJS_WORKER; return window.pdfjsLib; }).catch((error) => { pdfjsPromise = null; throw error; });
+    return pdfjsPromise;
+  }
+  // The internal PDF is not branded, as in the replica; the customer PDF carries the organization's colours and logo.
+  async function exteriorPdf(view){
+    const [win, snapshot] = await Promise.all([exteriorRuntime(), exteriorSample()]);
+    const folderId = snapshot.folderId;
+    const organization = { report_settings:{ general:{ ...(view.general || {}) }, customer:{ ...(view.settings || {}) } } };
+    if (view.mode !== 'internal' && (view.logo || view.primary || view.secondary)) {
+      organization.branding = { ...(view.logo ? { logo:new URL(view.logo, location.href).href } : {}), colors:{ ...(view.primary ? { primary:view.primary } : {}), ...(view.secondary ? { secondary:view.secondary } : {}) } };
+    }
+    const manifest = { id:folderId, project_type:'residential', measurement_scope:'full_house', include_gutter_measurements:true, address:snapshot.address, measurement_system:'imperial', report_language:'en-US' };
+    const [out] = await win.FirstMatePDFStandalone.generateProjectPdfsFromSnapshot(snapshot, { folderId, manifest, organization }, { outputs:[{ mode:view.mode === 'internal' ? 'full' : 'summary' }], skipUpload:true, skipStatusUpdate:true, download:false, updateStatus:false });
+    return out.result.blob;
+  }
+  // Each page as an image at the replica's scale, labelled with the title in its header.
+  async function pdfPages(blob){
+    const lib = await pdfjs(), pdf = await lib.getDocument({ data:new Uint8Array(await blob.arrayBuffer()) }).promise, pages = [];
+    for (let n = 1; n <= pdf.numPages; n++) {
+      const page = await pdf.getPage(n), base = page.getViewport({ scale:1 }), scale = (PAGE_W * MM * 1.5) / base.width, viewport = page.getViewport({ scale });
+      const canvas = document.createElement('canvas'); canvas.width = Math.round(viewport.width); canvas.height = Math.round(viewport.height);
+      await page.render({ canvasContext:canvas.getContext('2d'), viewport }).promise;
+      const text = await page.getTextContent(), headerTop = base.height - 22 * 72 / 25.4;
+      const title = text.items.filter((t) => t.transform[5] > headerTop && t.transform[4] > base.width / 2 && t.str.trim().length > 1).map((t) => t.str).join(' ').replace(/\s+/g, ' ').trim();
+      pages.push({ key:`pdf-${n}`, label:n === 1 ? 'Cover' : (title.replace(/\s*-\s*continued$/i, '') || `Page ${n}`), image:canvas.toDataURL('image/jpeg', 0.86) });
+      page.cleanup();
+    }
+    pdf.destroy();
+    return pages;
+  }
+  const exteriorKey = (view) => JSON.stringify([view.mode, view.settings, view.general, view.mode === 'internal' ? '' : [view.logo, view.primary, view.secondary]]);
+  function drawExterior(host, view){
+    const key = exteriorKey(view), viewer = host.querySelector('[data-rpv-viewer]');
+    if (view.exteriorCache?.key === key) return showPages(host, view, view.exteriorCache.pages, { logo:'', unbranded:false });
+    const run = view.exteriorRun = (view.exteriorRun || 0) + 1;
+    viewer.innerHTML = '<div class="rpv-status" role="status"><i class="fas fa-spinner fa-spin" aria-hidden="true"></i> Building the sample Full Exterior report&hellip;</div>';
+    host.querySelector('[data-rpv-strip]').innerHTML = '';
+    view.count = 0; mark(host, view);
+    // Settings change quickly while someone clicks through them: build only the latest.
+    clearTimeout(view.exteriorTimer);
+    view.exteriorTimer = setTimeout(async () => {
+      try {
+        const pages = await pdfPages(await exteriorPdf(view));
+        if (run !== view.exteriorRun) return;
+        view.exteriorCache = { key, pages };
+        showPages(host, view, pages, { logo:'', unbranded:false });
+      } catch (error) {
+        if (run !== view.exteriorRun) return;
+        console.warn('[Report preview] Full Exterior sample failed', error);
+        viewer.innerHTML = '<div class="rpv-status" role="alert">The sample Full Exterior report could not be built. Reload the page to try again.</div>';
+      }
+    }, 250);
   }
 
   // ---- Viewer ----
@@ -621,6 +723,9 @@
     .rpv-logo{width:auto;object-fit:contain}
     .rpv-unbranded{--rpv-primary:rgb(200,40,40);--rpv-secondary:rgb(150,0,0)}
     .rpv-logo-default{background:var(--rpv-primary);-webkit-mask:url(/images/logo_red.png) left center/contain no-repeat;mask:url(/images/logo_red.png) left center/contain no-repeat}
+    .rpv-full{position:absolute;left:0;top:0;width:100%;height:100%;display:block}
+    .rpv-status{align-self:center;padding:48px 16px;color:#667085;font-size:13px;font-weight:600;text-align:center}
+    .rpv-tabs[hidden]{display:none}
     .rpv-pill{position:absolute;display:flex;align-items:center;white-space:pre;background:var(--rpv-primary);color:#fff;font-weight:700}
   `;
   function injectCss(){
@@ -638,6 +743,13 @@
     view.settings = options.settings || {};
     view.logo = String(options.logo || '').trim();
     view.orientation = options.orientation === 'landscape' ? 'landscape' : 'portrait';
+    view.general = options.general || {};
+    view.primary = String(options.primary || '').trim();
+    view.secondary = String(options.secondary || '').trim();
+    view.exteriors = options.exteriors === true;
+    view.exteriorOrientation = options.exteriorOrientation === 'portrait' ? 'portrait' : 'landscape';
+    if (!view.exteriors) view.sample = 'roof';
+    view.sample ||= 'roof';
     if (!host.querySelector('.rpv')) mount(host, view);
     draw(host, view);
     return { setMode:(mode) => { view.mode = mode === 'internal' ? 'internal' : 'customer'; draw(host, view); } };
@@ -650,6 +762,10 @@
           <button type="button" class="rpv-tab" role="tab" data-rpv-mode="customer">Customer PDF</button>
           <button type="button" class="rpv-tab" role="tab" data-rpv-mode="internal">Internal PDF</button>
         </div>
+        <div class="rpv-tabs" role="tablist" aria-label="Sample report" data-rpv-samples hidden>
+          <button type="button" class="rpv-tab" role="tab" data-rpv-sample="roof">Roof only</button>
+          <button type="button" class="rpv-tab" role="tab" data-rpv-sample="exterior">Full Exterior</button>
+        </div>
         <div class="rpv-nav"><button type="button" data-rpv-step="-1" aria-label="Previous page"><i class="fas fa-chevron-up"></i></button><span data-rpv-count></span><button type="button" data-rpv-step="1" aria-label="Next page"><i class="fas fa-chevron-down"></i></button></div>
       </div>
       <div class="rpv-body">
@@ -661,6 +777,12 @@
     host.querySelectorAll('[data-rpv-mode]').forEach((tab) => tab.addEventListener('click', () => {
       if (view.mode === tab.dataset.rpvMode) return;
       view.mode = tab.dataset.rpvMode;
+      draw(host, view);
+    }));
+    host.querySelectorAll('[data-rpv-sample]').forEach((tab) => tab.addEventListener('click', () => {
+      if (view.sample === tab.dataset.rpvSample) return;
+      view.sample = tab.dataset.rpvSample;
+      view.index = 0;
       draw(host, view);
     }));
     host.querySelectorAll('[data-rpv-step]').forEach((button) => button.addEventListener('click', () => goTo(host, view, view.index + Number(button.dataset.rpvStep))));
@@ -694,22 +816,29 @@
   }
 
   function draw(host, view){
-    // The page size follows the orientation; thumbnails keep the strip's width.
-    setOrientation(view.orientation);
+    // The page size follows the orientation of the sample's kind of report; thumbnails keep the strip's width.
+    const exterior = view.exteriors && view.sample === 'exterior';
+    setOrientation(exterior ? view.exteriorOrientation : view.orientation);
     const root = host.querySelector('.rpv');
     root.dataset.orientation = view.orientation;
     root.style.setProperty('--rpv-pw', `${n(PAGE_W * MM)}px`);
     root.style.setProperty('--rpv-ph', `${n(PAGE_H * MM)}px`);
     root.style.setProperty('--rpv-thumb-s', ((LANDSCAPE ? 72 : 56) / (PAGE_W * MM)).toFixed(5));
     view.fit?.();
-    const ctx = { logo:view.logo, unbranded:view.mode === 'internal' };
-    const pages = documentPages(view.mode, view.settings);
+    const samples = host.querySelector('[data-rpv-samples]');
+    samples.hidden = !view.exteriors;
+    samples.querySelectorAll('[data-rpv-sample]').forEach((tab) => tab.setAttribute('aria-selected', String(tab.dataset.rpvSample === (exterior ? 'exterior' : 'roof'))));
+    host.querySelectorAll('[data-rpv-mode]').forEach((tab) => tab.setAttribute('aria-selected', String(tab.dataset.rpvMode === view.mode)));
+    host.querySelector('[data-rpv-viewer]').setAttribute('aria-label', `${view.mode === 'internal' ? 'Internal' : 'Customer'} PDF pages`);
+    if (exterior) return drawExterior(host, view);
+    showPages(host, view, documentPages(view.mode, view.settings), { logo:view.logo, unbranded:view.mode === 'internal' });
+  }
+
+  function showPages(host, view, pages, ctx){
     view.count = pages.length;
     view.index = Math.min(view.index, pages.length - 1);
     const html = pages.map((page, i) => pageHtml(ctx, page, i + 1));
-    host.querySelectorAll('[data-rpv-mode]').forEach((tab) => tab.setAttribute('aria-selected', String(tab.dataset.rpvMode === view.mode)));
     const viewer = host.querySelector('[data-rpv-viewer]');
-    viewer.setAttribute('aria-label', `${view.mode === 'internal' ? 'Internal' : 'Customer'} PDF pages`);
     viewer.innerHTML = html.map((page, i) => `<div class="rpv-sheet" data-rpv-sheet="${i}" aria-label="Page ${i + 1}: ${esc(pages[i].label)}">${page}</div>`).join('');
     host.querySelector('[data-rpv-strip]').innerHTML = html.map((page, i) => `<button type="button" class="rpv-thumb" data-rpv-thumb="${i}" aria-label="Page ${i + 1}: ${esc(pages[i].label)}"><div class="rpv-sheet">${page}</div><span>${esc(pages[i].label)}</span></button>`).join('');
     goTo(host, view, view.index, { instant:true });
@@ -740,7 +869,7 @@
 
   function mark(host, view){
     const count = host.querySelector('[data-rpv-count]');
-    if (count) count.textContent = `Page ${view.index + 1} of ${view.count}`;
+    if (count) count.textContent = view.count ? `Page ${view.index + 1} of ${view.count}` : '';
     host.querySelectorAll('[data-rpv-step]').forEach((button) => { button.disabled = Number(button.dataset.rpvStep) < 0 ? view.index <= 0 : view.index >= view.count - 1; });
     const strip = host.querySelector('[data-rpv-strip]');
     host.querySelectorAll('[data-rpv-thumb]').forEach((thumb) => {

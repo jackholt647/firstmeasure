@@ -57,6 +57,8 @@ async function render({mode='full',override={},exteriorSettings={include:true,fr
   return {W,H,pages,titles,calls:window.__calls};
  },{mode,override,exteriorSettings,organization,exterior});
 }
+// A Full Exterior organization that chose portrait pages.
+const PORTRAIT={report_settings:{general:{exterior_report_orientation:'portrait'}}};
 // Content stays inside the page and above the footer (address and page number at H - 16).
 function overflow(r){
  const out=[],footer=r.H-16;
@@ -89,23 +91,26 @@ test('a landscape elevation draws the house on the left and its table on the rig
  }
  assert.ok(checked>=2,'elevations with faces were checked');
 });
-test('orientation: a render override, then the report setting, then the organization default, else portrait',async()=>{
- const org=v=>({report_settings:{general:{report_orientation:v}}});
- const size=async o=>{const r=await render(o);return r.W>r.H?'landscape':'portrait';};
- assert.equal(await size({}),'portrait','default');
- assert.equal(await size({organization:org('landscape')}),'landscape','organization default');
- assert.equal(await size({organization:org('landscape'),exteriorSettings:{include:true,orientation:'portrait'}}),'portrait','report override');
- assert.equal(await size({exteriorSettings:{include:true,orientation:'landscape'}}),'landscape','report setting');
- assert.equal(await size({organization:org('portrait'),exteriorSettings:{include:true,orientation:'portrait'},override:{report_orientation:'landscape'}}),'landscape','render override');
- const resolved=await page.evaluate(()=>[ExteriorPDF.reportOrientation({}),ExteriorPDF.reportOrientation({orientation:'landscape'})]);assert.deepEqual(resolved,['portrait','landscape']);
+test('orientation: a render override, then the organization setting for the kind of report; Full Exterior reports default to landscape, roof reports to portrait',async()=>{
+ const org=(roof,exterior)=>({report_settings:{general:{...(roof?{report_orientation:roof}:{}),...(exterior?{exterior_report_orientation:exterior}:{})}}});
+ const size=async o=>{const r=await render(o);return r.W>r.H?'landscape':'portrait';},roof={exterior:false,exteriorSettings:{}};
+ assert.equal(await size({}),'landscape','a Full Exterior report defaults to landscape');
+ assert.equal(await size(roof),'portrait','a roof report defaults to portrait');
+ assert.equal(await size({organization:org(null,'portrait')}),'portrait','the Full Exterior setting');
+ assert.equal(await size({organization:org('landscape')}),'landscape','the roof setting does not turn a Full Exterior report portrait');
+ assert.equal(await size({...roof,organization:org('landscape','portrait')}),'landscape','the roof setting');
+ assert.equal(await size({organization:org('portrait','portrait'),exteriorSettings:{include:true,orientation:'landscape'}}),'portrait','a report no longer carries its own orientation');
+ assert.equal(await size({organization:org('portrait','portrait'),override:{report_orientation:'landscape'}}),'landscape','render override');
+ const resolved=await page.evaluate(()=>{const before=window.projectOrganization;window.projectOrganization=null;const a=ExteriorPDF.reportOrientation();window.projectOrganization={report_settings:{general:{exterior_report_orientation:'portrait'}}};const b=ExteriorPDF.reportOrientation();window.projectOrganization=before;return [a,b];});
+ assert.deepEqual(resolved,['landscape','portrait']);
 });
-test('portrait output does not depend on the new setting: explicit portrait equals the default byte for byte',async()=>{
+test('portrait output does not depend on where portrait comes from: the organization setting equals a render override byte for byte',async()=>{
  const pdf=async o=>{await render(o);return page.evaluate(()=>Array.from(new Uint8Array(window.__doc.output('arraybuffer'))));};
- const a=await pdf({}),b=await pdf({override:{report_orientation:'portrait'}});assert.equal(a.length,b.length);assert.deepEqual(a,b);
- const r=await render({});assert.deepEqual(overflow(r),[],'portrait stays inside the page too');
+ const a=await pdf({organization:PORTRAIT}),b=await pdf({override:{report_orientation:'portrait'}});assert.equal(a.length,b.length);assert.deepEqual(a,b);
+ const r=await render({organization:PORTRAIT});assert.deepEqual(overflow(r),[],'portrait stays inside the page too');
 });
 test('a single-page portrait elevation ends its tables as far above the footer address as the address is above the page edge',async()=>{
- const r=await render({});
+ const r=await render({organization:PORTRAIT});
  const p=Number(Object.entries(r.titles).find(([,t])=>t==='Back Elevation')[0]),boxes=r.calls.filter(c=>c.page===p&&c.kind==='roundedRect'&&c.style==='FD'&&c.x>20);// the boxes, not their shadows
  const lowest=Math.max(...boxes.map(b=>b.y+b.h)),address=r.H-16-2.2;
  assert.ok(Math.abs((address-lowest)-16)<.6,'gap above the address equals the gap below it: '+(address-lowest));

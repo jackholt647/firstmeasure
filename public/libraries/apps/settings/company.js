@@ -63,13 +63,14 @@
     nfva_ratio: 300,
     // Full-house PDF: draw the dimmed house behind each wall dimension drawing (exterior_pdf.js dimensionContext).
     exterior_dimension_context: true,
-    // Page orientation of every PDF page, 'portrait' or 'landscape' (pdf.js resolvePdfOrientation).
+    // Page orientation, 'portrait' or 'landscape' (pdf.js resolvePdfOrientation): roof reports, then Full Exterior reports.
     report_orientation: 'portrait',
+    exterior_report_orientation: 'landscape',
   };
   // Report toggles stored in report_settings.general (the full report) rather than .customer.
-  const GENERAL_REPORT_TOGGLES = new Set(['exterior_dimension_context', 'report_orientation']);
+  const GENERAL_REPORT_TOGGLES = new Set(['exterior_dimension_context', 'report_orientation', 'exterior_report_orientation']);
   // Toggles whose stored value is not a boolean: [value when on, value when off].
-  const REPORT_TOGGLE_VALUES = { report_orientation: ['landscape', 'portrait'] };
+  const REPORT_TOGGLE_VALUES = { report_orientation: ['landscape', 'portrait'], exterior_report_orientation: ['landscape', 'portrait'] };
   const reportToggleOn = (target, key) => REPORT_TOGGLE_VALUES[key] ? target[key] === REPORT_TOGGLE_VALUES[key][0] : !!target[key];
   const DEFAULT_CUSTOMER_REPORT_SETTINGS = {
     cover_show_customer: true,
@@ -87,7 +88,15 @@
     page_materials: true,
     page_ventilation: true,
     page_gutters: false,
-    page_notes: true
+    page_notes: true,
+    // Full Exterior pages of the customer PDF (pdf.js customerExteriorPages); the internal PDF keeps every page.
+    ext_page_summary: true,
+    ext_page_elevations: false,
+    ext_page_dimensions: false,
+    ext_page_openings: false,
+    ext_page_quantities: false,
+    ext_page_allowances: false,
+    ext_page_notes: false
   };
   // Billing constants
   const BILL_MIN = 35;   // dollars
@@ -426,6 +435,7 @@
       if ('nfva_ratio' in rs) out.nfva_ratio = rs.nfva_ratio;
       if ('exterior_dimension_context' in rs) out.exterior_dimension_context = rs.exterior_dimension_context !== false;
       if ('report_orientation' in rs) out.report_orientation = rs.report_orientation === 'landscape' ? 'landscape' : 'portrait';
+      if ('exterior_report_orientation' in rs) out.exterior_report_orientation = rs.exterior_report_orientation === 'portrait' ? 'portrait' : 'landscape';
     }
     out.nfva_ratio = Math.max(1, Math.min(1000, parseInt(out.nfva_ratio, 10) || DEFAULT_GENERAL_REPORT_SETTINGS.nfva_ratio));
     return out;
@@ -830,6 +840,8 @@
     return { ok:true, users: data.users || [] };
   }
   function logoKey(url){ return (url && String(url).trim()) ? String(url).trim() : ''; }
+  // Full Exterior reports are the firstmeasure.exteriors feature, as in report ordering.
+  function exteriorReportsEnabled(){ return window.Portal?.capabilities?.value?.('firstmeasure.exteriors', false) === true; }
   function makeToggleBtn({ key, label, value, tip = '' }){
     return `
       <button class="rp-toggle ${value ? 'on' : 'off'}" data-key="${escapeHtml(key)}" data-val="${value ? '1' : '0'}" type="button" aria-pressed="${value ? 'true' : 'false'}"${tip ? ` data-fm-tooltip="${escapeHtml(tip)}"` : ''}>
@@ -13573,28 +13585,51 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
         },
         {
           title: (globalThis.PlatformLanguage?.text("settings","rp_section_layout","Layout") ?? "Layout"),
-          subtitle: (globalThis.PlatformLanguage?.text("settings","rp_section_layout_sub","How every page of the PDF is laid out. Each report can still change it in its own configuration.") ?? "How every page of the PDF is laid out. Each report can still change it in its own configuration."),
+          subtitle: (globalThis.PlatformLanguage?.text("settings","rp_section_layout_sub_kinds","How the pages of each kind of report are laid out.") ?? "How the pages of each kind of report are laid out."),
           items: [
-            { key:'report_orientation', label:(globalThis.PlatformLanguage?.text("settings","rp_report_orientation","Landscape pages") ?? "Landscape pages"), tip:(globalThis.PlatformLanguage?.text("settings","rp_tip_report_orientation","Lay out every page of the PDF in landscape. Off keeps portrait pages.") ?? "Lay out every page of the PDF in landscape. Off keeps portrait pages.") }
+            { key:'report_orientation', label:(globalThis.PlatformLanguage?.text("settings","rp_roof_report_orientation","Roof reports in landscape") ?? "Roof reports in landscape"), tip:(globalThis.PlatformLanguage?.text("settings","rp_tip_roof_report_orientation","Lay out roof-only report PDFs in landscape. Off keeps portrait pages.") ?? "Lay out roof-only report PDFs in landscape. Off keeps portrait pages.") },
+            { key:'exterior_report_orientation', exteriors:true, label:(globalThis.PlatformLanguage?.text("settings","rp_exterior_report_orientation","Full Exterior reports in landscape") ?? "Full Exterior reports in landscape"), tip:(globalThis.PlatformLanguage?.text("settings","rp_tip_exterior_report_orientation","Lay out Full Exterior report PDFs in landscape, the default. Off uses portrait pages.") ?? "Lay out Full Exterior report PDFs in landscape, the default. Off uses portrait pages.") }
           ]
         },
         {
+          exteriors: true,
           title: (globalThis.PlatformLanguage?.text("settings","rp_section_exterior","Exterior report") ?? "Exterior report"),
           subtitle: (globalThis.PlatformLanguage?.text("settings","rp_section_exterior_sub","Choices for the full-house exterior pages. Each report can still change them in its own configuration.") ?? "Choices for the full-house exterior pages. Each report can still change them in its own configuration."),
           items: [
             { key:'exterior_dimension_context', label:(globalThis.PlatformLanguage?.text("settings","rp_exterior_dimension_context","Show house context behind wall dimension drawings") ?? "Show house context behind wall dimension drawings"), tip:(globalThis.PlatformLanguage?.text("settings","rp_tip_exterior_dimension_context","Each wall dimension drawing shows the rest of the house, dimmed, behind the measured face. Off draws the face alone.") ?? "Each wall dimension drawing shows the rest of the house, dimmed, behind the measured face. Off draws the face alone.") }
           ]
+        },
+        {
+          exteriors: true,
+          title: (globalThis.PlatformLanguage?.text("settings","rp_section_exterior_pages","Full Exterior pages") ?? "Full Exterior pages"),
+          subtitle: (globalThis.PlatformLanguage?.text("settings","rp_section_exterior_pages_sub","Choose the Full Exterior pages included in every future customer PDF of a Full Exterior report. The internal PDF keeps every page.") ?? "Choose the Full Exterior pages included in every future customer PDF of a Full Exterior report. The internal PDF keeps every page."),
+          items: [
+            { key:'ext_page_summary', label:(globalThis.PlatformLanguage?.text("settings","rp_ext_page_summary","Exterior Summary Page") ?? "Exterior Summary Page"), tip:(globalThis.PlatformLanguage?.text("settings","rp_tip_ext_page_summary","Wall area, openings and the other exterior totals.") ?? "Wall area, openings and the other exterior totals.") },
+            { key:'ext_page_elevations', label:(globalThis.PlatformLanguage?.text("settings","rp_ext_page_elevations","Elevation Pages") ?? "Elevation Pages"), tip:(globalThis.PlatformLanguage?.text("settings","rp_tip_ext_page_elevations","The front, back, left and right elevations with every wall face, and faces hidden behind other walls.") ?? "The front, back, left and right elevations with every wall face, and faces hidden behind other walls.") },
+            { key:'ext_page_dimensions', label:(globalThis.PlatformLanguage?.text("settings","rp_ext_page_dimensions","Wall Dimension Pages") ?? "Wall Dimension Pages"), tip:(globalThis.PlatformLanguage?.text("settings","rp_tip_ext_page_dimensions","Each wall face and trim face drawn with its dimensions.") ?? "Each wall face and trim face drawn with its dimensions.") },
+            { key:'ext_page_openings', label:(globalThis.PlatformLanguage?.text("settings","rp_ext_page_openings","Opening Schedule") ?? "Opening Schedule"), tip:(globalThis.PlatformLanguage?.text("settings","rp_tip_ext_page_openings","Every window, door and garage door with its size and trim.") ?? "Every window, door and garage door with its size and trim.") },
+            { key:'ext_page_quantities', label:(globalThis.PlatformLanguage?.text("settings","rp_ext_page_quantities","Exterior Quantities") ?? "Exterior Quantities"), tip:(globalThis.PlatformLanguage?.text("settings","rp_tip_ext_page_quantities","Measured lengths, trim by kind and net wall area by material.") ?? "Measured lengths, trim by kind and net wall area by material.") },
+            { key:'ext_page_allowances', label:(globalThis.PlatformLanguage?.text("settings","rp_ext_page_allowances","Material Allowances") ?? "Material Allowances"), tip:(globalThis.PlatformLanguage?.text("settings","rp_tip_ext_page_allowances","Wall material areas and squares with waste allowances.") ?? "Wall material areas and squares with waste allowances.") },
+            { key:'ext_page_notes', label:(globalThis.PlatformLanguage?.text("settings","rp_ext_page_notes","Wall Notes Page") ?? "Wall Notes Page"), tip:(globalThis.PlatformLanguage?.text("settings","rp_tip_ext_page_notes","The elevations with the report's wall notes.") ?? "The elevations with the report's wall notes.") }
+          ]
         }
       ];
+      // Exterior sections show only to organizations with Full Exterior reports.
+      for (let i = sections.length - 1; i >= 0; i--) {
+        if (sections[i].exteriors && !exteriorReportsEnabled()) { sections.splice(i, 1); continue; }
+        sections[i].items = sections[i].items.filter(item => !item.exteriors || exteriorReportsEnabled());
+      }
       const reportToggleTarget = key => GENERAL_REPORT_TOGGLES.has(key) ? (state.report_general ||= mergeGeneralReportSettings(null)) : state.report_customer;
       const wrap = $('#rpToggles', paneReports);
       // The live report preview: every page of the customer and internal PDFs for the sample report.
       const renderSample = () => {
         const host = $('#rpPreview', paneReports);
         if (!host) return;
-        const draw = () => window.FirstMateReportPreview?.render(host, { settings:state.report_customer, logo:logoKey(state.logo), orientation:(state.report_general || {}).report_orientation === 'landscape' ? 'landscape' : 'portrait' });
+        // Organizations with Full Exterior reports can switch the sample between a roof-only and a Full Exterior report.
+        const general = state.report_general || {};
+        const draw = () => window.FirstMateReportPreview?.render(host, { settings:state.report_customer, general, logo:logoKey(state.logo), primary:state.primary, secondary:state.secondary, exteriors:exteriorReportsEnabled(), orientation:general.report_orientation === 'landscape' ? 'landscape' : 'portrait', exteriorOrientation:general.exterior_report_orientation === 'portrait' ? 'portrait' : 'landscape' });
         if (window.FirstMateReportPreview) { draw(); return; }
-        if (!window.__fmReportPreviewLoading) window.__fmReportPreviewLoading = new Promise((resolve, reject) => { const script = document.createElement('script'); script.src = '/libraries/apps/settings/report-preview.js?v=20261022-landscape-original-roof-layout-v8'; script.onload = resolve; script.onerror = reject; document.head.append(script); });
+        if (!window.__fmReportPreviewLoading) window.__fmReportPreviewLoading = new Promise((resolve, reject) => { const script = document.createElement('script'); script.src = '/libraries/apps/settings/report-preview.js?v=20261023-full-exterior-sample'; script.onload = resolve; script.onerror = reject; document.head.append(script); });
         window.__fmReportPreviewLoading.then(draw).catch(() => { window.__fmReportPreviewLoading = null; host.textContent = settingsText("fm_report_preview_failed", "The report preview could not load."); });
       };
       renderSample();
