@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+October 23 Session replay pages: [pages never recorded, sessions filtered by page, next and previous event, idle that ignores pointer jitter, and stylesheets no longer lost when a page closes](deploy/digitalocean/development-session-replay-pages-20261023.md) records release `05ea7fc3` on the development worker, legacy and web.
+
 October 23 Session replay, who is recorded: [a platform mode plus rules for people and organizations, set only by platform administrators, replacing the organization capability](deploy/digitalocean/development-session-replay-targeting-20261023.md) records release `5675967d` and the verified development rollout to worker, legacy and web.
 
 October 22 Materials ordering: [Email, Purchase order and Shopping list tabs, Mark as ordered, per-supplier sending, purchase order and shopping list documents, and the last list deletes](deploy/digitalocean/development-materials-ordering-20261022.md) records releases `3d45f7cc` and `29562fd1` on worker, legacy and web (the pool host was unreachable).
