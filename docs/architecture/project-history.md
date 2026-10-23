@@ -47,7 +47,7 @@ The domain writers record, on the server. Nothing in the browser can skip it.
 | `createMaterialList` (materials/storage.ts) | `created`, with every line added |
 | `commitMaterialVersion` | `lines`: added, removed and changed, and in `after` the lines as they then stand. Skipped when no line changed. `input.change_tool` names an interface tool. |
 | `patchMaterialList` | `fields`: title, status, delivery status, assignment, colour, scope template and piece, schedule enabled and group, controls, compensation, excluded work (`metadata.work_scope`), each before and after |
-| `materialsCommand` (materials/calculus.ts) | `lines` for every set whose lines changed, and `work` (domain `scope`) when its work list changed. Applying the calculation of a set a document or scope published is a `materials.calculus` run. |
+| `materialsCommand` (materials/calculus.ts) | `lines` for every set whose lines changed, and `work` (domain `scope`) when its work list changed. Applying the calculation of a set a document, a scope or the organization's measurement defaults published is a `materials.calculus` run. |
 | `generateLaborList` (labor/generation.ts) | a `labor.pay_sheet` run with the sheet and revision, assignee, measurements, the project's materials and fields, typed numbers, required and excluded work; its write is the generator's |
 | `initializeProjectMaterialListsFromScope` | its writes are `scope.resources`' |
 | `saveProjectScheduleEvent` and the event delete route (platform/api.ts) | `created`, `event` (title, kind, status, start and end, all day, resources, parent, placement, lock, each before and after) and `deleted`. Events a parent's placement moved are recorded as the `schedule.placement` generator's. |

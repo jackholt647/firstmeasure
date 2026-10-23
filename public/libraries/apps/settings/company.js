@@ -13144,7 +13144,12 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
     // **** Reports pane ----
     if (canReports && paneReports) {
       paneReports.innerHTML = `
-        <div class="rp-wrap rp-layout">
+        <div class="rp-subtabs" role="tablist" aria-label="${escapeHtml(settingsText("rp_subtabs", "Report settings"))}" style="display:flex;gap:6px;margin:0 0 12px">
+          <button type="button" class="cs-btn" role="tab" data-rp-subtab="report" aria-selected="true">${escapeHtml(settingsText("rp_subtab_report", "Customer report"))}</button>
+          <button type="button" class="cs-btn ghost" role="tab" data-rp-subtab="defaults" aria-selected="false">${escapeHtml(settingsText("rp_subtab_defaults", "Default materials and labor"))}</button>
+        </div>
+        <div data-rp-subpane="defaults" hidden></div>
+        <div class="rp-wrap rp-layout" data-rp-subpane="report">
           <div class="rp-card">
             <header class="rp-head">
               <h3 class="rp-h">${(globalThis.PlatformLanguage?.htmlText("settings","m_76942f70f2c0d6","Customer Report Settings") ?? "Customer Report Settings")} <span class="fm-ui-help" tabindex="0" role="img" aria-label="${escapeHtml(settingsText("fm_report_settings_future_only", "Changing report settings only applies to future measurement reports. It does not change reports that have already been ordered."))}" data-fm-tooltip="${escapeHtml(settingsText("fm_report_settings_future_only", "Changing report settings only applies to future measurement reports. It does not change reports that have already been ordered."))}">?</span></h3>
@@ -13159,6 +13164,28 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
           <aside class="rp-preview" id="rpPreview" aria-label="${escapeHtml(settingsText("fm_report_preview", "Report preview"))}"></aside>
         </div>
       `;
+      // Default materials and labor from a measurement report: its own script, loaded the first time its tab is opened.
+      let defaultsRequested = false;
+      const defaultsPane = paneReports.querySelector('[data-rp-subpane="defaults"]');
+      const openDefaults = () => {
+        if (defaultsRequested) return;
+        defaultsRequested = true;
+        const start = () => window.FirstMateMeasurementDefaults.mount(defaultsPane, { orgId:() => currentOrgId(), toast:typeof showToast === 'function' ? showToast : null });
+        if (window.FirstMateMeasurementDefaults) { start(); return; }
+        defaultsPane.textContent = settingsText("rp_defaults_loading", "Loading default materials and labor…");
+        const base = document.querySelector('script[src*="apps/settings/company.js"]')?.src || `${location.origin}/libraries/apps/settings/company.js`;
+        const script = document.createElement('script');
+        script.src = new URL('./measurement-defaults.js?v=20261022-measurement-defaults', base).href;
+        script.onload = start;
+        script.onerror = () => { defaultsRequested = false; defaultsPane.textContent = settingsText("rp_defaults_failed", "Default materials and labor could not load."); };
+        document.head.append(script);
+      };
+      paneReports.querySelectorAll('[data-rp-subtab]').forEach((button) => button.addEventListener('click', () => {
+        const which = button.dataset.rpSubtab;
+        paneReports.querySelectorAll('[data-rp-subtab]').forEach((tab) => { const on = tab === button; tab.setAttribute('aria-selected', on ? 'true' : 'false'); tab.classList.toggle('ghost', !on); });
+        paneReports.querySelectorAll('[data-rp-subpane]').forEach((pane) => { pane.hidden = pane.dataset.rpSubpane !== which; pane.style.display = pane.hidden ? 'none' : ''; });
+        if (which === 'defaults') openDefaults();
+      }));
     }
     // **** Billing pane ----
     if (canBilling && paneBilling) {

@@ -76,6 +76,25 @@ What a project requires is `requiredWork(sets, context)` over its artifacts.
   hand") and replaces its work as a whole, through the ledger's own create,
   evaluate and apply commands. Action `work-requirements.manual.save`, route
   `PUT projects/:projectId/scope/manual`.
+- **From the organization's measurement defaults.** A project with a
+  measurement report and no signed document can generate straight from the
+  report: Settings › Reports › Default materials and labor holds material rules
+  (roof measurements added together, a waste allowance, a package and a price
+  book product) and the roofing work the job includes, each half switched on or
+  off on its own (`materials/measurement-defaults.ts`; unsaved, an organization
+  has the industry defaults with both on). Generating (`POST
+  projects/:projectId/calculus/defaults`, the Materials column's wand) publishes
+  them as one ledger set with origin `defaults` and evaluates and applies it as
+  the `materials.calculus` generator. The calculation only interprets what it is
+  given: the rules, and the measured amounts read on the server (the selected
+  dataset, else the Project tab's `legacy_measurements`). Work is named without
+  amounts, so the scope set sizes it; an optional item is named only where the
+  roof has some. With default labor off the set names no work and nothing is
+  required of a work order. **A document overrides the defaults completely:**
+  once a set a document published is in the ledger, nothing is generated from
+  the defaults and `projectScopeSets` leaves a defaults set out, so it is no
+  longer a requirement (the Project tab still shows it if something was ordered
+  against it).
 - **By an agent.** The same two paths. `materials.calculus.command` lets an
   agent create a set whose code returns material and work, evaluate it and apply
   it; `work-requirements.manual.save` sets the hand-added work directly. The

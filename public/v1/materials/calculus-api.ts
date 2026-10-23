@@ -5,6 +5,7 @@ import { readMaterialsLedger, materialsCommand } from "./calculus.js";
 import { ensureMaterialListScheduleEvent, retireUnscheduledWholeListEvent, scopeDeliveryParts } from './storage.js';
 import { z } from 'zod';
 import { conflict, notFound } from '../platform/errors.js';
+import { generateFromMeasurementDefaults, industryMeasurementDefaults, measurementDefaultsCatalog, readMeasurementDefaults, saveMeasurementDefaults } from './measurement-defaults.js';
 
 export function registerCalculusApi(app: FastifyInstance) {
   const route = "/organizations/:orgId/projects/:projectId/calculus";
@@ -17,6 +18,22 @@ export function registerCalculusApi(app: FastifyInstance) {
     const { orgId, projectId } = request.params as { orgId: string; projectId: string };
     const auth = await requirePlatformAuth(request, { orgId, csrf: true, permission: "manage_projects" });
     return materialsCommand(userPublicationContext(auth, { projectId }), projectId, request.body);
+  });
+  // The organization's measurement defaults, and generating a project from them when no document has defined it.
+  app.get("/organizations/:orgId/measurement-defaults", async request => {
+    const { orgId } = request.params as { orgId: string };
+    await requirePlatformAuth(request, { orgId, permission: "manage_company_settings" });
+    return { ok: true, ...await readMeasurementDefaults(orgId), industry: industryMeasurementDefaults(), catalog: measurementDefaultsCatalog() };
+  });
+  app.put("/organizations/:orgId/measurement-defaults", async request => {
+    const { orgId } = request.params as { orgId: string };
+    await requirePlatformAuth(request, { orgId, csrf: true, permission: "manage_company_settings" });
+    return { ok: true, ...await saveMeasurementDefaults(orgId, request.body) };
+  });
+  app.post(`${route}/defaults`, async request => {
+    const { orgId, projectId } = request.params as { orgId: string; projectId: string };
+    const auth = await requirePlatformAuth(request, { orgId, csrf: true, permission: "manage_projects" });
+    return { ok: true, ...await generateFromMeasurementDefaults(userPublicationContext(auth, { projectId }), projectId, request.body || {}) };
   });
   app.post(`${route}/sets/:setId/schedule`, async request => {
     const {orgId,projectId,setId}=request.params as {orgId:string;projectId:string;setId:string};

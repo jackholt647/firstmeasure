@@ -6,7 +6,7 @@
   let scopeWorkspace;
   let refreshTimer;
   const scopeWorkspaceUrl = new URL('./scope-of-work.js?v=20261016-widen', document.currentScript?.src || `${location.origin}/libraries/apps/materials/project.js`).href;
-  const calculusAdapterUrl = new URL('./calculus-native.js?v=20261013-scope', document.currentScript?.src || `${location.origin}/libraries/apps/materials/project.js`).href;
+  const calculusAdapterUrl = new URL('./calculus-native.js?v=20261022-measurement-defaults', document.currentScript?.src || `${location.origin}/libraries/apps/materials/project.js`).href;
   const closeoutUrl = new URL('./closeout.js?v=20261019-closeout-partial', document.currentScript?.src || `${location.origin}/libraries/apps/materials/project.js`).href;
   const runtime = window.FirstMateEmbeddableApps;
   const Portal = window.Portal;
@@ -2773,11 +2773,21 @@
   async function generatePendingMaterialSets(options = {}){
     const api = (materialsAPI || window.MaterialsAPI)?.calculus, generated = [], failed = [];
     if (!api?.generate) return { generated, failed };
-    for (const list of state.lists.filter((entry) => entry.metadata?.calculus_pending || (options.all && entry.metadata?.calculus))) {
+    for (const list of state.lists.filter((entry) => (entry.metadata?.calculus_pending || (options.all && entry.metadata?.calculus)) && !(options.skipDefaults && entry.metadata?.artifact_origin === 'defaults'))) {
       try { const result = await api.generate(list.id); updateMaterialListState(result?.material_list); generated.push(cleanText(list.title) || 'Materials'); }
       catch (error) { failed.push(`${cleanText(list.title) || 'Materials'}: ${error?.message || 'could not be generated'}`); }
     }
     return { generated, failed };
+  }
+  // With no signed document, the organization's measurement defaults (Settings > Reports) stand in for one: materials,
+  // and the work the job includes when default labor is on. A document that has published a scope overrides them.
+  async function generateFromReportDefaults(){
+    const api = (materialsAPI || window.MaterialsAPI)?.calculus;
+    if (!api?.generateDefaults || state.lists.some((list) => list.metadata?.artifact_origin === 'document')) return { generated: false, failed: '' };
+    try {
+      const result = await api.generateDefaults({ legacy_measurements: legacyMeasurementPayload() });
+      return { generated: result?.status === 'generated', failed: '' };
+    } catch (error) { return { generated: false, failed: error?.message || 'They could not be generated.' }; }
   }
   // options.resourceType limits it to one column (the Materials heading's wand): the other columns are left as they are.
   async function regenerateMaterialListsFromScope(options = {}){
@@ -2813,15 +2823,19 @@
       const operation = captureProjectOperation();
       await requestMeasurementHydration();
       if (!projectOperationIsCurrent(operation)) return;
-      // An accepted document's material comes first; the scope's own list definitions are added to it.
-      const fromDocuments = await generatePendingMaterialSets({ all: true });
+      // An accepted document's material comes first, or the measurement defaults when there is none; the scope's own list
+      // definitions are added to it.
+      const fromDefaults = await generateFromReportDefaults();
       if (!projectOperationIsCurrent(operation)) return;
-      const generated = await initializeMaterialListsFromScope({ force: true, mergeLists: true, ...(only ? { resourceType: only } : {}) }).catch((error) => (fromDocuments.generated.length ? null : Promise.reject(error)));
+      const fromDocuments = await generatePendingMaterialSets({ all: true, skipDefaults: true });
+      if (!projectOperationIsCurrent(operation)) return;
+      const generated = await initializeMaterialListsFromScope({ force: true, mergeLists: true, ...(only ? { resourceType: only } : {}) }).catch((error) => (fromDocuments.generated.length || fromDefaults.generated ? null : Promise.reject(error)));
       const fromScope = (generated?.material_lists || generated?.lists || []).length;
-      if (!fromScope && !fromDocuments.generated.length) {
+      if (!fromScope && !fromDocuments.generated.length && !fromDefaults.generated) {
         throw new Error(fromDocuments.failed.length
           ? `The signed document's materials could not be generated. ${fromDocuments.failed.join(' ')}`
-          : 'Nothing was generated: there is no signed document with materials, and the project scope defines no lists. Sign a document that includes materials, or add list definitions to the scope in the Scope builder.');
+          : fromDefaults.failed ? `The measurement defaults could not be generated. ${fromDefaults.failed}`
+          : 'Nothing was generated: there is no signed document with materials, the project scope defines no lists, and default materials are off. Sign a document that includes materials, or turn on default materials in Settings > Reports.');
       }
       if (fromDocuments.failed.length) showToast('Some materials were not generated', fromDocuments.failed.join(' '), false);
       if (!projectOperationIsCurrent(operation)) return;
@@ -2829,6 +2843,8 @@
       if (!projectOperationIsCurrent(operation)) return;
       applyMaterialLists(Array.isArray(refreshed.material_lists) ? refreshed.material_lists : []);
       await loadActiveListDetails();
+      // Defaults with labor on publish work, so what the job requires changes with them.
+      if (fromDefaults.generated) refreshRequirements();
       showToast((globalThis.PlatformLanguage?.text("materials","m_3f229715aaee07","Materials regenerated") ?? "Materials regenerated"), (globalThis.PlatformLanguage?.text("materials","m_58a415d1c7298e","Generated planning lists now match the project scope.") ?? "Generated planning lists now match the project scope."), true);
     } catch (error) {
       showToast((globalThis.PlatformLanguage?.text("materials","m_d07b6717c1ad28","Could not regenerate materials") ?? "Could not regenerate materials"), error?.message || 'Please try again.', false);
@@ -4317,7 +4333,7 @@
       const listTotal=list=>listProjected(list);
       const weight=Number(state.columnWeights?.[type])>0?Number(state.columnWeights[type]):0;
       return `<section class="mt-resource-column" data-resource-type="${escapeHtml(type)}" style="--resource-color:${escapeHtml(category.color)}${weight>0?`;--column-weight:${weight}`:''}" data-empty="${!rows.length&&!lists.length}" data-all-empty="${allEmpty}">
-        <h3 class="mt-resource-heading"><button type="button" class="mt-resource-tool" data-mt-category-icon="${escapeHtml(type)}" aria-label="Edit ${escapeHtml(terms.plural)} icon and color" title="Icon and color"><i class="fas ${escapeHtml(category.icon)}" aria-hidden="true"></i></button>${merged?'<span class="mt-column-title" title="Who does the work, what they are paid for it, and the equipment it takes">Work order</span>':`<input data-mt-category-name="${escapeHtml(type)}" value="${escapeHtml(category.name||'')}" placeholder="Untitled" aria-label="Resource type name">`}<span class="mt-category-tools">${type==='material'&&projectId()?`<button type="button" data-mt-generate-column="material" title="Generate materials from the signed document and the scope" aria-label="Generate materials"${state.generatingMaterials?' disabled':''}><i class="fas ${state.generatingMaterials?'fa-rotate mt-spin':'fa-wand-magic-sparkles'}" aria-hidden="true"></i></button>`:''}<button type="button" data-mt-category-sources="${escapeHtml(type)}" aria-haspopup="dialog" title="Line item sources" aria-label="Line item sources for ${escapeHtml(terms.plural)}"><i class="fas fa-gear"></i></button><button type="button" data-mt-new-category-list="${escapeHtml(type)}" title="${merged?'Add a work order':'Add list'}" aria-label="Add list to ${escapeHtml(terms.plural)}"><i class="fas fa-list"></i><i class="fas fa-plus"></i></button>${merged?'<button type="button" data-mt-new-category-list="equipment" title="Add an equipment list" aria-label="Add an equipment list"><i class="fas fa-truck-pickup"></i><i class="fas fa-plus"></i></button>':''}<button type="button" data-mt-minimize-type="${escapeHtml(type)}" title="Minimize ${escapeHtml(terms.plural)}" aria-label="Minimize ${escapeHtml(terms.plural)}"><i class="fas fa-minus"></i></button>${['material','labor','equipment'].includes(type)?'':`<button type="button" data-mt-delete-type="${escapeHtml(type)}" title="Remove resource type" aria-label="Remove ${escapeHtml(category.name||'this resource type')}"><i class="fas fa-trash"></i></button>`}</span></h3>
+        <h3 class="mt-resource-heading"><button type="button" class="mt-resource-tool" data-mt-category-icon="${escapeHtml(type)}" aria-label="Edit ${escapeHtml(terms.plural)} icon and color" title="Icon and color"><i class="fas ${escapeHtml(category.icon)}" aria-hidden="true"></i></button>${merged?'<span class="mt-column-title" title="Who does the work, what they are paid for it, and the equipment it takes">Work order</span>':`<input data-mt-category-name="${escapeHtml(type)}" value="${escapeHtml(category.name||'')}" placeholder="Untitled" aria-label="Resource type name">`}<span class="mt-category-tools">${type==='material'&&projectId()?`<button type="button" data-mt-generate-column="material" title="Generate materials from the signed document and the scope, or from the measurement report when nothing is signed" aria-label="Generate materials"${state.generatingMaterials?' disabled':''}><i class="fas ${state.generatingMaterials?'fa-rotate mt-spin':'fa-wand-magic-sparkles'}" aria-hidden="true"></i></button>`:''}<button type="button" data-mt-category-sources="${escapeHtml(type)}" aria-haspopup="dialog" title="Line item sources" aria-label="Line item sources for ${escapeHtml(terms.plural)}"><i class="fas fa-gear"></i></button><button type="button" data-mt-new-category-list="${escapeHtml(type)}" title="${merged?'Add a work order':'Add list'}" aria-label="Add list to ${escapeHtml(terms.plural)}"><i class="fas fa-list"></i><i class="fas fa-plus"></i></button>${merged?'<button type="button" data-mt-new-category-list="equipment" title="Add an equipment list" aria-label="Add an equipment list"><i class="fas fa-truck-pickup"></i><i class="fas fa-plus"></i></button>':''}<button type="button" data-mt-minimize-type="${escapeHtml(type)}" title="Minimize ${escapeHtml(terms.plural)}" aria-label="Minimize ${escapeHtml(terms.plural)}"><i class="fas fa-minus"></i></button>${['material','labor','equipment'].includes(type)?'':`<button type="button" data-mt-delete-type="${escapeHtml(type)}" title="Remove resource type" aria-label="Remove ${escapeHtml(category.name||'this resource type')}"><i class="fas fa-trash"></i></button>`}</span></h3>
         <div class="mt-resource-scroll">${merged&&!lists.some(list=>resourceType(list)==='labor')&&projectId()?`<article class="mt-list-pane" data-mt-pane-list="project:${escapeHtml(projectId())}"><div class="mt-list-pane-inner">${renderAssignBlock({id:`project:${projectId()}`,resource_type:'labor'})}</div></article>`:''}${lists.map(list=>{
           // Inside a merged column each list is still its own kind.
           const type=resourceType(list),terms=resourceTerms(type,list),category=resourceCategories().find(row=>row.id===type)||{};

@@ -23,7 +23,7 @@ export function nativeCalculusAPI(base, currentProject) {
     return {...s.presentation,id:s.id,project_id:project,title:s.title,revision:s.revision,resource_type:'material',status:ordered?'ordered':'planning',
       current_items:s.lines.map(item),sections:[...new Set(s.lines.map(l=>l.group || 'materials'))].map(id=>({id,name:id,title:id})),
       color:s.presentation?.color || ['#d92d20','#2563eb','#12b76a','#7f56d9'][ledger.sets.indexOf(s)%4],
-      metadata:{...s.presentation?.metadata,calculus:true,calculus_pending:s.revision===0,source_artifact:s.origin.title || (s.origin.type==='scope'?'Scope materials':'Document materials'),artifact_origin:s.origin.type,
+      metadata:{...s.presentation?.metadata,calculus:true,calculus_pending:s.revision===0,source_artifact:s.origin.title || (s.origin.type==='scope'?'Scope materials':s.origin.type==='defaults'?'Measurement defaults':'Document materials'),artifact_origin:s.origin.type,
         calculation_warnings:s.evaluations.find(e=>e.id===s.applied_evaluation)?.warnings || []}};
   };
   function requirement(row, old) {
@@ -37,10 +37,22 @@ export function nativeCalculusAPI(base, currentProject) {
       presentation:row,...(old?{replaces:old.id}:{})};
   }
   const result = id => ({material_list:list(set(id))});
+  // The organization's measurement defaults stand in only while no document has published a scope. Once one has, a
+  // defaults set is shown only if something was ordered against it (docs/architecture/requirements.md).
+  const shown = s => s.origin?.type!=='defaults' || !ledger.sets.some(d=>d.origin?.type==='document') || ledger.orders.some(o=>o.lines.some(a=>a.set_id===s.id));
+  async function generateDefaults(body = {}) {
+    const requestProject=project;
+    const response=await base.request(`${path()}/defaults`,{method:'POST',body});
+    if(currentProject()!==requestProject)throw Error('The material operation completed on the previous project. Reopen that project to review it.');
+    if(response.ledger)ledger=response.ledger;
+    return response;
+  }
   return {
     ...base,
     calculus: {
+      generateDefaults,
       async generate(id) {
+        if(set(id)?.origin?.type==='defaults'){await generateDefaults({});return result(id);}
         const evaluation=await command('evaluate',{set_id:id});
         const preview=set(id).evaluations.find(e=>e.id===evaluation.result.evaluation_id);
         // Review quantities in the familiar grid after applying. Missing inputs
@@ -56,7 +68,7 @@ export function nativeCalculusAPI(base, currentProject) {
       catch(error) { if(error.status===403){ledger={revision:0,sets:[],orders:[],deliveries:[]};return native;}throw error; }
       if(currentProject()!==projectId)return native;
       org=orgId;project=projectId;ledger=response.ledger;
-      return {...native,material_lists:[...native.material_lists,...ledger.sets.filter(s=>(s.lines||[]).length||!(s.work||[]).length&&s.definition?.key!=='manual_scope').map(list)]};
+      return {...native,material_lists:[...native.material_lists,...ledger.sets.filter(s=>((s.lines||[]).length||!(s.work||[]).length&&s.definition?.key!=='manual_scope')&&shown(s)).map(list)]};
     }},
     lists:{...base.lists,
       async get(o,id){return set(id)?result(id):base.lists.get(o,id);},

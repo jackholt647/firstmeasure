@@ -93,7 +93,10 @@ export async function readMaterialsLedger(ctx: PublicationContext, project: stri
  * functions it says the job includes. A set a document published that has not been generated yet is pending. Reads only.
  */
 export async function projectScopeSets(org: string, project: string) {
-  return (await rawLedger(org, project)).sets.map(set => ({
+  const sets = (await rawLedger(org, project)).sets;
+  // A document that has published a scope overrides the organization's measurement defaults completely.
+  const documented = sets.some(set => set.origin.type === "document");
+  return sets.filter(set => !(documented && set.origin.type === "defaults")).map(set => ({
     id: set.id, title: set.title, key: set.definition.key, origin: String(set.origin.type || ""), document_id: String(set.origin.document_id || ""),
     work: jsonClone(set.work || []), lines: set.lines.map(line => ({ id: line.id, name: line.name, quantity: line.quantity, unit: line.unit, group: line.group })),
     pending: !set.applied_evaluation && !set.lines.length && !(set.work || []).length && set.origin.type === "document"
@@ -177,6 +180,24 @@ export async function publishScopeMaterialArtifact(org: string, project: string,
   throw conflict("materials_publication_contention","Material publication could not acquire the current revision.");
 }
 
+/** The organization's measurement defaults as this project's artifact (materials/measurement-defaults.ts): one set,
+ * whose calculation follows the defaults as they now stand. Its lines change only when it is applied again. */
+export async function publishDefaultsMaterialArtifact(org: string, project: string, raw: unknown, origin: JsonObject) {
+  const definition = validateCalculus(raw);
+  const id = identity("set", ["defaults", definition.key]);
+  for (let attempt = 0; attempt < 8; attempt++) {
+    const ledger = await rawLedger(org, project), revision = ledger.revision;
+    const next = setFromDefinition(project, definition, id, {}, scopeJson({ ...origin, type: "defaults", key: definition.key }), org, String(origin.branch_id || "default"));
+    const existing = ledger.sets.find(set => set.id === id);
+    if (existing && contentHash(existing.definition) === contentHash(next.definition)) return { set_id: id, created: false };
+    if (existing) { existing.definition = next.definition; existing.origin = { ...next.origin, at: new Date().toISOString() }; }
+    else ledger.sets.push({ ...next, origin: { ...next.origin, at: new Date().toISOString() } });
+    try { await saveLedger(org, ledger, revision); return { set_id: id, created: !existing }; }
+    catch (error) { if ((error as { statusCode?: number }).statusCode !== 409 || attempt === 7) throw error; }
+  }
+  throw conflict("materials_publication_contention", "Material publication could not acquire the current revision.");
+}
+
 export function scopeMaterialRequirements(items: JsonObject[]) {
   return items.map((item,index) => {
     const packaging = object(item.order_packaging), ref=object(item.pricebook_ref);
@@ -248,7 +269,7 @@ async function recordCalculusHistory(ctx: PublicationContext, ledger: MaterialsL
     const producer = ledger.sets.find((set) => set.id === command.input.set_id);
     const evaluation = producer?.evaluations.find((entry) => entry.id === command.input.evaluation_id);
     const origin = String(producer?.origin.type || "");
-    if (producer && evaluation && (origin === "document" || origin === "scope")) {
+    if (producer && evaluation && (origin === "document" || origin === "scope" || origin === "defaults")) {
       const generationId = newGenerationId();
       const target = producer.definition.amendment?.set_id || producer.id;
       await recordGeneration(ctx.organizationId, { id: generationId, project_id: ledger.project_id, generator: "materials.calculus", generator_version: evaluation.definition_hash, subject_type: "materials_set", subject_id: target, user_id: user,
