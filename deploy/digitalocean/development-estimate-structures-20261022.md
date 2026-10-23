@@ -67,7 +67,39 @@ To reach the Documents app with the pilot login, `platform.documents`, `platform
 `platform.expanded_access` were switched on for that organization during the check and switched back to `false`
 afterwards (`caps-set.mjs` / `caps-restore.mjs`). The test project and its dataset remain.
 
+## Follow-up release: structures after signing (2026-10-23)
+
+Release `043364fc` (commits `ac20eb2c` and `043364fc` on canonical), worker, legacy and web; pool still unreachable
+(`ROLES=pool bash output/estimate-structures-20261022/ship.sh` when it is back). Shipped with `commit-base.txt` set to
+`f299f93b`, the commit before `ac20eb2c`, because that commit's own rollout had been stopped before staging. The first
+worker activation was refused ("Active release changed") and the script restaged; afterwards another session's release
+`c38eeb44` went live carrying these files.
+
+- The roofing materials calculation labels each line with its structure (its own section's when the estimate priced
+  each structure on its own, otherwise the structures it includes; one structure keeps the document's own
+  `params.structure`) instead of always "Main house".
+- A document with structures states its combined measurements as the measurements its work is sized from
+  (`calculationOutputSchema.measurements`); the ledger keeps them on the applied set and `requiredWork` sizes items
+  from the latest set that states them ([requirements](../../docs/architecture/requirements.md#where-requirements-come-from)).
+- The roof step writes the included structures to `params.structure` (`structure_label_writes`), so the proposal
+  reads "Structure: House + Shed"; the itemized workflow's free-text Structure field is gone. Roofing pack 17.
+
+Verified on dev with the test project (headless Chrome, pilot customer): a new itemized proposal with House on, Garage
+off, a Shed entered by hand and one section per structure ($18,766.50, sections House and Shed), presented and signed
+in person by "Test Customer" (`doc_4492919f5a314920a15e`, status signed; the sealed copy went to an `@example.com`
+address, which dev rewrites to the catch-all). Generated through the Materials workspace's own commands (evaluate,
+apply): 14 lines, 7 labelled House and 7 Shed, none for the Garage; the set states roof squares 30, eaves 90 ft,
+ridges 50 ft; required work tear-off 30 sq (the report says 32), edge metal 90 ft, ridge cap 50 ft. For the check,
+`platform.materials` was switched on with the other three and all four were restored to `false`. Three proposals from
+signing attempts that hit transient errors (a web restart during the PDF render, then a 503 from the dead pool node)
+stay on the test project as sent.
+
+Tests: `tests/estimate-structures.test.ts` 6/6, `work-requirements`, `materials-calculus`, `project-history` pass,
+`npm run check` passes. `instant-roofing` "measured accessories use declared units and independent gutter
+requirements" fails the same way on canonical without this change.
+
 ## Not done here
 
-- After signing, the roofing materials calculation still stamps every line `structure: 'Main house'`.
+- Pay sheets still read the project's measurement dataset, so a structure left out of the estimate is still in what a
+  per-measurement pay sheet evaluates.
 - No document widget summarizes structures; per-structure sections are how the document presents them.

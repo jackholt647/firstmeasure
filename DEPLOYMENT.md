@@ -14,7 +14,7 @@ October 22 Work order documents, scheduling off, assignment states: [labor lists
 
 October 22 Default materials and labor from a measurement report: [Settings › Reports defaults published as a fallback scope artifact when no document is signed](deploy/digitalocean/development-measurement-defaults-20261022.md) records releases `96b87085` (four roles) and `2b6d6db1` (legacy and web; the dev pool node was unreachable).
 
-October 22 Estimate structures: [a report's structures can be turned off, one can be added by hand from the measurements its kind of work needs, and an estimate can price them together or one section each](deploy/digitalocean/development-estimate-structures-20261022.md) records release `c8ecbce6` on legacy and web (pool was unreachable).
+October 22 Estimate structures: [a report's structures can be turned off, one can be added by hand from the measurements its kind of work needs, and an estimate can price them together or one section each](deploy/digitalocean/development-estimate-structures-20261022.md) records release `c8ecbce6` on legacy and web and the follow-up `043364fc` on worker, legacy and web (materials and required work follow the document's structures after signing; pool was unreachable).
 
 October 22 Estimate workflow photos and rich text: [the photo picker shows and assigns library photos and uploads, thumbnails fall back to the original image, and block descriptions use the shared rich text editor and render formatted](deploy/digitalocean/development-estimate-photos-richtext-20261022.md) records release `77d8a040` on worker, legacy and web (pool was unreachable).
 
