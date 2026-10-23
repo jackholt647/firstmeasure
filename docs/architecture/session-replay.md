@@ -178,6 +178,23 @@ In a recorded tab's console:
 The same numbers go into the recording every 5 seconds while the person is active (every minute when idle) as DIAG
 events, which the viewer charts. Heap figures are Chrome's `performance.memory` and describe the whole page.
 
+## What it costs
+
+Measured on dev on October 22, 2026, after the pacing release. The test was the pilot customer portal: one
+85-second scripted session with two page loads and continuous input
+([record](../../deploy/digitalocean/development-session-replay-pacing-20261022.md)).
+
+- **Browser.** 77–98 ms of main-thread time per session (about 0.1% of one core), no long tasks and about 125 KB of
+  memory. A page-load snapshot takes 5–21 ms. The page's own main-thread time varies more than that from one run to
+  the next.
+- **Network.** About 26 KB a minute of upload for an active person, in 3 requests a minute, and nothing for an idle
+  tab. Each request carries about 1.2 KB of the application's own cookies and headers. The application itself sent
+  about 615 requests and 4–7 MB in the same session.
+- **Server.** A chunk takes 56 ms (p95 71 ms), most of it the sign-in and feature check every request pays.
+  Indexing costs 43 ms of CPU per recorded minute. Archiving took 3.5 s of wall time for 17 sessions (0.91 MB). Both
+  run on the worker, once per session, off the request path.
+- **Disk.** About 1.1–1.7 MB per active hour as recorded, and 2.8 times less once archived.
+
 ## Using the library elsewhere
 
 The recorder needs only `FMReplayRecorder.create({ transport, sessionId, pageId })`, where `transport` has
