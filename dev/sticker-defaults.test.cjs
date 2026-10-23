@@ -65,7 +65,7 @@ test('Stickers defaults: collapsed Trim and Main fan out, pieces expand, and mix
  try{const page=await browser.newPage();await page.setContent('<body class="wall-mode-active"><button id="btnToggleTypes">Types</button><div id="three-view-wrapper" style="position:relative;height:1100px"></div></body>');
   await page.addScriptTag({content:'window.THREE={}'});for(const name of ['wall_features','exterior_finishes'])await page.addScriptTag({path:SCRIPTS+name+'.js'});
   await page.evaluate(()=>{window.saved={};window.calls=[];WallFeatures.mountUI(()=>{},()=>null,()=>false,{defaults:v=>v||{material:'siding',color:'#123456',trimColor:'#abcdef'},roof:v=>v||{...ExteriorFinishes.roofDefault},stickers:v=>{if(v){calls.push(v);Object.assign(saved,v);}return ExteriorFinishes.stickerDefaults({trimColor:'#abcdef',stickers:saved});}});});
-  await page.getByRole('button',{name:'Wall materials',exact:true}).click();
+  await page.getByRole('button',{name:'Wall materials',exact:true}).click();await page.getByRole('button',{name:/^Stickers/}).click();
   const panel=page.getByRole('group',{name:'Sticker defaults',exact:true}),trim=panel.getByLabel('Sticker trim',{exact:true}),main=panel.getByLabel('Sticker main',{exact:true}),expand=panel.getByRole('button',{name:/Each piece/});
   assert.equal(await trim.inputValue(),'#abcdef','trim seeds from the trim colour');assert.equal(await panel.locator('[data-mixed="main"]').isVisible(),true,'door and garage seeds differ, so main is mixed');
   assert.equal(await page.getByRole('group',{name:'Sticker pieces'}).isVisible(),false);
