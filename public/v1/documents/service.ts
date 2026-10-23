@@ -928,7 +928,7 @@ export async function editDocumentAsSent(orgId: string, documentId: string, inpu
       ? [...kept, { op: "node.set", node_id: textNodeId, prop: "props.blocks", value: text.blocks, ...(cleanText(text.base) ? { base: cleanText(text.base) } : {}), source: "as_sent" }]
       : kept;
   }
-  const document = await patchDocumentInstance(orgId, documentId, patch, ctx);
+  const document = await withDocumentChange({ cut: "manual_edit", documentId, userId: ctx.userId }, () => patchDocumentInstance(orgId, documentId, patch, ctx));
   const resolved = await resolveDocumentInstance(orgId, document, { trace: true });
   return { document, resolved };
 }

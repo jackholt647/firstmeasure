@@ -71,9 +71,10 @@ Lifecycle steps wrapped today: `patchDocumentInstance` (edit),
 choices (`present_choices` in `presentation-service.ts`) and restore. Starting
 a presentation records a `present` marker with `markDocumentRevision`, which
 records a moment even when nothing changed; a named version is a `named`
-marker. **"Edit manually" overrides of a sent document** save through the
-same writer and must wrap their write in
-`withDocumentChange({ cut: "manual_edit", documentId, userId })`.
+marker. "Edit manually" on the as-sent document (`editDocumentAsSent`) wraps
+its write in `withDocumentChange({ cut: "manual_edit", documentId, userId })`,
+so each override is an "Edited manually" revision; the outer change wins over
+the edit that `patchDocumentInstance` declares.
 
 ### Folding rapid saves
 
