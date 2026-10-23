@@ -59,3 +59,21 @@ The Full Exterior sample built 13 customer pages, ending with Exterior Summary a
 - The pool node is still unreachable.
 - The worker's PDF runtime still has October 7 editor scripts (see `development-exterior-trim-20261023.md`), so PDFs
   it rebuilds use neither these settings nor the trim work.
+
+## Follow-up, release `c57e72a1` (development only)
+
+- **Settings.** One Report Settings card:
+  - general settings first: Layout, as a Portrait / Landscape choice per kind of report; then Exterior report,
+    whose toggle is now "House context" with the explanation in its tooltip;
+  - then a Customer PDF group (Cover, Pages, Add-ons, Full Exterior pages): "Choose what the customer PDF
+    includes as well. The internal PDF always has every page."
+- **Customer cover.** The customer PDF of a full-house report opens with the house render on its cover, keeping the
+  customer cover boxes (Prepared for, Roof measurements).
+- **Textured cover.** The sample's textured cover render faces bearing 0. Setting the sample's front to 120° had
+  switched it off, so its front is now 0.
+- **Orientation key.** The cover's key keeps its Front and Back labels inside the key, above the caption. For a
+  north-facing front, "Back" had overlapped "Front 0 deg / North up".
+- **Preview race.** Switching back to Roof only while a Full Exterior build ran let the late build put landscape
+  page images on portrait roof sheets, which looked squished. Drawing the roof sample now cancels the build.
+- **Checks on dev.** Choices showed Roof reports Portrait and Full Exterior reports Landscape. After Full Exterior →
+  Roof only, the roof sample stayed with no exterior images. The customer Full Exterior cover is the textured house.
