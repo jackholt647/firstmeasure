@@ -355,7 +355,7 @@
       kind: 'project_modal_app',
       surfaces: ['project_modal'],
       requiresContext: ['project'],
-      bundles: [...widgetBundles, versionedBundle('measurements/roof-viewer.js', '20261022-wall-normals'), versionedBundle('measurements/project.js', '20261022-tab-route')]
+      bundles: [...widgetBundles, versionedBundle('measurements/roof-viewer.js', '20261022-report-pitch'), versionedBundle('measurements/project.js', '20261022-tab-route')]
     },
     {
       id: 'project.checklists',
