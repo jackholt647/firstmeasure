@@ -135,6 +135,26 @@
     clearTimeout(showPortalToast.timer);
     showPortalToast.timer = window.setTimeout(() => toast.classList.remove('show'), 2600);
   }
+  /**
+   * In a preview the document's own controls (choices, line-item toggles,
+   * signature and payment buttons) change nothing on screen: the click is
+   * stopped before any widget sees it and the preview message is shown. Links
+   * (the PDF) and scrolling still work. The server refuses every write anyway.
+   */
+  function guardPreviewSurface(el){
+    if (!isPreviewMode() || !el || el.__cpPreviewGuard) return;
+    el.__cpPreviewGuard = true;
+    const control = 'button,input,select,textarea,label,[role=button],[role=switch],[role=checkbox],[role=radio],[data-part-action],[data-fmdoc-select],[contenteditable=true]';
+    const stop = (event) => {
+      const target = event.target?.closest?.(control);
+      if (!target || !el.contains(target) || target.closest('a[href]')) return;
+      if (event.type === 'keydown' && event.key !== 'Enter' && event.key !== ' ') return;
+      event.preventDefault();
+      event.stopPropagation();
+      if (event.type === 'click' || event.type === 'keydown') blockPreviewAction(target.closest('.fmdoc-signature,[class*=sign]') ? 'signing' : target.closest('.fmdoc-pay-now,[class*=pay]') ? 'payment' : 'document actions');
+    };
+    ['pointerdown', 'mousedown', 'click', 'change', 'input', 'keydown'].forEach((type) => el.addEventListener(type, stop, true));
+  }
   function blockPreviewAction(kind = 'signing'){
     if (!isPreviewMode()) return false;
     showPortalToast(kind === 'payment' ? 'This is a preview. Nothing can be paid here.' : 'This is a preview. Nothing can be signed or accepted here.');
@@ -830,6 +850,7 @@
     return documentWorkflowActionable(token, doc) ? 'workflow' : 'document';
   }
   function queueDocumentWorkflowOutput(token, key, value){
+    if (blockPreviewAction(value?.__signing ? 'signing' : 'document actions')) return Promise.resolve(false);
     if (value?.__signing) return submitDocumentOutput(token, key, value);
     const tokenKey = cleanText(token);
     const outputKey = cleanText(key);
@@ -894,6 +915,7 @@
         workflow: record.definition,
         audience: 'customer',
         theme: 'portal',
+        readonly: isPreviewMode(),
         contract: cpwfObject(record.definition.contract),
         state: {
           params: cpwfObject(record.params),
@@ -1111,7 +1133,7 @@
         workflow: record.definition,
         audience: 'customer',
         theme: 'portal',
-        readonly: ['signed', 'completed', 'declined', 'expired', 'void', 'canceled'].includes(cleanText(portalDoc.status)),
+        readonly: isPreviewMode() || ['signed', 'completed', 'declined', 'expired', 'void', 'canceled'].includes(cleanText(portalDoc.status)),
         contract: cpwfObject(record.definition.contract),
         state: {
           params: cpwfObject(record.params),
@@ -1206,6 +1228,7 @@
       };
       stage.__cpDocumentRenderOptions = renderOptions;
       activeDocumentStage = root.FMDocRenderer.render(stage, renderOptions);
+      guardPreviewSurface(stage);
       warmDocumentSigning(token);
       if (state.pendingDocumentTaskFocus) {
         const focus = state.pendingDocumentTaskFocus;

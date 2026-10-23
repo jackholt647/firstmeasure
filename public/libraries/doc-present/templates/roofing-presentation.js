@@ -309,7 +309,7 @@
       group('sign_card', 'Signature card', 520, 56, 368, 428, [
         text('sign_card_title', 'Heading', 28, 26, 312, 22, 'Accept this estimate', { size: 15, weight: 800 }),
         text('sign_card_body', 'What happens', 28, 58, 312, 60, 'Your selections and today\u2019s price go onto the agreement. You sign it right here on this screen.', { size: 11, color: BODY, line_height: 1.55 }),
-        assembly('selection_review', 'rows', { id: 'asm_sign_review', name: 'Your selections', x: 28, y: 126, w: 312, h: 96, count: 3 }),
+        assembly('selection_review', 'rows', { id: 'asm_sign_review', name: 'Your selections', x: 28, y: 120, w: 312, h: 108, count: 3 }),
         button('sign_accept', 'Accept & sign', 28, 236, 312, { type: 'custom', name: 'sign' }, true),
         button('sign_send', 'Send it to me instead', 28, 288, 312, { type: 'custom', name: 'send' }, false),
         text('sign_change', 'Change', 28, 350, 312, 18, 'Change a selection', { size: 10.5, weight: 700, color: MUTED, align: 'center', action: { type: 'goto', page: 'estimate' } })
@@ -320,6 +320,8 @@
       const part = M.nodePart(node);
       if (part && part.assembly === 'asm_sign_review' && (part.role === 'review.edit' || part.role === 'review.price')) node.visible = false;
       if (part && part.assembly === 'asm_sign_review' && part.role === 'review.row') { node.style = Object.assign({}, node.style, { stroke: null, fill: { type: 'solid', color: '#f7f8fa' } }); }
+      // With no price or Change beside it, the chosen option has the whole row.
+      if (part && part.assembly === 'asm_sign_review' && (part.role === 'review.value' || part.role === 'review.label')) node.frame = Object.assign({}, node.frame, { w: 312 - 28 });
     });
     M.walkNodes(doc, (node) => {
       const part = M.nodePart(node);

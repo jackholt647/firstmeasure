@@ -283,6 +283,15 @@
     run.style.transformOrigin = align === 'right' || align === 'end' ? '100% 60%' : (align === 'center' ? '50% 60%' : '0 60%');
     run.style.transform = `scale(${Math.max(0.4, box / need)})`;
   }
+  /** Keep a one-line name on one line: an ellipsis when it is too long, the full name on hover and for screen readers. */
+  function clipLine(el, full) {
+    if (!el) return;
+    const run = el.querySelector('p span, span') || el.querySelector('p');
+    if (!run) return;
+    Object.assign(run.style, { display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%' });
+    const p = run.closest('p'); if (p && p !== run) Object.assign(p.style, { whiteSpace: 'nowrap', overflow: 'hidden', maxWidth: '100%' });
+    if (full) { el.title = text(full); el.setAttribute('aria-label', text(full)); } else { el.removeAttribute('title'); el.removeAttribute('aria-label'); }
+  }
   /** Count a money part to its new amount instead of snapping. */
   function setMoney(el, cents, options) {
     if (!el) return;
@@ -327,7 +336,7 @@
       return {
         id, entry: obj(assemblies()[id]), config: obj(obj(assemblies()[id]).config), state: () => state,
         parts: (role, key) => parts(id, role, key), keys: (role) => keysOf(id, role),
-        setText, setMoney, setImage, fitLine, money, readonly: opts.readonly === true,
+        setText, setMoney, setImage, fitLine, clipLine, money, readonly: opts.readonly === true,
         focus: () => focus,
         /** Open the details of an option ({ group, option }), or close them (null). The same one again closes. */
         setFocus(target) { focus = target && !(focus && focus.option === target.option && focus.group === target.group) ? target : null; render(); },
@@ -687,7 +696,7 @@
         const each = (role, fn) => e.parts(role, key).forEach((el) => { el.toggleAttribute('data-part-empty', !row); if (row) fn(el); });
         each('review.row', () => {});
         each('review.label', (el) => e.setText(el, row.label));
-        each('review.value', (el) => e.setText(el, row.value));
+        each('review.value', (el) => { e.setText(el, row.value); e.clipLine(el, row.value); });
         each('review.price', (el) => { e.setText(el, money(row.price_cents)); e.fitLine(el); });
         each('review.edit', (el) => { el.tabIndex = 0; el.setAttribute('role', 'button'); el.setAttribute('aria-label', 'Change ' + row.label); });
       });
