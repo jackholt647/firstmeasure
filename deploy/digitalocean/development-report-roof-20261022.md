@@ -241,3 +241,45 @@ Typed values, swatches and the eyedropper still commit immediately.
 and one recent colour.
 
 **Rollout.** `firstmate-color-picker.js` was overlaid on web, legacy and pool, and the served file matches.
+
+## Follow-up: landscape PDF option and balanced portrait elevations — `81298584`, merge `a92e9f27`
+
+**What changed.**
+- Reports can be laid out landscape. The org setting is Company › Reports › Layout › "Landscape pages". A dev-only
+  switch on the Exteriors tab saves a per-report override.
+- Every page has a landscape layout. Landscape elevations put the drawing on the left and the tables on the right.
+- Portrait single-page elevations bottom-align the tables above the footer and centre the drawing above them.
+- Sources and Notes no longer list video frames.
+
+**Merge.** It was merged with another session's live roof-report changes (quad retirement, roof-only titles), keeping both.
+
+**Limits.**
+- The organisation default is read when the report is generated; it is not frozen in the snapshot.
+- Landscape elevation drawings are limited by width.
+- The settings preview reuses the portrait images.
+
+**Rollout.**
+- All seven files were shipped as the release copy to legacy and web, and the served files match `a92e9f27`.
+- The pool host (10.124.16.3) was unreachable, so the pool role was skipped. Server-rendered PDFs stay portrait until the
+  pool has the new `pdf.js` and `exterior_pdf.js`.
+
+## Follow-up: walls follow a roof edit — `ae7cb1ef`
+
+**What changed.** Coming back to wall mode after a roof edit no longer rebuilds all the walls (or asks to discard every
+edit). The editor diffs the roof against the one the walls were built from. Line and wall ids are kept, and only walls
+whose driving lines changed are changed:
+- Edited faces follow moved walls.
+- Windows, doors and stickers move with them.
+- Anything that cannot be kept is removed and named in a notice.
+
+One undo step reverts the change. The old prompt is now only a fallback, for a scale change or a failed follow. Design:
+`docs/architecture/exterior-roof-rebuild.md`.
+
+**Tests.** 7 new tests on the ce52 house: line retype, moved flashing, turned flashing, deleted head wall, added facet, and two unit tests. Related wall suites: 773 of 773 pass.
+
+**Rollout.**
+- `wall_mode.js`, `wall_geometry.js`, `wall_editor.js`, the new `wall_roof_rebuild.js` and `editor.php` were merged onto live
+  `01f5e5c2` for legacy and web, with no drift. The served files match.
+- A served-script browser check on the pilot found the module present, wall edits unchanged across a mode toggle, and
+  no page errors.
+- The pool host was still unreachable, so it was skipped.
