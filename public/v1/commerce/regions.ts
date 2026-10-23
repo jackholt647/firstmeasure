@@ -7,14 +7,8 @@ import { SUPPORTED_LOCALES } from "../platform/localization/core.js";
 export const DOMESTIC_COUNTRIES = new Set(regionData.domestic_countries);
 export function isDomesticCountry(country: string) { return DOMESTIC_COUNTRIES.has(country); }
 export const EU_COUNTRIES = new Set(regionData.eu_countries);
-/**
- * The countries the platform serves (1M8-240): the domestic market and every country on a Europe/* time zone (the Europe
- * launch, which includes the EU, the UK, Switzerland and Norway). Derived from the region data, so there is one source.
- */
-export const SERVED_COUNTRIES = new Set([
-  ...regionData.domestic_countries,
-  ...Object.entries(regionData.time_zone_countries as Record<string, string>).filter(([zone]) => zone.startsWith("Europe/")).map(([, country]) => country)
-]);
+/** The countries the platform operates in (1M8-240, Ben's list): the phone calling codes offered. One source, in the region data. */
+export const OPERATING_COUNTRIES = new Set(regionData.operating_countries);
 const AMERICAS = new Set("US CA MX GT BZ SV HN NI CR PA CU DO HT JM BS BB TT AG DM GD KN LC VC AR BO BR CL CO EC FK GF GY PE PY SR UY VE PR VI AW CW SX BQ BM KY TC VG AI MS GP MQ BL MF GL PM".split(" "));
 const LANGUAGES: Record<string,string> = {
   US:"en-US",CA:"en-CA",GB:"en-GB",IE:"en-IE",AU:"en-AU",NZ:"en-NZ",ZA:"en-ZA",

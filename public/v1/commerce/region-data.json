@@ -582,5 +582,28 @@
   "domestic_countries": [
     "US",
     "CA"
+  ],
+  "operating_countries": [
+    "PT",
+    "ES",
+    "FR",
+    "IE",
+    "GB",
+    "IT",
+    "GR",
+    "AT",
+    "DK",
+    "PL",
+    "CZ",
+    "CH",
+    "BE",
+    "NL",
+    "NO",
+    "SE",
+    "LT",
+    "FI",
+    "JP",
+    "US",
+    "CA"
   ]
 }

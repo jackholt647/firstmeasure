@@ -1,7 +1,7 @@
 // International calling codes by country, generated from libphonenumber-js metadata (not a runtime dependency).
 import CALLING_CODES from "./calling-codes.json" with { type: "json" };
 import { LANGUAGE_PACKS, SUPPORTED_LOCALES } from "../platform/localization/languages.js";
-import { countryCode, detectSignupCountry, DOMESTIC_COUNTRIES, regionLanguage, SERVED_COUNTRIES } from "./regions.js";
+import { countryCode, detectSignupCountry, DOMESTIC_COUNTRIES, OPERATING_COUNTRIES, regionLanguage } from "./regions.js";
 import type { CommercialProfile } from "./profile.js";
 
 /** International calling code for a country, without the plus sign; "" when unknown. */
@@ -54,11 +54,11 @@ export function signupOptions(headers: Record<string, unknown>, query: Record<st
     return valid && name ? { code: valid, name, calling_code: callingCode(valid), language: regionLanguage(valid) } : null;
   }).filter(Boolean) as { code: string; name: string; calling_code: string; language: string }[];
   countries.sort((a, b) => a.name.localeCompare(b.name, display));
-  // The calling-code picker offers the served countries (1M8-240): the detected country first, then the domestic
-  // market, then the rest by name. A detected country outside them is still offered.
+  // The calling-code picker offers only the countries the platform operates in (1M8-240): the detected one first, then
+  // the domestic market, then the rest by name.
   const rank = (code: string) => code === detected.country ? 0 : DOMESTIC_COUNTRIES.has(code) ? 1 : 2;
   const phoneCountries = countries
-    .filter(country => SERVED_COUNTRIES.has(country.code) || country.code === detected.country)
+    .filter(country => OPERATING_COUNTRIES.has(country.code))
     .map(({ code, name, calling_code }) => ({ code, name, calling_code }))
     .sort((a, b) => rank(a.code) - rank(b.code) || (rank(a.code) === 1 ? [...DOMESTIC_COUNTRIES].indexOf(a.code) - [...DOMESTIC_COUNTRIES].indexOf(b.code) : a.name.localeCompare(b.name, display)));
   return {

@@ -20540,12 +20540,8 @@
   },
   "phone-input": {
     "calling_code": "Country calling code",
-    "preview": {
-      "message": "Saved as {number}",
-      "format": "icu"
-    },
-    "incomplete": {
-      "message": "Enter the full number for {country} (+{code})",
+    "calling_code_value": {
+      "message": "Country calling code: {country} +{code}",
       "format": "icu"
     }
   }
