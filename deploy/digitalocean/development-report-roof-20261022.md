@@ -283,3 +283,39 @@ One undo step reverts the change. The old prompt is now only a fallback, for a s
 - A served-script browser check on the pilot found the module present, wall edits unchanged across a mode toggle, and
   no page errors.
 - The pool host was still unreachable, so it was skipped.
+
+**Correction (pool).** Server-rendered PDFs do not depend on the pool host. The worker loads `pdf.js` from
+`https://dev.1m8.ai/v1/firstmeasure/pdf-runtime`, which the web host serves from its own release. That served copy matched
+the landscape `pdf.js` right after the rollout, so server PDFs follow the orientation setting too.
+
+## Follow-up: report layout pass — `1d55b4f1`
+
+**Exterior Images.** File names are gone. Photos sit in a mosaic that keeps each photo's own shape, with each label on its
+photo, up to six to a page.
+
+**Exterior Summary.** Seven stat cards in the report's card style, three in the top row and four in the second, with the
+drawing full width. The Wall IDs note sits at the foot of the page, above the address.
+
+**Ventilation.** The diagram and key are in one card, beside the tables in landscape and below them in portrait.
+
+**Landscape layout.**
+- Elevation side tables are centred and wider.
+- Layer pages have a compact details card and a two-column key.
+- Wall Dimensions has at most two rows per page.
+
+**Roof Notes and Wall Notes.** Both share one layout and one notes card.
+
+**Tests.**
+- exterior-pdf-layout: 25 of 25 pass.
+- pdf-landscape: 9 of 9 pass.
+- report-preview browser: 2 of 2 pass.
+- report-localization: browser test and 9 of 9 pass.
+- exterior-report: 8 of 8 pass.
+- exterior-preview-equivalence: 13 of 13 pass.
+- Before and after renders are in `output/report-layout-20261022/`.
+
+**Rollout.**
+- `pdf.js`, `exterior_pdf.js` and `report-preview.js` were merged onto live `f1018f8a` (legacy and web) with no drift.
+- dev returned 503 for about 10 s after activation, then recovered.
+- The served files, the server PDF runtime and the files of the earlier landscape and roof-rebuild batches all match
+  `1d55b4f1`.
