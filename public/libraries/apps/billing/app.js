@@ -576,7 +576,7 @@ window.PlatformCommerce.onReady(function(){
             </div>
             <div class="b-credit-panel b-price">
               <div class="b-price-label">${(globalThis.PlatformLanguage?.htmlText("billing","m_9403c7637d4905","Total") ?? "Total")}</div>
-              <div class="big" id="bTotal">${window.PlatformCommerce.cash(DEFAULT_CREDIT_AMOUNT)}</div>
+              <div class="big" id="bTotal">${checkoutTotalText(DEFAULT_CREDIT_AMOUNT)}</div>
             </div>
           </div>
           <div class="b-hint" id="bHint">${String(creditAmountHelpText())}</div>
@@ -969,9 +969,19 @@ window.PlatformCommerce.onReady(function(){
       message.style.display = insufficient ? 'block' : 'none';
     }
   }
+  // Credit is charged with VAT included outside the US and Canada. The checkout total is where that is said
+  // ("€25.00 VAT included"); the "Needed for order" amount above it is the report price and stays plain (1M8-241).
+  function checkoutTotalText(amount){
+    const text = window.PlatformCommerce.cash(amount);
+    let included = false;
+    try { included = !!window.PlatformCommerce.current().vat_included; } catch (_) {}
+    return included
+      ? (globalThis.PlatformLanguage?.text("billing","checkout_total_vat_included","{amount} VAT included",{amount:text}) ?? `${text} VAT included`)
+      : text;
+  }
   function updateTotal(){
     const q = readAmountInput();
-    $('#bTotal').textContent = window.PlatformCommerce.cash(q ?? 0);
+    $('#bTotal').textContent = checkoutTotalText(q ?? 0);
     let fx=document.getElementById('bFxEstimate');if(!fx){fx=document.createElement('small');fx.id='bFxEstimate';$('#bTotal').after(fx);}fx.textContent=window.PlatformCommerce.estimate(q ?? 0);
     updateFirstReportInsufficientState(q ?? 0);
     if (firstReportAccountLoadEligible && !purchaseTopupContext) {
@@ -1208,7 +1218,7 @@ window.PlatformCommerce.onReady(function(){
     }
     $('#bFirstReportCard .b-first-number:first-child span').textContent = (purchaseActive || reportGateActive) ? (globalThis.PlatformLanguage?.text("billing","needed_for_order","Needed for order") ?? "Needed for order") : (globalThis.PlatformLanguage?.text("billing","first_report_from","First report from") ?? "First report from");
     $('#bFirstReportCard .b-first-number.due span').textContent = (purchaseActive || reportGateActive) ? (globalThis.PlatformLanguage?.text("billing","difference","Difference") ?? "Difference") : (globalThis.PlatformLanguage?.text("billing","credit_to_add_lower","Credit to add") ?? "Credit to add");
-    $('#bFirstReportTotal').textContent = window.PlatformCommerce.withVat(fmtCredit(required));
+    $('#bFirstReportTotal').textContent = fmtCredit(required);
     $('#bFirstBalance').textContent = `${fmtCredit(balance)}`;
     $('#bFirstDue').textContent = `${fmtCredit(needed)}`;
     if (autoSubmit) {
