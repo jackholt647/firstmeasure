@@ -139,6 +139,13 @@ test('exterior images: no file names, every label sits on its own photo, and fiv
   const portraitShots=images.filter(i=>i.h>i.w),wideShots=images.filter(i=>i.w>i.h);assert.equal(portraitShots.length,2);assert.equal(wideShots.length,3);
   assert.ok(images.every(i=>i.h>=45),orientation+': every photo at least 45 mm tall');
   assert.deepEqual(overflow(r).filter(c=>c.page===pages[0]),[]);
+  // Justified rows: one height per row, the gutter between neighbours, rows centred in the content
+  // width (x 25 to W-15) and filling at least half the page's photo area, and the photos end as far
+  // above the footer address as the fine print does.
+  const rows=[...new Set(images.map(i=>i.y.toFixed(3)))].map(y=>images.filter(i=>i.y.toFixed(3)===y).sort((a,b)=>a.x-b.x));
+  for(const row of rows){assert.equal(new Set(row.map(i=>i.h.toFixed(3))).size,1,'one height per row');row.slice(1).forEach((i,k)=>assert.ok(Math.abs(i.x-(row[k].x+row[k].w)-6)<.01,'a 6 mm gutter'));assert.ok(Math.abs(row[0].x-25-(r.W-15-row.at(-1).x-row.at(-1).w))<.01,'a row is centred');}
+  assert.ok(images.reduce((t,i)=>t+i.w*i.h,0)>=.5*(r.W-40)*(r.H-16-2.2-7-36),orientation+': the photos fill the page');
+  assert.ok(images.every(i=>i.y+i.h<=r.H-16-2.2-7+1e-6),orientation+': a clear gap above the footer address');
  }
 });
 test('roof notes and wall notes share one layout: reference images in a square on the left, a slim notes card on the right (landscape), stacked in portrait',async()=>{

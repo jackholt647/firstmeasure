@@ -254,6 +254,15 @@ test('the Exterior Summary shows its seven figures as equal compact header-stat 
  }
 });
 
+test('the Exterior Summary figures are whole numbers with thousands separators, in feet or in metric units',()=>{
+ const values=manifest=>{const ctx=loadPDF({currentProjectManifest:manifest});require('vm').runInContext(require('fs').readFileSync('public/libraries/report-units.js','utf8'),ctx);
+  const text=[];const doc=new Proxy({internal:{pageSize:{getWidth:()=>279.4,getHeight:()=>215.9}},getTextWidth:s=>String(s).length*.9,splitTextToSize:s=>[s],text:value=>text.push(String(value))},{get:(o,k)=>k in o?o[k]:()=>{}});
+  const model=boxHouse();Object.assign(model.totals,{net:4374.42,gross:4550.18,openingArea:175.61,openingPerimeter:121.73,returns:36.4});
+  ctx.ExteriorPDF.drawExteriorSummaryPage(doc,model,{},()=>{},{});return text;};
+ const feet=values({});for(const v of ['4,374 sq ft','4,550 sq ft','176 sq ft','122 ft','36 sq ft'])assert.ok(feet.includes(v),v+' in '+feet.join(' | '));
+ assert.ok(!feet.some(v=>/\d\.\d/.test(v)&&/ft$/.test(v)),'no decimals');
+ const metric=values({measurement_system:'metric',report_language:'en-GB'});for(const v of ['406 m²','423 m²','16 m²','37 m','3 m²'])assert.ok(metric.includes(v),v+' in '+metric.join(' | '));
+});
 test('landscape wall dimension pages have at most two rows of up to three faces; portrait keeps three rows of small faces',()=>{
  const rowsOf=page=>new Set(page.map(p=>p.y.toFixed(6))).size;
  const [portrait]=PDF.dimensionPages(Array(9).fill(10).map((a,i)=>face('W'+i,a)));assert.equal(portrait.length,9);assert.equal(rowsOf(portrait),3);
@@ -270,15 +279,49 @@ test('a wall dimension drawing is only as tall as its face needs, so its size an
  const h=PDF.fitHeight([wide],wide.normal,rect,9,0,24);assert.ok(Math.abs(h-((3*(80-18))/20+18))<1e-9,'height follows the face at full width');
  const tall={...wide,points:[P(0,0,0),P(2,0,0),P(2,0,9),P(0,0,9)]};assert.equal(PDF.fitHeight([tall],tall.normal,rect,9,0,24),120,'a tall face uses the panel height');
 });
-test('exterior images: a justified mosaic of mixed aspect ratios inside the page, labels above each photo, six to a page',()=>{
- const box={x:25,y:36,w:239.4,h:157.9},aspects=[4/3,3/4,4/3,3/4,4/3,4/3];
- const {rects,minHeight}=PDF.mosaicLayout(aspects,box);assert.equal(rects.length,6);assert.ok(minHeight>=45);
- for(const [i,r]of rects.entries()){
-  assert.ok(Math.abs(r.w/r.h-aspects[i])<1e-9,'aspect kept');assert.ok(r.x>=box.x-1e-9&&r.x+r.w<=box.x+box.w+1e-9&&r.y-6>=box.y-1e-9&&r.y+r.h<=box.y+box.h+1e-9,'inside the page with room for its label');
-  for(const q of rects.slice(i+1))assert.ok(r.x+r.w<=q.x+1e-9||q.x+q.w<=r.x+1e-9||r.y+r.h+6<=q.y+1e-9||q.y+q.h+6<=r.y+1e-9,'no overlap, labels included');
+// Exterior Images boxes: the content width, from the page header down to 7 mm above the footer address.
+const LANDSCAPE_PHOTOS={x:25,y:36,w:239.4,h:215.9-16-2.2-7-36},PORTRAIT_PHOTOS={x:25,y:36,w:175.9,h:279.4-16-2.2-7-36},L43=4/3,P34=3/4;
+const photoRows=layout=>layout.rows.map(r=>r.map(i=>layout.rects[i]));
+test('exterior images: justified rows of mixed aspect ratios inside the page, labels above each photo, six to a page',()=>{
+ for(const box of [LANDSCAPE_PHOTOS,PORTRAIT_PHOTOS])for(const aspects of [[L43,P34,L43,P34,L43,L43],[L43,L43,P34,L43],[L43,L43,L43],[P34]]){
+  const layout=PDF.mosaicLayout(aspects,box),{rects}=layout;assert.equal(rects.length,aspects.length);assert.ok(layout.minHeight>=45);
+  for(const [i,r]of rects.entries()){
+   const shown=r.w/r.h;assert.ok(aspects[i]>=1?Math.abs(shown-aspects[i])<1e-9:shown>=aspects[i]-1e-9&&shown<=aspects[i]/.8+1e-9,'landscape photos keep their shape; a portrait one loses at most a fifth of its height');
+   assert.ok(r.x>=box.x-1e-9&&r.x+r.w<=box.x+box.w+1e-9&&r.y-7>=box.y-1e-9&&r.y+r.h<=box.y+box.h+1e-9,'inside the page with room for its label');
+   for(const q of rects.slice(i+1))assert.ok(r.x+r.w<=q.x+1e-9||q.x+q.w<=r.x+1e-9||r.y+r.h+7<=q.y+1e-9||q.y+q.h+7<=r.y+1e-9,'no overlap, labels included');
+  }
+  const rows=photoRows(layout),heights=rows.map(r=>r[0].h);
+  for(const row of rows){assert.equal(new Set(row.map(r=>r.h.toFixed(6))).size,1,'one height per row');row.slice(1).forEach((r,k)=>assert.ok(Math.abs(r.x-row[k].x-row[k].w-6)<1e-9,'a 6 mm gutter'));
+   assert.ok(Math.abs(row[0].x-box.x-(box.x+box.w-row.at(-1).x-row.at(-1).w))<1e-9,'a narrower row is centred');}
+  assert.ok(Math.max(...heights)/Math.min(...heights)<=1.3+1e-9,'row heights stay within 1.3 of each other');
  }
- const rowsY=[...new Set(rects.map(r=>r.y.toFixed(6)))];for(const y of rowsY){const row=rects.filter(r=>r.y.toFixed(6)===y);assert.ok(new Set(row.map(r=>r.h.toFixed(6))).size===1,'one height per row');}
- assert.deepEqual(PDF.mosaicPages(aspects,box).map(p=>p.indexes.length),[6]);
- assert.deepEqual(PDF.mosaicPages(Array(8).fill(4/3),box).map(p=>p.indexes.length),[4,4],'eight photos: two even pages');
- const portrait=PDF.mosaicPages(aspects,{x:25,y:36,w:175.9,h:221.4});assert.ok(portrait.every(p=>p.minHeight>=45));assert.equal(portrait.flatMap(p=>p.indexes).length,6);
+ // Rows span the content width when the photos allow it.
+ const width=(layout,row)=>{const r=photoRows(layout)[row];return r.at(-1).x+r.at(-1).w-r[0].x;};
+ const mixed=PDF.mosaicLayout([L43,P34,L43,P34,L43,L43],LANDSCAPE_PHOTOS);assert.deepEqual(mixed.rows.map(r=>r.length),[3,3]);
+ for(const k of [0,1])assert.ok(Math.abs(width(mixed,k)-LANDSCAPE_PHOTOS.w)<.5,'six mixed photos in landscape: both rows span the width');
+ // Photo area first: three landscape photos take two rows (the single one centred), not a thin band.
+ const three=PDF.mosaicLayout([L43,L43,L43],LANDSCAPE_PHOTOS),band=(LANDSCAPE_PHOTOS.w-12)*(LANDSCAPE_PHOTOS.w-12)/4/(LANDSCAPE_PHOTOS.w*LANDSCAPE_PHOTOS.h);
+ assert.equal(three.rows.length,2);assert.ok(three.cover>1.3*band,'much more photo area than one row: '+three.cover+' vs '+band);assert.ok(three.minHeight>65);
+ const portraitThree=PDF.mosaicLayout([L43,L43,L43],PORTRAIT_PHOTOS);assert.equal(portraitThree.rows.length,2);assert.ok(portraitThree.cover>.5);
+ const six=PDF.mosaicLayout(Array(6).fill(L43),PORTRAIT_PHOTOS);assert.deepEqual(six.rows.map(r=>r.length),[2,2,2]);assert.ok(six.rows.every((r,k)=>width(six,k)>=.97*PORTRAIT_PHOTOS.w),'portrait: three rows of two across the page');
+ // The reported job: Front and Back, Left and Right tall phone shots, then three more. Five then two,
+ // so no page is a thin band; the two rows of the first page come out equally wide (the portrait
+ // shots cropped a little), and the last two span the page.
+ const job=PDF.mosaicPages([L43,L43,P34,P34,L43,L43,L43],LANDSCAPE_PHOTOS);assert.deepEqual(job.map(p=>p.indexes.length),[5,2]);
+ assert.ok(Math.abs(width(job[0],0)-width(job[0],1))<.02*LANDSCAPE_PHOTOS.w&&width(job[0],0)>.8*LANDSCAPE_PHOTOS.w,'Front/Back and Left/Right/Front Right equally wide');assert.ok(Math.abs(width(job[1],0)-LANDSCAPE_PHOTOS.w)<.5,'the last two span it');
+ const leftShot=job[0].rects[2];assert.ok(leftShot.w/leftShot.h>P34+.1&&leftShot.h>leftShot.w,'a cropped portrait shot is still portrait');
+ assert.deepEqual(PDF.mosaicPages([L43,P34,L43,P34,L43,L43],LANDSCAPE_PHOTOS).map(p=>p.indexes.length),[6]);
+ assert.deepEqual(PDF.mosaicPages(Array(8).fill(L43),LANDSCAPE_PHOTOS).map(p=>p.indexes.length),[4,4],'eight photos: two even pages');
+ const portrait=PDF.mosaicPages([L43,P34,L43,P34,L43,L43],PORTRAIT_PHOTOS);assert.ok(portrait.every(p=>p.minHeight>=45));assert.equal(portrait.flatMap(p=>p.indexes).length,6);
+});
+test('the Exterior Images pages leave the fine print gap above the footer address',async()=>{
+ const pages=[];let page;const ctx=loadPDF(),img={naturalWidth:1600,naturalHeight:1200};
+ for(const [W,H]of [[279.4,215.9],[215.9,279.4]]){
+  const doc=new Proxy({internal:{pageSize:{getWidth:()=>W,getHeight:()=>H}},getTextWidth:s=>String(s).length*.9,splitTextToSize:s=>[s],text:()=>{},addImage:(d,f,x,y,w,h)=>page.images.push({x,y,w,h})},{get:(o,k)=>k in o?o[k]:()=>{}});
+  ctx.Image=function(){const self=this;Object.assign(self,img);Object.defineProperty(self,'src',{set(){setTimeout(()=>self.onload());}});};
+  const photoSlots={};['front','back','left','right','front-right','front-left','back-right','back-left'].forEach((id,i)=>photoSlots[id]={enabled:i<3,image:i<3?{key:id,dataUrl:'data:image/jpeg;base64,'}:null});
+  await ctx.drawReportImagery(doc,{exteriorSettings:{photoSlots}},title=>{page={title,images:[]};pages.push(page);},{});
+  const p=pages.at(-1);assert.equal(p.images.length,3);assert.ok(p.images.every(i=>i.y+i.h<=H-16-2.2-7+1e-9),'7 mm clear of the footer address');
+  assert.ok(p.images.every(i=>i.x>=25-1e-9&&i.x+i.w<=W-15+1e-9),'inside the content width');assert.ok(p.images.reduce((t,i)=>t+i.w*i.h,0)>=.45*(W-40)*(H-16-2.2-7-36),'three photos fill about half the page');
+ }
 });

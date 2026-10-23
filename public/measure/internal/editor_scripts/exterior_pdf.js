@@ -68,6 +68,8 @@ function drawElevationKey(doc,model,settings,rect,view,colors){
  if(!Number.isFinite(settings?.frontBearing))text(reportText('Front not set'),rect.x+size+1,rect.y+rect.h-.5,4.5,false,[150,150,150]);
 }
 const number=v=>v>0&&v<.05?'<0.1':Number(v||0).toLocaleString(root.ReportUnits?.current().language||'en-US',{minimumFractionDigits:1,maximumFractionDigits:1});
+// A whole number of square feet or feet (or of the metric unit), with thousands separators.
+const whole=(value,kind)=>metric()?root.ReportUnits.current().quantity(value,kind,0):Math.round(Number(value)||0).toLocaleString(root.ReportUnits?.current().language||'en-US')+' '+(kind==='sf'?'sq ft':reportText('ft'));
 const isTrim=a=>a.trim||/^trim-/.test(a.materialKey||'')||/\btrim\b/i.test(a.material||'');
 const centroid=ps=>ps.reduce((a,p)=>({x:a.x+p.x/ps.length,y:a.y+p.y/ps.length,z:a.z+(p.z||0)/ps.length}),{x:0,y:0,z:0});
 
@@ -362,8 +364,9 @@ function drawExteriorSummaryPage(doc,model,settings,begin,colors){
  begin(reportText('Exterior Summary'));
  // Seven figures across the top (one row in landscape, four then three in portrait, every cell the
  // same size), the house under them at full width and the note about wall IDs at the foot of the page.
- const first=[[reportText('Net wall area'),measure(model.totals.net,"sf",number(model.totals.net)+' sq ft')],[reportText('Gross wall area'),measure(model.totals.gross,"sf",number(model.totals.gross)+' sq ft')],[reportText('Openings'),String(model.openings.length)]];
- const second=[[reportText('Wall regions'),String(model.walls.length)],[reportText('Opening area'),measure(model.totals.openingArea,"sf",number(model.totals.openingArea)+' sq ft')],[reportText('Opening perimeter'),measure(model.totals.openingPerimeter,"ft",number(model.totals.openingPerimeter),false)+' '+unit('ft','ft')],[reportText('Horizontal returns'),measure(model.totals.returns,"sf",number(model.totals.returns)+' sq ft')]];
+ // The figures are whole numbers ("4,374 sq ft"); the tables keep their one decimal.
+ const first=[[reportText('Net wall area'),whole(model.totals.net,'sf')],[reportText('Gross wall area'),whole(model.totals.gross,'sf')],[reportText('Openings'),String(model.openings.length)]];
+ const second=[[reportText('Wall regions'),String(model.walls.length)],[reportText('Opening area'),whole(model.totals.openingArea,'sf')],[reportText('Opening perimeter'),whole(model.totals.openingPerimeter,'ft')],[reportText('Horizontal returns'),whole(model.totals.returns,'sf')]];
  const top=drawStatGrid(doc,[...first,...second],x,35,w,colors,isLandscape(doc)?7:4)+5;
  const noteTop=footnote(reportText('Wall IDs connect the diagrams, dimensions, opening schedule and notes. Each wall face is counted once, on one of the four elevations (front, back, left, right) or as a hidden face, so those totals add up to the gross wall area.'));
  drawDiagram(doc,houseFaces(model),{x,y:top,w,h:noteTop-4-top},coverView(settings),{iso:true});
@@ -493,8 +496,11 @@ async function loadReportImage(item,state){
  await new Promise((resolve,reject)=>{img.onload=resolve;img.onerror=()=>reject(Error('Unable to load selected PDF image: '+(item.label||item.resourceName)));img.src=src;});
  return img;
 }
-function reportImageData(img){
- const canvas=document.createElement('canvas'),resize=Math.min(1,1800/Math.max(img.naturalWidth,img.naturalHeight));canvas.width=Math.round(img.naturalWidth*resize);canvas.height=Math.round(img.naturalHeight*resize);canvas.getContext('2d').drawImage(img,0,0,canvas.width,canvas.height);
+// An image as JPEG data, at most 1800 px; with `aspect` wider than the image, its middle band of that
+// shape (the mosaic's cropped portrait photos).
+function reportImageData(img,aspect){
+ const sw=img.naturalWidth,sh=aspect>sw/img.naturalHeight?sw/aspect:img.naturalHeight,sy=(img.naturalHeight-sh)/2;
+ const canvas=document.createElement('canvas'),resize=Math.min(1,1800/Math.max(sw,sh));canvas.width=Math.round(sw*resize);canvas.height=Math.round(sh*resize);canvas.getContext('2d').drawImage(img,0,sy,sw,sh,0,0,canvas.width,canvas.height);
  return canvas.toDataURL('image/jpeg',.88);
 }
 // Freeze the chosen images into the render snapshot, just like roof imagery.
@@ -506,47 +512,90 @@ async function prepareImagerySnapshot(snapshot){
  for(const item of images){if(item.include===false||item.dataUrl)continue;item.dataUrl=reportImageData(await loadReportImage(item,result));}
  return result;
 }
-/* Exterior Images pages: a justified mosaic. Photos keep their own aspect ratios (phone shots are
- often portrait beside landscape ones) and are laid out in rows, in slot order, every image in a row
- the same height and each row filling the width; if the rows are too tall for the page they all
- shrink together and are centred. Each photo's label sits on it, just above its top-left corner.
- mosaicLayout tries every split of the images into rows and keeps the one whose images are largest
- overall (sum of the square roots of their areas, so no photo is left tiny to make another huge). */
-const MOSAIC_GAP=5,MOSAIC_LABEL=6,MOSAIC_PER_PAGE=6,MOSAIC_MIN_HEIGHT=45;
-function mosaicLayout(aspects,box,{gap=MOSAIC_GAP,label=MOSAIC_LABEL}={}){
- const n=aspects.length;let best=null;if(!n)return {rects:[],score:0,minHeight:0};
+/* Exterior Images pages: justified rows. Photos keep their order and their own shapes (phone shots are
+ often portrait beside landscape ones). Every photo in a row is the same height, with a fixed gutter
+ between photos and a label band above each row; a row is at most the content width and a narrower
+ row, like the whole block, is centred. mosaicLayout tries every split of the images into rows and,
+ for each, every way of sharing the page height between the rows (no row taller than its full-width
+ height or than MOSAIC_EVEN times the shortest row, all of them within the page). A portrait photo in
+ a row narrower than the page is cropped top and bottom (at most 1 - MOSAIC_CROP of its height) to
+ widen the row back towards the full width. Photo area comes first: of the layouts within
+ MOSAIC_FULL_COST of the most photo area, the one whose narrowest row is widest wins (rows all at the
+ full width when that is possible), then the one with more area.
+ The block ends MOSAIC_FOOT above the footer address, the gap the fine print keeps elsewhere. */
+const MOSAIC_GAP=6,MOSAIC_ROW_GAP=5,MOSAIC_LABEL=7,MOSAIC_PER_PAGE=6,MOSAIC_MIN_HEIGHT=45,MOSAIC_CROP=.8,MOSAIC_EVEN=1.3,MOSAIC_FOOT=7,MOSAIC_FULL_COST=.1,MOSAIC_STEPS=60;
+const mosaicSpacing=({gap=MOSAIC_GAP,rowGap=MOSAIC_ROW_GAP,label=MOSAIC_LABEL}={})=>({gap,rowGap,label});
+// One split into rows at the given row heights: the rects, the photo area as a share of the box
+// (`cover`) and the narrowest row as a share of the width (`full`).
+function mosaicPlace(aspects,rows,heights,box,options){
+ const {gap,rowGap,label}=mosaicSpacing(options),span=r=>box.w-gap*(r.length-1),shown=aspects.slice();
+ rows.forEach((r,k)=>{const want=span(r)/heights[k]-r.reduce((s,i)=>s+aspects[i],0),slack=r.reduce((s,i)=>s+(aspects[i]<1?aspects[i]/MOSAIC_CROP-aspects[i]:0),0);if(want<=1e-9||!slack)return;
+  const f=Math.min(1,want/slack);for(const i of r)if(aspects[i]<1)shown[i]=aspects[i]+f*(aspects[i]/MOSAIC_CROP-aspects[i]);});
+ const widths=rows.map((r,k)=>Math.min(box.w,r.reduce((s,i)=>s+shown[i],0)*heights[k]+gap*(r.length-1)));
+ const cover=rows.reduce((t,r,k)=>t+(widths[k]-gap*(r.length-1))*heights[k],0)/(box.w*box.h);
+ const total=heights.reduce((a,b)=>a+b,0)+rows.length*label+rowGap*(rows.length-1),rects=[];let y=box.y+Math.max(0,(box.h-total)/2);
+ rows.forEach((r,k)=>{const h=heights[k];let x=box.x+(box.w-widths[k])/2;y+=label;for(const i of r){rects[i]={x,y,w:shown[i]*h,h,aspect:shown[i]};x+=shown[i]*h+gap;}y+=h+rowGap;});
+ return {rects,rows,heights,widths,cover,full:Math.min(...widths)/box.w,minHeight:Math.min(...heights)};
+}
+// The ways to share the height between one split's rows: the shortest row's height is stepped up to
+// the most it can be, and the room left goes to the rows of widest photos first, or of narrowest
+// photos first; and the rows all equally wide.
+function mosaicRows(aspects,rows,box,options){
+ const {gap,rowGap,label}=mosaicSpacing(options),sum=r=>r.reduce((s,i)=>s+aspects[i],0),full=rows.map(r=>(box.w-gap*(r.length-1))/sum(r)),room=box.h-rows.length*label-rowGap*(rows.length-1);
+ if(!(room>0))return [];
+ const top=Math.min(...full,room/rows.length),wide=rows.map((r,k)=>k).sort((a,b)=>sum(rows[b])-sum(rows[a])),out=[];
+ for(const order of [wide,wide.slice().reverse()])for(let step=1;step<=MOSAIC_STEPS;step++){
+  const m=top*step/MOSAIC_STEPS,heights=rows.map(()=>m);let left=room-m*rows.length;
+  for(const k of order){const add=Math.max(0,Math.min(Math.min(full[k],m*MOSAIC_EVEN)-m,left));heights[k]+=add;left-=add;}
+  out.push(mosaicPlace(aspects,rows,heights,box,options));
+ }
+ // and rows of equal width, as wide as the page height allows
+ const scale=Math.min(...full.map((h,k)=>h*sum(rows[k])),room/rows.reduce((t,r)=>t+1/sum(r),0)),equal=rows.map(r=>scale/sum(r));
+ if(Math.max(...equal)<=Math.min(...equal)*MOSAIC_EVEN+1e-9)out.push(mosaicPlace(aspects,rows,equal,box,options));
+ return out;
+}
+// The best layout; one that keeps every photo MOSAIC_MIN_HEIGHT tall wins over one that does not.
+function mosaicLayout(aspects,box,options){
+ const n=aspects.length;if(!n)return {rects:[],rows:[],heights:[],widths:[],cover:0,full:1,minHeight:0};
+ let all=[];
  for(let mask=0;mask<1<<(n-1);mask++){
   const rows=[];let row=[0];for(let i=1;i<n;i++){if(mask&1<<(i-1)){rows.push(row);row=[i];}else row.push(i);}rows.push(row);
-  const heights=rows.map(r=>(box.w-gap*(r.length-1))/r.reduce((s,i)=>s+aspects[i],0)),room=box.h-rows.length*label-gap*(rows.length-1),s=Math.min(1,room/heights.reduce((a,b)=>a+b,0));
-  if(!(s>0))continue;const score=rows.reduce((t,r,k)=>t+r.reduce((u,i)=>u+heights[k]*s*Math.sqrt(aspects[i]),0),0);
-  if(!best||score>best.score+1e-9)best={score,rows,heights:heights.map(h=>h*s)};
+  all.push(...mosaicRows(aspects,rows,box,options));
  }
- const total=best.heights.reduce((a,b)=>a+b,0)+best.rows.length*label+gap*(best.rows.length-1);let y=box.y+Math.max(0,(box.h-total)/2);const rects=[];
- best.rows.forEach((r,k)=>{const h=best.heights[k],rowW=r.reduce((s,i)=>s+aspects[i]*h,0)+gap*(r.length-1);let x=box.x+(box.w-rowW)/2;y+=label;for(const i of r){rects[i]={x,y,w:aspects[i]*h,h};x+=aspects[i]*h+gap;}y+=h+gap;});
- return {rects,score:best.score,minHeight:Math.min(...best.heights)};
+ const tall=all.filter(l=>l.minHeight>=MOSAIC_MIN_HEIGHT-1e-9);if(tall.length)all=tall;
+ const most=all.reduce((m,l)=>Math.max(m,l.cover),0),wide=l=>Math.round(l.full*100);
+ return all.filter(l=>l.cover>=(1-MOSAIC_FULL_COST)*most-1e-9).reduce((b,l)=>wide(l)>wide(b)||wide(l)===wide(b)&&l.cover>b.cover+1e-9?l:b);
 }
-// Images per page: as few pages as keep every photo at least MOSAIC_MIN_HEIGHT tall, at most
-// MOSAIC_PER_PAGE a page, spread evenly over the pages.
+// Pages: as few as keep every photo at least MOSAIC_MIN_HEIGHT tall, at most MOSAIC_PER_PAGE a page, each
+// page within one photo of an even share. Of those splits, the one whose emptiest page is fullest (the
+// photos' share of the page's photo area), so seven photos go 5 + 2 rather than leaving a thin band of
+// three on one page; fuller pages come first.
 function mosaicPages(aspects,box){
- for(let pages=Math.ceil(aspects.length/MOSAIC_PER_PAGE);;pages++){
-  const groups=[];let at=0;for(let p=0;p<pages;p++){const count=Math.ceil((aspects.length-at)/(pages-p));groups.push(aspects.slice(at,at+count).map((a,k)=>at+k));at+=count;}
-  const layouts=groups.map(g=>({indexes:g,...mosaicLayout(g.map(i=>aspects[i]),box)}));
-  if(pages>=aspects.length||layouts.every(l=>l.minHeight>=MOSAIC_MIN_HEIGHT))return layouts;
+ const n=aspects.length,memo=new Map();
+ for(let pages=Math.ceil(n/MOSAIC_PER_PAGE);;pages++){
+  let best=null;const low=Math.max(1,Math.floor(n/pages)-1),high=Math.min(MOSAIC_PER_PAGE,Math.ceil(n/pages)+1);
+  const walk=(at,groups)=>{
+   if(groups.length===pages){if(at!==n)return;const layouts=groups.map(g=>{const key=g.join(',');if(!memo.has(key))memo.set(key,{indexes:g,...mosaicLayout(g.map(i=>aspects[i]),box)});return memo.get(key);}),score=Math.min(...layouts.map(l=>l.cover))+layouts.reduce((s,l)=>s+l.cover,0)*1e-3,ok=layouts.every(l=>l.minHeight>=MOSAIC_MIN_HEIGHT-1e-9);
+    if(!best||ok&&!best.ok||ok===best.ok&&score>best.score+1e-9)best={layouts,score,ok};return;}
+   for(let c=Math.min(high,n-at);c>=low;c--)walk(at+c,[...groups,Array.from({length:c},(_,k)=>at+k)]);
+  };
+  walk(0,[]);
+  if(best&&(best.ok||pages>=n))return best.layouts;
  }
 }
 async function drawReportImagery(doc,state,begin,colors){
  const selected=selectedPhotos(state.exteriorSettings),order=photoSlots.map(s=>s.name);
- const images=selected.slice().sort((a,b)=>{const rank=i=>order.includes(i.direction)?order.indexOf(i.direction):8;return rank(a)-rank(b);}),{x,w,bottom,text}=writer(doc,colors);
+ const images=selected.slice().sort((a,b)=>{const rank=i=>order.includes(i.direction)?order.indexOf(i.direction):8;return rank(a)-rank(b);}),{x,w,text}=writer(doc,colors);
  if(!images.length)return;
  const loaded=[];for(const item of images)loaded.push(item.missing?null:await loadReportImage(item,state));
- const aspects=loaded.map(img=>img&&img.naturalWidth>0&&img.naturalHeight>0?img.naturalWidth/img.naturalHeight:4/3),pages=mosaicPages(aspects,{x,y:36,w,h:bottom-36});
+ const aspects=loaded.map(img=>img&&img.naturalWidth>0&&img.naturalHeight>0?img.naturalWidth/img.naturalHeight:4/3),H=doc.internal.pageSize.getHeight(),pages=mosaicPages(aspects,{x,y:36,w,h:H-FOOTER_BASELINE-FOOTER_TEXT-MOSAIC_FOOT-36});
  for(const [p,layout]of pages.entries()){begin(reportText('Exterior Images')+(pages.length>1?' - '+(p+1):''));layout.indexes.forEach((index,k)=>{
   const item=images[index],img=loaded[index],r=layout.rects[k];
-  text(reportText(item.direction)||reportText('Reference image'),r.x,r.y-1.8,9,true);
+  text(reportText(item.direction)||reportText('Reference image'),r.x,r.y-2.2,9,true);
   if(!img){doc.setFillColor(246,248,250);doc.roundedRect(r.x,r.y,r.w,r.h,2,2,'F');doc.setFont('Montserrat','normal');doc.setFontSize(9);const label=reportText('Photo not assigned');text(label,r.x+(r.w-doc.getTextWidth(label))/2,r.y+r.h/2,9);return;}
-  doc.addImage(item.dataUrl||reportImageData(img),'JPEG',r.x,r.y,r.w,r.h);
+  doc.addImage(r.aspect>aspects[index]+1e-6?reportImageData(img,r.aspect):item.dataUrl||reportImageData(img),'JPEG',r.x,r.y,r.w,r.h);
  });}
 }
-const api={directions,photoSlots,houseDirections,relativeSide,initializePhotoSlots,selectedPhotos,photosComplete,planShapes,frontBearing,dimensionPages,mosaicLayout,mosaicPages,fitHeight,rasterScene,paintScene,placeLabels,elevationPlan,elevationViews,houseFaces,roofDepthBias,ROOF_DEPTH_BIAS,dimensionContext,reportOrientation,evenBottom,writer,coverView,drawDiagram,drawOrientationKey,drawElevationKey,drawRoofElevations,drawExteriorCover,drawExteriorSummaryPage,drawExteriorReportPages,drawExteriorNotes,drawReportImagery,prepareImagerySnapshot};
+const api={directions,photoSlots,houseDirections,relativeSide,initializePhotoSlots,selectedPhotos,photosComplete,planShapes,frontBearing,dimensionPages,mosaicPlace,mosaicRows,mosaicLayout,mosaicPages,fitHeight,rasterScene,paintScene,placeLabels,elevationPlan,elevationViews,houseFaces,roofDepthBias,ROOF_DEPTH_BIAS,dimensionContext,reportOrientation,evenBottom,writer,coverView,drawDiagram,drawOrientationKey,drawElevationKey,drawRoofElevations,drawExteriorCover,drawExteriorSummaryPage,drawExteriorReportPages,drawExteriorNotes,drawReportImagery,prepareImagerySnapshot};
 if(typeof module==='object'&&module.exports)module.exports=api;else {root.ExteriorPDF=api;Object.assign(root,{drawExteriorReportPages,drawExteriorNotes,drawExteriorCover,drawReportImagery});}
 })(typeof window==='undefined'?globalThis:window);
