@@ -43,3 +43,9 @@ Scripts: `output/fh-rendered-viewer-20261022/`, `output/fh-tab-route-20261022/`,
   z-fighting, including doors whose material `ExteriorRendered` replaces without a depth offset.
 - Chimney walls and caps get rebuilt chimney ids: each cap is a chimney, and a chimney wall joins the cap above it. The
   rendered caps then take their chimney's average side color, as in the editor.
+
+**Follow-up `88476a5f` (all four roles, verified)**
+- Door and window casing: `exterior-model` now carries each opening's sticker trim faces (`trimFaces`, with sticker type
+  and only a trim colour chosen for that sticker). The viewer builds them as opening trim with `prepare`/`apply`, so the
+  rendered scene draws the painted casing in the sticker trim colour. The Mercer Way front door's 32 casing faces now
+  show.
