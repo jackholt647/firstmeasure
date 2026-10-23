@@ -1,0 +1,29 @@
+# /etc/firstmeasure/development-web-standby.env
+V1_PORT=3202
+V1_WEB_WORKERS=1
+
+# /etc/systemd/system/firstmeasure-dev-standby-sync.service
+[Unit]
+Description=Move the dev web API standby onto the active release
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/firstmeasure-dev-standby-sync
+
+# /etc/systemd/system/firstmeasure-dev-standby-sync.path
+[Unit]
+Description=Watch the active dev release for the web API standby
+[Path]
+PathChanged=/opt/firstmeasure/current
+Unit=firstmeasure-dev-standby-sync.service
+[Install]
+WantedBy=multi-user.target
+
+# /etc/systemd/system/firstmeasure-dev-standby-sync.timer
+[Unit]
+Description=Fallback check of the dev web API standby
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=1min
+Unit=firstmeasure-dev-standby-sync.service
+[Install]
+WantedBy=timers.target

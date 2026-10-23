@@ -338,3 +338,36 @@ drawing full width. The Wall IDs note sits at the foot of the page, above the ad
 - A real release's stop took 0 s.
 
 **Remaining.** A release still causes a few seconds of errors, because dev has a single web node. Bringing the second dev node back would make releases seamless.
+
+## Dev web standby: releases without downtime (2026-10-23)
+
+**Why not a second droplet.** The dev web node belongs to DigitalOcean autoscale pool
+`firstmeasure-development-autoscale-r1`, and its second node, `fm-dev-web-603124965` at 10.124.16.3, is gone. Restoring
+it needs the DigitalOcean API or console, and no token is available on this machine or on the dev hosts. A fresh pool
+node would also boot from the historical image, which lacks the hand-applied environment files, so it would serve
+different code.
+
+**What runs instead.** The web host runs a standby API, `firstmeasure-development-web-standby`, on port 3202 with one
+HTTP worker. nginx uses it as a `backup` upstream (`server 127.0.0.1:3201 max_fails=1 fail_timeout=5s; server
+127.0.0.1:3202 backup;`).
+- `firstmeasure-dev-standby-sync` runs from the `.path` unit, which fires on a release switch, and from a one-minute
+  timer.
+- It first rebuilds the standby unit from the main unit, so the standby picks up every drop-in and environment file;
+  `development-web-standby.env` goes last.
+- Then, once the main service is ready on the active release, it restarts the standby onto that release.
+
+So while a release restarts the main service, the standby, still on the previous release, answers. The standby is only
+restarted once the main service is serving again.
+
+**Source.** `deploy/digitalocean/dev-web-standby/`. The nginx change has a backup at
+`/etc/nginx/sites-available/firstmeasure-development.before-standby-20261023`.
+
+**Measured.** While the main service restarted, 120 of 120 public `/v1/health/ready` probes, 0.3 s apart, returned 200.
+The standby answered 56 requests and logged no errors.
+
+**Rollback.**
+1. Restore the nginx backup, then run `nginx -t && systemctl reload nginx`.
+2. Run `systemctl disable --now firstmeasure-dev-standby-sync.path firstmeasure-dev-standby-sync.timer
+   firstmeasure-development-web-standby`.
+
+**Production.** Nothing changed there; production has its own multi-node pool.
