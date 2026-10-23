@@ -228,3 +228,16 @@ the known exterior-ai failure.
 
 **Rollout.** `roof_trim.js`, `roof_trim_editor.js`, `wall_trim.js`, `wall_face_draft.js`, `wall_mode.js` and
 `wall_editor.js` were overlaid on web, legacy and pool. The served files match.
+
+## Follow-up: colour picker commits once per drag — `93ccbcd10229426e9f4209f487c91d263c3d491c`
+
+**Problem.** Dragging across the shared picker's colour plane or hue slider fired `change` on every move. Every call site
+records a recent colour on `change`, so the in-between shades filled the recent colours.
+
+**Fix.** A drag now fires only `input`, for the live preview, and fires one `change` on release, closing or Done.
+Typed values, swatches and the eyedropper still commit immediately.
+
+**Tests.** A browser test drags across the plane and checks that there is no commit mid-drag, exactly one on release,
+and one recent colour.
+
+**Rollout.** `firstmate-color-picker.js` was overlaid on web, legacy and pool, and the served file matches.
