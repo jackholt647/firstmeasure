@@ -82,3 +82,23 @@ Not verified: delivery to a real inbox (dev records email in capture mode).
 `document-signing-ui` ("signature modal requires PDF access and consent") times out;
 this release does not change the signature widget it tests, and a fix for that test
 sits uncommitted in the shared checkout from another session.
+
+## Follow-up releases (October 23): preview selections and the sign slide
+
+- `f299f93b`: in a portal preview the workflow renders read-only, the portal
+  refuses a choice before changing anything locally, and the rendered document's
+  controls are stopped with the preview message. On the presentation's sign card
+  the recap rows are taller and the chosen option spans the row; a name still too
+  long ends in an ellipsis with the full name as its tooltip and accessible label.
+  Deck revision 7.
+- `c38eeb44`: a current roofing template now also refreshes its deck preset, so a
+  deck revision reaches existing organizations without re-seeding the whole
+  roofing pack (an organization's edited deck is kept).
+- Both on worker, legacy and web (`rollout.py verify` passed); pool still
+  unreachable.
+
+Verified on dev: clicking another shingle in the preview leaves the selection as
+it was (cards disabled, preview banner); the sandbox org's three roofing decks
+moved to revision 7 on its next document seed; on the sign slide each chosen
+option sits on one line within its row (284pt wide), and a long name ends in an
+ellipsis with the full name in the tooltip.
