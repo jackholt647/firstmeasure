@@ -990,9 +990,17 @@ export async function searchPostgresProjectsForLegacyList(query: LegacyListQuery
       ts_rank_cd(p.search_vector, websearch_to_tsquery('simple', ${exact})) DESC, p.sort_ts DESC, p.updated_at_ms DESC, p.id DESC`;
   }
   searchOrderValues.push(query.limit, (query.page - 1) * query.limit);
+  // The page's ids are chosen first and only their manifests are read. Selecting the manifest in the
+  // sorted query made Postgres de-TOAST every matching manifest before the sort (2.8-7.8 s a page over
+  // all projects, spilling to disk at deep offsets).
   const result = await queryPostgres<{ manifest_json: unknown; thumbnail_artifact_name: string; revision: string }>(`
-    SELECT ${LIST_MANIFEST_COLUMN_P}, p.thumbnail_artifact_name, p.revision::text FROM projects p WHERE ${where.join(" AND ")}
-    ORDER BY ${order} LIMIT $${searchOrderValues.length - 1} OFFSET $${searchOrderValues.length}
+    SELECT ${LIST_MANIFEST_COLUMN_P}, p.thumbnail_artifact_name, p.revision::text
+    FROM unnest(ARRAY(
+      SELECT p.id FROM projects p WHERE ${where.join(" AND ")}
+      ORDER BY ${order} LIMIT $${searchOrderValues.length - 1} OFFSET $${searchOrderValues.length}
+    )) WITH ORDINALITY AS page(id, position)
+    JOIN projects p ON p.id = page.id
+    ORDER BY page.position
   `, searchOrderValues);
   return {
     totalCount: Number(count.rows[0]?.count ?? 0),
