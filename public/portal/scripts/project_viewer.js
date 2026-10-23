@@ -957,6 +957,29 @@
     cachedIds(){
       return Object.keys(readStore().projects || {});
     },
+    // Without expanded access projects live only in this browser's cache. A draft left there at the address of
+    // a real order (an order form started over it, or one minted while the order's window was open) could stand
+    // in for the order when it is reopened (1M8-234), so the board's order listing removes it. Only empty drafts
+    // go: no report order, proposal, photo, document or note of their own, and untouched for ten minutes.
+    discardDraftsShadowingOrders(orders = [], now = Date.now()){
+      if (platformProjectsWritable()) return [];
+      const addressKey = (value) => String(value || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+      const ordered = new Set((Array.isArray(orders) ? orders : []).map((order) => addressKey(order?.address)).filter(Boolean));
+      if (!ordered.size) return [];
+      const projects = readStore().projects || {};
+      const listed = (value) => Array.isArray(value) && value.length > 0;
+      const removed = Object.values(projects).filter((project) => {
+        if (!project || !ordered.has(addressKey(project.address))) return false;
+        if (!['', 'draft'].includes(String(project.workflow_state || '').trim().toLowerCase())) return false;
+        if (measurementKeys(project.measurement_project || project.measurement || {}).length) return false;
+        if (listed(project.proposals) || listed(project.photos) || listed(project.documents) || listed(project.document_ids)) return false;
+        if (firstText(project.project_notes, project.tech_notes)) return false;
+        const touched = Date.parse(project.updated_at || project.created_at || '');
+        return Number.isFinite(touched) && now - touched > 10 * 60 * 1000;
+      }).map((project) => String(project.id));
+      removed.forEach((id) => removeCachedProject(id));
+      return removed;
+    },
     async removeRemote(projectOrId){
       const id = typeof projectOrId === 'string' ? projectOrId : canonicalProjectId(projectOrId || {});
       if (!id) return false;

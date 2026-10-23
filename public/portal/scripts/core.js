@@ -1898,6 +1898,8 @@
         []
       );
       const firstMeasureList = Array.isArray(firstMeasureProjects) ? firstMeasureProjects : [];
+      // Cache-only drafts at a listed order's address must not stand in for that order (1M8-234).
+      try { window.Portal.ProjectStore?.discardDraftsShadowingOrders?.(firstMeasureList); } catch (error) { console.warn('Draft cleanup failed', error); }
       let data;
       data = await projectPageFromCandidates(firstMeasureList, fields, { hydrateDetails: false });
       data.import_source = 'firstmeasure';
