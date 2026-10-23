@@ -79,3 +79,30 @@ Both runs verified with exit 0.
 - **Landing page copy.** The app.1m8.ai landing pages' own text (hero, "$7") is still English; only the signup
   widget is translated.
 - **Google button.** Google renders the "Sign up with Google" button in its own language.
+
+## Follow-up: phone format follows the calling code (`01953359`, legacy and web)
+
+Jack asked that the calling code be detected like the language, and that the example, typing format and length
+follow whichever code is selected; production still showed the US "(555) 555-0123".
+
+- **Calling code.** The code is preselected from the same detection as the language: edge country, then browser
+  language and time zone, then the hand-off language's region.
+  - A detected country outside the 21 is added to the front of the picker, not replaced by US.
+  - From a US connection, `?lang=sv` keeps +1: language does not decide the code.
+- **Example.** `login.php` and the landing widget no longer ship a hard-coded US placeholder. That placeholder showed
+  until detection finished. The example is now always the selected code's, from libphonenumber.
+- **Typing.** Typing keeps the selected country's national format. A digit that would turn a formatted number back
+  into bare digits is refused; before, Sweden and Germany let extra digits through and lost their format.
+- **Tests.** `signup-language-browser.test.mjs` now has 22 checks. It adds GB, SE, DE and ES edges on both
+  `login.php` and the app landing widget, checking for each:
+  - the preselected code;
+  - that country's example;
+  - the typed format and the length;
+  - that switching codes reformats both the example and the number.
+
+  `phone-input-browser` still passes (5 pass).
+- **Checked on dev.** On `login.php` from a US connection, the code is +1 with the example "(201) 555-0123".
+  Picking SE changes the example to "070-123 45 67" and formats the typed number as "070-123 45 67"; the 11th digit
+  is refused.
+- **Rollout.** The worker was not part of this run because these are frontend-only files; its verify failure is
+  expected.
