@@ -119,8 +119,15 @@ items per structure, each generated from that structure's own measurements: a
 value the report did not split (pipe boots) goes to the first structure, and a
 shared percentage (waste) applies to each. Lines nobody edited since they were
 generated follow a change of structures on their own; edited lines show the
-regenerate warning instead. Run `tests/estimate-structures.test.ts` for changes
-here.
+regenerate warning instead.
+
+After signing, the roofing materials calculation (`roofingCalculus`) labels each
+material line with its structure: its own section's when the estimate priced each
+structure on its own, otherwise the structures the estimate includes ("House +
+Shed"). A document with structures states its combined measurements as the
+measurements its work is sized from ([requirements](requirements.md#where-requirements-come-from)),
+so required work follows the structures too. Pay sheets still read the project's
+measurement dataset. Run `tests/estimate-structures.test.ts` for changes here.
 
 ## Published views
 

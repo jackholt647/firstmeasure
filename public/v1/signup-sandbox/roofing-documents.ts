@@ -35,7 +35,22 @@ export function roofingCalculus(mode: string, scoped = mode === 'detailed') {
     source: `const p = inputs.document.params;
 const products = await api.data.read('products');
 const dataset = await api.data.read('measurements');
-const measured = dataset?.measurements || {};
+// The document's structures (the estimate's measurements step): which the report measured are on, and any entered
+// by hand. When it has them, its combined measurements are what this job is, not the project's report.
+const structureState = p.measurement_structures && typeof p.measurement_structures === 'object' ? p.measurement_structures : null;
+const structures = (Array.isArray(structureState?.structures) ? structureState.structures : []).filter(s => s && s.id);
+const unitOf = key => /Squares$/.test(key) ? 'roofing_square' : /Lf$/.test(key) ? 'ft' : '';
+const documented = {};
+if (structures.length) for (const [key, value] of Object.entries(p.measurements || {})) {
+  const unit = unitOf(key);
+  if (unit && typeof value === 'number' && Number.isFinite(value) && value >= 0) documented[key] = { value, unit };
+}
+const fromDocument = Object.keys(documented).length > 0;
+const measured = fromDocument ? documented : (dataset?.measurements || {});
+// Each line says which structure it is for: its own section's when the estimate priced each structure on its own,
+// otherwise every structure the estimate includes.
+const included = structures.filter(s => s.included !== false).map(s => String(s.name || '').trim()).filter(Boolean);
+const structureLabel = (included.length ? included.join(' + ') : '') || p.structure || 'Main house';
 const warnings = [], lines = [];
 const scoped = ${JSON.stringify(scoped)};
 function amount(value, label) { if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) throw new Error(label + ' must be a nonnegative number'); return value; }
@@ -45,24 +60,25 @@ function length(key, label) {
   if (!['ft','lf'].includes(v.unit)) throw new Error(label + ' must be measured in feet');
   return amount(v.value, label);
 }
-function add(key, id, quantity, group, explanation, variant = '') {
+function add(key, id, quantity, group, explanation, variant = '', structure = structureLabel) {
   if (quantity === null || quantity === 0) return;
   const product = products.find(x => x.id === id);
   if (!product) throw new Error('The shared price book is missing product ' + id);
   lines.push({ key, product_id: id, name: product.name, quantity: amount(quantity, product.name), unit: product.unit,
-    ...(product.packaging ? {packaging: product.packaging} : {}), variant, structure: p.structure || 'Main house', group, explanation });
+    ...(product.packaging ? {packaging: product.packaging} : {}), variant, structure, group, explanation });
 }
 if (scoped) {
   // The accepted scope is the order: options and add-ons the customer passed over are not on it.
   const physical = new Set(['gaf_hd','gaf_ns','gaf_uhdz','gaf_grand_sequoia','ct_presidential_shake','laminated_shingles','three_tab_shingles','starter','ridge_cap','underlayment','gaf_feltbuster','gaf_tiger_paw','drip_edge','valley_metal','ridge_vent','gutter_replace','downspout','gutter_guard']);
-  function walk(rows, path) { (rows || []).forEach((r, index) => {
+  function walk(rows, path, structure) { (rows || []).forEach((r, index) => {
     if (r.selected === false || r.excluded === true || r.selection?.selected === false) return;
     const key = path + '_' + index;
+    const here = String(r.structure_ref?.name || '').trim() || structure;
     const id = r.pricebook_ref?.item_id || r.item_ref || r.catalog_item_id || r.id;
-    if (physical.has(id) || products.find(x=>x.id===id)?.packaging) add(key, id, amount(Number(r.quantity), r.name || id), 'Accepted scope', 'Quantity accepted on the proposal', r.variation_id || r.variant_id || r.variables?.color || p.color || '');
-    walk(r.children, key);
+    if (physical.has(id) || products.find(x=>x.id===id)?.packaging) add(key, id, amount(Number(r.quantity), r.name || id), 'Accepted scope', 'Quantity accepted on the proposal', r.variation_id || r.variant_id || r.variables?.color || p.color || '', here);
+    walk(r.children, key, here);
   }); }
-  walk(p.scope_items, 'scope');
+  walk(p.scope_items, 'scope', structureLabel);
   // A designer shingle needs its starter strip in the same colour; any other starter strip stays plain.
   const designer = lines.find(line => ['gaf_grand_sequoia','ct_presidential_shake'].includes(line.product_id));
   if (designer) lines.filter(line => line.product_id === 'starter').forEach(line => { line.variant = designer.variant || line.variant; line.explanation = (line.explanation ? line.explanation + '. ' : '') + 'Coloured to match ' + designer.name; });
@@ -95,7 +111,8 @@ if (${JSON.stringify(mode !== 'gutters')}) {
   if (has('headWallLf','sideWallLf')) work.push({item:'roofing.wall_flashing'});
   work.push({item:'roofing.cleanup'});
 }
-return {outputs:{lines,warnings,work}};`
+// Work is sized from the same measurements the lines came from.
+return {outputs:{lines,warnings,work,...(fromDocument ? {measurements: documented} : {})}};`
   };
 }
 
@@ -348,7 +365,7 @@ export function roofingEstimateDefinition(mode: string, rates: { roof: number; g
 
 /** Bump when the estimate layouts or their workflows change; existing packs republish. */
 // 16: content block bodies are rich text (Markdown) and may carry a GIF.
-export const INSTANT_ROOFING_PACK = 16;
+export const INSTANT_ROOFING_PACK = 17;
 
 /** Roof measurements the proposals price from, in the order a roofer reads a report. */
 export const ROOF_MEASUREMENT_FIELDS = [

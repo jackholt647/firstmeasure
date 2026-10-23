@@ -29,11 +29,17 @@ const placement = (item: string) => {
  * measurements; that is counted once however many artifacts say it, and stands over any stated amounts beside it.
  */
 export function requiredWork(sets: ScopeSet[], context: { measurements?: unknown; fields?: Record<string, number> }): RequiredWork[] {
-  const byItem = new Map<string, { stated: number; measured: boolean; sources: RequiredWork["sources"] }>();
+  const byItem = new Map<string, { stated: number; measured: boolean; basis?: unknown; sources: RequiredWork["sources"] }>();
   for (const set of sets) for (const entry of set.work) {
     if (!workItem(entry.item)) continue;
     const row = byItem.get(entry.item) || { stated: 0, measured: false, sources: [] };
-    if (typeof entry.quantity === "number") row.stated += entry.quantity; else row.measured = true;
+    if (typeof entry.quantity === "number") row.stated += entry.quantity;
+    else {
+      row.measured = true;
+      // An artifact that states the measurements its work is sized from (an estimate that left a structure out, or
+      // added one by hand) sizes the item from those; the latest such artifact wins.
+      if (set.measurements) row.basis = { measurements: set.measurements };
+    }
     if (!row.sources.some((source) => source.set_id === set.id)) row.sources.push({ set_id: set.id, title: set.title, origin: set.origin });
     byItem.set(entry.item, row);
   }
@@ -41,7 +47,7 @@ export function requiredWork(sets: ScopeSet[], context: { measurements?: unknown
     const definition = workItem(item)!, where = placement(item);
     // Sized with every item of its kind of work present, so an item that is only required where there is some of it
     // still reports its amount, or that the amount is unknown.
-    const sized = row.measured ? workRequirements(where.schemas, context, { includeEmpty: true }).find((entry) => entry.item === item) : undefined;
+    const sized = row.measured ? workRequirements(where.schemas, row.basis ? { ...context, measurements: row.basis } : context, { includeEmpty: true }).find((entry) => entry.item === item) : undefined;
     const quantity = row.measured ? sized?.quantity ?? null : row.stated;
     return {
       item, label: definition.label, kind: definition.kind, unit: definition.unit, description: definition.description, schemas: where.schemas, under: where.under,

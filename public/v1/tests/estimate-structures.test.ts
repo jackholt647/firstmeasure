@@ -167,3 +167,42 @@ test("priced one section per structure, each structure prices from its own measu
   const sum = tagged.reduce((acc, root) => acc + scopeItemPriceResult(root).amount_cents, 0);
   assert.equal(sum, total(house) + total(garage), "the document total is the structures' totals");
 });
+
+test("after signing, materials follow the document's structures and work is sized from its measurements", async () => {
+  const { roofingCalculus } = await import("../signup-sandbox/roofing-documents.js");
+  const { runModuleCode } = await import("../documents/modules/runtime.js");
+  const { requiredWork } = await import("../labor/scope-artifacts.js");
+  const products = ["gaf_hd", "underlayment", "starter", "ridge_cap", "drip_edge"].map((id) => ({ id, name: id, unit: ["gaf_hd", "underlayment"].includes(id) ? "sq" : "lf" }));
+  const report = twoStructureReport();
+  const dataset = { measurements: Object.fromEntries(Object.entries(report.values).map(([key, value]) => [key, { value, unit: /Squares$/.test(key) ? "roofing_square" : "ft" }])) };
+  const calculate = async (params: Record<string, unknown>) => (await runModuleCode({ source: roofingCalculus("detailed").source, inputs: { document: { params }, values: {} }, state: {}, mode: "evaluate", now: "2026-10-22" },
+    { read: async (name: string) => (name === "products" ? products : dataset), invoke: async () => { throw new Error("No effects"); } })).outputs as any;
+  const state = S.mergeReport(null, report);
+  state.structures[0].name = "House"; state.structures[1].name = "Garage";
+  const shed = S.manualStructure({ name: "Shed", values: { pitch4to6Squares: 4, eavesLf: 40 } }, S.fieldsFromSchemas(vocabulary, ["roofing"], ROOF_FIELD_KEYS, S.combine(state).values), { name: "Jack" });
+  const off = { ...state, structures: [{ ...state.structures[0] }, { ...state.structures[1], included: false }, shed] };
+  const measurements = S.combine(off).values;
+
+  // Priced together: every line is for the structures the estimate includes.
+  const together = await calculate({ measurement_structures: off, measurements, scope_items: [{ id: "gaf_hd", quantity: 33 }, { id: "starter", quantity: 100 }] });
+  assert.deepEqual([...new Set(together.lines.map((line: any) => line.structure))], ["House + Shed"]);
+  // Work is sized from the document's measurements, with explicit units, not the project's report.
+  assert.deepEqual(together.measurements.roofSquares, { value: 30, unit: "roofing_square" });
+  assert.equal(together.measurements.wastePercent, undefined, "only dictionary-shaped keys are stated");
+  // One section per structure: each line is for its own section's structure.
+  const sections = [S.tagScope({ id: "r1", name: "Roof", children: [{ id: "gaf_hd", quantity: 29 }] }, off.structures[0]), S.tagScope({ id: "r2", name: "Roof", children: [{ id: "gaf_hd", quantity: 5 }] }, shed)];
+  const each = await calculate({ measurement_structures: { ...off, pricing: "per_structure" }, measurements, scope_items: sections });
+  assert.deepEqual(each.lines.map((line: any) => [line.structure, line.quantity]), [["House", 29], ["Shed", 5]]);
+  // A document with no structures keeps today's behaviour: the project's measurements and its single structure.
+  const plain = await calculate({ structure: "Main house", scope_items: [{ id: "gaf_hd", quantity: 20 }] });
+  assert.equal(plain.lines[0].structure, "Main house");
+  assert.equal(plain.measurements, undefined);
+
+  // Requirements: tear-off is the 30 squares the estimate covers, not the report's 32.
+  const set = (measurementsBasis?: Record<string, { value: number; unit: string }>) => ({ id: "set_1", title: "Roof replacement", key: "roofing_detailed", origin: "document", document_id: "doc_1", work: [{ item: "roofing.tear_off" }, { item: "roofing.edge_metal" }], lines: [], pending: false, ...(measurementsBasis ? { measurements: measurementsBasis } : {}) });
+  const project = { measurements: dataset };
+  const tearOff = (sets: any[]) => requiredWork(sets, project).find((row) => row.item === "roofing.tear_off")!.quantity;
+  assert.equal(tearOff([set()]), 32, "without a basis, the project's measurements");
+  assert.equal(tearOff([set(together.measurements)]), 30);
+  assert.equal(requiredWork([set(together.measurements)], project).find((row) => row.item === "roofing.edge_metal")!.quantity, measurements.eavesLf);
+});

@@ -28,7 +28,12 @@ Three layers, and they do different jobs:
 An artifact names a work item by its dictionary id. An amount it states is
 taken as stated, and stated amounts from several artifacts add. An amount left
 out means "all of it": the scope set's rule sizes it from the project's
-measurements, counted once however many artifacts say it.
+measurements, counted once however many artifacts say it. An artifact may state
+the `measurements` its work is sized from instead (dictionary keys with explicit
+units): an accepted estimate that left a structure out or added one by hand does,
+so tear-off covers the roof that was sold, not every roof the report measured.
+The latest artifact that states them sizes the item; the rules stay the scope
+set's.
 
 Nothing here prices anything. Pay stays in [pay sheets](pay-sheets.md); who can
 be assigned stays in [assignees](assignees.md); what can be measured stays in

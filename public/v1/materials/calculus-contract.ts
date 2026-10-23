@@ -19,9 +19,16 @@ export type Requirement = z.infer<typeof requirementSchema>;
  */
 export const scopeWorkSchema = z.object({ item: z.string().regex(/^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)*$/).max(120), quantity: quantity.optional(), explanation: z.string().max(4000).optional() }).strict();
 export type ScopeWork = z.infer<typeof scopeWorkSchema>;
+/**
+ * The measurements an artifact's work is sized from, when they are not the project's own: an accepted estimate that
+ * left a structure out or added one by hand states its combined values here (dictionary keys, explicit units).
+ */
+export const scopeMeasurementsSchema = z.record(key, z.object({ value: quantity, unit: z.string().min(1).max(40) }).strict());
+export type ScopeMeasurements = z.infer<typeof scopeMeasurementsSchema>;
 export const calculationOutputSchema = z.object({
   lines: z.array(requirementSchema).max(1000),
   work: z.array(scopeWorkSchema).max(300).default([]),
+  measurements: scopeMeasurementsSchema.optional(),
   warnings: z.array(z.string().max(2000)).max(100).default([])
 }).strict();
 export const calculusDefinitionSchema = z.object({

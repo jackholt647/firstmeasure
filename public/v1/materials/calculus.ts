@@ -14,7 +14,7 @@ import { assertSafeTenantSchema } from "../platform/publication/tenant-schema.js
 import type { PublicationContext, DataBinding, DataResult } from "../platform/publication/contracts.js";
 import { moduleBindingSchema } from "../documents/modules/schemas.js";
 import { runModuleCode } from "../documents/modules/runtime.js";
-import { calculusDefinitionSchema, calculationOutputSchema, commandSchema, requirementSchema, type CalculusDefinition, type CalculusCommand, type Requirement, type ScopeWork } from "./calculus-contract.js";
+import { calculusDefinitionSchema, calculationOutputSchema, commandSchema, requirementSchema, type CalculusDefinition, type CalculusCommand, type Requirement, type ScopeWork, type ScopeMeasurements } from "./calculus-contract.js";
 import { workItem } from "../platform/publication/work-items.js";
 
 export const CALCULUS_LEDGER = "materials_calculus_ledgers";
@@ -31,8 +31,8 @@ function scopeJson(value:JsonObject):JsonObject{
   return jsonClone(prune(value)) as JsonObject;
 }
 type Line = Requirement & { id: string; order_quantity: number; order_unit: string; lineage: string[] };
-type Evaluation = { id: string; base_revision: number; inputs: JsonObject; lines: Requirement[]; work?: ScopeWork[]; warnings: string[]; evidence: JsonObject; at: string; definition_hash: string };
-type SetRecord = { id: string; title: string; presentation?: JsonObject; definition: CalculusDefinition; document: JsonObject; origin: JsonObject; revision: number; lines: Line[]; work?: ScopeWork[]; evaluations: Evaluation[]; history: JsonObject[]; applied_evaluation?: string };
+type Evaluation = { id: string; base_revision: number; inputs: JsonObject; lines: Requirement[]; work?: ScopeWork[]; measurements?: ScopeMeasurements; warnings: string[]; evidence: JsonObject; at: string; definition_hash: string };
+type SetRecord = { id: string; title: string; presentation?: JsonObject; definition: CalculusDefinition; document: JsonObject; origin: JsonObject; revision: number; lines: Line[]; work?: ScopeWork[]; measurements?: ScopeMeasurements; evaluations: Evaluation[]; history: JsonObject[]; applied_evaluation?: string };
 type Allocation = { id: string; set_id: string; line_id: string; line: Line; quantity: number; cancelled: number; received: number; returned: number; unit_cost?: number; currency: string };
 type Order = { presentation?: JsonObject; id: string; supplier: string; reference: string; at: string; lines: Allocation[] };
 type Delivery = { id: string; title: string; date: string; allocations: string[] };
@@ -100,7 +100,8 @@ export async function projectScopeSets(org: string, project: string) {
   const documented = sets.some(set => set.origin.type === "document");
   return sets.filter(set => !(documented && set.origin.type === "defaults")).map(set => ({
     id: set.id, title: set.title, key: set.definition.key, origin: String(set.origin.type || ""), document_id: String(set.origin.document_id || ""),
-    work: jsonClone(set.work || []), lines: set.lines.map(line => ({ id: line.id, name: line.name, quantity: line.quantity, unit: line.unit, group: line.group })),
+    work: jsonClone(set.work || []), ...(set.measurements ? { measurements: jsonClone(set.measurements) } : {}),
+    lines: set.lines.map(line => ({ id: line.id, name: line.name, quantity: line.quantity, unit: line.unit, group: line.group })),
     pending: !set.applied_evaluation && !set.lines.length && !(set.work || []).length && set.origin.type === "document"
   }));
 }
@@ -376,7 +377,11 @@ async function execute(ctx: PublicationContext, ledger: MaterialsLedger, command
     const result = amend(ledger, set, { set_revision: target?.revision ?? evaluation.base_revision, remove: removed, add: additions, reason: input.reason || "Apply calculated requirements" }, key, at, { ...producer.origin, calculus_id: producer.id, evaluation_id: evaluation.id });
     producer.applied_evaluation = evaluation.id;
     // What the job includes is replaced with the material it needs. An amendment that names no work leaves its target's alone.
-    if (!target || evaluation.work?.length) set.work = jsonClone(evaluation.work || []);
+    if (!target || evaluation.work?.length) {
+      set.work = jsonClone(evaluation.work || []);
+      // ...sized from the measurements the calculation stated, or the project's own when it stated none.
+      if (evaluation.measurements) set.measurements = jsonClone(evaluation.measurements); else delete set.measurements;
+    }
     if (target) producer.revision++;
     return result;
   }
