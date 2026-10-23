@@ -319,3 +319,22 @@ drawing full width. The Wall IDs note sits at the foot of the page, above the ad
 - dev returned 503 for about 10 s after activation, then recovered.
 - The served files, the server PDF runtime and the files of the earlier landscape and roof-rebuild batches all match
   `1d55b4f1`.
+
+## Incident: dev returned 503s for 30-90 s on every release — `33acbd4a`, `5bd18dc2`, `66445301`
+
+**Cause.** Dev serves the API from a single web node: the second node, 10.124.16.3, is unreachable. Each release restarts it, and on 2026-10-23 that happened about every 4 minutes. Each stop was slow for two reasons:
+
+- **The drain setting was ignored.** `ROLLING_DRAIN_MS=0` (`/etc/firstmeasure/development-drain.env`) was read by `readNumber`, which treats 0 as unset. Every stop therefore drained for 25 s while readiness reported not-ready. With no other node behind the load balancer, every request got a 503.
+- **Event streams blocked the close.** The realtime, presence and collaboration streams hijack their responses, so `app.close()` waited on every open tab. Some stops were killed by systemd only after 55 s.
+
+**Fixes.**
+- `ROLLING_DRAIN_MS=0` now turns the drain off. When unset, the default stays 25 s, so production is unchanged.
+- A stop ends event streams immediately; the browser reconnects on its own.
+- Other requests get 10 s to finish, and the worker exits after 15 s at most. Each stop logs how long it took.
+
+**Measured on dev.**
+- The stop went from 25-55 s to 0.4 s, and the API is ready about 9 s after the restart.
+- The public outage per release went from 30-90 s to about 7 s.
+- A real release's stop took 0 s.
+
+**Remaining.** A release still causes a few seconds of errors, because dev has a single web node. Bringing the second dev node back would make releases seamless.
