@@ -399,6 +399,8 @@ window.PlatformCommerce.onReady(function(){
     .b-price{height:100%; display:flex; flex-direction:column; justify-content:center; gap:8px; background:#fafafa}
     .b-price-label{font-weight:950; color:#555; font-size:11px; letter-spacing:.4px; text-transform:uppercase}
     .b-price .big{font-weight:1000; font-size:22px; letter-spacing:-.2px}
+    .b-price .b-total-vat{display:block; margin-top:2px; font-size:12px; font-weight:800; color:#667085}
+    .b-price .b-total-vat[hidden]{display:none}
     .b-price .big.is-insufficient{color:#d93025}
     .b-err{margin-top:10px; min-height:16px; font-size:12px; font-weight:1000; color:#d93025}
     .b-msg{margin-top:8px; font-size:12px; color:#777; font-weight:850}
@@ -576,7 +578,8 @@ window.PlatformCommerce.onReady(function(){
             </div>
             <div class="b-credit-panel b-price">
               <div class="b-price-label">${(globalThis.PlatformLanguage?.htmlText("billing","m_9403c7637d4905","Total") ?? "Total")}</div>
-              <div class="big" id="bTotal">${checkoutTotalText(DEFAULT_CREDIT_AMOUNT)}</div>
+              <div class="big" id="bTotal">${window.PlatformCommerce.cash(DEFAULT_CREDIT_AMOUNT)}</div>
+              <small class="b-total-vat" id="bTotalVat" hidden></small>
             </div>
           </div>
           <div class="b-hint" id="bHint">${String(creditAmountHelpText())}</div>
@@ -969,19 +972,23 @@ window.PlatformCommerce.onReady(function(){
       message.style.display = insufficient ? 'block' : 'none';
     }
   }
-  // Credit is charged with VAT included outside the US and Canada. The checkout total is where that is said
-  // ("€25.00 VAT included"); the "Needed for order" amount above it is the report price and stays plain (1M8-241).
-  function checkoutTotalText(amount){
-    const text = window.PlatformCommerce.cash(amount);
+  // Credit is charged with VAT included outside the US and Canada. The checkout total says so on a smaller line
+  // beneath the amount; the "Needed for order" amount above it is the report price and stays plain (1M8-241).
+  function renderCheckoutTotalVat(){
+    const total = $('#bTotal');
+    if (!total) return;
+    let vat = document.getElementById('bTotalVat');
+    if (!vat) { vat = document.createElement('small'); vat.id = 'bTotalVat'; vat.className = 'b-total-vat'; }
+    if (vat.previousElementSibling !== total) total.after(vat);
     let included = false;
     try { included = !!window.PlatformCommerce.current().vat_included; } catch (_) {}
-    return included
-      ? (globalThis.PlatformLanguage?.text("billing","checkout_total_vat_included","{amount} VAT included",{amount:text}) ?? `${text} VAT included`)
-      : text;
+    vat.textContent = included ? (globalThis.PlatformLanguage?.text("billing","checkout_vat_included","VAT included") ?? "VAT included") : '';
+    vat.hidden = !included;
   }
   function updateTotal(){
     const q = readAmountInput();
-    $('#bTotal').textContent = checkoutTotalText(q ?? 0);
+    $('#bTotal').textContent = window.PlatformCommerce.cash(q ?? 0);
+    renderCheckoutTotalVat();
     let fx=document.getElementById('bFxEstimate');if(!fx){fx=document.createElement('small');fx.id='bFxEstimate';$('#bTotal').after(fx);}fx.textContent=window.PlatformCommerce.estimate(q ?? 0);
     updateFirstReportInsufficientState(q ?? 0);
     if (firstReportAccountLoadEligible && !purchaseTopupContext) {

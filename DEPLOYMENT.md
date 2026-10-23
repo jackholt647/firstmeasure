@@ -2,6 +2,8 @@
 
 October 23 Signup lists on dev: [Country and Language are styled lists limited to Ben's 21 operating countries and their languages, the phone placeholder is the chosen calling code's own example, and signups choosing another country are refused](deploy/digitalocean/development-signup-lists-20261023.md) records release `eef3b3fa` (1M8-240), cut from `codex/hotfix-20261023o`.
 
+October 23 1M8-242 on dev: [imported accounts show their logo on reports (the editor context preferred the legacy relative key over the platform logo URL)](deploy/digitalocean/development-legacy-logos-20261023.md) records release `712de6b4` on worker, legacy and web. Not on canonical or production.
+
 October 23 Phone picker rework on dev: [Ben's 21 operating countries only, the number in each country's national format as it is typed (no "Saved as" line), and a styled calling-code list](deploy/digitalocean/development-phone-countries-rework-20261023.md) records releases `ab63b371` and `ffbdfc29` (1M8-240), cut from `codex/release-20261023m`.
 
 October 23 European login billboard on dev: [every visitor gets the main host's `https://1m8.ai/billboards/login/` (eu.1m8.ai never published it and showed "Not Found"), with a branded fallback panel when the billboard is missing](deploy/digitalocean/development-login-billboard-eu-20261023.md) records `f4c4600e` on `claude/kind-ishizaka-2fffa9`, cut from production `6e8093f7`, on legacy and web (pool unreachable). Not on production.
@@ -23,6 +25,7 @@ October 21 Portal regressions on dev: [1M8-202/205/206/208/210/211 and the platf
 October 21 Add another account, ordering permission, password visibility on dev: [adding a second account works again, people without order_reports get no New Report or mobile +, and every password field has a show/hide button](deploy/digitalocean/development-account-access-20261021.md) records release `78a839d1` (1M8-223/227/221) and the verified four-role development rollout.
 
 October 21 Customer portal accounts on dev: [admins no longer show as viewers, a tab opened as another account stops instead of showing the active account's orders, per-organization browser caches, invitations open the inviting company (and tell the inviter when the person already has an account), activation codes, the invite level and photo button, and round avatars](deploy/digitalocean/development-account-fixes-20261021.md) records release `61402f23` (1M8-201/203/204/207/209/212/213) and the verified four-role development rollout.
+
 October 22 1M8-230 (recent orders missing from customer portals): [the portal listed a platform mirror that production stopped writing at the 10/20 release; candidate commit `41b65307` already fixes it and is on dev, production still lacks it; this adds a behavioral test](deploy/digitalocean/development-1m8-230-20261022.md). No dev rollout needed.
 
 October 22 Organization country of record (1M8-228): [every organization stores a country (signup, backfill, staff edit) usable by feature-flag country rules; production needs the backfill run at release](deploy/digitalocean/development-org-country-20261022.md) records release `a41a95c3` on branch `claude/lucid-yonath-777e5b` (not yet canonical) and the dev backfill.
@@ -42,6 +45,7 @@ October 21 Portal regressions on dev: [1M8-202/205/206/208/210/211 and the platf
 October 21 Add another account, ordering permission, password visibility on dev: [adding a second account works again, people without order_reports get no New Report or mobile +, and every password field has a show/hide button](deploy/digitalocean/development-account-access-20261021.md) records release `78a839d1` (1M8-223/227/221) and the verified four-role development rollout.
 
 October 21 Customer portal accounts on dev: [admins no longer show as viewers, a tab opened as another account stops instead of showing the active account's orders, per-organization browser caches, invitations open the inviting company (and tell the inviter when the person already has an account), activation codes, the invite level and photo button, and round avatars](deploy/digitalocean/development-account-fixes-20261021.md) records release `61402f23` (1M8-201/203/204/207/209/212/213) and the verified four-role development rollout.
+
 October 22 Organization country of record (1M8-228): [every organization stores a country (signup, backfill, staff edit) usable by feature-flag country rules; production needs the backfill run at release](deploy/digitalocean/development-org-country-20261022.md) records release `a41a95c3` on branch `claude/lucid-yonath-777e5b` (not yet canonical) and the dev backfill.
 
 October 21 Customer country tracking (1M8-228): [the internal customer list, detail and queue cards show customer and order countries, with country filter and sort](deploy/digitalocean/development-customer-country-20261021.md) records release `39e25f28` on branch `claude/lucid-yonath-777e5b` (not yet canonical) and the verified development rollout.
@@ -105,9 +109,11 @@ October 19 Sticker typing with Shift: [Shift+W/D/G types a selected face; Ctrl i
 October 19 Curved copy/paste, Resources media viewer and plane Auto-step: [pasted curves keep their definition, the reworked media viewer with server-side frame extraction (ffmpeg on dev hosts) and plane Auto-step](deploy/digitalocean/development-full-house-curves-resources-20261019.md) records release `700b8d54` and the verified development rollout.
 
 October 19 Full-house speed pass: [no shader recompiles per redraw, early-exit occlusion, a passive 2D plan during 3D gestures, an exact wall composition key, draw memos and cheaper previews](deploy/digitalocean/development-full-house-speed-20261019.md) records release `f709807f`, the measurements and the verified development rollout.
+
 October 11 Feed Settings: [Search, categories and descriptions](deploy/digitalocean/development-feed-settings-ui-20261011.md) records the Settings UI update, browser/visual checks and development rollout.
 
 October 19 Pay sheets, payables and People gaps: [the pay sheet editor, payroll bills through payables with reimbursements settled once, export templates, archive and restore, branch membership and words, and outside company onboarding](deploy/digitalocean/development-people-payroll-gaps-20261019.md) records release `c255dda3` (payroll schema version 6), the host merges, the per-host generated files and the verified four-role development rollout.
+
 October 11 Feed: [Terminology and workflow context](deploy/digitalocean/development-feed-terminology-flexibility-20261011.md) records the focused activity/catalog update, checks, development rollout and scope limits.
 
 October 19 Route lock-down: [platform routes stay inside the caller's organizations, the raw global document and the credits ledger need billing management, and the balance needs report ordering or billing](deploy/digitalocean/development-route-gates-20261019.md) records release `65634240`, the host merges and the verified four-role development rollout with owner and orderer checks.
@@ -209,6 +215,7 @@ October 11 GIF picker: [Hide creator profile overlays](deploy/digitalocean/devel
 October 11 Project preview contact details: [Tags and contact priority fields](deploy/digitalocean/development-project-preview-contact-priority-20261011.md) records the checks and verified development rollout.
 
 October 10 GIF loading: [Scrollbar resize loop fix](deploy/digitalocean/development-gif-loading-fix-20261010.md) records the reproduction, timeout recovery, regression checks and verified development rollout.
+
 October 12 Project resource types: [removal, resizable columns and action header](deploy/digitalocean/development-project-categories-20261012.md) records the new archive writer, its limits, checks and verified development rollout.
 
 October 11 Project resource rows: [one-line rows, drag ordering and collapsible lists](deploy/digitalocean/development-project-list-rows-20261011.md) records the row contract, list header changes, checks and verified development rollout.
@@ -218,6 +225,7 @@ October 10 Project resource lists: [dense line-item rows](deploy/digitalocean/de
 October 10 Priority field owners: [shared contact, user and resource priorities](deploy/digitalocean/development-priority-owners-20261010.md) records the owner architecture, verified development rollout and rollback baselines.
 
 October 10 shared pickers: [Widget-owned GIF and emoji pickers](deploy/digitalocean/development-shared-pickers-20261010.md) records Channels consumption, compact popovers, preserved Feed composer changes, and verified development rollout.
+
 October 10 Feed: [Permissions and auto-save](deploy/digitalocean/development-feed-permissions-autosave-20261010.md) records the settings redesign, verified three-app-role development rollout, and October 11 correction that the report worker is not a Feed deployment dependency.
 
 October 10 Project preview contact card: [Conditional primary label and icon actions](deploy/digitalocean/development-project-preview-contact-icons-20261010.md) records the checks and verified development rollout.

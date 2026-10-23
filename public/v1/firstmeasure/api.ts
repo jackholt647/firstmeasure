@@ -345,7 +345,7 @@ import {
 
 } from "../public-firstmeasure/billing.js";
 
-import { readBranchModule, readDocument, readGlobal, readOrganization, saveGlobal } from "../platform/storage.js";
+import { readBranchModule, readDocument, readGlobal, readMediaMetadata, readOrganization, saveGlobal } from "../platform/storage.js";
 
 import {
 
@@ -20943,7 +20943,10 @@ function firstLogoValue(...sources: Array<Record<string, unknown>>) {
 
   }
 
-  return logos.find(isAbsoluteOrDataUrl) ?? logos[0];
+  // A site-rooted URL ("/v1/platform/organizations/<org>/media/<id>/logo") beats a legacy relative
+  // key ("organizations/<org>/logo.png"): imported accounts keep the key in their branch branding,
+  // and no production host has the file it names (1M8-242).
+  return logos.find(isAbsoluteOrDataUrl) ?? logos.find((logo) => logo.startsWith("/")) ?? logos[0];
 
 }
 
@@ -21361,6 +21364,15 @@ async function resolvePortalOrganizationLogo(logo: string | null | undefined, or
 
   }
 
+  // A legacy key whose file is gone: the import moved the logo into the organization's logo media slot.
+  if (!raw.startsWith("/")) {
+
+    const slotUrl = await organizationLogoSlotUrl(orgId);
+
+    if (slotUrl) return slotUrl;
+
+  }
+
 
 
   return raw;
@@ -21382,6 +21394,23 @@ async function readJsonIfExists(filePath: string) {
     return null;
 
   }
+
+}
+
+
+
+async function organizationLogoSlotUrl(orgId: string) {
+
+  const mediaId = `organization_${orgId}_logo`;
+
+  const metadata = await readMediaMetadata(orgId, mediaId).catch(() => null);
+
+  if (!metadata) return null;
+
+  // Only logo-slot media is served by the public logo route.
+  if (String(metadata.slot || asRecord(metadata.owner).slot || "") !== "logo") return null;
+
+  return `/v1/platform/organizations/${encodeURIComponent(orgId)}/media/${encodeURIComponent(mediaId)}/logo`;
 
 }
 
