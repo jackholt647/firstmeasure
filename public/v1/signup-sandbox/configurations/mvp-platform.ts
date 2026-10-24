@@ -50,8 +50,9 @@ const ENABLED = [
   "channels.rich_messages",
   "channels.pins",
   "channels.search",
-  // Full-house exterior FirstMeasure reports.
+  // Full-house exterior FirstMeasure reports, and the 3D roof model for roof-only reports.
   "firstmeasure.exteriors",
+  "firstmeasure.roof_model_viewer",
   // Top bar: global search and notifications (no header to-do list).
   "apps.notifications",
   "platform.top_bar",
@@ -74,7 +75,7 @@ export const workflow: JsonObject = {
   description: "The FirstMeasure default signup plus the MVP platform: My Projects (with the project map), My Contacts and Feed; project Photos, Customer Portal, Materials, Documents and Reports; Agent, Notes, Activity and To Do trays. No Scheduling or calendar. Every project is a generic roof job.",
   entry_mode: "landing_first",
   // Raise when this file changes: the saved workflow is replaced with it on the next seed.
-  configuration_revision: 3,
+  configuration_revision: 4,
   sample_data: true,
   dev_bar: false,
   setup_scripts: ["mvp-platform"],

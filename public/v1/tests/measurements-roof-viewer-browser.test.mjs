@@ -18,7 +18,9 @@ test('read-only roof viewer draws saved geometry, switches modes and media, and 
     const page=await browser.newPage({viewport:{width:1200,height:720}}),errors=[],writes=[];
     page.on('pageerror',e=>errors.push(e.message));page.on('request',r=>{if(r.method()!=='GET')writes.push(r.url());});
     const solar=Buffer.from(writeArrayBuffer([[[120,130],[140,150]],[[90,100],[110,120]],[[60,70],[80,90]]],{width:2,height:2,PhotometricInterpretation:2}));
-    await page.route('http://roof.test/**',r=>r.request().url().endsWith('.tif')?r.fulfill({contentType:'image/tiff',body:solar}):r.fulfill({contentType:r.request().url().endsWith('.xml')?'application/xml':'text/html',body:r.request().url().endsWith('.xml')?xml:'<style>body{margin:0;font-family:Arial}#viewer{height:700px}</style><div id="viewer"></div>'}));
+    // The viewer covers a roof-only report with the editor's default shingles, from the editor's finishes.
+    await page.route(url=>url.host==='roof.test'&&url.pathname.startsWith('/measure/internal/'),r=>readFile(new URL('../../measure/internal/'+new URL(r.request().url()).pathname.split('/measure/internal/')[1],import.meta.url)).then(body=>r.fulfill({contentType:'text/javascript',body}),()=>r.fulfill({status:404,body:''})));
+    await page.route(url=>url.host==='roof.test'&&!url.pathname.startsWith('/measure/internal/'),r=>r.request().url().endsWith('.tif')?r.fulfill({contentType:'image/tiff',body:solar}):r.fulfill({contentType:r.request().url().endsWith('.xml')?'application/xml':'text/html',body:r.request().url().endsWith('.xml')?xml:'<style>body{margin:0;font-family:Arial}#viewer{height:700px}</style><div id="viewer"></div>'}));
     await page.goto('http://roof.test/');
     await page.addScriptTag({content:await readFile(new URL('../../libraries/apps/measurements/roof-viewer.js',import.meta.url),'utf8')});
     await page.addScriptTag({url:'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js'});
@@ -40,6 +42,11 @@ test('read-only roof viewer draws saved geometry, switches modes and media, and 
     };
     await page.getByRole('button',{name:'Reset view',exact:true}).click();
     await assertOpenings();
+    const roofLook=()=>page.evaluate(()=>{let mesh;drawnScene.traverse(o=>{if(o.isMesh&&o.userData.roofOnlyMaterial)mesh=o;});const m=mesh.material,uv=mesh.geometry.attributes.uv,v=Array.from({length:uv.count},(_,i)=>uv.getY(i));return {map:m.map?.image?.width||0,category:m.map?.userData?.roofCategory||null,normal:!!m.normalMap,vSpan:Math.max(...v)-Math.min(...v)};});
+    const shingles=await roofLook();
+    assert.equal(shingles.category,'shingles','A roof-only report takes the editor default covering');assert.equal(shingles.map,512,'The dense editor shingle map, not the old 128 px tile');assert.ok(shingles.normal);
+    // The face rises 9 ft over a 15 ft run, 17.49 ft (5.33 m) up the slope: 9.3 repeats of the 0.572 m, four-course tile.
+    assert.ok(Math.abs(shingles.vSpan-Math.hypot(15,9)/3.28084/.572)<.01,String(shingles.vSpan));
     await page.waitForFunction(()=>document.querySelector('[data-id=media-0] img'));
     await page.getByRole('button',{name:'Aerial view',exact:true}).click();assert.equal(await page.locator('.fm-roof-media').getAttribute('src').then(x=>x.startsWith('blob:')),true);
     await page.getByRole('button',{name:'3D roof model',exact:true}).click();
@@ -58,6 +65,7 @@ test('read-only roof viewer draws saved geometry, switches modes and media, and 
     const interior=await page.evaluate(()=>FirstMeasureRoofViewer.faceLabelAnchor({points:[[0,0,0],[20,0,0],[20,20,0],[0,20,0]],holes:[[[4,4,0],[16,4,0],[16,16,0],[4,16,0]]],pitch:0}));assert.ok(interior.point[0]<4||interior.point[0]>16||interior.point[1]<4||interior.point[1]>16);assert.ok(interior.clearance>1);
     await page.getByRole('button',{name:'Texture',exact:true}).click();
     assert.equal(await page.locator('[data-texture]').getAttribute('aria-pressed'),'false');
+    assert.deepEqual(await roofLook().then(r=>[r.map,r.normal]),[0,false],'Untextured drops the covering');
     await assertOpenings();
     assert.equal(await page.locator('[data-lines]').getAttribute('aria-pressed'),'true');
     assert.match(await page.locator('.fm-roof-key').innerText(),/Eave/);assert.match(await page.locator('.fm-roof-key').innerText(),/Ridge/);
