@@ -117,6 +117,58 @@ function instantFullOrgAppFlags(): JsonObject {
   return overrides;
 }
 
+// The MVP platform: the FirstMeasure signup plus expanded access to an
+// explicit set of apps. Main view: My Projects, My Contacts, Feed. Project
+// window: Photos, Customer Portal, Materials, Documents and Reports tabs with
+// the Agent, Notes, Activity and To Do trays. No Scheduling. Every other
+// platform capability is off; FirstMeasure capabilities keep their signup
+// defaults. Seeded once: edit the saved workflow, not this list, to change it.
+const MVP_PLATFORM_ENABLED = [
+  "platform.expanded_access",
+  "apps.projects",
+  "apps.project_map",
+  "platform.project_assignments",
+  "platform.project_boards",
+  "platform.project_stages_view",
+  "platform.manual_project_stage_movement",
+  "platform.contacts",
+  "platform.project_photos",
+  "photos.markup",
+  "platform.photos_feed",
+  "platform.customer_portal",
+  "platform.customer_portal_media",
+  "platform.materials",
+  "platform.pricebook",
+  "materials.ordering",
+  "platform.documents",
+  "documents.esign",
+  "documents.agent",
+  // Agent tray.
+  "apps.assistant",
+  // Notes tray: project notes run on channels; the Channels and Assistant
+  // main-view tabs are hidden by placement (see MVP_PLATFORM_WORKFLOW).
+  "apps.channels",
+  "channels.project_notes",
+  "channels.separate_project_notes",
+  "channels.threads",
+  "channels.reactions",
+  "channels.attachments",
+  "channels.rich_messages",
+  "channels.pins",
+  "channels.search"
+];
+
+function mvpPlatformAppFlags(): JsonObject {
+  const overrides: JsonObject = {};
+  for (const capability of valueCapabilities()) {
+    // Capabilities that need expanded access are the platform beyond
+    // FirstMeasure; leave FirstMeasure's own at their signup defaults.
+    if (capability.type === "boolean" && capability.requires.includes("platform.expanded_access")) overrides[capability.key] = false;
+  }
+  for (const key of MVP_PLATFORM_ENABLED) overrides[key] = true;
+  return overrides;
+}
+
 function normalizeEffectMap(value: unknown): JsonObject {
   const result: JsonObject = {};
   for (const [key, entry] of Object.entries(asObject(value))) {
@@ -1210,6 +1262,20 @@ const INSTANT_FULL_ORG_WORKFLOW: JsonObject = {
   ],
   tags: ["template", "dev", "instant"]
 };
+const MVP_PLATFORM_WORKFLOW: JsonObject = {
+  id: "swf_mvp_platform",
+  title: "MVP platform",
+  description: "The FirstMeasure default signup plus the MVP platform: My Projects (with the project map), My Contacts and Feed; project Photos, Customer Portal, Materials, Documents and Reports; Agent, Notes, Activity and To Do trays. No Scheduling or calendar.",
+  entry_mode: "landing_first",
+  stages: [
+    { id: "stg_mvp_landing", page_id: "spg_firstmate_landing", notes: "Optional marketing front door." },
+    { id: "stg_mvp_signup", page_id: "spg_firstmate_signup", notes: "Skipped by sandbox test instances." },
+    { id: "stg_mvp_branding", page_id: "spg_firstmate_branding", notes: "" },
+    { id: "stg_mvp_users", page_id: "spg_firstmate_users", notes: "Skipped on mobile in the real wizard." },
+    { id: "stg_mvp_account_load", page_id: "spg_firstmate_account_load", notes: "" }
+  ],
+  tags: ["template", "firstmate", "mvp"]
+};
 
 export async function ensureSeedData() {
   for (const page of SEED_PAGES) {
@@ -1289,6 +1355,17 @@ export async function ensureSeedData() {
         ? { ...stage, page_id: "spg_firstmate_branding", notes: "Use the shared production branding experience: website discovery, logo preview/upload, palette extraction, color editing, and live branded previews." }
         : stage)
     }, existingChannelsWorkflow));
+  }
+  if (!(await sandboxStore.readWorkflow(String(MVP_PLATFORM_WORKFLOW.id)))) {
+    await sandboxStore.saveWorkflow(normalizeWorkflow({
+      ...MVP_PLATFORM_WORKFLOW,
+      defaults: {
+        app_flags: mvpPlatformAppFlags(),
+        // Channels and the Assistant are on for the Notes and Agent trays but
+        // are not main-view apps in this configuration.
+        settings: { app_placements: { "portal.channels": "hidden", "portal.assistant": "hidden" } }
+      }
+    }));
   }
   const workflows = await sandboxStore.listWorkflows();
   const legacyBrandingReferenced = workflows.some((workflow) =>

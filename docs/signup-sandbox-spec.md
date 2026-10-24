@@ -292,6 +292,18 @@ foundation for onboarding a full-service contractor:
 The two profile pages persist their choices under `home_improvement_setup` in
 the organization global document. No selection page uses checkbox controls.
 
+The MVP platform template (`swf_mvp_platform`) runs the FirstMeasure default
+stages and turns on expanded access with an explicit app list
+(`MVP_PLATFORM_ENABLED` in `signup-sandbox/service.ts`): My Projects (with
+stages, boards and the project map), My Contacts and Feed; the project Photos,
+Customer Portal, Materials (with the pricebook it needs), Documents and Reports
+tabs; and the Agent, Notes, Activity and To Do trays. Every other capability
+that needs expanded access is off, including Scheduling, CRM, Stats and Money;
+FirstMeasure capabilities keep their signup defaults. Channels and the Assistant
+are on only for the Notes and Agent trays, so their main-view tabs are hidden
+with `app_placements`. The template is seeded once and never refreshed: change
+the configuration by editing the saved workflow's defaults in the sandbox.
+
 ## Optional sample data for full test organizations
 
 In **Test orgs**, each `swf_instant_full_org` card has **Add sample data**.
