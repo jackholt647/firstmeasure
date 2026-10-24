@@ -88,7 +88,14 @@
       kind: 'portal_tab',
       surfaces: ['portal_tab'],
       portalTabId: 'viewer',
-      bundles: [versionedBundle('partners/shared-list.js','20261001-sharing-polish-v1'), versionedBundle('projects/map-view.js', '20261024-map-camera-v2'), versionedBundle('projects/viewer.js', '20261024-board-default-v2')]
+      // Views a person can pin to the left column on their own (left-column-pins.js).
+      subviews: [
+        { id: 'stages', label: (globalThis.PlatformLanguage?.text("firstmate-apps-manifest","subview_projects_stages","Stages") ?? "Stages"), icon: 'fa-table-columns', route: { projectView: 'stages' }, requires: { appFlags: [['platform', 'project_boards'], ['platform', 'project_stages_view']] } },
+        { id: 'list', label: (globalThis.PlatformLanguage?.text("firstmate-apps-manifest","subview_projects_list","List") ?? "List"), icon: 'fa-list', route: { projectView: 'list' } },
+        { id: 'tiles', label: (globalThis.PlatformLanguage?.text("firstmate-apps-manifest","subview_projects_tiles","Tiles") ?? "Tiles"), icon: 'fa-grip', route: { projectView: 'tiles' } },
+        { id: 'map', label: (globalThis.PlatformLanguage?.text("firstmate-apps-manifest","subview_projects_map","Map") ?? "Map"), icon: 'fa-map-location-dot', route: { projectView: 'map' }, requires: { appFlags: [['apps', 'project_map']] } }
+      ],
+      bundles: [versionedBundle('partners/shared-list.js','20261001-sharing-polish-v1'), versionedBundle('projects/map-view.js', '20261024-map-camera-v2'), versionedBundle('projects/viewer.js', '20261024-pinnable-views-v1')]
     },
     {
       id: 'portal.crm',

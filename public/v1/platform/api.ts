@@ -206,6 +206,13 @@ import { companyLocalization, localeSchema, localizationSchema } from "./localiz
 import { resolveContext } from "./localization/core.js";
 
 const objectBodySchema = z.object({}).passthrough();
+// Personal left-column pins of app subviews, "<app id>:<subview id>" (docs/architecture/app-experience.md).
+const LEFT_COLUMN_PIN_PATTERN = /^[a-z0-9][a-z0-9._-]{1,119}:[a-z0-9][a-z0-9_-]{0,63}$/;
+const LEFT_COLUMN_PIN_LIMIT = 48;
+function leftColumnPins(value: unknown): string[] {
+  const pins = Array.isArray(value) ? value.map((pin) => String(pin ?? "").trim().toLowerCase()).filter((pin) => LEFT_COLUMN_PIN_PATTERN.test(pin)) : [];
+  return [...new Set(pins)].slice(0, LEFT_COLUMN_PIN_LIMIT);
+}
 const userPreferencesSchema = z.object({
   interface_locale: localeSchema.nullable().optional(),
   language: z.union([z.enum(TRANSLATION_CODES), z.literal("en")]).nullable().optional(),
@@ -221,6 +228,7 @@ const userPreferencesSchema = z.object({
   left_column_expansion_mode: z.enum(["resize", "overlap"]).optional(),
   always_collapsible_left_column: z.boolean().optional(),
   left_column_auto_collapse: z.object({ apps: z.boolean().optional(), todo: z.boolean().optional(), channels: z.boolean().optional(), agents: z.boolean().optional() }).optional(),
+  left_column_pins: z.array(z.string().trim().toLowerCase().regex(LEFT_COLUMN_PIN_PATTERN)).max(LEFT_COLUMN_PIN_LIMIT).optional(),
   resizable_left_column: z.boolean().optional()
 }).strict();
 const pricebookGenerationSchema = z.object({
@@ -959,6 +967,7 @@ app.get("/auth/google/config", async () => ({
         left_column_expansion_mode: preferences.left_column_expansion_mode === "overlap" ? "overlap" : "resize",
         always_collapsible_left_column: preferences.always_collapsible_left_column === true,
         left_column_auto_collapse: asObject(preferences.left_column_auto_collapse),
+        left_column_pins: leftColumnPins(preferences.left_column_pins),
         resizable_left_column: preferences.resizable_left_column !== false
       }
     };
@@ -985,6 +994,7 @@ app.get("/auth/google/config", async () => ({
       left_column_expansion_mode: patch.left_column_expansion_mode ?? (current.left_column_expansion_mode === "overlap" ? "overlap" : "resize"),
       always_collapsible_left_column: patch.always_collapsible_left_column ?? (current.always_collapsible_left_column === true),
       left_column_auto_collapse: { ...asObject(current.left_column_auto_collapse), ...patch.left_column_auto_collapse },
+      left_column_pins: leftColumnPins(patch.left_column_pins ?? current.left_column_pins),
       resizable_left_column: patch.resizable_left_column ?? (current.resizable_left_column !== false)
     };
     await patchIdentity(ctx.identityId, { preferences });

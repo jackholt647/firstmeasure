@@ -324,6 +324,22 @@ test("left-column choices are saved as personal preferences without operator acc
 
 });
 
+test("left-column subview pins are personal preferences that survive a reload", async () => {
+  const client = createSessionClient();
+  await register(client);
+  assert.deepEqual((await client.request("GET", "/v1/platform/me/preferences")).preferences.left_column_pins, []);
+  const saved = await client.request("PATCH", "/v1/platform/me/preferences", { left_column_pins: ["portal.viewer:map", "Portal.Viewer:list", "portal.viewer:map"] });
+  assert.deepEqual(saved.preferences.left_column_pins, ["portal.viewer:map", "portal.viewer:list"]);
+  await client.request("PATCH", "/v1/platform/me/preferences", { left_column_behavior: "tooltip" });
+  assert.deepEqual((await client.request("GET", "/v1/platform/me/preferences")).preferences.left_column_pins, ["portal.viewer:map", "portal.viewer:list"], "other preference writes keep pins");
+  assert.equal((await client.raw("PATCH", "/v1/platform/me/preferences", { left_column_pins: ["not a pin"] })).statusCode, 400);
+  await client.request("PATCH", "/v1/platform/me/preferences", { left_column_pins: [] });
+  assert.deepEqual((await client.request("GET", "/v1/platform/me/preferences")).preferences.left_column_pins, []);
+  const other = createSessionClient();
+  await register(other);
+  assert.deepEqual((await other.request("GET", "/v1/platform/me/preferences")).preferences.left_column_pins, []);
+});
+
 test("built-in presets exist and applying proposals_only reshapes the org", async () => {
   const client = createSessionClient();
   const { orgId } = await register(client, { canvassing: { app: true }, platform: { scheduling: true } });

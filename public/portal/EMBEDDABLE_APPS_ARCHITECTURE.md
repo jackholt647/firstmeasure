@@ -81,6 +81,13 @@ window.FirstMateEmbeddableApps.registerApp({
 
 Do not add a second tab registry. Do not add new app bodies to `public/portal/scripts`.
 
+A portal app may declare views a person can pin to the left column on their
+own as `subviews` on its manifest entry (`{ id, label, icon, route, requires }`;
+My Projects declares stages, list, tiles and map). Mark the app's own view
+buttons with `data-app-subview="<app id>:<subview id>"` so they can be dragged
+onto the left column. See "Left-column pins" in
+`docs/architecture/app-experience.md`.
+
 ## Hosts
 
 `public/portal/scripts/core.js` is the portal shell host. It discovers `portal_tab` apps from the runtime and renders sidebar links/panels. It does not own app content.

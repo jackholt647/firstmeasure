@@ -89,6 +89,31 @@ apps the person has on this device. Contact window tabs follow
 Manifest entries and app bundles do not declare their own visibility. They
 carry no application, device or permission rule for whether they appear.
 
+## Left-column pins
+
+Whether a whole app sits in the left column is the organization's placement
+(`app_placements`, set from the apps overlay's pin by someone who may change
+it). An app may also declare views a person can pin on their own as
+`subviews` on its manifest entry: `{ id, label, icon, route, requires }`,
+where `route` holds the app's route params (My Projects:
+`{ projectView: 'map' }`) and `requires.appFlags` lists the app flags the view
+needs. A pinned subview is a personal preference, `left_column_pins` on
+`/me/preferences`, stored as `"<app id>:<subview id>"`, so it survives reloads
+and follows the person to their phone. It shows only while the person has the
+app and its flags are on, and opens the app with its route.
+
+`public/libraries/left-column-pins/left-column-pins.js` owns this: the
+subview list, the personal pins, the subview links in the left column, the
+roll-out of an app's subviews in the apps overlay (hover or focus; a disclosure
+button on touch) and dragging. With the advanced app menu on, dragging an
+overlay tile, a subview row, or any button marked `data-app-subview="<app
+id>:<subview id>"` onto the left column pins it: an app through the same
+placement write as its pin, a subview as a personal pin. Every drag has a pin
+button that does the same thing from the keyboard. While the apps overlay is
+open, a collapsed column that stays collapsed widens slightly so each pin sits
+beside its icon. Never special-case an app in the launcher: declare subviews
+on the manifest entry.
+
 ## The server
 
 `requirePlatformAuth({ app: [...] })` refuses with `app_access_denied` unless
