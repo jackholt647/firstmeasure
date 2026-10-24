@@ -5,7 +5,8 @@
   if (root.FirstMateProjectTrays) return;
   const clean = value => String(value ?? '').trim();
   const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-  const activityScriptUrl=new URL('activity-presenter.js?v=20261012-notes-separation-v1',document.currentScript?.src || location.href).href;
+  // Resolved against this script; an inline copy on an opaque page (about:blank) falls back to a relative path.
+  const activityScriptUrl=(()=>{const path='activity-presenter.js?v=20261012-notes-separation-v1';try{return new URL(path,document.currentScript?.src || location.href).href;}catch(_){return path;}})();
   let activityPromise;
   function activityPresenter(){
     if(root.FirstMateActivity)return Promise.resolve(root.FirstMateActivity);
@@ -15,6 +16,8 @@
       script.onerror=()=>{activityPromise=null;script.remove();reject(Error('Activity descriptions could not be loaded.'));};document.head.append(script);
     });
   }
+  // Trays that open on a draft project. Messages needs a stored project channel.
+  const draftTrays = new Set(['todo','activity','agent']);
   const registry = new Map([
     ['notes',{id:'notes',label:'Notes',icon:'fa-note-sticky',capability:'channels.project_notes'}],
     ['todo',{id:'todo',label:'To Do',icon:'fa-list-check'}],
@@ -68,22 +71,26 @@
     const definition=definitions().find(item=>item.id===key);
     if (!definition) throw Error('This project widget is unavailable.');
     if (root.__APP?.userOrgId && oid!==root.__APP.userOrgId) throw Error('This project belongs to another organization.');
-    if (!pid && key!=='notes') throw Error('Select or create a project to use '+definition.label.toLowerCase()+'.');
+    // A new project that is not saved yet (a draft) opens every built-in tray; the
+    // tray saves it through options.ensureProject only when the person acts.
+    const draft=!pid && typeof options.ensureProject==='function' && draftTrays.has(key);
+    if (!pid && key!=='notes' && !draft) throw Error('Select or create a project to use '+definition.label.toLowerCase()+'.');
     node.style.cssText='height:100%;min-height:0;min-width:0;display:flex;flex-direction:column;overflow:hidden';
     const getProject=options.getProject || (()=>({id:pid}));
     if (key==='notes') return root.Portal.ProjectNotes.mount(node,{project:getProject(),getProject,ensureProject:options.ensureProject});
     if (key==='todo') {
       if (!root.PlatformActionItems?.renderTodayList) throw Error('Project to-dos are not available.');
       const project=getProject();node.style.padding='12px';
-      return root.PlatformActionItems.renderTodayList(node,{orgId:oid,projectId:pid,
+      const controller=root.PlatformActionItems.renderTodayList(node,{orgId:oid,projectId:pid,ensureProject:draft?options.ensureProject:undefined,
         branchId:root.Portal?.branchModules?.currentBranchId?.() || root.__APP?.userBranchId || 'default',
         userId:clean(root.__APP?.userId || root.__APP?.user_id),
         projectTitle:clean(project.title || project.customer_name || project.address || 'Project'),
         projectAddress:clean(project.address || project.project_address),completedOpen:false,futureOpen:false,
         dockDeferredSections:true,scrollItemsOnly:true,showProjectContext:false,showUpcoming:true,showFuture:true,
         query:{includeFuture:true,includeAll:true}});
+      return {...controller,adoptProject:(id,project)=>controller.adoptProject?.({...(project||{}),id,platform_project_id:id})};
     }
-    if (key==='agent') return root.PlatformAssistant.mountProject(node,{orgId:oid,projectId:pid,...options.agentOptions});
+    if (key==='agent') return root.PlatformAssistant.mountProject(node,{orgId:oid,projectId:pid,...options.agentOptions,...(draft?{ensureProject:options.ensureProject}:{})});
     if (key==='activity') return mountActivity(node,oid,pid,getProject);
     if (key==='messages') {
       const data=await root.ChannelsAPI.channels.ensureProject(oid,pid);
@@ -92,7 +99,9 @@
     return definition.mount?.(node,{getProject,projectId:pid,orgId:oid});
   }
   function mountActivity(node,oid,pid,getProject=()=>({id:pid})) {
-    let events=[],before='',loading=false,dead=false,visible=true,loaded=false,lastMarkup='',updateTimer=0,refreshQueued=false;
+    // A draft project has no activity yet: show the empty timeline until it is saved.
+    let loaded=!pid;
+    let events=[],before='',loading=false,dead=false,visible=true,lastMarkup='',updateTimer=0,refreshQueued=false;
     let presenter,activityContext;
     const selectedTypes=new Set();
     const expandedNotes=new Set(),notePrefix='fm-activity-note-'+Math.random().toString(36).slice(2)+'-';
@@ -118,7 +127,7 @@
       .fm-project-activity p{margin:0;line-height:1.55;overflow-wrap:anywhere;font-size:11px}.fm-activity-meta{display:flex;gap:5px;flex-wrap:wrap;align-items:center;margin-top:4px;font-size:10px;color:#98a2b3}.fm-activity-meta time{font-size:10px;color:#667085}
       .fm-project-activity p strong{font-weight:700}.fm-activity-actor{font:inherit;color:inherit;border:0;background:none;padding:0;text-align:left;cursor:pointer}.fm-activity-actor:hover,.fm-activity-actor:focus-visible{color:var(--primary,#175cd3);text-decoration:underline}
       .fm-project-activity .fm-activity-note{margin-top:4px;font-weight:400;white-space:pre-wrap}.fm-activity-note-more{display:inline;color:var(--primary,#175cd3);font:inherit;font-size:10px;text-decoration:underline;cursor:pointer}.fm-activity-note-more:focus-visible{outline:2px solid var(--primary,#175cd3);outline-offset:2px}
-      .fm-activity-empty{text-align:center;padding:38px 14px;color:#667085;line-height:1.6}.fm-activity-empty i{display:block;font-size:20px;color:#98a2b3;margin-bottom:12px}.fm-activity-empty strong{display:block;font-size:12px;color:#344054;margin-bottom:4px}
+      .fm-activity-empty{text-align:center;padding:38px 14px;color:#667085;line-height:1.6;animation:fm-activity-in .24s ease-out}@keyframes fm-activity-in{from{opacity:0;transform:translateY(4px)}}@media(prefers-reduced-motion:reduce){.fm-activity-empty{animation:none}}.fm-activity-empty i{display:block;font-size:20px;color:#98a2b3;margin-bottom:12px}.fm-activity-empty strong{display:block;font-size:12px;color:#344054;margin-bottom:4px}
       .fm-activity-error{flex:none;margin:8px 12px 0;border-radius:6px;padding:8px;color:#b42318;background:#fff4f2;line-height:1.5}.fm-activity-error[hidden]{display:none}
       .fm-activity-more{width:100%;font:inherit;font-size:11px;color:#475467;border:1px solid #e4e7ec;background:#fff;padding:8px;border-radius:6px;margin-top:10px;cursor:pointer}.fm-activity-widget button:disabled{opacity:.45;cursor:wait}
     `;
@@ -215,7 +224,7 @@
       log.scrollTop=top;
     }
     async function refresh(older=false){
-      if(dead)return;if(loading){if(!older)refreshQueued=true;return;}loading=true;log.setAttribute('aria-busy','true');failure.hidden=true;
+      if(dead||!pid)return;if(loading){if(!older)refreshQueued=true;return;}loading=true;log.setAttribute('aria-busy','true');failure.hidden=true;
       shell.querySelector('.fm-activity-more')?.setAttribute('disabled','');
       try{
         presenter=await activityPresenter();activityContext ||= presenter.context();
@@ -239,15 +248,19 @@
       render();Array.from(log.querySelectorAll('a[data-activity-note]')).find(a=>a.dataset.activityNote===key)?.focus({preventScroll:true});
     });
     function scheduleUpdate(){if(!visible||dead)return;clearTimeout(updateTimer);updateTimer=setTimeout(()=>{if(!dead&&visible)void refresh();},250);}
-    const onChange=event=>{if(!event?.detail?.projectId||event.detail.projectId===pid)scheduleUpdate();};
+    const onChange=event=>{if(pid&&(!event?.detail?.projectId||event.detail.projectId===pid))scheduleUpdate();};
     root.addEventListener('fm:project-notes:refreshed',onChange);root.addEventListener('fm:projects:refresh',onChange);
     const stopRealtime=root.PlatformRealtime?.subscribe?.(oid,'',event=>{
       const payload=event.payload||{},project=payload.project_id||payload.projectId||payload.context?.project_id;
-      if((!project||project===pid)&&/^(work|channels|documents|payments|materials|communication|messaging|platform\.(project|media|activity))\./.test(event.topic||''))scheduleUpdate();
+      if(pid&&(!project||project===pid)&&/^(work|channels|documents|payments|materials|communication|messaging|platform\.(project|media|activity))\./.test(event.topic||''))scheduleUpdate();
     },{onResync:scheduleUpdate});
     const poll=setInterval(()=>{if(visible)void refresh();},30000);
     render();void refresh();
-    return {refresh,setVisible(value){const changed=visible!==!!value;visible=!!value;if(!visible)closeFilter();else if(changed)scheduleUpdate();},destroy(){dead=true;stopRealtime?.();clearTimeout(updateTimer);menuResize.disconnect();ownerDocument.removeEventListener('pointerdown',outside,true);clearInterval(poll);root.removeEventListener('fm:project-notes:refreshed',onChange);root.removeEventListener('fm:projects:refresh',onChange);style.remove();shell.remove();}};
+    function adoptProject(id){
+      const next=clean(id);if(dead||pid||!next)return;
+      pid=next;loaded=false;render();void refresh();
+    }
+    return {refresh,adoptProject,setVisible(value){const changed=visible!==!!value;visible=!!value;if(!visible)closeFilter();else if(changed)scheduleUpdate();},destroy(){dead=true;stopRealtime?.();clearTimeout(updateTimer);menuResize.disconnect();ownerDocument.removeEventListener('pointerdown',outside,true);clearInterval(poll);root.removeEventListener('fm:project-notes:refreshed',onChange);root.removeEventListener('fm:projects:refresh',onChange);style.remove();shell.remove();}};
   }
 
   function mount(shell, options = {}) {
@@ -268,6 +281,9 @@
     let projectId = '', selected = '', disposed = false, activityTimer = 0, interactionVersion = 0;
     const oid = clean(options.orgId || root.__APP?.userOrgId);
     const getProject = () => options.getProject?.() || options.project || {};
+    // Saving a draft from any tray switches every open tray to the new project.
+    let draftSave = null;
+    const ensureProject = typeof options.ensureProject === 'function' ? () => (draftSave ||= Promise.resolve().then(() => options.ensureProject()).then(project => {if (!disposed) update(); return project;}).finally(() => {draftSave = null;})) : undefined;
     const available = () => definitions().map(item=>item.id);
     function close() {selected = ''; handles.forEach(handle=>handle.setVisible?.(false)); panels.forEach(node=>node.hidden=true); renderTabs(); syncAgentPin();}
     function renderTabs() {
@@ -288,11 +304,11 @@
       handles.forEach((handle,name)=>handle.setVisible?.(name===key));
       const node = panel(key); panels.forEach((value,name) => value.hidden = name !== key); renderTabs(); syncAgentPin();
       if (handles.has(key)) {if (key === 'activity') handles.get(key).refresh?.(); if (key === 'todo') handles.get(key).load?.({quiet:true})?.catch(()=>null); return;}
-      if (!projectId && key !== 'notes') {node.textContent='Select or create a project to use '+registry.get(key).label.toLowerCase()+'.';return;}
+      if (!projectId && key !== 'notes' && !(ensureProject && draftTrays.has(key))) {node.textContent='Select or create a project to use '+registry.get(key).label.toLowerCase()+'.';return;}
       const mountingProject = projectId;
       try {
         const pending = {}; handles.set(key,pending);
-        const handle = await mountWidget(node,key,{orgId:oid,projectId:mountingProject,getProject,ensureProject:options.ensureProject,
+        const handle = await mountWidget(node,key,{orgId:oid,projectId:mountingProject,getProject,ensureProject,
           agentOptions:{orgId:oid, projectId, onClose:close, openTray:key=>selected===key?Promise.resolve():open(key), onPin:()=>{if(selected==='agent'){manualPin=!manualPin;syncAgentPin();}else void open('agent');}, onState:state=>{agentState=state;queueMicrotask(syncAgentPin);}, getContext:()=>({surface:'project',projectId,trays:available(),tab:options.getActiveTab?.() || '',tray:selected || '',minimized:options.isMinimized?.() || false})}});
         if (disposed || mountingProject !== projectId || handles.get(key)!==pending) {handle.destroy?.();return;}
         handles.set(key,handle); handle.setVisible?.(selected===key);
@@ -335,12 +351,19 @@
       if (next !== projectId) {
         const adoptingDraft = !projectId && !!next;
         const previousSelection = selected;
-        handles.forEach((handle,key) => {if (!adoptingDraft || key !== 'notes') {handle.destroy?.();handles.delete(key);}});
-        panels.forEach((node,key) => {if (!adoptingDraft || key !== 'notes') {node.remove();panels.delete(key);}});
-        projectId = next;agentState={voice:false,pending:false};manualPin=false;
+        // A saved draft keeps every tray that can adopt the project (what the
+        // person typed stays put); others are mounted again for the project.
+        const keeps = (handle,key) => adoptingDraft && (key === 'notes' || typeof handle?.adoptProject === 'function');
+        const kept = new Set([...handles].filter(([key,handle]) => keeps(handle,key)).map(([key]) => key));
+        handles.forEach((handle,key) => {if (!kept.has(key)) {handle.destroy?.();handles.delete(key);}});
+        panels.forEach((node,key) => {if (!kept.has(key)) {node.remove();panels.delete(key);}});
+        projectId = next;
+        if (!kept.has('agent')) {agentState={voice:false,pending:false};manualPin=false;}
         if (adoptingDraft) {
           handles.get('notes')?.refresh?.();
-          if (previousSelection && previousSelection !== 'notes') {selected='';void open(previousSelection);}
+          kept.forEach(key => {if (key !== 'notes') handles.get(key).adoptProject(next,getProject());});
+          if (previousSelection && !kept.has(previousSelection)) {selected='';void open(previousSelection);}
+          else syncAgentPin();
         } else close();
       }
       renderTabs();

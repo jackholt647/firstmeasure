@@ -20,7 +20,8 @@ test('new project Notes opens without reads or writes, preserves draft while acq
   assert.deepEqual(await page.evaluate(()=>[window.reads,window.saves]),[0,0]);
   await page.getByRole('textbox',{name:'New project note'}).fill('Draft stays');
   await page.getByRole('tab',{name:'Activity',exact:true}).click();
-  assert.match(await page.locator('.fm-project-tray-panel:visible').textContent(),/Select or create a project/);
+  assert.match(await page.locator('.fm-project-tray-panel:visible').textContent(),/No activity yet/);
+  assert.deepEqual(await page.evaluate(()=>[window.reads,window.saves]),[0,0]);
   await page.getByRole('tab',{name:'Notes',exact:true}).click();
   assert.equal(await page.getByRole('textbox',{name:'New project note'}).inputValue(),'Draft stays');
   await page.getByRole('button',{name:'Add note',exact:true}).click();

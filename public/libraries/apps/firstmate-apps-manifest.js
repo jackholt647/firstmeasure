@@ -38,13 +38,13 @@
     versionedBundle('../window-manager/window-shell.js', '20261008-tray-shell-v1'),
     versionedBundle('../agent-chat/agent-chat.js', '20261002-widget-controls'),
     versionedBundle('../assistant-api/assistant-api.js', '20261002-agent-persistence-v1'),
-    versionedBundle('../platform-assistant/platform-assistant.js', '20261008-tray-shell-v1'),
+    versionedBundle('../platform-assistant/platform-assistant.js', '20261024-draft-project-trays'),
     versionedBundle('photos/feed.js', '20261024-cover-photo'),
     versionedBundle('../markup/firstmate-markup.js', '20261012-photo-comments-v1'),
     versionedBundle('../channels-ui/channels-ui.js', '20261012-shared-polish-v1'),
     versionedBundle('../project-notes/project-notes.js', '20261024-new-project-render-v1'),
     versionedBundle('../project-trays/activity-presenter.js', '20261012-notes-separation-v1'),
-    versionedBundle('../project-trays/project-trays.js', '20261024-messages-tray-v1')
+    versionedBundle('../project-trays/project-trays.js', '20261024-draft-project-trays')
   ];
   const fieldApprovalBundles = [
     versionedBundle('../crew-api/crew-api.js', '20261019-forward-cert'),
@@ -535,7 +535,7 @@
         versionedBundle('../window-manager/window-manager.js', '20261006-firstmeasure-localization-v1'),
         versionedBundle('../window-manager/window-shell.js', '20261008-tray-shell-v1'),
         versionedBundle('../assistant-api/assistant-api.js', '20261002-agent-persistence-v1'),
-        ...widgetBundles, bookingBundle, priorityFieldsBundle, versionedBundle('../platform-assistant/platform-assistant.js', '20261008-tray-shell-v1'),
+        ...widgetBundles, bookingBundle, priorityFieldsBundle, versionedBundle('../platform-assistant/platform-assistant.js', '20261024-draft-project-trays'),
         versionedBundle('photos/feed.js', '20261024-cover-photo'),
     versionedBundle('../markup/firstmate-markup.js', '20261012-photo-comments-v1'),
     versionedBundle('../channels-ui/channels-ui.js', '20261012-shared-polish-v1'),
@@ -557,7 +557,7 @@
       order: 45,
       placement: 'more',
       fullBleed: true,
-      bundles: [...widgetBundles, bookingBundle, priorityFieldsBundle, bundle('../assistant-api/assistant-api.js'), bundle('../window-manager/window-manager.js'), versionedBundle('../window-manager/window-shell.js', '20261008-tray-shell-v1'), versionedBundle('../platform-assistant/platform-assistant.js', '20261008-tray-shell-v1')]
+      bundles: [...widgetBundles, bookingBundle, priorityFieldsBundle, bundle('../assistant-api/assistant-api.js'), bundle('../window-manager/window-manager.js'), versionedBundle('../window-manager/window-shell.js', '20261008-tray-shell-v1'), versionedBundle('../platform-assistant/platform-assistant.js', '20261024-draft-project-trays')]
     },
     {
       id: 'portal.canvassing',

@@ -31,6 +31,11 @@
   function createAssistant(surface = {}) {
   let embedded = Boolean(surface.container);
   let projectId = String(surface.projectId || '').trim();
+  // A new, not-yet-saved project: the surface looks and behaves like a project
+  // conversation, and the project is saved (surface.ensureProject) only when the
+  // person sends something.
+  let draftProject = !projectId && typeof surface.ensureProject === 'function';
+  const projectSurface = () => !!projectId || draftProject;
   let document = surface.container?.ownerDocument || window.document;
   let promoted = false, transferring = false;
   let transferBarrier=Promise.resolve(), releaseTransfer=null;
@@ -739,7 +744,7 @@
     };
 
     attachSurfaceWindow(host);
-    if (projectId) { q('new').style.display = 'none'; els.searchInput.closest('.fma-nav-search').style.display = 'none'; }
+    if (projectSurface()) { q('new').style.display = 'none'; els.searchInput.closest('.fma-nav-search').style.display = 'none'; }
     q('new').addEventListener('click', () => {
       if (sidebarExternal()) openFull();
       startNewThread();
@@ -1096,7 +1101,7 @@
 
   function welcomeHtml(){
     const main = state.threadId && state.threadId === clean(state.mainThread?.id);
-    const suggestions = surface.suggestions || (projectId ? ['What needs attention in this project?', 'Review this project’s scope, progress and blockers.', 'Summarize recent project activity and suggest next steps.'] : main ? [
+    const suggestions = surface.suggestions || (projectSurface() ? ['What needs attention in this project?', 'Review this project’s scope, progress and blockers.', 'Summarize recent project activity and suggest next steps.'] : main ? [
       'Set up payments',
       'What happened in the business this week?',
       'Every morning at 11, tell me how yesterday went',
@@ -1113,7 +1118,7 @@
       <div class="fma-welcome fma-anim">
         <span class="fma-logo"></span>
         <div class="hi">${String(esc(state.assistantName))}</div>
-        <div class="hint">${surface.welcome ? esc(surface.welcome) : projectId ? 'Your private assistant for this project. Ask about its scope, progress, activity or next steps.' : main ? 'This is your main thread. Ask anything, or ask me to keep an eye on something for you. Scheduled updates from your agents arrive here.' : (globalThis.PlatformLanguage?.htmlText("platform-assistant","m_8247ee406cbbd6","Ask about projects, customers, schedules, stats, or tell me to create to-dos, book events, and more.") ?? "Ask about projects, customers, schedules, stats, or tell me to create to-dos, book events, and more.")}</div>
+        <div class="hint">${surface.welcome ? esc(surface.welcome) : projectSurface() ? 'Your private assistant for this project. Ask about its scope, progress, activity or next steps.' : main ? 'This is your main thread. Ask anything, or ask me to keep an eye on something for you. Scheduled updates from your agents arrive here.' : (globalThis.PlatformLanguage?.htmlText("platform-assistant","m_8247ee406cbbd6","Ask about projects, customers, schedules, stats, or tell me to create to-dos, book events, and more.") ?? "Ask about projects, customers, schedules, stats, or tell me to create to-dos, book events, and more.")}</div>
         <div class="fma-suggests">${String(suggestions.map((entry) => `<button type="button" class="fma-suggest">${esc(entry)}</button>`).join(''))}</div>
       </div>
     `;
@@ -1310,7 +1315,7 @@
   function renderHistory(){
     if (!els || disposed) return;
     const query = state.historyQuery;
-    if (projectId) { els.historyList.innerHTML = state.mainThread ? navItemHtml({nav:'thread',id:state.mainThread.id,name:'Project conversation',meta:'Private to you',icon:'<span class="fma-logo"></span>',current:true}) : ''; return; }
+    if (projectSurface()) { els.historyList.innerHTML = state.mainThread ? navItemHtml({nav:'thread',id:state.mainThread.id,name:'Project conversation',meta:'Private to you',icon:'<span class="fma-logo"></span>',current:true}) : ''; return; }
     const matchingIds = new Set(state.historyMatches.map((match) => clean(match.thread_id)));
     const main = state.mainThread;
     const mainId = clean(main?.id);
@@ -1836,7 +1841,7 @@
     const input = els.input;
     const style = getComputedStyle(input);
     const candidates = state.view === 'agent' ? ['Tell this agent what to change…', 'Change this agent…', 'Ask…']
-      : projectId ? ['Ask about this project…', 'Ask anything…', 'Ask…']
+      : projectSurface() ? ['Ask about this project…', 'Ask anything…', 'Ask…']
       : [(globalThis.PlatformLanguage?.text("platform-assistant","m_2f18b7bd77b80f","Ask about anything in your workspace...") ?? "Ask about anything in your workspace..."), 'Ask anything…', 'Ask…'];
     const measure = document.createElement('canvas').getContext('2d');
     measure.font = style.font;
@@ -2012,6 +2017,8 @@
 
   async function loadContext(){
     if (surface.loadContext) return surface.loadContext();
+    // Nothing is stored for a draft project yet, so there is nothing to read.
+    if (draftProject && !projectId) return {main_thread:null, threads:[], agents:[], dashboard:[]};
     if (!projectId) return window.AssistantAPI.context(orgId());
     const result = await window.AssistantAPI.projectConversation(orgId(), projectId);
     if (!clean(result.thread?.id)) throw new Error('The project conversation could not be loaded.');
@@ -2041,7 +2048,7 @@
         syncLayout();
         const target = clean(state.mainThread?.id) || clean(state.threads[0]?.id);
         if (target && !state.threadId && state.view !== 'agent') await openThread(target);
-        else renderMessages();
+        else { state.booting = false; renderMessages(); }
         if (disposed) return;
         state.booted = true;
         scheduleRefresh();
@@ -2138,7 +2145,7 @@
   }
 
   async function openAgent(agentId){
-    if (projectId) return window.PlatformAssistant.openAgent(agentId);
+    if (projectSurface()) return window.PlatformAssistant.openAgent(agentId);
     stopVoice();
     if (!clean(agentId) || state.pending) return;
     state.agentId = clean(agentId);
@@ -2206,6 +2213,7 @@
 
   async function ensureThread(){
     if (state.threadId) return state.threadId;
+    if (draftProject && !projectId) await saveDraftProject();
     if (projectId) {
       const context = await loadContext();
       if (disposed) throw new Error('Project conversation closed.');
@@ -2526,7 +2534,34 @@
     els?.tooltip?.remove(); assistantWindow?.destroy();
   }
 
+  // Saves the draft project the first time the person sends something.
+  let draftSave = null;
+  function saveDraftProject(){
+    const failed = (error) => {
+      // Nothing reached the agent: report the save failure, not a lost connection.
+      const failure = new Error(clean(error?.message) || (globalThis.PlatformLanguage?.text('platform-assistant', 'draft_project_save_failed', 'The project could not be saved. Try again.') ?? 'The project could not be saved. Try again.'));
+      failure.status = 400;
+      throw failure;
+    };
+    draftSave ||= Promise.resolve().then(() => surface.ensureProject()).then((project) => {
+      const id = clean(typeof project === 'string' ? project : project?.platform_project_id || project?.id);
+      if (!id) throw new Error('');
+      adoptProject(id);
+      return id;
+    }).catch(failed).finally(() => { draftSave = null; });
+    return draftSave;
+  }
+
+  /** Switches a draft project surface to the project once it is saved. */
+  function adoptProject(id){
+    const next = clean(id);
+    if (!next || projectId || promoted || disposed) return;
+    projectId = next; draftProject = false;
+    if (state.booted && !state.pending) void refresh();
+  }
+
   const instanceApi = {
+    adoptProject,
     setDraft(text){if(els?.input){els.input.value=String(text);updateComposer();els.input.focus({preventScroll:embedded});}},
     transferToGlobal, isTransferred:()=>promoted, endVoice:()=>stopVoice(), hasVoice:()=>!!voiceCall, setWorkspaceContext,
     setCompact(value){els?.drawer.classList.toggle('fma-pinned',value);const button=els?.drawer.querySelector('[data-fma=pinSurface]');if(button){button.setAttribute('aria-label',value?'Expand assistant':'Pin assistant');button.title=value?'Expand assistant':'Pin assistant';button.innerHTML='<i class="fas '+(value?'fa-up-right-and-down-left-from-center':'fa-thumbtack')+'"></i>';}},
@@ -2553,7 +2588,7 @@
   const globalAssistant = createAssistant();
   let adoptedAssistant=null;
   const publicApi={...globalAssistant,adopt(instance){globalAssistant.close();if(adoptedAssistant && adoptedAssistant!==instance){adoptedAssistant.close();adoptedAssistant.destroy();}adoptedAssistant=instance;},mountProject(container, options = {}) {
-    if (!container || !String(options.projectId || '').trim()) throw new Error('A project is required.');
+    if (!container || (!String(options.projectId || '').trim() && typeof options.ensureProject !== 'function')) throw new Error('A project is required.');
     // The outer portal owns the live connection, so removing the project iframe cannot end a transferred call.
     try { if (window.parent!==window && window.parent.PlatformAssistant?.mountProject) return window.parent.PlatformAssistant.mountProject(container,options); } catch (_) {}
     const instance = createAssistant({...options, container});

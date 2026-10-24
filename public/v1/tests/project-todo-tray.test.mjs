@@ -8,7 +8,7 @@ test('To Do tray uses shared list, scopes reads to project, refreshes and switch
   const page=await browser.newPage();await page.setContent('<div id="shell"><header class="r-modal-header"></header><main class="r-preview" style="height:600px"></main></div>');
   await page.evaluate(()=>{
    window.__APP={userOrgId:'org',userId:'user'};window.project={};window.reads=[];
-   window.Portal={can:key=>key!=='channels.separate_project_notes'};
+   window.Portal={can:key=>!['channels.separate_project_notes','channels.project_messages_tray'].includes(key)};
    window.PlatformAPI={actionItems:{list:async(org,query)=>{reads.push({org,query});return {items:[],action_items:[]};}},work:{configuration:async()=>({})}};
   });
   for(const f of ['platform-action-items/platform-action-items.js','project-trays/project-trays.js'])await page.addScriptTag({content:await readFile(new URL('../../libraries/'+f,import.meta.url),'utf8')});
@@ -16,6 +16,7 @@ test('To Do tray uses shared list, scopes reads to project, refreshes and switch
   assert.deepEqual(await page.getByRole('tab').allTextContents(),['','','','']);
   assert.deepEqual(await page.getByRole('tab').evaluateAll(es=>es.map(e=>e.getAttribute('aria-label'))),['Notes','To Do','Activity','Agent']);
   await page.getByRole('tab',{name:'To Do',exact:true}).click();
+  // Without a way to save the project (no ensureProject) a draft To Do cannot add anything.
   assert.match(await page.getByRole('tabpanel',{name:'To Do'}).innerText(),/Select or create a project/);
   assert.equal(await page.evaluate(()=>reads.length),0);
   await page.evaluate(()=>{project={id:'p1',address:'123 Main'};trays.update();});

@@ -866,6 +866,8 @@
   }
 
   function createTodayListController(container, options = {}){
+    // Copied so a draft project's list can adopt the project once it is saved.
+    options = { ...options };
     const el = typeof container === 'string' ? document.querySelector(container) : container;
     const orgId = cleanText(options.orgId || options.org_id);
     const branchId = cleanText(options.branchId || options.branch_id);
@@ -875,6 +877,30 @@
     let lastItems = [];
     let loading = false;
     let followUpConfig = null;
+    let savingDraft = false;
+    // A new project that is not saved yet: the list shows empty and reads
+    // nothing; the first to-do saves the project (options.ensureProject).
+    const isDraftProject = () => !cleanText(options.projectId || options.project_id) && typeof options.ensureProject === 'function';
+    function projectFields(project){
+      const value = project && typeof project === 'object' ? project : { id: project };
+      const projectId = cleanText(value.platform_project_id || value.id);
+      const fields = { projectId };
+      const title = cleanText(value.title || value.customer_name || value.address);
+      const address = cleanText(value.address || value.project_address);
+      if (title) fields.projectTitle = title;
+      if (address) fields.projectAddress = address;
+      return fields;
+    }
+    async function saveDraftProject(){
+      savingDraft = true;
+      try {
+        const fields = projectFields(await options.ensureProject());
+        if (!fields.projectId) throw new Error('The project could not be saved.');
+        Object.assign(options, fields);
+      } finally {
+        savingDraft = false;
+      }
+    }
 
     function queryOptions(){
       const result = todayListOptions({ ...(options.query || {}) });
@@ -1133,6 +1159,7 @@
         if (!text || form.classList.contains('is-saving')) return;
         form.classList.add('is-saving');
         try {
+          if (isDraftProject()) await saveDraftProject();
           await createManual(orgId, text, {
             ...queryOptions(),
             userId: options.userId || options.user_id,
@@ -1535,6 +1562,10 @@
           renderState('To-dos are not available.');
           return { items: [] };
         }
+        if (isDraftProject()) {
+          renderItems([]);
+          return { items: [] };
+        }
         loading = true;
         if (!loadOptions.quiet) renderState('Loading...');
         try {
@@ -1554,6 +1585,13 @@
         }
       },
       render(items = lastItems){ renderItems(items); },
+      /** Switches a draft project's list to the project once it is saved. */
+      adoptProject(project){
+        const fields = projectFields(project);
+        if (!fields.projectId || cleanText(options.projectId || options.project_id)) return;
+        Object.assign(options, fields);
+        if (!savingDraft) controller.load({ quiet: true }).catch(() => null);
+      },
       destroy(){
         destroyed = true;
         if (el) el.innerHTML = '';
