@@ -47,3 +47,7 @@ uncommitted older variant (last touched 2026-10-16); the fix was replayed onto t
 | `ea21b143` | Roof-only 3D roofs use the exteriors editor's dense shingle covering; MVP platform turns on `firstmeasure.roof_model_viewer` (revision 4). Dev runs that gate from the release-branch hold `067deb12`, which canonical lacks. |
 
 Verified on dev: a new MVP org has one Roofing board (New, Inspection, Estimate, Sold, In production, Complete), no test-run bar, the top bar with search and notifications, and Full House Reports on. The map camera and the roof viewer were verified in local harnesses only: the browser pane was hidden (no animation frames), so in-pane checks of animated views stall at "Loading".
+
+| Release | What |
+| --- | --- |
+| `cd228a8d` + `501cfd60` | Left-column pins: apps declare pinnable subviews (My Projects: Stages, List, Tiles, Map); personal `left_column_pins` preference; hover/focus roll-out in the apps overlay; drag-to-pin onto the left column; collapsed column widens to 78 px while the overlay is open; all behind `platform.advanced_app_menu`, which the MVP platform turns on (revision 5). cd228a8d's core.js had misplaced zero-context hunks (a syntax error); 501cfd60 fixed it before anything shipped. Checked after activation: the served core.js parses and the new library is served. |
