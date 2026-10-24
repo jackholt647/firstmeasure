@@ -7439,7 +7439,8 @@ window.PlatformCommerce.onReady(async function(){
     const fields=all.find(node=>node.children.length) || all[0];
     all.filter(node=>node!==fields).forEach(node=>node.remove());
     if(!fields)return null;
-    const slot=document.querySelector('#rOverlay [data-panel="map"] [data-overview-fields]');
+    // A map-only Overview has no card to hold them (the fields never float over the map); they stay in the details column.
+    const slot=document.querySelector('#rOverlay [data-panel="map"] [data-project-overview]:not(.is-map-only) [data-overview-fields]');
     if(slot && fields.parentElement!==slot)slot.append(fields);
     if(!slot)returnProjectCustomFields(document.querySelector('#rOverlay .r-overview-details'));
     return fields;
@@ -8908,7 +8909,8 @@ window.PlatformCommerce.onReady(async function(){
   function projectCoverDefaultImage(){
     const photo = projectPhotosInvoke('projectCoverDefault') || null;
     const src = String(photo?.thumb || photo?.src || '').trim();
-    return src ? { src, label:String(photo.label || photo.alt || '').trim() } : null;
+    const fallbacks = Array.isArray(photo?.fallback_srcs) ? photo.fallback_srcs : [];
+    return src ? { src, fallbacks, label:String(photo.label || photo.alt || '').trim() } : null;
   }
 
   function syncProjectCustomFieldValues(){

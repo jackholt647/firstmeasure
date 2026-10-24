@@ -719,13 +719,28 @@
       return `<div class="fm-cf-media-tile${found ? '' : ' is-missing'}">${readOnly ? `<span class="fm-cf-media-face">${face}</span>` : `<button type="button" class="fm-cf-media-face" data-fm-cf-media-open aria-label="${escapeHtml(`Change ${label}`)}">${face}</button><button type="button" class="fm-cf-media-remove" data-fm-cf-media-remove="${escapeHtml(mediaId)}" aria-label="${escapeHtml(`Remove ${label}`)}"><i class="fas fa-xmark" aria-hidden="true"></i></button>`}</div>`;
     });
     if (fallback) {
-      const face = `<img src="${escapeHtml(fallback.src)}" alt="" loading="lazy">${fallback.label ? `<span>${escapeHtml(fallback.label)}</span>` : ''}`;
+      const backups = (fallback.fallbacks || []).filter(Boolean);
+      const face = `<img src="${escapeHtml(fallback.src)}" alt="" loading="lazy"${backups.length ? ` data-fm-cf-fallbacks="${escapeHtml(JSON.stringify(backups))}"` : ''}>${fallback.label ? `<span>${escapeHtml(fallback.label)}</span>` : ''}`;
       tiles.push(`<div class="fm-cf-media-tile">${readOnly ? `<span class="fm-cf-media-face">${face}</span>` : `<button type="button" class="fm-cf-media-face" data-fm-cf-media-open aria-label="${escapeHtml(`Change ${fallback.label || 'photo'}`)}">${face}</button>`}</div>`);
     } else if (!refs.length || (wrap.many && !readOnly)) {
       const empty = `<i class="fas ${refs.length ? 'fa-plus' : icon}" aria-hidden="true"></i><span>${readOnly ? 'None' : type === 'photo' ? 'Choose a photo' : type === 'video' ? 'Choose a video' : 'Choose media'}</span>`;
       tiles.push(`<div class="fm-cf-media-tile is-empty">${readOnly ? `<span class="fm-cf-media-face">${empty}</span>` : `<button type="button" class="fm-cf-media-face" data-fm-cf-media-open>${empty}</button>`}</div>`);
     }
     return tiles.join('');
+  }
+  // A default photo may name backup URLs (a satellite image not fetched yet falls back to a static map):
+  // when one fails to load, the next is tried. Image errors do not bubble, so listen in the capture phase.
+  if (root.document?.addEventListener && !root.__fmCfMediaFallbacks) {
+    root.__fmCfMediaFallbacks = true;
+    root.document.addEventListener('error', (event) => {
+      const img = event.target;
+      if (!img || img.tagName !== 'IMG' || !img.dataset?.fmCfFallbacks) return;
+      let backups = [];
+      try { backups = JSON.parse(img.dataset.fmCfFallbacks) || []; } catch (_) {}
+      const next = backups.shift();
+      if (backups.length) img.dataset.fmCfFallbacks = JSON.stringify(backups); else delete img.dataset.fmCfFallbacks;
+      if (next) img.src = next;
+    }, true);
   }
   function mediaWrapState(node){
     let fallback = null;
@@ -737,7 +752,7 @@
     const stored = many ? (refs.length ? refs : '') : (refs[0] || '');
     const choices = (def.reference_choices || []).map((item) => ({ media_id:cleanText(item.reference?.media_id), label:cleanText(item.label), content_type:cleanText(item.content_type) })).filter((item) => item.media_id);
     const given = !many ? objectValue((options.defaultMedia || {})[def.path] || (options.defaultMedia || {})[def.key]) : {};
-    const fallback = cleanText(given.src) ? { src:cleanText(given.src), label:cleanText(given.label) } : null;
+    const fallback = cleanText(given.src) ? { src:cleanText(given.src), label:cleanText(given.label), fallbacks:(Array.isArray(given.fallbacks) ? given.fallbacks : []).map(cleanText).filter(Boolean) } : null;
     const state = { type:def.type, many, fallback, readOnly:!!def.read_only, orgId:cleanText(options.orgId) || currentOrgId() };
     return `<div class="fm-cf-media" data-fm-cf-media data-type="${escapeHtml(def.type)}" data-many="${many ? '1' : '0'}"${fallback ? ` data-default="${escapeHtml(JSON.stringify(fallback))}"` : ''} data-read-only="${state.readOnly ? '1' : '0'}" data-org="${escapeHtml(state.orgId)}" data-label="${escapeHtml(def.label)}" data-choices="${escapeHtml(JSON.stringify(choices))}"><input type="hidden" ${attrs} data-many="${many ? '1' : '0'}" value="${escapeHtml(stored ? JSON.stringify(stored) : '')}"><div class="fm-cf-media-tiles">${mediaTilesHtml(state, refs, choices)}</div>${def.reference_error ? `<span class="fm-cf-error">${escapeHtml(def.reference_error)}</span>` : ''}</div>`;
   }

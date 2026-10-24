@@ -185,7 +185,9 @@
     state.lastDefaultExpandedMap = defaultExpanded;
     const expanded = overviewMapExpanded();
     overview.classList.toggle('is-map-expanded', expanded);
+    const wasMapOnly = overview.classList.contains('is-map-only');
     overview.classList.toggle('is-map-only', forceExpanded);
+    if (wasMapOnly !== forceExpanded) callHost('placeProjectCustomFields');
     const toggle = overview.querySelector('[data-overview-map-toggle]');
     if (toggle) {
       toggle.hidden = forceExpanded;
@@ -319,7 +321,7 @@
       .r-overview{container-type:inline-size;container-name:overview;min-width:0;height:100%;min-height:0;overflow:auto;background:#f3f6f9;color:#101828;padding:18px;box-sizing:border-box}
       .r-overview-shell{max-width:1320px;margin:0 auto;display:grid;grid-template-columns:minmax(0,.92fr) minmax(0,1.08fr);gap:16px;align-items:start}
       .r-overview-map-section,.r-overview-panel{min-width:0;background:#fff;border:1px solid rgba(15,23,42,.08);border-radius:8px;box-shadow:0 10px 28px rgba(15,23,42,.06);overflow:hidden}
-      .r-overview-map-section{position:sticky;top:0;min-height:520px}
+      .r-overview-map-section{position:sticky;top:0;min-height:520px;display:flex;flex-direction:column}
       .r-overview-map-head,.r-overview-panel-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:14px 15px;border-bottom:1px solid rgba(15,23,42,.08);background:#fff}
       .r-overview-map-actions{display:flex;align-items:center;gap:8px;flex-shrink:0}
       .r-overview-map-toggle{height:34px;border:1px solid rgba(15,23,42,.12);border-radius:8px;background:#fff;color:#344054;padding:0 11px;display:inline-flex;align-items:center;justify-content:center;gap:7px;font-size:11px;font-weight:1000;cursor:pointer;box-shadow:0 8px 18px rgba(15,23,42,.08);transition:border-color .16s ease,color .16s ease,background .16s ease}
@@ -327,7 +329,7 @@
       .r-overview-kicker{display:block;font-size:10px;font-weight:1000;text-transform:uppercase;color:#667085;letter-spacing:.08em}
       .r-overview-title{display:block;margin-top:3px;font-size:15px;font-weight:1000;color:#101828;line-height:1.2}
       .r-overview-sub{overflow-wrap:anywhere;margin-top:3px;font-size:12px;font-weight:850;color:#667085;line-height:1.35}
-      .r-overview-map-frame{position:relative;height:456px;min-height:320px;background:#dbe3ec}
+      .r-overview-map-frame{position:relative;flex:1 0 auto;height:456px;min-height:320px;background:#dbe3ec}
       .r-overview-map-frame #rMap{position:absolute;inset:0}
       .r-overview-map-frame #rMapHint{top:14px}
       .r-overlay.mobile-order .r-overview-map-frame #rMapHint{top:0}
@@ -370,9 +372,6 @@
       .r-overview-fields{padding:12px 15px 15px;border-top:1px solid rgba(15,23,42,.08)}
       .r-overview-fields:not(:has(> :not(:empty):not([hidden]))){display:none}
       .r-overview.is-map-expanded{position:relative}
-      .r-overview.is-map-expanded .r-overview-panel:has(> .r-overview-fields > :not(:empty):not([hidden])){display:block;position:absolute;top:14px;right:14px;z-index:8;width:min(320px,calc(100% - 28px));min-height:0;max-height:calc(100% - 28px);overflow:auto}
-      .r-overview.is-map-expanded .r-overview-panel :is(.r-overview-panel-head,.r-overview-grid){display:none}
-      .r-overview.is-map-expanded .r-overview-fields{border-top:0}
       .r-overview.is-map-only .r-overview-map-toggle{display:none}
       @container overview (max-width:780px){.r-overview-shell{grid-template-columns:minmax(0,1fr)}.r-overview-map-section{position:relative}.r-overview-map-frame{height:320px}}
       @container overview (max-width:390px){.r-overview-grid{grid-template-columns:minmax(0,1fr)}.r-overview-map-head{flex-wrap:wrap}.r-overview-map-section,.r-overview-panel{min-height:0}}
@@ -888,10 +887,12 @@
     const current = project() || {};
     if (address) address.textContent = firstText(current.address, current.project_address, current.customer_address, 'No address yet');
     if (summary) summary.innerHTML = overviewCards();
+    // Map-only first: with no Overview card to hold them, the project window keeps its custom fields
+    // in the details column instead of this panel's fields slot.
+    applyOverviewMapMode();
     // The project window keeps the project's custom fields and places them in this panel's fields slot.
     callHost('placeProjectCustomFields');
     bindOverview(root);
-    applyOverviewMapMode();
   }
 
   function googleMapsReady(){

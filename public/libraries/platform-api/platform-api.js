@@ -2357,7 +2357,9 @@
         firstmeasure_project_id: firstMeasureId,
         source_artifact: source,
         src: src || thumb,
-        thumb: src || thumb,
+        // The thumbnail endpoint serves whichever top-down image the measurement has (browser
+        // thumbnail, Google, Azure, Apple, RGB); the artifact URL serves only the one file named.
+        thumb: thumb || src,
         alt: 'Top-down satellite image',
         label: (globalThis.PlatformLanguage?.text("platform-api","m_ea408ba0d2f930","Top-down satellite") ?? "Top-down satellite"),
         metadata: {
