@@ -575,6 +575,14 @@ const definitions: CapabilityDefinition[] = [
     default: false
   },
   {
+    key: "channels.project_messages_tray",
+    kind: "feature",
+    parent: "channels.project_notes",
+    label: "Project Messages Tray",
+    description: "Show the project's message channel as a Messages tray in the project window. Off: the Notes tray stays.",
+    default: true
+  },
+  {
     key: "apps.billing",
     kind: "app",
     category: "Billing & Credits",

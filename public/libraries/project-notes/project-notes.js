@@ -966,7 +966,6 @@
       window.FirstMateAudioNotes?.hydrate?.(container);history.scrollTop=scroll;restoreReplyFocus();
     }
     async function refresh(){adoptProject();if(entry.projectId){await refreshEntry(entry);await refreshAuthors();if(!allAuthorsSelected && selectedAuthors.size)await loadAuthorNotes();}render();}
-    const ready=Promise.all([refresh(),directoryReady]).then(()=>render()).catch(error=>say(error.message));
     window.addEventListener('fm:terminology:updated',()=>{for(const handle of audienceHandles)handle.refresh();},{signal:lifetime.signal});
     const notified=event=>{if(event.detail?.projectId===entry.projectId && !disposed)render();};window.addEventListener('fm:project-notes:refreshed',notified);
     const searchInput=container.querySelector('.pn-search input');
@@ -996,6 +995,8 @@
     filterMenu.onclick=event=>{if(event.target.closest('[data-all-authors]')){allAuthorsSelected=!allAuthorsSelected;selectedAuthors.clear();applyAuthorFilters();}};
     filterMenu.onkeydown=event=>{if(event.key==='Escape'){event.preventDefault();event.stopPropagation();closeFilter();filterButton.focus();}};
     document.addEventListener('pointerdown',event=>{if(!filterMenu.contains(event.target) && !filterButton.contains(event.target))closeFilter();},{capture:true,signal:lifetime.signal});
+    // Starts after the author filter menu exists: refresh() renders synchronously for a project not saved yet.
+    const ready=Promise.all([refresh(),directoryReady]).then(()=>render()).catch(error=>say(error.message));
 
     async function submit(pin=false){
       if(busy || disposed || capturing || uploading || text._polishApi?.polishing)return;const body=clean(text.value);if(!body && !prepared.length && !gifDraft)return;

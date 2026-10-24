@@ -18,7 +18,7 @@
   const registry = new Map([
     ['notes',{id:'notes',label:'Notes',icon:'fa-note-sticky',capability:'channels.project_notes'}],
     ['todo',{id:'todo',label:'To Do',icon:'fa-list-check'}],
-    ['messages',{id:'messages',label:'Messages',icon:'fa-comments',capability:'channels.project_notes'}],
+    ['messages',{id:'messages',label:'Messages',icon:'fa-comments',capability:'channels.project_messages_tray'}],
     ['activity',{id:'activity',label:'Activity',icon:'fa-clock-rotate-left'}],
     ['agent',{id:'agent',label:'Agent',icon:'fa-wand-magic-sparkles',capability:'apps.assistant'}]
   ]);

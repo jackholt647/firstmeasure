@@ -1366,6 +1366,15 @@ export async function ensureSeedData() {
         settings: { app_placements: { "portal.channels": "hidden", "portal.assistant": "hidden" } }
       }
     }));
+  } else {
+    // Capabilities added after the seed are off unless the saved workflow already sets them.
+    const current = (await sandboxStore.readWorkflow(String(MVP_PLATFORM_WORKFLOW.id)))!;
+    const defaults = asObject(current.defaults);
+    const flags = asObject(defaults.app_flags);
+    const missing = Object.entries(mvpPlatformAppFlags()).filter(([key]) => !(key in flags));
+    if (missing.length) {
+      await sandboxStore.saveWorkflow({ ...current, defaults: { ...defaults, app_flags: { ...flags, ...Object.fromEntries(missing) } }, updated_at: nowIso() });
+    }
   }
   const workflows = await sandboxStore.listWorkflows();
   const legacyBrandingReferenced = workflows.some((workflow) =>

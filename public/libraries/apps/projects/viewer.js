@@ -21,7 +21,9 @@
   const VIEW_MODES = new Set(['tiles', 'list', 'stages', 'map']);
   const PROJECT_VIEW_QUERY_KEY = 'projectView';
   const PROJECT_BOARD_QUERY_KEY = 'projectBoard';
-  const PROJECT_BOARD_STORAGE_PREFIX = 'fm_projects_board_v1';
+  // v1 also saved the automatic default (often the alphabetically first board of a new, empty organization) as if
+  // it had been chosen; v2 holds only boards someone picked.
+  const PROJECT_BOARD_STORAGE_PREFIX = 'fm_projects_board_v2';
   const INSTANT_PITCH_UI_ENABLED = false;
   const INSTANT_WALL_SLOPE_DEGREES_THRESHOLD = 80;
   const INSTANT_WALL_MIN_HEIGHT_METERS = 0.6;
@@ -5108,10 +5110,8 @@
       activeWorkBoardId = (preferredBoardId === 'all' && (viewMode === 'list' || viewMode === 'map')) || projectBoards().some((board) => String(board?.id || '') === preferredBoardId)
         ? preferredBoardId
         : String(boardsByUsage[0]?.id || '');
-      if (activeWorkBoardId) {
-        rememberWorkBoardId(activeWorkBoardId);
-        if (routeBoardId !== activeWorkBoardId) syncWorkBoardToUrl('replace');
-      }
+      // Only a board someone picks is remembered (selectWorkBoard); the default stays the board with the most projects.
+      if (activeWorkBoardId && routeBoardId !== activeWorkBoardId) syncWorkBoardToUrl('replace');
       syncProjectColumnChoices();
       if (viewMode === 'tiles' && tileStageFilter !== 'all') applyQueryFilterSort();
       else if (viewMode === 'stages' || viewMode === 'list' || viewMode === 'map') renderResults();

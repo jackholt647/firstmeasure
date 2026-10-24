@@ -26,13 +26,19 @@ test('the MVP platform workflow is FirstMeasure plus projects, contacts, feed an
  await service.ensureSeedData();
  assert.equal(((await sandboxStore.readWorkflow('swf_mvp_platform'))!.defaults as any).app_flags['platform.scheduling'],true);
  await sandboxStore.saveWorkflow(workflow!);
+ // A capability added after the seed reaches the saved workflow, off; one already set is left as it is.
+ const withoutTray={...(workflow!.defaults as any).app_flags};delete withoutTray['channels.project_messages_tray'];
+ await sandboxStore.saveWorkflow({...workflow,defaults:{...(workflow!.defaults as any),app_flags:withoutTray}});
+ await service.ensureSeedData();
+ assert.equal(((await sandboxStore.readWorkflow('swf_mvp_platform'))!.defaults as any).app_flags['channels.project_messages_tray'],false);
+ await sandboxStore.saveWorkflow(workflow!);
 
  const instance=await service.createTestInstance('swf_mvp_platform',{label:'MVP platform fixture'});
  const orgId=String(instance.testOrg.org_id);
  const {effectiveByKey}=await capabilities.effectiveCapabilities(orgId);
  const on=['platform.expanded_access','apps.projects','apps.project_map','platform.project_stages_view','platform.contacts','platform.photos_feed','platform.project_photos','platform.customer_portal','platform.materials','platform.documents','apps.firstmeasure','firstmeasure.report_orders','apps.assistant','channels.project_notes'];
  for(const key of on) assert.equal(effectiveByKey[key],true,key);
- const off=['platform.scheduling','scheduling.gantt','equipment.scheduling','apps.crm','apps.stats','apps.payroll','apps.training','apps.crew','apps.sales','platform.money','apps.comms','apps.checklists','apps.equipment'];
+ const off=['channels.project_messages_tray','platform.scheduling','scheduling.gantt','equipment.scheduling','apps.crm','apps.stats','apps.payroll','apps.training','apps.crew','apps.sales','platform.money','apps.comms','apps.checklists','apps.equipment'];
  for(const key of off) assert.notEqual(effectiveByKey[key],true,key);
  const global=await storage.readGlobal(orgId);
  assert.deepEqual((global.data as any).app_placements,{'portal.channels':'hidden','portal.assistant':'hidden'});
