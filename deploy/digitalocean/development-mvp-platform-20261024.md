@@ -8,6 +8,7 @@ Three releases on the development worker, legacy (compatibility) and web roles. 
 | --- | --- |
 | `cc9144c3` | Signup sandbox `swf_mvp_platform`: FirstMeasure default stages plus expanded access with an explicit app list (`MVP_PLATFORM_ENABLED` in `signup-sandbox/service.ts`). Seeded once; edit the saved workflow to change it. |
 | `6e50be65` | My Projects Map view (`projects/map-view.js`, gated on `apps.project_map`); MVP test orgs can take sample data. |
+| `4123e67a` | Notes render after the author filter menu exists (fixes "Cannot access 'filterMenu' before initialization" on a new project); My Projects remembers only boards someone picks (storage key v2), so the default is the board with the most projects; `channels.project_messages_tray` gates the Messages tray, off in the MVP platform (the saved workflow gains it via the seed). |
 | `2e9c8da3` | `projectView=map` allowed in the manifest's route schema (a map link fell back to Stages); sample projects carry lat/lng around Denver because their synthetic addresses do not geocode. |
 
 ## Host merges
@@ -26,10 +27,10 @@ Three releases on the development worker, legacy (compatibility) and web roles. 
 - Map: `?projectView=map` opens the map; with sample data all four projects are placed; clicking a row selects it
   and opens the preview card; **Open project** opens the project window.
 
-## Known issues found (not from these releases)
+After `4123e67a`, a new MVP instance's trays are Notes, To Do, Activity and Agent, and a new unsaved project's Notes
+tray shows "No notes yet" with no error. The shared checkout's working copy of `project-notes.js` holds an unrelated,
+uncommitted older variant (last touched 2026-10-16); the fix was replayed onto the committed file.
 
-- The project **Notes** tray shows "Cannot access 'filterMenu' before initialization": in canonical
-  `project-notes/project-notes.js` (from `18d7c000`/`31d47774`), `render()` calls `syncAuthorFilters()` before
-  `filterMenu` is declared. Another session has an uncommitted rewrite of that file in the shared checkout; left to it.
-- A **Messages** tray shows beside Notes because both are gated on `channels.project_notes`.
+## Known issues
+
 - Sample projects have no board, so the map shows them as "No board" (grey); stage colours show with real boards.
