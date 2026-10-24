@@ -7,6 +7,23 @@ optimization here must return exactly the same results.
 Add an entry when you knowingly ship something that reads more than it needs, repeats work, or will not scale, and
 link the entry from the architecture doc's "Not built" section. Remove an entry when it is done.
 
+## Projects map loads every project and geocodes addresses in the browser
+
+**Today.** My Projects > Map (`public/libraries/apps/projects/map-view.js`) asks `list_projects` for every project
+(`limit: 0`, as Stages and the board list already do) and places each one from its stored pins or lat/lng. A project
+with only an address is geocoded in the viewer's browser with the Google Maps geocoder, one at a time (at most 250 a
+session), and the result is cached in that browser's localStorage (`fm_projects_map_geocode_v1`), so every person and
+device geocodes the same addresses again and nothing is shared.
+
+**Where the change goes.** Store a geocoded point on the platform project when its address is written (lead intake,
+`createProject`, address edits) and backfill existing projects once; the map then reads the point from the project
+record like it does pins today, and the browser geocoder and its cache go away. For very large organizations, a
+bounds-limited projects query (only what is in view, clustered on the server) replaces loading every project. The pins
+shown stay the same.
+
+**Why it can wait.** Organizations have hundreds of projects, most FirstMeasure orders already carry pins, and the
+cache means an address is looked up once per browser; Google's geocoder allows far more than this per second.
+
 ## Website forum search reads every thread file
 
 **Today.** Forum search (`website-next/forum/index.php`, `?q=`) opens every thread's JSON file and scans each post body

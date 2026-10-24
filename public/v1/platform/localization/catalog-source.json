@@ -7024,7 +7024,50 @@
     "audit_5dbc6dff430e8d": "CHANGES PENDING",
     "audit_1c4b7f4ada5422": "CORRECTED REPORT READY",
     "audit_843f745c483e81": "INSTANT + FULL",
-    "audit_76bf93df451d48": "REPORT READY"
+    "audit_76bf93df451d48": "REPORT READY",
+    "m_19156e80fc8a6e": "Projects",
+    "m_ac497e7c719b1a": "Projects map",
+    "m_3beab267cf4dfb": "Show project list",
+    "m_3afa35f5e4fa87": "Show all projects",
+    "m_ec6e882a073b75": "Satellite view",
+    "m_860325016c9c17": "Projects on the map",
+    "m_fd21d140e2f496": "Hide project list",
+    "m_2805c66abd68dd": "Filter the map by stage",
+    "m_a5aed43e7f4a23": "1 project",
+    "m_79e82d0b1623d6": {
+      "message": "{v0} projects",
+      "format": "icu"
+    },
+    "m_657063d3eb6d4c": {
+      "message": "Locating {v0} addresses…",
+      "format": "icu"
+    },
+    "m_bb6033be5beecd": {
+      "message": "{v0} on the map · {v1} without a location",
+      "format": "icu"
+    },
+    "m_fd6f1fb0ffdb94": "All on the map",
+    "m_38e7f48aabdeae": "Filter the map by board",
+    "m_8cc2f1209a70dc": "Show all",
+    "m_68601f4e03fe5a": "Locating",
+    "m_dd869d1ad0872f": "No location",
+    "m_44a65246c745c8": "This project has no location to show on the map",
+    "m_27136d1254783a": "Open project",
+    "m_eebd895a6b0138": "No projects match this view.",
+    "m_74da0dce613dc4": {
+      "message": "No location · {v0}",
+      "format": "icu"
+    },
+    "m_93d53b62f82de9": {
+      "message": "{v0} projects here. Zoom in.",
+      "format": "icu"
+    },
+    "m_20f1b0df4fe241": "Close preview",
+    "m_c5b289c72361c1": "Map view",
+    "m_63261a6895811f": "List order",
+    "m_05a97c3490fbb9": "Pins are coloured by stage, or by board when all boards are shown. Use the chips above the map's list to show only some stages.",
+    "m_af2632c7a0ecb8": "The map could not be loaded. The list still shows every project.",
+    "m_637e00d5e1780c": "None of these projects has a location yet."
   },
   "promo-inject": {
     "m_9f35fbe4f31045": {

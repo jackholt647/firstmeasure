@@ -88,7 +88,7 @@
       kind: 'portal_tab',
       surfaces: ['portal_tab'],
       portalTabId: 'viewer',
-      bundles: [versionedBundle('partners/shared-list.js','20261001-sharing-polish-v1'), versionedBundle('projects/viewer.js', '20261019-storage-refresh-v1')]
+      bundles: [versionedBundle('partners/shared-list.js','20261001-sharing-polish-v1'), versionedBundle('projects/map-view.js', '20261024-projects-map-v1'), versionedBundle('projects/viewer.js', '20261024-projects-map-v1')]
     },
     {
       id: 'portal.crm',

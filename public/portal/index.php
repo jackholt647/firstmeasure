@@ -2279,6 +2279,7 @@ session_write_close();
   <script src="../libraries/apps/measurements/project.js?v=<?= portalAssetVersion('../libraries/apps/measurements/project.js') ?>"></script>
   <script src="../libraries/apps/firstmeasure/order/exteriors.js?v=<?= portalAssetVersion('../libraries/apps/firstmeasure/order/exteriors.js') ?>"></script>
   <script src="../libraries/apps/firstmeasure/order/app.js?v=<?= portalAssetVersion('../libraries/apps/firstmeasure/order/app.js') ?>"></script>
+  <script src="../libraries/apps/projects/map-view.js?v=<?= portalAssetVersion('../libraries/apps/projects/map-view.js') ?>"></script>
   <script src="../libraries/apps/projects/viewer.js?v=<?= portalAssetVersion('../libraries/apps/projects/viewer.js') ?>"></script>
   <script src="../libraries/apps/photos/feed.js?v=<?= portalAssetVersion('../libraries/apps/photos/feed.js') ?>"></script>
   <?php if ($platformExpandedAssets): ?>

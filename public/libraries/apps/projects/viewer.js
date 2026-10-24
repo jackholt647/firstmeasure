@@ -18,7 +18,7 @@
 
   const { $, escapeHtml, injectCSS, formatDate, postAction, enableSafeBackdropClose, fmJson, fmPost, fmUrl, googleMapsApiKey, currentActor } = window.Portal.util;
 
-  const VIEW_MODES = new Set(['tiles', 'list', 'stages']);
+  const VIEW_MODES = new Set(['tiles', 'list', 'stages', 'map']);
   const PROJECT_VIEW_QUERY_KEY = 'projectView';
   const PROJECT_BOARD_QUERY_KEY = 'projectBoard';
   const PROJECT_BOARD_STORAGE_PREFIX = 'fm_projects_board_v1';
@@ -54,6 +54,12 @@
     return projectBoardsEnabled() && flags?.value?.('platform', 'project_stages_view', false) === true;
   }
 
+  // The map view is the Project Map feature (apps.project_map) of My Projects.
+  function mapViewEnabled(){
+    const flags = window.Portal?.appFlags || window.PlatformAPI?.appFlags;
+    return flags?.value?.('apps', 'project_map', false) === true && !!window.FirstMateProjectsMap;
+  }
+
   function manualStageMovementEnabled(){
     const flags = window.Portal?.appFlags || window.PlatformAPI?.appFlags;
     return projectBoardsEnabled() && flags?.value?.('platform', 'manual_project_stage_movement', false) === true;
@@ -66,6 +72,7 @@
 
   function normalizeViewMode(mode){
     const clean = VIEW_MODES.has(mode) ? mode : (stagesViewEnabled() ? 'stages' : 'tiles');
+    if (clean === 'map' && !mapViewEnabled()) return stagesViewEnabled() ? 'stages' : 'tiles';
     return clean === 'stages' && !stagesViewEnabled() ? 'tiles' : clean;
   }
 
@@ -5036,7 +5043,7 @@
     const unused = boards.filter((item) => workBoardProjectCount(item) === 0);
     const usedOptions = used.map((item) => workBoardOptionHtml(item, activeBoardId)).join('');
     const unusedSection = unused.length ? `<div class="v-board-unused"><button type="button" class="v-board-unused-toggle" id="vUnusedBoardsToggle" aria-expanded="false" aria-controls="vUnusedBoardsList"><span>${(globalThis.PlatformLanguage?.htmlText("projects","m_164adef2abc1b5","Unused") ?? "Unused")}</span><span class="v-board-unused-total" aria-label="${((v0) => globalThis.PlatformLanguage?.htmlText("projects","m_df6a6980467b68",`${v0} unused boards`,{v0}) ?? `${v0} unused boards`)(unused.length)}">${String(unused.length)}</span><i class="fas fa-chevron-down" aria-hidden="true"></i></button><div class="v-board-unused-list" id="vUnusedBoardsList" role="listbox" aria-label="${(globalThis.PlatformLanguage?.htmlText("projects","m_a91ee30942f6fd","Unused work boards") ?? "Unused work boards")}" hidden>${String(unused.map((item) => workBoardOptionHtml(item, activeBoardId)).join(''))}</div></div>` : '';
-    const allOption = viewMode === 'list' ? `<button type="button" class="v-board-option${activeBoardId === 'all' ? ' active' : ''}" role="option" aria-selected="${activeBoardId === 'all'}" data-board-id="all" style="--option-color:#4f7cac"><span class="v-board-option-dot" aria-hidden="true"></span><span>${(globalThis.PlatformLanguage?.htmlText("projects","m_b66bef8d909043","All boards") ?? "All boards")}</span><span class="v-board-option-count">${boards.length}</span>${activeBoardId === 'all' ? '<i class="fas fa-check" aria-hidden="true"></i>' : '<span></span>'}</button>` : '';
+    const allOption = (viewMode === 'list' || viewMode === 'map') ? `<button type="button" class="v-board-option${activeBoardId === 'all' ? ' active' : ''}" role="option" aria-selected="${activeBoardId === 'all'}" data-board-id="all" style="--option-color:#4f7cac"><span class="v-board-option-dot" aria-hidden="true"></span><span>${(globalThis.PlatformLanguage?.htmlText("projects","m_b66bef8d909043","All boards") ?? "All boards")}</span><span class="v-board-option-count">${boards.length}</span>${activeBoardId === 'all' ? '<i class="fas fa-check" aria-hidden="true"></i>' : '<span></span>'}</button>` : '';
     return ("<div class=\"v-board-used-list\" role=\"listbox\" aria-label=\"" + (globalThis.PlatformLanguage?.text("projects","m_f9cb3d542eb9c6","Work boards with projects") ?? "Work boards with projects") + "\">" + allOption + String(usedOptions) + "</div>" + String(unusedSection));
   }
   function workBoardStorageKey(){
@@ -5070,7 +5077,7 @@
   function selectWorkBoard(boardId, options = {}){
     if (!projectBoardsEnabled()) return false;
     const value = String(boardId || '').trim();
-    if (!(value === 'all' && viewMode === 'list') && !projectBoards().some((board) => String(board?.id || '') === value)) return false;
+    if (!(value === 'all' && (viewMode === 'list' || viewMode === 'map')) && !projectBoards().some((board) => String(board?.id || '') === value)) return false;
     activeWorkBoardId = value;
     listGrouping = value === 'all' ? 'board' : 'stage';
     syncProjectColumnChoices();
@@ -5098,7 +5105,7 @@
       const routeBoardId = requestedWorkBoardId();
       const preferredBoardId = routeBoardId || activeWorkBoardId || rememberedWorkBoardId();
       const boardsByUsage = orderedWorkBoards();
-      activeWorkBoardId = (preferredBoardId === 'all' && viewMode === 'list') || projectBoards().some((board) => String(board?.id || '') === preferredBoardId)
+      activeWorkBoardId = (preferredBoardId === 'all' && (viewMode === 'list' || viewMode === 'map')) || projectBoards().some((board) => String(board?.id || '') === preferredBoardId)
         ? preferredBoardId
         : String(boardsByUsage[0]?.id || '');
       if (activeWorkBoardId) {
@@ -5107,7 +5114,7 @@
       }
       syncProjectColumnChoices();
       if (viewMode === 'tiles' && tileStageFilter !== 'all') applyQueryFilterSort();
-      else if (viewMode === 'stages' || viewMode === 'list') renderResults();
+      else if (viewMode === 'stages' || viewMode === 'list' || viewMode === 'map') renderResults();
       renderManageViewPanel();
       updateCount();
       return workBoards;
@@ -5343,12 +5350,12 @@
     reconcileStageColumns(board, stageColumnsForProjects(filteredProjects));
   }
   function getActiveSort(){
-    if (viewMode === 'list') return { key:listSortKey, dir:listSortDir };
+    if (viewMode === 'list' || viewMode === 'map') return { key:listSortKey, dir:listSortDir };
     if (viewMode === 'stages') return { key:stageSortKey, dir:stageSortDir };
     return { key:tileSortKey, dir:tileSortDir };
   }
   function setActiveSort(key, dirMaybe){
-    if (viewMode === 'list'){
+    if (viewMode === 'list' || viewMode === 'map'){
       if (listSortKey === key) listSortDir = dirMaybe || (listSortDir === 'asc' ? 'desc' : 'asc');
       else { listSortKey = key; listSortDir = dirMaybe || (key === 'created_at' ? 'desc' : 'asc'); }
     } else if (viewMode === 'stages') {
@@ -5513,7 +5520,7 @@
   function updateCount(){
     const el = $('#vCount', panelEl);
     if (!el) return;
-    if (projectBoardsEnabled() && (viewMode === 'stages' || (viewMode === 'list' && projectBoards().length && !filteredProjects.some(p=>p._shared) && projectSharingView()?.mode !== 'received'))) {
+    if (projectBoardsEnabled() && (viewMode === 'stages' || ((viewMode === 'list' || viewMode === 'map') && projectBoards().length && !filteredProjects.some(p=>p._shared) && projectSharingView()?.mode !== 'received'))) {
       const selected = projectBoards().find((board) => String(board?.id || '') === activeWorkBoardId);
       const visibleIds = new Set(filteredProjects.map((project) => String(project.id)));
       const selectedCount = activeWorkBoardId === 'all' ? filteredProjects.length : selected ? new Set(selectedBoardColumns(selected).flatMap((column) => column.items).map((project) => String(project.id)).filter((id) => visibleIds.has(id))).size : 0;
@@ -5534,7 +5541,7 @@
   function renderPagination(){
     const el = $('#vPagination', panelEl);
     if (!el) return;
-    if (projectBoardsEnabled() && (viewMode === 'stages' || viewMode === 'list' || tileStageFilter !== 'all')){ el.innerHTML = ''; return; }
+    if (viewMode === 'map' || (projectBoardsEnabled() && (viewMode === 'stages' || viewMode === 'list' || tileStageFilter !== 'all'))){ el.innerHTML = ''; return; }
     if (totalPages <= 1){ el.innerHTML = ''; return; }
     const btns = [];
     btns.push(`<div class="v-pgbtn${currentPage <= 1 ? ' disabled':''}" data-pg="prev"><i class="fas fa-chevron-left"></i></div>`);
@@ -5615,6 +5622,11 @@
       panel.innerHTML=`<div class="v-manage-title">${(globalThis.PlatformLanguage?.htmlText("projects","m_f7db06bcf62c85","List columns") ?? "List columns")}</div><div class="v-manage-columns">${availableProjectColumns().map((column) => `<label><input type="checkbox" data-list-column="${escapeHtml(column.key)}" ${listVisibleColumns.has(column.key) ? 'checked' : ''}><span>${escapeHtml(column.label)}</span></label>`).join('')}</div><div class="v-manage-note">${(globalThis.PlatformLanguage?.htmlText("projects","m_0989a5be2bc0a3","Click a column heading to sort the list.") ?? "Click a column heading to sort the list.")}</div>${sharingFields}`;
       return;
     }
+    if (viewMode === 'map') {
+      const mapSort=getActiveSort();
+      panel.innerHTML=`<div class="v-manage-title">${(globalThis.PlatformLanguage?.htmlText("projects","m_c5b289c72361c1","Map view") ?? "Map view")}</div><label class="v-manage-field">${(globalThis.PlatformLanguage?.htmlText("projects","m_63261a6895811f","List order") ?? "List order")}<select id="vManageSortKey">${[{key:'created_at',label:(globalThis.PlatformLanguage?.htmlText("projects","m_db1fe336bd1deb","Project created date") ?? "Project created date")}, ...LIST_COLUMNS].map(column => `<option value="${escapeHtml(column.key)}" ${mapSort.key===column.key?'selected':''}>${escapeHtml(column.label)}</option>`).join('')}</select></label><button type="button" class="v-btn" id="vManageSortDirection" aria-label="${(globalThis.PlatformLanguage?.htmlText("projects","m_82049078ca088b","Switch sort direction") ?? "Switch sort direction")}"><i class="fas fa-arrow-${mapSort.dir==='asc'?'up':'down'}"></i><span>${mapSort.dir==='asc'?(globalThis.PlatformLanguage?.htmlText('projects','m_2a925f101cbd18',"Ascending") ?? "Ascending"):(globalThis.PlatformLanguage?.htmlText('projects','m_760cf1fac61b3d',"Descending") ?? "Descending")}</span></button>${sharingFields}<div class="v-manage-note">${(globalThis.PlatformLanguage?.htmlText("projects","m_05a97c3490fbb9","Pins are coloured by stage, or by board when all boards are shown. Use the chips above the map's list to show only some stages.") ?? "Pins are coloured by stage, or by board when all boards are shown. Use the chips above the map's list to show only some stages.")}</div>`;
+      return;
+    }
     const sort=getActiveSort();
     const sortColumns = viewMode === 'stages' ? availableProjectColumns() : [{key:'created_at',get label(){ return (globalThis.PlatformLanguage?.text("projects","m_db1fe336bd1deb","Project created date") ?? "Project created date"); }}, ...LIST_COLUMNS];
     const sorting=`<label class="v-manage-field">${(globalThis.PlatformLanguage?.htmlText("projects","m_a4101be3c706f6","Order by") ?? "Order by")}<select id="vManageSortKey">${sortColumns.map(column => `<option value="${escapeHtml(column.key)}" ${sort.key===column.key?'selected':''}>${escapeHtml(column.label)}</option>`).join('')}</select></label><button type="button" class="v-btn" id="vManageSortDirection" aria-label="${(globalThis.PlatformLanguage?.htmlText("projects","m_82049078ca088b","Switch sort direction") ?? "Switch sort direction")}"><i class="fas fa-arrow-${sort.dir==='asc'?'up':'down'}"></i><span>${sort.dir==='asc'?(globalThis.PlatformLanguage?.htmlText('projects','m_2a925f101cbd18',"Ascending") ?? "Ascending"):(globalThis.PlatformLanguage?.htmlText('projects','m_760cf1fac61b3d',"Descending") ?? "Descending")}</span></button>`;
@@ -5623,15 +5635,16 @@
     panel.innerHTML=`<div class="v-manage-title">${((v0) => globalThis.PlatformLanguage?.htmlText("projects","m_da6a380b934274",`${v0} view`,{v0}) ?? `${v0} view`)(viewMode==='stages'?(globalThis.PlatformLanguage?.htmlText('projects','m_aac16f05678935',"Stages") ?? "Stages"):(globalThis.PlatformLanguage?.htmlText('projects','m_3221d12ca792a6',"Tiles") ?? "Tiles"))}</div>${filtering}${sorting}${sharingFields}${viewMode==='stages' && projectSharingView()?.incoming.length?`<div class="v-manage-note">${(globalThis.PlatformLanguage?.htmlText("projects","m_ea9c70855946ea","Stages show our workflow. To browse received projects, select only Projects shared with us.") ?? "Stages show our workflow. To browse received projects, select only Projects shared with us.")}</div>`:''}`;
   }
   function updateViewControls(){
-    const bT = $('#vViewTiles', panelEl); const bL = $('#vViewList', panelEl); const bS = $('#vViewStages', panelEl);
+    const bT = $('#vViewTiles', panelEl); const bL = $('#vViewList', panelEl); const bS = $('#vViewStages', panelEl); const bM = $('#vViewMap', panelEl);
     if (bT) { bT.hidden = false; bT.disabled = false; bT.classList.toggle('active', viewMode === 'tiles'); }
+    if (bM) { bM.hidden = !mapViewEnabled(); bM.classList.toggle('active', viewMode === 'map'); }
     if (bL) { bL.hidden = false; bL.disabled = false; bL.classList.toggle('active', viewMode === 'list'); }
     if (bS) {
       bS.hidden = !stagesViewEnabled();
       bS.classList.toggle('active', viewMode === 'stages');
     }
     const boardSummary = $('#vWorkBoardSummary', panelEl);
-    if (boardSummary) boardSummary.classList.toggle('visible', projectBoardsEnabled() && (viewMode === 'stages' || viewMode === 'list') && workBoardsLoaded);
+    if (boardSummary) boardSummary.classList.toggle('visible', projectBoardsEnabled() && (viewMode === 'stages' || viewMode === 'list' || viewMode === 'map') && workBoardsLoaded);
     const manageWrap = $('#vManageViewWrap', panelEl);
     if (manageWrap) manageWrap.hidden = !projectBoardsEnabled();
     renderManageViewPanel();
@@ -5648,12 +5661,16 @@
     if (options.syncUrl !== false && !window.Portal?.navigation?.applying) syncViewModeToUrl(options);
     updateViewControls();
     syncSortDropdown();
-    if (previousMode !== viewMode && ((previousMode === 'tiles') !== (viewMode === 'tiles'))) {
+    if (previousMode !== viewMode && (((previousMode === 'tiles') !== (viewMode === 'tiles')) || loadsEveryProject(previousMode) !== loadsEveryProject(viewMode))) {
       currentPage = 1;
       fetchProjects(true);
       return;
     }
     applyQueryFilterSort();
+  }
+  // Stages, the list (with boards) and the map show every project instead of a page.
+  function loadsEveryProject(mode){
+    return sharingClientPagination || mode === 'map' || (projectBoardsEnabled() && (mode === 'stages' || mode === 'list' || (mode === 'tiles' && tileStageFilter !== 'all')));
   }
   function applyStagesViewFlag(){
     if (projectBoardsEnabled()) loadWorkBoards({ refresh:true }).catch(() => null);
@@ -5664,7 +5681,7 @@
       return;
     }
     updateViewControls();
-    if (viewMode === 'stages' || viewMode === 'list') {
+    if (viewMode === 'stages' || viewMode === 'list' || viewMode === 'map') {
       const results = $('#vResults', panelEl);
       if (results) results.innerHTML = '';
       renderResults();
@@ -5925,6 +5942,67 @@
       appendListGroup(scroll, { ...column, kind:'stage', dropStageId:column.id }, order);
     }
   }
+  // The map draws the same projects the list would: the selected board's stages
+  // (coloured by stage), every board (coloured by board), or derived stages when
+  // boards are off. Opening a project uses the same path as a tile or list row.
+  function mapViewModel(){
+    const order = new Map(filteredProjects.map((project, index) => [String(project.id), index]));
+    const groups = [];
+    const placed = new Map();
+    const place = (group, items) => {
+      groups.push({ id:String(group.id), title:group.title, color:group.color || '#667085' });
+      for (const project of items) {
+        const id = String(project.id);
+        if (!order.has(id) || placed.has(id)) continue;
+        placed.set(id, { project, group });
+      }
+    };
+    let groupLabel = 'stage';
+    let scopeKey = 'derived';
+    const boardsReady = projectBoardsEnabled() && workBoardsLoaded && projectBoards().length && !filteredProjects.some(p => p._shared) && projectSharingView()?.mode !== 'received';
+    if (projectBoardsEnabled() && !workBoardsLoaded) loadWorkBoards().catch(() => null);
+    if (boardsReady) {
+      const boardsByUsage = orderedWorkBoards();
+      const allBoards = activeWorkBoardId === 'all';
+      const selected = allBoards ? null : projectBoards().find((board) => String(board.id) === activeWorkBoardId) || boardsByUsage[0];
+      activeWorkBoardId = allBoards ? 'all' : String(selected?.id || '');
+      renderWorkBoardSummary(selected, boardsByUsage);
+      scopeKey = `board:${activeWorkBoardId}`;
+      if (allBoards) {
+        groupLabel = 'board';
+        for (const board of boardsByUsage) place({ id:board.id, title:board.title || (globalThis.PlatformLanguage?.text("projects","m_48afb49c6f40c4","Board") ?? "Board"), color:board.color }, selectedBoardColumns(board).flatMap((column) => column.items));
+      } else {
+        for (const column of selectedBoardColumns(selected)) place(column, column.items);
+      }
+    } else {
+      for (const column of stageColumnsForProjects(filteredProjects)) place(column, column.items);
+    }
+    const items = filteredProjects.filter((project) => placed.has(String(project.id))).map((project) => {
+      const entry = placed.get(String(project.id));
+      const p = normalizeProjectRecord(lastProjectsById.get(String(project.id)) || entry.project);
+      const resident = resolveResidentFields(p);
+      const line1 = displayAddressLine1(p) === '—' ? '' : displayAddressLine1(p);
+      return {
+        id:String(p.id),
+        title:resident.name || p.customer_name || p.primary_contact_name || p.title || line1,
+        line1,
+        line2:displayAddressLine2(p),
+        address:String(p.address || '').trim(),
+        point:projectThumbnailPoint(p) || projectThumbnailPoint(entry.project),
+        groupId:String(entry.group.id),
+        groupTitle:entry.group.title || '',
+        color:entry.group.color || '#667085',
+        project:p
+      };
+    });
+    const used = new Set(items.map((item) => item.groupId));
+    const uniqueGroups = groups.filter((group, index) => used.has(group.id) && groups.findIndex((other) => other.id === group.id) === index);
+    return { items, groups:uniqueGroups, groupLabel, scopeKey, open:(project) => openModal(lastProjectsById.get(String(project?.id || '')) || project) };
+  }
+  function renderMapView(results){
+    if (!window.FirstMateProjectsMap) { results.innerHTML = ''; return; }
+    window.FirstMateProjectsMap.update(results, mapViewModel());
+  }
   function renderResults(){
     const results = $('#vResults', panelEl); if (!results) return;
     if (!allProjects.length && !sharedProjectRecords().length){
@@ -5938,6 +6016,7 @@
     if (!filteredProjects.length){ results.innerHTML = `<div style="text-align:center; color:#bbb; padding:44px 0;"><div style="font-weight:1000; font-size:14px;">${(globalThis.PlatformLanguage?.htmlText("projects","m_6f8bc477c58867","No matches.") ?? "No matches.")}</div><div style="margin-top:8px; color:#999; font-weight:850;">${(globalThis.PlatformLanguage?.htmlText("projects","m_d87926e9f2e245","Try clearing filters or searching a different term.") ?? "Try clearing filters or searching a different term.")}</div></div>`; return; }
     if (viewMode === 'stages'){ renderStagesView(); return; }
     if (viewMode === 'list'){ results.innerHTML = renderListShell(); renderGroupedList(); wireListHeaderSort(); return; }
+    if (viewMode === 'map'){ renderMapView(results); return; }
     results.innerHTML = `<div class="v-grid" id="vGrid"></div>`;
     const grid = $('#vGrid', panelEl);
     const page = sharingClientPagination ? filteredProjects.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE) : filteredProjects;
@@ -5968,7 +6047,7 @@
   }
   function patchBadges(projects){
     if (!projects?.length || !panelEl) return;
-    if (viewMode === 'stages') {
+    if (viewMode === 'stages' || viewMode === 'map') {
       renderResults();
       return;
     }
@@ -7311,7 +7390,7 @@
       await projectSharingView()?.load();
       if (requestSeq !== fetchProjectsSeq) return;
       sharingClientPagination = !!projectSharing?.incoming.length || !!projectSharing?.filtered;
-      const stagesMode = sharingClientPagination || (projectBoardsEnabled() && (viewMode === 'stages' || viewMode === 'list' || (viewMode === 'tiles' && tileStageFilter !== 'all')));
+      const stagesMode = loadsEveryProject(viewMode);
       const payload = { page: stagesMode ? 1 : currentPage, limit: stagesMode ? 0 : PAGE_SIZE, status_filter:'all', include_instant_only: '1', view: 'card', hide_drafts: hideDrafts ? '1' : '0' };
       if (reportSearchQuery.trim()) payload.search = reportSearchQuery.trim();
       const { data } = await postAction('list_projects', payload);
@@ -7385,6 +7464,7 @@
             <button class="v-btn v-pill" id="vViewStages" hidden><i class="fas fa-table-columns"></i><span class="btn-label">${(globalThis.PlatformLanguage?.htmlText("projects","m_1fae2f2aa8a59c"," Stages") ?? " Stages")}</span></button>
             <button class="v-btn v-pill" id="vViewList"><i class="fas fa-list"></i><span class="btn-label">${(globalThis.PlatformLanguage?.htmlText("projects","m_d9f8d11bfbd0a9"," List") ?? " List")}</span></button>
             <button class="v-btn v-pill" id="vViewTiles"><i class="fas fa-grip"></i><span class="btn-label">${(globalThis.PlatformLanguage?.htmlText("projects","m_073de0eb54464f"," Tiles") ?? " Tiles")}</span></button>
+            <button class="v-btn v-pill" id="vViewMap" hidden><i class="fas fa-map-location-dot"></i><span class="btn-label">${(globalThis.PlatformLanguage?.htmlText("projects","m_9afd0eccc8e530","Map") ?? "Map")}</span></button>
             </div>
             <div class="v-manage-wrap" id="vManageViewWrap"><button type="button" class="v-btn v-pill" id="vManageView" aria-label="${(globalThis.PlatformLanguage?.htmlText("projects","m_f8e16243e0f91c","Manage view") ?? "Manage view")}" aria-expanded="false" aria-controls="vManageViewPanel"><i class="fas fa-sliders" aria-hidden="true"></i><span class="btn-label">${(globalThis.PlatformLanguage?.htmlText("projects","m_f8e16243e0f91c","Manage view") ?? "Manage view")}</span></button><div class="v-manage-panel" id="vManageViewPanel" hidden></div></div>
           </div>
@@ -7474,6 +7554,7 @@
     $('#vViewTiles', panelEl)?.addEventListener('click', ()=>setView('tiles', { history:'push', source:'projects-view' }));
     $('#vViewList', panelEl)?.addEventListener('click', ()=>setView('list', { history:'push', source:'projects-view' }));
     $('#vViewStages', panelEl)?.addEventListener('click', ()=>setView('stages', { history:'push', source:'projects-view' }));
+    $('#vViewMap', panelEl)?.addEventListener('click', ()=>setView('map', { history:'push', source:'projects-view' }));
     const manageWrap=$('#vManageViewWrap',panelEl);
     const manageButton=$('#vManageView',panelEl);
     const managePanel=$('#vManageViewPanel',panelEl);
@@ -7529,7 +7610,7 @@
     pollTimer = setInterval(()=>{
       if (document.hidden) return;
       fetchProjects(false);
-      if (viewMode === 'stages' || viewMode === 'list') loadWorkBoards({ refresh:true }).catch(() => null);
+      if (viewMode === 'stages' || viewMode === 'list' || viewMode === 'map') loadWorkBoards({ refresh:true }).catch(() => null);
     }, 120000);
   }
 
@@ -7539,7 +7620,7 @@
   };
   window.Portal.modules = window.Portal.modules || {};
   window.Portal.modules.viewer = { refresh: (redraw=true)=>fetchProjects(!!redraw), openProjectById, openProject };
-  window.Portal?.navigation?.registerSchema?.(PROJECT_VIEW_QUERY_KEY, { default:'stages', values:['stages','list','tiles'], history:'push' });
+  window.Portal?.navigation?.registerSchema?.(PROJECT_VIEW_QUERY_KEY, { default:'stages', values:['stages','list','tiles','map'], history:'push' });
   window.Portal?.navigation?.registerSchema?.(PROJECT_BOARD_QUERY_KEY, { history:'push' });
   window.Portal?.navigation?.registerHandler?.('projects-view', {
     priority:400,

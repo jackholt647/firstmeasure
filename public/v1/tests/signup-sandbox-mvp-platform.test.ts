@@ -36,4 +36,8 @@ test('the MVP platform workflow is FirstMeasure plus projects, contacts, feed an
  for(const key of off) assert.notEqual(effectiveByKey[key],true,key);
  const global=await storage.readGlobal(orgId);
  assert.deepEqual((global.data as any).app_placements,{'portal.channels':'hidden','portal.assistant':'hidden'});
+ // MVP test orgs take the development sample projects and customers (the project map needs projects).
+ const {addTestOrgSampleData}=await import('../signup-sandbox/sample-data.js');
+ await addTestOrgSampleData(String(instance.testOrg.id),{projects:true,customers:true});
+ assert.ok((await storage.listDocuments(orgId,'projects')).length>0);
 });

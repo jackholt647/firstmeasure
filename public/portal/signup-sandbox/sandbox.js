@@ -1,5 +1,7 @@
 (function () {
     'use strict';
+    // Workflows whose test orgs can be filled with development sample data.
+    const SAMPLE_DATA_WORKFLOWS = new Set(['swf_instant_full_org', 'swf_mvp_platform']);
 
     function apiBaseUrl() {
         const host = String(location.hostname || '').toLowerCase();
@@ -368,7 +370,7 @@
                 await loadTestOrgUsers(org.id);
             }));
             actions.appendChild(usersBtn);
-            if (org.workflow_id === 'swf_instant_full_org') {
+            if (SAMPLE_DATA_WORKFLOWS.has(org.workflow_id)) {
                 const samplesBtn = el('button', 'sbx-btn', 'Add sample data');
                 samplesBtn.addEventListener('click', () => openSampleDataModal(org));
                 actions.appendChild(samplesBtn);
@@ -503,7 +505,7 @@
         const add = el('button', 'sbx-btn sbx-btn-primary', 'Add user');
         add.addEventListener('click', () => openTestOrgUserCreator(org));
         main.appendChild(add);
-        if (org.workflow_id === 'swf_instant_full_org') {
+        if (SAMPLE_DATA_WORKFLOWS.has(org.workflow_id)) {
             const samples = el('button', 'sbx-btn', 'Add sample data');
             samples.addEventListener('click', () => openSampleDataModal(org));
             main.appendChild(samples);
