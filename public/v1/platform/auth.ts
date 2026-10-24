@@ -69,7 +69,7 @@ import { forbidden, unauthorized } from "./errors.js";
 import { organizationUserProfileView } from "./user_profile.js";
 import { notificationAccessPermissions, resolveAccessProfile, resolveAppEntitlements, type EffectiveAppEntitlement, type ResolvedAccessProfile } from "../workforce/access.js";
 import { deviceTypesForClient } from "./app-experience/devices.js";
-import { appIds } from "./app-experience/registry.js";
+import { appIds, launcherAppIds } from "./app-experience/registry.js";
 import { relevantDepartmentContext, resolveScopedAccessGrants, canUseScopedPermission, type ScopedAccessGrant, type OrganizationStructureAccess } from '../workforce/department-access.js';
 import { resolveOrganizationStructure } from '../workforce/organization-structure.js';
 export { hasResourcePermission, assertResourcePermission, canUseScopedPermission, relevantDepartmentContext, matchesDepartmentFilter, canAccessDepartmentResource } from '../workforce/department-access.js';
@@ -394,8 +394,9 @@ export function publicAuthContext(ctx: PlatformAuthContext) {
     },
     access_profile: accessProfile,
     app_entitlements: appEntitlements,
-    // Every app the platform declares, so the browser can tell an app the organization has off from one it does not manage.
-    app_experience: { device_types: deviceTypesForClient(), app_ids: appIds() },
+    // Every app the platform declares, so the browser can tell an app the organization has off from one it does not manage,
+    // and the portal tabs the apps overlay may list.
+    app_experience: { device_types: deviceTypesForClient(), app_ids: appIds(), launcher_app_ids: launcherAppIds() },
     impersonation: impersonatedByEmail ? {
       active: true,
       admin_email: impersonatedByEmail,

@@ -48,10 +48,10 @@
       }
     },
     "tabs": {
-      "total": 54,
+      "total": 55,
       "by_surface": {
         "contact_modal": 3,
-        "portal_tab": 30,
+        "portal_tab": 31,
         "project_modal": 21
       }
     }
@@ -2541,6 +2541,7 @@
     "portal.partners": {"surface":"portal_tab","devices":["mobile","desktop"],"default_visible":true,"capabilities":["platform.collaboration"]},
     "portal.payroll": {"surface":"portal_tab","devices":["mobile","desktop"],"default_visible":false,"capabilities":["apps.payroll"]},
     "portal.photos_feed": {"surface":"portal_tab","devices":["mobile","desktop"],"default_visible":true,"capabilities":["platform.photos_feed"]},
+    "portal.pricebook": {"surface":"portal_tab","devices":["mobile","desktop"],"default_visible":true,"capabilities":["platform.pricebook"]},
     "portal.proposals": {"surface":"portal_tab","devices":["mobile","desktop"],"default_visible":true,"capabilities":["platform.proposals"]},
     "portal.receipts": {"surface":"portal_tab","devices":["mobile","desktop"],"default_visible":false,"capabilities":["crew.receipts"]},
     "portal.sales_earnings": {"surface":"portal_tab","devices":["mobile","desktop"],"default_visible":false,"capabilities":["payroll.self_service_earnings"]},

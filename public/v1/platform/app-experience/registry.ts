@@ -49,6 +49,13 @@ export type AppDefinition = {
   layout: JsonObject;
   portal_tab_id?: string;
   default_home?: boolean;
+  /**
+   * Whether the apps overlay lists this portal tab. A portal tab is a page a
+   * person opens, so it is listed unless it says false: one reached from its
+   * own control (Settings, the Assistant's header button). Project and contact
+   * window views are never listed.
+   */
+  launcher?: boolean;
 };
 
 const PROJECT_LAYOUT: JsonObject = {
@@ -97,7 +104,7 @@ const APP_SOURCE: AppSource[] = [
   tab("portal.photos_feed", "Feed", "fa-images", 30, { terminology_key: "photos.portal_tab", description: "Recent project photos across the organization.", capabilities: ["platform.photos_feed"] }),
   tab("portal.proposals", "Proposals", "fa-file-signature", 40, { terminology_key: "proposals.portal_tab", description: "Organization-wide proposal workspace.", capabilities: ["platform.proposals"] }),
   tab("portal.channels", "Channels", "fa-comments", 44, { terminology_key: "channels.portal_tab", description: "Team channels and conversations.", capabilities: ["apps.channels"] }),
-  tab("portal.assistant", "FirstMate Assistant", "fa-wand-magic-sparkles", 45, { terminology_key: "assistant.portal_tab", description: "The FirstMate assistant.", capabilities: ["apps.assistant"] }),
+  tab("portal.assistant", "FirstMate Assistant", "fa-wand-magic-sparkles", 45, { terminology_key: "assistant.portal_tab", description: "The FirstMate assistant.", capabilities: ["apps.assistant"], launcher: false }),
   tab("portal.chat", "Communications", "fa-inbox", 46, { terminology_key: "chat.portal_tab", description: "Calls, texts and live chat in one inbox.", capabilities: ["apps.comms"] }),
   tab("portal.scheduling", "Scheduling", "fa-calendar-days", 50, { terminology_key: "scheduling.portal_tab", description: "Organization scheduling and resource planning.", capabilities: ["platform.scheduling"] }),
   tab("portal.invoices", "Invoices", "fa-file-invoice-dollar", 51, { terminology_key: "invoices.portal_tab", description: "Outstanding invoices, aging, projects that still need billing, and invoice sending.", capabilities: ["money.invoices"], default_visible: false, default_params: { invoicesView: "outstanding" } }),
@@ -108,12 +115,13 @@ const APP_SOURCE: AppSource[] = [
   tab("portal.equipment", "Equipment", "fa-truck-pickup", 57, { terminology_key: "equipment.portal_tab", description: "Equipment, its use and its upkeep.", capabilities: ["apps.equipment"] }),
   tab("portal.training", "Training", "fa-graduation-cap", 58, { terminology_key: "training.portal_tab", description: "Courses assigned to you.", capabilities: ["apps.training"] }),
   tab("portal.training_studio", "Training Studio", "fa-chalkboard-user", 59, { terminology_key: "training.studio_portal_tab", description: "Build and assign training courses.", capabilities: ["training.studio"], devices: DESKTOP_ONLY }),
+  tab("portal.pricebook", "Pricebook", "fa-book", 61, { terminology_key: "pricebook.pricebook", description: "The organization price book, full screen. It is also in Settings.", capabilities: ["platform.pricebook"] }),
   tab("portal.partners", "Partners", "fa-handshake", 60, { terminology_key: "partners.partners", description: "Partner companies and shared work.", capabilities: ["platform.collaboration"] }),
   tab("portal.canvassing", "Canvassing", "fa-map-location-dot", 70, { terminology_key: "canvassing.portal_tab", description: "Canvassing maps and door-to-door activity.", capabilities: ["canvassing.app"] }),
   tab("documents.studio", "Doc Studio", "fa-pen-ruler", 72, { terminology_key: "document_engine.studio_tab", description: "Design document templates.", capabilities: ["documents.templates_studio"], devices: DESKTOP_ONLY }),
   tab("portal.web_editor", "Web Editor", "fa-globe", 74, { terminology_key: "web_editor.tab", description: "Edit the company website.", capabilities: ["apps.web_editor"], devices: DESKTOP_ONLY }),
   tab("portal.receipts", "Receipts", "fa-receipt", 76, { terminology_key: "receipts.portal_tab", description: "Upload job receipts.", capabilities: ["crew.receipts"], default_visible: false }),
-  tab("portal.company_settings", "Settings", "fa-gear", 80, { terminology_key: "settings.portal_tab", description: "Company configuration, people and integrations." }),
+  tab("portal.company_settings", "Settings", "fa-gear", 80, { terminology_key: "settings.portal_tab", description: "Company configuration, people and integrations.", launcher: false }),
   tab("portal.crew_overview", "Today", "fa-house", 10, {
     terminology_key: "crew.today_portal_tab", description: "Today's assigned work, overdue work, and shift controls.", capabilities: ["apps.crew"], default_visible: false, default_home: true,
     default_params: { mode: "crew", variant: "crew" },
@@ -221,6 +229,11 @@ export function appDefinition(id: string): AppDefinition | undefined {
 
 export function appIds() {
   return APP_SOURCE.map((entry) => entry.id);
+}
+
+/** The apps the apps overlay may list: portal tabs that do not say `launcher: false`. */
+export function launcherAppIds() {
+  return APP_SOURCE.filter((entry) => entry.surface === "portal_tab" && entry.launcher !== false).map((entry) => entry.id);
 }
 
 export function canonicalAppId(value: unknown) {

@@ -592,6 +592,26 @@
       bundles: [versionedBundle('../insights/firstmate-insights.js', '20260901-insights-v1'), versionedBundle('settings/feedback.js', '20260917-feedback-app-v1'), versionedBundle('feedback/app.js', '20260917-feedback-app-v1')]
     },
     {
+      // The price book full screen. Its home is Settings > Pricebook; the apps
+      // overlay opens it as a page, and it can be pinned to the left column.
+      // Without the apps overlay it stays in Settings only.
+      id: 'portal.pricebook',
+      package: 'pricebook',
+      title: (globalThis.PlatformLanguage?.text("firstmate-apps-manifest","portal_pricebook_title","Pricebook") ?? "Pricebook"),
+      terminologyKey: 'pricebook.pricebook',
+      icon: 'fa-book',
+      kind: 'portal_tab',
+      surfaces: ['portal_tab'],
+      portalTabId: 'pricebook',
+      settingsTabId: 'pricebook',
+      order: 61,
+      placement: 'more',
+      placementWithoutAppsMenu: 'settings',
+      fullBleed: true,
+      dependencies: ['pricebook.bridge'],
+      bundles: [versionedBundle('pricebook/app.js', '20261024-full-page-v1')]
+    },
+    {
       id: 'portal.company_settings',
       package: 'settings',
       title: (globalThis.PlatformLanguage?.text("firstmate-apps-manifest","m_7d461dc7d355cc","Settings") ?? "Settings"),
@@ -894,6 +914,7 @@
     'project.feedback': { visible:true },
     // Listed before its bundle loads; the bundle loads when the tab first opens.
     'portal.crm': { visible:true, fullBleed:true },
+    'portal.pricebook': { visible:true, fullBleed:true },
     'portal.assistant': {
       visible:true,
       mount(context){
@@ -1006,6 +1027,7 @@
     'portal.stats': 'apps.stats',
     'portal.payroll': 'apps.payroll',
     'portal.feedback': 'apps.feedback',
+    'portal.pricebook': 'platform.pricebook',
     'portal.crm': 'apps.crm',
     // The global communications center: shown when the comms hub is on (the
     // live-chat channel additionally gates itself inside the app).

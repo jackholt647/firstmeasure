@@ -89,6 +89,29 @@ apps the person has on this device. Contact window tabs follow
 Manifest entries and app bundles do not declare their own visibility. They
 carry no application, device or permission rule for whether they appear.
 
+## The apps overlay
+
+The apps overlay (the advanced app menu) lists what a person can open as an
+app: the portal tabs they have on this device (`appLauncherEntries` in
+`portal/scripts/core.js`). A registry portal tab is listed unless it says
+`launcher: false` (Settings and the Assistant, which have their own controls);
+the session sends the listed ids as `app_experience.launcher_app_ids`. Project
+and contact window views, trays, banners and promotions are not portal tabs, so
+they never appear, and neither does a switch that only turns on other apps. An
+app whose organization placement is `hidden` is not offered there either.
+
+Choosing an app opens it. Only when the app's switch declares a `required`
+setup workflow whose status is not `complete` does its setup run instead.
+Adding apps the organization has off is the separate catalog
+(`appCatalogEntries`, the capability nodes of kind `app`), reached from
+"Manage apps and features".
+
+An app whose home is elsewhere can still be a page here: Pricebook
+(`portal.pricebook`) lives in Settings and its portal tab opens the same
+renderer full screen. Its manifest entry says `placement: 'more'` and
+`placementWithoutAppsMenu: 'settings'`, so without the apps overlay it is only
+in Settings.
+
 ## Left-column pins
 
 Whether a whole app sits in the left column is the organization's placement

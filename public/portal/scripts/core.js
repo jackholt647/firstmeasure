@@ -2476,8 +2476,14 @@
     if (appId === 'portal.company_settings') return configured === 'hidden' ? 'hidden' : 'settings';
     const requested = cleanText(configured || app.placement || fallback).toLowerCase();
     // The advanced launcher revives `more` as an app-menu-only placement. With
-    // the experiment off, preserve the legacy projection back to the sidebar.
-    if (requested === 'more') return appId === 'portal.assistant' || advancedAppMenuEnabled() ? 'more' : 'sidebar';
+    // the experiment off, preserve the legacy projection back to the sidebar,
+    // unless the app declares another home without the apps menu (the
+    // Pricebook page stays in Settings).
+    if (requested === 'more') {
+      if (appId === 'portal.assistant' || advancedAppMenuEnabled()) return 'more';
+      const without = cleanText(app.placementWithoutAppsMenu).toLowerCase();
+      return ['sidebar', 'settings', 'hidden'].includes(without) ? without : 'sidebar';
+    }
     return ['sidebar', 'more', 'settings', 'hidden'].includes(requested) ? requested : fallback;
   }
 
@@ -3192,6 +3198,60 @@
     return !result.reasons.some((reason) => ['device', 'entitlement', 'organization_app_off'].includes(reason));
   }
 
+  // The apps overlay lists apps a person opens: the portal tabs this person
+  // has on this device (TabRegistry, already filtered by the organization's
+  // switches and App experience) that the registry offers in the launcher
+  // (`launcher_app_ids`; Settings and the Assistant say no) and whose
+  // placement offers them here (left column or apps menu, never hidden).
+  // Project window tabs, trays, banners and capability umbrellas are not
+  // portal tabs, so they never appear. Adding apps is the separate catalog
+  // (appCatalogEntries, behind "Manage apps and features").
+  function appLauncherEntries(){
+    const experience = window.Portal?.appExperience || {};
+    const declared = new Set(Array.isArray(experience.app_ids) ? experience.app_ids : []);
+    const launcher = Array.isArray(experience.launcher_app_ids) ? new Set(experience.launcher_app_ids) : null;
+    return [...TabRegistry.tabs.values()]
+      .filter((tab) => tab.appId && ['sidebar', 'more'].includes(tab.placement))
+      .filter((tab) => !launcher || !declared.has(tab.appId) || launcher.has(tab.appId))
+      .filter((tab) => launcherAppInExperience({ appId:tab.appId }))
+      .map((tab) => {
+        const runtimeApp = window.FirstMateEmbeddableApps?.getApp?.(tab.appId) || {};
+        const capability = cleanText(runtimeApp.access?.capability, tab.access?.capability);
+        return {
+          key: tab.appId,
+          appId: cleanText(tab.appId).toLowerCase(),
+          capability,
+          label: terminologyLabel(tab.terminologyKey, tab.title),
+          icon: cleanText(tab.icon) || 'fa-circle',
+          tabId: tab.id,
+          placement: tab.placement,
+          pinnable: true,
+          pinned: tab.placement === 'sidebar',
+          enabled: true,
+          statusPills: normalizeAppStatusPills(window.PlatformAPI?.capabilities?.current?.()?.definitions_by_key?.[capability]?.status_pills, runtimeApp.statusPills),
+          setup: capability ? appSetupDescription(capability) : null
+        };
+      });
+  }
+
+  // Opening an app from the overlay opens it. Its setup workflow runs instead
+  // only while setup is required and not complete; optional or finished setup
+  // stays in Settings and the add-apps catalog.
+  function launcherSetupPending(entry){
+    const setup = entry?.setup;
+    return !!(setup && setup.launchable && setup.mode === 'required' && setup.status !== 'complete');
+  }
+
+  function openLauncherEntry(entry){
+    if (!entry) return;
+    closeAdvancedAppMenu({ restoreFocus:false });
+    if (launcherSetupPending(entry)) {
+      Promise.resolve(window.Portal?.appSetup?.run?.(entry.capability, { mode:'launch', entry, source:'advanced-app-menu' })).catch(() => null);
+      return;
+    }
+    activateTab(entry.tabId, false, { history:'push', source:'advanced-app-menu' });
+  }
+
   function renderAdvancedAppMenu(launcher = advancedAppMenuLauncher){
     if (!advancedAppMenuOpen || !advancedAppMenuEnabled()) {
       if (advancedAppMenuOpen) closeAdvancedAppMenu({ restoreFocus:false });
@@ -3209,12 +3269,11 @@
       button.setAttribute('aria-expanded', 'true');
     });
 
-    const entries = appCatalogEntries().sort((a, b) => a.label.localeCompare(b.label));
-    const enabled = entries
-      .filter((entry) => entry.enabled && launcherAppInExperience(entry))
+    const entries = appLauncherEntries();
+    const enabled = [...entries]
       .sort((a, b) => Number(b.pinned) - Number(a.pinned) || a.label.localeCompare(b.label));
     const appTile = (entry) => {
-      const setupRequired = entry.enabled && entry.setup?.mode === 'required' && entry.setup?.status !== 'complete';
+      const setupRequired = launcherSetupPending(entry);
       const statusPills = entry.statusPills || [];
       const subviewExtras = window.FirstMateLeftColumnPins?.overlayTileExtras?.(entry) || { className:'', html:'' };
       return `
@@ -3278,14 +3337,7 @@
     }, { signal }));
     window.FirstMateLeftColumnPins?.bindOverlay?.(overlay, { signal });
     overlay.querySelectorAll('[data-advanced-app-open]').forEach((button) => button.addEventListener('click', () => {
-      const entry = entries.find((item) => item.key === button.dataset.advancedAppOpen);
-      const setupRequired = entry?.enabled && entry.setup?.mode === 'required' && entry.setup?.status !== 'complete';
-      if (entry?.enabled && entry.tabId && !setupRequired) {
-        closeAdvancedAppMenu({ restoreFocus:false });
-        activateTab(entry.tabId, false, { history:'push', source:'advanced-app-menu' });
-      } else if (entry) {
-        openAppCatalogModal(entry.key, { source:'advanced-app-menu', preserveAdvancedMenu:true });
-      }
+      openLauncherEntry(entries.find((item) => item.key === button.dataset.advancedAppOpen));
     }, { signal }));
     overlay.addEventListener('keydown', (event) => {
       if (event.key === 'Escape') closeAdvancedAppMenu();

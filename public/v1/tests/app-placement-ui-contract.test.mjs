@@ -18,7 +18,8 @@ test('org app placement drives sidebar, advanced app-menu, Settings, and hidden 
   assert.match(platformApi, /updatePlacements\(orgId, placements/);
   assert.match(platformApi, /app_placements/);
   assert.match(core, /\['sidebar', 'more', 'settings', 'hidden'\]/);
-  assert.match(core, /requested === 'more'\) return advancedAppMenuEnabled\(\) \? 'more' : 'sidebar'/);
+  assert.match(core, /if \(appId === 'portal\.assistant' \|\| advancedAppMenuEnabled\(\)\) return 'more';/);
+  assert.match(core, /cleanText\(app\.placementWithoutAppsMenu\)[\s\S]{0,120}: 'sidebar';/);
   assert.match(core, /\.placement === 'sidebar'/);
   assert.match(core, /source:'settings-launcher'/);
   assert.match(core, /appId === 'portal\.company_settings'[^\n]+configured === 'hidden' \? 'hidden' : 'settings'/);
@@ -75,8 +76,9 @@ test('advanced app menu is feature-flagged and supports animated sidebar pinning
   assert.doesNotMatch(core, /fm-advanced-app-open strong\{[^}]+text-overflow:ellipsis/);
   assert.match(core, /fm-advanced-apps-close\{[^}]+top:calc\(-1 \* clamp\([^}]+right:calc\(-1 \* clamp/);
   assert.match(core, /fm-advanced-apps-panel>footer\{[^}]*position:absolute[^}]+right:calc\(-1 \* clamp[^}]+bottom:calc\(-1 \* clamp/);
-  assert.match(core, /entry\.setup\?\.mode === 'required' && entry\.setup\?\.status !== 'complete'/);
-  assert.match(core, /openAppCatalogModal\(entry\.key, \{ source:'advanced-app-menu', preserveAdvancedMenu:true \}\)/);
+  // The overlay opens apps; only unfinished required setup runs a workflow (tests/apps-overlay.test.ts).
+  assert.match(core, /setup\.mode === 'required' && setup\.status !== 'complete'/);
+  assert.match(core, /openLauncherEntry\(entries\.find\(\(item\) => item\.key === button\.dataset\.advancedAppOpen\)\)/);
   assert.match(core, /fm-app-catalog-overlay\.is-over-advanced-apps\{[^}]+--fm-app-catalog-sidebar-edge[^}]+background:rgba\(3,8,18,\.58\)/);
   assert.match(core, /options\.preserveAdvancedMenu === true && advancedAppMenuOpen && advancedAppMenuOverlay/);
   assert.match(core, /fm-app-catalog-modal\{[^}]+z-index:1/);
