@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+October 23 Signup form embeddable on dev: [the app's own signup form runs on the websites from one script tag, with an exact-origin allowlist on /v1/platform/auth/*](deploy/digitalocean/development-signup-embed-20261023.md) records `c17c3797` (1M8-240); websites not switched yet.
+
 October 23 Signup language on dev: [No Country or Language dropdowns, signups never refused, and the visitor's language handed from landing page (?lang + fm_lang cookie) through login, signup, onboarding and the organization in all 17 packs](deploy/digitalocean/development-signup-language-20261023.md) records `e7144481` and `52df0758` (1M8-240) on worker, legacy and web; the website droplets still need handoff.js.
 
 October 23 Signup lists on dev: [Country and Language are styled lists limited to Ben's 21 operating countries and their languages, the phone placeholder is the chosen calling code's own example, and signups choosing another country are refused](deploy/digitalocean/development-signup-lists-20261023.md) records release `eef3b3fa` (1M8-240), cut from `codex/hotfix-20261023o`.
