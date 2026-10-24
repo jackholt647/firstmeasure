@@ -34,3 +34,16 @@ uncommitted older variant (last touched 2026-10-16); the fix was replayed onto t
 ## Known issues
 
 - Sample projects have no board, so the map shows them as "No board" (grey); stage colours show with real boards.
+
+## Later releases (same day)
+
+| Release | What |
+| --- | --- |
+| `c0f34bdc` | Cover photo only in the full Overview (no longer floating over the expanded map); default satellite cover uses the thumbnail endpoint with fallbacks (it pointed at a google.png artifact that often did not exist); set and see the cover from Photos; the Overview map fills its card. Web needed a second activation (runtime release check raced the restart). |
+| `36d6858c` + `8374f90d` | MVP platform moved into `signup-sandbox/configurations/mvp-platform.ts` with a setup script (Generic Roofing scope, intake routing to it, other preset scopes off); workflow data `sample_data`, `setup_scripts`, `dev_bar`, `configuration_revision`; top bar with search and notifications; no test-run bar for MVP or Instant full org. 36d6858c failed the host TypeScript check and never activated; it shipped with 8374f90d (base c0f34bdc), which also carried another session's `3c1df2d4` (session replay). |
+| `a823eb07` | Manual measurement entry when there is no report (manual dataset, `measurements.manual.save`, project history); empty-organization board tie goes to a real board. |
+| `11e969cc` | To Do, Activity and Agent trays on a new, unsaved project; assistant no longer stuck on Loading with no conversation. Legacy keeps its older `project-trays.js`. |
+| `04a3829c` + `ccad1ebd` | Map camera: one eased centre-and-zoom tween from the click; full-house exteriors on in the MVP platform (revision 3). |
+| `ea21b143` | Roof-only 3D roofs use the exteriors editor's dense shingle covering; MVP platform turns on `firstmeasure.roof_model_viewer` (revision 4). Dev runs that gate from the release-branch hold `067deb12`, which canonical lacks. |
+
+Verified on dev: a new MVP org has one Roofing board (New, Inspection, Estimate, Sold, In production, Complete), no test-run bar, the top bar with search and notifications, and Full House Reports on. The map camera and the roof viewer were verified in local harnesses only: the browser pane was hidden (no animation frames), so in-pane checks of animated views stall at "Loading".
