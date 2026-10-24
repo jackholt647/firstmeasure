@@ -99,11 +99,11 @@ export const registerChannelsApi: FastifyPluginAsync = async (app) => {
     const structure=await (await import('../workforce/organization-structure.js')).resolveOrganizationStructure(ctx.orgId);
     const selection=(await import('../workforce/department-access.js')).relevantDepartmentContext(ctx);
     const groupKinds=await (await import('../workforce/storage.js')).readResourceGroupKinds(ctx.orgId);
-    const member=structure.users.find(u=>u.id===ctx.userId);
-    const eligible=(ids:string[])=>selection.organization_wide || ids.some(id=>selection.department_ids.includes(id));
-    const audienceGroups=structure.groups.filter(g=>eligible(g.department_ids) || member?.resource_group_ids.includes(g.id));
-    const audienceUsers=users.filter(u=>{const member=structure.users.find(row=>row.id===u.id);return !!member && (u.id===ctx.userId || eligible(member.department_ids));});
-    return { ok: true, users, count: users.length,note_advanced_visibility:true,note_audience_groups:audienceGroups,note_audience_users:audienceUsers,note_audience_group_kinds:groupKinds.filter(k=>audienceGroups.some(g=>g.kind_id===k.id && (selection.organization_wide || g.department_ids.some(id=>selection.department_ids.includes(id))))),note_audience_kind_department_ids:selection.department_ids,note_audience_organization_wide:selection.organization_wide,departments:structure.catalog.departments.filter(d=>d.status==='active').map(d=>({id:d.id,label:d.label})),selectable_department_ids:selection.department_ids,note_department_visibility:true,note_crew_visibility:true,note_department_label:structure.catalog.terminology.department.plural };
+    const audiences=await import('../workforce/note-audiences.js');
+    const effectiveByKey=ctx.capabilities?.effectiveByKey || (await (await import('../platform/capabilities.js')).effectiveCapabilities(orgId)).effectiveByKey;
+    const options=audiences.noteAudienceOptions({viewerId:ctx.userId,groupsEnabled:audiences.noteGroupAudiencesEnabled(effectiveByKey),selection,departments:structure.catalog.departments,groups:structure.groups,groupKinds,members:structure.users,users});
+    // note_crew_visibility stays false: the retired "Application access" audience is never offered again.
+    return { ok: true, users, count: users.length,note_advanced_visibility:true,note_audience_sections:options.sections,note_audience_groups:options.groups,note_audience_users:options.users,note_audience_group_kinds:options.group_kinds,note_audience_kind_department_ids:selection.department_ids,note_audience_organization_wide:selection.organization_wide,departments:options.departments,selectable_department_ids:options.selectable_department_ids,note_department_visibility:true,note_crew_visibility:false,note_department_label:structure.catalog.terminology.department.plural };
   });
 
   app.get("/organizations/:orgId/channels", async (request) => {

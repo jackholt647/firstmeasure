@@ -187,9 +187,12 @@ export function projectNoteDepartmentVisibility(ctx: PlatformAuthContext, channe
   const selected = [...new Set((departmentIds || []).map(cleanText).filter(Boolean))];
   const allowed = relevantDepartmentContext(ctx).department_ids;
   if (selected.some(id => !allowed.includes(id))) throw forbidden('department_denied', 'Choose active departments available to you.');
+  // The retired "Application access" audience (everyone holding crew.projects.view, across departments) is no
+  // longer offered. Notes that already carry note_audience_crew keep it (messageVisibleTo); nothing new chooses it.
+  if (includeCrew === true) throw badRequest('note_audience_retired', 'This audience is no longer available. Choose people, groups or departments.');
   const refs=audienceRefs===undefined ? undefined : validateNoteAudienceRefs(ctx,audienceRefs);
-  if(refs?.length && (selected.length || includeCrew))throw badRequest('note_audience_mixed','Choose departments or an advanced audience.');
-  return {...(refs===undefined ? {} : {note_audience_refs:refs,note_audience_owner_id:refs.length ? ctx.userId : ''}),department_ids:selected, note_audience_crew:includeCrew === true, department_access:selected.length || includeCrew === true || refs?.length ? 'restricted' : 'shared'};
+  if(refs?.length && selected.length)throw badRequest('note_audience_mixed','Choose departments or an advanced audience.');
+  return {...(refs===undefined ? {} : {note_audience_refs:refs,note_audience_owner_id:refs.length ? ctx.userId : ''}),department_ids:selected, note_audience_crew:false, department_access:selected.length || refs?.length ? 'restricted' : 'shared'};
 }
 
 // --- user directory -----------------------------------------------------------
@@ -1487,7 +1490,7 @@ export async function editMessage(ctx: PlatformAuthContext, messageId: string, i
 
   if(input.audience_refs===undefined && Array.isArray(message.metadata.note_audience_refs) && message.metadata.note_audience_refs.length && (input.department_ids!==undefined || input.include_crew!==undefined))throw badRequest('note_audience_refresh','Refresh Notes before changing an advanced audience.');
   const audienceChanged=input.department_ids !== undefined || input.include_crew !== undefined || input.audience_refs !== undefined;
-  const departmentVisibility=projectNoteDepartmentVisibility(ctx,channel.type,message.metadata.project_note === true && !message.parent_id,audienceChanged ? input.department_ids ?? asStringArray(message.metadata.department_ids) : undefined,audienceChanged ? input.include_crew ?? message.metadata.note_audience_crew === true : undefined,audienceChanged ? input.audience_refs ?? [] : undefined);
+  const departmentVisibility=projectNoteDepartmentVisibility(ctx,channel.type,message.metadata.project_note === true && !message.parent_id,audienceChanged ? input.department_ids ?? asStringArray(message.metadata.department_ids) : undefined,audienceChanged ? input.include_crew === true : undefined,audienceChanged ? input.audience_refs ?? [] : undefined);
   const channelTags = (input.mention_users || []).filter(user => cleanText(user.id).startsWith("channel:"));
   const previousMentions = new Set(message.mention_users.map((user) => cleanText(user.id || user.user_id)).filter(Boolean));
   const detectedLanguage = detectMessageLanguage(input.text);
@@ -1524,7 +1527,7 @@ export async function updateMessageVisibility(ctx: PlatformAuthContext, messageI
   if(message.deleted_at)throw badRequest('message_deleted','Unarchive the note before changing its visibility.');
   if(input.audience_refs===undefined && Array.isArray(message.metadata.note_audience_refs) && message.metadata.note_audience_refs.length && (input.department_ids!==undefined || input.include_crew!==undefined))throw badRequest('note_audience_refresh','Refresh Notes before changing an advanced audience.');
   const changed=input.department_ids !== undefined || input.include_crew !== undefined || input.audience_refs !== undefined;
-  const visibility=projectNoteDepartmentVisibility(ctx,channel.type,true,changed ? input.department_ids ?? asStringArray(message.metadata.department_ids) : undefined,changed ? input.include_crew ?? message.metadata.note_audience_crew === true : undefined,changed ? input.audience_refs ?? [] : undefined);
+  const visibility=projectNoteDepartmentVisibility(ctx,channel.type,true,changed ? input.department_ids ?? asStringArray(message.metadata.department_ids) : undefined,changed ? input.include_crew === true : undefined,changed ? input.audience_refs ?? [] : undefined);
   const updated=await updateMessageVisibilityRecord(ctx.orgId,message.id,{audience:input.audience,departmentVisibility:visibility});
   const [hydrated]=await hydrateMessages(ctx,channel,[updated]);
   await publishMessageEvent('channels.message.updated',channel,updated,hydrated);

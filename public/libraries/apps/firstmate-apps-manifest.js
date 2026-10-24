@@ -42,7 +42,7 @@
     versionedBundle('photos/feed.js', '20261024-cover-photo'),
     versionedBundle('../markup/firstmate-markup.js', '20261012-photo-comments-v1'),
     versionedBundle('../channels-ui/channels-ui.js', '20261012-shared-polish-v1'),
-    versionedBundle('../project-notes/project-notes.js', '20261024-new-project-render-v1'),
+    versionedBundle('../project-notes/project-notes.js', '20261024-note-audience-sections-v1'),
     versionedBundle('../project-trays/activity-presenter.js', '20261012-notes-separation-v1'),
     versionedBundle('../project-trays/project-trays.js', '20261024-draft-project-trays')
   ];
@@ -546,7 +546,7 @@
         versionedBundle('photos/feed.js', '20261024-cover-photo'),
     versionedBundle('../markup/firstmate-markup.js', '20261012-photo-comments-v1'),
     versionedBundle('../channels-ui/channels-ui.js', '20261012-shared-polish-v1'),
-    versionedBundle('../project-notes/project-notes.js', '20261024-new-project-render-v1'),
+    versionedBundle('../project-notes/project-notes.js', '20261024-note-audience-sections-v1'),
         versionedBundle('partners/shared-list.js','20261001-sharing-polish-v1'),
         versionedBundle('partners/share-dialog.js','20261001-sharing-polish-v1'),versionedBundle('channels/app.js', '20260930-native-sharing-v2')
       ]

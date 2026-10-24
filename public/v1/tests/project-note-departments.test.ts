@@ -43,17 +43,24 @@ test('text-only edits preserve legacy audiences and department metadata; non-aut
 });
 
 
-test('crew is the crew.projects.view audience independent of department membership, combined by union',async()=>{
+test('the retired Application access audience: existing notes keep it, nothing new may choose it, any change replaces it',async()=>{
  const crewCtx=ctx('office');(crewCtx.permissions as Record<string,boolean>)['crew.projects.view']=true;
- const posted=await domain.postMessage(ctx('owner'),channel.id,{text:'Sales or field crew',project_note:true,department_ids:['dept-sales'],include_crew:true});const id=String(posted.message!.id);
+ await assert.rejects(()=>domain.postMessage(ctx('owner'),channel.id,{text:'New crew note',project_note:true,department_ids:['dept-sales'],include_crew:true}),/no longer available/);
+ // A note saved before the change: Sales, or anyone holding crew.projects.view.
+ const posted=await domain.postMessage(ctx('owner'),channel.id,{text:'Sales or field crew',project_note:true,department_ids:['dept-sales']});const id=String(posted.message!.id);
+ const saved=(await store.readMessageRecord(org,id))!;await store.getChannelsDatabase().prepare('UPDATE messages SET metadata_json = ? WHERE organization_id = ? AND id = ?').run(JSON.stringify({...saved.metadata,note_audience_crew:true}),org,id);
  assert.ok((await domain.listMessages(ctx('sales'),channel.id,{view:'notes'})).messages.some(m=>m.id===id));
- assert.ok((await domain.listMessages(crewCtx,channel.id,{view:'notes'})).messages.some(m=>m.id===id));
+ assert.ok((await domain.listMessages(crewCtx,channel.id,{view:'notes'})).messages.some(m=>m.id===id),'Stored crew audiences stay readable');
  assert.ok(!(await domain.listMessages(ctx('office'),channel.id,{view:'notes'})).messages.some(m=>m.id===id));
- const reply=await domain.postMessage(crewCtx,channel.id,{text:'Field reply',parent_id:id});assert.equal((reply.message!.metadata as any).note_audience_crew,true);
- await domain.updateMessageVisibility(ctx('owner'),id,{department_ids:[],include_crew:true,audience:[]});
  const roleNameOnly=ctx('office');roleNameOnly.role='production_manager';assert.ok(!(await domain.listMessages(roleNameOnly,channel.id,{view:'notes'})).messages.some(m=>m.id===id),'A role-name match does not grant the crew audience');
- assert.ok(!(await domain.listMessages(ctx('sales'),channel.id,{view:'notes'})).messages.some(m=>m.id===id));
- assert.ok((await domain.listMessages(crewCtx,channel.id,{view:'notes'})).messages.some(m=>m.id===id));
+ const reply=await domain.postMessage(crewCtx,channel.id,{text:'Field reply',parent_id:id});assert.equal((reply.message!.metadata as any).note_audience_crew,true,'Replies inherit the stored audience');
+ await domain.editMessage(ctx('owner'),id,{text:'Text only'});assert.equal((await store.readMessageRecord(org,id))?.metadata.note_audience_crew,true,'A text edit leaves the audience alone');
+ await assert.rejects(()=>domain.updateMessageVisibility(ctx('owner'),id,{department_ids:['dept-sales'],include_crew:true,audience:[]}),/no longer available/);
+ // The picker sends departments and references only; that replaces the whole audience and never carries the retired one over.
+ await domain.updateMessageVisibility(ctx('owner'),id,{department_ids:['dept-sales'],audience_refs:[],audience:[]});
+ assert.equal((await store.readMessageRecord(org,id))?.metadata.note_audience_crew,false);assert.equal((await store.readMessageRecord(org,String(reply.message!.id)))?.metadata.note_audience_crew,false);
+ assert.ok(!(await domain.listMessages(crewCtx,channel.id,{view:'notes'})).messages.some(m=>m.id===id),'Narrowed, never widened');
+ assert.ok((await domain.listMessages(ctx('sales'),channel.id,{view:'notes'})).messages.some(m=>m.id===id));
 });
 test('visibility-only updates preserve the latest text, edit timestamp and text revision history',async()=>{
  const posted=await domain.postMessage(ctx('owner'),channel.id,{text:'Original',project_note:true,department_ids:[]});const id=String(posted.message!.id);

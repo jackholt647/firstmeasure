@@ -811,7 +811,7 @@
       .pn-filter-option label{display:flex;flex:1;align-items:center;min-width:0;gap:7px;padding:7px 6px;cursor:pointer;font-size:11px}.pn-filter-option input{width:13px;height:13px;margin:0;accent-color:var(--primary,#175cd3);flex:none}.pn-filter-option label>i{width:13px;text-align:center;color:#667085}.pn-filter-total{margin-left:auto;color:#98a2b3;font-size:10px;font-variant-numeric:tabular-nums}
       .pn-filter-footer{flex:none;display:flex;align-items:center;justify-content:space-between;gap:6px;padding:7px 4px 2px;border-top:1px solid #eef0f3;color:#667085;font-size:10px}.pn-filter-footer button{font:inherit;color:var(--primary,#175cd3);border:0;background:transparent;cursor:pointer;padding:4px}.pn-filter-none{padding:12px 6px;font-size:11px;color:#667085}.pn-filter-none[hidden]{display:none}
 
-.pn-workspace .pn-composer{background:transparent;border:0;padding:0 12px 10px}.pn-filter-footer label{display:flex;align-items:center;gap:5px;cursor:pointer}.pn-workspace{position:relative}.pn-filter-menu{top:50px;max-height:min(350px,calc(100% - 60px))}.pn-gif-preview img,.pn-card-content .fm-ch-gif img{max-width:100%;height:auto}.pn-card-content>.fm-ch-gif:first-child{margin-top:0}.pn-workspace [data-note-filters][data-active=true]{color:var(--primary,#175cd3);background:var(--primary-light,#eef2ff)}.pn-audience-menu [data-advanced-toggle]{width:100%;text-align:left;border:0;background:transparent;padding:8px 7px;font:inherit;font-size:11px;cursor:pointer}.pn-audience-menu{max-height:360px}.pn-audience-advanced-search{box-sizing:border-box;width:100%;border:1px solid #e4e7ec;border-radius:5px;padding:6px;font:inherit;font-size:11px}
+.pn-workspace .pn-composer{background:transparent;border:0;padding:0 12px 10px}.pn-filter-footer label{display:flex;align-items:center;gap:5px;cursor:pointer}.pn-workspace{position:relative}.pn-filter-menu{top:50px;max-height:min(350px,calc(100% - 60px))}.pn-gif-preview img,.pn-card-content .fm-ch-gif img{max-width:100%;height:auto}.pn-card-content>.fm-ch-gif:first-child{margin-top:0}.pn-workspace [data-note-filters][data-active=true]{color:var(--primary,#175cd3);background:var(--primary-light,#eef2ff)}.pn-audience-menu{max-height:360px}.pn-audience-search{box-sizing:border-box;width:100%;margin:4px 0 2px;border:1px solid #e4e7ec;border-radius:5px;padding:6px;font:inherit;font-size:11px}.pn-audience-search:focus-visible{outline:2px solid var(--primary,#175cd3);outline-offset:1px}
 `;
     extraStyle.textContent+=`.pn-workspace{background:#fafbfc}.pn-workspace .pn-history{position:relative;z-index:0;margin-bottom:-20px;padding-bottom:28px;mask-image:linear-gradient(to bottom,#000 calc(100% - 8px),transparent 100%);-webkit-mask-image:linear-gradient(to bottom,#000 calc(100% - 8px),transparent 100%)}.pn-workspace .pn-composer{position:relative;z-index:1;padding-top:24px;background:transparent}`;
     extraStyle.textContent+=`.pn-card footer>[data-act=replies],.pn-workspace .pn-reply-add-row button{border:0;background:transparent;padding:0;border-radius:0;font:inherit;font-size:10px;font-weight:400;color:#667085;cursor:pointer;line-height:normal}.pn-card footer>[data-act=replies][hidden],.pn-reply-add-row[hidden]{display:none}`;
@@ -861,8 +861,11 @@
     const selectedAuthors=new Set();let projectAuthors=null,filteredBefore=0,authorRequest=0,allAuthorsSelected=true;
     const audienceClosers=new WeakMap(),audienceMenus=new WeakMap(),audienceHandles=new Set();
     const crewUsersLabel=()=>window.PlatformTerminology?.get?.('workforce.worker_plural','Crew Members') || 'Crew Members';
-    const fieldAppLabel=()=>window.PlatformTerminology?.get?.('workforce.field_application','Crew App') || 'Crew App';
-    function audienceRefLabel(ref){return ref.kind==='user' ? (directory.users || []).find(u=>u.id===ref.id)?.name || 'Selected user' : ref.kind==='resource_group' ? (directory.note_audience_groups || []).find(g=>g.id===ref.id)?.label || 'Selected group' : 'All '+((directory.note_audience_group_kinds || []).find(k=>k.id===ref.id)?.name || 'selected')+' groups';}
+    // Picker copy. Group words come from the terminology system; nothing names a kind of group.
+    const groupsWord=()=>window.PlatformTerminology?.get?.('workforce.resource_group_plural',null) || (globalThis.PlatformLanguage?.text("project-notes","note_audience_groups_heading","Groups") ?? "Groups");
+    const groupKindLabel=name=>((v0,v1)=>globalThis.PlatformLanguage?.text("project-notes","note_audience_group_kind_all",`All ${v0} ${v1}`,{v0,v1}) ?? `All ${v0} ${v1}`)(name,groupsWord().toLowerCase());
+    const everybodyLabel=()=>globalThis.PlatformLanguage?.text("project-notes","note_audience_everybody","Everybody") ?? "Everybody";
+    function audienceRefLabel(ref){return ref.kind==='user' ? (directory.users || []).find(u=>u.id===ref.id)?.name || 'Selected user' : ref.kind==='resource_group' ? (directory.note_audience_groups || []).find(g=>g.id===ref.id)?.label || 'Selected group' : groupKindLabel((directory.note_audience_group_kinds || []).find(k=>k.id===ref.id)?.name || 'selected');}
     function noteAudienceLabel(note){
       if(note.metadata?.note_audience_refs?.length)return note.metadata.note_audience_refs.map(audienceRefLabel).join(' and ');
       if(note.metadata?.department_access==='restricted'){
@@ -871,28 +874,54 @@
         return labels.length===1 ? labels[0]+' only' : labels.join(' and ') || 'Selected audience';
       }
       const labels=(note.visibility || GROUPS).map(id=>id[0].toUpperCase()+id.slice(1));
-      return labels.length===GROUPS.length ? 'Everybody' : labels.length===1 ? labels[0]+' only' : labels.join(' and ');
+      return labels.length===GROUPS.length ? everybodyLabel() : labels.length===1 ? labels[0]+' only' : labels.join(' and ');
     }
     function audienceChooser(host,note=null,options={}){
       const originalIds=note?.metadata?.department_access==='restricted' ? [...(note.metadata.department_ids || [])] : [],originalCrew=note?.metadata?.note_audience_crew===true,originalLegacy=note && note.visibility.length<GROUPS.length ? [...note.visibility] : [];
       const originalRefs=note?.metadata?.note_audience_refs || [];
-      let refs=[...originalRefs],advanced=!!refs.length,advancedQuery='',ids=[...originalIds],crew=originalCrew,legacy=[...originalLegacy],changed=false,loaded=false,saving=false;
+      let refs=[...originalRefs],audienceQuery='',ids=[...originalIds],crew=originalCrew,legacy=[...originalLegacy],changed=false,loaded=false,saving=false;
       host.innerHTML='<button type="button" class="pn-visibility-button" aria-label="Choose note visibility" aria-expanded="false" disabled><i class="fas fa-eye" aria-hidden="true"></i><span>Visibility</span><i class="fas fa-chevron-down pn-audience-chevron" aria-hidden="true"></i></button><div class="pn-audience-menu" hidden></div>';
       const button=host.querySelector('button'),menu=host.querySelector('.pn-audience-menu');
+      // What the picker offers comes from the directory: departments when there is more than one to choose,
+      // groups when the organization has them switched on and has some, people always. One section shows
+      // without a heading. The retired "Application access" audience is never offered; a note that has it
+      // keeps it until its author picks something else.
+      function offered(){
+        const departmentMode=directory.note_department_visibility===true,sections=directory.note_audience_sections || {};
+        const departments=departmentMode ? (directory.departments || []).filter(d=>(directory.selectable_department_ids || []).includes(d.id)) : GROUPS.map(id=>({id,label:id[0].toUpperCase()+id.slice(1)}));
+        const groups=[...(directory.note_audience_group_kinds || []).map(k=>({kind:'resource_group_kind',id:k.id,label:groupKindLabel(k.name)})),...(directory.note_audience_groups || []).map(g=>({kind:'resource_group',id:g.id,label:g.label}))];
+        const people=directory.note_advanced_visibility===true ? (directory.note_audience_users || []).map(u=>({kind:'user',id:u.id,label:u.name || u.email || 'Teammate'})) : [];
+        const show={departments:departmentMode ? sections.departments!==false && departments.length>1 : true,groups:sections.groups!==false && groups.length>0,people:directory.note_advanced_visibility===true};
+        return {departmentMode,departments:show.departments ? departments : [],groups:show.groups ? groups : [],people,show,headed:Object.values(show).filter(Boolean).length>1};
+      }
       function draw(){
-        const departmentMode=directory.note_department_visibility===true;
-        const rows=departmentMode ? (directory.departments || []).filter(d=>(directory.selectable_department_ids || []).includes(d.id)) : GROUPS.map(id=>({id,label:id[0].toUpperCase()+id.slice(1)}));
-        const selected=departmentMode ? ids : legacy,labels=selected.map(id=>rows.find(d=>d.id===id)?.label || 'Department');if(departmentMode && crew)labels.push(crewUsersLabel());labels.push(...refs.map(audienceRefLabel));
-        const label=!changed && note ? noteAudienceLabel(note) : labels.join(' and ') || 'Everybody';
+        const {departmentMode,departments,groups,people,show,headed}=offered();
+        const selected=departmentMode ? ids : legacy,labels=selected.map(id=>(directory.departments || []).find(d=>d.id===id)?.label || departments.find(d=>d.id===id)?.label || 'Department');labels.push(...refs.map(audienceRefLabel));
+        const label=!changed && note ? noteAudienceLabel(note) : labels.join(' and ') || everybodyLabel();
         button.querySelector('span').textContent=label;button.title=label;
-        const advancedRows=[...(directory.note_audience_group_kinds || []).map(k=>({kind:'resource_group_kind',id:k.id,label:'All '+k.name+' groups'})),...(directory.note_audience_groups || []).map(g=>({kind:'resource_group',id:g.id,label:g.label})),...(directory.note_audience_users || []).map(u=>({kind:'user',id:u.id,label:u.name || u.email || 'Teammate'}))];
-        const advancedMarkup=advancedRows.filter(row=>row.label.toLowerCase().includes(advancedQuery.toLowerCase())).map((row,index)=>`${index===0 || advancedRows.filter(r=>r.label.toLowerCase().includes(advancedQuery.toLowerCase()))[index-1]?.kind!==row.kind ? `<div class="pn-audience-group-label">${row.kind==='resource_group_kind' ? 'Group types' : row.kind==='resource_group' ? 'Resource groups' : 'Individual users'}</div>` : ''}<label><input type="checkbox" data-audience-ref="${row.kind}" value="${esc(row.id)}" ${refs.some(r=>r.kind===row.kind && r.id===row.id) ? 'checked' : ''}>${esc(row.label)}</label>`).join('');
-        menu.innerHTML=`<label><input type="checkbox" data-audience-all ${!selected.length && !crew && !refs.length && !(legacy.length && departmentMode && !changed) ? 'checked' : ''}>Everybody</label>${legacy.length && departmentMode && !changed ? `<p class="pn-audience-current">Current: ${esc(noteAudienceLabel(note))}. Select an audience to update.</p>` : ''}${departmentMode ? `<div class="pn-audience-group-label">Your ${esc(directory.note_department_label || 'Departments')}</div>` : ''}${rows.map(d=>`<label><input type="checkbox" value="${esc(d.id)}" ${selected.includes(d.id) ? 'checked' : ''}>${esc(d.label)}</label>`).join('')}${directory.note_advanced_visibility===true || directory.note_crew_visibility===true ? `<button type="button" data-advanced-toggle aria-expanded="${advanced}"><i class="fas fa-chevron-${advanced ? 'up' : 'down'}" aria-hidden="true"></i> Advanced visibility</button>${advanced ? `<input type="search" class="pn-audience-advanced-search" aria-label="Find groups and users" placeholder="Find groups and users…" value="${esc(advancedQuery)}">${advancedMarkup}${directory.note_crew_visibility===true ? `<div class="pn-audience-group-label">Application access</div><label><input type="checkbox" data-audience-crew ${crew ? 'checked' : ''}>${esc(crewUsersLabel())} (${esc(fieldAppLabel())} users)</label>` : ''}` : ''}` : ''}${options.onApply ? '<div class="pn-audience-error" role="alert" hidden></div><div class="pn-audience-apply-row"><button type="button" data-audience-cancel>Cancel</button><button type="button" data-audience-apply>Apply</button></div>' : ''}`;
+        const everybody=!selected.length && !crew && !refs.length && !(legacy.length && departmentMode && !changed);
+        const picked=row=>refs.some(r=>r.kind===row.kind && r.id===row.id);
+        const visiblyPicked=departments.some(d=>selected.includes(d.id)) || [...groups,...people].some(picked);
+        const query=audienceQuery.trim().toLowerCase(),matches=row=>!query || row.label.toLowerCase().includes(query);
+        const heading=text=>headed ? `<div class="pn-audience-group-label">${esc(text)}</div>` : '';
+        const refRows=rows=>rows.filter(matches).map(row=>`<label><input type="checkbox" data-audience-ref="${row.kind}" value="${esc(row.id)}" ${picked(row) ? 'checked' : ''}>${esc(row.label)}</label>`).join('');
+        const departmentWord=directory.note_department_label || 'Departments',peopleWord=globalThis.PlatformLanguage?.text("project-notes","note_audience_people_heading","People") ?? "People";
+        const searchLabel=show.groups ? (globalThis.PlatformLanguage?.text("project-notes","note_audience_find_groups_people","Find groups and people") ?? "Find groups and people") : (globalThis.PlatformLanguage?.text("project-notes","note_audience_find_people","Find people") ?? "Find people");
+        const searchable=show.groups || show.people,shown=[...groups,...people].filter(matches).length;
+        menu.innerHTML=`<label><input type="checkbox" data-audience-all ${everybody ? 'checked' : ''}>${esc(everybodyLabel())}</label>`
+          +(note && !changed && !everybody && !visiblyPicked ? `<p class="pn-audience-current">Current: ${esc(noteAudienceLabel(note))}. Select an audience to update.</p>` : '')
+          +(show.departments ? `<div class="pn-audience-section" role="group" aria-label="${esc(departmentWord)}">${departmentMode ? heading('Your '+departmentWord) : ''}${departments.map(d=>`<label><input type="checkbox" value="${esc(d.id)}" ${selected.includes(d.id) ? 'checked' : ''}>${esc(d.label)}</label>`).join('')}</div>` : '')
+          +(searchable ? `<input type="search" class="pn-audience-search" aria-label="${esc(searchLabel)}" placeholder="${esc(searchLabel)}…" value="${esc(audienceQuery)}">` : '')
+          +(show.groups ? `<div class="pn-audience-section" role="group" aria-label="${esc(groupsWord())}">${groups.some(matches) ? heading(groupsWord()) : ''}${refRows(groups)}</div>` : '')
+          +(show.people ? `<div class="pn-audience-section" role="group" aria-label="${esc(peopleWord)}">${people.some(matches) ? heading(peopleWord) : ''}${refRows(people)}</div>` : '')
+          +(searchable && query && !shown ? `<p class="pn-audience-empty" role="status">${globalThis.PlatformLanguage?.htmlText("project-notes","note_audience_no_matches","No matches") ?? "No matches"}</p>` : '')
+          +(options.onApply ? '<div class="pn-audience-error" role="alert" hidden></div><div class="pn-audience-apply-row"><button type="button" data-audience-cancel>Cancel</button><button type="button" data-audience-apply>Apply</button></div>' : '');
         if(options.onApply)menu.querySelector('[data-audience-apply]').disabled=!changed || saving;
         if(saving)menu.querySelectorAll('button,input').forEach(node=>node.disabled=true);
       }
       function close(){if(options.onApply && !saving){ids=[...originalIds];crew=originalCrew;refs=[...originalRefs];legacy=[...originalLegacy];changed=false;draw();}menu.hidden=true;button.setAttribute('aria-expanded','false');host.append(menu);menu.style.cssText='';}
-      function payload(){if(!loaded)throw Error('Visibility is still loading. Try again.');return directory.note_department_visibility && (!note || changed) ? {audience:[],department_ids:ids,...(directory.note_advanced_visibility === true ? {audience_refs:refs} : {}),...(directory.note_crew_visibility === true ? {include_crew:crew} : {})} : {audience:legacy};}
+      // include_crew is never sent: a changed audience replaces the whole audience, so the retired one drops off.
+      function payload(){if(!loaded)throw Error('Visibility is still loading. Try again.');return directory.note_department_visibility && (!note || changed) ? {audience:[],department_ids:ids,...(directory.note_advanced_visibility === true ? {audience_refs:refs} : {})} : {audience:legacy};}
       function position(){const rect=button.getBoundingClientRect(),height=menu.offsetHeight,width=menu.offsetWidth;let layer=100000;for(let node=host;node;node=node.parentElement){const z=Number.parseInt(getComputedStyle(node).zIndex,10);if(Number.isFinite(z))layer=Math.max(layer,z+20);}menu.style.zIndex=String(Math.min(2147483647,layer));menu.style.left=Math.max(8,Math.min(rect.left,window.innerWidth-width-8))+'px';const top=rect.top-height-7>=8 ? rect.top-height-7 : rect.bottom+7;menu.style.top=Math.max(8,Math.min(top,window.innerHeight-height-8))+'px';}
       const handle={host,menu,refresh(){draw();if(!menu.hidden)position();},destroy(){menu.remove();audienceHandles.delete(handle);}};audienceHandles.add(handle);
       audienceClosers.set(host,close);audienceMenus.set(host,menu);
@@ -900,18 +929,18 @@
       menu.setAttribute('role','group');menu.setAttribute('aria-label','Note visibility');
       menu.onchange=event=>{
         const input=event.target;if(!input.matches('input[type=checkbox]'))return;
-        const departmentMode=directory.note_department_visibility===true;let selected=departmentMode ? ids : legacy;
-        if(input.hasAttribute('data-audience-all')){selected=[];crew=false;refs=[];}
-        else if(input.hasAttribute('data-audience-ref')){const kind=input.dataset.audienceRef;selected=[];crew=false;refs=refs.filter(ref=>ref.kind!==kind || ref.id!==input.value);if(input.checked)refs.push({kind,id:input.value,...(kind==='resource_group_kind' ? {department_ids:directory.note_audience_organization_wide ? [] : directory.note_audience_kind_department_ids || []} : {})});}
-        else if(input.hasAttribute('data-audience-crew')){crew=input.checked;refs=[];}
+        const {departmentMode,groups,people}=offered();let selected=departmentMode ? ids : legacy;
+        // Any change ends the retired audience; references the picker no longer offers are dropped, never kept hidden.
+        crew=false;refs=refs.filter(ref=>[...groups,...people].some(row=>row.kind===ref.kind && row.id===ref.id));
+        if(input.hasAttribute('data-audience-all')){selected=[];refs=[];}
+        else if(input.hasAttribute('data-audience-ref')){const kind=input.dataset.audienceRef;selected=[];refs=refs.filter(ref=>ref.kind!==kind || ref.id!==input.value);if(input.checked)refs.push({kind,id:input.value,...(kind==='resource_group_kind' ? {department_ids:directory.note_audience_organization_wide ? [] : directory.note_audience_kind_department_ids || []} : {})});}
         else {refs=[];selected=input.checked ? unique([...selected,input.value]) : selected.filter(id=>id!==input.value);}
         if(departmentMode){ids=selected;legacy=[];}else legacy=selected;
         changed=true;draw();
-        const active=input.hasAttribute('data-audience-all') ? menu.querySelector('[data-audience-all]') : input.hasAttribute('data-audience-crew') ? menu.querySelector('[data-audience-crew]') : input.hasAttribute('data-audience-ref') ? menu.querySelector(`input[data-audience-ref="${input.dataset.audienceRef}"][value="${CSS.escape(input.value)}"]`) : menu.querySelector(`input:not([data-audience-ref])[value="${CSS.escape(input.value)}"]`);active?.focus();
+        const active=input.hasAttribute('data-audience-all') ? menu.querySelector('[data-audience-all]') : input.hasAttribute('data-audience-ref') ? menu.querySelector(`input[data-audience-ref="${input.dataset.audienceRef}"][value="${CSS.escape(input.value)}"]`) : menu.querySelector(`input:not([data-audience-ref])[value="${CSS.escape(input.value)}"]`);active?.focus();
       };
-      menu.oninput=event=>{if(!event.target.matches('[type=search]'))return;advancedQuery=event.target.value;const start=event.target.selectionStart;draw();const search=menu.querySelector('[type=search]');search.focus();try{search.setSelectionRange(start,start);}catch{}position();};
+      menu.oninput=event=>{if(!event.target.matches('[type=search]'))return;audienceQuery=event.target.value;const start=event.target.selectionStart;draw();const search=menu.querySelector('[type=search]');search.focus();try{search.setSelectionRange(start,start);}catch{}position();};
       menu.onclick=async event=>{
-        if(event.target.closest('[data-advanced-toggle]')){advanced=!advanced;draw();position();return;}
         if(event.target.closest('[data-audience-cancel]')){close();return;}
         if(!event.target.closest('[data-audience-apply]') || !options.onApply || saving || !changed)return;
         const selected=payload();saving=true;draw();

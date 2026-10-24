@@ -4,6 +4,48 @@ import {relevantDepartmentContext} from './department-access.js';
 
 export type NoteAudienceRef = {kind:'resource_group'|'resource_group_kind'|'user';id:string;department_ids?:string[]};
 
+/**
+ * Groups of users exist for an organization when People shows them: the platform People app
+ * (`platform.people_access`) with the groups app (`apps.crew`) on, the same switches
+ * people-data.js checks. With them off the picker offers no group or group-type audience.
+ */
+export const NOTE_GROUP_AUDIENCE_CAPABILITIES=['platform.people_access','apps.crew'] as const;
+export function noteGroupAudiencesEnabled(effectiveByKey:Record<string,unknown>|undefined):boolean {
+  return NOTE_GROUP_AUDIENCE_CAPABILITIES.every(key=>effectiveByKey?.[key]===true);
+}
+
+/**
+ * What the note visibility picker offers, built from data: departments only when the person can choose more
+ * than one, groups only when groups exist and are switched on, people always. Selections stay validated by
+ * validateNoteAudienceRefs and projectNoteDepartmentVisibility; this only decides what is offered.
+ */
+export function noteAudienceOptions<U extends {id?:unknown},K extends {id?:unknown}>(input:{
+  viewerId:string;
+  groupsEnabled:boolean;
+  selection:{organization_wide:boolean;department_ids:string[]};
+  departments:Array<{id:string;label:string;status?:string}>;
+  groups:Array<{id:string;kind_id:string;department_ids:string[]}>;
+  groupKinds:K[];
+  members:Array<{id:string;department_ids:string[];resource_group_ids?:string[]}>;
+  users:U[];
+}){
+  const {selection}=input,member=input.members.find(u=>u.id===input.viewerId);
+  const eligible=(ids:string[])=>selection.organization_wide || ids.some(id=>selection.department_ids.includes(id));
+  const departments=input.departments.filter(d=>(d.status ?? 'active')==='active').map(d=>({id:d.id,label:d.label}));
+  const selectable=departments.filter(d=>selection.department_ids.includes(d.id));
+  const groups=input.groupsEnabled ? input.groups.filter(g=>eligible(g.department_ids) || !!member?.resource_group_ids?.includes(g.id)) : [];
+  const groupKinds=input.groupsEnabled ? input.groupKinds.filter(k=>groups.some(g=>g.kind_id===String(k.id ?? '') && eligible(g.department_ids))) : [];
+  const users=input.users.filter(u=>{const id=String(u.id ?? ''),row=input.members.find(m=>m.id===id);return !!row && (id===input.viewerId || eligible(row.department_ids));});
+  return {
+    departments,
+    selectable_department_ids:selectable.map(d=>d.id),
+    groups,
+    group_kinds:groupKinds,
+    users,
+    sections:{departments:selectable.length>1,groups:input.groupsEnabled && (groups.length>0 || groupKinds.length>0),users:true}
+  };
+}
+
 /** Stable organization IDs, with kind selections bounded to the sender's department context. */
 export function validateNoteAudienceRefs(ctx:PlatformAuthContext, refs:NoteAudienceRef[]):NoteAudienceRef[] {
   const structure=ctx.organizationStructure, selection=relevantDepartmentContext(ctx);
