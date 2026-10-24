@@ -1,7 +1,7 @@
 {
   "summary": {
     "routes": {
-      "total": 1881,
+      "total": 1883,
       "by_kind": {
         "any:login_only": 165,
         "any:login_only+handler_checks": 345,
@@ -29,7 +29,7 @@
         "mixed(any:login_only,any:permission)": 7,
         "mixed(any:permission,app(contact.media|portal.photos_feed|portal.viewer|project.photos):login_only)": 2,
         "mixed(app(documents.studio|portal.proposals|project.docs|project.documents|project.proposal):login_only,app(documents.studio|portal.proposals|project.docs|project.documents|project.proposal):permission)": 5,
-        "no_platform_session": 365,
+        "no_platform_session": 367,
         "publication_policy": 5
       }
     },
@@ -682,7 +682,9 @@
     "GET /v1/platform/": {"file":"platform/api.ts","kind":"no_platform_session"},
     "GET /v1/platform/auth/accounts": {"file":"platform/api.ts","gates":[{"app":"any"}],"kind":"any:login_only"},
     "GET /v1/platform/auth/google/config": {"file":"platform/api.ts","kind":"no_platform_session"},
+    "GET /v1/platform/auth/phone-examples": {"file":"commerce/signup-embed.ts","kind":"no_platform_session"},
     "GET /v1/platform/auth/session": {"file":"platform/api.ts","checks":["authContextFromRequest"],"kind":"no_platform_session"},
+    "GET /v1/platform/auth/signup-catalogs": {"file":"commerce/signup-embed.ts","kind":"no_platform_session"},
     "GET /v1/platform/auth/signup-options": {"file":"platform/api.ts","kind":"no_platform_session"},
     "GET /v1/platform/customer-portals/:portalUuid": {"file":"platform/api.ts","checks":["hasPermission(dynamic)"],"kind":"no_platform_session"},
     "GET /v1/platform/customer-portals/:portalUuid/appointments/:eventId/availability": {"file":"platform/api.ts","kind":"no_platform_session"},

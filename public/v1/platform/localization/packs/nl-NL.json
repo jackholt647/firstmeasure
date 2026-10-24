@@ -13083,7 +13083,8 @@
       "message": "{partner} heeft je uitgenodigd",
       "format": "icu"
     },
-    "start_ordering_reports": "Begin met rapporten bestellen"
+    "start_ordering_reports": "Begin met rapporten bestellen",
+    "err_bonus_unconfirmed": "We konden je campagnebonus niet bevestigen. Probeer het zo meteen opnieuw."
   },
   "signup-region": {
     "calling_code": "Landnummer"

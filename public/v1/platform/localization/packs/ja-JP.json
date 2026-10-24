@@ -13087,7 +13087,8 @@
       "message": "{partner} さんから招待されました",
       "format": "icu"
     },
-    "start_ordering_reports": "レポートの注文を始める"
+    "start_ordering_reports": "レポートの注文を始める",
+    "err_bonus_unconfirmed": "キャンペーン特典を確認できませんでした。しばらくしてからもう一度お試しください。"
   },
   "signup-region": {
     "calling_code": "国番号"

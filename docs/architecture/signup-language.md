@@ -66,3 +66,50 @@ every language pack. `tests/signup-language-catalog.test.mjs` fails when:
 
 `tests/signup-language-browser.test.mjs` runs each landing source in es, fr and de, from
 the landing page through to the organization.
+
+## The form embedded on the websites
+
+A website page embeds the app's own signup form instead of a copy:
+
+```html
+<div data-firstmate-signup data-mode="register" data-landing-variant="…" data-submit-label="…"></div>
+<script src="https://app.1m8.ai/portal/landing/shared/signup-widget.js" defer></script>
+```
+
+On dev, the script comes from `https://dev.1m8.ai`. The form renders on the website page and calls the API of the app
+its script came from, cross-origin with credentials.
+
+**Why a script and not an iframe.** 1m8.ai, www.1m8.ai and eu.1m8.ai are the same site as app.1m8.ai, so the app's
+SameSite=Lax session cookie set by the signup request is kept. Third-party cookie blocking, including Safari's, does
+not apply. The Meta pixel and Google conversion events also stay on the host page, and no framing headers need
+loosening.
+
+**Origins.** `/v1/platform/auth/*` answers a browser that names another origin only when that origin is one of:
+
+- the app's own host;
+- the configured CORS origins;
+- `SIGNUP_EMBED_ORIGINS`, which defaults to `https://1m8.ai,https://www.1m8.ai,https://eu.1m8.ai`.
+
+Every other origin gets `403 origin_not_allowed` (`commerce/signup-embed.ts`). CSRF for signed-in routes is unchanged:
+the CSRF cookie is only readable on the app origin. A `redirect` after signup must stay in the app or on the page's
+own origin.
+
+**Assets.** The app's static files carry no CORS headers, so an embedded form loads two read-only assets through the
+API:
+
+- the signup language catalogs, `GET /auth/signup-catalogs` (English plus the page's language only);
+- the phone example numbers, `GET /auth/phone-examples`.
+
+**Host page.** The host page's own `<html lang>` is never changed. Its language counts as a hand-off when the page is
+not English or was translated by the browser.
+
+**Campaigns.** Landing pages keep their hidden fields: referral, campaign, Meta click and browser ids, bonus token and
+landing variant. With `data-require-bonus="true"`, an account is never created without the promised bonus.
+
+`tests/signup-embed-browser.test.mjs` checks this from fake website origins:
+
+- signup in es, fr and en-GB, landing signed in, with attribution kept;
+- a disallowed origin is refused;
+- the redirect stays in the app;
+- the bonus guard holds;
+- signup still works with third-party cookies blocked, with a cross-site control case.

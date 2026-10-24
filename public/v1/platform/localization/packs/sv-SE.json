@@ -12634,7 +12634,8 @@
       "message": "{partner} har bjudit in dig",
       "format": "icu"
     },
-    "start_ordering_reports": "Börja beställa rapporter"
+    "start_ordering_reports": "Börja beställa rapporter",
+    "err_bonus_unconfirmed": "Vi kunde inte bekräfta din kampanjbonus. Försök igen om en stund."
   },
   "signup-region": {
     "calling_code": "Landsnummer"

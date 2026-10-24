@@ -12739,7 +12739,8 @@
       "message": "{partner} ti ha invitato",
       "format": "icu"
     },
-    "start_ordering_reports": "Inizia a ordinare report"
+    "start_ordering_reports": "Inizia a ordinare report",
+    "err_bonus_unconfirmed": "Non è stato possibile confermare il bonus della campagna. Riprova tra un momento."
   },
   "signup-region": {
     "calling_code": "Prefisso internazionale"

@@ -12528,7 +12528,8 @@
       "message": "{partner} vás zve",
       "format": "icu"
     },
-    "start_ordering_reports": "Začít objednávat reporty"
+    "start_ordering_reports": "Začít objednávat reporty",
+    "err_bonus_unconfirmed": "Bonus z kampaně se nepodařilo potvrdit. Zkuste to za chvíli znovu."
   },
   "signup-region": {
     "calling_code": "Předvolba země"

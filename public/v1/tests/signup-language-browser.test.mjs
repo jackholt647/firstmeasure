@@ -79,7 +79,8 @@ async function visitor(edge) {
       return url.pathname === '/' ? route.fulfill({status: 200, contentType: 'text/html', body: website(url.hostname)}) : route.abort();
     }
     if (url.origin !== APP) return route.abort();
-    const headers = {...await request.allHeaders(), 'cf-ipcountry': edge};
+    // As nginx forwards it: the app's host, so the API knows app pages are its own origin.
+    const headers = {...await request.allHeaders(), 'cf-ipcountry': edge, host: 'app.1m8.ai', 'x-forwarded-proto': 'https'};
     if (url.pathname.startsWith('/v1/')) {
       const response = await app.inject({method: request.method(), url: url.pathname + url.search, headers, payload: request.postData() ?? undefined});
       if (url.pathname.endsWith('/auth/legacy-action') && /"register"/.test(request.postData() || '')) registrations.push({body: response.json(), cookie: response.headers['set-cookie']});

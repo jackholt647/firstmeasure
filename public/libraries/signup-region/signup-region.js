@@ -6,7 +6,7 @@
   'use strict';
   const optionRequests = new Map();
   const SCRIPT_SRC = root.document?.currentScript?.src || '';
-  const KEY = '20261023-phone-format-v1';
+  const KEY = '20261023-signup-embed-v1';
   const scripts = new Map();
 
   /* The styled lists (select-list) and the phone input (calling code, formatting, example) are shared libraries (1M8-240). */
@@ -96,7 +96,10 @@
       dial.hidden = false; dial.style.display = '';
       if (dial.value === 'US' || dial.value === 'CA') phoneInput.placeholder = '(555) 555-0123';
       return loadPhoneInput(doc).then((phoneInputLibrary) => {
-        state.phone = phoneInputLibrary.attach({ input: phoneInput, select: dial, countries: options.phone_countries || options.countries, country: dial.value });
+        // Embedded on a website page, the example numbers come through the API (static files carry no CORS).
+        let examplesUrl = '';
+        try { if (new URL(apiBase, root.location.href).origin !== root.location.origin) examplesUrl = String(apiBase).replace(/\/$/, '') + '/auth/phone-examples'; } catch (_) {}
+        state.phone = phoneInputLibrary.attach({ input: phoneInput, select: dial, countries: options.phone_countries || options.countries, country: dial.value, examplesUrl });
         return options;
       }, () => options);
     }).catch(() => {

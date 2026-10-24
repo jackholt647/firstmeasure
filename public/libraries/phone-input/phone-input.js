@@ -38,8 +38,8 @@
     return libraryPromise;
   }
   /** Example mobile numbers per country (libphonenumber's examples.mobile.json), for the placeholder. */
-  function loadExamples() {
-    if (!examplesPromise) examplesPromise = fetch(vendorUrl('examples.mobile.json'), { credentials: 'omit' })
+  function loadExamples(url) {
+    if (!examplesPromise) examplesPromise = fetch(url || vendorUrl('examples.mobile.json'), { credentials: 'omit' })
       .then((response) => (response.ok ? response.json() : Promise.reject(new Error('Phone examples unavailable'))))
       .catch((error) => { examplesPromise = null; throw error; });
     return examplesPromise;
@@ -64,7 +64,9 @@
 
   const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
-  function attach({ input, select = null, countries = [], country = '' } = {}) {
+  /* examplesUrl: where the example numbers come from when this page cannot read the app's static files (a website
+     page embedding the signup form gets them through the API). */
+  function attach({ input, select = null, countries = [], country = '', examplesUrl = '' } = {}) {
     const doc = input.ownerDocument;
     const list = countries.filter((entry) => entry && entry.code && entry.calling_code);
     const byCode = new Map(list.map((entry) => [entry.code, entry]));
@@ -168,7 +170,7 @@
         else input.value = number.formatInternational();
       } else if (String(input.value || '').trim()) input.value = new lib.AsYouType(current).input(String(input.value));
       previous = String(input.value || '');
-      return loadExamples().then((data) => { examples = data; paintPlaceholder(); }, () => null).then(() => true);
+      return loadExamples(examplesUrl).then((data) => { examples = data; paintPlaceholder(); }, () => null).then(() => true);
     }).catch(() => false);
 
     return { select: picker, list: styled, ready, e164, valid: () => validE164(e164()), callingCode, country: () => current, setCountry, format };

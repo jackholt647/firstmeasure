@@ -13083,7 +13083,8 @@
       "message": "Ο/Η {partner} σας προσκάλεσε",
       "format": "icu"
     },
-    "start_ordering_reports": "Ξεκινήστε να παραγγέλνετε αναφορές"
+    "start_ordering_reports": "Ξεκινήστε να παραγγέλνετε αναφορές",
+    "err_bonus_unconfirmed": "Δεν ήταν δυνατή η επιβεβαίωση του μπόνους της καμπάνιας σας. Δοκιμάστε ξανά σε λίγο."
   },
   "signup-region": {
     "calling_code": "Κωδικός χώρας"

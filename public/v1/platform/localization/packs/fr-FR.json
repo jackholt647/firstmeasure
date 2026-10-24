@@ -12874,7 +12874,8 @@
       "message": "{partner} vous a invité",
       "format": "icu"
     },
-    "start_ordering_reports": "Commencer à commander des rapports"
+    "start_ordering_reports": "Commencer à commander des rapports",
+    "err_bonus_unconfirmed": "Nous n’avons pas pu confirmer le bonus de votre campagne. Réessayez dans un instant."
   },
   "signup-region": {
     "calling_code": "Indicatif téléphonique du pays"

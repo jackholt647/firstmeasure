@@ -13071,7 +13071,8 @@
       "message": "{partner} kutsui sinut",
       "format": "icu"
     },
-    "start_ordering_reports": "Aloita raporttien tilaaminen"
+    "start_ordering_reports": "Aloita raporttien tilaaminen",
+    "err_bonus_unconfirmed": "Kampanjabonustasi ei voitu vahvistaa. Yritä hetken kuluttua uudelleen."
   },
   "signup-region": {
     "calling_code": "Maatunnus"

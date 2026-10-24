@@ -258,12 +258,23 @@
     }
   `;
 
+  /* The app this script came from. A website page embeds the form with
+     <script src="https://app.1m8.ai/portal/landing/shared/signup-widget.js" defer></script>; the form renders on that
+     page and calls this app's API (the app allows only its known website origins), so it works on app pages and on
+     1m8.ai, www.1m8.ai and eu.1m8.ai alike. */
+  const APP_ORIGIN = (() => { try { return SCRIPT_SRC ? new URL(SCRIPT_SRC).origin : location.origin; } catch (e) { return location.origin; } })();
   function platformApiBaseUrl() {
-    const host = String(location.hostname || '').toLowerCase();
-    if (host === '127.0.0.1' || host === 'localhost') {
-      return `${location.origin}/v1/platform`;
-    }
-    return `${location.origin}/v1/platform`;
+    return `${APP_ORIGIN}/v1/platform`;
+  }
+
+  /** A redirect after signup stays in the app (or on this page's own site); anything else falls back. */
+  function safeRedirect(value, fallback) {
+    if (!value) return fallback;
+    try {
+      const url = new URL(String(value), routeToPortal('./'));
+      if ((url.protocol === 'https:' || url.protocol === 'http:') && (url.origin === APP_ORIGIN || url.origin === location.origin)) return url.toString();
+    } catch (e) {}
+    return fallback;
   }
 
   function routeToPortal(path) {
@@ -333,8 +344,8 @@
     if (signupRegionLibraryPromise) return signupRegionLibraryPromise;
     signupRegionLibraryPromise = new Promise((resolve, reject) => {
       const source = SCRIPT_SRC
-        ? new URL('../../../libraries/signup-region/signup-region.js?v=20261023-phone-format-v1', SCRIPT_SRC).toString()
-        : '/libraries/signup-region/signup-region.js?v=20261023-phone-format-v1';
+        ? new URL('../../../libraries/signup-region/signup-region.js?v=20261023-signup-embed-v1', SCRIPT_SRC).toString()
+        : '/libraries/signup-region/signup-region.js?v=20261023-signup-embed-v1';
       const existing = document.querySelector(`script[src="${source}"]`);
       const script = existing || document.createElement('script');
       script.addEventListener('load', () => window.FirstMateSignupRegion
@@ -356,8 +367,8 @@
     if (signupLanguageLibraryPromise) return signupLanguageLibraryPromise;
     signupLanguageLibraryPromise = new Promise((resolve, reject) => {
       const source = SCRIPT_SRC
-        ? new URL('../../../libraries/signup-language/signup-language.js?v=20261023-signup-language-v1', SCRIPT_SRC).toString()
-        : '/libraries/signup-language/signup-language.js?v=20261023-signup-language-v1';
+        ? new URL('../../../libraries/signup-language/signup-language.js?v=20261023-signup-embed-v1', SCRIPT_SRC).toString()
+        : '/libraries/signup-language/signup-language.js?v=20261023-signup-embed-v1';
       const script = document.createElement('script');
       script.src = source;
       script.async = true;
@@ -427,7 +438,7 @@
     const campaignCode = String(host.dataset.campaign || host.dataset.campaignCode || params.get('cid') || params.get('campaign') || params.get('campaign_code') || params.get('utm_campaign') || '').trim();
     const campaignType = String(host.dataset.campaignType || params.get('campaign_type') || params.get('utm_source') || '').trim();
     const bonusToken = String(host.dataset.offerToken || host.dataset.bonusToken || params.get('xid') || params.get('acquisition_bonus_token') || params.get('bonus_token') || '').trim();
-    const redirectTarget = host.dataset.redirect || params.get('redirect') || routeToPortal('./');
+    const redirectTarget = safeRedirect(host.dataset.redirect || params.get('redirect'), routeToPortal('./'));
     const showTerms = normalizeBool(host.dataset.showTerms, true);
     const showReferralCard = normalizeBool(host.dataset.showReferralCard, true);
     const offerVisibility = String(host.dataset.offerVisibility || 'auto').toLowerCase();
@@ -1048,6 +1059,7 @@
       state.acquisitionAttributionId = data.acquisition_attribution_id || data.attribution_id || state.acquisitionAttributionId || '';
       state.acquisitionCode = data?.link?.code || data?.acquisition_link?.code || state.acquisitionCode || '';
       state.acquisitionBonusToken = data?.bonus_offer?.token || state.acquisitionBonusToken || '';
+      host.dataset.bonusReady = data?.bonus_offer?.token ? 'true' : 'false';
       syncBonusTokenToUrl(data?.bonus_query_key || 'xid');
       syncAttributionInputs();
       return true;
@@ -1056,6 +1068,7 @@
     function attributionPayload(extra) {
       const browserMetadata = browserAttributionMetadata();
       const payload = Object.assign({
+        acquisition_code: state.acquisitionCode || state.referralCode || '',
         campaign: state.acquisitionCode || state.referralCode || '',
         campaign_type: state.campaignType || (state.referralCode ? 'referral' : 'landing_page'),
         landing_variant: state.landingVariant,
@@ -1181,6 +1194,15 @@
       if (!acquisitionTrackingPromise) acquisitionTrackingPromise = trackAcquisitionLanding();
       if (!acquisitionTrackingPromise) return;
       await Promise.race([acquisitionTrackingPromise.catch(() => null), timeout(TRACKING_TIMEOUT_MS)]);
+      if (host.dataset.requireBonus === 'true' && host.dataset.bonusReady !== 'true') {
+        // A landing page that promises a bonus (data-require-bonus="true") never creates an account without it;
+        // the lookup is retried on the next submit.
+        acquisitionTrackingPromise = null;
+        if (existingPageAcquisitionTracking()) setPageAcquisitionTracking({ key: '', promise: Promise.resolve(null) });
+        const error = new Error(T('err_bonus_unconfirmed', 'Your campaign bonus offer could not be confirmed. Please try again in a moment.'));
+        error.code = 'bonus_unconfirmed';
+        throw error;
+      }
     }
 
     function syncBonusTokenToUrl(queryKey) {
@@ -1261,9 +1283,9 @@
       }
       fd.append('action', 'register');
       setBusy(form, true);
-      await waitForAcquisitionTrackingBeforeSubmit();
-      forwardAttribution(fd);
       try {
+        await waitForAcquisitionTrackingBeforeSubmit();
+        forwardAttribution(fd);
         const data = await authLegacyRequest(fd);
         if (data.success) {
           trackSignupInteraction('register_success', { first_login: !!data.first_login });
@@ -1290,6 +1312,11 @@
           emit(host, 'signup-error', data);
         }
       } catch (e) {
+        if (e && e.code === 'bonus_unconfirmed') {
+          trackSignupInteraction('register_error', { error: 'bonus_unconfirmed' });
+          showRegisterNotice(e.message, 'error');
+          return;
+        }
         trackSignupInteraction('register_error', { error: 'connection_error' });
         showRegisterNotice(T('err_connection_short', 'Connection error. Please try again.'), 'error');
         emit(host, 'signup-error', { error: 'Connection error.' });

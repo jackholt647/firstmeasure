@@ -16,6 +16,7 @@ import { messageTranslationPreferences } from "./localization/message-preference
 import { signupLanguage, signupOptions, signupPhoneInput } from "../commerce/signup-options.js";
 import { commercialPolicy, LEGACY_PROFILE, reportExpediteTimeZone, reportPricesIncludeVat } from "../commerce/profile.js";
 import { countryRecord, profileCountrySource } from "./organization_country.js";
+import { registerSignupEmbed } from "../commerce/signup-embed.js";
 import { signupCommercialProfile, profileFromGlobal, organizationProfile, currentProfile, customerCommercialView, creditLabel, creditMinorAmount, reportPrice, assertCommercialRevision } from "../commerce/profile.js";
 import { exchangeEstimate } from "../commerce/exchange.js";
 import { isReceiptMedia, canReadReceiptMedia, canWriteReceiptMedia, publicMediaMetadata } from "./media_access.js";
@@ -452,6 +453,8 @@ function googleWorkspaceWebsite(hostedDomain: string) {
 }
 export const registerPlatformApi: FastifyPluginAsync<PlatformApiOptions> = async (app, options) => {
   app.addHook("preClose", async () => closePresenceStreams());
+  // The signup form embedded on the FirstMate websites: exact-origin allowlist for /auth/*, catalogs and phone examples.
+  registerSignupEmbed(app);
 app.post("/auth/google", async (request, reply) => {
     const body = googleAuthSchema.parse(request.body ?? {});
     const google = await verifyGoogleCredential(body.credential, options.googleIdTokenVerifier);

@@ -14,6 +14,8 @@
   const SCRIPT_SRC = root.document?.currentScript?.src || '';
   const NAMESPACE = 'signup';
   let started = null;
+  // The page's own language as loaded, before this library or a browser translation changes it.
+  const ORIGINAL_LANG = String(root.document?.documentElement?.getAttribute('lang') || '').toLowerCase();
 
   const validTag = (value) => /^[A-Za-z]{2,3}(?:[-_][A-Za-z0-9]{2,8}){0,3}$/.test(String(value || '').trim());
   function cookieDomain(host) {
@@ -31,13 +33,26 @@
     const domain = cookieDomain(root.location?.hostname);
     doc.cookie = `${COOKIE}=${encodeURIComponent(tag)}; Max-Age=${60 * 60 * 24 * 30}; Path=/; SameSite=Lax${domain ? '; Domain=' + domain : ''}${root.location?.protocol === 'https:' ? '; Secure' : ''}`;
   }
-  /** The explicit hand-off: `?lang=` (also `hl`), else the cookie. A `lang` seen here is remembered. */
+  /** The explicit hand-off: `?lang=` (also `hl`), else the cookie, else the language the page itself is shown in
+   * (a website page embedding the form: its <html lang> when the browser translated it or it is not English).
+   * A `lang` seen in the URL is remembered. */
   function handoff(doc = root.document) {
     let params;
     try { params = new URLSearchParams(root.location?.search || ''); } catch (_) { params = new URLSearchParams(); }
     const fromUrl = [params.get('lang'), params.get('hl')].find(validTag) || '';
     if (fromUrl) { remember(fromUrl, doc); return fromUrl; }
-    return readCookie(doc);
+    return readCookie(doc) || pageLanguage(doc);
+  }
+  function pageLanguage(doc = root.document) {
+    const html = doc?.documentElement;
+    const current = String(html?.getAttribute('lang') || '');
+    if (!validTag(current)) return '';
+    const translated = /translated-(ltr|rtl)/.test(html.className || '') || current.toLowerCase() !== ORIGINAL_LANG;
+    return translated || !/^en/i.test(current) ? current : '';
+  }
+  /** True when the API is on another origin: the form is embedded on a website page. */
+  function embedded(apiBase) {
+    try { return new URL(apiBase, root.location?.href).origin !== root.location?.origin; } catch (_) { return false; }
   }
   /** A URL into the app carrying the language (absolute or relative; other hosts are left alone). */
   function withLang(url, tag) {
@@ -87,8 +102,21 @@
         state.language = language; state.options = options; state.hints = { ...hints, lang };
         try {
           const runtime = await loadPlatformLanguage(doc);
-          runtime.configure({ context: { locale: language, measurement_system: 'imperial' } });
-          await runtime.ensure([NAMESPACE, ...namespaces]);
+          const base = String(apiBase || `${root.location.origin}/v1/platform`).replace(/\/$/, '');
+          if (embedded(base)) {
+            // On a website page: leave the page's own <html lang>/dir alone, and load the catalogs through the API
+            // (the app's static files carry no CORS headers).
+            const html = doc.documentElement, lang = html.getAttribute('lang'), dir = html.getAttribute('dir');
+            runtime.configure({ context: { locale: language, measurement_system: 'imperial' } });
+            lang == null ? html.removeAttribute('lang') : html.setAttribute('lang', lang);
+            dir == null ? html.removeAttribute('dir') : html.setAttribute('dir', dir);
+            const response = await fetch(`${base}/auth/signup-catalogs?locale=${encodeURIComponent(language)}&namespaces=${encodeURIComponent(['shared', NAMESPACE, 'signup-region', ...namespaces].join(','))}`, { credentials: 'include' });
+            const data = response.ok ? await response.json() : { bundles: [] };
+            (data.bundles || []).forEach(bundle => runtime.register(bundle));
+          } else {
+            runtime.configure({ context: { locale: language, measurement_system: 'imperial' } });
+            await runtime.ensure([NAMESPACE, ...namespaces]);
+          }
         } catch (_) { /* English fallbacks stay on screen. */ }
         return { language, options };
       });

@@ -13071,7 +13071,8 @@
       "message": "{partner} har inviteret dig",
       "format": "icu"
     },
-    "start_ordering_reports": "Begynd at bestille rapporter"
+    "start_ordering_reports": "Begynd at bestille rapporter",
+    "err_bonus_unconfirmed": "Vi kunne ikke bekræfte din kampagnebonus. Prøv igen om et øjeblik."
   },
   "signup-region": {
     "calling_code": "Landekode"
