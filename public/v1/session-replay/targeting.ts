@@ -13,6 +13,7 @@ import { replayDatabase } from "./storage.js";
  * A person is a sign-in identity, so their rule follows them into every organization they belong to, and it wins
  * over their organization's rule. A page rule names pages that are never recorded, whoever is on them: a pattern
  * over the path and hash (no query string), matched as session-replay/storage.ts `pagePatternLike` describes.
+ * A page rule can be lifted for a while (allow_until: record that page until then), after which it applies again.
  * A rule may expire; an expired rule counts as absent. Every change is logged.
  * Only platform administrators read or change any of this (session-replay/api.ts).
  */
@@ -31,6 +32,8 @@ export type ReplayRule = {
   updated_by: string;
   updated_at: number;
   created_at: number;
+  /** Page rules: the page is recorded anyway until this time (0: not lifted). */
+  allow_until: number;
 };
 export type ReplayDecision = {
   record: boolean;
@@ -73,7 +76,8 @@ function ruleFromRow(row: Record<string, unknown>): ReplayRule {
     detail: text(row.detail),
     updated_by: text(row.updated_by),
     updated_at: num(row.updated_at),
-    created_at: num(row.created_at)
+    created_at: num(row.created_at),
+    allow_until: num(row.allow_until)
   };
 }
 
@@ -102,10 +106,25 @@ export async function readReplayMode(fresh = false) {
 export async function excludedReplayPages(now = Date.now()) {
   if (pagesCache && now - pagesCache.at < CACHE_MS) return pagesCache.value;
   const rows = await store().prepare(`SELECT target_id FROM session_replay_rules WHERE kind='page' AND enabled=0
-    AND (expires_at=0 OR expires_at>?) ORDER BY target_id LIMIT 500`).all(now);
+    AND (expires_at=0 OR expires_at>?) AND allow_until<=? ORDER BY target_id LIMIT 500`).all(now, now);
   const value = rows.map((row) => text(row.target_id));
   pagesCache = { at: now, value };
   return value;
+}
+
+/** Whether a page (path and hash) matches a never-recorded pattern; the loader's pageAllowed matches the same way. */
+export function pageExcluded(patterns: string[], path: string) {
+  const lower = path.toLowerCase();
+  return patterns.some((pattern) => {
+    if (!pattern.includes("*")) return lower.startsWith(pattern);
+    const re = new RegExp("^" + pattern.split("*").map((part) => part.replace(/[.+?^${}()|[\]\\]/g, "\\$&")).join(".*") + "$");
+    return re.test(lower);
+  });
+}
+
+/** The path and hash of a URL, as pages are matched (no query string). */
+export function pagePathOf(url: string) {
+  try { const parsed = new URL(url); return (parsed.pathname || "/") + (parsed.hash || ""); } catch { return ""; }
 }
 
 /** Whether this person, signed in to this organization, is recorded, and which setting decided it. */
@@ -171,7 +190,7 @@ export async function upsertReplayRules(rules: RuleInput[], actor: string) {
           label=excluded.label, detail=excluded.detail, updated_by=excluded.updated_by, updated_at=excluded.updated_at`).run(
         rule.kind, rule.target_id, rule.enabled ? 1 : 0, Math.max(0, Math.round(rule.expires_at)), rule.reason.slice(0, 500),
         rule.label.slice(0, 320), rule.detail.slice(0, 320), actor.slice(0, 320), now, before ? before.created_at : now);
-      const after: ReplayRule = { ...rule, expires_at: Math.max(0, Math.round(rule.expires_at)), updated_by: actor, updated_at: now, created_at: before ? before.created_at : now };
+      const after: ReplayRule = { ...rule, expires_at: Math.max(0, Math.round(rule.expires_at)), updated_by: actor, updated_at: now, created_at: before ? before.created_at : now, allow_until: before ? before.allow_until : 0 };
       await log(tx, { actor, kind: rule.kind, target_id: rule.target_id, label: rule.label, before, after: { enabled: after.enabled, expires_at: after.expires_at }, reason: rule.reason });
       out.push(after);
     }
@@ -179,6 +198,25 @@ export async function upsertReplayRules(rules: RuleInput[], actor: string) {
   }, "replay-targeting");
   clearReplayTargetingCache();
   return saved;
+}
+
+/**
+ * Records a page that is never recorded, until `until` (0 stops at once). Pages already open start when they are next
+ * loaded; when the time is up, uploads from those pages are refused and their recorders stop.
+ */
+export async function allowReplayPage(pattern: string, until: number, actor: string, reason: string) {
+  const result = await store().transaction(async (tx) => {
+    const row = await tx.prepare("SELECT * FROM session_replay_rules WHERE kind='page' AND target_id=?").get(pattern);
+    if (!row) return null;
+    const before = ruleFromRow(row);
+    await tx.prepare("UPDATE session_replay_rules SET allow_until=?, updated_by=?, updated_at=? WHERE kind='page' AND target_id=?")
+      .run(Math.max(0, Math.round(until)), actor.slice(0, 320), Date.now(), pattern);
+    await log(tx, { actor, kind: "page", target_id: pattern, label: before.label, before: { allow_until: before.allow_until },
+      after: { enabled: false, expires_at: before.expires_at, allow_until: Math.max(0, Math.round(until)) }, reason });
+    return { ...before, allow_until: Math.max(0, Math.round(until)) };
+  }, "replay-targeting");
+  clearReplayTargetingCache();
+  return result;
 }
 
 export async function removeReplayRule(kind: RuleKind, targetId: string, actor: string, reason: string) {

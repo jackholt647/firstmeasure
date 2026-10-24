@@ -126,10 +126,18 @@
     const box = overlay.querySelector('.rr-pages');
     let data;
     try { data = await api(base + '?kind=page&state=excluded&limit=200'); } catch (error) { box.innerHTML = '<p class="aa-error">' + esc(error.message) + '</p>'; return; }
-    box.innerHTML = data.rules.length ? '<table class="aa-table"><tbody>' + data.rules.map((rule) => '<tr data-kind="page" data-target="' + esc(rule.target_id) + '"><td><code>'
-      + esc(rule.target_id) + '</code>' + (rule.expires_at ? '<div class="aa-muted">until ' + when(rule.expires_at) + '</div>' : '') + '</td><td>' + esc(rule.reason || '')
-      + '<div class="aa-muted">' + esc(rule.updated_by) + ' · ' + when(rule.updated_at) + '</div></td><td><button type="button" class="aa-revoke rr-remove">Record it again</button></td></tr>').join('')
-      + '</tbody></table>' : '<p class="aa-muted">Every page is recorded for those who are.</p>';
+    const now = data.now || Date.now();
+    box.innerHTML = data.rules.length ? '<table class="aa-table"><tbody>' + data.rules.map((rule) => {
+      const open = rule.allow_until > now;
+      const window = open
+        ? '<span class="rr-state rr-on">Recording until ' + esc(when(rule.allow_until)) + '</span> <button type="button" class="aa-copy rr-page-stop">Stop now</button>'
+        : '<span class="rr-state rr-off">Not recorded</span> <select class="rr-days rr-allow-minutes" title="For how long"><option value="15">15 min</option>'
+          + '<option value="60" selected>1 hour</option><option value="240">4 hours</option></select> <button type="button" class="aa-copy rr-page-allow">Record for</button>';
+      return '<tr data-kind="page" data-target="' + esc(rule.target_id) + '"><td><code>' + esc(rule.target_id) + '</code>'
+        + (rule.expires_at ? '<div class="aa-muted">rule ends ' + when(rule.expires_at) + '</div>' : '') + '</td><td>' + window + '</td><td>' + esc(rule.reason || '')
+        + '<div class="aa-muted">' + esc(rule.updated_by) + ' · ' + when(rule.updated_at) + '</div></td>'
+        + '<td><button type="button" class="aa-revoke rr-remove" title="Take it off the list: it is recorded like any other page">Remove</button></td></tr>';
+    }).join('') + '</tbody></table>' : '<p class="aa-muted">Every page is recorded for those who are.</p>';
   }
 
   let pageOptionsTimer = 0;
@@ -142,6 +150,16 @@
         if (list) list.innerHTML = (data.pages || []).map((p) => '<option value="' + esc(p.path) + '">' + esc(p.sessions + (p.sessions === 1 ? ' session' : ' sessions')) + '</option>').join('');
       } catch (error) { /* suggestions are optional */ }
     }, 200);
+  }
+
+  // Record a page that is never recorded, for a while; it switches back off on its own.
+  async function pageWindow(button, minutes) {
+    const row = button.closest('[data-target]');
+    button.disabled = true;
+    try {
+      await api(base + '/pages/allow', { method: 'PUT', body: { target: row.dataset.target, minutes, reason: reason() || undefined } });
+      await refreshAll();
+    } catch (error) { window.alert(error.message); button.disabled = false; }
   }
 
   async function addPage(button) {
@@ -164,6 +182,7 @@
       const describe = (e) => {
         if (e.kind === 'mode') return 'Mode: ' + (MODES[e.before] ? MODES[e.before].title : e.before) + ' → ' + (MODES[e.after] ? MODES[e.after].title : e.after);
         if (!e.after) return 'Removed the rule for ' + e.label;
+        if (e.kind === 'page' && e.after.allow_until !== undefined) return e.after.allow_until ? 'Record ' + e.label + ' until ' + when(e.after.allow_until) : 'Stop recording ' + e.label;
         if (e.kind === 'page') return 'Don’t record ' + e.label + (e.after.expires_at ? ' until ' + when(e.after.expires_at) : '');
         return (e.after.enabled ? 'Record ' : 'Don’t record ') + e.label + (e.after.expires_at ? ' until ' + when(e.after.expires_at) : '');
       };
@@ -222,7 +241,8 @@
       + '<div class="rr-results"><p class="aa-muted">Type at least two letters of an email, a name or an id.</p></div>'
       + '<h3>Pages never recorded</h3>'
       + '<p class="aa-muted">Nobody is recorded on these pages, whatever the rules above say. A page is its path and hash: <code>/portal/billing</code> covers everything '
-      + 'under it; <code>*</code> stands for anything (<code>/portal/#settings*</code>). A recording pauses there and picks up again when the person leaves.</p>'
+      + 'under it; <code>*</code> stands for anything (<code>/portal/#settings*</code>). A recording pauses there and picks up again when the person leaves. '
+      + '<strong>Record for</strong> records a page for a while and switches it back off by itself; pages already open start when they are next loaded.</p>'
       + '<div class="aa-form"><input class="rr-page" list="rr-page-options" placeholder="/portal/billing" autocomplete="off"><datalist id="rr-page-options"></datalist>'
       + '<button type="button" class="aa-primary rr-page-add">Don’t record this page</button></div><div class="rr-pages"></div>'
       + '<h3>Rules</h3><div class="aa-form"><select class="rr-filter-state"><option value="recording">Recording</option><option value="excluded">Not recorded</option>'
@@ -258,6 +278,8 @@
       if (target.classList.contains('rr-record') || target.classList.contains('rr-exclude') || target.classList.contains('rr-remove')) { await act(target); return; }
       if (target.classList.contains('rr-more')) { await renderRules(true); return; }
       if (target.classList.contains('rr-page-add')) { await addPage(target); return; }
+      if (target.classList.contains('rr-page-allow')) { await pageWindow(target, Number(target.closest('tr').querySelector('.rr-allow-minutes').value)); return; }
+      if (target.classList.contains('rr-page-stop')) { await pageWindow(target, 0); return; }
       if (target.classList.contains('rr-show-log')) {
         const log = overlay.querySelector('.rr-log');
         log.hidden = !log.hidden;

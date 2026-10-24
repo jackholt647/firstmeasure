@@ -87,7 +87,7 @@ function db() {
   if (database && databasePath === nextPath) return database;
   void closeSessionReplayDatabase();
   // Raise this whenever initialize gains a table or a column: Postgres runs it again only for a higher version.
-  database = openSqlStore({ id: "session_replay", schemaVersion: 5, filename: nextPath, initialize });
+  database = openSqlStore({ id: "session_replay", schemaVersion: 6, filename: nextPath, initialize });
   databasePath = nextPath;
   return database;
 }
@@ -270,6 +270,8 @@ async function initialize(store: SqlStore) {
   await ensureSqlColumn(store, "session_replay_chunks", "archived", "INTEGER NOT NULL DEFAULT 0");
   // Until when an administrator is following the session live (its recorder then uploads more often).
   await ensureSqlColumn(store, "session_replay_sessions", "watched_until", "BIGINT NOT NULL DEFAULT 0");
+  // A page that is never recorded can be recorded for a while (to watch behaviour there): until this time.
+  await ensureSqlColumn(store, "session_replay_rules", "allow_until", "BIGINT NOT NULL DEFAULT 0");
 }
 
 function sessionFromRow(row: Row): ReplaySession {
@@ -466,6 +468,12 @@ export async function listReplayPages(options: { query?: string; organizationId?
   const rows = await db().prepare(`SELECT path, COUNT(DISTINCT session_id) AS sessions, MAX(first_at) AS last_at FROM session_replay_page_paths
     ${where.length ? "WHERE " + where.join(" AND ") : ""} GROUP BY path ORDER BY COUNT(DISTINCT session_id) DESC, path LIMIT ${limit}`).all(...values);
   return rows.map((row) => ({ path: text(row.path), sessions: num(row.sessions), last_at: num(row.last_at) }));
+}
+
+/** The URL a page was loaded at (its first chunk's META), or "" when its first chunk has not arrived. */
+export async function readReplayPageUrl(sessionId: string, pageId: string) {
+  const row = await db().prepare("SELECT url FROM session_replay_pages WHERE session_id=? AND page_id=?").get(sessionId, pageId);
+  return text(row?.url);
 }
 
 export async function readReplaySession(sessionId: string) {
