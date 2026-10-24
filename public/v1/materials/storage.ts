@@ -1,4 +1,4 @@
-import {requireResourceType} from './resource-types.js';
+import {requireResourceType,equipmentListsAllowed} from './resource-types.js';
 import { publishScopeMaterialArtifact, scopeMaterialRequirements, assertLegacyMaterialWritable, assertLegacyMaterialSnapshotWritable, importedLegacyMaterialArtifact } from "./calculus.js";
 import { createHash, randomUUID } from "node:crypto";
 
@@ -1753,6 +1753,12 @@ async function buildProjectListsFromScope(
       let list = await readMaterialList(orgId, listId).catch(() => null);
       const allowedSourceIds = new Set(normalizeStringArray(definition.order_source_ids));
       const orderSources = allowedSourceIds.size ? allOrderSources.filter((source) => allowedSourceIds.has(cleanText(source.id))) : allOrderSources;
+      // With the Equipment app off a scope makes no equipment list. One it made while the app was on is kept as it is
+      // (read-only in the Project tab) and its generated schedule event is withdrawn.
+      if (cleanText(definition.resource_type).toLowerCase() === "equipment" && !(await equipmentListsAllowed(orgId))) {
+        if (list) createdLists.push(cleanText(list.schedule_event_id || asObject(list.schedule).event_id) ? await disableGeneratedResourceScheduleEvent(orgId, list) : list);
+        continue;
+      }
       const resourceType = await requireResourceType(orgId,definition.resource_type);
       if(resourceType === "material" && list){
         const imported=await importedLegacyMaterialArtifact(orgId,projectId,listId);
@@ -1940,7 +1946,8 @@ export async function patchMaterialList(orgId: string, listId: string, patch: Js
   const data = {
     ...current,
     title:Object.prototype.hasOwnProperty.call(patch,"title")?cleanText(patch.title):cleanText(current.title),
-    resource_type: Object.prototype.hasOwnProperty.call(patch, "resource_type") ? await requireResourceType(orgId,patch.resource_type) : cleanText(current.resource_type || "material"),
+    // Only a change of type is checked, so a list kept from an app since turned off can still be renamed or archived.
+    resource_type: Object.prototype.hasOwnProperty.call(patch, "resource_type") && cleanText(patch.resource_type || "material").toLowerCase() !== cleanText(current.resource_type || "material").toLowerCase() ? await requireResourceType(orgId,patch.resource_type) : cleanText(current.resource_type || "material"),
     resource_subtype: Object.prototype.hasOwnProperty.call(patch, "resource_subtype") ? cleanText(patch.resource_subtype) : cleanText(current.resource_subtype),
     terminology: Object.prototype.hasOwnProperty.call(patch, "terminology") ? { ...asObject(current.terminology), ...asObject(patch.terminology) } : asObject(current.terminology),
     controls: Object.prototype.hasOwnProperty.call(patch, "controls") ? { ...asObject(current.controls), ...asObject(patch.controls) } : asObject(current.controls),

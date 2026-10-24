@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { hasPermission, type PlatformAuthContext } from '../platform/auth.js';
 import { isAppFlagEnabled } from '../platform/app_flags.js';
+import { isCapabilityEnabled } from '../platform/capabilities.js';
 import { forbidden, badRequest, conflict } from '../platform/errors.js';
 import { listDocuments, upsertDocument, type JsonObject } from '../platform/storage.js';
 export const RESOURCE_TYPE_COLLECTION='material_resource_types';
@@ -15,15 +16,20 @@ const DEFAULT_LINE_ITEM_SOURCES:Record<string,string[]>={material:['pricebook'],
 export const resourceTypeInputSchema=z.object({id:resourceTypeIdSchema,name:z.string().trim().max(100),icon:z.string().regex(/^fa-[a-z0-9-]{1,76}$/),color:z.string().regex(/^#[0-9a-fA-F]{6}$/),line_item_sources:z.array(z.enum(LINE_ITEM_SOURCES)).max(LINE_ITEM_SOURCES.length).optional(),pricebook_sku_only:z.boolean().optional(),expected_revision:z.number().int().nonnegative().optional()}).strict();
 export const resourceTypeArchiveSchema=z.object({id:resourceTypeIdSchema,expected_revision:z.number().int().nonnegative().optional()}).strict();
 export const defaultResourceTypes=[{id:'material',name:'Materials',icon:'fa-boxes-stacked',color:'#d93025',line_item_sources:['pricebook'],pricebook_sku_only:true,revision:0},{id:'labor',name:'Labor',icon:'fa-helmet-safety',color:'#2563eb',line_item_sources:[],pricebook_sku_only:false,revision:0},{id:'equipment',name:'Equipment',icon:'fa-truck-pickup',color:'#0f766e',line_item_sources:['equipment'],pricebook_sku_only:false,revision:0}];
+// Equipment is a column, and an equipment list can be made, only while the organization has the Equipment app on
+// (apps.equipment). With it off the column is not offered and no writer makes an equipment list; lists made while it
+// was on are kept and read as they are. Nothing here asks what kind of organization it is.
+export async function equipmentListsAllowed(orgId:string){return await isCapabilityEnabled(orgId,'apps.equipment').catch(()=>false);}
 export async function listResourceTypes(orgId:string){
  if(!await isAppFlagEnabled(orgId,'platform','materials'))throw forbidden('app_flag_disabled','Materials are not enabled for this organization.');
  const documents=(await listDocuments(orgId,RESOURCE_TYPE_COLLECTION)).filter(doc=>!doc.data.archived_at),rows=documents.map(doc=>resourceTypeRow({...doc.data,id:doc.id,revision:doc.revision}));
- return [...defaultResourceTypes.map(row=>rows.find(item=>item.id===row.id)||{...row}),...rows.filter(row=>!defaultResourceTypes.some(item=>item.id===row.id))];
+ const equipment=await equipmentListsAllowed(orgId);
+ return [...defaultResourceTypes.map(row=>rows.find(item=>item.id===row.id)||{...row}),...rows.filter(row=>!defaultResourceTypes.some(item=>item.id===row.id))].filter(row=>equipment||row.id!=='equipment');
 }
-export async function requireResourceType(orgId:string,value:unknown){const id=resourceTypeIdSchema.parse(value||'material');if(!(await listResourceTypes(orgId)).some(row=>row.id===id))throw badRequest('resource_type_unknown','Choose a registered resource type.');return id;}
+export async function requireResourceType(orgId:string,value:unknown){const id=resourceTypeIdSchema.parse(value||'material');if(id==='equipment'&&!await equipmentListsAllowed(orgId))throw forbidden('equipment_app_disabled','Equipment is not turned on for this organization, so an equipment list cannot be made.');if(!(await listResourceTypes(orgId)).some(row=>row.id===id))throw badRequest('resource_type_unknown','Choose a registered resource type.');return id;}
 export async function saveResourceType(orgId:string,input:unknown,auth:PlatformAuthContext,create=false){
  if(!auth||auth.orgId!==orgId||!hasPermission(auth,'manage_projects'))throw forbidden('resource_type_write_denied','Resource type editing requires project management access.');
- const known=await listResourceTypes(orgId);const {id,expected_revision,...data}=resourceTypeInputSchema.parse(input);if(!create&&!known.some(row=>row.id===id))throw badRequest('resource_type_unknown','This resource type is unavailable.');
+ const known=await listResourceTypes(orgId);const {id,expected_revision,...data}=resourceTypeInputSchema.parse(input);if(id==='equipment'&&!known.some(row=>row.id===id))throw forbidden('equipment_app_disabled','Equipment is not turned on for this organization.');if(!create&&!known.some(row=>row.id===id))throw badRequest('resource_type_unknown','This resource type is unavailable.');
  const doc=await upsertDocument(orgId,RESOURCE_TYPE_COLLECTION,{id,expected_revision,data:{...data,updated_by_user_id:auth.userId},metadata:{kind:'material_resource_type'}},{replace:true,createOnly:create||expected_revision===0});
  return resourceTypeRow({...doc.data,id:doc.id,revision:doc.revision});
 }

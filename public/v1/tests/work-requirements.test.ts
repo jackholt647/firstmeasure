@@ -112,7 +112,8 @@ test("a project's requirements say what is open, what accounts for each thing, a
   const sheets = await import("../labor/pay-sheets.js"), g = await import("../labor/generation.js"), r = await import("../labor/requirements.js"), caps = await import("../labor/capabilities.js");
   await s.createOrganization({ id: ORG, name: "Requirements" });
   await s.saveGlobal(ORG, { data: { app_flags: { platform: { expanded_access: true, materials: true } } } }, { replace: false });
-  await enableExpandedPlatformFixture(ORG, { "platform.materials": true, "platform.pricebook": true });
+  // The Equipment app is on: an equipment list is made below.
+  await enableExpandedPlatformFixture(ORG, { "platform.materials": true, "platform.pricebook": true, "apps.equipment": true });
   await s.upsertDocument(ORG, "projects", { id: "project", data: { title: "12 Oak St" } });
   const writer = systemPublicationContext({ kind: "module", organizationId: ORG, projectId: "project", operations: ["datasets.save", "datasets.select", "datasets.value"], mode: "command" });
   const target = { scope: "project" as const, organizationId: ORG, projectId: "project" };

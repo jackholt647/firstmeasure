@@ -150,7 +150,7 @@ async function projectTab(tab) {
       cleanText:(value) => String(value ?? '').trim(), escapeHtml:(value) => String(value ?? '').replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])),
       number:(value, fallback = 0) => Number.isFinite(Number(value)) ? Number(value) : fallback, money:(value) => '$' + Number(value || 0).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2}),
       orgId:() => 'org', projectId:() => 'p1', apiReady:() => true, workspaceIsEditing:() => false,
-      resourceCategories:() => state.resourceTypes, workOrderMerged:() => true, resourceType:(list) => list?.resource_type || 'material', materialListById:(id) => state.lists.find((list) => list.id === id),
+      resourceCategories:() => state.resourceTypes, workOrderMerged:() => true, equipmentOn:() => true, laborAssignmentOn:() => true, equipmentListRetired:() => false, resourceType:(list) => list?.resource_type || 'material', materialListById:(id) => state.lists.find((list) => list.id === id),
       resourceTerms:(type) => ({plural:{material:'Materials',labor:'Labor',equipment:'Equipment'}[type], singular:{material:'Material',labor:'Labor item',equipment:'Equipment item'}[type]}),
       listItems:(list) => list?.current_items || [], assignmentWorkResourceRef:(list) => list?.assignment?.work_resource_ref || null, workResourcesForScopeList:() => [], workResourceById:() => null,
       filteredItems:() => state.lists.flatMap((list) => list.current_items.map((item) => ({...item, section:item.section || 'material', __material_list_id:list.id}))),

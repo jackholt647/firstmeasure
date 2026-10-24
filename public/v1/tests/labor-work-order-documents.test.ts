@@ -25,7 +25,8 @@ function setup() {
     const s = await import("../platform/storage.js");
     await s.createOrganization({ id: ORG, name: "Work orders" });
     await s.saveGlobal(ORG, { data: { app_flags: { platform: { expanded_access: true, materials: true } } } }, { replace: false });
-    await enableExpandedPlatformFixture(ORG, { "platform.materials": true, "platform.pricebook": true, "platform.documents": true });
+    // The Equipment app is on: an equipment list is made below.
+    await enableExpandedPlatformFixture(ORG, { "platform.materials": true, "platform.pricebook": true, "platform.documents": true, "apps.equipment": true });
     await s.upsertDocument(ORG, "projects", { id: "project", data: { title: "12 Elm street", address: "12 Elm St", events: [] } });
   })();
 }

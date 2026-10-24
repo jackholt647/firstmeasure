@@ -92,6 +92,27 @@ still works: the order dialog's delivery date and time go in the supplier's
 email and onto the order's `scheduled_window`, and neither the browser nor the
 server (`createMaterialOrder`) makes or locks a schedule event.
 
+**Equipment off.** With the organization's Equipment app (`apps.equipment`) off,
+`listResourceTypes` leaves the equipment column out, so the tab (`equipmentOn()`)
+has no equipment column, no Add an equipment list, no Reserve Equipment, no
+equipment line item source and no equipment step in Fix all; a requirement that
+equipment would meet shows as the work order's. The server refuses to make an
+equipment list (`requireResourceType`, error `equipment_app_disabled`), to turn
+a list into one, or to save the equipment column, and a scope makes none. An
+equipment list made while the app was on is kept: it shows in the work order
+column read-only (`equipmentListRetired`), with a note, its lines and Delete;
+renaming it is allowed, a scope run leaves it as it is and withdraws its
+generated schedule event. Turning the app back on makes it editable again.
+
+**Work orders without assignees.** A work order is assigned to a group of users
+or an outside company (users alone are not offered). With the groups app
+(`apps.crew`) off, groups are not offered, and when the directory has no
+outside company either (`laborAssignmentOn()`), a work order is a plain list of
+labor line items added by hand, like materials: no assignment block or control,
+no Generate from pay sheet, no Pay out (a list already paid out still shows it
+and can be reopened) and no assigning in Fix all. The lines and any stored
+assignment are unchanged, so turning groups on brings assignment back.
+
 **Starting minimized.** When the project's requirements include nothing but
 material (no work items or functions) and the Work order column has no lines or
 assignee, the column opens minimized to its header tab. This is decided once

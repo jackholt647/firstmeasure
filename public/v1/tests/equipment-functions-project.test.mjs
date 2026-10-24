@@ -31,6 +31,7 @@ test('picking equipment for a project line stamps what it provides, so requireme
     const money = (value) => '$' + Number(value).toFixed(2);
     const resourceType = (list) => list.resource_type;
     const categorySources = () => ['equipment'];
+    const equipmentOn = () => true;
     const categorySkuOnly = () => false;
     const laborSettings = () => ({});
     function loadEquipmentUnits(){ loads += 1; }

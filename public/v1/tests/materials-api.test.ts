@@ -574,6 +574,8 @@ test("scope material artifacts split requirements, preserve amendments and initi
 test("scope resources create independent material, labor, and equipment lists with generic schedule links", async () => {
   const client = createSessionClient();
   const { orgId } = await register(client);
+  // Equipment lists are made only while the Equipment app is on.
+  await enableExpandedPlatformFixture(orgId, { "apps.equipment": true });
   const projectId = `project_scope_resources_${Date.now().toString(36)}`;
   await client.request("PUT", `/v1/platform/organizations/${orgId}/projects/${projectId}`, {
     data: { id: projectId, title: "Scope Resources", events: [] },
@@ -631,7 +633,7 @@ test("scope resources create independent material, labor, and equipment lists wi
   assert.equal(result.schedule_events[0].lock_toggle_visible, false);
 });
 
-test("roof replacement scopes automatically create piece-rate labor and equipment defaults", async () => {
+test("roof replacement scopes automatically create piece-rate labor, and equipment defaults only with the Equipment app", async () => {
   const client = createSessionClient();
   const { orgId } = await register(client);
   const projectId = `project_roof_resources_${Date.now().toString(36)}`;
@@ -640,15 +642,21 @@ test("roof replacement scopes automatically create piece-rate labor and equipmen
     metadata: { kind: "platform_project" }
   });
 
-  const result = await client.request("POST", `/v1/materials/organizations/${orgId}/projects/${projectId}/material-lists/initialize-from-scope`, {
+  const initialize = (extra: Record<string, unknown> = {}) => client.request("POST", `/v1/materials/organizations/${orgId}/projects/${projectId}/material-lists/initialize-from-scope`, {
     scope_template_id: "roof_replacement",
-    scope: { root_items: [], measurements: { roofSquares: 31.5, shingleSquares: 28, pitch9to12Squares: 4, ridgesLf: 50, flatRoofSquares: 0 } }
+    scope: { root_items: [], measurements: { roofSquares: 31.5, shingleSquares: 28, pitch9to12Squares: 4, ridgesLf: 50, flatRoofSquares: 0 } },
+    ...extra
   });
+  const setCapabilities = async (values: Record<string, boolean>) => (await operatorFixtureClient(app, orgId)).request("PUT", `/v1/platform/organizations/${orgId}/capabilities`, { values });
 
+  // The Equipment app is off (its default): the scope makes its labor and no equipment list, and none can be made.
+  const result = await initialize();
   const labor = result.material_lists.find((list: any) => list.resource_type === "labor");
-  const equipment = result.material_lists.find((list: any) => list.resource_type === "equipment");
   assert.ok(labor);
-  assert.ok(equipment);
+  assert.ok(!result.material_lists.some((list: any) => list.resource_type === "equipment"), "no equipment list without the Equipment app");
+  assert.ok(!result.schedule_events.some((event: any) => event.resource_type === "equipment"));
+  await assert.rejects(client.request("POST", `/v1/materials/organizations/${orgId}/projects/${projectId}/material-lists`, { title: "", resource_type: "equipment", items: [] }), /403[\s\S]*equipment_app_disabled/);
+  assert.deepEqual((await client.request("GET", `/v1/materials/organizations/${orgId}/resource-types`)).resource_types.map((row: any) => row.id), ["material", "labor"], "the equipment column is not offered");
   // How a labor list is paid is its assignee's pay sheet; the list carries no pay mode of its own.
   assert.equal(labor.compensation, undefined);
   assert.equal(labor.current_items[0].unit, "sq");
@@ -661,52 +669,35 @@ test("roof replacement scopes automatically create piece-rate labor and equipmen
     "Ridge installation"
   ]);
   assert.ok(!labor.current_items.some((item: any) => item.name === "Flat roof installation"));
-  assert.deepEqual(equipment.current_items.map((item: any) => item.name), ["Disposal trailer", "Portable toilet", "Truck"]);
-  // The preset declares equipment scheduling, but generation is suppressed
-  // until the org's equipment.scheduling capability is on.
-  assert.equal(equipment.schedule.enabled, true);
-  assert.ok(!equipment.schedule_event_id);
-  assert.ok(!result.schedule_events.some((event: any) => event.resource_type === "equipment"));
 
-  const staleEquipmentSchedule = await client.request("POST", `/v1/materials/organizations/${orgId}/material-lists/${equipment.id}/schedule-event`, {});
-  assert.equal(staleEquipmentSchedule.event.resource_type, "equipment");
-  const cleanedEquipmentSchedule = await client.request("POST", `/v1/materials/organizations/${orgId}/projects/${projectId}/material-lists/initialize-from-scope`, {
-    scope_template_id: "roof_replacement",
-    scope: { root_items: [], measurements: { roofSquares: 31.5, shingleSquares: 28, pitch9to12Squares: 4, ridgesLf: 50 } }
-  });
-  const cleanedEquipment = cleanedEquipmentSchedule.material_lists.find((list: any) => list.resource_type === "equipment");
-  assert.ok(!cleanedEquipment.schedule_event_id);
-  const projectAfterEquipmentCleanup = await client.request("GET", `/v1/platform/organizations/${orgId}/projects/${projectId}`);
-  assert.equal(projectAfterEquipmentCleanup.document.data.events.find((event: any) => event.id === staleEquipmentSchedule.event.id).status, "canceled");
-
-  // With the equipment.scheduling capability on, the same initialize call
-  // generates the equipment schedule event the plumbing always carried.
-  await (await operatorFixtureClient(app, orgId)).request("PUT", `/v1/platform/organizations/${orgId}/capabilities`, {
-    values: { "apps.equipment": true, "equipment.scheduling": true }
-  });
-  const enabledRun = await client.request("POST", `/v1/materials/organizations/${orgId}/projects/${projectId}/material-lists/initialize-from-scope`, {
-    scope_template_id: "roof_replacement",
-    force_regenerate: true,
-    scope: { root_items: [], measurements: { roofSquares: 31.5, shingleSquares: 28, pitch9to12Squares: 4, ridgesLf: 50 } }
-  });
+  // With the Equipment app on (its scheduling comes with it), the same call makes the equipment list and its event.
+  await setCapabilities({ "apps.equipment": true });
+  assert.deepEqual((await client.request("GET", `/v1/materials/organizations/${orgId}/resource-types`)).resource_types.map((row: any) => row.id), ["material", "labor", "equipment"]);
+  const enabledRun = await initialize({ force_regenerate: true });
   const enabledEquipment = enabledRun.material_lists.find((list: any) => list.resource_type === "equipment");
+  assert.deepEqual(enabledEquipment.current_items.map((item: any) => item.name), ["Disposal trailer", "Portable toilet", "Truck"]);
+  assert.equal(enabledEquipment.schedule.enabled, true);
   const equipmentEvent = enabledRun.schedule_events.find((event: any) => event.resource_type === "equipment");
   assert.ok(equipmentEvent, "equipment schedule event should generate when the capability is on");
   assert.equal(equipmentEvent.kind, "equipment");
   assert.equal(equipmentEvent.scope_resource_list_id, enabledEquipment.id);
   assert.equal("equipment_list_id" in equipmentEvent, false);
   assert.equal(equipmentEvent.icon, "fa-truck-pickup");
-  // Turning the capability back off restores suppression and cancels the event.
-  await (await operatorFixtureClient(app, orgId)).request("PUT", `/v1/platform/organizations/${orgId}/capabilities`, {
-    values: { "apps.equipment": false }
-  });
-  const disabledRun = await client.request("POST", `/v1/materials/organizations/${orgId}/projects/${projectId}/material-lists/initialize-from-scope`, {
-    scope_template_id: "roof_replacement",
-    scope: { root_items: [], measurements: { roofSquares: 31.5, shingleSquares: 28, pitch9to12Squares: 4, ridgesLf: 50 } }
-  });
+  // Turning the app back off keeps the list as it is (readable, renamable) and cancels its generated event; no new
+  // equipment list can be made.
+  await setCapabilities({ "apps.equipment": false });
+  const disabledRun = await initialize();
   assert.ok(!disabledRun.schedule_events.some((event: any) => event.resource_type === "equipment"));
+  const kept = disabledRun.material_lists.find((list: any) => list.resource_type === "equipment");
+  assert.equal(kept.id, enabledEquipment.id);
+  assert.deepEqual(kept.current_items.map((item: any) => item.name), ["Disposal trailer", "Portable toilet", "Truck"], "a kept list is not regenerated");
   const projectAfterDisable = await client.request("GET", `/v1/platform/organizations/${orgId}/projects/${projectId}`);
   assert.equal(projectAfterDisable.document.data.events.find((event: any) => event.id === equipmentEvent.id).status, "canceled");
+  const read = (await client.request("GET", `/v1/materials/organizations/${orgId}/material-lists/${kept.id}`)).material_list;
+  assert.equal(read.resource_type, "equipment");
+  const renamed = await client.request("PATCH", `/v1/materials/organizations/${orgId}/material-lists/${kept.id}`, { expected_revision: read.revision, title: "Old equipment", resource_type: "equipment" });
+  assert.equal(renamed.material_list.title, "Old equipment");
+  await assert.rejects(client.request("PATCH", `/v1/materials/organizations/${orgId}/material-lists/${labor.id}`, { resource_type: "equipment" }), /403[\s\S]*equipment_app_disabled/, "a list cannot become an equipment list either");
 
   const repeated = await client.request("POST", `/v1/materials/organizations/${orgId}/projects/${projectId}/material-lists/initialize-from-scope`, {
     scope_template_id: "roof_replacement",
@@ -976,6 +967,8 @@ test("a list can have more than one event: part_id adds a second beside the firs
 test("a list its scope did not make takes the scope's grouping from the project's work plan, so the job is one span", async () => {
   const client = createSessionClient();
   const { orgId } = await register(client);
+  // Equipment lists are made only while the Equipment app is on.
+  await enableExpandedPlatformFixture(orgId, { "apps.equipment": true });
   const projectId = await createListProject(client, orgId, "project_scope_fallback");
   const { saveScopeTemplate } = await import("../scopes/storage.js");
   const { createPlanRecord } = await import("../work/storage.js");
@@ -1032,6 +1025,8 @@ test("a signed document whose production plan never started still says the scope
 test("a saved copy of a preset that predates placements still places its lists in the job, from the preset as it is now", async () => {
   const client = createSessionClient();
   const { orgId } = await register(client);
+  // Equipment lists are made only while the Equipment app is on.
+  await enableExpandedPlatformFixture(orgId, { "apps.equipment": true });
   const projectId = await createListProject(client, orgId, "project_preset_placement");
   const { saveScopeTemplate } = await import("../scopes/storage.js");
   const { createPlanRecord } = await import("../work/storage.js");
