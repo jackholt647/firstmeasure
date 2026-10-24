@@ -337,6 +337,21 @@ test("platform administrators decide who is recorded: a mode for everyone, rules
   assert.equal((await call(admin, "DELETE", "/session-replay/admin/targeting/rules/page/-?target=" + encodeURIComponent("/portal/billing"))).statusCode, 200);
   assert.deepEqual((await call(bob, "GET", "/session-replay/config")).json().exclude_pages, ["/portal/#settings*"]);
   assert.equal(await recording(bob), true);
+  // A page loaded on an excluded page is refused at upload, so a recorder from before page rules stops there too.
+  const excludedPage = await call(bob, "POST", "/session-replay/chunks", chunk("sessionpagegate1", 0, { s: [], e: [] }, { meta: { url: "https://app.1m8.ai/portal/#settings/billing", title: "Settings" } }));
+  assert.equal(excludedPage.statusCode, 403, excludedPage.body);
+  assert.equal(excludedPage.json().error, "session_replay_page_excluded");
+  assert.equal((await call(bob, "POST", "/session-replay/chunks", chunk("sessionpagegate1", 0, { s: [], e: [] }, { page_id: "page0002" }))).statusCode, 200);
+  // Recording a never-recorded page for a while, then stopping.
+  const lifted = await call(admin, "PUT", "/session-replay/admin/targeting/pages/allow", { target: "/portal/#settings*", minutes: 60, reason: "Watch the settings flow" });
+  assert.equal(lifted.statusCode, 200, lifted.body);
+  assert.ok(lifted.json().rule.allow_until > Date.now() + 59 * 60_000);
+  assert.deepEqual((await call(bob, "GET", "/session-replay/config")).json().exclude_pages, []);
+  assert.equal((await call(bob, "POST", "/session-replay/chunks", chunk("sessionpagegate2", 0, { s: [], e: [] }, { meta: { url: "https://app.1m8.ai/portal/#settings/billing" } }))).statusCode, 200);
+  assert.equal((await call(admin, "PUT", "/session-replay/admin/targeting/pages/allow", { target: "/portal/#settings*", minutes: 0 })).statusCode, 200);
+  assert.deepEqual((await call(bob, "GET", "/session-replay/config")).json().exclude_pages, ["/portal/#settings*"]);
+  assert.equal((await call(bob, "POST", "/session-replay/chunks", chunk("sessionpagegate2", 1, { s: [], e: [] }))).statusCode, 403);
+  assert.equal((await call(admin, "PUT", "/session-replay/admin/targeting/pages/allow", { target: "/nowhere", minutes: 60 })).statusCode, 404);
 
   // Every change is logged with who made it and why.
   const entries = (await call(admin, "GET", "/session-replay/admin/targeting/log?limit=200")).json().entries;

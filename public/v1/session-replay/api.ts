@@ -12,11 +12,11 @@ import { env } from "../src/config/env.js";
 import { archiveOverview, runReplayArchive } from "./archive.js";
 import { REPLAY_BLOB_KEY, replayBlobKey } from "./hash.js";
 import {
-  deleteReplaySession, listReplayPages, listReplaySessions, markReplayWatched, missingReplayBlobs, readReplayBlobs, readReplayChunkSizes,
+  deleteReplaySession, listReplayPages, listReplaySessions, markReplayWatched, readReplayPageUrl, missingReplayBlobs, readReplayBlobs, readReplayChunkSizes,
   readReplayChunks, readReplaySession, replayStorageTotals, storeReplayBlob, storeReplayChunk
 } from "./storage.js";
 import {
-  countReplayRules, decideReplay, excludedReplayPages, listReplayRuleLog, listReplayRules, readReplayMode, readReplayRules, removeReplayRule, REPLAY_MODES,
+  allowReplayPage, countReplayRules, decideReplay, excludedReplayPages, listReplayRuleLog, pageExcluded, pagePathOf, listReplayRules, readReplayMode, readReplayRules, removeReplayRule, REPLAY_MODES,
   setReplayMode, upsertReplayRules, type ReplayMode, type RuleInput, type RuleKind
 } from "./targeting.js";
 
@@ -207,6 +207,15 @@ export async function registerSessionReplayRoutes(app: FastifyInstance) {
   app.post("/session-replay/chunks", { bodyLimit: 16 * 1024 * 1024 }, async (request) => {
     const ctx = await requireRecorder(request);
     const { header: body, ...decoded } = readChunk(request.body);
+    // A page that loaded on a page not to be recorded is refused, so a recorder from before page rules (a tab left
+    // open) stops there too. Current recorders pause on such pages and never send them.
+    const excludedPages = await excludedReplayPages();
+    if (excludedPages.length) {
+      const loadedAt = text(asObject(body.meta).url) || await readReplayPageUrl(body.session_id, body.page_id);
+      if (loadedAt && pageExcluded(excludedPages, pagePathOf(loadedAt))) {
+        throw forbidden("session_replay_page_excluded", "This page is not recorded.");
+      }
+    }
     if (!decoded.stored.length || decoded.stored.length > MAX_CHUNK_BYTES) throw badRequest("invalid_replay_chunk", "This replay chunk is empty or too large.");
     const { status: result, watched_until } = await storeReplayChunk({
       organization_id: ctx.orgId,
@@ -310,6 +319,16 @@ export async function registerSessionReplayRoutes(app: FastifyInstance) {
     const removed = await removeReplayRule(kind, text(asObject(request.query).target) || text(params.targetId), email, reason);
     if (!removed) throw notFound("replay_rule_not_found", "There is no such rule.");
     return { ok: true, removed };
+  });
+
+  // Record a page that is never recorded for a while: { target, minutes, reason }; minutes 0 stops at once.
+  app.put("/session-replay/admin/targeting/pages/allow", async (request) => {
+    const { email } = await requireReplayAdmin(request, true);
+    const body = z.object({ target: z.string().trim().min(1).max(300), minutes: z.number().min(0).max(24 * 60), reason: z.string().trim().max(500).optional() })
+      .strict().parse(request.body ?? {});
+    const rule = await allowReplayPage(body.target.toLowerCase(), body.minutes ? Date.now() + Math.round(body.minutes * 60_000) : 0, email, body.reason || "");
+    if (!rule) throw notFound("replay_rule_not_found", "That page is not in the list of pages never recorded.");
+    return { ok: true, rule };
   });
 
   // People and organizations matching a search, a page at a time, each with its rule and what would happen now.
