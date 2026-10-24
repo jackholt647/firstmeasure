@@ -41,6 +41,7 @@ function modelContext({ activeWorkBoardId }){
     workBoardsLoaded: true,
     lastProjectsById: new Map(projects.map((project) => [project.id, project])),
     projectBoardsEnabled: () => true,
+    workBoardPickerOffered: () => true,
     projectBoards: () => [sales, production],
     orderedWorkBoards: () => [sales, production],
     selectedBoardColumns: (board) => board.columns,
@@ -88,4 +89,48 @@ test('the map module loads before the viewer, reuses the portal Google map and o
   assert.match(mapView, /window\.FirstMateProjectsMap = \{/);
   assert.doesNotMatch(mapView, /EventSource|WebSocket|maps\.googleapis\.com|<script/);
   assert.match(mapView, /prefers-reduced-motion/);
+});
+
+function resultsContext({ viewMode, allProjects = [], filteredProjects = [], hideDrafts = false, totalUnfilteredCount = 0 }){
+  const updates = [];
+  const results = { innerHTML:'' };
+  const context = vm.createContext({
+    viewMode, allProjects, filteredProjects, hideDrafts, totalUnfilteredCount,
+    panelEl:{}, $:(selector) => (selector === '#vResults' ? results : null),
+    sharedProjectRecords:() => [],
+    mapViewModel:() => ({ items:[], groups:[], groupLabel:'stage', scopeKey:'board:sales' }),
+    window:{ FirstMateProjectsMap:{ update:(container, model) => updates.push(model) } },
+    globalThis:{}
+  });
+  vm.runInContext(slice('  function renderMapView(', '  function upsertProjectForViewer('), context);
+  vm.runInContext('renderResults()', context);
+  return { updates:updates.map((model) => JSON.parse(JSON.stringify(model))), results };
+}
+
+test('with no projects the map view still draws the map and its tray says there are none yet', () => {
+  const { updates, results } = resultsContext({ viewMode:'map' });
+  assert.equal(updates.length, 1);
+  assert.equal(updates[0].empty, 'none');
+  assert.deepEqual(updates[0].items, []);
+  assert.doesNotMatch(results.innerHTML, /New Project/);
+});
+
+test('filters that leave nothing keep the map and say nothing matches', () => {
+  assert.equal(resultsContext({ viewMode:'map', allProjects:[{ id:'p1' }] }).updates[0].empty, 'filtered');
+  assert.equal(resultsContext({ viewMode:'map', hideDrafts:true, totalUnfilteredCount:3 }).updates[0].empty, 'filtered');
+});
+
+test('other views keep their own empty states', () => {
+  for (const viewMode of ['list', 'tiles', 'stages']) {
+    const { updates, results } = resultsContext({ viewMode });
+    assert.equal(updates.length, 0);
+    assert.match(results.innerHTML, /No projects yet\./);
+  }
+});
+
+test('the map tray has its own empty state with new language keys', () => {
+  for (const key of ['projects_map_empty_none_title', 'projects_map_empty_none_detail', 'projects_map_empty_filtered_title', 'projects_map_empty_filtered_detail']) {
+    assert.match(mapView, new RegExp(`"projects","${key}"`));
+  }
+  assert.match(mapView, /\.pm-empty\.is-view\{[^}]*animation:pm-row-in/);
 });

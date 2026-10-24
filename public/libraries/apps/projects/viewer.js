@@ -4948,8 +4948,27 @@
     });
     const cards = allProjects.filter(project => !project._shared && !assigned.has(String(project.id)))
       .map(project => ({project_id:project.id,title:project.title,address:project.address}));
-    boards.push({id:'__no_board__',title:(globalThis.PlatformLanguage?.text("projects","m_0c8087b7a76bdd","No board") ?? "No board"),color:'#667085',cards,columns:[{id:'__no_board__',title:(globalThis.PlatformLanguage?.text("projects","m_0c8087b7a76bdd","No board") ?? "No board"),color:'#667085',cards}]});
+    const noBoardColumn = {id:'__no_board__',title:(globalThis.PlatformLanguage?.text("projects","m_0c8087b7a76bdd","No board") ?? "No board"),color:'#667085',cards};
+    // With one board there is nothing to choose: its stages are the view, and a
+    // project on no board stays visible as a last "No board" column beside them.
+    if (boards.length === 1) {
+      if (cards.length) boards[0] = {...boards[0], columns:[...boards[0].columns, noBoardColumn]};
+      return boards;
+    }
+    boards.push({id:'__no_board__',title:noBoardColumn.title,color:'#667085',cards,columns:[noBoardColumn]});
     return boards;
+  }
+  // The board picker is offered only when the organization has more than one real
+  // board; the "No board" catch-all and "All boards" are not boards to choose.
+  function workBoardPickerOffered(){
+    return workBoards.length > 1;
+  }
+  // The department picker is offered only when there is more than one department to choose.
+  function workDepartmentPickerOffered(){
+    return workDepartmentContext?.show_selector === true && (Array.isArray(workDepartmentContext.departments) ? workDepartmentContext.departments.length : 0) > 1;
+  }
+  function workBoardSummaryOffered(){
+    return workBoardPickerOffered() || workDepartmentPickerOffered();
   }
   function orderedWorkBoards(){
     return projectBoards().sort((left, right) => (
@@ -5081,7 +5100,7 @@
   function selectWorkBoard(boardId, options = {}){
     if (!projectBoardsEnabled()) return false;
     const value = String(boardId || '').trim();
-    if (!(value === 'all' && (viewMode === 'list' || viewMode === 'map')) && !projectBoards().some((board) => String(board?.id || '') === value)) return false;
+    if (!(value === 'all' && workBoardPickerOffered() && (viewMode === 'list' || viewMode === 'map')) && !projectBoards().some((board) => String(board?.id || '') === value)) return false;
     activeWorkBoardId = value;
     listGrouping = value === 'all' ? 'board' : 'stage';
     syncProjectColumnChoices();
@@ -5109,7 +5128,7 @@
       const routeBoardId = requestedWorkBoardId();
       const preferredBoardId = routeBoardId || activeWorkBoardId || rememberedWorkBoardId();
       const boardsByUsage = orderedWorkBoards();
-      activeWorkBoardId = (preferredBoardId === 'all' && (viewMode === 'list' || viewMode === 'map')) || projectBoards().some((board) => String(board?.id || '') === preferredBoardId)
+      activeWorkBoardId = (preferredBoardId === 'all' && workBoardPickerOffered() && (viewMode === 'list' || viewMode === 'map')) || projectBoards().some((board) => String(board?.id || '') === preferredBoardId)
         ? preferredBoardId
         : String(boardsByUsage[0]?.id || '');
       // Only a board someone picks is remembered (selectWorkBoard); the default stays the board with the most projects.
@@ -5261,15 +5280,23 @@
   }
   function renderWorkBoardSummary(selected, boardsByUsage){
       const summary = $('#vWorkBoardSummary', panelEl);
+      if (summary && !workBoardSummaryOffered()) {
+        // One board and at most one department: nothing to choose, so no picker.
+        summary.__closeBoardMenu?.();
+        summary.classList.remove('visible');
+        if (summary.__boardSignature) { summary.innerHTML = ''; summary.__boardSignature = ''; }
+        return;
+      }
       if (summary) {
         summary.style.setProperty('--board-color', selected?.color || '#4f7cac');
         summary.classList.add('visible');
-        const summarySignature = JSON.stringify([viewMode, activeWorkBoardId, workDepartmentId, workDepartmentContext, selected?.title || '', selected?.color || '', boardsByUsage.map((item) => [item.id, item.title, item.color, workBoardProjectCount(item)])]);
+        const offerBoards = workBoardPickerOffered();
+        const summarySignature = JSON.stringify([viewMode, offerBoards, activeWorkBoardId, workDepartmentId, workDepartmentContext, selected?.title || '', selected?.color || '', boardsByUsage.map((item) => [item.id, item.title, item.color, workBoardProjectCount(item)])]);
         if (summary.__boardSignature !== summarySignature) {
-          summary.innerHTML = `<button type="button" class="v-board-trigger" id="vWorkBoardTrigger" aria-haspopup="dialog" aria-expanded="false" aria-controls="vWorkBoardMenu"><span class="v-board-trigger-label">${String(escapeHtml(activeWorkBoardId === 'all' ? (globalThis.PlatformLanguage?.text('projects','m_b66bef8d909043',"All boards") ?? "All boards") : (selected?.title || (globalThis.PlatformLanguage?.text("projects","m_48afb49c6f40c4","Board") ?? "Board"))))}</span><span class="v-board-trigger-icon" aria-hidden="true"><i class="fas fa-chevron-down"></i></span></button><div class="v-board-menu" id="vWorkBoardMenu" role="dialog" aria-label="${(globalThis.PlatformLanguage?.htmlText("projects","m_3588ddc91fd436","Switch work board") ?? "Switch work board")}" hidden>${String(workBoardMenuHtml(boardsByUsage, activeWorkBoardId))}</div>`;
+          summary.innerHTML = !offerBoards ? '' : `<button type="button" class="v-board-trigger" id="vWorkBoardTrigger" aria-haspopup="dialog" aria-expanded="false" aria-controls="vWorkBoardMenu"><span class="v-board-trigger-label">${String(escapeHtml(activeWorkBoardId === 'all' ? (globalThis.PlatformLanguage?.text('projects','m_b66bef8d909043',"All boards") ?? "All boards") : (selected?.title || (globalThis.PlatformLanguage?.text("projects","m_48afb49c6f40c4","Board") ?? "Board"))))}</span><span class="v-board-trigger-icon" aria-hidden="true"><i class="fas fa-chevron-down"></i></span></button><div class="v-board-menu" id="vWorkBoardMenu" role="dialog" aria-label="${(globalThis.PlatformLanguage?.htmlText("projects","m_3588ddc91fd436","Switch work board") ?? "Switch work board")}" hidden>${String(workBoardMenuHtml(boardsByUsage, activeWorkBoardId))}</div>`;
           summary.__boardSignature = summarySignature;
-          if (workDepartmentContext.show_selector) {
-            const select = document.createElement('select'); select.className = 'v-board-trigger'; select.style.appearance = 'auto'; select.style.maxWidth = '50%'; select.setAttribute('aria-label', workDepartmentContext.department_label || 'Department');
+          if (workDepartmentPickerOffered()) {
+            const select = document.createElement('select'); select.className = 'v-board-trigger'; select.style.appearance = 'auto'; select.style.maxWidth = offerBoards ? '50%' : '100%'; select.setAttribute('aria-label', workDepartmentContext.department_label || 'Department');
             for (const department of [{ id:'', label:'All available ' + (workDepartmentContext.departments_label || 'departments') }, ...(workDepartmentContext.departments || [])]) {
               const option = document.createElement('option'); option.value = department.id; option.textContent = department.label; option.selected = department.id === workDepartmentId; select.appendChild(option);
             }
@@ -5646,7 +5673,7 @@
       bS.classList.toggle('active', viewMode === 'stages');
     }
     const boardSummary = $('#vWorkBoardSummary', panelEl);
-    if (boardSummary) boardSummary.classList.toggle('visible', projectBoardsEnabled() && (viewMode === 'stages' || viewMode === 'list' || viewMode === 'map') && workBoardsLoaded);
+    if (boardSummary) boardSummary.classList.toggle('visible', projectBoardsEnabled() && (viewMode === 'stages' || viewMode === 'list' || viewMode === 'map') && workBoardsLoaded && workBoardSummaryOffered());
     const manageWrap = $('#vManageViewWrap', panelEl);
     if (manageWrap) manageWrap.hidden = !projectBoardsEnabled();
     renderManageViewPanel();
@@ -5914,10 +5941,11 @@
       return;
     }
     const boardsByUsage = orderedWorkBoards();
-    const allBoards = activeWorkBoardId === 'all';
+    const allBoards = activeWorkBoardId === 'all' && workBoardPickerOffered();
     const selected = allBoards ? null : projectBoards().find((board) => String(board.id) === activeWorkBoardId) || boardsByUsage[0];
     activeWorkBoardId = allBoards ? 'all' : String(selected?.id || '');
     if (allBoards) listGrouping = 'board';
+    else if (!workBoardPickerOffered()) listGrouping = 'stage';
     renderWorkBoardSummary(selected, boardsByUsage);
     updateViewControls();
     const order = new Map(filteredProjects.map((project, index) => [String(project.id), index]));
@@ -5965,7 +5993,7 @@
     if (projectBoardsEnabled() && !workBoardsLoaded) loadWorkBoards().catch(() => null);
     if (boardsReady) {
       const boardsByUsage = orderedWorkBoards();
-      const allBoards = activeWorkBoardId === 'all';
+      const allBoards = activeWorkBoardId === 'all' && workBoardPickerOffered();
       const selected = allBoards ? null : projectBoards().find((board) => String(board.id) === activeWorkBoardId) || boardsByUsage[0];
       activeWorkBoardId = allBoards ? 'all' : String(selected?.id || '');
       renderWorkBoardSummary(selected, boardsByUsage);
@@ -6001,12 +6029,19 @@
     const uniqueGroups = groups.filter((group, index) => used.has(group.id) && groups.findIndex((other) => other.id === group.id) === index);
     return { items, groups:uniqueGroups, groupLabel, scopeKey, open:(project) => openModal(lastProjectsById.get(String(project?.id || '')) || project) };
   }
-  function renderMapView(results){
+  // With nothing to show the map still draws (at its default view) and its tray
+  // says why: no projects yet, or none that match the filters.
+  function renderMapView(results, empty = ''){
     if (!window.FirstMateProjectsMap) { results.innerHTML = ''; return; }
-    window.FirstMateProjectsMap.update(results, mapViewModel());
+    window.FirstMateProjectsMap.update(results, { ...mapViewModel(), empty });
   }
   function renderResults(){
     const results = $('#vResults', panelEl); if (!results) return;
+    if (viewMode === 'map' && window.FirstMateProjectsMap && !filteredProjects.length) {
+      const none = !allProjects.length && !sharedProjectRecords().length && !(hideDrafts && totalUnfilteredCount > 0);
+      renderMapView(results, none ? 'none' : 'filtered');
+      return;
+    }
     if (!allProjects.length && !sharedProjectRecords().length){
       if (hideDrafts && totalUnfilteredCount > 0) {
         results.innerHTML = `<div style="text-align:center; color:#bbb; padding:44px 0;"><div style="font-weight:1000; font-size:14px;">${(globalThis.PlatformLanguage?.htmlText("projects","m_d430072e91bf61","No visible projects.") ?? "No visible projects.")}</div><div style="margin-top:8px; color:#999; font-weight:850;">${(globalThis.PlatformLanguage?.htmlText("projects","m_abe4b3a1ae323e","No non-draft projects match this view.") ?? "No non-draft projects match this view.")}</div></div>`;

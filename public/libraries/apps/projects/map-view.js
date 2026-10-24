@@ -136,6 +136,10 @@
     @keyframes pm-row-in{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
     .pm-empty{padding:26px 14px;color:#98a2b3;font-size:12px;font-weight:900;text-align:center;line-height:1.4}
     .pm-empty i{display:block;margin-bottom:8px;color:#c7ced8;font-size:18px}
+    .pm-empty.is-view{padding:34px 18px;animation:pm-row-in .32s ease both}
+    .pm-empty.is-view i{width:44px;height:44px;margin:0 auto 12px;display:flex;align-items:center;justify-content:center;border-radius:14px;background:#f2f4f7;color:#98a2b3;font-size:18px}
+    .pm-empty strong{display:block;margin-bottom:4px;color:#344054;font-size:13px;font-weight:1000}
+    .pm-empty span{display:block;color:#98a2b3;font-size:11px;font-weight:850}
 
     .pm-reopen{position:absolute;left:12px;top:12px;z-index:3;display:inline-flex;align-items:center;gap:8px;height:38px;padding:0 13px;border:0;border-radius:10px;background:#fff;box-shadow:0 6px 18px rgba(15,23,42,.16),0 0 0 1px rgba(15,23,42,.06);color:#344054;font:900 12px/1 inherit;cursor:pointer;transition:transform .3s cubic-bezier(.2,.8,.2,1),opacity .24s ease}
     .pm-reopen:hover{color:var(--primary-readable,var(--primary,#d93025))}
@@ -568,6 +572,12 @@
     const missing = visible.length - located;
     const title = state.root.querySelector('.pm-tray-title strong');
     const sub = state.root.querySelector('.pm-tray-sub');
+    if (!state.order.length && state.model?.empty) {
+      title.textContent = (globalThis.PlatformLanguage?.text("projects","m_19156e80fc8a6e","Projects") ?? "Projects");
+      sub.textContent = '';
+      state.root.querySelector('.pm-reopen-count').textContent = '0';
+      return;
+    }
     if (visible.length === 1) title.textContent = (globalThis.PlatformLanguage?.text("projects","m_a5aed43e7f4a23","1 project") ?? "1 project");
     else title.textContent = ((v0) => globalThis.PlatformLanguage?.text("projects","m_79e82d0b1623d6",`${v0} projects`,{v0}) ?? `${v0} projects`)(visible.length);
     const locating = state.geocodeRunning || state.geocodeQueue.length;
@@ -615,10 +625,27 @@
   function renderList(){
     const list = state.root.querySelector('.pm-list');
     const visible = visibleItems();
+    if (!state.order.length && state.model?.empty) {
+      // The viewer has nothing to draw: the map stays a map and this says why.
+      const filtered = state.model.empty === 'filtered';
+      const title = filtered
+        ? (globalThis.PlatformLanguage?.htmlText("projects","projects_map_empty_filtered_title","Nothing matches these filters") ?? "Nothing matches these filters")
+        : (globalThis.PlatformLanguage?.htmlText("projects","projects_map_empty_none_title","No projects yet") ?? "No projects yet");
+      const detail = filtered
+        ? (globalThis.PlatformLanguage?.htmlText("projects","projects_map_empty_filtered_detail","Clear the filters or search for something else.") ?? "Clear the filters or search for something else.")
+        : (globalThis.PlatformLanguage?.htmlText("projects","projects_map_empty_none_detail","New projects appear here and on the map.") ?? "New projects appear here and on the map.");
+      const html = `<div class="pm-empty is-view" role="status"><i class="fas ${filtered ? 'fa-filter' : 'fa-map-location-dot'}" aria-hidden="true"></i><strong>${title}</strong><span>${detail}</span></div>`;
+      // Unchanged on a redraw, so the entrance plays once.
+      if (list.__emptyHtml !== html) { list.innerHTML = html; list.__emptyHtml = html; }
+      state.seenRowIds = new Set();
+      return;
+    }
     if (!visible.length) {
+      list.__emptyHtml = '';
       list.innerHTML = `<div class="pm-empty"><i class="fas fa-map-location-dot" aria-hidden="true"></i>${(globalThis.PlatformLanguage?.htmlText("projects","m_eebd895a6b0138","No projects match this view.") ?? "No projects match this view.")}</div>`;
       return;
     }
+    list.__emptyHtml = '';
     const scroll = list.scrollTop;
     const located = visible.filter((item) => item.point);
     const unlocated = visible.filter((item) => !item.point);

@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 const source=readFileSync(new URL('../../libraries/apps/projects/viewer.js',import.meta.url),'utf8');
 const functions=source.slice(source.indexOf('  function projectBoards(){'),source.indexOf('  function orderedWorkBoards(){'))+source.slice(source.indexOf('  function selectedBoardColumns(selected){'),source.indexOf('  function renderStagesView(){'));
 test('projects with no board or missing stage remain selectable without mutating board records',()=>{
- const workBoards=[{id:'sales',columns:[{id:'quoted',cards:[{project_id:'assigned'}]}],cards:[{project_id:'assigned'},{project_id:'missing-stage',plan_id:'plan-2'}]}];
+ const workBoards=[{id:'sales',columns:[{id:'quoted',cards:[{project_id:'assigned'}]}],cards:[{project_id:'assigned'},{project_id:'missing-stage',plan_id:'plan-2'}]},{id:'production',columns:[{id:'build',cards:[]}]}];
  const projects=[{id:'assigned'},{id:'missing-stage'},{id:'orphan'},{id:'shared',_shared:true}];
  const context=vm.createContext({workBoards,allProjects:projects,filteredProjects:projects.filter(p=>p.id!=='assigned'),lastProjectsById:new Map(projects.map(p=>[p.id,p]))});
  vm.runInContext(functions,context);
@@ -20,4 +20,17 @@ test('projects with no board or missing stage remain selectable without mutating
  assert.deepEqual(Array.from(columns.flatMap(c=>c.items),p=>p.id),['missing-stage'],'Stage cards must respect visible project filters');
  context.workBoards=[];
  assert.equal(vm.runInContext('projectBoards().at(-1).cards.length',context),3,'Projects remain visible when no boards exist');
+});
+test('with one board, projects on no board stay visible as its last column instead of a board to pick',()=>{
+ const workBoards=[{id:'sales',columns:[{id:'quoted',cards:[{project_id:'assigned'}]}]}];
+ const projects=[{id:'assigned'},{id:'orphan'},{id:'shared',_shared:true}];
+ const context=vm.createContext({workBoards,allProjects:projects,filteredProjects:projects,lastProjectsById:new Map(projects.map(p=>[p.id,p]))});
+ vm.runInContext(functions,context);
+ const boards=vm.runInContext('projectBoards()',context);
+ assert.deepEqual(Array.from(boards,b=>b.id),['sales']);
+ assert.deepEqual(Array.from(boards[0].columns,c=>c.id),['quoted','__no_board__']);
+ assert.equal(boards[0].columns.at(-1).title,'No board');
+ context.board=boards[0];
+ assert.deepEqual(Array.from(vm.runInContext('selectedBoardColumns(board)',context).flatMap(c=>c.items),p=>p.id),['assigned','orphan']);
+ assert.equal(workBoards[0].columns.length,1,'The board record itself is not changed');
 });
