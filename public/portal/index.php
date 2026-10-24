@@ -2232,8 +2232,8 @@ session_write_close();
   <script src="../libraries/appointment-booking/booking.js?v=<?= portalAssetVersion('../libraries/appointment-booking/booking.js') . '-' . portalAssetVersion('../libraries/appointment-booking/configuration.js') . '-' . portalAssetVersion('../libraries/appointment-booking/booking.css') . '-' . portalAssetVersion('../libraries/appointment-booking/availability.js') ?>"></script>
   <script src="../libraries/apps/firstmate-apps-manifest.js?v=<?= portalAssetVersion('../libraries/apps/firstmate-apps-manifest.js') ?>"></script>
   <script src="../libraries/report-units.js?v=<?= portalAssetVersion('../libraries/report-units.js') ?>"></script>
-  <script src="../libraries/left-column-pins/left-column-pins.js?v=<?= portalAssetVersion('../libraries/left-column-pins/left-column-pins.js') ?>"></script>
   <script src="../libraries/platform-commerce/platform-commerce.js?v=<?= portalAssetVersion('../libraries/platform-commerce/platform-commerce.js') ?>"></script>
+  <script src="../libraries/left-column-pins/left-column-pins.js?v=<?= portalAssetVersion('../libraries/left-column-pins/left-column-pins.js') ?>"></script>
   <script src="scripts/core.js?v=<?= portalAssetVersion('scripts/core.js') ?>"></script>
   <script src="../libraries/payments-setup/payments-setup.js?v=<?= portalAssetVersion('../libraries/payments-setup/payments-setup.js') ?>"></script>
   <?php if ($platformExpandedAssets): ?>

@@ -3216,6 +3216,7 @@
     const appTile = (entry) => {
       const setupRequired = entry.enabled && entry.setup?.mode === 'required' && entry.setup?.status !== 'complete';
       const statusPills = entry.statusPills || [];
+      const subviewExtras = window.FirstMateLeftColumnPins?.overlayTileExtras?.(entry) || { className:'', html:'' };
       return `
       <article class="fm-advanced-app-tile${entry.pinned ? ' is-pinned' : ' is-unpinned'}${subviewExtras.className}" data-advanced-app-tile="${escapeHtml(entry.key)}"${entry.pinnable ? ` data-pin-drag-app="${escapeHtml(entry.appId)}"` : ''}>
         ${!entry.pinnable ? '' : `<button type="button" class="fm-advanced-app-pin${String(entry.pinned ? ' is-pinned' : '')}" data-advanced-app-pin="${String(escapeHtml(entry.appId))}" aria-label="${((v2,v3,v4) => globalThis.PlatformLanguage?.htmlText("platform","m_be9d2ffc499cb4",`${v2} ${v3} ${v4} the sidebar`,{v2,v3,v4}) ?? `${v2} ${v3} ${v4} the sidebar`)(entry.pinned ? 'Unpin' : 'Pin',escapeHtml(entry.label),entry.pinned ? 'from' : 'to')}" title="${String(entry.pinned ? 'Unpin from sidebar' : 'Pin to sidebar')}"><i class="fas fa-thumbtack" aria-hidden="true"></i></button>`}
@@ -3226,10 +3227,10 @@
           </button>
         </div>
         <button type="button" class="fm-advanced-app-open" data-advanced-app-open="${escapeHtml(entry.key)}" aria-label="${setupRequired ? 'Set up' : 'Open'} ${escapeHtml(entry.label)}"><strong>${escapeHtml(entry.label)}</strong></button>
+        ${subviewExtras.html}
       </article>`;
     };
 
-      const subviewExtras = window.FirstMateLeftColumnPins?.overlayTileExtras?.(entry) || { className:'', html:'' };
     let overlay = advancedAppMenuOverlay;
     if (!overlay) {
       overlay = document.createElement('div');
@@ -3240,7 +3241,6 @@
     const setSidebarEdge = () => {
       const edge = Math.max(0, Math.round(sidebar?.getBoundingClientRect?.().right || 0));
       overlay.style.setProperty('--fm-advanced-sidebar-edge', `${edge}px`);
-        ${subviewExtras.html}
     };
     setSidebarEdge();
     window.setTimeout(setSidebarEdge, 210);
@@ -3276,6 +3276,7 @@
         window.PlatformUI?.showToast?.(error?.message || 'Could not update the sidebar.');
       }
     }, { signal }));
+    window.FirstMateLeftColumnPins?.bindOverlay?.(overlay, { signal });
     overlay.querySelectorAll('[data-advanced-app-open]').forEach((button) => button.addEventListener('click', () => {
       const entry = entries.find((item) => item.key === button.dataset.advancedAppOpen);
       const setupRequired = entry?.enabled && entry.setup?.mode === 'required' && entry.setup?.status !== 'complete';
@@ -3289,7 +3290,6 @@
     overlay.addEventListener('keydown', (event) => {
       if (event.key === 'Escape') closeAdvancedAppMenu();
     }, { signal });
-    window.FirstMateLeftColumnPins?.bindOverlay?.(overlay, { signal });
     const fitAppGrid = () => {
       const viewport = overlay.querySelector('.fm-advanced-apps-scroll');
       const grid = overlay.querySelector('.fm-advanced-apps-grid');
@@ -3665,19 +3665,6 @@
     }
   }
 
-  function renderTabs(){
-    if (!TabRegistry.routesReady) return;
-    syncPortalTabsFromRuntime();
-    const links = ensureSidebarLinksContainer();
-    const panels = document.getElementById('mainPanels');
-    if (!links || !panels) return;
-
-    const placementOrder = { sidebar:0, more:1, settings:2 };
-    const list = [...TabRegistry.tabs.values()].filter((tab) => (
-      tab.placement !== 'hidden' && (tab.placement !== 'settings' || tab.id === 'company_settings')
-    )).sort((a,b) => (
-      (placementOrder[a.placement] ?? 3) - (placementOrder[b.placement] ?? 3) || a.order - b.order
-    ));
   // Pinned app subviews are personal (left-column-pins.js). Each follows its
   // app's link, or the last link before it when the app is not pinned.
   function insertSidebarSubviewLinks(mainLinks = document.getElementById('sidebarMainLinks'), list = null){
@@ -3706,6 +3693,19 @@
     window.requestAnimationFrame(() => pins.syncActive?.());
   }
 
+  function renderTabs(){
+    if (!TabRegistry.routesReady) return;
+    syncPortalTabsFromRuntime();
+    const links = ensureSidebarLinksContainer();
+    const panels = document.getElementById('mainPanels');
+    if (!links || !panels) return;
+
+    const placementOrder = { sidebar:0, more:1, settings:2 };
+    const list = [...TabRegistry.tabs.values()].filter((tab) => (
+      tab.placement !== 'hidden' && (tab.placement !== 'settings' || tab.id === 'company_settings')
+    )).sort((a,b) => (
+      (placementOrder[a.placement] ?? 3) - (placementOrder[b.placement] ?? 3) || a.order - b.order
+    ));
     const availableIds = new Set(list.map((tab) => tab.id));
     let currentRoute = routeState();
     // A tab we do not recognise yet may belong to a project modal — but not
@@ -3901,6 +3901,7 @@
       panel.classList.toggle('full-bleed', !!t.fullBleed);
       panels.appendChild(panel);
     }
+    insertSidebarSubviewLinks(mainLinks, list);
     renderSidebarLaunchers(bottomLinks, list);
     initSidebarAppScrolling();
 
@@ -3914,7 +3915,6 @@
         routeTab = fallbackTab;
       }
     }
-    insertSidebarSubviewLinks(mainLinks, list);
     // App bundles register incrementally. With no explicit route, do not let an
     // early registration (commonly Settings) become durable URL state before
     // the complete accessible sidebar order is known.
@@ -4866,19 +4866,6 @@
     checkSession().catch(()=>null);
   });
 
-  window.addEventListener('fm:perms:updated', () => renderTabs());
-  window.addEventListener('fm:app-flags:updated', () => renderTabs());
-  window.addEventListener('fm:app-placements:updated', () => renderTabs());
-  window.addEventListener('fm:capabilities:updated', () => {
-    const expanded = window.Portal?.capabilities?.value?.('platform.expanded_access', false) === true;
-    if (typeof APP.platformExpandedAssets === 'boolean' && expanded !== APP.platformExpandedAssets) {
-      window.location.reload();
-      return;
-    }
-    renderTabs();
-  });
-  window.addEventListener('fm:terminology:updated', () => renderTabs());
-  window.addEventListener('fm:branch-module:updated', (event) => {
   // Subview pins are personal; dragging an app pins it as the apps overlay does.
   window.FirstMateLeftColumnPins?.configure?.({
     dragEnabled: () => advancedAppMenuEnabled(),
@@ -4904,6 +4891,19 @@
     beforeOpen: () => closeAdvancedAppMenu({ restoreFocus:false })
   });
   window.addEventListener('fm:left-column-pins:updated', () => insertSidebarSubviewLinks());
+  window.addEventListener('fm:perms:updated', () => renderTabs());
+  window.addEventListener('fm:app-flags:updated', () => renderTabs());
+  window.addEventListener('fm:app-placements:updated', () => renderTabs());
+  window.addEventListener('fm:capabilities:updated', () => {
+    const expanded = window.Portal?.capabilities?.value?.('platform.expanded_access', false) === true;
+    if (typeof APP.platformExpandedAssets === 'boolean' && expanded !== APP.platformExpandedAssets) {
+      window.location.reload();
+      return;
+    }
+    renderTabs();
+  });
+  window.addEventListener('fm:terminology:updated', () => renderTabs());
+  window.addEventListener('fm:branch-module:updated', (event) => {
     if (cleanText(event?.detail?.moduleId) !== 'variable_mappings') return;
     if (event?.detail?.config) {
       window.PlatformTerminology?.setConfig?.(event.detail.config);
