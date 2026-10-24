@@ -7732,6 +7732,14 @@ window.PlatformCommerce.onReady(async function(){
         if (active) void mountProjectModalApp(app);
       });
     });
+    // Tab pills and first-open tutorials (docs/architecture/project-tab-guides.md).
+    const opened = projectModalApps().find((app) => app.id === activePreviewTab);
+    if (opened && window.FirstMateTabGuides?.opened?.({
+      appId: opened.appId,
+      tabId: opened.id,
+      container: document.querySelector('#rOverlay .r-preview-stage'),
+      isActive: () => activePreviewTab === opened.id && !!$('#rOverlay')?.classList.contains('active')
+    })) syncProjectViewerTabs();
   }
 
   function refreshProjectModalAppsForOrderTransition(previousTab = activePreviewTab){
@@ -7754,14 +7762,18 @@ window.PlatformCommerce.onReady(async function(){
         className: 'r-mobile-info-tab'
       });
     }
-    projectModalApps(options).forEach((tab) => {
+    // The organization's tab order: listed tabs first, the rest after them in their own order.
+    const apps = projectModalApps(options);
+    (window.FirstMateTabGuides?.order?.(apps) || apps).forEach((tab) => {
       if (!tabs.some((entry) => entry.id === tab.id)) {
+        const pill = window.FirstMateTabGuides?.pill?.(tab.appId) || null;
         tabs.push({
           id: tab.id,
           label: tab.id === 'map' ? (window.Portal.ExteriorOrder?.active() ? 'Map' : projectOverviewTabLabel()) : (tab.label || tab.title || tab.id),
           icon: tab.id === 'map' ? 'fa-map-location-dot' : (tab.icon || ''),
           pending: !!tab.pending,
-          badge: tab.app?.promoBadge || '',
+          badge: pill?.label || tab.app?.promoBadge || '',
+          badgeKind: pill?.kind || (tab.app?.promoBadge ? 'coming_soon' : ''),
           disabled: !!tab.disabled
         });
       }

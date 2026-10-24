@@ -47,6 +47,13 @@ test('the MVP platform workflow is FirstMeasure plus projects, contacts, feed an
  for(const key of off) assert.notEqual(effectiveByKey[key],true,key);
  const global=await storage.readGlobal(orgId);
  assert.deepEqual((global.data as any).app_placements,{'portal.channels':'hidden','portal.assistant':'hidden'});
+ // Project tabs: Overview, Reports, Photos, Docs, Project (called Materials) and Customer Portal; Photos and Docs are New.
+ const projectTabs={order:['project.map','project.measurements','project.photos','project.docs','project.materials','project.customer_portal'],pills:{'project.photos':'new','project.docs':'new'}};
+ assert.deepEqual((global.data as any).project_tabs,projectTabs);
+ const {appFlagState}=await import('../platform/app_flags.js');
+ assert.deepEqual((await appFlagState(orgId)).project_tabs,projectTabs);
+ const {readTerminologyMappings}=await import('../platform/localization/terminology-settings.js');
+ assert.equal((await readTerminologyMappings(orgId,'default') as any).labels.scope.project_tab,'Materials');
  // The configuration's setup script: Generic Roofing installed, every new project starts it, other presets off.
  const router=await import('../scopes/router.js');const scopes=await import('../scopes/storage.js');const creation=await import('../projects/create.js');
  const routing=await router.readIntakeRouting(orgId);
@@ -56,7 +63,7 @@ test('the MVP platform workflow is FirstMeasure plus projects, contacts, feed an
  const roofing=await scopes.readScopeTemplate(orgId,'default','generic_roofing');
  assert.deepEqual((roofing as any).definition?.measurement_schema_ids ?? (roofing as any).measurement_schema_ids,['roofing']);
  assert.equal(String((await creation.creationScopeTemplate(orgId,'default')).id),'generic_roofing');
- assert.equal((workflow as any).dev_bar,false);assert.equal((workflow as any).configuration_revision,8);
+ assert.equal((workflow as any).dev_bar,false);assert.equal((workflow as any).configuration_revision,9);
  const resolved=(await capabilities.effectiveCapabilities(orgId)).values as any;
  assert.equal(resolved['platform.new_button_mode'],'selector');assert.equal(resolved['platform.new_button_items'],'report,project,contact');
  // Turned on as configuration even where this checkout's registry does not define it (dev's does).

@@ -251,6 +251,16 @@ test("legacy /app-flags API keeps working over the capability registry", async (
   assert.equal(placed.effective.platform.photos_feed, true);
   const placedAgain = await client.request("GET", `/v1/platform/organizations/${orgId}/app-flags`);
   assert.equal(placedAgain.app_placements["portal.equipment"], "more");
+  // Project tab order and pills are organization data beside placements; a tabs-only write keeps flags and placements.
+  assert.deepEqual(placedAgain.project_tabs, { order: [], pills: {} });
+  const tabbed = await (await operatorFixtureClient(app, orgId)).request("PUT", `/v1/platform/organizations/${orgId}/app-flags`, {
+    project_tabs: { order: ["Project.Photos", "project.map", "project.photos", "not an id"], pills: { "project.photos": "new", "project.docs": "Coming soon", "project.map": "hot" } }
+  });
+  assert.deepEqual(tabbed.project_tabs, { order: ["project.photos", "project.map"], pills: { "project.photos": "new", "project.docs": "coming_soon" } });
+  assert.equal(tabbed.effective.platform.photos_feed, true);
+  assert.equal(tabbed.app_placements["portal.equipment"], "more");
+  assert.deepEqual((await client.request("GET", `/v1/platform/organizations/${orgId}/app-flags`)).project_tabs, tabbed.project_tabs);
+  assert.equal((await client.raw("PATCH", `/v1/platform/organizations/${orgId}/global`, { data: { project_tabs: { order: [] } } })).statusCode, 403);
   const { isAppFlagEnabled } = await import("../platform/app_flags.js");
   assert.equal(await isAppFlagEnabled(orgId, "platform", "proposals"), true);
   assert.equal(await isAppFlagEnabled(orgId, "platform", "materials"), false);
@@ -338,6 +348,22 @@ test("left-column subview pins are personal preferences that survive a reload", 
   const other = createSessionClient();
   await register(other);
   assert.deepEqual((await other.request("GET", "/v1/platform/me/preferences")).preferences.left_column_pins, []);
+});
+
+test("opened tabs and played tutorials are personal preferences that survive a reload", async () => {
+  const client = createSessionClient();
+  await register(client);
+  const initial = (await client.request("GET", "/v1/platform/me/preferences")).preferences;
+  assert.deepEqual([initial.seen_tabs, initial.seen_tutorials], [[], []]);
+  const saved = await client.request("PATCH", "/v1/platform/me/preferences", { seen_tabs: ["project.photos", "Project.Photos"], seen_tutorials: ["project.photos.basics@2"] });
+  assert.deepEqual([saved.preferences.seen_tabs, saved.preferences.seen_tutorials], [["project.photos"], ["project.photos.basics@2"]]);
+  await client.request("PATCH", "/v1/platform/me/preferences", { left_column_behavior: "tooltip" });
+  const reloaded = (await client.request("GET", "/v1/platform/me/preferences")).preferences;
+  assert.deepEqual([reloaded.seen_tabs, reloaded.seen_tutorials], [["project.photos"], ["project.photos.basics@2"]], "other preference writes keep them");
+  assert.equal((await client.raw("PATCH", "/v1/platform/me/preferences", { seen_tabs: ["not a tab"] })).statusCode, 400);
+  const other = createSessionClient();
+  await register(other);
+  assert.deepEqual((await other.request("GET", "/v1/platform/me/preferences")).preferences.seen_tabs, []);
 });
 
 test("built-in presets exist and applying proposals_only reshapes the org", async () => {

@@ -1,6 +1,9 @@
 /* public/libraries/apps/tutorial/app.js
  * Restores the tutorial overlay engine (lightweight + modular)
  * Starts if cfg.showTutorial === true
+ * run(steps, { onEnd }) plays a step-by-step tutorial (first-open tab tutorials,
+ * docs/architecture/project-tab-guides.md). The overlay sits above the project
+ * window and is left out of session replays (data-fmr-ignore).
  */
 (function(){
   if (!window.Portal) return;
@@ -9,10 +12,10 @@
   const { injectCSS } = window.Portal.util;
 
   const css = `
-    .tut-svg{position:fixed; inset:0; width:100%; height:100%; z-index:99990; pointer-events:none}
+    .tut-svg{position:fixed; inset:0; width:100%; height:100%; z-index:2147483300; pointer-events:none}
     .tut-path{fill:rgba(0,0,0,0.60); fill-rule:evenodd; pointer-events:auto}
     .tut-tt{
-      position:fixed; z-index:99999;
+      position:fixed; z-index:2147483400;
       background:#fff;
       border-radius:14px;
       box-shadow:0 18px 55px rgba(0,0,0,0.45);
@@ -31,6 +34,13 @@
     .tut-arrow-right{border-left-color:#fff; right:-16px; top:15px}
     .tut-arrow-top{border-bottom-color:#fff; top:-16px; left:50%; transform:translateX(-50%)}
     .tut-arrow-bottom{border-top-color:#fff; bottom:-16px; left:50%; transform:translateX(-50%)}
+    .tut-tt.tut-step{max-width:min(300px,calc(100vw - 20px)); font-weight:600; line-height:1.45; padding:14px 16px 12px}
+    .tut-tt.tut-step strong{padding-right:18px}
+    .tut-nav{display:flex; align-items:center; gap:8px; margin-top:12px}
+    .tut-count{margin-right:auto; color:#888; font-size:11px; font-weight:700}
+    .tut-nav button{height:30px; border-radius:8px; border:1px solid #d0d5dd; background:#fff; color:#344054; padding:0 12px; font:inherit; font-size:12px; font-weight:800; cursor:pointer}
+    .tut-nav button.tut-next{border-color:var(--primary,#d93025); background:var(--primary,#d93025); color:#fff}
+    .tut-nav button:focus-visible,.tut-x:focus-visible{outline:2px solid var(--primary,#d93025); outline-offset:2px}
     @keyframes tutFade{from{opacity:0; transform:translateY(6px)}to{opacity:1; transform:translateY(0)}}
   `;
 
@@ -42,6 +52,7 @@
 
       this.svg = document.createElementNS("http://www.w3.org/2000/svg","svg");
       this.svg.classList.add('tut-svg');
+      this.svg.setAttribute('data-fmr-ignore', '');
       this.path = document.createElementNS("http://www.w3.org/2000/svg","path");
       this.path.classList.add('tut-path');
       this.svg.appendChild(this.path);
@@ -60,6 +71,9 @@
       this.svg?.remove();
       this.svg = null;
       this.path = null;
+      this.step = null;
+      if (this.keydown) document.removeEventListener('keydown', this.keydown, true);
+      this.keydown = null;
 
       if (window.Portal?.navigation?.read?.().tutorial) window.Portal.navigation.replace({ tutorial:null }, { source:'tutorial-end' });
     },
@@ -112,17 +126,38 @@
     },
     tooltip(rect, data){
       const tt = document.createElement('div');
-      tt.className = 'tut-tt';
+      const escape = (value) => String(value ?? '').replace(/[&<>"']/g, (c) => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
+      const step = this.step;
+      const closeLabel = globalThis.PlatformLanguage?.text("tutorial","tut_close","Close") ?? "Close";
+      tt.className = step ? 'tut-tt tut-step' : 'tut-tt';
+      tt.setAttribute('data-fmr-ignore', '');
+      if (step) {
+        tt.setAttribute('role', 'dialog');
+        tt.setAttribute('aria-label', String(data.title || ''));
+      }
+      const count = step && step.total > 1 ? ((v0, v1) => globalThis.PlatformLanguage?.text("tutorial","tut_step_count",`${v0} of ${v1}`,{v0,v1}) ?? `${v0} of ${v1}`)(step.position, step.total) : '';
+      const nextLabel = step && step.position < step.total ? (globalThis.PlatformLanguage?.text("tutorial","tut_next","Next") ?? "Next") : (globalThis.PlatformLanguage?.text("tutorial","tut_done","Done") ?? "Done");
+      const backLabel = globalThis.PlatformLanguage?.text("tutorial","tut_back","Back") ?? "Back";
+      const nav = step ? `<div class="tut-nav"><span class="tut-count">${escape(count)}</span>${step.position > 1 ? `<button type="button" class="tut-back">${escape(backLabel)}</button>` : ''}<button type="button" class="tut-next">${escape(nextLabel)}</button></div>` : '';
       tt.innerHTML = `
-        <i class="fas fa-times tut-x" data-fm-tooltip="Close"></i>
-        <strong>${data.title || ''}</strong>
-        <div>${data.text || ''}</div>
+        <i class="fas fa-times tut-x" data-fm-tooltip="${escape(closeLabel)}"${step ? ` role="button" tabindex="0" aria-label="${escape(closeLabel)}"` : ''}></i>
+        <strong>${escape(data.title)}</strong>
+        <div>${escape(data.text)}</div>
+        ${nav}
         <div class="tut-arrow"></div>
       `;
       document.body.appendChild(tt);
       this.tooltips.push(tt);
 
-      tt.querySelector('.tut-x').addEventListener('click', ()=>this.end());
+      tt.querySelector('.tut-x').addEventListener('click', ()=> step ? step.close() : this.end());
+      if (step) {
+        tt.querySelector('.tut-next')?.addEventListener('click', () => step.next());
+        tt.querySelector('.tut-back')?.addEventListener('click', () => step.back());
+        if (step.focus) {
+          step.focus = false;
+          setTimeout(() => tt.querySelector('.tut-next')?.focus?.(), 0);
+        }
+      }
 
       // placement
       const ttr = tt.getBoundingClientRect();
@@ -157,13 +192,80 @@
     }
   };
 
+  const visibleTarget = (selector) => {
+    try {
+      const el = document.querySelector(selector);
+      return el && el.offsetParent !== null ? el : null;
+    } catch (_) { return null; }
+  };
+  const waitForTarget = (selector, timeout = 1500) => new Promise((resolve) => {
+    const started = Date.now();
+    const poll = () => {
+      const el = visibleTarget(selector);
+      if (el || Date.now() - started >= timeout) return resolve(el);
+      setTimeout(poll, 100);
+    };
+    poll();
+  });
+
+  /**
+   * Plays steps one at a time: { selector, title, text, pos }. A step whose
+   * target is not on screen is skipped. onEnd({ completed, shown }) runs once,
+   * when the last step is done or the tutorial is closed.
+   */
+  Tutorial.run = function(steps = [], options = {}){
+    this.active?.close?.();
+    this.end();
+    const list = (Array.isArray(steps) ? steps : []).filter((step) => step && step.selector);
+    const run = { ended:false, shown:0 };
+    const finish = (completed) => {
+      if (run.ended) return;
+      run.ended = true;
+      if (this.active === handle) {
+        this.active = null;
+        this.end();
+      }
+      try { options.onEnd?.({ completed, shown: run.shown }); } catch (error) { console.warn('Tutorial end handler failed', error); }
+    };
+    const show = async (from, direction) => {
+      for (let index = from; index >= 0 && index < list.length; index += direction) {
+        const target = await waitForTarget(list[index].selector, direction > 0 ? 1500 : 0);
+        if (run.ended) return;
+        if (!target) continue;
+        run.shown += 1;
+        target.scrollIntoView?.({ block:'nearest', inline:'nearest' });
+        this.step = {
+          position: index + 1,
+          total: list.length,
+          focus: true,
+          next: () => show(index + 1, 1),
+          back: () => show(index - 1, -1),
+          close: () => finish(false)
+        };
+        this.highlight([list[index]]);
+        return;
+      }
+      // Past the last step: done. Nothing found going back keeps the current step.
+      if (direction > 0) finish(run.shown > 0);
+    };
+    const handle = { close: () => finish(false), get ended(){ return run.ended; } };
+    this.active = handle;
+    this.keydown = (event) => {
+      if (event.key === 'Escape' && this.step) { event.preventDefault(); event.stopPropagation(); this.step.close(); }
+    };
+    document.addEventListener('keydown', this.keydown, true);
+    show(0, 1);
+    return handle;
+  };
+
   // Public API
   window.Portal.modules = window.Portal.modules || {};
   window.Portal.modules.tutorial = Tutorial;
 
   // Auto-start flow (simple version)
   document.addEventListener('DOMContentLoaded', ()=>{
-    if (!cfg.showTutorial) return;
+    // The legacy first-request walkthrough needs its button; without it the overlay would only darken the page.
+    if (!cfg.showTutorial || !document.getElementById('btnNewReq')) return;
 
     // highlight New Request button
     Tutorial.highlight([{

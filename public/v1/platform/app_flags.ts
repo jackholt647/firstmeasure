@@ -221,6 +221,35 @@ export function normalizeAppPlacementInput(input: unknown) {
   return normalized;
 }
 
+export type ProjectTabPill = "new" | "coming_soon";
+export type ProjectTabSettings = { order: string[]; pills: Record<string, ProjectTabPill> };
+const PROJECT_TAB_PILLS = new Set<ProjectTabPill>(["new", "coming_soon"]);
+const PROJECT_TAB_LIMIT = 64;
+
+export async function rawProjectTabs(orgId: string) {
+  const globalDoc = await readGlobal(orgId);
+  return normalizeProjectTabsInput(asObject(globalDoc.data).project_tabs);
+}
+
+/**
+ * The organization's project window tabs (docs/architecture/project-tab-guides.md):
+ * `order` lists project tab app ids first (unlisted tabs keep their default order
+ * after them) and `pills` puts a "New" or "Coming soon" pill on a tab. Data only;
+ * which tabs a person has stays with App experience.
+ */
+export function normalizeProjectTabsInput(input: unknown): ProjectTabSettings {
+  const source = asObject(input);
+  const valid = (value: unknown) => /^[a-z0-9][a-z0-9._-]{1,119}$/.test(value as string);
+  const order = [...new Set((Array.isArray(source.order) ? source.order : []).map((id) => cleanText(id).toLowerCase()).filter(valid))].slice(0, PROJECT_TAB_LIMIT);
+  const pills: Record<string, ProjectTabPill> = {};
+  for (const [rawId, rawPill] of Object.entries(asObject(source.pills)).slice(0, PROJECT_TAB_LIMIT)) {
+    const id = cleanText(rawId).toLowerCase();
+    const pill = cleanText(rawPill).toLowerCase().replace(/[\s-]+/g, "_") as ProjectTabPill;
+    if (valid(id) && PROJECT_TAB_PILLS.has(pill)) pills[id] = pill;
+  }
+  return { order, pills };
+}
+
 export function resolveAppFlags(raw: Record<AppFlagGroup, Record<string, AppFlagValue>>) {
   const flat = flattenGroupedValues(raw as JsonObject);
   const resolution = resolveCapabilities(flat);
@@ -277,10 +306,11 @@ export async function effectiveAppFlags(orgId: string, userId?: string) {
 }
 
 export async function appFlagState(orgId: string, userId?: string) {
-  const [raw, rawVariants, appPlacements] = await Promise.all([
+  const [raw, rawVariants, appPlacements, projectTabs] = await Promise.all([
     rawAppFlags(orgId),
     rawAppVariants(orgId),
-    rawAppPlacements(orgId)
+    rawAppPlacements(orgId),
+    rawProjectTabs(orgId)
   ]);
   const resolvedState = resolveAppFlags(groupCapabilityValues(await capabilityValuesForUser(orgId, userId, flattenGroupedValues(raw))));
   const variantState = resolveAppVariants(rawVariants, resolvedState.resolvedByKey);
@@ -294,6 +324,7 @@ export async function appFlagState(orgId: string, userId?: string) {
     effective: resolvedState.resolved,
     effective_variants: variantState.resolved,
     app_placements: appPlacements,
+    project_tabs: projectTabs,
     enabled: enabledOnlyAppFlags(resolvedState.resolved),
     disabled_reasons: resolvedState.disabledReasons,
     variant_disabled_reasons: variantState.disabledReasons
@@ -330,7 +361,9 @@ export function containsAppFlagMutation(input: JsonObject = {}) {
     || Object.prototype.hasOwnProperty.call(input, "feature_flags")
     || Object.prototype.hasOwnProperty.call(input, "app_variants")
     || Object.prototype.hasOwnProperty.call(input, "feature_variants")
-    || Object.prototype.hasOwnProperty.call(input, "app_placements");
+    || Object.prototype.hasOwnProperty.call(input, "app_placements")
+    || Object.prototype.hasOwnProperty.call(data, "project_tabs")
+    || Object.prototype.hasOwnProperty.call(input, "project_tabs");
 }
 
 type AppFlagActor = { identity?: JsonObject; organization?: JsonObject; session?: JsonObject; role?: string; orgId?: string };

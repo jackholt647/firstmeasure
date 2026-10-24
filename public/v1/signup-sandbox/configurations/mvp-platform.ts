@@ -5,6 +5,7 @@
 // platform never checks for it; the sandbox only runs the setup scripts a
 // workflow names (configurations/index.ts).
 import { valueCapabilities } from "../../platform/capabilities.js";
+import { readBranchModule, saveBranchModule } from "../../platform/storage.js";
 import { saveIntakeRouting, readIntakeRouting } from "../../scopes/router.js";
 import { listScopeTemplates, patchScopeFlags, readScopeFlagState, readScopeTemplate, saveScopeTemplate } from "../../scopes/storage.js";
 import { DEFAULT_SCOPE_TEMPLATES } from "../../scopes/presets/index.js";
@@ -77,10 +78,10 @@ export function appFlags(): JsonObject {
 export const workflow: JsonObject = {
   id: MVP_PLATFORM_WORKFLOW_ID,
   title: "MVP platform",
-  description: "The FirstMeasure default signup plus the MVP platform: My Projects (with the project map), My Contacts and Feed; project Photos, Customer Portal, Materials, Documents and Reports; Agent, Notes, Activity and To Do trays. No Scheduling or calendar. Every project is a generic roof job.",
+  description: "The FirstMeasure default signup plus the MVP platform: My Projects (with the project map), My Contacts and Feed; project tabs Overview, Reports, Photos (New), Docs (New), Materials and Customer Portal; Agent, Notes, Activity and To Do trays. No Scheduling or calendar. Every project is a generic roof job.",
   entry_mode: "landing_first",
   // Raise when this file changes: the saved workflow is replaced with it on the next seed.
-  configuration_revision: 8,
+  configuration_revision: 9,
   sample_data: true,
   dev_bar: false,
   setup_scripts: ["mvp-platform"],
@@ -94,12 +95,38 @@ export const workflow: JsonObject = {
   tags: ["template", "firstmate", "mvp"]
 };
 
+// The project window's tabs, in order; Photos and Docs carry a "New" pill until each person first opens them
+// (docs/architecture/project-tab-guides.md).
+export const PROJECT_TABS = {
+  order: ["project.map", "project.measurements", "project.photos", "project.docs", "project.materials", "project.customer_portal"],
+  pills: { "project.photos": "new", "project.docs": "new" }
+};
+// The Project tab (scope.project_tab) is called Materials here.
+export const TERMINOLOGY = { scope: { project_tab: "Materials" } };
+
 export function defaults(): JsonObject {
   return {
     app_flags: appFlags(),
     // Channels and the Assistant are on for the Notes and Agent trays only.
-    settings: { app_placements: { "portal.channels": "hidden", "portal.assistant": "hidden" } }
+    settings: { app_placements: { "portal.channels": "hidden", "portal.assistant": "hidden" }, project_tabs: PROJECT_TABS }
   };
+}
+
+/** Writes this configuration's terminology, keeping any label the organization already chose. */
+async function applyTerminology(orgId: string, branchId: string) {
+  const current = await readBranchModule(orgId, branchId, "variable_mappings").catch(() => null);
+  const data = (current?.data && typeof current.data === "object" ? current.data : {}) as JsonObject;
+  const labels = (data.labels && typeof data.labels === "object" ? data.labels : {}) as Record<string, Record<string, string>>;
+  const next: Record<string, Record<string, string>> = { ...labels };
+  let changed = false;
+  for (const [namespace, terms] of Object.entries(TERMINOLOGY)) {
+    for (const [key, label] of Object.entries(terms)) {
+      if (next[namespace]?.[key]) continue;
+      next[namespace] = { ...(next[namespace] || {}), [key]: label };
+      changed = true;
+    }
+  }
+  if (changed) await saveBranchModule(orgId, branchId, "variable_mappings", { data: { ...data, labels: next } }, { replace: false });
 }
 
 // What happens on a project, in order, as the platform publishes it (work/events.ts). Each milestone moves the project
@@ -197,4 +224,5 @@ export async function setup(orgId: string, branchId = "default") {
     .filter((id) => id && id !== GENERIC_ROOFING_TEMPLATE_ID);
   const state = await readScopeFlagState(orgId, branchId);
   await patchScopeFlags(orgId, { expected_revision: state.revision, flags: { ...Object.fromEntries(others.map((id) => [id, false])), [GENERIC_ROOFING_TEMPLATE_ID]: true } }, branchId);
+  await applyTerminology(orgId, branchId);
 }

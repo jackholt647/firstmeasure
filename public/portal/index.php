@@ -2263,6 +2263,7 @@ session_write_close();
   <?php endif; ?>
   <script src="scripts/project_viewer.js?v=<?= portalAssetVersion('scripts/project_viewer.js') ?>"></script>
   <script src="../libraries/apps/tab-promos/project.js?v=<?= portalAssetVersion('../libraries/apps/tab-promos/project.js') ?>"></script>
+  <script src="../libraries/tab-guides/tab-guides.js?v=<?= portalAssetVersion('../libraries/tab-guides/tab-guides.js') ?>"></script>
   <script src="../libraries/apps/project-map/app.js?v=<?= portalAssetVersion('../libraries/apps/project-map/app.js') ?>"></script>
   <script src="../libraries/apps/customer-portal/project.js?v=<?= portalAssetVersion('../libraries/apps/customer-portal/project.js') ?>"></script>
   <script src="../libraries/apps/project-schedule/panel.js?v=<?= portalAssetVersion('../libraries/apps/project-schedule/panel.js') ?>"></script>

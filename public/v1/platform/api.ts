@@ -56,7 +56,7 @@ import { emitWorkEvent } from "../work/engine.js";
 import { createWorkPlan, listWorkTodos, patchWorkNode, transitionWorkNode } from "../work/service.js";
 import { readScopeTemplate } from "../scopes/storage.js";
 import { readNodeRecord } from "../work/storage.js";
-import { appFlagState, canManageOrgAppFlags, canManageTestAppFlags, containsAppFlagMutation, effectiveAppFlags, enabledOnlyAppFlags, isAppFlagEnabled, newOrganizationAppFlagDefaults, normalizeAppFlagInput, normalizeAppPlacementInput, normalizeAppVariantInput } from "./app_flags.js";
+import { appFlagState, canManageOrgAppFlags, canManageTestAppFlags, containsAppFlagMutation, effectiveAppFlags, enabledOnlyAppFlags, isAppFlagEnabled, newOrganizationAppFlagDefaults, normalizeAppFlagInput, normalizeAppPlacementInput, normalizeAppVariantInput, normalizeProjectTabsInput } from "./app_flags.js";
 import {
   applyCapabilityPreset,
   capabilityState,
@@ -213,6 +213,14 @@ function leftColumnPins(value: unknown): string[] {
   const pins = Array.isArray(value) ? value.map((pin) => String(pin ?? "").trim().toLowerCase()).filter((pin) => LEFT_COLUMN_PIN_PATTERN.test(pin)) : [];
   return [...new Set(pins)].slice(0, LEFT_COLUMN_PIN_LIMIT);
 }
+// Tabs whose "New" pill a person has cleared by opening them, and tutorials they have played
+// (docs/architecture/project-tab-guides.md). App ids and tutorial ids, the latest few hundred of each.
+const SEEN_ID_PATTERN = /^[a-z0-9][a-z0-9._:@-]{0,119}$/;
+const SEEN_ID_LIMIT = 300;
+function seenIds(value: unknown): string[] {
+  const ids = Array.isArray(value) ? value.map((id) => String(id ?? "").trim().toLowerCase()).filter((id) => SEEN_ID_PATTERN.test(id)) : [];
+  return [...new Set(ids)].slice(-SEEN_ID_LIMIT);
+}
 const userPreferencesSchema = z.object({
   interface_locale: localeSchema.nullable().optional(),
   language: z.union([z.enum(TRANSLATION_CODES), z.literal("en")]).nullable().optional(),
@@ -229,6 +237,8 @@ const userPreferencesSchema = z.object({
   always_collapsible_left_column: z.boolean().optional(),
   left_column_auto_collapse: z.object({ apps: z.boolean().optional(), todo: z.boolean().optional(), channels: z.boolean().optional(), agents: z.boolean().optional() }).optional(),
   left_column_pins: z.array(z.string().trim().toLowerCase().regex(LEFT_COLUMN_PIN_PATTERN)).max(LEFT_COLUMN_PIN_LIMIT).optional(),
+  seen_tabs: z.array(z.string().trim().toLowerCase().regex(SEEN_ID_PATTERN)).max(SEEN_ID_LIMIT).optional(),
+  seen_tutorials: z.array(z.string().trim().toLowerCase().regex(SEEN_ID_PATTERN)).max(SEEN_ID_LIMIT).optional(),
   resizable_left_column: z.boolean().optional()
 }).strict();
 const pricebookGenerationSchema = z.object({
@@ -968,6 +978,8 @@ app.get("/auth/google/config", async () => ({
         always_collapsible_left_column: preferences.always_collapsible_left_column === true,
         left_column_auto_collapse: asObject(preferences.left_column_auto_collapse),
         left_column_pins: leftColumnPins(preferences.left_column_pins),
+        seen_tabs: seenIds(preferences.seen_tabs),
+        seen_tutorials: seenIds(preferences.seen_tutorials),
         resizable_left_column: preferences.resizable_left_column !== false
       }
     };
@@ -995,6 +1007,8 @@ app.get("/auth/google/config", async () => ({
       always_collapsible_left_column: patch.always_collapsible_left_column ?? (current.always_collapsible_left_column === true),
       left_column_auto_collapse: { ...asObject(current.left_column_auto_collapse), ...patch.left_column_auto_collapse },
       left_column_pins: leftColumnPins(patch.left_column_pins ?? current.left_column_pins),
+      seen_tabs: seenIds(patch.seen_tabs ?? current.seen_tabs),
+      seen_tutorials: seenIds(patch.seen_tutorials ?? current.seen_tutorials),
       resizable_left_column: patch.resizable_left_column ?? (current.resizable_left_column !== false)
     };
     await patchIdentity(ctx.identityId, { preferences });
@@ -1407,12 +1421,14 @@ app.get("/auth/google/config", async () => ({
     const hasVariantInput = Object.prototype.hasOwnProperty.call(body, "app_variants") || Object.prototype.hasOwnProperty.call(body, "variants");
     const hasExplicitFlagInput = Object.prototype.hasOwnProperty.call(body, "app_flags") || Object.prototype.hasOwnProperty.call(body, "flags");
     const hasPlacementInput = Object.prototype.hasOwnProperty.call(body, "app_placements");
+    const hasProjectTabsInput = Object.prototype.hasOwnProperty.call(body, "project_tabs");
     const patchData: JsonObject = {};
-    if (hasExplicitFlagInput || (!hasVariantInput && !hasPlacementInput)) patchData.app_flags = normalizeAppFlagInput(body);
+    if (hasExplicitFlagInput || (!hasVariantInput && !hasPlacementInput && !hasProjectTabsInput)) patchData.app_flags = normalizeAppFlagInput(body);
     if (hasVariantInput) {
       patchData.app_variants = normalizeAppVariantInput(body);
     }
     if (hasPlacementInput) patchData.app_placements = normalizeAppPlacementInput(body.app_placements);
+    if (hasProjectTabsInput) patchData.project_tabs = normalizeProjectTabsInput(body.project_tabs);
     await mutateGlobal(orgId, global => {
       const patch = { ...patchData };
       if (patch.app_flags) {

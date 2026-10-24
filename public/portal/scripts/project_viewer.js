@@ -52,7 +52,7 @@
     }
 
     render(){
-      const renderKey=JSON.stringify([this.tabs.map(tab=>[tab.id,tab.label,tab.icon,tab.iconBadge,tab.className,tab.buttonId,tab.domId,tab.idAttr,tab.badge,tab.pending,tab.disabled]),this.activeTab,this.iconOnly,this.tabClass,this.activeClass,this.pendingClass]);
+      const renderKey=JSON.stringify([this.tabs.map(tab=>[tab.id,tab.label,tab.icon,tab.iconBadge,tab.className,tab.buttonId,tab.domId,tab.idAttr,tab.badge,tab.badgeKind,tab.pending,tab.disabled]),this.activeTab,this.iconOnly,this.tabClass,this.activeClass,this.pendingClass]);
       // Repeated shell/hydration updates with identical tabs must retain focus
       // and any entrance animation rather than replacing all the buttons.
       if(this.tabRenderKey!==renderKey){
@@ -112,8 +112,12 @@
         const disabledAttr = tab.disabled ? ' disabled' : '';
         const iconHtml = tab.icon ? `<span class="pv-tab-icon" style="position:relative;display:inline-flex" aria-hidden="true"><i class="fas ${escapeHtml(tab.icon)}"></i>${tab.iconBadge ? `<i class="fas ${escapeHtml(tab.iconBadge)} pv-tab-icon-badge" style="position:absolute;top:-6px;right:-7px;font-size:9px;line-height:12px;width:12px;height:12px;text-align:center;background:#fff;border-radius:50%"></i>` : ''}</span> ` : '';
         const label = tab.label || tab.id;
-        const badgeHtml = tab.badge ? `<span class="pv-tab-badge">${escapeHtml(tab.badge)}</span>` : '';
-        const labelHtml = (iconOnly && tab.icon && !tab.badge ? '' : `<span class="pv-tab-label">${escapeHtml(label)}</span>`) + badgeHtml;
+        // A tab pill (docs/architecture/project-tab-guides.md): "New" or "Coming soon".
+        const badgeKind = String(tab.badgeKind || '').replace(/[^a-z_]/g, '');
+        const badgeHtml = tab.badge ? `<span class="pv-tab-badge${badgeKind ? ` pv-tab-badge--${badgeKind}` : ''}">${escapeHtml(tab.badge)}</span>` : '';
+        // Icon-only tabs keep a "New" pill beside the icon without spelling out the label.
+        const hideLabel = iconOnly && tab.icon && (!tab.badge || badgeKind === 'new');
+        const labelHtml = (hideLabel ? '' : `<span class="pv-tab-label">${escapeHtml(label)}</span>`) + badgeHtml;
         return `<button type="button" class="${escapeHtml(classes)}"${idAttr} data-tab="${escapeHtml(tab.id)}" aria-label="${escapeHtml(tab.badge ? label + ", " + tab.badge : label)}" title="${escapeHtml(tab.badge ? label + ", " + tab.badge : label)}"${disabledAttr}>${iconHtml}${labelHtml}</button>`;
       }).join('');
       if (options.hideWhenEmpty) {

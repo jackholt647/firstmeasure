@@ -1623,6 +1623,15 @@
       const allowed = new Set(['sidebar', 'more', 'settings', 'hidden']);
       return Object.fromEntries(Object.entries(source).map(([id, placement]) => [cleanText(id).toLowerCase(), cleanText(placement).toLowerCase()]).filter(([id, placement]) => id && allowed.has(placement)));
     }
+    // The organization's project tab order and pills (docs/architecture/project-tab-guides.md).
+    function normalizeProjectTabs(value){
+      const source = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+      const order = [...new Set((Array.isArray(source.order) ? source.order : []).map((id) => cleanText(id).toLowerCase()).filter(Boolean))];
+      const pills = Object.fromEntries(Object.entries(source.pills && typeof source.pills === 'object' ? source.pills : {})
+        .map(([id, pill]) => [cleanText(id).toLowerCase(), cleanText(pill).toLowerCase()])
+        .filter(([id, pill]) => id && ['new', 'coming_soon'].includes(pill)));
+      return { order, pills };
+    }
     function stateFromResult(orgId, result = {}){
       return {
         org_id: orgId,
@@ -1633,6 +1642,7 @@
         effective: result?.effective && typeof result.effective === 'object' ? result.effective : {},
         effective_variants: result?.effective_variants && typeof result.effective_variants === 'object' ? result.effective_variants : {},
         app_placements: normalizePlacements(result?.app_placements),
+        project_tabs: normalizeProjectTabs(result?.project_tabs),
         definitions: Array.isArray(result?.definitions) ? result.definitions : [],
         variant_definitions: Array.isArray(result?.variant_definitions) ? result.variant_definitions : [],
         disabled_reasons: result?.disabled_reasons && typeof result.disabled_reasons === 'object' ? result.disabled_reasons : {},
@@ -1737,6 +1747,9 @@
         cacheOrgId = normalizedOrgId;
         cache = stateFromResult(normalizedOrgId, result);
         return cache;
+      },
+      projectTabs(){
+        return cache?.project_tabs || { order: [], pills: {} };
       },
       placement(appId, fallback = 'sidebar'){
         return cache?.app_placements?.[cleanText(appId).toLowerCase()] || fallback;
