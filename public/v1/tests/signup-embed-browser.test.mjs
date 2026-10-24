@@ -190,7 +190,7 @@ test('the form sends its funnel events in batches and every one is recorded', {s
   const page = await context.newPage();
   await page.goto('https://1m8.ai/landing/?cid=meta-funnel');
   await formReady(page);
-  await Promise.all([page.waitForURL(`${APP}/portal/**`, {timeout: 20000}), fillAndSubmit(page, {email: 'funnel@signup-embed.example.test', phone: '(415) 555-0195'})]);
+  await Promise.all([page.waitForURL(`${APP}/portal/**`, {timeout: 20000}), fillAndSubmit(page, {email: 'funnel@signup-embed.example.test', phone: '(415) 555-0196'})]);
   for (let i = 0; i < 100 && !calls.some(c => c.path === '/v1/platform/acquisition/event' && /signup_register_success/.test(c.body)); i++) await page.waitForTimeout(50);
   const sent = calls.filter(c => c.path === '/v1/platform/acquisition/event' && c.method === 'POST');
   const events = sent.flatMap(c => JSON.parse(c.body).events || [JSON.parse(c.body)]);
