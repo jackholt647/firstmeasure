@@ -21,7 +21,6 @@ const ENABLED = [
   "platform.expanded_access",
   "apps.projects",
   "apps.project_map",
-  "platform.project_assignments",
   "platform.project_boards",
   "platform.project_stages_view",
   "platform.manual_project_stage_movement",
@@ -81,7 +80,7 @@ export const workflow: JsonObject = {
   description: "The FirstMeasure default signup plus the MVP platform: My Projects (with the project map), My Contacts and Feed; project Photos, Customer Portal, Materials, Documents and Reports; Agent, Notes, Activity and To Do trays. No Scheduling or calendar. Every project is a generic roof job.",
   entry_mode: "landing_first",
   // Raise when this file changes: the saved workflow is replaced with it on the next seed.
-  configuration_revision: 7,
+  configuration_revision: 8,
   sample_data: true,
   dev_bar: false,
   setup_scripts: ["mvp-platform"],
@@ -140,7 +139,7 @@ const stage = (id: string, title: string, color: string, [taskId, taskTitle]: [s
 };
 
 /**
- * A roof job whose board follows the report and the documents: New project, Report ordered, Report delivered,
+ * A roof job whose board follows the report and the documents: New project, Measurements ordered, Measurements received,
  * Proposal created, Materials created. Each stage has one to-do that the next milestone finishes by itself (ordering
  * the report, its delivery, the first proposal, the first materials); ticking it by hand or moving the card does the
  * same. Sized from the roofing measurement schema. Lists, materials and proposal settings come from the Roof
@@ -154,7 +153,7 @@ export function genericRoofingTemplate(): JsonObject {
     id: GENERIC_ROOFING_TEMPLATE_ID,
     name: "Roofing",
     description: "A roof job that moves through its stages as the report and documents are made.",
-    details: "New project, Report ordered, Report delivered, Proposal created and Materials created. Each stage's to-do finishes itself when the next step happens; you can also tick it or move the card by hand. Measurements use the roofing schema.",
+    details: "New project, Measurements ordered, Measurements received, Proposal created and Materials created. Each stage's to-do finishes itself when the next step happens; you can also tick it or move the card by hand. Measurements use the roofing schema.",
     color: "#dc2626",
     icon: "fa-house",
     category_ids: ["production"],
@@ -169,9 +168,9 @@ export function genericRoofingTemplate(): JsonObject {
         terminology_key: "work.phase",
         completion_mode: "all_children",
         children: [
-          stage("new_project", "New project", "#667085", ["order_report", "Order a report"], "report_ordered"),
-          stage("report_ordered", "Report ordered", "#0e7490", ["receive_report", "Receive the report"], "report_delivered", "new_project"),
-          stage("report_delivered", "Report delivered", "#7c3aed", ["create_proposal", "Create the proposal"], "proposal_created", "report_ordered"),
+          stage("new_project", "New project", "#667085", ["order_report", "Order measurements"], "report_ordered"),
+          stage("report_ordered", "Measurements ordered", "#0e7490", ["receive_report", "Receive the measurements"], "report_delivered", "new_project"),
+          stage("report_delivered", "Measurements received", "#7c3aed", ["create_proposal", "Create the proposal"], "proposal_created", "report_ordered"),
           stage("proposal_created", "Proposal created", "#ea580c", ["create_materials", "Create the materials"], "materials_created", "report_delivered"),
           stage("materials_created", "Materials created", "#16a34a", ["review_materials", "Review the materials"], undefined, "proposal_created")
         ]

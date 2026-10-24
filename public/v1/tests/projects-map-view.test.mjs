@@ -91,20 +91,22 @@ test('the map module loads before the viewer, reuses the portal Google map and o
   assert.match(mapView, /prefers-reduced-motion/);
 });
 
-function resultsContext({ viewMode, allProjects = [], filteredProjects = [], hideDrafts = false, totalUnfilteredCount = 0 }){
+function resultsContext({ viewMode, allProjects = [], filteredProjects = [], hideDrafts = false, totalUnfilteredCount = 0, workBoards = [] }){
   const updates = [];
+  const stagesRendered = [];
   const results = { innerHTML:'' };
   const context = vm.createContext({
     viewMode, allProjects, filteredProjects, hideDrafts, totalUnfilteredCount,
     panelEl:{}, $:(selector) => (selector === '#vResults' ? results : null),
     sharedProjectRecords:() => [],
+    workBoards, projectBoardsEnabled:() => true, renderStagesView:() => stagesRendered.push(true),
     mapViewModel:() => ({ items:[], groups:[], groupLabel:'stage', scopeKey:'board:sales' }),
     window:{ FirstMateProjectsMap:{ update:(container, model) => updates.push(model) } },
     globalThis:{}
   });
   vm.runInContext(slice('  function renderMapView(', '  function upsertProjectForViewer('), context);
   vm.runInContext('renderResults()', context);
-  return { updates:updates.map((model) => JSON.parse(JSON.stringify(model))), results };
+  return { updates:updates.map((model) => JSON.parse(JSON.stringify(model))), results, stagesRendered:stagesRendered.length };
 }
 
 test('with no projects the map view still draws the map and its tray says there are none yet', () => {
@@ -118,6 +120,12 @@ test('with no projects the map view still draws the map and its tray says there 
 test('filters that leave nothing keep the map and say nothing matches', () => {
   assert.equal(resultsContext({ viewMode:'map', allProjects:[{ id:'p1' }] }).updates[0].empty, 'filtered');
   assert.equal(resultsContext({ viewMode:'map', hideDrafts:true, totalUnfilteredCount:3 }).updates[0].empty, 'filtered');
+});
+
+test('stages keep their columns with no projects when the organization has a board', () => {
+  const { results, stagesRendered } = resultsContext({ viewMode:'stages', workBoards:[{ id:'roofing', columns:[] }] });
+  assert.equal(stagesRendered, 1);
+  assert.doesNotMatch(results.innerHTML, /No projects yet\./);
 });
 
 test('other views keep their own empty states', () => {

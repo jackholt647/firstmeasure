@@ -4861,6 +4861,12 @@
     }
   }
   const NEW_LEADS_COLUMN_ID = '__new_leads';
+  // A project still named by its address shows the address once (as the map does): line 1 as the name, line 2 beneath.
+  function addressCompareText(value){ return String(value || '').toLowerCase().replace(/,?\s*(usa|united states)\s*$/, '').replace(/[^a-z0-9]/g, ''); }
+  function nameIsAddress(name, line1, line2){
+    const n = addressCompareText(name), l1 = addressCompareText(line1), full = addressCompareText([line1, line2].filter(Boolean).join(' '));
+    return !!n && !!l1 && (n === l1 || n === full || full.startsWith(n));
+  }
   function createStageCard(p){
     p = normalizeProjectRecord(p);
     const id = String(p.id);
@@ -4877,11 +4883,14 @@
     const newLead = card.dataset.stageId === NEW_LEADS_COLUMN_ID;
     const movable = canManageProjectStages() && (newLead || (manualStageMovementEnabled() && !!card.dataset.planId));
     card.draggable = movable;
+    const addressLine1 = displayAddressLine1(p), addressLine2 = displayAddressLine2(p);
+    const namedByAddress = nameIsAddress(name, addressLine1, addressLine2);
+    const shownName = namedByAddress ? addressLine1 : name;
     card.innerHTML = `
-      <div class="v-stage-card-top"><div class="v-stage-name">${String(escapeHtml(name))}</div><span class="v-stage-drag-handle" title="${(globalThis.PlatformLanguage?.htmlText("projects","m_6327be62073e85","Drag to another stage") ?? "Drag to another stage")}" aria-hidden="true"><i class="fas fa-grip-vertical"></i></span></div>
+      <div class="v-stage-card-top"><div class="v-stage-name">${String(escapeHtml(shownName))}</div><span class="v-stage-drag-handle" title="${(globalThis.PlatformLanguage?.htmlText("projects","m_6327be62073e85","Drag to another stage") ?? "Drag to another stage")}" aria-hidden="true"><i class="fas fa-grip-vertical"></i></span></div>
       <div class="v-stage-addr">
-        ${String(escapeHtml(displayAddressLine1(p)))}
-        <span class="l2">${String(escapeHtml(displayAddressLine2(p) || '\u00a0'))}</span>
+        ${namedByAddress ? '' : String(escapeHtml(addressLine1))}
+        <span class="l2">${String(escapeHtml(addressLine2 || '\u00a0'))}</span>
       </div>
       <div class="v-stage-card-foot"><span>${String(p.manual_stage_override ? `<span class="v-stage-manual-badge"><i class="fas fa-hand"></i>${(globalThis.PlatformLanguage?.htmlText("projects","m_5ee37aecb582b4"," Manual") ?? " Manual")}</span>` : escapeHtml(formatStageDate(p.created_at)))}</span><span>${(globalThis.PlatformLanguage?.htmlText("projects","m_4e1cba76df8f1d","Open ") ?? "Open ")}<i class="fas fa-chevron-right"></i></span></div>
     `;
@@ -6042,6 +6051,8 @@
       renderMapView(results, none ? 'none' : 'filtered');
       return;
     }
+    // Stages keep their columns with nothing in them; each empty column says so.
+    if (viewMode === 'stages' && !filteredProjects.length && projectBoardsEnabled() && workBoards.length){ renderStagesView(); return; }
     if (!allProjects.length && !sharedProjectRecords().length){
       if (hideDrafts && totalUnfilteredCount > 0) {
         results.innerHTML = `<div style="text-align:center; color:#bbb; padding:44px 0;"><div style="font-weight:1000; font-size:14px;">${(globalThis.PlatformLanguage?.htmlText("projects","m_d430072e91bf61","No visible projects.") ?? "No visible projects.")}</div><div style="margin-top:8px; color:#999; font-weight:850;">${(globalThis.PlatformLanguage?.htmlText("projects","m_abe4b3a1ae323e","No non-draft projects match this view.") ?? "No non-draft projects match this view.")}</div></div>`;

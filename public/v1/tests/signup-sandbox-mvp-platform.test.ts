@@ -43,7 +43,7 @@ test('the MVP platform workflow is FirstMeasure plus projects, contacts, feed an
  const {effectiveByKey}=await capabilities.effectiveCapabilities(orgId);
  const on=['platform.more_apps','platform.advanced_app_menu','firstmeasure.exteriors','platform.top_bar','topbar.global_search','topbar.notifications','platform.expanded_access','apps.projects','apps.project_map','platform.project_stages_view','platform.contacts','platform.photos_feed','platform.project_photos','platform.customer_portal','platform.materials','platform.documents','apps.firstmeasure','firstmeasure.report_orders','apps.assistant','channels.project_notes'];
  for(const key of on) assert.equal(effectiveByKey[key],true,key);
- const off=['topbar.todos','channels.project_messages_tray','platform.scheduling','scheduling.gantt','equipment.scheduling','apps.crm','apps.stats','apps.payroll','apps.training','apps.crew','apps.sales','platform.money','apps.comms','apps.checklists','apps.equipment'];
+ const off=['platform.project_assignments','topbar.todos','channels.project_messages_tray','platform.scheduling','scheduling.gantt','equipment.scheduling','apps.crm','apps.stats','apps.payroll','apps.training','apps.crew','apps.sales','platform.money','apps.comms','apps.checklists','apps.equipment'];
  for(const key of off) assert.notEqual(effectiveByKey[key],true,key);
  const global=await storage.readGlobal(orgId);
  assert.deepEqual((global.data as any).app_placements,{'portal.channels':'hidden','portal.assistant':'hidden'});
@@ -56,7 +56,7 @@ test('the MVP platform workflow is FirstMeasure plus projects, contacts, feed an
  const roofing=await scopes.readScopeTemplate(orgId,'default','generic_roofing');
  assert.deepEqual((roofing as any).definition?.measurement_schema_ids ?? (roofing as any).measurement_schema_ids,['roofing']);
  assert.equal(String((await creation.creationScopeTemplate(orgId,'default')).id),'generic_roofing');
- assert.equal((workflow as any).dev_bar,false);assert.equal((workflow as any).configuration_revision,7);
+ assert.equal((workflow as any).dev_bar,false);assert.equal((workflow as any).configuration_revision,8);
  const resolved=(await capabilities.effectiveCapabilities(orgId)).values as any;
  assert.equal(resolved['platform.new_button_mode'],'selector');assert.equal(resolved['platform.new_button_items'],'report,project,contact');
  // Turned on as configuration even where this checkout's registry does not define it (dev's does).
@@ -64,7 +64,7 @@ test('the MVP platform workflow is FirstMeasure plus projects, contacts, feed an
  assert.equal((workflow as any).sample_data,true);assert.deepEqual((workflow as any).setup_scripts,['mvp-platform']);
  // Generic Roofing's board follows the report and the documents: five stages, in order.
  const definition=(roofing as any).definition;
- assert.deepEqual(definition.work_plan.root_nodes[0].children.map((stage:any)=>stage.title),['New project','Report ordered','Report delivered','Proposal created','Materials created']);
+ assert.deepEqual(definition.work_plan.root_nodes[0].children.map((stage:any)=>stage.title),['New project','Measurements ordered','Measurements received','Proposal created','Materials created']);
  // Dry run: each milestone moves the board one stage; one that comes early skips ahead, and one that comes late never moves it back.
  const {dryRunAutomations}=await import('../scopes/dry-run.js');
  const stageAfter=async(steps:any[])=>{const run:any=await dryRunAutomations(orgId,'default',{template_id:'generic_roofing',include_organization_rules:false,steps});assert.deepEqual(run.errors,[]);return run.final.current_stage?.id;};

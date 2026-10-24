@@ -80,7 +80,8 @@
     .pm-preview-addr{margin-top:3px;color:#425466;font-size:12px;font-weight:900;line-height:1.3}
     .pm-preview-addr span{display:block;color:#768293;font-size:11px;font-weight:850}
     .pm-preview-foot{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:10px}
-    .pm-stage-pill{display:inline-flex;align-items:center;gap:6px;min-width:0;max-width:60%;padding:4px 9px;border-radius:999px;background:color-mix(in srgb,var(--pin-color,${FALLBACK_COLOR}) 11%,#fff);border:1px solid color-mix(in srgb,var(--pin-color,${FALLBACK_COLOR}) 28%,#e3e7ec);color:color-mix(in srgb,var(--pin-color,${FALLBACK_COLOR}) 78%,#17212b);font-size:10px;font-weight:1000;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .pm-stage-pill{display:block;flex:0 1 auto;min-width:0;max-width:100%;box-sizing:border-box;padding:5px 10px;border-radius:999px;background:color-mix(in srgb,var(--pin-color,${FALLBACK_COLOR}) 11%,#fff);border:1px solid color-mix(in srgb,var(--pin-color,${FALLBACK_COLOR}) 28%,#e3e7ec);color:color-mix(in srgb,var(--pin-color,${FALLBACK_COLOR}) 78%,#17212b);font-size:10px;font-weight:1000;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .pm-preview-foot .pm-open{flex:none}
     .pm-open{display:inline-flex;align-items:center;gap:7px;height:32px;padding:0 12px;border:0;border-radius:9px;background:var(--primary,#d93025);color:var(--on-primary,#fff);font:900 12px/1 inherit;cursor:pointer;white-space:nowrap;transition:transform .16s ease,box-shadow .16s ease}
     .pm-open:hover{transform:translateY(-1px);box-shadow:0 8px 18px rgba(var(--primary-rgb,217,48,37),.28)}
     @keyframes pm-pop{from{opacity:0;transform:translateY(8px) scale(.92)}to{opacity:1;transform:none}}
@@ -608,6 +609,19 @@
     legend.innerHTML = chips + reset;
   }
 
+  // A project still named by its address shows the address once: line 1 as the title, line 2 beneath.
+  function addressKeyText(value){ return String(value || '').toLowerCase().replace(/,?\s*(usa|united states)\s*$/, '').replace(/[^a-z0-9]/g, ''); }
+  function titleIsAddress(item){
+    const title = addressKeyText(item.title);
+    if (!title) return true;
+    const line1 = addressKeyText(item.line1), full = addressKeyText([item.line1, item.line2].filter(Boolean).join(' '));
+    return title === line1 || title === full || (full && full.startsWith(title)) || (title.startsWith(line1) && line1.length > 0 && full.startsWith(title.slice(0, full.length)));
+  }
+  function displayLines(item){
+    if (titleIsAddress(item)) return { title:item.line1 || item.title || '', lines:[item.line2].filter(Boolean) };
+    return { title:item.title, lines:[item.line1, item.line2].filter(Boolean) };
+  }
+
   function rowHtml(item, isNew){
     const classes = ['pm-row'];
     if (!item.point) classes.push('is-unlocated');
@@ -618,8 +632,9 @@
     const flag = item.point ? '' : (locating
       ? `<span class="pm-row-flag"><i class="fas fa-circle-notch fa-spin" aria-hidden="true"></i>${(globalThis.PlatformLanguage?.htmlText("projects","m_68601f4e03fe5a","Locating") ?? "Locating")}</span>`
       : `<span class="pm-row-flag" title="${(globalThis.PlatformLanguage?.htmlText("projects","m_44a65246c745c8","This project has no location to show on the map") ?? "This project has no location to show on the map")}"><i class="fas fa-location-crosshairs" aria-hidden="true"></i>${(globalThis.PlatformLanguage?.htmlText("projects","m_dd869d1ad0872f","No location") ?? "No location")}</span>`);
-    const addr = [item.line1, item.line2].filter(Boolean).join(', ');
-    return `<button type="button" class="${classes.join(' ')}" data-id="${escapeHtml(item.id)}" style="--pin-color:${item.color}"><span class="pm-row-dot" aria-hidden="true"></span><span class="pm-row-main"><span class="pm-row-title" style="display:block">${escapeHtml(item.title || item.line1 || '')}</span><span class="pm-row-addr" style="display:block">${escapeHtml(addr || item.groupTitle || '')}</span></span><span class="pm-row-side">${flag}<span class="pm-row-open" title="${(globalThis.PlatformLanguage?.htmlText("projects","m_27136d1254783a","Open project") ?? "Open project")}"><i class="fas fa-arrow-up-right-from-square" aria-hidden="true"></i></span></span></button>`;
+    const shown = displayLines(item);
+    const addr = shown.lines.join(', ');
+    return `<button type="button" class="${classes.join(' ')}" data-id="${escapeHtml(item.id)}" style="--pin-color:${item.color}"><span class="pm-row-dot" aria-hidden="true"></span><span class="pm-row-main"><span class="pm-row-title" style="display:block">${escapeHtml(shown.title)}</span><span class="pm-row-addr" style="display:block">${escapeHtml(addr || item.groupTitle || '')}</span></span><span class="pm-row-side">${flag}<span class="pm-row-open" title="${(globalThis.PlatformLanguage?.htmlText("projects","m_27136d1254783a","Open project") ?? "Open project")}"><i class="fas fa-arrow-up-right-from-square" aria-hidden="true"></i></span></span></button>`;
   }
 
   function renderList(){
@@ -839,8 +854,9 @@
     if (!item?.point || !state.layer?.div) return;
     const el = document.createElement('div');
     el.className = 'pm-preview';
+    const shown = displayLines(item);
     el.style.setProperty('--pin-color', item.color);
-    el.innerHTML = `<div class="pm-preview-card" role="dialog" aria-label="${escapeHtml(item.title || item.line1 || '')}"><div class="pm-preview-stripe"></div><div class="pm-preview-body"><button type="button" class="pm-preview-close" aria-label="${(globalThis.PlatformLanguage?.htmlText("projects","m_20f1b0df4fe241","Close preview") ?? "Close preview")}"><i class="fas fa-xmark" aria-hidden="true"></i></button><div class="pm-preview-title">${escapeHtml(item.title || item.line1 || '')}</div><div class="pm-preview-addr">${escapeHtml(item.line1 || '')}${item.line2 ? `<span>${escapeHtml(item.line2)}</span>` : ''}</div><div class="pm-preview-foot"><span class="pm-stage-pill">${escapeHtml(item.groupTitle || '')}</span><button type="button" class="pm-open">${(globalThis.PlatformLanguage?.htmlText("projects","m_27136d1254783a","Open project") ?? "Open project")}<i class="fas fa-arrow-right" aria-hidden="true"></i></button></div></div></div>`;
+    el.innerHTML = `<div class="pm-preview-card" role="dialog" aria-label="${escapeHtml(item.title || item.line1 || '')}"><div class="pm-preview-stripe"></div><div class="pm-preview-body"><button type="button" class="pm-preview-close" aria-label="${(globalThis.PlatformLanguage?.htmlText("projects","m_20f1b0df4fe241","Close preview") ?? "Close preview")}"><i class="fas fa-xmark" aria-hidden="true"></i></button><div class="pm-preview-title">${escapeHtml(shown.title)}</div>${shown.lines.length ? `<div class="pm-preview-addr">${shown.lines.length > 1 ? `${escapeHtml(shown.lines[0])}<span>${escapeHtml(shown.lines[1])}</span>` : `<span>${escapeHtml(shown.lines[0])}</span>`}</div>` : ''}<div class="pm-preview-foot"><span class="pm-stage-pill">${escapeHtml(item.groupTitle || '')}</span><button type="button" class="pm-open">${(globalThis.PlatformLanguage?.htmlText("projects","m_27136d1254783a","Open project") ?? "Open project")}<i class="fas fa-arrow-right" aria-hidden="true"></i></button></div></div></div>`;
     el.querySelector('.pm-preview-close').addEventListener('click', (event) => { event.stopPropagation(); select('', { pan:false }); });
     el.querySelector('.pm-open').addEventListener('click', (event) => { event.stopPropagation(); openItem(item); });
     el.addEventListener('click', (event) => event.stopPropagation());
