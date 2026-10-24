@@ -1,5 +1,13 @@
 /* public/libraries/apps/customer-portal/project.js
- * Embeddable customer portal project pane.
+ * Project window Customer Portal tab.
+ *
+ * One page, no sub-tabs: the customer link (preview, copy, email, QR) and the
+ * customer's options at the top, the project's media below it, and the
+ * portal's history in a narrow column on the right (stacked below on a phone).
+ * Explanations live in tooltips, not on the page.
+ *
+ * Nothing here sends anything: Email opens the user's own mail app with the
+ * link filled in, and every change is an explicit click.
  */
 (function(){
   const runtime = window.FirstMateEmbeddableApps;
@@ -13,7 +21,18 @@
     '"': '&quot;',
     "'": '&#39;'
   }[match])));
-  const showToast = Portal?.ui?.showToast || window.showToast || (() => {});
+  const esc = (value) => escapeHtml(String(value ?? ''));
+  const showToast = (...args) => (Portal?.ui?.showToast || window.showToast || (() => {}))(...args);
+
+  // Catalog text for a key, with {name} placeholders filled from values.
+  const L = (key, fallback, values) => {
+    const message = globalThis.PlatformLanguage?.text?.('customer-portal', key, fallback, values) ?? fallback;
+    return values ? String(message).replace(/\{(\w+)\}/g, (match, name) => values[name] ?? match) : String(message);
+  };
+  const H = (key, fallback, values) => esc(L(key, fallback, values));
+
+  const APP_ICON = 'fa-link';
+  const HISTORY_PAGE = 40;
 
   const state = {
     mounted: false,
@@ -21,9 +40,13 @@
     host: null,
     model: null,
     panelRoot: null,
-    activeSubtab: 'overview',
     portal: { loading: false, portal: null, activity: [], error: '' },
-    mediaSelection: { shared: new Set(), unshared: new Set() }
+    selection: new Set(),
+    mediaFilter: 'all',
+    guestOpen: false,
+    historyLimit: HISTORY_PAGE,
+    mediaSignature: '',
+    busy: ''
   };
 
   function hostFor(context = {}){
@@ -115,8 +138,182 @@
     return type.startsWith('video') || /\.(mp4|mov|m4v|webm|avi|mkv|ogv)(?:[?#].*)?$/i.test(String(photo.src || photo.url || ''));
   }
 
+  function reducedMotion(){
+    return !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+  }
+
+  /* ---------- styles ---------- */
+
+  function injectStyles(){
+    const css = `
+      .cpo-panel{height:100%;min-height:0;box-sizing:border-box;background:#f8fafc;color:#101828;container:cpo / inline-size;overflow:auto}
+      .cpo-wrap{min-height:100%;box-sizing:border-box;padding:18px;display:flex;flex-direction:column;gap:14px;max-width:1500px;margin:0 auto}
+      .cpo-head{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:38px}
+      .cpo-title{display:flex;align-items:center;gap:11px;min-width:0}
+      .cpo-title>i{width:36px;height:36px;border-radius:10px;background:var(--primary,#d93025);color:#fff;display:flex;align-items:center;justify-content:center;flex:0 0 auto;font-size:15px}
+      .cpo-title strong{font-size:18px;line-height:1.15;font-weight:1000;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+      .cpo-sync{display:inline-flex;align-items:center;gap:7px;height:28px;padding:0 10px;border-radius:999px;background:#fff;border:1px solid #eaecf0;color:#667085;font-size:11px;font-weight:900;opacity:0;transform:translateY(-3px);transition:opacity .2s ease,transform .2s ease;pointer-events:none}
+      .cpo-sync.is-on{opacity:1;transform:none}
+      .cpo-sync i{animation:cpoSpin 1s linear infinite}
+      .cpo-body{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:16px;align-items:start}
+      .cpo-main{display:flex;flex-direction:column;gap:14px;min-width:0}
+      .cpo-card[hidden]{display:none}
+      .cpo-card{background:#fff;border:1px solid #eaecf0;border-radius:13px;box-shadow:0 1px 2px rgba(16,24,40,.04);min-width:0}
+      .cpo-enter{animation:cpoIn .32s cubic-bezier(.22,1,.36,1) both}
+      .cpo-enter.cpo-d1{animation-delay:.04s}.cpo-enter.cpo-d2{animation-delay:.08s}
+      .cpo-error{display:flex;align-items:center;justify-content:space-between;gap:10px;background:#fef3f2;border:1px solid #fecdca;color:#b42318;border-radius:11px;padding:9px 12px;font-size:12px;font-weight:800;animation:cpoIn .24s ease both}
+      .cpo-error button{border:0;background:transparent;color:inherit;font:inherit;font-weight:1000;cursor:pointer;text-decoration:underline}
+      .cpo-btn{height:36px;border:1px solid #d0d5dd;border-radius:10px;background:#fff;color:#344054;padding:0 12px;display:inline-flex;align-items:center;justify-content:center;gap:8px;font:inherit;font-size:12px;font-weight:900;cursor:pointer;text-decoration:none;white-space:nowrap;transition:border-color .16s ease,background .16s ease,color .16s ease,box-shadow .16s ease,transform .16s ease}
+      .cpo-btn:hover:not(:disabled){border-color:rgba(var(--primary-rgb,217,48,37),.32);color:var(--primary-readable,var(--primary,#d93025))}
+      .cpo-btn:active:not(:disabled){transform:scale(.97)}
+      .cpo-btn:focus-visible,.cpo-tile:focus-visible,.cpo-switch:focus-within,.cpo-seg button:focus-visible{outline:none;box-shadow:0 0 0 4px rgba(var(--primary-rgb,217,48,37),.16)}
+      .cpo-btn:disabled{opacity:.5;cursor:not-allowed}
+      .cpo-btn.primary{background:var(--primary,#d93025);border-color:var(--primary,#d93025);color:#fff}
+      .cpo-btn.primary:hover:not(:disabled){color:#fff;box-shadow:0 6px 16px rgba(var(--primary-rgb,217,48,37),.24)}
+      .cpo-btn.quiet{border-color:transparent;background:transparent;color:#667085;height:30px;padding:0 8px}
+      .cpo-btn.quiet:hover:not(:disabled){background:#f2f4f7}
+      .cpo-btn.icon{width:32px;padding:0}
+      .cpo-btn.danger:hover:not(:disabled){border-color:#fda29b;color:#b42318}
+      .cpo-btn .cpo-done{display:none}
+      .cpo-btn.is-done .cpo-idle{display:none}
+      .cpo-btn.is-done .cpo-done{display:inline;animation:cpoPop .28s ease}
+      .cpo-help{color:#98a2b3;font-size:12px;cursor:help}
+      /* Link card */
+      .cpo-link{padding:14px;display:flex;flex-direction:column;gap:12px}
+      .cpo-link-top{display:flex;align-items:center;justify-content:space-between;gap:10px}
+      .cpo-label{display:inline-flex;align-items:center;gap:7px;font-size:12px;font-weight:1000;color:#344054}
+      .cpo-link-row{display:flex;align-items:center;gap:8px;min-width:0}
+      .cpo-link-field{flex:1 1 auto;min-width:0;height:38px;box-sizing:border-box;border:1px solid #eaecf0;border-radius:10px;background:#f9fafb;color:#344054;padding:0 12px;font:12px/1 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;outline:none;text-overflow:ellipsis}
+      .cpo-link-field:focus{border-color:var(--primary,#d93025);background:#fff}
+      .cpo-link-field.is-pending{background:linear-gradient(110deg,#f2f4f7 8%,#fafbfc 18%,#f2f4f7 33%);background-size:200% 100%;animation:cpoShimmer 1.15s linear infinite;color:transparent}
+      .cpo-link-actions{display:flex;align-items:center;gap:8px;flex:0 0 auto}
+      .cpo-options{display:flex;align-items:center;flex-wrap:wrap;gap:8px 18px;padding-top:12px;border-top:1px solid #f2f4f7}
+      .cpo-switch{display:inline-flex;align-items:center;gap:9px;font-size:12px;font-weight:850;color:#344054;cursor:pointer;border-radius:8px;user-select:none}
+      .cpo-switch input{position:absolute;opacity:0;width:1px;height:1px;pointer-events:none}
+      .cpo-switch .cpo-track{position:relative;width:32px;height:18px;border-radius:999px;background:#d0d5dd;transition:background .2s ease;flex:0 0 auto}
+      .cpo-switch .cpo-track::after{content:'';position:absolute;top:2px;left:2px;width:14px;height:14px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(16,24,40,.2);transition:transform .22s cubic-bezier(.22,1,.36,1)}
+      .cpo-switch input:checked+.cpo-track{background:var(--primary,#d93025)}
+      .cpo-switch input:checked+.cpo-track::after{transform:translateX(14px)}
+      .cpo-switch input:disabled+.cpo-track{opacity:.55}
+      .cpo-guest-count{border:0;background:#f2f4f7;color:#475467;border-radius:999px;height:24px;padding:0 9px;font:inherit;font-size:11px;font-weight:1000;cursor:pointer;display:inline-flex;align-items:center;gap:6px;transition:background .16s ease,color .16s ease}
+      .cpo-guest-count:hover,.cpo-guest-count[aria-expanded="true"]{background:rgba(var(--primary-rgb,217,48,37),.1);color:var(--primary-readable,var(--primary,#d93025))}
+      .cpo-guest-count i{transition:transform .2s ease}
+      .cpo-guest-count[aria-expanded="true"] i{transform:rotate(180deg)}
+      .cpo-reveal{display:grid;grid-template-rows:0fr;transition:grid-template-rows .26s cubic-bezier(.22,1,.36,1)}
+      .cpo-reveal.is-open{grid-template-rows:1fr}
+      .cpo-reveal>div{overflow:hidden;min-height:0}
+      .cpo-guests{display:flex;flex-direction:column;gap:6px;padding-top:2px}
+      .cpo-guest{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 10px;border:1px solid #f2f4f7;border-radius:10px;background:#fcfcfd}
+      .cpo-guest-copy{display:flex;flex-direction:column;gap:2px;min-width:0}
+      .cpo-guest-copy strong{font-size:12px;color:#101828;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+      .cpo-guest-copy span{font-size:11px;color:#667085}
+      .cpo-guest-actions{display:flex;gap:4px;flex:0 0 auto}
+      /* Media */
+      .cpo-media{padding:14px;display:flex;flex-direction:column;gap:12px;position:relative}
+      .cpo-media-head{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+      .cpo-media-head strong{font-size:14px;font-weight:1000}
+      .cpo-media-head em{font-style:normal;color:#667085;font-size:12px;font-weight:850;margin-left:6px}
+      .cpo-media-tools{display:flex;align-items:center;gap:8px}
+      .cpo-seg{display:inline-flex;border:1px solid #d0d5dd;border-radius:10px;overflow:hidden;background:#fff}
+      .cpo-seg button{height:32px;border:0;background:#fff;color:#667085;padding:0 11px;font:inherit;font-size:11px;font-weight:1000;cursor:pointer;transition:background .16s ease,color .16s ease;white-space:nowrap}
+      .cpo-seg button+button{border-left:1px solid #eaecf0}
+      .cpo-seg button.active{background:rgba(var(--primary-rgb,217,48,37),.1);color:var(--primary-readable,var(--primary,#d93025))}
+      .cpo-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(132px,1fr));gap:10px}
+      .cpo-tile{position:relative;min-width:0;border:1px solid #eaecf0;border-radius:11px;background:#f2f4f7;padding:0;overflow:hidden;cursor:pointer;aspect-ratio:4/3;transition:border-color .16s ease,box-shadow .18s ease,transform .18s ease,opacity .2s ease}
+      .cpo-tile:hover{transform:translateY(-1px);box-shadow:0 10px 22px rgba(16,24,40,.10)}
+      .cpo-tile[aria-pressed="true"]{border-color:var(--primary,#d93025);box-shadow:0 0 0 2px rgba(var(--primary-rgb,217,48,37),.35)}
+      .cpo-tile:disabled{cursor:progress;opacity:.7;transform:none}
+      .cpo-tile[hidden]{display:none}
+      .cpo-grid[data-filter="shared"] .cpo-tile:not(.is-shared),.cpo-grid[data-filter="unshared"] .cpo-tile.is-shared{display:none}
+      .cpo-thumb{position:absolute;inset:0;background:#e4e7ec}
+      .cpo-thumb::before{content:'';position:absolute;inset:0;z-index:1;background:linear-gradient(110deg,#e4e7ec 8%,#f2f4f7 18%,#e4e7ec 33%);background-size:200% 100%;animation:cpoShimmer 1.15s linear infinite}
+      .cpo-thumb.loaded::before,.cpo-thumb.failed::before{display:none}
+      .cpo-thumb img,.cpo-thumb video{width:100%;height:100%;object-fit:cover;display:block}
+      .cpo-thumb.failed img,.cpo-thumb.failed video{display:none}
+      .cpo-fallback{position:absolute;inset:0;z-index:2;display:none;align-items:center;justify-content:center;color:#98a2b3;font-size:22px}
+      .cpo-thumb.failed .cpo-fallback{display:flex}
+      .cpo-tile:not(.is-shared) .cpo-thumb{filter:saturate(.75)}
+      .cpo-check{position:absolute;z-index:3;top:7px;left:7px;width:22px;height:22px;border-radius:50%;border:1.5px solid rgba(255,255,255,.9);background:rgba(16,24,40,.32);color:#fff;display:flex;align-items:center;justify-content:center;font-size:10px;transition:background .16s ease,transform .2s cubic-bezier(.22,1,.36,1),opacity .16s ease;opacity:0}
+      .cpo-tile:hover .cpo-check,.cpo-tile:focus-visible .cpo-check,.cpo-grid.has-selection .cpo-check{opacity:1}
+      .cpo-check i{opacity:0;transform:scale(.4);transition:opacity .16s ease,transform .2s cubic-bezier(.22,1,.36,1)}
+      .cpo-tile[aria-pressed="true"] .cpo-check{opacity:1;background:var(--primary,#d93025);border-color:var(--primary,#d93025)}
+      .cpo-tile[aria-pressed="true"] .cpo-check i{opacity:1;transform:none}
+      .cpo-badge{position:absolute;z-index:3;top:7px;right:7px;height:22px;padding:0 8px;border-radius:999px;display:inline-flex;align-items:center;gap:5px;font-size:10px;font-weight:1000;background:rgba(16,24,40,.55);color:#fff;backdrop-filter:blur(8px);opacity:0;transform:translateY(-3px) scale(.92);transition:opacity .2s ease,transform .22s cubic-bezier(.22,1,.36,1),background .2s ease}
+      .cpo-tile.is-shared .cpo-badge{opacity:1;transform:none;background:#079455}
+      .cpo-tile.is-pending .cpo-badge{opacity:1;transform:none;background:rgba(16,24,40,.55)}
+      .cpo-kind{position:absolute;z-index:3;bottom:7px;left:7px;width:22px;height:22px;border-radius:7px;background:rgba(16,24,40,.55);color:#fff;display:flex;align-items:center;justify-content:center;font-size:9px}
+      .cpo-empty{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;padding:28px 12px;color:#667085;font-size:12px;font-weight:800;text-align:center}
+      .cpo-empty i{width:40px;height:40px;border-radius:12px;background:#f2f4f7;color:#98a2b3;display:flex;align-items:center;justify-content:center;font-size:16px}
+      .cpo-media{transition:padding-bottom .26s cubic-bezier(.22,1,.36,1)}
+      .cpo-media.has-selection{padding-bottom:62px}
+      .cpo-selwrap{position:sticky;bottom:58px;z-index:5;height:0;display:flex;justify-content:center;margin-top:-12px}
+      .cpo-selbar{position:absolute;top:4px;display:flex;align-items:center;gap:8px;padding:6px 6px 6px 14px;border-radius:12px;background:#101828;color:#fff;box-shadow:0 14px 34px rgba(16,24,40,.28);font-size:12px;font-weight:900;opacity:0;transform:translateY(12px) scale(.98);pointer-events:none;transition:opacity .2s ease,transform .26s cubic-bezier(.22,1,.36,1);max-width:100%;flex-wrap:wrap;justify-content:center}
+      .cpo-selbar.is-open{opacity:1;transform:none;pointer-events:auto}
+      .cpo-selbar .cpo-btn{height:32px;border-color:rgba(255,255,255,.18);background:rgba(255,255,255,.08);color:#fff}
+      .cpo-selbar .cpo-btn:hover:not(:disabled){border-color:rgba(255,255,255,.4);color:#fff;background:rgba(255,255,255,.14)}
+      .cpo-selbar .cpo-btn.primary{background:var(--primary,#d93025);border-color:var(--primary,#d93025)}
+      .cpo-selbar .cpo-btn:disabled{opacity:.4}
+      /* History */
+      .cpo-history{display:flex;flex-direction:column;min-width:0;position:sticky;top:0;max-height:calc(100vh - 150px)}
+      .cpo-history-head{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:12px 12px 8px 14px}
+      .cpo-history-head strong{font-size:14px;font-weight:1000}
+      .cpo-stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;padding:0 12px 10px}
+      .cpo-stat{border:1px solid #f2f4f7;border-radius:9px;padding:7px 8px;background:#fcfcfd;min-width:0}
+      .cpo-stat span{display:block;font-size:10px;font-weight:900;color:#667085;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+      .cpo-stat b{display:block;margin-top:2px;font-size:13px;color:#101828;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+      .cpo-timeline{overflow:auto;min-height:0;padding:0 8px 10px;border-top:1px solid #f2f4f7}
+      .cpo-day{position:sticky;top:0;z-index:1;background:#fff;padding:9px 6px 5px;font-size:10px;font-weight:1000;letter-spacing:.06em;text-transform:uppercase;color:#98a2b3}
+      .cpo-event{display:grid;grid-template-columns:26px minmax(0,1fr);gap:9px;align-items:start;padding:6px;border-radius:9px;transition:background .16s ease;animation:cpoIn .26s ease both}
+      .cpo-event:hover{background:#f9fafb}
+      .cpo-event>i{width:26px;height:26px;border-radius:8px;background:#f2f4f7;color:#475467;display:flex;align-items:center;justify-content:center;font-size:11px}
+      .cpo-event.is-view>i{background:rgba(var(--primary-rgb,217,48,37),.1);color:var(--primary-readable,var(--primary,#d93025))}
+      .cpo-event-copy{min-width:0;display:flex;flex-direction:column;gap:1px}
+      .cpo-event-copy strong{font-size:12px;font-weight:900;color:#101828;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+      .cpo-event-copy span{font-size:11px;color:#667085;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+      .cpo-tag{display:inline-block;margin-left:5px;padding:0 6px;border-radius:999px;background:#f4ebff;color:#6941c6;font-size:10px;font-weight:1000;vertical-align:1px}
+      .cpo-more{margin:6px auto 0;display:flex}
+      @container cpo (max-width: 900px){
+        .cpo-body{grid-template-columns:minmax(0,1fr) 260px}
+      }
+      @container cpo (max-width: 760px){
+        .cpo-wrap{padding:12px}
+        .cpo-body{grid-template-columns:minmax(0,1fr)}
+        .cpo-history{position:static;max-height:none}
+        .cpo-timeline{max-height:420px}
+        .cpo-link-row{flex-wrap:wrap}
+        .cpo-link-field{flex:1 1 100%}
+        .cpo-link-actions{flex:1 1 100%}
+        .cpo-link-actions .cpo-btn{flex:1 1 0}
+        .cpo-grid{grid-template-columns:repeat(auto-fill,minmax(104px,1fr));gap:8px}
+      }
+      @container cpo (max-width: 420px){
+        .cpo-link-top{flex-wrap:wrap}
+        .cpo-link-top .cpo-btn.primary{flex:1 1 100%}
+        .cpo-link-actions .cpo-btn i{display:none}
+        .cpo-link-actions .cpo-btn{padding:0 8px}
+        .cpo-seg button{padding:0 8px}
+      }
+      @keyframes cpoIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+      @keyframes cpoPop{from{opacity:0;transform:scale(.6)}to{opacity:1;transform:none}}
+      @keyframes cpoSpin{to{transform:rotate(360deg)}}
+      @keyframes cpoShimmer{from{background-position:200% 0}to{background-position:-200% 0}}
+      @media (prefers-reduced-motion: reduce){
+        .cpo-panel *,.cpo-panel *::before,.cpo-panel *::after{animation:none!important;transition:none!important}
+      }
+    `;
+    if (typeof util.injectCSS === 'function') util.injectCSS('project-customer-portal', css);
+    else if (!document.getElementById('project-customer-portal')) {
+      const style = document.createElement('style');
+      style.id = 'project-customer-portal';
+      style.textContent = css;
+      document.head.appendChild(style);
+    }
+  }
+
+  /* ---------- data ---------- */
+
   function panelHtml(){
-    return '<div class="r-cp-panel" id="rCustomerPortalPanel"></div>';
+    return '<div class="cpo-panel" id="rCustomerPortalPanel"></div>';
   }
 
   function resolveRoot(context = {}){
@@ -141,58 +338,700 @@
       .filter(Boolean));
   }
 
-  function cleanMediaSelection(shared){
-    const validIds = new Set(photos().map((photo) => photoId(photo)).filter(Boolean));
-    const next = { shared: new Set(), unshared: new Set() };
-    ['shared', 'unshared'].forEach((bucket) => {
-      const shouldBeShared = bucket === 'shared';
-      (state.mediaSelection[bucket] || new Set()).forEach((id) => {
-        if (validIds.has(id) && shared.has(id) === shouldBeShared) next[bucket].add(id);
-      });
-    });
-    state.mediaSelection = next;
+  function portalLinks(){
+    const portal = state.portal.portal || {};
+    return { live: String(portal.live_url || '').trim(), preview: String(portal.preview_url || '').trim() };
   }
 
-  function mediaThumbHtml(photo, label){
-    const safeAlt = escapeHtml(label || photo?.alt || photo?.label || '');
+  function customerEmail(){
+    return firstText(state.portal.portal?.customer?.email, projectContact().email);
+  }
+
+  function activeGuestLinks(){
+    const links = Array.isArray(state.portal.portal?.guest_links) ? state.portal.portal.guest_links : [];
+    return links.filter((item) => String(item?.status || '').toLowerCase() === 'active');
+  }
+
+  async function load(options = {}){
+    if (!customerPortalEnabled()) return;
+    const oid = orgId();
+    const pid = projectId();
+    if (!oid || !pid || !window.PlatformAPI?.customerPortals) return;
+    setPortal({ ...state.portal, loading: true, error: '' });
+    if (!options.silent) render();
+    else renderStatus();
+    try {
+      const [portalResult, activityResult] = await Promise.all([
+        window.PlatformAPI.customerPortals.ensure(oid, pid, { contact_id: projectContact().id, customer: projectContact() }),
+        window.PlatformAPI.customerPortals.activity(oid, pid).catch(() => ({ events: [] }))
+      ]);
+      setPortal({
+        loading: false,
+        portal: portalResult.portal || null,
+        activity: Array.isArray(activityResult.events) ? activityResult.events : [],
+        error: ''
+      });
+    } catch (error) {
+      setPortal({ ...state.portal, loading: false, error: error?.message || L('cpo_load_failed', 'Could not load the customer portal.') });
+    }
+    render();
+  }
+
+  async function updateSharing(mediaIds, shared){
+    const ids = (Array.isArray(mediaIds) ? mediaIds : [mediaIds]).map((id) => String(id || '').trim()).filter(Boolean);
+    const oid = orgId();
+    const pid = projectId();
+    if (!oid || !pid || !ids.length || !window.PlatformAPI?.customerPortals) return;
+    markPending(ids, true);
+    try {
+      setPortal({ ...state.portal, loading: true });
+      renderStatus();
+      const result = shared
+        ? await window.PlatformAPI.customerPortals.shareMedia(oid, pid, ids)
+        : await window.PlatformAPI.customerPortals.unshareMedia(oid, pid, ids);
+      setPortal({ ...state.portal, loading: false, portal: result.portal || state.portal.portal, error: '' });
+      ids.forEach((id) => state.selection.delete(id));
+      const count = ids.length;
+      showToast(
+        shared ? L('cpo_toast_shared', 'Shared with customer') : L('cpo_toast_hidden', 'Hidden from customer'),
+        count === 1 ? L('cpo_toast_one_item', '1 item updated.') : L('cpo_toast_items', '{count} items updated.', { count }),
+        true
+      );
+      render();
+      return true;
+    } catch (error) {
+      setPortal({ ...state.portal, loading: false, error: error?.message || L('cpo_share_failed', 'Could not update what the customer sees.') });
+      showToast(L('cpo_toast_update_failed', 'Portal update failed'), state.portal.error, false);
+      render();
+      return false;
+    }
+  }
+
+  async function updateSettings(patch, toast){
+    const oid = orgId();
+    const pid = projectId();
+    const portal = state.portal.portal || {};
+    if (!oid || !pid || !window.PlatformAPI?.customerPortals) return;
+    try {
+      setPortal({ ...state.portal, loading: true });
+      renderStatus();
+      const result = await window.PlatformAPI.customerPortals.update(oid, pid, {
+        settings: { ...(portal.settings || {}), ...patch(portal.settings || {}) }
+      });
+      setPortal({ ...state.portal, loading: false, portal: result.portal || portal, error: '' });
+      showToast(toast[0], toast[1], true);
+    } catch (error) {
+      setPortal({ ...state.portal, loading: false, error: error?.message || L('cpo_settings_failed', 'Could not update the portal.') });
+    }
+    render();
+  }
+
+  function setCustomerSharingEnabled(enabled){
+    return updateSettings(
+      (settings) => ({ sharing: { ...(settings.sharing || {}), enabled: enabled === true } }),
+      enabled
+        ? [L('cpo_toast_guests_on', 'Guest links on'), L('cpo_toast_guests_on_body', 'The customer can now share read-only guest links.')]
+        : [L('cpo_toast_guests_off', 'Guest links off'), L('cpo_toast_guests_off_body', 'The customer can no longer make new guest links.')]
+    );
+  }
+
+  function setCustomerReschedulingEnabled(enabled){
+    return updateSettings(
+      (settings) => ({ scheduling: { ...(settings.scheduling || {}), enabled: enabled === true, reschedule: enabled === true } }),
+      enabled
+        ? [L('cpo_toast_resched_on', 'Rescheduling on'), L('cpo_toast_resched_on_body', 'Eligible appointments can be rescheduled in the portal.')]
+        : [L('cpo_toast_resched_off', 'Rescheduling off'), L('cpo_toast_resched_off_body', 'The customer can no longer reschedule from the portal.')]
+    );
+  }
+
+  async function revokeGuestShare(shareId){
+    const oid = orgId();
+    const pid = projectId();
+    if (!oid || !pid || !shareId || !window.PlatformAPI?.customerPortals?.revokeShare) return;
+    if (!window.confirm(L('cpo_revoke_confirm', 'Revoke this guest link now? Anyone using it loses access immediately.'))) return;
+    try {
+      setPortal({ ...state.portal, loading: true });
+      renderStatus();
+      await window.PlatformAPI.customerPortals.revokeShare(oid, pid, shareId);
+      await load({ silent: true });
+      showToast(L('cpo_toast_revoked', 'Guest link revoked'), L('cpo_toast_revoked_body', 'That link can no longer open the portal.'), true);
+    } catch (error) {
+      setPortal({ ...state.portal, loading: false, error: error?.message || L('cpo_revoke_failed', 'Could not revoke the guest link.') });
+      render();
+    }
+  }
+
+  function flashDone(button){
+    if (!button) return;
+    button.classList.add('is-done');
+    clearTimeout(button._cpoDone);
+    button._cpoDone = setTimeout(() => button.classList.remove('is-done'), 1600);
+  }
+
+  async function copyLink(url, button){
+    if (!url) return;
+    try {
+      await navigator.clipboard.writeText(url);
+      flashDone(button);
+      showToast(L('cpo_toast_copied', 'Link copied'), L('cpo_toast_copied_body', 'Paste it anywhere you send the customer messages.'), true);
+    } catch (_) {
+      showToast(L('cpo_toast_copy_failed', 'Copy failed'), L('cpo_toast_copy_failed_body', 'Could not copy the link. Select it and copy it by hand.'), false);
+    }
+  }
+
+  function emailHref(url){
+    const subject = L('cpo_email_subject', 'Your project portal');
+    const body = L('cpo_email_body', 'Here is your private project portal:\n\n{url}', { url });
+    return `mailto:${encodeURIComponent(customerEmail())}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+  }
+
+  async function downloadQr(url, button){
+    if (!url) return;
+    const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=640x640&margin=16&data=${encodeURIComponent(url)}`;
+    const save = (href) => {
+      const link = document.createElement('a');
+      link.href = href;
+      link.download = 'customer-portal-qr.png';
+      link.rel = 'noopener';
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+    };
+    try {
+      const response = await fetch(qrUrl, { mode: 'cors', credentials: 'omit' });
+      if (!response.ok) throw new Error('qr');
+      const objectUrl = URL.createObjectURL(await response.blob());
+      save(objectUrl);
+      setTimeout(() => URL.revokeObjectURL(objectUrl), 4000);
+      flashDone(button);
+    } catch (_) {
+      // Cross-origin download blocked: open the image so it can be saved.
+      window.open(qrUrl, '_blank', 'noopener');
+    }
+  }
+
+  /* ---------- history ---------- */
+
+  function eventDate(event = {}){
+    const parsed = new Date(firstText(event.created_at, event.createdAt, event.timestamp));
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  }
+
+  function formatTime(date){
+    return date ? date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : '';
+  }
+
+  function formatWhen(date, options = {}){
+    if (!date) return '';
+    return date.toLocaleString([], {
+      month: 'short',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+      ...(options.includeYear ? { year: 'numeric' } : {})
+    });
+  }
+
+  function formatDate(date){
+    return date ? date.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' }) : '';
+  }
+
+  function dayKey(date){
+    return date ? `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}` : 'unknown';
+  }
+
+  function dayLabel(date){
+    if (!date) return L('cpo_day_unknown', 'Undated');
+    const today = new Date();
+    const yesterday = new Date(today.getTime() - 86400000);
+    if (dayKey(date) === dayKey(today)) return L('cpo_day_today', 'Today');
+    if (dayKey(date) === dayKey(yesterday)) return L('cpo_day_yesterday', 'Yesterday');
+    return date.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric', ...(date.getFullYear() === today.getFullYear() ? {} : { year: 'numeric' }) });
+  }
+
+  function relative(date){
+    if (!date) return L('cpo_never', 'Never');
+    const minutes = Math.round((Date.now() - date.getTime()) / 60000);
+    if (minutes < 1) return L('cpo_just_now', 'Just now');
+    if (minutes < 60) return L('cpo_minutes_ago', '{n}m ago', { n: minutes });
+    const hours = Math.round(minutes / 60);
+    if (hours < 24) return L('cpo_hours_ago', '{n}h ago', { n: hours });
+    const days = Math.round(hours / 24);
+    if (days < 7) return L('cpo_days_ago', '{n}d ago', { n: days });
+    return date.toLocaleDateString([], { month: 'short', day: 'numeric' });
+  }
+
+  function eventType(event = {}){
+    return firstText(event.type, event.event).replace(/^customer_portal\./, '');
+  }
+
+  const EVENT_META = {
+    viewed: ['fa-eye', () => L('cpo_ev_viewed', 'Opened the portal')],
+    tab_opened: ['fa-table-columns', (event) => L('cpo_ev_tab', 'Opened {tab}', { tab: firstText(event.tab, event.metadata?.tab, L('cpo_ev_tab_fallback', 'a page')) })],
+    media_opened: ['fa-image', () => L('cpo_ev_media_opened', 'Viewed media')],
+    media_downloaded: ['fa-download', () => L('cpo_ev_media_downloaded', 'Downloaded media')],
+    proposal_opened: ['fa-file-signature', () => L('cpo_ev_proposal_opened', 'Opened a proposal')],
+    proposal_downloaded: ['fa-file-arrow-down', () => L('cpo_ev_proposal_downloaded', 'Downloaded a proposal')],
+    proposal_printed: ['fa-print', () => L('cpo_ev_proposal_printed', 'Printed a proposal')],
+    workflow_step_opened: ['fa-list-check', (event) => L('cpo_ev_step', 'Opened {step}', { step: firstText(event.step, event.metadata?.step, L('cpo_ev_step_fallback', 'a step')) })],
+    project_opened: ['fa-right-left', () => L('cpo_ev_project', 'Switched project')]
+  };
+
+  function eventMeta(event = {}){
+    const type = eventType(event);
+    const known = EVENT_META[type];
+    if (known) return { icon: known[0], label: known[1](event), type };
+    const words = type.replace(/[._]/g, ' ').trim();
+    return { icon: 'fa-circle-dot', label: words ? words[0].toUpperCase() + words.slice(1) : L('cpo_ev_generic', 'Portal activity'), type };
+  }
+
+  function eventIp(event = {}){
+    const metadata = event.metadata && typeof event.metadata === 'object' ? event.metadata : {};
+    const request = metadata.request && typeof metadata.request === 'object' ? metadata.request : {};
+    return firstText(event.visitor_ip, event.ip_address, event.client_ip, event.ip, request.client_ip, request.request_ip, request.remote_address);
+  }
+
+  function eventLocation(event = {}){
+    return [event.city, event.region, event.country].map((part) => firstText(part)).filter(Boolean).join(', ');
+  }
+
+  function eventBrowser(event = {}){
+    const ua = firstText(event.user_agent);
+    if (!ua) return '';
+    const browser = /Edg\//.test(ua) ? 'Edge' : /Chrome\//.test(ua) ? 'Chrome' : /Safari\//.test(ua) ? 'Safari' : /Firefox\//.test(ua) ? 'Firefox' : '';
+    const platform = /iPhone|iPad/i.test(ua) ? 'iOS' : /Android/i.test(ua) ? 'Android' : /Windows/i.test(ua) ? 'Windows' : /Mac OS X/i.test(ua) ? 'macOS' : '';
+    return [browser, platform].filter(Boolean).join(' · ');
+  }
+
+  function mediaLabel(id){
+    const photo = photos().find((item) => photoId(item) === id);
+    return firstText(photo?.label, photo?.alt);
+  }
+
+  function guestLabel(event = {}){
+    if (String(event.portal_access_mode || '') !== 'guest') return '';
+    const links = Array.isArray(state.portal.portal?.guest_links) ? state.portal.portal.guest_links : [];
+    const link = links.find((item) => item.id === event.portal_guest_link_id);
+    return firstText(link?.label, L('cpo_guest_default', 'Guest link'));
+  }
+
+  function eventTooltip(event, date){
+    const lines = [formatWhen(date, { includeYear: true })];
+    const guest = guestLabel(event);
+    if (guest) lines.push(L('cpo_tip_via_guest', 'Through the guest link “{label}”', { label: guest }));
+    const where = eventLocation(event);
+    if (where) lines.push(where);
+    const browser = eventBrowser(event);
+    if (browser) lines.push(browser);
+    const ip = eventIp(event);
+    if (ip) lines.push(L('cpo_tip_ip', 'IP {ip}', { ip }));
+    return lines.filter(Boolean).join('\n');
+  }
+
+  function historyStatsHtml(events){
+    const views = events.filter((event) => eventType(event) === 'viewed').length;
+    const visitors = new Set(events.map((event) => eventIp(event) || firstText(event.visitor_session_id, event.user_agent_hash)).filter(Boolean)).size;
+    const latest = events.map(eventDate).filter(Boolean).sort((a, b) => b - a)[0] || null;
+    const stats = [
+      [L('cpo_stat_visits', 'Visits'), views, L('cpo_tip_stat_visits', 'How many times the portal was opened.')],
+      [L('cpo_stat_people', 'Devices'), visitors, L('cpo_tip_stat_people', 'Different networks or devices that opened the portal. A second one can mean the customer shared the link or a guest link.')],
+      [L('cpo_stat_last', 'Last seen'), relative(latest), latest ? formatWhen(latest, { includeYear: true }) : L('cpo_tip_stat_never', 'Nobody has opened the portal yet.')]
+    ];
+    return `<div class="cpo-stats">${stats.map(([label, value, tip]) => `<div class="cpo-stat" data-fm-tooltip="${esc(tip)}"><span>${esc(label)}</span><b>${esc(value)}</b></div>`).join('')}</div>`;
+  }
+
+  function historyListHtml(events){
+    if (!events.length) {
+      return `<div class="cpo-empty" data-cpo-history-empty><i class="fas fa-clock-rotate-left"></i><span>${H('cpo_history_empty', 'No visits yet')}</span></div>`;
+    }
+    const sorted = [...events].sort((a, b) => (eventDate(b)?.getTime() || 0) - (eventDate(a)?.getTime() || 0));
+    const shown = sorted.slice(0, state.historyLimit);
+    let currentDay = null;
+    const rows = shown.map((event) => {
+      const date = eventDate(event);
+      const meta = eventMeta(event);
+      const key = dayKey(date);
+      const header = key !== currentDay ? `<div class="cpo-day">${esc(dayLabel(date))}</div>` : '';
+      currentDay = key;
+      const detail = firstText(event.media_id ? mediaLabel(event.media_id) : '', eventBrowser(event));
+      const guest = guestLabel(event);
+      return `${header}<div class="cpo-event${meta.type === 'viewed' ? ' is-view' : ''}" data-cpo-event data-fm-tooltip="${esc(eventTooltip(event, date))}">
+        <i class="fas ${esc(meta.icon)}"></i>
+        <div class="cpo-event-copy"><strong>${esc(meta.label)}${guest ? `<span class="cpo-tag">${H('cpo_tag_guest', 'Guest')}</span>` : ''}</strong><span>${esc([formatTime(date), detail].filter(Boolean).join(' · '))}</span></div>
+      </div>`;
+    }).join('');
+    const more = sorted.length > shown.length
+      ? `<button type="button" class="cpo-btn quiet cpo-more" data-cpo-history-more>${H('cpo_history_more', 'Show {n} more', { n: Math.min(HISTORY_PAGE, sorted.length - shown.length) })}</button>`
+      : '';
+    return rows + more;
+  }
+
+  /* ---------- rendering ---------- */
+
+  function tileTip(label, shared){
+    return shared
+      ? L('cpo_tip_tile_shared', '{label}\nThe customer can see this. Click to select it.', { label })
+      : L('cpo_tip_tile_hidden', '{label}\nHidden from the customer. Click to select it.', { label });
+  }
+
+  function mediaTileHtml(photo, shared, pending){
+    const id = photoId(photo);
+    const label = firstText(photo?.label, photo?.alt, L('cpo_media_untitled', 'Project media'));
     const video = isVideo(photo);
     const imageSrc = String(photo?.thumb || photo?.src || '').trim();
     const videoThumbSrc = String(photo?.thumb || '').trim();
     const originalSrc = String(photo?.src || photo?.thumb || '').trim();
-    const fallbackIcon = video ? 'fa-video' : 'fa-image';
-    let mediaHtml = '';
+    let media = '';
     if (video) {
-      if (videoThumbSrc) {
-        mediaHtml = `<img src="${escapeHtml(videoThumbSrc)}" alt="${safeAlt}" loading="lazy" decoding="async" data-cp-thumb-img data-cp-base-src="${escapeHtml(videoThumbSrc)}" data-cp-original-src="${escapeHtml(originalSrc)}" data-cp-media-kind="video">`;
-      } else if (originalSrc) {
-        mediaHtml = `<video src="${escapeHtml(originalSrc)}" muted playsinline preload="metadata" data-cp-thumb-video></video>`;
-      }
+      if (videoThumbSrc) media = `<img src="${esc(videoThumbSrc)}" alt="" loading="lazy" decoding="async" data-cp-thumb-img data-cp-base-src="${esc(videoThumbSrc)}" data-cp-original-src="${esc(originalSrc)}" data-cp-media-kind="video">`;
+      else if (originalSrc) media = `<video src="${esc(originalSrc)}" muted playsinline preload="metadata" data-cp-thumb-video></video>`;
     } else if (imageSrc) {
-      mediaHtml = `<img src="${escapeHtml(imageSrc)}" alt="${safeAlt}" loading="lazy" decoding="async" data-cp-thumb-img data-cp-base-src="${escapeHtml(imageSrc)}" data-cp-media-kind="image">`;
+      media = `<img src="${esc(imageSrc)}" alt="" loading="lazy" decoding="async" data-cp-thumb-img data-cp-base-src="${esc(imageSrc)}" data-cp-media-kind="image">`;
     }
+    const selected = state.selection.has(id);
+    return `<button type="button" class="cpo-tile${shared ? ' is-shared' : ''}${pending ? ' is-pending' : ''}" data-cpo-tile="${esc(id)}" data-cpo-label="${esc(label)}" aria-pressed="${selected ? 'true' : 'false'}" aria-label="${esc(label)}" data-fm-tooltip="${esc(tileTip(label, shared))}">
+      <span class="cpo-thumb${media ? '' : ' failed'}">${media}<span class="cpo-fallback"><i class="fas ${video ? 'fa-video' : 'fa-image'}"></i></span></span>
+      <span class="cpo-check"><i class="fas fa-check"></i></span>
+      <span class="cpo-badge"><i class="fas fa-eye"></i>${H('cpo_badge_shared', 'Shared')}</span>
+      ${video ? '<span class="cpo-kind"><i class="fas fa-play"></i></span>' : ''}
+    </button>`;
+  }
+
+  function linkCardHtml(){
+    const links = portalLinks();
+    const ready = !!links.live;
+    const email = customerEmail();
+    const disabled = ready ? '' : ' disabled';
     return `
-      <div class="r-cp-thumb${String(mediaHtml ? '' : ' failed')}">
-        ${String(mediaHtml)}
-        <span class="r-cp-fallback"><i class="fas ${String(fallbackIcon)}"></i><span>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_fc865c9558abcb","Preview unavailable") ?? "Preview unavailable")}</span></span>
-        <span class="r-cp-check"><i class="fas fa-check"></i></span>
+      <div class="cpo-link-top">
+        <span class="cpo-label">${H('cpo_link_label', 'Customer link')}<i class="fas fa-circle-info cpo-help" tabindex="0" data-fm-tooltip="${H('cpo_tip_link', 'The customer’s private link to their portal for this project. Anyone with it can open the portal, so send it only to the customer.')}"></i></span>
+        <a class="cpo-btn primary" data-cpo-preview${links.preview ? ` href="${esc(links.preview)}" target="_blank" rel="noopener"` : ' aria-disabled="true"'} data-fm-tooltip="${H('cpo_tip_preview', 'Opens exactly what the customer sees, in a new tab. Nothing can be signed, accepted or paid there, and your visit is not recorded in History.')}"><i class="fas fa-eye"></i><span>${H('cpo_preview_button', 'Preview customer portal')}</span></a>
+      </div>
+      <div class="cpo-link-row">
+        <input class="cpo-link-field${ready ? '' : ' is-pending'}" data-cpo-link readonly data-fmr-mask aria-label="${H('cpo_link_label', 'Customer link')}" value="${esc(links.live)}">
+        <div class="cpo-link-actions">
+          <button type="button" class="cpo-btn" data-cpo-copy${disabled} data-fm-tooltip="${H('cpo_tip_copy', 'Copy the customer link to paste into a text or message.')}"><i class="fas fa-copy cpo-idle"></i><i class="fas fa-check cpo-done"></i><span>${H('cpo_copy', 'Copy')}</span></button>
+          <a class="cpo-btn" data-cpo-email${ready ? ` href="${esc(emailHref(links.live))}"` : ' aria-disabled="true"'} data-fm-tooltip="${esc(email ? L('cpo_tip_email_to', 'Opens your email app with the link filled in, addressed to {email}. Nothing is sent until you send it.', { email }) : L('cpo_tip_email', 'Opens your email app with the link filled in. This contact has no email address, so add the recipient yourself. Nothing is sent until you send it.'))}"><i class="fas fa-envelope"></i><span>${H('cpo_email', 'Email')}</span></a>
+          <button type="button" class="cpo-btn" data-cpo-qr${disabled} data-fm-tooltip="${H('cpo_tip_qr', 'Download a QR code of the customer link, for a printout, a yard sign or a leave-behind.')}"><i class="fas fa-qrcode cpo-idle"></i><i class="fas fa-check cpo-done"></i><span>${H('cpo_qr', 'Download QR')}</span></button>
+        </div>
+      </div>
+      ${optionsHtml()}
+    `;
+  }
+
+  function optionsHtml(){
+    const portal = state.portal.portal || {};
+    const sharingOn = portal.settings?.sharing?.enabled === true;
+    const reschedulingOn = portal.settings?.scheduling?.enabled === true && portal.settings?.scheduling?.reschedule === true;
+    const guests = activeGuestLinks();
+    const disabled = state.portal.loading || !state.portal.portal ? ' disabled' : '';
+    const guestCount = guests.length
+      ? `<button type="button" class="cpo-guest-count" data-cpo-guests-toggle aria-expanded="${state.guestOpen ? 'true' : 'false'}" data-fm-tooltip="${H('cpo_tip_guest_list', 'Guest links that still work. Open the list to copy or revoke one.')}">${esc(guests.length === 1 ? L('cpo_guest_count_one', '1 active') : L('cpo_guest_count', '{n} active', { n: guests.length }))}<i class="fas fa-chevron-down"></i></button>`
+      : '';
+    return `
+      <div class="cpo-options">
+        <label class="cpo-switch" data-fm-tooltip="${H('cpo_tip_guests', 'Lets the customer make their own read-only links to share the portal with someone else, such as a family member or an adjuster. Guest links can expire, never include payments, signing, approvals or editing, and you can revoke any of them here. Turning this off stops new links; existing ones keep working until they expire or you revoke them.')}">
+          <input type="checkbox" data-cpo-sharing${sharingOn ? ' checked' : ''}${disabled}><span class="cpo-track"></span><span>${H('cpo_guests_label', 'Customer can share guest links')}</span>
+        </label>
+        ${guestCount}
+        <label class="cpo-switch" data-fm-tooltip="${H('cpo_tip_resched', 'Lets the customer pick a new time for an upcoming appointment from live availability, when that appointment’s scheduling rules also allow it. Off: only your team reschedules.')}">
+          <input type="checkbox" data-cpo-rescheduling${reschedulingOn ? ' checked' : ''}${disabled}><span class="cpo-track"></span><span>${H('cpo_resched_label', 'Customer can reschedule')}</span>
+        </label>
+      </div>
+      ${guests.length ? `<div class="cpo-reveal${state.guestOpen ? ' is-open' : ''}" data-cpo-guests><div><div class="cpo-guests">${guests.map(guestRowHtml).join('')}</div></div></div>` : ''}
+    `;
+  }
+
+  function guestRowHtml(item){
+    const presets = {
+      full_view: L('cpo_preset_full', 'Full view'),
+      project_updates: L('cpo_preset_updates', 'Schedule and photos'),
+      photos_only: L('cpo_preset_photos', 'Photos only')
+    };
+    const expires = item.expires_at ? L('cpo_guest_expires', 'Expires {date}', { date: formatDate(new Date(item.expires_at)) }) : L('cpo_guest_never', 'Never expires');
+    const seen = item.last_viewed_at ? L('cpo_guest_seen', 'last opened {when}', { when: relative(new Date(item.last_viewed_at)) }) : L('cpo_guest_unseen', 'not opened yet');
+    const by = String(item.created_by || '').startsWith('staff:') ? L('cpo_guest_by_staff', 'Made by your team') : L('cpo_guest_by_customer', 'Made by the customer');
+    return `<div class="cpo-guest" data-cpo-guest="${esc(item.id)}">
+      <div class="cpo-guest-copy" data-fm-tooltip="${esc([by, presets[item.preset] || '', item.created_at ? L('cpo_guest_created', 'Created {date}', { date: formatDate(new Date(item.created_at)) }) : ''].filter(Boolean).join('\n'))}">
+        <strong>${esc(item.label || L('cpo_guest_default', 'Guest link'))}</strong>
+        <span>${esc([presets[item.preset] || '', expires, seen].filter(Boolean).join(' · '))}</span>
+      </div>
+      <div class="cpo-guest-actions">
+        ${item.url ? `<button type="button" class="cpo-btn quiet icon" data-cpo-guest-copy="${esc(item.id)}" aria-label="${H('cpo_guest_copy', 'Copy guest link')}" data-fm-tooltip="${H('cpo_guest_copy', 'Copy guest link')}"><i class="fas fa-copy cpo-idle"></i><i class="fas fa-check cpo-done"></i></button>` : ''}
+        <button type="button" class="cpo-btn quiet icon danger" data-cpo-revoke="${esc(item.id)}" aria-label="${H('cpo_guest_revoke', 'Revoke guest link')}" data-fm-tooltip="${H('cpo_tip_revoke', 'Revoke: this link stops working immediately.')}"><i class="fas fa-ban"></i></button>
+      </div>
+    </div>`;
+  }
+
+  function mediaCardHtml(){
+    const shared = sharedPortalMediaIds();
+    const items = photos();
+    const sharedCount = items.filter((photo) => shared.has(photoId(photo))).length;
+    const filter = state.mediaFilter;
+    const head = `
+      <div class="cpo-media-head">
+        <div><strong>${H('cpo_media_title', 'Media')}</strong><em data-cpo-media-count>${esc(L('cpo_media_count', '{shared} of {total} shared', { shared: sharedCount, total: items.length }))}</em></div>
+        <div class="cpo-media-tools">
+          <div class="cpo-seg" role="group" aria-label="${H('cpo_filter_label', 'Show media')}">
+            ${[
+              ['all', L('cpo_filter_all', 'All'), L('cpo_tip_filter_all', 'Every photo and video on the project.')],
+              ['shared', L('cpo_filter_shared', 'Shared'), L('cpo_tip_filter_shared', 'Only what the customer can see.')],
+              ['unshared', L('cpo_filter_hidden', 'Hidden'), L('cpo_tip_filter_hidden', 'Only what the customer cannot see.')]
+            ].map(([id, label, tip]) => `<button type="button" class="${filter === id ? 'active' : ''}" data-cpo-filter="${id}" aria-pressed="${filter === id ? 'true' : 'false'}" data-fm-tooltip="${esc(tip)}">${esc(label)}</button>`).join('')}
+          </div>
+          <button type="button" class="cpo-btn icon" data-cpo-select-all${items.length ? '' : ' disabled'} aria-label="${H('cpo_select_all', 'Select all shown')}" data-fm-tooltip="${H('cpo_tip_select_all', 'Select every item shown, then share or hide them together.')}"><i class="fas fa-check-double"></i></button>
+        </div>
+      </div>`;
+    const body = items.length
+      ? `<div class="cpo-grid${state.selection.size ? ' has-selection' : ''}" data-cpo-grid data-filter="${esc(filter)}">${items.map((photo) => mediaTileHtml(photo, shared.has(photoId(photo)), false)).join('')}</div>`
+      : `<div class="cpo-empty" data-cpo-media-empty><i class="fas fa-images"></i><span>${H('cpo_media_empty', 'No photos or videos on this project yet')}</span></div>`;
+    const selbar = `
+      <div class="cpo-selwrap"><div class="cpo-selbar" data-cpo-selbar role="toolbar" aria-label="${H('cpo_selection_label', 'Selected media')}">
+        <span data-cpo-sel-count></span>
+        <button type="button" class="cpo-btn primary" data-cpo-share data-fm-tooltip="${H('cpo_tip_share', 'Show the selected items in the customer’s portal.')}"><i class="fas fa-eye"></i><span data-cpo-share-label></span></button>
+        <button type="button" class="cpo-btn" data-cpo-unshare data-fm-tooltip="${H('cpo_tip_unshare', 'Remove the selected items from the customer’s portal. Nothing is deleted from the project.')}"><i class="fas fa-eye-slash"></i><span data-cpo-unshare-label></span></button>
+        <button type="button" class="cpo-btn icon" data-cpo-clear aria-label="${H('cpo_clear', 'Clear selection')}" data-fm-tooltip="${H('cpo_clear', 'Clear selection')}"><i class="fas fa-xmark"></i></button>
+      </div></div>`;
+    return head + body + selbar;
+  }
+
+  // Which tiles exist; shared state is synced in place so it can animate.
+  function mediaSignature(){
+    return photos().map((photo) => `${photoId(photo)}|${photo?.thumb || photo?.src || ''}`).join('\n');
+  }
+
+  function skeletonHtml(){
+    const title = window.Portal?.terminology?.get?.('customer_portal.project_tab', '') || L('m_61f3d0db590ab0', 'Customer Portal');
+    return `
+      <div class="cpo-wrap">
+        <div class="cpo-head" data-app-header>
+          <div class="cpo-title"><i class="fas ${APP_ICON}" data-fm-tooltip="${H('cpo_tip_app', 'The customer’s private page for this project. They see the media you share here, plus the documents, schedule and payments their portal includes.')}"></i><strong>${esc(title)}</strong></div>
+          <span class="cpo-sync" data-cpo-sync aria-live="polite"><i class="fas fa-rotate"></i><span>${H('cpo_syncing', 'Syncing')}</span></span>
+        </div>
+        <div data-cpo-error></div>
+        <div class="cpo-body">
+          <div class="cpo-main">
+            <section class="cpo-card cpo-link cpo-enter" data-cpo-link-card aria-label="${H('cpo_link_label', 'Customer link')}"></section>
+            <section class="cpo-card cpo-media cpo-enter cpo-d1" data-cpo-media aria-label="${H('cpo_media_title', 'Media')}"></section>
+          </div>
+          <aside class="cpo-card cpo-history cpo-enter cpo-d2" data-cpo-history aria-label="${H('cpo_history_title', 'History')}">
+            <div class="cpo-history-head">
+              <strong data-fm-tooltip="${H('cpo_tip_history', 'What happened in the customer’s portal: visits, pages, media and proposals opened. Previews by your team are not included. Hover an entry for its time, place and device.')}">${H('cpo_history_title', 'History')}</strong>
+              <button type="button" class="cpo-btn quiet icon" data-cpo-refresh aria-label="${H('cpo_refresh', 'Refresh')}" data-fm-tooltip="${H('cpo_tip_refresh', 'Check for new activity.')}"><i class="fas fa-rotate-right"></i></button>
+            </div>
+            <div data-cpo-stats></div>
+            <div class="cpo-timeline" data-cpo-timeline></div>
+          </aside>
+        </div>
       </div>
     `;
   }
 
-  function mediaGridHtml(items, bucket){
-    const selection = state.mediaSelection[bucket] || new Set();
-    if (!items.length) return `<div class="r-cp-empty">${bucket === 'shared' ? 'No media shared yet.' : 'No unshared media.'}</div>`;
-    return `<div class="r-cp-media-grid">${items.map((photo) => {
-      const id = photoId(photo);
-      const selected = selection.has(id);
-      const label = photo.label || photo.alt || id || 'Project media';
-      return `
-        <button type="button" class="r-cp-media-tile${selected ? ' selected' : ''}" data-cp-select="${escapeHtml(id)}" data-cp-bucket="${escapeHtml(bucket)}" aria-pressed="${selected ? 'true' : 'false'}"${state.portal.loading ? ' disabled' : ''}>
-          ${mediaThumbHtml(photo, label)}
-          <span class="r-cp-media-name">${escapeHtml(label)}</span>
-        </button>
-      `;
-    }).join('')}</div>`;
+  function renderStatus(){
+    const root = state.panelRoot;
+    if (!root) return;
+    root.querySelector('[data-cpo-sync]')?.classList.toggle('is-on', !!state.portal.loading);
+    root.querySelector('[data-cpo-history]')?.setAttribute('aria-busy', state.portal.loading ? 'true' : 'false');
+    root.querySelectorAll('[data-cpo-sharing],[data-cpo-rescheduling]').forEach((input) => { input.disabled = !!state.portal.loading || !state.portal.portal; });
+  }
+
+  function renderError(root){
+    const slot = root.querySelector('[data-cpo-error]');
+    if (!slot) return;
+    const message = state.portal.error;
+    if (!message) { slot.innerHTML = ''; return; }
+    if (slot.dataset.message === message && slot.firstElementChild) return;
+    slot.dataset.message = message;
+    slot.innerHTML = `<div class="cpo-error" role="alert"><span>${esc(message)}</span><button type="button" data-cpo-retry>${H('cpo_retry', 'Try again')}</button></div>`;
+  }
+
+  function renderMedia(root, force = false){
+    const slot = root.querySelector('[data-cpo-media]');
+    if (!slot) return;
+    if (!customerPortalMediaEnabled()) {
+      slot.hidden = true;
+      slot.innerHTML = '';
+      state.mediaSignature = '';
+      return;
+    }
+    slot.hidden = false;
+    const signature = mediaSignature();
+    if (force || signature !== state.mediaSignature || !slot.firstElementChild) {
+      state.mediaSignature = signature;
+      slot.innerHTML = mediaCardHtml();
+      bindThumbLoading(slot);
+    }
+    syncSelection(root);
+  }
+
+  function markPending(ids, pending){
+    const root = state.panelRoot;
+    if (!root) return;
+    ids.forEach((id) => {
+      const tile = root.querySelector(`[data-cpo-tile="${CSS.escape(id)}"]`);
+      if (!tile) return;
+      tile.classList.toggle('is-pending', pending);
+      tile.disabled = pending;
+    });
+    root.querySelectorAll('[data-cpo-share],[data-cpo-unshare]').forEach((button) => { button.disabled = pending || button.disabled; });
+  }
+
+  function syncSelection(root){
+    const valid = new Set(photos().map((photo) => photoId(photo)).filter(Boolean));
+    state.selection.forEach((id) => { if (!valid.has(id)) state.selection.delete(id); });
+    const shared = sharedPortalMediaIds();
+    let toShare = 0;
+    let toHide = 0;
+    state.selection.forEach((id) => { if (shared.has(id)) toHide += 1; else toShare += 1; });
+    root.querySelectorAll('[data-cpo-tile]').forEach((tile) => {
+      const id = tile.dataset.cpoTile;
+      const isShared = shared.has(id);
+      tile.setAttribute('aria-pressed', state.selection.has(id) ? 'true' : 'false');
+      if (tile.classList.contains('is-shared') !== isShared) {
+        tile.classList.toggle('is-shared', isShared);
+        tile.setAttribute('data-fm-tooltip', tileTip(tile.dataset.cpoLabel || '', isShared));
+      }
+      if (!state.portal.loading && tile.classList.contains('is-pending')) {
+        tile.classList.remove('is-pending');
+        tile.disabled = false;
+      }
+    });
+    const mediaCount = root.querySelector('[data-cpo-media-count]');
+    if (mediaCount) {
+      const items = photos();
+      mediaCount.textContent = L('cpo_media_count', '{shared} of {total} shared', { shared: items.filter((photo) => shared.has(photoId(photo))).length, total: items.length });
+    }
+    root.querySelector('[data-cpo-grid]')?.classList.toggle('has-selection', state.selection.size > 0);
+    root.querySelector('[data-cpo-media]')?.classList.toggle('has-selection', state.selection.size > 0);
+    const bar = root.querySelector('[data-cpo-selbar]');
+    if (!bar) return;
+    const count = state.selection.size;
+    bar.classList.toggle('is-open', count > 0);
+    bar.setAttribute('aria-hidden', count ? 'false' : 'true');
+    bar.inert = !count;
+    const countEl = bar.querySelector('[data-cpo-sel-count]');
+    if (countEl && count) countEl.textContent = count === 1 ? L('cpo_sel_one', '1 selected') : L('cpo_sel_many', '{n} selected', { n: count });
+    const share = bar.querySelector('[data-cpo-share]');
+    const unshare = bar.querySelector('[data-cpo-unshare]');
+    if (share) {
+      share.disabled = !toShare || !!state.portal.loading;
+      share.querySelector('[data-cpo-share-label]').textContent = toShare ? L('cpo_share_n', 'Share {n}', { n: toShare }) : L('cpo_share', 'Share');
+    }
+    if (unshare) {
+      unshare.disabled = !toHide || !!state.portal.loading;
+      unshare.querySelector('[data-cpo-unshare-label]').textContent = toHide ? L('cpo_hide_n', 'Hide {n}', { n: toHide }) : L('cpo_hide', 'Hide');
+    }
+  }
+
+  function renderHistory(root){
+    const events = Array.isArray(state.portal.activity) ? state.portal.activity : [];
+    const stats = root.querySelector('[data-cpo-stats]');
+    const timeline = root.querySelector('[data-cpo-timeline]');
+    if (stats) stats.innerHTML = events.length ? historyStatsHtml(events) : '';
+    if (timeline) timeline.innerHTML = historyListHtml(events);
+  }
+
+  function render(context = {}){
+    const root = resolveRoot(context);
+    if (!root || !customerPortalEnabled()) return;
+    state.panelRoot = root;
+    injectStyles();
+    root.classList.add('cpo-panel');
+    if (!root.querySelector('.cpo-wrap')) {
+      root.innerHTML = skeletonHtml();
+      state.mediaSignature = '';
+      if (reducedMotion()) root.querySelectorAll('.cpo-enter').forEach((node) => node.classList.remove('cpo-enter'));
+    }
+    bindRoot(root);
+    renderError(root);
+    const linkCard = root.querySelector('[data-cpo-link-card]');
+    if (linkCard) {
+      const focused = document.activeElement && linkCard.contains(document.activeElement) ? document.activeElement : null;
+      const focusKey = focused ? [...focused.attributes].map((attr) => attr.name).find((name) => name.startsWith('data-cpo-')) : '';
+      linkCard.innerHTML = linkCardHtml();
+      if (focusKey) linkCard.querySelector(`[${focusKey}]`)?.focus?.({ preventScroll: true });
+    }
+    renderMedia(root);
+    renderHistory(root);
+    renderStatus();
+  }
+
+  function bindRoot(root){
+    // The page can load this file twice (a script tag and the app bundle);
+    // only the instance that last rendered the panel handles its events.
+    if (root._cpoOwner === api) return;
+    root._cpoOwner = api;
+    root.addEventListener('click', (event) => {
+      if (root._cpoOwner !== api) return;
+      const target = event.target.closest('[data-cpo-tile],[data-cpo-filter],[data-cpo-select-all],[data-cpo-share],[data-cpo-unshare],[data-cpo-clear],[data-cpo-copy],[data-cpo-qr],[data-cpo-refresh],[data-cpo-retry],[data-cpo-guests-toggle],[data-cpo-revoke],[data-cpo-guest-copy],[data-cpo-history-more],[data-cpo-preview],[data-cpo-email],[data-cpo-link]');
+      if (!target || !root.contains(target)) return;
+      const links = portalLinks();
+      if (target.matches('[data-cpo-preview],[data-cpo-email]')) {
+        if (target.getAttribute('aria-disabled') === 'true') event.preventDefault();
+        return;
+      }
+      if (target.matches('[data-cpo-link]')) { target.select(); return; }
+      if (target.matches('[data-cpo-tile]')) {
+        const id = target.dataset.cpoTile;
+        if (!id || target.disabled) return;
+        if (state.selection.has(id)) state.selection.delete(id);
+        else state.selection.add(id);
+        syncSelection(root);
+        return;
+      }
+      if (target.matches('[data-cpo-filter]')) {
+        state.mediaFilter = ['shared', 'unshared'].includes(target.dataset.cpoFilter) ? target.dataset.cpoFilter : 'all';
+        root.querySelector('[data-cpo-grid]')?.setAttribute('data-filter', state.mediaFilter);
+        root.querySelectorAll('[data-cpo-filter]').forEach((button) => {
+          const on = button.dataset.cpoFilter === state.mediaFilter;
+          button.classList.toggle('active', on);
+          button.setAttribute('aria-pressed', on ? 'true' : 'false');
+        });
+        return;
+      }
+      if (target.matches('[data-cpo-select-all]')) {
+        const shared = sharedPortalMediaIds();
+        photos().map((photo) => photoId(photo)).filter(Boolean).forEach((id) => {
+          const visible = state.mediaFilter === 'all' || (state.mediaFilter === 'shared') === shared.has(id);
+          if (visible) state.selection.add(id);
+        });
+        syncSelection(root);
+        return;
+      }
+      if (target.matches('[data-cpo-share],[data-cpo-unshare]')) {
+        const share = target.matches('[data-cpo-share]');
+        const shared = sharedPortalMediaIds();
+        const ids = [...state.selection].filter((id) => shared.has(id) !== share);
+        updateSharing(ids, share);
+        return;
+      }
+      if (target.matches('[data-cpo-clear]')) { state.selection.clear(); syncSelection(root); return; }
+      if (target.matches('[data-cpo-copy]')) { copyLink(links.live, target); return; }
+      if (target.matches('[data-cpo-qr]')) { downloadQr(links.live, target); return; }
+      if (target.matches('[data-cpo-refresh],[data-cpo-retry]')) { load({ silent: true }); return; }
+      if (target.matches('[data-cpo-guests-toggle]')) {
+        state.guestOpen = !state.guestOpen;
+        target.setAttribute('aria-expanded', state.guestOpen ? 'true' : 'false');
+        root.querySelector('[data-cpo-guests]')?.classList.toggle('is-open', state.guestOpen);
+        return;
+      }
+      if (target.matches('[data-cpo-revoke]')) { revokeGuestShare(target.dataset.cpoRevoke || ''); return; }
+      if (target.matches('[data-cpo-guest-copy]')) {
+        const item = activeGuestLinks().find((link) => link.id === target.dataset.cpoGuestCopy);
+        if (item?.url) copyLink(item.url, target);
+        return;
+      }
+      if (target.matches('[data-cpo-history-more]')) {
+        state.historyLimit += HISTORY_PAGE;
+        renderHistory(root);
+      }
+    });
+    root.addEventListener('change', (event) => {
+      if (root._cpoOwner !== api) return;
+      const input = event.target;
+      if (input.matches?.('[data-cpo-sharing]')) setCustomerSharingEnabled(input.checked);
+      else if (input.matches?.('[data-cpo-rescheduling]')) setCustomerReschedulingEnabled(input.checked);
+    });
   }
 
   function retrySrc(src, tries){
@@ -208,30 +1047,20 @@
   }
 
   function bindThumbLoading(root = document){
-    root.querySelectorAll?.('.r-cp-thumb img[data-cp-thumb-img]').forEach((img) => {
-      const thumb = img.closest('.r-cp-thumb');
+    const bindVideo = (video, thumb) => {
+      const markLoaded = () => { thumb.classList.add('loaded'); thumb.classList.remove('failed'); };
+      if (video.readyState >= 2) markLoaded();
+      else video.addEventListener('loadeddata', markLoaded, { once: true });
+      video.addEventListener('error', () => { thumb.classList.add('failed'); thumb.classList.remove('loaded'); }, { once: true });
+    };
+    root.querySelectorAll?.('.cpo-thumb img[data-cp-thumb-img]').forEach((img) => {
+      const thumb = img.closest('.cpo-thumb');
       if (!thumb) return;
       const baseSrc = img.dataset.cpBaseSrc || img.currentSrc || img.src || '';
-      img.dataset.cpBaseSrc = baseSrc;
-      const markLoaded = () => {
-        thumb.classList.add('loaded');
-        thumb.classList.remove('failed');
-      };
-      const markFailed = () => {
-        thumb.classList.add('failed');
-        thumb.classList.remove('loaded');
-      };
-      const bindVideo = (video) => {
-        const markVideoLoaded = () => {
-          thumb.classList.add('loaded');
-          thumb.classList.remove('failed');
-        };
-        if (video.readyState >= 2) markVideoLoaded();
-        else video.addEventListener('loadeddata', markVideoLoaded, { once: true });
-        video.addEventListener('error', markFailed, { once: true });
-      };
+      const markLoaded = () => { thumb.classList.add('loaded'); thumb.classList.remove('failed'); };
+      const markFailed = () => { thumb.classList.add('failed'); thumb.classList.remove('loaded'); };
       const retry = () => {
-        if (thumb.classList.contains('loaded')) return;
+        if (thumb.classList.contains('loaded') || !img.isConnected) return;
         const tries = Number(img.dataset.cpThumbRetries || 0);
         const originalSrc = img.dataset.cpOriginalSrc || '';
         if (tries >= 2 && img.dataset.cpMediaKind === 'video' && originalSrc) {
@@ -242,13 +1071,10 @@
           video.dataset.cpThumbVideo = '1';
           video.src = originalSrc;
           img.replaceWith(video);
-          bindVideo(video);
+          bindVideo(video, thumb);
           return;
         }
-        if (!baseSrc || tries >= 3) {
-          markFailed();
-          return;
-        }
+        if (!baseSrc || tries >= 3) { markFailed(); return; }
         img.dataset.cpThumbRetries = String(tries + 1);
         thumb.classList.remove('failed');
         img.src = retrySrc(baseSrc, tries + 1);
@@ -259,485 +1085,13 @@
       img.addEventListener('load', markLoaded, { once: true });
       img.addEventListener('error', () => window.setTimeout(retry, 350));
     });
-    root.querySelectorAll?.('.r-cp-thumb video[data-cp-thumb-video]').forEach((video) => {
-      const thumb = video.closest('.r-cp-thumb');
-      if (!thumb) return;
-      const markLoaded = () => {
-        thumb.classList.add('loaded');
-        thumb.classList.remove('failed');
-      };
-      const markFailed = () => {
-        thumb.classList.add('failed');
-        thumb.classList.remove('loaded');
-      };
-      if (video.readyState >= 2) markLoaded();
-      else video.addEventListener('loadeddata', markLoaded, { once: true });
-      video.addEventListener('error', markFailed, { once: true });
+    root.querySelectorAll?.('.cpo-thumb video[data-cp-thumb-video]').forEach((video) => {
+      const thumb = video.closest('.cpo-thumb');
+      if (thumb) bindVideo(video, thumb);
     });
   }
 
-  async function load(options = {}){
-    if (!customerPortalEnabled()) return;
-    const oid = orgId();
-    const pid = projectId();
-    if (!oid || !pid || !window.PlatformAPI?.customerPortals) return;
-    setPortal({ ...state.portal, loading: true, error: '' });
-    if (!options.silent) render();
-    try {
-      const [portalResult, activityResult] = await Promise.all([
-        window.PlatformAPI.customerPortals.ensure(oid, pid, { contact_id: projectContact().id, customer: projectContact() }),
-        window.PlatformAPI.customerPortals.activity(oid, pid).catch(() => ({ events: [] }))
-      ]);
-      setPortal({
-        loading: false,
-        portal: portalResult.portal || null,
-        activity: Array.isArray(activityResult.events) ? activityResult.events : [],
-        error: ''
-      });
-    } catch (error) {
-      setPortal({ ...state.portal, loading: false, error: error?.message || 'Could not load the customer portal.' });
-    }
-    render();
-  }
-
-  async function updateSharing(mediaIds, shared){
-    const ids = (Array.isArray(mediaIds) ? mediaIds : [mediaIds]).map((id) => String(id || '').trim()).filter(Boolean);
-    const oid = orgId();
-    const pid = projectId();
-    if (!oid || !pid || !ids.length || !window.PlatformAPI?.customerPortals) return;
-    try {
-      setPortal({ ...state.portal, loading: true });
-      render();
-      const result = shared
-        ? await window.PlatformAPI.customerPortals.shareMedia(oid, pid, ids)
-        : await window.PlatformAPI.customerPortals.unshareMedia(oid, pid, ids);
-      setPortal({ ...state.portal, loading: false, portal: result.portal || state.portal.portal, error: '' });
-      const sourceBucket = shared ? 'unshared' : 'shared';
-      ids.forEach((id) => state.mediaSelection[sourceBucket]?.delete(id));
-      showToast(shared ? 'Shared with portal' : 'Removed from portal', ((v0,v1) => globalThis.PlatformLanguage?.text("customer-portal","m_e95c22e05588b5",`${v0} item${v1} updated.`,{v0,v1}) ?? `${v0} item${v1} updated.`)(ids.length,ids.length === 1 ? '' : 's'), true);
-      render();
-      return true;
-    } catch (error) {
-      setPortal({ ...state.portal, loading: false, error: error?.message || 'Could not update sharing.' });
-      showToast((globalThis.PlatformLanguage?.text("customer-portal","m_0834090fafcc24","Portal update failed") ?? "Portal update failed"), state.portal.error, false);
-      render();
-      return false;
-    }
-  }
-
-  async function updateAll(shared){
-    const ids = photos().map((photo) => photoId(photo)).filter(Boolean);
-    await updateSharing(ids, shared);
-  }
-
-  async function setCustomerSharingEnabled(enabled){
-    const oid = orgId();
-    const pid = projectId();
-    const portal = state.portal.portal || {};
-    if (!oid || !pid || !window.PlatformAPI?.customerPortals) return;
-    try {
-      setPortal({ ...state.portal, loading:true }); render();
-      const result = await window.PlatformAPI.customerPortals.update(oid, pid, {
-        settings: { ...(portal.settings || {}), sharing:{ ...((portal.settings || {}).sharing || {}), enabled:enabled === true } }
-      });
-      setPortal({ ...state.portal, loading:false, portal:result.portal || portal, error:'' });
-      showToast((globalThis.PlatformLanguage?.text("customer-portal","m_419fcba6686d2f","Sharing updated") ?? "Sharing updated"), enabled ? 'The customer can now create secure guest links.' : 'The customer can no longer create new guest links.', true);
-    } catch (error) {
-      setPortal({ ...state.portal, loading:false, error:error?.message || 'Could not update portal sharing.' });
-    }
-    render();
-  }
-
-  async function setCustomerReschedulingEnabled(enabled){
-    const oid = orgId();
-    const pid = projectId();
-    const portal = state.portal.portal || {};
-    if (!oid || !pid || !window.PlatformAPI?.customerPortals) return;
-    try {
-      setPortal({ ...state.portal, loading:true }); render();
-      const result = await window.PlatformAPI.customerPortals.update(oid, pid, {
-        settings: { ...(portal.settings || {}), scheduling:{ ...((portal.settings || {}).scheduling || {}), enabled:enabled === true, reschedule:enabled === true } }
-      });
-      setPortal({ ...state.portal, loading:false, portal:result.portal || portal, error:'' });
-      showToast((globalThis.PlatformLanguage?.text("customer-portal","m_03bc09a605e95b","Portal scheduling updated") ?? "Portal scheduling updated"), enabled ? 'Eligible appointments can now be rescheduled in the customer portal.' : 'Customer portal rescheduling is off for this project.', true);
-    } catch (error) {
-      setPortal({ ...state.portal, loading:false, error:error?.message || 'Could not update portal scheduling.' });
-    }
-    render();
-  }
-
-  async function revokeGuestShare(shareId){
-    const oid = orgId();
-    const pid = projectId();
-    if (!oid || !pid || !shareId || !window.PlatformAPI?.customerPortals?.revokeShare) return;
-    if (!window.confirm((globalThis.PlatformLanguage?.text("customer-portal","m_4673313e439d76","Revoke this shared portal link immediately?") ?? "Revoke this shared portal link immediately?"))) return;
-    try {
-      setPortal({ ...state.portal, loading:true }); render();
-      await window.PlatformAPI.customerPortals.revokeShare(oid, pid, shareId);
-      await load({ silent:true });
-      showToast((globalThis.PlatformLanguage?.text("customer-portal","m_5b7392e0641e18","Access revoked") ?? "Access revoked"), (globalThis.PlatformLanguage?.text("customer-portal","m_5f69f2a41b214d","The shared link can no longer open the portal.") ?? "The shared link can no longer open the portal."), true);
-    } catch (error) {
-      setPortal({ ...state.portal, loading:false, error:error?.message || 'Could not revoke the shared link.' }); render();
-    }
-  }
-
-  async function copyLink(url, label){
-    try {
-      await navigator.clipboard.writeText(url);
-      showToast((globalThis.PlatformLanguage?.text("customer-portal","m_16841202d17c7c","Copied") ?? "Copied"), ((v0) => globalThis.PlatformLanguage?.text("customer-portal","m_43c7ce84738c11",`${v0} copied to clipboard.`,{v0}) ?? `${v0} copied to clipboard.`)(label), true);
-    } catch (_) {
-      showToast((globalThis.PlatformLanguage?.text("customer-portal","m_9c6d3ea981962c","Copy failed") ?? "Copy failed"), (globalThis.PlatformLanguage?.text("customer-portal","m_3dcfecb51d7499","Could not copy this portal link.") ?? "Could not copy this portal link."), false);
-    }
-  }
-
-  function downloadQr(url){
-    if (!url) return;
-    const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=640x640&data=${encodeURIComponent(url)}`;
-    const link = document.createElement('a');
-    link.href = qrUrl;
-    link.download = 'customer-portal-qr.png';
-    link.target = '_blank';
-    link.rel = 'noopener';
-    link.click();
-  }
-
-  function eventDate(event = {}){
-    const parsed = new Date(firstText(event.created_at, event.createdAt, event.timestamp));
-    return Number.isNaN(parsed.getTime()) ? null : parsed;
-  }
-
-  function formatWhen(date, options = {}){
-    if (!date) return '';
-    return date.toLocaleString([], {
-      month: 'short',
-      day: 'numeric',
-      hour: 'numeric',
-      minute: '2-digit',
-      ...(options.includeYear ? { year: 'numeric' } : {})
-    });
-  }
-
-  function eventType(event = {}){
-    return firstText(event.type, event.event).replace(/^customer_portal\./, '');
-  }
-
-  function eventLabel(event = {}){
-    const type = eventType(event);
-    const labels = {
-      viewed: 'Viewed portal',
-      tab_opened: `Opened ${firstText(event.tab, event.metadata?.tab, 'tab')}`,
-      media_opened: 'Opened media',
-      media_downloaded: 'Downloaded media',
-      proposal_opened: 'Opened proposal',
-      proposal_downloaded: 'Downloaded proposal',
-      proposal_printed: 'Printed proposal',
-      workflow_step_opened: `Opened ${firstText(event.step, event.metadata?.step, 'workflow step')}`,
-      project_opened: 'Switched project'
-    };
-    return labels[type] || type.replace(/_/g, ' ') || 'Portal event';
-  }
-
-  function eventDetail(event = {}){
-    return firstText(
-      event.media_id ? `Media ${event.media_id}` : '',
-      event.proposal_id ? `Proposal ${event.proposal_id}` : '',
-      event.project_switch_id ? `Project ${event.project_switch_id}` : '',
-      event.tab,
-      event.step,
-      event.path
-    );
-  }
-
-  function eventIp(event = {}){
-    const metadata = event.metadata && typeof event.metadata === 'object' ? event.metadata : {};
-    const request = metadata.request && typeof metadata.request === 'object' ? metadata.request : {};
-    return firstText(event.visitor_ip, event.ip_address, event.client_ip, event.ip, request.client_ip, request.request_ip, request.remote_address, 'Unknown IP');
-  }
-
-  function eventSession(event = {}){
-    return firstText(event.visitor_session_id, event.session_id, event.user_agent_hash, 'unknown-session');
-  }
-
-  function eventLocation(event = {}){
-    return [event.city, event.region, event.country].map((part) => firstText(part)).filter(Boolean).join(', ');
-  }
-
-  function eventBrowser(event = {}){
-    const ua = firstText(event.user_agent);
-    if (!ua) return '';
-    const browser = /Edg\//.test(ua) ? 'Edge' : /Chrome\//.test(ua) ? 'Chrome' : /Safari\//.test(ua) ? 'Safari' : /Firefox\//.test(ua) ? 'Firefox' : '';
-    const platform = /iPhone|iPad/i.test(ua) ? 'iOS' : /Android/i.test(ua) ? 'Android' : /Windows/i.test(ua) ? 'Windows' : /Mac OS X/i.test(ua) ? 'macOS' : '';
-    return [browser, platform].filter(Boolean).join(' on ');
-  }
-
-  function activityGroups(events = []){
-    const groups = new Map();
-    events.forEach((event) => {
-      const ip = eventIp(event);
-      const key = ip;
-      if (!groups.has(key)) {
-        groups.set(key, {
-          ip,
-          location: eventLocation(event),
-          browser: eventBrowser(event),
-          first: null,
-          last: null,
-          sessions: new Set(),
-          counts: {},
-          events: [],
-          media: new Set(),
-          proposals: new Set(),
-          tabs: new Set()
-        });
-      }
-      const group = groups.get(key);
-      const date = eventDate(event);
-      const type = eventType(event) || 'event';
-      group.events.push(event);
-      group.sessions.add(eventSession(event));
-      group.counts[type] = (group.counts[type] || 0) + 1;
-      if (firstText(event.media_id)) group.media.add(firstText(event.media_id));
-      if (firstText(event.proposal_id)) group.proposals.add(firstText(event.proposal_id));
-      if (firstText(event.tab)) group.tabs.add(firstText(event.tab));
-      if (eventLocation(event) && !group.location) group.location = eventLocation(event);
-      if (eventBrowser(event) && !group.browser) group.browser = eventBrowser(event);
-      if (date && (!group.first || date < group.first)) group.first = date;
-      if (date && (!group.last || date > group.last)) group.last = date;
-    });
-    return [...groups.values()]
-      .map((group) => ({
-        ...group,
-        events: group.events.sort((a, b) => (eventDate(b)?.getTime() || 0) - (eventDate(a)?.getTime() || 0))
-      }))
-      .sort((a, b) => (b.last?.getTime() || 0) - (a.last?.getTime() || 0));
-  }
-
-  function activityStatsHtml(events = [], groups = activityGroups(events)){
-    const latest = events.map(eventDate).filter(Boolean).sort((a, b) => b - a)[0] || null;
-    const engaged = events.filter((event) => eventType(event) !== 'viewed').length;
-    const mediaActions = events.filter((event) => eventType(event).startsWith('media_')).length;
-    const proposalActions = events.filter((event) => eventType(event).startsWith('proposal_')).length;
-    const cards = [
-      ['Visitors', groups.length],
-      ['Events', events.length],
-      ['Engagements', engaged],
-      ['Latest', latest ? formatWhen(latest) : 'None'],
-      ['Media actions', mediaActions],
-      ['Proposal actions', proposalActions]
-    ];
-    return `<div class="r-cp-activity-stats">${cards.map(([label, value]) => `
-      <div class="r-cp-stat"><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></div>
-    `).join('')}</div>`;
-  }
-
-  function activityGroupHtml(group){
-    const count = (type) => group.counts[type] || 0;
-    const actionCounts = [
-      ['Views', count('viewed')],
-      ['Tabs', count('tab_opened')],
-      ['Media', count('media_opened') + count('media_downloaded')],
-      ['Proposals', count('proposal_opened') + count('proposal_downloaded') + count('proposal_printed')]
-    ].filter(([, value]) => value > 0);
-    const recent = group.events.slice(0, 5);
-    const meta = [
-      `${group.sessions.size} session${group.sessions.size === 1 ? '' : 's'}`,
-      group.location,
-      group.browser
-    ].filter(Boolean).join(' - ');
-    return `
-      <article class="r-cp-visitor-card">
-        <div class="r-cp-visitor-head">
-          <div>
-            <strong>${escapeHtml(group.ip)}</strong>
-            <span>${escapeHtml(meta || 'Visitor')}</span>
-          </div>
-          <time>${escapeHtml(formatWhen(group.last) || 'No time')}</time>
-        </div>
-        <div class="r-cp-visitor-counts">
-          ${actionCounts.length ? actionCounts.map(([label, value]) => `<span><b>${escapeHtml(value)}</b>${escapeHtml(label)}</span>`).join('') : `<span><b>0</b>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_6067958dea3386","Actions") ?? "Actions")}</span>`}
-        </div>
-        <div class="r-cp-visitor-window">
-          ${group.first && group.last ? `${escapeHtml(formatWhen(group.first))} - ${escapeHtml(formatWhen(group.last))}` : 'Timeline unavailable'}
-        </div>
-        <div class="r-cp-recent-events">
-          ${recent.map((event) => {
-            const detail = eventDetail(event);
-            return `
-              <div class="r-cp-recent-event">
-                <span>${escapeHtml(eventLabel(event))}${detail ? ` <em>${escapeHtml(detail)}</em>` : ''}</span>
-                <time>${escapeHtml(formatWhen(eventDate(event)))}</time>
-              </div>
-            `;
-          }).join('')}
-        </div>
-      </article>
-    `;
-  }
-
-  function activityHtml(events = []){
-    if (!events.length) return `<div class="r-cp-empty">${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_397f550437b4ad","No customer portal activity yet.") ?? "No customer portal activity yet.")}</div>`;
-    const groups = activityGroups(events);
-    return `
-      ${activityStatsHtml(events, groups)}
-      <div class="r-cp-activity-grid">${groups.map(activityGroupHtml).join('')}</div>
-    `;
-  }
-
-  function render(context = {}){
-    const root = resolveRoot(context);
-    if (!root || !customerPortalEnabled()) return;
-    state.panelRoot = root;
-    const portal = state.portal.portal || {};
-    const liveUrl = String(portal.live_url || '').trim();
-    const previewUrl = String(portal.preview_url || '').trim();
-    const shared = sharedPortalMediaIds();
-    cleanMediaSelection(shared);
-    const projectPhotos = photos();
-    const sharedPhotos = projectPhotos.filter((photo) => shared.has(photoId(photo)));
-    const unsharedPhotos = projectPhotos.filter((photo) => !shared.has(photoId(photo)));
-    const sharedSelected = state.mediaSelection.shared.size;
-    const unsharedSelected = state.mediaSelection.unshared.size;
-    const loadingAttr = state.portal.loading ? ' disabled' : '';
-    const mediaEnabled = customerPortalMediaEnabled();
-    const guestLinks = Array.isArray(portal.guest_links) ? portal.guest_links : [];
-    const activeGuestLinks = guestLinks.filter((item) => String(item.status || '').toLowerCase() === 'active');
-    const customerSharingEnabled = portal.settings?.sharing?.enabled === true;
-    const customerReschedulingEnabled = portal.settings?.scheduling?.enabled === true && portal.settings?.scheduling?.reschedule === true;
-    if (state.activeSubtab === 'media' && !mediaEnabled) state.activeSubtab = 'overview';
-    const activeSubtab = state.activeSubtab === 'media' ? 'media' : 'overview';
-    const overviewHtml = `
-      <div class="r-cp-links">
-        <div class="r-cp-link-card">
-          <span>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_8f8f3196e91e22","Live customer link") ?? "Live customer link")}</span>
-          <input readonly value="${String(escapeHtml(liveUrl))}">
-          <div class="r-cp-actions">
-            <button type="button" data-cp-copy="live">${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_9302911bb13773","Copy") ?? "Copy")}</button>
-            <a href="mailto:${String(escapeHtml(portal.customer?.email || ''))}?subject=${String(encodeURIComponent('Your project portal'))}&body=${String(encodeURIComponent(liveUrl))}">${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_5d2b9327181e33","Email") ?? "Email")}</a>
-            <button type="button" data-cp-qr>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_194f593f8d0a16","Download QR") ?? "Download QR")}</button>
-          </div>
-        </div>
-        <div class="r-cp-link-card preview">
-          <span>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_4556b229717606","Preview link") ?? "Preview link")}</span>
-          <input readonly value="${String(escapeHtml(previewUrl))}">
-          <div class="r-cp-actions">
-            <button type="button" data-cp-copy="preview">${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_9302911bb13773","Copy") ?? "Copy")}</button>
-            <a href="${String(escapeHtml(previewUrl))}" target="_blank" rel="noopener">${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_f25442be2eb9d3","Open Preview") ?? "Open Preview")}</a>
-          </div>
-        </div>
-      </div>
-      <div class="r-cp-section-title"><strong>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_6904cbcb4bf953","Customer sharing") ?? "Customer sharing")}</strong><button type="button" data-cp-sharing-toggle="${String(customerSharingEnabled ? 'off' : 'on')}">${String(customerSharingEnabled ? 'Disable new links' : 'Enable secure sharing')}</button></div>
-      <div class="r-cp-sharing-admin">
-        <p>${String(customerSharingEnabled ? 'The customer can create revocable, read-only links with optional expiration. Guest links never include payments, signatures, approvals, or editing.' : 'Customer-created guest links are off for this project. Staff can still view and revoke existing links.')}</p>
-        ${String(activeGuestLinks.length ? `<div class="r-cp-share-list">${activeGuestLinks.map((item) => `<div><span><strong>${escapeHtml(item.label || 'Shared access')}</strong><small>${escapeHtml(String(item.preset || '').replace(/_/g, ' '))} · ${item.expires_at ? `expires ${escapeHtml(formatWhen(new Date(item.expires_at), { includeYear:true }))}` : 'never expires'}</small></span><button type="button" data-cp-revoke-share="${escapeHtml(item.id)}">${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_45c67f3cceb08b","Revoke") ?? "Revoke")}</button></div>`).join('')}</div>` : `<div class="r-cp-empty">${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_66e820442a227d","No active guest links.") ?? "No active guest links.")}</div>`)}
-      </div>
-      <div class="r-cp-section-title"><strong>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_d3e2a22ddb5f09","Appointment self-service") ?? "Appointment self-service")}</strong><button type="button" data-cp-rescheduling-toggle="${String(customerReschedulingEnabled ? 'off' : 'on')}">${String(customerReschedulingEnabled ? 'Turn off' : 'Enable rescheduling')}</button></div>
-      <div class="r-cp-sharing-admin"><p>${String(customerReschedulingEnabled ? 'When an upcoming appointment is also enabled by its scheduling policy, the customer can choose from live available times in this portal.' : 'Customers cannot reschedule from this project portal. Confirmation and staff-managed scheduling continue to work normally.')}</p></div>
-      <div class="r-cp-section-title"><strong>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_736894e3c896cd","Portal History") ?? "Portal History")}</strong><button type="button" data-cp-refresh>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_78973ce0cf3403","Refresh") ?? "Refresh")}</button></div>
-      <div class="r-cp-events">${String(activityHtml(state.portal.activity))}</div>
-    `;
-    const mediaHtml = mediaEnabled ? `
-      <div class="r-cp-section-title"><strong>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_2c7fddee1414af","Media Sharing") ?? "Media Sharing")}</strong><span>${((v0,v1) => globalThis.PlatformLanguage?.htmlText("customer-portal","m_4dab4512a74cfd",`${v0} shared / ${v1} unshared`,{v0,v1}) ?? `${v0} shared / ${v1} unshared`)(sharedPhotos.length,unsharedPhotos.length)}</span></div>
-      <div class="r-cp-media-board">
-        <section class="r-cp-media-box">
-          <div class="r-cp-media-box-head">
-            <div class="r-cp-media-box-title">
-              <strong>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_a7a7382d100092","Shared Media") ?? "Shared Media")}</strong>
-              <span>${((v2,v3) => globalThis.PlatformLanguage?.htmlText("customer-portal","m_5c8fe5927480d3",`${v2} selected of ${v3}`,{v2,v3}) ?? `${v2} selected of ${v3}`)(sharedSelected,sharedPhotos.length)}</span>
-            </div>
-            <div class="r-cp-media-box-actions">
-              <button type="button" class="r-cp-bulk-btn" data-cp-select-all="shared"${String(loadingAttr || (!sharedPhotos.length ? ' disabled' : ''))}><i class="fas fa-check-double"></i>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_65046f5dd815ba","Select all") ?? "Select all")}</button>
-              <button type="button" class="r-cp-bulk-btn" data-cp-clear-selection="shared"${String(loadingAttr || (!sharedSelected ? ' disabled' : ''))}><i class="fas fa-times"></i>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_506191e24dd383","Clear") ?? "Clear")}</button>
-              <button type="button" class="r-cp-bulk-btn" data-cp-bulk="unshare"${String(loadingAttr || (!sharedSelected ? ' disabled' : ''))}><i class="fas fa-link-slash"></i>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_48203573600b0c","Unshare selected") ?? "Unshare selected")}</button>
-            </div>
-          </div>
-          ${String(mediaGridHtml(sharedPhotos, 'shared'))}
-        </section>
-        <section class="r-cp-media-box">
-          <div class="r-cp-media-box-head">
-            <div class="r-cp-media-box-title">
-              <strong>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_011f74477ef775","Unshared Media") ?? "Unshared Media")}</strong>
-              <span>${((v8,v9) => globalThis.PlatformLanguage?.htmlText("customer-portal","m_a40ec62159b706",`${v8} selected of ${v9}`,{v8,v9}) ?? `${v8} selected of ${v9}`)(unsharedSelected,unsharedPhotos.length)}</span>
-            </div>
-            <div class="r-cp-media-box-actions">
-              <button type="button" class="r-cp-bulk-btn" data-cp-select-all="unshared"${String(loadingAttr || (!unsharedPhotos.length ? ' disabled' : ''))}><i class="fas fa-check-double"></i>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_65046f5dd815ba","Select all") ?? "Select all")}</button>
-              <button type="button" class="r-cp-bulk-btn" data-cp-clear-selection="unshared"${String(loadingAttr || (!unsharedSelected ? ' disabled' : ''))}><i class="fas fa-times"></i>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_506191e24dd383","Clear") ?? "Clear")}</button>
-              <button type="button" class="r-cp-bulk-btn primary" data-cp-bulk="share"${String(loadingAttr || (!unsharedSelected ? ' disabled' : ''))}><i class="fas fa-link"></i>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_d7f1181b9fe7a7","Share selected") ?? "Share selected")}</button>
-            </div>
-          </div>
-          ${String(mediaGridHtml(unsharedPhotos, 'unshared'))}
-        </section>
-      </div>
-    ` : `<div class="r-cp-empty">${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_45f01ee4eaf862","Customer portal media sharing is disabled for this organization.") ?? "Customer portal media sharing is disabled for this organization.")}</div>`;
-    root.innerHTML = `
-      <div class="r-cp-wrap">
-        <div class="r-cp-head">
-          <div><h3>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_61f3d0db590ab0","Customer Portal") ?? "Customer Portal")}</h3><p>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_929b0824765a0f","Share only the project information and media this customer should be able to see.") ?? "Share only the project information and media this customer should be able to see.")}</p></div>
-          ${String(state.portal.loading ? `<span class="r-cp-pill">${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_f1a62c3e12aeb7","Syncing...") ?? "Syncing...")}</span>` : `<span class="r-cp-pill">${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_d0dd61f9c0e1d2","Ready") ?? "Ready")}</span>`)}
-        </div>
-        ${String(state.portal.error ? `<div class="r-cp-error">${escapeHtml(state.portal.error)}</div>` : '')}
-        <nav class="r-cp-subtabs" aria-label="${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_e6d980684bc615","Customer portal sections") ?? "Customer portal sections")}">
-          <button type="button" class="${String(activeSubtab === 'overview' ? 'active' : '')}" data-cp-subtab="overview" aria-selected="${String(activeSubtab === 'overview' ? 'true' : 'false')}"><i class="fas fa-chart-line"></i><span>${String(escapeHtml(window.Portal?.terminology?.get?.('customer_portal.overview_view', 'Overview') || 'Overview'))}</span></button>
-          <button type="button" class="${String(activeSubtab === 'media' ? 'active' : '')}" data-cp-subtab="media" aria-selected="${String(activeSubtab === 'media' ? 'true' : 'false')}"${String(mediaEnabled ? '' : ' disabled')}><i class="fas fa-images"></i><span>${String(escapeHtml(window.Portal?.terminology?.get?.('customer_portal.media_view', 'Media') || 'Media'))}</span></button>
-        </nav>
-        <section class="r-cp-tab-panel">
-          ${String(activeSubtab === 'media' ? mediaHtml : overviewHtml)}
-        </section>
-      </div>
-    `;
-    root.querySelectorAll('[data-cp-subtab]').forEach((btn) => {
-      btn.addEventListener('click', () => {
-        const next = btn.dataset.cpSubtab === 'media' ? 'media' : 'overview';
-        if (next === 'media' && !mediaEnabled) return;
-        state.activeSubtab = next;
-        window.Portal?.navigation?.push?.({ customerPortalView:next }, { source:'customer-portal-view', ownedKeys:['customerPortalView'] });
-        render();
-      });
-    });
-    root.querySelector('[data-cp-copy="live"]')?.addEventListener('click', () => copyLink(liveUrl, 'Live portal link'));
-    root.querySelector('[data-cp-copy="preview"]')?.addEventListener('click', () => copyLink(previewUrl, 'Preview portal link'));
-    root.querySelector('[data-cp-qr]')?.addEventListener('click', () => downloadQr(liveUrl));
-    root.querySelector('[data-cp-refresh]')?.addEventListener('click', () => load({ silent: false }));
-    root.querySelector('[data-cp-sharing-toggle]')?.addEventListener('click', (event) => setCustomerSharingEnabled(event.currentTarget.dataset.cpSharingToggle === 'on'));
-    root.querySelector('[data-cp-rescheduling-toggle]')?.addEventListener('click', (event) => setCustomerReschedulingEnabled(event.currentTarget.dataset.cpReschedulingToggle === 'on'));
-    root.querySelectorAll('[data-cp-revoke-share]').forEach((button) => button.addEventListener('click', () => revokeGuestShare(button.dataset.cpRevokeShare || '')));
-    root.querySelector('[data-cp-share-all]')?.addEventListener('click', () => updateAll(true));
-    root.querySelector('[data-cp-unshare-all]')?.addEventListener('click', () => updateAll(false));
-    bindThumbLoading(root);
-    root.querySelectorAll('[data-cp-select]').forEach((btn) => {
-      btn.addEventListener('click', () => {
-        const id = btn.dataset.cpSelect || '';
-        const bucket = btn.dataset.cpBucket === 'shared' ? 'shared' : 'unshared';
-        if (!id) return;
-        const selection = state.mediaSelection[bucket] || new Set();
-        if (selection.has(id)) selection.delete(id);
-        else selection.add(id);
-        state.mediaSelection[bucket] = selection;
-        render();
-      });
-    });
-    root.querySelectorAll('[data-cp-select-all]').forEach((btn) => {
-      btn.addEventListener('click', () => {
-        const bucket = btn.dataset.cpSelectAll === 'shared' ? 'shared' : 'unshared';
-        const sourcePhotos = bucket === 'shared' ? sharedPhotos : unsharedPhotos;
-        state.mediaSelection[bucket] = new Set(sourcePhotos.map((photo) => photoId(photo)).filter(Boolean));
-        render();
-      });
-    });
-    root.querySelectorAll('[data-cp-clear-selection]').forEach((btn) => {
-      btn.addEventListener('click', () => {
-        const bucket = btn.dataset.cpClearSelection === 'shared' ? 'shared' : 'unshared';
-        state.mediaSelection[bucket] = new Set();
-        render();
-      });
-    });
-    root.querySelectorAll('[data-cp-bulk]').forEach((btn) => {
-      btn.addEventListener('click', () => {
-        const share = btn.dataset.cpBulk === 'share';
-        const bucket = share ? 'unshared' : 'shared';
-        updateSharing([...state.mediaSelection[bucket]], share);
-      });
-    });
-  }
+  /* ---------- lifecycle ---------- */
 
   function mount(context = {}){
     state.host = hostFor(context);
@@ -745,8 +1099,6 @@
     state.panelRoot = resolveRoot(context);
     state.mounted = !!state.panelRoot;
     state.active = context.active !== false;
-    const routedView = window.Portal?.navigation?.read?.().customerPortalView;
-    if (['overview','media'].includes(routedView)) state.activeSubtab = routedView;
     if (state.model && window.FirstMateAppContext?.installProjectContextAccessors) {
       window.FirstMateAppContext.installProjectContextAccessors(state.model, { overwrite: false });
     }
@@ -763,7 +1115,10 @@
 
   function reset(){
     setPortal({ loading: false, portal: null, activity: [], error: '' });
-    state.mediaSelection = { shared: new Set(), unshared: new Set() };
+    state.selection = new Set();
+    state.guestOpen = false;
+    state.historyLimit = HISTORY_PAGE;
+    state.mediaSignature = '';
   }
 
   const api = {
@@ -783,7 +1138,7 @@
     kind: 'project_modal_app',
     title: (globalThis.PlatformLanguage?.text("customer-portal","m_61f3d0db590ab0","Customer Portal") ?? "Customer Portal"),
     label: (globalThis.PlatformLanguage?.text("customer-portal","m_61f3d0db590ab0","Customer Portal") ?? "Customer Portal"),
-    icon: 'fa-link',
+    icon: APP_ICON,
     order: 30,
     visible: true,
     surfaces: ['project_modal'],
@@ -797,15 +1152,6 @@
   Portal.modules = Portal.modules || {};
   Portal.modules.customerPortalProject = api;
   Portal.ProjectCustomerPortalApp = api;
-
-  window.Portal?.navigation?.registerHandler?.('project-customer-portal-view', {
-    priority:600,
-    apply:(route) => {
-      if (!route.project || route.projectTab !== 'customer_portal' || !state.mounted) return;
-      const next = route.customerPortalView === 'media' ? 'media' : 'overview';
-      if (next !== state.activeSubtab) { state.activeSubtab = next; render(); }
-    }
-  });
 
   runtime?.registerApp?.(definition);
 })();
