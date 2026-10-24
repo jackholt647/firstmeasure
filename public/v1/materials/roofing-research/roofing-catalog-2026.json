@@ -1,0 +1,496 @@
+{
+  "schema_version": 1,
+  "id": "roofing-catalog-2026",
+  "title": "Residential roofing catalog for price book setup (US, 2026)",
+  "researched_on": "2026-10-24",
+  "currency": "USD",
+  "notes": [
+    "Prices are material cost to a contractor per order unit (bundle, roll, piece, box) unless the item says otherwise. Labor and service items are prices a contractor charges a homeowner.",
+    "price_confidence: 'observed' = a public listing was seen (date given); 'sourced_range' = a published cost guide or several listings support the range; 'estimate' = our judgement from related figures. Every default_price is a starting point the organization is expected to replace with its own supplier pricing.",
+    "Ids match public/v1/materials/roofing-library-data.ts (lib-*) where the item already exists there; template_item_id names the matching item in public/v1/pricebook/default_template.ts.",
+    "Formulas use measurement dictionary keys from public/v1/platform/publication/measurement-schemas.ts (roofing schema v2). Anything that is not a dictionary key is declared in inputs[] with in_dictionary false."
+  ],
+  "default_markup_percent": 35,
+  "default_markup_note": "roofing-library-data.ts sets sell price = base cost x 1.35. Kept here as the suggested starting markup; it is an organization decision, not research.",
+  "inputs": [
+    { "key": "wastePercent", "label": "Waste", "unit": "%", "default": 12, "in_dictionary": false, "where": "Price book formula variable (pricebook/constants.ts MEASUREMENT_FIELDS) and FirstMeasure report value; applied by formula_config.includeWaste." },
+    { "key": "tearOffLayers", "label": "Layers to tear off", "unit": "count", "default": 1, "in_dictionary": false, "where": "Asked per job; not a measurement." },
+    { "key": "iceBarrierEaveWidthFt", "label": "Ice & water width at the eaves", "unit": "ft", "default": 6, "in_dictionary": false, "where": "Organization setting by climate: 6 ft (two 36 in courses) where ice dams happen, 3 ft (one course) elsewhere, 0 where not used." },
+    { "key": "pipeBootsEa", "label": "Pipe boots", "unit": "ea", "default": 3, "in_dictionary": false, "where": "Counted on the roof report or by the estimator. Used by existing tests (tests/estimate-structures.test.ts) but not registered in the measurement dictionary." },
+    { "key": "stories", "label": "Stories", "unit": "count", "default": 1, "in_dictionary": false, "where": "Needed for a high-roof (2+ story) charge; not in the dictionary." },
+    { "key": "deckingSheets", "label": "Decking sheets to replace", "unit": "sheet", "default": 0, "in_dictionary": false, "where": "Allowance written into the contract, then the actual count after tear-off." }
+  ],
+  "manufacturers": [
+    {
+      "id": "gaf",
+      "name": "GAF",
+      "pricebook_manufacturer": "gaf",
+      "logo_hint": { "wordmark": "GAF", "primary_color": "#D71920", "note": "Red wordmark. Use a text wordmark or an approved asset; do not hotlink gaf.com images." },
+      "square_coverage_sq_ft": 100,
+      "product_lines": [
+        { "id": "lib-shingle-gaf-hdz", "template_item_id": "gaf_hd", "name": "Timberline HDZ", "tier": "architectural", "impact_rating": "none (UL 2218 Class 4 only in AS II)", "bundles_per_square": 3, "coverage_sq_ft_per_bundle": 33.33, "pieces_per_square": 64, "manufacturer_code": "0489180 (Charcoal)", "typical_price_range": { "low": 34, "high": 52, "unit": "bundle" }, "default_price": 41, "price_confidence": "sourced_range", "price_note": "Supply houses $34-37, Home Depot $44.97, Lowe's $51.98 (listings of 2026-10-09). Default is the library base cost.", "sources": ["roofingbrief-arch-2026", "gaf-hdz-spec", "hd-hdz-listing", "library-2026-10-12"], "popular": true },
+        { "id": "lib-shingle-gaf-uhdz", "template_item_id": "gaf_uhdz", "name": "Timberline UHDZ", "tier": "premium_architectural", "impact_rating": "none", "bundles_per_square": 3, "coverage_sq_ft_per_bundle": 33.33, "manufacturer_code": "0585180 (Charcoal)", "typical_price_range": { "low": 47, "high": 60, "unit": "bundle" }, "default_price": 54.97, "price_confidence": "observed", "price_note": "Home Depot $54.97 seen 2026-10-12; one 2026 listing $51.72. Some reseller listings show a 4-bundle (25 sq ft) package for certain colours; check the wrapper.", "sources": ["library-2026-10-12", "roofingbrief-arch-2026", "hd-uhdz-listing"] },
+        { "id": "lib-shingle-gaf-as2", "template_item_id": null, "name": "Timberline AS II", "tier": "impact_rated", "impact_rating": "UL 2218 Class 4", "bundles_per_square": 3, "pieces_per_square": 64, "nails_per_square": 256, "typical_price_range": { "low": 48, "high": 62, "unit": "bundle" }, "default_price": 55, "price_confidence": "estimate", "price_note": "No 2025-2026 price found. GAF lists it in its top price tier; estimated at a 15-30% premium over HDZ.", "sources": ["gaf-as2-page", "roofvista-as2"] },
+        { "id": "lib-shingle-gaf-ns", "template_item_id": "gaf_ns", "name": "Timberline NS (Natural Shadow)", "tier": "architectural", "impact_rating": "none", "bundles_per_square": 3, "coverage_sq_ft_per_bundle": 33.33, "typical_price_range": { "low": 33, "high": 45, "unit": "bundle" }, "default_price": 38, "price_confidence": "estimate", "price_note": "Home Depot carries it (0601180) but no price was captured; GAF's value architectural line, estimated slightly below HDZ.", "sources": ["hd-ns-listing"] },
+        { "id": "lib-shingle-gaf-royal-sovereign", "template_item_id": null, "name": "Royal Sovereign", "tier": "3_tab", "impact_rating": "none", "bundles_per_square": 3, "coverage_sq_ft_per_bundle": 33.33, "manufacturer_code": "0201180", "typical_price_range": { "low": 30, "high": 40, "unit": "bundle" }, "default_price": 33, "price_confidence": "estimate", "price_note": "Library estimate; 3-tab pricing tracks OC Supreme ($32-43, 2026).", "sources": ["library-2026-10-12", "roofingbrief-oc-2026"] },
+        { "id": "lib-shingle-gaf-grand-sequoia", "template_item_id": "gaf_grand_sequoia", "name": "Grand Sequoia", "tier": "designer", "impact_rating": "none", "bundles_per_square": 4, "typical_price_range": { "low": 48, "high": 60, "unit": "bundle" }, "default_price": 54, "price_confidence": "estimate", "price_note": "From a published $190-240 per square material range at 4 bundles per square. Needs a matching coloured starter.", "sources": ["roofingcalc-gaf-ct"] }
+      ],
+      "accessories": [
+        { "id": "lib-starter-gaf-prostart", "template_item_id": "starter", "role": "starter", "name": "Pro-Start Starter Strip", "unit": "bundle", "coverage": { "lf": 120.33 }, "manufacturer_code": "1126000", "typical_price_range": { "low": 45, "high": 62, "unit": "bundle" }, "default_price": 54.97, "price_confidence": "observed", "sources": ["gaf-prostart-page", "library-2026-10-12"] },
+        { "id": "lib-ridge-gaf-seal-a-ridge", "template_item_id": "ridge_cap", "role": "hip_ridge", "name": "Seal-A-Ridge", "unit": "bundle", "coverage": { "lf": 25 }, "manufacturer_code": "0850180", "typical_price_range": { "low": 50, "high": 68, "unit": "bundle" }, "default_price": 59.97, "price_confidence": "observed", "sources": ["lowes-seal-a-ridge", "library-2026-10-12"] },
+        { "id": "lib-ridge-gaf-timbertex", "template_item_id": null, "role": "hip_ridge", "name": "TimberTex Premium Hip & Ridge", "unit": "bundle", "coverage": { "lf": 20 }, "manufacturer_code": "0847180", "typical_price_range": { "low": 55, "high": 72, "unit": "bundle" }, "default_price": 65.97, "price_confidence": "observed", "sources": ["hdca-timbertex", "library-2026-10-12"] },
+        { "id": "lib-underlay-gaf-feltbuster", "template_item_id": "gaf_feltbuster", "role": "underlayment", "name": "FeltBuster Synthetic Underlayment", "unit": "roll", "coverage": { "sq_ft_gross": 1000, "squares_gross": 10 }, "typical_price_range": { "low": 100, "high": 130, "unit": "roll" }, "default_price": 119, "price_confidence": "observed", "sources": ["feltbuster-roll", "library-2026-10-12"] },
+        { "id": "lib-underlay-gaf-tiger-paw", "template_item_id": "gaf_tiger_paw", "role": "underlayment", "name": "Tiger Paw Premium Synthetic Underlayment", "unit": "roll", "coverage": { "sq_ft_gross": 1000, "squares_gross": 10 }, "coverage_confidence": "estimate", "typical_price_range": { "low": 170, "high": 210, "unit": "roll" }, "default_price": 195.6, "price_confidence": "observed", "sources": ["library-2026-10-12"] },
+        { "id": "lib-iws-gaf-weatherwatch", "template_item_id": "gaf_weatherwatch", "role": "ice_water", "name": "WeatherWatch Mineral-Surfaced Leak Barrier", "unit": "roll", "coverage": { "sq_ft_gross": 200, "width_in": 36, "length_ft": 66.7 }, "coverage_note": "Also sold as a 36 in x 50 ft (150 sq ft) roll; the price book template currently assumes the 1.5-square roll.", "typical_price_range": { "low": 80, "high": 100, "unit": "roll" }, "default_price": 89.97, "price_confidence": "observed", "sources": ["library-2026-10-12"] },
+        { "id": "lib-iws-gaf-stormguard", "template_item_id": null, "role": "ice_water", "name": "StormGuard Film-Surfaced Leak Barrier", "unit": "roll", "coverage": { "sq_ft_gross": 200, "width_in": 36, "length_ft": 66.7 }, "typical_price_range": { "low": 115, "high": 140, "unit": "roll" }, "default_price": 129, "price_confidence": "observed", "sources": ["a1-stormguard", "library-2026-10-12"] },
+        { "id": "lib-ridge-vent-cobra-rigid", "template_item_id": "ridge_vent", "role": "ridge_vent", "name": "Cobra Rigid Vent 3 (4 ft)", "unit": "pc", "coverage": { "lf": 4 }, "typical_price_range": { "low": 13, "high": 18, "unit": "pc" }, "default_price": 15, "price_confidence": "estimate", "sources": ["library-2026-10-12"] },
+        { "id": "lib-ridge-vent-cobra-roll", "template_item_id": null, "role": "ridge_vent", "name": "Cobra Exhaust Vent rolled ridge vent (20 ft)", "unit": "roll", "coverage": { "lf": 20 }, "typical_price_range": { "low": 60, "high": 96, "unit": "roll" }, "default_price": 65.97, "price_confidence": "observed", "sources": ["library-2026-10-12"] }
+      ],
+      "warranty_system": {
+        "summary": "GAF's enhanced warranties (System Plus, Silver Pledge, Golden Pledge) require a Lifetime shingle plus a minimum number of qualifying GAF accessories (starter, hip & ridge, leak barrier, roof deck protection, attic ventilation) and a GAF-certified installer. System Plus needs 3 qualifying accessories and a Certified, Certified Plus or Master Elite contractor; Golden Pledge needs more accessories (GAF documents say 4 or 5 depending on the chart) and a Master Elite contractor.",
+        "required_roles_for_enhanced": ["starter", "hip_ridge", "underlayment", "ice_water", "ridge_vent"],
+        "min_accessories": 3,
+        "sources": ["gaf-lrs-components", "gaf-warranty-compare"]
+      }
+    },
+    {
+      "id": "owens_corning",
+      "name": "Owens Corning",
+      "pricebook_manufacturer": "owens_corning",
+      "logo_hint": { "wordmark": "Owens Corning", "primary_color": "#E4007C", "note": "Pink brand colour (the Pink Panther is licensed; never use it). Text wordmark is safest." },
+      "square_coverage_sq_ft": 98.4,
+      "square_coverage_note": "Owens Corning laminates cover 98.4 sq ft per 3 bundles (32.8 sq ft per bundle), so a true 100 sq ft square needs 3.05 bundles. Use bundles = squares x 100 / coverage_sq_ft_per_bundle.",
+      "product_lines": [
+        { "id": "lib-shingle-oc-supreme", "template_item_id": null, "name": "Supreme", "tier": "3_tab", "impact_rating": "none", "bundles_per_square": 3, "coverage_sq_ft_per_bundle": 33.3, "manufacturer_code": "EK01", "typical_price_range": { "low": 32, "high": 43, "unit": "bundle" }, "default_price": 33, "price_confidence": "sourced_range", "price_note": "ASO Roofing Supply $32.00 to McCoy's $42.99 (2026-10-19 listings).", "sources": ["roofingbrief-oc-2026", "hd-supreme"] },
+        { "id": "lib-shingle-oc-oakridge", "template_item_id": null, "name": "TruDefinition Oakridge", "tier": "architectural", "impact_rating": "none", "bundles_per_square": 3, "coverage_sq_ft_per_bundle": 32.8, "pieces_per_square": 64, "manufacturer_code": "HL01", "typical_price_range": { "low": 29, "high": 46, "unit": "bundle" }, "default_price": 40, "price_confidence": "sourced_range", "price_note": "All Roofing Supply $29.00 to $45.03 (2026-10-19); Home Depot $45.97 (2026-10-12). Default sits between supply-house and retail.", "sources": ["roofingbrief-oc-2026", "library-2026-10-12", "lowes-oakridge"], "popular": true },
+        { "id": "lib-shingle-oc-duration", "template_item_id": "owens_duration", "name": "TruDefinition Duration", "tier": "architectural", "impact_rating": "none", "bundles_per_square": 3, "coverage_sq_ft_per_bundle": 32.8, "manufacturer_code": "TD01", "typical_price_range": { "low": 37, "high": 56, "unit": "bundle" }, "default_price": 43.47, "price_confidence": "observed", "price_note": "Suppliers $37.33-55.53, Lowe's $47.98 (2026-10-19); Home Depot $43.47 (2026-10-12).", "sources": ["roofingbrief-oc-2026", "library-2026-10-12"], "popular": true },
+        { "id": "lib-shingle-oc-duration-flex", "template_item_id": null, "name": "TruDefinition Duration FLEX", "tier": "impact_rated", "impact_rating": "UL 2218 Class 4", "bundles_per_square": 3, "coverage_sq_ft_per_bundle": 32.8, "pieces_per_square": 64, "typical_price_range": { "low": 38, "high": 46, "unit": "bundle" }, "default_price": 44, "price_confidence": "sourced_range", "price_note": "One 2026 review only; verify with a supplier.", "sources": ["oc-flex-yodify", "squaredash-duration-2026"] },
+        { "id": "lib-shingle-oc-duration-storm", "template_item_id": null, "name": "TruDefinition Duration STORM", "tier": "impact_rated", "impact_rating": "UL 2218 Class 4", "bundles_per_square": 3, "coverage_sq_ft_per_bundle": 32.8, "pieces_per_square": 64, "typical_price_range": { "low": 42, "high": 48, "unit": "bundle" }, "default_price": 46, "price_confidence": "sourced_range", "price_note": "One 2026 review only; verify with a supplier.", "sources": ["oc-storm-page", "squaredash-duration-2026"] }
+      ],
+      "accessories": [
+        { "id": "lib-starter-oc-starter-strip", "template_item_id": "starter", "role": "starter", "name": "Starter Strip Plus", "unit": "bundle", "coverage": { "lf": 105 }, "coverage_note": "Owens Corning page: 105 lf of actual coverage; an older data sheet says about 100 lf.", "manufacturer_code": "SSPL", "typical_price_range": { "low": 55, "high": 70, "unit": "bundle" }, "default_price": 62.47, "price_confidence": "observed", "sources": ["oc-starter-strip-plus", "library-2026-10-12"] },
+        { "id": "lib-ridge-oc-proedge", "template_item_id": "ridge_cap", "role": "hip_ridge", "name": "ProEdge Hip & Ridge", "unit": "bundle", "coverage": { "lf": 33 }, "manufacturer_code": "HPA01", "typical_price_range": { "low": 62, "high": 78, "unit": "bundle" }, "default_price": 70.97, "price_confidence": "observed", "sources": ["oc-flex-yodify", "library-2026-10-12"] },
+        { "id": "lib-ridge-oc-proedge-flex", "template_item_id": null, "role": "hip_ridge", "name": "ProEdge FLEX Hip & Ridge (for Duration FLEX)", "unit": "bundle", "coverage": { "lf": 33 }, "typical_price_range": { "low": 70, "high": 88, "unit": "bundle" }, "default_price": 78, "price_confidence": "estimate", "note": "Matching impact-rated hip & ridge is required for the Class 4 roof system warranty.", "sources": ["oc-flex-yodify", "oc-storm-page"] },
+        { "id": "lib-ridge-oc-duraridge", "template_item_id": null, "role": "hip_ridge", "name": "DuraRidge Hip & Ridge", "unit": "carton", "coverage": { "lf": 20 }, "typical_price_range": { "low": 70, "high": 88, "unit": "carton" }, "default_price": 78, "price_confidence": "estimate", "sources": ["oc-duraridge", "library-2026-10-12"] },
+        { "id": "lib-underlay-oc-proarmor", "template_item_id": null, "role": "underlayment", "name": "ProArmor Synthetic Underlayment", "unit": "roll", "coverage": { "sq_ft_gross": 1000, "squares_gross": 10 }, "coverage_confidence": "estimate", "typical_price_range": { "low": 125, "high": 150, "unit": "roll" }, "default_price": 139, "price_confidence": "observed", "sources": ["library-2026-10-12"] },
+        { "id": "lib-underlay-oc-rhinoroof", "template_item_id": null, "role": "underlayment", "name": "RhinoRoof U20 Synthetic Underlayment", "unit": "roll", "coverage": { "sq_ft_gross": 1000, "squares_gross": 10 }, "coverage_confidence": "estimate", "typical_price_range": { "low": 85, "high": 110, "unit": "roll" }, "default_price": 95, "price_confidence": "estimate", "sources": ["library-2026-10-12"] },
+        { "id": "lib-iws-oc-weatherlock-g", "template_item_id": "owens_weatherlock", "role": "ice_water", "name": "WeatherLock G Granulated Ice & Water Barrier", "unit": "roll", "coverage": { "sq_ft_gross": 200, "squares_gross": 2 }, "typical_price_range": { "low": 95, "high": 120, "unit": "roll" }, "default_price": 108, "price_confidence": "observed", "sources": ["library-2026-10-12"] },
+        { "id": "lib-ridge-vent-oc-ventsure", "template_item_id": "ridge_vent", "role": "ridge_vent", "name": "VentSure 4 ft Strip Heat & Moisture Ridge Vent", "unit": "pc", "coverage": { "lf": 4 }, "typical_price_range": { "low": 11, "high": 16, "unit": "pc" }, "default_price": 12.97, "price_confidence": "observed", "sources": ["library-2026-10-12"] }
+      ],
+      "warranty_system": {
+        "summary": "Owens Corning's Roofing System Limited Warranties (System Protection, Preferred Protection, Platinum Protection) require Owens Corning hip & ridge (not required on Supreme) plus a set number of the four component categories: starter, underlayment, ice & water barrier and VentSure ventilation (an intake and exhaust pair counts as one). Published versions differ on whether 2 or 3 of the 4 are needed; Preferred/Platinum also need an OC Preferred or Platinum contractor who registers within 60 days. New metal flashing and drip edge are required.",
+        "required_roles_for_enhanced": ["hip_ridge", "starter", "underlayment", "ice_water", "ridge_vent"],
+        "min_accessories": 3,
+        "min_accessories_note": "hip & ridge plus 2-3 of the four categories, depending on the warranty version",
+        "sources": ["oc-warranty-dms"]
+      }
+    },
+    {
+      "id": "malarkey",
+      "name": "Malarkey",
+      "pricebook_manufacturer": "malarkey",
+      "logo_hint": { "wordmark": "Malarkey", "primary_color": "#009A44", "note": "Green (PANTONE 347 C per Malarkey's own asset metadata). Malarkey marks its logo 'no reproduction without prior permission'; use a text wordmark." },
+      "square_coverage_sq_ft": 100,
+      "availability_note": "Distribution centres in Portland OR, South Gate CA and Oklahoma City OK; strongest in the West, Plains and Texas. Ask before assuming availability in the Northeast or Southeast.",
+      "product_lines": [
+        { "id": "lib-shingle-malarkey-highlander", "template_item_id": null, "name": "Highlander", "tier": "architectural", "impact_rating": "UL 2218 Class 3", "bundles_per_square": 3, "pieces_per_square": 66, "manufacturer_code": "241", "typical_price_range": { "low": 36, "high": 46, "unit": "bundle" }, "default_price": 40, "price_confidence": "estimate", "price_note": "Malarkey publishes no prices and no reliable 2026 listing was found; entry line estimated below Vista.", "sources": ["malarkey-highlander-tds", "roofingcalc-malarkey"] },
+        { "id": "lib-shingle-malarkey-vista", "template_item_id": "malarkey_vista", "name": "Vista", "tier": "impact_rated", "impact_rating": "UL 2218 Class 4", "bundles_per_square": 3, "pieces_per_square": 66, "manufacturer_code": "251", "typical_price_range": { "low": 40, "high": 52, "unit": "bundle" }, "default_price": 44, "price_confidence": "estimate", "price_note": "Library base cost (no observed listing).", "sources": ["malarkey-vista-tds", "library-2026-10-12"], "popular": true },
+        { "id": "lib-shingle-malarkey-legacy", "template_item_id": null, "name": "Legacy", "tier": "impact_rated", "impact_rating": "UL 2218 Class 4", "bundles_per_square": 4, "pieces_per_square": 64, "manufacturer_code": "272", "typical_price_range": { "low": 36, "high": 46, "unit": "bundle" }, "default_price": 40, "price_confidence": "estimate", "price_note": "4 bundles per square, so roughly $145-185 per square; estimated as Malarkey's premium laminate.", "sources": ["malarkey-legacy-tds", "roofingbrief-arch-2026"] },
+        { "id": "lib-shingle-malarkey-windsor", "template_item_id": null, "name": "Windsor", "tier": "designer", "impact_rating": "UL 2218 Class 4", "bundles_per_square": 5, "pieces_per_square": 65, "manufacturer_code": "285", "typical_price_range": { "low": 40, "high": 58, "unit": "bundle" }, "default_price": 48, "price_confidence": "estimate", "price_note": "Designer line; published material range $300-600 per square (2025) at 5 bundles per square. Needs Windsor Starter as well as Smart Start.", "sources": ["malarkey-windsor-tds", "roofingcalc-malarkey"] }
+      ],
+      "accessories": [
+        { "id": "lib-starter-malarkey-smart-start", "template_item_id": "starter", "role": "starter", "name": "Smart Start (210)", "unit": "bundle", "coverage": { "lf": 114.75 }, "typical_price_range": { "low": 50, "high": 66, "unit": "bundle" }, "default_price": 58, "price_confidence": "estimate", "sources": ["malarkey-secure-choice", "malarkey-smart-start-tds"] },
+        { "id": "lib-starter-malarkey-windsor", "template_item_id": null, "role": "starter_designer", "name": "Windsor Starter (212)", "unit": "bundle", "coverage": { "lf": 70 }, "coverage_confidence": "estimate", "note": "Required for Windsor in addition to Smart Start. Coverage read from the Secure Choice brochure layout; verify.", "typical_price_range": { "low": 50, "high": 70, "unit": "bundle" }, "default_price": 60, "price_confidence": "estimate", "sources": ["malarkey-secure-choice"] },
+        { "id": "lib-ridge-malarkey-ridgeflex-12", "template_item_id": "ridge_cap", "role": "hip_ridge", "name": "RidgeFlex 12 in (227)", "unit": "bundle", "coverage": { "lf": 30.9 }, "typical_price_range": { "low": 60, "high": 80, "unit": "bundle" }, "default_price": 70, "price_confidence": "estimate", "sources": ["malarkey-secure-choice", "sutherlands-ridgeflex"] },
+        { "id": "lib-ridge-malarkey-ridgeflex-10", "template_item_id": null, "role": "hip_ridge", "name": "RidgeFlex 10 in (225)", "unit": "bundle", "coverage": { "lf": 41.25 }, "typical_price_range": { "low": 60, "high": 80, "unit": "bundle" }, "default_price": 70, "price_confidence": "estimate", "sources": ["malarkey-secure-choice"] },
+        { "id": "lib-ridge-malarkey-ez-ridge", "template_item_id": null, "role": "hip_ridge", "name": "EZ-Ridge (222) high profile", "unit": "bundle", "coverage": { "lf": 20 }, "typical_price_range": { "low": 60, "high": 80, "unit": "bundle" }, "default_price": 70, "price_confidence": "estimate", "sources": ["malarkey-secure-choice"] },
+        { "id": "lib-underlay-malarkey-secure-start-plus", "template_item_id": null, "role": "underlayment", "name": "Secure Start Plus Synthetic (1031)", "unit": "roll", "coverage": { "sq_ft_gross": 1000, "squares_gross": 10, "width_in": 48, "length_ft": 250 }, "typical_price_range": { "low": 110, "high": 160, "unit": "roll" }, "default_price": 130, "price_confidence": "estimate", "sources": ["malarkey-secure-start-plus"] },
+        { "id": "lib-iws-malarkey-arctic-seal", "template_item_id": null, "role": "ice_water", "name": "Arctic Seal (401)", "unit": "roll", "coverage": { "sq_ft_gross": 195, "squares_gross": 2, "width_in": 36, "length_ft": 65 }, "typical_price_range": { "low": 85, "high": 120, "unit": "roll" }, "default_price": 100, "price_confidence": "estimate", "sources": ["malarkey-secure-choice", "malarkey-arctic-seal-tds"] },
+        { "id": "lib-iws-malarkey-secure-start-ht", "template_item_id": null, "role": "ice_water", "name": "Secure Start HT high-temperature (406)", "unit": "roll", "coverage": { "sq_ft_gross": 201, "squares_gross": 2, "width_in": 36, "length_ft": 67 }, "typical_price_range": { "low": 100, "high": 140, "unit": "roll" }, "default_price": 120, "price_confidence": "estimate", "sources": ["malarkey-secure-start-ht-tds"] }
+      ],
+      "ridge_vent_note": "Malarkey's Secure Choice system has five parts (ice & water, underlayment, starter, shingle, hip & ridge) and no Malarkey ridge vent; pair it with a third-party ridge vent such as Air Vent ShingleVent II (lib-ridge-vent-shinglevent-ii).",
+      "warranty_system": {
+        "summary": "Secure Choice: Malarkey ice & water barrier, underlayment, starter, field shingles and hip & ridge installed together qualify for enhanced coverage, including extended warranties offered through Malarkey Certified contractors. Vista's 110 mph wind warranty rises to 130 mph when combined with other Malarkey products.",
+        "required_roles_for_enhanced": ["ice_water", "underlayment", "starter", "hip_ridge"],
+        "min_accessories": 4,
+        "sources": ["malarkey-secure-choice", "malarkey-vista-tds"]
+      }
+    },
+    {
+      "id": "certainteed",
+      "name": "CertainTeed",
+      "aliases": ["Certainty", "Certain Teed"],
+      "pricebook_manufacturer": "certainteed",
+      "logo_hint": { "wordmark": "CertainTeed", "primary_color": "#004B87", "note": "Blue wordmark (approximate colour). Use a text wordmark." },
+      "square_coverage_sq_ft": 100,
+      "product_lines": [
+        { "id": "lib-shingle-ct-xt25", "template_item_id": null, "name": "XT 25", "tier": "3_tab", "impact_rating": "none", "bundles_per_square": 3, "bundles_per_square_confidence": "estimate", "typical_price_range": { "low": 30, "high": 40, "unit": "bundle" }, "default_price": 33, "price_confidence": "estimate", "price_note": "3-tab pricing tracks OC Supreme. Bundle count is the 3-tab norm, not read from a CertainTeed sheet.", "sources": ["fixr-certainteed"] },
+        { "id": "lib-shingle-ct-landmark", "template_item_id": null, "name": "Landmark", "tier": "architectural", "impact_rating": "none", "bundles_per_square": 3, "manufacturer_code": "622905", "typical_price_range": { "low": 37, "high": 47, "unit": "bundle" }, "default_price": 44.48, "price_confidence": "observed", "price_note": "$36.97-46.99 (2026-10-09 listings); Lowe's $44.48 (2026-10-12).", "sources": ["roofingbrief-arch-2026", "library-2026-10-12", "ringsend-landmark"], "popular": true },
+        { "id": "lib-shingle-ct-landmark-pro", "template_item_id": null, "name": "Landmark PRO", "tier": "premium_architectural", "impact_rating": "UL 2218 Class 3", "bundles_per_square": 3, "coverage_sq_ft_per_bundle": 32.8, "manufacturer_code": "412293", "typical_price_range": { "low": 42, "high": 54, "unit": "bundle" }, "default_price": 47, "price_confidence": "estimate", "sources": ["ct-landmark-pro", "roofingcalc-ct", "library-2026-10-12"] },
+        { "id": "lib-shingle-ct-climateflex", "template_item_id": null, "name": "Landmark ClimateFlex", "tier": "impact_rated", "impact_rating": "UL 2218 Class 4", "bundles_per_square": 3, "bundles_per_square_confidence": "estimate", "typical_price_range": { "low": 46, "high": 60, "unit": "bundle" }, "default_price": 52, "price_confidence": "estimate", "price_note": "No 2026 price found; SBS-modified Class 4 shingles run about 15-30% over the standard laminate.", "sources": ["ct-climateflex"] },
+        { "id": "lib-shingle-ct-presidential-shake", "template_item_id": "ct_presidential_shake", "name": "Presidential Shake", "tier": "designer", "impact_rating": "UL 2218 Class 3", "bundles_per_square": 5, "bundles_per_square_confidence": "estimate", "pieces_per_square": 90, "typical_price_range": { "low": 55, "high": 75, "unit": "bundle" }, "default_price": 62, "price_confidence": "estimate", "price_note": "90 shingles per square per CertainTeed data sheet; 5 bundles per square from a retailer listing of the same-format Presidential line and the existing template. Needs a coloured starter.", "sources": ["ct-presidential-tds", "ct-presidential", "roofvista-presidential"] }
+      ],
+      "accessories": [
+        { "id": "lib-starter-ct-swiftstart", "template_item_id": "starter", "role": "starter", "name": "SwiftStart", "unit": "bundle", "coverage": { "lf": 116 }, "manufacturer_code": "411891", "typical_price_range": { "low": 55, "high": 68, "unit": "bundle" }, "default_price": 62.47, "price_confidence": "observed", "note": "CertainTeed: required to obtain enhanced warranties; required at eaves and rakes for the Landmark 130 mph wind upgrade.", "sources": ["ct-swiftstart", "library-2026-10-12"] },
+        { "id": "lib-ridge-ct-shadow-ridge", "template_item_id": "ridge_cap", "role": "hip_ridge", "name": "Shadow Ridge", "unit": "bundle", "coverage": { "lf": 30 }, "coverage_note": "30 lf for the English (12 x 36 in) bundle; the metric (13.25 x 39.4 in) bundle is listed at 45 lf by one reseller. Check which one the supplier stocks.", "manufacturer_code": "621958", "typical_price_range": { "low": 55, "high": 70, "unit": "bundle" }, "default_price": 62, "price_confidence": "estimate", "sources": ["arlcoal-shadow-ridge", "library-2026-10-12"] },
+        { "id": "lib-underlay-ct-roofrunner", "template_item_id": null, "role": "underlayment", "name": "RoofRunner Synthetic Underlayment", "unit": "roll", "coverage": { "sq_ft_gross": 1000, "sq_ft_net": 937.5, "squares_gross": 10 }, "typical_price_range": { "low": 140, "high": 165, "unit": "roll" }, "default_price": 159.72, "price_confidence": "observed", "sources": ["ct-roofrunner-tds", "library-2026-10-12"] },
+        { "id": "lib-underlay-ct-diamonddeck", "template_item_id": null, "role": "underlayment", "name": "DiamondDeck Synthetic Underlayment", "unit": "roll", "coverage": { "sq_ft_gross": 1000, "sq_ft_net": 937.5, "squares_gross": 10 }, "typical_price_range": { "low": 160, "high": 200, "unit": "roll" }, "default_price": 175, "price_confidence": "estimate", "sources": ["ct-diamonddeck-tds"] },
+        { "id": "lib-iws-ct-winterguard", "template_item_id": null, "role": "ice_water", "name": "WinterGuard (Sand or Granular)", "unit": "roll", "coverage": { "sq_ft_gross": 195, "width_in": 36, "length_ft": 65 }, "typical_price_range": { "low": 85, "high": 110, "unit": "roll" }, "default_price": 87.97, "price_confidence": "observed", "sources": ["ct-winterguard-brochure", "library-2026-10-12"] },
+        { "id": "lib-ridge-vent-shinglevent-ii", "template_item_id": "ridge_vent", "role": "ridge_vent", "name": "Air Vent ShingleVent II (4 ft)", "unit": "pc", "coverage": { "lf": 4 }, "typical_price_range": { "low": 11, "high": 16, "unit": "pc" }, "default_price": 11.28, "price_confidence": "observed", "note": "Air Vent is CertainTeed's ventilation brand; CertainTeed also sells its own Ridge Vent and rolled ridge vent.", "sources": ["library-2026-10-12", "ct-components"] }
+      ],
+      "warranty_system": {
+        "summary": "SureStart PLUS (3-Star, 4-Star, 5-Star) is offered on an Integrity Roof System (CertainTeed shingles with CertainTeed underlayment, starter, hip & ridge and ventilation) installed by a CertainTeed credentialed contractor. SwiftStart is stated as required for enhanced warranties, and CertainTeed starter plus hip & ridge are required for wind-warranty upgrades. The exact component count was not found in a current public document.",
+        "required_roles_for_enhanced": ["starter", "hip_ridge", "underlayment", "ice_water", "ridge_vent"],
+        "min_accessories": null,
+        "sources": ["ct-components", "ct-surestart", "ct-swiftstart"]
+      }
+    }
+  ],
+  "generic_items": [
+    { "id": "lib-drip-edge-alum-white", "template_item_id": "drip_edge", "name": "Aluminum drip edge, 10 ft (Style D / F5)", "category": "flashing", "unit": "pc", "order_size": { "lf": 10 }, "typical_price_range": { "low": 8, "high": 15, "unit": "pc" }, "default_price": 8.87, "price_confidence": "observed", "rule_id": "drip_edge", "sources": ["library-2026-10-12"] },
+    { "id": "lib-drip-edge-galv", "template_item_id": "drip_edge", "name": "Galvanized steel drip edge, 10 ft", "category": "flashing", "unit": "pc", "order_size": { "lf": 10 }, "typical_price_range": { "low": 10, "high": 18, "unit": "pc" }, "default_price": 14.58, "price_confidence": "observed", "rule_id": "drip_edge", "sources": ["library-2026-10-12"] },
+    { "id": "lib-pipe-boot-1.5-3", "template_item_id": null, "name": "Pipe boot 1-1/2 to 3 in (neoprene)", "category": "penetrations", "unit": "ea", "typical_price_range": { "low": 9, "high": 15, "unit": "ea" }, "default_price": 9.85, "price_confidence": "observed", "rule_id": "pipe_boots", "sources": ["library-2026-10-12"] },
+    { "id": "lib-pipe-boot-3-4", "template_item_id": null, "name": "Pipe boot 3 to 4 in (neoprene)", "category": "penetrations", "unit": "ea", "typical_price_range": { "low": 11, "high": 18, "unit": "ea" }, "default_price": 13, "price_confidence": "estimate", "rule_id": "pipe_boots", "sources": ["library-2026-10-12"] },
+    { "id": "lib-pipe-boot-perma", "template_item_id": "pipe_boot_lifetime", "name": "Lifetime pipe boot (silicone / Perma-Boot style)", "category": "penetrations", "unit": "ea", "typical_price_range": { "low": 25, "high": 45, "unit": "ea" }, "default_price": 27.67, "price_confidence": "observed", "rule_id": "pipe_boots", "sources": ["library-2026-10-12"] },
+    { "id": "lib-step-flashing", "template_item_id": "step_flashing", "name": "Step flashing 5 x 7 in, bundle of 100", "category": "flashing", "unit": "bundle", "order_size": { "pieces": 100 }, "typical_price_range": { "low": 40, "high": 65, "unit": "bundle" }, "default_price": 55, "price_confidence": "estimate", "rule_id": "step_flashing", "sources": ["library-2026-10-12"] },
+    { "id": "lib-counter-flashing", "template_item_id": "headwall_flashing", "name": "Counter / head wall flashing, 10 ft", "category": "flashing", "unit": "pc", "order_size": { "lf": 10 }, "typical_price_range": { "low": 12, "high": 25, "unit": "pc" }, "default_price": 18, "price_confidence": "estimate", "rule_id": "headwall_flashing", "sources": ["library-2026-10-12"] },
+    { "id": "lib-valley-w-galv", "template_item_id": "valley_metal", "name": "W-valley metal 20 in x 10 ft (optional, open valleys)", "category": "flashing", "unit": "pc", "order_size": { "lf": 10 }, "typical_price_range": { "low": 25, "high": 40, "unit": "pc" }, "default_price": 32, "price_confidence": "estimate", "optional": true, "rule_id": "valley_metal", "sources": ["library-2026-10-12"] },
+    { "id": "lib-roll-valley-galv-20", "template_item_id": "valley_metal", "name": "Galvanized roll valley 20 in x 50 ft (optional)", "category": "flashing", "unit": "roll", "order_size": { "lf": 50 }, "typical_price_range": { "low": 65, "high": 95, "unit": "roll" }, "default_price": 69.92, "price_confidence": "observed", "optional": true, "rule_id": "valley_metal", "sources": ["library-2026-10-12"] },
+    { "id": "lib-coil-nails-1.25", "template_item_id": null, "name": "Coil roofing nails 1-1/4 in, 7,200 per box", "category": "fasteners", "unit": "box", "order_size": { "nails": 7200 }, "typical_price_range": { "low": 45, "high": 65, "unit": "box" }, "default_price": 49.98, "price_confidence": "observed", "rule_id": "roofing_nails", "sources": ["library-2026-10-12", "dewalt-coil-nails"] },
+    { "id": "lib-cap-nails-1", "template_item_id": null, "name": "Plastic cap nails 1 in (about 3,000 per pail)", "category": "fasteners", "unit": "pail", "order_size": { "nails": 3000 }, "typical_price_range": { "low": 35, "high": 55, "unit": "pail" }, "default_price": 39, "price_confidence": "observed", "rule_id": "cap_nails", "sources": ["library-2026-10-12"] },
+    { "id": "lib-sealant-roof-cement-tube", "template_item_id": "sealant_misc", "name": "Roof sealant 10 oz tube", "category": "sealants", "unit": "tube", "typical_price_range": { "low": 5, "high": 12, "unit": "tube" }, "default_price": 4.97, "price_confidence": "observed", "rule_id": "sealant", "sources": ["library-2026-10-12"] },
+    { "id": "lib-sealant-geocel-2300", "template_item_id": "sealant_misc", "name": "Geocel 2300 tripolymer sealant 10.3 oz", "category": "sealants", "unit": "tube", "typical_price_range": { "low": 8, "high": 12, "unit": "tube" }, "default_price": 9.5, "price_confidence": "estimate", "rule_id": "sealant", "sources": ["library-2026-10-12"] },
+    { "id": "lib-osb-7-16", "template_item_id": null, "name": "OSB sheathing 7/16 in 4 x 8 (decking allowance)", "category": "decking", "unit": "sheet", "typical_price_range": { "low": 12, "high": 20, "unit": "sheet" }, "default_price": 13.98, "price_confidence": "observed", "rule_id": "decking_allowance", "sources": ["library-2026-10-12"] },
+    { "id": "lib-plywood-cdx-1-2", "template_item_id": null, "name": "CDX plywood 1/2 in 4 x 8 (decking allowance)", "category": "decking", "unit": "sheet", "typical_price_range": { "low": 25, "high": 40, "unit": "sheet" }, "default_price": 27.7, "price_confidence": "observed", "rule_id": "decking_allowance", "sources": ["library-2026-10-12"] },
+    { "id": "lib-underlay-synthetic-generic", "template_item_id": "underlayment", "name": "Generic synthetic underlayment, 10 square roll", "category": "underlayment", "unit": "roll", "order_size": { "squares_gross": 10 }, "typical_price_range": { "low": 80, "high": 130, "unit": "roll" }, "default_price": 95, "price_confidence": "estimate", "rule_id": "underlayment", "note": "For roofers who do not buy branded underlayment; based on RhinoRoof / FeltBuster pricing.", "sources": ["library-2026-10-12"] }
+  ],
+  "labor_items": [
+    { "id": "labor-tearoff-layer1", "template_item_id": "tearoff", "name": "Tear-off, first layer (asphalt)", "unit": "sq", "typical_price_range": { "low": 100, "high": 150, "unit": "sq" }, "default_price": 125, "price_confidence": "sourced_range", "price_note": "Cost guides quote $100-150 per square for one layer plus disposal; some quote up to $300. Insurance (Xactimate) labor-only lines run lower, about $48-72.", "rule_id": "tear_off", "sources": ["roofingbrief-tearoff-2026", "homeguide-replacement", "nrd-tearoff"] },
+    { "id": "labor-tearoff-extra-layer", "template_item_id": null, "name": "Tear-off, each additional layer", "unit": "sq", "typical_price_range": { "low": 50, "high": 125, "unit": "sq" }, "default_price": 75, "price_confidence": "sourced_range", "rule_id": "tear_off_extra_layers", "sources": ["nrd-tearoff"] },
+    { "id": "labor-install-shingles", "template_item_id": null, "name": "Install shingles (labor)", "unit": "sq", "typical_price_range": { "low": 150, "high": 300, "unit": "sq" }, "default_price": 200, "price_confidence": "sourced_range", "price_note": "Guides converge on $150-300 per square with a national midpoint near $200; a 2026 worked example used $185 (Atlanta).", "rule_id": "install_labor", "sources": ["estimationpro-labor", "squaredash-labor", "roofingbrief-tearoff-2026"] },
+    { "id": "labor-steep-7-8", "template_item_id": "steep_slope", "name": "Steep charge, 7/12 and 8/12", "unit": "sq", "typical_price_range": { "low": 25, "high": 70, "unit": "sq" }, "default_price": 40, "price_confidence": "estimate", "price_note": "Published adders range $25-75 per square or 15-25% of labor from 8/12; one 2025 Xactimate sample works out near $66 per square for 7/12-9/12.", "rule_id": "steep_7_8", "sources": ["nedes-xactimate", "calcsummit-roofing"] },
+    { "id": "labor-steep-9-12", "template_item_id": "steep_slope", "name": "Steep charge, 9/12 to 12/12", "unit": "sq", "typical_price_range": { "low": 50, "high": 110, "unit": "sq" }, "default_price": 75, "price_confidence": "estimate", "price_note": "Labor +35% at 10/12 and +50% at 12/12 (RSMeans-based calculator); the 2025 Xactimate sample works out near $104 per square for 10/12-12/12.", "rule_id": "steep_9_12", "sources": ["nedes-xactimate", "calcsummit-roofing"] },
+    { "id": "labor-steep-13-plus", "template_item_id": null, "name": "Steep charge, steeper than 12/12", "unit": "sq", "typical_price_range": { "low": 90, "high": 160, "unit": "sq" }, "default_price": 120, "price_confidence": "estimate", "price_note": "No published per-square figure found; extrapolated from the 12/12 adders. Often priced per job.", "rule_id": "steep_13_plus", "sources": ["calcsummit-roofing"] },
+    { "id": "labor-high-roof", "template_item_id": null, "name": "High roof charge (2 stories or more)", "unit": "sq", "typical_price_range": { "low": 20, "high": 40, "unit": "sq" }, "default_price": 30, "price_confidence": "estimate", "price_note": "A 2025 Xactimate sample works out near $29 per square.", "rule_id": "high_roof", "sources": ["nedes-xactimate", "symbility-sample"] },
+    { "id": "labor-hand-carry", "template_item_id": null, "name": "Hand-carry charge (no direct roof loading)", "unit": "sq", "typical_price_range": { "low": 20, "high": 50, "unit": "sq" }, "default_price": 30, "price_confidence": "estimate", "rule_id": "hand_carry", "sources": [] },
+    { "id": "labor-decking-sheet", "template_item_id": null, "name": "Replace decking, per 4 x 8 sheet (material and labor)", "unit": "sheet", "typical_price_range": { "low": 50, "high": 100, "unit": "sheet" }, "default_price": 75, "price_confidence": "sourced_range", "rule_id": "decking_allowance", "sources": ["roofingbrief-tearoff-2026", "homeguide-replacement"] },
+    { "id": "service-dumpster-20yd", "template_item_id": null, "name": "Dumpster / disposal, 20-yard roll-off", "unit": "ea", "typical_price_range": { "low": 280, "high": 700, "unit": "ea" }, "default_price": 450, "price_confidence": "sourced_range", "price_note": "20-yard $280-699 per week; 10-yard $220-580. Landfill fees vary by state.", "rule_id": "dumpster", "sources": ["roofingbrief-tearoff-2026"] },
+    { "id": "service-permit", "template_item_id": null, "name": "Building permit", "unit": "job", "typical_price_range": { "low": 100, "high": 500, "unit": "job" }, "default_price": 250, "price_confidence": "sourced_range", "price_note": "Set per jurisdiction; many permits are a percentage of job value.", "rule_id": "permit", "sources": ["roofingbrief-tearoff-2026", "homeguide-replacement"] }
+  ],
+  "estimating_rules": [
+    {
+      "id": "shingle_squares", "order": 1, "show_in_setup": true, "group": "basics",
+      "label": "Squares that get shingles",
+      "explanation": "A square is 100 square feet of roof. Shingles are not allowed on roof that is nearly flat (2/12 or lower), so those squares are left out and priced as a flat roof.",
+      "formula": "roofSquares - flatRoofSquares", "pricebook_formula": "roofSquares - flatRoofSquares", "include_waste": false, "unit": "sq",
+      "measurements": ["roofSquares", "flatRoofSquares"],
+      "note": "The price book template uses a key named shingleSquares, which is not in the measurement dictionary; this expression is the dictionary equivalent.",
+      "sources": ["malarkey-vista-tds"]
+    },
+    {
+      "id": "waste", "order": 2, "show_in_setup": true, "group": "basics",
+      "label": "Waste",
+      "explanation": "Shingles get cut at every hip, valley and edge, so you buy more than the roof's area. A simple gable roof needs about 10% extra; a hip roof about 15%; a cut-up roof with many valleys and dormers 18-20%.",
+      "formula": "wastePercent", "unit": "%",
+      "parameters": [ { "key": "wastePercent", "default": 12, "options": [ { "label": "Simple gable", "value": 10 }, { "label": "Some hips or valleys", "value": 12 }, { "label": "Hip roof", "value": 15 }, { "label": "Complex", "value": 20 } ] } ],
+      "complexity_hint": { "formula": "(hipsLf + valleyLf) / roofSquares", "unit": "lf per square", "bands": [ { "below": 4, "suggest": 10 }, { "below": 10, "suggest": 12 }, { "below": 16, "suggest": 15 }, { "below": null, "suggest": 20 } ], "confidence": "estimate", "note": "Our heuristic for suggesting a waste figure from the measurements; not a published rule. Applies only to the field shingles, never to starter, ridge cap or flashing." },
+      "sources": ["finehomebuilding-estimate", "simpledecision-waste"]
+    },
+    {
+      "id": "field_shingles", "order": 3, "show_in_setup": true, "group": "shingles",
+      "label": "Shingle bundles",
+      "explanation": "Most shingles come 3 bundles to a square. Heavier designer shingles come 4 or 5 to a square. We take the shingle squares, add waste, and multiply by the bundles per square of the shingle you picked.",
+      "formula": "(roofSquares - flatRoofSquares) * (1 + wastePercent / 100) * bundles_per_square",
+      "pricebook_formula": "roofSquares - flatRoofSquares", "include_waste": true, "unit": "sq", "order_unit": "bundle",
+      "order_packaging": { "packages_per_unit": "product_line.bundles_per_square (or 100 / coverage_sq_ft_per_bundle when given)" },
+      "worked_example": "25 shingle squares, 12% waste, 3 bundles per square: 25 x 1.12 x 3 = 84 bundles.",
+      "measurements": ["roofSquares", "flatRoofSquares"],
+      "sources": ["gaf-hdz-spec", "malarkey-legacy-tds", "malarkey-windsor-tds", "oc-flex-yodify"]
+    },
+    {
+      "id": "starter", "order": 4, "show_in_setup": true, "group": "shingles",
+      "label": "Starter strip",
+      "explanation": "Starter strip is the first row along the bottom edges (eaves) and the sloped side edges (rakes). It seals the first course down so wind can't lift it. Manufacturers want it on both edges for their higher wind warranties.",
+      "formula": "eavesLf + rakesLf", "pricebook_formula": "eavesLf + rakesLf", "include_waste": false, "unit": "lf", "order_unit": "bundle",
+      "order_packaging": { "units_per_package": "accessory.coverage.lf (GAF 120, OC 105, Malarkey 114.75, CertainTeed 116)" },
+      "worked_example": "150 ft of eaves + 90 ft of rakes = 240 lf; with GAF Pro-Start at 120 lf a bundle that is 2 bundles.",
+      "measurements": ["eavesLf", "rakesLf"],
+      "sources": ["gaf-prostart-page", "oc-starter-strip-plus", "ct-swiftstart", "malarkey-secure-choice"]
+    },
+    {
+      "id": "hip_ridge", "order": 5, "show_in_setup": true, "group": "shingles",
+      "label": "Hip and ridge cap",
+      "explanation": "The peaks (ridges) and the sloped corners (hips) are covered with special cap shingles. Add the ridge and hip lengths and divide by how many feet one bundle covers.",
+      "formula": "ridgesLf + hipsLf", "pricebook_formula": "ridgesLf + hipsLf", "include_waste": false, "unit": "lf", "order_unit": "bundle",
+      "order_packaging": { "units_per_package": "accessory.coverage.lf (Seal-A-Ridge 25, TimberTex 20, ProEdge 33, RidgeFlex 12 in 30.9, Shadow Ridge 30)" },
+      "measurements": ["ridgesLf", "hipsLf"],
+      "sources": ["lowes-seal-a-ridge", "oc-flex-yodify", "malarkey-secure-choice", "arlcoal-shadow-ridge"]
+    },
+    {
+      "id": "ice_water", "order": 6, "show_in_setup": true, "group": "underlayment",
+      "label": "Ice and water barrier",
+      "explanation": "A sticky waterproof membrane goes where water and ice back up: along the eaves, down every valley, and over any low-slope section (2/12 to 4/12). In cold climates building code wants it from the eave to 24 inches inside the wall, which usually means two 3-foot rows; in warm climates one row or none.",
+      "formula": "(eavesLf * iceBarrierEaveWidthFt + valleyLf * 3) / 100 + pitch2to4Squares",
+      "pricebook_formula": "(eavesLf * 6 + valleyLf * 3) / 100 + pitch2to4Squares", "include_waste": false, "unit": "sq", "order_unit": "roll",
+      "order_packaging": { "units_per_package": "accessory.coverage.sq_ft_gross / 100, about 1.85 net squares for a 200 sq ft roll after laps (estimate)" },
+      "parameters": [ { "key": "iceBarrierEaveWidthFt", "default": 6, "options": [ { "label": "Two rows (cold climate)", "value": 6 }, { "label": "One row", "value": 3 }, { "label": "Valleys only", "value": 0 } ] } ],
+      "note": "The price book template's current LEAK_BARRIER_FORMULA counts one foot per lf of eaves, rakes and valleys ((valleyLf + eavesLf + rakesLf) / 100 + pitch2to4Squares); that understates eave coverage and adds rakes, which most roofers do not cover. Side walls and chimneys may also get a strip; add them per company practice.",
+      "measurements": ["eavesLf", "valleyLf", "pitch2to4Squares"],
+      "sources": ["irc-r905-1-2", "finehomebuilding-ice", "malarkey-vista-tds"]
+    },
+    {
+      "id": "underlayment", "order": 7, "show_in_setup": true, "group": "underlayment",
+      "label": "Underlayment",
+      "explanation": "Synthetic underlayment covers the whole deck under the shingles. A roll covers 10 squares before overlaps; after overlaps, plan on about 9.4 squares a roll.",
+      "formula": "roofSquares - flatRoofSquares", "pricebook_formula": "roofSquares - flatRoofSquares", "include_waste": false, "unit": "sq", "order_unit": "roll",
+      "order_packaging": { "units_per_package": 9.375, "note": "CertainTeed publishes 937.5 sq ft net per 1,000 sq ft roll; use the same for other 10-square rolls unless the manufacturer says otherwise. Many roofers do not subtract the area under ice & water; keeping it is conservative." },
+      "measurements": ["roofSquares", "flatRoofSquares"],
+      "sources": ["ct-roofrunner-tds", "feltbuster-roll", "malarkey-secure-start-plus"]
+    },
+    {
+      "id": "drip_edge", "order": 8, "show_in_setup": true, "group": "metal",
+      "label": "Drip edge",
+      "explanation": "Metal edge trim goes along the eaves and rakes so water drips clear of the fascia. It comes in 10-foot pieces; we add 5% for overlaps and cuts.",
+      "formula": "(eavesLf + rakesLf) * 1.05", "pricebook_formula": "(eavesLf + rakesLf) * 1.05", "include_waste": false, "unit": "lf", "order_unit": "pc",
+      "order_packaging": { "units_per_package": 10 },
+      "confidence": "estimate (the 5% allowance)",
+      "measurements": ["eavesLf", "rakesLf"],
+      "sources": ["roofingbrief-tearoff-2026"]
+    },
+    {
+      "id": "ridge_vent", "order": 9, "show_in_setup": true, "group": "ventilation",
+      "label": "Ridge vent",
+      "explanation": "If the house is vented at the ridge, vent runs along the ridges (not the hips). Ridge cap goes over it. Most vents come in 4-foot pieces.",
+      "formula": "ridgesLf", "pricebook_formula": "ridgesLf", "include_waste": false, "unit": "lf", "order_unit": "pc",
+      "order_packaging": { "units_per_package": 4 },
+      "note": "Vent usually stops short of each ridge end; ventilation sizing (1 sq ft of net free area per 150 or 300 sq ft of attic) is a separate check that needs attic area, which the dictionary does not carry (ventilationSquares is the nearest key).",
+      "measurements": ["ridgesLf"],
+      "sources": ["library-2026-10-12"]
+    },
+    {
+      "id": "step_flashing", "order": 10, "show_in_setup": true, "group": "metal",
+      "label": "Step flashing",
+      "explanation": "Where a roof runs up beside a wall or chimney, one bent metal piece goes under every row of shingles. Rows are about 5 to 5-5/8 inches apart, so it is a little over 2 pieces per foot of wall.",
+      "formula": "(sideWallLf + chimneyStepLf) * 12 / 5.625", "pricebook_formula": "(sideWallLf + chimneyStepLf) * 12 / 5.625", "include_waste": false, "unit": "ea", "order_unit": "bundle",
+      "order_packaging": { "units_per_package": 100 },
+      "note": "The template prices step flashing per lf of sideWallLf; this expresses pieces. 5.625 in is the exposure of the laminates above (use 5 for 3-tab).",
+      "measurements": ["sideWallLf", "chimneyStepLf"],
+      "sources": ["gaf-as2-page", "malarkey-vista-tds"]
+    },
+    {
+      "id": "headwall_flashing", "order": 11, "show_in_setup": false, "group": "metal",
+      "label": "Head wall and apron flashing",
+      "explanation": "Where the roof runs into a wall across its top, or along the low side of a chimney, a continuous metal flashing is bent in. Sold in 10-foot pieces.",
+      "formula": "(headWallLf + chimneyApronLf) * 1.05", "pricebook_formula": "(headWallLf + chimneyApronLf) * 1.05", "include_waste": false, "unit": "lf", "order_unit": "pc",
+      "order_packaging": { "units_per_package": 10 },
+      "confidence": "estimate (the 5% allowance)",
+      "measurements": ["headWallLf", "chimneyApronLf"],
+      "sources": []
+    },
+    {
+      "id": "valley_metal", "order": 12, "show_in_setup": false, "group": "metal", "optional": true,
+      "label": "Valley metal (open valleys only)",
+      "explanation": "Some roofers line valleys with metal instead of weaving or cutting shingles. Only add it if you build open valleys.",
+      "formula": "valleyLf * 1.05", "pricebook_formula": "valleyLf * 1.05", "include_waste": false, "unit": "lf", "order_unit": "pc",
+      "order_packaging": { "units_per_package": 10 },
+      "measurements": ["valleyLf"],
+      "sources": []
+    },
+    {
+      "id": "roofing_nails", "order": 13, "show_in_setup": false, "group": "fasteners",
+      "label": "Coil roofing nails",
+      "explanation": "A laminate shingle takes 4 nails (6 in high-wind areas or steep roofs), about 64-66 shingles a square, plus starter and ridge cap. That is roughly 320 nails a square with 4 nails, 450 with 6. A box of 7,200 does about 20 squares, or 15 with 6 nails.",
+      "formula": "(roofSquares - flatRoofSquares) * (1 + wastePercent / 100) * nails_per_square / 7200",
+      "pricebook_formula": "roofSquares - flatRoofSquares", "include_waste": true, "unit": "sq", "order_unit": "box",
+      "order_packaging": { "units_per_package": 22.5, "note": "squares per 7,200 box at 320 nails per square; use 16 for six-nail installs" },
+      "parameters": [ { "key": "nails_per_square", "default": 320, "options": [ { "label": "4 nails per shingle", "value": 320 }, { "label": "6 nails per shingle", "value": 450 } ] } ],
+      "confidence": "estimate (the allowance for starter and ridge nails)",
+      "measurements": ["roofSquares", "flatRoofSquares"],
+      "sources": ["gaf-as2-page", "dewalt-coil-nails"]
+    },
+    {
+      "id": "cap_nails", "order": 14, "show_in_setup": false, "group": "fasteners",
+      "label": "Cap nails for underlayment",
+      "explanation": "Synthetic underlayment is held down with plastic-cap nails. Plan on one pail for about every 10 squares.",
+      "formula": "(roofSquares - flatRoofSquares) / 10", "pricebook_formula": "(roofSquares - flatRoofSquares) / 10", "include_waste": false, "unit": "ea", "order_unit": "pail",
+      "confidence": "estimate", "measurements": ["roofSquares", "flatRoofSquares"], "sources": []
+    },
+    {
+      "id": "sealant", "order": 15, "show_in_setup": false, "group": "fasteners",
+      "label": "Sealant",
+      "explanation": "Tubes of sealant for flashings, vents and ridge ends. Roughly one tube for every 8 squares plus one per pipe boot.",
+      "formula": "roofSquares / 8 + pipeBootsEa", "pricebook_formula": "roofSquares / 8", "include_waste": false, "unit": "ea", "order_unit": "tube",
+      "confidence": "estimate", "measurements": ["roofSquares"], "inputs": ["pipeBootsEa"], "sources": []
+    },
+    {
+      "id": "pipe_boots", "order": 16, "show_in_setup": true, "group": "penetrations",
+      "label": "Pipe boots",
+      "explanation": "Every plumbing vent pipe through the roof gets a new rubber boot. Count them on the roof report.",
+      "formula": "pipeBootsEa", "pricebook_formula": null, "include_waste": false, "unit": "ea",
+      "note": "Gap: pipe boot count is not a measurement dictionary key, so it cannot be a price book formula token yet. Add a dictionary definition (e.g. roof.pipe_boot_count) before wiring this.",
+      "inputs": ["pipeBootsEa"], "sources": []
+    },
+    {
+      "id": "decking_allowance", "order": 17, "show_in_setup": true, "group": "decking",
+      "label": "Decking replacement allowance",
+      "explanation": "You can't see rotten decking until the old roof is off. Most contracts include a few sheets and charge per sheet after that.",
+      "formula": "deckingSheets", "pricebook_formula": null, "include_waste": false, "unit": "sheet",
+      "inputs": ["deckingSheets"], "sources": ["roofingbrief-tearoff-2026"]
+    },
+    {
+      "id": "tear_off", "order": 18, "show_in_setup": true, "group": "labor",
+      "label": "Tear-off",
+      "explanation": "Removing the old roof is charged on the whole roof area, one layer at a time.",
+      "formula": "roofSquares", "pricebook_formula": "roofSquares", "include_waste": false, "unit": "sq",
+      "measurements": ["roofSquares"], "sources": ["roofingbrief-tearoff-2026"]
+    },
+    {
+      "id": "tear_off_extra_layers", "order": 19, "show_in_setup": false, "group": "labor",
+      "label": "Extra layers",
+      "explanation": "Each extra layer of old shingles under the top one adds more work and more weight to haul away.",
+      "formula": "roofSquares * (tearOffLayers - 1)", "pricebook_formula": null, "include_waste": false, "unit": "sq",
+      "measurements": ["roofSquares"], "inputs": ["tearOffLayers"], "sources": ["nrd-tearoff"]
+    },
+    {
+      "id": "install_labor", "order": 20, "show_in_setup": true, "group": "labor",
+      "label": "Install labor",
+      "explanation": "Labor is charged on the roof's real area, without waste. Steeper roofs add a charge on the steep squares only.",
+      "formula": "roofSquares - flatRoofSquares", "pricebook_formula": "roofSquares - flatRoofSquares", "include_waste": false, "unit": "sq",
+      "measurements": ["roofSquares", "flatRoofSquares"], "sources": ["estimationpro-labor"]
+    },
+    {
+      "id": "steep_7_8", "order": 21, "show_in_setup": true, "group": "labor",
+      "label": "Steep charge: 7/12 and 8/12",
+      "explanation": "At 7/12 and 8/12 roofers need roof jacks and harnesses and move slower. Charged on those squares only.",
+      "formula": "pitch6to8Squares", "pricebook_formula": "pitch6to8Squares", "include_waste": false, "unit": "sq",
+      "note": "The dictionary band is 'over 6/12 up to 8/12', i.e. 7/12 and 8/12 (and fractional pitches between). A company that starts steep charges at 8/12 can use pitch8Squares (exact pitch key) instead.",
+      "measurements": ["pitch6to8Squares"], "sources": ["nedes-xactimate", "calcsummit-roofing"]
+    },
+    {
+      "id": "steep_9_12", "order": 22, "show_in_setup": true, "group": "labor",
+      "label": "Steep charge: 9/12 to 12/12",
+      "explanation": "Above 8/12 you can't walk the roof; everything is done from roof jacks. Charged on those squares only.",
+      "formula": "pitch9to12Squares", "pricebook_formula": "pitch9to12Squares", "include_waste": false, "unit": "sq",
+      "note": "Xactimate splits steep charges at 7-9/12 and 10-12/12; the dictionary bands split at 8/12. Exact pitch keys (pitch9Squares, pitch10Squares, ...) can rebuild Xactimate tiers if a company needs them.",
+      "measurements": ["pitch9to12Squares"], "sources": ["nedes-xactimate", "calcsummit-roofing"]
+    },
+    {
+      "id": "steep_13_plus", "order": 23, "show_in_setup": true, "group": "labor",
+      "label": "Steep charge: steeper than 12/12",
+      "explanation": "Very steep sections (mansards, towers) are slow, careful work. Charged on those squares only.",
+      "formula": "pitch13PlusSquares", "pricebook_formula": "pitch13PlusSquares", "include_waste": false, "unit": "sq",
+      "measurements": ["pitch13PlusSquares"], "sources": ["calcsummit-roofing"]
+    },
+    {
+      "id": "high_roof", "order": 24, "show_in_setup": false, "group": "labor",
+      "label": "High roof (2 stories or more)",
+      "explanation": "Two-story roofs take longer to load and need more fall protection.",
+      "formula": "roofSquares * (stories >= 2)", "pricebook_formula": null, "include_waste": false, "unit": "sq",
+      "note": "Gap: stories is not in the dictionary and price book formulas have no comparison operator.",
+      "measurements": ["roofSquares"], "inputs": ["stories"], "sources": ["nedes-xactimate", "symbility-sample"]
+    },
+    {
+      "id": "hand_carry", "order": 25, "show_in_setup": false, "group": "labor",
+      "label": "Hand-carry",
+      "explanation": "When the truck can't load the roof directly, shingles go up and debris comes down by hand.",
+      "formula": "handCarriedSquares", "pricebook_formula": "handCarriedSquares", "include_waste": false, "unit": "sq",
+      "measurements": ["handCarriedSquares"], "sources": []
+    },
+    {
+      "id": "dumpster", "order": 26, "show_in_setup": true, "group": "disposal",
+      "label": "Dumpster",
+      "explanation": "Old shingles weigh about 250-350 lb a square. One 20-yard dumpster usually takes about 30 squares of a single layer.",
+      "formula": "roofSquares * tearOffLayers / 30", "pricebook_formula": "roofSquares / 30", "include_waste": false, "unit": "ea", "order_unit": "ea",
+      "confidence": "estimate (30 squares per 20-yard box)", "measurements": ["roofSquares"], "inputs": ["tearOffLayers"], "sources": ["roofingbrief-tearoff-2026"]
+    },
+    {
+      "id": "permit", "order": 27, "show_in_setup": true, "group": "disposal",
+      "label": "Permit",
+      "explanation": "One permit per job where the city or county requires it.",
+      "formula": "1", "pricebook_formula": "1", "include_waste": false, "unit": "job",
+      "sources": ["homeguide-replacement"]
+    }
+  ],
+  "regions": [
+    { "id": "national", "label": "National average", "states": [], "price_multiplier": 1.0, "labor_multiplier": 1.0, "material_multiplier": 1.0, "basis": "baseline" },
+    { "id": "northeast", "label": "Northeast", "states": ["CT", "ME", "MA", "NH", "NJ", "NY", "PA", "RI", "VT"], "price_multiplier": 1.2, "labor_multiplier": 1.2, "labor_multiplier_range": [1.15, 1.3], "material_multiplier": 1.03, "basis": "sourced_range for labor (Roofing Brief editorial +20-30% for NY/MA/CT/NJ, +5-15% for PA; RSMeans-based labor $2.25-3.00/sq ft vs $1.75-2.25 Midwest); material_multiplier is an estimate", "sources": ["roofingbrief-cost-report-2026", "calcsummit-roofing", "estimatorsuite-avg"] },
+    { "id": "midwest", "label": "Midwest", "states": ["IL", "IN", "IA", "KS", "MI", "MN", "MO", "NE", "ND", "OH", "SD", "WI"], "price_multiplier": 1.0, "labor_multiplier": 1.0, "labor_multiplier_range": [0.9, 1.05], "material_multiplier": 1.0, "basis": "sourced_range (EstimatorSuite 1.0x baseline; RoofVista -5 to -10%)", "sources": ["estimatorsuite-avg", "roofvista-cost", "calcsummit-roofing"] },
+    { "id": "south", "label": "South", "states": ["AL", "AR", "DC", "DE", "FL", "GA", "KY", "LA", "MD", "MS", "NC", "OK", "SC", "TN", "TX", "VA", "WV"], "price_multiplier": 0.95, "labor_multiplier": 0.95, "labor_multiplier_range": [0.85, 1.0], "material_multiplier": 1.0, "basis": "sourced_range (Roofing Brief: Sun Belt = national baseline; EstimatorSuite Southeast 0.90x; RSMeans-based labor lowest of the regions). Florida is an exception: +15-25%, Miami-Dade/Broward HVHZ +30-50%.", "exceptions": [ { "states": ["FL"], "labor_multiplier_range": [1.15, 1.25] } ], "sources": ["roofingbrief-cost-report-2026", "estimatorsuite-avg", "calcsummit-roofing"] },
+    { "id": "mountain_west", "label": "Mountain West and Southwest", "states": ["AZ", "CO", "ID", "MT", "NV", "NM", "UT", "WY"], "price_multiplier": 1.05, "labor_multiplier": 1.05, "labor_multiplier_range": [1.0, 1.1], "material_multiplier": 1.02, "basis": "sourced_range for labor (Roofing Brief: national to +5% for CO/UT/ID/MT/WY; EstimatorSuite Southwest 1.10x); material_multiplier is an estimate", "sources": ["roofingbrief-cost-report-2026", "estimatorsuite-avg"] },
+    { "id": "pacific", "label": "Pacific", "states": ["AK", "CA", "HI", "OR", "WA"], "price_multiplier": 1.25, "labor_multiplier": 1.25, "labor_multiplier_range": [1.1, 1.4], "material_multiplier": 1.05, "basis": "sourced_range for labor (Roofing Brief: WA/OR +10-20%, CA +25-40%; EstimatorSuite West Coast 1.40x; RoofVista +10-20%); material_multiplier is an estimate; AK and HI are higher still and not covered by any source", "sources": ["roofingbrief-cost-report-2026", "estimatorsuite-avg", "roofvista-cost"] }
+  ],
+  "regions_note": "Regional multipliers come from cost guides about installed cost, which is mostly labor. Material (supplier) prices vary far less by region than by supplier, volume and freight, so material_multiplier stays near 1.0 and is an estimate. price_multiplier equals labor_multiplier and is what the setup flow should apply to labor and service items; apply material_multiplier to materials only if the organization has no supplier prices.",
+  "market_notes": [
+    { "text": "Shingle makers announced two rounds of increases in 2026: up to about 8% effective late March to mid-April (CertainTeed, GAF, Owens Corning, Atlas, Malarkey; TAMKO 4-5%) and 6-9% effective June 1 (GAF, Owens Corning, IKO). Roughly 10-16% year over year for architectural bundles entering Q2 2026.", "sources": ["roofingbrief-cost-report-2026"] },
+    { "text": "Section 232 steel and aluminum duties rose to 50% in April 2026; Gibraltar announced 10-13% on aluminum trim and flashing, which affects drip edge, step flashing and valley metal.", "sources": ["roofingbrief-cost-report-2026"] }
+  ],
+  "sources": [
+    { "id": "library-2026-10-12", "title": "FirstMate roofing library supplier research (Home Depot, Lowe's, SRS, Convoy listings)", "url": "public/v1/materials/roofing-library-data.ts", "accessed": "2026-10-12", "kind": "internal" },
+    { "id": "roofingbrief-arch-2026", "title": "Best Architectural Shingles 2026: Ranked + Bundle Prices (The Roofing Brief)", "url": "https://theroofingbrief.com/architectural-roof-shingles/", "accessed": "2026-10-24", "kind": "cost_guide" },
+    { "id": "roofingbrief-oc-2026", "title": "Owens Corning Shingles 2026: Lines, Colors & Cost (The Roofing Brief)", "url": "https://theroofingbrief.com/owens-corning-roof-shingles/", "accessed": "2026-10-24", "kind": "cost_guide" },
+    { "id": "roofingbrief-tearoff-2026", "title": "Tear Off & Reroof Pricing 2026 (Itemized) (The Roofing Brief, citing HomeGuide Nov 2025)", "url": "https://theroofingbrief.com/tear-off-and-reroof-pricing/", "accessed": "2026-10-24", "kind": "cost_guide" },
+    { "id": "roofingbrief-cost-report-2026", "title": "2026 Roofing Cost Report: National + Regional Data (The Roofing Brief)", "url": "https://theroofingbrief.com/2026-roofing-cost-report/", "accessed": "2026-10-24", "kind": "cost_guide" },
+    { "id": "squaredash-duration-2026", "title": "Owens Corning Duration Review: Cost and Warranty (2026) (SquareDash)", "url": "https://www.squaredash.com/blog/owens-corning-duration-review/", "accessed": "2026-10-24", "kind": "cost_guide" },
+    { "id": "squaredash-labor", "title": "Roofing Labor Cost Per Square (2026) (SquareDash)", "url": "https://www.squaredash.com/cost/labor/", "accessed": "2026-10-24", "kind": "cost_guide" },
+    { "id": "estimationpro-labor", "title": "Roofing Labor Cost Per Square: $150-$300 (2026)", "url": "https://estimationpro.ai/tools/blog/roofing-labor-cost-per-square", "accessed": "2026-10-24", "kind": "cost_guide" },
+    { "id": "nrd-tearoff", "title": "Roof Tear-Off Cost in 2026 (National Roofing Directory)", "url": "https://www.nationalroofingdirectory.com/roofing-costs/roof-tear-off-cost", "accessed": "2026-10-24", "kind": "cost_guide" },
+    { "id": "homeguide-replacement", "title": "How Much Does a Roof Replacement Cost? (2026) (HomeGuide)", "url": "https://homeguide.com/costs/roof-replacement-cost", "accessed": "2026-10-24", "kind": "cost_guide" },
+    { "id": "calcsummit-roofing", "title": "Roofing Cost Calculator 2026 (CalcSummit, citing RSMeans 2026 Building Construction Cost Data)", "url": "https://calcsummit.com/calculators/construction/roofing/cost/", "accessed": "2026-10-24", "kind": "cost_guide" },
+    { "id": "estimatorsuite-avg", "title": "Average Cost to Replace a Roof in 2026 (EstimatorSuite)", "url": "https://estimatorsuite.com/cost-guides/average-cost-to-replace-roof/", "accessed": "2026-10-24", "kind": "cost_guide" },
+    { "id": "roofvista-cost", "title": "Roof Cost Per Square Foot: 2026 Pricing Guide (RoofVista)", "url": "https://roofvista.com/resources/guides/roof-cost-per-square-foot", "accessed": "2026-10-24", "kind": "cost_guide" },
+    { "id": "nedes-xactimate", "title": "Xactimate sample estimate (NEDES Estimating, 2025)", "url": "https://nedesestimating.com/storage/2025/07/xactimate-sample-04.pdf", "accessed": "2026-10-24", "kind": "sample_estimate" },
+    { "id": "symbility-sample", "title": "Symbility sample estimate (GAF document library)", "url": "https://www.gaf.com/en-us/document-library/documents/brochures-&-literature/symbility-sample.pdf", "accessed": "2026-10-24", "kind": "sample_estimate" },
+    { "id": "roofingcalc-malarkey", "title": "Cost to Install Malarkey Shingles: Highlander, Vista, and Legacy (RoofingCalc, 2025-04-01)", "url": "https://www.roofingcalc.com/cost-to-install-malarkey-shingles/", "accessed": "2026-10-24", "kind": "cost_guide" },
+    { "id": "roofingcalc-ct", "title": "Cost to Install CertainTeed Shingles: Landmark vs. Landmark Pro (RoofingCalc)", "url": "https://www.roofingcalc.com/cost-to-install-certainteed-shingles/", "accessed": "2026-10-24", "kind": "cost_guide" },
+    { "id": "roofingcalc-gaf-ct", "title": "GAF vs. CertainTeed Roofing Shingles (RoofingCalc)", "url": "https://www.roofingcalc.com/gaf-vs-certainteed-roofing-shingles/", "accessed": "2026-10-24", "kind": "cost_guide" },
+    { "id": "roofvista-as2", "title": "GAF Timberline AS II (RoofVista)", "url": "https://roofvista.com/products/gaf/timberline-as-ii", "accessed": "2026-10-24", "kind": "cost_guide" },
+    { "id": "roofvista-presidential", "title": "CertainTeed Presidential Shake (RoofVista)", "url": "https://roofvista.com/products/certainteed/presidential-shake", "accessed": "2026-10-24", "kind": "cost_guide" },
+    { "id": "fixr-certainteed", "title": "Are CertainTeed shingles right for you (Fixr)", "url": "https://www.fixr.com/articles/are-certainteed-shingles-right-for-you", "accessed": "2026-10-24", "kind": "cost_guide" },
+    { "id": "gaf-hdz-spec", "title": "Timberline HDZ data sheet (Bundles/Square 3, Pieces/Square 64)", "url": "https://www.gaf.com/en-us/document-library/documents/specifications/timberline-hdz-shingles-spec-sheet-canada-resgn467hdzc.pdf", "accessed": "2026-10-24", "kind": "manufacturer" },
+    { "id": "gaf-as2-page", "title": "GAF Timberline AS II product page (UL 2218 Class 4; 64 pieces, 3 bundles, 256 nails per square; 5-5/8 in exposure)", "url": "https://www.gaf.com/en-us/roofing-materials/residential-roofing-materials/shingles/timberline-as-ii", "accessed": "2026-10-24", "kind": "manufacturer" },
+    { "id": "gaf-prostart-page", "title": "GAF Pro-Start Starter Strip Shingles (about 120.33 lf per bundle)", "url": "https://www.gaf.com/en-us/roofing-materials/residential-roofing-materials/starter-strip-shingles/pro-start-starter-strip-shingles", "accessed": "2026-10-24", "kind": "manufacturer" },
+    { "id": "gaf-lrs-components", "title": "GAF Lifetime Roofing System eligible components (RESWT216)", "url": "https://www.gaf.com/en-us/document-library/documents/brochures-&-literature/literature__the_gaf_lrs__eligible_components_reswt216.pdf", "accessed": "2026-10-24", "kind": "manufacturer" },
+    { "id": "gaf-warranty-compare", "title": "GAF residential roof warranty comparison", "url": "https://gaf.com/en-us/for-homeowners/warranties", "accessed": "2026-10-24", "kind": "manufacturer" },
+    { "id": "hd-hdz-listing", "title": "Home Depot: GAF Timberline HDZ (33.33 sq ft per bundle)", "url": "https://www.homedepot.com/p/GAF-Timberline-HDZ-Weathered-Wood-Algae-Resistant-Laminated-High-Definition-Shingles-33-33-sq-ft-per-Bundle-0487900/309755323", "accessed": "2026-10-24", "kind": "retail_listing" },
+    { "id": "hd-uhdz-listing", "title": "Home Depot: GAF Timberline UHDZ (33.33 sq ft per bundle, 21 pieces)", "url": "https://www.homedepot.com/p/GAF-Timberline-UHDZ-Slate-Algae-Resistant-Laminated-High-Definition-Shingles-33-33-sq-ft-per-Bundle-21-Pieces-0585750/325366736", "accessed": "2026-10-24", "kind": "retail_listing" },
+    { "id": "hd-ns-listing", "title": "Home Depot: GAF Timberline Natural Shadow (33.33 sq ft per bundle)", "url": "https://www.homedepot.com/p/GAF-Timberline-Natural-Shadow-Charcoal-Algae-Resistant-Architectural-Shingles-33-33-sq-ft-per-Bundle-0601180/100658149", "accessed": "2026-10-24", "kind": "retail_listing" },
+    { "id": "lowes-seal-a-ridge", "title": "Lowe's: GAF Seal-A-Ridge (25 lin ft per bundle at 5 in exposure)", "url": "https://www.lowes.com/pd/GAF-Seal-A-Ridge-IR-25-lin-ft-Weathered-Wood-Hip-and-Ridge-Roof-Shingles/1000234345", "accessed": "2026-10-24", "kind": "retail_listing" },
+    { "id": "hdca-timbertex", "title": "Home Depot Canada: GAF TimberTex (20 lin ft per bundle, 30 pieces)", "url": "https://www.homedepot.ca/product/gaf-timbertex-charcoal-premium-hip-and-ridge-cap-roof-shingles-20-lin-ft-per-bundle-30-pieces-/1000731235", "accessed": "2026-10-24", "kind": "retail_listing" },
+    { "id": "feltbuster-roll", "title": "GAF FeltBuster 48 in x 250 ft, 1,000 sq ft (excludes laps)", "url": "https://a1solarstore.com/gaf-feltbuster-synthetic-roofing-felt-48-in-x-250-ft-1000-sq-ft.html", "accessed": "2026-10-24", "kind": "retail_listing" },
+    { "id": "a1-stormguard", "title": "GAF StormGuard 36 in x 66.7 ft, 200 sq ft", "url": "https://a1solarstore.com/gaf-stormguard-film-surfaced-leak-barrier-rubberized-asphalt-roof-underlayment-36-in-x-66.7-ft-200-sq-ft.html", "accessed": "2026-10-24", "kind": "retail_listing" },
+    { "id": "oc-starter-strip-plus", "title": "Owens Corning Starter Strip Plus (105 lf per bundle)", "url": "https://owenscorning.com/en-ca/roofing/components/products/starter-strip-plus", "accessed": "2026-10-24", "kind": "manufacturer" },
+    { "id": "oc-flex-yodify", "title": "TruDefinition Duration FLEX product data (3 bundles, 98.4 sq ft, UL 2218 Class 4; ProEdge FLEX 33 lf)", "url": "https://www.yodify.com/Products/RKbwWZ/TruDefinition-Duration-FLEX-Shingle", "accessed": "2026-10-24", "kind": "manufacturer" },
+    { "id": "oc-storm-page", "title": "Owens Corning TruDefinition Duration STORM", "url": "https://owenscorning.com/roofing/shingles/trudefinition-duration-storm", "accessed": "2026-10-24", "kind": "manufacturer" },
+    { "id": "oc-duraridge", "title": "Owens Corning DuraRidge Hip & Ridge (20 lf per carton)", "url": "https://owenscorning.com/roofing/products/duraridge-hip-ridge", "accessed": "2026-10-24", "kind": "manufacturer" },
+    { "id": "oc-warranty-dms", "title": "Owens Corning Roofing System Limited Warranty document", "url": "https://www.owenscorning.com/dms/10020608", "accessed": "2026-10-24", "kind": "manufacturer" },
+    { "id": "lowes-oakridge", "title": "Lowe's: Owens Corning Oakridge (32.8 sq ft per bundle, 3 per square)", "url": "https://www.lowes.com/pl/roofing/4294934230-5007197-4294965666-4294965770", "accessed": "2026-10-24", "kind": "retail_listing" },
+    { "id": "hd-supreme", "title": "Home Depot: Owens Corning Supreme 3-Tab (33.3 sq ft per bundle)", "url": "https://www.homedepot.com/p/Owens-Corning-Supreme-Driftwood-Algae-Resistant-3-Tab-Roofing-Shingles-33-3-sq-ft-Per-Bundle-PM30/205655937", "accessed": "2026-10-24", "kind": "retail_listing" },
+    { "id": "malarkey-vista-tds", "title": "Malarkey 251 Vista technical data sheet (66 shingles, 3 bundles per square, UL 2218 Class 4)", "url": "https://www.malarkeyroofing.com/app/uploads/2026/01/vista-tech-data-sheet-malarkey.pdf", "accessed": "2026-10-24", "kind": "manufacturer" },
+    { "id": "malarkey-highlander-tds", "title": "Malarkey 241 Highlander technical data sheet (66 shingles, 3 bundles, UL 2218 Class 3)", "url": "https://www.malarkeyroofing.com/app/uploads/2021/04/highlander-tech-data-sheet-malarkey.pdf", "accessed": "2026-10-24", "kind": "manufacturer" },
+    { "id": "malarkey-legacy-tds", "title": "Malarkey 272 Legacy technical data sheet (64 shingles, 4 bundles, UL 2218 Class 4)", "url": "https://www.malarkeyroofing.com/app/uploads/2024/01/legacy-tech-data-sheet-malarkey.pdf", "accessed": "2026-10-24", "kind": "manufacturer" },
+    { "id": "malarkey-windsor-tds", "title": "Malarkey 285 Windsor technical data sheet (65 shingles, 5 bundles, UL 2218 Class 4)", "url": "https://www.malarkeyroofing.com/app/uploads/2021/04/windsor-scotchgard-tech-data-sheet-malarkey.pdf", "accessed": "2026-10-24", "kind": "manufacturer" },
+    { "id": "malarkey-secure-choice", "title": "Malarkey Roofing System: Coordinated Roofing Components (Secure Choice brochure)", "url": "https://malarkeyroofing.com/uploads/WEB_SecureChoiceBrochure.pdf", "accessed": "2026-10-24", "kind": "manufacturer" },
+    { "id": "malarkey-smart-start-tds", "title": "Malarkey 210 Smart Start technical data sheet (114 ft 9 in per bundle)", "url": "https://www.malarkeyroofing.com/app/uploads/2021/04/210-smart-start-tech-data-sheet-malarkey.pdf", "accessed": "2026-10-24", "kind": "manufacturer" },
+    { "id": "malarkey-secure-start-plus", "title": "Malarkey 1031 Secure Start Plus technical data sheet (10 squares, 48 in x 250 ft)", "url": "https://www.malarkeyroofing.com/app/uploads/2021/04/1031-secure-start-plus-tech-data-sheet-malarkey.pdf", "accessed": "2026-10-24", "kind": "manufacturer" },
+    { "id": "malarkey-arctic-seal-tds", "title": "Malarkey 401 Arctic Seal technical data sheet (2 squares, 36 in x 65 ft)", "url": "https://www.malarkeyroofing.com/app/uploads/2021/05/401-arctic-seal-tech-data-sheet-malarkey.pdf", "accessed": "2026-10-24", "kind": "manufacturer" },
+    { "id": "malarkey-secure-start-ht-tds", "title": "Malarkey 406 Secure Start HT technical data sheet (2 squares, 36 in x 67 ft)", "url": "https://www.malarkeyroofing.com/app/uploads/2021/04/406-secure-start-ht-tech-data-sheet-malarkey.pdf", "accessed": "2026-10-24", "kind": "manufacturer" },
+    { "id": "sutherlands-ridgeflex", "title": "Sutherlands: Malarkey RidgeFlex 12 in (30 ft 11 in per bundle)", "url": "https://sutherlands.com/products/item/3899085/malarkey-roofing-ridgeflex-12-inch-heather-shingle-bundle", "accessed": "2026-10-24", "kind": "retail_listing" },
+    { "id": "ct-swiftstart", "title": "CertainTeed SwiftStart (116 lf per 18-piece bundle; required for enhanced warranties)", "url": "https://certainteed.com/residential-roofing/products/swiftstart", "accessed": "2026-10-24", "kind": "manufacturer" },
+    { "id": "ct-landmark-pro", "title": "CertainTeed Landmark PRO product page (UL 2218 Class 3)", "url": "https://www.certainteed.com/residential-roofing/products/landmark-pro", "accessed": "2026-10-24", "kind": "manufacturer" },
+    { "id": "ct-climateflex", "title": "CertainTeed Landmark ClimateFlex product page (UL 2218 Class 4)", "url": "https://www.certainteed.com/residential-roofing/products/landmark-climateflex", "accessed": "2026-10-24", "kind": "manufacturer" },
+    { "id": "ct-presidential", "title": "CertainTeed Presidential Shake product page (UL 2218 Class 3)", "url": "https://www.certainteed.com/residential-roofing/products/presidential-shake", "accessed": "2026-10-24", "kind": "manufacturer" },
+    { "id": "ct-presidential-tds", "title": "CertainTeed Presidential Shake Series technical data sheet (90 shingles per square)", "url": "https://construction.yodify.com/Documentation/Document/WjqoD/PresidentialShakeSeries-TDS-CTRCOMM-015-2105-E.pdf", "accessed": "2026-10-24", "kind": "manufacturer" },
+    { "id": "ct-components", "title": "CertainTeed: What are the components of a residential roof (Integrity Roof System)", "url": "https://www.certainteed.com/residential-roofing/what-are-components-residential-roof/", "accessed": "2026-10-24", "kind": "manufacturer" },
+    { "id": "ct-surestart", "title": "CertainTeed SureStart warranty brochure", "url": "https://construction.yodify.com/Documentation/Document/DXjRG/surestart-warranty-brochure-e-2201ctr-v2.pdf", "accessed": "2026-10-24", "kind": "manufacturer" },
+    { "id": "ct-roofrunner-tds", "title": "CertainTeed RoofRunner data sheet (4 x 250 ft, 1,000 sq ft gross, 937.5 net)", "url": "https://res.cloudinary.com/amerhart/image/upload/Documents/Product/RoofRunner Data Sheet", "accessed": "2026-10-24", "kind": "manufacturer" },
+    { "id": "ct-diamonddeck-tds", "title": "CertainTeed DiamondDeck technical data sheet", "url": "https://www.ringsend.com/media/product-files/file/DiamondDeckTDS_1.pdf", "accessed": "2026-10-24", "kind": "manufacturer" },
+    { "id": "ct-winterguard-brochure", "title": "CertainTeed WinterGuard underlayments summary brochure (36 in x 65 ft)", "url": "https://www.buildsite.com/pdf/certainteed/Winterguard-Underlayments-Summary-Brochure-2954589.pdf", "accessed": "2026-10-24", "kind": "manufacturer" },
+    { "id": "arlcoal-shadow-ridge", "title": "Arlington Coal & Lumber: CertainTeed Shadow Ridge (30 lf per bundle)", "url": "https://www.arlcoal.com/pd/bd-certainteed-driftwood-shadow-ridge-hip-ridge-30-lf/2982", "accessed": "2026-10-24", "kind": "retail_listing" },
+    { "id": "ringsend-landmark", "title": "Ring's End: CertainTeed Landmark (3 bundles per square)", "url": "https://www.ringsend.com/certainteed-landmark-roof-shingle-weathered-wood", "accessed": "2026-10-24", "kind": "retail_listing" },
+    { "id": "dewalt-coil-nails", "title": "DeWalt 1-1/4 in coil roofing nail (7,200 per package)", "url": "https://www.dewalt.com/en-us/product/dwcr3dgal/1-14-coil-roofing-nail", "accessed": "2026-10-24", "kind": "manufacturer" },
+    { "id": "irc-r905-1-2", "title": "2015 IRC ice barrier requirements (R905.1.2) summary", "url": "https://www.hilltown.org/media/2265/ice-barriers-2015-irc-requirements.pdf", "accessed": "2026-10-24", "kind": "code" },
+    { "id": "finehomebuilding-ice", "title": "Ice Barriers Explained: How Far Up the Roof Slope? (Fine Homebuilding)", "url": "https://www.finehomebuilding.com/project-guides/roofing/ice-barriers-explained-far-roof-slope", "accessed": "2026-10-24", "kind": "trade_article" },
+    { "id": "finehomebuilding-estimate", "title": "Don't Fall Short on Shingles: How to Estimate Materials (Fine Homebuilding)", "url": "https://www.finehomebuilding.com/project-guides/roofing/dont-fall-short-on-shingles-how-to-estimate-materials-for-roofing-projects", "accessed": "2026-10-24", "kind": "trade_article" },
+    { "id": "simpledecision-waste", "title": "Roof shingle calculator waste tiers (simpledecisionmaker)", "url": "https://simpledecisionmaker.onrender.com/tools/roof-shingle-calculator/", "accessed": "2026-10-24", "kind": "calculator" }
+  ]
+}
