@@ -37,6 +37,6 @@
     </div>
     <div class="sbx-menu" id="sbx-menu" hidden></div>
     <div class="sbx-toast" id="sbx-toast" hidden></div>
-    <script src="sandbox.js?v=4"></script>
+    <script src="sandbox.js?v=5"></script>
 </body>
 </html>

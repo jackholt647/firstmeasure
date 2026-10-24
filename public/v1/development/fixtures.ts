@@ -34,7 +34,7 @@ export async function addTestOrgSampleData(instanceId: string, input: JsonObject
   const orgId = String(record.org_id);
   const org = await readOrganization(orgId);
   const metadata = (org.metadata || {}) as JsonObject;
-  if (metadata.sandbox_test_org !== true || metadata.sandbox_instance_id !== instanceId || !["swf_instant_full_org", "swf_mvp_platform"].includes(String(record.workflow_id))) {
+  if (metadata.sandbox_test_org !== true || metadata.sandbox_instance_id !== instanceId || (await sandboxStore.readWorkflow(String(record.workflow_id)))?.sample_data !== true) {
     throw sandboxError(403, "sample_data_test_org_required", "Sample data is available only for full test organizations.");
   }
   if (input.equipment && !await isCapabilityEnabled(orgId, "apps.equipment")) {

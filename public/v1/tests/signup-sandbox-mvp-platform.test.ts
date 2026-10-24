@@ -42,6 +42,16 @@ test('the MVP platform workflow is FirstMeasure plus projects, contacts, feed an
  for(const key of off) assert.notEqual(effectiveByKey[key],true,key);
  const global=await storage.readGlobal(orgId);
  assert.deepEqual((global.data as any).app_placements,{'portal.channels':'hidden','portal.assistant':'hidden'});
+ // The configuration's setup script: Generic Roofing installed, every new project starts it, other presets off.
+ const router=await import('../scopes/router.js');const scopes=await import('../scopes/storage.js');const creation=await import('../projects/create.js');
+ const routing=await router.readIntakeRouting(orgId);
+ assert.equal(routing.manual_template_id,'generic_roofing');assert.equal(routing.default_template_id,'generic_roofing');
+ const enabled=(await scopes.listScopeTemplates(orgId)).map(template=>String(template.id));
+ assert.deepEqual(enabled,['generic_roofing']);
+ const roofing=await scopes.readScopeTemplate(orgId,'default','generic_roofing');
+ assert.deepEqual((roofing as any).definition?.measurement_schema_ids ?? (roofing as any).measurement_schema_ids,['roofing']);
+ assert.equal(String((await creation.creationScopeTemplate(orgId,'default')).id),'generic_roofing');
+ assert.equal((workflow as any).sample_data,true);assert.deepEqual((workflow as any).setup_scripts,['mvp-platform']);
  // MVP test orgs take the development sample projects and customers (the project map needs projects).
  const {addTestOrgSampleData}=await import('../signup-sandbox/sample-data.js');
  await addTestOrgSampleData(String(instance.testOrg.id),{projects:true,customers:true});

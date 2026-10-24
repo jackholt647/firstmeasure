@@ -5,6 +5,7 @@ import { gatedAccounts } from "./admin.js";
 import { randomBytes } from "node:crypto";
 
 import { newOrganizationAppFlagDefaults } from "../platform/app_flags.js";
+import { CONFIGURATIONS, SETUP_SCRIPTS } from "./configurations/index.js";
 import { valueCapabilities } from "../platform/capabilities.js";
 import {
   hashPassword,
@@ -114,58 +115,6 @@ function instantFullOrgAppFlags(): JsonObject {
   overrides["canvassing.app"] = false;
   overrides["platform.new_button_mode"] = "selector";
   overrides["platform.new_button_items"] = "";
-  return overrides;
-}
-
-// The MVP platform: the FirstMeasure signup plus expanded access to an
-// explicit set of apps. Main view: My Projects, My Contacts, Feed. Project
-// window: Photos, Customer Portal, Materials, Documents and Reports tabs with
-// the Agent, Notes, Activity and To Do trays. No Scheduling. Every other
-// platform capability is off; FirstMeasure capabilities keep their signup
-// defaults. Seeded once: edit the saved workflow, not this list, to change it.
-const MVP_PLATFORM_ENABLED = [
-  "platform.expanded_access",
-  "apps.projects",
-  "apps.project_map",
-  "platform.project_assignments",
-  "platform.project_boards",
-  "platform.project_stages_view",
-  "platform.manual_project_stage_movement",
-  "platform.contacts",
-  "platform.project_photos",
-  "photos.markup",
-  "platform.photos_feed",
-  "platform.customer_portal",
-  "platform.customer_portal_media",
-  "platform.materials",
-  "platform.pricebook",
-  "materials.ordering",
-  "platform.documents",
-  "documents.esign",
-  "documents.agent",
-  // Agent tray.
-  "apps.assistant",
-  // Notes tray: project notes run on channels; the Channels and Assistant
-  // main-view tabs are hidden by placement (see MVP_PLATFORM_WORKFLOW).
-  "apps.channels",
-  "channels.project_notes",
-  "channels.separate_project_notes",
-  "channels.threads",
-  "channels.reactions",
-  "channels.attachments",
-  "channels.rich_messages",
-  "channels.pins",
-  "channels.search"
-];
-
-function mvpPlatformAppFlags(): JsonObject {
-  const overrides: JsonObject = {};
-  for (const capability of valueCapabilities()) {
-    // Capabilities that need expanded access are the platform beyond
-    // FirstMeasure; leave FirstMeasure's own at their signup defaults.
-    if (capability.type === "boolean" && capability.requires.includes("platform.expanded_access")) overrides[capability.key] = false;
-  }
-  for (const key of MVP_PLATFORM_ENABLED) overrides[key] = true;
   return overrides;
 }
 
@@ -321,6 +270,10 @@ function normalizeWorkflow(input: JsonObject, existing: JsonObject | null = null
     stages: (stagesInput as JsonObject[]).map(normalizeStage),
     variant_of: cleanText(input.variant_of ?? existing?.variant_of) || null,
     tags: Array.isArray(input.tags ?? existing?.tags) ? ((input.tags ?? existing?.tags) as unknown[]).map(cleanText).filter(Boolean) : [],
+    // Test orgs from this workflow can take development sample data.
+    sample_data: (input.sample_data ?? existing?.sample_data) === true,
+    // Configuration setup scripts (configurations/index.ts) run when a test org is created.
+    setup_scripts: Array.isArray(input.setup_scripts ?? existing?.setup_scripts) ? ((input.setup_scripts ?? existing?.setup_scripts) as unknown[]).map(cleanText).filter((name) => Object.prototype.hasOwnProperty.call(SETUP_SCRIPTS, name)) : [],
     created_at: existing ? String(existing.created_at) : now,
     updated_at: now
   };
@@ -514,6 +467,10 @@ export async function createTestInstance(workflowId: string, input: JsonObject =
       expected_revision: scopeState.revision,
       flags: literalScopeFlags
     }));
+  }
+  for (const name of (Array.isArray(runContext.workflow.setup_scripts) ? runContext.workflow.setup_scripts : []).map(String)) {
+    const script = SETUP_SCRIPTS[name];
+    if (script) await script(String(organization.id));
   }
   if (env.dataEnvironment === 'development' && workflowId === 'swf_instant_full_org') {
     await (await import('../appointments/defaults.js')).seedInstantFullAppointmentCatalog(String(organization.id));
@@ -1260,21 +1217,8 @@ const INSTANT_FULL_ORG_WORKFLOW: JsonObject = {
   stages: [
     { id: "stg_instant_signup", page_id: "spg_firstmate_signup", notes: "Skipped by sandbox instances like every signup stage — with no setup stages after it, the instance opens directly in the portal." }
   ],
+  sample_data: true,
   tags: ["template", "dev", "instant"]
-};
-const MVP_PLATFORM_WORKFLOW: JsonObject = {
-  id: "swf_mvp_platform",
-  title: "MVP platform",
-  description: "The FirstMeasure default signup plus the MVP platform: My Projects (with the project map), My Contacts and Feed; project Photos, Customer Portal, Materials, Documents and Reports; Agent, Notes, Activity and To Do trays. No Scheduling or calendar.",
-  entry_mode: "landing_first",
-  stages: [
-    { id: "stg_mvp_landing", page_id: "spg_firstmate_landing", notes: "Optional marketing front door." },
-    { id: "stg_mvp_signup", page_id: "spg_firstmate_signup", notes: "Skipped by sandbox test instances." },
-    { id: "stg_mvp_branding", page_id: "spg_firstmate_branding", notes: "" },
-    { id: "stg_mvp_users", page_id: "spg_firstmate_users", notes: "Skipped on mobile in the real wizard." },
-    { id: "stg_mvp_account_load", page_id: "spg_firstmate_account_load", notes: "" }
-  ],
-  tags: ["template", "firstmate", "mvp"]
 };
 
 export async function ensureSeedData() {
@@ -1356,25 +1300,25 @@ export async function ensureSeedData() {
         : stage)
     }, existingChannelsWorkflow));
   }
-  if (!(await sandboxStore.readWorkflow(String(MVP_PLATFORM_WORKFLOW.id)))) {
-    await sandboxStore.saveWorkflow(normalizeWorkflow({
-      ...MVP_PLATFORM_WORKFLOW,
-      defaults: {
-        app_flags: mvpPlatformAppFlags(),
-        // Channels and the Assistant are on for the Notes and Agent trays but
-        // are not main-view apps in this configuration.
-        settings: { app_placements: { "portal.channels": "hidden", "portal.assistant": "hidden" } }
-      }
-    }));
-  } else {
-    // Capabilities added after the seed are off unless the saved workflow already sets them.
-    const current = (await sandboxStore.readWorkflow(String(MVP_PLATFORM_WORKFLOW.id)))!;
+  for (const configuration of CONFIGURATIONS) {
+    const seed = { ...configuration.workflow, defaults: configuration.defaults() };
+    const current = await sandboxStore.readWorkflow(String(seed.id));
+    if (!current) { await sandboxStore.saveWorkflow(normalizeWorkflow(seed)); continue; }
+    // Capabilities and workflow fields added after the seed are filled in; values already saved are kept.
     const defaults = asObject(current.defaults);
     const flags = asObject(defaults.app_flags);
-    const missing = Object.entries(mvpPlatformAppFlags()).filter(([key]) => !(key in flags));
-    if (missing.length) {
-      await sandboxStore.saveWorkflow({ ...current, defaults: { ...defaults, app_flags: { ...flags, ...Object.fromEntries(missing) } }, updated_at: nowIso() });
+    const missingFlags = Object.entries(asObject(asObject(seed.defaults).app_flags)).filter(([key]) => !(key in flags));
+    const missingFields = ["sample_data", "setup_scripts"].filter((key) => !(key in current) && key in seed);
+    if (missingFlags.length || missingFields.length) {
+      await sandboxStore.saveWorkflow(normalizeWorkflow({
+        ...Object.fromEntries(missingFields.map((key) => [key, seed[key]])),
+        defaults: { ...defaults, app_flags: { ...flags, ...Object.fromEntries(missingFlags) } }
+      }, current));
     }
+  }
+  const instantWorkflow = await sandboxStore.readWorkflow(String(INSTANT_FULL_ORG_WORKFLOW.id));
+  if (instantWorkflow && !("sample_data" in instantWorkflow)) {
+    await sandboxStore.saveWorkflow(normalizeWorkflow({ sample_data: true }, instantWorkflow));
   }
   const workflows = await sandboxStore.listWorkflows();
   const legacyBrandingReferenced = workflows.some((workflow) =>

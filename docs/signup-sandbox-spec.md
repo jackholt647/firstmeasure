@@ -292,17 +292,31 @@ foundation for onboarding a full-service contractor:
 The two profile pages persist their choices under `home_improvement_setup` in
 the organization global document. No selection page uses checkbox controls.
 
-The MVP platform template (`swf_mvp_platform`) runs the FirstMeasure default
-stages and turns on expanded access with an explicit app list
-(`MVP_PLATFORM_ENABLED` in `signup-sandbox/service.ts`): My Projects (with
-stages, boards and the project map), My Contacts and Feed; the project Photos,
-Customer Portal, Materials (with the pricebook it needs), Documents and Reports
-tabs; and the Agent, Notes, Activity and To Do trays. Every other capability
-that needs expanded access is off, including Scheduling, CRM, Stats and Money;
-FirstMeasure capabilities keep their signup defaults. Channels and the Assistant
-are on only for the Notes and Agent trays, so their main-view tabs are hidden
-with `app_placements`. The template is seeded once and never refreshed: change
-the configuration by editing the saved workflow's defaults in the sandbox.
+### Configurations with their own code
+
+A configuration may carry code, but only inside its own module in
+`signup-sandbox/configurations/`; the platform never checks which configuration
+an organization uses. A module exports its workflow seed and default state and
+may register setup scripts (`configurations/index.ts`). A workflow names the
+scripts it runs in `setup_scripts`; the sandbox runs them after creating a test
+organization, and they change it only through the platform's ordinary writers.
+Whether a workflow's test organizations can take development sample data is
+the workflow field `sample_data`, not a list of workflow ids.
+
+The MVP platform (`swf_mvp_platform`, `configurations/mvp-platform.ts`) runs the
+FirstMeasure default stages and turns on expanded access with an explicit app
+list: My Projects (with stages, boards and the project map), My Contacts and
+Feed; the project Photos, Customer Portal, Materials (with the pricebook it
+needs), Documents and Reports tabs; and the Agent, Notes, Activity and To Do
+trays. Every other capability that needs expanded access is off, including
+Scheduling, CRM, Stats, Money and the project Messages tray; FirstMeasure
+capabilities keep their signup defaults. Channels and the Assistant are on only
+for the Notes and Agent trays, so their main-view tabs are hidden with
+`app_placements`. Its setup script installs a Generic Roofing scope (plain
+stages and to-dos, the roofing measurement schema), makes it the scope every
+new project and lead starts, and turns the other preset scopes off. The
+workflow is seeded once; later seeds only fill in capabilities and fields the
+saved copy lacks, so edit the saved workflow to change the configuration.
 
 ## Optional sample data for full test organizations
 

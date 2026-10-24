@@ -1,7 +1,5 @@
 (function () {
     'use strict';
-    // Workflows whose test orgs can be filled with development sample data.
-    const SAMPLE_DATA_WORKFLOWS = new Set(['swf_instant_full_org', 'swf_mvp_platform']);
 
     function apiBaseUrl() {
         const host = String(location.hostname || '').toLowerCase();
@@ -9,6 +7,11 @@
             return `${location.origin}/v1/signup-sandbox`;
         }
         return `${location.origin}/v1/signup-sandbox`;
+    }
+
+    // A workflow says whether its test orgs can take development sample data.
+    function offersSampleData(org) {
+        return (state.workflows || []).some((workflow) => workflow.id === org.workflow_id && workflow.sample_data === true);
     }
 
     const state = {
@@ -370,7 +373,7 @@
                 await loadTestOrgUsers(org.id);
             }));
             actions.appendChild(usersBtn);
-            if (SAMPLE_DATA_WORKFLOWS.has(org.workflow_id)) {
+            if (offersSampleData(org)) {
                 const samplesBtn = el('button', 'sbx-btn', 'Add sample data');
                 samplesBtn.addEventListener('click', () => openSampleDataModal(org));
                 actions.appendChild(samplesBtn);
@@ -505,7 +508,7 @@
         const add = el('button', 'sbx-btn sbx-btn-primary', 'Add user');
         add.addEventListener('click', () => openTestOrgUserCreator(org));
         main.appendChild(add);
-        if (SAMPLE_DATA_WORKFLOWS.has(org.workflow_id)) {
+        if (offersSampleData(org)) {
             const samples = el('button', 'sbx-btn', 'Add sample data');
             samples.addEventListener('click', () => openSampleDataModal(org));
             main.appendChild(samples);
