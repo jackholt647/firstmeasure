@@ -89,3 +89,21 @@ referral-cluster, 18 of 18.
 Production is not released. The release is widget-only: legacy and web. Its file is
 `public/portal/landing/shared/signup-widget.js`. The Meta pages version the script by file mtime, so browsers pick it up
 on the next page load. The website droplets need no change.
+
+## Production data stopgap (20:36 UTC)
+
+Jack: "If you have a quick data change that you can do before fixing the code, let's do that."
+
+The stray campaign was disabled in production `referrals.sqlite` on the compatibility host (144.126.222.110), in one
+transaction at 2026-10-24T20:36:30Z:
+
+- `referral_partners` `acq_52513030142937`: `status` `active` → `inactive`;
+- `referral_codes` `acqlink_mqyi5ft5_bm3jj68n` (code `52513030142937`): `status` `active` → `inactive`, `active` 1 → 0.
+
+Nothing else changed. The lookup only matches an active code, so a Meta visit now falls through to the landing page's
+campaign. A read-only replay of the lookup on production data gives `meta-6-19-1` for `meta-619b` and `meta-6-19-c` for
+`meta-619c`, each with 2 active bonus sets.
+
+The code fix is still needed. Any other `utm_campaign` that happens to name an existing campaign would do the same.
+
+To roll back, set both rows back to `active` (and `active = 1`).
