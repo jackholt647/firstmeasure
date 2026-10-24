@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+October 24 Meta signups lost the bonus on dev: [since production `62119658` the signup widget sent Meta's `utm_campaign` as an explicit `acquisition_code`, so Meta 619b/619c visitors resolved to a stray June campaign with no bonus (28 signups from 02:42 UTC); fixed in `b9f89a1d`, widget only, on dev legacy and web, not in production](deploy/digitalocean/development-bonus-utm-campaign-20261024.md).
+
 October 23 Signup form embeddable on dev: [the app's own signup form runs on the websites from one script tag, with an exact-origin allowlist on /v1/platform/auth/*](deploy/digitalocean/development-signup-embed-20261023.md) records `c17c3797` (1M8-240); websites not switched yet.
 
 October 23 Signup language on dev: [No Country or Language dropdowns, signups never refused, and the visitor's language handed from landing page (?lang + fm_lang cookie) through login, signup, onboarding and the organization in all 17 packs](deploy/digitalocean/development-signup-language-20261023.md) records `e7144481` and `52df0758` (1M8-240) on worker, legacy and web; the website droplets still need handoff.js.
