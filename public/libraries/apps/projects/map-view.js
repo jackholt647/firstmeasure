@@ -259,14 +259,16 @@
       gestureHandling: 'greedy',
       keyboardShortcuts: true,
       styles: MAP_STYLES,
-      backgroundColor: '#e9edf1'
+      backgroundColor: '#e9edf1',
+      // The camera tween moves zoom continuously; whole-level zoom would step.
+      isFractionalZoomEnabled: true
     });
     state.LayerClass = state.LayerClass || createLayerClass();
     state.layer = new state.LayerClass();
     state.layer.setMap(state.map);
     state.map.addListener('click', () => select('', { pan:false }));
-    const markMoved = () => { if (!state.programmaticMove) state.userMovedSinceFit = true; };
-    state.map.addListener('dragstart', markMoved);
+    const markMoved = () => { if (!state.programmaticMove && !state.cameraAnimating) state.userMovedSinceFit = true; };
+    state.map.addListener('dragstart', () => { cancelCamera(); markMoved(); });
     state.map.addListener('zoom_changed', markMoved);
     syncMapTypeButton();
   }
@@ -689,7 +691,8 @@
     const projection = state.layer?.getProjection?.();
     const mapProjection = state.map?.getProjection?.();
     if (!projection || !state.map) return;
-    const zoom = state.map.getZoom() || 4;
+    // Clusters use the whole zoom level, so a camera tween does not rebuild them every frame.
+    const zoom = Math.round(state.map.getZoom() || 4);
     const scale = Math.pow(2, zoom);
     const cells = new Map();
     const positions = new Map();
@@ -791,9 +794,13 @@
     const item = state.items.get(id);
     if (options.from === 'pin') revealRow(id);
     if (item?.point && options.pan) {
-      const needsZoom = !!clusterContaining(id) || (state.map?.getZoom() || 0) < (options.from === 'list' ? FOCUS_ZOOM : 0);
-      flyTo(item.point, needsZoom ? Math.max(FOCUS_ZOOM, (state.map?.getZoom() || 0)) : (state.map?.getZoom() || FOCUS_ZOOM));
+      const current = state.map?.getZoom() || 0;
+      const needsZoom = !!clusterContaining(id) || current < (options.from === 'list' ? FOCUS_ZOOM : 0);
+      // Close the sheet first so the camera aims at the area that will be visible.
       if (isSheet() && options.from === 'list') setTrayOpen(false);
+      // A chosen project is where the person wants to be: nothing re-fits after this.
+      state.userMovedSinceFit = true;
+      flyTo(item.point, needsZoom ? Math.max(FOCUS_ZOOM, current) : (current || FOCUS_ZOOM));
     }
     layoutMarkers();
   }
@@ -848,71 +855,147 @@
     const located = locatedItems();
     state.userMovedSinceFit = false;
     if (!located.length) return;
-    const insets = trayInsets();
-    withProgrammaticMove(() => {
-      if (located.length === 1) {
-        flyTo(located[0].point, 15, { instant: !options.animate });
-        return;
-      }
-      const bounds = new window.google.maps.LatLngBounds();
-      located.forEach((item) => bounds.extend(item.point));
-      state.map.fitBounds(bounds, insets);
-    });
+    if (located.length === 1) { flyTo(located[0].point, 15, { instant: !options.animate }); return; }
+    fitPoints(located.map((item) => item.point), { instant: !options.animate });
   }
 
   function zoomToIds(ids){
     const points = ids.map((id) => state.items.get(id)?.point).filter(Boolean);
     if (!points.length || !state.map) return;
-    const bounds = new window.google.maps.LatLngBounds();
-    points.forEach((point) => bounds.extend(point));
-    const target = Math.min(CLUSTER_MAX_ZOOM + 2, (state.map.getZoom() || 4) + 3);
-    const span = bounds.toSpan();
-    if (span.lat() < 1e-5 && span.lng() < 1e-5) { flyTo(points[0], Math.max(target, 18)); return; }
-    withProgrammaticMove(() => state.map.fitBounds(bounds, trayInsets()));
+    state.userMovedSinceFit = true;
+    fitPoints(points, { maxZoom: 18 });
   }
 
-  // Smooth camera: zoom out until the target is in view, glide to it, then zoom in a step at a time.
-  async function flyTo(point, zoom, options = {}){
-    if (!state.map || !point) return;
-    const token = ++state.flightToken;
+  // Frames the points in the area the tray leaves visible, with the same camera tween.
+  function fitPoints(points, options = {}){
     const map = state.map;
+    const projection = map?.getProjection?.();
+    const canvas = state.root?.querySelector('.pm-canvas');
+    if (!projection || !canvas?.clientWidth) {
+      const bounds = new window.google.maps.LatLngBounds();
+      points.forEach((point) => bounds.extend(point));
+      withProgrammaticMove(() => map?.fitBounds(bounds, trayInsets()));
+      return;
+    }
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    for (const point of points) {
+      const world = projection.fromLatLngToPoint(new window.google.maps.LatLng(point.lat, point.lng));
+      minX = Math.min(minX, world.x); maxX = Math.max(maxX, world.x);
+      minY = Math.min(minY, world.y); maxY = Math.max(maxY, world.y);
+    }
+    const insets = trayInsets();
+    const visibleW = Math.max(80, canvas.clientWidth - insets.left - insets.right);
+    const visibleH = Math.max(80, canvas.clientHeight - insets.top - insets.bottom);
+    const spanZoom = Math.log2(Math.min(visibleW / Math.max(maxX - minX, 1e-9), visibleH / Math.max(maxY - minY, 1e-9)));
+    const zoom = Math.max(3, Math.min(options.maxZoom || 17, spanZoom));
+    const middle = projection.fromPointToLatLng(new window.google.maps.Point((minX + maxX) / 2, (minY + maxY) / 2));
+    flyTo({ lat: middle.lat(), lng: middle.lng() }, zoom, options);
+  }
+
+  // The map centre that puts a point in the middle of the area the tray leaves
+  // visible at the given zoom, so the tray offset is part of the one move.
+  function cameraCenter(point, zoom){
+    const projection = state.map.getProjection();
     const latLng = new window.google.maps.LatLng(point.lat, point.lng);
-    const offset = () => {
-      const insets = trayInsets();
-      return { x: (insets.left - insets.right) / 2, y: (insets.bottom - insets.top) / 2 };
+    if (!projection) return latLng;
+    const insets = trayInsets();
+    const scale = Math.pow(2, zoom);
+    const world = projection.fromLatLngToPoint(latLng);
+    return projection.fromPointToLatLng(new window.google.maps.Point(
+      world.x - (insets.left - insets.right) / 2 / scale,
+      world.y + (insets.bottom - insets.top) / 2 / scale
+    ));
+  }
+
+  function flyTo(point, zoom, options = {}){
+    if (!state.map || !point) return;
+    if (!state.map.getProjection()) {
+      // The map is still starting: aim once it can place points.
+      const token = ++state.flightToken;
+      window.google.maps.event.addListenerOnce(state.map, 'projection_changed', () => { if (token === state.flightToken) flyTo(point, zoom, options); });
+      return;
+    }
+    animateCamera(cameraCenter(point, zoom), zoom, options);
+  }
+
+  function cancelCamera(){
+    state.flightToken += 1;
+    state.cameraAnimating = false;
+  }
+
+  // Van Wijk and Nuij's smooth zoom-and-pan path (as in d3.interpolateZoom) over
+  // world coordinates: centre and view width move together, and the view widens
+  // part of the way only when the target is far from what is on screen.
+  const RHO = Math.SQRT2;
+  function zoomPath(from, to){
+    const [ux0, uy0, w0] = from, [ux1, uy1, w1] = to;
+    const dx = ux1 - ux0, dy = uy1 - uy0, d2 = dx * dx + dy * dy;
+    // A target already on screen needs no widening: move straight there and
+    // change zoom evenly (in log scale), so neither ever turns back.
+    if (Math.sqrt(d2) < Math.min(w0, w1) * 0.75) {
+      const S = Math.max(Math.sqrt(d2) / Math.min(w0, w1), Math.abs(Math.log(w1 / w0)) / RHO);
+      return { S, at: (t) => [ux0 + t * dx, uy0 + t * dy, w0 * Math.pow(w1 / w0, t)] };
+    }
+    const d1 = Math.sqrt(d2), rho2 = RHO * RHO, rho4 = rho2 * rho2;
+    const b0 = (w1 * w1 - w0 * w0 + rho4 * d2) / (2 * w0 * rho2 * d1);
+    const b1 = (w1 * w1 - w0 * w0 - rho4 * d2) / (2 * w1 * rho2 * d1);
+    const r0 = Math.log(Math.sqrt(b0 * b0 + 1) - b0);
+    const r1 = Math.log(Math.sqrt(b1 * b1 + 1) - b1);
+    const S = (r1 - r0) / RHO;
+    const coshr0 = Math.cosh(r0), sinhr0 = Math.sinh(r0);
+    return {
+      S,
+      at: (t) => {
+        const s = t * S;
+        const u = w0 / (rho2 * d1) * (coshr0 * Math.tanh(RHO * s + r0) - sinhr0);
+        return [ux0 + u * dx, uy0 + u * dy, w0 * coshr0 / Math.cosh(RHO * s + r0)];
+      }
     };
-    state.programmaticMove += 1;
-    try {
-      if (options.instant || reducedMotion()) {
-        map.setZoom(zoom);
-        map.setCenter(latLng);
-        const o = offset();
-        if (o.x || o.y) map.panBy(-o.x, o.y);
+  }
+  const easeInOut = (t) => (1 - Math.cos(Math.PI * t)) / 2;
+
+  // One requestAnimationFrame tween of centre and zoom together, starting on the
+  // next frame. A new move starts from wherever the camera is at that moment.
+  function animateCamera(center, zoom, options = {}){
+    const map = state.map;
+    const token = ++state.flightToken;
+    const projection = map.getProjection?.();
+    const startCenter = map.getCenter?.();
+    const startZoom = map.getZoom?.();
+    const width = Math.max(256, state.root?.querySelector('.pm-canvas')?.clientWidth || 0);
+    if (options.instant || reducedMotion() || !projection || !startCenter || startZoom == null) {
+      state.cameraAnimating = false;
+      state.programmaticMove += 1;
+      try { map.moveCamera({ center, zoom }); } finally { state.programmaticMove -= 1; }
+      return;
+    }
+    const p0 = projection.fromLatLngToPoint(startCenter);
+    const p1 = projection.fromLatLngToPoint(center);
+    let x1 = p1.x;
+    if (x1 - p0.x > 128) x1 -= 256; else if (p0.x - x1 > 128) x1 += 256;
+    const path = zoomPath([p0.x, p0.y, width / Math.pow(2, startZoom)], [x1, p1.y, width / Math.pow(2, zoom)]);
+    if (!(path.S > 1e-4)) {
+      state.cameraAnimating = false;
+      return;
+    }
+    const duration = Math.min(700, Math.max(450, 430 + path.S * 45));
+    state.cameraAnimating = true;
+    let started = 0;
+    const frame = (now) => {
+      if (token !== state.flightToken) return;
+      if (!started) started = now;
+      const t = Math.min(1, (now - started) / duration);
+      if (t >= 1) {
+        map.moveCamera({ center, zoom });
+        state.cameraAnimating = false;
         return;
       }
-      let current = map.getZoom() || 4;
-      let guard = 0;
-      while (map.getBounds() && !map.getBounds().contains(latLng) && current > 5 && guard++ < 6) {
-        current -= 1;
-        map.setZoom(current);
-        await wait(200);
-        if (token !== state.flightToken) return;
-      }
-      map.panTo(latLng);
-      await wait(420);
-      if (token !== state.flightToken) return;
-      while (current < zoom) {
-        current = Math.min(zoom, current + (zoom - current > 4 ? 2 : 1));
-        map.setZoom(current);
-        await wait(190);
-        if (token !== state.flightToken) return;
-      }
-      if (current > zoom) { map.setZoom(zoom); await wait(190); }
-      const o = offset();
-      if (o.x || o.y) map.panBy(-o.x, o.y);
-    } finally {
-      setTimeout(() => { state.programmaticMove = Math.max(0, state.programmaticMove - 1); }, 600);
-    }
+      const [x, y, w] = path.at(easeInOut(t));
+      const wrapped = ((x % 256) + 256) % 256;
+      map.moveCamera({ center: projection.fromPointToLatLng(new window.google.maps.Point(wrapped, y)), zoom: Math.log2(width / w) });
+      requestAnimationFrame(frame);
+    };
+    requestAnimationFrame(frame);
   }
 
   window.FirstMateProjectsMap = {
