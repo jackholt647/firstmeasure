@@ -1,9 +1,9 @@
 {
   "summary": {
     "routes": {
-      "total": 1883,
+      "total": 1885,
       "by_kind": {
-        "any:login_only": 165,
+        "any:login_only": 167,
         "any:login_only+handler_checks": 345,
         "any:permission": 697,
         "app(contact.media|portal.crew_receipts|portal.photos_feed|portal.receipts|portal.viewer|project.crew_materials|project.photos):login_only": 1,
@@ -770,6 +770,7 @@
     "GET /v1/platform/session-replay/admin/archive": {"file":"session-replay/api.ts","gates":[{"app":"any","csrf":false}],"kind":"any:login_only"},
     "GET /v1/platform/session-replay/admin/blobs": {"file":"session-replay/api.ts","gates":[{"app":"any","csrf":false}],"kind":"any:login_only"},
     "GET /v1/platform/session-replay/admin/me": {"file":"session-replay/api.ts","gates":[{"app":"any","csrf":false}],"kind":"any:login_only"},
+    "GET /v1/platform/session-replay/admin/pages": {"file":"session-replay/api.ts","gates":[{"app":"any","csrf":false}],"kind":"any:login_only"},
     "GET /v1/platform/session-replay/admin/sessions": {"file":"session-replay/api.ts","gates":[{"app":"any","csrf":false}],"kind":"any:login_only"},
     "GET /v1/platform/session-replay/admin/sessions/:sessionId": {"file":"session-replay/api.ts","gates":[{"app":"any","csrf":false}],"kind":"any:login_only"},
     "GET /v1/platform/session-replay/admin/sessions/:sessionId/chunks": {"file":"session-replay/api.ts","gates":[{"app":"any","csrf":false}],"kind":"any:login_only"},
@@ -1925,6 +1926,7 @@
     "PUT /v1/platform/pricebook/pricebooks/:id/catalog": {"file":"pricebook/api.ts","kind":"no_platform_session"},
     "PUT /v1/platform/session-replay/admin/organizations/:orgId": {"file":"session-replay/api.ts","gates":[{"app":"any","csrf":true}],"kind":"any:login_only"},
     "PUT /v1/platform/session-replay/admin/targeting/mode": {"file":"session-replay/api.ts","gates":[{"app":"any","csrf":true}],"kind":"any:login_only"},
+    "PUT /v1/platform/session-replay/admin/targeting/pages/allow": {"file":"session-replay/api.ts","gates":[{"app":"any","csrf":true}],"kind":"any:login_only"},
     "PUT /v1/platform/session-replay/admin/targeting/rules": {"file":"session-replay/api.ts","gates":[{"app":"any","csrf":true}],"kind":"any:login_only"},
     "PUT /v1/scopes/organizations/:orgId/branches/:branchId/intake-routing": {"file":"scopes/api.ts","gates":[{"app":"any","permission":"manage_company_settings","csrf":true}],"kind":"any:permission"},
     "PUT /v1/scopes/organizations/:orgId/branches/:branchId/templates/:templateId": {"file":"scopes/api.ts","gates":[{"app":"any","permission":"manage_company_settings","csrf":true}],"checks":["hasPermission(dynamic)"],"publication":true,"kind":"any:permission"},
