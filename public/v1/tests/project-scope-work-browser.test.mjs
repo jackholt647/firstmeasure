@@ -65,7 +65,7 @@ test('completed reports predating dataset publication remain readable without an
     calls.push(source.export);return source.export==='report'?{status:'ready',value:{reportId:'completed-report'}}:{status:'ready',value:{rows:[{key:'roofArea',value:1200,unit:'ft2'},{key:'missing',value:'Pending',unit:'ft'}]}};
   }}}};
   try {
-    const result=await module.loadDocuments('org','project');assert.deepEqual(calls,['report','measurements']);assert.equal(result.documents.length,1);assert.deepEqual(result.documents[0].value.measurements,{roofArea:{value:1200,unit:'ft2'}});assert.equal(result.error,'');
+    const result=await module.loadDocuments('org','project');assert.deepEqual(calls,['report','measurements','manual']);assert.equal(result.documents.length,1);assert.deepEqual(result.documents[0].value.measurements,{roofArea:{value:1200,unit:'ft2'}});assert.equal(result.error,'');
     window.PlatformAPI.publication.read=async()=>({status:'missing',code:'widget_report_unavailable'});const incomplete=await module.loadDocuments('org','project');assert.equal(incomplete.documents.length,0);
   }finally{delete globalThis.window;}
 });

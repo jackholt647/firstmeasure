@@ -10,7 +10,7 @@ import { currentChangeSource, type ChangeSource } from "./source.js";
  * and what it made. Rows are never edited or deleted. See docs/architecture/project-history.md.
  */
 export type JsonObject = Record<string, unknown>;
-export type ChangeDomain = "materials" | "work_order" | "equipment" | "scope" | "schedule";
+export type ChangeDomain = "materials" | "work_order" | "equipment" | "scope" | "schedule" | "measurements";
 export type ProjectChange = {
   id: string;
   organization_id: string;

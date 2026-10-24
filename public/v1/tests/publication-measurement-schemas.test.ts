@@ -67,7 +67,7 @@ test("measurement schemas are published, and every FirstMeasure key has a defini
   const m = await import("../platform/publication/measurement-schemas.js");
   try {
     d.registerDatasetProvider();
-    assert.deepEqual(Object.keys(describeDataProvider("measurement-schemas")!.exports).sort(), ["assessment", "catalog", "dictionary", "partitions"]);
+    assert.deepEqual(Object.keys(describeDataProvider("measurement-schemas")!.exports).sort(), ["assessment", "catalog", "dictionary", "manual", "partitions"]);
     await s.createOrganization({ id: "org_schemas", name: "Schemas" });
     await s.upsertDocument("org_schemas", "projects", { id: "project_schemas", data: { title: "Oak St" } });
     const writer = systemPublicationContext({ kind: "module", organizationId: "org_schemas", projectId: "project_schemas", operations: ["datasets.save", "datasets.select", "datasets.value"], mode: "command" });

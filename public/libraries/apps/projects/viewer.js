@@ -4954,6 +4954,8 @@
   function orderedWorkBoards(){
     return projectBoards().sort((left, right) => (
       workBoardProjectCount(right) - workBoardProjectCount(left)
+      // On a tie (an empty organization) a real board comes before the No board catch-all.
+      || Number(left?.id === '__no_board__') - Number(right?.id === '__no_board__')
       || String(left?.title || left?.id || '').localeCompare(String(right?.title || right?.id || ''))
     ));
   }

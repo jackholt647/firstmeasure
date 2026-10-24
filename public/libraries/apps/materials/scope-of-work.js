@@ -41,7 +41,8 @@ export async function loadDocuments(orgId, projectId) {
       documents.push(doc);
     } catch(error){failures.push(error);}
   }));
-  if(results[2].status==='fulfilled')await Promise.all(results[2].value.filter(d=>d.type==='measurements').map(async dataset=>{
+  // Measurements entered by hand are never merged with a report's here; they come back below as their own entry.
+  if(results[2].status==='fulfilled')await Promise.all(results[2].value.filter(d=>d.type==='measurements'&&d.role!=='manual').map(async dataset=>{
     try {
       const result=await api.publication.read(orgId,{...source,target:{...target,id:dataset.id},revision:dataset.revision});
       if(result.status!=='ready'){if(result.status!=='missing')failures.push(result);return;}
@@ -58,7 +59,6 @@ export async function loadDocuments(orgId, projectId) {
       else if(!documents.some(doc=>doc.source==='measurement'))documents.push({id:`report:${report.value.reportId}`,source:'measurement',title:'Measurements',value:{measurements:report.value.measurements,artifacts:[{id:report.value.reportId,kind:'firstmeasure.report'}]}});
     }
   }catch(error){failures.push(error);}
-  documents.sort((a,b)=>a.source.localeCompare(b.source)||String(a.title).localeCompare(String(b.title))||a.id.localeCompare(b.id));
   // Older completed reports can predate dataset publication. Reuse the
   // authorized read-only contracts rather than creating an import.
   if(!documents.some(doc=>doc.source==='measurement'))try {
@@ -71,6 +71,13 @@ export async function loadDocuments(orgId, projectId) {
       }else if(quantities.status!=='missing')failures.push(quantities);
     }else if(report.status!=='missing')failures.push(report);
   }catch(error){failures.push(error);}
+  // What the project's scope schemas ask for, and anything entered by hand. Someone who cannot read project data keeps
+  // the view they had, so a failure here is not reported as missing scope data.
+  try {
+    const manual=await api.publication.read(orgId,{provider:'measurement-schemas',export:'manual',target});
+    if(manual.status==='ready'&&(manual.value?.available||Object.keys(manual.value?.manual?.values||{}).length))documents.push({id:'manual-measurements',source:'manual',form:manual.value,reportReady:completedReport?.status==='ready'});
+  }catch{}
+  documents.sort((a,b)=>a.source.localeCompare(b.source)||String(a.title).localeCompare(String(b.title))||a.id.localeCompare(b.id));
   return {documents,error:failures.length?'Some published scope data could not load.':''};
 }
 
@@ -101,7 +108,7 @@ export function mountSidebar(root,documents,error,contextKey,options={}) {
   if(!state || state.contextKey!==contextKey || state.scheduling!==scheduling){
     disposeSidebar(root);
     state={contextKey,scheduling,views:VIEWS.filter(([key])=>scheduling||key!=='schedule'),selected:null,handle:null,view:'roof',widgets:{},visible:true,generation:0};sidebars.set(root,state);
-    root.innerHTML=`<div class="sw-viewport"><div class="sw-panel" data-scope-panel="roof"></div><div class="sw-panel" data-scope-panel="documents" hidden></div><div class="sw-panel" data-scope-panel="aerial" hidden></div>${scheduling?'<div class="sw-panel sw-schedule" data-scope-panel="schedule" hidden></div>':''}</div><nav class="sw-tabs" role="tablist" aria-label="Project views">${state.views.map(([key,icon,title])=>`<button type="button" role="tab" aria-label="${title}" aria-selected="${state.view===key}" tabindex="${state.view===key?0:-1}" data-scope-view="${key}" title="${title}"><i class="fas ${icon}" aria-hidden="true"></i><span>${title}</span></button>`).join('')}</nav>`;
+    root.innerHTML=`<div class="sw-viewport"><div class="sw-panel" data-scope-panel="roof"></div><div class="sw-panel sw-manual" data-scope-manual hidden></div><button type="button" class="smm-flip" data-scope-manual-flip hidden><i class="fas fa-pen-ruler" aria-hidden="true"></i><span>${esc(text('mm_flip_entries','Your entries'))}</span></button><div class="sw-panel" data-scope-panel="documents" hidden></div><div class="sw-panel" data-scope-panel="aerial" hidden></div>${scheduling?'<div class="sw-panel sw-schedule" data-scope-panel="schedule" hidden></div>':''}</div><nav class="sw-tabs" role="tablist" aria-label="Project views">${state.views.map(([key,icon,title])=>`<button type="button" role="tab" aria-label="${title}" aria-selected="${state.view===key}" tabindex="${state.view===key?0:-1}" data-scope-view="${key}" title="${title}"><i class="fas ${icon}" aria-hidden="true"></i><span>${title}</span></button>`).join('')}</nav>`;
     const tabs=[...root.querySelectorAll('[data-scope-view]')];
     tabs.forEach((tab,index)=>{
       tab.onclick=()=>{state.view=tab.dataset.scopeView;showViews(root,state);tab.focus();};
@@ -150,20 +157,72 @@ export function mountSidebar(root,documents,error,contextKey,options={}) {
     }).catch(e=>{if(stage.isConnected)stage.textContent=e.message;});}
   };
   // Measurement edits come from the roof key; its open viewers re-read the merged values.
-  const draw=()=>{for(const listener of state.measurementViewers||[])listener();drawDocuments();};
+  const draw=()=>{for(const listener of state.measurementViewers||[])listener();drawDocuments();drawManual(root,state,contextKey);};
   state.editMeasurement=(key,value)=>{state.options={...state.options,measurementOverrides:{...state.options.measurementOverrides,[key]:value}};state.options.onMeasurementChange?.(key,value);draw();};
   draw();
 }
-function showViews(root,state){
+const text=(key,fallback)=>globalThis.PlatformLanguage?.text('materials',key,fallback)??fallback;
+/**
+ * Measurements entered by hand. `edit`: the project's scopes name a measurement schema and there is no completed report,
+ * so the Measurements view is the editor instead of a dead end. `compare`: a completed report is in use and earlier
+ * entries remain; the 3D model stays the view and "Your entries" shows them beside the report's numbers until cleared.
+ * `none`: today's view. Another dataset someone selected (not a report, not these entries) is left alone.
+ */
+export function manualMeasurementMode(form,reportReady){
+  if(!form)return 'none';
+  const entries=Object.keys(form.manual?.values||{}).length;
+  if(reportReady||form.in_use?.source==='report')return entries?'compare':'none';
+  if(!form.available||form.in_use?.source==='other')return 'none';
+  return 'edit';
+}
+// Resolved when first needed: a test may load this module from a data: URL, against which nothing resolves.
+const manualEditorUrl=()=>new URL('./manual-measurements.js?v=20261024-manual-measurements',import.meta.url).href;
+function drawManual(root,state,contextKey){
+  const doc=(state.documents||[]).find(d=>d.source==='manual');
+  const mode=manualMeasurementMode(doc?.form,doc?.reportReady);
+  if(mode!=='compare')state.manualOpen=false;
+  const shown=mode==='edit'||(mode==='compare'&&!!state.manualOpen);
+  const changed=shown!==!!state.manualShown;state.manualShown=shown;state.manualMode=mode;
+  const panel=root.querySelector('[data-scope-manual]'),flip=root.querySelector('[data-scope-manual-flip]');
+  if(flip&&!flip.onclick)flip.onclick=()=>{state.manualOpen=true;drawManual(root,state,contextKey);state.manualHandle?.focus?.();};
+  if(shown&&panel){
+    const editorMode=mode==='edit'?'edit':'compare';
+    if(state.manualHandle)state.manualHandle.update(doc.form,editorMode,!!doc.form.report_linked);
+    else if(!state.manualLoading){
+      const [orgId,projectId]=contextKey.split(':');state.manualLoading=true;panel.textContent=text('mm_loading','Loading measurements…');
+      import(manualEditorUrl()).then(module=>{
+        state.manualLoading=false;if(sidebars.get(root)!==state||!state.manualShown)return;
+        panel.textContent='';
+        const current=(state.documents||[]).find(d=>d.source==='manual');
+        state.manualHandle=module.mount(panel,{orgId,projectId,form:current?.form||doc.form,mode:manualMeasurementMode(current?.form,current?.reportReady)==='edit'?'edit':'compare',reportLinked:!!(current?.form||doc.form).report_linked,
+          onSaved:form=>{const entry=(state.documents||[]).find(d=>d.source==='manual');if(entry)entry.form=form;drawManual(root,state,contextKey);},
+          onBack:()=>{state.manualOpen=false;drawManual(root,state,contextKey);root.querySelector('[data-scope-manual-flip]')?.focus();}});
+      }).catch(()=>{state.manualLoading=false;if(panel.isConnected)panel.textContent=text('mm_load_failed','The measurements editor could not load.');});
+    }
+  }
+  // The flip control and the editor share the editor's styles; load them as soon as either can show.
+  if(mode!=='none'&&!state.manualStyled){state.manualStyled=true;import(manualEditorUrl()).then(module=>module.ensureStyles?.()).catch(()=>{state.manualStyled=false;});}
+  const flipHidden=!(state.view==='roof'&&mode==='compare'&&!shown);
+  if(changed||(flip&&flip.hidden!==flipHidden))showViews(root,state,changed);
+}
+function showViews(root,state,manualChanged=false){
   // A view that replaces another slides in from the side its tab sits on. The first view shown does not move.
   const order=VIEWS.map(([key])=>key),forward=order.indexOf(state.view)>order.indexOf(state.shown),moving=!!state.shown&&state.shown!==state.view;
   root.querySelectorAll('[data-scope-panel]').forEach(panel=>{const active=panel.dataset.scopePanel===state.view;panel.hidden=!active;panel.classList.remove('sw-enter-forward','sw-enter-back');if(active&&moving){void panel.offsetWidth;panel.classList.add(forward?'sw-enter-forward':'sw-enter-back');}});
+  // Measurements entered by hand take the Measurements view's place while they are shown; the 3D model keeps its state.
+  const manual=root.querySelector('[data-scope-manual]'),flip=root.querySelector('[data-scope-manual-flip]'),manualOn=state.view==='roof'&&!!state.manualShown;
+  if(manual){
+    const roof=root.querySelector('[data-scope-panel="roof"]');if(manualOn&&roof)roof.hidden=true;
+    const appearing=manualOn&&(manual.hidden||manualChanged);manual.hidden=!manualOn;manual.classList.remove('sw-enter-forward','sw-enter-back');
+    if(appearing&&(moving||manualChanged)){void manual.offsetWidth;manual.classList.add(forward||!moving?'sw-enter-forward':'sw-enter-back');}
+  }
+  if(flip)flip.hidden=!(state.view==='roof'&&state.manualMode==='compare'&&!state.manualShown);
   state.shown=state.view;
   root.querySelectorAll('[data-scope-view]').forEach(tab=>{const active=tab.dataset.scopeView===state.view;tab.setAttribute('aria-selected',String(active));tab.tabIndex=active?0:-1;});
-  for(const [key,widget] of Object.entries(state.widgets))widget?.setVisible?.(state.visible&&state.view===key);
+  for(const [key,widget] of Object.entries(state.widgets))widget?.setVisible?.(state.visible&&state.view===key&&!(key==='roof'&&manualOn));
   window.dispatchEvent(new Event('resize'));
 }
-export function disposeSidebar(root){const state=sidebars.get(root);state?.observer?.disconnect();state?.stageObserver?.disconnect();state?.handle?.destroy?.();if(state)for(const widget of Object.values(state.widgets))widget?.destroy?.();sidebars.delete(root);}
+export function disposeSidebar(root){const state=sidebars.get(root);state?.observer?.disconnect();state?.stageObserver?.disconnect();state?.handle?.destroy?.();state?.manualHandle?.destroy?.();if(state)for(const widget of Object.values(state.widgets))widget?.destroy?.();sidebars.delete(root);}
 /** Shows one of the rail's views, as if its tab had been chosen. */
 export function showSidebarView(root,view){const state=sidebars.get(root);if(!state||!(state.views||VIEWS).some(([key])=>key===view))return false;if(state.view!==view){state.view=view;showViews(root,state);}return true;}
 export function setSidebarVisible(root,visible){const state=sidebars.get(root);if(state){state.visible=visible;showViews(root,state);}}

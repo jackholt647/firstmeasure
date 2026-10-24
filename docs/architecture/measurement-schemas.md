@@ -96,6 +96,41 @@ come from the model geometry, while totals prefer the saved report's
 classifications, so the structures need not sum exactly to the total. Exterior
 wall measurements are not yet broken down by structure.
 
+### Entered by hand
+
+A project with no completed report can still have measurements. The Project
+tab rail's Measurements view becomes an editor when the project's scope
+templates name a schema (from its running work plans and its lists): it lists
+the project-level dictionary measurements those schemas select that have a key
+of their own (`manualMeasurementFields`; a `keyPattern` family such as squares
+at each exact pitch is entered through its bands), required ones first, with
+their labels and units. Projects whose scopes name no schema keep the empty
+state.
+
+The entries are an ordinary measurement dataset, one per project, with role
+`manual`, producer `manual` and `source: "manual"` on each value
+(`platform/publication/manual-measurements.ts`). `measurements.manual.save` is
+the only writer: a number sets a key, null clears it, only the schemas' keys in
+the dictionary's unit are accepted, it carries the dataset's store revision so
+two people cannot overwrite each other, and it records a `measurements` change
+in [project history](project-history.md). `measurement-schemas.manual` reads
+what the editor shows. Because the entries are a dataset, everything that reads
+the project's selected dataset (`effectiveProjectMeasurements`: material
+calculations, measurement defaults, pay sheets, requirements, the assessment,
+`project-widgets.measurements`) reads them exactly as it reads a report.
+
+**Precedence.** A project reads one selected dataset, never a mix. The entries
+are selected only while nothing else is, and unselected when the last one is
+cleared. A completed report replaces them when it is published
+(`publishCompletedFirstMeasureDataset` selects the report when nothing or the
+manual dataset is selected, and records the switch); it never displaces any
+other selected dataset. The entries stay stored and the rail shows them as
+"Your entries" beside the report's numbers until they are cleared, but nothing
+reads them while the report is selected. Adjusting a report's numbers is the
+separate override mechanism above, which survives reimports and is not this.
+Run `tests/manual-measurements.test.ts` and
+`tests/manual-measurements-browser.test.mjs` for changes here.
+
 ### Structures in an estimate
 
 The Documents estimate workflow's measurements step lists the structures and

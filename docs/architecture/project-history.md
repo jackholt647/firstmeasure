@@ -57,9 +57,12 @@ The domain writers record, on the server. Nothing in the browser can skip it.
 | `saveProjectScheduleEvent` and the event delete route (platform/api.ts) | `created`, `event` (title, kind, status, start and end, all day, resources, parent, placement, lock, each before and after) and `deleted`. Events a parent's placement moved are recorded as the `schedule.placement` generator's. |
 | `ensureMaterialListScheduleEvent`, `disableGeneratedResourceScheduleEvent` (materials/storage.ts) | the list's event and the span it created or changed. Both write the project on the revision they read and retry on a conflict, so a schedule save in between is never overwritten. |
 | `invokeAction` (platform/publication/actions.ts) | the source of everything an action does: `agent`, `automation` (work), `module` or `person` (api), with the action id and receipt |
+| `saveManualMeasurements` (platform/publication/manual-measurements.ts) | `values` for measurements entered by hand: every value before and after, the keys that changed and which dataset the project then reads. Skipped when nothing changed. |
+| `publishCompletedFirstMeasureDataset` (platform/publication/firstmeasure-datasets.ts) | `selected` when a completed report replaces measurements entered by hand |
 
 `domain` is `materials`, `work_order` or `equipment` by the list's resource
-type, `scope` for work lists, and `schedule` for schedule events.
+type, `scope` for work lists, `schedule` for schedule events, and
+`measurements` for the measurements a project reads.
 
 A generator wraps its writes in `withChangeSource({ kind: "generator", ... })`
 after `recordGeneration`, and stamps `generation_id` on the lines it makes. A new

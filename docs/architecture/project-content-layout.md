@@ -45,6 +45,14 @@ count. The viewer uses neither a modal nor a generic JSON instance viewer. Measu
 overrides, never write to the published source, and have the existing override
 lifetime.
 
+With no completed report, a project whose scope templates name a measurement
+schema shows a measurements editor in the Measurements view instead of the
+report's empty state: the schemas' dictionary measurements with labels and
+units, required ones first, saved as the project's manual measurement dataset.
+Once a report is complete the 3D model is the view again and a "Your entries"
+control shows the earlier entries beside the report's numbers until they are
+cleared. See [measurements entered by hand](measurement-schemas.md#entered-by-hand).
+
 The right side has a thin action header, described below. Ten pixels of padding match its gutter.
 Its three resource panes use the remaining height, scroll independently and narrow
 empty panes when another has content. With no items, all three are equal and

@@ -34,17 +34,17 @@
       }
     },
     "data": {
-      "total": 228,
+      "total": 229,
       "by_kind": {
         "any:membership_only": 11,
-        "any:permission": 217
+        "any:permission": 218
       }
     },
     "actions": {
-      "total": 319,
+      "total": 320,
       "by_kind": {
         "any:membership_only": 24,
-        "any:permission": 295
+        "any:permission": 296
       }
     },
     "tabs": {
@@ -2063,6 +2063,7 @@
     "measurement-schemas.assessment@1": {"app":"any","permissions":["view_project_data"],"scopes":["project"],"kind":"any:permission"},
     "measurement-schemas.catalog@1": {"app":"any","permissions":["view_project_data"],"scopes":["organization","project"],"kind":"any:permission"},
     "measurement-schemas.dictionary@1": {"app":"any","permissions":["view_project_data"],"scopes":["organization","project"],"kind":"any:permission"},
+    "measurement-schemas.manual@1": {"app":"any","permissions":["view_project_data"],"scopes":["project"],"kind":"any:permission"},
     "measurement-schemas.partitions@1": {"app":"any","permissions":["view_project_data"],"scopes":["organization","project"],"kind":"any:permission"},
     "media.library@1": {"app":"any","permissions":["view_media"],"scopes":["project","organization"],"kind":"any:permission"},
     "media.metadata@1": {"app":"any","permissions":["view_media"],"scopes":["project"],"kind":"any:permission"},
@@ -2334,6 +2335,7 @@
     "materials.resource-type.create@1": {"app":"any","permissions":["manage_projects"],"capabilities":["platform.materials"],"scopes":["organization"],"kind":"any:permission","effect":"write","execution_kinds":["api","module","agent","work"]},
     "materials.resource-type.update@1": {"app":"any","permissions":["manage_projects"],"capabilities":["platform.materials"],"scopes":["organization"],"kind":"any:permission","effect":"write","execution_kinds":["api","module","agent","work"]},
     "materials.shopping_list.create@1": {"app":"any","permissions":["manage_projects"],"capabilities":["platform.materials"],"scopes":["project"],"kind":"any:permission","effect":"write","execution_kinds":["api","agent","module"]},
+    "measurements.manual.save@1": {"app":"any","permissions":["manage_project_data"],"scopes":["project"],"system_kinds":["work","module"],"kind":"any:permission","effect":"write","execution_kinds":["api","agent","work","module"]},
     "media.item.read@1": {"app":"any","permissions":["view_media"],"scopes":["organization"],"kind":"any:permission","effect":"read","execution_kinds":["api","module","agent","work"]},
     "media.item.rename@1": {"app":"any","permissions":["manage_media"],"scopes":["organization"],"kind":"any:permission","effect":"write","execution_kinds":["api","module","agent","work"]},
     "notification.create.v1@1": {"app":"any","permissions":["manage_company_settings"],"scopes":["organization","project"],"system_kinds":["work"],"kind":"any:permission","effect":"external","execution_kinds":["work"]},

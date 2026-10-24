@@ -5,6 +5,7 @@ import { listDocuments, readDocument } from "../storage.js";
 import { systemPublicationContext } from "./context.js";
 import { importMeasurementDataset, listProjectDatasets, readProjectDataset, selectProjectDataset } from "./datasets.js";
 import { contentHash } from "./validation.js";
+import { MANUAL_MEASUREMENT_ROLE } from "./manual-measurements.js";
 import type { PublicationContext } from "./contracts.js";
 import { authorizePublication } from "./context.js";
 import { FirstMeasureError } from "../../firstmeasure/errors.js";
@@ -105,7 +106,14 @@ export async function publishCompletedFirstMeasureDataset(manifest:ProjectManife
   if(existing)current=await readProjectDataset(ctx,{...target,id:existing.id});
   const saved=current?.provenance.sourceRevision===sourceRevision?{id:current.id}:await importMeasurementDataset(ctx,target,{...(existing?{id:existing.id,expectedRevision:Number(existing.storeRevision)}:{id:`dataset_${contentHash({orgId,projectId:project.id,reportId:manifest.id}).slice(0,32)}`}),name:"FirstMeasure report",role:`firstmeasure:${manifest.id}`,value:payload,provenance:{producer:"firstmeasure",reportId:manifest.id,sourceRevision,sourceFormat:"firstmeasure-report",unitsContract:"explicit-per-value"}});
   const latest=await readDocument(orgId,"projects",project.id);
-  if(!obj(obj(latest.data).dataset_defaults).measurements)await selectProjectDataset(ctx,target,"measurements",saved.id,Number(latest.revision));
+  // The report replaces measurements entered by hand; it never displaces another selected dataset. The entries stay
+  // stored (shown as the person's own until cleared) and are not read while the report is selected.
+  const selected=String(obj(obj(latest.data).dataset_defaults).measurements||"");
+  const replacesManual=!!selected&&selected!==saved.id&&all.find(d=>d.id===selected)?.role===MANUAL_MEASUREMENT_ROLE;
+  if(!selected||replacesManual){
+   await selectProjectDataset(ctx,target,"measurements",saved.id,Number(latest.revision));
+   if(replacesManual){const {recordProjectChange}=await import("../../history/storage.js");await recordProjectChange(orgId,{project_id:project.id,domain:"measurements",subject_type:"measurement_dataset",subject_id:saved.id,op:"selected",summary:"Completed report replaced measurements entered by hand",before:{dataset_id:selected},after:{dataset_id:saved.id,report_id:manifest.id}});}
+  }
  }
 }
 export async function importProjectFirstMeasure(ctx:PublicationContext,projectId:string){

@@ -88,7 +88,7 @@
       kind: 'portal_tab',
       surfaces: ['portal_tab'],
       portalTabId: 'viewer',
-      bundles: [versionedBundle('partners/shared-list.js','20261001-sharing-polish-v1'), versionedBundle('projects/map-view.js', '20261024-projects-map-v1'), versionedBundle('projects/viewer.js', '20261024-projects-map-v1')]
+      bundles: [versionedBundle('partners/shared-list.js','20261001-sharing-polish-v1'), versionedBundle('projects/map-view.js', '20261024-projects-map-v1'), versionedBundle('projects/viewer.js', '20261024-board-default-v2')]
     },
     {
       id: 'portal.crm',
@@ -275,7 +275,7 @@
       surfaces: ['project_modal'],
       requiresContext: ['project'],
       dependencies: ['pricebook.bridge'],
-    bundles: [...channelsLibBundles, versionedBundle('../materials-api/materials-api.js', '20261022-ordering'), versionedBundle('../payments-api/payments-api.js', '20261019-forward-cert'), bundle('../comms-api/comms-api.js'), versionedBundle('../equipment-api/equipment-api.js', '20261013-functions'), versionedBundle('materials/project.js', '20261022-ordering-2')]
+    bundles: [...channelsLibBundles, versionedBundle('../materials-api/materials-api.js', '20261022-ordering'), versionedBundle('../payments-api/payments-api.js', '20261019-forward-cert'), bundle('../comms-api/comms-api.js'), versionedBundle('../equipment-api/equipment-api.js', '20261013-functions'), versionedBundle('materials/project.js', '20261024-manual-measurements')]
     },
     {
       id: 'project.money',
