@@ -580,3 +580,18 @@ per request or join them. Results stay the same.
 
 **Why it can wait.** A head is two compressed copies per document, constant however long its history; a history list
 names a handful of people. (docs/architecture/document-history.md, "Not built")
+
+## A completed report scans every project to find the ones that link it
+
+**Today.** When a FirstMeasure report becomes `completed`, `publishReportCompleted`
+(`public/v1/firstmeasure/project-events.ts`) lists every project of the report's organization and publishes
+`measurement.report.completed` on those whose `measurement_project` links the report. The report manifest keeps no
+pointer back to its platform projects. The completed-report dataset projection
+(`platform/publication/firstmeasure-datasets.ts`) makes the same scan.
+
+**Where the change goes.** Record the platform project id on the report when the project links it (or keep a
+report-to-project index updated by the project writer), and read the linked projects from it in both places. The
+projects found, and so the events and datasets published, stay the same.
+
+**Why it can wait.** It runs once per report completion, not per request, and organizations have hundreds of projects.
+(docs/architecture/automation-authoring.md, "Report, document and materials milestones")

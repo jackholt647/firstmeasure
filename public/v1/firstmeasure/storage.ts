@@ -502,6 +502,7 @@ export async function patchManifest(
     });
     await publishMeasurementCompletion(updated);
     await publishMeasurementNotificationAfterCommit(previous, updated);
+    await (await import("./project-events.js")).publishReportCompleted(previous, updated);
     return updated;
   }
   const result = await serializeProjectMutation(projectId, async () => {
@@ -539,6 +540,7 @@ export async function patchManifest(
   });
   await publishMeasurementCompletion(result);
   await publishMeasurementNotificationAfterCommit(previous, result);
+  await (await import("./project-events.js")).publishReportCompleted(previous, result);
   return result;
 }
 

@@ -251,6 +251,7 @@ registerWorkEvents([
   { name: "proposal.payment.received", notification: { group: "payments", source: "documents", tab: "documents" }, description: "A payment tied to a specific proposal settled.", visibility: "activity" },
 
   // ── Documents (document engine) ─────────────────────────────────────────
+  { name: "document.created", notification: { group: "documents", source: "documents", tab: "documents" }, description: "A document was created on a project.", visibility: "activity", payload: { document_type: "The registered document type (proposal, invoice, ...).", document_tags: "The document's tags.", document_id: "The new document.", template_id: "The template it was made from." } },
   { name: "document.issued", notification: { group: "documents", source: "documents", tab: "documents" }, description: "A document was created from a template.", visibility: "system", payload: { document_type: "proposal | invoice | change_order | contract | work_order | generic" } },
   { name: "document.sent", notification: { group: "documents", source: "documents", tab: "documents" }, description: "A document was sent to the customer.", visibility: "activity", payload: { document_type: "The registered document type.", document_tags: "Tags inherited by the signed document.", document_id: "The signed document.", snapshot_id: "The accepted immutable snapshot.", document_source: "documents or proposals (compatibility storage)." }, customer: { label: "A document was shared with you", icon: "fa-file-lines" } },
   { name: "document.viewed", notification: { group: "documents", source: "documents", tab: "documents" }, description: "The customer viewed a document.", visibility: "activity" },
@@ -292,6 +293,7 @@ registerWorkEvents([
   // ── Materials & field ───────────────────────────────────────────────────
   { name: "material.delivery.completed", notification: { group: "materials", source: "materials", tab: "general" }, description: "A material delivery was marked delivered.", visibility: "activity", customer: { label: "Materials delivered to your job site", icon: "fa-truck" } },
   { name: "material.delivery.updated", notification: { group: "materials", source: "materials", tab: "general" }, description: "A material delivery changed.", visibility: "system" },
+  { name: "material.lines.created", notification: { group: "materials", source: "materials", tab: "general" }, description: "A material set on the project got its first lines (entered by hand, or generated from a document, the scope or measurement defaults).", visibility: "activity", payload: { set_id: "The material set.", title: "Its title.", origin: "manual | document | scope | defaults | ...", line_count: "How many lines it has." } },
   { name: "material.order.placed", notification: { group: "materials", source: "materials", tab: "general" }, description: "A material order was placed.", visibility: "activity" },
   { name: "crew.clock.in", notification: { group: "field_work", source: "crew", tab: "general" }, description: "A worker clocked in.", visibility: "activity" },
   { name: "crew.clock.out", notification: { group: "field_work", source: "crew", tab: "general" }, description: "A worker clocked out.", visibility: "activity", payload: { worked_seconds: "Total worked seconds for the shift." } },
@@ -334,8 +336,8 @@ registerWorkEvents([
   { name: "lead.instant_estimate.generated", notification: { group: "leads", source: "crm", tab: "general" }, description: "A form submission produced a price estimate. Payload carries low_cents, high_cents, currency and the priced quantity with its unit.", visibility: "activity" },
   { name: "canvassing.pin.created", notification: { group: "leads", source: "canvassing", tab: "general" }, description: "A canvassing pin was dropped.", visibility: "system" },
   { name: "canvassing.pin.promoted", notification: { group: "leads", source: "canvassing", tab: "general" }, description: "A canvassing pin was promoted to a lead.", visibility: "activity" },
-  { name: "measurement.report.ordered", notification: { group: "measurements", source: "measurements", tab: "general" }, description: "A measurement report was ordered.", visibility: "activity" },
-  { name: "measurement.report.completed", notification: { group: "measurements", source: "measurements", tab: "general" }, description: "A measurement report finished — measurements are available.", visibility: "activity" },
+  { name: "measurement.report.ordered", notification: { group: "measurements", source: "measurements", tab: "general" }, description: "A measurement report was ordered for the project (the project now links the report).", visibility: "activity", payload: { report_id: "The linked FirstMeasure report.", report_status: "Its status when it was linked." } },
+  { name: "measurement.report.completed", notification: { group: "measurements", source: "measurements", tab: "general" }, description: "A measurement report finished — measurements are available.", visibility: "activity", payload: { report_id: "The completed FirstMeasure report." } },
 
   // ── Media, notes & portal ───────────────────────────────────────────────
   { name: "media.uploaded", notification: { group: "files", source: "media", tab: "general" }, description: "A photo or video was added to the project.", visibility: "activity" },

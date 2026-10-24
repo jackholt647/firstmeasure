@@ -317,9 +317,19 @@ trays. Every other capability that needs expanded access is off, including
 Scheduling, CRM, Stats, Money and the project Messages tray; FirstMeasure
 capabilities keep their signup defaults. Channels and the Assistant are on only
 for the Notes and Agent trays, so their main-view tabs are hidden with
-`app_placements`. Its setup script installs a Generic Roofing scope (plain
-stages and to-dos, the roofing measurement schema), makes it the scope every
-new project and lead starts, and turns the other preset scopes off. The
+`app_placements`. Its setup script installs a Generic Roofing scope (the
+roofing measurement schema), makes it the scope every new project and lead
+starts, and turns the other preset scopes off. Generic Roofing's board has five
+stages that follow the report and the documents: New project, Report ordered,
+Report delivered, Proposal created and Materials created. Each stage has one
+to-do whose external triggers finish it on the platform events
+`measurement.report.ordered`, `measurement.report.completed`, a proposal's
+`document.created` (or a legacy `proposal.created`) and `material.lines.created`.
+A stage's to-do also finishes on any later milestone, so a project that skips
+ahead lands on the furthest stage reached and a late event never moves it back;
+a stage set by hand stays until the milestones reach it. The setup script keeps
+an organization's Generic Roofing when it already has one, so test
+organizations made from an earlier revision keep the scope they were given. The
 workflow is seeded once; later seeds only fill in capabilities and fields the
 saved copy lacks, so edit the saved workflow to change the configuration.
 

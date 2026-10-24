@@ -68,7 +68,23 @@ async function rawLedger(org: string, project: string): Promise<MaterialsLedger>
 async function saveLedger(org: string, ledger: MaterialsLedger, previous: number) {
   if (Buffer.byteLength(JSON.stringify(ledger)) > 16 * 1024 * 1024) throw badRequest("materials_ledger_capacity", "This project's retained materials history has reached its storage limit.");
   const saved = await upsertDocument(org, CALCULUS_LEDGER, { id: identity("materials", ledger.project_id), data: ledger as unknown as JsonObject, ...(previous ? { expected_revision: previous } : {}) }, { replace: true, createOnly: previous === 0 });
+  await publishFilledSets(org, ledger);
   return { ...ledger, revision: saved.revision };
+}
+/** Every writer saves here, so a set's first lines (by hand, from a document, the scope or measurement defaults) publish
+ * `material.lines.created` (work/events.ts) for scopes to move on. Keyed by set, so it is published once per set. */
+async function publishFilledSets(org: string, ledger: MaterialsLedger) {
+  const filled = ledger.sets.filter(set => set.lines.length);
+  if (!filled.length) return;
+  try {
+    const project = await readDocument(org, "projects", ledger.project_id).catch(() => null);
+    const { emitWorkEvent } = await import("../work/engine.js");
+    for (const set of filled) await emitWorkEvent({ organization_id: org, branch_id: String(object(project?.data).branch_id || "default"), project_id: ledger.project_id, type: "material.lines.created",
+      idempotency_key: `material.lines.created:${ledger.project_id}:${set.id}`, payload: { set_id: set.id, title: set.title, origin: String(set.origin.type || ""), line_count: set.lines.length } });
+  } catch (error) {
+    // The materials are saved; a failed publication must not undo them.
+    console.warn("Publishing material.lines.created failed", ledger.project_id, error);
+  }
 }
 async function authorize(ctx: PublicationContext, project: string, write: boolean) {
   await authorizePublication(ctx, { scope: "project", organizationId: ctx.organizationId, projectId: project }, { scopes: ["project"], permissions: [write ? "manage_projects" : "view_materials"], capabilities: ["platform.materials"], systemKinds: [] }, write ? "materials.calculus.command" : "materials.calculus.read");

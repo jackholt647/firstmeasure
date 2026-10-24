@@ -723,7 +723,8 @@ export async function createDocumentInstance(orgId: string, projectId: string, i
     renderedModule = { id: instance.id, publication };
   }
   const document = await saveDocumentInstance(orgId, id, data, options);
-  await recordDocumentEvent(orgId, document, "document.created", { project_id: projectId }, ctx, { emit: false });
+  // Published to the work engine, so a scope can move on when a document (a proposal, say) is made for the project.
+  await recordDocumentEvent(orgId, document, "document.created", { project_id: projectId }, ctx);
   await syncProjectSignatureRequirements(orgId, projectId).catch(() => null);
   if (renderedModule) {
     const modules = await import("./modules/service.js");

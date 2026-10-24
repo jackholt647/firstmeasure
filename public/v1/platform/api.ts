@@ -4445,7 +4445,7 @@ function mergeProjectEmbeddedEvents(currentValue: unknown, incomingValue: unknow
  * existing project — PATCH, an explicit expected_revision or
  * require_existing — never recreates a project deleted meanwhile (R4-EQ-3);
  * it answers 404 project_deleted instead. */
-async function upsertProjectDocumentPreservingEvents(
+export async function upsertProjectDocumentPreservingEvents(
   orgId: string,
   documentId: string,
   input: JsonObject,
@@ -4468,9 +4468,16 @@ async function upsertProjectDocumentPreservingEvents(
     const created = await upsertDocument(orgId, "projects", value, { replace, createOnly: true });
     return { created, template };
   };
+  // A write that links a FirstMeasure report publishes it on the project (firstmeasure/project-events.ts), after the
+  // project's scope has started so the scope can answer it.
+  let before: JsonObject = {};
+  const reportEvents = async (document: JsonObject) => {
+    await (await import("../firstmeasure/project-events.js")).publishProjectReportLink(orgId, cleanText(document.id), before, asObject(document.data));
+    return document;
+  };
   if (!id) {
     const made = await createWithScope(input);
-    return await creation.startCreatedProjectScope(orgId, made.created.id, made.template);
+    return await reportEvents(await creation.startCreatedProjectScope(orgId, made.created.id, made.template));
   }
   const explicitExpectedRevision = Number(input.expected_revision || 0);
   let made: { created: JsonObject; template: JsonObject } | null = null;
@@ -4492,6 +4499,7 @@ async function upsertProjectDocumentPreservingEvents(
       }
     }
     const currentData = asObject(current.data);
+    before = currentData;
     const incomingData = asObject(input.data);
     const mergedProjectData = mergeProjectCustomFieldsForSave(currentData, {
       ...incomingData,
@@ -4522,7 +4530,7 @@ async function upsertProjectDocumentPreservingEvents(
   });
   // The scope starts after the lock: starting it writes the project's projection.
   const createdNow = made as { created: JsonObject; template: JsonObject } | null;
-  return createdNow ? await creation.startCreatedProjectScope(orgId, cleanText(createdNow.created.id), createdNow.template) : saved;
+  return await reportEvents(createdNow ? await creation.startCreatedProjectScope(orgId, cleanText(createdNow.created.id), createdNow.template) : saved);
 }
 
 /* Whether a project item write books equipment or changes an item that

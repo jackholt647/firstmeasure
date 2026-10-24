@@ -6,7 +6,7 @@ import path from 'node:path';
 
 test('the MVP platform workflow is FirstMeasure plus projects, contacts, feed and the project tabs and trays, without scheduling',async()=>{
  const root=await mkdtemp(path.join(os.tmpdir(),'fm-sandbox-mvp-'));
- Object.assign(process.env,{FIRSTMATE_ENV:'development',FIRSTMEASURE_DATA_ENVIRONMENT:'development',FIRSTMEASURE_DATABASE_MODE:'sqlite',PLATFORM_STORAGE_ROOT:path.join(root,'platform'),SIGNUP_SANDBOX_STORAGE_ROOT:path.join(root,'sandbox'),PLATFORM_SESSION_SECRET:'isolated-sandbox-mvp-platform-test-secret'});
+ Object.assign(process.env,{FIRSTMATE_ENV:'development',FIRSTMEASURE_DATA_ENVIRONMENT:'development',FIRSTMEASURE_DATABASE_MODE:'sqlite',PLATFORM_STORAGE_ROOT:path.join(root,'platform'),SIGNUP_SANDBOX_STORAGE_ROOT:path.join(root,'sandbox'),PLATFORM_SESSION_SECRET:'isolated-sandbox-mvp-platform-test-secret',FIRSTMEASURE_STORAGE_ROOT:path.join(root,'firstmeasure'),FIRSTMEASURE_INDEX_DB_PATH:path.join(root,'firstmeasure-index.sqlite')});
  await import('../platform/capability_defs.js');
  for(const module of ['assistant','comms','chat']) await import(`../${module}/capabilities.js`);
  const {sandboxStore}=await import('../signup-sandbox/storage.js');
@@ -14,6 +14,7 @@ test('the MVP platform workflow is FirstMeasure plus projects, contacts, feed an
  const storage=await import('../platform/storage.js');
  const capabilities=await import('../platform/capabilities.js');
  await import('../platform/widgets/catalog.js');
+ const home=process.cwd();
  process.chdir(root);
  await service.ensureSeedData();
  const workflow=await sandboxStore.readWorkflow('swf_mvp_platform');
@@ -55,12 +56,60 @@ test('the MVP platform workflow is FirstMeasure plus projects, contacts, feed an
  const roofing=await scopes.readScopeTemplate(orgId,'default','generic_roofing');
  assert.deepEqual((roofing as any).definition?.measurement_schema_ids ?? (roofing as any).measurement_schema_ids,['roofing']);
  assert.equal(String((await creation.creationScopeTemplate(orgId,'default')).id),'generic_roofing');
- assert.equal((workflow as any).dev_bar,false);assert.equal((workflow as any).configuration_revision,6);
+ assert.equal((workflow as any).dev_bar,false);assert.equal((workflow as any).configuration_revision,7);
  const resolved=(await capabilities.effectiveCapabilities(orgId)).values as any;
  assert.equal(resolved['platform.new_button_mode'],'selector');assert.equal(resolved['platform.new_button_items'],'report,project,contact');
  // Turned on as configuration even where this checkout's registry does not define it (dev's does).
  assert.equal((workflow!.defaults as any).app_flags['firstmeasure.roof_model_viewer'],true);
  assert.equal((workflow as any).sample_data,true);assert.deepEqual((workflow as any).setup_scripts,['mvp-platform']);
+ // Generic Roofing's board follows the report and the documents: five stages, in order.
+ const definition=(roofing as any).definition;
+ assert.deepEqual(definition.work_plan.root_nodes[0].children.map((stage:any)=>stage.title),['New project','Report ordered','Report delivered','Proposal created','Materials created']);
+ // Dry run: each milestone moves the board one stage; one that comes early skips ahead, and one that comes late never moves it back.
+ const {dryRunAutomations}=await import('../scopes/dry-run.js');
+ const stageAfter=async(steps:any[])=>{const run:any=await dryRunAutomations(orgId,'default',{template_id:'generic_roofing',include_organization_rules:false,steps});assert.deepEqual(run.errors,[]);return run.final.current_stage?.id;};
+ assert.equal(await stageAfter([]),'new_project');
+ assert.equal(await stageAfter([{event:'measurement.report.ordered'}]),'report_ordered');
+ assert.equal(await stageAfter([{event:'measurement.report.ordered'},{event:'measurement.report.completed'}]),'report_delivered');
+ assert.equal(await stageAfter([{event:'measurement.report.ordered'},{event:'measurement.report.completed'},{event:'document.created',payload:{document_type:'invoice'}}]),'report_delivered');
+ assert.equal(await stageAfter([{event:'document.created',payload:{document_type:'proposal'}}]),'proposal_created');
+ assert.equal(await stageAfter([{event:'material.lines.created'},{event:'measurement.report.ordered'}]),'materials_created');
+ // The real writers move a real project: the board stage is read from the project's work projection.
+ process.env.NODE_ENV='test';
+ const platformApi=await import('../platform/api.js');const fm=await import('../firstmeasure/storage.js');const work=await import('../work/service.js');
+ const boardStage=async(projectId:string)=>String((await work.projectWorkProjection(orgId,projectId)).instances.find((entry:any)=>entry.template_id==='generic_roofing')?.stage_id);
+ const flow='project_stage_flow';
+ const made:any=await platformApi.upsertProjectDocumentPreservingEvents(orgId,flow,{id:flow,data:{title:'12 Stage Street',address:'12 Stage Street'}},true);
+ assert.equal(await boardStage(flow),'new_project');
+ // Ordering a report: the report is made, then the order flow saves the project with its link.
+ await fm.createProject({id:'report_stage_flow',address:'12 Stage Street',organization_ref:{id:orgId}});
+ await platformApi.upsertProjectDocumentPreservingEvents(orgId,flow,{id:flow,data:{...made.data,measurement_project:{id:'report_stage_flow',status:'queued'}}},true);
+ assert.equal(await boardStage(flow),'report_ordered');
+ await fm.updateStatus('report_stage_flow','completed');
+ assert.equal(await boardStage(flow),'report_delivered');
+ const documents=await import('../documents/service.js');
+ await documents.createDocumentInstance(orgId,flow,{document_type:'proposal'},instance.authContext as any);
+ assert.equal(await boardStage(flow),'proposal_created');
+ const calculus=await import('../materials/calculus.js');const {userPublicationContext}=await import('../platform/publication/context.js');
+ const materialsCtx=userPublicationContext(instance.authContext as any,{projectId:flow,executionKind:'api'});
+ const materials=async(operation:string,input:any)=>calculus.materialsCommand(materialsCtx,flow,{key:crypto.randomUUID(),expected_revision:(await calculus.readMaterialsLedger(materialsCtx,flow)).revision,operation,input});
+ const set=String((await materials('create',{definition:{type:'materials_calculus',key:'roof',title:'Roof',bindings:{},inputSchema:{type:'object',properties:{},additionalProperties:false},defaults:{},source:"return {outputs:{lines:[{key:'shingles',product_id:'hdz',name:'HDZ',quantity:30,unit:'bundle',explanation:'Roof'}],warnings:[]}};"}})).result.set_id);
+ assert.equal(await boardStage(flow),'proposal_created');
+ // The calculation runs in the module sandbox, which loads from the package directory.
+ process.chdir(home);
+ const evaluated=await materials('evaluate',{set_id:set,values:{}});
+ process.chdir(root);
+ await materials('apply',{set_id:set,evaluation_id:evaluated.result.evaluation_id});
+ assert.equal(await boardStage(flow),'materials_created');
+ // A stage set by hand stays until the project's own milestones reach it.
+ const manual='project_stage_manual';
+ const manualMade:any=await platformApi.upsertProjectDocumentPreservingEvents(orgId,manual,{id:manual,data:{title:'14 Stage Street'}},true);
+ const plan=(await work.projectWorkProjection(orgId,manual)).plans.find((entry:any)=>entry.template_id==='generic_roofing') as any;
+ await work.setManualPlanStage(orgId,String(plan.id),'proposal_created');
+ await fm.createProject({id:'report_stage_manual',address:'14 Stage Street',organization_ref:{id:orgId}});
+ await platformApi.upsertProjectDocumentPreservingEvents(orgId,manual,{id:manual,data:{...manualMade.data,measurement_project:{id:'report_stage_manual',status:'queued'}}},true);
+ assert.equal(await boardStage(manual),'proposal_created');
+ await (await import('../firstmeasure/project_index.js')).closeFirstMeasureProjectIndex();
  // MVP test orgs take the development sample projects and customers (the project map needs projects).
  const {addTestOrgSampleData}=await import('../signup-sandbox/sample-data.js');
  await addTestOrgSampleData(String(instance.testOrg.id),{projects:true,customers:true});

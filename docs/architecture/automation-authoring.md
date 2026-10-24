@@ -160,6 +160,29 @@ the trigger as `state.trigger` and may read and select from any published source
 declares as a binding (`api.data.read`, `api.data.select`). CRM lead routing and scoring
 are generated rules of this kind ([CRM](crm.md#lead-routing-and-scoring)).
 
+## Report, document and materials milestones
+
+Scopes can follow a project's report and documents through events any template may
+use in `external_triggers`, bindings or rules (`work/events.ts`):
+
+- `measurement.report.ordered`: a project write links a FirstMeasure report it did
+  not link before (`firstmeasure/project-events.ts`, called from the platform
+  project writer). A report already complete when linked also publishes
+  `measurement.report.completed`.
+- `measurement.report.completed`: a linked report's status becomes `completed`,
+  published on every project that links it. Not built: this lists the
+  organization's projects to find them
+  ([optimization backlog](../optimization-backlog.md)).
+- `document.created`: a document is made on a project (`payload.document_type`
+  tells a proposal from an invoice).
+- `material.lines.created`: a material set first has lines, whoever made them;
+  once per set.
+
+Each is published once per project and report, document or set. The MVP
+platform's Generic Roofing scope uses them for its board
+(`signup-sandbox/configurations/mvp-platform.ts`): a stage's to-do finishes on
+its milestone or any later one, so a project skips ahead and never moves back.
+
 ## Dry run
 
 `POST /v1/scopes/organizations/:orgId/branches/:branchId/automation-dry-run`
