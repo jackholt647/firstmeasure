@@ -8,8 +8,8 @@ const helper = await readFile(new URL('../../libraries/apps/materials/scope-of-w
 const scopeModule = await import('data:text/javascript;base64,'+Buffer.from(helper).toString('base64'));
 
 const fields=[
-  {definition:'roof.squares',key:'roofSquares',label:'Roof squares',unit:'roofing_square',required:true,schemas:['roofing'],group:'area'},
-  {definition:'roof.area',key:'roofArea',label:'Roof area',unit:'ft2',required:true,schemas:['roofing'],group:'area'},
+  {definition:'roof.squares',key:'roofSquares',label:'Roof squares',unit:'roofing_square',required:true,schemas:['roofing'],group:'area',derives:[{definition:'roof.area',key:'roofArea',label:'Roof area',unit:'ft2',factor:100}]},
+  {definition:'roof.ridge_length',key:'ridgesLf',label:'Ridges',unit:'ft',required:true,schemas:['roofing'],group:'length'},
   {definition:'roof.squares_9_to_12',key:'pitch9to12Squares',label:'Squares from 9/12 to 12/12',unit:'roofing_square',required:false,schemas:['roofing'],group:'part:roof.pitch_bands',group_label:'Squares by pitch band'},
   {definition:'roof.eave_length',key:'eavesLf',label:'Eave length',unit:'ft',required:false,schemas:['roofing'],group:'length'}
 ];
@@ -60,7 +60,7 @@ test('the Measurements view becomes the editor without a report, saves through t
     await page.evaluate(async form=>{
       window.helper=await import('/libraries/apps/materials/scope-of-work.js');
       window.invocations=[];window.revision=0;
-      window.PlatformAPI={publication:{invoke:async(org,action,target,input)=>{invocations.push({org,action,target,input});window.revision++;const values={...(window.saved||{})};for(const [k,v] of Object.entries(input.values)){if(v===null)delete values[k];else values[k]=v;}window.saved=values;return {value:{datasetId:'dataset_manual_x',revision:'sha256:x',storeRevision:window.revision,values,inUse:Object.keys(values).length?(window.reportInUse?'other':'manual'):'none',changed:Object.keys(input.values)},receipt:{status:'succeeded'}};},read:async()=>({status:'missing'})}};
+      window.PlatformAPI={publication:{invoke:async(org,action,target,input)=>{invocations.push({org,action,target,input});window.revision++;const values={...(window.saved||{})};for(const [k,v] of Object.entries(input.values)){if(v===null)delete values[k];else values[k]=v;if(k==='roofSquares'){if(v===null)delete values.roofArea;else values.roofArea=v*100;}}window.saved=values;return {value:{datasetId:'dataset_manual_x',revision:'sha256:x',storeRevision:window.revision,values,inUse:Object.keys(values).length?(window.reportInUse?'other':'manual'):'none',changed:Object.keys(input.values)},receipt:{status:'succeeded'}};},read:async()=>({status:'missing'})}};
       window.widgetVisible=[];window.FirstMateWidgets={mount(root,ref){root.innerHTML='<div>3D model</div>';return {setVisible(v){widgetVisible.push(v);},destroy(){}};}};
       window.confirm=()=>true;
       window.manualDoc=f=>({id:'manual-measurements',source:'manual',title:'Measurements entered by hand',form:f,reportReady:false});
@@ -95,7 +95,7 @@ test('the Measurements view becomes the editor without a report, saves through t
     await page.setViewportSize({width:1200,height:800});await page.evaluate(()=>{document.querySelector('aside').style.width='420px';});
 
     // The report arrives. The 3D model is the view again; "Your entries" shows what was typed beside the report's numbers.
-    await page.evaluate(form=>{window.reportInUse=true;helper.mountSidebar(document.querySelector('aside'),[{...manualDoc(form),reportReady:true},{id:'report',source:'measurement',value:{measurements:{roofSquares:{value:24,unit:'roofing_square'}}}}],'','org:project');},form({manual:{dataset_id:'dataset_manual_x',store_revision:2,values:{roofSquares:32,eavesLf:1250.5}},in_use:{source:'report',dataset_id:'report',values:{roofSquares:24}}}));
+    await page.evaluate(form=>{window.reportInUse=true;helper.mountSidebar(document.querySelector('aside'),[{...manualDoc(form),reportReady:true},{id:'report',source:'measurement',value:{measurements:{roofSquares:{value:24,unit:'roofing_square'}}}}],'','org:project');},form({manual:{dataset_id:'dataset_manual_x',store_revision:2,values:{roofSquares:32,roofArea:3200,eavesLf:1250.5}},in_use:{source:'report',dataset_id:'report',values:{roofSquares:24}}}));
     await page.waitForFunction(()=>!document.querySelector('[data-scope-panel="roof"]').hidden);
     assert.equal(await page.locator('[data-scope-manual]').isHidden(),true);
     const flip=page.getByRole('button',{name:'Your entries'});await flip.waitFor();
@@ -113,5 +113,55 @@ test('the Measurements view becomes the editor without a report, saves through t
     // A project whose scopes name no schema keeps today's view.
     await page.evaluate(()=>helper.mountSidebar(document.querySelector('aside'),[],'','org:other'));
     assert.equal(await page.locator('[data-scope-panel="roof"]').isHidden(),false);assert.equal(await page.locator('.smm').count(),0);
+  } finally {await browser.close();server.close();}
+});
+
+test('a typed value survives a stale refresh, expanding, collapsing and a reload, and the area follows the squares', async () => {
+  const files={'/libraries/apps/materials/scope-of-work.js':helper,'/libraries/apps/materials/manual-measurements.js':await readFile(new URL('../../libraries/apps/materials/manual-measurements.js',import.meta.url),'utf8')};
+  const server=createServer((req,res)=>{const path=new URL(req.url,'http://fixture').pathname;if(files[path]){res.setHeader('Content-Type','text/javascript');res.end(files[path]);return;}res.setHeader('Content-Type','text/html');res.end('<!doctype html><html><head><style>.sw-viewport{position:relative;height:640px;overflow:hidden}.sw-panel{position:absolute;inset:0;overflow:hidden}.sw-panel[hidden]{display:none}</style></head><body><aside style="width:420px;height:700px;display:flex;flex-direction:column"></aside></body></html>');});
+  await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
+  const browser=await chromium.launch({channel:'chrome',headless:true});
+  try {
+    const page=await browser.newPage({viewport:{width:1200,height:800}});
+    await page.goto(`http://127.0.0.1:${server.address().port}/`);
+    await page.evaluate(async form=>{
+      window.helper=await import('/libraries/apps/materials/scope-of-work.js');
+      window.base=form;window.saved={};window.revision=0;window.invocations=[];
+      // The server: saves land after a short delay, as on a real network.
+      window.PlatformAPI={publication:{invoke:async(org,action,target,input)=>{invocations.push(input);await new Promise(r=>setTimeout(r,150));for(const [k,v] of Object.entries(input.values)){if(v===null)delete saved[k];else saved[k]=v;if(k==='roofSquares'){if(v===null)delete saved.roofArea;else saved.roofArea=v*100;}}revision++;return {value:{datasetId:'d',revision:'r',storeRevision:revision,values:{...saved},inUse:'manual',changed:Object.keys(input.values)}};},read:async()=>({status:'missing'})}};
+      window.FirstMateWidgets={mount(root){return {setVisible(){},destroy(){}};}};
+      window.serverForm=()=>({...base,manual:revision?{dataset_id:'d',store_revision:revision,values:{...saved}}:null,in_use:{source:revision?'manual':'none',dataset_id:revision?'d':'',values:{...saved}}});
+      window.mountWith=(form,key='org:project')=>helper.mountSidebar(document.querySelector('aside'),[{id:'manual-measurements',source:'manual',form,reportReady:false}],'',key);
+      window.staleForm=serverForm();
+      mountWith(staleForm);
+    },form());
+    const squares=()=>page.getByLabel('Roof squares (sq)');
+    await squares().waitFor();
+    // Jack's steps: type 20 squares and move on.
+    await squares().fill('20');await squares().press('Tab');
+    await page.waitForFunction(()=>invocations.length===1&&revision===1);
+    await page.getByText('Saved.',{exact:false}).waitFor();
+    assert.equal(await page.locator('[data-smm-row="roofSquares"] [data-smm-derived]').innerText(),'= 2,000 sq ft','the area follows the squares');
+    // A background read that started before the save lands after it. It must not take the value back.
+    await page.evaluate(()=>{document.activeElement?.blur();mountWith({...staleForm,schemas:[...staleForm.schemas]});});
+    await page.evaluate(()=>{const d=JSON.parse(JSON.stringify(staleForm));d.report_linked=false;d.fields=[...d.fields];mountWith(d);});
+    assert.equal(await squares().inputValue(),'20');
+    assert.ok(await page.getByText('1 of 2 required entered').isVisible());
+    // Expand and collapse redraw the list.
+    await page.getByRole('button',{name:/More measurements/}).click();assert.equal(await squares().inputValue(),'20');
+    await page.getByRole('button',{name:'Show fewer'}).click();assert.equal(await squares().inputValue(),'20');
+    // A value typed and not yet sent survives an expand that happens before it is saved.
+    const ridges=page.getByLabel('Ridges (ft)');await ridges.fill('42');
+    await page.getByRole('button',{name:/More measurements/}).click();
+    assert.equal(await page.getByLabel('Ridges (ft)').inputValue(),'42');assert.equal(await squares().inputValue(),'20');
+    await page.waitForFunction(()=>invocations.length===2&&revision===2);
+    assert.deepEqual(await page.evaluate(()=>invocations[1]),{values:{ridgesLf:42},expectedRevision:1});
+    assert.ok(await page.getByText('2 of 2 required entered').isVisible());
+    // Reload: a fresh mount from what the server now holds.
+    await page.evaluate(()=>{helper.disposeSidebar(document.querySelector('aside'));mountWith(serverForm(),'org:project');});
+    await squares().waitFor();
+    assert.equal(await squares().inputValue(),'20');assert.equal(await page.getByLabel('Ridges (ft)').inputValue(),'42');
+    assert.equal(await page.locator('[data-smm-row="roofSquares"] [data-smm-derived]').innerText(),'= 2,000 sq ft');
+    assert.equal(await page.getByLabel('Roof area (sq ft)').count(),0,'roof area is never asked for beside roof squares');
   } finally {await browser.close();server.close();}
 });

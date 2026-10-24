@@ -176,7 +176,7 @@ export function manualMeasurementMode(form,reportReady){
   return 'edit';
 }
 // Resolved when first needed: a test may load this module from a data: URL, against which nothing resolves.
-const manualEditorUrl=()=>new URL('./manual-measurements.js?v=20261024-manual-measurements',import.meta.url).href;
+const manualEditorUrl=()=>new URL('./manual-measurements.js?v=20261025-manual-squares',import.meta.url).href;
 function drawManual(root,state,contextKey){
   const doc=(state.documents||[]).find(d=>d.source==='manual');
   const mode=manualMeasurementMode(doc?.form,doc?.reportReady);

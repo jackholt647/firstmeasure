@@ -35,6 +35,9 @@ export function ensureStyles() {
   .smm-row{display:flex;align-items:center;gap:10px;padding:7px 12px;min-height:40px;box-sizing:border-box;border-top:1px solid #f1f4f8;animation:smm-in .24s cubic-bezier(.22,1,.36,1) both}
   .smm-group h3+.smm-row{border-top:0}
   .smm-label{flex:1;min-width:0;display:flex;align-items:center;gap:6px;line-height:1.35}
+  .smm-derived{flex-basis:100%;color:#667085;font-size:10.5px;line-height:1.2}
+  .smm-derived:empty{display:none}
+  .smm-label{flex-wrap:wrap}
   .smm-label em{font-style:normal;font-size:10px;font-weight:600;color:var(--primary-readable,var(--primary,#d93025))}
   .smm-field{display:inline-flex;align-items:center;flex:0 0 auto;width:132px;border:1px solid #cbd5e1;border-radius:6px;background:#fff;transition:border-color .15s,box-shadow .15s}
   .smm-field:focus-within{border-color:var(--primary,#d93025);box-shadow:0 0 0 3px rgba(var(--primary-rgb,217,48,37),.14)}
@@ -84,6 +87,20 @@ export function mount(root, options) {
   const api = () => window.PlatformAPI;
   const values = () => ({ ...(state.form?.manual?.values || {}) });
   const fieldOf = key => (state.form?.fields || []).find(field => field.key === key);
+  // What the person sees: the saved entries, then anything on its way to the server, then anything typed and not yet
+  // sent. A redraw (More measurements, a background refresh) therefore never blanks a value that was typed.
+  const display = () => { const shownValues = { ...values(), ...state.inflight }; for (const [key, value] of state.pending) shownValues[key] = value; for (const [key, value] of Object.entries(shownValues)) if (value === null) delete shownValues[key]; return shownValues; };
+  // Equivalents (roof area for roof squares) are stored beside the entered value; they are never entered themselves.
+  const derivedKeys = () => new Set((state.form?.fields || []).flatMap(field => (field.derives || []).map(other => other.key)));
+  // The keys a person entered. An equivalent stored beside an entry is the same number in another unit; it counts only
+  // when it stands alone (an older entry made before the two were joined).
+  const entryKeys = () => { const entered = values(), derived = derivedKeys(); return Object.keys(entered).filter(key => !derived.has(key) || !(state.form?.fields || []).some(field => (field.derives || []).some(other => other.key === key) && entered[field.key] != null)); };
+  const fieldValue = (field, entered) => {
+    if (entered[field.key] != null) return entered[field.key];
+    const other = (field.derives || []).find(item => typeof entered[item.key] === 'number');
+    return other ? Math.round(entered[other.key] / other.factor * 1e6) / 1e6 : undefined;
+  };
+  const derivedText = (field, value) => typeof value === 'number' && field.derives?.length ? field.derives.map(other => L('mm_equivalent', '= {value} {unit}', { value: shown(Math.round(value * other.factor * 100) / 100), unit: unitText(other.unit) })).join(' · ') : '';
 
   function groups(fields) {
     const order = [], byGroup = new Map();
@@ -97,15 +114,15 @@ export function mount(root, options) {
     return order.sort((a, b) => rank(a) - rank(b)).map(group => ({ group, title: title(group, byGroup.get(group)[0]), fields: byGroup.get(group) }));
   }
   function row(field, entered) {
-    const value = entered[field.key];
-    return `<label class="smm-row" data-smm-row="${esc(field.key)}"><span class="smm-label">${esc(field.label)}${field.required ? `<em>${esc(L('mm_required', 'Required'))}</em>` : ''}</span><span class="smm-field"><input type="text" inputmode="decimal" autocomplete="off" data-smm-key="${esc(field.key)}" value="${esc(shown(value))}" placeholder="—" aria-label="${esc(`${field.label} (${unitText(field.unit)})`)}"><span>${esc(unitText(field.unit))}</span></span><i class="fas fa-check smm-state" aria-hidden="true"></i></label>`;
+    const value = fieldValue(field, entered);
+    return `<label class="smm-row" data-smm-row="${esc(field.key)}"><span class="smm-label">${esc(field.label)}${field.required ? `<em>${esc(L('mm_required', 'Required'))}</em>` : ''}${field.derives?.length ? `<small class="smm-derived" data-smm-derived>${esc(derivedText(field, value))}</small>` : ''}</span><span class="smm-field"><input type="text" inputmode="decimal" autocomplete="off" data-smm-key="${esc(field.key)}" value="${esc(shown(value))}" placeholder="—" aria-label="${esc(`${field.label} (${unitText(field.unit)})`)}"><span>${esc(unitText(field.unit))}</span></span><i class="fas fa-check smm-state" aria-hidden="true"></i></label>`;
   }
   function editHtml() {
-    const fields = state.form.fields || [], entered = values();
-    const primary = fields.filter(field => field.required || entered[field.key] != null);
+    const fields = state.form.fields || [], entered = display();
+    const primary = fields.filter(field => field.required || fieldValue(field, entered) != null);
     const rest = fields.filter(field => !primary.includes(field));
     const visible = state.expanded ? fields : primary;
-    const required = fields.filter(field => field.required), done = required.filter(field => entered[field.key] != null).length;
+    const required = fields.filter(field => field.required), done = required.filter(field => fieldValue(field, entered) != null).length;
     const pct = required.length ? Math.round(done / required.length * 100) : 0;
     const note = options.reportLinked
       ? L('mm_report_on_order', 'A measurement report is linked to this project. When it is complete its numbers replace these.')
@@ -118,8 +135,7 @@ export function mount(root, options) {
       <footer class="smm-foot"><span class="smm-status${state.error ? ' error' : ''}" role="status" aria-live="polite">${esc(state.message)}</span>${Object.keys(entered).length ? `<button type="button" class="smm-btn" data-smm-clear>${esc(L('mm_clear_all', 'Clear all'))}</button>` : ''}</footer>`;
   }
   function compareHtml() {
-    const entered = values(), used = state.form.in_use?.values || {};
-    const keys = Object.keys(entered);
+    const entered = values(), used = state.form.in_use?.values || {}, keys = entryKeys();
     const label = key => fieldOf(key)?.label || key, unit = key => unitText(fieldOf(key)?.unit || '');
     return `<header class="smm-head"><div><h2 tabindex="-1">${esc(L('mm_compare_title', 'Your entries'))}</h2><p>${esc(L('mm_compare_intro', "The completed report's numbers are used now. What you entered by hand is kept here until you clear it."))}</p></div></header>
       <section class="smm-group"><table class="smm-compare"><thead><tr><th scope="col">${esc(L('mm_compare_measurement', 'Measurement'))}</th><th scope="col">${esc(L('mm_compare_report', 'Report'))}</th><th scope="col">${esc(L('mm_compare_yours', 'Your entry'))}</th></tr></thead><tbody>${keys.map(key => `<tr><td>${esc(label(key))}</td><td>${used[key] == null ? '—' : `${esc(shown(used[key]))} ${esc(unit(key))}`}</td><td class="${used[key] != null && used[key] !== entered[key] ? 'differs' : ''}">${esc(shown(entered[key]))} ${esc(unit(key))}</td></tr>`).join('')}</tbody></table></section>
@@ -131,7 +147,7 @@ export function mount(root, options) {
     root.querySelectorAll('[data-smm-key]').forEach(input => {
       const key = input.dataset.smmKey;
       input.addEventListener('focus', () => input.select?.());
-      input.addEventListener('input', () => { queue(key, input); });
+      input.addEventListener('input', () => { queue(key, input); const hint = input.closest('.smm-row')?.querySelector('[data-smm-derived]'); const field = fieldOf(key); if (hint && field) { const value = parse(input.value); hint.textContent = derivedText(field, Number.isNaN(value) || value === null ? undefined : value); } });
       input.addEventListener('change', () => { queue(key, input); flush(); });
       input.addEventListener('keydown', event => { if (event.key === 'Enter') { event.preventDefault(); queue(key, input); flush(); input.blur(); } if (event.key === 'Escape') { input.value = shown(values()[key]); state.pending.delete(key); input.closest('.smm-field')?.classList.remove('invalid'); input.blur(); } });
     });
@@ -192,8 +208,8 @@ export function mount(root, options) {
     }
   }
   function updateProgress() {
-    const fields = state.form.fields || [], entered = values();
-    const required = fields.filter(field => field.required), done = required.filter(field => entered[field.key] != null).length;
+    const fields = state.form.fields || [], entered = display();
+    const required = fields.filter(field => field.required), done = required.filter(field => fieldValue(field, entered) != null).length;
     const bar = root.querySelector('.smm-bar');
     if (!bar) return;
     bar.setAttribute('aria-valuenow', String(done));
@@ -215,7 +231,7 @@ export function mount(root, options) {
     } catch { /* The message already says what went wrong. */ }
   }
   function clearAll() {
-    const keys = Object.keys(values());
+    const keys = entryKeys();
     if (!keys.length) return;
     const message = state.mode === 'compare' ? L('mm_clear_entries_confirm', 'Clear the measurements you entered by hand? The report is not changed.') : L('mm_clear_all_confirm', 'Clear every measurement entered by hand for this project?');
     if (!window.confirm(message)) return;
@@ -230,6 +246,9 @@ export function mount(root, options) {
       const modeChanged = mode !== state.mode;
       if (!modeChanged && (state.saving || state.pending.size || root.contains(document.activeElement))) return;
       if (!modeChanged && JSON.stringify(form) === JSON.stringify(state.form)) return;
+      // A read that started before our last save can land after it. Never go back to an older revision of the entries:
+      // that is what blanked a value that had just been saved while the status still said Saved.
+      if (!modeChanged && Number(form?.manual?.store_revision || 0) < state.revision) return;
       state.form = form; state.mode = mode; state.revision = form?.manual?.store_revision || state.revision;
       render();
     },

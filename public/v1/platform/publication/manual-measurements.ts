@@ -17,11 +17,12 @@ import type { PublicationContext, TargetRef } from "./contracts.js";
 import { authorizePublication } from "./context.js";
 import { contentHash } from "./validation.js";
 import { listProjectDatasets, readProjectDataset, saveProjectDataset, selectProjectDataset } from "./datasets.js";
-import { listMeasurementDefinitions, listMeasurementPartitions, measurementSchema, measurementSchemaIdsForScope } from "./measurement-schemas.js";
+import { listMeasurementDefinitions, listMeasurementPartitions, measurementEquivalents, measurementSchema, measurementSchemaIdsForScope, preferredEquivalent } from "./measurement-schemas.js";
 
 type Obj = Record<string, unknown>;
 const obj = (value: unknown): Obj => (value && typeof value === "object" && !Array.isArray(value) ? value as Obj : {});
 const text = (value: unknown) => String(value ?? "").trim();
+const round = (value: number) => Math.round(value * 1e6) / 1e6;
 
 export const MANUAL_MEASUREMENT_ROLE = "manual";
 export const MANUAL_MEASUREMENT_SOURCE = "manual";
@@ -36,6 +37,8 @@ export type ManualMeasurementField = {
   definition: string; key: string; label: string; unit: string; required: boolean; schemas: string[];
   /** `area`, `length`, or `part:<partition id>` for a part of a measurement (squares by pitch band). */
   group: string; group_label?: string;
+  /** Equivalent measurements in other units (roof area for roof squares): not entered, stored from this one's value. */
+  derives?: { definition: string; key: string; label: string; unit: string; factor: number }[];
 };
 
 /** What can be entered for these schemas: their project-level dictionary measurements with a key of their own, in schema order. */
@@ -45,16 +48,20 @@ export function manualMeasurementFields(schemaIds: string[]): ManualMeasurementF
   const fields = new Map<string, ManualMeasurementField>();
   for (const schemaId of schemaIds) {
     for (const entry of measurementSchema(schemaId).measurements) {
-      const definition = definitions.get(entry.definition);
+      // A measurement the dictionary declares equivalent to another (roof area and roof squares) is entered once, as the
+      // equivalence's preferred member; the others are stored from it.
+      const definition = definitions.get(preferredEquivalent(entry.definition));
       // A family of keys (squares at each exact pitch) has no single key to type into; its bands do.
       if (!definition?.key || !definition.levels.includes("project")) continue;
       const known = fields.get(definition.id);
-      if (known) { known.required ||= entry.required; known.schemas.push(schemaId); continue; }
+      if (known) { known.required ||= entry.required; if (!known.schemas.includes(schemaId)) known.schemas.push(schemaId); continue; }
+      const derives = measurementEquivalents(definition.id).map((other) => ({ ...other, label: definitions.get(other.definition)!.label }));
       const partition = definition.slice ? partitions.get(definition.slice.partition) : undefined;
       fields.set(definition.id, {
         definition: definition.id, key: definition.key, label: definition.label, unit: definition.unit, required: entry.required, schemas: [schemaId],
         group: partition ? `part:${partition.id}` : definition.unit === "ft" ? "length" : "area",
-        ...(partition ? { group_label: partition.label } : {})
+        ...(partition ? { group_label: partition.label } : {}),
+        ...(derives.length ? { derives } : {})
       });
     }
   }
@@ -140,7 +147,13 @@ export async function saveManualMeasurements(ctx: PublicationContext, projectId:
   if (ctx.mode !== "command") throw forbidden("manual_measurements_mode", "Saving measurements requires command execution.");
   const fields = new Map(manualMeasurementFields(await projectMeasurementSchemaIds(ctx.organizationId, projectId)).map((field) => [field.key, field]));
   if (!fields.size) throw badRequest("manual_measurements_unavailable", "This project's scopes name no measurement schema, so there is nothing to enter.");
-  const changes = Object.entries(obj(input.values));
+  // A value given for an equivalent of an entered measurement (roof area for roof squares) is taken as that measurement.
+  const aliases = new Map<string, { key: string; factor: number }>();
+  for (const field of fields.values()) for (const other of field.derives || []) aliases.set(other.key, { key: field.key, factor: 1 / other.factor });
+  const changes = Object.entries(obj(input.values)).map(([key, value]): [string, unknown] => {
+    const alias = aliases.get(key);
+    return alias ? [alias.key, typeof value === "number" ? round(value * alias.factor) : value] : [key, value];
+  });
   if (!changes.length) throw badRequest("manual_measurements_empty", "Give at least one measurement to set or clear.");
   for (const [key, value] of changes) {
     if (!fields.has(key)) throw badRequest("manual_measurement_unknown", `${key} is not a measurement this project's scopes ask for.`);
@@ -153,8 +166,14 @@ export async function saveManualMeasurements(ctx: PublicationContext, projectId:
   const before = obj(obj(previous?.value).measurements);
   const after: Obj = { ...before };
   for (const [key, value] of changes) {
+    const field = fields.get(key)!;
+    // Equivalents are stored beside the entered value, so every reader finds whichever unit it reads.
+    for (const other of field.derives || []) {
+      if (value === null) delete after[other.key];
+      else after[other.key] = { value: round((value as number) * other.factor), unit: other.unit, source: MANUAL_MEASUREMENT_SOURCE };
+    }
     if (value === null) delete after[key];
-    else after[key] = { value, unit: fields.get(key)!.unit, source: MANUAL_MEASUREMENT_SOURCE };
+    else after[key] = { value, unit: field.unit, source: MANUAL_MEASUREMENT_SOURCE };
   }
   const beforeValues = numbers(before), afterValues = numbers(after);
   const changed = [...new Set([...Object.keys(beforeValues), ...Object.keys(afterValues)])].filter((key) => beforeValues[key] !== afterValues[key]).sort();

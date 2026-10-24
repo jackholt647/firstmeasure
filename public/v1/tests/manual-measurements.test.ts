@@ -17,7 +17,10 @@ test("the editor offers the dictionary measurements the project's scope schemas 
   const m = await import("../platform/publication/manual-measurements.js");
   const roofing = m.manualMeasurementFields(["roofing"]);
   const keys = roofing.map((field) => field.key);
-  assert.ok(keys.includes("roofSquares") && keys.includes("roofArea") && keys.includes("eavesLf") && keys.includes("pitch9to12Squares"));
+  assert.ok(keys.includes("roofSquares") && keys.includes("eavesLf") && keys.includes("pitch9to12Squares"));
+  // Roof area and roof squares are one quantity in two units: entered once, as squares, which is required if either is.
+  assert.ok(!keys.includes("roofArea"));
+  assert.deepEqual(roofing.find((field) => field.key === "roofSquares")!.derives, [{ definition: "roof.area", key: "roofArea", label: "Roof area", unit: "ft2", factor: 100 }]);
   assert.ok(!keys.some((key) => /^pitch\d+(?:\.\d+)?Squares$/.test(key)), "a family of exact-pitch keys has no single key to type into");
   assert.equal(new Set(keys).size, keys.length);
   const squares = roofing.find((field) => field.key === "roofSquares")!;
@@ -64,7 +67,7 @@ test("entries made by hand are the project's measurements until a completed repo
   await assert.rejects(m.saveManualMeasurements(ctx("roof"), "roof", { values: { roofSquares: -1 } }), /zero or more/);
 
   const first = await m.saveManualMeasurements(ctx("roof"), "roof", { values: { roofSquares: 32, eavesLf: 180, ridgesLf: 40 } });
-  assert.equal(first.inUse, "manual"); assert.deepEqual(first.changed, ["eavesLf", "ridgesLf", "roofSquares"]);
+  assert.equal(first.inUse, "manual"); assert.deepEqual(first.changed, ["eavesLf", "ridgesLf", "roofArea", "roofSquares"]);
   // Everything downstream reads the selected dataset; with no report it is these entries, in dictionary keys and units.
   const effective = await effectiveProjectMeasurements(ctx("roof"), "roof");
   assert.equal(effective.status, "ready"); assert.equal(effective.datasetId, m.manualMeasurementDatasetId(ORG, "roof"));
@@ -72,6 +75,10 @@ test("entries made by hand are the project's measurements until a completed repo
   assert.equal(measurementAmounts(effective.value, "roof.squares").total, 32);
   assert.ok(!assessMeasurements("roofing", effective.value).missing_required.includes("roof.squares"));
   assert.equal((effective.provenance as any).producer, "manual");
+  // The area follows from the squares, so every reader finds it and nothing reports it missing.
+  assert.deepEqual((effective.value as any).measurements.roofArea, { value: 3200, unit: "ft2", source: "manual" });
+  assert.equal(measurementAmounts(effective.value, "roof.area").total, 3200);
+  assert.ok(!assessMeasurements("roofing", effective.value).missing_required.includes("roof.area"));
 
   // An edit by someone who read an older revision is refused instead of overwriting theirs.
   const stale = (await m.readManualMeasurements(ctx("roof"), "roof")).manual!.store_revision;
@@ -79,14 +86,14 @@ test("entries made by hand are the project's measurements until a completed repo
   await assert.rejects(m.saveManualMeasurements(ctx("roof"), "roof", { values: { eavesLf: 175 }, expectedRevision: stale }), /changed by someone else/);
   const read = await m.readManualMeasurements(ctx("roof"), "roof");
   const second = await m.saveManualMeasurements(ctx("roof"), "roof", { values: { eavesLf: 175, ridgesLf: null }, expectedRevision: read.manual!.store_revision });
-  assert.deepEqual(second.values, { eavesLf: 175, roofSquares: 32 }); assert.deepEqual(second.changed, ["eavesLf", "ridgesLf"]);
+  assert.deepEqual(second.values, { eavesLf: 175, roofArea: 3200, roofSquares: 32 }); assert.deepEqual(second.changed, ["eavesLf", "ridgesLf"]);
 
   // The writer records the change in project history; an unchanged save records nothing.
   await m.saveManualMeasurements(ctx("roof"), "roof", { values: { eavesLf: 175 } });
   const history = await listProjectChanges(ORG, { project_id: "roof", domain: "measurements" });
   assert.equal(history.length, 3);
-  assert.deepEqual((history[2]!.before as any).values, { eavesLf: 180, ridgesLf: 41, roofSquares: 32 });
-  assert.deepEqual((history[2]!.after as any).values, { eavesLf: 175, roofSquares: 32 });
+  assert.deepEqual((history[2]!.before as any).values, { eavesLf: 180, ridgesLf: 41, roofArea: 3200, roofSquares: 32 });
+  assert.deepEqual((history[2]!.after as any).values, { eavesLf: 175, roofArea: 3200, roofSquares: 32 });
 
   // The report arrives: its numbers are used, never mixed with the entries made by hand.
   await fm.createProject({ id: "report_manual", address: "12 Oak St", organization_ref: { id: ORG } });
@@ -102,7 +109,7 @@ test("entries made by hand are the project's measurements until a completed repo
   // The entries are kept and shown beside the report's numbers until cleared.
   const compare = await m.readManualMeasurements(ctx("roof"), "roof");
   assert.equal(compare.in_use.source, "report"); assert.equal(compare.in_use.values.roofSquares, 24);
-  assert.deepEqual(compare.manual!.values, { eavesLf: 175, roofSquares: 32 });
+  assert.deepEqual(compare.manual!.values, { eavesLf: 175, roofArea: 3200, roofSquares: 32 });
 
   // Editing or clearing them never takes the report's place.
   const edited = await m.saveManualMeasurements(ctx("roof"), "roof", { values: { roofSquares: 30 } });
@@ -147,4 +154,30 @@ test("the manual entry read and writer are published with the project data permi
   assert.ok(action); assert.deepEqual(action.policy?.permissions || action.access?.permissions, ["manage_project_data"]);
   const provider = listDataProviders().find((entry: any) => entry.id === "measurement-schemas") as any;
   assert.ok(provider?.exports?.manual || provider?.exports?.find?.((entry: any) => entry.id === "manual"));
+});
+
+test("a measurement declared equivalent in another unit is entered once and stored in both units", async () => {
+  const s = await import("../platform/storage.js"), lists = await import("../materials/storage.js");
+  const { systemPublicationContext } = await import("../platform/publication/context.js");
+  const m = await import("../platform/publication/manual-measurements.js");
+  const schemas = await import("../platform/publication/measurement-schemas.js");
+  // The rule is the dictionary's, not the roof's: any declared equivalence converts by its units' scales.
+  assert.deepEqual(schemas.measurementEquivalents("roof.squares"), [{ definition: "roof.area", key: "roofArea", unit: "ft2", factor: 100 }]);
+  assert.deepEqual(schemas.measurementEquivalents("roof.area"), [{ definition: "roof.squares", key: "roofSquares", unit: "roofing_square", factor: 0.01 }]);
+  assert.equal(schemas.preferredEquivalent("roof.area"), "roof.squares"); assert.equal(schemas.preferredEquivalent("roof.eave_length"), "roof.eave_length");
+  assert.deepEqual(schemas.measurementEquivalents("roof.eave_length"), []);
+  assert.throws(() => schemas.registerMeasurementEquivalence({ measurements: ["roof.area", "roof.ventilation_squares"], description: "x" }), /already in an equivalence/);
+  assert.throws(() => schemas.registerMeasurementEquivalence({ measurements: ["roof.eave_length", "exterior_wall.net_area"], description: "x" }), /same kind/);
+  assert.throws(() => schemas.registerMeasurementEquivalence({ measurements: ["roof.ventilation_squares", "roof.squares_9_to_12"], description: "x" }), /no partition/);
+
+  await s.upsertDocument(ORG, "projects", { id: "equivalent", data: { title: "Equivalent" } });
+  await lists.createMaterialList(ORG, "equivalent", { title: "Roof", resource_type: "material", scope_template_id: "roof_replacement", items: [] }, owner);
+  const ctx = systemPublicationContext({ kind: "module", organizationId: ORG, projectId: "equivalent", operations, mode: "command" });
+  const form = await m.readManualMeasurements(ctx, "equivalent");
+  const squares = form.fields.find((field) => field.key === "roofSquares")!;
+  assert.equal(squares.required, true); assert.equal(form.fields.filter((field) => field.definition === "roof.area").length, 0);
+  assert.deepEqual((await m.saveManualMeasurements(ctx, "equivalent", { values: { roofSquares: 20 } })).values, { roofArea: 2000, roofSquares: 20 });
+  // A value given in the other unit (an agent sending roof area) is the same entry.
+  assert.deepEqual((await m.saveManualMeasurements(ctx, "equivalent", { values: { roofArea: 2550 } })).values, { roofArea: 2550, roofSquares: 25.5 });
+  assert.deepEqual((await m.saveManualMeasurements(ctx, "equivalent", { values: { roofSquares: null } })).values, {});
 });

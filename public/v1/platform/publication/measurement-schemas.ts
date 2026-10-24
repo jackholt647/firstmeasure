@@ -133,6 +133,46 @@ export function registerMeasurementSchema(schema: MeasurementSchema) {
   }
   schemas.set(schema.id, Object.freeze(jsonClone(schema)));
 }
+/**
+ * Units of the same kind of quantity, as a multiple of that kind's base unit. Only units listed here convert, and only
+ * between definitions declared equivalent below; a value is never converted because its unit merely looks similar.
+ */
+const UNIT_SCALES: Record<string, { quantity: string; factor: number }> = {
+  ft: { quantity: "length", factor: 1 },
+  ft2: { quantity: "area", factor: 1 },
+  roofing_square: { quantity: "area", factor: 100 }
+};
+/**
+ * Two or more definitions that are the same quantity of the same thing, stated in different units (roof squares and
+ * roof area). Declaring this is an addition to the dictionary: neither definition changes. The first listed is the one a
+ * person enters; the others follow from it. Parts of a partition are never equivalent to anything (they are parts).
+ */
+export type MeasurementEquivalence = { measurements: string[]; description: string };
+const equivalences: MeasurementEquivalence[] = [];
+export function registerMeasurementEquivalence(equivalence: MeasurementEquivalence) {
+  const members = equivalence.measurements.map((id) => definitions.get(id));
+  if (members.length < 2 || members.some((definition) => !definition)) throw badRequest("measurement_equivalence_invalid", "An equivalence names two or more defined measurements.");
+  const quantity = UNIT_SCALES[members[0]!.unit]?.quantity;
+  for (const definition of members) {
+    if (!definition!.key || definition!.slice || !quantity || UNIT_SCALES[definition!.unit]?.quantity !== quantity) throw badRequest("measurement_equivalence_invalid", `${definition!.id} cannot be equivalent: it needs its own key, no partition, and a unit of the same kind.`);
+    if (equivalences.some((existing) => existing.measurements.includes(definition!.id))) throw badRequest("measurement_equivalence_duplicate", `${definition!.id} is already in an equivalence.`);
+  }
+  equivalences.push(Object.freeze(jsonClone(equivalence)));
+}
+/** The definitions equivalent to this one, each with the factor that turns a value of this one into a value of that one. */
+export function measurementEquivalents(definitionId: string): { definition: string; key: string; unit: string; factor: number }[] {
+  const group = equivalences.find((equivalence) => equivalence.measurements.includes(definitionId));
+  const own = definitions.get(definitionId);
+  if (!group || !own) return [];
+  return group.measurements.filter((id) => id !== definitionId).map((id) => {
+    const other = definitions.get(id)!;
+    return { definition: id, key: other.key!, unit: other.unit, factor: UNIT_SCALES[own.unit]!.factor / UNIT_SCALES[other.unit]!.factor };
+  });
+}
+/** The member of an equivalence a person enters (the first listed), or the definition itself when it has none. */
+export function preferredEquivalent(definitionId: string) {
+  return equivalences.find((equivalence) => equivalence.measurements.includes(definitionId))?.measurements[0] || definitionId;
+}
 export function listMeasurementDefinitions() { return [...definitions.values()].map((definition) => jsonClone(definition)); }
 export function listMeasurementSchemas() { return [...schemas.values()].map((schema) => jsonClone(schema)); }
 export function measurementSchema(id: string) {
@@ -235,6 +275,8 @@ const both: MeasurementLevel[] = ["project", "structure"];
 const define = (id: string, key: string, label: string, unit: string, description: string) => registerMeasurementDefinition({ id, key, label, unit, levels: both, description });
 define("roof.area", "roofArea", "Roof area", "ft2", "Sloped surface area of every roof face.");
 define("roof.squares", "roofSquares", "Roof squares", "roofing_square", "Roof area in roofing squares of 100 square feet.");
+// The same roof area, in square feet or in roofing squares of 100 square feet. Squares are what a roofer enters.
+registerMeasurementEquivalence({ measurements: ["roof.squares", "roof.area"], description: "Roof squares are roof area in units of 100 square feet." });
 define("roof.ventilation_squares", "ventilationSquares", "Ventilated squares", "roofing_square", "Roof squares counted toward ventilation.");
 // Roof squares cut three ways. Every square has a pitch, so both pitch partitions are complete; only some squares are
 // hand-carried, so that partition names one part and leaves the rest unnamed.
@@ -291,7 +333,7 @@ const partitionSchema: JsonSchema = { type: "object", required: ["id", "of", "di
 const schemaSchema: JsonSchema = { type: "object", required: ["id", "version", "title", "description", "measurements"], properties: { id: { type: "string" }, version: { type: "string" }, title: { type: "string" }, description: { type: "string" }, measurements: { type: "array", items: { type: "object", required: ["definition", "required"], properties: { definition: { type: "string" }, required: { type: "boolean" } }, additionalProperties: false } } }, additionalProperties: false };
 const valueMap: JsonSchema = { type: "object", additionalProperties: { type: "object" } };
 const assessmentSchema: JsonSchema = { type: "object", required: ["schema", "measurements", "missing_required", "unrecognized"], properties: { status: { type: "string" }, dataset_id: { type: "string" }, schema: { type: "object" }, measurements: { type: "array", items: { type: "object", required: ["definition", "label", "unit", "required", "status", "values", "structures"], properties: { definition: { type: "string" }, label: { type: "string" }, unit: { type: "string" }, required: { type: "boolean" }, status: { enum: ["ready", "missing", "unit_mismatch"] }, values: valueMap, structures: { type: "array", items: { type: "object", required: ["id", "name", "values"], properties: { id: { type: "string" }, name: { type: "string" }, values: valueMap }, additionalProperties: false } } }, additionalProperties: false } }, missing_required: { type: "array", items: { type: "string" } }, unrecognized: { type: "array", items: { type: "string" } } }, additionalProperties: false };
-const manualSchema: JsonSchema = { type: "object", required: ["available", "schemas", "fields", "manual", "in_use", "report_linked"], properties: { available: { type: "boolean" }, schemas: { type: "array", items: { type: "object", required: ["id", "title"], properties: { id: { type: "string" }, title: { type: "string" } }, additionalProperties: false } }, fields: { type: "array", items: { type: "object", required: ["definition", "key", "label", "unit", "required", "schemas", "group"], properties: { definition: { type: "string" }, key: { type: "string" }, label: { type: "string" }, unit: { type: "string" }, required: { type: "boolean" }, schemas: { type: "array", items: { type: "string" } }, group: { type: "string" }, group_label: { type: "string" } }, additionalProperties: false } }, manual: { type: ["object", "null"] }, in_use: { type: "object", required: ["source", "dataset_id", "values"], properties: { source: { enum: ["manual", "report", "other", "none"] }, dataset_id: { type: "string" }, values: { type: "object" } }, additionalProperties: false }, report_linked: { type: "boolean" } }, additionalProperties: false };
+const manualSchema: JsonSchema = { type: "object", required: ["available", "schemas", "fields", "manual", "in_use", "report_linked"], properties: { available: { type: "boolean" }, schemas: { type: "array", items: { type: "object", required: ["id", "title"], properties: { id: { type: "string" }, title: { type: "string" } }, additionalProperties: false } }, fields: { type: "array", items: { type: "object", required: ["definition", "key", "label", "unit", "required", "schemas", "group"], properties: { definition: { type: "string" }, key: { type: "string" }, label: { type: "string" }, unit: { type: "string" }, required: { type: "boolean" }, schemas: { type: "array", items: { type: "string" } }, group: { type: "string" }, group_label: { type: "string" }, derives: { type: "array", items: { type: "object", required: ["definition", "key", "label", "unit", "factor"], properties: { definition: { type: "string" }, key: { type: "string" }, label: { type: "string" }, unit: { type: "string" }, factor: { type: "number" } }, additionalProperties: false } } }, additionalProperties: false } }, manual: { type: ["object", "null"] }, in_use: { type: "object", required: ["source", "dataset_id", "values"], properties: { source: { enum: ["manual", "report", "other", "none"] }, dataset_id: { type: "string" }, values: { type: "object" } }, additionalProperties: false }, report_linked: { type: "boolean" } }, additionalProperties: false };
 let registered = false;
 export function registerMeasurementSchemaProvider() {
   if (registered) return;

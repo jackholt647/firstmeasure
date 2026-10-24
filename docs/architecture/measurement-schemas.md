@@ -107,6 +107,19 @@ at each exact pitch is entered through its bands), required ones first, with
 their labels and units. Projects whose scopes name no schema keep the empty
 state.
 
+Two definitions can be the same quantity in different units: roof area in
+square feet and roof squares of 100 square feet. The dictionary says so with an
+**equivalence** (`registerMeasurementEquivalence`), an addition that changes
+neither definition. Its units must be the same kind in `UNIT_SCALES` (area,
+length), neither may be a part of a partition, and the first member listed is
+the one a person enters. When a schema asks for any member, the editor asks
+once, for the first, required if any member is; the writer stores every other
+member beside it, converted by the units' scales
+(`measurementEquivalents`), so readers that want square feet and readers that
+want squares both find a value and the assessment never reports the other one
+missing. A value sent for another member (an agent sending roof area) is taken
+as the same entry. Units are never converted outside a declared equivalence.
+
 The entries are an ordinary measurement dataset, one per project, with role
 `manual`, producer `manual` and `source: "manual"` on each value
 (`platform/publication/manual-measurements.ts`). `measurements.manual.save` is
