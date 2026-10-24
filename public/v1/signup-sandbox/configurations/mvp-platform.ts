@@ -53,7 +53,8 @@ const ENABLED = [
   // Full-house exterior FirstMeasure reports, and the 3D roof model for roof-only reports.
   "firstmeasure.exteriors",
   "firstmeasure.roof_model_viewer",
-  // Apps overlay with pins, view roll-outs and drag-to-pin in the left column.
+  // The Apps launcher, opening the apps overlay with pins, view roll-outs and drag-to-pin.
+  "platform.more_apps",
   "platform.advanced_app_menu",
   // Top bar: global search and notifications (no header to-do list).
   "apps.notifications",
@@ -68,6 +69,9 @@ export function appFlags(): JsonObject {
     if (capability.type === "boolean" && capability.requires.includes("platform.expanded_access")) overrides[capability.key] = false;
   }
   for (const key of ENABLED) overrides[key] = true;
+  // The New button opens a menu: Report first, then Project and Contact.
+  overrides["platform.new_button_mode"] = "selector";
+  overrides["platform.new_button_items"] = "report,project,contact";
   return overrides;
 }
 
@@ -77,7 +81,7 @@ export const workflow: JsonObject = {
   description: "The FirstMeasure default signup plus the MVP platform: My Projects (with the project map), My Contacts and Feed; project Photos, Customer Portal, Materials, Documents and Reports; Agent, Notes, Activity and To Do trays. No Scheduling or calendar. Every project is a generic roof job.",
   entry_mode: "landing_first",
   // Raise when this file changes: the saved workflow is replaced with it on the next seed.
-  configuration_revision: 5,
+  configuration_revision: 6,
   sample_data: true,
   dev_bar: false,
   setup_scripts: ["mvp-platform"],
