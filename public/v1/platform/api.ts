@@ -45,7 +45,8 @@ import { stripeCreditReceiptDescription } from "../payments/stripe_receipt.js";
 import { checkStripeCheckoutAmount, type StripeCheckoutAmountCheck } from "../payments/stripe_checkout_amount.js";
 import { saveInternalDocument } from "../internal/storage.js";
 import { creditLedgerEntryKind, creditStatementTotals } from "./credit_statement.js";
-import { acquisitionBonusOfferForCampaignToken, acquisitionBonusOfferForOrganization, acquisitionBonusQuoteForOrganization, completeAcquisitionSignup, customerReferralEvent, customerReferralStatus, publicAcquisitionLookup, publicReferralLookup, trackAcquisitionEvent } from "../internal/crm/referrals_service.js";
+import { acquisitionBonusOfferForCampaignToken, acquisitionBonusOfferForOrganization, acquisitionBonusQuoteForOrganization, acquisitionEventInputs, completeAcquisitionSignup, customerReferralEvent, customerReferralStatus, publicAcquisitionLookup, publicReferralLookup, trackAcquisitionEvent, trackAcquisitionEvents } from "../internal/crm/referrals_service.js";
+import { acquisitionVisitorAddress, consumeAcquisitionEventTokens } from "./acquisition_event_limits.js";
 import { clearMaterialListScheduleEvent, syncMaterialListFromScheduleEvent } from "../materials/storage.js";
 import {
   appointmentAvailability,
@@ -1142,9 +1143,18 @@ app.get("/auth/google/config", async () => ({
     return publicAcquisitionLookup(withAcquisitionRequestMetadata(body, request), publicRequestBaseUrl(request));
   });
 
-  app.post("/acquisition/event", async (request) => {
-    const body = objectBodySchema.parse(request.body ?? {});
-    return trackAcquisitionEvent(withAcquisitionRequestMetadata(body, request));
+  // Signup-funnel events from the signup form: one event, or a batch `{ events: [...] }` from one page.
+  app.post("/acquisition/event", async (request, reply) => {
+    const events = acquisitionEventInputs(request.body ?? {});
+    const visitor = acquisitionVisitorAddress(requestHeaderText(request, "x-forwarded-for"), cleanText(request.ip));
+    const retryAfter = consumeAcquisitionEventTokens(visitor, events.length);
+    if (retryAfter) {
+      reply.header("retry-after", String(retryAfter));
+      throw new PlatformError("acquisition_events_rate_limited", 429, "Too many events. Please slow down and try again shortly.");
+    }
+    const withRequest = events.map((event) => withAcquisitionRequestMetadata(event, request));
+    if (!Array.isArray((request.body as JsonObject).events)) return trackAcquisitionEvent(withRequest[0] as JsonObject);
+    return trackAcquisitionEvents(withRequest);
   });
 
   app.post("/referrals/status", async (request) => {

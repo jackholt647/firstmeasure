@@ -666,25 +666,19 @@
       return base;
     }
 
-    function trackSignupInteraction(name, detail) {
-      const eventId = `swe_${Date.now()}_${++signupTrackingSequence}_${Math.random().toString(36).slice(2, 7)}`;
-      const payload = attributionPayload({
-        event_type: `signup_${name}`,
-        event_id: eventId,
-        unique_event: true,
-        metadata: {
-          ...(detail || {}),
-          event_id: eventId,
-          signup_session_id: signupTrackingSessionId,
-          active_mode: state.active,
-          widget_mode: initialMode,
-          has_referral_code: !!state.referralCode,
-          has_acquisition_code: !!state.acquisitionCode,
-          has_bonus_token: !!state.acquisitionBonusToken
-        }
-      });
+    // Interactions are sent in batches (the server takes up to 25 a request): a page's burst of focus, input and
+    // click events is one request, not one each. Submits, results and errors go at once with whatever is queued,
+    // so a signup that navigates away still records how it got there; leaving the page sends the rest.
+    const SIGNUP_EVENT_BATCH_LIMIT = 25;
+    const SIGNUP_EVENT_FLUSH_MS = 2000;
+    // sendBeacon and keepalive fetch refuse bodies over 64 KB.
+    const SIGNUP_EVENT_BATCH_CHARS = 48000;
+    const signupEventQueue = [];
+    let signupEventTimer = 0;
+
+    function sendSignupEvents(events) {
       const url = `${platformApiBaseUrl()}/acquisition/event`;
-      const body = JSON.stringify(payload);
+      const body = JSON.stringify({ events });
       try {
         if (navigator.sendBeacon) {
           const blob = new Blob([body], { type: 'application/json' });
@@ -704,6 +698,55 @@
           body
         }).catch(() => {});
       } catch (e) {}
+    }
+
+    function flushSignupEvents() {
+      if (signupEventTimer) clearTimeout(signupEventTimer);
+      signupEventTimer = 0;
+      let batch = [];
+      let chars = 0;
+      while (signupEventQueue.length) {
+        const event = signupEventQueue.shift();
+        const size = JSON.stringify(event).length + 1;
+        if (batch.length && (batch.length >= SIGNUP_EVENT_BATCH_LIMIT || chars + size > SIGNUP_EVENT_BATCH_CHARS)) {
+          sendSignupEvents(batch);
+          batch = [];
+          chars = 0;
+        }
+        batch.push(event);
+        chars += size;
+      }
+      if (batch.length) sendSignupEvents(batch);
+    }
+
+    window.addEventListener('pagehide', flushSignupEvents);
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'hidden') flushSignupEvents();
+    });
+
+    function trackSignupInteraction(name, detail) {
+      const eventId = `swe_${Date.now()}_${++signupTrackingSequence}_${Math.random().toString(36).slice(2, 7)}`;
+      const payload = attributionPayload({
+        event_type: `signup_${name}`,
+        event_id: eventId,
+        unique_event: true,
+        metadata: {
+          ...(detail || {}),
+          event_id: eventId,
+          signup_session_id: signupTrackingSessionId,
+          active_mode: state.active,
+          widget_mode: initialMode,
+          has_referral_code: !!state.referralCode,
+          has_acquisition_code: !!state.acquisitionCode,
+          has_bonus_token: !!state.acquisitionBonusToken
+        }
+      });
+      signupEventQueue.push(payload);
+      if (signupEventQueue.length >= SIGNUP_EVENT_BATCH_LIMIT || !/^(control_click|field_|mode_change|widget_ready|referral_loaded|acquisition_tracked)/.test(name)) {
+        flushSignupEvents();
+      } else if (!signupEventTimer) {
+        signupEventTimer = setTimeout(flushSignupEvents, SIGNUP_EVENT_FLUSH_MS);
+      }
     }
 
     function installSignupInteractionTracking() {

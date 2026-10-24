@@ -175,6 +175,40 @@ test('the app form embedded on a website signs up, keeps attribution and lands s
   });
 });
 
+test('the form sends its funnel events in batches and every one is recorded', {skip: !hasPhp && 'php not installed'}, async () => {
+  // Production's ledger still had the retired PHP module's UNIQUE (campaign, actor, type) index, which refused every
+  // anonymous interaction after the first per campaign and type (500 on compatibility, 503 from the web nodes).
+  const {DatabaseSync} = await import('node:sqlite');
+  const referrals = await import('../internal/crm/referrals.js');
+  await referrals.ensureReferralDatabase();
+  await referrals.saveAcquisitionCampaign({code: 'meta-funnel', display_name: 'Funnel campaign'});
+  const ledger = new DatabaseSync(path.join(temporary, 'crm', 'databases', 'referrals.sqlite'));
+  // Earlier tests in this file recorded repeated events, which the old index could not hold.
+  ledger.exec('DELETE FROM referral_events');
+  ledger.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_referral_events_unique ON referral_events(partner_id, actor_email, actor_org_id, event_type)');
+  const {context, calls} = await visitor('US', {lang: 'en'});
+  const page = await context.newPage();
+  await page.goto('https://1m8.ai/landing/?cid=meta-funnel');
+  await formReady(page);
+  await Promise.all([page.waitForURL(`${APP}/portal/**`, {timeout: 20000}), fillAndSubmit(page, {email: 'funnel@signup-embed.example.test', phone: '(415) 555-0195'})]);
+  for (let i = 0; i < 100 && !calls.some(c => c.path === '/v1/platform/acquisition/event' && /signup_register_success/.test(c.body)); i++) await page.waitForTimeout(50);
+  const sent = calls.filter(c => c.path === '/v1/platform/acquisition/event' && c.method === 'POST');
+  const events = sent.flatMap(c => JSON.parse(c.body).events || [JSON.parse(c.body)]);
+  assert.ok(sent.every(c => c.status === 200), `every request recorded: ${sent.map(c => c.status).join(',')}`);
+  assert.ok(sent.every(c => Array.isArray(JSON.parse(c.body).events)), 'sent as batches');
+  assert.ok(events.length > 20 && sent.length * 3 < events.length, `${events.length} events in ${sent.length} requests`);
+  assert.ok(events.every(e => e.acquisition_code === 'meta-funnel' && e.event_id), 'each event keeps its campaign and id');
+  for (const step of ['signup_widget_ready', 'signup_field_focus', 'signup_field_input', 'signup_register_submit_attempt', 'signup_register_success']) {
+    assert.ok(events.some(e => e.event_type === step), `${step} sent`);
+  }
+  const stored = ledger.prepare("SELECT event_type, COUNT(*) AS n FROM referral_events WHERE code = 'meta-funnel' OR json_extract(metadata_json, '$.acquisition_code') = 'meta-funnel' GROUP BY event_type").all();
+  ledger.close();
+  const storedCount = stored.reduce((sum, row) => sum + Number(row.n), 0);
+  assert.equal(storedCount, events.length, `every event is in the ledger: ${JSON.stringify(stored)}`);
+  assert.ok(Number(stored.find(row => row.event_type === 'signup_field_input')?.n) > 1, 'repeated anonymous interactions of one type are all kept');
+  await context.close();
+});
+
 test('an origin that is not a FirstMate website is refused', {skip: !hasPhp && 'php not installed'}, async () => {
   const {context, calls} = await visitor('US', {lang: 'en'});
   const page = await context.newPage();
