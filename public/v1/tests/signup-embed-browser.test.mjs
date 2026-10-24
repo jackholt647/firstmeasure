@@ -244,3 +244,52 @@ test('Safari-style third-party cookie blocking: the websites are the same site, 
     });
   } finally { await blocking.close(); }
 });
+
+// 2026-10-24: Meta ads open the app's landing pages with utm_campaign=<Meta's numeric campaign id>. The page puts that in
+// data-campaign; it must stay a hint, so the campaign that owns the landing page (and its bonus) wins over a stray
+// campaign that happens to be named after the id. Sending it as an explicit acquisition_code dropped every bonus.
+test('a Meta ad\'s utm_campaign does not take the bonus away from the landing page\'s campaign', {skip: !hasPhp && 'php not installed'}, async t => {
+  const referrals = await import('../internal/crm/referrals.js');
+  const storage = await import('../platform/storage.js');
+  await referrals.saveAcquisitionCampaign({
+    code: 'meta-6-19-1', display_name: 'Meta 6/19 B', channel: 'Meta', landing_page: '/portal/landing/variants/meta-619b/', landing_variant: 'meta-619b',
+    bonus_offer_sets: {'offer-set-1': {id: 'offer-set-1', token: 'meta-b-bonus', label: 'Offer Set 1', status: 'active', tiers: [{customer_pays: 100, match_percent: 25}]}}
+  });
+  // Made in June by a visit that used the id as a code: no landing page, no bonus.
+  await referrals.saveAcquisitionCampaign({code: '52513030142937', display_name: '52513030142937', channel: 'ig', landing_variant: 'meta-619a', bonus_offer_sets: {}});
+  const meta = '?utm_source=fb&utm_medium=Facebook_Mobile_Reels&utm_campaign=52513030142937&utm_content=52550775522537&utm_id=52513030142937&fbclid=fb-click-2';
+  const visit = async (query, email, phone) => {
+    const {context, calls} = await visitor('US', {lang: 'en'});
+    const page = await context.newPage();
+    await page.goto(`${APP}/portal/landing/variants/meta-619b/${query}`);
+    await formReady(page);
+    await page.waitForFunction(() => document.querySelector('[data-firstmate-signup]')?.dataset.bonusReady, null, {timeout: 20000});
+    const track = calls.find(c => c.path === '/v1/platform/acquisition/public/track');
+    const result = {bonusReady: await page.evaluate(() => document.querySelector('[data-firstmate-signup]').dataset.bonusReady), sent: JSON.parse(track.body), track: track.json};
+    if (email) {
+      // The landing page is itself under /portal/, so wait for the app page the signup lands on.
+      await Promise.all([page.waitForURL(url => url.pathname === '/portal/', {timeout: 20000}), fillAndSubmit(page, {email, phone})]);
+      const sent = registration(calls);
+      assert.equal(sent.status, 200, JSON.stringify(sent.json));
+      result.organization = await storage.readOrganization(sent.json.organization_id || sent.json.organization?.id || sent.json.org_id);
+    }
+    await context.close();
+    return result;
+  };
+  await t.test('Meta ad link: the page\'s campaign and its bonus, through signup', async () => {
+    const r = await visit(meta, 'meta-utm@signup-embed.example.test', '(415) 555-0195');
+    assert.equal(r.track.link?.code, 'meta-6-19-1', 'the campaign that owns the landing page');
+    assert.equal(r.track.bonus_offer?.token, 'meta-b-bonus', 'with its bonus');
+    assert.equal(r.bonusReady, 'true');
+    assert.equal(r.sent.acquisition_code, '', 'utm_campaign is not sent as an explicit code');
+    assert.equal(r.sent.utm_campaign, '52513030142937', 'it is still recorded');
+    assert.equal(r.organization.acquisition_code, 'meta-6-19-1');
+    assert.equal(r.organization.acquisition_bonus_offer?.token, 'meta-b-bonus', 'the account has the bonus');
+  });
+  await t.test('a link that names the code with cid still gets that campaign', async () => {
+    const r = await visit('?cid=52513030142937&utm_campaign=52513030142937');
+    assert.equal(r.sent.acquisition_code, '52513030142937');
+    assert.equal(r.track.link?.code, '52513030142937');
+    assert.equal(r.bonusReady, 'false');
+  });
+});
