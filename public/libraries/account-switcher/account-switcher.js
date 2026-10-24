@@ -369,7 +369,7 @@
       .fm-account-row-actions{position:absolute;z-index:3;right:10px;min-width:150px;margin:0;padding:3px;border:1px solid #e5e8eb;border-radius:8px;background:#fff;box-shadow:0 4px 12px rgba(60,64,67,.14)}.fm-account-row-actions button{display:flex;width:100%;align-items:center;gap:8px;border:0;border-radius:5px;background:#fff;padding:7px 9px;color:#3c4043;font:inherit;font-size:12.5px;text-align:left;cursor:pointer}.fm-account-row-actions button:hover,.fm-account-row-actions button:focus{background:#f5f7f8;outline:0}.fm-account-row-actions i{width:15px;text-align:center;color:#a33b32;font-size:11px}
       .fm-account-reauth{color:#b45309!important;font-weight:700}.fm-account-login-modal{position:fixed;inset:0;z-index:2147483647;display:grid;place-items:center;padding:20px}.fm-account-login-backdrop{position:absolute;inset:0;background:rgba(15,23,42,.54)}.fm-account-login-card{position:relative;width:min(460px,100%);max-height:calc(100vh - 40px);overflow:auto;border-radius:18px;background:#fff;box-shadow:0 24px 80px rgba(15,23,42,.35)}.fm-account-login-card header{display:flex;align-items:flex-start;gap:12px;padding:19px 20px 15px;border-bottom:1px solid #edf0f2}.fm-account-login-card header>div{display:grid;gap:3px;flex:1}.fm-account-login-card header strong{font-size:17px;color:#202124}.fm-account-login-card header span{font-size:12px;color:#5f6368}.fm-account-login-card header button{width:32px;height:32px;border:0;border-radius:50%;background:transparent;color:#5f6368;cursor:pointer}.fm-account-login-card header button:hover{background:#f1f3f4}.fm-account-login-widget{padding:0 20px 20px}.fm-account-login-widget .fm-auth{margin:0}
       @media (max-width:720px){.fm-account-switcher-menu{bottom:12px!important;left:12px!important;width:calc(100vw - 24px)!important}.sidebar-footer{padding-bottom:8px!important}}
-      .fm-account-changed{position:fixed;inset:0;z-index:2147483647;display:grid;place-items:center;padding:16px;background:rgba(32,33,36,.55)}.fm-account-changed-card{width:min(440px,100%);border-radius:14px;background:#fff;padding:22px;color:#202124;box-shadow:0 18px 50px rgba(0,0,0,.3);font:14px/1.45 Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif}.fm-account-changed-card strong{display:block;font-size:17px;margin-bottom:8px}.fm-account-changed-card p{margin:0 0 16px;color:#3c4043}.fm-account-changed-actions{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:8px}.fm-account-changed-actions button{border:1px solid #dadce0;border-radius:20px;background:#fff;padding:9px 16px;color:#1a73e8;font:700 13px inherit;cursor:pointer}.fm-account-changed-actions button.primary{border-color:#1a73e8;background:#1a73e8;color:#fff}.fm-account-changed-actions button:disabled{opacity:.6;cursor:wait}.fm-account-changed-error{margin:12px 0 0!important;color:#b3261e!important;font-size:12px}
+      .fm-account-changed{position:fixed;inset:0;z-index:2147483647;display:grid;place-items:center;padding:16px;background:rgba(32,33,36,.55)}.fm-account-changed-card{width:min(400px,100%);border-radius:14px;background:#fff;padding:22px;color:#202124;box-shadow:0 18px 50px rgba(0,0,0,.3);font:14px/1.45 'Montserrat-Regular',Montserrat,Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif}.fm-account-changed-card strong{display:block;font:700 17px/1.3 'Montserrat-Regular',Montserrat,Inter,system-ui,sans-serif;margin-bottom:8px}.fm-account-changed-card p{margin:0 0 16px;color:#3c4043}.fm-account-changed-actions{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:8px}.fm-account-changed-actions button{max-width:100%;border:1px solid #dadce0;border-radius:20px;background:#fff;padding:9px 16px;color:var(--primary-readable,var(--primary,#d93025));font:700 13px/1.3 'Montserrat-Regular',Montserrat,Inter,system-ui,sans-serif;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer}.fm-account-changed-actions button.primary{border-color:var(--primary-readable,var(--primary,#d93025));background:var(--primary-readable,var(--primary,#d93025));color:var(--on-primary,#fff)}.fm-account-changed-actions button:focus-visible{outline:2px solid var(--primary-readable,var(--primary,#d93025));outline-offset:2px}.fm-account-changed-actions button:disabled{opacity:.6;cursor:wait}.fm-account-changed-error{margin:12px 0 0!important;color:#b3261e!important;font-size:12px}
       @media (prefers-reduced-motion:reduce){.fm-account-switcher-menu:not([hidden]),.fm-account-switcher-menu.closing{animation:none}}
     `;
     document.head.appendChild(style);
@@ -403,10 +403,12 @@
     try { return JSON.parse(localStorage.getItem(activeAccountKey) || 'null'); } catch (_) { return null; }
   }
 
-  function accountLabel(account) {
+  /* The company name alone, with the email only when both accounts share a company name (or there is no name). */
+  function accountLabel(account, other) {
     const email = String(account?.email || '').trim();
     const organization = String(account?.organization_name || '').trim();
-    return organization && email ? `${organization} (${email})` : organization || email;
+    const ambiguous = organization && organization.toLowerCase() === String(other?.organization_name || '').trim().toLowerCase();
+    return organization && email && ambiguous ? `${organization} (${email})` : organization || email;
   }
 
   function showAccountChanged(active) {
@@ -418,10 +420,12 @@
     notice.className = 'fm-account-changed';
     notice.setAttribute('role', 'alertdialog');
     notice.setAttribute('aria-modal', 'true');
-    const title = say('account_changed_title', 'You switched accounts in another tab');
-    const body = say('account_changed_body', 'This tab was opened as {page}. You are now signed in as {active}, so this tab has stopped to keep the two accounts apart.', { page: accountLabel(page), active: accountLabel(active) || '-' });
-    const continueLabel = say('account_changed_continue', 'Continue as {active}', { active: accountLabel(active) || '-' });
-    const backLabel = say('account_changed_back', 'Switch back to {page}', { page: accountLabel(page) });
+    const pageName = accountLabel(page, active);
+    const activeName = accountLabel(active, page) || '-';
+    const title = say('account_changed_title_short', 'You switched accounts');
+    const body = say('account_changed_body_short', 'This tab is still on {page}. Another tab switched to {active}.', { page: pageName, active: activeName });
+    const continueLabel = say('account_changed_continue', 'Continue as {active}', { active: activeName });
+    const backLabel = say('account_changed_back_short', 'Back to {page}', { page: pageName });
     notice.innerHTML = `<div class="fm-account-changed-card"><strong>${escapeHtml(title)}</strong><p>${escapeHtml(body)}</p><div class="fm-account-changed-actions"><button type="button" data-fm-account-back>${escapeHtml(backLabel)}</button><button type="button" class="primary" data-fm-account-continue>${escapeHtml(continueLabel)}</button></div><p class="fm-account-changed-error" hidden></p></div>`;
     injectStyles();
     document.body.appendChild(notice);
