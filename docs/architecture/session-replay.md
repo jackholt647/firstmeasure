@@ -27,6 +27,12 @@ capability: no preset, signup or Developer Settings switch can turn it on (`sess
   They apply to everyone. The config hands them to the page. On arriving at such a page, the recorder pauses: changes
   not yet written are dropped, and a "Recording paused" marker says where. When the person leaves, it resumes as a
   new page with a fresh snapshot. A page rule can only exclude.
+  - **Uploads are refused too.** Chunks from a page that loaded on an excluded page are refused (403
+    `session_replay_page_excluded`), so a recorder from before page rules (a tab left open) stops there as well.
+  - **Recording for a while.** **Record for** (15 minutes, 1 hour or 4 hours; `PUT /targeting/pages/allow`
+    `{ target, minutes }`, 0 stops at once) lifts a page rule until a time (`allow_until`), then it applies again by
+    itself. Pages already open start recording when they are next loaded. When the time is up, their uploads are
+    refused and they stop.
 - **Every change** to the mode or a rule is kept in `session_replay_rule_log` with who made it, when, what it replaced
   and the reason given.
 - **Scale.** People and organizations are found by a server-side search that returns a page of results
@@ -106,7 +112,7 @@ What is recorded, and how:
 
 ## Storage
 
-`session-replay/storage.ts` is an `openSqlStore` store (`session_replay`, schema version 5):
+`session-replay/storage.ts` is an `openSqlStore` store (`session_replay`, schema version 6):
 `session_replay_sessions` (one per tab session: person, organization, times, sizes, device),
 `session_replay_pages` (one per page load, with its META), `session_replay_chunks` (the gzip bodies),
 `session_replay_blobs` (per organization, by content address), and who is recorded: `session_replay_config` (the
