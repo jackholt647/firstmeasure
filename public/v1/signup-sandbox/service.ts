@@ -272,6 +272,10 @@ function normalizeWorkflow(input: JsonObject, existing: JsonObject | null = null
     tags: Array.isArray(input.tags ?? existing?.tags) ? ((input.tags ?? existing?.tags) as unknown[]).map(cleanText).filter(Boolean) : [],
     // Test orgs from this workflow can take development sample data.
     sample_data: (input.sample_data ?? existing?.sample_data) === true,
+    // The test-run bar shows inside its test orgs unless the workflow turns it off.
+    dev_bar: (input.dev_bar ?? existing?.dev_bar) !== false,
+    // A configuration module's revision (configurations/); a higher one replaces the saved copy.
+    configuration_revision: Number(input.configuration_revision ?? existing?.configuration_revision) || 0,
     // Configuration setup scripts (configurations/index.ts) run when a test org is created.
     setup_scripts: Array.isArray(input.setup_scripts ?? existing?.setup_scripts) ? ((input.setup_scripts ?? existing?.setup_scripts) as unknown[]).map(cleanText).filter((name) => Object.prototype.hasOwnProperty.call(SETUP_SCRIPTS, name)) : [],
     created_at: existing ? String(existing.created_at) : now,
@@ -1218,6 +1222,7 @@ const INSTANT_FULL_ORG_WORKFLOW: JsonObject = {
     { id: "stg_instant_signup", page_id: "spg_firstmate_signup", notes: "Skipped by sandbox instances like every signup stage — with no setup stages after it, the instance opens directly in the portal." }
   ],
   sample_data: true,
+  dev_bar: false,
   tags: ["template", "dev", "instant"]
 };
 
@@ -1301,9 +1306,14 @@ export async function ensureSeedData() {
     }, existingChannelsWorkflow));
   }
   for (const configuration of CONFIGURATIONS) {
-    const seed = { ...configuration.workflow, defaults: configuration.defaults() };
+    const seed: JsonObject = { ...configuration.workflow, defaults: configuration.defaults() };
     const current = await sandboxStore.readWorkflow(String(seed.id));
     if (!current) { await sandboxStore.saveWorkflow(normalizeWorkflow(seed)); continue; }
+    // The configuration file is the source of truth: a higher revision there replaces the saved workflow.
+    if (Number(seed.configuration_revision || 0) > Number(current.configuration_revision || 0)) {
+      await sandboxStore.saveWorkflow(normalizeWorkflow(seed, current));
+      continue;
+    }
     // Capabilities and workflow fields added after the seed are filled in; values already saved are kept.
     const defaults = asObject(current.defaults);
     const flags = asObject(defaults.app_flags);
@@ -1316,9 +1326,10 @@ export async function ensureSeedData() {
       }, current));
     }
   }
+  // Instant full org offers sample data and runs without the test-run bar; older saved copies gain both, once.
   const instantWorkflow = await sandboxStore.readWorkflow(String(INSTANT_FULL_ORG_WORKFLOW.id));
-  if (instantWorkflow && !("sample_data" in instantWorkflow)) {
-    await sandboxStore.saveWorkflow(normalizeWorkflow({ sample_data: true }, instantWorkflow));
+  if (instantWorkflow && !("dev_bar" in instantWorkflow)) {
+    await sandboxStore.saveWorkflow(normalizeWorkflow({ sample_data: true, dev_bar: false }, instantWorkflow));
   }
   const workflows = await sandboxStore.listWorkflows();
   const legacyBrandingReferenced = workflows.some((workflow) =>

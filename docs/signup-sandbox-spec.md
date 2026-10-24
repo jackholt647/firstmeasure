@@ -302,6 +302,11 @@ scripts it runs in `setup_scripts`; the sandbox runs them after creating a test
 organization, and they change it only through the platform's ordinary writers.
 Whether a workflow's test organizations can take development sample data is
 the workflow field `sample_data`, not a list of workflow ids.
+Whether the test-run bar shows in its test organizations is `dev_bar` (off for
+the MVP platform and Instant full org). A configuration module sets
+`configuration_revision`; when the file's revision is higher than the saved
+workflow's, the next seed replaces the saved workflow with the file's, so raise
+it whenever the configuration file changes.
 
 The MVP platform (`swf_mvp_platform`, `configurations/mvp-platform.ts`) runs the
 FirstMeasure default stages and turns on expanded access with an explicit app
