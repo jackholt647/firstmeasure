@@ -436,6 +436,12 @@
     const referralCode = (referralSetting === 'none' ? '' : (host.dataset.referralCode || params.get('ref') || '')).trim().toUpperCase();
     const landingVariant = String(host.dataset.landingVariant || params.get('variant') || '').trim();
     const campaignCode = String(host.dataset.campaign || host.dataset.campaignCode || params.get('cid') || params.get('campaign') || params.get('campaign_code') || params.get('utm_campaign') || '').trim();
+    /* An ad platform's utm_campaign (Meta sends its numeric campaign id) is only a hint: the campaign that owns this
+       landing page wins over it. Only a code the page or link names (cid, campaign, campaign_code, or a data-campaign
+       that is not just utm_campaign) is sent as acquisition_code, which the lookup treats as explicit. */
+    const utmCampaign = String(params.get('utm_campaign') || '').trim();
+    const campaignCodeExplicit = !!campaignCode && (campaignCode !== utmCampaign
+      || [params.get('cid'), params.get('campaign'), params.get('campaign_code')].some((value) => String(value || '').trim() === campaignCode));
     const campaignType = String(host.dataset.campaignType || params.get('campaign_type') || params.get('utm_source') || '').trim();
     const bonusToken = String(host.dataset.offerToken || host.dataset.bonusToken || params.get('xid') || params.get('acquisition_bonus_token') || params.get('bonus_token') || '').trim();
     const redirectTarget = safeRedirect(host.dataset.redirect || params.get('redirect'), routeToPortal('./'));
@@ -558,6 +564,7 @@
       referralCode,
       referralAttributionId: '',
       acquisitionCode: campaignCode,
+      acquisitionCodeExplicit: campaignCodeExplicit,
       acquisitionAttributionId: '',
       acquisitionBonusToken: bonusToken,
       landingVariant,
@@ -957,7 +964,7 @@
       });
       if (state.referralCode && !fd.get('referral_code')) fd.set('referral_code', state.referralCode);
       if (state.referralAttributionId && !fd.get('referral_attribution_id')) fd.set('referral_attribution_id', state.referralAttributionId);
-      if (state.acquisitionCode && !fd.get('acquisition_code')) fd.set('acquisition_code', state.acquisitionCode);
+      if (state.acquisitionCode && state.acquisitionCodeExplicit && !fd.get('acquisition_code')) fd.set('acquisition_code', state.acquisitionCode);
       if (state.acquisitionAttributionId && !fd.get('acquisition_attribution_id')) fd.set('acquisition_attribution_id', state.acquisitionAttributionId);
       if (state.acquisitionCode && !fd.get('campaign')) fd.set('campaign', state.acquisitionCode);
       if (state.acquisitionBonusToken && !fd.get('xid')) fd.set('xid', state.acquisitionBonusToken);
@@ -1046,7 +1053,7 @@
     function syncAttributionInputs() {
       $$('input[name="referral_code"]').forEach((input) => { input.value = state.referralCode; });
       $$('input[name="referral_attribution_id"]').forEach((input) => { input.value = state.referralAttributionId; });
-      $$('input[name="acquisition_code"]').forEach((input) => { input.value = state.acquisitionCode; });
+      $$('input[name="acquisition_code"]').forEach((input) => { input.value = state.acquisitionCodeExplicit ? state.acquisitionCode : ''; });
       $$('input[name="acquisition_attribution_id"]').forEach((input) => { input.value = state.acquisitionAttributionId; });
       $$('input[name="campaign"]').forEach((input) => { input.value = state.acquisitionCode; });
       $$('input[name="xid"]').forEach((input) => { input.value = state.acquisitionBonusToken; });
@@ -1058,6 +1065,7 @@
       if (!data || !data.success) return false;
       state.acquisitionAttributionId = data.acquisition_attribution_id || data.attribution_id || state.acquisitionAttributionId || '';
       state.acquisitionCode = data?.link?.code || data?.acquisition_link?.code || state.acquisitionCode || '';
+      if (data?.link?.code || data?.acquisition_link?.code) state.acquisitionCodeExplicit = true;
       state.acquisitionBonusToken = data?.bonus_offer?.token || state.acquisitionBonusToken || '';
       host.dataset.bonusReady = data?.bonus_offer?.token ? 'true' : 'false';
       syncBonusTokenToUrl(data?.bonus_query_key || 'xid');
@@ -1068,7 +1076,7 @@
     function attributionPayload(extra) {
       const browserMetadata = browserAttributionMetadata();
       const payload = Object.assign({
-        acquisition_code: state.acquisitionCode || state.referralCode || '',
+        acquisition_code: (state.acquisitionCodeExplicit ? state.acquisitionCode : '') || state.referralCode || '',
         campaign: state.acquisitionCode || state.referralCode || '',
         campaign_type: state.campaignType || (state.referralCode ? 'referral' : 'landing_page'),
         landing_variant: state.landingVariant,
