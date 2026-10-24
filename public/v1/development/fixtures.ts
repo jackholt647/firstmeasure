@@ -89,16 +89,17 @@ export async function seedCustomers(orgId: string) {
 export async function seedProjects(orgId: string, includeEvents = true) {
   let created = 0;
   const specs = [
-    ["maple", "Maple Residence — roof replacement", "104 Example Maple Street", "active", "production", -2],
-    ["cedar", "Cedar Duplex — gutter replacement", "218 Sample Cedar Lane", "active", "proposal", 3],
-    ["harbor", "Harbor Office — leak repair", "360 Example Harbor Way", "active", "production", 1],
-    ["willow", "Willow Court — exterior refresh", "72 Sample Willow Court", "completed", "completed", -14]
+    // Synthetic addresses do not geocode, so each carries a point (around Denver) for the projects map.
+    ["maple", "Maple Residence — roof replacement", "104 Example Maple Street", "active", "production", -2, 39.7392, -104.9903],
+    ["cedar", "Cedar Duplex — gutter replacement", "218 Sample Cedar Lane", "active", "proposal", 3, 39.6780, -104.9617],
+    ["harbor", "Harbor Office — leak repair", "360 Example Harbor Way", "active", "production", 1, 39.7555, -105.0022],
+    ["willow", "Willow Court — exterior refresh", "72 Sample Willow Court", "completed", "completed", -14, 39.5807, -105.0841]
   ] as const;
   const now = Date.now();
-  for (const [key, title, address, status, stage, day] of specs) {
+  for (const [key, title, address, status, stage, day, lat, lng] of specs) {
     const id = sampleId(orgId, `project:${key}`);
     if (await createSampleDocument(orgId, "projects", id, {
-      title: `${title} (Sample)`, project_title: `${title} (Sample)`, address, branch_id: "default", project_type: "residential",
+      title: `${title} (Sample)`, project_title: `${title} (Sample)`, address, lat, lng, branch_id: "default", project_type: "residential",
       workflow_state: "project", status, stage, tags: ["Sample"], contacts: [], proposals: [], photos: [],
       notes: "Synthetic project for testing. Add a customer when you need one.",
       events: (includeEvents ? [0, 1, 2] : []).map(index => ({ id: sampleId(orgId, `project:${key}:event:${index}`), project_id: id,

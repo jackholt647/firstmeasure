@@ -908,7 +908,7 @@
 
   const nestedRouteParams = {
     projects: {
-      projectView:{ default:'stages', values:['stages','tiles','list','drafts'], history:'push' },
+      projectView:{ default:'stages', values:['stages','tiles','list','map','drafts'], history:'push' },
       projectBoard:{ history:'push' }
     },
     contacts: { contact:{ history:'push' }, contactView:{ default:'list', values:['tiles','list'], history:'replace' }, contactsWorkspace:{ values:['import','settings'], history:'push' }, contactsSettingsView:{ values:['import','history','tags','preferences'], history:'push' } },
