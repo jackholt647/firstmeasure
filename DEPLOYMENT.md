@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+October 24 MVP platform and the projects map: [a signup sandbox MVP platform configuration (My Projects, My Contacts, Feed; Photos, Customer Portal, Materials, Documents, Reports; no Scheduling) and a Map view in My Projects](deploy/digitalocean/development-mvp-platform-20261024.md) records releases `cc9144c3`, `6e50be65` and `2e9c8da3` on the development worker, legacy and web.
+
 October 23 Session replay pages: [pages never recorded, sessions filtered by page, next and previous event, idle that ignores pointer jitter, and stylesheets no longer lost when a page closes](deploy/digitalocean/development-session-replay-pages-20261023.md) records release `05ea7fc3` on the development worker, legacy and web.
 
 October 23 Session replay, who is recorded: [a platform mode plus rules for people and organizations, set only by platform administrators, replacing the organization capability](deploy/digitalocean/development-session-replay-targeting-20261023.md) records release `5675967d` and the verified development rollout to worker, legacy and web.
