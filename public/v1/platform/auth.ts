@@ -648,6 +648,8 @@ export async function backgroundAuthContext(orgId: string, userId: string) {
   return buildAuthContext("", { identity_id: identityId, organization_id: orgId, user_id: userId });
 }
 
+const SESSION_TOUCH_INTERVAL_MS = 60_000;
+
 export async function authContextFromRequest(request: FastifyRequest) {
   const candidates: Array<{ sessionId: string; session: JsonObject }> = [];
   for (const sessionId of platformSessionIdsFromRequest(request)) {
@@ -659,7 +661,12 @@ export async function authContextFromRequest(request: FastifyRequest) {
   }
   const selected = selectNewestPlatformSessionCandidate(candidates);
   if (!selected) return null;
-  const session = await touchAuthSession(selected.sessionId);
+  // last_seen_at is a minute-grained activity mark; writing it (under a row
+  // lock) on every request serialized a page's parallel requests on one row.
+  const lastSeen = Date.parse(String(selected.session.last_seen_at ?? ""));
+  const session = Number.isFinite(lastSeen) && Date.now() - lastSeen < SESSION_TOUCH_INTERVAL_MS
+    ? selected.session
+    : await touchAuthSession(selected.sessionId);
   return await buildAuthContext(selected.sessionId, session);
 }
 
