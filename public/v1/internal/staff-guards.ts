@@ -108,7 +108,7 @@ export const LEGACY_ACTION_LEVELS: Record<string, StaffLevel> = {
   pj_rebuild: "admin",
   server_config_list: "admin",
   server_config_set: "admin",
-  get_apple_key_info: "admin",
+  // get_apple_key_info stays open to any staff: the editor loads Apple imagery with it.
   set_apple_key: "admin",
   coupon_admin_create: "manager",
   coupon_admin_update: "manager",
