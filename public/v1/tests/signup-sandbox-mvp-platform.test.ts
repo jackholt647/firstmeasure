@@ -7,8 +7,8 @@ import path from 'node:path';
 test('the MVP platform workflow is FirstMeasure plus projects, contacts, feed and the project tabs and trays, without scheduling',async()=>{
  const root=await mkdtemp(path.join(os.tmpdir(),'fm-sandbox-mvp-'));
  Object.assign(process.env,{FIRSTMATE_ENV:'development',FIRSTMEASURE_DATA_ENVIRONMENT:'development',FIRSTMEASURE_DATABASE_MODE:'sqlite',PLATFORM_STORAGE_ROOT:path.join(root,'platform'),SIGNUP_SANDBOX_STORAGE_ROOT:path.join(root,'sandbox'),PLATFORM_SESSION_SECRET:'isolated-sandbox-mvp-platform-test-secret',FIRSTMEASURE_STORAGE_ROOT:path.join(root,'firstmeasure'),FIRSTMEASURE_INDEX_DB_PATH:path.join(root,'firstmeasure-index.sqlite')});
- await import('../platform/capability_defs.js');
- for(const module of ['assistant','comms','chat']) await import(`../${module}/capabilities.js`);
+ // No capability modules are loaded here: the configuration registers the ones it turns off itself, whichever
+ // process seeds it (revision 14 seeded without Communications and left it on).
  const {sandboxStore}=await import('../signup-sandbox/storage.js');
  const service=await import('../signup-sandbox/service.js');
  const storage=await import('../platform/storage.js');
@@ -43,7 +43,7 @@ test('the MVP platform workflow is FirstMeasure plus projects, contacts, feed an
  const {effectiveByKey}=await capabilities.effectiveCapabilities(orgId);
  const on=['platform.more_apps','platform.advanced_app_menu','firstmeasure.exteriors','platform.top_bar','topbar.global_search','topbar.notifications','platform.expanded_access','apps.projects','apps.project_map','platform.project_stages_view','platform.contacts','platform.photos_feed','platform.project_photos','platform.customer_portal','platform.materials','platform.documents','apps.firstmeasure','firstmeasure.report_orders','apps.assistant','channels.project_notes'];
  for(const key of on) assert.equal(effectiveByKey[key],true,key);
- const off=['customer_portal.guest_links','platform.project_assignments','topbar.todos','channels.project_messages_tray','platform.scheduling','scheduling.gantt','equipment.scheduling','apps.crm','apps.stats','apps.payroll','apps.training','apps.sales','platform.money','apps.comms','apps.checklists','apps.equipment'];
+ const off=['customer_portal.guest_links','platform.project_assignments','topbar.todos','channels.project_messages_tray','platform.scheduling','scheduling.gantt','equipment.scheduling','apps.crm','apps.stats','apps.payroll','apps.training','apps.sales','platform.money','apps.comms','apps.live_chat','assistant.actions','apps.checklists','apps.equipment'];
  for(const key of off) assert.notEqual(effectiveByKey[key],true,key);
  // apps.crew and platform.people_access are on for testing for now (mvp-platform.ts).
  const global=await storage.readGlobal(orgId);
@@ -64,7 +64,7 @@ test('the MVP platform workflow is FirstMeasure plus projects, contacts, feed an
  const roofing=await scopes.readScopeTemplate(orgId,'default','generic_roofing');
  assert.deepEqual((roofing as any).definition?.measurement_schema_ids ?? (roofing as any).measurement_schema_ids,['roofing']);
  assert.equal(String((await creation.creationScopeTemplate(orgId,'default')).id),'generic_roofing');
- assert.equal((workflow as any).dev_bar,false);assert.equal((workflow as any).configuration_revision,14);
+ assert.equal((workflow as any).dev_bar,false);assert.equal((workflow as any).configuration_revision,15);
  const resolved=(await capabilities.effectiveCapabilities(orgId)).values as any;
  assert.equal(resolved['platform.new_button_mode'],'selector');assert.equal(resolved['platform.new_button_items'],'report,project,contact');
  // Turned on as configuration even where this checkout's registry does not define it (dev's does).
@@ -136,6 +136,13 @@ test('the MVP platform workflow is FirstMeasure plus projects, contacts, feed an
  const profile=await access.resolveAccessProfile(orgId,{...owner.data,id:owner.id});
  assert.deepEqual(profile.access_role_ids,['super_admin']);
  assert.equal(profile.app_entitlements_by_id['portal.viewer']?.option_values.map_first,true);
+ // Their main view is My Projects, My Contacts and Feed: the portal tabs they have, less those hidden by placement,
+ // Settings (its own control) and Pricebook (opened full screen from the Apps overlay and Settings).
+ const placements=(global.data as any).app_placements||{};
+ const tabs=profile.app_entitlements.filter((app:any)=>app.surface==='portal_tab'&&app.allowed);
+ assert.deepEqual(tabs.filter((app:any)=>placements[app.id]!=='hidden'&&app.launcher!==false&&app.id!=='portal.pricebook').map((app:any)=>app.title).sort(),['Feed','My Contacts','My Projects']);
+ assert.ok(tabs.some((app:any)=>app.id==='portal.pricebook'));
+ assert.ok(!tabs.some((app:any)=>app.id==='portal.chat'),'no Communications or Call center');
  // A launched MVP test org starts with the sample projects (with map points) and customers.
  const projects=await storage.listDocuments(orgId,'projects');
  assert.ok(projects.filter((row:any)=>String(row.id).startsWith('sample_')).length>=4,'sample projects');

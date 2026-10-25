@@ -5,6 +5,13 @@
 // platform never checks for it; the sandbox only runs the setup scripts a
 // workflow names (configurations/index.ts).
 import { valueCapabilities } from "../../platform/capabilities.js";
+// Capabilities that modules register as a side effect. appFlags() turns off every expanded-access capability it can
+// see, so these must be registered first whichever process seeds the workflow; without them Communications (apps.comms
+// defaults on) and the assistant's actions were left on in revision 14.
+import "../../platform/capability_defs.js";
+import "../../assistant/capabilities.js";
+import "../../comms/capabilities.js";
+import "../../chat/capabilities.js";
 import { readBranchModule, saveBranchModule } from "../../platform/storage.js";
 import { listAccessRoles, patchAccessRole } from "../../workforce/access.js";
 import { saveIntakeRouting, readIntakeRouting } from "../../scopes/router.js";
@@ -86,7 +93,7 @@ export const workflow: JsonObject = {
   description: "The FirstMeasure default signup plus the MVP platform: My Projects (with the project map), My Contacts and Feed; project tabs Overview, Reports, Photos (New), Docs (New), Materials and Customer Portal; Agent, Notes, Activity and To Do trays. No Scheduling or calendar. Every project is a generic roof job.",
   entry_mode: "landing_first",
   // Raise when this file changes: the saved workflow is replaced with it on the next seed.
-  configuration_revision: 14,
+  configuration_revision: 15,
   sample_data: true,
   // A launched test instance starts with the sample projects (they carry map points) and customers.
   launch_sample_data: ["projects", "customers"],
