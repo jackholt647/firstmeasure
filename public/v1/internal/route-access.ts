@@ -64,8 +64,9 @@ registerRouteAccessTable({
   "GET /v1/internal/shifts/current-status": any,
   "POST /v1/internal/shifts/current-status": any,
   "GET /v1/internal/shifts/session-stats": any,
-  "POST /v1/internal/shifts/schedules/:userId": manager,
-  "POST /v1/internal/shifts/rates/:userId": manager,
+  // requireShiftScheduleManager decides (managers and manage_queue).
+  "POST /v1/internal/shifts/schedules/:userId": any,
+  "POST /v1/internal/shifts/rates/:userId": any,
   "GET /v1/internal/stats/overview": admin,
   "GET /v1/internal/portal/status": any,
   "PUT /v1/internal/portal/status": admin,

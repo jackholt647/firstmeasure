@@ -99,9 +99,10 @@ export const LEGACY_ACTION_LEVELS: Record<string, StaffLevel> = {
   admin_impersonate_user: "admin",
   stats_data: "admin",
   fetch_all_users_with_orders: "manager",
-  shift_save_schedule: "manager",
-  shift_save_day_override: "manager",
-  shift_remove_day_override: "manager",
+  // Shift edits: requireShiftScheduleManager decides (it also admits manage_queue).
+  shift_save_schedule: "any",
+  shift_save_day_override: "any",
+  shift_remove_day_override: "any",
   rush_mode_start: "admin",
   rush_mode_automation_set: "admin",
   pj_rebuild: "admin",
