@@ -5,6 +5,7 @@
  * session cookie, the in-process service token, or a signed PHP request.
  * Body, query and `X-Internal-User-*` identity fields are never read here.
  */
+import { createHmac, timingSafeEqual } from "node:crypto";
 import type { FastifyRequest } from "fastify";
 import { env } from "../../src/config/env.js";
 import { authContextFromRequest, type PlatformAuthContext } from "../auth.js";
@@ -16,12 +17,18 @@ import { activeImpersonation } from "./impersonation.js";
 export type Principal =
   | { kind: "anonymous" }
   | { kind: "customer"; auth: PlatformAuthContext }
-  | { kind: "staff"; auth: PlatformAuthContext | null; staff: StaffAuthority; impersonator?: StaffAuthority; via: "session" | "php" }
+  | { kind: "staff"; auth: PlatformAuthContext | null; staff: StaffAuthority; impersonator?: StaffAuthority; via: "session" | "php" | "service" }
   | { kind: "system"; via: "process" | "php"; reason?: string };
 
 const SYSTEM: Principal = { kind: "system", via: "process" };
 const ANONYMOUS: Principal = { kind: "anonymous" };
 const resolved = new WeakMap<FastifyRequest, Promise<Principal>>();
+
+/** A staff member that background work runs for (the data agent's runs), checked again now. */
+export async function staffPrincipalFor(email: string): Promise<Principal | null> {
+  const staff = staffAuthority(await readStaffUser(email.trim().toLowerCase()));
+  return staff ? { kind: "staff", auth: null, staff, via: "service" } : null;
+}
 
 /** For unattended in-process work (workers, schedulers). */
 export function systemPrincipal(reason?: string): Principal {
@@ -48,6 +55,22 @@ async function staffFromSession(auth: PlatformAuthContext): Promise<Principal | 
   return { kind: "staff", auth, staff, via: "session" };
 }
 
+/**
+ * The Full House PHP proxy's older signature (x-full-house-user/-time/-signature,
+ * firstmeasure/full_house.ts): an HMAC of the staff email and time with the
+ * internal secret. Accepted while PHP moves to the request-bound signature in
+ * service.ts; remove once every PHP host sends that one.
+ */
+function legacyFullHouseActor(request: FastifyRequest) {
+  const email = String(request.headers["x-full-house-user"] ?? "").trim().toLowerCase();
+  const time = String(request.headers["x-full-house-time"] ?? "");
+  const signature = String(request.headers["x-full-house-signature"] ?? "").toLowerCase();
+  const secret = env.firstMeasureInternalApiSecret;
+  if (!email || !secret || !/^\d{10}$/.test(time) || Math.abs(Date.now() / 1000 - Number(time)) > 180 || !/^[a-f0-9]{64}$/.test(signature)) return null;
+  const expected = createHmac("sha256", secret).update(`${email}\n${time}`).digest("hex");
+  return timingSafeEqual(Buffer.from(signature), Buffer.from(expected)) ? email : null;
+}
+
 async function resolve(request: FastifyRequest): Promise<Principal> {
   if (presentsProcessToken(request)) {
     const principal = processPrincipal(request);
@@ -59,6 +82,12 @@ async function resolve(request: FastifyRequest): Promise<Principal> {
     if (!actor) throw unauthorized("service_signature_invalid", "The service signature is not valid.");
     if (actor === "system") return { kind: "system", via: "php" };
     const staff = staffAuthority(await readStaffUser(actor));
+    if (!staff) throw forbidden("service_actor_not_staff", "The signed actor is not an active staff member.");
+    return { kind: "staff", auth: null, staff, via: "php" };
+  }
+  const legacyFullHouse = legacyFullHouseActor(request);
+  if (legacyFullHouse) {
+    const staff = staffAuthority(await readStaffUser(legacyFullHouse));
     if (!staff) throw forbidden("service_actor_not_staff", "The signed actor is not an active staff member.");
     return { kind: "staff", auth: null, staff, via: "php" };
   }

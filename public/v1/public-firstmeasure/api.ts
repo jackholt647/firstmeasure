@@ -6,6 +6,14 @@ import type { FastifyInstance, FastifyPluginAsync, FastifyReply, FastifyRequest 
 import { ZodError, z } from "zod";
 
 import { env } from "../src/config/env.js";
+import { systemPrincipal } from "../platform/security/principal.js";
+import { serviceInject } from "../platform/security/service.js";
+
+/**
+ * Each public API handler authorizes the API key's organization against the
+ * report record before it reads FirstMeasure, so the read runs as the service.
+ */
+const PUBLIC_API_PRINCIPAL = systemPrincipal("public FirstMeasure API");
 import { PlatformError, badRequest, forbidden, notFound } from "../platform/errors.js";
 import { isAppFlagEnabled } from "../platform/app_flags.js";
 import { buildReportExpediteOptions, isExpeditedReportExpediteKey, normalizeReportExpediteKey } from "../firstmeasure/expedite.js";
@@ -441,7 +449,7 @@ export const registerPublicFirstMeasureApi: FastifyPluginAsync = async (app) => 
     }
     const query = asObject(request.query);
     const slot = cleanText(query.slot) || "main";
-    const response = await app.inject({
+    const response = await serviceInject(app, PUBLIC_API_PRINCIPAL, {
       method: "GET",
       url: `/v1/firstmeasure/projects/${encodeURIComponent(record.firstmeasure_project_id)}/pdf?slot=${encodeURIComponent(slot)}`
     });
@@ -505,7 +513,7 @@ export const registerPublicFirstMeasureApi: FastifyPluginAsync = async (app) => 
       };
     }
     const xmlFormat = format === "json" ? "roofplan" : format;
-    const response = await app.inject({
+    const response = await serviceInject(app, PUBLIC_API_PRINCIPAL, {
       method: "GET",
       url: `/v1/firstmeasure/projects/${encodeURIComponent(record.firstmeasure_project_id)}/xml?format=${encodeURIComponent(xmlFormat)}`
     });
@@ -562,7 +570,7 @@ export const registerPublicFirstMeasureApi: FastifyPluginAsync = async (app) => 
       reply.header("Content-Disposition", `attachment; filename="${file.name}"`);
       return reply.send(file.body);
     }
-    const response = await app.inject({
+    const response = await serviceInject(app, PUBLIC_API_PRINCIPAL, {
       method: "GET",
       url: `/v1/firstmeasure/projects/${encodeURIComponent(record.firstmeasure_project_id)}/artifacts/${encodeURIComponent(name)}`
     });
@@ -960,13 +968,10 @@ async function injectFirstMeasureJson(
   path: string,
   payload?: unknown
 ): Promise<InjectJsonResult> {
-  const response = await app.inject({
+  const response = await serviceInject(app, PUBLIC_API_PRINCIPAL, {
     method,
     url: `/v1/firstmeasure${path.startsWith("/") ? path : `/${path}`}`,
-    headers: {
-      "content-type": "application/json",
-      ...(env.firstMeasureInternalApiSecret ? { "x-firstmeasure-internal": env.firstMeasureInternalApiSecret } : {})
-    },
+    headers: { "content-type": "application/json" },
     payload: payload as object | string | Buffer | undefined
   });
   const parsed = maybeJson(response.body);

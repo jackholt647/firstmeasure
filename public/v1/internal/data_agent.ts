@@ -4,6 +4,8 @@ import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 
 import { env } from "../src/config/env.js";
+import { staffPrincipalFor } from "../platform/security/principal.js";
+import { serviceRequest } from "../platform/security/service.js";
 import { listOrganizations, readOrganization } from "../platform/storage.js";
 import { asObject, deleteInternalDocument, listInternalDocuments, listInternalUsers, readInternalDocument, readInternalUser, saveInternalDocument } from "./storage.js";
 
@@ -794,16 +796,22 @@ async function firstMeasureApiRequest(args: JsonObject) {
   if (method === "POST" && !allowedPost.some((pattern) => pattern.test(requestPath))) {
     throw new Error("This POST route is not on the read-only allowlist.");
   }
-  const url = new URL(`http://${env.host}:${env.port}/v1/firstmeasure${requestPath}`);
+  const url = new URL(`http://localhost/v1/firstmeasure${requestPath}`);
   for (const [key, value] of Object.entries(asObject(args.query))) {
     if (value !== undefined && value !== null) url.searchParams.set(key, asString(value));
   }
-  const response = await fetch(url, {
-    method,
-    headers: { "Accept": "application/json", "Content-Type": "application/json" },
-    body: method === "POST" ? JSON.stringify(asObject(args.body)) : undefined
+  // In process, as the staff member who started the run: their level decides
+  // which routes answer (docs/architecture/request-security.md#service-calls).
+  const principal = await staffPrincipalFor(asString(args.__actor_email));
+  if (!principal) throw new Error("The data agent run has no active staff member.");
+  const injected = await serviceRequest(principal, {
+    method: method as "GET" | "POST",
+    url: `${url.pathname}${url.search}`,
+    headers: { accept: "application/json", "content-type": "application/json" },
+    ...(method === "POST" ? { payload: asObject(args.body) } : {})
   });
-  const text = await response.text();
+  const response = { ok: injected.statusCode < 400, status: injected.statusCode };
+  const text = injected.body;
   let json: unknown = null;
   try {
     json = text ? JSON.parse(text) : null;
@@ -1091,7 +1099,8 @@ async function runChat(runId: string, session: JsonObject, message: string) {
       await appendRunEvent(runId, "tool_call", { name, arguments: args, call_id: callId, started_at: nowIso() });
       const traceItem: JsonObject = { name, arguments: args, call_id: callId, started_at: nowIso() };
       try {
-        const result = asObject(await callTool(name, args));
+        // Tools that call the API run as the staff member who started the run.
+        const result = asObject(await callTool(name, { ...args, __actor_email: asString(session.created_by_email) }));
         if (result.artifact) artifacts.push(asObject(result.artifact));
         const summary = traceSummary(result);
         traceItem.ok = true;
@@ -1217,7 +1226,7 @@ async function runBackgroundJob(runId: string) {
     run.status = "running";
     run.started_at = run.started_at || nowIso();
     run = await saveRun(run);
-    const result = await runChat(runId, { id: run.session_id, messages: run.context_messages }, asString(run.message));
+    const result = await runChat(runId, { id: run.session_id, messages: run.context_messages, created_by_email: run.created_by_email }, asString(run.message));
     await maybeGenerateTitle(run.session_id, asString(run.message));
     run = await readRun(runId) ?? run;
     if (result.answer !== null) {

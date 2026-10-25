@@ -18,6 +18,20 @@ Preserve unrelated changes in the existing workspace. A fresh worktree may lack 
 
 Production deployment requires user authorization; honor authorization already given in the current conversation without requesting it again. Preparing documentation or a release does not itself authorize activation.
 
+## Request security
+
+Read [request security](docs/architecture/request-security.md) before adding a
+route, an in-process or PHP call to Node, anything that fetches a URL a person
+supplied, or anything that serves an uploaded file. Identity comes only from a
+verified credential (session cookie, in-process service token, signed PHP
+request, API key), never from `actor`, `actor_email`, `organization_id`,
+`roles` or `X-Internal-User-*` sent by the caller. Every route under
+`/v1/firstmeasure`, `/v1/internal`, `/v1/communications` and
+`/v1/public/firstmeasure` declares who may call it in its plugin's access
+table, and startup fails without one. In-process calls use `serviceInject`;
+customer records are checked with `firstmeasure/access.ts`; user-supplied URLs
+go through `safeFetch`. Run `tests/route-access.test.ts` for changes here.
+
 ## Named infrastructure
 
 - `dev sync droplet` means the dedicated development host at SSH alias `dev-sync-droplet`.

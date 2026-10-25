@@ -13,7 +13,7 @@ const admin: RouteAccess = { staff: "admin" };
 
 registerRouteAccessTable({
   "GET /v1/internal": any,
-  "POST /v1/internal/tutorial-exteriors": any,
+  "POST /v1/internal/tutorial-exteriors": { public: "training bridge: the handler requires the signed tutorial bridge request (internal/tutorial_exteriors.ts)" },
   "POST /v1/internal/legacy-action": any,
   "POST /v1/internal/tutorial-projects/:tutorialId/artifacts": any,
   "POST /v1/internal/tutorial-projects/:tutorialId/pdf-state": any,

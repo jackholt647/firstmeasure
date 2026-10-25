@@ -99,7 +99,11 @@ import {
 } from "../public-firstmeasure/keys.js";
 import { createPublicFirstMeasureKeyDelivery } from "../public-firstmeasure/key_delivery.js";
 import { hasPublicFirstMeasureApiKeySecret } from "../public-firstmeasure/key_secret_vault.js";
-import { knownPrincipal, principalActor } from "../platform/security/principal.js";
+import { knownPrincipal, principalActor, systemPrincipal } from "../platform/security/principal.js";
+import { serviceInject } from "../platform/security/service.js";
+import { startImpersonation, stopImpersonation } from "../platform/security/impersonation.js";
+import { staffAuthority } from "../platform/security/staff.js";
+import { assertMayManageInternalUser, requireLegacyActionLevel, staffOrSystem } from "./staff-guards.js";
 
 const objectSchema = z.object({}).passthrough();
 const userSaveSchema = objectSchema.extend({
@@ -316,23 +320,52 @@ export const registerInternalApi: FastifyPluginAsync = async (app) => {
     };
   });
 
+  // The staff console's sign-in check: a user record only for a verified staff
+  // session (staff organization membership plus an active internal user).
   app.get("/me", async (request) => {
+    const principal = knownPrincipal(request);
+    const staff = principal.kind === "staff" ? principal.staff : null;
+    const user = staff ? await readInternalUser(staff.email) : null;
     const actor = actorFromRequest(request);
-    const user = actor.email ? await readInternalUser(actor.email) : null;
     return {
       ok: true,
       success: true,
-      authenticated: Boolean(user || actor.email),
-      user: user ? publicInternalUser(user) : {
-        id: actor.email || "",
-        email: actor.email || "",
-        name: actor.name || actor.email || "",
-        role: actor.role || "user",
-        department: actor.department || "",
-        permissions: {}
-      },
+      authenticated: principal.kind !== "anonymous",
+      staff: Boolean(user),
+      user: user ? publicInternalUser(user) : null,
+      impersonated_by: principal.kind === "staff" && principal.impersonator ? principal.impersonator.email : null,
       actor
     };
+  });
+
+  // A full admin acting as another staff member, kept on the server against
+  // the admin's own session (platform/security/impersonation.ts).
+  app.get("/impersonation", async (request) => {
+    const principal = knownPrincipal(request);
+    return {
+      ok: true,
+      success: true,
+      impersonating: principal.kind === "staff" && principal.impersonator ? principal.staff.email : null,
+      admin_email: principal.kind === "staff" ? (principal.impersonator ?? principal.staff).email : null
+    };
+  });
+
+  app.post("/impersonation", async (request) => {
+    const principal = knownPrincipal(request);
+    if (principal.kind !== "staff" || principal.via !== "session" || !principal.auth) throw forbidden("session_required", "Acting as someone needs a signed-in admin session.");
+    const admin = principal.impersonator ?? principal.staff;
+    if (!admin.admin) throw forbidden("admin_required", "Only full admins can act as another staff member.");
+    const targetEmail = String(asObject(request.body).target_email ?? "").trim().toLowerCase();
+    const target = staffAuthority(targetEmail ? await readInternalUser(targetEmail) : null);
+    if (!target) throw notFound("internal_user_not_found", "That staff member was not found or is not active.");
+    return { ok: true, success: true, ...(await startImpersonation(principal.auth.sessionId, admin.email, target.email)) };
+  });
+
+  app.delete("/impersonation", async (request) => {
+    const principal = knownPrincipal(request);
+    if (principal.kind !== "staff" || !principal.auth) return { ok: true, success: true, stopped: false };
+    const admin = principal.impersonator ?? principal.staff;
+    return { ok: true, success: true, ...(await stopImpersonation(principal.auth.sessionId, admin.email)) };
   });
 
   app.get("/users", async (request) => {
@@ -613,6 +646,8 @@ export const registerInternalApi: FastifyPluginAsync = async (app) => {
 
   app.post("/users", async (request, reply) => {
     const body = userSaveSchema.parse(request.body ?? {});
+    const existingByEmail = await readInternalUser(String(asObject(body).email ?? "")).catch(() => null);
+    assertMayManageInternalUser(staffOrSystem(request), existingByEmail, asObject(body));
     requireValidInternalUserEmail(body, true);
     await requireExistingTeamAssignment(body);
     const user = await saveInternalUser(body, { changedBy: actorFromRequest(request).email });
@@ -630,6 +665,7 @@ export const registerInternalApi: FastifyPluginAsync = async (app) => {
 
   app.put("/users/:userId", async (request) => {
     const body = userSaveSchema.parse(request.body ?? {});
+    assertMayManageInternalUser(staffOrSystem(request), await readInternalUser(param(request.params, "userId")).catch(() => null), asObject(body));
     requireValidInternalUserEmail(body, false);
     await requireExistingTeamAssignment(body);
     const user = await saveInternalUser(
@@ -646,6 +682,7 @@ export const registerInternalApi: FastifyPluginAsync = async (app) => {
     await requireExistingTeamAssignment(body);
     const existing = await readInternalUser(param(request.params, "userId"));
     if (!existing) throw notFound("internal_user_not_found", "Internal user was not found.");
+    assertMayManageInternalUser(staffOrSystem(request), existing, body);
     const user = await saveInternalUser(
       { ...existing, ...body, id: existing.id },
       { changedBy: actorFromRequest(request).email }
@@ -656,6 +693,9 @@ export const registerInternalApi: FastifyPluginAsync = async (app) => {
   });
 
   app.delete("/users/:userId", async (request) => {
+    const existing = await readInternalUser(param(request.params, "userId"));
+    if (!existing) throw notFound("internal_user_not_found", "Internal user was not found.");
+    assertMayManageInternalUser(staffOrSystem(request), existing, {});
     const deleted = await deleteInternalUser(param(request.params, "userId"));
     if (!deleted) throw notFound("internal_user_not_found", "Internal user was not found.");
     return { ok: true, success: true, deleted: true };
@@ -1008,7 +1048,7 @@ export const registerInternalApi: FastifyPluginAsync = async (app) => {
 
   app.get("/state/:collection", async (request) => {
     const collection = param(request.params, "collection");
-    if (collection.trim().toLowerCase().replace(/[^a-z0-9_-]+/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "") === "pricing_config") throw forbidden("protected_collection", "Use the authenticated Prices API.");
+    if (PROTECTED_STATE_COLLECTIONS.has(collection.trim().toLowerCase().replace(/[^a-z0-9_-]+/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, ""))) throw forbidden("protected_collection", "This collection has its own authenticated API.");
     if (["manager_audit", "manager_review_samples", "manager_review_config"].includes(collection)) {
       await requireManagerReviewOverrideAccess(actorFromRequest(request));
     }
@@ -1021,7 +1061,7 @@ export const registerInternalApi: FastifyPluginAsync = async (app) => {
 
   app.put("/state/:collection/:id", async (request) => {
     const collection = param(request.params, "collection");
-    if (collection.trim().toLowerCase().replace(/[^a-z0-9_-]+/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "") === "pricing_config") throw forbidden("protected_collection", "Use the authenticated Prices API.");
+    if (PROTECTED_STATE_COLLECTIONS.has(collection.trim().toLowerCase().replace(/[^a-z0-9_-]+/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, ""))) throw forbidden("protected_collection", "This collection has its own authenticated API.");
     if (["manager_audit", "manager_review_samples", "manager_review_config"].includes(collection)) {
       await requireManagerReviewOverrideAccess(actorFromRequest(request));
     }
@@ -1086,6 +1126,9 @@ function param(params: unknown, key: string) {
  * (docs/architecture/request-security.md). Only the system principal (our own
  * service code) may name the actor in the body or query.
  */
+/** Collections the generic state API never reads or writes. */
+const PROTECTED_STATE_COLLECTIONS = new Set(["pricing_config", "staff_impersonation", "security_audit", "server_config", "feature_flags"]);
+
 function actorFromRequest(request: FastifyRequest) {
   const principal = knownPrincipal(request);
   const verified = principalActor(principal);
@@ -4984,6 +5027,16 @@ async function handleLegacyAction(app: FastifyInstance, body: JsonObject, reques
     role: requestActor.role || String(bodyActor.role ?? body.actor_role ?? body.current_user_role ?? body.user_role ?? "").trim()
   };
   if (!action) throw badRequest("missing_action", "A legacy action is required.");
+  requireLegacyActionLevel(request, action);
+  // Sub-handlers read the actor from the body; it is always the verified one
+  // unless our own service code is calling.
+  if (knownPrincipal(request).kind !== "system") {
+    body.actor = { ...asObject(body.actor), ...actor };
+    body.actor_email = actor.email;
+    body.actor_name = actor.name;
+    body.actor_role = actor.role;
+    for (const key of ["current_user_email", "current_user_name", "current_user_role"]) delete body[key];
+  }
 
   switch (action) {
     case "call_script_list":
@@ -4998,6 +5051,9 @@ async function handleLegacyAction(app: FastifyInstance, body: JsonObject, reques
     }
     case "save_user": {
       const email = String(body.email ?? "").trim().toLowerCase();
+      assertMayManageInternalUser(staffOrSystem(request), await readInternalUser(String(body.id || email)).catch(() => null), {
+        ...body, permissions: parseJsonish(body.permissions, {})
+      });
       requireValidInternalUserEmail(body, true);
       await requireExistingTeamAssignment(body);
       const user = await saveInternalUser({
@@ -5025,6 +5081,8 @@ async function handleLegacyAction(app: FastifyInstance, body: JsonObject, reques
       return { ok: true, success: true, user: publicInternalUser(user), platform_login };
     }
     case "delete_user": {
+      const existingUser = await readInternalUser(String(body.email ?? body.id ?? "")).catch(() => null);
+      if (existingUser) assertMayManageInternalUser(staffOrSystem(request), existingUser, {});
       const deleted = await deleteInternalUser(String(body.email ?? body.id ?? ""));
       return { ok: true, success: deleted, deleted };
     }
@@ -7664,7 +7722,9 @@ function referralRewardReport() {
 }
 
 async function injectJson(app: FastifyInstance, method: "GET" | "POST" | "PATCH" | "PUT" | "DELETE", url: string, payload?: unknown) {
-  const response = await app.inject({
+  // The calling route already admitted this staff member for the action, and
+  // the payload names them as the actor (docs/architecture/request-security.md#service-calls).
+  const response = await serviceInject(app, systemPrincipal("internal staff action"), {
     method,
     url,
     payload: payload as any,

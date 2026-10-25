@@ -60,13 +60,22 @@ longer switches identity on its own.
 
 ## Route access declarations
 
-Routes in the covered prefixes declare access in their route options:
+Routes in the covered prefixes declare access in their plugin's access table
+(`firstmeasure/route-access.ts`, `internal/route-access.ts`,
+`public-firstmeasure/route-access.ts`, loaded by
+`platform/security/route-access-tables.ts`), keyed by method and full URL, or
+in their route options:
 
 ```ts
-app.get("/projects/:id", { config: { access: "customer_or_staff" } }, handler);
-app.post("/admin/reindex", { config: { access: { staff: "admin" } } }, handler);
-app.get("/pdf-runtime/fonts/:name", { config: { access: { public: "static report fonts" } } }, handler);
+"GET /v1/firstmeasure/projects/:id": "customer_or_staff",
+"POST /v1/firstmeasure/admin/reindex": { staff: "admin" },
+"GET /v1/firstmeasure/pdf-runtime/fonts/:name": { public: "report fonts (static, allowlisted)" },
+// or inline: app.get(url, { config: { access: { staff: "qa" } } }, handler)
 ```
+
+A table keeps every decision for a plugin in one reviewable place and out of
+the plugin's handlers. A route nothing calls is `{ staff: "admin" }` until a
+caller needs it.
 
 Access values (`platform/security/route-access.ts`):
 
@@ -93,6 +102,23 @@ The gate does not replace per-record checks, permission flags or CSRF; it
 guarantees that no handler in a covered prefix ever runs for a caller it was
 not written for.
 
+**Legacy actor fields.** Older handlers read `body.actor`, `actor_email` or
+`actorFromRequest`. Before any FirstMeasure handler runs,
+`firstmeasure/access.ts` replaces `actor` with the verified one; in
+`/v1/internal`, `actorFromRequest` and the legacy-action dispatcher do the
+same. Only the system principal (our own service code) may name an actor.
+Staff console actions (`POST /v1/internal/legacy-action`) each need a staff
+level (`LEGACY_ACTION_LEVELS` in `internal/staff-guards.ts`); changing staff
+users goes through `assertMayManageInternalUser`: only a full admin grants
+admin roles or admin permission flags, sets a password hash, changes another
+person's password or email, or edits an admin.
+
+Routes that carry their own proof are declared public with that reason and
+check it in the handler: the tutorial bridge HMAC, the public API key, the
+remote analytics key, the one-time key delivery token, Google's OAuth state,
+and the Apple key harvester's `FIRSTMEASURE_APPLE_KEY_INGEST_TOKEN`
+(`Authorization: Bearer`; unset refuses every caller).
+
 ## Service calls
 
 **In process (`app.inject`).** `serviceInject(app, request, { actor })` adds a
@@ -114,8 +140,10 @@ Node accepts it within 120 seconds, only for an actor that is an active staff
 member (or `system` for unattended jobs), and treats it as that staff member.
 PHP takes the actor from its own session, which it sets only after Node has
 verified the platform session (`backend_login.php`). The older Full House
-HMAC (`x-full-house-*`) and the bare `x-firstmeasure-internal` header stay
-accepted for one release so rolling hosts keep working, then are removed.
+HMAC (`x-full-house-*`, email and time only) is still accepted as that staff
+member so PHP hosts that have not been updated keep working; remove it once
+every PHP host sends the request-bound signature. A bare
+`x-firstmeasure-internal` header proves nothing on its own any more.
 
 PHP reaches Node at a configured base URL (`FIRSTMEASURE_NODE_BASE_URL`), never
 one built from the request's `Host`, with TLS verification on. Without the
@@ -144,9 +172,17 @@ and narrow `filter` to what the caller holds; a customer's `filter` is one of
 `mine`, `team` or `org`, inside their own organization.
 
 Customer writes to a project accept an explicit list of fields
-(`CUSTOMER_PROJECT_PATCH_FIELDS`). Money fields (`amount_charged`, refund and
-charge records), status, queue, QA and delivery fields are written only by the
-domain writers that own them.
+(`CUSTOMER_PROJECT_PATCH_FIELDS`, today the Customer info card's `resident`).
+Money fields (anything named like an amount, refund, charge, credit, price,
+cost, payment, invoice or balance) are dropped from a staff edit unless the
+staff member is a full admin; they are written by the domain writers that move
+the money.
+
+**Files without a session.** Thumbnails and report files that a page without a
+session shows (the homeowner portal) use a signed link:
+`signedProjectFileQuery(projectId, name)` appends `exp` and `sig`, valid for
+one project file for 7 days. Without a valid link the caller needs a session
+that may read the project.
 
 ## Browser protections
 
@@ -158,15 +194,17 @@ domain writers that own them.
   that predate `csrf: true`, without changing clients. `csrf: true` stays where
   it is.
 - **Security headers** on every Node response: `X-Content-Type-Options:
-  nosniff`, `Referrer-Policy: strict-origin-when-cross-origin`,
-  `X-Frame-Options: SAMEORIGIN` unless a route opts out for embedding.
+  nosniff` and `Referrer-Policy: strict-origin-when-cross-origin`. Framing is
+  left to each page (forms and the chat widget are embedded on customers'
+  sites).
 - **Files people upload** are served with their stored type only when it is on
   a safe list (images, PDF, JSON, plain text, gzip, glTF). Anything else,
   including XML, SVG and HTML, is served `Content-Disposition: attachment` with
   `Content-Security-Policy: sandbox`. Customer artifacts are `private`, never
   `public`, in `Cache-Control`.
-- **Debug output** (`X-FirstMeasure-Debug`, `?debug=1`, stack traces) is for
-  staff admins only.
+- **Debug output** (`X-FirstMeasure-Debug`, `?debug=1`, traces, internal
+  error messages, stack traces) is returned only to staff with debug access
+  (full admins, or the `firstmeasure_debugger` permission).
 
 ## Fetching URLs
 
@@ -182,10 +220,11 @@ than curling the URL itself.
 
 - `FIRSTMEASURE_INTERNAL_API_SECRET`: PHP and Node service signatures.
 - `LEGACY_PROXY_SECRET`: web tier to compatibility host.
-- `PUBLIC_API_KEY_SECRET`: public API key hashes and the key vault. Until it
-  is set the session secret is used, as before; once set, new keys use it and
-  existing keys keep verifying against the old material until they are
-  re-issued.
+- `PUBLIC_FIRSTMEASURE_API_KEY_SECRET`: public API key hashes and the key
+  vault. Unset, the session secret is used. Setting it invalidates every
+  existing key, so set it together with re-issuing the keys.
+- `FIRSTMEASURE_APPLE_KEY_INGEST_TOKEN`: the Apple key harvester's token (at
+  least 32 characters).
 
 After the release reaches production, the internal secret, the legacy proxy
 secret and every provider key that `/v1/internal/server-config` could return

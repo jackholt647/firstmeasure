@@ -11,6 +11,9 @@ import { validateExteriorOrder, isCustomerExteriorId } from "./exteriors.js";
 import { readMediaFile as readExteriorMediaFile } from "../platform/storage.js";
 
 import { installFullHouseAccess, authorizeFullHouseRequest, isFullHouseId, assertFullHouseNotDeliverable } from './full_house.js';
+import { installFirstMeasureAccess, organizationScope } from './access.js';
+import { knownPrincipal, principalEmail, requestPrincipal } from '../platform/security/principal.js';
+
 
 import path from "node:path";
 
@@ -24,7 +27,7 @@ import { existsSync } from "node:fs";
 
 import { fileURLToPath } from "node:url";
 
-import { createHash } from "node:crypto";
+import { createHash, timingSafeEqual } from "node:crypto";
 
 
 
@@ -360,6 +363,16 @@ import { isAppFlagEnabled } from "../platform/app_flags.js";
 import { buildWeatherReport } from "../weather/reports.js";
 
 import { generateWeatherReportPdf } from "../weather/pdf.js";
+
+/** FIRSTMEASURE_APPLE_KEY_INGEST_TOKEN, sent as `Authorization: Bearer <token>`. Unset refuses every token. */
+function appleKeyIngestTokenMatches(request: FastifyRequest) {
+  const expected = String(process.env.FIRSTMEASURE_APPLE_KEY_INGEST_TOKEN ?? "").trim();
+  const supplied = String(request.headers.authorization ?? "").replace(/^Bearer\s+/i, "").trim();
+  if (expected.length < 32 || !supplied) return false;
+  const a = createHash("sha256").update(supplied).digest();
+  const b = createHash("sha256").update(expected).digest();
+  return timingSafeEqual(a, b);
+}
 
 
 
@@ -921,6 +934,12 @@ function getFirstMeasureDebugSource(request: FastifyRequest) {
 
 function getFirstMeasureDebug(request: FastifyRequest) {
 
+  // Traces include request bodies and internal errors: staff debuggers only.
+
+  const principal = knownPrincipal(request);
+
+  if (principal.kind !== "staff" || !principal.staff.debugger) return null;
+
   return (request as DebuggableRequest).__firstMeasureDebug ?? null;
 
 }
@@ -1127,7 +1146,15 @@ export const registerFirstMeasureApi: FastifyPluginAsync = async (app) => {
 
 
 
+  // Verified actor, organization scope and per-project checks (firstmeasure/access.ts).
+
+  installFirstMeasureAccess(app);
+
+
+
   app.addHook("onRequest", async (request) => {
+
+
 
     const debug = ensureFirstMeasureDebug(request);
 
@@ -2362,7 +2389,7 @@ export const registerFirstMeasureApi: FastifyPluginAsync = async (app) => {
       input.filter = ['mine', 'org', 'team'].includes(String(input.filter)) ? input.filter : 'org';
       input.refresh_authority = { user: auth.userId, org: auth.orgId, permissions: auth.permissions, role: auth.role };
     }
-    return buildProjectsListResponse(input, request);
+    return buildProjectsListResponse(input, request, organizationScope(request));
 
   });
 
@@ -7724,13 +7751,23 @@ export const registerFirstMeasureApi: FastifyPluginAsync = async (app) => {
 
 
 
+  // The key harvester posts here with its own token (no session); a staff
+
+  // admin session also works.
+
   app.post("/apple-key/ingest", async (request) => {
+
+    const principal = await requestPrincipal(request);
+
+    const viaAdmin = principal.kind === "system" || (principal.kind === "staff" && principal.staff.admin);
+
+    if (!viaAdmin && !appleKeyIngestTokenMatches(request)) throw new FirstMeasureError("apple_key_ingest_forbidden", 401, "A valid ingest token is required.");
 
     const input = appleKeySetSchema.parse(request.body ?? {});
 
     try {
 
-      return { ok: true, value: await setAppleKey(input) };
+      return { ok: true, value: await setAppleKey({ ...input, actor: { email: viaAdmin ? principalEmail(principal) : "apple-key-harvester" } }) };
 
     } catch (error) {
 
@@ -8890,7 +8927,9 @@ async function buildProjectsListResponse(
 
     protocol?: string;
 
-  }
+  },
+
+  organizationScope?: string
 
 ) {
 
@@ -8941,6 +8980,8 @@ async function buildProjectsListResponse(
     search: rawSearch,
 
     actor,
+
+    organizationScope,
 
     includeInstantOnly: parsedQuery.includeInstantOnly,
 
@@ -22648,11 +22689,23 @@ async function sendArtifactContent(
 
   }
 
-  reply.type(getMimeType(artifact.name));
+  const mimeType = getMimeType(artifact.name);
 
-  reply.header("Content-Disposition", `inline; filename="${artifact.name}"`);
+  reply.type(mimeType);
 
-  reply.header("Cache-Control", /^internal-(resource|markup)-/i.test(artifact.name) ? "private, no-store" : "public, max-age=300, stale-while-revalidate=3600");
+  // Uploaded files render inline only when the type cannot run script on
+
+  // this origin (docs/architecture/request-security.md#browser-protections).
+
+  const inline = INLINE_ARTIFACT_TYPES.some((prefix) => mimeType.startsWith(prefix));
+
+  reply.header("Content-Disposition", `${inline ? "inline" : "attachment"}; filename="${artifact.name.replace(/["\\\r\n]/g, "_")}"`);
+
+  if (!inline) reply.header("Content-Security-Policy", "sandbox");
+
+  reply.header("X-Content-Type-Options", "nosniff");
+
+  reply.header("Cache-Control", /^internal-(resource|markup)-/i.test(artifact.name) ? "private, no-store" : "private, max-age=300, stale-while-revalidate=3600");
 
   if (etag) reply.header("ETag", etag);
 
@@ -24301,6 +24354,8 @@ function mergeBrandingVariant(...variants: Array<Record<string, unknown>>) {
 }
 
 
+
+const INLINE_ARTIFACT_TYPES = ["application/pdf", "image/png", "image/jpeg", "image/gif", "image/webp", "image/tiff", "application/json", "model/gltf-binary", "text/plain"];
 
 function getMimeType(fileName: string) {
 

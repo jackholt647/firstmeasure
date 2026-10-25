@@ -56,6 +56,19 @@ export async function serviceInject(app: FastifyInstance, principal: Principal, 
   }
 }
 
+let rootApp: FastifyInstance | null = null;
+
+/** Called once by buildApp so modules without an app reference can make in-process calls. */
+export function setServiceApp(app: FastifyInstance) {
+  rootApp = app;
+}
+
+/** `serviceInject` on the running app (for modules that have no app reference). */
+export async function serviceRequest(principal: Principal, options: InjectOptions) {
+  if (!rootApp) throw new Error("The service app is not ready.");
+  return await serviceInject(rootApp, principal, options);
+}
+
 /** The principal an in-process call carries, or null when it carries none or a forged one. */
 export function processPrincipal(request: FastifyRequest): Principal | null {
   const token = header(request, PROCESS_TOKEN_HEADER);

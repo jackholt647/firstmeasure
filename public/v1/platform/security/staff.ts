@@ -22,6 +22,8 @@ export type StaffAuthority = {
   debugger: boolean;
   team_id: string;
   department: string;
+  /** The record's permission flags (manage_users, manage_sales_users, ...). */
+  permissions: Record<string, boolean>;
 };
 
 const PRODUCTION_ROLES = ["admin", "system_admin", "manager", "qa", "technician", "sales_manager", "salesperson", "trainee"];
@@ -69,7 +71,8 @@ export function staffAuthority(user: Json | null | undefined): StaffAuthority | 
     technician,
     debugger: admin || permissions.firstmeasure_debugger === true,
     team_id: text(user.team_id),
-    department: text(user.department)
+    department: text(user.department),
+    permissions: Object.fromEntries(Object.entries(permissions).map(([key, value]) => [key, value === true]))
   };
 }
 

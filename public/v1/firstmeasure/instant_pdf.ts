@@ -2037,17 +2037,22 @@ function collectBrandingRecords(source: unknown) {
   return records;
 }
 
+/**
+ * Logos come from branding a customer sets, so they are fetched like any
+ * user-supplied address (platform/security/safe-fetch.ts): public hosts and
+ * image types only.
+ */
 async function fetchDataUrl(url: string) {
   if (url.startsWith("data:")) {
+    if (!/^data:image\/(png|jpe?g|gif|webp|svg\+xml);/i.test(url)) throw new Error("Logo data must be an image.");
     return url;
   }
-  const response = await fetch(url);
-  if (!response.ok) {
+  const { safeFetch } = await import("../platform/security/safe-fetch.js");
+  const response = await safeFetch(url, { accept: ["image/"], maxBytes: 5 * 1024 * 1024, timeoutMs: 10_000 });
+  if (response.status < 200 || response.status >= 300) {
     throw new Error(`Logo fetch failed with status ${response.status}.`);
   }
-  const contentType = response.headers.get("content-type") || "image/png";
-  const buffer = Buffer.from(await response.arrayBuffer());
-  return `data:${contentType};base64,${buffer.toString("base64")}`;
+  return `data:${response.contentType || "image/png"};base64,${response.body.toString("base64")}`;
 }
 
 async function readJsonArtifact(projectId: string, fileName: string) {
