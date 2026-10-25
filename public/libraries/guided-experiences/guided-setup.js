@@ -266,6 +266,28 @@
           return saved ? { id: saved.id, name: saved.name } : supplier;
         } });
       }
+      /**
+       * Someone's pay sheet for the agent: pick the file, save the setup so far (which adds the group or company), then
+       * send it naming that assignee's key, so the agent writes their pay sheet (pay-sheets.try, pay-sheets.sheet.save).
+       */
+      function laborPaySheet(entry){
+        if (!assistant) return null;
+        return new Promise((resolve) => {
+          const picker = document.createElement('input'); picker.type = 'file'; picker.accept = '.csv,.xlsx,.xls,.pdf,.txt,.png,.jpg,.jpeg';
+          picker.addEventListener('change', async () => {
+            const files = [...(picker.files || [])];
+            if (!files.length) return resolve(null);
+            chat.dataset.open = 'true';
+            track('question', { step_id: steps[index]?.id, properties: { upload: true, assignee: clean(entry?.name) } });
+            const saved = array(object((await saveDraft())?.labor).assignees).find((row) => clean(row.name).toLowerCase() === clean(entry?.name).toLowerCase() && row.kind === entry.kind);
+            const ref = saved?.ref || entry.ref;
+            const key = ref?.type && ref?.id ? `${ref.type}:${ref.id}` : '';
+            const message = `${L('gx_lab_sheet_message', 'Here is the pay sheet for')} ${clean(entry?.name)}${key ? ` (assignee ${key})` : ''}. ${L('gx_lab_sheet_ask', 'Please set up how they are paid for roofing from it.')}`;
+            resolve(await assistant?.sendWithFiles?.(message, files));
+          }, { once: true });
+          picker.click();
+        });
+      }
       /** The scripted turn, written into the project conversation so a reload and the agent tray hold it too. */
       function persist(body){
         if (!agentic) return Promise.resolve();
@@ -305,7 +327,7 @@
         currentPane = el;
         index = to;
         const widget = widgets.get(step.widget);
-        mounted = widget ? widget.render(el.querySelector('.gxs-body'), { step, options: object(step.options), selections, L, esc, money, priceSheet: assistant ? supplierPriceSheet : null, change(patch, summary){ Object.assign(selections, patch); if (summary !== undefined) summaries[step.id] = summary; status.textContent = ''; footer(); } }) : null;
+        mounted = widget ? widget.render(el.querySelector('.gxs-body'), { step, options: object(step.options), selections, L, esc, money, priceSheet: assistant ? supplierPriceSheet : null, paySheet: assistant ? laborPaySheet : null, change(patch, summary){ Object.assign(selections, patch); if (summary !== undefined) summaries[step.id] = summary; status.textContent = ''; footer(); } }) : null;
         if (!widget) el.querySelector('.gxs-body').textContent = L('gx_ui_widget_missing', 'This step cannot be shown here.');
         if (old) {
           old.classList.remove('gxs-below', 'gxs-above');
@@ -563,6 +585,29 @@
     .gxs-supplier-tag button{border:0;background:transparent;margin-left:4px;cursor:pointer;font-size:14px;line-height:1;color:#667085;padding:0}
     .gxs-supplier-input{flex:1 1 220px}
     .gxs-supplier-cols{margin-top:6px}
+    .gxs-lab-add{gap:8px}
+    .gxs-lab-toggle{display:inline-flex;gap:4px}
+    .gxs-lab-name{flex:1 1 180px}
+    .gxs-labs{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;align-items:start}
+    .gxs-lab{position:relative;border:1px solid #eaecf0;border-radius:12px;background:#fff;padding:10px 12px;display:flex;flex-direction:column;gap:8px}
+    .gxs-lab-in{animation:gxsMsg .35s cubic-bezier(.22,1,.36,1) both}
+    .gxs-lab header{display:flex;align-items:center;gap:8px;min-width:0}
+    .gxs-lab header strong{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13.5px}
+    .gxs-lab-kind{flex:none;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;border-radius:999px;padding:3px 8px;background:#eff8ff;color:#175cd3}
+    .gxs-lab-kind[data-kind=organization_connection]{background:#fdf2fa;color:#c11574}
+    .gxs-lab-remove{border:0;background:transparent;color:#98a2b3;font-size:16px;cursor:pointer;padding:0 2px}
+    .gxs-lab-methods{display:flex;gap:4px;flex-wrap:wrap}
+    .gxs-lab-methods .gxs-chip{height:26px;padding:0 10px;font-size:12px}
+    .gxs-lab-rate{display:flex;align-items:center;gap:6px;flex-wrap:wrap;max-height:0;opacity:0;overflow:hidden;transition:max-height .3s cubic-bezier(.22,1,.36,1),opacity .2s}
+    .gxs-lab-rate[data-open=true]{max-height:60px;opacity:1}
+    .gxs-lab-rate label{display:inline-flex;align-items:center;gap:4px;color:#475467}
+    .gxs-lab-rate input{width:84px;height:28px;border:1px solid #d0d5dd;border-radius:7px;padding:0 7px;text-align:right;font:inherit}
+    .gxs-lab-rate select,.gxs-lab select{height:28px;border:1px solid #d0d5dd;border-radius:7px;padding:0 6px;font:inherit;font-size:12.5px;max-width:100%}
+    .gxs-lab-rate em{font-style:normal;color:#475467;font-size:12.5px}
+    .gxs-lab-note{margin:0;color:#475467;font-size:12.5px}
+    .gxs-lab-sheet{align-self:flex-start;border:1px solid #d0d5dd;border-radius:999px;background:#fff;color:#344054;font:inherit;font-size:11px;font-weight:650;padding:3px 9px;cursor:pointer}
+    .gxs-lab-empty{grid-column:1/-1;color:#667085;margin:8px 0}
+    @media(max-width:760px){.gxs-labs{grid-template-columns:minmax(0,1fr)}}
     @media(max-width:760px){.gxs-logos{grid-template-columns:repeat(2,minmax(0,1fr))}.gxs-logo-tile{height:92px;padding:10px 12px}.gxs-logo-tile img{max-height:70px}.gxs-mats{grid-template-columns:minmax(0,1fr)}}
   `;
   const injectWidgetCss = () => G()?.injectCss?.('gx-setup-widgets-css', widgetCss);
@@ -823,6 +868,81 @@
       });
       sync();
       return { valid: () => true, summary, destroy(){ columns?.destroy?.(); } };
+    }
+  });
+
+  /**
+   * Who does the labor: the organization's groups of users and outside companies as cards in two columns, each with how
+   * it is paid (a piece rate on a roofing measurement, hourly, or per job) and a pay sheet upload for the agent. New
+   * ones are added by name as employees (a group) or a subcontractor (an outside company). What a group or company is
+   * called comes from the terminology system. Saved by labor.setup.apply when the setup finishes.
+   */
+  registerWidget('labor-assignees', {
+    render(el, { options, selections, change, L, paySheet }){
+      injectWidgetCss();
+      const word = (path, fallback) => clean(root.PlatformTerminology?.get?.(path, fallback)) || fallback;
+      const groupWord = word('workforce.resource_group_singular', 'Group'), companyWord = word('workforce.organization_connection_singular', 'Subcontractor');
+      const measurements = array(options.measurements);
+      const typesOf = (kind) => array(kind === 'resource_group' ? options.group_types : options.company_types);
+      const saved = new Map(array(object(selections.labor).assignees).map((entry) => [`${entry.kind}:${clean(entry.ref?.id) || clean(entry.name).toLowerCase()}`, entry]));
+      const keyOf = (entry) => `${entry.kind}:${clean(entry.ref?.id) || clean(entry.name).toLowerCase()}`;
+      let rows = array(options.assignees).map((entry) => {
+        const simple = entry.pay?.simple || null;
+        const before = saved.get(keyOf(entry));
+        return { key: keyOf(entry), ref: entry.ref, kind: entry.kind, name: entry.name, type_id: before?.type_id || entry.type_id || '', existing: true, locked: !!entry.pay && !simple, lines: Number(entry.pay?.lines || 0), original: simple, pay: before?.pay || (simple ? { ...simple } : null) };
+      });
+      for (const entry of saved.values()) if (!entry.ref && !rows.some((row) => row.key === keyOf(entry))) rows.push({ key: keyOf(entry), kind: entry.kind, name: entry.name, type_id: entry.type_id || '', existing: false, pay: entry.pay || null });
+      let addKind = 'resource_group', firstDraw = true;
+      const fresh = new Set();
+      const unitOf = (pay) => pay?.method === 'hourly' ? L('gx_lab_per_hour', 'per hour') : pay?.method === 'per_job' ? L('gx_lab_per_job', 'per job') : String(pay?.measurement || 'roof.squares').startsWith('roof.squares') || pay?.measurement === 'roof.flat_squares' ? L('gx_lab_per_square', 'per square') : L('gx_lab_per_foot', 'per foot');
+      const kindLabel = (kind) => kind === 'resource_group' ? `${groupWord} · ${L('gx_lab_employees', 'employees')}` : companyWord;
+      const changed = (row) => !row.existing || (!!row.pay && JSON.stringify(row.pay) !== JSON.stringify(row.original)) || false;
+      const summary = () => rows.length ? rows.map((row) => `${row.name}${row.pay ? ` (${row.pay.rate ? `$${row.pay.rate} ` : ''}${unitOf(row.pay)})` : ''}`).join(', ') : L('gx_lab_nobody', 'Nobody yet');
+      const report = () => change({ include_labor: true, labor: { assignees: rows.filter((row) => changed(row) || (row.existing && row.type_id && row.type_id !== array(options.assignees).find((entry) => keyOf(entry) === row.key)?.type_id)).map((row) => ({ ...(row.ref ? { ref: row.ref } : {}), kind: row.kind, name: row.name, ...(row.type_id ? { type_id: row.type_id } : {}), ...(row.pay && row.pay.rate > 0 && changed(row) ? { pay: row.pay } : {}) })) } }, summary());
+      const methodChip = (row, method, label) => `<button type="button" class="gxs-chip" data-method="${method}" aria-pressed="${row.pay?.method === method}">${label}</button>`;
+      const card = (row, i) => {
+        const types = typesOf(row.kind);
+        const pay = row.pay;
+        // Only the first drawing and a card just added come in; redrawing after a change does not animate.
+        return `<article class="gxs-lab${firstDraw || fresh.has(row.key) ? ' gxs-lab-in' : ''}" data-lab="${esc(row.key)}" style="animation-delay:${firstDraw ? i * 40 : 0}ms">
+          <header><span class="gxs-lab-kind" data-kind="${row.kind}" title="${esc(row.kind === 'resource_group' ? L('gx_lab_group_tip', 'People who work for you, paid through you') : L('gx_lab_company_tip', 'Another company that does the work and bills you'))}">${esc(kindLabel(row.kind))}</span><strong title="${esc(row.name)}">${esc(row.name)}</strong>${!row.existing ? `<button type="button" class="gxs-lab-remove" data-remove aria-label="${esc(L('gx_lab_remove', 'Remove'))} ${esc(row.name)}">&times;</button>` : ''}</header>
+          ${types.length > 1 ? `<label class="gxs-field"><span>${H('gx_lab_type', 'Type')}</span><select data-type>${types.map((type) => `<option value="${esc(type.id)}" ${type.id === row.type_id ? 'selected' : ''}>${esc(type.name)}</option>`).join('')}</select></label>` : ''}
+          ${row.locked ? `<p class="gxs-lab-note">${H('gx_lab_locked', 'Paid by its own pay sheet')} (${row.lines} ${L('gx_lab_lines', 'lines')}). ${H('gx_lab_locked_where', 'Change it in People.')}</p>` : `
+          <div class="gxs-lab-methods" role="group" aria-label="${esc(L('gx_lab_how_paid', 'How they are paid'))}">${methodChip(row, 'per_measurement', L('gx_lab_piece', 'Piece rate'))}${methodChip(row, 'hourly', L('gx_lab_hourly', 'Hourly'))}${methodChip(row, 'per_job', L('gx_lab_job', 'Per job'))}</div>
+          <div class="gxs-lab-rate" data-open="${!!pay}">${pay ? `<label><span>$</span><input type="number" min="0" step="0.01" inputmode="decimal" data-rate value="${esc(pay.rate ?? '')}" aria-label="${esc(L('gx_lab_rate', 'Rate'))}"></label>${pay.method === 'per_measurement' ? `<select data-measurement aria-label="${esc(L('gx_lab_paid_on', 'Paid on'))}">${measurements.map((entry) => `<option value="${esc(entry.id)}" ${entry.id === (pay.measurement || 'roof.squares') ? 'selected' : ''}>${esc(entry.label)}</option>`).join('')}</select>` : `<em>${esc(unitOf(pay))}</em>`}` : ''}</div>`}
+          ${paySheet ? `<button type="button" class="gxsc-sheet gxs-lab-sheet" data-sheet title="${esc(L('gx_lab_sheet_tip', 'Upload their pay sheet or rate card and the agent sets up their pay from it'))}">${H('gx_lab_sheet', 'Pay sheet')}</button>` : ''}
+        </article>`;
+      };
+      el.innerHTML = `<div class="gxs-tools gxs-lab-add"><div class="gxs-lab-toggle" role="group" aria-label="${esc(L('gx_lab_add_as', 'Add as'))}"><button type="button" class="gxs-chip" data-add-kind="resource_group" aria-pressed="true" title="${esc(L('gx_lab_group_tip', 'People who work for you, paid through you'))}">${esc(groupWord)}</button><button type="button" class="gxs-chip" data-add-kind="organization_connection" aria-pressed="false" title="${esc(L('gx_lab_company_tip', 'Another company that does the work and bills you'))}">${esc(companyWord)}</button></div><input type="text" class="gxs-search gxs-lab-name" maxlength="300" placeholder="${esc(L('gx_lab_add_placeholder', 'Name, then Enter'))}" aria-label="${esc(L('gx_lab_add_placeholder', 'Name, then Enter'))}"><button type="button" class="gxs-chip" data-add>${H('gx_lab_add', 'Add')}</button></div><div class="gxs-labs"></div>`;
+      const list = el.querySelector('.gxs-labs');
+      const draw = () => { list.innerHTML = rows.length ? rows.map(card).join('') : `<p class="gxs-lab-empty">${H('gx_lab_empty', 'Nobody yet. Add the groups and subcontractors who install your roofs.')}</p>`; firstDraw = false; fresh.clear(); report(); };
+      const rowOf = (node) => rows.find((row) => row.key === node.closest('[data-lab]')?.dataset.lab);
+      const add = () => {
+        const input = el.querySelector('.gxs-lab-name'); const name = clean(input.value); if (!name) return;
+        const key = `${addKind}:${name.toLowerCase()}`;
+        if (!rows.some((row) => row.key === key || (row.kind === addKind && row.name.toLowerCase() === name.toLowerCase()))) rows.push({ key, kind: addKind, name, type_id: typesOf(addKind)[0]?.id || '', existing: false, pay: { method: addKind === 'resource_group' ? 'hourly' : 'per_measurement', rate: 0, ...(addKind === 'resource_group' ? {} : { measurement: 'roof.squares' }) } }) && fresh.add(key);
+        input.value = ''; draw();
+      };
+      el.addEventListener('click', (event) => {
+        const kind = event.target.closest('[data-add-kind]')?.dataset.addKind;
+        if (kind) { addKind = kind; el.querySelectorAll('[data-add-kind]').forEach((button) => button.setAttribute('aria-pressed', String(button.dataset.addKind === kind))); return; }
+        if (event.target.closest('[data-add]')) return add();
+        const row = rowOf(event.target); if (!row) return;
+        if (event.target.closest('[data-remove]')) { rows = rows.filter((entry) => entry !== row); draw(); return; }
+        if (event.target.closest('[data-sheet]')) { paySheet?.(row); return; }
+        const method = event.target.closest('[data-method]')?.dataset.method;
+        if (method) { row.pay = { method, rate: row.pay?.method === method ? row.pay.rate : 0, ...(method === 'per_measurement' ? { measurement: row.pay?.measurement || 'roof.squares' } : {}) }; draw(); el.querySelector(`[data-lab="${CSS.escape(row.key)}"] [data-rate]`)?.focus(); }
+      });
+      el.addEventListener('keydown', (event) => { if (event.target.closest('.gxs-lab-name') && event.key === 'Enter') { event.preventDefault(); add(); } });
+      el.addEventListener('change', (event) => {
+        const row = rowOf(event.target); if (!row) return;
+        if (event.target.matches('[data-type]')) row.type_id = event.target.value;
+        if (event.target.matches('[data-measurement]') && row.pay) row.pay = { ...row.pay, measurement: event.target.value };
+        if (event.target.matches('[data-rate]') && row.pay) { const value = Number(event.target.value); if (Number.isFinite(value) && value >= 0) row.pay = { ...row.pay, rate: value }; }
+        report();
+      });
+      draw();
+      return { valid: () => true, summary };
     }
   });
 

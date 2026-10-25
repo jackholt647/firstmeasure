@@ -61,7 +61,11 @@ const ENABLED = [
   "apps.notifications",
   "platform.top_bar",
   "topbar.global_search",
-  "topbar.notifications"
+  "topbar.notifications",
+  // Temporarily on for testing (Jack, 2026-10-25): groups of users and outside companies (People, and the price book
+  // setup's "Who does your labor?" step, which needs them). Turn these off again for the real MVP.
+  "apps.crew",
+  "platform.people_access"
 ];
 
 export function appFlags(): JsonObject {
@@ -82,7 +86,7 @@ export const workflow: JsonObject = {
   description: "The FirstMeasure default signup plus the MVP platform: My Projects (with the project map), My Contacts and Feed; project tabs Overview, Reports, Photos (New), Docs (New), Materials and Customer Portal; Agent, Notes, Activity and To Do trays. No Scheduling or calendar. Every project is a generic roof job.",
   entry_mode: "landing_first",
   // Raise when this file changes: the saved workflow is replaced with it on the next seed.
-  configuration_revision: 12,
+  configuration_revision: 13,
   sample_data: true,
   dev_bar: false,
   setup_scripts: ["mvp-platform"],

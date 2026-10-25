@@ -13,23 +13,45 @@ export const resourceTypeIdSchema=z.string().trim().regex(/^[a-z][a-z0-9_-]{0,79
 export const LINE_ITEM_SOURCES=['pricebook','equipment'] as const;
 // Sources a type suggests line items from until someone chooses otherwise.
 const DEFAULT_LINE_ITEM_SOURCES:Record<string,string[]>={material:['pricebook'],labor:[],equipment:['equipment']};
-export const resourceTypeInputSchema=z.object({id:resourceTypeIdSchema,name:z.string().trim().max(100),icon:z.string().regex(/^fa-[a-z0-9-]{1,76}$/),color:z.string().regex(/^#[0-9a-fA-F]{6}$/),line_item_sources:z.array(z.enum(LINE_ITEM_SOURCES)).max(LINE_ITEM_SOURCES.length).optional(),pricebook_sku_only:z.boolean().optional(),expected_revision:z.number().int().nonnegative().optional()}).strict();
+export const resourceTypeInputSchema=z.object({id:resourceTypeIdSchema,name:z.string().trim().max(100),icon:z.string().regex(/^fa-[a-z0-9-]{1,76}$/),color:z.string().regex(/^#[0-9a-fA-F]{6}$/),line_item_sources:z.array(z.enum(LINE_ITEM_SOURCES)).max(LINE_ITEM_SOURCES.length).optional(),pricebook_sku_only:z.boolean().optional(),shown:z.enum(['always','with_assignees']).optional(),expected_revision:z.number().int().nonnegative().optional()}).strict();
 export const resourceTypeArchiveSchema=z.object({id:resourceTypeIdSchema,expected_revision:z.number().int().nonnegative().optional()}).strict();
 export const defaultResourceTypes=[{id:'material',name:'Materials',icon:'fa-boxes-stacked',color:'#d93025',line_item_sources:['pricebook'],pricebook_sku_only:true,revision:0},{id:'labor',name:'Labor',icon:'fa-helmet-safety',color:'#2563eb',line_item_sources:[],pricebook_sku_only:false,revision:0},{id:'equipment',name:'Equipment',icon:'fa-truck-pickup',color:'#0f766e',line_item_sources:['equipment'],pricebook_sku_only:false,revision:0}];
 // Equipment is a column, and an equipment list can be made, only while the organization has the Equipment app on
 // (apps.equipment). With it off the column is not offered and no writer makes an equipment list; lists made while it
 // was on are kept and read as they are. Nothing here asks what kind of organization it is.
 export async function equipmentListsAllowed(orgId:string){return await isCapabilityEnabled(orgId,'apps.equipment').catch(()=>false);}
-export async function listResourceTypes(orgId:string){
+/**
+ * When the Labor column shows (docs/architecture/guided-experiences.md, "Who does your labor"). It follows the labor
+ * type's `shown` setting and the organization's data, never its configuration:
+ * - `always` (or nothing saved, as every organization had before): it shows;
+ * - `with_assignees`, which skipping the price book setup's labor step saves: it shows once there is someone to do
+ *   labor (an active group of users, an active outside company that is not only a supplier, or anyone with a pay
+ *   sheet), or while any labor list exists, so no work is hidden. Where groups of users and outside companies are off
+ *   (apps.crew) labor is plain lines and it shows.
+ * Turning it on is saving `always` through materials.resource-type.update.
+ */
+export async function laborColumnShown(orgId:string,labor?:{shown?:unknown}){
+ if(labor?.shown!=='with_assignees')return true;
+ if(!await isCapabilityEnabled(orgId,'apps.crew').catch(()=>false))return true;
+ const [{listResourceGroups},{listOrganizationConnections},{listPaySheets}]=await Promise.all([import('../workforce/storage.js'),import('../connections/storage.js'),import('../labor/pay-sheets.js')]);
+ if((await listResourceGroups(orgId,{}).catch(()=>[])).length)return true;
+ if((await listOrganizationConnections(orgId,{}).catch(()=>[])).length)return true;
+ if((await listPaySheets(orgId).catch(()=>[])).length)return true;
+ // A full read of the lists, only for an organization with nobody to do labor (docs/optimization-backlog.md).
+ return (await listDocuments(orgId,'material_lists')).some(doc=>String(doc.data.resource_type||'material')==='labor'&&String(doc.data.status||'').toLowerCase()!=='archived');
+}
+export async function listResourceTypes(orgId:string,options:{includeHidden?:boolean}={}){
  if(!await isAppFlagEnabled(orgId,'platform','materials'))throw forbidden('app_flag_disabled','Materials are not enabled for this organization.');
  const documents=(await listDocuments(orgId,RESOURCE_TYPE_COLLECTION)).filter(doc=>!doc.data.archived_at),rows=documents.map(doc=>resourceTypeRow({...doc.data,id:doc.id,revision:doc.revision}));
  const equipment=await equipmentListsAllowed(orgId);
- return [...defaultResourceTypes.map(row=>rows.find(item=>item.id===row.id)||{...row}),...rows.filter(row=>!defaultResourceTypes.some(item=>item.id===row.id))].filter(row=>equipment||row.id!=='equipment');
+ const all=[...defaultResourceTypes.map(row=>rows.find(item=>item.id===row.id)||{...row}),...rows.filter(row=>!defaultResourceTypes.some(item=>item.id===row.id))];
+ const labor=options.includeHidden||await laborColumnShown(orgId,all.find(row=>row.id==='labor') as {shown?:unknown});
+ return all.filter(row=>(equipment||row.id!=='equipment')&&(labor||row.id!=='labor'));
 }
 export async function requireResourceType(orgId:string,value:unknown){const id=resourceTypeIdSchema.parse(value||'material');if(id==='equipment'&&!await equipmentListsAllowed(orgId))throw forbidden('equipment_app_disabled','Equipment is not turned on for this organization, so an equipment list cannot be made.');if(!(await listResourceTypes(orgId)).some(row=>row.id===id))throw badRequest('resource_type_unknown','Choose a registered resource type.');return id;}
 export async function saveResourceType(orgId:string,input:unknown,auth:PlatformAuthContext,create=false){
  if(!auth||auth.orgId!==orgId||!hasPermission(auth,'manage_projects'))throw forbidden('resource_type_write_denied','Resource type editing requires project management access.');
- const known=await listResourceTypes(orgId);const {id,expected_revision,...data}=resourceTypeInputSchema.parse(input);if(id==='equipment'&&!known.some(row=>row.id===id))throw forbidden('equipment_app_disabled','Equipment is not turned on for this organization.');if(!create&&!known.some(row=>row.id===id))throw badRequest('resource_type_unknown','This resource type is unavailable.');
+ const known=await listResourceTypes(orgId,{includeHidden:true});const {id,expected_revision,...data}=resourceTypeInputSchema.parse(input);if(id==='equipment'&&!known.some(row=>row.id===id))throw forbidden('equipment_app_disabled','Equipment is not turned on for this organization.');if(!create&&!known.some(row=>row.id===id))throw badRequest('resource_type_unknown','This resource type is unavailable.');
  const doc=await upsertDocument(orgId,RESOURCE_TYPE_COLLECTION,{id,expected_revision,data:{...data,updated_by_user_id:auth.userId},metadata:{kind:'material_resource_type'}},{replace:true,createOnly:create||expected_revision===0});
  return resourceTypeRow({...doc.data,id:doc.id,revision:doc.revision});
 }
@@ -44,4 +66,4 @@ export async function archiveResourceType(orgId:string,input:unknown,auth:Platfo
  const doc=await upsertDocument(orgId,RESOURCE_TYPE_COLLECTION,{id,expected_revision:expected_revision??current.revision,data:{name:current.name,icon:current.icon,color:current.color,archived_at:new Date().toISOString(),archived_by_user_id:auth.userId,updated_by_user_id:auth.userId},metadata:{kind:'material_resource_type'}},{replace:true});
  return {id:doc.id,archived:true,revision:Number(doc.revision||0)};
 }
-export function resourceTypeRow(input:JsonObject){const known=LINE_ITEM_SOURCES as readonly string[],sources=Array.isArray(input.line_item_sources)?[...new Set(input.line_item_sources.map(String).filter(source=>known.includes(source)))]:[...(DEFAULT_LINE_ITEM_SOURCES[String(input.id)]||[])];return {id:String(input.id),name:String(input.name||''),icon:String(input.icon||'fa-layer-group'),color:String(input.color||'#64748b'),line_item_sources:sources,pricebook_sku_only:typeof input.pricebook_sku_only==='boolean'?input.pricebook_sku_only:String(input.id)==='material',revision:Number(input.revision||0)};}
+export function resourceTypeRow(input:JsonObject){const known=LINE_ITEM_SOURCES as readonly string[],sources=Array.isArray(input.line_item_sources)?[...new Set(input.line_item_sources.map(String).filter(source=>known.includes(source)))]:[...(DEFAULT_LINE_ITEM_SOURCES[String(input.id)]||[])];return {id:String(input.id),name:String(input.name||''),icon:String(input.icon||'fa-layer-group'),color:String(input.color||'#64748b'),line_item_sources:sources,pricebook_sku_only:typeof input.pricebook_sku_only==='boolean'?input.pricebook_sku_only:String(input.id)==='material',...(input.shown==='always'||input.shown==='with_assignees'?{shown:input.shown}:{}),revision:Number(input.revision||0)};}

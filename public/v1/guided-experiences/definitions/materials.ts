@@ -1,4 +1,5 @@
 import { roofingSetupOptions } from "../../pricebook/setups/roofing.js";
+import { laborSetupOptions } from "../../labor/labor-setup.js";
 import { registerExperience, registerGuidedSource, registerTabFaqs } from "../registry.js";
 
 /**
@@ -17,6 +18,7 @@ export function registerMaterialsGuidedExperiences() {
 
   // Products, rules and prices for the organization's price region. The chooser context supplies the region.
   registerGuidedSource("pricebook.roofing_setup", (_ctx, chooser) => roofingSetupOptions(chooser.organization.state, chooser.organization.region));
+  registerGuidedSource("labor.setup", (ctx) => laborSetupOptions(ctx.orgId));
 
   registerExperience({
     id: MATERIALS_SETUP, version: 1, kind: "agentic", scope: "organization", salt: "2026-10",
@@ -82,10 +84,19 @@ export function registerMaterialsGuidedExperiences() {
         agent_note: t("gx_mps_suppliers_agent_2", "Price sheets. A sheet for a named supplier (its id is in the message): read it, match each line to their price book items (pricebook.prices.list) and that supplier's items (suppliers.catalog), show the matches and cost changes as a short list, ask before applying any uncertain match, then set that supplier's costs with suppliers.prices.update (cents), and offer to update the price book costs too (pricebook.prices.update). A sheet with no supplier named: match it to price book items and apply the confirmed costs with pricebook.prices.update; if it is clearly from one of their suppliers, offer to set that supplier's costs too. Costs only, never a markup. The setup's columns refresh when they continue.")
       },
       {
-        id: "labor_prices", widget: "price-review", source: "pricebook.roofing_setup", selects: ["prices", "include_labor"], required: false, options: { kinds: ["labor"], optional: true, skip_sets: { include_labor: false } },
-        title: t("gx_mps_labor_prices_title", "Check your labor prices"),
-        subtitle: t("gx_mps_labor_prices_subtitle", "Optional. Typical labor and service rates for your area; skip this if you price labor elsewhere."),
-        say: [t("gx_mps_labor_prices_say_1", "Optional: typical labor rates for your area. Skip this if you price labor somewhere else.")]
+        // Who does the labor: groups of users (employees) and outside companies (subcontractors), and how each is paid,
+        // saved as pay sheets. Only where groups and outside companies are on; elsewhere labor stays plain lines.
+        // Skipping leaves nobody to do labor, so the Materials tab's Labor column stays off until someone is added.
+        id: "labor", widget: "labor-assignees", source: "labor.setup", selects: ["labor", "include_labor"], required: false,
+        eligibility: { capabilities: ["apps.crew", "platform.people_access", "platform.expanded_access", "platform.materials"], permissions: ["manage_company_settings"] },
+        options: { optional: true, skip_sets: { include_labor: false, labor: { assignees: [], skipped: true } } },
+        title: t("gx_mps_labor_title", "Who does your labor?"),
+        subtitle: t("gx_mps_labor_subtitle", "Add the groups of employees and the subcontractors who install your roofs, and how each is paid. Skip this if you don't track labor here."),
+        say: [
+          t("gx_mps_labor_say_1", "Last one: who installs your roofs? Add your own groups and any subcontractors, and how you pay each one."),
+          t("gx_mps_labor_say_2", "If you have someone's pay sheet or rate card, upload it on their card and I'll set up their pay from it.")
+        ],
+        agent_note: t("gx_mps_labor_agent", "Pay sheets. When the person uploads a pay sheet or rate card for a named group or subcontractor (its assignee key, such as resource_group:abc, is in the message), read it and write that assignee's roofing pay sheet: inputs from the roofing measurements (roof.squares and its pitch bands, roof line lengths), hours or a number typed per job, and one entry per thing they charge. Check it with pay-sheets.try, show the person the lines in plain words, ask about anything unclear, then save it with pay-sheets.sheet.save (rates in cents). Never work out what anyone is paid; a pay sheet is evaluated by the platform.")
       }
     ],
     completion: {

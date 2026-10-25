@@ -7,6 +7,19 @@ optimization here must return exactly the same results.
 Add an entry when you knowingly ship something that reads more than it needs, repeats work, or will not scale, and
 link the entry from the architecture doc's "Not built" section. Remove an entry when it is done.
 
+## The Labor column reads every material list when nobody does labor
+
+**Today.** For an organization whose Labor column waits for someone to do labor (`shown: with_assignees`, saved when the
+price book setup's labor step is skipped) and that has no group, outside company or pay sheet yet,
+`laborColumnShown` (`public/v1/materials/resource-types.ts`) reads every material list to see whether a labor list
+exists, each time the resource types are listed (opening the Materials tab, generating).
+
+**Where the change goes.** Keep a count of non-archived labor lists per organization, updated by the material list
+writer, or answer it from an indexed query on `resource_type`; the answer stays the same.
+
+**Why it can wait.** Only organizations that skipped the step and still have nobody to do labor reach the read, and
+those are new organizations with few lists. Every other case answers before it.
+
 ## Projects map loads every project and geocodes addresses in the browser
 
 **Today.** My Projects > Map (`public/libraries/apps/projects/map-view.js`) asks `list_projects` for every project

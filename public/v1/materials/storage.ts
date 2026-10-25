@@ -1,4 +1,4 @@
-import {requireResourceType,equipmentListsAllowed} from './resource-types.js';
+import {requireResourceType,equipmentListsAllowed,listResourceTypes} from './resource-types.js';
 import { publishScopeMaterialArtifact, scopeMaterialRequirements, assertLegacyMaterialWritable, assertLegacyMaterialSnapshotWritable, importedLegacyMaterialArtifact } from "./calculus.js";
 import { createHash, randomUUID } from "node:crypto";
 
@@ -1757,6 +1757,12 @@ async function buildProjectListsFromScope(
       // (read-only in the Project tab) and its generated schedule event is withdrawn.
       if (cleanText(definition.resource_type).toLowerCase() === "equipment" && !(await equipmentListsAllowed(orgId))) {
         if (list) createdLists.push(cleanText(list.schedule_event_id || asObject(list.schedule).event_id) ? await disableGeneratedResourceScheduleEvent(orgId, list) : list);
+        continue;
+      }
+      // With the Labor column off (nobody to do labor yet, see laborColumnShown) a scope makes no labor list; one already
+      // made is kept as it is.
+      if (cleanText(definition.resource_type).toLowerCase() === "labor" && !(await listResourceTypes(orgId)).some((row) => row.id === "labor")) {
+        if (list) createdLists.push(list);
         continue;
       }
       const resourceType = await requireResourceType(orgId,definition.resource_type);

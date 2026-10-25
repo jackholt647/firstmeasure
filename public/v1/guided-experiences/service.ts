@@ -46,9 +46,19 @@ export async function chooserContext(ctx: PlatformAuthContext, surface: { tab?: 
   };
 }
 
+/** Capabilities and permissions, each required; `a|b` is either. */
+async function allowed(ctx: PlatformAuthContext, rules: { capabilities?: string[]; permissions?: string[] } | undefined) {
+  for (const permission of rules?.permissions || []) if (!hasPermission(ctx, permission)) return false;
+  for (const capability of rules?.capabilities || []) {
+    let any = false;
+    for (const option of capability.split("|")) if (await can(ctx, option.trim()).catch(() => false)) { any = true; break; }
+    if (!any) return false;
+  }
+  return true;
+}
+
 async function eligible(definition: ExperienceDefinition, ctx: PlatformAuthContext, chooser: ChooserContext) {
-  for (const permission of definition.eligibility.permissions) if (!hasPermission(ctx, permission)) return false;
-  for (const capability of definition.eligibility.capabilities) if (!(await can(ctx, capability).catch(() => false))) return false;
+  if (!(await allowed(ctx, definition.eligibility))) return false;
   return !definition.eligibility.when || evaluateConditions(definition.eligibility.when, chooser as unknown as Record<string, unknown>);
 }
 
@@ -79,6 +89,8 @@ async function resolve(definition: ExperienceDefinition, ctx: PlatformAuthContex
   const steps = [];
   for (const stepId of order) {
     const step = definition.steps.find((entry) => entry.id === stepId)!;
+    // A step the person cannot have is left out of their setup (and so is its source).
+    if (!(await allowed(ctx, (step as { eligibility?: { capabilities?: string[]; permissions?: string[] } }).eligibility))) continue;
     let options: Record<string, unknown> = { ...object((step as { options?: unknown }).options), ...object(variant.content[step.id]) };
     const sourceId = (step as { source?: string }).source;
     if (sourceId) {

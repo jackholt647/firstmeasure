@@ -292,7 +292,9 @@ export const roofingSelectionsSchema = z.object({
     name: z.string().trim().min(1).max(200),
     item_ids: z.array(z.string().max(160)).max(500).default([]),
     prices: z.record(z.number().finite().min(0).max(100000)).default({})
-  }).strict()).max(12).default([])
+  }).strict()).max(12).default([]),
+  /** Who does the labor and how each is paid: saved through labor.setup.apply (labor/labor-setup.ts), as the person. */
+  labor: z.object({ assignees: z.array(z.unknown()).max(40).default([]), skipped: z.boolean().optional() }).strict().optional()
 }).strict();
 export type RoofingSelections = z.infer<typeof roofingSelectionsSchema>;
 
@@ -428,8 +430,13 @@ export async function applyRoofingSetup(ctx: PublicationContext, input: unknown)
   const saved = await saveOrganizationCatalog(orgId, { ...book.catalog, items: [...book.catalog.items.filter((item) => !ids.has(String((item as { id?: unknown }).id))), ...built.items] }, Number(book.manifest.revision));
   const defaults = await saveMeasurementDefaults(orgId, { settings: built.settings, expected_revision: current.revision });
   const suppliers = await saveSetupSuppliers(ctx, selections, new Set(built.items.map((item) => item.id)));
+  // Who does the labor: only when the step was played (it needs groups of users and outside companies).
+  const labor = parsed.labor?.assignees.length ? await saveSetupLabor(ctx, { assignees: parsed.labor.assignees }) : null;
+  // Skipped: the Labor column waits until someone does labor (materials/resource-types.ts laborColumnShown).
+  if (parsed.labor?.skipped) await laborColumnWithAssignees(ctx);
   return {
     suppliers,
+    ...(labor ? { labor } : {}),
     trade: "roofing", items: built.items.length, item_ids: built.items.map((item) => item.id), default_line: built.default_line, primary_brand: built.primary_brand,
     region: built.region.id, pricebook_revision: Number((saved as { manifest?: { revision?: unknown } }).manifest?.revision ?? 0), defaults_revision: defaults.revision
   };
@@ -465,6 +472,22 @@ async function saveSetupSuppliers(ctx: PublicationContext, selections: RoofingSe
     saved.push({ id: String(result.value?.id || current?.id || ""), name: input.name, items: input.offerings.length });
   }
   return saved;
+}
+
+/** Saves `shown: with_assignees` on the Labor column, through the resource type's own action, as the person. */
+async function laborColumnWithAssignees(ctx: PublicationContext) {
+  const [{ invokeAction }, { listResourceTypes }] = await Promise.all([import("../../platform/publication/actions.js"), import("../../materials/resource-types.js")]);
+  const labor = (await listResourceTypes(ctx.organizationId, { includeHidden: true })).find((row) => row.id === "labor") as { name: string; icon: string; color: string; revision: number; shown?: string } | undefined;
+  if (!labor || labor.shown === "with_assignees") return;
+  await invokeAction({ ...ctx, mode: "command" as const }, { action: "materials.resource-type.update", target: { scope: "organization", organizationId: ctx.organizationId } },
+    { id: "labor", name: labor.name, icon: labor.icon, color: labor.color, shown: "with_assignees", expected_revision: labor.revision }, { idempotencyKey: `pricebook-setup:labor-column:${ctx.organizationId}:${labor.revision}` });
+}
+
+/** The labor step's choices, through their own published action (labor.setup.apply) as the person. */
+async function saveSetupLabor(ctx: PublicationContext, labor: { assignees: unknown[] }) {
+  const { invokeAction } = await import("../../platform/publication/actions.js");
+  const result = await invokeAction({ ...ctx, mode: "command" as const }, { action: "labor.setup.apply", target: { scope: "organization", organizationId: ctx.organizationId } }, labor, { idempotencyKey: `pricebook-setup:labor:${ctx.organizationId}:${JSON.stringify(labor).length}:${Date.now()}` }) as { value?: unknown };
+  return result.value ?? null;
 }
 
 export const roofingTradeSetup: TradeSetup = {

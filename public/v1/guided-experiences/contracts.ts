@@ -54,6 +54,15 @@ const setupStep = z.object({
   agent_note: copySchema.optional(),
   /** An upload offered inside one of the step's agent lines (`line` names its copy key); the file goes to the real assistant. */
   upload: z.object({ line: z.string().regex(/^gx_[a-z0-9_]{2,90}$/), button: copySchema, message: copySchema, accept: z.string().max(200).default("") }).strict().optional(),
+  /**
+   * Who gets this step, like an experience's eligibility: a person without these capabilities or permissions plays
+   * the setup without it (the labor step needs groups of users or outside companies). Never a configuration check.
+   */
+  eligibility: z.object({
+    capabilities: z.array(z.string().max(120)).max(12).default([]),
+    /** Each entry is required; an entry may be a|b; a capability entry may be a|b too. */
+    permissions: z.array(z.string().max(200)).max(8).default([])
+  }).strict().optional(),
   next: next.optional()
 }).strict();
 

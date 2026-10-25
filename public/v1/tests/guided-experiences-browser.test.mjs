@@ -35,6 +35,11 @@ const OPTIONS={trade:'roofing',catalog:'research',region:{id:'south',label:'Sout
     {id:'home_depot',name:'The Home Depot',kind:'big_box',color:'#F96302',manufacturers:['gaf','owens_corning'],line_scope:'retail_core',regions:'United States and Canada',prices:{'lib-shingle-gaf-hdz':37.98}},
     {id:'lowes',name:'Lowes',kind:'big_box',color:'#004990',manufacturers:['gaf'],line_scope:'retail_core',regions:'United States',prices:{}},
     {id:'convoy_supply',name:'Convoy Supply',kind:'distributor',color:'#D2232A',manufacturers:['gaf','malarkey'],line_scope:'full_range',regions:'Pacific Northwest',prices:{}}]};
+// The labor step's options as labor/labor-setup.ts laborSetupOptions gives them.
+const LABOR={assignees:[{ref:{type:'resource_group',id:'g1'},kind:'resource_group',name:'North crew',type_id:'crew',members:3,pay:{sheet_id:'s1',name:'North pay',lines:1,simple:{method:'hourly',rate:45}}},
+    {ref:{type:'organization_connection',id:'c1'},kind:'organization_connection',name:'Summit Roofing',type_id:'work_provider',members:0,pay:{sheet_id:'s2',name:'Summit rates',lines:4,simple:null}}],
+  group_types:[{id:'crew',name:'Crew'},{id:'install',name:'Install team'}],company_types:[{id:'work_provider',name:'Subcontractor'}],
+  measurements:[{id:'roof.squares',label:'Roof squares',unit:'roofing_square'},{id:'roof.ridge_length',label:'Ridge length',unit:'ft'}],methods:['per_measurement','hourly','per_job']};
 const SETUP={id:'materials.pricebook_setup.roofing',version:1,kind:'agentic',scope:'organization',title:t('gx_mps_title','Set up your price book'),tab:'project.materials',replayable:false,variant:{id:'agentic',bucket:0.4,unit:'organization:o'},
   triggers:[{kind:'before_action',action:'materials.generate',selector:'[data-mt-generate-materials],[data-mt-generate-column]',once:true}],
   steps:[
@@ -43,7 +48,7 @@ const SETUP={id:'materials.pricebook_setup.roofing',version:1,kind:'agentic',sco
     {id:'rules',widget:'measurement-rules',title:t('gx_mps_rules_title','How a roof becomes a materials list'),subtitle:t('gx_mps_rules_subtitle','Each material comes from the measurement report.'),say:[t('gx_d','Here is how each material is worked out.')],options:OPTIONS,required:false},
     {id:'suppliers',widget:'supplier-columns',title:t('gx_mps_suppliers_title','Who provides your materials?'),subtitle:t('gx_su','Pick every supplier you buy from.'),say:[t('gx_sv','Who do you buy from?'),t('gx_mps_price_sheet_say','If you have a price sheet from your supplier, you can upload it here and I’ll set it up for you.')],
       upload:{line:'gx_mps_price_sheet_say',button:t('gx_mps_price_sheet_button','Upload a price sheet'),message:t('gx_mps_price_sheet_message','Here’s my supplier price sheet. Please update my material prices from it.'),accept:'.csv,.xlsx,.xls,.pdf,.txt'},options:OPTIONS,required:false},
-    {id:'labor_prices',widget:'price-review',title:t('gx_mps_labor_prices_title','Check your labor prices'),subtitle:t('gx_l','Optional.'),say:[t('gx_g','Optional: typical labor rates.')],options:{...OPTIONS,kinds:['labor'],optional:true,skip_sets:{include_labor:false}},required:false}],
+    {id:'labor',widget:'labor-assignees',title:t('gx_mps_labor_title','Who does your labor?'),subtitle:t('gx_lt','Add your groups and subcontractors, and how each is paid.'),say:[t('gx_ls','Who installs your roofs?')],options:{...LABOR,optional:true,skip_sets:{include_labor:false,labor:{assignees:[],skipped:true}}},required:false}],
   completion:{action:{id:'pricebook.setup.apply',target:'organization',input:{trade:'roofing'}},say:[t('gx_f','Your price book is ready.')],then:[{handoff:'assistant_tray'},{resume:true},{play:'materials.tab_tutorial'}]},progress:null};
 const TOUR={id:'materials.tab_tutorial',version:1,kind:'overlay',scope:'person',title:t('gx_mt_title','Materials tour'),tab:'project.materials',replayable:true,variant:{id:'tour',bucket:0.1,unit:'person:o:u'},triggers:[],
   steps:[{id:'intro',targets:[],placement:'center',title:t('gx_mt_intro_title','Welcome to Materials'),body:t('gx_x','A quick look around.'),advance:'next',wait_ms:300},
@@ -71,6 +76,8 @@ async function load(browser,{width=1280,height=800,reduced=false}={}){
     <div class="fma-drawer" id="faqHost"><div data-fma="composer"><div class="fma-compose-shell"><textarea></textarea></div></div></div><main class="main"><div id="mainPanels"></div></main>`);
   await page.evaluate(({SETUP,TOUR,FAQS})=>{
     window.__APP={userOrgId:'o',platformApiBase:'http://fm.test/v1/platform'};
+    // The organization's words (the terminology system): this one calls a group of users a crew.
+    window.PlatformTerminology={get:(path,fallback)=>({'workforce.resource_group_singular':'Crew','workforce.organization_connection_singular':'Subcontractor'})[path]||fallback};
     window.route={project:'p1',projectTab:'materials'};
     window.Portal={navigation:{read:()=>window.route},can:()=>true,tabs:{activateTab(){}},util:{currentBranchId:()=>'default'}};
     window.calls=[];window.generated=0;window.trayOpened=0;
@@ -92,7 +99,7 @@ async function load(browser,{width=1280,height=800,reduced=false}={}){
       return new Response('{}',{status:404});
     };
     // The setup saves its draft through the completion action before a price sheet goes to the agent.
-    window.PlatformAPI={publication:{invoke:async(org,action,target,input)=>{window.calls.push({path:'invoke',action,target,input});return {value:{suppliers:(input.suppliers||[]).map((entry,i)=>({id:'sup_'+i,name:entry.name}))}};}}};
+    window.PlatformAPI={publication:{invoke:async(org,action,target,input)=>{window.calls.push({path:'invoke',action,target,input});return {value:{suppliers:(input.suppliers||[]).map((entry,i)=>({id:'sup_'+i,name:entry.name})),labor:{assignees:(input.labor?.assignees||[]).map(entry=>({ref:entry.ref||{type:entry.kind,id:'new_'+entry.name.split(' ')[0].toLowerCase()},name:entry.name,kind:entry.kind}))}}};}}};
     window.thread=[];const projectThread={id:'thread_1',subject_id:'project:p1'};
     window.AssistantAPI={upload:async(org,thread,file)=>({attachment:{media_id:'media_'+file.name,file_name:file.name}}),context:async()=>({main_thread:{id:'main',subject_id:'main'},threads:[],agents:[],dashboard:[]}),projectConversation:async()=>({thread:projectThread}),thread:async()=>({thread:projectThread,messages:window.thread.slice()}),
       send:async(org,thread,body)=>{window.calls.push({path:'assistant',thread,body});const reply={id:'r'+window.thread.length,role:'assistant',content:'Architectural shingles are the thicker, layered kind.'};window.thread.push({id:'u'+window.thread.length,role:'user',content:body.message},reply);return {thread:projectThread,assistant_message:reply};}};
@@ -263,13 +270,39 @@ test('the setup: logo grid, lines in tiers, materials list, costs and a price sh
     assert.ok(await page.evaluate(()=>window.calls.some(c=>c.body?.type==='question'&&c.body.properties?.upload)));
     await shot(page,'4-suppliers');
     await press(page);
-    await onStep(page,'Check your labor prices');
-    await page.waitForTimeout(600);assert.deepEqual(await page.locator('.gxs-step:not(.gxs-above) .gxs-prices h3').allInnerTexts(),['LABOR AND SERVICES']);
-    // The labor list uses the full width, and its explanation is a tooltip.
-    const wide=await page.evaluate(()=>{const step=document.querySelector('.gxs-step:not(.gxs-above)'),body=step.querySelector('.gxs-body').getBoundingClientRect(),rows=step.querySelector('.gxs-price-rows').getBoundingClientRect();return {ratio:rows.width/body.width,sub:step.querySelectorAll('.gxs-sub').length,tip:!!step.querySelector('h2 [data-gxs-info] .gxs-info-tip')};});
-    assert.ok(wide.ratio>0.95,`full width (${wide.ratio})`);
-    assert.equal(wide.sub,0,'no wrapped subtitle');
-    assert.equal(wide.tip,true);
+    await onStep(page,'Who does your labor?');
+    await page.waitForTimeout(600);
+    // Their groups and subcontractors as cards in two columns, each with how it is paid; the explanation is a tooltip.
+    const labs=await page.evaluate(()=>[...document.querySelectorAll('.gxs-step:not(.gxs-above) .gxs-lab')].map(card=>({name:card.querySelector('strong').textContent,kind:card.querySelector('.gxs-lab-kind').textContent,left:Math.round(card.getBoundingClientRect().left),pressed:[...card.querySelectorAll('[data-method][aria-pressed=true]')].map(b=>b.dataset.method),note:card.querySelector('.gxs-lab-note')?.textContent||''})));
+    assert.deepEqual(labs.map(c=>c.name),['North crew','Summit Roofing']);
+    assert.equal(new Set(labs.map(c=>c.left)).size,2,'two columns');
+    assert.deepEqual(labs[0].pressed,['hourly'],'paid as its pay sheet says');
+    assert.match(labs[1].note,/own pay sheet \(4 lines\)/,'a fuller pay sheet is left to People');
+    assert.match(labs[0].kind,/Crew/,'the organization\u2019s word for a group');
+    assert.equal(await page.locator('.gxs-step:not(.gxs-above) .gxs-sub').count(),0,'no wrapped subtitle');
+    // Change a rate, add a group paid by the square and a subcontractor paid per job.
+    await page.fill('[data-lab="resource_group:g1"] [data-rate]','50');
+    await page.locator('[data-lab="resource_group:g1"] [data-rate]').dispatchEvent('change');
+    await page.fill('.gxs-lab-name','South crew');await page.press('.gxs-lab-name','Enter');
+    await page.click('[data-lab="resource_group:south crew"] [data-method=per_measurement]');
+    await page.fill('[data-lab="resource_group:south crew"] [data-rate]','70');
+    await page.locator('[data-lab="resource_group:south crew"] [data-rate]').dispatchEvent('change');
+    await page.click('[data-add-kind=organization_connection]');
+    await page.fill('.gxs-lab-name','Ridge Co');await page.click('[data-add]');
+    await page.click('[data-lab="organization_connection:ridge co"] [data-method=per_job]');
+    await page.fill('[data-lab="organization_connection:ridge co"] [data-rate]','900');
+    await page.locator('[data-lab="organization_connection:ridge co"] [data-rate]').dispatchEvent('change');
+    assert.match(await page.locator('[data-lab="organization_connection:ridge co"] .gxs-lab-kind').innerText(),/Subcontractor/i);
+    // Someone's pay sheet goes to the agent naming them, after the draft adds them.
+    const [laborChooser]=await Promise.all([page.waitForEvent('filechooser'),page.click('[data-lab="resource_group:south crew"] [data-sheet]')]);
+    await laborChooser.setFiles({name:'south-rates.pdf',mimeType:'application/pdf',buffer:Buffer.from('%PDF-1.4')});
+    await page.waitForFunction(()=>window.calls.some(c=>c.path==='assistant'&&/South crew/.test(c.body.message)));
+    const toLaborAgent=await page.evaluate(()=>window.calls.filter(c=>c.path==='assistant').at(-1));
+    assert.match(toLaborAgent.body.message,/pay sheet for South crew \(assignee resource_group:new_south\)/);
+    assert.deepEqual(toLaborAgent.body.attachments,['media_south-rates.pdf']);
+    const laborDraft=await page.evaluate(()=>window.calls.filter(c=>c.path==='invoke').at(-1));
+    assert.deepEqual(laborDraft.input.labor.assignees.map(entry=>[entry.name,entry.pay?.method||null,entry.pay?.rate??null]),[['North crew','hourly',50],['South crew','per_measurement',70],['Ridge Co','per_job',900]]);
+    await shot(page,'5-labor');
     assert.equal(await page.locator('[data-gxs=skip]').isVisible(),true,'an optional page has a clear Skip');
     await page.waitForTimeout(300);
     // Record the hand-off frame by frame.
@@ -292,6 +325,8 @@ test('the setup: logo grid, lines in tiers, materials list, costs and a price sh
     const depot=complete.body.selections.suppliers.find(entry=>entry.preset==='home_depot');
     assert.ok(depot&&!depot.item_ids.includes('lib-shingle-gaf-hdz')&&depot.item_ids.includes('lib-shingle-gaf-uhdz'),'the unticked item left that supplier');
     assert.deepEqual(complete.body.selections.suppliers.find(entry=>!entry.preset),{name:'Smith Roofing Supply',item_ids:[],prices:{}});
+    assert.deepEqual(complete.body.selections.labor.assignees.map(entry=>[entry.kind,entry.name,entry.ref?.id||null,entry.type_id||null]),[['resource_group','North crew','g1','crew'],['resource_group','South crew',null,'crew'],['organization_connection','Ridge Co',null,'work_provider']]);
+    assert.equal(complete.body.selections.labor.assignees.some(entry=>entry.name==='Summit Roofing'),false,'an untouched one is not sent');
     await page.waitForFunction(()=>window.trayOpened===1,null,{timeout:8000});
     await page.waitForFunction(()=>!document.querySelector('.gxs')&&!document.querySelector('.gxs-flying'),null,{timeout:8000});
     await page.waitForTimeout(400);
@@ -384,7 +419,7 @@ test('the X asks in a dialog over the setup: Keep going returns to the same step
   } finally { await browser.close(); }
 });
 
-test('the labor page can be skipped, which leaves labor out',async()=>{
+test('the labor step can be skipped, which leaves labor off until someone does it',async()=>{
   const browser=await launch();
   try{
     const {page,errors}=await load(browser);
@@ -393,12 +428,13 @@ test('the labor page can be skipped, which leaves labor out',async()=>{
     await page.click('[data-brand=gaf]');
     for(const title of ['What shingles do you usually use?','How a roof becomes a materials list','Who provides your materials?']){await press(page);await onStep(page,title);}
     await press(page);
-    await onStep(page,'Check your labor prices');
+    await onStep(page,'Who does your labor?');
     assert.equal(await page.locator('[data-gxs=next]').innerText(),'Build my price book');
     await page.waitForTimeout(300);
     await page.click('[data-gxs=skip]');
     await page.waitForSelector('.gxs-done');
     assert.equal((await page.evaluate(()=>window.calls.find(c=>c.path.endsWith('/complete')))).body.selections.include_labor,false,'skipped: no labor lines');
+    assert.deepEqual((await page.evaluate(()=>window.calls.find(c=>c.path.endsWith('/complete')))).body.selections.labor,{assignees:[],skipped:true},'skipped: the Labor column waits for someone to do labor');
     assert.deepEqual(errors,[]);
   } finally { await browser.close(); }
 });

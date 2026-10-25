@@ -209,7 +209,9 @@ Provider `pay-sheets`. A pay sheet is a compensation record:
   `manage_projects`. An agent proposing a sheet checks it here first.
 
 Actions `pay-sheets.sheet.save` and `pay-sheets.sheet.archive` need
-`manage_company_settings`. The HTTP routes are under
+`manage_company_settings`. The price book setup's labor step writes one-line
+sheets through `pay-sheets.sheet.save` (`labor.setup.apply`,
+[guided experiences](guided-experiences.md)). The HTTP routes are under
 `/v1/materials/organizations/:orgId/pay-sheets` and
 `…/projects/:projectId/pay-sheets/evaluate`, with the same permissions.
 Documents, scope code and the assistant read these views when granted them.

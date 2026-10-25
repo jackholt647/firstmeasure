@@ -221,8 +221,9 @@ question.
   Generate buttons for anyone the first view missed. Variants: `agentic` (assistant on),
   `agentic_express` (weight 0, no rules walkthrough), `modal` (assistant off).
   Steps: brands, lines, rules (how a roof becomes a list), suppliers (who
-  provides your materials, where material costs are set per supplier), labor
-  prices (optional; Skip leaves labor out). There is no separate material prices step. Completion:
+  provides your materials, where material costs are set per supplier) and labor
+  (who does your labor; optional, and only where groups of users and outside
+  companies are on). There are no separate material or labor prices steps. Completion:
   `pricebook.setup.apply` with `trade: roofing`, then hand-off, the held Generate,
   and the tour.
 - `materials.tab_tutorial` (overlay, person, replayable): after the setup, or on
@@ -293,6 +294,43 @@ sets its costs with `suppliers.prices.update`. No supplier logos ship (they need
 each company's permission). Another
 trade plugs in with a `TradeSetup` in `pricebook/setups/index.ts` and its own
 experience definition.
+
+**Who does your labor** (`labor/labor-setup.ts`, widget `labor-assignees`, source
+`labor.setup`). Labor is installed by a group of users (employees) or an outside
+company (a subcontractor). The step shows the organization's groups and outside
+companies (suppliers are not) as cards in two columns, and adds new ones by name
+as either kind; what each kind is called comes from the terminology system
+(`workforce.resource_group_singular`, `workforce.organization_connection_singular`).
+A card sets the type (a group's one type, a company's type) and how it is paid for
+roofing: a piece rate on a roofing measurement (per square by default), hourly, or
+per job. That is saved as a one-line pay sheet through `pay-sheets.sheet.save`
+([pay sheets](pay-sheets.md)); a sheet with more than one line or another way of
+paying is shown as such and left to People. Each card's **Pay sheet** button sends
+that party's rate card to the agent, after the draft adds them, naming their
+assignee key; the agent writes their pay sheet (`pay-sheets.try`, then
+`pay-sheets.sheet.save`) and never works out pay. On finish the setup invokes
+`labor.setup.apply` as the person: new groups and companies through the writers
+People uses (`createResourceGroup`, `createOrganizationConnection`), a changed type
+through `assignees.profile.set`, pay through `pay-sheets.sheet.save`. It needs
+`manage_company_settings`, `platform.materials` and `apps.crew`. Pay rules (what a
+payee is paid for committed work, payroll) are not set here.
+
+The step has its own `eligibility` (a step-level capabilities and permissions
+list, checked like an experience's): `apps.crew`, `platform.people_access`,
+`platform.expanded_access`, `platform.materials` and `manage_company_settings`.
+A person without them plays the setup without it, and labor stays plain lines.
+
+**The Labor column.** Skipping the step saves `shown: with_assignees` on the
+Labor resource type (`materials.resource-type.update`, as the person). With that
+setting the column, and the labor lists a scope generates, wait until there is
+someone to do labor: an active group, an active outside company that is not only
+a supplier, or anyone with a pay sheet; or while any labor list exists, so no work
+is hidden (`laborColumnShown` in `materials/resource-types.ts`). Adding a group,
+a subcontractor or a pay sheet brings it back with nothing else saved. With
+nothing saved, or `shown: always` (turning it on by hand), it shows as it always
+has; where `apps.crew` is off it always shows. The setting is data on the
+organization's Labor type, never a configuration check.
+
 
 ## Tab tours: Photos, Reports, Customer Portal
 
@@ -407,3 +445,5 @@ route refuses elsewhere with 404, whoever asks.
 - `tab-guides.js` still plays its own minimal tutorials; moving them onto this
   runtime is the next step (docs/architecture/project-tab-guides.md lists them).
 - Regional multipliers and many prices are estimates (see the research README).
+- With nobody to do labor yet, the Labor column's rule reads every material list
+  ([optimization backlog](../optimization-backlog.md#the-labor-column-reads-every-material-list-when-nobody-does-labor)).
