@@ -139,9 +139,10 @@ before(async () => {
         object: "checkout.session",
         livemode: false,
         mode: "setup",
-        customer: "cus_test_setup",
+        // The organization's own customer, as portalStripeStartSetup creates it.
+        customer: "cus_test_123",
         setup_intent: "seti_test_setup",
-        metadata: { org_id: "org_stripe_sim" }
+        metadata: { org_id: "org_stripe_sim", type: "org_auto_topup_setup" }
       }), { status: 200, headers: { "content-type": "application/json" } });
     }
     if (url.includes("/v1/setup_intents/seti_test_setup")) {
