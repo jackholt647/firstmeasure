@@ -30,6 +30,8 @@ if (empty($_SESSION['user_email'])) {
     http_response_code(401);
     die(json_encode(['success' => false, 'error' => 'Not authenticated']));
 }
+// Outbound fetches are slow; do not hold the session lock during them.
+session_write_close();
 
 $action = trim($_POST['action'] ?? $_GET['action'] ?? '');
 $url    = trim($_POST['url']    ?? $_GET['url']    ?? '');
@@ -38,27 +40,23 @@ if ($url === '' || !preg_match('#^https?://#i', $url)) {
     die(json_encode(['success' => false, 'error' => 'Invalid or missing URL']));
 }
 
-// Shared fetch helper
-function proxyFetch(string $url, int $timeout = 6, int $maxBytes = 2 * 1024 * 1024): ?string {
-    $ctx = stream_context_create([
-        'http' => [
-            'timeout'        => $timeout,
-            'max_redirects'  => 5,
-            'follow_location'=> 1,
-            'user_agent'     => 'Mozilla/5.0 (compatible; LogoFetch/1.0)',
-            'ignore_errors'  => true,
-            'header'         => "Accept: */*\r\n",
-        ],
-        'ssl' => [
-            'verify_peer'      => false,
-            'verify_peer_name' => false,
-        ],
-    ]);
+require_once dirname(__DIR__) . '/includes/safe_fetch.php';
 
-    $bytes = @file_get_contents($url, false, $ctx, 0, $maxBytes + 1);
-    if ($bytes === false || strlen($bytes) === 0) return null;
-    if (strlen($bytes) > $maxBytes) return null;
-    return $bytes;
+// Shared fetch helper: the URL is attacker-chosen, so only public http(s)
+// addresses, pinned, with re-checked redirects (includes/safe_fetch.php).
+// $kind 'page' accepts HTML/JSON documents, 'image' only image/* responses.
+function proxyFetch(string $url, int $timeout = 6, int $maxBytes = 2 * 1024 * 1024, string $kind = 'page'): ?string {
+    $types = $kind === 'image'
+        ? ['image/']
+        : ['text/html', 'application/xhtml+xml', 'application/json', 'application/manifest+json', 'text/plain'];
+    $result = fm_safe_fetch($url, [
+        'timeout' => $timeout,
+        'max_bytes' => $maxBytes,
+        'max_redirects' => 3,
+        'content_types' => $types,
+        'accept' => $kind === 'image' ? 'image/*' : 'text/html,application/xhtml+xml,application/json;q=0.9,*/*;q=0.1',
+    ]);
+    return $result['ok'] ? $result['body'] : null;
 }
 
 
@@ -574,7 +572,7 @@ if ($action === 'fetch_image') {
         die(json_encode(['success' => false, 'error' => 'Not an image URL']));
     }
 
-    $bytes = proxyFetch($url, 5, 2 * 1024 * 1024);
+    $bytes = proxyFetch($url, 5, 2 * 1024 * 1024, 'image');
     if ($bytes === null) {
         die(json_encode(['success' => false, 'error' => 'Fetch failed']));
     }
@@ -586,7 +584,8 @@ if ($action === 'fetch_image') {
         'image/x-icon', 'image/vnd.microsoft.icon', 'image/svg+xml', 'image/bmp',
     ];
     if (!in_array($mime, $validMimes, true)) {
-        $mime = 'image/png';
+        // The bytes must really be an image, whatever the server called them.
+        die(json_encode(['success' => false, 'error' => 'Not an image']));
     }
 
     echo json_encode([
