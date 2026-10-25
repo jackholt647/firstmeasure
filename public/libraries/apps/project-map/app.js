@@ -1152,6 +1152,46 @@
     });
   }
 
+  // A new project started from a typed address (a My Projects search) looks it
+  // up at once: a match is taken as if it had been picked from the suggestions;
+  // otherwise the address stays typed with Google's suggestions open under it.
+  function lookupTypedAddress(addressText, attempt = 0){
+    const text = String(addressText || '').trim();
+    if (!text) return;
+    const input = $('#rAddress');
+    const ready = input && googleMapsReady() && (state.addressAutocompleteInput === input || !window.google?.maps?.places?.Autocomplete || attempt >= 40);
+    if (!ready) {
+      if (input && !input.value.trim()) input.value = text;
+      if (attempt < 100) setTimeout(() => lookupTypedAddress(text, attempt + 1), 150);
+      return;
+    }
+    if (input.value.trim() && input.value.trim() !== text) return;
+    input.value = text;
+    const placeGen = state.placeLoadGen;
+    if (!state.geocoder) state.geocoder = new google.maps.Geocoder();
+    input.classList.add('loading');
+    state.geocoder.geocode({ address: text }, (results, status) => {
+      input.classList.remove('loading');
+      // The person typed or picked something meanwhile.
+      if (state.placeLoadGen !== placeGen || input.value.trim() !== text) return;
+      const best = status === 'OK' && Array.isArray(results) ? results[0] : null;
+      if (best?.geometry?.location && !best.partial_match) {
+        loadPlaceResult(best.geometry.location, best.address_components, best.formatted_address);
+        return;
+      }
+      openAddressSuggestions(input);
+    });
+  }
+
+  function openAddressSuggestions(input){
+    input.focus();
+    const end = input.value.length;
+    try { input.setSelectionRange(end, end); } catch (error) {}
+    // The Places widget asks for predictions when the text changes.
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    try { google.maps.event.trigger(input, 'focus', {}); } catch (error) {}
+  }
+
   function latLngLiteral(point){
     if (!point) return null;
     if (typeof point.lat === 'function' && typeof point.lng === 'function') return { lat: point.lat(), lng: point.lng() };
@@ -1421,6 +1461,7 @@
 
     if (input && window.google?.maps?.places?.Autocomplete) {
       const ac = new google.maps.places.Autocomplete(input, { fields: ['formatted_address', 'geometry', 'address_components'], strictBounds: false });
+      state.addressAutocompleteInput = input;
       input.addEventListener('keydown', (event) => {
         if (event.key !== 'Enter') return;
         event.preventDefault();
@@ -1587,6 +1628,7 @@
     reverseGeocode,
     loadPlaceResult,
     forwardGeocode,
+    lookupTypedAddress,
     latLngLiteral,
     setSafeMapZoom,
     focusMapOnLocation,

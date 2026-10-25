@@ -11500,6 +11500,13 @@ window.PlatformCommerce.onReady(async function(){
         if (!firstContactName) $('#rAddress')?.select?.();
       }
     }, 40);
+    // A project started from a typed address (a My Projects search) looks it up straight away.
+    const typedAddress = baseProject ? '' : String(options.address || '').trim();
+    if (typedAddress) {
+      const addressInput = $('#rAddress');
+      if (addressInput) addressInput.value = typedAddress;
+      setTimeout(() => projectMapInvoke('lookupTypedAddress', [typedAddress]), 60);
+    }
     window.dispatchEvent(new CustomEvent('fm:modal:open', { detail: { open: true, id: 'request' } }));
   }
 

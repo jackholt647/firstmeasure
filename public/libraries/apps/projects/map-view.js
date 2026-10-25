@@ -141,6 +141,10 @@
     .pm-empty.is-view i{width:44px;height:44px;margin:0 auto 12px;display:flex;align-items:center;justify-content:center;border-radius:14px;background:#f2f4f7;color:#98a2b3;font-size:18px}
     .pm-empty strong{display:block;margin-bottom:4px;color:#344054;font-size:13px;font-weight:1000}
     .pm-empty span{display:block;color:#98a2b3;font-size:11px;font-weight:850}
+    .pm-empty-create{display:inline-flex;align-items:center;gap:7px;margin-top:10px;padding:8px 14px;border:0;border-radius:10px;background:var(--primary,#d93025);color:#fff;font:inherit;font-size:12px;font-weight:950;cursor:pointer;box-shadow:0 1px 2px rgba(16,24,40,.12);transition:filter .16s ease,transform .16s ease}
+    .pm-empty-create:hover{filter:brightness(1.06)}
+    .pm-empty-create:active{transform:translateY(1px)}
+    .pm-empty-create i{display:inline;width:auto;height:auto;margin:0;font-size:11px;color:inherit}
 
     .pm-reopen{position:absolute;left:12px;top:12px;z-index:3;display:inline-flex;align-items:center;gap:8px;height:38px;padding:0 13px;border:0;border-radius:10px;background:#fff;box-shadow:0 6px 18px rgba(15,23,42,.16),0 0 0 1px rgba(15,23,42,.06);color:#344054;font:900 12px/1 inherit;cursor:pointer;transition:transform .3s cubic-bezier(.2,.8,.2,1),opacity .24s ease}
     .pm-reopen:hover{color:var(--primary-readable,var(--primary,#d93025))}
@@ -498,6 +502,7 @@
     });
     const list = root.querySelector('.pm-list');
     list.addEventListener('click', (event) => {
+      if (event.target.closest('[data-pm-new-project]')) { state.model?.create?.(); return; }
       const row = event.target.closest('.pm-row');
       if (!row) return;
       const item = state.items.get(row.dataset.id);
@@ -649,7 +654,11 @@
       const detail = filtered
         ? (globalThis.PlatformLanguage?.htmlText("projects","projects_map_empty_filtered_detail","Clear the filters or search for something else.") ?? "Clear the filters or search for something else.")
         : (globalThis.PlatformLanguage?.htmlText("projects","projects_map_empty_none_detail","New projects appear here and on the map.") ?? "New projects appear here and on the map.");
-      const html = `<div class="pm-empty is-view" role="status"><i class="fas ${filtered ? 'fa-filter' : 'fa-map-location-dot'}" aria-hidden="true"></i><strong>${title}</strong><span>${detail}</span></div>`;
+      // With no projects yet, the way to start one sits right under the message.
+      const create = !filtered && typeof state.model.create === 'function'
+        ? `<button type="button" class="pm-empty-create" data-pm-new-project><i class="fas fa-plus" aria-hidden="true"></i>${(globalThis.PlatformLanguage?.htmlText("projects","projects_map_empty_new_project","New project") ?? "New project")}</button>`
+        : '';
+      const html = `<div class="pm-empty is-view" role="status"><i class="fas ${filtered ? 'fa-filter' : 'fa-map-location-dot'}" aria-hidden="true"></i><strong>${title}</strong>${create || `<span>${detail}</span>`}</div>`;
       // Unchanged on a redraw, so the entrance plays once.
       if (list.__emptyHtml !== html) { list.innerHTML = html; list.__emptyHtml = html; }
       state.seenRowIds = new Set();

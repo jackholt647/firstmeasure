@@ -44,6 +44,26 @@ test('an organization with no projects sees a map with an empty tray', async () 
   } finally { await browser.close(); }
 });
 
+test('with no projects, New project sits under the message and starts one', async () => {
+  const { browser, page, errors } = await setup();
+  try {
+    await page.evaluate(() => { window.created = 0; });
+    await page.evaluate(() => window.FirstMateProjectsMap.update(document.querySelector('#host'), { groups:[], groupLabel:'stage', scopeKey:'board:sales', items:[], empty:'none', create:() => { window.created += 1; } }));
+    const empty = page.locator('.pm-empty.is-view');
+    await empty.getByText('No projects yet', { exact:true }).waitFor();
+    const button = empty.getByRole('button', { name:'New project' });
+    await button.waitFor();
+    const [title, action] = await Promise.all([empty.locator('strong').boundingBox(), button.boundingBox()]);
+    assert.ok(action.y > title.y + title.height - 1, 'the button is under the message');
+    await button.click();
+    assert.equal(await page.evaluate(() => window.created), 1);
+    await draw(page, { items:[], empty:'filtered' });
+    await page.locator('.pm-empty.is-view').getByText('Nothing matches these filters', { exact:true }).waitFor();
+    assert.equal(await page.getByRole('button', { name:'New project' }).count(), 0, 'filters that leave nothing do not offer it');
+    assert.deepEqual(errors, []);
+  } finally { await browser.close(); }
+});
+
 test('filters that leave nothing say so, and projects replace the empty state', async () => {
   const { browser, page, errors } = await setup();
   try {

@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+October 24 My Projects can open on the map: [an Open on the map app option (map_first) that makes Map the default and first view, New project under the empty map's message, and a search that finds no project offers Create a new project for the typed address, looked up with Google at once](deploy/digitalocean/development-projects-map-first-20261024.md).
+
 October 24 MVP platform and the projects map: [a signup sandbox MVP platform configuration (My Projects, My Contacts, Feed; Photos, Customer Portal, Materials, Documents, Reports; no Scheduling) and a Map view in My Projects](deploy/digitalocean/development-mvp-platform-20261024.md) records releases `cc9144c3`, `6e50be65` and `2e9c8da3` on the development worker, legacy and web.
 
 October 23 Session replay pages: [pages never recorded, sessions filtered by page, next and previous event, idle that ignores pointer jitter, and stylesheets no longer lost when a page closes](deploy/digitalocean/development-session-replay-pages-20261023.md) records release `05ea7fc3` on the development worker, legacy and web.

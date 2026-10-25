@@ -95,7 +95,7 @@
         { id: 'tiles', label: (globalThis.PlatformLanguage?.text("firstmate-apps-manifest","subview_projects_tiles","Tiles") ?? "Tiles"), icon: 'fa-grip', route: { projectView: 'tiles' } },
         { id: 'map', label: (globalThis.PlatformLanguage?.text("firstmate-apps-manifest","subview_projects_map","Map") ?? "Map"), icon: 'fa-map-location-dot', route: { projectView: 'map' }, requires: { appFlags: [['apps', 'project_map']] } }
       ],
-      bundles: [versionedBundle('partners/shared-list.js','20261001-sharing-polish-v1'), versionedBundle('projects/map-view.js', '20261024-address-titles-v1'), versionedBundle('projects/viewer.js', '20261024-address-titles-v1')]
+      bundles: [versionedBundle('partners/shared-list.js','20261001-sharing-polish-v1'), versionedBundle('projects/map-view.js', '20261024-map-first-v1'), versionedBundle('projects/viewer.js', '20261024-map-first-v1')]
     },
     {
       id: 'portal.crm',
@@ -303,7 +303,7 @@
       kind: 'modal_app',
       surfaces: ['modal', 'project_modal'],
       dependencies: ['firstmeasure.order', 'project.map', 'project.photos', 'project.proposal', 'project.materials', 'project.money', 'project.customer_portal', 'project.schedule', 'project.measurements', 'project.checklists'],
-      bundles: [...channelsLibBundles, versionedBundle('../window-manager/project-windows.js', '20261010-priority-owners-v2'), versionedBundle('project-request/app.js', '20261024-tab-guides')]
+      bundles: [...channelsLibBundles, versionedBundle('../window-manager/project-windows.js', '20261010-priority-owners-v2'), versionedBundle('project-request/app.js', '20261024-typed-address-v1')]
     },
     {
       id: 'firstmeasure.order',
@@ -322,7 +322,7 @@
       kind: 'project_modal_app',
       surfaces: ['project_modal'],
       requiresContext: ['project'],
-      bundles: [versionedBundle('project-map/app.js', '20261024-cover-photo')]
+      bundles: [versionedBundle('project-map/app.js', '20261024-typed-address-v1')]
     },
     {
       id: 'project.customer_portal',

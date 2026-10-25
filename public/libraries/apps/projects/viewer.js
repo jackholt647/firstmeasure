@@ -73,7 +73,7 @@
   }
 
   function normalizeViewMode(mode){
-    const clean = VIEW_MODES.has(mode) ? mode : (stagesViewEnabled() ? 'stages' : 'tiles');
+    const clean = VIEW_MODES.has(mode) ? mode : defaultViewMode();
     if (clean === 'map' && !mapViewEnabled()) return stagesViewEnabled() ? 'stages' : 'tiles';
     return clean === 'stages' && !stagesViewEnabled() ? 'tiles' : clean;
   }
@@ -374,6 +374,12 @@
   const ViewerCSS = `
     .v-wrap{container-type:inline-size;box-sizing:border-box;min-width:0;width:100%; max-width:1500px; margin:0 auto; height:100%; min-height:0; display:flex; flex-direction:column; overflow:hidden;color:#101828}
     .v-report-search{box-sizing:border-box;width:100%;min-width:0;flex-shrink:0;border:1px solid #dadce0;border-radius:12px;padding:10px 12px;font:inherit;font-size:16px;background:#fff;color:#202124}
+    .v-search{position:relative;flex-shrink:0;min-width:0;z-index:6}
+    .v-search-create{position:absolute;left:0;right:0;top:calc(100% + 6px);display:flex;align-items:center;gap:10px;box-sizing:border-box;width:100%;min-width:0;padding:11px 14px;border:1px solid #e4e7ec;border-radius:12px;background:#fff;color:#101828;font:inherit;font-size:14px;font-weight:900;text-align:left;cursor:pointer;box-shadow:0 14px 34px rgba(15,23,42,.16)}
+    .v-search-create[hidden]{display:none}
+    .v-search-create:hover,.v-search-create:focus-visible{background:#f8fafc;outline:none}
+    .v-search-create i{flex:0 0 auto;width:26px;height:26px;display:inline-flex;align-items:center;justify-content:center;border-radius:8px;background:rgba(var(--primary-rgb,217,48,37),.1);color:var(--primary-readable,var(--primary,#d93025));font-size:12px}
+    .v-search-create span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
     .v-head{display:flex; align-items:center; justify-content:space-between; gap:14px; padding-bottom:14px; flex:0 0 auto}
     .v-title{display:flex;align-items:center;gap:11px;min-width:0}
     .v-title>i{width:36px;height:36px;border-radius:10px;background:var(--primary,#d93025);color:#fff;display:flex;align-items:center;justify-content:center;flex:0 0 auto}
@@ -741,7 +747,7 @@
         grid-template-columns:minmax(0,1fr) auto;
         grid-template-rows:auto auto auto auto minmax(0,1fr) auto;
       }
-      .v-report-search{grid-column:1 / -1;grid-row:4;margin-top:8px}
+      .v-search{grid-column:1 / -1;grid-row:4;margin-top:8px}
       .v-bar{display:contents}
       .v-head{display:flex;grid-column:1 / -1;grid-row:1;gap:8px;padding-bottom:0;flex-wrap:wrap}
       .v-title{display:flex;gap:8px;margin-bottom:0;flex:1 1 auto}
@@ -1149,6 +1155,9 @@
   let filteredProjects = [];
   let lastProjectsById = new Map();
   let viewMode = 'stages';
+  // False until the route or the person picks a view; until then the view follows
+  // the default as the organization's features load.
+  let viewModeChosen = false;
   let workBoards = [];
   let workDepartmentContext = {};
   let workDepartmentId = "";
@@ -5640,7 +5649,24 @@
       return VIEW_MODES.has(mode) ? normalizeViewMode(mode) : '';
     } catch (error) { return ''; }
   }
-  function defaultViewMode(){ return stagesViewEnabled() ? 'stages' : 'tiles'; }
+  // My Projects' "Open on the map" app option (map_first, App experience) puts the map first and opens on it.
+  function appOption(key){
+    const entitlements = window.Portal?.currentUser?.appEntitlements;
+    const app = Array.isArray(entitlements) ? entitlements.find((entry) => entry?.id === 'portal.viewer') : null;
+    return app?.option_values?.[key] === true;
+  }
+  function mapFirst(){ return appOption('map_first') && mapViewEnabled(); }
+  function defaultViewMode(){ return mapFirst() ? 'map' : (stagesViewEnabled() ? 'stages' : 'tiles'); }
+  const VIEW_BUTTON_ORDER = ['vViewStages', 'vViewList', 'vViewTiles', 'vViewMap'];
+  const MAP_FIRST_BUTTON_ORDER = ['vViewMap', 'vViewStages', 'vViewTiles', 'vViewList'];
+  function orderViewButtons(){
+    const group = $('.v-view-switch', panelEl);
+    if (!group) return;
+    for (const id of mapFirst() ? MAP_FIRST_BUTTON_ORDER : VIEW_BUTTON_ORDER) {
+      const button = group.querySelector('#' + id);
+      if (button) group.appendChild(button);
+    }
+  }
   function syncViewModeToUrl(options = {}){
     window.Portal?.routeState?.set?.({ [PROJECT_VIEW_QUERY_KEY]: viewMode }, {
       history:options.history || 'replace',
@@ -5674,6 +5700,7 @@
   }
   function updateViewControls(){
     const bT = $('#vViewTiles', panelEl); const bL = $('#vViewList', panelEl); const bS = $('#vViewStages', panelEl); const bM = $('#vViewMap', panelEl);
+    orderViewButtons();
     if (bT) { bT.hidden = false; bT.disabled = false; bT.classList.toggle('active', viewMode === 'tiles'); }
     if (bM) { bM.hidden = !mapViewEnabled(); bM.classList.toggle('active', viewMode === 'map'); }
     if (bL) { bL.hidden = false; bL.disabled = false; bL.classList.toggle('active', viewMode === 'list'); }
@@ -5689,6 +5716,7 @@
   }
   function setView(mode, options = {}){
     const previousMode = viewMode;
+    if (!options.followDefault) viewModeChosen = true;
     if (!projectBoardsEnabled()) tileStageFilter = 'all';
     viewMode = normalizeViewMode(mode);
     if (viewMode === 'stages' && activeWorkBoardId === 'all') {
@@ -5713,9 +5741,9 @@
   function applyStagesViewFlag(){
     if (projectBoardsEnabled()) loadWorkBoards({ refresh:true }).catch(() => null);
     else { workBoards = []; workBoardsLoaded = false; tileStageFilter = 'all'; }
-    const nextMode = normalizeViewMode(viewMode);
+    const nextMode = viewModeChosen ? normalizeViewMode(viewMode) : defaultViewMode();
     if (nextMode !== viewMode) {
-      setView(nextMode);
+      setView(nextMode, viewModeChosen ? {} : { followDefault:true, syncUrl:false });
       return;
     }
     updateViewControls();
@@ -6038,14 +6066,39 @@
     const uniqueGroups = groups.filter((group, index) => used.has(group.id) && groups.findIndex((other) => other.id === group.id) === index);
     return { items, groups:uniqueGroups, groupLabel, scopeKey, open:(project) => openModal(lastProjectsById.get(String(project?.id || '')) || project) };
   }
+  // Starting a project here is the normal new-project window; whoever cannot
+  // use the New button cannot start one here either.
+  function canStartProject(){
+    return typeof window.Portal?.modules?.request?.open === 'function'
+      && window.Portal?.util?.hasPerm?.('order_reports') === true
+      && document.documentElement.dataset.fmAssignedOnly !== 'true';
+  }
+  function startNewProject(address = ''){
+    const text = String(address || '').trim();
+    window.Portal?.modules?.request?.open?.(null, { workflow:'project', ...(text ? { address:text } : {}) });
+  }
+  // A search that finds no project offers to start one at what was typed.
+  function renderSearchCreate(){
+    const row = $('#vSearchCreate', panelEl);
+    if (!row) return;
+    const text = reportSearchQuery.trim();
+    const typed = String($('#vReportSearch', panelEl)?.value || '').trim();
+    const show = !!text && text === typed && !filteredProjects.length && canStartProject();
+    row.hidden = !show;
+    if (!show) return;
+    row.dataset.address = text;
+    const label = row.querySelector('span');
+    if (label) label.textContent = (globalThis.PlatformLanguage?.text("projects","projects_search_create_for","Create a new project for {address}",{address:text}) ?? `Create a new project for ${text}`);
+  }
   // With nothing to show the map still draws (at its default view) and its tray
   // says why: no projects yet, or none that match the filters.
   function renderMapView(results, empty = ''){
     if (!window.FirstMateProjectsMap) { results.innerHTML = ''; return; }
-    window.FirstMateProjectsMap.update(results, { ...mapViewModel(), empty });
+    window.FirstMateProjectsMap.update(results, { ...mapViewModel(), empty, ...(empty === 'none' && canStartProject() ? { create:() => startNewProject() } : {}) });
   }
   function renderResults(){
     const results = $('#vResults', panelEl); if (!results) return;
+    renderSearchCreate();
     if (viewMode === 'map' && window.FirstMateProjectsMap && !filteredProjects.length) {
       const none = !allProjects.length && !sharedProjectRecords().length && !(hideDrafts && totalUnfilteredCount > 0);
       renderMapView(results, none ? 'none' : 'filtered');
@@ -7499,7 +7552,9 @@
     listColumnsBoardKey = '';
     injectCSS('viewer', ViewerCSS);
     injectSidebarLogout();
-    viewMode = requestedViewMode() || defaultViewMode();
+    viewMode = requestedViewMode();
+    viewModeChosen = !!viewMode;
+    if (!viewModeChosen) viewMode = defaultViewMode();
     activeWorkBoardId = requestedWorkBoardId() || rememberedWorkBoardId();
     enforceDraftsHidden();
 
@@ -7517,7 +7572,7 @@
             <div class="v-manage-wrap" id="vManageViewWrap"><button type="button" class="v-btn v-pill" id="vManageView" aria-label="${(globalThis.PlatformLanguage?.htmlText("projects","m_f8e16243e0f91c","Manage view") ?? "Manage view")}" aria-expanded="false" aria-controls="vManageViewPanel"><i class="fas fa-sliders" aria-hidden="true"></i><span class="btn-label">${(globalThis.PlatformLanguage?.htmlText("projects","m_f8e16243e0f91c","Manage view") ?? "Manage view")}</span></button><div class="v-manage-panel" id="vManageViewPanel" hidden></div></div>
           </div>
         </div>
-        ${String((window.Portal?.appFlags || window.PlatformAPI?.appFlags)?.value?.('platform', 'expanded_access', false) !== true ? `<input id="vReportSearch" class="v-report-search" type="search" placeholder="${(globalThis.PlatformLanguage?.htmlText("projects","m_97f68e5486c2f8","Search address, contact…") ?? "Search address, contact…")}" aria-label="${(globalThis.PlatformLanguage?.htmlText("projects","m_af80d9cead6991","Search projects") ?? "Search projects")}" autocomplete="off">` : '')}
+        ${String((window.Portal?.appFlags || window.PlatformAPI?.appFlags)?.value?.('platform', 'expanded_access', false) !== true ? `<div class="v-search"><input id="vReportSearch" class="v-report-search" type="search" placeholder="${(globalThis.PlatformLanguage?.htmlText("projects","m_97f68e5486c2f8","Search address, contact…") ?? "Search address, contact…")}" aria-label="${(globalThis.PlatformLanguage?.htmlText("projects","m_af80d9cead6991","Search projects") ?? "Search projects")}" autocomplete="off"><button type="button" class="v-search-create" id="vSearchCreate" hidden><i class="fas fa-plus" aria-hidden="true"></i><span></span></button></div>` : '')}
         <div class="v-bar">
           <div class="v-leftbar">
             <div class="v-stages-summary" id="vWorkBoardSummary" aria-label="${(globalThis.PlatformLanguage?.htmlText("projects","m_b87462801059df","Active work board") ?? "Active work board")}"></div>
@@ -7594,11 +7649,13 @@
       reportSearch.value = reportSearchQuery;
       reportSearch.addEventListener('input', () => {
         reportSearchQuery = reportSearch.value;
+        if (!reportSearchQuery.trim()) renderSearchCreate();
         currentPage = 1;
         clearTimeout(reportSearchTimer);
         reportSearchTimer = setTimeout(() => fetchProjects(true), 250);
       });
     }
+    $('#vSearchCreate', panelEl)?.addEventListener('click', (event) => startNewProject(event.currentTarget.dataset.address || reportSearchQuery));
     $('#vViewTiles', panelEl)?.addEventListener('click', ()=>setView('tiles', { history:'push', source:'projects-view' }));
     $('#vViewList', panelEl)?.addEventListener('click', ()=>setView('list', { history:'push', source:'projects-view' }));
     $('#vViewStages', panelEl)?.addEventListener('click', ()=>setView('stages', { history:'push', source:'projects-view' }));
@@ -7645,6 +7702,7 @@
       if (event.target.closest('#vManageSortDirection')) setActiveSort(getActiveSort().key,getActiveSort().dir==='asc'?'desc':'asc');
     });
     window.addEventListener('fm:app-flags:updated', applyStagesViewFlag);
+    window.addEventListener('fm:platform-session:updated', applyStagesViewFlag);
     window.addEventListener('fm:app-flags:failed', applyStagesViewFlag);
     const overlay = $('#vOverlay', panelEl);
     $('#vmX', panelEl).addEventListener('click', closeModal);
@@ -7653,7 +7711,7 @@
       if (event.target?.id === 'vmUpgradeOverlay') hideFullReportUpgradeDialog();
     });
     document.getElementById('vmUpgradeDialog')?.addEventListener('click', (event) => event.stopPropagation());
-    setView(viewMode, { syncUrl:false }); syncSortDropdown();
+    setView(viewMode, { syncUrl:false, followDefault:!viewModeChosen }); syncSortDropdown();
     fetchProjects(true);
     pollTimer = setInterval(()=>{
       if (document.hidden) return;
@@ -7674,8 +7732,9 @@
     priority:400,
     apply:(route) => {
       if (route.tab !== 'viewer' || !panelEl) return;
-      const next = VIEW_MODES.has(route[PROJECT_VIEW_QUERY_KEY]) ? route[PROJECT_VIEW_QUERY_KEY] : defaultViewMode();
-      if (next !== viewMode) setView(next, { syncUrl:false });
+      const routed = VIEW_MODES.has(route[PROJECT_VIEW_QUERY_KEY]);
+      const next = routed ? route[PROJECT_VIEW_QUERY_KEY] : defaultViewMode();
+      if (next !== viewMode) setView(next, { syncUrl:false, followDefault:!routed });
       const nextBoardId = String(route[PROJECT_BOARD_QUERY_KEY] || '').trim();
       if (nextBoardId && nextBoardId !== activeWorkBoardId) selectWorkBoard(nextBoardId, { syncUrl:false });
     }

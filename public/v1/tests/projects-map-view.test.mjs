@@ -8,6 +8,7 @@ const viewer = read('../../libraries/apps/projects/viewer.js');
 const mapView = read('../../libraries/apps/projects/map-view.js');
 const manifest = read('../../libraries/apps/firstmate-apps-manifest.js');
 const portal = read('../../portal/index.php');
+const registry = read('../platform/app-experience/registry.ts');
 const slice = (from, to) => viewer.slice(viewer.indexOf(from), viewer.indexOf(to));
 
 test('the map view follows the Project Map feature and falls back when it is off', () => {
@@ -23,6 +24,64 @@ test('the map view follows the Project Map feature and falls back when it is off
   context.window.FirstMateProjectsMap = undefined;
   assert.equal(vm.runInContext("normalizeViewMode('map')", context), 'stages');
   assert.match(viewer, /values:\['stages','list','tiles','map'\]/);
+});
+
+test('the Open on the map app option puts the map first and opens on it', () => {
+  let mapOn = true, option = true;
+  const appended = [];
+  const buttons = Object.fromEntries(['vViewStages', 'vViewList', 'vViewTiles', 'vViewMap'].map((id) => [id, { id }]));
+  const group = { querySelector:(selector) => buttons[selector.slice(1)], appendChild:(button) => appended.push(button.id) };
+  const context = vm.createContext({
+    VIEW_MODES: new Set(['tiles', 'list', 'stages', 'map']),
+    panelEl:{}, $:(selector) => (selector === '.v-view-switch' ? group : null),
+    window: { FirstMateProjectsMap: {}, Portal: {
+      currentUser:{ get appEntitlements(){ return [{ id:'portal.viewer', option_values:{ map_first:option } }]; } },
+      appFlags: { value: (group, key, fallback) => (group === 'apps' && key === 'project_map' ? mapOn : (key === 'project_boards' || key === 'project_stages_view' ? true : fallback)) } } }
+  });
+  vm.runInContext(slice('  function projectBoardsEnabled(){', '  function fmtMoney('), context);
+  vm.runInContext(viewer.slice(viewer.indexOf('  // My Projects\' "Open on the map" app option'), viewer.indexOf('  function syncViewModeToUrl(')), context);
+  assert.equal(vm.runInContext('defaultViewMode()', context), 'map');
+  assert.equal(vm.runInContext("normalizeViewMode('unknown')", context), 'map');
+  vm.runInContext('orderViewButtons()', context);
+  assert.deepEqual(appended.splice(0), ['vViewMap', 'vViewStages', 'vViewTiles', 'vViewList']);
+  for ([mapOn, option] of [[true, false], [false, true]]) {
+    assert.equal(vm.runInContext('defaultViewMode()', context), 'stages');
+    vm.runInContext('orderViewButtons()', context);
+    assert.deepEqual(appended.splice(0), ['vViewStages', 'vViewList', 'vViewTiles', 'vViewMap']);
+  }
+  // A view picked by the route or the person stays; until then the view follows the default as the session and features load.
+  assert.match(viewer, /const nextMode = viewModeChosen \? normalizeViewMode\(viewMode\) : defaultViewMode\(\);/);
+  assert.match(viewer, /addEventListener\('fm:platform-session:updated', applyStagesViewFlag\)/);
+  assert.match(registry, /tab\("portal\.viewer"[\s\S]{0,400}key: "map_first"[^\n]+default: false, param: "map_first"/);
+});
+
+function searchCreateContext({ query, typed = query, projects = [], canOrder = true }){
+  const label = { textContent:'' };
+  const row = { hidden:true, dataset:{}, querySelector:() => label };
+  const opened = [];
+  const context = vm.createContext({
+    reportSearchQuery:query, filteredProjects:projects, panelEl:{},
+    $:(selector) => (selector === '#vSearchCreate' ? row : selector === '#vReportSearch' ? { value:typed } : null),
+    document:{ documentElement:{ dataset:{} } },
+    window:{ Portal:{ util:{ hasPerm:(permission) => canOrder && permission === 'order_reports' }, modules:{ request:{ open:(project, options) => opened.push([project, options]) } } } }
+  });
+  vm.runInContext(viewer.slice(viewer.indexOf('  function canStartProject(){'), viewer.indexOf('  // With nothing to show the map still draws')), context);
+  return { context, row, label, opened };
+}
+
+test('a search that finds no project offers to start one at the typed address', () => {
+  const none = searchCreateContext({ query:'12 Oak Ln, Denver' });
+  vm.runInContext('renderSearchCreate()', none.context);
+  assert.equal(none.row.hidden, false);
+  assert.equal(none.label.textContent, 'Create a new project for 12 Oak Ln, Denver');
+  vm.runInContext('startNewProject(' + JSON.stringify(none.row.dataset.address) + ')', none.context);
+  assert.deepEqual(JSON.parse(JSON.stringify(none.opened)), [[null, { workflow:'project', address:'12 Oak Ln, Denver' }]]);
+  for (const options of [{ query:'12 Oak', projects:[{ id:'p1' }] }, { query:'' }, { query:'12 Oak', typed:'12 Oak Lane' }, { query:'12 Oak', canOrder:false }]) {
+    const other = searchCreateContext(options);
+    vm.runInContext('renderSearchCreate()', other.context);
+    assert.equal(other.row.hidden, true, JSON.stringify(options));
+  }
+  assert.match(viewer, /<div class="v-search"><input id="vReportSearch"[^\n]+id="vSearchCreate" hidden>/);
 });
 
 function modelContext({ activeWorkBoardId }){
@@ -98,7 +157,7 @@ function resultsContext({ viewMode, allProjects = [], filteredProjects = [], hid
   const context = vm.createContext({
     viewMode, allProjects, filteredProjects, hideDrafts, totalUnfilteredCount,
     panelEl:{}, $:(selector) => (selector === '#vResults' ? results : null),
-    sharedProjectRecords:() => [],
+    sharedProjectRecords:() => [], renderSearchCreate:() => {}, canStartProject:() => false,
     workBoards, projectBoardsEnabled:() => true, renderStagesView:() => stagesRendered.push(true),
     mapViewModel:() => ({ items:[], groups:[], groupLabel:'stage', scopeKey:'board:sales' }),
     window:{ FirstMateProjectsMap:{ update:(container, model) => updates.push(model) } },

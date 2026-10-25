@@ -702,7 +702,8 @@
   }
 
   function searchFiltersHtml(){
-    const types = window.FirstMateArtifactSearch?.TYPES || [];
+    // Only the result types this organization has (FirstMateArtifactSearch.loadOffered).
+    const types = window.FirstMateArtifactSearch?.available?.() || [];
     return `<div class="ptb-search-filterbar" aria-label="${(globalThis.PlatformLanguage?.htmlText("platform","m_682192c2691773","Search result types") ?? "Search result types")}">
       <div class="ptb-search-filters">${String(types.map((type) => {
         const active = enabledSearchTypes.has(type.id);
@@ -722,9 +723,30 @@
     }));
   }
 
+  // Whoever can use the New button can start a project from a search that found none.
+  function canStartProjectFromSearch(){
+    return typeof window.Portal?.modules?.request?.open === 'function'
+      && window.Portal?.util?.hasPerm?.('order_reports') === true
+      && document.documentElement.dataset.fmAssignedOnly !== 'true';
+  }
+
+  function createProjectRowHtml(query){
+    const label = globalThis.PlatformLanguage?.text("platform","search_create_project_for","Create a new project for {address}",{address:query}) ?? `Create a new project for ${query}`;
+    return `
+        <button type="button" class="ptb-search-item project-create" data-search-create-project>
+          <i class="fas fa-plus ptb-search-kind" aria-hidden="true" style="background:rgba(var(--primary-rgb,217,48,37),.1);color:var(--primary-readable,var(--primary,#d93025))"></i>
+          <span><strong>${escapeHtml(label)}</strong></span>
+        </button>
+      `;
+  }
+
   function renderSearchResults(input, box, results = []){
     if (!box) return;
     searchResultCache.clear();
+    const query = cleanText(input?.value);
+    const offerCreate = !!query && enabledSearchTypes.has('project')
+      && !results.some((result) => cleanText(result.type || 'project') === 'project')
+      && canStartProjectFromSearch();
     const html = results.map((result, index) => {
       const requestedType = cleanText(result.type);
       const type = window.FirstMateArtifactSearch?.type?.(requestedType) ? requestedType : 'project';
@@ -738,9 +760,14 @@
       `;
     }).join('');
     const empty = enabledSearchTypes.size ? 'No matches' : 'Select at least one result type';
-    box.innerHTML = `${searchFiltersHtml()}<div class="ptb-search-result-list">${html || `<div class="ptb-empty">${empty}</div>`}</div>`;
+    const create = offerCreate ? createProjectRowHtml(query) : '';
+    box.innerHTML = `${searchFiltersHtml()}<div class="ptb-search-result-list">${create}${html || (create ? '' : `<div class="ptb-empty">${empty}</div>`)}</div>`;
     box.classList.add('visible');
     bindSearchFilters(box, input);
+    box.querySelector('[data-search-create-project]')?.addEventListener('click', () => {
+      closeSearchResults();
+      window.Portal?.modules?.request?.open?.(null, { workflow:'project', address:query });
+    });
     box.querySelectorAll('[data-search-result]').forEach((btn) => {
       btn.addEventListener('click', () => {
         const result = searchResultCache.get(btn.dataset.searchResult);
@@ -778,12 +805,15 @@
     const sequence = ++searchSequence;
     if (searchRequest) searchRequest.abort();
     searchRequest = window.AbortController ? new AbortController() : null;
-    box.innerHTML = (String(searchFiltersHtml()) + "<div class=\"ptb-search-result-list\"><div class=\"ptb-empty\">" + (globalThis.PlatformLanguage?.htmlText("platform","m_1868baee889a75","Searching...") ?? "Searching...") + "</div></div>");
+    await window.FirstMateArtifactSearch?.loadOffered?.({ orgId:orgId(), branchId:branchId() });
+    if (sequence !== searchSequence) return;
+    const offered = (type) => window.FirstMateArtifactSearch?.offered?.(type) === true;
+    box.innerHTML =(String(searchFiltersHtml()) + "<div class=\"ptb-search-result-list\"><div class=\"ptb-empty\">" + (globalThis.PlatformLanguage?.htmlText("platform","m_1868baee889a75","Searching...") ?? "Searching...") + "</div></div>");
     box.classList.add('visible');
     bindSearchFilters(box, input);
-    const platformTypes = ['project','contact'].filter((type) => enabledSearchTypes.has(type));
+    const platformTypes = ['project','contact'].filter((type) => enabledSearchTypes.has(type) && offered(type));
     const artifactPromise = window.FirstMateArtifactSearch?.search?.(query, {
-      orgId:orgId(), branchId:branchId(), types:[...enabledSearchTypes].filter((type) => !platformTypes.includes(type)), limit:100
+      orgId:orgId(), branchId:branchId(), types:[...enabledSearchTypes].filter((type) => offered(type) && !platformTypes.includes(type)), limit:100
     }) || Promise.resolve([]);
     let platformResults = [];
     if (platformTypes.length && window.PlatformAPI?.search?.projectsAndContacts) {

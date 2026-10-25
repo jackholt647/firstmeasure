@@ -2551,7 +2551,7 @@
     "portal.stats": {"surface":"portal_tab","devices":["mobile","desktop"],"default_visible":true,"capabilities":["apps.stats"]},
     "portal.training": {"surface":"portal_tab","devices":["mobile","desktop"],"default_visible":true,"capabilities":["apps.training"]},
     "portal.training_studio": {"surface":"portal_tab","devices":["desktop"],"default_visible":true,"capabilities":["training.studio"]},
-    "portal.viewer": {"surface":"portal_tab","devices":["mobile","desktop"],"default_visible":true,"capabilities":["apps.projects"]},
+    "portal.viewer": {"surface":"portal_tab","devices":["mobile","desktop"],"default_visible":true,"capabilities":["apps.projects"],"options":["map_first"]},
     "portal.web_editor": {"surface":"portal_tab","devices":["desktop"],"default_visible":true,"capabilities":["apps.web_editor"]},
     "project.checklists": {"surface":"project_modal","devices":["mobile","desktop"],"default_visible":true,"capabilities":["apps.checklists"]},
     "project.comms": {"surface":"project_modal","devices":["mobile","desktop"],"default_visible":true,"capabilities":["apps.comms"]},

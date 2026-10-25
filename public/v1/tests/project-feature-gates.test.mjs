@@ -13,7 +13,7 @@ const [viewer, projectRequest, customFields, capabilityDefs] = await Promise.all
 
 test('the Projects stages view honors its capability and falls back to tiles', () => {
   assert.match(viewer, /value\?\.\('platform', 'project_stages_view', false\) === true/);
-  assert.match(viewer, /function defaultViewMode\(\)\{ return stagesViewEnabled\(\) \? 'stages' : 'tiles'; \}/);
+  assert.match(viewer, /function defaultViewMode\(\)\{ return mapFirst\(\) \? 'map' : \(stagesViewEnabled\(\) \? 'stages' : 'tiles'\); \}/);
   assert.doesNotMatch(viewer, /function stagesViewEnabled\(\)\{\s*return true;/);
 });
 
