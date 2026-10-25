@@ -53,3 +53,9 @@ Built on `2b52a332`, with `b9f89a1d` from `claude/bonus-utm-campaign-20261024`.
 
 - `6fefe93c` rolls back to `2b52a332` (republish `d89ad2b0…`), which brings the bonus bug back.
 - `2b52a332` rolls back to `62119658` (republish `c9096dd3…`).
+
+## Production data change made alongside this release
+
+At Jack's request, the bonus investigation session set the stray campaign `acq_52513030142937` (auto-created June 29, no bonus offers) to inactive at 2026-10-24T20:36:30Z. That was the same moment `6fefe93c` went live.
+
+Meta visitors resolve to Meta 6/19 B even under the old widget. Three bonus purchases followed, the first at 02:51 UTC on Oct 25 (paid $100, received +$50). The session's own record is `7a096e37` on `claude/peaceful-cray-81db93`.
