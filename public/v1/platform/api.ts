@@ -87,9 +87,27 @@ import {
   requirePlatformAuth,
   seesEveryProject,
   setPlatformAuthCookies,
-  switchRememberedPlatformAccount
+  switchRememberedPlatformAccount,
+  type PlatformAuthContext
 } from "./auth.js";
 import { PlatformError } from "./errors.js";
+import { requestPrincipal, systemPrincipal, type Principal } from "./security/principal.js";
+import { serviceInject } from "./security/service.js";
+import { safeFetch, SafeFetchError } from "./security/safe-fetch.js";
+import { recordSecurityEvent } from "./security/impersonation.js";
+import { identityIsStaffMember } from "./security/staff.js";
+import { isAllowedOrigin } from "./security/browser.js";
+import { withPublicFirstMeasureLock } from "../public-firstmeasure/locks.js";
+import {
+  assertMayChangeUserAccessFields,
+  assertMayGrantPortalAccess,
+  assertMayManageUser,
+  customerBillingPatch,
+  customerOrderInput,
+  isLoopbackDevelopmentRequest,
+  PORTAL_ACTION_PERMISSIONS,
+  requirePortalPermission
+} from "./portal_action_access.js";
 import { isRevisionConflict, mutateProjectDocument, withEquipmentBookingLock, withProjectDocumentLock, writeProjectDocument } from "./project_document_mutation.js";
 import { notificationCatalog, catalogDefinitions, definitionPreferences } from "./notification_catalog.js";
 import { notificationPresentation, isMessageInboxNotification, notificationPreferenceEnabled, categoryForNotification, preferenceKeyForNotification, registerNotificationDevice, saveNotificationPreferences, unregisterNotificationDevice } from "./notification_delivery.js";
@@ -1162,9 +1180,10 @@ app.get("/auth/google/config", async () => ({
 
   app.post("/referrals/status", async (request) => {
     const body = objectBodySchema.parse(request.body ?? {});
-    const actor = portalActor(body);
-    if (!actor.email) return { success: false, ok: false, status_code: 401, error: "Authentication required." };
-    const orgId = cleanText(body.actor_org_id || body.org_id) || cleanText((await portalContext(actor, body).catch(() => ({ orgId: "" }))).orgId);
+    // The referrer is the signed-in member, never an email or organization in the body.
+    const auth = await requirePlatformAuth(request);
+    const actor = { email: cleanText(auth.identity.email).toLowerCase(), name: cleanText(auth.identity.name || auth.user.name) };
+    const orgId = auth.orgId;
     return await customerReferralStatus({
       ...body,
       email: actor.email,
@@ -1176,9 +1195,10 @@ app.get("/auth/google/config", async () => ({
 
   app.post("/referrals/event", async (request) => {
     const body = objectBodySchema.parse(request.body ?? {});
-    const actor = portalActor(body);
-    if (!actor.email) return { success: false, ok: false, status_code: 401, error: "Authentication required." };
-    const orgId = cleanText(body.actor_org_id || body.org_id) || cleanText((await portalContext(actor, body).catch(() => ({ orgId: "" }))).orgId);
+    // The referrer is the signed-in member, never an email or organization in the body.
+    const auth = await requirePlatformAuth(request);
+    const actor = { email: cleanText(auth.identity.email).toLowerCase(), name: cleanText(auth.identity.name || auth.user.name) };
+    const orgId = auth.orgId;
     return customerReferralEvent({
       ...body,
       email: actor.email,
@@ -3287,19 +3307,6 @@ function truthy(value: unknown) {
   return /^(1|true|yes|on)$/i.test(cleanText(value));
 }
 
-function isLocalPortalRequest(request?: FastifyRequest) {
-  const candidates = [
-    cleanText(request?.hostname),
-    cleanText(request?.headers?.host),
-    cleanText(request?.headers?.origin),
-    cleanText(request?.headers?.referer)
-  ].join(" ").toLowerCase();
-  return candidates.includes("127.0.0.1")
-    || candidates.includes("localhost")
-    || candidates.includes("[::1]")
-    || candidates.includes("::1");
-}
-
 function platformSearchCollection(collection: string) {
   return collection === "projects" || collection === "customers";
 }
@@ -5238,7 +5245,7 @@ async function applyCreditDelta(
   const amount = numericValue(body.amount ?? body.delta);
   if (amount === 0 && !freeExpediteMutation) throw badRequest("invalid_credit_amount", "Credit amount must be non-zero.");
   let freeExpedite: { free_expedite_uses: number; free_expedite_ledger_entry: JsonObject; free_expedite_ledger_count: number } | null = null;
-  let outcome = { balance: 0, ledger_entry: {} as JsonObject, ledger_count: 0 };
+  let outcome = { balance: 0, ledger_entry: {} as JsonObject, ledger_count: 0, duplicate: false };
   const document = await mutateGlobal(orgId, (global) => {
     const data = asObject(global.data);
     const balance = numericValue(data.credits_balance);
@@ -5248,21 +5255,24 @@ async function applyCreditDelta(
     const ledger = Array.isArray(data.credits_ledger) ? [...data.credits_ledger] : [];
     // Checkout fulfillment can arrive from the webhook and browser together;
     // Stripe retry IDs must be checked in the same transaction as the credit.
+    // Any other mutation that must happen once names `meta.idempotency_key`.
     const reason = String(body.reason ?? "");
     const paymentMeta = asObject(body.meta);
-    const paymentKey = reason === "stripe_checkout_paid"
+    const idempotencyKey = String(paymentMeta.idempotency_key ?? "");
+    const paymentKey = idempotencyKey || (reason === "stripe_checkout_paid"
       ? String(paymentMeta.stripe_checkout_session_id ?? paymentMeta.session_id ?? "")
-      : (reason === "stripe_auto_topup" ? String(paymentMeta.payment_intent_id ?? "") : "");
-    const duplicate = amount > 0 && paymentKey ? ledger.find((value) => {
+      : (reason === "stripe_auto_topup" ? String(paymentMeta.payment_intent_id ?? "") : ""));
+    const duplicate = (idempotencyKey || amount > 0) && paymentKey ? ledger.find((value) => {
       const previous = asObject(value);
       const meta = asObject(previous.meta);
+      if (idempotencyKey) return String(previous.reason ?? "") === reason && String(meta.idempotency_key ?? "") === idempotencyKey;
       const key = reason === "stripe_checkout_paid"
         ? String(meta.stripe_checkout_session_id ?? meta.session_id ?? "")
         : String(meta.payment_intent_id ?? "");
       return String(previous.reason ?? "") === reason && Number(previous.delta) > 0 && key === paymentKey;
     }) : null;
     if (duplicate) {
-      outcome = { balance, ledger_entry: asObject(duplicate), ledger_count: ledger.length };
+      outcome = { balance, ledger_entry: asObject(duplicate), ledger_count: ledger.length, duplicate: true };
       return {};
     }
     // The discount and its coupon must be committed with the debit, before
@@ -5300,7 +5310,8 @@ async function applyCreditDelta(
     outcome = {
       balance: entry.balance_after,
       ledger_entry: entry,
-      ledger_count: ledger.length
+      ledger_count: ledger.length,
+      duplicate: false
     };
     return {
       data: {
@@ -8920,15 +8931,26 @@ async function handlePortalAction(app: FastifyInstance, action: string, body: Js
   if (suppliedActor.organization_id && suppliedActor.organization_id !== authenticated.orgId) {
     throw forbidden("organization_forbidden", "This session cannot act on the requested organization.");
   }
+  // Each action names the permission it needs (portal_action_access.ts).
+  const actionPermission = PORTAL_ACTION_PERMISSIONS[action];
+  if (actionPermission) requirePortalPermission(authenticated, actionPermission);
+  // Reads FirstMeasure makes for this person: as this member of this
+  // organization, so FirstMeasure scopes them to it (a staff member's session
+  // in a customer organization is narrowed to that organization too).
+  const sessionPrincipal = await requestPrincipal(request);
+  const customer: Principal = sessionPrincipal.kind === "customer" && sessionPrincipal.auth.orgId === authenticated.orgId
+    ? sessionPrincipal
+    : { kind: "customer", auth: authenticated };
+  const portal: PortalCaller = { app, auth: authenticated, orgId: ctx.orgId, actor, customer };
   switch (action) {
     case "org_get_my":
-      return await portalGetOrg(ctx.orgId, ctx.userDoc);
+      return portalOrgResultForCaller(authenticated, await portalGetOrg(ctx.orgId, ctx.userDoc));
     case "get_credits":
       return await portalCredits(ctx.orgId, ctx.userDoc);
     case "org_update_my":
-      return await portalUpdateOrg(ctx.orgId, body, ctx.userDoc);
+      return portalOrgResultForCaller(authenticated, await portalUpdateOrg(ctx.orgId, body, ctx.userDoc, authenticated));
     case "org_update_my_report_settings":
-      return await portalUpdateReportSettings(ctx.orgId, body);
+      return portalOrgResultForCaller(authenticated, await portalUpdateReportSettings(ctx.orgId, body));
     case "org_update_my_billing":
       return await portalUpdateBilling(ctx.orgId, body);
     case "org_billing_history_my":
@@ -8938,20 +8960,19 @@ async function handlePortalAction(app: FastifyInstance, action: string, body: Js
     case "org_users_list_my":
       return { success: true, users: await portalOrgUsers(ctx.orgId) };
     case "org_users_add_my":
-      return await portalAddOrgUser(ctx.orgId, body, request);
+      return await portalAddOrgUser(ctx.orgId, body, request, authenticated);
     case "org_users_update_my":
-      return await portalUpdateOrgUser(ctx.orgId, body);
+      return await portalUpdateOrgUser(ctx.orgId, body, authenticated);
     case "org_users_set_disabled_my":
-      return await portalSetOrgUserDisabled(ctx.orgId, body);
+      return await portalSetOrgUserDisabled(ctx.orgId, body, authenticated);
     case "org_users_delete_my":
-      return await portalSetOrgUserDisabled(ctx.orgId, { ...body, disabled: "true", delete_user: "true" });
+      return await portalSetOrgUserDisabled(ctx.orgId, { ...body, disabled: "true", delete_user: "true" }, authenticated);
     case "org_users_set_perms_my":
-      if (request) await requirePlatformAuth(request, { orgId: ctx.orgId, permission: "manage_company_user_permissions" });
-      return await portalSetOrgUserPermissions(ctx.orgId, body, ctx.userDoc);
+      return await portalSetOrgUserPermissions(ctx.orgId, body, authenticated);
     case "org_upload_logo_my":
       return await portalUploadLogo(ctx.orgId, body);
     case "org_users_upload_avatar_my":
-      return await portalUploadAvatar(ctx.orgId, body);
+      return await portalUploadAvatar(ctx.orgId, body, authenticated);
     case "onboarding_track":
       return await portalOnboardingTrack(ctx.orgId, actor.email, body, request);
     case "onboarding_signup_verification_start":
@@ -8967,7 +8988,8 @@ async function handlePortalAction(app: FastifyInstance, action: string, body: Js
     case "portal_bonus_upfront_match_status":
       return await portalBonusStatus(ctx.orgId);
     case "portal_acquisition_bonus_offer_status":
-      if (isLocalPortalRequest(request) && truthy(body.bonus_test)) {
+      // The bonus test mode is for a developer on their own machine only.
+      if (isLoopbackDevelopmentRequest(request) && truthy(body.bonus_test)) {
         const campaign = cleanText(body.cid || body.campaign || body.campaign_code || body.acquisition_code || body.campaign_id);
         const token = cleanText(body.xid || body.acquisition_bonus_token || body.bonus_token);
         if (campaign && token) return await acquisitionBonusOfferForCampaignToken(ctx.orgId, campaign, token, true, withAcquisitionRequestMetadata(body, request));
@@ -8980,13 +9002,13 @@ async function handlePortalAction(app: FastifyInstance, action: string, body: Js
     case "stripe_create_checkout":
       return await portalStripeCreateCheckout(ctx.orgId, actor.email, body);
     case "stripe_fulfill_session":
-      return await portalStripeFulfillSession(cleanText(body.session_id), "stripe_manual_fulfill");
+      return await portalStripeFulfillSession(cleanText(body.session_id), "stripe_manual_fulfill", ctx.orgId);
     case "billing_autotopup_setup_finish":
-      return await portalStripeFinishSetup(cleanText(body.session_id));
+      return await portalStripeFinishSetup(cleanText(body.session_id), ctx.orgId);
     case "billing_autotopup_setup_start":
       return await portalStripeStartSetup(ctx.orgId, body);
     case "pj_search":
-      return await portalFirstMeasure(app, "projects/list", { actor, page: 1, limit: Number(body.limit || 1), filter: "org" });
+      return await portalProjectSearch(portal, body);
     case "exteriors_quote":
       await requirePlatformAuth(request, {csrf:true,permission:"order_reports"});
       await requireExteriorAccess(ctx.orgId, cleanText(body.project_type)||"residential");
@@ -9015,16 +9037,16 @@ async function handlePortalAction(app: FastifyInstance, action: string, body: Js
     case "queue": {
       const orderAuth = await requirePlatformAuth(request, {csrf:true,permission:"order_reports"});
       if (parseBooleanField(body.instant_development_report, false)) return await copyDevelopmentReport(orderAuth, body);
-      return await portalQueueProject(app, ctx.orgId, actor, body);
+      return await portalQueueProject(portal, body);
     }
     case "expedite_queued_report":
-      return await portalExpediteQueuedProject(app, ctx.orgId, actor, body);
+      return await portalExpediteQueuedProject(portal, body);
     case "cancel_queued_report":
-      return await portalCancelQueuedProject(app, ctx.orgId, actor, body);
+      return await portalCancelQueuedProject(portal, body);
     case "submit_report_rework_request":
-      return await portalSubmitReportReworkRequest(app, ctx.orgId, actor, body);
+      return await portalSubmitReportReworkRequest(portal, body);
     case "refund_instant_rejection":
-      return await portalRefundInstant(app, ctx.orgId, actor.email, body);
+      return await portalRefundInstant(portal, body);
     default:
       return { success: false, status_code: 404, error: `Unsupported portal action: ${action}` };
   }
@@ -9037,12 +9059,26 @@ async function stopPortalImpersonation(app: FastifyInstance, request?: FastifyRe
   const metadata = asObject(ctx.session.metadata);
   const restoreSessionId = cleanText(metadata.restore_session_id);
   const currentSessionId = cleanText(ctx.sessionId);
-  if (restoreSessionId) {
+  const impersonatedBy = cleanText(metadata.impersonated_by_email).toLowerCase();
+  // Only a session the staff console made for an administrator acting as a
+  // customer carries a way back, and it leads only to that administrator's
+  // own staff session (internal/api.ts startCustomerImpersonation).
+  if (restoreSessionId && metadata.impersonated === true && impersonatedBy && restoreSessionId !== currentSessionId) {
     try {
       const restoreSession = await readAuthSession(restoreSessionId);
       const restoreCtx = await buildAuthContext(restoreSessionId, restoreSession);
-      if (currentSessionId && currentSessionId !== restoreSessionId) await deleteAuthSession(currentSessionId);
+      const restoreEmail = cleanText(restoreCtx.identity.email).toLowerCase();
+      if (restoreEmail !== impersonatedBy || !identityIsStaffMember(restoreCtx.identity)) {
+        throw forbidden("impersonation_restore_mismatch", "The original session does not belong to the administrator who started this session.");
+      }
+      if (currentSessionId) await deleteAuthSession(currentSessionId);
       setPlatformAuthCookies(request, reply, restoreCtx.sessionId, restoreCtx.csrfToken);
+      await recordSecurityEvent("customer_impersonation_stopped", {
+        admin_email: impersonatedBy,
+        customer_email: cleanText(ctx.identity.email).toLowerCase(),
+        organization_id: ctx.orgId,
+        restored: true
+      });
       return {
         success: true,
         stopped: true,
@@ -9054,6 +9090,14 @@ async function stopPortalImpersonation(app: FastifyInstance, request?: FastifyRe
     } catch (error) {
       app.log.warn({ err: error, restoreSessionId }, "Failed to restore platform impersonation session");
     }
+  }
+  if (metadata.impersonated === true) {
+    await recordSecurityEvent("customer_impersonation_stopped", {
+      admin_email: impersonatedBy,
+      customer_email: cleanText(ctx.identity.email).toLowerCase(),
+      organization_id: ctx.orgId,
+      restored: false
+    });
   }
   await logoutPlatformSession(request, reply);
   return { success: true, stopped: true, restored: false, node_bridge: true };
@@ -9546,24 +9590,6 @@ function portalActor(body: JsonObject) {
   };
 }
 
-async function portalContext(actor: ReturnType<typeof portalActor>, body: JsonObject) {
-  let orgId = actor.organization_id || cleanText(body.org_id || body.organization_id);
-  let userDoc: JsonObject | null = null;
-  if (orgId) userDoc = await findPortalUserByEmail(orgId, actor.email);
-  if (!orgId || !userDoc) {
-    const identity = await findIdentityByEmail(actor.email);
-    const memberships = await listIdentityMemberships(String(identity.id || ""));
-    const first = memberships[0] ? asObject(memberships[0]) : {};
-    const organization = asObject(first.organization);
-    const user = asObject(first.user);
-    orgId = orgId || String(organization.id || user.organization_id || "");
-    userDoc = Object.keys(user).length ? user : null;
-  }
-  if (!orgId) throw badRequest("missing_org", "A portal organization is required.");
-  if (!userDoc) userDoc = await findPortalUserByEmail(orgId, actor.email);
-  return { orgId, userDoc };
-}
-
 async function findPortalUserByEmail(orgId: string, email: string) {
   const normalized = String(email || "").trim().toLowerCase();
   const users = await listDocuments(orgId, "users");
@@ -9675,7 +9701,15 @@ function portalResolveLogo(logo: string, branding: JsonObject) {
   return logo;
 }
 
-async function portalUpdateOrg(orgId: string, body: JsonObject, userDoc: JsonObject | null = null) {
+const PORTAL_ORG_SETTING_FIELDS = ["name", "accent", "secondary", "company_email", "company_phone", "company_address", "website"];
+
+/**
+ * `org_update_my`: the company's name, colours and contact details need
+ * `manage_company_settings`; anyone may change their own name and phone.
+ */
+async function portalUpdateOrg(orgId: string, body: JsonObject, userDoc: JsonObject | null, auth: PlatformAuthContext) {
+  const changesOrganization = PORTAL_ORG_SETTING_FIELDS.some((key) => Object.prototype.hasOwnProperty.call(body, key) && (key !== "name" || cleanText(body.name)));
+  if (changesOrganization) requirePortalPermission(auth, "manage_company_settings");
   if (cleanText(body.name)) await patchOrganization(orgId, { name: cleanText(body.name) });
   const fullName = cleanText(body.full_name || body.user_name);
   const requestedPhone = cleanText(body.phone || body.user_phone);
@@ -9699,6 +9733,7 @@ async function portalUpdateOrg(orgId: string, body: JsonObject, userDoc: JsonObj
       }
     }, { replace: false });
   }
+  if (!changesOrganization) return { success: true, org: await portalOrgView(orgId) };
   const global = await readGlobal(orgId);
   const data = asObject(global.data);
   const branding = asObject(data.branding);
@@ -9733,18 +9768,38 @@ async function portalUpdateReportSettings(orgId: string, body: JsonObject) {
   return { success: true, report_settings: reportSettings, org: await portalOrgView(orgId) };
 }
 
+/**
+ * `org_update_my_billing`: only the auto top-up switch and amounts
+ * (customerBillingPatch). Stripe ids, card details, status and events are
+ * written by the Stripe flows alone.
+ */
 async function portalUpdateBilling(orgId: string, body: JsonObject) {
-  const patch = asObject(tryParseJsonField(body.billing_json, {}));
-  const global = await readGlobal(orgId);
-  const current = asObject(asObject(global.data).billing);
-  const billing = {
-    ...current,
-    ...patch,
-    stripe: { ...asObject(current.stripe), ...asObject(patch.stripe) },
-    auto_topup: { ...asObject(current.auto_topup), ...asObject(patch.auto_topup) }
-  };
-  await saveGlobal(orgId, { data: { billing } });
+  const patch = customerBillingPatch(tryParseJsonField(body.billing_json, {}));
+  let billing: JsonObject = {};
+  await mutateGlobal(orgId, (global) => {
+    const current = asObject(asObject(global.data).billing);
+    billing = { ...current, auto_topup: { ...asObject(current.auto_topup), ...asObject(patch.auto_topup) } };
+    return Object.keys(patch).length ? { data: { billing } } : {};
+  });
   return { success: true, billing: safeBillingView(billing), org: await portalOrgView(orgId) };
+}
+
+/**
+ * The organization view for this member: billing needs `manage_billing`, the
+ * balance and free expedites `order_reports|manage_billing`
+ * (docs/architecture/permissions-and-agents.md#organization-boundary).
+ */
+function portalOrgResultForCaller<T extends JsonObject>(auth: PlatformAuthContext, result: T): T {
+  const org = asObject(result.org);
+  if (!Object.keys(org).length) return result;
+  const view: JsonObject = { ...org };
+  if (!hasPermission(auth, "manage_billing")) delete view.billing;
+  if (!hasPermission(auth, "order_reports|manage_billing")) {
+    delete view.credits_balance;
+    delete view.free_expedite_uses;
+    delete view.free_expedite_ledger_count;
+  }
+  return { ...result, org: view };
 }
 
 async function portalBillingHistory(orgId: string, body: JsonObject) {
@@ -9789,17 +9844,35 @@ async function portalOrgUsers(orgId: string) {
   return (await listDocuments(orgId, "users")).map(portalUserView).filter((user) => !user.deleted);
 }
 
-async function portalAddOrgUser(orgId: string, body: JsonObject, request?: FastifyRequest) {
+/** A user of this organization by id; 404 for anyone else's (readDocument is scoped to the organization). */
+async function portalOrgUserDocument(orgId: string, userId: string) {
+  if (!userId) throw badRequest("missing_user_id", "A user is required.");
+  const current = await readDocument(orgId, "users", userId).catch(() => null);
+  if (!current || asObject(current.data).deleted === true) throw notFound("user_not_found", "That user was not found.");
+  return current;
+}
+
+async function portalAddOrgUser(orgId: string, body: JsonObject, request: FastifyRequest | undefined, auth: PlatformAuthContext) {
   const email = cleanEmail(body.email);
   const name = cleanText(body.name) || email;
+  const level = cleanText(body.perm_level).toLowerCase() || "viewer";
+  const items = asObject(tryParseJsonField(body.perm_items_json, {}));
+  assertMayGrantPortalAccess(auth, level, items, effectivePortalPermissions(level, items) ?? {});
+  // Adding never overwrites a member: an existing person is changed through
+  // the update and permission actions, with their own checks.
+  const userId = `user_${stableHash(email).slice(0, 16)}`;
+  const existing = await readDocument(orgId, "users", userId).catch(() => null)
+    ?? await findPortalUserByEmail(orgId, email);
+  if (existing && asObject(existing.data).deleted !== true) {
+    throw conflict("user_exists", "This person is already a member of the organization.");
+  }
+  if (existing) assertMayManageUser(auth, asObject(existing.data));
   let identity;
   try {
     identity = await findIdentityByEmail(email);
   } catch {
     identity = await createIdentity({ email, name, status: "pending", password_hash: "", password_algo: "pending" });
   }
-  const level = cleanText(body.perm_level) || "viewer";
-  const items = asObject(tryParseJsonField(body.perm_items_json, {}));
   const user = await upsertDocument(orgId, "users", {
     id: `user_${stableHash(email).slice(0, 16)}`,
     data: {
@@ -9819,7 +9892,7 @@ async function portalAddOrgUser(orgId: string, body: JsonObject, request?: Fasti
   });
   await addIdentityMembership(String(identity.id), orgId, String(user.id), level);
   const invite = request
-    ? await sendPlatformOrgUserInvite(orgId, user, request, cleanText(body.actor_email || body.user_email)).catch((error) => ({
+    ? await sendPlatformOrgUserInvite(orgId, user, request, cleanText(auth.identity.email).toLowerCase()).catch((error) => ({
       ok: false,
       emailed: false,
       email_sent: false,
@@ -9830,16 +9903,38 @@ async function portalAddOrgUser(orgId: string, body: JsonObject, request?: Fasti
   return { success: true, user: portalUserView(user), emailed: invite.ok, email_sent: invite.ok, activate_url: invite.activate_url || null, invite };
 }
 
-async function portalUpdateOrgUser(orgId: string, body: JsonObject) {
+function isPortalSelf(auth: PlatformAuthContext, userId: string, data: JsonObject) {
+  return userId === auth.userId || (cleanText(data.email).toLowerCase() !== "" && cleanText(data.email).toLowerCase() === cleanText(auth.identity.email).toLowerCase());
+}
+
+/**
+ * `org_users_update_my`: anyone may change their own name; changing anything
+ * else, or anyone else, needs `manage_company_users` (and an owner for an
+ * owner). Access fields need `manage_company_user_permissions`. A person's
+ * email is their sign-in and is not changed here: the users record would no
+ * longer match the identity that signs in.
+ */
+async function portalUpdateOrgUser(orgId: string, body: JsonObject, auth: PlatformAuthContext) {
   const userId = cleanText(body.user_id);
-  const current = await readDocument(orgId, "users", userId);
+  const current = await portalOrgUserDocument(orgId, userId);
   const data = asObject(current.data);
+  const self = isPortalSelf(auth, userId, data);
+  const profile = organizationUserProfileFields(body);
+  const requestedEmail = cleanText(body.email).toLowerCase();
+  if (requestedEmail && requestedEmail !== cleanText(data.email).toLowerCase()) {
+    if (!self) requirePortalPermission(auth, "manage_company_users");
+    throw forbidden("email_change_requires_verification", "A person's sign-in email is changed from their own account, where the new address is verified.");
+  }
+  if (!self || Object.keys(profile).length) {
+    requirePortalPermission(auth, "manage_company_users");
+    assertMayManageUser(auth, data);
+  }
+  assertMayChangeUserAccessFields(auth, body, self);
   const next = await upsertDocument(orgId, "users", {
     id: userId,
     data: {
       ...data,
-      ...organizationUserProfileFields(body),
-      email: cleanText(body.email) || data.email,
+      ...profile,
       name: cleanText(body.name) || data.name,
       updated_at: new Date().toISOString()
     }
@@ -9847,10 +9942,12 @@ async function portalUpdateOrgUser(orgId: string, body: JsonObject) {
   return { success: true, user: portalUserView(next), session_updated: false };
 }
 
-async function portalSetOrgUserDisabled(orgId: string, body: JsonObject) {
+async function portalSetOrgUserDisabled(orgId: string, body: JsonObject, auth: PlatformAuthContext) {
   const userId = cleanText(body.user_id);
-  const current = await readDocument(orgId, "users", userId);
+  const current = await portalOrgUserDocument(orgId, userId);
   const data = asObject(current.data);
+  if (isPortalSelf(auth, userId, data)) throw forbidden("self_disable_forbidden", "You cannot disable or remove your own account.");
+  assertMayManageUser(auth, data);
   const disabled = parseBooleanField(body.disabled, true);
   const next = await upsertDocument(orgId, "users", {
     id: userId,
@@ -9859,18 +9956,17 @@ async function portalSetOrgUserDisabled(orgId: string, body: JsonObject) {
   return { success: true, user: portalUserView(next) };
 }
 
-async function portalSetOrgUserPermissions(orgId: string, body: JsonObject, actorUserDoc: JsonObject | null = null) {
+async function portalSetOrgUserPermissions(orgId: string, body: JsonObject, auth: PlatformAuthContext) {
   const userId = cleanText(body.user_id);
-  const current = await readDocument(orgId, "users", userId);
-  const actorId = cleanText(actorUserDoc?.id);
-  const actorEmail = cleanText(asObject(actorUserDoc?.data).email).toLowerCase();
-  const targetEmail = cleanText(asObject(current.data).email).toLowerCase();
-  if ((actorId && userId === actorId) || (actorEmail && targetEmail === actorEmail)) {
+  const current = await portalOrgUserDocument(orgId, userId);
+  if (isPortalSelf(auth, userId, asObject(current.data))) {
     throw forbidden("self_permission_change_forbidden", "You cannot change your own organization permissions.");
   }
   const data = asObject(current.data);
-  const level = cleanText(body.perm_level) || "viewer";
+  assertMayManageUser(auth, data);
+  const level = cleanText(body.perm_level).toLowerCase() || "viewer";
   const items = asObject(tryParseJsonField(body.perm_items_json, {}));
+  assertMayGrantPortalAccess(auth, level, items, effectivePortalPermissions(level, items) ?? {});
   const next = await upsertDocument(orgId, "users", {
     id: userId,
     data: { ...data, role: level, org_permissions: { level, items }, permissions: effectivePortalPermissions(level, items) }
@@ -9897,8 +9993,14 @@ async function portalUploadLogo(orgId: string, body: JsonObject) {
   return { success: true, logo, media };
 }
 
-async function portalUploadAvatar(orgId: string, body: JsonObject) {
-  const userId = cleanText(body.user_id);
+async function portalUploadAvatar(orgId: string, body: JsonObject, auth: PlatformAuthContext) {
+  const userId = cleanText(body.user_id) || auth.userId;
+  const target = await portalOrgUserDocument(orgId, userId);
+  // Your own photo is yours; anyone else's is user management.
+  if (!isPortalSelf(auth, userId, asObject(target.data))) {
+    requirePortalPermission(auth, "manage_company_users");
+    assertMayManageUser(auth, asObject(target.data));
+  }
   const file = asObject(body.__file);
   if (!file.bytes_base64) throw badRequest("missing_avatar", "An avatar file is required.");
   const media = await storeMediaUpload(orgId, {
@@ -10742,8 +10844,13 @@ function stripePriceId(bonus = false) {
 }
 
 function stripeReturnBaseUrl(body: JsonObject = {}) {
+  const fallback = env.stripeBaseUrl.replace(/\/+$/, "");
   const raw = cleanText(body.return_base_url || body.base_url || env.stripeBaseUrl);
-  if (!raw || !/^https?:\/\//i.test(raw)) return env.stripeBaseUrl.replace(/\/+$/, "");
+  if (!raw || !/^https?:\/\//i.test(raw)) return fallback;
+  // Stripe sends the customer back here with the session id: only to our own sites.
+  let sameSite = false;
+  try { sameSite = new URL(raw).origin === new URL(fallback).origin; } catch { sameSite = false; }
+  if (!sameSite && !isAllowedOrigin(raw)) return fallback;
   return raw.replace(/\/+$/, "");
 }
 
@@ -10951,11 +11058,34 @@ async function portalStripeStartSetup(orgId: string, body: JsonObject) {
   return { success: true, url: asObject(created.data).url || null, session: created.data };
 }
 
-async function portalStripeFinishSetup(sessionId: string) {
+/**
+ * A checkout session a customer hands back belongs to them only when we made
+ * it for their organization: its `metadata[org_id]` (set by the server when
+ * creating it) and, once the organization has one, its Stripe customer.
+ */
+async function assertStripeSessionForOrganization(session: JsonObject, orgId: string) {
+  const meta = asObject(session.metadata);
+  if (!orgId || cleanText(meta.org_id) !== orgId) {
+    throw forbidden("stripe_session_forbidden", "This checkout session does not belong to this organization.");
+  }
+  const global = await readGlobal(orgId);
+  const customerId = cleanText(asObject(asObject(asObject(global.data).billing).stripe).customer_id);
+  const sessionCustomer = stripeObjectId(session.customer);
+  if (customerId && sessionCustomer && sessionCustomer !== customerId) {
+    throw forbidden("stripe_session_forbidden", "This checkout session does not belong to this organization.");
+  }
+}
+
+async function portalStripeFinishSetup(sessionId: string, orgId: string) {
   if (!sessionId) return { success: false, error: "Missing session_id" };
   const session = await stripeRetrieveCheckoutSessionExpanded(sessionId);
   if (!session.success) return session;
-  return await stripeSavePaymentMethodFromSession(asObject(session.session), "stripe_setup_return");
+  const value = asObject(session.session);
+  await assertStripeSessionForOrganization(value, orgId);
+  if (cleanText(value.mode) !== "setup" || cleanText(asObject(value.metadata).type) !== "org_auto_topup_setup") {
+    return { success: false, status_code: 400, error: "This is not a card setup session." };
+  }
+  return await stripeSavePaymentMethodFromSession(value, "stripe_setup_return");
 }
 
 async function stripeRetrieveCheckoutSession(sessionId: string) {
@@ -10972,10 +11102,15 @@ async function stripeRetrieveCheckoutSessionExpanded(sessionId: string) {
   return { success: true, session: result.data };
 }
 
-async function portalStripeFulfillSession(sessionId: string, source: string) {
+/** The browser's return from checkout; the webhook fulfils the same session, and the credit is applied once. */
+async function portalStripeFulfillSession(sessionId: string, source: string, orgId: string) {
+  if (!sessionId) return { success: false, error: "Missing session_id" };
   const retrieved = await stripeRetrieveCheckoutSession(sessionId);
   if (!retrieved.success) return retrieved;
-  return await stripeFulfillFromSession(asObject(retrieved.session), source);
+  const session = asObject(retrieved.session);
+  await assertStripeSessionForOrganization(session, orgId);
+  if (cleanText(session.mode) && cleanText(session.mode) !== "payment") return { success: false, status_code: 400, error: "This is not a payment session." };
+  return await stripeFulfillFromSession(session, source);
 }
 
 async function stripeFulfillFromSession(session: JsonObject, source: string) {
@@ -11020,6 +11155,8 @@ async function stripeFulfillFromSession(session: JsonObject, source: string) {
       test_mode: stripeIsTestMode()
     }
   }, email);
+  // The webhook and the browser's return may both arrive; only the first credits and records.
+  if (credit.duplicate) return { success: true, duplicate: true, session_id: sessionId, balance: credit.balance };
   const purchaseValue = Math.max(0, Math.round(numericValue(meta.paid_dollars, dollars) * 100) / 100);
   const metaCapi = await metaCapiPurchaseFromStripeSession({
     email,
@@ -11369,33 +11506,51 @@ function verifyStripeSignatureCompat(payload: string, signature: string) {
   });
 }
 
+/** Thrown by safeFetch for an address that is not public, a wrong type or a size limit. */
+function portalFetchRefusal(error: unknown, fallback: string) {
+  if (error instanceof SafeFetchError) {
+    return { success: false, status_code: error.code === "address_not_public" || error.code === "protocol_not_allowed" || error.code === "port_not_allowed" || error.code === "credentials_not_allowed" || error.code === "invalid_url" ? 400 : 502, error: error.message, code: error.code };
+  }
+  return { success: false, error: fallback };
+}
+
+// Data URLs the browser already holds are passed back; only images of an allowed type.
+const PORTAL_IMAGE_DATA_URL = /^data:image\/(png|jpe?g|gif|webp|x-icon|vnd\.microsoft\.icon|avif);base64,[a-z0-9+/=\s]+$/i;
+
 async function portalFetchImage(body: JsonObject) {
   const url = cleanText(body.url);
   if (!url) return { success: false, error: "Image URL is required." };
-  if (url.startsWith("data:")) return { success: true, data_url: url };
+  if (url.startsWith("data:")) {
+    return PORTAL_IMAGE_DATA_URL.test(url) && url.length <= 3 * 1024 * 1024
+      ? { success: true, data_url: url }
+      : { success: false, status_code: 400, error: "Not an image." };
+  }
   if (!/^https?:\/\//i.test(url)) return { success: false, error: "Only http/https image URLs are supported." };
-  const response = await fetch(url, {
-    headers: { "User-Agent": "FirstMateLogoFetcher/1.0" },
-    signal: AbortSignal.timeout(6000)
-  }).catch(() => null);
-  if (!response || !response.ok) return { success: false, error: "Fetch failed." };
-  const bytes = Buffer.from(await response.arrayBuffer());
-  if (bytes.length > 2 * 1024 * 1024) return { success: false, error: "Image is too large." };
-  const contentType = String(String(response.headers.get("content-type") || "image/png").split(";")[0] || "image/png").trim();
-  if (!contentType.startsWith("image/")) return { success: false, error: "Not an image URL." };
-  return { success: true, data_url: `data:${contentType};base64,${bytes.toString("base64")}` };
+  let fetched;
+  try {
+    fetched = await safeFetch(url, { accept: ["image/"], maxBytes: 2 * 1024 * 1024, timeoutMs: 6000, headers: { "user-agent": "FirstMateLogoFetcher/1.0", accept: "image/*" } });
+  } catch (error) {
+    return portalFetchRefusal(error, "Fetch failed.");
+  }
+  if (fetched.status < 200 || fetched.status >= 300) return { success: false, error: "Fetch failed." };
+  const contentType = cleanText(fetched.contentType.split(";")[0]) || "image/png";
+  // An SVG can carry script; the browser draws this image, so it is refused.
+  if (!contentType.startsWith("image/") || contentType.includes("svg")) return { success: false, error: "Not an image URL." };
+  return { success: true, data_url: `data:${contentType};base64,${fetched.body.toString("base64")}` };
 }
 
 async function portalScrapeLogos(body: JsonObject) {
   const url = cleanText(body.url);
   if (!/^https?:\/\//i.test(url)) return { success: false, error: "A valid website URL is required." };
-  const response = await fetch(url, {
-    headers: { "User-Agent": "FirstMateLogoScraper/1.0" },
-    signal: AbortSignal.timeout(8000)
-  }).catch(() => null);
-  if (!response || !response.ok) return { success: false, error: "Could not fetch page." };
-  const html = (await response.text()).slice(0, 700_000);
-  const origin = new URL(url).origin;
+  let fetched;
+  try {
+    fetched = await safeFetch(url, { accept: ["text/html", "application/xhtml+xml"], maxBytes: 1024 * 1024, timeoutMs: 8000, headers: { "user-agent": "FirstMateLogoScraper/1.0", accept: "text/html,application/xhtml+xml" } });
+  } catch (error) {
+    return portalFetchRefusal(error, "Could not fetch page.");
+  }
+  if (fetched.status < 200 || fetched.status >= 300) return { success: false, error: "Could not fetch page." };
+  const html = fetched.body.toString("utf8").slice(0, 700_000);
+  const origin = new URL(fetched.url).origin;
   const baseMatch = html.match(/<base\s[^>]*href\s*=\s*["']([^"']+)["']/i);
   const base = baseMatch?.[1] ? new URL(baseMatch[1], url).toString() : url;
   const seen = new Set<string>();
@@ -11568,46 +11723,78 @@ function firstMeasureManifestDueEnd(manifest: JsonObject) {
   return addMinutes(new Date(submittedAt), endMinutes);
 }
 
-async function firstMeasureProjectDetail(app: FastifyInstance, projectId: string) {
-  const response = await app.inject({ method: "GET", url: `/v1/firstmeasure/projects/${encodeURIComponent(projectId)}` });
+/**
+ * The member acting through the portal action endpoint. `customer` is their
+ * own principal: FirstMeasure reads made for them run as it, so FirstMeasure
+ * answers only for their organization. Domain writes this file has itself
+ * authorized and computed (charges, refunds, status) run as the system.
+ */
+type PortalCaller = {
+  app: FastifyInstance;
+  auth: PlatformAuthContext;
+  orgId: string;
+  actor: ReturnType<typeof portalActor>;
+  customer: Principal;
+};
+
+function portalWriter(reason: string) {
+  return systemPrincipal(`platform portal-action: ${reason}`);
+}
+
+/** Read a FirstMeasure project as the customer; another organization's project reads as not found. */
+async function firstMeasureProjectDetail(portal: PortalCaller, projectId: string) {
+  const response = await serviceInject(portal.app, portal.customer, { method: "GET", url: `/v1/firstmeasure/projects/${encodeURIComponent(projectId)}` });
   const data = response.body ? JSON.parse(response.body) : {};
   if (response.statusCode >= 400 || data.ok === false || data.success === false) {
-    throw badRequest("project_not_found", "Report order could not be found.");
+    throw notFound("project_not_found", "Report order could not be found.");
   }
   const manifest = asObject(data.project?.manifest ?? data.manifest ?? data.project);
-  if (!Object.keys(manifest).length) throw badRequest("project_not_found", "Report order could not be found.");
+  if (!Object.keys(manifest).length) throw notFound("project_not_found", "Report order could not be found.");
+  assertPortalOwnsFirstMeasureProject(manifest, portal.orgId);
   return { data, manifest };
 }
 
-function assertPortalOwnsFirstMeasureProject(manifest: JsonObject, orgId: string, actor: ReturnType<typeof portalActor>) {
+/**
+ * The project's organization must be the caller's. Checked here as well as
+ * by FirstMeasure, because the writes that follow run as the system.
+ */
+function assertPortalOwnsFirstMeasureProject(manifest: JsonObject, orgId: string) {
   const orgRef = asObject(manifest.organization_ref);
-  const issuer = asObject(manifest.issuer);
-  const manifestOrgId = cleanText(orgRef.id ?? manifest.organization_id);
-  const issuerEmail = cleanText(issuer.email ?? manifest.issuer_email).toLowerCase();
-  if (manifestOrgId && manifestOrgId === orgId) return;
-  if (issuerEmail && issuerEmail === actor.email.toLowerCase()) return;
-  throw forbidden("project_access_denied", "You do not have access to this report order.");
+  const manifestOrgId = cleanText(orgRef.id) || cleanText(manifest.organization_id);
+  const legacyOrgId = cleanText(manifest.organization_id);
+  if (manifestOrgId && manifestOrgId === orgId && (!legacyOrgId || legacyOrgId === orgId)) return;
+  throw notFound("project_not_found", "Report order could not be found.");
 }
 
-async function portalExpediteQueuedProject(app: FastifyInstance, orgId: string, actor: ReturnType<typeof portalActor>, body: JsonObject) {
+/** Money changes to one project happen one at a time, so a repeated click cannot charge or refund twice. */
+function withPortalProjectLock<T>(projectId: string, work: () => Promise<T>) {
+  return withPublicFirstMeasureLock(`platform-portal-project:${projectId}`, work, { timeoutMs: 30_000 });
+}
+
+function portalProjectId(body: JsonObject) {
   const projectId = cleanText(body.project_id || body.folder || body.measurement_project_id);
   if (!projectId) throw badRequest("missing_project_id", "Project id is required.");
-  const { manifest } = await firstMeasureProjectDetail(app, projectId);
-  assertPortalOwnsFirstMeasureProject(manifest, orgId, actor);
-  return withReportPropertyMarket(manifest, () => portalExpediteQueuedProjectForMarket(app, orgId, actor, body));
+  return projectId;
 }
 
-async function portalExpediteQueuedProjectForMarket(app: FastifyInstance, orgId: string, actor: ReturnType<typeof portalActor>, body: JsonObject) {
+async function portalExpediteQueuedProject(portal: PortalCaller, body: JsonObject) {
+  const projectId = portalProjectId(body);
+  return withPortalProjectLock(projectId, async () => {
+    const { manifest } = await firstMeasureProjectDetail(portal, projectId);
+    return withReportPropertyMarket(manifest, () => portalExpediteQueuedProjectForMarket(portal, body));
+  });
+}
+
+async function portalExpediteQueuedProjectForMarket(portal: PortalCaller, body: JsonObject) {
+  const { app, orgId, actor } = portal;
   assertReportPricingRevision(body);
   await assertPortalFirstMeasureFlag(orgId, "report_expedite_options", "Report expediting is not enabled for this organization.");
-  const projectId = cleanText(body.project_id || body.folder || body.measurement_project_id);
-  if (!projectId) throw badRequest("missing_project_id", "Project id is required.");
+  const projectId = portalProjectId(body);
   const optionKey = cleanText(body.report_expedite_option).toLowerCase();
   if (!isReportExpediteKey(optionKey)) {
     throw badRequest("invalid_expedite_option", "Choose a valid expedited delivery option.");
   }
-  const { manifest } = await firstMeasureProjectDetail(app, projectId);
-  assertPortalOwnsFirstMeasureProject(manifest, orgId, actor);
+  const { manifest } = await firstMeasureProjectDetail(portal, projectId);
   if (manifest.measurement_scope === "full_house") throw badRequest("exterior_delivery_locked", "Full House delivery is selected when ordering and cannot be changed here.");
   const status = cleanText(manifest.status).toLowerCase();
   if (["completed", "rejected", "rejected_no_coverage", "cancelled"].includes(status)) {
@@ -11714,7 +11901,8 @@ async function portalExpediteQueuedProjectForMarket(app: FastifyInstance, orgId:
       ]
     }
   };
-  const response = await app.inject({
+  // The charge and the new delivery window were computed and charged above.
+  const response = await serviceInject(app, portalWriter("expedite"), {
     method: "PATCH",
     url: `/v1/firstmeasure/projects/${encodeURIComponent(projectId)}`,
     headers: { "content-type": "application/json" },
@@ -11752,12 +11940,16 @@ async function portalExpediteQueuedProjectForMarket(app: FastifyInstance, orgId:
   };
 }
 
-async function portalCancelQueuedProject(app: FastifyInstance, orgId: string, actor: ReturnType<typeof portalActor>, body: JsonObject) {
+async function portalCancelQueuedProject(portal: PortalCaller, body: JsonObject) {
+  const projectId = portalProjectId(body);
+  // Under the project's lock the second of two clicks sees it cancelled and refunds nothing.
+  return withPortalProjectLock(projectId, () => portalCancelQueuedProjectLocked(portal, projectId));
+}
+
+async function portalCancelQueuedProjectLocked(portal: PortalCaller, projectId: string) {
+  const { app, orgId, actor } = portal;
   await assertPortalFirstMeasureFlag(orgId, "report_cancellations", "Report cancellations are not enabled for this organization.");
-  const projectId = cleanText(body.project_id || body.folder || body.measurement_project_id);
-  if (!projectId) throw badRequest("missing_project_id", "Project id is required.");
-  const { manifest } = await firstMeasureProjectDetail(app, projectId);
-  assertPortalOwnsFirstMeasureProject(manifest, orgId, actor);
+  const { manifest } = await firstMeasureProjectDetail(portal, projectId);
   if (manifest.measurement_scope === "full_house") throw badRequest("exterior_delivery_locked", "Full House delivery is selected when ordering and cannot be changed here.");
   const status = cleanText(manifest.status).toLowerCase();
   if (["completed", "rejected", "rejected_no_coverage", "cancelled"].includes(status)) {
@@ -11788,7 +11980,7 @@ async function portalCancelQueuedProject(app: FastifyInstance, orgId: string, ac
       meta: { project_id: projectId, report_expedite_option: cleanText(manifest.report_expedite_option), source: "cancelled_inside_grace_period" }
     }, actor.email).catch(() => null);
   }
-  const response = await app.inject({
+  const response = await serviceInject(app, portalWriter("cancel"), {
     method: "POST",
     url: `/v1/firstmeasure/projects/${encodeURIComponent(projectId)}/status`,
     headers: { "content-type": "application/json" },
@@ -11843,7 +12035,7 @@ async function portalCancelQueuedProject(app: FastifyInstance, orgId: string, ac
       ]
     }
   };
-  const patchResponse = await app.inject({
+  const patchResponse = await serviceInject(app, portalWriter("cancel refund record"), {
     method: "PATCH",
     url: `/v1/firstmeasure/projects/${encodeURIComponent(projectId)}`,
     headers: { "content-type": "application/json" },
@@ -11858,20 +12050,19 @@ async function portalCancelQueuedProject(app: FastifyInstance, orgId: string, ac
   };
 }
 
-async function portalSubmitReportReworkRequest(app: FastifyInstance, orgId: string, actor: ReturnType<typeof portalActor>, body: JsonObject) {
-  const projectId = cleanText(body.project_id || body.folder || body.measurement_project_id);
-  if (!projectId) throw badRequest("missing_project_id", "Project id is required.");
-  const { manifest } = await firstMeasureProjectDetail(app, projectId);
-  assertPortalOwnsFirstMeasureProject(manifest, orgId, actor);
-  return withReportPropertyMarket(manifest, () => portalSubmitReportReworkRequestForMarket(app, orgId, actor, body));
+async function portalSubmitReportReworkRequest(portal: PortalCaller, body: JsonObject) {
+  const projectId = portalProjectId(body);
+  return withPortalProjectLock(projectId, async () => {
+    const { manifest } = await firstMeasureProjectDetail(portal, projectId);
+    return withReportPropertyMarket(manifest, () => portalSubmitReportReworkRequestForMarket(portal, body));
+  });
 }
 
-async function portalSubmitReportReworkRequestForMarket(app: FastifyInstance, orgId: string, actor: ReturnType<typeof portalActor>, body: JsonObject) {
+async function portalSubmitReportReworkRequestForMarket(portal: PortalCaller, body: JsonObject) {
+  const { app, orgId, actor } = portal;
   await assertPortalFirstMeasureFlag(orgId, "report_followup", "Report follow-up requests are not enabled for this organization.");
-  const projectId = cleanText(body.project_id || body.folder || body.measurement_project_id);
-  if (!projectId) throw badRequest("missing_project_id", "Project id is required.");
-  const { manifest } = await firstMeasureProjectDetail(app, projectId);
-  assertPortalOwnsFirstMeasureProject(manifest, orgId, actor);
+  const projectId = portalProjectId(body);
+  const { manifest } = await firstMeasureProjectDetail(portal, projectId);
   const status = cleanText(manifest.status).toLowerCase();
   if (["cancelled", "rejected", "rejected_no_coverage"].includes(status)) {
     throw badRequest("project_not_reworkable", "This report is not eligible for report follow-up requests.");
@@ -11992,7 +12183,7 @@ async function portalSubmitReportReworkRequestForMarket(app: FastifyInstance, or
     };
   }
 
-  const response = await app.inject({
+  const response = await serviceInject(app, portalWriter("rework request"), {
     method: "PATCH",
     url: `/v1/firstmeasure/projects/${encodeURIComponent(projectId)}`,
     headers: { "content-type": "application/json" },
@@ -12040,7 +12231,7 @@ async function portalSubmitReportReworkRequestForMarket(app: FastifyInstance, or
         const item = asObject(entry);
         return item.id === requestId ? { ...item, support_email_sent: true } : entry;
       });
-      await app.inject({
+      await serviceInject(app, portalWriter("rework support email sent"), {
         method: "PATCH",
         url: `/v1/firstmeasure/projects/${encodeURIComponent(projectId)}`,
         headers: { "content-type": "application/json" },
@@ -12266,11 +12457,22 @@ function normalizedPortalQueuePayload(body: JsonObject, actor: ReturnType<typeof
   return payload;
 }
 
-async function portalQueueProject(app: FastifyInstance, orgId: string, actor: ReturnType<typeof portalActor>, body: JsonObject) {
-  return withReportPropertyMarket(body, country => portalQueueProjectForMarket(app, orgId, actor, { ...body, report_property_country: country }));
+async function portalQueueProject(portal: PortalCaller, rawBody: JsonObject) {
+  // The order reaches FirstMeasure as the system, so nothing the platform
+  // owns (organization, charge, status, refund flags) comes from the client.
+  const body = customerOrderInput(rawBody);
+  const reorderId = cleanText(body.reorder_project_id || body.source_project_id);
+  const queue = () => withReportPropertyMarket(body, country => portalQueueProjectForMarket(portal, { ...body, report_property_country: country }));
+  if (!reorderId) return queue();
+  // Reordering reopens an existing rejected project: it must be the caller's.
+  return withPortalProjectLock(reorderId, async () => {
+    await firstMeasureProjectDetail(portal, reorderId);
+    return queue();
+  });
 }
 
-async function portalQueueProjectForMarket(app: FastifyInstance, orgId: string, actor: ReturnType<typeof portalActor>, body: JsonObject) {
+async function portalQueueProjectForMarket(portal: PortalCaller, body: JsonObject) {
+  const { app, orgId, actor } = portal;
   const exterior = body.measurement_scope === "full_house";
   if (body.measurement_scope && !exterior && body.measurement_scope !== "roof") throw badRequest("invalid_scope","Unknown report scope.");
   const exteriorOrder = exterior ? await validateExteriorOrder(orgId, body, normalizeReportRequestPins(body.pins).length) : null;
@@ -12329,13 +12531,11 @@ async function portalQueueProjectForMarket(app: FastifyInstance, orgId: string, 
       free_expedite_applied: chargeQuote.free_expedite_applied
     }
   }, actor.email, true);
-  const response = await app.inject({
+  // Charged above for the price computed here; the organization and actor are the session's.
+  const response = await serviceInject(app, portalWriter("queue order"), {
     method: "POST",
     url: reportMode === "instant" ? "/v1/firstmeasure/instants" : "/v1/firstmeasure/projects/queue",
-    headers: {
-      "content-type": "application/json",
-      ...(env.firstMeasureInternalApiSecret ? { "x-firstmeasure-internal": env.firstMeasureInternalApiSecret } : {})
-    },
+    headers: { "content-type": "application/json" },
     payload: {...normalizedPortalQueuePayload(body, actor, orgId, projectType, reportMode, chargeQuote),...(exteriorOrder ? {
       measurement_scope:"full_house",exterior_references:exteriorOrder.references,include_gutter_measurements:true,
       exteriors_base_amount:Math.round(exteriorOrder.quote.base_price*pins.length*100)/100,
@@ -12379,30 +12579,89 @@ async function portalQueueProjectForMarket(app: FastifyInstance, orgId: string, 
   };
 }
 
-async function portalRefundInstant(app: FastifyInstance, orgId: string, actorEmail: string, body: JsonObject) {
-  const amount = Math.abs(numericValue(body.refund_amount));
-  if (amount > 0) await applyCreditDelta(orgId, { amount, reason: "instant_no_coverage_refund", meta: body }, actorEmail);
+const INSTANT_REFUND_REASONS = new Set(["instant_no_coverage", "instant_partial_no_coverage"]);
+
+/**
+ * `refund_instant_rejection`: FirstMeasure marks an instant report it could
+ * not measure `refund_pending` with the amount to return (processing.ts); this
+ * credits that amount once and marks it issued. Nothing in the request body
+ * decides whether or how much is refunded.
+ */
+async function portalRefundInstant(portal: PortalCaller, body: JsonObject) {
   const projectId = cleanText(body.project_id);
-  if (projectId) {
-    await app.inject({
+  if (!projectId) throw badRequest("missing_project_id", "Project id is required.");
+  return withPortalProjectLock(projectId, async () => {
+    const { app, orgId, actor } = portal;
+    const { manifest } = await firstMeasureProjectDetail(portal, projectId);
+    const amount = moneyAmount(manifest.refund_amount);
+    const reason = cleanText(manifest.refund_reason) || "instant_no_coverage";
+    const markIssued = () => serviceInject(app, portalWriter("instant refund issued"), {
       method: "POST",
       url: `/v1/firstmeasure/projects/${encodeURIComponent(projectId)}/instant/refund`,
       headers: { "content-type": "application/json" },
-      payload: { refund_issued: true, refund_amount: amount, refund_reason: cleanText(body.refund_reason) || "instant_no_coverage", refund_pending: false }
+      payload: { refund_issued: true, refund_amount: amount, refund_reason: reason, refund_pending: false }
     });
-  }
-  return { success: true, refunded: true };
+    if (manifest.refund_issued === true) return { success: true, refunded: false, already_refunded: true, refund_amount: amount };
+    if (manifest.refund_pending !== true || !INSTANT_REFUND_REASONS.has(reason)) {
+      throw badRequest("refund_not_pending", "This report has no refund waiting.");
+    }
+    if (!(amount > 0) || amount > moneyAmount(manifest.amount_charged)) {
+      throw badRequest("refund_amount_invalid", "This report's refund amount is not valid.");
+    }
+    // Before idempotency keys, the browser's call credited with the project in
+    // the entry's meta; such an entry is this refund.
+    const global = await readGlobal(orgId);
+    const legacy = (Array.isArray(asObject(global.data).credits_ledger) ? asObject(global.data).credits_ledger as unknown[] : []).some((entry) => {
+      const item = asObject(entry);
+      return cleanText(item.reason) === "instant_no_coverage_refund" && cleanText(asObject(item.meta).project_id) === projectId && !cleanText(asObject(item.meta).idempotency_key);
+    });
+    const credit = legacy ? null : await applyCreditDelta(orgId, {
+      amount,
+      reason: "instant_no_coverage_refund",
+      meta: { project_id: projectId, refund_reason: reason, amount_charged: moneyAmount(manifest.amount_charged), idempotency_key: `instant_refund:${projectId}` }
+    }, actor.email);
+    const marked = await markIssued().catch(() => null);
+    const markedOk = Boolean(marked && marked.statusCode < 400);
+    // The credit is keyed to the project, so a retry after a failed mark cannot credit twice.
+    return {
+      success: true,
+      refunded: Boolean(credit && !credit.duplicate),
+      already_refunded: legacy || Boolean(credit?.duplicate),
+      refund_amount: amount,
+      project_marked: markedOk,
+      ...(credit ? { balance: credit.balance } : {})
+    };
+  });
 }
 
-async function portalFirstMeasure(app: FastifyInstance, path: string, payload: JsonObject) {
-  const response = await app.inject({
+function portalListEntryOrganization(entry: unknown) {
+  const item = asObject(entry);
+  const manifest = asObject(asObject(item.project).manifest ?? item.manifest);
+  for (const source of [item, manifest]) {
+    const id = cleanText(asObject(source.organization_ref).id) || cleanText(source.organization_id);
+    if (id) return id;
+  }
+  return "";
+}
+
+/**
+ * `pj_search`: whether the organization has projects (onboarding). Read as
+ * the customer, so FirstMeasure lists only their organization's; anything
+ * naming another organization is dropped as well.
+ */
+async function portalProjectSearch(portal: PortalCaller, body: JsonObject) {
+  const response = await serviceInject(portal.app, portal.customer, {
     method: "POST",
-    url: `/v1/firstmeasure/${path.replace(/^\/+/, "")}`,
+    url: "/v1/firstmeasure/projects/list",
     headers: { "content-type": "application/json" },
-    payload
+    payload: { page: 1, limit: Math.max(1, Math.min(50, Number(body.limit || 1) || 1)), filter: "org", organization_id: portal.orgId }
   });
-  const data = response.body ? JSON.parse(response.body) : {};
-  return { success: response.statusCode < 400 && data.ok !== false, ...data };
+  const data = asObject(response.body ? JSON.parse(response.body) : {});
+  const own = (value: unknown) => Array.isArray(value)
+    ? value.filter((entry) => { const orgId = portalListEntryOrganization(entry); return !orgId || orgId === portal.orgId; })
+    : value;
+  for (const key of ["projects", "results", "items", "rows"]) if (key in data) data[key] = own(data[key]);
+  return { ...data, success: response.statusCode < 400 && data.ok !== false };
 }
 
 async function parseMediaUploadRequest(request: unknown) {
