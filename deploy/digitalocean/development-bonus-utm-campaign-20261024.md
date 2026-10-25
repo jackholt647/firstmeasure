@@ -107,3 +107,7 @@ campaign. A read-only replay of the lookup on production data gives `meta-6-19-1
 The code fix is still needed. Any other `utm_campaign` that happens to name an existing campaign would do the same.
 
 To roll back, set both rows back to `active` (and `active = 1`).
+
+Confirmed working: the first bonus purchase since the outage came at 2026-10-25T02:51:10Z. A new account paid $100 and
+got the +$50 bonus. Between the stopgap and then, 17 of 20 new signups held a bonus offer; the other 3 arrived with no
+campaign. No payment was held for review.
