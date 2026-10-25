@@ -49,6 +49,7 @@ import {
   createOrganization,
   createIdentity,
   findIdentityByEmail,
+  deleteIdentitySessions,
   listIdentityMemberships,
   listDocuments,
   listOrganizations,
@@ -102,7 +103,7 @@ import { hasPublicFirstMeasureApiKeySecret } from "../public-firstmeasure/key_se
 import { knownPrincipal, principalActor, systemPrincipal } from "../platform/security/principal.js";
 import { serviceInject } from "../platform/security/service.js";
 import { impersonationMark, recordSecurityEvent, startImpersonation, stopImpersonation } from "../platform/security/impersonation.js";
-import { staffAuthority } from "../platform/security/staff.js";
+import { identityIsStaffMember, staffAuthority } from "../platform/security/staff.js";
 import { assertMayManageInternalUser, requireLegacyActionLevel, staffOrSystem } from "./staff-guards.js";
 
 const objectSchema = z.object({}).passthrough();
@@ -1305,6 +1306,19 @@ async function ensureInternalUserPlatformLogin(user: JsonObject, input: JsonObje
   const existingIdentity = await findIdentityByEmailOrNull(email);
   if (existingIdentity) {
     identity = existingIdentity;
+    if (!identityIsStaffMember(existingIdentity)) {
+      // A login made elsewhere (anyone can sign up with an unverified address)
+      // becomes staff only with a password staff control: whatever password
+      // and sessions it had stop working (docs/architecture/request-security.md).
+      identityPatch.password_hash = passwordMaterial?.password_hash ?? "";
+      identityPatch.password_algo = passwordMaterial?.password_algo ?? "pending-invite";
+      identityPatch.metadata = { ...asObject(identityPatch.metadata), invite_pending: !passwordMaterial, adopted_from_existing_login: true };
+      await deleteIdentitySessions(String(identity.id ?? ""));
+      await recordSecurityEvent("staff_login_adopted", {
+        email, identity_id: identity.id, password_set: Boolean(passwordMaterial),
+        other_memberships: (Array.isArray(existingIdentity.memberships) ? existingIdentity.memberships : []).length
+      });
+    }
     identity = await patchIdentity(String(identity.id ?? ""), identityPatch);
   } else {
     identity = await createIdentity({

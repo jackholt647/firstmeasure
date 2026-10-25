@@ -1084,7 +1084,8 @@ app.get("/auth/google/config", async () => ({
             method: "deferred_onboarding",
             created_at: new Date().toISOString()
           },
-          ...(body.identity_metadata || {}),
+          // Callers may add metadata but never claim a verification they did not do.
+          ...withoutVerificationClaims(body.identity_metadata),
           ...signupAttributionPayload(withAcquisitionRequestMetadata(body, request))
         }
       });
@@ -5439,7 +5440,7 @@ async function createPlatformOrgUser(orgId: string, body: Record<string, unknown
         status: identityStatus,
         metadata: {
           source: "platform_user_create",
-          ...(asObject(dataInput.identity_metadata))
+          ...withoutVerificationClaims(dataInput.identity_metadata)
         }
       });
       identityId = String(identity.id || "");
@@ -8922,6 +8923,11 @@ async function parsePortalActionRequest(request: unknown) {
   }
   if (file) fields.__file = file;
   return fields;
+}
+
+/** Identity metadata from a request, minus anything that records a verification. */
+function withoutVerificationClaims(value: unknown) {
+  return Object.fromEntries(Object.entries(asObject(value)).filter(([key]) => !/verif/i.test(key)));
 }
 
 async function handlePortalAction(app: FastifyInstance, action: string, body: JsonObject, request?: FastifyRequest, reply?: FastifyReply) {

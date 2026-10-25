@@ -226,3 +226,29 @@ test("credentialed CORS and cookie writes are for our own origin only", async ()
   assert.equal(crossSite.statusCode, 403);
   assert.equal(foreign.headers["x-content-type-options"], "nosniff");
 });
+
+test("signup cannot claim a verified email, and a squatted staff address loses its password and sessions", async () => {
+  const email = `new-hire-${randomUUID()}@firstmate.example.test`;
+  const registered = await app.inject({ method: "POST", url: "/v1/platform/auth/register", headers: { origin: "https://app.example.test" }, payload: {
+    email, phone: "2025550133", name: "Squatter", password: "squatter-fixture-password",
+    identity_metadata: { email_verified: true, signup_email_verification: { verified: true }, note: "kept" }
+  } });
+  assert.equal(registered.statusCode, 201, registered.body);
+  const storage = await import("../platform/storage.js");
+  const identity: any = await storage.findIdentityByEmail(email);
+  assert.equal(identity.metadata.email_verified, false);
+  assert.equal(identity.metadata.signup_email_verification?.verified, false);
+  assert.equal(identity.metadata.note, "kept");
+  const squatterCookie = String(registered.headers["set-cookie"]).match(/fm_platform_session=[^;,]+/)![0];
+
+  // An admin then creates the staff record for that address.
+  const admin = await staffMember("hiring-admin", "admin");
+  const created = await inject("POST", "/v1/internal/users", { cookie: admin.cookie }, { email, name: "New Hire", role: "technician", account_type: "employee" });
+  assert.ok(created.statusCode < 300, created.body);
+  // The squatter's session and password no longer work, so they never become staff.
+  assert.equal((await inject("GET", "/v1/internal/users", { cookie: squatterCookie })).statusCode, 401);
+  const login = await app.inject({ method: "POST", url: "/v1/platform/auth/login", headers: { origin: "https://app.example.test" }, payload: { email, password: "squatter-fixture-password" } });
+  assert.notEqual(login.statusCode, 200, login.body);
+  const adopted: any = await storage.findIdentityByEmail(email);
+  assert.equal(adopted.metadata.invite_pending, true);
+});
