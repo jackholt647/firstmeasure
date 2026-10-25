@@ -118,6 +118,38 @@
       ensureMounted(context);
       renderPhotoGallery();
       hydrateOwnedProjectMedia();
+      ensureSavedSatellite();
+    }
+  }
+
+  // The satellite image is saved into the library as an ordinary photo the first time a saved project needs it
+  // (server side, once per project); until then the generated image stands in for the cover.
+  async function ensureSavedSatellite(){
+    const library = projectPhotoLibrary();
+    const project = activeProject();
+    const projectId = activeProjectId(project);
+    const orgId = firstMeasurePhotoOptions().orgId;
+    if (!state.active || !project || !projectId || !orgId || typeof library?.ensureSatelliteMedia !== 'function') return null;
+    if (library.savedSatellitePhoto?.(projectPhotosList())) return null;
+    const result = await library.ensureSatelliteMedia(orgId, projectId).catch(() => null);
+    if (!result || activeProjectId() !== projectId) return result;
+    applySatelliteResult(result);
+    if (state.active) renderPhotoGallery();
+    return result;
+  }
+
+  function applySatelliteResult(result){
+    const library = projectPhotoLibrary();
+    const project = activeProject();
+    if (!project || !result) return;
+    const next = library?.withSavedSatellite ? library.withSavedSatellite(projectPhotosList(), result) : projectPhotosList();
+    setProjectPhotosList(next);
+    project.photos = next.filter((photo) => !photo?.uploading).map(serializablePhoto);
+    if (result.satellite_media) project.satellite_media = result.satellite_media;
+    const cover = result.custom_field_values?.cover_photo;
+    if (cover?.media_id && !coverPhotoId()) {
+      const photo = next.find((entry) => projectPhotoId(entry) === cover.media_id) || null;
+      updateLocalCover({ media_id: cover.media_id }, photo);
     }
   }
 
@@ -311,7 +343,8 @@
     if (!library?.primaryPhoto) return null;
     const values = { ...(project.custom_field_values || project.custom_fields || {}), cover_photo:null };
     const photo = library.primaryPhoto({ ...project, photos:projectPhotosList(), custom_field_values:values, custom_fields:values }, firstMeasurePhotoOptions());
-    return photo ? { ...photo, fallback_srcs:coverFallbackSources(project, photo) } : null;
+    if (!photo) return null;
+    return library.isSatelliteMedia?.(photo) ? photo : { ...photo, fallback_srcs:coverFallbackSources(project, photo) };
   }
 
   // A measurement's satellite image can be missing (not fetched yet, or stored under another
@@ -593,32 +626,40 @@
     return !!projectPhotoId(photo) && String(photo?.content_type || photo?.mime_type || photo?.mime || '').startsWith('image/');
   }
 
+  // The photo the project shows as its cover: the chosen one, else the saved satellite photo.
+  function effectiveCoverId(){
+    const chosen = coverPhotoId();
+    if (chosen) return chosen;
+    const saved = projectPhotoLibrary()?.savedSatellitePhoto?.(projectPhotosList());
+    return saved ? projectPhotoId(saved) : '';
+  }
+
+  // Removing a cover falls back to the saved satellite photo, so the satellite photo itself has nothing to remove.
+  function coverRemovable(photo){
+    const id = projectPhotoId(photo);
+    return !!id && coverPhotoId() === id && !projectPhotoLibrary()?.isSatelliteMedia?.(photo);
+  }
+
   function coverViewerActions(){
     const eligible = ({photo}) => coverEligible(photo);
     return [
-      {id:'set_project_cover',label:coverText('cover_set_action','Set as cover photo'),icon:'image',visible:context=>eligible(context) && coverPhotoId()!==projectPhotoId(context.photo),onClick:({photo,viewer})=>setProjectCover(photo,viewer)},
-      {id:'remove_project_cover',label:coverText('cover_remove_action','Remove cover photo'),icon:'image',visible:({photo})=>!!coverPhotoId() && coverPhotoId()===projectPhotoId(photo),onClick:({viewer})=>setProjectCover(null,viewer)}
+      {id:'set_project_cover',label:coverText('cover_set_action','Set as cover photo'),icon:'image',visible:context=>eligible(context) && effectiveCoverId()!==projectPhotoId(context.photo),onClick:({photo,viewer})=>setProjectCover(photo,viewer)},
+      {id:'remove_project_cover',label:coverText('cover_remove_action','Remove cover photo'),icon:'image',visible:({photo})=>coverRemovable(photo),onClick:({viewer})=>setProjectCover(null,viewer)}
     ];
   }
 
   // ---- The cover in the Photos tab ----
-  // The cover is the project's `cover_photo` custom field (one media reference), written by setProjectCover.
-  // With no cover chosen the project shows its satellite image, which is not library media: the Photos tab
-  // shows the current cover in a card above the gallery, marks the cover's tile, and offers "Set as cover"
-  // on every other image tile.
+  // The cover is the project's `cover_photo` custom field (one media reference), written by setProjectCover; with
+  // none chosen it is the saved satellite photo. It is an ordinary tile in the gallery with a small "Cover" pill;
+  // every other image tile offers "Set as cover" on hover.
   function coverChipHtml(photoId){
     const id = String(photoId || '').trim();
     if (!id) return '';
-    if (id === coverPhotoId()) {
-      return `<span class="r-photo-cover-chip is-cover" data-project-cover-chip="${escapeHtml(id)}"><i class="fas fa-image" aria-hidden="true"></i>${escapeHtml(coverText('cover_badge','Cover'))}</span>`;
+    if (id === effectiveCoverId()) {
+      return `<span class="r-photo-cover-chip is-cover" data-project-cover-chip="${escapeHtml(id)}" data-project-cover-current><i class="fas fa-image" aria-hidden="true"></i>${escapeHtml(coverText('cover_badge','Cover'))}</span>`;
     }
     const label = coverText('cover_set_action','Set as cover photo');
     return `<span class="r-photo-cover-chip" data-project-cover-chip="${escapeHtml(id)}" data-project-cover-set="${escapeHtml(id)}" role="button" title="${escapeHtml(label)}" aria-label="${escapeHtml(label)}"><i class="fas fa-image" aria-hidden="true"></i>${escapeHtml(coverText('cover_set_chip','Set as cover'))}</span>`;
-  }
-
-  // The gallery's own 320px thumbnail for library media, so the card matches the tile.
-  function coverMediaThumb(mediaId){
-    try { return String(window.PlatformAPI?.media?.thumbnailUrl?.(firstMeasurePhotoOptions().orgId, mediaId, 320) || '').trim(); } catch (_) { return ''; }
   }
 
   function renderCoverTileBadge(item){
@@ -626,41 +667,13 @@
     return coverEligible(photo) && !photo.uploading ? coverChipHtml(projectPhotoId(photo)) : '';
   }
 
-  function coverCardHtml(options = {}){
-    const custom = !!coverPhotoId();
-    const photo = custom ? projectThumbnailPhoto() : projectCoverDefault();
-    if (!photo) return '';
-    const mediaThumb = custom ? coverMediaThumb(coverPhotoId()) : '';
-    const src = String(mediaThumb || photo.thumb || photo.src || '').trim();
-    const fallbacks = custom ? [photo.src].filter((url) => url && url !== src) : (photo.fallback_srcs || []);
-    const entry = custom ? projectPhotosList().find((item) => projectPhotoId(item) === coverPhotoId()) : null;
-    const label = String((custom ? (entry?.file_name || entry?.label || photo.file_name || photo.label || photo.alt) : (photo.label || photo.alt)) || coverText('cover_card_kicker','Cover photo')).trim();
-    const note = custom
-      ? coverText('cover_custom_note','Shown on the project tile and in Overview.')
-      : coverText('cover_default_note','Shown on the project tile and in Overview until you set a photo as the cover.');
-    const reset = custom && projectCoverDefault()
-      ? coverText('cover_use_satellite','Use satellite image')
-      : (custom ? coverText('cover_remove_action','Remove cover photo') : '');
-    return `<section class="r-photo-cover${options.updated ? ' is-updated' : ''}${custom ? ' is-custom' : ''}" data-project-cover-card>
-      <span class="r-photo-cover-media">${src ? `<img src="${escapeHtml(src)}" alt=""${fallbacks.length ? ` data-cover-fallbacks="${escapeHtml(JSON.stringify(fallbacks))}"` : ''}>` : '<i class="fas fa-image" aria-hidden="true"></i>'}</span>
-      <span class="r-photo-cover-copy">
-        <span class="r-photo-cover-kicker"><i class="fas fa-image" aria-hidden="true"></i>${escapeHtml(coverText('cover_card_kicker','Cover photo'))}</span>
-        <strong>${escapeHtml(label)}</strong>
-        <span>${escapeHtml(note)}</span>
-      </span>
-      ${reset ? `<button type="button" class="r-photo-cover-reset" data-project-cover-reset><i class="fas fa-satellite" aria-hidden="true"></i>${escapeHtml(reset)}</button>` : ''}
-    </section>`;
-  }
-
-  // Repaints the cover card and tile chips in place after the cover changes, without rebuilding the gallery.
+  // Repaints the tile pills in place after the cover changes, without rebuilding the gallery.
   function refreshCoverDecorations(){
     const root = state.panelRoot;
     if (!root?.isConnected) return;
     root.querySelectorAll('[data-project-cover-chip]').forEach((chip) => {
       chip.outerHTML = coverChipHtml(chip.dataset.projectCoverChip);
     });
-    const card = root.querySelector('[data-project-cover-card]');
-    if (card) card.outerHTML = coverCardHtml({ updated:true });
   }
 
   function bindCoverControls(root){
@@ -672,60 +685,34 @@
     }, true);
     root.addEventListener('click', async (event) => {
       const set = event.target?.closest?.('[data-project-cover-set]');
-      const reset = event.target?.closest?.('[data-project-cover-reset]');
-      if (!set && !reset) return;
+      if (!set) return;
       event.preventDefault();
       event.stopPropagation();
-      const control = set || reset;
-      if (control.classList.contains('is-pending')) return;
-      const id = set ? String(set.dataset.projectCoverSet || '') : '';
-      const photo = set ? projectPhotosList().find((entry) => projectPhotoId(entry) === id) : null;
-      if (set && !photo) return;
-      control.classList.add('is-pending');
-      if (reset) reset.disabled = true;
+      if (set.classList.contains('is-pending')) return;
+      const id = String(set.dataset.projectCoverSet || '');
+      const photo = projectPhotosList().find((entry) => projectPhotoId(entry) === id);
+      if (!photo) return;
+      set.classList.add('is-pending');
       try {
         await setProjectCover(photo, state.activeViewer);
       } catch (error) {
         showToast(coverText('cover_not_changed','Cover photo not changed'), error?.message || '', false);
       } finally {
-        control.classList.remove('is-pending');
-        if (reset) reset.disabled = false;
+        set.classList.remove('is-pending');
       }
-    }, true);
-    // A satellite image that is not there yet falls back like the My Projects tile does.
-    root.addEventListener('error', (event) => {
-      const img = event.target;
-      if (!img || img.tagName !== 'IMG' || !img.dataset?.coverFallbacks) return;
-      let backups = [];
-      try { backups = JSON.parse(img.dataset.coverFallbacks) || []; } catch (_) {}
-      const next = backups.shift();
-      if (backups.length) img.dataset.coverFallbacks = JSON.stringify(backups); else delete img.dataset.coverFallbacks;
-      if (next) img.src = next;
     }, true);
   }
 
   function injectCoverCss(){
     const css = `
-      .r-photo-cover{display:flex;align-items:center;gap:14px;margin:2px 0 18px;padding:10px 12px 10px 10px;border:1px solid #eaecf0;border-radius:13px;background:#fff;box-shadow:0 1px 2px rgba(16,24,40,.04);min-width:0}
-      .r-photo-cover.is-updated{animation:rPhotoCoverIn .32s ease}
-      .r-photo-cover-media{flex:0 0 auto;width:96px;aspect-ratio:4/3;border-radius:9px;overflow:hidden;background:#f2f4f7;display:flex;align-items:center;justify-content:center;color:#98a2b3;font-size:20px}
-      .r-photo-cover-media img{width:100%;height:100%;object-fit:cover;display:block}
-      .r-photo-cover-copy{display:flex;flex-direction:column;gap:3px;min-width:0;flex:1}
-      .r-photo-cover-kicker{display:inline-flex;align-items:center;gap:6px;font-size:10px;font-weight:1000;text-transform:uppercase;letter-spacing:.08em;color:var(--primary-readable,var(--primary,#d93025))}
-      .r-photo-cover-copy strong{font-size:13px;color:#101828;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-      .r-photo-cover-copy>span:last-child{font-size:11px;color:#667085;line-height:1.35}
-      .r-photo-cover-reset{flex:0 0 auto;height:32px;border:1px solid rgba(15,23,42,.12);border-radius:8px;background:#fff;color:#344054;padding:0 11px;display:inline-flex;align-items:center;gap:7px;font:inherit;font-size:11px;font-weight:900;cursor:pointer;transition:border-color .16s ease,color .16s ease}
-      .r-photo-cover-reset:hover{border-color:rgba(var(--primary-rgb,217,48,37),.28);color:var(--primary-readable,var(--primary,#d93025))}
-      .r-photo-cover-reset:disabled{opacity:.6;cursor:default}
       .r-photo-cover-chip{position:absolute;top:7px;right:7px;z-index:3;display:inline-flex;align-items:center;gap:5px;height:24px;padding:0 9px;border-radius:999px;background:rgba(15,23,42,.62);color:#fff;font-size:10px;font-weight:1000;white-space:nowrap;backdrop-filter:blur(10px);box-shadow:0 6px 14px rgba(15,23,42,.16);cursor:pointer;opacity:0;transform:translateY(-3px);transition:opacity .16s ease,transform .16s ease,background .16s ease}
       .r-photo-cover-chip:hover{background:var(--primary,#d93025)}
       .pf-thumb:hover .r-photo-cover-chip,.pf-thumb:focus-visible .r-photo-cover-chip{opacity:1;transform:none}
       .r-photo-cover-chip.is-cover{opacity:1;transform:none;background:var(--primary,#d93025);cursor:default;animation:rPhotoCoverIn .32s ease}
       .r-photo-cover-chip.is-pending{opacity:1;transform:none;pointer-events:none;background:rgba(15,23,42,.42)}
       .pf-wrap.selection-mode .r-photo-cover-chip:not(.is-cover){display:none}
-      @media(max-width:560px){.r-photo-cover{flex-wrap:wrap}.r-photo-cover-reset{margin-left:110px}}
       @keyframes rPhotoCoverIn{from{opacity:0;transform:scale(.96)}to{opacity:1;transform:none}}
-      @media(prefers-reduced-motion:reduce){.r-photo-cover,.r-photo-cover-chip,.r-photo-cover-reset{animation:none;transition:none}}
+      @media(prefers-reduced-motion:reduce){.r-photo-cover-chip{animation:none;transition:none}}
     `;
     if (typeof util.injectCSS === 'function') util.injectCSS('project-photos-cover', css);
     else if (!document.getElementById('project-photos-cover')) {
@@ -745,7 +732,7 @@
       tone:'info',
       visible:({ photo }) => String(photo?.metadata?.source || '').toLowerCase() === 'project_notes'
     }];
-    indicators.push({id:'project_cover',label:coverText('cover_badge','Cover'),detail:coverText('cover_card_kicker','Cover photo'),icon:'image',tone:'info',visible:({photo})=>!!coverPhotoId() && coverPhotoId()===projectPhotoId(photo)});
+    indicators.push({id:'project_cover',label:coverText('cover_badge','Cover'),detail:coverText('cover_card_kicker','Cover photo'),icon:'image',tone:'info',visible:({photo})=>!!effectiveCoverId() && effectiveCoverId()===projectPhotoId(photo)});
     if (!window.customerPortalMediaEnabled?.()) return indicators;
     indicators.push({
       id: 'customer_portal_shared',
@@ -834,7 +821,6 @@
         routeScope: 'project',
         initialPhotoId: window.pendingRoutePhotoId,
         selectionActions: portalSelectionActions(),
-        introHtml: () => coverCardHtml(),
         renderTileBadge: renderCoverTileBadge,
         viewerActions: portalViewerActions(),
         viewerIndicators: portalViewerIndicators(),
@@ -1267,6 +1253,7 @@
     serializablePhoto,
     projectThumbnailPhoto,
     projectCoverDefault,
+    ensureSavedSatellite,
     syncProjectPhotosFromLibrary,
     proposalPhotoById,
     normalizePhoto,

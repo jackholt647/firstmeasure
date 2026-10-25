@@ -164,7 +164,7 @@
       kind: 'project_modal_app',
       surfaces: ['project_modal'],
       requiresContext: ['project'],
-      bundles: [versionedBundle('photos/project.js', '20261024-cover-photo')]
+      bundles: [versionedBundle('photos/project.js', '20261024-cover-as-media')]
     },
     {
       // DEPRECATED (2026-08): legacy Proposals project tab — hidden by its
@@ -332,7 +332,7 @@
       kind: 'project_modal_app',
       surfaces: ['project_modal'],
       requiresContext: ['project'],
-      bundles: [versionedBundle('customer-portal/project.js', '20261024-portal-tab-draft-v3')]
+      bundles: [versionedBundle('../platform-qr/platform-qr.js', '20261024-qr-v1'), versionedBundle('customer-portal/project.js', '20261024-cover-as-media')]
     },
     {
       id: 'project.schedule',

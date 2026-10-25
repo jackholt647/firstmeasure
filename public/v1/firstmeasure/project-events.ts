@@ -26,6 +26,12 @@ async function emit(orgId: string, projectId: string, project: JsonObject, type:
   });
 }
 
+/** A completed report's top-down image becomes a photo in each linked project's library (projects/satellite-media.ts). */
+async function saveReportSatellite(orgId: string, projectIds: string[]) {
+  const { saveSatelliteMediaForReport } = await import("../projects/satellite-media.js");
+  await saveSatelliteMediaForReport(orgId, projectIds);
+}
+
 /**
  * A project write that links a report the project did not link before: the report was ordered for it. A report that
  * is already complete when it is linked (an instant report) has also been delivered.
@@ -38,6 +44,7 @@ export async function publishProjectReportLink(orgId: string, projectId: string,
     const status = clean(report.status || obj(report.raw).status).toLowerCase();
     await emit(orgId, projectId, after, "measurement.report.ordered", reportId, { report_status: status }, actorUserId);
     if (status === "completed") await emit(orgId, projectId, after, "measurement.report.completed", reportId, {}, actorUserId);
+    if (status === "completed") await saveReportSatellite(orgId, [projectId]);
   } catch (error) {
     // The project is saved; a failed publication must not undo it.
     console.warn("Publishing measurement.report.ordered failed", projectId, error);
@@ -51,9 +58,11 @@ export async function publishReportCompleted(previous: JsonObject | null, curren
   if (!orgId || !reportId) return;
   try {
     // Full scan of the organization's projects, once per completed report (docs/optimization-backlog.md).
-    for (const project of (await listDocuments(orgId, "projects")).filter((document) => linkedReportId(obj(document.data)) === reportId)) {
+    const linked = (await listDocuments(orgId, "projects")).filter((document) => linkedReportId(obj(document.data)) === reportId);
+    for (const project of linked) {
       await emit(orgId, clean(project.id), obj(project.data), "measurement.report.completed", reportId, {});
     }
+    await saveReportSatellite(orgId, linked.map((project) => clean(project.id)));
   } catch (error) {
     // The report transition is committed; a failed publication must not reverse it.
     console.warn("Publishing measurement.report.completed failed", reportId, error);

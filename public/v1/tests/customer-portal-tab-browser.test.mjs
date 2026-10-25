@@ -11,9 +11,10 @@ const chrome=process.env.CHROME_PATH||'C:/Program Files/Google/Chrome/Applicatio
 const LIVE='https://portal.test/p/live-123';
 const PREVIEW='https://portal.test/p/preview/prev-456';
 
-async function setup(browser,{width=1280,height=860,reducedMotion='no-preference',photos=3,activity=true,draft=false,runtime=false,caps=['scheduling.customer_rescheduling'],cover='',satellite=false,topDownInList=false}={}){
+async function setup(browser,{width=1280,height=860,reducedMotion='no-preference',photos=3,activity=true,draft=false,runtime=false,caps=['scheduling.customer_rescheduling','customer_portal.guest_links'],cover='',satellite=false,topDownInList=false,savedSatellite=false,serverSatellite=false}={}){
   const page=await browser.newPage({viewport:{width,height},reducedMotion});
   const errors=[];page.on('pageerror',error=>errors.push(error.message));
+  const offsite=[];page.on('request',request=>{const url=new URL(request.url());if(!['data:','blob:'].includes(url.protocol)&&url.host!=='cp.test')offsite.push(request.url());});
   await page.route('http://cp.test/**',async route=>{
     const pathname=new URL(route.request().url()).pathname;
     if(pathname.startsWith('/libraries/'))return route.fulfill({contentType:'application/javascript; charset=utf-8',body:await readFile(new URL(pathname.slice('/libraries/'.length),libraries))});
@@ -22,7 +23,7 @@ async function setup(browser,{width=1280,height=860,reducedMotion='no-preference
     return route.fulfill({contentType:'text/html; charset=utf-8',body:'<!doctype html><html><body style="margin:0;font-family:Arial"><div id="stage" style="height:100vh"><div id="panel" style="height:100%"></div></div></body></html>'});
   });
   await page.goto('http://cp.test/');
-  await page.evaluate(({LIVE,PREVIEW,photos,activity,draft,caps,cover,satellite,topDownInList})=>{
+  await page.evaluate(({LIVE,PREVIEW,photos,activity,draft,caps,cover,satellite,topDownInList,savedSatellite,serverSatellite})=>{
     const now=Date.now();
     window.calls=[];window.toasts=[];
     window.Portal={util:{},ui:{showToast:(...args)=>toasts.push(args)},modules:{},capabilities:{can:key=>caps.includes(key)}};
@@ -58,15 +59,20 @@ async function setup(browser,{width=1280,height=860,reducedMotion='no-preference
         if(id)return {...(project.photos.find(item=>item.id===id)||{}),media_id:id};
         return satellite?satellitePhoto:(project.photos[0]||null);
       },
-      googleStaticMapPhoto:()=>({src:'/img/static-map.svg'})
+      googleStaticMapPhoto:()=>({src:'/img/static-map.svg'}),
+      savedSatellitePhoto:(list)=>(list||[]).find(item=>item.media_id&&item.metadata?.source==='satellite_top_down')||null,
+      withSavedSatellite:(list,result)=>[...list,...(result.photos||[]).filter(item=>!list.some(own=>own.id===item.id))],
+      ...(serverSatellite?{ensureSatelliteMedia:async(org,project)=>{calls.push(['ensureSatelliteMedia',org,project]);return {status:'saved',media_id:'sat',photos:[{id:'sat',media_id:'sat',label:'Top-down satellite',thumb:'/img/sat.svg',metadata:{source:'satellite_top_down'}}],custom_field_values:{cover_photo:{media_id:'sat'}}};}}:{})
     };
     window.PlatformAPI.media={thumbnailUrl:(org,id)=>'/img/'+id+'-320.svg'};
     Object.defineProperty(navigator,'clipboard',{configurable:true,value:{writeText:async text=>{calls.push(['clipboard',text]);}}});
     window.mediaList=Array.from({length:photos},(_,index)=>({id:'m'+(index+1),label:'Photo '+(index+1),thumb:'/img/'+(index+1)+'.svg'}));
     if(topDownInList)mediaList.unshift({id:'top_down_thumbnail',is_top_down_thumbnail:true,thumb:'/img/sat.svg'});
+    if(savedSatellite)mediaList.unshift({id:'sat',media_id:'sat',label:'Top-down satellite',thumb:'/img/sat.svg',metadata:{source:'satellite_top_down'}});
     window.cpHost={
       getProject:()=>({id:'p1',contacts:[{id:'c1',primary:true,name:'Pat',email:'pat@example.com'}]}),
       getPhotos:()=>mediaList,
+      setPhotos:list=>{window.mediaList=list;},
       projectOrgId:()=>'org1',
       customerPortalEnabled:()=>true,
       customerPortalMediaEnabled:()=>true
@@ -75,7 +81,8 @@ async function setup(browser,{width=1280,height=860,reducedMotion='no-preference
     window.cpHost.getProject=()=>window.currentProject;
     window.savedProject={id:'p1',contacts:[{id:'c1',primary:true,name:'Pat',email:'pat@example.com'}]};
     window.cpHost.ensureProject=async()=>{calls.push(['ensureProject']);await new Promise(resolve=>setTimeout(resolve,60));window.currentProject=window.savedProject;return window.currentProject;};
-  },{LIVE,PREVIEW,photos,activity,draft,caps,cover,satellite,topDownInList});
+  },{LIVE,PREVIEW,photos,activity,draft,caps,cover,satellite,topDownInList,savedSatellite,serverSatellite});
+  await page.addScriptTag({url:'/libraries/platform-qr/platform-qr.js'});
   if(runtime)await page.addScriptTag({url:'/libraries/app-runtime/firstmate-embeddable-apps.js'});
   await page.addScriptTag({url:'/libraries/apps/customer-portal/project.js'});
   await page.evaluate(async()=>{
@@ -85,6 +92,7 @@ async function setup(browser,{width=1280,height=860,reducedMotion='no-preference
     app.mount({panelRoot:panel,host:cpHost,projectWorkspace:cpHost});
     await app.load({silent:true});
   });
+  page.offsite=offsite;
   const root=page.locator('#rCustomerPortalPanel');
   if(!draft&&photos)await root.locator('[data-cpo-tile]').first().waitFor().catch(()=>{});
   return {page,errors,root};
@@ -341,9 +349,9 @@ test('media is left out when the organization has portal media off',()=>withBrow
   assert.equal(await page.locator('[data-cpo-link]').inputValue(),LIVE);
 }));
 
-test('customer rescheduling shows only when its capability is on; guest links have no capability yet',()=>withBrowser(async browser=>{
+test('customer rescheduling shows only when its capability is on',()=>withBrowser(async browser=>{
   {
-    const {page,errors,root}=await setup(browser,{caps:[]});
+    const {page,errors,root}=await setup(browser,{caps:['customer_portal.guest_links']});
     assert.equal(await root.locator('[data-cpo-rescheduling]').count(),0,'no switch without scheduling.customer_rescheduling');
     assert.equal(await root.locator('[data-cpo-sharing]').count(),1);
     // Turning the capability on shows it without a reload.
@@ -358,48 +366,99 @@ test('customer rescheduling shows only when its capability is on; guest links ha
   }
 }));
 
-test('the satellite cover shows in the media area, is not in the customer portal, and is not an empty state',()=>withBrowser(async browser=>{
-  const {page,errors,root}=await setup(browser,{photos:0,satellite:true});
-  const cover=root.locator('[data-cpo-cover]');
-  await cover.waitFor();
-  assert.equal(await cover.getAttribute('data-cover-kind'),'satellite');
-  assert.match(await cover.innerText(),/Cover[\s\S]*Satellite image/i);
-  assert.match(await cover.locator('[data-cpo-cover-state]').innerText(),/Not in portal/);
-  assert.match(await cover.getAttribute('data-fm-tooltip'),/does not show a cover/);
-  assert.equal(await root.locator('[data-cpo-media-empty]').count(),0,'not empty: there is a cover');
-  assert.equal(await root.locator('[data-cpo-tile]').count(),0);
-  // The missing satellite image falls back like Photos does.
-  await page.waitForFunction(()=>document.querySelector('[data-cpo-cover] img')?.getAttribute('src')!=='/img/sat-missing.svg');
-  assert.deepEqual(errors,[]);
+test('customer guest links show only when their capability is on, and follow it without a reload',()=>withBrowser(async browser=>{
+  {
+    const {page,errors,root}=await setup(browser,{caps:['scheduling.customer_rescheduling']});
+    assert.equal(await root.locator('[data-cpo-guest-switch],[data-cpo-sharing]').count(),0,'no switch without customer_portal.guest_links');
+    assert.equal(await root.locator('[data-cpo-guests-toggle]').count(),0,'no active-links pill');
+    assert.equal(await root.locator('[data-cpo-guests],[data-cpo-guest]').count(),0,'no list');
+    assert.equal(await root.locator('[data-cpo-rescheduling]').count(),1,'the other switch stays');
+    await page.evaluate(()=>{Portal.capabilities.can=key=>['scheduling.customer_rescheduling','customer_portal.guest_links'].includes(key);window.dispatchEvent(new CustomEvent('fm:capabilities:updated'));});
+    await root.locator('[data-cpo-sharing]').waitFor({state:'attached'});
+    assert.match(await root.locator('[data-cpo-guests-toggle]').textContent(),/1 active/);
+    await page.evaluate(()=>{Portal.capabilities.can=key=>key==='scheduling.customer_rescheduling';window.dispatchEvent(new CustomEvent('fm:capabilities:updated'));});
+    await page.waitForFunction(()=>!document.querySelector('[data-cpo-sharing]'));
+    assert.equal(await root.locator('[data-cpo-guests-toggle]').count(),0);
+    assert.deepEqual(errors,[]);
+  }
+  {
+    const {root}=await setup(browser);
+    assert.equal(await root.locator('[data-cpo-sharing]').count(),1,'on: the switch, the pill and the list are there');
+    assert.equal(await root.locator('[data-cpo-guests-toggle]').count(),1);
+  }
 }));
 
-test('only a project with no media and no cover is empty; the satellite is never a shareable tile',()=>withBrowser(async browser=>{
+test('there is no cover row: a project with only the generated satellite image is empty, and it is never a tile',()=>withBrowser(async browser=>{
   {
-    const {root}=await setup(browser,{photos:0});
-    assert.equal(await root.locator('[data-cpo-media-empty]').count(),1);
-    assert.equal(await root.locator('[data-cpo-cover]').count(),0);
+    const {root,errors}=await setup(browser,{photos:0,satellite:true});
+    assert.equal(await root.locator('[data-cpo-cover]').count(),0,'no cover row');
+    assert.equal(await root.locator('[data-cpo-media-empty]').count(),1,'empty only because there is no media');
+    assert.deepEqual(errors,[]);
   }
   {
     const {root}=await setup(browser,{photos:2,satellite:true,topDownInList:true});
     assert.deepEqual(await root.locator('[data-cpo-tile]').evaluateAll(nodes=>nodes.map(node=>node.dataset.cpoTile)),['m1','m2']);
     assert.match(await root.locator('[data-cpo-media-count]').innerText(),/1 of 2 shared/);
-    assert.equal(await root.locator('[data-cpo-cover]').getAttribute('data-cover-kind'),'satellite');
+    assert.equal(await root.locator('[data-cpo-cover]').count(),0);
   }
 }));
 
-test('a chosen cover is also a normal tile marked Cover, and its shared state follows sharing',()=>withBrowser(async browser=>{
-  const {page,errors,root}=await setup(browser,{photos:3,cover:'m2',satellite:true});
-  const cover=root.locator('[data-cpo-cover]');
-  assert.equal(await cover.getAttribute('data-cover-kind'),'chosen');
-  assert.equal(await cover.getAttribute('data-cover-media'),'m2');
-  assert.equal(await cover.locator('img').getAttribute('src'),'/img/m2-320.svg');
-  assert.match(await cover.locator('[data-cpo-cover-state]').innerText(),/Hidden/);
+test('the saved satellite photo is a normal tile with the Cover pill, shared or hidden like any other',()=>withBrowser(async browser=>{
+  const {page,errors,root}=await setup(browser,{photos:2,savedSatellite:true});
+  assert.equal(await root.locator('[data-cpo-cover]').count(),0,'no cover row');
+  assert.deepEqual(await root.locator('[data-cpo-tile]').evaluateAll(nodes=>nodes.map(node=>node.dataset.cpoTile)),['sat','m1','m2']);
+  assert.equal(await root.locator('[data-cpo-tile="sat"] [data-cpo-tile-cover]').innerText(),'Cover');
+  assert.equal(await root.locator('[data-cpo-tile-cover]').count(),1);
+  assert.match(await root.locator('[data-cpo-media-count]').innerText(),/1 of 3 shared/);
+  assert.equal(await root.locator('[data-cpo-tile="sat"]').evaluate(node=>node.classList.contains('is-shared')),false);
+  await root.locator('[data-cpo-tile="sat"]').click();
+  await root.locator('[data-cpo-share]').click();
+  await page.waitForFunction(()=>document.querySelector('[data-cpo-tile="sat"]').classList.contains('is-shared'));
+  assert.deepEqual(await page.evaluate(()=>calls.find(call=>call[0]==='shareMedia')),['shareMedia',['sat']]);
+  await root.locator('[data-cpo-tile="sat"]').click();
+  await root.locator('[data-cpo-unshare]').click();
+  await page.waitForFunction(()=>!document.querySelector('[data-cpo-tile="sat"]').classList.contains('is-shared'));
+  assert.deepEqual(errors,[]);
+}));
+
+test('a chosen cover is a normal tile marked Cover; the satellite photo then has no pill',()=>withBrowser(async browser=>{
+  const {page,errors,root}=await setup(browser,{photos:3,cover:'m2',savedSatellite:true});
+  assert.equal(await root.locator('[data-cpo-cover]').count(),0);
   assert.equal(await root.locator('[data-cpo-tile="m2"] [data-cpo-tile-cover]').count(),1);
   assert.equal(await root.locator('[data-cpo-tile-cover]').count(),1);
   await root.locator('[data-cpo-tile="m2"]').click();
   await root.locator('[data-cpo-share]').click();
-  await page.waitForFunction(()=>document.querySelector('[data-cpo-cover-state]').classList.contains('is-shared'));
-  assert.match(await cover.locator('[data-cpo-cover-state]').innerText(),/Shared/);
-  assert.match(await cover.getAttribute('data-fm-tooltip'),/can see this photo/);
+  await page.waitForFunction(()=>document.querySelector('[data-cpo-tile="m2"]').classList.contains('is-shared'));
+  assert.deepEqual(errors,[]);
+}));
+
+test('opening the tab saves the satellite photo once and lists it as a tile',()=>withBrowser(async browser=>{
+  const {page,errors,root}=await setup(browser,{photos:1,serverSatellite:true});
+  await page.evaluate(()=>Portal.modules.customerPortalProject.activate({}));
+  await root.locator('[data-cpo-tile="sat"]').waitFor();
+  assert.equal(await root.locator('[data-cpo-tile="sat"] [data-cpo-tile-cover]').count(),1,'the server named it the cover');
+  await page.evaluate(()=>Portal.modules.customerPortalProject.activate({}));
+  await page.waitForTimeout(50);
+  assert.equal(await page.evaluate(()=>calls.filter(call=>call[0]==='ensureSatelliteMedia').length),1,'once it is in the library it is not asked for again');
+  assert.deepEqual(errors,[]);
+}));
+
+test('Download QR makes the PNG in the page: no request leaves for another host',()=>withBrowser(async browser=>{
+  const {page,errors,root}=await setup(browser);
+  const [download]=await Promise.all([page.waitForEvent('download'),root.locator('[data-cpo-qr]').click()]);
+  assert.equal(download.suggestedFilename(),'customer-portal-qr.png');
+  const file=await download.path();
+  const bytes=await readFile(file);
+  assert.deepEqual([...bytes.subarray(0,8)],[0x89,0x50,0x4e,0x47,0x0d,0x0a,0x1a,0x0a],'a PNG');
+  await page.waitForFunction(()=>document.querySelector('[data-cpo-qr]').classList.contains('is-done'));
+  assert.deepEqual(page.offsite,[],'nothing was fetched from another host');
+  const source=await readFile(new URL('apps/customer-portal/project.js',libraries),'utf8');
+  assert.doesNotMatch(source,/qrserver|chart\.googleapis|quickchart/i);
+  // The code is the customer link: the same modules as the encoder the document widgets use.
+  const matches=await page.evaluate(async LIVE=>{
+    const code=window.PlatformQR.encode(LIVE);
+    return code && code.size>=21 && code.modules[0].slice(0,7).every(Boolean) && code.modules[6].slice(0,7).every(Boolean);
+  },LIVE);
+  assert.equal(matches,true,'finder pattern in the corner');
   assert.deepEqual(errors,[]);
 }));

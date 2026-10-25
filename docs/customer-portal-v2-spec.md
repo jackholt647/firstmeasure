@@ -631,6 +631,15 @@ New sub-record on the portal document:
 This is the whole point of "safe sharing": the customer forwards a guest link
 instead of their own uuid, and revocation is a real control.
 
+As built, customer guest links are the organization feature
+`customer_portal.guest_links` (parent `platform.customer_portal`, default on).
+With its switch off, `createPortalGuestLink` refuses new links from the customer
+and from staff (`portal_guest_links_disabled`), the portal payload's
+`access.can_share` is false so the customer's portal shows no share control, and
+the project window's Customer Portal tab hides the guest-link switch, the active
+links pill and the list. Links made before keep working until they expire or are
+revoked, and both revoke routes stay available.
+
 ### 8.4 Customer-facing scope, upsells, proposalless jobs
 
 Three faces of one idea: the project's scope, rendered for the customer, with
