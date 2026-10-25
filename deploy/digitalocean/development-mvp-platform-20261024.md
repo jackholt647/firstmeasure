@@ -63,5 +63,12 @@ Verified on dev: a new MVP org has one Roofing board (New, Inspection, Estimate,
 | `6420a83a`, `f4364ad4` | Portal tab and Materials tab on a draft project: full UI with empty states, the first write saves the draft. |
 | `8734bb13` | Cover saved as an ordinary photo (satellite media), cover pill instead of rows, in-house QR, `customer_portal.guest_links` (off in MVP). Platform worker restarted. |
 | `efd891a0` | Guided setup on the real assistant (workflow surface), one experience at a time across frames, no step lag or duplicate lines; catalog with 8 manufacturers and official logos under `public/images/brands/roofing/` (served on dev). |
+| `9e10e74b`, `e60440c0` | Closing a split project pane gives the remaining pane the full width. |
+| `eac9d641`, `3cbda20a` | Guided experiences: all questions visible, arrow only at a target, setup on first view, Materials revealed after onboarding; dev tools reset/replay and copy edited in place. |
+| `e03d0f3d` | Materials tab rail: even split with one resource column, a third otherwise. |
+| `79457a3a` | Agent tray has no manual pin; it pins itself only during a voice call (web, legacy). |
+| `cea0040c` | Materials settings gear: price book, suppliers, report defaults, resource categories in one modal (web, legacy). |
+| `bac33729` | Price book setup round: supplier step (provisional carry data), logo-only brands, two-column lines, materials list, cost-only prices with a labor page, price sheets to the agent, skip dialog, fast Back/Continue fix, dev tools at screen bottom-left. Platform worker restarted. |
+| `adf02bb8` | First-view tours for Photos, Reports and Customer Portal, replayable from the agent and dev tools. |
 
 Dev data: the newest MVP test org (`org_5c0424c9b09bbcfa`) was brought up to revision 11 by running the configuration's setup on it (`output/mvp-platform-20261024/upgrade-org.mjs`).
