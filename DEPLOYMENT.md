@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+October 24 Request security: [every /v1/firstmeasure, /v1/internal and /v1/communications route declares who may call it and refuses anonymous callers, identity only from a verified session or signed service request, PHP signs its Node calls, and credentialed CORS only for our own origins](deploy/digitalocean/development-request-security-20261024.md) records release `57a9aa43` on the development worker, legacy and web (pool down).
+
 October 24 My Projects can open on the map: [an Open on the map app option (map_first) that makes Map the default and first view, New project under the empty map's message, and a search that finds no project offers Create a new project for the typed address, looked up with Google at once](deploy/digitalocean/development-projects-map-first-20261024.md).
 
 October 24 MVP platform and the projects map: [a signup sandbox MVP platform configuration (My Projects, My Contacts, Feed; Photos, Customer Portal, Materials, Documents, Reports; no Scheduling) and a Map view in My Projects](deploy/digitalocean/development-mvp-platform-20261024.md) records releases `cc9144c3`, `6e50be65` and `2e9c8da3` on the development worker, legacy and web.
