@@ -1076,7 +1076,8 @@
     if (clean(data.source) === 'agent') {
       html += `<button type="button" class="fma-msg-source${anim}" data-open-agent="${esc(data.agent_id)}"><i class="fas fa-clock" aria-hidden="true"></i>${esc(data.agent_title || 'Agent')}${data.manual ? ' · test run' : ''}${message.created_at ? ` · ${esc(relativeTime(message.created_at))}` : ''}</button>`;
     }
-    html += `<div class="fma-msg assistant${anim}${failed ? ' failed' : ''}">${renderMarkdown(message.content)}`;
+    // A workflow line names its copy key, so a development editor can change it in place (guided experiences).
+    html += `<div class="fma-msg assistant${anim}${failed ? ' failed' : ''}"${clean(data.copy_key) && window.FirstMateGuides?.isDevEditor?.() ? ` data-gx-copy="${esc(clean(data.copy_key))}"` : ''}>${renderMarkdown(message.content)}`;
     const changes = array(data.changes).map(clean).filter(Boolean);
     if (changes.length) {
       html += `<div class="fma-msg-changes"><div class="label">${(globalThis.PlatformLanguage?.htmlText("platform-assistant","m_c46a636ed38aee","What changed") ?? "What changed")}</div>${String(changes.map((entry) => `<div class="row"><i class="fas fa-check" style="font-size:10px;color:#12b76a;"></i><span>${esc(entry)}</span></div>`).join(''))}</div>`;

@@ -129,10 +129,16 @@ export async function availableExperiences(ctx: PlatformAuthContext, surface: { 
   }
   const playable = new Set(out.map((entry) => entry.id));
   const faqs = surface.tab ? tabFaqs(text(surface.tab)) : null;
-  return {
+  // Development copy edits (dev.ts) are applied over the definitions' English; the library's own strings use the map.
+  const { copyOverrideMap, applyCopyOverrides, guidedDevAccess } = await import("./dev.js");
+  const overrides = await copyOverrideMap();
+  const dev = await guidedDevAccess(ctx);
+  return applyCopyOverrides({
     experiences: out, reveals,
-    faqs: faqs ? { tab: faqs.tab, questions: faqs.questions.filter((question) => question.action !== "play" || playable.has(question.experience!)) } : null
-  };
+    faqs: faqs ? { tab: faqs.tab, questions: faqs.questions.filter((question) => question.action !== "play" || playable.has(question.experience!)) } : null,
+    ...(Object.keys(overrides).length ? { copy_overrides: overrides } : {}),
+    ...(dev.editor ? { dev: { editor: true, experiences: listExperiences().map((definition) => ({ id: definition.id, title: definition.title, kind: definition.kind, scope: definition.scope })) } } : {})
+  }, overrides);
 }
 
 async function load(ctx: PlatformAuthContext, experienceId: string, surface: { tab?: string; projectId?: string } = {}) {
@@ -214,21 +220,23 @@ export async function guidedConversationTurn(ctx: PlatformAuthContext, experienc
   const { ensureProjectConversation } = await import("../assistant/project-context.js");
   const thread = await ensureProjectConversation(ctx, projectId);
   const threadId = text(object(thread).id);
-  const said = (phase === "done" ? definition.completion.say : (step as { say?: Copy[] }).say || []).map((copy) => copy.text);
+  const overrides = await (await import("./dev.js")).copyOverrideMap();
+  const sayCopy = phase === "done" ? definition.completion.say : (step as { say?: Copy[] }).say || [];
+  const said = sayCopy.map((copy) => overrides[copy.key] ?? copy.text);
   const choiceText = text(body.choice).replace(/[<>]/g, "").slice(0, 300);
   const data = { source: "guided_experience", experience_id: definition.id, variant_id: choice.variant.id, ...(step ? { step_id: step.id } : { phase }) };
   // Idempotent: every scripted line has a stable key, and a line the thread already holds is not written again
   // (a step shown twice, a resumed setup, a retried request, two frames).
   const at = step ? step.id : phase;
   const existing = new Set((await listAgentMessages("assistant", ctx.orgId, threadId, { limit: 500 }) as Record<string, unknown>[]).map((message) => String(object(object(message).data).line_key || "")).filter(Boolean));
-  const turn: { role: string; content: string; line_key: string }[] = [
+  const turn: { role: string; content: string; line_key: string; copy_key?: string }[] = [
     ...(choiceText ? [{ role: "user", content: choiceText, line_key: `${definition.id}:${at}:choice:${createHash("sha256").update(choiceText).digest("hex").slice(0, 12)}` }] : []),
-    ...said.map((content, i) => ({ role: "assistant", content, line_key: `${definition.id}:${at}:say:${i}` }))
+    ...said.map((content, i) => ({ role: "assistant", content, line_key: `${definition.id}:${at}:say:${i}`, copy_key: sayCopy[i]!.key }))
   ];
   let written = 0;
   for (const line of turn) {
     if (existing.has(line.line_key)) continue;
-    await appendAgentMessage("assistant", ctx.orgId, threadId, { role: line.role, content: line.content, data: { ...data, line_key: line.line_key } });
+    await appendAgentMessage("assistant", ctx.orgId, threadId, { role: line.role, content: line.content, data: { ...data, line_key: line.line_key, ...(line.copy_key ? { copy_key: line.copy_key } : {}) } });
     written += 1;
   }
   await writeProgress(ctx.orgId, subjectFor(definition, ctx), definition.id, { experience_version: definition.version, variant_id: choice.variant.id, bucket: choice.bucket, thread_subject: `project:${projectId}`, ...(step ? { step_id: step.id } : {}) });

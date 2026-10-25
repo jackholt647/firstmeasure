@@ -36,6 +36,27 @@ export async function registerGuidedExperiencesApi(app: FastifyInstance) {
     const ctx = await requirePlatformAuth(request, { orgId, csrf: true });
     return { ok: true, ...(await guidedConversationTurn(ctx, text(experienceId), request.body)) };
   });
+  // Development tools (dev.ts): development data environment only, refused elsewhere whoever asks.
+  app.post("/organizations/:orgId/dev/reset", async (request) => {
+    const ctx = await requirePlatformAuth(request, { orgId: params(request).orgId, csrf: true });
+    return { ok: true, ...(await (await import("./dev.js")).resetExperience(ctx, request.body)) };
+  });
+  app.put("/dev/copy", async (request) => {
+    const ctx = await requirePlatformAuth(request, { csrf: true });
+    return { ok: true, saved: await (await import("./dev.js")).saveCopy(ctx, request.body) };
+  });
+  app.get("/dev/copy/history", async (request) => {
+    const ctx = await requirePlatformAuth(request, {});
+    return { ok: true, history: await (await import("./dev.js")).copyFieldHistory(ctx, text(((request.query || {}) as Record<string, unknown>).key)) };
+  });
+  app.post("/dev/copy/revert", async (request) => {
+    const ctx = await requirePlatformAuth(request, { csrf: true });
+    return { ok: true, saved: await (await import("./dev.js")).revertCopy(ctx, request.body) };
+  });
+  app.get("/dev/copy/export", async (request) => {
+    const ctx = await requirePlatformAuth(request, {});
+    return { ok: true, ...(await (await import("./dev.js")).exportCopy(ctx)) };
+  });
   // Exposure, step and outcome events for analysis. Organization administrators only.
   app.get("/organizations/:orgId/experiences/:experienceId/events", async (request) => {
     const { orgId, experienceId } = params(request);

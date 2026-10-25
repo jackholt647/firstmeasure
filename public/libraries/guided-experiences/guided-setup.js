@@ -21,6 +21,8 @@
   const object = (value) => value && typeof value === 'object' && !Array.isArray(value) ? value : {};
   const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (c) => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
   const L = (copy, fallback) => G()?.L ? G().L(copy, fallback) : (copy?.text ?? fallback);
+  /** Visible copy: escaped, and editable in place for a development editor (guided-experiences.js `copyHtml`). */
+  const H = (copy, fallback) => G()?.copyHtml ? G().copyHtml(copy, fallback) : esc(L(copy, fallback));
   const reduced = () => !!root.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches;
   const wait = (ms) => new Promise((resolve) => setTimeout(resolve, reduced() ? 0 : ms));
   const money = (value) => { try { return new Intl.NumberFormat(undefined, { style:'currency', currency:'USD' }).format(Number(value) || 0); } catch (_) { return '$' + (Number(value) || 0).toFixed(2); } };
@@ -182,16 +184,16 @@
         <section class="gxs-sheet" role="dialog" aria-modal="true" aria-label="${esc(L(experience.title))}">
           <button type="button" class="gxs-close" data-gxs="close" aria-label="${esc(L('gx_ui_close_setup', 'Close setup'))}" title="${esc(L('gx_ui_close_setup', 'Close setup'))}"><span class="gxs-x" aria-hidden="true">&times;</span></button>
           <div class="gxs-widget">
-            <header class="gxs-head"><span class="gxs-badge"><i class="fas fa-wand-magic-sparkles" aria-hidden="true"></i><span>${esc(L(experience.title))}</span></span>
+            <header class="gxs-head"><span class="gxs-badge"><i class="fas fa-wand-magic-sparkles" aria-hidden="true"></i><span>${H(experience.title)}</span></span>
               <ol class="gxs-progress" aria-hidden="true">${steps.map(() => '<li><i></i></li>').join('')}</ol></header>
             <div class="gxs-stage"></div>
             <footer class="gxs-foot"><span class="gxs-status" role="status"></span>
-              <button type="button" class="gxs-btn ghost" data-gxs="back">${esc(L('gx_ui_back', 'Back'))}</button>
-              <button type="button" class="gxs-btn ghost" data-gxs="skip">${esc(L('gx_ui_skip_step', 'Skip step'))}</button>
+              <button type="button" class="gxs-btn ghost" data-gxs="back">${H('gx_ui_back', 'Back')}</button>
+              <button type="button" class="gxs-btn ghost" data-gxs="skip">${H('gx_ui_skip_step', 'Skip step')}</button>
               <button type="button" class="gxs-btn primary" data-gxs="next"></button></footer>
           </div>
           <aside class="gxs-chat" aria-label="${esc(L('gx_ui_agent', 'Agent'))}">
-            <button type="button" class="gxs-chat-handle" data-gxs="toggleChat" aria-expanded="false"><i class="fas fa-sparkles" aria-hidden="true"></i>${esc(L('gx_ui_agent', 'Agent'))}<i class="fas fa-chevron-up gxs-chevron" aria-hidden="true"></i></button>
+            <button type="button" class="gxs-chat-handle" data-gxs="toggleChat" aria-expanded="false"><i class="fas fa-sparkles" aria-hidden="true"></i>${H('gx_ui_agent', 'Agent')}<i class="fas fa-chevron-up gxs-chevron" aria-hidden="true"></i></button>
             <div class="gxs-assistant"></div>
           </aside>
         </section>`;
@@ -223,7 +225,8 @@
       function say(lines, choice, at){
         if (!assistant || closed) return Promise.resolve();
         if (choice) assistant.post({ role: 'user', content: choice, data: { source: 'guided_experience' } });
-        return assistant.say(lines.map((content, i) => ({ content, data: { source: 'guided_experience', ...(at ? { line_key: `${experience.id}:${at}:say:${i}` } : {}) } })));
+        const keys = at === 'done' ? array(experience.completion?.say) : array(steps.find((entry) => entry.id === at)?.say);
+        return assistant.say(lines.map((content, i) => ({ content, data: { source: 'guided_experience', ...(at ? { line_key: `${experience.id}:${at}:say:${i}` } : {}), ...(keys[i]?.key ? { copy_key: keys[i].key } : {}) } })));
       }
       /** The scripted turn, written into the project conversation so a reload and the agent tray hold it too. */
       function persist(body){
@@ -240,7 +243,7 @@
         $('[data-gxs=back]').hidden = index === 0;
         $('[data-gxs=skip]').hidden = step.required !== false || last;
         const next = $('[data-gxs=next]');
-        next.innerHTML = busy ? `<span class="gxs-spin" aria-hidden="true"></span>${esc(L('gx_ui_building', 'Building…'))}` : esc(last ? L('gx_ui_finish', 'Build my price book') : L('gx_ui_continue', 'Continue'));
+        next.innerHTML = busy ? `<span class="gxs-spin" aria-hidden="true"></span>${H('gx_ui_building', 'Building…')}` : (last ? H('gx_ui_finish', 'Build my price book') : H('gx_ui_continue', 'Continue'));
         next.disabled = busy || (step.required !== false && mounted?.valid?.() === false);
       }
       function show(to, direction = 1){
@@ -248,8 +251,8 @@
         const old = stage.querySelector('.gxs-step:not(.gxs-above)');
         mounted?.destroy?.();
         const el = document.createElement('div');
-        el.className = 'gxs-step' + (old && !reduced() ? (direction > 0 ? ' gxs-below' : ' gxs-above') : '');
-        el.innerHTML = `<h2>${esc(L(step.title))}</h2>${step.subtitle ? `<p class="gxs-sub">${esc(L(step.subtitle))}</p>` : ''}<div class="gxs-body"></div>`;
+        el.className = 'gxs-step' + (old && !reduced() ? (direction > 0 ? ' gxs-below' : ' gxs-above') : ''); el.dataset.gxStep = step.id;
+        el.innerHTML = `<h2>${H(step.title)}</h2>${step.subtitle ? `<p class="gxs-sub">${H(step.subtitle)}</p>` : ''}<div class="gxs-body"></div>`;
         stage.appendChild(el);
         index = to;
         const widget = widgets.get(step.widget);
@@ -306,7 +309,7 @@
           stage.querySelectorAll('.gxs-step').forEach((el) => el.remove());
           mounted?.destroy?.(); mounted = null;
           const done = document.createElement('div'); done.className = 'gxs-step';
-          done.innerHTML = `<div class="gxs-done"><svg viewBox="0 0 84 84" aria-hidden="true"><circle cx="42" cy="42" r="38"/><path d="M26 43l11 11 21-23"/></svg><h2>${esc(L('gx_ui_done_title', 'Your price book is ready'))}</h2><p class="gxs-sub">${esc(value.items ? L('gx_ui_done_items', 'Products added') + ': ' + value.items : '')}</p></div>`;
+          done.innerHTML = `<div class="gxs-done"><svg viewBox="0 0 84 84" aria-hidden="true"><circle cx="42" cy="42" r="38"/><path d="M26 43l11 11 21-23"/></svg><h2>${H('gx_ui_done_title', 'Your price book is ready')}</h2><p class="gxs-sub">${esc(value.items ? L('gx_ui_done_items', 'Products added') + ': ' + value.items : '')}</p></div>`;
           stage.appendChild(done);
           host.querySelectorAll('.gxs-progress li').forEach((li) => { li.classList.add('done'); li.classList.remove('on'); });
           $('.gxs-foot').style.visibility = 'hidden';
@@ -327,7 +330,7 @@
         const foot = $('.gxs-foot');
         if (busy || foot.querySelector('.gxs-confirm')) return;
         const bar = document.createElement('div'); bar.className = 'gxs-confirm';
-        bar.innerHTML = `<span>${esc(L('gx_ui_skip_setup_q', 'Skip the setup? Materials will use typical products until you set up your price book.'))}</span><button type="button" class="gxs-btn" data-gxs="keep">${esc(L('gx_ui_keep_going', 'Keep going'))}</button><button type="button" class="gxs-btn primary" data-gxs="dismiss">${esc(L('gx_ui_skip_setup', 'Skip setup'))}</button>`;
+        bar.innerHTML = `<span>${H('gx_ui_skip_setup_q', 'Skip the setup? Materials will use typical products until you set up your price book.')}</span><button type="button" class="gxs-btn" data-gxs="keep">${H('gx_ui_keep_going', 'Keep going')}</button><button type="button" class="gxs-btn primary" data-gxs="dismiss">${H('gx_ui_skip_setup', 'Skip setup')}</button>`;
         [...foot.children].forEach((child) => { child.dataset.gxsHidden = String(child.hidden); child.hidden = true; });
         foot.prepend(bar);
         bar.querySelector('[data-gxs=keep]').focus();
@@ -401,7 +404,7 @@
       const brands = array(options.brands);
       const picked = new Set(array(selections.brands).filter((id) => brands.some((brand) => brand.id === id)));
       const draw = () => {
-        el.innerHTML = `${options.allow_all !== false ? `<div class="gxs-allbar"><button type="button" class="gxs-chip" data-all aria-pressed="${picked.size === brands.length}">${esc(L('gx_ui_use_all', 'Use all'))}</button><span style="color:#667085;font-size:12.5px">${esc(L('gx_ui_selected', 'Selected'))}: ${picked.size}</span></div>` : ''}
+        el.innerHTML = `${options.allow_all !== false ? `<div class="gxs-allbar"><button type="button" class="gxs-chip" data-all aria-pressed="${picked.size === brands.length}">${H('gx_ui_use_all', 'Use all')}</button><span style="color:#667085;font-size:12.5px">${H('gx_ui_selected', 'Selected')}: ${picked.size}</span></div>` : ''}
           <div class="gxs-grid">${brands.map((brand, i) => `<button type="button" class="gxs-card" style="--brand:${esc(brand.color)};animation-delay:${i * 60}ms" aria-pressed="${picked.has(brand.id)}" data-brand="${esc(brand.id)}"><span class="gxs-tick"><i class="fas fa-check" aria-hidden="true"></i></span>${brand.logo ? `<span class="gxs-logo"><img src="${esc(brand.logo)}" alt="${esc(brand.name)}" loading="lazy" decoding="async" data-gxs-logo></span>` : `<span class="gxs-wordmark">${esc(brand.name)}</span>`}<span class="gxs-meta"><small>${esc(brand.tagline || '')}</small><small>${esc(array(brand.lines).length + ' ' + L('gx_ui_lines', 'shingle lines'))}</small></span></button>`).join('')}</div>`;
         // A logo that does not load gives way to the wordmark.
         el.querySelectorAll('img[data-gxs-logo]').forEach((img) => img.addEventListener('error', () => { const mark = document.createElement('span'); mark.className = 'gxs-wordmark'; mark.textContent = img.alt; img.closest('.gxs-logo').replaceWith(mark); }, { once: true }));
@@ -437,7 +440,7 @@
       const summary = () => all.filter((line) => chosen.has(line.id)).map((line) => line.name + (line.id === star ? ' ★' : '')).join(', ');
       const report = () => { if (!chosen.has(star)) star = [...chosen][0] || ''; change({ lines: all.filter((line) => chosen.has(line.id)).map((line) => line.id), default_line: star }, summary()); };
       const draw = () => {
-        el.innerHTML = `<div class="gxs-allbar"><button type="button" class="gxs-chip" data-all aria-pressed="${chosen.size === all.length}">${esc(L('gx_ui_include_all', 'Include all'))}</button></div>` + brands.map((brand) => `<section class="gxs-brand" style="--brand:${esc(brand.color)}"><h3><b>${esc(brand.name)}</b><button type="button" class="gxs-chip" data-brand-all="${esc(brand.id)}" aria-pressed="${array(brand.lines).every((line) => chosen.has(line.id))}">${esc(L('gx_ui_include_all', 'Include all'))}</button></h3>${array(brand.lines).map((line) => `<div class="gxs-row" role="checkbox" tabindex="0" aria-checked="${chosen.has(line.id)}" data-line="${esc(line.id)}"><button type="button" class="gxs-star" data-star="${esc(line.id)}" aria-pressed="${line.id === star}" aria-label="${esc(L('gx_ui_make_default', 'Use first on new lists'))}" title="${esc(L('gx_ui_make_default', 'Use first on new lists'))}"><i class="fas fa-star" aria-hidden="true"></i></button><strong>${esc(line.name.replace(brand.name + ' ', ''))}</strong>${TIER[line.tier] ? `<em>${esc(L(TIER[line.tier][0], TIER[line.tier][1]))}</em>` : ''}<span class="gxs-price">${esc(money(line.price))} / ${esc(line.unit)}</span><span class="gxs-tick"><i class="fas fa-check" aria-hidden="true"></i></span></div>`).join('')}</section>`).join('');
+        el.innerHTML = `<div class="gxs-allbar"><button type="button" class="gxs-chip" data-all aria-pressed="${chosen.size === all.length}">${H('gx_ui_include_all', 'Include all')}</button></div>` + brands.map((brand) => `<section class="gxs-brand" style="--brand:${esc(brand.color)}"><h3><b>${esc(brand.name)}</b><button type="button" class="gxs-chip" data-brand-all="${esc(brand.id)}" aria-pressed="${array(brand.lines).every((line) => chosen.has(line.id))}">${H('gx_ui_include_all', 'Include all')}</button></h3>${array(brand.lines).map((line) => `<div class="gxs-row" role="checkbox" tabindex="0" aria-checked="${chosen.has(line.id)}" data-line="${esc(line.id)}"><button type="button" class="gxs-star" data-star="${esc(line.id)}" aria-pressed="${line.id === star}" aria-label="${esc(L('gx_ui_make_default', 'Use first on new lists'))}" title="${esc(L('gx_ui_make_default', 'Use first on new lists'))}"><i class="fas fa-star" aria-hidden="true"></i></button><strong>${esc(line.name.replace(brand.name + ' ', ''))}</strong>${TIER[line.tier] ? `<em>${H(TIER[line.tier][0], TIER[line.tier][1])}</em>` : ''}<span class="gxs-price">${esc(money(line.price))} / ${esc(line.unit)}</span><span class="gxs-tick"><i class="fas fa-check" aria-hidden="true"></i></span></div>`).join('')}</section>`).join('');
         report();
       };
       const toggle = (id) => { if (chosen.has(id)) chosen.delete(id); else chosen.add(id); draw(); };
@@ -486,12 +489,12 @@
         return `<div class="gxs-eq">${measured.map((m, i) => `${i ? `<span class="gxs-op">${new RegExp('-\\s*' + m.key + '\\b').test(rule.formula || '') ? '−' : '+'}</span>` : ''}<span class="gxs-pill">${esc(m.label)} <b>${esc(sample[m.key] ?? 0)}</b></span>`).join('')}</div>`;
       };
       const controls = (rule) => {
-        if (rule.id === 'waste' || rule.id === 'field_shingles') return `<div class="gxs-inline"><span>${esc(L('gx_ui_waste_label', 'Waste for cutting'))}</span></div><div class="gxs-seg">${['roof', ...array(object(options.waste).options)].map((value) => `<button type="button" class="gxs-chip" data-waste="${esc(value)}" aria-pressed="${String(value) === String(waste)}">${esc(value === 'roof' ? L('gx_ui_waste_auto', 'Work it out from each roof') : value + '%')}</button>`).join('')}</div>`;
-        if (rule.id === 'ice_water') return `<div class="gxs-inline"><span>${esc(L('gx_ui_ice_label', 'How far up from the eaves'))}</span></div><div class="gxs-seg">${array(object(options.ice_eave_width).options).map((value) => `<button type="button" class="gxs-chip" data-width="${esc(value)}" aria-pressed="${Number(value) === Number(width)}">${esc(Number(value) === 6 ? L('gx_ui_ice_6', '6 ft (two rows)') : Number(value) === 3 ? L('gx_ui_ice_3', '3 ft (one row)') : L('gx_ui_ice_0', 'None'))}</button>`).join('')}</div>`;
+        if (rule.id === 'waste' || rule.id === 'field_shingles') return `<div class="gxs-inline"><span>${H('gx_ui_waste_label', 'Waste for cutting')}</span></div><div class="gxs-seg">${['roof', ...array(object(options.waste).options)].map((value) => `<button type="button" class="gxs-chip" data-waste="${esc(value)}" aria-pressed="${String(value) === String(waste)}">${esc(value === 'roof' ? L('gx_ui_waste_auto', 'Work it out from each roof') : value + '%')}</button>`).join('')}</div>`;
+        if (rule.id === 'ice_water') return `<div class="gxs-inline"><span>${H('gx_ui_ice_label', 'How far up from the eaves')}</span></div><div class="gxs-seg">${array(object(options.ice_eave_width).options).map((value) => `<button type="button" class="gxs-chip" data-width="${esc(value)}" aria-pressed="${Number(value) === Number(width)}">${esc(Number(value) === 6 ? L('gx_ui_ice_6', '6 ft (two rows)') : Number(value) === 3 ? L('gx_ui_ice_3', '3 ft (one row)') : L('gx_ui_ice_0', 'None'))}</button>`).join('')}</div>`;
         return '';
       };
       const draw = () => {
-        el.innerHTML = `<p style="margin:0 0 12px;color:#475467">${esc(L('gx_ui_sample_intro', 'Worked out on a sample roof of'))} <b>${esc(sample.roofSquares || 0)} ${esc(unitWord.sq)}</b>.</p>` + rules.map((rule, i) => `<div class="gxs-rule" open-rule="${open.has(rule.id)}" style="animation-delay:${i * 40}ms"><button type="button" data-rule="${esc(rule.id)}" aria-expanded="${open.has(rule.id)}"><i class="fas fa-chevron-right gxs-caret" aria-hidden="true"></i><strong>${esc(rule.label)}</strong>${rule.manual ? `<span class="gxs-manual">${esc(L('gx_ui_by_hand', 'Counted by hand'))}</span>` : `<span class="gxs-qty">${esc(quantity(rule))}</span>`}</button><div class="gxs-rule-body"><div><p style="margin:0;color:#475467">${esc(rule.explanation)}</p>${eq(rule)}${controls(rule)}</div></div></div>`).join('');
+        el.innerHTML = `<p style="margin:0 0 12px;color:#475467">${H('gx_ui_sample_intro', 'Worked out on a sample roof of')} <b>${esc(sample.roofSquares || 0)} ${esc(unitWord.sq)}</b>.</p>` + rules.map((rule, i) => `<div class="gxs-rule" open-rule="${open.has(rule.id)}" style="animation-delay:${i * 40}ms"><button type="button" data-rule="${esc(rule.id)}" aria-expanded="${open.has(rule.id)}"><i class="fas fa-chevron-right gxs-caret" aria-hidden="true"></i><strong>${esc(rule.label)}</strong>${rule.manual ? `<span class="gxs-manual">${H('gx_ui_by_hand', 'Counted by hand')}</span>` : `<span class="gxs-qty">${esc(quantity(rule))}</span>`}</button><div class="gxs-rule-body"><div><p style="margin:0;color:#475467">${esc(rule.explanation)}</p>${eq(rule)}${controls(rule)}</div></div></div>`).join('');
       };
       const report = () => change({ waste, ice_eave_width: Number(width) }, `${L('gx_ui_waste_label', 'Waste for cutting')}: ${waste === 'roof' ? L('gx_ui_waste_auto', 'Work it out from each roof') : waste + '%'}; ${L('gx_ui_ice_label', 'How far up from the eaves')}: ${width} ft`);
       el.addEventListener('click', (event) => {
@@ -522,7 +525,7 @@
       const priceOf = (item) => prices[item.id] ?? Math.round(item.price * (item.kind === 'labor' ? 1 : (1 + markup / 100) / (1 + baseMarkup / 100)) * 100) / 100;
       const groups = [[L('gx_ui_group_shingles', 'Shingles'), lines], [L('gx_ui_group_accessories', 'Accessories') + (primary ? ` (${primary.name})` : ''), accessories], [L('gx_ui_group_common', 'Common items'), generic], ...(labor ? [[L('gx_ui_group_labor', 'Labor and services'), array(options.labor)]] : [])];
       const draw = () => {
-        el.innerHTML = `<div class="gxs-inline"><span>${esc(L('gx_ui_region', 'Prices for'))} <b>${esc(options.region?.label || '')}</b></span><label class="gxs-inline" style="margin:0 0 0 auto">${esc(L('gx_ui_markup', 'Markup on materials'))} <input type="number" min="0" max="300" step="1" data-markup value="${esc(markup)}">%</label><button type="button" class="gxs-chip" data-labor aria-pressed="${labor}">${esc(L('gx_ui_include_labor', 'Include labor'))}</button></div>
+        el.innerHTML = `<div class="gxs-inline"><span>${H('gx_ui_region', 'Prices for')} <b>${esc(options.region?.label || '')}</b></span><label class="gxs-inline" style="margin:0 0 0 auto">${H('gx_ui_markup', 'Markup on materials')} <input type="number" min="0" max="300" step="1" data-markup value="${esc(markup)}">%</label><button type="button" class="gxs-chip" data-labor aria-pressed="${labor}">${H('gx_ui_include_labor', 'Include labor')}</button></div>
           <table class="gxs-table"><tbody>${(labor ? groups : groups.slice(0, 3)).map(([title, items]) => items.length ? `<tr><th colspan="2">${esc(title)}</th></tr>` + items.map((item) => `<tr><td>${esc(item.name)} <span style="color:#98a2b3">/ ${esc(item.unit)}</span></td><td><input type="number" min="0" step="0.01" inputmode="decimal" data-price="${esc(item.id)}" value="${esc(priceOf(item))}" aria-label="${esc(item.name)}"></td></tr>`).join('') : '').join('')}</tbody></table>`;
       };
       const count = () => lines.length + accessories.length + generic.length + (labor ? array(options.labor).length : 0);

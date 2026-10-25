@@ -268,7 +268,48 @@ Materials tab audit (October 24), button to published action:
    `tests/guided-experiences-browser.test.mjs` (overlay, setup, hand-off, FAQs,
    replay, phone width) and `tests/guided-experiences-flow-browser.test.mjs`
    (portal plus project frame: one experience at a time, fast Next and Back,
-   close mid-tour, reopen, reload, switch projects, the tray's lines once). Set `GX_SHOTS=<dir>` to save screenshots.
+   close mid-tour, reopen, reload, switch projects, the tray's lines once, dev
+   editing) and `tests/guided-experiences-dev.test.ts` (dev gating, overrides,
+   history, export, reset). Set `GX_SHOTS=<dir>` to save screenshots.
+
+## Development: reset, replay and editing copy
+
+Development data environment only (`env.dataEnvironment === "development"`, never
+production): `guided-experiences/dev.ts`. Who: a platform administrator (an active
+internal admin, as session replay decides) or the development tools audience (a
+settings manager in a sandbox test organization, as the dev bar's tools). Every
+route refuses elsewhere with 404, whoever asks.
+
+- **Reset** (`POST …/organizations/:org/dev/reset { experience_id, scope: me |
+  organization }`): clears progress (which also brings back a reveal), the
+  exposure that counted it, and its scripted lines in conversations (`line_key`
+  prefix), so it plays as new. The price book a setup wrote stays. **Replay**
+  plays a tour again; **Restart** resets a setup for me and plays it from step 1.
+- **Copy** (`PUT /dev/copy`, `GET /dev/copy/history?key=`, `POST /dev/copy/revert`):
+  every piece of copy rendered through `copyHtml` carries its language key; for a
+  development editor it is plain-text `contenteditable` and saves 700 ms after
+  typing (or on leaving the field). Overrides are platform-wide, keyed by the
+  copy's `gx_` language key (with the experience, step and field where it was
+  edited, for the record), applied over the definitions' English for everyone in
+  development on their next load. Each change is a revision with its author and
+  time; revert to any revision or back to the code's text. Markup is refused,
+  everything is shown as text. Scripted agent lines are editable in the assistant
+  too (their message carries `copy_key`); lines already stored in a conversation
+  keep the text they were written with.
+- **Languages:** overrides are English only. They replace a key's English (also
+  over a catalog entry, when there is one); other languages keep their
+  translation. Production reads no overrides and shows the code's copy.
+- **To code:** `GET /v1/guided-experiences/dev/copy/export` returns each override
+  beside the source text it replaces (`definitions/*.ts`, the guided libraries) and
+  the same text as `guided-experiences` catalog entries. Save it and run
+  `node public/v1/scripts/guided-copy-apply.mjs export.json --write`, review the
+  diff, commit; then revert the overrides on dev to the code's text. A key whose
+  English the catalog already carries needs the catalog entry updated too.
+- **Seeing it:** editable copy has a dashed outline; a pill at the bottom left
+  says "Editing copy" (press to see the clean view; remembered per browser) and
+  its menu holds the last field's history and each experience's Replay or
+  Restart, Reset me and Reset org. The development tools window gets the same
+  section. Everything is `data-fmr-ignore`.
 
 ## Limits (prototype)
 

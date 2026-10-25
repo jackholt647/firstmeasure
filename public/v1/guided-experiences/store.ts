@@ -14,7 +14,7 @@ import type { GuidedEventType, GuidedStatus } from "./contracts.js";
 
 let database: SqlStore | undefined;
 export function guidedStore() {
-  return database ??= openSqlStore({ id: "guided-experiences", filename: path.resolve(env.platformStorageRoot, "guided-experiences.sqlite"), schemaVersion: 1, initialize: async (db) => {
+  return database ??= openSqlStore({ id: "guided-experiences", filename: path.resolve(env.platformStorageRoot, "guided-experiences.sqlite"), schemaVersion: 2, initialize: async (db) => {
     await db.exec(`
       CREATE TABLE IF NOT EXISTS guided_progress (
         organization_id TEXT NOT NULL, subject_id TEXT NOT NULL, experience_id TEXT NOT NULL,
@@ -32,6 +32,15 @@ export function guidedStore() {
         PRIMARY KEY (organization_id, id)
       );
       CREATE INDEX IF NOT EXISTS guided_events_experience ON guided_events(organization_id, experience_id, type, created_at);
+      CREATE TABLE IF NOT EXISTS guided_copy (
+        copy_key TEXT NOT NULL PRIMARY KEY, text TEXT NOT NULL, experience_id TEXT NOT NULL DEFAULT '', variant_id TEXT NOT NULL DEFAULT '',
+        step_id TEXT NOT NULL DEFAULT '', field TEXT NOT NULL DEFAULT '', revision INTEGER NOT NULL DEFAULT 1, updated_by TEXT NOT NULL DEFAULT '', updated_at TEXT NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS guided_copy_history (
+        id TEXT NOT NULL PRIMARY KEY, copy_key TEXT NOT NULL, text TEXT NOT NULL, action TEXT NOT NULL, revision INTEGER NOT NULL,
+        experience_id TEXT NOT NULL DEFAULT '', step_id TEXT NOT NULL DEFAULT '', field TEXT NOT NULL DEFAULT '', author TEXT NOT NULL DEFAULT '', created_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS guided_copy_history_key ON guided_copy_history(copy_key, revision);
     `);
   } });
 }
@@ -106,4 +115,37 @@ export async function wasExposed(orgId: string, experienceId: string, unitId: st
 export async function listEvents(orgId: string, experienceId: string, limit = 500) {
   const rows = await guidedStore().prepare("SELECT * FROM guided_events WHERE organization_id=? AND experience_id=? ORDER BY created_at DESC LIMIT ?").all(orgId, experienceId, Math.min(5000, Math.max(1, limit)));
   return rows.map((row) => ({ id: String(row.id), experience_id: String(row.experience_id), experience_version: Number(row.experience_version), variant_id: String(row.variant_id), bucket: Number(row.bucket), unit_id: String(row.unit_id), user_id: String(row.user_id), type: String(row.type), step_id: String(row.step_id), properties: parse(row.properties_json), created_at: String(row.created_at) }));
+}
+
+// ── Copy overrides (development): platform-wide, keyed by the copy's language key. ──
+export type CopyOverride = { copy_key: string; text: string; experience_id: string; variant_id: string; step_id: string; field: string; revision: number; updated_by: string; updated_at: string };
+export async function listCopyOverrides(): Promise<CopyOverride[]> {
+  return (await guidedStore().prepare("SELECT * FROM guided_copy ORDER BY copy_key").all()).map((row) => ({ copy_key: String(row.copy_key), text: String(row.text), experience_id: String(row.experience_id), variant_id: String(row.variant_id), step_id: String(row.step_id), field: String(row.field), revision: Number(row.revision), updated_by: String(row.updated_by), updated_at: String(row.updated_at) }));
+}
+/** Saves or clears (text null) one override and appends the change to its history. */
+export async function writeCopyOverride(input: { copy_key: string; text: string | null; experience_id?: string; variant_id?: string; step_id?: string; field?: string; author: string; action?: string }) {
+  return guidedStore().transaction(async (tx) => {
+    const at = now();
+    const current = await tx.prepare("SELECT revision FROM guided_copy WHERE copy_key=?").get(input.copy_key);
+    const last = await tx.prepare("SELECT MAX(revision) AS revision FROM guided_copy_history WHERE copy_key=?").get(input.copy_key);
+    const revision = Math.max(Number(current?.revision || 0), Number(last?.revision || 0)) + 1;
+    if (input.text === null) await tx.prepare("DELETE FROM guided_copy WHERE copy_key=?").run(input.copy_key);
+    else if (current) await tx.prepare("UPDATE guided_copy SET text=?,experience_id=?,variant_id=?,step_id=?,field=?,revision=?,updated_by=?,updated_at=? WHERE copy_key=?").run(input.text, input.experience_id || "", input.variant_id || "", input.step_id || "", input.field || "", revision, input.author, at, input.copy_key);
+    else await tx.prepare("INSERT INTO guided_copy(copy_key,text,experience_id,variant_id,step_id,field,revision,updated_by,updated_at) VALUES(?,?,?,?,?,?,?,?,?)").run(input.copy_key, input.text, input.experience_id || "", input.variant_id || "", input.step_id || "", input.field || "", revision, input.author, at);
+    await tx.prepare("INSERT INTO guided_copy_history(id,copy_key,text,action,revision,experience_id,step_id,field,author,created_at) VALUES(?,?,?,?,?,?,?,?,?,?)").run(`gxc_${randomUUID().replace(/-/g, "")}`, input.copy_key, input.text ?? "", input.action || (input.text === null ? "clear" : "edit"), revision, input.experience_id || "", input.step_id || "", input.field || "", input.author, at);
+    return { copy_key: input.copy_key, text: input.text, revision };
+  }, `guided-copy:${input.copy_key}`);
+}
+export async function copyHistory(copyKey: string) {
+  return (await guidedStore().prepare("SELECT * FROM guided_copy_history WHERE copy_key=? ORDER BY revision DESC LIMIT 100").all(copyKey)).map((row) => ({ copy_key: String(row.copy_key), text: String(row.text), action: String(row.action), revision: Number(row.revision), author: String(row.author), created_at: String(row.created_at) }));
+}
+/** Clears an experience's progress for the organization and, or only, one person. */
+export async function clearProgress(orgId: string, experienceId: string, subjects: string[]) {
+  if (!subjects.length) return 0;
+  return (await guidedStore().prepare(`DELETE FROM guided_progress WHERE organization_id=? AND experience_id=? AND subject_id IN (${subjects.map(() => "?").join(",")})`).run(orgId, experienceId, ...subjects)).changes;
+}
+/** Forgets the exposures of a unit, so a reset experience counts as new. */
+export async function clearExposures(orgId: string, experienceId: string, unitIds: string[]) {
+  if (!unitIds.length) return 0;
+  return (await guidedStore().prepare(`DELETE FROM guided_events WHERE organization_id=? AND experience_id=? AND type='exposure' AND unit_id IN (${unitIds.map(() => "?").join(",")})`).run(orgId, experienceId, ...unitIds)).changes;
 }

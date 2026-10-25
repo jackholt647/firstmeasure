@@ -30,7 +30,9 @@ const FAQS={tab:'project.materials',questions:[{id:'materials.how',text:t('gx_fa
 
 /** The fake server: progress, events, the project conversation. Lives in Node, so it survives page reloads. */
 function server(){
-  const state={progress:{},events:[],thread:[],generated:0,completes:[],conversations:0};
+  const state={progress:{},events:[],thread:[],generated:0,completes:[],conversations:0,dev:false,overrides:{},copySaves:[],resets:[]};
+  // As the server: copy overrides replace the English of every { key, text }.
+  const applyCopy=node=>Array.isArray(node)?node.map(applyCopy):node&&typeof node==='object'?(typeof node.key==='string'&&typeof node.text==='string'&&Object.keys(node).length===2?{key:node.key,text:state.overrides[node.key]??node.text}:Object.fromEntries(Object.entries(node).map(([k,v])=>[k,applyCopy(v)]))):node;
   const finished=id=>state.progress[id]&&state.progress[id]!=='started';
   const list=()=>{
     const out=[];
@@ -45,7 +47,10 @@ function server(){
     if(url.pathname==='/portal/')return route.fulfill({contentType:'text/html',body:page('portal')});
     if(url.pathname.startsWith('/project/'))return route.fulfill({contentType:'text/html',body:page('project',url.pathname.split('/')[2],url.searchParams.has('silent'))});
     // As the server: until the tour is finished, Materials shows only on projects with a report.
-    if(url.pathname.endsWith('/experiences'))return json({experiences:list(),reveals:finished(TOUR.id)?[]:[{tab:'project.materials',when:{'project.has_report':true},experience:TOUR.id}],faqs:url.searchParams.get('tab')==='project.materials'?FAQS:null});
+    if(url.pathname.endsWith('/dev/copy')&&request.method()==='PUT'){state.copySaves.push(body);state.overrides[body.key]=body.text;return json({saved:{revision:state.copySaves.length}});}
+    if(url.pathname.endsWith('/dev/copy/history'))return json({history:[]});
+    if(url.pathname.endsWith('/dev/reset')){state.resets.push(body);delete state.progress[body.experience_id];return json({experience_id:body.experience_id,scope:body.scope,progress:1,exposures:0,conversation_lines:0});}
+    if(url.pathname.endsWith('/experiences'))return json(applyCopy({...(state.dev?{dev:{editor:true,experiences:[SETUP,TOUR].map(e=>({id:e.id,title:e.title,kind:e.kind,scope:e.scope}))}}:{}),copy_overrides:state.overrides,experiences:list(),reveals:finished(TOUR.id)?[]:[{tab:'project.materials',when:{'project.has_report':true},experience:TOUR.id}],faqs:url.searchParams.get('tab')==='project.materials'?FAQS:null}));
     const id=decodeURIComponent(url.pathname.split('/experiences/')[1]?.split('/')[0]||'');
     if(url.pathname.endsWith('/events')){
       state.events.push({id,...body,at:Date.now()});
@@ -101,7 +106,7 @@ function page(kind,project='p1',silent=false){
 async function open(browser,srv,{width=1280,height=800,project='p1',silent=false}={}){
   const tab=await browser.newPage({viewport:{width,height}}),errors=[];
   tab.on('pageerror',error=>errors.push(error.message));
-  await tab.route('https://fm.test/**',route=>srv.handle(route));
+  await tab.route('https://fm.test/**',route=>srv.handle(route).catch(error=>{console.log('HANDLE',error);return route.abort();}));
   await tab.goto(`https://fm.test/portal/?project=${project}${silent?'&silent=1':''}`);
   const frame=()=>tab.frames().find(f=>f.url().includes('/project/'));
   await tab.waitForFunction(()=>document.querySelector('#project')?.contentWindow?.FirstMateGuides?.experiences().length>0);
@@ -277,5 +282,56 @@ test('on a draft the first view plays the setup without saving a project, and Ge
     await late.tab.waitForTimeout(500);
     assert.equal(fresh.state.generated,1,'then let through');
     assert.deepEqual(late.errors,[]);
+  } finally { await browser.close(); }
+});
+
+test('development: copy is editable in place, saves as you type, shows for everyone, and the tools reset and replay',async()=>{
+  const browser=await launch(),srv=server();
+  srv.state.progress[SETUP.id]='completed';srv.state.dev=true;
+  try{
+    const {tab,errors,frame}=await open(browser,srv,{project:'p1',silent:true});
+    await frame().evaluate(()=>{FirstMateGuides.play('materials.tab_tutorial');});
+    await frame().waitForSelector('.gx-pop [data-gx-copy]');
+    // Obvious: editable text is outlined and the pill says so.
+    assert.equal(await frame().evaluate(()=>document.documentElement.classList.contains('gx-editing')),true);
+    assert.equal(await frame().locator('.gx-pop h3 [data-gx-copy]').getAttribute('contenteditable'),'plaintext-only');
+    assert.equal(await frame().locator('.gx-dev [data-gxd=toggle]').getAttribute('aria-pressed'),'true');
+    assert.equal(await frame().locator('.gx-dev').getAttribute('data-fmr-ignore'),'');
+    // Typing saves after a pause, as plain text.
+    const title=frame().locator('.gx-pop h3 [data-gx-copy]');
+    await title.click();
+    await tab.keyboard.press('Control+A');
+    await tab.keyboard.type('Hello from <the> roof');
+    await frame().waitForFunction(()=>document.querySelector('.gx-dev-status')?.textContent==='Saved',null,{timeout:4000});
+    assert.deepEqual(srv.state.copySaves.map(save=>[save.key,save.text,save.experience_id,save.step_id]),[['gx_a','Hello from <the> roof','materials.tab_tutorial','intro']]);
+    assert.equal(await frame().locator('.gx-pop h3').innerText(),'Hello from <the> roof','shown as text, never markup');
+    // Editing a button's label does not press it.
+    await frame().click('.gx-pop [data-gx=next] [data-gx-copy]');
+    assert.equal(await frame().locator('.gx-pop h3').innerText(),'Hello from <the> roof','still on the same step');
+    await tab.keyboard.press('Escape');
+    // The toggle gives the clean view.
+    await frame().click('.gx-dev [data-gxd=toggle]');
+    assert.equal(await frame().evaluate(()=>document.documentElement.classList.contains('gx-editing')),false);
+    assert.equal(await frame().locator('.gx-pop h3 [data-gx-copy]').getAttribute('contenteditable'),null);
+    await frame().click('.gx-pop [data-gx=next]');
+    await frame().waitForFunction(()=>document.querySelector('.gx-pop h3')?.textContent==='Generate');
+    await frame().click('.gx-dev [data-gxd=toggle]');
+    // The tools: reset this tour for me from the pill.
+    await frame().click('.gx-dev [data-gxd=menu]');
+    await frame().waitForSelector('.gx-dev-panel [data-gxd="reset-me"][data-gxd-id="materials.tab_tutorial"]');
+    await frame().click('.gx-dev-panel [data-gxd="reset-me"][data-gxd-id="materials.tab_tutorial"]');
+    await frame().waitForFunction(()=>/Reset/.test(document.querySelector('.gx-dev-status')?.textContent||''));
+    assert.deepEqual(srv.state.resets,[{experience_id:'materials.tab_tutorial',scope:'me'}]);
+    await frame().click('.gx-pop [data-gx=close]');
+    assert.deepEqual(errors,[]);
+    // Someone else, not an editor: the new copy, nothing editable, no pill.
+    srv.state.dev=false;
+    const other=await open(browser,srv,{project:'p1',silent:true});
+    await other.frame().evaluate(()=>{FirstMateGuides.play('materials.tab_tutorial',{replay:true});});
+    await other.frame().waitForSelector('.gx-pop h3');
+    assert.equal(await other.frame().locator('.gx-pop h3').innerText(),'Hello from <the> roof');
+    assert.equal(await other.frame().locator('[data-gx-copy]').count(),0);
+    assert.equal(await other.frame().locator('.gx-dev').count(),0);
+    assert.deepEqual(other.errors,[]);
   } finally { await browser.close(); }
 });

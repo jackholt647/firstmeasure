@@ -25,10 +25,22 @@
   const array = (value) => Array.isArray(value) ? value : [];
   const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (c) => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
   /** Copy from a definition ({ key, text }) or a library string, through PlatformLanguage. */
+  // Development copy edits (dev.ts) replace a key's English. Other languages keep their translation.
+  const overrides = {};
+  const english = () => { const locale = clean(root.PlatformLanguage?.locale?.() || root.document?.documentElement?.lang || 'en').toLowerCase(); return !locale || locale.startsWith('en'); };
   const L = (copy, fallback) => {
+    const key = copy && typeof copy === 'object' ? copy.key : copy;
+    if (key && overrides[key] !== undefined && english()) return overrides[key];
     if (copy && typeof copy === 'object') return root.PlatformLanguage?.text?.(NS, copy.key, copy.text) ?? copy.text;
     return root.PlatformLanguage?.text?.(NS, copy, fallback) ?? fallback;
   };
+  /** Copy as HTML: escaped text, marked with its key so a development editor can change it in place. */
+  const H = (copy, fallback) => {
+    const key = copy && typeof copy === 'object' ? copy.key : copy;
+    const value = esc(L(copy, fallback));
+    return devState.editor && key ? `<span class="gx-copy" data-gx-copy="${esc(key)}">${value}</span>` : value;
+  };
+  const devState = { editor: false };
   const reducedMotion = () => !!root.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches;
 
   // ── API ────────────────────────────────────────────────────────────────
@@ -91,6 +103,10 @@
     if (state.loading && !force) return state.loading;
     state.loading = api.list(here.tab, here.projectId).then((result) => {
       state.experiences = new Map(array(result.experiences).map((entry) => [entry.id, entry]));
+      Object.keys(overrides).forEach((key) => { delete overrides[key]; });
+      Object.assign(overrides, object(result.copy_overrides));
+      state.devExperiences = array(result.dev?.experiences);
+      if (result.dev?.editor && !devState.editor) { devState.editor = true; installDev(document); }
       const reveals = array(result.reveals);
       if (JSON.stringify(reveals) !== JSON.stringify(state.reveals)) {
         const first = state.reveals === null;
@@ -291,7 +307,7 @@
       return new Promise((resolve) => {
         const host = document.createElement('div'); host.className = 'gx-ov'; host.setAttribute('data-fmr-ignore', ''); host.setAttribute('data-gx-overlay', '');
         host.innerHTML = '<svg aria-hidden="true"><path class="gx-ov-dim"></path></svg><div class="gx-ov-ring" hidden></div>';
-        const pop = document.createElement('div'); pop.className = 'gx-pop'; pop.setAttribute('role', 'dialog'); pop.setAttribute('aria-modal', 'false'); pop.setAttribute('data-fmr-ignore', ''); pop.tabIndex = -1;
+        const pop = document.createElement('div'); pop.className = 'gx-pop'; pop.setAttribute('data-gx-overlay', ''); pop.dataset.gxExperience = clean(options.experienceId); pop.setAttribute('role', 'dialog'); pop.setAttribute('aria-modal', 'false'); pop.setAttribute('data-fmr-ignore', ''); pop.tabIndex = -1;
         document.body.append(host, pop);
         const path = host.querySelector('path'), ring = host.querySelector('.gx-ov-ring');
         let index = -1, shown = 0, ended = false, current = null, targets = [], holes = [], animation = 0, clickTarget = null;
@@ -347,13 +363,13 @@
         function render(step){
           const total = list.length, position = index + 1, last = position >= total;
           pop.innerHTML = `<button type="button" class="gx-x" data-gx="close" aria-label="${esc(L('gx_ui_skip_tutorial', 'Skip tutorial'))}" title="${esc(L('gx_ui_skip_tutorial', 'Skip tutorial'))}">&times;</button>
-            <h3>${esc(L(step.title))}</h3><p>${esc(L(step.body))}</p>
+            <h3>${H(step.title)}</h3><p>${H(step.body)}</p>
             <footer><span class="gx-dots" aria-label="${esc(L('gx_ui_step_of', 'Step') + ' ' + position + ' / ' + total)}">${list.map((_, i) => `<i class="${i === index ? 'on' : ''}"></i>`).join('')}</span>
-              ${position > 1 ? `<button type="button" class="gx-b gx-link" data-gx="back">${esc(L('gx_ui_back', 'Back'))}</button>` : ''}
-              ${!last ? `<button type="button" class="gx-b gx-link" data-gx="skip">${esc(L('gx_ui_skip_step', 'Skip step'))}</button>` : ''}
-              ${step.advance === 'click' && targets.length ? '' : `<button type="button" class="gx-b gx-primary" data-gx="next">${esc(last ? L('gx_ui_done', 'Done') : L('gx_ui_next', 'Next'))}</button>`}</footer>
+              ${position > 1 ? `<button type="button" class="gx-b gx-link" data-gx="back">${H('gx_ui_back', 'Back')}</button>` : ''}
+              ${!last ? `<button type="button" class="gx-b gx-link" data-gx="skip">${H('gx_ui_skip_step', 'Skip step')}</button>` : ''}
+              ${step.advance === 'click' && targets.length ? '' : `<button type="button" class="gx-b gx-primary" data-gx="next">${last ? H('gx_ui_done', 'Done') : H('gx_ui_next', 'Next')}</button>`}</footer>
             ${targets.length && step.placement !== 'center' ? '<span class="gx-arrow" aria-hidden="true"></span>' : ''}`;
-          pop.setAttribute('aria-label', L(step.title));
+          pop.setAttribute('aria-label', L(step.title)); pop.dataset.gxStep = step.id;
           pop.classList.remove('gx-enter'); void pop.offsetWidth; pop.classList.add('gx-enter');
           setTimeout(() => pop.querySelector('[data-gx=next]')?.focus?.({ preventScroll: true }), 30);
         }
@@ -410,7 +426,7 @@
   };
 
   kinds.set('overlay', async ({ experience, track: record }) => {
-    const result = await overlay.run(experience.steps, { onStep: ({ type, step }) => { if (type !== 'dismiss') record(type, { step_id: step }); } });
+    const result = await overlay.run(experience.steps, { experienceId: experience.id, onStep: ({ type, step }) => { if (type !== 'dismiss') record(type, { step_id: step }); } });
     if (result.status === 'completed') await record('complete', { step_id: result.last, properties: { shown: result.shown } });
     else await record('dismiss', { step_id: result.last, properties: { shown: result.shown } });
     return result;
@@ -454,6 +470,7 @@
     if (!drawer || drawer.querySelector('.gx-faqs-wrap')) return null;
     const doc = drawer.ownerDocument || document;
     injectCss('gx-faq-css', faqCss, doc);
+    if (devState.editor) installDev(doc);
     const composer = drawer.querySelector('[data-fma="composer"]');
     const shell = composer?.querySelector('.fma-compose-shell');
     if (!composer || !shell) return null;
@@ -473,7 +490,7 @@
       if (tab === shownTab && !wrap.hidden) return;
       shownTab = tab;
       // A replay ("Show me the tutorial again") leads, so it is never behind "More".
-      strip.innerHTML = [...questions].sort((a, b) => Number(b.action === 'play') - Number(a.action === 'play')).map((question, i) => `<button type="button" class="gx-faq" role="listitem" data-gx-faq="${esc(question.id)}" style="animation-delay:${i * 40}ms">${question.action === 'play' ? '<i class="fas fa-circle-play" aria-hidden="true"></i>' : '<i class="fas fa-sparkles" aria-hidden="true"></i>'}${esc(L(question.text))}</button>`).join('');
+      strip.innerHTML = [...questions].sort((a, b) => Number(b.action === 'play') - Number(a.action === 'play')).map((question, i) => `<button type="button" class="gx-faq" role="listitem" data-gx-faq="${esc(question.id)}" style="animation-delay:${i * 40}ms">${question.action === 'play' ? '<i class="fas fa-circle-play" aria-hidden="true"></i>' : '<i class="fas fa-sparkles" aria-hidden="true"></i>'}${H(question.text)}</button>`).join('');
       wrap.hidden = false;
       strip.dataset.collapsed = 'true';
       syncMore();
@@ -537,7 +554,178 @@
     return array(apps).filter((app) => rules.every((rule) => clean(rule.tab) !== clean(app?.appId || app?.id) || factsMatch(rule.when, facts)));
   }
 
+  // ── Development: edit copy in place, reset and replay ──────────────────
+  /*
+   * Only for a development editor (the server says so: development data environment, platform administrator or the
+   * development tools audience). Every piece of copy rendered with H() carries its key; while "Editing copy" is on
+   * it is plain-text contenteditable and saves (debounced) to the platform copy overrides. Shown on top of the code's
+   * English for everyone in development on their next load.
+   */
+  const devCss = `
+    html.gx-editing [data-gx-copy]{outline:1px dashed rgba(217,48,37,.55);outline-offset:2px;border-radius:3px;cursor:text;-webkit-user-select:text;user-select:text}
+    html.gx-editing [data-gx-copy]:hover{background:rgba(217,48,37,.06)}
+    html.gx-editing [data-gx-copy]:focus{outline:2px solid var(--primary,#d93025);background:rgba(255,236,153,.35)}
+    .gx-dev{position:fixed;left:12px;bottom:12px;z-index:2147483600;font:12px/1.4 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:#101828}
+    .gx-dev-pill{display:inline-flex;align-items:center;gap:6px;padding:4px;border-radius:999px;background:#101828;color:#fff;box-shadow:0 8px 24px rgba(16,24,40,.3)}
+    .gx-dev-pill button{border:0;border-radius:999px;background:transparent;color:inherit;font:inherit;font-weight:650;padding:5px 10px;cursor:pointer}
+    .gx-dev-pill button[aria-pressed=true]{background:#d93025}
+    .gx-dev-pill button:hover{background:rgba(255,255,255,.14)}
+    .gx-dev-pill button[aria-pressed=true]:hover{background:#b42318}
+    .gx-dev-status{opacity:.75;padding-right:6px;min-width:42px}
+    .gx-dev-panel{position:absolute;left:0;bottom:44px;width:min(340px,calc(100vw - 24px));max-height:min(60vh,520px);overflow:auto;background:#fff;border:1px solid #e4e7ec;border-radius:12px;box-shadow:0 18px 50px rgba(16,24,40,.25);padding:10px}
+    .gx-dev-panel[hidden]{display:none}
+    .gx-dev-panel h4{margin:8px 4px 6px;font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:#667085}
+    .gx-dev-row{display:flex;align-items:center;gap:6px;padding:6px 4px;border-top:1px solid #f2f4f7}
+    .gx-dev-row span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis}
+    .gx-dev-row button,.gx-dev-panel .gx-dev-btn{border:1px solid #d0d5dd;border-radius:7px;background:#fff;font:inherit;font-size:11.5px;font-weight:650;padding:3px 8px;cursor:pointer;color:#344054;white-space:nowrap}
+    .gx-dev-row button:hover{background:#f9fafb}
+    .gx-dev-history small{display:block;color:#667085}
+    .gx-dev-empty{color:#667085;padding:6px 4px}
+  `;
+  const EDIT_KEY = 'fm-gx-edit-copy';
+  const editing = () => { try { return root.localStorage?.getItem(EDIT_KEY) !== 'off'; } catch (_) { return true; } };
+  const devApi = {
+    save: (body) => request('/dev/copy', { method:'PUT', body }),
+    history: (key) => request(`/dev/copy/history?key=${encodeURIComponent(key)}`),
+    revert: (key, revision) => request('/dev/copy/revert', { method:'POST', body:{ key, revision } }),
+    reset: (experience_id, scope) => request(orgPath('/dev/reset'), { method:'POST', body:{ experience_id, scope } })
+  };
+  const devDocs = new Set();
+  let lastKey = '', devStatus = '';
+  function setEditable(el){
+    if (!el?.matches?.('[data-gx-copy]')) return;
+    if (editing()) { el.setAttribute('contenteditable', 'plaintext-only'); if (el.contentEditable !== 'plaintext-only') el.setAttribute('contenteditable', 'true'); el.spellcheck = true; }
+    else el.removeAttribute('contenteditable');
+  }
+  function syncEditing(doc){
+    doc.documentElement.classList.toggle('gx-editing', editing());
+    doc.querySelectorAll('[data-gx-copy]').forEach(setEditable);
+    doc.querySelectorAll('.gx-dev [data-gxd=toggle]').forEach((button) => button.setAttribute('aria-pressed', String(editing())));
+  }
+  function status(text){ devStatus = text; devDocs.forEach((doc) => doc.querySelectorAll('.gx-dev-status').forEach((el) => { el.textContent = text; })); }
+  const pending = new Map();
+  function copyPlace(el){
+    const host = el.closest('[data-gx-setup],[data-gx-overlay]');
+    return { experience_id: clean(host?.dataset.gxSetup || host?.dataset.gxExperience), step_id: clean(el.closest('[data-gx-step]')?.dataset.gxStep), field: clean(el.closest('h2,h3') ? 'title' : el.closest('p') ? 'body' : el.closest('button') ? 'button' : 'text') };
+  }
+  function save(el, now = false){
+    const key = el.dataset.gxCopy, text = clean(el.textContent).replace(/\s+/g, ' ');
+    clearTimeout(pending.get(key));
+    if (!text || text === clean(el.dataset.gxOriginal ?? '').replace(/\s+/g, ' ') && !pending.has(key)) return;
+    const run = () => {
+      pending.delete(key);
+      status(L('gx_dev_saving', 'Saving…'));
+      devApi.save({ key, text, ...copyPlace(el) }).then(() => {
+        overrides[key] = text;
+        // Every other place showing this copy, in every frame, shows the new text.
+        devDocs.forEach((doc) => doc.querySelectorAll(`[data-gx-copy="${CSS.escape(key)}"]`).forEach((other) => { if (other !== el && other !== doc.activeElement) other.textContent = text; }));
+        status(L('gx_dev_saved', 'Saved'));
+      }).catch((error) => status(clean(error?.message) || L('gx_dev_failed', 'Not saved')));
+    };
+    if (now) run(); else pending.set(key, setTimeout(run, 700));
+  }
+  function installDev(doc){
+    if (!doc?.documentElement || devDocs.has(doc)) return;
+    devDocs.add(doc);
+    injectCss('gx-dev-css', devCss, doc);
+    const inEditable = (event) => editing() && event.target?.closest?.('[data-gx-copy]');
+    // Editing a label inside a button must not press the button.
+    doc.addEventListener('click', (event) => { if (inEditable(event)) { event.preventDefault(); event.stopImmediatePropagation(); event.target.closest('[data-gx-copy]').focus(); } }, true);
+    doc.addEventListener('keydown', (event) => {
+      const el = inEditable(event);
+      if (!el) return;
+      event.stopImmediatePropagation();
+      if (event.key === 'Enter') { event.preventDefault(); el.blur(); }
+      if (event.key === 'Escape') { event.preventDefault(); el.textContent = el.dataset.gxOriginal ?? el.textContent; el.blur(); }
+    }, true);
+    doc.addEventListener('keyup', (event) => { if (inEditable(event)) { event.stopImmediatePropagation(); event.preventDefault(); } }, true);
+    doc.addEventListener('focusin', (event) => { const el = inEditable(event); if (el) { el.dataset.gxOriginal = el.textContent; lastKey = el.dataset.gxCopy; } });
+    doc.addEventListener('input', (event) => { const el = inEditable(event); if (el) save(el); }, true);
+    doc.addEventListener('focusout', (event) => { const el = inEditable(event); if (el && el.textContent !== el.dataset.gxOriginal) save(el, true); });
+    new (doc.defaultView?.MutationObserver || MutationObserver)((records) => {
+      if (!editing()) return;
+      for (const record of records) for (const node of record.addedNodes) {
+        if (node.nodeType !== 1) continue;
+        setEditable(node);
+        node.querySelectorAll?.('[data-gx-copy]').forEach(setEditable);
+      }
+    }).observe(doc.body || doc.documentElement, { childList: true, subtree: true });
+    syncEditing(doc);
+    mountDevPill(doc);
+    watchDevTools(doc);
+  }
+  /** The pill: "Editing copy" on or off, the last edited field's history, and reset or replay for each experience. */
+  function mountDevPill(doc){
+    if (doc.querySelector('.gx-dev')) return;
+    const host = doc.createElement('div'); host.className = 'gx-dev'; host.setAttribute('data-fmr-ignore', '');
+    host.innerHTML = `<div class="gx-dev-panel" hidden></div><div class="gx-dev-pill"><button type="button" data-gxd="toggle" aria-pressed="${editing()}">${esc(L('gx_dev_editing', 'Editing copy'))}</button><span class="gx-dev-status" role="status">${esc(devStatus)}</span><button type="button" data-gxd="menu" aria-expanded="false" aria-label="${esc(L('gx_dev_menu', 'Guided experience tools'))}">&#8943;</button></div>`;
+    (doc.body || doc.documentElement).appendChild(host);
+    const panel = host.querySelector('.gx-dev-panel');
+    host.addEventListener('click', async (event) => {
+      const action = event.target.closest?.('[data-gxd]');
+      if (!action) return;
+      const kind = action.dataset.gxd;
+      if (kind === 'toggle') { try { root.localStorage?.setItem(EDIT_KEY, editing() ? 'off' : 'on'); } catch (_) {} devDocs.forEach(syncEditing); return; }
+      if (kind === 'menu') { panel.hidden = !panel.hidden; action.setAttribute('aria-expanded', String(!panel.hidden)); if (!panel.hidden) renderDevPanel(panel); return; }
+      await devAction(action.dataset, () => renderDevPanel(panel));
+    });
+    // Always there for a development editor, in the document that shows the project: the portal page hides its own
+    // while a project window (a frame with its own pill) is open.
+    host.hidden = false;
+    if (doc === document && root.top === root) setInterval(() => { host.hidden = !!projectFrameGuides(); }, 1000);
+  }
+  async function devAction(data, rerender){
+    const kind = data.gxd, id = data.gxdId;
+    try {
+      if (kind === 'revert') { await devApi.revert(data.gxdKey, Number(data.gxdRevision)); status(L('gx_dev_reverted', 'Reverted')); await refresh(true); rerender?.(); return; }
+      if (kind === 'reset-me' || kind === 'reset-org') {
+        const result = await devApi.reset(id, kind === 'reset-org' ? 'organization' : 'me');
+        status(L('gx_dev_reset', 'Reset') + ` (${result.progress})`);
+        await refresh(true); rerender?.();
+        return;
+      }
+      if (kind === 'restart' || kind === 'replay') {
+        // Plays where the tab is: a project window frame when one is open.
+        const target = projectFrameGuides() || root.FirstMateGuides;
+        if (kind === 'restart') { await devApi.reset(id, 'me'); }
+        await target.refresh();
+        target.play(id, { replay: true, force: true });
+      }
+    } catch (error) { status(clean(error?.message) || L('gx_dev_failed', 'Not saved')); }
+  }
+  function projectFrameGuides(){
+    for (const frame of document.querySelectorAll('iframe')) {
+      try { const guides = frame.contentWindow?.FirstMateGuides; if (guides && frame.getClientRects().length && frame.contentWindow.FirstMateGuides !== root.FirstMateGuides) return guides; } catch (_) { /* another origin */ }
+    }
+    return null;
+  }
+  async function renderDevPanel(panel){
+    const list = array(state.devExperiences);
+    let history = [];
+    if (lastKey) history = array((await devApi.history(lastKey).catch(() => ({}))).history);
+    panel.innerHTML = `<h4>${esc(L('gx_dev_field', 'Last edited copy'))}</h4>${lastKey ? `<div class="gx-dev-history">${history.map((entry) => `<div class="gx-dev-row"><span>${esc(entry.text || '(code)')}<small>${esc(entry.author)} · ${esc(new Date(entry.created_at).toLocaleString())} · r${entry.revision}</small></span><button type="button" data-gxd="revert" data-gxd-key="${esc(lastKey)}" data-gxd-revision="${entry.revision}">${esc(L('gx_dev_use', 'Use'))}</button></div>`).join('')}<div class="gx-dev-row"><span>${esc(lastKey)}</span><button type="button" data-gxd="revert" data-gxd-key="${esc(lastKey)}" data-gxd-revision="0">${esc(L('gx_dev_code_text', 'Use the code’s text'))}</button></div></div>` : `<div class="gx-dev-empty">${esc(L('gx_dev_no_field', 'Edit any copy to see its history here.'))}</div>`}
+      <h4>${esc(L('gx_dev_experiences', 'Experiences'))}</h4>${list.map((entry) => `<div class="gx-dev-row"><span title="${esc(entry.id)}">${esc(L(entry.title))}</span>${entry.kind === 'overlay' ? `<button type="button" data-gxd="replay" data-gxd-id="${esc(entry.id)}">${esc(L('gx_dev_replay', 'Replay'))}</button>` : `<button type="button" data-gxd="restart" data-gxd-id="${esc(entry.id)}">${esc(L('gx_dev_restart', 'Restart'))}</button>`}<button type="button" data-gxd="reset-me" data-gxd-id="${esc(entry.id)}">${esc(L('gx_dev_reset_me', 'Reset me'))}</button><button type="button" data-gxd="reset-org" data-gxd-id="${esc(entry.id)}">${esc(L('gx_dev_reset_org', 'Reset org'))}</button></div>`).join('') || `<div class="gx-dev-empty">${esc(L('gx_dev_none', 'No experiences.'))}</div>`}`;
+  }
+  /** Adds a "Guided experiences" section to the development tools window (libraries/development-tools) when it opens. */
+  function watchDevTools(doc){
+    const add = () => doc.querySelectorAll('.fm-dev-window .fm-dev-body').forEach((body) => {
+      if (body.querySelector('[data-gx-devtools]')) return;
+      const section = doc.createElement('details'); section.className = 'fm-dev-section'; section.dataset.gxDevtools = ''; section.setAttribute('data-fmr-ignore', '');
+      section.innerHTML = `<summary><span><i class="fas fa-route" aria-hidden="true"></i> ${esc(L('gx_dev_section', 'Guided experiences'))}</span></summary><div class="gx-dev-panel" style="position:static;width:auto;box-shadow:none;border:0;padding:0"></div><label class="fm-dev-option"><span><strong>${esc(L('gx_dev_editing', 'Editing copy'))}</strong></span><input type="checkbox" role="switch" data-gxd-edit ${editing() ? 'checked' : ''}></label>`;
+      const footer = body.querySelector('.fm-dev-footer');
+      body.insertBefore(section, footer || null);
+      const panel = section.querySelector('.gx-dev-panel');
+      section.addEventListener('toggle', () => { if (section.open) renderDevPanel(panel); });
+      section.addEventListener('click', (event) => { const action = event.target.closest?.('[data-gxd]'); if (action && !action.matches('[data-gxd-edit]')) devAction(action.dataset, () => renderDevPanel(panel)); });
+      section.querySelector('[data-gxd-edit]').addEventListener('change', (event) => { try { root.localStorage?.setItem(EDIT_KEY, event.target.checked ? 'on' : 'off'); } catch (_) {} devDocs.forEach(syncEditing); projectFrameGuides()?.syncDevEditing?.(); });
+    });
+    let queued = false;
+    new (doc.defaultView?.MutationObserver || MutationObserver)(() => { if (queued) return; queued = true; requestAnimationFrame(() => { queued = false; add(); }); }).observe(doc.body || doc.documentElement, { childList: true, subtree: true });
+    add();
+  }
+
   root.FirstMateGuides = {
+    copyHtml: H, installDev, syncDevEditing: () => devDocs.forEach(syncEditing), isDevEditor: () => devState.editor,
     filterProjectTabs, projectFacts,
     refresh: () => refresh(true), play, faqs, attachAssistant, overlay, where, follow,
     registerKind(kind, player){ kinds.set(kind, player); },
