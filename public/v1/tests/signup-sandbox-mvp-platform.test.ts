@@ -43,8 +43,9 @@ test('the MVP platform workflow is FirstMeasure plus projects, contacts, feed an
  const {effectiveByKey}=await capabilities.effectiveCapabilities(orgId);
  const on=['platform.more_apps','platform.advanced_app_menu','firstmeasure.exteriors','platform.top_bar','topbar.global_search','topbar.notifications','platform.expanded_access','apps.projects','apps.project_map','platform.project_stages_view','platform.contacts','platform.photos_feed','platform.project_photos','platform.customer_portal','platform.materials','platform.documents','apps.firstmeasure','firstmeasure.report_orders','apps.assistant','channels.project_notes'];
  for(const key of on) assert.equal(effectiveByKey[key],true,key);
- const off=['customer_portal.guest_links','platform.project_assignments','topbar.todos','channels.project_messages_tray','platform.scheduling','scheduling.gantt','equipment.scheduling','apps.crm','apps.stats','apps.payroll','apps.training','apps.crew','apps.sales','platform.money','apps.comms','apps.checklists','apps.equipment'];
+ const off=['customer_portal.guest_links','platform.project_assignments','topbar.todos','channels.project_messages_tray','platform.scheduling','scheduling.gantt','equipment.scheduling','apps.crm','apps.stats','apps.payroll','apps.training','apps.sales','platform.money','apps.comms','apps.checklists','apps.equipment'];
  for(const key of off) assert.notEqual(effectiveByKey[key],true,key);
+ // apps.crew and platform.people_access are on for testing for now (mvp-platform.ts).
  const global=await storage.readGlobal(orgId);
  assert.deepEqual((global.data as any).app_placements,{'portal.channels':'hidden','portal.assistant':'hidden'});
  // Project tabs: Overview, Reports, Photos, Docs, Project (called Materials) and Customer Portal; Photos and Docs are New.
@@ -63,12 +64,12 @@ test('the MVP platform workflow is FirstMeasure plus projects, contacts, feed an
  const roofing=await scopes.readScopeTemplate(orgId,'default','generic_roofing');
  assert.deepEqual((roofing as any).definition?.measurement_schema_ids ?? (roofing as any).measurement_schema_ids,['roofing']);
  assert.equal(String((await creation.creationScopeTemplate(orgId,'default')).id),'generic_roofing');
- assert.equal((workflow as any).dev_bar,false);assert.equal((workflow as any).configuration_revision,12);
+ assert.equal((workflow as any).dev_bar,false);assert.equal((workflow as any).configuration_revision,14);
  const resolved=(await capabilities.effectiveCapabilities(orgId)).values as any;
  assert.equal(resolved['platform.new_button_mode'],'selector');assert.equal(resolved['platform.new_button_items'],'report,project,contact');
  // Turned on as configuration even where this checkout's registry does not define it (dev's does).
  assert.equal((workflow!.defaults as any).app_flags['firstmeasure.roof_model_viewer'],true);
- assert.equal((workflow as any).sample_data,true);assert.deepEqual((workflow as any).setup_scripts,['mvp-platform']);
+ assert.equal((workflow as any).sample_data,true);assert.deepEqual((workflow as any).setup_scripts,['mvp-platform']);assert.deepEqual((workflow as any).launch_sample_data,['projects','customers']);
  // Generic Roofing's board follows the report and the documents: five stages, in order.
  const definition=(roofing as any).definition;
  assert.deepEqual(definition.work_plan.root_nodes[0].children.map((stage:any)=>stage.title),['New project','Measurements ordered','Measurements received','Proposal created','Materials created']);
@@ -81,6 +82,14 @@ test('the MVP platform workflow is FirstMeasure plus projects, contacts, feed an
  assert.equal(await stageAfter([{event:'measurement.report.ordered'},{event:'measurement.report.completed'},{event:'document.created',payload:{document_type:'invoice'}}]),'report_delivered');
  assert.equal(await stageAfter([{event:'document.created',payload:{document_type:'proposal'}}]),'proposal_created');
  assert.equal(await stageAfter([{event:'material.lines.created'},{event:'measurement.report.ordered'}]),'materials_created');
+ // The launch's sample data queued work events that drain in the background; let them finish so the inline drains
+ // below are not skipped while a background pass is still running.
+ const workStore=await import('../work/storage.js');
+ for(let i=0;i<300;i++){
+  const busy=(await Promise.all(['pending','processing'].map(status=>workStore.listEventRecords(orgId,{status,limit:1})))).some(rows=>rows.length);
+  if(!busy)break;
+  await new Promise(resolve=>setTimeout(resolve,50));
+ }
  // The real writers move a real project: the board stage is read from the project's work projection.
  process.env.NODE_ENV='test';
  const platformApi=await import('../platform/api.js');const fm=await import('../firstmeasure/storage.js');const work=await import('../work/service.js');
@@ -122,8 +131,15 @@ test('the MVP platform workflow is FirstMeasure plus projects, contacts, feed an
  const roles=(await access.listAccessRoles(orgId)).filter((role:any)=>role.status!=='archived');
  assert.ok(roles.length>0);
  for(const role of roles as any[]) assert.equal(role.app_defaults?.['portal.viewer']?.options?.map_first,true,String(role.id));
- // MVP test orgs take the development sample projects and customers (the project map needs projects).
- const {addTestOrgSampleData}=await import('../signup-sandbox/sample-data.js');
- await addTestOrgSampleData(String(instance.testOrg.id),{projects:true,customers:true});
- assert.ok((await storage.listDocuments(orgId,'projects')).length>0);
+ // The tester is the owner, with the Super admin role like a real signup's owner, so the role's map_first reaches them.
+ const owner:any=(await storage.listDocuments(orgId,'users')).find((row:any)=>row.data?.role==='owner');
+ const profile=await access.resolveAccessProfile(orgId,{...owner.data,id:owner.id});
+ assert.deepEqual(profile.access_role_ids,['super_admin']);
+ assert.equal(profile.app_entitlements_by_id['portal.viewer']?.option_values.map_first,true);
+ // A launched MVP test org starts with the sample projects (with map points) and customers.
+ const projects=await storage.listDocuments(orgId,'projects');
+ assert.ok(projects.filter((row:any)=>String(row.id).startsWith('sample_')).length>=4,'sample projects');
+ assert.ok(projects.filter((row:any)=>String(row.id).startsWith('sample_')).every((row:any)=>Number.isFinite((row.data as any).lat)));
+ const {listContacts}=await import('../contacts/records.js');
+ assert.ok((await listContacts(orgId)).items.length>=5,'sample customers');
 });

@@ -27,6 +27,7 @@ import {
   upsertDocument
 } from "../platform/storage.js";
 import { organizationUserProfileFields } from "../platform/user_profile.js";
+import { DEFAULT_ACCESS_ROLE_IDS } from "../workforce/access.js";
 import { patchScopeFlags, readScopeFlagState } from "../scopes/storage.js";
 import {
   generateSandboxId,
@@ -255,6 +256,9 @@ function normalizeStage(input: JsonObject): JsonObject {
   };
 }
 
+// What the sandbox's "Add sample data" can add (development/fixtures.ts addTestOrgSampleData).
+const SAMPLE_DATA_KINDS = ["equipment", "channels", "projects", "customers"];
+
 function normalizeWorkflow(input: JsonObject, existing: JsonObject | null = null): JsonObject {
   const now = nowIso();
   const id = existing ? String(existing.id) : input.id ? sanitizeSandboxId(input.id, "workflow id") : generateSandboxId("swf");
@@ -272,6 +276,10 @@ function normalizeWorkflow(input: JsonObject, existing: JsonObject | null = null
     tags: Array.isArray(input.tags ?? existing?.tags) ? ((input.tags ?? existing?.tags) as unknown[]).map(cleanText).filter(Boolean) : [],
     // Test orgs from this workflow can take development sample data.
     sample_data: (input.sample_data ?? existing?.sample_data) === true,
+    // The sample data a new test org gets when it is launched (a workflow that offers sample data only).
+    launch_sample_data: (input.sample_data ?? existing?.sample_data) === true && Array.isArray(input.launch_sample_data ?? existing?.launch_sample_data)
+      ? [...new Set(((input.launch_sample_data ?? existing?.launch_sample_data) as unknown[]).map(cleanText).filter((kind) => SAMPLE_DATA_KINDS.includes(kind)))]
+      : [],
     // The test-run bar shows inside its test orgs unless the workflow turns it off.
     dev_bar: (input.dev_bar ?? existing?.dev_bar) !== false,
     // A configuration module's revision (configurations/); a higher one replaces the saved copy.
@@ -508,6 +516,9 @@ export async function createTestInstance(workflowId: string, input: JsonObject =
       status: "active",
       permissions: { "*": true },
       ...organizationUserProfileFields({}, { includeDefaults: true }),
+      // The owner has the Super admin role, as a real signup's owner does (by its "owner" role); an empty role list
+      // would leave them out of every role's app options, such as My Projects opening on the map.
+      access_role_ids: [DEFAULT_ACCESS_ROLE_IDS.super_admin],
       profile: {},
       stats: { projects_ordered: 0, commissions_earned: 0 },
       metadata: {}
@@ -558,6 +569,15 @@ export async function createTestInstance(workflowId: string, input: JsonObject =
     workflow_title: runContext.workflow.title,
     created_at: nowIso()
   });
+  // The workflow's launch sample data, the same as "Add sample data" afterwards (development data only).
+  const launchSamples = (Array.isArray(runContext.workflow.launch_sample_data) ? runContext.workflow.launch_sample_data : []).map(String).filter((kind) => SAMPLE_DATA_KINDS.includes(kind));
+  if (!env.isProduction && runContext.workflow.sample_data === true && launchSamples.length) {
+    try {
+      await (await import("./sample-data.js")).addTestOrgSampleData(instanceId, Object.fromEntries(launchSamples.map((kind) => [kind, true])));
+    } catch (error) {
+      console.error("Test org launch sample data was not added:", error instanceof Error ? error.message : error);
+    }
+  }
 
   // Land directly on the real surface of the first actionable stage (the
   // actual portal wizard for builtin steps); the injected dev bar takes over
@@ -1318,7 +1338,7 @@ export async function ensureSeedData() {
     const defaults = asObject(current.defaults);
     const flags = asObject(defaults.app_flags);
     const missingFlags = Object.entries(asObject(asObject(seed.defaults).app_flags)).filter(([key]) => !(key in flags));
-    const missingFields = ["sample_data", "setup_scripts"].filter((key) => !(key in current) && key in seed);
+    const missingFields = ["sample_data", "launch_sample_data", "setup_scripts"].filter((key) => !(key in current) && key in seed);
     if (missingFlags.length || missingFields.length) {
       await sandboxStore.saveWorkflow(normalizeWorkflow({
         ...Object.fromEntries(missingFields.map((key) => [key, seed[key]])),

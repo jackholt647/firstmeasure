@@ -1621,6 +1621,7 @@
       .pf-upload{height:38px;border:1px dashed #d0d5dd;border-radius:10px;background:#fff;color:#344054;padding:0 12px;font-size:12px;font-weight:900;cursor:pointer;display:flex;align-items:center;gap:8px}.pf-upload:hover{border-color:var(--primary,#d93025);color:var(--primary-readable,var(--primary,#d93025));background:rgba(var(--primary-rgb,217,48,37),.04)}
       .pf-selectionbar{position:sticky;top:52px;z-index:3;margin:0 0 12px;border:1px solid #e4e7ec;border-radius:14px;background:rgba(255,255,255,.96);backdrop-filter:blur(14px);padding:10px 12px;display:flex;align-items:center;justify-content:space-between;gap:12px}
       .pf-selectionbar strong{font-size:13px}.pf-selection-actions{display:flex;align-items:center;gap:8px}.pf-action{height:34px;border:1px solid #d0d5dd;border-radius:10px;background:#fff;color:#344054;padding:0 11px;font-size:12px;font-weight:900;cursor:pointer}.pf-action.primary{background:var(--primary,#d93025);border-color:var(--primary,#d93025);color:#fff}.pf-action.danger{border-color:#fecdca;color:#b42318;background:#fff5f5}.pf-action.danger:hover{background:#fee4e2}.pf-download-wrap{position:relative}.pf-download-menu{position:absolute;right:0;top:40px;z-index:6;width:190px;border:1px solid #e4e7ec;border-radius:12px;background:#fff;box-shadow:0 18px 44px rgba(15,23,42,.16);padding:6px;display:none}.pf-download-menu.visible{display:block}.pf-download-menu button{width:100%;border:0;background:transparent;border-radius:9px;padding:10px;text-align:left;font-size:12px;font-weight:900;color:#344054;cursor:pointer}.pf-download-menu button:hover{background:#f2f4f7}
+      .pf-gallery-host{position:relative}.pf-seldock{position:absolute;left:50%;bottom:16px;z-index:25;display:flex;align-items:center;gap:6px;max-width:calc(100% - 24px);box-sizing:border-box;padding:6px;border:1px solid #e4e7ec;border-radius:14px;background:rgba(255,255,255,.97);backdrop-filter:blur(14px);box-shadow:0 12px 32px rgba(16,24,40,.16),0 2px 6px rgba(16,24,40,.06);color:#101828;opacity:0;transform:translate(-50%,14px) scale(.98);pointer-events:none;transition:opacity .16s ease,transform .2s cubic-bezier(.2,.8,.2,1)}.pf-seldock.open{opacity:1;transform:translate(-50%,0) scale(1);pointer-events:auto}.pf-seldock-count{display:flex;align-items:center;gap:2px;white-space:nowrap}.pf-seldock-count strong{font-size:13px;font-weight:800;padding:0 6px 0 2px;font-variant-numeric:tabular-nums}.pf-seldock-link{height:30px;border:0;border-radius:8px;background:transparent;color:var(--primary-readable,var(--primary,#d93025));font:inherit;font-size:12px;font-weight:800;padding:0 8px;cursor:pointer;white-space:nowrap}.pf-seldock-link:hover{background:#f2f4f7}.pf-seldock-sep{width:1px;height:22px;background:#e4e7ec;flex:none;margin:0 2px}.pf-seldock-group{display:flex;align-items:center;gap:2px}.pf-seldock-icon{width:34px;height:34px;border:0;border-radius:9px;background:transparent;color:#475467;display:inline-flex;align-items:center;justify-content:center;font-size:14px;cursor:pointer;flex:none}.pf-seldock-icon:hover{background:#f2f4f7;color:#101828}.pf-seldock-icon.danger:hover{background:#fef3f2;color:#b42318}.pf-seldock-primary{height:34px;border:0;border-radius:9px;background:var(--primary,#d93025);color:#fff;font:inherit;font-size:12px;font-weight:800;padding:0 12px;display:inline-flex;align-items:center;gap:7px;cursor:pointer;white-space:nowrap}.pf-seldock-primary:hover{filter:brightness(.94)}.pf-seldock-caret{font-size:9px;opacity:.85}.pf-seldock .pf-download-menu{top:auto;bottom:44px;right:0}.pf-seldock button:focus-visible{outline:2px solid var(--primary,#d93025);outline-offset:1px}.pf-gallery-host.pf-has-seldock .pf-scroll{padding-bottom:84px}.pf-seldock-link i{display:none}.pf-seldock.compact{bottom:10px;gap:3px}.pf-seldock.compact .pf-seldock-primary span,.pf-seldock.compact .pf-seldock-link span{display:none}.pf-seldock.compact .pf-seldock-link i{display:inline}.pf-seldock.compact .pf-seldock-link{width:34px;height:34px;padding:0}.pf-seldock.compact .pf-seldock-primary{padding:0 10px}@media(prefers-reduced-motion:reduce){.pf-seldock{transition:none}}
       .pf-scroll{overflow:auto;flex:1;padding:0 2px 16px;min-height:0}.pf-day{margin-bottom:26px}.pf-wrap .pf-day-title{font-size:13px;font-weight:700;line-height:1.4;color:#344054;text-transform:none;letter-spacing:0;margin:0 0 16px}.pf-day-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:16px}.pf-wrap .pf-day-heading .pf-day-title{margin:0}.pf-day-summary{font-size:12px;font-weight:400;color:#667085;display:flex;gap:14px;flex-wrap:wrap}
       .pf-group{background:#fff;border:1px solid #eaecf0;border-radius:8px;margin-bottom:14px;overflow:hidden;box-shadow:0 1px 2px rgba(16,24,40,.04)}
       .pf-group-head{padding:13px 14px;border-bottom:1px solid #f2f4f7;display:flex;align-items:flex-start;justify-content:space-between;gap:12px}.pf-group-head strong{font-size:14px}.pf-group-head span{display:block;color:#667085;font-size:12px;margin-top:3px}.pf-project-link{border:0;background:transparent;color:#101828;padding:0;font:inherit;font-size:14px;font-weight:1000;cursor:pointer;text-align:left}.pf-project-link:hover{color:var(--primary-readable,var(--primary,#d93025));text-decoration:underline}.pf-uploaders{font-size:12px;color:#475467;text-align:right;max-width:320px}.pf-user-link{border:0;background:transparent;color:#475467;padding:0;font:inherit;font-size:12px;font-weight:900;cursor:pointer}.pf-user-link:hover{color:var(--primary-readable,var(--primary,#d93025));text-decoration:underline}.pf-user-sep{color:#98a2b3}
@@ -3818,22 +3819,93 @@
       }
       if (!local.selected.size) clearLocalSelection();
     };
+    // The selection toolbar floats over the bottom of the gallery (syncDock), so selecting never moves the grid.
+    const T = (key, fallback, vars) => globalThis.PlatformLanguage?.text("photos", key, fallback, vars) ?? fallback;
+    const dockTip = (text) => `data-fm-tooltip="${escapeHtml(text)}" aria-label="${escapeHtml(text)}"`;
+    const dockHtml = (compact = false) => {
+      const count = local.selected.size;
+      const total = filtered().length;
+      // The host's own actions (the project tab's portal sharing) sit together as one group of icon buttons.
+      const hostActions = options.trashMode || !Array.isArray(options.selectionActions) ? [] : options.selectionActions.filter((action) => cleanText(action?.id));
+      const hostGroup = hostActions.length ? `<span class="pf-seldock-sep"></span><div class="pf-seldock-group" role="group">${hostActions.map((action) => {
+        const id = escapeHtml(cleanText(action.id));
+        const label = cleanText(action.label || action.id);
+        const icon = cleanText(action.icon);
+        const danger = cleanText(action.className).split(/\s+/).includes('danger') ? ' danger' : '';
+        return icon
+          ? `<button type="button" class="pf-seldock-icon${danger}" data-selection-extra="${id}" ${dockTip(label)}><i class="fas ${escapeHtml(icon)}"></i></button>`
+          : `<button type="button" class="pf-seldock-link" data-selection-extra="${id}">${escapeHtml(label)}</button>`;
+      }).join('')}</div>` : '';
+      const primary = options.trashMode
+        ? `<button type="button" class="pf-seldock-primary" data-selection-restore><i class="fas fa-rotate-left"></i><span>${escapeHtml(T('pf_dock_restore', 'Restore'))}</span></button>`
+        : `<div class="pf-download-wrap"><button type="button" class="pf-seldock-primary" data-selection-download aria-haspopup="menu" aria-expanded="${local.downloadMenuOpen ? 'true' : 'false'}"><i class="fas fa-download"></i><span>${escapeHtml(T('pf_dock_download', 'Download'))}</span><i class="fas fa-chevron-up pf-seldock-caret"></i></button><div class="pf-download-menu${local.downloadMenuOpen ? ' visible' : ''}" data-selection-download-menu role="menu"><button type="button" role="menuitem" data-download-selected-plain>${escapeHtml(T('m_c94e82190b64cc', 'Without markup'))}</button><button type="button" role="menuitem" data-download-selected-markup>${escapeHtml(T('m_42e3382f311f77', 'With markup'))}</button></div></div>`;
+      const destroy = options.trashMode
+        ? `<button type="button" class="pf-seldock-icon danger" data-selection-hard-delete ${dockTip(T('pf_dock_delete_forever', 'Delete forever'))}><i class="fas fa-trash"></i></button>`
+        : `<button type="button" class="pf-seldock-icon danger" data-selection-delete ${dockTip(T('pf_dock_delete', 'Delete'))}><i class="fas fa-trash"></i></button>`;
+      return `<div class="pf-seldock-count"><button type="button" class="pf-seldock-icon" data-selection-clear ${dockTip(T('pf_dock_clear', 'Clear selection'))}><i class="fas fa-xmark"></i></button><strong data-selection-count>${escapeHtml(T('m_4b740d0b3ec319', `${count} selected`, { v0: count }))}</strong>${count < total ? `<button type="button" class="pf-seldock-link" data-selection-all${compact ? ` ${dockTip(T('pf_dock_select_all', `Select all ${total}`, { v0: total }))}` : ''}><i class="fas fa-check-double"></i><span>${escapeHtml(T('pf_dock_select_all', `Select all ${total}`, { v0: total }))}</span></button>` : ''}</div>${hostGroup}<span class="pf-seldock-sep"></span>${primary}<span class="pf-seldock-sep"></span>${destroy}`;
+    };
+    const dock = { el: null, timer: 0 };
+    const reducedMotion = () => { try { return window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches === true; } catch (error) { return false; } };
+    const bindDock = (el) => {
+      el.querySelector('[data-selection-clear]')?.addEventListener('click', () => { clearLocalSelection(); renderLocal(); });
+      el.querySelector('[data-selection-all]')?.addEventListener('click', () => {
+        filtered().forEach((item) => local.selected.add(item.id));
+        local.selectionMode = local.selected.size > 0;
+        renderLocal();
+      });
+      el.querySelector('[data-selection-download]')?.addEventListener('click', () => { local.downloadMenuOpen = !local.downloadMenuOpen; syncDock(); });
+      el.querySelector('[data-download-selected-plain]')?.addEventListener('click', () => downloadLocal(false));
+      el.querySelector('[data-download-selected-markup]')?.addEventListener('click', () => downloadLocal(true));
+      el.querySelector('[data-selection-delete]')?.addEventListener('click', () => mutateLocal('trash'));
+      el.querySelector('[data-selection-restore]')?.addEventListener('click', () => mutateLocal('restore'));
+      el.querySelector('[data-selection-hard-delete]')?.addEventListener('click', () => mutateLocal('hard_delete'));
+      el.querySelectorAll('[data-selection-extra]').forEach((btn) => {
+        btn.addEventListener('click', async () => {
+          const id = btn.dataset.selectionExtra || '';
+          const items = selectedLocalItems();
+          const action = (Array.isArray(options.selectionActions) ? options.selectionActions : []).find((entry) => cleanText(entry?.id) === id);
+          if (!items.length || typeof action?.onClick !== 'function') return;
+          await action.onClick(items, { clearSelection: clearLocalSelection, render: renderLocal });
+        });
+      });
+    };
+    // One toolbar element lives across renders: it slides in when the first item is ticked, updates in place, and
+    // slides out when the selection is cleared (no motion under prefers-reduced-motion).
+    function syncDock(){
+      panel.classList.add('pf-gallery-host');
+      const active = options.selectionEnabled !== false && local.selectionMode && local.selected.size > 0;
+      panel.classList.toggle('pf-has-seldock', active);
+      let el = dock.el;
+      window.clearTimeout(dock.timer);
+      if (!active) {
+        if (!el) return;
+        if (!el.isConnected) panel.appendChild(el);
+        if (el.classList.contains('open')) { void el.offsetWidth; el.classList.remove('open'); }
+        el.inert = true;
+        el.setAttribute('aria-hidden', 'true');
+        dock.timer = window.setTimeout(() => { el.remove(); if (dock.el === el) dock.el = null; }, reducedMotion() ? 0 : 220);
+        return;
+      }
+      if (!el) {
+        el = dock.el = document.createElement('div');
+        el.className = 'pf-seldock';
+        el.setAttribute('role', 'toolbar');
+        el.setAttribute('aria-label', T('pf_dock_label', 'Selected media'));
+        el.dataset.selectionDock = '';
+      }
+      el.inert = false;
+      el.removeAttribute('aria-hidden');
+      // A narrow tab (a phone, a small project window) gets icons with tooltips instead of labels.
+      const compact = panel.clientWidth > 0 && panel.clientWidth < 560;
+      el.classList.toggle('compact', compact);
+      el.innerHTML = dockHtml(compact);
+      bindDock(el);
+      if (!el.isConnected) panel.appendChild(el);
+      if (!el.classList.contains('open')) { void el.offsetWidth; el.classList.add('open'); }
+    }
     const bodyHtml = () => {
       const groups = localGroups();
-      const extraSelectionActions = Array.isArray(options.selectionActions)
-        ? options.selectionActions.map((action) => {
-          const id = cleanText(action?.id);
-          if (!id) return '';
-          const icon = cleanText(action.icon);
-          const cls = cleanText(action.className);
-          return `<button type="button" class="pf-action ${escapeHtml(cls)}" data-selection-extra="${escapeHtml(id)}">${icon ? `<i class="fas ${escapeHtml(icon)}"></i> ` : ''}${escapeHtml(action.label || id)}</button>`;
-        }).join('')
-        : '';
-      const selectionActions = options.trashMode
-        ? `<button type="button" class="pf-action" data-selection-restore><i class="fas fa-rotate-left"></i>${(globalThis.PlatformLanguage?.htmlText("photos","m_d55efd8791e299"," Restore") ?? " Restore")}</button><button type="button" class="pf-action danger" data-selection-hard-delete><i class="fas fa-trash"></i>${(globalThis.PlatformLanguage?.htmlText("photos","m_4e4c97a39c03c8"," Delete Forever") ?? " Delete Forever")}</button>`
-        : (String(extraSelectionActions) + "<button type=\"button\" class=\"pf-action danger\" data-selection-delete><i class=\"fas fa-trash\"></i>" + (globalThis.PlatformLanguage?.text("photos","m_90e27d705bee80"," Delete") ?? " Delete") + "</button><div class=\"pf-download-wrap\"><button type=\"button\" class=\"pf-action primary\" data-selection-download><i class=\"fas fa-download\"></i>" + (globalThis.PlatformLanguage?.text("photos","m_f3ad10eaad3ccf"," Download") ?? " Download") + "</button><div class=\"pf-download-menu" + String(local.downloadMenuOpen ? ' visible' : '') + "\" data-selection-download-menu><button type=\"button\" data-download-selected-plain>" + (globalThis.PlatformLanguage?.text("photos","m_c94e82190b64cc","Without markup") ?? "Without markup") + "</button><button type=\"button\" data-download-selected-markup>" + (globalThis.PlatformLanguage?.text("photos","m_42e3382f311f77","With markup") ?? "With markup") + "</button></div></div>");
       return `
-        ${local.selectionMode ? `<div class="pf-selectionbar"><strong>${((v0) => globalThis.PlatformLanguage?.htmlText("photos","m_4b740d0b3ec319",`${v0} selected`,{v0}) ?? `${v0} selected`)(local.selected.size)}</strong><div class="pf-selection-actions"><button type="button" class="pf-action" data-selection-clear>${(globalThis.PlatformLanguage?.htmlText("photos","m_cbef679b21abb4","Cancel") ?? "Cancel")}</button>${String(selectionActions)}</div></div>` : ''}
         <div class="pf-scroll" data-feed-scroll>
           ${typeof options.introHtml === 'function' ? (options.introHtml() || '') : ''}
           ${!groups.length ? `<div class="pf-empty"><i class="fas ${escapeHtml(options.emptyIcon || 'fa-images')}"></i><strong>${escapeHtml(options.emptyTitle || 'No media found')}</strong><div>${escapeHtml(options.emptyMessage || 'Upload project media or adjust the search.')}</div></div>` : ''}
@@ -3843,9 +3915,17 @@
     const renderBody = () => {
       const body = panel.querySelector('[data-photo-feed-dynamic]');
       if (!body) return renderLocal();
+      const scrollTop = panel.querySelector('[data-feed-scroll]')?.scrollTop || 0;
       body.innerHTML = bodyHtml();
+      restoreScroll(scrollTop);
       bindBody();
       bindThumbLoading(panel);
+      syncDock();
+    };
+    // A re-render keeps the gallery where it was: ticking a photo must not scroll it back to the top.
+    const restoreScroll = (scrollTop) => {
+      const scroller = panel.querySelector('[data-feed-scroll]');
+      if (scroller && scrollTop) scroller.scrollTop = scrollTop;
     };
     const downloadLocal = async (withMarkup) => {
       const items = filtered().filter((item) => local.selected.has(item.id));
@@ -3956,22 +4036,6 @@
       window.setTimeout(() => openLocalViewerAt(index, { fromRoute: true }), 0);
     };
     const bindBody = () => {
-      panel.querySelector('[data-selection-clear]')?.addEventListener('click', () => { clearLocalSelection(); renderLocal(); });
-      panel.querySelector('[data-selection-download]')?.addEventListener('click', () => { local.downloadMenuOpen = !local.downloadMenuOpen; renderBody(); });
-      panel.querySelector('[data-download-selected-plain]')?.addEventListener('click', () => downloadLocal(false));
-      panel.querySelector('[data-download-selected-markup]')?.addEventListener('click', () => downloadLocal(true));
-      panel.querySelector('[data-selection-delete]')?.addEventListener('click', () => mutateLocal('trash'));
-      panel.querySelector('[data-selection-restore]')?.addEventListener('click', () => mutateLocal('restore'));
-      panel.querySelector('[data-selection-hard-delete]')?.addEventListener('click', () => mutateLocal('hard_delete'));
-      panel.querySelectorAll('[data-selection-extra]').forEach((btn) => {
-        btn.addEventListener('click', async () => {
-          const id = btn.dataset.selectionExtra || '';
-          const items = selectedLocalItems();
-          const action = (Array.isArray(options.selectionActions) ? options.selectionActions : []).find((entry) => cleanText(entry?.id) === id);
-          if (!items.length || typeof action?.onClick !== 'function') return;
-          await action.onClick(items, { clearSelection: clearLocalSelection, render: renderLocal });
-        });
-      });
       panel.querySelectorAll('[data-photo-select]').forEach((box) => box.addEventListener('click', (event) => {
         event.preventDefault();
         event.stopPropagation();
@@ -4120,6 +4184,7 @@
         const iconName = cleanText(action.icon);
         return `<button type="button" class="pf-toolbar-action${action.active ? ' active' : ''}" data-gallery-toolbar-action="${escapeHtml(id)}" data-fm-tooltip="${escapeHtml(action.tooltip || label)}">${iconName ? `<i class="fas ${escapeHtml(iconName)}"></i>` : ''}${action.showLabel ? ` <span>${escapeHtml(label)}</span>` : ''}</button>`;
       }).join('');
+      const scrollTop = panel.querySelector('[data-feed-scroll]')?.scrollTop || 0;
       panel.innerHTML = `
         <div class="pf-wrap${String(local.selectionMode ? ' selection-mode' : '')}" data-density="${String(escapeHtml(local.density))}">
           <div class="pf-toolbar" data-app-header>
@@ -4190,8 +4255,10 @@
         const action = (Array.isArray(options.toolbarActions) ? options.toolbarActions : []).find((entry) => cleanText(entry?.id) === button.dataset.galleryToolbarAction);
         if (typeof action?.onClick === 'function') action.onClick({ render:renderLocal, items:filtered() });
       }));
+      restoreScroll(scrollTop);
       bindBody();
       bindThumbLoading(panel);
+      syncDock();
       restoreLocalPhotoRoute();
     }
     renderLocal();

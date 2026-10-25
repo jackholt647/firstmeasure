@@ -50,9 +50,36 @@ test('the Open on the map app option puts the map first and opens on it', () => 
     assert.deepEqual(appended.splice(0), ['vViewStages', 'vViewList', 'vViewTiles', 'vViewMap']);
   }
   // A view picked by the route or the person stays; until then the view follows the default as the session and features load.
-  assert.match(viewer, /const nextMode = viewModeChosen \? normalizeViewMode\(viewMode\) : defaultViewMode\(\);/);
+  assert.match(viewer, /const nextMode = viewModeChosen \? normalizeViewMode\(chosenViewMode \|\| viewMode\) : defaultViewMode\(\);/);
   assert.match(viewer, /addEventListener\('fm:platform-session:updated', applyStagesViewFlag\)/);
   assert.match(registry, /tab\("portal\.viewer"[\s\S]{0,400}key: "map_first"[^\n]+default: false, param: "map_first"/);
+});
+
+test('map_first opens the Map on a first visit; after that the view the person last picked wins', () => {
+  const store = new Map();
+  const context = vm.createContext({
+    VIEW_MODES: new Set(['tiles', 'list', 'stages', 'map']),
+    PROJECT_VIEW_QUERY_KEY: 'projectView', PROJECT_VIEW_STORAGE_PREFIX: 'fm_projects_view_v1',
+    URLSearchParams,
+    localStorage: { getItem: (key) => store.get(key) ?? null, setItem: (key, value) => store.set(key, String(value)) },
+    window: { location: { search: '' }, __APP: { userOrgId: 'org', userId: 'user_a' }, Portal: { navigation: { read: () => ({}) } } }
+  });
+  vm.runInContext(viewer.slice(viewer.indexOf('  function requestedViewMode(){'), viewer.indexOf('  // My Projects\' "Open on the map" app option')), context);
+  assert.equal(vm.runInContext('requestedViewMode() || rememberedViewMode()', context), '', 'a first visit has no chosen view, so the default (Map with map_first) applies');
+  vm.runInContext("rememberViewMode('stages')", context);
+  assert.equal(vm.runInContext('rememberedViewMode()', context), 'stages');
+  vm.runInContext("rememberViewMode('nonsense')", context);
+  assert.equal(vm.runInContext('rememberedViewMode()', context), 'stages');
+  // The route still wins, as asked for even before the map feature has loaded; another person starts fresh.
+  context.window.Portal.navigation.read = () => ({ projectView: 'map' });
+  assert.equal(vm.runInContext('requestedViewMode() || rememberedViewMode()', context), 'map');
+  context.window.__APP.userId = 'user_b';
+  context.window.Portal.navigation.read = () => ({});
+  assert.equal(vm.runInContext('rememberedViewMode()', context), '');
+  // Only the view buttons remember; mount and the route handler read the remembered view before the default.
+  assert.equal((viewer.match(/source:'projects-view', remember:true \}\)\);/g) || []).length, 4);
+  assert.match(viewer, /viewMode = requestedViewMode\(\) \|\| rememberedViewMode\(\);/);
+  assert.match(viewer, /const next = routed \? route\[PROJECT_VIEW_QUERY_KEY\] : \(remembered \|\| defaultViewMode\(\)\);/);
 });
 
 function searchCreateContext({ query, typed = query, projects = [], canOrder = true }){

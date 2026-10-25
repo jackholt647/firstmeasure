@@ -24,6 +24,9 @@
   // v1 also saved the automatic default (often the alphabetically first board of a new, empty organization) as if
   // it had been chosen; v2 holds only boards someone picked.
   const PROJECT_BOARD_STORAGE_PREFIX = 'fm_projects_board_v2';
+  // The view a person last picked (Stages, List, Tiles, Map), per organization and person. Until they pick one the
+  // view follows the default, which the map_first app option makes the Map.
+  const PROJECT_VIEW_STORAGE_PREFIX = 'fm_projects_view_v1';
   const INSTANT_PITCH_UI_ENABLED = false;
   const INSTANT_WALL_SLOPE_DEGREES_THRESHOLD = 80;
   const INSTANT_WALL_MIN_HEIGHT_METERS = 0.6;
@@ -1158,6 +1161,9 @@
   // False until the route or the person picks a view; until then the view follows
   // the default as the organization's features load.
   let viewModeChosen = false;
+  // The view as chosen, before it is checked against the organization's features: a chosen Map stays chosen while the
+  // features that allow it are still loading.
+  let chosenViewMode = '';
   let workBoards = [];
   let workDepartmentContext = {};
   let workDepartmentId = "";
@@ -5646,8 +5652,19 @@
   function requestedViewMode(){
     try {
       const mode = window.Portal?.navigation?.read?.()?.[PROJECT_VIEW_QUERY_KEY] || new URLSearchParams(window.location.search || '').get(PROJECT_VIEW_QUERY_KEY);
-      return VIEW_MODES.has(mode) ? normalizeViewMode(mode) : '';
+      return VIEW_MODES.has(mode) ? mode : '';
     } catch (error) { return ''; }
+  }
+  function viewStorageKey(){
+    return `${PROJECT_VIEW_STORAGE_PREFIX}:${String(window.__APP?.userOrgId || 'default')}:${String(window.__APP?.userId || window.Portal?.currentUser?.id || 'me')}`;
+  }
+  function rememberedViewMode(){
+    try { const mode = String(localStorage.getItem(viewStorageKey()) || ''); return VIEW_MODES.has(mode) ? mode : ''; }
+    catch (error) { return ''; }
+  }
+  function rememberViewMode(mode){
+    if (!VIEW_MODES.has(mode)) return;
+    try { localStorage.setItem(viewStorageKey(), mode); } catch (error) {}
   }
   // My Projects' "Open on the map" app option (map_first, App experience) puts the map first and opens on it.
   function appOption(key){
@@ -5716,7 +5733,8 @@
   }
   function setView(mode, options = {}){
     const previousMode = viewMode;
-    if (!options.followDefault) viewModeChosen = true;
+    if (!options.followDefault) { viewModeChosen = true; if (VIEW_MODES.has(mode)) chosenViewMode = mode; }
+    if (options.remember) rememberViewMode(mode);
     if (!projectBoardsEnabled()) tileStageFilter = 'all';
     viewMode = normalizeViewMode(mode);
     if (viewMode === 'stages' && activeWorkBoardId === 'all') {
@@ -5741,7 +5759,7 @@
   function applyStagesViewFlag(){
     if (projectBoardsEnabled()) loadWorkBoards({ refresh:true }).catch(() => null);
     else { workBoards = []; workBoardsLoaded = false; tileStageFilter = 'all'; }
-    const nextMode = viewModeChosen ? normalizeViewMode(viewMode) : defaultViewMode();
+    const nextMode = viewModeChosen ? normalizeViewMode(chosenViewMode || viewMode) : defaultViewMode();
     if (nextMode !== viewMode) {
       setView(nextMode, viewModeChosen ? {} : { followDefault:true, syncUrl:false });
       return;
@@ -7552,8 +7570,10 @@
     listColumnsBoardKey = '';
     injectCSS('viewer', ViewerCSS);
     injectSidebarLogout();
-    viewMode = requestedViewMode();
+    // The route's view, else the one this person last picked, else the default (the Map with map_first).
+    viewMode = requestedViewMode() || rememberedViewMode();
     viewModeChosen = !!viewMode;
+    chosenViewMode = viewMode;
     if (!viewModeChosen) viewMode = defaultViewMode();
     activeWorkBoardId = requestedWorkBoardId() || rememberedWorkBoardId();
     enforceDraftsHidden();
@@ -7656,10 +7676,10 @@
       });
     }
     $('#vSearchCreate', panelEl)?.addEventListener('click', (event) => startNewProject(event.currentTarget.dataset.address || reportSearchQuery));
-    $('#vViewTiles', panelEl)?.addEventListener('click', ()=>setView('tiles', { history:'push', source:'projects-view' }));
-    $('#vViewList', panelEl)?.addEventListener('click', ()=>setView('list', { history:'push', source:'projects-view' }));
-    $('#vViewStages', panelEl)?.addEventListener('click', ()=>setView('stages', { history:'push', source:'projects-view' }));
-    $('#vViewMap', panelEl)?.addEventListener('click', ()=>setView('map', { history:'push', source:'projects-view' }));
+    $('#vViewTiles', panelEl)?.addEventListener('click', ()=>setView('tiles', { history:'push', source:'projects-view', remember:true }));
+    $('#vViewList', panelEl)?.addEventListener('click', ()=>setView('list', { history:'push', source:'projects-view', remember:true }));
+    $('#vViewStages', panelEl)?.addEventListener('click', ()=>setView('stages', { history:'push', source:'projects-view', remember:true }));
+    $('#vViewMap', panelEl)?.addEventListener('click', ()=>setView('map', { history:'push', source:'projects-view', remember:true }));
     const manageWrap=$('#vManageViewWrap',panelEl);
     const manageButton=$('#vManageView',panelEl);
     const managePanel=$('#vManageViewPanel',panelEl);
@@ -7733,8 +7753,9 @@
     apply:(route) => {
       if (route.tab !== 'viewer' || !panelEl) return;
       const routed = VIEW_MODES.has(route[PROJECT_VIEW_QUERY_KEY]);
-      const next = routed ? route[PROJECT_VIEW_QUERY_KEY] : defaultViewMode();
-      if (next !== viewMode) setView(next, { syncUrl:false, followDefault:!routed });
+      const remembered = routed ? '' : rememberedViewMode();
+      const next = routed ? route[PROJECT_VIEW_QUERY_KEY] : (remembered || defaultViewMode());
+      if (next !== viewMode) setView(next, { syncUrl:false, followDefault:!routed && !remembered });
       const nextBoardId = String(route[PROJECT_BOARD_QUERY_KEY] || '').trim();
       if (nextBoardId && nextBoardId !== activeWorkBoardId) selectWorkBoard(nextBoardId, { syncUrl:false });
     }

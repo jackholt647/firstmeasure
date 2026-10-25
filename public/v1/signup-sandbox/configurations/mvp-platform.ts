@@ -86,8 +86,10 @@ export const workflow: JsonObject = {
   description: "The FirstMeasure default signup plus the MVP platform: My Projects (with the project map), My Contacts and Feed; project tabs Overview, Reports, Photos (New), Docs (New), Materials and Customer Portal; Agent, Notes, Activity and To Do trays. No Scheduling or calendar. Every project is a generic roof job.",
   entry_mode: "landing_first",
   // Raise when this file changes: the saved workflow is replaced with it on the next seed.
-  configuration_revision: 13,
+  configuration_revision: 14,
   sample_data: true,
+  // A launched test instance starts with the sample projects (they carry map points) and customers.
+  launch_sample_data: ["projects", "customers"],
   dev_bar: false,
   setup_scripts: ["mvp-platform"],
   stages: [
