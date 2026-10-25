@@ -6,6 +6,7 @@
 // workflow names (configurations/index.ts).
 import { valueCapabilities } from "../../platform/capabilities.js";
 import { readBranchModule, saveBranchModule } from "../../platform/storage.js";
+import { listAccessRoles, patchAccessRole } from "../../workforce/access.js";
 import { saveIntakeRouting, readIntakeRouting } from "../../scopes/router.js";
 import { listScopeTemplates, patchScopeFlags, readScopeFlagState, readScopeTemplate, saveScopeTemplate } from "../../scopes/storage.js";
 import { DEFAULT_SCOPE_TEMPLATES } from "../../scopes/presets/index.js";
@@ -81,7 +82,7 @@ export const workflow: JsonObject = {
   description: "The FirstMeasure default signup plus the MVP platform: My Projects (with the project map), My Contacts and Feed; project tabs Overview, Reports, Photos (New), Docs (New), Materials and Customer Portal; Agent, Notes, Activity and To Do trays. No Scheduling or calendar. Every project is a generic roof job.",
   entry_mode: "landing_first",
   // Raise when this file changes: the saved workflow is replaced with it on the next seed.
-  configuration_revision: 9,
+  configuration_revision: 11,
   sample_data: true,
   dev_bar: false,
   setup_scripts: ["mvp-platform"],
@@ -101,8 +102,8 @@ export const PROJECT_TABS = {
   order: ["project.map", "project.measurements", "project.photos", "project.docs", "project.materials", "project.customer_portal"],
   pills: { "project.photos": "new", "project.docs": "new" }
 };
-// The Project tab (scope.project_tab) is called Materials here.
-export const TERMINOLOGY = { scope: { project_tab: "Materials" } };
+// The Project tab (scope.project_tab) is called Materials here, and the Customer Portal tab Portal.
+export const TERMINOLOGY = { scope: { project_tab: "Materials" }, customer_portal: { project_tab: "Portal" } };
 
 export function defaults(): JsonObject {
   return {
@@ -110,6 +111,28 @@ export function defaults(): JsonObject {
     // Channels and the Assistant are on for the Notes and Agent trays only.
     settings: { app_placements: { "portal.channels": "hidden", "portal.assistant": "hidden" }, project_tabs: PROJECT_TABS }
   };
+}
+
+// App options every role gets here: My Projects opens on the map, with Map first among its views.
+export const ROLE_APP_OPTIONS: Record<string, Record<string, boolean>> = { "portal.viewer": { map_first: true } };
+
+/** Adds this configuration's app options to every active role, keeping anything a role already sets. */
+async function applyRoleAppOptions(orgId: string) {
+  for (const role of await listAccessRoles(orgId)) {
+    if ((role as JsonObject).status === "archived") continue;
+    const current = ((role as JsonObject).app_defaults || {}) as Record<string, JsonObject>;
+    const next: Record<string, JsonObject> = { ...current };
+    let changed = false;
+    for (const [appId, options] of Object.entries(ROLE_APP_OPTIONS)) {
+      const setting = (next[appId] || {}) as JsonObject;
+      const existing = (setting.options || {}) as Record<string, boolean>;
+      const missing = Object.entries(options).filter(([key]) => !(key in existing));
+      if (!missing.length) continue;
+      next[appId] = { ...setting, options: { ...existing, ...Object.fromEntries(missing) } };
+      changed = true;
+    }
+    if (changed) await patchAccessRole(orgId, String((role as JsonObject).id), { expected_revision: (role as JsonObject).revision, app_defaults: next });
+  }
 }
 
 /** Writes this configuration's terminology, keeping any label the organization already chose. */
@@ -225,4 +248,5 @@ export async function setup(orgId: string, branchId = "default") {
   const state = await readScopeFlagState(orgId, branchId);
   await patchScopeFlags(orgId, { expected_revision: state.revision, flags: { ...Object.fromEntries(others.map((id) => [id, false])), [GENERIC_ROOFING_TEMPLATE_ID]: true } }, branchId);
   await applyTerminology(orgId, branchId);
+  await applyRoleAppOptions(orgId);
 }

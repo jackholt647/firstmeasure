@@ -282,7 +282,7 @@
       surfaces: ['project_modal'],
       requiresContext: ['project'],
       dependencies: ['pricebook.bridge'],
-    bundles: [...channelsLibBundles, versionedBundle('../materials-api/materials-api.js', '20261022-ordering'), versionedBundle('../payments-api/payments-api.js', '20261019-forward-cert'), bundle('../comms-api/comms-api.js'), versionedBundle('../equipment-api/equipment-api.js', '20261013-functions'), versionedBundle('materials/project.js', '20261025-manual-squares')]
+    bundles: [...channelsLibBundles, versionedBundle('../materials-api/materials-api.js', '20261022-ordering'), versionedBundle('../payments-api/payments-api.js', '20261019-forward-cert'), bundle('../comms-api/comms-api.js'), versionedBundle('../equipment-api/equipment-api.js', '20261013-functions'), versionedBundle('materials/project.js', '20261025-intro-tooltip')]
     },
     {
       id: 'project.money',
@@ -332,7 +332,7 @@
       kind: 'project_modal_app',
       surfaces: ['project_modal'],
       requiresContext: ['project'],
-      bundles: [versionedBundle('customer-portal/project.js', '20261024-portal-tab-overhaul-v1')]
+      bundles: [versionedBundle('customer-portal/project.js', '20261024-portal-tab-cover-v2')]
     },
     {
       id: 'project.schedule',

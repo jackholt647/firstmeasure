@@ -132,6 +132,9 @@ export const registerSignupSandboxApi: FastifyPluginAsync = async (app) => {
 
   // Test instances: creates a fresh org and logs the browser in as it.
   app.post("/workflows/:id/instances", async (request: FastifyRequest, reply: FastifyReply) => {
+    // A configuration whose revision went up since the last seed replaces its saved workflow first,
+    // so the new organization gets the configuration as it is now.
+    await ensureSeedData();
     const result = await createTestInstance(param(request, "id"), body(request));
     setPlatformAuthCookies(request, reply, result.authContext.sessionId, result.authContext.csrfToken);
     await rememberPlatformAccount(request, reply, result.authContext);

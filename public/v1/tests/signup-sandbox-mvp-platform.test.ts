@@ -63,7 +63,7 @@ test('the MVP platform workflow is FirstMeasure plus projects, contacts, feed an
  const roofing=await scopes.readScopeTemplate(orgId,'default','generic_roofing');
  assert.deepEqual((roofing as any).definition?.measurement_schema_ids ?? (roofing as any).measurement_schema_ids,['roofing']);
  assert.equal(String((await creation.creationScopeTemplate(orgId,'default')).id),'generic_roofing');
- assert.equal((workflow as any).dev_bar,false);assert.equal((workflow as any).configuration_revision,9);
+ assert.equal((workflow as any).dev_bar,false);assert.equal((workflow as any).configuration_revision,11);
  const resolved=(await capabilities.effectiveCapabilities(orgId)).values as any;
  assert.equal(resolved['platform.new_button_mode'],'selector');assert.equal(resolved['platform.new_button_items'],'report,project,contact');
  // Turned on as configuration even where this checkout's registry does not define it (dev's does).
@@ -117,6 +117,11 @@ test('the MVP platform workflow is FirstMeasure plus projects, contacts, feed an
  await platformApi.upsertProjectDocumentPreservingEvents(orgId,manual,{id:manual,data:{...manualMade.data,measurement_project:{id:'report_stage_manual',status:'queued'}}},true);
  assert.equal(await boardStage(manual),'proposal_created');
  await (await import('../firstmeasure/project_index.js')).closeFirstMeasureProjectIndex();
+ // Every active role opens My Projects on the map.
+ const access=await import('../workforce/access.js');
+ const roles=(await access.listAccessRoles(orgId)).filter((role:any)=>role.status!=='archived');
+ assert.ok(roles.length>0);
+ for(const role of roles as any[]) assert.equal(role.app_defaults?.['portal.viewer']?.options?.map_first,true,String(role.id));
  // MVP test orgs take the development sample projects and customers (the project map needs projects).
  const {addTestOrgSampleData}=await import('../signup-sandbox/sample-data.js');
  await addTestOrgSampleData(String(instance.testOrg.id),{projects:true,customers:true});

@@ -147,3 +147,27 @@ test('order leaves every tab in place without a setting, and a bad tutorial is r
     await browser.close();
   }
 });
+
+test('a tab that appears late (a draft saved, a late registration) still takes its place in the order',async()=>{
+  const browser=await chromium.launch({executablePath:process.env.CHROME_PATH || 'C:/Program Files/Google/Chrome/Application/chrome.exe',headless:true});
+  try{
+    const page=await browser.newPage();
+    await page.setContent('<nav id="tabs"></nav>');
+    const order=['project.map','project.measurements','project.photos','project.docs','project.materials','project.customer_portal'];
+    await page.evaluate(order=>{window.Portal={util:{injectCSS(){}}};window.PlatformAPI={appFlags:{projectTabs:()=>({order,pills:{}})}};},order);
+    for(const source of [sources.viewer,sources.guides])await page.addScriptTag({content:source});
+    // The runtime's own order (registration order values), as a draft project lists them, without the Customer Portal tab.
+    const ids=await page.evaluate(()=>{
+      window.apps=[{appId:'project.map',id:'map'},{appId:'project.photos',id:'photos'},{appId:'project.docs',id:'docs'},{appId:'project.materials',id:'materials'},{appId:'project.measurements',id:'measurements'}];
+      window.render=()=>{window.Portal.ProjectViewer.renderTabs(document.getElementById('tabs'),window.FirstMateTabGuides.order(window.apps).map(app=>({...app,label:app.id})));return [...document.querySelectorAll('#tabs [data-tab]')].map(button=>button.dataset.tab);};
+      return window.render();
+    });
+    assert.deepEqual(ids,['map','measurements','photos','docs','materials']);
+    // The tab arrives later, between others in the runtime's order (order 30): it still goes last.
+    assert.deepEqual(await page.evaluate(()=>{window.apps.splice(3,0,{appId:'project.customer_portal',id:'customer_portal'});return window.render();}),['map','measurements','photos','docs','materials','customer_portal']);
+    // An unlisted tab arriving later follows every listed one.
+    assert.deepEqual(await page.evaluate(()=>{window.apps.unshift({appId:'project.money',id:'money'});return window.render();}),['map','measurements','photos','docs','materials','customer_portal','money']);
+  }finally{
+    await browser.close();
+  }
+});

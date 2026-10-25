@@ -11,20 +11,21 @@ const chrome=process.env.CHROME_PATH||'C:/Program Files/Google/Chrome/Applicatio
 const LIVE='https://portal.test/p/live-123';
 const PREVIEW='https://portal.test/p/preview/prev-456';
 
-async function setup(browser,{width=1280,height=860,reducedMotion='no-preference',photos=3,activity=true}={}){
+async function setup(browser,{width=1280,height=860,reducedMotion='no-preference',photos=3,activity=true,draft=false,runtime=false,caps=['scheduling.customer_rescheduling'],cover='',satellite=false,topDownInList=false}={}){
   const page=await browser.newPage({viewport:{width,height},reducedMotion});
   const errors=[];page.on('pageerror',error=>errors.push(error.message));
   await page.route('http://cp.test/**',async route=>{
     const pathname=new URL(route.request().url()).pathname;
     if(pathname.startsWith('/libraries/'))return route.fulfill({contentType:'application/javascript; charset=utf-8',body:await readFile(new URL(pathname.slice('/libraries/'.length),libraries))});
+    if(pathname.includes('missing'))return route.fulfill({status:404,body:''});
     if(pathname.startsWith('/img/'))return route.fulfill({contentType:'image/svg+xml',body:'<svg xmlns="http://www.w3.org/2000/svg" width="40" height="30"><rect width="40" height="30" fill="#9ab"/></svg>'});
     return route.fulfill({contentType:'text/html; charset=utf-8',body:'<!doctype html><html><body style="margin:0;font-family:Arial"><div id="stage" style="height:100vh"><div id="panel" style="height:100%"></div></div></body></html>'});
   });
   await page.goto('http://cp.test/');
-  await page.evaluate(({LIVE,PREVIEW,photos,activity})=>{
+  await page.evaluate(({LIVE,PREVIEW,photos,activity,draft,caps,cover,satellite,topDownInList})=>{
     const now=Date.now();
     window.calls=[];window.toasts=[];
-    window.Portal={util:{},ui:{showToast:(...args)=>toasts.push(args)},modules:{}};
+    window.Portal={util:{},ui:{showToast:(...args)=>toasts.push(args)},modules:{},capabilities:{can:key=>caps.includes(key)}};
     const portal={
       live_url:LIVE,preview_url:PREVIEW,customer:{email:'pat@example.com'},
       shared_items:[{type:'media',item_id:'m1'}],
@@ -49,8 +50,20 @@ async function setup(browser,{width=1280,height=860,reducedMotion='no-preference
       unshareMedia:async(org,project,ids)=>{calls.push(['unshareMedia',ids]);portalRecord.shared_items=portalRecord.shared_items.filter(item=>!ids.includes(item.item_id));return {portal:clone(portalRecord)};},
       revokeShare:async(org,project,id)=>{calls.push(['revokeShare',id]);portalRecord.guest_links=portalRecord.guest_links.map(link=>link.id===id?{...link,status:'revoked'}:link);return {ok:true};}
     }};
+    // The cover as PlatformAPI.projectMedia resolves it: the chosen cover_photo, else the satellite image.
+    const satellitePhoto={id:'top_down_thumbnail',designator:'top_down_thumbnail',is_top_down_thumbnail:true,src:'/img/sat-missing.svg',thumb:'/img/sat-missing.svg',label:'Top-down satellite'};
+    window.PlatformAPI.projectMedia={
+      primaryPhoto:(project)=>{
+        const id=project.custom_field_values?.cover_photo?.media_id;
+        if(id)return {...(project.photos.find(item=>item.id===id)||{}),media_id:id};
+        return satellite?satellitePhoto:(project.photos[0]||null);
+      },
+      googleStaticMapPhoto:()=>({src:'/img/static-map.svg'})
+    };
+    window.PlatformAPI.media={thumbnailUrl:(org,id)=>'/img/'+id+'-320.svg'};
     Object.defineProperty(navigator,'clipboard',{configurable:true,value:{writeText:async text=>{calls.push(['clipboard',text]);}}});
     window.mediaList=Array.from({length:photos},(_,index)=>({id:'m'+(index+1),label:'Photo '+(index+1),thumb:'/img/'+(index+1)+'.svg'}));
+    if(topDownInList)mediaList.unshift({id:'top_down_thumbnail',is_top_down_thumbnail:true,thumb:'/img/sat.svg'});
     window.cpHost={
       getProject:()=>({id:'p1',contacts:[{id:'c1',primary:true,name:'Pat',email:'pat@example.com'}]}),
       getPhotos:()=>mediaList,
@@ -58,7 +71,10 @@ async function setup(browser,{width=1280,height=860,reducedMotion='no-preference
       customerPortalEnabled:()=>true,
       customerPortalMediaEnabled:()=>true
     };
-  },{LIVE,PREVIEW,photos,activity});
+    window.currentProject=draft?{}:{id:'p1',contacts:[{id:'c1',primary:true,name:'Pat',email:'pat@example.com'}],custom_field_values:cover?{cover_photo:{media_id:cover}}:{}};
+    window.cpHost.getProject=()=>window.currentProject;
+  },{LIVE,PREVIEW,photos,activity,draft,caps,cover,satellite,topDownInList});
+  if(runtime)await page.addScriptTag({url:'/libraries/app-runtime/firstmate-embeddable-apps.js'});
   await page.addScriptTag({url:'/libraries/apps/customer-portal/project.js'});
   await page.evaluate(async()=>{
     const app=Portal.modules.customerPortalProject;
@@ -68,7 +84,7 @@ async function setup(browser,{width=1280,height=860,reducedMotion='no-preference
     await app.load({silent:true});
   });
   const root=page.locator('#rCustomerPortalPanel');
-  await root.locator('[data-cpo-tile]').first().waitFor().catch(()=>{});
+  if(!draft&&photos)await root.locator('[data-cpo-tile]').first().waitFor().catch(()=>{});
   return {page,errors,root};
 }
 
@@ -76,6 +92,24 @@ async function withBrowser(fn){
   const browser=await chromium.launch({executablePath:chrome,headless:true});
   try{await fn(browser);}finally{await browser.close();}
 }
+
+test('a draft project (no address yet) has the tab, which says the portal comes once the project is saved',()=>withBrowser(async browser=>{
+  const {page,errors,root}=await setup(browser,{draft:true,runtime:true});
+  // The tab is offered before the project is saved, like the other tabs.
+  const offered=await page.evaluate(()=>window.FirstMateEmbeddableApps.listApps({surface:'project_modal',entityType:'project',customerPortalEnabled:true,activeProject:null}).map(app=>app.id));
+  assert.ok(offered.includes('project.customer_portal'),offered.join(','));
+  assert.equal(await root.locator('[data-cpo-unsaved]').count(),1);
+  assert.match(await root.innerText(),/ready once this project is saved/);
+  assert.equal(await page.evaluate(()=>calls.length),0,'nothing is loaded for an unsaved project');
+  // Once saved, the same tab loads the project's portal.
+  await page.evaluate(()=>{window.currentProject={id:'p1',contacts:[{id:'c1',primary:true,name:'Pat',email:'pat@example.com'}]};Portal.modules.customerPortalProject.activate({});});
+  await root.locator('[data-cpo-link]').waitFor();
+  await page.waitForFunction(()=>document.querySelector('[data-cpo-link]')?.value);
+  assert.equal(await root.locator('[data-cpo-unsaved]').count(),0);
+  assert.equal(await root.locator('[data-cpo-link]').inputValue(),LIVE);
+  assert.equal(await page.evaluate(()=>calls.filter(call=>call[0]==='ensure').length),1,'loaded once');
+  assert.deepEqual(errors,[]);
+}));
 
 test('header is the coloured icon then the title, with no subtitle, sub-tabs or preview-link card',()=>withBrowser(async browser=>{
   const {page,errors,root}=await setup(browser);
@@ -102,7 +136,17 @@ test('customer link shows the link with Copy, Email and Download QR, and a previ
   assert.equal(await field.getAttribute('readonly'),'');
   assert.notEqual(await field.getAttribute('data-fmr-mask'),null,'the private link is masked in session replay');
   const preview=root.getByRole('link',{name:'Preview customer portal'});
+  assert.equal(await root.locator('[data-app-header] [data-cpo-preview]').count(),1,'preview sits in the header row');
+  assert.equal(await root.locator('[data-cpo-link-card] [data-cpo-preview]').count(),0);
+  const headBox=await root.locator('[data-app-header]').boundingBox(),previewBox=await preview.boundingBox();
+  assert.ok(previewBox.x+previewBox.width>headBox.x+headBox.width-4,'preview is at the right of the header');
   assert.equal(await preview.getAttribute('href'),PREVIEW);
+  // Label, link, Copy, Email and Download QR share one row; the switches are the second.
+  const rowTops=await root.locator('[data-cpo-link-card]').evaluate(card=>['.cpo-label','[data-cpo-link]','[data-cpo-copy]','[data-cpo-email]','[data-cpo-qr]'].map(sel=>{const r=card.querySelector(sel).getBoundingClientRect();return Math.round(r.top+r.height/2);}));
+  assert.ok(Math.max(...rowTops)-Math.min(...rowTops)<=2,'one row: '+rowTops.join(','));
+  const cardHeight=(await root.locator('[data-cpo-link-card]').boundingBox()).height;
+  assert.ok(cardHeight<=118,`about two rows (${cardHeight}px)`);
+  assert.equal(await field.evaluate(node=>getComputedStyle(node).textOverflow),'ellipsis');
   assert.equal(await preview.getAttribute('target'),'_blank');
   assert.match(await preview.getAttribute('data-fm-tooltip'),/cannot|Nothing can be signed/);
   const email=root.getByRole('link',{name:'Email'});
@@ -175,7 +219,11 @@ test('history is a narrow right column on desktop and stacks below on a phone',(
     const overflow=await page.evaluate(()=>{const panel=document.getElementById('rCustomerPortalPanel');return panel.scrollWidth-panel.clientWidth;});
     assert.ok(overflow<=0,`no sideways scroll (${overflow}px)`);
     const field=await root.locator('[data-cpo-link]').boundingBox();
-    assert.ok(field.width>250,'link field takes the row on a phone');
+    const copy=await root.locator('[data-cpo-copy]').boundingBox();
+    assert.ok(field.width>150,`link field stays readable on a phone (${field.width}px)`);
+    assert.ok(copy.y>=field.y+field.height-1,'actions wrap below the link on a phone');
+    const preview=await root.locator('[data-cpo-preview]').boundingBox();
+    assert.ok(preview.x+preview.width<=390,'header action fits the phone width');
     assert.deepEqual(errors,[]);
   }
   {
@@ -240,4 +288,67 @@ test('media is left out when the organization has portal media off',()=>withBrow
   await page.evaluate(()=>{cpHost.customerPortalMediaEnabled=()=>false;Portal.modules.customerPortalProject.render();});
   assert.equal(await page.locator('[data-cpo-media]').isHidden(),true);
   assert.equal(await page.locator('[data-cpo-link]').inputValue(),LIVE);
+}));
+
+test('customer rescheduling shows only when its capability is on; guest links have no capability yet',()=>withBrowser(async browser=>{
+  {
+    const {page,errors,root}=await setup(browser,{caps:[]});
+    assert.equal(await root.locator('[data-cpo-rescheduling]').count(),0,'no switch without scheduling.customer_rescheduling');
+    assert.equal(await root.locator('[data-cpo-sharing]').count(),1);
+    // Turning the capability on shows it without a reload.
+    await page.evaluate(()=>{Portal.capabilities.can=key=>key==='scheduling.customer_rescheduling';window.dispatchEvent(new CustomEvent('fm:capabilities:updated'));});
+    await root.locator('[data-cpo-rescheduling]').waitFor({state:'attached'});
+    assert.deepEqual(errors,[]);
+  }
+  {
+    // Capabilities not loaded yet: fail closed.
+    const {root}=await setup(browser,{caps:[]});
+    assert.equal(await root.locator('[data-cpo-resched-switch]').count(),0);
+  }
+}));
+
+test('the satellite cover shows in the media area, is not in the customer portal, and is not an empty state',()=>withBrowser(async browser=>{
+  const {page,errors,root}=await setup(browser,{photos:0,satellite:true});
+  const cover=root.locator('[data-cpo-cover]');
+  await cover.waitFor();
+  assert.equal(await cover.getAttribute('data-cover-kind'),'satellite');
+  assert.match(await cover.innerText(),/Cover[\s\S]*Satellite image/i);
+  assert.match(await cover.locator('[data-cpo-cover-state]').innerText(),/Not in portal/);
+  assert.match(await cover.getAttribute('data-fm-tooltip'),/does not show a cover/);
+  assert.equal(await root.locator('[data-cpo-media-empty]').count(),0,'not empty: there is a cover');
+  assert.equal(await root.locator('[data-cpo-tile]').count(),0);
+  // The missing satellite image falls back like Photos does.
+  await page.waitForFunction(()=>document.querySelector('[data-cpo-cover] img')?.getAttribute('src')!=='/img/sat-missing.svg');
+  assert.deepEqual(errors,[]);
+}));
+
+test('only a project with no media and no cover is empty; the satellite is never a shareable tile',()=>withBrowser(async browser=>{
+  {
+    const {root}=await setup(browser,{photos:0});
+    assert.equal(await root.locator('[data-cpo-media-empty]').count(),1);
+    assert.equal(await root.locator('[data-cpo-cover]').count(),0);
+  }
+  {
+    const {root}=await setup(browser,{photos:2,satellite:true,topDownInList:true});
+    assert.deepEqual(await root.locator('[data-cpo-tile]').evaluateAll(nodes=>nodes.map(node=>node.dataset.cpoTile)),['m1','m2']);
+    assert.match(await root.locator('[data-cpo-media-count]').innerText(),/1 of 2 shared/);
+    assert.equal(await root.locator('[data-cpo-cover]').getAttribute('data-cover-kind'),'satellite');
+  }
+}));
+
+test('a chosen cover is also a normal tile marked Cover, and its shared state follows sharing',()=>withBrowser(async browser=>{
+  const {page,errors,root}=await setup(browser,{photos:3,cover:'m2',satellite:true});
+  const cover=root.locator('[data-cpo-cover]');
+  assert.equal(await cover.getAttribute('data-cover-kind'),'chosen');
+  assert.equal(await cover.getAttribute('data-cover-media'),'m2');
+  assert.equal(await cover.locator('img').getAttribute('src'),'/img/m2-320.svg');
+  assert.match(await cover.locator('[data-cpo-cover-state]').innerText(),/Hidden/);
+  assert.equal(await root.locator('[data-cpo-tile="m2"] [data-cpo-tile-cover]').count(),1);
+  assert.equal(await root.locator('[data-cpo-tile-cover]').count(),1);
+  await root.locator('[data-cpo-tile="m2"]').click();
+  await root.locator('[data-cpo-share]').click();
+  await page.waitForFunction(()=>document.querySelector('[data-cpo-cover-state]').classList.contains('is-shared'));
+  assert.match(await cover.locator('[data-cpo-cover-state]').innerText(),/Shared/);
+  assert.match(await cover.getAttribute('data-fm-tooltip'),/can see this photo/);
+  assert.deepEqual(errors,[]);
 }));

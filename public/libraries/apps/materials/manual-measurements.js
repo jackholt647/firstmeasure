@@ -21,7 +21,9 @@ export function ensureStyles() {
   .smm{position:absolute;inset:0;overflow:auto;container-type:inline-size;box-sizing:border-box;padding:14px 14px 18px;background:#f7f9fc;color:#263349;font-size:12px}
   .smm[hidden]{display:none}
   .smm-head{display:flex;gap:10px;align-items:flex-start;justify-content:space-between;flex-wrap:wrap}
-  .smm-head h2{margin:0;font-size:15px;line-height:1.3;color:#172f50}
+  .smm-head h2{margin:0;font-size:15px;line-height:1.3;color:#172f50;display:flex;align-items:center;gap:6px}
+  .smm-info{display:inline-grid;place-items:center;width:20px;height:20px;padding:0;border:0;border-radius:50%;background:transparent;color:#98a2b3;font-size:12px;cursor:help;transition:color .15s ease,background .15s ease}
+  .smm-info:hover,.smm-info:focus-visible{color:#475467;background:#f2f4f7;outline:none}
   .smm-head p{margin:4px 0 0;max-width:46ch;color:#52647e;line-height:1.5}
   .smm-chips{display:flex;gap:4px;flex-wrap:wrap}
   .smm-chip{padding:2px 8px;border-radius:999px;background:#e9eef6;color:#3b4f6b;font-size:10.5px;font-weight:600;white-space:nowrap}
@@ -127,7 +129,7 @@ export function mount(root, options) {
     const note = options.reportLinked
       ? L('mm_report_on_order', 'A measurement report is linked to this project. When it is complete its numbers replace these.')
       : '';
-    return `<header class="smm-head"><div><h2 tabindex="-1">${esc(L('mm_title', 'Measurements'))}</h2><p>${esc(L('mm_intro', 'There is no completed measurement report. Enter the measurements this work uses; materials, labor and pay read them the same way they read a report.'))}</p></div><div class="smm-chips">${(state.form.schemas || []).map(schema => `<span class="smm-chip">${esc(schema.title)}</span>`).join('')}</div></header>
+    return `<header class="smm-head"><div><h2 tabindex="-1">${esc(L('mm_title', 'Measurements'))}<button type="button" class="smm-info" data-fm-tooltip="${esc(L('mm_intro', 'There is no completed measurement report. Enter the measurements this work uses; materials, labor and pay read them the same way they read a report.'))}" aria-label="${esc(L('mm_intro', 'There is no completed measurement report. Enter the measurements this work uses; materials, labor and pay read them the same way they read a report.'))}"><i class="fas fa-circle-info" aria-hidden="true"></i></button></h2></div><div class="smm-chips">${(state.form.schemas || []).map(schema => `<span class="smm-chip">${esc(schema.title)}</span>`).join('')}</div></header>
       ${note ? `<div class="smm-note" role="note">${esc(note)}</div>` : ''}
       ${required.length ? `<div class="smm-progress"><div class="smm-bar" role="progressbar" aria-valuemin="0" aria-valuemax="${required.length}" aria-valuenow="${done}" aria-label="${esc(L('mm_required_progress_label', 'Required measurements entered'))}"><span style="--done:${pct}%"></span></div><small>${esc(L('mm_required_progress', '{done} of {total} required entered', { done, total: required.length }))}</small></div>` : ''}
       ${groups(visible).map(group => `<section class="smm-group"><h3>${esc(group.title)}</h3>${group.fields.map(field => row(field, entered)).join('')}</section>`).join('')}

@@ -76,6 +76,12 @@
     return Array.isArray(project().photos) ? project().photos : [];
   }
 
+  // Library photos and videos: what can be shared. A project's generated
+  // satellite image is not library media, so it is shown as the cover only.
+  function libraryMedia(){
+    return photos().filter((photo) => !photo?.is_top_down_thumbnail && photo?.designator !== 'top_down_thumbnail' && photo?.id !== 'top_down_thumbnail');
+  }
+
   function projectId(){
     return String(project()?.id || '').trim();
   }
@@ -123,6 +129,15 @@
 
   function customerPortalMediaEnabled(){
     return feature('customerPortalMediaEnabled', true);
+  }
+
+  const RESCHEDULING_CAPABILITY = 'scheduling.customer_rescheduling';
+
+  // Fails closed: an option tied to a capability shows only once the
+  // organization's capabilities say it is on.
+  function capabilityOn(key){
+    const capabilities = window.Portal?.capabilities || window.PlatformAPI?.capabilities;
+    return capabilities?.can?.(key) === true;
   }
 
   function photoId(photo, fallback = ''){
@@ -179,15 +194,18 @@
       .cpo-btn.is-done .cpo-done{display:inline;animation:cpoPop .28s ease}
       .cpo-help{color:#98a2b3;font-size:12px;cursor:help}
       /* Link card */
-      .cpo-link{padding:14px;display:flex;flex-direction:column;gap:12px}
-      .cpo-link-top{display:flex;align-items:center;justify-content:space-between;gap:10px}
+      .cpo-head-tools{display:flex;align-items:center;gap:10px;min-width:0}
+      .cpo-head-action{height:38px;padding:0 14px;flex:0 0 auto}
+      .cpo-head-action[aria-disabled="true"]{opacity:.5;cursor:default;pointer-events:none}
+      .cpo-link{padding:12px 14px;display:flex;flex-direction:column;gap:10px}
+      .cpo-label{flex:0 0 auto;white-space:nowrap}
       .cpo-label{display:inline-flex;align-items:center;gap:7px;font-size:12px;font-weight:1000;color:#344054}
       .cpo-link-row{display:flex;align-items:center;gap:8px;min-width:0}
       .cpo-link-field{flex:1 1 auto;min-width:0;height:38px;box-sizing:border-box;border:1px solid #eaecf0;border-radius:10px;background:#f9fafb;color:#344054;padding:0 12px;font:12px/1 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;outline:none;text-overflow:ellipsis}
       .cpo-link-field:focus{border-color:var(--primary,#d93025);background:#fff}
       .cpo-link-field.is-pending{background:linear-gradient(110deg,#f2f4f7 8%,#fafbfc 18%,#f2f4f7 33%);background-size:200% 100%;animation:cpoShimmer 1.15s linear infinite;color:transparent}
       .cpo-link-actions{display:flex;align-items:center;gap:8px;flex:0 0 auto}
-      .cpo-options{display:flex;align-items:center;flex-wrap:wrap;gap:8px 18px;padding-top:12px;border-top:1px solid #f2f4f7}
+      .cpo-options{display:flex;align-items:center;flex-wrap:wrap;gap:8px 18px;padding-top:10px;border-top:1px solid #f2f4f7}
       .cpo-switch{display:inline-flex;align-items:center;gap:9px;font-size:12px;font-weight:850;color:#344054;cursor:pointer;border-radius:8px;user-select:none}
       .cpo-switch input{position:absolute;opacity:0;width:1px;height:1px;pointer-events:none}
       .cpo-switch .cpo-track{position:relative;width:32px;height:18px;border-radius:999px;background:#d0d5dd;transition:background .2s ease;flex:0 0 auto}
@@ -199,8 +217,8 @@
       .cpo-guest-count:hover,.cpo-guest-count[aria-expanded="true"]{background:rgba(var(--primary-rgb,217,48,37),.1);color:var(--primary-readable,var(--primary,#d93025))}
       .cpo-guest-count i{transition:transform .2s ease}
       .cpo-guest-count[aria-expanded="true"] i{transform:rotate(180deg)}
-      .cpo-reveal{display:grid;grid-template-rows:0fr;transition:grid-template-rows .26s cubic-bezier(.22,1,.36,1)}
-      .cpo-reveal.is-open{grid-template-rows:1fr}
+      .cpo-reveal{display:grid;grid-template-rows:0fr;margin-top:-10px;transition:grid-template-rows .26s cubic-bezier(.22,1,.36,1),margin-top .26s cubic-bezier(.22,1,.36,1)}
+      .cpo-reveal.is-open{grid-template-rows:1fr;margin-top:0}
       .cpo-reveal>div{overflow:hidden;min-height:0}
       .cpo-guests{display:flex;flex-direction:column;gap:6px;padding-top:2px}
       .cpo-guest{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 10px;border:1px solid #f2f4f7;border-radius:10px;background:#fcfcfd}
@@ -242,6 +260,15 @@
       .cpo-tile.is-shared .cpo-badge{opacity:1;transform:none;background:#079455}
       .cpo-tile.is-pending .cpo-badge{opacity:1;transform:none;background:rgba(16,24,40,.55)}
       .cpo-kind{position:absolute;z-index:3;bottom:7px;left:7px;width:22px;height:22px;border-radius:7px;background:rgba(16,24,40,.55);color:#fff;display:flex;align-items:center;justify-content:center;font-size:9px}
+      .cpo-cover{display:flex;align-items:center;gap:12px;padding:8px 10px 8px 8px;border:1px solid #eaecf0;border-radius:11px;background:#fcfcfd;min-width:0;animation:cpoIn .28s ease both}
+      .cpo-cover-media{flex:0 0 auto;width:76px;aspect-ratio:4/3;border-radius:8px;overflow:hidden;background:#f2f4f7;display:flex;align-items:center;justify-content:center;color:#98a2b3;font-size:18px}
+      .cpo-cover-media img{width:100%;height:100%;object-fit:cover;display:block}
+      .cpo-cover-copy{display:flex;flex-direction:column;gap:3px;min-width:0;flex:1}
+      .cpo-cover-kicker{display:inline-flex;align-items:center;gap:6px;font-size:10px;font-weight:1000;text-transform:uppercase;letter-spacing:.08em;color:var(--primary-readable,var(--primary,#d93025))}
+      .cpo-cover-copy strong{font-size:13px;color:#101828;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+      .cpo-cover-state{flex:0 0 auto;display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 9px;border-radius:999px;background:#f2f4f7;color:#475467;font-size:11px;font-weight:1000;transition:background .2s ease,color .2s ease}
+      .cpo-cover-state.is-shared{background:#ecfdf3;color:#067647}
+      .cpo-cover-chip{position:absolute;z-index:3;bottom:7px;left:7px;height:22px;padding:0 8px;border-radius:999px;display:inline-flex;align-items:center;gap:5px;font-size:10px;font-weight:1000;background:var(--primary,#d93025);color:#fff}
       .cpo-empty{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;padding:28px 12px;color:#667085;font-size:12px;font-weight:800;text-align:center}
       .cpo-empty i{width:40px;height:40px;border-radius:12px;background:#f2f4f7;color:#98a2b3;display:flex;align-items:center;justify-content:center;font-size:16px}
       .cpo-media{transition:padding-bottom .26s cubic-bezier(.22,1,.36,1)}
@@ -280,15 +307,17 @@
         .cpo-body{grid-template-columns:minmax(0,1fr)}
         .cpo-history{position:static;max-height:none}
         .cpo-timeline{max-height:420px}
-        .cpo-link-row{flex-wrap:wrap}
-        .cpo-link-field{flex:1 1 100%}
-        .cpo-link-actions{flex:1 1 100%}
-        .cpo-link-actions .cpo-btn{flex:1 1 0}
         .cpo-grid{grid-template-columns:repeat(auto-fill,minmax(104px,1fr));gap:8px}
       }
+      @container cpo (max-width: 600px){
+        .cpo-link-row{flex-wrap:wrap}
+        .cpo-link-field{flex:1 1 0}
+        .cpo-link-actions{flex:1 1 100%}
+        .cpo-link-actions .cpo-btn{flex:1 1 0}
+      }
       @container cpo (max-width: 420px){
-        .cpo-link-top{flex-wrap:wrap}
-        .cpo-link-top .cpo-btn.primary{flex:1 1 100%}
+        .cpo-head-action{width:38px;padding:0}
+        .cpo-head-action span{display:none}
         .cpo-link-actions .cpo-btn i{display:none}
         .cpo-link-actions .cpo-btn{padding:0 8px}
         .cpo-seg button{padding:0 8px}
@@ -666,6 +695,88 @@
     return rows + more;
   }
 
+  /* ---------- cover ---------- */
+
+  // The project's cover, resolved as the Photos tab does: the chosen
+  // cover_photo media, else the satellite image (projectMedia.primaryPhoto).
+  function coverOptions(){
+    return {
+      orgId: orgId(),
+      firstMeasureUrlBuilder: util.fmUrl || ((path) => String(path || '')),
+      googleMapsApiKey: Portal?.util?.googleMapsApiKey?.() || '',
+      width: 640
+    };
+  }
+
+  function coverInfo(){
+    const current = project() || {};
+    const values = current.custom_field_values || current.custom_fields || {};
+    const chosenId = String(values.cover_photo?.media_id || '').trim();
+    const library = libraryMedia();
+    const chosen = chosenId ? library.find((photo) => photoId(photo) === chosenId || String(photo?.media_id || '') === chosenId) || null : null;
+    const media = window.PlatformAPI?.projectMedia;
+    let photo = null;
+    try { photo = media?.primaryPhoto?.({ ...current, photos: library }, coverOptions()) || null; } catch (_) { photo = null; }
+    if (!photo && chosen) photo = chosen;
+    if (!photo) return null;
+    const resolvedId = String(photo.media_id || photo.id || '').trim();
+    const isChosen = !!chosenId && resolvedId === chosenId;
+    const mediaId = isChosen ? chosenId : (photo.is_top_down_thumbnail ? '' : photoId(photo));
+    let src = '';
+    if (mediaId) {
+      try { src = String(window.PlatformAPI?.media?.thumbnailUrl?.(orgId(), mediaId, 320) || '').trim(); } catch (_) { src = ''; }
+    }
+    src = src || String(photo.thumb || photo.src || '').trim();
+    let staticMap = null;
+    if (photo.is_top_down_thumbnail && photo.source !== 'google_static_map') {
+      try { staticMap = media?.googleStaticMapPhoto?.(current, coverOptions()) || null; } catch (_) { staticMap = null; }
+    }
+    const fallbacks = [...new Set([photo.src, chosen?.thumb, chosen?.src, staticMap?.thumb || staticMap?.src].map((url) => String(url || '').trim()))].filter((url) => url && url !== src);
+    const entry = mediaId ? library.find((item) => photoId(item) === mediaId) : null;
+    return {
+      kind: photo.is_top_down_thumbnail ? 'satellite' : (isChosen ? 'chosen' : 'library'),
+      mediaId: entry ? photoId(entry) : '',
+      src,
+      fallbacks,
+      label: firstText(entry?.file_name, entry?.label, photo.file_name, photo.label, photo.alt) || L('cpo_cover_label', 'Cover photo')
+    };
+  }
+
+  function coverTip(cover, shared){
+    if (!cover.mediaId) return L('cpo_tip_cover_satellite', 'The project’s cover: its satellite image, shown on the project tile and in Overview. The customer’s portal does not show a cover image, so the customer does not see this. Choose another cover in Photos.');
+    return shared
+      ? L('cpo_tip_cover_shared', 'The project’s cover, shown on the project tile and in Overview. The customer can see this photo with the shared media below. The customer’s portal does not show it as a cover.')
+      : L('cpo_tip_cover_hidden', 'The project’s cover, shown on the project tile and in Overview. It is hidden from the customer; share it below if they should see it. The customer’s portal does not show a cover image.');
+  }
+
+  function coverStateHtml(cover, shared){
+    if (!cover.mediaId) return `<i class="fas fa-eye-slash"></i>${H('cpo_cover_not_in_portal', 'Not in portal')}`;
+    return shared ? `<i class="fas fa-eye"></i>${H('cpo_badge_shared', 'Shared')}` : `<i class="fas fa-eye-slash"></i>${H('cpo_cover_hidden', 'Hidden')}`;
+  }
+
+  function coverHtml(cover, shared){
+    if (!cover) return '';
+    const isShared = !!cover.mediaId && shared.has(cover.mediaId);
+    return `<div class="cpo-cover" data-cpo-cover data-cover-kind="${esc(cover.kind)}" data-cover-media="${esc(cover.mediaId)}" data-fm-tooltip="${esc(coverTip(cover, isShared))}">
+      <span class="cpo-cover-media">${cover.src ? `<img src="${esc(cover.src)}" alt=""${cover.fallbacks.length ? ` data-cpo-fallbacks="${esc(JSON.stringify(cover.fallbacks))}"` : ''}>` : '<i class="fas fa-image"></i>'}</span>
+      <span class="cpo-cover-copy"><span class="cpo-cover-kicker"><i class="fas fa-image"></i>${H('cpo_cover_kicker', 'Cover')}</span><strong>${esc(cover.kind === 'satellite' ? L('cpo_cover_satellite', 'Satellite image') : cover.label)}</strong></span>
+      <span class="cpo-cover-state${isShared ? ' is-shared' : ''}" data-cpo-cover-state>${coverStateHtml(cover, isShared)}</span>
+    </div>`;
+  }
+
+  function bindCoverFallbacks(root){
+    root.querySelectorAll('.cpo-cover img[data-cpo-fallbacks]').forEach((img) => {
+      img.addEventListener('error', () => {
+        let rest = [];
+        try { rest = JSON.parse(img.dataset.cpoFallbacks) || []; } catch (_) { rest = []; }
+        const next = rest.shift();
+        img.dataset.cpoFallbacks = JSON.stringify(rest);
+        if (next) img.src = next;
+        else img.replaceWith(Object.assign(document.createElement('i'), { className: 'fas fa-image' }));
+      });
+    });
+  }
+
   /* ---------- rendering ---------- */
 
   function tileTip(label, shared){
@@ -674,7 +785,7 @@
       : L('cpo_tip_tile_hidden', '{label}\nHidden from the customer. Click to select it.', { label });
   }
 
-  function mediaTileHtml(photo, shared, pending){
+  function mediaTileHtml(photo, shared, pending, cover = false){
     const id = photoId(photo);
     const label = firstText(photo?.label, photo?.alt, L('cpo_media_untitled', 'Project media'));
     const video = isVideo(photo);
@@ -694,6 +805,7 @@
       <span class="cpo-check"><i class="fas fa-check"></i></span>
       <span class="cpo-badge"><i class="fas fa-eye"></i>${H('cpo_badge_shared', 'Shared')}</span>
       ${video ? '<span class="cpo-kind"><i class="fas fa-play"></i></span>' : ''}
+      ${cover ? `<span class="cpo-cover-chip" data-cpo-tile-cover><i class="fas fa-image"></i>${H('cpo_cover_kicker', 'Cover')}</span>` : ''}
     </button>`;
   }
 
@@ -703,11 +815,8 @@
     const email = customerEmail();
     const disabled = ready ? '' : ' disabled';
     return `
-      <div class="cpo-link-top">
-        <span class="cpo-label">${H('cpo_link_label', 'Customer link')}<i class="fas fa-circle-info cpo-help" tabindex="0" data-fm-tooltip="${H('cpo_tip_link', 'The customer’s private link to their portal for this project. Anyone with it can open the portal, so send it only to the customer.')}"></i></span>
-        <a class="cpo-btn primary" data-cpo-preview${links.preview ? ` href="${esc(links.preview)}" target="_blank" rel="noopener"` : ' aria-disabled="true"'} data-fm-tooltip="${H('cpo_tip_preview', 'Opens exactly what the customer sees, in a new tab. Nothing can be signed, accepted or paid there, and your visit is not recorded in History.')}"><i class="fas fa-eye"></i><span>${H('cpo_preview_button', 'Preview customer portal')}</span></a>
-      </div>
       <div class="cpo-link-row">
+        <span class="cpo-label">${H('cpo_link_label', 'Customer link')}<i class="fas fa-circle-info cpo-help" tabindex="0" data-fm-tooltip="${H('cpo_tip_link', 'The customer’s private link to their portal for this project. Anyone with it can open the portal, so send it only to the customer.')}"></i></span>
         <input class="cpo-link-field${ready ? '' : ' is-pending'}" data-cpo-link readonly data-fmr-mask aria-label="${H('cpo_link_label', 'Customer link')}" value="${esc(links.live)}">
         <div class="cpo-link-actions">
           <button type="button" class="cpo-btn" data-cpo-copy${disabled} data-fm-tooltip="${H('cpo_tip_copy', 'Copy the customer link to paste into a text or message.')}"><i class="fas fa-copy cpo-idle"></i><i class="fas fa-check cpo-done"></i><span>${H('cpo_copy', 'Copy')}</span></button>
@@ -728,15 +837,17 @@
     const guestCount = guests.length
       ? `<button type="button" class="cpo-guest-count" data-cpo-guests-toggle aria-expanded="${state.guestOpen ? 'true' : 'false'}" data-fm-tooltip="${H('cpo_tip_guest_list', 'Guest links that still work. Open the list to copy or revoke one.')}">${esc(guests.length === 1 ? L('cpo_guest_count_one', '1 active') : L('cpo_guest_count', '{n} active', { n: guests.length }))}<i class="fas fa-chevron-down"></i></button>`
       : '';
+    const resched = capabilityOn(RESCHEDULING_CAPABILITY) ? `
+        <label class="cpo-switch" data-cpo-resched-switch data-fm-tooltip="${H('cpo_tip_resched', 'Lets the customer pick a new time for an upcoming appointment from live availability, when that appointment’s scheduling rules also allow it. Off: only your team reschedules.')}">
+          <input type="checkbox" data-cpo-rescheduling${reschedulingOn ? ' checked' : ''}${disabled}><span class="cpo-track"></span><span>${H('cpo_resched_label', 'Customer can reschedule')}</span>
+        </label>` : '';
     return `
       <div class="cpo-options">
-        <label class="cpo-switch" data-fm-tooltip="${H('cpo_tip_guests', 'Lets the customer make their own read-only links to share the portal with someone else, such as a family member or an adjuster. Guest links can expire, never include payments, signing, approvals or editing, and you can revoke any of them here. Turning this off stops new links; existing ones keep working until they expire or you revoke them.')}">
+        <label class="cpo-switch" data-cpo-guest-switch data-fm-tooltip="${H('cpo_tip_guests', 'Lets the customer make their own read-only links to share the portal with someone else, such as a family member or an adjuster. Guest links can expire, never include payments, signing, approvals or editing, and you can revoke any of them here. Turning this off stops new links; existing ones keep working until they expire or you revoke them.')}">
           <input type="checkbox" data-cpo-sharing${sharingOn ? ' checked' : ''}${disabled}><span class="cpo-track"></span><span>${H('cpo_guests_label', 'Customer can share guest links')}</span>
         </label>
         ${guestCount}
-        <label class="cpo-switch" data-fm-tooltip="${H('cpo_tip_resched', 'Lets the customer pick a new time for an upcoming appointment from live availability, when that appointment’s scheduling rules also allow it. Off: only your team reschedules.')}">
-          <input type="checkbox" data-cpo-rescheduling${reschedulingOn ? ' checked' : ''}${disabled}><span class="cpo-track"></span><span>${H('cpo_resched_label', 'Customer can reschedule')}</span>
-        </label>
+        ${resched}
       </div>
       ${guests.length ? `<div class="cpo-reveal${state.guestOpen ? ' is-open' : ''}" data-cpo-guests><div><div class="cpo-guests">${guests.map(guestRowHtml).join('')}</div></div></div>` : ''}
     `;
@@ -765,13 +876,14 @@
 
   function mediaCardHtml(){
     const shared = sharedPortalMediaIds();
-    const items = photos();
+    const items = libraryMedia();
+    const cover = coverInfo();
     const sharedCount = items.filter((photo) => shared.has(photoId(photo))).length;
     const filter = state.mediaFilter;
     const head = `
       <div class="cpo-media-head">
-        <div><strong>${H('cpo_media_title', 'Media')}</strong><em data-cpo-media-count>${esc(L('cpo_media_count', '{shared} of {total} shared', { shared: sharedCount, total: items.length }))}</em></div>
-        <div class="cpo-media-tools">
+        <div><strong data-fm-tooltip="${H('cpo_tip_media', 'Photos and videos added in the Photos tab. Choose which ones the customer sees in their portal.')}">${H('cpo_media_title', 'Media')}</strong>${items.length ? `<em data-cpo-media-count>${esc(L('cpo_media_count', '{shared} of {total} shared', { shared: sharedCount, total: items.length }))}</em>` : ''}</div>
+        ${items.length ? `<div class="cpo-media-tools">
           <div class="cpo-seg" role="group" aria-label="${H('cpo_filter_label', 'Show media')}">
             ${[
               ['all', L('cpo_filter_all', 'All'), L('cpo_tip_filter_all', 'Every photo and video on the project.')],
@@ -779,11 +891,15 @@
               ['unshared', L('cpo_filter_hidden', 'Hidden'), L('cpo_tip_filter_hidden', 'Only what the customer cannot see.')]
             ].map(([id, label, tip]) => `<button type="button" class="${filter === id ? 'active' : ''}" data-cpo-filter="${id}" aria-pressed="${filter === id ? 'true' : 'false'}" data-fm-tooltip="${esc(tip)}">${esc(label)}</button>`).join('')}
           </div>
-          <button type="button" class="cpo-btn icon" data-cpo-select-all${items.length ? '' : ' disabled'} aria-label="${H('cpo_select_all', 'Select all shown')}" data-fm-tooltip="${H('cpo_tip_select_all', 'Select every item shown, then share or hide them together.')}"><i class="fas fa-check-double"></i></button>
-        </div>
+          <button type="button" class="cpo-btn icon" data-cpo-select-all aria-label="${H('cpo_select_all', 'Select all shown')}" data-fm-tooltip="${H('cpo_tip_select_all', 'Select every item shown, then share or hide them together.')}"><i class="fas fa-check-double"></i></button>
+        </div>` : ''}
       </div>`;
-    const body = items.length
-      ? `<div class="cpo-grid${state.selection.size ? ' has-selection' : ''}" data-cpo-grid data-filter="${esc(filter)}">${items.map((photo) => mediaTileHtml(photo, shared.has(photoId(photo)), false)).join('')}</div>`
+    const grid = items.length
+      ? `<div class="cpo-grid${state.selection.size ? ' has-selection' : ''}" data-cpo-grid data-filter="${esc(filter)}">${items.map((photo) => mediaTileHtml(photo, shared.has(photoId(photo)), false, !!cover?.mediaId && cover.mediaId === photoId(photo))).join('')}</div>`
+      : '';
+    // Empty only when there is truly nothing: no media and no cover.
+    const body = items.length || cover
+      ? coverHtml(cover, shared) + grid
       : `<div class="cpo-empty" data-cpo-media-empty><i class="fas fa-images"></i><span>${H('cpo_media_empty', 'No photos or videos on this project yet')}</span></div>`;
     const selbar = `
       <div class="cpo-selwrap"><div class="cpo-selbar" data-cpo-selbar role="toolbar" aria-label="${H('cpo_selection_label', 'Selected media')}">
@@ -797,7 +913,13 @@
 
   // Which tiles exist; shared state is synced in place so it can animate.
   function mediaSignature(){
-    return photos().map((photo) => `${photoId(photo)}|${photo?.thumb || photo?.src || ''}`).join('\n');
+    const cover = coverInfo();
+    return [cover ? `cover|${cover.kind}|${cover.mediaId}|${cover.src}` : 'cover|none', ...libraryMedia().map((photo) => `${photoId(photo)}|${photo?.thumb || photo?.src || ''}`)].join('\n');
+  }
+
+  // A project not saved yet (no address) has no portal: the tab is there and says when it will be.
+  function unsavedHtml(){
+    return `<div class="cpo-wrap" data-cpo-unsaved><div class="cpo-card cpo-empty"><i class="fas ${APP_ICON}"></i><strong>${esc(window.Portal?.terminology?.get?.('customer_portal.project_tab', '') || L('m_61f3d0db590ab0', 'Customer Portal'))}</strong><span>${H('cpo_unsaved_text', 'The customer portal is ready once this project is saved. Add an address to get started.')}</span></div></div>`;
   }
 
   function skeletonHtml(){
@@ -806,7 +928,10 @@
       <div class="cpo-wrap">
         <div class="cpo-head" data-app-header>
           <div class="cpo-title"><i class="fas ${APP_ICON}" data-fm-tooltip="${H('cpo_tip_app', 'The customer’s private page for this project. They see the media you share here, plus the documents, schedule and payments their portal includes.')}"></i><strong>${esc(title)}</strong></div>
-          <span class="cpo-sync" data-cpo-sync aria-live="polite"><i class="fas fa-rotate"></i><span>${H('cpo_syncing', 'Syncing')}</span></span>
+          <div class="cpo-head-tools">
+            <span class="cpo-sync" data-cpo-sync aria-live="polite"><i class="fas fa-rotate"></i><span>${H('cpo_syncing', 'Syncing')}</span></span>
+            <a class="cpo-btn primary cpo-head-action" data-cpo-preview aria-disabled="true" aria-label="${H('cpo_preview_button', 'Preview customer portal')}" data-fm-tooltip="${H('cpo_tip_preview', 'Opens exactly what the customer sees, in a new tab. Nothing can be signed, accepted or paid there, and your visit is not recorded in History.')}"><i class="fas fa-eye"></i><span>${H('cpo_preview_button', 'Preview customer portal')}</span></a>
+          </div>
         </div>
         <div data-cpo-error></div>
         <div class="cpo-body">
@@ -860,6 +985,7 @@
       state.mediaSignature = signature;
       slot.innerHTML = mediaCardHtml();
       bindThumbLoading(slot);
+      bindCoverFallbacks(slot);
     }
     syncSelection(root);
   }
@@ -877,7 +1003,7 @@
   }
 
   function syncSelection(root){
-    const valid = new Set(photos().map((photo) => photoId(photo)).filter(Boolean));
+    const valid = new Set(libraryMedia().map((photo) => photoId(photo)).filter(Boolean));
     state.selection.forEach((id) => { if (!valid.has(id)) state.selection.delete(id); });
     const shared = sharedPortalMediaIds();
     let toShare = 0;
@@ -898,8 +1024,20 @@
     });
     const mediaCount = root.querySelector('[data-cpo-media-count]');
     if (mediaCount) {
-      const items = photos();
+      const items = libraryMedia();
       mediaCount.textContent = L('cpo_media_count', '{shared} of {total} shared', { shared: items.filter((photo) => shared.has(photoId(photo))).length, total: items.length });
+    }
+    const coverRow = root.querySelector('[data-cpo-cover]');
+    const coverMedia = coverRow?.dataset.coverMedia || '';
+    if (coverMedia) {
+      const coverShared = shared.has(coverMedia);
+      const chip = coverRow.querySelector('[data-cpo-cover-state]');
+      if (chip && chip.classList.contains('is-shared') !== coverShared) {
+        const info = { mediaId: coverMedia };
+        chip.classList.toggle('is-shared', coverShared);
+        chip.innerHTML = coverStateHtml(info, coverShared);
+        coverRow.setAttribute('data-fm-tooltip', coverTip(info, coverShared));
+      }
     }
     root.querySelector('[data-cpo-grid]')?.classList.toggle('has-selection', state.selection.size > 0);
     root.querySelector('[data-cpo-media]')?.classList.toggle('has-selection', state.selection.size > 0);
@@ -937,6 +1075,16 @@
     state.panelRoot = root;
     injectStyles();
     root.classList.add('cpo-panel');
+    if (!projectId()) {
+      if (!root.querySelector('[data-cpo-unsaved]')) root.innerHTML = unsavedHtml();
+      state.mediaSignature = '';
+      return;
+    }
+    if (root.querySelector('[data-cpo-unsaved]')) {
+      root.innerHTML = '';
+      // The project was just saved: load its portal.
+      queueMicrotask(() => { if (state.active && !state.portal.portal && !state.portal.loading) load({ silent: true }); });
+    }
     if (!root.querySelector('.cpo-wrap')) {
       root.innerHTML = skeletonHtml();
       state.mediaSignature = '';
@@ -951,9 +1099,26 @@
       linkCard.innerHTML = linkCardHtml();
       if (focusKey) linkCard.querySelector(`[${focusKey}]`)?.focus?.({ preventScroll: true });
     }
+    renderPreview(root);
     renderMedia(root);
     renderHistory(root);
     renderStatus();
+  }
+
+  // The header's preview button is part of the skeleton; only its link changes.
+  function renderPreview(root){
+    const button = root.querySelector('[data-cpo-preview]');
+    if (!button) return;
+    const href = portalLinks().preview;
+    if (href) {
+      button.setAttribute('href', href);
+      button.setAttribute('target', '_blank');
+      button.setAttribute('rel', 'noopener');
+      button.removeAttribute('aria-disabled');
+    } else {
+      button.removeAttribute('href');
+      button.setAttribute('aria-disabled', 'true');
+    }
   }
 
   function bindRoot(root){
@@ -991,7 +1156,7 @@
       }
       if (target.matches('[data-cpo-select-all]')) {
         const shared = sharedPortalMediaIds();
-        photos().map((photo) => photoId(photo)).filter(Boolean).forEach((id) => {
+        libraryMedia().map((photo) => photoId(photo)).filter(Boolean).forEach((id) => {
           const visible = state.mediaFilter === 'all' || (state.mediaFilter === 'shared') === shared.has(id);
           if (visible) state.selection.add(id);
         });
@@ -1144,7 +1309,8 @@
     surfaces: ['project_modal'],
     regions: ['main'],
     requiresContext: ['project'],
-    enabled: (context = {}) => context.customerPortalEnabled !== false && !!context.activeProject,
+    // Shown on a draft project too; until it is saved the tab says so (unsavedHtml).
+    enabled: (context = {}) => context.customerPortalEnabled !== false,
     panelHtml,
     mount
   };
@@ -1152,6 +1318,8 @@
   Portal.modules = Portal.modules || {};
   Portal.modules.customerPortalProject = api;
   Portal.ProjectCustomerPortalApp = api;
+
+  window.addEventListener('fm:capabilities:updated', () => { if (state.mounted && state.panelRoot?.isConnected) render(); });
 
   runtime?.registerApp?.(definition);
 })();
