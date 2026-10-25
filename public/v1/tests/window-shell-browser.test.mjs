@@ -97,6 +97,48 @@ test('project weighted layout validates before changes and places trays after al
   }finally{await browser.close();}
 });
 
+test('closing a project split pane restores the remaining pane to full width',async()=>{
+  const browser=await launch();
+  try{
+    const page=await browser.newPage({viewport:{width:1700,height:900}}),errors=[];
+    page.on('pageerror',e=>errors.push(e.message));
+    await page.route('https://shell.test/**',route=>route.fulfill({contentType:'text/html',body:'<body></body>'}));
+    await page.goto('https://shell.test/');
+    await page.setContent('<style>body{margin:0}.r-win{height:800px;width:1600px}.r-right{display:flex;flex-direction:column}.r-preview{flex:1}</style><div class="r-overlay"><section class="r-win"><div class="r-right"><header class="r-window-bar r-modal-header"><span class="r-window-identity">Project</span><nav class="r-tabbar"><button data-tab="map">Overview</button><button data-tab="photos">Photos</button><button data-tab="docs">Docs</button></nav></header><div class="r-preview"></div></div></section></div>');
+    for(const file of ['window-manager/window-shell.js','window-manager/project-layout.js'])await load(page,file);
+    await page.evaluate(()=>{window.tab='map';window.layout=FirstMateProjectLayout.mount({overlay:document.querySelector('.r-overlay'),getProject:()=>({id:'project_test'}),getTab:()=>tab,setTab:value=>{tab=value;}});});
+    const geometry=()=>page.evaluate(()=>{const body=document.querySelector('.r-project-body').getBoundingClientRect(),main=document.querySelector('.r-project-main-pane'),box=main.getBoundingClientRect();return {left:box.left-body.left,right:body.right-box.right,width:box.width,body:body.width,flex:main.style.flex,docked:document.querySelectorAll('.r-project-docked-pane').length,dividers:document.querySelectorAll('.r-project-divider').length};});
+    const assertSingle=async label=>{const g=await geometry();assert.equal(g.docked,0,label);assert.equal(g.dividers,0,label);assert.ok(g.left<1&&g.right<1&&Math.abs(g.width-g.body)<1,`${label}: ${JSON.stringify(g)}`);assert.equal(g.flex,'',label);assert.deepEqual(await page.evaluate(()=>layout.state),[{tab:'map',weight:1}],label);};
+    const split=async(tab,side='Dock right')=>{await page.locator(`.r-tabbar [data-tab=${tab}]`).click({button:'right'});await page.getByRole('menuitem',{name:side,exact:true}).click();};
+    // Split from the tab menu, resize so the main pane's ratio is below half, then close with the pane's X.
+    await split('photos');
+    for(let i=0;i<3;i++)await page.locator('.r-project-divider').press('ArrowLeft');
+    assert.ok((await geometry()).width<700);
+    await page.locator('.r-project-docked-pane .r-project-pane-status button').click();
+    await assertSingle('X close after resize');
+    // Splitting again starts from an even split rather than the cleared ratio.
+    await split('photos','Dock left');
+    let g=await geometry();assert.equal(g.docked,1);assert.ok(Math.abs(g.width/(g.body-6)-.5)<.02,JSON.stringify(g));
+    await page.locator('.r-tabbar [data-tab=photos]').click({button:'right'});
+    await page.getByRole('menuitem',{name:'Close pane',exact:true}).click();
+    await assertSingle('menu unsplit');
+    // A restored (normalized) layout, closed one pane at a time.
+    await page.evaluate(()=>layout.apply([{tab:'photos',weight:1},{tab:'map',weight:2},{tab:'docs',weight:1}]));
+    g=await geometry();assert.equal(g.docked,2);assert.ok(Math.abs(g.width/(g.body-12)-.5)<.02,JSON.stringify(g));
+    await page.locator('.r-project-docked-pane[data-project-pane=docs] .r-project-pane-status button').click();
+    g=await geometry();assert.equal(g.docked,1);assert.ok(Math.abs(g.width/(g.body-6)-2/3)<.02,JSON.stringify(g));
+    await page.locator('.r-project-docked-pane .r-project-pane-status button').click();
+    await assertSingle('restored layout closed');
+    await page.evaluate(()=>layout.apply([{tab:'map',weight:1},{tab:'photos',weight:3}]));
+    await page.evaluate(()=>layout.apply([{tab:'map'}]));
+    await assertSingle('layout unsplit');
+    await split('docs');
+    await page.evaluate(()=>layout.clear());
+    await assertSingle('cleared');
+    assert.deepEqual(errors,[]);
+  }finally{await browser.close();}
+});
+
 test('retained project windows accept pending and layout-only reopen requests',async()=>{
   const browser=await launch();
   try{

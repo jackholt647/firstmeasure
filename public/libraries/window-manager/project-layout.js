@@ -85,6 +85,12 @@ html.project-content-pane .r-overlay.project-layout-prototype .r-contact-context
     }
     function arrange(){
       dividers.forEach(el=>el.remove());dividers=[];
+      // Weights are relative, but flex-grow is absolute: grows summing below 1
+      // leave free space unfilled (a lone pane at weight .5 stops at half width).
+      // Rescale to an average of 1; a lone pane drops its split ratio entirely.
+      const total=order.reduce((sum,p)=>sum+p.weight,0);
+      for(const item of order)item.weight=order.length===1||!(total>0)?1:item.weight*order.length/total;
+      if(order.length===1){const lone=order[0].element;lone.style.removeProperty('order');lone.style.removeProperty('flex');updateSelection();root.dispatchEvent(new Event('resize'));return;}
       order.forEach((item,i)=>{item.element.style.order=String(i*2);item.element.style.flex=`${item.weight} 1 0px`;if(i===order.length-1)return;
         const divider=document.createElement('div');divider.className='r-project-divider';divider.tabIndex=0;divider.role='separator';divider.setAttribute('aria-orientation','vertical');divider.setAttribute('aria-label',(globalThis.PlatformLanguage?.text("window-manager","resize_swap_panes","Resize panes; double-click to swap") ?? "Resize panes; double-click to swap"));divider.setAttribute('aria-valuemin','15');divider.setAttribute('aria-valuemax','85');divider.setAttribute('aria-valuenow',String(Math.round(100*item.weight/(item.weight+order[i+1].weight))));divider.style.order=String(i*2+1);body.append(divider);dividers.push(divider);
         const resize=ratio=>{const total=item.weight+order[i+1].weight;ratio=Math.max(.15,Math.min(.85,ratio));item.weight=total*ratio;order[i+1].weight=total*(1-ratio);item.element.style.flex=`${item.weight} 1 0px`;order[i+1].element.style.flex=`${order[i+1].weight} 1 0px`;divider.setAttribute('aria-valuenow',String(Math.round(ratio*100)));root.dispatchEvent(new Event('resize'));};

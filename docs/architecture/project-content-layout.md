@@ -170,6 +170,8 @@ Removed contracts: `project_modal_region_app`, the dynamic left-region registry/
 
 Each docked tab still has its own owned document for legacy app isolation. Realtime transport is shared with its owning portal; do not introduce another independent stream per pane.
 
+Pane weights are relative. `project-layout.js` rescales them to average 1 on every arrangement, so a layout restored with normalized weights or a dragged divider never leaves free space; when the last docked pane closes (its X, Close pane in the tab menu, a single-pane layout, the docked document closing, or `clear()`), the remaining pane drops its inline flex and ratio and fills the window. Splitting again starts even.
+
 Projects and Contacts share the [entity window shell](window-shell.md). Its optional persistent sidebar is declared by Contacts; Projects declare none and keep the content ownership above.
 
 ## Overview entry workflows and project trays
